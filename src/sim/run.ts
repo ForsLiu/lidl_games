@@ -1,0 +1,436 @@
+/**
+ * The run driver: fixed 60 Hz timestep, phase machine, Warden control,
+ * end-state hashing. A run is fully determined by RunConfig + input log.
+ */
+
+import { GATES, GRID_H, GRID_W, coreCenter } from './grid';
+import { Hasher } from './hash';
+import { clamp, dist2, normalize } from './math';
+import { BASE } from './stats';
+import {
+  damageEnemy,
+  effectiveSpeed,
+  setWardenDamageHandler,
+  spawnEnemy,
+  updateEnemies,
+} from './enemies';
+import { FIXED_DT, emptyInput, type Command, type RunOutcome, type RunReport, type TickInput } from './types';
+import { World } from './world';
+import type { RunConfig } from './types';
+
+export class Run {
+  readonly world: World;
+  private input: TickInput = emptyInput();
+
+  constructor(cfg: RunConfig) {
+    this.world = new World(cfg);
+    setWardenDamageHandler(damageWarden);
+  }
+
+  get done(): boolean {
+    return this.world.outcome !== 'running';
+  }
+
+  step(input: TickInput = emptyInput()): void {
+    if (this.done) return;
+    const w = this.world;
+    this.input = input;
+    w.fx.length = 0;
+    w.tick++;
+
+    for (const c of input.cmds) applyCommand(w, c);
+
+    w.rebuildBuckets();
+    w.grid.refresh();
+
+    const dt = FIXED_DT;
+    switch (w.phase) {
+      case 'act1_build':
+        updateWarden(w, input, dt);
+        updateAct1Build(w, dt);
+        w.act1Ticks++;
+        break;
+      case 'act1_wave':
+        updateWarden(w, input, dt);
+        updateAct1Wave(w, dt);
+        w.act1Ticks++;
+        break;
+      case 'dusk':
+        updateWarden(w, input, dt);
+        w.duskTimer -= dt;
+        w.act1Ticks++;
+        break;
+      case 'soulpick':
+        break;
+      case 'act2':
+        w.updateNav();
+        updateWarden(w, input, dt);
+        updateEnemies(w, dt);
+        w.act2Time += dt;
+        w.act2Ticks++;
+        break;
+      case 'levelup':
+        break;
+      case 'results':
+        break;
+    }
+
+    w.compact();
+    checkDefeat(w);
+  }
+
+  /** Advance until the run resolves or `maxTicks` elapse. */
+  runUntilEnd(provider: (tick: number) => TickInput, maxTicks = 60 * 60 * 60): void {
+    while (!this.done && this.world.tick < maxTicks) {
+      this.step(provider(this.world.tick));
+    }
+  }
+
+  get lastInput(): TickInput {
+    return this.input;
+  }
+
+  hash(): string {
+    return hashWorld(this.world);
+  }
+
+  report(): RunReport {
+    return buildReport(this.world);
+  }
+}
+
+/* ---------------------------------------------------------------- commands */
+
+export function applyCommand(w: World, c: Command): void {
+  switch (c.k) {
+    case 'call':
+      if (w.phase === 'act1_build') w.buildTimer = 0;
+      break;
+    default:
+      // Build/sell/upgrade land in M1, soul/pick in M2+.
+      break;
+  }
+}
+
+/* ------------------------------------------------------------------ warden */
+
+export function updateWarden(w: World, input: TickInput, dt: number): void {
+  const wd = w.warden;
+  const d = w.derived;
+
+  if (wd.dashCooldown > 0) {
+    wd.dashCooldown -= dt;
+    if (wd.dashCooldown <= 0 && wd.dashCharges < d.dashCharges) {
+      wd.dashCharges++;
+      if (wd.dashCharges < d.dashCharges) wd.dashCooldown = BASE.dashCooldown * (1 - d.cdr);
+    }
+  }
+  if (wd.dashIFrames > 0) wd.dashIFrames -= dt;
+  if (wd.attackCooldown > 0) wd.attackCooldown -= dt;
+  wd.outOfCombat += dt;
+
+  const n = normalize(input.mx, input.my);
+  if (n.x !== 0 || n.y !== 0) {
+    wd.fx = n.x;
+    wd.fy = n.y;
+  }
+
+  if (input.dash && wd.dashCharges > 0 && (n.x !== 0 || n.y !== 0)) {
+    wd.dashCharges--;
+    if (wd.dashCooldown <= 0) wd.dashCooldown = BASE.dashCooldown * (1 - d.cdr);
+    wd.dashIFrames = BASE.dashIFrames;
+    blinkWarden(w, n.x * BASE.dashDistance, n.y * BASE.dashDistance);
+    w.emit('dash', wd.x, wd.y, n.x, n.y);
+  }
+
+  const speed = d.moveSpeed;
+  moveWarden(w, n.x * speed * dt, n.y * speed * dt);
+
+  // Regen: out of combat only during Act I, always in Act II (SPEC 2.1).
+  const regenOk = w.huntsWarden || wd.outOfCombat >= BASE.outOfCombatSeconds;
+  if (regenOk && wd.hp < d.maxHp) {
+    wd.hp = Math.min(d.maxHp, wd.hp + d.hpRegen * dt);
+  }
+
+  if (wd.leechAccumulator > 0) {
+    const heal = Math.min(wd.leechAccumulator, BASE.leechCapPerSecond * dt);
+    wd.leechAccumulator -= heal;
+    wd.hp = Math.min(d.maxHp, wd.hp + heal);
+  }
+
+  if (input.attack && !w.huntsWarden) manualAttack(w, input, dt);
+}
+
+function moveWarden(w: World, dx: number, dy: number): void {
+  const wd = w.warden;
+  let nx = wd.x + dx;
+  let ny = wd.y + dy;
+  if (!walkable(w, nx, wd.y)) nx = wd.x;
+  if (!walkable(w, wd.x, ny)) ny = wd.y;
+  if (nx !== wd.x && ny !== wd.y && !walkable(w, nx, ny)) ny = wd.y;
+  wd.x = clamp(nx, 0.4, GRID_W - 0.4);
+  wd.y = clamp(ny, 0.4, GRID_H - 0.4);
+}
+
+/** Dash is a blink-step: it ignores terrain, but must land somewhere legal. */
+function blinkWarden(w: World, dx: number, dy: number): void {
+  const wd = w.warden;
+  const tx = clamp(wd.x + dx, 0.4, GRID_W - 0.4);
+  const ty = clamp(wd.y + dy, 0.4, GRID_H - 0.4);
+  if (walkable(w, tx, ty)) {
+    wd.x = tx;
+    wd.y = ty;
+    return;
+  }
+  // Walk the dash line backwards until a legal tile appears.
+  for (let s = 0.9; s > 0; s -= 0.1) {
+    const px = clamp(wd.x + dx * s, 0.4, GRID_W - 0.4);
+    const py = clamp(wd.y + dy * s, 0.4, GRID_H - 0.4);
+    if (walkable(w, px, py)) {
+      wd.x = px;
+      wd.y = py;
+      return;
+    }
+  }
+}
+
+function walkable(w: World, x: number, y: number): boolean {
+  const tx = Math.floor(x);
+  const ty = Math.floor(y);
+  if (tx < 0 || ty < 0 || tx >= GRID_W || ty >= GRID_H) return false;
+  return w.grid.passable(tx, ty);
+}
+
+function manualAttack(w: World, input: TickInput, _dt: number): void {
+  const wd = w.warden;
+  if (wd.attackCooldown > 0) return;
+  const cls = w.content.classByKey.get(w.cfg.classKey);
+  if (!cls) return;
+  const a = cls.manualAttack;
+  const range = a.range;
+  let target = w.nearestEnemy(input.aimX, input.aimY, 1.5);
+  if (!target || dist2(target.x, target.y, wd.x, wd.y) > range * range) {
+    target = w.nearestEnemy(wd.x, wd.y, range);
+  }
+  if (!target) return;
+  wd.attackCooldown = a.interval / w.derived.attackSpeedMul;
+  const dmg = a.dps * a.interval * w.derived.powerMul;
+  damageEnemy(w, target, dmg, 'manual', { fromX: wd.x, fromY: wd.y });
+  w.emit('manual', wd.x, wd.y, target.x, target.y);
+}
+
+export function damageWarden(w: World, amount: number): void {
+  const wd = w.warden;
+  if (wd.dashIFrames > 0) return;
+  const dmg = amount * (1 - w.derived.damageReduction);
+  wd.hp -= dmg;
+  wd.outOfCombat = 0;
+  w.emit('wardenhit', wd.x, wd.y, dmg, 0);
+  if (wd.hp <= 0) {
+    if (w.derived.secondWind && !wd.secondWindUsed) {
+      wd.secondWindUsed = true;
+      wd.hp = w.derived.maxHp * 0.3;
+      w.emit('secondwind', wd.x, wd.y, 0, 0);
+      return;
+    }
+    wd.hp = 0;
+    if (w.huntsWarden) {
+      w.outcome = 'defeat_warden';
+    } else {
+      // Act I stakes live on the Core: a downed Warden reforms at the Core.
+      wd.hp = w.derived.maxHp * 0.5;
+      const c = coreCenter();
+      wd.x = c.x - 2;
+      wd.y = c.y;
+      wd.dashIFrames = 2;
+      w.emit('reform', wd.x, wd.y, 0, 0);
+    }
+  }
+}
+
+/* ------------------------------------------------------------------ Act I */
+
+function updateAct1Build(w: World, dt: number): void {
+  if (w.buildTimer > 0) {
+    w.buildTimer -= dt;
+    return;
+  }
+  startWave(w);
+}
+
+export function startWave(w: World): void {
+  w.wave++;
+  w.phase = 'act1_wave';
+  w.spawnQueue = buildSpawnQueue(w, w.wave);
+  w.spawnTimer = 0;
+}
+
+function buildSpawnQueue(w: World, wave: number): number[][] {
+  const content = w.content;
+  const table = content.waves.waves;
+  // Waves past the authored table (Long Watch modifier) repeat the last entry
+  // with continued HP scaling.
+  const def = table[Math.min(wave, table.length) - 1];
+  const queue: number[][] = [];
+  const gateCount = w.gates.length;
+  for (const g of def.groups) {
+    const e = content.enemyByKey.get(g.enemy)!;
+    if (g.total !== undefined) {
+      for (let i = 0; i < g.total; i++) queue.push([e.id, i % gateCount]);
+    } else {
+      const per = g.perGate ?? 0;
+      for (let i = 0; i < per; i++) {
+        for (let gi = 0; gi < gateCount; gi++) queue.push([e.id, gi]);
+      }
+    }
+  }
+  return w.rng.waves.shuffle(queue);
+}
+
+export function waveHpScale(w: World, wave: number): number {
+  return Math.pow(w.content.waves.hpScalePerWave, wave - 1);
+}
+
+function updateAct1Wave(w: World, dt: number): void {
+  const content = w.content;
+  if (w.spawnQueue.length > 0) {
+    w.spawnTimer -= dt;
+    while (w.spawnTimer <= 0 && w.spawnQueue.length > 0) {
+      w.spawnTimer += content.waves.spawnIntervalSeconds;
+      const [defId, gateIdx] = w.spawnQueue.shift()!;
+      const def = content.enemyById.get(defId)!;
+      const gate = w.gates[gateIdx] ?? GATES[0];
+      const jitterX = w.rng.spawns.range(-0.25, 0.25);
+      const jitterY = w.rng.spawns.range(-0.25, 0.25);
+      spawnEnemy(w, def.key, gate.tx + 0.5 + jitterX, gate.ty + 0.5 + jitterY, {
+        hpMul: waveHpScale(w, w.wave),
+        gate: gateIdx,
+        overlay: false,
+      });
+    }
+  }
+
+  updateEnemies(w, dt);
+
+  if (w.spawnQueue.length === 0 && w.enemies.length === 0) {
+    completeWave(w);
+  }
+}
+
+function completeWave(w: World): void {
+  const c = w.content.waves;
+  const bonus = Math.round(
+    (c.waveClearBase + c.waveClearPerWave * w.wave) * (1 + w.derived.goldFind),
+  );
+  w.gold += bonus;
+  w.goldEarned += bonus;
+  w.wavesCleared++;
+  w.emit('waveclear', 0, 0, w.wave, bonus);
+
+  if (w.wave >= w.waveCount) {
+    w.phase = 'dusk';
+    w.duskTimer = 15;
+  } else {
+    w.phase = 'act1_build';
+    w.buildTimer = w.mods.buildPhase || c.buildPhaseSeconds;
+  }
+}
+
+/* ----------------------------------------------------------------- defeat */
+
+function checkDefeat(w: World): void {
+  if (w.outcome !== 'running') return;
+  if (w.coreHp <= 0 && !w.huntsWarden && w.phase !== 'results') {
+    w.coreHp = 0;
+    w.outcome = 'defeat_core';
+    w.phase = 'results';
+  }
+}
+
+/* ------------------------------------------------------------------- hash */
+
+export function hashWorld(w: World): string {
+  const h = new Hasher();
+  h.int(w.tick).int(w.phase.length).str(w.phase).str(w.outcome);
+  h.num(w.coreHp).num(w.gold).int(w.wave).int(w.kills).int(w.leaks);
+  h.num(w.warden.x).num(w.warden.y).num(w.warden.hp);
+  h.int(w.level).num(w.xp);
+  h.num(w.act2Time);
+  h.int(w.enemies.length);
+  for (const e of w.enemies) {
+    h.int(e.id).int(e.defId).num(e.x).num(e.y).num(e.hp).num(effectiveSpeed(e));
+  }
+  h.int(w.structures.length);
+  for (const s of w.structures) {
+    h.int(s.id).int(s.towerId).int(s.tier).int(s.tx).int(s.ty).num(s.hp).bool(s.petrified);
+  }
+  h.int(w.projectiles.length);
+  for (const p of w.projectiles) h.int(p.id).num(p.x).num(p.y).num(p.damage);
+  h.int(w.gems.length);
+  for (const g of w.gems) h.int(g.id).num(g.x).num(g.y).num(g.value);
+  h.int(w.areas.length);
+  for (const a of w.areas) h.int(a.id).num(a.x).num(a.y).num(a.remaining);
+  for (const wp of w.weapons) h.str(wp.key).int(wp.level).num(wp.damageBonus);
+  const boonKeys = Object.keys(w.boonRanks).sort();
+  for (const k of boonKeys) h.str(k).int(w.boonRanks[k]);
+  const st = w.rng.getState();
+  h.int(st.waves).int(st.spawns).int(st.drops).int(st.offers).int(st.ai);
+  h.num(w.damageTotal);
+  return h.hex();
+}
+
+/* ----------------------------------------------------------------- report */
+
+export function buildReport(w: World): RunReport {
+  const damageByWeapon: Record<string, number> = {};
+  for (const k of Object.keys(w.damageByWeapon).sort()) damageByWeapon[k] = w.damageByWeapon[k];
+  return {
+    seed: w.cfg.seed,
+    policy: w.cfg.policy ?? 'none',
+    classKey: w.cfg.classKey,
+    tier: w.cfg.tier,
+    modifiers: w.modKeys,
+    outcome: w.outcome,
+    ticks: w.tick,
+    totalSeconds: round2(w.tick / 60),
+    act1Seconds: round2(w.act1Ticks / 60),
+    act2Seconds: round2(w.act2Ticks / 60),
+    wavesCleared: w.wavesCleared,
+    coreHp: round2(w.coreHp),
+    coreMaxHp: w.coreMaxHp,
+    goldEarned: w.goldEarned,
+    goldSpent: w.goldSpent,
+    goldLeft: w.gold,
+    towersBuilt: w.towersBuilt,
+    towersByKey: { ...w.towersByKey },
+    survivalSeconds: round2(w.act2Time),
+    level: w.level,
+    kills: w.kills,
+    leaks: w.leaks,
+    damageByWeapon,
+    damageTotal: round2(w.damageTotal),
+    weapons: w.weapons.map((x) => ({
+      key: x.key,
+      level: x.level,
+      damageBonus: round2(x.damageBonus),
+      awakened: x.awakened,
+    })),
+    boons: { ...w.boonRanks },
+    relicsFound: w.relicsFound.length,
+    orbsFound: w.orbsFound.length,
+    ember: 0,
+    bossKilled: w.bossKilled,
+    bossKillSeconds: round2(w.bossKillTime),
+    endHash: hashWorld(w),
+  };
+}
+
+function round2(v: number): number {
+  return Math.round(v * 100) / 100;
+}
+
+export function outcomeOf(w: World): RunOutcome {
+  return w.outcome;
+}
+
+export { GRID_H };

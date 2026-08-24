@@ -1,0 +1,12 @@
+{
+  "quests": [
+    { "key": "win_a_run",         "name": "First Dawn",         "desc": "Win a run",                                "metric": "wins",               "target": 1,    "compare": "gte", "reward": { "kind": "class",    "value": "pyromancer" } },
+    { "key": "build_40_obelisks", "name": "Winter Architect",   "desc": "Build 40 Frost Obelisks lifetime",         "metric": "built_frost_obelisk","target": 40,   "compare": "gte", "reward": { "kind": "class",    "value": "frost_warden" } },
+    { "key": "four_slot_win",     "name": "Ascetic",            "desc": "Win using at most 4 weapon slots",         "metric": "wins_max4slots",     "target": 1,    "compare": "gte", "reward": { "kind": "feature",  "value": "keystone_respec" } },
+    { "key": "fast_boss",         "name": "Ninety Seconds",     "desc": "Kill the Warden-Eater in under 90 s",      "metric": "fastest_boss_kill",  "target": 90,   "compare": "lte", "reward": { "kind": "cosmetic", "value": "heartstone_skin" } },
+    { "key": "tier5",             "name": "Vale Conqueror",     "desc": "Win a Tier 5 map",                         "metric": "wins_t5",            "target": 1,    "compare": "gte", "reward": { "kind": "cosmetic", "value": "crown_of_the_vale" } },
+    { "key": "hoarder",           "name": "Hoarder",            "desc": "Bank 5000 gold across all runs",           "metric": "lifetime_gold",      "target": 5000, "compare": "gte", "reward": { "kind": "passive",  "value": "start_gold_25" } },
+    { "key": "maze_master",       "name": "Maze Master",        "desc": "Finish a run with 60+ Palisades standing", "metric": "max_palisades_end",  "target": 60,   "compare": "gte", "reward": { "kind": "passive",  "value": "wall_hp_10" } },
+    { "key": "archivist",         "name": "Archivist",          "desc": "Own 3 Rare relics at once",                "metric": "max_rare_relics",    "target": 3,    "compare": "gte", "reward": { "kind": "feature",  "value": "stash_plus_8" } }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "classes": [
+    {
+      "key": "engineer", "name": "Engineer", "unlockedByDefault": true, "unlockQuest": null,
+      "trait": "Towers cost -10%; build range +1",
+      "mods": { "towerCost": -0.10, "buildRange": 1, "burnDamage": 0, "burnSpread": 0, "slowPotency": 0, "chilledDamageTaken": 0 },
+      "signatureTower": "tesla_coil",
+      "manualAttack": { "name": "Thrown Spanner", "dps": 8, "range": 4, "interval": 0.8 }
+    },
+    {
+      "key": "pyromancer", "name": "Pyromancer", "unlockedByDefault": false, "unlockQuest": "win_a_run",
+      "trait": "Burn damage +15%; burns spread 1 hop",
+      "mods": { "towerCost": 0, "buildRange": 0, "burnDamage": 0.15, "burnSpread": 1, "slowPotency": 0, "chilledDamageTaken": 0 },
+      "signatureTower": "ember_brazier",
+      "manualAttack": { "name": "Firebolt", "dps": 8, "range": 5, "interval": 0.9 }
+    },
+    {
+      "key": "frost_warden", "name": "Frost Warden", "unlockedByDefault": false, "unlockQuest": "build_40_obelisks",
+      "trait": "Slows 10% stronger; chilled enemies deal -10% damage",
+      "mods": { "towerCost": 0, "buildRange": 0, "burnDamage": 0, "burnSpread": 0, "slowPotency": 0.10, "chilledDamageTaken": -0.10 },
+      "signatureTower": "frost_obelisk",
+      "manualAttack": { "name": "Frost Jab", "dps": 8, "range": 2.5, "interval": 0.6 }
+    }
+  ]
+}

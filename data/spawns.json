@@ -1,0 +1,202 @@
+{
+  "budgetBase": 30,
+  "budgetGrowthPerMinute": 1.15,
+  "directorIntervalSeconds": 10,
+  "aliveCap": 350,
+  "hpOverlay": 0.6,
+  "speedOverlay": 1.2,
+  "hpScalePerMinute": 1.1,
+  "eliteIntervalSeconds": 90,
+  "riftTimes": [
+    180,
+    360,
+    540
+  ],
+  "riftBudgetMultiplier": 6,
+  "bossTimeSeconds": 600,
+  "spawnDistance": 16,
+  "costs": {
+    "husk": 3,
+    "sprinter": 3,
+    "swarm_rat": 2,
+    "bulwark": 8,
+    "spitter": 6,
+    "gale_imp": 6,
+    "mender": 8,
+    "splitling": 6,
+    "shellback": 8,
+    "bomber": 7,
+    "warlock": 9,
+    "burrower": 8,
+    "charger": 8,
+    "frostkin": 7,
+    "cinderling": 7,
+    "wraith": 9,
+    "colossus": 60,
+    "herald": 55
+  },
+  "weightsByMinute": [
+    {
+      "minute": 0,
+      "weights": {
+        "husk": 50,
+        "sprinter": 30,
+        "swarm_rat": 20
+      }
+    },
+    {
+      "minute": 1,
+      "weights": {
+        "husk": 40,
+        "sprinter": 25,
+        "swarm_rat": 20,
+        "spitter": 10,
+        "bomber": 5
+      }
+    },
+    {
+      "minute": 2,
+      "weights": {
+        "husk": 30,
+        "sprinter": 20,
+        "swarm_rat": 20,
+        "spitter": 12,
+        "bomber": 8,
+        "bulwark": 10
+      }
+    },
+    {
+      "minute": 3,
+      "weights": {
+        "husk": 22,
+        "sprinter": 18,
+        "swarm_rat": 18,
+        "spitter": 12,
+        "bomber": 8,
+        "bulwark": 10,
+        "gale_imp": 6,
+        "splitling": 6
+      }
+    },
+    {
+      "minute": 4,
+      "weights": {
+        "husk": 18,
+        "sprinter": 15,
+        "swarm_rat": 15,
+        "spitter": 10,
+        "bomber": 8,
+        "bulwark": 10,
+        "gale_imp": 7,
+        "splitling": 7,
+        "shellback": 5,
+        "frostkin": 5
+      }
+    },
+    {
+      "minute": 5,
+      "weights": {
+        "husk": 14,
+        "sprinter": 13,
+        "swarm_rat": 13,
+        "spitter": 10,
+        "bomber": 8,
+        "bulwark": 10,
+        "gale_imp": 7,
+        "splitling": 7,
+        "shellback": 6,
+        "frostkin": 5,
+        "cinderling": 5,
+        "charger": 5
+      }
+    },
+    {
+      "minute": 6,
+      "weights": {
+        "husk": 12,
+        "sprinter": 12,
+        "swarm_rat": 12,
+        "spitter": 9,
+        "bomber": 8,
+        "bulwark": 10,
+        "gale_imp": 7,
+        "splitling": 7,
+        "shellback": 6,
+        "frostkin": 5,
+        "cinderling": 5,
+        "charger": 6,
+        "warlock": 5,
+        "burrower": 5
+      }
+    },
+    {
+      "minute": 7,
+      "weights": {
+        "husk": 10,
+        "sprinter": 10,
+        "swarm_rat": 12,
+        "spitter": 8,
+        "bomber": 8,
+        "bulwark": 10,
+        "gale_imp": 7,
+        "splitling": 8,
+        "shellback": 7,
+        "frostkin": 6,
+        "cinderling": 6,
+        "charger": 6,
+        "warlock": 6,
+        "burrower": 6,
+        "wraith": 6,
+        "mender": 4
+      }
+    },
+    {
+      "minute": 8,
+      "weights": {
+        "husk": 8,
+        "sprinter": 9,
+        "swarm_rat": 12,
+        "spitter": 8,
+        "bomber": 8,
+        "bulwark": 11,
+        "gale_imp": 7,
+        "splitling": 8,
+        "shellback": 8,
+        "frostkin": 6,
+        "cinderling": 6,
+        "charger": 7,
+        "warlock": 6,
+        "burrower": 7,
+        "wraith": 7,
+        "mender": 5
+      }
+    },
+    {
+      "minute": 9,
+      "weights": {
+        "husk": 6,
+        "sprinter": 8,
+        "swarm_rat": 12,
+        "spitter": 8,
+        "bomber": 9,
+        "bulwark": 12,
+        "gale_imp": 8,
+        "splitling": 8,
+        "shellback": 9,
+        "frostkin": 7,
+        "cinderling": 7,
+        "charger": 8,
+        "warlock": 7,
+        "burrower": 8,
+        "wraith": 8,
+        "mender": 5
+      }
+    }
+  ],
+  "eliteWeights": {
+    "colossus": 50,
+    "herald": 50
+  },
+  "contactInterval": 1,
+  "contactPadding": 0.35
+}

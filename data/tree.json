@@ -1,0 +1,2130 @@
+{
+ "maxAccountLevel": 60,
+ "emberBase": 100,
+ "respecCostPerNode": 5,
+ "pointsPerLevel": 1,
+ "nodes": [
+  {
+   "id": 0,
+   "branch": "start",
+   "kind": "start",
+   "name": "The Wake",
+   "desc": "Where every path begins.",
+   "stats": {},
+   "x": 0,
+   "y": 0,
+   "links": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    41,
+    42,
+    43,
+    44,
+    45,
+    81,
+    82,
+    83,
+    84,
+    85
+   ]
+  },
+  {
+   "id": 1,
+   "branch": "bastion",
+   "kind": "small",
+   "name": "Buttress",
+   "desc": "",
+   "stats": {
+    "wallHp": 0.15
+   },
+   "x": -0.99,
+   "y": -2.19,
+   "links": [
+    0,
+    6
+   ]
+  },
+  {
+   "id": 2,
+   "branch": "bastion",
+   "kind": "small",
+   "name": "Reinforced Struts",
+   "desc": "",
+   "stats": {
+    "towerDamage": 0.03
+   },
+   "x": -0.51,
+   "y": -2.35,
+   "links": [
+    0,
+    7
+   ]
+  },
+  {
+   "id": 3,
+   "branch": "bastion",
+   "kind": "small",
+   "name": "Long Sightlines",
+   "desc": "",
+   "stats": {
+    "towerRange": 0.03
+   },
+   "x": 0,
+   "y": -2.4,
+   "links": [
+    0,
+    8
+   ]
+  },
+  {
+   "id": 4,
+   "branch": "bastion",
+   "kind": "small",
+   "name": "Quarry Rights",
+   "desc": "",
+   "stats": {
+    "towerCost": -0.02
+   },
+   "x": 0.51,
+   "y": -2.35,
+   "links": [
+    0,
+    9
+   ]
+  },
+  {
+   "id": 5,
+   "branch": "bastion",
+   "kind": "notable",
+   "name": "Watchtowers",
+   "desc": "Tower range +10%, build range +1",
+   "stats": {
+    "towerRange": 0.1,
+    "buildRange": 1
+   },
+   "x": 0.99,
+   "y": -2.19,
+   "links": [
+    0,
+    10
+   ],
+   "key": "watchtowers"
+  },
+  {
+   "id": 6,
+   "branch": "bastion",
+   "kind": "small",
+   "name": "Drilled Crews",
+   "desc": "",
+   "stats": {
+    "attackSpeed": 0.03
+   },
+   "x": -1.33,
+   "y": -3.13,
+   "links": [
+    1,
+    7,
+    11
+   ]
+  },
+  {
+   "id": 7,
+   "branch": "bastion",
+   "kind": "small",
+   "name": "Buttress",
+   "desc": "",
+   "stats": {
+    "wallHp": 0.15
+   },
+   "x": -0.68,
+   "y": -3.33,
+   "links": [
+    2,
+    6,
+    8,
+    12
+   ]
+  },
+  {
+   "id": 8,
+   "branch": "bastion",
+   "kind": "notable",
+   "key": "overseer",
+   "name": "Overseer",
+   "desc": "Beacon auras +1 radius",
+   "stats": {
+    "beaconRadius": 1
+   },
+   "x": 0,
+   "y": -3.4,
+   "links": [
+    3,
+    7,
+    9,
+    13
+   ]
+  },
+  {
+   "id": 9,
+   "branch": "bastion",
+   "kind": "small",
+   "name": "Long Sightlines",
+   "desc": "",
+   "stats": {
+    "towerRange": 0.03
+   },
+   "x": 0.68,
+   "y": -3.33,
+   "links": [
+    4,
+    8,
+    10,
+    14
+   ]
+  },
+  {
+   "id": 10,
+   "branch": "bastion",
+   "kind": "small",
+   "name": "Quarry Rights",
+   "desc": "",
+   "stats": {
+    "towerCost": -0.02
+   },
+   "x": 1.33,
+   "y": -3.13,
+   "links": [
+    5,
+    9,
+    15
+   ]
+  },
+  {
+   "id": 11,
+   "branch": "bastion",
+   "kind": "small",
+   "name": "Corestone",
+   "desc": "",
+   "stats": {
+    "coreHp": 25
+   },
+   "x": -1.62,
+   "y": -4.09,
+   "links": [
+    6,
+    12,
+    16
+   ]
+  },
+  {
+   "id": 12,
+   "branch": "bastion",
+   "kind": "small",
+   "name": "Drilled Crews",
+   "desc": "",
+   "stats": {
+    "attackSpeed": 0.03
+   },
+   "x": -0.83,
+   "y": -4.32,
+   "links": [
+    7,
+    11,
+    13,
+    17
+   ]
+  },
+  {
+   "id": 13,
+   "branch": "bastion",
+   "kind": "small",
+   "name": "Buttress",
+   "desc": "",
+   "stats": {
+    "wallHp": 0.15
+   },
+   "x": 0,
+   "y": -4.4,
+   "links": [
+    8,
+    12,
+    14,
+    18
+   ]
+  },
+  {
+   "id": 14,
+   "branch": "bastion",
+   "kind": "small",
+   "name": "Reinforced Struts",
+   "desc": "",
+   "stats": {
+    "towerDamage": 0.03
+   },
+   "x": 0.83,
+   "y": -4.32,
+   "links": [
+    9,
+    13,
+    15,
+    19
+   ]
+  },
+  {
+   "id": 15,
+   "branch": "bastion",
+   "kind": "notable",
+   "name": "Heart of Stone",
+   "desc": "Core +150 HP",
+   "stats": {
+    "coreHp": 150
+   },
+   "x": 1.62,
+   "y": -4.09,
+   "links": [
+    10,
+    14,
+    20
+   ],
+   "key": "heart_of_stone"
+  },
+  {
+   "id": 16,
+   "branch": "bastion",
+   "kind": "small",
+   "name": "Quarry Rights",
+   "desc": "",
+   "stats": {
+    "towerCost": -0.02
+   },
+   "x": -1.87,
+   "y": -5.06,
+   "links": [
+    11,
+    17,
+    21
+   ]
+  },
+  {
+   "id": 17,
+   "branch": "bastion",
+   "kind": "small",
+   "name": "Corestone",
+   "desc": "",
+   "stats": {
+    "coreHp": 25
+   },
+   "x": -0.95,
+   "y": -5.32,
+   "links": [
+    12,
+    16,
+    18,
+    22
+   ]
+  },
+  {
+   "id": 18,
+   "branch": "bastion",
+   "kind": "notable",
+   "key": "deep_foundations",
+   "name": "Deep Foundations",
+   "desc": "Walls have double HP",
+   "stats": {
+    "wallHp": 1
+   },
+   "x": 0,
+   "y": -5.4,
+   "links": [
+    13,
+    17,
+    19,
+    23
+   ]
+  },
+  {
+   "id": 19,
+   "branch": "bastion",
+   "kind": "small",
+   "name": "Buttress",
+   "desc": "",
+   "stats": {
+    "wallHp": 0.15
+   },
+   "x": 0.95,
+   "y": -5.32,
+   "links": [
+    14,
+    18,
+    20,
+    24
+   ]
+  },
+  {
+   "id": 20,
+   "branch": "bastion",
+   "kind": "small",
+   "name": "Reinforced Struts",
+   "desc": "",
+   "stats": {
+    "towerDamage": 0.03
+   },
+   "x": 1.87,
+   "y": -5.06,
+   "links": [
+    15,
+    19,
+    25
+   ]
+  },
+  {
+   "id": 21,
+   "branch": "bastion",
+   "kind": "small",
+   "name": "Long Sightlines",
+   "desc": "",
+   "stats": {
+    "towerRange": 0.03
+   },
+   "x": -2.08,
+   "y": -6.05,
+   "links": [
+    16,
+    22,
+    26
+   ]
+  },
+  {
+   "id": 22,
+   "branch": "bastion",
+   "kind": "small",
+   "name": "Quarry Rights",
+   "desc": "",
+   "stats": {
+    "towerCost": -0.02
+   },
+   "x": -1.05,
+   "y": -6.31,
+   "links": [
+    17,
+    21,
+    23,
+    27
+   ]
+  },
+  {
+   "id": 23,
+   "branch": "bastion",
+   "kind": "small",
+   "name": "Corestone",
+   "desc": "",
+   "stats": {
+    "coreHp": 25
+   },
+   "x": 0,
+   "y": -6.4,
+   "links": [
+    18,
+    22,
+    24,
+    28
+   ]
+  },
+  {
+   "id": 24,
+   "branch": "bastion",
+   "kind": "small",
+   "name": "Drilled Crews",
+   "desc": "",
+   "stats": {
+    "attackSpeed": 0.03
+   },
+   "x": 1.05,
+   "y": -6.31,
+   "links": [
+    19,
+    23,
+    25,
+    29
+   ]
+  },
+  {
+   "id": 25,
+   "branch": "bastion",
+   "kind": "small",
+   "name": "Buttress",
+   "desc": "",
+   "stats": {
+    "wallHp": 0.15
+   },
+   "x": 2.08,
+   "y": -6.05,
+   "links": [
+    20,
+    24,
+    30
+   ]
+  },
+  {
+   "id": 26,
+   "branch": "bastion",
+   "kind": "small",
+   "name": "Reinforced Struts",
+   "desc": "",
+   "stats": {
+    "towerDamage": 0.03
+   },
+   "x": -2.24,
+   "y": -7.05,
+   "links": [
+    21,
+    27,
+    31
+   ]
+  },
+  {
+   "id": 27,
+   "branch": "bastion",
+   "kind": "small",
+   "name": "Long Sightlines",
+   "desc": "",
+   "stats": {
+    "towerRange": 0.03
+   },
+   "x": -1.13,
+   "y": -7.31,
+   "links": [
+    22,
+    26,
+    28,
+    32
+   ]
+  },
+  {
+   "id": 28,
+   "branch": "bastion",
+   "kind": "notable",
+   "key": "toll_of_war",
+   "name": "Toll of War",
+   "desc": "+1 gold per kill",
+   "stats": {
+    "goldPerKill": 1
+   },
+   "x": 0,
+   "y": -7.4,
+   "links": [
+    23,
+    27,
+    29,
+    33
+   ]
+  },
+  {
+   "id": 29,
+   "branch": "bastion",
+   "kind": "small",
+   "name": "Corestone",
+   "desc": "",
+   "stats": {
+    "coreHp": 25
+   },
+   "x": 1.13,
+   "y": -7.31,
+   "links": [
+    24,
+    28,
+    30,
+    34
+   ]
+  },
+  {
+   "id": 30,
+   "branch": "bastion",
+   "kind": "small",
+   "name": "Drilled Crews",
+   "desc": "",
+   "stats": {
+    "attackSpeed": 0.03
+   },
+   "x": 2.24,
+   "y": -7.05,
+   "links": [
+    25,
+    29,
+    35
+   ]
+  },
+  {
+   "id": 31,
+   "branch": "bastion",
+   "kind": "small",
+   "name": "Buttress",
+   "desc": "",
+   "stats": {
+    "wallHp": 0.15
+   },
+   "x": -2.35,
+   "y": -8.07,
+   "links": [
+    26,
+    32,
+    36
+   ]
+  },
+  {
+   "id": 32,
+   "branch": "bastion",
+   "kind": "small",
+   "name": "Reinforced Struts",
+   "desc": "",
+   "stats": {
+    "towerDamage": 0.03
+   },
+   "x": -1.19,
+   "y": -8.32,
+   "links": [
+    27,
+    31,
+    33,
+    37
+   ]
+  },
+  {
+   "id": 33,
+   "branch": "bastion",
+   "kind": "small",
+   "name": "Long Sightlines",
+   "desc": "",
+   "stats": {
+    "towerRange": 0.03
+   },
+   "x": 0,
+   "y": -8.4,
+   "links": [
+    28,
+    32,
+    34
+   ]
+  },
+  {
+   "id": 34,
+   "branch": "bastion",
+   "kind": "small",
+   "name": "Quarry Rights",
+   "desc": "",
+   "stats": {
+    "towerCost": -0.02
+   },
+   "x": 1.19,
+   "y": -8.32,
+   "links": [
+    29,
+    33,
+    35,
+    38
+   ]
+  },
+  {
+   "id": 35,
+   "branch": "bastion",
+   "kind": "small",
+   "name": "Corestone",
+   "desc": "",
+   "stats": {
+    "coreHp": 25
+   },
+   "x": 2.35,
+   "y": -8.07,
+   "links": [
+    30,
+    34,
+    39
+   ]
+  },
+  {
+   "id": 36,
+   "branch": "bastion",
+   "kind": "small",
+   "name": "Drilled Crews",
+   "desc": "",
+   "stats": {
+    "attackSpeed": 0.03
+   },
+   "x": -2.41,
+   "y": -9.08,
+   "links": [
+    31,
+    37
+   ]
+  },
+  {
+   "id": 37,
+   "branch": "bastion",
+   "kind": "small",
+   "name": "Buttress",
+   "desc": "",
+   "stats": {
+    "wallHp": 0.15
+   },
+   "x": -0.81,
+   "y": -9.36,
+   "links": [
+    32,
+    36,
+    38,
+    40
+   ]
+  },
+  {
+   "id": 38,
+   "branch": "bastion",
+   "kind": "notable",
+   "key": "siege_doctrine",
+   "name": "Siege Doctrine",
+   "desc": "Tower damage +12%",
+   "stats": {
+    "towerDamage": 0.12
+   },
+   "x": 0.81,
+   "y": -9.36,
+   "links": [
+    34,
+    37,
+    39
+   ]
+  },
+  {
+   "id": 39,
+   "branch": "bastion",
+   "kind": "small",
+   "name": "Long Sightlines",
+   "desc": "",
+   "stats": {
+    "towerRange": 0.03
+   },
+   "x": 2.41,
+   "y": -9.08,
+   "links": [
+    35,
+    38
+   ]
+  },
+  {
+   "id": 40,
+   "branch": "bastion",
+   "kind": "keystone",
+   "key": "last_stand_sundering",
+   "name": "Last Stand Sundering",
+   "desc": "If the Core would die, the Sundering triggers instead. All weapons -1 Lv, rewards -30%.",
+   "stats": {
+    "lastStandSundering": 1
+   },
+   "x": 0,
+   "y": -10.4,
+   "links": [
+    37
+   ]
+  },
+  {
+   "id": 41,
+   "branch": "slayer",
+   "kind": "small",
+   "name": "Vital Surge",
+   "desc": "",
+   "stats": {
+    "maxHp": 8
+   },
+   "x": -1.4,
+   "y": 1.95,
+   "links": [
+    0,
+    46
+   ]
+  },
+  {
+   "id": 42,
+   "branch": "slayer",
+   "kind": "small",
+   "name": "Keen Soul",
+   "desc": "",
+   "stats": {
+    "power": 0.03
+   },
+   "x": -1.78,
+   "y": 1.61,
+   "links": [
+    0,
+    47
+   ]
+  },
+  {
+   "id": 43,
+   "branch": "slayer",
+   "kind": "small",
+   "name": "Quickened",
+   "desc": "",
+   "stats": {
+    "attackSpeed": 0.03
+   },
+   "x": -2.08,
+   "y": 1.2,
+   "links": [
+    0,
+    48
+   ]
+  },
+  {
+   "id": 44,
+   "branch": "slayer",
+   "kind": "small",
+   "name": "Wide Arc",
+   "desc": "",
+   "stats": {
+    "area": 0.03
+   },
+   "x": -2.28,
+   "y": 0.73,
+   "links": [
+    0,
+    49
+   ]
+  },
+  {
+   "id": 45,
+   "branch": "slayer",
+   "kind": "notable",
+   "name": "Ruinous Wake",
+   "desc": "Area +12%",
+   "stats": {
+    "area": 0.12
+   },
+   "x": -2.39,
+   "y": 0.24,
+   "links": [
+    0,
+    50
+   ],
+   "key": "ruinous_wake"
+  },
+  {
+   "id": 46,
+   "branch": "slayer",
+   "kind": "small",
+   "name": "Hardened Hide",
+   "desc": "",
+   "stats": {
+    "armor": 3
+   },
+   "x": -2.05,
+   "y": 2.72,
+   "links": [
+    41,
+    47,
+    51
+   ]
+  },
+  {
+   "id": 47,
+   "branch": "slayer",
+   "kind": "small",
+   "name": "Vital Surge",
+   "desc": "",
+   "stats": {
+    "maxHp": 8
+   },
+   "x": -2.55,
+   "y": 2.25,
+   "links": [
+    42,
+    46,
+    48,
+    52
+   ]
+  },
+  {
+   "id": 48,
+   "branch": "slayer",
+   "kind": "notable",
+   "key": "soul_furnace",
+   "name": "Soul Furnace",
+   "desc": "Start Nightfall with your best weapon +1 Lv",
+   "stats": {
+    "startWeaponLevel": 1
+   },
+   "x": -2.94,
+   "y": 1.7,
+   "links": [
+    43,
+    47,
+    49,
+    53
+   ]
+  },
+  {
+   "id": 49,
+   "branch": "slayer",
+   "kind": "small",
+   "name": "Quickened",
+   "desc": "",
+   "stats": {
+    "attackSpeed": 0.03
+   },
+   "x": -3.22,
+   "y": 1.08,
+   "links": [
+    44,
+    48,
+    50,
+    54
+   ]
+  },
+  {
+   "id": 50,
+   "branch": "slayer",
+   "kind": "small",
+   "name": "Wide Arc",
+   "desc": "",
+   "stats": {
+    "area": 0.03
+   },
+   "x": -3.37,
+   "y": 0.41,
+   "links": [
+    45,
+    49,
+    55
+   ]
+  },
+  {
+   "id": 51,
+   "branch": "slayer",
+   "kind": "small",
+   "name": "Bloodletting",
+   "desc": "",
+   "stats": {
+    "leech": 0.003
+   },
+   "x": -2.73,
+   "y": 3.45,
+   "links": [
+    46,
+    52,
+    56
+   ]
+  },
+  {
+   "id": 52,
+   "branch": "slayer",
+   "kind": "small",
+   "name": "Hardened Hide",
+   "desc": "",
+   "stats": {
+    "armor": 3
+   },
+   "x": -3.33,
+   "y": 2.88,
+   "links": [
+    47,
+    51,
+    53,
+    57
+   ]
+  },
+  {
+   "id": 53,
+   "branch": "slayer",
+   "kind": "small",
+   "name": "Vital Surge",
+   "desc": "",
+   "stats": {
+    "maxHp": 8
+   },
+   "x": -3.81,
+   "y": 2.2,
+   "links": [
+    48,
+    52,
+    54,
+    58
+   ]
+  },
+  {
+   "id": 54,
+   "branch": "slayer",
+   "kind": "small",
+   "name": "Keen Soul",
+   "desc": "",
+   "stats": {
+    "power": 0.03
+   },
+   "x": -4.16,
+   "y": 1.45,
+   "links": [
+    49,
+    53,
+    55,
+    59
+   ]
+  },
+  {
+   "id": 55,
+   "branch": "slayer",
+   "kind": "notable",
+   "name": "Unbroken",
+   "desc": "+40 Max HP, +2 HP regen",
+   "stats": {
+    "maxHp": 40,
+    "hpRegen": 2
+   },
+   "x": -4.35,
+   "y": 0.64,
+   "links": [
+    50,
+    54,
+    60
+   ],
+   "key": "unbroken"
+  },
+  {
+   "id": 56,
+   "branch": "slayer",
+   "kind": "small",
+   "name": "Wide Arc",
+   "desc": "",
+   "stats": {
+    "area": 0.03
+   },
+   "x": -3.45,
+   "y": 4.15,
+   "links": [
+    51,
+    57,
+    61
+   ]
+  },
+  {
+   "id": 57,
+   "branch": "slayer",
+   "kind": "small",
+   "name": "Bloodletting",
+   "desc": "",
+   "stats": {
+    "leech": 0.003
+   },
+   "x": -4.13,
+   "y": 3.48,
+   "links": [
+    52,
+    56,
+    58,
+    62
+   ]
+  },
+  {
+   "id": 58,
+   "branch": "slayer",
+   "kind": "notable",
+   "key": "gravekeeper",
+   "name": "Gravekeeper",
+   "desc": "Petrified residual effects +50% potency",
+   "stats": {
+    "residualPotency": 0.5
+   },
+   "x": -4.68,
+   "y": 2.7,
+   "links": [
+    53,
+    57,
+    59,
+    63
+   ]
+  },
+  {
+   "id": 59,
+   "branch": "slayer",
+   "kind": "small",
+   "name": "Vital Surge",
+   "desc": "",
+   "stats": {
+    "maxHp": 8
+   },
+   "x": -5.08,
+   "y": 1.83,
+   "links": [
+    54,
+    58,
+    60,
+    64
+   ]
+  },
+  {
+   "id": 60,
+   "branch": "slayer",
+   "kind": "small",
+   "name": "Keen Soul",
+   "desc": "",
+   "stats": {
+    "power": 0.03
+   },
+   "x": -5.32,
+   "y": 0.91,
+   "links": [
+    55,
+    59,
+    65
+   ]
+  },
+  {
+   "id": 61,
+   "branch": "slayer",
+   "kind": "small",
+   "name": "Quickened",
+   "desc": "",
+   "stats": {
+    "attackSpeed": 0.03
+   },
+   "x": -4.2,
+   "y": 4.83,
+   "links": [
+    56,
+    62,
+    66
+   ]
+  },
+  {
+   "id": 62,
+   "branch": "slayer",
+   "kind": "small",
+   "name": "Wide Arc",
+   "desc": "",
+   "stats": {
+    "area": 0.03
+   },
+   "x": -4.94,
+   "y": 4.07,
+   "links": [
+    57,
+    61,
+    63,
+    67
+   ]
+  },
+  {
+   "id": 63,
+   "branch": "slayer",
+   "kind": "small",
+   "name": "Bloodletting",
+   "desc": "",
+   "stats": {
+    "leech": 0.003
+   },
+   "x": -5.54,
+   "y": 3.2,
+   "links": [
+    58,
+    62,
+    64,
+    68
+   ]
+  },
+  {
+   "id": 64,
+   "branch": "slayer",
+   "kind": "small",
+   "name": "Hardened Hide",
+   "desc": "",
+   "stats": {
+    "armor": 3
+   },
+   "x": -5.99,
+   "y": 2.24,
+   "links": [
+    59,
+    63,
+    65,
+    69
+   ]
+  },
+  {
+   "id": 65,
+   "branch": "slayer",
+   "kind": "small",
+   "name": "Vital Surge",
+   "desc": "",
+   "stats": {
+    "maxHp": 8
+   },
+   "x": -6.28,
+   "y": 1.23,
+   "links": [
+    60,
+    64,
+    70
+   ]
+  },
+  {
+   "id": 66,
+   "branch": "slayer",
+   "kind": "small",
+   "name": "Keen Soul",
+   "desc": "",
+   "stats": {
+    "power": 0.03
+   },
+   "x": -4.99,
+   "y": 5.46,
+   "links": [
+    61,
+    67,
+    71
+   ]
+  },
+  {
+   "id": 67,
+   "branch": "slayer",
+   "kind": "small",
+   "name": "Quickened",
+   "desc": "",
+   "stats": {
+    "attackSpeed": 0.03
+   },
+   "x": -5.77,
+   "y": 4.64,
+   "links": [
+    62,
+    66,
+    68,
+    72
+   ]
+  },
+  {
+   "id": 68,
+   "branch": "slayer",
+   "kind": "notable",
+   "key": "stampede",
+   "name": "Stampede",
+   "desc": "+10% move speed, dash +1 charge",
+   "stats": {
+    "moveSpeedPct": 0.1,
+    "dashCharges": 1
+   },
+   "x": -6.41,
+   "y": 3.7,
+   "links": [
+    63,
+    67,
+    69,
+    73
+   ]
+  },
+  {
+   "id": 69,
+   "branch": "slayer",
+   "kind": "small",
+   "name": "Bloodletting",
+   "desc": "",
+   "stats": {
+    "leech": 0.003
+   },
+   "x": -6.9,
+   "y": 2.68,
+   "links": [
+    64,
+    68,
+    70,
+    74
+   ]
+  },
+  {
+   "id": 70,
+   "branch": "slayer",
+   "kind": "small",
+   "name": "Hardened Hide",
+   "desc": "",
+   "stats": {
+    "armor": 3
+   },
+   "x": -7.23,
+   "y": 1.59,
+   "links": [
+    65,
+    69,
+    75
+   ]
+  },
+  {
+   "id": 71,
+   "branch": "slayer",
+   "kind": "small",
+   "name": "Vital Surge",
+   "desc": "",
+   "stats": {
+    "maxHp": 8
+   },
+   "x": -5.81,
+   "y": 6.07,
+   "links": [
+    66,
+    72,
+    76
+   ]
+  },
+  {
+   "id": 72,
+   "branch": "slayer",
+   "kind": "small",
+   "name": "Keen Soul",
+   "desc": "",
+   "stats": {
+    "power": 0.03
+   },
+   "x": -6.61,
+   "y": 5.19,
+   "links": [
+    67,
+    71,
+    73,
+    77
+   ]
+  },
+  {
+   "id": 73,
+   "branch": "slayer",
+   "kind": "small",
+   "name": "Quickened",
+   "desc": "",
+   "stats": {
+    "attackSpeed": 0.03
+   },
+   "x": -7.27,
+   "y": 4.2,
+   "links": [
+    68,
+    72,
+    74
+   ]
+  },
+  {
+   "id": 74,
+   "branch": "slayer",
+   "kind": "small",
+   "name": "Wide Arc",
+   "desc": "",
+   "stats": {
+    "area": 0.03
+   },
+   "x": -7.79,
+   "y": 3.13,
+   "links": [
+    69,
+    73,
+    75,
+    78
+   ]
+  },
+  {
+   "id": 75,
+   "branch": "slayer",
+   "kind": "small",
+   "name": "Bloodletting",
+   "desc": "",
+   "stats": {
+    "leech": 0.003
+   },
+   "x": -8.16,
+   "y": 2,
+   "links": [
+    70,
+    74,
+    79
+   ]
+  },
+  {
+   "id": 76,
+   "branch": "slayer",
+   "kind": "small",
+   "name": "Hardened Hide",
+   "desc": "",
+   "stats": {
+    "armor": 3
+   },
+   "x": -6.66,
+   "y": 6.63,
+   "links": [
+    71,
+    77
+   ]
+  },
+  {
+   "id": 77,
+   "branch": "slayer",
+   "kind": "small",
+   "name": "Vital Surge",
+   "desc": "",
+   "stats": {
+    "maxHp": 8
+   },
+   "x": -7.7,
+   "y": 5.39,
+   "links": [
+    72,
+    76,
+    78
+   ]
+  },
+  {
+   "id": 78,
+   "branch": "slayer",
+   "kind": "notable",
+   "key": "executioner",
+   "name": "Executioner",
+   "desc": "Power +12%",
+   "stats": {
+    "power": 0.12
+   },
+   "x": -8.52,
+   "y": 3.98,
+   "links": [
+    74,
+    77,
+    79,
+    80
+   ]
+  },
+  {
+   "id": 79,
+   "branch": "slayer",
+   "kind": "small",
+   "name": "Quickened",
+   "desc": "",
+   "stats": {
+    "attackSpeed": 0.03
+   },
+   "x": -9.07,
+   "y": 2.45,
+   "links": [
+    75,
+    78
+   ]
+  },
+  {
+   "id": 80,
+   "branch": "slayer",
+   "kind": "keystone",
+   "key": "glass_arsenal",
+   "name": "Glass Arsenal",
+   "desc": "+2 weapon slots (8 total). Max HP -30%.",
+   "stats": {
+    "weaponSlots": 2,
+    "maxHpPct": -0.3
+   },
+   "x": -9.01,
+   "y": 5.2,
+   "links": [
+    78
+   ]
+  },
+  {
+   "id": 81,
+   "branch": "wanderer",
+   "kind": "small",
+   "name": "Swift Step",
+   "desc": "",
+   "stats": {
+    "moveSpeedPct": 0.02
+   },
+   "x": 2.39,
+   "y": 0.24,
+   "links": [
+    0,
+    86
+   ]
+  },
+  {
+   "id": 82,
+   "branch": "wanderer",
+   "kind": "small",
+   "name": "Long Reach",
+   "desc": "",
+   "stats": {
+    "pickupPct": 0.08
+   },
+   "x": 2.28,
+   "y": 0.73,
+   "links": [
+    0,
+    87
+   ]
+  },
+  {
+   "id": 83,
+   "branch": "wanderer",
+   "kind": "small",
+   "name": "Lucky Find",
+   "desc": "",
+   "stats": {
+    "luck": 4
+   },
+   "x": 2.08,
+   "y": 1.2,
+   "links": [
+    0,
+    88
+   ]
+  },
+  {
+   "id": 84,
+   "branch": "wanderer",
+   "kind": "small",
+   "name": "Coinsense",
+   "desc": "",
+   "stats": {
+    "goldFind": 0.04
+   },
+   "x": 1.78,
+   "y": 1.61,
+   "links": [
+    0,
+    89
+   ]
+  },
+  {
+   "id": 85,
+   "branch": "wanderer",
+   "kind": "notable",
+   "name": "Gilded Path",
+   "desc": "Gold and Ember find +20%",
+   "stats": {
+    "goldFind": 0.2,
+    "emberFind": 0.2
+   },
+   "x": 1.4,
+   "y": 1.95,
+   "links": [
+    0,
+    90
+   ],
+   "key": "gilded_path"
+  },
+  {
+   "id": 86,
+   "branch": "wanderer",
+   "kind": "small",
+   "name": "Scavenger",
+   "desc": "",
+   "stats": {
+    "relicFind": 0.04
+   },
+   "x": 3.37,
+   "y": 0.41,
+   "links": [
+    81,
+    87,
+    91
+   ]
+  },
+  {
+   "id": 87,
+   "branch": "wanderer",
+   "kind": "small",
+   "name": "Swift Step",
+   "desc": "",
+   "stats": {
+    "moveSpeedPct": 0.02
+   },
+   "x": 3.22,
+   "y": 1.08,
+   "links": [
+    82,
+    86,
+    88,
+    92
+   ]
+  },
+  {
+   "id": 88,
+   "branch": "wanderer",
+   "kind": "notable",
+   "key": "prospector",
+   "name": "Prospector",
+   "desc": "Harvest Sprouts +50% output",
+   "stats": {
+    "sproutGold": 0.5
+   },
+   "x": 2.94,
+   "y": 1.7,
+   "links": [
+    83,
+    87,
+    89,
+    93
+   ]
+  },
+  {
+   "id": 89,
+   "branch": "wanderer",
+   "kind": "small",
+   "name": "Lucky Find",
+   "desc": "",
+   "stats": {
+    "luck": 4
+   },
+   "x": 2.55,
+   "y": 2.25,
+   "links": [
+    84,
+    88,
+    90,
+    94
+   ]
+  },
+  {
+   "id": 90,
+   "branch": "wanderer",
+   "kind": "small",
+   "name": "Coinsense",
+   "desc": "",
+   "stats": {
+    "goldFind": 0.04
+   },
+   "x": 2.05,
+   "y": 2.72,
+   "links": [
+    85,
+    89,
+    95
+   ]
+  },
+  {
+   "id": 91,
+   "branch": "wanderer",
+   "kind": "small",
+   "name": "Emberkeeper",
+   "desc": "",
+   "stats": {
+    "emberFind": 0.04
+   },
+   "x": 4.35,
+   "y": 0.64,
+   "links": [
+    86,
+    92,
+    96
+   ]
+  },
+  {
+   "id": 92,
+   "branch": "wanderer",
+   "kind": "small",
+   "name": "Scavenger",
+   "desc": "",
+   "stats": {
+    "relicFind": 0.04
+   },
+   "x": 4.16,
+   "y": 1.45,
+   "links": [
+    87,
+    91,
+    93,
+    97
+   ]
+  },
+  {
+   "id": 93,
+   "branch": "wanderer",
+   "kind": "small",
+   "name": "Swift Step",
+   "desc": "",
+   "stats": {
+    "moveSpeedPct": 0.02
+   },
+   "x": 3.81,
+   "y": 2.2,
+   "links": [
+    88,
+    92,
+    94,
+    98
+   ]
+  },
+  {
+   "id": 94,
+   "branch": "wanderer",
+   "kind": "small",
+   "name": "Long Reach",
+   "desc": "",
+   "stats": {
+    "pickupPct": 0.08
+   },
+   "x": 3.33,
+   "y": 2.88,
+   "links": [
+    89,
+    93,
+    95,
+    99
+   ]
+  },
+  {
+   "id": 95,
+   "branch": "wanderer",
+   "kind": "notable",
+   "name": "Star Reader",
+   "desc": "+25 Luck",
+   "stats": {
+    "luck": 25
+   },
+   "x": 2.73,
+   "y": 3.45,
+   "links": [
+    90,
+    94,
+    100
+   ],
+   "key": "star_reader"
+  },
+  {
+   "id": 96,
+   "branch": "wanderer",
+   "kind": "small",
+   "name": "Coinsense",
+   "desc": "",
+   "stats": {
+    "goldFind": 0.04
+   },
+   "x": 5.32,
+   "y": 0.91,
+   "links": [
+    91,
+    97,
+    101
+   ]
+  },
+  {
+   "id": 97,
+   "branch": "wanderer",
+   "kind": "small",
+   "name": "Emberkeeper",
+   "desc": "",
+   "stats": {
+    "emberFind": 0.04
+   },
+   "x": 5.08,
+   "y": 1.83,
+   "links": [
+    92,
+    96,
+    98,
+    102
+   ]
+  },
+  {
+   "id": 98,
+   "branch": "wanderer",
+   "kind": "notable",
+   "key": "cartographer",
+   "name": "Cartographer",
+   "desc": "Each map modifier grants +10% more reward",
+   "stats": {
+    "modRewardBonus": 0.1
+   },
+   "x": 4.68,
+   "y": 2.7,
+   "links": [
+    93,
+    97,
+    99,
+    103
+   ]
+  },
+  {
+   "id": 99,
+   "branch": "wanderer",
+   "kind": "small",
+   "name": "Swift Step",
+   "desc": "",
+   "stats": {
+    "moveSpeedPct": 0.02
+   },
+   "x": 4.13,
+   "y": 3.48,
+   "links": [
+    94,
+    98,
+    100,
+    104
+   ]
+  },
+  {
+   "id": 100,
+   "branch": "wanderer",
+   "kind": "small",
+   "name": "Long Reach",
+   "desc": "",
+   "stats": {
+    "pickupPct": 0.08
+   },
+   "x": 3.45,
+   "y": 4.15,
+   "links": [
+    95,
+    99,
+    105
+   ]
+  },
+  {
+   "id": 101,
+   "branch": "wanderer",
+   "kind": "small",
+   "name": "Lucky Find",
+   "desc": "",
+   "stats": {
+    "luck": 4
+   },
+   "x": 6.28,
+   "y": 1.23,
+   "links": [
+    96,
+    102,
+    106
+   ]
+  },
+  {
+   "id": 102,
+   "branch": "wanderer",
+   "kind": "small",
+   "name": "Coinsense",
+   "desc": "",
+   "stats": {
+    "goldFind": 0.04
+   },
+   "x": 5.99,
+   "y": 2.24,
+   "links": [
+    97,
+    101,
+    103,
+    107
+   ]
+  },
+  {
+   "id": 103,
+   "branch": "wanderer",
+   "kind": "small",
+   "name": "Emberkeeper",
+   "desc": "",
+   "stats": {
+    "emberFind": 0.04
+   },
+   "x": 5.54,
+   "y": 3.2,
+   "links": [
+    98,
+    102,
+    104,
+    108
+   ]
+  },
+  {
+   "id": 104,
+   "branch": "wanderer",
+   "kind": "small",
+   "name": "Scavenger",
+   "desc": "",
+   "stats": {
+    "relicFind": 0.04
+   },
+   "x": 4.94,
+   "y": 4.07,
+   "links": [
+    99,
+    103,
+    105,
+    109
+   ]
+  },
+  {
+   "id": 105,
+   "branch": "wanderer",
+   "kind": "small",
+   "name": "Swift Step",
+   "desc": "",
+   "stats": {
+    "moveSpeedPct": 0.02
+   },
+   "x": 4.2,
+   "y": 4.83,
+   "links": [
+    100,
+    104,
+    110
+   ]
+  },
+  {
+   "id": 106,
+   "branch": "wanderer",
+   "kind": "small",
+   "name": "Long Reach",
+   "desc": "",
+   "stats": {
+    "pickupPct": 0.08
+   },
+   "x": 7.23,
+   "y": 1.59,
+   "links": [
+    101,
+    107,
+    111
+   ]
+  },
+  {
+   "id": 107,
+   "branch": "wanderer",
+   "kind": "small",
+   "name": "Lucky Find",
+   "desc": "",
+   "stats": {
+    "luck": 4
+   },
+   "x": 6.9,
+   "y": 2.68,
+   "links": [
+    102,
+    106,
+    108,
+    112
+   ]
+  },
+  {
+   "id": 108,
+   "branch": "wanderer",
+   "kind": "notable",
+   "key": "tinkerer",
+   "name": "Tinkerer",
+   "desc": "1 free Orb of Turning per run",
+   "stats": {
+    "freeOrbTurning": 1
+   },
+   "x": 6.41,
+   "y": 3.7,
+   "links": [
+    103,
+    107,
+    109,
+    113
+   ]
+  },
+  {
+   "id": 109,
+   "branch": "wanderer",
+   "kind": "small",
+   "name": "Emberkeeper",
+   "desc": "",
+   "stats": {
+    "emberFind": 0.04
+   },
+   "x": 5.77,
+   "y": 4.64,
+   "links": [
+    104,
+    108,
+    110,
+    114
+   ]
+  },
+  {
+   "id": 110,
+   "branch": "wanderer",
+   "kind": "small",
+   "name": "Scavenger",
+   "desc": "",
+   "stats": {
+    "relicFind": 0.04
+   },
+   "x": 4.99,
+   "y": 5.46,
+   "links": [
+    105,
+    109,
+    115
+   ]
+  },
+  {
+   "id": 111,
+   "branch": "wanderer",
+   "kind": "small",
+   "name": "Swift Step",
+   "desc": "",
+   "stats": {
+    "moveSpeedPct": 0.02
+   },
+   "x": 8.16,
+   "y": 2,
+   "links": [
+    106,
+    112,
+    116
+   ]
+  },
+  {
+   "id": 112,
+   "branch": "wanderer",
+   "kind": "small",
+   "name": "Long Reach",
+   "desc": "",
+   "stats": {
+    "pickupPct": 0.08
+   },
+   "x": 7.79,
+   "y": 3.13,
+   "links": [
+    107,
+    111,
+    113,
+    117
+   ]
+  },
+  {
+   "id": 113,
+   "branch": "wanderer",
+   "kind": "small",
+   "name": "Lucky Find",
+   "desc": "",
+   "stats": {
+    "luck": 4
+   },
+   "x": 7.27,
+   "y": 4.2,
+   "links": [
+    108,
+    112,
+    114
+   ]
+  },
+  {
+   "id": 114,
+   "branch": "wanderer",
+   "kind": "small",
+   "name": "Coinsense",
+   "desc": "",
+   "stats": {
+    "goldFind": 0.04
+   },
+   "x": 6.61,
+   "y": 5.19,
+   "links": [
+    109,
+    113,
+    115,
+    118
+   ]
+  },
+  {
+   "id": 115,
+   "branch": "wanderer",
+   "kind": "small",
+   "name": "Emberkeeper",
+   "desc": "",
+   "stats": {
+    "emberFind": 0.04
+   },
+   "x": 5.81,
+   "y": 6.07,
+   "links": [
+    110,
+    114,
+    119
+   ]
+  },
+  {
+   "id": 116,
+   "branch": "wanderer",
+   "kind": "small",
+   "name": "Scavenger",
+   "desc": "",
+   "stats": {
+    "relicFind": 0.04
+   },
+   "x": 9.07,
+   "y": 2.45,
+   "links": [
+    111,
+    117
+   ]
+  },
+  {
+   "id": 117,
+   "branch": "wanderer",
+   "kind": "small",
+   "name": "Swift Step",
+   "desc": "",
+   "stats": {
+    "moveSpeedPct": 0.02
+   },
+   "x": 8.52,
+   "y": 3.98,
+   "links": [
+    112,
+    116,
+    118,
+    120
+   ]
+  },
+  {
+   "id": 118,
+   "branch": "wanderer",
+   "kind": "notable",
+   "key": "lodestone",
+   "name": "Lodestone",
+   "desc": "Pickup radius +50%",
+   "stats": {
+    "pickupPct": 0.5
+   },
+   "x": 7.7,
+   "y": 5.39,
+   "links": [
+    114,
+    117,
+    119
+   ]
+  },
+  {
+   "id": 119,
+   "branch": "wanderer",
+   "kind": "small",
+   "name": "Lucky Find",
+   "desc": "",
+   "stats": {
+    "luck": 4
+   },
+   "x": 6.66,
+   "y": 6.63,
+   "links": [
+    115,
+    118
+   ]
+  },
+  {
+   "id": 120,
+   "branch": "wanderer",
+   "kind": "keystone",
+   "key": "deep_roots",
+   "name": "Deep Roots",
+   "desc": "Residual effects +100% potency, Tesla spires link 3 times. Weapon slots -1 (5 total).",
+   "stats": {
+    "residualPotency": 1,
+    "teslaLinks": 1,
+    "weaponSlots": -1
+   },
+   "x": 9.01,
+   "y": 5.2,
+   "links": [
+    117
+   ]
+  }
+ ]
+}

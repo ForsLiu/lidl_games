@@ -1,0 +1,151 @@
+{
+  "hpScalePerWave": 1.18,
+  "buildPhaseSeconds": 20,
+  "earlyCallGoldPerSecond": 2,
+  "waveClearBase": 50,
+  "waveClearPerWave": 10,
+  "startGold": 250,
+  "coreHp": 500,
+  "spawnIntervalSeconds": 0.7,
+  "waves": [
+    {
+      "wave": 1,
+      "groups": [
+        {
+          "enemy": "husk",
+          "perGate": 8
+        }
+      ]
+    },
+    {
+      "wave": 2,
+      "groups": [
+        {
+          "enemy": "husk",
+          "perGate": 10
+        },
+        {
+          "enemy": "sprinter",
+          "perGate": 3
+        }
+      ]
+    },
+    {
+      "wave": 3,
+      "groups": [
+        {
+          "enemy": "husk",
+          "perGate": 12
+        },
+        {
+          "enemy": "spitter",
+          "perGate": 4
+        }
+      ]
+    },
+    {
+      "wave": 4,
+      "groups": [
+        {
+          "enemy": "bulwark",
+          "perGate": 6
+        },
+        {
+          "enemy": "husk",
+          "perGate": 8
+        }
+      ]
+    },
+    {
+      "wave": 5,
+      "groups": [
+        {
+          "enemy": "sprinter",
+          "perGate": 14
+        },
+        {
+          "enemy": "colossus",
+          "total": 1
+        }
+      ]
+    },
+    {
+      "wave": 6,
+      "groups": [
+        {
+          "enemy": "husk",
+          "perGate": 10
+        },
+        {
+          "enemy": "gale_imp",
+          "perGate": 6
+        }
+      ]
+    },
+    {
+      "wave": 7,
+      "groups": [
+        {
+          "enemy": "bulwark",
+          "perGate": 8
+        },
+        {
+          "enemy": "mender",
+          "perGate": 4
+        }
+      ]
+    },
+    {
+      "wave": 8,
+      "groups": [
+        {
+          "enemy": "swarm_rat",
+          "perGate": 16
+        },
+        {
+          "enemy": "splitling",
+          "perGate": 6
+        }
+      ]
+    },
+    {
+      "wave": 9,
+      "groups": [
+        {
+          "enemy": "burrower",
+          "perGate": 6
+        },
+        {
+          "enemy": "spitter",
+          "perGate": 8
+        },
+        {
+          "enemy": "wraith",
+          "perGate": 4
+        }
+      ]
+    },
+    {
+      "wave": 10,
+      "groups": [
+        {
+          "enemy": "gatebreaker",
+          "total": 1
+        },
+        {
+          "enemy": "husk",
+          "perGate": 6
+        },
+        {
+          "enemy": "bulwark",
+          "perGate": 3
+        },
+        {
+          "enemy": "wraith",
+          "perGate": 2
+        }
+      ]
+    }
+  ],
+  "enemyStructureDpsFactor": 3
+}

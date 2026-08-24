@@ -1,0 +1,17 @@
+{
+  "tierRewardPerStep": 0.35,
+  "modifiers": [
+    { "key": "tough",      "name": "Ironhide",      "desc": "Enemies +25% HP",           "effect": { "enemyHp": 0.25 },      "rewardBonus": 0.10 },
+    { "key": "fleet",      "name": "Fleetfoot",     "desc": "Enemies +20% speed",        "effect": { "enemySpeed": 0.20 },   "rewardBonus": 0.10 },
+    { "key": "gate",       "name": "Fourth Gate",   "desc": "+1 gate active",            "effect": { "extraGates": 1 },      "rewardBonus": 0.12 },
+    { "key": "longwatch",  "name": "Long Watch",    "desc": "Waves +2",                  "effect": { "extraWaves": 2 },      "rewardBonus": 0.12 },
+    { "key": "shortarm",   "name": "Short Arm",     "desc": "Pickup radius -20%",        "effect": { "pickupMul": -0.20 },   "rewardBonus": 0.08 },
+    { "key": "brittle",    "name": "Brittle Stone", "desc": "Petrified residuals -50%",  "effect": { "residualMul": -0.50 }, "rewardBonus": 0.12 },
+    { "key": "eliteswarm", "name": "Elite Swarm",   "desc": "Elite count x2",            "effect": { "eliteMul": 2 },        "rewardBonus": 0.12 },
+    { "key": "riftstorm",  "name": "Rift Storm",    "desc": "Rift events x2",            "effect": { "riftMul": 2 },         "rewardBonus": 0.12 },
+    { "key": "unseen",     "name": "Unseen Ways",   "desc": "Burrower/Wraith weight x3", "effect": { "ghostWeightMul": 3 },  "rewardBonus": 0.10 },
+    { "key": "titanic",    "name": "Titanic",       "desc": "Boss +50% HP",              "effect": { "bossHp": 0.50 },       "rewardBonus": 0.10 },
+    { "key": "hurried",    "name": "Hurried",       "desc": "Build phase 10 s",          "effect": { "buildPhase": 10 },     "rewardBonus": 0.10 },
+    { "key": "cracked",    "name": "Cracked Core",  "desc": "Core -150 HP",              "effect": { "coreHp": -150 },       "rewardBonus": 0.10 }
+  ]
+}

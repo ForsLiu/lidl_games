@@ -1,0 +1,125 @@
+{
+  "maxLevel": 6,
+  "slots": 6,
+  "inheritDamagePerExtraTower": 0.08,
+  "inheritDamageCap": 0.40,
+  "weapons": [
+    {
+      "key": "wardens_arrow", "name": "Warden's Arrow", "source": "innate", "kind": "single",
+      "slotless": true,
+      "desc": "The Warden's own bowsoul. Always present, never occupies a slot.",
+      "levels": [
+        { "damage": 6,  "interval": 0.6, "targets": 1, "range": 6 },
+        { "damage": 8,  "interval": 0.55, "targets": 1, "range": 6.5 },
+        { "damage": 11, "interval": 0.5, "targets": 1, "range": 7 },
+        { "damage": 14, "interval": 0.45, "targets": 2, "range": 7 },
+        { "damage": 18, "interval": 0.4, "targets": 2, "range": 7.5 },
+        { "damage": 23, "interval": 0.35, "targets": 3, "range": 8 }
+      ]
+    },
+    {
+      "key": "arrow_volley", "name": "Arrow Volley", "source": "arrow_spire", "kind": "single",
+      "desc": "3 shots/s at the nearest enemy.",
+      "levels": [
+        { "damage": 10, "interval": 0.3333, "targets": 1, "range": 7 },
+        { "damage": 13, "interval": 0.3333, "targets": 1, "range": 7.5 },
+        { "damage": 16, "interval": 0.3,   "targets": 2, "range": 8 },
+        { "damage": 20, "interval": 0.3,   "targets": 2, "range": 8.5 },
+        { "damage": 25, "interval": 0.2667,"targets": 3, "range": 9 },
+        { "damage": 31, "interval": 0.25,  "targets": 3, "range": 10 }
+      ]
+    },
+    {
+      "key": "piercing_bolt", "name": "Piercing Bolt", "source": "ballista", "kind": "pierce",
+      "desc": "Bolt toward the largest cluster; pierces everything.",
+      "levels": [
+        { "damage": 22, "interval": 1.5, "bolts": 1, "range": 12, "width": 0.45 },
+        { "damage": 28, "interval": 1.4, "bolts": 1, "range": 13, "width": 0.5 },
+        { "damage": 35, "interval": 1.3, "bolts": 1, "range": 14, "width": 0.55 },
+        { "damage": 44, "interval": 1.2, "bolts": 2, "range": 15, "width": 0.6 },
+        { "damage": 55, "interval": 1.1, "bolts": 2, "range": 16, "width": 0.65 },
+        { "damage": 68, "interval": 1.0, "bolts": 3, "range": 18, "width": 0.75 }
+      ]
+    },
+    {
+      "key": "flame_cone", "name": "Flame Cone", "source": "ember_brazier", "kind": "cone",
+      "desc": "Continuous cone in the movement direction, plus burn.",
+      "levels": [
+        { "dps": 14, "range": 3.0, "halfAngle": 0.50, "burnDps": 6,  "burnDuration": 3 },
+        { "dps": 18, "range": 3.3, "halfAngle": 0.55, "burnDps": 8,  "burnDuration": 3 },
+        { "dps": 23, "range": 3.6, "halfAngle": 0.60, "burnDps": 10, "burnDuration": 3.5 },
+        { "dps": 29, "range": 4.0, "halfAngle": 0.68, "burnDps": 13, "burnDuration": 3.5 },
+        { "dps": 37, "range": 4.4, "halfAngle": 0.76, "burnDps": 17, "burnDuration": 4 },
+        { "dps": 46, "range": 5.0, "halfAngle": 0.90, "burnDps": 22, "burnDuration": 4 }
+      ]
+    },
+    {
+      "key": "frost_nova", "name": "Frost Nova", "source": "frost_obelisk", "kind": "nova",
+      "desc": "Radial pulse: damage plus a hard slow.",
+      "levels": [
+        { "damage": 12, "interval": 4.0, "radius": 3.5, "slow": 0.35, "slowDuration": 2 },
+        { "damage": 16, "interval": 3.7, "radius": 3.8, "slow": 0.37, "slowDuration": 2 },
+        { "damage": 21, "interval": 3.4, "radius": 4.1, "slow": 0.40, "slowDuration": 2.2 },
+        { "damage": 27, "interval": 3.1, "radius": 4.4, "slow": 0.43, "slowDuration": 2.4 },
+        { "damage": 34, "interval": 2.8, "radius": 4.7, "slow": 0.46, "slowDuration": 2.6 },
+        { "damage": 43, "interval": 2.5, "radius": 5.2, "slow": 0.50, "slowDuration": 3 }
+      ]
+    },
+    {
+      "key": "chain_lightning", "name": "Chain Lightning", "source": "tesla_coil", "kind": "chain",
+      "desc": "Arcs from target to target.",
+      "levels": [
+        { "damage": 16, "interval": 1.2,  "chains": 4, "range": 6, "chainRange": 3.5 },
+        { "damage": 21, "interval": 1.15, "chains": 5, "range": 6.5, "chainRange": 3.7 },
+        { "damage": 27, "interval": 1.1,  "chains": 6, "range": 7, "chainRange": 3.9 },
+        { "damage": 34, "interval": 1.0,  "chains": 7, "range": 7.5, "chainRange": 4.1 },
+        { "damage": 42, "interval": 0.9,  "chains": 8, "range": 8, "chainRange": 4.3 },
+        { "damage": 52, "interval": 0.8,  "chains": 10, "range": 9, "chainRange": 4.6 }
+      ]
+    },
+    {
+      "key": "mortar_lob", "name": "Mortar Lob", "source": "mortar", "kind": "lob",
+      "desc": "Shell onto the densest cluster.",
+      "levels": [
+        { "damage": 40,  "interval": 2.5, "radius": 2.0, "count": 1, "range": 11 },
+        { "damage": 50,  "interval": 2.4, "radius": 2.15, "count": 1, "range": 11.5 },
+        { "damage": 62,  "interval": 2.3, "radius": 2.3, "count": 1, "range": 12 },
+        { "damage": 77,  "interval": 2.2, "radius": 2.5, "count": 2, "range": 12.5 },
+        { "damage": 95,  "interval": 2.1, "radius": 2.7, "count": 2, "range": 13 },
+        { "damage": 118, "interval": 2.0, "radius": 3.0, "count": 3, "range": 14 }
+      ]
+    },
+    {
+      "key": "toxic_trail", "name": "Toxic Trail", "source": "venom_spore", "kind": "trail",
+      "desc": "Poison puddles along the Warden's path.",
+      "levels": [
+        { "dps": 8,  "interval": 0.5,  "radius": 0.9, "duration": 3 },
+        { "dps": 11, "interval": 0.47, "radius": 1.0, "duration": 3 },
+        { "dps": 14, "interval": 0.44, "radius": 1.1, "duration": 3.5 },
+        { "dps": 18, "interval": 0.41, "radius": 1.25, "duration": 3.5 },
+        { "dps": 23, "interval": 0.38, "radius": 1.4, "duration": 4 },
+        { "dps": 29, "interval": 0.35, "radius": 1.6, "duration": 4.5 }
+      ]
+    }
+  ],
+  "awakenings": [
+    {
+      "key": "storm_avatar", "name": "Storm Avatar", "weapon": "chain_lightning",
+      "boon": "haste", "boonRank": 3,
+      "desc": "Constant auto-arcing to the 3 nearest enemies.",
+      "effect": { "intervalMul": 0.35, "damageMul": 0.6, "extraChains": 2 }
+    },
+    {
+      "key": "phoenix_ring", "name": "Phoenix Ring", "weapon": "flame_cone",
+      "boon": "power", "boonRank": 3,
+      "desc": "Adds a permanent orbiting fire ring.",
+      "effect": { "ringOrbs": 3, "ringRadius": 2.2, "ringDamage": 18, "ringInterval": 0.5, "ringSpeed": 2.0 }
+    },
+    {
+      "key": "meteor_barrage", "name": "Meteor Barrage", "weapon": "mortar_lob",
+      "boon": "reach", "boonRank": 3,
+      "desc": "3 simultaneous lobs, +50% area.",
+      "effect": { "extraCount": 3, "radiusMul": 1.5 }
+    }
+  ]
+}
