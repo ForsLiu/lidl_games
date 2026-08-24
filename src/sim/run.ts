@@ -14,6 +14,8 @@ import {
   spawnEnemy,
   updateEnemies,
 } from './enemies';
+import { setAreaDamageHandler, updateAreas, updateProjectiles } from './combat';
+import { buildTower, collectSproutGold, sellTower, updateTowers, upgradeTower } from './towers';
 import { FIXED_DT, emptyInput, type Command, type RunOutcome, type RunReport, type TickInput } from './types';
 import { World } from './world';
 import type { RunConfig } from './types';
@@ -25,6 +27,7 @@ export class Run {
   constructor(cfg: RunConfig) {
     this.world = new World(cfg);
     setWardenDamageHandler(damageWarden);
+    setAreaDamageHandler(damageWarden);
   }
 
   get done(): boolean {
@@ -47,12 +50,18 @@ export class Run {
     switch (w.phase) {
       case 'act1_build':
         updateWarden(w, input, dt);
+        updateTowers(w, dt);
+        updateProjectiles(w, dt);
+        updateAreas(w, dt);
         updateAct1Build(w, dt);
         w.act1Ticks++;
         break;
       case 'act1_wave':
         updateWarden(w, input, dt);
+        updateTowers(w, dt);
         updateAct1Wave(w, dt);
+        updateProjectiles(w, dt);
+        updateAreas(w, dt);
         w.act1Ticks++;
         break;
       case 'dusk':
@@ -103,11 +112,27 @@ export class Run {
 
 export function applyCommand(w: World, c: Command): void {
   switch (c.k) {
-    case 'call':
-      if (w.phase === 'act1_build') w.buildTimer = 0;
+    case 'call': {
+      // SPEC 3.1: calling early pays 2 gold per second skipped.
+      if (w.phase === 'act1_build' && w.buildTimer > 0) {
+        const bonus = Math.round(w.buildTimer * w.content.waves.earlyCallGoldPerSecond);
+        w.gold += bonus;
+        w.goldEarned += bonus;
+        w.buildTimer = 0;
+      }
+      break;
+    }
+    case 'build':
+      buildTower(w, c.tower, c.tx, c.ty);
+      break;
+    case 'upgrade':
+      upgradeTower(w, c.tx, c.ty);
+      break;
+    case 'sell':
+      sellTower(w, c.tx, c.ty);
       break;
     default:
-      // Build/sell/upgrade land in M1, soul/pick in M2+.
+      // Soul picks and level-up choices land in M2/M3.
       break;
   }
 }
@@ -324,6 +349,7 @@ function completeWave(w: World): void {
   );
   w.gold += bonus;
   w.goldEarned += bonus;
+  collectSproutGold(w);
   w.wavesCleared++;
   w.emit('waveclear', 0, 0, w.wave, bonus);
 
