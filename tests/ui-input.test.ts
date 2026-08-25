@@ -455,6 +455,24 @@ describe('pause (playtest request)', () => {
     expect(hud.modalOpen).toBe(false);
   });
 
+  it('restores the level-up screen when the pause is lifted', () => {
+    const root = mount();
+    const hud = new Hud(root, noopHudCallbacks([]));
+    const world = new World(cfg());
+    hud.buildTowerBar(world);
+    world.phase = 'levelup';
+    world.offers = [{ kind: 'boon', key: 'power', name: 'Power', desc: '', toLevel: 1 }];
+    hud.syncModal(world);
+
+    hud.setPaused(true, world);
+    expect((root.querySelector('#sw-modal') as HTMLElement).textContent).toContain('Paused');
+
+    hud.setPaused(false, world);
+    const modal = root.querySelector('#sw-modal') as HTMLElement;
+    expect(modal.hasAttribute('hidden')).toBe(false);
+    expect(modal.textContent).toContain('Power');
+  });
+
   it('does not let a level-up card screen be replaced by the pause card', () => {
     const root = mount();
     const hud = new Hud(root, noopHudCallbacks([]));
