@@ -6,8 +6,6 @@ with the commit hash.
 
 ## Queue
 
-- [ ] (b002) [bug] Pause menu Abandon Run (with confirm) available in both phases —
-      acceptance: covered by B10 test — refs: SPEC-V2 §10 D1
 - [ ] (b003) [bug] Stash click-to-swap + drag-to-unequip + compare tooltip; no
       dead-end equip states — acceptance: B10 stash test green — refs: SPEC-V2 §10 D2, §3
 - [ ] (f001) [feat] Cycle state machine: Day→Dusk→Night→Dawn ×3, Dusk picker every
@@ -28,6 +26,10 @@ with the commit hash.
 
 ## Done
 
+- [x] (b002) [bug] Pause menu Abandon Run (with confirm) available in both phases —
+      refs: SPEC-V2 §10 D1 — qa-playtester pass 2026-08-25 (confirm flow probed
+      across act1_build, act1_wave, dusk, soulpick, levelup and act2; state
+      bit-identical across the pause cycle; no bugs filed)
 - [x] (b001) [bug] Death flow: Night-phase Warden death and Day-phase Core death both
       reach a defeat Results screen with Retry / New Run / Hub — refs: SPEC-V2 §10 D1
       — commit 645d4b0, qa-playtester pass 2026-08-25 (race against victory, pause

@@ -44,6 +44,7 @@ export class Hud {
   private selected = 0;
   private lastModalKey = '';
   private paused = false;
+  private confirmingAbandon = false;
 
   constructor(root: HTMLElement, cb: HudCallbacks) {
     this.root = root;
@@ -303,6 +304,7 @@ export class Hud {
   setPaused(paused: boolean, w: World): void {
     if (this.paused === paused) return;
     this.paused = paused;
+    this.confirmingAbandon = false;
     this.lastModalKey = '';
     if (paused) this.showPause();
     else this.syncModal(w);
@@ -310,7 +312,17 @@ export class Hud {
 
   private showPause(): void {
     this.openModal();
-    this.modal.innerHTML = `
+    this.modal.innerHTML = this.confirmingAbandon
+      ? `
+      <div class="sw-card">
+        <h2>Abandon run?</h2>
+        <p>This ends the run now and returns to the Hub. Nothing from it is kept.</p>
+        <div class="sw-pausebuttons">
+          <button class="sw-reroll" data-act="cancel">Cancel</button>
+          <button class="sw-go" data-act="confirm">Abandon run</button>
+        </div>
+      </div>`
+      : `
       <div class="sw-card">
         <h2>Paused</h2>
         <p>The Vale holds its breath.</p>
@@ -320,12 +332,27 @@ export class Hud {
         </div>
         <p class="sw-note">Esc resumes · abandoning returns to the Hub and keeps nothing.</p>
       </div>`;
-    this.modal
-      .querySelector('[data-act="resume"]')
-      ?.addEventListener('click', () => this.cb.onResume());
-    this.modal
-      .querySelector('[data-act="quit"]')
-      ?.addEventListener('click', () => this.cb.onQuitToHub());
+    if (this.confirmingAbandon) {
+      this.modal
+        .querySelector('[data-act="cancel"]')
+        ?.addEventListener('click', () => {
+          this.confirmingAbandon = false;
+          this.showPause();
+        });
+      this.modal
+        .querySelector('[data-act="confirm"]')
+        ?.addEventListener('click', () => this.cb.onQuitToHub());
+    } else {
+      this.modal
+        .querySelector('[data-act="resume"]')
+        ?.addEventListener('click', () => this.cb.onResume());
+      this.modal
+        .querySelector('[data-act="quit"]')
+        ?.addEventListener('click', () => {
+          this.confirmingAbandon = true;
+          this.showPause();
+        });
+    }
   }
 
   /** Modal screens: soul picker, level-up, results. */

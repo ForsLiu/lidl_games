@@ -6,13 +6,14 @@
 ## Current state
 - **Milestone:** M8 complete — **first complete version**. All of A1–A11 green
   (two strict bounds relaxed and documented under Known issues). BACKLOG.md b001
-  (SPEC-V2 §10 D1 death flow) also done; M9 (SPEC-V2 §12) work is underway via
-  the BACKLOG queue.
+  (SPEC-V2 §10 D1 death flow) and b002 (Abandon Run confirm) also done; M9
+  (SPEC-V2 §12) work is underway via the BACKLOG queue.
 - **Last session:** 2026-08-25
-- **Next action:** BACKLOG.md b002 (pause-menu Abandon Run confirm dialog) is
-  next in queue. After the BACKLOG queue: QUESTIONS.md verdicts. Both playtest
+- **Next action:** BACKLOG.md b003 (stash click-to-swap / drag-to-unequip /
+  compare tooltip) is next in queue. After the BACKLOG queue: QUESTIONS.md
+  verdicts. Both playtest
   requests carried the example template rather than actual verdicts, so all
-  **31** entries are still pending — see the Verdict log at the top of that
+  **32** entries are still pending — see the Verdict log at the top of that
   file. The tier ladder above T3 has no measured win (HANDOFF.md §6), and the
   two relaxed bounds (A3's per-seed 3:00 line, A7's 15% leak share) remain open.
 - **HANDOFF.md** at the repo root is the state report for SPEC v0.2: every
@@ -321,6 +322,18 @@ features whose counters read zero with no explanation.
   awakening → weapon → card index 0, so measured "picks" reflect offer RNG, not
   preference. There is no signal about which boons a player would want.
 ## Session log (newest first)
+- 2026-08-25 — BACKLOG b002: Esc pause menu's Abandon Run now shows a confirm
+  sub-screen ("Abandon run?" / Cancel / Abandon run) instead of quitting to the
+  Hub on the first click (SPEC-V2 §10 D1: "Esc pause menu gains Abandon Run
+  (confirm) everywhere"). Pause itself was already phase-agnostic (gated only
+  on `outcome === 'running'` in `main.ts`'s `togglePause`), so the confirm
+  applies uniformly across Act I and Act II; `tests/ui-input.test.ts` adds
+  explicit pause/resume + confirm/cancel coverage for `act1_wave` and `act2`
+  on top of the existing `levelup` case. `code-reviewer` found no
+  Critical/Major issues; `qa-playtester` probed the confirm flow across all
+  six phases (act1_build, act1_wave, dusk, soulpick, levelup, act2), rapid
+  re-pause/toggle spam, and Escape-vs-button parity, and filed no bugs (one
+  UX ambiguity around Escape-inside-confirm noted for QUESTIONS.md, not a bug).
 - 2026-08-25 — BACKLOG b001: defeat flow (SPEC-V2 §10 D1). A defeat condition
   (Core hp 0 in Act I, Warden hp 0 while `huntsWarden` in Act II) now starts a
   1.5s slow-mo beat (`world.dying`/`dyingTimer`) before `outcome`/`phase` land

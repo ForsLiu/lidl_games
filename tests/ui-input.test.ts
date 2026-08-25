@@ -454,12 +454,76 @@ describe('pause (playtest request)', () => {
 
     (modal.querySelector('[data-act="resume"]') as HTMLElement).click();
     expect(resumed).toBe(1);
-    (modal.querySelector('[data-act="quit"]') as HTMLElement).click();
-    expect(quit).toBe(1);
 
     hud.setPaused(false, world);
     expect(modal.hasAttribute('hidden')).toBe(true);
     expect(hud.modalOpen).toBe(false);
+    expect(quit).toBe(0);
+  });
+
+  it('asks for confirmation before abandoning, and cancel returns to the pause card', () => {
+    const root = mount();
+    let quit = 0;
+    const hud = new Hud(root, {
+      ...noopHudCallbacks([]),
+      onResume: () => {},
+      onPause: () => {},
+      onCycleSpeed: () => {},
+      onDev: () => {},
+      onQuitToHub: () => quit++,
+    });
+    const world = new World(cfg());
+    hud.buildTowerBar(world);
+    hud.setPaused(true, world);
+
+    const modal = root.querySelector('#sw-modal') as HTMLElement;
+    (modal.querySelector('[data-act="quit"]') as HTMLElement).click();
+    expect(modal.textContent).toContain('Abandon run?');
+    expect(quit).toBe(0);
+
+    (modal.querySelector('[data-act="cancel"]') as HTMLElement).click();
+    expect(modal.textContent).toContain('Paused');
+    expect(modal.querySelector('[data-act="quit"]')).not.toBeNull();
+    expect(quit).toBe(0);
+
+    (modal.querySelector('[data-act="quit"]') as HTMLElement).click();
+    (modal.querySelector('[data-act="confirm"]') as HTMLElement).click();
+    expect(quit).toBe(1);
+  });
+
+  it('resets the abandon confirm when the pause is lifted and reopened', () => {
+    const root = mount();
+    const hud = new Hud(root, noopHudCallbacks([]));
+    const world = new World(cfg());
+    hud.buildTowerBar(world);
+    hud.setPaused(true, world);
+    let modal = root.querySelector('#sw-modal') as HTMLElement;
+    (modal.querySelector('[data-act="quit"]') as HTMLElement).click();
+    expect(modal.textContent).toContain('Abandon run?');
+
+    hud.setPaused(false, world);
+    hud.setPaused(true, world);
+    modal = root.querySelector('#sw-modal') as HTMLElement;
+    expect(modal.textContent).toContain('Paused');
+    expect(modal.textContent).not.toContain('Abandon run?');
+  });
+
+  it.each(['act1_wave', 'act2'] as const)('pauses and resumes cleanly during %s', (phase) => {
+    const root = mount();
+    const hud = new Hud(root, noopHudCallbacks([]));
+    const world = new World(cfg());
+    hud.buildTowerBar(world);
+    world.phase = phase;
+    hud.syncModal(world);
+
+    hud.setPaused(true, world);
+    const modal = root.querySelector('#sw-modal') as HTMLElement;
+    expect(modal.textContent).toContain('Paused');
+    (modal.querySelector('[data-act="quit"]') as HTMLElement).click();
+    expect(modal.textContent).toContain('Abandon run?');
+
+    hud.setPaused(false, world);
+    expect(modal.hasAttribute('hidden')).toBe(true);
   });
 
   it('restores the level-up screen when the pause is lifted', () => {

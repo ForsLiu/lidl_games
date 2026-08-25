@@ -6,7 +6,7 @@
 Format:
 - **Q<n>. [M<n>] Question** — Chosen default: … — Reason: … — (owner verdict: pending)
 
-Entries are numbered **Q1–Q31** so verdicts can be given compactly, e.g.
+Entries are numbered **Q1–Q32** so verdicts can be given compactly, e.g.
 `Q3 approved; Q13 drop class exclusivity; all others approved`.
 
 ## Verdict log
@@ -91,3 +91,5 @@ record a gap:
 - **Q30. [playtest 2] Act I stopped being clearable by anything but a maxed board.** M7's `hpScalePerWave` 1.35 made wave 10 a wall that no amount of DPS answered, so `kite` and `turtle` cleared 0/8 seeds while `maxbuild` cleared 8/8 with 200+ Core left. That also meant SPEC A4's "fails at T3" was passing for the wrong reason — the wave wall, not the tier. — Chosen default: `hpScalePerWave` 1.35 → **1.30**, and the two modifiers A4 drafts for its T3 case get stronger (Ironhide +25% → **+45%** HP, Fleetfoot +20% → **+30%** speed) so tier difficulty does the work instead. Act II absorbs the knock-on: `warmupSeconds` 75 → **100**, `warmupStart` 0.3 → **0.25**, `actIICarry` 3.5 → **3.2**. — Reason: separates two claims that were riding one constant. Note the side effect: tiers 4–5 are now harder still, and they already had no measured win (see HANDOFF.md §6). — (owner verdict: pending)
 
 - **Q31. [playtest 2] Fast-forward is not in SPEC.** — Chosen default: 1x / 2x / 3x, implemented as more fixed ticks per frame rather than a longer tick, so a fast-forwarded run is bit-identical to the same run at 1x. The catch-up cap scales with the speed so a stalled frame cannot spiral. — (owner verdict: pending)
+
+- **Q32. [b002] SPEC-V2 D1 does not say what Escape should do while the Abandon Run confirm sub-screen is open.** — Chosen default: Escape always resumes the run (same as from the plain Paused card), rather than stepping back one level to the plain pause card the way the on-screen Cancel button does. Reasoning: the confirm sub-screen only ever appears from a deliberate click, never from a keypress, so there is no muscle-memory expectation that Escape backs out a level there; "Escape always gets you back into the game" is the simpler, more predictable rule and it does not corrupt state (qa-playtester verified the world is bit-identical across the cycle). — (owner verdict: pending)
