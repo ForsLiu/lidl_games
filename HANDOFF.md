@@ -2,7 +2,7 @@
 
 For the designer writing SPEC v0.2. Describes what the code **actually does**,
 not what SPEC v0.1 says it should. Every number here was measured or read out of
-`/data` on 2026-08-25 at commit `7b14663`.
+`/data` on 2026-08-25 at commit `af1de8f`.
 
 Regenerate the measured sections with:
 
@@ -46,6 +46,12 @@ npx tsx tools/sweep.ts --seeds 12 --policies maxbuild,hybrid
 | SFX | Every gameplay event maps to a rate-limited synthesised cue behind an `AudioSink` seam. No audio assets ship. |
 | UI (`src/ui/`) | Hub (class / tier draft / Constellation / stash / settings) → run (canvas + HUD + modals) → results → Hub. Esc pauses by not stepping the sim. |
 | Headless CLI | `npm run sim` prints a JSON report per run including `simMs`, damage by source, and per-wave telemetry. |
+| Fast-forward | 1x/2x/3x runs more fixed ticks per frame, never a longer tick, so a fast-forwarded run is bit-identical to the same run at 1x. Catch-up cap scales with the speed. |
+| Practice runs | Opted into at the Hub. Kill all, +gold, +XP, heal, invulnerable, skip wave, +1 minute, summon boss — all ordinary Commands gated on `RunConfig.practice`, so they replay exactly. A run that used one banks nothing. |
+| Tower panel | Derives damage/rate/DPS/range/splash/ailments, build/upgrade/sell prices, the soul and the terrain from the same helpers the sim fires with, for the selected tower or the one under the cursor. |
+| Weapon panel | The Act II counterpart: per-soul tab strip, level table scaled by the live multipliers, what the next level buys, inherited damage, the reachable Awakening. |
+| Stage progress | Act I: a bar over waves with a tick each, plus a bar for the active wave. Act II: a bar to the ten-minute boss with ticks on the director's real elite/rift schedule, a countdown, and an XP bar. |
+| Test seeding | Settings can fill an account with 8 relics, 3 of each Orb and 600 Ember, or wipe it. Deterministic from the account's own next relic id. |
 
 ---
 
@@ -76,6 +82,9 @@ QUESTIONS.md under the cited Q-number.
 | Q22 | A1: 200 seeded sims | Suite measures 24; `tools/sweep.ts` does the full sweep | A full run takes ~4 s to simulate. |
 | Q3 | 36×20, 3 gates, Core "near east-center" | Gates (0,10)/(18,0)/(35,17), Core (25,9)–(26,10) | Exact coordinates unspecified. |
 | Q28 | "SFX hooks" | Synthesised cues behind an `AudioSink` seam | No audio assets exist. |
+| Q29 | — | **Practice runs**: an in-run dev tool, gated on `RunConfig.practice`, flagged in the report, banking nothing | SPEC has no dev mode, and testing the late game meant playing eleven minutes to reach it. |
+| Q30 | Act I `hpScalePerWave` 1.18 | **1.30** (was 1.35), with Ironhide +25%→**+45%** HP and Fleetfoot +20%→**+30%** speed | 1.35 made wave 10 a wall no DPS answered: light builds cleared 0/8 seeds, and A4's "fails at T3" was passing on the wave wall rather than on tier difficulty. |
+| Q31 | — | Fast-forward 1x/2x/3x | Quality of life; implemented as more ticks per frame so determinism is untouched. |
 | — | — | New accounts start with **400 Ember** | Testing convenience requested in playtest; set `tree.startingEmber` to 0 to restore a cold start. |
 | — | Respec costs 5 Ember/node | Points spent in the current Hub visit come back **free** | A fresh account has 0 Ember and can only earn it by finishing a run, so the first misclick was permanent. |
 
@@ -117,12 +126,12 @@ Multi-hit damping: pierce ×0.82 per target (floor 0.20); blasts/cones/fields fu
 | toxic_trail | 4.8 → 17.4 dps | puddle r0.9 → 1.6 | 0.50 → 0.35 |
 
 ### Act I (`data/waves.json`)
-`hpScalePerWave` **1.35** (SPEC: 1.18) · build phase **30 s** (SPEC: 20) · spawn interval **1.02 s** · start gold 250 · Core 500 HP · wave clear `50 + 10×wave` · early call 2 g/s · structure dps factor 3.
+`hpScalePerWave` **1.30** (SPEC: 1.18) · build phase **30 s** (SPEC: 20) · spawn interval **1.02 s** · start gold 250 · Core 500 HP · wave clear `50 + 10×wave` · early call 2 g/s · structure dps factor 3.
 Wave 9: 6 burrower + 6 spitter + 4 wraith + 4 gale_imp **per gate** (18/18/12/12 total).
 
 ### Act II (`data/spawns.json`)
-Budget `150 × 1.21^minute`, warm-up 0.30→1.0 over 75 s, spent continuously.
-`hpOverlay` 0.6 × `actIICarry` 3.5 · `hpScalePerMinute` 1.10 · `speedOverlay` 1.20.
+Budget `150 × 1.21^minute`, warm-up 0.25→1.0 over **100 s**, spent continuously.
+`hpOverlay` 0.6 × `actIICarry` **3.2** · `hpScalePerMinute` 1.10 · `speedOverlay` 1.20.
 Alive cap 350 · elite every 90 s · rifts at 180/360/540 s at ×3 budget · boss at 600 s.
 Contact 0.4 s at reach `radius + 0.45` · gems live 18 s, cap 500 · burrowers surface within 3 tiles.
 
@@ -131,6 +140,9 @@ Contact 0.4 s at reach `radius + 0.45` · gems live 18 s, cap 500 · burrowers s
 
 ### Meta
 Tier reward `1 + 0.35×(N−1)`, 12 modifiers, tier N drafts N−1 of them 1-of-2.
+Modifiers: Ironhide **+45% HP**, Fleetfoot **+30% speed**, Fourth Gate +1 gate, Long Watch +2 waves,
+Short Arm −20% pickup, Brittle Stone −50% residuals, Elite Swarm ×2 elites, Rift Storm ×2 rifts,
+Unseen Ways ×3 burrower/wraith weight, Titanic +50% boss HP, Hurried 10 s build, Cracked Core −150 HP.
 Tree: 120 allocatable nodes + centre, 18 notables, 3 keystones, bounded radius 7.45, respec 5 Ember, max account level 60, Ember base 100, **starting Ember 400**.
 XP to reach level n: `5n + n²`.
 
@@ -139,38 +151,45 @@ XP to reach level n: `5n + n²`.
 ## 4. Measured metrics
 
 72-run pool, seeds 1–8, engineer, auto-drafted modifiers. `tools/handoff-metrics.ts`.
+Re-measured after the Q30 retune; the pre-retune numbers are in this file's git history.
 
 ### Win rate and run length
 
 | Policy | Tier | Win | Median total | Median Act II survival | Act I cleared | Median level |
 |---|---|---|---|---|---|---|
-| maxbuild | 1 | **75%** | 25.9 min | 688 s | 8/8 | 46 |
-| maxbuild | 3 | 50% | 25.1 min | 760 s | 6/8 | 48 |
-| maxbuild | 5 | **0%** | 17.5 min | 191 s | 5/8 | 22 |
-| hybrid | 1 | 75% | 26.2 min | 717 s | 8/8 | 45 |
-| hybrid | 3 | 13% | 16.0 min | 191 s | 6/8 | 22 |
-| hybrid | 5 | 0% | 15.7 min | 99 s | 6/8 | 15 |
-| greedless | 1 | 75% | 25.8 min | 676 s | 8/8 | 42 |
-| greedy | 1 | 38% | 20.7 min | 375 s | 8/8 | 34 |
-| no-move | 1 | 0% | 16.4 min | 119 s | 8/8 | 3 |
-| walloff | 1 | 0% | 14.9 min | 39 s | 8/8 | 3 |
-| rush | 1 | 0% | 12.0 min | 29 s | 8/8 | 3 |
-| turtle | 1 | 0% | 13.9 min | 0 s | **0/8** | 1 |
-| kite | 1 | 0% | 8.4 min | 0 s | **0/8** | 1 |
+| maxbuild | 1 | **75%** | 25.5 min | 700 s | 8/8 | 45 |
+| maxbuild | 3 | 38% | 27.0 min | 736 s | 7/8 | 44 |
+| maxbuild | 5 | **13%** | 21.6 min | 555 s | 5/8 | 42 |
+| hybrid | 1 | 63% | 25.5 min | 685 s | 8/8 | 42 |
+| hybrid | 3 | 38% | 23.0 min | 641 s | 6/8 | 37 |
+| hybrid | 5 | 0% | 17.3 min | 199 s | 8/8 | 22 |
+| greedy | 1 | 75% | 26.2 min | 699 s | 8/8 | 44 |
+| greedless | 1 | 50% | 25.7 min | 681 s | 8/8 | 44 |
+| no-move | 1 | 0% | 16.3 min | 120 s | 8/8 | 4 |
+| walloff | 1 | 0% | 15.0 min | 47 s | 8/8 | 3 |
+| rush | 1 | 0% | 12.0 min | 30 s | 8/8 | 3 |
+| turtle | 1 | 0% | 15.0 min | 16 s | 6/8 | 1 |
+| kite | 1 | 0% | 9.5 min | 30 s | 8/8 | 4 |
 
-Median victorious run across the pool: **26.15 min** (21 wins). SPEC A1 window is 24–28 min.
+Median victorious run across the pool: **25.96 min** (21 wins). SPEC A1 window is 24–28 min.
+
+Two things moved with the Q30 retune. `kite` and `turtle` clear Act I again (8/8 and
+6/8, from 0/8), which was the point. And T5 has a measured win for the first time
+(maxbuild 13%, up from 0%) — the softer wave curve outweighed the stronger modifiers
+at the top of the ladder, though T3 fell from 50% to 38%, so the ladder is flatter
+rather than fixed.
 
 ### Weapon damage share
 At minute 8 of Act II, pooled over the 22 runs that got there:
 
 | Source | Share |
 |---|---|
-| piercing_bolt | **43.7%** |
-| arrow_volley | 17.3% |
-| mortar_lob | 15.2% |
-| toxic_trail | 9.9% |
-| terrain_venom_spore (residual, not a weapon) | 9.0% |
-| wardens_arrow | 4.9% |
+| piercing_bolt | **43.8%** |
+| arrow_volley | 17.5% |
+| mortar_lob | 15.8% |
+| terrain_venom_spore (residual, not a weapon) | 9.3% |
+| toxic_trail | 8.5% |
+| wardens_arrow | 5.1% |
 
 `flame_cone`, `frost_nova` and `chain_lightning` contribute ~0% here because no
 policy in this pool builds their towers. On the A5 build set — twelve
@@ -184,17 +203,17 @@ Total ranks taken across 72 runs. **Read with care: the bot takes weapon
 upgrades first and then card index 0, so this measures offer RNG, not
 preference.** It is useful only as a check that the offer pool is even.
 
-Fortune 74 · Greed 67 · Focus 61 · Haste 59 · Swift 59 · Leech 59 · Magnet 54 ·
-Reach 52 · Vitality 51 · Power 48 · Plating 47 · Second Wind 26 (max rank 1).
+Fortune 64 · Magnet 58 · Focus 57 · Leech 56 · Greed 56 · Reach 52 · Haste 51 ·
+Swift 50 · Vitality 49 · Power 46 · Plating 45 · Second Wind 24 (max rank 1).
 
-Spread is 47–74 excluding Second Wind, i.e. flat within noise. There is no
+Spread is 45–64 excluding Second Wind, i.e. flat within noise. There is no
 measured signal about which boons a *player* would want.
 
 ---
 
 ## 5. QUESTIONS.md decisions
 
-28 entries, **all still pending owner verdict**. Two verdict requests have been
+31 entries, **all still pending owner verdict**. Two verdict requests have been
 made; both arrived carrying the example template rather than actual verdicts, so
 nothing has been applied. Summary by theme:
 
@@ -216,6 +235,9 @@ Q23 A3's bimodal median · Q25 A10 frame budget · Q26 A10 timing harness.
 **Engineering choices with gameplay consequences** — Q4 no native trig ·
 Q20 A4/A7 tension · Q27 staggered sim loops.
 
+**Added after the second playtest** — Q29 practice runs bank nothing ·
+Q30 the Act I curve and the two modifiers A4 drafts · Q31 fast-forward.
+
 ---
 
 ## 6. Known issues
@@ -232,13 +254,14 @@ Q20 A4/A7 tension · Q27 staggered sim loops.
    distance) in opposite directions.
 
 ### Live issues
-- **`kite` and `turtle` no longer clear Act I** (0/8 seeds, stalling on wave 9).
-  The M7 Act I retune (`hpScalePerWave` 1.18→1.35) left the two lightest build
-  orders unable to finish. They are not gate-critical but CLAUDE.md names them as
-  standard policies, so they misrepresent "a light build" in any sweep.
-- **The tier ladder collapses past T3.** maxbuild wins 75% at T1, 50% at T3, 0%
-  at T5. T4–T5 have no measured win. The modifier draft is the only difficulty
-  lever and it is not smooth.
+- **The tier ladder is flat, not a ladder.** maxbuild wins 75% at T1, 38% at T3,
+  13% at T5; hybrid wins 63% / 38% / 0%. The modifier draft is the only
+  difficulty lever, and after Q30 it does not separate T3 from T5 in any orderly
+  way. This is the single largest open design problem.
+- **A4 and the tier ladder now share a lever.** Ironhide and Fleetfoot were
+  strengthened so A4's "mono build fails at T3" holds on tier difficulty rather
+  than on a wave-10 wall. That is the right reason for A4 to pass, but it means
+  any future change to those two modifiers moves an acceptance gate.
 - **Act II is bimodal for every policy.** Runs either die in the opening minute
   or snowball to the boss. Medians are noisy; prefer means or pass rates.
 - **Piercing Bolt sits at or above the A5 line** whenever a build has it (43.7%
@@ -260,10 +283,13 @@ My own assessment, most consequential first.
    what, or how you played. The pillar "placement is destiny" is only honoured by
    terrain geometry, not by the soul-binding maths.
 
-2. **The tier ladder is a difficulty cliff, not a ladder.** Tier N = N−1 drafted
-   modifiers is the entire scaling mechanism. Two modifiers is a rounding error
-   at T3 and a wall at T5. There is no per-tier enemy scaling, no reward pacing
-   that pulls a player up the ladder, and no measured win at T4+.
+2. **The tier ladder is flat, not a ladder.** Tier N = N−1 drafted modifiers is
+   the entire scaling mechanism, and after the Q30 retune it produces 75% / 38% /
+   13% across T1/T3/T5 — a slope, but not an orderly one, and hybrid still falls
+   to 0% at T5 while maxbuild does not. There is no per-tier enemy scaling and no
+   reward pacing that pulls a player up. Worse, two of the twelve modifiers are
+   now load-bearing for acceptance gate A4, so the ladder cannot be retuned
+   without moving a gate.
 
 3. **Boon design is undifferentiated.** Twelve boons, eleven of which are flat
    stat percentages with no interaction, no build identity and no reason to
@@ -285,9 +311,11 @@ My own assessment, most consequential first.
    Shellback's front shield, Mender's healing and Warlock's buff should reward
    specific tower choices; nothing in the game reads them.
 
-7. **No in-run information architecture.** The player cannot see tower stats,
-   DPS contribution, what a weapon actually does at its current level, or why a
-   placement was rejected. Everything the sim knows is invisible.
+7. **In-run information is now shown but not yet actionable.** The tower and
+   weapon panels expose every stat the sim has, and the stage bar exposes the
+   director's schedule. What is still missing is the part a player would act on:
+   no per-tower damage contribution, no "this tower has killed nothing in three
+   waves", no reason given when a placement is rejected beyond a red ghost.
 
 8. **Relics are generated but barely matter.** Twelve affixes, all flat stat
    rolls, three slots, one implicit each. Crafting works but there is nothing to
