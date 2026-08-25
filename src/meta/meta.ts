@@ -183,11 +183,23 @@ export function allocate(meta: MetaState, nodeId: number): MetaState {
   return { ...meta, allocated: [...meta.allocated, nodeId] };
 }
 
-/** Refunding a node must not orphan anything downstream of it. */
+/**
+ * Refunding a node must not orphan anything downstream of it, and must be
+ * paid for. Affordability lives here rather than only inside `refund` so the
+ * UI can gate the action and explain itself instead of silently doing nothing.
+ */
 export function canRefund(meta: MetaState, nodeId: number): boolean {
-  if (nodeId === 0 || !meta.allocated.includes(nodeId)) return false;
-  const remaining = meta.allocated.filter((id) => id !== nodeId);
-  return isConnected(remaining);
+  return refundBlocker(meta, nodeId) === null;
+}
+
+export type RefundBlocker = 'not_allocated' | 'would_orphan' | 'ember';
+
+/** Why a refund is not available, or null when it is. */
+export function refundBlocker(meta: MetaState, nodeId: number): RefundBlocker | null {
+  if (nodeId === 0 || !meta.allocated.includes(nodeId)) return 'not_allocated';
+  if (!isConnected(meta.allocated.filter((id) => id !== nodeId))) return 'would_orphan';
+  if (meta.ember < loadContent().tree.respecCostPerNode) return 'ember';
+  return null;
 }
 
 export function refund(meta: MetaState, nodeId: number): MetaState {

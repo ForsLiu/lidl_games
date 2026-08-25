@@ -35,8 +35,15 @@ html, body {
   display: block;
   border: 1px solid var(--line);
   border-radius: 6px;
-  image-rendering: pixelated;
   background: #0b0d14;
+  /*
+   * The renderer sets an inline width in logical pixels and backs the canvas at
+   * the device pixel ratio, so it is crisp rather than upscaled. Height follows
+   * the aspect ratio, which keeps the arena square-tiled when a narrow window
+   * shrinks it - fixing both dimensions inline would distort it instead.
+   */
+  aspect-ratio: 36 / 20;
+  height: auto;
   max-width: 100%;
 }
 
@@ -117,6 +124,21 @@ html, body {
   background: #05070ccc;
   backdrop-filter: blur(2px);
   border-radius: 6px;
+}
+
+/*
+ * A hidden overlay must leave the layout entirely. The bare `hidden` attribute
+ * is not enough: the UA rule `[hidden] { display: none }` loses the cascade to
+ * `.sw-modal { display: grid }` above, which left an invisible sheet over the
+ * canvas swallowing every click and blurring the game through its
+ * backdrop-filter. Both selectors below outrank the base rule.
+ */
+.sw-modal[hidden],
+.sw-modal.sw-off {
+  display: none !important;
+  pointer-events: none;
+  backdrop-filter: none;
+  background: transparent;
 }
 
 .sw-card {
@@ -323,3 +345,21 @@ html, body {
 .sw-setting b { text-align: right; font-variant-numeric: tabular-nums; }
 .sw-setting input[type="range"] { width: 160px; accent-color: var(--accent); }
 .sw-setting input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--accent); }
+
+.sw-notice {
+  margin: 0 0 12px;
+  padding: 7px 12px;
+  background: #2a2418;
+  border: 1px solid #5a4a24;
+  border-radius: 5px;
+  color: var(--gold);
+  font-size: 13px;
+}
+
+.sw-pausebuttons {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}
+.sw-pausebuttons .sw-go,
+.sw-pausebuttons .sw-reroll { margin-top: 8px; }

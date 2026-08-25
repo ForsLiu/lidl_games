@@ -12,9 +12,9 @@ import {
   accountLevelFor,
   allocate,
   canAllocate,
-  canRefund,
   pointsAvailable,
   refund,
+  refundBlocker,
   stashCapacity,
 } from '../meta/meta';
 import { craft, discard, equip, type OrbKey } from '../meta/crafting';
@@ -29,6 +29,13 @@ export interface HubCallbacks {
   onMetaChanged(meta: MetaState): void;
   onSettingsChanged(settings: Settings): void;
 }
+
+/** Why a right-click did nothing, in words the player can act on. */
+const REFUND_REFUSALS: Record<string, (cost: number, ember: number) => string> = {
+  not_allocated: () => 'That node is not allocated.',
+  would_orphan: () => 'Refund the nodes beyond it first — this one holds them to the tree.',
+  ember: (cost, ember) => `Refunding costs ${cost} Ember and you have ${ember}.`,
+};
 
 const BRANCH_COLORS: Record<string, string> = {
   start: '#e8edf5',
@@ -48,6 +55,8 @@ export class Hub {
   private seed: number;
   private selectedRelic: number | null = null;
   private settings: Settings;
+  /** Transient one-line feedback under the tab bar. */
+  private notice = '';
 
   constructor(root: HTMLElement, meta: MetaState, seed: number, cb: HubCallbacks) {
     this.root = root;
@@ -56,6 +65,12 @@ export class Hub {
     this.seed = seed;
     this.classKey = meta.unlockedClasses[0] ?? 'engineer';
     this.settings = cb.settings;
+  }
+
+  /** Switches tab and re-renders. Also the seam tests use to reach a tab. */
+  openTab(tab: Tab): void {
+    this.tab = tab;
+    this.show();
   }
 
   show(): void {
@@ -82,6 +97,7 @@ export class Hub {
           )
           .join('')}
       </nav>
+      ${this.notice ? `<p class="sw-notice">${this.notice}</p>` : ''}
       <section id="sw-hub-body"></section>`;
     this.root.appendChild(el);
     for (const b of el.querySelectorAll<HTMLElement>('nav button')) {
@@ -98,6 +114,7 @@ export class Hub {
   }
 
   private commit(meta: MetaState): void {
+    this.notice = '';
     this.meta = meta;
     this.cb.onMetaChanged(meta);
     this.show();
@@ -263,10 +280,15 @@ export class Hub {
         <h2>Constellation</h2>
         <p class="sw-note">
           ${pointsAvailable(this.meta)} point(s) available · click a lit-adjacent node to take it ·
-          right-click to refund for ${content.tree.respecCostPerNode} Ember.
+          right-click to refund for ${content.tree.respecCostPerNode} Ember
+          (you have <b>${this.meta.ember}</b>).
         </p>
         <svg viewBox="0 0 ${size} ${size}" class="sw-tree">${edges.join('')}${nodes}</svg>
       </div>`;
+
+    // Suppress the browser menu across the whole tree, not just on the nodes:
+    // right-clicking a gap between nodes should not pop a context menu either.
+    body.querySelector('.sw-tree')?.addEventListener('contextmenu', (e) => e.preventDefault());
 
     for (const el of body.querySelectorAll<SVGCircleElement>('.sw-node')) {
       const id = Number(el.dataset.node);
@@ -275,7 +297,15 @@ export class Hub {
       });
       el.addEventListener('contextmenu', (e) => {
         e.preventDefault();
-        if (canRefund(this.meta, id)) this.commit(refund(this.meta, id));
+        e.stopPropagation();
+        const blocked = refundBlocker(this.meta, id);
+        if (blocked === null) {
+          this.notice = '';
+          this.commit(refund(this.meta, id));
+          return;
+        }
+        this.notice = REFUND_REFUSALS[blocked](content.tree.respecCostPerNode, this.meta.ember);
+        this.show();
       });
     }
   }

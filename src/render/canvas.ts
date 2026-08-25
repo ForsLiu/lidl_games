@@ -49,14 +49,32 @@ export class Renderer {
   private shakeX = 0;
   private shakeY = 0;
   private rngPhase = 0;
+  private dpr = 0;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
     const ctx = canvas.getContext('2d');
     if (!ctx) throw new Error('2d context unavailable');
     this.ctx = ctx;
-    canvas.width = GRID_W * TILE;
-    canvas.height = GRID_H * TILE;
+    this.resize();
+  }
+
+  /**
+   * Sizes the backing store to the device pixel ratio. Without this the canvas
+   * is authored at 1152x640 and then upscaled by the display, which is what
+   * made the game look soft on a HiDPI screen. The CSS box stays in logical
+   * pixels, so every draw call keeps working in tile space.
+   */
+  resize(dpr = globalThis.devicePixelRatio || 1): void {
+    const ratio = Math.max(1, Math.min(3, dpr));
+    if (this.dpr === ratio && this.canvas.width > 0) return;
+    this.dpr = ratio;
+    this.canvas.width = Math.round(GRID_W * TILE * ratio);
+    this.canvas.height = Math.round(GRID_H * TILE * ratio);
+    // Width only: CSS carries the aspect ratio, so a narrow window shrinks
+    // the canvas without stretching it.
+    this.canvas.style.width = `${GRID_W * TILE}px`;
+    this.ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
   }
 
   get width(): number {
@@ -144,6 +162,7 @@ export class Renderer {
     const ctx = this.ctx;
     const night = w.sundered;
     ctx.save();
+    ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     ctx.translate(this.shakeX, this.shakeY);
     ctx.fillStyle = night ? PALETTE.bgNight : PALETTE.bgDay;
     ctx.fillRect(-20, -20, this.width + 40, this.height + 40);

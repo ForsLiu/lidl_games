@@ -13,6 +13,8 @@ export interface HudCallbacks {
   onReroll(): void;
   onRestart(): void;
   onToggleRanges(): void;
+  onResume(): void;
+  onQuitToHub(): void;
 }
 
 export class Hud {
@@ -24,6 +26,7 @@ export class Hud {
   private cb: HudCallbacks;
   private selected = 0;
   private lastModalKey = '';
+  private paused = false;
 
   constructor(root: HTMLElement, cb: HudCallbacks) {
     this.root = root;
@@ -32,7 +35,7 @@ export class Hud {
       <div class="sw-shell">
         <div class="sw-stage">
           <canvas id="sw-canvas"></canvas>
-          <div class="sw-modal" id="sw-modal" hidden></div>
+          <div class="sw-modal sw-off" id="sw-modal" hidden></div>
           <div class="sw-toast" id="sw-toast"></div>
         </div>
         <div class="sw-side">
@@ -41,7 +44,8 @@ export class Hud {
           <div class="sw-help">
             <b>WASD</b> move &middot; <b>Space</b> dash &middot; <b>LMB</b> build &middot;
             <b>RMB</b> sell &middot; <b>U</b>+click upgrade &middot; <b>1-9</b> pick tower &middot;
-            <b>0</b> clear &middot; <b>Enter</b> call wave &middot; <b>R</b> ranges
+            <b>0</b> clear &middot; <b>Enter</b> call wave &middot; <b>R</b> ranges &middot;
+            <b>Esc</b> pause
           </div>
         </div>
       </div>`;
@@ -49,6 +53,11 @@ export class Hud {
     this.stats = root.querySelector('#sw-stats') as HTMLElement;
     this.modal = root.querySelector('#sw-modal') as HTMLElement;
     this.toast = root.querySelector('#sw-toast') as HTMLElement;
+  }
+
+  /** True while any overlay owns input, so clicks must not reach the canvas. */
+  get modalOpen(): boolean {
+    return !this.modal.hidden;
   }
 
   get canvas(): HTMLCanvasElement {
@@ -158,8 +167,41 @@ export class Hud {
     this.bar.classList.toggle('hidden', w.sundered);
   }
 
+  /**
+   * Pausing is a presentation state, not a sim one: the loop simply stops
+   * stepping, so a paused run resumes bit-identically.
+   */
+  setPaused(paused: boolean, w: World): void {
+    if (this.paused === paused) return;
+    this.paused = paused;
+    this.lastModalKey = '';
+    if (paused) this.showPause();
+    else this.syncModal(w);
+  }
+
+  private showPause(): void {
+    this.openModal();
+    this.modal.innerHTML = `
+      <div class="sw-card">
+        <h2>Paused</h2>
+        <p>The Vale holds its breath.</p>
+        <div class="sw-pausebuttons">
+          <button class="sw-go" data-act="resume">Resume</button>
+          <button class="sw-reroll" data-act="quit">Abandon run</button>
+        </div>
+        <p class="sw-note">Esc resumes · abandoning returns to the Hub and keeps nothing.</p>
+      </div>`;
+    this.modal
+      .querySelector('[data-act="resume"]')
+      ?.addEventListener('click', () => this.cb.onResume());
+    this.modal
+      .querySelector('[data-act="quit"]')
+      ?.addEventListener('click', () => this.cb.onQuitToHub());
+  }
+
   /** Modal screens: soul picker, level-up, results. */
   syncModal(w: World): void {
+    if (this.paused) return;
     const key = `${w.phase}:${w.offers.length}:${w.soulCandidates.join(',')}:${w.outcome}:${w.level}`;
     if (key === this.lastModalKey) return;
     this.lastModalKey = key;
@@ -171,15 +213,26 @@ export class Hud {
     } else if (w.phase === 'results') {
       this.showResults(w);
     } else {
-      this.modal.hidden = true;
-      this.modal.innerHTML = '';
+      this.hideModal();
     }
+  }
+
+  /** Takes the overlay out of the layout; see the `.sw-off` rule in style.css. */
+  hideModal(): void {
+    this.modal.hidden = true;
+    this.modal.classList.add('sw-off');
+    this.modal.innerHTML = '';
+  }
+
+  private openModal(): void {
+    this.modal.hidden = false;
+    this.modal.classList.remove('sw-off');
   }
 
   private showSoulPicker(w: World): void {
     const slots = w.derived.weaponSlots;
     const chosen = new Set<string>();
-    this.modal.hidden = false;
+    this.openModal();
     const render = () => {
       this.modal.innerHTML = `
         <div class="sw-card wide">
@@ -214,7 +267,7 @@ export class Hud {
   }
 
   private showOffers(w: World, offers: Offer[]): void {
-    this.modal.hidden = false;
+    this.openModal();
     this.modal.innerHTML = `
       <div class="sw-card">
         <h2>Level ${w.level}</h2>
@@ -237,7 +290,7 @@ export class Hud {
   }
 
   private showResults(w: World): void {
-    this.modal.hidden = false;
+    this.openModal();
     const won = w.outcome === 'victory';
     const mm = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
     this.modal.innerHTML = `

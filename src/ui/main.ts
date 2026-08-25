@@ -9,8 +9,8 @@
 import './style.css';
 
 import { Run } from '../sim/run';
-import { FIXED_DT, emptyInput, type Command, type MetaState, type RunConfig, type TickInput } from '../sim/types';
-import { TILE } from '../sim/grid';
+import { FIXED_DT, type Command, type MetaState, type RunConfig, type TickInput } from '../sim/types';
+import { bindCanvasInput, gatherInput, makeKeyDownHandler } from './input';
 import { Renderer, type ViewState } from '../render/canvas';
 import { Hud } from './hud';
 import { Hub } from './hub';
@@ -43,6 +43,7 @@ class Game {
   private meta: MetaState = defaultMeta();
   private resultBanked = false;
   private inputBound = false;
+  private paused = false;
 
   start(rootEl: HTMLElement): void {
     this.root = rootEl;
@@ -56,6 +57,7 @@ class Game {
 
   private showHub(): void {
     this.run = null;
+    this.paused = false;
     const seed = (Math.random() * 0xffffffff) >>> 0;
     const hub = new Hub(this.root, this.meta, seed, {
       settings: this.settings,
@@ -84,6 +86,8 @@ class Game {
       onReroll: () => this.pending.push({ k: 'reroll' }),
       onRestart: () => this.showHub(),
       onToggleRanges: () => (this.view.showRanges = !this.view.showRanges),
+      onResume: () => this.setPaused(false),
+      onQuitToHub: () => this.showHub(),
     });
     this.renderer = new Renderer(this.hud.canvas);
     if (!this.inputBound) {
@@ -93,6 +97,7 @@ class Game {
     this.bindCanvasInput();
     this.run = new Run(cfg);
     this.resultBanked = false;
+    this.paused = false;
     this.hud.buildTowerBar(this.run.world);
     this.hud.resetModalKey();
     this.view.selectedTower = 0;
@@ -100,63 +105,62 @@ class Game {
     this.acc = 0;
   }
 
+  /** Esc toggles pause; a finished run cannot be paused. */
+  private togglePause(): void {
+    if (!this.run || this.run.world.outcome !== 'running') return;
+    this.setPaused(!this.paused);
+  }
+
+  private setPaused(paused: boolean): void {
+    if (!this.run) return;
+    this.paused = paused;
+    // Movement keys held when pausing must not carry through to the resume.
+    if (paused) this.keys.clear();
+    this.hud.setPaused(paused, this.run.world);
+  }
+
   private bindGlobalInput(): void {
+    const onKeyDown = makeKeyDownHandler({
+      keys: this.keys,
+      queue: { push: (cmd) => this.pending.push(cmd) },
+      onAnyKey: () => this.sfx.resume(),
+      togglePause: () => this.togglePause(),
+      toggleRanges: () => (this.view.showRanges = !this.view.showRanges),
+      clearSelection: () => this.hud.clearSelection(),
+      isChoosing: () => this.run?.world.phase === 'levelup',
+      pickOffer: (i) => this.pending.push({ k: 'pick', index: i }),
+      selectTowerByIndex: (i) => {
+        if (this.run) this.hud.selectByIndex(this.run.world, i);
+      },
+    });
     window.addEventListener('keydown', (e) => {
-      if (e.repeat || !this.run) return;
-      const k = e.key.toLowerCase();
-      this.keys.add(k);
-      if (k === ' ') {
-        this.dashQueued = true;
-        e.preventDefault();
-      }
-      if (k === 'enter') this.pending.push({ k: 'call' });
-      if (k === 'r') this.view.showRanges = !this.view.showRanges;
-      this.sfx.resume();
-      if (k === '0') this.hud.clearSelection();
-      if (this.run.world.phase === 'levelup' && k >= '1' && k <= '3') {
-        this.pending.push({ k: 'pick', index: Number(k) - 1 });
-      } else if (k >= '1' && k <= '9') {
-        this.hud.selectByIndex(this.run.world, Number(k) - 1);
-      }
+      if (!this.run) return;
+      if (e.key === ' ' && !this.paused) this.dashQueued = true;
+      onKeyDown(e);
     });
     window.addEventListener('keyup', (e) => this.keys.delete(e.key.toLowerCase()));
     window.addEventListener('blur', () => this.keys.clear());
   }
 
   private bindCanvasInput(): void {
-    const canvas = this.hud.canvas;
-    canvas.addEventListener('contextmenu', (e) => e.preventDefault());
-    canvas.addEventListener('mousemove', (e) => {
-      const r = canvas.getBoundingClientRect();
-      this.view.cursorX = (((e.clientX - r.left) / r.width) * canvas.width) / TILE;
-      this.view.cursorY = (((e.clientY - r.top) / r.height) * canvas.height) / TILE;
-    });
-    canvas.addEventListener('mousedown', (e) => {
-      const tx = Math.floor(this.view.cursorX);
-      const ty = Math.floor(this.view.cursorY);
-      if (e.button === 2) {
-        this.pending.push({ k: 'sell', tx, ty });
-      } else if (this.keys.has('u') || e.shiftKey) {
-        this.pending.push({ k: 'upgrade', tx, ty });
-      } else if (this.view.selectedTower > 0) {
-        this.pending.push({ k: 'build', tower: this.view.selectedTower, tx, ty });
-      }
+    bindCanvasInput({
+      canvas: this.hud.canvas,
+      view: this.view,
+      keys: this.keys,
+      queue: { push: (cmd) => this.pending.push(cmd) },
+      isBlocked: () => this.paused || this.hud.modalOpen,
     });
   }
 
   private gatherInput(): TickInput {
-    const input = emptyInput();
-    const k = this.keys;
-    if (k.has('a') || k.has('arrowleft')) input.mx -= 1;
-    if (k.has('d') || k.has('arrowright')) input.mx += 1;
-    if (k.has('w') || k.has('arrowup')) input.my -= 1;
-    if (k.has('s') || k.has('arrowdown')) input.my += 1;
-    input.dash = this.dashQueued;
+    const input = gatherInput(
+      this.keys,
+      this.pending,
+      this.view.cursorX,
+      this.view.cursorY,
+      this.dashQueued,
+    );
     this.dashQueued = false;
-    input.attack = true;
-    input.aimX = this.view.cursorX;
-    input.aimY = this.view.cursorY;
-    input.cmds = this.pending;
     this.pending = [];
     return input;
   }
@@ -167,6 +171,14 @@ class Game {
     this.sfx.tick(dtReal);
     const run = this.run;
     if (!run) {
+      requestAnimationFrame(this.frame);
+      return;
+    }
+    // Paused: keep rendering the frozen frame, but step nothing. The sim never
+    // sees wall-clock time, so a paused run resumes bit-identically.
+    if (this.paused) {
+      this.renderer.update(dtReal, this.view);
+      this.renderer.draw(run.world, this.view);
       requestAnimationFrame(this.frame);
       return;
     }
