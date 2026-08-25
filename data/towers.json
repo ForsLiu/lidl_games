@@ -6,6 +6,7 @@
   "sellRefund": 0.7,
   "duskSellRefund": 0.35,
   "buildRange": 4,
+  "rekindleCostMul": 0.4,
   "towers": [
     {
       "id": 1,

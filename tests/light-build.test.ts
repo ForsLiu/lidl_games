@@ -34,6 +34,8 @@ function clearsActI(policy: string, seed: number): boolean {
     allocated: [],
     relics: [],
     policy,
+    // This measures the original 10-wave Act I curve, not the SPEC-V2 cycle split.
+    cycles: 1,
   };
   const run = new Run(cfg);
   const bot = makePolicy(policy);

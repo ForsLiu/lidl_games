@@ -86,7 +86,9 @@ describe('A10 performance', () => {
     // Timed through the shipped path (`npm run sim`) rather than in-process:
     // Vitest's transform adds ~40% that has nothing to do with the sim. The CLI
     // reports `simMs` for the run loop alone, so process startup is excluded.
-    const out = execSync('npx tsx tools/sim.ts --seeds 1,2,4 --policy maxbuild', {
+    // SPEC A10 measures the original single-pass run; the SPEC-V2 cycle split
+    // is a separate (not-yet-tuned) balance question for M15/M16.
+    const out = execSync('npx tsx tools/sim.ts --seeds 1,2,4 --policy maxbuild --cycles 1', {
       encoding: 'utf8',
       cwd: process.cwd(),
     });

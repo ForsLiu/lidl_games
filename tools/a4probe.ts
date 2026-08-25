@@ -40,6 +40,8 @@ export function runSingleType(
     allocated: [],
     relics: [],
     policy: `single:${towerKey}`,
+    // SPEC A4 measures the original 10-wave Act I, not the SPEC-V2 cycle split.
+    cycles: 1,
   };
   const run = new Run(cfg);
   const policy = new BuilderPolicy(`single:${towerKey}`, {

@@ -12,6 +12,7 @@ export type Phase =
   | 'soulpick'
   | 'act2'
   | 'levelup'
+  | 'dawn'
   | 'results';
 
 export type RunOutcome = 'running' | 'victory' | 'defeat_core' | 'defeat_warden';
@@ -27,6 +28,8 @@ export type Command =
   | { k: 'pick'; index: number }
   | { k: 'reroll' }
   | { k: 'equip'; relic: number }
+  | { k: 'rekindle'; structureId: number }
+  | { k: 'dawn_done' }
   | { k: 'dev'; op: DevOp; amount: number };
 
 /**
@@ -81,6 +84,12 @@ export interface Structure {
   dead: boolean;
   /** Post-Sundering state. */
   petrified: boolean;
+  /**
+   * SPEC-V2 §1: set when Rekindled at Dawn; excludes this structure's soul
+   * from the very next Dusk picker even if it survives to re-petrify. Cleared
+   * the next time it actually petrifies.
+   */
+  soulSuppressed: boolean;
   /** Gem Bloom bookkeeping (Harvest Sprout terrain). */
   gemTimer: number;
   gemsWaiting: number;
@@ -296,6 +305,12 @@ export interface RunConfig {
   relics: Relic[];
   /** Bot policy name, headless only. */
   policy?: string;
+  /**
+   * SPEC-V2 §1: number of Day/Dusk/Night/Dawn cycles the run plays before the
+   * Warden-Eater ends it. Defaults to 3 (the shipped run shape). Tests may
+   * pass 1 for the old single-cycle flow.
+   */
+  cycles?: number;
   /**
    * Harness switch for SPEC A6: delete every petrified structure at the
    * Sundering so a build can be measured with and without its terrain.

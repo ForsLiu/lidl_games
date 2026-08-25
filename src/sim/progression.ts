@@ -216,7 +216,9 @@ export function applyOffer(w: World, offer: Offer): void {
 export function deriveSouls(w: World): { key: string; level: number; damageBonus: number }[] {
   const counts = new Map<string, { count: number; tier: number }>();
   for (const s of w.structures) {
-    if (s.dead) continue;
+    // SPEC-V2 §1: a tower Rekindled at Dawn sits out the very next Dusk pick,
+    // even if it survives the following Day and re-petrifies before then.
+    if (s.dead || s.soulSuppressed) continue;
     const def = w.content.towerById.get(s.towerId)!;
     if (!def.soul) continue;
     const cur = counts.get(def.soul) ?? { count: 0, tier: 0 };
@@ -234,19 +236,45 @@ export function deriveSouls(w: World): { key: string; level: number; damageBonus
   return out;
 }
 
-/** Grants the chosen souls plus every slotless innate weapon. */
+/**
+ * Grants the chosen souls plus every slotless innate weapon.
+ *
+ * SPEC-V2 §1: a soul not re-chosen this Dusk unbinds — its weapon stops
+ * firing, not just falling out of the picker's candidate list — while its
+ * Night-earned level survives in `w.soulLevels` so a later re-pick (once it
+ * re-petrifies) resumes where it left off rather than restarting at its
+ * tower's bare tier.
+ */
 export function bindSouls(w: World, chosen: string[]): WeaponState[] {
   const souls = deriveSouls(w);
   const byKey = new Map(souls.map((s) => [s.key, s]));
   const slots = w.derived.weaponSlots;
   const keys = chosen.filter((k) => byKey.has(k)).slice(0, slots);
 
+  // Snapshot whatever the outgoing roster grew to over the Night that just
+  // ended before any of it is dropped, so soul progress is never lost - only
+  // benched.
+  for (const ws of w.weapons) {
+    if (weaponDef(w, ws.key).slotless) continue;
+    const prev = w.soulLevels[ws.key];
+    if (!prev || ws.level > prev.level || ws.damageBonus > prev.damageBonus) {
+      w.soulLevels[ws.key] = {
+        level: Math.max(ws.level, prev?.level ?? 0),
+        damageBonus: Math.max(ws.damageBonus, prev?.damageBonus ?? 0),
+      };
+    }
+  }
+
+  // Rebuild the active roster from scratch: slotless innates always fight;
+  // every other weapon must be in this Dusk's chosen set to stay bound.
+  w.weapons = w.weapons.filter((ws) => weaponDef(w, ws.key).slotless);
   for (const def of w.content.weapons.weapons) {
     if (def.slotless) grantWeapon(w, def.key, 1, 0);
   }
   for (const k of keys) {
     const s = byKey.get(k)!;
-    grantWeapon(w, k, s.level, s.damageBonus);
+    const persisted = w.soulLevels[k];
+    grantWeapon(w, k, Math.max(s.level, persisted?.level ?? 0), Math.max(s.damageBonus, persisted?.damageBonus ?? 0));
   }
 
   // Soul Furnace: start Nightfall with the best weapon one level higher.

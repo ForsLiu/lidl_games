@@ -125,6 +125,8 @@ function mountHud(): { root: HTMLElement; hud: Hud; log: Record<string, number> 
     onPickSouls: () => {},
     onPickOffer: () => {},
     onReroll: () => {},
+    onRekindle: () => {},
+    onDawnDone: () => {},
     onRetry: () => log.retry++,
     onNewRun: () => log.newrun++,
     onToggleRanges: () => {},

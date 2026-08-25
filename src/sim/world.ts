@@ -82,6 +82,12 @@ export class World {
   tick = 0;
   phase: Phase = 'act1_build';
   outcome: RunOutcome = 'running';
+  /** SPEC-V2 §1: 1-based index of the Day/Dusk/Night/Dawn cycle in progress. */
+  cycle = 1;
+  /** Cycles this run plays before the Warden-Eater ends it (cfg.cycles, default 3). */
+  readonly totalCycles: number;
+  /** Counts up while the Dawn ledger is open; auto-advances past DAWN_AUTO_SECONDS. */
+  dawnTimer = 0;
   /**
    * Set the instant a defeat condition is met; `outcome` stays 'running' and
    * play keeps ticking for `dyingTimer` more seconds (SPEC-V2 D1's slow-mo
@@ -151,6 +157,12 @@ export class World {
   stats: Stats;
   derived: Derived;
   weapons: WeaponState[] = [];
+  /**
+   * SPEC-V2 §1: per-soul level/damageBonus that survives a soul being benched
+   * (not re-chosen at a Dusk, e.g. after a Rekindle) so it resumes rather than
+   * restarts once it is available again. Keyed by soul (weapon) key.
+   */
+  soulLevels: Record<string, { level: number; damageBonus: number }> = {};
   boonRanks: Record<string, number> = {};
   awakenings: string[] = [];
   level = 1;
@@ -207,6 +219,7 @@ export class World {
   constructor(cfg: RunConfig, content: Content = loadContent()) {
     this.content = content;
     this.cfg = cfg;
+    this.totalCycles = Math.max(1, Math.round(cfg.cycles ?? 3));
     this.rng = new RngSet(cfg.seed);
     this.grid = new Grid();
 
@@ -472,4 +485,26 @@ export class World {
 export { coreCenter };
 export function makeStats(): Stats {
   return emptyStats();
+}
+
+/** SPEC-V2 §1: last wave (global index) of the given cycle's Day. */
+export function cycleWaveEnd(w: World, cycle: number): number {
+  if (w.totalCycles <= 1 || cycle >= w.totalCycles) return w.waveCount;
+  const arr = w.content.waves.waveEndByCycle;
+  if (cycle > arr.length) return w.waveCount;
+  return Math.min(arr[cycle - 1], w.waveCount);
+}
+
+/** Fixed Night length for a non-final cycle; the final cycle ends by boss kill only. */
+export function nightLengthSeconds(w: World, cycle: number): number {
+  if (cycle >= w.totalCycles) return Infinity;
+  const arr = w.content.waves.nightSecondsByCycle;
+  const idx = Math.min(cycle, arr.length) - 1;
+  return idx >= 0 ? arr[idx] : 300;
+}
+
+/** Elite spawn-count multiplier for a cycle's Night capstone (e.g. cycle 2's "Elite pressure x2"). */
+export function cycleEliteMul(w: World, cycle: number): number {
+  const m = w.content.waves.eliteMulByCycle;
+  return (m && m[String(cycle)]) ?? 1;
 }

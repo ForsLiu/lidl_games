@@ -15,6 +15,9 @@ export function cfg(over: Partial<RunConfig> = {}): RunConfig {
     allocated: [],
     relics: [],
     policy: 'none',
+    // Most of the suite predates SPEC-V2's 3-cycle run and measures a single
+    // Day/Dusk/Night pass; pass `cycles: 3` explicitly to test the cycle machine.
+    cycles: 1,
     ...over,
   };
 }

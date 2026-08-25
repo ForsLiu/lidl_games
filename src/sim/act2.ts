@@ -6,16 +6,25 @@
 import { GRID_H, GRID_W } from './grid';
 import { clamp, dist2 } from './math';
 import { spawnEnemy } from './enemies';
-import { World } from './world';
+import { cycleEliteMul, World } from './world';
+
+/**
+ * SPEC-V2 §1: minute-of-warmup within the current Night, offset by
+ * `2.5 x (cycle - 1)` so cycle 2/3's Night starts hotter than cycle 1's did.
+ */
+function nightMinutes(w: World): number {
+  const offsetPerCycle = w.content.waves.nightMinuteOffsetPerCycle ?? 0;
+  return w.act2Time / 60 + offsetPerCycle * (w.cycle - 1);
+}
 
 /** Minute index used by the weight table and the HP ramp. */
 export function act2Minute(w: World): number {
-  return Math.floor(w.act2Time / 60);
+  return Math.floor(nightMinutes(w));
 }
 
 /** SPEC 5.1: HP x 1.10^minute on top of the Act II overlay. */
 export function timeHpScale(w: World): number {
-  return Math.pow(w.content.spawns.hpScalePerMinute, w.act2Time / 60);
+  return Math.pow(w.content.spawns.hpScalePerMinute, nightMinutes(w));
 }
 
 function weightsFor(w: World, minute: number): Record<string, number> {
@@ -111,7 +120,7 @@ export function updateDirector(w: World, dt: number): void {
   w.eliteTimer -= dt;
   if (w.eliteTimer <= 0) {
     w.eliteTimer += sp.eliteIntervalSeconds;
-    const count = Math.max(1, Math.round(w.mods.eliteMul));
+    const count = Math.max(1, Math.round(w.mods.eliteMul * cycleEliteMul(w, w.cycle)));
     for (let i = 0; i < count; i++) spawnElite(w);
   }
 

@@ -6,9 +6,17 @@ with the commit hash.
 
 ## Queue
 
-- [ ] (f001) [feat] Cycle state machine: Day→Dusk→Night→Dawn ×3, Dusk picker every
-      cycle, Dawn Rekindle/Leave flow — acceptance: scripted 3-cycle sim completes;
-      B9 state test green — refs: SPEC-V2 §1
+- [ ] (b004) [bug] `report.survivalSeconds` (drives Ember's completion-fraction
+      reward, `src/meta/meta.ts` `emberFor`) reads `w.act2Time`, which resets to 0
+      every Dusk→Night transition (`finishSundering`) — a run that survives 2+ full
+      Nights then dies mid-cycle reports only the current cycle's local Night time,
+      not cumulative Night survival, underpaying Ember (~21% short on a real
+      2-Night-survival repro). `report.act2Seconds` (`w.act2Ticks / 60`) already
+      tracks the cumulative figure correctly — acceptance: a failing regression
+      test added first (a run that reaches Dawn twice asserts
+      `survivalSeconds === act2Seconds`), then `buildReport` uses the cumulative
+      source; full suite green — refs: SPEC-V2 §1, found by qa-playtester
+      2026-08-25 verifying f001
 - [ ] (f002) [feat] Soul persistence: per-soul Night level tracks survive across
       Nights for petrified-left towers; Rekindled souls leave the picker —
       acceptance: B9 — refs: SPEC-V2 §1
@@ -24,6 +32,17 @@ with the commit hash.
 
 ## Done
 
+- [x] (f001) [feat] Cycle state machine: Day→Dusk→Night→Dawn ×3, Dusk picker every
+      cycle, Dawn Rekindle/Leave flow — refs: SPEC-V2 §1 — commit <pending>,
+      code-reviewer pass 2026-08-25 (one Major finding — `hashWorld` omitted the
+      new `w.soulLevels` persisted-soul-progress record, so two replays could
+      diverge there without the A11 hash catching it — fixed by hashing
+      `soulLevels` sorted by key, same pattern as `boonRanks`; re-verified green),
+      qa-playtester pass 2026-08-25 (3-cycle termination across 40 seeds, Rekindle
+      economics — no gold, non-petrified/dead/double-rekindle targets, Dawn/Dusk
+      auto-advance timers, same-tick death/timer races, A11 replay determinism —
+      all held; filed one real bug as b004, out of this item's scope per its own
+      verdict)
 - [x] (b003) [bug] Stash click-to-swap + drag-to-unequip + compare tooltip; no
       dead-end equip states — refs: SPEC-V2 §10 D2, §3 — commit 84bc3f8,
       qa-playtester pass 2026-08-25 (rapid multi-slot equip/unequip cycles, crafting

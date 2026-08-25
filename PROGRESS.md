@@ -10,12 +10,13 @@
   click-to-swap / drag-to-unequip / compare tooltip, SPEC-V2 §10 D2) also done;
   M9 (SPEC-V2 §12) work is underway via the BACKLOG queue.
 - **Last session:** 2026-08-25
-- **Next action:** BACKLOG.md f001 (Day→Dusk→Night→Dawn cycle state machine) is
-  next in queue. After the BACKLOG queue: QUESTIONS.md verdicts. Both playtest
-  requests carried the example template rather than actual verdicts, so all
-  **32** entries are still pending — see the Verdict log at the top of that
-  file. The tier ladder above T3 has no measured win (HANDOFF.md §6), and the
-  two relaxed bounds (A3's per-seed 3:00 line, A7's 15% leak share) remain open.
+- **Next action:** BACKLOG.md b004 (Ember underpay on multi-cycle runs, found by
+  qa-playtester verifying f001) is next in queue. After the BACKLOG queue:
+  QUESTIONS.md verdicts. Both playtest requests carried the example template
+  rather than actual verdicts, so all **32** entries are still pending — see the
+  Verdict log at the top of that file. The tier ladder above T3 has no measured
+  win (HANDOFF.md §6), and the two relaxed bounds (A3's per-seed 3:00 line, A7's
+  15% leak share) remain open.
 - **HANDOFF.md** at the repo root is the state report for SPEC v0.2: every
   implemented system, every deviation from SPEC.md with its reason, the /data
   snapshot, measured sweep metrics, and an engineer's list of what is shallow.
@@ -322,6 +323,40 @@ features whose counters read zero with no explanation.
   awakening → weapon → card index 0, so measured "picks" reflect offer RNG, not
   preference. There is no signal about which boons a player would want.
 ## Session log (newest first)
+- 2026-08-25 — BACKLOG f001: the Day→Dusk→Night→Dawn cycle state machine
+  (SPEC-V2 §1), 3 cycles by default (`RunConfig.cycles`, existing single-pass
+  suites pin `cycles: 1`). `World.cycle`/`totalCycles` gate `cycleWaveEnd`/
+  `nightLengthSeconds`/`cycleEliteMul` (`src/sim/world.ts`) against
+  `data/waves.json`'s `waveEndByCycle`/`nightSecondsByCycle`/`eliteMulByCycle`/
+  `nightMinuteOffsetPerCycle`, so cycle 2/3's Night starts hotter and only the
+  final cycle gates on boss kill — every other cycle's Night ends by timer into
+  a new `dawn` phase. Dawn is a ledger: `rekindle` (a real sim Command, gold-
+  gated at `rekindleCostMul` of base cost) un-petrifies one structure for the
+  next Day but benches its soul for exactly one Dusk pick via a new
+  `Structure.soulSuppressed` flag; `dawn_done` (or a 20s auto-advance with no
+  input) resolves into the next Day. A new `World.soulLevels` record persists
+  each soul's Night-earned level/damageBonus across being benched, so a
+  Rekindled-then-later-re-picked soul resumes rather than restarts
+  (`bindSouls`, `src/sim/progression.ts`). Fixed a latent bug the multi-cycle
+  shape exposed: `w.sundered` is permanently true from the first Sundering on,
+  so every UI/render read of it (`hud.ts`, `progress.ts`, `canvas.ts`) was
+  swapped to the phase-scoped `w.huntsWarden` getter, or Day 2/3 and Dawn would
+  have kept rendering the Night HUD. `tests/f001-cycle-machine.test.ts` (11
+  tests) covers cycle boundaries, Dawn auto-advance, Rekindle cost/no-op-on-
+  live-structure, the B9 soul-suppression/persistence scenario, a full 3-cycle
+  scripted run, an 8-seed cycle-bound sweep, and an A11 replay-hash check with
+  `rekindle`/`dawn_done` in the log. code-reviewer's one Major finding —
+  `hashWorld` didn't hash the new `soulLevels` record, so a divergence there
+  could pass A11 undetected — was fixed (hashed sorted by key, same as
+  `boonRanks`) and re-verified green. qa-playtester independently drove 40
+  seeds through 3 cycles headlessly and adversarially probed Rekindle/Dawn/Dusk
+  (bad gold, bad targets, double-rekindle, auto-advance timers, same-tick
+  death/timer races): all held, acceptance criteria confirmed met. It filed one
+  real bug outside this item's scope: `report.survivalSeconds` reads
+  `w.act2Time`, which the cycle machine now resets every Night, so a run that
+  survives 2+ full Nights before a mid-cycle death reports only the current
+  cycle's local Night time — underpaying the Ember completion-fraction reward
+  by ~21% on its repro. Filed as BACKLOG b004.
 - 2026-08-25 — BACKLOG b003: Stash tab defect fix (SPEC-V2 §10 D2, §3). Clicking a
   stash relic now equips it directly into its slot, swapping out whatever was
   equipped there (toggle: clicking the currently-equipped relic unequips it) —

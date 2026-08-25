@@ -42,6 +42,8 @@ export function runBuild(build: BuildSpec, seed: number): RunReport {
     allocated: [],
     relics: [],
     policy: build.name,
+    // SPEC A5 measures Act II minute 8 of the original single-cycle run.
+    cycles: 1,
   };
   const run = new Run(cfg);
   const policy = new BuilderPolicy(build.name, {

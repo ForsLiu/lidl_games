@@ -99,6 +99,10 @@ export class BuilderPolicy implements BotPolicy {
         return this.act1(w);
       case 'dusk':
         return emptyInput();
+      case 'dawn':
+        // Always Leave: a bot has no basis to spend gold on Rekindle. Dawn
+        // auto-advances after DAWN_AUTO_SECONDS regardless.
+        return emptyInput();
       case 'soulpick':
         return { ...emptyInput(), cmds: [{ k: 'souls', keys: this.pickSouls(w) }] };
       case 'levelup':
@@ -116,7 +120,9 @@ export class BuilderPolicy implements BotPolicy {
     const input = emptyInput();
     if (this.planWave !== w.wave || this.plan.length === 0) this.replan(w);
 
-    const live = w.structures.filter((s) => !s.dead).length;
+    // Petrified towers from an earlier cycle are terrain, not budget spent: a
+    // multi-cycle Day must still be able to build up to a fresh cap.
+    const live = w.structures.filter((s) => !s.dead && !s.petrified).length;
     if (live >= this.opts.maxStructures) this.plan.length = 0;
 
     // Prune anything that became illegal (someone else took the tile).
@@ -211,7 +217,10 @@ export class BuilderPolicy implements BotPolicy {
     });
     if (keys.length === 0) return;
     const palisade = w.content.towerByKey.get('palisade')!;
-    const budget = Math.max(0, this.opts.maxStructures - w.structures.filter((s) => !s.dead).length);
+    const budget = Math.max(
+      0,
+      this.opts.maxStructures - w.structures.filter((s) => !s.dead && !s.petrified).length,
+    );
 
     // A turtle rings the Core, but not before it has a few guns up: an
     // undefended ring simply loses wave 1.

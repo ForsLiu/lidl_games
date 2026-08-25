@@ -45,7 +45,7 @@ export function waveRemaining(w: World): number {
 }
 
 export function runProgress(w: World): RunProgress {
-  return w.sundered ? act2Progress(w) : act1Progress(w);
+  return w.huntsWarden ? act2Progress(w) : act1Progress(w);
 }
 
 function act1Progress(w: World): RunProgress {
@@ -65,12 +65,23 @@ function act1Progress(w: World): RunProgress {
     };
   }
 
+  if (w.phase === 'dawn') {
+    return {
+      title: `Dawn — Cycle ${w.cycle} of ${w.totalCycles}`,
+      detail: 'Rekindle a petrified tower to fight again, or leave it standing.',
+      fraction: 0,
+      markers: [],
+      sub: null,
+    };
+  }
+
   const building = w.phase === 'act1_build';
   const remaining = waveRemaining(w);
   const wave = Math.max(1, w.wave || cleared + 1);
+  const dayLabel = w.totalCycles > 1 ? `Day ${w.cycle} — ` : '';
 
   return {
-    title: building ? `Build — wave ${wave} of ${total}` : `Wave ${wave} of ${total}`,
+    title: building ? `${dayLabel}Build — wave ${wave} of ${total}` : `${dayLabel}Wave ${wave} of ${total}`,
     detail: building
       ? `${Math.ceil(w.buildTimer)}s to build. Enter calls the wave early for ${Math.round(
           w.buildTimer * w.content.waves.earlyCallGoldPerSecond,

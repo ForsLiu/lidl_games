@@ -86,6 +86,8 @@ class Game {
       onPickSouls: (keys) => this.pending.push({ k: 'souls', keys }),
       onPickOffer: (index) => this.pending.push({ k: 'pick', index }),
       onReroll: () => this.pending.push({ k: 'reroll' }),
+      onRekindle: (structureId) => this.pending.push({ k: 'rekindle', structureId }),
+      onDawnDone: () => this.pending.push({ k: 'dawn_done' }),
       onRetry: () => this.startRun(this.lastCfg!),
       onNewRun: () => {
         const seed = (Math.random() * 0xffffffff) >>> 0;

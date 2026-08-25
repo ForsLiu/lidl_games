@@ -42,6 +42,8 @@ function makeHud(root: HTMLElement, log: Log, pacer: Pacer): Hud {
     onPickSouls: () => {},
     onPickOffer: () => {},
     onReroll: () => {},
+    onRekindle: () => {},
+    onDawnDone: () => {},
     onRetry: () => {},
     onNewRun: () => {},
     onToggleRanges: () => log.ranges++,

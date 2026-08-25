@@ -90,6 +90,8 @@ const TowersFileSchema = z.object({
   sellRefund: num,
   duskSellRefund: num,
   buildRange: num,
+  /** SPEC-V2 §1: Rekindle at Dawn costs this fraction of base build cost. */
+  rekindleCostMul: num,
   towers: z.array(TowerSchema),
 });
 
@@ -157,6 +159,14 @@ const WavesFileSchema = z.object({
   spawnIntervalSeconds: num,
   enemyStructureDpsFactor: num,
   waves: z.array(z.object({ wave: num, groups: z.array(WaveGroupSchema) })),
+  /** SPEC-V2 §1: last wave (1-based, global index) of each Day cycle. */
+  waveEndByCycle: z.array(num),
+  /** Fixed Night length for every cycle but the last, which ends by boss kill. */
+  nightSecondsByCycle: z.array(num),
+  /** Elite spawn-count multiplier keyed by cycle number (as a string), e.g. cycle 2's "Elite pressure x2". */
+  eliteMulByCycle: z.record(num).optional(),
+  /** SPEC-V2 §1: added to a Night's minute-of-warmup per prior cycle, so later Nights start hotter. */
+  nightMinuteOffsetPerCycle: num.optional(),
 });
 
 /* ----------------------------------------------------------------- weapons */

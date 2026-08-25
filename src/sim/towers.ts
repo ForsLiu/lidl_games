@@ -88,6 +88,7 @@ export function buildTower(w: World, towerId: number, tx: number, ty: number): B
     cooldown: 0,
     dead: false,
     petrified: false,
+    soulSuppressed: false,
     gemTimer: 0,
     gemsWaiting: 0,
     links: [],

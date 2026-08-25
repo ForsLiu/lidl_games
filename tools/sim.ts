@@ -25,6 +25,7 @@ interface Args {
   maxTicks: number;
   summary: boolean;
   quiet: boolean;
+  cycles: number | undefined;
 }
 
 function parseArgs(argv: string[]): Args {
@@ -40,6 +41,7 @@ function parseArgs(argv: string[]): Args {
     maxTicks: 60 * 60 * 45,
     summary: false,
     quiet: false,
+    cycles: undefined,
   };
   for (let i = 0; i < argv.length; i++) {
     const k = argv[i];
@@ -94,6 +96,10 @@ function parseArgs(argv: string[]): Args {
         a.maxTicks = Number(v);
         i++;
         break;
+      case '--cycles':
+        a.cycles = Number(v);
+        i++;
+        break;
       case '--summary':
         a.summary = true;
         break;
@@ -130,6 +136,7 @@ function printHelp(): void {
       '  --build FILE.json     scripted build order for the bot',
       '  --until end           run to resolution (default)',
       '  --max-ticks N         safety cap (default 162000 = 45 min)',
+      '  --cycles N            Day/Dusk/Night/Dawn cycles (default 3; SPEC-V2 §1)',
       '  --summary             aggregate stats instead of per-run JSON',
       '  --quiet               suppress per-run JSON in a sweep',
     ].join('\n'),
@@ -145,6 +152,7 @@ function runOne(args: Args, seed: number): RunReport {
     allocated: args.allocated,
     relics: [],
     policy: args.policy,
+    cycles: args.cycles,
   };
   const run = new Run(cfg);
   const policy = makePolicy(args.policy);

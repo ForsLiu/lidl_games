@@ -7,8 +7,12 @@
 
 import { CORE_H, CORE_W, CORE_X, CORE_Y, GRID_H, GRID_W, coreCenter } from './grid';
 import { bindSouls, deriveSouls } from './progression';
+import { markAuraDirty, towerCost } from './towers';
 import { applyTerrainPassives } from './weapons';
 import { World } from './world';
+
+/** How long the Dawn ledger stays open before it auto-resolves as all-Leave. */
+export const DAWN_AUTO_SECONDS = 20;
 
 /** Called when the Dusk timer runs out. */
 export function beginSoulPick(w: World): void {
@@ -35,10 +39,51 @@ export function finishSundering(w: World, chosen: string[]): void {
   w.phase = 'act2';
   w.act2Time = 0;
   w.directorTimer = 0;
+  w.spawnBudget = 0;
   w.eliteTimer = w.content.spawns.eliteIntervalSeconds;
   w.riftIndex = 0;
   w.updateNav(true);
   w.emit('sunder', c.x, c.y, 0, 0);
+}
+
+/**
+ * SPEC-V2 §1: Dawn, between cycles. The Night's horde recedes; every
+ * petrified tower waits on a Rekindle-or-Leave choice before the next Day.
+ */
+export function beginDawn(w: World): void {
+  for (const e of w.enemies) e.dead = true;
+  w.deadEnemies = true;
+  w.phase = 'dawn';
+  w.dawnTimer = 0;
+}
+
+/**
+ * Rekindle: pay 40% (⚖ `rekindleCostMul`) of base cost to un-petrify a tower
+ * for the next Day. Its soul sits out the very next Dusk pick even if it
+ * survives to re-petrify (see `soulSuppressed` / `deriveSouls`).
+ */
+export function rekindleTower(w: World, structureId: number): boolean {
+  if (w.phase !== 'dawn') return false;
+  const s = w.structureById.get(structureId);
+  if (!s || s.dead || !s.petrified) return false;
+  const def = w.content.towerById.get(s.towerId)!;
+  const cost = Math.max(1, Math.round(towerCost(w, def) * w.content.towers.rekindleCostMul));
+  if (w.gold < cost) return false;
+  w.gold -= cost;
+  w.goldSpent += cost;
+  s.petrified = false;
+  s.soulSuppressed = true;
+  w.emit('rekindle', s.tx + 0.5, s.ty + 0.5, 0, 0);
+  markAuraDirty(w);
+  return true;
+}
+
+/** Leaving is simply not Rekindling; Dawn resolves into the next Day's build phase. */
+export function advanceFromDawn(w: World): void {
+  if (w.phase !== 'dawn') return;
+  w.cycle++;
+  w.phase = 'act1_build';
+  w.buildTimer = w.mods.buildPhase || w.content.waves.buildPhaseSeconds;
 }
 
 /**
@@ -52,6 +97,9 @@ export function petrify(w: World): void {
     s.petrified = true;
     s.cooldown = 0;
     s.gemTimer = 0;
+    // A structure completes its one-Dusk soul-availability penalty the
+    // moment it (re)petrifies (SPEC-V2 §1 Rekindle).
+    s.soulSuppressed = false;
   }
   if (w.cfg.stripTerrain) {
     // A6 harness: the same Act I build, but the maze does not survive the night.
@@ -66,6 +114,10 @@ export function petrify(w: World): void {
   w.compact();
   linkSpires(w);
   applyTerrainPassives(w);
+  // The structure list just changed shape (new petrified towers, cleared
+  // pocket/lanes): the cached residual scan from a prior cycle's Night is
+  // stale and must be rebuilt against the current field.
+  w.terrainEffects = null;
   void c;
 }
 

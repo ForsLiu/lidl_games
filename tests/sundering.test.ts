@@ -45,6 +45,7 @@ function forcePlace(w: World, towerKey: string, tx: number, ty: number): void {
     cooldown: 0,
     dead: false,
     petrified: false,
+    soulSuppressed: false,
     gemTimer: 0,
     gemsWaiting: 0,
     links: [],

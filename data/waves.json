@@ -151,5 +151,9 @@
       ]
     }
   ],
-  "enemyStructureDpsFactor": 3
+  "enemyStructureDpsFactor": 3,
+  "waveEndByCycle": [4, 8, 10],
+  "nightSecondsByCycle": [180, 240, 300],
+  "eliteMulByCycle": { "2": 2 },
+  "nightMinuteOffsetPerCycle": 2.5
 }

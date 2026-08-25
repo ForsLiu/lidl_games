@@ -170,13 +170,13 @@ export class Renderer {
           view.shake = Math.max(view.shake, 14);
           break;
         case 'shot':
-          this.tracers.push(tracer(e, w.sundered ? 'arrow_volley' : 'arrow_spire', false));
+          this.tracers.push(tracer(e, w.huntsWarden ? 'arrow_volley' : 'arrow_spire', false));
           break;
         case 'manual':
           this.tracers.push(tracer(e, 'wardens_arrow', false));
           break;
         case 'arc':
-          this.tracers.push(tracer(e, w.sundered ? 'chain_lightning' : 'tesla_coil', true));
+          this.tracers.push(tracer(e, w.huntsWarden ? 'chain_lightning' : 'tesla_coil', true));
           break;
         case 'spit':
           this.tracers.push(tracer(e, 'spitter', false));
@@ -188,7 +188,7 @@ export class Renderer {
             dx: e.a,
             dy: e.b,
             life: 0.1,
-            style: projectileStyle(w.sundered ? 'flame_cone' : 'ember_brazier'),
+            style: projectileStyle(w.huntsWarden ? 'flame_cone' : 'ember_brazier'),
           });
           break;
         case 'bosstelegraph':
@@ -234,7 +234,7 @@ export class Renderer {
 
   draw(w: World, view: ViewState): void {
     const ctx = this.ctx;
-    const night = w.sundered;
+    const night = w.huntsWarden;
     ctx.save();
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     ctx.translate(this.shakeX, this.shakeY);
@@ -626,7 +626,7 @@ export class Renderer {
     ctx.arc(px + wd.fx * 6, py + wd.fy * 6, 2.5, 0, Math.PI * 2);
     ctx.fill();
     // Pickup radius hint in Act II.
-    if (w.sundered) {
+    if (w.huntsWarden) {
       ctx.strokeStyle = '#7fd4ff22';
       ctx.beginPath();
       ctx.arc(px, py, w.derived.pickupRadius * TILE, 0, Math.PI * 2);

@@ -19,7 +19,7 @@ import { setAreaDamageHandler, updateAreas, updateProjectiles } from './combat';
 import { buildTower, collectSproutGold, sellTower, updateTowers, upgradeTower } from './towers';
 import { shouldSpawnBoss, spawnFinalBoss, updateDirector } from './act2';
 import { addXp, openLevelUpIfPending, rerollOffers, takeOffer, updateGems } from './progression';
-import { beginSoulPick, finishSundering } from './sundering';
+import { advanceFromDawn, beginDawn, beginSoulPick, DAWN_AUTO_SECONDS, finishSundering, rekindleTower } from './sundering';
 import { updateTerrainEffects, updateWeapons } from './weapons';
 import { updateBossSlam } from './boss';
 import { dropOrb } from './loot';
@@ -36,7 +36,7 @@ import {
   type RunReport,
   type TickInput,
 } from './types';
-import { World } from './world';
+import { cycleWaveEnd, nightLengthSeconds, World } from './world';
 import type { RunConfig } from './types';
 
 // Registered once at module load, not per-Run: the handlers are stateless and
@@ -102,6 +102,11 @@ export class Run {
         break;
       case 'levelup':
         break;
+      case 'dawn':
+        // Waiting on `rekindle`/`dawn_done` commands; auto-advance (all Leave) if none arrive.
+        w.dawnTimer += dt;
+        if (w.dawnTimer > DAWN_AUTO_SECONDS) advanceFromDawn(w);
+        break;
       case 'results':
         break;
     }
@@ -166,6 +171,12 @@ export function applyCommand(w: World, c: Command): void {
     case 'reroll':
       rerollOffers(w);
       break;
+    case 'rekindle':
+      rekindleTower(w, c.structureId);
+      break;
+    case 'dawn_done':
+      advanceFromDawn(w);
+      break;
     case 'dev':
       applyDevCommand(w, c.op, c.amount);
       break;
@@ -201,7 +212,7 @@ export function applyDevCommand(w: World, op: DevOp, amount: number): void {
       break;
     }
     case 'xp':
-      if (w.sundered) addXp(w, Math.max(0, amount));
+      if (w.phase === 'act2') addXp(w, Math.max(0, amount));
       break;
     case 'heal':
       w.warden.hp = w.derived.maxHp;
@@ -224,7 +235,7 @@ export function applyDevCommand(w: World, op: DevOp, amount: number): void {
     case 'fast_forward':
       // Moves the Act II clock on without spawning the skipped minutes, so the
       // director's schedule can be reached without playing through it.
-      if (w.sundered) w.act2Time += Math.max(0, amount);
+      if (w.phase === 'act2') w.act2Time += Math.max(0, amount);
       break;
     default:
       break;
@@ -453,7 +464,7 @@ function completeWave(w: World): void {
   w.wavesCleared++;
   w.emit('waveclear', 0, 0, w.wave, bonus);
 
-  if (w.wave >= w.waveCount) {
+  if (w.wave >= cycleWaveEnd(w, w.cycle)) {
     w.phase = 'dusk';
     w.duskTimer = 15;
   } else {
@@ -475,19 +486,27 @@ function updateAct2(w: World, input: TickInput, dt: number): void {
   updateBossSlam(w, dt);
   updateGems(w, dt);
   updateDirector(w, dt);
-  if (shouldSpawnBoss(w)) spawnFinalBoss(w);
+  const finalNight = w.cycle >= w.totalCycles;
+  if (finalNight && shouldSpawnBoss(w)) spawnFinalBoss(w);
   w.act2Time += dt;
   w.act2Ticks++;
   // SPEC A5 is measured at minute 8 of Act II.
   if (w.damageThroughMinute8 === null && w.act2Time >= 480) {
     w.damageThroughMinute8 = act2DamageSoFar(w);
   }
-  if (w.bossKilled) {
-    w.outcome = 'victory';
-    w.phase = 'results';
-    // SPEC 8.2: a victorious run is worth an Orb on top of the boss drops.
-    const perWin = w.content.relics.dropRates.orbPerWin;
-    for (let i = 0; i < Math.round(perWin); i++) dropOrb(w);
+  if (finalNight) {
+    if (w.bossKilled) {
+      w.outcome = 'victory';
+      w.phase = 'results';
+      // SPEC 8.2: a victorious run is worth an Orb on top of the boss drops.
+      const perWin = w.content.relics.dropRates.orbPerWin;
+      for (let i = 0; i < Math.round(perWin); i++) dropOrb(w);
+      return;
+    }
+  } else if (!w.dying && w.act2Time >= nightLengthSeconds(w, w.cycle)) {
+    // SPEC-V2 §1: only the last cycle's Night ends by boss kill; every other
+    // Night simply runs its length, then Dawn's reclamation choices open.
+    beginDawn(w);
     return;
   }
   // The defeat slow-mo beat is meant to be a frozen "you've lost" moment, not
@@ -574,13 +593,14 @@ export function hashWorld(w: World): string {
   h.num(w.warden.x).num(w.warden.y).num(w.warden.hp);
   h.int(w.level).num(w.xp);
   h.num(w.act2Time);
+  h.int(w.cycle);
   h.int(w.enemies.length);
   for (const e of w.enemies) {
     h.int(e.id).int(e.defId).num(e.x).num(e.y).num(e.hp).num(effectiveSpeed(e));
   }
   h.int(w.structures.length);
   for (const s of w.structures) {
-    h.int(s.id).int(s.towerId).int(s.tier).int(s.tx).int(s.ty).num(s.hp).bool(s.petrified);
+    h.int(s.id).int(s.towerId).int(s.tier).int(s.tx).int(s.ty).num(s.hp).bool(s.petrified).bool(s.soulSuppressed);
   }
   h.int(w.projectiles.length);
   for (const p of w.projectiles) h.int(p.id).num(p.x).num(p.y).num(p.damage);
@@ -591,6 +611,8 @@ export function hashWorld(w: World): string {
   for (const wp of w.weapons) h.str(wp.key).int(wp.level).num(wp.damageBonus);
   const boonKeys = Object.keys(w.boonRanks).sort();
   for (const k of boonKeys) h.str(k).int(w.boonRanks[k]);
+  const soulKeys = Object.keys(w.soulLevels).sort();
+  for (const k of soulKeys) h.str(k).int(w.soulLevels[k].level).num(w.soulLevels[k].damageBonus);
   const st = w.rng.getState();
   h.int(st.waves).int(st.spawns).int(st.drops).int(st.offers).int(st.ai);
   h.num(w.damageTotal);
