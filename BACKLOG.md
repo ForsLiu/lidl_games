@@ -6,9 +6,6 @@ with the commit hash.
 
 ## Queue
 
-- [ ] (f002) [feat] Soul persistence: per-soul Night level tracks survive across
-      Nights for petrified-left towers; Rekindled souls leave the picker —
-      acceptance: B9 — refs: SPEC-V2 §1
 - [ ] (f003) [feat] Leak coupling: Day leaks add 2× director cost to that Night's
       budget; "Loose in the dark" HUD counter — acceptance: B7 — refs: SPEC-V2 §1
 - [ ] (f004) [feat] Class framework: actives/passives/affinity as data + Commands;
@@ -21,6 +18,23 @@ with the commit hash.
 
 ## Done
 
+- [x] (f002) [feat] Soul persistence: per-soul Night level tracks survive across
+      Nights for petrified-left towers; Rekindled souls leave the picker —
+      acceptance: B9 — refs: SPEC-V2 §1 — no new commit: already fully delivered
+      by f001 (commit 4e44a33)'s `w.soulLevels`/`Structure.soulSuppressed`
+      mechanism and its dedicated "B9: ..." test in
+      `tests/f001-cycle-machine.test.ts`; this queue entry was a leftover
+      duplicate of that scope. qa-playtester pass 2026-08-25 independently
+      re-verified all of B9 with fresh adversarial scratch tests (multi-Night
+      accumulation, genuine weapon unbinding not just picker-list absence, no
+      level loss on bench, never-bound-soul edge case, `hashWorld` still
+      covers `soulLevels`/`soulSuppressed`) plus one clause the shipped test
+      doesn't exercise — SPEC-V2 §1's "[soul] unbinds unless another tower of
+      that type stays" — confirmed correct by construction: `deriveSouls`
+      aggregates by soul key across all non-suppressed structures, so a
+      still-petrified sibling of the same tower type keeps the soul bound
+      even while its Rekindled twin is suppressed; verified both the
+      one-sibling-stays and both-siblings-rekindled cases. No bugs filed.
 - [x] (b004) [bug] `report.survivalSeconds` used the Night-local `w.act2Time`
       instead of the cumulative `w.act2Ticks / 60`, underpaying Ember's
       completion-fraction reward for multi-cycle survival — refs: SPEC-V2 §1

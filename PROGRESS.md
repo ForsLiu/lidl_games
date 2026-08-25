@@ -10,8 +10,10 @@
   click-to-swap / drag-to-unequip / compare tooltip, SPEC-V2 §10 D2) also done;
   M9 (SPEC-V2 §12) work is underway via the BACKLOG queue.
 - **Last session:** 2026-08-25
-- **Next action:** BACKLOG.md f002 (soul persistence across Nights) is next in
-  queue. After the BACKLOG queue: QUESTIONS.md verdicts. Both playtest requests
+- **Next action:** BACKLOG.md f002 turned out to already be fully delivered by
+  f001 (see session log) and was closed with no new code; f003 (leak coupling)
+  is next in queue. After the BACKLOG queue: QUESTIONS.md verdicts. Both
+  playtest requests
   carried the example template
   rather than actual verdicts, so all **32** entries are still pending — see the
   Verdict log at the top of that file. The tier ladder above T3 has no measured
@@ -323,6 +325,28 @@ features whose counters read zero with no explanation.
   awakening → weapon → card index 0, so measured "picks" reflect offer RNG, not
   preference. There is no signal about which boons a player would want.
 ## Session log (newest first)
+- 2026-08-25 — BACKLOG f002: found already fully delivered, not implemented
+  again. f002 asked for per-soul Night level tracks to survive across Nights
+  for petrified-left towers and Rekindled souls to leave the picker (SPEC-V2
+  §1 gate B9). That is exactly what f001 (commit 4e44a33) already built:
+  `World.soulLevels` and `Structure.soulSuppressed`, with a test named for the
+  gate ("B9: ...") already in `tests/f001-cycle-machine.test.ts`. f002 was a
+  leftover queue duplicate of scope f001 had already closed. Rather than
+  re-implement, delegated straight to qa-playtester to independently confirm
+  B9 actually holds rather than take the existing test's word for it: it
+  wrote and ran (then deleted) fresh adversarial scratch tests covering
+  multi-Night accumulation, genuine weapon unbinding (not just picker-list
+  absence), no level loss across a bench, a never-bound-soul edge case, and
+  confirmed `hashWorld` still hashes `soulLevels`/`soulSuppressed`. It also
+  independently checked the one clause the shipped test doesn't exercise —
+  SPEC-V2 §1's "[a Rekindled soul] unbinds unless another tower of that type
+  stays" — and confirmed it holds by construction: `deriveSouls`
+  (`src/sim/progression.ts`) aggregates by soul key across every
+  non-suppressed structure, so a still-petrified sibling of the same tower
+  type keeps the soul bound while its Rekindled twin sits out, in both the
+  one-sibling-stays and both-siblings-rekindled cases. No bugs found; no code
+  changed; repo left clean. BACKLOG.md moved f002 to Done with no commit hash
+  (none needed).
 - 2026-08-25 — BACKLOG b004: `report.survivalSeconds` (`src/sim/run.ts`
   `buildReport`) read `w.act2Time`, which `finishSundering` resets to 0 at the
   start of every Night, so a run surviving 2+ full Nights before a mid-cycle
