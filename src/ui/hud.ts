@@ -3,8 +3,8 @@
 import type { World } from '../sim/world';
 import { towerCost } from '../sim/towers';
 import type { Offer } from '../sim/types';
-import { TOWER_COLORS } from '../render/theme';
-import { towerInfo, type TowerInfo } from './tower-info';
+import { TOWER_COLORS, projectileStyle } from '../render/theme';
+import { towerInfo, weaponInfo, type TowerInfo, type WeaponInfo } from './tower-info';
 import { runProgress, type RunProgress } from './progress';
 import type { DevOp } from '../sim/types';
 
@@ -36,6 +36,7 @@ export class Hud {
   private progressEl: HTMLElement;
   private practiceEl: HTMLElement;
   private lastInfoKey = '';
+  private selectedWeapon = '';
   private cb: HudCallbacks;
   private selected = 0;
   private lastModalKey = '';
@@ -224,16 +225,40 @@ export class Hud {
   }
 
   /**
+   * After the Sundering there is no tower bar, and the HUD said only "Lv 6".
+   * The same panel now carries the bound weapon: what it does, its real numbers
+   * at this level, what the next level buys, and the Awakening it can reach.
+   */
+  private renderWeaponInfo(w: World): void {
+    const ws = w.weapons.find((x) => x.key === this.selectedWeapon) ?? w.weapons[0];
+    if (!ws) {
+      if (this.lastInfoKey !== 'noweapons') {
+        this.lastInfoKey = 'noweapons';
+        this.towerInfoEl.innerHTML = '';
+      }
+      return;
+    }
+    const key = `w:${ws.key}:${ws.level}:${ws.awakened}:${w.weapons.length}`;
+    if (key === this.lastInfoKey) return;
+    this.lastInfoKey = key;
+    this.towerInfoEl.innerHTML = weaponInfoMarkup(weaponInfo(w, ws), w.weapons.map((x) => x.key));
+    for (const el of this.towerInfoEl.querySelectorAll<HTMLElement>('[data-weapon]')) {
+      el.addEventListener('click', () => {
+        this.selectedWeapon = el.dataset.weapon!;
+        this.lastInfoKey = '';
+        this.renderWeaponInfo(w);
+      });
+    }
+  }
+
+  /**
    * The tower panel: what is under the cursor if that is a structure, otherwise
    * whatever tower is selected on the bar. Re-rendered only when something the
    * panel shows has actually changed, since update() runs every frame.
    */
   private renderTowerInfo(w: World, cursor?: { x: number; y: number }): void {
     if (w.sundered) {
-      if (this.lastInfoKey !== 'sundered') {
-        this.lastInfoKey = 'sundered';
-        this.towerInfoEl.innerHTML = '';
-      }
+      this.renderWeaponInfo(w);
       return;
     }
     const hovered =
@@ -514,3 +539,41 @@ export const PRACTICE_BUTTONS: { op: DevOp; amount: number; label: string; title
   { op: 'fast_forward', amount: 60, label: '+1 min', title: 'Advances the Nightfall clock by a minute' },
   { op: 'summon_boss', amount: 0, label: 'Summon boss', title: 'Jumps the clock to the Warden-Eater' },
 ];
+
+/** The Act II weapon card, with a tab strip for the other bound souls. */
+export function weaponInfoMarkup(info: WeaponInfo, all: string[]): string {
+  const colour = projectileStyle(info.key).color;
+  const tabs = all
+    .map(
+      (k) =>
+        `<button class="sw-wtab ${k === info.key ? 'on' : ''}" data-weapon="${k}"
+                 style="--wc:${projectileStyle(k).color}"></button>`,
+    )
+    .join('');
+
+  const stats = info.stats
+    .map(
+      (line) =>
+        `<div class="sw-row small"><span>${line.label}</span><b>${line.value}${
+          line.next ? `<i class="sw-next"> &rarr; ${line.next}</i>` : ''
+        }</b></div>`,
+    )
+    .join('');
+
+  return `
+    <div class="sw-wtabs">${tabs}</div>
+    <h3 style="color:${colour}">${info.name}${info.awakened ? ' ★' : ''}
+      <small>Lv ${info.level} / ${info.maxLevel}</small></h3>
+    <p class="sw-note">${info.attackText}</p>
+    ${stats}
+    <p class="sw-note dim">${info.sourceText}</p>
+    ${
+      info.awakening
+        ? `<div class="sw-sub">Awakening — ${info.awakening.name}</div>
+           <p class="sw-note">${info.awakening.desc}</p>
+           <p class="sw-hint">Needs ${info.awakening.needs}.</p>`
+        : info.awakened
+          ? '<p class="sw-hint">Awakened.</p>'
+          : ''
+    }`;
+}

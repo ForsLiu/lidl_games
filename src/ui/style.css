@@ -523,3 +523,20 @@ html, body {
 .sw-account span.zero b { color: var(--dim); }
 
 .sw-reroll.danger { border-color: #6a3030; color: #ff9a9a; }
+
+/* ---------------------------------------------------------- weapon tabs */
+
+.sw-wtabs { display: flex; gap: 5px; margin-bottom: 8px; }
+
+.sw-wtab {
+  flex: 1 1 0;
+  height: 6px;
+  padding: 0;
+  border: 0;
+  border-radius: 3px;
+  cursor: pointer;
+  background: var(--wc, #445);
+  opacity: 0.35;
+}
+
+.sw-wtab.on { opacity: 1; }

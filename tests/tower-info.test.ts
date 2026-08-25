@@ -10,7 +10,8 @@ import { describe, expect, it } from 'vitest';
 import { World } from '../src/sim/world';
 import { loadContent } from '../src/sim/content';
 import { buildTower, sellTower, towerCost, upgradeCost, upgradeTower } from '../src/sim/towers';
-import { sellValueOf, towerInfo } from '../src/ui/tower-info';
+import { grantWeapon } from '../src/sim/weapons';
+import { sellValueOf, towerInfo, weaponInfo } from '../src/ui/tower-info';
 import { cfg } from './helpers';
 
 function world(): World {
@@ -134,5 +135,60 @@ describe('tower info model', () => {
     upgradeTower(w, tx, ty);
     const t2 = towerInfo(w, def, w.structureAt(tx, ty)!).stats.find((x) => x.label === 'Aura')!.value;
     expect(t2).not.toBe(t1);
+  });
+});
+
+describe('weapon info model', () => {
+  it('describes every weapon at every level', () => {
+    const w = world();
+    for (const def of content.weapons.weapons) {
+      for (let level = 1; level <= def.levels.length; level++) {
+        const ws = grantWeapon(w, def.key, level, 0);
+        const info = weaponInfo(w, ws);
+        expect(info.name, def.key).toBe(def.name);
+        expect(info.level, def.key).toBe(level);
+        expect(info.maxLevel, def.key).toBe(def.levels.length);
+        expect(info.stats.length, `${def.key} Lv${level}`).toBeGreaterThan(0);
+        expect(info.attackText.length).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it('shows what the next level buys, and stops at max level', () => {
+    const w = world();
+    const low = weaponInfo(w, grantWeapon(w, 'piercing_bolt', 1, 0));
+    expect(low.stats.some((s) => s.next !== undefined)).toBe(true);
+
+    const w2 = world();
+    const def = content.weaponByKey.get('piercing_bolt')!;
+    const top = weaponInfo(w2, grantWeapon(w2, 'piercing_bolt', def.levels.length, 0));
+    expect(top.stats.every((s) => s.next === undefined)).toBe(true);
+  });
+
+  it('folds inherited damage into the printed numbers, and names it', () => {
+    const plain = world();
+    const rich = world();
+    const a = weaponInfo(plain, grantWeapon(plain, 'piercing_bolt', 3, 0));
+    const b = weaponInfo(rich, grantWeapon(rich, 'piercing_bolt', 3, 0.4));
+    const dmg = (info: typeof a) => Number(info.stats.find((s) => s.label === 'Damage')!.value);
+    expect(dmg(b)).toBeGreaterThan(dmg(a));
+    expect(b.stats.some((s) => s.label === 'Inherited')).toBe(true);
+    expect(a.stats.some((s) => s.label === 'Inherited')).toBe(false);
+  });
+
+  it('names the Awakening a weapon can still reach, and what it needs', () => {
+    const w = world();
+    const awakening = content.weapons.awakenings[0];
+    const info = weaponInfo(w, grantWeapon(w, awakening.weapon, 1, 0));
+    expect(info.awakening?.name).toBe(awakening.name);
+    expect(info.awakening?.needs).toContain(String(awakening.boonRank));
+  });
+
+  it('says which tower a soul came from, and that the innate one is slotless', () => {
+    const w = world();
+    const innate = weaponInfo(w, grantWeapon(w, 'wardens_arrow', 1, 0));
+    expect(innate.sourceText).toMatch(/slot/i);
+    const bound = weaponInfo(w, grantWeapon(w, 'piercing_bolt', 1, 0));
+    expect(bound.sourceText).toContain(content.towerByKey.get('ballista')!.name);
   });
 });

@@ -16,6 +16,7 @@ import { World } from '../src/sim/world';
 import { Pacer, SPEEDS } from '../src/ui/pacer';
 import { makeKeyDownHandler } from '../src/ui/input';
 import { buildTower } from '../src/sim/towers';
+import { grantWeapon } from '../src/sim/weapons';
 import type { DevOp } from '../src/sim/types';
 import { cfg } from './helpers';
 
@@ -167,6 +168,25 @@ describe('in-run control row', () => {
     expect(log.dev).toEqual(PRACTICE_BUTTONS.map((b) => b.op));
     // It also says out loud that the run is a sandbox.
     expect(panel.textContent).toMatch(/banks nothing/i);
+  });
+
+  it('after the Sundering the panel describes the bound weapons instead', () => {
+    const w = new World(cfg());
+    w.sundered = true;
+    w.phase = 'act2';
+    grantWeapon(w, 'piercing_bolt', 3, 0);
+    grantWeapon(w, 'toxic_trail', 1, 0);
+
+    hud.update(w);
+    const panel = root.querySelector('#sw-towerinfo') as HTMLElement;
+    expect(panel.textContent).toContain('Piercing Bolt');
+    expect(panel.textContent).toMatch(/Lv 3/);
+
+    // One tab per bound soul, and picking one switches the card.
+    const tabs = [...panel.querySelectorAll<HTMLButtonElement>('[data-weapon]')];
+    expect(tabs.length).toBe(2);
+    tabs[1].click();
+    expect(panel.textContent).toContain('Toxic Trail');
   });
 
   it('the ranges and pause buttons reach their callbacks', () => {

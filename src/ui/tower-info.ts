@@ -10,9 +10,10 @@
  * Presentation only — this module never writes to the World.
  */
 
-import type { TowerDef, TowerAttack } from '../sim/content';
-import type { Structure } from '../sim/types';
+import type { TowerDef, TowerAttack, WeaponDef, WeaponLevel } from '../sim/content';
+import type { Structure, WeaponState } from '../sim/types';
 import type { World } from '../sim/world';
+import { weaponDamageMul, weaponDef } from '../sim/weapons';
 import {
   attackSpeedFor,
   tierDamageMul,
@@ -224,4 +225,109 @@ export function describeTerrain(def: TowerDef): string | null {
   if (t.gemInterval) bits.push(`drops a ${t.gemValue ?? 0} XP gem every ${t.gemInterval}s`);
   if (bits.length === 0) return null;
   return `Petrifies into ${t.kind.replace(/_/g, ' ')}: ${bits.join(', ')}.`;
+}
+
+/* ------------------------------------------------------------------ weapons */
+
+export interface WeaponInfo {
+  key: string;
+  name: string;
+  desc: string;
+  level: number;
+  maxLevel: number;
+  awakened: boolean;
+  /** Named awakening this weapon can still reach, with what it needs. */
+  awakening: { name: string; desc: string; needs: string } | null;
+  /** Where the soul came from, and what the extra towers were worth. */
+  sourceText: string;
+  attackText: string;
+  stats: StatLine[];
+}
+
+const WEAPON_KIND_TEXT: Record<string, string> = {
+  single: 'Fires at the nearest enemy on its own cooldown.',
+  pierce: 'Fires along a line and keeps going through everything it hits.',
+  cone: 'Burns everything in a cone in front of the Warden, continuously.',
+  nova: 'Detonates around the Warden, hitting everything in radius.',
+  chain: 'Strikes one enemy, then arcs to more nearby.',
+  lob: 'Lobs a shell that detonates for splash damage.',
+  trail: 'Leaves a lingering field on the ground behind the Warden.',
+};
+
+/** Fields worth showing, in the order a player reads them. */
+const LEVEL_FIELDS: { key: keyof WeaponLevel; label: string; suffix?: string }[] = [
+  { key: 'damage', label: 'Damage' },
+  { key: 'dps', label: 'Damage', suffix: ' dps' },
+  { key: 'interval', label: 'Every', suffix: 's' },
+  { key: 'range', label: 'Range', suffix: ' tiles' },
+  { key: 'radius', label: 'Radius', suffix: ' tiles' },
+  { key: 'targets', label: 'Targets' },
+  { key: 'bolts', label: 'Bolts' },
+  { key: 'chains', label: 'Arcs' },
+  { key: 'chainRange', label: 'Arc range', suffix: ' tiles' },
+  { key: 'count', label: 'Count' },
+  { key: 'duration', label: 'Lasts', suffix: 's' },
+  { key: 'burnDps', label: 'Burn', suffix: ' dps' },
+  { key: 'slow', label: 'Slow' },
+];
+
+/**
+ * The Act II counterpart of `towerInfo`: after the Sundering the tower bar is
+ * gone and the player had no way to see what a bound soul actually does, nor
+ * what its next level buys.
+ */
+export function weaponInfo(w: World, ws: WeaponState): WeaponInfo {
+  const def: WeaponDef = weaponDef(w, ws.key);
+  const maxLevel = def.levels.length;
+  const cur = def.levels[Math.max(0, Math.min(maxLevel, ws.level) - 1)];
+  const nextLv = ws.level < maxLevel ? def.levels[ws.level] : null;
+  const mul = weaponDamageMul(w, ws);
+
+  const stats: StatLine[] = [];
+  for (const f of LEVEL_FIELDS) {
+    const raw = cur[f.key];
+    if (typeof raw !== 'number') continue;
+    const scale = f.key === 'damage' || f.key === 'dps' ? mul : 1;
+    const nextRaw = nextLv ? nextLv[f.key] : undefined;
+    const suffix = f.suffix ?? '';
+    stats.push({
+      label: f.label,
+      value: f.key === 'slow' ? `${Math.round(raw * 100)}%` : `${fmt(raw * scale, 2)}${suffix}`,
+      next:
+        typeof nextRaw === 'number' && nextRaw !== raw
+          ? f.key === 'slow'
+            ? `${Math.round(nextRaw * 100)}%`
+            : fmt(nextRaw * scale, 2)
+          : undefined,
+    });
+  }
+  if (ws.damageBonus > 0) {
+    stats.push({ label: 'Inherited', value: `+${Math.round(ws.damageBonus * 100)}% damage` });
+  }
+
+  const awakening = w.content.weapons.awakenings.find((a) => a.weapon === ws.key) ?? null;
+  const boon = awakening ? w.content.boonByKey.get(awakening.boon) : undefined;
+  const source = def.source === 'innate' ? null : w.content.towerByKey.get(def.source);
+
+  return {
+    key: ws.key,
+    name: def.name,
+    desc: def.desc,
+    level: ws.level,
+    maxLevel,
+    awakened: ws.awakened,
+    awakening:
+      awakening && !ws.awakened
+        ? {
+            name: awakening.name,
+            desc: awakening.desc,
+            needs: `Level ${maxLevel} and ${boon?.name ?? awakening.boon} at rank ${awakening.boonRank}`,
+          }
+        : null,
+    sourceText: source
+      ? `Bound from ${source.name}${ws.damageBonus > 0 ? ' — the extra copies you built are the inherited damage below.' : '.'}`
+      : 'Innate — the Warden always carries it, and it costs no slot.',
+    attackText: WEAPON_KIND_TEXT[def.kind] ?? 'Fires on its own.',
+    stats,
+  };
 }
