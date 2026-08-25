@@ -74,3 +74,58 @@ export const ENEMY_COLORS: Record<string, string> = {
   gatebreaker: '#e04a4a',
   warden_eater: '#ff3355',
 };
+
+/**
+ * Per-source projectile and tracer looks (playtest report, 2026-08-25: "should
+ * have different bullet projection animation/sprite for different towers").
+ *
+ * Keyed by the `source` the sim stamps on every projectile and shot event —
+ * a tower key in Act I, the weapon key in Act II — so a Ballista bolt reads as
+ * a Ballista bolt whichever act fired it.
+ */
+export type ProjectileShape = 'dart' | 'bolt' | 'shell' | 'orb' | 'spark' | 'glob';
+
+export interface ProjectileStyle {
+  color: string;
+  shape: ProjectileShape;
+  /** Half-length of the drawn body, in pixels. */
+  size: number;
+  /** Trail length as a multiple of `size`; 0 draws no trail. */
+  trail: number;
+}
+
+const DEFAULT_STYLE: ProjectileStyle = { color: '#ffe9a8', shape: 'dart', size: 3, trail: 1.6 };
+
+/** One entry per damage source that can put something on screen. */
+const STYLES: Record<string, ProjectileStyle> = {
+  // Act I: keyed by tower.
+  arrow_spire: { color: '#cfeee4', shape: 'dart', size: 3, trail: 2.2 },
+  ballista: { color: '#ffd85a', shape: 'bolt', size: 7, trail: 2.6 },
+  ember_brazier: { color: '#ff8a3d', shape: 'spark', size: 4, trail: 0.8 },
+  frost_obelisk: { color: '#9fe0ff', shape: 'orb', size: 4, trail: 0 },
+  tesla_coil: { color: '#c9a6ff', shape: 'spark', size: 3, trail: 0 },
+  mortar: { color: '#c8a184', shape: 'shell', size: 5, trail: 0 },
+  venom_spore: { color: '#9fe06a', shape: 'glob', size: 4, trail: 1.2 },
+  warden_eater: { color: '#ff4f70', shape: 'orb', size: 6, trail: 1.4 },
+  spitter: { color: '#9fbf6a', shape: 'glob', size: 3, trail: 1 },
+  cinderling: { color: '#ff9a4a', shape: 'spark', size: 3, trail: 0.8 },
+
+  // Act II: keyed by weapon, matched to the tower each soul came from.
+  wardens_arrow: { color: '#ffe9a8', shape: 'dart', size: 3, trail: 2.0 },
+  arrow_volley: { color: '#cfeee4', shape: 'dart', size: 3, trail: 2.4 },
+  piercing_bolt: { color: '#ffd85a', shape: 'bolt', size: 8, trail: 3.0 },
+  flame_cone: { color: '#ff8a3d', shape: 'spark', size: 4, trail: 0.8 },
+  frost_nova: { color: '#9fe0ff', shape: 'orb', size: 5, trail: 0 },
+  chain_lightning: { color: '#c9a6ff', shape: 'spark', size: 3, trail: 0 },
+  mortar_lob: { color: '#c8a184', shape: 'shell', size: 6, trail: 0 },
+  toxic_trail: { color: '#9fe06a', shape: 'glob', size: 4, trail: 1.2 },
+};
+
+/**
+ * Terrain residuals keep their tower's colour, so a spore cloud left behind
+ * still reads as Venom Spore damage.
+ */
+export function projectileStyle(source: string): ProjectileStyle {
+  const key = source.startsWith('terrain_') ? source.slice('terrain_'.length) : source;
+  return STYLES[key] ?? DEFAULT_STYLE;
+}

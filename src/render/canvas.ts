@@ -16,7 +16,14 @@ import {
 import { BASE } from '../sim/stats';
 import type { World } from '../sim/world';
 import { checkBuild, towerCost } from '../sim/towers';
-import { ENEMY_COLORS, PALETTE, TERRAIN_COLORS, TOWER_COLORS } from './theme';
+import {
+  ENEMY_COLORS,
+  PALETTE,
+  TERRAIN_COLORS,
+  TOWER_COLORS,
+  projectileStyle,
+  type ProjectileStyle,
+} from './theme';
 import type { Settings } from '../ui/settings';
 
 export interface ViewState {
@@ -32,6 +39,28 @@ export interface ViewState {
   settings: Settings;
 }
 
+/** A one-shot line effect for an attack that lands instantly (SPEC 3.3). */
+export interface Tracer {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  life: number;
+  style: ProjectileStyle;
+  /** Zig-zags the line, for chain lightning. */
+  jagged: boolean;
+}
+
+/** A cone of fire, drawn for the tick it was emitted plus a short fade. */
+export interface ConeFlash {
+  x: number;
+  y: number;
+  dx: number;
+  dy: number;
+  life: number;
+  style: ProjectileStyle;
+}
+
 export interface FloatingNumber {
   x: number;
   y: number;
@@ -40,12 +69,31 @@ export interface FloatingNumber {
   color: string;
 }
 
+/** Builds the short-lived line an instant-hit attack leaves behind. */
+function tracer(
+  e: { k: string; x: number; y: number; a: number; b: number },
+  source: string,
+  jagged: boolean,
+): Tracer {
+  return {
+    x1: e.x,
+    y1: e.y,
+    x2: e.a,
+    y2: e.b,
+    life: jagged ? 0.1 : 0.07,
+    style: projectileStyle(source),
+    jagged,
+  };
+}
+
 export class Renderer {
   readonly canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
   private numbers: FloatingNumber[] = [];
   private flashes = new Map<number, number>();
   private telegraphs: { x: number; y: number; dx: number; dy: number }[] = [];
+  private tracers: Tracer[] = [];
+  private cones: ConeFlash[] = [];
   private shakeX = 0;
   private shakeY = 0;
   private rngPhase = 0;
@@ -121,6 +169,28 @@ export class Renderer {
         case 'sunder':
           view.shake = Math.max(view.shake, 14);
           break;
+        case 'shot':
+          this.tracers.push(tracer(e, w.sundered ? 'arrow_volley' : 'arrow_spire', false));
+          break;
+        case 'manual':
+          this.tracers.push(tracer(e, 'wardens_arrow', false));
+          break;
+        case 'arc':
+          this.tracers.push(tracer(e, w.sundered ? 'chain_lightning' : 'tesla_coil', true));
+          break;
+        case 'spit':
+          this.tracers.push(tracer(e, 'spitter', false));
+          break;
+        case 'cone':
+          this.cones.push({
+            x: e.x,
+            y: e.y,
+            dx: e.a,
+            dy: e.b,
+            life: 0.1,
+            style: projectileStyle(w.sundered ? 'flame_cone' : 'ember_brazier'),
+          });
+          break;
         case 'bosstelegraph':
           this.telegraphs.push({ x: e.x, y: e.y, dx: e.a, dy: e.b });
           break;
@@ -141,6 +211,10 @@ export class Renderer {
       n.y -= dt * 1.2;
     }
     this.numbers = this.numbers.filter((n) => n.life > 0);
+    for (const t of this.tracers) t.life -= dt;
+    this.tracers = this.tracers.filter((t) => t.life > 0);
+    for (const c of this.cones) c.life -= dt;
+    this.cones = this.cones.filter((c) => c.life > 0);
     for (const [k, v] of [...this.flashes]) {
       const nv = v - dt;
       if (nv <= 0) this.flashes.delete(k);
@@ -175,6 +249,7 @@ export class Renderer {
     this.drawGems(w);
     this.drawEnemies(w);
     this.drawProjectiles(w);
+    this.drawTracers();
     this.drawWarden(w);
     if (!night) this.drawBuildGhost(w, view);
     this.drawNumbers();
@@ -366,15 +441,154 @@ export class Renderer {
     }
   }
 
+  /**
+   * Every projectile is drawn in its source's own shape and colour, so a
+   * Ballista bolt, a mortar shell and a spore glob are told apart at a glance.
+   */
   private drawProjectiles(w: World): void {
     const ctx = this.ctx;
-    ctx.fillStyle = '#ffe9a8';
     for (const p of w.projectiles) {
       if (p.dead) continue;
+      const st = projectileStyle(p.source);
+      const px = p.x * TILE;
+      const py = p.y * TILE;
+      const len = Math.hypot(p.vx, p.vy) || 1;
+      const ux = p.vx / len;
+      const uy = p.vy / len;
+
+      if (st.trail > 0) {
+        const tail = st.size * st.trail;
+        const g = ctx.createLinearGradient(px, py, px - ux * tail, py - uy * tail);
+        g.addColorStop(0, st.color);
+        g.addColorStop(1, 'transparent');
+        ctx.strokeStyle = g;
+        ctx.lineWidth = Math.max(1.5, st.size * 0.6);
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(px, py);
+        ctx.lineTo(px - ux * tail, py - uy * tail);
+        ctx.stroke();
+      }
+
+      ctx.fillStyle = st.color;
+      switch (st.shape) {
+        case 'bolt': {
+          // A long shaft with a bright head: reads as a ballista bolt.
+          ctx.strokeStyle = st.color;
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(px - ux * st.size, py - uy * st.size);
+          ctx.lineTo(px + ux * st.size, py + uy * st.size);
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.arc(px + ux * st.size, py + uy * st.size, 2, 0, Math.PI * 2);
+          ctx.fill();
+          break;
+        }
+        case 'shell': {
+          // An arcing shell: a shadow on the ground and a body lifted above it,
+          // highest at the start of its flight. Presentation only - the sim
+          // shell travels flat.
+          const remaining = Math.hypot(p.tx - p.x, p.ty - p.y);
+          const lift = 4 + 10 * Math.max(0, Math.min(1, remaining / 6));
+          ctx.globalAlpha = 0.35;
+          ctx.fillStyle = '#000000';
+          ctx.beginPath();
+          ctx.ellipse(px, py, st.size, st.size * 0.45, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.globalAlpha = 1;
+          ctx.fillStyle = st.color;
+          ctx.beginPath();
+          ctx.arc(px, py - lift, st.size, 0, Math.PI * 2);
+          ctx.fill();
+          break;
+        }
+        case 'glob': {
+          ctx.beginPath();
+          ctx.ellipse(px, py, st.size, st.size * 0.7, Math.atan2(uy, ux), 0, Math.PI * 2);
+          ctx.fill();
+          break;
+        }
+        case 'spark': {
+          ctx.beginPath();
+          ctx.moveTo(px + ux * st.size, py + uy * st.size);
+          ctx.lineTo(px - uy * st.size * 0.6, py + ux * st.size * 0.6);
+          ctx.lineTo(px - ux * st.size, py - uy * st.size);
+          ctx.lineTo(px + uy * st.size * 0.6, py - ux * st.size * 0.6);
+          ctx.closePath();
+          ctx.fill();
+          break;
+        }
+        case 'orb': {
+          const g = ctx.createRadialGradient(px, py, 0, px, py, st.size * 2);
+          g.addColorStop(0, st.color);
+          g.addColorStop(1, 'transparent');
+          ctx.fillStyle = g;
+          ctx.beginPath();
+          ctx.arc(px, py, st.size * 2, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = st.color;
+          ctx.beginPath();
+          ctx.arc(px, py, st.size * 0.6, 0, Math.PI * 2);
+          ctx.fill();
+          break;
+        }
+        default: {
+          ctx.beginPath();
+          ctx.arc(px, py, st.size, 0, Math.PI * 2);
+          ctx.fill();
+          break;
+        }
+      }
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  /**
+   * Single-target shots, chain arcs and cones hit instantly, so there is no
+   * projectile to follow. Without these the busiest towers looked inert.
+   */
+  private drawTracers(): void {
+    const ctx = this.ctx;
+    for (const t of this.tracers) {
+      ctx.globalAlpha = Math.min(1, t.life * 10);
+      ctx.strokeStyle = t.style.color;
+      ctx.lineWidth = t.jagged ? 2 : 1.5;
       ctx.beginPath();
-      ctx.arc(p.x * TILE, p.y * TILE, p.aoe > 0 ? 5 : 3, 0, Math.PI * 2);
+      ctx.moveTo(t.x1 * TILE, t.y1 * TILE);
+      if (t.jagged) {
+        // Three kinked segments read as an arc rather than a beam.
+        const steps = 3;
+        for (let i = 1; i <= steps; i++) {
+          const f = i / steps;
+          const nx = t.x1 + (t.x2 - t.x1) * f;
+          const ny = t.y1 + (t.y2 - t.y1) * f;
+          const off = i < steps ? (i % 2 === 0 ? 4 : -4) : 0;
+          ctx.lineTo(nx * TILE + off, ny * TILE - off);
+        }
+      } else {
+        ctx.lineTo(t.x2 * TILE, t.y2 * TILE);
+      }
+      ctx.stroke();
+    }
+    for (const c of this.cones) {
+      const ang = Math.atan2(c.dy, c.dx);
+      const half = 0.6;
+      const r = 5 * TILE;
+      const cx = c.x * TILE;
+      const cy = c.y * TILE;
+      const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+      g.addColorStop(0, c.style.color);
+      g.addColorStop(1, 'transparent');
+      ctx.globalAlpha = Math.min(0.6, c.life * 6);
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.arc(cx, cy, r, ang - half, ang + half);
+      ctx.closePath();
       ctx.fill();
     }
+    ctx.globalAlpha = 1;
   }
 
   private drawGems(w: World): void {
