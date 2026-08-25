@@ -618,8 +618,16 @@ function moveEnemy(w: World, e: Enemy, def: EnemyDef, dt: number, target: { x: n
   // Separation keeps the horde from stacking into a single point, but it must
   // fade near the objective: at full strength the innermost ranks get pushed
   // outward by the ranks behind them and the crowd orbits instead of closing.
-  const toTarget = Math.sqrt(dist2(e.x, e.y, target.x, target.y));
-  const sepScale = clamp((toTarget - SEP_FADE_NEAR) / SEP_FADE_SPAN, 0, 1);
+  // The scale saturates outside [SEP_FADE_NEAR, SEP_FADE_NEAR + SEP_FADE_SPAN],
+  // and almost every enemy is outside it, so compare squared distances first
+  // and take the square root only inside the band. Same value, far fewer sqrts.
+  const toTarget2 = dist2(e.x, e.y, target.x, target.y);
+  const sepScale =
+    toTarget2 >= SEP_FADE_FAR_SQ
+      ? 1
+      : toTarget2 <= SEP_FADE_NEAR_SQ
+        ? 0
+        : clamp((Math.sqrt(toTarget2) - SEP_FADE_NEAR) / SEP_FADE_SPAN, 0, 1);
   if (sepScale > 0) {
     // Crowd repulsion is a smoothing force, not a collision response, so it is
     // recomputed on a stagger and reused in between. This is the single most
@@ -701,6 +709,8 @@ const SEP_STRENGTH = 0.6;
 /** Separation is off within this distance of the objective, ramping back over SEP_FADE_SPAN. */
 const SEP_FADE_NEAR = 1.0;
 const SEP_FADE_SPAN = 1.4;
+const SEP_FADE_NEAR_SQ = SEP_FADE_NEAR * SEP_FADE_NEAR;
+const SEP_FADE_FAR_SQ = (SEP_FADE_NEAR + SEP_FADE_SPAN) * (SEP_FADE_NEAR + SEP_FADE_SPAN);
 /** Ticks between separation recomputes for a given enemy. */
 const SEP_PERIOD = 6;
 

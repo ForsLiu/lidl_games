@@ -374,21 +374,25 @@ export class World {
     const used = this.usedCells;
     for (let i = 0; i < used.length; i++) cells[used[i]].length = 0;
     used.length = 0;
-    for (const e of this.enemies) {
+    // cellKey is inlined here: this loop runs for every live enemy every
+    // tick, and the call plus its two clamps was measurable at the alive cap.
+    const enemies = this.enemies;
+    for (let i = 0; i < enemies.length; i++) {
+      const e = enemies[i];
       // Submerged Burrowers are out of the index entirely, so nothing can
       // target them until they surface.
       if (e.dead || e.submerged) continue;
-      const c = this.cellKey(e.x, e.y);
+      let cx = Math.floor(e.x);
+      let cy = Math.floor(e.y);
+      if (cx < 0) cx = 0;
+      else if (cx >= CELLS_X) cx = CELLS_X - 1;
+      if (cy < 0) cy = 0;
+      else if (cy >= CELLS_Y) cy = CELLS_Y - 1;
+      const c = cy * CELLS_X + cx;
       const bucket = cells[c];
       if (bucket.length === 0) used.push(c);
       bucket.push(e);
     }
-  }
-
-  private cellKey(x: number, y: number): number {
-    const cx = clampCell(Math.floor(x / CELL), CELLS_X);
-    const cy = clampCell(Math.floor(y / CELL), CELLS_Y);
-    return cy * CELLS_X + cx;
   }
 
   /**
