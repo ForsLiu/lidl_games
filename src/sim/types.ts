@@ -26,7 +26,23 @@ export type Command =
   | { k: 'souls'; keys: string[] }
   | { k: 'pick'; index: number }
   | { k: 'reroll' }
-  | { k: 'equip'; relic: number };
+  | { k: 'equip'; relic: number }
+  | { k: 'dev'; op: DevOp; amount: number };
+
+/**
+ * Practice-tool actions (SPEC has none; see QUESTIONS.md). They are Commands
+ * rather than direct World edits so a practice run still replays exactly from
+ * seed + input log, and so a run that used one can be flagged.
+ */
+export type DevOp =
+  | 'kill_all'
+  | 'gold'
+  | 'xp'
+  | 'heal'
+  | 'invuln'
+  | 'skip_wave'
+  | 'summon_boss'
+  | 'fast_forward';
 
 export interface TickInput {
   /** Movement axis, quantized to -1 | 0 | 1 so replays are exact. */
@@ -286,6 +302,11 @@ export interface RunConfig {
    * Never set by normal play.
    */
   stripTerrain?: boolean;
+  /**
+   * Enables the in-run practice tool. Dev commands are ignored without it, and
+   * a run that used one banks no Ember, relics or Orbs.
+   */
+  practice?: boolean;
 }
 
 /* --------------------------------------------------------------- reporting */
@@ -332,6 +353,8 @@ export interface RunReport {
   bossKilled: boolean;
   bossKillSeconds: number;
   endHash: string;
+  /** True if any practice-tool command was used; such a run banks nothing. */
+  practiceUsed: boolean;
   /** Wall time for the run loop, filled in by the headless CLI. */
   simMs?: number;
 }

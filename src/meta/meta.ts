@@ -85,6 +85,13 @@ const CUMULATIVE = new Set(['wins', 'wins_t5', 'wins_max4slots', 'built_frost_ob
 
 export function applyRunResult(meta: MetaState, report: RunReport, w: World): MetaState {
   const c = loadContent();
+  // A practice run is a sandbox: it banks no Ember, no relics, no Orbs, and it
+  // advances no quest or tier unlock. Otherwise "add money" would be a way to
+  // farm the meta rather than a way to test.
+  if (report.practiceUsed) {
+    w.emberEarned = 0;
+    return meta;
+  }
   const next: MetaState = {
     ...meta,
     stash: meta.stash.slice(),

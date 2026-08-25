@@ -10,6 +10,7 @@ import { BASE } from './stats';
 import {
   damageEnemy,
   effectiveSpeed,
+  killEnemy,
   setWardenDamageHandler,
   spawnEnemy,
   updateEnemies,
@@ -17,7 +18,7 @@ import {
 import { setAreaDamageHandler, updateAreas, updateProjectiles } from './combat';
 import { buildTower, collectSproutGold, sellTower, updateTowers, upgradeTower } from './towers';
 import { shouldSpawnBoss, spawnFinalBoss, updateDirector } from './act2';
-import { openLevelUpIfPending, rerollOffers, takeOffer, updateGems } from './progression';
+import { addXp, openLevelUpIfPending, rerollOffers, takeOffer, updateGems } from './progression';
 import { beginSoulPick, finishSundering } from './sundering';
 import { updateTerrainEffects, updateWeapons } from './weapons';
 import { updateBossSlam } from './boss';
@@ -26,7 +27,15 @@ import { dropOrb } from './loot';
 import './boss';
 // Registers the kill-drop handler with enemies.ts.
 import './loot';
-import { FIXED_DT, emptyInput, type Command, type RunOutcome, type RunReport, type TickInput } from './types';
+import {
+  FIXED_DT,
+  emptyInput,
+  type Command,
+  type DevOp,
+  type RunOutcome,
+  type RunReport,
+  type TickInput,
+} from './types';
 import { World } from './world';
 import type { RunConfig } from './types';
 
@@ -156,6 +165,66 @@ export function applyCommand(w: World, c: Command): void {
     case 'reroll':
       rerollOffers(w);
       break;
+    case 'dev':
+      applyDevCommand(w, c.op, c.amount);
+      break;
+    default:
+      break;
+  }
+}
+
+/**
+ * The practice tool (playtest report, 2026-08-25: "add more dev options for
+ * testing, like kill all enemy, add money etc like a league practice tool").
+ *
+ * Off unless the run was started with `practice`, so a normal run cannot reach
+ * it even with a hand-written input log. The first command that lands marks the
+ * run, and a marked run banks no Ember, relics or Orbs (see applyRunResult).
+ */
+export function applyDevCommand(w: World, op: DevOp, amount: number): void {
+  if (!w.cfg.practice) return;
+  w.practiceUsed = true;
+  switch (op) {
+    case 'kill_all': {
+      // Kills, not deletions, so bounty, gems and drops all happen normally -
+      // the point is to clear the board, not to skip the economy.
+      for (const e of w.enemies) {
+        if (!e.dead && !e.boss) killEnemy(w, e, 'practice');
+      }
+      break;
+    }
+    case 'gold': {
+      const g = Math.max(0, Math.round(amount));
+      w.gold += g;
+      w.goldEarned += g;
+      break;
+    }
+    case 'xp':
+      if (w.sundered) addXp(w, Math.max(0, amount));
+      break;
+    case 'heal':
+      w.warden.hp = w.derived.maxHp;
+      w.coreHp = w.coreMaxHp;
+      break;
+    case 'invuln':
+      w.invulnerable = !w.invulnerable;
+      break;
+    case 'skip_wave':
+      // The same door the Enter key uses, then empty what is left of the wave.
+      if (w.phase === 'act1_build') w.buildTimer = 0;
+      else if (w.phase === 'act1_wave') {
+        w.spawnQueue.length = 0;
+        for (const e of w.enemies) if (!e.dead && !e.boss) killEnemy(w, e, 'practice');
+      }
+      break;
+    case 'summon_boss':
+      if (w.phase === 'act2' && !w.bossSpawned) w.act2Time = w.content.spawns.bossTimeSeconds;
+      break;
+    case 'fast_forward':
+      // Moves the Act II clock on without spawning the skipped minutes, so the
+      // director's schedule can be reached without playing through it.
+      if (w.sundered) w.act2Time += Math.max(0, amount);
+      break;
     default:
       break;
   }
@@ -270,7 +339,7 @@ function manualAttack(w: World, input: TickInput, _dt: number): void {
 
 export function damageWarden(w: World, amount: number): void {
   const wd = w.warden;
-  if (wd.dashIFrames > 0) return;
+  if (wd.dashIFrames > 0 || w.invulnerable) return;
   const dmg = amount * (1 - w.derived.damageReduction);
   wd.hp -= dmg;
   wd.outOfCombat = 0;
@@ -544,6 +613,7 @@ export function buildReport(w: World): RunReport {
     bossKilled: w.bossKilled,
     bossKillSeconds: round2(w.bossKillTime),
     endHash: hashWorld(w),
+    practiceUsed: w.practiceUsed,
   };
 }
 

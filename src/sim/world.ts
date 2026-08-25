@@ -119,6 +119,10 @@ export class World {
   eliteTimer = 0;
   riftIndex = 0;
   bossSpawned = false;
+  /** Set the first time a practice command lands (SPEC has no such mode). */
+  practiceUsed = false;
+  /** Practice tool: the Warden takes no damage while this is on. */
+  invulnerable = false;
   bossKilled = false;
   bossKillTime = -1;
   bossSpawnTime = -1;

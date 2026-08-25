@@ -11,11 +11,12 @@ import { join } from 'node:path';
 
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { Hud } from '../src/ui/hud';
+import { Hud, PRACTICE_BUTTONS } from '../src/ui/hud';
 import { World } from '../src/sim/world';
 import { Pacer, SPEEDS } from '../src/ui/pacer';
 import { makeKeyDownHandler } from '../src/ui/input';
 import { buildTower } from '../src/sim/towers';
+import type { DevOp } from '../src/sim/types';
 import { cfg } from './helpers';
 
 const CSS = readFileSync(join(process.cwd(), 'src', 'ui', 'style.css'), 'utf8');
@@ -30,6 +31,7 @@ interface Log {
   speed: number;
   ranges: number;
   pause: number;
+  dev: DevOp[];
 }
 
 function makeHud(root: HTMLElement, log: Log, pacer: Pacer): Hud {
@@ -47,6 +49,7 @@ function makeHud(root: HTMLElement, log: Log, pacer: Pacer): Hud {
       log.speed++;
       hud.setSpeed(pacer.cycle());
     },
+    onDev: (op: DevOp) => log.dev.push(op),
     onQuitToHub: () => {},
   });
   return hud;
@@ -60,7 +63,7 @@ describe('in-run control row', () => {
 
   beforeEach(() => {
     root = mount();
-    log = { speed: 0, ranges: 0, pause: 0 };
+    log = { speed: 0, ranges: 0, pause: 0, dev: [] };
     pacer = new Pacer();
     hud = makeHud(root, log, pacer);
     hud.buildTowerBar(new World(cfg()));
@@ -145,6 +148,25 @@ describe('in-run control row', () => {
     const panel = root.querySelector('#sw-progress') as HTMLElement;
     expect(panel.textContent).toContain(`of ${w.waveCount}`);
     expect(panel.querySelectorAll('.sw-mark').length).toBe(w.waveCount);
+  });
+
+  it('hides the practice tool unless the run opted in', () => {
+    const panel = root.querySelector('#sw-practice') as HTMLElement;
+    expect(panel.hidden).toBe(true);
+    hud.showPracticeTools(false);
+    expect(panel.querySelectorAll('[data-dev]').length).toBe(0);
+  });
+
+  it('the practice tool offers every op, and each reaches the callback', () => {
+    const panel = root.querySelector('#sw-practice') as HTMLElement;
+    hud.showPracticeTools(true);
+    expect(panel.hidden).toBe(false);
+    const buttons = [...panel.querySelectorAll<HTMLButtonElement>('[data-dev]')];
+    expect(buttons.length).toBe(PRACTICE_BUTTONS.length);
+    for (const b of buttons) b.click();
+    expect(log.dev).toEqual(PRACTICE_BUTTONS.map((b) => b.op));
+    // It also says out loud that the run is a sandbox.
+    expect(panel.textContent).toMatch(/banks nothing/i);
   });
 
   it('the ranges and pause buttons reach their callbacks', () => {

@@ -6,6 +6,7 @@ import type { Offer } from '../sim/types';
 import { TOWER_COLORS } from '../render/theme';
 import { towerInfo, type TowerInfo } from './tower-info';
 import { runProgress, type RunProgress } from './progress';
+import type { DevOp } from '../sim/types';
 
 export interface HudCallbacks {
   onSelectTower(id: number): void;
@@ -19,6 +20,8 @@ export interface HudCallbacks {
   onPause(): void;
   /** Fast-forward: cycles 1x / 2x / 3x. */
   onCycleSpeed(): void;
+  /** Practice tool; only reachable in a run started with practice on. */
+  onDev(op: DevOp, amount: number): void;
   onQuitToHub(): void;
 }
 
@@ -31,6 +34,7 @@ export class Hud {
   private speedBtn: HTMLButtonElement;
   private towerInfoEl: HTMLElement;
   private progressEl: HTMLElement;
+  private practiceEl: HTMLElement;
   private lastInfoKey = '';
   private cb: HudCallbacks;
   private selected = 0;
@@ -53,6 +57,7 @@ export class Hud {
             <button class="sw-ctl" data-act="ranges" title="Show tower ranges (R)">Ranges</button>
             <button class="sw-ctl" data-act="pause" title="Pause (Esc)">Pause</button>
           </div>
+          <div class="sw-practice" id="sw-practice" hidden></div>
           <div class="sw-progress" id="sw-progress"></div>
           <div class="sw-stats" id="sw-stats"></div>
           <div class="sw-towerinfo" id="sw-towerinfo"></div>
@@ -72,6 +77,7 @@ export class Hud {
     this.speedBtn = root.querySelector('#sw-speed') as HTMLButtonElement;
     this.towerInfoEl = root.querySelector('#sw-towerinfo') as HTMLElement;
     this.progressEl = root.querySelector('#sw-progress') as HTMLElement;
+    this.practiceEl = root.querySelector('#sw-practice') as HTMLElement;
     this.wireControls();
   }
 
@@ -80,6 +86,32 @@ export class Hud {
     controls?.querySelector('[data-act="speed"]')?.addEventListener('click', () => this.cb.onCycleSpeed());
     controls?.querySelector('[data-act="ranges"]')?.addEventListener('click', () => this.cb.onToggleRanges());
     controls?.querySelector('[data-act="pause"]')?.addEventListener('click', () => this.cb.onPause());
+  }
+
+  /**
+   * Shows the practice tool. Called once at run start; a run that did not opt
+   * in never sees the panel, and the sim ignores the commands anyway.
+   */
+  showPracticeTools(on: boolean): void {
+    this.practiceEl.hidden = !on;
+    if (!on) {
+      this.practiceEl.innerHTML = '';
+      return;
+    }
+    this.practiceEl.innerHTML =
+      '<div class="sw-sub">Practice tool</div>' +
+      '<p class="sw-note">This run banks nothing.</p>' +
+      '<div class="sw-devgrid">' +
+      PRACTICE_BUTTONS.map(
+        (b) => `<button class="sw-ctl" data-dev="${b.op}" data-amount="${b.amount}" title="${b.title}">${b.label}</button>`,
+      ).join('') +
+      '</div>';
+    for (const el of this.practiceEl.querySelectorAll<HTMLElement>('[data-dev]')) {
+      el.addEventListener('click', () => {
+        this.cb.onDev(el.dataset.dev as DevOp, Number(el.dataset.amount));
+        if (el.dataset.dev === 'invuln') el.classList.toggle('on');
+      });
+    }
   }
 
   /** Reflects the pacer's speed; the pacer itself owns the cycling. */
@@ -375,6 +407,7 @@ export class Hud {
           <div><span>Orbs</span><b>${w.orbsFound.length}</b></div>
           <div><span>Ember</span><b>${w.emberEarned}</b></div>
         </div>
+        ${w.practiceUsed ? '<p class="sw-note">Practice run — nothing was banked.</p>' : ''}
         <button class="sw-go">New run</button>
       </div>`;
     this.modal.querySelector('.sw-go')?.addEventListener('click', () => this.cb.onRestart());
@@ -469,3 +502,15 @@ export function progressMarkup(p: RunProgress): string {
     <p class="sw-note">${p.detail}</p>
     ${sub}`;
 }
+
+/** The practice tool's buttons, in the order a tester reaches for them. */
+export const PRACTICE_BUTTONS: { op: DevOp; amount: number; label: string; title: string }[] = [
+  { op: 'kill_all', amount: 0, label: 'Kill all', title: 'Kills every enemy except the boss; bounty and gems still drop' },
+  { op: 'gold', amount: 500, label: '+500 gold', title: 'Adds gold' },
+  { op: 'xp', amount: 500, label: '+500 XP', title: 'Act II only' },
+  { op: 'heal', amount: 0, label: 'Full heal', title: 'Warden and Core to full' },
+  { op: 'invuln', amount: 0, label: 'Invulnerable', title: 'Toggles Warden damage off' },
+  { op: 'skip_wave', amount: 0, label: 'Skip wave', title: 'Ends the build phase, or clears the running wave' },
+  { op: 'fast_forward', amount: 60, label: '+1 min', title: 'Advances the Nightfall clock by a minute' },
+  { op: 'summon_boss', amount: 0, label: 'Summon boss', title: 'Jumps the clock to the Warden-Eater' },
+];

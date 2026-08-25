@@ -252,6 +252,7 @@ describe('Ember rewards (SPEC 8.1)', () => {
       bossKilled: true,
       bossKillSeconds: 590,
       endHash: '',
+      practiceUsed: false,
     };
     const w = { stats: { modRewardBonus: 0 }, derived: { emberFind: 0 }, lastStandUsed: false } as never;
     const t1 = emberFor({ ...base, tier: 1 }, w);

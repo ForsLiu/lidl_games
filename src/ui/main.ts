@@ -89,6 +89,7 @@ class Game {
       onResume: () => this.setPaused(false),
       onPause: () => this.setPaused(true),
       onCycleSpeed: () => this.hud.setSpeed(this.pacer.cycle()),
+      onDev: (op, amount) => this.pending.push({ k: 'dev', op, amount }),
       onQuitToHub: () => this.showHub(),
     });
     this.renderer = new Renderer(this.hud.canvas);
@@ -101,6 +102,7 @@ class Game {
     this.resultBanked = false;
     this.paused = false;
     this.hud.buildTowerBar(this.run.world);
+    this.hud.showPracticeTools(cfg.practice === true);
     this.hud.resetModalKey();
     this.view.selectedTower = 0;
     this.pending = [];

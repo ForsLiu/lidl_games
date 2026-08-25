@@ -492,3 +492,26 @@ html, body {
 .sw-mark.done { opacity: 0.35; }
 
 .sw-meter.thin { height: 5px; }
+
+/* ------------------------------------------------------------ practice tool */
+
+.sw-practice {
+  background: var(--panel);
+  border: 1px dashed #6a5a3a;
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+
+.sw-practice[hidden] { display: none; }
+
+.sw-practice .sw-sub { color: #e0c07a; }
+
+.sw-practice .sw-note { margin: 2px 0 8px; }
+
+.sw-devgrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px;
+}
+
+.sw-setting.practice { margin-top: 8px; }
