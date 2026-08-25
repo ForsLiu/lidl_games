@@ -11,6 +11,12 @@ export interface Settings {
   damageNumbers: boolean;
   showRanges: boolean;
   showGrid: boolean;
+  /**
+   * SPEC-V3 T3: opts out of the dev profile, so a developer can see what a
+   * real new player sees. Ignored entirely in a production build, where the
+   * dev profile is never applied in the first place.
+   */
+  cleanProfile: boolean;
   /** Cap floating combat text so a 350-strong fight stays readable. */
   maxDamageNumbers: number;
 }
@@ -25,6 +31,7 @@ export function defaultSettings(): Settings {
     damageNumbers: true,
     showRanges: false,
     showGrid: false,
+    cleanProfile: false,
     maxDamageNumbers: 60,
   };
 }
@@ -57,6 +64,7 @@ export function sanitize(s: Settings): Settings {
     damageNumbers: !!s.damageNumbers,
     showRanges: !!s.showRanges,
     showGrid: !!s.showGrid,
+    cleanProfile: !!s.cleanProfile,
     maxDamageNumbers: Number.isFinite(s.maxDamageNumbers)
       ? Math.min(400, Math.max(0, Math.round(s.maxDamageNumbers)))
       : 60,

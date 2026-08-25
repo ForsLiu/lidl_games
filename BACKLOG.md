@@ -46,13 +46,14 @@ recorded reason, not a nudged constant.
       entity-budget assertion sits right next to it — acceptance: no spawn path can
       push `w.enemies` past `aliveCap`; a test drives elites and boss summons at the
       cap — refs: QA on t4, bug 4 side note
-- [ ] (t3) [feat] Dev profile: `data/dev.json` with `devMode`, schema-validated;
-      when on — all classes/maps/tiers unlocked, 999 skill points, stash pre-filled
-      with every §7 item available, all quests complete; Settings toggle switches to
-      a clean profile —
-      acceptance: gate **C8** — a test asserts dev build has everything unlocked, and
-      that the `npm run build` bundle has `devMode` **off** (asserted against the
-      built output in `dist/`, not against the source default) — refs: V3 T3
+- [ ] (s005) [polish] The production bundle still ships the whole dev profile —
+      `applyDevProfile`, the unlocks, `data/dev.json` with `devMode:true`, the
+      `cleanProfile` toggle and the `.sw-devbadge` CSS are all in `dist`. It is
+      unreachable (`isDevBuild()` folds to a constant `false` and there is no global
+      to flip it), so this is dead weight rather than a hole, but gate C8 asserts
+      nothing about it — acceptance: either the dev profile is tree-shaken out of a
+      production build, or C8 gains an explicit assertion that its presence is inert
+      — refs: QA on t3, bug 11
 - [ ] (t1) [feat] Range indicators: placement ghost shows the **effective** attack
       range (tier and `towerRangeMul` applied, not the base `def.attack.range` it
       shows today) plus an AoE preview for splash towers; a selected tower shows its
@@ -207,6 +208,36 @@ recorded reason, not a nudged constant.
       acceptance: tools run clean, file updated, committed — refs: CLAUDE.md
 
 ## Done
+
+- [x] (t3) [feat] Dev profile: `data/dev.json`, all classes/tiers/quests unlocked,
+      points granted, stash filled, `cleanProfile` Settings toggle, production
+      always off — refs: V3 T3, gate C8 — qa-playtester **FAIL** on first
+      submission with six Majors, all fixed:
+      (1) **startup wrote the dev profile into the save**, so a returning
+      developer's real account was silently and irreversibly inflated (QA measured
+      ember 250 → 177000, tier 2 → 5) and the "clean profile" toggle had nothing
+      left to clean — the profile is now a **view**, applied in memory and never
+      saved, via a `startupProfile` seam that returns `persist: false`;
+      (2) the same bug made the toggle non-functional;
+      (3) the C8 production assertion **passed vacuously** with no `dist/` and again
+      against a `dist/` built before the feature existed — it now builds its own
+      bundle and **executes** it;
+      (4) `isDevBuild()` defaulted to *dev* when the env was present but
+      unpopulated, so a bundler whose folding differed would have shipped a
+      god-mode build — the predicate is now `env?.DEV === true`, exported as
+      `isDevEnv` so a test can call the real thing (an executed-bundle test cannot
+      tell the two apart, since the bundler folds the read either way);
+      (5) authoring `devMode: false` — the documented way to switch the profile off
+      — turned the suite red, because the tests asserted the authored value instead
+      of the rule;
+      (6) `applyDevProfile` could **demote** an account, via two paths: its own
+      level recompute and `seedTestAccount`'s. Both now take `Math.max`.
+      Minors also fixed: the dev stash rolled **zero sigils** so a whole slot was
+      untriable (Q54), `src/ui/hub.ts` read `import.meta.env` unguarded and threw
+      under plain Node, and `DevFileSchema` accepted negative/fractional
+      `skillPoints` and silently dropped unknown keys. Q53–Q55 log the three
+      judgement calls QA found undocumented. Left as its own item: s005 (the dev
+      profile ships, inert, in the production bundle).
 
 - [x] (t4) [feat] God mode as a practice-run Command — refs: V3 T4 — qa-playtester
       **PASS** on all three acceptance criteria, verified far past the two patched

@@ -17,6 +17,18 @@ import {
   stashCapacity,
 } from '../meta/meta';
 import { modifierDraft } from '../sim/tiers';
+import { devProfileActive } from '../meta/devprofile';
+
+/**
+ * Referenced directly rather than through a helper so the bundler can fold it:
+ * Vite replaces `import.meta.env.DEV` with a literal `false` in a production
+ * build, which lets esbuild drop the badge markup entirely. Gate C8 asserts the
+ * string is absent from `dist/`, so a helper call here would fail it — the
+ * badge would ship, dead but present.
+ */
+const DEV_BUILD = (import.meta as unknown as { env?: { DEV?: unknown } }).env?.DEV === true;
+const DEV_BADGE =
+  '<span class="sw-devbadge" title="data/dev.json devMode is on. Production builds always run with this off.">DEV PROFILE</span>';
 import { discard, equip } from '../meta/stash';
 import { renderTreeView } from './tree-view';
 import { sanitize, type Settings } from './settings';
@@ -74,6 +86,7 @@ export class Hub {
       <header>
         <h1>Stonewake</h1>
         <div class="sw-account">${accountMarkup(this.meta)}</div>
+        ${DEV_BUILD && devProfileActive() ? DEV_BADGE : ''}
       </header>
       <nav>
         ${(['run', 'tree', 'stash', 'settings'] as Tab[])
@@ -473,6 +486,9 @@ const TOGGLES: { key: keyof Settings; label: string }[] = [
   { key: 'damageNumbers', label: 'Damage numbers' },
   { key: 'showRanges', label: 'Show tower ranges' },
   { key: 'showGrid', label: 'Show grid' },
+  // SPEC-V3 T3. Presentation-adjacent rather than presentation-only: it decides
+  // whether the dev profile is applied at startup, so it takes effect on reload.
+  { key: 'cleanProfile', label: 'Clean profile (ignore dev unlocks, needs reload)' },
 ];
 
 /* ----------------------------------------------------------------- helpers */

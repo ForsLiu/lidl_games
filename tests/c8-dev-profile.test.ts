@@ -1,0 +1,259 @@
+/**
+ * @vitest-environment jsdom
+ *
+ * Gate C8 (SPEC-V3 §12): "Dev mode: dev build has everything unlocked;
+ * `npm run build` output has devMode off."
+ *
+ * The production half is the hard one, and QA broke two earlier attempts at it:
+ * grepping `dist/` passed with no `dist/` at all, and passed again against a
+ * `dist/` built before the feature existed. It also showed that the shipped
+ * answer came out of Rollup's constant folding rather than the source's own
+ * logic — so a bundler change could ship a god-mode build while the grep stayed
+ * green.
+ *
+ * So this builds its own bundle into a temp dir and **executes** it. That is
+ * slower, but it is the only version that actually tests the claim.
+ */
+
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+import { afterAll, describe, expect, it } from 'vitest';
+
+import {
+  applyDevProfile,
+  devConfig,
+  devProfileActive,
+  isDevBuild,
+  isDevEnv,
+  resolveDevMode,
+  startupProfile,
+} from '../src/meta/devprofile';
+import { defaultMeta, pointsAvailable } from '../src/meta/meta';
+import { loadContent } from '../src/sim/content';
+import { MAX_TIER } from '../src/sim/tiers';
+import { defaultSettings } from '../src/ui/settings';
+import type { DevConfig } from '../src/sim/content';
+
+const content = loadContent();
+
+/** Every switch on, so the tests drive the rule rather than the authored file. */
+const ALL_ON: DevConfig = {
+  devMode: true,
+  skillPoints: 999,
+  unlockAllClasses: true,
+  unlockAllTiers: true,
+  completeAllQuests: true,
+  fillStash: true,
+};
+
+describe('C8: the dev profile unlocks everything', () => {
+  it('data/dev.json is schema-validated and complete', () => {
+    // Deliberately does NOT assert `devMode === true`: the file is the switch,
+    // and authoring it off must not turn the suite red.
+    const cfg = devConfig();
+    expect(typeof cfg.devMode).toBe('boolean');
+    expect(Number.isInteger(cfg.skillPoints)).toBe(true);
+    expect(cfg.skillPoints).toBeGreaterThanOrEqual(0);
+  });
+
+  it('unlocks every class', () => {
+    const out = applyDevProfile(defaultMeta(), ALL_ON);
+    expect(out.unlockedClasses.sort()).toEqual(content.classes.classes.map((c) => c.key).sort());
+    expect(defaultMeta().unlockedClasses.length).toBeLessThan(out.unlockedClasses.length);
+  });
+
+  it('unlocks every tier and completes every quest', () => {
+    const out = applyDevProfile(defaultMeta(), ALL_ON);
+    expect(out.highestTier).toBe(MAX_TIER);
+    expect(out.completedQuests.sort()).toEqual(content.quests.quests.map((q) => q.key).sort());
+  });
+
+  it('grants Constellation points to spend', () => {
+    const out = applyDevProfile(defaultMeta(), ALL_ON);
+    expect(pointsAvailable(out)).toBeGreaterThan(pointsAvailable(defaultMeta()));
+    // 60 today, not 999: `maxAccountLevel` caps it, so roughly half the tree is
+    // still unreachable on a dev profile. Logged as QUESTIONS Q53; this bound
+    // rises to the full tree when skill points land at M24.
+    expect(pointsAvailable(out)).toBe(content.tree.maxAccountLevel * content.tree.pointsPerLevel);
+  });
+
+  it('fills a stash that covers every equipment slot', () => {
+    const out = applyDevProfile(defaultMeta(), ALL_ON);
+    expect(out.stash.length).toBeGreaterThan(0);
+    for (const slot of content.relics.slots) {
+      expect(out.stash.some((r) => r.slot === slot), `no ${slot} in the dev stash`).toBe(true);
+    }
+  });
+
+  it('never overwrites a stash that already has relics', () => {
+    const owned = {
+      ...defaultMeta(),
+      stash: [{ id: 7, slot: 'sigil', rarity: 'rare', name: 'Keepsake', affixes: [] }],
+    };
+    const out = applyDevProfile(owned, ALL_ON);
+    expect(out.stash).toHaveLength(1);
+    expect(out.stash[0].name).toBe('Keepsake');
+  });
+
+  it('never reduces an account, at any skillPoints setting', () => {
+    // `refund()` spends Ember without recomputing the level, so {level 5,
+    // ember 0} is a reachable real state that a bare recompute would demote.
+    const played = { ...defaultMeta(), accountLevel: 5, ember: 0, highestTier: 4 };
+    for (const skillPoints of [0, 1, 2, 50, 999]) {
+      const out = applyDevProfile(played, { ...ALL_ON, skillPoints });
+      expect(out.accountLevel, `skillPoints ${skillPoints}`).toBeGreaterThanOrEqual(played.accountLevel);
+      expect(out.ember, `skillPoints ${skillPoints}`).toBeGreaterThanOrEqual(played.ember);
+      expect(out.highestTier, `skillPoints ${skillPoints}`).toBeGreaterThanOrEqual(played.highestTier);
+    }
+  });
+
+  it('is pure — the account it was given is untouched', () => {
+    const before = defaultMeta();
+    const snapshot = JSON.stringify(before);
+    applyDevProfile(before, ALL_ON);
+    expect(JSON.stringify(before)).toBe(snapshot);
+  });
+
+  it('respects a config with everything switched off', () => {
+    const off: DevConfig = {
+      devMode: true,
+      skillPoints: 0,
+      unlockAllClasses: false,
+      unlockAllTiers: false,
+      completeAllQuests: false,
+      fillStash: false,
+    };
+    expect(applyDevProfile(defaultMeta(), off)).toEqual(defaultMeta());
+  });
+});
+
+describe('C8: startup applies the profile as a view, never a write', () => {
+  it('never asks the caller to persist', () => {
+    for (const devActive of [true, false]) {
+      for (const cleanProfile of [true, false]) {
+        expect(startupProfile(defaultMeta(), { devActive, cleanProfile }).persist).toBe(false);
+      }
+    }
+  });
+
+  it('applies the unlocks when dev is active and the profile is not clean', () => {
+    const out = startupProfile(defaultMeta(), { devActive: true, cleanProfile: false }).meta;
+    expect(out.highestTier).toBe(MAX_TIER);
+  });
+
+  it('a clean profile really is clean, even on a machine that ran dev before', () => {
+    // QA's repro: the old code saved the profile, so the account was already
+    // god-mode and the toggle had nothing left to clean.
+    const saved = defaultMeta();
+    startupProfile(saved, { devActive: true, cleanProfile: false });
+    const clean = startupProfile(saved, { devActive: true, cleanProfile: true }).meta;
+    expect(clean).toEqual(defaultMeta());
+  });
+
+  it('a real account passes through a dev launch unchanged in the save', () => {
+    const played = { ...defaultMeta(), ember: 250, accountLevel: 3, highestTier: 2 };
+    const snapshot = JSON.stringify(played);
+    startupProfile(played, { devActive: true, cleanProfile: false });
+    expect(JSON.stringify(played), 'startup must not mutate the loaded account').toBe(snapshot);
+  });
+});
+
+describe('C8: a production build has the dev profile off', () => {
+  it('the rule itself: a production build overrides the data file', () => {
+    expect(resolveDevMode(true, false)).toBe(false);
+    expect(resolveDevMode(false, false)).toBe(false);
+    expect(resolveDevMode(false, true)).toBe(false);
+    expect(resolveDevMode(true, true)).toBe(true);
+  });
+
+  it('is active under Vitest, which is a dev build', () => {
+    expect(isDevBuild()).toBe(true);
+    expect(devProfileActive({ ...ALL_ON, devMode: true })).toBe(true);
+    expect(devProfileActive({ ...ALL_ON, devMode: false })).toBe(false);
+  });
+
+  it('a real production bundle reports the profile off when executed', () => {
+    // Not a grep: QA showed a grep passes with no dist/ and with a stale dist/,
+    // and that the safe answer came from the bundler rather than the source.
+    // Build fresh, run it, read the answer.
+    // The entry lives inside the repo so its relative import resolves; the
+    // output goes to a temp dir. Both are cleaned up in afterAll.
+    const entry = join(process.cwd(), '.c8-probe-entry.ts');
+    writeFileSync(
+      entry,
+      [
+        "import { isDevBuild, devProfileActive } from './src/meta/devprofile';",
+        'console.log(JSON.stringify({ isDevBuild: isDevBuild(), active: devProfileActive() }));',
+      ].join('\n'),
+    );
+    // Output inside the repo too: an SSR build externalises `zod`, so the
+    // bundle only resolves its imports from somewhere under this node_modules.
+    const outDir = join(process.cwd(), '.c8-probe-out');
+    execFileSync(
+      'npx',
+      ['vite', 'build', '--mode', 'production', '--ssr', entry, '--outDir', outDir, '--logLevel', 'error'],
+      {
+        cwd: process.cwd(),
+        shell: true,
+        stdio: 'pipe',
+        // Vitest sets NODE_ENV=test, and Vite derives `import.meta.env.DEV`
+        // from it as much as from --mode. Inheriting it would build a bundle
+        // that still calls itself a dev build, and this test would fail for a
+        // reason that has nothing to do with the shipped product.
+        env: { ...process.env, NODE_ENV: 'production' },
+      },
+    );
+    const built = join(outDir, '.c8-probe-entry.js');
+    const answer = execFileSync('node', [built], { encoding: 'utf8' });
+    const parsed = JSON.parse(answer.trim()) as { isDevBuild: boolean; active: boolean };
+    expect(parsed.isDevBuild, 'a production bundle must not report itself as a dev build').toBe(false);
+    expect(parsed.active, 'the dev profile must be off in production').toBe(false);
+  }, 120_000);
+
+  it('the source logic is safe on its own, without a bundler folding it', () => {
+    // The failure mode QA found: an env object that exists but is unpopulated
+    // used to answer "dev build". It must answer "not a dev build".
+    // Calls the real predicate, not a copy of it: a bundler folds
+    // `import.meta.env.DEV` to a literal, so the executed-bundle test above
+    // cannot tell a safe default from an unsafe one. Only this can.
+    expect(isDevEnv(undefined)).toBe(false);
+    expect(isDevEnv({})).toBe(false);
+    expect(isDevEnv({ DEV: false })).toBe(false);
+    expect(isDevEnv({ DEV: 'true' })).toBe(false);
+    expect(isDevEnv({ DEV: 1 })).toBe(false);
+    expect(isDevEnv({ DEV: true })).toBe(true);
+  });
+});
+
+describe('C8: the clean-profile escape hatch', () => {
+  it('is off by default', () => {
+    expect(defaultSettings().cleanProfile).toBe(false);
+  });
+
+  it('is offered in the Settings tab', async () => {
+    const { Hub } = await import('../src/ui/hub');
+    document.body.innerHTML = '<div id="app"></div>';
+    const root = document.getElementById('app') as HTMLElement;
+    const hub = new Hub(root, defaultMeta(), 1, {
+      settings: defaultSettings(),
+      onSettingsChanged: () => {},
+      onStart: () => {},
+      onMetaChanged: () => {},
+    });
+    hub.openTab('settings');
+    expect(root.querySelector('[data-toggle="cleanProfile"]')).not.toBeNull();
+  });
+});
+
+const tmpRoot = mkdtempSync(join(tmpdir(), 'stonewake-c8-'));
+afterAll(() => {
+  rmSync(tmpRoot, { recursive: true, force: true });
+  rmSync(join(process.cwd(), '.c8-probe-entry.ts'), { force: true });
+  rmSync(join(process.cwd(), '.c8-probe-out'), { recursive: true, force: true });
+});
+
+// Referenced so the import is not dead when the build test is the only user.
+void readFileSync;

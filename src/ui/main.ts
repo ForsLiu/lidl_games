@@ -16,6 +16,7 @@ import { Renderer, type ViewState } from '../render/canvas';
 import { Hud } from './hud';
 import { Hub } from './hub';
 import { applyRunResult, defaultMeta, loadMeta, saveMeta } from '../meta/meta';
+import { devProfileActive, startupProfile } from '../meta/devprofile';
 import { loadSettings, saveSettings, type Settings } from './settings';
 import { Sfx } from '../render/sfx';
 import { Pacer } from './pacer';
@@ -49,6 +50,18 @@ class Game {
   start(rootEl: HTMLElement): void {
     this.root = rootEl;
     this.meta = loadMeta();
+    // SPEC-V3 T3: a development build starts with everything open, unless the
+    // player has asked for a clean profile. A production build never gets here
+    // with `devProfileActive()` true (gate C8).
+    //
+    // Applied in memory and deliberately never saved. Saving it would burn the
+    // unlocks into the player's real account, which would inflate a returning
+    // developer's progress irreversibly and leave the "clean profile" setting
+    // with nothing to clean.
+    this.meta = startupProfile(this.meta, {
+      devActive: devProfileActive(),
+      cleanProfile: this.settings.cleanProfile,
+    }).meta;
     this.view.settings = this.settings;
     this.view.showRanges = this.settings.showRanges;
     this.showHub();

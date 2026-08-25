@@ -547,3 +547,16 @@ html, body {
 }
 
 .sw-wtab.on { opacity: 1; }
+
+/* --------------------------------------------------------------- dev badge */
+
+.sw-devbadge {
+  margin-left: 12px;
+  padding: 2px 8px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #10141c;
+  background: #e0c07a;
+  border-radius: 4px;
+}

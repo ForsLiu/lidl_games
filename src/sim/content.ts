@@ -16,6 +16,7 @@ import modifiersRaw from '../../data/modifiers.json';
 import classesRaw from '../../data/classes.json';
 import affinityRaw from '../../data/affinity.json';
 import questsRaw from '../../data/quests.json';
+import devRaw from '../../data/dev.json';
 import wardenRaw from '../../data/warden.json';
 
 const num = z.number();
@@ -450,6 +451,26 @@ export type AffinityDef = z.infer<typeof AffinityFileSchema>['affinities'][numbe
 export type QuestDef = z.infer<typeof QuestsFileSchema>['quests'][number];
 export type WaveDef = z.infer<typeof WavesFileSchema>['waves'][number];
 
+/**
+ * SPEC-V3 T3. `devMode` here is the *authored* value; whether it is honoured
+ * depends on the build (see `src/meta/devprofile.ts`) — a production bundle
+ * always runs with the dev profile off, per gate C8.
+ */
+const DevFileSchema = z
+  .object({
+    devMode: z.boolean(),
+    skillPoints: z.number().int().min(0),
+    unlockAllClasses: z.boolean(),
+    unlockAllTiers: z.boolean(),
+    completeAllQuests: z.boolean(),
+    fillStash: z.boolean(),
+  })
+  // Strict so a typo for a neighbouring feature (`godMode`, say) fails loudly
+  // instead of being silently dropped and doing nothing.
+  .strict();
+
+export type DevConfig = z.infer<typeof DevFileSchema>;
+
 export interface Content {
   warden: WardenBase;
   towers: z.infer<typeof TowersFileSchema>;
@@ -464,6 +485,7 @@ export interface Content {
   classes: z.infer<typeof ClassesFileSchema>;
   affinity: z.infer<typeof AffinityFileSchema>;
   quests: z.infer<typeof QuestsFileSchema>;
+  dev: DevConfig;
 
   towerByKey: Map<string, TowerDef>;
   towerById: Map<number, TowerDef>;
@@ -493,6 +515,7 @@ export function loadContent(): Content {
   const modifiers = ModifiersFileSchema.parse(modifiersRaw);
   const classes = ClassesFileSchema.parse(classesRaw);
   const affinity = AffinityFileSchema.parse(affinityRaw);
+  const dev = DevFileSchema.parse(devRaw);
   const quests = QuestsFileSchema.parse(questsRaw);
 
   // Cross-file referential integrity: a typo in /data must fail loudly at load.
@@ -563,6 +586,7 @@ export function loadContent(): Content {
     modifiers,
     classes,
     affinity,
+    dev,
     quests,
     towerByKey: new Map(towers.towers.map((t) => [t.key, t])),
     towerById: new Map(towers.towers.map((t) => [t.id, t])),
