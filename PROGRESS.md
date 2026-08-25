@@ -10,10 +10,9 @@
   click-to-swap / drag-to-unequip / compare tooltip, SPEC-V2 §10 D2) also done;
   M9 (SPEC-V2 §12) work is underway via the BACKLOG queue.
 - **Last session:** 2026-08-25
-- **Next action:** BACKLOG.md f002 turned out to already be fully delivered by
-  f001 (see session log) and was closed with no new code; f003 (leak coupling)
-  is next in queue. After the BACKLOG queue: QUESTIONS.md verdicts. Both
-  playtest requests
+- **Next action:** BACKLOG.md f003 (leak coupling) is done (commit f24bf7c);
+  f004 (class framework) is next in queue. After the BACKLOG queue: QUESTIONS.md
+  verdicts. Both playtest requests
   carried the example template
   rather than actual verdicts, so all **32** entries are still pending — see the
   Verdict log at the top of that file. The tier ladder above T3 has no measured
@@ -325,6 +324,37 @@ features whose counters read zero with no explanation.
   awakening → weapon → card index 0, so measured "picks" reflect offer RNG, not
   preference. There is no signal about which boons a player would want.
 ## Session log (newest first)
+- 2026-08-25 — BACKLOG f003: leak coupling (SPEC-V2 §1, gate B7's mechanism —
+  the full statistical sweep gate is M15's per the milestone table). Every
+  enemy that reaches the Core in a Day now banks `leakBudgetMultiplier`
+  (new data field, `data/spawns.json`, default 2) × its director cost
+  (`w.content.spawns.costs[def.key]`, same lookup `act2.ts`'s spend loop
+  already uses) into `World.nightBudgetBonus`, transferred into `spawnBudget`
+  exactly once at the Dusk→Night transition (`finishSundering`) and cleared
+  for the next Day; `World.looseInTheDark` mirrors it as a headcount shown on
+  the Day HUD ("Loose in the dark: N"). `hashWorld` now also covers
+  `spawnBudget` (a pre-existing gap, closed alongside the two new fields).
+  `tests/f003-leak-coupling.test.ts` (11 tests) covers the cost math, the
+  one-time transfer/reset, a baseline-vs-+10-leaked-Husks budget delta,
+  hashWorld sensitivity, same-seed-twice determinism with real forced leaks,
+  the Dawn-transition carry-over, and jsdom HUD show/hide across phases. One
+  pre-existing test in `tests/f001-cycle-machine.test.ts` had its pinned seed
+  swapped from 5 to 16 because the new mechanic legitimately made Night 2
+  harder for seed 5's hybrid-bot run (dies in cycle 2 now, not a bug — verified
+  by both code-reviewer and qa-playtester, who confirmed seed 5 dies cleanly
+  with no stuck phase or crash, just a harder Night). code-reviewer found no
+  Critical/Major issues (two Minor notes: §9's Dusk "whisper" bark is correctly
+  out of scope for this item, and hashing `spawnBudget` was flagged as
+  technically-out-of-scope-but-safe scope creep, kept). qa-playtester
+  independently drove real (non-forced) Act I leaks through actual waves,
+  checked multi-cycle isolation, cost extremes, 5000-enemy same-tick spam, a
+  last-tick-before-Dusk race, and HUD show/hide, then filed one real bug: a
+  pack enemy (`swarm_rat`, packSize 4) was charged its full director cost once
+  per physical leaked body instead of once per spawn call, over-billing the
+  Night up to 4×. Fixed by dividing the per-leak cost by `def.packSize ?? 1`
+  in `leakIntoCore` (`src/sim/enemies.ts`) — verified the added regression
+  test fails (16 vs expected 4) on the pre-fix code before confirming it
+  passes with the fix. Commit f24bf7c.
 - 2026-08-25 — BACKLOG f002: found already fully delivered, not implemented
   again. f002 asked for per-soul Night level tracks to survive across Nights
   for petrified-left towers and Rekindled souls to leave the picker (SPEC-V2

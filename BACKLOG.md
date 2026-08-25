@@ -19,7 +19,7 @@ with the commit hash.
 - [x] (f003) [feat] Leak coupling: Day leaks add 2× director cost to that Night's
       budget; "Loose in the dark" HUD counter — acceptance: B7 (mechanism only;
       the full statistical gate — survival drop ≥10% via sweep — is M15's per
-      SPEC-V2 §12) — refs: SPEC-V2 §1 — commit &lt;pending&gt;, code-reviewer pass
+      SPEC-V2 §12) — refs: SPEC-V2 §1 — commit f24bf7c, code-reviewer pass
       2026-08-25 (no Critical/Major; two Minor notes — §9's Dusk "whisper" bark is
       correctly deferred to the separate Immersion Pass milestone, and hashing
       the pre-existing unhashed `spawnBudget` alongside the two new fields was
