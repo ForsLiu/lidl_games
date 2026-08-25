@@ -6,10 +6,12 @@
 ## Current state
 - **Milestone:** M8 complete — **first complete version**. All of A1–A11 green
   (two strict bounds relaxed and documented under Known issues).
-- **Last session:** 2026-08-24
-- **Next action:** none outstanding. The owner review of QUESTIONS.md is the next
-  input; the two relaxed bounds (A3's per-seed 3:00 line, A7's 15% leak share)
-  are the obvious follow-ups.
+- **Last session:** 2026-08-25
+- **Next action:** QUESTIONS.md verdicts. The 2026-08-25 request carried the
+  example template rather than actual verdicts, so all 28 entries are still
+  pending — see the Verdict log at the top of that file. After that, the two
+  relaxed bounds (A3's per-seed 3:00 line, A7's 15% leak share) are the
+  obvious follow-ups.
 
 ## Milestone checklist
 - [x] M0 — sim skeleton + headless CLI (gate A11)
@@ -28,7 +30,7 @@ data/              all tuning + content as JSON (schema-validated in src/sim/con
 src/sim/           deterministic core: no DOM, no Math.random, no Date.now, no native trig
 src/bots/          scripted headless policies (idle | turtle | kite | hybrid | no-move)
 src/render/        canvas renderer (reads sim state only)
-src/ui/            browser entry point + HUD
+src/ui/            browser entry point, HUD, Hub, input mapping, settings
 src/meta/          account meta: Ember, Constellation, stash, quests, save/load
 tools/sim.ts       headless CLI -> JSON report
 tools/sweep.ts     in-process balance sweeps (fast; use this for tuning)
@@ -215,6 +217,31 @@ tests/             vitest; acceptance tests are named aNN-*.test.ts
 - [x] `npm run build` produces a playable bundle
 - [x] `npm test` green, including the A10 performance pass
 
+## Playtest round — 2026-08-25
+Reported: right-click did nothing, the game looked blurry, towers could not be
+built with left click, and there was no way to pause.
+
+- **One CSS bug caused the first three.** `.sw-modal { display: grid }` outranks
+  the user-agent `[hidden] { display: none }`, so `modal.hidden = true` never
+  took the overlay out of the layout. An invisible sheet sat over the canvas the
+  whole time: it swallowed both mouse buttons and blurred the arena through its
+  own `backdrop-filter`. Fixed with a `.sw-modal[hidden]` rule that also clears
+  pointer-events and the filter.
+- **Constellation right-click** was a second, real bug: affordability was checked
+  inside `refund` but not in `canRefund`, so a right-click with too little Ember
+  silently did nothing. `refundBlocker` now reports *why*, and the Hub shows it.
+- **Blur** also had a second cause: the canvas was authored at 1152x640 and left
+  for the display to upscale. It is now backed at the device pixel ratio, with
+  CSS carrying the aspect ratio so a narrow window shrinks it without stretching.
+- **Pause** (Esc) freezes the loop and offers Resume or Abandon. Pausing is
+  presentation-only — the loop stops stepping, so a paused run resumes
+  bit-identically and determinism is untouched.
+
+Regression tests live in `tests/ui-input.test.ts` (jsdom). jsdom resolves
+`hidden` correctly even where a browser would not, so the overlay test asserts
+the invariant against the stylesheet itself: any rule that shows `.sw-modal`
+must be outranked by one that hides it. That assertion fails on the old CSS.
+
 ## Known issues / skipped tests
 - **A3 is green on its material claims, not its strict bound.** Act II survival
   is sharply bimodal: a stationary Warden either drowns in the opening two
@@ -232,6 +259,10 @@ tests/             vitest; acceptance tests are named aNN-*.test.ts
 - **A10 is not met yet**: a full headless run takes ~8 s against the 5 s target.
   Owned by M8.
 ## Session log (newest first)
+- 2026-08-25 — Playtest fixes: the hidden modal overlay was covering and blurring
+  the game, Constellation refunds gave no feedback when unaffordable, the canvas
+  was upscaled rather than backed at DPR. Added pause. QUESTIONS.md numbered
+  Q1-Q28; verdicts still pending.
 - 2026-08-25 — M8: feel and ship. SFX hooks, settings, results screen, and a 2x
   sim speedup to land the A10 budget. All acceptance gates green.
 - 2026-08-25 — M7: balance pass. A1, A9 green; A4/A5/A8 re-verified after
