@@ -1,0 +1,31 @@
+{
+  "affinities": [
+    {
+      "classKey": "engineer",
+      "towers": [
+        "tesla_coil",
+        "mortar",
+        "ballista"
+      ],
+      "bonus": 0.2,
+      "perk": "No extra trick - his hands are just steadiest on the hardware he wired himself."
+    },
+    {
+      "classKey": "pyromancer",
+      "towers": [
+        "ember_brazier",
+        "mortar"
+      ],
+      "bonus": 0.2,
+      "perk": "Fire clings a beat longer to whatever an affinity tower ignites."
+    },
+    {
+      "classKey": "frost_warden",
+      "towers": [
+        "frost_obelisk"
+      ],
+      "bonus": 0.2,
+      "perk": "The obelisk's pulse tightens around her, chilling a half-beat faster."
+    }
+  ]
+}

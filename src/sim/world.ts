@@ -282,6 +282,7 @@ export class World {
       dashCharges: this.derived.dashCharges,
       dashIFrames: 0,
       attackCooldown: 0,
+      activeCooldown: 0,
       fx: -1,
       fy: 0,
       outOfCombat: 0,

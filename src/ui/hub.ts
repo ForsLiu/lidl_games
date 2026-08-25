@@ -130,6 +130,7 @@ export class Hub {
                 locked ? 'locked' : ''
               }" data-class="${c.key}" ${locked ? 'disabled' : ''}>
                 <b>${c.name}</b><span>${c.trait}</span>
+                <small>Active: ${c.active.name} (Q) &middot; Passive: ${c.passive.name}</small>
                 ${locked ? `<small>Locked — ${quest?.desc ?? 'complete a quest'}</small>` : ''}
               </button>`;
             })

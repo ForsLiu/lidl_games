@@ -30,6 +30,7 @@ export type Command =
   | { k: 'equip'; relic: number }
   | { k: 'rekindle'; structureId: number }
   | { k: 'dawn_done' }
+  | { k: 'class_active' }
   | { k: 'dev'; op: DevOp; amount: number };
 
 /**
@@ -227,6 +228,8 @@ export interface Warden {
   dashCharges: number;
   dashIFrames: number;
   attackCooldown: number;
+  /** SPEC-V2 §2 class Active skill; ticks down in `updateWarden`. */
+  activeCooldown: number;
   /** Last non-zero movement direction; Flame Cone fires along it. */
   fx: number;
   fy: number;

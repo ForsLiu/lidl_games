@@ -74,8 +74,8 @@ export class Hud {
           <div class="sw-help">
             <b>WASD</b> move &middot; <b>Space</b> dash &middot; <b>LMB</b> build &middot;
             <b>RMB</b> sell &middot; <b>U</b>+click upgrade &middot; <b>1-9</b> pick tower &middot;
-            <b>0</b> clear &middot; <b>Enter</b> call wave &middot; <b>R</b> ranges &middot;
-            <b>F</b> speed &middot; <b>Esc</b> pause
+            <b>0</b> clear &middot; <b>Enter</b> call wave &middot; <b>Q</b> class active &middot;
+            <b>R</b> ranges &middot; <b>F</b> speed &middot; <b>Esc</b> pause
           </div>
         </div>
       </div>`;
@@ -139,9 +139,7 @@ export class Hud {
   }
 
   buildTowerBar(w: World): void {
-    const towers = w.content.towers.towers.filter(
-      (t) => !t.classLock || t.classLock === w.cfg.classKey,
-    );
+    const towers = w.content.towers.towers;
     this.bar.innerHTML = '';
     towers.forEach((t, i) => {
       const b = document.createElement('button');
@@ -165,9 +163,7 @@ export class Hud {
   }
 
   selectByIndex(w: World, index: number): void {
-    const towers = w.content.towers.towers.filter(
-      (t) => !t.classLock || t.classLock === w.cfg.classKey,
-    );
+    const towers = w.content.towers.towers;
     const t = towers[index];
     if (t) this.select(t.id);
   }
@@ -195,6 +191,7 @@ export class Hud {
              <div class="sw-row" title="Enemies that reached the Core: they're loose in the dark and will swell tonight's horde"><span>Loose in the dark</span><b>${w.looseInTheDark}</b></div>`
       }
       <div class="sw-row"><span>Dash</span><b>${w.warden.dashCharges}/${d.dashCharges}</b></div>
+      ${this.activeRow(w)}
       ${
         w.weapons.length > 0
           ? `<div class="sw-sub">Weapons</div>` +
@@ -231,6 +228,16 @@ export class Hud {
     this.bar.classList.toggle('hidden', w.huntsWarden);
     this.progressEl.innerHTML = progressMarkup(runProgress(w));
     this.renderTowerInfo(w, cursor);
+  }
+
+  /** SPEC-V2 §2: the class Active skill, keyed to Q, with its cooldown state. */
+  private activeRow(w: World): string {
+    const cls = w.content.classByKey.get(w.cfg.classKey);
+    if (!cls) return '';
+    const cd = w.warden.activeCooldown;
+    const status = cd > 0 ? `${cd.toFixed(1)}s` : 'Ready';
+    const tip = `Day: ${cls.active.dayUse} Night: ${cls.active.nightUse}`;
+    return `<div class="sw-row" title="${tip}"><span>${cls.active.name} (Q)</span><b class="${cd > 0 ? '' : 'ready'}">${status}</b></div>`;
   }
 
   /**

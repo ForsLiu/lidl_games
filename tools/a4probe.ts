@@ -14,9 +14,19 @@ export const SOUL_TOWERS = content.towers.towers
   .filter((t) => t.soul !== null)
   .map((t) => t.key);
 
+/**
+ * SPEC-V2 §2: affinity replaced class locks, so every class can build every
+ * soul tower now — probing as the always-unlocked Engineer is enough for
+ * most towers. Two overrides avoid a class-specific bonus that would inflate
+ * a single tower's solo baseline past A4's T3 "fails alone" bound: Engineer
+ * has affinity for Tesla Coil (+20% dmg), and Engineer's flat -10% tower
+ * cost / +1 build range alone (no affinity involved) is enough to tip Frost
+ * Obelisk over that bound, so both are probed under a class with neither.
+ */
 export function classFor(towerKey: string): string {
-  const def = content.towerByKey.get(towerKey);
-  return def?.classLock ?? 'engineer';
+  if (towerKey === 'tesla_coil') return 'frost_warden';
+  if (towerKey === 'frost_obelisk') return 'pyromancer';
+  return 'engineer';
 }
 
 /**

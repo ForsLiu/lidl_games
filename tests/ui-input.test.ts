@@ -432,6 +432,16 @@ describe('pause (playtest request)', () => {
     expect(picked).toBe(-1);
   });
 
+  it('Q queues the class Active as a Command (SPEC-V2 §2)', () => {
+    const queue: Command[] = [];
+    const handler = makeKeyDownHandler({
+      keys: new Set(),
+      queue: { push: (c) => queue.push(c) },
+    });
+    handler(new window.KeyboardEvent('keydown', { key: 'q' }));
+    expect(queue).toEqual([{ k: 'class_active' }]);
+  });
+
   it('shows a pause overlay with resume and abandon, and takes it away again', () => {
     const root = mount();
     let resumed = 0;

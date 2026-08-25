@@ -16,7 +16,6 @@
       "maxTier": 1,
       "hp": 300,
       "blocks": true,
-      "classLock": null,
       "attack": null,
       "soul": null,
       "terrain": {
@@ -35,7 +34,6 @@
       "maxTier": 3,
       "hp": 120,
       "blocks": true,
-      "classLock": null,
       "attack": {
         "kind": "single",
         "damage": 5.5,
@@ -57,7 +55,6 @@
       "maxTier": 3,
       "hp": 140,
       "blocks": true,
-      "classLock": null,
       "attack": {
         "kind": "pierce",
         "damage": 18,
@@ -81,7 +78,6 @@
       "maxTier": 3,
       "hp": 110,
       "blocks": true,
-      "classLock": "pyromancer",
       "attack": {
         "kind": "cone",
         "damage": 4.5,
@@ -111,7 +107,6 @@
       "maxTier": 3,
       "hp": 130,
       "blocks": true,
-      "classLock": "frost_warden",
       "attack": {
         "kind": "aura",
         "damage": 22,
@@ -137,7 +132,6 @@
       "maxTier": 3,
       "hp": 110,
       "blocks": true,
-      "classLock": "engineer",
       "attack": {
         "kind": "chain",
         "damage": 18,
@@ -164,7 +158,6 @@
       "maxTier": 3,
       "hp": 120,
       "blocks": true,
-      "classLock": null,
       "attack": {
         "kind": "lob",
         "damage": 95,
@@ -189,7 +182,6 @@
       "maxTier": 3,
       "hp": 110,
       "blocks": true,
-      "classLock": null,
       "attack": {
         "kind": "poison",
         "damage": 4,
@@ -219,7 +211,6 @@
       "maxTier": 3,
       "hp": 100,
       "blocks": true,
-      "classLock": null,
       "attack": null,
       "buffAura": {
         "radius": 3,
@@ -246,7 +237,6 @@
       "maxTier": 3,
       "hp": 90,
       "blocks": true,
-      "classLock": null,
       "attack": null,
       "economy": {
         "goldPerWavePerTier": 5

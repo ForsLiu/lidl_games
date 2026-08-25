@@ -29,7 +29,6 @@ export type BuildResult =
 export type BuildRejection =
   | 'phase'
   | 'unknown_tower'
-  | 'class_locked'
   | 'occupied'
   | 'out_of_range'
   | 'gold'
@@ -60,7 +59,6 @@ export function checkBuild(w: World, towerId: number, tx: number, ty: number): B
   if (!canBuildNow(w)) return 'phase';
   const def = w.content.towerById.get(towerId);
   if (!def) return 'unknown_tower';
-  if (def.classLock && def.classLock !== w.cfg.classKey) return 'class_locked';
   if (!w.grid.buildable(tx, ty)) return 'occupied';
   if (!inBuildRange(w, tx, ty)) return 'out_of_range';
   if (w.gold < towerCost(w, def)) return 'gold';
@@ -151,9 +149,16 @@ export function tierRangeMul(w: World, tier: number): number {
   return Math.pow(w.content.towers.tierRangeMul, tier - 1);
 }
 
+/** SPEC-V2 §2: an affinity tower deals +`bonus` effectiveness for its class. */
+export function affinityMul(w: World, towerKey: string): number {
+  const aff = w.content.affinityByClass.get(w.cfg.classKey);
+  return aff && aff.towers.includes(towerKey) ? 1 + aff.bonus : 1;
+}
+
 /** SPEC 2.1: Power multiplies tower damage in Act I. */
 export function towerDamage(w: World, s: Structure, base: number): number {
-  return base * tierDamageMul(w, s.tier) * w.derived.powerMul * w.derived.towerDamageMul;
+  const def = w.content.towerById.get(s.towerId)!;
+  return base * tierDamageMul(w, s.tier) * w.derived.powerMul * w.derived.towerDamageMul * affinityMul(w, def.key);
 }
 
 export function towerRange(w: World, s: Structure, base: number): number {

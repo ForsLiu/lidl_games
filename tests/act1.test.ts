@@ -68,11 +68,11 @@ describe('placement rules (SPEC 3.1)', () => {
     expect(checkBuild(w, 2, 5, 5)).toBe('gold');
   });
 
-  it('honours class locks', () => {
+  it('lets any class build any tower (SPEC-V2 §2 affinity replaces class locks)', () => {
     warp(w, 5, 5);
-    // Engineer may build the Tesla Coil but not the Pyromancer's Brazier.
+    // Engineer may build both the Tesla Coil and the Pyromancer-flavoured Brazier.
     expect(checkBuild(w, 6, 5, 5)).toBeNull();
-    expect(checkBuild(w, 4, 5, 5)).toBe('class_locked');
+    expect(checkBuild(w, 4, 5, 5)).toBeNull();
   });
 
   it('upgrades through three tiers at the SPEC cost curve', () => {

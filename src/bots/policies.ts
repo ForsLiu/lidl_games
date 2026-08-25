@@ -211,10 +211,7 @@ export class BuilderPolicy implements BotPolicy {
     this.planWave = w.wave;
     this.plan = [];
     const sites = rankSites(w);
-    const keys = this.opts.towerKeys.filter((k) => {
-      const def = w.content.towerByKey.get(k);
-      return def && (!def.classLock || def.classLock === w.cfg.classKey);
-    });
+    const keys = this.opts.towerKeys.filter((k) => w.content.towerByKey.has(k));
     if (keys.length === 0) return;
     const palisade = w.content.towerByKey.get('palisade')!;
     const budget = Math.max(

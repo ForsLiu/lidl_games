@@ -14,6 +14,7 @@ import relicsRaw from '../../data/relics.json';
 import treeRaw from '../../data/tree.json';
 import modifiersRaw from '../../data/modifiers.json';
 import classesRaw from '../../data/classes.json';
+import affinityRaw from '../../data/affinity.json';
 import questsRaw from '../../data/quests.json';
 import wardenRaw from '../../data/warden.json';
 
@@ -72,7 +73,6 @@ const TowerSchema = z.object({
   maxTier: num,
   hp: num,
   blocks: z.boolean(),
-  classLock: str.nullable(),
   attack: TowerAttackSchema,
   buffAura: z.object({ radius: num, attackSpeed: num }).optional(),
   economy: z.object({ goldPerWavePerTier: num }).optional(),
@@ -334,6 +334,29 @@ const ModifiersFileSchema = z.object({
 
 /* ----------------------------------------------------------------- classes */
 
+/**
+ * SPEC-V2 §2: every class has one Active skill, usable both phases and
+ * shown on the HUD with its cooldown. `kind` dispatches to the effect
+ * implementation in `src/sim/classes.ts`; new kinds extend that switch as
+ * more classes land (f005+) without touching this schema.
+ */
+const ClassActiveSchema = z.object({
+  name: str,
+  kind: z.enum(['burst_damage']),
+  cooldownSeconds: num,
+  radius: num,
+  damage: num,
+  slow: num.optional(),
+  slowDuration: num.optional(),
+  burnDps: num.optional(),
+  burnDuration: num.optional(),
+  /** Immersion rule (SPEC-V2 §2): every Active states a Day use and a Night use. */
+  dayUse: str,
+  nightUse: str,
+});
+
+const ClassPassiveSchema = z.object({ name: str, description: str });
+
 const ClassesFileSchema = z.object({
   classes: z.array(
     z.object({
@@ -343,8 +366,25 @@ const ClassesFileSchema = z.object({
       unlockQuest: str.nullable(),
       trait: str,
       mods: z.record(num),
-      signatureTower: str,
+      active: ClassActiveSchema,
+      passive: ClassPassiveSchema,
       manualAttack: z.object({ name: str, dps: num, range: num, interval: num }),
+    }),
+  ),
+});
+
+/**
+ * SPEC-V2 §2 affinity model: replaces v0.1's class-exclusive signature tower.
+ * Every class may build every tower; a tower listed here gets +`bonus`
+ * effectiveness (damage) when built by `classKey`, plus a flavor perk.
+ */
+const AffinityFileSchema = z.object({
+  affinities: z.array(
+    z.object({
+      classKey: str,
+      towers: z.array(str),
+      bonus: num,
+      perk: str,
     }),
   ),
 });
@@ -406,6 +446,8 @@ export type AffixDef = z.infer<typeof AffixSchema>;
 export type TreeNode = z.infer<typeof TreeNodeSchema>;
 export type ModifierDef = z.infer<typeof ModifiersFileSchema>['modifiers'][number];
 export type ClassDef = z.infer<typeof ClassesFileSchema>['classes'][number];
+export type ClassActive = z.infer<typeof ClassActiveSchema>;
+export type AffinityDef = z.infer<typeof AffinityFileSchema>['affinities'][number];
 export type QuestDef = z.infer<typeof QuestsFileSchema>['quests'][number];
 export type WaveDef = z.infer<typeof WavesFileSchema>['waves'][number];
 
@@ -421,6 +463,7 @@ export interface Content {
   tree: z.infer<typeof TreeFileSchema>;
   modifiers: z.infer<typeof ModifiersFileSchema>;
   classes: z.infer<typeof ClassesFileSchema>;
+  affinity: z.infer<typeof AffinityFileSchema>;
   quests: z.infer<typeof QuestsFileSchema>;
 
   towerByKey: Map<string, TowerDef>;
@@ -432,6 +475,7 @@ export interface Content {
   treeById: Map<number, TreeNode>;
   classByKey: Map<string, ClassDef>;
   modifierByKey: Map<string, ModifierDef>;
+  affinityByClass: Map<string, AffinityDef>;
 }
 
 let cached: Content | null = null;
@@ -449,6 +493,7 @@ export function loadContent(): Content {
   const tree = TreeFileSchema.parse(treeRaw);
   const modifiers = ModifiersFileSchema.parse(modifiersRaw);
   const classes = ClassesFileSchema.parse(classesRaw);
+  const affinity = AffinityFileSchema.parse(affinityRaw);
   const quests = QuestsFileSchema.parse(questsRaw);
 
   // Cross-file referential integrity: a typo in /data must fail loudly at load.
@@ -488,9 +533,15 @@ export function loadContent(): Content {
       if (spawns.costs[key] === undefined) throw new Error(`spawns.json: "${key}" has no cost`);
     }
   }
-  for (const c of classes.classes) {
-    if (!towerKeys.has(c.signatureTower)) {
-      throw new Error(`classes.json: ${c.key} bad signature tower`);
+  const classKeys = new Set(classes.classes.map((c) => c.key));
+  for (const a of affinity.affinities) {
+    if (!classKeys.has(a.classKey)) {
+      throw new Error(`affinity.json: unknown class "${a.classKey}"`);
+    }
+    for (const t of a.towers) {
+      if (!towerKeys.has(t)) {
+        throw new Error(`affinity.json: ${a.classKey} references unknown tower "${t}"`);
+      }
     }
   }
   const treeIds = new Set(tree.nodes.map((n) => n.id));
@@ -512,6 +563,7 @@ export function loadContent(): Content {
     tree,
     modifiers,
     classes,
+    affinity,
     quests,
     towerByKey: new Map(towers.towers.map((t) => [t.key, t])),
     towerById: new Map(towers.towers.map((t) => [t.id, t])),
@@ -522,6 +574,7 @@ export function loadContent(): Content {
     treeById: new Map(tree.nodes.map((n) => [n.id, n])),
     classByKey: new Map(classes.classes.map((c) => [c.key, c])),
     modifierByKey: new Map(modifiers.modifiers.map((m) => [m.key, m])),
+    affinityByClass: new Map(affinity.affinities.map((a) => [a.classKey, a])),
   };
   return cached;
 }

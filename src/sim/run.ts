@@ -20,6 +20,7 @@ import { buildTower, collectSproutGold, sellTower, updateTowers, upgradeTower } 
 import { shouldSpawnBoss, spawnFinalBoss, updateDirector } from './act2';
 import { addXp, openLevelUpIfPending, rerollOffers, takeOffer, updateGems } from './progression';
 import { advanceFromDawn, beginDawn, beginSoulPick, DAWN_AUTO_SECONDS, finishSundering, rekindleTower } from './sundering';
+import { useClassActive } from './classes';
 import { updateTerrainEffects, updateWeapons } from './weapons';
 import { updateBossSlam } from './boss';
 import { dropOrb } from './loot';
@@ -177,6 +178,9 @@ export function applyCommand(w: World, c: Command): void {
     case 'dawn_done':
       advanceFromDawn(w);
       break;
+    case 'class_active':
+      useClassActive(w);
+      break;
     case 'dev':
       applyDevCommand(w, c.op, c.amount);
       break;
@@ -259,6 +263,7 @@ export function updateWarden(w: World, input: TickInput, dt: number): void {
   }
   if (wd.dashIFrames > 0) wd.dashIFrames -= dt;
   if (wd.attackCooldown > 0) wd.attackCooldown -= dt;
+  if (wd.activeCooldown > 0) wd.activeCooldown -= dt;
   wd.outOfCombat += dt;
 
   const n = normalize(input.mx, input.my);
