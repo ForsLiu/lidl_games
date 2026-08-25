@@ -27,9 +27,9 @@ with the commit hash.
 ## Done
 
 - [x] (b002) [bug] Pause menu Abandon Run (with confirm) available in both phases —
-      refs: SPEC-V2 §10 D1 — qa-playtester pass 2026-08-25 (confirm flow probed
-      across act1_build, act1_wave, dusk, soulpick, levelup and act2; state
-      bit-identical across the pause cycle; no bugs filed)
+      refs: SPEC-V2 §10 D1 — commit d2079e7, qa-playtester pass 2026-08-25 (confirm
+      flow probed across act1_build, act1_wave, dusk, soulpick, levelup and act2;
+      state bit-identical across the pause cycle; no bugs filed)
 - [x] (b001) [bug] Death flow: Night-phase Warden death and Day-phase Core death both
       reach a defeat Results screen with Retry / New Run / Hub — refs: SPEC-V2 §10 D1
       — commit 645d4b0, qa-playtester pass 2026-08-25 (race against victory, pause
