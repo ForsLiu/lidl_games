@@ -11,14 +11,13 @@ import type { MetaState, Relic, RunConfig } from '../sim/types';
 import {
   accountLevelFor,
   allocate,
-  canAllocate,
   pointsAvailable,
   refund,
-  refundBlocker,
   stashCapacity,
 } from '../meta/meta';
 import { craft, discard, equip, type OrbKey } from '../meta/crafting';
 import { modifierDraft } from '../sim/tiers';
+import { renderTreeView } from './tree-view';
 import { sanitize, type Settings } from './settings';
 
 type Tab = 'run' | 'tree' | 'stash' | 'settings';
@@ -29,20 +28,6 @@ export interface HubCallbacks {
   onMetaChanged(meta: MetaState): void;
   onSettingsChanged(settings: Settings): void;
 }
-
-/** Why a right-click did nothing, in words the player can act on. */
-const REFUND_REFUSALS: Record<string, (cost: number, ember: number) => string> = {
-  not_allocated: () => 'That node is not allocated.',
-  would_orphan: () => 'Refund the nodes beyond it first — this one holds them to the tree.',
-  ember: (cost, ember) => `Refunding costs ${cost} Ember and you have ${ember}.`,
-};
-
-const BRANCH_COLORS: Record<string, string> = {
-  start: '#e8edf5',
-  bastion: '#7fb2ff',
-  slayer: '#ff8f8f',
-  wanderer: '#ffd166',
-};
 
 export class Hub {
   private root: HTMLElement;
@@ -241,89 +226,29 @@ export class Hub {
   /* -------------------------------------------------------------- tree tab */
 
   private renderTree(body: HTMLElement): void {
-    const content = loadContent();
-    const size = 620;
-    const scale = 46;
-    const cx = size / 2;
-    const cy = size / 2;
-    const pos = (n: { x: number; y: number }) => ({ x: cx + n.x * scale, y: cy + n.y * scale });
-
-    const edges: string[] = [];
-    for (const n of content.tree.nodes) {
-      const a = pos(n);
-      for (const l of n.links) {
-        if (l < n.id) continue;
-        const o = content.treeById.get(l);
-        if (!o) continue;
-        const b = pos(o);
-        const lit = this.meta.allocated.includes(n.id) && this.meta.allocated.includes(l);
-        edges.push(
-          `<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="${
-            lit ? '#7ae2c3' : '#2a323f'
-          }" stroke-width="${lit ? 2 : 1}" />`,
-        );
-      }
-    }
-
-    const nodes = content.tree.nodes
-      .map((n) => {
-        const p = pos(n);
-        const taken = this.meta.allocated.includes(n.id);
-        const open = canAllocate(this.meta, n.id);
-        const r = n.kind === 'keystone' ? 11 : n.kind === 'notable' ? 8 : 5;
-        const fill = taken ? BRANCH_COLORS[n.branch] ?? '#fff' : open ? '#3c4657' : '#1b212b';
-        return `<circle cx="${p.x}" cy="${p.y}" r="${r}" fill="${fill}" stroke="${
-          taken ? '#ffffffaa' : '#2a323f'
-        }" stroke-width="1.5" data-node="${n.id}" class="sw-node ${open ? 'open' : ''}">
-          <title>${n.name}${n.desc ? ` — ${n.desc}` : ''}${statLine(n.stats)}</title>
-        </circle>`;
-      })
-      .join('');
-
-    body.innerHTML = `
-      <div class="sw-panel wide">
-        <h2>Constellation</h2>
-        <p class="sw-note">
-          <b>${pointsAvailable(this.meta)}</b> point(s) to spend · click a lit-adjacent node to take it ·
-          right-click to take one back. Points spent since you opened the Hub come
-          back <b>free</b>; anything older costs ${content.tree.respecCostPerNode} Ember
-          (you have <b>${this.meta.ember}</b>).
-        </p>
-        <svg viewBox="0 0 ${size} ${size}" class="sw-tree">${edges.join('')}${nodes}</svg>
-      </div>`;
-
-    // Suppress the browser menu across the whole tree, not just on the nodes:
-    // right-clicking a gap between nodes should not pop a context menu either.
-    body.querySelector('.sw-tree')?.addEventListener('contextmenu', (e) => e.preventDefault());
-
-    for (const el of body.querySelectorAll<SVGCircleElement>('.sw-node')) {
-      const id = Number(el.dataset.node);
-      el.addEventListener('click', () => {
-        if (!canAllocate(this.meta, id)) return;
+    renderTreeView(body, {
+      meta: () => this.meta,
+      isFreeUndo: (id) => this.spentThisVisit.has(id),
+      onAllocate: (id) => {
         this.spentThisVisit.add(id);
         this.commit(allocate(this.meta, id));
-      });
-      el.addEventListener('contextmenu', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        const free = this.spentThisVisit.has(id);
-        const blocked = refundBlocker(this.meta, id, { free });
-        if (blocked === null) {
-          this.spentThisVisit.delete(id);
-          this.notice = free
-            ? 'Point returned.'
-            : `Node refunded for ${content.tree.respecCostPerNode} Ember.`;
-          const next = refund(this.meta, id, { free });
-          this.meta = next;
-          this.cb.onMetaChanged(next);
-          this.show();
-          return;
-        }
-        this.notice = REFUND_REFUSALS[blocked](content.tree.respecCostPerNode, this.meta.ember);
+      },
+      onRefund: (id, free) => {
+        this.spentThisVisit.delete(id);
+        const cost = loadContent().tree.respecCostPerNode;
+        this.meta = refund(this.meta, id, { free });
+        this.cb.onMetaChanged(this.meta);
+        // Set after commit-equivalent work: commit() clears the notice.
+        this.notice = free ? 'Point returned.' : `Node refunded for ${cost} Ember.`;
         this.show();
-      });
-    }
+      },
+      onRefuse: (message) => {
+        this.notice = message;
+        this.show();
+      },
+    });
   }
+
 
   /* ---------------------------------------------------------- settings tab */
 
@@ -506,11 +431,5 @@ function formatStat(stat: string, value: number, pct: boolean): string {
   return pct ? `+${Math.round(value * 1000) / 10}% ${label}` : `+${value} ${label}`;
 }
 
-function statLine(stats: Record<string, number>): string {
-  const parts = Object.entries(stats).map(([k, v]) =>
-    Math.abs(v) < 1 ? `${k} ${v > 0 ? '+' : ''}${Math.round(v * 1000) / 10}%` : `${k} ${v > 0 ? '+' : ''}${v}`,
-  );
-  return parts.length ? `\n${parts.join(', ')}` : '';
-}
 
 export { accountLevelFor };

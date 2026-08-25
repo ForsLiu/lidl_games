@@ -306,10 +306,6 @@ html, body {
 .sw-slot { display: flex; justify-content: space-between; font-size: 13px; }
 .sw-slot span { color: var(--dim); text-transform: capitalize; }
 
-.sw-tree { width: 100%; max-width: 680px; display: block; margin: 0 auto; }
-.sw-node { cursor: default; }
-.sw-node.open { cursor: pointer; }
-.sw-node.open:hover { stroke: var(--accent); stroke-width: 3; }
 
 .sw-stash { display: flex; flex-wrap: wrap; gap: 6px; }
 .sw-relic {
@@ -363,3 +359,36 @@ html, body {
 }
 .sw-pausebuttons .sw-go,
 .sw-pausebuttons .sw-reroll { margin-top: 8px; }
+
+/* ------------------------------------------------------- constellation */
+
+.sw-treewrap { display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap; }
+.sw-tree { flex: 1 1 520px; max-width: 700px; display: block; }
+.sw-node { cursor: default; transition: stroke-width .1s, r .1s; }
+.sw-node.open { cursor: pointer; }
+.sw-node.open:hover { stroke: #fff; stroke-width: 3.5; }
+.sw-node.taken:hover { stroke: #fff; stroke-width: 3.5; }
+.sw-halo { pointer-events: none; }
+
+.sw-nodeinfo {
+  flex: 1 1 220px;
+  min-width: 210px;
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 12px 14px;
+  align-self: stretch;
+}
+.sw-nodeinfo h3 { margin: 0 0 2px; font-size: 15px; }
+.sw-kind {
+  margin: 0 0 8px;
+  font-size: 11px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+.sw-statlist { margin: 6px 0 0; padding-left: 16px; }
+.sw-statlist li { font-size: 12px; color: #9fd3c7; margin-bottom: 2px; }
+
+.sw-legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 10px; font-size: 12px; color: var(--dim); }
+.sw-legend i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 5px; }
