@@ -16,13 +16,22 @@ recorded reason, not a nudged constant.
 
 ### M18 — quick wins (gates C7, C8, C5-prep)
 
-- [ ] (t6c) [bug] Save migration drops `orbs` without discarding the rest of the
-      save, and bumps `SAVE_VERSION` — **QA measured this as low urgency**: a v0.2
-      save with an `orbs` key already loads, renders and re-saves without throwing;
-      the key survives as an inert zombie that `serializeMeta` writes back forever —
-      acceptance: round-trip test loads a hand-written v1 save containing `orbs`,
-      asserts every other field survives, `orbs` is gone from the migrated output,
-      and the save re-serialises stably — refs: V3 §8, C7
+- [ ] (s001) [bug] `migrate()` preserves unknown save keys forever: it spreads
+      `...meta` wholesale, so any key a save carries survives every round trip as a
+      fixed point — the same defect t6c fixed for one name. A non-object `meta`
+      is worse: `{"meta":"orbs"}` string-spreads into indexed keys `{"0":"o",...}`
+      and re-serialises stably — acceptance: build the migrated object from the
+      known key set instead of a spread; a save carrying junk keys and one with a
+      non-object `meta` both migrate to exactly the MetaState key set — refs: QA on
+      t6c, bug 1
+- [ ] (s002) [bug] A save whose `stash` alone is corrupt loses the whole account:
+      `deserializeMeta('{"version":1,"meta":{"stash":"nope"}}')` throws in
+      `migrate()`, `loadMeta` catches it and returns a brand-new account, so Ember,
+      account level, unlocks and quests are discarded with it. Pre-existing, not
+      introduced by t6c — acceptance: a malformed `stash` (non-array, or an array
+      containing null) coerces to `[]` and every other field survives; extend
+      `tests/meta.test.ts`'s "survives a corrupt or empty save" case, which today only
+      covers `'{}'` — refs: QA on t6c, bug 4
 - [ ] (t3) [feat] Dev profile: `data/dev.json` with `devMode`, schema-validated;
       when on — all classes/maps/tiers unlocked, 999 skill points, stash pre-filled
       with every §7 item available, all quests complete; Settings toggle switches to
@@ -190,6 +199,20 @@ recorded reason, not a nudged constant.
       acceptance: tools run clean, file updated, committed — refs: CLAUDE.md
 
 ## Done
+
+- [x] (t6c) [bug] Save migration drops `orbs` and bumps SAVE_VERSION 1 → 2 — refs:
+      V3 §8, C7 — qa-playtester **PASS** on all four acceptance criteria, verified
+      through the real `localStorage` path as well as the pure functions, with a full
+      money-path sweep (fresh account → run → defeat → Results → Hub → seed → equip →
+      reload) confirming nothing re-introduces the key. Two of its findings were taken
+      in this same commit because they shared a two-line fix and the file was open:
+      the strip is now **version-gated** (a newer client legitimately reusing the name
+      would have had that field eaten on every load) and **guarded against deleting a
+      live MetaState key**; both repros are regression tests. QA also measured that a
+      poisoned `RETIRED_KEYS` turns 5 tests red, so required fields were already
+      protected — it was optional ones that were exposed. Findings left as their own
+      items: s001 (migrate preserves unknown keys forever) and s002 (a corrupt stash
+      discards the whole account, pre-existing).
 
 - [x] (t6ab) [feat] Delete Orbs entirely from sim, meta, data and UI, and repurpose
       the Constellation node that granted one — **t6a and t6b merged**: removing

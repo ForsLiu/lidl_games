@@ -12,8 +12,31 @@ import { Rng } from '../sim/rng';
 import type { MetaState, Relic, RunReport } from '../sim/types';
 import type { World } from '../sim/world';
 
+/**
+ * Deliberately frozen at `v1` even though SAVE_VERSION is now 2: renaming the
+ * storage key would orphan every existing save and the migration below would
+ * never get the chance to run. The key names the slot, not the format.
+ */
 export const SAVE_KEY = 'stonewake.save.v1';
-export const SAVE_VERSION = 1;
+/**
+ * 1 = v0.1/v0.2. 2 = SPEC-V3 §8: the Orb currency is deleted, so `orbs` is
+ * stripped from the save rather than carried forward as a zombie key that
+ * `serializeMeta` would write back forever.
+ *
+ * Every destructive migration bumps this and gets a round-trip test, or a
+ * save written by an older client will not survive an upgrade.
+ */
+export const SAVE_VERSION = 2;
+
+/**
+ * Keys a migration drops, with the SAVE_VERSION that retired each one. The
+ * version gate matters: without it the strip would run forever, including on
+ * saves written by a *newer* client that legitimately reuses the name for
+ * something else — which would silently eat that field on every load.
+ */
+const RETIRED_KEYS: readonly { key: string; retiredIn: number }[] = [
+  { key: 'orbs', retiredIn: 2 },
+];
 
 export function defaultMeta(): MetaState {
   const ember = loadContent().tree.startingEmber;
@@ -315,7 +338,17 @@ function migrate(meta: MetaState, version: number): MetaState {
   };
   if (!out.allocated.includes(0)) out.allocated.unshift(0);
   if (!isConnected(out.allocated)) out.allocated = [0];
-  void version;
+  // The `...meta` spread above copies whatever the old save held, including
+  // keys whose systems are gone. Strip them so they do not round-trip.
+  //
+  // Two guards, both from QA on this item: only strip from saves older than
+  // the version that retired the key, and never strip a name the current
+  // MetaState actually uses — otherwise a future field reusing a retired name
+  // would be eaten silently.
+  const bag = out as unknown as Record<string, unknown>;
+  for (const { key, retiredIn } of RETIRED_KEYS) {
+    if (version < retiredIn && !(key in base)) delete bag[key];
+  }
   return out;
 }
 
