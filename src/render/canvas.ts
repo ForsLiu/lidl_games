@@ -31,6 +31,13 @@ import {
   type ProjectileStyle,
 } from './theme';
 import type { Settings } from '../ui/settings';
+import {
+  pickAt,
+  sameSelection,
+  selectedEnemy,
+  selectedStructure,
+  type Selection,
+} from '../ui/selection';
 
 export interface ViewState {
   /** Tower id the player currently has selected for building, 0 = none. */
@@ -41,6 +48,8 @@ export interface ViewState {
   /** Screen shake amplitude in pixels (SPEC M8 feel pass). */
   shake: number;
   showRanges: boolean;
+  /** SPEC-V3 T2: what the player has clicked. Presentation only. */
+  selection: Selection;
   /** Presentation settings; never read by the sim. */
   settings: Settings;
 }
@@ -257,6 +266,8 @@ export class Renderer {
     this.drawProjectiles(w);
     this.drawTracers();
     this.drawWarden(w);
+    this.drawHover(w, view);
+    this.drawSelection(w, view);
     if (!night) this.drawRangeRings(w, view);
     if (!night) this.drawBuildGhost(w, view);
     this.drawNumbers();
@@ -662,7 +673,8 @@ export class Renderer {
       // every structure is petrified, which made this the whole board.
       if (s.dead || s.petrified) continue;
       const isHovered = hovered !== null && s.id === hovered.id;
-      if (!view.showRanges && !isHovered) continue;
+      const isSelected = view.selection?.kind === 'tower' && view.selection.id === s.id;
+      if (!view.showRanges && !isHovered && !isSelected) continue;
       const def = w.content.towerById.get(s.towerId);
       if (!def?.attack) continue;
       const range = effectiveTowerRange(w, def, s.tier);
@@ -700,6 +712,52 @@ export class Renderer {
     }
     ctx.globalAlpha = 1;
     ctx.lineWidth = 1;
+  }
+
+  /**
+   * SPEC-V3 T2: the selected thing gets a visible marker. Towers already get
+   * a range ring from T1, so this adds the "you clicked this" halo that was
+   * missing — the report was that clicking had no reaction at all.
+   */
+  /**
+   * SPEC-V3 T2's "hover shows a light outline": a faint marker on whatever a
+   * click would pick right now, so the board reads as interactive before you
+   * commit to a click.
+   */
+  private drawHover(w: World, view: ViewState): void {
+    if (view.selectedTower > 0) return; // placing a tower, not inspecting
+    const hovered = pickAt(w, view.cursorX, view.cursorY);
+    if (!hovered || sameSelection(hovered, view.selection)) return;
+    const at = selectionAnchor(w, hovered);
+    if (!at) return;
+    const ctx = this.ctx;
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 1;
+    ctx.globalAlpha = 0.35;
+    ctx.beginPath();
+    ctx.arc(at.x, at.y, at.r, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+
+  private drawSelection(w: World, view: ViewState): void {
+    const at = selectionAnchor(w, view.selection);
+    if (!at) return;
+    const ctx = this.ctx;
+    const { x, y, r } = at;
+
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 2;
+    ctx.globalAlpha = 0.9;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.strokeStyle = '#ffffff55';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(x, y, r + 3, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
   }
 
   private drawBuildGhost(w: World, view: ViewState): void {
@@ -756,4 +814,33 @@ export class Renderer {
     ctx.globalAlpha = 1;
     ctx.textAlign = 'left';
   }
+}
+
+/**
+ * Where a selection's marker goes, and how big. Shared by the hover outline and
+ * the selection highlight so the two cannot disagree about what a click is
+ * pointing at — the Warden's halo used to be drawn well inside its own grab
+ * radius, which made the hit area feel arbitrary.
+ */
+function selectionAnchor(
+  w: World,
+  sel: Selection,
+): { x: number; y: number; r: number } | null {
+  if (!sel) return null;
+  if (sel.kind === 'warden') {
+    return { x: w.warden.x * TILE, y: w.warden.y * TILE, r: 12 };
+  }
+  if (sel.kind === 'core') {
+    return {
+      x: (CORE_X + CORE_W / 2) * TILE,
+      y: (CORE_Y + CORE_H / 2) * TILE,
+      r: Math.max(CORE_W, CORE_H) * TILE * 0.8,
+    };
+  }
+  if (sel.kind === 'enemy') {
+    const e = selectedEnemy(w, sel);
+    return e ? { x: e.x * TILE, y: e.y * TILE, r: e.radius * TILE + 4 } : null;
+  }
+  const s = selectedStructure(w, sel);
+  return s ? { x: (s.tx + 0.5) * TILE, y: (s.ty + 0.5) * TILE, r: TILE * 0.7 } : null;
 }

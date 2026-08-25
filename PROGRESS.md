@@ -10,7 +10,7 @@ V2's M9 shipped, and supersedes a large part of what M9 built. **MIGRATION.md** 
 the audit: what is built, what V3 supersedes, and where V3 conflicts with a live
 gate. Read it before touching anything in M18–M27.
 
-- **Milestone:** M17 complete (reconcile). M18 in progress.
+- **Milestone:** M17 and **M18 complete**. M19 (combat math, gates C3/C4) is next.
 - **Gate status:** 333 tests pass, 19 skipped (15 retired at M17 with logged
   reasons — see MIGRATION.md §5). **A10 is red and deliberately left red**: its
   5 s whole-run budget was written for a one-cycle run, f001 made a run three
@@ -344,6 +344,40 @@ features whose counters read zero with no explanation.
 - **Boon pick data is a bot artifact.** `BuilderPolicy.pickOffer` takes
   awakening → weapon → card index 0, so measured "picks" reflect offer RNG, not
   preference. There is no signal about which boons a player would want.
+## M18 — done (quick wins: C7, C8)
+
+Five items, each QA-verified before commit: Orbs deleted (`5c5a507`), the save
+migration that drops their key (`b8fff25`), god mode (`2f3a3ca`), the dev profile
+(`d27cdcc`), range indicators (`840f171`) and selection feedback.
+
+**The pattern worth recording: QA found 17 Major-or-worse bugs across the five
+items, and roughly half were in the tests I wrote to guard the work, not in the
+work itself.** In order: a gate test that exempted the two files most likely to
+regress; a DOM scan that never clicked anything; a positive control rewritten into
+comparing 0 to 0, which left nothing in the suite proving a run banks rewards; a
+C8 assertion that passed with no `dist/` at all and again against a `dist/` built
+before the feature existed; a canvas suite running on a default world, where the
+buggy and fixed range expressions agree, so re-inserting the original bug passed;
+and a selection harness that re-implemented the wiring it was meant to test.
+
+Every fix from here is mutation-tested: break the source, confirm a test fails.
+That is now the standard, not an occasional check. The t1 and t2 batteries (8 and
+14 mutations) are kept as scripts in the session scratchpad and are worth
+rebuilding in-repo if this keeps paying off.
+
+Two design errors of my own, both in the dev profile: startup **wrote** the
+profile into the save, which would have irreversibly inflated a returning
+developer's account and left the "clean profile" toggle with nothing to clean;
+and `isDevBuild()` defaulted to *dev* when the env was unpopulated, so production
+safety rested on the bundler's constant-folding rather than the source's own
+logic. Both are fixed and mutation-verified.
+
+Shortfalls that are stand-ins rather than omissions, both because their targets
+land at M24: the dev profile grants 60 Constellation points, not 999 (the account
+level caps it, Q53), and fills the stash procedurally because §7's item table does
+not exist yet (Q54). Both are asserted exactly, so they turn red when M24 changes
+them.
+
 ## M17 — done (SPEC-V3 reconcile)
 
 Audited the v0.2 codebase against SPEC-V3 and wrote **MIGRATION.md**. Findings that
@@ -380,6 +414,9 @@ BACKLOG.md rewritten to V3 §13's M17–M27 order, 30 items with concrete accept
 criteria naming the C-gate each satisfies. QUESTIONS.md gains **Q38–Q49**.
 
 ## Session log (newest first)
+- 2026-08-25 — M18: Orbs deleted and migrated out of saves, god mode, dev profile,
+  range indicators, selection feedback. 428 tests pass. QA failed three of the five
+  items on first submission; half its Majors were in my own gate tests.
 - 2026-08-25 — M17: SPEC-V3 reconcile. MIGRATION.md written, 15 tests retired with
   reasons, BACKLOG rewritten to M17-M27, Q38-Q49 logged.
 - 2026-08-25 — BACKLOG f003: leak coupling (SPEC-V2 §1, gate B7's mechanism —

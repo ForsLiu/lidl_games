@@ -3,10 +3,13 @@
 import type { World } from '../sim/world';
 import { towerCost } from '../sim/towers';
 import type { Offer } from '../sim/types';
-import { TOWER_COLORS, projectileStyle } from '../render/theme';
+import { ENEMY_COLORS, PALETTE, TOWER_COLORS, projectileStyle } from '../render/theme';
+import { effectiveSpeed } from '../sim/enemies';
+import type { Enemy } from '../sim/types';
 import { towerInfo, weaponInfo, type TowerInfo, type WeaponInfo } from './tower-info';
 import { runProgress, type RunProgress } from './progress';
 import type { DevOp } from '../sim/types';
+import { selectedEnemy, selectedStructure, type Selection } from './selection';
 
 export interface HudCallbacks {
   onSelectTower(id: number): void;
@@ -194,7 +197,7 @@ export class Hud {
     this.cb.onSelectTower(0);
   }
 
-  update(w: World, cursor?: { x: number; y: number }): void {
+  update(w: World, cursor?: { x: number; y: number }, selection: Selection = null): void {
     const d = w.derived;
     const hpPct = Math.max(0, (w.warden.hp / d.maxHp) * 100);
 
@@ -248,6 +251,11 @@ export class Hud {
     this.bar.classList.toggle('hidden', w.huntsWarden);
     this.progressEl.innerHTML = progressMarkup(runProgress(w));
     this.syncPracticeToggles(w);
+    // A selection describes itself — but never at the cost of the panels the
+    // player needs to act: a tower queued on the build bar has to show its own
+    // stats, and in Act II the weapon panel carries the only weapon switcher.
+    const blocking = this.selected > 0 || w.sundered;
+    if (!blocking && this.renderSelectionInfo(w, selection)) return;
     this.renderTowerInfo(w, cursor);
   }
 
@@ -286,6 +294,54 @@ export class Hud {
         this.renderWeaponInfo(w);
       });
     }
+  }
+
+  /**
+   * SPEC-V3 T2: a selected thing gets a stats panel. Returns true when it
+   * handled the panel, so the hover path stands down.
+   */
+  private renderSelectionInfo(w: World, sel: Selection): boolean {
+    if (!sel) return false;
+
+    if (sel.kind === 'tower') {
+      const s = selectedStructure(w, sel);
+      const def = s ? w.content.towerById.get(s.towerId) : undefined;
+      if (!s || !def) return false;
+      const key = `sel:tower:${s.id}:${s.tier}:${Math.round(s.hp)}:${w.gold}`;
+      if (key !== this.lastInfoKey) {
+        this.lastInfoKey = key;
+        this.towerInfoEl.innerHTML = towerInfoMarkup(towerInfo(w, def, s), w.gold, true);
+      }
+      return true;
+    }
+
+    if (sel.kind === 'enemy') {
+      const e = selectedEnemy(w, sel);
+      if (!e) return false;
+      // Status effects and speed are in the key: a frost tower slowing an
+      // enemy without changing its rounded HP used to leave the panel lying.
+      const key = [
+        'sel:enemy',
+        e.id,
+        Math.round(e.hp),
+        Math.round(e.slowAmount * 100),
+        Math.round(e.burnRemaining * 10),
+        e.poison.length,
+        Math.round(e.buffSpeed * 100),
+      ].join(':');
+      if (key !== this.lastInfoKey) {
+        this.lastInfoKey = key;
+        this.towerInfoEl.innerHTML = enemyInfoMarkup(w, e);
+      }
+      return true;
+    }
+
+    const key = `sel:warden:${Math.round(w.warden.hp)}:${w.level}:${w.warden.dashCharges}`;
+    if (key !== this.lastInfoKey) {
+      this.lastInfoKey = key;
+      this.towerInfoEl.innerHTML = wardenInfoMarkup(w);
+    }
+    return true;
   }
 
   /**
@@ -703,4 +759,56 @@ export function weaponInfoMarkup(info: WeaponInfo, all: string[]): string {
           ? '<p class="sw-hint">Awakened.</p>'
           : ''
     }`;
+}
+
+/** SPEC-V3 T2: an enemy's stats, for when the player clicks one. */
+export function enemyInfoMarkup(w: World, e: Enemy): string {
+  const def = w.content.enemyById.get(e.defId);
+  const pct = Math.max(0, Math.round((e.hp / e.maxHp) * 100));
+  const traits = def?.traits ?? [];
+  const rows: string[] = [
+    row('Health', `${Math.ceil(e.hp)} / ${Math.round(e.maxHp)} (${pct}%)`),
+    row('Speed', `${round1(effectiveSpeed(e))} tiles/s`),
+    row('Core damage', String(def?.coreDamage ?? 0)),
+    // The real payout, not the authored number: `killEnemy` scales bounty by
+    // gold find and adds gold-per-kill — and in Act II pays gems instead.
+    w.huntsWarden
+      ? row('XP gem', String(def?.gem ?? 0))
+      : row('Bounty', `${Math.round((def?.bounty ?? 0) * (1 + w.derived.goldFind) + w.derived.goldPerKill)}g`),
+  ];
+  if (def?.flatReduction) rows.push(row('Armour', `${Math.round(def.flatReduction * 100)}% off all damage`));
+  if (def?.frontReduction) rows.push(row('Front armour', `${Math.round(def.frontReduction * 100)}% from the front`));
+  if (e.slowAmount > 0) rows.push(row('Slowed', `${Math.round(e.slowAmount * 100)}%`));
+  if (e.burnRemaining > 0) rows.push(row('Burning', `${round1(e.burnRemaining)}s left`));
+  if (e.poison.length > 0) rows.push(row('Poison stacks', String(e.poison.length)));
+
+  return `
+    <h3 style="color:${ENEMY_COLORS[def?.key ?? ''] ?? '#e8edf5'}">${def?.name ?? 'Enemy'}
+      <small>${e.boss ? 'boss' : e.elite ? 'elite' : `grade ${def?.grade ?? '?'}`}</small></h3>
+    ${rows.join('')}
+    ${traits.length > 0 ? `<p class="sw-note dim">${traits.join(', ')}</p>` : ''}`;
+}
+
+/** SPEC-V3 T2: the character's own stats. */
+export function wardenInfoMarkup(w: World): string {
+  const d = w.derived;
+  const rows = [
+    row('Health', `${Math.ceil(w.warden.hp)} / ${Math.round(d.maxHp)}`),
+    row('Regen', `${round1(d.hpRegen)} / s`),
+    row('Armour', `${Math.round(d.armor)} (${Math.round(d.damageReduction * 100)}% off)`),
+    row('Move speed', `${round1(d.moveSpeed)} tiles/s`),
+    row('Power', `+${Math.round((d.powerMul - 1) * 100)}%`),
+    row('Attack speed', `+${Math.round((d.attackSpeedMul - 1) * 100)}%`),
+    row('Area', `+${Math.round((d.areaMul - 1) * 100)}%`),
+    row('Dash', `${w.warden.dashCharges} / ${d.dashCharges}`),
+  ];
+  return `<h3 style="color:${PALETTE.warden}">The Warden <small>level ${w.level}</small></h3>${rows.join('')}`;
+}
+
+function row(label: string, value: string): string {
+  return `<div class="sw-row small"><span>${label}</span><b>${value}</b></div>`;
+}
+
+function round1(n: number): number {
+  return Math.round(n * 10) / 10;
 }

@@ -74,6 +74,7 @@ function view(over: Partial<ViewState> = {}): ViewState {
     cursorY: 0,
     shake: 0,
     showRanges: false,
+    selection: null,
     settings: defaultSettings(),
     ...over,
   };

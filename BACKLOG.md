@@ -14,55 +14,6 @@ recorded reason, not a nudged constant.
 
 ## Queue
 
-### M18 — quick wins (gates C7, C8, C5-prep)
-
-- [ ] (s001) [bug] `migrate()` preserves unknown save keys forever: it spreads
-      `...meta` wholesale, so any key a save carries survives every round trip as a
-      fixed point — the same defect t6c fixed for one name. A non-object `meta`
-      is worse: `{"meta":"orbs"}` string-spreads into indexed keys `{"0":"o",...}`
-      and re-serialises stably — acceptance: build the migrated object from the
-      known key set instead of a spread; a save carrying junk keys and one with a
-      non-object `meta` both migrate to exactly the MetaState key set — refs: QA on
-      t6c, bug 1
-- [ ] (s002) [bug] A save whose `stash` alone is corrupt loses the whole account:
-      `deserializeMeta('{"version":1,"meta":{"stash":"nope"}}')` throws in
-      `migrate()`, `loadMeta` catches it and returns a brand-new account, so Ember,
-      account level, unlocks and quests are discarded with it. Pre-existing, not
-      introduced by t6c — acceptance: a malformed `stash` (non-array, or an array
-      containing null) coerces to `[]` and every other field survives; extend
-      `tests/meta.test.ts`'s "survives a corrupt or empty save" case, which today only
-      covers `'{}'` — refs: QA on t6c, bug 4
-- [ ] (s003) [bug] `levelup` has no auto-resolve, so an unattended run parks in it
-      forever — `soulpick` (30 s) and `dawn` (`DAWN_AUTO_SECONDS`) both have one.
-      Pre-existing for any AFK run; god mode only makes it permanent, since you can
-      no longer die out of it. QA repro: a practice run with god mode injected at
-      tick 1, stepped 72 000 ticks, ends `outcome running, phase levelup,`
-      `wavesCleared 10, alive 351` — acceptance: an unattended run either advances or
-      terminates; a headless run stepped past its tick budget never sits in `levelup`
-      — refs: QA on t4, bug 4
-- [ ] (s004) [bug] Alive count exceeds `aliveCap`: QA measured **353** against a cap
-      of 350, because elite and summon spawns bypass the cap check that
-      `act2.ts`'s `spendBudget` applies. Pre-existing and small, but A10's
-      entity-budget assertion sits right next to it — acceptance: no spawn path can
-      push `w.enemies` past `aliveCap`; a test drives elites and boss summons at the
-      cap — refs: QA on t4, bug 4 side note
-- [ ] (s005) [polish] The production bundle still ships the whole dev profile —
-      `applyDevProfile`, the unlocks, `data/dev.json` with `devMode:true`, the
-      `cleanProfile` toggle and the `.sw-devbadge` CSS are all in `dist`. It is
-      unreachable (`isDevBuild()` folds to a constant `false` and there is no global
-      to flip it), so this is dead weight rather than a hole, but gate C8 asserts
-      nothing about it — acceptance: either the dev profile is tree-shaken out of a
-      production build, or C8 gains an explicit assertion that its presence is inert
-      — refs: QA on t3, bug 11
-- [ ] (t2) [feat] Selection feedback: clicking a tower, enemy or the character
-      selects it — highlight + range ring + stats panel; clicking empty ground
-      deselects; hover shows a light outline —
-      acceptance: jsdom test drives real clicks through `bindCanvasInput` and
-      asserts the selection model changes for each target type and clears on empty
-      ground; selection is presentation-only (no `World` writes, enforced by the
-      existing architecture test) — refs: V3 T2 (**log to QUESTIONS if this misreads
-      the owner's "click has no reaction" report — V3 T2 asks for that explicitly**)
-
 ### M19 — combat math and damage types (gates C3, C4)
 
 - [ ] (m19a) [feat] Armor v3: flat points = percent reduction, cap +99, uncapped
@@ -199,7 +150,72 @@ recorded reason, not a nudged constant.
 - [ ] (m27c) [polish] Regenerate HANDOFF measured sections; QUALITY Alpha re-check —
       acceptance: tools run clean, file updated, committed — refs: CLAUDE.md
 
+### Filed by QA during M18 — unscheduled
+
+None of these is M18 work; all were found while verifying it. Ordered by how
+much a player would notice. s001 and s002 are the same family as t6c and would
+sit naturally alongside M24, which touches saves again.
+
+- [ ] (s001) [bug] `migrate()` preserves unknown save keys forever: it spreads
+      `...meta` wholesale, so any key a save carries survives every round trip as a
+      fixed point — the same defect t6c fixed for one name. A non-object `meta`
+      is worse: `{"meta":"orbs"}` string-spreads into indexed keys `{"0":"o",...}`
+      and re-serialises stably — acceptance: build the migrated object from the
+      known key set instead of a spread; a save carrying junk keys and one with a
+      non-object `meta` both migrate to exactly the MetaState key set — refs: QA on
+      t6c, bug 1
+- [ ] (s002) [bug] A save whose `stash` alone is corrupt loses the whole account:
+      `deserializeMeta('{"version":1,"meta":{"stash":"nope"}}')` throws in
+      `migrate()`, `loadMeta` catches it and returns a brand-new account, so Ember,
+      account level, unlocks and quests are discarded with it. Pre-existing, not
+      introduced by t6c — acceptance: a malformed `stash` (non-array, or an array
+      containing null) coerces to `[]` and every other field survives; extend
+      `tests/meta.test.ts`'s "survives a corrupt or empty save" case, which today only
+      covers `'{}'` — refs: QA on t6c, bug 4
+- [ ] (s003) [bug] `levelup` has no auto-resolve, so an unattended run parks in it
+      forever — `soulpick` (30 s) and `dawn` (`DAWN_AUTO_SECONDS`) both have one.
+      Pre-existing for any AFK run; god mode only makes it permanent, since you can
+      no longer die out of it. QA repro: a practice run with god mode injected at
+      tick 1, stepped 72 000 ticks, ends `outcome running, phase levelup,`
+      `wavesCleared 10, alive 351` — acceptance: an unattended run either advances or
+      terminates; a headless run stepped past its tick budget never sits in `levelup`
+      — refs: QA on t4, bug 4
+- [ ] (s004) [bug] Alive count exceeds `aliveCap`: QA measured **353** against a cap
+      of 350, because elite and summon spawns bypass the cap check that
+      `act2.ts`'s `spendBudget` applies. Pre-existing and small, but A10's
+      entity-budget assertion sits right next to it — acceptance: no spawn path can
+      push `w.enemies` past `aliveCap`; a test drives elites and boss summons at the
+      cap — refs: QA on t4, bug 4 side note
+- [ ] (s005) [polish] The production bundle still ships the whole dev profile —
+      `applyDevProfile`, the unlocks, `data/dev.json` with `devMode:true`, the
+      `cleanProfile` toggle and the `.sw-devbadge` CSS are all in `dist`. It is
+      unreachable (`isDevBuild()` folds to a constant `false` and there is no global
+      to flip it), so this is dead weight rather than a hole, but gate C8 asserts
+      nothing about it — acceptance: either the dev profile is tree-shaken out of a
+      production build, or C8 gains an explicit assertion that its presence is inert
+      — refs: QA on t3, bug 11
+
 ## Done
+
+- [x] (t2) [feat] Selection feedback — refs: V3 T2, QUESTIONS Q57 — qa-playtester
+      **FAIL** on first submission with one Critical and six Majors. The Critical
+      was mine: the test harness **re-implemented** the game loop's click wiring,
+      so deleting that wiring from `main.ts` outright left all 23 tests green while
+      clicking selected nothing in the real game — the literal bug T2 exists to fix.
+      The handler and the stale-selection sweep now live in `selection.ts` as
+      `makeSelectHandler`/`sweepSelection`, the tests drive those closures, and three
+      source-level assertions guard that the loop installs them. All **14** mutations
+      (QA's six plus its three survivors plus five of my own) are now caught.
+      Real defects fixed: the hover outline the spec asks for was **not built**;
+      `WARDEN_GRAB` was 0.9 tiles against a 0.25-tile sprite so you could not click a
+      tower you were standing beside; enemy grab was twice the drawn body so a lane
+      of husks made the towers behind them unclickable; a live selection **blackholed**
+      the build-bar panel and, worse, the Act II weapon panel that holds the only
+      weapon switcher; the enemy panel never refreshed on slow/burn/poison; the Warden
+      panel's dash row went stale; Bounty printed the authored number rather than the
+      real payout (and gems, not gold, in Act II); and a petrified tower offered a
+      Sell that silently does nothing. Added beyond the letter of T2: the Core is
+      selectable (its HP is the lose condition) and `0` clears the selection.
 
 - [x] (t1) [feat] Range indicators — refs: V3 T1 — qa-playtester **FAIL** on first
       submission with four Majors, all fixed. The one that mattered: **every canvas

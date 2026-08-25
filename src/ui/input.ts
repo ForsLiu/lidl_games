@@ -29,6 +29,12 @@ export interface CanvasBinding {
   keys: Set<string>;
   /** True while a modal or the pause menu owns input. */
   isBlocked?: () => boolean;
+  /**
+   * SPEC-V3 T2: a left click that is not placing a tower selects whatever is
+   * under it, and empty ground deselects. Selection is presentation state, so
+   * it is handed back through this callback rather than pushed as a Command.
+   */
+  onSelect?: (x: number, y: number) => void;
 }
 
 /** Converts a pointer event to tile coordinates, accounting for CSS scaling. */
@@ -84,7 +90,10 @@ export function bindCanvasInput(b: CanvasBinding): void {
     }
     if (view.selectedTower > 0) {
       queue.push({ k: 'build', tower: view.selectedTower, tx, ty });
+      return;
     }
+    // Nothing to place, so the click is a selection. Empty ground clears it.
+    b.onSelect?.(p.x, p.y);
   });
 }
 

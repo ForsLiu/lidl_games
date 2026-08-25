@@ -194,9 +194,14 @@ export function towerInfo(w: World, def: TowerDef, existing?: Structure): TowerI
       ? (KIND_TEXT[a.kind]?.(a) ?? 'Attacks nearby enemies.')
       : 'Does not attack. Its value is where you put it.',
     stats,
+    // A petrified tower refuses both (`towers.ts` upgradeTower/sellTower), so
+    // offering them would advertise an action that silently does nothing.
     buildCost: existing ? null : towerCost(w, def),
-    upgrade: existing && hasNext ? { toTier: tier + 1, cost: upgradeCost(w, def, tier + 1) } : null,
-    sellValue: existing ? sellValueOf(w, def, tier) : null,
+    upgrade:
+      existing && hasNext && !existing.petrified
+        ? { toTier: tier + 1, cost: upgradeCost(w, def, tier + 1) }
+        : null,
+    sellValue: existing && !existing.petrified ? sellValueOf(w, def, tier) : null,
     soul: soulDef ? { name: soulDef.name, desc: soulDef.desc } : null,
     terrainText: describeTerrain(def),
   };

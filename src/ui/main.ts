@@ -12,6 +12,7 @@ import './style.css';
 import { Run } from '../sim/run';
 import type { Command, MetaState, RunConfig, TickInput } from '../sim/types';
 import { bindCanvasInput, gatherInput, makeKeyDownHandler } from './input';
+import { makeSelectHandler, sweepSelection } from './selection';
 import { Renderer, type ViewState } from '../render/canvas';
 import { Hud } from './hud';
 import { Hub } from './hub';
@@ -34,6 +35,7 @@ class Game {
     cursorY: 0,
     shake: 0,
     showRanges: false,
+    selection: null,
     settings: this.settings,
   };
   private keys = new Set<string>();
@@ -126,6 +128,7 @@ class Game {
     this.hud.showPracticeTools(cfg.practice === true);
     this.hud.resetModalKey();
     this.view.selectedTower = 0;
+    this.view.selection = null;
     this.pending = [];
     this.pacer.reset();
     this.hud.setSpeed(this.pacer.speed);
@@ -170,7 +173,11 @@ class Game {
       togglePause: () => this.togglePause(),
       cycleSpeed: () => this.hud.setSpeed(this.pacer.cycle()),
       toggleRanges: () => this.setShowRanges(!this.view.showRanges),
-      clearSelection: () => this.hud.clearSelection(),
+      clearSelection: () => {
+        this.hud.clearSelection();
+        // `0` clears both selections; deselecting used to need bare ground.
+        this.view.selection = null;
+      },
       isChoosing: () => this.run?.world.phase === 'levelup',
       pickOffer: (i) => this.pending.push({ k: 'pick', index: i }),
       selectTowerByIndex: (i) => {
@@ -193,6 +200,9 @@ class Game {
       keys: this.keys,
       queue: { push: (cmd) => this.pending.push(cmd) },
       isBlocked: () => this.paused || this.hud.modalOpen,
+      // The handler lives in `selection.ts` so the tests drive the shipped
+      // code rather than a copy of it.
+      onSelect: makeSelectHandler(this.view, () => this.run?.world ?? null),
     });
   }
 
@@ -238,9 +248,12 @@ class Game {
     }
 
     const w = run.world;
+    // Enemies die and towers are sold; a stale selection would keep drawing a
+    // highlight over empty ground.
+    sweepSelection(this.view, w);
     this.renderer.update(dtReal, this.view);
     this.renderer.draw(w, this.view);
-    this.hud.update(w, { x: this.view.cursorX, y: this.view.cursorY });
+    this.hud.update(w, { x: this.view.cursorX, y: this.view.cursorY }, this.view.selection);
 
     if (w.outcome !== 'running' && !this.resultBanked) {
       this.resultBanked = true;
