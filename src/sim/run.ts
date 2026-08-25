@@ -643,7 +643,7 @@ export function buildReport(w: World): RunReport {
     goldLeft: w.gold,
     towersBuilt: w.towersBuilt,
     towersByKey: { ...w.towersByKey },
-    survivalSeconds: round2(w.act2Time),
+    survivalSeconds: round2(w.act2Ticks / 60),
     level: w.level,
     kills: w.kills,
     leaks: w.leaks,

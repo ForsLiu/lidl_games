@@ -10,9 +10,9 @@
   click-to-swap / drag-to-unequip / compare tooltip, SPEC-V2 §10 D2) also done;
   M9 (SPEC-V2 §12) work is underway via the BACKLOG queue.
 - **Last session:** 2026-08-25
-- **Next action:** BACKLOG.md b004 (Ember underpay on multi-cycle runs, found by
-  qa-playtester verifying f001) is next in queue. After the BACKLOG queue:
-  QUESTIONS.md verdicts. Both playtest requests carried the example template
+- **Next action:** BACKLOG.md f002 (soul persistence across Nights) is next in
+  queue. After the BACKLOG queue: QUESTIONS.md verdicts. Both playtest requests
+  carried the example template
   rather than actual verdicts, so all **32** entries are still pending — see the
   Verdict log at the top of that file. The tier ladder above T3 has no measured
   win (HANDOFF.md §6), and the two relaxed bounds (A3's per-seed 3:00 line, A7's
@@ -323,6 +323,30 @@ features whose counters read zero with no explanation.
   awakening → weapon → card index 0, so measured "picks" reflect offer RNG, not
   preference. There is no signal about which boons a player would want.
 ## Session log (newest first)
+- 2026-08-25 — BACKLOG b004: `report.survivalSeconds` (`src/sim/run.ts`
+  `buildReport`) read `w.act2Time`, which `finishSundering` resets to 0 at the
+  start of every Night, so a run surviving 2+ full Nights before a mid-cycle
+  death reported only the current cycle's local Night time — underpaying
+  Ember's completion-fraction reward (`emberFor`, `src/meta/meta.ts`) by ~21%
+  on the qa-playtester repro that found it while verifying f001. Fixed to read
+  `w.act2Ticks / 60` (never reset, incremented once per Act II tick), matching
+  `report.act2Seconds`'s already-correct source. code-reviewer caught the
+  identical bug on a second surface mid-review — the Results screen's
+  "Survived" stat in `src/ui/hud.ts` read `w.act2Time` directly rather than
+  going through `buildReport` — fixed in the same commit
+  (`mm(w.act2Ticks / 60)`). `tests/b004-ember-survival.test.ts` adds two
+  regression cases: a real bot-driven run through 2 full cycles of Night
+  (`w.invulnerable = true` to isolate the reporting bug from combat outcome)
+  asserting `survivalSeconds === act2Seconds`, and a jsdom-mounted `Hud`
+  asserting the Results screen shows cumulative "7:45" rather than local
+  "0:45" on a simulated 3rd-cycle death; both fail without the fix (verified
+  by reverting each fix independently) and pass with it. qa-playtester traced
+  `emberFor` end to end to confirm the reward path actually benefits, checked
+  `cycles: 1` runs and the remaining `w.act2Time` read sites (boss-kill timing
+  and in-Night progress-bar markers are correctly local, not regressed), and
+  confirmed every sweep/probe tool already consumes `buildReport` rather than
+  `w.act2Time` directly, so they inherit the fix with no separate patch — no
+  bugs filed.
 - 2026-08-25 — BACKLOG f001: the Day→Dusk→Night→Dawn cycle state machine
   (SPEC-V2 §1), 3 cycles by default (`RunConfig.cycles`, existing single-pass
   suites pin `cycles: 1`). `World.cycle`/`totalCycles` gate `cycleWaveEnd`/

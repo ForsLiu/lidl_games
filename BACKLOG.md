@@ -6,17 +6,6 @@ with the commit hash.
 
 ## Queue
 
-- [ ] (b004) [bug] `report.survivalSeconds` (drives Ember's completion-fraction
-      reward, `src/meta/meta.ts` `emberFor`) reads `w.act2Time`, which resets to 0
-      every Dusk→Night transition (`finishSundering`) — a run that survives 2+ full
-      Nights then dies mid-cycle reports only the current cycle's local Night time,
-      not cumulative Night survival, underpaying Ember (~21% short on a real
-      2-Night-survival repro). `report.act2Seconds` (`w.act2Ticks / 60`) already
-      tracks the cumulative figure correctly — acceptance: a failing regression
-      test added first (a run that reaches Dawn twice asserts
-      `survivalSeconds === act2Seconds`), then `buildReport` uses the cumulative
-      source; full suite green — refs: SPEC-V2 §1, found by qa-playtester
-      2026-08-25 verifying f001
 - [ ] (f002) [feat] Soul persistence: per-soul Night level tracks survive across
       Nights for petrified-left towers; Rekindled souls leave the picker —
       acceptance: B9 — refs: SPEC-V2 §1
@@ -32,6 +21,19 @@ with the commit hash.
 
 ## Done
 
+- [x] (b004) [bug] `report.survivalSeconds` used the Night-local `w.act2Time`
+      instead of the cumulative `w.act2Ticks / 60`, underpaying Ember's
+      completion-fraction reward for multi-cycle survival — refs: SPEC-V2 §1
+      — commit (recorded next commit), code-reviewer pass 2026-08-25 (fix
+      correct and complete for its stated scope; one Major finding — the
+      Results screen's "Survived" stat in `src/ui/hud.ts` read `w.act2Time`
+      directly and had the identical bug — fixed in the same commit:
+      `mm(w.act2Ticks / 60)`), qa-playtester pass 2026-08-25 (traced
+      `emberFor` end to end, confirmed cumulative reward now applies;
+      checked `cycles: 1` runs and every other `w.act2Time` read site — boss
+      timing and the in-Night progress bars are correctly local, not
+      regressed; all sweep/probe tools already consume `buildReport` so they
+      inherit the fix for free — no bugs filed)
 - [x] (f001) [feat] Cycle state machine: Day→Dusk→Night→Dawn ×3, Dusk picker every
       cycle, Dawn Rekindle/Leave flow — refs: SPEC-V2 §1 — commit 4e44a33,
       code-reviewer pass 2026-08-25 (one Major finding — `hashWorld` omitted the

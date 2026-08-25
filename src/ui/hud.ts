@@ -506,7 +506,7 @@ export class Hud {
         <h2>${won ? 'The Vale holds' : w.outcome === 'defeat_core' ? 'The Core fell' : 'The Warden fell'}</h2>
         <div class="sw-results">
           <div><span>Waves cleared</span><b>${w.wavesCleared}</b></div>
-          <div><span>Survived</span><b>${mm(w.act2Time)}</b></div>
+          <div><span>Survived</span><b>${mm(w.act2Ticks / 60)}</b></div>
           <div><span>Level</span><b>${w.level}</b></div>
           <div><span>Kills</span><b>${w.kills}</b></div>
           <div><span>Towers built</span><b>${w.towersBuilt}</b></div>
