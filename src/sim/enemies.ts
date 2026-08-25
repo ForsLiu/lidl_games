@@ -771,7 +771,15 @@ export function damageStructure(w: World, s: Structure, amount: number): void {
 function leakIntoCore(w: World, e: Enemy, def: EnemyDef): void {
   // Floored so a swarm that keeps leaking during the defeat slow-mo beat
   // (SPEC-V2 D1) cannot drive the HUD's Core HP negative.
-  w.coreHp = Math.max(0, w.coreHp - def.coreDamage);
+  //
+  // God mode (SPEC-V3 T4) suppresses the HP loss only. The leak is still
+  // counted and still banked against the next VS wave: the Day HUD's "Loose in
+  // the dark" counter shows exactly what is being stored up, so an immortal
+  // Core is not a consequence-free one. Measured equal to a mortal run - same
+  // budget, same leaks, same Night - so the choice costs nothing under
+  // ordinary play, and the surplus from an extreme case is dropped at the
+  // alive cap by act2.ts's spendBudget.
+  if (!w.godMode) w.coreHp = Math.max(0, w.coreHp - def.coreDamage);
   w.leaks++;
   w.leaksByWave[w.wave] = (w.leaksByWave[w.wave] ?? 0) + 1;
   // SPEC-V2 §1 leak coupling: it escaped into the dark and comes back with

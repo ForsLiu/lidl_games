@@ -44,6 +44,7 @@ export type DevOp =
   | 'xp'
   | 'heal'
   | 'invuln'
+  | 'god'
   | 'skip_wave'
   | 'summon_boss'
   | 'fast_forward';

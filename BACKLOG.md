@@ -32,6 +32,20 @@ recorded reason, not a nudged constant.
       containing null) coerces to `[]` and every other field survives; extend
       `tests/meta.test.ts`'s "survives a corrupt or empty save" case, which today only
       covers `'{}'` — refs: QA on t6c, bug 4
+- [ ] (s003) [bug] `levelup` has no auto-resolve, so an unattended run parks in it
+      forever — `soulpick` (30 s) and `dawn` (`DAWN_AUTO_SECONDS`) both have one.
+      Pre-existing for any AFK run; god mode only makes it permanent, since you can
+      no longer die out of it. QA repro: a practice run with god mode injected at
+      tick 1, stepped 72 000 ticks, ends `outcome running, phase levelup,`
+      `wavesCleared 10, alive 351` — acceptance: an unattended run either advances or
+      terminates; a headless run stepped past its tick budget never sits in `levelup`
+      — refs: QA on t4, bug 4
+- [ ] (s004) [bug] Alive count exceeds `aliveCap`: QA measured **353** against a cap
+      of 350, because elite and summon spawns bypass the cap check that
+      `act2.ts`'s `spendBudget` applies. Pre-existing and small, but A10's
+      entity-budget assertion sits right next to it — acceptance: no spawn path can
+      push `w.enemies` past `aliveCap`; a test drives elites and boss summons at the
+      cap — refs: QA on t4, bug 4 side note
 - [ ] (t3) [feat] Dev profile: `data/dev.json` with `devMode`, schema-validated;
       when on — all classes/maps/tiers unlocked, 999 skill points, stash pre-filled
       with every §7 item available, all quests complete; Settings toggle switches to
@@ -39,12 +53,6 @@ recorded reason, not a nudged constant.
       acceptance: gate **C8** — a test asserts dev build has everything unlocked, and
       that the `npm run build` bundle has `devMode` **off** (asserted against the
       built output in `dist/`, not against the source default) — refs: V3 T3
-- [ ] (t4) [feat] God mode as a practice-run Command (`{k:'dev', op:'god'}`):
-      character and Core take no damage; replay-flagged like every other practice
-      tool —
-      acceptance: with god mode on, `damageWarden` and Core damage are both no-ops
-      and the run's `practiceUsed` flag is set; the Command is ignored in a
-      non-practice run; a god-mode run replays to an identical hash — refs: V3 T4
 - [ ] (t1) [feat] Range indicators: placement ghost shows the **effective** attack
       range (tier and `towerRangeMul` applied, not the base `def.attack.range` it
       shows today) plus an AoE preview for splash towers; a selected tower shows its
@@ -199,6 +207,24 @@ recorded reason, not a nudged constant.
       acceptance: tools run clean, file updated, committed — refs: CLAUDE.md
 
 ## Done
+
+- [x] (t4) [feat] God mode as a practice-run Command — refs: V3 T4 — qa-playtester
+      **PASS** on all three acceptance criteria, verified far past the two patched
+      functions: QA confirmed `damageWarden` is the *only* writer of Warden HP and
+      `leakIntoCore` the only subtraction of Core HP in the whole sim, then drove all
+      eight hostile damage paths (contact, bomber, spitter, stomp, ground areas, boss
+      charge/slam/fire) plus a 60 s toe-to-toe boss fight and 1000 forced colossus
+      leaks — no damage in any of them, and mortality restored correctly on toggle
+      off. Replay identity verified at four scales including 1001 toggles in one tick.
+      Three findings fixed in the same commit: the god button had **no on/off state**
+      (the lit class was special-cased to one op name), `ALL_OPS` in practice.test.ts
+      had drifted so the new op skipped the non-practice guard, and the
+      "god cannot rescue a defeat already begun" behaviour was unpinned. QA also
+      corrected the *reason* given for keeping leak accounting live — the B7 claim was
+      wrong, since B7 never enters practice mode; the real defence is that the Day
+      HUD's "Loose in the dark" counter makes the consequence visible. Measured: a god
+      Day and a mortal Day produce identical Nights. Findings left as their own items:
+      s003 (`levelup` never auto-resolves) and s004 (alive count exceeds `aliveCap`).
 
 - [x] (t6c) [bug] Save migration drops `orbs` and bumps SAVE_VERSION 1 → 2 — refs:
       V3 §8, C7 — qa-playtester **PASS** on all four acceptance criteria, verified

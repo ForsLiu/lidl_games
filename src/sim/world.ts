@@ -136,6 +136,13 @@ export class World {
   practiceUsed = false;
   /** Practice tool: the Warden takes no damage while this is on. */
   invulnerable = false;
+  /**
+   * Practice tool (SPEC-V3 T4): neither the Warden nor the Core takes damage.
+   * Wider than `invulnerable`, which covers the Warden alone — leaks still
+   * count and still feed the next VS wave's budget, so leak coupling can be
+   * exercised in god mode; only the Core HP loss is suppressed.
+   */
+  godMode = false;
   bossKilled = false;
   bossKillTime = -1;
   bossSpawnTime = -1;

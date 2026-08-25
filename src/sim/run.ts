@@ -224,6 +224,9 @@ export function applyDevCommand(w: World, op: DevOp, amount: number): void {
     case 'invuln':
       w.invulnerable = !w.invulnerable;
       break;
+    case 'god':
+      w.godMode = !w.godMode;
+      break;
     case 'skip_wave':
       // The same door the Enter key uses, then empty what is left of the wave.
       if (w.phase === 'act1_build') w.buildTimer = 0;
@@ -357,7 +360,7 @@ function manualAttack(w: World, input: TickInput, _dt: number): void {
 
 export function damageWarden(w: World, amount: number): void {
   const wd = w.warden;
-  if (wd.dashIFrames > 0 || w.invulnerable) return;
+  if (wd.dashIFrames > 0 || w.invulnerable || w.godMode) return;
   const dmg = amount * (1 - w.derived.damageReduction);
   wd.hp -= dmg;
   wd.outOfCombat = 0;
@@ -596,6 +599,10 @@ export function hashWorld(w: World): string {
   h.int(w.level).num(w.xp);
   h.num(w.act2Time);
   h.int(w.cycle);
+  // Practice-tool flags are sim state: they change what damage lands, so they
+  // belong in the hash. `invulnerable` was already unhashed before god mode
+  // existed - the same class of gap the f001 review found in `soulLevels`.
+  h.bool(w.invulnerable).bool(w.godMode);
   h.int(w.enemies.length);
   for (const e of w.enemies) {
     h.int(e.id).int(e.defId).num(e.x).num(e.y).num(e.hp).num(effectiveSpeed(e));

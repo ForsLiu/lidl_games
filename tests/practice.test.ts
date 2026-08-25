@@ -15,16 +15,23 @@ import { applyRunResult, defaultMeta } from '../src/meta/meta';
 import type { DevOp } from '../src/sim/types';
 import { cfg } from './helpers';
 
-const ALL_OPS: DevOp[] = [
-  'kill_all',
-  'gold',
-  'xp',
-  'heal',
-  'invuln',
-  'skip_wave',
-  'summon_boss',
-  'fast_forward',
-];
+/**
+ * Keyed by DevOp rather than hand-listed, so adding an op without covering it
+ * here is a compile error. The previous array silently missed 'god'.
+ */
+const OP_COVERAGE: Record<DevOp, true> = {
+  kill_all: true,
+  gold: true,
+  xp: true,
+  heal: true,
+  invuln: true,
+  god: true,
+  skip_wave: true,
+  summon_boss: true,
+  fast_forward: true,
+};
+
+const ALL_OPS = Object.keys(OP_COVERAGE) as DevOp[];
 
 function practiceWorld(): World {
   return new World({ ...cfg(), practice: true });

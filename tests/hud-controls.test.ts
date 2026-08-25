@@ -11,7 +11,7 @@ import { join } from 'node:path';
 
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { Hud, PRACTICE_BUTTONS } from '../src/ui/hud';
+import { Hud, PRACTICE_BUTTONS, TOGGLE_STATE } from '../src/ui/hud';
 import { World } from '../src/sim/world';
 import { Pacer, SPEEDS } from '../src/ui/pacer';
 import { makeKeyDownHandler } from '../src/ui/input';
@@ -190,6 +190,28 @@ describe('in-run control row', () => {
     expect(tabs.length).toBe(2);
     tabs[1].click();
     expect(panel.textContent).toContain('Toxic Trail');
+  });
+
+  it('every toggle op lights its button from sim state, not from click count', () => {
+    // QA on t4: the lit state used to be special-cased to one op name, so god
+    // mode never showed whether it was on — and an odd click makes you mortal.
+    const w = new World(cfg());
+    hud.showPracticeTools(true);
+    for (const [op] of TOGGLE_STATE(w)) {
+      const button = root.querySelector<HTMLButtonElement>(`[data-dev="${op}"]`);
+      expect(button, op).not.toBeNull();
+      expect(button!.classList.contains('on'), `${op} starts off`).toBe(false);
+    }
+    w.invulnerable = true;
+    w.godMode = true;
+    hud.update(w);
+    for (const [op] of TOGGLE_STATE(w)) {
+      const button = root.querySelector<HTMLButtonElement>(`[data-dev="${op}"]`);
+      expect(button!.classList.contains('on'), `${op} lit`).toBe(true);
+    }
+    w.godMode = false;
+    hud.update(w);
+    expect(root.querySelector('[data-dev="god"]')!.classList.contains('on')).toBe(false);
   });
 
   it('the ranges and pause buttons reach their callbacks', () => {

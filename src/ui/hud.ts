@@ -118,8 +118,20 @@ export class Hud {
     for (const el of this.practiceEl.querySelectorAll<HTMLElement>('[data-dev]')) {
       el.addEventListener('click', () => {
         this.cb.onDev(el.dataset.dev as DevOp, Number(el.dataset.amount));
-        if (el.dataset.dev === 'invuln') el.classList.toggle('on');
       });
+    }
+  }
+
+  /**
+   * Lights the practice tool's toggle buttons from the sim, not from click
+   * count. A dropped command or an odd number of clicks would otherwise leave
+   * the button disagreeing with the World about whether the tool is on.
+   */
+  private syncPracticeToggles(w: World): void {
+    if (this.practiceEl.hidden) return;
+    for (const [op, on] of TOGGLE_STATE(w)) {
+      const el = this.practiceEl.querySelector(`[data-dev="${op}"]`);
+      el?.classList.toggle('on', on);
     }
   }
 
@@ -227,6 +239,7 @@ export class Hud {
     }
     this.bar.classList.toggle('hidden', w.huntsWarden);
     this.progressEl.innerHTML = progressMarkup(runProgress(w));
+    this.syncPracticeToggles(w);
     this.renderTowerInfo(w, cursor);
   }
 
@@ -623,6 +636,16 @@ export function progressMarkup(p: RunProgress): string {
     ${sub}`;
 }
 
+/**
+ * Practice ops that are toggles rather than one-shots, paired with the World
+ * flag each one owns. Adding a toggle op means adding it here, or its button
+ * will never light up.
+ */
+export const TOGGLE_STATE = (w: World): [DevOp, boolean][] => [
+  ['invuln', w.invulnerable],
+  ['god', w.godMode],
+];
+
 /** The practice tool's buttons, in the order a tester reaches for them. */
 export const PRACTICE_BUTTONS: { op: DevOp; amount: number; label: string; title: string }[] = [
   { op: 'kill_all', amount: 0, label: 'Kill all', title: 'Kills every enemy except the boss; bounty and gems still drop' },
@@ -630,6 +653,7 @@ export const PRACTICE_BUTTONS: { op: DevOp; amount: number; label: string; title
   { op: 'xp', amount: 500, label: '+500 XP', title: 'Act II only' },
   { op: 'heal', amount: 0, label: 'Full heal', title: 'Warden and Core to full' },
   { op: 'invuln', amount: 0, label: 'Invulnerable', title: 'Toggles Warden damage off' },
+  { op: 'god', amount: 0, label: 'God mode', title: 'Warden and Core both take no damage; leaks still count' },
   { op: 'skip_wave', amount: 0, label: 'Skip wave', title: 'Ends the build phase, or clears the running wave' },
   { op: 'fast_forward', amount: 60, label: '+1 min', title: 'Advances the Nightfall clock by a minute' },
   { op: 'summon_boss', amount: 0, label: 'Summon boss', title: 'Jumps the clock to the Warden-Eater' },
