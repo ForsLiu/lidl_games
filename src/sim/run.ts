@@ -16,6 +16,10 @@ import {
 } from './enemies';
 import { setAreaDamageHandler, updateAreas, updateProjectiles } from './combat';
 import { buildTower, collectSproutGold, sellTower, updateTowers, upgradeTower } from './towers';
+import { shouldSpawnBoss, spawnFinalBoss, updateDirector } from './act2';
+import { openLevelUpIfPending, rerollOffers, takeOffer, updateGems } from './progression';
+import { beginSoulPick, finishSundering } from './sundering';
+import { updateTerrainEffects, updateWeapons } from './weapons';
 import { FIXED_DT, emptyInput, type Command, type RunOutcome, type RunReport, type TickInput } from './types';
 import { World } from './world';
 import type { RunConfig } from './types';
@@ -68,15 +72,15 @@ export class Run {
         updateWarden(w, input, dt);
         w.duskTimer -= dt;
         w.act1Ticks++;
+        if (w.duskTimer <= 0) beginSoulPick(w);
         break;
       case 'soulpick':
+        // Waiting on a `souls` command; auto-resolve if none arrives.
+        w.soulPickTimer += dt;
+        if (w.soulPickTimer > 30) finishSundering(w, w.soulCandidates.slice(0, w.derived.weaponSlots));
         break;
       case 'act2':
-        w.updateNav();
-        updateWarden(w, input, dt);
-        updateEnemies(w, dt);
-        w.act2Time += dt;
-        w.act2Ticks++;
+        updateAct2(w, input, dt);
         break;
       case 'levelup':
         break;
@@ -131,8 +135,19 @@ export function applyCommand(w: World, c: Command): void {
     case 'sell':
       sellTower(w, c.tx, c.ty);
       break;
+    case 'souls':
+      if (w.phase === 'soulpick') {
+        const valid = c.keys.filter((k) => w.soulCandidates.includes(k));
+        finishSundering(w, valid.slice(0, w.derived.weaponSlots));
+      }
+      break;
+    case 'pick':
+      takeOffer(w, c.index);
+      break;
+    case 'reroll':
+      rerollOffers(w);
+      break;
     default:
-      // Soul picks and level-up choices land in M2/M3.
       break;
   }
 }
@@ -360,6 +375,29 @@ function completeWave(w: World): void {
     w.phase = 'act1_build';
     w.buildTimer = w.mods.buildPhase || c.buildPhaseSeconds;
   }
+}
+
+/* ------------------------------------------------------------------ Act II */
+
+function updateAct2(w: World, input: TickInput, dt: number): void {
+  w.updateNav();
+  updateWarden(w, input, dt);
+  updateTerrainEffects(w, dt);
+  updateWeapons(w, dt);
+  updateEnemies(w, dt);
+  updateProjectiles(w, dt);
+  updateAreas(w, dt);
+  updateGems(w, dt);
+  updateDirector(w, dt);
+  if (shouldSpawnBoss(w)) spawnFinalBoss(w);
+  w.act2Time += dt;
+  w.act2Ticks++;
+  if (w.bossKilled) {
+    w.outcome = 'victory';
+    w.phase = 'results';
+    return;
+  }
+  openLevelUpIfPending(w);
 }
 
 /* ----------------------------------------------------------------- defeat */

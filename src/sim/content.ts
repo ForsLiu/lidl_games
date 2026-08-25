@@ -15,6 +15,7 @@ import treeRaw from '../../data/tree.json';
 import modifiersRaw from '../../data/modifiers.json';
 import classesRaw from '../../data/classes.json';
 import questsRaw from '../../data/quests.json';
+import wardenRaw from '../../data/warden.json';
 
 const num = z.number();
 const str = z.string();
@@ -207,6 +208,13 @@ const WeaponsFileSchema = z.object({
   slots: num,
   inheritDamagePerExtraTower: num,
   inheritDamageCap: num,
+  /** Each successive enemy a pierce shot passes takes this much less. */
+  pierceFalloff: num,
+  pierceFalloffFloor: num,
+  /** Blast damage stays full for this many targets, then decays. */
+  aoeFullTargets: num,
+  aoeFalloff: num,
+  aoeFalloffFloor: num,
   weapons: z.array(WeaponSchema),
   awakenings: z.array(AwakeningSchema),
 });
@@ -228,6 +236,8 @@ const SpawnsFileSchema = z.object({
   spawnDistance: num,
   contactInterval: num,
   contactPadding: num,
+  gemLifetimeSeconds: num,
+  gemCap: num,
   costs: z.record(num),
   weightsByMinute: z.array(z.object({ minute: num, weights: z.record(num) })),
   eliteWeights: z.record(num),
@@ -335,6 +345,33 @@ const QuestsFileSchema = z.object({
   ),
 });
 
+/* ------------------------------------------------------------------ warden */
+
+const WardenFileSchema = z.object({
+  maxHp: num,
+  hpRegen: num,
+  armor: num,
+  moveSpeed: num,
+  pickupRadius: num,
+  dashDistance: num,
+  dashCooldown: num,
+  dashIFrames: num,
+  armorK: num,
+  cdrCap: num,
+  heartstoneHeal: num,
+  heartstoneRadius: num,
+  leechCapPerSecond: num,
+  outOfCombatSeconds: num,
+  manualAttackDisabledInActII: z.boolean(),
+});
+
+/**
+ * Parsed eagerly: the Warden's base sheet is referenced as a module constant
+ * (`stats.BASE`) rather than through the lazily-built Content object.
+ */
+export const wardenBase = WardenFileSchema.parse(wardenRaw);
+export type WardenBase = typeof wardenBase;
+
 /* ------------------------------------------------------------------ export */
 
 export type TowerDef = z.infer<typeof TowerSchema>;
@@ -353,6 +390,7 @@ export type QuestDef = z.infer<typeof QuestsFileSchema>['quests'][number];
 export type WaveDef = z.infer<typeof WavesFileSchema>['waves'][number];
 
 export interface Content {
+  warden: WardenBase;
   towers: z.infer<typeof TowersFileSchema>;
   enemies: z.infer<typeof EnemiesFileSchema>;
   waves: z.infer<typeof WavesFileSchema>;
@@ -443,6 +481,7 @@ export function loadContent(): Content {
   }
 
   cached = {
+    warden: wardenBase,
     towers,
     enemies,
     waves,

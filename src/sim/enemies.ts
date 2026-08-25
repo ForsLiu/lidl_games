@@ -23,7 +23,10 @@ export function makeEnemy(w: World, def: EnemyDef, x: number, y: number, opts: S
   let hp = def.hp * (opts.hpMul ?? 1) * (1 + w.mods.enemyHp);
   let speed = def.speed * (1 + w.mods.enemySpeed);
   if (overlay) {
-    hp *= sp.hpOverlay;
+    // SPEC 5.1's "HP x 0.6" overlay is relative to the statline Act I ended on,
+    // not to the wave-1 roster: Nightfall is the climax, so its fodder must not
+    // arrive 7x weaker than the wave the player just cleared.
+    hp *= sp.hpOverlay * w.actIHpCarry;
     speed *= sp.speedOverlay;
   }
   const isBoss = def.traits.includes('boss');
@@ -179,7 +182,16 @@ export function setDropHandler(fn: (w: World, e: Enemy, def: EnemyDef) => void):
 }
 
 export function dropGem(w: World, x: number, y: number, value: number): void {
-  w.gems.push({ id: w.newId(), x, y, value, vx: 0, vy: 0, dead: false });
+  w.gems.push({
+    id: w.newId(),
+    x,
+    y,
+    value,
+    vx: 0,
+    vy: 0,
+    life: w.content.spawns.gemLifetimeSeconds,
+    dead: false,
+  });
 }
 
 /* ---------------------------------------------------------------- ailments */
@@ -273,7 +285,9 @@ export function updateEnemies(w: World, dt: number): void {
     updateAbilities(w, e, def, dt, huntWarden);
     if (e.dead) continue;
 
-    if (def.traits.includes('finalBoss')) continue; // driven by boss.ts
+    // The final boss has its own script (M6); it falls through to normal
+    // chase movement whenever the script has nothing to say this tick.
+    if (def.traits.includes('finalBoss') && bossUpdate(w, e, dt)) continue;
 
     moveEnemy(w, e, def, dt, target);
 
@@ -498,9 +512,16 @@ function moveEnemy(w: World, e: Enemy, def: EnemyDef, dt: number, target: { x: n
     e.fy = dy;
   }
 
-  const sep = separation(w, e);
-  dx += sep.x;
-  dy += sep.y;
+  // Separation keeps the horde from stacking into a single point, but it must
+  // fade near the objective: at full strength the innermost ranks get pushed
+  // outward by the ranks behind them and the crowd orbits instead of closing.
+  const toTarget = Math.sqrt(dist2(e.x, e.y, target.x, target.y));
+  const sepScale = clamp((toTarget - SEP_FADE_NEAR) / SEP_FADE_SPAN, 0, 1);
+  if (sepScale > 0) {
+    const sep = separation(w, e);
+    dx += sep.x * sepScale;
+    dy += sep.y * sepScale;
+  }
   const nrm = normalize(dx, dy);
   dx = nrm.x;
   dy = nrm.y;
@@ -552,6 +573,9 @@ function flowAim(w: World, e: Enemy, target: { x: number; y: number }): { x: num
 
 const SEP_RADIUS = 0.55;
 const SEP_STRENGTH = 0.6;
+/** Separation is off within this distance of the objective, ramping back over SEP_FADE_SPAN. */
+const SEP_FADE_NEAR = 1.0;
+const SEP_FADE_SPAN = 1.4;
 
 function separation(w: World, e: Enemy): { x: number; y: number } {
   w.enemiesInRadius(e.x, e.y, SEP_RADIUS + e.radius, scratch);
@@ -623,6 +647,12 @@ function contactWarden(w: World, e: Enemy, def: EnemyDef): void {
   // Frost Warden trait: chilled enemies hit softer.
   if (e.slowRemaining > 0) dmg *= 1 + w.stats.chilledDamageTaken;
   damageWarden(w, dmg);
+}
+
+/** Set by boss.ts (M6). Returns true when it fully handled the boss this tick. */
+export let bossUpdate: (w: World, e: Enemy, dt: number) => boolean = () => false;
+export function setBossHandler(fn: (w: World, e: Enemy, dt: number) => boolean): void {
+  bossUpdate = fn;
 }
 
 /** Set by run.ts; keeps the Warden's damage rules (armor, i-frames) in one place. */

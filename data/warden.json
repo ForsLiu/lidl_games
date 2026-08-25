@@ -1,0 +1,17 @@
+{
+  "maxHp": 100,
+  "hpRegen": 0.5,
+  "armor": 0,
+  "moveSpeed": 4.5,
+  "pickupRadius": 1.5,
+  "dashDistance": 4,
+  "dashCooldown": 3,
+  "dashIFrames": 0.15,
+  "armorK": 50,
+  "cdrCap": 0.4,
+  "heartstoneHeal": 2.5,
+  "heartstoneRadius": 3,
+  "leechCapPerSecond": 3,
+  "outOfCombatSeconds": 3,
+  "manualAttackDisabledInActII": true
+}

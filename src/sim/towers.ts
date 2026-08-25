@@ -97,7 +97,7 @@ export function buildTower(w: World, towerId: number, tx: number, ty: number): B
   w.towersBuilt++;
   w.towersByKey[def.key] = (w.towersByKey[def.key] ?? 0) + 1;
   w.emit('build', tx + 0.5, ty + 0.5, def.id, 1);
-  markAuraDirty();
+  markAuraDirty(w);
   return { ok: true, structure: s };
 }
 
@@ -118,7 +118,7 @@ export function upgradeTower(w: World, tx: number, ty: number): boolean {
   s.maxHp = def.hp * hpMul * (1 + 0.5 * (s.tier - 1));
   s.hp = s.maxHp * ratio;
   w.emit('upgrade', tx + 0.5, ty + 0.5, def.id, s.tier);
-  markAuraDirty();
+  markAuraDirty(w);
   return true;
 }
 
@@ -136,7 +136,7 @@ export function sellTower(w: World, tx: number, ty: number): boolean {
   w.removeStructure(s);
   w.towersByKey[def.key] = Math.max(0, (w.towersByKey[def.key] ?? 1) - 1);
   w.emit('sell', tx + 0.5, ty + 0.5, def.id, refund);
-  markAuraDirty();
+  markAuraDirty(w);
   return true;
 }
 
@@ -161,25 +161,24 @@ export function towerRange(w: World, s: Structure, base: number): number {
 
 /* ------------------------------------------------------------ beacon auras */
 
-let auraDirty = true;
-export function markAuraDirty(): void {
-  auraDirty = true;
+/**
+ * Aura state lives on the World, never at module scope: several worlds are
+ * alive at once in tests and sweeps, and structure ids restart per world.
+ */
+export function markAuraDirty(w?: World): void {
+  if (w) w.auraDirty = true;
 }
 
-const auraBonus = new Map<number, number>();
-
 function refreshAuras(w: World): void {
-  auraBonus.clear();
+  w.auraBonus.clear();
   const beacons: Structure[] = [];
   for (const s of w.structures) {
     if (s.dead || s.petrified) continue;
     const def = w.content.towerById.get(s.towerId)!;
     if (def.buffAura) beacons.push(s);
   }
-  if (beacons.length === 0) {
-    auraDirty = false;
-    return;
-  }
+  w.auraDirty = false;
+  if (beacons.length === 0) return;
   for (const s of w.structures) {
     if (s.dead || s.petrified) continue;
     let bonus = 0;
@@ -192,19 +191,18 @@ function refreshAuras(w: World): void {
         bonus += def.buffAura!.attackSpeed * (1 + 0.25 * (b.tier - 1));
       }
     }
-    if (bonus > 0) auraBonus.set(s.id, bonus);
+    if (bonus > 0) w.auraBonus.set(s.id, bonus);
   }
-  auraDirty = false;
 }
 
 export function attackSpeedFor(w: World, s: Structure): number {
-  return w.derived.attackSpeedMul + (auraBonus.get(s.id) ?? 0);
+  return w.derived.attackSpeedMul + (w.auraBonus.get(s.id) ?? 0);
 }
 
 /* ---------------------------------------------------------------- firing */
 
 export function updateTowers(w: World, dt: number): void {
-  if (auraDirty) refreshAuras(w);
+  if (w.auraDirty) refreshAuras(w);
   for (const s of w.structures) {
     if (s.dead || s.petrified) continue;
     const def = w.content.towerById.get(s.towerId)!;

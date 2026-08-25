@@ -1,6 +1,6 @@
 {
-  "budgetBase": 30,
-  "budgetGrowthPerMinute": 1.15,
+  "budgetBase": 90,
+  "budgetGrowthPerMinute": 1.25,
   "directorIntervalSeconds": 10,
   "aliveCap": 350,
   "hpOverlay": 0.6,
@@ -12,7 +12,7 @@
     360,
     540
   ],
-  "riftBudgetMultiplier": 6,
+  "riftBudgetMultiplier": 3,
   "bossTimeSeconds": 600,
   "spawnDistance": 16,
   "costs": {
@@ -41,7 +41,12 @@
       "weights": {
         "husk": 50,
         "sprinter": 30,
-        "swarm_rat": 20
+        "swarm_rat": 20,
+        "gale_imp": 10,
+        "burrower": 8,
+        "wraith": 6,
+        "spitter": 14,
+        "bomber": 10
       }
     },
     {
@@ -50,8 +55,11 @@
         "husk": 40,
         "sprinter": 25,
         "swarm_rat": 20,
-        "spitter": 10,
-        "bomber": 5
+        "spitter": 16,
+        "bomber": 12,
+        "gale_imp": 10,
+        "burrower": 8,
+        "wraith": 7
       }
     },
     {
@@ -60,9 +68,12 @@
         "husk": 30,
         "sprinter": 20,
         "swarm_rat": 20,
-        "spitter": 12,
-        "bomber": 8,
-        "bulwark": 10
+        "spitter": 18,
+        "bomber": 14,
+        "bulwark": 10,
+        "gale_imp": 10,
+        "burrower": 9,
+        "wraith": 8
       }
     },
     {
@@ -71,11 +82,13 @@
         "husk": 22,
         "sprinter": 18,
         "swarm_rat": 18,
-        "spitter": 12,
-        "bomber": 8,
+        "spitter": 18,
+        "bomber": 14,
         "bulwark": 10,
         "gale_imp": 6,
-        "splitling": 6
+        "splitling": 6,
+        "burrower": 9,
+        "wraith": 9
       }
     },
     {
@@ -84,13 +97,15 @@
         "husk": 18,
         "sprinter": 15,
         "swarm_rat": 15,
-        "spitter": 10,
-        "bomber": 8,
+        "spitter": 16,
+        "bomber": 12,
         "bulwark": 10,
         "gale_imp": 7,
         "splitling": 7,
         "shellback": 5,
-        "frostkin": 5
+        "frostkin": 5,
+        "burrower": 9,
+        "wraith": 9
       }
     },
     {
@@ -107,7 +122,9 @@
         "shellback": 6,
         "frostkin": 5,
         "cinderling": 5,
-        "charger": 5
+        "charger": 5,
+        "burrower": 8,
+        "wraith": 8
       }
     },
     {
@@ -197,6 +214,8 @@
     "colossus": 50,
     "herald": 50
   },
-  "contactInterval": 1,
-  "contactPadding": 0.35
+  "contactInterval": 0.4,
+  "contactPadding": 0.45,
+  "gemLifetimeSeconds": 25,
+  "gemCap": 500
 }

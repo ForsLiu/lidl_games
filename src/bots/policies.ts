@@ -19,6 +19,9 @@ interface Site {
   score: number;
 }
 
+/** Matches the pocket the Core detonation clears (SPEC 4, step 2). */
+const POCKET_CLEAR_RADIUS = 3.2;
+
 export interface BuilderOptions {
   /** Tower keys the bot is willing to build, in priority order. */
   towerKeys: string[];
@@ -241,41 +244,115 @@ function steerTo(input: TickInput, w: World, x: number, y: number): void {
   input.aimY = y;
 }
 
+const DIRS: ReadonlyArray<readonly [number, number]> = [
+  [1, 0],
+  [1, 1],
+  [0, 1],
+  [-1, 1],
+  [-1, 0],
+  [-1, -1],
+  [0, -1],
+  [1, -1],
+];
+
+const THREAT_RADIUS = 8;
+const GEM_RADIUS = 7;
+/** How far ahead each heading is evaluated, in tiles. */
+const PROBE_STEPS = [1.2, 2.6, 4.0];
+
 /**
- * Kiting: walk away from the local enemy centre of mass, biased toward open
- * space, and dash when something gets too close.
+ * Kiting. For each of the eight headings we walk a short probe line and score
+ * where it would put the Warden: threat from the horde (weighted by how soon
+ * each enemy could close the gap), how much open floor lies that way, how many
+ * XP gems are in that direction, and how close the arena edge is.
+ *
+ * Gems matter as much as safety: they fade if uncollected, so a Warden that
+ * only runs away starves for levels.
  */
 export function kiteInput(w: World): TickInput {
   const input = emptyInput();
   const wd = w.warden;
-  const near = w.enemiesInRadius(wd.x, wd.y, 6);
-  let ax = 0;
-  let ay = 0;
+  const near = w.enemiesInRadius(wd.x, wd.y, THREAT_RADIUS).slice();
+
   let closest = Infinity;
   for (const e of near) {
-    const dx = wd.x - e.x;
-    const dy = wd.y - e.y;
-    const d2 = dx * dx + dy * dy;
-    if (d2 < closest) closest = d2;
-    const wgt = 1 / (d2 + 0.5);
-    ax += dx * wgt;
-    ay += dy * wgt;
+    const d = dist2(wd.x, wd.y, e.x, e.y);
+    if (d < closest) closest = d;
   }
-  // Bias toward the arena centre so the bot does not pin itself in a corner.
-  const cx = GRID_W / 2 - wd.x;
-  const cy = GRID_H / 2 - wd.y;
-  const edge = Math.min(wd.x, wd.y, GRID_W - wd.x, GRID_H - wd.y);
-  const centerPull = edge < 4 ? 1.5 : 0.25;
-  ax += cx * centerPull * 0.1;
-  ay += cy * centerPull * 0.1;
 
-  input.mx = Math.abs(ax) > 0.05 ? (ax > 0 ? 1 : -1) : 0;
-  input.my = Math.abs(ay) > 0.05 ? (ay > 0 ? 1 : -1) : 0;
-  if (input.mx === 0 && input.my === 0) input.mx = 1;
-  input.dash = closest < 1.6;
+  const gems: { x: number; y: number; v: number }[] = [];
+  for (const g of w.gems) {
+    if (g.dead) continue;
+    const d2 = dist2(g.x, g.y, wd.x, wd.y);
+    if (d2 <= GEM_RADIUS * GEM_RADIUS) gems.push({ x: g.x, y: g.y, v: g.value });
+  }
+
+  let best: readonly [number, number] | null = null;
+  let bestScore = -Infinity;
+  for (const [dx, dy] of DIRS) {
+    const len = dx !== 0 && dy !== 0 ? 0.7071067811865475 : 1;
+    let score = 0;
+    let blocked = false;
+    let reached = 0;
+
+    for (const step of PROBE_STEPS) {
+      const px = wd.x + dx * len * step;
+      const py = wd.y + dy * len * step;
+      if (!walkableAt(w, px, py)) {
+        blocked = true;
+        break;
+      }
+      reached = step;
+      const weight = 1 / step; // nearer probe points matter more
+      for (const e of near) {
+        const d = Math.sqrt(dist2(px, py, e.x, e.y));
+        score -= (10 / (d * d + 0.5)) * weight;
+        if (d < 1.3) score -= 25 * weight;
+      }
+      const edge = Math.min(px, py, GRID_W - px, GRID_H - py);
+      if (edge < 3.5) score -= (3.5 - edge) * 7 * weight;
+    }
+
+    if (reached === 0) continue;
+    // Reward headings that stay open: a blocked lane is a trap.
+    score += reached * 2.5;
+    if (blocked) score -= 8;
+
+    for (const g of gems) {
+      const gx = g.x - wd.x;
+      const gy = g.y - wd.y;
+      const gd = Math.sqrt(gx * gx + gy * gy) || 1;
+      const align = (gx / gd) * dx * len + (gy / gd) * dy * len;
+      if (align > 0.3) score += (align * g.v * 1.4) / (gd + 1);
+    }
+
+    if (dx === Math.round(wd.fx) && dy === Math.round(wd.fy)) score += 2;
+    if (score > bestScore) {
+      bestScore = score;
+      best = [dx, dy];
+    }
+  }
+
+  if (!best) {
+    // Fully enclosed: dash straight at the arena centre.
+    const cx = GRID_W / 2 - wd.x;
+    const cy = GRID_H / 2 - wd.y;
+    input.mx = Math.abs(cx) > 0.3 ? (cx > 0 ? 1 : -1) : 0;
+    input.my = Math.abs(cy) > 0.3 ? (cy > 0 ? 1 : -1) : 0;
+    input.dash = true;
+    return input;
+  }
+
+  input.mx = best[0];
+  input.my = best[1];
+  input.dash = closest < 2.0 && w.warden.dashCharges > 0;
   input.aimX = wd.x + input.mx;
   input.aimY = wd.y + input.my;
   return input;
+}
+
+function walkableAt(w: World, x: number, y: number): boolean {
+  return w.grid.passable(Math.floor(x), Math.floor(y));
 }
 
 /* ---------------------------------------------------- build-site ranking */
@@ -307,7 +384,10 @@ export function rankSites(w: World): Site[] {
           }
         }
         const d = Math.sqrt(dist2(tx + 0.5, ty + 0.5, core.x, core.y));
-        sites.push({ tx, ty, score: adjacency * 4 - d });
+        // Anything inside the Sundering blast pocket is force-cleared at dusk
+        // (SPEC 4), so building there throws the investment away.
+        const doomed = d <= POCKET_CLEAR_RADIUS ? 40 : 0;
+        sites.push({ tx, ty, score: adjacency * 4 - d - doomed });
       }
     }
   }
@@ -339,15 +419,21 @@ export function laneTiles(w: World): Set<number> {
 
 /* -------------------------------------------------------------- registry */
 
-/** Stands still — the A3 control case. */
+const HYBRID_BUILD: Partial<BuilderOptions> = {
+  towerKeys: ['arrow_spire', 'ballista', 'frost_obelisk', 'venom_spore', 'mortar', 'beacon_totem'],
+  wallRatio: 0.25,
+  maxStructures: 55,
+  upgradeAfter: 12,
+  rushWaves: false,
+};
+
+/**
+ * The A3 control case: an ordinary hybrid build that never moves in Act II, so
+ * the only variable against `hybrid` is movement itself.
+ */
 export class NoMovePolicy implements BotPolicy {
   readonly name = 'no-move';
-  private inner = new BuilderPolicy('no-move', {
-    towerKeys: ['arrow_spire', 'frost_obelisk', 'ballista'],
-    wallRatio: 0.3,
-    maxStructures: 45,
-    act2: 'none',
-  });
+  private inner = new BuilderPolicy('no-move', { ...HYBRID_BUILD, act2: 'none' });
   act(w: World): TickInput {
     const input = this.inner.act(w);
     if (w.phase === 'act2') {
@@ -387,15 +473,4 @@ registerPolicy(
     }),
 );
 
-registerPolicy(
-  'hybrid',
-  () =>
-    new BuilderPolicy('hybrid', {
-      towerKeys: ['arrow_spire', 'ballista', 'frost_obelisk', 'venom_spore', 'mortar', 'beacon_totem'],
-      wallRatio: 0.25,
-      maxStructures: 55,
-      upgradeAfter: 12,
-      act2: 'kite',
-      rushWaves: false,
-    }),
-);
+registerPolicy('hybrid', () => new BuilderPolicy('hybrid', { ...HYBRID_BUILD, act2: 'kite' }));

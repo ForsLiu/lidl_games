@@ -90,11 +90,20 @@ export class World {
   soulCandidates: string[] = [];
   sundered = false;
   lastStandUsed = false;
+  heartstoneX = 0;
+  heartstoneY = 0;
+  soulPickTimer = 0;
+  /** Beacon-shrine attack-speed bonus while the Warden stands in range. */
+  shrineHaste = 0;
 
   /* ---- Act II ---- */
+  /** Act I's final-wave HP scaling, carried into the Act II overlay. */
+  actIHpCarry: number;
   act2Time = 0;
   act2Ticks = 0;
   directorTimer = 0;
+  /** Unspent spawn budget carried between ticks. */
+  spawnBudget = 0;
   eliteTimer = 0;
   riftIndex = 0;
   bossSpawned = false;
@@ -120,10 +129,13 @@ export class World {
   awakenings: string[] = [];
   level = 1;
   xp = 0;
+  pendingLevelUps = 0;
   offers: Offer[] = [];
   rerollsLeft = 0;
   relicsFound: Relic[] = [];
   orbsFound: string[] = [];
+  /** Filled in at results time by the meta layer. */
+  emberEarned = 0;
 
   /* ---- stats/telemetry ---- */
   kills = 0;
@@ -135,6 +147,10 @@ export class World {
   damageTotal = 0;
   /** Per-tick event log the renderer drains (never read by the sim). */
   fx: { k: string; x: number; y: number; a: number; b: number }[] = [];
+
+  /** Cached Beacon aura bonus per structure id; recomputed when structures change. */
+  readonly auraBonus = new Map<number, number>();
+  auraDirty = true;
 
   /**
    * Act II navigation fields, sourced at the Warden's tile and refreshed on a
@@ -190,6 +206,7 @@ export class World {
     this.derived = derive(content, this.stats, 1 + this.mods.residualMul);
 
     this.waveCount = content.waves.waves.length + this.mods.extraWaves;
+    this.actIHpCarry = Math.pow(content.waves.hpScalePerWave, this.waveCount - 1);
     this.buildTimer = this.mods.buildPhase || content.waves.buildPhaseSeconds;
     this.gold = content.waves.startGold;
     this.coreMaxHp = Math.max(1, content.waves.coreHp + this.stats.coreHp + this.mods.coreHp);
@@ -331,7 +348,14 @@ export class World {
     return cy * 512 + cx;
   }
 
-  /** All live enemies within `radius` of (x,y). Order is spawn order. */
+  /**
+   * All live enemies within `radius` of (x,y).
+   *
+   * Order is deterministic without sorting: cells are visited in a fixed nested
+   * order and each bucket preserves `enemies` insertion order. This is called
+   * hundreds of times per tick, so the sort it used to do was the single
+   * hottest line in the sim.
+   */
   enemiesInRadius(x: number, y: number, radius: number, out: Enemy[] = []): Enemy[] {
     out.length = 0;
     const r2 = radius * radius;
@@ -349,7 +373,6 @@ export class World {
         }
       }
     }
-    out.sort((a, b) => a.id - b.id);
     return out;
   }
 

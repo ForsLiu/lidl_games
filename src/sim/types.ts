@@ -158,6 +158,8 @@ export interface Gem {
   value: number;
   vx: number;
   vy: number;
+  /** Seconds before an uncollected gem fades. */
+  life: number;
   dead: boolean;
 }
 

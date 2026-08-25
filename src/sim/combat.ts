@@ -48,6 +48,21 @@ export function targetFirst(w: World, x: number, y: number, range: number): Enem
   return best;
 }
 
+/**
+ * Candidate directions/targets are sampled rather than exhaustive: these
+ * searches are O(candidates x targets) and run against a 350-strong horde.
+ * Striding the list keeps the choice representative at a fraction of the cost.
+ */
+const MAX_CANDIDATES = 20;
+
+function sampleCandidates(list: readonly Enemy[]): Enemy[] {
+  if (list.length <= MAX_CANDIDATES) return list as Enemy[];
+  const stride = Math.ceil(list.length / MAX_CANDIDATES);
+  const out: Enemy[] = [];
+  for (let i = 0; i < list.length; i += stride) out.push(list[i]);
+  return out;
+}
+
 /** Direction with the most enemies inside a cone of the given half-angle. */
 export function bestConeDirection(
   w: World,
@@ -56,12 +71,12 @@ export function bestConeDirection(
   range: number,
   halfAngle: number,
 ): { x: number; y: number } | null {
-  const list = w.enemiesInRadius(x, y, range);
+  const list = w.enemiesInRadius(x, y, range).slice();
   if (list.length === 0) return null;
   const cosHalf = dcos(halfAngle);
   let best: { x: number; y: number } | null = null;
   let bestCount = 0;
-  for (const candidate of list) {
+  for (const candidate of sampleCandidates(list)) {
     const dir = normalize(candidate.x - x, candidate.y - y);
     if (dir.x === 0 && dir.y === 0) continue;
     let count = 0;
@@ -85,12 +100,12 @@ export function densestCluster(
   range: number,
   clusterRadius: number,
 ): Enemy | null {
-  const list = w.enemiesInRadius(x, y, range);
+  const list = w.enemiesInRadius(x, y, range).slice();
   if (list.length === 0) return null;
   const r2 = clusterRadius * clusterRadius;
   let best: Enemy | null = null;
   let bestCount = -1;
-  for (const c of list) {
+  for (const c of sampleCandidates(list)) {
     let count = 0;
     for (const e of list) if (dist2(c.x, c.y, e.x, e.y) <= r2) count++;
     if (count > bestCount) {
@@ -109,11 +124,11 @@ export function bestLineDirection(
   range: number,
   halfWidth: number,
 ): { x: number; y: number } | null {
-  const list = w.enemiesInRadius(x, y, range);
+  const list = w.enemiesInRadius(x, y, range).slice();
   if (list.length === 0) return null;
   let best: { x: number; y: number } | null = null;
   let bestCount = 0;
-  for (const candidate of list) {
+  for (const candidate of sampleCandidates(list)) {
     const dir = normalize(candidate.x - x, candidate.y - y);
     if (dir.x === 0 && dir.y === 0) continue;
     let count = 0;
@@ -135,6 +150,12 @@ export function bestLineDirection(
 
 /* --------------------------------------------------------------- damage */
 
+/**
+ * Blast damage. Like pierce, an area hit that pays full damage to every body it
+ * touches scales with horde size and drowns out every other weapon (SPEC A5),
+ * so past the first few targets each additional one takes less. Closest to the
+ * centre are hit hardest, which is also what a blast should feel like.
+ */
 export function applyAoE(
   w: World,
   x: number,
@@ -144,12 +165,21 @@ export function applyAoE(
   source: string,
   fx: HitEffects = {},
 ): number {
-  const list = w.enemiesInRadius(x, y, radius);
+  const list = w.enemiesInRadius(x, y, radius).slice();
+  if (list.length === 0) return 0;
+  const cfg = w.content.weapons;
+  if (list.length > cfg.aoeFullTargets) {
+    list.sort((a, b) => dist2(x, y, a.x, a.y) - dist2(x, y, b.x, b.y) || a.id - b.id);
+  }
   let total = 0;
+  let hit = 0;
+  let scale = 1;
   for (const e of list) {
     if (e.dead) continue;
-    total += damageEnemy(w, e, damage, source, { fromX: x, fromY: y });
+    total += damageEnemy(w, e, damage * scale, source, { fromX: x, fromY: y });
     if (!e.dead) applyEffects(w, e, fx);
+    hit++;
+    if (hit >= cfg.aoeFullTargets) scale = Math.max(cfg.aoeFalloffFloor, scale * cfg.aoeFalloff);
   }
   return total;
 }
@@ -208,14 +238,20 @@ export function lineHit(
     hits.push({ e, along });
   }
   hits.sort((a, b) => a.along - b.along || a.e.id - b.e.id);
+  // A shot that pierces everything would otherwise scale with horde size and
+  // dominate every other weapon (SPEC A5), so each successive hit lands softer.
+  const falloff = w.content.weapons.pierceFalloff;
+  const floor = w.content.weapons.pierceFalloffFloor;
   let total = 0;
   let n = 0;
+  let scale = 1;
   for (const h of hits) {
     if (n >= maxHits) break;
     if (h.e.dead) continue;
-    total += damageEnemy(w, h.e, damage, source, { fromX: x, fromY: y });
+    total += damageEnemy(w, h.e, damage * scale, source, { fromX: x, fromY: y });
     if (!h.e.dead) applyEffects(w, h.e, fx);
     n++;
+    scale = Math.max(floor, scale * falloff);
   }
   return total;
 }

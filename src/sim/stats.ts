@@ -7,25 +7,11 @@
  * "+8% per rank" phrasing.
  */
 
-import type { Content } from './content';
+import { wardenBase, type Content } from './content';
 import type { Relic, RunConfig } from './types';
 
-export const BASE = {
-  maxHp: 100,
-  hpRegen: 0.5,
-  armor: 0,
-  moveSpeed: 4.5,
-  pickupRadius: 1.5,
-  dashDistance: 4,
-  dashCooldown: 3,
-  dashIFrames: 0.15,
-  armorK: 50,
-  cdrCap: 0.4,
-  heartstoneHeal: 5,
-  heartstoneRadius: 3,
-  leechCapPerSecond: 3,
-  outOfCombatSeconds: 3,
-} as const;
+/** The Warden's base stat sheet (SPEC 2.1). Tuning lives in data/warden.json. */
+export const BASE = wardenBase;
 
 export const STAT_KEYS = [
   'power',
