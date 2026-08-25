@@ -39,7 +39,11 @@ export function finishSundering(w: World, chosen: string[]): void {
   w.phase = 'act2';
   w.act2Time = 0;
   w.directorTimer = 0;
-  w.spawnBudget = 0;
+  // SPEC-V2 §1 leak coupling: this Day's Core leaks land in the Night's
+  // budget right here, then clear for the next Day.
+  w.spawnBudget = w.nightBudgetBonus;
+  w.nightBudgetBonus = 0;
+  w.looseInTheDark = 0;
   w.eliteTimer = w.content.spawns.eliteIntervalSeconds;
   w.riftIndex = 0;
   w.updateNav(true);

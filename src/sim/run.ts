@@ -590,6 +590,7 @@ export function hashWorld(w: World): string {
   const h = new Hasher();
   h.int(w.tick).int(w.phase.length).str(w.phase).str(w.outcome);
   h.num(w.coreHp).num(w.gold).int(w.wave).int(w.kills).int(w.leaks);
+  h.num(w.nightBudgetBonus).int(w.looseInTheDark).num(w.spawnBudget);
   h.num(w.warden.x).num(w.warden.y).num(w.warden.hp);
   h.int(w.level).num(w.xp);
   h.num(w.act2Time);

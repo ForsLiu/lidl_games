@@ -259,10 +259,13 @@ describe('the cycle state machine (SPEC-V2 §1)', () => {
     // tension is a player strategy, not scripted-bot behavior), so a bot's Day
     // 2+ board is thin and a defeat before cycle 3 is a legitimate outcome —
     // full-run balance for the cycle shape is M15/M16 work, not this item's.
-    // Seed 5 happens to survive into the final cycle; that is what this test
+    // Seed 16 happens to survive into the final cycle; that is what this test
     // pins: the machinery runs a real bot through all three cycles without
-    // hanging, erroring, or getting stuck in any phase.
-    const { report, run } = runWithPolicy(cfg({ cycles: 3, seed: 5 }), 'hybrid', 60 * 60 * 45);
+    // hanging, erroring, or getting stuck in any phase. (BACKLOG f003's leak
+    // coupling made Night harder in proportion to Day leaks, which shifted
+    // which seeds reach cycle 3 with no Dawn Rekindling — seed 5 no longer
+    // does, seed 16 does.)
+    const { report, run } = runWithPolicy(cfg({ cycles: 3, seed: 16 }), 'hybrid', 60 * 60 * 45);
     expect(run.done).toBe(true);
     expect(report.outcome).not.toBe('running');
     expect(run.world.cycle).toBe(3);

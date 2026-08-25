@@ -13,6 +13,7 @@
     540
   ],
   "riftBudgetMultiplier": 3,
+  "leakBudgetMultiplier": 2,
   "bossTimeSeconds": 600,
   "spawnDistance": 16,
   "costs": {

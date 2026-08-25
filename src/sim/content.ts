@@ -246,6 +246,8 @@ const SpawnsFileSchema = z.object({
   eliteIntervalSeconds: num,
   riftTimes: z.array(num),
   riftBudgetMultiplier: num,
+  /** SPEC-V2 §1 leak coupling: a Day leak adds this many x its director cost to that Night's budget. */
+  leakBudgetMultiplier: num,
   bossTimeSeconds: num,
   spawnDistance: num,
   /** How close a Burrower gets before it surfaces. */

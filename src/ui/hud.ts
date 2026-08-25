@@ -191,7 +191,8 @@ export class Hud {
              <div class="sw-row"><span>Kills</span><b>${w.kills}</b></div>`
           : `<div class="sw-row"><span>Core</span><b>${Math.max(0, Math.ceil(w.coreHp))} / ${w.coreMaxHp}</b></div>
              <div class="sw-meter core"><i style="width:${Math.max(0, (w.coreHp / w.coreMaxHp) * 100)}%"></i></div>
-             <div class="sw-row"><span>Gold</span><b class="gold">${w.gold}</b></div>`
+             <div class="sw-row"><span>Gold</span><b class="gold">${w.gold}</b></div>
+             <div class="sw-row" title="Enemies that reached the Core: they're loose in the dark and will swell tonight's horde"><span>Loose in the dark</span><b>${w.looseInTheDark}</b></div>`
       }
       <div class="sw-row"><span>Dash</span><b>${w.warden.dashCharges}/${d.dashCharges}</b></div>
       ${

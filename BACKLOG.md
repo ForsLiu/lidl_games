@@ -6,8 +6,6 @@ with the commit hash.
 
 ## Queue
 
-- [ ] (f003) [feat] Leak coupling: Day leaks add 2× director cost to that Night's
-      budget; "Loose in the dark" HUD counter — acceptance: B7 — refs: SPEC-V2 §1
 - [ ] (f004) [feat] Class framework: actives/passives/affinity as data + Commands;
       Q-key + cooldown HUD; affinity replaces exclusivity — acceptance: framework
       tests; picker binds for a 8-soul build — refs: SPEC-V2 §2
@@ -18,6 +16,24 @@ with the commit hash.
 
 ## Done
 
+- [x] (f003) [feat] Leak coupling: Day leaks add 2× director cost to that Night's
+      budget; "Loose in the dark" HUD counter — acceptance: B7 (mechanism only;
+      the full statistical gate — survival drop ≥10% via sweep — is M15's per
+      SPEC-V2 §12) — refs: SPEC-V2 §1 — commit &lt;pending&gt;, code-reviewer pass
+      2026-08-25 (no Critical/Major; two Minor notes — §9's Dusk "whisper" bark is
+      correctly deferred to the separate Immersion Pass milestone, and hashing
+      the pre-existing unhashed `spawnBudget` alongside the two new fields was
+      flagged as technically-out-of-scope-but-safe scope creep, kept), qa-playtester
+      pass 2026-08-25 (real non-forced Act I leaks, multi-cycle isolation, cost
+      extremes, 5000-enemy same-tick stacking, last-tick-before-Dusk race, HUD
+      show/hide across phases, determinism, and the f001 seed swap all verified
+      by independent gameplay probes, not just the pre-written tests — PASS with
+      one filed bug, fixed in this same commit: `leakIntoCore` charged a pack
+      enemy's full director cost to every physical leaked body instead of
+      dividing by `packSize`, so a fully-leaked `swarm_rat` pack (packSize 4)
+      billed the Night 4× what the one Director spawn call that created it
+      actually cost; fixed by dividing the per-leak cost by `def.packSize ?? 1`,
+      with a regression test verified to fail (16 vs expected 4) before the fix)
 - [x] (f002) [feat] Soul persistence: per-soul Night level tracks survive across
       Nights for petrified-left towers; Rekindled souls leave the picker —
       acceptance: B9 — refs: SPEC-V2 §1 — no new commit: already fully delivered

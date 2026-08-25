@@ -187,6 +187,15 @@ export class World {
   spawnedByWave: number[] = [];
   leaksByWave: number[] = [];
   goldEarnedByWave: number[] = [];
+  /**
+   * SPEC-V2 §1 leak coupling: accumulates `leakBudgetMultiplier x director
+   * cost` for every enemy that reaches the Core this Day, spent into
+   * `spawnBudget` the instant that Day's Night begins (`finishSundering`).
+   * `looseInTheDark` mirrors it as a headcount for the Day HUD and resets the
+   * same moment.
+   */
+  nightBudgetBonus = 0;
+  looseInTheDark = 0;
   /** Cumulative damage at the Sundering, so Act II shares can be isolated. */
   damageAtSunder: Record<string, number> = {};
   /** Act II damage-by-source through minute 8, for SPEC A5. Null until reached. */

@@ -774,6 +774,16 @@ function leakIntoCore(w: World, e: Enemy, def: EnemyDef): void {
   w.coreHp = Math.max(0, w.coreHp - def.coreDamage);
   w.leaks++;
   w.leaksByWave[w.wave] = (w.leaksByWave[w.wave] ?? 0) + 1;
+  // SPEC-V2 §1 leak coupling: it escaped into the dark and comes back with
+  // friends — banked against this Day's Night, spent at `finishSundering`.
+  // The director's cost table prices one *spawn call*, not one physical body
+  // (`act2.ts`'s `spendBudget` charges it once per call even for a pack), so
+  // a pack enemy's share is divided by its pack size: a fully-leaked pack
+  // costs the Night the same as the one spawn call that created it did the
+  // Director, rather than `packSize`x that.
+  const directorCost = (w.content.spawns.costs[def.key] ?? 5) / (def.packSize ?? 1);
+  w.nightBudgetBonus += directorCost * w.content.spawns.leakBudgetMultiplier;
+  w.looseInTheDark++;
   w.emit('leak', e.x, e.y, def.coreDamage, 0);
   e.dead = true;
   w.deadEnemies = true;
