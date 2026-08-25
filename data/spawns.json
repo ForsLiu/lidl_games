@@ -1,5 +1,5 @@
 {
-  "budgetBase": 90,
+  "budgetBase": 150,
   "budgetGrowthPerMinute": 1.25,
   "directorIntervalSeconds": 10,
   "aliveCap": 350,
@@ -216,6 +216,9 @@
   },
   "contactInterval": 0.4,
   "contactPadding": 0.45,
-  "gemLifetimeSeconds": 25,
-  "gemCap": 500
+  "gemLifetimeSeconds": 18,
+  "gemCap": 500,
+  "actIICarry": 3.5,
+  "warmupSeconds": 75,
+  "warmupStart": 0.3
 }

@@ -213,7 +213,7 @@ describe('spawn director (SPEC 5.1)', () => {
     const e = spawnEnemy(w, 'husk', 5, 5, { overlay: true })!;
     const def = w.content.enemyByKey.get('husk')!;
     // The overlay is relative to the statline Act I ended on (see enemies.ts).
-    expect(e.maxHp).toBeCloseTo(def.hp * w.content.spawns.hpOverlay * w.actIHpCarry, 5);
+    expect(e.maxHp).toBeCloseTo(def.hp * w.content.spawns.hpOverlay * w.content.spawns.actIICarry, 5);
     expect(e.speed).toBeCloseTo(def.speed * w.content.spawns.speedOverlay, 5);
   });
 });

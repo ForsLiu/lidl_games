@@ -25,8 +25,9 @@ export function makeEnemy(w: World, def: EnemyDef, x: number, y: number, opts: S
   if (overlay) {
     // SPEC 5.1's "HP x 0.6" overlay is relative to the statline Act I ended on,
     // not to the wave-1 roster: Nightfall is the climax, so its fodder must not
-    // arrive 7x weaker than the wave the player just cleared.
-    hp *= sp.hpOverlay * w.actIHpCarry;
+    // arrive 7x weaker than the wave the player just cleared. The carry is its
+    // own data knob so Act I difficulty can be tuned without moving Act II.
+    hp *= sp.hpOverlay * sp.actIICarry;
     speed *= sp.speedOverlay;
   }
   const isBoss = def.traits.includes('boss');
@@ -51,6 +52,7 @@ export function makeEnemy(w: World, def: EnemyDef, x: number, y: number, opts: S
     slowAmount: 0,
     burnRemaining: 0,
     burnDps: 0,
+    burnSource: '',
     poison: [],
     buffRemaining: 0,
     buffSpeed: 0,
@@ -208,15 +210,31 @@ export function applySlow(w: World, e: Enemy, amount: number, duration: number):
   }
 }
 
-export function applyBurn(w: World, e: Enemy, dps: number, duration: number): void {
+export function applyBurn(
+  w: World,
+  e: Enemy,
+  dps: number,
+  duration: number,
+  source = 'burn',
+): void {
   const def = w.content.enemyById.get(e.defId)!;
   if (def.traits.includes('burnImmune')) return;
   const scaled = dps * w.derived.burnDamageMul * w.derived.ailmentMul;
-  if (scaled >= e.burnDps) e.burnDps = scaled;
+  if (scaled >= e.burnDps) {
+    e.burnDps = scaled;
+    e.burnSource = source;
+  }
   e.burnRemaining = Math.max(e.burnRemaining, duration);
 }
 
-export function applyPoison(w: World, e: Enemy, dps: number, duration: number, maxStacks: number): void {
+export function applyPoison(
+  w: World,
+  e: Enemy,
+  dps: number,
+  duration: number,
+  maxStacks: number,
+  source = 'poison',
+): void {
   const scaled = dps * w.derived.ailmentMul;
   if (e.poison.length >= maxStacks) {
     // Refresh the shortest stack rather than growing past the cap.
@@ -226,9 +244,10 @@ export function applyPoison(w: World, e: Enemy, dps: number, duration: number, m
     }
     e.poison[idx].remaining = duration;
     e.poison[idx].dps = scaled;
+    e.poison[idx].source = source;
     return;
   }
-  e.poison.push({ remaining: duration, dps: scaled });
+  e.poison.push({ remaining: duration, dps: scaled, source });
 }
 
 function tickTimers(w: World, e: Enemy, dt: number): void {
@@ -239,18 +258,19 @@ function tickTimers(w: World, e: Enemy, dt: number): void {
   }
   if (e.burnRemaining > 0) {
     e.burnRemaining -= dt;
-    damageEnemy(w, e, e.burnDps * dt, 'burn', { pure: true });
+    // Ailment damage is booked against the weapon that applied it, so A5 sees
+    // the true share of each weapon rather than a generic "burn" bucket.
+    damageEnemy(w, e, e.burnDps * dt, e.burnSource || 'burn', { pure: true });
     if (e.dead) return;
     if (e.burnRemaining <= 0) e.burnDps = 0;
   }
   if (e.poison.length > 0) {
-    let total = 0;
     for (const p of e.poison) {
       p.remaining -= dt;
-      if (p.remaining > 0) total += p.dps;
+      if (p.remaining > 0) damageEnemy(w, e, p.dps * dt, p.source || 'poison', { pure: true });
+      if (e.dead) break;
     }
     e.poison = e.poison.filter((p) => p.remaining > 0);
-    if (total > 0) damageEnemy(w, e, total * dt, 'poison', { pure: true });
   }
   if (e.buffRemaining > 0) {
     e.buffRemaining -= dt;

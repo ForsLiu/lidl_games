@@ -97,6 +97,7 @@ function fireWeapon(w: World, ws: WeaponState, dt: number): void {
       const n = normalize(wd.fx, wd.fy);
       if (n.x !== 0 || n.y !== 0) {
         coneHit(w, wd.x, wd.y, n.x, n.y, range, half, dps * dt, ws.key, {
+          source: ws.key,
           burnDps: (lv.burnDps ?? 0) * dmgMul,
           burnDuration: lv.burnDuration ?? 0,
         });
@@ -347,7 +348,12 @@ export function updateTerrainEffects(w: World, dt: number): void {
       for (const e of list) {
         if (e.dead) continue;
         if (t.auraType === 'poison') {
-          applyEffects(w, e, { poisonDps: t.auraDps * mul, poisonDuration: 1, poisonStacks: 3 });
+          applyEffects(w, e, {
+            source: `terrain_${def.key}`,
+            poisonDps: t.auraDps * mul,
+            poisonDuration: 1,
+            poisonStacks: 3,
+          });
         } else {
           damageEnemy(w, e, t.auraDps * mul * dt, `terrain_${def.key}`, { pure: true });
         }

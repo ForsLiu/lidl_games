@@ -20,6 +20,9 @@ import { shouldSpawnBoss, spawnFinalBoss, updateDirector } from './act2';
 import { openLevelUpIfPending, rerollOffers, takeOffer, updateGems } from './progression';
 import { beginSoulPick, finishSundering } from './sundering';
 import { updateTerrainEffects, updateWeapons } from './weapons';
+import { dropOrb } from './loot';
+// Registers the kill-drop handler with enemies.ts.
+import './loot';
 import { FIXED_DT, emptyInput, type Command, type RunOutcome, type RunReport, type TickInput } from './types';
 import { World } from './world';
 import type { RunConfig } from './types';
@@ -392,12 +395,50 @@ function updateAct2(w: World, input: TickInput, dt: number): void {
   if (shouldSpawnBoss(w)) spawnFinalBoss(w);
   w.act2Time += dt;
   w.act2Ticks++;
+  // SPEC A5 is measured at minute 8 of Act II.
+  if (w.damageThroughMinute8 === null && w.act2Time >= 480) {
+    w.damageThroughMinute8 = act2DamageSoFar(w);
+  }
   if (w.bossKilled) {
     w.outcome = 'victory';
     w.phase = 'results';
+    // SPEC 8.2: a victorious run is worth an Orb on top of the boss drops.
+    const perWin = w.content.relics.dropRates.orbPerWin;
+    for (let i = 0; i < Math.round(perWin); i++) dropOrb(w);
     return;
   }
   openLevelUpIfPending(w);
+}
+
+/** Damage dealt since the Sundering, by source. */
+export function act2DamageSoFar(w: World): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const key of Object.keys(w.damageByWeapon)) {
+    const delta = w.damageByWeapon[key] - (w.damageAtSunder[key] ?? 0);
+    if (delta > 0) out[key] = delta;
+  }
+  return out;
+}
+
+/**
+ * Share of Act II damage taken by the largest single weapon (SPEC A5).
+ * Only weapon sources count toward the numerator; terrain residuals and the
+ * Act I manual attack are context, not weapons.
+ */
+export function topWeaponShare(w: World, damage: Record<string, number>): { key: string; share: number } {
+  let total = 0;
+  for (const key of Object.keys(damage)) total += damage[key];
+  if (total <= 0) return { key: '', share: 0 };
+  let bestKey = '';
+  let best = 0;
+  for (const key of Object.keys(damage)) {
+    if (!w.content.weaponByKey.has(key)) continue;
+    if (damage[key] > best) {
+      best = damage[key];
+      bestKey = key;
+    }
+  }
+  return { key: bestKey, share: best / total };
 }
 
 /* ----------------------------------------------------------------- defeat */
@@ -473,6 +514,11 @@ export function buildReport(w: World): RunReport {
     leaks: w.leaks,
     damageByWeapon,
     damageTotal: round2(w.damageTotal),
+    damageThroughMinute8: w.damageThroughMinute8,
+    topWeaponShareMinute8: w.damageThroughMinute8
+      ? Math.round(topWeaponShare(w, w.damageThroughMinute8).share * 1000) / 1000
+      : 0,
+    topWeaponMinute8: w.damageThroughMinute8 ? topWeaponShare(w, w.damageThroughMinute8).key : '',
     weapons: w.weapons.map((x) => ({
       key: x.key,
       level: x.level,

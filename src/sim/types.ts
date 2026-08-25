@@ -77,6 +77,8 @@ export interface Structure {
 export interface PoisonStack {
   remaining: number;
   dps: number;
+  /** Weapon/tower that applied it, so A5 can attribute ailment damage. */
+  source: string;
 }
 
 export interface Enemy {
@@ -100,6 +102,7 @@ export interface Enemy {
   slowAmount: number;
   burnRemaining: number;
   burnDps: number;
+  burnSource: string;
   poison: PoisonStack[];
   buffRemaining: number;
   buffSpeed: number;
@@ -299,6 +302,11 @@ export interface RunReport {
   leaks: number;
   damageByWeapon: Record<string, number>;
   damageTotal: number;
+  /** Act II damage by source through minute 8, for SPEC A5 (null if not reached). */
+  damageThroughMinute8: Record<string, number> | null;
+  /** Largest single-weapon share of that window, 0-1. */
+  topWeaponShareMinute8: number;
+  topWeaponMinute8: string;
   weapons: { key: string; level: number; damageBonus: number; awakened: boolean }[];
   boons: Record<string, number>;
   relicsFound: number;

@@ -97,8 +97,6 @@ export class World {
   shrineHaste = 0;
 
   /* ---- Act II ---- */
-  /** Act I's final-wave HP scaling, carried into the Act II overlay. */
-  actIHpCarry: number;
   act2Time = 0;
   act2Ticks = 0;
   directorTimer = 0;
@@ -145,6 +143,10 @@ export class World {
   towersByKey: Record<string, number> = {};
   damageByWeapon: Record<string, number> = {};
   damageTotal = 0;
+  /** Cumulative damage at the Sundering, so Act II shares can be isolated. */
+  damageAtSunder: Record<string, number> = {};
+  /** Act II damage-by-source through minute 8, for SPEC A5. Null until reached. */
+  damageThroughMinute8: Record<string, number> | null = null;
   /** Per-tick event log the renderer drains (never read by the sim). */
   fx: { k: string; x: number; y: number; a: number; b: number }[] = [];
 
@@ -206,7 +208,6 @@ export class World {
     this.derived = derive(content, this.stats, 1 + this.mods.residualMul);
 
     this.waveCount = content.waves.waves.length + this.mods.extraWaves;
-    this.actIHpCarry = Math.pow(content.waves.hpScalePerWave, this.waveCount - 1);
     this.buildTimer = this.mods.buildPhase || content.waves.buildPhaseSeconds;
     this.gold = content.waves.startGold;
     this.coreMaxHp = Math.max(1, content.waves.coreHp + this.stats.coreHp + this.mods.coreHp);

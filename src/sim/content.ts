@@ -224,11 +224,15 @@ const WeaponsFileSchema = z.object({
 const SpawnsFileSchema = z.object({
   budgetBase: num,
   budgetGrowthPerMinute: num,
+  warmupSeconds: num,
+  warmupStart: num,
   directorIntervalSeconds: num,
   aliveCap: num,
   hpOverlay: num,
   speedOverlay: num,
   hpScalePerMinute: num,
+  /** Act II HP relative to the end of Act I; see enemies.ts. */
+  actIICarry: num,
   eliteIntervalSeconds: num,
   riftTimes: z.array(num),
   riftBudgetMultiplier: num,

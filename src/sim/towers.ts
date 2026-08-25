@@ -262,6 +262,7 @@ function fireTower(w: World, s: Structure, def: TowerDef): void {
         return;
       }
       s.damageDealt += coneHit(w, x, y, dir.x, dir.y, range, halfAngle, dmg, source, {
+        source,
         burnDps: a.burn ? a.burn.dps * tierDamageMul(w, s.tier) : 0,
         burnDuration: a.burn?.duration ?? 0,
       });
@@ -320,6 +321,7 @@ function fireTower(w: World, s: Structure, def: TowerDef): void {
       }
       const p = a.poison!;
       applyEffects(w, t, {
+        source,
         poisonDps: p.dps * tierDamageMul(w, s.tier) * w.derived.powerMul,
         poisonDuration: p.duration,
         poisonStacks: p.maxStacks,

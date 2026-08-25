@@ -10,6 +10,8 @@ import type { Enemy, Projectile } from './types';
 import { World } from './world';
 
 export interface HitEffects {
+  /** Weapon or tower key credited with any ailment this hit applies. */
+  source?: string;
   burnDps?: number;
   burnDuration?: number;
   poisonDps?: number;
@@ -20,9 +22,9 @@ export interface HitEffects {
 }
 
 export function applyEffects(w: World, e: Enemy, fx: HitEffects): void {
-  if (fx.burnDps && fx.burnDuration) applyBurn(w, e, fx.burnDps, fx.burnDuration);
+  if (fx.burnDps && fx.burnDuration) applyBurn(w, e, fx.burnDps, fx.burnDuration, fx.source);
   if (fx.poisonDps && fx.poisonDuration) {
-    applyPoison(w, e, fx.poisonDps, fx.poisonDuration, fx.poisonStacks ?? 3);
+    applyPoison(w, e, fx.poisonDps, fx.poisonDuration, fx.poisonStacks ?? 3, fx.source);
   }
   if (fx.slow && fx.slowDuration) applySlow(w, e, fx.slow, fx.slowDuration);
 }
@@ -197,18 +199,28 @@ export function coneHit(
   fx: HitEffects = {},
 ): number {
   const cosHalf = dcos(halfAngle);
-  const list = w.enemiesInRadius(x, y, range);
-  let total = 0;
-  for (const e of list) {
+  const inCone: Enemy[] = [];
+  for (const e of w.enemiesInRadius(x, y, range)) {
     if (e.dead) continue;
     const n = normalize(e.x - x, e.y - y);
-    if (n.x === 0 && n.y === 0) {
-      total += damageEnemy(w, e, damage, source, { fromX: x, fromY: y });
-      continue;
-    }
-    if (n.x * dx + n.y * dy < cosHalf) continue;
-    total += damageEnemy(w, e, damage, source, { fromX: x, fromY: y });
+    if (n.x === 0 && n.y === 0 || n.x * dx + n.y * dy >= cosHalf) inCone.push(e);
+  }
+  if (inCone.length === 0) return 0;
+  // Same many-target damping as blasts: a continuous cone that paid full
+  // damage to every body inside it out-scaled every other weapon (SPEC A5).
+  const cfg = w.content.weapons;
+  if (inCone.length > cfg.aoeFullTargets) {
+    inCone.sort((a, b) => dist2(x, y, a.x, a.y) - dist2(x, y, b.x, b.y) || a.id - b.id);
+  }
+  let total = 0;
+  let hit = 0;
+  let scale = 1;
+  for (const e of inCone) {
+    if (e.dead) continue;
+    total += damageEnemy(w, e, damage * scale, source, { fromX: x, fromY: y });
     if (!e.dead) applyEffects(w, e, fx);
+    hit++;
+    if (hit >= cfg.aoeFullTargets) scale = Math.max(cfg.aoeFalloffFloor, scale * cfg.aoeFalloff);
   }
   return total;
 }
@@ -360,6 +372,7 @@ export function updateProjectiles(w: World, dt: number): void {
       damageEnemy(w, e, p.damage, p.source, { fromX: px, fromY: py });
       if (!e.dead) {
         applyEffects(w, e, {
+          source: p.source,
           burnDps: p.burnDps,
           burnDuration: p.burnDuration,
           slow: p.slow,
@@ -379,6 +392,7 @@ export function updateProjectiles(w: World, dt: number): void {
 function detonate(w: World, p: Projectile): void {
   w.emit('boom', p.x, p.y, p.aoe, 0);
   applyAoE(w, p.x, p.y, p.aoe, p.damage, p.source, {
+    source: p.source,
     burnDps: p.burnDps,
     burnDuration: p.burnDuration,
     slow: p.slow,
@@ -402,14 +416,24 @@ export function updateAreas(w: World, dt: number): void {
       }
       continue;
     }
-    const list = w.enemiesInRadius(a.x, a.y, a.radius);
+    // Ground fields get the same many-target damping as blasts and cones.
+    const list = w.enemiesInRadius(a.x, a.y, a.radius).slice();
+    if (list.length === 0) continue;
+    const cfg = w.content.weapons;
+    if (list.length > cfg.aoeFullTargets) {
+      list.sort((p, q) => dist2(a.x, a.y, p.x, p.y) - dist2(a.x, a.y, q.x, q.y) || p.id - q.id);
+    }
+    let hit = 0;
+    let scale = 1;
     for (const e of list) {
       if (e.dead) continue;
       if (a.type === 'poison') {
-        applyPoison(w, e, a.dps, 1.0, 3);
+        applyPoison(w, e, a.dps * scale, 1.0, 3, a.source);
       } else {
-        damageEnemy(w, e, a.dps * dt, a.source, { pure: true });
+        damageEnemy(w, e, a.dps * scale * dt, a.source, { pure: true });
       }
+      hit++;
+      if (hit >= cfg.aoeFullTargets) scale = Math.max(cfg.aoeFalloffFloor, scale * cfg.aoeFalloff);
     }
   }
 }

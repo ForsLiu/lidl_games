@@ -9,7 +9,7 @@
   "dashIFrames": 0.15,
   "armorK": 50,
   "cdrCap": 0.4,
-  "heartstoneHeal": 2.5,
+  "heartstoneHeal": 1,
   "heartstoneRadius": 3,
   "leechCapPerSecond": 3,
   "outOfCombatSeconds": 3,

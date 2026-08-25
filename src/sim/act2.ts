@@ -124,9 +124,18 @@ export function updateDirector(w: World, dt: number): void {
   }
 }
 
+/**
+ * Director budget. The ramp is exponential per minute (SPEC 5.1), with a short
+ * warm-up on top: at full strength from the first second, whether a build lived
+ * at all came down to the opening ten seconds, which made Act II a coin flip
+ * rather than a test of the build.
+ */
 export function budgetFor(w: World): number {
   const sp = w.content.spawns;
-  return sp.budgetBase * Math.pow(sp.budgetGrowthPerMinute, w.act2Time / 60);
+  const ramp = sp.budgetBase * Math.pow(sp.budgetGrowthPerMinute, w.act2Time / 60);
+  if (sp.warmupSeconds <= 0) return ramp;
+  const t = Math.min(1, w.act2Time / sp.warmupSeconds);
+  return ramp * (sp.warmupStart + (1 - sp.warmupStart) * t);
 }
 
 /** Rift Storm doubles the number of Rifts by interleaving extra ones. */

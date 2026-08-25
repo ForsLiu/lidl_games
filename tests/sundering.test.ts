@@ -282,7 +282,8 @@ describe('Dusk (SPEC 4 step 1)', () => {
       if (w.phase !== 'dusk') break;
       run.step(emptyInput());
     }
-    expect(w.phase === 'act2' || w.phase === 'soulpick').toBe(true);
-    expect(w.sundered || w.phase === 'soulpick').toBe(true);
+    const phase: string = w.phase;
+    expect(['act2', 'soulpick']).toContain(phase);
+    expect(w.sundered || phase === 'soulpick').toBe(true);
   });
 });

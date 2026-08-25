@@ -31,6 +31,7 @@ export function finishSundering(w: World, chosen: string[]): void {
   w.warden.y = c.y;
   w.warden.hp = w.derived.maxHp;
   w.sundered = true;
+  w.damageAtSunder = { ...w.damageByWeapon };
   w.phase = 'act2';
   w.act2Time = 0;
   w.directorTimer = 0;

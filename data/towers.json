@@ -3,93 +3,261 @@
   "tierRangeMul": 1.1,
   "upgradeCostT2": 0.75,
   "upgradeCostT3": 1.25,
-  "sellRefund": 0.70,
+  "sellRefund": 0.7,
   "duskSellRefund": 0.35,
   "buildRange": 4,
   "towers": [
     {
-      "id": 1, "key": "palisade", "name": "Palisade", "cost": 10, "maxTier": 1,
-      "hp": 300, "blocks": true, "classLock": null,
+      "id": 1,
+      "key": "palisade",
+      "name": "Palisade",
+      "cost": 10,
+      "maxTier": 1,
+      "hp": 300,
+      "blocks": true,
+      "classLock": null,
       "attack": null,
       "soul": null,
-      "terrain": { "kind": "stone_wall", "blocks": true, "armorPerWall": 1, "armorCap": 15 },
+      "terrain": {
+        "kind": "stone_wall",
+        "blocks": true,
+        "armorPerWall": 1,
+        "armorCap": 15
+      },
       "desc": "Wall. The mazing tool."
     },
     {
-      "id": 2, "key": "arrow_spire", "name": "Arrow Spire", "cost": 50, "maxTier": 3,
-      "hp": 120, "blocks": true, "classLock": null,
-      "attack": { "kind": "single", "damage": 6, "interval": 0.5, "range": 5 },
+      "id": 2,
+      "key": "arrow_spire",
+      "name": "Arrow Spire",
+      "cost": 50,
+      "maxTier": 3,
+      "hp": 120,
+      "blocks": true,
+      "classLock": null,
+      "attack": {
+        "kind": "single",
+        "damage": 6,
+        "interval": 0.5,
+        "range": 5
+      },
       "soul": "arrow_volley",
-      "terrain": { "kind": "pillar", "blocks": true },
+      "terrain": {
+        "kind": "pillar",
+        "blocks": true
+      },
       "desc": "Single target. Bread-and-butter."
     },
     {
-      "id": 3, "key": "ballista", "name": "Ballista", "cost": 90, "maxTier": 3,
-      "hp": 140, "blocks": true, "classLock": null,
-      "attack": { "kind": "pierce", "damage": 20, "interval": 1.0, "range": 8, "pierce": 3, "projectileSpeed": 14 },
+      "id": 3,
+      "key": "ballista",
+      "name": "Ballista",
+      "cost": 90,
+      "maxTier": 3,
+      "hp": 140,
+      "blocks": true,
+      "classLock": null,
+      "attack": {
+        "kind": "pierce",
+        "damage": 18,
+        "interval": 1,
+        "range": 8,
+        "pierce": 3,
+        "projectileSpeed": 14
+      },
       "soul": "piercing_bolt",
-      "terrain": { "kind": "pillar", "blocks": true },
+      "terrain": {
+        "kind": "pillar",
+        "blocks": true
+      },
       "desc": "Piercing bolt. Anti-line."
     },
     {
-      "id": 4, "key": "ember_brazier", "name": "Ember Brazier", "cost": 70, "maxTier": 3,
-      "hp": 110, "blocks": true, "classLock": "pyromancer",
-      "attack": { "kind": "cone", "damage": 10, "interval": 0.25, "range": 3.5, "coneHalfAngle": 0.6,
-                  "burn": { "dps": 6, "duration": 3 } },
+      "id": 4,
+      "key": "ember_brazier",
+      "name": "Ember Brazier",
+      "cost": 70,
+      "maxTier": 3,
+      "hp": 110,
+      "blocks": true,
+      "classLock": "pyromancer",
+      "attack": {
+        "kind": "cone",
+        "damage": 4.5,
+        "interval": 0.25,
+        "range": 3.5,
+        "coneHalfAngle": 0.6,
+        "burn": {
+          "dps": 6,
+          "duration": 3
+        }
+      },
       "soul": "flame_cone",
-      "terrain": { "kind": "burning_brazier", "blocks": true, "auraRadius": 1.5, "auraDps": 5, "auraType": "burn" },
+      "terrain": {
+        "kind": "burning_brazier",
+        "blocks": true,
+        "auraRadius": 1.5,
+        "auraDps": 5,
+        "auraType": "burn"
+      },
       "desc": "Cone of fire. Pyromancer signature."
     },
     {
-      "id": 5, "key": "frost_obelisk", "name": "Frost Obelisk", "cost": 80, "maxTier": 3,
-      "hp": 130, "blocks": true, "classLock": "frost_warden",
-      "attack": { "kind": "aura", "damage": 6, "interval": 1.0, "range": 3, "slow": 0.25, "slowDuration": 1.0 },
+      "id": 5,
+      "key": "frost_obelisk",
+      "name": "Frost Obelisk",
+      "cost": 70,
+      "maxTier": 3,
+      "hp": 130,
+      "blocks": true,
+      "classLock": "frost_warden",
+      "attack": {
+        "kind": "aura",
+        "damage": 17,
+        "interval": 1,
+        "range": 3,
+        "slow": 0.25,
+        "slowDuration": 1.2
+      },
       "soul": "frost_nova",
-      "terrain": { "kind": "ice_monolith", "blocks": true, "auraRadius": 2, "slow": 0.25 },
+      "terrain": {
+        "kind": "ice_monolith",
+        "blocks": true,
+        "auraRadius": 2,
+        "slow": 0.25
+      },
       "desc": "Slow aura and chill pulse. Frost Warden signature."
     },
     {
-      "id": 6, "key": "tesla_coil", "name": "Tesla Coil", "cost": 120, "maxTier": 3,
-      "hp": 110, "blocks": true, "classLock": "engineer",
-      "attack": { "kind": "chain", "damage": 18, "interval": 1.0, "range": 5, "chains": 3, "chainRange": 3 },
+      "id": 6,
+      "key": "tesla_coil",
+      "name": "Tesla Coil",
+      "cost": 120,
+      "maxTier": 3,
+      "hp": 110,
+      "blocks": true,
+      "classLock": "engineer",
+      "attack": {
+        "kind": "chain",
+        "damage": 16,
+        "interval": 1,
+        "range": 5,
+        "chains": 3,
+        "chainRange": 3
+      },
       "soul": "chain_lightning",
-      "terrain": { "kind": "conductive_spire", "blocks": true, "linkRange": 6, "maxLinks": 2, "beamDps": 10 },
+      "terrain": {
+        "kind": "conductive_spire",
+        "blocks": true,
+        "linkRange": 6,
+        "maxLinks": 2,
+        "beamDps": 10
+      },
       "desc": "Chain lightning. Engineer signature."
     },
     {
-      "id": 7, "key": "mortar", "name": "Mortar", "cost": 130, "maxTier": 3,
-      "hp": 120, "blocks": true, "classLock": null,
-      "attack": { "kind": "lob", "damage": 35, "interval": 2.5, "range": 10, "minRange": 4, "aoe": 1.5, "projectileSpeed": 7 },
+      "id": 7,
+      "key": "mortar",
+      "name": "Mortar",
+      "cost": 130,
+      "maxTier": 3,
+      "hp": 120,
+      "blocks": true,
+      "classLock": null,
+      "attack": {
+        "kind": "lob",
+        "damage": 95,
+        "interval": 2.2,
+        "range": 10,
+        "minRange": 4,
+        "aoe": 1.8,
+        "projectileSpeed": 7
+      },
       "soul": "mortar_lob",
-      "terrain": { "kind": "rubble", "blocks": true },
+      "terrain": {
+        "kind": "rubble",
+        "blocks": true
+      },
       "desc": "Arcing AoE. Dead zone up close."
     },
     {
-      "id": 8, "key": "venom_spore", "name": "Venom Spore", "cost": 75, "maxTier": 3,
-      "hp": 110, "blocks": true, "classLock": null,
-      "attack": { "kind": "poison", "damage": 0, "interval": 1.0, "range": 4.5,
-                  "poison": { "dps": 8, "duration": 4, "maxStacks": 3 } },
+      "id": 8,
+      "key": "venom_spore",
+      "name": "Venom Spore",
+      "cost": 75,
+      "maxTier": 3,
+      "hp": 110,
+      "blocks": true,
+      "classLock": null,
+      "attack": {
+        "kind": "poison",
+        "damage": 4,
+        "interval": 1,
+        "range": 4.5,
+        "poison": {
+          "dps": 15,
+          "duration": 4,
+          "maxStacks": 3
+        }
+      },
       "soul": "toxic_trail",
-      "terrain": { "kind": "spore_cloud", "blocks": true, "auraRadius": 1.5, "auraDps": 4, "auraType": "poison" },
+      "terrain": {
+        "kind": "spore_cloud",
+        "blocks": true,
+        "auraRadius": 1.5,
+        "auraDps": 4,
+        "auraType": "poison"
+      },
       "desc": "DoT engine."
     },
     {
-      "id": 9, "key": "beacon_totem", "name": "Beacon Totem", "cost": 60, "maxTier": 3,
-      "hp": 100, "blocks": true, "classLock": null,
+      "id": 9,
+      "key": "beacon_totem",
+      "name": "Beacon Totem",
+      "cost": 60,
+      "maxTier": 3,
+      "hp": 100,
+      "blocks": true,
+      "classLock": null,
       "attack": null,
-      "buffAura": { "radius": 3, "attackSpeed": 0.20 },
+      "buffAura": {
+        "radius": 3,
+        "attackSpeed": 0.2
+      },
       "soul": null,
-      "terrain": { "kind": "shrine", "blocks": true, "wardenRadius": 2.5, "wardenAttackSpeed": 0.15 },
-      "passive": { "attackSpeedPer": 0.04, "cap": 0.12 },
+      "terrain": {
+        "kind": "shrine",
+        "blocks": true,
+        "wardenRadius": 2.5,
+        "wardenAttackSpeed": 0.15
+      },
+      "passive": {
+        "attackSpeedPer": 0.04,
+        "cap": 0.12
+      },
       "desc": "Support aura. No attack."
     },
     {
-      "id": 10, "key": "harvest_sprout", "name": "Harvest Sprout", "cost": 40, "maxTier": 3,
-      "hp": 90, "blocks": true, "classLock": null,
+      "id": 10,
+      "key": "harvest_sprout",
+      "name": "Harvest Sprout",
+      "cost": 40,
+      "maxTier": 3,
+      "hp": 90,
+      "blocks": true,
+      "classLock": null,
       "attack": null,
-      "economy": { "goldPerWavePerTier": 5 },
+      "economy": {
+        "goldPerWavePerTier": 5
+      },
       "soul": null,
-      "terrain": { "kind": "gem_bloom", "blocks": true, "gemInterval": 8, "gemValue": 3, "gemMax": 4 },
+      "terrain": {
+        "kind": "gem_bloom",
+        "blocks": true,
+        "gemInterval": 8,
+        "gemValue": 3,
+        "gemMax": 4
+      },
       "desc": "Economy. Pays off again after the Sundering."
     }
   ]
