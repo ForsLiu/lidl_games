@@ -515,3 +515,11 @@ html, body {
 }
 
 .sw-setting.practice { margin-top: 8px; }
+
+/* -------------------------------------------------- account counters, zeros */
+
+.sw-account span { cursor: help; border-bottom: 1px dotted transparent; }
+.sw-account span:hover { border-bottom-color: var(--line); }
+.sw-account span.zero b { color: var(--dim); }
+
+.sw-reroll.danger { border-color: #6a3030; color: #ff9a9a; }

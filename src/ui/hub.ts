@@ -10,6 +10,8 @@ import { Rng } from '../sim/rng';
 import type { MetaState, Relic, RunConfig } from '../sim/types';
 import {
   accountLevelFor,
+  defaultMeta,
+  seedTestAccount,
   allocate,
   pointsAvailable,
   refund,
@@ -72,12 +74,7 @@ export class Hub {
     el.innerHTML = `
       <header>
         <h1>Stonewake</h1>
-        <div class="sw-account">
-          <span>Level <b>${this.meta.accountLevel}</b></span>
-          <span>Ember <b class="gold">${this.meta.ember}</b></span>
-          <span>Points <b>${pointsAvailable(this.meta)}</b></span>
-          <span>Orbs <b>${this.meta.orbs.whetting}/${this.meta.orbs.turning}/${this.meta.orbs.ascension}</b></span>
-        </div>
+        <div class="sw-account">${accountMarkup(this.meta)}</div>
       </header>
       <nav>
         ${(['run', 'tree', 'stash', 'settings'] as Tab[])
@@ -293,6 +290,17 @@ export class Hub {
           <input type="range" min="0" max="200" value="${s.maxDamageNumbers}" data-count="1" />
           <b data-out="maxDamageNumbers">${s.maxDamageNumbers}</b>
         </label>
+      </div>
+
+      <div class="sw-panel">
+        <h2>Testing</h2>
+        <p class="sw-note">
+          Fills the account so the Stash, the Orb crafts and the Constellation can be
+          tried without playing for them: eight relics (one guaranteed rare), three of
+          each Orb, and 600 Ember. Practice runs are the matching switch on the Run tab.
+        </p>
+        <button class="sw-reroll" id="sw-seed">Seed a test account</button>
+        <button class="sw-reroll danger" id="sw-wipe">Wipe account</button>
       </div>`;
 
     const commit = () => {
@@ -315,6 +323,21 @@ export class Hub {
         commit();
       });
     }
+    body.querySelector('#sw-seed')?.addEventListener('click', () => {
+      const before = this.meta.stash.length;
+      const next = seedTestAccount(this.meta);
+      this.commit(next);
+      this.notice = `Seeded ${next.stash.length - before} relics, 3 of each Orb and 600 Ember.`;
+      this.show();
+    });
+    body.querySelector('#sw-wipe')?.addEventListener('click', () => {
+      this.spentThisVisit.clear();
+      this.selectedRelic = null;
+      this.commit(defaultMeta());
+      this.notice = 'Account wiped.';
+      this.show();
+    });
+
     const count = body.querySelector<HTMLInputElement>('[data-count]');
     count?.addEventListener('input', () => {
       this.settings = { ...this.settings, maxDamageNumbers: Number(count.value) };
@@ -337,7 +360,12 @@ export class Hub {
         <div class="sw-stash">
           ${
             this.meta.stash.length === 0
-              ? '<p class="sw-note">Empty. Relics drop from elites and bosses.</p>'
+              ? `<p class="sw-note">
+                   Empty. Relics drop from elites, from the Warden-Eater, and at the end of a
+                   won run; equip one per slot on the Run tab and its affixes apply for the
+                   whole run. Orbs re-roll them — Settings has a button that seeds a test
+                   account if you want to try the screen now.
+                 </p>`
               : this.meta.stash
                   .map(
                     (r) =>
@@ -368,12 +396,18 @@ export class Hub {
                    ${(['whetting', 'turning', 'ascension'] as OrbKey[])
                      .map(
                        (o) =>
-                         `<button data-orb="${o}" ${this.meta.orbs[o] <= 0 ? 'disabled' : ''}>
+                         `<button data-orb="${o}" ${this.meta.orbs[o] <= 0 ? 'disabled' : ''}
+                                  title="${ORB_HELP[o]}">
                             ${content.relics.orbs.find((x) => x.key === o)!.name} (${this.meta.orbs[o]})
                           </button>`,
                      )
                      .join('')}
                  </div>
+                 <p class="sw-note">${
+                   this.meta.orbs.whetting + this.meta.orbs.turning + this.meta.orbs.ascension === 0
+                     ? 'No Orbs yet — they drop from the Warden-Eater and from won runs, about three a win.'
+                     : ORB_HELP.whetting
+                 }</p>
                  <div class="sw-craftrow">
                    <button data-equip="1">Equip to ${selected.slot}</button>
                    <button data-discard="1" class="danger">Discard</button>
@@ -449,3 +483,56 @@ function formatStat(stat: string, value: number, pct: boolean): string {
 
 
 export { accountLevelFor };
+
+/** What each Orb does, so the craft row is not three unexplained buttons. */
+export const ORB_HELP: Record<OrbKey, string> = {
+  whetting: 'Orb of Whetting — re-rolls the values of the affixes a relic already has.',
+  turning: 'Orb of Turning — replaces one affix with a different one.',
+  ascension: 'Orb of Ascension — raises the rarity of a relic and adds an affix.',
+};
+
+/**
+ * The account counters, each saying what it is for. A number that reads zero
+ * and explains nothing is the thing the playtest called out.
+ */
+export function accountMarkup(meta: MetaState): string {
+  const points = pointsAvailable(meta);
+  const orbs = meta.orbs.whetting + meta.orbs.turning + meta.orbs.ascension;
+  const cells: { label: string; value: string; cls?: string; help: string }[] = [
+    {
+      label: 'Level',
+      value: String(meta.accountLevel),
+      help: 'Account level. Every level is one Constellation point; levels cost 100 x level Ember.',
+    },
+    {
+      label: 'Ember',
+      value: String(meta.ember),
+      cls: 'gold',
+      help: 'Earned from every run, won or lost. Raises your account level and pays for respecs.',
+    },
+    {
+      label: 'Points',
+      value: String(points),
+      help:
+        points > 0
+          ? `${points} unspent — spend them on the Constellation tab.`
+          : 'All spent. Earn Ember to raise your account level for more.',
+    },
+    {
+      label: 'Orbs',
+      value: `${meta.orbs.whetting}/${meta.orbs.turning}/${meta.orbs.ascension}`,
+      help:
+        orbs > 0
+          ? 'Whetting / Turning / Ascension. Spend them on a relic in the Stash.'
+          : 'Whetting / Turning / Ascension — relic crafting. They drop from the Warden-Eater and from won runs.',
+    },
+  ];
+  return cells
+    .map(
+      (c) =>
+        `<span title="${c.help}" class="${points === 0 && c.label === 'Points' ? 'zero' : ''}">${c.label} <b class="${
+          c.cls ?? ''
+        }">${c.value}</b></span>`,
+    )
+    .join('');
+}

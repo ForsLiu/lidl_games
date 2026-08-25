@@ -7,6 +7,8 @@
  */
 
 import { loadContent } from '../sim/content';
+import { rollRelic } from '../sim/loot';
+import { Rng } from '../sim/rng';
 import type { MetaState, Relic, RunReport } from '../sim/types';
 import type { World } from '../sim/world';
 
@@ -146,6 +148,41 @@ export function applyRunResult(meta: MetaState, report: RunReport, w: World): Me
     }
   }
 
+  return next;
+}
+
+/**
+ * Fills a fresh account with enough to exercise the stash, the Orb crafts and
+ * the Constellation without playing for an hour (playtest report, 2026-08-25:
+ * "add some basic stash/relic for testing", "if there is a feature, let there
+ * be a use, like Points 0 Orbs 0/0/0").
+ *
+ * Deterministic from the account's own next relic id, so pressing it twice
+ * gives two different batches and a reload gives the same ones.
+ */
+export function seedTestAccount(meta: MetaState, count = 8): MetaState {
+  const content = loadContent();
+  const rng = new Rng((meta.nextRelicId * 2654435761 + meta.stash.length) >>> 0);
+  const cap = stashCapacity(meta);
+  const next: MetaState = {
+    ...meta,
+    stash: meta.stash.slice(),
+    orbs: { ...meta.orbs },
+    allocated: meta.allocated.slice(),
+    equipped: { ...meta.equipped },
+    questProgress: { ...meta.questProgress },
+    completedQuests: meta.completedQuests.slice(),
+    unlockedClasses: meta.unlockedClasses.slice(),
+  };
+  // One guaranteed rare, so the craft buttons have something worth working on.
+  const rarities = ['rare', ...Array(Math.max(0, count - 1)).fill(undefined)];
+  for (const forced of rarities) {
+    if (next.stash.length >= cap) break;
+    next.stash.push(rollRelic(content, rng, 0, next.nextRelicId++, forced));
+  }
+  for (const orb of ['whetting', 'turning', 'ascension'] as const) next.orbs[orb] += 3;
+  next.ember += 600;
+  next.accountLevel = accountLevelFor(next.ember);
   return next;
 }
 
