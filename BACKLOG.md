@@ -24,7 +24,7 @@ with the commit hash.
 - [x] (b004) [bug] `report.survivalSeconds` used the Night-local `w.act2Time`
       instead of the cumulative `w.act2Ticks / 60`, underpaying Ember's
       completion-fraction reward for multi-cycle survival — refs: SPEC-V2 §1
-      — commit (recorded next commit), code-reviewer pass 2026-08-25 (fix
+      — commit 19eecf3, code-reviewer pass 2026-08-25 (fix
       correct and complete for its stated scope; one Major finding — the
       Results screen's "Survived" stat in `src/ui/hud.ts` read `w.act2Time`
       directly and had the identical bug — fixed in the same commit:
