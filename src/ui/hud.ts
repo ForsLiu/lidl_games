@@ -63,7 +63,7 @@ export class Hud {
         <div class="sw-side">
           <div class="sw-controls" id="sw-controls">
             <button class="sw-ctl" data-act="speed" id="sw-speed" title="Fast-forward (F)">1x</button>
-            <button class="sw-ctl" data-act="ranges" title="Show tower ranges (R)">Ranges</button>
+            <button class="sw-ctl" data-act="ranges" id="sw-ranges" aria-pressed="false" title="Show tower ranges (R)">Ranges</button>
             <button class="sw-ctl" data-act="pause" title="Pause (Esc)">Pause</button>
           </div>
           <div class="sw-practice" id="sw-practice" hidden></div>
@@ -133,6 +133,14 @@ export class Hud {
       const el = this.practiceEl.querySelector(`[data-dev="${op}"]`);
       el?.classList.toggle('on', on);
     }
+  }
+
+  /** Reflects whether range rings are on; the game loop owns the setting. */
+  setShowRanges(on: boolean): void {
+    const el = this.root.querySelector('#sw-ranges');
+    if (!el) return;
+    el.setAttribute('aria-pressed', String(on));
+    el.classList.toggle('on', on);
   }
 
   /** Reflects the pacer's speed; the pacer itself owns the cycling. */

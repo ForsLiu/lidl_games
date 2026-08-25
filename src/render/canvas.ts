@@ -15,7 +15,13 @@ import {
 } from '../sim/grid';
 import { BASE } from '../sim/stats';
 import type { World } from '../sim/world';
-import { checkBuild, towerCost } from '../sim/towers';
+import {
+  checkBuild,
+  effectiveTowerAoe,
+  effectiveTowerMinRange,
+  effectiveTowerRange,
+  towerCost,
+} from '../sim/towers';
 import {
   ENEMY_COLORS,
   PALETTE,
@@ -251,6 +257,7 @@ export class Renderer {
     this.drawProjectiles(w);
     this.drawTracers();
     this.drawWarden(w);
+    if (!night) this.drawRangeRings(w, view);
     if (!night) this.drawBuildGhost(w, view);
     this.drawNumbers();
     ctx.restore();
@@ -634,6 +641,67 @@ export class Renderer {
     }
   }
 
+  /**
+   * SPEC-V3 T1. Two rings, both at the range the tower actually fires at:
+   * every built tower when `showRanges` is on, and whichever tower the cursor
+   * is over regardless. `showRanges` is toggled by R, a HUD button and a
+   * Settings checkbox, and until now the renderer never read it — the toggle
+   * had never drawn anything.
+   */
+  private drawRangeRings(w: World, view: ViewState): void {
+    const ctx = this.ctx;
+    const hx = Math.floor(view.cursorX);
+    const hy = Math.floor(view.cursorY);
+    // `Grid.idx` has no bounds check, so an off-board cursor wraps onto the
+    // previous row. Harmless today — both wrap columns are border tiles — but
+    // cheap to close.
+    const hovered = w.grid.inBounds(hx, hy) ? w.structureAt(hx, hy) : null;
+    for (const s of w.structures) {
+      // `updateTowers` skips dead and petrified structures, so ringing them
+      // would advertise a firing radius for a tower that cannot fire. At Dawn
+      // every structure is petrified, which made this the whole board.
+      if (s.dead || s.petrified) continue;
+      const isHovered = hovered !== null && s.id === hovered.id;
+      if (!view.showRanges && !isHovered) continue;
+      const def = w.content.towerById.get(s.towerId);
+      if (!def?.attack) continue;
+      const range = effectiveTowerRange(w, def, s.tier);
+      if (range <= 0) continue;
+      const cx = (s.tx + 0.5) * TILE;
+      const cy = (s.ty + 0.5) * TILE;
+      ctx.strokeStyle = isHovered ? (TOWER_COLORS[def.key] ?? PALETTE.ghost) : PALETTE.ghost;
+      ctx.lineWidth = isHovered ? 2 : 1;
+      ctx.globalAlpha = isHovered ? 0.9 : 0.35;
+      ctx.beginPath();
+      ctx.arc(cx, cy, range * TILE, 0, Math.PI * 2);
+      ctx.stroke();
+      if (isHovered) {
+        // A lob refuses everything inside `minRange`, so the outer ring alone
+        // overstates its coverage by the whole dead zone in the middle.
+        const min = effectiveTowerMinRange(w, def);
+        if (min > 0) {
+          ctx.globalAlpha = 0.5;
+          ctx.setLineDash([4, 4]);
+          ctx.beginPath();
+          ctx.arc(cx, cy, min * TILE, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.setLineDash([]);
+        }
+        // Splash reads as coverage if drawn on the tower, so it is previewed
+        // where the shell would land: under the cursor.
+        const aoe = effectiveTowerAoe(w, def);
+        if (aoe > 0) {
+          ctx.globalAlpha = 0.5;
+          ctx.beginPath();
+          ctx.arc((hx + 0.5) * TILE, (hy + 0.5) * TILE, aoe * TILE, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+      }
+    }
+    ctx.globalAlpha = 1;
+    ctx.lineWidth = 1;
+  }
+
   private drawBuildGhost(w: World, view: ViewState): void {
     if (view.selectedTower <= 0) return;
     const ctx = this.ctx;
@@ -646,10 +714,22 @@ export class Renderer {
 
     const def = w.content.towerById.get(view.selectedTower);
     if (def?.attack) {
-      ctx.strokeStyle = '#ffffff44';
+      // The range it would fire at once placed — tier 1, but with the
+      // Constellation's tower-range bonus applied. This used to draw the raw
+      // authored `def.attack.range`, which lied whenever that bonus was live.
+      const cx = tx * TILE + TILE / 2;
+      const cy = ty * TILE + TILE / 2;
+      ctx.strokeStyle = '#ffffff66';
       ctx.beginPath();
-      ctx.arc(tx * TILE + TILE / 2, ty * TILE + TILE / 2, def.attack.range * TILE, 0, Math.PI * 2);
+      ctx.arc(cx, cy, effectiveTowerRange(w, def) * TILE, 0, Math.PI * 2);
       ctx.stroke();
+      const aoe = effectiveTowerAoe(w, def);
+      if (aoe > 0) {
+        ctx.strokeStyle = '#ffd16688';
+        ctx.beginPath();
+        ctx.arc(cx, cy, aoe * TILE, 0, Math.PI * 2);
+        ctx.stroke();
+      }
     }
     // Build-range ring around the Warden.
     ctx.strokeStyle = '#ffffff33';

@@ -54,14 +54,6 @@ recorded reason, not a nudged constant.
       nothing about it — acceptance: either the dev profile is tree-shaken out of a
       production build, or C8 gains an explicit assertion that its presence is inert
       — refs: QA on t3, bug 11
-- [ ] (t1) [feat] Range indicators: placement ghost shows the **effective** attack
-      range (tier and `towerRangeMul` applied, not the base `def.attack.range` it
-      shows today) plus an AoE preview for splash towers; a selected tower shows its
-      own ring; **fix `view.showRanges`, which is set by the R key, the HUD button
-      and a Settings checkbox and is never read by the renderer** —
-      acceptance: unit test on the range-computation helper proves ghost range ==
-      the range the sim will fire at for tiers 1..max; a canvas-level test asserts
-      `showRanges` changes what is drawn (spy on the 2d context) — refs: V3 T1
 - [ ] (t2) [feat] Selection feedback: clicking a tower, enemy or the character
       selects it — highlight + range ring + stats panel; clicking empty ground
       deselects; hover shows a light outline —
@@ -208,6 +200,25 @@ recorded reason, not a nudged constant.
       acceptance: tools run clean, file updated, committed — refs: CLAUDE.md
 
 ## Done
+
+- [x] (t1) [feat] Range indicators — refs: V3 T1 — qa-playtester **FAIL** on first
+      submission with four Majors, all fixed. The one that mattered: **every canvas
+      test ran a default world** (`towerRangeMul` 1, `areaMul` 1, tier 1) — exactly
+      the point where the buggy and fixed expressions agree — so re-inserting the
+      original M17 bug passed all ten tests. The suite now runs on a deliberately
+      skewed world and asserts against the shared helper, never a literal; all eight
+      mutations QA reported as surviving are now caught. Also fixed: the aura tower's
+      ring under-reported its radius because `fireTower` scales an aura by
+      `areaMul` and the helper did not; **petrified towers were ringed** despite
+      never firing, which at Dawn meant the whole board; and the hover splash preview
+      and dead-structure skip were untested. Minors: `tower-info` computed Splash
+      inline instead of through the helper, the mortar's `minRange` dead zone was
+      invisible (now a dashed ring, and splash previews under the cursor where the
+      shell lands rather than on the tower), R and the HUD button never persisted the
+      setting so the Settings checkbox could silently revert it, and the Ranges button
+      had no pressed state. QA measured no frame-cost regression (0.131 → 0.126
+      ms/frame with 60 towers).
+
 
 - [x] (t3) [feat] Dev profile: `data/dev.json`, all classes/tiers/quests unlocked,
       points granted, stash filled, `cleanProfile` Settings toggle, production

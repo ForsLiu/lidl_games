@@ -165,6 +165,42 @@ export function towerRange(w: World, s: Structure, base: number): number {
   return base * tierRangeMul(w, s.tier) * w.derived.towerRangeMul;
 }
 
+/**
+ * The radius a tower of this type actually reaches, at a given tier.
+ *
+ * Shared by the renderer's range rings and the tower info panel so neither can
+ * drift from the sim. The placement ghost used to draw the raw
+ * `def.attack.range`, so it lied about every upgraded tower and about any
+ * Constellation range bonus (SPEC-V3 T1).
+ *
+ * Kind matters, which this helper's first version missed: `fireTower` scales an
+ * **aura** by `areaMul` on top of the targeting range, so a Frost Obelisk with
+ * any Area stat covers more than `towerRange` alone reports.
+ */
+export function effectiveTowerRange(w: World, def: TowerDef, tier = 1): number {
+  const a = def.attack;
+  if (!a) return 0;
+  const targeting = a.range * tierRangeMul(w, tier) * w.derived.towerRangeMul;
+  return a.kind === 'aura' ? targeting * w.derived.areaMul : targeting;
+}
+
+/**
+ * Splash radius a shell detonates for, or 0 for a tower that has none. Only
+ * `lob` reads `aoe` in `fireTower`, and it defaults to 1.5 when unauthored —
+ * both facts are mirrored here so a new lob tower cannot silently disagree.
+ */
+export function effectiveTowerAoe(w: World, def: TowerDef): number {
+  const a = def.attack;
+  if (!a || a.kind !== 'lob') return 0;
+  return (a.aoe ?? 1.5) * w.derived.areaMul;
+}
+
+/** Minimum range a lob refuses to fire inside, or 0. See `pickLobTarget`. */
+export function effectiveTowerMinRange(_w: World, def: TowerDef): number {
+  const a = def.attack;
+  return a && a.kind === 'lob' ? (a.minRange ?? 0) : 0;
+}
+
 /* ------------------------------------------------------------ beacon auras */
 
 /**

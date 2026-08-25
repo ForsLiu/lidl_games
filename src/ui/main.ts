@@ -106,7 +106,7 @@ class Game {
         const seed = (Math.random() * 0xffffffff) >>> 0;
         this.startRun({ ...this.lastCfg!, seed });
       },
-      onToggleRanges: () => (this.view.showRanges = !this.view.showRanges),
+      onToggleRanges: () => this.setShowRanges(!this.view.showRanges),
       onResume: () => this.setPaused(false),
       onPause: () => this.setPaused(true),
       onCycleSpeed: () => this.hud.setSpeed(this.pacer.cycle()),
@@ -129,6 +129,21 @@ class Game {
     this.pending = [];
     this.pacer.reset();
     this.hud.setSpeed(this.pacer.speed);
+    this.hud.setShowRanges(this.view.showRanges);
+  }
+
+  /**
+   * One place that owns the range toggle. R, the HUD button and the Settings
+   * checkbox are three doors onto the same setting, and until T1 the first two
+   * wrote only to the view — so the toggle never survived a run and ticking
+   * anything in Settings silently reverted it.
+   */
+  private setShowRanges(on: boolean): void {
+    this.view.showRanges = on;
+    this.settings = { ...this.settings, showRanges: on };
+    this.view.settings = this.settings;
+    saveSettings(this.settings);
+    this.hud?.setShowRanges(on);
   }
 
   /** Esc toggles pause; a finished run cannot be paused. */
@@ -154,7 +169,7 @@ class Game {
       onAnyKey: () => this.sfx.resume(),
       togglePause: () => this.togglePause(),
       cycleSpeed: () => this.hud.setSpeed(this.pacer.cycle()),
-      toggleRanges: () => (this.view.showRanges = !this.view.showRanges),
+      toggleRanges: () => this.setShowRanges(!this.view.showRanges),
       clearSelection: () => this.hud.clearSelection(),
       isChoosing: () => this.run?.world.phase === 'levelup',
       pickOffer: (i) => this.pending.push({ k: 'pick', index: i }),

@@ -16,8 +16,9 @@ import type { World } from '../sim/world';
 import { weaponDamageMul, weaponDef } from '../sim/weapons';
 import {
   attackSpeedFor,
+  effectiveTowerAoe,
+  effectiveTowerRange,
   tierDamageMul,
-  tierRangeMul,
   towerCost,
   upgradeCost,
 } from '../sim/towers';
@@ -77,8 +78,12 @@ function shotInterval(a: TowerAttack, speedMul: number): number {
   return a.interval / Math.max(0.05, speedMul);
 }
 
-function rangeOf(w: World, a: TowerAttack, tier: number): number {
-  return a.range * tierRangeMul(w, tier) * w.derived.towerRangeMul;
+/**
+ * Delegates to the sim's own helper so the panel, the range rings and the
+ * turret all quote one number (SPEC-V3 T1).
+ */
+function rangeOf(w: World, def: TowerDef, tier: number): number {
+  return effectiveTowerRange(w, def, tier);
 }
 
 /**
@@ -95,9 +100,9 @@ export function towerInfo(w: World, def: TowerDef, existing?: Structure): TowerI
   if (a) {
     const dmg = shotDamage(w, a, tier);
     const interval = shotInterval(a, speedMul);
-    const range = rangeOf(w, a, tier);
+    const range = rangeOf(w, def, tier);
     const nextDmg = hasNext ? shotDamage(w, a, tier + 1) : 0;
-    const nextRange = hasNext ? rangeOf(w, a, tier + 1) : 0;
+    const nextRange = hasNext ? rangeOf(w, def, tier + 1) : 0;
 
     if (a.kind === 'cone') {
       // A cone is continuous: its "interval" is the tick it applies dps over.
@@ -126,7 +131,10 @@ export function towerInfo(w: World, def: TowerDef, existing?: Structure): TowerI
       next: hasNext ? `${fmt(nextRange)}` : undefined,
     });
     if (a.minRange) stats.push({ label: 'Minimum range', value: `${fmt(a.minRange)} tiles` });
-    if (a.aoe) stats.push({ label: 'Splash', value: `${fmt(a.aoe * w.derived.areaMul)} tiles` });
+    // Through the shared helper, not inline: the Range line was moved onto it
+    // and Splash was not, so the de-duplication was half done.
+    const splash = effectiveTowerAoe(w, def);
+    if (splash > 0) stats.push({ label: 'Splash', value: `${fmt(splash)} tiles` });
     if (a.slow) {
       stats.push({
         label: 'Slow',
