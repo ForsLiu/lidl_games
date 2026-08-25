@@ -19,12 +19,15 @@ import {
 } from '../meta/meta';
 import { craft, discard, equip, type OrbKey } from '../meta/crafting';
 import { modifierDraft } from '../sim/tiers';
+import { sanitize, type Settings } from './settings';
 
-type Tab = 'run' | 'tree' | 'stash';
+type Tab = 'run' | 'tree' | 'stash' | 'settings';
 
 export interface HubCallbacks {
+  settings: Settings;
   onStart(cfg: RunConfig): void;
   onMetaChanged(meta: MetaState): void;
+  onSettingsChanged(settings: Settings): void;
 }
 
 const BRANCH_COLORS: Record<string, string> = {
@@ -44,6 +47,7 @@ export class Hub {
   private picks: number[] = [];
   private seed: number;
   private selectedRelic: number | null = null;
+  private settings: Settings;
 
   constructor(root: HTMLElement, meta: MetaState, seed: number, cb: HubCallbacks) {
     this.root = root;
@@ -51,6 +55,7 @@ export class Hub {
     this.cb = cb;
     this.seed = seed;
     this.classKey = meta.unlockedClasses[0] ?? 'engineer';
+    this.settings = cb.settings;
   }
 
   show(): void {
@@ -68,11 +73,11 @@ export class Hub {
         </div>
       </header>
       <nav>
-        ${(['run', 'tree', 'stash'] as Tab[])
+        ${(['run', 'tree', 'stash', 'settings'] as Tab[])
           .map(
             (t) =>
               `<button data-tab="${t}" class="${this.tab === t ? 'on' : ''}">${
-                { run: 'Run', tree: 'Constellation', stash: 'Stash' }[t]
+                { run: 'Run', tree: 'Constellation', stash: 'Stash', settings: 'Settings' }[t]
               }</button>`,
           )
           .join('')}
@@ -88,7 +93,8 @@ export class Hub {
     const body = el.querySelector('#sw-hub-body') as HTMLElement;
     if (this.tab === 'run') this.renderRun(body);
     else if (this.tab === 'tree') this.renderTree(body);
-    else this.renderStash(body);
+    else if (this.tab === 'stash') this.renderStash(body);
+    else this.renderSettings(body);
   }
 
   private commit(meta: MetaState): void {
@@ -274,6 +280,64 @@ export class Hub {
     }
   }
 
+  /* ---------------------------------------------------------- settings tab */
+
+  private renderSettings(body: HTMLElement): void {
+    const s = this.settings;
+    body.innerHTML = `
+      <div class="sw-panel">
+        <h2>Settings</h2>
+        <p class="sw-note">Presentation only — none of these change the simulation.</p>
+        ${SLIDERS.map(
+          (row) => `<label class="sw-setting">
+            <span>${row.label}</span>
+            <input type="range" min="0" max="100" value="${Math.round((s[row.key] as number) * 100)}"
+                   data-slider="${row.key}" />
+            <b data-out="${row.key}">${Math.round((s[row.key] as number) * 100)}%</b>
+          </label>`,
+        ).join('')}
+        ${TOGGLES.map(
+          (row) => `<label class="sw-setting">
+            <span>${row.label}</span>
+            <input type="checkbox" data-toggle="${row.key}" ${s[row.key] ? 'checked' : ''} />
+          </label>`,
+        ).join('')}
+        <label class="sw-setting">
+          <span>Max damage numbers</span>
+          <input type="range" min="0" max="200" value="${s.maxDamageNumbers}" data-count="1" />
+          <b data-out="maxDamageNumbers">${s.maxDamageNumbers}</b>
+        </label>
+      </div>`;
+
+    const commit = () => {
+      this.settings = sanitize(this.settings);
+      this.cb.onSettingsChanged(this.settings);
+    };
+    for (const el of body.querySelectorAll<HTMLInputElement>('[data-slider]')) {
+      el.addEventListener('input', () => {
+        const key = el.dataset.slider as 'masterVolume';
+        this.settings = { ...this.settings, [key]: Number(el.value) / 100 };
+        const out = body.querySelector(`[data-out="${key}"]`);
+        if (out) out.textContent = `${el.value}%`;
+        commit();
+      });
+    }
+    for (const el of body.querySelectorAll<HTMLInputElement>('[data-toggle]')) {
+      el.addEventListener('change', () => {
+        const key = el.dataset.toggle as 'damageNumbers';
+        this.settings = { ...this.settings, [key]: el.checked };
+        commit();
+      });
+    }
+    const count = body.querySelector<HTMLInputElement>('[data-count]');
+    count?.addEventListener('input', () => {
+      this.settings = { ...this.settings, maxDamageNumbers: Number(count.value) };
+      const out = body.querySelector('[data-out="maxDamageNumbers"]');
+      if (out) out.textContent = count.value;
+      commit();
+    });
+  }
+
   /* ------------------------------------------------------------- stash tab */
 
   private renderStash(body: HTMLElement): void {
@@ -358,6 +422,20 @@ export class Hub {
     });
   }
 }
+
+/* ---------------------------------------------------------- settings tab */
+
+const SLIDERS: { key: keyof Settings; label: string }[] = [
+  { key: 'masterVolume', label: 'Master volume' },
+  { key: 'sfxVolume', label: 'Effects volume' },
+  { key: 'shake', label: 'Screen shake' },
+];
+
+const TOGGLES: { key: keyof Settings; label: string }[] = [
+  { key: 'damageNumbers', label: 'Damage numbers' },
+  { key: 'showRanges', label: 'Show tower ranges' },
+  { key: 'showGrid', label: 'Show grid' },
+];
 
 /* ----------------------------------------------------------------- helpers */
 

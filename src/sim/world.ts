@@ -4,7 +4,7 @@
  */
 
 import { loadContent, type Content, type ModifierDef } from './content';
-import { Grid, GATES, coreCenter, type Field, type GateDef } from './grid';
+import { GRID_H, GRID_W, Grid, GATES, coreCenter, type Field, type GateDef } from './grid';
 import { RngSet } from './rng';
 import { baseRunStats, derive, emptyStats, type Derived, type Stats } from './stats';
 import { dist2 } from './math';
@@ -56,7 +56,19 @@ function emptyModifierEffects(): ModifierEffects {
   };
 }
 
-const CELL = 2; // spatial-hash cell size in tiles
+// Spatial-hash cell size in tiles. Most queries are body-sized (radius < 1),
+// so a 1-tile cell keeps the candidate set tight; the whole sim is dominated
+// by these lookups.
+const CELL = 1;
+const CELLS_X = GRID_W;
+const CELLS_Y = GRID_H;
+
+/** Ticks between Warden nav-field rebuilds. */
+const NAV_PERIOD = 12;
+
+function clampCell(v: number, max: number): number {
+  return v < 0 ? 0 : v >= max ? max - 1 : v;
+}
 
 export class World {
   readonly content: Content;
@@ -95,6 +107,8 @@ export class World {
   soulPickTimer = 0;
   /** Beacon-shrine attack-speed bonus while the Warden stands in range. */
   shrineHaste = 0;
+  /** Cached petrified-terrain effect lists, built once at the Sundering. */
+  terrainEffects: import('./weapons').TerrainEffects | null = null;
 
   /* ---- Act II ---- */
   act2Time = 0;
@@ -166,12 +180,18 @@ export class World {
    * fixed tick cadence (never on wall-clock) so replays stay bit-exact.
    */
   readonly navGround = Grid.makeField();
-  readonly navGhost = Grid.makeField();
   private navTile = -1;
+  private navTick = -1000;
 
   private nextEntityId = 1;
-  /** Spatial hash of live enemies, rebuilt once per tick. */
-  private buckets = new Map<number, Enemy[]>();
+
+  /**
+   * Spatial index over live enemies: one pooled bucket per tile, plus the list
+   * of buckets actually used last tick so a rebuild only clears those. This is
+   * the hottest structure in the sim - almost every system asks it something.
+   */
+  private readonly cells: Enemy[][] = Array.from({ length: GRID_W * GRID_H }, () => []);
+  private usedCells: number[] = [];
 
   constructor(cfg: RunConfig, content: Content = loadContent()) {
     this.content = content;
@@ -262,7 +282,7 @@ export class World {
   }
 
   navFieldFor(ghost: boolean): Field {
-    if (this.huntsWarden) return ghost ? this.navGhost : this.navGround;
+    if (this.huntsWarden) return this.navGround;
     return ghost ? this.grid.ghost : this.grid.ground;
   }
 
@@ -273,6 +293,11 @@ export class World {
     if (!this.grid.inBounds(tx, ty)) return;
     const key = this.grid.idx(tx, ty);
     if (!force && key === this.navTile) return;
+    // A moving Warden changes tile several times a second and each rebuild is
+    // two Dijkstra passes, so they are rate-limited. Enemies chase a field at
+    // most NAV_PERIOD ticks stale, which is well inside a body width.
+    if (!force && this.tick - this.navTick < NAV_PERIOD) return;
+    this.navTick = this.tick;
     this.navTile = key;
     // Seed from the Warden tile plus its open neighbours, so a Warden standing
     // inside terrain (possible right after a dash) still yields a usable field.
@@ -286,7 +311,8 @@ export class World {
     }
     if (sources.length === 0) sources.push(key);
     this.grid.computeField(this.navGround, sources, false);
-    this.grid.computeField(this.navGhost, [key], true);
+    // The ghost field is not built: burrowers and phasing wraiths ignore
+    // terrain, so they beeline rather than follow a field.
   }
 
   /* -------------------------------------------------------- entity helpers */
@@ -299,6 +325,7 @@ export class World {
 
   removeStructure(s: Structure): void {
     s.dead = true;
+    this.deadStructures = true;
     if (this.grid.occ[this.grid.idx(s.tx, s.ty)] === s.id) this.grid.setOcc(s.tx, s.ty, 0);
     this.structureById.delete(s.id);
   }
@@ -316,46 +343,52 @@ export class World {
 
   /** Drop dead entities. Called once per tick, after all systems. */
   compact(): void {
-    if (this.enemies.some((e) => e.dead)) {
+    if (this.deadEnemies) {
       const next: Enemy[] = [];
       for (const e of this.enemies) {
         if (e.dead) this.enemyById.delete(e.id);
         else next.push(e);
       }
       this.enemies = next;
+      this.deadEnemies = false;
     }
-    if (this.structures.some((s) => s.dead)) {
+    if (this.deadStructures) {
       this.structures = this.structures.filter((s) => !s.dead);
+      this.deadStructures = false;
     }
-    if (this.projectiles.some((p) => p.dead)) {
-      this.projectiles = this.projectiles.filter((p) => !p.dead);
-    }
-    if (this.gems.some((g) => g.dead)) this.gems = this.gems.filter((g) => !g.dead);
-    if (this.areas.some((a) => a.dead)) this.areas = this.areas.filter((a) => !a.dead);
+    // Projectiles, gems and areas are short-lived and small; a filter per tick
+    // is cheaper than tracking flags across every write site.
+    if (this.projectiles.length > 0) this.projectiles = this.projectiles.filter((p) => !p.dead);
+    if (this.gems.length > 0) this.gems = this.gems.filter((g) => !g.dead);
+    if (this.areas.length > 0) this.areas = this.areas.filter((a) => !a.dead);
   }
+
+  /** Set whenever something is marked dead, so compact can skip a rescan. */
+  deadEnemies = false;
+  deadStructures = false;
 
   /* ------------------------------------------------------- spatial queries */
 
   rebuildBuckets(): void {
-    this.buckets.clear();
+    const cells = this.cells;
+    const used = this.usedCells;
+    for (let i = 0; i < used.length; i++) cells[used[i]].length = 0;
+    used.length = 0;
     for (const e of this.enemies) {
-      // Submerged Burrowers are out of the spatial hash entirely, so nothing
-      // can target them until they surface.
+      // Submerged Burrowers are out of the index entirely, so nothing can
+      // target them until they surface.
       if (e.dead || e.submerged) continue;
-      const key = this.cellKey(e.x, e.y);
-      let b = this.buckets.get(key);
-      if (!b) {
-        b = [];
-        this.buckets.set(key, b);
-      }
-      b.push(e);
+      const c = this.cellKey(e.x, e.y);
+      const bucket = cells[c];
+      if (bucket.length === 0) used.push(c);
+      bucket.push(e);
     }
   }
 
   private cellKey(x: number, y: number): number {
-    const cx = Math.floor(x / CELL) + 64;
-    const cy = Math.floor(y / CELL) + 64;
-    return cy * 512 + cx;
+    const cx = clampCell(Math.floor(x / CELL), CELLS_X);
+    const cy = clampCell(Math.floor(y / CELL), CELLS_Y);
+    return cy * CELLS_X + cx;
   }
 
   /**
@@ -369,15 +402,17 @@ export class World {
   enemiesInRadius(x: number, y: number, radius: number, out: Enemy[] = []): Enemy[] {
     out.length = 0;
     const r2 = radius * radius;
-    const minCx = Math.floor((x - radius) / CELL) + 64;
-    const maxCx = Math.floor((x + radius) / CELL) + 64;
-    const minCy = Math.floor((y - radius) / CELL) + 64;
-    const maxCy = Math.floor((y + radius) / CELL) + 64;
+    const minCx = clampCell(Math.floor((x - radius) / CELL), CELLS_X);
+    const maxCx = clampCell(Math.floor((x + radius) / CELL), CELLS_X);
+    const minCy = clampCell(Math.floor((y - radius) / CELL), CELLS_Y);
+    const maxCy = clampCell(Math.floor((y + radius) / CELL), CELLS_Y);
+    const cells = this.cells;
     for (let cy = minCy; cy <= maxCy; cy++) {
+      const row = cy * CELLS_X;
       for (let cx = minCx; cx <= maxCx; cx++) {
-        const b = this.buckets.get(cy * 512 + cx);
-        if (!b) continue;
-        for (const e of b) {
+        const bucket = cells[row + cx];
+        for (let i = 0; i < bucket.length; i++) {
+          const e = bucket[i];
           if (e.dead) continue;
           if (dist2(x, y, e.x, e.y) <= r2) out.push(e);
         }
@@ -390,15 +425,17 @@ export class World {
   nearestEnemy(x: number, y: number, radius: number, filter?: (e: Enemy) => boolean): Enemy | null {
     let best: Enemy | null = null;
     let bestD = radius * radius;
-    const minCx = Math.floor((x - radius) / CELL) + 64;
-    const maxCx = Math.floor((x + radius) / CELL) + 64;
-    const minCy = Math.floor((y - radius) / CELL) + 64;
-    const maxCy = Math.floor((y + radius) / CELL) + 64;
+    const minCx = clampCell(Math.floor((x - radius) / CELL), CELLS_X);
+    const maxCx = clampCell(Math.floor((x + radius) / CELL), CELLS_X);
+    const minCy = clampCell(Math.floor((y - radius) / CELL), CELLS_Y);
+    const maxCy = clampCell(Math.floor((y + radius) / CELL), CELLS_Y);
+    const cells = this.cells;
     for (let cy = minCy; cy <= maxCy; cy++) {
+      const row = cy * CELLS_X;
       for (let cx = minCx; cx <= maxCx; cx++) {
-        const b = this.buckets.get(cy * 512 + cx);
-        if (!b) continue;
-        for (const e of b) {
+        const bucket = cells[row + cx];
+        for (let i = 0; i < bucket.length; i++) {
+          const e = bucket[i];
           if (e.dead) continue;
           if (filter && !filter(e)) continue;
           const d = dist2(x, y, e.x, e.y);

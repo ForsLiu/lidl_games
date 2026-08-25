@@ -18,7 +18,7 @@ import type { AwakeningDef, WeaponDef, WeaponLevel } from './content';
 import { damageEnemy } from './enemies';
 import { dcos, dsin, dist2, normalize } from './math';
 import { BASE } from './stats';
-import type { Enemy, WeaponState } from './types';
+import type { Enemy, Structure, WeaponState } from './types';
 import { World } from './world';
 
 export function weaponDef(w: World, key: string): WeaponDef {
@@ -348,6 +348,35 @@ export function applyTerrainPassives(w: World): void {
   w.recomputeDerived();
 }
 
+/**
+ * Terrain residuals are fixed once the Sundering has run, so the structures
+ * that actually do something are cached rather than rescanned every tick.
+ */
+export interface TerrainEffects {
+  auras: Structure[];
+  slows: Structure[];
+  shrines: Structure[];
+  blooms: Structure[];
+  beams: Structure[];
+}
+
+export function buildTerrainEffects(w: World): TerrainEffects {
+  const out: TerrainEffects = { auras: [], slows: [], shrines: [], blooms: [], beams: [] };
+  for (const s of w.structures) {
+    if (s.dead || !s.petrified) continue;
+    const t = w.content.towerById.get(s.towerId)!.terrain;
+    if (t.auraRadius && t.auraDps) out.auras.push(s);
+    if (t.slow) out.slows.push(s);
+    if (t.wardenRadius && t.wardenAttackSpeed) out.shrines.push(s);
+    if (t.gemInterval && t.gemValue) out.blooms.push(s);
+    if (t.beamDps) out.beams.push(s);
+  }
+  return out;
+}
+
+/** Ticks between aura/slow applications; the per-tick amount is scaled to match. */
+const RESIDUAL_PERIOD = 1;
+
 /** Heartstone healing + shrine/brazier/spore/spire residuals, ticked in Act II. */
 export function updateTerrainEffects(w: World, dt: number): void {
   const wd = w.warden;
@@ -359,61 +388,48 @@ export function updateTerrainEffects(w: World, dt: number): void {
     wd.hp = Math.min(w.derived.maxHp, wd.hp + BASE.heartstoneHeal * dt);
   }
 
-  for (const s of w.structures) {
-    if (s.dead || !s.petrified) continue;
-    const def = w.content.towerById.get(s.towerId)!;
-    const t = def.terrain;
-    const cx = s.tx + 0.5;
-    const cy = s.ty + 0.5;
+  const fx = w.terrainEffects ?? (w.terrainEffects = buildTerrainEffects(w));
+  const beat = w.tick % RESIDUAL_PERIOD === 0;
+  const beatDt = dt * RESIDUAL_PERIOD;
 
-    if (t.auraRadius && t.auraDps) {
-      const r = t.auraRadius * w.derived.areaMul;
-      const list = w.enemiesInRadius(cx, cy, r);
-      for (const e of list) {
+  if (beat) {
+    for (const s of fx.auras) {
+      if (s.dead) continue;
+      const def = w.content.towerById.get(s.towerId)!;
+      const t = def.terrain;
+      const cx = s.tx + 0.5;
+      const cy = s.ty + 0.5;
+      const r = t.auraRadius! * w.derived.areaMul;
+      for (const e of w.enemiesInRadius(cx, cy, r)) {
         if (e.dead) continue;
         if (t.auraType === 'poison') {
           applyEffects(w, e, {
             source: `terrain_${def.key}`,
-            poisonDps: t.auraDps * mul,
+            poisonDps: t.auraDps! * mul,
             poisonDuration: 1,
             poisonStacks: 3,
           });
         } else {
-          damageEnemy(w, e, t.auraDps * mul * dt, `terrain_${def.key}`, { pure: true });
+          damageEnemy(w, e, t.auraDps! * mul * beatDt, `terrain_${def.key}`, { pure: true });
         }
       }
     }
 
-    if (t.slow) {
+    for (const s of fx.slows) {
+      if (s.dead) continue;
+      const t = w.content.towerById.get(s.towerId)!.terrain;
       const r = (t.auraRadius ?? 2) * w.derived.areaMul;
-      const list = w.enemiesInRadius(cx, cy, r);
-      for (const e of list) applyEffects(w, e, { slow: t.slow * mul, slowDuration: 0.5 });
-    }
-
-    if (t.wardenRadius && t.wardenAttackSpeed) {
-      const r = t.wardenRadius;
-      if (dist2(wd.x, wd.y, cx, cy) <= r * r) w.shrineHaste += t.wardenAttackSpeed * mul;
-    }
-
-    if (t.gemInterval && t.gemValue) {
-      s.gemTimer -= dt;
-      if (s.gemTimer <= 0 && s.gemsWaiting < (t.gemMax ?? 4)) {
-        s.gemTimer = t.gemInterval;
-        s.gemsWaiting++;
-        w.gems.push({
-          id: w.newId(),
-          x: cx,
-          y: cy,
-          value: Math.round(t.gemValue * mul),
-          vx: 0,
-          vy: 0,
-          life: w.content.spawns.gemLifetimeSeconds,
-          dead: false,
-        });
+      for (const e of w.enemiesInRadius(s.tx + 0.5, s.ty + 0.5, r)) {
+        // Long enough to bridge the stagger, so the chill reads as continuous.
+        applyEffects(w, e, { slow: t.slow! * mul, slowDuration: 0.75 });
       }
     }
 
-    if (t.beamDps && s.links.length > 0) {
+    for (const s of fx.beams) {
+      if (s.dead || s.links.length === 0) continue;
+      const def = w.content.towerById.get(s.towerId)!;
+      const cx = s.tx + 0.5;
+      const cy = s.ty + 0.5;
       for (const otherId of s.links) {
         if (otherId < s.id) continue; // each pair handled once
         const o = w.structureById.get(otherId);
@@ -422,9 +438,36 @@ export function updateTerrainEffects(w: World, dt: number): void {
         const oy = o.ty + 0.5;
         const n = normalize(ox - cx, oy - cy);
         const len = Math.sqrt(dist2(cx, cy, ox, oy));
-        lineHit(w, cx, cy, n.x, n.y, len, 0.3, t.beamDps * mul * dt, `terrain_${def.key}`, 999);
+        lineHit(w, cx, cy, n.x, n.y, len, 0.3, def.terrain.beamDps! * mul * beatDt, `terrain_${def.key}`, 999);
         w.emit('beam', cx, cy, ox, oy);
       }
+    }
+  }
+
+  for (const s of fx.shrines) {
+    if (s.dead) continue;
+    const t = w.content.towerById.get(s.towerId)!.terrain;
+    const r = t.wardenRadius!;
+    if (dist2(wd.x, wd.y, s.tx + 0.5, s.ty + 0.5) <= r * r) w.shrineHaste += t.wardenAttackSpeed! * mul;
+  }
+
+  for (const s of fx.blooms) {
+    if (s.dead) continue;
+    const t = w.content.towerById.get(s.towerId)!.terrain;
+    s.gemTimer -= dt;
+    if (s.gemTimer <= 0 && s.gemsWaiting < (t.gemMax ?? 4)) {
+      s.gemTimer = t.gemInterval!;
+      s.gemsWaiting++;
+      w.gems.push({
+        id: w.newId(),
+        x: s.tx + 0.5,
+        y: s.ty + 0.5,
+        value: Math.round(t.gemValue! * mul),
+        vx: 0,
+        vy: 0,
+        life: w.content.spawns.gemLifetimeSeconds,
+        dead: false,
+      });
     }
   }
 }

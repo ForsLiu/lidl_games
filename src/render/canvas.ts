@@ -17,6 +17,7 @@ import { BASE } from '../sim/stats';
 import type { World } from '../sim/world';
 import { checkBuild, towerCost } from '../sim/towers';
 import { ENEMY_COLORS, PALETTE, TERRAIN_COLORS, TOWER_COLORS } from './theme';
+import type { Settings } from '../ui/settings';
 
 export interface ViewState {
   /** Tower id the player currently has selected for building, 0 = none. */
@@ -27,6 +28,8 @@ export interface ViewState {
   /** Screen shake amplitude in pixels (SPEC M8 feel pass). */
   shake: number;
   showRanges: boolean;
+  /** Presentation settings; never read by the sim. */
+  settings: Settings;
 }
 
 export interface FloatingNumber {
@@ -70,7 +73,7 @@ export class Renderer {
       switch (e.k) {
         case 'hit':
           this.flashes.set(e.b, 0.12);
-          if (e.a >= 1) {
+          if (e.a >= 1 && view.settings.damageNumbers && this.numbers.length < view.settings.maxDamageNumbers) {
             this.numbers.push({
               x: e.x,
               y: e.y,
@@ -82,7 +85,9 @@ export class Renderer {
           break;
         case 'wardenhit':
           view.shake = Math.max(view.shake, Math.min(9, 2 + e.a * 0.25));
-          this.numbers.push({ x: e.x, y: e.y, text: `-${Math.round(e.a)}`, life: 0.8, color: '#ff8080' });
+          if (view.settings.damageNumbers) {
+            this.numbers.push({ x: e.x, y: e.y, text: `-${Math.round(e.a)}`, life: 0.8, color: '#ff8080' });
+          }
           break;
         case 'leak':
           view.shake = Math.max(view.shake, 6);
@@ -124,10 +129,11 @@ export class Renderer {
       else this.flashes.set(k, nv);
     }
     view.shake = Math.max(0, view.shake - dt * 30);
-    if (view.shake > 0) {
+    const shake = view.shake * view.settings.shake;
+    if (shake > 0) {
       // Deterministic wobble; presentation only, so plain trig is fine here.
-      this.shakeX = Math.sin(this.rngPhase * 61) * view.shake;
-      this.shakeY = Math.cos(this.rngPhase * 47) * view.shake;
+      this.shakeX = Math.sin(this.rngPhase * 61) * shake;
+      this.shakeY = Math.cos(this.rngPhase * 47) * shake;
     } else {
       this.shakeX = 0;
       this.shakeY = 0;

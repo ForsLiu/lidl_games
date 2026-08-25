@@ -15,6 +15,8 @@ import { Renderer, type ViewState } from '../render/canvas';
 import { Hud } from './hud';
 import { Hub } from './hub';
 import { applyRunResult, defaultMeta, loadMeta, saveMeta } from '../meta/meta';
+import { loadSettings, saveSettings, type Settings } from './settings';
+import { Sfx } from '../render/sfx';
 
 const MAX_CATCHUP_TICKS = 8;
 
@@ -23,7 +25,16 @@ class Game {
   private run: Run | null = null;
   private renderer!: Renderer;
   private hud!: Hud;
-  private view: ViewState = { selectedTower: 0, cursorX: 0, cursorY: 0, shake: 0, showRanges: false };
+  private settings: Settings = loadSettings();
+  private sfx = new Sfx();
+  private view: ViewState = {
+    selectedTower: 0,
+    cursorX: 0,
+    cursorY: 0,
+    shake: 0,
+    showRanges: false,
+    settings: this.settings,
+  };
   private keys = new Set<string>();
   private pending: Command[] = [];
   private dashQueued = false;
@@ -36,6 +47,8 @@ class Game {
   start(rootEl: HTMLElement): void {
     this.root = rootEl;
     this.meta = loadMeta();
+    this.view.settings = this.settings;
+    this.view.showRanges = this.settings.showRanges;
     this.showHub();
     this.last = performance.now();
     requestAnimationFrame(this.frame);
@@ -45,6 +58,13 @@ class Game {
     this.run = null;
     const seed = (Math.random() * 0xffffffff) >>> 0;
     const hub = new Hub(this.root, this.meta, seed, {
+      settings: this.settings,
+      onSettingsChanged: (s) => {
+        this.settings = s;
+        this.view.settings = s;
+        this.view.showRanges = s.showRanges;
+        saveSettings(s);
+      },
       onStart: (cfg) => this.startRun(cfg),
       onMetaChanged: (meta) => {
         this.meta = meta;
@@ -91,6 +111,7 @@ class Game {
       }
       if (k === 'enter') this.pending.push({ k: 'call' });
       if (k === 'r') this.view.showRanges = !this.view.showRanges;
+      this.sfx.resume();
       if (k === '0') this.hud.clearSelection();
       if (this.run.world.phase === 'levelup' && k >= '1' && k <= '3') {
         this.pending.push({ k: 'pick', index: Number(k) - 1 });
@@ -143,6 +164,7 @@ class Game {
   private frame = (now: number): void => {
     const dtReal = Math.min(0.25, (now - this.last) / 1000);
     this.last = now;
+    this.sfx.tick(dtReal);
     const run = this.run;
     if (!run) {
       requestAnimationFrame(this.frame);
@@ -156,6 +178,7 @@ class Game {
       ticks++;
       run.step(this.gatherInput());
       this.renderer.ingest(run.world, this.view);
+      this.sfx.emit(run.world.fx, this.settings);
     }
     if (ticks === MAX_CATCHUP_TICKS) this.acc = 0;
 

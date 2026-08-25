@@ -129,7 +129,10 @@ function shatterAlong(w: World, x0: number, y0: number, x1: number, y1: number):
     for (let dy = -1; dy <= 1; dy++) {
       for (let dx = -1; dx <= 1; dx++) {
         const s = w.structureAt(tx + dx, ty + dy);
-        if (s) damageStructure(w, s, 1e9);
+        if (s) {
+          damageStructure(w, s, 1e9);
+          w.terrainEffects = null;
+        }
       }
     }
   }

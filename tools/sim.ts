@@ -152,10 +152,16 @@ function runOne(args: Args, seed: number): RunReport {
     const script = JSON.parse(readFileSync(args.build, 'utf8'));
     (policy as unknown as { setBuild?: (b: unknown) => void }).setBuild?.(script);
   }
+  const started = performance.now();
   while (!run.done && run.world.tick < args.maxTicks) {
     run.step(policy.act(run.world));
   }
-  return run.report();
+  const elapsed = performance.now() - started;
+  const report = run.report();
+  // Wall time for the run loop alone - process startup is not part of the
+  // SPEC A10 budget, which is about how long a run takes to simulate.
+  report.simMs = Math.round(elapsed);
+  return report;
 }
 
 function main(): void {

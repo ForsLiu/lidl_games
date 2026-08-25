@@ -84,6 +84,12 @@ export interface PoisonStack {
 export interface Enemy {
   id: number;
   defId: number;
+  /**
+   * The enemy's definition. Cached by reference because the per-tick loops
+   * would otherwise do tens of millions of Map lookups over a full run.
+   * Typed loosely here so types.ts stays free of a content import.
+   */
+  def: { readonly id: number; readonly key: string };
   x: number;
   y: number;
   hp: number;
@@ -114,6 +120,11 @@ export interface Enemy {
   ghosting: boolean;
   /** Burrowed: underground, so nothing can target or hit it (SPEC 6 #12). */
   submerged: boolean;
+  /** Cached trait bitmask (see enemies.ts TRAIT), so hot loops skip string work. */
+  flags: number;
+  /** Last computed crowd-repulsion vector; refreshed on a stagger. */
+  sepX: number;
+  sepY: number;
   /** Charger state machine: 0 idle, 1 windup, 2 dashing. */
   chargeState: number;
   chargeTimer: number;
@@ -321,4 +332,6 @@ export interface RunReport {
   bossKilled: boolean;
   bossKillSeconds: number;
   endHash: string;
+  /** Wall time for the run loop, filled in by the headless CLI. */
+  simMs?: number;
 }

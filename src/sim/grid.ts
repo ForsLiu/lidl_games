@@ -65,6 +65,8 @@ export class Grid {
   readonly tile: Uint8Array;
   /** Structure entity id occupying each tile, 0 = free. */
   readonly occ: Int32Array;
+  /** 1 where a ground walker cannot stand. Kept in step with tile + occ. */
+  readonly blocked: Uint8Array;
 
   readonly ground: Field;
   readonly ghost: Field;
@@ -74,6 +76,7 @@ export class Grid {
   constructor() {
     this.tile = new Uint8Array(GRID_W * GRID_H);
     this.occ = new Int32Array(GRID_W * GRID_H);
+    this.blocked = new Uint8Array(GRID_W * GRID_H);
     for (let y = 0; y < GRID_H; y++) {
       for (let x = 0; x < GRID_W; x++) {
         const i = y * GRID_W + x;
@@ -86,6 +89,9 @@ export class Grid {
       for (let dx = 0; dx < CORE_W; dx++) {
         this.tile[(CORE_Y + dy) * GRID_W + (CORE_X + dx)] = TileType.Core;
       }
+    }
+    for (let i = 0; i < this.tile.length; i++) {
+      this.blocked[i] = this.tile[i] === TileType.Border ? 1 : 0;
     }
     this.ground = { dist: new Int32Array(GRID_W * GRID_H), next: new Int32Array(GRID_W * GRID_H) };
     this.ghost = { dist: new Int32Array(GRID_W * GRID_H), next: new Int32Array(GRID_W * GRID_H) };
@@ -102,9 +108,8 @@ export class Grid {
 
   /** True if a ground walker can stand here. */
   passable(tx: number, ty: number): boolean {
-    if (!this.inBounds(tx, ty)) return false;
-    const i = ty * GRID_W + tx;
-    return this.tile[i] !== TileType.Border && this.occ[i] === 0;
+    if (tx < 0 || ty < 0 || tx >= GRID_W || ty >= GRID_H) return false;
+    return this.blocked[ty * GRID_W + tx] === 0;
   }
 
   /** True if a phasing/burrowing enemy can stand here. */
@@ -121,11 +126,16 @@ export class Grid {
   }
 
   setOcc(tx: number, ty: number, id: number): void {
-    this.occ[ty * GRID_W + tx] = id;
+    const i = ty * GRID_W + tx;
+    this.occ[i] = id;
+    this.blocked[i] = this.tile[i] === TileType.Border || id !== 0 ? 1 : 0;
     this.dirty = true;
   }
 
   markDirty(): void {
+    for (let i = 0; i < this.tile.length; i++) {
+      this.blocked[i] = this.tile[i] === TileType.Border || this.occ[i] !== 0 ? 1 : 0;
+    }
     this.dirty = true;
   }
 
@@ -246,12 +256,15 @@ export class Grid {
       const i = ty * GRID_W + tx;
       saved.push(this.occ[i]);
       this.occ[i] = -1;
+      this.blocked[i] = 1;
     }
     this.dirty = true;
     const ok = this.allGatesReachable();
     for (let k = 0; k < tiles.length; k++) {
       const [tx, ty] = tiles[k];
-      this.occ[ty * GRID_W + tx] = saved[k];
+      const i = ty * GRID_W + tx;
+      this.occ[i] = saved[k];
+      this.blocked[i] = this.tile[i] === TileType.Border || saved[k] !== 0 ? 1 : 0;
     }
     this.dirty = true;
     this.refresh();

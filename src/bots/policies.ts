@@ -68,6 +68,7 @@ export class BuilderPolicy implements BotPolicy {
   private plan: { towerId: number; tx: number; ty: number }[] = [];
   private planWave = -1;
   private buildOverride: { towerKeys?: string[]; maxStructures?: number } | null = null;
+  private kite = newKiteState();
 
   constructor(name: string, opts: Partial<BuilderOptions>) {
     this.name = name;
@@ -88,6 +89,7 @@ export class BuilderPolicy implements BotPolicy {
   reset(): void {
     this.plan = [];
     this.planWave = -1;
+    this.kite = newKiteState();
   }
 
   act(w: World): TickInput {
@@ -286,7 +288,7 @@ export class BuilderPolicy implements BotPolicy {
       return input;
     }
     if (this.opts.act2 === 'none') return input;
-    return kiteInput(w);
+    return kiteInput(w, this.kite);
   }
 }
 
@@ -312,10 +314,10 @@ const DIRS: ReadonlyArray<readonly [number, number]> = [
   [1, -1],
 ];
 
-const THREAT_RADIUS = 8;
+const THREAT_RADIUS = 7;
 const GEM_RADIUS = 7;
 /** How far ahead each heading is evaluated, in tiles. */
-const PROBE_STEPS = [1.2, 2.6, 4.0];
+const PROBE_STEPS = [1.4, 3.2];
 
 /**
  * Kiting. For each of the eight headings we walk a short probe line and score
@@ -326,10 +328,40 @@ const PROBE_STEPS = [1.2, 2.6, 4.0];
  * Gems matter as much as safety: they fade if uncollected, so a Warden that
  * only runs away starves for levels.
  */
-export function kiteInput(w: World): TickInput {
+/** Ticks between kite re-decisions; in between, the last heading is held. */
+const KITE_PERIOD = 3;
+
+/**
+ * Per-policy kiting state. Never module-level: several worlds are alive at
+ * once in sweeps and tests, and a shared cursor would bleed between them.
+ */
+export interface KiteState {
+  tick: number;
+  mx: number;
+  my: number;
+}
+
+export function newKiteState(): KiteState {
+  return { tick: -1000, mx: 0, my: 0 };
+}
+
+export function kiteInput(w: World, state: KiteState = newKiteState()): TickInput {
   const input = emptyInput();
   const wd = w.warden;
-  const near = w.enemiesInRadius(wd.x, wd.y, THREAT_RADIUS).slice();
+  if (w.tick - state.tick < KITE_PERIOD) {
+    input.mx = state.mx;
+    input.my = state.my;
+    input.aimX = wd.x + state.mx;
+    input.aimY = wd.y + state.my;
+    return input;
+  }
+  state.tick = w.tick;
+  // Scoring is O(directions x probes x threats); a dense crowd is well
+  // represented by a stride sample.
+  const all = w.enemiesInRadius(wd.x, wd.y, THREAT_RADIUS);
+  const near: typeof all = [];
+  const stride = all.length > 40 ? Math.ceil(all.length / 40) : 1;
+  for (let i = 0; i < all.length; i += stride) near.push(all[i]);
 
   let closest = Infinity;
   for (const e of near) {
@@ -397,9 +429,13 @@ export function kiteInput(w: World): TickInput {
     input.mx = Math.abs(cx) > 0.3 ? (cx > 0 ? 1 : -1) : 0;
     input.my = Math.abs(cy) > 0.3 ? (cy > 0 ? 1 : -1) : 0;
     input.dash = true;
+    state.mx = input.mx;
+    state.my = input.my;
     return input;
   }
 
+  state.mx = best[0];
+  state.my = best[1];
   input.mx = best[0];
   input.my = best[1];
   input.dash = closest < 2.0 && w.warden.dashCharges > 0;
