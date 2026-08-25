@@ -15,6 +15,7 @@ import { Hud } from '../src/ui/hud';
 import { World } from '../src/sim/world';
 import { Pacer, SPEEDS } from '../src/ui/pacer';
 import { makeKeyDownHandler } from '../src/ui/input';
+import { buildTower } from '../src/sim/towers';
 import { cfg } from './helpers';
 
 const CSS = readFileSync(join(process.cwd(), 'src', 'ui', 'style.css'), 'utf8');
@@ -105,6 +106,37 @@ describe('in-run control row', () => {
     });
     onKeyDown(new KeyboardEvent('keydown', { key: 'f' }));
     expect((root.querySelector('#sw-speed') as HTMLElement).textContent).toBe('2x');
+  });
+
+  it('the tower panel starts as a prompt and fills in once a tower is picked', () => {
+    const w = new World(cfg());
+    hud.update(w);
+    const panel = root.querySelector('#sw-towerinfo') as HTMLElement;
+    expect(panel.textContent).toMatch(/Pick a tower/);
+
+    const ballista = w.content.towerByKey.get('ballista')!;
+    hud.select(ballista.id);
+    hud.update(w);
+    expect(panel.textContent).toContain('Ballista');
+    expect(panel.textContent).toMatch(/Range/);
+    expect(panel.textContent).toMatch(/Build/);
+    // The soul it will leave behind is part of the decision.
+    expect(panel.textContent).toContain('Piercing Bolt');
+  });
+
+  it('describes a built tower, including what the next tier costs', () => {
+    const w = new World(cfg());
+    w.gold = 9999;
+    const def = w.content.towerByKey.get('arrow_spire')!;
+    const tx = Math.floor(w.warden.x) + 1;
+    const ty = Math.floor(w.warden.y);
+    expect(buildTower(w, def.id, tx, ty).ok).toBe(true);
+
+    hud.update(w, { x: tx + 0.5, y: ty + 0.5 });
+    const panel = root.querySelector('#sw-towerinfo') as HTMLElement;
+    expect(panel.textContent).toContain('Arrow Spire');
+    expect(panel.textContent).toMatch(/Upgrade to T2/);
+    expect(panel.textContent).toMatch(/Sell/);
   });
 
   it('the ranges and pause buttons reach their callbacks', () => {

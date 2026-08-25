@@ -4,6 +4,7 @@ import type { World } from '../sim/world';
 import { towerCost } from '../sim/towers';
 import type { Offer } from '../sim/types';
 import { TOWER_COLORS } from '../render/theme';
+import { towerInfo, type TowerInfo } from './tower-info';
 
 export interface HudCallbacks {
   onSelectTower(id: number): void;
@@ -27,6 +28,8 @@ export class Hud {
   private modal: HTMLElement;
   private toast: HTMLElement;
   private speedBtn: HTMLButtonElement;
+  private towerInfoEl: HTMLElement;
+  private lastInfoKey = '';
   private cb: HudCallbacks;
   private selected = 0;
   private lastModalKey = '';
@@ -49,6 +52,7 @@ export class Hud {
             <button class="sw-ctl" data-act="pause" title="Pause (Esc)">Pause</button>
           </div>
           <div class="sw-stats" id="sw-stats"></div>
+          <div class="sw-towerinfo" id="sw-towerinfo"></div>
           <div class="sw-bar" id="sw-bar"></div>
           <div class="sw-help">
             <b>WASD</b> move &middot; <b>Space</b> dash &middot; <b>LMB</b> build &middot;
@@ -63,6 +67,7 @@ export class Hud {
     this.modal = root.querySelector('#sw-modal') as HTMLElement;
     this.toast = root.querySelector('#sw-toast') as HTMLElement;
     this.speedBtn = root.querySelector('#sw-speed') as HTMLButtonElement;
+    this.towerInfoEl = root.querySelector('#sw-towerinfo') as HTMLElement;
     this.wireControls();
   }
 
@@ -128,7 +133,7 @@ export class Hud {
     this.cb.onSelectTower(0);
   }
 
-  update(w: World): void {
+  update(w: World, cursor?: { x: number; y: number }): void {
     const d = w.derived;
     const mm = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
     const phaseLabel: Record<string, string> = {
@@ -189,6 +194,52 @@ export class Hud {
       el.classList.toggle('poor', w.gold < cost);
     }
     this.bar.classList.toggle('hidden', w.sundered);
+    this.renderTowerInfo(w, cursor);
+  }
+
+  /**
+   * The tower panel: what is under the cursor if that is a structure, otherwise
+   * whatever tower is selected on the bar. Re-rendered only when something the
+   * panel shows has actually changed, since update() runs every frame.
+   */
+  private renderTowerInfo(w: World, cursor?: { x: number; y: number }): void {
+    if (w.sundered) {
+      if (this.lastInfoKey !== 'sundered') {
+        this.lastInfoKey = 'sundered';
+        this.towerInfoEl.innerHTML = '';
+      }
+      return;
+    }
+    const hovered =
+      cursor && w.phase !== 'act2'
+        ? w.structureAt(Math.floor(cursor.x), Math.floor(cursor.y))
+        : null;
+    const def = hovered
+      ? w.content.towerById.get(hovered.towerId)
+      : this.selected > 0
+        ? w.content.towerById.get(this.selected)
+        : undefined;
+
+    if (!def) {
+      if (this.lastInfoKey !== 'none') {
+        this.lastInfoKey = 'none';
+        this.towerInfoEl.innerHTML =
+          '<p class="sw-note">Pick a tower below, or point at one you have built, to see exactly what it does.</p>';
+      }
+      return;
+    }
+
+    const info = towerInfo(w, def, hovered ?? undefined);
+    const key = [
+      def.key,
+      hovered ? `built${hovered.id}` : 'plan',
+      info.tier,
+      w.gold >= (info.buildCost ?? info.upgrade?.cost ?? 0),
+      w.phase,
+    ].join(':');
+    if (key === this.lastInfoKey) return;
+    this.lastInfoKey = key;
+    this.towerInfoEl.innerHTML = towerInfoMarkup(info, w.gold, hovered !== null && hovered !== undefined);
   }
 
   /**
@@ -344,4 +395,60 @@ export class Hud {
   resetModalKey(): void {
     this.lastModalKey = '';
   }
+}
+
+/**
+ * Renders one tower's full detail: what it does, every number it does it with,
+ * what a tier costs and buys, and what it leaves behind at the Sundering.
+ */
+export function towerInfoMarkup(info: TowerInfo, gold: number, placed: boolean): string {
+  const colour = TOWER_COLORS[info.key] ?? '#e8edf5';
+  const tierText = placed ? `Tier ${info.tier} / ${info.maxTier}` : 'Tier 1 when placed';
+
+  const stats = info.stats
+    .map(
+      (line) =>
+        `<div class="sw-row small"><span>${line.label}</span><b>${line.value}${
+          line.next ? `<i class="sw-next"> &rarr; ${line.next}</i>` : ''
+        }</b></div>`,
+    )
+    .join('');
+
+  const money: string[] = [];
+  if (info.buildCost !== null) {
+    money.push(
+      `<div class="sw-row"><span>Build</span><b class="${gold >= info.buildCost ? 'gold' : 'poor'}">${
+        info.buildCost
+      }g</b></div>`,
+    );
+  }
+  if (info.upgrade) {
+    money.push(
+      `<div class="sw-row"><span>Upgrade to T${info.upgrade.toTier}</span><b class="${
+        gold >= info.upgrade.cost ? 'gold' : 'poor'
+      }">${info.upgrade.cost}g</b></div>`,
+    );
+  } else if (placed) {
+    money.push('<div class="sw-row"><span>Upgrade</span><b>at max tier</b></div>');
+  }
+  if (info.sellValue !== null) {
+    money.push(`<div class="sw-row"><span>Sell (RMB)</span><b>${info.sellValue}g</b></div>`);
+  }
+
+  return `
+    <h3 style="color:${colour}">${info.name} <small>${tierText}</small></h3>
+    <p class="sw-note">${info.attackText}</p>
+    ${stats}
+    ${money.join('')}
+    ${
+      info.upgrade
+        ? '<p class="sw-hint">Hold <b>U</b> (or Shift) and click the tower to upgrade it.</p>'
+        : ''
+    }
+    ${
+      info.soul
+        ? `<div class="sw-sub">Soul &mdash; ${info.soul.name}</div><p class="sw-note">${info.soul.desc} Its level at the Sundering is this tower's highest tier.</p>`
+        : ''
+    }
+    ${info.terrainText ? `<p class="sw-note dim">${info.terrainText}</p>` : ''}`;
 }

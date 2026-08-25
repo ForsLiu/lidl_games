@@ -200,7 +200,7 @@ class Game {
     const w = run.world;
     this.renderer.update(dtReal, this.view);
     this.renderer.draw(w, this.view);
-    this.hud.update(w);
+    this.hud.update(w, { x: this.view.cursorX, y: this.view.cursorY });
 
     if (w.outcome !== 'running' && !this.resultBanked) {
       this.resultBanked = true;

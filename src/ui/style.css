@@ -420,3 +420,33 @@ html, body {
   background: var(--accent);
   border-color: var(--accent);
 }
+
+/* -------------------------------------------------------- tower info panel */
+
+.sw-towerinfo {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 10px 12px;
+}
+
+.sw-towerinfo:empty { display: none; }
+
+.sw-towerinfo h3 {
+  margin: 0 0 6px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.sw-towerinfo h3 small {
+  float: right;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--dim);
+}
+
+.sw-next { color: var(--accent); font-style: normal; font-weight: 600; }
+
+.sw-hint { font-size: 11px; color: var(--dim); margin: 6px 0 0; }
+
+.sw-note.dim { color: var(--dim); }
