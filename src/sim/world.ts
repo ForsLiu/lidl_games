@@ -146,6 +146,10 @@ export class World {
   towersByKey: Record<string, number> = {};
   damageByWeapon: Record<string, number> = {};
   damageTotal = 0;
+  /** Per-wave Act I telemetry, indexed by wave number (1-based). */
+  spawnedByWave: number[] = [];
+  leaksByWave: number[] = [];
+  goldEarnedByWave: number[] = [];
   /** Cumulative damage at the Sundering, so Act II shares can be isolated. */
   damageAtSunder: Record<string, number> = {};
   /** Act II damage-by-source through minute 8, for SPEC A5. Null until reached. */
@@ -335,7 +339,9 @@ export class World {
   rebuildBuckets(): void {
     this.buckets.clear();
     for (const e of this.enemies) {
-      if (e.dead) continue;
+      // Submerged Burrowers are out of the spatial hash entirely, so nothing
+      // can target them until they surface.
+      if (e.dead || e.submerged) continue;
       const key = this.cellKey(e.x, e.y);
       let b = this.buckets.get(key);
       if (!b) {

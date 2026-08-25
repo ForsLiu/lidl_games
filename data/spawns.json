@@ -1,6 +1,6 @@
 {
   "budgetBase": 150,
-  "budgetGrowthPerMinute": 1.25,
+  "budgetGrowthPerMinute": 1.21,
   "directorIntervalSeconds": 10,
   "aliveCap": 350,
   "hpOverlay": 0.6,
@@ -220,5 +220,6 @@
   "gemCap": 500,
   "actIICarry": 3.5,
   "warmupSeconds": 75,
-  "warmupStart": 0.3
+  "warmupStart": 0.3,
+  "burrowSurfaceDistance": 3
 }

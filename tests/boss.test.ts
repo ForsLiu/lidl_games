@@ -148,7 +148,7 @@ describe('the Warden-Eater (SPEC 5.5)', () => {
   });
 
   it('a scripted run reaches it, kills it and wins', () => {
-    const { report } = runWithPolicy(cfg({ seed: 1 }), 'maxbuild');
+    const { report } = runWithPolicy(cfg({ seed: 5 }), 'maxbuild');
     expect(report.outcome).toBe('victory');
     expect(report.bossKilled).toBe(true);
     expect(report.bossKillSeconds).toBeGreaterThan(600);

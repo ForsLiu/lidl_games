@@ -351,6 +351,7 @@ function updateAct1Wave(w: World, dt: number): void {
       const gate = w.gates[gateIdx] ?? GATES[0];
       const jitterX = w.rng.spawns.range(-0.25, 0.25);
       const jitterY = w.rng.spawns.range(-0.25, 0.25);
+      w.spawnedByWave[w.wave] = (w.spawnedByWave[w.wave] ?? 0) + 1;
       spawnEnemy(w, def.key, gate.tx + 0.5 + jitterX, gate.ty + 0.5 + jitterY, {
         hpMul: waveHpScale(w, w.wave),
         gate: gateIdx,
@@ -374,6 +375,7 @@ function completeWave(w: World): void {
   w.gold += bonus;
   w.goldEarned += bonus;
   collectSproutGold(w);
+  w.goldEarnedByWave[w.wave] = w.goldEarned;
   w.wavesCleared++;
   w.emit('waveclear', 0, 0, w.wave, bonus);
 
@@ -522,6 +524,9 @@ export function buildReport(w: World): RunReport {
     damageByWeapon,
     damageTotal: round2(w.damageTotal),
     damageThroughMinute8: w.damageThroughMinute8,
+    spawnedByWave: w.spawnedByWave.slice(),
+    leaksByWave: w.leaksByWave.slice(),
+    goldEarnedByWave: w.goldEarnedByWave.slice(),
     topWeaponShareMinute8: w.damageThroughMinute8
       ? Math.round(topWeaponShare(w, w.damageThroughMinute8).share * 1000) / 1000
       : 0,

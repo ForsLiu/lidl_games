@@ -112,6 +112,8 @@ export interface Enemy {
   phaseRemaining: number;
   phaseCooldown: number;
   ghosting: boolean;
+  /** Burrowed: underground, so nothing can target or hit it (SPEC 6 #12). */
+  submerged: boolean;
   /** Charger state machine: 0 idle, 1 windup, 2 dashing. */
   chargeState: number;
   chargeTimer: number;
@@ -302,6 +304,10 @@ export interface RunReport {
   leaks: number;
   damageByWeapon: Record<string, number>;
   damageTotal: number;
+  /** Per-wave Act I telemetry, indexed by wave number (1-based). */
+  spawnedByWave: number[];
+  leaksByWave: number[];
+  goldEarnedByWave: number[];
   /** Act II damage by source through minute 8, for SPEC A5 (null if not reached). */
   damageThroughMinute8: Record<string, number> | null;
   /** Largest single-weapon share of that window, 0-1. */

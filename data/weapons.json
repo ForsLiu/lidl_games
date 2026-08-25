@@ -307,42 +307,42 @@
       "desc": "Shell onto the densest cluster.",
       "levels": [
         {
-          "damage": 64,
+          "damage": 55,
           "interval": 2.5,
           "radius": 2,
           "count": 1,
           "range": 7.5
         },
         {
-          "damage": 75,
+          "damage": 64.5,
           "interval": 2.4,
           "radius": 2.15,
           "count": 1,
           "range": 7.8
         },
         {
-          "damage": 83.7,
+          "damage": 72,
           "interval": 2.3,
           "radius": 2.3,
           "count": 1,
           "range": 8.2
         },
         {
-          "damage": 92.4,
+          "damage": 79.5,
           "interval": 2.2,
           "radius": 2.5,
           "count": 2,
           "range": 8.5
         },
         {
-          "damage": 104.5,
+          "damage": 89.9,
           "interval": 2.1,
           "radius": 2.7,
           "count": 2,
           "range": 8.8
         },
         {
-          "damage": 118,
+          "damage": 101.5,
           "interval": 2,
           "radius": 3,
           "count": 3,

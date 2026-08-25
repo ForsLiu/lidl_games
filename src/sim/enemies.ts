@@ -66,6 +66,7 @@ export function makeEnemy(w: World, def: EnemyDef, x: number, y: number, opts: S
     phaseRemaining: 0,
     phaseCooldown: def.phasePeriod ?? 0,
     ghosting: def.traits.includes('burrows'),
+    submerged: def.traits.includes('burrows'),
     chargeState: 0,
     chargeTimer: 0,
     chargeCooldown: def.chargeCooldown ?? 0,
@@ -330,7 +331,18 @@ export function updateEnemies(w: World, dt: number): void {
 
 function updatePhasing(w: World, e: Enemy, def: EnemyDef, dt: number): void {
   if (def.traits.includes('burrows')) {
-    e.ghosting = true;
+    // SPEC 6 #12: a Burrower tunnels *under* the field and surfaces near its
+    // target. Underground it cannot be shot, which is what makes it the
+    // counter to a turtle (SPEC A7).
+    const target = w.targetPoint();
+    const surfaceAt = w.content.spawns.burrowSurfaceDistance;
+    if (e.submerged && dist2(e.x, e.y, target.x, target.y) <= surfaceAt * surfaceAt) {
+      e.submerged = false;
+      e.ghosting = false;
+      unstick(w, e);
+      w.emit('surface', e.x, e.y, 0, 0);
+    }
+    e.ghosting = e.submerged;
     return;
   }
   if (!def.traits.includes('phases')) return;
@@ -651,6 +663,7 @@ export function damageStructure(w: World, s: Structure, amount: number): void {
 function leakIntoCore(w: World, e: Enemy, def: EnemyDef): void {
   w.coreHp -= def.coreDamage;
   w.leaks++;
+  w.leaksByWave[w.wave] = (w.leaksByWave[w.wave] ?? 0) + 1;
   w.emit('leak', e.x, e.y, def.coreDamage, 0);
   e.dead = true;
   w.enemyById.delete(e.id);

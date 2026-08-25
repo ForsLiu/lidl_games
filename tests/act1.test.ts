@@ -133,7 +133,8 @@ describe('tower fire', () => {
     warp(w, 10, 10);
     w.cfg.classKey = 'frost_warden';
     buildTower(w, 5, 10, 10);
-    const e = spawnEnemy(w, 'husk', 11.5, 10, { overlay: false })!;
+    // Something that survives the pulse, so the slow is observable.
+    const e = spawnEnemy(w, 'colossus', 11.5, 10, { overlay: false })!;
     for (let i = 0; i < 90; i++) {
       w.rebuildBuckets();
       updateTowers(w, 1 / 60);
@@ -147,6 +148,7 @@ describe('tower fire', () => {
     w.cfg.classKey = 'frost_warden';
     buildTower(w, 5, 10, 10);
     const e = spawnEnemy(w, 'frostkin', 11.5, 10, { overlay: false })!;
+    e.hp = 1e9;
     for (let i = 0; i < 90; i++) {
       w.rebuildBuckets();
       updateTowers(w, 1 / 60);

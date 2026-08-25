@@ -37,7 +37,7 @@
       "classLock": null,
       "attack": {
         "kind": "single",
-        "damage": 6,
+        "damage": 5.5,
         "interval": 0.5,
         "range": 5
       },
@@ -113,7 +113,7 @@
       "classLock": "frost_warden",
       "attack": {
         "kind": "aura",
-        "damage": 17,
+        "damage": 22,
         "interval": 1,
         "range": 3,
         "slow": 0.25,
@@ -139,7 +139,7 @@
       "classLock": "engineer",
       "attack": {
         "kind": "chain",
-        "damage": 16,
+        "damage": 18,
         "interval": 1,
         "range": 5,
         "chains": 3,

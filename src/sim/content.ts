@@ -238,6 +238,8 @@ const SpawnsFileSchema = z.object({
   riftBudgetMultiplier: num,
   bossTimeSeconds: num,
   spawnDistance: num,
+  /** How close a Burrower gets before it surfaces. */
+  burrowSurfaceDistance: num,
   contactInterval: num,
   contactPadding: num,
   gemLifetimeSeconds: num,

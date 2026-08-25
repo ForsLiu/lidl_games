@@ -1,12 +1,12 @@
 {
-  "hpScalePerWave": 1.32,
-  "buildPhaseSeconds": 20,
+  "hpScalePerWave": 1.35,
+  "buildPhaseSeconds": 30,
   "earlyCallGoldPerSecond": 2,
   "waveClearBase": 50,
   "waveClearPerWave": 10,
   "startGold": 250,
   "coreHp": 500,
-  "spawnIntervalSeconds": 0.7,
+  "spawnIntervalSeconds": 1.02,
   "waves": [
     {
       "wave": 1,
@@ -117,10 +117,14 @@
         },
         {
           "enemy": "spitter",
-          "perGate": 8
+          "perGate": 6
         },
         {
           "enemy": "wraith",
+          "perGate": 4
+        },
+        {
+          "enemy": "gale_imp",
           "perGate": 4
         }
       ]

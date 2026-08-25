@@ -55,7 +55,9 @@ describe('A8 Act I investment pays off in Act II', () => {
     // maxbuild deliberately places fewer structures than rush: it banks the
     // difference into tiers, which is what "all-T3" means.
     expect(slotted(a).length).toBeGreaterThan(slotted(b).length);
-    expect(a.goldSpent).toBeGreaterThan(b.goldSpent);
     expect(Object.keys(a.towersByKey).length).toBeGreaterThan(Object.keys(b.towersByKey).length);
+    // "All-T3" shows up as gold per structure, not as raw gold: maxbuild places
+    // fewer towers and tiers them up, rush places more and leaves them at T1.
+    expect(a.goldSpent / a.towersBuilt).toBeGreaterThan(b.goldSpent / b.towersBuilt);
   });
 });

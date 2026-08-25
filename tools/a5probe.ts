@@ -47,8 +47,9 @@ export function runBuild(build: BuildSpec, seed: number): RunReport {
   const policy = new BuilderPolicy(build.name, {
     towerKeys: build.towerKeys,
     wallRatio: build.wallRatio,
-    maxStructures: 55,
-    upgradeAfter: 12,
+    maxStructures: 46,
+    upgradeAfter: 14,
+    upgradeFirst: true,
     act2: 'kite',
     rushWaves: false,
   });

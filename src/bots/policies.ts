@@ -40,6 +40,14 @@ export interface BuilderOptions {
   act2: 'kite' | 'hold' | 'none';
   /** Call the next wave early once the plan is exhausted. */
   rushWaves: boolean;
+  /** Open the run by planting this many Harvest Sprouts before any defence. */
+  openingSprouts: number;
+  /**
+   * Ring the Core with Palisades at this radius before anything else. The path
+   * guarantee refuses the last tile, so the ring always keeps one door - which
+   * is exactly the turtle archetype SPEC A7 tests.
+   */
+  perimeterRadius: number;
 }
 
 const DEFAULTS: BuilderOptions = {
@@ -50,6 +58,8 @@ const DEFAULTS: BuilderOptions = {
   upgradeFirst: false,
   act2: 'kite',
   rushWaves: true,
+  openingSprouts: 0,
+  perimeterRadius: 0,
 };
 
 export class BuilderPolicy implements BotPolicy {
@@ -200,8 +210,34 @@ export class BuilderPolicy implements BotPolicy {
     if (keys.length === 0) return;
     const palisade = w.content.towerByKey.get('palisade')!;
     const budget = Math.max(0, this.opts.maxStructures - w.structures.filter((s) => !s.dead).length);
+
+    // A turtle rings the Core, but not before it has a few guns up: an
+    // undefended ring simply loses wave 1.
+    let siteIndex = 0;
+    if (this.opts.perimeterRadius > 0) {
+      const lead = 6;
+      for (let i = 0; i < lead && siteIndex < sites.length; i++) {
+        const site = sites[siteIndex++];
+        const def = w.content.towerByKey.get(keys[i % keys.length])!;
+        this.plan.push({ towerId: def.id, tx: site.tx, ty: site.ty });
+      }
+      for (const [tx, ty] of perimeterTiles(w, this.opts.perimeterRadius)) {
+        if (this.plan.length >= budget) break;
+        if (!w.grid.buildable(tx, ty)) continue;
+        this.plan.push({ towerId: palisade.id, tx, ty });
+      }
+    }
+
+    // A greedy opening plants its economy before it builds any defence.
+    const sprout = w.content.towerByKey.get('harvest_sprout')!;
+    const haveSprouts = w.towersByKey['harvest_sprout'] ?? 0;
+    for (let i = haveSprouts; i < this.opts.openingSprouts && siteIndex < sites.length; i++) {
+      const s = sites[siteIndex++];
+      this.plan.push({ towerId: sprout.id, tx: s.tx, ty: s.ty });
+    }
+
     let ki = 0;
-    for (let i = 0; i < sites.length && this.plan.length < budget; i++) {
+    for (let i = siteIndex; i < sites.length && this.plan.length < budget; i++) {
       const s = sites[i];
       const useWall = this.opts.wallRatio > 0 && i % Math.max(2, Math.round(1 / this.opts.wallRatio)) === 0;
       const def = useWall ? palisade : w.content.towerByKey.get(keys[ki++ % keys.length])!;
@@ -376,6 +412,24 @@ function walkableAt(w: World, x: number, y: number): boolean {
   return w.grid.passable(Math.floor(x), Math.floor(y));
 }
 
+/** Tiles forming a square ring of the given radius around the Core. */
+export function perimeterTiles(w: World, radius: number): [number, number][] {
+  const c = coreCenter();
+  const cx = Math.floor(c.x);
+  const cy = Math.floor(c.y);
+  const out: [number, number][] = [];
+  const r = radius;
+  for (let dy = -r; dy <= r; dy++) {
+    for (let dx = -r; dx <= r; dx++) {
+      if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+      const tx = cx + dx;
+      const ty = cy + dy;
+      if (w.grid.inBounds(tx, ty)) out.push([tx, ty]);
+    }
+  }
+  return out;
+}
+
 /* ---------------------------------------------------- build-site ranking */
 
 /**
@@ -525,14 +579,69 @@ registerPolicy(
     }),
 );
 
+/**
+ * SPEC A7's control: wall the Core in as tightly as the path guarantee allows,
+ * with a thin ring of towers behind. Burrowers, Wraiths and Gale Imps should
+ * still get through, because mazing is strong but never absolute.
+ */
+export class WallOffPolicy implements BotPolicy {
+  readonly name = 'walloff';
+  private inner = new BuilderPolicy('walloff', {
+    towerKeys: ['arrow_spire', 'ballista'],
+    wallRatio: 0.35,
+    maxStructures: 90,
+    upgradeAfter: 24,
+    perimeterRadius: 5,
+    act2: 'hold',
+    rushWaves: false,
+  });
+
+  act(w: World): TickInput {
+    return this.inner.act(w);
+  }
+}
+
+registerPolicy('walloff', () => new WallOffPolicy());
+
+/**
+ * SPEC A9's two arms. `greedy` opens on Harvest Sprouts before any defence;
+ * `greedless` never builds one. Everything else about them matches.
+ */
+registerPolicy(
+  'greedy',
+  () =>
+    new BuilderPolicy('greedy', {
+      towerKeys: ['arrow_spire', 'ballista', 'venom_spore', 'mortar'],
+      wallRatio: 0.2,
+      maxStructures: 44,
+      upgradeAfter: 14,
+      openingSprouts: 4,
+      act2: 'kite',
+      rushWaves: false,
+    }),
+);
+
+registerPolicy(
+  'greedless',
+  () =>
+    new BuilderPolicy('greedless', {
+      towerKeys: ['arrow_spire', 'ballista', 'venom_spore', 'mortar'],
+      wallRatio: 0.2,
+      maxStructures: 44,
+      upgradeAfter: 14,
+      act2: 'kite',
+      rushWaves: false,
+    }),
+);
+
 registerPolicy(
   'rush',
   () =>
     new BuilderPolicy('rush', {
       towerKeys: ['arrow_spire'],
-      wallRatio: 0.25,
-      maxStructures: 36,
-      upgradeAfter: 30,
+      wallRatio: 0.28,
+      maxStructures: 44,
+      upgradeAfter: 26,
       act2: 'kite',
       rushWaves: true,
     }),

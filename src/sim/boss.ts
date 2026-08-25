@@ -29,20 +29,20 @@ const CHARGE_TELEGRAPH = 1.1;
 const CHARGE_DURATION = 1.0;
 const CHARGE_COOLDOWN = 4.5;
 const CHARGE_SPEED = 13;
-const CHARGE_DAMAGE = 16;
+const CHARGE_DAMAGE = 14;
 const CHARGE_WIDTH = 1.1;
 
 const SUMMON_INTERVAL = 8;
 const SUMMON_COUNT = 4;
 const SLAM_RADIUS = 5.5;
-const SLAM_DAMAGE = 14;
+const SLAM_DAMAGE = 12;
 const SLAM_EXPAND = 6;
 
 const ENRAGE_SPEED = 1.3;
 /** How fast the arena fire closes, in tiles per second. */
 const FIRE_CLOSE_RATE = 0.22;
 const FIRE_MIN_RADIUS = 5;
-const FIRE_DPS = 10;
+const FIRE_DPS = 8;
 
 /** Boss action ids, stored on `bossAction`. */
 const IDLE = 0;
