@@ -25,7 +25,7 @@ with the commit hash.
 ## Done
 
 - [x] (b003) [bug] Stash click-to-swap + drag-to-unequip + compare tooltip; no
-      dead-end equip states — refs: SPEC-V2 §10 D2, §3 — commit (pending),
+      dead-end equip states — refs: SPEC-V2 §10 D2, §3 — commit 84bc3f8,
       qa-playtester pass 2026-08-25 (rapid multi-slot equip/unequip cycles, crafting
       an equipped relic, cross-slot equip-bypass attempt, discard-while-selected,
       tab-switch state survival, garbage drag payloads all probed; no bugs filed —
