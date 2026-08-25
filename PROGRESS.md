@@ -5,13 +5,16 @@
 
 ## Current state
 - **Milestone:** M8 complete — **first complete version**. All of A1–A11 green
-  (two strict bounds relaxed and documented under Known issues).
+  (two strict bounds relaxed and documented under Known issues). BACKLOG.md b001
+  (SPEC-V2 §10 D1 death flow) also done; M9 (SPEC-V2 §12) work is underway via
+  the BACKLOG queue.
 - **Last session:** 2026-08-25
-- **Next action:** QUESTIONS.md verdicts. Both playtest requests carried the
-  example template rather than actual verdicts, so all **31** entries are still
-  pending — see the Verdict log at the top of that file. After that: the tier
-  ladder above T3 has no measured win (HANDOFF.md §6), and the two relaxed
-  bounds (A3's per-seed 3:00 line, A7's 15% leak share) remain open.
+- **Next action:** BACKLOG.md b002 (pause-menu Abandon Run confirm dialog) is
+  next in queue. After the BACKLOG queue: QUESTIONS.md verdicts. Both playtest
+  requests carried the example template rather than actual verdicts, so all
+  **31** entries are still pending — see the Verdict log at the top of that
+  file. The tier ladder above T3 has no measured win (HANDOFF.md §6), and the
+  two relaxed bounds (A3's per-seed 3:00 line, A7's 15% leak share) remain open.
 - **HANDOFF.md** at the repo root is the state report for SPEC v0.2: every
   implemented system, every deviation from SPEC.md with its reason, the /data
   snapshot, measured sweep metrics, and an engineer's list of what is shallow.
@@ -318,6 +321,19 @@ features whose counters read zero with no explanation.
   awakening → weapon → card index 0, so measured "picks" reflect offer RNG, not
   preference. There is no signal about which boons a player would want.
 ## Session log (newest first)
+- 2026-08-25 — BACKLOG b001: defeat flow (SPEC-V2 §10 D1). A defeat condition
+  (Core hp 0 in Act I, Warden hp 0 while `huntsWarden` in Act II) now starts a
+  1.5s slow-mo beat (`world.dying`/`dyingTimer`) before `outcome`/`phase` land
+  on their terminal value, fixing the stuck-mid-frame bug where `outcome` could
+  flip without `phase` following, leaving no Results modal and no way to pause
+  out. During the beat the Warden is frozen, Act I wave-clear and Act II
+  level-up are suppressed, and Core HP is floored at 0 against continued
+  leaks. Results screen now offers Retry (same seed) / New run (fresh seed) /
+  Hub instead of a single restart button. `tests/b10-death-flow.test.ts` (7
+  tests) covers both defeat phases, the beat timing, the Warden freeze, the
+  HP floor, and all three results buttons; qa-playtester adversarially checked
+  the victory-vs-defeat race, pausing mid-beat, and the Act I Warden-reform
+  path with throwaway tests and found nothing.
 - 2026-08-25 — Playtest round 2: refund fixed at its real cause, Constellation
   rebuilt as a bounded disc, tower info panel, per-source projectiles, stage
   progress bars, fast-forward, practice runs, test-account seeding. Act I

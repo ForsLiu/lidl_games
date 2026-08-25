@@ -352,13 +352,16 @@ html, body {
   font-size: 13px;
 }
 
-.sw-pausebuttons {
+.sw-pausebuttons,
+.sw-resultbuttons {
   display: flex;
   gap: 10px;
   justify-content: center;
 }
 .sw-pausebuttons .sw-go,
-.sw-pausebuttons .sw-reroll { margin-top: 8px; }
+.sw-pausebuttons .sw-reroll,
+.sw-resultbuttons .sw-go,
+.sw-resultbuttons .sw-reroll { margin-top: 8px; }
 
 /* ------------------------------------------------------- constellation */
 

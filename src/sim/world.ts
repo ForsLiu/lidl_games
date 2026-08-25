@@ -82,6 +82,13 @@ export class World {
   tick = 0;
   phase: Phase = 'act1_build';
   outcome: RunOutcome = 'running';
+  /**
+   * Set the instant a defeat condition is met; `outcome` stays 'running' and
+   * play keeps ticking for `dyingTimer` more seconds (SPEC-V2 D1's slow-mo
+   * beat) before it flips to the terminal outcome and the Results screen.
+   */
+  dying: 'defeat_core' | 'defeat_warden' | null = null;
+  dyingTimer = 0;
 
   /* ---- Act I ---- */
   wave = 0;

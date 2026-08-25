@@ -44,6 +44,7 @@ class Game {
   private resultBanked = false;
   private inputBound = false;
   private paused = false;
+  private lastCfg: RunConfig | null = null;
 
   start(rootEl: HTMLElement): void {
     this.root = rootEl;
@@ -78,13 +79,18 @@ class Game {
 
   private startRun(cfg: RunConfig): void {
     this.root.innerHTML = '';
+    this.lastCfg = cfg;
     this.hud = new Hud(this.root, {
       onSelectTower: (id) => (this.view.selectedTower = id),
       onCallWave: () => this.pending.push({ k: 'call' }),
       onPickSouls: (keys) => this.pending.push({ k: 'souls', keys }),
       onPickOffer: (index) => this.pending.push({ k: 'pick', index }),
       onReroll: () => this.pending.push({ k: 'reroll' }),
-      onRestart: () => this.showHub(),
+      onRetry: () => this.startRun(this.lastCfg!),
+      onNewRun: () => {
+        const seed = (Math.random() * 0xffffffff) >>> 0;
+        this.startRun({ ...this.lastCfg!, seed });
+      },
       onToggleRanges: () => (this.view.showRanges = !this.view.showRanges),
       onResume: () => this.setPaused(false),
       onPause: () => this.setPaused(true),
@@ -191,8 +197,10 @@ class Game {
       return;
     }
     // Fast-forward runs more fixed ticks per frame, never a longer tick, so
-    // the run stays bit-identical to the same run played at 1x.
-    const ticks = this.pacer.plan(dtReal);
+    // the run stays bit-identical to the same run played at 1x. A defeat's
+    // slow-mo beat (SPEC-V2 D1) works the same way: fewer ticks per frame,
+    // not a longer one, so it never touches determinism.
+    const ticks = this.pacer.plan(run.world.dying ? dtReal * 0.5 : dtReal);
     for (let i = 0; i < ticks; i++) {
       run.step(this.gatherInput());
       this.renderer.ingest(run.world, this.view);

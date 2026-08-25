@@ -108,6 +108,7 @@ export class Run {
 
     w.compact();
     checkDefeat(w);
+    resolveDefeat(w, dt);
   }
 
   /** Advance until the run resolves or `maxTicks` elapse. */
@@ -233,6 +234,8 @@ export function applyDevCommand(w: World, op: DevOp, amount: number): void {
 /* ------------------------------------------------------------------ warden */
 
 export function updateWarden(w: World, input: TickInput, dt: number): void {
+  // Frozen for the defeat slow-mo beat: a dead Warden does not keep walking.
+  if (w.dying) return;
   const wd = w.warden;
   const d = w.derived;
 
@@ -353,7 +356,7 @@ export function damageWarden(w: World, amount: number): void {
     }
     wd.hp = 0;
     if (w.huntsWarden) {
-      w.outcome = 'defeat_warden';
+      beginDefeat(w, 'defeat_warden');
     } else {
       // Act I stakes live on the Core: a downed Warden reforms at the Core.
       wd.hp = w.derived.maxHp * 0.5;
@@ -431,7 +434,9 @@ function updateAct1Wave(w: World, dt: number): void {
 
   updateEnemies(w, dt);
 
-  if (w.spawnQueue.length === 0 && w.enemies.length === 0) {
+  // A core death already decided the run; the defeat slow-mo beat that
+  // follows must not let the last few enemies dying credit a wave clear.
+  if (w.spawnQueue.length === 0 && w.enemies.length === 0 && !w.dying) {
     completeWave(w);
   }
 }
@@ -485,7 +490,9 @@ function updateAct2(w: World, input: TickInput, dt: number): void {
     for (let i = 0; i < Math.round(perWin); i++) dropOrb(w);
     return;
   }
-  openLevelUpIfPending(w);
+  // The defeat slow-mo beat is meant to be a frozen "you've lost" moment, not
+  // a window where a level-up offer can still pop up and take a click.
+  if (!w.dying) openLevelUpIfPending(w);
 }
 
 /** Damage dealt since the Sundering, by source. */
@@ -521,12 +528,40 @@ export function topWeaponShare(w: World, damage: Record<string, number>): { key:
 
 /* ----------------------------------------------------------------- defeat */
 
+/**
+ * SPEC-V2 D1: a defeat does not cut straight to the Results screen. `outcome`
+ * stays 'running' - so the run keeps stepping and Esc still pauses it - for a
+ * 1.5 s slow-mo beat, then `resolveDefeat` lands the terminal outcome.
+ */
+const DEFEAT_SLOWMO = 1.5;
+
+function beginDefeat(w: World, outcome: 'defeat_core' | 'defeat_warden'): void {
+  if (w.dying || w.outcome !== 'running') return;
+  w.dying = outcome;
+  w.dyingTimer = DEFEAT_SLOWMO;
+}
+
+function resolveDefeat(w: World, dt: number): void {
+  if (!w.dying) return;
+  // A boss kill on the exact tick the countdown expires already landed a
+  // terminal 'victory' outcome this tick; don't clobber it with the defeat
+  // that was merely pending.
+  if (w.outcome !== 'running') {
+    w.dying = null;
+    return;
+  }
+  w.dyingTimer -= dt;
+  if (w.dyingTimer > 0) return;
+  w.outcome = w.dying;
+  w.phase = 'results';
+  w.dying = null;
+}
+
 function checkDefeat(w: World): void {
-  if (w.outcome !== 'running') return;
-  if (w.coreHp <= 0 && !w.huntsWarden && w.phase !== 'results') {
+  if (w.outcome !== 'running' || w.dying) return;
+  if (w.coreHp <= 0 && !w.huntsWarden) {
     w.coreHp = 0;
-    w.outcome = 'defeat_core';
-    w.phase = 'results';
+    beginDefeat(w, 'defeat_core');
   }
 }
 

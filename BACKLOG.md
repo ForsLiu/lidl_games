@@ -6,9 +6,6 @@ with the commit hash.
 
 ## Queue
 
-- [ ] (b001) [bug] Death flow: Night-phase Warden death and Day-phase Core death both
-      reach a defeat Results screen with Retry / New Run / Hub — acceptance: B10 UI
-      flow test green; manual: die on purpose in each phase, reach Hub — refs: SPEC-V2 §10 D1
 - [ ] (b002) [bug] Pause menu Abandon Run (with confirm) available in both phases —
       acceptance: covered by B10 test — refs: SPEC-V2 §10 D1
 - [ ] (b003) [bug] Stash click-to-swap + drag-to-unequip + compare tooltip; no
@@ -31,4 +28,7 @@ with the commit hash.
 
 ## Done
 
-(empty)
+- [x] (b001) [bug] Death flow: Night-phase Warden death and Day-phase Core death both
+      reach a defeat Results screen with Retry / New Run / Hub — refs: SPEC-V2 §10 D1
+      — commit <pending>, qa-playtester pass 2026-08-25 (race against victory, pause
+      during the beat, lastCfg, Act I reform path all adversarially checked, no bugs)

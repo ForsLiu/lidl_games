@@ -769,7 +769,9 @@ export function damageStructure(w: World, s: Structure, amount: number): void {
 }
 
 function leakIntoCore(w: World, e: Enemy, def: EnemyDef): void {
-  w.coreHp -= def.coreDamage;
+  // Floored so a swarm that keeps leaking during the defeat slow-mo beat
+  // (SPEC-V2 D1) cannot drive the HUD's Core HP negative.
+  w.coreHp = Math.max(0, w.coreHp - def.coreDamage);
   w.leaks++;
   w.leaksByWave[w.wave] = (w.leaksByWave[w.wave] ?? 0) + 1;
   w.emit('leak', e.x, e.y, def.coreDamage, 0);

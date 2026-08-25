@@ -14,7 +14,10 @@ export interface HudCallbacks {
   onPickSouls(keys: string[]): void;
   onPickOffer(index: number): void;
   onReroll(): void;
-  onRestart(): void;
+  /** Results screen: same seed, same config, straight back in. */
+  onRetry(): void;
+  /** Results screen: same config, a fresh seed, straight back in. */
+  onNewRun(): void;
   onToggleRanges(): void;
   onResume(): void;
   onPause(): void;
@@ -181,7 +184,7 @@ export class Hud {
         w.sundered
           ? `<div class="sw-row"><span>Level</span><b>${w.level}</b></div>
              <div class="sw-row"><span>Kills</span><b>${w.kills}</b></div>`
-          : `<div class="sw-row"><span>Core</span><b>${Math.ceil(w.coreHp)} / ${w.coreMaxHp}</b></div>
+          : `<div class="sw-row"><span>Core</span><b>${Math.max(0, Math.ceil(w.coreHp))} / ${w.coreMaxHp}</b></div>
              <div class="sw-meter core"><i style="width:${Math.max(0, (w.coreHp / w.coreMaxHp) * 100)}%"></i></div>
              <div class="sw-row"><span>Gold</span><b class="gold">${w.gold}</b></div>`
       }
@@ -433,9 +436,15 @@ export class Hud {
           <div><span>Ember</span><b>${w.emberEarned}</b></div>
         </div>
         ${w.practiceUsed ? '<p class="sw-note">Practice run — nothing was banked.</p>' : ''}
-        <button class="sw-go">New run</button>
+        <div class="sw-resultbuttons">
+          <button class="sw-go" data-act="retry" title="Same seed, run it again">Retry</button>
+          <button class="sw-reroll" data-act="newrun" title="Same build, a new seed">New run</button>
+          <button class="sw-reroll" data-act="hub">Hub</button>
+        </div>
       </div>`;
-    this.modal.querySelector('.sw-go')?.addEventListener('click', () => this.cb.onRestart());
+    this.modal.querySelector('[data-act="retry"]')?.addEventListener('click', () => this.cb.onRetry());
+    this.modal.querySelector('[data-act="newrun"]')?.addEventListener('click', () => this.cb.onNewRun());
+    this.modal.querySelector('[data-act="hub"]')?.addEventListener('click', () => this.cb.onQuitToHub());
   }
 
   say(text: string): void {
