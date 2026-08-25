@@ -5,6 +5,7 @@ import { towerCost } from '../sim/towers';
 import type { Offer } from '../sim/types';
 import { TOWER_COLORS } from '../render/theme';
 import { towerInfo, type TowerInfo } from './tower-info';
+import { runProgress, type RunProgress } from './progress';
 
 export interface HudCallbacks {
   onSelectTower(id: number): void;
@@ -29,6 +30,7 @@ export class Hud {
   private toast: HTMLElement;
   private speedBtn: HTMLButtonElement;
   private towerInfoEl: HTMLElement;
+  private progressEl: HTMLElement;
   private lastInfoKey = '';
   private cb: HudCallbacks;
   private selected = 0;
@@ -51,6 +53,7 @@ export class Hud {
             <button class="sw-ctl" data-act="ranges" title="Show tower ranges (R)">Ranges</button>
             <button class="sw-ctl" data-act="pause" title="Pause (Esc)">Pause</button>
           </div>
+          <div class="sw-progress" id="sw-progress"></div>
           <div class="sw-stats" id="sw-stats"></div>
           <div class="sw-towerinfo" id="sw-towerinfo"></div>
           <div class="sw-bar" id="sw-bar"></div>
@@ -68,6 +71,7 @@ export class Hud {
     this.toast = root.querySelector('#sw-toast') as HTMLElement;
     this.speedBtn = root.querySelector('#sw-speed') as HTMLButtonElement;
     this.towerInfoEl = root.querySelector('#sw-towerinfo') as HTMLElement;
+    this.progressEl = root.querySelector('#sw-progress') as HTMLElement;
     this.wireControls();
   }
 
@@ -135,20 +139,9 @@ export class Hud {
 
   update(w: World, cursor?: { x: number; y: number }): void {
     const d = w.derived;
-    const mm = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
-    const phaseLabel: Record<string, string> = {
-      act1_build: `Daywatch — build (${Math.ceil(w.buildTimer)}s)`,
-      act1_wave: `Daywatch — wave ${w.wave}/${w.waveCount}`,
-      dusk: `Dusk (${Math.ceil(w.duskTimer)}s)`,
-      soulpick: 'Soul binding',
-      act2: `Nightfall ${mm(w.act2Time)}`,
-      levelup: 'Level up',
-      results: 'Results',
-    };
     const hpPct = Math.max(0, (w.warden.hp / d.maxHp) * 100);
 
     this.stats.innerHTML = `
-      <div class="sw-phase">${phaseLabel[w.phase] ?? w.phase}</div>
       <div class="sw-row"><span>Warden</span><b>${Math.ceil(w.warden.hp)} / ${Math.round(d.maxHp)}</b></div>
       <div class="sw-meter"><i style="width:${hpPct}%"></i></div>
       ${
@@ -194,6 +187,7 @@ export class Hud {
       el.classList.toggle('poor', w.gold < cost);
     }
     this.bar.classList.toggle('hidden', w.sundered);
+    this.progressEl.innerHTML = progressMarkup(runProgress(w));
     this.renderTowerInfo(w, cursor);
   }
 
@@ -451,4 +445,27 @@ export function towerInfoMarkup(info: TowerInfo, gold: number, placed: boolean):
         : ''
     }
     ${info.terrainText ? `<p class="sw-note dim">${info.terrainText}</p>` : ''}`;
+}
+
+/**
+ * The stage bar: where the run is in the act, what is scheduled next, and a
+ * second bar for the thing that changes minute to minute (the wave in Act I,
+ * the level in Act II).
+ */
+export function progressMarkup(p: RunProgress): string {
+  const ticks = p.markers
+    .map(
+      (m) =>
+        `<i class="sw-mark ${m.kind}${m.done ? ' done' : ''}" style="left:${(m.at * 100).toFixed(2)}%" title="${m.label}"></i>`,
+    )
+    .join('');
+  const sub = p.sub
+    ? `<div class="sw-row small"><span>${p.sub.label}</span><b>${p.sub.text}</b></div>
+       <div class="sw-meter thin"><i style="width:${(p.sub.fraction * 100).toFixed(1)}%"></i></div>`
+    : '';
+  return `
+    <div class="sw-phase">${p.title}</div>
+    <div class="sw-track"><i class="sw-fill" style="width:${(p.fraction * 100).toFixed(1)}%"></i>${ticks}</div>
+    <p class="sw-note">${p.detail}</p>
+    ${sub}`;
 }

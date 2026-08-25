@@ -139,6 +139,14 @@ describe('in-run control row', () => {
     expect(panel.textContent).toMatch(/Sell/);
   });
 
+  it('shows the stage bar with a marker for every wave', () => {
+    const w = new World(cfg());
+    hud.update(w);
+    const panel = root.querySelector('#sw-progress') as HTMLElement;
+    expect(panel.textContent).toContain(`of ${w.waveCount}`);
+    expect(panel.querySelectorAll('.sw-mark').length).toBe(w.waveCount);
+  });
+
   it('the ranges and pause buttons reach their callbacks', () => {
     (root.querySelector('[data-act="ranges"]') as HTMLButtonElement).click();
     (root.querySelector('[data-act="pause"]') as HTMLButtonElement).click();

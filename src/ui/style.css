@@ -450,3 +450,45 @@ html, body {
 .sw-hint { font-size: 11px; color: var(--dim); margin: 6px 0 0; }
 
 .sw-note.dim { color: var(--dim); }
+
+/* ----------------------------------------------------------- stage progress */
+
+.sw-progress {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 10px 12px;
+}
+
+.sw-progress .sw-note { margin: 6px 0 0; }
+
+.sw-track {
+  position: relative;
+  height: 10px;
+  margin-top: 2px;
+  background: #10141c;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.sw-fill {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #2f6f5e, var(--accent));
+}
+
+.sw-mark {
+  position: absolute;
+  top: 0;
+  width: 2px;
+  height: 100%;
+  margin-left: -1px;
+  background: #4b5566;
+}
+
+.sw-mark.rift { background: #b98cff; }
+.sw-mark.boss { width: 3px; background: #ff5f7a; }
+.sw-mark.done { opacity: 0.35; }
+
+.sw-meter.thin { height: 5px; }
