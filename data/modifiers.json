@@ -1,8 +1,8 @@
 {
   "tierRewardPerStep": 0.35,
   "modifiers": [
-    { "key": "tough",      "name": "Ironhide",      "desc": "Enemies +25% HP",           "effect": { "enemyHp": 0.25 },      "rewardBonus": 0.10 },
-    { "key": "fleet",      "name": "Fleetfoot",     "desc": "Enemies +20% speed",        "effect": { "enemySpeed": 0.20 },   "rewardBonus": 0.10 },
+    { "key": "tough",      "name": "Ironhide",      "desc": "Enemies +45% HP",           "effect": { "enemyHp": 0.45 },      "rewardBonus": 0.10 },
+    { "key": "fleet",      "name": "Fleetfoot",     "desc": "Enemies +30% speed",        "effect": { "enemySpeed": 0.30 },   "rewardBonus": 0.10 },
     { "key": "gate",       "name": "Fourth Gate",   "desc": "+1 gate active",            "effect": { "extraGates": 1 },      "rewardBonus": 0.12 },
     { "key": "longwatch",  "name": "Long Watch",    "desc": "Waves +2",                  "effect": { "extraWaves": 2 },      "rewardBonus": 0.12 },
     { "key": "shortarm",   "name": "Short Arm",     "desc": "Pickup radius -20%",        "effect": { "pickupMul": -0.20 },   "rewardBonus": 0.08 },

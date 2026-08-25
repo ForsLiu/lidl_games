@@ -218,8 +218,8 @@
   "contactPadding": 0.45,
   "gemLifetimeSeconds": 18,
   "gemCap": 500,
-  "actIICarry": 3.5,
-  "warmupSeconds": 75,
-  "warmupStart": 0.3,
+  "actIICarry": 3.2,
+  "warmupSeconds": 100,
+  "warmupStart": 0.25,
   "burrowSurfaceDistance": 3
 }

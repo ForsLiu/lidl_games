@@ -1,5 +1,5 @@
 {
-  "hpScalePerWave": 1.35,
+  "hpScalePerWave": 1.3,
   "buildPhaseSeconds": 30,
   "earlyCallGoldPerSecond": 2,
   "waveClearBase": 50,
