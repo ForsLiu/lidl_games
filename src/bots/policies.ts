@@ -31,6 +31,11 @@ export interface BuilderOptions {
   maxStructures: number;
   /** Upgrade existing towers once this many are standing. */
   upgradeAfter: number;
+  /**
+   * Spend on tiers before placing anything new, once `upgradeAfter` towers are
+   * standing. Produces the maxed Act I build SPEC A8 compares against.
+   */
+  upgradeFirst: boolean;
   /** Act II behaviour. */
   act2: 'kite' | 'hold' | 'none';
   /** Call the next wave early once the plan is exhausted. */
@@ -42,6 +47,7 @@ const DEFAULTS: BuilderOptions = {
   wallRatio: 0,
   maxStructures: 40,
   upgradeAfter: 8,
+  upgradeFirst: false,
   act2: 'kite',
   rushWaves: true,
 };
@@ -106,6 +112,21 @@ export class BuilderPolicy implements BotPolicy {
       const p = this.plan[0];
       if (w.grid.buildable(p.tx, p.ty)) break;
       this.plan.shift();
+    }
+
+    // Tier-first bots bank gold into upgrades before widening the maze.
+    if (this.opts.upgradeFirst) {
+      const up = this.pickUpgrade(w);
+      if (up) {
+        const r = w.derived.buildRange;
+        if (dist2(w.warden.x, w.warden.y, up.tx + 0.5, up.ty + 0.5) <= r * r) {
+          input.cmds.push({ k: 'upgrade', tx: up.tx, ty: up.ty });
+        } else {
+          steerTo(input, w, up.tx + 0.5, up.ty + 0.5);
+        }
+        input.attack = true;
+        return input;
+      }
     }
 
     if (this.plan.length > 0) {
@@ -474,3 +495,45 @@ registerPolicy(
 );
 
 registerPolicy('hybrid', () => new BuilderPolicy('hybrid', { ...HYBRID_BUILD, act2: 'kite' }));
+
+/**
+ * SPEC A8's two arms. `maxbuild` invests everything into a wide, fully upgraded
+ * Act I board; `rush` builds only enough to survive Act I and banks nothing.
+ * Both kite identically in Act II, so the only variable is the Sundering
+ * head start each earns.
+ */
+registerPolicy(
+  'maxbuild',
+  () =>
+    new BuilderPolicy('maxbuild', {
+      towerKeys: [
+        'arrow_spire',
+        'ballista',
+        'venom_spore',
+        'mortar',
+        'tesla_coil',
+        'frost_obelisk',
+        'ember_brazier',
+        'beacon_totem',
+      ],
+      wallRatio: 0.2,
+      maxStructures: 46,
+      upgradeAfter: 14,
+      upgradeFirst: true,
+      act2: 'kite',
+      rushWaves: false,
+    }),
+);
+
+registerPolicy(
+  'rush',
+  () =>
+    new BuilderPolicy('rush', {
+      towerKeys: ['arrow_spire'],
+      wallRatio: 0.25,
+      maxStructures: 36,
+      upgradeAfter: 30,
+      act2: 'kite',
+      rushWaves: true,
+    }),
+);

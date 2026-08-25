@@ -9,16 +9,18 @@
 import './style.css';
 
 import { Run } from '../sim/run';
-import { FIXED_DT, emptyInput, type Command, type RunConfig, type TickInput } from '../sim/types';
+import { FIXED_DT, emptyInput, type Command, type MetaState, type RunConfig, type TickInput } from '../sim/types';
 import { TILE } from '../sim/grid';
 import { Renderer, type ViewState } from '../render/canvas';
 import { Hud } from './hud';
-import { loadMeta, saveMeta, applyRunResult, defaultMeta } from '../meta/meta';
+import { Hub } from './hub';
+import { applyRunResult, defaultMeta, loadMeta, saveMeta } from '../meta/meta';
 
 const MAX_CATCHUP_TICKS = 8;
 
 class Game {
-  private run!: Run;
+  private root!: HTMLElement;
+  private run: Run | null = null;
   private renderer!: Renderer;
   private hud!: Hud;
   private view: ViewState = { selectedTower: 0, cursorX: 0, cursorY: 0, shake: 0, showRanges: false };
@@ -27,36 +29,48 @@ class Game {
   private dashQueued = false;
   private acc = 0;
   private last = 0;
-  private meta = defaultMeta();
+  private meta: MetaState = defaultMeta();
   private resultBanked = false;
+  private inputBound = false;
 
   start(rootEl: HTMLElement): void {
+    this.root = rootEl;
     this.meta = loadMeta();
-    this.hud = new Hud(rootEl, {
+    this.showHub();
+    this.last = performance.now();
+    requestAnimationFrame(this.frame);
+  }
+
+  private showHub(): void {
+    this.run = null;
+    const seed = (Math.random() * 0xffffffff) >>> 0;
+    const hub = new Hub(this.root, this.meta, seed, {
+      onStart: (cfg) => this.startRun(cfg),
+      onMetaChanged: (meta) => {
+        this.meta = meta;
+        saveMeta(meta);
+      },
+    });
+    hub.show();
+  }
+
+  private startRun(cfg: RunConfig): void {
+    this.root.innerHTML = '';
+    this.hud = new Hud(this.root, {
       onSelectTower: (id) => (this.view.selectedTower = id),
       onCallWave: () => this.pending.push({ k: 'call' }),
       onPickSouls: (keys) => this.pending.push({ k: 'souls', keys }),
       onPickOffer: (index) => this.pending.push({ k: 'pick', index }),
       onReroll: () => this.pending.push({ k: 'reroll' }),
-      onRestart: () => this.newRun(),
+      onRestart: () => this.showHub(),
       onToggleRanges: () => (this.view.showRanges = !this.view.showRanges),
     });
     this.renderer = new Renderer(this.hud.canvas);
-    this.bindInput();
-    this.newRun();
-    this.last = performance.now();
-    requestAnimationFrame(this.frame);
-  }
-
-  private newRun(): void {
-    const cfg: RunConfig = {
-      seed: (Math.random() * 0xffffffff) >>> 0,
-      classKey: this.meta.unlockedClasses[0] ?? 'engineer',
-      tier: 1,
-      modifiers: [],
-      allocated: this.meta.allocated,
-      relics: equippedRelics(this.meta),
-    };
+    if (!this.inputBound) {
+      this.bindGlobalInput();
+      this.inputBound = true;
+    }
+    this.bindCanvasInput();
     this.run = new Run(cfg);
     this.resultBanked = false;
     this.hud.buildTowerBar(this.run.world);
@@ -66,10 +80,9 @@ class Game {
     this.acc = 0;
   }
 
-  private bindInput(): void {
-    const canvas = this.hud.canvas;
+  private bindGlobalInput(): void {
     window.addEventListener('keydown', (e) => {
-      if (e.repeat) return;
+      if (e.repeat || !this.run) return;
       const k = e.key.toLowerCase();
       this.keys.add(k);
       if (k === ' ') {
@@ -79,19 +92,23 @@ class Game {
       if (k === 'enter') this.pending.push({ k: 'call' });
       if (k === 'r') this.view.showRanges = !this.view.showRanges;
       if (k === '0') this.hud.clearSelection();
-      if (k >= '1' && k <= '9') this.hud.selectByIndex(this.run.world, Number(k) - 1);
       if (this.run.world.phase === 'levelup' && k >= '1' && k <= '3') {
         this.pending.push({ k: 'pick', index: Number(k) - 1 });
+      } else if (k >= '1' && k <= '9') {
+        this.hud.selectByIndex(this.run.world, Number(k) - 1);
       }
     });
     window.addEventListener('keyup', (e) => this.keys.delete(e.key.toLowerCase()));
     window.addEventListener('blur', () => this.keys.clear());
+  }
 
+  private bindCanvasInput(): void {
+    const canvas = this.hud.canvas;
     canvas.addEventListener('contextmenu', (e) => e.preventDefault());
     canvas.addEventListener('mousemove', (e) => {
       const r = canvas.getBoundingClientRect();
-      this.view.cursorX = ((e.clientX - r.left) / r.width) * canvas.width / TILE;
-      this.view.cursorY = ((e.clientY - r.top) / r.height) * canvas.height / TILE;
+      this.view.cursorX = (((e.clientX - r.left) / r.width) * canvas.width) / TILE;
+      this.view.cursorY = (((e.clientY - r.top) / r.height) * canvas.height) / TILE;
     });
     canvas.addEventListener('mousedown', (e) => {
       const tx = Math.floor(this.view.cursorX);
@@ -126,43 +143,36 @@ class Game {
   private frame = (now: number): void => {
     const dtReal = Math.min(0.25, (now - this.last) / 1000);
     this.last = now;
+    const run = this.run;
+    if (!run) {
+      requestAnimationFrame(this.frame);
+      return;
+    }
     this.acc += dtReal;
 
     let ticks = 0;
     while (this.acc >= FIXED_DT && ticks < MAX_CATCHUP_TICKS) {
       this.acc -= FIXED_DT;
       ticks++;
-      const input = this.gatherInput();
-      this.run.step(input);
-      this.renderer.ingest(this.run.world, this.view);
+      run.step(this.gatherInput());
+      this.renderer.ingest(run.world, this.view);
     }
     if (ticks === MAX_CATCHUP_TICKS) this.acc = 0;
 
-    const w = this.run.world;
+    const w = run.world;
     this.renderer.update(dtReal, this.view);
     this.renderer.draw(w, this.view);
     this.hud.update(w);
-    this.hud.syncModal(w);
 
     if (w.outcome !== 'running' && !this.resultBanked) {
       this.resultBanked = true;
-      this.meta = applyRunResult(this.meta, this.run.report(), w);
+      this.meta = applyRunResult(this.meta, run.report(), w);
       saveMeta(this.meta);
     }
+    this.hud.syncModal(w);
 
     requestAnimationFrame(this.frame);
   };
-}
-
-function equippedRelics(meta: ReturnType<typeof defaultMeta>) {
-  const out = [];
-  for (const slot of ['sigil', 'plate', 'charm'] as const) {
-    const id = meta.equipped[slot];
-    if (id === null) continue;
-    const r = meta.stash.find((x) => x.id === id);
-    if (r) out.push(r);
-  }
-  return out;
 }
 
 const root = document.getElementById('app');

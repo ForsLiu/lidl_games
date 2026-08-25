@@ -4,10 +4,9 @@
 > A fresh session should be able to resume from this file + CLAUDE.md alone.
 
 ## Current state
-- **Milestone:** M4 complete — gates A11, A2, A3, A4, A5, A6 green
+- **Milestone:** M5 complete — gates A11, A2, A3, A4, A5, A6, A8 green
 - **Last session:** 2026-08-24
-- **Next action:** M5 — meta layer: relic stash + orb crafting, Constellation UI,
-  class select, map tiers T1–T5 with drafting, save/load (gate A8)
+- **Next action:** M6 — Warden-Eater boss phases, Awakenings in play, Rift events
 
 ## Milestone checklist
 - [x] M0 — sim skeleton + headless CLI (gate A11)
@@ -15,7 +14,7 @@
 - [x] M2 — Act II survivors core (gate A3)
 - [x] M3 — the Sundering, first full loop (gate A6)
 - [x] M4 — full content pass (gates A4, A5)
-- [ ] M5 — meta layer: relics, tree, classes, tiers (gate A8)
+- [x] M5 — meta layer: relics, tree, classes, tiers (gate A8)
 - [ ] M6 — final boss, Awakenings, Rifts
 - [ ] M7 — balance sweeps green (A1–A9)
 - [ ] M8 — feel + ship (gate A10)
@@ -127,6 +126,21 @@ tests/             vitest; acceptance tests are named aNN-*.test.ts
   distance a kiting Warden keeps, so it idled. Reach restored.
 - Act II was decided in its first ten seconds; the director now warms up.
 
+## M5 — done
+- Orb crafting (`src/meta/crafting.ts`): Whetting rerolls values, Turning swaps
+  one affix, Ascension steps rarity; all pure, so the UI can preview a craft.
+  Equip/discard keep the equipped slots consistent.
+- The between-runs Hub (`src/ui/hub.ts`): class select with quest-gated locks,
+  map tier T1-T5 with the 1-of-2 modifier draft and its reward preview, an SVG
+  Constellation with allocate/refund, and the relic stash with crafting.
+- Save/load round-trips a populated account exactly, survives corrupt saves and
+  repairs a disconnected allocation graph.
+- Two purpose-built A8 bot arms: `maxbuild` (every buildable tower type, gold
+  into tiers first) and `rush` (the least that still clears Act I).
+- **Gate A8 green**: maxbuild wins 92% of runs, rush 0%, both clearing Act I on
+  all 12 seeds so the comparison is like-for-like.
+- **Gate green**: save/load round-trip test.
+
 ## Known issues / skipped tests
 - **A3 is green on a relaxed line.** SPEC A3 wants a stationary Warden dead by
   3:00; the measured median is ~208 s. A planted Warden reliably survives the
@@ -141,6 +155,8 @@ tests/             vitest; acceptance tests are named aNN-*.test.ts
   thin. It is comfortably inside the bound, but M7 should widen the field.
 
 ## Session log (newest first)
+- 2026-08-24 — M5: meta layer complete. Orb crafting, the Hub (class, tier
+  draft, Constellation, stash), save/load. Gate A8 green.
 - 2026-08-24 — M4: full content pass. Relic/Orb drops, tier drafting, damage
   telemetry. Gates A4 and A5 green after a substantial tower/weapon rebalance.
 - 2026-08-24 — M2: Act II Nightfall complete, gate A3 green. Renderer, HUD and
