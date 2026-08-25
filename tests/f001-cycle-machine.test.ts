@@ -77,7 +77,10 @@ describe('cycle boundary helpers', () => {
 });
 
 describe('the cycle state machine (SPEC-V2 §1)', () => {
-  it('routes each cycle boundary to Dusk, ends non-final Nights by timer into Dawn, and Dawn resolves into the next Day', () => {
+  // RETIRED (V3 §1, M17): asserts the Day/Dusk/Night/Dawn phase order, which
+  // V3 replaces with interleaved TD×3→VS waves and no picker screens. Skipped
+  // rather than deleted because the phases still exist until M22.
+  it.skip('routes each cycle boundary to Dusk, ends non-final Nights by timer into Dawn, and Dawn resolves into the next Day', () => {
     const run = new Run(cfg({ cycles: 3 }));
     const w = run.world;
 
@@ -132,7 +135,8 @@ describe('the cycle state machine (SPEC-V2 §1)', () => {
     expect(w.cycle).toBe(3);
   });
 
-  it('Dawn auto-advances (all Leave) if no command arrives', () => {
+  // RETIRED (V3 §0, M17): Dawn Rekindle/Leave is cut outright. Removed at M22.
+  it.skip('Dawn auto-advances (all Leave) if no command arrives', () => {
     const run = new Run(cfg({ cycles: 3 }));
     const w = run.world;
     forceWaveClear(run, cycleWaveEnd(w, 1));
@@ -147,7 +151,8 @@ describe('the cycle state machine (SPEC-V2 §1)', () => {
     expect(w.cycle).toBe(2);
   });
 
-  it('Rekindle un-petrifies a tower for gold; Leave keeps it as terrain', () => {
+  // RETIRED (V3 §0, M17): Dawn Rekindle/Leave is cut outright. Removed at M22.
+  it.skip('Rekindle un-petrifies a tower for gold; Leave keeps it as terrain', () => {
     const run = new Run(cfg({ cycles: 3 }));
     const w = run.world;
     w.warden.x = 5.5;
@@ -180,7 +185,9 @@ describe('the cycle state machine (SPEC-V2 §1)', () => {
     expect(w.gold).toBe(goldAfterFirst);
   });
 
-  it('B9: a petrified-left tower keeps its soul and Night-earned level; a Rekindled tower sits out the very next Dusk pick', () => {
+  // RETIRED (V3 §0/§12, M17) — gate B9. V3 cuts soul persistence and the Dusk
+  // picker; §12 names B9 for retirement explicitly. Removed at M22.
+  it.skip('B9: a petrified-left tower keeps its soul and Night-earned level; a Rekindled tower sits out the very next Dusk pick', () => {
     const run = new Run(cfg({ cycles: 3 }));
     const w = run.world;
     w.warden.x = 5.5;

@@ -25,7 +25,21 @@ function wave9(seed: number): { spawned: number; leaked: number; wave8Leaks: num
   };
 }
 
-describe('A7 mazing is strong, never absolute', () => {
+/**
+ * RETIRED (V3 §9, M17) — gate A7.
+ *
+ * A7 asserts that a perimeter wall-off must leak, which was the design while
+ * the path guarantee made full sealing illegal. SPEC-V3 §9 legalises sealing:
+ * structures become high-cost passable tiles and enemies breach them. "A wall
+ * must leak" is no longer the claim; C5 (enemies breach and chew structures)
+ * and C5b (turtle dominance band) replace it.
+ *
+ * Note this also closes QUESTIONS.md Q20 — A4 and A7 pulled the burrow-surface
+ * constant in opposite directions, and A7 is the side that goes.
+ *
+ * Kept as a skip, not deleted, until M25. See MIGRATION.md §2.8 and §5.
+ */
+describe.skip('A7 mazing is strong, never absolute', () => {
   const runs = SEEDS.map(wave9);
 
   it('wave 9 is built from enemies a wall cannot stop', () => {

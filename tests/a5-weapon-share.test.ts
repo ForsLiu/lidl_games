@@ -15,7 +15,20 @@ import { BUILDS, aggregateShares, collect, topTen } from '../tools/a5probe';
 const SEEDS = [1, 2, 3, 4, 5, 6];
 const CAP = 0.35;
 
-describe('A5 no weapon dominates the metagame', () => {
+/**
+ * RETIRED (V3 §5, M17) — gate A5.
+ *
+ * A5 measures each weapon's share of total damage across a 6-slot loadout.
+ * SPEC-V3 §5 removes weapon slots and per-weapon identity entirely: in a VS
+ * wave the character wields every built *tower type's* attack, at damage
+ * averaged across that type's towers. There is no "weapon" left to take a
+ * share. Gate C2 (the wielding formula, including the owner's worked arrow
+ * example) replaces it.
+ *
+ * Kept as a skip, not deleted, until M21 removes the soul-binding code it
+ * covers. See MIGRATION.md §2.3 and §5.
+ */
+describe.skip('A5 no weapon dominates the metagame', () => {
   const results = collect(SEEDS);
   const top = topTen(results);
   const shares = aggregateShares(top);

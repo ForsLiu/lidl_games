@@ -16,7 +16,18 @@ function mean(xs: number[]): number {
   return xs.reduce((a, b) => a + b, 0) / xs.length;
 }
 
-describe('A6 petrified terrain earns its keep', () => {
+/**
+ * RETIRED (V3 §5, M17) — gate A6.
+ *
+ * A6 measures how much Act II survival is lost by stripping petrified terrain,
+ * i.e. it prices the damage and effects standing towers contribute after the
+ * Sundering. SPEC-V3 §5 states that towers *do not attack during VS waves* —
+ * they remain as solid obstacles with a per-type special. The quantity A6
+ * measures stops existing.
+ *
+ * Kept as a skip, not deleted, until M21. See MIGRATION.md §4.3 and §5.
+ */
+describe.skip('A6 petrified terrain earns its keep', () => {
   it('stripping the terrain costs at least 20% of Act II survival', () => {
     const withTerrain: number[] = [];
     const without: number[] = [];

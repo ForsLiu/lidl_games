@@ -31,7 +31,20 @@ function winRate(policy: string): { rate: number; reachedAct2: number; detail: s
   };
 }
 
-describe('A8 Act I investment pays off in Act II', () => {
+/**
+ * RETIRED (V3 §5, M17) — gate A8.
+ *
+ * A8 prices the Sundering head start: a maxed Act I board should convert into
+ * an Act II win rate a minimal board cannot match, under the "highest tier +
+ * 8% per duplicate" binding math. SPEC-V3 §5 replaces that math wholesale with
+ * the averaged wielding formula, so the specific advantage A8 measures is not
+ * the advantage v0.3 grants. Gate C2 replaces the formula half; the
+ * investment-pays-off claim itself is worth re-stating against v0.3 and is
+ * carried as an open item in BACKLOG (m27b).
+ *
+ * Kept as a skip, not deleted, until M21. See MIGRATION.md §2.3 and §5.
+ */
+describe.skip('A8 Act I investment pays off in Act II', () => {
   const max = winRate('maxbuild');
   const rush = winRate('rush');
 

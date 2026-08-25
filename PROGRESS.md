@@ -3,7 +3,28 @@
 > Claude: keep this file current. Update at every milestone gate and before any stop.
 > A fresh session should be able to resume from this file + CLAUDE.md alone.
 
-## Current state
+## Current state — SPEC-V3
+
+**Precedence: SPEC-V3 > SPEC-V2 > SPEC.md.** V3 landed 2026-08-25, the day after
+V2's M9 shipped, and supersedes a large part of what M9 built. **MIGRATION.md** is
+the audit: what is built, what V3 supersedes, and where V3 conflicts with a live
+gate. Read it before touching anything in M18–M27.
+
+- **Milestone:** M17 complete (reconcile). M18 in progress.
+- **Gate status:** 333 tests pass, 19 skipped (15 retired at M17 with logged
+  reasons — see MIGRATION.md §5). **A10 is red and deliberately left red**: its
+  5 s whole-run budget was written for a one-cycle run, f001 made a run three
+  cycles long, and V3 §1 changes the run shape again. Re-baselined at M22 per
+  QUESTIONS Q41. Retuning it now would be moving a number to make a light go green.
+- **Standing constraint (Q40):** no balance tuning before M19 lands multiplicative
+  stacking — it moves every number in `/data`, so tuning before it is throwaway.
+
+### Superseded v0.2 sections below
+
+Everything from "M0 — done" down describes v0.1/v0.2 and is kept as history. Where
+it conflicts with V3, V3 wins.
+
+## Current state (v0.2, historical)
 - **Milestone:** M8 complete — **first complete version**. All of A1–A11 green
   (two strict bounds relaxed and documented under Known issues). BACKLOG.md b001
   (SPEC-V2 §10 D1 death flow), b002 (Abandon Run confirm) and b003 (stash
@@ -323,7 +344,44 @@ features whose counters read zero with no explanation.
 - **Boon pick data is a bot artifact.** `BuilderPolicy.pickOffer` takes
   awakening → weapon → card index 0, so measured "picks" reflect offer RNG, not
   preference. There is no signal about which boons a player would want.
+## M17 — done (SPEC-V3 reconcile)
+
+Audited the v0.2 codebase against SPEC-V3 and wrote **MIGRATION.md**. Findings that
+changed the plan rather than recording a gap:
+
+- **Nothing in V3 is built.** Every V3 section is either not started or contradicted
+  by working code; there was no partially-correct system to finish.
+- **The cycle machine (f001, `4e44a33`) is dead code walking** — ~400 lines plus 11
+  tests, superseded by V3 §1's interleaved waves three commits after it shipped.
+  Removed at M22, not now, so coverage does not gap.
+- **`showRanges` has never drawn anything.** The R key, the HUD button and a
+  Settings checkbox all toggle a flag the renderer never reads. The placement ghost
+  does draw a range ring, but from the *base* `def.attack.range`, so it lies about
+  any upgraded tower. Both are M18 t1.
+- **A10 is red at HEAD** (3836 / 6080 / 6267 ms vs 5000). Not a performance
+  regression — the sim did not get slower, the run got longer.
+- **Multiplicative stacking (V3 §2, gate C4) invalidates every tuned number.** Six
+  +10% sources go from ×1.60 to ×1.77. Hence the no-tuning-before-M19 constraint.
+
+Retired 15 tests, each with a `RETIRED (V3 §x)` reason naming the superseding
+section and the milestone that deletes the code: **A5** (weapon share — V3 §5 has no
+weapons to take a share), **A6** (terrain value — V3 §5 stops towers attacking in VS
+waves), **A7** (turtle must leak — V3 §9 legalises sealing; this also closes Q20),
+**A8** (Sundering head start — replaced by the wielding formula), and 4 assertions in
+`f001-cycle-machine.test.ts` including gate **B9**. **B11** retired with no test to
+mark — it was specced in V2 and never implemented.
+
+Rule applied, recorded in MIGRATION.md §5 so later milestones follow it: *a test is
+retired the moment V3 contradicts it, but its file is not deleted until the code it
+covers is deleted.* Retirements are `describe.skip`/`it.skip`, because a skip is
+visible in CI and a deletion is not.
+
+BACKLOG.md rewritten to V3 §13's M17–M27 order, 30 items with concrete acceptance
+criteria naming the C-gate each satisfies. QUESTIONS.md gains **Q38–Q49**.
+
 ## Session log (newest first)
+- 2026-08-25 — M17: SPEC-V3 reconcile. MIGRATION.md written, 15 tests retired with
+  reasons, BACKLOG rewritten to M17-M27, Q38-Q49 logged.
 - 2026-08-25 — BACKLOG f003: leak coupling (SPEC-V2 §1, gate B7's mechanism —
   the full statistical sweep gate is M15's per the milestone table). Every
   enemy that reaches the Core in a Day now banks `leakBudgetMultiplier`

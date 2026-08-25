@@ -1,92 +1,229 @@
-# BACKLOG.md — ordered work queue
+# BACKLOG.md — ordered work queue (SPEC-V3)
 
 Format: `- [ ] (id) [type] title — acceptance: <objective check> — refs: <spec §>`
 Loop mode executes the top actionable item. Completed items move to the Done section
 with the commit hash.
 
+**Rewritten at M17** to SPEC-V3 §13's M17–M27 order. The V2 queue (M9–M16) is closed
+out in the Done section; items it never reached were superseded by V3 rather than
+skipped — see MIGRATION.md.
+
+**Standing constraint for every item below (QUESTIONS Q40):** do no balance tuning
+before M19 lands multiplicative stacking. Bounds that fail in the meantime get a
+recorded reason, not a nudged constant.
+
 ## Queue
 
-- [ ] (f004) [feat] Class framework: actives/passives/affinity as data + Commands;
-      Q-key + cooldown HUD; affinity replaces exclusivity — acceptance: framework
-      tests; picker binds for a 8-soul build — refs: SPEC-V2 §2
-- [ ] (f005) [feat] Classes: Swordsman, Archer, Cryomancer, Stormcaller —
-      acceptance: B4, B8 green; each kit demonstrable in practice mode — refs: SPEC-V2 §2
-- [ ] (m001) [polish] Regenerate HANDOFF measured sections after M9 — acceptance:
-      tools run clean, file updated, committed — refs: CLAUDE.md
+### M18 — quick wins (gates C7, C8, C5-prep)
+
+- [ ] (t6a) [feat] Delete Orbs from the sim and meta: `MetaState.orbs`,
+      `World.orbsFound`, `RunReport.orbsFound`, `loot.ts` `dropOrb`, the
+      `freeOrbTurning` stat, `data/relics.json` `orbs[]`, `meta/crafting.ts` —
+      acceptance: `grep -rn "\borbs\?\b" src/ data/ --include=*.ts --include=*.json`
+      returns only the projectile-shape `'orb'` and Phoenix-Ring `orbiting` matches
+      named in MIGRATION.md §2.1; `npm test` green — refs: V3 §8, T6
+- [ ] (t6b) [feat] Delete Orbs from the UI and regenerate the tree without node 90's
+      `freeOrbTurning`: Hub craft row + `ORB_HELP` + account counter, Results "Orbs"
+      line, `tree-view.ts` stat label, `tools/gen-tree.mjs` —
+      acceptance: gate **C7**'s grep-level UI test green (no "orb"/"Orb" in any
+      rendered Hub or Results DOM, asserted in jsdom); `data/tree.json` regenerates
+      with 0 `freeOrbTurning` nodes and no orphans — refs: V3 §8, T6
+- [ ] (t6c) [bug] Save migration drops `orbs` without discarding the rest of the
+      save, and bumps `SAVE_VERSION` —
+      acceptance: round-trip test loads a hand-written v1 save containing `orbs`,
+      asserts every other field survives, `orbs` is gone, and the migrated save
+      re-serialises stably; a v0.2 save does not crash the client — refs: V3 §8, C7
+- [ ] (t3) [feat] Dev profile: `data/dev.json` with `devMode`, schema-validated;
+      when on — all classes/maps/tiers unlocked, 999 skill points, stash pre-filled
+      with every §7 item available, all quests complete; Settings toggle switches to
+      a clean profile —
+      acceptance: gate **C8** — a test asserts dev build has everything unlocked, and
+      that the `npm run build` bundle has `devMode` **off** (asserted against the
+      built output in `dist/`, not against the source default) — refs: V3 T3
+- [ ] (t4) [feat] God mode as a practice-run Command (`{k:'dev', op:'god'}`):
+      character and Core take no damage; replay-flagged like every other practice
+      tool —
+      acceptance: with god mode on, `damageWarden` and Core damage are both no-ops
+      and the run's `practiceUsed` flag is set; the Command is ignored in a
+      non-practice run; a god-mode run replays to an identical hash — refs: V3 T4
+- [ ] (t1) [feat] Range indicators: placement ghost shows the **effective** attack
+      range (tier and `towerRangeMul` applied, not the base `def.attack.range` it
+      shows today) plus an AoE preview for splash towers; a selected tower shows its
+      own ring; **fix `view.showRanges`, which is set by the R key, the HUD button
+      and a Settings checkbox and is never read by the renderer** —
+      acceptance: unit test on the range-computation helper proves ghost range ==
+      the range the sim will fire at for tiers 1..max; a canvas-level test asserts
+      `showRanges` changes what is drawn (spy on the 2d context) — refs: V3 T1
+- [ ] (t2) [feat] Selection feedback: clicking a tower, enemy or the character
+      selects it — highlight + range ring + stats panel; clicking empty ground
+      deselects; hover shows a light outline —
+      acceptance: jsdom test drives real clicks through `bindCanvasInput` and
+      asserts the selection model changes for each target type and clears on empty
+      ground; selection is presentation-only (no `World` writes, enforced by the
+      existing architecture test) — refs: V3 T2 (**log to QUESTIONS if this misreads
+      the owner's "click has no reaction" report — V3 T2 asks for that explicitly**)
+
+### M19 — combat math and damage types (gates C3, C4)
+
+- [ ] (m19a) [feat] Armor v3: flat points = percent reduction, cap +99, uncapped
+      negative — acceptance: gate **C3** — +99 → 99% reduction, +150 clamps to 99,
+      −90 → ×1.9 damage taken, DoTs ignore armor except Burning's shred — refs: V3 §2
+- [ ] (m19b) [feat] Multiplicative stat stacking: sources multiply, ranks add within
+      a source — acceptance: gate **C4** — two 10%/20% same-stat sources from
+      different origins produce exactly ×1.32 — refs: V3 §2
+- [ ] (m19c) [feat] Damage-type taxonomy in `data/damagetypes.json`: Normal,
+      Bleeding, Poison, Toxic, Burning, Electric; frost/frozen statuses replace the
+      V2 chill-stack model — acceptance: one unit test per row of V3 §3's table
+      asserting the stated totals and durations; Bleeding stacks independently to
+      the 50/enemy perf cap — refs: V3 §3, Q44
+
+### M20 — tower model v3 (gate: data tests)
+
+- [ ] (m20a) [feat] Per-tower upgrade tracks: upgrade count, +10% HP/Attack/Defense
+      per step, flat step cost, sell 50% of total spent; towers gain a real
+      `defense` stat — acceptance: data test asserts every tower's track is
+      well-formed and that sell refunds exactly 50% of build+upgrades at every step
+      — refs: V3 §4
+- [ ] (m20b) [feat] The three owner towers (Arrow, Electric, Poison) with their
+      milestone specials — acceptance: one test per listed special (+1 pierce @3,
+      Bleeding @4, +1 projectile @5; electric chain @3; +1 projectile @2, ratio
+      1:1.5 @4) — refs: V3 §4
+- [ ] (m20c) [balance] Migrate the remaining seven towers to the v3 model and log
+      proposed tracks to QUESTIONS for owner sign-off — acceptance: all ten towers
+      pass the m20a data test; QUESTIONS entry lists each proposed track — refs:
+      V3 §4, Q39
+
+### M21 — VS formula (gate C2)
+
+- [ ] (m21a) [feat] VS wielding formula: character wields every built tower type;
+      damage = average across that type's towers × (1 + 10% × count); highest
+      upgrade level's effects apply — acceptance: gate **C2**, including V3 §5's
+      worked arrow example transcribed verbatim as a unit test — refs: V3 §5
+- [ ] (m21b) [feat] Towers inert but present in VS waves: no attacks, keep HP,
+      remain solid obstacles, contribute per-type VS specials (Electric wire grid,
+      Poison trail) — acceptance: test asserts zero tower damage during a VS wave,
+      that enemies can damage towers, and one test per specced VS special — refs:
+      V3 §4–§5
+- [ ] (m21c) [feat] Wielded attacks count as character attacks: scale with
+      Power/atk-speed/area, trigger lifesteal, fire on-attack passives —
+      acceptance: test proves lifesteal heals from a wielded tower attack and that
+      an on-attack passive counts it — refs: V3 §5
+- [ ] (m21d) [polish] Delete the Sundering/soul-binding code and its retired tests
+      (A5, A6, A8, `sundering.ts`, weapon levels, Awakenings, terrain residuals) —
+      acceptance: files removed, `npm test` green, MIGRATION.md §2.3 checked off —
+      refs: V3 §5
+
+### M22 — interleaved run structure (gate C1)
+
+- [ ] (m22a) [feat] Interleaved waves: TD×3→VS repeating, 18 TD + 6 VS, VS after
+      waves 3/6/9/12/15/18, Gatebreaker at TD 18, boss at the final VS —
+      acceptance: gate **C1**'s pattern half — refs: V3 §1
+- [ ] (m22b) [feat] Multi-summon: stack up to 3 TD waves, each paying its own
+      early-call bonus per Q43; VS waves cannot be stacked or skipped —
+      acceptance: gate **C1**'s stacking half — refs: V3 §1, Q43
+- [ ] (m22c) [polish] Delete the Day/Dusk/Night/Dawn cycle machine and its retired
+      tests — acceptance: MIGRATION.md §2.2's table is empty, `npm test` green —
+      refs: V3 §1
+- [ ] (m22d) [balance] Re-baseline A1, A4, `light-build` and **A10** against the new
+      run shape; A10 per Q41's option (a) — acceptance: each gate green or carrying
+      a written reason; A10 gets a run-length-independent budget — refs: Q41
+
+### M23 — classes (gates C9, C10, C11)
+
+- [ ] (m23a) [feat] Class framework v3: archetype stat bands, Passive + Active1 (Q)
+      + Active2 (E) + Tower passive, mouse-aimed actives, combo rules — acceptance:
+      framework tests; all actives remain sim Commands and replay identically —
+      refs: V3 §6
+- [ ] (m23b) [feat] Swordsman kit — acceptance: gate **C9** (Dash during a charged
+      Circle Slash merges into one attack with widened range; each struck enemy takes
+      exactly one Bleeding) — refs: V3 §6
+- [ ] (m23c) [feat] Plaguebringer kit — acceptance: gate **C10** (an enemy dying with
+      unfinished DoT deals exactly the unfinished total to the nearest enemy, once) —
+      refs: V3 §6
+- [ ] (m23d) [polish] Legacy flags and badge for the three existing classes per Q38 —
+      acceptance: gate **C11** (legacy classes still complete a run; badge visible) —
+      refs: V3 §6, Q38
+
+### M24 — equipment and rewards (gate C7 full)
+
+- [ ] (m24a) [feat] Equipment v3: 6 slots, the 12-item table, flat adds plus
+      multipliers, conditional effects with class checks and fallbacks — acceptance:
+      data test covers all 12 items; one test per conditional effect including its
+      "if not Swordsman" fallback — refs: V3 §7
+- [ ] (m24b) [feat] Rewards pipeline: 1 equipment per TD wave cleared, 1 skill point
+      per VS wave cleared, granted at run end, paid on defeat for waves fully
+      cleared — acceptance: gate **C7** in full — refs: V3 §8, Q42
+- [ ] (m24c) [feat] Retire Ember: skill points replace the Ember→level→points
+      pipeline, one-time 100:1 conversion, respec priced in skill points —
+      acceptance: no Ember in sim, meta or UI; conversion test; save migration test
+      per Q49 — refs: V3 §8, Q46, Q49
+
+### M25 — pathing v3 (gates C5, C5b)
+
+- [ ] (m25a) [feat] Remove the path guarantee; structures become high-cost passable
+      tiles (cost ∝ HP × toughness); enemies breach and attack structures en route —
+      acceptance: gate **C5** — refs: V3 §9
+- [ ] (m25b) [balance] Turtle economics stay honest — acceptance: gate **C5b** (a
+      full-seal build's T2 win rate may not exceed the best open-maze build's by more
+      than 10 points) — refs: V3 §9
+
+### M26 — Codex and Tuner (gate C6)
+
+- [ ] (m26a) [feat] Content hash in `RunConfig` and in the end-state hash inputs, so
+      a replay against edited `/data` fails loudly — acceptance: editing any `/data`
+      value changes the config hash; a replay with a mismatched hash is rejected —
+      refs: Q45 (**do this before m26b**)
+- [ ] (m26b) [feat] Codex: Hub page listing every class, tower, equipment, damage
+      type, enemy and wave with live stats read from `/data` + schemas — acceptance:
+      every content collection appears; counts match the data files — refs: V3 T5
+- [ ] (m26c) [feat] Tuner: in dev mode every numeric/enum field editable including
+      wave composition; Save persists via a Vite dev-server endpoint; schema
+      validation rejects invalid edits inline; prod is read-only Codex plus
+      Export/Import JSON — acceptance: gate **C6** round-trip — refs: V3 T5
+
+### M27 — sweep
+
+- [ ] (m27a) [balance] All surviving A/B gates and all C gates green, re-baselined in
+      one pass per Q40 — acceptance: `npm test` green with no unexplained skips —
+      refs: V3 §13
+- [ ] (m27b) [balance] Restate A8's surviving claim against v0.3: a maxed TD board
+      must convert into a materially better VS outcome than a minimal one —
+      acceptance: a new gate with a measured band, replacing retired A8 — refs:
+      MIGRATION.md §5
+- [ ] (m27c) [polish] Regenerate HANDOFF measured sections; QUALITY Alpha re-check —
+      acceptance: tools run clean, file updated, committed — refs: CLAUDE.md
 
 ## Done
 
+- [x] (m17) [feat] M17 reconcile: audit code vs V3, MIGRATION.md, retire dead tests
+      with logged reasons, rewrite BACKLOG to V3 §13 — refs: V3 §13.1 — commit
+      pending in this change; retirements: A5, A6, A7, A8 (whole files, `describe.skip`
+      with reasons) and 4 assertions in `f001-cycle-machine.test.ts` including gate
+      B9; B11 retired with no test to mark (never implemented). Q38–Q49 logged.
+- [x] (f004) [feat] Class framework (v2 shape) — **superseded by M23** per QUESTIONS
+      Q48. Committed unverified as `6019a8b` (`wip`); its qa-playtester pass was
+      deliberately not run because V3 §6 replaces the kits. Surviving plumbing — the
+      `class_active` Command, cooldown field, Q binding, HUD row, `data/affinity.json`
+      — is the base m23a builds on.
 - [x] (f003) [feat] Leak coupling: Day leaks add 2× director cost to that Night's
       budget; "Loose in the dark" HUD counter — acceptance: B7 (mechanism only;
       the full statistical gate — survival drop ≥10% via sweep — is M15's per
       SPEC-V2 §12) — refs: SPEC-V2 §1 — commit f24bf7c, code-reviewer pass
-      2026-08-25 (no Critical/Major; two Minor notes — §9's Dusk "whisper" bark is
-      correctly deferred to the separate Immersion Pass milestone, and hashing
-      the pre-existing unhashed `spawnBudget` alongside the two new fields was
-      flagged as technically-out-of-scope-but-safe scope creep, kept), qa-playtester
-      pass 2026-08-25 (real non-forced Act I leaks, multi-cycle isolation, cost
-      extremes, 5000-enemy same-tick stacking, last-tick-before-Dusk race, HUD
-      show/hide across phases, determinism, and the f001 seed swap all verified
-      by independent gameplay probes, not just the pre-written tests — PASS with
-      one filed bug, fixed in this same commit: `leakIntoCore` charged a pack
-      enemy's full director cost to every physical leaked body instead of
-      dividing by `packSize`, so a fully-leaked `swarm_rat` pack (packSize 4)
-      billed the Night 4× what the one Director spawn call that created it
-      actually cost; fixed by dividing the per-leak cost by `def.packSize ?? 1`,
-      with a regression test verified to fail (16 vs expected 4) before the fix)
-- [x] (f002) [feat] Soul persistence: per-soul Night level tracks survive across
-      Nights for petrified-left towers; Rekindled souls leave the picker —
-      acceptance: B9 — refs: SPEC-V2 §1 — no new commit: already fully delivered
-      by f001 (commit 4e44a33)'s `w.soulLevels`/`Structure.soulSuppressed`
-      mechanism and its dedicated "B9: ..." test in
-      `tests/f001-cycle-machine.test.ts`; this queue entry was a leftover
-      duplicate of that scope. qa-playtester pass 2026-08-25 independently
-      re-verified all of B9 with fresh adversarial scratch tests (multi-Night
-      accumulation, genuine weapon unbinding not just picker-list absence, no
-      level loss on bench, never-bound-soul edge case, `hashWorld` still
-      covers `soulLevels`/`soulSuppressed`) plus one clause the shipped test
-      doesn't exercise — SPEC-V2 §1's "[soul] unbinds unless another tower of
-      that type stays" — confirmed correct by construction: `deriveSouls`
-      aggregates by soul key across all non-suppressed structures, so a
-      still-petrified sibling of the same tower type keeps the soul bound
-      even while its Rekindled twin is suppressed; verified both the
-      one-sibling-stays and both-siblings-rekindled cases. No bugs filed.
-- [x] (b004) [bug] `report.survivalSeconds` used the Night-local `w.act2Time`
-      instead of the cumulative `w.act2Ticks / 60`, underpaying Ember's
-      completion-fraction reward for multi-cycle survival — refs: SPEC-V2 §1
-      — commit 19eecf3, code-reviewer pass 2026-08-25 (fix
-      correct and complete for its stated scope; one Major finding — the
-      Results screen's "Survived" stat in `src/ui/hud.ts` read `w.act2Time`
-      directly and had the identical bug — fixed in the same commit:
-      `mm(w.act2Ticks / 60)`), qa-playtester pass 2026-08-25 (traced
-      `emberFor` end to end, confirmed cumulative reward now applies;
-      checked `cycles: 1` runs and every other `w.act2Time` read site — boss
-      timing and the in-Night progress bars are correctly local, not
-      regressed; all sweep/probe tools already consume `buildReport` so they
-      inherit the fix for free — no bugs filed)
-- [x] (f001) [feat] Cycle state machine: Day→Dusk→Night→Dawn ×3, Dusk picker every
-      cycle, Dawn Rekindle/Leave flow — refs: SPEC-V2 §1 — commit 4e44a33,
-      code-reviewer pass 2026-08-25 (one Major finding — `hashWorld` omitted the
-      new `w.soulLevels` persisted-soul-progress record, so two replays could
-      diverge there without the A11 hash catching it — fixed by hashing
-      `soulLevels` sorted by key, same pattern as `boonRanks`; re-verified green),
-      qa-playtester pass 2026-08-25 (3-cycle termination across 40 seeds, Rekindle
-      economics — no gold, non-petrified/dead/double-rekindle targets, Dawn/Dusk
-      auto-advance timers, same-tick death/timer races, A11 replay determinism —
-      all held; filed one real bug as b004, out of this item's scope per its own
-      verdict)
-- [x] (b003) [bug] Stash click-to-swap + drag-to-unequip + compare tooltip; no
-      dead-end equip states — refs: SPEC-V2 §10 D2, §3 — commit 84bc3f8,
-      qa-playtester pass 2026-08-25 (rapid multi-slot equip/unequip cycles, crafting
-      an equipped relic, cross-slot equip-bypass attempt, discard-while-selected,
-      tab-switch state survival, garbage drag payloads all probed; no bugs filed —
-      one non-blocking polish note that orb buttons aren't disabled for
-      already-ineligible relics, out of scope for this item)
-- [x] (b002) [bug] Pause menu Abandon Run (with confirm) available in both phases —
-      refs: SPEC-V2 §10 D1 — commit d2079e7, qa-playtester pass 2026-08-25 (confirm
-      flow probed across act1_build, act1_wave, dusk, soulpick, levelup and act2;
-      state bit-identical across the pause cycle; no bugs filed)
-- [x] (b001) [bug] Death flow: Night-phase Warden death and Day-phase Core death both
-      reach a defeat Results screen with Retry / New Run / Hub — refs: SPEC-V2 §10 D1
-      — commit 645d4b0, qa-playtester pass 2026-08-25 (race against victory, pause
-      during the beat, lastCfg, Act I reform path all adversarially checked, no bugs)
+      2026-08-25, qa-playtester pass 2026-08-25 (filed and fixed one bug in the
+      same commit: `leakIntoCore` charged a pack enemy's full director cost to
+      every physical leaked body instead of dividing by `packSize`)
+- [x] (f002) [feat] Soul persistence — no new commit: already delivered by f001
+      (`4e44a33`). **Its gate B9 is retired at M17** (V3 §12).
+- [x] (b004) [bug] `report.survivalSeconds` used Night-local `w.act2Time` instead of
+      cumulative `w.act2Ticks / 60` — commit 19eecf3, code-reviewer pass (found the
+      identical bug in the Results screen, fixed in the same commit), qa-playtester
+      pass
+- [x] (f001) [feat] Cycle state machine: Day→Dusk→Night→Dawn ×3 — commit 4e44a33,
+      code-reviewer pass (found `hashWorld` omitting `soulLevels`), qa-playtester
+      pass (filed b004). **Superseded by V3 §1; code removed at M22.**
+- [x] (b003) [bug] Stash click-to-swap + drag-to-unequip + compare tooltip — commit
+      84bc3f8, qa-playtester pass
+- [x] (b002) [bug] Pause menu Abandon Run requires confirm — commit d2079e7,
+      qa-playtester pass
+- [x] (b001) [bug] Death flow reaches Results with Retry / New Run / Hub — commit
+      645d4b0, qa-playtester pass
