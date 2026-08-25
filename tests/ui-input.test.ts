@@ -46,6 +46,8 @@ function noopHudCallbacks(pending: Command[]) {
     onRestart: () => {},
     onToggleRanges: () => {},
     onResume: () => {},
+    onPause: () => {},
+    onCycleSpeed: () => {},
     onQuitToHub: () => {},
   };
 }
@@ -433,6 +435,8 @@ describe('pause (playtest request)', () => {
     const hud = new Hud(root, {
       ...noopHudCallbacks([]),
       onResume: () => resumed++,
+      onPause: () => {},
+      onCycleSpeed: () => {},
       onQuitToHub: () => quit++,
     });
     const world = new World(cfg());

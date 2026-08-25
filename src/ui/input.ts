@@ -97,6 +97,8 @@ export interface KeyBinding {
   clearSelection?: () => void;
   toggleRanges?: () => void;
   togglePause?: () => void;
+  /** Fast-forward: cycles 1x / 2x / 3x. */
+  cycleSpeed?: () => void;
   isChoosing?: () => boolean;
   onAnyKey?: () => void;
 }
@@ -116,6 +118,7 @@ export function makeKeyDownHandler(b: KeyBinding): (e: KeyboardEvent) => void {
     if (k === ' ') e.preventDefault();
     if (k === 'enter') b.queue.push({ k: 'call' });
     if (k === 'r') b.toggleRanges?.();
+    if (k === 'f') b.cycleSpeed?.();
     if (k === '0') b.clearSelection?.();
 
     if (k >= '1' && k <= '9') {

@@ -14,6 +14,9 @@ export interface HudCallbacks {
   onRestart(): void;
   onToggleRanges(): void;
   onResume(): void;
+  onPause(): void;
+  /** Fast-forward: cycles 1x / 2x / 3x. */
+  onCycleSpeed(): void;
   onQuitToHub(): void;
 }
 
@@ -23,6 +26,7 @@ export class Hud {
   private stats: HTMLElement;
   private modal: HTMLElement;
   private toast: HTMLElement;
+  private speedBtn: HTMLButtonElement;
   private cb: HudCallbacks;
   private selected = 0;
   private lastModalKey = '';
@@ -39,13 +43,18 @@ export class Hud {
           <div class="sw-toast" id="sw-toast"></div>
         </div>
         <div class="sw-side">
+          <div class="sw-controls" id="sw-controls">
+            <button class="sw-ctl" data-act="speed" id="sw-speed" title="Fast-forward (F)">1x</button>
+            <button class="sw-ctl" data-act="ranges" title="Show tower ranges (R)">Ranges</button>
+            <button class="sw-ctl" data-act="pause" title="Pause (Esc)">Pause</button>
+          </div>
           <div class="sw-stats" id="sw-stats"></div>
           <div class="sw-bar" id="sw-bar"></div>
           <div class="sw-help">
             <b>WASD</b> move &middot; <b>Space</b> dash &middot; <b>LMB</b> build &middot;
             <b>RMB</b> sell &middot; <b>U</b>+click upgrade &middot; <b>1-9</b> pick tower &middot;
             <b>0</b> clear &middot; <b>Enter</b> call wave &middot; <b>R</b> ranges &middot;
-            <b>Esc</b> pause
+            <b>F</b> speed &middot; <b>Esc</b> pause
           </div>
         </div>
       </div>`;
@@ -53,6 +62,21 @@ export class Hud {
     this.stats = root.querySelector('#sw-stats') as HTMLElement;
     this.modal = root.querySelector('#sw-modal') as HTMLElement;
     this.toast = root.querySelector('#sw-toast') as HTMLElement;
+    this.speedBtn = root.querySelector('#sw-speed') as HTMLButtonElement;
+    this.wireControls();
+  }
+
+  private wireControls(): void {
+    const controls = this.root.querySelector('#sw-controls');
+    controls?.querySelector('[data-act="speed"]')?.addEventListener('click', () => this.cb.onCycleSpeed());
+    controls?.querySelector('[data-act="ranges"]')?.addEventListener('click', () => this.cb.onToggleRanges());
+    controls?.querySelector('[data-act="pause"]')?.addEventListener('click', () => this.cb.onPause());
+  }
+
+  /** Reflects the pacer's speed; the pacer itself owns the cycling. */
+  setSpeed(speed: number): void {
+    this.speedBtn.textContent = `${speed}x`;
+    this.speedBtn.classList.toggle('on', speed > 1);
   }
 
   /** True while any overlay owns input, so clicks must not reach the canvas. */

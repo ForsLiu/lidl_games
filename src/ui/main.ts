@@ -2,14 +2,15 @@
  * Browser entry point. Owns the wall-clock loop and the input mapping, and
  * feeds the sim exactly one TickInput per fixed 60 Hz step.
  *
- * The sim never sees wall-clock time: we accumulate real elapsed time and
- * advance whole ticks, so a laggy frame replays identically to a smooth one.
+ * The sim never sees wall-clock time: the Pacer accumulates real elapsed time
+ * and advances whole ticks, so a laggy frame - and a fast-forwarded one -
+ * replays identically to a smooth 1x frame.
  */
 
 import './style.css';
 
 import { Run } from '../sim/run';
-import { FIXED_DT, type Command, type MetaState, type RunConfig, type TickInput } from '../sim/types';
+import type { Command, MetaState, RunConfig, TickInput } from '../sim/types';
 import { bindCanvasInput, gatherInput, makeKeyDownHandler } from './input';
 import { Renderer, type ViewState } from '../render/canvas';
 import { Hud } from './hud';
@@ -17,8 +18,7 @@ import { Hub } from './hub';
 import { applyRunResult, defaultMeta, loadMeta, saveMeta } from '../meta/meta';
 import { loadSettings, saveSettings, type Settings } from './settings';
 import { Sfx } from '../render/sfx';
-
-const MAX_CATCHUP_TICKS = 8;
+import { Pacer } from './pacer';
 
 class Game {
   private root!: HTMLElement;
@@ -38,7 +38,7 @@ class Game {
   private keys = new Set<string>();
   private pending: Command[] = [];
   private dashQueued = false;
-  private acc = 0;
+  private pacer = new Pacer();
   private last = 0;
   private meta: MetaState = defaultMeta();
   private resultBanked = false;
@@ -87,6 +87,8 @@ class Game {
       onRestart: () => this.showHub(),
       onToggleRanges: () => (this.view.showRanges = !this.view.showRanges),
       onResume: () => this.setPaused(false),
+      onPause: () => this.setPaused(true),
+      onCycleSpeed: () => this.hud.setSpeed(this.pacer.cycle()),
       onQuitToHub: () => this.showHub(),
     });
     this.renderer = new Renderer(this.hud.canvas);
@@ -102,7 +104,8 @@ class Game {
     this.hud.resetModalKey();
     this.view.selectedTower = 0;
     this.pending = [];
-    this.acc = 0;
+    this.pacer.reset();
+    this.hud.setSpeed(this.pacer.speed);
   }
 
   /** Esc toggles pause; a finished run cannot be paused. */
@@ -114,8 +117,10 @@ class Game {
   private setPaused(paused: boolean): void {
     if (!this.run) return;
     this.paused = paused;
-    // Movement keys held when pausing must not carry through to the resume.
+    // Movement keys held when pausing must not carry through to the resume, and
+    // the time banked while frozen must not surge the sim on the first frame.
     if (paused) this.keys.clear();
+    else this.pacer.clearBacklog();
     this.hud.setPaused(paused, this.run.world);
   }
 
@@ -125,6 +130,7 @@ class Game {
       queue: { push: (cmd) => this.pending.push(cmd) },
       onAnyKey: () => this.sfx.resume(),
       togglePause: () => this.togglePause(),
+      cycleSpeed: () => this.hud.setSpeed(this.pacer.cycle()),
       toggleRanges: () => (this.view.showRanges = !this.view.showRanges),
       clearSelection: () => this.hud.clearSelection(),
       isChoosing: () => this.run?.world.phase === 'levelup',
@@ -182,17 +188,14 @@ class Game {
       requestAnimationFrame(this.frame);
       return;
     }
-    this.acc += dtReal;
-
-    let ticks = 0;
-    while (this.acc >= FIXED_DT && ticks < MAX_CATCHUP_TICKS) {
-      this.acc -= FIXED_DT;
-      ticks++;
+    // Fast-forward runs more fixed ticks per frame, never a longer tick, so
+    // the run stays bit-identical to the same run played at 1x.
+    const ticks = this.pacer.plan(dtReal);
+    for (let i = 0; i < ticks; i++) {
       run.step(this.gatherInput());
       this.renderer.ingest(run.world, this.view);
       this.sfx.emit(run.world.fx, this.settings);
     }
-    if (ticks === MAX_CATCHUP_TICKS) this.acc = 0;
 
     const w = run.world;
     this.renderer.update(dtReal, this.view);
