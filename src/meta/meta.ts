@@ -96,6 +96,7 @@ export function applyRunResult(meta: MetaState, report: RunReport, w: World): Me
   };
 
   const ember = emberFor(report, w);
+  w.emberEarned = ember;
   next.ember += ember;
   next.accountLevel = accountLevelFor(next.ember);
 

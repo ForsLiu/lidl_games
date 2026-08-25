@@ -264,6 +264,12 @@ export interface RunConfig {
   relics: Relic[];
   /** Bot policy name, headless only. */
   policy?: string;
+  /**
+   * Harness switch for SPEC A6: delete every petrified structure at the
+   * Sundering so a build can be measured with and without its terrain.
+   * Never set by normal play.
+   */
+  stripTerrain?: boolean;
 }
 
 /* --------------------------------------------------------------- reporting */

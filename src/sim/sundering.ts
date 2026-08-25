@@ -52,8 +52,17 @@ export function petrify(w: World): void {
     s.cooldown = 0;
     s.gemTimer = 0;
   }
+  if (w.cfg.stripTerrain) {
+    // A6 harness: the same Act I build, but the maze does not survive the night.
+    for (const s of w.structures.slice()) w.removeStructure(s);
+    w.grid.markDirty();
+    w.grid.refresh();
+    void c;
+    return;
+  }
   clearCorePocket(w);
   openApproachLanes(w);
+  w.compact();
   linkSpires(w);
   applyTerrainPassives(w);
   void c;

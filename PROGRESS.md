@@ -4,15 +4,16 @@
 > A fresh session should be able to resume from this file + CLAUDE.md alone.
 
 ## Current state
-- **Milestone:** M2 complete — gates A11, A2, A3 green
+- **Milestone:** M3 complete — gates A11, A2, A3, A6 green
 - **Last session:** 2026-08-24
-- **Next action:** M3 — the Sundering polish + first full loop in the browser (gate A6)
+- **Next action:** M4 — full content pass: Gatebreaker behaviour, elites, relic
+  drops, remaining boons wiring (gates A4, A5)
 
 ## Milestone checklist
 - [x] M0 — sim skeleton + headless CLI (gate A11)
 - [x] M1 — Act I tower-defense core (gate A2)
 - [x] M2 — Act II survivors core (gate A3)
-- [ ] M3 — the Sundering, first full loop (gate A6)
+- [x] M3 — the Sundering, first full loop (gate A6)
 - [ ] M4 — full content pass (gates A4, A5)
 - [ ] M5 — meta layer: relics, tree, classes, tiers (gate A8)
 - [ ] M6 — final boss, Awakenings, Rifts
@@ -84,6 +85,21 @@ tests/             vitest; acceptance tests are named aNN-*.test.ts
 - Weapon ranges of 6–12 tiles made Nightfall a shooting gallery; cut to
   survivors scale so the horde closes.
 - The Beacon aura cache lived at module scope and leaked between worlds.
+
+## M3 — done
+- Conversion table verified end to end for all ten towers: terrain forms, wall
+  armour cap (+15), Beacon attack-speed cap (+12%), Gem Blooms, spore clouds,
+  ice monoliths, burning braziers, shrines and linked conductive spires.
+- Dusk: 15 s of free repositioning with build/sell at half refund, then the
+  Sundering; the Core detonation clears the pocket **and** blasts up to four
+  approach lanes so the Heartstone can never be sealed behind the maze.
+- 6-slot soul picker with its HUD screen; auto-binds when candidates fit.
+- Full loop plays in the browser (`npm run dev`) and headlessly end to end.
+- `tests/architecture.test.ts` enforces SPEC 9.1 mechanically: no DOM, no
+  `Math.random`, no wall-clock and no native trig anywhere under `/src/sim`.
+- **Gate A6 green**: stripping petrified terrain from a `hybrid` build costs
+  more than 20% of Act II survival across 10 seeds.
+- **Gate green**: full-loop headless runs complete, including boss kills.
 
 ## Known issues / skipped tests
 - `tests/a3-movement-mandatory.test.ts` skips **every seed is dead by 3:00**.
