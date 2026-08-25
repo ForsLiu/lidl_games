@@ -30,5 +30,5 @@ with the commit hash.
 
 - [x] (b001) [bug] Death flow: Night-phase Warden death and Day-phase Core death both
       reach a defeat Results screen with Retry / New Run / Hub — refs: SPEC-V2 §10 D1
-      — commit <pending>, qa-playtester pass 2026-08-25 (race against victory, pause
+      — commit 645d4b0, qa-playtester pass 2026-08-25 (race against victory, pause
       during the beat, lastCfg, Act I reform path all adversarially checked, no bugs)
