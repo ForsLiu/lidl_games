@@ -121,12 +121,11 @@ describe('practice tool', () => {
     expect(w.act2Time).toBe(w.content.spawns.bossTimeSeconds);
   });
 
-  it('a practice run banks nothing: no Ember, no relics, no Orbs', () => {
+  it('a practice run banks nothing: no Ember, no relics', () => {
     const run = new Run({ ...cfg(), practice: true, policy: 'none' });
     run.step({ mx: 0, my: 0, dash: false, attack: false, aimX: 0, aimY: 0, cmds: [{ k: 'dev', op: 'gold', amount: 999 }] });
     const w = run.world;
     w.relicsFound.push({ id: 0, name: 'Test Relic', slot: 'ring', rarity: 'rare', affixes: [] });
-    w.orbsFound.push('whetting');
 
     const before = defaultMeta();
     const after = applyRunResult(before, run.report(), w);
@@ -135,13 +134,19 @@ describe('practice tool', () => {
   });
 
   it('an ordinary run still banks its rewards', () => {
+    // The counterweight to the practice test above: this is the only place
+    // that proves `applyRunResult` banks anything at all, so it asserts a
+    // real relic arriving and Ember moving, not just "nothing exploded".
     const run = new Run({ ...cfg(), policy: 'none' });
     run.step();
     const w = run.world;
-    w.orbsFound.push('whetting');
+    w.relicsFound.push({ id: 0, name: 'Test Relic', slot: 'sigil', rarity: 'rare', affixes: [] });
+    w.wavesCleared = 4;
     const before = defaultMeta();
     const after = applyRunResult(before, run.report(), w);
-    expect(after.orbs.whetting).toBe(before.orbs.whetting + 1);
+    expect(after.stash.length).toBe(before.stash.length + 1);
+    expect(after.stash[after.stash.length - 1].name).toBe('Test Relic');
+    expect(after.ember).toBeGreaterThan(before.ember);
   });
 
   it('the report says whether the tool was used', () => {

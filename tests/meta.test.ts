@@ -1,4 +1,4 @@
-/** Meta layer (SPEC 8): Ember, Constellation, stash, Orb crafting, save/load. */
+/** Meta layer (SPEC 8): Ember, Constellation, stash, save/load. */
 
 import { describe, expect, it } from 'vitest';
 
@@ -21,7 +21,7 @@ import {
   serializeMeta,
   stashCapacity,
 } from '../src/meta/meta';
-import { ascend, craft, discard, equip, turn, whet } from '../src/meta/crafting';
+import { discard, equip } from '../src/meta/stash';
 import { cfg } from './helpers';
 
 const content = loadContent();
@@ -102,54 +102,10 @@ describe('the Constellation (SPEC 8.1)', () => {
   });
 });
 
-describe('relics and Orb crafting (SPEC 7, 8.2)', () => {
-  it('Whetting rerolls values but keeps the affix set', () => {
-    const relic = someRelic(1, 'rare');
-    const next = whet(content, new Rng(99), relic);
-    expect(typeof next).not.toBe('string');
-    const r = next as Relic;
-    expect(r.affixes.map((a) => a.key)).toEqual(relic.affixes.map((a) => a.key));
-    expect(r.rarity).toBe(relic.rarity);
-  });
-
-  it('Turning swaps exactly one affix', () => {
-    const relic = someRelic(2, 'rare');
-    const r = turn(content, new Rng(5), relic) as Relic;
-    const before = new Set(relic.affixes.map((a) => a.key));
-    const after = r.affixes.map((a) => a.key);
-    expect(after).toHaveLength(relic.affixes.length);
-    expect(new Set(after).size).toBe(after.length);
-    const changed = after.filter((k) => !before.has(k)).length;
-    expect(changed).toBeLessThanOrEqual(1);
-  });
-
-  it('Ascension steps rarity up and stops at Rare', () => {
-    let relic = someRelic(3, 'normal');
-    relic = ascend(content, new Rng(1), relic) as Relic;
-    expect(relic.rarity).toBe('magic');
-    relic = ascend(content, new Rng(2), relic) as Relic;
-    expect(relic.rarity).toBe('rare');
-    expect(relic.affixes.length).toBe(3);
-    expect(ascend(content, new Rng(3), relic)).toBe('max_rarity');
-  });
-
-  it('spends the orb and refuses when there is none', () => {
-    const relic = someRelic(4, 'magic');
-    const m = metaWith({ stash: [relic], orbs: { whetting: 1, turning: 0, ascension: 0 } });
-    const ok = craft(m, 'whetting', relic.id, new Rng(1));
-    expect(ok.ok).toBe(true);
-    if (!ok.ok) return;
-    expect(ok.meta.orbs.whetting).toBe(0);
-    expect(craft(ok.meta, 'whetting', relic.id, new Rng(1))).toEqual({ ok: false, reason: 'no_orb' });
-  });
-
-  it('leaves the original meta untouched (crafting is pure)', () => {
-    const relic = someRelic(5, 'magic');
-    const m = metaWith({ stash: [relic], orbs: { whetting: 1, turning: 0, ascension: 0 } });
-    craft(m, 'whetting', relic.id, new Rng(1));
-    expect(m.orbs.whetting).toBe(1);
-  });
-
+// SPEC-V3 §8 deletes Orbs, so the five Orb-crafting tests that lived here
+// (Whetting / Turning / Ascension / spend-and-refuse / purity) went with
+// `src/meta/crafting.ts`. Equip and discard are stash mechanics V3 keeps.
+describe('the relic stash (SPEC 7)', () => {
   it('equips only into the matching slot, and discarding unequips', () => {
     const relic = someRelic(6, 'magic');
     let m = metaWith({ stash: [relic] });
@@ -179,7 +135,6 @@ describe('save / load', () => {
       allocated: [0, a],
       stash: [someRelic(1, 'rare'), someRelic(2, 'magic')],
       equipped: { sigil: null, plate: null, charm: null },
-      orbs: { whetting: 2, turning: 1, ascension: 3 },
       unlockedClasses: ['engineer', 'pyromancer'],
       highestTier: 3,
       questProgress: { wins: 4, lifetime_gold: 9000 },
@@ -247,7 +202,6 @@ describe('Ember rewards (SPEC 8.1)', () => {
       weapons: [],
       boons: {},
       relicsFound: 0,
-      orbsFound: 0,
       ember: 0,
       bossKilled: true,
       bossKillSeconds: 590,

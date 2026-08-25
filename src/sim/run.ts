@@ -23,7 +23,6 @@ import { advanceFromDawn, beginDawn, beginSoulPick, DAWN_AUTO_SECONDS, finishSun
 import { useClassActive } from './classes';
 import { updateTerrainEffects, updateWeapons } from './weapons';
 import { updateBossSlam } from './boss';
-import { dropOrb } from './loot';
 // Registers the Warden-Eater script with enemies.ts.
 import './boss';
 // Registers the kill-drop handler with enemies.ts.
@@ -195,7 +194,7 @@ export function applyCommand(w: World, c: Command): void {
  *
  * Off unless the run was started with `practice`, so a normal run cannot reach
  * it even with a hand-written input log. The first command that lands marks the
- * run, and a marked run banks no Ember, relics or Orbs (see applyRunResult).
+ * run, and a marked run banks no Ember and no relics (see applyRunResult).
  */
 export function applyDevCommand(w: World, op: DevOp, amount: number): void {
   if (!w.cfg.practice) return;
@@ -503,9 +502,6 @@ function updateAct2(w: World, input: TickInput, dt: number): void {
     if (w.bossKilled) {
       w.outcome = 'victory';
       w.phase = 'results';
-      // SPEC 8.2: a victorious run is worth an Orb on top of the boss drops.
-      const perWin = w.content.relics.dropRates.orbPerWin;
-      for (let i = 0; i < Math.round(perWin); i++) dropOrb(w);
       return;
     }
   } else if (!w.dying && w.act2Time >= nightLengthSeconds(w, w.cycle)) {
@@ -671,7 +667,6 @@ export function buildReport(w: World): RunReport {
     })),
     boons: { ...w.boonRanks },
     relicsFound: w.relicsFound.length,
-    orbsFound: w.orbsFound.length,
     ember: 0,
     bossKilled: w.bossKilled,
     bossKillSeconds: round2(w.bossKillTime),

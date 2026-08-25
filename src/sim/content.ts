@@ -294,7 +294,6 @@ const RelicsFileSchema = z.object({
   ),
   luckRarityShift: num,
   affixes: z.array(AffixSchema),
-  orbs: z.array(z.object({ key: str, name: str, desc: str })),
   dropRates: z.record(num),
 });
 

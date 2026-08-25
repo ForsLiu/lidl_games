@@ -171,7 +171,6 @@ export class World {
   offers: Offer[] = [];
   rerollsLeft = 0;
   relicsFound: Relic[] = [];
-  orbsFound: string[] = [];
   /** Filled in at results time by the meta layer. */
   emberEarned = 0;
 

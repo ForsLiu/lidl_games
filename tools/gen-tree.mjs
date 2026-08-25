@@ -74,7 +74,7 @@ const BRANCHES = [
     notables: [
       { key: 'prospector', name: 'Prospector', desc: 'Harvest Sprouts +50% output', stats: { sproutGold: 0.5 } },
       { key: 'cartographer', name: 'Cartographer', desc: 'Each map modifier grants +10% more reward', stats: { modRewardBonus: 0.1 } },
-      { key: 'tinkerer', name: 'Tinkerer', desc: '1 free Orb of Turning per run', stats: { freeOrbTurning: 1 } },
+      { key: 'tinkerer', name: 'Tinkerer', desc: 'Relic find +25%', stats: { relicFind: 0.25 } },
       { key: 'lodestone', name: 'Lodestone', desc: 'Pickup radius +50%', stats: { pickupPct: 0.5 } },
       { key: 'gilded_path', name: 'Gilded Path', desc: 'Gold and Ember find +20%', stats: { goldFind: 0.2, emberFind: 0.2 } },
       { key: 'star_reader', name: 'Star Reader', desc: '+25 Luck', stats: { luck: 25 } },

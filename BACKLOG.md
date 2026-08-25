@@ -16,23 +16,13 @@ recorded reason, not a nudged constant.
 
 ### M18 — quick wins (gates C7, C8, C5-prep)
 
-- [ ] (t6a) [feat] Delete Orbs from the sim and meta: `MetaState.orbs`,
-      `World.orbsFound`, `RunReport.orbsFound`, `loot.ts` `dropOrb`, the
-      `freeOrbTurning` stat, `data/relics.json` `orbs[]`, `meta/crafting.ts` —
-      acceptance: `grep -rn "\borbs\?\b" src/ data/ --include=*.ts --include=*.json`
-      returns only the projectile-shape `'orb'` and Phoenix-Ring `orbiting` matches
-      named in MIGRATION.md §2.1; `npm test` green — refs: V3 §8, T6
-- [ ] (t6b) [feat] Delete Orbs from the UI and regenerate the tree without node 90's
-      `freeOrbTurning`: Hub craft row + `ORB_HELP` + account counter, Results "Orbs"
-      line, `tree-view.ts` stat label, `tools/gen-tree.mjs` —
-      acceptance: gate **C7**'s grep-level UI test green (no "orb"/"Orb" in any
-      rendered Hub or Results DOM, asserted in jsdom); `data/tree.json` regenerates
-      with 0 `freeOrbTurning` nodes and no orphans — refs: V3 §8, T6
 - [ ] (t6c) [bug] Save migration drops `orbs` without discarding the rest of the
-      save, and bumps `SAVE_VERSION` —
+      save, and bumps `SAVE_VERSION` — **QA measured this as low urgency**: a v0.2
+      save with an `orbs` key already loads, renders and re-saves without throwing;
+      the key survives as an inert zombie that `serializeMeta` writes back forever —
       acceptance: round-trip test loads a hand-written v1 save containing `orbs`,
-      asserts every other field survives, `orbs` is gone, and the migrated save
-      re-serialises stably; a v0.2 save does not crash the client — refs: V3 §8, C7
+      asserts every other field survives, `orbs` is gone from the migrated output,
+      and the save re-serialises stably — refs: V3 §8, C7
 - [ ] (t3) [feat] Dev profile: `data/dev.json` with `devMode`, schema-validated;
       when on — all classes/maps/tiers unlocked, 999 skill points, stash pre-filled
       with every §7 item available, all quests complete; Settings toggle switches to
@@ -153,6 +143,12 @@ recorded reason, not a nudged constant.
 - [ ] (m24b) [feat] Rewards pipeline: 1 equipment per TD wave cleared, 1 skill point
       per VS wave cleared, granted at run end, paid on defeat for waves fully
       cleared — acceptance: gate **C7** in full — refs: V3 §8, Q42
+- [ ] (m24d) [balance] Re-price the "Tinkerer" notable, whose `relicFind` effect QA
+      measured as ~95% inert (elite and boss relic drops are guaranteed, so find only
+      moves `waveRelic` 0.12 → 0.15) — acceptance: either relic find scales the
+      guaranteed drops too, or the node gets an effect a notable deserves; a test
+      asserts the node's stat measurably changes loot over 200 elite kills — refs:
+      V3 §8, Q50
 - [ ] (m24c) [feat] Retire Ember: skill points replace the Ember→level→points
       pipeline, one-time 100:1 conversion, respec priced in skill points —
       acceptance: no Ember in sim, meta or UI; conversion test; save migration test
@@ -194,6 +190,25 @@ recorded reason, not a nudged constant.
       acceptance: tools run clean, file updated, committed — refs: CLAUDE.md
 
 ## Done
+
+- [x] (t6ab) [feat] Delete Orbs entirely from sim, meta, data and UI, and repurpose
+      the Constellation node that granted one — **t6a and t6b merged**: removing
+      `MetaState.orbs` breaks the Hub in the same commit, so the type system does not
+      allow splitting the sim change from its UI. `equip`/`discard` moved out of the
+      deleted `crafting.ts` into `src/meta/stash.ts` (V3 §8 keeps the stash).
+      Gate **C7** Orbs half green via `tests/c7-no-orbs.test.ts` — refs: V3 §8, T6 —
+      qa-playtester pass 2026-08-25: FAIL on first submission with three Majors, all
+      fixed and each verified by reproducing the exploit that found it — (1) the C7
+      scan exempted `loot.ts` and `stash.ts`, the two files most likely to regress,
+      so reintroducing `orbPerElite` passed the gate; (2) the C7 DOM scan never
+      clicked anything, so the Hub notice that used to read "3 of each Orb" was never
+      scanned; (3) **this diff neutered the suite's only proof that `applyRunResult`
+      banks anything** — the orb assertion was rewritten to compare 0 to 0 and
+      asserted the opposite of its own title. QA also confirmed relic drop counts are
+      per-seed bit-identical to HEAD across 12 seeds (only the drops-stream cursor in
+      the end hash moves), that the three "orb" false positives are undamaged, and
+      that A10's redness reproduces at HEAD. Bug 7 (Tinkerer inert) logged as Q50 and
+      backlog m24d.
 
 - [x] (m17) [feat] M17 reconcile: audit code vs V3, MIGRATION.md, retire dead tests
       with logged reasons, rewrite BACKLOG to V3 §13 — refs: V3 §13.1 — commit

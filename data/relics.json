@@ -26,17 +26,9 @@
     { "key": "ailment",      "name": "of Venomfire",   "stat": "ailmentPotency","min": 0.08, "max": 0.20, "pct": true },
     { "key": "towerCost",    "name": "of Thrift",      "stat": "towerCost",     "min": 0.03, "max": 0.08, "pct": true }
   ],
-  "orbs": [
-    { "key": "whetting",  "name": "Orb of Whetting",  "desc": "Reroll the numeric values of a relic affixes." },
-    { "key": "turning",   "name": "Orb of Turning",   "desc": "Reroll one random affix into another from the pool." },
-    { "key": "ascension", "name": "Orb of Ascension", "desc": "Upgrade rarity: Normal to Magic to Rare." }
-  ],
   "dropRates": {
     "eliteRelic": 1.0,
     "bossRelic": 1.0,
-    "waveRelic": 0.12,
-    "orbPerElite": 0.25,
-    "orbPerBoss": 1.0,
-    "orbPerWin": 1.0
+    "waveRelic": 0.12
   }
 }

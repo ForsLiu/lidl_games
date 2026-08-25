@@ -194,7 +194,6 @@ describe('loot (SPEC 7)', () => {
     handleKillDrops(w, boss, content.enemyByKey.get('warden_eater')!);
     expect(w.relicsFound.length).toBe(2);
     expect(w.relicsFound[1].rarity).toBe('rare');
-    expect(w.orbsFound.length).toBeGreaterThan(0);
   });
 });
 

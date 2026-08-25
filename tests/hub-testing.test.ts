@@ -41,13 +41,11 @@ function openHub(meta: MetaState): { root: HTMLElement; hub: Hub; latest: () => 
 }
 
 describe('seeding a test account', () => {
-  it('grants relics, every Orb and Ember', () => {
+  it('grants relics and Ember', () => {
     const before = defaultMeta();
     const after = seedTestAccount(before);
     expect(after.stash.length).toBe(8);
-    expect(after.orbs.whetting).toBe(before.orbs.whetting + 3);
-    expect(after.orbs.turning).toBe(before.orbs.turning + 3);
-    expect(after.orbs.ascension).toBe(before.orbs.ascension + 3);
+
     expect(after.ember).toBe(before.ember + 600);
     expect(before.stash.length).toBe(0);
   });
@@ -101,16 +99,9 @@ describe('account counters explain themselves', () => {
     const holder = document.createElement('div');
     holder.innerHTML = html;
     const cells = [...holder.querySelectorAll('span')];
-    expect(cells.length).toBe(4);
+    // Level / Ember / Points. The fourth, Orbs, went with SPEC-V3 §8.
+    expect(cells.length).toBe(3);
     for (const c of cells) expect(c.getAttribute('title')?.length ?? 0).toBeGreaterThan(20);
-  });
-
-  it('with no Orbs, the help says where Orbs come from', () => {
-    const meta = { ...defaultMeta(), orbs: { whetting: 0, turning: 0, ascension: 0 } };
-    const holder = document.createElement('div');
-    holder.innerHTML = accountMarkup(meta);
-    const orbs = [...holder.querySelectorAll('span')].find((s) => s.textContent?.startsWith('Orbs'))!;
-    expect(orbs.getAttribute('title')).toMatch(/drop/i);
   });
 
   it('with no points left, the help says how to earn more', () => {
@@ -122,10 +113,10 @@ describe('account counters explain themselves', () => {
     expect(points.className).toContain('zero');
   });
 
-  it('an empty stash says what relics and Orbs are for', () => {
+  it('an empty stash says what relics are for', () => {
     const { root, hub } = openHub(defaultMeta());
     hub.openTab('stash');
     expect(root.textContent).toMatch(/Relics drop from elites/);
-    expect(root.textContent).toMatch(/Orbs re-roll them/);
+    expect(root.textContent).toMatch(/click one to equip it/);
   });
 });

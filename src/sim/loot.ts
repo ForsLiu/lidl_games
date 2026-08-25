@@ -1,5 +1,5 @@
 /**
- * Relic and Orb drops (SPEC 7, 8.2). Rolled on the `drops` RNG stream so loot
+ * Relic drops (SPEC 7). Rolled on the `drops` RNG stream so loot
  * never perturbs combat determinism.
  */
 
@@ -84,17 +84,14 @@ export function dropRelic(w: World, forceRarity?: string): Relic {
   return relic;
 }
 
-export function dropOrb(w: World): string {
-  const orbs = w.content.relics.orbs;
-  const orb = orbs[w.rng.drops.int(orbs.length)].key;
-  w.orbsFound.push(orb);
-  w.emit('orb', w.warden.x, w.warden.y, 0, 0);
-  return orb;
-}
-
 /**
  * SPEC 3.4/5.5/7: elites and bosses always drop a Relic; ordinary kills have a
- * small chance, scaled by relic find. Orbs come from elites, bosses and wins.
+ * small chance, scaled by relic find.
+ *
+ * SPEC-V3 §8 deletes the crafting currency. The `drops` stream no longer spends
+ * a roll on it, so relic rolls after an elite or boss land differently than in
+ * v0.2 — an expected replay divergence, not a regression (A11 compares replays
+ * to each other, never to a pinned hash).
  */
 export function handleKillDrops(w: World, e: Enemy, def: EnemyDef): void {
   const rates = w.content.relics.dropRates;
@@ -103,17 +100,14 @@ export function handleKillDrops(w: World, e: Enemy, def: EnemyDef): void {
 
   if (def.traits.includes('finalBoss')) {
     dropRelic(w, 'rare');
-    for (let i = 0; i < Math.max(1, Math.round(rates.orbPerBoss)); i++) dropOrb(w);
     return;
   }
   if (def.traits.includes('boss')) {
     dropRelic(w);
-    if (rng.chance(rates.orbPerBoss)) dropOrb(w);
     return;
   }
   if (e.elite || def.traits.includes('elite')) {
     if (rng.chance(Math.min(1, rates.eliteRelic * findMul))) dropRelic(w);
-    if (rng.chance(rates.orbPerElite * findMul)) dropOrb(w);
     return;
   }
   // Rare wave drops: only from the tougher grades, so fodder does not flood.

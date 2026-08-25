@@ -519,7 +519,6 @@ export class Hud {
           <div><span>Kills</span><b>${w.kills}</b></div>
           <div><span>Towers built</span><b>${w.towersBuilt}</b></div>
           <div><span>Relics</span><b>${w.relicsFound.length}</b></div>
-          <div><span>Orbs</span><b>${w.orbsFound.length}</b></div>
           <div><span>Ember</span><b>${w.emberEarned}</b></div>
         </div>
         ${w.practiceUsed ? '<p class="sw-note">Practice run — nothing was banked.</p>' : ''}

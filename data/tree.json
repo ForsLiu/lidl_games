@@ -1779,9 +1779,9 @@
    "kind": "notable",
    "key": "tinkerer",
    "name": "Tinkerer",
-   "desc": "1 free Orb of Turning per run",
+   "desc": "Relic find +25%",
    "stats": {
-    "freeOrbTurning": 1
+    "relicFind": 0.25
    },
    "x": 2.77,
    "y": 1.6,

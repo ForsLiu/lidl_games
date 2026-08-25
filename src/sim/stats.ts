@@ -46,7 +46,6 @@ export const STAT_KEYS = [
   'leech',
   'secondWind',
   'modRewardBonus',
-  'freeOrbTurning',
   'lastStandSundering',
   'burnDamage',
   'burnSpread',

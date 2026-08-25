@@ -62,7 +62,6 @@ const STAT_LABELS: Record<string, string> = {
   leech: 'Leech',
   secondWind: 'Second Wind',
   modRewardBonus: 'Reward per Modifier',
-  freeOrbTurning: 'Free Orb of Turning',
   lastStandSundering: 'Last Stand Sundering',
   xpGain: 'XP Gain',
 };

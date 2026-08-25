@@ -289,7 +289,6 @@ export interface MetaState {
   allocated: number[];
   stash: Relic[];
   equipped: { sigil: number | null; plate: number | null; charm: number | null };
-  orbs: { whetting: number; turning: number; ascension: number };
   unlockedClasses: string[];
   highestTier: number;
   questProgress: Record<string, number>;
@@ -322,7 +321,7 @@ export interface RunConfig {
   stripTerrain?: boolean;
   /**
    * Enables the in-run practice tool. Dev commands are ignored without it, and
-   * a run that used one banks no Ember, relics or Orbs.
+   * a run that used one banks no Ember and no relics.
    */
   practice?: boolean;
 }
@@ -366,7 +365,6 @@ export interface RunReport {
   weapons: { key: string; level: number; damageBonus: number; awakened: boolean }[];
   boons: Record<string, number>;
   relicsFound: number;
-  orbsFound: number;
   ember: number;
   bossKilled: boolean;
   bossKillSeconds: number;
