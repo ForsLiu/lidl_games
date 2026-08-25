@@ -14,9 +14,10 @@ export const SAVE_KEY = 'stonewake.save.v1';
 export const SAVE_VERSION = 1;
 
 export function defaultMeta(): MetaState {
+  const ember = loadContent().tree.startingEmber;
   return {
-    accountLevel: 1,
-    ember: 0,
+    accountLevel: accountLevelFor(ember),
+    ember,
     allocated: [0],
     stash: [],
     equipped: { sigil: null, plate: null, charm: null },
@@ -183,29 +184,42 @@ export function allocate(meta: MetaState, nodeId: number): MetaState {
   return { ...meta, allocated: [...meta.allocated, nodeId] };
 }
 
+export interface RefundOptions {
+  /**
+   * True for a point spent in this Hub visit and not yet taken into a run.
+   * Undoing a misclick is not a respec, so it costs nothing — without this a
+   * fresh account (0 Ember, and Ember only arrives at the end of a run) could
+   * never take back its very first point.
+   */
+  free?: boolean;
+}
+
 /**
  * Refunding a node must not orphan anything downstream of it, and must be
  * paid for. Affordability lives here rather than only inside `refund` so the
  * UI can gate the action and explain itself instead of silently doing nothing.
  */
-export function canRefund(meta: MetaState, nodeId: number): boolean {
-  return refundBlocker(meta, nodeId) === null;
+export function canRefund(meta: MetaState, nodeId: number, opts: RefundOptions = {}): boolean {
+  return refundBlocker(meta, nodeId, opts) === null;
 }
 
 export type RefundBlocker = 'not_allocated' | 'would_orphan' | 'ember';
 
 /** Why a refund is not available, or null when it is. */
-export function refundBlocker(meta: MetaState, nodeId: number): RefundBlocker | null {
+export function refundBlocker(
+  meta: MetaState,
+  nodeId: number,
+  opts: RefundOptions = {},
+): RefundBlocker | null {
   if (nodeId === 0 || !meta.allocated.includes(nodeId)) return 'not_allocated';
   if (!isConnected(meta.allocated.filter((id) => id !== nodeId))) return 'would_orphan';
-  if (meta.ember < loadContent().tree.respecCostPerNode) return 'ember';
+  if (!opts.free && meta.ember < loadContent().tree.respecCostPerNode) return 'ember';
   return null;
 }
 
-export function refund(meta: MetaState, nodeId: number): MetaState {
-  if (!canRefund(meta, nodeId)) return meta;
-  const cost = loadContent().tree.respecCostPerNode;
-  if (meta.ember < cost) return meta;
+export function refund(meta: MetaState, nodeId: number, opts: RefundOptions = {}): MetaState {
+  if (!canRefund(meta, nodeId, opts)) return meta;
+  const cost = opts.free ? 0 : loadContent().tree.respecCostPerNode;
   return {
     ...meta,
     ember: meta.ember - cost,

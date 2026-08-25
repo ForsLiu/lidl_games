@@ -57,6 +57,11 @@ export class Hub {
   private settings: Settings;
   /** Transient one-line feedback under the tab bar. */
   private notice = '';
+  /**
+   * Points spent in this Hub visit. They have not been taken into a run yet, so
+   * taking one back is an undo rather than a respec, and costs no Ember.
+   */
+  private readonly spentThisVisit = new Set<number>();
 
   constructor(root: HTMLElement, meta: MetaState, seed: number, cb: HubCallbacks) {
     this.root = root;
@@ -279,8 +284,9 @@ export class Hub {
       <div class="sw-panel wide">
         <h2>Constellation</h2>
         <p class="sw-note">
-          ${pointsAvailable(this.meta)} point(s) available · click a lit-adjacent node to take it ·
-          right-click to refund for ${content.tree.respecCostPerNode} Ember
+          <b>${pointsAvailable(this.meta)}</b> point(s) to spend · click a lit-adjacent node to take it ·
+          right-click to take one back. Points spent since you opened the Hub come
+          back <b>free</b>; anything older costs ${content.tree.respecCostPerNode} Ember
           (you have <b>${this.meta.ember}</b>).
         </p>
         <svg viewBox="0 0 ${size} ${size}" class="sw-tree">${edges.join('')}${nodes}</svg>
@@ -293,15 +299,24 @@ export class Hub {
     for (const el of body.querySelectorAll<SVGCircleElement>('.sw-node')) {
       const id = Number(el.dataset.node);
       el.addEventListener('click', () => {
-        if (canAllocate(this.meta, id)) this.commit(allocate(this.meta, id));
+        if (!canAllocate(this.meta, id)) return;
+        this.spentThisVisit.add(id);
+        this.commit(allocate(this.meta, id));
       });
       el.addEventListener('contextmenu', (e) => {
         e.preventDefault();
         e.stopPropagation();
-        const blocked = refundBlocker(this.meta, id);
+        const free = this.spentThisVisit.has(id);
+        const blocked = refundBlocker(this.meta, id, { free });
         if (blocked === null) {
-          this.notice = '';
-          this.commit(refund(this.meta, id));
+          this.spentThisVisit.delete(id);
+          this.notice = free
+            ? 'Point returned.'
+            : `Node refunded for ${content.tree.respecCostPerNode} Ember.`;
+          const next = refund(this.meta, id, { free });
+          this.meta = next;
+          this.cb.onMetaChanged(next);
+          this.show();
           return;
         }
         this.notice = REFUND_REFUSALS[blocked](content.tree.respecCostPerNode, this.meta.ember);

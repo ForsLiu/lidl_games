@@ -192,8 +192,17 @@ describe('save / load', () => {
 
   it('survives a corrupt or empty save without throwing', () => {
     expect(() => deserializeMeta('{}')).not.toThrow();
-    expect(deserializeMeta('{}').accountLevel).toBe(1);
+    // A corrupt save falls back to a brand-new account, whatever that is worth.
+    expect(deserializeMeta('{}')).toEqual(defaultMeta());
     expect(deserializeMeta('{"version":1}').allocated).toEqual([0]);
+  });
+
+  it('opens a new account with the starting Ember and the level it buys', () => {
+    const fresh = defaultMeta();
+    expect(fresh.ember).toBe(content.tree.startingEmber);
+    expect(fresh.accountLevel).toBe(accountLevelFor(content.tree.startingEmber));
+    // The point of the starting Ember is that the Hub is not a dead screen.
+    expect(pointsAvailable(fresh)).toBeGreaterThan(0);
   });
 
   it('repairs a save whose allocation graph is disconnected', () => {

@@ -304,6 +304,8 @@ const TreeNodeSchema = z.object({
 const TreeFileSchema = z.object({
   maxAccountLevel: num,
   emberBase: num,
+  /** Ember a brand-new account opens with, so the Hub has something to do. */
+  startingEmber: num,
   respecCostPerNode: num,
   pointsPerLevel: num,
   nodes: z.array(TreeNodeSchema),

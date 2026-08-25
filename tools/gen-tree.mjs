@@ -201,6 +201,7 @@ for (const n of nodes) n.links.sort((a, c) => a - c);
 const out = {
   maxAccountLevel: 60,
   emberBase: 100,
+  startingEmber: 400,
   respecCostPerNode: 5,
   pointsPerLevel: 1,
   nodes,
