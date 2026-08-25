@@ -6,12 +6,12 @@
 ## Current state
 - **Milestone:** M8 complete — **first complete version**. All of A1–A11 green
   (two strict bounds relaxed and documented under Known issues). BACKLOG.md b001
-  (SPEC-V2 §10 D1 death flow) and b002 (Abandon Run confirm) also done; M9
-  (SPEC-V2 §12) work is underway via the BACKLOG queue.
+  (SPEC-V2 §10 D1 death flow), b002 (Abandon Run confirm) and b003 (stash
+  click-to-swap / drag-to-unequip / compare tooltip, SPEC-V2 §10 D2) also done;
+  M9 (SPEC-V2 §12) work is underway via the BACKLOG queue.
 - **Last session:** 2026-08-25
-- **Next action:** BACKLOG.md b003 (stash click-to-swap / drag-to-unequip /
-  compare tooltip) is next in queue. After the BACKLOG queue: QUESTIONS.md
-  verdicts. Both playtest
+- **Next action:** BACKLOG.md f001 (Day→Dusk→Night→Dawn cycle state machine) is
+  next in queue. After the BACKLOG queue: QUESTIONS.md verdicts. Both playtest
   requests carried the example template rather than actual verdicts, so all
   **32** entries are still pending — see the Verdict log at the top of that
   file. The tier ladder above T3 has no measured win (HANDOFF.md §6), and the
@@ -322,6 +322,25 @@ features whose counters read zero with no explanation.
   awakening → weapon → card index 0, so measured "picks" reflect offer RNG, not
   preference. There is no signal about which boons a player would want.
 ## Session log (newest first)
+- 2026-08-25 — BACKLOG b003: Stash tab defect fix (SPEC-V2 §10 D2, §3). Clicking a
+  stash relic now equips it directly into its slot, swapping out whatever was
+  equipped there (toggle: clicking the currently-equipped relic unequips it) —
+  no more separate select-then-click-Equip flow. Right-click selects a relic for
+  the detail panel in "compare" mode without touching the equip state. Added a
+  small interactive Loadout strip to the Stash tab itself (the existing one on
+  the Run tab stayed read-only) whose slot tiles unequip on click or on
+  drag-and-drop onto the relic list. The detail panel gained a `.sw-compare`
+  block (and each stash relic a compare-summary hover tooltip) diffing the
+  selected relic's summed implicit+affix stats against whatever is equipped in
+  the same slot. `tests/b003-stash-ux.test.ts` (15 tests) drives the real Hub
+  DOM for every equip/unequip/compare path, including drag-drop bubbling through
+  a child button and the empty-stash render branch. code-reviewer found no
+  Critical/Major issues (two minor notes fixed inline: the implicit
+  percent-vs-flat guess now prefers the affix pool's own `pct` flag, and stash
+  relics targeting an empty slot get a "Click to equip" tooltip instead of
+  none). qa-playtester adversarially probed rapid multi-slot cycling, crafting
+  an equipped relic, a same-relic-two-slots bypass attempt, discard-while-
+  selected, tab-switch state survival and garbage drag payloads — no bugs filed.
 - 2026-08-25 — BACKLOG b002: Esc pause menu's Abandon Run now shows a confirm
   sub-screen ("Abandon run?" / Cancel / Abandon run) instead of quitting to the
   Hub on the first click (SPEC-V2 §10 D1: "Esc pause menu gains Abandon Run

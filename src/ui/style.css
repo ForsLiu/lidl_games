@@ -305,7 +305,8 @@ html, body {
 .sw-equipped { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
 .sw-slot { display: flex; justify-content: space-between; font-size: 13px; }
 .sw-slot span { color: var(--dim); text-transform: capitalize; }
-
+#sw-stash-equipped .sw-slot[draggable="true"] { cursor: grab; }
+#sw-stash-equipped .sw-slot[draggable="true"]:hover { color: var(--accent); }
 
 .sw-stash { display: flex; flex-wrap: wrap; gap: 6px; }
 .sw-relic {
@@ -317,10 +318,13 @@ html, body {
 .sw-relic.magic { border-left-color: #6fa8ff; }
 .sw-relic.rare { border-left-color: var(--gold); }
 .sw-relic.on { border-color: var(--accent); border-left-color: var(--accent); }
+.sw-relic.equipped { background: #1c2a24; }
 
 .sw-relicdetail { display: flex; flex-direction: column; gap: 3px; }
 .sw-affix { font-size: 12px; color: #9fd3c7; }
 .sw-affix.implicit { color: var(--dim); }
+.sw-compare { margin-top: 8px; padding-top: 6px; border-top: 1px solid var(--line); }
+.sw-compare b { font-size: 12px; }
 .sw-craftrow { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
 .sw-craftrow button {
   background: var(--panel2); border: 1px solid var(--line); border-radius: 5px;

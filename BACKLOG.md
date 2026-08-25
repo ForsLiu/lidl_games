@@ -6,8 +6,6 @@ with the commit hash.
 
 ## Queue
 
-- [ ] (b003) [bug] Stash click-to-swap + drag-to-unequip + compare tooltip; no
-      dead-end equip states — acceptance: B10 stash test green — refs: SPEC-V2 §10 D2, §3
 - [ ] (f001) [feat] Cycle state machine: Day→Dusk→Night→Dawn ×3, Dusk picker every
       cycle, Dawn Rekindle/Leave flow — acceptance: scripted 3-cycle sim completes;
       B9 state test green — refs: SPEC-V2 §1
@@ -26,6 +24,13 @@ with the commit hash.
 
 ## Done
 
+- [x] (b003) [bug] Stash click-to-swap + drag-to-unequip + compare tooltip; no
+      dead-end equip states — refs: SPEC-V2 §10 D2, §3 — commit (pending),
+      qa-playtester pass 2026-08-25 (rapid multi-slot equip/unequip cycles, crafting
+      an equipped relic, cross-slot equip-bypass attempt, discard-while-selected,
+      tab-switch state survival, garbage drag payloads all probed; no bugs filed —
+      one non-blocking polish note that orb buttons aren't disabled for
+      already-ineligible relics, out of scope for this item)
 - [x] (b002) [bug] Pause menu Abandon Run (with confirm) available in both phases —
       refs: SPEC-V2 §10 D1 — commit d2079e7, qa-playtester pass 2026-08-25 (confirm
       flow probed across act1_build, act1_wave, dusk, soulpick, levelup and act2;

@@ -5,7 +5,7 @@
  * Presentation only — every rule lives in /src/meta and /src/sim.
  */
 
-import { loadContent } from '../sim/content';
+import { loadContent, type Content } from '../sim/content';
 import { Rng } from '../sim/rng';
 import type { MetaState, Relic, RunConfig } from '../sim/types';
 import {
@@ -357,24 +357,42 @@ export class Hub {
     body.innerHTML = `
       <div class="sw-panel">
         <h2>Stash <small>${this.meta.stash.length}/${cap}</small></h2>
+        <div class="sw-equipped" id="sw-stash-equipped">
+          ${content.relics.slots
+            .map((slot) => {
+              const relic = equippedIn(this.meta, slot);
+              return `<div class="sw-slot" data-eqslot="${slot}" draggable="${relic ? 'true' : 'false'}"
+                           title="${relic ? `Click, or drag to the Stash below, to unequip ${relic.name}.` : ''}">
+                        <span>${slot}</span><b>${relic ? relic.name : '—'}</b>
+                      </div>`;
+            })
+            .join('')}
+        </div>
         <div class="sw-stash">
           ${
             this.meta.stash.length === 0
               ? `<p class="sw-note">
                    Empty. Relics drop from elites, from the Warden-Eater, and at the end of a
-                   won run; equip one per slot on the Run tab and its affixes apply for the
-                   whole run. Orbs re-roll them — Settings has a button that seeds a test
-                   account if you want to try the screen now.
+                   won run; click one to equip it (click again, or drag it here from the slot
+                   above, to unequip) and its affixes apply for the whole run. Orbs re-roll them
+                   — Settings has a button that seeds a test account if you want to try the
+                   screen now.
                  </p>`
               : this.meta.stash
-                  .map(
-                    (r) =>
-                      `<button class="sw-relic ${r.rarity} ${
-                        this.selectedRelic === r.id ? 'on' : ''
-                      }" data-relic="${r.id}">
-                        <b>${r.name}</b><small>${r.slot} · ${r.rarity}</small>
-                      </button>`,
-                  )
+                  .map((r) => {
+                    const eq = equippedIn(this.meta, r.slot);
+                    const isEquipped = eq?.id === r.id;
+                    const tip = isEquipped
+                      ? 'Click to unequip.'
+                      : eq
+                        ? compareTitle(content, r, eq)
+                        : `Click to equip to ${r.slot}.`;
+                    return `<button class="sw-relic ${r.rarity} ${
+                      this.selectedRelic === r.id ? 'on' : ''
+                    } ${isEquipped ? 'equipped' : ''}" data-relic="${r.id}" title="${tip}">
+                        <b>${r.name}</b><small>${r.slot} · ${r.rarity}${isEquipped ? ' · equipped' : ''}</small>
+                      </button>`;
+                  })
                   .join('')
           }
         </div>
@@ -392,6 +410,7 @@ export class Hub {
                      return `<div class="sw-affix">${def.name} — ${formatStat(a.stat, a.value, def.pct)}</div>`;
                    })
                    .join('')}
+                 ${renderCompareBlock(content, this.meta, selected)}
                  <div class="sw-craftrow">
                    ${(['whetting', 'turning', 'ascension'] as OrbKey[])
                      .map(
@@ -409,20 +428,46 @@ export class Hub {
                      : ORB_HELP.whetting
                  }</p>
                  <div class="sw-craftrow">
-                   <button data-equip="1">Equip to ${selected.slot}</button>
+                   <button data-equip="1">${
+                     isEquipped(this.meta, selected) ? `Unequip from ${selected.slot}` : `Equip to ${selected.slot}`
+                   }</button>
                    <button data-discard="1" class="danger">Discard</button>
                  </div>
                </div>`
-            : '<p class="sw-note">Select a relic.</p>'
+            : '<p class="sw-note">Select a relic (right-click to compare without equipping it).</p>'
         }
       </div>`;
 
     for (const el of body.querySelectorAll<HTMLElement>('[data-relic]')) {
+      const id = Number(el.dataset.relic);
       el.addEventListener('click', () => {
-        this.selectedRelic = Number(el.dataset.relic);
+        const relic = this.meta.stash.find((r) => r.id === id)!;
+        this.selectedRelic = id;
+        this.commit(equip(this.meta, relic.slot, isEquipped(this.meta, relic) ? null : id));
+      });
+      el.addEventListener('contextmenu', (e) => {
+        // Right-click compares against the equipped item without swapping it in.
+        e.preventDefault();
+        this.selectedRelic = id;
         this.show();
       });
     }
+    for (const el of body.querySelectorAll<HTMLElement>('[data-eqslot]')) {
+      const slot = el.dataset.eqslot!;
+      el.addEventListener('click', () => {
+        if (this.meta.equipped[slot as 'sigil' | 'plate' | 'charm']) this.commit(equip(this.meta, slot, null));
+      });
+      el.addEventListener('dragstart', (e) => {
+        (e as DragEvent).dataTransfer?.setData('text/plain', slot);
+      });
+    }
+    const dropTarget = body.querySelector('.sw-stash');
+    dropTarget?.addEventListener('dragover', (e) => e.preventDefault());
+    dropTarget?.addEventListener('drop', (e) => {
+      e.preventDefault();
+      const slot = (e as DragEvent).dataTransfer?.getData('text/plain');
+      if (slot) this.commit(equip(this.meta, slot, null));
+    });
     if (!selected) return;
     for (const el of body.querySelectorAll<HTMLElement>('[data-orb]')) {
       el.addEventListener('click', () => {
@@ -434,7 +479,7 @@ export class Hub {
       });
     }
     body.querySelector('[data-equip]')?.addEventListener('click', () => {
-      this.commit(equip(this.meta, selected.slot, selected.id));
+      this.commit(equip(this.meta, selected.slot, isEquipped(this.meta, selected) ? null : selected.id));
     });
     body.querySelector('[data-discard]')?.addEventListener('click', () => {
       this.selectedRelic = null;
@@ -470,10 +515,74 @@ export function equippedRelics(meta: MetaState): Relic[] {
   return out;
 }
 
+/** The relic currently equipped in a slot, if any. */
+function equippedIn(meta: MetaState, slot: string): Relic | null {
+  const id = meta.equipped[slot as 'sigil' | 'plate' | 'charm'];
+  if (id === null || id === undefined) return null;
+  return meta.stash.find((r) => r.id === id) ?? null;
+}
+
+function isEquipped(meta: MetaState, relic: Relic): boolean {
+  return meta.equipped[relic.slot as 'sigil' | 'plate' | 'charm'] === relic.id;
+}
+
+/** Whether a stat reads as a percentage, preferring the affix pool's own flag over a guess. */
+function statIsPct(content: Content, stat: string, value: number): boolean {
+  const def = content.relics.affixes.find((d) => d.stat === stat);
+  return def ? def.pct : value < 1;
+}
+
+/** Implicit + affix stats summed by stat key, for comparing two relics of the same slot. */
+function statTotals(content: Content, relic: Relic): Map<string, { value: number; pct: boolean }> {
+  const totals = new Map<string, { value: number; pct: boolean }>();
+  const imp = content.relics.implicits[relic.slot];
+  if (imp) totals.set(imp.stat, { value: imp.value, pct: statIsPct(content, imp.stat, imp.value) });
+  for (const a of relic.affixes) {
+    const def = content.relics.affixes.find((d) => d.key === a.key);
+    const pct = def?.pct ?? false;
+    const prev = totals.get(a.stat);
+    totals.set(a.stat, { value: (prev?.value ?? 0) + a.value, pct });
+  }
+  return totals;
+}
+
+/** Per-stat delta of `candidate` vs `equipped`, formatted, dropping stats with no difference. */
+function compareRelics(content: Content, candidate: Relic, equipped: Relic): string[] {
+  const a = statTotals(content, candidate);
+  const b = statTotals(content, equipped);
+  const lines: string[] = [];
+  for (const stat of new Set([...a.keys(), ...b.keys()])) {
+    const delta = (a.get(stat)?.value ?? 0) - (b.get(stat)?.value ?? 0);
+    if (delta === 0) continue;
+    const pct = a.get(stat)?.pct ?? b.get(stat)?.pct ?? false;
+    const label = stat.replace(/([A-Z])/g, ' $1').toLowerCase();
+    const sign = delta > 0 ? '+' : '';
+    const shown = pct ? `${sign}${Math.round(delta * 1000) / 10}%` : `${sign}${delta}`;
+    lines.push(`${shown} ${label}`);
+  }
+  return lines;
+}
+
+function compareTitle(content: Content, candidate: Relic, equipped: Relic): string {
+  const diff = compareRelics(content, candidate, equipped);
+  return `vs ${equipped.name}: ${diff.length ? diff.join(', ') : 'no stat difference'}`;
+}
+
+function renderCompareBlock(content: Content, meta: MetaState, selected: Relic): string {
+  const eq = equippedIn(meta, selected.slot);
+  if (!eq || eq.id === selected.id) return '';
+  const diff = compareRelics(content, selected, eq);
+  return `<div class="sw-compare">
+    <b>vs equipped — ${eq.name}</b>
+    ${diff.length ? diff.map((l) => `<div class="sw-affix">${l}</div>`).join('') : '<div class="sw-affix">No stat difference.</div>'}
+  </div>`;
+}
+
 function implicitLine(relic: Relic): string {
-  const imp = loadContent().relics.implicits[relic.slot];
+  const content = loadContent();
+  const imp = content.relics.implicits[relic.slot];
   if (!imp) return '';
-  return `${formatStat(imp.stat, imp.value, imp.value < 1)} (implicit)`;
+  return `${formatStat(imp.stat, imp.value, statIsPct(content, imp.stat, imp.value))} (implicit)`;
 }
 
 function formatStat(stat: string, value: number, pct: boolean): string {
