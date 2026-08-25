@@ -32,6 +32,11 @@ export function makeEnemy(w: World, def: EnemyDef, x: number, y: number, opts: S
   }
   const isBoss = def.traits.includes('boss');
   if (isBoss) hp *= 1 + w.mods.bossHp;
+  if (def.traits.includes('finalBoss')) {
+    // SPEC 5.5: "15,000 HP x tier multiplier". The only tier multiplier the
+    // spec defines is SPEC 8.3's reward scale, so the boss uses that.
+    hp *= 1 + w.content.modifiers.tierRewardPerStep * (w.cfg.tier - 1);
+  }
 
   const e: Enemy = {
     id: w.newId(),

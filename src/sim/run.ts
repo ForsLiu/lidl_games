@@ -20,12 +20,20 @@ import { shouldSpawnBoss, spawnFinalBoss, updateDirector } from './act2';
 import { openLevelUpIfPending, rerollOffers, takeOffer, updateGems } from './progression';
 import { beginSoulPick, finishSundering } from './sundering';
 import { updateTerrainEffects, updateWeapons } from './weapons';
+import { updateBossSlam } from './boss';
 import { dropOrb } from './loot';
+// Registers the Warden-Eater script with enemies.ts.
+import './boss';
 // Registers the kill-drop handler with enemies.ts.
 import './loot';
 import { FIXED_DT, emptyInput, type Command, type RunOutcome, type RunReport, type TickInput } from './types';
 import { World } from './world';
 import type { RunConfig } from './types';
+
+// Registered once at module load, not per-Run: the handlers are stateless and
+// take the World explicitly, and anything importing the sim needs them live.
+setWardenDamageHandler((w, amount) => damageWarden(w, amount));
+setAreaDamageHandler((w, amount) => damageWarden(w, amount));
 
 export class Run {
   readonly world: World;
@@ -33,8 +41,6 @@ export class Run {
 
   constructor(cfg: RunConfig) {
     this.world = new World(cfg);
-    setWardenDamageHandler(damageWarden);
-    setAreaDamageHandler(damageWarden);
   }
 
   get done(): boolean {
@@ -390,6 +396,7 @@ function updateAct2(w: World, input: TickInput, dt: number): void {
   updateEnemies(w, dt);
   updateProjectiles(w, dt);
   updateAreas(w, dt);
+  updateBossSlam(w, dt);
   updateGems(w, dt);
   updateDirector(w, dt);
   if (shouldSpawnBoss(w)) spawnFinalBoss(w);

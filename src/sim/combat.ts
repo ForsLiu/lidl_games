@@ -410,6 +410,8 @@ export function updateAreas(w: World, dt: number): void {
       a.dead = true;
       continue;
     }
+    // Boss slam rings grow and damage on their leading edge; boss.ts owns them.
+    if (a.type === 'bossSlam') continue;
     if (a.type === 'enemyFire') {
       if (dist2(a.x, a.y, w.warden.x, w.warden.y) <= a.radius * a.radius) {
         wardenAreaDamage(w, a.dps * dt);

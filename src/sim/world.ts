@@ -108,6 +108,9 @@ export class World {
   bossKilled = false;
   bossKillTime = -1;
   bossSpawnTime = -1;
+  /** SPEC 5.5 phase 3: the closing ring of arena fire. */
+  arenaFireActive = false;
+  arenaFireRadius = 0;
 
   /* ---- entities ---- */
   warden: Warden;

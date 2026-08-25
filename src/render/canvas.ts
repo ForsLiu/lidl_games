@@ -42,6 +42,7 @@ export class Renderer {
   private ctx: CanvasRenderingContext2D;
   private numbers: FloatingNumber[] = [];
   private flashes = new Map<number, number>();
+  private telegraphs: { x: number; y: number; dx: number; dy: number }[] = [];
   private shakeX = 0;
   private shakeY = 0;
   private rngPhase = 0;
@@ -97,6 +98,13 @@ export class Renderer {
         case 'sunder':
           view.shake = Math.max(view.shake, 14);
           break;
+        case 'bosstelegraph':
+          this.telegraphs.push({ x: e.x, y: e.y, dx: e.a, dy: e.b });
+          break;
+        case 'bossphase':
+        case 'bossslam':
+          view.shake = Math.max(view.shake, 7);
+          break;
         default:
           break;
       }
@@ -135,7 +143,9 @@ export class Renderer {
     ctx.fillRect(-20, -20, this.width + 40, this.height + 40);
 
     this.drawTiles(w, night);
+    this.drawArenaFire(w);
     this.drawAreas(w);
+    this.drawTelegraphs();
     this.drawStructures(w);
     this.drawGems(w);
     this.drawEnemies(w);
@@ -190,6 +200,45 @@ export class Renderer {
       ctx.fillStyle = frac > 0.4 ? '#5fe08a' : PALETTE.hpFront;
       ctx.fillRect(cx, cy - 8, cw * frac, 5);
     }
+  }
+
+  /** SPEC 5.5 phase 3: everything outside the ring is burning. */
+  private drawArenaFire(w: World): void {
+    if (!w.arenaFireActive) return;
+    const ctx = this.ctx;
+    const cx = (GRID_W / 2) * TILE;
+    const cy = (GRID_H / 2) * TILE;
+    const r = w.arenaFireRadius * TILE;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, 0, this.width, this.height);
+    ctx.arc(cx, cy, r, 0, Math.PI * 2, true);
+    ctx.fillStyle = '#ff4a1a33';
+    ctx.fill();
+    ctx.strokeStyle = '#ff7a3a';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  /** Boss charge telegraphs, drawn for the tick they were emitted. */
+  private drawTelegraphs(): void {
+    if (this.telegraphs.length === 0) return;
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.strokeStyle = '#ff335588';
+    ctx.lineWidth = 2.2 * TILE;
+    ctx.lineCap = 'round';
+    for (const t of this.telegraphs) {
+      ctx.beginPath();
+      ctx.moveTo(t.x * TILE, t.y * TILE);
+      ctx.lineTo((t.x + t.dx * 22) * TILE, (t.y + t.dy * 22) * TILE);
+      ctx.stroke();
+    }
+    ctx.restore();
+    this.telegraphs.length = 0;
   }
 
   private drawAreas(w: World): void {

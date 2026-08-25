@@ -4,9 +4,9 @@
 > A fresh session should be able to resume from this file + CLAUDE.md alone.
 
 ## Current state
-- **Milestone:** M5 complete — gates A11, A2, A3, A4, A5, A6, A8 green
+- **Milestone:** M6 complete — gates A11, A2, A3, A4, A5, A6, A8 green + boss-kill sim
 - **Last session:** 2026-08-24
-- **Next action:** M6 — Warden-Eater boss phases, Awakenings in play, Rift events
+- **Next action:** M7 — balance sweeps until A1-A9 are all green (A1, A7, A9 still to write)
 
 ## Milestone checklist
 - [x] M0 — sim skeleton + headless CLI (gate A11)
@@ -15,7 +15,7 @@
 - [x] M3 — the Sundering, first full loop (gate A6)
 - [x] M4 — full content pass (gates A4, A5)
 - [x] M5 — meta layer: relics, tree, classes, tiers (gate A8)
-- [ ] M6 — final boss, Awakenings, Rifts
+- [x] M6 — final boss, Awakenings, Rifts
 - [ ] M7 — balance sweeps green (A1–A9)
 - [ ] M8 — feel + ship (gate A10)
 
@@ -141,6 +141,29 @@ tests/             vitest; acceptance tests are named aNN-*.test.ts
   all 12 seeds so the comparison is like-for-like.
 - **Gate green**: save/load round-trip test.
 
+## M6 — done
+- The Warden-Eater (`src/sim/boss.ts`) with all three SPEC 5.5 phases:
+  telegraphed line charges that shatter the petrified terrain they cross,
+  Wraith summons with expanding ground-slam rings, and an enrage below 30% that
+  speeds it up and closes a ring of arena fire inward.
+- Boss HP is 15,000 x the tier multiplier, deliberately skipping both the Act II
+  overlay and the per-minute ramp.
+- Awakenings verified end to end: gated on weapon Lv6 plus a boon at rank 3,
+  and each of the three changes how its weapon plays.
+- Rift events verified at 3:00 / 6:00 / 9:00, doubled by Rift Storm.
+- Renderer draws charge telegraphs and the closing fire ring.
+- **Gate green**: a scripted `maxbuild` run reaches, fights and kills the boss;
+  across 8 seeds most win but not all, so it is a real fight.
+
+### Fixed during M6
+- Mortar volleys fired only one shell into a single crowd, because every extra
+  shell was excluded for overlapping the first. Volleys now spread across the
+  crowd when there is nowhere else to aim.
+- The Phoenix Ring's orbs tested centre-to-centre and could miss a Colossus by
+  0.003 tiles; they now connect on body contact like every other hit test.
+- The Warden damage handlers were registered per-`Run`, so a bare `World`
+  silently ignored damage. They are registered once at module load.
+
 ## Known issues / skipped tests
 - **A3 is green on a relaxed line.** SPEC A3 wants a stationary Warden dead by
   3:00; the measured median is ~208 s. A planted Warden reliably survives the
@@ -155,6 +178,8 @@ tests/             vitest; acceptance tests are named aNN-*.test.ts
   thin. It is comfortably inside the bound, but M7 should widen the field.
 
 ## Session log (newest first)
+- 2026-08-24 — M6: Warden-Eater phases, Awakenings and Rifts verified. Boss-kill
+  gate green; boss damage tuned so maxbuild still wins ~75% (A8 holds).
 - 2026-08-24 — M5: meta layer complete. Orb crafting, the Hub (class, tier
   draft, Constellation, stash), save/load. Gate A8 green.
 - 2026-08-24 — M4: full content pass. Relic/Orb drops, tier drafting, damage

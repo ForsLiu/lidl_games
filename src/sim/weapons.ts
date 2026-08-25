@@ -241,6 +241,11 @@ function pickLineDirection(
   return { x: dir.x * c - dir.y * s, y: dir.x * s + dir.y * c };
 }
 
+/**
+ * Where the next shell of a volley lands. Successive shells prefer clusters
+ * that are not already being hit, but a volley aimed into one big crowd must
+ * still fire every shell — it just spreads them across the crowd.
+ */
 function pickLobCluster(
   w: World,
   x: number,
@@ -251,16 +256,28 @@ function pickLobCluster(
 ): Enemy | null {
   const t = densestCluster(w, x, y, range, radius);
   if (!t) return null;
-  for (const e of excluded) {
-    if (dist2(e.x, e.y, t.x, t.y) < radius * radius) {
-      // Already shelling this cluster: look for one further out.
-      const alt = w.nearestEnemy(x, y, range, (o) =>
-        excluded.every((ex) => dist2(ex.x, ex.y, o.x, o.y) >= radius * radius),
-      );
-      return alt;
+  const clash = excluded.some((e) => dist2(e.x, e.y, t.x, t.y) < radius * radius);
+  if (!clash) return t;
+
+  const fresh = w.nearestEnemy(x, y, range, (o) =>
+    excluded.every((ex) => dist2(ex.x, ex.y, o.x, o.y) >= radius * radius),
+  );
+  if (fresh) return fresh;
+
+  // One crowd, several shells: pick the target furthest from what we already
+  // aimed at so the volley covers it rather than stacking on one point.
+  let best: Enemy | null = null;
+  let bestScore = -1;
+  for (const e of w.enemiesInRadius(x, y, range)) {
+    if (e.dead) continue;
+    let nearest = Infinity;
+    for (const ex of excluded) nearest = Math.min(nearest, dist2(ex.x, ex.y, e.x, e.y));
+    if (nearest > bestScore) {
+      bestScore = nearest;
+      best = e;
     }
   }
-  return t;
+  return best;
 }
 
 /** Phoenix Ring: an orbiting fire ring that ticks on its own cadence. */
@@ -280,18 +297,25 @@ function updatePhoenixRing(
   if (ws.ringCooldown > 0) return;
   ws.ringCooldown += awk.effect.ringInterval ?? 0.5;
   const damage = (awk.effect.ringDamage ?? 18) * dmgMul;
+  const orbRadius = ORB_RADIUS * area;
   for (let i = 0; i < orbs; i++) {
     const a = ws.ringPhase + (6.283185307179586 * i) / orbs;
     const ox = w.warden.x + dcos(a) * radius;
     const oy = w.warden.y + dsin(a) * radius;
-    const list = w.enemiesInRadius(ox, oy, 0.7 * area);
-    for (const e of list) {
+    // Like every other hit test in the sim, an orb connects on body contact,
+    // not centre-to-centre: a big enemy is easier to clip than a Swarm Rat.
+    for (const e of w.enemiesInRadius(ox, oy, orbRadius + 1.5)) {
       if (e.dead) continue;
+      const reach = orbRadius + e.radius;
+      if (dist2(ox, oy, e.x, e.y) > reach * reach) continue;
       damageEnemy(w, e, damage, ws.key, { fromX: ox, fromY: oy });
     }
-    w.emit('ring', ox, oy, 0.7 * area, 0);
+    w.emit('ring', ox, oy, orbRadius, 0);
   }
 }
+
+/** Radius of a single Phoenix Ring orb. */
+const ORB_RADIUS = 0.7;
 
 /* ---------------------------------------------------- petrified residuals */
 
