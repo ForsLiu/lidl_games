@@ -33,7 +33,7 @@ with the commit hash.
 ## Done
 
 - [x] (f001) [feat] Cycle state machine: Day→Dusk→Night→Dawn ×3, Dusk picker every
-      cycle, Dawn Rekindle/Leave flow — refs: SPEC-V2 §1 — commit <pending>,
+      cycle, Dawn Rekindle/Leave flow — refs: SPEC-V2 §1 — commit 4e44a33,
       code-reviewer pass 2026-08-25 (one Major finding — `hashWorld` omitted the
       new `w.soulLevels` persisted-soul-progress record, so two replays could
       diverge there without the A11 hash catching it — fixed by hashing
