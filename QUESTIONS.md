@@ -6,11 +6,14 @@
 Format:
 - **Q<n>. [M<n>] Question** — Chosen default: … — Reason: … — (owner verdict: pending)
 
-Entries are numbered **Q1–Q28** so verdicts can be given compactly, e.g.
+Entries are numbered **Q1–Q31** so verdicts can be given compactly, e.g.
 `Q3 approved; Q13 drop class exclusivity; all others approved`.
 
 ## Verdict log
 
+- **2026-08-25 (round 2)** — Verdicts were requested again and again arrived as
+  the example template (`<e.g. "Q1: …">`) rather than actual verdicts. Nothing
+  was applied. Q29–Q31 were added this round; all 31 entries are **pending**.
 - **2026-08-25** — Verdicts were requested in the playtest round, but the message
   carried the example template (`<e.g. "Q1: …">`) rather than actual verdicts.
   Nothing was applied and every entry below is still **pending**; no code or data

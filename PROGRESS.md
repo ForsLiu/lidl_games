@@ -7,11 +7,14 @@
 - **Milestone:** M8 complete — **first complete version**. All of A1–A11 green
   (two strict bounds relaxed and documented under Known issues).
 - **Last session:** 2026-08-25
-- **Next action:** QUESTIONS.md verdicts. The 2026-08-25 request carried the
-  example template rather than actual verdicts, so all 28 entries are still
-  pending — see the Verdict log at the top of that file. After that, the two
-  relaxed bounds (A3's per-seed 3:00 line, A7's 15% leak share) are the
-  obvious follow-ups.
+- **Next action:** QUESTIONS.md verdicts. Both playtest requests carried the
+  example template rather than actual verdicts, so all **31** entries are still
+  pending — see the Verdict log at the top of that file. After that: the tier
+  ladder above T3 has no measured win (HANDOFF.md §6), and the two relaxed
+  bounds (A3's per-seed 3:00 line, A7's 15% leak share) remain open.
+- **HANDOFF.md** at the repo root is the state report for SPEC v0.2: every
+  implemented system, every deviation from SPEC.md with its reason, the /data
+  snapshot, measured sweep metrics, and an engineer's list of what is shallow.
 
 ## Milestone checklist
 - [x] M0 — sim skeleton + headless CLI (gate A11)
@@ -242,6 +245,52 @@ Regression tests live in `tests/ui-input.test.ts` (jsdom). jsdom resolves
 the invariant against the stylesheet itself: any rule that shows `.sw-modal`
 must be outranked by one that hides it. That assertion fails on the old CSS.
 
+## Playtest round 2 — 2026-08-25
+
+Reported: refunds still did not work; no tower information anywhere; every
+projectile looked the same; the Constellation ran off the page and said
+nothing; no speed control; no dev tools; no sense of stage progress; and
+features whose counters read zero with no explanation.
+
+- **Refund, real cause.** A fresh account has 0 Ember and respec costs 5, so the
+  first point ever spent was permanent. Points spent in the current Hub visit now
+  come back free, and `tree.startingEmber` is 400. `tests/ui-refund-repro.test.ts`
+  drives the real Hub DOM.
+- **Constellation** rebuilt as a bounded disc: each branch owns a 120° sector,
+  ring sizes grow with circumference, the outer radius is fixed so the whole tree
+  is always on screen. Nodes have hover cards that spell out their stats, lit
+  edges take their branch colour, and a refused click says why.
+- **Balance.** M7's `hpScalePerWave` 1.35 had turned wave 10 into a wall that no
+  amount of DPS answered: `kite` and `turtle` cleared 0/8 seeds. Wave HP growth
+  is now 1.30 and the two modifiers A4 drafts are stronger (Ironhide +45%,
+  Fleetfoot +30%), so A4's "fails at T3" holds on tier difficulty rather than on
+  the wave wall. Act II absorbed the knock-on (warm-up 75→100 s, `actIICarry`
+  3.5→3.2). `tests/light-build.test.ts` pins the shape.
+- **A10 went red** as a side effect — longer runs, 5.3 s median against a 5 s
+  budget — and was won back honestly: `moveEnemy` no longer takes a square root
+  to clamp a saturating value, and `rebuildBuckets` inlines its cell key. Same
+  end-state hashes, 4.4 s median.
+- **Tower panel** (`src/ui/tower-info.ts`) derives damage, rate, DPS, range,
+  splash, burn/poison/slow, build/upgrade/sell prices, the soul and the terrain
+  from the same helpers the sim fires with, for the selected tower or whichever
+  one the cursor is over.
+- **Projectiles** now differ per source: bolts, arcing shells with ground
+  shadows, globs, orbs, sparks — plus tracers for the instant-hit attacks, which
+  previously drew nothing at all.
+- **Stage progress** (`src/ui/progress.ts`): Act I is a bar over waves with a
+  tick per wave and a second bar for the active wave; Act II is a bar to the
+  ten-minute boss with ticks on the director's real elite and rift schedule, a
+  countdown, and an XP bar.
+- **Fast-forward** 1x/2x/3x (F), as more fixed ticks per frame rather than a
+  longer tick, so a fast-forwarded run is bit-identical to the same run at 1x.
+- **Practice runs**, opted into at the Hub: kill all, +gold, +XP, heal,
+  invulnerable, skip wave, +1 minute, summon boss. The actions are Commands gated
+  on `RunConfig.practice`, so they replay exactly and a normal run cannot reach
+  them; a run that used one banks nothing.
+- **Zero-state**: Settings can seed a test account (8 relics, 3 of each Orb, 600
+  Ember) or wipe it; every header counter now says what it is and how to get
+  more; the empty Stash and the Orb buttons explain themselves.
+
 ## Known issues / skipped tests
 - **A3 is green on its material claims, not its strict bound.** Act II survival
   is sharply bimodal: a stationary Warden either drowns in the opening two
@@ -256,9 +305,24 @@ must be outranked by one that hides it. That assertion fails on the old CSS.
   a second anti-turtle lever that does not also break mono-tower builds.
 - **Act II remains bimodal** for every policy. It no longer blocks a gate, but it
   makes medians noisy — prefer means or pass-rates when measuring Act II.
-- **A10 is not met yet**: a full headless run takes ~8 s against the 5 s target.
-  Owned by M8.
+- **The tier ladder collapses past T3.** `maxbuild` wins 75% at T1, 50% at T3
+  and 0% at T5; T4 and T5 have no measured win at all. The modifier draft is the
+  only difficulty lever and it is not smooth. Q30's stronger Ironhide/Fleetfoot
+  makes this worse, not better — it was the right trade for A4, but the ladder
+  needs its own scaling.
+- **Piercing Bolt sits at or above A5's 35% line** whenever a build has it:
+  43.7% across the policy pool, 33.9% across A5's own diverse-build pool. A5
+  passes on the pool it measures; the honest reading is that pierce is at the
+  bar.
+- **Boon pick data is a bot artifact.** `BuilderPolicy.pickOffer` takes
+  awakening → weapon → card index 0, so measured "picks" reflect offer RNG, not
+  preference. There is no signal about which boons a player would want.
 ## Session log (newest first)
+- 2026-08-25 — Playtest round 2: refund fixed at its real cause, Constellation
+  rebuilt as a bounded disc, tower info panel, per-source projectiles, stage
+  progress bars, fast-forward, practice runs, test-account seeding. Act I
+  rebalanced so a light build clears again, and A10's run budget won back with
+  two value-preserving sim optimisations. HANDOFF.md written for SPEC v0.2.
 - 2026-08-25 — Playtest fixes: the hidden modal overlay was covering and blurring
   the game, Constellation refunds gave no feedback when unaffordable, the canvas
   was upscaled rather than backed at DPR. Added pause. QUESTIONS.md numbered
