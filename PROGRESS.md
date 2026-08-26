@@ -96,8 +96,11 @@ test-retirement ledger. Read §8 before touching anything.
   rate — so the milestone moves damage into a bucket that is already full and
   measures **−5.4%** (88.6 → 83.8 dps). Both clauses are verbatim and both are
   ⚖. Logged as Q87 for §17's review list rather than resolved by an agent.
-- **Next action:** **P3** `p3a` (the §1.1 run shape: 3 TD waves then 1 VS
-  wave, repeating). `p2e` is done — **P2 is complete in full** — the
+- **Next action:** **P3** `p3b` (multi-summon: stacking up to 3 TD waves early,
+  each paying its own `2 gold × un-elapsed build seconds` bonus). `p3a` is
+  done — the §1.1 run shape (18 TD + 6 VS, VS after TD wave 3/6/9/12/15/18,
+  20s build, 75s VS except the boss-gated final wave) is live, gate G6's
+  pattern half green; see its own entry below. `p2e` is done — **P2 is complete in full** — the
   superseded soul-weapon roster and Dusk picker are deleted; see its own
   entry below. `p2d`
   is done — the §6.2 weapon-panel lineage text reads straight off
@@ -114,6 +117,38 @@ test-retirement ledger. Read §8 before touching anything.
   QA-proven a no-op), and `x002` at `ef69a47` (lifesteal's cap removed and its
   accrual gated to normal damage per §2 — **not** a no-op; the sweep delta is
   below and in the session log). P0's remaining clause is carried as
+- **p3a — what a reader needs to know.** SPEC-FINAL §1.1's run shape ("3 TD
+  waves, then 1 VS wave, repeating"; 18 TD + 6 VS per run) is live, reusing
+  the V2 Day/Dusk/Night/Dawn cycle machine retargeted rather than a new
+  parallel driver (Q105): `World.totalCycles` now defaults to 6 (was 3), and
+  `cycleWaveEnd`/`nightLengthSeconds` (`src/sim/world.ts`) read two new
+  `data/waves.json` fields — `tdWavesPerVsWave: 3`, `vsWaveSeconds: 75` — in
+  place of the old per-cycle `waveEndByCycle`/`nightSecondsByCycle` tables
+  (left in the file, unread, for `p3d` to remove with the rest of the
+  machine). `buildPhaseSeconds` moved `30 → 20` to match §1.1's literal
+  number. The legacy single-pass shape (`totalCycles <= 1`, still the whole
+  suite's default via `tests/helpers.ts`'s `cfg()`) is untouched — `waveCount`
+  branches on it explicitly, so nothing outside the new multi-block path
+  changed behavior. Gate **G6's pattern half is green**: the new
+  `tests/p3a-run-shape.test.ts` drives a full scripted 18+6 run and confirms
+  VS fires exactly after TD wave 3/6/9/12/15/18, TD wave 18's real spawn
+  queue carries the Gatebreaker, the final VS wave ignores the 75s timer and
+  only ends on the Warden-Eater's death, and building is rejected throughout
+  every VS wave. Two real bugs were caught and fixed before this landed, not
+  after: code review found the reused Dusk phase's old 15s cinematic stayed
+  buildable at its old length, which would have bought 15s of illegal
+  building every block (fixed by collapsing `duskTimer` to 0 for any
+  multi-block run); QA then found a one-tick build window on the exact
+  zero-`duskTimer` dusk tick itself (`Run.step` applies commands before the
+  phase switch runs `finishSundering`), fixed by gating `canBuildNow`
+  (`src/sim/towers.ts`) on `duskTimer > 0`, not just `phase === 'dusk'`, with
+  a regression case added for it. `tests/f001-cycle-machine.test.ts`'s
+  "a scripted 3-cycle sim completes" pin moved seed 8 → 1 → 4 across the two
+  fixes, each move measured against the code as it then stood, not guessed —
+  see Q105 for the full sweep numbers. `npm test`: 668 passed / 33 skipped, 0
+  failed, unchanged before and after every fix; `npx tsc --noEmit` clean.
+  `p3b` (multi-summon), `p3c` (leak coupling's ×2-into-next-VS restatement)
+  and `p3d` (deleting the old cycle machine outright) are still open.
 - **p2e — what a reader needs to know. P2 is complete in full.** The named
   8-weapon roster (`data/weapons.json`, deleted), its fire loop
   (`weapons.ts`, 325 lines → 14, Palisade/Beacon/Sprout terrain residuals

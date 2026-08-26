@@ -31,7 +31,7 @@ still in test headers.
 | P0 sim skeleton | **done** — fixed 60 Hz, named RNG streams, Commands, headless CLI, end-state hash (G2 green except tuner-edited content and fast-forward, see p9f) |
 | P1 TD core | **done** — pathing, 3 owner towers, 20 enemies, economy live; p1a landed sealing (breach pathing, §10), p1b measured G7's win-rate band as a live test — G7 green in full, band re-measured at p3e per Q83 |
 | P2 VS core | **done in full (p2a-p2f)** — inheritance formula built and wired live, towers inert with their §5 specials live, weapon-panel lineage live, the superseded soul-weapon roster and Dusk picker deleted (G3 green in full) |
-| P3 interleave | **leak coupling done, interleave not** — the run is still V2's Day/Dusk/Night/Dawn cycle machine, not TD×3→VS (G6 unmet) |
+| P3 interleave | **leak coupling and the interleave pattern done, multi-summon/full retirement/re-baseline not** — `p3a` retargets the reused V2 cycle machine to 18 TD + 6 VS, 20s build, 75s VS (G6's pattern half green); `p3b` (stacking), `p3d` (delete the old machine) and `p3e` (re-baseline) are still open |
 | P4 core math | **done** — multiplicative stacking, armor cap +99 / floor −100, 6 damage types + 2 statuses (G4, G5 green) |
 | P5 tower roster | **done bar pricing** — all 10 towers, upgrade tracks, defense bands; two tracks carry a `note` instead of §5's count (G20 unasserted) |
 | P6 classes | **3 of 11**, and on V2's one-Active + Signature framework, not §4's Passive + Q + E + tower passive (G8–G11 unmet) |
@@ -64,13 +64,6 @@ line; p2e deleted the superseded soul-weapon roster and picker wholesale.
 
 ### P3 — interleave and leak coupling (G6)
 
-- [ ] (p3a) [feat] The §1.1 run shape: 3 TD waves then 1 VS wave, repeating; 18 TD
-      + 6 VS per run; VS after TD waves 3/6/9/12/15/18; Gatebreaker ends TD 18; the
-      Warden-Eater ends the final VS wave and killing it wins. Build phase 20 s, VS
-      wave 75 s (final VS: until the boss dies), building disabled during VS —
-      acceptance: gate **G6**'s pattern half — a full scripted run visits the phases
-      in exactly that order with those counts, and building is rejected during VS —
-      refs: §1.1, G6
 - [ ] (p3b) [feat] Multi-summon: the player may call the next TD wave(s) early,
       stacking up to 3 at once; the early-call bonus is `2 gold × that wave's
       un-elapsed build seconds`, paid once per wave against its own timer. VS waves
@@ -398,6 +391,83 @@ logged in MIGRATION.md §8 rather than carried as dead items.
   **G19**. The work is `p10d`.
 
 ## Done
+
+- [x] (p3a) [feat] The §1.1 run shape: 3 TD waves then 1 VS wave, repeating; 18 TD
+      + 6 VS per run — this commit — `World.totalCycles` now defaults to 6 (was 3),
+      `World.waveCount`/`cycleWaveEnd`/`nightLengthSeconds` (`src/sim/world.ts`)
+      are retargeted to a flat `tdWavesPerVsWave × cycle` / fixed `vsWaveSeconds`
+      formula sourced from two new `data/waves.json` fields (`tdWavesPerVsWave: 3`,
+      `vsWaveSeconds: 75`), and `buildPhaseSeconds` is edited `30 → 20` to match
+      §1.1's literal ⚖ number. **Design decision (Q105): reuse the V2 Day/Dusk/
+      Night/Dawn cycle machine, retargeted, rather than build a parallel driver** —
+      smaller diff, keeps `dusk`/`act2`/`dawn` and Rekindle exactly as the still-live
+      machinery `p3d` formally deletes later, and the two shapes are structurally
+      identical ("N blocks, the last boss-gated") once the per-cycle content tables
+      are replaced by flat constants. `World.waveCount` branches on
+      `totalCycles <= 1`: that branch (`content.waves.waves.length`, unchanged) is
+      the legacy single-pass escape hatch `tests/helpers.ts`'s default `cfg()` and
+      `light-build.test.ts` already opt into on purpose, left byte-for-byte alone;
+      any `totalCycles > 1` gets the new §1.1 shape, landing on TD wave 18 even
+      though `data/waves.json` only authors 10 real rows (`buildSpawnQueue` already
+      repeats the last authored row past the table's end — real 11-18 content is
+      `p8a`'s, not this item's). **Gate G6's pattern half is green**: a full
+      scripted 18 TD + 6 VS run (new test `tests/p3a-run-shape.test.ts`) visits VS
+      exactly after TD waves 3/6/9/12/15/18 and not before/elsewhere, TD wave 18's
+      real spawn queue carries the Gatebreaker, the final VS wave ignores the 75s
+      timer entirely and only ends on the Warden-Eater's death, and building is
+      rejected throughout every VS wave. `p3b` (multi-summon stacking), `p3c`
+      (leak coupling's ×2-into-next-VS-wave restatement) and `p3d` (formally
+      deleting the old cycle machine) are untouched and still open — this item only
+      lands the pattern, not those three.
+      **code-reviewer REQUEST-CHANGES → fixed, then re-reviewed clean**: the
+      reused V2 "Dusk" phase's old 15s cinematic delay stayed buildable
+      (`canBuildNow` allowed `'dusk'` unconditionally) while its duration was still
+      15s for every shape, which would have bought every non-final block 15s of
+      legal building beyond the spec's stated 20s and inflated a block's wall-clock
+      length to 20+15+75=110s instead of the 95s the spec's two ⚖ numbers imply —
+      fixed by collapsing `duskTimer` to 0 for any `totalCycles > 1` run
+      (`completeWave`, `run.ts`) while leaving the legacy 15s Dusk exactly as it was
+      for `totalCycles <= 1`. Two Minors taken: the Gatebreaker assertion now has a
+      comment naming its actual scope (wave 18's queue matches because
+      `buildSpawnQueue` repeats wave 10 for every wave 10-18, not because 18 is
+      specially authored — that's `p8a`'s), and `data/waves.json`'s now-dead
+      `waveEndByCycle`/`nightSecondsByCycle` fields are flagged as deferred to
+      `p3d`. One Minor left for `p3e` per the standing no-balance-tuning
+      constraint: `eliteMulByCycle`/`nightMinuteOffsetPerCycle` (V2 per-cycle heat
+      knobs authored for 3 cycles) degrade safely under the new default of 6
+      cycles but silently reshape difficulty (12.5 min of baked-in Night-warmup
+      offset by the boss-gated final VS wave, only cycle 2 of 6 gets an elite
+      multiplier) — not touched here, since editing either value is the balance
+      tuning Q40 defers to P10/`p3e`.
+      **qa-playtester FAIL on first pass → fixed, then re-verified**: found a real
+      one-tick build window at every TD-wave-3/6/9/12/15/18 → dusk → VS boundary,
+      for every multi-block run — `Run.step` applies a tick's commands *before*
+      the phase switch's `'dusk'` case can call `finishSundering`, so a `build`
+      command landing on the exact zero-`duskTimer` dusk tick still went through,
+      one tick before the phase machine ever showed `act2`. Fixed by gating
+      `canBuildNow` (`src/sim/towers.ts`) on `phase === 'dusk' && duskTimer > 0`
+      rather than `phase === 'dusk'` alone, with a new regression case in
+      `tests/p3a-run-shape.test.ts` asserting rejection at exactly that tick, for
+      every one of the 6 blocks. Every other item on QA's checklist passed clean
+      on the first pass: build/upgrade/sell spam during VS (no gold spent, no
+      structures placed), a Core-HP-0 death mid-TD-wave and a Warden-HP-0 death
+      mid-VS-wave both resolve cleanly through the existing slow-mo beat with no
+      hang, replay-hash determinism holds across the new transitions (same
+      seed+policy, two independent runs, identical `endHash`), and five unattended
+      `hybrid`-policy seeds each reach a terminal outcome through real combat
+      without hanging on any phase.
+      `npm test`: 668 passed / 33 skipped (0 failed) before and after every fix in
+      this item, plus the perf suite (3 passed); `npx tsc --noEmit` clean
+      throughout. One live test's pinned seed moved twice in this item, both times
+      measured not guessed (`tests/f001-cycle-machine.test.ts`'s "a scripted
+      3-cycle sim completes": seed 8 → seed 1 on the formula change alone, then
+      seed 1 → seed 4 once the code-review dusk fix made the economy slightly
+      harder too — seed 4 is the lowest of 25 seeds, of 1-60 probed, that a
+      `hybrid` bot still reaches cycle 3 with under the code as it now stands, no
+      `/data` edits). See QUESTIONS Q105 for the full design writeup (the
+      reuse-vs-parallel-driver choice, the `totalCycles<=1` legacy branch, both
+      code-review/QA fixes, and the `p3e`-deferred elite/heat-scaling
+      consequence) — refs: §1.1, G6.
 
 - [x] (p2e) [polish] Delete the Sundering and soul-binding — this commit — the
       named 8-weapon roster (`data/weapons.json`, deleted), its schemas
