@@ -228,7 +228,7 @@ sit naturally alongside M24, which touches saves again.
 ## Done
 
 - [x] (m20b) [feat] The three owner towers and their milestone specials (SPEC-V3
-      §4) — commit `PENDING` — §4's specials are typed entries in each tower's
+      §4) — commit `7cec4ad` — §4's specials are typed entries in each tower's
       `upgrades.specials`, folded into an effective attack by `attackProfile`
       (`src/sim/upgrades.ts`) that every reader — fire loop, info panel, and m21's
       VS formula next — shares. Arrow: pierce and a second shot down the same
