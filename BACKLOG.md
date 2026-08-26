@@ -217,7 +217,7 @@ sit naturally alongside M24, which touches saves again.
 
 ## Done
 
-- [x] (m19c) [feat] Damage-type taxonomy (SPEC-V3 §3) — commit `PENDING` — the six
+- [x] (m19c) [feat] Damage-type taxonomy (SPEC-V3 §3) — commit `b325487` — the six
       rows and both statuses, authored in `data/damagetypes.json` — **M19 complete**,
       gate **C3 green in full** (its carried clause closed: Burning is `shredArmor`'s
       first production caller) — refs: V3 §3, Q44, Q58, Q65–Q72 — code-reviewer
