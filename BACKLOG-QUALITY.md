@@ -37,7 +37,7 @@ this lane: q3 was the only actionable item left. Grounded in QUALITY.md's ALPHA
 save/soak lines, SPEC-FINAL §14 G17/G18, architecture rule 4, and the two
 coverage gaps session 1's log recorded. All five are inside Scope as written.*
 
-- [ ] (q7) [feat] Content-data loader fuzz: mutate every `/data/*.json` in
+- [x] (q7) [feat] Content-data loader fuzz: mutate every `/data/*.json` in
       memory (retype, drop, negative, extreme, empty-array) and assert
       `loadContent`'s zod schemas + cross-file integrity checks reject the
       result rather than building an unpayable world — acceptance: for each
@@ -68,6 +68,165 @@ coverage gaps session 1's log recorded. All five are inside Scope as written.*
       module — refs: engineer's judgment, HANDOFF §7
 
 ## Log
+
+### 2026-08-26 — session 3
+
+**Feedback inbox:** `feedback/` exists in this worktree and is empty. Nothing
+to process, nothing moved.
+
+**q7 done — but the interesting part is how it was found.** The three files
+(`tools/fuzz-data.ts`, `tests/q7-data-fuzz.test.ts`, `tests/q7-loader-holes.ts`)
+were already sitting complete and untracked in this worktree at session start,
+with no matching Log entry — an earlier session wrote and validated the whole
+thing (the file headers, the recorded artifact's "Recorded 2026-08-26" stamp
+and the `it.skip` bug reports all read as finished work) and stopped before
+writing up or committing. Verified rather than trusted: ran
+`npx vitest run tests/q7-data-fuzz.test.ts` (29 passed / 7 skipped, ~19s) and
+the full suite (`npx vitest run`, 729 passed / 78 skipped, exit 0, ~220s) clean
+with the files in place, then took it through the same review → QA → commit
+path session 2's own note says to use when the two are not run concurrently
+against a moving artifact — here there was no editing in between, so series vs.
+parallel was moot, but review ran first anyway.
+
+**What it does.** `census()` is exhaustive, not sampled: every canonical field
+path across all fifteen `/data` files, crossed with every mutation family that
+is a genuine type-change for that field's kind (17 families — retype,
+drop-key, rename-key, negative/zero/infinite/fractional, empty-string,
+flip-bool, empty-array/drop-element/dupe-element) — 4,775 effective mutations,
+3,077 rejected, 1,698 accepted. The seam swaps `/data` at the `vi.mock` import
+boundary, never the disk; a `filesOnDisk()` hash taken before the census runs
+brackets the whole file to prove it. The *accepted* set — the interesting
+column, since a loader whose schemas all passed would score "no crash"
+perfectly either way — is pinned in `tests/q7-loader-holes.ts` as a named
+`ACCEPTED` map, so a new field added without a guard, or a guard removed from
+an existing one, goes red by name on the next run rather than passing quietly.
+A second census (`REF_VERDICTS`) scores every string field under a
+garbage-rename and reports whether every row referencing it is cross-checked
+(`checked`), none are (`open`), or some are and some are not (`partial` — the
+one-directional-integrity finding, E1 below). Six probes go one step further
+than "accepted": they build a whole world from six specific accepted
+mutations and run a bot through it, so "accepted" is scored against what it
+actually costs at runtime, not just against the loader's verdict.
+
+**Review (code-reviewer, APPROVE, no findings).** Manually unskipped all seven
+`it.skip` bug reports, confirmed each fails today for the stated reason
+against the real `/src` files, restored the file with no diff. Confirmed no
+disk writes, no `Math.random`/`Date.now`/DOM, and that the `vi.mock` holder
+pattern avoids the stale-reference trap its own comments describe. No
+Critical/Major/Minor findings beyond two non-blocking style nits (a `never`
+param type used only to force call-site casts; runtime scales with `census()`
+size by design).
+
+**QA (qa-playtester, PASS).** Read the actual summary line (729 passed / 78
+skipped), not a piped tail — the exact mistake session 2 made and fixed is
+named in this file's own header as something to avoid, and QA repeated the
+check independently rather than trusting that write-up. Tried to defeat the
+harness by reasoning through hollowing `scanContent`/`mutate`/`familiesFor` to
+see which assertions would catch it — all three are guarded, none vacuous.
+Independently re-derived one suspicious-looking artifact entry
+(`towers.towers[].attack.damageRatio.electric` missing `'zero'` where its
+sibling `normal` has it) with a throwaway probe against the real loader before
+concluding the record is correct — the rejection comes from `tesla_coil`'s
+`electricChain` special guard, not `validateDamageRatio`, and both fields
+already had a plausible-but-wrong story ruled out before being trusted. One
+low-severity, non-blocking note, recorded rather than fixed because nothing
+in the shipped harness exploits it: `filesOnDisk()`'s no-writes pin only
+hashes the fifteen *named* files, so it would not catch a mutation that wrote
+a *new* file under `data/` rather than editing one of the fifteen. No live
+path does this today (grepped both new files for `writeFile`/`appendFile`:
+zero hits), so no regression test is owed against current code.
+
+**Suite state at this commit.** `npx vitest run` — **729 passed / 78 skipped,
+exit 0**, q7 included, ~220s.
+
+---
+
+*Bug reports for the main lane, in merge order. E1–E7 are `/src`/`/data`-schema
+defects this fuzzer found; each has a regression test written to the fixed
+behaviour and `it.skip`'d in `tests/q7-data-fuzz.test.ts` (describe block "q7 —
+filed defects (unskip with the fix)") — this lane may not edit `/src`, so
+skipping is the only way to leave the suite green. All seven were confirmed to
+fail today, independently, by both code-reviewer and QA unskipping them.*
+
+1. **E1 — the loader accepts a renamed content key that `/src` still
+   references by string literal, and the crash lands at runtime instead of
+   load time.** `src/bots/policies.ts:216` (`towerByKey.get('palisade')!`),
+   `src/sim/upgrades.ts:119` and `src/sim/weapons.ts:339` (`def.key ===
+   'palisade'`) all name the Palisade by its raw key; `content.ts`'s
+   integrity block cross-checks `soul`, `source`, `weapon`, `boon`, affinity
+   `towers[]`, wave `enemy` and spawn cost/weight keys, but nothing walks
+   `/src` for string-literal key references, so `palisade` — referenced by no
+   *other* `/data` file — has nothing to catch it. Renaming it loads clean and
+   throws `Cannot read properties of undefined` the first time a bot tries to
+   build one. `REF_VERDICTS`' `partial` verdicts (`boons[].key`,
+   `damagetypes.types[].key`, `enemies[].key`, `towers[].key`,
+   `weapons[].key`) are the general shape of this: some rows are referenced
+   from another `/data` file and caught, the rest are not checked at all.
+
+2. **E2 — no numeric range guard worth the name.** `interval`, `range`, `hp`
+   and `cost` (and by the same pattern, most numeric fields across all
+   fifteen files) are plain `num` with no `.positive()`/`.min()`. Measured
+   floors: negative 93%, zero 97%, infinite 95%, fractional 95% of applicable
+   fields accepted. Not all of it is a crash — `interval: 0` on a tower is a
+   90x-rate tower, not a hang, since `updateTowers` has no inner loop — but a
+   `zero`/`negative` `hp`, `interval` or `range` and a negative `cost` are all
+   authorable today.
+
+3. **E3 — non-finite numbers anywhere in `/data` reach the engine and the
+   report.** `1e999` is legal JSON and parses to `Infinity`; nothing in
+   `content.ts` rejects it. Measured consequences: an `Infinity` tower damage
+   reaches `report.damageTotal`, which G18's round-trip/reproducibility
+   promise cannot hold for; an `Infinity` enemy `hp` makes a wave literally
+   unkillable and ends the run; an `Infinity` Warden `maxHp` makes the Warden
+   unkillable. All three load clean, no throw.
+
+4. **E4 — duplicate ids and keys silently collapse instead of erroring.**
+   Pushing a duplicate tower row is accepted; the `Map` built from it keeps
+   the later row and the earlier one simply stops existing (`towerByKey.size
+   !== towers.length`) with nothing surfaced. Same shape as `enemyByKey`,
+   `enemyById`, `treeById`.
+
+5. **E5 — `tree.json` authors two fields its own schema doesn't name.**
+   `TreeNodeSchema` is not `.strict()` and never declares `angle`/`ring`, so
+   zod silently drops them from validation; every type mutation on either
+   field is accepted. The only two non-string-kind fields in the entire
+   4,775-case census where a wrong *type* gets through — every other typed
+   field in `/data` is refused.
+
+6. **E6 — a mistyped stat key loads clean and buys nothing, silently.** Six
+   authoring paths (`tree.nodes[].stats`, `classes[].mods`, `boons[].stat`,
+   `relics.affixes[].stat`, `relics.implicits.*.stat`, `modifiers[].effect`)
+   write into a `z.record(num)` keyed by stat name with no enum check, and
+   `Stats.addAll` (`src/sim/stats.ts`) filters any key not in `STAT_KEYS`. A
+   typo'd stat name is indistinguishable, at load time, from a real one — it
+   reaches `treeById` intact and then does nothing at every point of use.
+   `content.ts`'s own comment says `SPECIAL_KEYS` was made an enum "to
+   prevent... a typo silently buying nothing" for one narrower case; this is
+   the general shape of the same failure across six fields.
+
+7. **E7 — an empty roster, wave list, tree or quest log is accepted.**
+   `waves.waves`, `tree.nodes` and `quests.quests` all load with `[]` instead
+   of being refused. QA reproduced this independently of the shipped harness
+   with a standalone probe.
+
+*Not a defect, recorded because QA specifically ruled it out rather than
+assuming it:* `towers.towers[].attack.damageRatio.electric` is missing the
+`'zero'` mutation from its recorded `ACCEPTED` entry where the sibling
+`.normal` field has it — this looked like a recording gap on inspection, but
+is correct: `zero` on `.electric` is rejected by `tesla_coil`'s
+`validateSpecial`'s `electricChain` guard (it needs a nonzero electric share
+to pay its upgrade special), not by `validateDamageRatio`, which both fields
+otherwise satisfy either way.
+
+*Informational, not filed as a defect:* the "no `/data` file is written" pin
+(`filesOnDisk()`) hashes only the fifteen files `DATA_FILES` names, so it
+would not catch a mutation that wrote a *new* file under `/data` rather than
+editing one of the fifteen. No such write exists in the shipped harness
+(grepped for `writeFile`/`appendFile`: zero hits in either new file), so
+nothing is owed against current code — recorded so a future extension of this
+harness knows the pin's actual shape.
+
+---
 
 ### 2026-08-26 — session 2
 
