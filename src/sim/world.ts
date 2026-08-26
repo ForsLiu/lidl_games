@@ -82,9 +82,17 @@ export class World {
   tick = 0;
   phase: Phase = 'act1_build';
   outcome: RunOutcome = 'running';
-  /** SPEC-V2 §1: 1-based index of the Day/Dusk/Night/Dawn cycle in progress. */
+  /**
+   * 1-based index of the TD-block/VS-wave pair in progress, reusing the V2
+   * Day/Dusk/Night/Dawn cycle machine's counters and phases (`dusk`, `act2`,
+   * `dawn`) as the least-disruptive vehicle for SPEC-FINAL §1.1's "3 TD waves,
+   * then 1 VS wave, repeating" pattern (P3 p3a). The old per-cycle content
+   * tables (`waveEndByCycle`, `nightSecondsByCycle`) are retired in favor of
+   * `tdWavesPerVsWave`/`vsWaveSeconds` below; the machine itself — and this
+   * field's name — is deleted outright at p3d.
+   */
   cycle = 1;
-  /** Cycles this run plays before the Warden-Eater ends it (cfg.cycles, default 3). */
+  /** VS waves this run plays before the Warden-Eater ends it (cfg.cycles, default 6 per §1.1). */
   readonly totalCycles: number;
   /** Counts up while the Dawn ledger is open; auto-advances past DAWN_AUTO_SECONDS. */
   dawnTimer = 0;
@@ -254,7 +262,7 @@ export class World {
   constructor(cfg: RunConfig, content: Content = loadContent()) {
     this.content = content;
     this.cfg = cfg;
-    this.totalCycles = Math.max(1, Math.round(cfg.cycles ?? 3));
+    this.totalCycles = Math.max(1, Math.round(cfg.cycles ?? 6));
     this.rng = new RngSet(cfg.seed);
     this.grid = new Grid();
     this.grid.breachBase = content.towers.breach.base;
@@ -294,7 +302,19 @@ export class World {
     this.stats.add('modifiers', 'pickupPct', this.mods.pickupMul);
     this.derived = derive(content, this.stats, 1 + this.mods.residualMul);
 
-    this.waveCount = content.waves.waves.length + this.mods.extraWaves;
+    // `totalCycles <= 1` is the legacy single-pass escape hatch a lot of the
+    // suite still opts into on purpose (tests/helpers.ts's default `cfg()`,
+    // light-build.test.ts): a full walk of the authored wave table into one
+    // Sundering, one boss-only Night. SPEC-FINAL §1.1's real shape (any
+    // `totalCycles > 1`) instead targets 18 TD waves total — `tdWavesPerVsWave`
+    // x `totalCycles`, e.g. 3 x 6 — even though `data/waves.json` only authors
+    // 10 rows today; `buildSpawnQueue` (run.ts) already repeats the last
+    // authored row with continued HP scaling past the table's end, so this is
+    // purely a wave *count*, not a content-authoring change (that's p8a's).
+    this.waveCount =
+      this.totalCycles <= 1
+        ? content.waves.waves.length + this.mods.extraWaves
+        : content.waves.tdWavesPerVsWave * this.totalCycles + this.mods.extraWaves;
     this.buildTimer = this.mods.buildPhase || content.waves.buildPhaseSeconds;
     this.gold = content.waves.startGold;
     this.coreMaxHp = Math.max(
@@ -571,20 +591,27 @@ export function makeStats(): Stats {
   return emptyStats();
 }
 
-/** SPEC-V2 §1: last wave (global index) of the given cycle's Day. */
+/**
+ * SPEC-FINAL §1.1 (p3a): last TD wave (global index) of the given block —
+ * `tdWavesPerVsWave x cycle` — except the final block, which always ends at
+ * `w.waveCount` exactly (so it lands on TD wave 18 even though only 10 are
+ * authored; `w.waveCount` already accounts for that, see the World
+ * constructor). `totalCycles <= 1` keeps the legacy single-pass shape: every
+ * "cycle" is the final one, so this always returns the full wave count.
+ */
 export function cycleWaveEnd(w: World, cycle: number): number {
   if (w.totalCycles <= 1 || cycle >= w.totalCycles) return w.waveCount;
-  const arr = w.content.waves.waveEndByCycle;
-  if (cycle > arr.length) return w.waveCount;
-  return Math.min(arr[cycle - 1], w.waveCount);
+  return Math.min(w.content.waves.tdWavesPerVsWave * cycle, w.waveCount);
 }
 
-/** Fixed Night length for a non-final cycle; the final cycle ends by boss kill only. */
+/**
+ * SPEC-FINAL §1.1: VS wave length is a fixed 75s ⚖ for every block but the
+ * last, which runs until the Warden-Eater dies (Infinity here; `updateAct2`
+ * is what actually gates the final block on `w.bossKilled` rather than time).
+ */
 export function nightLengthSeconds(w: World, cycle: number): number {
   if (cycle >= w.totalCycles) return Infinity;
-  const arr = w.content.waves.nightSecondsByCycle;
-  const idx = Math.min(cycle, arr.length) - 1;
-  return idx >= 0 ? arr[idx] : 300;
+  return w.content.waves.vsWaveSeconds;
 }
 
 /** Elite spawn-count multiplier for a cycle's Night capstone (e.g. cycle 2's "Elite pressure x2"). */

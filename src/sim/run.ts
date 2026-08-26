@@ -485,7 +485,21 @@ function completeWave(w: World): void {
 
   if (w.wave >= cycleWaveEnd(w, w.cycle)) {
     w.phase = 'dusk';
-    w.duskTimer = 15;
+    // V2's 15s Dusk cinematic (code-reviewer, p3a): SPEC-FINAL §1.1 states two
+    // wall-clock numbers for the interleave — 20s build, 75s VS — and says
+    // nothing about a beat between them, so keeping the old 15s delay here
+    // would have quietly bought every non-final block 15s of legal building
+    // (`canBuildNow` still allows it during `dusk`) on top of the spec's 20s,
+    // and inflated a block's total length to 20+15+75=110s instead of 95s.
+    // The legacy single-pass escape hatch (`totalCycles <= 1`, still used by
+    // most of the suite and real V2-shape probes) keeps the original 15s so
+    // its one Dusk beat is unchanged; every §1.1 run (`totalCycles > 1`)
+    // collapses it to effectively one tick, so `finishSundering` fires on the
+    // very next step and no extra build window opens. `dusk` itself stays
+    // live rather than skipped outright because `finishSundering` still does
+    // real work here (petrify, pocket-clear, approach lanes, spire linking) —
+    // deleting the phase is p3d's job, not this item's.
+    w.duskTimer = w.totalCycles <= 1 ? 15 : 0;
   } else {
     w.phase = 'act1_build';
     w.buildTimer = w.mods.buildPhase || c.buildPhaseSeconds;

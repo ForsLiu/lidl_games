@@ -320,6 +320,16 @@ const WavesFileSchema = z.object({
   eliteMulByCycle: z.record(num).optional(),
   /** SPEC-V2 §1: added to a Night's minute-of-warmup per prior cycle, so later Nights start hotter. */
   nightMinuteOffsetPerCycle: num.optional(),
+  /**
+   * SPEC-FINAL §1.1 (P3, p3a): TD waves per interleave block before a VS wave
+   * fires ("3 TD waves, then 1 VS wave, repeating"). Replaces `waveEndByCycle`
+   * for any run of more than one block; that field and `nightSecondsByCycle`
+   * are read no further and are deleted at p3d along with the rest of the
+   * V2 cycle machine they belonged to.
+   */
+  tdWavesPerVsWave: num,
+  /** SPEC-FINAL §1.1: VS wave length, 75s ⚖ (the final VS wave ignores this and runs until the boss dies). */
+  vsWaveSeconds: num,
 });
 
 /* ------------------------------------------------------------------ spawns */

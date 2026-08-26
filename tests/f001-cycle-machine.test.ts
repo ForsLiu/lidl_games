@@ -1,8 +1,18 @@
 /**
- * SPEC-V2 §1: the Day/Dusk/Night/Dawn cycle machine (BACKLOG f001).
- *
- * A run is 3 cycles by default; `cycles: 1` keeps the old single-pass shape
- * alive for the rest of the suite (see tests/helpers.ts).
+ * SPEC-V2 §1's Day/Dusk/Night/Dawn cycle machine (BACKLOG f001) — kept alive
+ * as the engine p3a (SPEC-FINAL §1.1) reuses, retargeted: `World.cycle` /
+ * `totalCycles` now count TD-block/VS-wave pairs (6 by default, 3 TD waves
+ * per block, a fixed 75s VS wave except the boss-gated last one) rather than
+ * V2's 3-cycle 4/8/10-wave, 180/240/300s-Night split. The cases below that
+ * only exercise the *mechanism* (N blocks, the last one boss-gated, Dawn
+ * auto-advancing, replay determinism) still hold under the new numbers and
+ * are left live; the two that pinned V2's literal numbers were already
+ * retired at the SPEC-FINAL reconcile (see the `describe.skip` below) and
+ * needed no further change. `cycles: 1` still keeps the old single-pass shape
+ * (all authored waves in one block, one boss-only VS wave) alive for the rest
+ * of the suite (see tests/helpers.ts) — p3a's `waveCount`/`cycleWaveEnd`
+ * changes are branched on `totalCycles <= 1` specifically so that escape
+ * hatch is untouched. The whole machine, this file included, is deleted at p3d.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -229,8 +239,25 @@ describe('the cycle state machine (SPEC-V2 §1)', () => {
     // board's Act II output again: of seeds 1-60, seed 18 no longer reaches
     // cycle 3; only 8, 14, 21, 22, 23, 24, 28, 32, 36, 41, 48, 49, 56 and 57
     // do. This pin moves to seed 8, the lowest of that set, measured the same
-    // way as every prior move in this comment.
-    const { report, run } = runWithPolicy(cfg({ cycles: 3, seed: 8 }), 'hybrid', 60 * 60 * 45);
+    // way as every prior move in this comment. p3a (SPEC-FINAL §1.1, Q105)
+    // retargets `cycleWaveEnd`/`nightLengthSeconds` to the new interleave
+    // formula (3 TD waves/block, a fixed 75s VS wave instead of the V2
+    // 4/8/10-wave, 180/240/300s table) and, per code review, collapses the
+    // reused `dusk` phase's old 15s free-build window to ~0 for any
+    // `totalCycles > 1` run so it can't quietly buy back building time the
+    // spec doesn't grant — a `cycles:3` run is now both a different wave
+    // shape and a slightly harder economy than the old 10-wave/540s-Night
+    // one, so the set of seeds that reach cycle 3 with no Dawn Rekindling
+    // moved twice in the same item: first (formula only) to 1, 4, 7, 9, 10,
+    // 11, 17, 20, 21, 22, 24, 26, 28, 31, 32, 33, 36, 38, 39, 41, 42, 43, 50,
+    // 52, 53, 57 (seed 8 dropped out); then (dusk collapse added) seed 1 also
+    // drops out (now dies mid cycle 2) and the surviving set of seeds 1-60 is
+    // 4, 7, 8, 9, 10, 14, 15, 20, 21, 22, 23, 26, 28, 29, 31, 32, 33, 36, 38,
+    // 39, 43, 47, 51, 53, 57. This pin moves to seed 4, the lowest of that
+    // final set, measured the same way as every prior move in this comment
+    // (a throwaway `tools/` sweep against the code as it now stands, deleted
+    // after use, not chosen to flatter the change).
+    const { report, run } = runWithPolicy(cfg({ cycles: 3, seed: 4 }), 'hybrid', 60 * 60 * 45);
     expect(run.done).toBe(true);
     expect(report.outcome).not.toBe('running');
     expect(run.world.cycle).toBe(3);

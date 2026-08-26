@@ -313,9 +313,14 @@ export interface RunConfig {
   /** Bot policy name, headless only. */
   policy?: string;
   /**
-   * SPEC-V2 §1: number of Day/Dusk/Night/Dawn cycles the run plays before the
-   * Warden-Eater ends it. Defaults to 3 (the shipped run shape). Tests may
-   * pass 1 for the old single-cycle flow.
+   * SPEC-FINAL §1.1 (p3a): number of TD-block/VS-wave pairs the run plays
+   * before the Warden-Eater ends it. Defaults to 6 (18 TD + 6 VS, the shipped
+   * run shape — 3 TD waves per block, `data/waves.json`'s `tdWavesPerVsWave`).
+   * Tests may pass 1 to keep the legacy single-pass shape (a full walk of the
+   * authored wave table into one Sundering, one boss-only VS wave) still used
+   * by most of the suite (`tests/helpers.ts`'s default `cfg()`). This field
+   * and the V2 cycle machine it drives (`World.cycle`, `dusk`/`dawn` phases)
+   * are deleted outright at p3d.
    */
   cycles?: number;
   /**

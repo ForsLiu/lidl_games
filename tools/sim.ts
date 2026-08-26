@@ -136,7 +136,7 @@ function printHelp(): void {
       '  --build FILE.json     scripted build order for the bot',
       '  --until end           run to resolution (default)',
       '  --max-ticks N         safety cap (default 162000 = 45 min)',
-      '  --cycles N            Day/Dusk/Night/Dawn cycles (default 3; SPEC-V2 §1)',
+      '  --cycles N            TD-block/VS-wave pairs (default 6, 18 TD + 6 VS; SPEC-FINAL §1.1)',
       '  --summary             aggregate stats instead of per-run JSON',
       '  --quiet               suppress per-run JSON in a sweep',
     ].join('\n'),

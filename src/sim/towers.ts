@@ -64,9 +64,19 @@ export type BuildRejection =
   | 'out_of_range'
   | 'gold';
 
-/** Act I build phases plus Dusk allow construction. */
+/**
+ * Act I build phases plus Dusk allow construction — but only while Dusk is
+ * still actually running. QA (p3a) found that a §1.1 multi-block run collapses
+ * `duskTimer` to 0 (see `completeWave`, run.ts) so no extra build window opens
+ * beyond the spec's 20s, yet `Run.step` applies a tick's commands *before* the
+ * phase switch's `'dusk'` case gets to call `finishSundering` — so a `build`
+ * command landing on that exact zero-duskTimer tick still went through, one
+ * tick before the phase machine ever showed `act2`. Gating on `duskTimer > 0`
+ * closes that window while leaving the legacy single-pass shape's real 15s
+ * Dusk (`totalCycles <= 1`) buildable exactly as before.
+ */
 export function canBuildNow(w: World): boolean {
-  return w.phase === 'act1_build' || w.phase === 'act1_wave' || w.phase === 'dusk';
+  return w.phase === 'act1_build' || w.phase === 'act1_wave' || (w.phase === 'dusk' && w.duskTimer > 0);
 }
 
 export function towerCost(w: World, def: TowerDef): number {
