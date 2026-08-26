@@ -55,15 +55,20 @@ function forcePlace(w: World, towerKey: string, tx: number, ty: number): void {
 }
 
 /**
- * RETIRED (SPEC-FINAL §6.2, P2) — the whole file.
+ * RETIRED IN FULL (SPEC-FINAL §5, §6.1, §6.2) — the Sundering.
  *
- * §6.2 contradicts the Sundering directly: during a VS wave towers are "inert
- * but present" — they stay towers, keep their HP and can be attacked by
- * enemies. They do not petrify into terrain, they grant no soul weapons, there
- * is no slot picker and there are no terrain residuals. §1.1 cuts Dusk along
- * with the rest of the cycle machine.
- *
- * The code is deleted at BACKLOG p2e, together with a5/a6/a8 and this file.
+ * Every describe in this file measures a step SPEC-FINAL does not have. There
+ * is no Dusk, no petrification, no terrain conversion table, no Heartstone and
+ * no slot picker: §6.2 says towers in a VS wave are simply "inert but present"
+ * — same tiles, same HP, no attack — and their standing effect is the §5 VS
+ * special column, authored per tower in `/data` rather than derived by a
+ * conversion table. The claims worth keeping are re-asserted elsewhere:
+ *   - "links conductive spires within range" -> the electric wire grid, p2c
+ *   - "Beacon Totems grant permanent attack speed" -> beacon VS special, p2c
+ *   - "Gem Blooms emit XP gems on a timer" -> harvest sprout VS special, p2c
+ *   - "always leaves a walkable lane" -> superseded outright by §10, which
+ *     legalises sealing (G7, p1a); there is no guaranteed lane any more.
+ * File deleted at **p2e**.
  */
 describe.skip('conversion table (SPEC 4.2)', () => {
   it('every tower has a terrain form, and exactly three grant no weapon', () => {
@@ -208,6 +213,7 @@ describe.skip('conversion table (SPEC 4.2)', () => {
   });
 });
 
+// RETIRED (SPEC-FINAL §6.2) — see the file header. Deleted at **p2e**.
 describe.skip('Heartstone', () => {
   it('heals the Warden inside its radius and not outside', () => {
     const w = new World(cfg());
@@ -225,6 +231,7 @@ describe.skip('Heartstone', () => {
   });
 });
 
+// RETIRED (SPEC-FINAL §6.2) — see the file header. Deleted at **p2e**.
 describe.skip('slot picker (SPEC 4.1)', () => {
   it('auto-binds when the candidates fit the slots', () => {
     const w = new World(cfg());
@@ -274,6 +281,7 @@ describe.skip('slot picker (SPEC 4.1)', () => {
   });
 });
 
+// RETIRED (SPEC-FINAL §6.2) — see the file header. Deleted at **p2e**.
 describe.skip('Dusk (SPEC 4 step 1)', () => {
   // SPEC-V3 §4 states one sell rule for every phase, so Dusk no longer refunds
   // at its own harsher rate (V2: 35%). It still allows building and selling.

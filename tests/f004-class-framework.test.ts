@@ -24,7 +24,17 @@ function warp(w: World, tx: number, ty: number): void {
   w.warden.y = ty + 0.5;
 }
 
-describe('f004: class content (SPEC-V2 §2)', () => {
+/**
+ * RETIRED (SPEC-FINAL §4, gates G8/G9) — V2's class shape.
+ *
+ * These cases assert every class carries one Active with a "Day use" and a
+ * "Night use" plus a Signature passive. §4's framework is archetype bands +
+ * **Passive** + **Active1 (Q)** + **Active2 (E)** + **Tower passive**, across
+ * eleven classes, with no Day/Night split to have a use in. The loader rule
+ * that replaces this ("a class missing a slot fails the loader") is p6a's
+ * acceptance. File deleted at **p6f**.
+ */
+describe.skip('f004: class content (SPEC-V2 §2)', () => {
   const content = loadContent();
 
   // RETIRED (SPEC-FINAL §4, P6): §4's framework is Passive + Active1 (Q) +
@@ -58,7 +68,17 @@ describe('f004: class content (SPEC-V2 §2)', () => {
   });
 });
 
-describe('f004: affinity replaces class locks (SPEC-V2 D3)', () => {
+/**
+ * RETIRED (SPEC-FINAL §4) — affinity.
+ *
+ * §4 gives each class a **Tower passive** ("all towers +10% attack speed",
+ * "+10% range", ...) that is always on and applies to every tower. There is no
+ * per-class per-tower damage affinity in SPEC-FINAL, so `affinity.json` and
+ * the bonus it grants have no section left to serve. The surviving half of
+ * this describe's claim — every class may build every tower — is unchanged by
+ * §4 and is re-asserted by p6a's framework test. File deleted at **p6f**.
+ */
+describe.skip('f004: affinity replaces class locks (SPEC-V2 D3)', () => {
   it('every class may build every tower', () => {
     for (const classKey of ['engineer', 'pyromancer', 'frost_warden']) {
       const w = newWorld({ classKey });
@@ -164,9 +184,11 @@ describe('f004: class Active skill as a sim Command', () => {
 });
 
 /**
- * RETIRED (SPEC-FINAL §1.1 + §6.2, P3) — the Dusk picker is cut with the cycle
- * machine, and §6.2 binds nothing: towers stay towers during a VS wave.
- * Deleted at BACKLOG p3d.
+ * RETIRED (SPEC-FINAL §6.1) — the Dusk picker.
+ *
+ * There is no picking step and no slot budget to over-supply: §6.1 hands the
+ * character every built tower type's attack unconditionally. File deleted at
+ * **p2e**.
  */
 describe.skip('f004: the Dusk picker binds for every class (SPEC-V2 D3)', () => {
   it('an over-supply of soul towers (more than the 6 slots) still binds a valid pick', () => {

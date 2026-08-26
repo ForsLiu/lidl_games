@@ -26,8 +26,9 @@ describe('content completeness', () => {
     }
   });
 
-  // RETIRED (SPEC-FINAL §6.1, P2): there is no weapon ladder. The character
-  // wields tower types, not eight souls with six levels each. Deleted at p2e.
+  // RETIRED (SPEC-FINAL §6.1, gate G3) — there is no weapon roster and no
+  // six-level track. A VS attack is derived from the built towers of its type,
+  // not authored as content. `data/weapons.json` is deleted at **p2e**.
   it.skip('has 8 weapons, each with a full six-level track', () => {
     expect(content.weapons.weapons).toHaveLength(8);
     for (const w of content.weapons.weapons) {
@@ -46,14 +47,17 @@ describe('content completeness', () => {
     }
   });
 
-  // RETIRED (SPEC-FINAL §1.1, P3): the Gatebreaker ends **TD wave 18**, not
-  // wave 10. Rewritten for wave 18 at BACKLOG p8c.
+  // RETIRED (SPEC-FINAL §1.1) — a run is 18 TD + 6 VS waves and the
+  // Gatebreaker ends **TD wave 18**, not wave 10. Re-asserted by **p8a**.
   it.skip('introduces the Gatebreaker on wave 10', () => {
     const last = content.waves.waves[9];
     expect(last.groups.some((g) => g.enemy === 'gatebreaker')).toBe(true);
   });
 
-  it('has 12 boons, each mapping to a real stat', () => {
+  // RETIRED (SPEC-FINAL §6.3) — `boons.json`'s flat 12 is replaced by the
+  // level-up pool: stat boons at rank x5, Type Mastery at rank x3 per built
+  // tower type, and 3 skill cards per class at rank x2. Re-asserted by **p7a**.
+  it.skip('has 12 boons, each mapping to a real stat', () => {
     expect(content.boons.boons).toHaveLength(12);
     const w = new World(cfg());
     for (const b of content.boons.boons) {
@@ -155,7 +159,10 @@ describe('enemy behaviours', () => {
 });
 
 describe('loot (SPEC 7)', () => {
-  it('rolls relics with the right affix counts per rarity', () => {
+  // RETIRED (SPEC-FINAL §7, §8) — relic rarities and affix rolls are replaced
+  // by §7's fixed 12-item equipment table across 6 slots, granted 1 per TD wave
+  // cleared. Nothing rolls. Re-asserted by **p7b**/**p7c**; deleted at **p7d**.
+  it.skip('rolls relics with the right affix counts per rarity', () => {
     const rng = new Rng(7);
     for (let i = 0; i < 300; i++) {
       const r = rollRelic(content, rng, 0, i);

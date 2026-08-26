@@ -5,20 +5,46 @@
 
 ## Current state — SPEC-FINAL
 
-**SPEC-FINAL.md supersedes SPEC-V3, SPEC-V2 and SPEC.md.** It landed 2026-08-26,
-the day after V3, and it is the last one: self-contained, with the sections V3
-marked "designer work, not agent work" filled in. **MIGRATION.md** is the audit
-against it — built / superseded / **contradicted** — and BACKLOG.md is ordered by
-§15's **P0 → P10**, not by V3's M17–M27. Gates are §14's **G1–G20**; MIGRATION §5
-maps them onto the A/B/C names still in test headers. Read MIGRATION before
-touching anything.
+**Precedence: SPEC-FINAL > everything.** SPEC-FINAL.md landed 2026-08-26 and
+supersedes SPEC.md, SPEC-V2.md and SPEC-V3.md outright. Its §14 gates **G1–G20**
+replace every A/B/C gate list and its §15 **P0–P10** build order is the backlog's
+order. **MIGRATION.md** is the audit — §§1–7 against V3, and **§8 is the SPEC-FINAL
+reconcile**: what changed against V3, the old-id → new-id map, and the
+test-retirement ledger. Read §8 before touching anything.
 
-- **Phase:** the SPEC-FINAL reconcile (§16) is done. Next action is the top of
-  BACKLOG's **Corrections** section (`x001`, then `x002`), then **P0** (`p0a`,
-  the content hash).
-- **Gate status at the reconcile commit:** 646 pass, 22 skipped at `77250b8`;
-  the reconcile retires 30 more cases across six files with logged reasons
-  (MIGRATION §4.2). No gate is red on `master`.
+- **Milestone:** the **§16 reconcile is complete** (this commit). SPEC-FINAL.md is
+  now in the repository — it existed only as an untracked file in the main checkout,
+  so no branch could see it (Q81). BACKLOG.md is rewritten into 48 items in P order;
+  CLAUDE.md's sources-of-truth list is re-pointed; twelve superseded test groups are
+  retired with logged reasons and four existing retirements are restated against the
+  gate that now supersedes them. **`x001` is the next action** (see "Next
+  action" below), then `p1a`: removing the path guarantee so the Core can be
+  sealed (§10, G7).
+- **Where the code actually stands** (audit summary, full table at the top of
+  BACKLOG.md): P0 and P4 are done; P1 is done **except sealing**; P5 is done bar two
+  pricing items; P2's VS **inheritance formula is not built** — `data/weapons.json`'s
+  8-weapon roster with its own level ladders and 6 slots stands where §6.1's
+  average-across-the-type formula belongs; P3's interleave is not built — the run is
+  still V2's Day/Dusk/Night/Dawn cycle machine; P6 has **3 of 11 classes** and on the
+  wrong framework; P7's equipment, VS upgrade pool and reward pipeline are unbuilt
+  behind the relic/Ember/boon systems that supersede them; P9's Tuner is unbuilt and
+  its Codex read-half arrives with this commit from the tuner lane.
+- **What the reconcile did *not* do:** no sim, data or balance change. Every number
+  in `/data` and every line in `/src/sim` is untouched, so the 12-seed sweep and the
+  end-state hashes are byte-identical either side of it. The reconcile is documents
+  and test annotations only, which is what makes it reviewable as one diff.
+- **Four V3 items are retired without successors**, each with its reason in
+  MIGRATION.md §8.2: m24d and s006 (relic-affix items — the affix table itself dies
+  at p7d), s007 (the `terrain` residual mechanism is replaced wholesale by §5's VS
+  special column at p2c), and m27b (G13 + G19 together are SPEC-FINAL's version of
+  "TD investment converts into VS outcome"; A8 has no successor of its own).
+- **Conflicts logged this pass:** Q81 (SPEC-FINAL was untracked), Q82 (the reconcile
+  overrode the tuner lane's scope boundary — any other live lane must re-base on the
+  new backlog before continuing), Q83 (§15 puts sealing at P1, so G7's balance clause
+  will need re-measuring after the run shape changes at p3a), Q84 (gate renames vs
+  test filenames; three surviving claims have no §14 counterpart), Q85 (leak coupling
+  is built against the wrong multiplier and the wrong boundary — a re-point, not a
+  rebuild).
 - **What SPEC-FINAL decided for us, so nobody re-asks.** §4.2 fills in the nine
   open classes, §5.2 the seven open tower tracks, §6.3 the VS upgrade pool, and
   §5 grants the per-track `costMul` that m20c measured as the missing lever.
@@ -28,7 +54,7 @@ touching anything.
   things: Poison's stack cap (§3 says 3) and lifesteal's per-second cap (§2 says
   there is none). They are `x001`/`x002` and they sit **ahead of P0**, because
   CLAUDE.md rule 3 already ranks a confirmed bug above the queue and code
-  asserting the opposite of the spec is a bug by a short route. Q84 records that
+  asserting the opposite of the spec is a bug by a short route. Q89 records that
   judgement call and two others §16 left open.
 - **The m20d trap, worth remembering.** m20d was the in-flight item and its tree
   did two things at once: it raised Poison's cap to 50 (which SPEC-FINAL §3
@@ -39,14 +65,28 @@ touching anything.
   re-price **red**. So the spec violation and the gate failure are two facts
   about two different halves, and calling them one would have written the wrong
   cause into the backlog. The tree is preserved on branch `wip/m20d` and re-filed
-  as `p5c` with both measurements attached. Q81 stays as the record; Q82 amends
+  as `p5c` with both measurements attached. Q86 stays as the record; Q87 amends
   it with the clause SPEC-FINAL added.
 - **The tension `p5c` inherits, which is the owner's not ours.** §3 caps Poison
   at 3 stacks and §5.1 keeps "poison ratio → 1:1.5 @4". Three stacks of a 3 s
   DoT is a ceiling of one application per second — the Venom Spore's own fire
   rate — so the milestone moves damage into a bucket that is already full and
   measures **−5.4%** (88.6 → 83.8 dps). Both clauses are verbatim and both are
-  ⚖. Logged as Q82 for §17's review list rather than resolved by an agent.
+  ⚖. Logged as Q87 for §17's review list rather than resolved by an agent.
+- **Next action:** the two **Corrections** at the top of BACKLOG (`x001` Poison's
+  cap, then `x002` lifesteal's cap), then **P1** `p1a` (removing the path
+  guarantee so the Core can be sealed, §10/G7). P0's remaining clause is carried
+  as `p9a`/`p9f`, not as a separate band.
+- **Merge note (2026-08-26).** The §16 reconcile was executed twice in parallel —
+  once on `master` and once on `lane/tuner` — and the two are merged here rather
+  than one discarded. The lane's audit table, P-order queue and MIGRATION §8
+  ledger are the spine; master's contribution is the **Corrections** section
+  (`x001`/`x002`), MIGRATION **§8.4** (the two contradictions, with the m20d
+  bisection) and **§8.5** (the A/B/C → G1–G20 rename map). Master's four
+  QUESTIONS were renumbered **Q81–Q84 → Q86–Q89** behind the lane's Q81–Q85; every
+  cross-reference in BACKLOG, MIGRATION and this file follows the new numbers.
+
+### Superseded — the V3 state this reconcile replaced
 
 - **Milestone:** M17, M18 and **M19 complete**; **M20 in progress** — `m20a`
   (per-tower upgrade tracks), `m20b` (the three owner towers and their milestone
@@ -681,7 +721,7 @@ criteria naming the C-gate each satisfies. QUESTIONS.md gains **Q38–Q49**.
   shipped code — for a coverage hole the rule exists to prevent. Those five are
   listed as superseded-but-live with the phase that rewrites each.
   The in-flight `m20d` tree did not ship; it is on branch `wip/m20d` and re-filed
-  as `p5c` (bisection in "The m20d trap" above). QUESTIONS gains **Q82–Q84**.
+  as `p5c` (bisection in "The m20d trap" above). QUESTIONS gains **Q86–Q89** (renumbered behind the lane reconcile's Q81–Q85 at the merge).
 - 2026-08-26 — M20 m20c: the other seven towers' tracks and every tower's
   defense band (SPEC-V3 §4). The migration is a *measurement*: §4's three counts
   are a straight line in build cost, and putting the open seven on it measures

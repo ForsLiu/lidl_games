@@ -1,223 +1,557 @@
-# MIGRATION.md — the codebase against SPEC-FINAL
+# MIGRATION.md — v0.2 codebase against SPEC-V3
 
-**Audit date:** 2026-08-26. **Baseline commit:** `77250b8`, plus the uncommitted
-`m20d` working tree (disposed of in §3.1). **Precedence: SPEC-FINAL supersedes
-SPEC-V3, SPEC-V2 and SPEC.md** (SPEC-FINAL preamble). This file replaces the M17
-audit of SPEC-V3; that audit's conclusions are folded in where they still hold,
-and its retirement rule is kept verbatim (§4).
+**Audit date:** 2026-08-25. **Baseline commit:** `6019a8b`.
+**Precedence:** SPEC-V3 > SPEC-V2 > SPEC.md.
 
-Written for SPEC-FINAL §16. Three questions per system: **is it built**, **does
-SPEC-FINAL supersede it**, and **does SPEC-FINAL contradict something already
-shipped**. Every claim was checked against the code, not against a prior
-document's description of the code.
+Written for M17 (SPEC-V3 §13.1). Three questions per system: **is it built**,
+**does V3 supersede it**, and **does V3 conflict with something already load-bearing**.
+Every claim below was checked against the code, not against V2's own description
+of itself.
 
 Reproduce the audit with:
 
 ```
-npm test                                       # 647 pass / 22 skipped at 77250b8;
-                                               # 610 / 54 after §4.2's retirements
+npm test                                    # 350 pass, 2 skipped, A10 red (below)
 npx vitest run --config vitest.perf.config.ts
+grep -rn "orb" src/ data/ tests/ tools/     # T6 surface
 npx tsx tools/sweep.ts --seeds 12 --policies maxbuild,hybrid
-npx tsx tools/handoff-metrics.ts
 ```
 
 ---
 
 ## 0. Headline
 
-- **SPEC-FINAL is less a new design than a completed one.** Where SPEC-V3 said
-  "designer work, not agent work" — its nine open classes, its seven open towers
-  — SPEC-FINAL fills the blank in. Almost nothing built against V3 is
-  *invalidated*; a great deal V3 left undecided is now decided, which converts a
-  pile of QUESTIONS entries into ordinary backlog items.
-- **Three of V3's four largest gaps are still gaps**: the VS wielding formula
-  (§6.1), the interleaved run structure (§1.1), and sealing (§10). They were
-  M21/M22/M25 in the V3 queue and are P2/P3/P1 here. None was started.
-- **What V3 finished, SPEC-FINAL keeps**: armour (§2), multiplicative stacking
-  (§2), the damage-type taxonomy (§3), per-tower upgrade tracks (§5), and the
-  tooling wins (dev profile, god mode, range indicators, selection). Ticked in
-  §1 so later phases do not re-litigate them.
-- **Two shipped behaviours contradict authoritative spec text** rather than
-  merely lagging it — Poison's stack cap and the lifesteal per-second cap. A
-  contradiction is a bug, not a gap, so both head the queue. Details in §3.
-- **The uncommitted `m20d` tree does not ship**, for two unrelated reasons: its
-  central change is the one SPEC-FINAL §3 contradicts, and — separately, by
-  bisection — its *other* half regresses gate A3 (§3.1). Preserved on branch
-  `wip/m20d`, re-filed as `p5c`.
-- **HANDOFF.md is stale by two milestones** — it still describes three tower
-  tiers at ×1.6 each, which m20a deleted. Regenerating it is P10.
+- **Nothing in V3 is built yet.** Every V3 section is either *not started* or
+  *contradicted* by working v0.2 code. There is no partially-correct V3 system to
+  finish.
+- **The v0.2 code is healthy**: 350 tests pass, tsc and vite build clean. One gate
+  is red (**A10**, §5 below) and that redness predates this audit.
+- **The largest single deletion is the Day/Dusk/Night/Dawn cycle machine**, finished
+  three commits ago (`4e44a33`, item f001) and superseded by V3 §1's interleaved
+  waves. Roughly 400 lines of sim plus its 11 tests. This is the cost of V3 landing
+  the day after V2's M9 shipped; it is recorded here rather than absorbed silently.
+- **`f004` (class framework) is committed but not QA-verified** (`6019a8b`, marked
+  `wip`). V3 §6 replaces its single-Active model with Passive + Active1 + Active2 +
+  Tower-passive. Its Command plumbing survives; its content does not. See §4.
 
 ---
 
-## 1. Built, and kept by SPEC-FINAL
+## 1. Built and kept by V3
 
-| System | SPEC-FINAL § | Where |
+These need no migration work. Listed so later milestones do not re-litigate them.
+
+| System | Where | Note |
 |---|---|---|
-| Fixed 60 Hz sim; no DOM/`Math.random`/`Date.now`/native trig | §12 | `src/sim/*`, `tests/architecture.test.ts` |
-| Five named RNG streams, FNV-1a end-state hash, replay from seed + input log | §12, G2 | `rng.ts`, `hash.ts`, `a11-determinism.test.ts` |
-| 36×20 grid, 3 gates, Core 2×2 east-center, T1–T5 with drafted modifiers | §10 | `grid.ts`, `tiers.ts`, `data/modifiers.json` |
-| Flow-field pathing, spatial buckets, staggered separation | §10 | `grid.ts`, `world.ts`, `enemies.ts` |
-| 20-enemy roster with trait bitmask, elites, boss phases | §9 | `enemies.ts`, `boss.ts`, `data/enemies.json` |
-| Armour: flat points = percent, cap +99, floor −100, DoTs ignore it, Burning shreds it | §2, G4 | `stats.ts`, `enemies.ts`, `c3-armor.test.ts` |
-| Multiplicative stacking across sources, additive ranks within one, exhaustive `STAT_KIND` | §2, G5 | `stats.ts`, `c4-stacking.test.ts` |
-| Six damage types + frost/frozen in `data/damagetypes.json`; composite splits; DoT clipping | §3 | `damagetypes.ts`, `m19c-damage-types.test.ts` |
-| Per-tower upgrade tracks: +10% HP/Atk/Def per step, flat step cost, sell 50% of spent, milestone specials as typed data | §5 | `upgrades.ts`, `data/towers.json`, `m20a`–`m20c` tests |
-| Defense bands (none 0 / low 5 / medium 10) with a loader that refuses anything else | §5 | `content.ts` `validateDefense` |
-| Leak coupling: TD leaks add 2× spawn cost to the next VS budget | §1.1, G6 | `f003-leak-coupling.test.ts` |
-| Character move/dash (4 tiles, 3 s cd, i-frames), build within 4 tiles, instant build/sell | §10 | `run.ts` `updateWarden`, `towers.ts` |
-| Defeat → Results → Retry/New/Hub; Esc pause + Abandon confirm | §11, G18 | `b10-death-flow.test.ts`, `ui-input.test.ts` |
-| Save/load with versioned migration and corrupt-save repair; stash click-to-swap | §11, G18 | `meta/meta.ts`, `t6c-save-migration.test.ts`, `b003-stash-ux.test.ts` |
-| Orbs deleted everywhere | §8.5, G12 | `c7-no-orbs.test.ts` |
-| Dev profile (`data/dev.json`); prod build with dev off | §11, G16 | `meta/devprofile.ts`, `c8-dev-profile.test.ts` |
-| God mode as a replay-safe practice Command | §11 | `run.ts` `applyDevCommand`, `practice.test.ts` |
-| Range/AoE placement ghosts, selection rings, click-select stats panel | §11 | `t1-range-indicators.test.ts`, `t2-selection.test.ts` |
-| Fast-forward 1/2/3× bit-identical to 1× | §11, G2 | `pacer.test.ts` |
-| Headless CLI + bot policies; zod-validated `/data` | §12 | `tools/sim.ts`, `src/bots/*`, `content.ts` |
-| SFX behind an `AudioSink` seam | §11 | `render/sfx.ts` |
+| Fixed 60 Hz sim, no DOM/`Math.random`/`Date.now`/native trig | `src/sim/*`, `tests/architecture.test.ts` | V3 adds nothing; the rule is what makes C6's "determinism holds per config" checkable. |
+| Seeded RNG, five named streams, end-state FNV-1a hash | `src/sim/rng.ts`, `hash.ts` | A11 must stay green through every V3 milestone. |
+| Flow-field pathing, spatial buckets, staggered separation | `grid.ts`, `world.ts`, `enemies.ts` | V3 §9 changes *what is passable*, not how the field is computed. |
+| Enemy roster, traits, elites, Rift bursts, boss phases | `enemies.ts`, `act2.ts`, `boss.ts` | V3 keeps flier/burrower/wraith bypasses and Bomber ×3 vs structures explicitly. |
+| Leak coupling (TD leaks feed the next VS budget) | `f003`, `tests/f003-leak-coupling.test.ts` | V3 §1 names this as surviving. Gate B7 stays. |
+| Death → Results → Hub flow, pause/abandon, stash UX | `b001`–`b003`, `tests/b10-death-flow.test.ts` | Gate B10 stays. V3 §2 points at it ("V2 D1 flow"). |
+| Practice-run framework (Commands gated on `RunConfig.practice`, report flag, banks nothing) | `src/sim/run.ts` `applyDevCommand`, `tests/practice.test.ts` | **T4 god mode extends this** rather than adding a parallel mechanism. |
+| Fast-forward, stage progress, tower/weapon info panels | `src/ui/*` | Survive. The tower panel's *contents* change with §4/§5. |
+| Renderer, per-source projectiles, SFX seam | `src/render/*` | T1/T2 add to it. |
 
 ---
 
-## 2. Gaps, in SPEC-FINAL §15's P-order
+## 2. Built and superseded — what has to come out
 
-BACKLOG.md is now ordered the same way.
+Ordered by how much code the removal touches. "Milestone" is where V3 §13 puts it.
 
-### P0 — sim skeleton
+### 2.1 Orbs — delete entirely (§8, T6) — **M18**
 
-| Gap | Detail |
+The only V3 deletion that is pure subtraction. Full surface, 26 files:
+
+| Layer | Sites |
 |---|---|
-| Content hash in `RunConfig` (G2) | `RunConfig` carries no content identity, so a replay recorded against edited `/data` diverges silently instead of failing loudly. G2 names "tuner-edited content (per content hash)" explicitly, and the Tuner (P9) cannot ship without it. Cheap now, load-bearing later. |
+| Data | `data/relics.json` `orbs[]` (3 defs); `data/tree.json` node 90 "Tinkerer" grants `freeOrbTurning` |
+| Sim | `types.ts` (`MetaState.orbs`, `RunReport.orbsFound`, `World.orbsFound`), `world.ts`, `loot.ts` `dropOrb`, `run.ts` (report + boss/elite drop calls), `stats.ts` `freeOrbTurning`, `content.ts` schema |
+| Meta | `meta/crafting.ts` (whole module, 120 lines), `meta/meta.ts` (`orbs` in state, grant in `applyRunResult`, save migration) |
+| UI | `ui/hub.ts` (craft row, `ORB_HELP`, account counter — 27 refs), `ui/hud.ts` (Results "Orbs" line), `ui/tree-view.ts` (`freeOrbTurning` stat label) |
+| Tools | `tools/gen-tree.mjs` (regenerates node 90) |
+| Tests | `meta.test.ts` (10), `hub-testing.test.ts` (11), `practice.test.ts` (4), `boss.test.ts` (2), `sundering.test.ts` (1), `content-complete.test.ts` (1) |
 
-### P1 — TD core
+False positives to leave alone: `theme.ts`/`canvas.ts` `'orb'` **projectile shape**,
+`weapons.ts` Phoenix Ring **orbiting** fire ring, `enemies.ts` comment "crowd orbits".
+A naive `orb` grep-and-delete breaks three unrelated systems.
 
-| Gap | Detail |
+Save migration: existing saves carry `orbs: {whetting,turning,ascension}`. The
+migration must drop the key without discarding the rest of the save (C7's
+"save migration test").
+
+### 2.2 Day/Dusk/Night/Dawn cycle machine — replaced by interleaved waves (§1) — **M22**
+
+Built by f001 (`4e44a33`) and f002. V3 cuts **Dusk picker, Dawn Rekindle/Leave, and
+soul persistence** outright and replaces the whole run shape.
+
+| Goes | Where |
 |---|---|
-| Sealing the Core (§10, G7) | `grid.ts:253` `wouldBlockPath` and `towers.ts:89`'s `blocks_path` rejection are precisely what §10 removes. Structures become high-cost passable tiles, cost ∝ HP × toughness; fliers/burrowers/wraiths keep their bypasses. The build ghost's red refusal (`canvas.ts` `drawBuildGhost`) goes with it. |
+| `Command` `{k:'rekindle'}`, `{k:'dawn_done'}` | `types.ts:31` |
+| `Structure.soulSuppressed`, `World.soulLevels` | `types.ts:93`, `world.ts:165` |
+| `World.cycle`, `totalCycles`, `cycleWaveEnd`, `nightLengthSeconds` | `world.ts:85–510` |
+| Phases `dusk`, `soulpick`, `dawn` | `types.ts` `Phase`, `run.ts` switch |
+| `RunConfig.cycles` | `types.ts:316` |
+| `data/waves.json` `waveEndByCycle`, `nightSecondsByCycle`, `eliteMulByCycle`, `nightMinuteOffsetPerCycle` | 4 keys |
+| `data/towers.json` `rekindleCostMul`, `duskSellRefund` | §4 replaces sell with flat 50% |
+| Tests | `f001-cycle-machine.test.ts` (11), the Dusk half of `sundering.test.ts` |
 
-### P2 — VS core
+What survives from f001: the *per-cycle director scaling* idea maps onto V3 §1's
+"director budget per VS wave scales with wave index", and `w.act2Ticks` (the
+cumulative counter b004 introduced) is still the right basis for total VS time.
 
-| Gap | Detail |
+### 2.3 The Sundering / soul-binding weapon math — replaced by §5 — **M21**
+
+V3 §5 is a different model, not a tuning of the old one: the character wields
+**every built tower type's attack**, damage = *average across that type's towers ×
+(1 + 10% × count)*, and **towers do not attack during VS waves**.
+
+| Goes | Where |
 |---|---|
-| VS tower-attack inheritance (§6.1, G3) | **Not built, and what is built is a different model.** The character wields *soul weapons* bound at the Sundering: 8 defs × 6 levels in `data/weapons.json`, a 6-slot cap, `inheritDamagePerExtraTower: 0.08` capped at `0.40`, Awakenings, terrain residuals. §6.1 has no slots, no per-weapon identity and no ladder — damage is the average across a type's towers × (1 + 10% × count), fired at that type's attack speed with the highest upgrade level's effects. |
-| Towers inert but present in VS (§6.2) | Today the Sundering *petrifies* towers into terrain granting residual passives. §6.2 keeps them as towers: solid obstacles that keep HP and can be attacked, contributing their VS special. |
-| VS specials for all ten towers (§5) | §5 populates the column for all ten (electric wire grid, poison trail, brazier corpse-explosions, obelisk aura, beacon character haste, sprout XP gems, four `none`). **Zero are built.** The nearest equivalent is the terrain-residual system, a different mechanism that goes with the Sundering. |
-| Weapon-panel lineage (§6.2) | "Arrow ×3 (avg 14.2, +30%) — pierce 2". The panel exists; it renders the soul ladder. |
-| Delete the Sundering | `sundering.ts`, `weapons.ts` `grantWeapon`/`applyTerrainPassives`, `derived.weaponSlots`, `data/weapons.json`'s level/awakening/inherit keys, and the retired A5/A6/A8 files. |
+| Weapon-slot cap, soul candidates, binding | `sundering.ts`, `weapons.ts` `grantWeapon`, `derived.weaponSlots` |
+| Inheritance "+8% per extra tower, cap +40%" | `data/weapons.json` `inheritDamagePerExtraTower`, `inheritDamageCap` |
+| Per-weapon 6-level tables | `data/weapons.json` `levels[6]` × 8 |
+| Awakenings (weapon Lv6 + boon rank 3) | `weapons.ts`, `data/weapons.json` `awakenings` |
+| Petrified-terrain residual passives | `weapons.ts` `applyTerrainPassives`, `buildTerrainEffects` |
 
-### P3 — interleave + leak coupling (G6)
+Conflict flagged in §4.2 below: V3 §5 says towers "remain on the field as solid
+obstacles… and contribute their per-type VS special", but §4's VS-special column is
+populated for only **3 of 10** towers, and terrain residuals (the current
+equivalent) are what gate **A6** measures.
 
-| Gap | Detail |
-|---|---|
-| The run shape (§1.1) | Built: 3 Day/Night **cycles**, 10 TD waves split 4/8/10, Dusk picker, Dawn Rekindle/Leave, `Phase` `dusk`/`soulpick`/`dawn`, `World.cycle`/`totalCycles`/`cycleWaveEnd`/`nightLengthSeconds`, `RunConfig.cycles`, four per-cycle keys in `data/waves.json`. Wanted: **18 TD + 6 VS interleaved TD×3→VS**, no picker screens. |
-| Multi-summon (§1.1, G6) | `{k:'call'}` calls exactly one wave early. §1.1 stacks up to 3, each paying `2 gold × its own un-elapsed build seconds` once; VS waves unstackable. |
-| Build phase 20 s, VS wave 75 s (§1.1 ⚖) | `data/waves.json` has `buildPhaseSeconds: 30`; VS length comes from `nightSecondsByCycle`, which the cycle machine owns. |
-| VS budget per wave index (§9) | `data/spawns.json` grows the budget **per elapsed minute** (`150 × 1.21^minute`, `warmupSeconds: 100`). §9 indexes it by *wave*. |
-| G1 re-baseline | A1 asserts a **median** of 24–28 min. G1 asks for a **mean** of 30–36 min over 24+ seeds and says "never medians" in as many words. Retired in §4.2. |
+### 2.4 Tower tiers → per-tower upgrade tracks (§4) — **M20**
 
-### P4 — core math + damage types (G4, G5)
+Current: 3 tiers, ×1.6 damage / ×1.1 range per tier, upgrade cost `0.75×`/`1.25×`
+base, sell 70% (35% during Dusk).
+V3: per-tower **upgrade count**, +10% HP/Attack/Defense per step, **flat** step
+cost, sell **50% of total spent**, plus milestone specials at named steps.
 
-Mostly done at m19a/m19b/m19c. What remains is two contradictions (§3) and four
-verification gaps:
+Towers do not currently have **HP and defense as upgradeable stats** — `hp` exists
+on the def and is only used for structures enemies chew on; there is no tower
+`defense` at all. §4's model needs both.
 
-| Gap | Detail |
-|---|---|
-| Area applies to *every* attack, active and effect (§2) | `areaMul` exists and is a `mul` stat, but nothing asserts that every AoE consumer reads it — tower AoE, Electric's inherent r0.8, Burning's r1 spread, class actives, ground fields. §2's wording is an exhaustiveness claim and needs an exhaustive test. |
-| `slowImmune` vs frost/frozen (§3) | §3's final-partial rules say frost/frozen respect `slowImmune`. `applySlow` honours the trait; the frost/frozen path added at m19c has no test that it does. |
-| Burning spread rules (§3) | §3 spells out three clauses m19c did not have to answer: overlapping victims' spreads **add**, immunities are checked **on both paths**, and the Burning itself does not spread — only its effects do. |
-| Lifesteal source (§2) | Lifesteal must heal from **normal** damage only. `damageEnemy` accrues `leechAccumulator` from every `dmg` it applies, DoT ticks included, unless a caller filters. Needs a test either way. |
+Only 3 of 10 towers are specced (Arrow, Electric, Poison). The other 7 need
+proposed tracks logged for owner sign-off (V3 §4 says so explicitly).
 
-### P5 — tower roster and upgrade tracks (G20)
+### 2.5 Armor and stat stacking (§2) — **M19**
 
-§5.2 is the section that changed most. SPEC-V3 left seven towers open, and m20c
-proposed keeping their V2-equivalent tracks pending sign-off (Q80). **SPEC-FINAL
-decides them**, and its answer is close to the count line m20c measured and
-rejected — because SPEC-FINAL also grants the thing that made the line
-infeasible: "per-track `costMul` allowed" (§5). m20c filed exactly that as m20e.
+- **Armor**: ~~`armorReduction` is `armor/(armor+50)` (`stats.ts:100`). V3 wants
+  flat-points-as-percent, cap +99, uncapped negative. Every consumer of
+  `derived.damageReduction` changes meaning.~~ **Done at m19a.** The curve is
+  `clamp(armor, -100, 99)/100`; `derived.damageReduction` was deleted rather than
+  re-pointed, because a cached reduction is blind to Burning's shred — the live
+  number is `wardenArmor(w)`/`enemyArmor(e)`. Enemies gained an `armor` stat
+  (default 0, optional on the def) so the roster can be authored at M20/M27
+  without another engine change. Gate **C3** green for the armour math; its
+  "except Burning's shred" clause rides to **m19c**, which wires Burning (Q58).
+  **Closed at m19c**: the Ember Brazier's burn is now a §3 Burning application,
+  and Burning's tick calls `shredArmor`. Gate **C3** is green in full.
+- **Stacking**: currently **additive** — `powerMul: 1 + s.power` where `s.power` is
+  the sum of every source (`stats.ts:152`). V3 §2 wants sources to **multiply**
+  (10% + 20% → ×1.32, gate C4). This touches the whole `Stats`→`Derived` pipeline,
+  because `Stats` is a flat sum-of-numbers record with no notion of source.
+  **This is the single most invasive change in V3** and it silently re-tunes every
+  balance number in `/data`.
 
-| Tower | Track now | §5.2 wants | Milestones now | §5.2 wants |
-|---|---|---|---|---|
-| palisade (wall) | 0 steps, def `none` | **3 steps**, def **medium** | — | +10% only |
-| ballista | 10 steps, def medium | **4** | — | +1 pierce @2 · +1 projectile @4 |
-| ember_brazier (fire brazier) | 10 steps, def low | **4** | — | +1 Burning @2 · cone width +50% @4 |
-| frost_obelisk (ice obelisk) | 10 steps, def medium | **3** | — | @3: this tower's frost lasts 5 s |
-| mortar | 10 steps, def low | **3** | — | @3: shells leave a burning patch 2 s |
-| beacon_totem | 2 ✓ | 2 ✓ | +25% aura/step | +25% aura/step (linear) ✓ |
-| harvest_sprout | 2 ✓ | 2 ✓ | +5 gold/step | +5 gold/wave per step ✓ |
-| arrow_spire, tesla_coil, venom_spore | as §5.1 ✓ | ✓ | ✓ | ✓ |
+### 2.10 Ad-hoc ailments → damage-type taxonomy (§3) — **M19**
 
-Also open at P5: **G20** — "every §5 milestone special measurably changes the
-attack it names (loader-validated)". `validateSpecial` refuses a special the
-attack cannot *pay*; it does not measure that the attack **changes**.
+~~Burn, poison and slow are three hand-rolled mechanics with their own state on
+`Enemy` and no shared shape; V3 §3 wants a six-row taxonomy in
+`data/damagetypes.json` plus frost/frozen replacing the V2 chill-stack model.~~
+**Done at m19c.** `Enemy.burnDps`/`burnRemaining`/`burnSource` and
+`Enemy.poison` were replaced by one `Enemy.dots` list keyed by type; the row
+in `/data` owns the magnitude, duration, stacking rule, armour shred and radius,
+and `applyBurn`/`applyPoison` survive only as thin wrappers so V2-authored
+towers keep their own numbers (Q65). `applySlow` is untouched — it is the
+generic slow towers author, not the chill-stack model, which was specced in V2
+and never built. Q65–Q68 record what §3 left open. What is **not** wired: no
+tower authors Bleeding, Toxic, Electric or a status yet — that is m20b, and the
+seam is a validated `onHit` list on a tower attack (Q68), covered by a test that
+drives all seven attack shapes through the real fire loop.
 
-### P6 — classes
+Two latent defects the review and QA pass caught, both invisible until m20b
+authors the content that reaches them: the shared 50-stack budget let the
+*saturating* type evict, so a bleeding enemy lost its Burning — and with it the
+armour shred — on the next arrow (**Q71**); and Electric's radius path delegated
+entirely to `applyAoE` and so never touched the enemy it was handed, paying 20 of
+100 damage in a crowd and zero to a target the spatial buckets had not seen
+(**Q72**). Both are fixed with regression tests that turn red when the fix is
+reverted.
 
-**`data/classes.json` has 3 classes and none of them is one of SPEC-FINAL's
-eleven.** `engineer`, `pyromancer` and `frost_warden` are near-neighbours of
-§4.2's Engineer, Pyro and Cryomancer with different kits. The shipped model is
-one `active` (a single `kind`, `burst_damage`), one passive, one `manualAttack`
-disabled in Act II, plus `data/affinity.json`. §4 wants archetype bands +
-Passive + Active1 (Q) + Active2 (E) + a Tower passive, mouse-aimed, combo-aware,
-with a basic auto-attack on the nearest enemy. All eleven kits are new content;
-the Command plumbing, cooldown field, Q binding and HUD row survive.
+### 2.6 Equipment (§7) — **M24**
 
-Gates: G8 (all eleven clear T1 at 35–70%, top damage source differs across ≥8 of
-11), G9 (Swordsman combo, Plaguebringer transfer), G10 (Archer charge), G11
-(Stormcaller chain ≤ ×3.6).
+Current slots are `sigil, plate, charm` (3, in `data/relics.json`) — note V2 §3
+claimed six; the code never had them. V3 wants **weapon, armor, shoes, ring,
+necklace, bracelet** (6) with a fixed 12-item table replacing procedural affix
+rolls. Current: 12 affixes × 3 rarities rolled by `loot.ts` `rollRelic`.
 
-### P7 — VS upgrades, equipment, rewards (G12)
+Stat columns change shape too: V3 has flat adds (HP/Atk/Def) *and* multipliers
+(atk-speed/move), plus **conditional effects with class checks and fallbacks**
+("if not Swordsman: …") — there is no conditional-effect mechanism today.
 
-| Gap | Detail |
-|---|---|
-| `data/vsupgrades.json` (§6.3) | Built: `data/boons.json`, 12 flat stat boons, 1-of-3 with one reroll — the *mechanism* §6.3 wants with the wrong pool. §6.3 adds **Type Mastery** (one card per built tower type) and **Skill cards** (3 per class), which need §6.1 and §4 first. |
-| Equipment (§7) | Built: 3 slots (`sigil`/`plate`/`charm`) with 12 procedurally-rolled affixes across 3 rarities. Wanted: **6 slots**, a fixed **12-item table**, flat adds plus multipliers, and **class-conditional effects with fallbacks** ("if not Swordsman: …") — a mechanism that does not exist today. |
-| Rewards (§8.1–8.2, G12) | Built: relics drop from elites and bosses; Ember → account level → tree points. Wanted: **1 equipment per TD wave cleared** and **1 skill point per VS wave cleared**, granted at run end, win or lose, for waves fully cleared. |
-| Tree re-pricing (§8.3) | 121 nodes ✓, adjacency ✓, respec ✓ — priced in Ember (`respecCostPerNode: 5`, `startingEmber: 400`, `maxAccountLevel: 60`). §8.3 wants respec at **1 point per node**, and with 6 points a run the whole curve moves. |
-| Quests (§8.4) | 8 exist. Four award cosmetics or features, and §8.4 says quests "award unlocks only, never currency". §8.4 also names three specific quests (win a run → Pyro; 40 ice obelisks → Cryomancer; sealed-Core win → Paladin) against a roster that does not exist until P6. |
+### 2.7 Ember → skill points (§8) — **M24**
 
-### P8 — enemies, waves, bosses (G14)
+`emberFor`, `accountLevelFor` (100 × level), `pointsAvailable`, `tree.startingEmber`,
+`respecCostPerNode`, `emberFind` stat, the Hub's Ember counter, and `b004`'s
+cumulative-survival fix all serve a pipeline V3 retires. Skill points come from
+**VS waves cleared** instead.
 
-| Gap | Detail |
-|---|---|
-| Mender interrupt (§9) | `updateAbilities` heals on a flat 0.5 s timer with no interrupt path. §9: "interrupted by any hit ≥ 25 ⚖". |
-| Shellback (§9) | Built as `frontReduction`, a *reduction* from the front. §9 states the mirror — "**+100% damage from behind**; pierce ignores the shield". The pierce bypass does not exist (`opts.pure` is the only bypass and it is not pierce). |
-| Warlock (§9) | The `buffer` aura is built; "takes +50% from single-target attacks" is not, and nothing in `DamageOptions` records whether a hit was single-target. |
-| 18 TD wave compositions (§1.1, §9) | `data/waves.json` has 10. |
-| Gatebreaker at TD wave 18 (§1.1) | `content-complete.test.ts` pins it to wave 10. |
-| Bomber ×3 vs structures (§9) | `enemyStructureDpsFactor: 3` is a **global** multiplier for every enemy, not Bomber's trait. §9 gives ×3 to Bomber and ×2 to Gatebreaker specifically. |
+### 2.8 Path guarantee (§9) — **M25**
 
-### P9 — tooling (G15, G16, G18)
+`grid.ts:253` `wouldBlockPath` and `towers.ts:65`'s `blocks_path` rejection are
+exactly what V3 removes. Structures become high-cost passable tiles. The build ghost
+(`canvas.ts` `drawBuildGhost`) shows a red refusal that will no longer exist.
 
-| Gap | Detail |
-|---|---|
-| Codex (§11) | No Hub page lists every entity from `/data`. |
-| Tuner (§11, G15) | No editable view, no Vite dev-server write endpoint, no prod read-only/export-import path, no "edited run" flag. Depends on P0's content hash. |
+### 2.9 Classes (§6) — **M23**
 
-### P10 — balance re-baseline and feel (§16)
+`f004` shipped one Active per class + a passive + affinity, for 3 classes
+(`engineer`, `pyromancer`, `frost_warden`). V3 wants archetype stat bands + Passive +
+**Active1 (Q) + Active2 (E)** + a **Tower passive**, with **mouse-aimed** actives and
+**combo** rules, plus Swordsman and Plaguebringer as owner-specced kits and the other
+nine flagged `legacy: true`.
 
-| Gap | Detail |
-|---|---|
-| Burning → per-application stacking (§3, §16) | `maxStacks: 1, refresh: "strongest"` today; §3 states the owner's intent and §16 names the flip. One field. |
-| Re-price against G13 | "No tower type's VS attack > 35% of damage across the winning-build pool; every type solo-viable at T1, none at T3." Needs §6.1 to exist first. |
-| G17 perf budget | A10's whole-run budget is a 5000 ms constant written for a one-cycle run; it has outlived its premise twice, and §14 replaces it with a host-independent **per-simulated-minute** budget. Retired in §4.2. |
-| G1, G8, G13, G14, G19 re-baseline | All move once P3 changes the run shape and P6 lands eleven classes. |
-| 2 s TD↔VS transition sweep, juice, SFX/art assets (§11) | Not built. |
-| Regenerate HANDOFF.md | Stale since m20a. |
+Survives: `class_active` as a sim Command, the cooldown field, the Q binding, the
+HUD row, `data/affinity.json`. Replaced: the single-`kind` dispatch
+(`classes.ts` has exactly one kind, `burst_damage`), and all three class kits.
+
+**The 11-class roster does not exist.** `data/classes.json` has 3. V3 §6's "other 9
+classes keep current kits" presumes a roster that was never built — see §4.1.
 
 ---
 
-## 3. Contradictions — shipped code against authoritative SPEC-FINAL text
+## 3. Not built at all
 
-Kept separate from gaps deliberately: a gap is work not yet done, a
+| V3 | Status |
+|---|---|
+| §1 interleaved TD×3→VS, multi-summon stacking | none |
+| ~~§3 damage-type taxonomy (`data/damagetypes.json`), bleeding/toxic, frost/frozen~~ | **Done at m19c** — see §2.10 |
+| §5 VS wielding formula | none |
+| §7 12-item equipment table | none |
+| §10 T1 range indicators | partial, and one half is **dead code**: the placement ghost does draw an attack-range ring, but from `def.attack.range` — the *base* value, ignoring tier and `towerRangeMul`, so it lies about any upgraded tower. `view.showRanges` is set by the R key, the HUD button and a Settings checkbox, and **is never read by the renderer** (`grep -rn showRanges src/`) — the "show tower ranges" toggle has never drawn anything. No AoE preview, no skill-range render. |
+| §10 T2 selection feedback | **none** — nothing in the game is selectable by clicking |
+| §10 T3 `data/dev.json` dev profile | none |
+| §10 T4 god mode | none (practice framework exists to host it) |
+| §10 T5 Codex & Tuner | none — needs a Vite dev-server endpoint that does not exist |
+| §12 C1–C11 | none |
+
+---
+
+## 4. Conflicts — V3 against V3, and V3 against live gates
+
+These are the items where I could not implement V3 as written without choosing
+something. Each has a default logged in QUESTIONS.md (Q38–Q48).
+
+### 4.1 §6 assumes an 11-class roster that does not exist
+
+"Other 9 classes: keep current kits, flag `legacy: true`" — there are **3** classes,
+and V2's B3/B5 gates reference 11. Nine of the eleven have never been built.
+Flagging `legacy: true` on three classes and calling the other eight absent is the
+only honest reading. **Q38.**
+
+### 4.2 §5's "per-type VS special" is specced for 3 of 10 towers
+
+§4's last column exists for Arrow (none), Electric (wire grid) and Poison (trail).
+The other seven have no VS special and no upgrade track. Migrating them is named as
+agent work with owner sign-off (§4), but the VS-special column is not. **Q39.**
+
+### 4.3 §5 removes tower attacks in VS waves — A6 measures exactly that
+
+**A6** ("stripping the terrain costs ≥20% of Act II survival") is built on petrified
+towers contributing damage during the survivors phase. V3 keeps towers on the field
+as *obstacles with per-type specials* rather than as damage sources. A6's premise is
+gone; its replacement is C2, which measures the wielding formula instead. **Retire
+A6** — logged in §5 below.
+
+### 4.4 §2's multiplicative stacking invalidates every tuned number in `/data`
+
+Gate C4 demands `×1.32` where the code produces `×1.30`. The change is small per
+source and compounds hard: a build with six +10% sources goes from ×1.60 to ×1.77
+(+10.6%). Every A/B/C balance gate must be re-baselined **after** M19, not before.
+Any tuning done in M18–M19 against current numbers is throwaway work. **Q40.**
+
+### 4.5 A10's 5-second budget is already red, and V3 makes it redder
+
+**A10 is failing at HEAD**: run times 3836 / **6080** / 6267 ms against a 5000 ms
+budget. Cause is not a performance regression — it is f001 making a "full run" three
+cycles long. V3 §1 changes it again (18 TD + 6 VS waves). The gate's constant was
+written for a one-cycle run and has outlived its premise twice.
+
+I have **not** retuned it, because "how long may a full run take to simulate" is a
+budget question the owner owns, and because V3 §13's M22 changes the run length
+again. Options in **Q41**; default is to re-baseline at M22 and leave it red with a
+recorded reason until then, rather than move a number to make a light go green.
+
+### 4.6 §8 "each TD wave cleared → 1 random equipment" against §7's 12-item table
+
+18 TD waves and 12 distinct items means duplicates from wave 13 at the latest, and
+with random draws much earlier. There is no stated duplicate rule (stack? re-roll?
+convert?). **Q42**, default: duplicates are allowed and simply stack in the stash.
+
+### 4.7 §1's multi-summon against the wave-clear economy
+
+"Stack up to 3 TD waves… early-call gold bonus applies per wave called" — the current
+bonus is `buildTimer × 2 gold/s`, which is a *time* refund. Calling three waves at
+once collapses three build phases into one, so the naive reading pays three full
+bonuses for one skipped phase. **Q43**, default: pay the bonus once per wave called,
+computed against that wave's own un-elapsed build time (zero for waves 2 and 3 of a
+stack).
+
+### 4.8 §3's Burning shreds armor into §2's uncapped negative armor
+
+Burning is "−1 armor per second for 3 s", AoE, stacking. §2 says negative armor is
+uncapped and −90 armor means +90% damage taken. Thirty stacked Burning applications
+on one enemy is −90 armor. That is presumably the intent ("exploits §2's uncapped
+negative armor") but it makes Burning scale quadratically with stack count against
+elites. **Q44**, default: implement as written, add a floor of −100 armor ⚖, and
+flag it for the M19 balance pass rather than pre-emptively nerfing it.
+**Landed at m19c** with one deviation, recorded as Q65: the shred stacks per
+application exactly as Q44 describes (it is a lifetime accumulator, so 30
+applications is −90 armour), but Burning's *damage* refreshes rather than
+stacking, because stacking it would have buffed two pieces of shipped content
+ahead of the M27 pass that Q40 reserves for balance. Flipping it is one field
+in `data/damagetypes.json` (`maxStacks`), not an engine change.
+
+### 4.9 §10 T5's Tuner writes to `/data` — determinism and A11
+
+A Tuner that writes `/data/*.json` means the content a replay was recorded against
+can change underneath it. C6 asks for "determinism holds per config", implying a
+config hash. There is no config hash today; `RunConfig` carries no content identity.
+**Q45**, default: add a content hash (FNV-1a over the loaded `/data` JSON) to
+`RunConfig` and to the end-state hash's inputs, so a replay against edited data fails
+loudly instead of silently diverging.
+
+### 4.10 §8 retires Ember but the Constellation is priced in it
+
+`respecCostPerNode: 5` Ember, `startingEmber: 400`, `maxAccountLevel: 60`,
+`emberBase: 100`. With Ember retired and points coming from VS waves (6 per run at
+most), the tree's 120 nodes and its respec price both need re-pricing.
+**Q46**, default: 1 skill point per VS wave cleared as specced, respec costs 1 skill
+point per node, one-time 100:1 Ember conversion per §14.3.
+
+### 4.11 V3 §12 retires B9 and B11, but B11 is the only "both choices live" gate
+
+B11 (petrify-vs-Rekindle liveness) is the only gate asserting that a *strategic
+choice* has two live answers. Its subject is cut, so it goes — but V3 adds no
+replacement liveness gate for the choices it does keep (multi-summon, sealing,
+tower-type mix). C5b is the nearest thing. **Q47**, noted for the owner; no default
+needed to proceed.
+
+### 4.12 `f004` is committed unverified and V3 replaces most of it
+
+`6019a8b` is marked `wip` and its qa-playtester pass never ran. V3 §6 replaces its
+kits. Running QA on content that M23 deletes is waste; leaving an unverified commit
+in history is untidy. **Q48**, default: do not run f004's QA pass; close f004 in
+BACKLOG as *superseded by M23* with a pointer to this file, keeping the framework
+plumbing that survives.
+
+---
+
+## 5. Test retirements (V3 §12)
+
+V3 §12: "retire B9, B11, and B-gates tied to the Dusk picker/Rekindle — log each
+retirement". Retirements below follow one rule, stated so later milestones can apply
+it consistently:
+
+> **A test is retired the moment V3 contradicts what it asserts, but its file is not
+> deleted until the code it covers is deleted.** Retired tests become
+> `describe.skip` with a `RETIRED (V3 §x):` reason naming the superseding section and
+> the milestone that removes the code. This keeps CI honest — a skip is visible, a
+> deletion is not — and avoids a coverage hole in code that still ships.
+
+Deleting outright would also violate CLAUDE.md's "never delete a test to go green".
+These are not going green; they are being superseded, which is a different thing and
+deserves a different mark.
+
+| Test | Gate | Retired because | File deleted at |
+|---|---|---|---|
+| `f001-cycle-machine.test.ts` › `B9: a petrified-left tower keeps its soul…` | **B9** | V3 §0 cuts soul persistence and the Dusk picker outright. | M22 |
+| `f001-cycle-machine.test.ts` › `Rekindle un-petrifies a tower for gold; Leave keeps it as terrain` | B-gate tied to Rekindle | V3 §0 cuts Dawn Rekindle/Leave. | M22 |
+| `f001-cycle-machine.test.ts` › `Dawn auto-advances (all Leave) if no command arrives` | B-gate tied to Rekindle | As above. | M22 |
+| `f001-cycle-machine.test.ts` › `routes each cycle boundary to Dusk…` | — | Asserts the Day/Dusk/Night/Dawn phase order V3 §1 replaces with TD×3→VS. | M22 |
+| `a6-terrain-value.test.ts` (both) | **A6** | §4.3 above: V3 §5 stops petrified towers dealing damage in VS waves, which is the entire quantity A6 measures. C2 replaces it. | M21 |
+| `a8-sundering-head-start.test.ts` (4) | **A8** | V3 §5 replaces the Sundering head-start math (highest tier + 8%/duplicate) with the averaged wielding formula. C2 replaces it. | M21 |
+| `a7-turtle-check.test.ts` (3 + 1 already skipped) | **A7** | V3 §9 legalises sealing, so "a wall-off must leak" is no longer the design. C5/C5b replace it. | M25 |
+| `a5-weapon-share.test.ts` (4) | **A5** | Premise is per-weapon damage share across a 6-slot loadout; V3 §5 has no slots and no per-weapon identity — damage is per *tower type wielded*. B12 already restated it; C2 supersedes. | M21 |
+
+**B11** is retired without a test to mark: it was specced in SPEC-V2 §12 and never
+implemented, so there is nothing to skip. Recorded here for completeness.
+
+**Not retired, deliberately:**
+
+- **A1** (run length), **A2** (towers mandatory), **A3** (movement mandatory),
+  **A4** (single-type viability), **A9** (economy), **A11** (determinism),
+  **B7** (leak coupling), **B10** (UI flow) — all survive V3, though A1/A4 need
+  **re-baselining after M22** when the run shape changes, and every balance bound
+  needs re-baselining after **M19**.
+- **A10** — stays red rather than being retuned. §4.5.
+- `light-build.test.ts` — its subject (Act I clearable by more than one build shape)
+  survives as a TD-wave claim; re-baseline at M22.
+
+---
+
+## 6. Save-format migration
+
+Existing saves (`stonewake.save.v1`) carry: `ember`, `accountLevel`, `allocated`,
+`stash` (relics with `sigil/plate/charm` slots), `orbs`, `equipped`, `questProgress`,
+`completedQuests`, `unlockedClasses`, `highestTier`, `nextRelicId`.
+
+| Key | V3 disposition |
+|---|---|
+| `orbs` | **drop** (M18, C7 save-migration test) |
+| `ember` | convert **100:1 → skill points** once, then drop (§14.3, M24) |
+| `accountLevel` | derived from skill points instead (M24) |
+| `stash` / `equipped` | slots change 3→6 and items become table draws; old relics have no V3 equivalent. **Q49**, default: keep the stash, migrate old relics to the nearest V3 slot where one exists and otherwise discard with a one-time Hub notice, rather than silently deleting a player's stash. |
+| everything else | unchanged |
+
+`SAVE_VERSION` is `1`. Each destructive migration must bump it and be covered by a
+round-trip test, or a v0.2 save will crash a v0.3 client.
+
+---
+
+## 7. Suggested execution notes for M18–M27
+
+- **M18 is safe to do first** — orbs removal, dev profile, god mode, indicators and
+  selection touch nothing V3 re-specs later, which is why §13 orders it that way.
+- **Do not tune anything before M19.** §4.4: multiplicative stacking moves every
+  number. Tuning in M18 is throwaway.
+- **M19 and M20 will break most balance tests at once.** Expect to re-baseline A1,
+  A4, A9, B1, B2 in one pass at M27 rather than fighting them per-milestone; bounds
+  that fail for the right reason should be marked with a reason rather than nudged.
+- **A11 must stay green at every commit.** It is the only gate that catches the class
+  of bug (unhashed new state) that f001's code review found.
+- **Content hash before the Tuner** (§4.9): M26 is much cheaper if `RunConfig`
+  already carries content identity, and adding it early costs almost nothing.
+
+---
+
+## 8. SPEC-FINAL reconcile (§16)
+
+SPEC-FINAL supersedes SPEC.md, SPEC-V2.md and SPEC-V3.md. §16 asks for one
+reconcile milestone: audit code against SPEC-FINAL, map every gap to a backlog
+item in §15's P order, retire superseded tests with logged reasons, then continue
+the loop. This section is that audit's ledger. BACKLOG.md is rewritten to match.
+
+### 8.1 What changed against V3
+
+SPEC-FINAL is mostly V3 made complete and self-contained rather than V3 revised,
+so §§1–13 of this file survive as written — the systems V3 marked for removal are
+the same ones SPEC-FINAL removes. Four things are genuinely new:
+
+1. **The gate list is consolidated.** §14's **G1–G20** replaces every A-, B- and
+   C-gate list. This is a renaming for most surviving gates and a real change for
+   three: G17 replaces A10's wall-clock budget with a host-independent per-
+   simulated-minute budget plus a 60 fps benchmark and a 50-run soak; G19 is new
+   (liveness: winners include sealed *and* open strategies, and multi-summon);
+   G20 is new (every §5 milestone special measurably changes the attack it names,
+   loader-validated).
+2. **Burning stacks per application** (§3, owner intent), flipped from today's
+   `maxStacks 1, refresh strongest` at the balance pass. Carried as **p10a**.
+3. **§4.2, §5.2 and §6.3 are filled in.** V3 left nine classes, seven towers and
+   the VS upgrade pool as gaps; SPEC-FINAL authors all three as designer-fill,
+   vetoable by the owner (§17). The seven towers were already built at M20; the
+   nine classes and the pool are **p6d** and **p7a**.
+4. **§16 names the balance work explicitly**: flip Burning, re-price against G13,
+   re-baseline perf as G17. These are **p10a**, **p10c**, **p10e**.
+
+### 8.2 Old id → new id
+
+| V3 item | SPEC-FINAL item | Note |
+|---|---|---|
+| m20d | p5a | unchanged, re-pointed at G13 |
+| m20e | p5b | unchanged |
+| m21a | p2a | acceptance now G3, worked example verbatim |
+| m21b | p2c | VS specials now authored per tower in §5's last column |
+| m21c | p2b | unchanged |
+| m21d | p2e | unchanged |
+| m22a | p3a | unchanged |
+| m22b | p3b | early-call bonus formula stated (`2 gold x un-elapsed build seconds`) |
+| m22c | p3d | unchanged |
+| m22d | p3e | run length split out to p10d, which owns G1 |
+| m23a–c | p6a–c | acceptance now G9 |
+| m23d | p6f | inverted: §4 re-authors Engineer and Pyro, so the legacy trio is migrated onto §4's shape, not badged as legacy |
+| — | p6d, p6e | new: the nine §4.2 classes; G8/G10/G11 |
+| m24a | p7b | unchanged |
+| m24b | p7c | acceptance now G12 |
+| m24c | p7d | widened to take the relic affix system with Ember |
+| m24d | — | retired: the `relicFind` stat dies with the affix table at p7d |
+| — | p7a, p7e | new: §6.3's VS upgrade pool; §8.4's quests |
+| m25a | p1a | moved to P1, where §15 puts sealing |
+| m25b | p1b | acceptance now G7's third clause |
+| m26a–c | p9a–c | acceptance now G15 |
+| m27a | folded into p10c–p10f | "all gates green" is not an item; each gate is |
+| m27b | — | retired: G13 + G19 are SPEC-FINAL's version of the claim |
+| m27c | p10i | unchanged |
+| s001, s002 | p7f, p7g | unchanged |
+| s003 | p9e | acceptance now G18's dead-end clause |
+| s004 | p8b | unchanged |
+| s005 | p9d | acceptance now G16 |
+| s006 | — | retired: the `of Thrift` affix dies with the affix table at p7d |
+| s007 | — | retired: the `terrain` residual mechanism is replaced by §5's VS special column at p2c |
+| s008 | p10g | unchanged |
+| s009 | p10b | unchanged |
+| s010 | p9h | unchanged |
+| s011 | p9g | unchanged |
+
+### 8.3 Test retirements
+
+Same rule as §5, which this section extends rather than replaces:
+
+> A test is retired the moment the spec contradicts what it asserts, but its file
+> is not deleted until the code it covers is deleted. Retired tests become
+> `describe.skip` / `it.skip` with a `RETIRED (SPEC-FINAL §x)` reason naming the
+> superseding section and the backlog item that removes the code.
+
+Retired **at the reconcile commit**, because SPEC-FINAL contradicts the assertion
+itself rather than its tuning:
+
+| Test | Retired because | Deleted at |
+|---|---|---|
+| `sundering.test.ts` — all 4 describes | §6.2 keeps towers inert-but-present; there is no Dusk, no petrification, no conversion table, no Heartstone, no slot picker. The three effects worth keeping become §5 VS specials (electric wire grid, beacon attack speed, sprout XP gems); the "always leaves a walkable lane" case is contradicted twice over, by §6.2 and by §10's legal sealing. | p2e |
+| `act2.test.ts` › `soul weapons` | §6.1 has no weapon roster: named weapons with their own level ladders are replaced by per-tower-type derivation. | p2e |
+| `act2.test.ts` › `weapon inheritance (SPEC 4.1)` | §6.1 replaces "highest tier + 8%/duplicate, capped +40%, 6 slots" with "average across the type x (1 + 10% x count)", no slots and no cap. | p2e |
+| `act2.test.ts` › `applies a weapon offer` | §6.3's pool has no weapon cards. | p7a |
+| `f004-class-framework.test.ts` › `class content` | §4's framework is bands + Passive + Q + E + Tower passive; there is no Day-use/Night-use Active and no Signature. | p6f |
+| `f004-class-framework.test.ts` › `affinity replaces class locks` | §4 gives each class a Tower passive that applies to every tower; there is no per-class per-tower damage affinity. | p6f |
+| `f004-class-framework.test.ts` › `the Dusk picker binds for every class` | No picker and no slot budget: §6.1 grants every built type unconditionally. | p2e |
+| `content-complete.test.ts` › `has 8 weapons…` | As `soul weapons`. | p2e |
+| `content-complete.test.ts` › `has 12 boons…` | §6.3's pool (stat boons rank x5, Type Mastery rank x3, 3 skill cards per class rank x2) replaces `boons.json`'s flat 12. | p7a |
+| `content-complete.test.ts` › `introduces the Gatebreaker on wave 10` | §1.1 puts the Gatebreaker at the end of **TD wave 18** of 18. | p8a |
+| `content-complete.test.ts` › `rolls relics with the right affix counts per rarity` | §7's equipment is a fixed 12-item table across 6 slots, granted 1 per TD wave cleared. Nothing rolls. | p7d |
+| `b004-ember-survival.test.ts` — both describes | §8 removes Ember; §1.1 removes the multi-Night run there was a cumulative survival counter for. | p7d |
+
+**Reasons restated, not newly retired** — A5, A6, A7 and A8 were already retired
+against V3 at M17. Their headers now name the SPEC-FINAL gate that supersedes
+them (G13, §6.2/p2c, G7, and G13+G19 respectively) and the item that deletes the
+file. A8's carried-forward claim is **not** re-filed: see the m27b row above.
+
+**Not retired, deliberately:**
+
+- **A1** → G1, **A2**, **A3**, **A4** → G13's solo-viability clause, **A9**,
+  **A11** → G2, **B7** → G6's leak-coupling clause, **B10** → G18, **C3** → G4,
+  **C4** → G5, **C7** → G12, **C8** → G16. Every one of these survives in
+  substance; what changes is the gate name and, for the balance bounds, the
+  baseline they are measured against once p3a changes the run shape.
+- **A10** stays live and red-adjacent rather than retired: §16 asks for it to be
+  *re-baselined* as G17, not dropped. p10e owns it.
+- `f001-cycle-machine.test.ts` — its four Rekindle/Dusk cases are already skipped
+  from M17; the rest still guards the live phase machine and is retired wholesale
+  at **p3d**, when that machine is deleted.
+- `light-build.test.ts` — its subject survives as a TD-wave claim; re-baselined
+  at p3e.
+
+### 8.4 Contradictions — shipped code against authoritative SPEC-FINAL text
+
+Kept separate from the gaps above deliberately: a gap is work not yet done, a
 contradiction is code asserting the opposite of the spec. CLAUDE.md's rule 3
 applies to these (failing regression test before the fix) and they head the
-queue.
+queue as **x001** and **x002**.
 
-### 3.1 Poison's stack cap: the working tree says 50, §3 says 3
+#### 8.4.1 Poison's stack cap: the working tree says 50, §3 says 3
 
 The uncommitted `m20d` tree sets `poison.maxStacks: 50` in
 `data/damagetypes.json`. SPEC-FINAL §3: "Poison | DoT totalling 120% of the
 triggering damage over 3 s; **cap 3 stacks, refresh shortest** ⚖."
 
-The change was reasoned and measured. Q81 found that three stacks of a 3 s DoT
+The change was reasoned and measured. Q86 found that three stacks of a 3 s DoT
 is a ceiling of exactly one application per second — the Venom Spore's own fire
 rate — so §5.1's "poison ratio → 1:1.5 @4" moved damage into a bucket that was
 already full and measured as a **downgrade** (88.6 → 83.8 dps). SPEC-V3 §3 gave
@@ -237,7 +571,7 @@ Bisected, because the obvious story was wrong. Three runs of the same test:
 | `77250b8` + **poison cap 50 only** | **green** |
 | `77250b8` + **spare-spore targeting + damage 45 → 23**, cap left at 3 | **red** |
 
-So the cap — the change SPEC-FINAL forbids — is *not* what moves A3, and Q81's
+So the cap — the change SPEC-FINAL forbids — is *not* what moves A3, and Q86's
 blast-radius claim survives this test. The regression is in the pair p5c has to
 re-land: aiming the spare spore at the leading target when it has no target of
 its own makes the Venom Spore better in exactly the sparse fights a `no-move`
@@ -254,7 +588,7 @@ step below it. The second is now a genuine spec-internal tension (§3's cap
 against §5.1's milestone, both authoritative, both ⚖) and is logged for the
 owner rather than resolved by an agent.
 
-### 3.2 Lifesteal's per-second cap: code caps at 3, §2 says no cap
+#### 8.4.2 Lifesteal's per-second cap: code caps at 3, §2 says no cap
 
 `data/warden.json` carries `leechCapPerSecond: 3`. SPEC-FINAL §2: "Lifesteal |
 Heals from **normal damage** dealt, **no per-second cap**." The clause is not
@@ -263,89 +597,7 @@ sentence — "VS tower attacks count as character attacks, so they lifesteal" �
 exactly the case the rail existed to blunt, so removing it is a real balance
 event and belongs with a measurement, not with a one-line edit.
 
----
-
-## 4. Test retirements (SPEC-FINAL §16)
-
-The M17 rule is kept verbatim, because it worked:
-
-> **A test is retired the moment the spec contradicts what it asserts, but its
-> file is not deleted until the code it covers is deleted.** Retired tests become
-> `describe.skip`/`it.skip` with a `RETIRED (SPEC-FINAL §x, P<n>):` reason naming
-> the superseding section and the phase that removes the code. A skip is visible
-> in CI; a deletion is not.
-
-One clarification the rule needed, because applying it literally would have cost
-coverage the rule exists to protect: **retire what the spec contradicts, not
-what it merely supersedes later.** A skip is a coverage hole too, so a test whose
-claim is still *true* and still guards shipped code stays live until the phase
-that replaces its subject rewrites it. "Poison stacks to 3" is contradicted by
-nothing and stays; "the Gatebreaker arrives on wave 10" is contradicted by §1.1
-and goes. §4.3 lists the tests that qualify under the second half of that line.
-
-### 4.1 Already retired under SPEC-V3, still retired under SPEC-FINAL
-
-Reasons unchanged; only the milestone label moves to a P number.
-
-| Test | Was | Deleted at |
-|---|---|---|
-| `a5-weapon-share.test.ts` (4) | A5 — per-weapon damage share over a 6-slot loadout | P2 (G13 supersedes) |
-| `a6-terrain-value.test.ts` (2) | A6 — petrified terrain's damage contribution | P2 (G3 supersedes) |
-| `a8-sundering-head-start.test.ts` (4) | A8 — the Sundering head-start math | P2 (G3 supersedes) |
-| `a7-turtle-check.test.ts` (3 + 1) | A7 — "a wall-off must leak" | P1 (G7 supersedes) |
-| `f001-cycle-machine.test.ts` (4 of 9) | B9, Dusk/Dawn/Rekindle and the phase order | P3 |
-| `a3-movement-mandatory.test.ts` › `every seed is dead by 3:00` | pre-existing skip | P3 re-baseline |
-| `a4-single-type.test.ts` › two `DEFERRED` clauses | m20a deferral, re-measured at m20c | P10 |
-| `light-build.test.ts` › `kite clears Act I on every seed` | 7/8 at m20c | P3 re-baseline |
-| `m20b-owner-towers.test.ts` › `still fires that second spore` | Q79/Q81, the Venom spare spore | P5 |
-
-### 4.2 Newly retired by SPEC-FINAL
-
-| Test | Retired because | Deleted at |
-|---|---|---|
-| `a1-run-length.test.ts` (all 3) | **G1 contradicts A1 three ways**: the target is 30–36 min not 24–28; the statistic is the **mean** ("means/pass-rates, **never medians**") not the median; and the third case asserts "a long Daywatch, then a 10-minute night", the cycle shape §1.1 replaces. Rewritten against 18 TD + 6 VS. | P3 |
-| `sundering.test.ts` (15) | §6 replaces the Sundering wholesale: no petrification, no soul binding, no slot picker, no terrain residuals, no Dusk. MIGRATION flagged the *code* at M17; the file was never marked. | P2 |
-| `act2.test.ts` › `weapon inheritance (SPEC 4.1)` (3) | §6.1 replaces "highest tier + 8% per extra tower to +40%, capped by slots" with the averaged formula. The file's XP, gem and director cases survive. | P2 |
-| `act2.test.ts` › `soul weapons` (4) | Per-weapon identity (Frost Nova, Toxic Trail, the innate weapon) has no successor in §6.1, where the character wields *tower types*. | P2 |
-| `f001-cycle-machine.test.ts` (the 5 still live) | They assert `cycleWaveEnd`, `totalCycles`, per-cycle Night heat and a 3-cycle replay — the machine §1.1 replaces in full. Retiring the rest makes the file uniformly retired. | P3 |
-| `f004-class-framework.test.ts` › `every class defines an Active with a Day use and a Night use, plus a Signature passive` | §4's framework is Passive + Active1 + Active2 + Tower passive. "Day use / Night use" is the cycle vocabulary §1.1 retires. | P6 |
-| `f004-class-framework.test.ts` › `the Dusk picker binds for every class` | The Dusk picker is cut (§1.1). | P3 |
-| `content-complete.test.ts` › `has 8 weapons, each with a full six-level track` | §6.1 has no weapon ladder. | P2 |
-| `content-complete.test.ts` › `introduces the Gatebreaker on wave 10` | §1.1 puts the Gatebreaker at **TD wave 18**. | P3 |
-
-### 4.3 Superseded but **not** retired — live until their phase rewrites them
-
-Each of these will be replaced, and each still asserts something true about code
-that ships today. Skipping them now would buy nothing and lose coverage between
-here and the phase named.
-
-| Test | Superseded by | Rewritten at |
-|---|---|---|
-| `a10-performance.test.ts` › `a full headless run fits the budget` | G17's host-independent **per-simulated-minute** budget. The 5000 ms constant was written for a one-cycle run and §1.1 changes the length again — but it is green today and still catches a real regression. | P10 (`p10c`) |
-| `content-complete.test.ts` › `has 12 boons, each mapping to a real stat` | §6.3's pool (stat boons + Type Mastery + skill cards) in `data/vsupgrades.json`. The claim "every boon maps to a real stat" is not contradicted; the pool it ranges over is replaced. | P7 (`p7a`) |
-| `content-complete.test.ts` › `loot (SPEC 7)` (4) | §7's fixed 12-item table. Affix rolls still ship and these still guard them. | P7 (`p7b`) |
-| `content-complete.test.ts` › `a Shellback takes far less damage from the front` | §9's mirror wording (+100% from behind) plus "pierce ignores the shield". A front shield and a rear bonus are the same fact stated from two ends; the current assertion is not wrong, only incomplete. | P8 (`p8a`) |
-| `a4-single-type.test.ts` | G13 restates it ("every type solo-viable at T1, none at T3") and adds the 35% VS-share clause. | P10 (`p10b`) |
-
-**Not retired and not superseded** — these survive SPEC-FINAL and need only the
-re-baselining P10 does in one pass:
-
-- `a2-towers-mandatory.test.ts`, `a3-movement-mandatory.test.ts` → G19's liveness claims.
-- `a9-economy.test.ts` → supports G1.
-- `a11-determinism.test.ts` → G2. **Must stay green at every commit.**
-- `boss.test.ts` → G14; Q78 already moved it to 20 seeds with a 60% floor, which is G14's wording.
-- `c3-armor.test.ts` → G4 · `c4-stacking.test.ts` → G5 · `c7-no-orbs.test.ts` → G12 ·
-  `c8-dev-profile.test.ts` → G16 · `b10-death-flow.test.ts`, `b003-stash-ux.test.ts`,
-  `t6c-save-migration.test.ts`, `ui-input.test.ts` → G18.
-- `f003-leak-coupling.test.ts` → G6.
-- `m19c`, `m20a`–`m20c`, `projectile-style`, `tower-info`, `t1`, `t2`, `t4`,
-  `architecture`, `grid`, `hud-controls`, `meta`, `hub-testing`, `pacer`,
-  `practice`, `progress`, `ui-refund-repro`, `b004-ember-survival` — all live.
-  `b004`'s subject (cumulative VS time) survives §1.1 as "total VS seconds".
-
----
-
-## 5. Gate renaming
+### 8.5 Gate renaming
 
 §14's G1–G20 "replaces all prior A/B/C lists". The map, so an old reference in a
 test header or a QUESTIONS entry can be followed:
@@ -362,43 +614,3 @@ test header or a QUESTIONS entry can be followed:
 | G8 class win rates | C11 | G18 UI flows | B10 |
 | G9 Swordsman + Plaguebringer | C9 + C10 | G19 liveness | A2, A3, B11 |
 | G10 Archer charge | — (new) | G20 milestone specials | — (new) |
-
----
-
-## 6. Save-format migration
-
-`SAVE_VERSION` is **2** (t6c bumped it when orbs went). Remaining destructive
-steps, all at P7:
-
-| Key | SPEC-FINAL disposition |
-|---|---|
-| `ember`, `accountLevel` | retired (§8.2); one-time 100:1 conversion to skill points per Q46's default, then dropped |
-| `stash` / `equipped` | slots 3 → 6 and items become table draws (§7); Q49's default stands — migrate an old relic to the nearest slot where one exists, otherwise discard with a one-time Hub notice |
-| `unlockedClasses` | keys change with the eleven-class roster (§4) |
-| everything else | unchanged |
-
-Each step bumps `SAVE_VERSION` and needs a round-trip test, or a v0.2 save
-crashes a v1.0 client (G18).
-
----
-
-## 7. Execution notes
-
-- **P0 is an hour and unblocks P9.** Do it first even though nothing is red.
-- **P2 and P3 are the two large ones and they interlock.** §6.1's formula is
-  meaningless without VS waves to fire it in, and §1.1's interleave is
-  meaningless without something for the VS wave to do. Build §6.1 first — it is
-  testable in isolation against G3's verbatim worked example — then the run shape.
-- **Do not tune before P3 lands the run shape.** Q40's standing constraint
-  survives verbatim: bounds that fail meanwhile get a recorded reason, not a
-  nudged constant. P10 is the one balance pass.
-- **A11 must stay green at every commit.** It is the only gate that catches
-  unhashed new state, the class of bug f001's review found and m20a's did not.
-- **Re-measure deferrals rather than inheriting them.** m20c re-measured m20a's
-  five deferred assertions and two were already green. A deferral is a
-  measurement with an expiry date.
-- **Bisect before attributing.** §3.1: the m20d tree turns A3 red and contains a
-  change SPEC-FINAL forbids, and it is tempting to call those one fact. Three
-  runs say they are two — the forbidden change is green on its own, and the
-  regression is in the half that survives the spec. One of them would have been
-  written into the backlog as the cause.

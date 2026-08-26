@@ -52,7 +52,10 @@ describe('XP and levelling (SPEC 5.2)', () => {
     expect(new Set(offers.map((o) => o.kind + o.key)).size).toBe(3);
   });
 
-  it('applies a weapon offer', () => {
+  // RETIRED (SPEC-FINAL §6.3) — the level-up pool has no weapon cards: it
+  // offers stat boons, Type Mastery per built tower type, and per-class skill
+  // cards. Re-asserted by p7a. Deleted with the pool rewrite at **p7a**.
+  it.skip('applies a weapon offer', () => {
     const w = act2World();
     grantWeapon(w, 'arrow_volley', 1, 0);
     w.phase = 'levelup';
@@ -102,12 +105,15 @@ describe('gems', () => {
 });
 
 /**
- * RETIRED (SPEC-FINAL §6.1, P2) — per-weapon identity.
+ * RETIRED (SPEC-FINAL §6.1, gate G3) — the soul-weapon roster.
  *
- * §6.1 has no soul weapons: in a VS wave the character wields every built
- * *tower type's* attack, at that type's attack speed and highest upgrade
- * level's effects. The Frost Nova, the Toxic Trail and the innate weapon have
- * no successor to be renamed into. Deleted at BACKLOG p2e.
+ * These cases drive named weapons out of `data/weapons.json` with their own
+ * level ladders. §6.1 has no weapon roster at all: in a VS wave the character
+ * carries every built *tower type's* attack, at damage averaged across that
+ * type's towers x (1 + 10% x count). There is no "Frost Nova" or "Toxic Trail"
+ * left to fire, only the ice obelisk's and venom spore's own attacks. The
+ * behaviour each case names is re-asserted against the new derivation by p2a
+ * and the per-type VS specials by p2c. File deleted at **p2e**.
  */
 describe.skip('soul weapons', () => {
   it('fire automatically at whatever is in range', () => {
@@ -154,12 +160,13 @@ describe.skip('soul weapons', () => {
 });
 
 /**
- * RETIRED (SPEC-FINAL §6.1 + §14 G3, P2) — the inheritance formula.
+ * RETIRED (SPEC-FINAL §6.1, gate G3) — the Sundering inheritance math.
  *
- * "Highest tier as the level, +8% per extra tower to +40%, capped by slots" is
- * exactly what §6.1 replaces: damage is the **average** across that type's
- * towers × (1 + 10% × count), with no cap and no slots. G3 ships §6.1's worked
- * example verbatim in its place (BACKLOG p2a). Deleted at p2e.
+ * "highest tier as the level, +8% per extra tower to +40%", slot limits and
+ * slotless innates are all V2/V3 shapes §6.1 replaces outright: no slots, no
+ * per-weapon level, no cap, and the bonus is +10% per tower of that type on an
+ * *average* rather than a highest-tier pick. G3 replaces this whole describe,
+ * including §6.1's worked example transcribed verbatim. File deleted at **p2e**.
  */
 describe.skip('weapon inheritance (SPEC 4.1)', () => {
   it('takes the highest tier as the level and +8% per extra tower to +40%', () => {

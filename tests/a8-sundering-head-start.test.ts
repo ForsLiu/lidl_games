@@ -32,7 +32,15 @@ function winRate(policy: string): { rate: number; reachedAct2: number; detail: s
 }
 
 /**
- * RETIRED (V3 §5, M17) — gate A8.
+ * RETIRED (SPEC-FINAL §6.1, reconcile §16) — gate A8.
+ *
+ * Restated at the SPEC-FINAL reconcile: the investment-pays-off claim has no
+ * gate of its own in §14 and is **not** carried forward as a separate item —
+ * G13 (per-type share and solo viability) and G19 (winning builds include both
+ * sealed and open strategies, and multi-summon usage) are together the claim
+ * SPEC-FINAL makes about a TD board converting into a VS outcome. V3's m27b is
+ * retired with this note rather than re-filed. File deleted at **p2e**.
+ * Original V3-era reasoning follows and still holds:
  *
  * A8 prices the Sundering head start: a maxed Act I board should convert into
  * an Act II win rate a minimal board cannot match, under the "highest tier +

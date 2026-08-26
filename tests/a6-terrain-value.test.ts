@@ -17,7 +17,13 @@ function mean(xs: number[]): number {
 }
 
 /**
- * RETIRED (V3 §5, M17) — gate A6.
+ * RETIRED (SPEC-FINAL §6.2, reconcile §16) — gate A6.
+ *
+ * Restated at the SPEC-FINAL reconcile: §6.2 keeps towers on the field in a VS
+ * wave as "inert but present" — obstacles that keep HP and contribute the §5 VS
+ * special — so what a standing tower is worth is now authored per tower rather
+ * than measured in aggregate. **p2c** asserts each VS special directly; the
+ * file is deleted at **p2e**. Original V3-era reasoning follows and still holds:
  *
  * A6 measures how much Act II survival is lost by stripping petrified terrain,
  * i.e. it prices the damage and effects standing towers contribute after the

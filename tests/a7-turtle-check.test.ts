@@ -26,7 +26,12 @@ function wave9(seed: number): { spawned: number; leaked: number; wave8Leaks: num
 }
 
 /**
- * RETIRED (V3 §9, M17) — gate A7.
+ * RETIRED (SPEC-FINAL §10, reconcile §16) — gate A7.
+ *
+ * Restated at the SPEC-FINAL reconcile: the superseding gate is **G7**, whose
+ * third clause is the turtle-dominance band ("sealed-build win rate <= open-build
+ * +10 pts at T2") that replaces "a wall must leak". Measured at **p1b**; the
+ * file is deleted at **p1a**. Original V3-era reasoning follows and still holds:
  *
  * A7 asserts that a perimeter wall-off must leak, which was the design while
  * the path guarantee made full sealing illegal. SPEC-V3 §9 legalises sealing:

@@ -1,18 +1,23 @@
-# CLAUDE.md — Stonewake standing orders (v3)
+# CLAUDE.md — Stonewake standing orders (v3, SPEC-FINAL)
 
 ## Sources of truth, in order
-1. **SPEC-FINAL.md** — the complete design, v1.0. **It supersedes SPEC-V3.md,
-   SPEC-V2.md and SPEC.md**, which are kept only as history; do not cite them as
-   authority and do not implement from them. Where a prior spec and SPEC-FINAL
-   disagree, SPEC-FINAL wins and the disagreement is logged in QUESTIONS.md.
+1. **SPEC-FINAL.md** — the complete design, v1.0. Self-contained; **it supersedes
+   SPEC-V3.md, SPEC-V2.md and SPEC.md**, which are kept only as history. Do not
+   cite them as authority and do not implement from them. Its §14 gates
+   **G1–G20** replace every prior A/B/C gate list, and its §15 **P0–P10** build
+   order is the backlog's order. Where a prior spec and SPEC-FINAL disagree,
+   SPEC-FINAL wins and the disagreement is logged in QUESTIONS.md.
 2. **MIGRATION.md** — the audit of this codebase against SPEC-FINAL: what is
-   built, what is superseded, what *contradicts* the spec, and which tests are
-   retired and why. Read it before touching anything in P0–P10.
+   kept, what is superseded, what *contradicts* the spec, and which tests are
+   retired and why (§8 is the SPEC-FINAL reconcile). Read it before touching
+   anything in P0–P10.
 3. **QUALITY.md** — definition of done per stage (read-only for you; propose
    changes via QUESTIONS.md).
 4. **HANDOFF.md** — engineering state report; regenerate its measured sections
    with the tools it lists after every completed phase. **Currently stale since
    m20a** — treat its tower section as history until `p10f` regenerates it.
+5. **SPEC-V3.md**, **SPEC-V2.md**, **SPEC.md** — superseded. Consult them only to
+   understand why existing code looks the way it does, never as authority.
 
 Do not redesign what these define. SPEC-FINAL marks its own open ends: **⚖** =
 tune against §14's gates, **[designer-fill]** = a section the owner may veto via
@@ -36,12 +41,14 @@ TypeScript + Vite + canvas, Vitest, zod, all tuning in `/data/*.json`, Node 22+.
 3. Renderer reads sim state only. All player actions (including class actives)
    are sim Commands so bots and replays can use them.
 4. New mechanics are expressed as data shapes in `/data` wherever possible;
-   engine work stays generic. A loader rule that refuses unpayable data is worth
-   more than a comment saying the data must be valid.
+   engine work stays generic. SPEC-FINAL states it as a rule: all content and
+   numbers live in `/data/*.json`, never in code. A loader rule that refuses
+   unpayable data is worth more than a comment saying the data must be valid.
 
 ## Working rules
 1. Phases **P0 → P10** (SPEC-FINAL §15) in order; a phase is done only when the
-   §14 gates it names are green. Within a phase, work from BACKLOG.md.
+   §14 gates it names are green. Within a phase, work from BACKLOG.md, whose ids
+   are `p<band><letter>`.
 2. `npm test` after every meaningful change; commit at every green stable point
    and every phase (`P<n> <id>: <summary>` or `<type>: <summary>`).
 3. Confirmed bugs get a failing regression test **before** the fix. Code that
@@ -53,7 +60,7 @@ TypeScript + Vite + canvas, Vitest, zod, all tuning in `/data/*.json`, Node 22+.
    entry, move on. Never delete a test to go green.
 7. Touch nothing outside this repository.
 
-## Measurement rules (earned the hard way — Q74, Q78, Q80, and MIGRATION §3.1)
+## Measurement rules (earned the hard way — Q74, Q78, Q80, and MIGRATION §8.4.1)
 - **A deferral is a measurement with an expiry date.** Re-measure a deferred
   assertion before inheriting it; two of m20a's five were already green.
 - **"My change improved X" needs the control run**, not the plausible story.
@@ -95,5 +102,13 @@ top one. Never invent new game systems that are in no spec — propose those in
 QUESTIONS.md instead.
 
 ## Definition of "1.0 complete" (SPEC-FINAL §15 P10)
-P0–P10 done, all §14 gates **G1–G20** green, QUALITY.md's bar fully green,
-HANDOFF.md regenerated at the final commit.
+P0–P10 done, **all twenty §14 gates G1–G20 green**, §13's content totals met
+(11 classes · 10 towers · 12+ equipment · 6 damage types + 2 statuses · 20 enemies
+· 18+6 waves · 120-node tree · 8–12 quests · T1–T5 · 2 bosses · the §6.3 upgrade
+pool · Codex & Tuner), QUALITY.md's bar fully green, HANDOFF.md regenerated at the
+final commit.
+
+Owner review is still open on §17's list — the nine filled classes, the seven
+filled towers, the VS upgrade pool, Burning stack timing, the −100 armor floor,
+the 75 s VS wave, and the quest list. Any of those may be vetoed by an inbox
+verdict; build them as specced until one arrives.
