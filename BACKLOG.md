@@ -54,10 +54,11 @@ Q83 the p1b band is re-measured at p3e after the §1.1 run shape lands.
 
 ### P2 — VS core: the inheritance formula (G3)
 
-p2a, p2b and p2c are **done** — see the Done section. `src/sim/vswield.ts`'s
+p2a, p2b, p2c and p2f are **done** — see the Done section. `src/sim/vswield.ts`'s
 `wieldedAttacks` implements §6.1's formula and `updateWieldedAttacks` fires it
 live from Act II; `src/sim/vsspecials.ts`'s `updateVsSpecials` fires every
-tower's §5 VS special while the tower itself stands inert.
+tower's §5 VS special while the tower itself stands inert; p2f converted the
+Fire Brazier explosion's death-chain recursion into an iterative worklist.
 
 - [ ] (p2d) [polish] Weapon panel shows §6.2's per-type lineage —
       acceptance: the panel renders "Arrow ×3 (avg 14.2, +30%) — pierce 2" shape for
@@ -68,20 +69,6 @@ tower's §5 VS special while the tower itself stands inert.
       `data/weapons.json`'s roster, plus the tower `soul` field — acceptance: files
       and data removed, `npm test` green, MIGRATION.md §8's retire-with-p2e rows all
       checked off, no `soul`/`awakening` identifier left in `/src` — refs: §6.1
-- [ ] (p2f) [bug] `triggerBurningExplode` (`src/sim/enemies.ts`) recurses directly
-      through `killEnemy` → `damageEnemy` → `triggerBurningExplode` with no depth
-      guard or iterative worklist: a chain of Burning enemies dying inside each
-      other's r1 explosion radius overflows the JS call stack at ~1500-1600 linked
-      deaths (QA on p2c, reproduced 5/5 and 5/5 across two runs), throwing an
-      uncaught `RangeError` that would crash the sim tick. Not reachable through
-      normal play today — `data/spawns.json`'s `aliveCap` (350) is well under the
-      chain length needed — but a future cap increase, a looser explosion radius, or
-      a burst-kill dev/practice tool over a packed Burning crowd would trip it —
-      acceptance: a regression test in `tests/p2c-vs-specials.test.ts` builds a large
-      tightly-clustered Burning chain (QA's repro: ~2000 husks, hp 1, radius-1
-      spacing) and asserts `damageEnemy` does not throw; the cascade is converted
-      from direct recursion to an iterative worklist/queue over newly-killed Burning
-      enemies — refs: §5, QA on p2c
 
 ### P3 — interleave and leak coupling (G6)
 
@@ -419,6 +406,57 @@ logged in MIGRATION.md §8 rather than carried as dead items.
   **G19**. The work is `p10d`.
 
 ## Done
+
+- [x] (p2f) [bug] `triggerBurningExplode` (`src/sim/enemies.ts`) no longer recurses
+      directly through `killEnemy` → `damageEnemy` → `triggerBurningExplode` — this
+      commit. `killEnemy` now pushes the dying Burning enemy onto a new
+      `w.pendingBurningExplosions` queue and calls `drainBurningExplosions(w)`
+      (`enemies.ts`), a small helper guarded by `w.drainingBurningExplosions`: a
+      re-entrant call from deeper in the chain (`triggerBurningExplode` →
+      `damageEnemy` → `killEnemy`) just enqueues and returns, so only the
+      outermost call runs the `while (pop() !== undefined)` loop — a long chain
+      now grows the queue array, not the JS call stack. Both new fields are plain
+      `World` class-field initializers (`world.ts`), the same pattern as the
+      existing `deadEnemies`/`deadStructures` flags; `drainBurningExplosions`'s
+      `finally` clears both unconditionally (flag *and* queue, the latter a
+      code-reviewer Minor taken so an exception mid-drain can't leave a stale
+      remainder for the next, unrelated Burning kill to replay), so the queue is
+      always empty and the flag always false by the time control returns to any
+      caller — which is also why `hashWorld` needs no new case: the fields are
+      never observably nonzero at a hash point, same reasoning that already
+      excludes `dotScratch` and friends. Acceptance met:
+      `tests/p2c-vs-specials.test.ts` gains "a large tightly-clustered Burning
+      chain does not overflow the call stack" — a 45×45 grid (2025) of hp-1,
+      speed-0 Burning husks spaced 0.4 tiles apart (inside the r1 explosion
+      radius) under a live Ember Brazier in a VS wave; killing one asserts
+      `damageEnemy` does not throw and that more than half the grid dies (so the
+      cascade is proven to propagate, not fizzle after one hop). Both
+      code-reviewer and qa-playtester independently confirmed empirically that
+      the test reproduces the original `RangeError: Maximum call stack size
+      exceeded` when only `enemies.ts`/`world.ts` are reverted and the test is
+      kept — a real, non-vacuous regression test, not a coincidental pass.
+      code-reviewer **APPROVE** (2 Minor, both taken: the `finally`-clears-queue
+      fix above, and `triggerBurningExplode`'s `enemiesInRadius` call reusing a
+      new module-level `burningExplodeScratch` array instead of allocating fresh
+      per explosion, mirroring the existing `dotScratch` pattern — now load-bearing
+      since a chain runs to completion at thousands-of-explosions scale instead of
+      crashing partway through). **qa-playtester PASS**, no bugs found across five
+      adversarial scenarios beyond the regression test itself: ordinary small
+      chains (2-5 enemies, three hp distributions) hit byte-identical targets
+      under old vs. new code (order-independence — a fixed point, not a
+      DFS-vs-BFS artifact); a non-explosion death queued mid-drain still dies
+      exactly once and the redundant re-hit on the now-dead enemy is a correct
+      no-op; Act I (`huntsWarden` false) touches neither new field; the two new
+      `World` fields carry no replay-hash gap (argued above, and empirically
+      unmoved on `f001-cycle-machine.test.ts`'s rekindle-replay hash case); and
+      two alive Braziers matching the special still deal exactly one hit each
+      (unchanged p2c semantics, the scratch-array reuse is safe because a
+      re-entrant push never itself iterates the array — only the outermost call's
+      `for` loop does, and it always finishes before the next tower in the same
+      synchronous loop can reuse the buffer). Full suite: 681 pass / 67 skipped
+      (byte-identical to pre-p2f), plus the pre-existing host-dependent A10
+      wall-clock flake (recorded at p1b, not caused here; measured again this
+      commit at 5514ms vs the 5000ms budget) — refs: §5, QA on p2c
 
 - [x] (p2c) [feat] Towers inert but present in VS waves, each contributing its §5
       VS special — this commit — `src/sim/vsspecials.ts`'s `updateVsSpecials(w, dt)`,

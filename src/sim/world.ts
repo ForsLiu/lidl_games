@@ -469,6 +469,17 @@ export class World {
   deadEnemies = false;
   deadStructures = false;
 
+  /**
+   * p2f: Fire Brazier's VS burning-explosion chain (`triggerBurningExplode`)
+   * used to recurse directly through `killEnemy` -> `damageEnemy` ->
+   * `triggerBurningExplode`, overflowing the call stack at ~1500-1600 chained
+   * deaths in one cluster. `killEnemy` now enqueues here instead of calling
+   * it inline; `drainBurningExplosions` walks the queue with a plain loop so
+   * a long chain grows the queue, not the stack.
+   */
+  pendingBurningExplosions: Enemy[] = [];
+  drainingBurningExplosions = false;
+
   /* ------------------------------------------------------- spatial queries */
 
   rebuildBuckets(): void {

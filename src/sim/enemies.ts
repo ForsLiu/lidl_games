@@ -290,11 +290,46 @@ export function killEnemy(w: World, e: Enemy, source: string): void {
   // standing effect during a VS wave. Scoped to VS (`huntsWarden`) — Act I's
   // Ember Brazier already applies Burning through its live cone attack, and
   // this is a *second*, VS-only consequence of the same status.
-  if (w.huntsWarden && e.dots.some((d) => d.type === 'burning')) triggerBurningExplode(w, e);
+  if (w.huntsWarden && e.dots.some((d) => d.type === 'burning')) {
+    w.pendingBurningExplosions.push(e);
+    drainBurningExplosions(w);
+  }
 
   onEnemyKilledForDrops(w, e, def);
   void source;
 }
+
+/**
+ * p2f: a chain of Burning enemies dying inside each other's explosion radius
+ * used to recurse directly (`killEnemy` -> `damageEnemy` ->
+ * `triggerBurningExplode` -> `damageEnemy` -> ...), overflowing the call
+ * stack at ~1500-1600 linked deaths. `killEnemy` now only enqueues; this
+ * drains `w.pendingBurningExplosions` with a loop so the chain grows the
+ * queue instead of the stack. The `drainingBurningExplosions` guard makes a
+ * nested `killEnemy` call (from `damageEnemy` below) a no-op push rather than
+ * a re-entrant drain, so there is exactly one active loop per tick.
+ */
+function drainBurningExplosions(w: World): void {
+  if (w.drainingBurningExplosions) return;
+  w.drainingBurningExplosions = true;
+  try {
+    let e: Enemy | undefined;
+    while ((e = w.pendingBurningExplosions.pop()) !== undefined) {
+      triggerBurningExplode(w, e);
+    }
+  } finally {
+    // If triggerBurningExplode ever throws mid-drain, don't leave a stale
+    // remainder for the next, unrelated Burning kill to replay.
+    w.pendingBurningExplosions.length = 0;
+    w.drainingBurningExplosions = false;
+  }
+}
+
+// Reused across every explosion in a chain rather than allocated per call —
+// p2f means this now runs at chain-of-thousands scale in one VS wave. Safe to
+// share: `drainBurningExplosions`'s guard means calls are sequential, never
+// nested, so nothing iterates this array while a nested call refills it.
+const burningExplodeScratch: Enemy[] = [];
 
 /**
  * Reads whichever tower's `vsSpecial.kind === 'burningExplode'` is actually
@@ -311,7 +346,9 @@ function triggerBurningExplode(w: World, e: Enemy): void {
     // `residualMul`: the drafted map modifier ("Petrified residuals -50%")
     // that scaled the V2 aura this special replaces still reaches it (Q98).
     const dmg = damage * w.derived.residualMul;
-    for (const other of w.enemiesInRadius(e.x, e.y, radius)) {
+    const list = w.enemiesInRadius(e.x, e.y, radius, burningExplodeScratch);
+    for (let i = 0; i < list.length; i++) {
+      const other = list[i];
       if (other.dead) continue;
       damageEnemy(w, other, dmg, t.key, { fromX: e.x, fromY: e.y });
     }

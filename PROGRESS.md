@@ -30,6 +30,9 @@ test-retirement ledger. Read §8 before touching anything.
   for P6's classes to use. **`p2c` is done this commit**: towers stand inert but
   present (damageable, standing obstacles) during VS and each tower's §5 VS
   special is live (`src/sim/vsspecials.ts`) — see its own entry below.
+  **`p2f` is done this commit** — the Fire Brazier VS death-explosion chain
+  (`triggerBurningExplode`), found recursing straight through the call stack
+  by QA on p2c, is now an iterative worklist; see its own entry below.
   **`p2d`/`p2e` are the next actions** (weapon-panel lineage text; delete the
   Sundering/soul-binding).
 - **Where the code actually stands** (audit summary, full table at the top of
@@ -87,8 +90,9 @@ test-retirement ledger. Read §8 before touching anything.
   measures **−5.4%** (88.6 → 83.8 dps). Both clauses are verbatim and both are
   ⚖. Logged as Q87 for §17's review list rather than resolved by an agent.
 - **Next action:** **P2** `p2d`/`p2e` (weapon-panel §6.2 lineage text; delete the
-  Sundering and soul-binding), or `p2f` (the QA-filed Brazier death-explosion
-  recursion bug, regression test first). `p2c` is done this commit — towers
+  Sundering and soul-binding). `p2f` is done this commit — the Brazier
+  death-explosion recursion bug QA filed on p2c, fixed with a regression test
+  first per CLAUDE.md rule 3; see its own entry below. `p2c` is done — towers
   inert but present in VS, each tower's §5 VS special live
   (`src/sim/vsspecials.ts`) — see its own entry below. `p2b` is done — see its
   own entry below. `p2a` is done — §6.1's formula (`src/sim/vswield.ts`), G3's
@@ -99,6 +103,40 @@ test-retirement ledger. Read §8 before touching anything.
   QA-proven a no-op), and `x002` at `ef69a47` (lifesteal's cap removed and its
   accrual gated to normal damage per §2 — **not** a no-op; the sweep delta is
   below and in the session log). P0's remaining clause is carried as
+- **p2f — what a reader needs to know.** QA's p2c finding: `triggerBurningExplode`
+  recursed directly through `killEnemy → damageEnemy → triggerBurningExplode`,
+  overflowing the JS call stack at ~1500-1600 chained Burning deaths inside one
+  explosion-radius cluster — latent under today's 350 `aliveCap`, but a real
+  crash risk if the cap ever grows or a burst-kill tool hits a packed crowd.
+  `killEnemy` (`src/sim/enemies.ts`) now only pushes the dying enemy onto a new
+  `w.pendingBurningExplosions` queue and calls `drainBurningExplosions`, guarded
+  by `w.drainingBurningExplosions` so a re-entrant call from deeper in the chain
+  just enqueues and returns — only the outermost call runs the `while (pop() !==
+  undefined)` loop, so a long chain grows the queue array, not the call stack.
+  Both fields are plain `World` class-field initializers, and
+  `drainBurningExplosions`'s `finally` clears both the flag and the queue
+  unconditionally, so neither is ever observably nonzero at a hash point —
+  `hashWorld` needs no new case, the same reasoning that already excludes
+  `dotScratch` and its siblings. Acceptance met:
+  `tests/p2c-vs-specials.test.ts` gains a 45×45-grid (2025) Burning-chain test
+  that both code-reviewer and qa-playtester independently confirmed reproduces
+  the original `RangeError` when only the fix files are reverted — a real
+  regression test, not a coincidental pass. code-reviewer **APPROVE** (2 Minor,
+  both taken: the `finally`-clears-queue hardening above, and a new
+  `burningExplodeScratch` module-level array so `triggerBurningExplode`'s
+  `enemiesInRadius` call reuses a buffer instead of allocating fresh per
+  explosion — the `dotScratch` pattern, now load-bearing since a chain runs to
+  completion at thousands-of-explosions scale instead of crashing partway
+  through). **qa-playtester PASS**, no bugs found across five adversarial
+  scenarios: ordinary small chains hit byte-identical targets old vs. new code
+  (the cascade's total damage is order-independent, a fixed point rather than a
+  DFS-vs-BFS artifact); a non-explosion death queued mid-drain still dies
+  exactly once; Act I (`huntsWarden` false) touches neither new field; the
+  replay-hash argument above held up empirically on the rekindle-replay hash
+  case; and the scratch-array reuse is safe because a re-entrant push never
+  itself iterates the array. Full suite: 681 pass / 67 skipped, byte-identical
+  to pre-p2f, plus the pre-existing host-dependent A10 wall-clock flake
+  (recorded at p1b, not caused here) — refs: §5, QA on p2c
 - **p2c — what a reader needs to know.** The acceptance criterion's first
   clause ("towers do not attack") needed no new code: `updateTowers` (the only
   function that fires an Act I tower attack) is reachable only from

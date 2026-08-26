@@ -178,6 +178,42 @@ describe('p2c — towers inert but present in VS waves (§6.2)', () => {
     expect(bystander.hp).toBe(1e6);
   });
 
+  it('p2f: a large tightly-clustered Burning chain does not overflow the call stack', () => {
+    const w = new World(cfg(), content);
+    const [t1] = tiles(w, 1);
+    build(w, BRAZIER, t1.tx, t1.ty);
+    w.phase = 'act2';
+
+    // A 45x45 grid spaced 0.4 tiles apart (well under the r1 explosion radius),
+    // so every husk's death-explosion reaches its neighbours and the chain
+    // propagates through the whole cluster — QA's repro (~2000 husks, hp 1,
+    // radius-1 spacing). 0.4 spacing keeps the whole cluster inside the real
+    // 36x20 playfield (max coord 1 + 44*0.4 = 18.6) rather than leaning on
+    // `rebuildBuckets`' edge-cell clamping to still be correct. The old code
+    // recursed one JS call per chained death and overflowed the stack around
+    // 1500-1600 links; this only regresses if `killEnemy` goes back to
+    // calling `triggerBurningExplode` inline.
+    const SIDE = 45;
+    const enemies: Enemy[] = [];
+    for (let row = 0; row < SIDE; row++) {
+      for (let col = 0; col < SIDE; col++) {
+        const e = spawnEnemy(w, 'husk', 1 + col * 0.4, 1 + row * 0.4)!;
+        e.hp = 1;
+        e.maxHp = 1;
+        e.speed = 0;
+        applyBurn(w, e, 1, 3, 'test');
+        enemies.push(e);
+      }
+    }
+    w.rebuildBuckets();
+
+    expect(() => damageEnemy(w, enemies[0], 100, 'test')).not.toThrow();
+    expect(enemies[0].dead).toBe(true);
+    // The chain must have actually cascaded, not fizzled after one hop, or the
+    // test would pass vacuously without ever exercising the deep chain.
+    expect(enemies.filter((e) => e.dead).length).toBeGreaterThan(enemies.length / 2);
+  });
+
   it('ice aura: an r2 aura around the character applies Frost every second', () => {
     const w = new World(cfg(), content);
     const [t1] = tiles(w, 1);
