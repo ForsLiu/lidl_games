@@ -30,7 +30,7 @@ still in test headers.
 |---|---|
 | P0 sim skeleton | **done** — fixed 60 Hz, named RNG streams, Commands, headless CLI, end-state hash (G2 green except tuner-edited content and fast-forward, see p9f) |
 | P1 TD core | **done** — pathing, 3 owner towers, 20 enemies, economy live; p1a landed sealing (breach pathing, §10), p1b measured G7's win-rate band as a live test — G7 green in full, band re-measured at p3e per Q83 |
-| P2 VS core | **movement/dash/director/XP done; inheritance formula built and wired live, towers inert with their §5 specials live (p2a, p2b, p2c)** — `data/weapons.json`'s 8-weapon roster with its own level ladders and 6 slots still stands alongside wielded tower attacks rather than being replaced, pending p2e (G3 green in full) |
+| P2 VS core | **movement/dash/director/XP done; inheritance formula built and wired live, towers inert with their §5 specials live, weapon-panel lineage live (p2a, p2b, p2c, p2d)** — `data/weapons.json`'s 8-weapon roster with its own level ladders and 6 slots still stands alongside wielded tower attacks rather than being replaced, pending p2e (G3 green in full) |
 | P3 interleave | **leak coupling done, interleave not** — the run is still V2's Day/Dusk/Night/Dawn cycle machine, not TD×3→VS (G6 unmet) |
 | P4 core math | **done** — multiplicative stacking, armor cap +99 / floor −100, 6 damage types + 2 statuses (G4, G5 green) |
 | P5 tower roster | **done bar pricing** — all 10 towers, upgrade tracks, defense bands; two tracks carry a `note` instead of §5's count (G20 unasserted) |
@@ -54,16 +54,13 @@ Q83 the p1b band is re-measured at p3e after the §1.1 run shape lands.
 
 ### P2 — VS core: the inheritance formula (G3)
 
-p2a, p2b, p2c and p2f are **done** — see the Done section. `src/sim/vswield.ts`'s
+p2a, p2b, p2c, p2d and p2f are **done** — see the Done section. `src/sim/vswield.ts`'s
 `wieldedAttacks` implements §6.1's formula and `updateWieldedAttacks` fires it
 live from Act II; `src/sim/vsspecials.ts`'s `updateVsSpecials` fires every
 tower's §5 VS special while the tower itself stands inert; p2f converted the
-Fire Brazier explosion's death-chain recursion into an iterative worklist.
+Fire Brazier explosion's death-chain recursion into an iterative worklist;
+p2d added the §6.2 weapon-panel lineage line.
 
-- [ ] (p2d) [polish] Weapon panel shows §6.2's per-type lineage —
-      acceptance: the panel renders "Arrow ×3 (avg 14.2, +30%) — pierce 2" shape for
-      every wielded type, numbers read from the same derivation p2a tests — refs:
-      §6.2
 - [ ] (p2e) [polish] Delete the Sundering and soul-binding: weapon slots, per-weapon
       level ladders, Awakenings, the Dusk soul picker, `src/sim/sundering.ts` and
       `data/weapons.json`'s roster, plus the tower `soul` field — acceptance: files
@@ -406,6 +403,41 @@ logged in MIGRATION.md §8 rather than carried as dead items.
   **G19**. The work is `p10d`.
 
 ## Done
+
+- [x] (p2d) [polish] Weapon panel shows §6.2's per-type lineage — commit `46eaef5` —
+      `wieldedAttacks` (`src/sim/vswield.ts`) gained `perTowerAverage`, the average
+      per-tower damage before §6.1's "+10% per tower" bonus, exposed so a reader
+      never re-derives that fraction itself. `wieldedLineageText` (`src/ui/tower-
+      info.ts`) maps `wieldedAttacks(w)` to one line per type — "Arrow ×3 (avg 14.2,
+      +30%) — pierce 2" — via `lineageLine`/`lineageSpecial`, a compact per-kind
+      phrase table (single/pierce/cone/aura/chain/lob/poison) alongside the existing
+      `KIND_TEXT`. `Hud.renderWeaponInfo` (`src/ui/hud.ts`) renders the block below
+      (or, with no soul weapon equipped, in place of) the soul-weapon card, keyed by
+      a sorted `towerId.tier` roster fingerprint so the cache invalidates on a
+      mid-VS-wave tower death (an enemy kill through `World.removeStructure`), not
+      just build/sell/upgrade. Acceptance met: `tests/p2d-weapon-lineage.test.ts`
+      (4 cases) — the worked-example line shape round-tripped against
+      `wieldedAttacks`' own `perTowerAverage`/`damage`/`profile` fields rather than a
+      second copy of the bonus formula, one well-formed line per attack-bearing
+      tower kind (all 7), a no-attack tower (wall) contributing no line, and a
+      live-DOM `Hud` test proving the panel drops a dead tower's line on the very
+      next `update()` instead of serving a stale cached render. code-reviewer
+      **APPROVE** (2 Minor, logged not blocking: the roster fingerprint is
+      recomputed by `filter`+`map`+`sort`+`join` every VS-phase frame rather than
+      gated behind a dirty flag — real but bounded by tower count, not a hard-rule
+      violation since it's `/src/ui`, not `/src/sim`; and the soul-weapon-equipped
+      cache-key branch shares the identical fix but has no direct regression test
+      of its own, only the no-weapon branch does). **qa-playtester PASS**, no bugs
+      found across multiple simultaneous wielded types, mixed tiers of the same
+      type, a tower dying mid-wave to enemy damage vs. sell, building blocked
+      outright during VS (confirmed structurally via `canBuildNow`'s phase gate, so
+      "new type appears mid-wave" cannot happen), the panel correctly absent outside
+      VS, a 60-tower boundary case (no NaN/overflow), and replay-hash safety — the
+      new `perTowerAverage` field and the whole lineage derivation are pure reads
+      never touched by `hashWorld`, same as the pre-existing `wieldedCache`. Full
+      suite: 685 pass / 67 skipped, plus the pre-existing host-dependent A10
+      wall-clock flake, confirmed by QA to fail identically with this diff stashed
+      out (not a regression) — refs: §6.2, G3, Q95
 
 - [x] (p2f) [bug] `triggerBurningExplode` (`src/sim/enemies.ts`) no longer recurses
       directly through `killEnemy` → `damageEnemy` → `triggerBurningExplode` — this

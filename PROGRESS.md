@@ -33,14 +33,17 @@ test-retirement ledger. Read §8 before touching anything.
   **`p2f` is done this commit** — the Fire Brazier VS death-explosion chain
   (`triggerBurningExplode`), found recursing straight through the call stack
   by QA on p2c, is now an iterative worklist; see its own entry below.
-  **`p2d`/`p2e` are the next actions** (weapon-panel lineage text; delete the
+  **`p2d` is done this commit** — the §6.2 weapon-panel lineage line
+  ("Arrow ×3 (avg 14.2, +30%) — pierce 2") reads straight off `wieldedAttacks`;
+  see its own entry below. **`p2e` is the next action** (delete the
   Sundering/soul-binding).
 - **Where the code actually stands** (audit summary, full table at the top of
   BACKLOG.md): P0 and P4 are done; P1 is done **except sealing**; P5 is done bar two
-  pricing items; P2's VS **inheritance formula and towers' §5 specials are both
-  wired live (p2a, p2b, p2c)** — `data/weapons.json`'s
-  8-weapon roster with its own level ladders and 6 slots still stands alongside
-  wielded tower attacks rather than being replaced, pending p2e; P3's interleave is not built — the run is
+  pricing items; P2's VS **inheritance formula, towers' §5 specials and the
+  weapon-panel lineage line are all wired live (p2a, p2b, p2c, p2d)** —
+  `data/weapons.json`'s 8-weapon roster with its own level ladders and 6 slots
+  still stands alongside wielded tower attacks rather than being replaced,
+  pending p2e; P3's interleave is not built — the run is
   still V2's Day/Dusk/Night/Dawn cycle machine; P6 has **3 of 11 classes** and on the
   wrong framework; P7's equipment, VS upgrade pool and reward pipeline are unbuilt
   behind the relic/Ember/boon systems that supersede them; P9's Tuner is unbuilt and
@@ -89,8 +92,9 @@ test-retirement ledger. Read §8 before touching anything.
   rate — so the milestone moves damage into a bucket that is already full and
   measures **−5.4%** (88.6 → 83.8 dps). Both clauses are verbatim and both are
   ⚖. Logged as Q87 for §17's review list rather than resolved by an agent.
-- **Next action:** **P2** `p2d`/`p2e` (weapon-panel §6.2 lineage text; delete the
-  Sundering and soul-binding). `p2f` is done this commit — the Brazier
+- **Next action:** **P2** `p2e` (delete the Sundering and soul-binding). `p2d`
+  is done — the §6.2 weapon-panel lineage text reads straight off
+  `wieldedAttacks`; see its own entry below. `p2f` is done — the Brazier
   death-explosion recursion bug QA filed on p2c, fixed with a regression test
   first per CLAUDE.md rule 3; see its own entry below. `p2c` is done — towers
   inert but present in VS, each tower's §5 VS special live
@@ -103,6 +107,25 @@ test-retirement ledger. Read §8 before touching anything.
   QA-proven a no-op), and `x002` at `ef69a47` (lifesteal's cap removed and its
   accrual gated to normal damage per §2 — **not** a no-op; the sweep delta is
   below and in the session log). P0's remaining clause is carried as
+- **p2d — what a reader needs to know.** §6.2's weapon panel lineage line is live:
+  `wieldedAttacks` (`src/sim/vswield.ts`) now exposes `perTowerAverage` — the
+  average per-tower damage before §6.1's "+10% per tower" bonus is applied — so
+  `wieldedLineageText` (`src/ui/tower-info.ts`) can render "Arrow ×3 (avg 14.2,
+  +30%) — pierce 2" per wielded type by reading `wieldedAttacks`' own fields
+  rather than re-deriving the bonus fraction a second time. `Hud.renderWeaponInfo`
+  (`src/ui/hud.ts`) shows the block below (or, unequipped, instead of) the
+  soul-weapon card, keyed by a sorted `towerId.tier` roster fingerprint so the
+  cache invalidates the moment a tower dies mid-VS-wave to enemy damage, not just
+  on build/sell/upgrade. `tests/p2d-weapon-lineage.test.ts` (4 cases): the
+  worked-example shape round-tripped against the sim's own fields, one line per
+  attack-bearing tower kind, no line for a no-attack tower, and a live-DOM `Hud`
+  test proving the stale-cache gap is closed. code-reviewer **APPROVE** (2 Minor,
+  not blocking); **qa-playtester PASS**, nothing found across simultaneous types,
+  mixed tiers, mid-wave death, build-blocked-during-VS, and replay-hash safety
+  (the new field is never hashed, matching the existing `wieldedCache` pattern).
+  Full suite: 685 pass / 67 skipped, plus the pre-existing host-dependent A10
+  wall-clock flake, QA-confirmed present with this diff stashed out too — refs:
+  §6.2, G3, Q95
 - **p2f — what a reader needs to know.** QA's p2c finding: `triggerBurningExplode`
   recursed directly through `killEnemy → damageEnemy → triggerBurningExplode`,
   overflowing the JS call stack at ~1500-1600 chained Burning deaths inside one
