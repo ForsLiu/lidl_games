@@ -50,7 +50,7 @@ coverage gaps session 1's log recorded. All five are inside Scope as written.*
       `deserialize(serialize(m))` deep-equals `m`, and that a second pass is a
       fixed point — acceptance: 2000 seeded metas green, including metas grown
       through `applyRunResult` — refs: G18, QUALITY.md ALPHA
-- [ ] (q9) [feat] Phase-reachability census: `tools/phase-coverage.ts` reports
+- [x] (q9) [feat] Phase-reachability census: `tools/phase-coverage.ts` reports
       which `Phase` values each shipped bot policy actually enters over N seeds
       — acceptance: tool prints the census and a test asserts the reached set is
       a superset of a recorded floor, so a phase that stops being reachable goes
@@ -68,6 +68,63 @@ coverage gaps session 1's log recorded. All five are inside Scope as written.*
       module — refs: engineer's judgment, HANDOFF §7
 
 ## Log
+
+### 2026-08-26 — session 5
+
+**Feedback inbox:** `feedback/` does not exist in this worktree; nothing to
+process, nothing moved.
+
+**Three actionable items were in queue (q9, q10, q11)**, so the generation
+rule did not run. Took q9, the top item.
+
+**q9 done.** `tools/phase-coverage.ts` (harness + CLI) and
+`tests/q9-phase-coverage.test.ts` (16 tests, ~30s).
+
+**What it does.** Plays real, undirected headless runs of every registered
+bot policy (`idle`, `no-move`, `turtle`, `kite`, `hybrid`, `maxbuild`,
+`walloff`, `greedy`, `greedless`, `rush` — via `policyNames()`/`makePolicy()`,
+so a newly registered policy is picked up automatically) and records the set
+of `world.phase` values each one's own play actually produces, never forcing
+a phase transition the way `tools/fuzz-input.ts`'s `runInPhase` does. Measured
+identically stable at 6, 8, 10 and 12 seeds per policy, so the test runs at 8.
+The test pins a `RECORDED_FLOOR` per policy and asserts the reached set
+**exactly**, not just as a superset, deliberately more than the acceptance
+line's minimum bar: a policy reaching *more* than its floor is news (a better
+bot, or a rare branch a small seed count missed) and should be looked at
+rather than pass silently, the same way q7's `ACCEPTED` map pins loader holes
+by name. `soulpick` is confirmed unreached by any shipped policy — session
+1's finding (7 distinct souls vs. 6 weapon slots in `data/towers.json`, so
+every bot auto-binds and skips the picker) — and is asserted absent from
+every policy's reached set as the known, pinned gap the acceptance line asks
+for, plus one test asserting the union across all ten policies is exactly
+`ALL_PHASES` minus `soulpick`. An anti-vacuity test proves the superset-check
+helper the floor tests lean on can actually fail, using a hand-built fixture
+rather than trusting the real census to exercise it.
+
+**Review (code-reviewer, APPROVE, 1 Minor).** Verified the drive logic against
+`tools/sweep.ts`'s own `runOne` (same `RunConfig`/`Run`/`policy.act` shape, no
+forced phase writes), confirmed no `Math.random`/`Date.now`/native trig is
+reachable from the path and no writes outside `tools/**`/`tests/**`. One
+cosmetic nit: the CLI table's `reached` column was a fixed `padEnd(50)`, one
+character short of the longest real value, so the `unreached` column ran
+straight into it with no separator for most policies. Fixed by sizing the
+column to the longest actual value instead of a guessed constant.
+
+**QA (qa-playtester, PASS).** Confirmed the CLI census and the test's
+`RECORDED_FLOOR` agree exactly, including at `--seeds 20`. Mutation-tested
+for real: forced `completeWave` in `src/sim/run.ts` to never enter dusk (11/16
+red, exactly the dusk/act2/levelup/dawn-dependent tests), moved the dawn
+trigger in `updateAct2` to fire almost immediately so `levelup` is skipped
+(11/16 red, `levelup` gone and `dawn` appearing where it shouldn't), and
+rebound `hybrid`'s registration in `src/bots/policies.ts` to `IdlePolicy`
+(exactly 2/16 red — hybrid's own floor test and the exact-set test for
+hybrid only, showing a single-policy regression is localized rather than
+false-failing broadly). All three reverted byte-for-byte, `git diff
+--exit-code` clean after each. Ran the file three times standalone with no
+flakiness, and the full suite once clean.
+
+**Suite state at this commit.** `npx vitest run` — **750 passed / 78 skipped,
+exit 0**, q9 included (up from session 4's 734).
 
 ### 2026-08-26 — session 4
 
