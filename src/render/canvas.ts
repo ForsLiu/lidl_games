@@ -13,6 +13,7 @@ import {
   TILE,
   TileType,
 } from '../sim/grid';
+import { dotRemaining } from '../sim/enemies';
 import { BASE } from '../sim/stats';
 import type { World } from '../sim/world';
 import {
@@ -436,16 +437,31 @@ export class Renderer {
         ctx.stroke();
         ctx.lineWidth = 1;
       }
-      if (e.slowAmount > 0) {
+      // SPEC-V3 §3: frozen is a hard stop and reads as a solid rime shell;
+      // frost and the generic slow share the thinner ring they always had.
+      if (e.frozenRemaining > 0) {
+        ctx.fillStyle = '#8fd8ff44';
+        ctx.beginPath();
+        ctx.arc(px, py, r + 2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#cdefff';
+        ctx.stroke();
+      } else if (e.slowAmount > 0 || e.frostRemaining > 0) {
         ctx.strokeStyle = '#8fd8ffcc';
         ctx.beginPath();
         ctx.arc(px, py, r + 2, 0, Math.PI * 2);
         ctx.stroke();
       }
-      if (e.burnRemaining > 0) {
+      if (dotRemaining(e, 'burning') > 0) {
         ctx.fillStyle = '#ff883355';
         ctx.beginPath();
         ctx.arc(px, py - r, 3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      if (dotRemaining(e, 'bleeding') > 0) {
+        ctx.fillStyle = '#cc224466';
+        ctx.beginPath();
+        ctx.arc(px - r, py - r, 3, 0, Math.PI * 2);
         ctx.fill();
       }
       ctx.globalAlpha = 1;

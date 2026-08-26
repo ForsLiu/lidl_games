@@ -268,6 +268,9 @@ function fireTower(w: World, s: Structure, def: TowerDef): void {
   const dmg = towerDamage(w, s, a.damage);
   const area = w.derived.areaMul;
   const source = def.key;
+  // SPEC-V3 §3 riders travel with every shape this tower can fire, so a type
+  // authored in /data cannot be silently dropped by one `kind` out of seven.
+  const onHit = a.onHit;
 
   switch (a.kind) {
     case 'single': {
@@ -277,6 +280,7 @@ function fireTower(w: World, s: Structure, def: TowerDef): void {
         return;
       }
       s.damageDealt += damageEnemy(w, t, dmg, source, { fromX: x, fromY: y });
+      if (!t.dead) applyEffects(w, t, { source, onHit });
       w.emit('shot', x, y, t.x, t.y);
       break;
     }
@@ -296,6 +300,7 @@ function fireTower(w: World, s: Structure, def: TowerDef): void {
         damage: dmg,
         pierce: a.pierce ?? 1,
         source,
+        fx: { source, onHit },
       });
       break;
     }
@@ -310,6 +315,7 @@ function fireTower(w: World, s: Structure, def: TowerDef): void {
         source,
         burnDps: a.burn ? a.burn.dps * tierDamageMul(w, s.tier) : 0,
         burnDuration: a.burn?.duration ?? 0,
+        onHit,
       });
       w.emit('cone', x, y, dir.x, dir.y);
       break;
@@ -320,7 +326,9 @@ function fireTower(w: World, s: Structure, def: TowerDef): void {
       for (const e of list) {
         if (e.dead) continue;
         s.damageDealt += damageEnemy(w, e, dmg, source, { fromX: x, fromY: y });
-        if (!e.dead && a.slow) applySlow(w, e, a.slow, a.slowDuration ?? 1);
+        if (e.dead) continue;
+        if (a.slow) applySlow(w, e, a.slow, a.slowDuration ?? 1);
+        applyEffects(w, e, { source, onHit });
       }
       if (list.length > 0) w.emit('pulse', x, y, r, 0);
       break;
@@ -332,7 +340,7 @@ function fireTower(w: World, s: Structure, def: TowerDef): void {
         return;
       }
       const chains = (a.chains ?? 3) + Math.max(0, s.tier - 1);
-      s.damageDealt += chainHit(w, x, y, t, chains, a.chainRange ?? 3, dmg, source);
+      s.damageDealt += chainHit(w, x, y, t, chains, a.chainRange ?? 3, dmg, source, { source, onHit });
       break;
     }
     case 'lob': {
@@ -355,6 +363,7 @@ function fireTower(w: World, s: Structure, def: TowerDef): void {
         damage: dmg,
         aoe: (a.aoe ?? 1.5) * area,
         source,
+        fx: { source, onHit },
       });
       break;
     }
@@ -370,6 +379,7 @@ function fireTower(w: World, s: Structure, def: TowerDef): void {
         poisonDps: p.dps * tierDamageMul(w, s.tier) * w.derived.powerMul,
         poisonDuration: p.duration,
         poisonStacks: p.maxStacks,
+        onHit,
       });
       if (dmg > 0) s.damageDealt += damageEnemy(w, t, dmg, source, { fromX: x, fromY: y });
       w.emit('spore', x, y, t.x, t.y);

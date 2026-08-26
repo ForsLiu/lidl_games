@@ -18,6 +18,7 @@ import affinityRaw from '../../data/affinity.json';
 import questsRaw from '../../data/quests.json';
 import devRaw from '../../data/dev.json';
 import wardenRaw from '../../data/warden.json';
+import damageTypesRaw from '../../data/damagetypes.json';
 
 const num = z.number();
 const str = z.string();
@@ -44,6 +45,11 @@ const TowerAttackSchema = z
     projectileSpeed: num.optional(),
     burn: BurnSchema.optional(),
     poison: PoisonSchema.optional(),
+    /**
+     * SPEC-V3 §3 damage types and statuses every hit of this attack also
+     * applies, by key. Checked against the taxonomy at load.
+     */
+    onHit: z.array(str).optional(),
   })
   .nullable();
 
@@ -391,6 +397,85 @@ const AffinityFileSchema = z.object({
   ),
 });
 
+/* ------------------------------------------------------------ damage types */
+
+/**
+ * SPEC-V3 §3's taxonomy. Every number the six rows quote lives here so the
+ * Tuner (T5) can edit them and the engine stays generic.
+ *
+ * `effect` splits the table in two: a `hit` row lands its damage immediately,
+ * a `dot` row installs a stack that ticks. A dot row states its magnitude
+ * either as a flat `dps` (Bleeding, Burning) or as a `ratio` of the damage
+ * that triggered it (Poison 1.2, Toxic 1.8) — never both.
+ *
+ * `refresh` is what an application does once `maxStacks` are already on the
+ * target: `shortest` overwrites the stack with the least time left (V2's
+ * poison rule), `strongest` keeps the higher dps and the longer remaining
+ * (V2's burn rule). §3 states a stacking rule only for Bleeding, so the other
+ * three keep the behaviour their V2 callers shipped with — see QUESTIONS Q65.
+ */
+const DamageTypeSchema = z
+  .object({
+    key: str,
+    name: str,
+    effect: z.enum(['hit', 'dot']),
+    /** SPEC-V3 §2: "ailment (dot) damage ignores armor unless stated". */
+    ignoresArmor: z.boolean(),
+    dps: num.optional(),
+    ratio: num.optional(),
+    duration: num.optional(),
+    maxStacks: num.int().min(1).optional(),
+    refresh: z.enum(['shortest', 'strongest']).optional(),
+    /** Burning: armor points stripped per second (SPEC-V3 §3, Q58's shred). */
+    armorShredPerSecond: num.optional(),
+    /** Burning's spread and Electric's inherent blast, in tiles. */
+    radius: num.optional(),
+    desc: str,
+  })
+  .strict();
+
+const DamageStatusSchema = z
+  .object({
+    duration: num,
+    attackSpeed: num.optional(),
+    moveSpeed: num.optional(),
+    damageTaken: num.optional(),
+    desc: str,
+  })
+  .strict();
+
+/**
+ * Whether `key` is something an attack may apply on hit, throwing if it is not.
+ *
+ * Exported so a test can drive the loader's own predicate: no shipped tower
+ * authors an `onHit` list yet (m20b is what authors them, Q68), so the loop
+ * that calls this never executes against `/data` and the rule would otherwise
+ * ship with no coverage at all — the exact failure m19a's orphaned
+ * `shredArmor` was.
+ */
+export function validateOnHit(types: DamageTypesFile, key: string, where: string): void {
+  const d = types.types.find((row) => row.key === key);
+  if (!d && !(key in types.statuses)) {
+    throw new Error(`${where} applies unknown damage type/status "${key}"`);
+  }
+  if (d && (d.effect !== 'dot' || d.dps === undefined)) {
+    // A ratio row has no magnitude without a triggering damage, and a hit row
+    // lands its damage rather than riding along on someone else's.
+    throw new Error(`${where} cannot apply "${key}" on hit — it has no flat dps`);
+  }
+}
+
+const DamageTypesFileSchema = z.object({
+  /**
+   * SPEC-V3 §3's "perf cap 50 stacks/enemy". Enforced across all dot types
+   * together, not per type: the cap exists so a horde cannot grow an unbounded
+   * per-enemy array in the hot loop, and that budget is shared.
+   */
+  maxStacksPerEnemy: num.int().min(1),
+  types: z.array(DamageTypeSchema),
+  statuses: z.object({ frost: DamageStatusSchema, frozen: DamageStatusSchema }),
+});
+
 /* ------------------------------------------------------------------ quests */
 
 const QuestsFileSchema = z.object({
@@ -454,6 +539,9 @@ export type ClassDef = z.infer<typeof ClassesFileSchema>['classes'][number];
 export type ClassActive = z.infer<typeof ClassActiveSchema>;
 export type AffinityDef = z.infer<typeof AffinityFileSchema>['affinities'][number];
 export type QuestDef = z.infer<typeof QuestsFileSchema>['quests'][number];
+export type DamageTypeDef = z.infer<typeof DamageTypeSchema>;
+export type DamageStatusDef = z.infer<typeof DamageStatusSchema>;
+export type DamageTypesFile = z.infer<typeof DamageTypesFileSchema>;
 export type WaveDef = z.infer<typeof WavesFileSchema>['waves'][number];
 
 /**
@@ -490,6 +578,7 @@ export interface Content {
   classes: z.infer<typeof ClassesFileSchema>;
   affinity: z.infer<typeof AffinityFileSchema>;
   quests: z.infer<typeof QuestsFileSchema>;
+  damageTypes: DamageTypesFile;
   dev: DevConfig;
 
   towerByKey: Map<string, TowerDef>;
@@ -502,6 +591,7 @@ export interface Content {
   classByKey: Map<string, ClassDef>;
   modifierByKey: Map<string, ModifierDef>;
   affinityByClass: Map<string, AffinityDef>;
+  damageTypeByKey: Map<string, DamageTypeDef>;
 }
 
 let cached: Content | null = null;
@@ -522,6 +612,7 @@ export function loadContent(): Content {
   const affinity = AffinityFileSchema.parse(affinityRaw);
   const dev = DevFileSchema.parse(devRaw);
   const quests = QuestsFileSchema.parse(questsRaw);
+  const damageTypes = DamageTypesFileSchema.parse(damageTypesRaw);
 
   // Cross-file referential integrity: a typo in /data must fail loudly at load.
   const towerKeys = new Set(towers.towers.map((t) => t.key));
@@ -571,6 +662,30 @@ export function loadContent(): Content {
       }
     }
   }
+  for (const t of towers.towers) {
+    for (const k of t.attack?.onHit ?? []) validateOnHit(damageTypes, k, `towers.json: ${t.key}`);
+  }
+
+  // A damage type that says nothing about its magnitude would apply as a
+  // silent no-op, which is the failure mode m19a/m19b both shipped once. A row
+  // has to be well-formed at load, not merely parse.
+  for (const d of damageTypes.types) {
+    const hasDps = d.dps !== undefined;
+    const hasRatio = d.ratio !== undefined;
+    if (d.effect === 'dot') {
+      if (hasDps === hasRatio) {
+        throw new Error(`damagetypes.json: "${d.key}" needs exactly one of dps/ratio`);
+      }
+      if (!d.duration || d.duration <= 0) throw new Error(`damagetypes.json: "${d.key}" needs a duration`);
+      if (!d.maxStacks || !d.refresh) throw new Error(`damagetypes.json: "${d.key}" needs maxStacks + refresh`);
+      if (d.maxStacks > damageTypes.maxStacksPerEnemy) {
+        throw new Error(`damagetypes.json: "${d.key}" maxStacks exceeds maxStacksPerEnemy`);
+      }
+    } else if (hasDps || hasRatio || d.duration !== undefined || d.armorShredPerSecond !== undefined) {
+      throw new Error(`damagetypes.json: "${d.key}" is a hit but carries dot fields`);
+    }
+  }
+
   const treeIds = new Set(tree.nodes.map((n) => n.id));
   for (const n of tree.nodes) {
     for (const l of n.links) {
@@ -593,6 +708,7 @@ export function loadContent(): Content {
     affinity,
     dev,
     quests,
+    damageTypes,
     towerByKey: new Map(towers.towers.map((t) => [t.key, t])),
     towerById: new Map(towers.towers.map((t) => [t.id, t])),
     enemyByKey: new Map(enemies.enemies.map((e) => [e.key, e])),
@@ -603,6 +719,7 @@ export function loadContent(): Content {
     classByKey: new Map(classes.classes.map((c) => [c.key, c])),
     modifierByKey: new Map(modifiers.modifiers.map((m) => [m.key, m])),
     affinityByClass: new Map(affinity.affinities.map((a) => [a.classKey, a])),
+    damageTypeByKey: new Map(damageTypes.types.map((d) => [d.key, d])),
   };
   return cached;
 }

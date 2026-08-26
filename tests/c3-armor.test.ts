@@ -205,9 +205,7 @@ describe('C3 — the wiring, not just the arithmetic', () => {
     // same burn would deal ×1.9. `pure` alone no longer covers this.
     const w = world();
     const e = armouredHusk(w, -90);
-    e.burnDps = 10;
-    e.burnRemaining = 5;
-    e.burnSource = 'test';
+    e.dots.push({ type: 'burning', remaining: 5, dps: 10, source: 'test' });
     const before = e.hp;
     updateEnemies(w, 1 / 60);
     expect(before - e.hp).toBeCloseTo(10 / 60, 9);
@@ -216,7 +214,7 @@ describe('C3 — the wiring, not just the arithmetic', () => {
   it('the poison tick ignores armour through the real update loop', () => {
     const w = world();
     const e = armouredHusk(w, 80);
-    e.poison.push({ remaining: 5, dps: 12, source: 'test' });
+    e.dots.push({ type: 'poison', remaining: 5, dps: 12, source: 'test' });
     const before = e.hp;
     updateEnemies(w, 1 / 60);
     expect(before - e.hp).toBeCloseTo(12 / 60, 9);

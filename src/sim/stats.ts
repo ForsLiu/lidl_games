@@ -320,6 +320,12 @@ export interface Derived {
   leech: number;
   secondWind: boolean;
   burnDamageMul: number;
+  /**
+   * SPEC-V3 §3 gave this stat its first reader: Burning's damage and shred are
+   * AoE around the victim, and `burnSpread` is a point bonus on that radius.
+   * Until m19c it was authored on the Pyromancer and read by nothing.
+   */
+  burnSpread: number;
   slowPotencyMul: number;
   /** Hoisted out of `Stats` at m19b: `damageEnemy` reads it per hit. */
   chilledDamageTakenMul: number;
@@ -360,6 +366,7 @@ export function derive(content: Content, s: Stats, residualScale = 1): Derived {
     leech: s.total('leech'),
     secondWind: s.total('secondWind') > 0,
     burnDamageMul: s.factor('burnDamage'),
+    burnSpread: s.total('burnSpread'),
     slowPotencyMul: s.factor('slowPotency'),
     chilledDamageTakenMul: s.factor('chilledDamageTaken'),
     xpMul: s.factor('xpGain'),

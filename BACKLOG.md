@@ -14,16 +14,6 @@ recorded reason, not a nudged constant.
 
 ## Queue
 
-### M19 — combat math and damage types (gates C3, C4)
-
-- [ ] (m19c) [feat] Damage-type taxonomy in `data/damagetypes.json`: Normal,
-      Bleeding, Poison, Toxic, Burning, Electric; frost/frozen statuses replace the
-      V2 chill-stack model — acceptance: one unit test per row of V3 §3's table
-      asserting the stated totals and durations; Bleeding stacks independently to
-      the 50/enemy perf cap; **and gate C3's carried clause — Burning must actually
-      call `shredArmor`, which m19a built and left with no production caller (Q58)**
-      — refs: V3 §3, Q44, Q58
-
 ### M20 — tower model v3 (gate: data tests)
 
 - [ ] (m20a) [feat] Per-tower upgrade tracks: upgrade count, +10% HP/Attack/Defense
@@ -188,6 +178,27 @@ sit naturally alongside M24, which touches saves again.
       granularity — acceptance: either the sign is flipped or the affix is renamed;
       a test asserts every affix's sign matches the direction its name implies —
       refs: QA on m19b, §5 note
+- [ ] (s008) [bug] **No A/B gate exercises the armour shred.** QA measured that
+      none of the twelve sweep seeds ever builds an Ember Brazier (maxbuild's list
+      contains it, but the runs die first — `shreddedEnemies=0` on seeds 1–3) and
+      no bot policy ever draws the `flame_cone` soul, so gate C3's production path
+      runs zero times in the sweep that guards balance. That is why m19c's sweep
+      delta is so small, and it means the shred can regress to nothing without a
+      gate moving — acceptance: a policy or probe that actually builds a Brazier is
+      in the gate set, and it asserts a non-zero shred — refs: QA on m19c, V3 §3
+- [ ] (s009) [feat] DoT immunity is hardcoded in the engine: `immuneToDot` tests
+      `type === 'burning' && TRAIT.burnImmune`, so a taxonomy row with an immunity
+      of its own needs an engine edit — against CLAUDE.md's rule 4 (new mechanics
+      are data shapes) and against that function's own comment — acceptance: an
+      optional `immuneTrait` on the damage-type schema, resolved through the trait
+      table, with Burning authored to use it and a test on a second row — refs:
+      code review on m19c, V3 §3
+- [ ] (s010) [polish] The enemy panel prints raw shredded armour: past Q44's −100
+      floor a horde-density Brazier board reads **"−294 (100% more taken)"**, which
+      is honest about the percentage and misleading about the number — a player
+      cannot tell that the next 194 points of shred do nothing — acceptance: the
+      panel shows the effective (floored) armour, or marks the floor — refs: QA on
+      m19c, `src/ui/hud.ts` `armourText`
 - [ ] (s007) [bug] Beacon attack-speed terrain residual exceeds its authored `cap`:
       `data/towers.json` sets `beacon_totem.passive.cap 0.12`, but a second Sundering
       measures 0.20, because `applyTerrainPassives` caps each call's contribution and
@@ -206,6 +217,44 @@ sit naturally alongside M24, which touches saves again.
 
 ## Done
 
+- [x] (m19c) [feat] Damage-type taxonomy (SPEC-V3 §3) — commit `PENDING` — the six
+      rows and both statuses, authored in `data/damagetypes.json` — **M19 complete**,
+      gate **C3 green in full** (its carried clause closed: Burning is `shredArmor`'s
+      first production caller) — refs: V3 §3, Q44, Q58, Q65–Q72 — code-reviewer
+      **REQUEST-CHANGES** (2 Major, 9 Minor) and qa-playtester **PASS** on all three
+      acceptance clauses with 6 bugs filed; every Major and every reachable Minor is
+      fixed here, each with a regression test that turns red when the fix is reverted.
+      `Enemy.burnRemaining/burnDps/burnSource` and `Enemy.poison` are replaced by one
+      `dots` list keyed by type; the row in `/data` owns magnitude, duration, stacking
+      rule, armour shred and radius, so M27 can make Burning stack by editing one
+      field. `applyBurn`/`applyPoison` survive as thin wrappers so V2-authored towers
+      keep their own numbers (Q65). Frost/frozen replace V2's chill-stack model, which
+      was specced and never built. 81 tests in `tests/m19c-damage-types.test.ts`, one
+      describe per §3 row, each reading the authored value out of `/data` before
+      asserting the behaviour it produces.
+      **What the two agents caught that 569 green tests did not.** (1) The shared
+      50-stack budget let the *saturating* type evict: 49 Bleeding + 1 Burning, then
+      one more arrow, and the Burning — i.e. the armour shred — was gone. Q69's own
+      test passed because it never applied a second Bleeding (Q71). (2) Electric's
+      radius path delegated to `applyAoE` and so never touched the enemy it was
+      handed: 20 of 100 damage in a crowd, **zero** to a target the spatial buckets
+      had not seen, and the `DamageOptions` it built were dropped (Q72). Both are
+      latent until m20b authors the content — which is the point. Also fixed:
+      `applyDamageSplit` summed its weights in authoring order while dispatching
+      sorted (Q63's hazard, reaches `hashWorld`); `opts.duration` on a ratio row paid
+      240% instead of 120%; a frozen Warden-Eater still charged, because the boss
+      moves itself and never reaches `moveEnemy`; `tickDots` iterated a live array;
+      and ailment ticks spent the frame's 512-event fx budget, ~2450 events for a
+      burning horde, starving the renderer of shots, impacts and deaths.
+      **Balance:** Q66's clipped DoT tick is the only movement — a row now pays the
+      total §3 states instead of that total minus one frame — and it moves the
+      12-seed sweep `maxbuild` medMin 12.6 → 12.5 and medLevel 20 → 21, `hybrid`
+      byte-identical. A10's third test goes 836 ms → 5653 ms for the same reason and
+      is **not** a perf regression: seed 4 flips to `victory`, so the run is 65%
+      longer. No `/data` number was touched (Q40). QA re-measured every A/B gate green
+      and 24/24 seeds run/replay identical, and filed the coverage gap that matters
+      most: **no gate seed ever builds a Brazier**, so the shred is unguarded by the
+      sweep — backlog s008.
 - [x] (m19b) [feat] Multiplicative stat stacking — commit `4875d47` — sources multiply,
       ranks add within a source — gate **C4** green (×1.32 verified through the real
       RunConfig→`baseRunStats`→`derive` pipeline, bit-exact) — refs: V3 §2, Q61–Q64 —

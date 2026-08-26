@@ -10,13 +10,45 @@ V2's M9 shipped, and supersedes a large part of what M9 built. **MIGRATION.md** 
 the audit: what is built, what V3 supersedes, and where V3 conflicts with a live
 gate. Read it before touching anything in M18–M27.
 
-- **Milestone:** M17 and M18 complete. **M19 in progress** — `m19a` (armour v3,
-  gate C3) and `m19b` (multiplicative stacking, gate C4) done; **`m19c` (damage
-  types) is the next action** and closes M19.
-- **Gate status:** **499 tests pass, 19 skipped** (15 retired at M17 with logged
-  reasons — see MIGRATION.md §5). Gate **C4 is green**. Gate **C3 is green for the
-  armour math**; its "except Burning's shred" clause is carried by m19c, which
-  wires Burning to the shred mechanism m19a built (Q58).
+- **Milestone:** M17, M18 and **M19 complete** — `m19a` (armour v3, gate C3),
+  `m19b` (multiplicative stacking, gate C4) and `m19c` (damage types, SPEC-V3 §3).
+  **`m20a` is the next action**: per-tower upgrade tracks.
+- **Gate status:** **583 tests pass, 19 skipped** (15 retired at M17 with logged
+  reasons — see MIGRATION.md §5). Gates **C3 and C4 are green**; C3's carried
+  "except Burning's shred" clause closed at m19c, which made Burning the first
+  production caller of the shred m19a built (Q58). Every A/B gate re-measured
+  green at m19c, 24/24 seeds run/replay identical.
+- **m19c — what a reader needs to know.** `Enemy.burnRemaining/burnDps/burnSource`
+  and `Enemy.poison` are gone, replaced by one `dots` list keyed by damage type;
+  `data/damagetypes.json` owns each row's magnitude, duration, stacking rule,
+  armour shred and radius, so **M27 can make Burning stack by editing one field**.
+  `applyBurn`/`applyPoison` survive only as thin wrappers so V2-authored towers
+  keep their own numbers (Q65). Frost/frozen replace V2's chill-stack model, which
+  was specced and never built. Q65–Q72 record every §3 clause the section left
+  open. **What is deliberately not wired:** no tower authors Bleeding, Toxic,
+  Electric or a status yet — that is m20b — but each is reachable from `/data`
+  through a tower attack's validated `onHit` list, and a test drives all seven
+  attack shapes through the real fire loop so the seam cannot rot (Q68).
+- **The m19c trap, worth remembering.** Two agents found two Major defects that
+  569 green tests did not, and both were *latent*: they only bite once m20b
+  authors the content that reaches them. The 50-stack budget let the saturating
+  type evict, so 49 Bleeding + 1 Burning lost the Burning — the armour shred — on
+  the next arrow (Q71); and Electric's radius path never touched the enemy it was
+  handed, paying 20 of 100 in a crowd and **zero** to a target the spatial buckets
+  had not seen (Q72). The lesson generalises: a mechanism with no production
+  caller is not covered by the fact that its unit test passes. Every m19c fix has
+  a regression test that turns red when the fix is reverted — verified by
+  reverting them.
+- **A10's third test now reads 5653 ms, up from 836 ms, and that is not a perf
+  regression.** Q66's clipped DoT tick flips seed 4's `maxbuild` run from
+  `defeat_warden` to `victory`, so the run is 65% longer. The gate still passes.
+- **Balance after m19c — measured, nothing tuned.** Q66's clipped tick (a row now
+  pays the total §3 states rather than that total minus one frame) is the only
+  movement: 12-seed sweep `maxbuild` medMin 12.6 → 12.5, medLevel 20 → 21;
+  `hybrid` byte-identical at 105.68 / 2406. Per Q40 no `/data` number was touched.
+  **QA filed the coverage gap that matters most:** no sweep seed ever builds an
+  Ember Brazier and no bot draws `flame_cone`, so the shred path — gate C3's whole
+  point — runs zero times in the gate set. BACKLOG s008.
 - **m19b — what a reader needs to know.** `Stats` is no longer a flat record: it
   is keyed by (stat, source), `factor()` returns Π over sources of (1 + that
   source's summed ranks) and `total()` the additive sum. `STAT_KIND` classifies

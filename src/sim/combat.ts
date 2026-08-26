@@ -4,7 +4,15 @@
  */
 
 import { GRID_H, GRID_W } from './grid';
-import { applyBurn, applyPoison, applySlow, damageEnemy, type WardenDamageOptions } from './enemies';
+import {
+  applyBurn,
+  applyOnHit,
+  applyPoison,
+  applySlow,
+  damageEnemy,
+  type DamageOptions,
+  type WardenDamageOptions,
+} from './enemies';
 import { dcos, dist2, normalize } from './math';
 import type { Enemy, Projectile } from './types';
 import { World } from './world';
@@ -19,6 +27,13 @@ export interface HitEffects {
   poisonStacks?: number;
   slow?: number;
   slowDuration?: number;
+  /**
+   * SPEC-V3 §3 types and statuses this hit also applies, authored in /data as
+   * a tower attack's `onHit` list. Threaded through `HitEffects` because that
+   * is the one bundle every hit shape already carries — projectiles, cones,
+   * lines, chains and blasts all funnel into `applyEffects`.
+   */
+  onHit?: readonly string[];
 }
 
 export function applyEffects(w: World, e: Enemy, fx: HitEffects): void {
@@ -27,6 +42,7 @@ export function applyEffects(w: World, e: Enemy, fx: HitEffects): void {
     applyPoison(w, e, fx.poisonDps, fx.poisonDuration, fx.poisonStacks ?? 3, fx.source);
   }
   if (fx.slow && fx.slowDuration) applySlow(w, e, fx.slow, fx.slowDuration);
+  if (fx.onHit) for (const k of fx.onHit) applyOnHit(w, e, k, fx.source ?? k);
 }
 
 /* ------------------------------------------------------------- targeting */
@@ -158,6 +174,20 @@ export function bestLineDirection(
  * so past the first few targets each additional one takes less. Closest to the
  * centre are hit hardest, which is also what a blast should feel like.
  */
+export interface AoEOptions {
+  /**
+   * An enemy this blast is *aimed at* rather than merely caught by. It takes
+   * the first, full-scale hit and is skipped by the sweep, so it can neither
+   * be pushed down the falloff by whoever happens to share its tile nor be
+   * missed entirely because the spatial buckets have not seen it yet — a
+   * burrower is never in them at all, and anything spawned after this tick's
+   * `rebuildBuckets` is not either.
+   */
+  primary?: Enemy;
+  /** Damage options forwarded to every hit this blast makes. */
+  damage?: DamageOptions;
+}
+
 export function applyAoE(
   w: World,
   x: number,
@@ -166,9 +196,11 @@ export function applyAoE(
   damage: number,
   source: string,
   fx: HitEffects = {},
+  opts: AoEOptions = {},
 ): number {
   const list = w.enemiesInRadius(x, y, radius).slice();
-  if (list.length === 0) return 0;
+  const primary = opts.primary;
+  if (list.length === 0 && !primary) return 0;
   const cfg = w.content.weapons;
   if (list.length > cfg.aoeFullTargets) {
     list.sort((a, b) => dist2(x, y, a.x, a.y) - dist2(x, y, b.x, b.y) || a.id - b.id);
@@ -176,12 +208,17 @@ export function applyAoE(
   let total = 0;
   let hit = 0;
   let scale = 1;
-  for (const e of list) {
-    if (e.dead) continue;
-    total += damageEnemy(w, e, damage * scale, source, { fromX: x, fromY: y });
+  const hitOpts: DamageOptions = { fromX: x, fromY: y, ...opts.damage };
+  const strike = (e: Enemy): void => {
+    total += damageEnemy(w, e, damage * scale, source, hitOpts);
     if (!e.dead) applyEffects(w, e, fx);
     hit++;
     if (hit >= cfg.aoeFullTargets) scale = Math.max(cfg.aoeFalloffFloor, scale * cfg.aoeFalloff);
+  };
+  if (primary && !primary.dead) strike(primary);
+  for (const e of list) {
+    if (e.dead || e === primary) continue;
+    strike(e);
   }
   return total;
 }
@@ -298,6 +335,9 @@ export function chainHit(
 
 /* ---------------------------------------------------------- projectiles */
 
+/** Shared so every projectile without riders points at one frozen array. */
+const EMPTY_ON_HIT: readonly string[] = [];
+
 export interface ProjectileSpec {
   kind: Projectile['kind'];
   x: number;
@@ -333,6 +373,7 @@ export function spawnProjectile(w: World, spec: ProjectileSpec): Projectile {
     burnDuration: spec.fx?.burnDuration ?? 0,
     slow: spec.fx?.slow ?? 0,
     slowDuration: spec.fx?.slowDuration ?? 0,
+    onHit: spec.fx?.onHit ?? EMPTY_ON_HIT,
     dead: false,
   };
   w.projectiles.push(p);
@@ -377,6 +418,7 @@ export function updateProjectiles(w: World, dt: number): void {
           burnDuration: p.burnDuration,
           slow: p.slow,
           slowDuration: p.slowDuration,
+          onHit: p.onHit,
         });
       }
       if (p.pierceLeft > 0) {
@@ -397,6 +439,7 @@ function detonate(w: World, p: Projectile): void {
     burnDuration: p.burnDuration,
     slow: p.slow,
     slowDuration: p.slowDuration,
+    onHit: p.onHit,
   });
 }
 

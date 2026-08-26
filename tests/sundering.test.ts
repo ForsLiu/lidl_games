@@ -8,7 +8,7 @@ import { buildTower, sellTower, towerCost, upgradeCost } from '../src/sim/towers
 import { finishSundering, linkSpires, openApproachLanes, petrify } from '../src/sim/sundering';
 import { deriveSouls } from '../src/sim/progression';
 import { updateTerrainEffects } from '../src/sim/weapons';
-import { spawnEnemy } from '../src/sim/enemies';
+import { dotStacks, spawnEnemy } from '../src/sim/enemies';
 import { coreCenter, GRID_H, GRID_W } from '../src/sim/grid';
 import { BASE } from '../src/sim/stats';
 import { emptyInput } from '../src/sim/types';
@@ -191,7 +191,7 @@ describe('conversion table (SPEC 4.2)', () => {
       w.rebuildBuckets();
       updateTerrainEffects(w, 1 / 60);
     }
-    expect(poisoned.poison.length).toBeGreaterThan(0);
+    expect(dotStacks(poisoned, 'poison')).toBeGreaterThan(0);
     expect(chilled.slowAmount).toBeGreaterThan(0);
   });
 });

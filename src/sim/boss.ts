@@ -77,6 +77,12 @@ function phaseFor(e: Enemy): number {
 function updateCharge(w: World, e: Enemy, dt: number, phase: number): boolean {
   const wd = w.warden;
 
+  // SPEC-V3 §3 frozen: "cannot move". The charge writes `e.x`/`e.y` itself
+  // rather than going through `moveEnemy`, so the root has to be honoured here
+  // too — otherwise the one enemy freezing matters most against is the one
+  // enemy it does not stop. Rooted and holding its action timer.
+  if (e.frozenRemaining > 0) return true;
+
   if (e.bossAction === TELEGRAPH) {
     e.bossTimer -= dt;
     w.emit('bosstelegraph', e.x, e.y, e.chargeVx, e.chargeVy);

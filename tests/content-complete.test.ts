@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 import { World } from '../src/sim/world';
 import { loadContent } from '../src/sim/content';
-import { damageEnemy, spawnEnemy, updateEnemies } from '../src/sim/enemies';
+import { damageEnemy, dotRemaining, spawnEnemy, updateEnemies } from '../src/sim/enemies';
 import { buildTower } from '../src/sim/towers';
 import { grantWeapon, updateWeapons } from '../src/sim/weapons';
 import type { StatKey } from '../src/sim/stats';
@@ -132,7 +132,7 @@ describe('enemy behaviours', () => {
       w.rebuildBuckets();
       updateWeapons(w, 1 / 60);
     }
-    expect(cinder.burnRemaining).toBe(0);
+    expect(dotRemaining(cinder, 'burning')).toBe(0);
     expect(frost.slowAmount).toBe(0);
   });
 

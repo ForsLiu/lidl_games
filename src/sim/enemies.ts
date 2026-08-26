@@ -7,7 +7,7 @@ import type { EnemyDef } from './content';
 import { GRID_H, GRID_W } from './grid';
 import { clamp, dcos, dist, dist2, dsin, normalize } from './math';
 import { damageTakenMul } from './stats';
-import type { Enemy, Structure } from './types';
+import type { DotStack, Enemy, Structure } from './types';
 import { World } from './world';
 
 /**
@@ -101,10 +101,9 @@ export function makeEnemy(w: World, def: EnemyDef, x: number, y: number, opts: S
     armorShred: 0,
     slowRemaining: 0,
     slowAmount: 0,
-    burnRemaining: 0,
-    burnDps: 0,
-    burnSource: '',
-    poison: [],
+    frostRemaining: 0,
+    frozenRemaining: 0,
+    dots: [],
     buffRemaining: 0,
     buffSpeed: 0,
     buffPower: 0,
@@ -202,6 +201,9 @@ export function damageEnemy(
   let dmg = amount;
 
   if (!opts.dot) dmg *= damageTakenMul(enemyArmor(e));
+  // SPEC-V3 §3 frozen: +30% damage taken. A status, not armor, so unlike the
+  // line above it applies to ailment damage as well.
+  if (e.frozenRemaining > 0) dmg *= statusDamageTakenMul(w, e);
 
   if (!opts.pure) {
     if (def.flatReduction) dmg *= 1 - def.flatReduction;
@@ -216,7 +218,12 @@ export function damageEnemy(
   e.hp -= dmg;
   w.damageByWeapon[source] = (w.damageByWeapon[source] ?? 0) + dmg;
   w.damageTotal += dmg;
-  w.emit('hit', e.x, e.y, dmg, e.id);
+  // Ailment ticks do not spark. `World.emit` holds 512 events for the frame and
+  // drops the rest, and a DoT bills every carrier every tick — Burning bills
+  // every carrier's neighbours too, so a 350-strong burning horde is thousands
+  // of events that would starve the buffer of shots, impacts and deaths. The
+  // renderer already marks a burning or bleeding enemy from its `dots` list.
+  if (!opts.dot) w.emit('hit', e.x, e.y, dmg, e.id);
 
   if (w.derived.leech > 0 && w.huntsWarden) {
     w.warden.leechAccumulator += dmg * w.derived.leech;
@@ -298,6 +305,218 @@ export function applySlow(w: World, e: Enemy, amount: number, duration: number):
   }
 }
 
+/**
+ * SPEC-V3 §3 frost: −30% attack speed and move speed for 3 s. Both numbers and
+ * the duration are read from data/damagetypes.json, never inlined.
+ *
+ * Frost and frozen are hard crowd control, so they honour `slowImmune` for the
+ * same reason `applySlow` does — see QUESTIONS Q65.
+ */
+export function applyFrost(w: World, e: Enemy): void {
+  if ((e.flags & TRAIT.slowImmune) !== 0) return;
+  const st = w.content.damageTypes.statuses.frost;
+  e.frostRemaining = Math.max(e.frostRemaining, st.duration);
+}
+
+/** SPEC-V3 §3 frozen: cannot move for 3 s and takes +30% damage. */
+export function applyFrozen(w: World, e: Enemy): void {
+  if ((e.flags & TRAIT.slowImmune) !== 0) return;
+  const st = w.content.damageTypes.statuses.frozen;
+  e.frozenRemaining = Math.max(e.frozenRemaining, st.duration);
+}
+
+/**
+ * SPEC-V3 §3 replaced V2's chill stacks with frost/frozen, so "chilled" — the
+ * condition the Frost Warden's trait keys off — now means any of the three.
+ */
+export function isChilled(e: Enemy): boolean {
+  return e.slowRemaining > 0 || e.frostRemaining > 0 || e.frozenRemaining > 0;
+}
+
+/** Frost's attack-speed penalty, as a multiplier on every cooldown an enemy runs. */
+export function enemyAttackSpeedMul(w: World, e: Enemy): number {
+  if (e.frostRemaining <= 0) return 1;
+  return 1 + (w.content.damageTypes.statuses.frost.attackSpeed ?? 0);
+}
+
+/** Frozen's +30% damage taken, as a multiplier. Applies to ailments too. */
+export function statusDamageTakenMul(w: World, e: Enemy): number {
+  if (e.frozenRemaining <= 0) return 1;
+  return 1 + (w.content.damageTypes.statuses.frozen.damageTaken ?? 0);
+}
+
+/**
+ * Whether a row simply cannot be applied to this enemy. Kept as one predicate
+ * because Burning reaches an enemy by two routes — a direct application and a
+ * neighbour caught in another victim's spread — and an immunity honoured on
+ * only one of them is worse than none: the Cinderling is authored `burnImmune`
+ * and fights inside the Ember Brazier's cone alongside husks that are not.
+ */
+function immuneToDot(e: Enemy, type: string): boolean {
+  return type === 'burning' && (e.flags & TRAIT.burnImmune) !== 0;
+}
+
+export interface DotOptions {
+  /**
+   * A V2-authored caller (the Venom Spore) states its own stack cap. Absent,
+   * the taxonomy row's own `maxStacks` applies. Either way the per-enemy perf
+   * cap in damagetypes.json is the ceiling.
+   */
+  maxStacks?: number;
+}
+
+/**
+ * Burning is the one row with its own damage stat. The rest scale on ailment
+ * potency alone, exactly as their V2 forms did.
+ */
+function dotPotency(w: World, type: string): number {
+  if (type === 'burning') return w.derived.burnDamageMul * w.derived.ailmentMul;
+  return w.derived.ailmentMul;
+}
+
+/**
+ * Which stack to give up when the shared per-enemy budget is full and a type
+ * still under its own cap wants in. The most numerous type is the one hogging
+ * the budget, and within it the stack with the least time left has the least
+ * damage still owed, so it is the cheapest slot in the list.
+ *
+ * Two types never qualify. Not `arriving` itself: it is under its own cap by
+ * construction, so the trade would be a no-op. And not a type that is no more
+ * numerous than `arriving` already is — otherwise the hog evicts its victim
+ * again on its very next application, and an enemy carrying 50 Bleeding would
+ * strip a lone Burning back off inside one arrow interval. When nothing
+ * qualifies, the arriving application is the one that pays: it belongs to the
+ * type that is already holding the budget open.
+ *
+ * Every tie breaks on the lower index, which is application order —
+ * deterministic, and hashed by A11.
+ */
+function evictionIndex(e: Enemy, arriving: string, arrivingLive: number): number {
+  let best = -1;
+  let bestCount = 0;
+  for (let i = 0; i < e.dots.length; i++) {
+    const d = e.dots[i];
+    if (d.type === arriving) continue;
+    let count = 0;
+    for (const o of e.dots) if (o.type === d.type) count++;
+    if (count <= arrivingLive) continue;
+    if (count < bestCount) continue;
+    if (count > bestCount || best < 0 || d.remaining < e.dots[best].remaining) {
+      best = i;
+      bestCount = count;
+    }
+  }
+  return best;
+}
+
+/**
+ * Install one application of a SPEC-V3 §3 DoT row. The row owns the stacking
+ * rule (`maxStacks` + `refresh`); the caller owns the magnitude, because a
+ * tower authors its own dps and the row's `dps`/`ratio` is only the default
+ * that `applyDamageType` passes in.
+ */
+export function applyDot(
+  w: World,
+  e: Enemy,
+  type: string,
+  dps: number,
+  duration: number,
+  source = type,
+  opts: DotOptions = {},
+): void {
+  if (e.dead) return;
+  const def = w.content.damageTypeByKey.get(type);
+  if (!def || def.effect !== 'dot') return;
+  if (immuneToDot(e, type)) return;
+  if (duration <= 0) return;
+  const scaled = dps * dotPotency(w, type);
+  if (scaled <= 0) return;
+
+  const cap = w.content.damageTypes.maxStacksPerEnemy;
+  const perType = Math.min(opts.maxStacks ?? def.maxStacks ?? 1, cap);
+  let live = 0;
+  let shortest = -1;
+  for (let i = 0; i < e.dots.length; i++) {
+    const d = e.dots[i];
+    if (d.type !== type) continue;
+    live++;
+    if (shortest < 0 || d.remaining < e.dots[shortest].remaining) shortest = i;
+  }
+
+  // The per-enemy cap is shared across types: it exists so a 350-strong horde
+  // cannot grow unbounded per-enemy arrays in the hot loop, and that budget is
+  // one budget. Only Bleeding, whose own cap *is* it, can reach it alone.
+  if (live < perType) {
+    if (e.dots.length < cap) {
+      e.dots.push({ type, remaining: duration, dps: scaled, source });
+      return;
+    }
+    // A shared budget must not let one type *own* it. Bleeding is the only row
+    // that can fill 50 slots by itself, and dropping the application here would
+    // make a bleeding enemy permanently immune to Burning — i.e. to the armour
+    // shred §3 designs as the way armour gets broken — with nothing to see. So
+    // a type still under its own cap takes a slot from the most numerous other
+    // type instead of being lost.
+    const victim = evictionIndex(e, type, live);
+    if (victim < 0) return;
+    e.dots[victim] = { type, remaining: duration, dps: scaled, source };
+    return;
+  }
+  if (shortest < 0) return;
+
+  const d = e.dots[shortest];
+  if (def.refresh === 'strongest') {
+    // V2's burn rule: the stronger application wins, and the longer timer wins.
+    if (scaled >= d.dps) {
+      d.dps = scaled;
+      d.source = source;
+    }
+    d.remaining = Math.max(d.remaining, duration);
+  } else {
+    // V2's poison rule: overwrite the stack with the least time left.
+    d.dps = scaled;
+    d.source = source;
+    d.remaining = duration;
+  }
+}
+
+/** Live applications of one damage type on an enemy. */
+export function dotStacks(e: Enemy, type: string): number {
+  let n = 0;
+  for (const d of e.dots) if (d.type === type) n++;
+  return n;
+}
+
+/** Longest time left on any application of one damage type, or 0. */
+export function dotRemaining(e: Enemy, type: string): number {
+  let best = 0;
+  for (const d of e.dots) if (d.type === type && d.remaining > best) best = d.remaining;
+  return best;
+}
+
+/** Damage still owed by every live DoT on this enemy (SPEC-V3 §6's C10 reads it). */
+export function dotOutstanding(e: Enemy): number {
+  let total = 0;
+  for (const d of e.dots) if (d.remaining > 0) total += d.dps * d.remaining;
+  return total;
+}
+
+/**
+ * SPEC-V3 §3 riders that /data can hang off an attack: a status name, or a
+ * damage type whose magnitude is its own flat `dps` rather than a share of the
+ * hit that triggered it. A `ratio` row (Poison, Toxic) is *not* addressable
+ * here — it has no meaning without a triggering damage, so `loadContent`
+ * rejects one in an `onHit` list rather than letting it apply as a silent zero.
+ */
+export function applyOnHit(w: World, e: Enemy, key: string, source: string): void {
+  if (key === 'frost') return applyFrost(w, e);
+  if (key === 'frozen') return applyFrozen(w, e);
+  const def = w.content.damageTypeByKey.get(key);
+  if (!def || def.effect !== 'dot' || def.dps === undefined) return;
+  applyDot(w, e, key, def.dps, def.duration!, source);
+}
+
+/** V2-shaped entry point kept for its callers: an authored burn *is* Burning. */
 export function applyBurn(
   w: World,
   e: Enemy,
@@ -305,13 +524,7 @@ export function applyBurn(
   duration: number,
   source = 'burn',
 ): void {
-  if ((e.flags & TRAIT.burnImmune) !== 0) return;
-  const scaled = dps * w.derived.burnDamageMul * w.derived.ailmentMul;
-  if (scaled >= e.burnDps) {
-    e.burnDps = scaled;
-    e.burnSource = source;
-  }
-  e.burnRemaining = Math.max(e.burnRemaining, duration);
+  applyDot(w, e, 'burning', dps, duration, source);
 }
 
 export function applyPoison(
@@ -322,45 +535,83 @@ export function applyPoison(
   maxStacks: number,
   source = 'poison',
 ): void {
-  const scaled = dps * w.derived.ailmentMul;
-  if (e.poison.length >= maxStacks) {
-    // Refresh the shortest stack rather than growing past the cap.
-    let idx = 0;
-    for (let i = 1; i < e.poison.length; i++) {
-      if (e.poison[i].remaining < e.poison[idx].remaining) idx = i;
-    }
-    e.poison[idx].remaining = duration;
-    e.poison[idx].dps = scaled;
-    e.poison[idx].source = source;
-    return;
+  applyDot(w, e, 'poison', dps, duration, source, { maxStacks });
+}
+
+const dotScratch: Enemy[] = [];
+
+/**
+ * One DoT stack's damage for one tick. Rows with a `radius` — Burning — land
+ * their damage *and* their armor shred on everything around the victim
+ * (SPEC-V3 §3). The spread carries the effects, not the application: a stack
+ * that re-applied itself to its neighbours would cascade across the horde.
+ */
+function tickDot(w: World, e: Enemy, d: DotStack, dt: number): void {
+  const def = w.content.damageTypeByKey.get(d.type);
+  const shred = def?.armorShredPerSecond ?? 0;
+  const radius = def?.radius ?? 0;
+
+  // The victim is hit directly rather than by falling inside its own blast:
+  // the spatial buckets are rebuilt once a tick, so a stale bucket would
+  // otherwise turn Burning into a no-op on the enemy actually carrying it.
+  if (shred > 0) shredArmor(e, shred * dt);
+  damageEnemy(w, e, d.dps * dt, d.source, { pure: true, dot: true });
+  if (radius <= 0) return;
+
+  // `burnSpread` is a point bonus on the radius; `area` scales every effect (§2).
+  const r = (radius + w.derived.burnSpread) * w.derived.areaMul;
+  const list = w.enemiesInRadius(e.x, e.y, r, dotScratch);
+  for (let i = 0; i < list.length; i++) {
+    const n = list[i];
+    if (n === e || n.dead) continue;
+    // The spread carries the row's effects, so it carries the row's immunity.
+    if (immuneToDot(n, d.type)) continue;
+    if (shred > 0) shredArmor(n, shred * dt);
+    damageEnemy(w, n, d.dps * dt, d.source, { pure: true, dot: true });
   }
-  e.poison.push({ remaining: duration, dps: scaled, source });
+}
+
+function tickDots(w: World, e: Enemy, dt: number): void {
+  if (e.dots.length === 0) return;
+  let expired = false;
+  // Indexed over a snapshot length, not `for..of`: a tick can kill a neighbour,
+  // and SPEC-V3 §6's C10 hands a dying enemy's unfinished DoT to the nearest
+  // enemy — which can be this one, mid-loop. A stack that arrives during the
+  // loop must wait for the next frame rather than be ticked on the frame it
+  // landed, and the eviction path can overwrite the entry the loop is on.
+  const n = e.dots.length;
+  for (let i = 0; i < n; i++) {
+    const d = e.dots[i];
+    // The tick is clipped to the time actually left, not skipped when the stack
+    // runs out mid-frame. §3 states each row as a *total* — 120% over 3 s — and
+    // paying only whole frames delivered that total minus one frame, which at a
+    // 9 s Toxic is a visible 0.2% short and at a 0.1 s stack would be all of it.
+    const step = Math.min(dt, d.remaining);
+    d.remaining -= dt;
+    if (d.remaining <= 0) expired = true;
+    // Ailment damage is booked against the weapon that applied it, so A5 sees
+    // the true share of each weapon rather than a generic "burn" bucket.
+    if (step > 0) tickDot(w, e, d, step);
+    if (e.dead) break;
+  }
+  if (expired) e.dots = e.dots.filter((d) => d.remaining > 0);
 }
 
 function tickTimers(w: World, e: Enemy, dt: number): void {
-  if (e.attackCooldown > 0) e.attackCooldown -= dt;
+  // Frost is −30% attack speed on the contact and ranged attacks that run off
+  // `attackCooldown`, applied here rather than at each site that assigns one.
+  // The trait abilities on `abilityTimer` — stomp, heal, buff, fire trail — are
+  // deliberately not slowed; §3 says "attack speed" and nothing authors frost
+  // yet, so widening it is m20b's call with a number to measure (QUESTIONS Q71).
+  if (e.attackCooldown > 0) e.attackCooldown -= dt * enemyAttackSpeedMul(w, e);
   if (e.slowRemaining > 0) {
     e.slowRemaining -= dt;
     if (e.slowRemaining <= 0) e.slowAmount = 0;
   }
-  if (e.burnRemaining > 0) {
-    e.burnRemaining -= dt;
-    // Ailment damage is booked against the weapon that applied it, so A5 sees
-    // the true share of each weapon rather than a generic "burn" bucket.
-    damageEnemy(w, e, e.burnDps * dt, e.burnSource || 'burn', { pure: true, dot: true });
-    if (e.dead) return;
-    if (e.burnRemaining <= 0) e.burnDps = 0;
-  }
-  if (e.poison.length > 0) {
-    let expired = false;
-    for (const p of e.poison) {
-      p.remaining -= dt;
-      if (p.remaining > 0) damageEnemy(w, e, p.dps * dt, p.source || 'poison', { pure: true, dot: true });
-      else expired = true;
-      if (e.dead) break;
-    }
-    if (expired) e.poison = e.poison.filter((p) => p.remaining > 0);
-  }
+  if (e.frostRemaining > 0) e.frostRemaining -= dt;
+  if (e.frozenRemaining > 0) e.frozenRemaining -= dt;
+  tickDots(w, e, dt);
+  if (e.dead) return;
   if (e.buffRemaining > 0) {
     e.buffRemaining -= dt;
     if (e.buffRemaining <= 0) {
@@ -370,8 +621,11 @@ function tickTimers(w: World, e: Enemy, dt: number): void {
   }
 }
 
-export function effectiveSpeed(e: Enemy): number {
-  return e.speed * (1 - e.slowAmount) * (1 + e.buffSpeed);
+export function effectiveSpeed(w: World, e: Enemy): number {
+  if (e.frozenRemaining > 0) return 0;
+  const st = w.content.damageTypes.statuses.frost;
+  const frost = e.frostRemaining > 0 ? 1 + (st.moveSpeed ?? 0) : 1;
+  return e.speed * (1 - e.slowAmount) * (1 + e.buffSpeed) * frost;
 }
 
 /* ----------------------------------------------------------------- update */
@@ -626,10 +880,13 @@ function setNormalized(x: number, y: number): void {
 }
 
 function moveEnemy(w: World, e: Enemy, def: EnemyDef, dt: number, target: { x: number; y: number }): void {
-  let speed = effectiveSpeed(e);
+  let speed = effectiveSpeed(w, e);
   let dx: number;
   let dy: number;
 
+  // SPEC-V3 §3 frozen: "cannot move". Checked here and not only through
+  // `effectiveSpeed`, because a charging enemy flies on `chargeSpeed` instead.
+  if (e.frozenRemaining > 0) return;
   if (e.chargeState === 1) return; // winding up: rooted
   if (e.chargeState === 2) {
     speed = def.chargeSpeed ?? 5;
@@ -848,7 +1105,7 @@ function contactWarden(w: World, e: Enemy, def: EnemyDef): void {
   e.attackCooldown = w.content.spawns.contactInterval;
   let dmg = def.coreDamage * (1 + e.buffPower);
   // Frost Warden trait: chilled enemies hit softer.
-  if (e.slowRemaining > 0) dmg *= w.derived.chilledDamageTakenMul;
+  if (isChilled(e)) dmg *= w.derived.chilledDamageTakenMul;
   damageWarden(w, dmg);
 }
 

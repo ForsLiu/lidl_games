@@ -578,12 +578,14 @@ describe('C4 — origins that are not the boon/tree/relic stack (QA bugs 1, 3, 5
     // QA measured 25 of 39 stats invisible to the hash 20 s into a run, so a
     // stacking regression could pass gate A11's replay comparison.
     //
-    // Four stats are legitimately invisible because they never reach `Derived`:
-    // `coreHp` and `startWeaponLevel` are read straight off `Stats` once (in the
-    // World constructor and in `bindSouls`), so changing them later is a no-op by
-    // design; `lastStandSundering` and `burnSpread` have no reader at all today.
-    // Listed explicitly so the exemption cannot silently grow.
-    const notDerived = ['coreHp', 'startWeaponLevel', 'lastStandSundering', 'burnSpread'];
+    // Three stats are legitimately invisible because they never reach
+    // `Derived`: `coreHp` and `startWeaponLevel` are read straight off `Stats`
+    // once (in the World constructor and in `bindSouls`), so changing them later
+    // is a no-op by design; `lastStandSundering` has no reader at all today.
+    // `burnSpread` left this list at m19c, when SPEC-V3 §3 gave Burning the AoE
+    // spread the stat was always named for. Listed explicitly so the exemption
+    // cannot silently grow.
+    const notDerived = ['coreHp', 'startWeaponLevel', 'lastStandSundering'];
     const missed: string[] = [];
     for (const k of STAT_KEYS) {
       const run = new Run(cfg());

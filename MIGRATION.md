@@ -143,12 +143,39 @@ proposed tracks logged for owner sign-off (V3 §4 says so explicitly).
   (default 0, optional on the def) so the roster can be authored at M20/M27
   without another engine change. Gate **C3** green for the armour math; its
   "except Burning's shred" clause rides to **m19c**, which wires Burning (Q58).
+  **Closed at m19c**: the Ember Brazier's burn is now a §3 Burning application,
+  and Burning's tick calls `shredArmor`. Gate **C3** is green in full.
 - **Stacking**: currently **additive** — `powerMul: 1 + s.power` where `s.power` is
   the sum of every source (`stats.ts:152`). V3 §2 wants sources to **multiply**
   (10% + 20% → ×1.32, gate C4). This touches the whole `Stats`→`Derived` pipeline,
   because `Stats` is a flat sum-of-numbers record with no notion of source.
   **This is the single most invasive change in V3** and it silently re-tunes every
   balance number in `/data`.
+
+### 2.10 Ad-hoc ailments → damage-type taxonomy (§3) — **M19**
+
+~~Burn, poison and slow are three hand-rolled mechanics with their own state on
+`Enemy` and no shared shape; V3 §3 wants a six-row taxonomy in
+`data/damagetypes.json` plus frost/frozen replacing the V2 chill-stack model.~~
+**Done at m19c.** `Enemy.burnDps`/`burnRemaining`/`burnSource` and
+`Enemy.poison` were replaced by one `Enemy.dots` list keyed by type; the row
+in `/data` owns the magnitude, duration, stacking rule, armour shred and radius,
+and `applyBurn`/`applyPoison` survive only as thin wrappers so V2-authored
+towers keep their own numbers (Q65). `applySlow` is untouched — it is the
+generic slow towers author, not the chill-stack model, which was specced in V2
+and never built. Q65–Q68 record what §3 left open. What is **not** wired: no
+tower authors Bleeding, Toxic, Electric or a status yet — that is m20b, and the
+seam is a validated `onHit` list on a tower attack (Q68), covered by a test that
+drives all seven attack shapes through the real fire loop.
+
+Two latent defects the review and QA pass caught, both invisible until m20b
+authors the content that reaches them: the shared 50-stack budget let the
+*saturating* type evict, so a bleeding enemy lost its Burning — and with it the
+armour shred — on the next arrow (**Q71**); and Electric's radius path delegated
+entirely to `applyAoE` and so never touched the enemy it was handed, paying 20 of
+100 damage in a crowd and zero to a target the spatial buckets had not seen
+(**Q72**). Both are fixed with regression tests that turn red when the fix is
+reverted.
 
 ### 2.6 Equipment (§7) — **M24**
 
@@ -196,7 +223,7 @@ classes keep current kits" presumes a roster that was never built — see §4.1.
 | V3 | Status |
 |---|---|
 | §1 interleaved TD×3→VS, multi-summon stacking | none |
-| §3 damage-type taxonomy (`data/damagetypes.json`), bleeding/toxic, frost/frozen | none — current ailments are ad-hoc burn/poison/slow |
+| ~~§3 damage-type taxonomy (`data/damagetypes.json`), bleeding/toxic, frost/frozen~~ | **Done at m19c** — see §2.10 |
 | §5 VS wielding formula | none |
 | §7 12-item equipment table | none |
 | §10 T1 range indicators | partial, and one half is **dead code**: the placement ghost does draw an attack-range ring, but from `def.attack.range` — the *base* value, ignoring tier and `towerRangeMul`, so it lies about any upgraded tower. `view.showRanges` is set by the R key, the HUD button and a Settings checkbox, and **is never read by the renderer** (`grep -rn showRanges src/`) — the "show tower ranges" toggle has never drawn anything. No AoE preview, no skill-range render. |
@@ -276,6 +303,12 @@ on one enemy is −90 armor. That is presumably the intent ("exploits §2's unca
 negative armor") but it makes Burning scale quadratically with stack count against
 elites. **Q44**, default: implement as written, add a floor of −100 armor ⚖, and
 flag it for the M19 balance pass rather than pre-emptively nerfing it.
+**Landed at m19c** with one deviation, recorded as Q65: the shred stacks per
+application exactly as Q44 describes (it is a lifetime accumulator, so 30
+applications is −90 armour), but Burning's *damage* refreshes rather than
+stacking, because stacking it would have buffed two pieces of shipped content
+ahead of the M27 pass that Q40 reserves for balance. Flipping it is one field
+in `data/damagetypes.json` (`maxStacks`), not an engine change.
 
 ### 4.9 §10 T5's Tuner writes to `/data` — determinism and A11
 

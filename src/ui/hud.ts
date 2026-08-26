@@ -4,7 +4,7 @@ import type { World } from '../sim/world';
 import { towerCost } from '../sim/towers';
 import type { Offer } from '../sim/types';
 import { ENEMY_COLORS, PALETTE, TOWER_COLORS, projectileStyle } from '../render/theme';
-import { effectiveSpeed, enemyArmor } from '../sim/enemies';
+import { dotRemaining, dotStacks, effectiveSpeed, enemyArmor } from '../sim/enemies';
 import { wardenArmor } from '../sim/run';
 import { armorReduction } from '../sim/stats';
 import type { Enemy } from '../sim/types';
@@ -327,8 +327,10 @@ export class Hud {
         e.id,
         Math.round(e.hp),
         Math.round(e.slowAmount * 100),
-        Math.round(e.burnRemaining * 10),
-        e.poison.length,
+        Math.round(e.frostRemaining * 10),
+        Math.round(e.frozenRemaining * 10),
+        Math.round(dotRemaining(e, 'burning') * 10),
+        e.dots.length,
         Math.round(e.buffSpeed * 100),
       ].join(':');
       if (key !== this.lastInfoKey) {
@@ -770,7 +772,7 @@ export function enemyInfoMarkup(w: World, e: Enemy): string {
   const traits = def?.traits ?? [];
   const rows: string[] = [
     row('Health', `${Math.ceil(e.hp)} / ${Math.round(e.maxHp)} (${pct}%)`),
-    row('Speed', `${round1(effectiveSpeed(e))} tiles/s`),
+    row('Speed', `${round1(effectiveSpeed(w, e))} tiles/s`),
     row('Core damage', String(def?.coreDamage ?? 0)),
     // The real payout, not the authored number: `killEnemy` scales bounty by
     // gold find and adds gold-per-kill — and in Act II pays gems instead.
@@ -783,8 +785,17 @@ export function enemyInfoMarkup(w: World, e: Enemy): string {
     rows.push(row('Damage reduction', `${Math.round(def.flatReduction * 100)}% off all damage`));
   if (def?.frontReduction) rows.push(row('Front armour', `${Math.round(def.frontReduction * 100)}% from the front`));
   if (e.slowAmount > 0) rows.push(row('Slowed', `${Math.round(e.slowAmount * 100)}%`));
-  if (e.burnRemaining > 0) rows.push(row('Burning', `${round1(e.burnRemaining)}s left`));
-  if (e.poison.length > 0) rows.push(row('Poison stacks', String(e.poison.length)));
+  // SPEC-V3 §3's statuses and its four DoT rows, each named as the table names
+  // it — a panel that lumped them into one "ailment" line would hide the very
+  // thing the taxonomy exists to distinguish.
+  if (e.frozenRemaining > 0) rows.push(row('Frozen', `${round1(e.frozenRemaining)}s left`));
+  else if (e.frostRemaining > 0) rows.push(row('Frost', `${round1(e.frostRemaining)}s left`));
+  for (const t of ['bleeding', 'poison', 'toxic', 'burning'] as const) {
+    const n = dotStacks(e, t);
+    if (n === 0) continue;
+    const name = w.content.damageTypeByKey.get(t)?.name ?? t;
+    rows.push(row(name, `${n} stack${n === 1 ? '' : 's'}, ${round1(dotRemaining(e, t))}s left`));
+  }
 
   return `
     <h3 style="color:${ENEMY_COLORS[def?.key ?? ''] ?? '#e8edf5'}">${def?.name ?? 'Enemy'}

@@ -101,7 +101,14 @@ export interface Structure {
   damageDealt: number;
 }
 
-export interface PoisonStack {
+/**
+ * One application of a SPEC-V3 §3 damage-over-time type. Bleeding, Poison,
+ * Toxic and Burning all live in one per-enemy list: the taxonomy row decides
+ * how many stacks a type may hold and what a further application does to them.
+ */
+export interface DotStack {
+  /** Damage-type key from data/damagetypes.json. */
+  type: string;
   remaining: number;
   dps: number;
   /** Weapon/tower that applied it, so A5 can attribute ailment damage. */
@@ -137,10 +144,12 @@ export interface Enemy {
   armorShred: number;
   slowRemaining: number;
   slowAmount: number;
-  burnRemaining: number;
-  burnDps: number;
-  burnSource: string;
-  poison: PoisonStack[];
+  /** SPEC-V3 §3 frost: −30% attack speed and move speed while this runs. */
+  frostRemaining: number;
+  /** SPEC-V3 §3 frozen: cannot move, and takes +30% damage, while this runs. */
+  frozenRemaining: number;
+  /** Every live SPEC-V3 §3 DoT application on this enemy (Bleeding..Burning). */
+  dots: DotStack[];
   buffRemaining: number;
   buffSpeed: number;
   buffPower: number;
@@ -195,6 +204,8 @@ export interface Projectile {
   burnDuration: number;
   slow: number;
   slowDuration: number;
+  /** SPEC-V3 §3 types/statuses this shot applies on impact (tower `onHit`). */
+  onHit: readonly string[];
   dead: boolean;
 }
 

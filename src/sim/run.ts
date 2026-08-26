@@ -635,7 +635,12 @@ export function hashWorld(w: World): string {
   for (const e of w.enemies) {
     // `enemyArmor`, not `armorShred`: `Enemy.armor` is writable sim state too,
     // and hashing the effective value covers both at identical cost.
-    h.int(e.id).int(e.defId).num(e.x).num(e.y).num(e.hp).num(effectiveSpeed(e)).num(enemyArmor(e));
+    h.int(e.id).int(e.defId).num(e.x).num(e.y).num(e.hp).num(effectiveSpeed(w, e)).num(enemyArmor(e));
+    // SPEC-V3 §3 statuses and DoT stacks are sim state a replay has to agree
+    // on before it shows up anywhere else: a frozen enemy takes +30% damage,
+    // and a stack dropped at the perf cap is damage that is never dealt.
+    h.num(e.frostRemaining).num(e.frozenRemaining).int(e.dots.length);
+    for (const d of e.dots) h.str(d.type).num(d.remaining).num(d.dps);
   }
   h.int(w.structures.length);
   for (const s of w.structures) {
