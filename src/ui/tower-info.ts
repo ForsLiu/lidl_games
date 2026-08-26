@@ -14,6 +14,7 @@ import type { TowerDef, TowerAttack, WeaponDef, WeaponLevel } from '../sim/conte
 import type { Structure, WeaponState } from '../sim/types';
 import type { World } from '../sim/world';
 import { soulLevelFor } from '../sim/progression';
+import { wieldedAttacks, type WieldedAttack } from '../sim/vswield';
 import { weaponDamageMul, weaponDef } from '../sim/weapons';
 import {
   affinityMul,
@@ -516,4 +517,52 @@ export function weaponInfo(w: World, ws: WeaponState): WeaponInfo {
     attackText: WEAPON_KIND_TEXT[def.kind] ?? 'Fires on its own.',
     stats,
   };
+}
+
+/* ----------------------------------------------------------- wielded lineage */
+
+/** One phrase per attack shape naming the milestone that actually changed it —
+ * the compact counterpart of `KIND_TEXT` above, sized for a lineage line
+ * rather than a sentence. */
+function lineageSpecial(a: TowerAttack, p: AttackProfile): string {
+  switch (a.kind) {
+    case 'single':
+      return p.pierce > 0 ? `pierce ${p.pierce}` : p.projectiles > 1 ? `${p.projectiles} shots` : 'single target';
+    case 'pierce':
+      return `pierce ${1 + p.pierce}`;
+    case 'cone':
+      return a.burn ? 'burn' : 'cone';
+    case 'aura':
+      return 'aura';
+    case 'chain':
+      return p.electricChain ? `chain ${a.chains ?? 3} + arc` : `chain ${a.chains ?? 3}`;
+    case 'lob':
+      return `splash r${fmt(a.aoe ?? 1.5)}`;
+    case 'poison':
+      return p.projectiles > 1 ? `${p.projectiles} spores` : 'poison';
+  }
+}
+
+function lineageLine(w: World, wl: WieldedAttack): string {
+  const def = w.content.towerById.get(wl.towerId)!;
+  // Both numbers come straight off `wl` rather than re-deriving §6.1's "+10%
+  // per tower" fraction here: if that bonus is ever retuned in `vswield.ts`,
+  // this line moves with it instead of quietly going stale.
+  const avg = wl.perTowerAverage;
+  // Guards a future zero-damage utility tower (perTowerAverage === 0) from
+  // printing "+NaN%" — code review on this item flagged the bare division.
+  const bonus = avg === 0 ? 0 : Math.round((wl.damage / avg - 1) * 100);
+  return `${def.name} ×${wl.count} (avg ${fmt(avg)}, +${bonus}%) — ${lineageSpecial(def.attack!, wl.profile)}`;
+}
+
+/**
+ * SPEC-FINAL §6.2: "Weapon panel shows lineage: 'Arrow ×3 (avg 14.2, +30%) —
+ * pierce 2'." Reads `wieldedAttacks` directly — the same derivation p2a's
+ * worked-example test checks against `/data` — so this line cannot drift from
+ * what `updateWieldedAttacks` (p2b) actually fires.
+ */
+export function wieldedLineageText(w: World): string[] {
+  return wieldedAttacks(w)
+    .map((wl) => lineageLine(w, wl))
+    .sort();
 }

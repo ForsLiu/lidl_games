@@ -8,7 +8,7 @@ import { dotRemaining, dotStacks, effectiveSpeed, enemyArmor } from '../sim/enem
 import { wardenArmor } from '../sim/run';
 import { armorReduction } from '../sim/stats';
 import type { Enemy } from '../sim/types';
-import { towerInfo, weaponInfo, type TowerInfo, type WeaponInfo } from './tower-info';
+import { towerInfo, weaponInfo, wieldedLineageText, type TowerInfo, type WeaponInfo } from './tower-info';
 import { runProgress, type RunProgress } from './progress';
 import type { DevOp } from '../sim/types';
 import { selectedEnemy, selectedStructure, type Selection } from './selection';
@@ -278,17 +278,29 @@ export class Hud {
    */
   private renderWeaponInfo(w: World): void {
     const ws = w.weapons.find((x) => x.key === this.selectedWeapon) ?? w.weapons[0];
+    // A cheap proxy for "the built roster changed": build/sell/upgrade only
+    // happen between waves, but `!s.dead` also catches a tower an enemy kills
+    // mid-VS-wave (the case `removeStructure` exists to invalidate the wielded
+    // cache for), so this fingerprint moves exactly when `wieldedAttacks`'s
+    // own output would.
+    const roster = w.structures
+      .filter((s) => !s.dead)
+      .map((s) => `${s.towerId}.${s.tier}`)
+      .sort()
+      .join(',');
     if (!ws) {
-      if (this.lastInfoKey !== 'noweapons') {
-        this.lastInfoKey = 'noweapons';
-        this.towerInfoEl.innerHTML = '';
+      const key = `noweapons:${roster}`;
+      if (this.lastInfoKey !== key) {
+        this.lastInfoKey = key;
+        this.towerInfoEl.innerHTML = wieldedLineageMarkup(w);
       }
       return;
     }
-    const key = `w:${ws.key}:${ws.level}:${ws.awakened}:${w.weapons.length}`;
+    const key = `w:${ws.key}:${ws.level}:${ws.awakened}:${w.weapons.length}:${roster}`;
     if (key === this.lastInfoKey) return;
     this.lastInfoKey = key;
-    this.towerInfoEl.innerHTML = weaponInfoMarkup(weaponInfo(w, ws), w.weapons.map((x) => x.key));
+    this.towerInfoEl.innerHTML =
+      weaponInfoMarkup(weaponInfo(w, ws), w.weapons.map((x) => x.key)) + wieldedLineageMarkup(w);
     for (const el of this.towerInfoEl.querySelectorAll<HTMLElement>('[data-weapon]')) {
       el.addEventListener('click', () => {
         this.selectedWeapon = el.dataset.weapon!;
@@ -765,6 +777,14 @@ export function weaponInfoMarkup(info: WeaponInfo, all: string[]): string {
           ? '<p class="sw-hint">Awakened.</p>'
           : ''
     }`;
+}
+
+/** SPEC-FINAL §6.2: every wielded tower type's lineage, below the soul-weapon
+ * card (or alone, once p2e retires the soul-weapon panel this sits under). */
+export function wieldedLineageMarkup(w: World): string {
+  const lines = wieldedLineageText(w);
+  if (lines.length === 0) return '';
+  return `<div class="sw-sub">Wielded towers</div>${lines.map((t) => `<p class="sw-note">${t}</p>`).join('')}`;
 }
 
 /** SPEC-V3 T2: an enemy's stats, for when the player clicks one. */

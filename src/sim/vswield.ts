@@ -43,6 +43,10 @@ export interface WieldedAttack {
   count: number;
   /** §6.1: average per-tower damage across the group, +10% per tower of the type. */
   damage: number;
+  /** The average before the +10%-per-tower bonus — `damage`'s own denominator,
+   * exposed so a reader (the lineage panel, p2d) can show the two numbers §6.2
+   * names separately without re-deriving §6.1's bonus fraction itself. */
+  perTowerAverage: number;
   /** "the same attack speed" — the type's authored interval; §4 upgrades never change it. */
   interval: number;
   /** "special effects, and highest upgrade effect" — the group's highest tier's profile. */
@@ -82,11 +86,13 @@ function wieldOneType(w: World, def: TowerDef, group: readonly Structure[]): Wie
     sum += def.attack!.damage * upgradeStatMul(w, def, s.tier);
     if (s.tier > highestTier) highestTier = s.tier;
   }
+  const perTowerAverage = sum / count;
   return {
     towerId: def.id,
     towerKey: def.key,
     count,
-    damage: (sum / count) * (1 + 0.1 * count),
+    damage: perTowerAverage * (1 + 0.1 * count),
+    perTowerAverage,
     interval: def.attack!.interval,
     profile: attackProfile(def, highestTier),
     highestTier,
