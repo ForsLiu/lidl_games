@@ -237,7 +237,7 @@ sit naturally alongside M24, which touches saves again.
 ## Done
 
 - [x] (m20c) [balance] The other seven towers' tracks, and every tower's defense
-      band (SPEC-V3 §4) — commit `PENDING` — the migration turned out to be a
+      band (SPEC-V3 §4) — commit `a2e0c50` — the migration turned out to be a
       *measurement*. §4's three counts agree with a line in build cost (`5 −
       (cost − 50)/35`), but putting the open seven on it measures worse against
       a live gate at the price rule's prices: Ballista alone flips the boss
