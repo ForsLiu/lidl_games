@@ -30,7 +30,7 @@ still in test headers.
 |---|---|
 | P0 sim skeleton | **done** — fixed 60 Hz, named RNG streams, Commands, headless CLI, end-state hash (G2 green except tuner-edited content and fast-forward, see p9f) |
 | P1 TD core | **done** — pathing, 3 owner towers, 20 enemies, economy live; p1a landed sealing (breach pathing, §10), p1b measured G7's win-rate band as a live test — G7 green in full, band re-measured at p3e per Q83 |
-| P2 VS core | **movement/dash/director/XP done; inheritance not built** — `data/weapons.json`'s 8-weapon roster with its own level ladders and 6 slots stands where §6.1's formula belongs (G3 unmet) |
+| P2 VS core | **movement/dash/director/XP done; inheritance formula built (p2a), not wired** — `data/weapons.json`'s 8-weapon roster with its own level ladders and 6 slots still stands where §6.1's formula plays live, pending p2b/p2c/p2e (G3 formula proven, live wielding unmet) |
 | P3 interleave | **leak coupling done, interleave not** — the run is still V2's Day/Dusk/Night/Dawn cycle machine, not TD×3→VS (G6 unmet) |
 | P4 core math | **done** — multiplicative stacking, armor cap +99 / floor −100, 6 damage types + 2 statuses (G4, G5 green) |
 | P5 tower roster | **done bar pricing** — all 10 towers, upgrade tracks, defense bands; two tracks carry a `note` instead of §5's count (G20 unasserted) |
@@ -54,14 +54,9 @@ Q83 the p1b band is re-measured at p3e after the §1.1 run shape lands.
 
 ### P2 — VS core: the inheritance formula (G3)
 
-- [ ] (p2a) [feat] VS wielding per §6.1: in a VS wave the character carries every
-      built tower type's attack. Per type, damage = the average across that type's
-      towers (each at its own upgrade level) × (1 + 10% × count of that type); attack
-      speed, special effects and the highest upgrade level's effects come along —
-      acceptance: gate **G3**, including §6.1's worked example transcribed verbatim
-      as a unit test (1×lv1 arrow + 2×lv3 arrow + 1×lv1 poison → arrow damage
-      `(1×lv1 + 2×lv3)/3 × (1 + 10%×3)` carrying the @3 +1 pierce, poison computed
-      the same way) — refs: §6.1, G3
+p2a is **done** — see the Done section. `src/sim/vswield.ts`'s `wieldedAttacks`
+implements §6.1's formula; it is not yet wired into any live loop (p2b, p2c).
+
 - [ ] (p2b) [feat] Wielded attacks are character attacks: they scale with character
       Attack, attack speed and Area, trigger lifesteal, and fire on-attack passives —
       acceptance: a test proves lifesteal heals the character from a wielded tower
@@ -421,6 +416,41 @@ logged in MIGRATION.md §8 rather than carried as dead items.
   **G19**. The work is `p10d`.
 
 ## Done
+
+- [x] (p2a) [feat] VS wielding formula per §6.1 — this commit — the formula
+      only: `src/sim/vswield.ts`'s `wieldedAttacks(w)` groups living, attack-
+      bearing structures by tower type and returns one `WieldedAttack` per
+      type — `damage = (Σ each tower's own-tier damage / count) × (1 + 10% ×
+      count)`, `interval` the type's raw authored value (attack speed is never
+      tier-scaled, confirmed against `towers.ts`), and `profile =
+      attackProfile(def, highestTier)` for "special effects and the highest
+      upgrade level's effects". Types with no `attack` (walls, Beacon, Sprout)
+      correctly wield nothing; dead structures do not feed the average.
+      Acceptance met: `tests/p2a-vs-wielding.test.ts` (3 cases) transcribes
+      §6.1's worked example verbatim, independently re-deriving the expected
+      arrow/poison damage from `/data` rather than echoing the implementation
+      back at itself, plus the no-attack and dead-structure cases. Q95 logs
+      the one interpretation call the example needed: its "lv3" reads as the
+      spec's own `@3` milestone label, live at engine tier 4 under this
+      codebase's shipped "tier 1 = zero steps bought" convention (m20b) — tier
+      3 literally would carry zero pierce and contradict the worked example's
+      own text, so the test builds at tier 4 rather than silently renumbering
+      `/data`'s `at` field. Scope: the formula only — `wieldedAttacks` is not
+      called from any live loop yet (p2b wires character-scaled fire and
+      lifesteal, p2c makes towers inert and adds the §5 VS specials).
+      code-reviewer **APPROVE** (2 Minors, not taken: `highestTier` seeded at
+      1 rather than derived from the group, harmless since a built structure's
+      floor is tier 1; no `petrified` filter, correctly diverging from
+      `towers.ts`'s live loops because §6.1 grants every built type
+      unconditionally and Dusk/petrification is legacy code slated for
+      deletion at p2e). qa-playtester **PASS**, no bugs found across seven
+      adversarial scratch cases (empty board, multi-type grouping, max-tier,
+      50-count same-type, mixed tiers, sell-mid-sequence) — noted for p2b,
+      not a defect here: the formula omits `powerMul`/`towerDamageMul`/
+      `affinityMul`, matching §6.1's own worked example, so whether character
+      power applies to wielded damage is p2b's open call. Full suite: 657
+      pass / 63 skipped, plus the pre-existing host-dependent A10 wall-clock
+      flake (recorded at p1b, not caused here) — refs: §6.1, G3, Q95
 
 - [x] (p1b) [balance] Turtle economics stay honest once sealing is legal — this
       commit — G7's third clause is a live test, and the measurement's finding is

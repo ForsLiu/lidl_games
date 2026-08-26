@@ -23,10 +23,12 @@ test-retirement ledger. Read §8 before touching anything.
   test: the sealed-vs-open win-rate band at T2 holds (sealed 1/12 vs best open
   9/12 — sealing is dominated, not dominant). **G7 is green in full.** Q83
   still expects the band re-measured at p3e after the run shape changes.
-  **`p2a` is the next action**: §6.1's VS wielding formula, gate G3.
+  **`p2a` is done this commit** — §6.1's VS wielding formula (`src/sim/vswield.ts`),
+  G3's worked example live as a unit test. **`p2b` is the next action**: wire
+  wielded attacks into character-scaled fire and lifesteal.
 - **Where the code actually stands** (audit summary, full table at the top of
   BACKLOG.md): P0 and P4 are done; P1 is done **except sealing**; P5 is done bar two
-  pricing items; P2's VS **inheritance formula is not built** — `data/weapons.json`'s
+  pricing items; P2's VS **inheritance formula is built (p2a) but not wired** — `data/weapons.json`'s
   8-weapon roster with its own level ladders and 6 slots stands where §6.1's
   average-across-the-type formula belongs; P3's interleave is not built — the run is
   still V2's Day/Dusk/Night/Dawn cycle machine; P6 has **3 of 11 classes** and on the
@@ -77,9 +79,12 @@ test-retirement ledger. Read §8 before touching anything.
   rate — so the milestone moves damage into a bucket that is already full and
   measures **−5.4%** (88.6 → 83.8 dps). Both clauses are verbatim and both are
   ⚖. Logged as Q87 for §17's review list rather than resolved by an agent.
-- **Next action:** **P2** `p2a` (§6.1's VS wielding formula, gate G3, with the
-  worked example transcribed verbatim as a unit test). `p1b` is done with this
-  commit — G7 green in full, details below. Both Corrections are done:
+- **Next action:** **P2** `p2b` (wire wielded attacks into character-scaled
+  fire, lifesteal and on-attack passives). `p2a` is done with this commit —
+  §6.1's formula (`src/sim/vswield.ts`), G3's worked example reproduced
+  verbatim as a unit test, Q95 logs the "lv3" milestone-tier reading; the
+  formula is not yet called from any live loop. `p1b` is done — G7 green in
+  full, details below. Both Corrections are done:
   `x001` at `dc1681c` (the §3 stack-cap pin plus Q90's one-way override clamp,
   QA-proven a no-op), and `x002` at `ef69a47` (lifesteal's cap removed and its
   accrual gated to normal damage per §2 — **not** a no-op; the sweep delta is
