@@ -109,8 +109,24 @@ export class World {
   waveCount: number;
   buildTimer: number;
   spawnTimer = 0;
-  /** Queued spawns for the active wave: [enemyDefId, gateIndex] pairs. */
+  /**
+   * Queued spawns for the active fight: `[enemyDefId, gateIndex, originWave]`
+   * triples. Normally all drawn from one wave's composition; multi-summon
+   * (p3b) appends a second/third wave's own queue on top when the player
+   * stacks a call, which is why each entry carries its true origin wave
+   * rather than inheriting `w.wave`.
+   */
   spawnQueue: number[][] = [];
+  /**
+   * SPEC-FINAL §1.1 multi-summon (p3b): TD waves merged into the fight
+   * currently in progress, beyond the base one already fighting — 0..
+   * `maxStackedWaves - 1`, so at most `maxStackedWaves` waves are ever
+   * simultaneously active. Reset to 0 the instant that merged fight
+   * completes (`completeWave`). Hashed: it gates when the next block's
+   * build phase (or dusk) begins, the same class of timing state
+   * `wieldedCooldown` is hashed for.
+   */
+  stackDepth = 0;
   gold: number;
   goldEarned = 0;
   goldSpent = 0;

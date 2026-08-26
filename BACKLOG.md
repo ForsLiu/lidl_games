@@ -31,7 +31,7 @@ still in test headers.
 | P0 sim skeleton | **done** — fixed 60 Hz, named RNG streams, Commands, headless CLI, end-state hash (G2 green except tuner-edited content and fast-forward, see p9f) |
 | P1 TD core | **done** — pathing, 3 owner towers, 20 enemies, economy live; p1a landed sealing (breach pathing, §10), p1b measured G7's win-rate band as a live test — G7 green in full, band re-measured at p3e per Q83 |
 | P2 VS core | **done in full (p2a-p2f)** — inheritance formula built and wired live, towers inert with their §5 specials live, weapon-panel lineage live, the superseded soul-weapon roster and Dusk picker deleted (G3 green in full) |
-| P3 interleave | **leak coupling and the interleave pattern done, multi-summon/full retirement/re-baseline not** — `p3a` retargets the reused V2 cycle machine to 18 TD + 6 VS, 20s build, 75s VS (G6's pattern half green); `p3b` (stacking), `p3d` (delete the old machine) and `p3e` (re-baseline) are still open |
+| P3 interleave | **the interleave pattern and multi-summon done, G6 green in full; leak coupling's §1.1 restatement, the old machine's deletion and the re-baseline not** — `p3a` retargets the reused V2 cycle machine to 18 TD + 6 VS, 20s build, 75s VS (G6's pattern half); `p3b` stacks up to `maxStackedWaves` TD waves via the `call` command (G6's stacking half); `p3c` (leak coupling restated for TD→VS), `p3d` (delete the old machine) and `p3e` (re-baseline) are still open |
 | P4 core math | **done** — multiplicative stacking, armor cap +99 / floor −100, 6 damage types + 2 statuses (G4, G5 green) |
 | P5 tower roster | **done bar pricing** — all 10 towers, upgrade tracks, defense bands; two tracks carry a `note` instead of §5's count (G20 unasserted) |
 | P6 classes | **3 of 11**, and on V2's one-Active + Signature framework, not §4's Passive + Q + E + tower passive (G8–G11 unmet) |
@@ -64,12 +64,10 @@ line; p2e deleted the superseded soul-weapon roster and picker wholesale.
 
 ### P3 — interleave and leak coupling (G6)
 
-- [ ] (p3b) [feat] Multi-summon: the player may call the next TD wave(s) early,
-      stacking up to 3 at once; the early-call bonus is `2 gold × that wave's
-      un-elapsed build seconds`, paid once per wave against its own timer. VS waves
-      can be neither stacked nor skipped — acceptance: gate **G6**'s stacking half —
-      a fourth stack is rejected, each of three stacked waves pays its own bonus
-      exactly once, and a summon command during VS is a no-op — refs: §1.1, G6
+**Gate G6 is green in full** — p3a landed the pattern half, p3b (this commit) lands
+the stacking half. p3c (leak coupling), p3d (deleting the old cycle machine) and
+p3e (re-baseline) are still open.
+
 - [ ] (p3c) [feat] Leak coupling restated on the new shape: each enemy reaching the
       Core in a TD wave adds `2 × its spawn cost` to the **next VS wave's** budget,
       shown as the "Loose in the dark: N" HUD counter — acceptance: the existing
@@ -391,6 +389,81 @@ logged in MIGRATION.md §8 rather than carried as dead items.
   **G19**. The work is `p10d`.
 
 ## Done
+
+- [x] (p3b) [feat] Multi-summon: the player may call the next TD wave(s) early,
+      stacking up to `maxStackedWaves` (3) at once — this commit. Gate **G6 is now
+      green in full** (p3a landed the pattern half; this item lands the stacking
+      half). `src/sim/run.ts`'s `call` command now handles two cases: in
+      `act1_build`, unchanged pre-existing behavior (pay off whatever is left of
+      the live `buildTimer`, zero it, let `updateAct1Build` start the wave). In
+      `act1_wave` (a wave already fighting), `call` pulls the *next* wave's own
+      not-yet-started build phase forward — paying the *full* `buildPhaseSeconds ×
+      earlyCallGoldPerSecond` bonus, since none of that wave's own timer has
+      ticked — and merges its freshly-built spawn queue onto the fight already in
+      progress. `World.stackDepth` (new field, `src/sim/world.ts`) counts the 0..
+      `maxStackedWaves - 1` extra waves merged this way; a call once `stackDepth`
+      is already at cap is rejected outright (no gold, no state change) — the
+      fourth-stack rejection G6 asks for. A call cannot pull a wave across the
+      current TD block's boundary into the VS wave that follows (checked against
+      `cycleWaveEnd`, unchanged from p3a), and is a total no-op in every phase but
+      `act1_build`/`act1_wave` — VS "cannot be stacked or skipped," so `dusk`,
+      `act2`, `levelup`, `dawn` and `results` all reject it identically.
+      `completeWave` now resolves the whole merged range (`w.wave` through
+      `w.wave + stackDepth`) at once when the fight finally clears: every wave in
+      the range still pays its own clear bonus, its own line in
+      `goldEarnedByWave`/`wavesCleared`, and (after a code-review fix, below) its
+      own Sprout-tower income, then `w.wave` advances to the top of the range and
+      `stackDepth` resets to 0 — a true no-op, byte-identical to the pre-p3b
+      single-wave path, whenever nothing was stacked. `spawnQueue` entries grew a
+      third element, their true origin wave (`[enemyDefId, gateIndex, originWave]`)
+      — a merged fight interleaves more than one wave's composition, so
+      `spawnedByWave` telemetry and per-enemy HP scaling (`waveHpScale`) now stay
+      attributed to the wave that actually authored each enemy rather than
+      collapsing onto the fight's base wave. `maxStackedWaves` is a new required
+      `data/waves.json` field (3, per §1.1's own "up to 3 at once ⚖") rather than a
+      hardcoded constant, per CLAUDE.md's architecture rule 4. `World.stackDepth`
+      is hashed (`hashWorld`, `run.ts`) since it gates the timing of the next
+      block/dusk transition, the same class of state `wieldedCooldown` is hashed
+      for (x002/p2b precedent). Q107 records the design decision (one merged fight
+      vs. three parallel ones — merged was chosen, smaller diff, reuses
+      `applyCommand`/`completeWave` as-is) and the two things deliberately left
+      imprecise: `leaksByWave` still attributes a leak to the fight's base wave
+      rather than the leaking enemy's true origin (would need an `Enemy` schema/
+      hash change for a telemetry-only number nothing gates), and
+      `src/ui/progress.ts`'s `waveBar` sub-progress text can be briefly off mid-
+      stack (self-corrects the instant the stack resolves, no test covers it).
+      **code-reviewer REQUEST-CHANGES → fixed, then re-verified clean**: the first
+      draft hoisted `collectSproutGold(w)` outside the new per-wave loop in
+      `completeWave`, so an N-wave stacked clear collected only one wave's worth of
+      Sprout-tower income instead of N (and, since `goldEarnedByWave[wv]` was
+      recorded before that wave's own Sprout income landed, the *unstacked* path's
+      telemetry silently reordered too, though its gold total stayed correct).
+      Fixed by moving the call inside the loop, once per `wv`, in the same
+      relative position the original single-wave code used; a new regression case
+      builds one Harvest Sprout and asserts a 2-wave stacked clear banks exactly
+      two waves' worth of wave-clear-plus-Sprout income, not one. **qa-playtester
+      PASS**, no bugs found across a wide adversarial pass: the three literal
+      acceptance clauses (4th call rejected, each of 3 stacked waves pays its bonus
+      exactly once, VS-phase no-op checked in all five non-TD phases individually);
+      stacking cannot cross a block boundary (checked at wave 3→4 and at the very
+      last global wave, 17→18 of cycle 6); a double `call` landing in the same tick
+      during `act1_build` doesn't double-pay; `dev skip_wave` on a 3-stacked fight
+      still resolves all three waves with distinct bonuses; calling on the exact
+      tick a merged fight would otherwise complete delays completion by one tick
+      rather than racing; replay-hash determinism holds across two independent
+      runs sharing a seed and a command log with stacked calls in it; a full-run
+      fuzz (spamming `call` every tick for 5 seeds, and a `hybrid` bot with `call`
+      layered on every tick) never produced negative gold, NaN, an out-of-range
+      `stackDepth`, or `w.wave > w.waveCount` — a bot that spams `call` dies early
+      to leaks from build-time denial, the intended risk of misusing the
+      mechanic, not corruption. `npm test`: 673 passed / 33 skipped (0 failed,
+      up from 668/33 pre-p3b — the 5 new `tests/p3b-multi-summon.test.ts` cases),
+      byte-identical elsewhere since the only existing caller of `call`
+      (`src/bots/policies.ts`'s `rushWaves`) is gated to `act1_build` and never
+      triggers stacking — multi-summon is a mechanism a bot can now legally use,
+      not one any bot uses yet; wiring one in for gate **G19** ("winning sim
+      builds include ... multi-summon usage") is `p10f`'s job. `npx tsc --noEmit`
+      clean; perf suite (`vitest.perf.config.ts`) green — refs: §1.1, G6, Q107
 
 - [x] (p3a) [feat] The §1.1 run shape: 3 TD waves then 1 VS wave, repeating; 18 TD
       + 6 VS per run — this commit — `World.totalCycles` now defaults to 6 (was 3),

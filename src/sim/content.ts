@@ -330,6 +330,13 @@ const WavesFileSchema = z.object({
   tdWavesPerVsWave: num,
   /** SPEC-FINAL §1.1: VS wave length, 75s ⚖ (the final VS wave ignores this and runs until the boss dies). */
   vsWaveSeconds: num,
+  /**
+   * SPEC-FINAL §1.1 multi-summon (P3, p3b): the most TD waves that may ever
+   * be fighting at once — the wave already in progress plus up to
+   * `maxStackedWaves - 1` more, each pulled forward early by its own `call`
+   * command. 3 ⚖.
+   */
+  maxStackedWaves: num,
 });
 
 /* ------------------------------------------------------------------ spawns */

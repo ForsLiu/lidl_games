@@ -140,13 +140,38 @@ export class Run {
 export function applyCommand(w: World, c: Command): void {
   switch (c.k) {
     case 'call': {
-      // SPEC 3.1: calling early pays 2 gold per second skipped.
-      if (w.phase === 'act1_build' && w.buildTimer > 0) {
-        const bonus = Math.round(w.buildTimer * w.content.waves.earlyCallGoldPerSecond);
+      // SPEC-FINAL §1.1: calling early pays 2 gold per second skipped. A VS
+      // wave can be neither stacked nor skipped, so any phase but the two TD
+      // ones is a no-op.
+      if (w.phase !== 'act1_build' && w.phase !== 'act1_wave') break;
+      const wc = w.content.waves;
+      if (w.phase === 'act1_build') {
+        // The wave already counting down its own build timer: pay off
+        // whatever is left of it, then updateAct1Build's own zero-check
+        // starts it as normal (unchanged from pre-multi-summon behavior).
+        const bonus = Math.round(w.buildTimer * wc.earlyCallGoldPerSecond);
         w.gold += bonus;
         w.goldEarned += bonus;
         w.buildTimer = 0;
+        break;
       }
+      // Already fighting: pull the next wave's own (as-yet-unstarted) build
+      // phase forward and merge its spawns into the fight in progress.
+      // `stackDepth` counts the *extra* waves beyond the one already
+      // fighting, so `maxStackedWaves - 1` extra is the cap SPEC-FINAL §1.1
+      // calls "up to 3 at once" (a further call is simply rejected).
+      if (w.stackDepth >= wc.maxStackedWaves - 1) break;
+      const nextWave = w.wave + w.stackDepth + 1;
+      // Can't stack across the block boundary into the VS wave that follows.
+      if (nextWave > cycleWaveEnd(w, w.cycle)) break;
+      // That wave's own build timer has not ticked at all yet, so the whole
+      // of it is "un-elapsed".
+      const buildSeconds = w.mods.buildPhase || wc.buildPhaseSeconds;
+      const bonus = Math.round(buildSeconds * wc.earlyCallGoldPerSecond);
+      w.gold += bonus;
+      w.goldEarned += bonus;
+      w.stackDepth++;
+      w.spawnQueue.push(...buildSpawnQueue(w, nextWave));
       break;
     }
     case 'build':
@@ -427,11 +452,11 @@ function buildSpawnQueue(w: World, wave: number): number[][] {
   for (const g of def.groups) {
     const e = content.enemyByKey.get(g.enemy)!;
     if (g.total !== undefined) {
-      for (let i = 0; i < g.total; i++) queue.push([e.id, i % gateCount]);
+      for (let i = 0; i < g.total; i++) queue.push([e.id, i % gateCount, wave]);
     } else {
       const per = g.perGate ?? 0;
       for (let i = 0; i < per; i++) {
-        for (let gi = 0; gi < gateCount; gi++) queue.push([e.id, gi]);
+        for (let gi = 0; gi < gateCount; gi++) queue.push([e.id, gi, wave]);
       }
     }
   }
@@ -448,14 +473,17 @@ function updateAct1Wave(w: World, dt: number): void {
     w.spawnTimer -= dt;
     while (w.spawnTimer <= 0 && w.spawnQueue.length > 0) {
       w.spawnTimer += content.waves.spawnIntervalSeconds;
-      const [defId, gateIdx] = w.spawnQueue.shift()!;
+      // p3b: a stacked fight's queue holds more than one wave's spawns
+      // interleaved, so each triple carries its own true origin wave rather
+      // than the current fight's base `w.wave`.
+      const [defId, gateIdx, originWave] = w.spawnQueue.shift()!;
       const def = content.enemyById.get(defId)!;
       const gate = w.gates[gateIdx] ?? GATES[0];
       const jitterX = w.rng.spawns.range(-0.25, 0.25);
       const jitterY = w.rng.spawns.range(-0.25, 0.25);
-      w.spawnedByWave[w.wave] = (w.spawnedByWave[w.wave] ?? 0) + 1;
+      w.spawnedByWave[originWave] = (w.spawnedByWave[originWave] ?? 0) + 1;
       spawnEnemy(w, def.key, gate.tx + 0.5 + jitterX, gate.ty + 0.5 + jitterY, {
-        hpMul: waveHpScale(w, w.wave),
+        hpMul: waveHpScale(w, originWave),
         gate: gateIdx,
         overlay: false,
       });
@@ -473,15 +501,28 @@ function updateAct1Wave(w: World, dt: number): void {
 
 function completeWave(w: World): void {
   const c = w.content.waves;
-  const bonus = Math.round(
-    (c.waveClearBase + c.waveClearPerWave * w.wave) * w.derived.goldFindMul,
-  );
-  w.gold += bonus;
-  w.goldEarned += bonus;
-  collectSproutGold(w);
-  w.goldEarnedByWave[w.wave] = w.goldEarned;
-  w.wavesCleared++;
-  w.emit('waveclear', 0, 0, w.wave, bonus);
+  // p3b: a stacked fight clears every wave merged into it at once — from the
+  // base wave that started fighting through however many were pulled forward
+  // (`stackDepth`) — each still paying its own clear bonus (unchanged, single
+  // iteration, when nothing was stacked).
+  const firstWave = w.wave;
+  const lastWave = w.wave + w.stackDepth;
+  let totalBonus = 0;
+  for (let wv = firstWave; wv <= lastWave; wv++) {
+    const bonus = Math.round((c.waveClearBase + c.waveClearPerWave * wv) * w.derived.goldFindMul);
+    w.gold += bonus;
+    w.goldEarned += bonus;
+    totalBonus += bonus;
+    // Each merged wave pays its own Sprout income too — a 3-wave stack must
+    // collect exactly what clearing three separate waves in a row would,
+    // not one wave's worth (code review, p3b).
+    collectSproutGold(w);
+    w.goldEarnedByWave[wv] = w.goldEarned;
+    w.wavesCleared++;
+  }
+  w.wave = lastWave;
+  w.stackDepth = 0;
+  w.emit('waveclear', 0, 0, w.wave, totalBonus);
 
   if (w.wave >= cycleWaveEnd(w, w.cycle)) {
     w.phase = 'dusk';
@@ -626,6 +667,10 @@ export function hashWorld(w: World): string {
   const h = new Hasher();
   h.int(w.tick).int(w.phase.length).str(w.phase).str(w.outcome);
   h.num(w.coreHp).num(w.gold).int(w.wave).int(w.kills).int(w.leaks);
+  // p3b: gates when the current fight's completion advances to the next
+  // block/dusk, exactly the class of timing state `wieldedCooldown` is
+  // hashed for.
+  h.int(w.stackDepth);
   h.num(w.nightBudgetBonus).int(w.looseInTheDark).num(w.spawnBudget);
   // `leechAccumulator` is generically nonzero at hash time: `updateWarden`
   // drains it *before* the damage systems refill it each tick (x002 review).
