@@ -220,6 +220,29 @@ sit naturally alongside M24, which touches saves again.
 
 ## Done
 
+- [x] (m20a) [feat] Per-tower upgrade tracks (SPEC-V3 §4) — commit `5305f8d` —
+      `upgrades: {count, stepCost, specials}` and a real `defense` on every tower,
+      +10% HP/Attack/Defense per step, flat step cost, sell 50% of what the
+      structure was actually charged (`Structure.spent`, hashed). Acceptance met:
+      `tests/m20a-upgrade-tracks.test.ts` (22 tests) asserts track well-formedness
+      through the loader's own predicate and walks all ten towers × every step
+      against both the sell quote and the gold the till pays, including a mid-run
+      `towerCostMul` change and a Rekindle. Range no longer grows (§4 lists HP,
+      Attack, Defense only); `maxTier`, `tierDamageMul`, `tierRangeMul`, the
+      0.75×/1.25× ladder and Dusk's 35% sell rate are deleted. Track math lives in
+      `src/sim/upgrades.ts` because `enemies.ts` needs `structureArmor` and
+      `towers.ts` already imports `enemies.ts`. Q73 records the four defaults §4
+      left open — the roster is the power- and cost-neutral migration wherever the
+      choice was m20a's, so the model landed without a tuned number — and Q74 the
+      inheritance fix. code-reviewer **REQUEST-CHANGES** (1 Critical, 2 Major) and
+      qa-playtester **PASS** on the acceptance criteria with 3 Majors filed; all
+      fixed here with regression tests verified by reverting each fix. The Critical
+      was the lesson: the model change was clean and the bug was in a *reader* of
+      the field whose range changed — `deriveSouls` handed Act II a maxed weapon
+      from an 11-level tower, which inverted four balance gates and nearly got them
+      deferred for the wrong cause. QA's one unfixed finding is filed as s011.
+      603 tests pass, 24 skipped (5 deferred to m20c with measured reasons) —
+      refs: V3 §4, Q73, Q74
 - [x] (m19c) [feat] Damage-type taxonomy (SPEC-V3 §3) — commit `b325487` — the six
       rows and both statuses, authored in `data/damagetypes.json` — **M19 complete**,
       gate **C3 green in full** (its carried clause closed: Burning is `shredArmor`'s
