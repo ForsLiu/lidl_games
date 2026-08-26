@@ -65,18 +65,51 @@ const TowerAttackSchema = z
   })
   .nullable();
 
+/**
+ * SPEC-FINAL §5's VS special column, §6.2: inert towers each contribute one
+ * named effect during a VS wave, and nothing else — no attack, no residual
+ * damage from anywhere but this. A typed key rather than free-form terrain
+ * fields so a special with no engine reader is a load error (the m19a
+ * `shredArmor` failure mode), not a silently-dead data row. `p2c` is the only
+ * producer of this field; `p2a`/`p2b`'s wielding formula reads none of it.
+ */
+const VsSpecialSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('none') }).strict(),
+  /** Electric: "all electric towers are wired to each other; enemies on any
+   * wire take normal damage every 0.5s." One entry, shared by every electric
+   * tower via `s.links` (`linkSpires`, unchanged from the V2 conversion table). */
+  z.object({ kind: z.literal('electricWireGrid'), damage: num.nonnegative(), interval: num.positive() }).strict(),
+  /** Poison: "character leaves a poison trail every second dealing 0.1x the
+   * tower's attack." `ratio` is applied to the live wielded poison damage. */
+  z.object({
+    kind: z.literal('poisonTrail'),
+    ratio: num.positive(),
+    interval: num.positive(),
+    radius: num.positive(),
+  }).strict(),
+  /** Fire Brazier: "Burning enemies explode on death: 5 normal, r1." */
+  z.object({ kind: z.literal('burningExplode'), damage: num.nonnegative(), radius: num.positive() }).strict(),
+  /** Ice Obelisk: "an ice aura r2 follows the character, applying frost each second." */
+  z.object({ kind: z.literal('frostAura'), radius: num.positive(), interval: num.positive() }).strict(),
+  /**
+   * Beacon Totem / Harvest Sprout: markers only — no payload of their own.
+   * Both specials already existed pre-SPEC-FINAL as the `shrine`/`gem_bloom`
+   * terrain rows (`wardenRadius`/`wardenAttackSpeed`, `gemInterval`/`gemValue`)
+   * and already matched §5's numbers exactly, so this names the fact that a
+   * VS special is authored here without a second copy of its numbers to drift
+   * out of sync with the terrain row that actually reads them.
+   */
+  z.object({ kind: z.literal('beaconHaste') }).strict(),
+  z.object({ kind: z.literal('sproutGems') }).strict(),
+]);
+
 const TerrainSchema = z.object({
   kind: str,
   blocks: z.boolean(),
   armorPerWall: num.optional(),
   armorCap: num.optional(),
-  auraRadius: num.optional(),
-  auraDps: num.optional(),
-  auraType: z.enum(['burn', 'poison']).optional(),
-  slow: num.optional(),
   linkRange: num.optional(),
   maxLinks: num.optional(),
-  beamDps: num.optional(),
   wardenRadius: num.optional(),
   wardenAttackSpeed: num.optional(),
   gemInterval: num.optional(),
@@ -151,6 +184,8 @@ export const TowerSchema = z.object({
   passive: z.object({ attackSpeedPer: num, cap: num }).optional(),
   soul: str.nullable(),
   terrain: TerrainSchema,
+  /** SPEC-FINAL §5's VS special column (p2c). Required — "none" is explicit. */
+  vsSpecial: VsSpecialSchema,
   desc: str,
 }).strict();
 
@@ -793,6 +828,7 @@ export type WardenBase = typeof wardenBase;
 export type TowerDef = z.infer<typeof TowerSchema>;
 export type TowerAttack = NonNullable<z.infer<typeof TowerAttackSchema>>;
 export type TerrainDef = z.infer<typeof TerrainSchema>;
+export type VsSpecial = z.infer<typeof VsSpecialSchema>;
 export type EnemyDef = z.infer<typeof EnemySchema>;
 export type WeaponDef = z.infer<typeof WeaponSchema>;
 export type WeaponLevel = z.infer<typeof WeaponLevelSchema>;

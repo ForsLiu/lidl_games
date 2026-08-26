@@ -234,6 +234,17 @@ export class World {
   onAttack: ((source: string) => void) | null = null;
 
   /**
+   * SPEC-FINAL §5's VS specials that tick on a timer rather than fire off a
+   * hit (p2c, `src/sim/vsspecials.ts`): Venom Spore's poison trail, Frost
+   * Obelisk's following ice aura, and Tesla Coil's 0.5 s wire-grid pulse.
+   * Sim state that gates a damage/CC system, hashed for the same reason
+   * `wieldedCooldown` is (x002/p2b review).
+   */
+  vsPoisonTrailTimer = 0;
+  vsFrostAuraTimer = 0;
+  vsWireGridTimer = 0;
+
+  /**
    * Act II navigation fields, sourced at the Warden's tile and refreshed on a
    * fixed tick cadence (never on wall-clock) so replays stay bit-exact.
    */

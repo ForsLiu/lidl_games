@@ -286,8 +286,37 @@ export function killEnemy(w: World, e: Enemy, source: string): void {
     w.bossKillTime = w.act2Time;
   }
 
+  // SPEC-FINAL §5.2 Fire Brazier VS special, §6.2: an inert tower's only
+  // standing effect during a VS wave. Scoped to VS (`huntsWarden`) — Act I's
+  // Ember Brazier already applies Burning through its live cone attack, and
+  // this is a *second*, VS-only consequence of the same status.
+  if (w.huntsWarden && e.dots.some((d) => d.type === 'burning')) triggerBurningExplode(w, e);
+
   onEnemyKilledForDrops(w, e, def);
   void source;
+}
+
+/**
+ * Reads whichever tower's `vsSpecial.kind === 'burningExplode'` is actually
+ * built and alive, so the trigger stays generic over `/data` rather than
+ * naming Ember Brazier — see `killEnemy`. Flat numbers, no character-stat
+ * scaling: SPEC-FINAL §6.2 towers are inert, not wielded, so this is not
+ * `powerMul`/`areaMul` territory the way `vswield.ts`'s formula is.
+ */
+function triggerBurningExplode(w: World, e: Enemy): void {
+  for (const t of w.content.towers.towers) {
+    if (t.vsSpecial.kind !== 'burningExplode') continue;
+    if (!w.structures.some((s) => !s.dead && s.towerId === t.id)) continue;
+    const { damage, radius } = t.vsSpecial;
+    // `residualMul`: the drafted map modifier ("Petrified residuals -50%")
+    // that scaled the V2 aura this special replaces still reaches it (Q98).
+    const dmg = damage * w.derived.residualMul;
+    for (const other of w.enemiesInRadius(e.x, e.y, radius)) {
+      if (other.dead) continue;
+      damageEnemy(w, other, dmg, t.key, { fromX: e.x, fromY: e.y });
+    }
+    w.emit('explosion', e.x, e.y, radius, 0);
+  }
 }
 
 /** Overridden by loot.ts at import time to avoid a cycle; default is a no-op. */

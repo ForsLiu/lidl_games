@@ -284,9 +284,9 @@ describe('tower info model', () => {
   it('spells out the terrain a tower petrifies into', () => {
     const w = world();
     const brazier = towerInfo(w, content.towerByKey.get('ember_brazier')!);
-    expect(brazier.terrainText).toMatch(/burns/);
+    expect(brazier.terrainText).toMatch(/explodes/);
     const obelisk = towerInfo(w, content.towerByKey.get('frost_obelisk')!);
-    expect(obelisk.terrainText).toMatch(/slows/);
+    expect(obelisk.terrainText).toMatch(/Frost/);
   });
 
   it('a Beacon reports its aura, and the aura grows with tier', () => {

@@ -25,6 +25,7 @@ import { advanceFromDawn, beginDawn, beginSoulPick, DAWN_AUTO_SECONDS, finishSun
 import { useClassActive } from './classes';
 import { updateTerrainEffects, updateWeapons } from './weapons';
 import { updateWieldedAttacks } from './vswield';
+import { updateVsSpecials } from './vsspecials';
 import { updateBossSlam } from './boss';
 // Registers the Warden-Eater script with enemies.ts.
 import './boss';
@@ -510,6 +511,7 @@ function updateAct2(w: World, input: TickInput, dt: number): void {
   updateTerrainEffects(w, dt);
   updateWeapons(w, dt);
   updateWieldedAttacks(w, dt);
+  updateVsSpecials(w, dt);
   updateEnemies(w, dt);
   updateProjectiles(w, dt);
   updateAreas(w, dt);
@@ -667,6 +669,9 @@ export function hashWorld(w: World): string {
   // review named: state that gates a damage system belongs in the hash.
   const wieldedKeys = [...w.wieldedCooldown.keys()].sort((a, b) => a - b);
   for (const k of wieldedKeys) h.int(k).num(w.wieldedCooldown.get(k)!);
+  // p2c's VS-special timers gate exactly the same class of future damage/CC
+  // as `wieldedCooldown` does, so they are hashed on the same rule.
+  h.num(w.vsPoisonTrailTimer).num(w.vsFrostAuraTimer).num(w.vsWireGridTimer);
   // Not yet read by anything gameplay-facing (no on-attack passive exists),
   // but §4.1's "counts as 1 attack" hook is the kind of state that gates a
   // future system, and this project has been bitten by exactly this gap

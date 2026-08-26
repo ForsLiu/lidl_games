@@ -6,7 +6,6 @@
 
 import {
   applyAoE,
-  applyEffects,
   bestLineDirection,
   chainHit,
   coneHit,
@@ -358,33 +357,35 @@ export function applyTerrainPassives(w: World): void {
 /**
  * Terrain residuals are fixed once the Sundering has run, so the structures
  * that actually do something are cached rather than rescanned every tick.
+ *
+ * SPEC-FINAL §6.2 retired the rest of the V2 conversion table: a tower deals
+ * no damage and applies no crowd control from its own tile in a VS wave — its
+ * only standing effect is the §5 VS special, which is character-relative
+ * (`src/sim/vsspecials.ts`, p2c) rather than tower-tile-relative. Beacon's
+ * haste and Harvest Sprout's gems are the two specials that were already
+ * tower-tile-relative and already matched §5's numbers, so they stay here
+ * unchanged; the aura/slow/beam entries that dealt tower-sourced damage or CC
+ * (Ember Brazier, Venom Spore, Frost Obelisk, Tesla Coil) are gone from this
+ * file and re-authored as p2c's VS specials instead of double-paying
+ * alongside them (Q97).
  */
 export interface TerrainEffects {
-  auras: Structure[];
-  slows: Structure[];
   shrines: Structure[];
   blooms: Structure[];
-  beams: Structure[];
 }
 
 export function buildTerrainEffects(w: World): TerrainEffects {
-  const out: TerrainEffects = { auras: [], slows: [], shrines: [], blooms: [], beams: [] };
+  const out: TerrainEffects = { shrines: [], blooms: [] };
   for (const s of w.structures) {
     if (s.dead || !s.petrified) continue;
     const t = w.content.towerById.get(s.towerId)!.terrain;
-    if (t.auraRadius && t.auraDps) out.auras.push(s);
-    if (t.slow) out.slows.push(s);
     if (t.wardenRadius && t.wardenAttackSpeed) out.shrines.push(s);
     if (t.gemInterval && t.gemValue) out.blooms.push(s);
-    if (t.beamDps) out.beams.push(s);
   }
   return out;
 }
 
-/** Ticks between aura/slow applications; the per-tick amount is scaled to match. */
-const RESIDUAL_PERIOD = 1;
-
-/** Heartstone healing + shrine/brazier/spore/spire residuals, ticked in Act II. */
+/** Heartstone healing + shrine/spore-bloom residuals, ticked in Act II. */
 export function updateTerrainEffects(w: World, dt: number): void {
   const wd = w.warden;
   const mul = w.derived.residualMul;
@@ -396,60 +397,6 @@ export function updateTerrainEffects(w: World, dt: number): void {
   }
 
   const fx = w.terrainEffects ?? (w.terrainEffects = buildTerrainEffects(w));
-  const beat = w.tick % RESIDUAL_PERIOD === 0;
-  const beatDt = dt * RESIDUAL_PERIOD;
-
-  if (beat) {
-    for (const s of fx.auras) {
-      if (s.dead) continue;
-      const def = w.content.towerById.get(s.towerId)!;
-      const t = def.terrain;
-      const cx = s.tx + 0.5;
-      const cy = s.ty + 0.5;
-      const r = t.auraRadius! * w.derived.areaMul;
-      for (const e of w.enemiesInRadius(cx, cy, r)) {
-        if (e.dead) continue;
-        if (t.auraType === 'poison') {
-          applyEffects(w, e, {
-            source: `terrain_${def.key}`,
-            poisonDps: t.auraDps! * mul,
-            poisonDuration: 1,
-            poisonStacks: 3,
-          });
-        } else {
-          damageEnemy(w, e, t.auraDps! * mul * beatDt, `terrain_${def.key}`, { pure: true, dot: true });
-        }
-      }
-    }
-
-    for (const s of fx.slows) {
-      if (s.dead) continue;
-      const t = w.content.towerById.get(s.towerId)!.terrain;
-      const r = (t.auraRadius ?? 2) * w.derived.areaMul;
-      for (const e of w.enemiesInRadius(s.tx + 0.5, s.ty + 0.5, r)) {
-        // Long enough to bridge the stagger, so the chill reads as continuous.
-        applyEffects(w, e, { slow: t.slow! * mul, slowDuration: 0.75 });
-      }
-    }
-
-    for (const s of fx.beams) {
-      if (s.dead || s.links.length === 0) continue;
-      const def = w.content.towerById.get(s.towerId)!;
-      const cx = s.tx + 0.5;
-      const cy = s.ty + 0.5;
-      for (const otherId of s.links) {
-        if (otherId < s.id) continue; // each pair handled once
-        const o = w.structureById.get(otherId);
-        if (!o || o.dead) continue;
-        const ox = o.tx + 0.5;
-        const oy = o.ty + 0.5;
-        const n = normalize(ox - cx, oy - cy);
-        const len = Math.sqrt(dist2(cx, cy, ox, oy));
-        lineHit(w, cx, cy, n.x, n.y, len, 0.3, def.terrain.beamDps! * mul * beatDt, `terrain_${def.key}`, 999);
-        w.emit('beam', cx, cy, ox, oy);
-      }
-    }
-  }
 
   for (const s of fx.shrines) {
     if (s.dead) continue;

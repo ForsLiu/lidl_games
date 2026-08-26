@@ -370,7 +370,31 @@ export function towerInfo(w: World, def: TowerDef, existing?: Structure): TowerI
   };
 }
 
-/** What this tower leaves behind after the Sundering (SPEC 4). */
+/**
+ * SPEC-FINAL §6.2/§5 (p2c): a standing tower deals no attack damage of its
+ * own in a VS wave — its only effect is the authored `vsSpecial`. Read that
+ * field rather than `terrain`'s now-dead `auraDps`/`auraType`/`slow`/`beamDps`,
+ * so this text cannot drift from what the sim actually does (the trap the
+ * pre-p2c version of this function fell into — see QUESTIONS Q100/code review).
+ */
+function describeVsSpecial(v: TowerDef['vsSpecial']): string | null {
+  switch (v.kind) {
+    case 'electricWireGrid':
+      return `wires linked towers together, dealing ${v.damage} dmg to enemies on the wire every ${v.interval}s`;
+    case 'poisonTrail':
+      return `leaves a poison trail behind you dealing ${Math.round(v.ratio * 100)}% of its wielded damage every ${v.interval}s, r${v.radius}`;
+    case 'burningExplode':
+      return `a Burning enemy that dies explodes for ${v.damage} dmg, r${v.radius}`;
+    case 'frostAura':
+      return `an ice aura (r${v.radius}) follows you, applying Frost every ${v.interval}s`;
+    case 'none':
+    case 'beaconHaste':
+    case 'sproutGems':
+      return null;
+  }
+}
+
+/** What this tower leaves behind after the Sundering (SPEC 4), and its §5 VS special (p2c). */
 export function describeTerrain(def: TowerDef): string | null {
   const t = def.terrain;
   if (!t || t.kind === 'rubble') return null;
@@ -379,13 +403,8 @@ export function describeTerrain(def: TowerDef): string | null {
   if (t.armorPerWall) {
     bits.push(`+${t.armorPerWall} Warden armour per nearby wall, up to +${t.armorCap ?? 0}`);
   }
-  if (t.auraDps) {
-    bits.push(`${t.auraType === 'poison' ? 'poisons' : 'burns'} for ${t.auraDps} dps within ${t.auraRadius ?? 0} tiles`);
-  }
-  if (t.slow) bits.push(`slows enemies within ${t.auraRadius ?? 0} tiles by ${Math.round(t.slow * 100)}%`);
-  if (t.beamDps) {
-    bits.push(`beams ${t.beamDps} dps between spires up to ${t.linkRange ?? 0} tiles apart`);
-  }
+  const vs = describeVsSpecial(def.vsSpecial);
+  if (vs) bits.push(vs);
   if (t.wardenAttackSpeed) {
     bits.push(`+${Math.round(t.wardenAttackSpeed * 100)}% Warden attack speed within ${t.wardenRadius ?? 0} tiles`);
   }

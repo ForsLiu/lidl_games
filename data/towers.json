@@ -37,6 +37,7 @@
         "armorPerWall": 1,
         "armorCap": 15
       },
+      "vsSpecial": { "kind": "none" },
       "desc": "Wall. The mazing tool."
     },
     {
@@ -84,6 +85,7 @@
         "kind": "pillar",
         "blocks": true
       },
+      "vsSpecial": { "kind": "none" },
       "desc": "Single target. Bread-and-butter."
     },
     {
@@ -113,6 +115,7 @@
         "kind": "pillar",
         "blocks": true
       },
+      "vsSpecial": { "kind": "none" },
       "desc": "Piercing bolt. Anti-line."
     },
     {
@@ -143,11 +146,9 @@
       "soul": "flame_cone",
       "terrain": {
         "kind": "burning_brazier",
-        "blocks": true,
-        "auraRadius": 1.5,
-        "auraDps": 5,
-        "auraType": "burn"
+        "blocks": true
       },
+      "vsSpecial": { "kind": "burningExplode", "damage": 5, "radius": 1 },
       "desc": "Cone of fire. Pyromancer signature."
     },
     {
@@ -175,10 +176,9 @@
       "soul": "frost_nova",
       "terrain": {
         "kind": "ice_monolith",
-        "blocks": true,
-        "auraRadius": 2,
-        "slow": 0.25
+        "blocks": true
       },
+      "vsSpecial": { "kind": "frostAura", "radius": 2, "interval": 1 },
       "desc": "Slow aura and chill pulse. Frost Warden signature."
     },
     {
@@ -217,9 +217,9 @@
         "kind": "conductive_spire",
         "blocks": true,
         "linkRange": 6,
-        "maxLinks": 2,
-        "beamDps": 10
+        "maxLinks": 2
       },
+      "vsSpecial": { "kind": "electricWireGrid", "damage": 5, "interval": 0.5 },
       "desc": "Chain lightning. Engineer signature."
     },
     {
@@ -250,6 +250,7 @@
         "kind": "rubble",
         "blocks": true
       },
+      "vsSpecial": { "kind": "none" },
       "desc": "Arcing AoE. Dead zone up close."
     },
     {
@@ -296,11 +297,9 @@
       "soul": "toxic_trail",
       "terrain": {
         "kind": "spore_cloud",
-        "blocks": true,
-        "auraRadius": 1.5,
-        "auraDps": 4,
-        "auraType": "poison"
+        "blocks": true
       },
+      "vsSpecial": { "kind": "poisonTrail", "ratio": 0.1, "interval": 1, "radius": 1 },
       "desc": "DoT engine."
     },
     {
@@ -333,6 +332,7 @@
         "attackSpeedPer": 0.04,
         "cap": 0.12
       },
+      "vsSpecial": { "kind": "beaconHaste" },
       "desc": "Support aura. No attack."
     },
     {
@@ -361,6 +361,7 @@
         "gemValue": 3,
         "gemMax": 4
       },
+      "vsSpecial": { "kind": "sproutGems" },
       "desc": "Economy. Pays off again after the Sundering."
     }
   ]

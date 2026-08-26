@@ -27,14 +27,17 @@ test-retirement ledger. Read §8 before touching anything.
   worked example live as a unit test. **`p2b` is done this commit** — wielded
   attacks are live in Act II, scaled by character Power/attack speed/Area,
   triggering lifesteal and a new per-volley on-attack hook (`World.onAttack`)
-  for P6's classes to use. **`p2c` is the next action**: make towers inert but
-  present (damageable, standing obstacles) during VS and add each tower's §5
-  VS special.
+  for P6's classes to use. **`p2c` is done this commit**: towers stand inert but
+  present (damageable, standing obstacles) during VS and each tower's §5 VS
+  special is live (`src/sim/vsspecials.ts`) — see its own entry below.
+  **`p2d`/`p2e` are the next actions** (weapon-panel lineage text; delete the
+  Sundering/soul-binding).
 - **Where the code actually stands** (audit summary, full table at the top of
   BACKLOG.md): P0 and P4 are done; P1 is done **except sealing**; P5 is done bar two
-  pricing items; P2's VS **inheritance formula is built (p2a) but not wired** — `data/weapons.json`'s
-  8-weapon roster with its own level ladders and 6 slots stands where §6.1's
-  average-across-the-type formula belongs; P3's interleave is not built — the run is
+  pricing items; P2's VS **inheritance formula and towers' §5 specials are both
+  wired live (p2a, p2b, p2c)** — `data/weapons.json`'s
+  8-weapon roster with its own level ladders and 6 slots still stands alongside
+  wielded tower attacks rather than being replaced, pending p2e; P3's interleave is not built — the run is
   still V2's Day/Dusk/Night/Dawn cycle machine; P6 has **3 of 11 classes** and on the
   wrong framework; P7's equipment, VS upgrade pool and reward pipeline are unbuilt
   behind the relic/Ember/boon systems that supersede them; P9's Tuner is unbuilt and
@@ -83,9 +86,12 @@ test-retirement ledger. Read §8 before touching anything.
   rate — so the milestone moves damage into a bucket that is already full and
   measures **−5.4%** (88.6 → 83.8 dps). Both clauses are verbatim and both are
   ⚖. Logged as Q87 for §17's review list rather than resolved by an agent.
-- **Next action:** **P2** `p2c` (make towers inert but present during VS and
-  wire each tower's §5 VS special). `p2b` is done this commit — see its own
-  entry below. `p2a` is done — §6.1's formula (`src/sim/vswield.ts`), G3's
+- **Next action:** **P2** `p2d`/`p2e` (weapon-panel §6.2 lineage text; delete the
+  Sundering and soul-binding), or `p2f` (the QA-filed Brazier death-explosion
+  recursion bug, regression test first). `p2c` is done this commit — towers
+  inert but present in VS, each tower's §5 VS special live
+  (`src/sim/vsspecials.ts`) — see its own entry below. `p2b` is done — see its
+  own entry below. `p2a` is done — §6.1's formula (`src/sim/vswield.ts`), G3's
   worked example reproduced verbatim as a unit test, Q95 logs the "lv3"
   milestone-tier reading. `p1b` is done — G7 green in full, details below.
   Both Corrections are done:
@@ -93,6 +99,92 @@ test-retirement ledger. Read §8 before touching anything.
   QA-proven a no-op), and `x002` at `ef69a47` (lifesteal's cap removed and its
   accrual gated to normal damage per §2 — **not** a no-op; the sweep delta is
   below and in the session log). P0's remaining clause is carried as
+- **p2c — what a reader needs to know.** The acceptance criterion's first
+  clause ("towers do not attack") needed no new code: `updateTowers` (the only
+  function that fires an Act I tower attack) is reachable only from
+  `act1_build`/`act1_wave`, never from `updateAct2`, so towers were already
+  structurally inert in VS before this item. The actual work is the second
+  clause — each of the six §5 VS specials, live from a new module
+  (`src/sim/vsspecials.ts`, `updateVsSpecials`, wired into `updateAct2`
+  alongside `updateWieldedAttacks`). Three tick on a timer and are
+  character-relative (§6.2 calls a VS special a property of the *tower*, not
+  the character — Q98 — so none of the three scale with Power/Area/attack
+  speed the way `vswield.ts`'s wielded attacks do): Venom Spore's poison trail
+  follows the Warden and refreshes every second at `wielded.damage × 0.1`
+  (reusing the same `GroundArea('poison')` mechanism the `toxic_trail` soul
+  weapon already used, so it stacks/caps/sheds under §3 like any other
+  poison); Frost Obelisk's r2 ice aura follows the Warden and applies Frost
+  (§3's status — -30%/-30% — not V2's plain slow) every second; Tesla Coil's
+  wire grid reuses `linkSpires`'s existing pairing and pulses 5 dmg every
+  0.5s between every linked pair exactly once (`otherId < s.id` skip proven
+  correct for 3+-way links by QA). One is death-reactive: Fire Brazier's
+  Burning-enemy death-explosion (`triggerBurningExplode`, `src/sim/enemies.ts`,
+  called from `killEnemy`, gated on `w.huntsWarden` so it only fires in VS)
+  reads whichever Brazier is actually built from `/data` rather than
+  hardcoding the key — the m19a `shredArmor` lesson, named in its own doc
+  comment. Two needed no code at all: Beacon's haste and Sprout's gems already
+  existed as the `shrine`/`gem_bloom` terrain rows and already matched §5's
+  numbers verbatim (Q99); `vsSpecial: {kind: 'beaconHaste'|'sproutGems'}` is a
+  marker only, so the loader/Codex can see every tower has an authored special
+  without a second copy of numbers to drift. `vsSpecial` itself is a required,
+  typed discriminated union on every `TowerDef` (`content.ts`) — "none" is
+  explicit — so a special with no engine reader is a load error, not a
+  silently-dead data row, the exact failure mode its own doc comment names.
+  **Retired alongside it:** the V2 "terrain residual" code that used to fire
+  Ember Brazier/Frost Obelisk/Tesla Coil's old effects continuously from the
+  tower's own petrified tile — Q97 had already named it as double-paying
+  against both `updateWieldedAttacks` and the new specials, so it is deleted
+  from `weapons.ts` (`buildTerrainEffects`/`updateTerrainEffects`) rather than
+  left running alongside its replacement. Q98 logs the three defaults §5 left
+  unstated: no character-stat scaling on any special, poison trail radius 1
+  (matching Venom Spore's own authored `aoe`), electric pulse 5 dmg/0.5s (the
+  old `beamDps: 10` residual's average unchanged — a mechanical no-op per
+  Q40's no-tuning-before-P10 rule, not a retune). Acceptance met:
+  `tests/p2c-vs-specials.test.ts` (9 cases) — zero tower-dealt damage across a
+  full 4500-tick/75s VS wave (not a short stand-in) with the Warden outside
+  both attack and wielded range, an enemy damaging a tower with `w.phase`
+  actually set to `'act2'`, and one test per special (wire grid pulse, poison
+  trail dps/position, brazier explosion plus its no-brazier negative, frost
+  aura radius cutoff, beacon haste falloff, sprout gem cadence/value).
+  code-reviewer **APPROVE** (2 Minor taken: the five terrain fields the
+  deleted residual left as silently-dead schema/data —
+  `auraRadius`/`auraDps`/`auraType`/`slow`/`beamDps` — dropped from
+  `TerrainSchema` and the four `towers.json` rows that carried them now that
+  `vsSpecial` owns those numbers; the two test gaps above widened/fixed; 2
+  Nits not taken: caching the per-tick alive-special scan the way
+  `buildTerrainEffects` does, and a comment noting the Brazier explosion's
+  death-chain recursion is intentional). **qa-playtester PASS** on every
+  acceptance clause plus seven adversarial scenarios (redundant same-kind
+  towers, mid-wave tower death via enemy damage, sell-before-Act-II,
+  determinism across two independent 4500-tick worlds with every special
+  live, 3+-way Tesla Coil linking) — one real bug filed, not fixed here:
+  `triggerBurningExplode`'s direct recursion through `killEnemy` overflows
+  the call stack at ~1500-1600 chained Burning deaths in one explosion-radius
+  cluster. Latent under today's 350 `aliveCap` (not reachable through normal
+  spawn-capped play) but a real crash risk if the cap ever grows or a
+  burst-kill tool hits a packed crowd — filed as **p2f** with QA's exact
+  repro rather than patched here, since CLAUDE.md's rule is a failing
+  regression test before a fix, not a same-item patch for an unreachable edge.
+  **Balance — measured, nothing tuned, and the first time a durable A3 claim
+  itself (not just its bound) stopped being universally true.** Retiring the
+  double-paying residual (Q97) while standing up Frost Obelisk's
+  character-following aura in its place changes what the aura reaches: the
+  old residual only touched enemies that happened to path near the tower's
+  own tile, the new one blankets whoever is actually pressing the Warden,
+  continuously, for the whole fight. Measured (seeds 1-12, `no-move`): 2 of 12
+  previously-`defeat_warden` seeds (3, 5) now read outright
+  `victory`/`bossKilled: true` (Q100). `tests/a3-movement-mandatory.test.ts`
+  keeps both facts live rather than hiding either behind a `.skip`: the top
+  `it` asserts "always dies" over the ten seeds that still support it, a new
+  second `it` asserts the two-seed exception as a measured fact.
+  `tests/f001-cycle-machine.test.ts`'s reseed (seed 5 → 18) is the same
+  mechanism's other consequence — retiring the residual is a real Act II
+  damage cut for a `hybrid` board that leaned on it, so seed 5 no longer
+  reaches cycle 3 (dies mid cycle 1) where seeds 18/37/40 do. Full suite:
+  680 pass / 67 skipped, plus the pre-existing host-dependent A10 wall-clock
+  flake (recorded at p1b, not caused here) — refs: §5, §6.2, Q97, Q98, Q99,
+  Q100
+
 - **p2b — what a reader needs to know.** §6.1's last clause ("these are
   character attacks") is now `updateWieldedAttacks` (`src/sim/vswield.ts`),
   called from `updateAct2` alongside `updateWeapons`. Each built tower type

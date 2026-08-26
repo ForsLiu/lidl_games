@@ -286,8 +286,14 @@ describe('the cycle state machine (SPEC-V2 §1)', () => {
     // SPEC-V3 §4's upgrade tracks (m20a) moved it back: of seeds 1-20, only 16
     // reaches cycle 3 today. p2b's wielded VS attacks moved it again — of
     // seeds 1-30, only 5, 20 and 23 do; seed 16 no longer reaches cycle 3, so
-    // this pin moves to seed 5, measured, not chosen to flatter the change.)
-    const { report, run } = runWithPolicy(cfg({ cycles: 3, seed: 5 }), 'hybrid', 60 * 60 * 45);
+    // this pin moved to seed 5. p2c retires the double-paying terrain residual
+    // (Q97) that wielding was stacking on top of, which is a real damage cut
+    // for a hybrid board's Act II output — of seeds 1-40, seed 5 no longer
+    // reaches cycle 3 (it now dies mid cycle 1); only 18, 37 and 40 do. This
+    // pin moves to seed 18, measured, not chosen to flatter the change — see
+    // QUESTIONS Q100 for the same mechanism's other consequence (A3's two
+    // flipped seeds).
+    const { report, run } = runWithPolicy(cfg({ cycles: 3, seed: 18 }), 'hybrid', 60 * 60 * 45);
     expect(run.done).toBe(true);
     expect(report.outcome).not.toBe('running');
     expect(run.world.cycle).toBe(3);
@@ -312,7 +318,7 @@ describe('the cycle state machine (SPEC-V2 §1)', () => {
     expect(b.kills).toBe(a.kills);
   });
 
-  it('a terrain-passive tower built and petrified in cycle 2 actually applies its residual that Night', () => {
+  it('a tower built and petrified in cycle 2 stands into that Night', () => {
     const run = new Run(cfg({ cycles: 3 }));
     const w = run.world;
 
@@ -326,8 +332,8 @@ describe('the cycle state machine (SPEC-V2 §1)', () => {
     applyCommand(w, { k: 'dawn_done' });
     expect(w.cycle).toBe(2);
 
-    // Day 2: build a Venom Spore (has an auraRadius/auraDps terrain residual,
-    // and is unlocked for every class, unlike the Pyromancer-locked Brazier).
+    // Day 2: build a Venom Spore (carries a §5 VS special — p2c — and is
+    // unlocked for every class, unlike the Pyromancer-locked Brazier).
     w.warden.x = 5.5;
     w.warden.y = 5.5;
     const def = w.content.towerByKey.get('venom_spore')!;
@@ -341,9 +347,13 @@ describe('the cycle state machine (SPEC-V2 §1)', () => {
     const s = w.structures.find((x) => x.id === built.structure.id)!;
     expect(s.petrified).toBe(true);
 
-    // Tick once so updateTerrainEffects runs against the post-petrify field.
+    // SPEC-FINAL §6.2: inert but present — it stands into the Night rather
+    // than being cleared, and deals no tower-sourced damage of its own.
+    // Whether its VS special (the poison trail) actually fires is p2c's own
+    // coverage, tests/p2c-vs-specials.test.ts, not this cycle-machine smoke.
     run.step(emptyInput());
-    expect(w.terrainEffects?.auras).toContain(s);
+    expect(s.dead).toBe(false);
+    expect(w.damageByWeapon['venom_spore']).toBeUndefined();
   });
 
   it('SPEC-V2 §1: a later cycle\'s Night starts hotter — the same act2Time reaches a higher minute/HP scale', () => {
