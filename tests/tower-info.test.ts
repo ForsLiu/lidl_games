@@ -8,7 +8,9 @@
 import { describe, expect, it } from 'vitest';
 
 import { World } from '../src/sim/world';
+import { updateProjectiles } from '../src/sim/combat';
 import { loadContent } from '../src/sim/content';
+import { dotOutstanding, spawnEnemy } from '../src/sim/enemies';
 import { deriveSouls } from '../src/sim/progression';
 import {
   buildTower,
@@ -16,6 +18,7 @@ import {
   sellTower,
   towerCost,
   towerDamage,
+  updateTowers,
   upgradeCost,
   upgradeTower,
 } from '../src/sim/towers';
@@ -133,18 +136,80 @@ describe('tower info model', () => {
       expect(upgradeTower(w, tx, ty)).toBe(true);
     }
     const maxed = towerInfo(w, def, w.structureAt(tx, ty)!).attackText;
-    expect(maxed, 'SPEC-V3 §4: an upgrade step buys no arcs').toBe(level1);
+    // m20b: §4 still spends no step on an arc *count* — Electric arcs because
+    // of one milestone at step 3, and the panel says so exactly there and not
+    // before. The old assertion was that the sentence never changed at all,
+    // which was true only while the milestone was unimplemented.
+    expect(level1, 'nothing arcs on a freshly built coil').not.toMatch(/arcs/);
+    expect(maxed, 'the milestone is described where it lands').toMatch(/electric half then arcs/);
     expect(maxed).not.toMatch(/per tier/);
-    // `chainHit` counts the first target inside `chains`, so the sentence has
-    // to quote a total, not "the first plus N more".
-    expect(maxed).toContain(`${def.attack!.chains} enemies are hit`);
+    const milestone = def.upgrades.specials[0];
+    const below = towerInfo(w, def, { ...w.structureAt(tx, ty)!, tier: milestone.at }).attackText;
+    expect(below, 'and not one step early').toBe(level1);
   });
 
-  it('quotes the damage the sim deals, affinity included', () => {
+  // QA, m20b: the panel quoted the *authored* damage, so it understated an
+  // Arrow at level 6 by exactly 2x (two projectiles), a Tesla at 4 by a third
+  // (the electric half lands twice) and said nothing about a Venom Spore's
+  // poison, which is most of what it deals. Measured against the fire loop
+  // rather than against `towerDamage`, at every level of every track, so no
+  // milestone the panel forgets can pass.
+  it('quotes what one attack actually does to an enemy, at every level', () => {
+    for (const def of content.towers.towers) {
+      if (!def.attack) continue;
+      for (let tier = 1; tier <= maxLevel(def); tier++) {
+        const w = new World(cfg());
+        w.gold = 1e6;
+        const { tx, ty } = freeTileNear(w);
+        expect(buildTower(w, def.id, tx, ty).ok, def.key).toBe(true);
+        for (let i = 1; i < tier; i++) {
+          w.gold = 1e6;
+          expect(upgradeTower(w, tx, ty), `${def.key} step ${i}`).toBe(true);
+        }
+        const s = w.structureAt(tx, ty)!;
+        const info = towerInfo(w, def, s);
+        const quoted = (label: string) => {
+          const line = info.stats.find((x) => x.label === label);
+          return line ? Number(line.value.split(' ')[0]) : 0;
+        };
+
+        // One attack, fired at a lone enemy, projectiles allowed to land.
+        const gap = Math.max((def.attack.minRange ?? 0) + 1, 2);
+        const e = spawnEnemy(w, 'husk', tx + 0.5, ty + 0.5 - gap)!;
+        e.hp = 1e9;
+        e.maxHp = 1e9;
+        e.armor = 0;
+        e.speed = 0;
+        w.rebuildBuckets();
+        const before = e.hp;
+        updateTowers(w, 1 / 60);
+        for (let i = 0; i < 240 && w.projectiles.some((p) => !p.dead); i++) updateProjectiles(w, 1 / 60);
+        const impact = before - e.hp;
+        const ailment = dotOutstanding(e);
+
+        const cone = def.attack.kind === 'cone';
+        const interval = def.attack.interval;
+        const where = `${def.key} L${tier}`;
+        // The panel prints one decimal, so agreement means agreement to within
+        // half of one — tighter than that is an assertion about float order.
+        const agrees = (label: string, measured: number, what: string) =>
+          expect(Math.abs(quoted(label) - measured), `${where} ${what}: panel ${quoted(label)} vs ${measured}`)
+            .toBeLessThanOrEqual(0.051);
+        agrees('Damage', cone ? impact / interval : impact, 'impact');
+        expect(
+          Math.abs(quoted('Ailment per shot') + quoted('Ailment') - ailment),
+          `${where} ailment`,
+        ).toBeLessThanOrEqual(0.051);
+        if (!cone) agrees('Single-target DPS', (impact + ailment) / interval, 'dps');
+      }
+    }
+  });
+
+  it('includes the class affinity bonus in the number it quotes', () => {
     for (const cls of content.classes.classes) {
       const w = new World(cfg({ classKey: cls.key }));
       for (const def of content.towers.towers) {
-        if (!def.attack) continue;
+        if (!def.attack || def.attack.damageRatio) continue;
         const { tx, ty } = freeTileNear(w);
         w.gold = 99999;
         expect(buildTower(w, def.id, tx, ty).ok, def.key).toBe(true);

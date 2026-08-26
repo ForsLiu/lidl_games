@@ -13,6 +13,10 @@ import {
   type DamageOptions,
   type WardenDamageOptions,
 } from './enemies';
+// SPEC-V3 §3's composite splits. The cycle with `damagetypes.ts` (which imports
+// `applyAoE` for Electric's inherent radius) is deliberate and safe: both sides
+// are called from inside functions, neither is read at module evaluation.
+import { applyDamageSplit } from './damagetypes';
 import { dcos, dist2, normalize } from './math';
 import type { Enemy, Projectile } from './types';
 import { World } from './world';
@@ -34,6 +38,30 @@ export interface HitEffects {
    * lines, chains and blasts all funnel into `applyEffects`.
    */
   onHit?: readonly string[];
+  /**
+   * SPEC-V3 §3/§4: how this hit's damage is *typed* — `{normal: 1, electric: 1}`
+   * for the Electric tower. Rides in the same bundle as `onHit` and for the
+   * same reason: a split that only one of the seven hit shapes honoured is the
+   * silent drop QA found in m19c's cone case, one layer down.
+   */
+  ratio?: Readonly<Record<string, number>> | null;
+}
+
+/**
+ * One hit's damage, typed if the attack says how. Every shape below goes
+ * through this rather than calling `damageEnemy` itself, so a composite tower
+ * cannot lose its types by being fired out of the wrong `kind`.
+ */
+export function dealHit(
+  w: World,
+  e: Enemy,
+  amount: number,
+  source: string,
+  fx: HitEffects,
+  opts: DamageOptions,
+): number {
+  if (!fx.ratio) return damageEnemy(w, e, amount, source, opts);
+  return applyDamageSplit(w, e, fx.ratio, amount, source, opts);
 }
 
 export function applyEffects(w: World, e: Enemy, fx: HitEffects): void {
@@ -48,8 +76,14 @@ export function applyEffects(w: World, e: Enemy, fx: HitEffects): void {
 /* ------------------------------------------------------------- targeting */
 
 /**
- * Act I towers shoot the enemy nearest the Core (classic "first" targeting);
- * ties break on entity id so replays are stable.
+ * Act I towers shoot the enemy nearest the Core (classic "first" targeting).
+ *
+ * Ties — and they are common, since the flow field is per tile — go to whichever
+ * enemy the bucket scan reached first. That is deterministic (the buckets are
+ * rebuilt in a fixed order each tick) and it is what every balance number in
+ * the repo was measured against: making ties break on entity id instead, which
+ * this comment used to claim, focuses fire hard enough to take `venom_spore`
+ * from 0/5 to 5/5 on A4's T3 clause. `targetFirstN` matches it deliberately.
  */
 export function targetFirst(w: World, x: number, y: number, range: number): Enemy | null {
   const list = w.enemiesInRadius(x, y, range);
@@ -64,6 +98,44 @@ export function targetFirst(w: World, x: number, y: number, range: number): Enem
     }
   }
   return best;
+}
+
+/**
+ * The `n` enemies nearest the Core within range, best first — "first"
+ * targeting for a tower firing more than one shot (SPEC-V3 §4 gives Poison a
+ * second projectile at upgrade 2). Selection rather than a sort: `n` is 2 in
+ * all shipped content and the candidate list is the whole horde in range.
+ *
+ * Spending all shots on one enemy would make the milestone worthless against
+ * anything but a boss, so the shots spread; a caller wanting them stacked (§4
+ * spells Arrow's out as "same path") does not ask for targets twice.
+ */
+export function targetFirstN(w: World, x: number, y: number, range: number, n: number): Enemy[] {
+  if (n <= 1) {
+    const one = targetFirst(w, x, y, range);
+    return one ? [one] : [];
+  }
+  const list = w.enemiesInRadius(x, y, range);
+  const picked: Enemy[] = [];
+  const keys: number[] = [];
+  for (const e of list) {
+    const d = w.grid.distAt(Math.floor(e.x), Math.floor(e.y), e.flying || e.ghosting);
+    const key = d < 0 ? 1e9 + dist2(e.x, e.y, x, y) : d;
+    // Insertion into a list of at most `n`. Strictly-greater, so a tie leaves
+    // the enemy the bucket scan reached first in front — the same rule
+    // `targetFirst` uses, which is what makes this tower's primary target the
+    // same one before and after its second projectile unlocks (QA, m20b).
+    let i = picked.length;
+    while (i > 0 && keys[i - 1] > key) i--;
+    if (i >= n) continue;
+    picked.splice(i, 0, e);
+    keys.splice(i, 0, key);
+    if (picked.length > n) {
+      picked.pop();
+      keys.pop();
+    }
+  }
+  return picked;
 }
 
 /**
@@ -210,7 +282,7 @@ export function applyAoE(
   let scale = 1;
   const hitOpts: DamageOptions = { fromX: x, fromY: y, ...opts.damage };
   const strike = (e: Enemy): void => {
-    total += damageEnemy(w, e, damage * scale, source, hitOpts);
+    total += dealHit(w, e, damage * scale, source, fx, hitOpts);
     if (!e.dead) applyEffects(w, e, fx);
     hit++;
     if (hit >= cfg.aoeFullTargets) scale = Math.max(cfg.aoeFalloffFloor, scale * cfg.aoeFalloff);
@@ -254,12 +326,24 @@ export function coneHit(
   let scale = 1;
   for (const e of inCone) {
     if (e.dead) continue;
-    total += damageEnemy(w, e, damage * scale, source, { fromX: x, fromY: y });
+    total += dealHit(w, e, damage * scale, source, fx, { fromX: x, fromY: y });
     if (!e.dead) applyEffects(w, e, fx);
     hit++;
     if (hit >= cfg.aoeFullTargets) scale = Math.max(cfg.aoeFalloffFloor, scale * cfg.aoeFalloff);
   }
   return total;
+}
+
+export interface LineOptions {
+  /**
+   * The enemy the line was *aimed at*. It takes the first, full-scale hit and
+   * is skipped by the sweep — same rule as a blast's `primary`, and for the
+   * same reason: SPEC-V3 §4's Arrow shoots the enemy nearest the Core and then
+   * carries on through whoever is behind it, so the target it picked must not
+   * be demoted by a body that happens to stand closer to the tower, nor be
+   * missed because the spatial buckets have not seen it (Q72).
+   */
+  primary?: Enemy;
 }
 
 export function lineHit(
@@ -274,7 +358,28 @@ export function lineHit(
   source: string,
   maxHits: number,
   fx: HitEffects = {},
+  opts: LineOptions = {},
 ): number {
+  const falloff = w.content.weapons.pierceFalloff;
+  const floor = w.content.weapons.pierceFalloffFloor;
+  let total = 0;
+  let n = 0;
+  let scale = 1;
+  const strike = (e: Enemy): void => {
+    total += dealHit(w, e, damage * scale, source, fx, { fromX: x, fromY: y });
+    if (!e.dead) applyEffects(w, e, fx);
+    n++;
+    // A shot that pierces everything would otherwise scale with horde size and
+    // dominate every other weapon (SPEC A5), so each successive hit lands softer.
+    scale = Math.max(floor, scale * falloff);
+  };
+  const primary = opts.primary;
+  if (primary && !primary.dead && maxHits > 0) strike(primary);
+  // Only now: the sweep below is a second spatial query and a sort, and a shot
+  // with no pierce left — every V2-authored single-target tower, firing twice a
+  // second — has nothing to spend them on.
+  if (n >= maxHits) return total;
+
   const list = w.enemiesInRadius(x + dx * range * 0.5, y + dy * range * 0.5, range * 0.5 + 2);
   const hits: { e: Enemy; along: number }[] = [];
   for (const e of list) {
@@ -287,20 +392,10 @@ export function lineHit(
     hits.push({ e, along });
   }
   hits.sort((a, b) => a.along - b.along || a.e.id - b.e.id);
-  // A shot that pierces everything would otherwise scale with horde size and
-  // dominate every other weapon (SPEC A5), so each successive hit lands softer.
-  const falloff = w.content.weapons.pierceFalloff;
-  const floor = w.content.weapons.pierceFalloffFloor;
-  let total = 0;
-  let n = 0;
-  let scale = 1;
   for (const h of hits) {
     if (n >= maxHits) break;
-    if (h.e.dead) continue;
-    total += damageEnemy(w, h.e, damage * scale, source, { fromX: x, fromY: y });
-    if (!h.e.dead) applyEffects(w, h.e, fx);
-    n++;
-    scale = Math.max(floor, scale * falloff);
+    if (h.e.dead || h.e === primary) continue;
+    strike(h.e);
   }
   return total;
 }
@@ -323,7 +418,7 @@ export function chainHit(
   let py = originY;
   for (let i = 0; i < chains && cur; i++) {
     hit.add(cur.id);
-    total += damageEnemy(w, cur, damage, source, { fromX: px, fromY: py });
+    total += dealHit(w, cur, damage, source, fx, { fromX: px, fromY: py });
     if (!cur.dead) applyEffects(w, cur, fx);
     w.emit('arc', px, py, cur.x, cur.y);
     px = cur.x;
@@ -374,6 +469,7 @@ export function spawnProjectile(w: World, spec: ProjectileSpec): Projectile {
     slow: spec.fx?.slow ?? 0,
     slowDuration: spec.fx?.slowDuration ?? 0,
     onHit: spec.fx?.onHit ?? EMPTY_ON_HIT,
+    ratio: spec.fx?.ratio ?? null,
     dead: false,
   };
   w.projectiles.push(p);
@@ -410,17 +506,9 @@ export function updateProjectiles(w: World, dt: number): void {
     for (const e of list) {
       if (e.dead || p.hitIds.includes(e.id)) continue;
       p.hitIds.push(e.id);
-      damageEnemy(w, e, p.damage, p.source, { fromX: px, fromY: py });
-      if (!e.dead) {
-        applyEffects(w, e, {
-          source: p.source,
-          burnDps: p.burnDps,
-          burnDuration: p.burnDuration,
-          slow: p.slow,
-          slowDuration: p.slowDuration,
-          onHit: p.onHit,
-        });
-      }
+      const fx = projectileEffects(p);
+      dealHit(w, e, p.damage, p.source, fx, { fromX: px, fromY: py });
+      if (!e.dead) applyEffects(w, e, fx);
       if (p.pierceLeft > 0) {
         p.pierceLeft--;
       } else {
@@ -431,16 +519,22 @@ export function updateProjectiles(w: World, dt: number): void {
   }
 }
 
-function detonate(w: World, p: Projectile): void {
-  w.emit('boom', p.x, p.y, p.aoe, 0);
-  applyAoE(w, p.x, p.y, p.aoe, p.damage, p.source, {
+/** The riders a projectile carries, rebuilt at the moment it lands. */
+function projectileEffects(p: Projectile): HitEffects {
+  return {
     source: p.source,
     burnDps: p.burnDps,
     burnDuration: p.burnDuration,
     slow: p.slow,
     slowDuration: p.slowDuration,
     onHit: p.onHit,
-  });
+    ratio: p.ratio,
+  };
+}
+
+function detonate(w: World, p: Projectile): void {
+  w.emit('boom', p.x, p.y, p.aoe, 0);
+  applyAoE(w, p.x, p.y, p.aoe, p.damage, p.source, projectileEffects(p));
 }
 
 /* ------------------------------------------------------------ ground areas */

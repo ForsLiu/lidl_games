@@ -7,3 +7,4 @@ out/
 # throwaway probe scratch from review/QA passes
 .qa-*/
 .review-mut/
+.tmp/

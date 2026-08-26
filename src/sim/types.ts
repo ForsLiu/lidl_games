@@ -213,6 +213,8 @@ export interface Projectile {
   slowDuration: number;
   /** SPEC-V3 §3 types/statuses this shot applies on impact (tower `onHit`). */
   onHit: readonly string[];
+  /** SPEC-V3 §3 split this shot's damage lands as, or null for all Normal. */
+  ratio: Readonly<Record<string, number>> | null;
   dead: boolean;
 }
 

@@ -155,14 +155,21 @@ describe('the Warden-Eater (SPEC 5.5)', () => {
     expect(report.relicsFound).toBeGreaterThan(0);
   });
 
+  // Twenty seeds, not eight. The claim is a *rate* — the bot loses this fight
+  // some of the time — and the loss rate measured either side of m20b is
+  // 15% (HEAD 17/20 wins, m20b 18/20). Eight seeds carry a better-than-1-in-4
+  // chance of containing no loss at all, so the "but not all" half used to
+  // pass or fail on which seeds happened to be in the window: m20b's content
+  // change moved the losing seeds from {3,15,17} to {13,15} without moving the
+  // rate, and that alone turned the assertion red.
   it('is a real fight: most scripted runs win, but not all', () => {
     let wins = 0;
-    const seeds = [1, 2, 3, 4, 5, 6, 7, 8];
+    const seeds = Array.from({ length: 20 }, (_, i) => i + 1);
     for (const seed of seeds) {
       if (runWithPolicy(cfg({ seed }), 'maxbuild').report.bossKilled) wins++;
     }
-    expect(wins).toBeGreaterThanOrEqual(5);
-    expect(wins).toBeLessThan(seeds.length);
+    expect(wins, 'most runs win').toBeGreaterThanOrEqual(Math.ceil(seeds.length * 0.6));
+    expect(wins, 'but not all of them').toBeLessThan(seeds.length);
   });
 });
 

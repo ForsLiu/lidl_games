@@ -16,14 +16,21 @@ recorded reason, not a nudged constant.
 
 ### M20 — tower model v3 (gate: data tests)
 
-- [ ] (m20b) [feat] The three owner towers (Arrow, Electric, Poison) with their
-      milestone specials — acceptance: one test per listed special (+1 pierce @3,
-      Bleeding @4, +1 projectile @5; electric chain @3; +1 projectile @2, ratio
-      1:1.5 @4) — refs: V3 §4
 - [ ] (m20c) [balance] Migrate the remaining seven towers to the v3 model and log
       proposed tracks to QUESTIONS for owner sign-off — acceptance: all ten towers
       pass the m20a data test; QUESTIONS entry lists each proposed track — refs:
       V3 §4, Q39
+- [ ] (m20d) [balance] Price the Venom Spore's track so its `+1 projectile @2`
+      can pay out. Today the spare spore is dropped when fewer enemies are in
+      range than the tower has shots, so the step buys nothing against a lone
+      Gatebreaker or the boss — and aiming it at the leading target instead takes
+      A4's "venom_spore alone fails Act I at T3" from 0/5 to **5/5**, so the fix
+      and the tower's damage are one decision. Same item covers QA's second
+      measurement: the @4 ratio shift is non-monotonic (a level-5 Venom clears 40
+      husks 34% slower than a level-4 one) — acceptance: `tests/m20b-owner-
+      towers.test.ts`'s skipped "still fires that second spore" case is enabled
+      and green, the "worth nothing at @2" case that pins today's behaviour is
+      deleted with it, and A4's T3 clause stays 0/5 — refs: V3 §4, Q79, QA on m20b
 
 ### M21 — VS formula (gate C2)
 
@@ -219,6 +226,33 @@ sit naturally alongside M24, which touches saves again.
       — refs: QA on t3, bug 11
 
 ## Done
+
+- [x] (m20b) [feat] The three owner towers and their milestone specials (SPEC-V3
+      §4) — commit `PENDING` — §4's specials are typed entries in each tower's
+      `upgrades.specials`, folded into an effective attack by `attackProfile`
+      (`src/sim/upgrades.ts`) that every reader — fire loop, info panel, and m21's
+      VS formula next — shares. Arrow: pierce and a second shot down the same
+      line, Bleeding at 4. Electric: `normal:electric = 1:1`, one strike, the
+      electric half arcing at 3. Poison: `normal:poison = 1:1 → 1:1.5`, small AoE,
+      second spore at 2; its V2 `attack.poison` constant is deleted and its damage
+      re-priced 4 → 45 so the DoT-as-a-share of §3 reproduces V2's output (Q76).
+      Composite damage rides in `HitEffects.ratio` and is dealt by one `dealHit`,
+      so all seven attack shapes carry a split — pinned by a test that drives each
+      shape, m19c's coverage rule one layer down. Acceptance met:
+      `tests/m20b-owner-towers.test.ts` (24 tests, 1 skipped) drives every listed
+      special through the real fire loop at the step below it and the step it
+      lands on. code-reviewer **REQUEST-CHANGES** (1 Major) and qa-playtester
+      **PASS** with 5 filed; fixed here: the untested Venom splash, the arc's lost
+      damage origin (a front shield read the copy differently from the hit it
+      copies), `lineHit` sweeping for a pierce it did not have, the loader
+      accepting a special the attack's `kind` cannot read, and the info panel
+      understating an Arrow at 6 by exactly 2× — that last one now measured
+      against the fire loop at every level of every track. Each fix verified by
+      reverting it. Two findings ship unfixed and pinned, both m20d: Poison's
+      dropped spare spore and its non-monotonic @4 (Q79). The lesson worth
+      keeping is Q78's: the first draft of the balance note blamed a tower the
+      sweep never builds — a 12-seed median moved 30%, and at 32 seeds both trees
+      read the same. 625 tests pass, 25 skipped — refs: V3 §4, Q75–Q79
 
 - [x] (m20a) [feat] Per-tower upgrade tracks (SPEC-V3 §4) — commit `5305f8d` —
       `upgrades: {count, stepCost, specials}` and a real `defense` on every tower,

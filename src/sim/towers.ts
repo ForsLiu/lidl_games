@@ -8,25 +8,49 @@
  */
 
 import {
+  applyAoE,
   applyEffects,
   bestConeDirection,
   bestLineDirection,
   chainHit,
   coneHit,
+  dealHit,
+  type HitEffects,
+  lineHit,
   spawnProjectile,
   targetFirst,
+  targetFirstN,
 } from './combat';
 import type { TowerDef } from './content';
+import { applyDamageType } from './damagetypes';
 import { dist2, normalize } from './math';
-import { applySlow, damageEnemy } from './enemies';
-import type { Structure } from './types';
-import { maxLevel, sellValue, structureMaxHp, upgradeCost, upgradeStatMul } from './upgrades';
+import { applySlow } from './enemies';
+import type { Enemy, Structure } from './types';
+import {
+  attackProfile,
+  damageShare,
+  maxLevel,
+  sellValue,
+  structureMaxHp,
+  upgradeCost,
+  upgradeStatMul,
+} from './upgrades';
 import { World } from './world';
 
 // SPEC-V3 §4's track math lives in `upgrades.ts` (enemies.ts needs part of it
 // and imports would go circular); re-exported so `towers` stays the one import
 // the UI, the bots and the tests reach for.
-export { maxLevel, sellValue, structureArmor, structureMaxHp, upgradeCost, upgradeStatMul } from './upgrades';
+export {
+  attackProfile,
+  damageShare,
+  maxLevel,
+  sellValue,
+  structureArmor,
+  structureMaxHp,
+  upgradeCost,
+  upgradeStatMul,
+} from './upgrades';
+export type { AttackProfile } from './upgrades';
 
 export type BuildResult =
   | { ok: true; structure: Structure }
@@ -194,8 +218,12 @@ export function effectiveTowerRange(w: World, def: TowerDef, _level = 1): number
  */
 export function effectiveTowerAoe(w: World, def: TowerDef): number {
   const a = def.attack;
-  if (!a || a.kind !== 'lob') return 0;
-  return (a.aoe ?? 1.5) * w.derived.areaMul;
+  if (!a) return 0;
+  // A lob always bursts (1.5 where unauthored); SPEC-V3 §4's Poison tower has
+  // a "small AoE" it authors outright, and every other kind has none.
+  if (a.kind === 'lob') return (a.aoe ?? 1.5) * w.derived.areaMul;
+  if (a.kind === 'poison') return (a.aoe ?? 0) * w.derived.areaMul;
+  return 0;
 }
 
 /** Minimum range a lob refuses to fire inside, or 0. See `pickLobTarget`. */
@@ -263,6 +291,9 @@ export function updateTowers(w: World, dt: number): void {
   }
 }
 
+/** SPEC-V3 §4: how wide a line an Arrow's shot sweeps as it carries through. */
+const LINE_HALF_WIDTH = 0.4;
+
 function fireTower(w: World, s: Structure, def: TowerDef): void {
   const a = def.attack!;
   const x = s.tx + 0.5;
@@ -271,9 +302,14 @@ function fireTower(w: World, s: Structure, def: TowerDef): void {
   const dmg = towerDamage(w, s, a.damage);
   const area = w.derived.areaMul;
   const source = def.key;
-  // SPEC-V3 §3 riders travel with every shape this tower can fire, so a type
-  // authored in /data cannot be silently dropped by one `kind` out of seven.
-  const onHit = a.onHit;
+  // SPEC-V3 §4's milestone specials, folded into what this tower fires *at this
+  // level*. Read here rather than off `def` so no case can shoot the authored
+  // attack and quietly ignore the steps the player bought.
+  const prof = attackProfile(def, s.tier);
+  // SPEC-V3 §3 riders and the composite split travel with every shape this
+  // tower can fire, so neither can be silently dropped by one `kind` out of
+  // seven.
+  const fx: HitEffects = { source, onHit: prof.onHit, ratio: prof.ratio };
 
   switch (a.kind) {
     case 'single': {
@@ -282,29 +318,44 @@ function fireTower(w: World, s: Structure, def: TowerDef): void {
         s.cooldown = 0;
         return;
       }
-      s.damageDealt += damageEnemy(w, t, dmg, source, { fromX: x, fromY: y });
-      if (!t.dead) applyEffects(w, t, { source, onHit });
-      w.emit('shot', x, y, t.x, t.y);
+      // §4 Arrow: the shot flies through the target and carries on into
+      // whoever is behind it (`pierce`), and a milestone can put a second shot
+      // down that same path (`projectiles`). At `pierce: 0, projectiles: 1` —
+      // every V2-authored single-target tower — this is one full-damage hit on
+      // the target and nothing else, which is what it has always been.
+      const dir = normalize(t.x - x, t.y - y);
+      // A target standing exactly on the tower gives no direction, and a line
+      // of (0,0) is a line every enemy in reach lies on — so the shot pierces
+      // nothing rather than everything.
+      const hits = dir.x === 0 && dir.y === 0 ? 1 : 1 + prof.pierce;
+      for (let i = 0; i < prof.projectiles; i++) {
+        s.damageDealt += lineHit(w, x, y, dir.x, dir.y, range, LINE_HALF_WIDTH, dmg, source, hits, fx, {
+          primary: t,
+        });
+        w.emit('shot', x, y, t.x, t.y);
+      }
       break;
     }
     case 'pierce': {
-      const dir = bestLineDirection(w, x, y, range, 0.4);
+      const dir = bestLineDirection(w, x, y, range, LINE_HALF_WIDTH);
       if (!dir) {
         s.cooldown = 0;
         return;
       }
-      spawnProjectile(w, {
-        kind: 'bolt',
-        x,
-        y,
-        targetX: x + dir.x * range,
-        targetY: y + dir.y * range,
-        speed: a.projectileSpeed ?? 14,
-        damage: dmg,
-        pierce: a.pierce ?? 1,
-        source,
-        fx: { source, onHit },
-      });
+      for (let i = 0; i < prof.projectiles; i++) {
+        spawnProjectile(w, {
+          kind: 'bolt',
+          x,
+          y,
+          targetX: x + dir.x * range,
+          targetY: y + dir.y * range,
+          speed: a.projectileSpeed ?? 14,
+          damage: dmg,
+          pierce: prof.pierce,
+          source,
+          fx,
+        });
+      }
       break;
     }
     case 'cone': {
@@ -315,10 +366,9 @@ function fireTower(w: World, s: Structure, def: TowerDef): void {
         return;
       }
       s.damageDealt += coneHit(w, x, y, dir.x, dir.y, range, halfAngle, dmg, source, {
-        source,
+        ...fx,
         burnDps: a.burn ? a.burn.dps * upgradeStatMul(w, def, s.tier) : 0,
         burnDuration: a.burn?.duration ?? 0,
-        onHit,
       });
       w.emit('cone', x, y, dir.x, dir.y);
       break;
@@ -328,10 +378,10 @@ function fireTower(w: World, s: Structure, def: TowerDef): void {
       const list = w.enemiesInRadius(x, y, r);
       for (const e of list) {
         if (e.dead) continue;
-        s.damageDealt += damageEnemy(w, e, dmg, source, { fromX: x, fromY: y });
+        s.damageDealt += dealHit(w, e, dmg, source, fx, { fromX: x, fromY: y });
         if (e.dead) continue;
         if (a.slow) applySlow(w, e, a.slow, a.slowDuration ?? 1);
-        applyEffects(w, e, { source, onHit });
+        applyEffects(w, e, fx);
       }
       if (list.length > 0) w.emit('pulse', x, y, r, 0);
       break;
@@ -344,10 +394,13 @@ function fireTower(w: World, s: Structure, def: TowerDef): void {
       }
       // V2 gave +1 arc per tier. SPEC-V3 §4 spends an upgrade step on HP,
       // Attack and Defense and makes the Electric tower's chaining a milestone
-      // special at step 3 instead (m20b authors it), so the count is the
-      // authored one at every level.
-      const chains = a.chains ?? 3;
-      s.damageDealt += chainHit(w, x, y, t, chains, a.chainRange ?? 3, dmg, source, { source, onHit });
+      // special at step 3 instead, so the authored count is the count at every
+      // level and the milestone arcs on top of it.
+      const chainRange = a.chainRange ?? 3;
+      s.damageDealt += chainHit(w, x, y, t, a.chains ?? 3, chainRange, dmg, source, fx);
+      if (prof.electricChain) {
+        s.damageDealt += arcElectric(w, t, dmg, prof.ratio, chainRange, source, x, y);
+      }
       break;
     }
     case 'lob': {
@@ -370,29 +423,80 @@ function fireTower(w: World, s: Structure, def: TowerDef): void {
         damage: dmg,
         aoe: (a.aoe ?? 1.5) * area,
         source,
-        fx: { source, onHit },
+        fx,
       });
       break;
     }
     case 'poison': {
-      const t = targetFirst(w, x, y, range);
-      if (!t) {
+      // SPEC-V3 §4 Poison: "small AoE", and a milestone that adds a second
+      // spore. The second one goes to the next enemy down the path rather than
+      // stacking on the first — §4 spells "same path" out for Arrow and not
+      // here — so a Venom Spore at 3 covers two lanes.
+      // A spore with no second enemy to go to is dropped, so the milestone is
+      // worth nothing against a lone Gatebreaker or the boss — QA's finding,
+      // and a real wart. The obvious fix (spare shots fall back onto the
+      // leading target) is a bigger buff than it looks: it takes A4's
+      // "venom_spore alone fails Act I at T3" from 0/5 to **5/5**, i.e. it
+      // makes the tower solo the gate that exists to stop exactly that. It
+      // needs the tower's damage re-priced with it, which is m20c's job with
+      // owner sign-off (BACKLOG m20d, QUESTIONS Q79).
+      const targets = targetFirstN(w, x, y, range, prof.projectiles);
+      if (targets.length === 0) {
         s.cooldown = 0;
         return;
       }
-      const p = a.poison!;
-      applyEffects(w, t, {
-        source,
-        poisonDps: p.dps * upgradeStatMul(w, def, s.tier) * w.derived.powerMul,
-        poisonDuration: p.duration,
-        poisonStacks: p.maxStacks,
-        onHit,
-      });
-      if (dmg > 0) s.damageDealt += damageEnemy(w, t, dmg, source, { fromX: x, fromY: y });
-      w.emit('spore', x, y, t.x, t.y);
+      // §3's ratio *is* the poison now: V2's second constant (`attack.poison`,
+      // a dps and a duration of its own) is gone, so the DoT scales with the
+      // attack rather than with a number nobody remembers to upgrade.
+      // One reading of the radius, the panel's: two would drift (the m20a trap).
+      const splash = effectiveTowerAoe(w, def);
+      for (const t of targets) {
+        if (splash > 0) {
+          s.damageDealt += applyAoE(w, t.x, t.y, splash, dmg, source, fx, {
+            primary: t,
+            damage: { fromX: x, fromY: y },
+          });
+        } else {
+          s.damageDealt += dealHit(w, t, dmg, source, fx, { fromX: x, fromY: y });
+          if (!t.dead) applyEffects(w, t, fx);
+        }
+        w.emit('spore', x, y, t.x, t.y);
+      }
       break;
     }
   }
+}
+
+/**
+ * SPEC-V3 §4 Electric @3: "the electric portion chains to the nearest other
+ * enemy (visual arc, no normal damage in the chain); if no other target, it
+ * applies twice to the first".
+ *
+ * Only the electric share travels, so this is not another `chainHit` — the arc
+ * carries a fraction of the attack, not the attack.
+ */
+function arcElectric(
+  w: World,
+  first: Enemy,
+  damage: number,
+  ratio: Readonly<Record<string, number>> | null,
+  chainRange: number,
+  source: string,
+  originX: number,
+  originY: number,
+): number {
+  const share = damageShare(ratio, 'electric') * damage;
+  if (share <= 0) return 0;
+  const next = w.nearestEnemy(first.x, first.y, chainRange, (e) => e.id !== first.id);
+  if (!next) {
+    // "Applies twice to the first": the attack landed one, this is the second —
+    // and it comes from the same place the first did, so a Shellback's front
+    // shield reads it the same way. Without the origin the second application
+    // hits *harder* than the one it is a copy of.
+    return applyDamageType(w, first, 'electric', share, source, { fromX: originX, fromY: originY });
+  }
+  w.emit('arc', first.x, first.y, next.x, next.y);
+  return applyDamageType(w, next, 'electric', share, source, { fromX: first.x, fromY: first.y });
 }
 
 function pickLobTarget(w: World, x: number, y: number, minRange: number, range: number) {

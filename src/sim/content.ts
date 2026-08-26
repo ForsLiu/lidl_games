@@ -26,7 +26,12 @@ const str = z.string();
 /* ------------------------------------------------------------------ towers */
 
 const BurnSchema = z.object({ dps: num, duration: num });
-const PoisonSchema = z.object({ dps: num, duration: num, maxStacks: num });
+
+/**
+ * SPEC-V3 §3's composite attacks: "electric tower `normal:electric = 1:1`".
+ * Shares of one attack's damage, by damage-type key — not multipliers of it.
+ */
+const DamageRatioSchema = z.record(num);
 
 const TowerAttackSchema = z
   .object({
@@ -35,7 +40,10 @@ const TowerAttackSchema = z
     interval: num,
     range: num,
     minRange: num.optional(),
+    /** Enemies the shot carries on through *beyond* the first (Ballista: 3 → 4 hit). */
     pierce: num.optional(),
+    /** SPEC-V3 §4: shots fired per attack. Defaults to 1 where unauthored. */
+    projectiles: num.int().positive().optional(),
     aoe: num.optional(),
     chains: num.optional(),
     chainRange: num.optional(),
@@ -44,7 +52,11 @@ const TowerAttackSchema = z
     slowDuration: num.optional(),
     projectileSpeed: num.optional(),
     burn: BurnSchema.optional(),
-    poison: PoisonSchema.optional(),
+    /**
+     * SPEC-V3 §3/§4: how this attack's damage is typed. Absent means the whole
+     * of it is Normal, which is what every V2-authored tower means.
+     */
+    damageRatio: DamageRatioSchema.optional(),
     /**
      * SPEC-V3 §3 damage types and statuses every hit of this attack also
      * applies, by key. Checked against the taxonomy at load.
@@ -78,17 +90,34 @@ const TerrainSchema = z.object({
  * +`upgradeStepMul` HP/Attack/Defense unless the step carries a milestone
  * special — see `upgradeStatMul` in towers.ts for the "unless".
  *
- * `specials` is the shape m20b authors into. m20a validates the steps a track
- * names — in range, one per step — but gives no key an effect yet, so a track
- * cannot name a step that does not exist.
+ * `specials` are SPEC-V3 §4's milestone specials — m20a validated the steps a
+ * track names (in range, one per step); m20b gives each key an effect. The key
+ * is an enum rather than a free string so a typo is a load error instead of a
+ * step that silently buys nothing, which is the failure m19a's orphaned
+ * `shredArmor` shipped as. What each key needs alongside it is cross-checked by
+ * `validateSpecial`, since the requirement depends on the key.
  */
+const SPECIAL_KEYS = ['pierce', 'projectiles', 'onHit', 'damageRatio', 'electricChain'] as const;
+
+const UpgradeSpecialSchema = z.object({
+  at: num.int().positive(),
+  key: z.enum(SPECIAL_KEYS),
+  /** `pierce`/`projectiles`: how many this step adds. */
+  value: num.int().positive().optional(),
+  /** `onHit`: the §3 damage type or status the attack starts applying. */
+  type: str.optional(),
+  /** `damageRatio`: the split this step replaces the attack's own with. */
+  ratio: DamageRatioSchema.optional(),
+  note: str.optional(),
+  // Closed on purpose: `values: 1` for `value: 1` would otherwise be dropped in
+  // silence and the step would buy nothing.
+}).strict();
+
 const UpgradeTrackSchema = z.object({
   count: num.int().min(0).max(20),
   /** 0 only for a track with no steps to price — see `validateUpgradeTrack`. */
   stepCost: num.min(0),
-  specials: z
-    .array(z.object({ at: num.int().positive(), key: str, note: str.optional() }))
-    .default([]),
+  specials: z.array(UpgradeSpecialSchema).default([]),
 });
 
 const TowerSchema = z.object({
@@ -490,9 +519,9 @@ const DamageStatusSchema = z
  * silent-no-op failure m19a and m19b each shipped once — and two specials on
  * one step would make the step's payout depend on authoring order.
  *
- * Exported so a test can drive the loader's own predicate: no shipped tower
- * authors a special until m20b, so the interesting branches never execute
- * against `/data`.
+ * Exported so a test can drive the loader's own predicate: only three shipped
+ * towers author a special, so most of these branches never execute against
+ * `/data`.
  */
 export function validateUpgradeTrack(
   track: { count: number; stepCost: number; specials: { at: number; key: string }[] },
@@ -529,6 +558,90 @@ export function validateOnHit(types: DamageTypesFile, key: string, where: string
     // A ratio row has no magnitude without a triggering damage, and a hit row
     // lands its damage rather than riding along on someone else's.
     throw new Error(`${where} cannot apply "${key}" on hit — it has no flat dps`);
+  }
+}
+
+/**
+ * Whether a SPEC-V3 §3 composite split is something an attack can actually
+ * deal, throwing if it is not.
+ *
+ * A share is a share: an unknown key, a negative weight or a total of zero all
+ * make the attack deal *less* than it says it does, silently, because
+ * `applyDamageSplit` divides by the total and skips non-positive rows.
+ */
+export function validateDamageRatio(
+  types: DamageTypesFile,
+  ratio: Readonly<Record<string, number>>,
+  where: string,
+): void {
+  let total = 0;
+  for (const [key, weight] of Object.entries(ratio)) {
+    if (!types.types.some((row) => row.key === key)) {
+      throw new Error(`${where} splits damage into unknown type "${key}"`);
+    }
+    if (!(weight >= 0)) throw new Error(`${where} gives "${key}" a negative share`);
+    total += weight;
+  }
+  if (total <= 0) throw new Error(`${where} has a damage ratio that totals nothing`);
+}
+
+/**
+ * Which attack shapes actually read each special, for the two keys that are not
+ * universal. `onHit`, `damageRatio` and `electricChain` ride on every shape
+ * (`HitEffects`), so they are absent here.
+ */
+const SPECIAL_KINDS: Record<string, readonly string[] | undefined> = {
+  pierce: ['single', 'pierce'],
+  projectiles: ['single', 'pierce', 'poison'],
+};
+
+/**
+ * Whether a SPEC-V3 §4 milestone special is something the engine can pay out,
+ * throwing if it is not.
+ *
+ * Each key needs a different thing alongside it, and every one of these
+ * failures would otherwise be a step the player buys that grants nothing —
+ * `attackProfile` folds what it is given and cannot tell "absent" from
+ * "meant zero".
+ */
+export function validateSpecial(
+  types: DamageTypesFile,
+  sp: { key: string; value?: number; type?: string; ratio?: Record<string, number> },
+  attack: { kind: string; damageRatio?: Record<string, number> } | null,
+  where: string,
+): void {
+  const what = `${where} special "${sp.key}"`;
+  if (!attack) throw new Error(`${what} is on a tower that has no attack`);
+  // Two of the keys are only read by some of the seven shapes — `fireTower`'s
+  // cone, aura and chain cases have no line and no shot count — so a track that
+  // pinned one to a Mortar would load clean and grant nothing. m20c authors
+  // tracks for exactly those towers next.
+  const kinds = SPECIAL_KINDS[sp.key];
+  if (kinds && !kinds.includes(attack.kind)) {
+    throw new Error(`${what} does nothing on a "${attack.kind}" attack`);
+  }
+  switch (sp.key) {
+    case 'pierce':
+    case 'projectiles':
+      if (sp.value === undefined) throw new Error(`${what} needs a value`);
+      break;
+    case 'onHit':
+      if (sp.type === undefined) throw new Error(`${what} needs a type`);
+      validateOnHit(types, sp.type, what);
+      break;
+    case 'damageRatio':
+      if (!sp.ratio) throw new Error(`${what} needs a ratio`);
+      validateDamageRatio(types, sp.ratio, what);
+      break;
+    case 'electricChain':
+      // The special chains *the electric portion*, so a tower whose attack has
+      // no electric portion would buy a step that arcs nothing.
+      if (!((attack.damageRatio?.electric ?? 0) > 0)) {
+        throw new Error(`${what} needs an attack with an electric share`);
+      }
+      break;
+    default:
+      throw new Error(`${what} is not a special the engine pays out`);
   }
 }
 
@@ -730,8 +843,11 @@ export function loadContent(): Content {
     }
   }
   for (const t of towers.towers) {
-    for (const k of t.attack?.onHit ?? []) validateOnHit(damageTypes, k, `towers.json: ${t.key}`);
-    validateUpgradeTrack(t.upgrades, `towers.json: ${t.key}`);
+    const where = `towers.json: ${t.key}`;
+    for (const k of t.attack?.onHit ?? []) validateOnHit(damageTypes, k, where);
+    if (t.attack?.damageRatio) validateDamageRatio(damageTypes, t.attack.damageRatio, where);
+    validateUpgradeTrack(t.upgrades, where);
+    for (const sp of t.upgrades.specials) validateSpecial(damageTypes, sp, t.attack, where);
   }
 
   // A damage type that says nothing about its magnitude would apply as a

@@ -181,13 +181,19 @@ describe('T1: the helper quotes the radius the turret reaches', () => {
     expect(effectiveTowerRange(w, def)).not.toBeCloseTo(def.attack!.range, 5);
   });
 
-  it('reports splash only for the kind that reads it', () => {
+  it('reports splash only for the kinds that read it', () => {
+    // Two kinds burst: a lob always does, and SPEC-V3 §4's Poison tower has a
+    // "small AoE" it authors outright (m20b). Everything else is a point hit,
+    // and the panel must not draw a splash ring it will never pay out.
     const w = new World(cfg());
     for (const def of content.towers.towers) {
-      const expected = def.attack?.kind === 'lob';
+      const a = def.attack;
+      const expected = a?.kind === 'lob' || (a?.kind === 'poison' && (a.aoe ?? 0) > 0);
       expect(effectiveTowerAoe(w, def) > 0, `${def.key} splash`).toBe(expected);
     }
     expect(effectiveTowerAoe(w, content.towerByKey.get('mortar')!)).toBeGreaterThan(0);
+    expect(effectiveTowerAoe(w, content.towerByKey.get('venom_spore')!)).toBeGreaterThan(0);
+    expect(effectiveTowerAoe(w, content.towerByKey.get('arrow_spire')!)).toBe(0);
   });
 
   it('scales splash with the area stat', () => {

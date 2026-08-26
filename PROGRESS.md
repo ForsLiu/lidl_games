@@ -11,12 +11,38 @@ the audit: what is built, what V3 supersedes, and where V3 conflicts with a live
 gate. Read it before touching anything in M18–M27.
 
 - **Milestone:** M17, M18 and **M19 complete**; **M20 in progress** — `m20a`
-  (per-tower upgrade tracks, SPEC-V3 §4) landed. **`m20b` is the next action**:
-  the three owner towers and their milestone specials.
-- **Gate status:** **603 tests pass, 24 skipped** (15 retired at M17 with logged
-  reasons — see MIGRATION.md §5; **5 more deferred to m20c at m20a**, below).
-  Gates **C3 and C4 are green**. Every A/B gate except A4's four T1 clauses and
-  `light-build`'s `kite` re-measured green at m20a, A11 included.
+  (per-tower upgrade tracks) and **`m20b`** (the three owner towers and their
+  milestone specials, SPEC-V3 §4) landed. **`m20c` is the next action**: the
+  remaining seven towers, with proposed tracks logged for owner sign-off.
+- **Gate status:** **625 tests pass, 25 skipped** (15 retired at M17 with logged
+  reasons — see MIGRATION.md §5; **5 deferred to m20c at m20a**, below; **1 new
+  at m20b**, the Venom fix that needs its price — m20d). Gates **C3 and C4 are
+  green**. Every A/B gate except A4's four T1 clauses and `light-build`'s `kite`
+  re-measured green at m20b, A11 included.
+- **m20b — what a reader needs to know.** §4's milestone specials are *data*:
+  each `upgrades.specials` entry is a typed key (`pierce`, `projectiles`,
+  `onHit`, `damageRatio`, `electricChain`) that the loader refuses unless the
+  attack can pay it, and `attackProfile(def, level)` in `src/sim/upgrades.ts`
+  folds them into the attack a tower of that level actually fires. **Read the
+  profile, never the authored attack** — the fire loop, the info panel and m21's
+  VS formula all do, which is the m20a stale-reader trap answered in advance.
+  Composite damage (§3's `normal:electric = 1:1`) rides in `HitEffects.ratio`
+  and is dealt by one `dealHit`, so all seven attack shapes carry a split; a test
+  drives each shape to keep it that way. Venom Spore's V2 `attack.poison`
+  constant is **deleted** — its DoT is a share of the attack now, which is why
+  its damage reads 45 where V2 read 4 (Q76 has the arithmetic; output is
+  unchanged). The three owner towers are the only ones with specials, so the
+  other seven are byte-identical: QA confirmed 6/6 seeds, same end hash.
+- **The m20b trap, worth remembering.** The balance note nearly shipped blaming
+  the wrong tower. A 12-seed sweep after m20b read `maxbuild` medSurv 171.6 →
+  119.4 and the obvious story was Electric losing two of its three arcs — except
+  **no sweep policy builds a Tesla Coil at all**, and at 32 seeds both trees read
+  the same medians (180 / 12.2 / 6 / 20). The 12-seed row was noise. Q78: a
+  median over 12 seeds and a pass/fail over 8 are both samples, and neither is
+  evidence about a mechanism until the mechanism is what varies. The same
+  paragraph is why `boss.test.ts`'s "but not all" clause now runs 20 seeds — it
+  went red at m20b without the fight getting easier (HEAD 17/20 wins, m20b
+  18/20; the losing seeds moved).
 - **m20a — what a reader needs to know.** Towers no longer share a three-tier
   ladder: `data/towers.json` gives each one `upgrades: {count, stepCost,
   specials}` plus a real `defense`, and a step buys +10% HP/Attack/Defense
@@ -56,6 +82,15 @@ gate. Read it before touching anything in M18–M27.
   caller is not covered by the fact that its unit test passes. Every m19c fix has
   a regression test that turns red when the fix is reverted — verified by
   reverting them.
+- **Balance after m20b — measured, nothing tuned.** 32-seed sweep, m20b against
+  HEAD `f3defe3`: `maxbuild` **identical medians** (medSurv 180, medMin 12.2,
+  medWaves 6, medLevel 20; medKills 5948 → 5655, ~5%), `hybrid` byte-identical
+  at 120.4 / 7.3 / 4 / 16 / 3083. The 12-seed default sweep says otherwise
+  (medSurv 171.6 → 119.4) and is noise — see the trap above. Where §4's changes
+  *are* measurable is single-type runs: Electric −20…−30% damage (`chains: 3 → 1`,
+  the arc only at max), Venom slightly up. No `/data` number was tuned; the two
+  values that moved are §4's own (the specials) and Q76's power-neutral
+  conversion of Venom's DoT into a share of its attack.
 - **Balance after m20a — measured, and the movement is the model, not a tune.**
   12-seed sweep, m20a against HEAD `3e749c7`: `maxbuild` medSurv 180 → 171.6,
   medMin **12.5 → 8**, medWaves 6 → 4, medLevel 21 → 20, medKills 5975 → 5531;
@@ -427,6 +462,18 @@ features whose counters read zero with no explanation.
   more; the empty Stash and the Orb buttons explain themselves.
 
 ## Known issues / skipped tests
+- **Venom Spore's `+1 projectile @2` pays out nothing against a lone target
+  (m20b, filed by QA; BACKLOG m20d).** With fewer enemies in range than the
+  tower has shots, the spare spore is dropped, so the step is worth zero against
+  a lone Gatebreaker or the boss — on a step that also gave up its +10%. The
+  one-line fix (aim it at the leading target again) takes A4's "venom_spore
+  alone fails Act I at T3" from 0/5 to **5/5**, so it cannot ship without
+  re-pricing the tower. Both behaviours are in
+  `tests/m20b-owner-towers.test.ts`: today's is asserted, the fixed one is the
+  suite's single `.skip`. QA also measured the @4 ratio shift as
+  **non-monotonic** — a level-5 Venom clears 40 husks 34% slower than a level-4
+  one, because impact traded for DoT is wasted on what the impact already kills.
+  Both are m20d, with Q79.
 - **Five balance assertions are deferred to m20c (skipped at m20a).** A4's T1
   clause for `arrow_spire`, `tesla_coil`, `venom_spore` and `mortar`, and
   `light-build`'s `kite`. All five were green at HEAD `3e749c7`, so they are
@@ -536,6 +583,31 @@ BACKLOG.md rewritten to V3 §13's M17–M27 order, 30 items with concrete accept
 criteria naming the C-gate each satisfies. QUESTIONS.md gains **Q38–Q49**.
 
 ## Session log (newest first)
+- 2026-08-26 — M20 m20b: the three owner towers and their milestone specials
+  (SPEC-V3 §4). §4's specials became typed `/data` entries the loader validates
+  against the attack that has to pay them; `attackProfile(def, level)` folds a
+  track into the attack a tower of that level fires, and the fire loop, the
+  renderer's info panel and (next) m21's VS formula all read it rather than the
+  authored attack. Composite damage types landed as `HitEffects.ratio` +
+  `dealHit`, so every one of the seven attack shapes carries a §3 split — the
+  m19c coverage rule one layer down, with a test per shape. Arrow: pierce at 3,
+  Bleeding at 4, a second shot down the same line at 5. Electric: 1:1 with the
+  electric half arcing at 3, and one strike below it (V2's three arcs were never
+  §4's). Poison: 1:1 → 1:1.5, small AoE, second spore at 2 — and its V2
+  `attack.poison` constant deleted, its damage re-priced 4 → 45 so §3's ratio
+  reproduces V2's output (Q76). `tests/m20b-owner-towers.test.ts` (24, 1 skipped)
+  drives every special at the step below it and the step it lands on.
+  code-reviewer REQUEST-CHANGES (1 Major) and qa-playtester PASS with 5 filed;
+  five fixed here with regression tests verified by reverting each — the
+  untested Venom splash, the arc's lost damage origin, `lineHit` sweeping for a
+  pierce it did not have, the loader accepting a special an attack's `kind`
+  cannot read, and the info panel understating an Arrow at level 6 by exactly 2×
+  (now measured against the fire loop at every level of every track). Two ship
+  pinned as m20d: Venom's dropped spare spore and its non-monotonic @4 — the
+  one-line fix for the first takes A4's T3 clause from 0/5 to 5/5, so it needs
+  the tower's price with it. The lesson is Q78's: the first draft of the balance
+  note blamed a tower the sweep never builds, and the 12-seed median that
+  prompted it was noise (32 seeds: identical).
 - 2026-08-26 — M20 m20a: per-tower upgrade tracks (SPEC-V3 §4). `data/towers.json`
   reworked to `upgrades {count, stepCost, specials}` + `defense` per tower and
   `upgradeStepMul`/`milestoneStepsSkipStats`/`sellRefund 0.5` at file level;

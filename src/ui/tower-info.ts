@@ -17,7 +17,10 @@ import { soulLevelFor } from '../sim/progression';
 import { weaponDamageMul, weaponDef } from '../sim/weapons';
 import {
   affinityMul,
+  attackProfile,
+  type AttackProfile,
   attackSpeedFor,
+  damageShare,
   effectiveTowerAoe,
   effectiveTowerRange,
   maxLevel,
@@ -62,24 +65,64 @@ export interface TowerInfo {
   terrainText: string | null;
 }
 
-const KIND_TEXT: Record<string, (a: TowerAttack) => string> = {
-  single: () => 'Fires at whichever enemy is furthest along the path to the Core.',
-  pierce: (a) =>
-    `Fires a bolt down the busiest line, hitting up to ${1 + (a.pierce ?? 1)} enemies for full damage each.`,
+/**
+ * What each shape does, at the level being shown. Every one of these reads the
+ * *profile* rather than the authored attack, because SPEC-V3 §4's milestones
+ * change the sentence: an Arrow at 4 pierces, an Arrow at 6 fires twice, an
+ * Electric at 4 arcs. A panel that described the authored attack would be
+ * telling the player about a tower they stopped owning three upgrades ago.
+ */
+const KIND_TEXT: Record<string, (a: TowerAttack, p: AttackProfile) => string> = {
+  single: (_a, p) => {
+    const shots = p.projectiles > 1 ? `Fires ${p.projectiles} shots down` : 'Fires down';
+    const through =
+      p.pierce > 0
+        ? `, carrying on through up to ${p.pierce} more ${p.pierce === 1 ? 'enemy' : 'enemies'} behind it`
+        : '';
+    return `${shots} the line to whichever enemy is furthest along the path to the Core${through}.`;
+  },
+  pierce: (_a, p) =>
+    `Fires a bolt down the busiest line, hitting up to ${1 + p.pierce} enemies for full damage each.`,
   cone: () =>
     'Sprays a cone at the densest cluster. The nearest few take full damage; each target past that takes less.',
   aura: () => 'Pulses every enemy inside its radius at once — no aiming, no travel time.',
   // `chainHit` counts the first target inside `chains`, and SPEC-V3 §4 makes
   // the Electric tower's chaining a milestone special (m20b) rather than
   // something every upgrade step buys — the panel said "+1 arc per tier".
-  chain: (a) =>
-    `Strikes the leading enemy and arcs on until ${a.chains ?? 3} enemies are hit, each within ${
-      a.chainRange ?? 3
-    } tiles of the last.`,
+  chain: (a, p) => {
+    const chains = a.chains ?? 3;
+    const base =
+      chains > 1
+        ? `Strikes the leading enemy and arcs on until ${chains} enemies are hit, each within ${fmt(
+            a.chainRange ?? 3,
+          )} tiles of the last.`
+        : 'Strikes whichever enemy is furthest along the path to the Core.';
+    return p.electricChain
+      ? `${base} Its electric half then arcs to the nearest other enemy within ${fmt(
+          a.chainRange ?? 3,
+        )} tiles — or lands on the same target twice if it is alone.`
+      : base;
+  },
   lob: (a) =>
     `Lobs a shell at a predicted position and detonates for ${fmt(a.aoe ?? 1.5)}-tile splash. Cannot hit anything closer than ${fmt(a.minRange ?? 0)} tiles.`,
-  poison: () => 'Hits one target and stacks poison, which keeps ticking after the shot lands.',
+  poison: (a, p) => {
+    const targets =
+      p.projectiles > 1
+        ? `Fires ${p.projectiles} spores at the ${p.projectiles} enemies furthest along the path`
+        : 'Fires a spore at whichever enemy is furthest along the path';
+    const splash = (a.aoe ?? 0) > 0 ? `, each bursting for ${fmt(a.aoe!)}-tile splash` : '';
+    return `${targets}${splash}. Its poison keeps ticking after the shot lands.`;
+  },
 };
+
+/** "normal 50% · poison 50%" — how a composite attack's damage is typed. */
+function ratioText(w: World, ratio: Readonly<Record<string, number>>): string {
+  return Object.keys(ratio)
+    .sort()
+    .filter((k) => ratio[k] > 0)
+    .map((k) => `${w.content.damageTypeByKey.get(k)?.name ?? k} ${Math.round(damageShare(ratio, k) * 100)}%`)
+    .join(' · ');
+}
 
 function fmt(n: number, dp = 1): string {
   const r = Math.round(n * 10 ** dp) / 10 ** dp;
@@ -104,6 +147,65 @@ function shotInterval(a: TowerAttack, speedMul: number): number {
 }
 
 /**
+ * What one *attack* is worth, split into what lands the moment it hits and what
+ * it leaves ticking — because SPEC-V3 §4 gave the owner towers three ways to
+ * make those two numbers disagree with `attack.damage`.
+ *
+ * A panel that quoted the authored damage understated an Arrow at 6 by exactly
+ * 2x (two projectiles), a Tesla at 4 by a third (the electric half lands twice),
+ * and said nothing at all about a Venom Spore's poison, which is now most of it.
+ * Found by QA against the fire loop, which is what these numbers are checked
+ * against — see `tests/tower-info.test.ts`.
+ */
+function attackOutput(w: World, def: TowerDef, tier: number): { impact: number; ailment: number } {
+  const a = def.attack!;
+  const prof = attackProfile(def, tier);
+  const dmg = shotDamage(w, def, a, tier);
+  // Ailment potency is the Warden's, and it scales every dot the same way
+  // `applyDot` does. Burning has a stat of its own on top.
+  const potency = (key: string) =>
+    w.derived.ailmentMul * (key === 'burning' ? w.derived.burnDamageMul : 1);
+  let impact = 0;
+  let ailment = 0;
+
+  const typed = (key: string, share: number): void => {
+    const row = w.content.damageTypeByKey.get(key);
+    if (!row || row.effect !== 'dot') {
+      impact += share;
+      return;
+    }
+    // §3 states a dot row either as a share of what triggered it (Poison 120%)
+    // or as a flat dps for its own duration (Bleeding 1/s for 5 s).
+    const total = row.ratio !== undefined ? row.ratio * share : (row.dps ?? 0) * (row.duration ?? 0);
+    ailment += total * potency(key);
+  };
+
+  if (prof.ratio) {
+    for (const k of Object.keys(prof.ratio).sort()) {
+      const share = damageShare(prof.ratio, k) * dmg;
+      if (share > 0) typed(k, share);
+    }
+  } else {
+    impact += dmg;
+  }
+  // §4 Electric @3: the electric share lands a second time, on the chain target
+  // or on the first enemy again.
+  if (prof.electricChain) impact += damageShare(prof.ratio, 'electric') * dmg;
+  // §3 riders ride once per shot; a status (frost, frozen) owes no damage.
+  for (const k of prof.onHit) if (w.content.damageTypeByKey.has(k)) typed(k, 0);
+  // V2's authored burn, which the Ember Brazier still uses.
+  if (a.burn) ailment += a.burn.dps * upgradeStatMul(w, def, tier) * a.burn.duration * potency('burning');
+
+  // Only shots that share a path stack on one enemy. §4 gives Arrow its second
+  // projectile "(same path)", so a lone target takes both; Poison's second
+  // spore goes to the next enemy along and a lone target takes one — these are
+  // single-target numbers, so counting it here would overstate the tower by 2x
+  // exactly as failing to count Arrow's understated it (QA, m20b).
+  const stacked = a.kind === 'poison' ? 1 : prof.projectiles;
+  return { impact: impact * stacked, ailment: ailment * stacked };
+}
+
+/**
  * Delegates to the sim's own helper so the panel, the range rings and the
  * turret all quote one number (SPEC-V3 T1).
  */
@@ -123,29 +225,41 @@ export function towerInfo(w: World, def: TowerDef, existing?: Structure): TowerI
   const stats: StatLine[] = [];
 
   if (a) {
-    const dmg = shotDamage(w, def, a, tier);
     const interval = shotInterval(a, speedMul);
     const range = rangeOf(w, def, tier);
-    const nextDmg = hasNext ? shotDamage(w, def, a, tier + 1) : 0;
+    const prof = attackProfile(def, tier);
 
+    const out = attackOutput(w, def, tier);
+    const nextOut = hasNext ? attackOutput(w, def, tier + 1) : out;
     if (a.kind === 'cone') {
       // A cone is continuous: its "interval" is the tick it applies dps over.
       stats.push({
         label: 'Damage',
-        value: `${fmt(dmg / a.interval)} dps`,
-        next: hasNext ? `${fmt(nextDmg / a.interval)} dps` : undefined,
+        value: `${fmt(out.impact / a.interval)} dps`,
+        next: hasNext ? `${fmt(nextOut.impact / a.interval)} dps` : undefined,
       });
     } else {
       stats.push({
         label: 'Damage',
-        value: `${fmt(dmg)} per shot`,
-        next: hasNext ? `${fmt(nextDmg)}` : undefined,
+        value: `${fmt(out.impact)} on impact`,
+        next: hasNext ? `${fmt(nextOut.impact)}` : undefined,
       });
       stats.push({ label: 'Rate', value: `${fmt(1 / interval, 2)} / s` });
+    }
+    // What the attack leaves behind gets its own line rather than hiding inside
+    // "damage": a Venom Spore's poison is more than half of what it deals.
+    if (out.ailment > 0) {
+      stats.push({
+        label: a.kind === 'cone' ? 'Ailment' : 'Ailment per shot',
+        value: `${fmt(out.ailment)} over time`,
+        next: hasNext && nextOut.ailment !== out.ailment ? `${fmt(nextOut.ailment)}` : undefined,
+      });
+    }
+    if (a.kind !== 'cone') {
       stats.push({
         label: 'Single-target DPS',
-        value: fmt(dmg / interval),
-        next: hasNext ? fmt(nextDmg / shotInterval(a, speedMul)) : undefined,
+        value: fmt((out.impact + out.ailment) / interval),
+        next: hasNext ? fmt((nextOut.impact + nextOut.ailment) / interval) : undefined,
       });
     }
 
@@ -157,6 +271,24 @@ export function towerInfo(w: World, def: TowerDef, existing?: Structure): TowerI
     // and Splash was not, so the de-duplication was half done.
     const splash = effectiveTowerAoe(w, def);
     if (splash > 0) stats.push({ label: 'Splash', value: `${fmt(splash)} tiles` });
+    // SPEC-V3 §3: what this attack's damage actually *is*. Half a Tesla shot
+    // ignores nothing and half of it lands as an area, and the panel has no
+    // other place to say so; a milestone that moves the split (Poison @4)
+    // moves this line with it.
+    if (prof.ratio) {
+      const nextRatio = hasNext ? attackProfile(def, tier + 1).ratio : null;
+      const now = ratioText(w, prof.ratio);
+      const next = nextRatio ? ratioText(w, nextRatio) : '';
+      stats.push({ label: 'Damage type', value: now, next: next && next !== now ? next : undefined });
+    }
+    if (prof.onHit.length > 0) {
+      stats.push({
+        label: 'On hit',
+        value: prof.onHit
+          .map((k) => w.content.damageTypeByKey.get(k)?.name ?? k)
+          .join(' · '),
+      });
+    }
     if (a.slow) {
       stats.push({
         label: 'Slow',
@@ -169,14 +301,14 @@ export function towerInfo(w: World, def: TowerDef, existing?: Structure): TowerI
         value: `${fmt(a.burn.dps * upgradeStatMul(w, def, tier))} dps for ${fmt(a.burn.duration)}s`,
       });
     }
-    if (a.poison) {
-      stats.push({
-        label: 'Poison',
-        value: `${fmt(a.poison.dps * upgradeStatMul(w, def, tier))} dps for ${fmt(
-          a.poison.duration,
-        )}s, stacks ${a.poison.maxStacks}`,
-      });
-    }
+  }
+
+  // SPEC-V3 §4: an upgrade step buys +10% or a milestone, never both, so the
+  // player needs to be told which this one is before paying for it. The words
+  // are `/data`'s own note, so a track authored later cannot go undescribed.
+  if (hasNext) {
+    const milestone = def.upgrades.specials.find((sp) => sp.at === tier);
+    if (milestone) stats.push({ label: `Upgrade ${tier}`, value: milestone.note ?? milestone.key });
   }
 
   if (def.buffAura) {
@@ -222,7 +354,7 @@ export function towerInfo(w: World, def: TowerDef, existing?: Structure): TowerI
     tier,
     maxTier: maxLevel(def),
     attackText: a
-      ? (KIND_TEXT[a.kind]?.(a) ?? 'Attacks nearby enemies.')
+      ? (KIND_TEXT[a.kind]?.(a, attackProfile(def, tier)) ?? 'Attacks nearby enemies.')
       : 'Does not attack. Its value is where you put it.',
     stats,
     // A petrified tower refuses both (`towers.ts` upgradeTower/sellTower), so

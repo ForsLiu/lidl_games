@@ -37,7 +37,26 @@
       "upgrades": {
         "count": 5,
         "stepCost": 20,
-        "specials": []
+        "specials": [
+          {
+            "at": 3,
+            "key": "pierce",
+            "value": 1,
+            "note": "+1 pierce (§4 \"pierce 1\" is the base one enemy — Q75)"
+          },
+          {
+            "at": 4,
+            "key": "onHit",
+            "type": "bleeding",
+            "note": "applies 1 Bleeding"
+          },
+          {
+            "at": 5,
+            "key": "projectiles",
+            "value": 1,
+            "note": "+1 projectile, same path"
+          }
+        ]
       },
       "hp": 120,
       "blocks": true,
@@ -45,7 +64,9 @@
         "kind": "single",
         "damage": 5.5,
         "interval": 0.5,
-        "range": 5
+        "range": 5,
+        "pierce": 0,
+        "projectiles": 1
       },
       "soul": "arrow_volley",
       "terrain": {
@@ -155,7 +176,13 @@
       "upgrades": {
         "count": 3,
         "stepCost": 80,
-        "specials": []
+        "specials": [
+          {
+            "at": 3,
+            "key": "electricChain",
+            "note": "the electric portion chains to the nearest other enemy; twice on the first if it is alone"
+          }
+        ]
       },
       "hp": 110,
       "blocks": true,
@@ -164,8 +191,12 @@
         "damage": 18,
         "interval": 1,
         "range": 5,
-        "chains": 3,
-        "chainRange": 3
+        "chains": 1,
+        "chainRange": 3,
+        "damageRatio": {
+          "normal": 1,
+          "electric": 1
+        }
       },
       "soul": "chain_lightning",
       "terrain": {
@@ -215,19 +246,36 @@
       "upgrades": {
         "count": 4,
         "stepCost": 38,
-        "specials": []
+        "specials": [
+          {
+            "at": 2,
+            "key": "projectiles",
+            "value": 1,
+            "note": "+1 projectile"
+          },
+          {
+            "at": 4,
+            "key": "damageRatio",
+            "ratio": {
+              "normal": 1,
+              "poison": 1.5
+            },
+            "note": "poison ratio 1:1.5"
+          }
+        ]
       },
       "hp": 110,
       "blocks": true,
       "attack": {
         "kind": "poison",
-        "damage": 4,
+        "damage": 45,
         "interval": 1,
         "range": 4.5,
-        "poison": {
-          "dps": 15,
-          "duration": 4,
-          "maxStacks": 3
+        "aoe": 1,
+        "projectiles": 1,
+        "damageRatio": {
+          "normal": 1,
+          "poison": 1
         }
       },
       "soul": "toxic_trail",

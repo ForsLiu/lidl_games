@@ -210,24 +210,33 @@ describe('m20a — a step buys +10% HP, Attack and Defense (§4)', () => {
       const { w, tx, ty, s } = place(def);
       const hp0 = s.maxHp;
       const dmg0 = def.attack ? towerDamage(w, s, def.attack.damage) : 0;
+      // "+10% unless a milestone special is listed" (§4): a step carrying one
+      // buys the special instead, so the exponent counts the plain steps.
+      const plain = (step: number) => step - def.upgrades.specials.filter((sp) => sp.at <= step).length;
       for (let step = 1; step <= def.upgrades.count; step++) {
         w.gold = 1e6;
         expect(upgradeTower(w, tx, ty)).toBe(true);
-        expect(s.maxHp, `${def.key} hp @${step}`).toBeCloseTo(hp0 * STEP ** step, 6);
+        expect(s.maxHp, `${def.key} hp @${step}`).toBeCloseTo(hp0 * STEP ** plain(step), 6);
         expect(structureMaxHp(w, def, s.tier), def.key).toBeCloseTo(s.maxHp, 10);
         if (def.attack) {
-          expect(towerDamage(w, s, def.attack.damage), `${def.key} dmg @${step}`).toBeCloseTo(dmg0 * STEP ** step, 6);
+          expect(towerDamage(w, s, def.attack.damage), `${def.key} dmg @${step}`).toBeCloseTo(
+            dmg0 * STEP ** plain(step),
+            6,
+          );
         }
       }
     }
   });
 
-  it('scales an attack ailment with the step too — burn and poison dps', () => {
-    // `fireTower` scales `attack.burn.dps` and `attack.poison.dps` by the step
-    // multiplier. Driven through the real fire loop, not the arithmetic: the
-    // only other reader is the info panel, so nothing would notice if either
-    // lost its wiring.
-    for (const key of ['ember_brazier', 'venom_spore']) {
+  it('scales an attack ailment with the step too — burn dps', () => {
+    // `fireTower` scales `attack.burn.dps` by the step multiplier. Driven
+    // through the real fire loop, not the arithmetic: the only other reader is
+    // the info panel, so nothing would notice if it lost its wiring.
+    //
+    // Venom Spore used to be the second case here; m20b restated its poison as
+    // §3's ratio, so its DoT now scales through the attack itself and is
+    // covered by m20b's own file.
+    for (const key of ['ember_brazier']) {
       const def = content.towerByKey.get(key)!;
       const owed = (levels: number) => {
         const { w, tx, ty } = place(def);
@@ -293,7 +302,9 @@ describe('m20a — a step buys +10% HP, Attack and Defense (§4)', () => {
 });
 
 describe('m20a — milestone steps and the stat bump (§4, Q73)', () => {
-  const track = { count: 3, stepCost: 10, specials: [{ at: 2, key: 'chain' }] };
+  // Tesla's shipped track is this shape (one special, at 3); pinning the
+  // special at 2 keeps the arithmetic below reading a step on either side.
+  const track = { count: 3, stepCost: 10, specials: [{ at: 2, key: 'electricChain' as const }] };
 
   it('a step carrying a special pays the special instead of +10%', () => {
     const c = contentWith('tesla_coil', { upgrades: track });
@@ -315,11 +326,16 @@ describe('m20a — milestone steps and the stat bump (§4, Q73)', () => {
     }
   });
 
-  it('is inert for the shipped roster — no tower authors a special yet', () => {
+  it('costs the shipped roster exactly its milestone steps and no more', () => {
+    // m20b authored §4's specials onto the three owner towers, so the flag is
+    // live: those three pay for their milestones out of the stat bump, and the
+    // other seven still bump on every step.
     const w = new World(cfg());
+    const withSpecials = TOWERS.filter((t) => t.upgrades.specials.length > 0).map((t) => t.key);
+    expect(withSpecials).toEqual(['arrow_spire', 'tesla_coil', 'venom_spore']);
     for (const def of TOWERS) {
-      expect(def.upgrades.specials, def.key).toEqual([]);
-      expect(upgradeStatMul(w, def, maxLevel(def)), def.key).toBeCloseTo(STEP ** def.upgrades.count, 10);
+      const statSteps = def.upgrades.count - def.upgrades.specials.length;
+      expect(upgradeStatMul(w, def, maxLevel(def)), def.key).toBeCloseTo(STEP ** statSteps, 10);
     }
   });
 

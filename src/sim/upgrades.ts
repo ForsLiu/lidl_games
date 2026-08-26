@@ -33,9 +33,10 @@ export function maxLevel(def: TowerDef): number {
  * "unless" is honoured — a step that carries a special pays out the special
  * instead of the stat bump — and it is honoured through a `/data` flag
  * (`milestoneStepsSkipStats`) rather than a hard-coded reading, because the
- * sentence supports the other one too and the owner has not ruled (Q73). No
- * tower authors a special until m20b, so today every step is a stat step and
- * the flag is measurably inert: `upgradeStepMul ^ (level - 1)` either way.
+ * sentence supports the other one too and the owner has not ruled (Q73). Since
+ * m20b authored §4's specials the flag is live: Arrow's steps 3-5, Electric's
+ * 3 and Poison's 2 and 4 buy their special instead of +10%, so an Arrow at
+ * level 6 carries `upgradeStepMul ^ 2`, not `^ 5`.
  */
 export function upgradeStatMul(w: World, def: TowerDef, level: number): number {
   const t = w.content.towers;
@@ -45,6 +46,72 @@ export function upgradeStatMul(w: World, def: TowerDef, level: number): number {
     for (const sp of def.upgrades.specials) if (sp.at <= steps) statSteps--;
   }
   return Math.pow(t.upgradeStepMul, statSteps);
+}
+
+/**
+ * What a tower of this type actually fires at `level`, once SPEC-V3 §4's
+ * milestone specials up to that level have been folded into its authored
+ * attack. Pure in `def` and `level` — no World — so the renderer, the info
+ * panel and m21's VS formula all read the same answer the fire loop does.
+ *
+ * Every field is the *effective* one, never the authored one: a reader that
+ * has to remember to add the specials itself is the m20a trap again (a stale
+ * reader of a field whose range moved).
+ */
+export interface AttackProfile {
+  /** Enemies the shot carries on through beyond the first. */
+  pierce: number;
+  /** Shots per attack. §4 gives Arrow a second at 5, Poison a second at 2. */
+  projectiles: number;
+  /** §3's composite split, or null for an attack that is all Normal. */
+  ratio: Readonly<Record<string, number>> | null;
+  /** §3 types/statuses every hit also applies, authored plus milestone. */
+  onHit: readonly string[];
+  /** §4 Electric @3: the electric portion arcs to the nearest other enemy. */
+  electricChain: boolean;
+}
+
+const NO_ON_HIT: readonly string[] = [];
+
+export function attackProfile(def: TowerDef, level: number): AttackProfile {
+  const a = def.attack;
+  const prof: AttackProfile = {
+    pierce: a?.pierce ?? 0,
+    projectiles: a?.projectiles ?? 1,
+    ratio: a?.damageRatio ?? null,
+    onHit: a?.onHit ?? NO_ON_HIT,
+    electricChain: false,
+  };
+  const steps = Math.max(0, Math.min(level, maxLevel(def)) - 1);
+  for (const sp of def.upgrades.specials) {
+    if (sp.at > steps) continue;
+    switch (sp.key) {
+      case 'pierce':
+        prof.pierce += sp.value!;
+        break;
+      case 'projectiles':
+        prof.projectiles += sp.value!;
+        break;
+      case 'onHit':
+        prof.onHit = [...prof.onHit, sp.type!];
+        break;
+      case 'damageRatio':
+        prof.ratio = sp.ratio!;
+        break;
+      case 'electricChain':
+        prof.electricChain = true;
+        break;
+    }
+  }
+  return prof;
+}
+
+/** The share of one attack's damage that lands as `type`, 0 if none does. */
+export function damageShare(ratio: Readonly<Record<string, number>> | null, type: string): number {
+  if (!ratio) return type === 'normal' ? 1 : 0;
+  let total = 0;
+  for (const k of Object.keys(ratio).sort()) total += ratio[k];
+  return total > 0 ? (ratio[type] ?? 0) / total : 0;
 }
 
 /** Max HP for a tower of this type at `level`, walls' `wallHpMul` included. */
