@@ -55,7 +55,18 @@ function forceWaveClear(run: Run, wave: number): void {
   run.step(emptyInput());
 }
 
-describe('cycle boundary helpers', () => {
+/**
+ * RETIRED (SPEC-FINAL §1.1, P3) — the rest of the file.
+ *
+ * Four cases here were already retired against SPEC-V3. The remainder assert
+ * `cycleWaveEnd`, `totalCycles`, per-cycle Night heat and a 3-cycle replay —
+ * the Day/Dusk/Night/Dawn machine §1.1 replaces in full with 18 TD + 6 VS
+ * waves interleaved TD × 3 → VS. Retiring the rest makes the file uniformly
+ * retired rather than half-live against a run shape that is gone.
+ *
+ * The code is deleted at BACKLOG p3d, and this file with it.
+ */
+describe.skip('cycle boundary helpers', () => {
   it('cycles:1 always ends the Day at the full wave count', () => {
     const w = new Run(cfg({ cycles: 1 })).world;
     expect(cycleWaveEnd(w, 1)).toBe(w.waveCount);

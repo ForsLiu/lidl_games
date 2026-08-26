@@ -3,12 +3,50 @@
 > Claude: keep this file current. Update at every milestone gate and before any stop.
 > A fresh session should be able to resume from this file + CLAUDE.md alone.
 
-## Current state — SPEC-V3
+## Current state — SPEC-FINAL
 
-**Precedence: SPEC-V3 > SPEC-V2 > SPEC.md.** V3 landed 2026-08-25, the day after
-V2's M9 shipped, and supersedes a large part of what M9 built. **MIGRATION.md** is
-the audit: what is built, what V3 supersedes, and where V3 conflicts with a live
-gate. Read it before touching anything in M18–M27.
+**SPEC-FINAL.md supersedes SPEC-V3, SPEC-V2 and SPEC.md.** It landed 2026-08-26,
+the day after V3, and it is the last one: self-contained, with the sections V3
+marked "designer work, not agent work" filled in. **MIGRATION.md** is the audit
+against it — built / superseded / **contradicted** — and BACKLOG.md is ordered by
+§15's **P0 → P10**, not by V3's M17–M27. Gates are §14's **G1–G20**; MIGRATION §5
+maps them onto the A/B/C names still in test headers. Read MIGRATION before
+touching anything.
+
+- **Phase:** the SPEC-FINAL reconcile (§16) is done. Next action is the top of
+  BACKLOG's **Corrections** section (`x001`, then `x002`), then **P0** (`p0a`,
+  the content hash).
+- **Gate status at the reconcile commit:** 646 pass, 22 skipped at `77250b8`;
+  the reconcile retires 30 more cases across six files with logged reasons
+  (MIGRATION §4.2). No gate is red on `master`.
+- **What SPEC-FINAL decided for us, so nobody re-asks.** §4.2 fills in the nine
+  open classes, §5.2 the seven open tower tracks, §6.3 the VS upgrade pool, and
+  §5 grants the per-track `costMul` that m20c measured as the missing lever.
+  Four open QUESTIONS (Q38, Q39, Q47, Q80) and one backlog item (m20e) close as
+  *decided by spec* rather than as work.
+- **What contradicts the spec, which is different from what is missing.** Two
+  things: Poison's stack cap (§3 says 3) and lifesteal's per-second cap (§2 says
+  there is none). They are `x001`/`x002` and they sit **ahead of P0**, because
+  CLAUDE.md rule 3 already ranks a confirmed bug above the queue and code
+  asserting the opposite of the spec is a bug by a short route. Q84 records that
+  judgement call and two others §16 left open.
+- **The m20d trap, worth remembering.** m20d was the in-flight item and its tree
+  did two things at once: it raised Poison's cap to 50 (which SPEC-FINAL §3
+  forbids) and it re-aimed the Venom Spore's spare spore with a 45 → 23 re-price.
+  The tree measured **red on A3** (5/12 against ≥6/12) where HEAD is green, and
+  the obvious story — that the forbidden change is the regression — is wrong.
+  Bisected in three runs: HEAD green, **HEAD + cap 50 green**, HEAD + targeting +
+  re-price **red**. So the spec violation and the gate failure are two facts
+  about two different halves, and calling them one would have written the wrong
+  cause into the backlog. The tree is preserved on branch `wip/m20d` and re-filed
+  as `p5c` with both measurements attached. Q81 stays as the record; Q82 amends
+  it with the clause SPEC-FINAL added.
+- **The tension `p5c` inherits, which is the owner's not ours.** §3 caps Poison
+  at 3 stacks and §5.1 keeps "poison ratio → 1:1.5 @4". Three stacks of a 3 s
+  DoT is a ceiling of one application per second — the Venom Spore's own fire
+  rate — so the milestone moves damage into a bucket that is already full and
+  measures **−5.4%** (88.6 → 83.8 dps). Both clauses are verbatim and both are
+  ⚖. Logged as Q82 for §17's review list rather than resolved by an agent.
 
 - **Milestone:** M17, M18 and **M19 complete**; **M20 in progress** — `m20a`
   (per-tower upgrade tracks), `m20b` (the three owner towers and their milestone
@@ -622,6 +660,28 @@ BACKLOG.md rewritten to V3 §13's M17–M27 order, 30 items with concrete accept
 criteria naming the C-gate each satisfies. QUESTIONS.md gains **Q38–Q49**.
 
 ## Session log (newest first)
+- 2026-08-26 — **SPEC-FINAL reconcile (§16).** Audited the codebase against
+  SPEC-FINAL, rewrote MIGRATION.md as that audit, rewrote BACKLOG.md into §15's
+  P0–P10 order (40 items, each naming the G-gate it satisfies), retired 30 test
+  cases across six files with logged reasons, and repointed CLAUDE.md's
+  sources-of-truth list at SPEC-FINAL + MIGRATION. Three findings worth the
+  reading time. **(1)** SPEC-FINAL is mostly a *completed* V3, not a new design:
+  §4.2, §5.2 and §6.3 fill in what V3 called designer work, so four QUESTIONS
+  and one backlog item close as decided-by-spec rather than as work — and §5's
+  one new sentence ("per-track `costMul` allowed") grants exactly the lever m20c
+  measured as missing and filed for sign-off, which is what turns §5.2's short
+  tower tracks from infeasible into `p5b`. **(2)** Gaps and contradictions are
+  different animals and the queue now says so: two shipped behaviours assert the
+  *opposite* of verbatim spec text (Poison's cap, lifesteal's cap), and they sit
+  ahead of P0 under CLAUDE.md rule 3 rather than at the P where their subsystem
+  lives. **(3)** The retirement rule needed one clarification before it was safe
+  to apply: *retire what the spec contradicts, not what it merely supersedes
+  later*. Applied literally it would have skipped A10's run budget, the boon
+  table, the loot rolls and the Shellback case — all green, all still guarding
+  shipped code — for a coverage hole the rule exists to prevent. Those five are
+  listed as superseded-but-live with the phase that rewrites each.
+  The in-flight `m20d` tree did not ship; it is on branch `wip/m20d` and re-filed
+  as `p5c` (bisection in "The m20d trap" above). QUESTIONS gains **Q82–Q84**.
 - 2026-08-26 — M20 m20c: the other seven towers' tracks and every tower's
   defense band (SPEC-V3 §4). The migration is a *measurement*: §4's three counts
   are a straight line in build cost, and putting the open seven on it measures

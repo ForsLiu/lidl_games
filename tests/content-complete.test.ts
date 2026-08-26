@@ -26,7 +26,9 @@ describe('content completeness', () => {
     }
   });
 
-  it('has 8 weapons, each with a full six-level track', () => {
+  // RETIRED (SPEC-FINAL §6.1, P2): there is no weapon ladder. The character
+  // wields tower types, not eight souls with six levels each. Deleted at p2e.
+  it.skip('has 8 weapons, each with a full six-level track', () => {
     expect(content.weapons.weapons).toHaveLength(8);
     for (const w of content.weapons.weapons) {
       expect(w.levels, w.key).toHaveLength(6);
@@ -44,7 +46,9 @@ describe('content completeness', () => {
     }
   });
 
-  it('introduces the Gatebreaker on wave 10', () => {
+  // RETIRED (SPEC-FINAL §1.1, P3): the Gatebreaker ends **TD wave 18**, not
+  // wave 10. Rewritten for wave 18 at BACKLOG p8c.
+  it.skip('introduces the Gatebreaker on wave 10', () => {
     const last = content.waves.waves[9];
     expect(last.groups.some((g) => g.enemy === 'gatebreaker')).toBe(true);
   });

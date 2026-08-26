@@ -27,7 +27,11 @@ function warp(w: World, tx: number, ty: number): void {
 describe('f004: class content (SPEC-V2 §2)', () => {
   const content = loadContent();
 
-  it('every class defines an Active with a Day use and a Night use, plus a Signature passive', () => {
+  // RETIRED (SPEC-FINAL §4, P6): §4's framework is Passive + Active1 (Q) +
+  // Active2 (E) + a Tower passive over archetype bands. "Day use / Night use"
+  // is the cycle vocabulary §1.1 retires, and one Active is not the model.
+  // Rewritten at BACKLOG p6a; deleted with the kits at p6d.
+  it.skip('every class defines an Active with a Day use and a Night use, plus a Signature passive', () => {
     for (const c of content.classes.classes) {
       expect(c.active.name.length).toBeGreaterThan(0);
       expect(c.active.cooldownSeconds).toBeGreaterThan(0);
@@ -159,7 +163,12 @@ describe('f004: class Active skill as a sim Command', () => {
   });
 });
 
-describe('f004: the Dusk picker binds for every class (SPEC-V2 D3)', () => {
+/**
+ * RETIRED (SPEC-FINAL §1.1 + §6.2, P3) — the Dusk picker is cut with the cycle
+ * machine, and §6.2 binds nothing: towers stay towers during a VS wave.
+ * Deleted at BACKLOG p3d.
+ */
+describe.skip('f004: the Dusk picker binds for every class (SPEC-V2 D3)', () => {
   it('an over-supply of soul towers (more than the 6 slots) still binds a valid pick', () => {
     const w = newWorld({ classKey: 'engineer' });
     w.gold = 100000;

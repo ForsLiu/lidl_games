@@ -54,7 +54,18 @@ function forcePlace(w: World, towerKey: string, tx: number, ty: number): void {
   });
 }
 
-describe('conversion table (SPEC 4.2)', () => {
+/**
+ * RETIRED (SPEC-FINAL §6.2, P2) — the whole file.
+ *
+ * §6.2 contradicts the Sundering directly: during a VS wave towers are "inert
+ * but present" — they stay towers, keep their HP and can be attacked by
+ * enemies. They do not petrify into terrain, they grant no soul weapons, there
+ * is no slot picker and there are no terrain residuals. §1.1 cuts Dusk along
+ * with the rest of the cycle machine.
+ *
+ * The code is deleted at BACKLOG p2e, together with a5/a6/a8 and this file.
+ */
+describe.skip('conversion table (SPEC 4.2)', () => {
   it('every tower has a terrain form, and exactly three grant no weapon', () => {
     const w = new World(cfg());
     const noSoul = w.content.towers.towers.filter((t) => t.soul === null).map((t) => t.key);
@@ -197,7 +208,7 @@ describe('conversion table (SPEC 4.2)', () => {
   });
 });
 
-describe('Heartstone', () => {
+describe.skip('Heartstone', () => {
   it('heals the Warden inside its radius and not outside', () => {
     const w = new World(cfg());
     finishSundering(w, []);
@@ -214,7 +225,7 @@ describe('Heartstone', () => {
   });
 });
 
-describe('slot picker (SPEC 4.1)', () => {
+describe.skip('slot picker (SPEC 4.1)', () => {
   it('auto-binds when the candidates fit the slots', () => {
     const w = new World(cfg());
     place(w, 'arrow_spire', 8, 8);
@@ -263,7 +274,7 @@ describe('slot picker (SPEC 4.1)', () => {
   });
 });
 
-describe('Dusk (SPEC 4 step 1)', () => {
+describe.skip('Dusk (SPEC 4 step 1)', () => {
   // SPEC-V3 §4 states one sell rule for every phase, so Dusk no longer refunds
   // at its own harsher rate (V2: 35%). It still allows building and selling.
   it('still allows building, and refunds at the one sell rate', () => {

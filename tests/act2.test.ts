@@ -101,7 +101,15 @@ describe('gems', () => {
   });
 });
 
-describe('soul weapons', () => {
+/**
+ * RETIRED (SPEC-FINAL §6.1, P2) — per-weapon identity.
+ *
+ * §6.1 has no soul weapons: in a VS wave the character wields every built
+ * *tower type's* attack, at that type's attack speed and highest upgrade
+ * level's effects. The Frost Nova, the Toxic Trail and the innate weapon have
+ * no successor to be renamed into. Deleted at BACKLOG p2e.
+ */
+describe.skip('soul weapons', () => {
   it('fire automatically at whatever is in range', () => {
     const w = act2World();
     grantWeapon(w, 'arrow_volley', 1, 0);
@@ -145,7 +153,15 @@ describe('soul weapons', () => {
   });
 });
 
-describe('weapon inheritance (SPEC 4.1)', () => {
+/**
+ * RETIRED (SPEC-FINAL §6.1 + §14 G3, P2) — the inheritance formula.
+ *
+ * "Highest tier as the level, +8% per extra tower to +40%, capped by slots" is
+ * exactly what §6.1 replaces: damage is the **average** across that type's
+ * towers × (1 + 10% × count), with no cap and no slots. G3 ships §6.1's worked
+ * example verbatim in its place (BACKLOG p2a). Deleted at p2e.
+ */
+describe.skip('weapon inheritance (SPEC 4.1)', () => {
   it('takes the highest tier as the level and +8% per extra tower to +40%', () => {
     const w = new World(cfg());
     w.gold = 100000;

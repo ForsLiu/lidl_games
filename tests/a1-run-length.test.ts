@@ -13,7 +13,19 @@ import { cfg, runWithPolicy } from './helpers';
 
 const SEEDS = Array.from({ length: 24 }, (_, i) => i + 1);
 
-describe('A1 run length', () => {
+/**
+ * RETIRED (SPEC-FINAL §1.1 + §14 G1, P3) — gate A1.
+ *
+ * G1 contradicts A1 three ways. The target is a **mean** victorious run of
+ * 30-36 minutes, not a median of 24-28; §14 says "means/pass-rates, never
+ * medians" in as many words; and the third case's shape ("a long Daywatch,
+ * then a 10-minute night") is the Day/Night cycle §1.1 replaces with 18 TD +
+ * 6 VS waves interleaved TD x3 -> VS.
+ *
+ * Rewritten as the G1 test at BACKLOG p3e, once p3a lands the run shape, and
+ * deleted then. Skipped rather than deleted now so the skip is visible in CI.
+ */
+describe.skip('A1 run length', () => {
   const reports = SEEDS.map((seed) => runWithPolicy(cfg({ seed }), 'maxbuild').report);
   const victories = reports.filter((r) => r.outcome === 'victory');
 
