@@ -18,11 +18,12 @@ test-retirement ledger. Read §8 before touching anything.
   CLAUDE.md's sources-of-truth list is re-pointed; twelve superseded test groups are
   retired with logged reasons and four existing retirements are restated against the
   gate that now supersedes them. `x001` is done (`dc1681c`), `x002` at `ef69a47`,
-  and **P1's `p1a` is done with this commit** — the path guarantee is gone and
-  sealing is legal (§10, G7's first two clauses green). **`p1b` is the next
-  action**: G7's third clause, the sealed-vs-open win-rate band at T2 —
-  noting Q83, which expects that band re-measured at p3e after the run shape
-  changes.
+  and **P1 is complete with this commit** — p1a removed the path guarantee and
+  made sealing legal (`170fa41`), and p1b measured G7's third clause as a live
+  test: the sealed-vs-open win-rate band at T2 holds (sealed 1/12 vs best open
+  9/12 — sealing is dominated, not dominant). **G7 is green in full.** Q83
+  still expects the band re-measured at p3e after the run shape changes.
+  **`p2a` is the next action**: §6.1's VS wielding formula, gate G3.
 - **Where the code actually stands** (audit summary, full table at the top of
   BACKLOG.md): P0 and P4 are done; P1 is done **except sealing**; P5 is done bar two
   pricing items; P2's VS **inheritance formula is not built** — `data/weapons.json`'s
@@ -76,15 +77,40 @@ test-retirement ledger. Read §8 before touching anything.
   rate — so the milestone moves damage into a bucket that is already full and
   measures **−5.4%** (88.6 → 83.8 dps). Both clauses are verbatim and both are
   ⚖. Logged as Q87 for §17's review list rather than resolved by an agent.
-- **Next action:** **P1** `p1b` (G7's third clause: the full-seal build's win
-  rate within 10 points of the best open-maze build's over 12 seeds at T2, as
-  a live test). `p1a` is done with this commit — sealing is legal, breach
-  pathing is live, and the details are below. Both Corrections are done:
+- **Next action:** **P2** `p2a` (§6.1's VS wielding formula, gate G3, with the
+  worked example transcribed verbatim as a unit test). `p1b` is done with this
+  commit — G7 green in full, details below. Both Corrections are done:
   `x001` at `dc1681c` (the §3 stack-cap pin plus Q90's one-way override clamp,
   QA-proven a no-op), and `x002` at `ef69a47` (lifesteal's cap removed and its
   accrual gated to normal damage per §2 — **not** a no-op; the sweep delta is
   below and in the session log). P0's remaining clause is carried as
   `p9a`/`p9f`, not as a separate band.
+- **p1b — what a reader needs to know.** G7's third clause is now a live test
+  (`tests/p1b-seal-winrate.test.ts`): three arms over seeds 1–12 at T2 with
+  autoDraft modifiers — `sealed` (a new policy: maxbuild's tower mix plus a
+  *completed* radius-5 palisade ring, the closing tile included), `maxbuild`
+  and `hybrid`. Measured: sealed **1/12**, maxbuild **7/12**, hybrid **9/12**;
+  the band (sealed ≤ best open + 10 pts) holds by maximum margin, and the
+  finding is that sealing today is **dominated, not dominant** — 7 sealed seeds
+  lose the Core in Act I as waves chew the ring (§10's breach pathing doing its
+  job), 4 lose the Warden, 1 wins. Two things keep the test honest: the sealed
+  arm must latch the physical seal diagnostic on 12/12 seeds *by tick 15000*
+  (QA's hardening — measured max first seal 12600; waves 1–2 are always fought
+  open, gold-limited) and the open arms on 0/12, else the band is an
+  open-vs-open comparison passing vacuously. The one behaviour change in
+  `src/bots/policies.ts` is opt-in (`allowSeal`, only the `sealed` policy sets
+  it) — QA proved existing-policy neutrality with byte-identical end hashes vs
+  HEAD across 48 runs per side. Q94 logs the measurement decisions and the
+  caveat that a bot band is only as strong as its best sealed challenger
+  (mitigated by G19 at p10f and Q83's re-measure at p3e).
+- **Known issue recorded at p1b, not caused by it: A10's wall-clock clause is
+  red on this host.** "Full headless game under 5 seconds" measured HEAD
+  median 5473 ms in a clean control worktree vs the 5000 budget (working tree
+  7071 ms) — red *at HEAD* on this machine today, where p1a's session measured
+  it green. This is Q41's story again (a wall-clock budget that flips with the
+  host is not measuring the sim); the bound gets this recorded reason, not a
+  nudged constant, and p10e owns the host-independent re-baseline. Every other
+  perf clause and the whole main suite are green.
 - **p1a — what a reader needs to know.** SPEC-FINAL §10's "structures are
   high-cost passable tiles (cost ∝ HP × toughness ⚖)" is now the ground flow
   field's rule: a structure tile is enterable **orthogonally** at

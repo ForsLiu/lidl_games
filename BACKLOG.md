@@ -29,7 +29,7 @@ still in test headers.
 | Band | State |
 |---|---|
 | P0 sim skeleton | **done** — fixed 60 Hz, named RNG streams, Commands, headless CLI, end-state hash (G2 green except tuner-edited content and fast-forward, see p9f) |
-| P1 TD core | **done except G7's balance clause** — pathing, 3 owner towers, 20 enemies, economy live; p1a landed sealing (breach pathing, §10), so G7's first two clauses are green and p1b's win-rate band remains |
+| P1 TD core | **done** — pathing, 3 owner towers, 20 enemies, economy live; p1a landed sealing (breach pathing, §10), p1b measured G7's win-rate band as a live test — G7 green in full, band re-measured at p3e per Q83 |
 | P2 VS core | **movement/dash/director/XP done; inheritance not built** — `data/weapons.json`'s 8-weapon roster with its own level ladders and 6 slots stands where §6.1's formula belongs (G3 unmet) |
 | P3 interleave | **leak coupling done, interleave not** — the run is still V2's Day/Dusk/Night/Dawn cycle machine, not TD×3→VS (G6 unmet) |
 | P4 core math | **done** — multiplicative stacking, armor cap +99 / floor −100, 6 damage types + 2 statuses (G4, G5 green) |
@@ -49,14 +49,8 @@ resumes at P1.
 
 ### P1 — TD core: sealing (G7)
 
-p1a is **done** — see the Done section. p1b remains, and per Q83 its band is
-expected to be re-measured at p3e after the run shape changes.
-
-- [ ] (p1b) [balance] Turtle economics stay honest once sealing is legal —
-      acceptance: gate **G7**'s third clause, measured over 12 seeds at T2: the
-      full-seal build's win rate does not exceed the best open-maze build's by more
-      than 10 points; the measurement is a live test, not a probe script — refs:
-      §10, G7
+P1 is **done** — p1a and p1b are in the Done section. G7 is green in full; per
+Q83 the p1b band is re-measured at p3e after the §1.1 run shape lands.
 
 ### P2 — VS core: the inheritance formula (G3)
 
@@ -427,6 +421,43 @@ logged in MIGRATION.md §8 rather than carried as dead items.
   **G19**. The work is `p10d`.
 
 ## Done
+
+- [x] (p1b) [balance] Turtle economics stay honest once sealing is legal — this
+      commit — G7's third clause is a live test, and the measurement's finding is
+      that sealing today is *dominated*, not dominant. `sealed` is a real policy
+      (`src/bots/policies.ts`): maxbuild's tower mix plus a completed radius-5
+      palisade ring — `allowSeal` is the one-policy opt-in, every other bot keeps
+      the classic open maze, and the ring only ever completes because a sealing
+      turtle counts the guns it already has (the always-6 tower lead re-planned
+      every wave starved the ring forever: 22 towers, 0 palisades by wave 10).
+      Measured at T2 over seeds 1–12 with autoDraft modifiers: sealed **1/12**,
+      maxbuild **7/12**, hybrid **9/12** — the band (sealed ≤ best open + 10 pts)
+      holds by maximum margin; 7 sealed seeds lose the Core in Act I to §10's
+      breach chewing, 4 lose the Warden in Act II, 1 wins. The vacuity guards are
+      live assertions, not comments: the sealed arm must latch
+      `!allGatesReachable()` (the physical scratch-field diagnostic) on 12/12
+      seeds **by tick 15000** (QA hardening — measured max first seal 12600; the
+      latch alone would pass a seal delayed to wave 9), and the open arms on
+      0/12. Q94 logs the four measurement decisions and the honest caveat: a bot
+      band is only as strong as its best sealed challenger — G19 (p10f) and
+      Q83's p3e re-measure are the mitigations. Existing-policy neutrality is
+      QA-proven, not argued: end hashes byte-identical to HEAD for
+      maxbuild+hybrid × 12 seeds × {T1 no-mods, T2 drafted} (48 runs per side)
+      and sweep medians identical column-for-column. Acceptance met:
+      `tests/p1b-seal-winrate.test.ts` (3 cases) in the vitest include glob —
+      the live test the item demanded. code-reviewer **APPROVE** (5 Minors, 4
+      taken: probe script deleted before commit, beforeAll refactor with an
+      explicit timeout, `standingGuns` hoisted behind `allowSeal`, redundant
+      import dropped; the 5th is Q94's caveat, logged not fixed).
+      qa-playtester **PASS**, no acceptance-blocking bugs, mutation checks
+      green (never-seals and band-violation mutations each turn exactly their
+      own assertion red); its two findings taken — the first-seal-tick bound
+      above, and a 7/4 loss recount that corrected this entry's own first
+      draft. Recorded, not caused here: A10's wall-clock clause is red on this
+      host **at HEAD too** (control measured in a clean worktree: HEAD median
+      5473 ms vs the 5000 budget, working tree 7071 ms) — Q41's
+      host-dependent-bound story again; p10e owns the re-baseline — refs: §10,
+      G7, Q83, Q94
 
 - [x] (p1a) [feat] Remove the path guarantee; structures become high-cost
       passable tiles — this commit — §10's one line becomes an engine rule in

@@ -43,11 +43,17 @@ export interface BuilderOptions {
   /** Open the run by planting this many Harvest Sprouts before any defence. */
   openingSprouts: number;
   /**
-   * Ring the Core with Palisades at this radius before anything else. The path
-   * guarantee refuses the last tile, so the ring always keeps one door - which
-   * is exactly the turtle archetype SPEC A7 tests.
+   * Ring the Core with Palisades at this radius before anything else. Unless
+   * `allowSeal` is set the bot skips the closing tile itself, so the ring
+   * keeps one door - the classic open-maze turtle SPEC A7 tested.
    */
   perimeterRadius: number;
+  /**
+   * Build placements that seal the Core. Legal since SPEC-FINAL §10 (p1a) —
+   * enemies breach and chew instead of being walled out — but only the
+   * `sealed` policy opts in, so every other bot still plays the open maze.
+   */
+  allowSeal: boolean;
 }
 
 const DEFAULTS: BuilderOptions = {
@@ -60,6 +66,7 @@ const DEFAULTS: BuilderOptions = {
   rushWaves: true,
   openingSprouts: 0,
   perimeterRadius: 0,
+  allowSeal: false,
 };
 
 export class BuilderPolicy implements BotPolicy {
@@ -152,11 +159,16 @@ export class BuilderPolicy implements BotPolicy {
       const def = w.content.towerById.get(p.towerId)!;
       if (w.gold >= towerCost(w, def)) {
         const reason = checkBuild(w, p.towerId, p.tx, p.ty);
-        if (reason === null && def.blocks && w.grid.wouldBlockPath([[p.tx, p.ty]])) {
+        if (
+          reason === null &&
+          def.blocks &&
+          !this.opts.allowSeal &&
+          w.grid.wouldBlockPath([[p.tx, p.ty]])
+        ) {
           // Sealing is legal now (SPEC-FINAL §10), but these bots play the
           // classic open-maze game — exactly what the old blocks_path
-          // rejection made them do. A deliberate sealed-build policy is
-          // G19's work (p10f).
+          // rejection made them do. The `sealed` policy below is the one
+          // that opts in (G7 clause 3, p1b; G19's liveness pool at p10f).
           this.plan.shift();
         } else if (reason === null) {
           input.cmds.push({ k: 'build', tower: p.towerId, tx: p.tx, ty: p.ty });
@@ -229,7 +241,18 @@ export class BuilderPolicy implements BotPolicy {
     // undefended ring simply loses wave 1.
     let siteIndex = 0;
     if (this.opts.perimeterRadius > 0) {
-      const lead = 6;
+      // The sealing turtle counts the guns it already has: replan runs every
+      // wave, and always planning 6 *more* towers ahead of the ring means a
+      // gold-limited bot rebuilds its lead forever and the ring never gets a
+      // turn (measured: 22 towers, 0 palisades by wave 10). `walloff` keeps
+      // the old always-6 lead so its measured A7-era behaviour is untouched.
+      let lead = 6;
+      if (this.opts.allowSeal) {
+        const standingGuns = w.structures.filter(
+          (s) => !s.dead && !s.petrified && w.content.towerById.get(s.towerId)!.attack,
+        ).length;
+        lead = Math.max(0, 6 - standingGuns);
+      }
       for (let i = 0; i < lead && siteIndex < sites.length; i++) {
         const site = sites[siteIndex++];
         const def = w.content.towerByKey.get(keys[i % keys.length])!;
@@ -650,6 +673,38 @@ export class WallOffPolicy implements BotPolicy {
 }
 
 registerPolicy('walloff', () => new WallOffPolicy());
+
+/**
+ * G7 clause 3's sealed arm (p1b): the full-seal build. Same tower mix as
+ * `maxbuild`, plus a *completed* palisade ring — including the closing tile
+ * every other bot deliberately skips — so TD waves must chew their way in
+ * (SPEC-FINAL §10) while the guns inside fire on the breach. Act II play is
+ * `kite`, matching the open arms, so the only variable in the G7 comparison
+ * is the Act I sealing strategy itself.
+ */
+registerPolicy(
+  'sealed',
+  () =>
+    new BuilderPolicy('sealed', {
+      towerKeys: [
+        'arrow_spire',
+        'ballista',
+        'venom_spore',
+        'mortar',
+        'tesla_coil',
+        'frost_obelisk',
+        'ember_brazier',
+        'beacon_totem',
+      ],
+      wallRatio: 0,
+      maxStructures: 70,
+      upgradeAfter: 14,
+      perimeterRadius: 5,
+      allowSeal: true,
+      act2: 'kite',
+      rushWaves: false,
+    }),
+);
 
 /**
  * SPEC A9's two arms. `greedy` opens on Harvest Sprouts before any defence;
