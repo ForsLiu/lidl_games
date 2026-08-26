@@ -196,7 +196,7 @@ sit naturally alongside M24, which touches saves again.
 
 ## Done
 
-- [x] (m19a) [feat] Armor v3: flat points = percent reduction, cap +99, floor −100
+- [x] (m19a) [feat] Armor v3 — commit `d4fb985` — flat points = percent reduction, cap +99, floor −100
       (Q44), DoTs ignore armour — gate **C3** green for the armour math; its
       "except Burning's shred" clause is carried by m19c, which wires Burning to
       the `shredArmor` mechanism this item built — refs: V3 §2, Q58–Q60 —
