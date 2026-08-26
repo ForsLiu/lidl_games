@@ -8,7 +8,7 @@ param(
   [double]$Hours = 6,
   [string]$Model = "sonnet"
 )
-
+$env:CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS = "0"
 $deadline = (Get-Date).AddHours($Hours)
 $prompt = @"
 Read CLAUDE.md, PROGRESS.md, and BACKLOG.md. Follow the loop-mode contract in
