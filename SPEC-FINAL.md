@@ -152,6 +152,75 @@ Bands map in `/data` ⚖. Defense bands: none 0 / low 5 / medium 10.
 | **beacon totem** | — no attack; aura r3: towers +20% atk spd — | | | | | | med | low | 2 | +25% aura per step (linear) | low | **standing within r2.5 of a beacon: character +15% atk spd** |
 | **harvest sprout** | — no attack; +5 gold per TD wave per level — | | | | | | low | none | 2 | +5 gold/wave per step | low | **emits 1 XP gem (value 3) every 8 s during VS waves** |
 
+### 5.5 Cores (`data/cores.json`) **[owner feature — inbox 2026-08-26]**
+
+The Core is chosen at run start (Hub, beside class select). Owner content
+below is authoritative; **[designer note]** marks interpretations the owner
+may veto via a later verdict file.
+
+Rules:
+- Pick 1 Core per run. Default: Stone Heart. Others unlock via quests.
+- Core keeps all existing Core rules (TD target, HP 0 in TD = defeat).
+  Enemies still ignore the Core during VS waves.
+- Core upgrades are bought by interacting at the Core (build-range rule),
+  flat cost per step; steps grant ONLY the listed effect (no default +10%).
+  The Core cannot be sold.
+- Core-sourced attacks (Plant bullets, Corpse executions) are Core attacks:
+  not scaled by character stats, no lifesteal, but they do feed on-map
+  damage effects. All numbers ⚖.
+
+**Stone Heart** — Base 500 HP. No effects. Upgrade: 3 steps, 50 g — +100
+Core HP per step. Unlock: default.
+
+**Carnivorous Plant** — Base 200 HP.
+TD: devours 1 enemy within r2 every 8 s (non-elite: instant kill; elite:
+200 dmg) and heals the Core 5 HP. Each devour = +1 Digestion stack for the
+run.
+VS: spits poison bullets every 1.5 s — one bullet per 5 Digestion stacks
+[designer note: perf cap 10 bullets/volley], each 10 normal + poison,
+targeting nearest enemies to the Core.
+Upgrade: 4 steps, 60 g — +1 devour range and −1 s cooldown per step.
+Interacts: rewards funnel-mazes past the Core; feeds Spreading Plague.
+Unlock: 300 lifetime poison kills.
+
+**Vampire Heart** — Base 350 HP.
+TD: all towers gain 0.1% lifesteal; a tower below full HP gains +0.5%
+damage and attack speed per 1% HP missing (cap +30%).
+VS: character +1% lifesteal; overhealing converts to gold at 20:1.
+Upgrade: 3 steps, 80 g — step 1: tower overheal also converts 20:1;
+step 2: both conversions become 10:1; step 3: tower lifesteal 0.3%.
+Interacts: sealed bases that soak hits; Bloodlord tithe.
+Unlock: finish a run with the Core at or below 25% HP.
+
+**Corpse** — Base 500 HP.
+TD: 1% of all damage dealt to enemies on the map is stored. Every 1 s, if
+the store covers the current HP of an enemy, the Core executes the
+highest-HP enemy it can afford, spending that much store [designer note:
+"that damage is also stored" read as: the execution counts as map damage,
+so 1% of it flows back into the store].
+VS: enemies drop +10% EXP.
+Upgrade: 3 steps, 100 g — step 1: store ratio 2%; step 2: executions also
+explode, dealing the victim's max HP as AoE r2 to nearby enemies; step 3:
+the Core auto-fires every 5 s at the highest-HP enemy, spending up to the
+full store as damage even when not lethal.
+Interacts: scales with total board DPS; strongest anti-elite Core.
+Unlock: deal 100,000 lifetime damage.
+
+**Time** — Base 300 HP.
+TD: enemies within r3 have attack and movement speed −20%.
+VS: character attack and movement speed +20%.
+Upgrade: 5 steps, 150 g —
+step 1: passive income +1 gold/s [designer note: flat, unaffected by
+gold-gain bonuses];
+step 2: towers and character +1 HP regen/s and healing received +20%
+[designer note: interpreted from "+1/s then +20%"];
+step 3: decay aura — enemies within r5 lose `1 × 1.2^(5 − ring)` HP/s
+ignoring armor (r5→r4: 1/s, r4→r3: 1.2/s, r3→r2: 1.44/s, …);
+step 4: decay aura starts at r10 (same per-ring scaling);
+step 5: decay multiplier 1.2 → 1.5.
+Interacts: the turtle Core — pairs with sealing and Frost/ice builds.
+Unlock: win a run in under 32 minutes.
+
 ## 6. VS stage
 
 ### 6.1 Tower-attack inheritance (owner formula, verbatim)
@@ -299,6 +368,9 @@ VS upgrade pool per §6.3 · Codex & Tuner.
 | G18 | UI flows: defeat→Results→Hub from every phase; stash swap never dead-ends; save round-trip + corrupt-save repair + version migration. |
 | G19 | Liveness: winning sim builds include both sealed and open strategies, and multi-summon usage. |
 | G20 | Every §5 milestone special measurably changes the attack it names (loader-validated). |
+| G21 | Core choice is in RunConfig and hashed; each Core's TD and VS effects have unit tests with §5.5's numbers (incl. the Time decay ring table and a Corpse execute-and-restore worked example). |
+| G22 | Each Core shifts the run fingerprint (damage-source or economy vector) by ≥0.10 vs Stone Heart on the same seed/build. |
+| G23 | Every Core clears T1 at a 35–70% win rate with the scripted bot. |
 
 ## 15. Build order 0→100 (fresh build)
 
@@ -325,4 +397,4 @@ re-baseline perf as G17's per-sim-minute budget.
 
 §4.2 nine filled classes · §5.2 seven filled towers · §6.3 VS upgrade pool ·
 Burning stack timing (§3) · armor floor −100 (§2) · VS wave 75 s (§1.1) ·
-quest list (§8.4).
+quest list (§8.4) · §5.5's [designer note] interpretations (inbox 2026-08-26).

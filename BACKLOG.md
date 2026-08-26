@@ -149,6 +149,55 @@ expected to be re-measured at p3e after the run shape changes.
       change, and a test drives each of the ten towers' tracks asserting a measured
       difference at each milestone step — refs: §5, G20
 
+### P5.5 — Cores (§5.5, owner feature inbox 2026-08-26; G21, G22, G23)
+
+Placement logged in Q93: after P5 so the §1.1 run shape (P3) and the full
+tower roster precede the Cores' VS halves and interactions; p-core-f's
+quest unlocks ride the §8.4 system and may complete alongside p7e.
+
+- [ ] (p-core-a) [feat] Core selection: `data/cores.json` with the five §5.5
+      rows, Hub pick beside class select (default Stone Heart, locked cores
+      refused), core choice in `RunConfig` and in the end-state hash inputs —
+      acceptance: gate **G21**'s plumbing half — two runs differing only in
+      core hash differently, a replay carrying a mismatched core is rejected,
+      and the loader refuses a core row whose effects it cannot pay — refs:
+      §5.5, G21
+- [ ] (p-core-b) [feat] Stone Heart, Vampire Heart, and Time steps 1–2: the
+      shared Core-upgrade rule (bought by interacting at the Core under the
+      build-range rule, flat cost per step, only the listed effect, never
+      sellable), Stone Heart's +100 HP steps, Vampire Heart's TD tower
+      lifesteal 0.1% + missing-HP buff (+0.5% dmg/atk-spd per 1% missing, cap
+      +30%) and VS +1% character lifesteal with overheal→gold 20:1 plus its
+      three steps, Time's ±20% TD/VS speed auras plus step 1 (+1 flat gold/s)
+      and step 2 (+1 HP regen/s, +20% healing received) — acceptance: G21 unit
+      tests for every listed number, incl. the no-default-+10% rule and the
+      cannot-sell rule — refs: §5.5, G21
+- [ ] (p-core-c) [feat] Carnivorous Plant + Digestion: TD devour (r2, 8 s,
+      non-elite instant kill / elite 200, +5 Core HP, +1 Digestion stack per
+      devour for the run); VS poison volleys every 1.5 s, one bullet per 5
+      stacks (perf cap 10/volley), each 10 normal + poison, targeting nearest
+      to the Core; 4 steps of +1 range / −1 s — acceptance: G21 unit tests
+      incl. the volley cap and the Core-attack rules (no character scaling, no
+      lifesteal, feeds on-map damage effects) — refs: §5.5, G21
+- [ ] (p-core-d) [feat] Corpse: 1% of all map damage stored, 1 s execute of
+      the highest-HP affordable enemy with the execution counting as map
+      damage (1% restores), VS +10% EXP, steps: ratio 2%, execute explosion
+      (victim max HP, AoE r2), 5 s auto-fire spending the store non-lethally —
+      acceptance: G21's Corpse execute-and-restore worked example as a unit
+      test — refs: §5.5, G21
+- [ ] (p-core-e) [feat] Time decay aura, steps 3–5: enemies within r5 lose
+      `1 × 1.2^(5 − ring)` HP/s ignoring armor; step 4 starts it at r10; step
+      5 raises the multiplier to 1.5 — acceptance: G21's decay ring table
+      asserted verbatim (r5→r4: 1/s, r4→r3: 1.2/s, r3→r2: 1.44/s, …) — refs:
+      §5.5, G21
+- [ ] (p-core-f) [feat] Core unlock quests (the four §5.5 unlock lines through
+      the §8.4 quest system), Codex page, and the gates: **G22** (each core
+      shifts the run fingerprint — damage-source or economy vector — by ≥0.10
+      vs Stone Heart on the same seed/build) and **G23** (every core clears T1
+      at 35–70% win rate with the scripted bot) measured as live tests —
+      acceptance: G21 in full, G22 and G23 green with per-core numbers printed
+      on failure — refs: §5.5, §8.4, G21, G22, G23
+
 ### P6 — classes (G8, G9, G10, G11)
 
 - [ ] (p6a) [feat] Class framework per §4: archetype bands (low/medium/high mapped
