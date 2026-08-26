@@ -549,6 +549,29 @@ describe('T2: the selection gets a stats panel', () => {
     expect(panel.textContent, 'the panel must not go stale').toMatch(/Slowed/);
   });
 
+  it('shows the enemy armour the damage path reads, shred included', () => {
+    // The panel used to label `flatReduction` — a trait, not a stat — as
+    // "Armour", and never showed the number the damage path actually reads.
+    const w = new World(cfg());
+    parkWarden(w);
+    const g = emptyGround(w);
+    const e = spawnEnemy(w, 'husk', g.x, g.y)!;
+    e.armor = 40;
+    e.armorShred = 10;
+    document.body.innerHTML = '<div id="app"></div>';
+    const root = document.getElementById('app') as HTMLElement;
+    const hud = new Hud(root, {
+      onSelectTower: () => {}, onCallWave: () => {}, onPickSouls: () => {}, onPickOffer: () => {},
+      onReroll: () => {}, onRekindle: () => {}, onDawnDone: () => {}, onRetry: () => {},
+      onNewRun: () => {}, onToggleRanges: () => {}, onResume: () => {}, onPause: () => {},
+      onCycleSpeed: () => {}, onDev: () => {}, onQuitToHub: () => {},
+    });
+    hud.buildTowerBar(w);
+    hud.update(w, undefined, { kind: 'enemy', id: e.id } as Selection);
+    const panel = root.querySelector('#sw-towerinfo') as HTMLElement;
+    expect(panel.textContent).toMatch(/Armour\s*30 \(30% off\)/);
+  });
+
   it('quotes the gold a kill actually pays, not the authored bounty', () => {
     const w = new World(cfg());
     parkWarden(w);

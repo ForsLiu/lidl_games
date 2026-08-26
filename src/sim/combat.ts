@@ -4,7 +4,7 @@
  */
 
 import { GRID_H, GRID_W } from './grid';
-import { applyBurn, applyPoison, applySlow, damageEnemy } from './enemies';
+import { applyBurn, applyPoison, applySlow, damageEnemy, type WardenDamageOptions } from './enemies';
 import { dcos, dist2, normalize } from './math';
 import type { Enemy, Projectile } from './types';
 import { World } from './world';
@@ -432,7 +432,7 @@ export function updateAreas(w: World, dt: number): void {
       if (a.type === 'poison') {
         applyPoison(w, e, a.dps * scale, 1.0, 3, a.source);
       } else {
-        damageEnemy(w, e, a.dps * scale * dt, a.source, { pure: true });
+        damageEnemy(w, e, a.dps * scale * dt, a.source, { pure: true, dot: true });
       }
       hit++;
       if (hit >= cfg.aoeFullTargets) scale = Math.max(cfg.aoeFalloffFloor, scale * cfg.aoeFalloff);
@@ -441,7 +441,9 @@ export function updateAreas(w: World, dt: number): void {
 }
 
 /** Set by run.ts so ground fire routes through the Warden's mitigation rules. */
-export let wardenAreaDamage: (w: World, amount: number) => void = () => {};
-export function setAreaDamageHandler(fn: (w: World, amount: number) => void): void {
+export let wardenAreaDamage: (w: World, amount: number, opts?: WardenDamageOptions) => void = () => {};
+export function setAreaDamageHandler(
+  fn: (w: World, amount: number, opts?: WardenDamageOptions) => void,
+): void {
   wardenAreaDamage = fn;
 }

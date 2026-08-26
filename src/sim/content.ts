@@ -98,7 +98,7 @@ const TowersFileSchema = z.object({
 
 /* ----------------------------------------------------------------- enemies */
 
-const EnemySchema = z.object({
+export const EnemySchema = z.object({
   id: num,
   key: str,
   name: str,
@@ -111,6 +111,8 @@ const EnemySchema = z.object({
   radius: num,
   traits: z.array(str),
   packSize: num.optional(),
+  /** SPEC-V3 §2 armor points; percent reduction of normal damage. */
+  armor: num.optional(),
   flatReduction: num.optional(),
   attackRange: num.optional(),
   attackDamage: num.optional(),
@@ -416,7 +418,10 @@ const WardenFileSchema = z.object({
   dashDistance: num,
   dashCooldown: num,
   dashIFrames: num,
-  armorK: num,
+  /** Percent, so 0..100. Above 100 every hit would heal (V3 T5 edits this file). */
+  armorCap: num.min(0).max(100),
+  /** Negative points, so at most 0. */
+  armorFloor: num.max(0),
   cdrCap: num,
   heartstoneHeal: num,
   heartstoneRadius: num,

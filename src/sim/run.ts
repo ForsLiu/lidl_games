@@ -6,14 +6,16 @@
 import { GATES, GRID_H, GRID_W, coreCenter } from './grid';
 import { Hasher } from './hash';
 import { clamp, dist2, normalize } from './math';
-import { BASE } from './stats';
+import { BASE, damageTakenMul } from './stats';
 import {
   damageEnemy,
   effectiveSpeed,
+  enemyArmor,
   killEnemy,
   setWardenDamageHandler,
   spawnEnemy,
   updateEnemies,
+  type WardenDamageOptions,
 } from './enemies';
 import { setAreaDamageHandler, updateAreas, updateProjectiles } from './combat';
 import { buildTower, collectSproutGold, sellTower, updateTowers, upgradeTower } from './towers';
@@ -41,8 +43,8 @@ import type { RunConfig } from './types';
 
 // Registered once at module load, not per-Run: the handlers are stateless and
 // take the World explicitly, and anything importing the sim needs them live.
-setWardenDamageHandler((w, amount) => damageWarden(w, amount));
-setAreaDamageHandler((w, amount) => damageWarden(w, amount));
+setWardenDamageHandler((w, amount, opts) => damageWarden(w, amount, opts));
+setAreaDamageHandler((w, amount, opts) => damageWarden(w, amount, opts));
 
 export class Run {
   readonly world: World;
@@ -358,10 +360,24 @@ function manualAttack(w: World, input: TickInput, _dt: number): void {
   w.emit('manual', wd.x, wd.y, target.x, target.y);
 }
 
-export function damageWarden(w: World, amount: number): void {
+/**
+ * SPEC-V3 §2: the Warden's effective armor — the derived sheet value less
+ * accumulated Burning shred. Exported so the HUD reads the same number the
+ * damage path does.
+ */
+export function wardenArmor(w: World): number {
+  return w.derived.armor - w.warden.armorShred;
+}
+
+/**
+ * `dot` marks ailment damage, which SPEC-V3 §2 says ignores armor. Nothing
+ * inflicts a DoT on the Warden yet; the flag exists so that when §3's statuses
+ * land they cannot silently arrive armored.
+ */
+export function damageWarden(w: World, amount: number, opts?: WardenDamageOptions): void {
   const wd = w.warden;
   if (wd.dashIFrames > 0 || w.invulnerable || w.godMode) return;
-  const dmg = amount * (1 - w.derived.damageReduction);
+  const dmg = opts?.dot ? amount : amount * damageTakenMul(wardenArmor(w));
   wd.hp -= dmg;
   wd.outOfCombat = 0;
   w.emit('wardenhit', wd.x, wd.y, dmg, 0);
@@ -369,6 +385,8 @@ export function damageWarden(w: World, amount: number): void {
     if (w.derived.secondWind && !wd.secondWindUsed) {
       wd.secondWindUsed = true;
       wd.hp = w.derived.maxHp * 0.3;
+      // Q60: shred does not survive the body it was burned into.
+      wd.armorShred = 0;
       w.emit('secondwind', wd.x, wd.y, 0, 0);
       return;
     }
@@ -378,6 +396,7 @@ export function damageWarden(w: World, amount: number): void {
     } else {
       // Act I stakes live on the Core: a downed Warden reforms at the Core.
       wd.hp = w.derived.maxHp * 0.5;
+      wd.armorShred = 0;
       const c = coreCenter();
       wd.x = c.x - 2;
       wd.y = c.y;
@@ -595,7 +614,7 @@ export function hashWorld(w: World): string {
   h.int(w.tick).int(w.phase.length).str(w.phase).str(w.outcome);
   h.num(w.coreHp).num(w.gold).int(w.wave).int(w.kills).int(w.leaks);
   h.num(w.nightBudgetBonus).int(w.looseInTheDark).num(w.spawnBudget);
-  h.num(w.warden.x).num(w.warden.y).num(w.warden.hp);
+  h.num(w.warden.x).num(w.warden.y).num(w.warden.hp).num(w.warden.armorShred);
   h.int(w.level).num(w.xp);
   h.num(w.act2Time);
   h.int(w.cycle);
@@ -605,7 +624,9 @@ export function hashWorld(w: World): string {
   h.bool(w.invulnerable).bool(w.godMode);
   h.int(w.enemies.length);
   for (const e of w.enemies) {
-    h.int(e.id).int(e.defId).num(e.x).num(e.y).num(e.hp).num(effectiveSpeed(e));
+    // `enemyArmor`, not `armorShred`: `Enemy.armor` is writable sim state too,
+    // and hashing the effective value covers both at identical cost.
+    h.int(e.id).int(e.defId).num(e.x).num(e.y).num(e.hp).num(effectiveSpeed(e)).num(enemyArmor(e));
   }
   h.int(w.structures.length);
   for (const s of w.structures) {

@@ -293,6 +293,7 @@ export class World {
       fy: 0,
       outOfCombat: 0,
       secondWindUsed: false,
+      armorShred: 0,
       leechAccumulator: 0,
     };
   }

@@ -134,9 +134,15 @@ proposed tracks logged for owner sign-off (V3 §4 says so explicitly).
 
 ### 2.5 Armor and stat stacking (§2) — **M19**
 
-- **Armor**: `armorReduction` is `armor/(armor+50)` (`stats.ts:100`). V3 wants
+- **Armor**: ~~`armorReduction` is `armor/(armor+50)` (`stats.ts:100`). V3 wants
   flat-points-as-percent, cap +99, uncapped negative. Every consumer of
-  `derived.damageReduction` changes meaning.
+  `derived.damageReduction` changes meaning.~~ **Done at m19a.** The curve is
+  `clamp(armor, -100, 99)/100`; `derived.damageReduction` was deleted rather than
+  re-pointed, because a cached reduction is blind to Burning's shred — the live
+  number is `wardenArmor(w)`/`enemyArmor(e)`. Enemies gained an `armor` stat
+  (default 0, optional on the def) so the roster can be authored at M20/M27
+  without another engine change. Gate **C3** green for the armour math; its
+  "except Burning's shred" clause rides to **m19c**, which wires Burning (Q58).
 - **Stacking**: currently **additive** — `powerMul: 1 + s.power` where `s.power` is
   the sum of every source (`stats.ts:152`). V3 §2 wants sources to **multiply**
   (10% + 20% → ×1.32, gate C4). This touches the whole `Stats`→`Derived` pipeline,

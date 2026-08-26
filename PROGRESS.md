@@ -10,12 +10,26 @@ V2's M9 shipped, and supersedes a large part of what M9 built. **MIGRATION.md** 
 the audit: what is built, what V3 supersedes, and where V3 conflicts with a live
 gate. Read it before touching anything in M18–M27.
 
-- **Milestone:** M17 and **M18 complete**. M19 (combat math, gates C3/C4) is next.
-- **Gate status:** 333 tests pass, 19 skipped (15 retired at M17 with logged
-  reasons — see MIGRATION.md §5). **A10 is red and deliberately left red**: its
-  5 s whole-run budget was written for a one-cycle run, f001 made a run three
-  cycles long, and V3 §1 changes the run shape again. Re-baselined at M22 per
-  QUESTIONS Q41. Retuning it now would be moving a number to make a light go green.
+- **Milestone:** M17 and M18 complete. **M19 in progress** — `m19a` (armour v3,
+  gate C3) done; `m19b` (multiplicative stacking, gate C4) is the next action,
+  then `m19c` (damage types).
+- **Gate status:** **462 tests pass, 19 skipped** (15 retired at M17 with logged
+  reasons — see MIGRATION.md §5). Gate **C3 is green for the armour math**; its
+  "except Burning's shred" clause is carried by m19c, which wires Burning to the
+  shred mechanism m19a built (Q58).
+- **A10 — correction.** This file previously said A10 was red. It is **not red in
+  the code**: measured at m19a it passes both at that commit and at HEAD
+  `6be4dab` in a clean worktree on this machine. MIGRATION.md §4.5 measured it
+  red (3836/6080/6267 ms) on the audit machine. A wall-clock budget that flips
+  with the host is not measuring the sim, which strengthens rather than weakens
+  Q41's case for a run-length-independent budget at M22. Nothing was retuned.
+- **Balance moved without a constant moving.** m19a replaced `armor/(armor+50)`
+  with V3 §2's linear rule, and the swap alone cut the hybrid policy's median Act
+  II survival 132.4 s → 105.7 s and its median kills 3552 → 2406 (the palisade's
+  +7 terrain armour was 12.3% mitigation, now 7%). `maxbuild` and the other
+  policies are unchanged, every A/B gate still passes, and enemy-side damage is
+  bit-identical to HEAD. Per Q40/Q59 **no number was touched**; HANDOFF §4 is
+  marked stale and is regenerated at m27c.
 - **Standing constraint (Q40):** no balance tuning before M19 lands multiplicative
   stacking — it moves every number in `/data`, so tuning before it is throwaway.
 

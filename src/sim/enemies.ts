@@ -6,6 +6,7 @@
 import type { EnemyDef } from './content';
 import { GRID_H, GRID_W } from './grid';
 import { clamp, dcos, dist, dist2, dsin, normalize } from './math';
+import { damageTakenMul } from './stats';
 import type { Enemy, Structure } from './types';
 import { World } from './world';
 
@@ -96,6 +97,8 @@ export function makeEnemy(w: World, def: EnemyDef, x: number, y: number, opts: S
     flying: (flags & TRAIT.flying) !== 0,
     fx: 0,
     fy: 1,
+    armor: def.armor ?? 0,
+    armorShred: 0,
     slowRemaining: 0,
     slowAmount: 0,
     burnRemaining: 0,
@@ -148,11 +151,42 @@ export function spawnEnemy(w: World, key: string, x: number, y: number, opts: Sp
 
 /* ------------------------------------------------------------------ damage */
 
+/** SPEC-V3 §2: ailment damage ignores the Warden's armor too. */
+export interface WardenDamageOptions {
+  dot?: boolean;
+}
+
 export interface DamageOptions {
   fromX?: number;
   fromY?: number;
-  /** Bypass Bulwark/Shellback mitigation (true damage). */
+  /**
+   * Bypass the *trait* mitigations — Bulwark's flat cut and Shellback's front
+   * shield. Deliberately orthogonal to `dot`: a flag that bypassed both traits
+   * and armor would make `dot` unobservable, since every caller that wants one
+   * today also wants the other.
+   */
   pure?: boolean;
+  /**
+   * Ailment damage, which SPEC-V3 §2 says ignores armor: "ailment (dot) damage
+   * ignores armor unless stated". Burning's stated exception is its armor
+   * *shred*, which lowers the target's armor for every other source rather
+   * than piercing armor here.
+   */
+  dot?: boolean;
+}
+
+/**
+ * SPEC-V3 §2: the armor an enemy actually defends with — its sheet value less
+ * whatever Burning has shredded off it. Uncapped below zero (floored at −100 by
+ * `effectiveArmor`, QUESTIONS Q44).
+ */
+export function enemyArmor(e: Enemy): number {
+  return e.armor - e.armorShred;
+}
+
+/** SPEC-V3 §3: Burning strips armor points. Shred lasts the target's lifetime. */
+export function shredArmor(e: Enemy, points: number): void {
+  e.armorShred += points;
 }
 
 /** Apply damage, returning the amount actually dealt. */
@@ -166,6 +200,8 @@ export function damageEnemy(
   if (e.dead || amount <= 0) return 0;
   const def = e.def as EnemyDef;
   let dmg = amount;
+
+  if (!opts.dot) dmg *= damageTakenMul(enemyArmor(e));
 
   if (!opts.pure) {
     if (def.flatReduction) dmg *= 1 - def.flatReduction;
@@ -311,7 +347,7 @@ function tickTimers(w: World, e: Enemy, dt: number): void {
     e.burnRemaining -= dt;
     // Ailment damage is booked against the weapon that applied it, so A5 sees
     // the true share of each weapon rather than a generic "burn" bucket.
-    damageEnemy(w, e, e.burnDps * dt, e.burnSource || 'burn', { pure: true });
+    damageEnemy(w, e, e.burnDps * dt, e.burnSource || 'burn', { pure: true, dot: true });
     if (e.dead) return;
     if (e.burnRemaining <= 0) e.burnDps = 0;
   }
@@ -319,7 +355,7 @@ function tickTimers(w: World, e: Enemy, dt: number): void {
     let expired = false;
     for (const p of e.poison) {
       p.remaining -= dt;
-      if (p.remaining > 0) damageEnemy(w, e, p.dps * dt, p.source || 'poison', { pure: true });
+      if (p.remaining > 0) damageEnemy(w, e, p.dps * dt, p.source || 'poison', { pure: true, dot: true });
       else expired = true;
       if (e.dead) break;
     }
@@ -822,8 +858,15 @@ export function setBossHandler(fn: (w: World, e: Enemy, dt: number) => boolean):
   bossUpdate = fn;
 }
 
-/** Set by run.ts; keeps the Warden's damage rules (armor, i-frames) in one place. */
-export let damageWarden: (w: World, amount: number) => void = () => {};
-export function setWardenDamageHandler(fn: (w: World, amount: number) => void): void {
+/**
+ * Set by run.ts; keeps the Warden's damage rules (armor, i-frames) in one place.
+ * `opts` is forwarded so an enemy-applied ailment can say it is one — without it
+ * every §3 DoT reaching the Warden from this file would arrive armored, since
+ * this indirection is the only route enemies, the boss and ground areas have.
+ */
+export let damageWarden: (w: World, amount: number, opts?: WardenDamageOptions) => void = () => {};
+export function setWardenDamageHandler(
+  fn: (w: World, amount: number, opts?: WardenDamageOptions) => void,
+): void {
   damageWarden = fn;
 }

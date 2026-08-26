@@ -8,6 +8,7 @@
  */
 
 import { wardenBase, type Content } from './content';
+import { clamp } from './math';
 import type { Relic, RunConfig } from './types';
 
 /** The Warden's base stat sheet (SPEC 2.1). Tuning lives in data/warden.json. */
@@ -96,18 +97,44 @@ export function relicStats(content: Content, relic: Relic): Record<string, numbe
   return out;
 }
 
-/** SPEC 2.1: reduction = armor / (armor + 50). */
+/**
+ * SPEC-V3 §2: armor points *are* the percent reduction of normal damage.
+ * Capped at +99 (99% off) and uncapped below zero — −90 armor is +90% damage
+ * taken — save for QUESTIONS Q44's floor at −100, which keeps Burning's
+ * stacking shred from making damage taken unbounded (it tops out at ×2).
+ *
+ * Replaces the old `armor / (armor + armorK)` curve, which had no
+ * notion of negative armor and reached 99% only at 4950 points.
+ */
+export function effectiveArmor(armor: number): number {
+  // NaN would otherwise pass straight through `clamp` and into HP, and an enemy
+  // whose hp is NaN can never satisfy `hp <= 0` — an unkillable enemy. Not
+  // reachable from data (zod rejects NaN) but one comparison is cheaper than
+  // the bug. ±Infinity clamps correctly and is left alone.
+  if (Number.isNaN(armor)) return 0;
+  return clamp(armor, BASE.armorFloor, BASE.armorCap);
+}
+
+/** Fraction of normal damage removed. Negative armor returns a negative value. */
 export function armorReduction(armor: number): number {
-  if (armor <= 0) return 0;
-  return armor / (armor + BASE.armorK);
+  return effectiveArmor(armor) / 100;
+}
+
+/** Multiplier on incoming normal damage: +99 armor → ×0.01, −90 → ×1.9. */
+export function damageTakenMul(armor: number): number {
+  return 1 - armorReduction(armor);
 }
 
 /** Cached per-frame view of the stat sheet. */
 export interface Derived {
   maxHp: number;
   hpRegen: number;
+  /**
+   * Sheet armor before Burning shred. The number the damage path actually uses
+   * is `wardenArmor(w)` in run.ts; there is deliberately no cached reduction
+   * here, because a cached one would be shred-blind and would read as authoritative.
+   */
   armor: number;
-  damageReduction: number;
   moveSpeed: number;
   powerMul: number;
   attackSpeedMul: number;
@@ -145,7 +172,6 @@ export function derive(content: Content, s: Stats, residualScale = 1): Derived {
     maxHp,
     hpRegen: BASE.hpRegen + s.hpRegen,
     armor,
-    damageReduction: armorReduction(armor),
     moveSpeed: BASE.moveSpeed * (1 + s.moveSpeedPct),
     powerMul: 1 + s.power,
     attackSpeedMul: 1 + s.attackSpeed,

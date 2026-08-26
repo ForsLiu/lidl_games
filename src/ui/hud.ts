@@ -4,7 +4,9 @@ import type { World } from '../sim/world';
 import { towerCost } from '../sim/towers';
 import type { Offer } from '../sim/types';
 import { ENEMY_COLORS, PALETTE, TOWER_COLORS, projectileStyle } from '../render/theme';
-import { effectiveSpeed } from '../sim/enemies';
+import { effectiveSpeed, enemyArmor } from '../sim/enemies';
+import { wardenArmor } from '../sim/run';
+import { armorReduction } from '../sim/stats';
 import type { Enemy } from '../sim/types';
 import { towerInfo, weaponInfo, type TowerInfo, type WeaponInfo } from './tower-info';
 import { runProgress, type RunProgress } from './progress';
@@ -776,7 +778,9 @@ export function enemyInfoMarkup(w: World, e: Enemy): string {
       ? row('XP gem', String(def?.gem ?? 0))
       : row('Bounty', `${Math.round((def?.bounty ?? 0) * (1 + w.derived.goldFind) + w.derived.goldPerKill)}g`),
   ];
-  if (def?.flatReduction) rows.push(row('Armour', `${Math.round(def.flatReduction * 100)}% off all damage`));
+  rows.push(row('Armour', armourText(enemyArmor(e))));
+  if (def?.flatReduction)
+    rows.push(row('Damage reduction', `${Math.round(def.flatReduction * 100)}% off all damage`));
   if (def?.frontReduction) rows.push(row('Front armour', `${Math.round(def.frontReduction * 100)}% from the front`));
   if (e.slowAmount > 0) rows.push(row('Slowed', `${Math.round(e.slowAmount * 100)}%`));
   if (e.burnRemaining > 0) rows.push(row('Burning', `${round1(e.burnRemaining)}s left`));
@@ -789,13 +793,24 @@ export function enemyInfoMarkup(w: World, e: Enemy): string {
     ${traits.length > 0 ? `<p class="sw-note dim">${traits.join(', ')}</p>` : ''}`;
 }
 
+/**
+ * SPEC-V3 §2 armour reads as a percentage either way: positive points are
+ * damage removed, negative points (Burning's shred) are damage *added*, so the
+ * row has to say which — "-30% off" would read as a small benefit.
+ */
+function armourText(armor: number): string {
+  const pct = Math.round(armorReduction(armor) * 100);
+  const suffix = pct < 0 ? `${-pct}% more taken` : `${pct}% off`;
+  return `${Math.round(armor)} (${suffix})`;
+}
+
 /** SPEC-V3 T2: the character's own stats. */
 export function wardenInfoMarkup(w: World): string {
   const d = w.derived;
   const rows = [
     row('Health', `${Math.ceil(w.warden.hp)} / ${Math.round(d.maxHp)}`),
     row('Regen', `${round1(d.hpRegen)} / s`),
-    row('Armour', `${Math.round(d.armor)} (${Math.round(d.damageReduction * 100)}% off)`),
+    row('Armour', armourText(wardenArmor(w))),
     row('Move speed', `${round1(d.moveSpeed)} tiles/s`),
     row('Power', `+${Math.round((d.powerMul - 1) * 100)}%`),
     row('Attack speed', `+${Math.round((d.attackSpeedMul - 1) * 100)}%`),

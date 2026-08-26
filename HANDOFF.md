@@ -136,7 +136,7 @@ Alive cap 350 · elite every 90 s · rifts at 180/360/540 s at ×3 budget · bos
 Contact 0.4 s at reach `radius + 0.45` · gems live 18 s, cap 500 · burrowers surface within 3 tiles.
 
 ### Warden (`data/warden.json`)
-100 HP · 0.5 regen/s · 0 armour (`reduction = a/(a+50)`) · 4.5 tiles/s · pickup 1.5 · dash 4 tiles / 3 s / 0.15 s i-frames · CDR cap 40% · Heartstone **1.0 HP/s** in r3 (SPEC: 5) · leech cap 3 HP/s.
+100 HP · 0.5 regen/s · 0 armour (**SPEC-V3 §2 since m19a: `reduction = clamp(a, -100, 99)/100`**; `armorK` deleted) · 4.5 tiles/s · pickup 1.5 · dash 4 tiles / 3 s / 0.15 s i-frames · CDR cap 40% · Heartstone **1.0 HP/s** in r3 (SPEC: 5) · leech cap 3 HP/s.
 
 ### Meta
 Tier reward `1 + 0.35×(N−1)`, 12 modifiers, tier N drafts N−1 of them 1-of-2.
@@ -152,6 +152,16 @@ XP to reach level n: `5n + n²`.
 
 72-run pool, seeds 1–8, engineer, auto-drafted modifiers. `tools/handoff-metrics.ts`.
 Re-measured after the Q30 retune; the pre-retune numbers are in this file's git history.
+
+> **Stale as of m19a (2026-08-25).** SPEC-V3 §2's armour formula replaced
+> `a/(a+50)` without any constant moving (Q40 forbids tuning until M19 lands),
+> and the swap alone moved the hybrid policy: median Act II survival 132.4 s →
+> **105.7 s**, median kills 3552 → **2406**, median level 17 → 14. `maxbuild`,
+> `kite`, `greedy`, `greedless` and `walloff` are unchanged. Cause is the
+> palisade's terrain armour, which the old curve read as 12.3% mitigation at +7
+> and V3 reads as 7%. Every A/B gate still passes. These tables are regenerated
+> at **m27c**, once M19–M20 have stopped moving the numbers; the M27 re-baseline
+> owns them (Q59).
 
 ### Win rate and run length
 

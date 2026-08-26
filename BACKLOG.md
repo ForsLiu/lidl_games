@@ -16,9 +16,6 @@ recorded reason, not a nudged constant.
 
 ### M19 — combat math and damage types (gates C3, C4)
 
-- [ ] (m19a) [feat] Armor v3: flat points = percent reduction, cap +99, uncapped
-      negative — acceptance: gate **C3** — +99 → 99% reduction, +150 clamps to 99,
-      −90 → ×1.9 damage taken, DoTs ignore armor except Burning's shred — refs: V3 §2
 - [ ] (m19b) [feat] Multiplicative stat stacking: sources multiply, ranks add within
       a source — acceptance: gate **C4** — two 10%/20% same-stat sources from
       different origins produce exactly ×1.32 — refs: V3 §2
@@ -26,7 +23,9 @@ recorded reason, not a nudged constant.
       Bleeding, Poison, Toxic, Burning, Electric; frost/frozen statuses replace the
       V2 chill-stack model — acceptance: one unit test per row of V3 §3's table
       asserting the stated totals and durations; Bleeding stacks independently to
-      the 50/enemy perf cap — refs: V3 §3, Q44
+      the 50/enemy perf cap; **and gate C3's carried clause — Burning must actually
+      call `shredArmor`, which m19a built and left with no production caller (Q58)**
+      — refs: V3 §3, Q44, Q58
 
 ### M20 — tower model v3 (gate: data tests)
 
@@ -196,6 +195,42 @@ sit naturally alongside M24, which touches saves again.
       — refs: QA on t3, bug 11
 
 ## Done
+
+- [x] (m19a) [feat] Armor v3: flat points = percent reduction, cap +99, floor −100
+      (Q44), DoTs ignore armour — gate **C3** green for the armour math; its
+      "except Burning's shred" clause is carried by m19c, which wires Burning to
+      the `shredArmor` mechanism this item built — refs: V3 §2, Q58–Q60 —
+      code-reviewer **REQUEST-CHANGES** (2 Major, 6 Minor) and qa-playtester
+      **PASS** on all four acceptance criteria with 8 bugs filed; both agents
+      independently found the same headline defect and **every** finding is fixed
+      here. What they caught: (1) the `dot: true` I added to the DoT ticks was an
+      **unobservable no-op** — `pure` already short-circuited the armour guard, so
+      deleting `dot` from both sites left all 446 tests green, and criterion 3 was
+      in truth being delivered by a pre-existing flag. The two flags are now
+      orthogonal (`pure` = Bulwark/Shellback trait bypass, `dot` = armour bypass),
+      all four ailment sites state both intents, and the burn and poison ticks are
+      pinned through the **real update loop** on a −90-armour enemy. (2) `Enemy.armor`
+      was writable sim state that never entered `hashWorld`; the hash now takes
+      `enemyArmor(e)`, covering both it and the shred. (3) A11 compares two replays
+      in the same build, so **any** field can be dropped from the hash with nothing
+      turning red — three explicit hash-coverage tests now exist. (4) The
+      `def.armor` → `Enemy.armor` plumbing, the only route from the new schema field
+      into the sim, was untested; cutting it left the suite green. (5) The late-bound
+      `setWardenDamageHandler` had no `opts` parameter, so every §3 DoT reaching the
+      Warden from `enemies.ts`, `boss.ts` or `combat.ts` would have silently arrived
+      **armoured** — the exact failure the flag was added to prevent. (6)
+      `Derived.damageReduction` was left written-but-never-read and shred-blind;
+      deleted. (7) `effectiveArmor(NaN)` returned NaN, which propagates into HP and
+      makes an enemy permanently unkillable (`hp <= 0` never true); guarded. (8) The
+      enemy panel labelled `flatReduction` "Armour" and never showed the stat the
+      damage path reads. Also: schema bounds on `armorCap`/`armorFloor` (the Tuner
+      writes that file, and >100 would make every hit **heal**), and Q60's ruling
+      that shred clears on the Act I reform and on Second Wind. All **14** mutations
+      — the reviewers' plus five of my own — are now caught. Measured: enemy-side
+      damage is bit-identical to HEAD for all 20 enemies (none authors armour), the
+      Warden side moves as Q59 predicted (hybrid median survival 132.4 → 105.7 s),
+      and A10 **passes at this commit and at HEAD on this machine**, which corrects
+      PROGRESS's "A10 is red" — the gate flips with the host (Q41).
 
 - [x] (t2) [feat] Selection feedback — refs: V3 T2, QUESTIONS Q57 — qa-playtester
       **FAIL** on first submission with one Critical and six Majors. The Critical

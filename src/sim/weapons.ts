@@ -410,7 +410,7 @@ export function updateTerrainEffects(w: World, dt: number): void {
             poisonStacks: 3,
           });
         } else {
-          damageEnemy(w, e, t.auraDps! * mul * beatDt, `terrain_${def.key}`, { pure: true });
+          damageEnemy(w, e, t.auraDps! * mul * beatDt, `terrain_${def.key}`, { pure: true, dot: true });
         }
       }
     }

@@ -131,6 +131,10 @@ export interface Enemy {
   /** Facing, used by Shellback front-shield and charger dashes. */
   fx: number;
   fy: number;
+  /** SPEC-V3 §2 armor points; percent reduction of normal damage taken. */
+  armor: number;
+  /** Accumulated Burning shred, subtracted from `armor` (SPEC-V3 §3). */
+  armorShred: number;
   slowRemaining: number;
   slowAmount: number;
   burnRemaining: number;
@@ -236,6 +240,8 @@ export interface Warden {
   fy: number;
   outOfCombat: number;
   secondWindUsed: boolean;
+  /** SPEC-V3 §3: Burning shreds armor. Subtracted from derived armor. */
+  armorShred: number;
   leechAccumulator: number;
 }
 
