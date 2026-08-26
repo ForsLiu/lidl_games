@@ -1,12 +1,10 @@
 /**
- * The Sundering (SPEC 4): Dusk, petrification, and soul binding.
- *
- * M2 wires the transition and the weapon inheritance; M3 adds the full
- * conversion table, the Heartstone pocket and the interactive slot picker.
+ * The Sundering (SPEC 4): Dusk, petrification, and the Day/Dusk/Night/Dawn
+ * cycle transition (Heartstone pocket, approach lanes, spire linking, Dawn's
+ * Rekindle-or-Leave choice).
  */
 
 import { CORE_H, CORE_W, CORE_X, CORE_Y, GRID_H, GRID_W, coreCenter } from './grid';
-import { bindSouls, deriveSouls } from './progression';
 import { markAuraDirty, towerCost } from './towers';
 import { applyTerrainPassives } from './weapons';
 import { World } from './world';
@@ -14,20 +12,8 @@ import { World } from './world';
 /** How long the Dawn ledger stays open before it auto-resolves as all-Leave. */
 export const DAWN_AUTO_SECONDS = 20;
 
-/** Called when the Dusk timer runs out. */
-export function beginSoulPick(w: World): void {
-  const souls = deriveSouls(w);
-  w.soulCandidates = souls.map((s) => s.key);
-  if (w.soulCandidates.length <= w.derived.weaponSlots) {
-    finishSundering(w, w.soulCandidates);
-    return;
-  }
-  w.phase = 'soulpick';
-}
-
-export function finishSundering(w: World, chosen: string[]): void {
+export function finishSundering(w: World): void {
   petrify(w);
-  bindSouls(w, chosen);
   const c = coreCenter();
   w.heartstoneX = c.x;
   w.heartstoneY = c.y;
@@ -63,8 +49,7 @@ export function beginDawn(w: World): void {
 
 /**
  * Rekindle: pay 40% (⚖ `rekindleCostMul`) of base cost to un-petrify a tower
- * for the next Day. Its soul sits out the very next Dusk pick even if it
- * survives to re-petrify (see `soulSuppressed` / `deriveSouls`).
+ * for the next Day.
  */
 export function rekindleTower(w: World, structureId: number): boolean {
   if (w.phase !== 'dawn') return false;
@@ -79,7 +64,6 @@ export function rekindleTower(w: World, structureId: number): boolean {
   // and this is a payment for this structure.
   s.spent += cost;
   s.petrified = false;
-  s.soulSuppressed = true;
   w.emit('rekindle', s.tx + 0.5, s.ty + 0.5, 0, 0);
   markAuraDirty(w);
   return true;
@@ -104,9 +88,6 @@ export function petrify(w: World): void {
     s.petrified = true;
     s.cooldown = 0;
     s.gemTimer = 0;
-    // A structure completes its one-Dusk soul-availability penalty the
-    // moment it (re)petrifies (SPEC-V2 §1 Rekindle).
-    s.soulSuppressed = false;
   }
   if (w.cfg.stripTerrain) {
     // A6 harness: the same Act I build, but the maze does not survive the night.

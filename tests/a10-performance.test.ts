@@ -16,8 +16,8 @@ import { Run } from '../src/sim/run';
 import { World } from '../src/sim/world';
 import { spawnEnemy } from '../src/sim/enemies';
 import { buildTower } from '../src/sim/towers';
-import { grantWeapon } from '../src/sim/weapons';
 import { finishSundering } from '../src/sim/sundering';
+import { wieldedAttacks } from '../src/sim/vswield';
 import { GRID_H, GRID_W } from '../src/sim/grid';
 import { emptyInput } from '../src/sim/types';
 import { makePolicy } from '../src/bots';
@@ -44,9 +44,11 @@ function worstCaseWorld(): World {
       buildTower(w, def.id, x, y);
     }
   }
-  finishSundering(w, ['arrow_volley', 'piercing_bolt', 'toxic_trail', 'mortar_lob']);
-  for (const def of w.content.weapons.weapons) grantWeapon(w, def.key, 6, 0.4);
-  expect(w.weapons.length).toBe(8);
+  // SPEC-FINAL §6.1: every built tower type wields automatically, so a full
+  // set falls out of the spread of tower keys built above — no separate
+  // weapon roster to grant.
+  finishSundering(w);
+  expect(wieldedAttacks(w).length).toBeGreaterThan(0);
 
   w.act2Time = 540;
   const cap = w.content.spawns.aliveCap;
@@ -78,7 +80,7 @@ describe('A10 performance', () => {
 
     const detail =
       `${perTick.toFixed(2)} ms/tick with ${w.enemies.length} enemies, ` +
-      `${w.weapons.length} weapons, ${w.structures.length} terrain pieces`;
+      `${wieldedAttacks(w).length} wielded tower types, ${w.structures.length} terrain pieces`;
     expect(perTick, detail).toBeLessThan(SIM_BUDGET_MS);
   });
 

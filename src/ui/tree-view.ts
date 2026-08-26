@@ -55,8 +55,6 @@ const STAT_LABELS: Record<string, string> = {
   residualPotency: 'Terrain Residuals',
   beaconRadius: 'Beacon Aura Radius',
   teslaLinks: 'Spire Links',
-  weaponSlots: 'Weapon Slots',
-  startWeaponLevel: 'Starting Weapon Level',
   dashCharges: 'Dash Charges',
   hpRegen: 'HP Regen',
   leech: 'Leech',

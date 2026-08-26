@@ -227,7 +227,6 @@ describe('BACKLOG f003: Day HUD shows the "Loose in the dark" counter', () => {
     const hud = new Hud(root, {
       onSelectTower: () => {},
       onCallWave: () => {},
-      onPickSouls: () => {},
       onPickOffer: () => {},
       onReroll: () => {},
       onRekindle: () => {},

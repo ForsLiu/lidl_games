@@ -13,7 +13,6 @@ import { describe, expect, it } from 'vitest';
 
 import { loadContent, validateUpgradeTrack, type Content, type TowerDef } from '../src/sim/content';
 import { damageStructure, dotOutstanding, spawnEnemy } from '../src/sim/enemies';
-import { deriveSouls } from '../src/sim/progression';
 import { hashWorld } from '../src/sim/run';
 import { damageTakenMul } from '../src/sim/stats';
 import {
@@ -382,57 +381,5 @@ describe('m20a — the track through the real loop', () => {
     // edge that any band or HP tune would flip red for no behavioural reason.
     damageStructure(w, s, s.hp * 2);
     expect(s.dead).toBe(true);
-  });
-});
-
-describe('m20a — the track and the Sundering soul ladder (regression)', () => {
-  /**
-   * Found by code review. `deriveSouls` inherited `WeaponLevel = highest tier`
-   * (SPEC 4.1) from a world where every tower topped out at tier 3 and weapons
-   * ran to level 6 — so a maxed tower handed over half the weapon ladder. §4's
-   * tracks run to 11, and `grantWeapon` clamps, so every soul was arriving at
-   * Act II fully levelled: ~5x the weapon DPS V2 granted, for less gold.
-   *
-   * The migration is neutral by construction: a fully upgraded tower inherits
-   * `inheritMaxLevel`, which is the level V2's tier 3 handed over.
-   */
-  it('a fully upgraded tower inherits the level V2 gave, not the ladder max', () => {
-    const def = content.towerByKey.get('ballista')!;
-    const { w, tx, ty } = place(def);
-    for (let i = 0; i < def.upgrades.count; i++) {
-      w.gold = 1e6;
-      expect(upgradeTower(w, tx, ty)).toBe(true);
-    }
-    const souls = deriveSouls(w);
-    const soul = souls.find((s) => s.key === def.soul)!;
-    expect(soul.level).toBe(content.weapons.inheritMaxLevel);
-    expect(soul.level).toBeLessThan(content.weapons.maxLevel);
-  });
-
-  it('spreads the ladder evenly across whatever track a tower has', () => {
-    const def = content.towerByKey.get('ballista')!;
-    const { w, tx, ty } = place(def);
-    const seen: number[] = [];
-    for (let level = 1; level <= maxLevel(def); level++) {
-      if (level > 1) {
-        w.gold = 1e6;
-        expect(upgradeTower(w, tx, ty)).toBe(true);
-      }
-      seen.push(deriveSouls(w).find((s) => s.key === def.soul)!.level);
-    }
-    expect(seen[0], 'an unupgraded tower still hands over level 1').toBe(1);
-    expect(seen[seen.length - 1]).toBe(content.weapons.inheritMaxLevel);
-    for (let i = 1; i < seen.length; i++) expect(seen[i]).toBeGreaterThanOrEqual(seen[i - 1]);
-  });
-
-  it('gives a short track the same ladder as a long one', () => {
-    // Arrow has 5 steps and Ballista 11 levels; both max out at the same soul.
-    const arrow = content.towerByKey.get('arrow_spire')!;
-    const { w, tx, ty } = place(arrow);
-    for (let i = 0; i < arrow.upgrades.count; i++) {
-      w.gold = 1e6;
-      expect(upgradeTower(w, tx, ty)).toBe(true);
-    }
-    expect(deriveSouls(w).find((s) => s.key === arrow.soul)!.level).toBe(content.weapons.inheritMaxLevel);
   });
 });

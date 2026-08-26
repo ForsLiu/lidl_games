@@ -110,7 +110,6 @@ describe.skip('BACKLOG b004: Results screen "Survived" stat is cumulative too', 
     const hud = new Hud(root, {
       onSelectTower: () => {},
       onCallWave: () => {},
-      onPickSouls: () => {},
       onPickOffer: () => {},
       onReroll: () => {},
       onRekindle: () => {},

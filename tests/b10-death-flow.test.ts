@@ -122,7 +122,6 @@ function mountHud(): { root: HTMLElement; hud: Hud; log: Record<string, number> 
   const hud = new Hud(root, {
     onSelectTower: () => {},
     onCallWave: () => {},
-    onPickSouls: () => {},
     onPickOffer: () => {},
     onReroll: () => {},
     onRekindle: () => {},

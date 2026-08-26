@@ -40,7 +40,6 @@ function noopHudCallbacks(pending: Command[]) {
   return {
     onSelectTower: () => {},
     onCallWave: () => pending.push({ k: 'call' }),
-    onPickSouls: (keys: string[]) => pending.push({ k: 'souls', keys }),
     onPickOffer: (index: number) => pending.push({ k: 'pick', index }),
     onReroll: () => pending.push({ k: 'reroll' }),
     onRekindle: () => {},

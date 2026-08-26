@@ -4,9 +4,8 @@ import { describe, expect, it } from 'vitest';
 
 import { World } from '../src/sim/world';
 import { loadContent } from '../src/sim/content';
-import { damageEnemy, dotRemaining, spawnEnemy, updateEnemies } from '../src/sim/enemies';
+import { applyBurn, applySlow, damageEnemy, dotRemaining, spawnEnemy, updateEnemies } from '../src/sim/enemies';
 import { buildTower } from '../src/sim/towers';
-import { grantWeapon, updateWeapons } from '../src/sim/weapons';
 import type { StatKey } from '../src/sim/stats';
 import { handleKillDrops, rollRelic } from '../src/sim/loot';
 import { Rng } from '../src/sim/rng';
@@ -23,19 +22,6 @@ describe('content completeness', () => {
       // SPEC-V3 §4 replaced the shared three-tier ladder with a per-tower
       // track; m20a-upgrade-tracks.test.ts is where its shape is pinned.
       expect(t.upgrades.count, t.key).toBeGreaterThanOrEqual(t.key === 'palisade' ? 0 : 1);
-    }
-  });
-
-  // RETIRED (SPEC-FINAL §6.1, gate G3) — there is no weapon roster and no
-  // six-level track. A VS attack is derived from the built towers of its type,
-  // not authored as content. `data/weapons.json` is deleted at **p2e**.
-  it.skip('has 8 weapons, each with a full six-level track', () => {
-    expect(content.weapons.weapons).toHaveLength(8);
-    for (const w of content.weapons.weapons) {
-      expect(w.levels, w.key).toHaveLength(6);
-      const first = w.levels[0].damage ?? w.levels[0].dps ?? 0;
-      const last = w.levels[5].damage ?? w.levels[5].dps ?? 0;
-      expect(last, `${w.key} must scale across its track`).toBeGreaterThan(first);
     }
   });
 
@@ -132,15 +118,8 @@ describe('enemy behaviours', () => {
     w.phase = 'act2';
     const cinder = spawnEnemy(w, 'cinderling', 10, 10, { overlay: true })!;
     const frost = spawnEnemy(w, 'frostkin', 11, 10, { overlay: true })!;
-    grantWeapon(w, 'flame_cone', 6, 0);
-    grantWeapon(w, 'frost_nova', 6, 0);
-    w.warden.x = 10;
-    w.warden.y = 10;
-    w.warden.fx = 1;
-    for (let i = 0; i < 120; i++) {
-      w.rebuildBuckets();
-      updateWeapons(w, 1 / 60);
-    }
+    applyBurn(w, cinder, 10, 3, 'test');
+    applySlow(w, frost, 0.5, 3);
     expect(dotRemaining(cinder, 'burning')).toBe(0);
     expect(frost.slowAmount).toBe(0);
   });

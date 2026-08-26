@@ -52,13 +52,10 @@ function act1Progress(w: World): RunProgress {
   const total = Math.max(1, w.waveCount);
   const cleared = w.wavesCleared;
 
-  if (w.phase === 'dusk' || w.phase === 'soulpick') {
+  if (w.phase === 'dusk') {
     return {
       title: 'Dusk',
-      detail:
-        w.phase === 'dusk'
-          ? `The Vale is holding. ${Math.ceil(w.duskTimer)}s before your towers petrify.`
-          : 'Choose which souls to bind.',
+      detail: `The Vale is holding. ${Math.ceil(w.duskTimer)}s before your towers petrify.`,
       fraction: 1,
       markers: [],
       sub: null,

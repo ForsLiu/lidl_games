@@ -21,7 +21,6 @@ import type {
   RunOutcome,
   Structure,
   Warden,
-  WeaponState,
 } from './types';
 
 /** Aggregated effect of the drafted map modifiers (SPEC 8.3). */
@@ -113,12 +112,10 @@ export class World {
 
   /* ---- Sundering ---- */
   duskTimer = 0;
-  soulCandidates: string[] = [];
   sundered = false;
   lastStandUsed = false;
   heartstoneX = 0;
   heartstoneY = 0;
-  soulPickTimer = 0;
   /** Beacon-shrine attack-speed bonus while the Warden stands in range. */
   shrineHaste = 0;
   /** Cached petrified-terrain effect lists, built once at the Sundering. */
@@ -164,15 +161,7 @@ export class World {
   /* ---- progression ---- */
   stats: Stats;
   derived: Derived;
-  weapons: WeaponState[] = [];
-  /**
-   * SPEC-V2 §1: per-soul level/damageBonus that survives a soul being benched
-   * (not re-chosen at a Dusk, e.g. after a Rekindle) so it resumes rather than
-   * restarts once it is available again. Keyed by soul (weapon) key.
-   */
-  soulLevels: Record<string, { level: number; damageBonus: number }> = {};
   boonRanks: Record<string, number> = {};
-  awakenings: string[] = [];
   level = 1;
   xp = 0;
   pendingLevelUps = 0;

@@ -12,31 +12,20 @@ import { cfg, runWithPolicy } from './helpers';
 
 const SEEDS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
 
-// TODO(P10 balance re-baseline, Q100): p2c's Frost Obelisk VS special (SPEC-FINAL
-// §5, "an ice aura r2 follows the character") applies Frost continuously to
-// whatever is actually pressing the Warden, rather than the old tower-tile-
-// anchored residual it replaced — stacked with p2b's already-doubled wielded
-// damage (Q96), it is sometimes enough to win outright. Seeds 3 and 5 flip to
-// `victory`; the other ten still support the claim below.
-const STILL_DIES = SEEDS.filter((s) => s !== 3 && s !== 5);
-const NOW_WINS = [3, 5];
-
 describe('A3 movement is mandatory', () => {
+  // Q100 recorded that p2c's Frost Obelisk VS special, stacked with p2b's
+  // already-doubled wielded damage, flipped seeds 3 and 5 to an outright
+  // `victory` for a *stationary* Warden. p2e (Q103) deletes the other half of
+  // that stack — the double-paying soul-weapon fire loop itself, which was
+  // most of a stationary build's damage — and both seeds fall back to
+  // `defeat_warden`: measured, seeds 1-12 are unanimous again under `no-move`.
+  // This is Q100's own exception un-happening, not a fresh finding, so it is
+  // folded back into the single claim below rather than kept as two tests.
   it('a Warden that never moves always dies, and never sees the boss', () => {
-    for (const seed of STILL_DIES) {
+    for (const seed of SEEDS) {
       const { report } = runWithPolicy(cfg({ seed }), 'no-move');
       expect(report.outcome, `seed ${seed}`).toBe('defeat_warden');
       expect(report.bossKilled).toBe(false);
-    }
-  });
-
-  // Recorded per Q100, not hidden behind a `.skip`: two of twelve no-move
-  // seeds now win outright once p2c's character-following Frost aura is live.
-  it('two no-move seeds now win outright — recorded, not tuned (Q100)', () => {
-    for (const seed of NOW_WINS) {
-      const { report } = runWithPolicy(cfg({ seed }), 'no-move');
-      expect(report.outcome, `seed ${seed}`).toBe('victory');
-      expect(report.bossKilled, `seed ${seed}`).toBe(true);
     }
   });
 

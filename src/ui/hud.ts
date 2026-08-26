@@ -3,12 +3,12 @@
 import type { World } from '../sim/world';
 import { towerCost } from '../sim/towers';
 import type { Offer } from '../sim/types';
-import { ENEMY_COLORS, PALETTE, TOWER_COLORS, projectileStyle } from '../render/theme';
+import { ENEMY_COLORS, PALETTE, TOWER_COLORS } from '../render/theme';
 import { dotRemaining, dotStacks, effectiveSpeed, enemyArmor } from '../sim/enemies';
 import { wardenArmor } from '../sim/run';
 import { armorReduction } from '../sim/stats';
 import type { Enemy } from '../sim/types';
-import { towerInfo, weaponInfo, wieldedLineageText, type TowerInfo, type WeaponInfo } from './tower-info';
+import { towerInfo, wieldedLineageText, type TowerInfo } from './tower-info';
 import { runProgress, type RunProgress } from './progress';
 import type { DevOp } from '../sim/types';
 import { selectedEnemy, selectedStructure, type Selection } from './selection';
@@ -16,7 +16,6 @@ import { selectedEnemy, selectedStructure, type Selection } from './selection';
 export interface HudCallbacks {
   onSelectTower(id: number): void;
   onCallWave(): void;
-  onPickSouls(keys: string[]): void;
   onPickOffer(index: number): void;
   onReroll(): void;
   /** Dawn: Rekindle one petrified tower back to life for the next Day. */
@@ -48,7 +47,6 @@ export class Hud {
   private progressEl: HTMLElement;
   private practiceEl: HTMLElement;
   private lastInfoKey = '';
-  private selectedWeapon = '';
   private cb: HudCallbacks;
   private selected = 0;
   private lastModalKey = '';
@@ -218,19 +216,6 @@ export class Hud {
       <div class="sw-row"><span>Dash</span><b>${w.warden.dashCharges}/${d.dashCharges}</b></div>
       ${this.activeRow(w)}
       ${
-        w.weapons.length > 0
-          ? `<div class="sw-sub">Weapons</div>` +
-            w.weapons
-              .map(
-                (x) =>
-                  `<div class="sw-row small"><span>${w.content.weaponByKey.get(x.key)?.name ?? x.key}${
-                    x.awakened ? ' ★' : ''
-                  }</span><b>Lv ${x.level}${x.damageBonus > 0 ? ` +${Math.round(x.damageBonus * 100)}%` : ''}</b></div>`,
-              )
-              .join('')
-          : ''
-      }
-      ${
         Object.keys(w.boonRanks).length > 0
           ? `<div class="sw-sub">Boons</div>` +
             Object.entries(w.boonRanks)
@@ -272,12 +257,10 @@ export class Hud {
   }
 
   /**
-   * After the Sundering there is no tower bar, and the HUD said only "Lv 6".
-   * The same panel now carries the bound weapon: what it does, its real numbers
-   * at this level, what the next level buys, and the Awakening it can reach.
+   * SPEC-FINAL §6.1/§6.2: after the Sundering there is no tower bar, and the
+   * only Act II panel is the wielded-tower lineage (p2d).
    */
   private renderWeaponInfo(w: World): void {
-    const ws = w.weapons.find((x) => x.key === this.selectedWeapon) ?? w.weapons[0];
     // A cheap proxy for "the built roster changed": build/sell/upgrade only
     // happen between waves, but `!s.dead` also catches a tower an enemy kills
     // mid-VS-wave (the case `removeStructure` exists to invalidate the wielded
@@ -288,26 +271,10 @@ export class Hud {
       .map((s) => `${s.towerId}.${s.tier}`)
       .sort()
       .join(',');
-    if (!ws) {
-      const key = `noweapons:${roster}`;
-      if (this.lastInfoKey !== key) {
-        this.lastInfoKey = key;
-        this.towerInfoEl.innerHTML = wieldedLineageMarkup(w);
-      }
-      return;
-    }
-    const key = `w:${ws.key}:${ws.level}:${ws.awakened}:${w.weapons.length}:${roster}`;
+    const key = `wielded:${roster}`;
     if (key === this.lastInfoKey) return;
     this.lastInfoKey = key;
-    this.towerInfoEl.innerHTML =
-      weaponInfoMarkup(weaponInfo(w, ws), w.weapons.map((x) => x.key)) + wieldedLineageMarkup(w);
-    for (const el of this.towerInfoEl.querySelectorAll<HTMLElement>('[data-weapon]')) {
-      el.addEventListener('click', () => {
-        this.selectedWeapon = el.dataset.weapon!;
-        this.lastInfoKey = '';
-        this.renderWeaponInfo(w);
-      });
-    }
+    this.towerInfoEl.innerHTML = wieldedLineageMarkup(w);
   }
 
   /**
@@ -460,7 +427,7 @@ export class Hud {
     }
   }
 
-  /** Modal screens: soul picker, level-up, results. */
+  /** Modal screens: level-up, Dawn, results. */
   syncModal(w: World): void {
     if (this.paused) return;
     // Only the Dawn ledger needs to react to gold and petrified-tower changes
@@ -473,13 +440,11 @@ export class Hud {
             .map((s) => s.id)
             .join(',')}`
         : '';
-    const key = `${w.phase}:${w.offers.length}:${w.soulCandidates.join(',')}:${w.outcome}:${w.level}${dawnKey}`;
+    const key = `${w.phase}:${w.offers.length}:${w.outcome}:${w.level}${dawnKey}`;
     if (key === this.lastModalKey) return;
     this.lastModalKey = key;
 
-    if (w.phase === 'soulpick') {
-      this.showSoulPicker(w);
-    } else if (w.phase === 'levelup') {
+    if (w.phase === 'levelup') {
       this.showOffers(w, w.offers);
     } else if (w.phase === 'dawn') {
       this.showDawn(w);
@@ -502,50 +467,13 @@ export class Hud {
     this.modal.classList.remove('sw-off');
   }
 
-  private showSoulPicker(w: World): void {
-    const slots = w.derived.weaponSlots;
-    const chosen = new Set<string>();
-    this.openModal();
-    const render = () => {
-      this.modal.innerHTML = `
-        <div class="sw-card wide">
-          <h2>The Sundering</h2>
-          <p>Your towers petrify. Choose <b>${slots}</b> souls to bind.</p>
-          <div class="sw-souls">
-            ${w.soulCandidates
-              .map((k) => {
-                const def = w.content.weaponByKey.get(k)!;
-                const src = w.content.towerByKey.get(def.source);
-                return `<button class="sw-soul ${chosen.has(k) ? 'on' : ''}" data-k="${k}">
-                  <b>${def.name}</b><small>from ${src?.name ?? def.source}</small>
-                  <span>${def.desc}</span></button>`;
-              })
-              .join('')}
-          </div>
-          <button class="sw-go" ${chosen.size === 0 ? 'disabled' : ''}>Bind ${chosen.size}/${slots}</button>
-        </div>`;
-      for (const el of this.modal.querySelectorAll<HTMLElement>('.sw-soul')) {
-        el.addEventListener('click', () => {
-          const k = el.dataset.k!;
-          if (chosen.has(k)) chosen.delete(k);
-          else if (chosen.size < slots) chosen.add(k);
-          render();
-        });
-      }
-      this.modal.querySelector('.sw-go')?.addEventListener('click', () => {
-        this.cb.onPickSouls([...chosen]);
-      });
-    };
-    render();
-  }
-
   private showDawn(w: World): void {
     this.openModal();
     const petrified = w.structures.filter((s) => !s.dead && s.petrified);
     this.modal.innerHTML = `
       <div class="sw-card wide">
         <h2>Dawn — Cycle ${w.cycle} of ${w.totalCycles}</h2>
-        <p>Rekindle a tower to fight again by Day; leave it and its soul stays bound for Night.</p>
+        <p>Rekindle a tower to fight again by Day; leave it and it stays petrified through Night.</p>
         <div class="sw-souls">
           ${
             petrified.length === 0
@@ -585,7 +513,7 @@ export class Hud {
             .map(
               (o, i) => `<button class="sw-offer ${o.kind}" data-i="${i}">
                 <b>${o.name}</b><span>${o.desc}</span>
-                <small>${o.kind === 'awakening' ? 'AWAKENING' : o.kind.toUpperCase()}</small>
+                <small>${o.kind.toUpperCase()}</small>
               </button>`,
             )
             .join('')}
@@ -687,11 +615,6 @@ export function towerInfoMarkup(info: TowerInfo, gold: number, placed: boolean):
         ? '<p class="sw-hint">Hold <b>U</b> (or Shift) and click the tower to upgrade it.</p>'
         : ''
     }
-    ${
-      info.soul
-        ? `<div class="sw-sub">Soul &mdash; ${info.soul.name}</div><p class="sw-note">${info.soul.desc} ${info.soulNote}</p>`
-        : ''
-    }
     ${info.terrainText ? `<p class="sw-note dim">${info.terrainText}</p>` : ''}`;
 }
 
@@ -741,46 +664,7 @@ export const PRACTICE_BUTTONS: { op: DevOp; amount: number; label: string; title
   { op: 'summon_boss', amount: 0, label: 'Summon boss', title: 'Jumps the clock to the Warden-Eater' },
 ];
 
-/** The Act II weapon card, with a tab strip for the other bound souls. */
-export function weaponInfoMarkup(info: WeaponInfo, all: string[]): string {
-  const colour = projectileStyle(info.key).color;
-  const tabs = all
-    .map(
-      (k) =>
-        `<button class="sw-wtab ${k === info.key ? 'on' : ''}" data-weapon="${k}"
-                 style="--wc:${projectileStyle(k).color}"></button>`,
-    )
-    .join('');
-
-  const stats = info.stats
-    .map(
-      (line) =>
-        `<div class="sw-row small"><span>${line.label}</span><b>${line.value}${
-          line.next ? `<i class="sw-next"> &rarr; ${line.next}</i>` : ''
-        }</b></div>`,
-    )
-    .join('');
-
-  return `
-    <div class="sw-wtabs">${tabs}</div>
-    <h3 style="color:${colour}">${info.name}${info.awakened ? ' ★' : ''}
-      <small>Lv ${info.level} / ${info.maxLevel}</small></h3>
-    <p class="sw-note">${info.attackText}</p>
-    ${stats}
-    <p class="sw-note dim">${info.sourceText}</p>
-    ${
-      info.awakening
-        ? `<div class="sw-sub">Awakening — ${info.awakening.name}</div>
-           <p class="sw-note">${info.awakening.desc}</p>
-           <p class="sw-hint">Needs ${info.awakening.needs}.</p>`
-        : info.awakened
-          ? '<p class="sw-hint">Awakened.</p>'
-          : ''
-    }`;
-}
-
-/** SPEC-FINAL §6.2: every wielded tower type's lineage, below the soul-weapon
- * card (or alone, once p2e retires the soul-weapon panel this sits under). */
+/** SPEC-FINAL §6.2: every wielded tower type's lineage — the only Act II panel. */
 export function wieldedLineageMarkup(w: World): string {
   const lines = wieldedLineageText(w);
   if (lines.length === 0) return '';

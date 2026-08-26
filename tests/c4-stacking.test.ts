@@ -22,7 +22,7 @@ import { Run, hashWorld } from '../src/sim/run';
 import { applyOffer } from '../src/sim/progression';
 import { killEnemy, spawnEnemy, updateEnemies } from '../src/sim/enemies';
 import { handleKillDrops } from '../src/sim/loot';
-import { applyTerrainPassives, intervalFor } from '../src/sim/weapons';
+import { applyTerrainPassives } from '../src/sim/weapons';
 import { attackSpeedFor, buildTower, collectSproutGold } from '../src/sim/towers';
 import { enemyInfoMarkup } from '../src/ui/hud';
 import { emberFor } from '../src/meta/meta';
@@ -64,7 +64,6 @@ function baseReport(): RunReport {
     damageThroughMinute8: null,
     topWeaponShareMinute8: 0,
     topWeaponMinute8: '',
-    weapons: [],
     boons: {},
     relicsFound: 0,
     ember: 0,
@@ -194,9 +193,8 @@ describe('C4 — flat stats still add', () => {
   });
 
   it('holds outside derive() too — no `mul` stat is read with total() anywhere', () => {
-    // `derive()` is not the only reader: `coreHp` (world.ts) and
-    // `startWeaponLevel` (progression.ts) are pulled straight off `Stats`, and the
-    // scan above stops at derive()'s closing brace.
+    // `derive()` is not the only reader: `coreHp` (world.ts) is pulled straight
+    // off `Stats`, and the scan above stops at derive()'s closing brace.
     const files = [
       'src/sim/stats.ts',
       'src/sim/world.ts',
@@ -535,16 +533,21 @@ describe('C4 — origins that are not the boon/tree/relic stack (QA bugs 1, 3, 5
   });
 
   it('shrine haste multiplies the Warden stack rather than adding into it (QA bug 3)', () => {
+    // p2e removed `intervalFor` (weapons.ts) along with the soul-weapon fire
+    // loop it belonged to; the rule it enforced — a shrine is a separate
+    // multiplicative origin from the boon/tree/relic stack, same as a tower
+    // buff aura (see `attackSpeedFor`, towers.ts) — is asserted directly
+    // against the raw numbers instead. See QUESTIONS.md Q101 for the note
+    // that `w.shrineHaste` itself has no reader left after that deletion.
     const w = new World(cfg());
     w.stats.add('boon:haste', 'attackSpeed', 0.4);
     w.recomputeDerived();
     expect(w.derived.attackSpeedMul).toBeCloseTo(1.4, 12);
-    const plain = intervalFor(w, {} as never, 1, false);
     w.shrineHaste = 0.15;
-    const hasted = intervalFor(w, {} as never, 1, false);
+    const effective = w.derived.attackSpeedMul * (1 + w.shrineHaste);
     // 1.4 x 1.15 = 1.61. The additive answer was 1.55.
-    expect(plain / hasted).toBeCloseTo(1.15, 12);
-    expect(1 / hasted).toBeCloseTo(1.61, 12);
+    expect(effective).toBeCloseTo(1.61, 12);
+    expect(effective).not.toBeCloseTo(1.55, 6);
   });
 
   it('tower buff auras multiply the tower stack too (QA bug 3)', () => {
@@ -578,14 +581,14 @@ describe('C4 — origins that are not the boon/tree/relic stack (QA bugs 1, 3, 5
     // QA measured 25 of 39 stats invisible to the hash 20 s into a run, so a
     // stacking regression could pass gate A11's replay comparison.
     //
-    // Three stats are legitimately invisible because they never reach
-    // `Derived`: `coreHp` and `startWeaponLevel` are read straight off `Stats`
-    // once (in the World constructor and in `bindSouls`), so changing them later
-    // is a no-op by design; `lastStandSundering` has no reader at all today.
+    // Two stats are legitimately invisible because they never reach
+    // `Derived`: `coreHp` is read straight off `Stats` once (in the World
+    // constructor), so changing it later is a no-op by design;
+    // `lastStandSundering` has no reader at all today.
     // `burnSpread` left this list at m19c, when SPEC-V3 §3 gave Burning the AoE
     // spread the stat was always named for. Listed explicitly so the exemption
     // cannot silently grow.
-    const notDerived = ['coreHp', 'startWeaponLevel', 'lastStandSundering'];
+    const notDerived = ['coreHp', 'lastStandSundering'];
     const missed: string[] = [];
     for (const k of STAT_KEYS) {
       const run = new Run(cfg());

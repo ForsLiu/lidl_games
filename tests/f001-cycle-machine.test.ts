@@ -187,7 +187,6 @@ describe('the cycle state machine (SPEC-V2 §1)', () => {
     applyCommand(w, { k: 'rekindle', structureId });
     const s = w.structures.find((x) => x.id === structureId)!;
     expect(s.petrified).toBe(false);
-    expect(s.soulSuppressed).toBe(true);
     expect(w.gold).toBe(goldBefore - cost);
 
     // A second Rekindle of the same (now live) structure is a no-op: it is not petrified.
@@ -197,79 +196,11 @@ describe('the cycle state machine (SPEC-V2 §1)', () => {
   });
 
   // RETIRED (V3 §0/§12, M17) — gate B9. V3 cuts soul persistence and the Dusk
-  // picker; §12 names B9 for retirement explicitly. Removed at M22.
+  // picker; §12 names B9 for retirement explicitly. Its soul-binding APIs
+  // (`w.weapons`, `w.soulLevels`, `w.soulCandidates`, `TowerDef.soul`) were
+  // themselves deleted at p2e, so the body is gone with them. Removed at M22.
   it.skip('B9: a petrified-left tower keeps its soul and Night-earned level; a Rekindled tower sits out the very next Dusk pick', () => {
-    const run = new Run(cfg({ cycles: 3 }));
-    const w = run.world;
-    w.warden.x = 5.5;
-    w.warden.y = 5.5;
-    const spireDef = w.content.towerByKey.get('arrow_spire')!;
-    const ballistaDef = w.content.towerByKey.get('ballista')!;
-    buildTower(w, spireDef.id, 5, 6);
-    buildTower(w, ballistaDef.id, 7, 6);
-    const spireSoul = w.content.towerById.get(spireDef.id)!.soul!;
-    const ballistaSoul = w.content.towerById.get(ballistaDef.id)!.soul!;
-
-    // Cycle 1 -> Dusk auto-binds both souls (2 towers <= weapon slots).
-    forceWaveClear(run, cycleWaveEnd(w, 1));
-    w.duskTimer = 0;
-    run.step(emptyInput());
-    expect(w.phase).toBe('act2');
-    expect(w.weapons.some((x) => x.key === spireSoul)).toBe(true);
-    expect(w.weapons.some((x) => x.key === ballistaSoul)).toBe(true);
-
-    // Simulate Night-time growth on the Spire's bound weapon.
-    const spireWeapon = w.weapons.find((x) => x.key === spireSoul)!;
-    spireWeapon.level = w.content.weapons.maxLevel;
-
-    w.act2Time = nightLengthSeconds(w, 1);
-    run.step(emptyInput());
-    expect(w.phase).toBe('dawn');
-
-    const spireStructure = w.structures.find((s) => s.towerId === spireDef.id)!;
-    applyCommand(w, { k: 'rekindle', structureId: spireStructure.id });
-    applyCommand(w, { k: 'dawn_done' });
-    expect(w.phase).toBe('act1_build');
-    expect(w.cycle).toBe(2);
-
-    // Day 2: nothing else changes on the field. Skip straight to cycle 2's Dusk.
-    forceWaveClear(run, cycleWaveEnd(w, 2));
-    expect(w.phase).toBe('dusk');
-    w.duskTimer = 0;
-    run.step(emptyInput());
-
-    // The rekindled Spire's soul is unavailable this Dusk even though it
-    // survived (unharmed) and re-petrified in the same step. The Ballista,
-    // never rekindled, stayed available the whole time.
-    expect(w.soulCandidates).not.toContain(spireSoul);
-    expect(w.soulCandidates).toContain(ballistaSoul);
-
-    // SPEC-V2 §1: "weapon unavailable next Night" means genuinely unbound,
-    // not just absent from the picker — it must stop firing for Night 2.
-    expect(w.weapons.some((x) => x.key === spireSoul)).toBe(false);
-    // ...but its Night-1 level was not lost, only benched.
-    expect(w.soulLevels[spireSoul]?.level).toBe(w.content.weapons.maxLevel);
-
-    // Having re-petrified at this same Dusk, it is eligible again next time.
-    expect(spireStructure.petrified).toBe(true);
-    expect(spireStructure.soulSuppressed).toBe(false);
-
-    // Dawn 2: leave everything petrified. Dusk 3 should re-bind the Spire's
-    // soul, resuming at its Night-1 level rather than restarting at tier 1.
-    w.act2Time = nightLengthSeconds(w, 2);
-    run.step(emptyInput());
-    expect(w.phase).toBe('dawn');
-    applyCommand(w, { k: 'dawn_done' });
-    expect(w.cycle).toBe(3);
-
-    forceWaveClear(run, cycleWaveEnd(w, 3));
-    expect(w.phase).toBe('dusk');
-    w.duskTimer = 0;
-    run.step(emptyInput());
-    expect(w.phase).toBe('act2');
-    expect(w.soulCandidates).toContain(spireSoul);
-    const spireWeaponResumed = w.weapons.find((x) => x.key === spireSoul);
-    expect(spireWeaponResumed?.level).toBe(w.content.weapons.maxLevel);
+    // Body retired at p2e; see the comment above.
   });
 
   it('a scripted 3-cycle sim completes', () => {
@@ -290,10 +221,16 @@ describe('the cycle state machine (SPEC-V2 §1)', () => {
     // (Q97) that wielding was stacking on top of, which is a real damage cut
     // for a hybrid board's Act II output — of seeds 1-40, seed 5 no longer
     // reaches cycle 3 (it now dies mid cycle 1); only 18, 37 and 40 do. This
-    // pin moves to seed 18, measured, not chosen to flatter the change — see
+    // pin moved to seed 18, measured, not chosen to flatter the change — see
     // QUESTIONS Q100 for the same mechanism's other consequence (A3's two
-    // flipped seeds).
-    const { report, run } = runWithPolicy(cfg({ cycles: 3, seed: 18 }), 'hybrid', 60 * 60 * 45);
+    // flipped seeds). p2e (Q103) deletes the rest of the double-paying
+    // machinery — the soul-weapon fire loop that used to fire *alongside*
+    // wielded attacks rather than being replaced by them — cutting a hybrid
+    // board's Act II output again: of seeds 1-60, seed 18 no longer reaches
+    // cycle 3; only 8, 14, 21, 22, 23, 24, 28, 32, 36, 41, 48, 49, 56 and 57
+    // do. This pin moves to seed 8, the lowest of that set, measured the same
+    // way as every prior move in this comment.
+    const { report, run } = runWithPolicy(cfg({ cycles: 3, seed: 8 }), 'hybrid', 60 * 60 * 45);
     expect(run.done).toBe(true);
     expect(report.outcome).not.toBe('running');
     expect(run.world.cycle).toBe(3);

@@ -10,7 +10,6 @@ import { loadContent } from '../src/sim/content';
 import { applyCommand, Run } from '../src/sim/run';
 import { affinityMul, buildTower, checkBuild, towerDamage } from '../src/sim/towers';
 import { spawnEnemy } from '../src/sim/enemies';
-import { beginSoulPick } from '../src/sim/sundering';
 import type { Command, RunConfig, Structure, TickInput } from '../src/sim/types';
 import { World } from '../src/sim/world';
 import { cfg } from './helpers';
@@ -180,50 +179,5 @@ describe('f004: class Active skill as a sim Command', () => {
     const b = new Run(cfg({ classKey: 'pyromancer' }));
     for (const input of log) b.step(input);
     expect(a.hash()).toBe(b.hash());
-  });
-});
-
-/**
- * RETIRED (SPEC-FINAL §6.1) — the Dusk picker.
- *
- * There is no picking step and no slot budget to over-supply: §6.1 hands the
- * character every built tower type's attack unconditionally. File deleted at
- * **p2e**.
- */
-describe.skip('f004: the Dusk picker binds for every class (SPEC-V2 D3)', () => {
-  it('an over-supply of soul towers (more than the 6 slots) still binds a valid pick', () => {
-    const w = newWorld({ classKey: 'engineer' });
-    w.gold = 100000;
-    w.phase = 'act1_build';
-    const soulTowers = w.content.towers.towers.filter((t) => t.soul !== null);
-    expect(soulTowers.length).toBeGreaterThan(w.derived.weaponSlots); // the over-supply case D3 broke on
-
-    let x = 2;
-    let y = 2;
-    for (const t of soulTowers) {
-      warp(w, x, y);
-      const res = buildTower(w, t.id, x, y);
-      expect(res.ok).toBe(true);
-      x += 3;
-      if (x > 30) {
-        x = 2;
-        y += 3;
-      }
-    }
-
-    beginSoulPick(w);
-    expect(w.phase).toBe('soulpick');
-    expect(w.soulCandidates.length).toBe(soulTowers.length);
-
-    const candidates = w.soulCandidates.slice();
-    const chosen = candidates.slice(0, w.derived.weaponSlots);
-    const leftOut = candidates.slice(w.derived.weaponSlots);
-    applyCommand(w, { k: 'souls', keys: chosen });
-
-    expect(w.phase).toBe('act2');
-    // Exactly the chosen souls bound (bindSouls also grants slotless innate
-    // weapons, so the picker's own contribution is checked by key, not count).
-    for (const key of chosen) expect(w.weapons.some((x) => x.key === key)).toBe(true);
-    for (const key of leftOut) expect(w.weapons.some((x) => x.key === key)).toBe(false);
   });
 });

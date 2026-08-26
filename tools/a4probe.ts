@@ -10,8 +10,12 @@ import type { RunConfig } from '../src/sim/types';
 
 const content = loadContent();
 
+// SPEC-FINAL §6.1 (p2e) dropped the soul-weapon roster, so "soul-granting"
+// is no longer a field of its own — it was always exactly the towers with an
+// attack (palisade, beacon_totem and harvest_sprout are the only three that
+// never had one), so that is what selects the same seven towers now.
 export const SOUL_TOWERS = content.towers.towers
-  .filter((t) => t.soul !== null)
+  .filter((t) => t.attack !== null)
   .map((t) => t.key);
 
 /**

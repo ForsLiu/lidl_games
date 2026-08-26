@@ -162,7 +162,6 @@ describe('C7: Orbs are gone from what a player sees', () => {
     const hud = new Hud(root, {
       onSelectTower: () => {},
       onCallWave: () => {},
-      onPickSouls: () => {},
       onPickOffer: () => {},
       onReroll: () => {},
       onRekindle: () => {},

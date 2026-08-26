@@ -132,7 +132,6 @@ describe('p2d — Hud panel reflects the live wielded roster, not a stale cache'
     return new Hud(root, {
       onSelectTower: () => {},
       onCallWave: () => {},
-      onPickSouls: () => {},
       onPickOffer: () => {},
       onReroll: () => {},
       onRekindle: () => {},

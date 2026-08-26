@@ -28,7 +28,6 @@ import { spawnEnemy } from '../src/sim/enemies';
 import { Run } from '../src/sim/run';
 import { bindCanvasInput } from '../src/ui/input';
 import { Hud } from '../src/ui/hud';
-import { grantWeapon } from '../src/sim/weapons';
 import {
   makeSelectHandler,
   pickAt,
@@ -465,7 +464,6 @@ describe('T2: the selection gets a stats panel', () => {
     const hud = new Hud(root, {
       onSelectTower: () => {},
       onCallWave: () => {},
-      onPickSouls: () => {},
       onPickOffer: () => {},
       onReroll: () => {},
       onRekindle: () => {},
@@ -513,16 +511,28 @@ describe('T2: the selection gets a stats panel', () => {
     expect(text).not.toContain('Husk');
   });
 
-  it('Act II keeps the weapon panel — it holds the only weapon switcher', () => {
+  it('Act II keeps the weapon panel — it holds the wielded lineage', () => {
+    // SPEC-FINAL §6.1 (p2e): no separate weapon roster, just every built
+    // tower type's own wielded lineage line. Act II is entered directly
+    // (the p2d-weapon-lineage.test.ts pattern) rather than through
+    // `finishSundering`, whose pocket-clear/lane logic can remove a tower
+    // built this close to the Core.
     const w = new World(cfg());
-    w.sundered = true;
+    w.gold = 99999;
+    const def = w.content.towerByKey.get('ballista')!;
+    const tx = 5;
+    const ty = 5;
+    w.warden.x = tx + 0.5;
+    w.warden.y = ty + 0.5;
+    expect(buildTower(w, def.id, tx, ty).ok).toBe(true);
     w.phase = 'act2';
-    grantWeapon(w, 'wardens_arrow', 1, 0);
-    grantWeapon(w, 'piercing_bolt', 2, 0);
+    // `sundered` is what makes the weapon panel win over an enemy selection
+    // (`update()`'s `blocking` check) — the actual claim this test makes.
+    w.sundered = true;
     const g = emptyGround(w);
     const e = spawnEnemy(w, 'husk', g.x, g.y)!;
     const text = hudFor(w, { kind: 'enemy', id: e.id });
-    expect(text).toMatch(/Warden's Arrow|Piercing Bolt/);
+    expect(text).toContain('Ballista');
   });
 
   it('the enemy panel updates when the enemy is slowed', () => {
@@ -533,7 +543,7 @@ describe('T2: the selection gets a stats panel', () => {
     document.body.innerHTML = '<div id="app"></div>';
     const root = document.getElementById('app') as HTMLElement;
     const hud = new Hud(root, {
-      onSelectTower: () => {}, onCallWave: () => {}, onPickSouls: () => {}, onPickOffer: () => {},
+      onSelectTower: () => {}, onCallWave: () => {}, onPickOffer: () => {},
       onReroll: () => {}, onRekindle: () => {}, onDawnDone: () => {}, onRetry: () => {},
       onNewRun: () => {}, onToggleRanges: () => {}, onResume: () => {}, onPause: () => {},
       onCycleSpeed: () => {}, onDev: () => {}, onQuitToHub: () => {},
@@ -561,7 +571,7 @@ describe('T2: the selection gets a stats panel', () => {
     document.body.innerHTML = '<div id="app"></div>';
     const root = document.getElementById('app') as HTMLElement;
     const hud = new Hud(root, {
-      onSelectTower: () => {}, onCallWave: () => {}, onPickSouls: () => {}, onPickOffer: () => {},
+      onSelectTower: () => {}, onCallWave: () => {}, onPickOffer: () => {},
       onReroll: () => {}, onRekindle: () => {}, onDawnDone: () => {}, onRetry: () => {},
       onNewRun: () => {}, onToggleRanges: () => {}, onResume: () => {}, onPause: () => {},
       onCycleSpeed: () => {}, onDev: () => {}, onQuitToHub: () => {},

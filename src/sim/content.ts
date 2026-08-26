@@ -7,7 +7,6 @@ import { z } from 'zod';
 import towersRaw from '../../data/towers.json';
 import enemiesRaw from '../../data/enemies.json';
 import wavesRaw from '../../data/waves.json';
-import weaponsRaw from '../../data/weapons.json';
 import spawnsRaw from '../../data/spawns.json';
 import boonsRaw from '../../data/boons.json';
 import relicsRaw from '../../data/relics.json';
@@ -182,7 +181,6 @@ export const TowerSchema = z.object({
   buffAura: z.object({ radius: num, attackSpeed: num }).optional(),
   economy: z.object({ goldPerWavePerTier: num }).optional(),
   passive: z.object({ attackSpeedPer: num, cap: num }).optional(),
-  soul: str.nullable(),
   terrain: TerrainSchema,
   /** SPEC-FINAL §5's VS special column (p2c). Required — "none" is explicit. */
   vsSpecial: VsSpecialSchema,
@@ -211,6 +209,21 @@ export const TowersFileSchema = z.object({
   buildRange: num,
   /** SPEC-V2 §1: Rekindle at Dawn costs this fraction of base build cost. */
   rekindleCostMul: num,
+  /**
+   * Many-target damage damping shared by every AoE/cone/ground-field hit
+   * (SPEC A5): the first `aoeFullTargets` bodies a blast touches take full
+   * damage, then each further body scales by `aoeFalloff`, floored at
+   * `aoeFalloffFloor`, so no single attack out-scales every other source by
+   * simply hitting a bigger crowd. Formerly authored in `data/weapons.json`
+   * alongside the deleted weapon roster; moved here at p2e since the rule is
+   * generic to every attack shape, towers and wielded attacks alike.
+   */
+  aoeFullTargets: num,
+  aoeFalloff: num,
+  aoeFalloffFloor: num,
+  /** Same damping, applied per successive body a piercing line passes through. */
+  pierceFalloff: num,
+  pierceFalloffFloor: num,
   /**
    * SPEC-V3 §4 gives tower defense as a profile word ("medium HP/def", "low
    * def") and no numbers, so m20c authored the band table the words name.
@@ -307,73 +320,6 @@ const WavesFileSchema = z.object({
   eliteMulByCycle: z.record(num).optional(),
   /** SPEC-V2 §1: added to a Night's minute-of-warmup per prior cycle, so later Nights start hotter. */
   nightMinuteOffsetPerCycle: num.optional(),
-});
-
-/* ----------------------------------------------------------------- weapons */
-
-const WeaponLevelSchema = z
-  .object({
-    damage: num.optional(),
-    dps: num.optional(),
-    interval: num.optional(),
-    range: num.optional(),
-    targets: num.optional(),
-    bolts: num.optional(),
-    width: num.optional(),
-    halfAngle: num.optional(),
-    burnDps: num.optional(),
-    burnDuration: num.optional(),
-    radius: num.optional(),
-    slow: num.optional(),
-    slowDuration: num.optional(),
-    chains: num.optional(),
-    chainRange: num.optional(),
-    count: num.optional(),
-    duration: num.optional(),
-  })
-  .passthrough();
-
-const WeaponSchema = z.object({
-  key: str,
-  name: str,
-  source: str,
-  kind: z.enum(['single', 'pierce', 'cone', 'nova', 'chain', 'lob', 'trail']),
-  slotless: z.boolean().optional(),
-  desc: str,
-  levels: z.array(WeaponLevelSchema).length(6),
-});
-
-const AwakeningSchema = z.object({
-  key: str,
-  name: str,
-  weapon: str,
-  boon: str,
-  boonRank: num,
-  desc: str,
-  effect: z.record(num),
-});
-
-const WeaponsFileSchema = z.object({
-  maxLevel: num,
-  /**
-   * SPEC 4.1 inherits "WeaponLevel = highest tier of that tower type". SPEC-V3
-   * §4 gave every tower its own track length, so "highest tier" no longer names
-   * a ceiling — this is the level a **fully upgraded** tower hands over, and a
-   * partly upgraded one hands over its share of it.
-   */
-  inheritMaxLevel: num,
-  slots: num,
-  inheritDamagePerExtraTower: num,
-  inheritDamageCap: num,
-  /** Each successive enemy a pierce shot passes takes this much less. */
-  pierceFalloff: num,
-  pierceFalloffFloor: num,
-  /** Blast damage stays full for this many targets, then decays. */
-  aoeFullTargets: num,
-  aoeFalloff: num,
-  aoeFalloffFloor: num,
-  weapons: z.array(WeaponSchema),
-  awakenings: z.array(AwakeningSchema),
 });
 
 /* ------------------------------------------------------------------ spawns */
@@ -830,9 +776,6 @@ export type TowerAttack = NonNullable<z.infer<typeof TowerAttackSchema>>;
 export type TerrainDef = z.infer<typeof TerrainSchema>;
 export type VsSpecial = z.infer<typeof VsSpecialSchema>;
 export type EnemyDef = z.infer<typeof EnemySchema>;
-export type WeaponDef = z.infer<typeof WeaponSchema>;
-export type WeaponLevel = z.infer<typeof WeaponLevelSchema>;
-export type AwakeningDef = z.infer<typeof AwakeningSchema>;
 export type BoonDef = z.infer<typeof BoonSchema>;
 export type AffixDef = z.infer<typeof AffixSchema>;
 export type TreeNode = z.infer<typeof TreeNodeSchema>;
@@ -871,7 +814,6 @@ export interface Content {
   towers: z.infer<typeof TowersFileSchema>;
   enemies: z.infer<typeof EnemiesFileSchema>;
   waves: z.infer<typeof WavesFileSchema>;
-  weapons: z.infer<typeof WeaponsFileSchema>;
   spawns: z.infer<typeof SpawnsFileSchema>;
   boons: z.infer<typeof BoonsFileSchema>;
   relics: z.infer<typeof RelicsFileSchema>;
@@ -887,7 +829,6 @@ export interface Content {
   towerById: Map<number, TowerDef>;
   enemyByKey: Map<string, EnemyDef>;
   enemyById: Map<number, EnemyDef>;
-  weaponByKey: Map<string, WeaponDef>;
   boonByKey: Map<string, BoonDef>;
   treeById: Map<number, TreeNode>;
   classByKey: Map<string, ClassDef>;
@@ -904,7 +845,6 @@ export function loadContent(): Content {
   const towers = TowersFileSchema.parse(towersRaw);
   const enemies = EnemiesFileSchema.parse(enemiesRaw);
   const waves = WavesFileSchema.parse(wavesRaw);
-  const weapons = WeaponsFileSchema.parse(weaponsRaw);
   const spawns = SpawnsFileSchema.parse(spawnsRaw);
   const boons = BoonsFileSchema.parse(boonsRaw);
   const relics = RelicsFileSchema.parse(relicsRaw);
@@ -918,24 +858,8 @@ export function loadContent(): Content {
 
   // Cross-file referential integrity: a typo in /data must fail loudly at load.
   const towerKeys = new Set(towers.towers.map((t) => t.key));
-  const weaponKeys = new Set(weapons.weapons.map((w) => w.key));
   const enemyKeys = new Set(enemies.enemies.map((e) => e.key));
-  const boonKeys = new Set(boons.boons.map((b) => b.key));
 
-  for (const t of towers.towers) {
-    if (t.soul !== null && !weaponKeys.has(t.soul)) {
-      throw new Error(`towers.json: ${t.key} references unknown soul weapon "${t.soul}"`);
-    }
-  }
-  for (const w of weapons.weapons) {
-    if (w.source !== 'innate' && !towerKeys.has(w.source)) {
-      throw new Error(`weapons.json: ${w.key} references unknown source tower "${w.source}"`);
-    }
-  }
-  for (const a of weapons.awakenings) {
-    if (!weaponKeys.has(a.weapon)) throw new Error(`weapons.json: awakening ${a.key} bad weapon`);
-    if (!boonKeys.has(a.boon)) throw new Error(`weapons.json: awakening ${a.key} bad boon`);
-  }
   for (const w of waves.waves) {
     for (const g of w.groups) {
       if (!enemyKeys.has(g.enemy)) throw new Error(`waves.json: wave ${w.wave} unknown enemy ${g.enemy}`);
@@ -1006,7 +930,6 @@ export function loadContent(): Content {
     towers,
     enemies,
     waves,
-    weapons,
     spawns,
     boons,
     relics,
@@ -1021,7 +944,6 @@ export function loadContent(): Content {
     towerById: new Map(towers.towers.map((t) => [t.id, t])),
     enemyByKey: new Map(enemies.enemies.map((e) => [e.key, e])),
     enemyById: new Map(enemies.enemies.map((e) => [e.id, e])),
-    weaponByKey: new Map(weapons.weapons.map((w) => [w.key, w])),
     boonByKey: new Map(boons.boons.map((b) => [b.key, b])),
     treeById: new Map(tree.nodes.map((n) => [n.id, n])),
     classByKey: new Map(classes.classes.map((c) => [c.key, c])),

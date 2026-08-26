@@ -45,7 +45,7 @@ const BRANCHES = [
       { name: 'Vital Surge', stats: { maxHp: 8 } },
     ],
     notables: [
-      { key: 'soul_furnace', name: 'Soul Furnace', desc: 'Start Nightfall with your best weapon +1 Lv', stats: { startWeaponLevel: 1 } },
+      { key: 'soul_furnace', name: 'Soul Furnace', desc: 'Attack speed +12%', stats: { attackSpeed: 0.12 } },
       { key: 'gravekeeper', name: 'Gravekeeper', desc: 'Petrified residual effects +50% potency', stats: { residualPotency: 0.5 } },
       { key: 'stampede', name: 'Stampede', desc: '+10% move speed, dash +1 charge', stats: { moveSpeedPct: 0.1, dashCharges: 1 } },
       { key: 'executioner', name: 'Executioner', desc: 'Power +12%', stats: { power: 0.12 } },
@@ -55,8 +55,8 @@ const BRANCHES = [
     keystone: {
       key: 'glass_arsenal',
       name: 'Glass Arsenal',
-      desc: '+2 weapon slots (8 total). Max HP -30%.',
-      stats: { weaponSlots: 2, maxHpPct: -0.3 },
+      desc: 'Power +25%. Max HP -30%.',
+      stats: { power: 0.25, maxHpPct: -0.3 },
     },
   },
   {
@@ -82,8 +82,8 @@ const BRANCHES = [
     keystone: {
       key: 'deep_roots',
       name: 'Deep Roots',
-      desc: 'Residual effects +100% potency, Tesla spires link 3 times. Weapon slots -1 (5 total).',
-      stats: { residualPotency: 1.0, teslaLinks: 1, weaponSlots: -1 },
+      desc: 'Residual effects +100% potency, Tesla spires link 3 times.',
+      stats: { residualPotency: 1.0, teslaLinks: 1 },
     },
   },
 ];

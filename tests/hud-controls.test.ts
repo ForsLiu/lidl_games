@@ -16,7 +16,6 @@ import { World } from '../src/sim/world';
 import { Pacer, SPEEDS } from '../src/ui/pacer';
 import { makeKeyDownHandler } from '../src/ui/input';
 import { buildTower } from '../src/sim/towers';
-import { grantWeapon } from '../src/sim/weapons';
 import type { DevOp } from '../src/sim/types';
 import { cfg } from './helpers';
 
@@ -39,7 +38,6 @@ function makeHud(root: HTMLElement, log: Log, pacer: Pacer): Hud {
   const hud = new Hud(root, {
     onSelectTower: () => {},
     onCallWave: () => {},
-    onPickSouls: () => {},
     onPickOffer: () => {},
     onReroll: () => {},
     onRekindle: () => {},
@@ -127,8 +125,6 @@ describe('in-run control row', () => {
     expect(panel.textContent).toContain('Ballista');
     expect(panel.textContent).toMatch(/Range/);
     expect(panel.textContent).toMatch(/Build/);
-    // The soul it will leave behind is part of the decision.
-    expect(panel.textContent).toContain('Piercing Bolt');
   });
 
   it('describes a built tower, including what the next level costs', () => {
@@ -174,23 +170,26 @@ describe('in-run control row', () => {
     expect(panel.textContent).toMatch(/banks nothing/i);
   });
 
-  it('after the Sundering the panel describes the bound weapons instead', () => {
+  it('after the Sundering the panel describes the wielded lineage instead', () => {
+    // SPEC-FINAL §6.1 (p2e): there is no separate weapon roster to bind — the
+    // panel shows every built tower type's own wielded lineage line (p2d
+    // covers its caching behaviour in tests/p2d-weapon-lineage.test.ts).
+    // Act II is entered directly, the same way p2d-weapon-lineage.test.ts
+    // does, rather than through `finishSundering`, whose pocket-clear/lane
+    // logic can remove a tower built this close to the Core.
     const w = new World(cfg());
-    w.sundered = true;
+    w.gold = 99999;
+    const def = w.content.towerByKey.get('ballista')!;
+    const tx = 5;
+    const ty = 5;
+    w.warden.x = tx + 0.5;
+    w.warden.y = ty + 0.5;
+    expect(buildTower(w, def.id, tx, ty).ok).toBe(true);
     w.phase = 'act2';
-    grantWeapon(w, 'piercing_bolt', 3, 0);
-    grantWeapon(w, 'toxic_trail', 1, 0);
 
     hud.update(w);
     const panel = root.querySelector('#sw-towerinfo') as HTMLElement;
-    expect(panel.textContent).toContain('Piercing Bolt');
-    expect(panel.textContent).toMatch(/Lv 3/);
-
-    // One tab per bound soul, and picking one switches the card.
-    const tabs = [...panel.querySelectorAll<HTMLButtonElement>('[data-weapon]')];
-    expect(tabs.length).toBe(2);
-    tabs[1].click();
-    expect(panel.textContent).toContain('Toxic Trail');
+    expect(panel.textContent).toContain('Ballista');
   });
 
   it('every toggle op lights its button from sim state, not from click count', () => {

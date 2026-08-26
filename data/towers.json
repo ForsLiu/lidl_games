@@ -5,6 +5,11 @@
   "upgradeTotalCostMul": 2,
   "buildRange": 4,
   "rekindleCostMul": 0.4,
+  "pierceFalloff": 0.82,
+  "pierceFalloffFloor": 0.2,
+  "aoeFullTargets": 5,
+  "aoeFalloff": 0.82,
+  "aoeFalloffFloor": 0.2,
   "defenseBands": {
     "none": 0,
     "low": 5,
@@ -30,7 +35,6 @@
       "hp": 300,
       "blocks": true,
       "attack": null,
-      "soul": null,
       "terrain": {
         "kind": "stone_wall",
         "blocks": true,
@@ -80,7 +84,6 @@
         "pierce": 0,
         "projectiles": 1
       },
-      "soul": "arrow_volley",
       "terrain": {
         "kind": "pillar",
         "blocks": true
@@ -110,7 +113,6 @@
         "pierce": 3,
         "projectileSpeed": 14
       },
-      "soul": "piercing_bolt",
       "terrain": {
         "kind": "pillar",
         "blocks": true
@@ -143,7 +145,6 @@
           "duration": 3
         }
       },
-      "soul": "flame_cone",
       "terrain": {
         "kind": "burning_brazier",
         "blocks": true
@@ -173,7 +174,6 @@
         "slow": 0.25,
         "slowDuration": 1.2
       },
-      "soul": "frost_nova",
       "terrain": {
         "kind": "ice_monolith",
         "blocks": true
@@ -212,7 +212,6 @@
           "electric": 1
         }
       },
-      "soul": "chain_lightning",
       "terrain": {
         "kind": "conductive_spire",
         "blocks": true,
@@ -245,7 +244,6 @@
         "aoe": 1.8,
         "projectileSpeed": 7
       },
-      "soul": "mortar_lob",
       "terrain": {
         "kind": "rubble",
         "blocks": true
@@ -294,7 +292,6 @@
           "poison": 1
         }
       },
-      "soul": "toxic_trail",
       "terrain": {
         "kind": "spore_cloud",
         "blocks": true
@@ -321,7 +318,6 @@
         "radius": 3,
         "attackSpeed": 0.2
       },
-      "soul": null,
       "terrain": {
         "kind": "shrine",
         "blocks": true,
@@ -353,7 +349,6 @@
       "economy": {
         "goldPerWavePerTier": 5
       },
-      "soul": null,
       "terrain": {
         "kind": "gem_bloom",
         "blocks": true,

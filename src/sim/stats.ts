@@ -50,8 +50,6 @@ export const STAT_KEYS = [
   'residualPotency',
   'beaconRadius',
   'teslaLinks',
-  'weaponSlots',
-  'startWeaponLevel',
   'dashCharges',
   'hpRegen',
   'leech',
@@ -107,8 +105,6 @@ export const STAT_KIND: Record<StatKey, StatKind> = {
   goldPerKill: 'flat',
   beaconRadius: 'flat',
   teslaLinks: 'flat',
-  weaponSlots: 'flat',
-  startWeaponLevel: 'flat',
   dashCharges: 'flat',
   burnSpread: 'flat',
   leech: 'flat',
@@ -315,7 +311,6 @@ export interface Derived {
   modRewardBonusMul: number;
   beaconRadiusBonus: number;
   teslaLinkBonus: number;
-  weaponSlots: number;
   dashCharges: number;
   leech: number;
   secondWind: boolean;
@@ -361,7 +356,6 @@ export function derive(content: Content, s: Stats, residualScale = 1): Derived {
     modRewardBonusMul: s.factor('modRewardBonus'),
     beaconRadiusBonus: s.total('beaconRadius'),
     teslaLinkBonus: s.total('teslaLinks'),
-    weaponSlots: Math.max(1, content.weapons.slots + s.total('weaponSlots')),
     dashCharges: 1 + s.total('dashCharges'),
     leech: s.total('leech'),
     secondWind: s.total('secondWind') > 0,

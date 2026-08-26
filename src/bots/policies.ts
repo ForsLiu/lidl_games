@@ -110,8 +110,6 @@ export class BuilderPolicy implements BotPolicy {
         // Always Leave: a bot has no basis to spend gold on Rekindle. Dawn
         // auto-advances after DAWN_AUTO_SECONDS regardless.
         return emptyInput();
-      case 'soulpick':
-        return { ...emptyInput(), cmds: [{ k: 'souls', keys: this.pickSouls(w) }] };
       case 'levelup':
         return { ...emptyInput(), cmds: [{ k: 'pick', index: this.pickOffer(w) }] };
       case 'act2':
@@ -282,34 +280,9 @@ export class BuilderPolicy implements BotPolicy {
     }
   }
 
-  /* ------------------------------------------------------- the Sundering */
-
-  private pickSouls(w: World): string[] {
-    // Prefer the weapons whose towers were most invested in.
-    const scored = w.soulCandidates.map((key) => {
-      const weapon = w.content.weaponByKey.get(key);
-      const src = weapon ? w.content.towerByKey.get(weapon.source) : undefined;
-      let score = 0;
-      if (src) {
-        for (const s of w.structures) {
-          if (s.dead || s.towerId !== src.id) continue;
-          score += s.tier * 10 + 1;
-        }
-      }
-      return { key, score };
-    });
-    scored.sort((a, b) => b.score - a.score || (a.key < b.key ? -1 : 1));
-    return scored.slice(0, w.derived.weaponSlots).map((s) => s.key);
-  }
-
-  private pickOffer(w: World): number {
-    // Weapon upgrades first, then whatever boon is offered.
-    for (let i = 0; i < w.offers.length; i++) {
-      if (w.offers[i].kind === 'awakening') return i;
-    }
-    for (let i = 0; i < w.offers.length; i++) {
-      if (w.offers[i].kind === 'weapon') return i;
-    }
+  private pickOffer(_w: World): number {
+    // SPEC-FINAL §6.1: only boon offers exist, so there is nothing to rank
+    // between them yet — the first slot is as good as any.
     return 0;
   }
 

@@ -89,14 +89,24 @@ export function metricsFor(report: RunReport, w: World): Record<string, number> 
   const palisades = w.structures.filter(
     (s) => !s.dead && w.content.towerById.get(s.towerId)?.key === 'palisade',
   ).length;
-  const slotted = report.weapons.filter(
-    (x) => !w.content.weaponByKey.get(x.key)?.slotless,
+  // Q101: §6.1 deleted weapon slots along with the named weapon roster, so
+  // the "Ascetic" quest's old "win with at most 4 weapon slots" has nothing
+  // left to count. Its spirit — win on a deliberately narrow build —
+  // survives as "at most 4 distinct tower types built", read straight off
+  // the report's own tally. The old metric only ever counted towers that
+  // granted a weapon (a wall never did — `def.soul` was null), so a wall-only
+  // maze cost nothing toward the cap; the equivalent filter today is the same
+  // one `tools/a4probe.ts`'s SOUL_TOWERS uses in soul's place, `attack !==
+  // null`, so Palisade (and any other non-attacking tower) still doesn't
+  // count as one of the 4.
+  const distinctTowerTypes = Object.keys(report.towersByKey).filter(
+    (k) => (report.towersByKey[k] ?? 0) > 0 && w.content.towerByKey.get(k)?.attack != null,
   ).length;
   const won = report.outcome === 'victory' ? 1 : 0;
   return {
     wins: won,
     wins_t5: won && report.tier >= 5 ? 1 : 0,
-    wins_max4slots: won && slotted <= 4 ? 1 : 0,
+    wins_max4towertypes: won && distinctTowerTypes <= 4 ? 1 : 0,
     built_frost_obelisk: report.towersByKey['frost_obelisk'] ?? 0,
     lifetime_gold: report.goldEarned,
     max_palisades_end: palisades,
@@ -105,7 +115,7 @@ export function metricsFor(report: RunReport, w: World): Record<string, number> 
   };
 }
 
-const CUMULATIVE = new Set(['wins', 'wins_t5', 'wins_max4slots', 'built_frost_obelisk', 'lifetime_gold']);
+const CUMULATIVE = new Set(['wins', 'wins_t5', 'wins_max4towertypes', 'built_frost_obelisk', 'lifetime_gold']);
 
 export function applyRunResult(meta: MetaState, report: RunReport, w: World): MetaState {
   const c = loadContent();

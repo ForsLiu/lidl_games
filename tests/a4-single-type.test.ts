@@ -2,8 +2,8 @@
  * SPEC A4: every single-tower-type build clears Act I at T1 but fails at T3 —
  * all types are viable, none is solo-dominant.
  *
- * "The 8 weapon towers + walls" is read as the seven soul-granting towers plus
- * a walls-only control (see QUESTIONS.md); each build may still use Palisades
+ * "The 8 weapon towers + walls" is read as the seven attacking towers plus a
+ * walls-only control (see QUESTIONS.md); each build may still use Palisades
  * for mazing, since mazing is a placement tool rather than a damage source.
  */
 
@@ -23,11 +23,11 @@ function clears(key: string, tier: number, mods: string[]): number {
 }
 
 describe('A4 every tower type is viable, none is dominant', () => {
-  it('covers all seven soul-granting towers', () => {
+  it('covers all seven attacking towers', () => {
     const content = loadContent();
     expect(SOUL_TOWERS.length).toBe(7);
     for (const key of SOUL_TOWERS) {
-      expect(content.towerByKey.get(key)!.soul).not.toBeNull();
+      expect(content.towerByKey.get(key)!.attack).not.toBeNull();
     }
   });
 

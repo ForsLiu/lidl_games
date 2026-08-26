@@ -90,7 +90,6 @@ describe('content', () => {
     expect(c.towers.towers).toHaveLength(10);
     expect(c.enemies.enemies).toHaveLength(20);
     expect(c.waves.waves).toHaveLength(10);
-    expect(c.weapons.weapons).toHaveLength(8);
     expect(c.boons.boons).toHaveLength(12);
     expect(c.modifiers.modifiers).toHaveLength(12);
     expect(c.quests.quests).toHaveLength(8);

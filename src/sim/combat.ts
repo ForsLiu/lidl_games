@@ -1,5 +1,5 @@
 /**
- * Shared combat primitives used by both towers (Act I) and soul weapons
+ * Shared combat primitives used by both towers (Act I) and wielded attacks
  * (Act II): projectiles, area damage, chains, cones and pierce lines.
  */
 
@@ -273,7 +273,7 @@ export function applyAoE(
   const list = w.enemiesInRadius(x, y, radius).slice();
   const primary = opts.primary;
   if (list.length === 0 && !primary) return 0;
-  const cfg = w.content.weapons;
+  const cfg = w.content.towers;
   if (list.length > cfg.aoeFullTargets) {
     list.sort((a, b) => dist2(x, y, a.x, a.y) - dist2(x, y, b.x, b.y) || a.id - b.id);
   }
@@ -317,7 +317,7 @@ export function coneHit(
   if (inCone.length === 0) return 0;
   // Same many-target damping as blasts: a continuous cone that paid full
   // damage to every body inside it out-scaled every other weapon (SPEC A5).
-  const cfg = w.content.weapons;
+  const cfg = w.content.towers;
   if (inCone.length > cfg.aoeFullTargets) {
     inCone.sort((a, b) => dist2(x, y, a.x, a.y) - dist2(x, y, b.x, b.y) || a.id - b.id);
   }
@@ -360,8 +360,8 @@ export function lineHit(
   fx: HitEffects = {},
   opts: LineOptions = {},
 ): number {
-  const falloff = w.content.weapons.pierceFalloff;
-  const floor = w.content.weapons.pierceFalloffFloor;
+  const falloff = w.content.towers.pierceFalloff;
+  const floor = w.content.towers.pierceFalloffFloor;
   let total = 0;
   let n = 0;
   let scale = 1;
@@ -558,7 +558,7 @@ export function updateAreas(w: World, dt: number): void {
     // Ground fields get the same many-target damping as blasts and cones.
     const list = w.enemiesInRadius(a.x, a.y, a.radius).slice();
     if (list.length === 0) continue;
-    const cfg = w.content.weapons;
+    const cfg = w.content.towers;
     if (list.length > cfg.aoeFullTargets) {
       list.sort((p, q) => dist2(a.x, a.y, p.x, p.y) - dist2(a.x, a.y, q.x, q.y) || p.id - q.id);
     }

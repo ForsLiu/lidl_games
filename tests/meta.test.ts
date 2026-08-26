@@ -16,12 +16,14 @@ import {
   deserializeMeta,
   emberFor,
   isConnected,
+  metricsFor,
   pointsAvailable,
   refund,
   serializeMeta,
   stashCapacity,
 } from '../src/meta/meta';
 import { discard, equip } from '../src/meta/stash';
+import type { RunReport } from '../src/sim/types';
 import { World } from '../src/sim/world';
 import { cfg } from './helpers';
 
@@ -217,5 +219,76 @@ describe('Ember rewards (SPEC 8.1)', () => {
     const t3 = emberFor({ ...base, tier: 3, modifiers: ['tough', 'fleet'] }, w);
     expect(t1).toBeGreaterThan(0);
     expect(t3).toBeGreaterThan(t1);
+  });
+});
+
+describe('quest metrics (Q101, p2e)', () => {
+  function reportWith(towersByKey: Record<string, number>): RunReport {
+    return {
+      seed: 1,
+      policy: 'x',
+      classKey: 'engineer',
+      tier: 1,
+      modifiers: [],
+      outcome: 'victory',
+      ticks: 0,
+      totalSeconds: 0,
+      act1Seconds: 0,
+      act2Seconds: 0,
+      wavesCleared: 10,
+      coreHp: 100,
+      coreMaxHp: 500,
+      goldEarned: 0,
+      goldSpent: 0,
+      goldLeft: 0,
+      towersBuilt: 0,
+      towersByKey,
+      survivalSeconds: 600,
+      level: 30,
+      kills: 0,
+      leaks: 0,
+      damageByWeapon: {},
+      damageTotal: 0,
+      spawnedByWave: [],
+      leaksByWave: [],
+      goldEarnedByWave: [],
+      damageThroughMinute8: null,
+      topWeaponShareMinute8: 0,
+      topWeaponMinute8: '',
+      boons: {},
+      relicsFound: 0,
+      ember: 0,
+      bossKilled: true,
+      bossKillSeconds: 590,
+      endHash: '',
+      practiceUsed: false,
+    };
+  }
+
+  const w = new World(cfg());
+
+  it('"Ascetic" (wins_max4towertypes) does not charge a wall against the cap', () => {
+    // A maze plus exactly 4 attacking types is meant to qualify (mirrors the
+    // pre-p2e metric, which only ever counted towers that granted a weapon —
+    // Palisade's `soul` was null, so a wall was always free).
+    const withWall = metricsFor(
+      reportWith({ palisade: 15, arrow_spire: 10, ballista: 6, frost_obelisk: 5, venom_spore: 2 }),
+      w,
+    );
+    expect(withWall.wins_max4towertypes).toBe(1);
+
+    // A fifth *attacking* type still fails the cap.
+    const fiveAttackers = metricsFor(
+      reportWith({
+        palisade: 15,
+        arrow_spire: 10,
+        ballista: 6,
+        frost_obelisk: 5,
+        venom_spore: 2,
+        tesla_coil: 1,
+      }),
+      w,
+    );
+    expect(fiveAttackers.wins_max4towertypes).toBe(0);
   });
 });

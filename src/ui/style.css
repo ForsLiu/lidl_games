@@ -179,7 +179,6 @@ html, body {
 .sw-offer span, .sw-soul span { font-size: 12px; color: var(--dim); }
 .sw-offer small { font-size: 10px; letter-spacing: .1em; color: #66707e; }
 .sw-soul small { font-size: 11px; color: #66707e; }
-.sw-offer.awakening { border-color: var(--gold); }
 
 .sw-go, .sw-reroll {
   margin-top: 16px;
@@ -530,23 +529,6 @@ html, body {
 .sw-account span.zero b { color: var(--dim); }
 
 .sw-reroll.danger { border-color: #6a3030; color: #ff9a9a; }
-
-/* ---------------------------------------------------------- weapon tabs */
-
-.sw-wtabs { display: flex; gap: 5px; margin-bottom: 8px; }
-
-.sw-wtab {
-  flex: 1 1 0;
-  height: 6px;
-  padding: 0;
-  border: 0;
-  border-radius: 3px;
-  cursor: pointer;
-  background: var(--wc, #445);
-  opacity: 0.35;
-}
-
-.sw-wtab.on { opacity: 1; }
 
 /* --------------------------------------------------------------- dev badge */
 

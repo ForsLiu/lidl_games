@@ -21,9 +21,9 @@ import { setAreaDamageHandler, updateAreas, updateProjectiles } from './combat';
 import { buildTower, collectSproutGold, sellTower, updateTowers, upgradeTower } from './towers';
 import { shouldSpawnBoss, spawnFinalBoss, updateDirector } from './act2';
 import { addXp, openLevelUpIfPending, rerollOffers, takeOffer, updateGems } from './progression';
-import { advanceFromDawn, beginDawn, beginSoulPick, DAWN_AUTO_SECONDS, finishSundering, rekindleTower } from './sundering';
+import { advanceFromDawn, beginDawn, DAWN_AUTO_SECONDS, finishSundering, rekindleTower } from './sundering';
 import { useClassActive } from './classes';
-import { updateTerrainEffects, updateWeapons } from './weapons';
+import { updateTerrainEffects } from './weapons';
 import { updateWieldedAttacks } from './vswield';
 import { updateVsSpecials } from './vsspecials';
 import { updateBossSlam } from './boss';
@@ -94,12 +94,7 @@ export class Run {
         updateWarden(w, input, dt);
         w.duskTimer -= dt;
         w.act1Ticks++;
-        if (w.duskTimer <= 0) beginSoulPick(w);
-        break;
-      case 'soulpick':
-        // Waiting on a `souls` command; auto-resolve if none arrives.
-        w.soulPickTimer += dt;
-        if (w.soulPickTimer > 30) finishSundering(w, w.soulCandidates.slice(0, w.derived.weaponSlots));
+        if (w.duskTimer <= 0) finishSundering(w);
         break;
       case 'act2':
         updateAct2(w, input, dt);
@@ -162,12 +157,6 @@ export function applyCommand(w: World, c: Command): void {
       break;
     case 'sell':
       sellTower(w, c.tx, c.ty);
-      break;
-    case 'souls':
-      if (w.phase === 'soulpick') {
-        const valid = c.keys.filter((k) => w.soulCandidates.includes(k));
-        finishSundering(w, valid.slice(0, w.derived.weaponSlots));
-      }
       break;
     case 'pick':
       takeOffer(w, c.index);
@@ -509,7 +498,6 @@ function updateAct2(w: World, input: TickInput, dt: number): void {
   w.updateNav();
   updateWarden(w, input, dt);
   updateTerrainEffects(w, dt);
-  updateWeapons(w, dt);
   updateWieldedAttacks(w, dt);
   updateVsSpecials(w, dt);
   updateEnemies(w, dt);
@@ -557,6 +545,11 @@ export function act2DamageSoFar(w: World): Record<string, number> {
  * Share of Act II damage taken by the largest single weapon (SPEC A5).
  * Only weapon sources count toward the numerator; terrain residuals and the
  * Act I manual attack are context, not weapons.
+ *
+ * SPEC-FINAL §6.1 (p2e) retired the named weapon roster: a VS wave's
+ * "weapon" sources are the built tower types firing as wielded character
+ * attacks (`vswield.ts`), keyed by the tower's own key, so a source counts
+ * here iff it names a real tower.
  */
 export function topWeaponShare(w: World, damage: Record<string, number>): { key: string; share: number } {
   let total = 0;
@@ -565,7 +558,7 @@ export function topWeaponShare(w: World, damage: Record<string, number>): { key:
   let bestKey = '';
   let best = 0;
   for (const key of Object.keys(damage)) {
-    if (!w.content.weaponByKey.has(key)) continue;
+    if (!w.content.towerByKey.has(key)) continue;
     if (damage[key] > best) {
       best = damage[key];
       bestKey = key;
@@ -629,7 +622,7 @@ export function hashWorld(w: World): string {
   h.int(w.cycle);
   // Practice-tool flags are sim state: they change what damage lands, so they
   // belong in the hash. `invulnerable` was already unhashed before god mode
-  // existed - the same class of gap the f001 review found in `soulLevels`.
+  // existed - the same class of hashing gap the f001 review found elsewhere.
   h.bool(w.invulnerable).bool(w.godMode);
   // The whole of `Derived`, not a hand-picked few: QA measured 25 of 39 stats as
   // invisible to this hash 20 s into a run, so a stacking regression could pass
@@ -654,7 +647,7 @@ export function hashWorld(w: World): string {
   h.int(w.structures.length);
   for (const s of w.structures) {
     h.int(s.id).int(s.towerId).int(s.tier).int(s.tx).int(s.ty).num(s.hp).num(s.spent);
-    h.bool(s.petrified).bool(s.soulSuppressed);
+    h.bool(s.petrified);
   }
   h.int(w.projectiles.length);
   for (const p of w.projectiles) h.int(p.id).num(p.x).num(p.y).num(p.damage);
@@ -662,7 +655,6 @@ export function hashWorld(w: World): string {
   for (const g of w.gems) h.int(g.id).num(g.x).num(g.y).num(g.value);
   h.int(w.areas.length);
   for (const a of w.areas) h.int(a.id).num(a.x).num(a.y).num(a.remaining);
-  for (const wp of w.weapons) h.str(wp.key).int(wp.level).num(wp.damageBonus);
   // p2b's wielded-attack cooldowns are sim state exactly like a weapon's own
   // `cooldown` — a divergence here changes when the next volley fires, hence
   // future damage — so it is hashed by the same rule x002's leechAccumulator
@@ -680,8 +672,6 @@ export function hashWorld(w: World): string {
   for (const k of attackKeys) h.str(k).int(w.attacksFired[k]);
   const boonKeys = Object.keys(w.boonRanks).sort();
   for (const k of boonKeys) h.str(k).int(w.boonRanks[k]);
-  const soulKeys = Object.keys(w.soulLevels).sort();
-  for (const k of soulKeys) h.str(k).int(w.soulLevels[k].level).num(w.soulLevels[k].damageBonus);
   const st = w.rng.getState();
   h.int(st.waves).int(st.spawns).int(st.drops).int(st.offers).int(st.ai);
   h.num(w.damageTotal);
@@ -726,12 +716,6 @@ export function buildReport(w: World): RunReport {
       ? Math.round(topWeaponShare(w, w.damageThroughMinute8).share * 1000) / 1000
       : 0,
     topWeaponMinute8: w.damageThroughMinute8 ? topWeaponShare(w, w.damageThroughMinute8).key : '',
-    weapons: w.weapons.map((x) => ({
-      key: x.key,
-      level: x.level,
-      damageBonus: round2(x.damageBonus),
-      awakened: x.awakened,
-    })),
     boons: { ...w.boonRanks },
     relicsFound: w.relicsFound.length,
     ember: 0,

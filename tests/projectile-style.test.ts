@@ -34,24 +34,6 @@ describe('projectile styles', () => {
     expect(seen.size).toBeGreaterThanOrEqual(6);
   });
 
-  it('every weapon has its own look', () => {
-    const seen = new Map<string, string>();
-    for (const def of content.weapons.weapons) {
-      const sig = signature(def.key);
-      expect(seen.has(sig), `${def.key} looks identical to ${seen.get(sig)}`).toBe(false);
-      seen.set(sig, def.key);
-    }
-    expect(seen.size).toBe(content.weapons.weapons.length);
-  });
-
-  it('a soul keeps its tower colour across the Sundering', () => {
-    for (const def of content.weapons.weapons) {
-      if (def.source === 'innate') continue;
-      expect(projectileStyle(def.key).color, def.key).toBe(projectileStyle(def.source).color);
-      expect(projectileStyle(def.key).shape, def.key).toBe(projectileStyle(def.source).shape);
-    }
-  });
-
   it('terrain residuals keep the colour of the tower that left them', () => {
     expect(projectileStyle('terrain_venom_spore')).toEqual(projectileStyle('venom_spore'));
   });

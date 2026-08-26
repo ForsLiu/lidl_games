@@ -9,7 +9,6 @@ export type Phase =
   | 'act1_build'
   | 'act1_wave'
   | 'dusk'
-  | 'soulpick'
   | 'act2'
   | 'levelup'
   | 'dawn'
@@ -24,7 +23,6 @@ export type Command =
   | { k: 'upgrade'; tx: number; ty: number }
   | { k: 'sell'; tx: number; ty: number }
   | { k: 'call' }
-  | { k: 'souls'; keys: string[] }
   | { k: 'pick'; index: number }
   | { k: 'reroll' }
   | { k: 'equip'; relic: number }
@@ -93,12 +91,6 @@ export interface Structure {
   dead: boolean;
   /** Post-Sundering state. */
   petrified: boolean;
-  /**
-   * SPEC-V2 §1: set when Rekindled at Dawn; excludes this structure's soul
-   * from the very next Dusk picker even if it survives to re-petrify. Cleared
-   * the next time it actually petrifies.
-   */
-  soulSuppressed: boolean;
   /** Gem Bloom bookkeeping (Harvest Sprout terrain). */
   gemTimer: number;
   gemsWaiting: number;
@@ -265,20 +257,6 @@ export interface Warden {
   leechAccumulator: number;
 }
 
-/* ---------------------------------------------------------------- weapons */
-
-export interface WeaponState {
-  key: string;
-  level: number;
-  /** Act I inheritance bonus, e.g. 0.24 for +24% (SPEC 4.1). */
-  damageBonus: number;
-  cooldown: number;
-  awakened: boolean;
-  /** Phoenix Ring orbit phase. */
-  ringPhase: number;
-  ringCooldown: number;
-}
-
 /* ----------------------------------------------------------------- relics */
 
 export interface RelicAffix {
@@ -297,7 +275,7 @@ export interface Relic {
 
 /* ------------------------------------------------------------- level-ups */
 
-export type OfferKind = 'weapon' | 'boon' | 'awakening';
+export type OfferKind = 'boon';
 
 export interface Offer {
   kind: OfferKind;
@@ -389,7 +367,6 @@ export interface RunReport {
   /** Largest single-weapon share of that window, 0-1. */
   topWeaponShareMinute8: number;
   topWeaponMinute8: string;
-  weapons: { key: string; level: number; damageBonus: number; awakened: boolean }[];
   boons: Record<string, number>;
   relicsFound: number;
   ember: number;

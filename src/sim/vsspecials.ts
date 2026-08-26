@@ -48,9 +48,9 @@ function firstAlive(w: World, kind: VsSpecial['kind']): { towerId: number; tower
 
 /**
  * Venom Spore: "character leaves a poison trail every second dealing 0.1x
- * the tower's attack." Reuses the same `GroundArea('poison')` mechanism the
- * `toxic_trail` soul weapon's own trail already spawns (`weapons.ts`), so the
- * DoT it lays down is ordinary poison — stacking, capped, shredded by the same
+ * the tower's attack." Reuses the same `GroundArea('poison')` mechanism
+ * other poison sources already spawn (`vswield.ts`, `towers.ts`), so the DoT
+ * it lays down is ordinary poison — stacking, capped, shredded by the same
  * rules as everything else in §3.
  */
 function updatePoisonTrail(w: World, dt: number): void {

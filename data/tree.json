@@ -835,9 +835,9 @@
    "kind": "notable",
    "key": "soul_furnace",
    "name": "Soul Furnace",
-   "desc": "Start Nightfall with your best weapon +1 Lv",
+   "desc": "Attack speed +12%",
    "stats": {
-    "startWeaponLevel": 1
+    "attackSpeed": 0.12
    },
    "x": -1.3,
    "y": 0.75,
@@ -1585,9 +1585,9 @@
    "kind": "keystone",
    "key": "glass_arsenal",
    "name": "Glass Arsenal",
-   "desc": "+2 weapon slots (8 total). Max HP -30%.",
+   "desc": "Power +25%. Max HP -30%.",
    "stats": {
-    "weaponSlots": 2,
+    "power": 0.25,
     "maxHpPct": -0.3
    },
    "x": -6.45,
@@ -2371,11 +2371,10 @@
    "kind": "keystone",
    "key": "deep_roots",
    "name": "Deep Roots",
-   "desc": "Residual effects +100% potency, Tesla spires link 3 times. Weapon slots -1 (5 total).",
+   "desc": "Residual effects +100% potency, Tesla spires link 3 times.",
    "stats": {
     "residualPotency": 1,
-    "teslaLinks": 1,
-    "weaponSlots": -1
+    "teslaLinks": 1
    },
    "x": 6.45,
    "y": 3.72,

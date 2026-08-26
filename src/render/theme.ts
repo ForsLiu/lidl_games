@@ -109,16 +109,6 @@ const STYLES: Record<string, ProjectileStyle> = {
   warden_eater: { color: '#ff4f70', shape: 'orb', size: 6, trail: 1.4 },
   spitter: { color: '#9fbf6a', shape: 'glob', size: 3, trail: 1 },
   cinderling: { color: '#ff9a4a', shape: 'spark', size: 3, trail: 0.8 },
-
-  // Act II: keyed by weapon, matched to the tower each soul came from.
-  wardens_arrow: { color: '#ffe9a8', shape: 'dart', size: 3, trail: 2.0 },
-  arrow_volley: { color: '#cfeee4', shape: 'dart', size: 3, trail: 2.4 },
-  piercing_bolt: { color: '#ffd85a', shape: 'bolt', size: 8, trail: 3.0 },
-  flame_cone: { color: '#ff8a3d', shape: 'spark', size: 4, trail: 0.8 },
-  frost_nova: { color: '#9fe0ff', shape: 'orb', size: 5, trail: 0 },
-  chain_lightning: { color: '#c9a6ff', shape: 'spark', size: 3, trail: 0 },
-  mortar_lob: { color: '#c8a184', shape: 'shell', size: 6, trail: 0 },
-  toxic_trail: { color: '#9fe06a', shape: 'glob', size: 4, trail: 1.2 },
 };
 
 /**

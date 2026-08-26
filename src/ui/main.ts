@@ -98,7 +98,6 @@ class Game {
     this.hud = new Hud(this.root, {
       onSelectTower: (id) => (this.view.selectedTower = id),
       onCallWave: () => this.pending.push({ k: 'call' }),
-      onPickSouls: (keys) => this.pending.push({ k: 'souls', keys }),
       onPickOffer: (index) => this.pending.push({ k: 'pick', index }),
       onReroll: () => this.pending.push({ k: 'reroll' }),
       onRekindle: (structureId) => this.pending.push({ k: 'rekindle', structureId }),

@@ -110,7 +110,10 @@ function main(): void {
     .map(([key, v]) => ({
       key,
       share: round(v / grand, 4),
-      isWeapon: content.weaponByKey.has(key),
+      // p2e: a VS "weapon" source is a built tower type wielded automatically
+      // (vswield.ts), keyed by the tower's own key — there is no separate
+      // weapon roster to check against any more.
+      isWeapon: content.towerByKey.has(key),
     }))
     .sort((a, b) => b.share - a.share);
 
