@@ -206,8 +206,8 @@ sit naturally alongside M24, which touches saves again.
 
 ## Done
 
-- [x] (m19b) [feat] Multiplicative stat stacking: sources multiply, ranks add within
-      a source — gate **C4** green (×1.32 verified through the real
+- [x] (m19b) [feat] Multiplicative stat stacking — commit `4875d47` — sources multiply,
+      ranks add within a source — gate **C4** green (×1.32 verified through the real
       RunConfig→`baseRunStats`→`derive` pipeline, bit-exact) — refs: V3 §2, Q61–Q64 —
       code-reviewer **REQUEST-CHANGES** (1 Major, 6 Minor) and qa-playtester **PASS**
       on the acceptance criterion with 6 bugs filed; both agents independently found
