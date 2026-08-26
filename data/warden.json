@@ -12,7 +12,6 @@
   "cdrCap": 0.4,
   "heartstoneHeal": 1,
   "heartstoneRadius": 3,
-  "leechCapPerSecond": 3,
   "outOfCombatSeconds": 3,
   "manualAttackDisabledInActII": true
 }

@@ -17,9 +17,9 @@ test-retirement ledger. Read §8 before touching anything.
   so no branch could see it (Q81). BACKLOG.md is rewritten into 48 items in P order;
   CLAUDE.md's sources-of-truth list is re-pointed; twelve superseded test groups are
   retired with logged reasons and four existing retirements are restated against the
-  gate that now supersedes them. `x001` is done (`dc1681c`); **`x002` is the
-  next action** (see "Next action" below), then `p1a`: removing the path
-  guarantee so the Core can be sealed (§10, G7).
+  gate that now supersedes them. `x001` is done (`dc1681c`), `x002` with this
+  commit; **`p1a` is the next action**: removing the path guarantee so the
+  Core can be sealed (§10, G7).
 - **Where the code actually stands** (audit summary, full table at the top of
   BACKLOG.md): P0 and P4 are done; P1 is done **except sealing**; P5 is done bar two
   pricing items; P2's VS **inheritance formula is not built** — `data/weapons.json`'s
@@ -73,12 +73,25 @@ test-retirement ledger. Read §8 before touching anything.
   rate — so the milestone moves damage into a bucket that is already full and
   measures **−5.4%** (88.6 → 83.8 dps). Both clauses are verbatim and both are
   ⚖. Logged as Q87 for §17's review list rather than resolved by an agent.
-- **Next action:** `x002` (lifesteal's per-second cap, the second Correction),
-  then **P1** `p1a` (removing the path guarantee so the Core can be sealed,
-  §10/G7). `x001` landed at `dc1681c` — the §3 stack-cap pin plus a one-way
-  clamp on `applyDot`'s `maxStacks` override (Q90), QA-proven a no-op on
-  shipped content. P0's remaining clause is carried as `p9a`/`p9f`, not as a
+- **Next action:** **P1** `p1a` (removing the path guarantee so the Core can be
+  sealed, §10/G7). Both Corrections are done: `x001` at `dc1681c` (the §3
+  stack-cap pin plus Q90's one-way override clamp, QA-proven a no-op), and
+  `x002` in this commit (lifesteal's cap removed and its accrual gated to
+  normal damage per §2 — **not** a no-op; the sweep delta is below and in the
+  session log). P0's remaining clause is carried as `p9a`/`p9f`, not as a
   separate band.
+- **Balance after x002 — measured, nothing tuned.** Removing the 3 HP/s leech
+  cap is the first Correction with a balance body. 12-seed sweep, same seeds
+  either side: `maxbuild` medSurv **119.38 → 180**, medMin 7.2 → 12.4,
+  medWaves 4 → 6, medLevel 15 → 21, medKills 3070 → 5946; `hybrid` moves
+  gently, 120.4 → 126.08 medSurv, 3083 → 3320 medKills — QA measured seed 1
+  `hybrid` byte-identical (that bot's run never leans on leech), so the hybrid
+  delta is a few seeds moving, not a uniform shift. The mechanism is what §2
+  predicts: `maxbuild` deals the most damage, so uncapped 1–5% lifesteal is a
+  large Act II survival buff, and the DoT/electric exclusion claws back less
+  than the cap released. Every gate stays green — A3's "a stationary Warden
+  always dies" included — and per Q40 no `/data` number was tuned; the
+  re-baseline that prices this in is P10's.
 - **Merge note (2026-08-26).** The §16 reconcile was executed twice in parallel —
   once on `master` and once on `lane/tuner` — and the two are merged here rather
   than one discarded. The lane's audit table, P-order queue and MIGRATION §8
@@ -702,6 +715,29 @@ BACKLOG.md rewritten to V3 §13's M17–M27 order, 30 items with concrete accept
 criteria naming the C-gate each satisfies. QUESTIONS.md gains **Q38–Q49**.
 
 ## Session log (newest first)
+- 2026-08-26 — **x002: lifesteal's cap removed, its accrual typed** (this
+  commit). The two §2 contradictions Q88 named, fixed failing-test-first
+  (7 of 9 new cases red on HEAD): `leechCapPerSecond` deleted from
+  `data/warden.json`, the schema and `updateWarden` (which now drains the
+  whole accumulator per tick, clamped only to maxHp), and `damageEnemy`'s
+  accrual gated to **normal damage** — a `type?: DamageTypeKey` on
+  `DamageOptions`, threaded from `applyDamageType` and the DoT ticks, so
+  Bleeding/Poison ticks and electric hits (including the electric half of a
+  split) no longer leech, while untyped direct damage (V2 weapons, manual,
+  actives) still does, being armor-reduced basic damage (Q91's three
+  defaults). The Bleeding Ring's §7 exception is deliberately p7b's. Balance:
+  a real event, recorded above — `maxbuild` medSurv 119.38 → 180 on the same
+  12 seeds; every gate stays green. Review found the one claim worth the
+  process: Q91 called `leechAccumulator` hashed state and it was not —
+  `hashWorld` now covers it (generically nonzero at hash time), with a
+  coverage test; A11 8/8 either side. 638 pass / 63 skipped + perf 3/3.
+  code-reviewer **REQUEST-CHANGES → all four findings taken** (hash gap,
+  `DamageTypeKey` over string, stale HANDOFF cap line, the untyped-dot test
+  leg); qa-playtester **PASS**, no defects across a 28-assertion hostile
+  probe (overheal clamps, NaN/negative leech inert, non-act2 phases accrue
+  zero, boss-slam friendly fire deferred per Q91) — one pre-existing edge
+  recorded in Q91: overkill damage leeches in full, masked until now by the
+  cap, owner's call at §17.
 - 2026-08-26 — **x001: the §3 stack-cap pin** (`dc1681c`). Poison and Toxic cap
   at 3 stacks, refresh shortest — `/data` on master was already correct, so the
   item is the test that makes the next attempt to raise the cap argue with §3

@@ -4,6 +4,7 @@
  */
 
 import type { EnemyDef } from './content';
+import type { DamageTypeKey } from './damagetypes';
 import { GRID_H, GRID_W } from './grid';
 import { clamp, dcos, dist, dist2, dsin, normalize } from './math';
 import { damageTakenMul } from './stats';
@@ -173,6 +174,13 @@ export interface DamageOptions {
    * than piercing armor here.
    */
   dot?: boolean;
+  /**
+   * The §3 damage type this hit is, when the caller knows it. SPEC-FINAL §2:
+   * lifesteal heals from **normal** damage only, so a typed non-normal hit
+   * must not leech. Untyped direct damage — V2 weapons, the manual attack,
+   * class actives — is armor-reduced basic damage, i.e. normal, and does.
+   */
+  type?: DamageTypeKey;
 }
 
 /**
@@ -226,7 +234,15 @@ export function damageEnemy(
   // renderer already marks a burning or bleeding enemy from its `dots` list.
   if (!opts.dot) w.emit('hit', e.x, e.y, dmg, e.id);
 
-  if (w.derived.leech > 0 && w.huntsWarden) {
+  // SPEC-FINAL §2: lifesteal "heals from normal damage dealt" — DoT ticks and
+  // typed non-normal hits do not leech. The Bleeding Ring's §7 exception
+  // ("lifesteal now also applies to Bleeding damage") is p7b's, not wired here.
+  if (
+    w.derived.leech > 0 &&
+    w.huntsWarden &&
+    !opts.dot &&
+    (opts.type ?? 'normal') === 'normal'
+  ) {
     w.warden.leechAccumulator += dmg * w.derived.leech;
   }
 
@@ -566,7 +582,9 @@ function tickDot(w: World, e: Enemy, d: DotStack, dt: number): void {
   // the spatial buckets are rebuilt once a tick, so a stale bucket would
   // otherwise turn Burning into a no-op on the enemy actually carrying it.
   if (shred > 0) shredArmor(e, shred * dt);
-  damageEnemy(w, e, d.dps * dt, d.source, { pure: true, dot: true });
+  // `d.type` is a validated damagetypes key by the time a stack exists.
+  const dotType = d.type as DamageTypeKey;
+  damageEnemy(w, e, d.dps * dt, d.source, { pure: true, dot: true, type: dotType });
   if (radius <= 0) return;
 
   // `burnSpread` is a point bonus on the radius; `area` scales every effect (§2).
@@ -578,7 +596,7 @@ function tickDot(w: World, e: Enemy, d: DotStack, dt: number): void {
     // The spread carries the row's effects, so it carries the row's immunity.
     if (immuneToDot(n, d.type)) continue;
     if (shred > 0) shredArmor(n, shred * dt);
-    damageEnemy(w, n, d.dps * dt, d.source, { pure: true, dot: true });
+    damageEnemy(w, n, d.dps * dt, d.source, { pure: true, dot: true, type: dotType });
   }
 }
 

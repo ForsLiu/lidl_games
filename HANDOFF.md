@@ -144,7 +144,7 @@ Alive cap 350 · elite every 90 s · rifts at 180/360/540 s at ×3 budget · bos
 Contact 0.4 s at reach `radius + 0.45` · gems live 18 s, cap 500 · burrowers surface within 3 tiles.
 
 ### Warden (`data/warden.json`)
-100 HP · 0.5 regen/s · 0 armour (**SPEC-V3 §2 since m19a: `reduction = clamp(a, -100, 99)/100`**; `armorK` deleted) · 4.5 tiles/s · pickup 1.5 · dash 4 tiles / 3 s / 0.15 s i-frames · CDR cap 40% · Heartstone **1.0 HP/s** in r3 (SPEC: 5) · leech cap 3 HP/s.
+100 HP · 0.5 regen/s · 0 armour (**SPEC-V3 §2 since m19a: `reduction = clamp(a, -100, 99)/100`**; `armorK` deleted) · 4.5 tiles/s · pickup 1.5 · dash 4 tiles / 3 s / 0.15 s i-frames · CDR cap 40% · Heartstone **1.0 HP/s** in r3 (SPEC: 5) · leech uncapped (x002; SPEC-FINAL §2).
 
 ### Meta
 Tier reward `1 + 0.35×(N−1)`, 12 modifiers, tier N drafts N−1 of them 1-of-2.

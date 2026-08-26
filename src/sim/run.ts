@@ -293,10 +293,12 @@ export function updateWarden(w: World, input: TickInput, dt: number): void {
     wd.hp = Math.min(d.maxHp, wd.hp + d.hpRegen * dt);
   }
 
+  // SPEC-FINAL §2: lifesteal has "no per-second cap" — the V2 3 HP/s rail is
+  // removed on purpose (x002, Q88). The accumulator survives only as the
+  // one-tick hand-off from `damageEnemy`, which has no maxHp to clamp against.
   if (wd.leechAccumulator > 0) {
-    const heal = Math.min(wd.leechAccumulator, BASE.leechCapPerSecond * dt);
-    wd.leechAccumulator -= heal;
-    wd.hp = Math.min(d.maxHp, wd.hp + heal);
+    wd.hp = Math.min(d.maxHp, wd.hp + wd.leechAccumulator);
+    wd.leechAccumulator = 0;
   }
 
   if (input.attack && !w.huntsWarden) manualAttack(w, input, dt);
@@ -614,7 +616,10 @@ export function hashWorld(w: World): string {
   h.int(w.tick).int(w.phase.length).str(w.phase).str(w.outcome);
   h.num(w.coreHp).num(w.gold).int(w.wave).int(w.kills).int(w.leaks);
   h.num(w.nightBudgetBonus).int(w.looseInTheDark).num(w.spawnBudget);
+  // `leechAccumulator` is generically nonzero at hash time: `updateWarden`
+  // drains it *before* the damage systems refill it each tick (x002 review).
   h.num(w.warden.x).num(w.warden.y).num(w.warden.hp).num(w.warden.armorShred);
+  h.num(w.warden.leechAccumulator);
   h.int(w.level).num(w.xp);
   h.num(w.act2Time);
   h.int(w.cycle);

@@ -11,10 +11,11 @@ V3 queue (M17–M27) is closed out in the Done section; its unreached items were
 skipped — each is carried forward below under its P band, and MIGRATION.md §8 maps
 old id → new id. See the audit in MIGRATION.md §8 for what the reconcile measured.
 
-**Corrections outrank gaps.** The two items in the first section are places
-where shipped code asserts the *opposite* of authoritative SPEC-FINAL text, not
-places where work is merely undone. CLAUDE.md rule 3 applies to them: a failing
-regression test lands before the fix.
+**Corrections outrank gaps.** The two items in the first section were places
+where shipped code asserted the *opposite* of authoritative SPEC-FINAL text, not
+places where work was merely undone. CLAUDE.md rule 3 applied to them: a failing
+regression test landed before each fix. Both are now done (x001 `dc1681c`,
+x002 this commit).
 
 **Standing constraint for every item below (QUESTIONS Q40, restated):** no
 balance tuning before P3 lands the run shape. A bound that fails meanwhile gets
@@ -43,18 +44,8 @@ still in test headers.
 
 ### Corrections — shipped code contradicts SPEC-FINAL
 
-- [ ] (x002) [bug] Lifesteal has a per-second cap; §2 says it has none.
-      `data/warden.json` carries `leechCapPerSecond: 3`, a V1/V2 safety rail
-      §2 removes on purpose — and the clause is not marked ⚖. Removing it is a
-      real balance event (§2's next sentence puts every VS tower attack through
-      it), so it ships with a measurement. Same item covers the unverified half:
-      §2 says lifesteal heals from **normal** damage only, and `damageEnemy`
-      accrues `leechAccumulator` from every `dmg` it applies, DoT ticks included
-      — acceptance: the cap is gone from `/data` and from `Derived`; a test
-      drives a lifesteal character through a normal hit, a Bleeding tick and a
-      Poison tick and asserts only the first heals (with the Bleeding Ring's
-      §7 exception noted as P7's, not this item's); the 12-seed sweep's delta is
-      recorded in PROGRESS whichever way it moves — refs: §2, MIGRATION §8.4.2, Q88
+Both corrections (x001, x002) are **done** — see the Done section. The queue
+resumes at P1.
 
 ### P1 — TD core: sealing (G7)
 
@@ -394,6 +385,36 @@ logged in MIGRATION.md §8 rather than carried as dead items.
   **G19**. The work is `p10d`.
 
 ## Done
+
+- [x] (x002) [bug] Lifesteal has a per-second cap; §2 says it has none — this
+      commit — both §2 contradictions fixed failing-test-first (7 of the 9 new
+      cases red on HEAD). `leechCapPerSecond` deleted from `data/warden.json`,
+      `WardenFileSchema` and `updateWarden`, which now drains the whole
+      accumulator each tick clamped only to maxHp; and `damageEnemy`'s accrual
+      gated to **normal damage** via a `type?: DamageTypeKey` on
+      `DamageOptions` threaded from `applyDamageType` and the DoT ticks —
+      Bleeding/Poison/Toxic/Burning ticks, ground fields, terrain auras and
+      electric hits (the electric half of a split included) no longer leech;
+      untyped direct damage (V2 weapons, manual attack, class actives) still
+      does, being armor-reduced basic damage. Q91 records the three defaults
+      (untyped = normal; electric excluded on §2's literal; the accumulator
+      kept as the one-tick hand-off, and now **hashed** — the review found it
+      generically nonzero at hash time and invisible to `hashWorld`, the m19a
+      `enemyArmor` gap class; covered with a test, A11 8/8 either side). The
+      Bleeding Ring's §7 exception is p7b's. Acceptance met:
+      `tests/x002-lifesteal.test.ts` (11 cases) drives normal hit / Bleeding
+      tick / Poison tick and asserts only the first heals, plus uncapped
+      one-tick payout, the split, and hash coverage; the 12-seed sweep delta
+      is recorded in PROGRESS — `maxbuild` medSurv 119.38 → 180, medLevel
+      15 → 21, medKills 3070 → 5946; `hybrid` 120.4 → 126.08 (seed 1
+      byte-identical; QA bisected seed 3: `defeat_warden` @109 s →
+      `defeat_core` @180 s survival). Every gate green, no `/data` number
+      tuned (Q40); P10 owns the re-baseline. 638 pass / 63 skipped + perf.
+      code-reviewer **REQUEST-CHANGES**, all four findings taken (the hash
+      gap, `DamageTypeKey`, the stale HANDOFF line, the untyped-dot leg);
+      qa-playtester **PASS**, no defects — one pre-existing edge in Q91
+      (overkill leeches in full, masked until now by the cap, owner's call)
+      — refs: §2, MIGRATION §8.4.2, Q88, Q91
 
 - [x] (x001) [bug] Poison's stack cap is 3, not 50 (SPEC-FINAL §3) — commit
       `dc1681c` — the **pin** the item asked for, plus the one hole it found.

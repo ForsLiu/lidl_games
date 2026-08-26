@@ -81,7 +81,9 @@ export function applyDamageType(
 
   // §2: armor reduces normal damage; a row that says it ignores armor is an
   // ailment and passes `dot`, which is exactly the flag `damageEnemy` reads.
-  const hit: DamageOptions = { ...opts, dot: opts.dot ?? def.ignoresArmor };
+  // The type key rides along so lifesteal can tell normal from the rest (§2);
+  // the def lookup above has already thrown on anything not in the table.
+  const hit: DamageOptions = { ...opts, dot: opts.dot ?? def.ignoresArmor, type: type as DamageTypeKey };
   const radius = def.radius ?? 0;
   if (radius <= 0) return damageEnemy(w, e, amount, source, hit);
 

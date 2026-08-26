@@ -8,7 +8,7 @@
     { "key": "vitality",    "name": "Vitality",    "maxRank": 5, "stat": "maxHp",        "perRank": 15,   "desc": "+15 Max HP" },
     { "key": "plating",     "name": "Plating",     "maxRank": 5, "stat": "armor",        "perRank": 6,    "desc": "+6 Armor" },
     { "key": "magnet",      "name": "Magnet",      "maxRank": 5, "stat": "pickupPct",    "perRank": 0.25, "desc": "+25% Pickup Radius" },
-    { "key": "leech",       "name": "Leech",       "maxRank": 5, "stat": "leech",        "perRank": 0.01, "desc": "Heal 1% of damage dealt (cap 3 HP/s)" },
+    { "key": "leech",       "name": "Leech",       "maxRank": 5, "stat": "leech",        "perRank": 0.01, "desc": "Heal 1% of normal damage dealt" },
     { "key": "focus",       "name": "Focus",       "maxRank": 5, "stat": "cdr",          "perRank": 0.06, "desc": "+6% Cooldown Reduction" },
     { "key": "greed",       "name": "Greed",       "maxRank": 5, "stat": "goldFind",     "perRank": 0.10, "desc": "+10% Gold / Ember find" },
     { "key": "fortune",     "name": "Fortune",     "maxRank": 5, "stat": "luck",         "perRank": 10,   "desc": "+10 Luck" },

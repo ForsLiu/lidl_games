@@ -766,7 +766,6 @@ const WardenFileSchema = z.object({
   cdrCap: num,
   heartstoneHeal: num,
   heartstoneRadius: num,
-  leechCapPerSecond: num,
   outOfCombatSeconds: num,
   manualAttackDisabledInActII: z.boolean(),
 });
