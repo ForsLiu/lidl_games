@@ -67,14 +67,20 @@ describe('grid', () => {
     expect(g.distAt(GATES[0].tx, GATES[0].ty)).toBeGreaterThan(before);
   });
 
-  it('lets ghost movers cross structures', () => {
+  it('prices a full wall line as a breach instead of going unreachable (SPEC-FINAL §10)', () => {
     const g = new Grid();
+    const open = g.distAt(GATES[0].tx, GATES[0].ty, false);
     for (let y = 1; y < GRID_H - 1; y++) g.setOcc(10, y, 999);
     g.refresh();
-    // Ground path is now cut for the west gate...
-    expect(g.distAt(GATES[0].tx, GATES[0].ty, false)).toBe(-1);
-    // ...but a Burrower still gets through.
-    expect(g.distAt(GATES[0].tx, GATES[0].ty, true)).toBeGreaterThan(0);
+    // The west gate's ground route now crosses exactly one structure tile, so
+    // it costs at least the flat breach surcharge on top of the walk.
+    const breach = g.distAt(GATES[0].tx, GATES[0].ty, false);
+    expect(breach).toBeGreaterThan(open);
+    expect(breach).toBeGreaterThan(g.breachBase);
+    // A Burrower still tunnels under it for free.
+    const ghost = g.distAt(GATES[0].tx, GATES[0].ty, true);
+    expect(ghost).toBeGreaterThan(0);
+    expect(ghost).toBeLessThan(breach);
   });
 });
 

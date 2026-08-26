@@ -15,7 +15,7 @@ old id → new id. See the audit in MIGRATION.md §8 for what the reconcile meas
 where shipped code asserted the *opposite* of authoritative SPEC-FINAL text, not
 places where work was merely undone. CLAUDE.md rule 3 applied to them: a failing
 regression test landed before each fix. Both are now done (x001 `dc1681c`,
-x002 this commit).
+x002 `ef69a47`).
 
 **Standing constraint for every item below (QUESTIONS Q40, restated):** no
 balance tuning before P3 lands the run shape. A bound that fails meanwhile gets
@@ -29,7 +29,7 @@ still in test headers.
 | Band | State |
 |---|---|
 | P0 sim skeleton | **done** — fixed 60 Hz, named RNG streams, Commands, headless CLI, end-state hash (G2 green except tuner-edited content and fast-forward, see p9f) |
-| P1 TD core | **done except sealing** — pathing, 3 owner towers, 20 enemies, economy all live; the §3.1 path guarantee still forbids sealing (G7 unmet) |
+| P1 TD core | **done except G7's balance clause** — pathing, 3 owner towers, 20 enemies, economy live; p1a landed sealing (breach pathing, §10), so G7's first two clauses are green and p1b's win-rate band remains |
 | P2 VS core | **movement/dash/director/XP done; inheritance not built** — `data/weapons.json`'s 8-weapon roster with its own level ladders and 6 slots stands where §6.1's formula belongs (G3 unmet) |
 | P3 interleave | **leak coupling done, interleave not** — the run is still V2's Day/Dusk/Night/Dawn cycle machine, not TD×3→VS (G6 unmet) |
 | P4 core math | **done** — multiplicative stacking, armor cap +99 / floor −100, 6 damage types + 2 statuses (G4, G5 green) |
@@ -49,16 +49,9 @@ resumes at P1.
 
 ### P1 — TD core: sealing (G7)
 
-- [ ] (p1a) [feat] Remove the path guarantee; structures become high-cost passable
-      tiles with cost proportional to HP × toughness. With an open path enemies walk
-      it as they do today; fully sealed, they take the cheapest breach route and
-      attack the structures in the way until they reach the Core. Fliers, Burrowers
-      and Wraiths keep their existing bypasses — acceptance: gate **G7**'s first two
-      clauses — a sealed-Core build has enemies damaging the structures en route and
-      reaching the Core, and an open-path build takes zero structure damage from
-      pathing enemies (Bomber and Gatebreaker excepted, whose structure damage is
-      their own authored rule); `canPlace` no longer rejects a sealing placement;
-      A11/G2 replay hash stays green — refs: §10, G7
+p1a is **done** — see the Done section. p1b remains, and per Q83 its band is
+expected to be re-measured at p3e after the run shape changes.
+
 - [ ] (p1b) [balance] Turtle economics stay honest once sealing is legal —
       acceptance: gate **G7**'s third clause, measured over 12 seeds at T2: the
       full-seal build's win rate does not exceed the best open-maze build's by more
@@ -386,8 +379,49 @@ logged in MIGRATION.md §8 rather than carried as dead items.
 
 ## Done
 
-- [x] (x002) [bug] Lifesteal has a per-second cap; §2 says it has none — this
-      commit — both §2 contradictions fixed failing-test-first (7 of the 9 new
+- [x] (p1a) [feat] Remove the path guarantee; structures become high-cost
+      passable tiles — this commit — §10's one line becomes an engine rule in
+      five logged defaults (Q92). The ground flow field runs in a breach mode:
+      a structure tile is enterable **orthogonally** at `breach.base +
+      breach.perEhp × effective max HP` (both new in `data/towers.json`, both
+      ⚖ for P10; effective HP = max HP ÷ the §2 damage-taken multiplier its
+      defense earns, re-priced on build/upgrade, cleared on death), diagonals
+      stay fully physical, and an open path always outprices a breach by
+      construction — `base` ≥ the longest walkable route, pinned by an
+      executable-invariant test that a /data tune would turn red. Chewing is
+      **routed, not incidental**: a pathing enemy attacks a bumped structure
+      only when the field routes it into one, when it has no route (the Act II
+      beeline fallback, preserved), when it stands inside an occupied tile
+      (entombment dig-out), or when it carries `structureBreaker` (the
+      Gatebreaker, G7's authored exception) — all four clauses
+      mutation-verified (each mutation turns exactly its own test red).
+      `checkBuild` accepts seals, `blocks_path` is deleted with no stale
+      readers, and `allGatesReachable`/`wouldBlockPath` survive as *physical*
+      diagnostics on a scratch field (the live ground field would answer yes to
+      everything). Bots skip sealing placements — the exact check the old
+      rejection ran — so default play is unchanged: the 12-seed sweep is
+      **byte-identical** either side on both policies, QA-verified against a
+      HEAD worktree. End hashes are not in the sweep and do legitimately move
+      on seeds where HEAD's any-bump rule chewed walls: QA bisected seed 1
+      `hybrid` to exactly one petrified palisade at 0.1 HP of incidental chew
+      that no longer happens — clause 2 measured, not asserted. Acceptance
+      met: `tests/p1a-sealing.test.ts` (13 cases) — seal legality with the
+      breach field never going unreachable, pricing (toughness ordering,
+      upgrade re-price, clear-on-death, /data mirror, the §10 invariant), a
+      sealed ring chewed at its cheapest tile with every palisade untouched
+      and the Core reached, open-path funnel and pinned-shove zero-chew,
+      Gatebreaker bump-chew, entombment dig-out, flier/burrower/wraith
+      bypasses, and a siege hash smoke. 651 pass / 63 skipped + perf 3/3.
+      code-reviewer **REQUEST-CHANGES → both Majors taken** (the entombment
+      permanent-pin regression; the untested `structureBreaker` branch) plus
+      three Minors (breach-on-any-occ-transition, the /data-mirror test, the
+      invariant test); qa-playtester **PASS**, no bugs filed across sealed
+      double-walls, petrified day-2 seals, mid-chew sell/upgrade re-routes,
+      god-mode seals, entombed flier/spitter/pack variants and
+      diagnostic-purity hash checks — refs: §10, G7, Q92, Q83
+
+- [x] (x002) [bug] Lifesteal has a per-second cap; §2 says it has none — commit
+      `ef69a47` — both §2 contradictions fixed failing-test-first (7 of the 9 new
       cases red on HEAD). `leechCapPerSecond` deleted from `data/warden.json`,
       `WardenFileSchema` and `updateWarden`, which now drains the whole
       accumulator each tick clamped only to maxHp; and `damageEnemy`'s accrual

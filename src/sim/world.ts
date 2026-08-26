@@ -6,8 +6,9 @@
 import { loadContent, type Content, type ModifierDef } from './content';
 import { GRID_H, GRID_W, Grid, GATES, coreCenter, type Field, type GateDef } from './grid';
 import { RngSet } from './rng';
-import { baseRunStats, derive, emptyStats, type Derived, type Stats } from './stats';
+import { baseRunStats, damageTakenMul, derive, emptyStats, type Derived, type Stats } from './stats';
 import { dist2 } from './math';
+import { structureArmor, structureMaxHp } from './upgrades';
 import type {
   Enemy,
   GroundArea,
@@ -237,6 +238,7 @@ export class World {
     this.totalCycles = Math.max(1, Math.round(cfg.cycles ?? 3));
     this.rng = new RngSet(cfg.seed);
     this.grid = new Grid();
+    this.grid.breachBase = content.towers.breach.base;
 
     this.modKeys = cfg.modifiers.slice();
     this.mods = emptyModifierEffects();
@@ -365,6 +367,24 @@ export class World {
     this.structures.push(s);
     this.structureById.set(s.id, s);
     this.grid.setOcc(s.tx, s.ty, s.id);
+    this.refreshBreach(s);
+  }
+
+  /**
+   * SPEC-FINAL §10: price this structure's tile for the ground flow field —
+   * `perEhp ×` its effective HP (max HP over the damage-taken multiplier its
+   * defense earns), on top of the flat `breach.base` the grid adds for any
+   * occupied tile. Priced on build and upgrade; death clears it via
+   * `setOcc(0)`. Deliberately max HP, not current HP: a half-eaten wall
+   * re-pricing every hit would rebuild the field every tick of a siege, and
+   * the horde chewing it is already standing at the cheapest tile (Q92).
+   */
+  refreshBreach(s: Structure): void {
+    const def = this.content.towerById.get(s.towerId);
+    if (!def || !def.blocks) return;
+    const ehp = structureMaxHp(this, def, s.tier) / damageTakenMul(structureArmor(this, s));
+    const b = this.content.towers.breach;
+    this.grid.setBreach(s.tx, s.ty, Math.max(1, Math.round(b.perEhp * ehp)));
   }
 
   removeStructure(s: Structure): void {

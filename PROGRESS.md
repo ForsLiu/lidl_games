@@ -17,9 +17,12 @@ test-retirement ledger. Read §8 before touching anything.
   so no branch could see it (Q81). BACKLOG.md is rewritten into 48 items in P order;
   CLAUDE.md's sources-of-truth list is re-pointed; twelve superseded test groups are
   retired with logged reasons and four existing retirements are restated against the
-  gate that now supersedes them. `x001` is done (`dc1681c`), `x002` with this
-  commit; **`p1a` is the next action**: removing the path guarantee so the
-  Core can be sealed (§10, G7).
+  gate that now supersedes them. `x001` is done (`dc1681c`), `x002` at `ef69a47`,
+  and **P1's `p1a` is done with this commit** — the path guarantee is gone and
+  sealing is legal (§10, G7's first two clauses green). **`p1b` is the next
+  action**: G7's third clause, the sealed-vs-open win-rate band at T2 —
+  noting Q83, which expects that band re-measured at p3e after the run shape
+  changes.
 - **Where the code actually stands** (audit summary, full table at the top of
   BACKLOG.md): P0 and P4 are done; P1 is done **except sealing**; P5 is done bar two
   pricing items; P2's VS **inheritance formula is not built** — `data/weapons.json`'s
@@ -73,13 +76,48 @@ test-retirement ledger. Read §8 before touching anything.
   rate — so the milestone moves damage into a bucket that is already full and
   measures **−5.4%** (88.6 → 83.8 dps). Both clauses are verbatim and both are
   ⚖. Logged as Q87 for §17's review list rather than resolved by an agent.
-- **Next action:** **P1** `p1a` (removing the path guarantee so the Core can be
-  sealed, §10/G7). Both Corrections are done: `x001` at `dc1681c` (the §3
-  stack-cap pin plus Q90's one-way override clamp, QA-proven a no-op), and
-  `x002` in this commit (lifesteal's cap removed and its accrual gated to
-  normal damage per §2 — **not** a no-op; the sweep delta is below and in the
-  session log). P0's remaining clause is carried as `p9a`/`p9f`, not as a
-  separate band.
+- **Next action:** **P1** `p1b` (G7's third clause: the full-seal build's win
+  rate within 10 points of the best open-maze build's over 12 seeds at T2, as
+  a live test). `p1a` is done with this commit — sealing is legal, breach
+  pathing is live, and the details are below. Both Corrections are done:
+  `x001` at `dc1681c` (the §3 stack-cap pin plus Q90's one-way override clamp,
+  QA-proven a no-op), and `x002` at `ef69a47` (lifesteal's cap removed and its
+  accrual gated to normal damage per §2 — **not** a no-op; the sweep delta is
+  below and in the session log). P0's remaining clause is carried as
+  `p9a`/`p9f`, not as a separate band.
+- **p1a — what a reader needs to know.** SPEC-FINAL §10's "structures are
+  high-cost passable tiles (cost ∝ HP × toughness ⚖)" is now the ground flow
+  field's rule: a structure tile is enterable **orthogonally** at
+  `breach.base + breach.perEhp × effective max HP` (both in `data/towers.json`,
+  both ⚖ for P10), diagonals stay fully physical, and `base` is sized above
+  the longest walkable route so an open path always beats a breach — a
+  structural guarantee, pinned by an executable-invariant test. Chewing is
+  **routed, not incidental**: a pathing enemy attacks a bumped structure only
+  on a breach route, with no route at all (Act II beeline preserved), when
+  entombed inside an occupied tile, or as the Gatebreaker (`structureBreaker`,
+  G7's authored exception) — all four clauses mutation-verified. `checkBuild`
+  accepts seals; `allGatesReachable`/`wouldBlockPath` survive as physical
+  diagnostics on a scratch field. Q92 logs the five defaults. **Balance: a
+  measured no-op on default play.** Bots skip sealing placements (the classic
+  open maze; a sealed-build policy is p10f's, G19), so the 12-seed sweep is
+  byte-identical either side on both policies, QA-verified against a HEAD
+  worktree. End hashes move only where HEAD's any-bump rule chewed walls: QA
+  bisected seed 1 `hybrid` to one petrified palisade differing by **0.1 HP**
+  of incidental chew that no longer happens — G7 clause 2 measured, not
+  asserted.
+- **The p1a trap, worth remembering.** The first mutation check failed
+  honestly: flipping the chew gate to any-bump left all tests green, because
+  an honest crowd walking an open maze **never even bumps** — a 16-husk funnel
+  through a one-tile gap lands zero wall contacts, so the guarded branch was
+  untestable from gameplay-shaped setups. The branch is pinned by a
+  constructed state instead (rooted bodies exactly overlapping a wall-pinned
+  husk, whose deterministic overlap tie-break shoves it across the boundary),
+  and review found the same blind spot's dangerous twin: an enemy *entombed*
+  by a wall built on its tile — the old any-bump rule dug it out by accident,
+  and the routed-chew rule would have pinned it forever. Standing inside an
+  occupied tile now counts as breaching, with a dig-out regression test. A
+  branch nothing can reach is not covered by the tests that pass around it —
+  m19c's latent-defect lesson, one layer down in the movement code.
 - **Balance after x002 — measured, nothing tuned.** Removing the 3 HP/s leech
   cap is the first Correction with a balance body. 12-seed sweep, same seeds
   either side: `maxbuild` medSurv **119.38 → 180**, medMin 7.2 → 12.4,
@@ -715,8 +753,26 @@ BACKLOG.md rewritten to V3 §13's M17–M27 order, 30 items with concrete accept
 criteria naming the C-gate each satisfies. QUESTIONS.md gains **Q38–Q49**.
 
 ## Session log (newest first)
-- 2026-08-26 — **x002: lifesteal's cap removed, its accrual typed** (this
-  commit). The two §2 contradictions Q88 named, fixed failing-test-first
+- 2026-08-26 — **p1a: the path guarantee removed; sealing legal, breach
+  pathing live** (this commit). §10 as an engine rule: breach mode on the
+  ground field (`breach.base 8000` + `perEhp 10 ×` effective max HP, /data,
+  ⚖), orthogonal-only structure entry, physical diagonals, routed-not-
+  incidental chewing with the beeline/entombment/`structureBreaker`
+  exceptions, `blocks_path` deleted, `allGatesReachable`/`wouldBlockPath`
+  re-pointed at a physical scratch field. Bots skip seals → 12-seed sweep
+  byte-identical both policies (QA-verified vs a HEAD worktree); seed-level
+  end hashes move only by the incidental chew G7 clause 2 removes (seed 1
+  `hybrid`: one petrified palisade, 0.1 HP). 13 cases in
+  `tests/p1a-sealing.test.ts`; three clauses mutation-verified after the
+  first mutation check honestly *survived* (open-maze crowds never bump — the
+  branch needed a constructed pin). 651 pass / 63 skipped + perf 3/3.
+  code-reviewer **REQUEST-CHANGES → both Majors taken** (entombment
+  permanent-pin, untested `structureBreaker`) + three Minors; qa-playtester
+  **PASS**, no bugs filed (double-walls, petrified day-2 seals, mid-chew
+  sell/upgrade re-routes, god-mode seals, entombment variants, diagnostic
+  purity, perf sanity all probed). Q92 logs the five defaults. Next: `p1b`.
+- 2026-08-26 — **x002: lifesteal's cap removed, its accrual typed**
+  (`ef69a47`). The two §2 contradictions Q88 named, fixed failing-test-first
   (7 of 9 new cases red on HEAD): `leechCapPerSecond` deleted from
   `data/warden.json`, the schema and `updateWarden` (which now drains the
   whole accumulator per tick, clamped only to maxHp), and `damageEnemy`'s

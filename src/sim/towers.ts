@@ -1,10 +1,11 @@
 /**
  * Act I towers (SPEC 3.3): placement rules, upgrades, selling and firing.
  *
- * Placement obeys three hard rules from SPEC 3.1:
+ * Placement obeys two hard rules:
  *   - the tile must be buildable,
- *   - the Warden must be within build range,
- *   - no placement may cut a gate off from the Core (path guarantee).
+ *   - the Warden must be within build range.
+ * The old path guarantee is gone: SPEC-FINAL §10 legalises sealing the Core,
+ * and a sealed board routes enemies over the cheapest breach (see grid.ts).
  */
 
 import {
@@ -61,8 +62,7 @@ export type BuildRejection =
   | 'unknown_tower'
   | 'occupied'
   | 'out_of_range'
-  | 'gold'
-  | 'blocks_path';
+  | 'gold';
 
 /** Act I build phases plus Dusk allow construction. */
 export function canBuildNow(w: World): boolean {
@@ -86,7 +86,7 @@ export function checkBuild(w: World, towerId: number, tx: number, ty: number): B
   if (!w.grid.buildable(tx, ty)) return 'occupied';
   if (!inBuildRange(w, tx, ty)) return 'out_of_range';
   if (w.gold < towerCost(w, def)) return 'gold';
-  if (def.blocks && w.grid.wouldBlockPath([[tx, ty]])) return 'blocks_path';
+  // No path-guarantee check: SPEC-FINAL §10 allows sealing the Core outright.
   return null;
 }
 
@@ -143,6 +143,8 @@ export function upgradeTower(w: World, tx: number, ty: number): boolean {
   const ratio = s.maxHp > 0 ? s.hp / s.maxHp : 1;
   s.maxHp = structureMaxHp(w, def, s.tier);
   s.hp = s.maxHp * ratio;
+  // A step buys HP and Defense, both of which price the tile's breach (§10).
+  w.refreshBreach(s);
   w.emit('upgrade', tx + 0.5, ty + 0.5, def.id, s.tier);
   markAuraDirty(w);
   return true;

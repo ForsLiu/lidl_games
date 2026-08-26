@@ -897,6 +897,15 @@ function nearestStructureWithin(w: World, x: number, y: number, range: number): 
 let outX = 0;
 let outY = 0;
 
+/**
+ * What the last `flowAim` said about this enemy's route, read by the bump
+ * handler below. `aimHadStep` is false when the field had no answer (the
+ * beeline fallback — an enclosed Act II pocket); `aimBreach` is true when the
+ * field's next tile is a structure, i.e. the route *is* a breach (§10).
+ */
+let aimHadStep = false;
+let aimBreach = false;
+
 function setNormalized(x: number, y: number): void {
   const l = Math.sqrt(x * x + y * y);
   if (l === 0) {
@@ -917,6 +926,9 @@ function moveEnemy(w: World, e: Enemy, def: EnemyDef, dt: number, target: { x: n
   // `effectiveSpeed`, because a charging enemy flies on `chargeSpeed` instead.
   if (e.frozenRemaining > 0) return;
   if (e.chargeState === 1) return; // winding up: rooted
+  // Chargers and other non-field movers keep the old any-bump chew rule.
+  aimHadStep = false;
+  aimBreach = false;
   if (e.chargeState === 2) {
     speed = def.chargeSpeed ?? 5;
     dx = e.chargeVx;
@@ -994,7 +1006,21 @@ function moveEnemy(w: World, e: Enemy, def: EnemyDef, dt: number, target: { x: n
     }
     if (hitX >= 0) {
       const s = w.structureAt(hitX, hitY);
-      if (s) attackStructure(w, e, def, s, dt);
+      // SPEC-FINAL §10 / G7: a pathing enemy chews a structure only when its
+      // route runs through one (a breach), the field has no route at all
+      // (the beeline fallback), or it is standing *inside* an occupied tile —
+      // a wall built on top of it must be chewable or the enemy is pinned
+      // forever, which the old any-bump rule prevented by accident. An
+      // incidental shove against a wall on an open path deals nothing — G7's
+      // second clause. The Gatebreaker's `structureBreaker` trait is its own
+      // authored rule, G7's exception: it smashes whatever stands in front of
+      // it, routed or not.
+      const breaching =
+        aimBreach ||
+        !aimHadStep ||
+        w.grid.occ[cy * GRID_W + cx] !== 0 ||
+        (e.flags & TRAIT.structureBreaker) !== 0;
+      if (s && breaching) attackStructure(w, e, def, s, dt);
       else e.attackingStructure = 0;
     } else {
       e.attackingStructure = 0;
@@ -1005,12 +1031,16 @@ function moveEnemy(w: World, e: Enemy, def: EnemyDef, dt: number, target: { x: n
   e.y = clamp(ny, 0.3, GRID_H - 0.3);
 }
 
-/** Where the flow field wants this enemy to walk next; result in outX/outY. */
+/**
+ * Where the flow field wants this enemy to walk next; result in outX/outY,
+ * route facts in aimHadStep/aimBreach.
+ */
 function flowAim(w: World, e: Enemy, target: { x: number; y: number }): void {
   const tx = Math.floor(e.x);
   const ty = Math.floor(e.y);
   // Standing on the target tile already: walk straight at the objective.
   if (tx === Math.floor(target.x) && ty === Math.floor(target.y)) {
+    aimHadStep = true;
     outX = target.x;
     outY = target.y;
     return;
@@ -1022,6 +1052,8 @@ function flowAim(w: World, e: Enemy, target: { x: number; y: number }): void {
     outY = target.y;
     return;
   }
+  aimHadStep = true;
+  aimBreach = w.grid.occ[next] !== 0;
   outX = (next % GRID_W) + 0.5;
   outY = ((next / GRID_W) | 0) + 0.5;
 }

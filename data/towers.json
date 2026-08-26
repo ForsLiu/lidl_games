@@ -10,6 +10,10 @@
     "low": 5,
     "medium": 10
   },
+  "breach": {
+    "base": 8000,
+    "perEhp": 10
+  },
   "towers": [
     {
       "id": 1,

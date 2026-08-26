@@ -25,7 +25,7 @@ npx tsx tools/sweep.ts --seeds 12 --policies maxbuild,hybrid
 | RNG | mulberry32, five independent streams (`waves`, `spawns`, `drops`, `offers`, `ai`) seeded by FNV-1a of the stream name + run seed. |
 | Math | `dsin`/`dcos`/`datan2` are polynomial; the sim never calls native trig, which is implementation-defined and would break cross-engine replays. |
 | Grid | 36×20 tiles. Integer-cost Dijkstra (10 orthogonal / 14 diagonal, no corner-cutting) produces a ground field and a ghost field toward the Core. A flat `blocked` mask backs `passable()`. |
-| Path guarantee | `wouldBlockPath()` temporarily occupies the candidate tiles, recomputes, checks every gate still reaches the Core, restores. Rejection is silent to the sim, red ghost in the UI. |
+| Sealing (was: path guarantee) | **Retired at p1a (SPEC-FINAL §10).** Sealing is legal: the ground field prices a structure tile at `breach.base + perEhp × effective max HP` (data/towers.json), so an open path is always cheaper and a sealed board routes the cheapest breach, chewed by intent (Q92). `wouldBlockPath()` survives as a physical diagnostic only. |
 | Act II navigation | A third field is rebuilt from the Warden's tile, at most every 12 ticks. Fliers and burrowers ignore it and beeline. |
 | Spatial index | One pooled bucket array per tile, rebuilt each tick, clearing only the cells used last tick. Nearly every system queries it. |
 | Enemies | 20 defs, trait behaviour dispatched off a cached bitmask. Movement = flow-field step + crowd separation (recomputed per enemy every 6 ticks, faded out near the target) + axis-wise collision. |

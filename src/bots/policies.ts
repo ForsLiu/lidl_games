@@ -152,7 +152,13 @@ export class BuilderPolicy implements BotPolicy {
       const def = w.content.towerById.get(p.towerId)!;
       if (w.gold >= towerCost(w, def)) {
         const reason = checkBuild(w, p.towerId, p.tx, p.ty);
-        if (reason === null) {
+        if (reason === null && def.blocks && w.grid.wouldBlockPath([[p.tx, p.ty]])) {
+          // Sealing is legal now (SPEC-FINAL §10), but these bots play the
+          // classic open-maze game — exactly what the old blocks_path
+          // rejection made them do. A deliberate sealed-build policy is
+          // G19's work (p10f).
+          this.plan.shift();
+        } else if (reason === null) {
           input.cmds.push({ k: 'build', tower: p.towerId, tx: p.tx, ty: p.ty });
           this.plan.shift();
         } else if (reason === 'out_of_range') {

@@ -184,6 +184,17 @@ export const TowersFileSchema = z.object({
    * that drift apart one tune at a time (Q80).
    */
   defenseBands: z.record(str, num),
+  /**
+   * SPEC-FINAL §10: structures are high-cost passable tiles, cost ∝ HP ×
+   * toughness (⚖). `base` is the flat path-cost surcharge for entering any
+   * structure tile, in flow-field units (an open tile costs 10 orthogonal /
+   * 14 diagonal) — sized above the longest walkable route on the 36×20 map so
+   * an open path always beats a breach. `perEhp` prices each point of
+   * effective HP (max HP ÷ the damage-taken multiplier its defense earns), so
+   * a sealed board's cheapest breach route runs through its weakest
+   * structures. Both are P10 tuning levers; see QUESTIONS Q92.
+   */
+  breach: z.object({ base: num.nonnegative(), perEhp: num.nonnegative() }).strict(),
   towers: z.array(TowerSchema),
 }).strict();
 

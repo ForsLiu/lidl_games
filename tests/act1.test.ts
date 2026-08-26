@@ -42,13 +42,17 @@ describe('placement rules (SPEC 3.1)', () => {
     expect(c.x).toBeGreaterThan(0);
   });
 
-  it('rejects a placement that would cut a gate off', () => {
-    // Seal the west gate's only exit with three walls, leaving the last for the test.
+  it('allows a placement that cuts a gate off (SPEC-FINAL §10 legalises sealing)', () => {
+    // Seal the west gate's only exit with three walls. Under the retired path
+    // guarantee the third was 'blocks_path'; §10 makes it a legal seal that
+    // enemies answer by breaching (tests/p1a-sealing.test.ts).
     warp(w, 1, 10);
     expect(buildTower(w, 1, 1, 9).ok).toBe(true);
     expect(buildTower(w, 1, 1, 11).ok).toBe(true);
-    expect(checkBuild(w, 1, 1, 10)).toBe('blocks_path');
-    expect(w.grid.allGatesReachable()).toBe(true);
+    expect(w.grid.wouldBlockPath([[1, 10]])).toBe(true); // it is a seal…
+    expect(checkBuild(w, 1, 1, 10)).toBeNull(); // …and it is legal
+    expect(buildTower(w, 1, 1, 10).ok).toBe(true);
+    expect(w.grid.allGatesReachable()).toBe(false);
   });
 
   it('charges gold and refunds 70% on sale', () => {
