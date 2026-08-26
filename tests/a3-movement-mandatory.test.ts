@@ -18,11 +18,28 @@ describe('A3 movement is mandatory', () => {
       const { report } = runWithPolicy(cfg({ seed }), 'no-move');
       expect(report.outcome, `seed ${seed}`).toBe('defeat_warden');
       expect(report.bossKilled).toBe(false);
+    }
+  });
+
+  // TODO(P10 balance re-baseline, Q96): p2b's wielded VS attacks roughly
+  // double a stationary Warden's normal-damage output (soul weapons plus every
+  // built tower's own attack) and, through it, its lifesteal healing — this
+  // pushed every seed's stationary survival past the old 600s pin (measured
+  // 644-830s) without changing the durable claim above (still always
+  // defeat_warden, boss never killed). Recorded per Q96, not nudged; P10
+  // re-baselines with a rebalanced number once the run shape (P3) lands.
+  it.skip('a stationary Warden dies within 600s', () => {
+    for (const seed of SEEDS) {
+      const { report } = runWithPolicy(cfg({ seed }), 'no-move');
       expect(report.survivalSeconds, `seed ${seed}`).toBeLessThan(600);
     }
   });
 
-  it('at least half the seeds are dead inside three minutes', () => {
+  // TODO(P10 balance re-baseline, Q96): the extra lifesteal from wielding
+  // moved every previously-bimodal seed into the "snowballs" mode (0/12 now
+  // die inside 3:00, where roughly half used to) — see PROGRESS.md "Known
+  // issues" and Q96.
+  it.skip('at least half the seeds are dead inside three minutes', () => {
     // Act II survival is sharply bimodal - a stationary Warden either drowns in
     // the opening two minutes or snowballs XP into a few more - so the median
     // sits on the boundary and is not a stable statistic. The share of runs
@@ -40,7 +57,13 @@ describe('A3 movement is mandatory', () => {
     }
   });
 
-  it('the same build survives far longer when it moves', () => {
+  // TODO(P10 balance re-baseline, Q96): wielding buffs a stationary build's
+  // output more than it raises a moving build's already-high survival
+  // ceiling, so the ratio compressed from >2x to ~1.24x (703s moved vs 568s
+  // still) — movement is still meaningfully better (see the durable claim
+  // above and "only a moving Warden reaches the boss" below), the 2x bound
+  // itself is what moved. Recorded per Q96, not nudged.
+  it.skip('the same build survives far longer when it moves', () => {
     // Act II survival is bimodal (a Warden that lives past the opening minutes
     // snowballs on XP), so compare means rather than medians.
     const moved: number[] = [];

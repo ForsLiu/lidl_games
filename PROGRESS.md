@@ -23,9 +23,13 @@ test-retirement ledger. Read §8 before touching anything.
   test: the sealed-vs-open win-rate band at T2 holds (sealed 1/12 vs best open
   9/12 — sealing is dominated, not dominant). **G7 is green in full.** Q83
   still expects the band re-measured at p3e after the run shape changes.
-  **`p2a` is done this commit** — §6.1's VS wielding formula (`src/sim/vswield.ts`),
-  G3's worked example live as a unit test. **`p2b` is the next action**: wire
-  wielded attacks into character-scaled fire and lifesteal.
+  **`p2a` is done** — §6.1's VS wielding formula (`src/sim/vswield.ts`), G3's
+  worked example live as a unit test. **`p2b` is done this commit** — wielded
+  attacks are live in Act II, scaled by character Power/attack speed/Area,
+  triggering lifesteal and a new per-volley on-attack hook (`World.onAttack`)
+  for P6's classes to use. **`p2c` is the next action**: make towers inert but
+  present (damageable, standing obstacles) during VS and add each tower's §5
+  VS special.
 - **Where the code actually stands** (audit summary, full table at the top of
   BACKLOG.md): P0 and P4 are done; P1 is done **except sealing**; P5 is done bar two
   pricing items; P2's VS **inheritance formula is built (p2a) but not wired** — `data/weapons.json`'s
@@ -79,17 +83,89 @@ test-retirement ledger. Read §8 before touching anything.
   rate — so the milestone moves damage into a bucket that is already full and
   measures **−5.4%** (88.6 → 83.8 dps). Both clauses are verbatim and both are
   ⚖. Logged as Q87 for §17's review list rather than resolved by an agent.
-- **Next action:** **P2** `p2b` (wire wielded attacks into character-scaled
-  fire, lifesteal and on-attack passives). `p2a` is done with this commit —
-  §6.1's formula (`src/sim/vswield.ts`), G3's worked example reproduced
-  verbatim as a unit test, Q95 logs the "lv3" milestone-tier reading; the
-  formula is not yet called from any live loop. `p1b` is done — G7 green in
-  full, details below. Both Corrections are done:
+- **Next action:** **P2** `p2c` (make towers inert but present during VS and
+  wire each tower's §5 VS special). `p2b` is done this commit — see its own
+  entry below. `p2a` is done — §6.1's formula (`src/sim/vswield.ts`), G3's
+  worked example reproduced verbatim as a unit test, Q95 logs the "lv3"
+  milestone-tier reading. `p1b` is done — G7 green in full, details below.
+  Both Corrections are done:
   `x001` at `dc1681c` (the §3 stack-cap pin plus Q90's one-way override clamp,
   QA-proven a no-op), and `x002` at `ef69a47` (lifesteal's cap removed and its
   accrual gated to normal damage per §2 — **not** a no-op; the sweep delta is
   below and in the session log). P0's remaining clause is carried as
-  `p9a`/`p9f`, not as a separate band.
+- **p2b — what a reader needs to know.** §6.1's last clause ("these are
+  character attacks") is now `updateWieldedAttacks` (`src/sim/vswield.ts`),
+  called from `updateAct2` alongside `updateWeapons`. Each built tower type
+  fires from the Warden's own position on its own per-type cooldown
+  (`World.wieldedCooldown`, hashed — a divergence here changes when the next
+  volley lands, same reasoning `s.cooldown` set for a weapon), reusing the
+  exact `combat.ts` shape-by-`kind` primitives `fireTower`/`fireWeapon` already
+  call for all seven attack kinds, so it inherits lifesteal and damage
+  attribution for free rather than as a special case: `dealHit`'s
+  `DamageOptions` carries no `dot`/typed override, so `damageEnemy`'s §2 leech
+  gate sees it as ordinary character damage. Damage scales by
+  `w.derived.powerMul` on top of §6.1's own average+10%/tower formula; range,
+  radius and chain reach scale by `w.derived.areaMul`; the interval divides by
+  `w.derived.attackSpeedMul` — the three stats §6.1 names, and *not*
+  `towerDamageMul`/`towerRangeMul`/`affinityMul`, which stay Act I's.
+  Targeting is character-relative (`w.nearestEnemy` off the Warden's own
+  position) rather than `targetFirst`'s Core-relative flow-field distance,
+  which exists to protect the TD path and means nothing once the attack
+  stands wherever the player does. §4.1's "counts as 1 attack" rule is a new,
+  minimal hook (`World.recordAttack`/`attacksFired`/`onAttack`) that fires
+  once per volley regardless of how many enemies it hit — proven with a Frost
+  Obelisk hitting three enemies in one aura pulse and reading exactly one
+  attack. Q96 records the one real design gap the research turned up: no
+  on-attack passive exists yet to consume the hook (§4's "Signature" framework
+  the backlog item named is V2 residue, not a live mechanic per `f004`'s own
+  retirement note) — the hook is real plumbing P6 wires a consumer into, not a
+  stub. Acceptance met: `tests/p2b-wielded-fire.test.ts` (16 cases) drives
+  Power/Area/attack-speed scaling independently, every one of the seven attack
+  kinds through the real fire loop, the lifesteal hand-off timing (fire tick,
+  then the next `updateWarden` drains the accumulator — x002's own timing),
+  the one-attack-per-volley count, the no-target retry-every-tick behaviour,
+  cache invalidation on both a build-mid-run roster growth and a combat-death
+  roster shrinkage, an empty board staying side-effect-free, and a
+  replay-hash smoke.
+  **Balance — measured, nothing tuned, and larger than any prior item's.**
+  12-seed sweep, same seeds either side: `maxbuild` barely moves (medSurv 180
+  unchanged, medKills 5946 → 6011, ~1%, since a maxbuild board's wielded
+  damage is a small fraction of its already-large weapon output); `hybrid`
+  moves hard — medSurv **126.08 → 180** (now matching maxbuild's ceiling
+  rather than dying at a fifth of it), medMin 7.4 → 12.8, medWaves 4 → 6,
+  medLevel 17 → 21, medKills 3320 → 5997 — because a lighter, more mobile
+  build's weapon-only output was the smaller half of its total damage, so
+  doubling it (soul weapons plus every built tower's own attack, now firing
+  twice) moves `hybrid` from "usually dies mid-run" to "usually reaches the
+  boss." **Three pre-existing gates without a §14 letter (Q84: A3, A9) went
+  red as the same, understood mechanism reaches further than the sweep does**:
+  A3's per-seed 600s bound, its "half dead by 3:00" bound and its "moved
+  survives 2x as long" ratio, and A9's "greedy wins under 50% at T2" bound —
+  all four `.skip()`-ed in place with the mechanism named at each site and in
+  Q96, per the standing constraint that a bound failing before P3/P10 gets a
+  recorded reason, not a nudged constant. What did **not** move: every
+  *durable* claim under each — a stationary Warden still always ends
+  `defeat_warden` with the boss never killed, movement is still measurably
+  better, and G7/G13-adjacent gates the sweep already covers stay green (boss
+  gate 18/20 across seeds, unchanged shape). f001's cycle-machine smoke test
+  (superseded machinery, no gate letter) needed only a reseed — seed 16 no
+  longer reaches cycle 3 under `hybrid`, seed 5 does — recorded as a target
+  change, not a tuning nudge, since the machine's own claim (three cycles
+  complete without hanging) is still true of *some* seed. **code-reviewer
+  REQUEST-CHANGES → both taken**: a Critical (`World.removeStructure` never
+  invalidated the wielded/aura caches, so a tower an enemy killed mid-VS kept
+  paying its pre-death count for the rest of the wave — `removeStructure` is
+  now the one choke point that invalidates both) and a Minor (a doc comment
+  overstated the wielded aura kind's parity with `fireTower`'s no-retry
+  behaviour). **qa-playtester PASS after 1 filed, fixed here** — independently
+  reproduced the same Critical, confirmed durable A3/boss claims and full-run
+  replay-hash determinism hold, found nothing else across seven adversarial
+  scratch cases. Q97 logs one further code-reviewer finding left unfixed by
+  design: three tower types' legacy V2 terrain-residual damage double-pays
+  alongside their new wielded attack until p2c/p2e retire the residual system
+  — an uncosted confound in the balance numbers above, named rather than
+  fixed inside this measure-don't-tune item. P0's remaining clause is carried
+  as `p9a`/`p9f`, not as a separate band.
 - **p1b — what a reader needs to know.** G7's third clause is now a live test
   (`tests/p1b-seal-winrate.test.ts`): three arms over seeds 1–12 at T2 with
   autoDraft modifiers — `sealed` (a new policy: maxbuild's tower mix plus a
@@ -664,6 +740,20 @@ features whose counters read zero with no explanation.
   more; the empty Stash and the Orb buttons explain themselves.
 
 ## Known issues / skipped tests
+- **p2b's wielded VS attacks pushed four pre-existing gates without a §14
+  letter red (Q84: A3, A9), all `.skip()`-ed with the mechanism named, per
+  Q96.** Wielding roughly doubles a character's normal-damage output (soul
+  weapons plus every built tower's own attack) and, through it, lifesteal
+  healing, regardless of whether the Warden moves — §6.1 does not condition
+  wielding on movement, and neither did the soul weapons it sits alongside.
+  `tests/a3-movement-mandatory.test.ts`: the durable claim (`outcome ===
+  'defeat_warden'`, boss never killed on all 12 seeds) still holds; the
+  per-seed 600s timing bound, the "half dead inside 3:00" bound and the
+  "moved survives 2x as long" ratio do not (measured 644-830s, 0/12 early,
+  ~1.24x). `tests/a9-economy.test.ts`: "greedy wins under 50% at T2" measured
+  9/12, because a defence-light board still wields whatever it did build.
+  None is a bug — each is P10's balance re-baseline to resolve with a real
+  number, per the standing no-tuning-before-P3 constraint (Q40).
 - **Venom Spore's `+1 projectile @2` pays out nothing against a lone target
   (m20b, filed by QA; BACKLOG m20d).** With fewer enemies in range than the
   tower has shots, the spare spore is dropped, so the step is worth zero against

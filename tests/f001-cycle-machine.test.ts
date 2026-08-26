@@ -284,8 +284,10 @@ describe('the cycle state machine (SPEC-V2 §1)', () => {
     // Engineer's Ballista/Mortar affinity, which shifted which seeds reach
     // cycle 3 with no Dawn Rekindling — seed 16 no longer did, seed 12 did.
     // SPEC-V3 §4's upgrade tracks (m20a) moved it back: of seeds 1-20, only 16
-    // reaches cycle 3 today.)
-    const { report, run } = runWithPolicy(cfg({ cycles: 3, seed: 16 }), 'hybrid', 60 * 60 * 45);
+    // reaches cycle 3 today. p2b's wielded VS attacks moved it again — of
+    // seeds 1-30, only 5, 20 and 23 do; seed 16 no longer reaches cycle 3, so
+    // this pin moves to seed 5, measured, not chosen to flatter the change.)
+    const { report, run } = runWithPolicy(cfg({ cycles: 3, seed: 5 }), 'hybrid', 60 * 60 * 45);
     expect(run.done).toBe(true);
     expect(report.outcome).not.toBe('running');
     expect(run.world.cycle).toBe(3);

@@ -241,7 +241,11 @@ export function effectiveTowerMinRange(_w: World, def: TowerDef): number {
  * alive at once in tests and sweeps, and structure ids restart per world.
  */
 export function markAuraDirty(w?: World): void {
-  if (w) w.auraDirty = true;
+  if (!w) return;
+  w.auraDirty = true;
+  // The tower roster feeding both caches changed together — see the doc
+  // comment on `World.wieldedCache` (p2b, code review finding #2).
+  w.wieldedDirty = true;
 }
 
 function refreshAuras(w: World): void {
@@ -294,7 +298,7 @@ export function updateTowers(w: World, dt: number): void {
 }
 
 /** SPEC-V3 §4: how wide a line an Arrow's shot sweeps as it carries through. */
-const LINE_HALF_WIDTH = 0.4;
+export const LINE_HALF_WIDTH = 0.4;
 
 function fireTower(w: World, s: Structure, def: TowerDef): void {
   const a = def.attack!;
@@ -477,7 +481,7 @@ function fireTower(w: World, s: Structure, def: TowerDef): void {
  * Only the electric share travels, so this is not another `chainHit` — the arc
  * carries a fraction of the attack, not the attack.
  */
-function arcElectric(
+export function arcElectric(
   w: World,
   first: Enemy,
   damage: number,
@@ -501,7 +505,7 @@ function arcElectric(
   return applyDamageType(w, next, 'electric', share, source, { fromX: first.x, fromY: first.y });
 }
 
-function pickLobTarget(w: World, x: number, y: number, minRange: number, range: number) {
+export function pickLobTarget(w: World, x: number, y: number, minRange: number, range: number) {
   const list = w.enemiesInRadius(x, y, range);
   const min2 = minRange * minRange;
   let best = null;
@@ -518,7 +522,7 @@ function pickLobTarget(w: World, x: number, y: number, minRange: number, range: 
   return best;
 }
 
-function leadTarget(t: { x: number; y: number; fx: number; fy: number; speed: number }, time: number) {
+export function leadTarget(t: { x: number; y: number; fx: number; fy: number; speed: number }, time: number) {
   const n = normalize(t.fx, t.fy);
   return { x: t.x + n.x * t.speed * time, y: t.y + n.y * t.speed * time };
 }

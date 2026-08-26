@@ -24,6 +24,7 @@ import { addXp, openLevelUpIfPending, rerollOffers, takeOffer, updateGems } from
 import { advanceFromDawn, beginDawn, beginSoulPick, DAWN_AUTO_SECONDS, finishSundering, rekindleTower } from './sundering';
 import { useClassActive } from './classes';
 import { updateTerrainEffects, updateWeapons } from './weapons';
+import { updateWieldedAttacks } from './vswield';
 import { updateBossSlam } from './boss';
 // Registers the Warden-Eater script with enemies.ts.
 import './boss';
@@ -508,6 +509,7 @@ function updateAct2(w: World, input: TickInput, dt: number): void {
   updateWarden(w, input, dt);
   updateTerrainEffects(w, dt);
   updateWeapons(w, dt);
+  updateWieldedAttacks(w, dt);
   updateEnemies(w, dt);
   updateProjectiles(w, dt);
   updateAreas(w, dt);
@@ -659,6 +661,18 @@ export function hashWorld(w: World): string {
   h.int(w.areas.length);
   for (const a of w.areas) h.int(a.id).num(a.x).num(a.y).num(a.remaining);
   for (const wp of w.weapons) h.str(wp.key).int(wp.level).num(wp.damageBonus);
+  // p2b's wielded-attack cooldowns are sim state exactly like a weapon's own
+  // `cooldown` — a divergence here changes when the next volley fires, hence
+  // future damage — so it is hashed by the same rule x002's leechAccumulator
+  // review named: state that gates a damage system belongs in the hash.
+  const wieldedKeys = [...w.wieldedCooldown.keys()].sort((a, b) => a - b);
+  for (const k of wieldedKeys) h.int(k).num(w.wieldedCooldown.get(k)!);
+  // Not yet read by anything gameplay-facing (no on-attack passive exists),
+  // but §4.1's "counts as 1 attack" hook is the kind of state that gates a
+  // future system, and this project has been bitten by exactly this gap
+  // before (Q74, Q78, m19a's `enemyArmor`) — hash it while it is still free.
+  const attackKeys = Object.keys(w.attacksFired).sort();
+  for (const k of attackKeys) h.str(k).int(w.attacksFired[k]);
   const boonKeys = Object.keys(w.boonRanks).sort();
   for (const k of boonKeys) h.str(k).int(w.boonRanks[k]);
   const soulKeys = Object.keys(w.soulLevels).sort();

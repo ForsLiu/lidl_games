@@ -214,6 +214,25 @@ export class World {
   readonly auraBonus = new Map<number, number>();
   auraDirty = true;
 
+  /** SPEC-FINAL §6.1: per-tower-type cooldown for wielded VS attacks (p2b). */
+  readonly wieldedCooldown = new Map<number, number>();
+  /**
+   * Cached `wieldedAttacks()` result — invalidated by `markAuraDirty` (towers.ts),
+   * the same build/sell/upgrade call sites the Beacon-aura cache already uses,
+   * since both caches go stale exactly when the tower roster changes.
+   */
+  wieldedCache: import('./vswield').WieldedAttack[] | null = null;
+  wieldedDirty = true;
+  /**
+   * SPEC-FINAL §4.1's "counts as 1 attack" rule: every character-attack volley
+   * (a whole wielded-tower-type firing, however many enemies it hits) calls
+   * `recordAttack` exactly once. Keyed by source so a per-type reader is
+   * possible later; `onAttack` is the hook a class's on-attack passive
+   * subscribes to once P6 gives one — nothing does yet.
+   */
+  attacksFired: Record<string, number> = {};
+  onAttack: ((source: string) => void) | null = null;
+
   /**
    * Act II navigation fields, sourced at the Warden's tile and refreshed on a
    * fixed tick cadence (never on wall-clock) so replays stay bit-exact.
@@ -392,6 +411,14 @@ export class World {
     this.deadStructures = true;
     if (this.grid.occ[this.grid.idx(s.tx, s.ty)] === s.id) this.grid.setOcc(s.tx, s.ty, 0);
     this.structureById.delete(s.id);
+    // Every death path funnels through here — sell, breach/siege kill,
+    // sundering pocket-clear — so this is the one choke point that must
+    // invalidate both the Beacon-aura and wielded-attack caches (p2b code
+    // review, Critical): `sellTower`'s own `markAuraDirty(w)` call is
+    // otherwise the only thing that ever did, which missed every
+    // enemy-caused death.
+    this.auraDirty = true;
+    this.wieldedDirty = true;
   }
 
   structureAt(tx: number, ty: number): Structure | null {
@@ -519,6 +546,12 @@ export class World {
 
   emit(k: string, x: number, y: number, a = 0, b = 0): void {
     if (this.fx.length < 512) this.fx.push({ k, x, y, a, b });
+  }
+
+  /** One character-attack volley, regardless of how many enemies it struck. */
+  recordAttack(source: string): void {
+    this.attacksFired[source] = (this.attacksFired[source] ?? 0) + 1;
+    this.onAttack?.(source);
   }
 }
 

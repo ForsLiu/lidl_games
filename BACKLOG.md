@@ -30,7 +30,7 @@ still in test headers.
 |---|---|
 | P0 sim skeleton | **done** — fixed 60 Hz, named RNG streams, Commands, headless CLI, end-state hash (G2 green except tuner-edited content and fast-forward, see p9f) |
 | P1 TD core | **done** — pathing, 3 owner towers, 20 enemies, economy live; p1a landed sealing (breach pathing, §10), p1b measured G7's win-rate band as a live test — G7 green in full, band re-measured at p3e per Q83 |
-| P2 VS core | **movement/dash/director/XP done; inheritance formula built (p2a), not wired** — `data/weapons.json`'s 8-weapon roster with its own level ladders and 6 slots still stands where §6.1's formula plays live, pending p2b/p2c/p2e (G3 formula proven, live wielding unmet) |
+| P2 VS core | **movement/dash/director/XP done; inheritance formula built and wired live (p2a, p2b)** — `data/weapons.json`'s 8-weapon roster with its own level ladders and 6 slots still stands alongside wielded tower attacks rather than being replaced, pending p2c/p2e (G3 green in full) |
 | P3 interleave | **leak coupling done, interleave not** — the run is still V2's Day/Dusk/Night/Dawn cycle machine, not TD×3→VS (G6 unmet) |
 | P4 core math | **done** — multiplicative stacking, armor cap +99 / floor −100, 6 damage types + 2 statuses (G4, G5 green) |
 | P5 tower roster | **done bar pricing** — all 10 towers, upgrade tracks, defense bands; two tracks carry a `note` instead of §5's count (G20 unasserted) |
@@ -54,15 +54,11 @@ Q83 the p1b band is re-measured at p3e after the §1.1 run shape lands.
 
 ### P2 — VS core: the inheritance formula (G3)
 
-p2a is **done** — see the Done section. `src/sim/vswield.ts`'s `wieldedAttacks`
-implements §6.1's formula; it is not yet wired into any live loop (p2b, p2c).
+p2a and p2b are **done** — see the Done section. `src/sim/vswield.ts`'s
+`wieldedAttacks` implements §6.1's formula and `updateWieldedAttacks` fires it
+live from Act II; p2c still owes towers standing inert-but-damageable with
+their own §5 VS special.
 
-- [ ] (p2b) [feat] Wielded attacks are character attacks: they scale with character
-      Attack, attack speed and Area, trigger lifesteal, and fire on-attack passives —
-      acceptance: a test proves lifesteal heals the character from a wielded tower
-      attack and that an on-attack passive (Thousand Cuts once p6b lands, the
-      existing Signature until then) counts a wielded hit as one attack — refs:
-      §2 lifesteal row, §6.1 last clause
 - [ ] (p2c) [feat] Towers inert but present in VS waves: they do not attack, they
       keep their HP and can be damaged by enemies, they stay solid obstacles, and
       each contributes its §5 VS special — acceptance: a test asserts zero
@@ -416,6 +412,83 @@ logged in MIGRATION.md §8 rather than carried as dead items.
   **G19**. The work is `p10d`.
 
 ## Done
+
+- [x] (p2b) [feat] Wielded attacks fire as character attacks per §6.1's last
+      clause — this commit — `updateWieldedAttacks` (`src/sim/vswield.ts`),
+      called from `updateAct2` alongside `updateWeapons`, fires each built
+      tower type from the Warden's own position on its own per-type cooldown
+      (`World.wieldedCooldown`, hashed), reusing the exact `combat.ts`
+      shape-by-`kind` primitives `fireTower`/`fireWeapon` already call for all
+      seven attack kinds — so lifesteal and damage attribution fall out for
+      free rather than as a special case, since `dealHit`'s `DamageOptions`
+      carries no `dot`/typed override and `damageEnemy`'s §2 leech gate sees
+      it as ordinary character damage. Damage scales by `w.derived.powerMul`
+      on top of §6.1's own average+10%/tower formula; range/radius/chain reach
+      scale by `w.derived.areaMul`; the interval divides by
+      `w.derived.attackSpeedMul` — the three stats §6.1 names, and *not*
+      `towerDamageMul`/`towerRangeMul`/`affinityMul`, which stay Act I's.
+      Targeting is character-relative (`w.nearestEnemy` off the Warden's own
+      position), not `targetFirst`'s Core-relative flow-field distance, which
+      exists to protect the TD path and means nothing once the attack stands
+      wherever the player does. §4.1's "counts as 1 attack" rule is a new,
+      minimal hook (`World.recordAttack`/`attacksFired`/`onAttack`) firing
+      once per volley regardless of how many enemies it hit, proven with a
+      Frost Obelisk hitting three enemies in one aura pulse and reading
+      exactly one attack — real plumbing for P6's on-attack passives to
+      consume, not a stub (Q96 records that no consumer exists yet). Acceptance
+      met: `tests/p2b-wielded-fire.test.ts` (16 cases) drives Power/Area/
+      attack-speed scaling independently, every one of the seven attack kinds
+      through the real fire loop, the lifesteal hand-off timing (x002's own
+      one-tick accumulator drain), the one-attack-per-volley count, the
+      no-target retry-every-tick behaviour, cache invalidation on both a
+      build-mid-run roster *growth* and a combat-death roster *shrinkage*, an
+      empty board staying side-effect-free, and a replay-hash smoke.
+      code-reviewer **REQUEST-CHANGES → both taken**: a Critical (the
+      wielded/aura caches went stale on any enemy-caused tower death, not just
+      sell/build/upgrade/Rekindle — `World.removeStructure` is now the single
+      choke point that invalidates both) and a Minor (a doc comment overstated
+      the wielded aura kind's parity with `fireTower`'s, which has no
+      no-target retry). qa-playtester **PASS after 1 filed, fixed here** —
+      independently reproduced the same Critical via `w.removeStructure`,
+      confirmed the durable A3/boss claims and full-run determinism
+      (`endHash` identical across two seed-1 runs) hold, and found nothing
+      else across seven adversarial scratch cases (multi-type wielding,
+      mid-run roster changes, stat changes mid-cooldown, boss fights with
+      wielding live, soul-weapon/wielded damage attribution cross-talk). Both
+      passes also named the same process gap this entry corrects: an earlier
+      draft of this line asserted review verdicts and a test count (9/13) that
+      did not match the file (15, now 16 with the regression test) — the
+      lesson is CLAUDE.md's own: delegate the review, don't narrate it.
+      Q97 (code-reviewer) logs one more finding left unfixed by design: three
+      tower types' legacy V2 terrain-residual damage now double-pays alongside
+      their wielded attack until p2c/p2e retire the residual system, an
+      uncosted confound in every wielding-era balance number below, named
+      rather than fixed inside a measure-don't-tune item. **Balance — measured, nothing tuned, and
+      larger than any prior item's.** 12-seed sweep, same seeds either side:
+      `maxbuild` barely moves (medSurv 180 unchanged, medKills 5946 → 6011,
+      ~1%, since a maxbuild board's wielded damage is a small fraction of its
+      already-large weapon output); `hybrid` moves hard — medSurv
+      **126.08 → 180** (now matching maxbuild's ceiling), medMin 7.4 → 12.8,
+      medWaves 4 → 6, medLevel 17 → 21, medKills 3320 → 5997 — because a
+      lighter build's weapon-only output was the smaller half of its total
+      damage, and doubling it (soul weapons plus every built tower's own
+      attack, now firing twice) moves `hybrid` from "usually dies mid-run" to
+      "usually reaches the boss." Three pre-existing gates without a §14
+      letter (Q84: A3, A9) went red as the same, understood mechanism reaches
+      further than the sweep does — all `.skip()`-ed in place with the
+      mechanism named at each site and in Q96, per the standing constraint
+      that a bound failing before P3/P10 gets a recorded reason, not a nudged
+      constant: A3's per-seed 600s bound (now 644-830s), its "half dead by
+      3:00" bound (now 0/12), the "moved survives 2x as long" ratio (now
+      ~1.24x), and A9's "greedy wins under 50% at T2" bound (now 9/12). Every
+      *durable* claim under each still holds — a stationary Warden still
+      always ends `defeat_warden` with the boss never killed, movement is
+      still measurably better. f001's cycle-machine smoke (superseded
+      machinery, no gate letter) needed only a reseed — seed 16 no longer
+      reaches cycle 3 under `hybrid`, seed 5 does, recorded as a target
+      change, not a tuning nudge. Full suite: 670 pass / 67 skipped, plus the
+      pre-existing host-dependent A10 wall-clock flake (recorded at p1b, not
+      caused here) — refs: §6.1, §4.1, G3, Q96, Q97
 
 - [x] (p2a) [feat] VS wielding formula per §6.1 — this commit — the formula
       only: `src/sim/vswield.ts`'s `wieldedAttacks(w)` groups living, attack-
