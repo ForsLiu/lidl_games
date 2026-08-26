@@ -96,8 +96,11 @@ test-retirement ledger. Read §8 before touching anything.
   rate — so the milestone moves damage into a bucket that is already full and
   measures **−5.4%** (88.6 → 83.8 dps). Both clauses are verbatim and both are
   ⚖. Logged as Q87 for §17's review list rather than resolved by an agent.
-- **Next action:** **P3** `p3c` (leak coupling restated for TD→VS with the ×2
-  multiplier). `p3b` is done — multi-summon (stacking up to `maxStackedWaves`
+- **Next action:** **P3** `p3d` (deleting the old Day/Dusk/Night/Dawn cycle
+  machine now that its consumers are all re-pointed). `p3c` is done — leak
+  coupling's existing ×2-into-next-VS-wave mechanism (already spec-exact before
+  this item) is re-pointed onto TD→VS vocabulary and proven correct across the
+  real 6-block §1.1 shape; see its own entry below. `p3b` is done — multi-summon (stacking up to `maxStackedWaves`
   TD waves early, each paying its own `2 gold × un-elapsed build seconds`
   bonus) is live and **gate G6 is now green in full**; see its own entry
   below. `p3a` is
@@ -152,6 +155,48 @@ test-retirement ledger. Read §8 before touching anything.
   failed, unchanged before and after every fix; `npx tsc --noEmit` clean.
   `p3b` (multi-summon), `p3c` (leak coupling's ×2-into-next-VS restatement)
   and `p3d` (deleting the old cycle machine outright) are still open.
+- **p3c — what a reader needs to know.** Leak coupling's mechanism
+  (`leakIntoCore` in `src/sim/enemies.ts`, `finishSundering` in
+  `src/sim/sundering.ts`) already matched SPEC-FINAL §1.1's literal text before
+  this item — `data/spawns.json`'s `leakBudgetMultiplier` already read `2`, and
+  the TD-block → VS-wave transition already spent `nightBudgetBonus` into
+  `spawnBudget` once per block, clearing it and `looseInTheDark` immediately
+  after, regardless of `totalCycles`. So this item is a re-pointing, not a
+  functional change: no file under `src/sim` was touched. `tests/
+  f003-leak-coupling.test.ts`'s doc-comment and `describe` titles moved from
+  "SPEC-V2 §1 / gate B7 / Day-Night" language to "SPEC-FINAL §1.1 / gate G6 /
+  TD-VS" language, gained an explicit `expect(leakBudgetMultiplier).toBe(2)`
+  pin of the spec's own number, and gained one new test driving a full
+  scripted 6-block (18 TD + 6 VS) run — the real §1.1 shape p3a/p3b landed,
+  not the legacy single-block `cycles: 3` config the older cases exercised —
+  forcing a distinct leak count per block (1..6) so a stale carry-over or a
+  bonus computed against the wrong block would show up as a mismatched total
+  at some block rather than passing by coincidence. code-reviewer **APPROVE**
+  (1 Minor taken: the `block === 6` branch re-asserted a value already checked
+  by the loop's own per-block assertion, replaced with an explanatory comment;
+  2 Nits not blocking: the `mul === 2` literal is intentional since it pins
+  §1.1's own number rather than an implementation detail, flagged so a future
+  `leakBudgetMultiplier` retune knows to touch this line too; a redundant
+  no-op `w.duskTimer = 0` inherited from the older single-block tests).
+  **qa-playtester PASS**, no bugs found — beyond re-running the test file and
+  the full suite, QA independently drove real (non-scripted) `hybrid`/`turtle`
+  bot sims across many seeds and confirmed actual leaks fund the following VS
+  wave's `spawnBudget` exactly, the "Loose in the dark" HUD counter resets the
+  instant the transition fires, a leak on the exact wave-clearing tick can't
+  double-count or drop (the `'dusk'` phase branch never calls `leakIntoCore`),
+  p3b's multi-summon stacking can't cross a block boundary so a stacked fight
+  can't misattribute a leak's budget to the wrong block, and the final,
+  boss-gated 6th VS wave is funded identically to every other block (verified
+  in a real `godMode` run that actually reached it) — `finishSundering` has no
+  special-casing for the final cycle to go missing. One pre-existing,
+  out-of-scope telemetry note QA flagged for awareness rather than filed as a
+  bug: `w.leaksByWave` attributes every leak in a p3b-stacked fight to the
+  fight's base wave rather than each enemy's true origin wave (the same gap
+  Q107 already recorded at p3b) — it affects only per-wave leak telemetry, not
+  the block-level `nightBudgetBonus`/`spawnBudget` totals this item's
+  acceptance criteria is about. `npm test`: 674 pass / 33 skipped (0 failed, up
+  from 673/33 pre-p3c — the one new test), byte-identical elsewhere since no
+  `src/` file changed — refs: §1.1, G6
 - **p3b — what a reader needs to know. Gate G6 is now green in full.** The
   `call` command (`src/sim/run.ts`) grew a second case: in `act1_build` it is
   exactly the pre-existing single-wave behavior (pay off the live

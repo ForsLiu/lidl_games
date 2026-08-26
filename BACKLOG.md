@@ -31,7 +31,7 @@ still in test headers.
 | P0 sim skeleton | **done** — fixed 60 Hz, named RNG streams, Commands, headless CLI, end-state hash (G2 green except tuner-edited content and fast-forward, see p9f) |
 | P1 TD core | **done** — pathing, 3 owner towers, 20 enemies, economy live; p1a landed sealing (breach pathing, §10), p1b measured G7's win-rate band as a live test — G7 green in full, band re-measured at p3e per Q83 |
 | P2 VS core | **done in full (p2a-p2f)** — inheritance formula built and wired live, towers inert with their §5 specials live, weapon-panel lineage live, the superseded soul-weapon roster and Dusk picker deleted (G3 green in full) |
-| P3 interleave | **the interleave pattern and multi-summon done, G6 green in full; leak coupling's §1.1 restatement, the old machine's deletion and the re-baseline not** — `p3a` retargets the reused V2 cycle machine to 18 TD + 6 VS, 20s build, 75s VS (G6's pattern half); `p3b` stacks up to `maxStackedWaves` TD waves via the `call` command (G6's stacking half); `p3c` (leak coupling restated for TD→VS), `p3d` (delete the old machine) and `p3e` (re-baseline) are still open |
+| P3 interleave | **the interleave pattern, multi-summon and leak coupling done, G6 green in full; the old machine's deletion and the re-baseline not** — `p3a` retargets the reused V2 cycle machine to 18 TD + 6 VS, 20s build, 75s VS (G6's pattern half); `p3b` stacks up to `maxStackedWaves` TD waves via the `call` command (G6's stacking half); `p3c` re-points leak coupling's existing ×2-into-next-VS-wave mechanism onto TD→VS vocabulary and the real 6-block shape; `p3d` (delete the old machine) and `p3e` (re-baseline) are still open |
 | P4 core math | **done** — multiplicative stacking, armor cap +99 / floor −100, 6 damage types + 2 statuses (G4, G5 green) |
 | P5 tower roster | **done bar pricing** — all 10 towers, upgrade tracks, defense bands; two tracks carry a `note` instead of §5's count (G20 unasserted) |
 | P6 classes | **3 of 11**, and on V2's one-Active + Signature framework, not §4's Passive + Q + E + tower passive (G8–G11 unmet) |
@@ -64,16 +64,10 @@ line; p2e deleted the superseded soul-weapon roster and picker wholesale.
 
 ### P3 — interleave and leak coupling (G6)
 
-**Gate G6 is green in full** — p3a landed the pattern half, p3b (this commit) lands
-the stacking half. p3c (leak coupling), p3d (deleting the old cycle machine) and
-p3e (re-baseline) are still open.
+**Gate G6 is green in full** — p3a landed the pattern half, p3b lands
+the stacking half, p3c (this commit) restates leak coupling on the new shape.
+p3d (deleting the old cycle machine) and p3e (re-baseline) are still open.
 
-- [ ] (p3c) [feat] Leak coupling restated on the new shape: each enemy reaching the
-      Core in a TD wave adds `2 × its spawn cost` to the **next VS wave's** budget,
-      shown as the "Loose in the dark: N" HUD counter — acceptance: the existing
-      f003 coverage re-pointed at TD→VS with the ×2 multiplier, the bonus landing in
-      `spawnBudget` exactly once at the TD→VS transition and clearing after — refs:
-      §1.1, G6
 - [ ] (p3d) [polish] Delete the Day/Dusk/Night/Dawn cycle machine, Rekindle, and the
       `cycles` config — acceptance: the `Phase` union carries only §1.1's phases,
       MIGRATION.md §8's retire-with-p3d rows are checked off, `npm test` green —
@@ -389,6 +383,44 @@ logged in MIGRATION.md §8 rather than carried as dead items.
   **G19**. The work is `p10d`.
 
 ## Done
+
+- [x] (p3c) [feat] Leak coupling restated on the new shape — this commit. The
+      mechanism itself (`leakIntoCore` in `src/sim/enemies.ts`, `finishSundering`
+      in `src/sim/sundering.ts`) already implemented SPEC-FINAL §1.1's literal
+      "2 × its spawn cost into the next VS wave's budget" rule before this item —
+      `data/spawns.json`'s `leakBudgetMultiplier` already reads `2`, and the
+      TD-block → VS-wave transition (`finishSundering`, unconditional regardless
+      of `totalCycles`) already spends `nightBudgetBonus` into `spawnBudget` and
+      clears both it and `looseInTheDark` exactly once per transition. Nothing in
+      `src/sim` changed. The work was `tests/f003-leak-coupling.test.ts`'s
+      re-pointing from SPEC-V2 §1/Day-Night/gate-B7 language to SPEC-FINAL
+      §1.1/TD-VS/gate-G6 language, an explicit `expect(leakBudgetMultiplier).
+      toBe(2)` pin of the spec's literal number, and one new test driving a full
+      scripted 6-block (18 TD + 6 VS) run — the real §1.1 shape landed by p3a/p3b,
+      not the legacy single-block `cycles: 3` config the older cases used — with
+      a distinct leak count per block (1..6) so a stale carry-over or
+      wrong-block attribution would show up as a mismatched total at some block.
+      Confirmed the final, boss-gated 6th VS wave is funded by the same
+      unconditional `finishSundering` path as every other block (no special-casing
+      to go missing). code-reviewer **APPROVE** (1 Minor taken: a redundant
+      duplicate assertion in the `block === 6` branch, already covered by the
+      loop's own per-block check, replaced with a comment; 2 Nits not blocking:
+      the `expect(mul).toBe(2)` literal is intentional — it pins the spec's own
+      number, not a `/data` implementation detail, so a future `leakBudgetMultiplier`
+      retune needs to touch this line too; a redundant no-op `w.duskTimer = 0`
+      carried over from the older single-block tests). **qa-playtester PASS**,
+      no bugs found: independently verified with real (non-scripted)
+      `hybrid`/`turtle`-bot-driven sims across many seeds that a TD block's real
+      leaks fund the following VS wave's `spawnBudget` exactly, that the HUD's
+      "Loose in the dark" counter resets the instant the transition fires, that a
+      leak on the exact wave-clearing tick can't double-count or drop (the
+      `'dusk'` phase branch never calls `leakIntoCore`), that p3b's multi-summon
+      stacking can't cross a block boundary so a stacked fight can't misattribute
+      a leak's budget, and that the final boss-gated VS wave (reached in a real,
+      non-forced `godMode` run) is funded identically to every other block.
+      `npm test`: 674 pass / 33 skipped (0 failed, up from 673/33 pre-p3c — the
+      one new test), byte-identical elsewhere since no `src/` file changed — refs:
+      §1.1, G6
 
 - [x] (p3b) [feat] Multi-summon: the player may call the next TD wave(s) early,
       stacking up to `maxStackedWaves` (3) at once — this commit. Gate **G6 is now

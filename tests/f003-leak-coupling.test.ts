@@ -1,10 +1,20 @@
 /**
  * @vitest-environment jsdom
  *
- * SPEC-V2 §1 leak coupling (BACKLOG f003, gate B7): every enemy that reaches
- * the Core in a Day adds `leakBudgetMultiplier x its director cost` to that
- * Night's spawn budget — it escaped into the dark and comes back with
- * friends. The Day HUD shows the running headcount as "Loose in the dark".
+ * SPEC-FINAL §1.1 leak coupling (BACKLOG f003/p3c, gate G6): "each enemy
+ * reaching the Core in TD adds `2 x its spawn cost` to the next VS wave's
+ * budget, shown as a 'Loose in the dark: N' [counter]." The mechanism
+ * (`leakIntoCore` in `src/sim/enemies.ts`, banked in `World.nightBudgetBonus`/
+ * `looseInTheDark` and spent into `spawnBudget` at the TD-block-to-VS
+ * transition by `finishSundering`) predates SPEC-FINAL and already reads
+ * `leakBudgetMultiplier` from `/data` rather than a hardcoded 2 — this file
+ * is p3c's re-pointing of that coverage onto §1.1's TD/VS vocabulary (was
+ * SPEC-V2 §1's Day/Night) plus one new test (below) proving the same
+ * mechanism repeats correctly across all 6 TD-block -> VS-wave boundaries of
+ * the real §1.1 shape (BACKLOG p3a), not just the single Dusk-to-Night
+ * transition the pre-existing cases drove under the legacy `cycles: 3`
+ * config. No behavior changed — `leakIntoCore`/`finishSundering` are
+ * untouched by this item.
  */
 
 import { readFileSync } from 'node:fs';
@@ -42,12 +52,15 @@ function leakOne(run: Run, key: string): void {
   run.step(emptyInput());
 }
 
-describe('BACKLOG f003: leak coupling (SPEC-V2 §1, gate B7)', () => {
-  it('a Day leak adds leakBudgetMultiplier x its director cost to nightBudgetBonus and the "loose in the dark" headcount', () => {
+describe('BACKLOG f003/p3c: leak coupling (SPEC-FINAL §1.1, gate G6)', () => {
+  it('a TD leak adds leakBudgetMultiplier (§1.1: 2) x its director cost to nightBudgetBonus and the "loose in the dark" headcount', () => {
     const run = new Run(cfg());
     const w = run.world;
     const huskCost = w.content.spawns.costs.husk;
     const mul = w.content.spawns.leakBudgetMultiplier;
+    // SPEC-FINAL §1.1's literal number, sourced from /data (`data/spawns.json`)
+    // rather than hardcoded, per CLAUDE.md's architecture rule 4.
+    expect(mul).toBe(2);
 
     leakOne(run, 'husk');
     expect(w.leaks).toBe(1);
@@ -217,9 +230,52 @@ describe('BACKLOG f003: leak coupling (SPEC-V2 §1, gate B7)', () => {
     expect(w.nightBudgetBonus).toBe(0);
     expect(w.looseInTheDark).toBe(0);
   });
+
+  it('p3c: repeats correctly across all 6 TD-block -> VS-wave transitions of the real §1.1 shape, each block getting only its own leaks', () => {
+    const run = new Run(cfg({ cycles: 6, seed: 1 }));
+    const w = run.world;
+    const huskCost = w.content.spawns.costs.husk;
+    const mul = w.content.spawns.leakBudgetMultiplier;
+
+    for (let block = 1; block <= 6; block++) {
+      // A different leak count per block so a stale carry-over from the
+      // previous block's bonus (or a bonus computed against the wrong
+      // block's leaks) would not accidentally match the expectation below.
+      for (let i = 0; i < block; i++) leakOne(run, 'husk');
+      expect(w.looseInTheDark).toBe(block);
+      expect(w.nightBudgetBonus).toBeCloseTo(huskCost * mul * block, 6);
+
+      forceWaveClear(run, cycleWaveEnd(w, block));
+      expect(w.phase).toBe('dusk');
+      w.duskTimer = 0;
+      run.step(emptyInput());
+      expect(w.phase).toBe('act2');
+      expect(w.cycle).toBe(block);
+      // This block's leaks land in spawnBudget exactly once, at the
+      // TD-block -> VS-wave transition, and nowhere else.
+      expect(w.spawnBudget).toBeCloseTo(huskCost * mul * block, 6);
+      expect(w.nightBudgetBonus).toBe(0);
+      expect(w.looseInTheDark).toBe(0);
+
+      if (block < 6) {
+        // Burn through this VS wave and land back in TD build for the next
+        // block, confirming the bonus does not leak (pun intended) forward.
+        w.act2Time = w.content.waves.vsWaveSeconds;
+        run.step(emptyInput());
+        expect(w.phase).toBe('dawn');
+        applyCommand(w, { k: 'dawn_done' });
+        expect(w.phase).toBe('act1_build');
+        expect(w.cycle).toBe(block + 1);
+      }
+      // else: the final VS wave is boss-gated (BACKLOG p3a), not timed, but
+      // the same finishSundering transition already paid it its own bonus
+      // above (asserted at line 256) — the boss-gating changes how VS wave 6
+      // *ends*, not how it is funded, so there is nothing further to drive.
+    }
+  });
 });
 
-describe('BACKLOG f003: Day HUD shows the "Loose in the dark" counter', () => {
+describe('BACKLOG f003/p3c: TD HUD shows the "Loose in the dark" counter', () => {
   function mountHud(): { root: HTMLElement; hud: Hud } {
     document.head.innerHTML = `<style>${CSS}</style>`;
     document.body.innerHTML = '<div id="app"></div>';
