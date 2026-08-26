@@ -31,28 +31,34 @@ describe('A4 every tower type is viable, none is dominant', () => {
     }
   });
 
-  // TODO(m20c): SPEC-V3 §4 (m20a) replaced V2's x1.6-per-tier ladder with
-  // +10%-per-step tracks, and **an upgrade step no longer buys range** (V2 grew
-  // it x1.1/tier). Two levers, and QA measured which one each failure hangs on,
-  // so m20c does not re-derive it:
-  //   * arrow_spire, venom_spore — **track length**. Given a V2-equivalent
-  //     10-step track they clear T1 5/5 and still fail T3 0/5, so §4's fixed
-  //     counts (Arrow 5, Poison 4) are the whole cause.
-  //   * kite, tesla_coil — **range**, not length. arrow at 10 steps still
-  //     leaves kite 0/8 (waves 9,9,9,9,9,9,9,9); restoring V2's tier-3 x1.21
-  //     range on top makes it 8/8. tesla at 10 steps is T1 2/5, plus V2's
-  //     tier-3 chain count 3/5, plus the range 5/5. Author any Electric track
-  //     you like and these two stay red without a range answer.
-  //   * mortar — the count is m20a's to choose and no value satisfies both A4
-  //     clauses: count 1-2 clears T1 5/5 but also T3 3/5 where the gate wants
-  //     0, and every count from 3 up fails T1 (0,1,0,3 of 5 at 3/4/5/10).
-  // m20c authors the real tracks with owner sign-off and re-measures these.
-  // See PROGRESS.md "Known issues".
-  // Measured at m20a: arrow_spire, tesla_coil, venom_spore 0/5, mortar 3/5.
-  const DEFERRED_TO_M20C = new Set(['arrow_spire', 'tesla_coil', 'venom_spore', 'mortar']);
+  // m20c re-measured all four clauses m20a deferred, and two of them were no
+  // longer failing: **arrow_spire and venom_spore clear T1 5/5 at HEAD** and
+  // are live again below. Neither was fixed by a track — m20b's milestone
+  // specials (Arrow's pierce/Bleeding/second shot, Venom's second spore and
+  // ratio) are what closed them, which is the m20b lesson restated: measure
+  // before tuning, because the deferral was a measurement with an expiry date.
+  //
+  // TODO(m20d/M27): the two that are still red, and what each hangs on —
+  //   * tesla_coil — **range and chain count**, not the track. §4 fixes its
+  //     count at 3, and m20c measured a cheaper step price (80 → 48) at
+  //     T1 0/5 either way (waves 6,7,6,6,7 against 6,6,6,6,7) — it also cost
+  //     f001 its seed, so it was not adopted. QA measured that only V2's
+  //     tier-3 range and third arc reach 5/5, and §4 removed both on purpose.
+  //   * mortar — the qualifier matters, and QA supplied it: "every count from
+  //     3 up fails T1" holds **under m20c's step price rule** (a whole track
+  //     costs 2x the build price), where count 3 prices a step at 87 and
+  //     measures T1 0/5. At count 3 keeping today's price of 26 it is T1 5/5
+  //     *and* T3 0/5 — both clauses green — which is backlog **m20e**, since
+  //     a per-track price is a rule change the owner owns (Q80).
+  // Both want base damage re-priced, which is M27's one-pass re-baseline
+  // (Q40); m20d re-prices Venom for its own reason. See PROGRESS "Known
+  // issues" and QUESTIONS Q80.
+  // Measured at m20c: arrow_spire 5/5, venom_spore 5/5, tesla_coil 0/5,
+  // mortar 3/5.
+  const DEFERRED = new Set(['tesla_coil', 'mortar']);
 
   for (const key of SOUL_TOWERS) {
-    const t1 = DEFERRED_TO_M20C.has(key) ? it.skip : it;
+    const t1 = DEFERRED.has(key) ? it.skip : it;
     t1(`${key} alone clears Act I at T1`, () => {
       expect(clears(key, 1, [])).toBe(SEEDS.length);
     });

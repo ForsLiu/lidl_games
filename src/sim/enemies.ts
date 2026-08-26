@@ -1055,8 +1055,10 @@ function attackStructure(w: World, e: Enemy, def: EnemyDef, s: Structure, dt: nu
 /**
  * SPEC-V3 §4 gave towers a `defense` stat, and this is the one place structure
  * HP is spent, so this is where it is read — through m19a's shared armour curve
- * (`structureArmor`), not a second rule of its own. Every shipped tower has
- * defense 0 today, so the multiplier is exactly x1 until m20c authors the bands.
+ * (`structureArmor`), not a second rule of its own. m20c authored the bands
+ * (`towers.defenseBands`: none 0, low 5, medium 10), so nine of the ten towers
+ * now take less than they are dealt here; the Palisade and the Sprout are
+ * `none`, i.e. exactly x1.
  */
 export function damageStructure(w: World, s: Structure, amount: number): void {
   if (s.dead) return;

@@ -16,10 +16,6 @@ recorded reason, not a nudged constant.
 
 ### M20 — tower model v3 (gate: data tests)
 
-- [ ] (m20c) [balance] Migrate the remaining seven towers to the v3 model and log
-      proposed tracks to QUESTIONS for owner sign-off — acceptance: all ten towers
-      pass the m20a data test; QUESTIONS entry lists each proposed track — refs:
-      V3 §4, Q39
 - [ ] (m20d) [balance] Price the Venom Spore's track so its `+1 projectile @2`
       can pay out. Today the spare spore is dropped when fewer enemies are in
       range than the tower has shots, so the step buys nothing against a lone
@@ -31,6 +27,19 @@ recorded reason, not a nudged constant.
       towers.test.ts`'s skipped "still fires that second spore" case is enabled
       and green, the "worth nothing at @2" case that pins today's behaviour is
       deleted with it, and A4's T3 clause stays 0/5 — refs: V3 §4, Q79, QA on m20b
+
+- [ ] (m20e) [balance] Give a track its own price multiplier and put Ember
+      Brazier and Mortar on SPEC-V3 §4's count line. m20c measured the line as
+      infeasible *only because* shortening a track raises its step price under
+      `upgradeTotalCostMul` — at the price they charge today, Ember Brazier at
+      count 4 clears A4's T1 clause 5/5, and **Mortar at count 3 clears T1 5/5
+      with T3 still 0/5**, which takes a deferred clause green. QA filed the
+      runs. Needs the same treatment m20d needs for Venom, so the two may
+      merge — acceptance: `upgrades.costMul` (or equivalent) is honoured by
+      `validateStepPrice` with a test per branch; Ember Brazier and Mortar sit
+      on the line with no `note`; `mortar alone clears Act I at T1` is
+      un-skipped and green; every A/B gate that m20c measured stays where it
+      was, boss and f001 included — refs: V3 §4, Q80, QA on m20c
 
 ### M21 — VS formula (gate C2)
 
@@ -226,6 +235,35 @@ sit naturally alongside M24, which touches saves again.
       — refs: QA on t3, bug 11
 
 ## Done
+
+- [x] (m20c) [balance] The other seven towers' tracks, and every tower's defense
+      band (SPEC-V3 §4) — commit `PENDING` — the migration turned out to be a
+      *measurement*. §4's three counts agree with a line in build cost (`5 −
+      (cost − 50)/35`), but putting the open seven on it measures worse against
+      a live gate at the price rule's prices: Ballista alone flips the boss
+      gate from `victory` to `defeat_warden`, and Ember Brazier, Frost Obelisk
+      and Mortar drop A4's T1 clause to 0/5. So the tracks stand, each of the
+      four carrying a `/data` `note` with the count the line wants and the run
+      that stopped it, and the line goes to the owner as Q80's proposal. What
+      m20c adds is what §4 asked for and Q73 deferred: **defense bands** (`none
+      0, low 5, medium 10`) on all ten, so "+10% Defense per step" has a caller
+      at last — plus two loader rules, `validateStepPrice` (a whole track costs
+      `upgradeTotalCostMul ×` the build price, no `note` escape) and
+      `validateDefense`. Acceptance met: all ten towers pass the m20a data test
+      (638 pass / 23 skipped, from 625/25), and Q80 lists every tower's
+      proposed count, price and band. Re-measuring m20a's five deferrals
+      **returned two** — `arrow_spire` and `venom_spore` clear A4 T1 5/5 at
+      HEAD, closed by m20b's specials, both live tests again. 12-seed sweep
+      byte-identical either side. code-reviewer **APPROVE** (8 Minors taken:
+      two stale defense-0 comments, a float knife-edge in the m20a kill
+      assertion, a priced-track-with-no-steps hole, `.strict()`, `positive()`,
+      and three Q80 gaps including the max-level band inversion). qa-playtester
+      **PASS** with 6 filed, 5 fixed here — two Majors were *wrong evidence in
+      my own notes*: Frost Obelisk's "4/5 at every price measured" cited two
+      prices the new rule cannot even load, and the A4 comment's "every count
+      from 3 up fails T1" omitted the price qualifier that makes it true. Both
+      corrected with the full per-price grid; the sixth is filed as **m20e**,
+      because Mortar at count 3 and today's price clears both A4 clauses.
 
 - [x] (m20b) [feat] The three owner towers and their milestone specials (SPEC-V3
       §4) — commit `7cec4ad` — §4's specials are typed entries in each tower's

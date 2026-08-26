@@ -118,18 +118,28 @@ const UpgradeTrackSchema = z.object({
   /** 0 only for a track with no steps to price — see `validateUpgradeTrack`. */
   stepCost: num.min(0),
   specials: z.array(UpgradeSpecialSchema).default([]),
-});
+  /**
+   * Why this track's `count` departs from, or sits outside, m20c's count line
+   * — `5 - (cost - 50) / 35`, the line through §4's own three (Q80). Present
+   * on exactly the seven that do, and `tests/m20c-roster-tracks.test.ts`
+   * enforces both directions: a track that quietly disagrees with the line and
+   * one that disagrees for a measured reason are the same diff otherwise. The
+   * step *price* has no such escape — see `validateStepPrice`.
+   */
+  note: str.optional(),
+}).strict();
 
-const TowerSchema = z.object({
+export const TowerSchema = z.object({
   id: num,
   key: str,
   name: str,
   cost: num,
   /**
    * SPEC-V3 §4 armour points for the structure itself, read through m19a's
-   * curve by `structureArmor`. Ships at 0 for all ten towers — exactly x1
-   * damage taken, so the stat is live without moving a balance number ahead of
-   * m20c, which is where §4's "medium HP/def" bands become numbers (Q73).
+   * curve by `structureArmor` — flat percent off normal damage taken. m20c
+   * turned §4's profile words into the three `defenseBands`, so this is a
+   * band value and not a free number (Q80); the Palisade and the Sprout sit
+   * at `none`, which is exactly x1, for reasons Q80 records.
    */
   defense: num,
   upgrades: UpgradeTrackSchema,
@@ -142,9 +152,9 @@ const TowerSchema = z.object({
   soul: str.nullable(),
   terrain: TerrainSchema,
   desc: str,
-});
+}).strict();
 
-const TowersFileSchema = z.object({
+export const TowersFileSchema = z.object({
   /** SPEC-V3 §4: one upgrade step = +10% HP, Attack and Defense. */
   upgradeStepMul: num,
   /**
@@ -156,11 +166,26 @@ const TowersFileSchema = z.object({
   milestoneStepsSkipStats: z.boolean(),
   /** §4: sell refunds this share of everything actually spent on the tower. */
   sellRefund: num,
+  /**
+   * What walking a whole track costs, as a multiple of the build price: §4
+   * fixes no prices at all, so this is m20c's answer, and it is Q73's — a
+   * track costs what V2's three tiers cost, however many steps it has. See
+   * `validateStepPrice` and Q80.
+   */
+  upgradeTotalCostMul: num.positive(),
   buildRange: num,
   /** SPEC-V2 §1: Rekindle at Dawn costs this fraction of base build cost. */
   rekindleCostMul: num,
+  /**
+   * SPEC-V3 §4 gives tower defense as a profile word ("medium HP/def", "low
+   * def") and no numbers, so m20c authored the band table the words name.
+   * Every tower's `defense` must be one of these values — `validateDefense`
+   * — so the roster keeps three legible tiers instead of ten magic numbers
+   * that drift apart one tune at a time (Q80).
+   */
+  defenseBands: z.record(str, num),
   towers: z.array(TowerSchema),
-});
+}).strict();
 
 /* ----------------------------------------------------------------- enemies */
 
@@ -541,6 +566,57 @@ export function validateUpgradeTrack(
 }
 
 /**
+ * m20c's authoring rule for a step's price, throwing if a track breaks it.
+ *
+ * SPEC-V3 §4 fixes three upgrade *counts* and no prices at all, so the price
+ * is the agent's to propose (Q73, Q80): **walking a whole track costs
+ * `upgradeTotalCostMul x` the build price, however many steps it has**, so a
+ * step is that total divided by the count, *rounded* — which is why the claim
+ * holds per step and not to the gold on a track whose count does not divide
+ * the total (Venom Spore's four steps of 38 come to 152, not 150). All ten
+ * towers follow it exactly.
+ *
+ * There is deliberately no `note` escape here, unlike the count line: a price
+ * is derived from two numbers the file already holds, so a track that wants a
+ * different one is asking for a different *rule*, and that is a decision to
+ * take in the open (m20d re-prices Venom Spore and will have to).
+ */
+export function validateStepPrice(
+  totalCostMul: number,
+  t: { cost: number; upgrades: { count: number; stepCost: number } },
+  where: string,
+): void {
+  if (t.upgrades.count === 0) {
+    // `validateUpgradeTrack` catches steps with no price; this is the other
+    // direction, a price with no steps, which would otherwise load clean.
+    if (t.upgrades.stepCost !== 0) {
+      throw new Error(`${where} prices a step at ${t.upgrades.stepCost} and has no steps`);
+    }
+    return;
+  }
+  const want = Math.round((t.cost * totalCostMul) / t.upgrades.count);
+  if (t.upgrades.stepCost !== want) {
+    throw new Error(`${where} prices a step at ${t.upgrades.stepCost}, not ${want}`);
+  }
+}
+
+/**
+ * Whether a tower's `defense` is one of the authored bands, throwing if it is
+ * not. See `defenseBands` — the point is that ten towers keep three legible
+ * tiers of toughness rather than ten numbers nobody can compare (Q80).
+ */
+export function validateDefense(bands: Record<string, number>, defense: number, where: string): void {
+  const values = Object.values(bands);
+  if (values.length === 0) throw new Error(`towers.json authors no defense bands`);
+  if (!values.includes(defense)) {
+    const names = Object.entries(bands)
+      .map(([k, v]) => `${k}=${v}`)
+      .join(', ');
+    throw new Error(`${where} has defense ${defense}, which is no band (${names})`);
+  }
+}
+
+/**
  * Whether `key` is something an attack may apply on hit, throwing if it is not.
  *
  * Exported so a test can drive the loader's own predicate: no shipped tower
@@ -847,6 +923,8 @@ export function loadContent(): Content {
     for (const k of t.attack?.onHit ?? []) validateOnHit(damageTypes, k, where);
     if (t.attack?.damageRatio) validateDamageRatio(damageTypes, t.attack.damageRatio, where);
     validateUpgradeTrack(t.upgrades, where);
+    validateStepPrice(towers.upgradeTotalCostMul, t, where);
+    validateDefense(towers.defenseBands, t.defense, where);
     for (const sp of t.upgrades.specials) validateSpecial(damageTypes, sp, t.attack, where);
   }
 

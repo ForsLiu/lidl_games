@@ -2,8 +2,14 @@
   "upgradeStepMul": 1.1,
   "milestoneStepsSkipStats": true,
   "sellRefund": 0.5,
+  "upgradeTotalCostMul": 2,
   "buildRange": 4,
   "rekindleCostMul": 0.4,
+  "defenseBands": {
+    "none": 0,
+    "low": 5,
+    "medium": 10
+  },
   "towers": [
     {
       "id": 1,
@@ -14,7 +20,8 @@
       "upgrades": {
         "count": 0,
         "stepCost": 0,
-        "specials": []
+        "specials": [],
+        "note": "m20c: outside the count line — a wall has no track. Its toughness is its HP, and V3 §9 turns that into a pathing cost, so a wall track is the owner call (Q80)."
       },
       "hp": 300,
       "blocks": true,
@@ -33,7 +40,7 @@
       "key": "arrow_spire",
       "name": "Arrow Spire",
       "cost": 50,
-      "defense": 0,
+      "defense": 10,
       "upgrades": {
         "count": 5,
         "stepCost": 20,
@@ -80,11 +87,12 @@
       "key": "ballista",
       "name": "Ballista",
       "cost": 90,
-      "defense": 0,
+      "defense": 10,
       "upgrades": {
         "count": 10,
         "stepCost": 18,
-        "specials": []
+        "specials": [],
+        "note": "m20c: §4 count line says 4. At 4 the rule price is 45 and shortening Ballista alone takes the boss gate scripted maxbuild run from victory to defeat_warden — V2-equivalent 10 kept (Q80)."
       },
       "hp": 140,
       "blocks": true,
@@ -108,11 +116,12 @@
       "key": "ember_brazier",
       "name": "Ember Brazier",
       "cost": 70,
-      "defense": 0,
+      "defense": 5,
       "upgrades": {
         "count": 10,
         "stepCost": 14,
-        "specials": []
+        "specials": [],
+        "note": "m20c: §4 count line says 4. At 4 the A4 T1 clause measures 0/5 at the rule price 35 (and at 28); it is 5/5 only at this track current sub-rule price of 14, which count 4 could not keep — see m20e (Q80)."
       },
       "hp": 110,
       "blocks": true,
@@ -142,11 +151,12 @@
       "key": "frost_obelisk",
       "name": "Frost Obelisk",
       "cost": 70,
-      "defense": 0,
+      "defense": 10,
       "upgrades": {
         "count": 10,
         "stepCost": 14,
-        "specials": []
+        "specials": [],
+        "note": "m20c: §4 count line says 4. At 4 the A4 T1 clause measures 0/5 at the rule price 35 and at 28, and 4/5 at 14, against the 5/5 the gate wants — V2-equivalent 10 kept (Q80)."
       },
       "hp": 130,
       "blocks": true,
@@ -172,7 +182,7 @@
       "key": "tesla_coil",
       "name": "Tesla Coil",
       "cost": 120,
-      "defense": 0,
+      "defense": 10,
       "upgrades": {
         "count": 3,
         "stepCost": 80,
@@ -213,11 +223,12 @@
       "key": "mortar",
       "name": "Mortar",
       "cost": 130,
-      "defense": 0,
+      "defense": 5,
       "upgrades": {
         "count": 10,
         "stepCost": 26,
-        "specials": []
+        "specials": [],
+        "note": "m20c: §4 count line says 3. At 3 the A4 T1 clause measures 0/5 at the rule price 87; at this track current price of 26 it is 5/5 with T3 still 0/5, which is a red clause turning green and is filed as m20e (Q80)."
       },
       "hp": 120,
       "blocks": true,
@@ -242,7 +253,7 @@
       "key": "venom_spore",
       "name": "Venom Spore",
       "cost": 75,
-      "defense": 0,
+      "defense": 5,
       "upgrades": {
         "count": 4,
         "stepCost": 38,
@@ -293,11 +304,12 @@
       "key": "beacon_totem",
       "name": "Beacon Totem",
       "cost": 60,
-      "defense": 0,
+      "defense": 5,
       "upgrades": {
         "count": 2,
         "stepCost": 60,
-        "specials": []
+        "specials": [],
+        "note": "m20c: outside the count line — a step buys +25% aura, not +10% Attack, so ten steps would triple a linear effect (Q73)."
       },
       "hp": 100,
       "blocks": true,
@@ -328,7 +340,8 @@
       "upgrades": {
         "count": 2,
         "stepCost": 40,
-        "specials": []
+        "specials": [],
+        "note": "m20c: outside the count line — a step buys +5 gold/wave, a linear effect (Q73)."
       },
       "hp": 90,
       "blocks": true,

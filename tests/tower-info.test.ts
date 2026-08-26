@@ -22,6 +22,8 @@ import {
   upgradeCost,
   upgradeTower,
 } from '../src/sim/towers';
+import { structureArmor } from '../src/sim/upgrades';
+import type { Structure } from '../src/sim/types';
 import { grantWeapon } from '../src/sim/weapons';
 import { towerInfoMarkup } from '../src/ui/hud';
 import { towerInfo, weaponInfo } from '../src/ui/tower-info';
@@ -109,6 +111,35 @@ describe('tower info model', () => {
     const info = towerInfo(w, def, w.structureAt(tx, ty)!);
     expect(info.tier).toBe(maxLevel(def));
     expect(info.upgrade).toBeNull();
+  });
+
+  // m20c gave eight of the ten towers a non-zero defense band, which turned on
+  // a branch of the "Blocks path" line that had been dead since it was written
+  // (every tower was defense 0 before). QA filed it as shipping untested.
+  it('quotes the defense a banded tower actually has, and nothing for a `none` one', () => {
+    const w = world();
+    const bands = w.content.towers.defenseBands;
+    const armour = (key: string, s?: Structure) =>
+      towerInfo(w, w.content.towerByKey.get(key)!, s).stats.find((x) => x.label === 'Blocks path')!.value;
+
+    expect(armour('ballista'), 'a medium tower at level 1').toContain(`${bands.medium} defense`);
+    expect(armour('mortar'), 'a low tower at level 1').toContain(`${bands.low} defense`);
+    // The Palisade and the Sprout are `none`: no defense clause at all, rather
+    // than a "0 defense" the player has to read past.
+    expect(armour('palisade')).not.toContain('defense');
+    expect(armour('harvest_sprout')).not.toContain('defense');
+
+    // And it follows the track, like the HP beside it — the panel must quote
+    // the structure standing there, not the def's level-1 sheet.
+    const def = content.towerByKey.get('ballista')!;
+    const { tx, ty } = freeTileNear(w);
+    w.gold = 9999;
+    expect(buildTower(w, def.id, tx, ty).ok).toBe(true);
+    w.gold = 9999;
+    expect(upgradeTower(w, tx, ty)).toBe(true);
+    const s = w.structureAt(tx, ty)!;
+    expect(armour('ballista', s)).toContain(`${Math.round(structureArmor(w, s) * 10) / 10} defense`);
+    expect(structureArmor(w, s)).toBeGreaterThan(def.defense);
   });
 
   // SPEC-V3 §4: an upgrade step buys HP, Attack and Defense — **not** range,

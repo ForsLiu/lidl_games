@@ -11,14 +11,54 @@ the audit: what is built, what V3 supersedes, and where V3 conflicts with a live
 gate. Read it before touching anything in M18–M27.
 
 - **Milestone:** M17, M18 and **M19 complete**; **M20 in progress** — `m20a`
-  (per-tower upgrade tracks) and **`m20b`** (the three owner towers and their
-  milestone specials, SPEC-V3 §4) landed. **`m20c` is the next action**: the
-  remaining seven towers, with proposed tracks logged for owner sign-off.
-- **Gate status:** **625 tests pass, 25 skipped** (15 retired at M17 with logged
-  reasons — see MIGRATION.md §5; **5 deferred to m20c at m20a**, below; **1 new
-  at m20b**, the Venom fix that needs its price — m20d). Gates **C3 and C4 are
-  green**. Every A/B gate except A4's four T1 clauses and `light-build`'s `kite`
-  re-measured green at m20b, A11 included.
+  (per-tower upgrade tracks), `m20b` (the three owner towers and their milestone
+  specials) and **`m20c`** (the other seven towers, and every tower's defense
+  band, SPEC-V3 §4) landed. **`m20d` is the next action**: pricing the Venom
+  Spore so its `+1 projectile @2` pays out (Q79).
+- **Gate status:** **638 tests pass, 23 skipped** (15 retired at M17 with logged
+  reasons — see MIGRATION.md §5; **3 still deferred** after m20c re-measured
+  m20a's five and returned two of them, below; **1 at m20b**, the Venom fix that
+  needs its price — m20d). Gates **C3 and C4 are green**. Every A/B gate except
+  A4's `tesla_coil` and `mortar` T1 clauses and `light-build`'s `kite` is green
+  at m20c, A11 included.
+- **m20c — what a reader needs to know.** The other seven towers **keep the
+  tracks m20a gave them**, and that is the finding rather than a shortfall.
+  §4's three counts agree with a line in build cost — `count = 5 − (cost −
+  50)/35` reads Arrow 5, Poison 4, Electric 3 — but putting the open seven on
+  it measures worse, because a shorter track under Q73's cost-neutral price is
+  two nerfs at once: the ceiling falls ×2.59 → ×1.46 *and* each step gets
+  dearer, the same total buying fewer of them. At the line's count and the
+  rule's price, Ballista alone takes the boss gate from `victory` to
+  `defeat_warden`, and Ember Brazier, Frost Obelisk and Mortar drop A4's T1
+  clause to 0/5. So each of the four carries a `note` in `/data` naming the
+  count the line wants and the run that stopped it, and the line is Q80's
+  proposal for owner sign-off. **The price qualifier is load-bearing** — QA
+  found it missing from the first draft: at the prices they charge *today*,
+  Ember Brazier at count 4 clears A4 T1 5/5 and Mortar at count 3 clears T1
+  5/5 with T3 still 0/5, so the line and the price rule are jointly infeasible
+  and individually fine. Adopting it for those two needs a per-track price
+  multiplier, filed as **m20e**. The divisor 35 is fitted, not derived: §4's
+  three points are not collinear, every divisor in (28, 46.5] agrees with
+  them, and they disagree about the open roster — the test pins the family.
+  What m20c *does* add is the thing §4 asked for and Q73 deferred: **defense
+  bands** (`none 0, low 5, medium 10`), so "+10% Defense per step" finally has a
+  caller. Two loader rules keep both honest — `validateStepPrice` (a whole track
+  costs `upgradeTotalCostMul ×` the build price, no `note` escape) and
+  `validateDefense` (a tower's defense is a band or a load error).
+- **The m20c trap, worth remembering.** Two of the five assertions m20a
+  deferred to this item **were already green before it started**: `arrow_spire`
+  and `venom_spore` clear A4's T1 clause 5/5 at HEAD, closed by m20b's specials,
+  and both are live tests again. The same re-measure caught the balance note
+  claiming credit it had not earned: `light-build`'s `kite` is 7/8 (up from
+  0/8), and forcing every defense band back to 0 still reads 7/8 — m20b did all
+  of it. A deferral is a measurement with an expiry date, and "my change
+  improved X" is a claim that needs the control run, not the plausible story.
+  QA then caught the same failure one level down, in the *rejections*: two of
+  the notes recording why a track was left alone quoted prices that either
+  disagreed with the measurement or could not load under the rule the same
+  commit added. A measured reason is only as good as the configuration it was
+  measured in, and a note that names a number nobody can reproduce is worse
+  than no note — every one of them now carries its price.
 - **m20b — what a reader needs to know.** §4's milestone specials are *data*:
   each `upgrades.specials` entry is a typed key (`pierce`, `projectiles`,
   `onHit`, `damageRatio`, `electricChain`) that the loader refuses unless the
@@ -474,20 +514,19 @@ features whose counters read zero with no explanation.
   **non-monotonic** — a level-5 Venom clears 40 husks 34% slower than a level-4
   one, because impact traded for DoT is wasted on what the impact already kills.
   Both are m20d, with Q79.
-- **Five balance assertions are deferred to m20c (skipped at m20a).** A4's T1
-  clause for `arrow_spire`, `tesla_coil`, `venom_spore` and `mortar`, and
-  `light-build`'s `kite`. All five were green at HEAD `3e749c7`, so they are
-  genuine regressions, and §4 offers two levers — track length and the fact that
-  **an upgrade step no longer buys range** (V2 grew it x1.1/tier). QA measured
-  which lever each one hangs on, and it is not the same one:
-  `arrow_spire`/`venom_spore` are pure track length (a V2-equivalent 10-step
-  track clears T1 5/5 and still fails T3, as the gate wants); `kite` and
-  `tesla_coil` are **range** — arrow at 10 steps still leaves `kite` 0/8, and
-  only restoring V2's tier-3 x1.21 range takes it to 8/8; `mortar` is neither,
-  because *no* count satisfies both A4 clauses (count 1–2 clears T1 5/5 but also
-  T3 3/5 where the gate wants 0; every count from 3 up fails T1). m20c authors
-  the real tracks with owner sign-off and re-measures all five — but it needs a
-  **range answer**, not just a track, for two of them.
+- **Three balance assertions remain deferred (five at m20a, two returned at
+  m20c).** m20c re-measured all five. **Returned:** A4's T1 clause for
+  `arrow_spire` and `venom_spore`, both 5/5 at HEAD and live tests again —
+  m20b's milestone specials closed them, not any track. **Still red:** A4's T1
+  clause for `tesla_coil` (0/5) and `mortar` (3/5), and `light-build`'s `kite`
+  (7/8, up from 0/8 — seed 8 dies on wave 9). None of the three is a track
+  question. `tesla_coil` wants V2's tier-3 range and third arc, both of which
+  §4 removed on purpose (a cheaper step price measures 0/5 either way and cost
+  f001 its seed, so it was not adopted); `mortar` has no count satisfying both
+  A4 clauses at once, and §4's count line reads 3 for it, which measures T1 0/5
+  — worse than the track it would replace; `kite` is one seed short. All three
+  want base damage re-priced, which is **M27's one-pass re-baseline** under
+  Q40, not a nudge. Q80 has the runs.
 - **A3 is green on its material claims, not its strict bound.** Act II survival
   is sharply bimodal: a stationary Warden either drowns in the opening two
   minutes (~115 s) or snowballs XP into a few more (~290 s), so the median sits
@@ -583,6 +622,27 @@ BACKLOG.md rewritten to V3 §13's M17–M27 order, 30 items with concrete accept
 criteria naming the C-gate each satisfies. QUESTIONS.md gains **Q38–Q49**.
 
 ## Session log (newest first)
+- 2026-08-26 — M20 m20c: the other seven towers' tracks and every tower's
+  defense band (SPEC-V3 §4). The migration is a *measurement*: §4's three counts
+  are a straight line in build cost, and putting the open seven on it measures
+  worse against a live gate every time (Ballista alone flips the boss gate;
+  Ember Brazier and Mortar drop A4 T1 to 0/5; Frost Obelisk to 4/5), because a
+  short track under Q73's cost-neutral price lowers the ceiling *and* raises the
+  step price together. So the tracks stand, each of the four carrying a `/data`
+  `note` naming the count the line wants and the gate that stopped it, and the
+  line goes to the owner as Q80's proposal. §4's defense words became three
+  bands (`none 0, low 5, medium 10`) — the stat has been inert since m20a — plus
+  two loader rules: a whole track costs `upgradeTotalCostMul ×` build price with
+  no `note` escape, and a tower's defense must be a band. Re-measuring m20a's
+  five deferrals returned two (`arrow_spire`, `venom_spore` clear A4 T1 5/5 at
+  HEAD, closed by m20b's specials); `kite` is 7/8 and the control run says the
+  bands did not do it. 12-seed sweep byte-identical either side; 640 pass, 23
+  skipped. `tests/m20c-roster-tracks.test.ts` (13). code-reviewer APPROVE with
+  8 Minors taken; qa-playtester PASS with 6 filed, 5 fixed here — two Majors
+  were wrong evidence in my own notes (a price that cannot load, a missing
+  qualifier), and the sixth became **m20e**: Mortar at §4's count 3 and today's
+  price clears *both* A4 clauses, so the line is adoptable for two towers once
+  a track can carry its own price.
 - 2026-08-26 — M20 m20b: the three owner towers and their milestone specials
   (SPEC-V3 §4). §4's specials became typed `/data` entries the loader validates
   against the attack that has to pay them; `attackProfile(def, level)` folds a

@@ -15,6 +15,7 @@ import { loadContent, validateUpgradeTrack, type Content, type TowerDef } from '
 import { damageStructure, dotOutstanding, spawnEnemy } from '../src/sim/enemies';
 import { deriveSouls } from '../src/sim/progression';
 import { hashWorld } from '../src/sim/run';
+import { damageTakenMul } from '../src/sim/stats';
 import {
   buildTower,
   effectiveTowerRange,
@@ -257,8 +258,10 @@ describe('m20a — a step buys +10% HP, Attack and Defense (§4)', () => {
   });
 
   it('scales defense the same way, and defense is real damage reduction', () => {
-    // Every shipped tower has defense 0 (Q73), so this drives the path with an
-    // authored one: 20 defense is 20% off, through m19a's shared armour curve.
+    // m20c's bands are 0/5/10, so 20 is deliberately off-band — a value the
+    // loader would now reject, reachable only through `contentWith`, which
+    // keeps this asserting the *arithmetic* rather than a shipped number:
+    // 20 defense is 20% off, through m19a's shared armour curve.
     const c = contentWith('ballista', { defense: 20 });
     const def = c.towerByKey.get('ballista')!;
     const { w, tx, ty, s } = place(def, c);
@@ -295,7 +298,9 @@ describe('m20a — a step buys +10% HP, Attack and Defense (§4)', () => {
   it('carries the wound across an upgrade instead of healing it', () => {
     const def = content.towerByKey.get('ballista')!;
     const { w, tx, ty, s } = place(def);
-    damageStructure(w, s, s.maxHp * 0.5);
+    // Half its HP *through its armour* — m20c gave every tower a defense band,
+    // so a raw `maxHp * 0.5` is no longer half a Ballista's health bar.
+    damageStructure(w, s, (s.maxHp * 0.5) / damageTakenMul(structureArmor(w, s)));
     expect(upgradeTower(w, tx, ty)).toBe(true);
     expect(s.hp / s.maxHp).toBeCloseTo(0.5, 6);
   });
@@ -372,7 +377,10 @@ describe('m20a — the track through the real loop', () => {
       updateTowers(w, 1 / 60);
     }
     expect(e.hp).toBeLessThan(hp0);
-    damageStructure(w, s, s.hp);
+    // Twice its remaining HP rather than exactly its HP-through-armour: this
+    // asserts that a wound kills, and the exact form sits on a float knife
+    // edge that any band or HP tune would flip red for no behavioural reason.
+    damageStructure(w, s, s.hp * 2);
     expect(s.dead).toBe(true);
   });
 });
