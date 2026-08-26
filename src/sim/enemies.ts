@@ -360,8 +360,10 @@ function immuneToDot(e: Enemy, type: string): boolean {
 export interface DotOptions {
   /**
    * A V2-authored caller (the Venom Spore) states its own stack cap. Absent,
-   * the taxonomy row's own `maxStacks` applies. Either way the per-enemy perf
-   * cap in damagetypes.json is the ceiling.
+   * the taxonomy row's own `maxStacks` applies. Either way the row's own
+   * `maxStacks` is the ceiling — an override may only tighten it, never exceed
+   * it (SPEC-FINAL §3 states the cap per row; x001) — and the per-enemy perf
+   * cap in damagetypes.json bounds the total across types.
    */
   maxStacks?: number;
 }
@@ -434,7 +436,15 @@ export function applyDot(
   if (scaled <= 0) return;
 
   const cap = w.content.damageTypes.maxStacksPerEnemy;
-  const perType = Math.min(opts.maxStacks ?? def.maxStacks ?? 1, cap);
+  // SPEC-FINAL §3 states a cap per row ("Poison … cap 3 stacks"; "Toxic …
+  // cap 3 stacks"), so a caller's override may only ever tighten it. Before
+  // x001 an override was clamped to the shared 50-stack *budget* instead, which
+  // let a call site hold 50 Poison stacks while `/data` said 3 — the cap lost
+  // without anything in `/data` changing. Every shipped caller passes exactly
+  // the row's own number, so this is a no-op on today's content by
+  // construction; it is here to keep the hole shut while it is still empty.
+  const rowCap = Math.min(def.maxStacks ?? 1, cap);
+  const perType = Math.min(opts.maxStacks ?? rowCap, rowCap);
   let live = 0;
   let shortest = -1;
   for (let i = 0; i < e.dots.length; i++) {
