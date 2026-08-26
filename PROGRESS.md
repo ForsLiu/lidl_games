@@ -3,12 +3,49 @@
 > Claude: keep this file current. Update at every milestone gate and before any stop.
 > A fresh session should be able to resume from this file + CLAUDE.md alone.
 
-## Current state — SPEC-V3
+## Current state — SPEC-FINAL
 
-**Precedence: SPEC-V3 > SPEC-V2 > SPEC.md.** V3 landed 2026-08-25, the day after
-V2's M9 shipped, and supersedes a large part of what M9 built. **MIGRATION.md** is
-the audit: what is built, what V3 supersedes, and where V3 conflicts with a live
-gate. Read it before touching anything in M18–M27.
+**Precedence: SPEC-FINAL > everything.** SPEC-FINAL.md landed 2026-08-26 and
+supersedes SPEC.md, SPEC-V2.md and SPEC-V3.md outright. Its §14 gates **G1–G20**
+replace every A/B/C gate list and its §15 **P0–P10** build order is the backlog's
+order. **MIGRATION.md** is the audit — §§1–7 against V3, and **§8 is the SPEC-FINAL
+reconcile**: what changed against V3, the old-id → new-id map, and the
+test-retirement ledger. Read §8 before touching anything.
+
+- **Milestone:** the **§16 reconcile is complete** (this commit). SPEC-FINAL.md is
+  now in the repository — it existed only as an untracked file in the main checkout,
+  so no branch could see it (Q81). BACKLOG.md is rewritten into 48 items in P order;
+  CLAUDE.md's sources-of-truth list is re-pointed; twelve superseded test groups are
+  retired with logged reasons and four existing retirements are restated against the
+  gate that now supersedes them. **`p1a` is the next action**: removing the path
+  guarantee so the Core can be sealed (§10, G7).
+- **Where the code actually stands** (audit summary, full table at the top of
+  BACKLOG.md): P0 and P4 are done; P1 is done **except sealing**; P5 is done bar two
+  pricing items; P2's VS **inheritance formula is not built** — `data/weapons.json`'s
+  8-weapon roster with its own level ladders and 6 slots stands where §6.1's
+  average-across-the-type formula belongs; P3's interleave is not built — the run is
+  still V2's Day/Dusk/Night/Dawn cycle machine; P6 has **3 of 11 classes** and on the
+  wrong framework; P7's equipment, VS upgrade pool and reward pipeline are unbuilt
+  behind the relic/Ember/boon systems that supersede them; P9's Tuner is unbuilt and
+  its Codex read-half arrives with this commit from the tuner lane.
+- **What the reconcile did *not* do:** no sim, data or balance change. Every number
+  in `/data` and every line in `/src/sim` is untouched, so the 12-seed sweep and the
+  end-state hashes are byte-identical either side of it. The reconcile is documents
+  and test annotations only, which is what makes it reviewable as one diff.
+- **Four V3 items are retired without successors**, each with its reason in
+  MIGRATION.md §8.2: m24d and s006 (relic-affix items — the affix table itself dies
+  at p7d), s007 (the `terrain` residual mechanism is replaced wholesale by §5's VS
+  special column at p2c), and m27b (G13 + G19 together are SPEC-FINAL's version of
+  "TD investment converts into VS outcome"; A8 has no successor of its own).
+- **Conflicts logged this pass:** Q81 (SPEC-FINAL was untracked), Q82 (the reconcile
+  overrode the tuner lane's scope boundary — any other live lane must re-base on the
+  new backlog before continuing), Q83 (§15 puts sealing at P1, so G7's balance clause
+  will need re-measuring after the run shape changes at p3a), Q84 (gate renames vs
+  test filenames; three surviving claims have no §14 counterpart), Q85 (leak coupling
+  is built against the wrong multiplier and the wrong boundary — a re-point, not a
+  rebuild).
+
+### Superseded — the V3 state this reconcile replaced
 
 - **Milestone:** M17, M18 and **M19 complete**; **M20 in progress** — `m20a`
   (per-tower upgrade tracks), `m20b` (the three owner towers and their milestone

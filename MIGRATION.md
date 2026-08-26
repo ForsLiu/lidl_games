@@ -420,3 +420,120 @@ round-trip test, or a v0.2 save will crash a v0.3 client.
   of bug (unhashed new state) that f001's code review found.
 - **Content hash before the Tuner** (§4.9): M26 is much cheaper if `RunConfig`
   already carries content identity, and adding it early costs almost nothing.
+
+---
+
+## 8. SPEC-FINAL reconcile (§16)
+
+SPEC-FINAL supersedes SPEC.md, SPEC-V2.md and SPEC-V3.md. §16 asks for one
+reconcile milestone: audit code against SPEC-FINAL, map every gap to a backlog
+item in §15's P order, retire superseded tests with logged reasons, then continue
+the loop. This section is that audit's ledger. BACKLOG.md is rewritten to match.
+
+### 8.1 What changed against V3
+
+SPEC-FINAL is mostly V3 made complete and self-contained rather than V3 revised,
+so §§1–13 of this file survive as written — the systems V3 marked for removal are
+the same ones SPEC-FINAL removes. Four things are genuinely new:
+
+1. **The gate list is consolidated.** §14's **G1–G20** replaces every A-, B- and
+   C-gate list. This is a renaming for most surviving gates and a real change for
+   three: G17 replaces A10's wall-clock budget with a host-independent per-
+   simulated-minute budget plus a 60 fps benchmark and a 50-run soak; G19 is new
+   (liveness: winners include sealed *and* open strategies, and multi-summon);
+   G20 is new (every §5 milestone special measurably changes the attack it names,
+   loader-validated).
+2. **Burning stacks per application** (§3, owner intent), flipped from today's
+   `maxStacks 1, refresh strongest` at the balance pass. Carried as **p10a**.
+3. **§4.2, §5.2 and §6.3 are filled in.** V3 left nine classes, seven towers and
+   the VS upgrade pool as gaps; SPEC-FINAL authors all three as designer-fill,
+   vetoable by the owner (§17). The seven towers were already built at M20; the
+   nine classes and the pool are **p6d** and **p7a**.
+4. **§16 names the balance work explicitly**: flip Burning, re-price against G13,
+   re-baseline perf as G17. These are **p10a**, **p10c**, **p10e**.
+
+### 8.2 Old id → new id
+
+| V3 item | SPEC-FINAL item | Note |
+|---|---|---|
+| m20d | p5a | unchanged, re-pointed at G13 |
+| m20e | p5b | unchanged |
+| m21a | p2a | acceptance now G3, worked example verbatim |
+| m21b | p2c | VS specials now authored per tower in §5's last column |
+| m21c | p2b | unchanged |
+| m21d | p2e | unchanged |
+| m22a | p3a | unchanged |
+| m22b | p3b | early-call bonus formula stated (`2 gold x un-elapsed build seconds`) |
+| m22c | p3d | unchanged |
+| m22d | p3e | run length split out to p10d, which owns G1 |
+| m23a–c | p6a–c | acceptance now G9 |
+| m23d | p6f | inverted: §4 re-authors Engineer and Pyro, so the legacy trio is migrated onto §4's shape, not badged as legacy |
+| — | p6d, p6e | new: the nine §4.2 classes; G8/G10/G11 |
+| m24a | p7b | unchanged |
+| m24b | p7c | acceptance now G12 |
+| m24c | p7d | widened to take the relic affix system with Ember |
+| m24d | — | retired: the `relicFind` stat dies with the affix table at p7d |
+| — | p7a, p7e | new: §6.3's VS upgrade pool; §8.4's quests |
+| m25a | p1a | moved to P1, where §15 puts sealing |
+| m25b | p1b | acceptance now G7's third clause |
+| m26a–c | p9a–c | acceptance now G15 |
+| m27a | folded into p10c–p10f | "all gates green" is not an item; each gate is |
+| m27b | — | retired: G13 + G19 are SPEC-FINAL's version of the claim |
+| m27c | p10i | unchanged |
+| s001, s002 | p7f, p7g | unchanged |
+| s003 | p9e | acceptance now G18's dead-end clause |
+| s004 | p8b | unchanged |
+| s005 | p9d | acceptance now G16 |
+| s006 | — | retired: the `of Thrift` affix dies with the affix table at p7d |
+| s007 | — | retired: the `terrain` residual mechanism is replaced by §5's VS special column at p2c |
+| s008 | p10g | unchanged |
+| s009 | p10b | unchanged |
+| s010 | p9h | unchanged |
+| s011 | p9g | unchanged |
+
+### 8.3 Test retirements
+
+Same rule as §5, which this section extends rather than replaces:
+
+> A test is retired the moment the spec contradicts what it asserts, but its file
+> is not deleted until the code it covers is deleted. Retired tests become
+> `describe.skip` / `it.skip` with a `RETIRED (SPEC-FINAL §x)` reason naming the
+> superseding section and the backlog item that removes the code.
+
+Retired **at the reconcile commit**, because SPEC-FINAL contradicts the assertion
+itself rather than its tuning:
+
+| Test | Retired because | Deleted at |
+|---|---|---|
+| `sundering.test.ts` — all 4 describes | §6.2 keeps towers inert-but-present; there is no Dusk, no petrification, no conversion table, no Heartstone, no slot picker. The three effects worth keeping become §5 VS specials (electric wire grid, beacon attack speed, sprout XP gems); the "always leaves a walkable lane" case is contradicted twice over, by §6.2 and by §10's legal sealing. | p2e |
+| `act2.test.ts` › `soul weapons` | §6.1 has no weapon roster: named weapons with their own level ladders are replaced by per-tower-type derivation. | p2e |
+| `act2.test.ts` › `weapon inheritance (SPEC 4.1)` | §6.1 replaces "highest tier + 8%/duplicate, capped +40%, 6 slots" with "average across the type x (1 + 10% x count)", no slots and no cap. | p2e |
+| `act2.test.ts` › `applies a weapon offer` | §6.3's pool has no weapon cards. | p7a |
+| `f004-class-framework.test.ts` › `class content` | §4's framework is bands + Passive + Q + E + Tower passive; there is no Day-use/Night-use Active and no Signature. | p6f |
+| `f004-class-framework.test.ts` › `affinity replaces class locks` | §4 gives each class a Tower passive that applies to every tower; there is no per-class per-tower damage affinity. | p6f |
+| `f004-class-framework.test.ts` › `the Dusk picker binds for every class` | No picker and no slot budget: §6.1 grants every built type unconditionally. | p2e |
+| `content-complete.test.ts` › `has 8 weapons…` | As `soul weapons`. | p2e |
+| `content-complete.test.ts` › `has 12 boons…` | §6.3's pool (stat boons rank x5, Type Mastery rank x3, 3 skill cards per class rank x2) replaces `boons.json`'s flat 12. | p7a |
+| `content-complete.test.ts` › `introduces the Gatebreaker on wave 10` | §1.1 puts the Gatebreaker at the end of **TD wave 18** of 18. | p8a |
+| `content-complete.test.ts` › `rolls relics with the right affix counts per rarity` | §7's equipment is a fixed 12-item table across 6 slots, granted 1 per TD wave cleared. Nothing rolls. | p7d |
+| `b004-ember-survival.test.ts` — both describes | §8 removes Ember; §1.1 removes the multi-Night run there was a cumulative survival counter for. | p7d |
+
+**Reasons restated, not newly retired** — A5, A6, A7 and A8 were already retired
+against V3 at M17. Their headers now name the SPEC-FINAL gate that supersedes
+them (G13, §6.2/p2c, G7, and G13+G19 respectively) and the item that deletes the
+file. A8's carried-forward claim is **not** re-filed: see the m27b row above.
+
+**Not retired, deliberately:**
+
+- **A1** → G1, **A2**, **A3**, **A4** → G13's solo-viability clause, **A9**,
+  **A11** → G2, **B7** → G6's leak-coupling clause, **B10** → G18, **C3** → G4,
+  **C4** → G5, **C7** → G12, **C8** → G16. Every one of these survives in
+  substance; what changes is the gate name and, for the balance bounds, the
+  baseline they are measured against once p3a changes the run shape.
+- **A10** stays live and red-adjacent rather than retired: §16 asks for it to be
+  *re-baselined* as G17, not dropped. p10e owns it.
+- `f001-cycle-machine.test.ts` — its four Rekindle/Dusk cases are already skipped
+  from M17; the rest still guards the live phase machine and is retired wholesale
+  at **p3d**, when that machine is deleted.
+- `light-build.test.ts` — its subject survives as a TD-wave claim; re-baselined
+  at p3e.

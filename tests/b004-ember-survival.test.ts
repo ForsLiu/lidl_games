@@ -38,7 +38,17 @@ function forceWaveClear(run: Run, wave: number): void {
   run.step(emptyInput());
 }
 
-describe('BACKLOG b004: survivalSeconds is cumulative across Nights', () => {
+/**
+ * RETIRED (SPEC-FINAL §1.1 and §8) — Ember, and "across Nights".
+ *
+ * Both halves of this file's premise are gone: §8 replaces the Ember ->
+ * account level -> skill point pipeline with skill points granted directly
+ * (1 per VS wave cleared), and §1.1 replaces the multi-Night cycle run with 18
+ * TD + 6 VS waves, so there is no repeated Night for a survival counter to
+ * accumulate across. The claim worth keeping — a defeat still pays out what
+ * was fully cleared — is G12, asserted by p7c. File deleted at **p7d**.
+ */
+describe.skip('BACKLOG b004: survivalSeconds is cumulative across Nights', () => {
   it('a run that reaches Dawn twice reports survivalSeconds === act2Seconds', () => {
     const run = new Run(cfg({ cycles: 3, seed: 1, policy: 'hybrid' }));
     const w = run.world;
@@ -86,7 +96,11 @@ describe('BACKLOG b004: survivalSeconds is cumulative across Nights', () => {
   });
 });
 
-describe('BACKLOG b004: Results screen "Survived" stat is cumulative too', () => {
+/**
+ * RETIRED (SPEC-FINAL §1.1) — as above: no multi-cycle death to be cumulative
+ * across. The Results screen itself survives as G18. File deleted at **p7d**.
+ */
+describe.skip('BACKLOG b004: Results screen "Survived" stat is cumulative too', () => {
   const CSS = readFileSync(join(process.cwd(), 'src', 'ui', 'style.css'), 'utf8');
 
   it('reads act2Ticks, not the Night-local act2Time, on a multi-cycle death', () => {

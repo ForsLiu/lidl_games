@@ -16,7 +16,13 @@ const SEEDS = [1, 2, 3, 4, 5, 6];
 const CAP = 0.35;
 
 /**
- * RETIRED (V3 §5, M17) — gate A5.
+ * RETIRED (SPEC-FINAL §6.1, reconcile §16) — gate A5.
+ *
+ * Restated at the SPEC-FINAL reconcile: the superseding gate is **G13** ("no
+ * tower type's VS attack takes more than 35% of damage across the winning-build
+ * pool"), which is A5's question asked about the unit SPEC-FINAL actually has.
+ * G3 owns the formula half. The file is deleted at **p2e**, and G13 is measured
+ * at **p10c**. Original V3-era reasoning follows and still holds:
  *
  * A5 measures each weapon's share of total damage across a 6-slot loadout.
  * SPEC-V3 §5 removes weapon slots and per-weapon identity entirely: in a VS

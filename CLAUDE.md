@@ -1,16 +1,24 @@
-# CLAUDE.md — Stonewake standing orders (v2)
+# CLAUDE.md — Stonewake standing orders (v3, SPEC-FINAL)
 
 ## Sources of truth, in order
-1. **SPEC-V2.md** — current design (overrides SPEC.md where they conflict)
-2. **SPEC.md** — base design v0.1
+1. **SPEC-FINAL.md** — the design, v1.0. Self-contained and **supersedes SPEC.md,
+   SPEC-V2.md and SPEC-V3.md**, which are kept only as history. Its §14 gates
+   **G1–G20** replace every prior A/B/C gate list, and its §15 P0–P10 build order is
+   the backlog's order.
+2. **MIGRATION.md** — what this codebase has that SPEC-FINAL keeps, replaces or
+   drops, plus the test-retirement ledger (§8 is the SPEC-FINAL reconcile).
 3. **QUALITY.md** — definition of done per stage (read-only for you; propose changes
    via QUESTIONS.md)
 4. **HANDOFF.md** — engineering state report; regenerate its measured sections with
    the tools it lists after every completed milestone
+5. **SPEC-V3.md**, **SPEC-V2.md**, **SPEC.md** — superseded. Consult them only to
+   understand why existing code looks the way it does, never as authority. Where one
+   conflicts with SPEC-FINAL, SPEC-FINAL wins and the conflict goes in QUESTIONS.md.
+
 Do not redesign what these define. Fill genuine gaps with the most spec-consistent
 default and log it in QUESTIONS.md.
 
-## Stack & commands (unchanged from v1)
+## Stack & commands
 TypeScript + Vite + canvas, Vitest, zod, all tuning in `/data/*.json`, Node 22+.
 - `npm run dev` · `npm test` · `npm run build`
 - `npm run sim -- --seed 1 --policy hybrid` — headless run report
@@ -23,11 +31,13 @@ TypeScript + Vite + canvas, Vitest, zod, all tuning in `/data/*.json`, Node 22+.
 3. Renderer reads sim state only. All player actions (including class actives) are
    sim Commands so bots and replays can use them.
 4. New mechanics are expressed as data shapes in `/data` wherever possible
-   (HANDOFF's structural note); engine work stays generic.
+   (HANDOFF's structural note); engine work stays generic. SPEC-FINAL states it as a
+   rule: all content and numbers live in `/data/*.json`, never in code.
 
 ## Working rules
-1. Milestones **M9→M16** (SPEC-V2 §12) in order; a milestone is done only when its
-   gates are green. Within a milestone, work from BACKLOG.md.
+1. Work SPEC-FINAL §15's **P0→P10** build order in order; a band is done only when
+   the gates §15 names for it are green. Within a band, work from BACKLOG.md, whose
+   ids are `p<band><letter>`.
 2. `npm test` after every meaningful change; commit at every green stable point and
    every milestone (`M<n>: <summary>` or `<type>: <summary>`).
 3. Confirmed bugs get a failing regression test **before** the fix.
@@ -57,13 +67,21 @@ one item end-to-end (implement → tests green → QA subagent pass → commit �
 PROGRESS/BACKLOG), then stop. Prefer the top item; skip only with a logged reason.
 
 **Generation rule:** if fewer than 3 actionable items remain, generate before
-executing: (a) run the sweep + handoff-metrics and diff against every A/B gate and
-the current QUALITY.md stage; (b) diff SPEC-V2 coverage against the code (any §
-not fully implemented → items); (c) add one engineer's-judgment improvement in the
+executing: (a) run the sweep + handoff-metrics and diff against every §14 gate
+(G1–G20) and the current QUALITY.md stage; (b) diff SPEC-FINAL coverage against the
+code (any § not fully implemented → items); (c) add one engineer's-judgment improvement in the
 spirit of HANDOFF §7 (depth, not scope creep). Append exactly 5 items with concrete
 acceptance criteria, ordered by value, then execute the top one. Never invent new
 game systems that are in no spec — propose those in QUESTIONS.md instead.
 
-## Definition of "v0.2 complete"
-M9–M16 done, all A- and B-gates green, QUALITY.md Alpha bar fully green, HANDOFF.md
-regenerated at the final commit.
+## Definition of "1.0 complete"
+P0–P10 done, **all twenty §14 gates G1–G20 green**, §13's content totals met
+(11 classes · 10 towers · 12+ equipment · 6 damage types + 2 statuses · 20 enemies ·
+18+6 waves · 120-node tree · 8–12 quests · T1–T5 · 2 bosses · the §6.3 upgrade pool ·
+Codex & Tuner), QUALITY.md Alpha bar fully green, HANDOFF.md regenerated at the final
+commit.
+
+Owner review is still open on §17's list — the nine filled classes, the seven filled
+towers, the VS upgrade pool, Burning stack timing, the −100 armor floor, the 75 s VS
+wave, and the quest list. Any of those may be vetoed by an inbox verdict; build them
+as specced until one arrives.
