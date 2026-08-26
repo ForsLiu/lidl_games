@@ -96,7 +96,7 @@ export function dropRelic(w: World, forceRarity?: string): Relic {
 export function handleKillDrops(w: World, e: Enemy, def: EnemyDef): void {
   const rates = w.content.relics.dropRates;
   const rng = w.rng.drops;
-  const findMul = 1 + w.derived.relicFind;
+  const findMul = w.derived.relicFindMul;
 
   if (def.traits.includes('finalBoss')) {
     dropRelic(w, 'rare');

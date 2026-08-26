@@ -11,12 +11,32 @@ the audit: what is built, what V3 supersedes, and where V3 conflicts with a live
 gate. Read it before touching anything in M18–M27.
 
 - **Milestone:** M17 and M18 complete. **M19 in progress** — `m19a` (armour v3,
-  gate C3) done; `m19b` (multiplicative stacking, gate C4) is the next action,
-  then `m19c` (damage types).
-- **Gate status:** **462 tests pass, 19 skipped** (15 retired at M17 with logged
-  reasons — see MIGRATION.md §5). Gate **C3 is green for the armour math**; its
-  "except Burning's shred" clause is carried by m19c, which wires Burning to the
-  shred mechanism m19a built (Q58).
+  gate C3) and `m19b` (multiplicative stacking, gate C4) done; **`m19c` (damage
+  types) is the next action** and closes M19.
+- **Gate status:** **499 tests pass, 19 skipped** (15 retired at M17 with logged
+  reasons — see MIGRATION.md §5). Gate **C4 is green**. Gate **C3 is green for the
+  armour math**; its "except Burning's shred" clause is carried by m19c, which
+  wires Burning to the shred mechanism m19a built (Q58).
+- **m19b — what a reader needs to know.** `Stats` is no longer a flat record: it
+  is keyed by (stat, source), `factor()` returns Π over sources of (1 + that
+  source's summed ranks) and `total()` the additive sum. `STAT_KIND` classifies
+  every stat `flat` or `mul` as a `Record<StatKey, StatKind>`, so **adding a stat
+  without deciding how it stacks is a compile error**. Q61 rules what counts as
+  one source (the thing a player acquires as a unit: one class, one node, one
+  relic, one boon, one modifiers bundle, all petrified terrain together), Q62
+  which stats multiply, Q63 the `total()` ordering, Q64 shrine and aura haste.
+  `derive()` now hands out **finished multipliers** — `goldFindMul`, not
+  `goldFind` — and the rename is load-bearing: a consumer that still writes
+  `1 + x` is wrong by a whole factor of one, which is exactly the defect that got
+  six of the eight call sites past 479 green tests. See BACKLOG's m19b entry.
+- **The trap m19b exposed, worth remembering for m19c.** Every default test world
+  has **at most one source per stat** (a default headless run's whole stat sheet
+  is two entries, both from the class; the 12 boons grant 12 distinct stats, so
+  boons never stack against each other either). Where there is one source,
+  `factor(s)` and `1 + total(s)` are identical — so the buggy and the fixed
+  expression agree on every world the suite builds, and the 12-seed sweep cannot
+  see the change at all. Any test of a stacking rule must **deliberately skew the
+  world with two sources**, or it is testing nothing.
 - **A10 — correction.** This file previously said A10 was red. It is **not red in
   the code**: measured at m19a it passes both at that commit and at HEAD
   `6be4dab` in a clean worktree on this machine. MIGRATION.md §4.5 measured it
@@ -30,8 +50,19 @@ gate. Read it before touching anything in M18–M27.
   policies are unchanged, every A/B gate still passes, and enemy-side damage is
   bit-identical to HEAD. Per Q40/Q59 **no number was touched**; HANDOFF §4 is
   marked stale and is regenerated at m27c.
-- **Standing constraint (Q40):** no balance tuning before M19 lands multiplicative
-  stacking — it moves every number in `/data`, so tuning before it is throwaway.
+- **Balance after m19b — measured, nothing tuned.** The 12-seed sweep is
+  **byte-identical** to HEAD (maxbuild medSurv 180 / medKills 5993; hybrid 105.68
+  / 2406), for the one-source-per-stat reason above — the default policies simply
+  never hold two sources of a stat. Where it bites is a legal endgame build (60
+  tree points, 3 rare relics, all boons maxed): **pickupPct +42.2%, goldFind
+  +28.6%, power +22.1%, attackSpeed +18.4%, wallHp +15.0%**. That is larger than
+  MIGRATION §4.4's +10.6% estimate, and pickup radius (11.28 tiles) is the
+  outlier the M27 re-baseline should look at first. Per Q40 **no `/data` number
+  was touched**; HANDOFF §4 stays stale until m27c.
+- **Standing constraint (Q40):** the constraint said no balance tuning *before*
+  M19 lands multiplicative stacking. m19b has now landed it, so M27's
+  re-baseline is unblocked — but per Q40 the re-baseline is still one deliberate
+  pass at m27a, not incremental nudging as gates wobble.
 
 ### Superseded v0.2 sections below
 

@@ -776,7 +776,7 @@ export function enemyInfoMarkup(w: World, e: Enemy): string {
     // gold find and adds gold-per-kill — and in Act II pays gems instead.
     w.huntsWarden
       ? row('XP gem', String(def?.gem ?? 0))
-      : row('Bounty', `${Math.round((def?.bounty ?? 0) * (1 + w.derived.goldFind) + w.derived.goldPerKill)}g`),
+      : row('Bounty', `${Math.round((def?.bounty ?? 0) * w.derived.goldFindMul + w.derived.goldPerKill)}g`),
   ];
   rows.push(row('Armour', armourText(enemyArmor(e))));
   if (def?.flatReduction)

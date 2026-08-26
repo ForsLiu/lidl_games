@@ -48,10 +48,14 @@ export function weaponDamageMul(w: World, ws: WeaponState): number {
 }
 
 /** Cooldown-style weapons benefit from CDR (SPEC 2.1). */
-function intervalFor(w: World, ws: WeaponState, base: number, usesCdr: boolean): number {
+export function intervalFor(w: World, ws: WeaponState, base: number, usesCdr: boolean): number {
   const cdr = usesCdr ? 1 - w.derived.cdr : 1;
   void ws;
-  return (base * cdr) / (w.derived.attackSpeedMul + w.shrineHaste);
+  // V3 §2: the shrine is a different origin from the boon/tree/relic stack, so it
+  // multiplies rather than adding into the multiplier. Overlapping shrines still
+  // sum into `w.shrineHaste` first — Q61 counts all petrified terrain as one
+  // source, and ranks add within a source.
+  return (base * cdr) / (w.derived.attackSpeedMul * (1 + w.shrineHaste));
 }
 
 export function grantWeapon(w: World, key: string, level: number, damageBonus: number): WeaponState {
@@ -343,8 +347,11 @@ export function applyTerrainPassives(w: World): void {
   }
   const armor = Math.min(wallArmorCap, walls) * w.derived.residualMul;
   const haste = Math.min(beaconCap, beacons * beaconPer) * w.derived.residualMul;
-  w.stats.armor += armor;
-  w.stats.attackSpeed += haste;
+  // One source for all of the petrified terrain: a second Sundering adds more
+  // ranks to it rather than opening a new multiplicative origin, which is both
+  // V3 §2's "same source" reading and the behaviour this had before m19b.
+  w.stats.add('terrain', 'armor', armor);
+  w.stats.add('terrain', 'attackSpeed', haste);
   w.recomputeDerived();
 }
 

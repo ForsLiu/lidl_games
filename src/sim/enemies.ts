@@ -235,7 +235,7 @@ export function killEnemy(w: World, e: Enemy, source: string): void {
   w.emit('death', e.x, e.y, def.id, 0);
 
   if (!w.huntsWarden) {
-    const gold = Math.round(def.bounty * (1 + w.derived.goldFind) + w.derived.goldPerKill);
+    const gold = Math.round(def.bounty * w.derived.goldFindMul + w.derived.goldPerKill);
     w.gold += gold;
     w.goldEarned += gold;
   } else {
@@ -848,7 +848,7 @@ function contactWarden(w: World, e: Enemy, def: EnemyDef): void {
   e.attackCooldown = w.content.spawns.contactInterval;
   let dmg = def.coreDamage * (1 + e.buffPower);
   // Frost Warden trait: chilled enemies hit softer.
-  if (e.slowRemaining > 0) dmg *= 1 + w.stats.chilledDamageTaken;
+  if (e.slowRemaining > 0) dmg *= w.derived.chilledDamageTakenMul;
   damageWarden(w, dmg);
 }
 

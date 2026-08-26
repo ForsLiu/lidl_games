@@ -33,7 +33,7 @@ import { cfg } from './helpers';
 /** A world with the Warden parked out of harm's way and no i-frames pending. */
 function world(armor = 0): World {
   const w = new World(cfg());
-  w.stats.armor += armor;
+  w.stats.add('test', 'armor', armor);
   w.recomputeDerived();
   w.warden.hp = w.derived.maxHp;
   w.warden.dashIFrames = 0;
@@ -339,7 +339,7 @@ describe('C3 — shred does not outlive the body', () => {
 
   it('clears on Second Wind', () => {
     const w = new World(cfg());
-    w.stats.secondWind += 1;
+    w.stats.add('test', 'secondWind', 1);
     w.recomputeDerived();
     w.warden.hp = w.derived.maxHp;
     w.warden.dashIFrames = 0;

@@ -246,7 +246,7 @@ describe('slot picker (SPEC 4.1)', () => {
     keys.forEach((k, i) => place(w, k, 6 + i * 2, 6));
     // Deep Roots trades a weapon slot for stronger residuals, which is the
     // configuration where the picker actually bites.
-    w.stats.weaponSlots -= 3;
+    w.stats.add('test', 'weaponSlots', -3);
     w.recomputeDerived();
     w.phase = 'dusk';
     w.duskTimer = 0;

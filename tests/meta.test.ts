@@ -22,6 +22,7 @@ import {
   stashCapacity,
 } from '../src/meta/meta';
 import { discard, equip } from '../src/meta/stash';
+import { World } from '../src/sim/world';
 import { cfg } from './helpers';
 
 const content = loadContent();
@@ -208,7 +209,10 @@ describe('Ember rewards (SPEC 8.1)', () => {
       endHash: '',
       practiceUsed: false,
     };
-    const w = { stats: { modRewardBonus: 0 }, derived: { emberFind: 0 }, lastStandUsed: false } as never;
+    // A real World, not a hand-built stub: the stub this replaced was cast
+    // `as never`, so when m19b renamed `derived.emberFind` to `emberFindMul`
+    // nothing type-checked it and `emberFor` quietly returned NaN.
+    const w = new World(cfg());
     const t1 = emberFor({ ...base, tier: 1 }, w);
     const t3 = emberFor({ ...base, tier: 3, modifiers: ['tough', 'fleet'] }, w);
     expect(t1).toBeGreaterThan(0);

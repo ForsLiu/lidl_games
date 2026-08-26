@@ -481,7 +481,7 @@ function updateAct1Wave(w: World, dt: number): void {
 function completeWave(w: World): void {
   const c = w.content.waves;
   const bonus = Math.round(
-    (c.waveClearBase + c.waveClearPerWave * w.wave) * (1 + w.derived.goldFind),
+    (c.waveClearBase + c.waveClearPerWave * w.wave) * w.derived.goldFindMul,
   );
   w.gold += bonus;
   w.goldEarned += bonus;
@@ -622,6 +622,15 @@ export function hashWorld(w: World): string {
   // belong in the hash. `invulnerable` was already unhashed before god mode
   // existed - the same class of gap the f001 review found in `soulLevels`.
   h.bool(w.invulnerable).bool(w.godMode);
+  // The whole of `Derived`, not a hand-picked few: QA measured 25 of 39 stats as
+  // invisible to this hash 20 s into a run, so a stacking regression could pass
+  // A11's replay comparison. Same gap class m19a found with `enemyArmor`. Sorted
+  // for a stable field order; `secondWind` is the one non-numeric member.
+  for (const k of Object.keys(w.derived).sort()) {
+    const v = (w.derived as unknown as Record<string, number | boolean>)[k];
+    if (typeof v === 'boolean') h.bool(v);
+    else h.num(v);
+  }
   h.int(w.enemies.length);
   for (const e of w.enemies) {
     // `enemyArmor`, not `armorShred`: `Enemy.armor` is writable sim state too,

@@ -238,7 +238,10 @@ function refreshAuras(w: World): void {
 }
 
 export function attackSpeedFor(w: World, s: Structure): number {
-  return w.derived.attackSpeedMul + (w.auraBonus.get(s.id) ?? 0);
+  // V3 §2: buff auras are a different origin from the Warden's own stat stack, so
+  // they multiply. Overlapping auras sum into `bonus` first (ranks within one
+  // source), matching the shrine rule in weapons.ts.
+  return w.derived.attackSpeedMul * (1 + (w.auraBonus.get(s.id) ?? 0));
 }
 
 /* ---------------------------------------------------------------- firing */
@@ -409,7 +412,7 @@ export function collectSproutGold(w: World): number {
     total += def.economy.goldPerWavePerTier * s.tier;
   }
   if (total > 0) {
-    const gold = Math.round(total * w.derived.sproutMul * (1 + w.derived.goldFind));
+    const gold = Math.round(total * w.derived.sproutMul * w.derived.goldFindMul);
     w.gold += gold;
     w.goldEarned += gold;
     return gold;

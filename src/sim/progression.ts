@@ -3,7 +3,6 @@
  * (SPEC 5.2-5.4). Luck weights offer rarity; each level grants one free reroll.
  */
 
-import { addStats } from './stats';
 import { dist2, normalize } from './math';
 import type { Offer, WeaponState } from './types';
 import { grantWeapon, weaponDef } from './weapons';
@@ -188,7 +187,8 @@ export function applyOffer(w: World, offer: Offer): void {
       const b = w.content.boonByKey.get(offer.key);
       if (!b) break;
       w.boonRanks[b.key] = offer.toLevel;
-      addStats(w.stats, { [b.stat]: b.perRank });
+      // One boon is one source: its ranks add within it, then multiply out (V3 §2).
+      w.stats.addAll(`boon:${b.key}`, { [b.stat]: b.perRank });
       w.recomputeDerived();
       // Vitality-style Max HP gains heal for the amount added.
       if (b.stat === 'maxHp') w.warden.hp = Math.min(w.derived.maxHp, w.warden.hp + b.perRank);
@@ -278,7 +278,7 @@ export function bindSouls(w: World, chosen: string[]): WeaponState[] {
   }
 
   // Soul Furnace: start Nightfall with the best weapon one level higher.
-  const bump = w.stats.startWeaponLevel;
+  const bump = w.stats.total('startWeaponLevel');
   if (bump > 0 && w.weapons.length > 0) {
     let best = w.weapons[0];
     for (const ws of w.weapons) if (ws.level > best.level) best = ws;

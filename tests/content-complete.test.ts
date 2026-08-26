@@ -7,7 +7,7 @@ import { loadContent } from '../src/sim/content';
 import { damageEnemy, spawnEnemy, updateEnemies } from '../src/sim/enemies';
 import { buildTower } from '../src/sim/towers';
 import { grantWeapon, updateWeapons } from '../src/sim/weapons';
-import { addStats } from '../src/sim/stats';
+import type { StatKey } from '../src/sim/stats';
 import { handleKillDrops, rollRelic } from '../src/sim/loot';
 import { Rng } from '../src/sim/rng';
 import { autoDraft, hardestDraft, modifierDraft, rewardMultiplier } from '../src/sim/tiers';
@@ -52,11 +52,10 @@ describe('content completeness', () => {
     expect(content.boons.boons).toHaveLength(12);
     const w = new World(cfg());
     for (const b of content.boons.boons) {
-      const before = { ...w.stats };
-      addStats(w.stats, { [b.stat]: b.perRank });
-      expect(w.stats[b.stat as keyof typeof w.stats], b.key).not.toBe(
-        before[b.stat as keyof typeof before],
-      );
+      const stat = b.stat as StatKey;
+      const before = w.stats.total(stat);
+      w.stats.addAll(`boon:${b.key}`, { [b.stat]: b.perRank });
+      expect(w.stats.total(stat), b.key).not.toBe(before);
     }
   });
 

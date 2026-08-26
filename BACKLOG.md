@@ -16,9 +16,6 @@ recorded reason, not a nudged constant.
 
 ### M19 — combat math and damage types (gates C3, C4)
 
-- [ ] (m19b) [feat] Multiplicative stat stacking: sources multiply, ranks add within
-      a source — acceptance: gate **C4** — two 10%/20% same-stat sources from
-      different origins produce exactly ×1.32 — refs: V3 §2
 - [ ] (m19c) [feat] Damage-type taxonomy in `data/damagetypes.json`: Normal,
       Bleeding, Poison, Toxic, Burning, Electric; frost/frozen statuses replace the
       V2 chill-stack model — acceptance: one unit test per row of V3 §3's table
@@ -185,6 +182,19 @@ sit naturally alongside M24, which touches saves again.
       entity-budget assertion sits right next to it — acceptance: no spawn path can
       push `w.enemies` past `aliveCap`; a test drives elites and boss summons at the
       cap — refs: QA on t4, bug 4 side note
+- [ ] (s006) [bug] The `of Thrift` relic affix has `min: 0.03, max: 0.08` **positive**
+      on `towerCost`, i.e. a relic named for thrift *raises* tower prices. Pre-existing
+      and unrelated to m19b, found while QA read `data/relics.json` for source
+      granularity — acceptance: either the sign is flipped or the affix is renamed;
+      a test asserts every affix's sign matches the direction its name implies —
+      refs: QA on m19b, §5 note
+- [ ] (s007) [bug] Beacon attack-speed terrain residual exceeds its authored `cap`:
+      `data/towers.json` sets `beacon_totem.passive.cap 0.12`, but a second Sundering
+      measures 0.20, because `applyTerrainPassives` caps each call's contribution and
+      then *adds* it to the existing `terrain` source. Identical at HEAD, so m19b
+      preserves it exactly rather than introducing it — acceptance: the cap holds
+      across any number of Sunderings; a test runs two and asserts the terrain
+      contribution is ≤ cap — refs: QA on m19b, bug list
 - [ ] (s005) [polish] The production bundle still ships the whole dev profile —
       `applyDevProfile`, the unlocks, `data/dev.json` with `devMode:true`, the
       `cleanProfile` toggle and the `.sw-devbadge` CSS are all in `dist`. It is
@@ -195,6 +205,54 @@ sit naturally alongside M24, which touches saves again.
       — refs: QA on t3, bug 11
 
 ## Done
+
+- [x] (m19b) [feat] Multiplicative stat stacking: sources multiply, ranks add within
+      a source — gate **C4** green (×1.32 verified through the real
+      RunConfig→`baseRunStats`→`derive` pipeline, bit-exact) — refs: V3 §2, Q61–Q64 —
+      code-reviewer **REQUEST-CHANGES** (1 Major, 6 Minor) and qa-playtester **PASS**
+      on the acceptance criterion with 6 bugs filed; both agents independently found
+      the same headline defect and every finding is fixed here.
+      `Stats` is now keyed by (stat, source): `factor()` returns Π over sources of
+      (1 + summed ranks), `total()` the additive sum, and an exhaustive
+      `STAT_KIND: Record<StatKey, 'flat'|'mul'>` means a new stat cannot be added
+      without classifying it. Q61 rules what counts as one source, Q62 which stats
+      multiply, Q63 the `total()` ordering, Q64 shrine/aura haste.
+      **The headline defect: six of the eight rebased consumers could be reverted to
+      the additive `1 + x` with all 479 tests green** — because every default test
+      world has at most one source per stat, and `factor(s) === 1 + total(s)`
+      exactly when there is one source, so the buggy and fixed expressions agree on
+      every world the suite built. QA measured a default headless run's entire stat
+      sheet as two entries, both from the class. That is the same "tests pass, game
+      doesn't" family as t1/t2/t3/t6ab. Each consumer now pins the **exact** integer
+      or float it produces, with the additive and double-applied answers named in a
+      comment, using 0.5/0.6 sources (×2.4) so the three answers stay distinct after
+      rounding. What else was caught: (1) collapsing the real `relic:${r.id}` key to
+      a constant left the suite green *and broke gate C4 itself* (×1.30, not ×1.32) —
+      relics are the commonest way to hold two same-stat sources and Q61 rules on
+      them, yet the headline test wrote `relic:7` on a bare `Stats` by hand;
+      (2) **shrine haste and tower buff auras were still adding into
+      `attackSpeedMul`** — a real §2 gap, so m19b's own title was false for the two
+      boosts a player meets most often (Q64: both now multiply, overlapping sources
+      summing within each bundle per Q61); (3) `total()` was insertion-order
+      dependent while `factor()` was sorted — float addition is no more associative
+      than multiplication and `leech` feeds `warden.hp`, which is hashed (Q63);
+      (4) NaN/Infinity passed `Math.max` (`Math.max(0.25, NaN)` is NaN) into maxHp,
+      moveSpeed and pickupRadius at once — the m19a unkillable-entity failure again,
+      now guarded at `Stats.add`; (5) `hashWorld` saw **25 of 39 stats not at all**,
+      so a stacking regression could pass A11's replay comparison — it now hashes the
+      whole of `Derived`, with the four stats that never reach `Derived` listed
+      explicitly so the exemption cannot grow; (6) the terrain test never called
+      `applyTerrainPassives`, so the Q61 decision in weapons.ts had zero coverage and
+      its source id was free to collide; (7) the determinism test used three nodes
+      granting three *different* stats, so it could never fail whatever the order;
+      (8) the `mul` parameter on `addAll` was dead — removed rather than tested.
+      All **21** mutations are now caught. Measured: full suite 499 passed / 19
+      skipped (was 462 at m19a), every A/B gate green including A10; the 12-seed
+      sweep is unchanged by the stacking rule itself (one source per stat is all the
+      default policies build), while a legal endgame build moves hard — pickupPct
+      +42.2%, goldFind +28.6%, power +22.1%, attackSpeed +18.4% — which is larger
+      than MIGRATION §4.4's +10.6% estimate and is the first thing the M27
+      re-baseline should look at. Per Q40 **no `/data` number was touched**.
 
 - [x] (m19a) [feat] Armor v3 — commit `d4fb985` — flat points = percent reduction, cap +99, floor −100
       (Q44), DoTs ignore armour — gate **C3** green for the armour math; its

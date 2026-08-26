@@ -63,12 +63,12 @@ export function emberFor(report: RunReport, w: World): number {
   const tierMul = 1 + c.modifiers.tierRewardPerStep * (report.tier - 1);
   const modBonus = report.modifiers.reduce((acc, key) => {
     const m = c.modifierByKey.get(key);
-    return acc + (m ? m.rewardBonus * (1 + w.stats.modRewardBonus) : 0);
+    return acc + (m ? m.rewardBonus * w.derived.modRewardBonusMul : 0);
   }, 0);
   const lastStandPenalty = w.lastStandUsed ? 0.7 : 1;
   const leftoverGold = report.goldLeft / 10; // SPEC 3.2: 10 gold : 1 Ember
   const base = c.tree.emberBase * completion * tierMul * (1 + modBonus);
-  return Math.round((base + leftoverGold) * (1 + w.derived.emberFind) * lastStandPenalty);
+  return Math.round((base + leftoverGold) * w.derived.emberFindMul * lastStandPenalty);
 }
 
 /**

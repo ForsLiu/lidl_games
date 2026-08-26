@@ -270,13 +270,16 @@ export class World {
     }
 
     this.stats = baseRunStats(content, cfg);
-    this.stats.pickupPct += this.mods.pickupMul;
+    this.stats.add('modifiers', 'pickupPct', this.mods.pickupMul);
     this.derived = derive(content, this.stats, 1 + this.mods.residualMul);
 
     this.waveCount = content.waves.waves.length + this.mods.extraWaves;
     this.buildTimer = this.mods.buildPhase || content.waves.buildPhaseSeconds;
     this.gold = content.waves.startGold;
-    this.coreMaxHp = Math.max(1, content.waves.coreHp + this.stats.coreHp + this.mods.coreHp);
+    this.coreMaxHp = Math.max(
+      1,
+      content.waves.coreHp + this.stats.total('coreHp') + this.mods.coreHp,
+    );
     this.coreHp = this.coreMaxHp;
 
     const cc = coreCenter();

@@ -578,7 +578,7 @@ describe('T2: the selection gets a stats panel', () => {
     const g = emptyGround(w);
     const e = spawnEnemy(w, 'husk', g.x, g.y)!;
     const def = w.content.enemyById.get(e.defId)!;
-    w.derived.goldFind = 1;
+    w.derived.goldFindMul = 2;
     const text = hudFor(w, { kind: 'enemy', id: e.id });
     expect(text).toContain(`${Math.round(def.bounty * 2)}g`);
   });
