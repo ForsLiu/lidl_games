@@ -27,6 +27,7 @@ import {
   effectiveTowerAoe,
   effectiveTowerMinRange,
   effectiveTowerRange,
+  maxLevel,
   towerRange,
   upgradeTower,
 } from '../src/sim/towers';
@@ -125,7 +126,7 @@ describe('T1: the helper quotes the radius the turret reaches', () => {
       if (!a) continue;
       const { tx, ty } = placeNearWarden(w, def.key);
       const s = w.structureAt(tx, ty)!;
-      for (let tier = 1; tier <= def.maxTier; tier++) {
+      for (let tier = 1; tier <= maxLevel(def); tier++) {
         while (s.tier < tier) {
           w.gold = 99999;
           expect(upgradeTower(w, tx, ty), `${def.key} -> T${tier}`).toBe(true);
@@ -159,11 +160,16 @@ describe('T1: the helper quotes the radius the turret reaches', () => {
     expect(effectiveTowerRange(w, def)).toBeCloseTo(plain, 10);
   });
 
-  it('grows with tier, so an upgraded tower does not under-report', () => {
+  // Was "grows with tier": V2 gave every upgrade x1.1 range. SPEC-V3 §4 (m20a)
+  // spends an upgrade step on HP, Attack and Defense only, so the ring must now
+  // stay put — a panel that still grew it would over-report an upgraded tower.
+  it('does not grow with upgrade level — §4 buys HP, Attack and Defense', () => {
     const w = new World(cfg());
     const def = content.towerByKey.get('ballista')!;
-    expect(effectiveTowerRange(w, def, 2)).toBeGreaterThan(effectiveTowerRange(w, def, 1));
-    expect(effectiveTowerRange(w, def, 3)).toBeGreaterThan(effectiveTowerRange(w, def, 2));
+    const base = effectiveTowerRange(w, def, 1);
+    for (let level = 2; level <= maxLevel(def); level++) {
+      expect(effectiveTowerRange(w, def, level), `level ${level}`).toBeCloseTo(base, 10);
+    }
   });
 
   it('includes the Constellation tower-range bonus — the bug the ghost had', () => {

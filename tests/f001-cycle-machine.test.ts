@@ -271,8 +271,10 @@ describe('the cycle state machine (SPEC-V2 §1)', () => {
     // hanging, erroring, or getting stuck in any phase. (BACKLOG f004's
     // affinity effectiveness bonus made hybrid's Act I stronger under
     // Engineer's Ballista/Mortar affinity, which shifted which seeds reach
-    // cycle 3 with no Dawn Rekindling — seed 16 no longer does, seed 12 does.)
-    const { report, run } = runWithPolicy(cfg({ cycles: 3, seed: 12 }), 'hybrid', 60 * 60 * 45);
+    // cycle 3 with no Dawn Rekindling — seed 16 no longer did, seed 12 did.
+    // SPEC-V3 §4's upgrade tracks (m20a) moved it back: of seeds 1-20, only 16
+    // reaches cycle 3 today.)
+    const { report, run } = runWithPolicy(cfg({ cycles: 3, seed: 16 }), 'hybrid', 60 * 60 * 45);
     expect(run.done).toBe(true);
     expect(report.outcome).not.toBe('running');
     expect(run.world.cycle).toBe(3);

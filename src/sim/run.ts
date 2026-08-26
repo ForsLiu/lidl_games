@@ -644,7 +644,8 @@ export function hashWorld(w: World): string {
   }
   h.int(w.structures.length);
   for (const s of w.structures) {
-    h.int(s.id).int(s.towerId).int(s.tier).int(s.tx).int(s.ty).num(s.hp).bool(s.petrified).bool(s.soulSuppressed);
+    h.int(s.id).int(s.towerId).int(s.tier).int(s.tx).int(s.ty).num(s.hp).num(s.spent);
+    h.bool(s.petrified).bool(s.soulSuppressed);
   }
   h.int(w.projectiles.length);
   for (const p of w.projectiles) h.int(p.id).num(p.x).num(p.y).num(p.damage);

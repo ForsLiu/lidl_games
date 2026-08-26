@@ -156,13 +156,17 @@ describe('weapon inheritance (SPEC 4.1)', () => {
       if (buildTower(w, 2, x, 5).ok) placed++;
     }
     expect(placed).toBe(7);
-    // Push one of them to tier 3.
+    // Walk one of them to the end of its track. SPEC-V3 §4 (m20a) gave every
+    // tower its own length, so what is inherited is the *share* of the track
+    // walked: a maxed tower still hands over `inheritMaxLevel`, which is what
+    // V2's tier 3 handed over, and a half-walked one hands over the middle.
     w.warden.x = 4.5;
+    const def = w.content.towerById.get(2)!;
     const s = w.structureAt(4, 5)!;
-    s.tier = 3;
+    s.tier = def.upgrades.count + 1;
     const souls = deriveSouls(w);
     const arrow = souls.find((x) => x.key === 'arrow_volley')!;
-    expect(arrow.level).toBe(3);
+    expect(arrow.level).toBe(w.content.weapons.inheritMaxLevel);
     expect(arrow.damageBonus).toBeCloseTo(0.4, 6); // 6 extras x 8% capped at 40%
   });
 

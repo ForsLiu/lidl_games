@@ -20,7 +20,13 @@ import type { TowerDef } from './content';
 import { dist2, normalize } from './math';
 import { applySlow, damageEnemy } from './enemies';
 import type { Structure } from './types';
+import { maxLevel, sellValue, structureMaxHp, upgradeCost, upgradeStatMul } from './upgrades';
 import { World } from './world';
+
+// SPEC-V3 §4's track math lives in `upgrades.ts` (enemies.ts needs part of it
+// and imports would go circular); re-exported so `towers` stays the one import
+// the UI, the bots and the tests reach for.
+export { maxLevel, sellValue, structureArmor, structureMaxHp, upgradeCost, upgradeStatMul } from './upgrades';
 
 export type BuildResult =
   | { ok: true; structure: Structure }
@@ -41,12 +47,6 @@ export function canBuildNow(w: World): boolean {
 
 export function towerCost(w: World, def: TowerDef): number {
   return Math.max(1, Math.round(def.cost * w.derived.towerCostMul));
-}
-
-export function upgradeCost(w: World, def: TowerDef, toTier: number): number {
-  const t = w.content.towers;
-  const factor = toTier === 2 ? t.upgradeCostT2 : t.upgradeCostT3;
-  return Math.max(1, Math.round(def.cost * factor * w.derived.towerCostMul));
 }
 
 export function inBuildRange(w: World, tx: number, ty: number): boolean {
@@ -74,15 +74,16 @@ export function buildTower(w: World, towerId: number, tx: number, ty: number): B
   w.gold -= cost;
   w.goldSpent += cost;
 
-  const hpMul = def.key === 'palisade' ? w.derived.wallHpMul : 1;
+  const maxHp = structureMaxHp(w, def, 1);
   const s: Structure = {
     id: w.newId(),
     towerId: def.id,
     tier: 1,
     tx,
     ty,
-    hp: def.hp * hpMul,
-    maxHp: def.hp * hpMul,
+    hp: maxHp,
+    maxHp,
+    spent: cost,
     cooldown: 0,
     dead: false,
     petrified: false,
@@ -105,16 +106,18 @@ export function upgradeTower(w: World, tx: number, ty: number): boolean {
   const s = w.structureAt(tx, ty);
   if (!s || s.petrified) return false;
   const def = w.content.towerById.get(s.towerId)!;
-  if (s.tier >= def.maxTier) return false;
+  if (s.tier >= maxLevel(def)) return false;
   if (!inBuildRange(w, tx, ty)) return false;
-  const cost = upgradeCost(w, def, s.tier + 1);
+  const cost = upgradeCost(w, def);
   if (w.gold < cost) return false;
   w.gold -= cost;
   w.goldSpent += cost;
+  s.spent += cost;
   s.tier++;
-  const hpMul = def.key === 'palisade' ? w.derived.wallHpMul : 1;
+  // Damage taken carries across the upgrade: V2's +50%/tier HP curve becomes
+  // §4's +10%/step, and both preserve the wound rather than healing it.
   const ratio = s.maxHp > 0 ? s.hp / s.maxHp : 1;
-  s.maxHp = def.hp * hpMul * (1 + 0.5 * (s.tier - 1));
+  s.maxHp = structureMaxHp(w, def, s.tier);
   s.hp = s.maxHp * ratio;
   w.emit('upgrade', tx + 0.5, ty + 0.5, def.id, s.tier);
   markAuraDirty(w);
@@ -127,10 +130,9 @@ export function sellTower(w: World, tx: number, ty: number): boolean {
   if (!s || s.petrified) return false;
   if (!inBuildRange(w, tx, ty)) return false;
   const def = w.content.towerById.get(s.towerId)!;
-  let spent = towerCost(w, def);
-  for (let t = 2; t <= s.tier; t++) spent += upgradeCost(w, def, t);
-  const rate = w.phase === 'dusk' ? w.content.towers.duskSellRefund : w.content.towers.sellRefund;
-  const refund = Math.round(spent * rate);
+  // §4 states one sell rule and does not except a phase, so V2's harsher Dusk
+  // rate (35%) is gone with the constant that carried it.
+  const refund = sellValue(w, s);
   w.gold += refund;
   w.removeStructure(s);
   w.towersByKey[def.key] = Math.max(0, (w.towersByKey[def.key] ?? 1) - 1);
@@ -141,14 +143,6 @@ export function sellTower(w: World, tx: number, ty: number): boolean {
 
 /* ------------------------------------------------------------ tower stats */
 
-export function tierDamageMul(w: World, tier: number): number {
-  return Math.pow(w.content.towers.tierDamageMul, tier - 1);
-}
-
-export function tierRangeMul(w: World, tier: number): number {
-  return Math.pow(w.content.towers.tierRangeMul, tier - 1);
-}
-
 /** SPEC-V2 §2: an affinity tower deals +`bonus` effectiveness for its class. */
 export function affinityMul(w: World, towerKey: string): number {
   const aff = w.content.affinityByClass.get(w.cfg.classKey);
@@ -158,11 +152,18 @@ export function affinityMul(w: World, towerKey: string): number {
 /** SPEC 2.1: Power multiplies tower damage in Act I. */
 export function towerDamage(w: World, s: Structure, base: number): number {
   const def = w.content.towerById.get(s.towerId)!;
-  return base * tierDamageMul(w, s.tier) * w.derived.powerMul * w.derived.towerDamageMul * affinityMul(w, def.key);
+  return (
+    base * upgradeStatMul(w, def, s.tier) * w.derived.powerMul * w.derived.towerDamageMul * affinityMul(w, def.key)
+  );
 }
 
-export function towerRange(w: World, s: Structure, base: number): number {
-  return base * tierRangeMul(w, s.tier) * w.derived.towerRangeMul;
+/**
+ * SPEC-V3 §4 upgrades move HP, Attack and Defense — **not** range. V2's
+ * `tierRangeMul` (x1.1 per tier) is gone, so a tower's reach is its authored
+ * range and whatever the Constellation adds.
+ */
+export function towerRange(w: World, _s: Structure, base: number): number {
+  return base * w.derived.towerRangeMul;
 }
 
 /**
@@ -177,10 +178,12 @@ export function towerRange(w: World, s: Structure, base: number): number {
  * **aura** by `areaMul` on top of the targeting range, so a Frost Obelisk with
  * any Area stat covers more than `towerRange` alone reports.
  */
-export function effectiveTowerRange(w: World, def: TowerDef, tier = 1): number {
+export function effectiveTowerRange(w: World, def: TowerDef, _level = 1): number {
   const a = def.attack;
   if (!a) return 0;
-  const targeting = a.range * tierRangeMul(w, tier) * w.derived.towerRangeMul;
+  // The level parameter survives for callers that iterate a track (and for the
+  // panel's "next level" column); under §4 it no longer changes the answer.
+  const targeting = a.range * w.derived.towerRangeMul;
   return a.kind === 'aura' ? targeting * w.derived.areaMul : targeting;
 }
 
@@ -313,7 +316,7 @@ function fireTower(w: World, s: Structure, def: TowerDef): void {
       }
       s.damageDealt += coneHit(w, x, y, dir.x, dir.y, range, halfAngle, dmg, source, {
         source,
-        burnDps: a.burn ? a.burn.dps * tierDamageMul(w, s.tier) : 0,
+        burnDps: a.burn ? a.burn.dps * upgradeStatMul(w, def, s.tier) : 0,
         burnDuration: a.burn?.duration ?? 0,
         onHit,
       });
@@ -339,7 +342,11 @@ function fireTower(w: World, s: Structure, def: TowerDef): void {
         s.cooldown = 0;
         return;
       }
-      const chains = (a.chains ?? 3) + Math.max(0, s.tier - 1);
+      // V2 gave +1 arc per tier. SPEC-V3 §4 spends an upgrade step on HP,
+      // Attack and Defense and makes the Electric tower's chaining a milestone
+      // special at step 3 instead (m20b authors it), so the count is the
+      // authored one at every level.
+      const chains = a.chains ?? 3;
       s.damageDealt += chainHit(w, x, y, t, chains, a.chainRange ?? 3, dmg, source, { source, onHit });
       break;
     }
@@ -376,7 +383,7 @@ function fireTower(w: World, s: Structure, def: TowerDef): void {
       const p = a.poison!;
       applyEffects(w, t, {
         source,
-        poisonDps: p.dps * tierDamageMul(w, s.tier) * w.derived.powerMul,
+        poisonDps: p.dps * upgradeStatMul(w, def, s.tier) * w.derived.powerMul,
         poisonDuration: p.duration,
         poisonStacks: p.maxStacks,
         onHit,

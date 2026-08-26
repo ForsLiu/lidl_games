@@ -10,7 +10,7 @@ import { registerPolicy, type BotPolicy } from './policy';
 import { emptyInput, type TickInput } from '../sim/types';
 import type { World } from '../sim/world';
 import { GRID_H, GRID_W, coreCenter } from '../sim/grid';
-import { checkBuild, towerCost, upgradeCost } from '../sim/towers';
+import { checkBuild, maxLevel, towerCost, upgradeCost } from '../sim/towers';
 import { dist2 } from '../sim/math';
 
 interface Site {
@@ -197,8 +197,8 @@ export class BuilderPolicy implements BotPolicy {
     for (const s of live) {
       const def = w.content.towerById.get(s.towerId)!;
       if (!def.attack && !def.economy && !def.buffAura) continue;
-      if (s.tier >= def.maxTier) continue;
-      if (w.gold < upgradeCost(w, def, s.tier + 1)) continue;
+      if (s.tier >= maxLevel(def)) continue;
+      if (w.gold < upgradeCost(w, def)) continue;
       if (s.tier < bestTier) {
         bestTier = s.tier;
         best = { tx: s.tx, ty: s.ty };

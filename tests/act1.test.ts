@@ -59,7 +59,7 @@ describe('placement rules (SPEC 3.1)', () => {
     expect(buildTower(w, def.id, 5, 5).ok).toBe(true);
     expect(w.gold).toBe(before - cost);
     expect(sellTower(w, 5, 5)).toBe(true);
-    expect(w.gold).toBe(before - cost + Math.round(cost * 0.7));
+    expect(w.gold).toBe(before - cost + Math.round(cost * 0.5));
   });
 
   it('refuses to build without gold', () => {
@@ -75,24 +75,26 @@ describe('placement rules (SPEC 3.1)', () => {
     expect(checkBuild(w, 4, 5, 5)).toBeNull();
   });
 
-  it('upgrades through three tiers at the SPEC cost curve', () => {
+  // SPEC-V3 §4 replaced V2's two-step 0.75x/1.25x ladder with a flat per-step
+  // cost and a per-tower step count, so this now walks the whole track.
+  it('upgrades through its whole track at a flat per-step cost', () => {
     warp(w, 5, 5);
     const def = w.content.towerByKey.get('arrow_spire')!;
     buildTower(w, def.id, 5, 5);
     w.gold = 10000;
     // The Engineer's -10% tower cost applies to upgrades too.
     const mul = w.derived.towerCostMul;
-    const g0 = w.gold;
-    expect(upgradeTower(w, 5, 5)).toBe(true);
-    expect(g0 - w.gold).toBe(Math.round(def.cost * 0.75 * mul));
-    const g1 = w.gold;
-    expect(upgradeTower(w, 5, 5)).toBe(true);
-    expect(g1 - w.gold).toBe(Math.round(def.cost * 1.25 * mul));
-    expect(upgradeTower(w, 5, 5)).toBe(false); // maxTier 3
-    expect(w.structureAt(5, 5)!.tier).toBe(3);
+    const step = Math.round(def.upgrades.stepCost * mul);
+    for (let i = 0; i < def.upgrades.count; i++) {
+      const g = w.gold;
+      expect(upgradeTower(w, 5, 5), `step ${i + 1}`).toBe(true);
+      expect(g - w.gold, `step ${i + 1}`).toBe(step);
+    }
+    expect(upgradeTower(w, 5, 5)).toBe(false); // track exhausted
+    expect(w.structureAt(5, 5)!.tier).toBe(def.upgrades.count + 1);
   });
 
-  it('walls have no tier upgrades', () => {
+  it('walls have no upgrade track', () => {
     warp(w, 5, 5);
     buildTower(w, 1, 5, 5);
     w.gold = 10000;

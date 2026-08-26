@@ -549,7 +549,7 @@ export class Hud {
                     return `<button class="sw-soul ${afford ? '' : 'poor'}" data-id="${s.id}" ${
                       afford ? '' : 'disabled'
                     }>
-                      <b>${def.name}</b><small>Tier ${s.tier}</small>
+                      <b>${def.name}</b><small>Level ${s.tier}</small>
                       <span>Rekindle for ${cost}g</span></button>`;
                   })
                   .join('')
@@ -631,7 +631,9 @@ export class Hud {
  */
 export function towerInfoMarkup(info: TowerInfo, gold: number, placed: boolean): string {
   const colour = TOWER_COLORS[info.key] ?? '#e8edf5';
-  const tierText = placed ? `Tier ${info.tier} / ${info.maxTier}` : 'Tier 1 when placed';
+  // SPEC-V3 §4: a tower walks its own upgrade track, so "Tier 2 / 3" became
+  // "Level 2 / 11" — the shared three-tier ladder it named is gone.
+  const tierText = placed ? `Level ${info.tier} / ${info.maxTier}` : 'Level 1 when placed';
 
   const stats = info.stats
     .map(
@@ -652,12 +654,12 @@ export function towerInfoMarkup(info: TowerInfo, gold: number, placed: boolean):
   }
   if (info.upgrade) {
     money.push(
-      `<div class="sw-row"><span>Upgrade to T${info.upgrade.toTier}</span><b class="${
+      `<div class="sw-row"><span>Upgrade to Lv ${info.upgrade.toTier}</span><b class="${
         gold >= info.upgrade.cost ? 'gold' : 'poor'
       }">${info.upgrade.cost}g</b></div>`,
     );
   } else if (placed) {
-    money.push('<div class="sw-row"><span>Upgrade</span><b>at max tier</b></div>');
+    money.push('<div class="sw-row"><span>Upgrade</span><b>fully upgraded</b></div>');
   }
   if (info.sellValue !== null) {
     money.push(`<div class="sw-row"><span>Sell (RMB)</span><b>${info.sellValue}g</b></div>`);
@@ -675,7 +677,7 @@ export function towerInfoMarkup(info: TowerInfo, gold: number, placed: boolean):
     }
     ${
       info.soul
-        ? `<div class="sw-sub">Soul &mdash; ${info.soul.name}</div><p class="sw-note">${info.soul.desc} Its level at the Sundering is this tower's highest tier.</p>`
+        ? `<div class="sw-sub">Soul &mdash; ${info.soul.name}</div><p class="sw-note">${info.soul.desc} ${info.soulNote}</p>`
         : ''
     }
     ${info.terrainText ? `<p class="sw-note dim">${info.terrainText}</p>` : ''}`;

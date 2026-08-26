@@ -42,6 +42,7 @@ function forcePlace(w: World, towerKey: string, tx: number, ty: number): void {
     ty,
     hp: def.hp,
     maxHp: def.hp,
+    spent: def.cost,
     cooldown: 0,
     dead: false,
     petrified: false,
@@ -263,15 +264,17 @@ describe('slot picker (SPEC 4.1)', () => {
 });
 
 describe('Dusk (SPEC 4 step 1)', () => {
-  it('still allows building, but refunds only half', () => {
+  // SPEC-V3 §4 states one sell rule for every phase, so Dusk no longer refunds
+  // at its own harsher rate (V2: 35%). It still allows building and selling.
+  it('still allows building, and refunds at the one sell rate', () => {
     const w = new World(cfg());
     const def = w.content.towerByKey.get('arrow_spire')!;
     place(w, 'arrow_spire', 8, 8);
     w.phase = 'dusk';
     const before = w.gold;
     expect(sellTower(w, 8, 8)).toBe(true);
-    expect(w.gold - before).toBe(Math.round(towerCost(w, def) * w.content.towers.duskSellRefund));
-    expect(upgradeCost(w, def, 2)).toBeGreaterThan(0);
+    expect(w.gold - before).toBe(Math.round(towerCost(w, def) * w.content.towers.sellRefund));
+    expect(upgradeCost(w, def)).toBeGreaterThan(0);
   });
 
   it('runs for 15 seconds after the last wave, then sunders', () => {

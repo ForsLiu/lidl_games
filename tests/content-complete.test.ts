@@ -16,12 +16,13 @@ import { cfg } from './helpers';
 const content = loadContent();
 
 describe('content completeness', () => {
-  it('has all 10 towers with three tiers and a terrain form', () => {
+  it('has all 10 towers with an upgrade track and a terrain form', () => {
     expect(content.towers.towers).toHaveLength(10);
     for (const t of content.towers.towers) {
       expect(t.terrain.kind, t.key).toBeTruthy();
-      expect(t.maxTier, t.key).toBeGreaterThanOrEqual(1);
-      if (t.key !== 'palisade') expect(t.maxTier, t.key).toBe(3);
+      // SPEC-V3 §4 replaced the shared three-tier ladder with a per-tower
+      // track; m20a-upgrade-tracks.test.ts is where its shape is pinned.
+      expect(t.upgrades.count, t.key).toBeGreaterThanOrEqual(t.key === 'palisade' ? 0 : 1);
     }
   });
 

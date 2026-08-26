@@ -1,10 +1,7 @@
 {
-  "tierDamageMul": 1.6,
-  "tierRangeMul": 1.1,
-  "upgradeCostT2": 0.75,
-  "upgradeCostT3": 1.25,
-  "sellRefund": 0.7,
-  "duskSellRefund": 0.35,
+  "upgradeStepMul": 1.1,
+  "milestoneStepsSkipStats": true,
+  "sellRefund": 0.5,
   "buildRange": 4,
   "rekindleCostMul": 0.4,
   "towers": [
@@ -13,7 +10,12 @@
       "key": "palisade",
       "name": "Palisade",
       "cost": 10,
-      "maxTier": 1,
+      "defense": 0,
+      "upgrades": {
+        "count": 0,
+        "stepCost": 0,
+        "specials": []
+      },
       "hp": 300,
       "blocks": true,
       "attack": null,
@@ -31,7 +33,12 @@
       "key": "arrow_spire",
       "name": "Arrow Spire",
       "cost": 50,
-      "maxTier": 3,
+      "defense": 0,
+      "upgrades": {
+        "count": 5,
+        "stepCost": 20,
+        "specials": []
+      },
       "hp": 120,
       "blocks": true,
       "attack": {
@@ -52,7 +59,12 @@
       "key": "ballista",
       "name": "Ballista",
       "cost": 90,
-      "maxTier": 3,
+      "defense": 0,
+      "upgrades": {
+        "count": 10,
+        "stepCost": 18,
+        "specials": []
+      },
       "hp": 140,
       "blocks": true,
       "attack": {
@@ -75,7 +87,12 @@
       "key": "ember_brazier",
       "name": "Ember Brazier",
       "cost": 70,
-      "maxTier": 3,
+      "defense": 0,
+      "upgrades": {
+        "count": 10,
+        "stepCost": 14,
+        "specials": []
+      },
       "hp": 110,
       "blocks": true,
       "attack": {
@@ -104,7 +121,12 @@
       "key": "frost_obelisk",
       "name": "Frost Obelisk",
       "cost": 70,
-      "maxTier": 3,
+      "defense": 0,
+      "upgrades": {
+        "count": 10,
+        "stepCost": 14,
+        "specials": []
+      },
       "hp": 130,
       "blocks": true,
       "attack": {
@@ -129,7 +151,12 @@
       "key": "tesla_coil",
       "name": "Tesla Coil",
       "cost": 120,
-      "maxTier": 3,
+      "defense": 0,
+      "upgrades": {
+        "count": 3,
+        "stepCost": 80,
+        "specials": []
+      },
       "hp": 110,
       "blocks": true,
       "attack": {
@@ -155,7 +182,12 @@
       "key": "mortar",
       "name": "Mortar",
       "cost": 130,
-      "maxTier": 3,
+      "defense": 0,
+      "upgrades": {
+        "count": 10,
+        "stepCost": 26,
+        "specials": []
+      },
       "hp": 120,
       "blocks": true,
       "attack": {
@@ -179,7 +211,12 @@
       "key": "venom_spore",
       "name": "Venom Spore",
       "cost": 75,
-      "maxTier": 3,
+      "defense": 0,
+      "upgrades": {
+        "count": 4,
+        "stepCost": 38,
+        "specials": []
+      },
       "hp": 110,
       "blocks": true,
       "attack": {
@@ -208,7 +245,12 @@
       "key": "beacon_totem",
       "name": "Beacon Totem",
       "cost": 60,
-      "maxTier": 3,
+      "defense": 0,
+      "upgrades": {
+        "count": 2,
+        "stepCost": 60,
+        "specials": []
+      },
       "hp": 100,
       "blocks": true,
       "attack": null,
@@ -234,7 +276,12 @@
       "key": "harvest_sprout",
       "name": "Harvest Sprout",
       "cost": 40,
-      "maxTier": 3,
+      "defense": 0,
+      "upgrades": {
+        "count": 2,
+        "stepCost": 40,
+        "specials": []
+      },
       "hp": 90,
       "blocks": true,
       "attack": null,

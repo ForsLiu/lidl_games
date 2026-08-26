@@ -1,0 +1,414 @@
+/**
+ * m20a — SPEC-V3 §4's per-tower upgrade tracks.
+ *
+ * §4 is four claims about every tower in the game (its own upgrade count, +10%
+ * HP / Attack / Defense per step, a flat step cost, sell 50% of total spent)
+ * plus a table that fixes the count for three of them. So this file walks all
+ * ten towers for each claim rather than sampling one, and reads every number it
+ * asserts out of `/data` instead of re-typing it — the m19a/m19b rule: a clause
+ * is not covered until deleting the wiring turns something red.
+ */
+
+import { describe, expect, it } from 'vitest';
+
+import { loadContent, validateUpgradeTrack, type Content, type TowerDef } from '../src/sim/content';
+import { damageStructure, dotOutstanding, spawnEnemy } from '../src/sim/enemies';
+import { deriveSouls } from '../src/sim/progression';
+import { hashWorld } from '../src/sim/run';
+import {
+  buildTower,
+  effectiveTowerRange,
+  maxLevel,
+  sellTower,
+  sellValue,
+  structureArmor,
+  structureMaxHp,
+  towerCost,
+  towerDamage,
+  upgradeCost,
+  updateTowers,
+  upgradeStatMul,
+  upgradeTower,
+} from '../src/sim/towers';
+import { petrify, rekindleTower } from '../src/sim/sundering';
+import { World } from '../src/sim/world';
+import { cfg } from './helpers';
+
+const content = loadContent();
+const TOWERS = content.towers.towers;
+const STEP = content.towers.upgradeStepMul;
+
+/** A free, buildable tile that will not seal the path. */
+function freeTile(w: World): { tx: number; ty: number } {
+  for (let ty = 2; ty < 20; ty++) {
+    for (let tx = 2; tx < 20; tx++) {
+      if (w.grid.buildable(tx, ty) && !w.grid.wouldBlockPath([[tx, ty]])) return { tx, ty };
+    }
+  }
+  throw new Error('no buildable tile');
+}
+
+/** A world with the Warden parked on `tx,ty` and gold for anything. */
+function worldAt(tx: number, ty: number, c: Content = content): World {
+  const w = new World(cfg(), c);
+  w.warden.x = tx + 0.5;
+  w.warden.y = ty + 0.5;
+  w.gold = 1e6;
+  return w;
+}
+
+/** Places `def` on the first free tile, Warden already in build range. */
+function place(def: TowerDef, c: Content = content) {
+  const probe = new World(cfg(), c);
+  const { tx, ty } = freeTile(probe);
+  const w = worldAt(tx, ty, c);
+  expect(buildTower(w, def.id, tx, ty).ok, def.key).toBe(true);
+  return { w, tx, ty, s: w.structureAt(tx, ty)! };
+}
+
+/**
+ * A copy of the content with one tower def (and optionally one file-level
+ * constant) overridden. `loadContent` caches, so nothing here may mutate it.
+ */
+function contentWith(key: string, over: Partial<TowerDef>, fileOver: Record<string, unknown> = {}): Content {
+  const towers = TOWERS.map((t) => (t.key === key ? { ...t, ...over } : t));
+  return {
+    ...content,
+    towers: { ...content.towers, ...fileOver, towers },
+    towerByKey: new Map(towers.map((t) => [t.key, t])),
+    towerById: new Map(towers.map((t) => [t.id, t])),
+  };
+}
+
+describe('m20a — every tower has a well-formed upgrade track (§4)', () => {
+  it('authors a count, a flat step cost and a defense on all ten towers', () => {
+    expect(TOWERS).toHaveLength(10);
+    for (const t of TOWERS) {
+      expect(Number.isInteger(t.upgrades.count), t.key).toBe(true);
+      expect(t.upgrades.count, t.key).toBeGreaterThanOrEqual(0);
+      expect(t.upgrades.stepCost, t.key).toBeGreaterThan(t.upgrades.count > 0 ? 0 : -1);
+      if (t.upgrades.count === 0) expect(t.upgrades.stepCost, t.key).toBe(0);
+      expect(Number.isFinite(t.defense), t.key).toBe(true);
+      expect(t.defense, t.key).toBeGreaterThanOrEqual(0);
+      expect(maxLevel(t), t.key).toBe(t.upgrades.count + 1);
+    }
+  });
+
+  it('pins every milestone special to a step the track actually has', () => {
+    for (const t of TOWERS) validateUpgradeTrack(t.upgrades, t.key);
+    // Nothing authors a special until m20b, so drive the loader's own predicate
+    // rather than letting the rule ship with no coverage at all.
+    const track = (over: Record<string, unknown> = {}) => ({ count: 3, stepCost: 10, specials: [], ...over });
+    expect(() => validateUpgradeTrack(track({ specials: [{ at: 4, key: 'pierce' }] }), 'x')).toThrow(/step 4 of 3/);
+    expect(() =>
+      validateUpgradeTrack(
+        track({
+          specials: [
+            { at: 2, key: 'a' },
+            { at: 2, key: 'b' },
+          ],
+        }),
+        'x',
+      ),
+    ).toThrow(/two specials/);
+    expect(() => validateUpgradeTrack(track({ specials: [{ at: 3, key: 'ok' }] }), 'x')).not.toThrow();
+    // A step nobody can buy is the other way a track goes silently inert.
+    expect(() => validateUpgradeTrack(track({ stepCost: 0 }), 'x')).toThrow(/no price/);
+    expect(() => validateUpgradeTrack(track({ count: 0, stepCost: 0 }), 'x'), 'a wall prices nothing').not.toThrow();
+  });
+
+  it('gives the three owner-specced towers the counts §4 states', () => {
+    // §4's table is authoritative: Arrow 5, Electric 3, Poison 4.
+    expect(content.towerByKey.get('arrow_spire')!.upgrades.count).toBe(5);
+    expect(content.towerByKey.get('tesla_coil')!.upgrades.count).toBe(3);
+    expect(content.towerByKey.get('venom_spore')!.upgrades.count).toBe(4);
+  });
+});
+
+describe('m20a — sell refunds 50% of total spent, at every step (§4)', () => {
+  it('pays exactly half of build + upgrades for every tower at every step', () => {
+    expect(content.towers.sellRefund).toBe(0.5);
+    for (const def of TOWERS) {
+      const { w, tx, ty, s } = place(def);
+      let spent = towerCost(w, def);
+      for (let step = 0; step <= def.upgrades.count; step++) {
+        expect(s.spent, `${def.key} step ${step}`).toBe(spent);
+        expect(sellValue(w, s), `${def.key} step ${step}`).toBe(Math.round(spent * 0.5));
+
+        // The quote is what the till actually pays. A twin on the same tile in
+        // its own world is sold, so the structure under test survives the loop.
+        const twin = worldAt(tx, ty);
+        expect(buildTower(twin, def.id, tx, ty).ok).toBe(true);
+        for (let i = 0; i < step; i++) expect(upgradeTower(twin, tx, ty)).toBe(true);
+        const before = twin.gold;
+        expect(sellTower(twin, tx, ty), `${def.key} sell at step ${step}`).toBe(true);
+        expect(twin.gold - before, `${def.key} refund at step ${step}`).toBe(Math.round(spent * 0.5));
+
+        if (step === def.upgrades.count) break;
+        w.gold = 1e6;
+        expect(upgradeTower(w, tx, ty), `${def.key} step ${step + 1}`).toBe(true);
+        spent += upgradeCost(w, def);
+      }
+    }
+  });
+
+  it('refunds the gold the player was charged, not the price of the day', () => {
+    // A relic or a Constellation node can move `towerCostMul` mid-run. The
+    // refund follows what was paid, which is why `Structure` records it.
+    const def = content.towerByKey.get('ballista')!;
+    const { w, tx, ty, s } = place(def);
+    const paid = s.spent;
+    w.derived.towerCostMul = 0.5;
+    expect(sellValue(w, s)).toBe(Math.round(paid * 0.5));
+    const before = w.gold;
+    expect(sellTower(w, tx, ty)).toBe(true);
+    expect(w.gold - before).toBe(Math.round(paid * 0.5));
+  });
+
+  it('counts a Rekindle as gold spent on the structure', () => {
+    // §4 says "build + upgrades" and V2's Rekindle is neither, but it is money
+    // paid for this structure, so it joins the ledger (Q73). QA found the line
+    // had no test: deleting it left the whole suite green.
+    const def = content.towerByKey.get('ballista')!;
+    const { w, tx, ty, s } = place(def);
+    w.gold = 1e6;
+    expect(upgradeTower(w, tx, ty)).toBe(true);
+    const built = s.spent;
+
+    petrify(w);
+    w.phase = 'dawn';
+    const rekindle = Math.max(1, Math.round(towerCost(w, def) * w.content.towers.rekindleCostMul));
+    expect(rekindleTower(w, s.id)).toBe(true);
+    expect(s.spent).toBe(built + rekindle);
+
+    w.phase = 'act1_build';
+    const before = w.gold;
+    expect(sellTower(w, tx, ty)).toBe(true);
+    expect(w.gold - before).toBe(Math.round((built + rekindle) * 0.5));
+  });
+
+  it('charges a flat cost per step — no ladder', () => {
+    const def = content.towerByKey.get('arrow_spire')!;
+    const { w, tx, ty } = place(def);
+    const costs: number[] = [];
+    for (let i = 0; i < def.upgrades.count; i++) {
+      const g = w.gold;
+      expect(upgradeTower(w, tx, ty)).toBe(true);
+      costs.push(g - w.gold);
+    }
+    expect(costs).toHaveLength(def.upgrades.count);
+    for (const c of costs) expect(c).toBe(costs[0]);
+    expect(costs[0]).toBe(Math.round(def.upgrades.stepCost * w.derived.towerCostMul));
+    expect(upgradeTower(w, tx, ty), 'track exhausted').toBe(false);
+  });
+});
+
+describe('m20a — a step buys +10% HP, Attack and Defense (§4)', () => {
+  it('scales HP and attack by exactly the authored step, on every tower', () => {
+    expect(STEP).toBeCloseTo(1.1, 10);
+    for (const def of TOWERS) {
+      const { w, tx, ty, s } = place(def);
+      const hp0 = s.maxHp;
+      const dmg0 = def.attack ? towerDamage(w, s, def.attack.damage) : 0;
+      for (let step = 1; step <= def.upgrades.count; step++) {
+        w.gold = 1e6;
+        expect(upgradeTower(w, tx, ty)).toBe(true);
+        expect(s.maxHp, `${def.key} hp @${step}`).toBeCloseTo(hp0 * STEP ** step, 6);
+        expect(structureMaxHp(w, def, s.tier), def.key).toBeCloseTo(s.maxHp, 10);
+        if (def.attack) {
+          expect(towerDamage(w, s, def.attack.damage), `${def.key} dmg @${step}`).toBeCloseTo(dmg0 * STEP ** step, 6);
+        }
+      }
+    }
+  });
+
+  it('scales an attack ailment with the step too — burn and poison dps', () => {
+    // `fireTower` scales `attack.burn.dps` and `attack.poison.dps` by the step
+    // multiplier. Driven through the real fire loop, not the arithmetic: the
+    // only other reader is the info panel, so nothing would notice if either
+    // lost its wiring.
+    for (const key of ['ember_brazier', 'venom_spore']) {
+      const def = content.towerByKey.get(key)!;
+      const owed = (levels: number) => {
+        const { w, tx, ty } = place(def);
+        for (let i = 0; i < levels; i++) {
+          w.gold = 1e6;
+          expect(upgradeTower(w, tx, ty)).toBe(true);
+        }
+        const e = spawnEnemy(w, 'husk', tx + 1.5, ty + 0.5, { overlay: false })!;
+        e.hp = 1e9;
+        w.rebuildBuckets();
+        updateTowers(w, 1 / 60);
+        return dotOutstanding(e);
+      };
+      const base = owed(0);
+      expect(base, `${key} must apply a DoT at all`).toBeGreaterThan(0);
+      expect(owed(def.upgrades.count), `${key} ailment at max`).toBeCloseTo(base * STEP ** def.upgrades.count, 4);
+    }
+  });
+
+  it('scales defense the same way, and defense is real damage reduction', () => {
+    // Every shipped tower has defense 0 (Q73), so this drives the path with an
+    // authored one: 20 defense is 20% off, through m19a's shared armour curve.
+    const c = contentWith('ballista', { defense: 20 });
+    const def = c.towerByKey.get('ballista')!;
+    const { w, tx, ty, s } = place(def, c);
+    expect(structureArmor(w, s)).toBeCloseTo(20, 10);
+    const hp0 = s.hp;
+    damageStructure(w, s, 100);
+    expect(hp0 - s.hp).toBeCloseTo(80, 6);
+
+    w.gold = 1e6;
+    expect(upgradeTower(w, tx, ty)).toBe(true);
+    expect(structureArmor(w, s)).toBeCloseTo(20 * STEP, 10);
+  });
+
+  it('leaves a shipped tower at exactly x1 damage taken', () => {
+    const def = content.towerByKey.get('palisade')!;
+    const { w, s } = place(def);
+    expect(structureArmor(w, s)).toBe(0);
+    const hp0 = s.hp;
+    damageStructure(w, s, 50);
+    expect(hp0 - s.hp).toBe(50);
+  });
+
+  it('does not scale range — §4 lists HP, Attack and Defense only', () => {
+    const def = content.towerByKey.get('ballista')!;
+    const { w, tx, ty, s } = place(def);
+    const r0 = effectiveTowerRange(w, def, 1);
+    for (let step = 1; step <= def.upgrades.count; step++) {
+      w.gold = 1e6;
+      expect(upgradeTower(w, tx, ty)).toBe(true);
+      expect(effectiveTowerRange(w, def, s.tier), `range @${step}`).toBeCloseTo(r0, 10);
+    }
+  });
+
+  it('carries the wound across an upgrade instead of healing it', () => {
+    const def = content.towerByKey.get('ballista')!;
+    const { w, tx, ty, s } = place(def);
+    damageStructure(w, s, s.maxHp * 0.5);
+    expect(upgradeTower(w, tx, ty)).toBe(true);
+    expect(s.hp / s.maxHp).toBeCloseTo(0.5, 6);
+  });
+});
+
+describe('m20a — milestone steps and the stat bump (§4, Q73)', () => {
+  const track = { count: 3, stepCost: 10, specials: [{ at: 2, key: 'chain' }] };
+
+  it('a step carrying a special pays the special instead of +10%', () => {
+    const c = contentWith('tesla_coil', { upgrades: track });
+    const w = new World(cfg(), c);
+    const def = c.towerByKey.get('tesla_coil')!;
+    expect(c.towers.milestoneStepsSkipStats).toBe(true);
+    expect(upgradeStatMul(w, def, 1)).toBeCloseTo(1, 10);
+    expect(upgradeStatMul(w, def, 2)).toBeCloseTo(STEP, 10);
+    expect(upgradeStatMul(w, def, 3), 'step 2 is the special').toBeCloseTo(STEP, 10);
+    expect(upgradeStatMul(w, def, 4)).toBeCloseTo(STEP ** 2, 10);
+  });
+
+  it('reads the other way when the owner flips the /data flag', () => {
+    const c = contentWith('tesla_coil', { upgrades: track }, { milestoneStepsSkipStats: false });
+    const w = new World(cfg(), c);
+    const def = c.towerByKey.get('tesla_coil')!;
+    for (let level = 1; level <= 4; level++) {
+      expect(upgradeStatMul(w, def, level), `level ${level}`).toBeCloseTo(STEP ** (level - 1), 10);
+    }
+  });
+
+  it('is inert for the shipped roster — no tower authors a special yet', () => {
+    const w = new World(cfg());
+    for (const def of TOWERS) {
+      expect(def.upgrades.specials, def.key).toEqual([]);
+      expect(upgradeStatMul(w, def, maxLevel(def)), def.key).toBeCloseTo(STEP ** def.upgrades.count, 10);
+    }
+  });
+
+  it('clamps outside the track', () => {
+    const w = new World(cfg());
+    const def = content.towerByKey.get('palisade')!;
+    expect(upgradeStatMul(w, def, 1)).toBe(1);
+    expect(upgradeStatMul(w, def, 9), 'a wall has no steps to take').toBe(1);
+    expect(upgradeStatMul(w, def, 0)).toBe(1);
+  });
+});
+
+describe('m20a — the track through the real loop', () => {
+  it('hashes the gold spent, so a replay cannot diverge on refunds (A11)', () => {
+    const def = content.towerByKey.get('arrow_spire')!;
+    const a = place(def);
+    const b = place(def);
+    expect(hashWorld(b.w)).toBe(hashWorld(a.w));
+    b.s.spent += 1;
+    expect(hashWorld(b.w), 'Structure.spent must reach the end-state hash').not.toBe(hashWorld(a.w));
+  });
+
+  it('a fully upgraded tower still fires, and a wound still kills it', () => {
+    const def = content.towerByKey.get('arrow_spire')!;
+    const { w, tx, ty, s } = place(def);
+    for (let i = 0; i < def.upgrades.count; i++) {
+      w.gold = 1e6;
+      expect(upgradeTower(w, tx, ty)).toBe(true);
+    }
+    const e = spawnEnemy(w, 'husk', tx + 1.5, ty + 0.5, { overlay: false })!;
+    const hp0 = e.hp;
+    for (let i = 0; i < 120; i++) {
+      w.rebuildBuckets();
+      updateTowers(w, 1 / 60);
+    }
+    expect(e.hp).toBeLessThan(hp0);
+    damageStructure(w, s, s.hp);
+    expect(s.dead).toBe(true);
+  });
+});
+
+describe('m20a — the track and the Sundering soul ladder (regression)', () => {
+  /**
+   * Found by code review. `deriveSouls` inherited `WeaponLevel = highest tier`
+   * (SPEC 4.1) from a world where every tower topped out at tier 3 and weapons
+   * ran to level 6 — so a maxed tower handed over half the weapon ladder. §4's
+   * tracks run to 11, and `grantWeapon` clamps, so every soul was arriving at
+   * Act II fully levelled: ~5x the weapon DPS V2 granted, for less gold.
+   *
+   * The migration is neutral by construction: a fully upgraded tower inherits
+   * `inheritMaxLevel`, which is the level V2's tier 3 handed over.
+   */
+  it('a fully upgraded tower inherits the level V2 gave, not the ladder max', () => {
+    const def = content.towerByKey.get('ballista')!;
+    const { w, tx, ty } = place(def);
+    for (let i = 0; i < def.upgrades.count; i++) {
+      w.gold = 1e6;
+      expect(upgradeTower(w, tx, ty)).toBe(true);
+    }
+    const souls = deriveSouls(w);
+    const soul = souls.find((s) => s.key === def.soul)!;
+    expect(soul.level).toBe(content.weapons.inheritMaxLevel);
+    expect(soul.level).toBeLessThan(content.weapons.maxLevel);
+  });
+
+  it('spreads the ladder evenly across whatever track a tower has', () => {
+    const def = content.towerByKey.get('ballista')!;
+    const { w, tx, ty } = place(def);
+    const seen: number[] = [];
+    for (let level = 1; level <= maxLevel(def); level++) {
+      if (level > 1) {
+        w.gold = 1e6;
+        expect(upgradeTower(w, tx, ty)).toBe(true);
+      }
+      seen.push(deriveSouls(w).find((s) => s.key === def.soul)!.level);
+    }
+    expect(seen[0], 'an unupgraded tower still hands over level 1').toBe(1);
+    expect(seen[seen.length - 1]).toBe(content.weapons.inheritMaxLevel);
+    for (let i = 1; i < seen.length; i++) expect(seen[i]).toBeGreaterThanOrEqual(seen[i - 1]);
+  });
+
+  it('gives a short track the same ladder as a long one', () => {
+    // Arrow has 5 steps and Ballista 11 levels; both max out at the same soul.
+    const arrow = content.towerByKey.get('arrow_spire')!;
+    const { w, tx, ty } = place(arrow);
+    for (let i = 0; i < arrow.upgrades.count; i++) {
+      w.gold = 1e6;
+      expect(upgradeTower(w, tx, ty)).toBe(true);
+    }
+    expect(deriveSouls(w).find((s) => s.key === arrow.soul)!.level).toBe(content.weapons.inheritMaxLevel);
+  });
+});

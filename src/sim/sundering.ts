@@ -75,6 +75,9 @@ export function rekindleTower(w: World, structureId: number): boolean {
   if (w.gold < cost) return false;
   w.gold -= cost;
   w.goldSpent += cost;
+  // SPEC-V3 §4's sell refund is a share of everything spent on the structure,
+  // and this is a payment for this structure.
+  s.spent += cost;
   s.petrified = false;
   s.soulSuppressed = true;
   w.emit('rekindle', s.tx + 0.5, s.ty + 0.5, 0, 0);

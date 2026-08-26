@@ -72,12 +72,38 @@ const TerrainSchema = z.object({
   gemMax: num.optional(),
 });
 
+/**
+ * SPEC-V3 §4: a tower's own upgrade track. `count` steps, each costing a **flat**
+ * `stepCost` (V2's growing 0.75x/1.25x ladder is gone), each granting
+ * +`upgradeStepMul` HP/Attack/Defense unless the step carries a milestone
+ * special — see `upgradeStatMul` in towers.ts for the "unless".
+ *
+ * `specials` is the shape m20b authors into. m20a validates the steps a track
+ * names — in range, one per step — but gives no key an effect yet, so a track
+ * cannot name a step that does not exist.
+ */
+const UpgradeTrackSchema = z.object({
+  count: num.int().min(0).max(20),
+  /** 0 only for a track with no steps to price — see `validateUpgradeTrack`. */
+  stepCost: num.min(0),
+  specials: z
+    .array(z.object({ at: num.int().positive(), key: str, note: str.optional() }))
+    .default([]),
+});
+
 const TowerSchema = z.object({
   id: num,
   key: str,
   name: str,
   cost: num,
-  maxTier: num,
+  /**
+   * SPEC-V3 §4 armour points for the structure itself, read through m19a's
+   * curve by `structureArmor`. Ships at 0 for all ten towers — exactly x1
+   * damage taken, so the stat is live without moving a balance number ahead of
+   * m20c, which is where §4's "medium HP/def" bands become numbers (Q73).
+   */
+  defense: num,
+  upgrades: UpgradeTrackSchema,
   hp: num,
   blocks: z.boolean(),
   attack: TowerAttackSchema,
@@ -90,12 +116,17 @@ const TowerSchema = z.object({
 });
 
 const TowersFileSchema = z.object({
-  tierDamageMul: num,
-  tierRangeMul: num,
-  upgradeCostT2: num,
-  upgradeCostT3: num,
+  /** SPEC-V3 §4: one upgrade step = +10% HP, Attack and Defense. */
+  upgradeStepMul: num,
+  /**
+   * §4 reads "+10% HP, Attack, Defense **unless** a milestone special is
+   * listed". True honours the "unless" — a step carrying a special grants the
+   * special instead of the stat bump. One field, so the owner can flip the
+   * reading without an engine change (Q73).
+   */
+  milestoneStepsSkipStats: z.boolean(),
+  /** §4: sell refunds this share of everything actually spent on the tower. */
   sellRefund: num,
-  duskSellRefund: num,
   buildRange: num,
   /** SPEC-V2 §1: Rekindle at Dawn costs this fraction of base build cost. */
   rekindleCostMul: num,
@@ -224,6 +255,13 @@ const AwakeningSchema = z.object({
 
 const WeaponsFileSchema = z.object({
   maxLevel: num,
+  /**
+   * SPEC 4.1 inherits "WeaponLevel = highest tier of that tower type". SPEC-V3
+   * §4 gave every tower its own track length, so "highest tier" no longer names
+   * a ceiling — this is the level a **fully upgraded** tower hands over, and a
+   * partly upgraded one hands over its share of it.
+   */
+  inheritMaxLevel: num,
   slots: num,
   inheritDamagePerExtraTower: num,
   inheritDamageCap: num,
@@ -445,6 +483,35 @@ const DamageStatusSchema = z
   .strict();
 
 /**
+ * Whether a SPEC-V3 §4 upgrade track is well-formed, throwing if it is not.
+ *
+ * zod checks each field alone; these are the cross-field claims. A special
+ * pinned to a step the track does not have would simply never fire — the
+ * silent-no-op failure m19a and m19b each shipped once — and two specials on
+ * one step would make the step's payout depend on authoring order.
+ *
+ * Exported so a test can drive the loader's own predicate: no shipped tower
+ * authors a special until m20b, so the interesting branches never execute
+ * against `/data`.
+ */
+export function validateUpgradeTrack(
+  track: { count: number; stepCost: number; specials: { at: number; key: string }[] },
+  where: string,
+): void {
+  if (track.count > 0 && track.stepCost <= 0) {
+    throw new Error(`${where} has ${track.count} upgrade steps and no price for them`);
+  }
+  const seen = new Set<number>();
+  for (const sp of track.specials) {
+    if (sp.at > track.count) {
+      throw new Error(`${where} special "${sp.key}" is at step ${sp.at} of ${track.count}`);
+    }
+    if (seen.has(sp.at)) throw new Error(`${where} has two specials at step ${sp.at}`);
+    seen.add(sp.at);
+  }
+}
+
+/**
  * Whether `key` is something an attack may apply on hit, throwing if it is not.
  *
  * Exported so a test can drive the loader's own predicate: no shipped tower
@@ -664,6 +731,7 @@ export function loadContent(): Content {
   }
   for (const t of towers.towers) {
     for (const k of t.attack?.onHit ?? []) validateOnHit(damageTypes, k, `towers.json: ${t.key}`);
+    validateUpgradeTrack(t.upgrades, `towers.json: ${t.key}`);
   }
 
   // A damage type that says nothing about its magnitude would apply as a

@@ -93,7 +93,15 @@ QUESTIONS.md under the cited Q-number.
 ## 3. Current `/data` tuning
 
 ### Towers (`data/towers.json`)
-Tiers: damage ×1.6, range ×1.1 per tier. Upgrade cost T2 = 0.75× base, T3 = 1.25× base. Sell 70% (35% during Dusk). Build range 4 tiles.
+**Rewritten at m20a to SPEC-V3 §4.** Each tower carries its own `upgrades`
+track — `count` steps at a **flat** `stepCost` — and each step buys +10% HP,
+Attack and Defense (`upgradeStepMul`), not range. Sell refunds 50% of what the
+structure was actually charged, in every phase. Build range 4 tiles. Tracks
+today: palisade 0, tesla_coil 3, venom_spore 4, arrow_spire 5 (§4's own
+numbers), beacon_totem and harvest_sprout 2, the other four 10 — see QUESTIONS
+Q73 for why, and m20c for the owner sign-off. Gone with V2: `maxTier`,
+`tierDamageMul` (×1.6/tier), `tierRangeMul` (×1.1/tier), the 0.75×/1.25×
+upgrade ladder, and Dusk's own 35% sell rate.
 
 | Tower | Cost | DPS | Interval | Range | Soul |
 |---|---|---|---|---|---|

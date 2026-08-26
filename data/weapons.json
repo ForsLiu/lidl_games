@@ -1,5 +1,6 @@
 {
   "maxLevel": 6,
+  "inheritMaxLevel": 3,
   "slots": 6,
   "inheritDamagePerExtraTower": 0.08,
   "inheritDamageCap": 0.4,

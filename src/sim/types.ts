@@ -82,6 +82,13 @@ export interface Structure {
   ty: number;
   hp: number;
   maxHp: number;
+  /**
+   * SPEC-V3 §4: gold actually paid for this structure — build cost plus every
+   * upgrade step — because sell refunds 50% of *total spent*, and recomputing
+   * that from the def would price the refund at whatever `towerCostMul` says
+   * today rather than what the player was charged. Sim state, so it is hashed.
+   */
+  spent: number;
   cooldown: number;
   dead: boolean;
   /** Post-Sundering state. */

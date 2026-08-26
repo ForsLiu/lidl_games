@@ -13,14 +13,18 @@
 import type { TowerDef, TowerAttack, WeaponDef, WeaponLevel } from '../sim/content';
 import type { Structure, WeaponState } from '../sim/types';
 import type { World } from '../sim/world';
+import { soulLevelFor } from '../sim/progression';
 import { weaponDamageMul, weaponDef } from '../sim/weapons';
 import {
+  affinityMul,
   attackSpeedFor,
   effectiveTowerAoe,
   effectiveTowerRange,
-  tierDamageMul,
+  maxLevel,
+  sellValue,
   towerCost,
   upgradeCost,
+  upgradeStatMul,
 } from '../sim/towers';
 
 export interface StatLine {
@@ -34,8 +38,9 @@ export interface TowerInfo {
   key: string;
   name: string;
   desc: string;
-  /** 1 for an unbuilt tower on the bar; the structure's tier when placed. */
+  /** 1 for an unbuilt tower on the bar; the structure's level when placed. */
   tier: number;
+  /** SPEC-V3 §4: `upgrades.count + 1`. */
   maxTier: number;
   /** One sentence on how this tower picks and hits targets. */
   attackText: string;
@@ -47,6 +52,13 @@ export interface TowerInfo {
   /** Gold back if sold now, or null for an unbuilt tower. */
   sellValue: number | null;
   soul: { name: string; desc: string } | null;
+  /**
+   * What this tower's soul arrives at, in the player's terms. Q74 made the
+   * inherited level a *share of the track walked* rather than the tower's
+   * level, so "its highest tier" — which the HUD used to say — is now false
+   * for every tower whose track is not `inheritMaxLevel` steps long.
+   */
+  soulNote: string;
   terrainText: string | null;
 }
 
@@ -57,8 +69,13 @@ const KIND_TEXT: Record<string, (a: TowerAttack) => string> = {
   cone: () =>
     'Sprays a cone at the densest cluster. The nearest few take full damage; each target past that takes less.',
   aura: () => 'Pulses every enemy inside its radius at once — no aiming, no travel time.',
+  // `chainHit` counts the first target inside `chains`, and SPEC-V3 §4 makes
+  // the Electric tower's chaining a milestone special (m20b) rather than
+  // something every upgrade step buys — the panel said "+1 arc per tier".
   chain: (a) =>
-    `Strikes the leading enemy, then arcs to ${a.chains ?? 3} more within ${a.chainRange ?? 3} tiles (+1 arc per tier).`,
+    `Strikes the leading enemy and arcs on until ${a.chains ?? 3} enemies are hit, each within ${
+      a.chainRange ?? 3
+    } tiles of the last.`,
   lob: (a) =>
     `Lobs a shell at a predicted position and detonates for ${fmt(a.aoe ?? 1.5)}-tile splash. Cannot hit anything closer than ${fmt(a.minRange ?? 0)} tiles.`,
   poison: () => 'Hits one target and stacks poison, which keeps ticking after the shot lands.',
@@ -69,9 +86,17 @@ function fmt(n: number, dp = 1): string {
   return String(r);
 }
 
-/** Damage-per-shot after tiers, Power and Constellation tower damage. */
-function shotDamage(w: World, a: TowerAttack, tier: number): number {
-  return a.damage * tierDamageMul(w, tier) * w.derived.powerMul * w.derived.towerDamageMul;
+/** Damage-per-shot after upgrades, Power and Constellation tower damage. */
+function shotDamage(w: World, def: TowerDef, a: TowerAttack, tier: number): number {
+  // Every factor `towerDamage` applies, affinity included — the panel quoted a
+  // Ballista at 46.7 where an Engineer's actually hit for 56.
+  return (
+    a.damage *
+    upgradeStatMul(w, def, tier) *
+    w.derived.powerMul *
+    w.derived.towerDamageMul *
+    affinityMul(w, def.key)
+  );
 }
 
 function shotInterval(a: TowerAttack, speedMul: number): number {
@@ -93,16 +118,15 @@ function rangeOf(w: World, def: TowerDef, tier: number): number {
 export function towerInfo(w: World, def: TowerDef, existing?: Structure): TowerInfo {
   const tier = existing?.tier ?? 1;
   const speedMul = existing ? attackSpeedFor(w, existing) : w.derived.attackSpeedMul;
-  const hasNext = tier < def.maxTier;
+  const hasNext = tier < maxLevel(def);
   const a = def.attack;
   const stats: StatLine[] = [];
 
   if (a) {
-    const dmg = shotDamage(w, a, tier);
+    const dmg = shotDamage(w, def, a, tier);
     const interval = shotInterval(a, speedMul);
     const range = rangeOf(w, def, tier);
-    const nextDmg = hasNext ? shotDamage(w, a, tier + 1) : 0;
-    const nextRange = hasNext ? rangeOf(w, def, tier + 1) : 0;
+    const nextDmg = hasNext ? shotDamage(w, def, a, tier + 1) : 0;
 
     if (a.kind === 'cone') {
       // A cone is continuous: its "interval" is the tick it applies dps over.
@@ -125,11 +149,9 @@ export function towerInfo(w: World, def: TowerDef, existing?: Structure): TowerI
       });
     }
 
-    stats.push({
-      label: a.kind === 'aura' ? 'Radius' : 'Range',
-      value: `${fmt(range)} tiles`,
-      next: hasNext ? `${fmt(nextRange)}` : undefined,
-    });
+    // No `next`: SPEC-V3 §4 does not spend an upgrade step on range, so the
+    // column would advertise a change the upgrade cannot make.
+    stats.push({ label: a.kind === 'aura' ? 'Radius' : 'Range', value: `${fmt(range)} tiles` });
     if (a.minRange) stats.push({ label: 'Minimum range', value: `${fmt(a.minRange)} tiles` });
     // Through the shared helper, not inline: the Range line was moved onto it
     // and Splash was not, so the de-duplication was half done.
@@ -144,13 +166,15 @@ export function towerInfo(w: World, def: TowerDef, existing?: Structure): TowerI
     if (a.burn) {
       stats.push({
         label: 'Burn',
-        value: `${fmt(a.burn.dps * tierDamageMul(w, tier))} dps for ${fmt(a.burn.duration)}s`,
+        value: `${fmt(a.burn.dps * upgradeStatMul(w, def, tier))} dps for ${fmt(a.burn.duration)}s`,
       });
     }
     if (a.poison) {
       stats.push({
         label: 'Poison',
-        value: `${fmt(a.poison.dps * tierDamageMul(w, tier))} dps for ${fmt(a.poison.duration)}s, stacks ${a.poison.maxStacks}`,
+        value: `${fmt(a.poison.dps * upgradeStatMul(w, def, tier))} dps for ${fmt(
+          a.poison.duration,
+        )}s, stacks ${a.poison.maxStacks}`,
       });
     }
   }
@@ -180,7 +204,14 @@ export function towerInfo(w: World, def: TowerDef, existing?: Structure): TowerI
       )}%`,
     });
   }
-  if (def.blocks) stats.push({ label: 'Blocks path', value: `yes — ${Math.round(def.hp)} HP` });
+  if (def.blocks) {
+    const hp = Math.round(def.hp * upgradeStatMul(w, def, tier));
+    // SPEC-V3 §4 made HP and Defense upgradeable, so the wall line has to quote
+    // the structure standing there rather than the def's level-1 sheet.
+    const armour = def.defense * upgradeStatMul(w, def, tier);
+    const armourText = armour !== 0 ? `, ${fmt(armour)} defense` : '';
+    stats.push({ label: 'Blocks path', value: `yes — ${hp} HP${armourText}` });
+  }
 
   const soulDef = def.soul ? w.content.weaponByKey.get(def.soul) : undefined;
 
@@ -189,7 +220,7 @@ export function towerInfo(w: World, def: TowerDef, existing?: Structure): TowerI
     name: def.name,
     desc: def.desc,
     tier,
-    maxTier: def.maxTier,
+    maxTier: maxLevel(def),
     attackText: a
       ? (KIND_TEXT[a.kind]?.(a) ?? 'Attacks nearby enemies.')
       : 'Does not attack. Its value is where you put it.',
@@ -197,23 +228,14 @@ export function towerInfo(w: World, def: TowerDef, existing?: Structure): TowerI
     // A petrified tower refuses both (`towers.ts` upgradeTower/sellTower), so
     // offering them would advertise an action that silently does nothing.
     buildCost: existing ? null : towerCost(w, def),
-    upgrade:
-      existing && hasNext && !existing.petrified
-        ? { toTier: tier + 1, cost: upgradeCost(w, def, tier + 1) }
-        : null,
-    sellValue: existing && !existing.petrified ? sellValueOf(w, def, tier) : null,
+    upgrade: existing && hasNext && !existing.petrified ? { toTier: tier + 1, cost: upgradeCost(w, def) } : null,
+    sellValue: existing && !existing.petrified ? sellValue(w, existing) : null,
     soul: soulDef ? { name: soulDef.name, desc: soulDef.desc } : null,
+    soulNote: soulDef
+      ? `It binds at Lv ${soulLevelFor(w, def, tier)} of ${w.content.weapons.inheritMaxLevel}, which is how far this tower has walked its upgrade track.`
+      : '',
     terrainText: describeTerrain(def),
   };
-}
-
-/** Mirrors `sellTower`: refunds a share of everything spent, tiers included. */
-export function sellValueOf(w: World, def: TowerDef, tier: number): number {
-  let spent = towerCost(w, def);
-  for (let t = 2; t <= tier; t++) spent += upgradeCost(w, def, t);
-  const towers = w.content.towers;
-  const rate = w.phase === 'dusk' ? towers.duskSellRefund : towers.sellRefund;
-  return Math.round(spent * rate);
 }
 
 /** What this tower leaves behind after the Sundering (SPEC 4). */

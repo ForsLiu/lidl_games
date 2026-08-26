@@ -3,6 +3,7 @@
  * (SPEC 5.2-5.4). Luck weights offer rarity; each level grants one free reroll.
  */
 
+import type { TowerDef } from './content';
 import { dist2, normalize } from './math';
 import type { Offer, WeaponState } from './types';
 import { grantWeapon, weaponDef } from './weapons';
@@ -210,9 +211,26 @@ export function applyOffer(w: World, offer: Offer): void {
 /* --------------------------------------------------- Sundering inheritance */
 
 /**
- * SPEC 4.1. WeaponLevel = highest tier of that tower type on the field.
- * DamageBonus = +8% per additional tower of that type, capped at +40%.
+ * SPEC 4.1. WeaponLevel = how far the best tower of that type walked its own
+ * upgrade track. DamageBonus = +8% per additional tower of that type, capped
+ * at +40%.
+ *
+ * V2 read the rule literally — level = tier — because every tower stopped at
+ * tier 3 and `inheritMaxLevel` is 3. SPEC-V3 §4 gave each tower its own track
+ * (0 to 11 levels), so a literal read handed a maxed Ballista level 11, which
+ * `grantWeapon` clamps to the ladder's top: every soul would arrive in Act II
+ * fully levelled, for less gold than V2 charged for a third of it. Scaling by
+ * track position keeps the inheritance where V2 left it whatever a track's
+ * length. (Transitional: V3 §5 replaces soul binding wholesale at m21d.)
  */
+export function soulLevelFor(w: World, def: TowerDef, level: number): number {
+  const top = w.content.weapons.inheritMaxLevel;
+  const steps = def.upgrades.count;
+  if (steps <= 0) return 1;
+  const progress = Math.max(0, Math.min(1, (level - 1) / steps));
+  return 1 + Math.round(progress * (top - 1));
+}
+
 export function deriveSouls(w: World): { key: string; level: number; damageBonus: number }[] {
   const counts = new Map<string, { count: number; tier: number }>();
   for (const s of w.structures) {
@@ -223,7 +241,7 @@ export function deriveSouls(w: World): { key: string; level: number; damageBonus
     if (!def.soul) continue;
     const cur = counts.get(def.soul) ?? { count: 0, tier: 0 };
     cur.count++;
-    cur.tier = Math.max(cur.tier, s.tier);
+    cur.tier = Math.max(cur.tier, soulLevelFor(w, def, s.tier));
     counts.set(def.soul, cur);
   }
   const per = w.content.weapons.inheritDamagePerExtraTower;

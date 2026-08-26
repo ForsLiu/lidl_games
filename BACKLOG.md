@@ -16,11 +16,6 @@ recorded reason, not a nudged constant.
 
 ### M20 — tower model v3 (gate: data tests)
 
-- [ ] (m20a) [feat] Per-tower upgrade tracks: upgrade count, +10% HP/Attack/Defense
-      per step, flat step cost, sell 50% of total spent; towers gain a real
-      `defense` stat — acceptance: data test asserts every tower's track is
-      well-formed and that sell refunds exactly 50% of build+upgrades at every step
-      — refs: V3 §4
 - [ ] (m20b) [feat] The three owner towers (Arrow, Electric, Poison) with their
       milestone specials — acceptance: one test per listed special (+1 pierce @3,
       Bleeding @4, +1 projectile @5; electric chain @3; +1 projectile @2, ratio
@@ -206,6 +201,14 @@ sit naturally alongside M24, which touches saves again.
       preserves it exactly rather than introducing it — acceptance: the cap holds
       across any number of Sunderings; a test runs two and asserts the terrain
       contribution is ≤ cap — refs: QA on m19b, bug list
+- [ ] (s011) [bug] `hashWorld` covers structures, enemies, weapons, derived stats
+      and the RNG streams but **not `w.gold`/`w.goldSpent`**, so two replays that
+      disagreed only on a refund or a cost would hash identically until the
+      difference changed a build decision. m20a hashing `Structure.spent` closes
+      most of it; the gold itself is the same "unhashed sim state" class the m19a,
+      m19b and f001 reviews each found once — acceptance: a test builds two worlds
+      differing only in `w.gold` and asserts different hashes; A11 stays green —
+      refs: QA on m20a, CLAUDE.md architecture rule 2
 - [ ] (s005) [polish] The production bundle still ships the whole dev profile —
       `applyDevProfile`, the unlocks, `data/dev.json` with `devMode:true`, the
       `cleanProfile` toggle and the `.sw-devbadge` CSS are all in `dist`. It is

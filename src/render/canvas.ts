@@ -389,8 +389,13 @@ export class Renderer {
       ctx.strokeRect(x + 2.5, y + 2.5, TILE - 5, TILE - 5);
 
       if (!s.petrified && s.tier > 1) {
+        // SPEC-V3 §4 tracks run to eleven levels; a single row of pips at 5px
+        // ran off the tile past level six, so they wrap inside it.
         ctx.fillStyle = '#ffffffcc';
-        for (let i = 0; i < s.tier - 1; i++) ctx.fillRect(x + 4 + i * 5, y + 4, 3, 3);
+        const perRow = Math.floor((TILE - 8) / 5);
+        for (let i = 0; i < s.tier - 1; i++) {
+          ctx.fillRect(x + 4 + (i % perRow) * 5, y + 4 + Math.floor(i / perRow) * 5, 3, 3);
+        }
       }
       if (s.hp < s.maxHp) {
         const frac = Math.max(0, s.hp / s.maxHp);

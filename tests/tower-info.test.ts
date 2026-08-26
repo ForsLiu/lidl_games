@@ -9,9 +9,19 @@ import { describe, expect, it } from 'vitest';
 
 import { World } from '../src/sim/world';
 import { loadContent } from '../src/sim/content';
-import { buildTower, sellTower, towerCost, upgradeCost, upgradeTower } from '../src/sim/towers';
+import { deriveSouls } from '../src/sim/progression';
+import {
+  buildTower,
+  maxLevel,
+  sellTower,
+  towerCost,
+  towerDamage,
+  upgradeCost,
+  upgradeTower,
+} from '../src/sim/towers';
 import { grantWeapon } from '../src/sim/weapons';
-import { sellValueOf, towerInfo, weaponInfo } from '../src/ui/tower-info';
+import { towerInfoMarkup } from '../src/ui/hud';
+import { towerInfo, weaponInfo } from '../src/ui/tower-info';
 import { cfg } from './helpers';
 
 function world(): World {
@@ -39,7 +49,7 @@ describe('tower info model', () => {
       const info = towerInfo(w, def);
       expect(info.name, def.key).toBe(def.name);
       expect(info.attackText.length, def.key).toBeGreaterThan(0);
-      expect(info.maxTier, def.key).toBe(def.maxTier);
+      expect(info.maxTier, def.key).toBe(maxLevel(def));
       // Every tower says something concrete: a stat, or that placement is
       // the point. Palisades legitimately have no attack.
       if (def.attack) expect(info.stats.length, def.key).toBeGreaterThan(0);
@@ -73,8 +83,9 @@ describe('tower info model', () => {
     const info = towerInfo(w, def, s);
     expect(info.tier).toBe(1);
     expect(info.buildCost).toBeNull();
-    expect(info.upgrade).toEqual({ toTier: 2, cost: upgradeCost(w, def, 2) });
-    expect(info.sellValue).toBe(sellValueOf(w, def, 1));
+    expect(info.upgrade).toEqual({ toTier: 2, cost: upgradeCost(w, def) });
+    // SPEC-V3 §4: half of what this structure was actually charged.
+    expect(info.sellValue).toBe(Math.round(s.spent * content.towers.sellRefund));
 
     // And the quoted sell value is what selling actually pays out.
     const before = w.gold;
@@ -88,22 +99,81 @@ describe('tower info model', () => {
     const { tx, ty } = freeTileNear(w);
     w.gold = 9999;
     buildTower(w, def.id, tx, ty);
-    while (w.structureAt(tx, ty)!.tier < def.maxTier) {
+    while (w.structureAt(tx, ty)!.tier < maxLevel(def)) {
       w.gold = 9999;
       expect(upgradeTower(w, tx, ty)).toBe(true);
     }
     const info = towerInfo(w, def, w.structureAt(tx, ty)!);
-    expect(info.tier).toBe(def.maxTier);
+    expect(info.tier).toBe(maxLevel(def));
     expect(info.upgrade).toBeNull();
   });
 
-  it('shows what a tier buys: damage and range both go up', () => {
+  // SPEC-V3 §4: an upgrade step buys HP, Attack and Defense — **not** range,
+  // which V2's x1.1-per-tier used to grow. The panel must quote both truthfully.
+  it('shows what an upgrade step buys: damage up, range flat', () => {
     const w = world();
     const def = content.towerByKey.get('ballista')!;
     const damage = towerInfo(w, def).stats.find((s) => s.label === 'Damage')!;
     const range = towerInfo(w, def).stats.find((s) => s.label === 'Range')!;
     expect(Number(damage.next)).toBeGreaterThan(Number(damage.value.split(' ')[0]));
-    expect(Number(range.next)).toBeGreaterThan(Number(range.value.split(' ')[0]));
+    expect(range.next, 'no "next" column for a stat the upgrade cannot move').toBeUndefined();
+  });
+
+  // QA, m20a: three panel lines outlived the rules they described. Each is
+  // asserted against the sim's own answer rather than a re-typed string.
+  it('describes an attack the way the sim actually resolves it', () => {
+    const w = world();
+    const def = content.towerByKey.get('tesla_coil')!;
+    const level1 = towerInfo(w, def).attackText;
+    const { tx, ty } = freeTileNear(w);
+    w.gold = 99999;
+    buildTower(w, def.id, tx, ty);
+    while (w.structureAt(tx, ty)!.tier < maxLevel(def)) {
+      w.gold = 99999;
+      expect(upgradeTower(w, tx, ty)).toBe(true);
+    }
+    const maxed = towerInfo(w, def, w.structureAt(tx, ty)!).attackText;
+    expect(maxed, 'SPEC-V3 §4: an upgrade step buys no arcs').toBe(level1);
+    expect(maxed).not.toMatch(/per tier/);
+    // `chainHit` counts the first target inside `chains`, so the sentence has
+    // to quote a total, not "the first plus N more".
+    expect(maxed).toContain(`${def.attack!.chains} enemies are hit`);
+  });
+
+  it('quotes the damage the sim deals, affinity included', () => {
+    for (const cls of content.classes.classes) {
+      const w = new World(cfg({ classKey: cls.key }));
+      for (const def of content.towers.towers) {
+        if (!def.attack) continue;
+        const { tx, ty } = freeTileNear(w);
+        w.gold = 99999;
+        expect(buildTower(w, def.id, tx, ty).ok, def.key).toBe(true);
+        const s = w.structureAt(tx, ty)!;
+        const line = towerInfo(w, def, s).stats.find((x) => x.label === 'Damage')!;
+        const quoted = Number(line.value.split(' ')[0]);
+        const real = towerDamage(w, s, def.attack.damage);
+        const perShot = def.attack.kind === 'cone' ? real / def.attack.interval : real;
+        expect(quoted, `${cls.key}/${def.key}`).toBeCloseTo(Math.round(perShot * 10) / 10, 6);
+        w.removeStructure(s);
+      }
+    }
+  });
+
+  it('quotes the level the soul actually binds at, not the tower level', () => {
+    const w = world();
+    const def = content.towerByKey.get('ballista')!;
+    const { tx, ty } = freeTileNear(w);
+    w.gold = 99999;
+    buildTower(w, def.id, tx, ty);
+    while (w.structureAt(tx, ty)!.tier < maxLevel(def)) {
+      w.gold = 99999;
+      expect(upgradeTower(w, tx, ty)).toBe(true);
+    }
+    const s = w.structureAt(tx, ty)!;
+    const bound = deriveSouls(w).find((x) => x.key === def.soul)!.level;
+    expect(bound).toBeLessThan(s.tier);
+    expect(towerInfo(w, def, s).soulNote).toContain(`Lv ${bound}`);
+    expect(towerInfoMarkup(towerInfo(w, def, s), w.gold, true)).toContain(`Lv ${bound}`);
   });
 
   it('names the soul a tower will leave behind, and only for soul towers', () => {

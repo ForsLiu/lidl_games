@@ -10,14 +10,31 @@ V2's M9 shipped, and supersedes a large part of what M9 built. **MIGRATION.md** 
 the audit: what is built, what V3 supersedes, and where V3 conflicts with a live
 gate. Read it before touching anything in M18–M27.
 
-- **Milestone:** M17, M18 and **M19 complete** — `m19a` (armour v3, gate C3),
-  `m19b` (multiplicative stacking, gate C4) and `m19c` (damage types, SPEC-V3 §3).
-  **`m20a` is the next action**: per-tower upgrade tracks.
-- **Gate status:** **583 tests pass, 19 skipped** (15 retired at M17 with logged
-  reasons — see MIGRATION.md §5). Gates **C3 and C4 are green**; C3's carried
-  "except Burning's shred" clause closed at m19c, which made Burning the first
-  production caller of the shred m19a built (Q58). Every A/B gate re-measured
-  green at m19c, 24/24 seeds run/replay identical.
+- **Milestone:** M17, M18 and **M19 complete**; **M20 in progress** — `m20a`
+  (per-tower upgrade tracks, SPEC-V3 §4) landed. **`m20b` is the next action**:
+  the three owner towers and their milestone specials.
+- **Gate status:** **603 tests pass, 24 skipped** (15 retired at M17 with logged
+  reasons — see MIGRATION.md §5; **5 more deferred to m20c at m20a**, below).
+  Gates **C3 and C4 are green**. Every A/B gate except A4's four T1 clauses and
+  `light-build`'s `kite` re-measured green at m20a, A11 included.
+- **m20a — what a reader needs to know.** Towers no longer share a three-tier
+  ladder: `data/towers.json` gives each one `upgrades: {count, stepCost,
+  specials}` plus a real `defense`, and a step buys +10% HP/Attack/Defense
+  (`upgradeStepMul`) — **not** range, which V2 grew x1.1/tier. `maxTier`,
+  `tierDamageMul`, `tierRangeMul`, the 0.75x/1.25x cost ladder and Dusk's own
+  35% sell rate are all gone; sell refunds 50% of `Structure.spent`, the gold
+  actually charged, which is hashed. The track math is `src/sim/upgrades.ts`
+  (its own module: `enemies.ts` needs `structureArmor` and `towers.ts` already
+  imports `enemies.ts`). Q73 records every default the section left open and why
+  each is a measurable no-op wherever the choice was m20a's.
+- **The m20a trap, worth remembering.** The model change was clean and the
+  regression was in a *reader* of the field it changed: `deriveSouls` inherited
+  "WeaponLevel = highest tier" (SPEC 4.1) literally, so an 11-level Ballista
+  handed Act II a level-6 weapon where V2 handed level 3 — ~5x the opening DPS,
+  and a stationary Warden started **winning** A3. Four balance gates were about
+  to be deferred for a cause that was a one-line bug; they came back green once
+  it was fixed (Q74). When a field's range changes, grep its readers, not just
+  its writers.
 - **m19c — what a reader needs to know.** `Enemy.burnRemaining/burnDps/burnSource`
   and `Enemy.poison` are gone, replaced by one `dots` list keyed by damage type;
   `data/damagetypes.json` owns each row's magnitude, duration, stacking rule,
@@ -39,6 +56,20 @@ gate. Read it before touching anything in M18–M27.
   caller is not covered by the fact that its unit test passes. Every m19c fix has
   a regression test that turns red when the fix is reverted — verified by
   reverting them.
+- **Balance after m20a — measured, and the movement is the model, not a tune.**
+  12-seed sweep, m20a against HEAD `3e749c7`: `maxbuild` medSurv 180 → 171.6,
+  medMin **12.5 → 8**, medWaves 6 → 4, medLevel 21 → 20, medKills 5975 → 5531;
+  `hybrid` the other way, medSurv 105.68 → **120.4**, medLevel 14 → **16**,
+  medKills 2406 → **3083**. The direction is real; the *mechanism* is not
+  measured, and QA showed the obvious reading is wrong — giving the three capped
+  towers 10-step tracks makes `maxbuild` **worse** (medSurv 113.3, medLevel 15),
+  because `BuilderPolicy` always upgrades the lowest-level structure and a long
+  track makes it round-robin gold instead of finishing anything. So the sweep
+  delta is entangled with a bot heuristic and should not be read as a pure
+  statement about the tower model. No
+  `/data` number was tuned — every value in `towers.json` is either §4's or a
+  no-op migration of V2's (Q73). A1 still passes; the five deferred assertions
+  are listed under "Known issues".
 - **A10's third test now reads 5653 ms, up from 836 ms, and that is not a perf
   regression.** Q66's clipped DoT tick flips seed 4's `maxbuild` run from
   `defeat_warden` to `victory`, so the run is 65% longer. The gate still passes.
@@ -396,6 +427,20 @@ features whose counters read zero with no explanation.
   more; the empty Stash and the Orb buttons explain themselves.
 
 ## Known issues / skipped tests
+- **Five balance assertions are deferred to m20c (skipped at m20a).** A4's T1
+  clause for `arrow_spire`, `tesla_coil`, `venom_spore` and `mortar`, and
+  `light-build`'s `kite`. All five were green at HEAD `3e749c7`, so they are
+  genuine regressions, and §4 offers two levers — track length and the fact that
+  **an upgrade step no longer buys range** (V2 grew it x1.1/tier). QA measured
+  which lever each one hangs on, and it is not the same one:
+  `arrow_spire`/`venom_spore` are pure track length (a V2-equivalent 10-step
+  track clears T1 5/5 and still fails T3, as the gate wants); `kite` and
+  `tesla_coil` are **range** — arrow at 10 steps still leaves `kite` 0/8, and
+  only restoring V2's tier-3 x1.21 range takes it to 8/8; `mortar` is neither,
+  because *no* count satisfies both A4 clauses (count 1–2 clears T1 5/5 but also
+  T3 3/5 where the gate wants 0; every count from 3 up fails T1). m20c authors
+  the real tracks with owner sign-off and re-measures all five — but it needs a
+  **range answer**, not just a track, for two of them.
 - **A3 is green on its material claims, not its strict bound.** Act II survival
   is sharply bimodal: a stationary Warden either drowns in the opening two
   minutes (~115 s) or snowballs XP into a few more (~290 s), so the median sits
@@ -491,6 +536,19 @@ BACKLOG.md rewritten to V3 §13's M17–M27 order, 30 items with concrete accept
 criteria naming the C-gate each satisfies. QUESTIONS.md gains **Q38–Q49**.
 
 ## Session log (newest first)
+- 2026-08-26 — M20 m20a: per-tower upgrade tracks (SPEC-V3 §4). `data/towers.json`
+  reworked to `upgrades {count, stepCost, specials}` + `defense` per tower and
+  `upgradeStepMul`/`milestoneStepsSkipStats`/`sellRefund 0.5` at file level;
+  `src/sim/upgrades.ts` added; `Structure.spent` records and hashes what was
+  actually paid; `damageStructure` reads tower defense through m19a's curve;
+  `tests/m20a-upgrade-tracks.test.ts` (22 tests) walks all ten towers for every
+  §4 claim. Code review found the `deriveSouls` inheritance regression (Q74) and
+  the Tesla chain count still riding the old ladder; QA found three more stale
+  readers, all in the UI (the panel promised "+1 arc per tier", quoted the soul
+  at the tower's level, and under-quoted an affinity tower by its whole bonus),
+  plus the fact that the `kite` and `tesla_coil` deferrals hang on the deleted
+  range growth rather than on track length. All fixed or re-attributed with
+  tests. 603 pass, 24 skipped.
 - 2026-08-25 — M18: Orbs deleted and migrated out of saves, god mode, dev profile,
   range indicators, selection feedback. 428 tests pass. QA failed three of the five
   items on first submission; half its Majors were in my own gate tests.

@@ -7,6 +7,7 @@ import type { EnemyDef } from './content';
 import { GRID_H, GRID_W } from './grid';
 import { clamp, dcos, dist, dist2, dsin, normalize } from './math';
 import { damageTakenMul } from './stats';
+import { structureArmor } from './upgrades';
 import type { DotStack, Enemy, Structure } from './types';
 import { World } from './world';
 
@@ -1051,8 +1052,15 @@ function attackStructure(w: World, e: Enemy, def: EnemyDef, s: Structure, dt: nu
   damageStructure(w, s, dps * dt);
 }
 
+/**
+ * SPEC-V3 §4 gave towers a `defense` stat, and this is the one place structure
+ * HP is spent, so this is where it is read — through m19a's shared armour curve
+ * (`structureArmor`), not a second rule of its own. Every shipped tower has
+ * defense 0 today, so the multiplier is exactly x1 until m20c authors the bands.
+ */
 export function damageStructure(w: World, s: Structure, amount: number): void {
   if (s.dead) return;
+  amount *= damageTakenMul(structureArmor(w, s));
   s.hp -= amount;
   w.emit('structhit', s.tx + 0.5, s.ty + 0.5, amount, s.id);
   if (s.hp <= 0) {

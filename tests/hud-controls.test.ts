@@ -131,7 +131,7 @@ describe('in-run control row', () => {
     expect(panel.textContent).toContain('Piercing Bolt');
   });
 
-  it('describes a built tower, including what the next tier costs', () => {
+  it('describes a built tower, including what the next level costs', () => {
     const w = new World(cfg());
     w.gold = 9999;
     const def = w.content.towerByKey.get('arrow_spire')!;
@@ -142,7 +142,8 @@ describe('in-run control row', () => {
     hud.update(w, { x: tx + 0.5, y: ty + 0.5 });
     const panel = root.querySelector('#sw-towerinfo') as HTMLElement;
     expect(panel.textContent).toContain('Arrow Spire');
-    expect(panel.textContent).toMatch(/Upgrade to T2/);
+    // SPEC-V3 §4: an upgrade walks a per-tower track, so the panel says "Lv".
+    expect(panel.textContent).toMatch(/Upgrade to Lv 2/);
     expect(panel.textContent).toMatch(/Sell/);
   });
 
