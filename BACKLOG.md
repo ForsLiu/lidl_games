@@ -43,18 +43,6 @@ still in test headers.
 
 ### Corrections — shipped code contradicts SPEC-FINAL
 
-- [ ] (x001) [bug] Poison's stack cap is 3, not 50 (SPEC-FINAL §3). `master` is
-      correct at `77250b8`; the contradiction lives on branch `wip/m20d`, and
-      nothing on master reads 50 today — so this item is a **pin**, not a fix:
-      the cap is stated in `/data` and asserted by a test, so the next attempt
-      to raise it argues with §3 instead of with nobody. (The branch is also red
-      on gate A3, but bisection puts that in its *other* half — MIGRATION §8.4.1
-      — so the two facts do not merge.) — acceptance: a test asserts
-      `poison.maxStacks === 3` and that a fourth application inside 3 s
-      refreshes the shortest stack rather than adding a fourth, citing §3 and
-      quoting its wording; the same test covers Toxic's cap of 3 — refs: §3,
-      MIGRATION §8.4.1, Q86, Q87
-
 - [ ] (x002) [bug] Lifesteal has a per-second cap; §2 says it has none.
       `data/warden.json` carries `leechCapPerSecond: 3`, a V1/V2 safety rail
       §2 removes on purpose — and the clause is not marked ⚖. Removing it is a
@@ -406,6 +394,32 @@ logged in MIGRATION.md §8 rather than carried as dead items.
   **G19**. The work is `p10d`.
 
 ## Done
+
+- [x] (x001) [bug] Poison's stack cap is 3, not 50 (SPEC-FINAL §3) — commit
+      `dc1681c` — the **pin** the item asked for, plus the one hole it found.
+      `tests/x001-dot-stack-caps.test.ts` (7 cases) reads both rows out of
+      `/data` before asserting the behaviour: `poison.maxStacks === 3` with
+      `refresh: shortest` and `toxic.maxStacks === 3`, quoting §3's wording; a
+      fourth application inside the window refreshes the *shortest* stack
+      (discriminated from overwrite-longest by ticking one stack to 2 s first);
+      ten applications pay what three do (180 over 3 s; Toxic 270 over 9 s);
+      and the rows' ratio/duration are pinned so a `/data` drift is named. The
+      hole: `applyDot` clamped a caller's `maxStacks` override only to the
+      shared 50-stack perf budget, so a call site could hold 50 Poison stacks
+      while `/data` said 3 — overrides now clamp **one-way to the row cap**
+      (Q90). Proven a no-op on shipped content: every override writer passes
+      exactly 3, no `/data` field feeds the override, and QA measured identical
+      end hashes either side on seed 1 `hybrid` and seed 7 `maxbuild` (which
+      builds two Venom Spores, the one shipped override caller). Mutation
+      check: reverting the clamp turns exactly the override case red; the other
+      six stay green on master alone, confirming the file is a pin of
+      already-correct data. 627 pass / 63 skipped + perf, exit 0.
+      code-reviewer **APPROVE** (1 Minor taken: the `DotOptions` doc still
+      described the old ceiling — the exact re-opening vector; plus the
+      ratio/duration pin). qa-playtester **PASS**, no bugs filed; two
+      pre-existing edges recorded in Q90 (override ≤ 0 / NaN silently drops,
+      unreachable from shipped code and refused by the schema) — refs: §3,
+      MIGRATION §8.4.1, Q86, Q87, Q90
 
 - [x] (m20c) [balance] The other seven towers' tracks, and every tower's defense
       band (SPEC-V3 §4) — commit `a2e0c50` — the migration turned out to be a

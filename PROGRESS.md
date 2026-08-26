@@ -17,9 +17,9 @@ test-retirement ledger. Read §8 before touching anything.
   so no branch could see it (Q81). BACKLOG.md is rewritten into 48 items in P order;
   CLAUDE.md's sources-of-truth list is re-pointed; twelve superseded test groups are
   retired with logged reasons and four existing retirements are restated against the
-  gate that now supersedes them. **`x001` is the next action** (see "Next
-  action" below), then `p1a`: removing the path guarantee so the Core can be
-  sealed (§10, G7).
+  gate that now supersedes them. `x001` is done (`dc1681c`); **`x002` is the
+  next action** (see "Next action" below), then `p1a`: removing the path
+  guarantee so the Core can be sealed (§10, G7).
 - **Where the code actually stands** (audit summary, full table at the top of
   BACKLOG.md): P0 and P4 are done; P1 is done **except sealing**; P5 is done bar two
   pricing items; P2's VS **inheritance formula is not built** — `data/weapons.json`'s
@@ -73,10 +73,12 @@ test-retirement ledger. Read §8 before touching anything.
   rate — so the milestone moves damage into a bucket that is already full and
   measures **−5.4%** (88.6 → 83.8 dps). Both clauses are verbatim and both are
   ⚖. Logged as Q87 for §17's review list rather than resolved by an agent.
-- **Next action:** the two **Corrections** at the top of BACKLOG (`x001` Poison's
-  cap, then `x002` lifesteal's cap), then **P1** `p1a` (removing the path
-  guarantee so the Core can be sealed, §10/G7). P0's remaining clause is carried
-  as `p9a`/`p9f`, not as a separate band.
+- **Next action:** `x002` (lifesteal's per-second cap, the second Correction),
+  then **P1** `p1a` (removing the path guarantee so the Core can be sealed,
+  §10/G7). `x001` landed at `dc1681c` — the §3 stack-cap pin plus a one-way
+  clamp on `applyDot`'s `maxStacks` override (Q90), QA-proven a no-op on
+  shipped content. P0's remaining clause is carried as `p9a`/`p9f`, not as a
+  separate band.
 - **Merge note (2026-08-26).** The §16 reconcile was executed twice in parallel —
   once on `master` and once on `lane/tuner` — and the two are merged here rather
   than one discarded. The lane's audit table, P-order queue and MIGRATION §8
@@ -700,6 +702,23 @@ BACKLOG.md rewritten to V3 §13's M17–M27 order, 30 items with concrete accept
 criteria naming the C-gate each satisfies. QUESTIONS.md gains **Q38–Q49**.
 
 ## Session log (newest first)
+- 2026-08-26 — **x001: the §3 stack-cap pin** (`dc1681c`). Poison and Toxic cap
+  at 3 stacks, refresh shortest — `/data` on master was already correct, so the
+  item is the test that makes the next attempt to raise the cap argue with §3
+  instead of with nobody (Q87's design). Seven cases in
+  `tests/x001-dot-stack-caps.test.ts`, numbers read from `/data` then checked
+  against §3's literal. One real hole found and closed while pinning:
+  `applyDot` clamped a caller's `maxStacks` override only to the shared
+  50-stack perf budget, not the row's own cap, so a call site could hold 50
+  Poison stacks while `/data` said 3 — overrides now clamp one-way to the row
+  cap (Q90). Proven a behavioural no-op three ways: every shipped override
+  writer passes exactly 3, no `/data` field feeds the override, and QA measured
+  identical end hashes either side on seeds that build Venom Spores. Mutation
+  check: reverting the clamp turns exactly the override case red, the other six
+  stay green on master alone. 627 pass / 63 skipped + perf. code-reviewer
+  APPROVE (1 Minor taken — the `DotOptions` doc still described the old
+  ceiling, the exact vector by which the hole would re-open); qa-playtester
+  PASS, no bugs filed.
 - 2026-08-26 — **SPEC-FINAL reconcile (§16).** Audited the codebase against
   SPEC-FINAL, rewrote MIGRATION.md as that audit, rewrote BACKLOG.md into §15's
   P0–P10 order (40 items, each naming the G-gate it satisfies), retired 30 test
