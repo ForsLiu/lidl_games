@@ -44,7 +44,7 @@ coverage gaps session 1's log recorded. All five are inside Scope as written.*
       schema-guarded field a wrong type is rejected, the census of *accepted*
       mutations is a subset of a recorded list so a new hole goes red, and no
       `/data` file is written — refs: architecture rule 4, SPEC-FINAL §12
-- [ ] (q8) [feat] Save round-trip equality property test — the other half of
+- [x] (q8) [feat] Save round-trip equality property test — the other half of
       QUALITY ALPHA's save line, which q3 covers only for *corrupt* saves:
       generate seeded random **valid** `MetaState`s and assert
       `deserialize(serialize(m))` deep-equals `m`, and that a second pass is a
@@ -68,6 +68,61 @@ coverage gaps session 1's log recorded. All five are inside Scope as written.*
       module — refs: engineer's judgment, HANDOFF §7
 
 ## Log
+
+### 2026-08-26 — session 4
+
+**Feedback inbox:** `feedback/` does not exist in this worktree; nothing to
+process, nothing moved.
+
+**q8 done — same pattern as q7 last session.** `tests/q8-save-roundtrip.test.ts`
+was already sitting complete and untracked at session start, with no matching
+Log entry — another earlier session wrote and validated it and stopped before
+writing up or committing. Verified rather than trusted, the same way session 3
+treated q7: ran the file alone (5 passed, ~14s), then the full suite
+(`npx vitest run`, **734 passed / 78 skipped, exit 0**, ~212s, q8's 5 tests
+included against session 3's 729-test baseline), then took it through
+code-reviewer and qa-playtester before committing.
+
+**What it does.** The other half of QUALITY ALPHA's save line — q3 fuzzes
+*corrupt* saves, this fuzzes *valid* ones. Reuses q3's `validMeta` (a
+connected-tree-walk generator from `tools/fuzz-save.ts`) rather than
+duplicating it. Two sweeps: 1500 seeded valid metas asserting
+`deserializeMeta(serializeMeta(m))` deep-equals `m` and that a second pass is a
+fixed point, plus a negative control (drop node 0 from `allocated`) proving the
+check can actually fail; then 500 more metas grown through a real
+`applyRunResult` call fed real `RunReport`/`World` pairs from five actual `Run`
+simulations (practice, short, tier-3-with-relics, a full no-move defeat, a full
+hybrid-tier-2 victory) so the growth half exercises real branch diversity
+(practice-identity, victory/defeat/running, the `highestTier` bump, the
+`fastest_boss_kill` quest metric, relic-stash growth at 0/2/3/9) rather than
+hand-authored stand-ins. 1500 + 500 = 2000, matching the acceptance line
+exactly.
+
+**Review (code-reviewer, APPROVE).** Traced `validMeta`'s connected-walk
+construction, `migrate`'s merge and repair branches, and the practice-run
+identity path in `applyRunResult`; reasoned through spread-order-reversal and
+dropped-field mutations without finding a way the test could pass vacuously.
+Two nits (BACKLOG checkbox not yet flipped at review time; a documented
+`World`-reuse fragility that isn't live today), no Critical/Major/Minor
+findings.
+
+**QA (qa-playtester, PASS) — did the mutation testing for real, not by
+reasoning.** Backed up `src/meta/meta.ts`, applied three independent live
+mutations and confirmed each turned the test red on the very first generated
+meta, then restored the file byte-for-byte (`git diff --exit-code` clean after
+each revert): dropping `ember` from `serializeMeta`'s output, reversing
+`migrate`'s spread order (`{...meta, ...base}`), and deleting
+`unlockedClasses` after the merge. A fourth, deliberately behavior-preserving
+edit (removing a redundant copy-line already covered by an earlier spread)
+correctly stayed green — confirmed by tracing the code, not a test gap. Also
+independently re-ran the five `buildGrowthCases()` scenarios through a
+throwaway probe to confirm the branch-diversity claim, and traced `validMeta`
+against `migrate` to confirm no legitimate-but-unstable input shape exists
+(searched specifically for flakiness, found none). Repo clean at every
+checkpoint.
+
+**Suite state at this commit.** `npx vitest run` — **734 passed / 78 skipped,
+exit 0**, q8 included, ~212s.
 
 ### 2026-08-26 — session 3
 
