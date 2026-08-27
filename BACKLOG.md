@@ -34,7 +34,7 @@ still in test headers.
 | P3 interleave | **done in full (p3a-p3e)** — `p3a` retargets the reused V2 cycle machine to 18 TD + 6 VS, 20s build, 75s VS (G6's pattern half); `p3b` stacks up to `maxStackedWaves` TD waves via the `call` command (G6's stacking half); `p3c` re-points leak coupling's existing ×2-into-next-VS-wave mechanism onto TD→VS vocabulary and the real 6-block shape; `p3d` deletes the V2 Day/Dusk/Night/Dawn machine, Rekindle and the Core-detonation pocket/lane mechanism outright; `p3e` re-baselines `light-build`/G13's solo-viability clause (`a4-single-type`)/the boss gate against the real shape — all three measure red past ~wave 10-14 (a p8a content gap, not a P3 defect) and are logged `.skip` with their numbers rather than forced green (Q109) |
 | P4 core math | **done** — multiplicative stacking, armor cap +99 / floor −100, 6 damage types + 2 statuses (G4, G5 green) |
 | P5 tower roster | **done in full (p5a-p5d, G20 green)** — all 10 towers, upgrade tracks, defense bands; `p5b` gave Ember Brazier/Mortar their own `costMul`; `p5c` authored the four remaining §5.2 milestone specials (Ballista, Fire Brazier, Ice Obelisk, Mortar) and the G20 loader rule; `p5d` fixed the QA-filed `damageDealt` telemetry bug on pierce/lob-kind towers |
-| P6 classes | **framework done (`p6a`), first real kit done (`p6b`)** — §4's Passive + Q + E + tower passive is live; Swordsman is the first §4-shaped kit (G9's first half green); still **1 of 11** new-shape kits, the other 3 legacy classes remain on the V2 shape (`p6c`/`p6d` author the rest) (G8, G9's second half, G10, G11 unmet) |
+| P6 classes | **framework done (`p6a`), two real kits done (`p6b`, `p6c`)** — §4's Passive + Q + E + tower passive is live; Swordsman and Plaguebringer are the first two §4-shaped kits, and **gate G9 is green in full** (both the merge half and the transfer half); still **2 of 11** new-shape kits, the other 3 legacy classes remain on the V2 shape (`p6d` authors the rest) (G8, G10, G11 unmet) |
 | P7 equipment/rewards/VS upgrades | **superseded systems in place** — relic affixes, Ember, 12 boons; §7's 12-item table, §6.3's pool and §8's reward pipeline unbuilt (G12 unmet) |
 | P8 enemies/waves/bosses | **roster and both bosses done** — all 20 §9 enemies by name; waves still on the 10-wave cycle shape (G14 measured on the old shape) |
 | P9 tooling | **dev mode, god mode, UX flows done; Codex read-half in flight on `lane/tuner`; Tuner unbuilt** (G15 unmet, G16/G18 largely green) |
@@ -96,17 +96,16 @@ quest engine doesn't exist yet — are re-filed as `p7h` in P7, below.
 
 ### P6 — classes (G8, G9, G10, G11)
 
-**`p6a` and `p6b` are done** — see the Done section. SPEC-FINAL §4's class
-framework (archetype bands resolved to a numeric basic-attack profile,
+**`p6a`, `p6b` and `p6c` are done** — see the Done section. SPEC-FINAL §4's
+class framework (archetype bands resolved to a numeric basic-attack profile,
 Passive, Active1 (Q), Active2 (E), Tower passive) is live, proven by a
 fixture class; the three existing V2-era classes carry forward as `legacy:
 true` (Q38). `p6b` authored the first real §4 kit, Swordsman, and gate
-**G9**'s first half (the Circle Slash/Dash Slash merge) is green.
+**G9**'s first half (the Circle Slash/Dash Slash merge) is green; `p6c`
+authored the second, Plaguebringer, and **gate G9 is now green in full**
+(the Spreading Plague on-death DoT transfer, proven safe at a 2000-enemy
+chained-death scale).
 
-- [ ] (p6c) [feat] Plaguebringer kit (§4.1 verbatim): Spreading Plague, Poison
-      Barrel, Poison Boost, +10% tower poison damage — acceptance: gate **G9**'s
-      second half — an enemy dying with unfinished DoT deals exactly the unfinished
-      total to the nearest enemy, once — refs: §4.1, G9
 - [ ] (p6d) [feat] The nine §4.2 classes: Archer, Engineer, Pyro, Necromancer,
       Cryomancer, Stormcaller, Bloodlord, Animist, Paladin, each as the §4.2 row
       authors it — acceptance: all 11 classes load and complete a run; gate **G10**
@@ -330,6 +329,93 @@ logged in MIGRATION.md §8 rather than carried as dead items.
   **G19**. The work is `p10d`.
 
 ## Done
+
+- [x] (p6c) [feat] Plaguebringer kit (§4.1 verbatim): Spreading Plague, Poison
+      Barrel, Poison Boost, +10% tower poison damage — this commit. **Gate G9 is
+      now green in full.** `data/classes.json` authors the second real §4-shape
+      class row: `basicAttack` (dps 12, range 6, interval 0.75, aoe 0),
+      `moveSpeedBonus` 0.15, `passive.kind: 'spreading_plague'`, `active1`
+      (`kind: 'ground_poison'`, Poison Barrel: 7s cooldown, radius 3, damage 8,
+      groundDurationSeconds 5), `active2` (`kind: 'poison_boost'`, Poison Boost:
+      14s cooldown, no target/radius), `towerPassive.mods: { towerPoisonDamage:
+      0.10 }`. Spreading Plague — G9's second half, "an enemy dying with
+      unfinished DoT deals exactly the unfinished total to the nearest enemy,
+      once" — is death-triggered rather than hit-triggered, so it dispatches
+      from `killEnemy` (`src/sim/enemies.ts`), not `classes.ts`: a new
+      `pendingPlagueTransfers`/`drainingPlagueTransfers` enqueue-then-drain
+      worklist on `World`, the identical shape `p2f` built for Fire Brazier's
+      VS explosion chain after that mechanism was found recursing straight
+      through the call stack — proven safe here at a 2000-enemy chained-death
+      scale. Poison Barrel reuses the existing `GroundArea('poison')`/`w.areas`
+      mechanism Mortar's burning patch and Venom Spore's VS trail already spawn
+      into, self-centered on the Warden since §4.1 gives it no aim direction.
+      Poison Boost is the framework's first global, targetless Active — it
+      doubles every live enemy's poison DoT `dps` in place (not `remaining`),
+      doubling the outstanding total while leaving timing alone. Miasma needed
+      a new `towerPoisonDamage` stat threaded through `dotPotency`
+      (`src/sim/enemies.ts`), gated both `!w.huntsWarden` (Act-I-only, since
+      §4.1 states no "effective in VS" clause the way Wind Slash did at p6b)
+      and `w.content.towerByKey.has(source)` (excluding Poison Barrel's own
+      zone and Carnivorous Plant's Core poison bullets, neither a tower) —
+      `src/ui/tower-info.ts`'s local `potency` helper mirrors the Act-I-only
+      half only, since every call into that function is already scoped to one
+      built tower's own attack. Plaguebringer unlocks via a new
+      `plaguebringer_veteran` quest (`data/quests.json`, win 3 runs) reusing
+      the existing V2-era quest engine's cumulative `wins` metric already used
+      by `win_a_run` at target 1, rather than inventing telemetry ahead of
+      `p7e`'s real §8.4 quest engine. **Q119 records six genuine SPEC-FINAL
+      prose gaps**: the death-triggered dispatch point and its p2f-precedent
+      recursion guard; Poison Barrel as a `GroundArea` rather than a new
+      mechanism; Poison Boost doubling `dps` in place rather than halving
+      `remaining`; Miasma's dual Act-I-only/tower-sourced-only gate and what it
+      deliberately excludes (including the Poison tower's own VS special, which
+      the plain "all towers" reading doesn't obviously carve out but a bigger
+      change than a ⚖ gap would need to fix); Plaguebringer's unlock condition
+      (§4.1 names none past the three free classes); and the ⚖ band numbers
+      themselves. **code-reviewer APPROVE**, no Critical/Major, one Minor fixed
+      before commit: `firePoisonBoost`'s fx emit copy-pasted Dash Slash's
+      line-endpoint shape (`emit('class_active2', wd.x, wd.y, wd.x, wd.y)`) for
+      what is actually a global, no-target effect — cosmetic only (fx isn't
+      hashed) but a renderer treating the 3rd/4th args as a second point would
+      draw a meaningless zero-length line — fixed to `emit('class_active2',
+      wd.x, wd.y, 0, 0)`, matching `class_active`'s own no-target-pulse
+      convention. Two Minors and two Nits left as pre-existing/low-risk, not
+      fixed: `hashWorld`'s generic `w.areas` loop hashes only
+      `id`/`x`/`y`/`remaining`, not `dps`/`type`/`source` (a pre-existing gap
+      shared by every ground-effect area, not introduced here, logged as a
+      follow-up); Spreading Plague's `nearestEnemy(..., Infinity)` unbounded
+      scan (Q113's precedent) is reachable far more often here than Carnivorous
+      Plant's single Core timer, flagged for a P10 sweep glance rather than
+      fixed now; a per-kill `classByKey.get()` lookup repeats an existing
+      per-tick pattern rather than caching once, immaterial at O(1).
+      **qa-playtester PASS**, no bugs found: real (non-scripted) hostile play
+      across 8 seeds and three bot policies via a custom driver layering
+      opportunistic Active-firing onto `hybrid`/`maxbuild`/`idle` — necessary
+      because **no stock bot policy issues `class_active`/`class_active2`
+      Commands at all**, a pre-existing gap shared with Swordsman since
+      p6a/p6b, flagged as a fresh backlog candidate rather than fixed under
+      this item's scope — found no NaN/Infinity and replay-hash determinism
+      held across independent same-seed runs that actually fire both new
+      Actives and trigger real transfer chains; Spreading Plague structurally
+      cannot double-fire or fire on a zero/negative-outstanding death; Miasma's
+      Act-I-only shutoff was reconfirmed in a real, non-isolated tick loop (a
+      built tower's before/after a forced phase transition, in the same run,
+      after an earlier natural-bot-run comparison gave a misleading ratio
+      confounded by differing tower upgrade levels between independent runs,
+      not a real leak); Poison Barrel recast near the cdr-capped cooldown floor
+      overlapped zones cleanly with no leak; Poison Boost survived a 50×
+      same-tick spam burst against zero/dead/zero-poison enemies with no
+      throw; both Actives freeze cleanly under `w.dying` while Spreading Plague
+      itself (a death consequence, not a Command) correctly keeps firing
+      through the death slow-mo; a hand-corrupted `data/classes.json` (missing
+      `groundDurationSeconds`, tested in a fresh process to bypass the module
+      cache) threw the loader's exact error and was restored byte-identical: a
+      Splitter still spawns children when killed via the transfer; every
+      Plaguebringer-only field stays structurally inert on any other class.
+      `npm test`: 895 passed / 37 skipped (0 failed, up from 870/37 pre-item —
+      25 new cases in `tests/p6c-plaguebringer.test.ts`); perf config 3/3;
+      `npx tsc --noEmit` clean — refs: §4.1, G9, Q119. **Next action: `p6d`**
+      (the nine remaining §4.2 classes).
 
 - [x] (p6b) [feat] Swordsman kit (§4.1 verbatim): Thousand Cuts, Circle Slash,
       Dash Slash, Wind Slash tower passive — this commit. `data/classes.json`

@@ -314,6 +314,25 @@ export function killEnemy(w: World, e: Enemy, source: string): void {
     drainBurningExplosions(w);
   }
 
+  // §4.1 Plaguebringer passive Spreading Plague, G9's second half: "if any
+  // DoT on an enemy is unfinished when it dies, deal the total unfinished
+  // damage to the nearest enemy once." Scoped to the passive's own class
+  // exactly like Thousand Cuts's on-hit Bleeding (`passiveOnHit`,
+  // classes.ts) — TD and VS alike, since nothing in §4.1 restricts it the
+  // way Wind Slash's "effective in VS" clause restricts that one. Enqueued
+  // through the same push-then-drain worklist p2f built for Fire Brazier's
+  // chained deaths rather than called directly: the transferred hit can
+  // itself land a killing blow on an enemy that is *also* carrying
+  // unfinished DoT, and a dense poisoned horde makes that chain long enough
+  // to overflow a recursive call stack the same way Burning's did (Q119).
+  if (e.dots.length > 0) {
+    const cls = w.content.classByKey.get(w.cfg.classKey);
+    if (cls && !cls.legacy && cls.passive.kind === 'spreading_plague') {
+      w.pendingPlagueTransfers.push(e);
+      drainPlagueTransfers(w);
+    }
+  }
+
   onEnemyKilledForDrops(w, e, def);
   void source;
 }
@@ -341,6 +360,37 @@ function drainBurningExplosions(w: World): void {
     // remainder for the next, unrelated Burning kill to replay.
     w.pendingBurningExplosions.length = 0;
     w.drainingBurningExplosions = false;
+  }
+}
+
+/**
+ * §4.1 Plaguebringer, p6c: same enqueue-then-drain shape as
+ * `drainBurningExplosions` above, and for the same reason — the transfer's
+ * own `damageEnemy` call can kill its target, which re-enters `killEnemy`
+ * and, if that enemy is also carrying unfinished DoT, pushes another
+ * transfer onto this same queue rather than recursing into this function.
+ */
+function drainPlagueTransfers(w: World): void {
+  if (w.drainingPlagueTransfers) return;
+  w.drainingPlagueTransfers = true;
+  try {
+    let e: Enemy | undefined;
+    while ((e = w.pendingPlagueTransfers.pop()) !== undefined) {
+      const total = dotOutstanding(e);
+      if (total <= 0) continue;
+      // Unbounded range, the same `Infinity` idiom `cores.ts`'s Carnivorous
+      // Plant volley already uses for its own "unbounded range" clause
+      // (Q113) — §4.1 names no radius for Spreading Plague's transfer.
+      const target = w.nearestEnemy(e.x, e.y, Infinity);
+      if (!target) continue;
+      // `pure`/`dot`: the exact unfinished total, unmitigated by armor or a
+      // trait reduction — the same convention Corpse's execute uses
+      // (`p-core-d`) for "deal exactly this much damage."
+      damageEnemy(w, target, total, 'spreading_plague', { pure: true, dot: true });
+    }
+  } finally {
+    w.pendingPlagueTransfers.length = 0;
+    w.drainingPlagueTransfers = false;
   }
 }
 
@@ -486,11 +536,27 @@ export interface DotOptions {
 }
 
 /**
- * Burning is the one row with its own damage stat. The rest scale on ailment
- * potency alone, exactly as their V2 forms did.
+ * Burning is the one row with its own damage stat. Poison additionally reads
+ * `towerPoisonDamageMul` (§4.1 Plaguebringer tower passive, p6c, Q119), but
+ * only for a tower's own Act I attack — `!w.huntsWarden` plus `source`
+ * resolving to a real tower key (`w.content.towerByKey`), the same "stays
+ * Act I's" default `towerDamageMul`/`towerRangeMul` already carry (Wind
+ * Slash's "effective in VS" is the one stated exception in this file, and
+ * Miasma's row states no such clause). This leaves three things unboosted:
+ * Poison Barrel (`source: 'class_active'`, not a tower at all), Carnivorous
+ * Plant's poison bullets (`source: 'carnivorous_plant'`, a Core attack, not
+ * a tower), and the Poison tower's own VS poison-trail special — which
+ * *is* a tower effect but only ever fires while `huntsWarden` is true, so
+ * the same Act-I-only default reads it out too (Q119 logs this as the one
+ * genuine reach question the spec's plain "all towers +10% poison damage"
+ * leaves open). The rest scale on ailment potency alone, exactly as their
+ * V2 forms did.
  */
-function dotPotency(w: World, type: string): number {
+function dotPotency(w: World, type: string, source: string): number {
   if (type === 'burning') return w.derived.burnDamageMul * w.derived.ailmentMul;
+  if (type === 'poison' && !w.huntsWarden && w.content.towerByKey.has(source)) {
+    return w.derived.towerPoisonDamageMul * w.derived.ailmentMul;
+  }
   return w.derived.ailmentMul;
 }
 
@@ -549,7 +615,7 @@ export function applyDot(
   if (!def || def.effect !== 'dot') return;
   if (immuneToDot(e, type)) return;
   if (duration <= 0) return;
-  const scaled = dps * dotPotency(w, type);
+  const scaled = dps * dotPotency(w, type, source);
   if (scaled <= 0) return;
 
   const cap = w.content.damageTypes.maxStacksPerEnemy;

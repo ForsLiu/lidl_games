@@ -509,9 +509,14 @@ const ClassEffectSchema = z.object({
    * the first two kinds past the framework's `burst_damage`. `radius`/
    * `damage` above double as each kind's full-charge (or flat) value; the
    * `min*` fields below are the zero-charge floor a `charge_nova` scales up
-   * from (Q118).
+   * from (Q118). `ground_poison` (p6c, Poison Barrel) and `poison_boost`
+   * (p6c, Poison Boost) are the third and fourth kinds (Q119): a
+   * self-centered `GroundArea('poison')` that outlives its own cooldown, and
+   * a global instant effect with no target/radius of its own (`damage`/
+   * `radius` are unused placeholders on that row, the same precedent Dash
+   * Slash's own unused `radius: 0` already set — Q118's Nit).
    */
-  kind: z.enum(['burst_damage', 'charge_nova', 'dash_line']),
+  kind: z.enum(['burst_damage', 'charge_nova', 'dash_line', 'ground_poison', 'poison_boost']),
   cooldownSeconds: num,
   radius: num,
   damage: num,
@@ -529,6 +534,8 @@ const ClassEffectSchema = z.object({
   /** `dash_line` only: dash travel distance and the line's perpendicular half-width. */
   dashRange: num.optional(),
   dashWidth: num.optional(),
+  /** `ground_poison` only (p6c, Q119): seconds the ground zone persists after being cast — §4.1's "for 5 s", distinct from `cooldownSeconds` (the Active's own recast timer). */
+  groundDurationSeconds: num.optional(),
 });
 
 /**
@@ -549,12 +556,13 @@ const ClassSlotPassiveSchema = z.object({
   description: str,
   mods: z.record(num).default({}),
   /**
-   * Non-stat-shaped passives (Thousand Cuts' on-hit Bleeding, p6b) get their
-   * own bespoke dispatch tag here, the same `kind`-dispatches-to-engine-code
-   * pattern `active1`/`active2` already use, rather than living in `mods`
-   * where an unrecognized key would silently do nothing (Q118).
+   * Non-stat-shaped passives (Thousand Cuts' on-hit Bleeding, p6b;
+   * Spreading Plague's on-death transfer, p6c) get their own bespoke
+   * dispatch tag here, the same `kind`-dispatches-to-engine-code pattern
+   * `active1`/`active2` already use, rather than living in `mods` where an
+   * unrecognized key would silently do nothing (Q118).
    */
-  kind: z.enum(['thousand_cuts']).optional(),
+  kind: z.enum(['thousand_cuts', 'spreading_plague']).optional(),
 });
 
 /**
@@ -834,6 +842,9 @@ export function validateClassEffect(eff: ClassEffect, where: string): void {
   if (eff.kind === 'dash_line') {
     if (eff.dashRange === undefined) throw new Error(`${where}: dash_line needs dashRange`);
     if (eff.dashWidth === undefined) throw new Error(`${where}: dash_line needs dashWidth`);
+  }
+  if (eff.kind === 'ground_poison') {
+    if (eff.groundDurationSeconds === undefined) throw new Error(`${where}: ground_poison needs groundDurationSeconds`);
   }
 }
 

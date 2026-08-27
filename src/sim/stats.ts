@@ -43,6 +43,7 @@ export const STAT_KEYS = [
   'towerDamage',
   'towerRange',
   'towerAttackSpeed',
+  'towerPoisonDamage',
   'coreHp',
   'buildRange',
   'wallHp',
@@ -89,6 +90,7 @@ export const STAT_KIND: Record<StatKey, StatKind> = {
   towerDamage: 'mul',
   towerRange: 'mul',
   towerAttackSpeed: 'mul',
+  towerPoisonDamage: 'mul',
   wallHp: 'mul',
   sproutGold: 'mul',
   residualPotency: 'mul',
@@ -325,6 +327,18 @@ export interface Derived {
    * (Q118) — the one deliberate exception to that file's own "stays Act I's" rule.
    */
   towerAttackSpeedMul: number;
+  /**
+   * §4.1 Plaguebringer tower passive (p6c, Q119): "all towers +10% poison
+   * damage" — unlike Wind Slash, §4.1 does not say "effective in VS" for
+   * this one, so it stays Act I's, the same default `towerDamageMul`/
+   * `towerRangeMul` already have. Read only for a poison DoT whose `source`
+   * resolves to a real tower key while `!w.huntsWarden` (`dotPotency`,
+   * enemies.ts) — the Poison tower's own Act I attack, not Poison Barrel
+   * (a class Active applying the same damage type from a non-tower source)
+   * and not the Poison tower's own VS poison-trail special (a tower effect,
+   * but one that only ever fires once `huntsWarden` is true).
+   */
+  towerPoisonDamageMul: number;
   buildRange: number;
   wallHpMul: number;
   goldPerKill: number;
@@ -371,6 +385,7 @@ export function derive(content: Content, s: Stats, residualScale = 1): Derived {
     towerDamageMul: s.factor('towerDamage'),
     towerRangeMul: s.factor('towerRange'),
     towerAttackSpeedMul: s.factor('towerAttackSpeed'),
+    towerPoisonDamageMul: s.factor('towerPoisonDamage'),
     buildRange: content.towers.buildRange + s.total('buildRange'),
     wallHpMul: s.factor('wallHp'),
     goldPerKill: s.total('goldPerKill'),

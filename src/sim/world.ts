@@ -558,6 +558,15 @@ export class World {
   pendingBurningExplosions: Enemy[] = [];
   drainingBurningExplosions = false;
 
+  /**
+   * §4.1 Plaguebringer, p6c: same shape, same reason — Spreading Plague's
+   * on-death DoT transfer (`drainPlagueTransfers`, enemies.ts) can itself
+   * kill an enemy carrying its own unfinished DoT, and a dense poisoned
+   * horde can chain that deep enough to overflow a recursive call stack.
+   */
+  pendingPlagueTransfers: Enemy[] = [];
+  drainingPlagueTransfers = false;
+
   /* ------------------------------------------------------- spatial queries */
 
   rebuildBuckets(): void {

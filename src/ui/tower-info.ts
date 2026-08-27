@@ -153,9 +153,17 @@ function attackOutput(w: World, def: TowerDef, tier: number): { impact: number; 
   const prof = attackProfile(def, tier);
   const dmg = shotDamage(w, def, a, tier);
   // Ailment potency is the Warden's, and it scales every dot the same way
-  // `applyDot` does. Burning has a stat of its own on top.
+  // `applyDot` does. Burning has a stat of its own on top; poison additionally
+  // reads `towerPoisonDamageMul` (§4.1 Plaguebringer tower passive, p6c,
+  // Q119) — mirroring `dotPotency`'s own `!w.huntsWarden` gate (enemies.ts)
+  // since Miasma "stays Act I's" the same way `towerDamageMul`/`towerRangeMul`
+  // already do; a built tower's panel must not overstate its VS poison output
+  // once Act II starts. The `towerByKey.has(source)` half of that gate is
+  // dropped here since every call into this function is already about one
+  // specific tower's own attack, never a class Active's poison.
   const potency = (key: string) =>
-    w.derived.ailmentMul * (key === 'burning' ? w.derived.burnDamageMul : 1);
+    w.derived.ailmentMul *
+    (key === 'burning' ? w.derived.burnDamageMul : key === 'poison' && !w.huntsWarden ? w.derived.towerPoisonDamageMul : 1);
   let impact = 0;
   let ailment = 0;
 

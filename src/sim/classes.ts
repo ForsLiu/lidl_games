@@ -14,7 +14,11 @@
  * `TickInput.active1Held` and fired on release — `tickClassCharge`) and
  * `dash_line` (Dash Slash, mouse-aimed) kinds, plus `passive.kind`, the same
  * dispatch idea for a non-stat-shaped passive (Thousand Cuts' on-hit
- * Bleeding).
+ * Bleeding). p6c adds the Plaguebringer's `ground_poison` (Poison Barrel, a
+ * self-centered `GroundArea('poison')`) and `poison_boost` (Poison Boost, a
+ * global no-target effect) Active kinds, plus `spreading_plague` on
+ * `passive.kind` — that one is death-triggered rather than hit-triggered, so
+ * it dispatches from `killEnemy` (enemies.ts), not from here.
  */
 import { applyAoE, applyEffects, lineHit } from './combat';
 import type { ClassEffect, NewClassDef } from './content';
@@ -42,7 +46,7 @@ interface BurstEffect {
   // isn't a discriminated union — one flat object shape covers every kind —
   // so passing `cls.active1`/`cls.active2` through a `'burst_damage'`-only
   // field would need a cast at every call site for no runtime benefit).
-  kind: 'burst_damage' | 'charge_nova' | 'dash_line';
+  kind: 'burst_damage' | 'charge_nova' | 'dash_line' | 'ground_poison' | 'poison_boost';
   cooldownSeconds: number;
   radius: number;
   damage: number;
@@ -214,6 +218,50 @@ function dashWarden(w: World, dx: number, dy: number): void {
   }
 }
 
+/**
+ * §4.1 Poison Barrel (p6c, Q119): "a circle of poison on the ground for 5 s,
+ * applying poison damage every second." Reuses the same `GroundArea('poison')`
+ * mechanism `vsspecials.ts`'s Venom Spore poison trail and `combat.ts`'s
+ * Mortar burning patch already spawn (`w.areas`, ticked by `updateAreas`) —
+ * self-centered on the Warden the same way Circle Slash is, since §4.1 gives
+ * Poison Barrel no aim direction the way Dash Slash's "mouse direction" does.
+ */
+function firePoisonBarrel(w: World, cls: NewClassDef): void {
+  const wd = w.warden;
+  const eff = cls.active1;
+  w.areas.push({
+    id: w.newId(),
+    x: wd.x,
+    y: wd.y,
+    radius: eff.radius,
+    dps: eff.damage * w.derived.powerMul,
+    remaining: eff.groundDurationSeconds ?? 5,
+    type: 'poison',
+    source: 'class_active',
+    acc: 0,
+    dead: false,
+  });
+  w.emit('class_active', wd.x, wd.y, eff.radius, 0);
+}
+
+/**
+ * §4.1 Poison Boost (p6c, Q119): "double the remaining poison damage on all
+ * enemies" — a global, targetless effect, unlike every other Active this
+ * framework has fired so far. Doubling each live poison stack's `dps` in
+ * place (rather than its `remaining` time) doubles the total damage still
+ * owed while leaving its timing alone, which is the plain reading of
+ * "remaining ... damage" as an amount, not a duration.
+ */
+function firePoisonBoost(w: World): void {
+  for (const e of w.enemies) {
+    if (e.dead) continue;
+    for (const d of e.dots) {
+      if (d.type === 'poison') d.dps *= 2;
+    }
+  }
+  w.emit('class_active2', w.warden.x, w.warden.y, 0, 0);
+}
+
 /** Returns whether the Active fired; false on cooldown, wrong phase, or no active defined. */
 export function useClassActive(w: World): boolean {
   const wd = w.warden;
@@ -250,8 +298,19 @@ export function useClassActive(w: World): boolean {
   if (cls.active1.kind === 'charge_nova') return false;
 
   if (wd.active1Cooldown > 0) return false;
-  if (cls.active1.kind !== 'burst_damage') return false;
-  fireEffect(w, wd.x, wd.y, cls.active1, passiveOnHit(cls));
+  switch (cls.active1.kind) {
+    case 'burst_damage':
+      fireEffect(w, wd.x, wd.y, cls.active1, passiveOnHit(cls));
+      break;
+    case 'ground_poison':
+      firePoisonBarrel(w, cls);
+      break;
+    default:
+      // Same bug class as the legacy branch above: an unhandled kind (or one
+      // that fires only from `tickClassCharge`'s hold/release path) must not
+      // silently consume the cooldown.
+      return false;
+  }
   wd.active1Cooldown = cls.active1.cooldownSeconds * (1 - w.derived.cdr);
   return true;
 }
@@ -280,11 +339,15 @@ export function useClassActive2(w: World, aimX?: number, aimY?: number): boolean
     case 'dash_line':
       fireDashSlash(w, cls, aimX, aimY);
       break;
+    case 'poison_boost':
+      firePoisonBoost(w);
+      break;
     default:
-      // No Active2 kind exists yet that isn't one of the two above — guarded
-      // anyway so a future mismatch (e.g. `charge_nova` authored onto
-      // Active2 by mistake) can't silently consume the cooldown for nothing,
-      // the same bug class `useClassActive` above was fixed for (p6b).
+      // No Active2 kind exists yet that isn't one of the three above —
+      // guarded anyway so a future mismatch (e.g. `charge_nova` authored
+      // onto Active2 by mistake) can't silently consume the cooldown for
+      // nothing, the same bug class `useClassActive` above was fixed for
+      // (p6b).
       return false;
   }
   wd.active2Cooldown = cls.active2.cooldownSeconds * (1 - w.derived.cdr);
