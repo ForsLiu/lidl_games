@@ -71,7 +71,22 @@
       "baseHp": 500,
       "unlockedByDefault": false,
       "unlockCondition": "Deal 100,000 lifetime damage",
-      "upgrade": { "count": 3, "stepCost": 100, "desc": "step 1: store ratio 2%; step 2: executions also explode (victim max HP, AoE r2); step 3: auto-fire every 5s spending the store non-lethally" }
+      "effects": {
+        "corpseStoreRatio": 0.01,
+        "corpseExecuteInterval": 1,
+        "corpseExplodeRadius": 2,
+        "vsXpGainPct": 0.1
+      },
+      "upgrade": {
+        "count": 3,
+        "stepCost": 100,
+        "desc": "step 1: store ratio 2%; step 2: executions also explode (victim max HP, AoE r2); step 3: auto-fire every 5s spending the store non-lethally",
+        "steps": [
+          { "storeRatio": 0.02 },
+          { "executeExplode": 1 },
+          { "autoFireInterval": 5 }
+        ]
+      }
     },
     {
       "key": "time",

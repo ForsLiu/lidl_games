@@ -25,6 +25,7 @@ import {
   coreMoveSpeedMul,
   updateCarnivorousPlant,
   updateCoreEffects,
+  updateCorpse,
   upgradeCore,
 } from './cores';
 import { shouldSpawnBoss, spawnFinalBoss, updateDirector } from './act2';
@@ -87,6 +88,7 @@ export class Run {
         updateTowers(w, dt);
         updateCoreEffects(w, dt);
         updateCarnivorousPlant(w, dt);
+        updateCorpse(w, dt);
         updateProjectiles(w, dt);
         updateAreas(w, dt);
         updateAct1Build(w, dt);
@@ -97,6 +99,7 @@ export class Run {
         updateTowers(w, dt);
         updateCoreEffects(w, dt);
         updateCarnivorousPlant(w, dt);
+        updateCorpse(w, dt);
         updateAct1Wave(w, dt);
         updateProjectiles(w, dt);
         updateAreas(w, dt);
@@ -595,6 +598,7 @@ function updateAct2(w: World, input: TickInput, dt: number): void {
   updateVsSpecials(w, dt);
   updateCoreEffects(w, dt);
   updateCarnivorousPlant(w, dt);
+  updateCorpse(w, dt);
   updateEnemies(w, dt);
   updateProjectiles(w, dt);
   updateAreas(w, dt);
@@ -787,6 +791,10 @@ export function hashWorld(w: World): string {
   // state a replay must agree on (it gates every future VS volley's bullet
   // count).
   h.num(w.plantDevourTimer).num(w.plantVolleyTimer).int(w.digestionStacks);
+  // p-core-d: Corpse's store and its two timers gate the same class of
+  // future damage the lines above do — a replay must agree on how much store
+  // is banked and when the next execute/auto-fire check lands.
+  h.num(w.corpseStore).num(w.corpseExecuteTimer).num(w.corpseAutoFireTimer);
   // Not yet read by anything gameplay-facing (no on-attack passive exists),
   // but §4.1's "counts as 1 attack" hook is the kind of state that gates a
   // future system, and this project has been bitten by exactly this gap

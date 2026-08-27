@@ -86,18 +86,12 @@ full; `p5d` closed the last open item, a bug QA filed against `p5b`.
 Placement logged in Q93: after P5 so the §1.1 run shape (P3) and the full
 tower roster precede the Cores' VS halves and interactions; p-core-f's
 quest unlocks ride the §8.4 system and may complete alongside p7e.
-**`p-core-a`, `p-core-b` and `p-core-c` are done** — see the Done section.
-G21's plumbing half and four of its five Cores' gameplay numbers (Stone
+**`p-core-a`, `p-core-b`, `p-core-c` and `p-core-d` are done** — see the Done
+section. G21's plumbing half and all five Cores' base gameplay numbers (Stone
 Heart in full, Vampire Heart in full, Time's steps 1-2, Carnivorous Plant in
-full) are green; Corpse and Time's steps 3-5 are `p-core-d` and `p-core-e`'s
+full, Corpse in full) are green; only Time's steps 3-5 remain, `p-core-e`'s
 job, still open below.
 
-- [ ] (p-core-d) [feat] Corpse: 1% of all map damage stored, 1 s execute of
-      the highest-HP affordable enemy with the execution counting as map
-      damage (1% restores), VS +10% EXP, steps: ratio 2%, execute explosion
-      (victim max HP, AoE r2), 5 s auto-fire spending the store non-lethally —
-      acceptance: G21's Corpse execute-and-restore worked example as a unit
-      test — refs: §5.5, G21
 - [ ] (p-core-e) [feat] Time decay aura, steps 3–5: enemies within r5 lose
       `1 × 1.2^(5 − ring)` HP/s ignoring armor; step 4 starts it at r10; step
       5 raises the multiplier to 1.5 — acceptance: G21's decay ring table
@@ -340,6 +334,78 @@ logged in MIGRATION.md §8 rather than carried as dead items.
   **G19**. The work is `p10d`.
 
 ## Done
+
+- [x] (p-core-d) [feat] Corpse in full — this commit. `data/cores.json`
+      authors the Core's `effects` block (`corpseStoreRatio: 0.01`,
+      `corpseExecuteInterval: 1`, `corpseExplodeRadius: 2`,
+      `vsXpGainPct: 0.1`) and its 3-step upgrade track (step 1: `storeRatio`
+      override to 0.02; step 2: `executeExplode` flip; step 3:
+      `autoFireInterval` 5). A new hook directly inside `damageEnemy`
+      (`src/sim/enemies.ts`) banks `corpseStoreRatio` of *every* point of
+      damage dealt to *any* enemy on the map — not just Corpse's own attacks,
+      unlike every other Core effect in this file — into `w.corpseStore`,
+      gated `!w.huntsWarden` (TD only); this is the one Core effect that
+      cannot be a per-tick poll like `updateCoreEffects`/
+      `updateCarnivorousPlant` since it has to see damage fired by towers,
+      the Warden and DoTs alike. New `updateCorpse` (`src/sim/cores.ts`),
+      wired into every TD tick path in `Run.step` beside the existing
+      `updateCoreEffects`/`updateCarnivorousPlant`: every
+      `corpseExecuteInterval` seconds, the highest-HP enemy the store can
+      afford is instantly executed (`pure: true, dot: true`, armor/trait
+      mitigation bypassed, exactly its current HP), the store debited by that
+      amount — and because the kill flows through the same `damageEnemy`
+      hook, its own ratio flows straight back in, which is what makes the
+      designer's "the execution counts as map damage, so 1% of it flows back
+      into the store" note true for free rather than needing a second bespoke
+      credit path (this item's G21 worked example). Step 2
+      (`corpseExecuteExplode`) makes that same execution also deal the
+      victim's max HP as ordinary armor-mitigated AoE r2 splash
+      (`corpseExplode`, a hand-rolled AoE helper avoiding a `cores.ts` →
+      `combat.ts` → `cores.ts` import cycle, same precedent as
+      `applyCoreHitPoison`). Step 3 (`corpseAutoFireInterval`, 5s) is a
+      second, independent timer that dumps the entire current store onto the
+      single highest-HP live enemy with no affordability check, even
+      non-lethal — and, per Q114, never triggers step 2's explosion, only the
+      1s execute path can (enforced structurally: `corpseExplode` is called
+      only from `updateCorpseExecute`, never from `updateCorpseAutoFire`).
+      VS grants a flat, always-on +10% `xpGain` (→ `derived.xpMul`), added
+      once at `World` construction the same way Vampire Heart's base
+      "+1% VS lifesteal" already is. **Q114 records two genuine SPEC-FINAL
+      prose gaps**: how far "all damage dealt to enemies on the map" reaches
+      (chosen: unconditionally, including the execution's and explosion's own
+      damage, which is what makes the designer note true for free) and
+      whether step 3's "auto-fire" is the same kind of event as the base
+      "execute" for step 2's explosion purposes (chosen: no — two different
+      words for two different mechanisms). `hashWorld` gains `corpseStore`/
+      `corpseExecuteTimer`/`corpseAutoFireTimer`. **code-reviewer APPROVE**,
+      one Minor taken (a test named itself as covering "lifesteal while
+      huntsWarden leech is live" but never actually set that phase — Corpse's
+      execute is TD-only and structurally can't run while `huntsWarden` is
+      true, so the assertion held regardless of the `noLifesteal` flag under
+      test; renamed to describe what it actually proves, no code changed).
+      **qa-playtester PASS**, no bugs found: tie-break determinism on
+      equal-HP candidates (lowest id wins), zero-enemy timer fires no-op
+      cleanly, extreme store values (1e12) stay finite with no NaN/Infinity,
+      exact-affordability boundary excludes a target 1e-9 over budget, the
+      store and both timers freeze bit-for-bit across a TD→VS phase
+      transition with no desync, `upgradeCore`'s generic TD-phase/gold/
+      step-count gating applies to Corpse's three steps exactly as it does
+      the other four Cores, an executed Splitter still spawns its children
+      and still credits gold bounty through the normal `killEnemy` chain, a
+      different Core selected (`stone_heart`) leaves every Corpse-only field
+      at exactly zero across 300 ticks of active combat, real (non-scripted)
+      `hybrid`-policy bot runs across two seeds fire the mechanic under real
+      play with no throw, and replay-hash determinism held across two
+      independent runs that actually trigger executes/explosions/auto-fires,
+      not just an idle default. One false alarm QA logged and did not
+      re-litigate: ticking `updateCorpse` for exactly one `corpseExecuteInterval`
+      (1.0s) fires twice, at t=0 and t≈1.0s, because a fresh timer starts at
+      0 — the same inclusive-boundary idiom every other Core timer in this
+      file already uses, not a Corpse-specific defect. `npm test`: 787 passed
+      / 33 skipped (0 failed, up from 764/33 pre-item — 22 new cases in
+      `tests/p-core-d-corpse.test.ts`); perf config 3/3; `npx tsc --noEmit`
+      clean — refs: §5.5, G21, Q114. **Next action: `p-core-e`** (Time steps
+      3-5).
 
 - [x] (p-core-c) [feat] Carnivorous Plant + Digestion in full — this commit.
       `data/cores.json` authors the Core's `effects` block (`devourRadius: 2`,

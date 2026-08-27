@@ -97,6 +97,10 @@ export class World {
   plantVolleyTimer = 0;
   /** Carnivorous Plant §5.5: "+1 Digestion stack for the run" — never resets across a TD block or a VS wave, only ever increases. */
   digestionStacks = 0;
+  /** Corpse (`p-core-d`, `src/sim/cores.ts`): TD-only damage store, credited by the generic `damageEnemy` hook (enemies.ts) from every source on the map, spent by executions. */
+  corpseStore = 0;
+  corpseExecuteTimer = 0;
+  corpseAutoFireTimer = 0;
 
   tick = 0;
   phase: Phase = 'act1_build';
@@ -339,6 +343,11 @@ export class World {
     const coreDef = content.coreByKey.get(this.coreKey);
     const vsLifesteal = coreDef?.effects?.vsLifestealPct;
     if (vsLifesteal) this.stats.add(`core:${this.coreKey}`, 'leech', vsLifesteal);
+    // §5.5 Corpse: "VS: enemies drop +10% EXP" is the same shape — a base
+    // effect riding the existing generic `xpGain` stat (`addXp`, progression.ts,
+    // already only called from `act2`) rather than a new `CoreState` field.
+    const vsXpGain = coreDef?.effects?.vsXpGainPct;
+    if (vsXpGain) this.stats.add(`core:${this.coreKey}`, 'xpGain', vsXpGain);
     this.derived = derive(content, this.stats, 1 + this.mods.residualMul);
     this.core = computeCoreState(content, this.coreKey, this.coreStep);
 

@@ -1,8 +1,8 @@
 /**
  * SPEC-FINAL §5.5: a Core's real TD/VS numbers (`p-core-b` gave Stone Heart in
- * full, Vampire Heart in full and Time's steps 1-2; `p-core-c` adds
- * Carnivorous Plant in full. Corpse and Time's steps 3-5 are `p-core-d` and
- * `p-core-e`'s job).
+ * full, Vampire Heart in full and Time's steps 1-2; `p-core-c` added
+ * Carnivorous Plant in full; `p-core-d` adds Corpse in full. Time's steps 3-5
+ * are `p-core-e`'s job).
  *
  * `p-core-a` shipped selection/hashing/loader-validation only — no Core wrote
  * to `w.stats`/`w.derived` and nothing read `content.coreByKey`'s `effects`/
@@ -70,6 +70,16 @@ export interface CoreState {
   poisonVolleyCap: number;
   /** Carnivorous Plant VS: each bullet's flat normal-damage component (also the poison DoT's triggering amount). */
   poisonBulletDamage: number;
+  /** Corpse TD: fraction of all map damage stored (0.01 base, 0.02 at step 1). 0 = no Corpse effect. */
+  corpseStoreRatio: number;
+  /** Corpse TD: seconds between execute checks (1, not upgraded). 0 = no Corpse effect. */
+  corpseExecuteInterval: number;
+  /** Corpse step 2: an execution also deals the victim's max HP as AoE splash. */
+  corpseExecuteExplode: boolean;
+  /** Corpse: the execution explosion's AoE radius (2 as authored). Only meaningful once `corpseExecuteExplode` is true. */
+  corpseExplodeRadius: number;
+  /** Corpse step 3: seconds between auto-fires that dump the whole store at the highest-HP enemy regardless of affordability. 0 = not bought. */
+  corpseAutoFireInterval: number;
 }
 
 function emptyCoreState(): CoreState {
@@ -94,6 +104,11 @@ function emptyCoreState(): CoreState {
     poisonStacksPerBullet: 0,
     poisonVolleyCap: 0,
     poisonBulletDamage: 0,
+    corpseStoreRatio: 0,
+    corpseExecuteInterval: 0,
+    corpseExecuteExplode: false,
+    corpseExplodeRadius: 0,
+    corpseAutoFireInterval: 0,
   };
 }
 
@@ -130,6 +145,9 @@ export function computeCoreState(content: Content, coreKey: string, coreStep: nu
   st.poisonStacksPerBullet = eff.poisonStacksPerBullet ?? 0;
   st.poisonVolleyCap = eff.poisonVolleyCap ?? 0;
   st.poisonBulletDamage = eff.poisonBulletDamage ?? 0;
+  st.corpseStoreRatio = eff.corpseStoreRatio ?? 0;
+  st.corpseExecuteInterval = eff.corpseExecuteInterval ?? 0;
+  st.corpseExplodeRadius = eff.corpseExplodeRadius ?? 0;
 
   for (const step of boughtSteps(def, coreStep)) {
     if (step.towerOverhealConverts) st.towerOverhealConverts = true;
@@ -144,6 +162,9 @@ export function computeCoreState(content: Content, coreKey: string, coreStep: nu
     // floor; it exists only so a future re-author of this track can't produce
     // a devour that fires every tick.
     if (step.devourCooldownReduction) st.devourCooldown = Math.max(1, st.devourCooldown - step.devourCooldownReduction);
+    if (step.storeRatio !== undefined) st.corpseStoreRatio = step.storeRatio;
+    if (step.executeExplode) st.corpseExecuteExplode = true;
+    if (step.autoFireInterval !== undefined) st.corpseAutoFireInterval = step.autoFireInterval;
   }
   return st;
 }
@@ -417,4 +438,122 @@ function updatePlantVolley(w: World, dt: number): void {
     damageEnemy(w, e, dmg, 'carnivorous_plant', { type: 'normal', noLifesteal: true });
     if (!e.dead) applyCoreHitPoison(w, e, dmg, 'carnivorous_plant');
   }
+}
+
+/**
+ * §5.5 Corpse. TD only (`w.huntsWarden` gate — VS instead gets the flat
+ * `vsXpGainPct` bonus, added once to the generic `xpGain` stat at construction,
+ * see `World`'s constructor). `w.corpseStore` itself is credited by the generic
+ * `damageEnemy` hook (enemies.ts), from every damage source on the map, not
+ * just this Core's own attacks — the one Core effect that cannot be a per-tick
+ * poll like every other Core function in this file, since it has to see damage
+ * fired by towers, the Warden and DoTs alike.
+ *
+ * Every `corpseExecuteInterval` seconds (1s, not upgraded — no step touches
+ * it), if the store can afford at least one live enemy's current HP, the Core
+ * executes the highest-HP affordable enemy: an instant kill dealt as damage
+ * equal to that enemy's own current HP, armor/trait mitigation bypassed (the
+ * same `pure`/`dot` shape the Plant's non-elite devour already uses), so the
+ * store is spent for exactly what the kill cost and the credited damage is
+ * exactly that — which is also how the designer note ("that damage is also
+ * stored... the execution counts as map damage, so 1% of it flows back into
+ * the store") holds for free, through the same `damageEnemy` hook, rather than
+ * needing a second bespoke credit. Step 2 (`corpseExecuteExplode`) makes that
+ * same kill also deal the victim's max HP as ordinary, armor-mitigated AoE r2
+ * splash to nearby enemies — a bonus on top of the execution, not itself spent
+ * from the store.
+ *
+ * Step 3 (`corpseAutoFireInterval`, 5s) is a second, independent timer: unlike
+ * the 1s check above, it always fires at the highest-HP live enemy regardless
+ * of whether the store can afford it, dealing ordinary (armor-mitigated)
+ * damage equal to the entire current store and spending it to zero even when
+ * that is not lethal. Q114 records the one judgment call this needed: SPEC-
+ * FINAL's prose calls the 1s ability an "execution" and the step-3 ability an
+ * "auto-fire... spending [the store]... as damage," two different words for
+ * two different mechanisms, so a step-3 hit that happens to be lethal does not
+ * also trigger step 2's explosion — only the 1s execute branch can. This is
+ * structural, not a reachability accident: `corpseExplode` (below) is called
+ * only from `updateCorpseExecute`, never from `updateCorpseAutoFire`, so the
+ * invariant holds even though the auto-fire branch is very much reachable in
+ * real play — e.g. a large store executes the priciest *affordable* enemy
+ * first (crediting some store back) and can then legitimately auto-fire-kill
+ * a second, cheaper enemy standing outside the first kill's r2 splash, same
+ * tick, no explosion either time for that second kill.
+ */
+export function updateCorpse(w: World, dt: number): void {
+  if (w.huntsWarden || w.core.corpseExecuteInterval <= 0) return;
+  updateCorpseExecute(w, dt);
+  updateCorpseAutoFire(w, dt);
+}
+
+/** The live enemy with the highest current HP not exceeding `maxAffordable`, ties broken by id for determinism. Undefined if none qualifies. */
+function highestAffordableEnemy(w: World, maxAffordable: number): Enemy | undefined {
+  let best: Enemy | undefined;
+  for (const e of w.enemies) {
+    if (e.dead || e.hp > maxAffordable) continue;
+    if (!best || e.hp > best.hp || (e.hp === best.hp && e.id < best.id)) best = e;
+  }
+  return best;
+}
+
+/** The live enemy with the highest current HP, no affordability filter — step 3's auto-fire target. Undefined if the map is clear. */
+function highestHpEnemy(w: World): Enemy | undefined {
+  let best: Enemy | undefined;
+  for (const e of w.enemies) {
+    if (e.dead) continue;
+    if (!best || e.hp > best.hp || (e.hp === best.hp && e.id < best.id)) best = e;
+  }
+  return best;
+}
+
+/** Flat, armor-mitigated AoE r`radius` splash around `(x, y)` — step 2's execution explosion. Reimplemented by hand rather than importing `combat.ts`'s `applyAoE`, the same real-cycle avoidance `applyCoreHitPoison` already documents (`cores.ts` → `combat.ts` → `cores.ts`, since `combat.ts` already imports `applyTowerLifesteal` from this file). No falloff/primary-target logic — SPEC-FINAL names only a flat radius, no tower-style diminishing-per-target rule. */
+function corpseExplode(w: World, x: number, y: number, radius: number, dmg: number): void {
+  for (const e of w.enemiesInRadius(x, y, radius)) {
+    damageEnemy(w, e, dmg, 'corpse', { type: 'normal', noLifesteal: true });
+  }
+}
+
+function updateCorpseExecute(w: World, dt: number): void {
+  w.corpseExecuteTimer -= dt;
+  if (w.corpseExecuteTimer > 0) return;
+  w.corpseExecuteTimer += w.core.corpseExecuteInterval;
+  if (w.corpseExecuteTimer < 0) w.corpseExecuteTimer = 0;
+
+  const target = highestAffordableEnemy(w, w.corpseStore);
+  if (!target) return;
+  const spend = target.hp;
+  const maxHp = target.maxHp;
+  const tx = target.x;
+  const ty = target.y;
+  // `spend` is credited as the dealt amount assuming the hit lands for exactly
+  // that much; `statusDamageTakenMul` (frozen's +30%) is applied unconditionally
+  // in `damageEnemy` regardless of `pure`/`dot`, so a future frozen-applying
+  // source reaching Act I would over-credit `damageByWeapon`/`damageTotal` and
+  // the store's own restore here without changing the (already-lethal)
+  // outcome. No `/data` row applies `frozen` today, so this is dormant — the
+  // same finding QA logged on Carnivorous Plant's devour at p-core-c, not
+  // fixed since nothing currently reaches it.
+  damageEnemy(w, target, spend, 'corpse', { pure: true, dot: true, type: 'normal', noLifesteal: true });
+  // The kill above already credited `corpseStoreRatio` of `spend` back into
+  // the store via the `damageEnemy` hook (enemies.ts) — subtracting the full
+  // `spend` here, after that credit landed, is what makes the net result
+  // "spent `spend`, then 1% of it flowed back," not "spent `spend` minus 1%."
+  w.corpseStore = Math.max(0, w.corpseStore - spend);
+
+  if (w.core.corpseExecuteExplode) corpseExplode(w, tx, ty, w.core.corpseExplodeRadius, maxHp);
+}
+
+function updateCorpseAutoFire(w: World, dt: number): void {
+  if (w.core.corpseAutoFireInterval <= 0) return;
+  w.corpseAutoFireTimer -= dt;
+  if (w.corpseAutoFireTimer > 0) return;
+  w.corpseAutoFireTimer += w.core.corpseAutoFireInterval;
+  if (w.corpseAutoFireTimer < 0) w.corpseAutoFireTimer = 0;
+
+  if (w.corpseStore <= 0) return;
+  const target = highestHpEnemy(w);
+  if (!target) return;
+  const spend = w.corpseStore;
+  w.corpseStore = 0;
+  damageEnemy(w, target, spend, 'corpse', { type: 'normal', noLifesteal: true });
 }

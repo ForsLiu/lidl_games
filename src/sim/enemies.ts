@@ -237,6 +237,14 @@ export function damageEnemy(
   e.hp -= dmg;
   w.damageByWeapon[source] = (w.damageByWeapon[source] ?? 0) + dmg;
   w.damageTotal += dmg;
+  // §5.5 Corpse: "1% of all damage dealt to enemies on the map is stored"
+  // (TD only) — the one Core effect that has to hook every damage source
+  // rather than fire its own attack, so it lives at this single choke point
+  // instead of a per-tick poll like the other Cores' effects. This also
+  // makes the designer note ("the execution counts as map damage, so 1% of
+  // it flows back into the store") true for free: `updateCorpseExecute`
+  // (cores.ts) spends the store by calling this same function.
+  if (!w.huntsWarden && w.core.corpseStoreRatio > 0) w.corpseStore += dmg * w.core.corpseStoreRatio;
   // Ailment ticks do not spark. `World.emit` holds 512 events for the frame and
   // drops the rest, and a DoT bills every carrier every tick — Burning bills
   // every carrier's neighbours too, so a 350-strong burning horde is thousands
