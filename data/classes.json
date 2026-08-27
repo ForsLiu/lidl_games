@@ -218,13 +218,13 @@
       "active1": {
         "name": "Raise",
         "kind": "raise_skeletons",
-        "cooldownSeconds": 12,
+        "cooldownSeconds": 6,
         "radius": 0,
         "damage": 0,
         "summonCap": 8,
-        "summonDurationSeconds": 15,
-        "summonStatMul": 0.40,
-        "summonRadius": 6
+        "summonDurationSeconds": 24,
+        "summonStatMul": 0.65,
+        "summonRadius": 8
       },
       "active2": {
         "name": "Death Pact",
@@ -269,7 +269,7 @@
       "active2": {
         "name": "Ice Wall",
         "kind": "ice_wall",
-        "cooldownSeconds": 14,
+        "cooldownSeconds": 9,
         "radius": 3,
         "damage": 0,
         "wallSeconds": 5,
@@ -397,20 +397,20 @@
       "basicAttack": { "dps": 16, "range": 2.5, "interval": 0.8, "aoe": 1.5 },
       "passive": {
         "name": "Guardian Stance",
-        "description": "+30 defense after standing still 1 s; blocked damage charges Wrath.",
+        "description": "+50 defense after standing still 0.5 s; blocked damage charges Wrath.",
         "mods": {},
         "kind": "guardian_stance",
-        "stanceArmor": 30,
-        "stanceSeconds": 1,
-        "wrathFraction": 0.60
+        "stanceArmor": 50,
+        "stanceSeconds": 0.5,
+        "wrathFraction": 0.80
       },
       "active1": {
         "name": "Clarion Taunt",
         "kind": "clarion_taunt",
-        "cooldownSeconds": 14,
+        "cooldownSeconds": 8,
         "radius": 6,
         "damage": 0,
-        "tauntDurationSeconds": 4
+        "tauntDurationSeconds": 6
       },
       "active2": {
         "name": "Judgement",
@@ -418,7 +418,7 @@
         "cooldownSeconds": 12,
         "radius": 4,
         "damage": 0,
-        "wrathDamageMul": 1.50
+        "wrathDamageMul": 2.20
       },
       "towerPassive": {
         "name": "Consecrated Stone",

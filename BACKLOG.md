@@ -34,7 +34,7 @@ still in test headers.
 | P3 interleave | **done in full (p3a-p3e)** — `p3a` retargets the reused V2 cycle machine to 18 TD + 6 VS, 20s build, 75s VS (G6's pattern half); `p3b` stacks up to `maxStackedWaves` TD waves via the `call` command (G6's stacking half); `p3c` re-points leak coupling's existing ×2-into-next-VS-wave mechanism onto TD→VS vocabulary and the real 6-block shape; `p3d` deletes the V2 Day/Dusk/Night/Dawn machine, Rekindle and the Core-detonation pocket/lane mechanism outright; `p3e` re-baselines `light-build`/G13's solo-viability clause (`a4-single-type`)/the boss gate against the real shape — all three measure red past ~wave 10-14 (a p8a content gap, not a P3 defect) and are logged `.skip` with their numbers rather than forced green (Q109) |
 | P4 core math | **done** — multiplicative stacking, armor cap +99 / floor −100, 6 damage types + 2 statuses (G4, G5 green) |
 | P5 tower roster | **done in full (p5a-p5d, G20 green)** — all 10 towers, upgrade tracks, defense bands; `p5b` gave Ember Brazier/Mortar their own `costMul`; `p5c` authored the four remaining §5.2 milestone specials (Ballista, Fire Brazier, Ice Obelisk, Mortar) and the G20 loader rule; `p5d` fixed the QA-filed `damageDealt` telemetry bug on pierce/lob-kind towers |
-| P6 classes | **framework done (`p6a`), eleven of eleven real kits done (`p6b`, `p6c`, `p6d`)** — §4's Passive + Q + E + tower passive is live for all 11 classes; **gate G9 is green in full**, and `p6d` measured **G10 and G11 green** (Archer's dps-optimal charge peaks at t=5.0 inside [2,6], full charge one-shots the toughest non-elite; Stormcaller's max chain multiplier is 3.5832 ≤ 3.6); `p6e` (G8's win-rate/damage-diversity measurement) and `p6f` (V2 framework residue retirement) remain |
+| P6 classes | **framework done (`p6a`), eleven of eleven real kits done (`p6b`, `p6c`, `p6d`)** — §4's Passive + Q + E + tower passive is live for all 11 classes; **gate G9 is green in full**, and `p6d` measured **G10 and G11 green** (Archer's dps-optimal charge peaks at t=5.0 inside [2,6], full charge one-shots the toughest non-elite; Stormcaller's max chain multiplier is 3.5832 ≤ 3.6); `p6e` measured **G8 honestly red** (win rate green for 1/11 classes, diversity 2/11 not ≥8/11), both clauses `.skip`-ed per-class with measured numbers, re-enable point `p8a`; `p6f` (V2 framework residue retirement) remains |
 | P7 equipment/rewards/VS upgrades | **superseded systems in place** — relic affixes, Ember, 12 boons; §7's 12-item table, §6.3's pool and §8's reward pipeline unbuilt (G12 unmet) |
 | P8 enemies/waves/bosses | **roster and both bosses done** — all 20 §9 enemies by name; waves still on the 10-wave cycle shape (G14 measured on the old shape) |
 | P9 tooling | **dev mode, god mode, UX flows done; Codex read-half in flight on `lane/tuner`; Tuner unbuilt** (G15 unmet, G16/G18 largely green) |
@@ -193,7 +193,7 @@ quest engine doesn't exist yet — are re-filed as `p7h` in P7, below.
 
 ### P6 — classes (G8, G9, G10, G11)
 
-**`p6a`, `p6b`, `p6c` and `p6d` are done** — see the Done section. SPEC-FINAL
+**`p6a`, `p6b`, `p6c`, `p6d` and `p6e` are done** — see the Done section. SPEC-FINAL
 §4's class framework (archetype bands resolved to a numeric basic-attack
 profile, Passive, Active1 (Q), Active2 (E), Tower passive) is live, proven by
 a fixture class; the three existing V2-era classes carry forward as `legacy:
@@ -205,12 +205,17 @@ Plague on-death DoT transfer, proven safe at a 2000-enemy chained-death
 scale); `p6d` authored the remaining nine §4.2 kits (Archer, Engineer, Pyro,
 Necromancer, Cryomancer, Stormcaller, Bloodlord, Animist, Paladin), bringing
 the roster to **11 of 11 §4-shaped classes**, and **gates G10 and G11 are now
-green** (measured, not assumed — see Q120).
+green** (measured, not assumed — see Q120). `p6e` measured gate **G8** live
+over the 12-seed set (Q121): the win-rate clause is green for one class
+(Cryomancer, 6/12 after an Ice Wall cooldown tune) and `.skip`-ed with
+per-class measured numbers for the other ten, all converging on the same
+wave-11-to-17 `defeat_core`/`defeat_warden` wall G23 already pinned to the
+`p8a` wave-content gap; the diversity clause measures 2/11 distinct honestly
+(every class's own-kit damage share sits under any materiality bar that isn't
+tautological) and is `.skip`-ed on the same `p8a` precedent, with a pinning
+test holding the red count at 2 so it can't silently drift. **G8 is not
+green — both clauses re-enable at `p8a`.**
 
-- [ ] (p6e) [balance] Gate **G8**: every class clears T1 at a 35–70% win rate under a
-      scripted kit bot, and the top damage source differs across at least 8 of the 11
-      — acceptance: G8 measured as a live test over the seed set, with the per-class
-      rates and top sources printed on failure — refs: §4, G8
 - [ ] (p6f) [polish] Retire the three V2 classes' framework residue: `affinity.json`,
       class `mods`, the single `active`/`passive`/`manualAttack` shape, and the
       Engineer/Pyromancer/Frost Warden rows insofar as §4 does not re-author them
