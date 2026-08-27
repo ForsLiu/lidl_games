@@ -502,7 +502,7 @@ coverage gaps session 1's log recorded. All five are inside Scope as written.*
       future dedupe fix is visible as a test change rather than silent —
       refs: q32, qa-playtester's q32 verification pass (session 30 log),
       src/sim/run.ts:164-169, src/sim/progression.ts:270
-- [ ] (q37) [bug][feat] qa-playtester's q33 verification pass (session 31)
+- [x] (q37) [bug][feat] qa-playtester's q33 verification pass (session 31)
       found the same uncaught-crash mechanism q33 pinned for the four lane
       CLIs also hits three tools q33 never covers — `tools/sim.ts`,
       `tools/sweep.ts` and `tools/handoff-metrics.ts`, all three commands
@@ -689,6 +689,74 @@ resolve if it wants the CLI entry points too. All five are inside Scope as
 written; none needs a `package.json` edit.*
 
 ## Log
+
+### 2026-08-27 — session 35
+
+**Feedback inbox:** no `feedback/` directory exists in this worktree (checked
+with `ls feedback/`). Nothing to process, nothing moved. `git status` at
+session start was clean.
+
+**Three actionable items were in queue** (q37, q38, q39 — at the generation
+rule's floor of 3, so the generation rule did not run). Took q37, the top
+item: pin the q33 uncaught-crash gap (a `/data` JSON *syntax* error crashes
+`main()`-level try/catch cannot intercept, because `src/sim/content.ts`
+loads `/data/*.json` via a static ES import transformed before any of a
+CLI's own code runs) for the three CLIs q33 never covered —
+`tools/sim.ts`, `tools/sweep.ts`, `tools/handoff-metrics.ts`, all three
+CLAUDE.md's own documented headline entry points.
+
+**q37 done.** New file `tests/q37-cli-json-syntax-error-siblings.test.ts`,
+modeled directly on `tests/q33-cli-json-syntax-error.test.ts`'s scratch-copy
+idiom: `breakTowersJsonSyntax` writes `'{ not valid json'` to a scratch
+copy's `data/towers.json`, then each of the three tools is run with its
+CLAUDE.md-documented example args (`sim.ts --seed 1 --policy hybrid`,
+`sweep.ts --seeds 1`, `handoff-metrics.ts` with no args — it takes none and
+calls `loadContent()` at module top level, before its own `main()` even
+starts) and asserted to crash identically to q33's other three: exit
+non-zero, empty stdout, stderr matching `Transform failed with N error` plus
+a raw stack frame, `towers.json` named, no clean `toolname:`-prefixed
+message. Ran all three live before writing assertions, per this lane's own
+convention.
+
+**Review (code-reviewer, APPROVE, 0 Critical/Major, 1 cosmetic Minor).**
+Confirmed the syntax-error helper is genuine (not a schema violation),
+confirmed each tool's CLI args against its real `parseArgs`/`parse`
+function, confirmed the scratch-copy/cleanup logic is structurally
+identical to q33's and leaves no leaked temp dirs, confirmed the assertions
+pin real (not vacuous) behaviour by running the file, confirmed Scope
+compliance (`tests/**` only). The one Minor — a Node `DEP0190` deprecation
+warning from `execFileSync`'s `shell: true` — is inherited verbatim from
+q33, not new risk.
+
+**QA (qa-playtester, PASS).** Independently reproduced the crash by hand
+for all three tools in a separate manual scratch copy (confirming along the
+way that the scratch dir's placement inside `bench/.tmp` — nested in the
+repo tree, so Node's module resolution walks up to the root `node_modules`
+— is load-bearing: a copy under `/tmp` fails differently, with `Cannot find
+module 'zod'`). Ran a positive control (valid `towers.json` restored) to
+rule out a vacuous pass: `sim.ts` exits 0 and prints a full JSON report
+line, proving `execFileSync`'s catch branch and the `stdout === ''`
+assertion are genuine crash signals, not artifacts of the tools being
+normally silent. Confirmed no leftover scratch dirs from this session's
+runs (one stale `q33` scratch dir was found but its timestamp/PID predate
+this session — not a q37 regression). Full suite: 935 passed / 2 failed,
+both the already-documented `tests/q15-command-domain-fuzz.test.ts`
+worker-timeout flake cluster — isolate-rerun 25/25 green, confirmed
+non-reproducible per this lane's established flake bar rather than filed as
+new. One non-blocking observation: unlike q33's sibling test, this file has
+no `--json`-flag variant; `sim.ts`/`handoff-metrics.ts` have no such flag,
+and `sweep.ts`'s `--json` path is untested here (almost certainly crashes
+identically, since the crash precedes `argv` inspection, but unverified) —
+QA judged this doesn't fail q37's literal acceptance text and did not file
+it as a bug.
+
+**Suite state.** `npx vitest run tests/q37-cli-json-syntax-error-siblings
+.test.ts` — 3/3 green. `npx tsc --noEmit -p .` clean. `git status
+--porcelain` before commit: `BACKLOG-QUALITY.md`,
+`tests/q37-cli-json-syntax-error-siblings.test.ts` — Scope-compliant.
+
+**Two actionable items remain** (q38, q39), one below the generation rule's
+floor of 3 — the next session runs the generation rule before executing.
 
 ### 2026-08-27 — session 34
 
