@@ -187,7 +187,7 @@ coverage gaps session 1's log recorded. All five are inside Scope as written.*
       test's own comment rather than silently sidestepped — refs: QUALITY.md
       ALPHA determinism line, tests/a11-determinism.test.ts, q15's filed
       `equip` bug
-- [ ] (q23) [bug][feat] `tools/soak.ts`'s `soakOne` has two unguarded
+- [x] (q23) [bug][feat] `tools/soak.ts`'s `soakOne` has two unguarded
       boundary inputs recorded but not filed at session 8 (BACKLOG-QUALITY.md
       session 8 log): `maxTicks <= 0` or a `scanEvery` of `0` (since `tick % 0`
       is `NaN` and the periodic-scan check never fires) reports a "clean"
@@ -336,6 +336,115 @@ resolve if it wants the CLI entry points too. All five are inside Scope as
 written; none needs a `package.json` edit.*
 
 ## Log
+
+### 2026-08-27 — session 20
+
+**Feedback inbox:** no `feedback/` directory exists in this worktree (checked
+with Glob for `feedback/**`). Nothing to process, nothing moved.
+
+**Found session 19's q23 work already sitting in the worktree, uncommitted,
+at session start** — the same shape sessions 14/16/18 each hit before: the
+prior session implemented, tested, ran review/QA, wrote its own Log entry
+documenting all of it, and stopped before the actual `git commit`. Verified
+rather than trusted, per this file's own standing lesson.
+
+Independently re-checked before committing: `git diff --stat` confined to
+exactly the three files the session-19 entry names (`BACKLOG-QUALITY.md`,
+`tests/q12-soak.test.ts`, `tools/soak.ts` — in Scope, no `/src` or `/data`
+touched); read the `tools/soak.ts` diff directly and confirmed both new
+guards throw before `cfg`/`run`/`w` are constructed and that `makePolicy`
+moved inside the existing `try` as described; ran
+`npx vitest run tests/q12-soak.test.ts` standalone (10/10 green, matching the
+session-19 note's count) and `npx tsc --noEmit -p .` (clean). No discrepancy
+found between the log's description and the actual diff, so nothing to fix
+before committing — this session's contribution is verification plus the
+commit itself.
+
+**q23 committed as-is.** No further items taken this session; four actionable
+items remain (q24–q27, all unchecked and unblocked), so the generation rule
+does not need to run next session either.
+
+### 2026-08-27 — session 19
+
+**Feedback inbox:** `feedback/` does not exist in this worktree (checked with
+Glob). Nothing to process, nothing moved.
+
+**Five actionable items were in queue** (q23–q27, all unchecked and
+unblocked), so the generation rule did not run. Took q23, the top item.
+
+**q23 done.** `tools/soak.ts` (+guards, `makePolicy` moved inside `try`) and
+`tests/q12-soak.test.ts` (+3 tests, 10 total).
+
+**What it does.** `soakOne` had two unguarded boundary inputs recorded but
+not filed at session 8: `maxTicks <= 0` (or `NaN`) made the `while` loop's
+`w.tick < maxTicks` condition false on the very first check, so the run
+played zero ticks and still fell through to a report that read as "clean" —
+indistinguishable from a genuinely clean run. `scanEvery` of `0` made
+`tick % scanEvery` evaluate to `NaN` (`NaN === 0` is always false), so the
+periodic invariant scan silently never fired for the whole run, breaking
+`soakOne`'s own doc-comment promise to scan every `scanEvery` ticks — while
+still reporting clean. Separately, `makePolicy` was called before `soakOne`'s
+own `try` block, so an unregistered policy name threw straight out as an
+uncaught exception instead of surfacing through `SoakResult.threw` the way
+every other in-run failure does.
+
+Fixed by adding two guards at the very top of `soakOne` — before `cfg`,
+`run`, or `w` are constructed — that throw a plain usage `Error` for
+`!Number.isFinite(maxTicks) || maxTicks <= 0` and the equivalent for
+`scanEvery`, and by moving `const policy = makePolicy(policyName);` inside
+the existing `try` block (after `w`/`problems` are already declared, so the
+`catch` block's `w.tick` reference stays safe regardless of whether the throw
+comes from `makePolicy` or from inside the loop). Neither guard was reachable
+through the shipped CLI (`intArg` only validates `--seeds`; `maxTicks`/
+`scanEvery` aren't CLI flags) or `tests/q12-soak.test.ts`'s pre-existing
+calls, matching q23's own reachability note.
+
+Added a `describe('q23 — boundary-input guards', ...)` block to
+`tests/q12-soak.test.ts` with 3 tests: `maxTicks` of `0`/`-10`/`NaN` all throw
+matching `/maxTicks/`; `scanEvery` of `0`/`-1` both throw matching
+`/scanEvery/`; and an unregistered policy name returns a normal `SoakResult`
+with `threw: true`, a `problems` message containing `unknown policy`, and
+`endHash: ''`, asserted via `expect(() => { r = soakOne(...) }).not.toThrow()`
+so a regression back to the old uncaught-exception behavior fails this test
+directly rather than only failing some other, unrelated caller.
+
+**Review (code-reviewer, APPROVE, no findings).** Independently traced the
+guard placement (fires before any work is done), confirmed `Number.isFinite`
+correctly rejects `NaN`/`±Infinity` in addition to `<= 0`, confirmed `w`/
+`problems` are declared before the `try` that now contains `makePolicy` so
+the `catch` block's `w.tick` reference is safe, confirmed the 3 new tests
+assert the real guard-message text and the real `unknown policy` substring
+from `src/bots/policy.ts` rather than loose assertions a hollowed-out fix
+could still pass, re-confirmed via grep that no other file calls `soakOne`/
+`soak`, and confirmed Scope (`git diff --stat` restricted to the two expected
+files) and no architecture-rule concerns.
+
+**QA (qa-playtester, PASS).** Independently reproduced both pre-fix bugs by
+`git stash`-ing the uncommitted diff, running a throwaway probe script,
+then restoring: confirmed `maxTicks=0/-5/NaN` pre-fix gave
+`ticks=0, threw=false, problems=[]` (the fake-clean result) and `scanEvery=
+0/-1` pre-fix ran a full 1000-tick loop with `problems=[]` (never scanned);
+confirmed the unregistered-policy case threw straight out of `soakOne`
+pre-fix. Post-fix, re-confirmed all three now behave as specified, plus
+`maxTicks=Infinity/-Infinity` and an empty-string policy name, none of which
+are named in the acceptance line but all guard correctly anyway. Checked two
+adversarial extras explicitly out of the item's stated scope (non-integer
+`maxTicks=1.5`, non-integer `scanEvery=0.5`) and confirmed neither reproduces
+either failure mode, so neither was filed. Confirmed the worktree was left
+exactly as found after the stash round-trip (no probe files left behind,
+`git status --porcelain` shows only the two intended files) and confirmed
+Scope via `git diff --stat`.
+
+**Suite state.** `npx vitest run tests/q12-soak.test.ts` — 10/10 green,
+standalone, run twice (once before dispatching review/QA, once again
+immediately before this commit). `npx tsc --noEmit -p .` clean. Full
+`npx vitest run` kicked off in the background before this commit for a
+final sanity pass; not blocking this write-up since both the touched file's
+standalone run and independent QA/review verification already confirm the
+change.
+
+**Four actionable items remain** (q24–q27, all unchecked and unblocked), so
+the generation rule does not need to run next session either.
 
 ### 2026-08-27 — session 18
 

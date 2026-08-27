@@ -61,6 +61,46 @@ describe('q12 — soak suite', () => {
     expect(() => soak(5, [])).toThrow(/non-empty/);
   });
 
+  describe('q23 — boundary-input guards', () => {
+    // Before the fix, `maxTicks <= 0` made the loop condition `w.tick <
+    // maxTicks` false on the very first check, so the run never played a
+    // single tick and fell straight through to a "clean" report — a
+    // truncated-to-nothing run reporting the same shape as a genuinely clean
+    // one. Guarding it as a thrown usage error means a caller can't mistake
+    // "never ran" for "ran and passed".
+    it('rejects maxTicks <= 0 as a usage error rather than a fake-clean run', () => {
+      expect(() => soakOne(1, 'hybrid', 0)).toThrow(/maxTicks/);
+      expect(() => soakOne(1, 'hybrid', -10)).toThrow(/maxTicks/);
+      expect(() => soakOne(1, 'hybrid', NaN)).toThrow(/maxTicks/);
+    });
+
+    // Before the fix, `scanEvery <= 0` (in particular 0) made `tick %
+    // scanEvery` evaluate to `NaN`, and `NaN === 0` is always false — so the
+    // periodic invariant scan never fired for the whole run, silently
+    // breaking `soakOne`'s own doc-comment promise of "scanning the world
+    // every `scanEvery` ticks" while still reporting clean.
+    it('rejects scanEvery <= 0 as a usage error rather than a never-scanned run', () => {
+      // maxTicks here is just a legal placeholder — the scanEvery guard
+      // throws before a single tick is played, so its value doesn't matter.
+      expect(() => soakOne(1, 'hybrid', 1000, 0)).toThrow(/scanEvery/);
+      expect(() => soakOne(1, 'hybrid', 1000, -1)).toThrow(/scanEvery/);
+    });
+
+    // Before the fix, `makePolicy` was called before `soakOne`'s own `try`
+    // block, so an unregistered policy name threw straight out of `soakOne`
+    // — the one caller-reachable input that behaved differently from every
+    // other in-run exception, which `SoakResult.threw` exists to capture.
+    it('reports an unregistered policy name as SoakResult.threw, not an uncaught exception', () => {
+      let r: SoakResult | undefined;
+      expect(() => {
+        r = soakOne(1, '__q23_never_registered__');
+      }).not.toThrow();
+      expect(r?.threw).toBe(true);
+      expect(r?.problems.join(' | ')).toContain('unknown policy');
+      expect(r?.endHash).toBe('');
+    });
+  });
+
   describe('anti-vacuity: the harness can actually fail', () => {
     // A soak whose exception path never fires on a run that genuinely throws
     // would report "0 failures" whether or not anything is broken. Prove it

@@ -44,6 +44,15 @@ export interface SoakResult {
  * `maxTicks`), scanning the world every `scanEvery` ticks and the final
  * report once. No Command is ever injected beyond what the policy itself
  * produces — that is the whole point of this half of the soak.
+ *
+ * `maxTicks <= 0` and `scanEvery <= 0` are usage errors and throw directly
+ * (q23): both would otherwise report a fake-clean `SoakResult` for a run
+ * that was truncated to nothing (`maxTicks`) or never actually scanned
+ * (`scanEvery`, since `tick % 0` is `NaN` and the periodic check never
+ * fires). An unregistered `policyName` is not a usage error in the same way
+ * — `makePolicy` is called inside this function's own `try`, so it comes
+ * back as a normal `SoakResult.threw`, the same as any other in-run
+ * exception, instead of throwing out past the caller.
  */
 export function soakOne(
   seed: number,
@@ -51,6 +60,13 @@ export function soakOne(
   maxTicks = DEFAULT_MAX_TICKS,
   scanEvery = 60,
 ): SoakResult {
+  if (!Number.isFinite(maxTicks) || maxTicks <= 0) {
+    throw new Error(`soakOne: maxTicks must be > 0, got ${maxTicks}`);
+  }
+  if (!Number.isFinite(scanEvery) || scanEvery <= 0) {
+    throw new Error(`soakOne: scanEvery must be > 0, got ${scanEvery}`);
+  }
+
   const started = performance.now();
   const cfg: RunConfig = {
     seed,
@@ -63,12 +79,12 @@ export function soakOne(
     cycles: 3,
   };
   const run = new Run(cfg);
-  const policy = makePolicy(policyName);
   const w = run.world;
   const problems: string[] = [];
   let threw = false;
 
   try {
+    const policy = makePolicy(policyName);
     while (!run.done && w.tick < maxTicks) {
       run.step(policy.act(w));
       if (w.tick % scanEvery === 0) problems.push(...scanWorld(w));
