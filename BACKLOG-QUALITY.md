@@ -342,7 +342,7 @@ coverage gaps session 1's log recorded. All five are inside Scope as written.*
       `h.int()` actually does with the poisoned value, exercised by
       `tests/q21-weapon-boundary-fuzz.test.ts` — refs: q27, q29,
       src/sim/progression.ts:187-196, src/sim/run.ts:658
-- [ ] (q31) [feat] Mutation-probe coverage gap: `tools/mutation-probe.ts`'s
+- [x] (q31) [feat] Mutation-probe coverage gap: `tools/mutation-probe.ts`'s
       `MUTATIONS` list (10 entries as of q20) has zero entries for the two
       most recent guard-shaped fixes this lane has landed —
       `tools/soak.ts`'s q23 `maxTicks`/`scanEvery` boundary guards and
@@ -559,6 +559,69 @@ resolve if it wants the CLI entry points too. All five are inside Scope as
 written; none needs a `package.json` edit.*
 
 ## Log
+
+### 2026-08-27 — session 29
+
+**Feedback inbox:** `feedback/` exists in this worktree but is empty. Nothing
+to process, nothing moved.
+
+**Found session start with `tools/mutation-probe.ts` already modified,
+uncommitted, in the worktree** — the same leftover-work shape sessions
+19/20/22/23/24/26/27 each hit before, but this time with no matching Log
+entry describing it (no "session 29" entry existed yet). Read the diff
+directly rather than assuming: it is q31's full acceptance criteria already
+implemented — two new `Mutation` entries, `soak-remove-boundary-guards`
+(reverts q23's `soakOne` `maxTicks`/`scanEvery` guards, targets
+`tests/q12-soak.test.ts`) and `content-census-remove-trycatch` (reverts q25's
+`content-census.ts` try/catch, targets `tests/q25-content-census-cli.test.ts`),
+plus doc-comment counts updated to 7 controls / 12 mutations / 19 nested
+`vitest run` invocations.
+
+**Verified rather than trusted, per this file's own standing lesson.**
+`npx tsc --noEmit -p .` clean. `npx vitest run tests/q12-soak.test.ts
+tests/q25-content-census-cli.test.ts` — 13/13 green standalone. Ran
+`npx vitest run tests/q14-mutation-smoke.test.ts` in full: 13 of 24 red. Traced
+the failures to `probeOne`'s `realFileUntouched = gitDiffClean() && ...`
+(`tools/mutation-probe.ts:544`) calling `gitDiffClean()` with **no pathspec** —
+a whole-repo check — against a tree whose only dirt was this very diff, the
+identical `gitDiffClean()`-sees-the-uncommitted-lane-diff artifact sessions
+26/27/28 already documented, not a new regression: it fails all 12 mutations'
+"leaves the real file untouched" assertion plus the suite's own
+`gitDiffClean()`-in-whole-repo-mode fixture-must-start-clean test, 13 exactly.
+
+**Review (code-reviewer, APPROVE, 0 Critical/Major).** Independently loaded
+the real `MUTATIONS` array and confirmed both new `find` strings match their
+target files exactly once, byte-for-byte (CRLF-normalized), rather than
+eyeballing the escaped template literals. Confirmed `testFile` targeting,
+recounted the doc-comment totals (12 mutations, 7 distinct `testFile`s, 19
+invocations) independently rather than trusting the comment, and confirmed
+Scope compliance (only `tools/mutation-probe.ts` touched). Two non-blocking
+Nits (a doc-block cross-reference, restating the dirty-tree artifact isn't
+this diff's fault) — not fixed, correctly judged not to need it.
+
+**QA (qa-playtester, PASS).** Independently ran `probeControl`/`probeOne`
+against the real exported `MUTATIONS` array (not a hand-copy — caught and
+self-corrected a transcription bug from an earlier hand-retyped attempt) for
+both new entries: both target-test controls pass clean, both mutations flip
+their named test file red, and `git diff --exit-code -- tools/soak.ts
+tools/content-census.ts` is clean after each probe restores the real file.
+Adversarially checked the "exactly one occurrence" guard fires correctly on
+contrived 0-/multi-occurrence inputs (dormant here since both `find`s are
+unique today, but a real safety net, not decorative), and cross-checked the
+13-of-24 dirty-tree math (12 mutations + 1 fixture-must-start-clean test)
+against the suite's own `describe.each` structure, confirming it's fully
+explained by working-tree state rather than a defect in the new entries. No
+bugs filed.
+
+**Committed** (`9a7c2af` — see `git log`), then reran
+`npx vitest run tests/q14-mutation-smoke.test.ts` standalone on the
+now-clean tree to close the loop this session's own finding opened:
+**24/24 green**, confirming the dirty-tree diagnosis rather than leaving it
+as an inference.
+
+**Four actionable items remain** (q32, q33, q34, q35, all unchecked and
+unblocked), still at the generation rule's floor of 3, so the generation
+rule does not need to run next session either.
 
 ### 2026-08-27 — session 28
 

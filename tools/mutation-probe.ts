@@ -53,13 +53,14 @@
  * same false-positive shape PROGRESS.md's M18 section warns about ("a
  * positive control rewritten into comparing 0 to 0").
  *
- * Cost, recorded rather than hidden: this now runs 16 nested `npx vitest run`
- * invocations (6 controls, one per distinct `testFile`, + 10 mutations),
- * up from the original 8 (BACKLOG-QUALITY q20 roughly doubled the nested-run
- * count without adding a `package.json` alias to parallelize them) — measure
- * the real number on this host with `npx vitest run tests/q14-mutation-smoke.test.ts`
- * rather than trusting this comment to stay current. That is the price of
- * testing the tests rather than just the code.
+ * Cost, recorded rather than hidden: this now runs 19 nested `npx vitest run`
+ * invocations (7 controls, one per distinct `testFile`, + 12 mutations),
+ * up from 16 (BACKLOG-QUALITY q31 added a 7th distinct `testFile`,
+ * `tests/q25-content-census-cli.test.ts`, without a `package.json` alias to
+ * parallelize any of this) — measure the real number on this host with
+ * `npx vitest run tests/q14-mutation-smoke.test.ts` rather than trusting this
+ * comment to stay current. That is the price of testing the tests rather
+ * than just the code.
  *
  *   npx tsx tools/mutation-probe.ts             # runs every recorded mutation, prints a table
  */
@@ -105,12 +106,12 @@ export interface Mutation {
 }
 
 /**
- * Ten mutations. The first six are drawn from the ones qa-playtester actually
- * applied to real `/src` files and reverted while verifying q8 and q9 — not
- * reasoned-about, not synthetic. Each entry's `source` names the session log
- * describing the red count it originally produced.
+ * Twelve mutations. The first six are drawn from the ones qa-playtester
+ * actually applied to real `/src` files and reverted while verifying q8 and
+ * q9 — not reasoned-about, not synthetic. Each entry's `source` names the
+ * session log describing the red count it originally produced.
  *
- * The remaining four (BACKLOG-QUALITY q20) close the gap q20 itself named:
+ * The next four (BACKLOG-QUALITY q20) close the gap q20 itself named:
  * sessions 8, 9, 11 and 12 each hand-verified a further mutation that killed
  * a real test and none of them were in this list. Three of the four are the
  * mutation as originally applied, against a `tools/*` file rather than a
@@ -276,6 +277,39 @@ export const MUTATIONS: Mutation[] = [
     testFile: 'tests/q13-perf-ratio.test.ts',
     source:
       'BACKLOG-QUALITY.md session 9 log (q13): QA "Hollowed `worstCaseWorld()` to an empty world before adding anything: both the anti-vacuity test... and the fixture-reachability test... went red." Substituted for the session\'s own "sequential-vs-interleaved timing regression" mutation named in q20 — see the doc comment above `MUTATIONS` for why that one is not a reliable fit for this harness.',
+  },
+  // The remaining two (BACKLOG-QUALITY q31) close q31's own gap: q23's
+  // `soakOne` boundary guards and q25's `content-census.ts` try/catch are
+  // both guard-shaped fixes for a recorded-not-filed gap, landed after q20
+  // last expanded this list, and neither had a mutation reverting it back to
+  // its pre-fix shape — so an accidental revert of either guard (someone
+  // "simplifying" the top of `soakOne` or `main()`) would ship silently,
+  // caught by neither this suite nor (per q28) any other automated check.
+  {
+    name: 'soak-remove-boundary-guards',
+    file: 'tools/soak.ts',
+    edits: [
+      {
+        find: `  if (!Number.isFinite(maxTicks) || maxTicks <= 0) {\n    throw new Error(\`soakOne: maxTicks must be > 0, got \${maxTicks}\`);\n  }\n  if (!Number.isFinite(scanEvery) || scanEvery <= 0) {\n    throw new Error(\`soakOne: scanEvery must be > 0, got \${scanEvery}\`);\n  }\n`,
+        replace: ``,
+      },
+    ],
+    testFile: 'tests/q12-soak.test.ts',
+    source:
+      'BACKLOG-QUALITY.md q23/q31: reverts `soakOne`\'s `maxTicks <= 0` / `scanEvery <= 0` usage-error guards to their pre-fix shape (silently reporting a fake-clean run instead of throwing), targeting q23\'s own "boundary-input guards" describe block.',
+  },
+  {
+    name: 'content-census-remove-trycatch',
+    file: 'tools/content-census.ts',
+    edits: [
+      {
+        find: `  let rows: CensusRow[];\n  try {\n    rows = census();\n  } catch (err) {\n    const message = err instanceof Error ? err.message : String(err);\n    if (json) {\n      console.log(JSON.stringify({ error: message }));\n    } else {\n      // ZodError.message is itself multi-line JSON; collapse to one line so\n      // a /data load failure reads as a clean CLI message, not a second\n      // stack-trace-shaped wall of text.\n      console.error(\`content-census: \${message.replace(/\\s+/g, ' ').trim()}\`);\n    }\n    process.exitCode = 1;\n    return;\n  }`,
+        replace: `  const rows: CensusRow[] = census();`,
+      },
+    ],
+    testFile: 'tests/q25-content-census-cli.test.ts',
+    source:
+      'BACKLOG-QUALITY.md q25/q31: reverts `content-census.ts`\'s `main()` to its pre-q25 shape (no try/catch around `census()`), so a corrupted `/data` snapshot crashes with a raw, multi-line stack trace instead of the one-line message q25 established.',
   },
 ];
 
