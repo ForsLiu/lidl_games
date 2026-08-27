@@ -15,8 +15,9 @@
  * the write-up (session 17).
  *
  * Regenerate by running `npx tsx tools/fuzz-weapon-boundary.ts` and
- * transcribing every non-`ok` line — there are 6 today, against 25 total
- * (9 level + 12 inheritance + 4 awakening).
+ * transcribing every non-`ok` line — there are 7 today, against 27 total
+ * (9 level + 12 inheritance + 4 awakening + 2 weaponOffer, the last added by
+ * q27).
  */
 import type { Verdict } from '../tools/fuzz-weapon-boundary';
 
@@ -67,4 +68,24 @@ export const AWAKENING_GATE_HOLES: Readonly<Record<string, Verdict>> = {
   'gate:levelMet_rankUnmet': 'ungated',
   'gate:levelUnmet_rankMet': 'ungated',
   'gate:levelUnmet_rankUnmet': 'ungated',
+};
+
+/**
+ * `applyOffer`'s `'weapon'` case (progression.ts:182-186) does
+ * `ws.level = Math.min(maxLevel, offer.toLevel)` — an upper-bound-only clamp
+ * that never re-validates the result, unlike `grantWeapon`'s own create-branch
+ * clamp (`Math.max(1, Math.min(maxLevel, level))`). A forged `Offer` with
+ * `toLevel: NaN` propagates straight into `ws.level`, crashing the live fire
+ * loop the same way the `level`/`inheritance` `nan` holes do, just through a
+ * third entry point (q27). A negative `toLevel` (e.g. -5) is latent rather
+ * than crashing today only because `levelStats`'s own read-time clamp
+ * (`Math.max(1, Math.min(top, ws.level))`) happens to re-floor it back to a
+ * legal index before every read — so it is pinned here as `'ok'` by the
+ * census (no crash, no gate bypassed), not as a hole, even though the stored
+ * field itself briefly holds an illegal value. Not reachable through the real
+ * Command surface today: `buildOfferPool` only ever emits
+ * `toLevel: ws.level + 1`, always a legal positive integer.
+ */
+export const WEAPON_OFFER_HOLES: Readonly<Record<string, Verdict>> = {
+  'weapon:toLevelNan': 'crashes',
 };

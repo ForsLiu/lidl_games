@@ -12,7 +12,9 @@
  * wholesale) — this file's findings are about what's shipped now, not a
  * critique of a formula the spec has already decided to throw away.
  *
- * Three named boundary categories (BACKLOG-QUALITY q21's acceptance line):
+ * Four named boundary categories (the first three are BACKLOG-QUALITY q21's
+ * acceptance line; the fourth is q27's follow-up, added once q21's own QA
+ * pass found a sibling gap):
  *
  *   1. LEVEL   — a weapon's level clamped at the 1/6 track ends, and what a
  *      caller outside that domain (0, negative, ±Infinity, NaN, fractional)
@@ -28,6 +30,12 @@
  *      re-check either condition when *applying* one — verified below via
  *      `applyOffer` itself, the real exported entrypoint, not a re-derived
  *      copy of the private predicate.
+ *   4. WEAPON OFFER — `applyOffer`'s `'weapon'` case (progression.ts:182-186)
+ *      has the same "trusts the offer's origin" shape as AWAKENING, but only
+ *      half-guards it: `ws.level = Math.min(maxLevel, offer.toLevel)` clamps
+ *      the upper bound and never re-validates the result the way
+ *      `grantWeapon`'s own create-branch clamp does, so a forged `toLevel`
+ *      can still land an illegal value in `ws.level`.
  *
  * Every probe is a direct `World` construction (`new World(cfg(), content)`)
  * plus, where needed, `forcePlace` — the same "write a Structure directly,
@@ -49,7 +57,7 @@ import { World } from '../src/sim/world';
 export type Verdict = 'ok' | 'crashes' | 'ungated';
 
 export interface BoundaryCase {
-  category: 'level' | 'inheritance' | 'awakening';
+  category: 'level' | 'inheritance' | 'awakening' | 'weaponOffer';
   id: string;
   verdict: Verdict;
   detail: string;
@@ -248,10 +256,40 @@ export function awakeningGateCases(content: Content = loadContent()): BoundaryCa
   });
 }
 
+/* ======================================================== 4. WEAPON OFFER ======================================================== */
+
+const WEAPON_OFFER_INPUTS: readonly { id: string; toLevel: number }[] = [
+  { id: 'weapon:toLevelNan', toLevel: NaN },
+  { id: 'weapon:toLevelNegative', toLevel: -5 },
+];
+
+/** Same weapon `levelBoundaryCases` above already uses, kept starting at a legal mid-track level. */
+export const WEAPON_OFFER_TARGET = 'flame_cone';
+
+export function weaponOfferBoundaryCases(content: Content = loadContent()): BoundaryCase[] {
+  return WEAPON_OFFER_INPUTS.map(({ id, toLevel }) => {
+    const w = newWorld(content);
+    const ws = grantWeapon(w, WEAPON_OFFER_TARGET, 3, 0);
+    applyOffer(w, { kind: 'weapon', key: WEAPON_OFFER_TARGET, name: 'x', desc: 'x', toLevel });
+    const appliedLevel = ws.level;
+    const r = tryRun(() => updateWeapons(w, 1 / 60));
+    const verdict: Verdict = r.threw ? 'crashes' : 'ok';
+    const detail = r.threw
+      ? `applyOffer(toLevel=${toLevel}) -> ws.level=${appliedLevel}, updateWeapons() threw: ${r.message}`
+      : `applyOffer(toLevel=${toLevel}) -> ws.level=${appliedLevel}, fires cleanly`;
+    return { category: 'weaponOffer', id, verdict, detail };
+  });
+}
+
 /* =============================================================== census =============================================================== */
 
 export function runCensus(content: Content = loadContent()): BoundaryCase[] {
-  return [...levelBoundaryCases(content), ...inheritanceCases(content), ...awakeningGateCases(content)];
+  return [
+    ...levelBoundaryCases(content),
+    ...inheritanceCases(content),
+    ...awakeningGateCases(content),
+    ...weaponOfferBoundaryCases(content),
+  ];
 }
 
 /* eslint-disable no-console */

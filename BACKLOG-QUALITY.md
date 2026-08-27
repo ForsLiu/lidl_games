@@ -254,7 +254,7 @@ coverage gaps session 1's log recorded. All five are inside Scope as written.*
       `measureRatioForWorld` — and asserts the two interleave rather than
       run in two separate blocks, independent of wall-clock reading — refs:
       session 9 log, tools/perf-ratio.ts
-- [ ] (q27) [bug][feat] q21's QA pass found a sibling of the Awakening gate
+- [x] (q27) [bug][feat] q21's QA pass found a sibling of the Awakening gate
       bug it pinned, in `applyOffer`'s `'weapon'` case
       (`src/sim/progression.ts:182-186`): `ws.level = Math.min(maxLevel,
       offer.toLevel)` clamps only the upper bound and never re-validates
@@ -497,6 +497,93 @@ resolve if it wants the CLI entry points too. All five are inside Scope as
 written; none needs a `package.json` edit.*
 
 ## Log
+
+### 2026-08-27 — session 25
+
+**Feedback inbox:** `feedback/` exists in this worktree but is empty. Nothing
+to process, nothing moved.
+
+**Six actionable items were in queue** (q27, q29, q30, q31, q32, q33, all
+unchecked and unblocked), so the generation rule did not run. Took q27, the
+top item.
+
+**q27 done.** `tools/fuzz-weapon-boundary.ts` (new 4th `BoundaryCase`
+category `'weaponOffer'`, `weaponOfferBoundaryCases()`, wired into
+`runCensus()`), `tests/q21-weapon-boundary-fuzz.ts` (new `WEAPON_OFFER_HOLES`
+pinned map), `tests/q21-weapon-boundary-fuzz.test.ts` (+5 tests, 24 total).
+
+**What it does.** `applyOffer`'s `'weapon'` case (`src/sim/progression.ts:
+182-186`) does `ws.level = Math.min(maxLevel, offer.toLevel)` — an
+upper-bound-only clamp that never re-validates the result, unlike
+`grantWeapon`'s own create-branch clamp
+(`Math.max(1, Math.min(maxLevel, level))`). A forged `Offer` with
+`toLevel: NaN` propagates straight into `ws.level`, crashing the live fire
+loop on the next `updateWeapons()` tick — the same `def.levels[lv-1]`
+`undefined` crash the `level`/`inheritance` `nan` holes already pin, just
+through a third entry point. A negative `toLevel` (e.g. -5) is latent rather
+than crashing, because `levelStats`'s read-time clamp
+(`Math.max(1, Math.min(top, ws.level))`) re-floors it to a legal index on
+every read — pinned as `'ok'`, not a hole, since it neither crashes nor
+bypasses a gate, even though the stored field briefly holds an illegal
+value. Not reachable via the real Command surface today: `buildOfferPool`
+only ever emits `toLevel: ws.level + 1`, a legal positive integer.
+
+Added `weaponOfferBoundaryCases()` (2 cases: `weapon:toLevelNan`,
+`weapon:toLevelNegative`) following the exact `forcePlace`/`newWorld`
+harness shape the other three categories already use, driving the real
+exported `applyOffer` entrypoint directly (not a re-derived copy). Live CLI
+run confirmed 27 total cases (up from 25), 7 non-`ok` (up from 6):
+`weaponOffer:weapon:toLevelNan` is `[crashes]`,
+`weaponOffer:weapon:toLevelNegative` is `[ok]`. Added a matching describe
+block alongside the existing Awakening-gate finding, mirroring its four-part
+shape: forged-offer NaN crash repro, negative-latent repro (asserts
+`ws.level === -5` post-offer, no throw, and `levelStats` reads back the
+level-1 entry), a legitimate-offer positive control, and a real-Command-
+surface negative control proving `buildOfferPool`/`rollOffers` never emits
+an illegal `toLevel`.
+
+**Review (code-reviewer, APPROVE, 1 Nit — fixed here).** Independently
+traced `applyOffer`'s `'weapon'` case and `levelStats`'s read-time clamp,
+confirmed the NaN/negative mechanics match the claimed behavior exactly,
+confirmed `WEAPON_OFFER_HOLES` correctly leaves the negative case unpinned,
+confirmed Scope (three files, no `/src`/`/data`), confirmed the new
+assertions are non-vacuous (pin `ws.level` itself, not just a downstream
+symptom), ran `tsc --noEmit` and the suite standalone (24/24 green). One
+Nit: `WEAPON_OFFER_TARGET` was a private const while the sibling Awakening
+finding exports and reuses its target constants — exported it and swapped
+the test file's four hardcoded `'flame_cone'` literals for the import.
+
+**QA (qa-playtester, PASS).** Reran the suite (24/24) and the live CLI
+census, confirmed both match the pinned maps exactly. Mutation-tested
+`applyOffer`'s `'weapon'` case for real (transient `/src` edit, restored
+after): the naive `Math.max(1, Math.min(maxLevel, offer.toLevel))` clamp
+flips the negative test red for the right reason but leaves the NaN test
+green (`Math.max(1, NaN)` is still `NaN` in JS — the same reason
+`grantWeapon`'s identical clamp shape still leaves `level:nan` a documented
+hole elsewhere in this file); confirmed a `Number.isFinite` guard on top
+does flip all three affected assertions red, proving the tests really do
+catch a genuine fix. Restored `src/sim/progression.ts` byte-for-byte via
+`git checkout --`, confirmed `git status --porcelain` confined to the three
+expected files. Adversarial sweep found no new gap: `Offer` has exactly
+three kinds (`weapon` here, `boon` already filed as q30, `awakening` already
+pinned by q21); `damageBonus` is never touched by `applyOffer` at all — it
+only flows through `grantWeapon`'s update branch, already filed as q29.
+Nothing new filed.
+
+**Suite state.** `npx vitest run tests/q21-weapon-boundary-fuzz.test.ts` —
+24/24 green. `npx tsc --noEmit -p .` clean. Full `npx vitest run` (pre-commit
+safety net) — 876 passed, 11 failed, 79 skipped; every failure is in
+`tests/q14-mutation-smoke.test.ts` and is the same documented "fixture must
+start clean" artifact sessions 12/14/15/16/18/20 have each hit before this
+same commit landed: `gitDiffClean()` (whole-repo, no pathspec) requires a
+fully clean git tree, and this session's own uncommitted q27 diff (the three
+files above) is what trips it — confirmed via `git status --porcelain`
+showing exactly those three files and nothing else, and confirmed
+`tests/q14-mutation-smoke.test.ts` was untouched this session. Re-verify
+`tests/q14-mutation-smoke.test.ts` standalone after this commit lands.
+
+**Five actionable items remain** (q29, q30, q31, q32, q33, all unchecked and
+unblocked), so the generation rule does not need to run next session either.
 
 ### 2026-08-27 — session 24
 

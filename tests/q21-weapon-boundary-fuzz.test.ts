@@ -17,7 +17,7 @@ import { describe, expect, it } from 'vitest';
 
 import { applyOffer, bindSouls, deriveSouls, rollOffers } from '../src/sim/progression';
 import { beginSoulPick } from '../src/sim/sundering';
-import { grantWeapon, updateWeapons } from '../src/sim/weapons';
+import { grantWeapon, levelStats, updateWeapons } from '../src/sim/weapons';
 import {
   AWAKENING_BOON,
   AWAKENING_KEY,
@@ -29,8 +29,10 @@ import {
   levelBoundaryCases,
   newWorld,
   runCensus,
+  WEAPON_OFFER_TARGET,
+  weaponOfferBoundaryCases,
 } from '../tools/fuzz-weapon-boundary';
-import { AWAKENING_GATE_HOLES, INHERITANCE_HOLES, LEVEL_BOUNDARY_HOLES } from './q21-weapon-boundary-fuzz';
+import { AWAKENING_GATE_HOLES, INHERITANCE_HOLES, LEVEL_BOUNDARY_HOLES, WEAPON_OFFER_HOLES } from './q21-weapon-boundary-fuzz';
 
 function toHoleMap(cases: BoundaryCase[]): Record<string, string> {
   const out: Record<string, string> = {};
@@ -41,12 +43,13 @@ function toHoleMap(cases: BoundaryCase[]): Record<string, string> {
 }
 
 describe('q21 soul-weapon boundary fuzz', () => {
-  it('runs 9 level + 12 inheritance + 4 awakening cases, one each', () => {
+  it('runs 9 level + 12 inheritance + 4 awakening + 2 weaponOffer cases, one each', () => {
     const census = runCensus();
-    expect(census.length).toBe(25);
+    expect(census.length).toBe(27);
     expect(census.filter((c) => c.category === 'level').length).toBe(9);
     expect(census.filter((c) => c.category === 'inheritance').length).toBe(12);
     expect(census.filter((c) => c.category === 'awakening').length).toBe(4);
+    expect(census.filter((c) => c.category === 'weaponOffer').length).toBe(2);
     const seen = new Set(census.map((c) => `${c.category}:${c.id}`));
     expect(seen.size).toBe(census.length);
   });
@@ -63,10 +66,20 @@ describe('q21 soul-weapon boundary fuzz', () => {
     expect(toHoleMap(awakeningGateCases())).toEqual(AWAKENING_GATE_HOLES);
   });
 
+  it('weapon-offer census matches the recorded holes exactly', () => {
+    expect(toHoleMap(weaponOfferBoundaryCases())).toEqual(WEAPON_OFFER_HOLES);
+  });
+
   it('everything not in a recorded hole is cleanly ok', () => {
     for (const c of runCensus()) {
       const holes =
-        c.category === 'level' ? LEVEL_BOUNDARY_HOLES : c.category === 'inheritance' ? INHERITANCE_HOLES : AWAKENING_GATE_HOLES;
+        c.category === 'level'
+          ? LEVEL_BOUNDARY_HOLES
+          : c.category === 'inheritance'
+            ? INHERITANCE_HOLES
+            : c.category === 'awakening'
+              ? AWAKENING_GATE_HOLES
+              : WEAPON_OFFER_HOLES;
       if (c.id in holes) continue;
       expect(c.verdict, `${c.category}:${c.id} — ${c.detail}`).toBe('ok');
     }
@@ -204,6 +217,51 @@ describe('q21 soul-weapon boundary fuzz', () => {
         seen = offers.some((o) => o.kind === 'awakening' && o.key === AWAKENING_KEY);
       }
       expect(seen).toBe(true);
+    });
+  });
+
+  describe("finding: applyOffer's 'weapon' case stores a forged toLevel with only an upper-bound clamp", () => {
+    // progression.ts:182-186: `ws.level = Math.min(maxLevel, offer.toLevel)`
+    // clamps the top of the track but never re-validates the result, unlike
+    // `grantWeapon`'s own create-branch clamp
+    // (`Math.max(1, Math.min(maxLevel, level))`). The same "trusts the
+    // offer's origin" shape as the Awakening gate above, on a different
+    // field.
+    it('toLevel=NaN: applyOffer stores NaN, the next tick throws', () => {
+      const w = newWorld();
+      const ws = grantWeapon(w, WEAPON_OFFER_TARGET, 3, 0);
+      applyOffer(w, { kind: 'weapon', key: WEAPON_OFFER_TARGET, name: 'x', desc: 'x', toLevel: NaN });
+      expect(ws.level).toBeNaN();
+      expect(() => updateWeapons(w, 1 / 60)).toThrow(/reading 'range'/);
+    });
+
+    it('toLevel=-5: applyOffer stores the negative value, but is latent — levelStats re-floors it on every read', () => {
+      const w = newWorld();
+      const ws = grantWeapon(w, WEAPON_OFFER_TARGET, 3, 0);
+      applyOffer(w, { kind: 'weapon', key: WEAPON_OFFER_TARGET, name: 'x', desc: 'x', toLevel: -5 });
+      expect(ws.level).toBe(-5);
+      expect(() => updateWeapons(w, 1 / 60)).not.toThrow();
+      expect(levelStats(w, ws)).toBe(w.content.weaponByKey.get(WEAPON_OFFER_TARGET)!.levels[0]);
+    });
+
+    it('the legitimate case (a real level-up offer) also applies — this is not a general applyOffer failure', () => {
+      const w = newWorld();
+      const ws = grantWeapon(w, WEAPON_OFFER_TARGET, 3, 0);
+      applyOffer(w, { kind: 'weapon', key: WEAPON_OFFER_TARGET, name: 'x', desc: 'x', toLevel: 4 });
+      expect(ws.level).toBe(4);
+      expect(() => updateWeapons(w, 1 / 60)).not.toThrow();
+    });
+
+    it('not reachable through the real Command surface: buildOfferPool only ever emits ws.level + 1', () => {
+      const w = newWorld();
+      const ws = grantWeapon(w, WEAPON_OFFER_TARGET, 3, 0);
+      w.phase = 'levelup';
+      for (let i = 0; i < 25; i++) {
+        const offers = rollOffers(w);
+        for (const o of offers.filter((x) => x.kind === 'weapon' && x.key === WEAPON_OFFER_TARGET)) {
+          expect(o.toLevel).toBe(ws.level + 1);
+        }
+      }
     });
   });
 
