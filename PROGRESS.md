@@ -5,6 +5,28 @@
 
 ## Current state — SPEC-FINAL
 
+- **`lane/quality` is merged (`b2d34c0` + follow-up `101dc9b`) — the quality
+  lane's whole harness (fuzzers q2/q3/q7/q15/q21, soak q12, perf-ratio
+  q13/q26, content census q16/q25, gate audit q10, mutation smoke q14, save
+  round-trip q8, phase coverage q9, CLI error contracts q28/q33, and the
+  content-hash-replay pin q18) is live on master, ported from the pre-P2 sim
+  it was written against to the current one (souls/granted-weapon system →
+  §6.1 wielding; dusk/soulpick/dawn → the five-phase §1.1 machine; Cores,
+  `active1Held`, `unlockedCores` added). Resolution policy: main-lane sim
+  wins, every lane test/tool kept and ported. The gate audit was re-derived
+  at merge: G21–G23 tracked, G3/G6/G7/G9/G10/G11 moved from holes to covered
+  (split now 15 covered / 5 holes: G1, G8, G12, G15, G19). The lane's
+  out-of-scope findings were re-verified against merged HEAD and filed as
+  **BACKLOG.md b005–b015** (headline: a legit-play `levelup` softlock on an
+  exhausted boon pool, `dev xp +Infinity` hangs the process, out-of-grid
+  `upgrade`/`sell` tile aliasing, `damageEnemy`'s NaN-blind guard, and the
+  `/data` JSON-syntax CLI crash). Full `npm test` green at `101dc9b` (1286+
+  passed, q14's 12 mutations all caught, perf config green). A10's fixture
+  now shields the measured world — unshielded, the Warden died ~tick 100 and
+  the tail of the measurement window timed a finished run. The in-flight
+  `p6e` working-tree files (QUESTIONS.md Q121, `data/classes.json` tuning,
+  `tests/p6e-class-diversity.test.ts`, `scratch_verify.ts`) were kept out of
+  the merge and restored to the working tree untouched.**
 - **`p6d` is done this commit — SPEC-FINAL §4.2's nine remaining classes are
   live: Archer, Engineer, Pyro, Necromancer, Cryomancer, Stormcaller,
   Bloodlord, Animist, Paladin. All 11 §4-shaped classes now exist, and gates
