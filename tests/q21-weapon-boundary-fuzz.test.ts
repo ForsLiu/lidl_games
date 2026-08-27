@@ -700,4 +700,77 @@ describe('q21 soul-weapon boundary fuzz', () => {
       expect(w.weapons.filter((x) => x.key === dupeKey).length).toBe(1);
     });
   });
+
+  /* ------------------------ duplicate key wastes a pick slot (bug, q36) */
+
+  describe('a duplicate key in a real souls Command silently wastes a pick slot (bug, q36)', () => {
+    // q32 proved a duplicate key never creates a second WeaponState. This is
+    // the sibling gap qa-playtester found verifying q32: neither
+    // applyCommand's 'souls' case (src/sim/run.ts) nor bindSouls's own
+    // chosen.filter(...).slice(0, slots) (src/sim/progression.ts) dedupes
+    // BEFORE counting toward the weaponSlots cap, so a repeated key consumes
+    // a slot instead of being rejected or deduped in favour of another
+    // candidate. With weaponSlots=6 and 7 valid candidates, submitting 6 keys
+    // where one is a repeat (5 distinct) binds only 5 souls, not 6.
+    it('6 keys with one repeat (5 distinct) among 7 candidates binds only 5 souls, wasting a slot', () => {
+      const w = newWorld();
+      const keys = ['arrow_spire', 'ballista', 'ember_brazier', 'frost_obelisk', 'tesla_coil', 'mortar', 'venom_spore'];
+      expect(keys.length).toBe(w.derived.weaponSlots + 1);
+      keys.forEach((k, i) => forcePlace(w, k, 5 + i, 5, 3));
+      beginSoulPick(w);
+      expect(w.phase).toBe('soulpick');
+
+      const [dupeKey, ...rest] = w.soulCandidates;
+      const distinctPicked = [dupeKey, ...rest.slice(0, w.derived.weaponSlots - 2)];
+      expect(distinctPicked.length).toBe(w.derived.weaponSlots - 1); // 5 distinct
+      const submitted = [dupeKey, ...distinctPicked]; // 6 keys submitted, 1 repeat
+      expect(submitted.length).toBe(w.derived.weaponSlots);
+
+      const unsubmitted = w.soulCandidates.filter((k) => !submitted.includes(k));
+      expect(unsubmitted.length).toBeGreaterThan(0); // at least one valid candidate never offered a slot
+
+      applyCommand(w, { k: 'souls', keys: submitted });
+
+      expect(w.phase).toBe('act2');
+      const boundSoulCount = w.weapons.filter((x) => distinctPicked.includes(x.key)).length;
+      expect(boundSoulCount).toBe(distinctPicked.length); // 5, not weaponSlots (6)
+      expect(boundSoulCount).toBeLessThan(w.derived.weaponSlots);
+
+      // Total bound roster (innate + souls) must reflect the wasted slot, not
+      // just this test's own key list — this fails a "dedupe the input, then
+      // backfill the freed slot from an unclaimed candidate" fix just as much
+      // as it fails today's "reject nothing, just drop the duplicate" one.
+      expect(w.weapons.length).toBe(distinctPicked.length + 1); // + the innate
+      expect(w.weapons.some((x) => unsubmitted.includes(x.key))).toBe(false);
+    });
+
+    // qa-playtester (verifying q36): a "dedupe the submitted keys, then slice
+    // to weaponSlots, no backfill" fix produces a BIT-IDENTICAL result to
+    // today's bug for this exact scenario (5 bound, the 7th candidate never
+    // offered a slot) — confirmed live by swapping bindSouls's loop for a
+    // Set-based dedupe-then-slice and re-running every assertion above
+    // unchanged. That fix shape doesn't actually resolve the complaint (a
+    // slot is still wasted), but nothing above would flag it as unresolved,
+    // since the two behaviours are identical by construction in this one
+    // scenario. This case pins the fully-fixed target directly — all
+    // `weaponSlots` slots filled, the unclaimed candidate irrelevant — so a
+    // dedupe-only fix leaves a visible, un-skippable `.skip` here instead of
+    // a green suite that looks like the design defect is gone.
+    it.skip('once fixed: a duplicate no longer wastes a slot — all weaponSlots souls bind', () => {
+      const w = newWorld();
+      const keys = ['arrow_spire', 'ballista', 'ember_brazier', 'frost_obelisk', 'tesla_coil', 'mortar', 'venom_spore'];
+      keys.forEach((k, i) => forcePlace(w, k, 5 + i, 5, 3));
+      beginSoulPick(w);
+
+      const [dupeKey, ...rest] = w.soulCandidates;
+      const distinctPicked = [dupeKey, ...rest.slice(0, w.derived.weaponSlots - 2)];
+      const submitted = [dupeKey, ...distinctPicked];
+
+      applyCommand(w, { k: 'souls', keys: submitted });
+
+      // Today this reads 5 (BACKLOG-QUALITY.md q36) — the duplicate should
+      // instead free its slot for one of the unclaimed valid candidates.
+      expect(w.weapons.length - 1).toBe(w.derived.weaponSlots); // -1 for the innate
+    });
+  });
 });

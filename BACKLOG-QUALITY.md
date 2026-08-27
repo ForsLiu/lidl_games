@@ -474,7 +474,7 @@ coverage gaps session 1's log recorded. All five are inside Scope as written.*
       go non-finite through any real, in-domain `Luck` stat value — refs:
       q30, src/sim/rng.ts:65-75, src/sim/progression.ts:90 (`luckBias`),
       139 (`value: rank / b.maxRank`)
-- [ ] (q36) [bug][feat] qa-playtester's q32 verification pass found a real
+- [x] (q36) [bug][feat] qa-playtester's q32 verification pass found a real
       sibling gap to q32's own positive-control finding: q32 proved a
       duplicate key in a hand-crafted `souls` Command never creates a second
       `WeaponState` (`grantWeapon`'s create-vs-update branch collapses it),
@@ -689,6 +689,86 @@ resolve if it wants the CLI entry points too. All five are inside Scope as
 written; none needs a `package.json` edit.*
 
 ## Log
+
+### 2026-08-27 — session 34
+
+**Feedback inbox:** no `feedback/` directory exists in this worktree (checked
+with `ls feedback/`). Nothing to process, nothing moved. `git status` at
+session start was clean.
+
+**Four actionable items were in queue** (q36-q39, above the generation
+rule's floor of 3, so the generation rule did not run). Took q36, the top
+item.
+
+**q36 done.** Added a new describe block to `tests/q21-weapon-boundary-fuzz
+.test.ts`, right after q32's positive-control block: a world with 7 valid
+soul candidates and `weaponSlots=6`, a real `souls` Command submitted with 6
+keys where one repeats (5 distinct), driven through the real `applyCommand`.
+Confirms today's actual behaviour: only 5 souls bind, not 6 — the duplicate
+consumes a slot instead of being rejected or deduped in favour of the 7th
+candidate.
+
+**Review (code-reviewer, APPROVE, 0 Critical/Major, 1 Minor, 1 Nit).**
+Independently re-derived the mechanism against `src/sim/run.ts`'s `'souls'`
+case, `src/sim/sundering.ts`'s `finishSundering`, and `src/sim/progression
+.ts`'s `bindSouls`, confirmed the test's key arithmetic (7 candidates, 6
+submitted with exactly 1 repeat) is well-formed rather than an off-by-one,
+confirmed no duplicate assertion exists elsewhere, ran the file (52/52) and
+`tsc` (clean), confirmed Scope compliance. The Minor: the closing assertion
+only counted overlap with the 5 submitted-distinct keys, so it would stay
+green even under a future "dedupe the input, then backfill the freed slot
+from an unclaimed candidate" fix — narrower than the acceptance line's own
+"a future dedupe fix is visible as a test change" claim. Strengthened before
+QA: added a total-roster-size assertion (`w.weapons.length === distinctPicked
+.length + 1`) and an explicit check that no unsubmitted valid candidate ever
+gets bound, so a backfill-shaped fix flips this test too.
+
+**QA (qa-playtester, PASS) found the strengthening still had a real gap** —
+the same "note overstates the coverage it cites" shape this lane has hit
+before (q17, q19, q22, q28, q35): a plausible "dedupe the submitted keys,
+then slice to `weaponSlots`, no backfill" fix produces a *bit-identical*
+result to today's bug in this exact scenario (5 bound, one candidate never
+offered a slot) — confirmed by QA both arithmetically and by swapping
+`bindSouls`'s loop for a `Set`-based dedupe-then-slice implementation against
+the real harness and re-running the new assertions unchanged. That fix shape
+doesn't actually resolve the underlying complaint (a slot is still wasted),
+but nothing in the test would flag it as unresolved. QA confirmed the
+reject-whole-command and dedupe-and-backfill fix shapes are both genuinely
+caught; only dedupe-without-backfill slips through invisibly. QA also
+confirmed no ordering/state-leak issues and that the test's soul-key setup
+doesn't rely on any assumed sort order.
+
+**Added an aspirational `it.skip` pinning the fully-fixed target** rather
+than stretching the live assertions to cover a fix shape that produces
+identical numbers to the bug (nothing observable *can* distinguish "still
+buggy via incidental collapse" from "still wasting the slot via an explicit
+dedupe-only fix" in this one scenario — the two are the same behaviour by
+construction). The skipped case asserts `boundSoulCount === weaponSlots`
+(all 6 slots filled, the unclaimed 7th candidate irrelevant once a real fix
+lands) with a comment naming today's actual number (5) and QA's finding by
+name, so a fix that only dedupes without backfilling is a visible `.skip`
+still sitting there for the next session to notice and flip, rather than a
+silently-passing test that looks like the bug was fixed when the design
+defect (wasted slot) persists under a different mechanism.
+
+**Suite state.** `npx vitest run tests/q21-weapon-boundary-fuzz.test.ts` —
+53/53 green (52 + 1 new `.skip`, so 52 run + 1 skipped). `npx tsc --noEmit -p
+.` clean. Full suite (`npx vitest run`) run in background: 918 passed / 79
+skipped / 16 failed, but every failure is the already-documented
+`tests/q14-mutation-smoke.test.ts`/`tests/q15-command-domain-fuzz.test.ts`
+resource-contention flake cluster (this lane's log has now recorded this
+exact non-reproducible worker-timeout shape well over half a dozen times —
+see the many `contention`/`flake` hits across this file). Confirmed rather
+than assumed: re-ran `tests/q15-command-domain-fuzz.test.ts` alone
+immediately after — 25/25 green — and confirmed `tests/q21-weapon-boundary-
+fuzz.test.ts` itself passed cleanly inside the same full-suite run (52/52,
+302ms). Not filed as a new bug, per QA's own established non-reproducible-
+flake bar this lane has applied consistently since session ~9.
+`git status --porcelain` before commit: `BACKLOG-QUALITY.md`,
+`tests/q21-weapon-boundary-fuzz.test.ts` — Scope-compliant.
+
+**Three actionable items remain** (q37, q38, q39), at the generation rule's
+floor of 3.
 
 ### 2026-08-27 — session 33
 
