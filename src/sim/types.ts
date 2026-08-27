@@ -21,7 +21,13 @@ export type Command =
   | { k: 'pick'; index: number }
   | { k: 'reroll' }
   | { k: 'equip'; relic: number }
-  | { k: 'class_active' }
+  /**
+   * SPEC-FINAL §4 Active1 (Q). `aimX`/`aimY` mirror `class_active2`'s: p6d is
+   * the first item with mouse-aimed Active1s (Field Kit's target structure,
+   * Chain Surge's first link, Blood Tithe's tithed tower), and an omitted aim
+   * still means "self-centered", exactly as every pre-p6d Active1 behaved.
+   */
+  | { k: 'class_active'; aimX?: number; aimY?: number }
   /**
    * SPEC-FINAL §4: Active2 (E). No-op for a `legacy: true` class, which has
    * only one Active. `aimX`/`aimY` are the mouse-aim point in tile
@@ -106,6 +112,25 @@ export interface Structure {
   links: number[];
   /** Accumulated damage attribution, Act I. */
   damageDealt: number;
+  /**
+   * SPEC-FINAL §4.2 Necromancer *Death Pact*: this tower is under the pact —
+   * it hits harder and faster and bleeds max HP every second until it dies
+   * (`updateClassPassives`, classes.ts). A toggle, so it is sim state.
+   */
+  pactActive: boolean;
+  /**
+   * Seconds left on a timed attack-speed buff (§4.2 Engineer *Field Kit*'s
+   * overclock). Generic rather than Field-Kit-named so a second timed tower
+   * buff needs no second field; the magnitude is read from whichever class
+   * effect set it (`attackSpeedFor`, towers.ts).
+   */
+  atkSpdBuffRemaining: number;
+  /**
+   * §4.2 Bloodlord *Blood Tithe*: this tower paid its HP once and carries the
+   * permanent damage bonus. Permanent, unlike `atkSpdBuffRemaining`, and
+   * one-way, unlike `pactActive`.
+   */
+  tithed: boolean;
 }
 
 /**
@@ -155,6 +180,14 @@ export interface Enemy {
   frostRemaining: number;
   /** SPEC-V3 §3 frozen: cannot move, and takes +30% damage, while this runs. */
   frozenRemaining: number;
+  /**
+   * §4.2 Cryomancer: "an enemy hit 5 times while frosted freezes". Counts only
+   * hits that arrive while `frostRemaining > 0` and resets both on the freeze
+   * it causes and the moment frost lapses (`applyOnHit`'s `frost_track` key,
+   * enemies.ts) — otherwise a frost applied minutes later would inherit a
+   * count nothing had earned.
+   */
+  frostHitStacks: number;
   /** Every live SPEC-V3 §3 DoT application on this enemy (Bleeding..Burning). */
   dots: DotStack[];
   buffRemaining: number;
@@ -188,6 +221,20 @@ export interface Enemy {
   bossTimer: number;
   bossAction: number;
   spawnedAt: number;
+}
+
+/**
+ * SPEC-FINAL §4.2's three target-conditional tower passives (p6d): Stormcaller
+ * ("all towers deal +10% of their damage as extra Electric"), Pyro ("+10%
+ * damage vs Burning enemies") and Cryomancer ("+10% damage vs frosted/frozen").
+ * Bundled into one struct because all three are read at the same place — the
+ * one `dealHit` every tower attack shape funnels through — and a projectile
+ * has to carry them from the tower that fired it to wherever it lands.
+ */
+export interface TowerClassBonus {
+  extraElectricPct: number;
+  vsBurningPct: number;
+  vsChilledPct: number;
 }
 
 export type ProjectileKind = 'bolt' | 'shell' | 'shot';
@@ -226,6 +273,13 @@ export interface Projectile {
    * the same reasoning that excludes `damageDealt` itself.
    */
   structureId: number;
+  /**
+   * The §4.2 tower-passive riders the firing tower carried (p6d), or null.
+   * Not hashed, for the same reason `source`/`onHit`/`ratio` are not: it is a
+   * copy of a value derived from `RunConfig.classKey`, which the hash already
+   * covers, and it never changes after the shot is spawned.
+   */
+  towerBonus: TowerClassBonus | null;
   dead: boolean;
 }
 
@@ -285,6 +339,56 @@ export interface Warden {
   /** SPEC-V3 §3: Burning shreds armor. Subtracted from derived armor. */
   armorShred: number;
   leechAccumulator: number;
+  /** SPEC-FINAL §4.2 Stormcaller *Overload*: seconds left of the +2-jump/double-wire-rate window. */
+  overloadRemaining: number;
+  /**
+   * §4.2 Paladin *Guardian Stance*: seconds the Warden has held still, and the
+   * position that "still" is measured against. Compared each tick rather than
+   * derived from `input.mx/my` so a Warden walled in against terrain (input
+   * held, no movement) still counts as standing still, which is what the
+   * clause describes.
+   */
+  standStillTimer: number;
+  lastStillX: number;
+  lastStillY: number;
+  /** §4.2 Paladin: banked Wrath, released by *Judgement*. */
+  wrathStored: number;
+  /** §4.2 Paladin *Clarion Taunt*: seconds left of the window that stores taken damage too. */
+  clarionRemaining: number;
+}
+
+/**
+ * SPEC-FINAL §4.2's summoned combatants — Engineer's Pop Turret, Necromancer's
+ * skeletons and Bone Pylons, Animist's manifested spirit and Recall Totem.
+ * One struct rather than five: every one of them is a fixed point that either
+ * attacks on its own cadence or projects an aura, and `kind` is only ever read
+ * for the per-kind concurrency cap each ability authors.
+ */
+export interface ClassSummon {
+  id: number;
+  x: number;
+  y: number;
+  /** Damage per second; one attack deals `dps * interval`. */
+  dps: number;
+  range: number;
+  interval: number;
+  /** Splash radius around the target, 0 for single-target. */
+  aoe: number;
+  attackCooldown: number;
+  remaining: number;
+  /** A totem: projects `auraAtkSpdMul` within `auraRadius` and never attacks. */
+  isAura?: boolean;
+  auraAtkSpdMul?: number;
+  auraRadius?: number;
+  kind: string;
+}
+
+/** §4.2 Necromancer: "kills leave corpses 6 s" — what *Raise* consumes. */
+export interface Corpse {
+  id: number;
+  x: number;
+  y: number;
+  remaining: number;
 }
 
 /* ----------------------------------------------------------------- relics */

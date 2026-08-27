@@ -32,7 +32,17 @@ import {
 import { shouldSpawnBoss, spawnFinalBoss, updateDirector } from './act2';
 import { addXp, openLevelUpIfPending, rerollOffers, takeOffer, updateGems } from './progression';
 import { advanceToNextBlock, finishSundering } from './sundering';
-import { classBasicAttack, tickClassCharge, useClassActive, useClassActive2 } from './classes';
+import {
+  classArmorBonus,
+  classBasicAttack,
+  classMoveSpeedMul,
+  tickClassCharge,
+  updateClassPassives,
+  updateClassSummons,
+  updateTempWalls,
+  useClassActive,
+  useClassActive2,
+} from './classes';
 import { updateTerrainEffects } from './weapons';
 import { updateWieldedAttacks } from './vswield';
 import { updateVsSpecials } from './vsspecials';
@@ -93,6 +103,9 @@ export class Run {
         updateTimeDecay(w, dt);
         updateProjectiles(w, dt);
         updateAreas(w, dt);
+        updateClassPassives(w, dt);
+        updateClassSummons(w, dt);
+        updateTempWalls(w, dt);
         updateAct1Build(w, dt);
         w.act1Ticks++;
         break;
@@ -106,6 +119,9 @@ export class Run {
         updateAct1Wave(w, dt);
         updateProjectiles(w, dt);
         updateAreas(w, dt);
+        updateClassPassives(w, dt);
+        updateClassSummons(w, dt);
+        updateTempWalls(w, dt);
         w.act1Ticks++;
         break;
       case 'act2':
@@ -244,7 +260,7 @@ export function applyCommand(w: World, c: Command): void {
       rerollOffers(w);
       break;
     case 'class_active':
-      useClassActive(w);
+      useClassActive(w, c.aimX, c.aimY);
       break;
     case 'class_active2':
       useClassActive2(w, c.aimX, c.aimY);
@@ -355,8 +371,10 @@ export function updateWarden(w: World, input: TickInput, dt: number): void {
 
   // SPEC-FINAL §5.5 Time: "VS: character attack and movement speed +20%" —
   // VS-only (`coreMoveSpeedMul` reads `w.huntsWarden`), so it cannot touch
-  // Act I movement the way adding it to `Stats` would.
-  const speed = d.moveSpeed * coreMoveSpeedMul(w);
+  // Act I movement the way adding it to `Stats` would. §4.2 Archer's "move
+  // −40% while drawing" is the same shape from the other direction (p6d), and
+  // for the same reason it is applied here rather than written into `derived`.
+  const speed = d.moveSpeed * coreMoveSpeedMul(w) * classMoveSpeedMul(w);
   moveWarden(w, n.x * speed * dt, n.y * speed * dt);
 
   // Regen: out of combat only during Act I, always in Act II (SPEC 2.1).
@@ -452,7 +470,9 @@ function manualAttack(w: World, input: TickInput, _dt: number): void {
  * damage path does.
  */
 export function wardenArmor(w: World): number {
-  return w.derived.armor - w.warden.armorShred;
+  // §4.2 Paladin's Guardian Stance (p6d) is a per-tick toggle, not a stat
+  // contribution — see `classArmorBonus` (classes.ts) for why.
+  return w.derived.armor - w.warden.armorShred + classArmorBonus(w);
 }
 
 /**
@@ -466,6 +486,7 @@ export function damageWarden(w: World, amount: number, opts?: WardenDamageOption
   const dmg = opts?.dot ? amount : amount * damageTakenMul(wardenArmor(w));
   wd.hp -= dmg;
   wd.outOfCombat = 0;
+  storeWrath(w, amount - dmg, dmg);
   w.emit('wardenhit', wd.x, wd.y, dmg, 0);
   if (wd.hp <= 0) {
     if (w.derived.secondWind && !wd.secondWindUsed) {
@@ -490,6 +511,30 @@ export function damageWarden(w: World, amount: number, opts?: WardenDamageOption
       w.emit('reform', wd.x, wd.y, 0, 0);
     }
   }
+}
+
+/**
+ * SPEC-FINAL §4.2 Paladin (p6d): the base passive states "blocked damage
+ * charges Wrath" with no percentage named — read literally as the full
+ * amount, not `wrathFraction`, which belongs to the *other* clause: *Clarion
+ * Taunt* adds "60% of damage taken stores into Wrath" for its own window,
+ * a distinct, explicitly-percentaged rule about applied damage, not blocked.
+ * (Code review on p6d: the first draft applied `wrathFraction` to both
+ * clauses, silently cutting the base passive's stated effect by 40%.)
+ *
+ * `blocked` is the exact amount armour removed (raw less applied), recovered
+ * here rather than approximated because `damageWarden` already computes both
+ * halves — so the two clauses are additive and neither double-counts the
+ * other: outside the taunt window only what armour ate is banked in full;
+ * inside it, `wrathFraction` of what actually landed is banked on top.
+ */
+function storeWrath(w: World, blocked: number, applied: number): void {
+  const wd = w.warden;
+  const cls = w.content.classByKey.get(w.cfg.classKey);
+  if (!cls || cls.legacy || cls.passive.kind !== 'guardian_stance') return;
+  if (blocked > 0) wd.wrathStored += blocked;
+  const share = cls.passive.wrathFraction ?? 0;
+  if (share > 0 && wd.clarionRemaining > 0 && applied > 0) wd.wrathStored += applied * share;
 }
 
 /* ------------------------------------------------------------------ Act I */
@@ -619,6 +664,9 @@ function updateAct2(w: World, input: TickInput, dt: number): void {
   updateEnemies(w, dt);
   updateProjectiles(w, dt);
   updateAreas(w, dt);
+  updateClassPassives(w, dt);
+  updateClassSummons(w, dt);
+  updateTempWalls(w, dt);
   updateBossSlam(w, dt);
   updateGems(w, dt);
   updateDirector(w, dt);
@@ -751,6 +799,13 @@ export function hashWorld(w: World): string {
   // p6b: a charge-kind Active1's held-seconds/charging state gates the same
   // class of future damage the two cooldowns above are hashed for.
   h.num(w.warden.active1Charge).bool(w.warden.active1Charging);
+  // p6d: §4.2's four Warden-side class timers/ledgers. Every one of them gates
+  // future damage or mitigation — Overload's extra chain jumps and doubled
+  // wire rate, Guardian Stance's +30 armour, banked Wrath, and the Clarion
+  // window that decides how much of a hit banks — which is the same rule
+  // x002's leechAccumulator review named.
+  h.num(w.warden.overloadRemaining).num(w.warden.standStillTimer);
+  h.num(w.warden.wrathStored).num(w.warden.clarionRemaining);
   h.int(w.level).num(w.xp);
   h.num(w.act2Time);
   h.int(w.cycle);
@@ -789,13 +844,31 @@ export function hashWorld(w: World): string {
     // SPEC-V3 §3 statuses and DoT stacks are sim state a replay has to agree
     // on before it shows up anywhere else: a frozen enemy takes +30% damage,
     // and a stack dropped at the perf cap is damage that is never dealt.
-    h.num(e.frostRemaining).num(e.frozenRemaining).int(e.dots.length);
+    // p6d: `frostHitStacks` is Cryomancer's countdown to a freeze — the same
+    // class of CC-gating state the two status timers beside it already are.
+    h.num(e.frostRemaining).num(e.frozenRemaining).int(e.frostHitStacks).int(e.dots.length);
     for (const d of e.dots) h.str(d.type).num(d.remaining).num(d.dps);
   }
   h.int(w.structures.length);
   for (const s of w.structures) {
     h.int(s.id).int(s.towerId).int(s.tier).int(s.tx).int(s.ty).num(s.hp).num(s.spent);
     h.bool(s.petrified);
+    // p6d: Death Pact, Field Kit's overclock and Blood Tithe each change what
+    // this structure deals or how fast it deals it.
+    h.bool(s.pactActive).num(s.atkSpdBuffRemaining).bool(s.tithed);
+  }
+  // p6d: summons, corpses and temporary walls are all sim entities that gate
+  // damage (or, for a wall, pathing) exactly the way `w.areas` above does.
+  h.int(w.classSummons.length);
+  for (const s of w.classSummons) {
+    h.int(s.id).num(s.x).num(s.y).num(s.remaining).num(s.attackCooldown);
+  }
+  h.int(w.corpses.length);
+  for (const c of w.corpses) h.int(c.id).num(c.x).num(c.y).num(c.remaining);
+  h.int(w.tempWalls.length);
+  for (const tw of w.tempWalls) {
+    h.num(tw.remaining);
+    for (const id of [...tw.structureIds].sort((a, b) => a - b)) h.int(id);
   }
   h.int(w.projectiles.length);
   for (const p of w.projectiles) h.int(p.id).num(p.x).num(p.y).num(p.damage);

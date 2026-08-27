@@ -298,13 +298,18 @@ describe('C4 — the real stat pipeline carries sources', () => {
 
   it('the class is a source distinct from the tree', () => {
     const w = new World(cfg());
+    // p6d converted the Engineer to SPEC-FINAL §4.2's `legacy: false` shape, so
+    // its stat line lives on `passive.mods` and is sourced per slot
+    // (`class:<key>:passive`, p6a) rather than on one flat `class:<key>`. The
+    // claim under test is unchanged: whatever the class grants is its own
+    // source, never merged into the tree's.
     const cls = content.classByKey.get('engineer')!;
-    if (!cls.legacy) throw new Error('engineer is expected to still be a legacy class');
-    const stat = Object.keys(cls.mods).find(
+    if (cls.legacy) throw new Error('engineer is expected to be a SPEC-FINAL class');
+    const stat = Object.keys(cls.passive.mods).find(
       (k) => (STAT_KEYS as readonly string[]).includes(k) && STAT_KIND[k as StatKey] === 'mul',
     ) as StatKey | undefined;
     expect(stat, 'the engineer should grant at least one multiplicative stat').toBeTruthy();
-    expect(w.stats.contributions(stat!)[0][0]).toBe('class:engineer');
+    expect(w.stats.contributions(stat!)[0][0]).toBe('class:engineer:passive');
   });
 
   it('petrified terrain is one source however many Sunderings ran', () => {

@@ -26,7 +26,7 @@ import { applyTowerLifesteal, vampireMissingHpBuffMul } from './cores';
 import { applyDamageType } from './damagetypes';
 import { dist2, normalize } from './math';
 import { applySlow } from './enemies';
-import type { Enemy, Structure } from './types';
+import type { Enemy, Structure, TowerClassBonus } from './types';
 import {
   attackProfile,
   damageShare,
@@ -115,6 +115,9 @@ export function buildTower(w: World, towerId: number, tx: number, ty: number): B
     gemsWaiting: 0,
     links: [],
     damageDealt: 0,
+    pactActive: false,
+    atkSpdBuffRemaining: 0,
+    tithed: false,
   };
   w.addStructure(s);
   w.towersBuilt++;
@@ -184,8 +187,49 @@ export function towerDamage(w: World, s: Structure, base: number): number {
     w.derived.towerDamageMul *
     affinityMul(w, def.key) *
     // SPEC-FINAL §5.5 Vampire Heart: "+0.5% damage ... per 1% HP missing".
-    vampireMissingHpBuffMul(w, s)
+    vampireMissingHpBuffMul(w, s) *
+    // §4.2's per-structure class effects (p6d): Death Pact, Blood Tithe and
+    // Necromancer's below-full-HP tower passive.
+    classTowerDamageMul(w, s)
   );
+}
+
+/**
+ * SPEC-FINAL §4.2, p6d: the damage multipliers a class hangs on one specific
+ * structure. Read straight off the selected class row rather than through
+ * `Stats`/`STAT_KEYS`, because none of the three is a run-wide contribution —
+ * two are per-structure flags a cast set, and the third depends on that
+ * structure's current HP.
+ */
+function classTowerDamageMul(w: World, s: Structure): number {
+  const cls = w.content.classByKey.get(w.cfg.classKey);
+  if (!cls || cls.legacy) return 1;
+  let mul = 1;
+  if (s.pactActive && cls.active2.kind === 'death_pact') mul *= 1 + (cls.active2.pactDamageMul ?? 0);
+  if (s.tithed && cls.active1.kind === 'blood_tithe') mul *= 1 + (cls.active1.titheDamageMul ?? 0);
+  // "all towers +15% damage while below full HP" — Act I only, the default
+  // every tower stat but Wind Slash already carries (Q118/Q119).
+  const lowHp = cls.towerPassive.mods.towerLowHpDamageBonus ?? 0;
+  if (lowHp > 0 && !w.huntsWarden && s.hp < s.maxHp) mul *= 1 + lowHp;
+  return mul;
+}
+
+/**
+ * §4.2's three target-conditional tower passives, resolved once per volley.
+ * Null for every class that authors none, so the hot `dealHit` path pays one
+ * null check rather than three dictionary reads per struck enemy. Act I only,
+ * same default as `classTowerDamageMul` above.
+ */
+export function classTowerBonus(w: World): TowerClassBonus | null {
+  if (w.huntsWarden) return null;
+  const cls = w.content.classByKey.get(w.cfg.classKey);
+  if (!cls || cls.legacy) return null;
+  const m = cls.towerPassive.mods;
+  const extraElectricPct = m.towerExtraElectricPct ?? 0;
+  const vsBurningPct = m.towerDamageVsBurning ?? 0;
+  const vsChilledPct = m.towerDamageVsChilled ?? 0;
+  if (extraElectricPct === 0 && vsBurningPct === 0 && vsChilledPct === 0) return null;
+  return { extraElectricPct, vsBurningPct, vsChilledPct };
 }
 
 /**
@@ -286,12 +330,28 @@ export function attackSpeedFor(w: World, s: Structure): number {
   // SPEC-FINAL §5.5 Vampire Heart: "... and attack speed per 1% HP missing".
   // §4.1 Wind Slash (p6b): "all towers +10% attack speed" — a tower-side
   // multiplier distinct from the Warden's own `attackSpeedMul` above.
+  // §4.2 (p6d): Engineer's Field Kit overclock (a timed buff) and
+  // Necromancer's Death Pact (a toggle) are both per-structure, so they
+  // multiply here rather than folding into the shared `towerAttackSpeed` stat.
   return (
     w.derived.attackSpeedMul *
     w.derived.towerAttackSpeedMul *
     (1 + (w.auraBonus.get(s.id) ?? 0)) *
-    vampireMissingHpBuffMul(w, s)
+    vampireMissingHpBuffMul(w, s) *
+    classTowerAttackSpeedMul(w, s)
   );
+}
+
+function classTowerAttackSpeedMul(w: World, s: Structure): number {
+  if (s.atkSpdBuffRemaining <= 0 && !s.pactActive) return 1;
+  const cls = w.content.classByKey.get(w.cfg.classKey);
+  if (!cls || cls.legacy) return 1;
+  let mul = 1;
+  if (s.atkSpdBuffRemaining > 0 && cls.active1.kind === 'repair_heal') {
+    mul *= 1 + (cls.active1.overclockAtkSpdMul ?? 0);
+  }
+  if (s.pactActive && cls.active2.kind === 'death_pact') mul *= 1 + (cls.active2.pactAtkSpdMul ?? 0);
+  return mul;
 }
 
 /* ---------------------------------------------------------------- firing */
@@ -300,6 +360,8 @@ export function updateTowers(w: World, dt: number): void {
   if (w.auraDirty) refreshAuras(w);
   for (const s of w.structures) {
     if (s.dead || s.petrified) continue;
+    // §4.2 Engineer's overclock runs down whether or not this tower shoots.
+    if (s.atkSpdBuffRemaining > 0) s.atkSpdBuffRemaining = Math.max(0, s.atkSpdBuffRemaining - dt);
     const def = w.content.towerById.get(s.towerId)!;
     if (!def.attack) continue;
     s.cooldown -= dt * attackSpeedFor(w, s);
@@ -338,7 +400,7 @@ function fireTower(w: World, s: Structure, def: TowerDef): void {
   // SPEC-V3 §3 riders and the composite split travel with every shape this
   // tower can fire, so neither can be silently dropped by one `kind` out of
   // seven.
-  const fx: HitEffects = { source, onHit: prof.onHit, ratio: prof.ratio };
+  const fx: HitEffects = { source, onHit: prof.onHit, ratio: prof.ratio, towerBonus: classTowerBonus(w) };
 
   switch (a.kind) {
     case 'single': {

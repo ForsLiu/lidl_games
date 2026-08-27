@@ -91,7 +91,7 @@ describe('p6b: Thousand Cuts — every attack applies exactly 1 Bleeding', () =>
   });
 
   it('a legacy class never applies Bleeding from its own basic attack', () => {
-    const w = new World(cfg({ classKey: 'pyromancer' }));
+    const w = new World(cfg({ classKey: 'frost_warden' }));
     w.gold = 1e6;
     const e = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 1, w.warden.y)!;
     w.rebuildBuckets();
@@ -382,7 +382,10 @@ describe('p6b: QA bug 1 — w.dying freezes Command-driven class actions, not ju
     // no-ops on Command dispatch regardless of `w.dying` (it fires on
     // release via tickClassCharge, not this function) — so proving the
     // dying-guard actually gates this function needs a burst_damage class,
-    // the kind that would otherwise really fire here.
+    // the kind that would otherwise really fire here. Pyro's Immolation Wave
+    // is still that class after p6d converted the row to §4.2's shape — it is
+    // now a `legacy: false` `burst_damage` Active1 rather than a `legacy: true`
+    // one, so the cooldown it would have eaten is `active1Cooldown`.
     const w = new World(cfg({ classKey: 'pyromancer' }));
     w.gold = 1e6;
     w.phase = 'act2';
@@ -398,6 +401,7 @@ describe('p6b: QA bug 1 — w.dying freezes Command-driven class actions, not ju
     expect(fired).toBe(false);
     expect(e.hp).toBe(hpBefore);
     expect(w.warden.activeCooldown).toBe(0);
+    expect(w.warden.active1Cooldown).toBe(0);
   });
 
   it('a merged Dash Slash cannot fire while dying even if a charge was already in progress', () => {

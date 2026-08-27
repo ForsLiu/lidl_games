@@ -71,47 +71,79 @@
     },
     {
       "key": "engineer", "name": "Engineer", "unlockedByDefault": true, "unlockQuest": null,
-      "legacy": true,
-      "trait": "Towers cost -10%; build range +1",
-      "mods": { "towerCost": -0.10, "buildRange": 1, "burnDamage": 0, "burnSpread": 0, "slowPotency": 0, "chilledDamageTaken": 0 },
-      "active": {
-        "name": "Overclock Pulse",
-        "kind": "burst_damage",
-        "cooldownSeconds": 8,
-        "radius": 3,
-        "damage": 15,
-        "slow": 0.2,
-        "slowDuration": 1,
-        "dayUse": "Rattle a cluster crowding a gate.",
-        "nightUse": "Knock back pressure while a soul weapon reloads."
-      },
+      "legacy": false,
+      "moveSpeedBonus": 0.15,
+      "basicAttack": { "dps": 10, "range": 4, "interval": 0.8, "aoe": 0 },
       "passive": {
         "name": "Efficient Engineering",
-        "description": "Towers cost 10% less to build; build range +1 tile."
+        "description": "Builds and upgrades cost 10% less; build range +2 tiles.",
+        "mods": { "towerCost": -0.10, "buildRange": 2 }
       },
-      "manualAttack": { "name": "Thrown Spanner", "dps": 8, "range": 4, "interval": 0.8 }
+      "active1": {
+        "name": "Field Kit",
+        "kind": "repair_heal",
+        "cooldownSeconds": 10,
+        "radius": 4,
+        "damage": 0,
+        "repairFraction": 0.40,
+        "overclockAtkSpdMul": 0.50,
+        "overclockSeconds": 6
+      },
+      "active2": {
+        "name": "Pop Turret",
+        "kind": "summon_turret",
+        "cooldownSeconds": 12,
+        "radius": 0,
+        "damage": 0,
+        "towerKey": "arrow_spire",
+        "summonStatMul": 0.30,
+        "summonCap": 2,
+        "summonDurationSeconds": 10
+      },
+      "towerPassive": {
+        "name": "Reinforced Frames",
+        "description": "All towers +10% HP.",
+        "mods": { "towerHp": 0.10 }
+      }
     },
     {
-      "key": "pyromancer", "name": "Pyromancer", "unlockedByDefault": false, "unlockQuest": "win_a_run",
-      "legacy": true,
-      "trait": "Burn damage +15%; burns spread 1 hop",
-      "mods": { "towerCost": 0, "buildRange": 0, "burnDamage": 0.15, "burnSpread": 1, "slowPotency": 0, "chilledDamageTaken": 0 },
-      "active": {
+      "key": "pyromancer", "name": "Pyro", "unlockedByDefault": false, "unlockQuest": "win_a_run",
+      "legacy": false,
+      "moveSpeedBonus": 0.15,
+      "basicAttack": { "dps": 16, "range": 4, "interval": 0.7, "aoe": 1.2 },
+      "passive": {
+        "name": "Contagious Flame",
+        "description": "Burning enemies deal 2 damage/s to enemies touching them.",
+        "mods": {},
+        "kind": "contagious_flame",
+        "flameDps": 2,
+        "flameRadius": 1.2
+      },
+      "active1": {
         "name": "Immolation Wave",
         "kind": "burst_damage",
         "cooldownSeconds": 10,
-        "radius": 3.5,
+        "radius": 4,
         "damage": 45,
-        "burnDps": 6,
-        "burnDuration": 3,
-        "dayUse": "Clear a mob of fodder before it reaches your walls.",
-        "nightUse": "Buy space when the horde closes in."
+        "burnDps": 3,
+        "burnDuration": 3
       },
-      "passive": {
+      "active2": {
+        "name": "Flame Road",
+        "kind": "dash_trail",
+        "cooldownSeconds": 9,
+        "radius": 0,
+        "damage": 6,
+        "dashRange": 5,
+        "dashWidth": 1,
+        "groundDurationSeconds": 3,
+        "trailSegments": 5
+      },
+      "towerPassive": {
         "name": "Kindling",
-        "description": "Burn damage +15%; burns spread to a nearby enemy on tick."
-      },
-      "manualAttack": { "name": "Firebolt", "dps": 8, "range": 5, "interval": 0.9 }
+        "description": "All towers +10% damage against Burning enemies.",
+        "mods": { "towerDamageVsBurning": 0.10 }
+      }
     },
     {
       "key": "frost_warden", "name": "Frost Warden", "unlockedByDefault": false, "unlockQuest": "build_40_obelisks",
@@ -134,6 +166,265 @@
         "description": "Slows are 10% stronger; chilled enemies deal 10% less damage."
       },
       "manualAttack": { "name": "Frost Jab", "dps": 8, "range": 2.5, "interval": 0.6 }
+    },
+    {
+      "key": "archer", "name": "Archer", "unlockedByDefault": true, "unlockQuest": null,
+      "legacy": false,
+      "moveSpeedBonus": 0.15,
+      "basicAttack": { "dps": 16, "range": 6, "interval": 0.7, "aoe": 0 },
+      "passive": {
+        "name": "Long Draw",
+        "description": "Deadeye damage has no cap; +1 pierce per full second charged.",
+        "mods": {}
+      },
+      "active1": {
+        "name": "Deadeye Draw",
+        "kind": "charge_pierce",
+        "cooldownSeconds": 1.5,
+        "radius": 9,
+        "damage": 20,
+        "compoundPerSecond": 0.40,
+        "moveMulWhileCharging": 0.60,
+        "pierceCap": 6,
+        "chargeCapSeconds": 5
+      },
+      "active2": {
+        "name": "Quickstep",
+        "kind": "dash_volley",
+        "cooldownSeconds": 6,
+        "radius": 6,
+        "damage": 14,
+        "dashRange": 3,
+        "volleyShots": 3
+      },
+      "towerPassive": {
+        "name": "Ranger's Eye",
+        "description": "All towers +10% range.",
+        "mods": { "towerRange": 0.10 }
+      }
+    },
+    {
+      "key": "necromancer", "name": "Necromancer", "unlockedByDefault": false, "unlockQuest": "four_slot_win",
+      "legacy": false,
+      "moveSpeedBonus": 0,
+      "basicAttack": { "dps": 10, "range": 4, "interval": 0.9, "aoe": 0 },
+      "passive": {
+        "name": "Grave Harvest",
+        "description": "Kills leave corpses for 6 s.",
+        "mods": {},
+        "kind": "corpse_drop",
+        "corpseSeconds": 6
+      },
+      "active1": {
+        "name": "Raise",
+        "kind": "raise_skeletons",
+        "cooldownSeconds": 12,
+        "radius": 0,
+        "damage": 0,
+        "summonCap": 8,
+        "summonDurationSeconds": 15,
+        "summonStatMul": 0.40,
+        "summonRadius": 6
+      },
+      "active2": {
+        "name": "Death Pact",
+        "kind": "death_pact",
+        "cooldownSeconds": 2,
+        "radius": 4,
+        "damage": 0,
+        "pactDamageMul": 0.45,
+        "pactAtkSpdMul": 0.30,
+        "pactDrainPerSecond": 0.02,
+        "pylonDps": 5,
+        "pylonRange": 3,
+        "pylonInterval": 1
+      },
+      "towerPassive": {
+        "name": "Wounded Fury",
+        "description": "All towers +15% damage while below full HP.",
+        "mods": { "towerLowHpDamageBonus": 0.15 }
+      }
+    },
+    {
+      "key": "cryomancer", "name": "Cryomancer", "unlockedByDefault": false, "unlockQuest": "maze_master",
+      "legacy": false,
+      "moveSpeedBonus": 0.15,
+      "basicAttack": { "dps": 10, "range": 6, "interval": 0.8, "aoe": 0.8 },
+      "passive": {
+        "name": "Frost Touch",
+        "description": "Attacks apply frost; an enemy hit 5 times while frosted freezes; frozen enemies shatter on death.",
+        "mods": {},
+        "kind": "frost_touch",
+        "freezeHits": 5,
+        "shatterRadius": 1.5,
+        "shatterDamage": 20
+      },
+      "active1": {
+        "name": "Glaciate",
+        "kind": "frost_nova",
+        "cooldownSeconds": 9,
+        "radius": 4,
+        "damage": 20
+      },
+      "active2": {
+        "name": "Ice Wall",
+        "kind": "ice_wall",
+        "cooldownSeconds": 14,
+        "radius": 3,
+        "damage": 0,
+        "wallSeconds": 5,
+        "towerKey": "palisade"
+      },
+      "towerPassive": {
+        "name": "Deep Winter",
+        "description": "All towers +10% damage against frosted or frozen enemies.",
+        "mods": { "towerDamageVsChilled": 0.10 }
+      }
+    },
+    {
+      "key": "stormcaller", "name": "Stormcaller", "unlockedByDefault": false, "unlockQuest": "hoarder",
+      "legacy": false,
+      "moveSpeedBonus": 0.15,
+      "basicAttack": { "dps": 16, "range": 6, "interval": 0.7, "aoe": 0.8 },
+      "passive": {
+        "name": "Conduction",
+        "description": "Electric damage +20% per jump, compounding, cap 8 jumps.",
+        "mods": {}
+      },
+      "active1": {
+        "name": "Chain Surge",
+        "kind": "chain_lightning",
+        "cooldownSeconds": 8,
+        "radius": 5,
+        "damage": 18,
+        "chainCount": 6,
+        "chainGrowth": 0.20,
+        "chainCap": 8
+      },
+      "active2": {
+        "name": "Overload",
+        "kind": "overload",
+        "cooldownSeconds": 18,
+        "radius": 0,
+        "damage": 0,
+        "overloadSeconds": 5,
+        "overloadExtraChains": 2
+      },
+      "towerPassive": {
+        "name": "Live Wire",
+        "description": "All towers deal +10% of their damage as extra Electric.",
+        "mods": { "towerExtraElectricPct": 0.10 }
+      }
+    },
+    {
+      "key": "bloodlord", "name": "Bloodlord", "unlockedByDefault": false, "unlockQuest": "fast_boss",
+      "legacy": false,
+      "moveSpeedBonus": 0.30,
+      "basicAttack": { "dps": 28, "range": 2.5, "interval": 0.6, "aoe": 1.0 },
+      "passive": {
+        "name": "Blood Frenzy",
+        "description": "3% lifesteal on normal damage; +10% attack in VS waves, -5% in TD waves.",
+        "mods": { "leech": 0.03 },
+        "kind": "blood_frenzy",
+        "frenzyVsMul": 0.10,
+        "frenzyTdMul": -0.05
+      },
+      "active1": {
+        "name": "Blood Tithe",
+        "kind": "blood_tithe",
+        "cooldownSeconds": 10,
+        "radius": 4,
+        "damage": 0,
+        "titheHpFraction": 0.30,
+        "titheDamageMul": 0.25
+      },
+      "active2": {
+        "name": "Crimson Rush",
+        "kind": "dash_heal",
+        "cooldownSeconds": 8,
+        "radius": 0,
+        "damage": 0,
+        "dashRange": 6,
+        "dashWidth": 1,
+        "healPerEnemy": 2
+      },
+      "towerPassive": {
+        "name": "Sanguine Pact",
+        "description": "All towers +10% damage, -10% max HP.",
+        "mods": { "towerDamage": 0.10, "towerHp": -0.10 }
+      }
+    },
+    {
+      "key": "animist", "name": "Animist", "unlockedByDefault": false, "unlockQuest": "archivist",
+      "legacy": false,
+      "moveSpeedBonus": 0.15,
+      "basicAttack": { "dps": 10, "range": 4, "interval": 0.8, "aoe": 0 },
+      "passive": {
+        "name": "Kinship",
+        "description": "Aura effects also affect summons.",
+        "mods": {}
+      },
+      "active1": {
+        "name": "Manifest",
+        "kind": "manifest_spirit",
+        "cooldownSeconds": 16,
+        "radius": 0,
+        "damage": 0,
+        "summonCap": 3,
+        "summonDurationSeconds": 20,
+        "summonStatMul": 0.30,
+        "summonRadius": 6
+      },
+      "active2": {
+        "name": "Recall Totem",
+        "kind": "recall_totem",
+        "cooldownSeconds": 20,
+        "radius": 4,
+        "damage": 0,
+        "auraAtkSpdMul": 0.15,
+        "totemDurationSeconds": 15
+      },
+      "towerPassive": {
+        "name": "Wide Grove",
+        "description": "All towers +10% area.",
+        "mods": { "area": 0.10 }
+      }
+    },
+    {
+      "key": "paladin", "name": "Paladin", "unlockedByDefault": false, "unlockQuest": "tier5",
+      "legacy": false,
+      "moveSpeedBonus": 0,
+      "basicAttack": { "dps": 16, "range": 2.5, "interval": 0.8, "aoe": 1.5 },
+      "passive": {
+        "name": "Guardian Stance",
+        "description": "+30 defense after standing still 1 s; blocked damage charges Wrath.",
+        "mods": {},
+        "kind": "guardian_stance",
+        "stanceArmor": 30,
+        "stanceSeconds": 1,
+        "wrathFraction": 0.60
+      },
+      "active1": {
+        "name": "Clarion Taunt",
+        "kind": "clarion_taunt",
+        "cooldownSeconds": 14,
+        "radius": 6,
+        "damage": 0,
+        "tauntDurationSeconds": 4
+      },
+      "active2": {
+        "name": "Judgement",
+        "kind": "judgement",
+        "cooldownSeconds": 12,
+        "radius": 4,
+        "damage": 0,
+        "wrathDamageMul": 1.50
+      },
+      "towerPassive": {
+        "name": "Consecrated Stone",
+        "description": "All towers +10% HP and +5 defense.",
+        "mods": { "towerHp": 0.10, "towerDefenseBonus": 5 }
+      }
     }
   ]
 }

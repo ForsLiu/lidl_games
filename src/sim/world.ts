@@ -11,6 +11,8 @@ import { baseRunStats, damageTakenMul, derive, emptyStats, type Derived, type St
 import { dist2 } from './math';
 import { structureArmor, structureMaxHp } from './upgrades';
 import type {
+  ClassSummon,
+  Corpse,
   Enemy,
   GroundArea,
   Gem,
@@ -198,6 +200,17 @@ export class World {
   projectiles: Projectile[] = [];
   gems: Gem[] = [];
   areas: GroundArea[] = [];
+  /** SPEC-FINAL §4.2 (p6d): live class summons — turrets, skeletons, pylons, spirits, totems. */
+  classSummons: ClassSummon[] = [];
+  /** §4.2 Necromancer: corpses dropped by kills, consumed by *Raise*. */
+  corpses: Corpse[] = [];
+  /**
+   * §4.2 Cryomancer *Ice Wall*: structures that stand for `remaining` seconds
+   * and are then removed outright. Tracked here rather than as a `Structure`
+   * field so nothing else in the tower pipeline has to learn about a wall that
+   * expires (`updateTempWalls`, classes.ts).
+   */
+  tempWalls: { structureIds: number[]; remaining: number }[] = [];
 
   /* ---- progression ---- */
   stats: Stats;
@@ -403,6 +416,12 @@ export class World {
       secondWindUsed: false,
       armorShred: 0,
       leechAccumulator: 0,
+      overloadRemaining: 0,
+      standStillTimer: 0,
+      lastStillX: cc.x - 3,
+      lastStillY: cc.y,
+      wrathStored: 0,
+      clarionRemaining: 0,
     };
   }
 
@@ -566,6 +585,14 @@ export class World {
    */
   pendingPlagueTransfers: Enemy[] = [];
   drainingPlagueTransfers = false;
+
+  /**
+   * §4.2 Cryomancer, p6d: same shape again — a frozen enemy's death shatter
+   * can freeze-kill neighbours that are themselves frozen, and a frost-locked
+   * cluster chains that deep enough to overflow a recursive call stack.
+   */
+  pendingFrostShatters: Enemy[] = [];
+  drainingFrostShatters = false;
 
   /* ------------------------------------------------------- spatial queries */
 

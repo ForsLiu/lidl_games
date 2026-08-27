@@ -516,7 +516,35 @@ const ClassEffectSchema = z.object({
    * `radius` are unused placeholders on that row, the same precedent Dash
    * Slash's own unused `radius: 0` already set — Q118's Nit).
    */
-  kind: z.enum(['burst_damage', 'charge_nova', 'dash_line', 'ground_poison', 'poison_boost']),
+  kind: z.enum([
+    'burst_damage',
+    'charge_nova',
+    'dash_line',
+    'ground_poison',
+    'poison_boost',
+    // p6d, §4.2's nine remaining kits. One tag per named ability rather than a
+    // shared "generic" kind: every one of them reads a different set of the
+    // optional fields below, and a mismatched pair is a load error
+    // (`validateClassEffect`) instead of an Active that fires nothing.
+    'charge_pierce',
+    'dash_volley',
+    'repair_heal',
+    'summon_turret',
+    'frost_nova',
+    'ice_wall',
+    'chain_lightning',
+    'overload',
+    'dash_trail',
+    'raise_skeletons',
+    'death_pact',
+    'manifest_spirit',
+    'recall_totem',
+    'clarion_taunt',
+    'judgement',
+    // Bloodlord's two, which the p6d design note's kind list omitted (Q120).
+    'blood_tithe',
+    'dash_heal',
+  ]),
   cooldownSeconds: num,
   radius: num,
   damage: num,
@@ -536,6 +564,70 @@ const ClassEffectSchema = z.object({
   dashWidth: num.optional(),
   /** `ground_poison` only (p6c, Q119): seconds the ground zone persists after being cast — §4.1's "for 5 s", distinct from `cooldownSeconds` (the Active's own recast timer). */
   groundDurationSeconds: num.optional(),
+
+  /* -------------------------------------------------- p6d, §4.2 kit fields */
+
+  /** `charge_pierce` (Deadeye Draw): damage growth per held second, compounding — 0.4 is §4.2's "+40%/s". */
+  compoundPerSecond: num.optional(),
+  /** `charge_pierce`: move-speed multiplier while drawing — 0.6 is §4.2's "move −40%". */
+  moveMulWhileCharging: num.optional(),
+  /** `charge_pierce`: most enemies one released shot may pass through (a perf rail on "+1 pierce per full second"). */
+  pierceCap: num.optional(),
+  /** `summon_turret`/`raise_skeletons`/`manifest_spirit`: how long one summon lives. */
+  summonDurationSeconds: num.optional(),
+  /** ... how many of that kind may stand at once; a cast past the cap evicts the oldest. */
+  summonCap: num.optional(),
+  /** ... the fraction of its reference's stats the summon carries (§4.2's "30% stats" / "40% of char attack"). */
+  summonStatMul: num.optional(),
+  /** ... how far the cast reaches for what it consumes or clones (corpses, a built tower). */
+  summonRadius: num.optional(),
+  /** `ice_wall`: seconds the temporary wall stands before it is removed outright. */
+  wallSeconds: num.optional(),
+  /** `chain_lightning`: jumps the bolt makes before Overload's bonus. */
+  chainCount: num.optional(),
+  /** `chain_lightning`: §4.2 Conduction's per-jump compounding growth — 0.2 is "+20% per jump". */
+  chainGrowth: num.optional(),
+  /** `chain_lightning`: the jump index the compounding stops at ("cap 8 jumps"), which is what gate G11 bounds. */
+  chainCap: num.optional(),
+  /** `overload`: seconds the window lasts. */
+  overloadSeconds: num.optional(),
+  /** `overload`: extra `chain_lightning` jumps granted while it runs. */
+  overloadExtraChains: num.optional(),
+  /** `dash_trail`: ground-fire patches dropped along the dash line. */
+  trailSegments: num.optional(),
+  /** `death_pact`: the pacted tower's damage and attack-speed bonuses, and the max-HP fraction it burns per second. */
+  pactDamageMul: num.optional(),
+  pactAtkSpdMul: num.optional(),
+  pactDrainPerSecond: num.optional(),
+  /** `death_pact`: the Bone Pylon a pact tower leaves behind when the drain kills it. */
+  pylonDps: num.optional(),
+  pylonRange: num.optional(),
+  pylonInterval: num.optional(),
+  /** `recall_totem`: the attack-speed bonus the totem projects, and how long it stands. */
+  auraAtkSpdMul: num.optional(),
+  totemDurationSeconds: num.optional(),
+  /** `clarion_taunt`: seconds the taunt window runs. */
+  tauntDurationSeconds: num.optional(),
+  /** `judgement`: multiplier on stored Wrath when it is released ("stored x1.5"). */
+  wrathDamageMul: num.optional(),
+  /** `repair_heal`: fraction of max HP restored, and the overclock it leaves behind. */
+  repairFraction: num.optional(),
+  overclockAtkSpdMul: num.optional(),
+  overclockSeconds: num.optional(),
+  /** `dash_volley`: how many arrows the dash fires (§4.2's "3 arrows"). */
+  volleyShots: num.optional(),
+  /** `blood_tithe`: the share of current HP the tower pays once, and the permanent damage bonus it buys. */
+  titheHpFraction: num.optional(),
+  titheDamageMul: num.optional(),
+  /** `dash_heal` (Crimson Rush): HP restored per enemy the dash passes through. */
+  healPerEnemy: num.optional(),
+  /**
+   * `summon_turret`/`ice_wall`: which `data/towers.json` row the ability copies
+   * (Pop Turret's "mini arrow turret") or places (Ice Wall's palisades).
+   * Checked against the real roster at load, so a renamed tower is a load
+   * error rather than an Active that silently does nothing.
+   */
+  towerKey: str.optional(),
 });
 
 /**
@@ -562,7 +654,36 @@ const ClassSlotPassiveSchema = z.object({
    * `active1`/`active2` already use, rather than living in `mods` where an
    * unrecognized key would silently do nothing (Q118).
    */
-  kind: z.enum(['thousand_cuts', 'spreading_plague']).optional(),
+  kind: z
+    .enum([
+      'thousand_cuts',
+      'spreading_plague',
+      // p6d, §4.2: Pyro's burning-touch aura, Necromancer's corpse drop,
+      // Cryomancer's frost-on-hit/freeze/shatter chain, Paladin's stand-still
+      // armour + Wrath ledger, Bloodlord's phase-dependent attack bonus.
+      'contagious_flame',
+      'corpse_drop',
+      'frost_touch',
+      'guardian_stance',
+      'blood_frenzy',
+    ])
+    .optional(),
+  /** `contagious_flame`: damage per second a Burning enemy deals to everything within `flameRadius`. */
+  flameDps: num.optional(),
+  flameRadius: num.optional(),
+  /** `corpse_drop`: seconds a corpse lies before it fades. */
+  corpseSeconds: num.optional(),
+  /** `frost_touch`: hits-while-frosted needed to freeze, and the shatter a frozen death leaves. */
+  freezeHits: num.optional(),
+  shatterRadius: num.optional(),
+  shatterDamage: num.optional(),
+  /** `guardian_stance`: armour granted, the stand-still seconds that earn it, and the share of damage that becomes Wrath. */
+  stanceArmor: num.optional(),
+  stanceSeconds: num.optional(),
+  wrathFraction: num.optional(),
+  /** `blood_frenzy`: §4.2's "+10% attack in VS waves, −5% in TD waves", as multipliers. */
+  frenzyVsMul: num.optional(),
+  frenzyTdMul: num.optional(),
 });
 
 /**
@@ -845,6 +966,65 @@ export function validateClassEffect(eff: ClassEffect, where: string): void {
   }
   if (eff.kind === 'ground_poison') {
     if (eff.groundDurationSeconds === undefined) throw new Error(`${where}: ground_poison needs groundDurationSeconds`);
+  }
+  for (const [kind, fields] of Object.entries(REQUIRED_EFFECT_FIELDS)) {
+    if (eff.kind !== kind) continue;
+    for (const f of fields) {
+      if ((eff as unknown as Record<string, unknown>)[f] === undefined) {
+        throw new Error(`${where}: ${kind} needs ${f}`);
+      }
+    }
+  }
+}
+
+/**
+ * p6d's half of the rule above, as a table rather than fifteen more `if`
+ * blocks: each §4.2 kind against the fields `classes.ts` reads with no sane
+ * `?? 0` default. A missing one is an Active that fires and does nothing —
+ * the silent-no-op failure this loader exists to refuse.
+ */
+const REQUIRED_EFFECT_FIELDS: Record<string, readonly string[]> = {
+  charge_pierce: ['compoundPerSecond', 'moveMulWhileCharging', 'pierceCap', 'chargeCapSeconds'],
+  dash_volley: ['dashRange', 'volleyShots'],
+  repair_heal: ['repairFraction', 'overclockAtkSpdMul', 'overclockSeconds'],
+  summon_turret: ['summonDurationSeconds', 'summonCap', 'summonStatMul', 'towerKey'],
+  raise_skeletons: ['summonDurationSeconds', 'summonCap', 'summonStatMul', 'summonRadius'],
+  manifest_spirit: ['summonDurationSeconds', 'summonCap', 'summonStatMul', 'summonRadius'],
+  ice_wall: ['wallSeconds', 'towerKey'],
+  chain_lightning: ['chainCount', 'chainGrowth', 'chainCap'],
+  overload: ['overloadSeconds', 'overloadExtraChains'],
+  dash_trail: ['dashRange', 'dashWidth', 'groundDurationSeconds', 'trailSegments'],
+  dash_heal: ['dashRange', 'dashWidth', 'healPerEnemy'],
+  blood_tithe: ['titheHpFraction', 'titheDamageMul'],
+  death_pact: ['pactDamageMul', 'pactAtkSpdMul', 'pactDrainPerSecond', 'pylonDps', 'pylonRange', 'pylonInterval'],
+  recall_totem: ['auraAtkSpdMul', 'totemDurationSeconds'],
+  clarion_taunt: ['tauntDurationSeconds'],
+  judgement: ['wrathDamageMul'],
+};
+
+/**
+ * Passive-slot half of the same rule (code review on p6d): every field a
+ * p6d passive kind reads with a `?? 0` fallback where 0 means "does
+ * nothing" — not the kinds whose fallback is already a sane nonzero
+ * default (`freezeHits ?? 5`, `corpseSeconds ?? 6`, `stanceSeconds ?? 1`),
+ * which a missing field cannot silently neuter.
+ */
+const REQUIRED_PASSIVE_FIELDS: Record<string, readonly string[]> = {
+  contagious_flame: ['flameDps', 'flameRadius'],
+  frost_touch: ['shatterRadius', 'shatterDamage'],
+  guardian_stance: ['stanceArmor', 'wrathFraction'],
+  blood_frenzy: ['frenzyVsMul', 'frenzyTdMul'],
+};
+
+/** Passive-slot counterpart to `validateClassEffect` — see `REQUIRED_PASSIVE_FIELDS`. */
+export function validateClassPassive(passive: { kind?: string }, where: string): void {
+  for (const [kind, fields] of Object.entries(REQUIRED_PASSIVE_FIELDS)) {
+    if (passive.kind !== kind) continue;
+    for (const f of fields) {
+      if ((passive as unknown as Record<string, unknown>)[f] === undefined) {
+        throw new Error(`${where}: ${kind} needs ${f}`);
+      }
+    }
   }
 }
 
@@ -1218,6 +1398,14 @@ export function loadContent(): Content {
     if (c.legacy) continue;
     validateClassEffect(c.active1, `classes.json: ${c.key}.active1`);
     validateClassEffect(c.active2, `classes.json: ${c.key}.active2`);
+    validateClassPassive(c.passive, `classes.json: ${c.key}.passive`);
+    validateClassPassive(c.towerPassive, `classes.json: ${c.key}.towerPassive`);
+    // p6d: an Active that copies or places a tower has to name one that exists.
+    for (const eff of [c.active1, c.active2]) {
+      if (eff.towerKey !== undefined && !towerKeys.has(eff.towerKey)) {
+        throw new Error(`classes.json: ${c.key}.${eff.name} references unknown tower "${eff.towerKey}"`);
+      }
+    }
   }
   for (const a of affinity.affinities) {
     if (!classKeys.has(a.classKey)) {

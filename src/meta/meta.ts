@@ -47,7 +47,11 @@ export function defaultMeta(): MetaState {
     allocated: [0],
     stash: [],
     equipped: { sigil: null, plate: null, charm: null },
-    unlockedClasses: ['engineer'],
+    // Read off the roster rather than hardcoded: SPEC-FINAL §4.2's Unlocks line
+    // names three free classes (Swordsman, Archer, Engineer), and a literal
+    // here silently locked the other two out of a fresh account even though
+    // `unlockedByDefault` said otherwise (p6d).
+    unlockedClasses: content.classes.classes.filter((c) => c.unlockedByDefault).map((c) => c.key),
     unlockedCores: [defaultCoreKey(content)],
     highestTier: 1,
     questProgress: {},

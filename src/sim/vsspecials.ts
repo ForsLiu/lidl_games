@@ -156,9 +156,24 @@ function updateElectricWireGrid(w: World, dt: number): void {
   if (w.vsWireGridTimer < 0) w.vsWireGridTimer = 0;
 }
 
-function electricInterval(w: World): number {
+/**
+ * Exported so a test can drive the one clause that is not the authored number:
+ * SPEC-FINAL §4.2 Stormcaller *Overload* — "electric-tower wires pulse at
+ * double rate" for its window, which is this interval halved. Read off the
+ * selected class row rather than a stat, since the window is per-tick Warden
+ * state (`overloadRemaining`) and not a run-wide contribution (p6d).
+ */
+export function electricInterval(w: World): number {
+  let interval = 0.5;
   for (const t of w.content.towers.towers) {
-    if (t.vsSpecial.kind === 'electricWireGrid') return t.vsSpecial.interval;
+    if (t.vsSpecial.kind === 'electricWireGrid') {
+      interval = t.vsSpecial.interval;
+      break;
+    }
   }
-  return 0.5;
+  const cls = w.content.classByKey.get(w.cfg.classKey);
+  if (cls && !cls.legacy && cls.active2.kind === 'overload' && w.warden.overloadRemaining > 0) {
+    return interval / 2;
+  }
+  return interval;
 }

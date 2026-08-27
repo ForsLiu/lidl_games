@@ -44,6 +44,8 @@ export const STAT_KEYS = [
   'towerRange',
   'towerAttackSpeed',
   'towerPoisonDamage',
+  'towerHp',
+  'towerDefenseBonus',
   'coreHp',
   'buildRange',
   'wallHp',
@@ -91,6 +93,7 @@ export const STAT_KIND: Record<StatKey, StatKind> = {
   towerRange: 'mul',
   towerAttackSpeed: 'mul',
   towerPoisonDamage: 'mul',
+  towerHp: 'mul',
   wallHp: 'mul',
   sproutGold: 'mul',
   residualPotency: 'mul',
@@ -105,6 +108,9 @@ export const STAT_KIND: Record<StatKey, StatKind> = {
   armor: 'flat',
   hpRegen: 'flat',
   coreHp: 'flat',
+  // Armour points on a structure, the same base-less point total `armor` is for
+  // the Warden — see `structureArmor` (upgrades.ts).
+  towerDefenseBonus: 'flat',
   buildRange: 'flat',
   goldPerKill: 'flat',
   beaconRadius: 'flat',
@@ -339,6 +345,14 @@ export interface Derived {
    * but one that only ever fires once `huntsWarden` is true).
    */
   towerPoisonDamageMul: number;
+  /**
+   * §4.2 Engineer ("all towers +10% HP") / Paladin ("+10% HP and +5 defense")
+   * tower passives, p6d. Both ride `structureMaxHp`/`structureArmor`
+   * (upgrades.ts) so every reader of a structure's toughness — the fire loop,
+   * `damageStructure`, and §10's breach pricing — sees one number.
+   */
+  towerHpMul: number;
+  towerDefenseBonus: number;
   buildRange: number;
   wallHpMul: number;
   goldPerKill: number;
@@ -386,6 +400,8 @@ export function derive(content: Content, s: Stats, residualScale = 1): Derived {
     towerRangeMul: s.factor('towerRange'),
     towerAttackSpeedMul: s.factor('towerAttackSpeed'),
     towerPoisonDamageMul: s.factor('towerPoisonDamage'),
+    towerHpMul: s.factor('towerHp'),
+    towerDefenseBonus: s.total('towerDefenseBonus'),
     buildRange: content.towers.buildRange + s.total('buildRange'),
     wallHpMul: s.factor('wallHp'),
     goldPerKill: s.total('goldPerKill'),

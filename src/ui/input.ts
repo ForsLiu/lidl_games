@@ -128,7 +128,12 @@ export function makeKeyDownHandler(b: KeyBinding): (e: KeyboardEvent) => void {
     }
     if (k === ' ') e.preventDefault();
     if (k === 'enter') b.queue.push({ k: 'call' });
-    if (k === 'q') b.queue.push({ k: 'class_active' });
+    if (k === 'q') {
+      // p6d: Active1 is mouse-aimed too now (Field Kit, Chain Surge, Blood
+      // Tithe); a kind that ignores aim stays self-centered as before.
+      const aim = b.aim?.();
+      b.queue.push({ k: 'class_active', aimX: aim?.x, aimY: aim?.y });
+    }
     if (k === 'e') {
       const aim = b.aim?.();
       b.queue.push({ k: 'class_active2', aimX: aim?.x, aimY: aim?.y });

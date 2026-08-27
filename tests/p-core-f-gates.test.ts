@@ -50,13 +50,21 @@ function runCoreScripted(
   const policy = makePolicy(policyName);
   const w = run.world;
   const center = coreCenter();
-  // 90 simulated minutes: generous headroom over the slowest observed
-  // resolution (a `carnivorous_plant` boss-gated final wave that ran ~70
-  // simulated minutes total before losing — code-reviewer flagged that a
-  // 60-minute cap left that seed non-terminal (`outcome: 'running'`), which
-  // `winRate` below now asserts against rather than silently treating as a
-  // loss.
-  const maxTicks = opts.maxTicks ?? 60 * 60 * 90;
+  // Headroom over the slowest observed resolution, re-measured whenever a
+  // change makes runs longer. Q116 set 90 minutes against a
+  // `carnivorous_plant` boss-gated final wave that ran ~70 simulated minutes
+  // before losing (a 60-minute cap had left it non-terminal, which `winRate`
+  // below asserts against rather than silently treating as a loss).
+  //
+  // p6d (Q120) moved it again: SPEC-FINAL §4.2 re-specs the Engineer — the
+  // class `cfg()` runs this harness with — from build range +1 and a
+  // press-to-attack manual attack to build range +2 and an auto-firing basic
+  // attack, so the same seeds reach the Sundering with a bigger roster and
+  // survive longer. Measured at a 400-minute cap, `carnivorous_plant` seed 9
+  // now resolves at **106.8** simulated minutes (`defeat_warden`, all 18 TD
+  // waves cleared) — a real loss that the old 90-minute cap was cutting off
+  // mid-run, not a stall. 120 minutes is that plus headroom.
+  const maxTicks = opts.maxTicks ?? 60 * 60 * 120;
   const stepCount = w.content.coreByKey.get(coreKey)?.upgrade.count ?? 0;
   while (!run.done && w.tick < maxTicks) {
     const input = policy.act(w);
@@ -149,6 +157,12 @@ describe('G23: every Core clears T1 at a 35-70% win rate with the scripted bot',
   // Plant's devour/poison-volley damage is Core-driven and stat-independent,
   // so it is the one Core whose win rate doesn't bottleneck on the same wall
   // the four `.skip`-ed cases below hit.
+  //
+  // Re-measured at p6d (Q120), since §4.2's Engineer is a materially stronger
+  // Act I class than the SPEC-V2 kit this harness used to run: **6/12 (50%)**
+  // — seeds 1/2/3/10/11/12 `victory`, 4/5/7/8/9 `defeat_warden` after all 18
+  // TD waves, 6 `defeat_warden` at wave 3. Still in band, and off the floor
+  // rather than sitting on it.
   it('carnivorous_plant', () => {
     const { wins, outcomes } = winRate('carnivorous_plant');
     expect(wins, `${wins}/${SEEDS.length} — ${outcomes.join(' ')}`).toBeGreaterThanOrEqual(

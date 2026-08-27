@@ -105,6 +105,7 @@ export function makeEnemy(w: World, def: EnemyDef, x: number, y: number, opts: S
     slowAmount: 0,
     frostRemaining: 0,
     frozenRemaining: 0,
+    frostHitStacks: 0,
     dots: [],
     buffRemaining: 0,
     buffSpeed: 0,
@@ -333,8 +334,47 @@ export function killEnemy(w: World, e: Enemy, source: string): void {
     }
   }
 
+  // §4.2 Necromancer/Cryomancer, p6d: two more death-triggered class passives,
+  // scoped to their own class exactly the way Spreading Plague above is. One
+  // lookup serves both.
+  const kls = w.content.classByKey.get(w.cfg.classKey);
+  if (kls && !kls.legacy) {
+    if (kls.passive.kind === 'corpse_drop') {
+      w.corpses.push({ id: w.newId(), x: e.x, y: e.y, remaining: kls.passive.corpseSeconds ?? 6 });
+    } else if (kls.passive.kind === 'frost_touch' && e.frozenRemaining > 0) {
+      // Enqueue-then-drain, same reason as the two queues above: a shatter can
+      // kill a neighbour that is itself frozen, and a frost-locked cluster
+      // chains that arbitrarily deep.
+      w.pendingFrostShatters.push(e);
+      drainFrostShatters(w, kls.passive.shatterRadius ?? 0, kls.passive.shatterDamage ?? 0);
+    }
+  }
+
   onEnemyKilledForDrops(w, e, def);
   void source;
+}
+
+/** §4.2 Cryomancer: "frozen enemies shatter on death (r1.5, 20 normal ⚖)". */
+function drainFrostShatters(w: World, radius: number, damage: number): void {
+  if (w.drainingFrostShatters) return;
+  if (radius <= 0 || damage <= 0) {
+    w.pendingFrostShatters.length = 0;
+    return;
+  }
+  w.drainingFrostShatters = true;
+  try {
+    let e: Enemy | undefined;
+    while ((e = w.pendingFrostShatters.pop()) !== undefined) {
+      for (const other of w.enemiesInRadius(e.x, e.y, radius).slice()) {
+        if (other.dead || other === e) continue;
+        damageEnemy(w, other, damage, 'class_passive', { pure: true, fromX: e.x, fromY: e.y });
+      }
+      w.emit('explosion', e.x, e.y, radius, 0);
+    }
+  } finally {
+    w.pendingFrostShatters.length = 0;
+    w.drainingFrostShatters = false;
+  }
 }
 
 /**
@@ -703,6 +743,24 @@ export function dotOutstanding(e: Enemy): number {
  * rejects one in an `onHit` list rather than letting it apply as a silent zero.
  */
 export function applyOnHit(w: World, e: Enemy, key: string, source: string): void {
+  // §4.2 Cryomancer, p6d: not a §3 type or status of its own — a bookkeeping
+  // rider that only counts. It rides `onHit` because that is the one hook
+  // every attack shape already fans out per struck enemy, which is exactly
+  // what "an enemy hit 5 times while frosted" counts.
+  if (key === 'frost_track') {
+    if (e.frostRemaining > 0) {
+      e.frostHitStacks++;
+      const cls = w.content.classByKey.get(w.cfg.classKey);
+      const need = cls && !cls.legacy ? cls.passive.freezeHits ?? 5 : 5;
+      if (e.frostHitStacks >= need) {
+        applyFrozen(w, e);
+        e.frostHitStacks = 0;
+      }
+    } else {
+      e.frostHitStacks = 0;
+    }
+    return;
+  }
   if (key === 'frost') return applyFrost(w, e);
   if (key === 'frozen') return applyFrozen(w, e);
   const def = w.content.damageTypeByKey.get(key);

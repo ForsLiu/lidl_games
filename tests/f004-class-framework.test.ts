@@ -102,7 +102,7 @@ describe.skip('f004: affinity replaces class locks (SPEC-V2 D3)', () => {
     const s = (built as { ok: true; structure: Structure }).structure;
     const buffed = towerDamage(w, s, 10);
 
-    const w2 = newWorld({ classKey: 'pyromancer' });
+    const w2 = newWorld({ classKey: 'frost_warden' });
     warp(w2, 5, 5);
     const built2 = buildTower(w2, teslaDef.id, 5, 5);
     const s2 = (built2 as { ok: true; structure: Structure }).structure;
@@ -112,9 +112,15 @@ describe.skip('f004: affinity replaces class locks (SPEC-V2 D3)', () => {
   });
 });
 
+/**
+ * The surviving half of f004: the SPEC-V2 single-Active Command wire, which
+ * `frost_warden` still uses. Driven off that class rather than the Pyromancer
+ * since p6d converted `pyromancer` (and `engineer`) to SPEC-FINAL §4.2's
+ * `legacy: false` shape, leaving Frost Warden the one `legacy: true` row.
+ */
 describe('f004: class Active skill as a sim Command', () => {
   it('deals damage in a radius, applies its effect, and starts its cooldown', () => {
-    const w = newWorld({ classKey: 'pyromancer' }); // Immolation Wave: burst_damage + burn
+    const w = newWorld({ classKey: 'frost_warden' }); // Glaciate: burst_damage + slow
     const e = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 1, w.warden.y)!;
     w.rebuildBuckets(); // enemiesInRadius reads the spatial hash Run.step() would otherwise refresh
     const hpBefore = e.hp;
@@ -127,7 +133,7 @@ describe('f004: class Active skill as a sim Command', () => {
   });
 
   it('does nothing while on cooldown', () => {
-    const w = newWorld({ classKey: 'pyromancer' });
+    const w = newWorld({ classKey: 'frost_warden' });
     spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 1, w.warden.y);
     w.rebuildBuckets();
     applyCommand(w, { k: 'class_active' });
@@ -143,7 +149,7 @@ describe('f004: class Active skill as a sim Command', () => {
   });
 
   it('fires again once the cooldown has ticked down', () => {
-    const w = newWorld({ classKey: 'pyromancer' });
+    const w = newWorld({ classKey: 'frost_warden' });
     applyCommand(w, { k: 'class_active' });
     const cd = w.warden.activeCooldown;
     for (let i = 0; i < Math.ceil(cd * 60) + 1; i++) {
@@ -159,7 +165,7 @@ describe('f004: class Active skill as a sim Command', () => {
   });
 
   it('is a no-op outside the phases it is usable in', () => {
-    const w = newWorld({ classKey: 'pyromancer' });
+    const w = newWorld({ classKey: 'frost_warden' });
     w.phase = 'levelup';
     const e = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 1, w.warden.y)!;
     w.rebuildBuckets();
@@ -175,9 +181,9 @@ describe('f004: class Active skill as a sim Command', () => {
       const cmds: Command[] = t === 120 ? [{ k: 'class_active' }] : [];
       log.push({ mx: 0, my: 0, dash: false, attack: true, aimX: 0, aimY: 0, active1Held: false, cmds });
     }
-    const a = new Run(cfg({ classKey: 'pyromancer' }));
+    const a = new Run(cfg({ classKey: 'frost_warden' }));
     for (const input of log) a.step(input);
-    const b = new Run(cfg({ classKey: 'pyromancer' }));
+    const b = new Run(cfg({ classKey: 'frost_warden' }));
     for (const input of log) b.step(input);
     expect(a.hash()).toBe(b.hash());
   });

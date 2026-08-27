@@ -83,9 +83,11 @@ describe('p6a: the loader rejects a legacy: false class missing any of the four 
 
   it('still accepts every shipped legacy: true class (the real data/classes.json)', () => {
     expect(() => ClassesFileSchema.parse(content.classes)).not.toThrow();
-    // p6b ships the first real legacy: false class (Swordsman); the three
-    // original V2-era classes stay legacy: true (Q38).
-    const legacyKeys = ['engineer', 'pyromancer', 'frost_warden'];
+    // p6b ships the first real legacy: false class (Swordsman); p6d converts
+    // `engineer`/`pyromancer` to the shape SPEC-FINAL §4.2 gives them, leaving
+    // `frost_warden` — a class §4 does not have — as the last legacy row (Q38,
+    // Q120).
+    const legacyKeys = ['frost_warden'];
     for (const c of content.classes.classes) {
       expect(c.legacy).toBe(legacyKeys.includes(c.key));
     }
@@ -133,7 +135,7 @@ describe('p6a: Active1 (Q) and Active2 (E) are two independently cooled-down sim
   });
 
   it('class_active2 is a no-op for a legacy: true class', () => {
-    const w = new World(cfg({ classKey: 'pyromancer' }));
+    const w = new World(cfg({ classKey: 'frost_warden' }));
     const e = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 1, w.warden.y)!;
     w.rebuildBuckets();
     const hpBefore = e.hp;
@@ -143,7 +145,7 @@ describe('p6a: Active1 (Q) and Active2 (E) are two independently cooled-down sim
   });
 
   it('a legacy: true class still fires its one Active through class_active exactly as before', () => {
-    const w = new World(cfg({ classKey: 'pyromancer' })); // Immolation Wave: burst_damage + burn
+    const w = new World(cfg({ classKey: 'frost_warden' })); // Glaciate: burst_damage + slow
     const e = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 1, w.warden.y)!;
     w.rebuildBuckets();
     const hpBefore = e.hp;

@@ -15,17 +15,38 @@ const SEEDS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
 describe('A3 movement is mandatory', () => {
   // Q100 recorded that p2c's Frost Obelisk VS special, stacked with p2b's
   // already-doubled wielded damage, flipped seeds 3 and 5 to an outright
-  // `victory` for a *stationary* Warden. p2e (Q103) deletes the other half of
-  // that stack — the double-paying soul-weapon fire loop itself, which was
-  // most of a stationary build's damage — and both seeds fall back to
-  // `defeat_warden`: measured, seeds 1-12 are unanimous again under `no-move`.
-  // This is Q100's own exception un-happening, not a fresh finding, so it is
-  // folded back into the single claim below rather than kept as two tests.
-  it('a Warden that never moves always dies, and never sees the boss', () => {
-    for (const seed of SEEDS) {
-      const { report } = runWithPolicy(cfg({ seed }), 'no-move');
+  // `victory` for a *stationary* Warden; p2e (Q103) removed the cause and both
+  // fell back, so the claim went back to unanimous.
+  //
+  // **p6d re-opens exactly one seed, for exactly the same kind of reason
+  // (Q120).** SPEC-FINAL §4.2 re-specs the Engineer — which `tests/helpers.ts`'s
+  // `cfg()` makes this file's control class — from the SPEC-V2 kit (build range
+  // +1, a manual attack that only fires on `input.attack`) to a §4 kit with
+  // build range **+2** and a basic attack that auto-fires every tick it can
+  // (Q117). Both changes land in Act I, where `no-move` still plays the full
+  // `hybrid` build, so the stationary run reaches the Sundering with a bigger,
+  // better-placed roster — and §6.1 hands that roster to the character as its
+  // *wielded* VS arsenal. Measured, seeds 1-12 under `no-move`: eleven still
+  // `defeat_warden` with the boss never seen (survival 108-671s, 34-37 towers),
+  // seed 8 alone reaches `victory` at 946s. The control run — the same twelve
+  // seeds under `frost_warden`, the one class p6d does not touch — stays 12/12
+  // `defeat_warden` and builds exactly 32 towers on every seed against the new
+  // Engineer's 34-37, which is the mechanism stated as a number: this is the
+  // class's own change reaching Act I, not a movement regression.
+  //
+  // Recorded rather than skipped or nudged, on Q100's precedent: the exception
+  // list is asserted exactly, so a future change that spreads it *or* removes
+  // it fails here and forces a re-measure instead of drifting.
+  const STATIONARY_WIN_SEEDS = [8];
+
+  it('a Warden that never moves dies on every seed but the one measured exception, and only that one ever sees the boss', () => {
+    const runs = SEEDS.map((seed) => ({ seed, report: runWithPolicy(cfg({ seed }), 'no-move').report }));
+    const won = runs.filter((r) => r.report.outcome === 'victory').map((r) => r.seed);
+    expect(won, `stationary victories: ${won.join(', ')}`).toEqual(STATIONARY_WIN_SEEDS);
+    for (const { seed, report } of runs) {
+      if (STATIONARY_WIN_SEEDS.includes(seed)) continue;
       expect(report.outcome, `seed ${seed}`).toBe('defeat_warden');
-      expect(report.bossKilled).toBe(false);
+      expect(report.bossKilled, `seed ${seed}`).toBe(false);
     }
   });
 

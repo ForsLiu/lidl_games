@@ -158,7 +158,10 @@ export function damageShare(ratio: Readonly<Record<string, number>> | null, type
 /** Max HP for a tower of this type at `level`, walls' `wallHpMul` included. */
 export function structureMaxHp(w: World, def: TowerDef, level: number): number {
   const hpMul = def.key === 'palisade' ? w.derived.wallHpMul : 1;
-  return def.hp * hpMul * upgradeStatMul(w, def, level);
+  // §4.2's Engineer/Paladin tower passives ("all towers +10% HP") apply to
+  // every structure, walls included, so they multiply on top of `wallHpMul`
+  // rather than replacing it (p6d).
+  return def.hp * hpMul * upgradeStatMul(w, def, level) * w.derived.towerHpMul;
 }
 
 /**
@@ -167,7 +170,10 @@ export function structureMaxHp(w: World, def: TowerDef, level: number): number {
  */
 export function structureArmor(w: World, s: Structure): number {
   const def = w.content.towerById.get(s.towerId)!;
-  return def.defense * upgradeStatMul(w, def, s.tier);
+  // §4.2 Paladin's "+5 defense" is a flat point bonus in the same units the
+  // band table authors, so it adds after the track multiplier rather than
+  // being scaled by it (p6d).
+  return def.defense * upgradeStatMul(w, def, s.tier) + w.derived.towerDefenseBonus;
 }
 
 /**

@@ -16,10 +16,10 @@ import {
 // SPEC-V3 §3's composite splits. The cycle with `damagetypes.ts` (which imports
 // `applyAoE` for Electric's inherent radius) is deliberate and safe: both sides
 // are called from inside functions, neither is read at module evaluation.
-import { applyDamageSplit } from './damagetypes';
+import { applyDamageSplit, applyDamageType } from './damagetypes';
 import { applyTowerLifesteal } from './cores';
 import { dcos, dist2, normalize } from './math';
-import type { Enemy, Projectile } from './types';
+import type { Enemy, Projectile, TowerClassBonus } from './types';
 import { World } from './world';
 
 export interface HitEffects {
@@ -46,12 +46,20 @@ export interface HitEffects {
    * silent drop QA found in m19c's cone case, one layer down.
    */
   ratio?: Readonly<Record<string, number>> | null;
+  /**
+   * SPEC-FINAL §4.2's target-conditional tower passives (p6d). Set only by
+   * `fireTower` (towers.ts) and carried by the projectiles it spawns, so a
+   * class Active or a wielded VS attack passing through the same helpers is
+   * unaffected — every one of the three clauses says "all towers".
+   */
+  towerBonus?: TowerClassBonus | null;
 }
 
 /**
  * One hit's damage, typed if the attack says how. Every shape below goes
  * through this rather than calling `damageEnemy` itself, so a composite tower
- * cannot lose its types by being fired out of the wrong `kind`.
+ * cannot lose its types by being fired out of the wrong `kind` — which is also
+ * what makes it the one place §4.2's tower passives need to be read.
  */
 export function dealHit(
   w: World,
@@ -61,8 +69,31 @@ export function dealHit(
   fx: HitEffects,
   opts: DamageOptions,
 ): number {
-  if (!fx.ratio) return damageEnemy(w, e, amount, source, opts);
-  return applyDamageSplit(w, e, fx.ratio, amount, source, opts);
+  const bonus = fx.towerBonus;
+  let amt = amount;
+  if (bonus) {
+    // §4.2 Pyro / Cryomancer: "+10% damage vs Burning enemies" / "vs
+    // frosted/frozen". Read off the target at the moment of the hit, which is
+    // why they cannot ride the `towerDamage` (towers.ts) chokepoint the
+    // unconditional tower passives do.
+    if (bonus.vsBurningPct > 0 && e.dots.some((d) => d.type === 'burning')) amt *= 1 + bonus.vsBurningPct;
+    if (bonus.vsChilledPct > 0 && (e.frostRemaining > 0 || e.frozenRemaining > 0)) amt *= 1 + bonus.vsChilledPct;
+  }
+  const dealt = fx.ratio
+    ? applyDamageSplit(w, e, fx.ratio, amt, source, opts)
+    : damageEnemy(w, e, amt, source, opts);
+  // §4.2 Stormcaller: "all towers deal +10% of their damage as extra
+  // Electric" — a second, typed hit off the damage that just landed, so it
+  // inherits Electric's own inherent r0.8 blast (§3). Deliberately not folded
+  // into the returned total: `damageDealt`/lifesteal credit the attack, and
+  // the extra bolt already credits itself through `damageEnemy`.
+  if (bonus && bonus.extraElectricPct > 0 && dealt > 0 && !e.dead) {
+    applyDamageType(w, e, 'electric', dealt * bonus.extraElectricPct, source, {
+      fromX: opts.fromX,
+      fromY: opts.fromY,
+    });
+  }
+  return dealt;
 }
 
 export function applyEffects(w: World, e: Enemy, fx: HitEffects): void {
@@ -441,6 +472,7 @@ export function spawnProjectile(w: World, spec: ProjectileSpec): Projectile {
     groundBurn: spec.groundBurn ?? false,
     groundBurnSeconds: spec.groundBurnSeconds ?? 0,
     structureId: spec.structureId,
+    towerBonus: spec.fx?.towerBonus ?? null,
     dead: false,
   };
   w.projectiles.push(p);
@@ -507,6 +539,7 @@ function projectileEffects(p: Projectile): HitEffects {
     slowDuration: p.slowDuration,
     onHit: p.onHit,
     ratio: p.ratio,
+    towerBonus: p.towerBonus,
   };
 }
 

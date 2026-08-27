@@ -50,6 +50,13 @@ function forceWaveClear(run: Run, wave: number): void {
 /** Standing exactly on the Core tile leaks the instant the wave update runs. */
 function leakOne(run: Run, key: string): void {
   const w = run.world;
+  // p6d: the default test class (Engineer) is a SPEC-FINAL §4.2 kit now, so it
+  // auto-attacks with no `input.attack` press (Q117) — and it reforms/starts
+  // within its own range of the Core tile these leakers stand on. Suppressed
+  // the same way p6b/p6c's kit tests do, so this file keeps measuring leak
+  // coupling rather than whether the character happened to finish a leaker
+  // first.
+  w.warden.attackCooldown = 1e9;
   w.phase = 'act1_wave';
   spawnEnemy(w, key, CORE_X + 0.5, CORE_Y + 0.5, { hpMul: 1, gate: 0, overlay: false });
   run.step(emptyInput());
@@ -87,6 +94,7 @@ describe('BACKLOG f003/p3c: leak coupling (SPEC-FINAL §1.1, gate G6)', () => {
     const run = new Run(cfg());
     const w = run.world;
     w.phase = 'act1_wave';
+    w.warden.attackCooldown = 1e9; // see `leakOne` (p6d)
     const def = w.content.enemyByKey.get('swarm_rat')!;
     const cost = w.content.spawns.costs.swarm_rat;
     const mul = w.content.spawns.leakBudgetMultiplier;

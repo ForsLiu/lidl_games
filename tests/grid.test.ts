@@ -93,7 +93,11 @@ describe('content', () => {
     expect(c.boons.boons).toHaveLength(12);
     expect(c.modifiers.modifiers).toHaveLength(12);
     expect(c.quests.quests).toHaveLength(9);
-    expect(c.classes.classes).toHaveLength(5);
+    // SPEC-FINAL §13's eleven, plus `frost_warden` — the one V2-era class §4
+    // does not re-spec, kept `legacy: true` so existing save unlocks stay
+    // valid (p6d, Q120).
+    expect(c.classes.classes).toHaveLength(12);
+    expect(c.classes.classes.filter((x) => !x.legacy)).toHaveLength(11);
     expect(c.tree.nodes.filter((n) => n.kind !== 'start')).toHaveLength(120);
     expect(c.tree.nodes.filter((n) => n.kind === 'keystone')).toHaveLength(3);
     expect(c.relics.affixes).toHaveLength(12);

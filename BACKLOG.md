@@ -34,7 +34,7 @@ still in test headers.
 | P3 interleave | **done in full (p3a-p3e)** — `p3a` retargets the reused V2 cycle machine to 18 TD + 6 VS, 20s build, 75s VS (G6's pattern half); `p3b` stacks up to `maxStackedWaves` TD waves via the `call` command (G6's stacking half); `p3c` re-points leak coupling's existing ×2-into-next-VS-wave mechanism onto TD→VS vocabulary and the real 6-block shape; `p3d` deletes the V2 Day/Dusk/Night/Dawn machine, Rekindle and the Core-detonation pocket/lane mechanism outright; `p3e` re-baselines `light-build`/G13's solo-viability clause (`a4-single-type`)/the boss gate against the real shape — all three measure red past ~wave 10-14 (a p8a content gap, not a P3 defect) and are logged `.skip` with their numbers rather than forced green (Q109) |
 | P4 core math | **done** — multiplicative stacking, armor cap +99 / floor −100, 6 damage types + 2 statuses (G4, G5 green) |
 | P5 tower roster | **done in full (p5a-p5d, G20 green)** — all 10 towers, upgrade tracks, defense bands; `p5b` gave Ember Brazier/Mortar their own `costMul`; `p5c` authored the four remaining §5.2 milestone specials (Ballista, Fire Brazier, Ice Obelisk, Mortar) and the G20 loader rule; `p5d` fixed the QA-filed `damageDealt` telemetry bug on pierce/lob-kind towers |
-| P6 classes | **framework done (`p6a`), two real kits done (`p6b`, `p6c`)** — §4's Passive + Q + E + tower passive is live; Swordsman and Plaguebringer are the first two §4-shaped kits, and **gate G9 is green in full** (both the merge half and the transfer half); still **2 of 11** new-shape kits, the other 3 legacy classes remain on the V2 shape (`p6d` authors the rest) (G8, G10, G11 unmet) |
+| P6 classes | **framework done (`p6a`), eleven of eleven real kits done (`p6b`, `p6c`, `p6d`)** — §4's Passive + Q + E + tower passive is live for all 11 classes; **gate G9 is green in full**, and `p6d` measured **G10 and G11 green** (Archer's dps-optimal charge peaks at t=5.0 inside [2,6], full charge one-shots the toughest non-elite; Stormcaller's max chain multiplier is 3.5832 ≤ 3.6); `p6e` (G8's win-rate/damage-diversity measurement) and `p6f` (V2 framework residue retirement) remain |
 | P7 equipment/rewards/VS upgrades | **superseded systems in place** — relic affixes, Ember, 12 boons; §7's 12-item table, §6.3's pool and §8's reward pipeline unbuilt (G12 unmet) |
 | P8 enemies/waves/bosses | **roster and both bosses done** — all 20 §9 enemies by name; waves still on the 10-wave cycle shape (G14 measured on the old shape) |
 | P9 tooling | **dev mode, god mode, UX flows done; Codex read-half in flight on `lane/tuner`; Tuner unbuilt** (G15 unmet, G16/G18 largely green) |
@@ -96,22 +96,20 @@ quest engine doesn't exist yet — are re-filed as `p7h` in P7, below.
 
 ### P6 — classes (G8, G9, G10, G11)
 
-**`p6a`, `p6b` and `p6c` are done** — see the Done section. SPEC-FINAL §4's
-class framework (archetype bands resolved to a numeric basic-attack profile,
-Passive, Active1 (Q), Active2 (E), Tower passive) is live, proven by a
-fixture class; the three existing V2-era classes carry forward as `legacy:
-true` (Q38). `p6b` authored the first real §4 kit, Swordsman, and gate
-**G9**'s first half (the Circle Slash/Dash Slash merge) is green; `p6c`
-authored the second, Plaguebringer, and **gate G9 is now green in full**
-(the Spreading Plague on-death DoT transfer, proven safe at a 2000-enemy
-chained-death scale).
+**`p6a`, `p6b`, `p6c` and `p6d` are done** — see the Done section. SPEC-FINAL
+§4's class framework (archetype bands resolved to a numeric basic-attack
+profile, Passive, Active1 (Q), Active2 (E), Tower passive) is live, proven by
+a fixture class; the three existing V2-era classes carry forward as `legacy:
+true` (Q38), except Engineer and Pyro, which `p6d` converted in place to real
+§4.2 kits. `p6b` authored the first real §4 kit, Swordsman, and gate **G9**'s
+first half (the Circle Slash/Dash Slash merge) is green; `p6c` authored the
+second, Plaguebringer, and **gate G9 is now green in full** (the Spreading
+Plague on-death DoT transfer, proven safe at a 2000-enemy chained-death
+scale); `p6d` authored the remaining nine §4.2 kits (Archer, Engineer, Pyro,
+Necromancer, Cryomancer, Stormcaller, Bloodlord, Animist, Paladin), bringing
+the roster to **11 of 11 §4-shaped classes**, and **gates G10 and G11 are now
+green** (measured, not assumed — see Q120).
 
-- [ ] (p6d) [feat] The nine §4.2 classes: Archer, Engineer, Pyro, Necromancer,
-      Cryomancer, Stormcaller, Bloodlord, Animist, Paladin, each as the §4.2 row
-      authors it — acceptance: all 11 classes load and complete a run; gate **G10**
-      (Archer's dps-optimal charge is finite at 2–6 s and a full charge one-shots any
-      non-elite at mid scaling) and gate **G11** (Stormcaller's max chain multiplier
-      ≤ ×3.6) are green — refs: §4.2, G10, G11
 - [ ] (p6e) [balance] Gate **G8**: every class clears T1 at a 35–70% win rate under a
       scripted kit bot, and the top damage source differs across at least 8 of the 11
       — acceptance: G8 measured as a live test over the seed set, with the per-class
@@ -329,6 +327,111 @@ logged in MIGRATION.md §8 rather than carried as dead items.
   **G19**. The work is `p10d`.
 
 ## Done
+
+- [x] (p6d) [feat] The nine remaining §4.2 classes: Archer, Engineer, Pyro,
+      Necromancer, Cryomancer, Stormcaller, Bloodlord, Animist, Paladin —
+      this commit. **All 11 §4-shaped classes now exist, and gates G10 and
+      G11 are green.** Found already implemented but uncommitted at session
+      start (a prior session's in-progress work), verified end to end rather
+      than re-implemented, the same protocol `p6a`/`p6b`/`p6c` set. Fifteen
+      new `ClassEffectSchema`/passive kinds cover the nine kits' Active1/
+      Active2/passive slots; `validateClassEffect`/a new `validateClassPassive`
+      (`src/sim/content.ts`) reject a row missing any field its kind reads
+      with no sane default, plus referential checks on `towerKey`. Notable
+      mechanisms: a new `TowerClassBonus` struct threaded through
+      `HitEffects`/`dealHit`/`Projectile` (`combat.ts`, `types.ts`) carries
+      the three *target-conditional* tower passives (Stormcaller's +10%
+      tower damage as extra Electric, Pyro's +10% vs Burning, Cryomancer's
+      +10% vs frosted/frozen) through every attack shape, not just the
+      unconditional per-structure multipliers the framework already had;
+      Ice Wall places three real, temporary `palisade` towers through the
+      ordinary `buildTower` pipeline with cost pre-funded and refunded around
+      the call (gold is provably unchanged win or lose) and `towersBuilt`/
+      `spent` corrected so a cast never reads as a player build; Cryomancer's
+      frozen-death shatter reuses the `p2f`/`p6c` enqueue-then-drain
+      recursion-safety worklist (`pendingFrostShatters`), proven at 2000
+      chained deaths; Necromancer/Engineer/Animist summons share one
+      `ClassSummon` struct with per-kind concurrency caps that evict the
+      oldest; Death Pact writes `Structure.hp` directly (bypassing
+      `damageStructure`) since it prices itself in max HP; `engineer` and
+      `pyromancer` are converted in place to real §4.2 kits (keeping their
+      `key` so existing unlocks stay valid), leaving `frost_warden` as the
+      one remaining `legacy: true` row. **Q120 records eleven genuine
+      SPEC-FINAL judgment calls**, most structurally: two Bloodlord kinds
+      the design note's own list omitted; `class_active` gaining optional
+      `aimX`/`aimY` since three §4.2 Active1s are mouse-aimed, unlike every
+      prior Active1; G10's dps model corrected against the design note's own
+      arithmetic (its closed-form root is the *minimum* of `a^t/(t+c)`, not
+      the maximum — the true optimum is measured by grid search at the
+      authored numbers, `t=5.0`, and re-run by the test itself so a future
+      retune fails the gate rather than the reader); which SPEC clauses have
+      no mechanism in this sim and are named-and-skipped rather than
+      invented (aggro-priority overrides for Clarion Taunt/Recall Totem's
+      taunt, Bloodlord's per-structure VS lifesteal share, Animist's +1
+      summon cap); Ice Wall's Act-I-only functional gap from reusing
+      `buildTower`; six classes naming a real but not-yet-quest-granting
+      unlock key pending `p7e`'s real §8.4 engine; a pre-existing bug this
+      item surfaced (`defaultMeta()` hardcoded `unlockedClasses: ['engineer']`,
+      so Swordsman had been locked out of fresh accounts since `p6b` —
+      fixed by deriving the list from the roster's own `unlockedByDefault`
+      flag); and two measured blast-radius findings on existing gates,
+      re-measured with a control rather than nudged (`a3-movement-mandatory`'s
+      `no-move` seed 8 now reaching `victory` once Engineer's bigger Act I
+      roster becomes seed 8's VS arsenal, checked against a `frost_warden`
+      control that still goes 12/12 `defeat_warden`; G23's
+      `carnivorous_plant` seed 9 needing its tick cap raised from 90 to 120
+      simulated minutes once a real resolution at 106.8 minutes was found,
+      re-measuring the whole gate at 6/12, comfortably inside the 35–70%
+      band). **code-reviewer REQUEST-CHANGES → fixed, then re-verified
+      clean**: the first draft's `storeWrath` (`src/sim/run.ts`) applied
+      Clarion Taunt's explicit 60% `wrathFraction` to Paladin's *base*
+      Guardian Stance passive too ("blocked damage charges Wrath" names no
+      percentage — a plain reading is the full amount), silently cutting the
+      base passive's stated effect by 40% and contradicting Q120(10)'s own
+      claim that "`blocked` is exact" — fixed to bank 100% of blocked damage
+      unconditionally, with `wrathFraction` applying only to Clarion's
+      additional applied-damage clause during its own window, with the
+      regression test corrected to match (108/108 green after the fix, full
+      suite reconfirmed green). Everything else in the review held: the
+      `TowerClassBonus` threading has no recursion into a tower's own bonus;
+      Ice Wall's gold-neutrality is directly tested; `hashWorld` covers every
+      new field (`pactActive`/`atkSpdBuffRemaining`/`tithed`, `frostHitStacks`,
+      the five new `Warden` fields, `classSummons`/`corpses`/`tempWalls`); no
+      `Math.random`/`Date.now`/native trig in touched `/src/sim` files; every
+      numeric kit value is data-driven in `data/classes.json`. **qa-playtester
+      PASS**, no bugs found: real (non-scripted) headless runs for every
+      non-legacy class with a custom active-firing bot across up to 20+
+      simulated minutes each found no NaN/Infinity anywhere and byte-identical
+      replay hashes across independent same-seed runs, including three driven
+      to a true terminal `defeat_warden`; independently re-derived G10 (peak
+      at t=5.0, a 269-damage full charge one-shotting `bulwark`'s 70 HP) and
+      G11 (3.5832 ≤ 3.6) by hand against the authored numbers rather than
+      trusting the test; Ice Wall's gold-neutrality held on success,
+      out-of-range failure, an off-phase cast and a fully-blocked cast, with
+      the cooldown still paying on total failure; a hand-corrupted
+      `data/classes.json` (missing `wallSeconds`) threw the loader's exact
+      error and was restored byte-identical; Pop Turret's cap-2 eviction and
+      Necromancer's cap-8 Raise (from 20 available corpses) both evicted/capped
+      correctly, including a second cast at the cap consuming zero further
+      corpses; the frozen-death shatter chain held at 2000 links; charge-hold
+      boundaries (a 1-tick tap, a 10,000-tick hold clamped to
+      `chargeCapSeconds`, a 20s Archer draw against a 5s cap) all behaved
+      correctly and Quickstep does not consume or reset a mid-draw charge;
+      `w.dying` freezes every new Active structurally; Blood Tithe's
+      double-cast and Death Pact's 101x toggle spam both landed on the
+      correct final state; Overload/Recall Totem recast refreshes rather than
+      stacking; Guardian Stance's stand-still boundary flips at exactly tick
+      60, not off-by-one; Frost Touch's freeze counter freezes on exactly hit
+      #5; a `frost_warden` control run for 10 real minutes under the same
+      active-spam driver never populated any new-shape-only field; the
+      Q120(9) unlock-list fix was independently confirmed
+      (`defaultMeta().unlockedClasses` now includes Swordsman and Archer, not
+      just Engineer). `npm test`: 1003 passed / 37 skipped (0 failed, up from
+      895/37 pre-item — 108 new cases in `tests/p6d-nine-classes.test.ts`,
+      mechanical updates to six existing test files, one new required check
+      in `tests/grid.test.ts`); `npx tsc --noEmit` clean — refs: §4.2, G10,
+      G11, Q120. **Next action: `p6e`** (gate G8's win-rate/damage-diversity
+      measurement across all 11 classes).
 
 - [x] (p6c) [feat] Plaguebringer kit (§4.1 verbatim): Spreading Plague, Poison
       Barrel, Poison Boost, +10% tower poison damage — this commit. **Gate G9 is
