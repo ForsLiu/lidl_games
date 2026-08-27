@@ -534,6 +534,36 @@ written; none needs a `package.json` edit.*
 
 ## Log
 
+### 2026-08-27 — session 27
+
+**Feedback inbox:** `feedback/` exists in this worktree but is empty. Nothing
+to process, nothing moved.
+
+**Found session 26's q29 work already sitting in the worktree, uncommitted,
+at session start** — the same leftover-work shape sessions 19/20/22/23/24
+each hit before (session 26's own Log entry describes q29 fully implemented,
+code-reviewed, and QA-passed, but the last commit on the branch was still
+`076229f` — q27). Verified rather than trusted, per this file's own standing
+lesson: read the diffs in `tools/fuzz-weapon-boundary.ts`,
+`tests/q21-weapon-boundary-fuzz.ts`, and `tests/q21-weapon-boundary-fuzz.test.ts`
+directly and confirmed they match session 26's log description exactly (5th
+`weaponUpdate` `BoundaryCase` category, new `'contaminated'` verdict,
+`WEAPON_UPDATE_HOLES` pinned map, +9 tests). Reran
+`npx vitest run tests/q21-weapon-boundary-fuzz.test.ts` (33/33 green) and
+`npx tsc --noEmit -p .` (clean) independently rather than trusting the log's
+own claimed suite state. `git diff BACKLOG-QUALITY.md` confirmed q29 already
+marked `[x]` and q34 already filed, consistent with the log.
+
+**Committed session 26's q29 work as-is** (`db48065`), since it was already
+complete end-to-end (implement → tests green → code-reviewer APPROVE →
+qa-playtester PASS) and re-verified clean this session — re-implementing or
+re-reviewing it would have duplicated session 26's own work rather than
+caught anything new. This is this session's one item.
+
+**Five actionable items remain** (q30, q31, q32, q33, q34, all unchecked and
+unblocked), at the generation rule's floor, so the generation rule does not
+need to run next session either.
+
 ### 2026-08-27 — session 26
 
 **Feedback inbox:** `feedback/` exists in this worktree but is empty (checked
