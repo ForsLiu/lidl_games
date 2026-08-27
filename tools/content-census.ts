@@ -1,0 +1,171 @@
+/**
+ * Content-totals census against SPEC-FINAL §13 (BACKLOG-QUALITY q16).
+ *
+ * `tests/content-complete.test.ts` (M4-era) only pins V2's totals — 10
+ * towers, 20 enemies, 12 modifiers, 8 weapons — none of which is §13's list.
+ * This tool counts §13's own ten categories straight out of `loadContent()`
+ * and a couple of source constants, and reports each against its §13 target,
+ * so a content change (a class added, a wave authored) is visible immediately
+ * and distinguishable from "this P-phase just hasn't been reached yet" —
+ * PROGRESS.md's audit table already says which P-phase owns each gap; this
+ * tool turns that prose into a number that can regress.
+ *
+ *   npx tsx tools/content-census.ts
+ *   npx tsx tools/content-census.ts --json
+ */
+
+import { type Content, loadContent } from '../src/sim/content';
+import { MAX_TIER } from '../src/sim/tiers';
+
+export interface CensusRow {
+  key: string;
+  label: string;
+  actual: string;
+  target: string;
+  met: boolean;
+  note?: string;
+}
+
+export function census(content: Content = loadContent()): CensusRow[] {
+  const rows: CensusRow[] = [];
+
+  // §4's 11 classes are the non-legacy rows; `legacy: true` classes (Q38's
+  // frost_warden, kept for old saves) are not §13 content and would inflate
+  // the count past the target it can never legitimately exceed.
+  const classCount = content.classes.classes.filter((c) => !c.legacy).length;
+  rows.push({
+    key: 'classes',
+    label: 'Classes',
+    actual: String(classCount),
+    target: '11',
+    met: classCount === 11,
+    note: classCount === 11 ? undefined : 'P6 incomplete — see PROGRESS.md P6 audit line',
+  });
+
+  const towerCount = content.towers.towers.length;
+  rows.push({ key: 'towers', label: 'Towers', actual: String(towerCount), target: '10', met: towerCount === 10 });
+
+  // §7/§8's fixed 12-item equipment table (P7) does not exist yet.
+  // `data/relics.json`'s 12 affixes are a different, superseded system
+  // (MIGRATION.md / PROGRESS.md's P7 audit line) — counting them here would
+  // hide the real gap behind a coincidental matching number.
+  rows.push({
+    key: 'equipment',
+    label: 'Equipment',
+    actual: '0',
+    target: '12+',
+    met: false,
+    note: 'P7 unbuilt; the relic/Ember/boon systems are the current stand-in, not equipment — see PROGRESS.md P7 audit line',
+  });
+
+  const damageTypeCount = content.damageTypes.types.length;
+  const statusCount = Object.keys(content.damageTypes.statuses).length;
+  rows.push({
+    key: 'damageTypesAndStatuses',
+    label: 'Damage types + statuses',
+    actual: `${damageTypeCount}+${statusCount}`,
+    target: '6+2',
+    met: damageTypeCount === 6 && statusCount === 2,
+  });
+
+  const enemyCount = content.enemies.enemies.length;
+  rows.push({ key: 'enemies', label: 'Enemies', actual: String(enemyCount), target: '20', met: enemyCount === 20 });
+
+  const waveCount = content.waves.waves.length;
+  rows.push({
+    key: 'waves',
+    label: 'Waves',
+    actual: String(waveCount),
+    target: '18+6 (24)',
+    met: false,
+    note: "P3 interleave unbuilt; today's waves are V2's Day/Dusk/Night/Dawn cycle with no TD/VS split to count separately — see PROGRESS.md P3 audit line",
+  });
+
+  // gen-tree.mjs's own header and tests/grid.test.ts:92 both already exclude
+  // the single `kind: 'start'` node before comparing to 120 — §13's
+  // "120-node tree" counts the allocatable nodes, not `nodes.length` itself
+  // (121, one start node + 120 allocatable).
+  const nonStartNodes = content.tree.nodes.filter((n) => n.kind !== 'start').length;
+  rows.push({
+    key: 'treeNodes',
+    label: 'Tree nodes (excl. start)',
+    actual: String(nonStartNodes),
+    target: '120',
+    met: nonStartNodes === 120,
+  });
+
+  const questCount = content.quests.quests.length;
+  rows.push({
+    key: 'quests',
+    label: 'Quests',
+    actual: String(questCount),
+    target: '8-12',
+    met: questCount >= 8 && questCount <= 12,
+  });
+
+  // Map tiers are a formula (`src/sim/tiers.ts`), not authored content rows —
+  // `MAX_TIER` is the count that actually gates `modifierDraft`/`autoDraft`/
+  // `hardestDraft`, so it is the real "how many tiers exist" answer.
+  rows.push({
+    key: 'tiers',
+    label: 'Map tiers',
+    actual: `T1-T${MAX_TIER}`,
+    target: 'T1-T5',
+    met: MAX_TIER === 5,
+  });
+
+  // A "boss" is an enemy whose traits include 'boss' — the same predicate
+  // `src/sim/loot.ts` uses to decide a guaranteed relic drop, not a
+  // hand-picked key list that could drift from the data it describes.
+  const bossCount = content.enemies.enemies.filter((e) => e.traits.includes('boss')).length;
+  rows.push({ key: 'bosses', label: 'Bosses', actual: String(bossCount), target: '2', met: bossCount === 2 });
+
+  return rows;
+}
+
+/* ------------------------------------------------------------------- CLI */
+
+function main(argv: string[]): void {
+  const json = argv.includes('--json');
+
+  let rows: CensusRow[];
+  try {
+    rows = census();
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (json) {
+      console.log(JSON.stringify({ error: message }));
+    } else {
+      // ZodError.message is itself multi-line JSON; collapse to one line so
+      // a /data load failure reads as a clean CLI message, not a second
+      // stack-trace-shaped wall of text.
+      console.error(`content-census: ${message.replace(/\s+/g, ' ').trim()}`);
+    }
+    process.exitCode = 1;
+    return;
+  }
+
+  if (json) {
+    console.log(JSON.stringify(rows, null, 2));
+    return;
+  }
+
+  const metCount = rows.filter((r) => r.met).length;
+  console.log(`content census — SPEC-FINAL §13 — ${metCount}/${rows.length} categories at target`);
+  const labelW = Math.max(...rows.map((r) => r.label.length), 'category'.length) + 2;
+  const actualW = Math.max(...rows.map((r) => r.actual.length), 'actual'.length) + 2;
+  const targetW = Math.max(...rows.map((r) => r.target.length), 'target'.length) + 2;
+  console.log('category'.padEnd(labelW) + 'actual'.padEnd(actualW) + 'target'.padEnd(targetW) + 'met');
+  for (const r of rows) {
+    console.log(r.label.padEnd(labelW) + r.actual.padEnd(actualW) + r.target.padEnd(targetW) + (r.met ? 'yes' : 'no'));
+  }
+
+  const short = rows.filter((r) => !r.met && r.note);
+  if (short.length > 0) {
+    console.log('\nnotes:');
+    for (const r of short) console.log(`  ${r.label}: ${r.note}`);
+  }
+}
+
+const invokedDirectly = process.argv[1]?.replace(/\\/g, '/').endsWith('tools/content-census.ts');
+if (invokedDirectly) main(process.argv.slice(2));

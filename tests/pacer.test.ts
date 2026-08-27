@@ -86,4 +86,34 @@ describe('Pacer', () => {
     expect(i).toBe(log.length);
     expect(fast.hash()).toBe(even.hash());
   });
+
+  it('the batching invariant holds across several seeds and every shipped speed — BACKLOG-QUALITY q19', () => {
+    // gate-audit.ts's G2 note claimed "no test asserts a fast_forward run's end
+    // hash against the same run at 1x" — stale the same way q17 found G17's own
+    // note stale: the test above already existed (predates this lane, shipped
+    // with the fast-forward feature itself) but only pinned one seed at 3x. This
+    // widens it to every SPEEDS value and several seeds, per q19's acceptance
+    // line, rather than trusting a single sample the way Q78/Q80 warn against.
+    for (const seed of [1, 3, 11, 42, 99]) {
+      const log = makeInputLog(seed, 900);
+      const even = new Run(cfg({ seed }));
+      for (const input of log) even.step(input);
+
+      for (const speed of SPEEDS) {
+        const fast = new Run(cfg({ seed }));
+        const p = new Pacer();
+        while (p.speed !== speed) p.cycle();
+        let i = 0;
+        while (i < log.length) {
+          const frame = FIXED_DT * (1 + ((i * 7) % 5)) * 0.5;
+          const ticks = Math.min(p.plan(frame), log.length - i);
+          for (let n = 0; n < ticks; n++) fast.step(log[i + n]);
+          i += ticks;
+          if (ticks === 0 && frame <= 0) break;
+        }
+        expect(i, `seed ${seed} speed ${speed}`).toBe(log.length);
+        expect(fast.hash(), `seed ${seed} speed ${speed}`).toBe(even.hash());
+      }
+    }
+  });
 });

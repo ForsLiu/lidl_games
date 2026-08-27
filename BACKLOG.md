@@ -298,6 +298,114 @@ green** (measured, not assumed — see Q120).
       §14's gate list, and the file is committed at the 1.0 point — refs: §16,
       CLAUDE.md
 
+### Filed at the lane/quality merge (2026-08-27) — out-of-scope findings from BACKLOG-QUALITY.md's log
+
+The quality lane's session logs recorded main-lane defects it could not fix
+(its Scope was `tests/**`/`tools/**`). Each was re-verified against merged HEAD
+before filing; findings that died with the soul-weapon/dusk-dawn systems were
+dropped. Items already queued (content hash → p9a, save key-set/stash → p7f/p7g)
+were not re-filed. Ordering within this section is by severity, not P-band.
+
+- [ ] (b005) [bug] The level-up phase can soft-lock permanently once every boon is at
+      `maxRank`: `openLevelUpIfPending` still enters `levelup` with `offers = []`,
+      `takeOffer` fails at every index and `rerollOffers` rerolls into another empty
+      list, so no Command can leave the phase. Found by the ported q21 boundary fuzz
+      (its "exhausted boon pool" describe block pins the current behaviour) —
+      acceptance: an empty `rollOffers` result either skips the pause or the phase
+      auto-resolves; the q21 pin flips to the fixed behaviour; overlaps p9e's
+      unattended-run clause but is reachable *attended* — refs: §6.3, G18,
+      BACKLOG-QUALITY session logs (lane/quality merge)
+- [ ] (b006) [bug] Three practice `dev` ops launder a non-finite `amount` into
+      permanent run state, and `{k:'dev',op:'xp',amount:Infinity}` hangs the process:
+      `Math.max(0, NaN)` is `NaN` for `gold`/`fast_forward`, `xp` forwards unguarded
+      into `addXp`, whose catch-up `while` loop never terminates on `Infinity` —
+      acceptance: one `Number.isFinite` guard per op (precedent: `Stats.add`), a
+      regression test fires each op with `NaN`/`±Infinity` and the world stays finite
+      and the process alive — refs: QUESTIONS (practice tool), BACKLOG-QUALITY q15
+- [ ] (b007) [bug] An out-of-grid `tx` in `upgrade`/`sell` aliases onto a real tile
+      one row up (`idx = ty*GRID_W + tx` is never bounds-checked before
+      `structureAt` indexes `grid.occ`), so the Command silently acts on the wrong
+      structure; `build` with a fractional `ty` similarly lands on a real different
+      tile and stores the raw fraction into the `Structure` — acceptance:
+      `structureAt` (or the `upgrade`/`sell`/`build` Command paths) rejects
+      out-of-bounds and non-integer tile coords; regression tests cover both
+      aliasing directions and the fractional build — refs: §12 rule 3,
+      BACKLOG-QUALITY q15 session 11 (BUG #2/#3)
+- [ ] (b008) [bug] `damageEnemy`'s `amount <= 0` guard passes `NaN`, making the enemy
+      permanently immortal (`e.hp -= NaN`, every later `e.hp <= 0` false) and
+      poisoning `damageTotal`/`damageByWeapon` for the rest of the run; `+Infinity`
+      kills cleanly but leaves `damageTotal = Infinity`. The old grantWeapon source
+      died with the soul-weapon system, but the sink is unchanged and now fed by the
+      wielded-tower path (re-proven by the ported q21 fuzz via a NaN `Structure.tier`)
+      — acceptance: non-finite damage is dropped (or clamped) at `damageEnemy`'s
+      guard with a regression test per sign — refs: §12, G17's zero-NaN clause,
+      BACKLOG-QUALITY q34
+- [ ] (b009) [bug] `Hasher.int`'s `v | 0` collapses `NaN`/`±Infinity` to the same
+      hash as `0`, so the determinism hash cannot see non-finite corruption — a
+      replay of a NaN-poisoned run reads as clean. Fold a finiteness sentinel into
+      `Hasher.int`/`num` (or hash a canonical non-finite tag) — acceptance:
+      `Hasher.int(NaN)`, `(Infinity)`, `(0)` produce three distinct hashes; G2
+      suite stays green — refs: §12, A11/G2, BACKLOG-QUALITY q30 review
+- [ ] (b010) [bug] `Rng.weightedIndex` with any `NaN` weight silently returns the
+      last index every call (NaN total defeats every comparison), turning a weighted
+      draw into a deterministic constant; `rollOffers`' `weight * (1 + luckBias *
+      o.value)` is an untraced potential NaN source, and `rerollOffers`'
+      `rerollsLeft <= 0` guard also passes NaN (unlimited rerolls) — acceptance: a
+      unit test pins `weightedIndex`'s non-finite-weight behaviour (throw or skip),
+      `luckBias`'s range is traced from its writers, and the reroll guard is
+      finite-checked — refs: §12 rule 2, BACKLOG-QUALITY q35 (lane item, still open)
+- [ ] (b011) [bug] `applyOffer`'s boon case stores `offer.toLevel` unvalidated into
+      `boonRanks` (hash input, stat pipeline); a forged negative rank keeps winning
+      re-picks and `StatBag.add` accumulates `perRank` per re-pick with no cap —
+      forged-offer-only today, so defense-in-depth, not a live exploit —
+      acceptance: `applyOffer` clamps/validates `toLevel` to `[1, maxRank]` and
+      finite; the ported q21 pins flip to the fixed behaviour — refs: §6.3,
+      BACKLOG-QUALITY q30
+- [ ] (b012) [bug] Save/meta laundering beyond p7f/p7g: a mis-typed scalar
+      (`accountLevel: "seven"`, non-numeric `ember`) walks to level 60 and unlimited
+      Constellation points (`NaN <= 0` guards); `highestTier` laundering unlocks all
+      five tiers in the real Hub; non-finite `ember` serialises to `null` on the
+      next save; duplicated node ids in `allocated` triple-charge; affordability is
+      never re-checked on load; a rejected save wrapper is discarded with no error
+      event. Regression tests exist `it.skip`'d in `tests/q3-save-fuzz.test.ts`
+      (D2/D3/D4/D5/D6/D7/D9) — acceptance: the skipped q3 tests unskip and pass;
+      `sanitize` (settings.ts) is the model shape; also export `RETIRED_KEYS` so the
+      lane's fixtures track future retirements — refs: §11, G18, BACKLOG-QUALITY q3
+- [ ] (b013) [bug] The `/data` loader accepts unpayable data (§12 rule 4 violated
+      six ways): no numeric range guards (negative/zero/infinite `hp`, `cost`,
+      `interval` all load), non-finite numbers reach the engine and the report,
+      duplicate keys silently collapse into the later row, `tree.json`'s
+      `angle`/`ring` are outside the schema, a mistyped stat key buys nothing
+      silently, and empty rosters (`waves: []`) load. Regression tests exist
+      `it.skip`'d in `tests/q7-data-fuzz.test.ts` (E2–E7); E1 (string-literal key
+      references in `/src` unchecked by the loader — now pinned via
+      `harvest_sprout`, which only `src/bots/policies.ts` names) needs a
+      key-reference census. The merge's re-census added: `cores.json` has no
+      numeric range guard on any `effects.*`/`upgrade.steps[].*` value and its
+      untyped effect dicts silently zero a renamed key; deleting `weapons.json`
+      orphaned the only cross-file check on `boons.boons[].key` (now fully open);
+      P6's `classes.json` kit numbers (every active1/active2/passive field) accept
+      negative/zero/Infinity — acceptance: the skipped q7 tests unskip and pass;
+      `content.ts` gains positive/finite/unique/non-empty/known-stat-key rules
+      covering cores and classes — refs: §12 rule 4, §5.5, BACKLOG-QUALITY q7
+- [ ] (b014) [bug] A JSON *syntax* error in any `/data/*.json` crashes every CLI that
+      imports `src/sim/content.ts` with a raw esbuild stack trace before any
+      try/catch runs (static module-scope JSON imports) — including the three
+      commands CLAUDE.md documents (`npm run sim`, `tools/sweep.ts`,
+      `tools/handoff-metrics.ts`). The lane verified a fix shape on a scratch copy
+      (dynamic pre-validated read inside `loadContent()`); `tests/q33-*` currently
+      pins the *broken* behaviour and flips with the fix — acceptance: a corrupted
+      `data/towers.json` yields a one-line message and nonzero exit from `npm run
+      sim`, and q33's pins are rewritten to the fixed contract — refs: §12,
+      BACKLOG-QUALITY q33/q37/q38
+- [ ] (b015) [bug] `{k:'equip', relic}` is a declared Command with no case in
+      `applyCommand` — a dead twelfth of the player Command surface (relics only
+      apply via `RunConfig.relics` at construction). Implement it or retire the
+      union member when p7d retires relics; the merged a11 determinism test
+      documents the no-op today — acceptance: either `equip` has a handler with a
+      test, or the union member is gone and the fuzzers' domain shrinks with it —
+      refs: §12 rule 3, p7d, BACKLOG-QUALITY q15/q22
+
 ## Retired from the queue by SPEC-FINAL
 
 These carried acceptance criteria that SPEC-FINAL no longer defines. Reasons are
