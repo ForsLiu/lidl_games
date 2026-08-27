@@ -17,7 +17,7 @@ import { describe, expect, it } from 'vitest';
 
 import { Hasher } from '../src/sim/hash';
 import { applyOffer, bindSouls, deriveSouls, rollOffers } from '../src/sim/progression';
-import { hashWorld } from '../src/sim/run';
+import { applyCommand, hashWorld } from '../src/sim/run';
 import type { StatKey } from '../src/sim/stats';
 import { beginSoulPick } from '../src/sim/sundering';
 import { grantWeapon, levelStats, updateWeapons } from '../src/sim/weapons';
@@ -589,6 +589,32 @@ describe('q21 soul-weapon boundary fuzz', () => {
       beginSoulPick(w);
       expect(w.phase).toBe('soulpick');
       expect(w.weapons).toEqual([]);
+    });
+  });
+
+  /* --------------------------------------------- duplicate-key souls (q32) */
+
+  describe('a duplicate key in a real souls Command is not a fifth hole (positive control, q32)', () => {
+    // q29 found grantWeapon's update branch unguarded for level/damageBonus.
+    // A hand-crafted `{k:'souls', keys:['x','x']}` reaches bindSouls with a
+    // duplicate key — applyCommand's 'souls' case only filters against
+    // soulCandidates (src/sim/run.ts), it never dedupes. If grantWeapon's
+    // create-vs-update branch didn't find the existing WeaponState by key on
+    // the second call, this would be a fifth hole. Measured: it does, so no
+    // duplicate WeaponState is possible through this real Command path.
+    it("grantWeapon's create-then-update branch collapses a duplicated valid key to exactly one WeaponState", () => {
+      const w = newWorld();
+      const keys = ['arrow_spire', 'ballista', 'ember_brazier', 'frost_obelisk', 'tesla_coil', 'mortar', 'venom_spore'];
+      expect(keys.length).toBe(w.derived.weaponSlots + 1);
+      keys.forEach((k, i) => forcePlace(w, k, 5 + i, 5, 3));
+      beginSoulPick(w);
+      expect(w.phase).toBe('soulpick');
+
+      const dupeKey = w.soulCandidates[0];
+      applyCommand(w, { k: 'souls', keys: [dupeKey, dupeKey] });
+
+      expect(w.phase).toBe('act2');
+      expect(w.weapons.filter((x) => x.key === dupeKey).length).toBe(1);
     });
   });
 });

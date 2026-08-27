@@ -357,7 +357,7 @@ coverage gaps session 1's log recorded. All five are inside Scope as written.*
       respectively, each `source` naming this item the way q20's entries
       name their sessions, and `tests/q14-mutation-smoke.test.ts` runs the
       expanded list green — refs: q20, q23, q25, tools/mutation-probe.ts
-- [ ] (q32) [feat] `bindSouls` (`src/sim/progression.ts:266-296`) turned out,
+- [x] (q32) [feat] `bindSouls` (`src/sim/progression.ts:266-296`) turned out,
       on inspection while filing q29, to already be safe against a case that
       looked at first like a bug: the `souls` Command's `keys` array is
       never deduplicated (`applyCommand`'s `'souls'` case just filters
@@ -474,6 +474,34 @@ coverage gaps session 1's log recorded. All five are inside Scope as written.*
       go non-finite through any real, in-domain `Luck` stat value — refs:
       q30, src/sim/rng.ts:65-75, src/sim/progression.ts:90 (`luckBias`),
       139 (`value: rank / b.maxRank`)
+- [ ] (q36) [bug][feat] qa-playtester's q32 verification pass found a real
+      sibling gap to q32's own positive-control finding: q32 proved a
+      duplicate key in a hand-crafted `souls` Command never creates a second
+      `WeaponState` (`grantWeapon`'s create-vs-update branch collapses it),
+      but neither `applyCommand`'s `'souls'` case (`src/sim/run.ts:164-169`,
+      `valid.slice(0, w.derived.weaponSlots)`) nor `bindSouls`'s own
+      `chosen.filter(...).slice(0, slots)` (`src/sim/progression.ts:270`)
+      dedupes *before* counting toward the `weaponSlots` cap — so a
+      duplicate entry silently consumes a pick slot instead of being
+      rejected or deduped. QA measured live: with `weaponSlots = 6` and 7
+      valid candidates, submitting 6 keys where one is a repeat (5 distinct)
+      binds only 5 souls, not 6 — a real, reproducible behaviour gap, one
+      slot quietly wasted per duplicate. Same reachability caveat as q32
+      itself: `w.soulCandidates` is built from a `Map` keyed by soul string
+      (`deriveSouls`, `src/sim/progression.ts:234-254`) so it can never
+      itself contain a duplicate, and both real callers of the `souls`
+      Command (`src/ui/hud.ts:495`'s `Set`, `src/bots/policies.ts:258-273`'s
+      direct map over `soulCandidates`) cannot produce one either — this
+      needs a hand-crafted `Command`, not a live Command-surface exploit —
+      acceptance: a regression test near `tests/q21-weapon-boundary-fuzz
+      .test.ts`'s soul-pick boundary describe block (or a small sibling to
+      q32's new positive-control block) that drives a real `souls` Command
+      with a duplicate key among otherwise-distinct candidates through
+      `applyCommand`, asserting today's actual measured behaviour (fewer
+      souls bound than `weaponSlots` when a duplicate consumes a slot) so a
+      future dedupe fix is visible as a test change rather than silent —
+      refs: q32, qa-playtester's q32 verification pass (session 30 log),
+      src/sim/run.ts:164-169, src/sim/progression.ts:270
 
 *Generated 2026-08-27, session 23, under CLAUDE.md's generation rule scoped
 to this lane: only q26 and q27 were actionable (fewer than 3) — q1/q4/q5/q6
@@ -559,6 +587,79 @@ resolve if it wants the CLI entry points too. All five are inside Scope as
 written; none needs a `package.json` edit.*
 
 ## Log
+
+### 2026-08-27 — session 30
+
+**Feedback inbox:** no `feedback/` directory exists in this worktree (checked
+with `ls feedback/`). Nothing to process, nothing moved.
+
+**Clean tree at session start** (`git status --porcelain` empty, last commit
+`58ca72b`) — no leftover uncommitted work this time, unlike several prior
+sessions.
+
+**Four actionable items were in queue** (q32, q33, q34, q35, all unchecked
+and unblocked), at the generation rule's floor of 3, so the generation rule
+did not run. Took q32, the top item.
+
+**q32 done.** `tests/q21-weapon-boundary-fuzz.test.ts` (new `applyCommand`
+import from `../src/sim/run`; one new describe block, "a duplicate key in a
+real souls Command is not a fifth hole (positive control, q32)", 45 total
+tests up from 44).
+
+**What it does.** Pins the positive control q32 asked for: builds a world
+with 7 soul towers (one more than `weaponSlots`, so `beginSoulPick` opens the
+real `soulpick` phase instead of auto-binding), takes a real
+`w.soulCandidates[0]` as a duplicate key, drives a real
+`applyCommand(w, {k:'souls', keys:[dupeKey, dupeKey]})`, and asserts
+`w.phase === 'act2'` and exactly one `WeaponState` for that key. Traced the
+full chain end to end (`applyCommand`'s `'souls'` case →
+`finishSundering` → `bindSouls` → `grantWeapon` twice for the same key) to
+confirm the test genuinely exercises the duplicate-key path rather than being
+filtered out early.
+
+**Review (code-reviewer, APPROVE, 0 Critical/Major).** Independently traced
+the same four-file chain and mutation-tested it live (patched `grantWeapon`
+to always push instead of find-and-update, confirmed the new test goes red
+with `expected 2 to be 1`, reverted, confirmed clean). One Nit (escaped
+apostrophe in a test title) — fixed before commit.
+
+**QA (qa-playtester, PASS).** Independently re-ran the same mutation test
+(a broader one — flipped `if (existing)` to `if (false)` — caught the q32
+test plus 5 pre-existing sibling tests that also exercise the update branch,
+expected collateral from a wider mutation), confirmed `tsc` clean, confirmed
+Scope compliance (`tests/q21-weapon-boundary-fuzz.test.ts` the only file
+touched), and confirmed `w.soulCandidates` can never itself contain a
+duplicate (built from a `Map` keyed by soul string) and neither real caller
+of the `souls` Command (`src/ui/hud.ts`'s `Set`, `src/bots/policies.ts`'s
+direct map) can produce one — matching q32's own "hand-crafted-only"
+reachability framing.
+
+**QA found one real, unfiled sibling gap, filed as q36:** a duplicate key in
+a hand-crafted `souls` Command silently *wastes a pick slot* rather than
+being rejected or deduped — measured live (7 candidates, 6 slots, one
+duplicate among the 6 submitted keys → only 5 souls bound, not 6) via an
+ad-hoc probe QA created, ran twice for determinism, then deleted, confirming
+the tree stayed clean. Distinct from q32's own `WeaponState`-duplication
+question; same reachability caveat (hand-crafted Command only).
+
+**Full-suite check.** Ran `npx vitest run` in full (background, ~512s): 895
+passed, 15 failed, 79 skipped across 2 files. Both failure clusters are
+pre-existing, unrelated to this diff: `tests/q14-mutation-smoke.test.ts`
+(13 failures) is the documented `gitDiffClean()`-sees-the-uncommitted-lane-
+diff artifact sessions 26-29 already recorded (the tree had this session's
+own uncommitted test edit at the time); `tests/q15-command-domain-fuzz
+.test.ts` (2 failures, `rekindle.structureId:fractional`/`:negative` showing
+`"hangs"`) reran standalone afterward — 25/25 green — confirming it was
+resource-contention flakiness under the full suite's heavy parallel load
+(the probe's 4000ms settle deadline), not a regression from this session's
+change. `tests/q21-weapon-boundary-fuzz.test.ts` itself (this session's only
+touched file) passed cleanly inside the full run.
+
+**Committed.**
+
+**Four actionable items remain** (q33, q34, q35, q36 — the last filed this
+session — all unchecked and unblocked), still at the generation rule's floor
+of 3, so the generation rule does not need to run next session either.
 
 ### 2026-08-27 — session 29
 
