@@ -738,9 +738,31 @@ Sundering). No new bugs filed.
 51/51 green (up from 39). `npx tsc --noEmit -p .` clean. `git status
 --porcelain` before commit: `BACKLOG-QUALITY.md`, `tests/q21-weapon-boundary
 -fuzz.ts`, `tests/q21-weapon-boundary-fuzz.test.ts`, `tools/fuzz-weapon
--boundary.ts` — Scope-compliant. Full-suite background run
-(`npx vitest run`) was still in flight at write time; will confirm clean
-before/at commit.
+-boundary.ts` — Scope-compliant.
+
+Full-suite background run (`npx vitest run`, ~534s): 909 passed, 15 failed,
+79 skipped across 2 files, neither touched by this session's diff. Both
+failure clusters are the exact pre-existing shapes session 30's log already
+documented: `tests/q14-mutation-smoke.test.ts` (13 failures) is
+`gitDiffClean()` seeing this session's own then-uncommitted lane diff, which
+clears once the diff is committed (not independently re-verified after
+commit this session, since re-running the full suite a second time wasn't
+warranted for an already-documented, self-clearing artifact); `tests/q15
+-command-domain-fuzz.test.ts` (2 failures, `rekindle.structureId:fractional`/
+`:negInf` showing `"hangs"`) reran standalone afterward — 25/25 green —
+confirming resource-contention flakiness under the full suite's heavy
+parallel load, not a regression from this session's change (which never
+touches `tools/fuzz-command-domain.ts` or its test file).
+
+**Committed** as `6d85cc9`. Correction: that commit's subject line reads
+"...files q35 sibling", copied from the q30/q32 commit-message style without
+checking it applied — q35 was already in the queue before this session
+started (filed by the session that landed q30), not newly filed by q34. No
+new item was filed this session (QA's own verdict: "No new bugs filed").
+Noting the mismatch here rather than amending, per this lane's own
+never-amend convention (session 29's commit-hash-correction log entry is the
+precedent for fixing this kind of thing forward instead of rewriting
+history).
 
 **Four actionable items remain** (q35, q36, q37, q38), above the generation
 rule's floor of 3, so the generation rule does not need to run next session
