@@ -742,7 +742,7 @@ coverage gaps session 1's log recorded. All five are inside Scope as written.*
       to assert the fixed behaviour — following q28/q38's established shape
       exactly, no `/src/**` or `/data/**` edit — refs: q25, q28, q33, q37,
       q38, q41, q42, q46, src/sim/content.ts's zod schemas
-- [ ] (q46) [feat] CLI JSON-syntax-error crash pinning, siblings of
+- [x] (q46) [feat] CLI JSON-syntax-error crash pinning, siblings of
       q33/q37/q41/q42: grepping every `tools/*.ts` file for top-level
       executable code that transitively imports `src/sim/content.ts` (not
       just the eight q41 covered) finds three more, missed because they
@@ -999,6 +999,70 @@ resolve if it wants the CLI entry points too. All five are inside Scope as
 written; none needs a `package.json` edit.*
 
 ## Log
+
+### 2026-08-27 — session 44
+
+**Feedback inbox:** no `feedback/` directory in this worktree. Nothing to
+process.
+
+**Session start state:** `tests/q46-cli-json-syntax-error-siblings-3.test.ts`
+was already sitting in the worktree, untracked, complete and matching q46's
+acceptance criteria verbatim — the same interrupted-session shape sessions
+14/16/18/19/20/33/37/38/39/40/42 each logged. `git log` showed no commit for
+it and q46 was still unchecked in the Queue. Verified rather than trusted:
+ran it live before touching anything.
+
+**q46 done.** `describe.each` pins the identical uncaught-crash shape
+q33/q37/q41 established for `tools/m20d-run-a4.ts` and `tools/m20d-swarm.ts`
+(both transitively import `src/sim/content.ts`, no naming pattern q41's grep
+matched), plus a `probe-boss.ts` pair: one case with a `tests/` copy in the
+scratch dir (needed for its `../tests/helpers` import chain to reach
+`content.ts`'s transform at all) asserting the same crash, and a control case
+without `tests/` present asserting the genuinely different failure
+(`ERR_MODULE_NOT_FOUND` for the missing `tests/helpers`, not a transform
+error) — proving the `tests/`-present case isn't incidentally passing for an
+unrelated reason.
+
+Ran `npx vitest run tests/q46-cli-json-syntax-error-siblings-3.test.ts` live:
+4/4 green. `npx tsc --noEmit -p .` clean. `git status --porcelain`: the one
+new test file only — Scope-compliant.
+
+**Review (code-reviewer, APPROVE, 0 Critical/Major — 1 Minor, 1 Nit).**
+Confirmed the three import chains directly (`probe-boss.ts` →
+`tests/helpers.ts` → `src/sim/run.ts` → `src/sim/world.ts` →
+`src/sim/content.ts`), confirmed `m20d-run-a4.ts`/`m20d-swarm.ts`'s q45-added
+try/catch cannot fire against a syntax error (proving this is genuinely new
+coverage, not a q45 duplicate), confirmed the `tests/`-absent control
+diverges for real. Minor: the inline comment misattributed `m20d-swarm.ts` as
+importing `a4probe.ts` (it doesn't — it imports `loadContent` directly and
+has its own top-level try/catch; that clause belongs to `m20d-run-a4.ts`,
+which does import `a4probe.ts`) — fixed here, comment-only, no assertion
+change, re-ran green after. Nit (not fixed, doesn't affect behaviour): the
+`m20d-run-a4.ts` case's `'venom_spore'` arg is accurate but moot, since the
+crash pre-empts `process.argv` ever being read.
+
+**QA (qa-playtester, PASS, no defects).** Ran the suite live twice
+consecutively (no interference, scratch dirs fully cleaned both times via the
+per-pid/random-suffixed paths). Independently reproduced `m20d-swarm.ts`'s
+crash by hand in a throwaway scratch copy outside the harness — exit 1, empty
+stdout, the same raw `Transform failed with 1 error` stack, matching the
+test's assertions byte-for-byte in shape. Independently reproduced
+`probe-boss.ts`'s "without `tests/`" control and confirmed it's genuinely
+`ERR_MODULE_NOT_FOUND`, not a coincidental transform-error match. Confirmed
+`bench/.tmp/` is gitignored and `git status --porcelain` shows only the new
+test file.
+
+**Suite state.** Isolated file green (above); no other test/tool file
+touched this session, so a full `npm test` re-run was not needed for this
+item. `git status --porcelain` before commit: the one test file plus
+`BACKLOG-QUALITY.md` — Scope-compliant.
+
+**Committed.**
+
+**Three actionable items remain** (q47, q48, q49; q39 stays a Scope-blocked
+tracking entry) — at the generation floor of 3, so the next session should
+run the generation rule before executing if fewer than 3 remain by then;
+today it does not need to.
 
 ### 2026-08-27 — session 43
 
