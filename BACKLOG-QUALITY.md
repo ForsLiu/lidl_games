@@ -223,7 +223,7 @@ coverage gaps session 1's log recorded. All five are inside Scope as written.*
       fields it does *not* cover in its own "no observable effect" string so
       the message stops overclaiming — refs: session 11 log,
       tools/fuzz-command-domain.ts
-- [ ] (q25) [polish] `tools/content-census.ts`'s `main()` has no try/catch
+- [x] (q25) [polish] `tools/content-census.ts`'s `main()` has no try/catch
       around `loadContent()` (session 13 QA, recorded not filed): a
       `/data` corruption failure would print a raw stack trace instead of a
       clean CLI message, and `--json` mode would emit nothing parseable —
@@ -336,6 +336,82 @@ resolve if it wants the CLI entry points too. All five are inside Scope as
 written; none needs a `package.json` edit.*
 
 ## Log
+
+### 2026-08-27 — session 22
+
+**Feedback inbox:** no `feedback/` directory exists in this worktree (checked
+with Glob for `feedback/**`). Nothing to process, nothing moved.
+
+**Found q25's implementation already sitting in the worktree, uncommitted, at
+session start** — the same shape sessions 14/16/18/19/20 have each hit before
+(a prior session implemented and stopped short of review/commit). Verified
+rather than trusted, per this file's own standing lesson.
+
+**q25 done.** `tools/content-census.ts` (`main()` wraps `census()` in a
+try/catch) and `tests/q25-content-census-cli.test.ts` (new, 3 tests).
+
+**What it does.** `main()` previously called `census()` with no error
+handling, so a `/data` load failure (a zod schema violation, since a JSON
+syntax error throws earlier, at the static import) crashed with a raw
+multi-frame `ZodError` stack trace and left `--json` mode printing nothing
+parseable — the one CLI in this lane's own tool set that didn't handle its
+own failure path, unlike `tools/soak.ts`/`tools/gate-audit.ts`/
+`tools/phase-coverage.ts`. The fix catches around `census()` only (not the
+`--json` flag check, read before the try), prints a collapsed one-line
+`content-census: <message>` to stderr in plain mode or a single-line
+`{"error": "<message>"}` to stdout under `--json`, and sets
+`process.exitCode = 1` rather than `process.exit()` so the console writes
+flush normally — matching `gate-audit.ts`'s own existing pattern.
+
+The test spawns a real nested `npx tsx tools/content-census.ts` against a
+scratch copy of `src`/`tools`/`data`/`tsconfig.json` under `bench/.tmp/`
+(the same throwaway-process idiom `tools/mutation-probe.ts` already uses),
+retypes `data/towers.json`'s `upgradeStepMul` to a string so
+`TowersFileSchema`'s `.strict()` zod parse fails at runtime rather than at
+static import, and asserts three cases: a clean scratch snapshot still exits
+0 (harness control), a corrupted one exits nonzero with a one-line stderr
+message and empty stdout, and the same corruption under `--json` exits
+nonzero with empty stderr and a parseable single-line `{error}` object on
+stdout.
+
+**Review (code-reviewer, APPROVE, no Critical/Major).** Independently
+confirmed the try/catch placement leaves no use-before-assignment path,
+confirmed both message shapes are genuinely one line each with the right
+stream empty in each mode, confirmed `process.exitCode` over `process.exit()`
+is the more correct choice here (lets pending console writes flush) and
+matches `gate-audit.ts:293`'s existing precedent, confirmed the
+`upgradeStepMul` corruption genuinely trips `TowersFileSchema`'s zod parse
+(read `src/sim/content.ts` directly) rather than failing at JSON-syntax/
+static-import time, and confirmed no scratch-directory leakage across a live
+run including a deliberately-failing one. Scope confirmed
+(`tools/content-census.ts` + `tests/q25-content-census-cli.test.ts` only, no
+`/src/sim` touched). Three non-blocking Minor/Nit notes (a `Math.random()` use
+that's fine since it's test-harness code outside `/src/sim`, a Node
+`DEP0190` shell-arg deprecation warning that's harmless for the static args
+used here, and the ~2.5s/run cost of three real nested `npx tsx` spawns being
+proportionate to what's actually being proven).
+
+**QA (qa-playtester, PASS).** Independently reproduced the pre-fix bug live
+in an isolated scratch copy — confirmed both plain and `--json` invocation
+crashed with a raw `ZodError` stack trace, exit 1, unparseable stdout under
+`--json` — then confirmed the fix (3/3 green) and mutation-killed it for real
+(defeated the catch, watched 2/3 tests go red for the right reason, restored
+and confirmed a byte-for-byte SHA-256 match against the pre-mutation file).
+Confirmed no scratch leakage and a clean `git status --porcelain` restricted
+to the two expected files. Two adversarial variants beyond the item's own
+scope: corrupting a *different* file (`data/enemies.json`) fails cleanly the
+same way (no gap); corrupting JSON *syntax* itself crashes at static-import
+time, before `main()`'s try/catch can run, in both plain and `--json`
+mode — already disclosed by name in the test file's own doc comment as an
+intentional boundary, so not filed as a new bug. No bugs filed.
+
+**Suite state.** `npx vitest run tests/q25-content-census-cli.test.ts` — 3/3
+green, standalone. `npx vitest run tests/q16-content-census.test.ts` — 15/15
+green, confirming the `main()` wrapper doesn't disturb `census()`'s existing
+behavior. `npx tsc --noEmit -p .` clean.
+
+**Two actionable items remain** (q26, q27, both unchecked and unblocked) —
+below the generation rule's floor of 3, so it will need to run next session.
 
 ### 2026-08-27 — session 21
 

@@ -123,9 +123,26 @@ export function census(content: Content = loadContent()): CensusRow[] {
 /* ------------------------------------------------------------------- CLI */
 
 function main(argv: string[]): void {
-  const rows = census();
+  const json = argv.includes('--json');
 
-  if (argv.includes('--json')) {
+  let rows: CensusRow[];
+  try {
+    rows = census();
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (json) {
+      console.log(JSON.stringify({ error: message }));
+    } else {
+      // ZodError.message is itself multi-line JSON; collapse to one line so
+      // a /data load failure reads as a clean CLI message, not a second
+      // stack-trace-shaped wall of text.
+      console.error(`content-census: ${message.replace(/\s+/g, ' ').trim()}`);
+    }
+    process.exitCode = 1;
+    return;
+  }
+
+  if (json) {
     console.log(JSON.stringify(rows, null, 2));
     return;
   }
