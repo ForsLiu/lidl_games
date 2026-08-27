@@ -237,7 +237,7 @@ coverage gaps session 1's log recorded. All five are inside Scope as written.*
       exits nonzero instead of an uncaught stack trace, proven by a test that
       points the CLI at a deliberately invalid data snapshot — refs: session
       13 log, tools/content-census.ts
-- [ ] (q26) [feat] `tools/perf-ratio.ts`'s interleaved-measurement design
+- [x] (q26) [feat] `tools/perf-ratio.ts`'s interleaved-measurement design
       (session 9) is proven only empirically — the wall-clock ceiling test
       shows the *outcome* is contention-tolerant, but nothing asserts the
       *mechanism* itself: that `measureRatioForWorld` actually alternates one
@@ -497,6 +497,66 @@ resolve if it wants the CLI entry points too. All five are inside Scope as
 written; none needs a `package.json` edit.*
 
 ## Log
+
+### 2026-08-27 — session 24
+
+**Feedback inbox:** `feedback/` exists in this worktree but is empty (checked
+with `find feedback -maxdepth 2 -type f`). Nothing to process, nothing moved.
+
+**Found session 23's leftover q26 work already sitting in the worktree,
+uncommitted, at session start** — the same shape sessions 19/20/22 each hit
+before (a prior session implemented and stopped short of review/commit;
+session 23's own Log entry only mentions q28, so this was left mid-flight
+without a matching note). Verified rather than trusted, per this file's own
+standing lesson.
+
+**q26 done.** `tools/perf-ratio.ts` (`measureRatioForWorld` gains an optional
+`onEvent?: (event: RatioTraceEvent, sampleIndex: number) => void` 5th
+parameter, fired from inside the real loop right after each calibration
+chunk and each tick) and `tests/q26-perf-ratio-interleave.test.ts` (new, 4
+tests).
+
+**What it does.** `tests/q13-perf-ratio.test.ts` only proved the *outcome* of
+interleaving calibration work and sim ticks (a stable, contention-tolerant
+ratio) — nothing proved the *mechanism*, that `measureRatioForWorld`
+genuinely alternates one calibration chunk with one tick rather than running
+all calibration first and all ticks second. Session 9's log named the gap
+explicitly and q20 couldn't close it with a mutation-probe entry since the
+failure mode only shows up under real external CPU contention. The `onEvent`
+callback is wired into the existing loop (not a parallel re-implementation),
+so the new suite reads the real call order directly: alternating
+`calib`/`tick` per sample, an explicit negative check against the sequential
+two-block shape, sample-index correlation, and confirmation the callback is
+optional and doesn't change the returned ratio shape.
+
+**Review (code-reviewer, APPROVE, no findings).** Independently confirmed
+`onEvent` is additive-only (the one other caller, `tests/q13-perf-ratio.test.ts`,
+passes 4 args and is unaffected; `tsc --noEmit` clean), confirmed the events
+fire inline in the same loop that computes the returned ratio rather than a
+separate loop, confirmed Scope (`tools/perf-ratio.ts` +
+`tests/q26-perf-ratio-interleave.test.ts` only), and confirmed the assertions
+are non-vacuous — the alternating-order and explicit negative checks would
+both fail if the loop reverted to two sequential blocks.
+
+**QA (qa-playtester, PASS).** Ran the new suite (4/4) and the sibling
+`tests/q13-perf-ratio.test.ts` (5/5, unaffected). Mutation-tested for real:
+split the loop into two sequential blocks (all calib, then all tick),
+reran — 3 of 4 tests went RED for the right reason (exact expected
+diagnostics), the 4th (ratio-shape-with-no-callback) correctly stayed green
+since ratio math is order-independent; restored byte-identical via diff
+against a pre-mutation backup, reconfirmed 4/4 and 5/5 green together. One
+adversarial extra beyond the item's stated scope: `tickSamples=1` still
+emits exactly `['calib','tick']`, and callback presence/absence never
+changes `calibIters`/`tickSamples` in the returned `PerfRatio` — not filed,
+no gap. Final `git status --porcelain` confined to the two expected files.
+
+**Suite state.** `npx vitest run tests/q26-perf-ratio-interleave.test.ts
+tests/q13-perf-ratio.test.ts` — 9/9 green. `npx tsc --noEmit -p .` clean.
+Full `npx vitest run` also run this session as the pre-commit safety net.
+
+**Six actionable items remain** (q27, q29, q30, q31, q32, q33, all unchecked
+and unblocked), so the generation rule does not need to run next session
+either.
 
 ### 2026-08-27 — session 23
 

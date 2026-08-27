@@ -129,8 +129,23 @@ export interface PerfRatio extends TickTiming {
  * `vitest.perf.config.ts`'s single-threaded run the way A10 itself is
  * isolated (that file is outside `tests/**`/`tools/**`), so the measurement
  * has to survive contention rather than avoid it.
+ *
+ * The optional `onEvent` callback fires from inside the real loop above right
+ * after each half completes, so a caller can record the actual call order
+ * this function takes (q26) instead of only the wall-clock outcome q13 already
+ * proves stable — a regression back to two separate blocks changes what
+ * `onEvent` observes regardless of host timing.
  */
-export function measureRatioForWorld(w: World, calibIters: number, tickSamples: number, warmupTicks = 120): PerfRatio {
+/** Which half of one interleaved sample just completed — the call-order seam `tests/q26-perf-ratio-interleave.test.ts` reads directly rather than inferring from timing. */
+export type RatioTraceEvent = 'calib' | 'tick';
+
+export function measureRatioForWorld(
+  w: World,
+  calibIters: number,
+  tickSamples: number,
+  warmupTicks = 120,
+  onEvent?: (event: RatioTraceEvent, sampleIndex: number) => void,
+): PerfRatio {
   const run = worldRun(w);
   for (let i = 0; i < warmupTicks; i++) run.step(emptyInput());
   calibrationWork(Math.min(calibIters, 2_000_000)); // settle the calibration path's JIT too
@@ -145,10 +160,12 @@ export function measureRatioForWorld(w: World, calibIters: number, tickSamples: 
     calibMs += performance.now() - c0;
     calibDone += calibChunk;
     if (Number.isNaN(acc)) throw new Error('unreachable: calibrationWork is pure integer arithmetic');
+    onEvent?.('calib', i);
 
     const t0 = performance.now();
     run.step(emptyInput());
     tickMs += performance.now() - t0;
+    onEvent?.('tick', i);
   }
   const msPerCalibUnit = calibMs / calibDone;
   const msPerTick = tickMs / tickSamples;
