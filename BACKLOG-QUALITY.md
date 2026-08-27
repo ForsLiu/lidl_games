@@ -66,7 +66,7 @@ coverage gaps session 1's log recorded. All five are inside Scope as written.*
       and any future soak — acceptance: q2's suite (including its anti-vacuity
       case, which moves with the scanner) passes unchanged against the extracted
       module — refs: engineer's judgment, HANDOFF §7
-- [ ] (q12) [feat] Soak suite, in-Scope: 50 seeded full headless runs (mixed
+- [x] (q12) [feat] Soak suite, in-Scope: 50 seeded full headless runs (mixed
       policies), assert zero uncaught exceptions and zero NaN/negative-invariant
       violations in the end report, reusing q2's scanner rather than
       re-deriving it — acceptance: `tests/q12-soak.test.ts` green and part of
@@ -130,6 +130,98 @@ resolve if it wants the CLI entry points too. All five are inside Scope as
 written; none needs a `package.json` edit.*
 
 ## Log
+
+### 2026-08-26 — session 8
+
+**Feedback inbox:** `feedback/` exists in this worktree and is empty (checked
+with `ls -la`, and again with `ls -la feedback/processed/` which does not
+exist). Nothing to process, nothing moved.
+
+**Five actionable items were in queue** (q12–q16, all unchecked and
+unblocked), so the generation rule did not run. Took q12, the top item — the
+in-Scope substance of q1, which stays blocked on the `npm run soak` alias.
+
+**q12 done.** `tools/soak.ts` (harness + CLI) and `tests/q12-soak.test.ts`
+(7 tests, ~21s).
+
+**What it does.** `soakOne(seed, policyName, maxTicks?, scanEvery?)` plays one
+seeded, *undirected* full run — a shipped bot policy's own input only, nothing
+injected — the deliberate opposite of q2's `fuzzRun`, which stitches random
+Commands into the tick input to abuse the player surface. `soakOne` scans the
+world every `scanEvery` (default 60) ticks and the final `run.report()` once,
+both through q11's extracted `scanWorld`/`scanReport` (`tools/invariants.ts`)
+rather than a re-derived checker, and records `threw` separately from
+`problems` so an exception and an invariant violation are distinguishable.
+`soak(n, policies, seedStart)` round-robins `n` seeded runs across a policy
+list so the soak is a genuine mix rather than one bot's habits 50 times. The
+test runs `soak(50, shippedPolicies())` — the 10 shipped policies from
+`policyNames()` — in a `beforeAll`, asserts zero `problems`/`threw` across all
+50, that the run mix spans every shipped policy exactly, that `soakOne` is
+seed-reproducible, and that `soak([])` throws rather than silently soaking
+nothing.
+
+**Review (code-reviewer, APPROVE, no findings).** Confirmed both `catch`
+blocks in `soakOne` set `threw` and record a message rather than swallowing
+silently (the `loadMeta`-blanket-catch shape earlier sessions have found
+elsewhere does not recur here); confirmed empirically (not just by reading)
+that `vitest.config.ts`'s default per-file isolation keeps the anti-vacuity
+block's throwaway policy registrations from leaking into
+`tests/q9-phase-coverage.test.ts`'s exact-match policy census, by running both
+files together; confirmed the scanner import is genuine reuse, not
+re-derivation; confirmed Scope (`git diff --stat HEAD -- . ':!tests'
+':!tools' ':!bench'` empty) and CLI/doc-comment style consistency with
+`tools/fuzz-input.ts` and `tools/phase-coverage.ts`.
+
+**QA (qa-playtester) — found a real gap, fixed here.** Verdict was a
+qualified PASS: the shipped acceptance criteria held (green standalone and in
+the full suite, genuine scanner reuse, Scope clean), but mutation testing
+found the anti-vacuity coverage was one-sided. Disabling both `scanWorld`/
+`scanReport` calls entirely (`if (false && ...)` / `if (false)`) left all 6
+tests passing — the THROWER/SILENT pair proved the *exception* path could go
+red, but nothing proved the *invariant-scan* half of q12's own acceptance line
+("zero NaN/negative-invariant violations") was actually wired in. QA also
+independently re-confirmed the vitest-isolation claim (ran q9 and q12
+together, q9's exact policy list unaffected) rather than trusting code
+review's read of it, and separately confirmed the scanner mechanism itself is
+sound by injecting a real `w.gold = NaN` with the scanner calls intact — three
+tests correctly went red with the real `"gold=NaN is not finite"` message.
+Two lower-severity, non-blocking observations were logged rather than fixed,
+since neither is reachable through the shipped test file or CLI (both only
+ever use the defaults and `shippedPolicies()`): `soakOne(seed, policy, 0)` or
+a `scanEvery` of 0 produces a "clean" result for a run that never actually
+played or was never scanned, and an unregistered policy name throws out of
+`soakOne` itself rather than surfacing as `SoakResult.threw`. Recorded below
+for whoever next touches `tools/soak.ts`'s public signature.
+
+Closed the real gap in this commit: a third anti-vacuity policy, `POISONER`,
+mutates `w.gold = NaN` directly on its first `act()` call (no exception, no
+Command) and a new case asserts `soakOne` reports it as a non-empty
+`problems` list mentioning `gold`, with `threw` staying `false` — the same
+shape as the THROWER/SILENT pair, but for the scan path instead of the
+exception path. Verified it actually fails on the QA-found mutation: re-ran
+QA's exact `if (false && ...)`/`if (false)` disabling and confirmed only this
+new case went red (`expected 0 to be greater than 0`), reverted, `diff`
+against a pre-mutation backup and `git status --porcelain` both clean.
+
+**Suite state at this commit.** `npx vitest run` — **771 passed / 78 skipped,
+exit 0**, q12's 7 tests included (up from session 7's 764 + q9-untouched
+764... precisely: 770 before the POISONER case, 771 after), ~254s.
+
+**Recorded, not filed as a backlog item (too small on its own, and not
+reachable by anything shipped):** `tools/soak.ts`'s `soakOne` has two
+unguarded boundary inputs — `maxTicks <= 0` (or a `scanEvery` of `0`, since
+`tick % 0` is `NaN` and the periodic-scan check never fires) reports a "clean"
+result for a run that was truncated to nothing or never scanned, and an
+unregistered policy name throws before `soakOne`'s own `try` block rather than
+surfacing through `SoakResult`. Neither is exercised by `tests/q12-soak.test.ts`
+or the CLI, both of which only ever pass the defaults and `shippedPolicies()`.
+Whoever next extends `soak`/`soakOne`'s public surface (q13's perf probe or
+q15's argument-domain fuzzer both touch adjacent ground) should decide whether
+to guard these or just document the assumption.
+
+**Fewer than 3 actionable items will remain after this commit's queue update**
+is not yet true — q13–q16 (4 items) are still unchecked and unblocked, so the
+generation rule does not need to run next session either.
 
 ### 2026-08-26 — session 7
 
