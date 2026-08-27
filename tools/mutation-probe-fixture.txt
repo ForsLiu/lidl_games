@@ -1,0 +1,11 @@
+q14 mutation-probe regression fixture.
+
+Not imported by anything and not read by any code path — this file exists
+solely so tests/q14-mutation-smoke.test.ts can transiently append a byte to a
+real, tracked file and confirm gitDiffClean() (whole-repo mode) notices,
+while a file-scoped git diff on some unrelated path would not. That gap —
+probeOne only ever diffed the single mutated file, so a probe that corrupted
+a different real file reported "clean" — is a real one a QA pass on q14
+found and reproduced. The test always reverts this file's content before
+finishing; if you find this file with different content than this, that
+revert didn't happen and is a bug in the test, not a legitimate edit.
