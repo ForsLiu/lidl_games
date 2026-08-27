@@ -91,7 +91,7 @@ coverage gaps session 1's log recorded. All five are inside Scope as written.*
       is part of `npm test` with no `package.json` edit — this is q6's
       substance without the blocked `npm run mutations` alias — refs: q6,
       sessions 3/4/5's manual mutation passes
-- [ ] (q15) [feat] Command-argument domain fuzzer: q2 deliberately keeps every
+- [x] (q15) [feat] Command-argument domain fuzzer: q2 deliberately keeps every
       generated argument inside its field's legal domain (`tools/fuzz-input.ts`
       confirms `dev`'s `amount` is `rng.intRange(0, 5000)`) and session 1's log
       names this gap explicitly. Fuzz NaN/Infinity/negative-where-illegal
@@ -130,6 +130,145 @@ resolve if it wants the CLI entry points too. All five are inside Scope as
 written; none needs a `package.json` edit.*
 
 ## Log
+
+### 2026-08-27 — session 11
+
+**Feedback inbox:** `feedback/` does not exist in this worktree (checked with
+`ls`). Nothing to process, nothing moved.
+
+**Two actionable items were in queue** (q15, q16, both unchecked and
+unblocked), so the generation rule did not run. Took q15, the top item.
+
+**q15 done.** `tools/fuzz-command-domain.ts` (harness + CLI),
+`tools/fuzz-command-domain-worker.ts` (worker entry point),
+`tests/q15-command-domain-fuzz.test.ts` (20 tests, ~15s) and
+`tests/q15-command-domain-holes.ts` (the pinned recorded map).
+
+**What it does.** q2's `randomCommand` deliberately keeps every generated
+argument inside its legal domain; this fires 5 families of illegal values
+(`nan`, `posInf`, `negInf`, `negative`, `fractional`) at every numeric
+`Command` field except `equip.relic` (already a filed bug — `applyCommand`'s
+switch has no `'equip'` case at all) and `souls.keys` (not numeric): 12
+fields x 5 families = 60 combinations. Two oracles, because "illegal" means
+different things for different fields — **Category A** (`build.tower`/`tx`/
+`ty`, `upgrade.tx`/`ty`, `sell.tx`/`ty`, `pick.index`,
+`rekindle.structureId`) is an identifier/coordinate that must resolve to a
+real thing or the whole command is defined to be a no-op, so *any* observable
+world-state change after firing an illegal value is itself the finding — a
+cheap JSON `digest()` before/after is the oracle. **Category B** (`dev`'s
+`gold`/`xp`/`fast_forward` amounts) is a magnitude for an operation that is
+*supposed* to change state, so `digest()` alone would flag correct behaviour;
+q11's `scanWorld` (non-finite/negative detection) is the oracle there instead.
+Every combination — even the ~90% that resolve in milliseconds — runs inside
+its own `worker_threads.Worker` (loaded via `tsx/esm`) with a 4s timeout, not
+as defensive theatre: `dev` op `xp` given `amount: Infinity` in `act2` is a
+**genuine infinite loop** (`addXp` in `src/sim/progression.ts` does `w.xp +=
+amount * xpMul; while (w.xp >= xpToReach(w.level+1)) { ...; w.level++ }`,
+which never terminates once `w.xp` is `Infinity`), and a same-thread timer
+cannot interrupt a synchronous loop running in the thread that owns it.
+`Worker#terminate()` was hand-verified (a throwaway script, before writing
+any real code) to forcibly kill a worker stuck in exactly this kind of
+busy-loop. A separate `runAliasProbe('upgrade'|'sell')` — its own probe
+shape, not a sixth family, since it moves two fields together — proves
+`Grid.idx(tx,ty) = ty*GRID_W+tx` is never bounds-checked by
+`World.structureAt` before indexing, so `illegalTx = realTx + GRID_W,
+illegalTy = realTy - 1` aliases onto a real structure one row up; both
+`upgrade` and `sell` mutate that real structure via a `tx` that is
+unambiguously off the 36x20 grid.
+
+**Findings — 7 of 60 combinations plus both alias targets are not cleanly
+rejected, pinned in `tests/q15-command-domain-holes.ts`.** Bug reports for
+the main lane (this lane may not edit `/src`):
+
+1. **BUG (session 1 already found the NaN half; this adds +Infinity and the
+   hang) — three `dev` ops turn a non-finite `amount` into permanent
+   non-finite run state, and one of them hangs instead.**
+   `src/sim/run.ts` — `gold` (`:213`) and `fast_forward` (`:246`) both guard
+   with `Math.max(0, ...)`, which is `NaN` given `NaN` and `Infinity` given
+   `Infinity`; `xp` (`:220`) forwards straight into `addXp` with no guard at
+   all. Measured: `gold`/`goldEarned` and `act2Time` go permanently `NaN` on
+   `amount: NaN` and permanently `Infinity` on `amount: Infinity`; `xp` goes
+   permanently `NaN` on `amount: NaN` but **hangs the process** on `amount:
+   Infinity` (see above). `negative`/`fractional` are both handled correctly
+   (clamped to 0, or legally rounded/accepted) and are not holes. Severity is
+   limited the same way session 1 noted — only a practice run can reach
+   `applyDevCommand`, and a practice run banks nothing — but a hang is a worse
+   failure mode than a corrupted stat regardless of what it can bank.
+2. **BUG — an out-of-grid `tx` aliases onto a real tile one row up, and both
+   `upgrade` and `sell` will act on whatever real structure sits there.**
+   `Grid.idx` (`src/sim/grid.ts`) is never bounds-checked before
+   `World.structureAt` (`src/sim/world.ts:377-381`) indexes `grid.occ` with
+   it, unlike `Grid.buildable`, which checks `inBounds` first — so `build` is
+   safe from this and `upgrade`/`sell` are not. Confirmed both directions
+   with a real structure and a coordinate pair that is unambiguously off the
+   36x20 grid (`illegalTx >= 36`); zero `scanWorld` problems either time
+   because the resulting state looks entirely legal — a normal tier-up or a
+   normal sell refund, just applied to the wrong tile. This is a distinct,
+   more severe bug than #1: it is not confined to a practice-mode dev tool,
+   and nothing about it requires an illegal argument to be sent on purpose —
+   any tx/ty computed slightly wrong upstream (a bad client, a bad replay
+   patch) would silently hit a neighboring tower instead of failing loudly.
+3. **BUG — a fractional tile coordinate can still build, and stores the raw
+   fraction.** `build.ty: fractional` is the one Category A hole:
+   `GRID_W` (36) is even, so `ty = <legal> + 0.5` still multiplies out to an
+   integer flat index (`ty * GRID_W` cancels the `.5`), landing on a real,
+   different, usually-open tile. `buildTower` (`src/sim/towers.ts:93`)
+   stores the *unrounded* `ty` into the new `Structure`, which q11's
+   `scanWorld` already flags (`structure#N.ty=1.5 is off-grid`) — this is
+   the one hole the harness's Category A oracle and the pre-existing invariant
+   scanner both independently catch. `build.tx` does not share this hole
+   (the arithmetic doesn't cancel the same way for an added, not multiplied,
+   term).
+
+**Review (code-reviewer, APPROVE, 1 Minor, fixed here).** Independently
+re-derived both non-obvious findings by hand (the `build.ty` even-`GRID_W`
+arithmetic, and the alias probe's index identity), confirmed `palisade`
+(`towers.towers[0]`) really has `upgrades.count: 0` in `/data` (which is why
+`firstUpgradableTowerId` exists — the generic `upgrade.tx`/`upgrade.ty` sweep
+doesn't need it, only the dedicated two-field alias probe does, since none of
+the five single-field families happen to alias onto the same built tile),
+and confirmed `equip`'s dead case via direct inspection of `applyCommand`'s
+switch. Minor: `probeInWorker`'s and `aliasProbeInWorker`'s `worker.on('error',
+...)` handlers rejected without calling `worker.terminate()`, unlike the
+message and timeout branches — fixed for consistency (an uncaught exception
+already tears the worker down on its own, so this was asymmetry, not a leak).
+
+**QA (qa-playtester, PASS).** Reproduced the pinned census twice independently
+and ran the 20-test file twice, all green. Mutation-tested for real: hollowing
+`classify()` to always return `'rejected'` correctly turned 5 tests red;
+hollowing `digest()` to a constant string only broke the 2 dedicated alias
+tests, not the main pinned-census test — a real but dormant gap, recorded
+below, not filed, since no currently-recorded Category A hole actually
+depends on `digest()` rather than `scanWorld` to be caught. Verified
+`Worker#terminate()` is load-bearing (not defensive) with a disposable fast
+busy-loop script (never the real `xp`/`Infinity` path) — with `terminate()`
+removed, the harness process never exits on its own and had to be
+force-killed. Confirmed `worker_threads` + `tsx/esm` works nested inside a
+real broader vitest run (56 tests spanning q2/q12/q14/q15, ~236s, all green),
+not just standalone. Confirmed no stray processes or scratch files were left
+behind. Two minor, non-blocking gaps recorded rather than filed, same bar
+prior sessions have used for a dormant-but-real gap nothing currently
+exercises:
+  - `digest()`'s Category A coverage is currently redundant with `scanWorld`
+    for every recorded hole; a future Category A hole that `scanWorld` can't
+    see would depend on `digest()` alone, and nothing today unit-tests
+    `digest()` directly. Whoever next extends `FIELD_SPECS` should add a
+    direct `digest()` unit test rather than trusting a live hole to exist
+    first.
+  - The CLI's `describeOutcome()` prints "no observable effect" for
+    `dev.fast_forward.amount:fractional` even though `act2Time` visibly
+    changes (100.5), because `digest()` doesn't track `act2Time` — the
+    **verdict** (`rejected`) is correct either way (Category B only cares
+    about `scanWorld`), only the human-readable detail string is misleading
+    for that one line.
+
+**Suite state at this commit.** `npx vitest run` — **809 passed / 78 skipped,
+exit 0** (up from session 10's 789 + q15's 20 = 809, matching exactly), ~269s.
+`npx tsc --noEmit -p .` clean.
+
+**One actionable item remains** (q16, unchecked and unblocked), so the
+generation rule will need to run next session to bring the queue back above
+three.
 
 ### 2026-08-26 — session 10
 
