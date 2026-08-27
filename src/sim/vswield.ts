@@ -220,6 +220,9 @@ function fireWielded(w: World, wielded: WieldedAttack, def: TowerDef, a: TowerAt
           pierce: prof.pierce,
           source,
           fx,
+          // A wielded shot has no owning `Structure` — towers stand inert
+          // through a VS wave (§6.2) — so there is nothing to credit.
+          structureId: 0,
         });
       }
       break;
@@ -296,6 +299,9 @@ function fireWielded(w: World, wielded: WieldedAttack, def: TowerDef, a: TowerAt
         // `fireTower`'s own lob case (towers.ts).
         groundBurn: prof.groundBurn,
         groundBurnSeconds: prof.groundBurnSeconds,
+        // A wielded shot has no owning `Structure` — towers stand inert
+        // through a VS wave (§6.2) — so there is nothing to credit.
+        structureId: 0,
       });
       break;
     }

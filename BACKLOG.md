@@ -33,7 +33,7 @@ still in test headers.
 | P2 VS core | **done in full (p2a-p2f)** — inheritance formula built and wired live, towers inert with their §5 specials live, weapon-panel lineage live, the superseded soul-weapon roster and Dusk picker deleted (G3 green in full) |
 | P3 interleave | **done in full (p3a-p3e)** — `p3a` retargets the reused V2 cycle machine to 18 TD + 6 VS, 20s build, 75s VS (G6's pattern half); `p3b` stacks up to `maxStackedWaves` TD waves via the `call` command (G6's stacking half); `p3c` re-points leak coupling's existing ×2-into-next-VS-wave mechanism onto TD→VS vocabulary and the real 6-block shape; `p3d` deletes the V2 Day/Dusk/Night/Dawn machine, Rekindle and the Core-detonation pocket/lane mechanism outright; `p3e` re-baselines `light-build`/G13's solo-viability clause (`a4-single-type`)/the boss gate against the real shape — all three measure red past ~wave 10-14 (a p8a content gap, not a P3 defect) and are logged `.skip` with their numbers rather than forced green (Q109) |
 | P4 core math | **done** — multiplicative stacking, armor cap +99 / floor −100, 6 damage types + 2 statuses (G4, G5 green) |
-| P5 tower roster | **done in full (G20 green)** — all 10 towers, upgrade tracks, defense bands; `p5b` gave Ember Brazier/Mortar their own `costMul`; `p5c` authored the four remaining §5.2 milestone specials (Ballista, Fire Brazier, Ice Obelisk, Mortar) and the G20 loader rule; `p5d` (a QA-filed `damageDealt` telemetry bug) is the one item still open |
+| P5 tower roster | **done in full (p5a-p5d, G20 green)** — all 10 towers, upgrade tracks, defense bands; `p5b` gave Ember Brazier/Mortar their own `costMul`; `p5c` authored the four remaining §5.2 milestone specials (Ballista, Fire Brazier, Ice Obelisk, Mortar) and the G20 loader rule; `p5d` fixed the QA-filed `damageDealt` telemetry bug on pierce/lob-kind towers |
 | P6 classes | **3 of 11**, and on V2's one-Active + Signature framework, not §4's Passive + Q + E + tower passive (G8–G11 unmet) |
 | P7 equipment/rewards/VS upgrades | **superseded systems in place** — relic affixes, Ember, 12 boons; §7's 12-item table, §6.3's pool and §8's reward pipeline unbuilt (G12 unmet) |
 | P8 enemies/waves/bosses | **roster and both bosses done** — all 20 §9 enemies by name; waves still on the 10-wave cycle shape (G14 measured on the old shape) |
@@ -78,20 +78,8 @@ and are `.skip`-ed with their numbers per Q109, not forced green.
 
 ### P5 — full tower roster and upgrade tracks (G20)
 
-P5's first three items, `p5a`, `p5b` and `p5c`, are done — see the Done
-section. **Gate G20 is green in full.** `p5d`, a bug QA filed against `p5b`,
-is the one item still open.
-
-- [ ] (p5d) [bug] `Structure.damageDealt` is never credited for `pierce`- and
-      `lob`-kind tower attacks: `fireTower`'s `pierce` case (Ballista) and `lob`
-      case (Mortar) call `spawnProjectile` without ever incrementing `s.damageDealt`,
-      unlike every other attack kind (single/cone/chain/poison/aura), which credit
-      it inline via `lineHit`/`coneHit`/`dealHit`/`chainHit`/`applyAoE` — so both
-      towers' stats panels always read 0 damage dealt regardless of real output.
-      Pre-existing, reproduces identically on Ballista (untouched by p5b) —
-      acceptance: `s.damageDealt` increases after a pierce/lob-kind tower lands a
-      hit in a controlled single-enemy scenario; a failing regression test lands
-      before the fix per CLAUDE.md rule 3 — refs: `src/sim/towers.ts`, QA on p5b
+**P5 is done in full (p5a-p5d)** — see the Done section. Gate G20 is green in
+full; `p5d` closed the last open item, a bug QA filed against `p5b`.
 
 ### P5.5 — Cores (§5.5, owner feature inbox 2026-08-26; G21, G22, G23)
 
@@ -371,6 +359,55 @@ logged in MIGRATION.md §8 rather than carried as dead items.
   **G19**. The work is `p10d`.
 
 ## Done
+
+- [x] (p5d) [bug] `Structure.damageDealt` now credits `pierce`- and `lob`-kind
+      tower attacks — this commit. QA filed this against `p5b`: `fireTower`'s
+      `pierce` case (Ballista) and `lob` case (Mortar) fired through
+      `spawnProjectile`/`updateProjectiles`/`detonate` (`src/sim/combat.ts`)
+      without ever incrementing `s.damageDealt`, unlike every other attack kind
+      (single/cone/chain/poison/aura), which credit it inline via
+      `lineHit`/`coneHit`/`dealHit`/`chainHit`/`applyAoE` — both towers' stats
+      panels always read 0 damage dealt regardless of real output. **Fix:**
+      `ProjectileSpec` and `Projectile` (`src/sim/combat.ts`, `src/sim/types.ts`)
+      gain a required `structureId` field; `updateProjectiles`'s per-enemy
+      pierce hit and `detonate`'s AoE landing both now read the real number
+      `dealHit`/`applyAoE` already return and add it to
+      `w.structureById.get(p.structureId)?.damageDealt`. `fireTower` (Act I,
+      `src/sim/towers.ts`) passes the firing structure's real `s.id` at both
+      call sites; `fireWielded` (VS, `src/sim/vswield.ts`) passes a
+      `structureId: 0` sentinel, since towers stand inert with no owning
+      `Structure` through a VS wave (§6.2) — safe because `World.nextEntityId`
+      starts at 1, so `structureById.get(0)` is always `undefined` and the
+      credit silently no-ops. `tests/p5d-projectile-damage-credit.test.ts`
+      (4 cases): Ballista/Mortar each credit `damageDealt` only once a shot
+      actually lands, not merely fires; a pierce bolt hitting 3 colinear
+      enemies sums its credit across all three; a VS-wielded pierce shot with
+      the `structureId: 0` sentinel lands real damage without throwing and
+      without crediting the inert tower. **code-reviewer APPROVE**, no
+      Critical/Major: confirmed all four `spawnProjectile` call sites pass
+      `structureId` (a missed site is now a compile error, the field being
+      required, not a silent bug); confirmed the pierce and AoE branches are
+      mutually exclusive per projectile, so nothing double-credits the same
+      shot; confirmed `hashWorld` excludes both `damageDealt` and the new
+      `structureId`, so replay-hash determinism is untouched; confirmed
+      `nextEntityId` starts at 1, making the `structureId: 0` sentinel
+      genuinely safe. One Minor taken: the first draft's test only covered
+      single-enemy landings, not summed multi-hit credit or an explicit
+      no-throw case for the wielded sentinel — both added, see above.
+      **qa-playtester PASS**, no bugs found: a scripted pierce bolt hitting 3
+      dummies summed `damageDealt` to the exact combined HP drop; a Mortar
+      shell's AoE splash across 3 enemies did the same; two Ballistas hitting
+      the same enemy simultaneously tracked independent, correct per-structure
+      totals; selling a tower (or a tower dying to enemy fire) before its own
+      in-flight projectile lands routes through the same
+      `removeStructure`/`structureById` cleanup either way, so the projectile's
+      damage still lands on the enemy while crediting silently no-ops rather
+      than throwing or resurrecting a phantom structure entry; every
+      pre-existing `single`/`cone`/`chain`/`poison`/`aura` attack kind still
+      credits inline exactly as before, untouched by this diff. `npm test`:
+      681 passed / 33 skipped (0 failed, up from 677/33 pre-p5d — 4 new cases);
+      perf config 3/3; `npx tsc --noEmit` clean — refs: `src/sim/towers.ts`,
+      QA on p5b.
 
 - [x] (p5c) [feat] Gate **G20** — every §5 milestone special measurably changes
       the attack it names, and the loader validates it — this commit. **Gate G20

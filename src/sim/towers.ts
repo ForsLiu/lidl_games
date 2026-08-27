@@ -358,6 +358,7 @@ function fireTower(w: World, s: Structure, def: TowerDef): void {
           pierce: prof.pierce,
           source,
           fx,
+          structureId: s.id,
         });
       }
       break;
@@ -438,6 +439,7 @@ function fireTower(w: World, s: Structure, def: TowerDef): void {
         // spawned on impact, not a per-enemy hit effect (see `detonate`).
         groundBurn: prof.groundBurn,
         groundBurnSeconds: prof.groundBurnSeconds,
+        structureId: s.id,
       });
       break;
     }

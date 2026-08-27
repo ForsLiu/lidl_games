@@ -5,6 +5,50 @@
 
 ## Current state — SPEC-FINAL
 
+- **`p5d` is done this commit — P5 is now complete in full, no open items.**
+  QA's own bug from `p5b`: `fireTower`'s `pierce` (Ballista) and `lob` (Mortar)
+  cases fired through `spawnProjectile`/`updateProjectiles`/`detonate`
+  (`src/sim/combat.ts`) without ever crediting `Structure.damageDealt`, unlike
+  every other attack kind, which credits it inline via
+  `lineHit`/`coneHit`/`dealHit`/`chainHit`/`applyAoE`. Fix: `ProjectileSpec`
+  and `Projectile` gain a required `structureId` field; `updateProjectiles`'s
+  per-enemy pierce hit and `detonate`'s AoE landing both now do
+  `w.structureById.get(p.structureId)?.damageDealt += dealt` using the real
+  number `dealHit`/`applyAoE` already return. `fireTower` (Act I,
+  `src/sim/towers.ts`) passes the firing structure's real `s.id` at both call
+  sites; `fireWielded` (VS, `src/sim/vswield.ts`) passes a `structureId: 0`
+  sentinel — towers stand inert with no owning `Structure` through a VS wave
+  (§6.2) — which safely no-ops since `World.nextEntityId` starts at 1 and
+  `structureById.get(0)` is always `undefined`. `tests/p5d-projectile-damage-
+  credit.test.ts` (4 cases): Ballista and Mortar each credit `damageDealt` only
+  once a shot actually lands (not merely fires); a pierce bolt hitting 3
+  colinear enemies sums its credit across all three, not just the first;
+  a VS-wielded pierce shot with the `structureId: 0` sentinel lands real
+  damage on the enemy without throwing and without crediting the inert tower.
+  **code-reviewer APPROVE**, no Critical/Major: independently confirmed all
+  four `spawnProjectile` call sites pass `structureId` (a missed site is now a
+  compile error, not a silent bug, since the field is required); confirmed the
+  pierce and AoE branches are mutually exclusive per projectile so nothing can
+  double-credit the same shot; confirmed `hashWorld` excludes both
+  `damageDealt` and the new `structureId`, so the fix cannot touch replay-hash
+  determinism; confirmed `nextEntityId` starts at 1, so the `structureId: 0`
+  sentinel is genuinely safe. One Minor taken (the first draft's test only
+  covered single-enemy landings, not summed multi-hit credit or an explicit
+  no-throw case for the wielded sentinel) — both added, see above.
+  **qa-playtester PASS**, no bugs found: a scripted pierce bolt hitting 3
+  dummies summed `damageDealt` to the exact combined HP drop; a Mortar shell's
+  AoE splash across 3 enemies did the same; two Ballistas hitting the same
+  enemy simultaneously tracked independent, correct per-structure totals;
+  selling a tower (or a tower dying to enemy fire) before its own in-flight
+  projectile lands routes through the same `removeStructure`/`structureById`
+  cleanup either way, so the projectile's damage still lands on the enemy
+  while crediting silently no-ops rather than throwing or resurrecting a
+  phantom structure entry; every pre-existing `single`/`cone`/`chain`/
+  `poison`/`aura` attack kind still credits inline exactly as before, untouched
+  by this diff. `npm test`: 681 passed / 33 skipped (0 failed, up from 677/33
+  pre-p5d — 4 new cases in `tests/p5d-projectile-damage-credit.test.ts`); perf
+  config 3/3; `npx tsc --noEmit` clean — refs: `src/sim/towers.ts`, QA on p5b.
+
 **Precedence: SPEC-FINAL > everything.** SPEC-FINAL.md landed 2026-08-26 and
 supersedes SPEC.md, SPEC-V2.md and SPEC-V3.md outright. Its §14 gates **G1–G20**
 replace every A/B/C gate list and its §15 **P0–P10** build order is the backlog's

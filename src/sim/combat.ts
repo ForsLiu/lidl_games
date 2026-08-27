@@ -410,6 +410,8 @@ export interface ProjectileSpec {
   /** §5.2 Mortar @3: leave a ground-fire patch on impact — see `detonate`. */
   groundBurn?: boolean;
   groundBurnSeconds?: number;
+  /** The structure firing this shot, credited with `damageDealt` on landing. */
+  structureId: number;
 }
 
 export function spawnProjectile(w: World, spec: ProjectileSpec): Projectile {
@@ -437,6 +439,7 @@ export function spawnProjectile(w: World, spec: ProjectileSpec): Projectile {
     ratio: spec.fx?.ratio ?? null,
     groundBurn: spec.groundBurn ?? false,
     groundBurnSeconds: spec.groundBurnSeconds ?? 0,
+    structureId: spec.structureId,
     dead: false,
   };
   w.projectiles.push(p);
@@ -474,7 +477,9 @@ export function updateProjectiles(w: World, dt: number): void {
       if (e.dead || p.hitIds.includes(e.id)) continue;
       p.hitIds.push(e.id);
       const fx = projectileEffects(p);
-      dealHit(w, e, p.damage, p.source, fx, { fromX: px, fromY: py });
+      const dealt = dealHit(w, e, p.damage, p.source, fx, { fromX: px, fromY: py });
+      const owner = w.structureById.get(p.structureId);
+      if (owner) owner.damageDealt += dealt;
       if (!e.dead) applyEffects(w, e, fx);
       if (p.pierceLeft > 0) {
         p.pierceLeft--;
@@ -501,7 +506,9 @@ function projectileEffects(p: Projectile): HitEffects {
 
 function detonate(w: World, p: Projectile): void {
   w.emit('boom', p.x, p.y, p.aoe, 0);
-  applyAoE(w, p.x, p.y, p.aoe, p.damage, p.source, projectileEffects(p));
+  const dealt = applyAoE(w, p.x, p.y, p.aoe, p.damage, p.source, projectileEffects(p));
+  const owner = w.structureById.get(p.structureId);
+  if (owner) owner.damageDealt += dealt;
   if (p.groundBurn) spawnBurningPatch(w, p);
 }
 

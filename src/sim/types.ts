@@ -202,6 +202,13 @@ export interface Projectile {
   groundBurn: boolean;
   /** Seconds the patch above burns for — meaningful only when `groundBurn` is true. */
   groundBurnSeconds: number;
+  /**
+   * The structure that fired this shot, so a hit lands `damageDealt` on the
+   * instance that owns it — `source` is only the tower's content key, shared
+   * by every tower of that type. Not hashed: purely an attribution readback,
+   * the same reasoning that excludes `damageDealt` itself.
+   */
+  structureId: number;
   dead: boolean;
 }
 
