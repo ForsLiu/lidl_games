@@ -299,6 +299,7 @@ describe('C4 — the real stat pipeline carries sources', () => {
   it('the class is a source distinct from the tree', () => {
     const w = new World(cfg());
     const cls = content.classByKey.get('engineer')!;
+    if (!cls.legacy) throw new Error('engineer is expected to still be a legacy class');
     const stat = Object.keys(cls.mods).find(
       (k) => (STAT_KEYS as readonly string[]).includes(k) && STAT_KIND[k as StatKey] === 'mul',
     ) as StatKey | undefined;

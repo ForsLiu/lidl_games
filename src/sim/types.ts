@@ -22,6 +22,8 @@ export type Command =
   | { k: 'reroll' }
   | { k: 'equip'; relic: number }
   | { k: 'class_active' }
+  /** SPEC-FINAL §4: Active2 (E). No-op for a `legacy: true` class, which has only one Active. */
+  | { k: 'class_active2' }
   | { k: 'dev'; op: DevOp; amount: number };
 
 /**
@@ -249,8 +251,11 @@ export interface Warden {
   dashCharges: number;
   dashIFrames: number;
   attackCooldown: number;
-  /** SPEC-V2 §2 class Active skill; ticks down in `updateWarden`. */
+  /** SPEC-V2 §2 class Active skill (`legacy: true` classes only); ticks down in `updateWarden`. */
   activeCooldown: number;
+  /** SPEC-FINAL §4 Active1 (Q) / Active2 (E), `legacy: false` classes only; tick down in `updateWarden`. */
+  active1Cooldown: number;
+  active2Cooldown: number;
   /** Last non-zero movement direction; Flame Cone fires along it. */
   fx: number;
   fy: number;

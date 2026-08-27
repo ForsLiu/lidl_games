@@ -42,6 +42,7 @@ describe.skip('f004: class content (SPEC-V2 §2)', () => {
   // Rewritten at BACKLOG p6a; deleted with the kits at p6d.
   it.skip('every class defines an Active with a Day use and a Night use, plus a Signature passive', () => {
     for (const c of content.classes.classes) {
+      if (!c.legacy) continue; // this claim only ever held for the SPEC-V2 shape
       expect(c.active.name.length).toBeGreaterThan(0);
       expect(c.active.cooldownSeconds).toBeGreaterThan(0);
       expect(c.active.dayUse.length).toBeGreaterThan(0);

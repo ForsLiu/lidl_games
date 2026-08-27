@@ -242,14 +242,28 @@ export class Hud {
     this.renderTowerInfo(w, cursor);
   }
 
-  /** SPEC-V2 §2: the class Active skill, keyed to Q, with its cooldown state. */
+  /** One Active's HUD row: name, key binding, and live cooldown state. */
+  private static activeSkillRow(name: string, key: string, cd: number, tip: string): string {
+    const status = cd > 0 ? `${cd.toFixed(1)}s` : 'Ready';
+    return `<div class="sw-row" title="${tip}"><span>${name} (${key})</span><b class="${cd > 0 ? '' : 'ready'}">${status}</b></div>`;
+  }
+
+  /**
+   * SPEC-V2 §2's single class Active (Q), for `legacy: true` classes; SPEC-FINAL
+   * §4's Active1 (Q) + Active2 (E), for `legacy: false` classes — which drop
+   * the Day-use/Night-use tooltip text SPEC-V2 §2 required (MIGRATION.md §8.3).
+   */
   private activeRow(w: World): string {
     const cls = w.content.classByKey.get(w.cfg.classKey);
     if (!cls) return '';
-    const cd = w.warden.activeCooldown;
-    const status = cd > 0 ? `${cd.toFixed(1)}s` : 'Ready';
-    const tip = `Day: ${cls.active.dayUse} Night: ${cls.active.nightUse}`;
-    return `<div class="sw-row" title="${tip}"><span>${cls.active.name} (Q)</span><b class="${cd > 0 ? '' : 'ready'}">${status}</b></div>`;
+    if (cls.legacy) {
+      const tip = `Day: ${cls.active.dayUse} Night: ${cls.active.nightUse}`;
+      return Hud.activeSkillRow(cls.active.name, 'Q', w.warden.activeCooldown, tip);
+    }
+    return (
+      Hud.activeSkillRow(cls.active1.name, 'Q', w.warden.active1Cooldown, cls.active1.name) +
+      Hud.activeSkillRow(cls.active2.name, 'E', w.warden.active2Cooldown, cls.active2.name)
+    );
   }
 
   /**

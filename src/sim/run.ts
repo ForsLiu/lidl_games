@@ -3,7 +3,7 @@
  * end-state hashing. A run is fully determined by RunConfig + input log.
  */
 
-import { defaultCoreKey, loadContent } from './content';
+import { defaultCoreKey, loadContent, type Content } from './content';
 import { GATES, GRID_H, GRID_W, coreCenter } from './grid';
 import { Hasher } from './hash';
 import { clamp, dist2, normalize } from './math';
@@ -32,7 +32,7 @@ import {
 import { shouldSpawnBoss, spawnFinalBoss, updateDirector } from './act2';
 import { addXp, openLevelUpIfPending, rerollOffers, takeOffer, updateGems } from './progression';
 import { advanceToNextBlock, finishSundering } from './sundering';
-import { useClassActive } from './classes';
+import { classBasicAttack, useClassActive, useClassActive2 } from './classes';
 import { updateTerrainEffects } from './weapons';
 import { updateWieldedAttacks } from './vswield';
 import { updateVsSpecials } from './vsspecials';
@@ -62,8 +62,8 @@ export class Run {
   readonly world: World;
   private input: TickInput = emptyInput();
 
-  constructor(cfg: RunConfig) {
-    this.world = new World(cfg);
+  constructor(cfg: RunConfig, content: Content = loadContent()) {
+    this.world = new World(cfg, content);
   }
 
   get done(): boolean {
@@ -246,6 +246,9 @@ export function applyCommand(w: World, c: Command): void {
     case 'class_active':
       useClassActive(w);
       break;
+    case 'class_active2':
+      useClassActive2(w);
+      break;
     case 'dev':
       applyDevCommand(w, c.op, c.amount);
       break;
@@ -332,6 +335,8 @@ export function updateWarden(w: World, input: TickInput, dt: number): void {
   if (wd.dashIFrames > 0) wd.dashIFrames -= dt;
   if (wd.attackCooldown > 0) wd.attackCooldown -= dt;
   if (wd.activeCooldown > 0) wd.activeCooldown -= dt;
+  if (wd.active1Cooldown > 0) wd.active1Cooldown -= dt;
+  if (wd.active2Cooldown > 0) wd.active2Cooldown -= dt;
   wd.outOfCombat += dt;
 
   const n = normalize(input.mx, input.my);
@@ -372,7 +377,13 @@ export function updateWarden(w: World, input: TickInput, dt: number): void {
     wd.leechAccumulator = 0;
   }
 
-  if (input.attack && !w.huntsWarden) manualAttack(w, input, dt);
+  const cls = w.content.classByKey.get(w.cfg.classKey);
+  if (cls && !cls.legacy) {
+    // SPEC-FINAL §4: the band-profile basic attack auto-fires, TD-only (Q117) — no `input.attack` press needed.
+    if (!w.huntsWarden) classBasicAttack(w, cls);
+  } else if (input.attack && !w.huntsWarden) {
+    manualAttack(w, input, dt);
+  }
 }
 
 function moveWarden(w: World, dx: number, dy: number): void {
@@ -419,7 +430,7 @@ function manualAttack(w: World, input: TickInput, _dt: number): void {
   const wd = w.warden;
   if (wd.attackCooldown > 0) return;
   const cls = w.content.classByKey.get(w.cfg.classKey);
-  if (!cls) return;
+  if (!cls || !cls.legacy) return;
   const a = cls.manualAttack;
   const range = a.range;
   let target = w.nearestEnemy(input.aimX, input.aimY, 1.5);
@@ -729,6 +740,12 @@ export function hashWorld(w: World): string {
   // drains it *before* the damage systems refill it each tick (x002 review).
   h.num(w.warden.x).num(w.warden.y).num(w.warden.hp).num(w.warden.armorShred);
   h.num(w.warden.leechAccumulator);
+  // p6a: attack/Active cooldowns gate exactly the same class of future damage
+  // `wieldedCooldown` is hashed for below — a pre-existing gap (none of these
+  // four were hashed before this item) fixed while the framework that needs
+  // Active1/Active2 determinism to hold is being built.
+  h.num(w.warden.attackCooldown).num(w.warden.activeCooldown);
+  h.num(w.warden.active1Cooldown).num(w.warden.active2Cooldown);
   h.int(w.level).num(w.xp);
   h.num(w.act2Time);
   h.int(w.cycle);

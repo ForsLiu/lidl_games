@@ -127,6 +127,7 @@ export function makeKeyDownHandler(b: KeyBinding): (e: KeyboardEvent) => void {
     if (k === ' ') e.preventDefault();
     if (k === 'enter') b.queue.push({ k: 'call' });
     if (k === 'q') b.queue.push({ k: 'class_active' });
+    if (k === 'e') b.queue.push({ k: 'class_active2' });
     if (k === 'r') b.toggleRanges?.();
     if (k === 'f') b.cycleSpeed?.();
     if (k === '0') b.clearSelection?.();

@@ -34,7 +34,7 @@ still in test headers.
 | P3 interleave | **done in full (p3a-p3e)** — `p3a` retargets the reused V2 cycle machine to 18 TD + 6 VS, 20s build, 75s VS (G6's pattern half); `p3b` stacks up to `maxStackedWaves` TD waves via the `call` command (G6's stacking half); `p3c` re-points leak coupling's existing ×2-into-next-VS-wave mechanism onto TD→VS vocabulary and the real 6-block shape; `p3d` deletes the V2 Day/Dusk/Night/Dawn machine, Rekindle and the Core-detonation pocket/lane mechanism outright; `p3e` re-baselines `light-build`/G13's solo-viability clause (`a4-single-type`)/the boss gate against the real shape — all three measure red past ~wave 10-14 (a p8a content gap, not a P3 defect) and are logged `.skip` with their numbers rather than forced green (Q109) |
 | P4 core math | **done** — multiplicative stacking, armor cap +99 / floor −100, 6 damage types + 2 statuses (G4, G5 green) |
 | P5 tower roster | **done in full (p5a-p5d, G20 green)** — all 10 towers, upgrade tracks, defense bands; `p5b` gave Ember Brazier/Mortar their own `costMul`; `p5c` authored the four remaining §5.2 milestone specials (Ballista, Fire Brazier, Ice Obelisk, Mortar) and the G20 loader rule; `p5d` fixed the QA-filed `damageDealt` telemetry bug on pierce/lob-kind towers |
-| P6 classes | **3 of 11**, and on V2's one-Active + Signature framework, not §4's Passive + Q + E + tower passive (G8–G11 unmet) |
+| P6 classes | **framework done (`p6a`)** — §4's Passive + Q + E + tower passive is live; still **3 of 11** real kits, all on the legacy V2 shape (`p6b`/`p6c`/`p6d` author the §4 kits) (G8–G11 unmet) |
 | P7 equipment/rewards/VS upgrades | **superseded systems in place** — relic affixes, Ember, 12 boons; §7's 12-item table, §6.3's pool and §8's reward pipeline unbuilt (G12 unmet) |
 | P8 enemies/waves/bosses | **roster and both bosses done** — all 20 §9 enemies by name; waves still on the 10-wave cycle shape (G14 measured on the old shape) |
 | P9 tooling | **dev mode, god mode, UX flows done; Codex read-half in flight on `lane/tuner`; Tuner unbuilt** (G15 unmet, G16/G18 largely green) |
@@ -96,14 +96,12 @@ quest engine doesn't exist yet — are re-filed as `p7h` in P7, below.
 
 ### P6 — classes (G8, G9, G10, G11)
 
-- [ ] (p6a) [feat] Class framework per §4: archetype bands (low/medium/high mapped
-      to numbers in `data/classes.json`) + **Passive** + **Active1 (Q)** + **Active2
-      (E)** + **Tower passive** (always on, effective in VS where it says so). Basic
-      attack: auto-attack the nearest enemy on the band profile. Actives are
-      mouse-aimed sim Commands and may combo — acceptance: a framework test drives
-      all four slots for a class, every active replays to an identical end-state
-      hash from the input log, and a class missing a slot fails the loader — refs:
-      §4, G2
+**`p6a` is done** — see the Done section. SPEC-FINAL §4's class framework
+(archetype bands resolved to a numeric basic-attack profile, Passive,
+Active1 (Q), Active2 (E), Tower passive) is live, proven by a fixture class;
+the three existing V2-era classes carry forward as `legacy: true` (Q38). No
+real §4 kit is authored yet — that starts at `p6b`.
+
 - [ ] (p6b) [feat] Swordsman kit (§4.1 verbatim): Thousand Cuts, Circle Slash
       (charge-scaled, cap 3 s-equivalent), Dash Slash, Wind Slash tower passive —
       acceptance: gate **G9**'s first half — Dash during a Circle Slash charge is
@@ -337,6 +335,71 @@ logged in MIGRATION.md §8 rather than carried as dead items.
   **G19**. The work is `p10d`.
 
 ## Done
+
+- [x] (p6a) [feat] Class framework per §4: archetype bands resolved to a
+      numeric basic-attack profile + Passive + Active1 (Q) + Active2 (E) +
+      Tower passive — this commit. `ClassesFileSchema` becomes a
+      `z.discriminatedUnion('legacy', [LegacyClassSchema, NewClassSchema])`:
+      the three shipped classes (`engineer`/`pyromancer`/`frost_warden`) are
+      flagged `legacy: true` and otherwise byte-identical to before (Q38); the
+      new `legacy: false` shape carries `basicAttack` (`{dps,range,interval,
+      aoe}`), `moveSpeedBonus`, `passive`/`towerPassive` (generic
+      `Record<string,number>` mod dicts, the same shape `data/cores.json`'s
+      `effects` already established) and `active1`/`active2`. No real §4 kit
+      is authored yet (`p6b`/`p6c`/`p6d`); this item proves all four slots
+      end to end through a hand-built fixture class in the new
+      `tests/p6a-class-framework.test.ts`, the same `contentWith` technique
+      `m20a-upgrade-tracks.test.ts` already uses. Active1 keeps the existing
+      `class_active` Command wire; a new `class_active2` Command (bound to E)
+      is Active2, independently cooled down (`Warden.active1Cooldown`/
+      `active2Cooldown`), a no-op for a `legacy: true` class. The basic
+      attack auto-fires with no Command and no `input.attack` press, gated
+      TD-only (`!w.huntsWarden`), the same scope legacy `manualAttack`
+      already had, since §6.1's wielded-tower-attack system is what the
+      character fights with during VS and nothing in §6 asks a second
+      independent auto-fire source to run alongside it (Q117). **Q117
+      records four genuine SPEC-FINAL prose gaps**: bands resolve to bare
+      numbers in `/data`, never a label→number table in code; Active1 keeps
+      its old wire per MIGRATION.md §8's f004 note that `class_active`
+      "survives"; the basic attack is TD-only, not also live during VS; a
+      non-stat-shaped passive gets bespoke engine code from whichever item
+      authors that real kit later, the same way Carnivorous Plant's/Corpse's
+      non-stat Core effects got bespoke `updateX` functions beyond their own
+      `effects` dict (Q113/Q114). **code-reviewer APPROVE**, one Minor fixed
+      before commit: `classBasicAttack`'s AoE splash hand-rolled an
+      uncapped, no-falloff loop, unlike every other splash source's
+      `applyAoE`/`aoeFullTargets`/`aoeFalloff`/`aoeFalloffFloor` discipline —
+      harmless today (no real kit yet authors a nonzero `aoe`) but
+      `classBasicAttack` is exactly what `p6b`-`p6d` will reuse unchanged, so
+      fixed now: the splash branch calls `applyAoE(..., { primary: target,
+      damage: { fromX: wd.x, fromY: wd.y } })`, the same pattern
+      `vswield.ts`'s own splash call site already uses. Also confirmed: both
+      new damage paths route through the ordinary `damageEnemy` pipeline so
+      lifesteal and `damageByWeapon`/`damageTotal` crediting apply for free;
+      the discriminated union's TS narrowing means no reader anywhere in
+      `/src` can access a legacy-only or new-only field on an unnarrowed
+      union member; `hashWorld` gains the four new cooldown fields
+      (`attackCooldown`/`activeCooldown`/`active1Cooldown`/`active2Cooldown`),
+      closing a pre-existing gap rather than opening one. **qa-playtester
+      PASS**, no bugs found: real (non-scripted) `hybrid`/`turtle`/`kite`-
+      policy runs against the fixture class fired Active1/Active2/basic-attack
+      under real play with all `RunReport` fields finite and zero
+      NaN/Infinity; replay-hash determinism held across independent
+      same-seed runs with both Actives fired at different real ticks; Active2
+      spammed 1000× on a `legacy: true` class stayed a clean no-op; `aoe: 0`
+      vs `aoe > 0` (now via `applyAoE`) both behaved correctly with no
+      double-counting; two stacked `cdr` sources reduced `active1Cooldown`/
+      `active2Cooldown` independently; both Actives spammed during the death
+      slow-mo produced no crash; a jsdom-mounted Hub/HUD check confirmed the
+      fixture class renders both Active rows without crashing and a `legacy:
+      true` class still renders exactly its one `(Q)` row; schema fuzzing
+      beyond the shipped per-slot-deletion tests (wrong types, an invalid
+      enum value, `legacy` as a string) all correctly threw. `npm test`: 835
+      passed / 37 skipped (0 failed, up from 814/37 pre-item — 20 new cases
+      in `tests/p6a-class-framework.test.ts`, three existing test files given
+      minimal type-narrowing/scope guards); perf config 3/3; `npx tsc
+      --noEmit` clean — refs: §4, G2, Q38, Q117. **Next action: `p6b`**
+      (Swordsman kit, gate G9's first half).
 
 - [x] (p-core-f) [feat] G22 and G23 as live tests (SPEC-FINAL §5.5, gate G21's
       companions) — this commit. **P5.5 is complete in full.** The original

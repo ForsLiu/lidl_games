@@ -393,6 +393,8 @@ export class World {
       dashIFrames: 0,
       attackCooldown: 0,
       activeCooldown: 0,
+      active1Cooldown: 0,
+      active2Cooldown: 0,
       fx: -1,
       fy: 0,
       outOfCombat: 0,

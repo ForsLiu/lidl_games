@@ -429,7 +429,7 @@ describe('pause (playtest request)', () => {
     expect(picked).toBe(-1);
   });
 
-  it('Q queues the class Active as a Command (SPEC-V2 §2)', () => {
+  it('Q queues Active1 as a Command (SPEC-V2 §2 / SPEC-FINAL §4)', () => {
     const queue: Command[] = [];
     const handler = makeKeyDownHandler({
       keys: new Set(),
@@ -437,6 +437,16 @@ describe('pause (playtest request)', () => {
     });
     handler(new window.KeyboardEvent('keydown', { key: 'q' }));
     expect(queue).toEqual([{ k: 'class_active' }]);
+  });
+
+  it('E queues Active2 as a Command (SPEC-FINAL §4, p6a)', () => {
+    const queue: Command[] = [];
+    const handler = makeKeyDownHandler({
+      keys: new Set(),
+      queue: { push: (c) => queue.push(c) },
+    });
+    handler(new window.KeyboardEvent('keydown', { key: 'e' }));
+    expect(queue).toEqual([{ k: 'class_active2' }]);
   });
 
   it('shows a pause overlay with resume and abandon, and takes it away again', () => {

@@ -468,10 +468,10 @@ const ModifiersFileSchema = z.object({
 /* ----------------------------------------------------------------- classes */
 
 /**
- * SPEC-V2 §2: every class has one Active skill, usable both phases and
- * shown on the HUD with its cooldown. `kind` dispatches to the effect
- * implementation in `src/sim/classes.ts`; new kinds extend that switch as
- * more classes land (f005+) without touching this schema.
+ * SPEC-V2 §2 (legacy shape, `legacy: true` classes only — Q38): every class
+ * has one Active skill, usable both phases and shown on the HUD with its
+ * cooldown. `kind` dispatches to the effect implementation in
+ * `src/sim/classes.ts`.
  */
 const ClassActiveSchema = z.object({
   name: str,
@@ -490,20 +490,88 @@ const ClassActiveSchema = z.object({
 
 const ClassPassiveSchema = z.object({ name: str, description: str });
 
+/**
+ * SPEC-FINAL §4 class framework, p6a: bands + Passive + Active1 (Q) +
+ * Active2 (E) + Tower passive. No Day-use/Night-use and no Signature (those
+ * were SPEC-V2 §2's; the legacy shape above keeps them, this one drops them
+ * per MIGRATION.md §8.3's f004 retirement note).
+ *
+ * An Active's effect shape mirrors the legacy `ClassActiveSchema` minus
+ * dayUse/nightUse — `kind` is the same open-for-extension dispatch tag,
+ * still just `burst_damage` until p6b/p6c/p6d add the kit-specific kinds
+ * (charge, dash-line, ground effect, ...) their own owner-specced abilities
+ * need.
+ */
+const ClassEffectSchema = z.object({
+  name: str,
+  kind: z.enum(['burst_damage']),
+  cooldownSeconds: num,
+  radius: num,
+  damage: num,
+  slow: num.optional(),
+  slowDuration: num.optional(),
+  burnDps: num.optional(),
+  burnDuration: num.optional(),
+});
+
+/**
+ * Passive and Tower passive are both, at minimum, an always-on named source
+ * of generic stat contributions — the same `effects: Record<string,number>`
+ * shape `data/cores.json` already uses for a Core's always-on numbers
+ * (`p-core-b`). `mods` folds into `Stats` by key name (`baseRunStats`,
+ * `stats.ts`) via the same `addAll` an unknown-key already ignores, so a
+ * class whose passive is pure flavor (no stat line) just omits it. A passive
+ * whose effect cannot be expressed as a stat bag (Thousand Cuts' on-hit
+ * Bleeding, Spreading Plague's on-death transfer) gets bespoke engine code
+ * from the item that authors it (p6b/p6c/p6d), the same way Carnivorous
+ * Plant's/Corpse's non-stat Core effects got bespoke `updateX` functions
+ * beyond `cores.json`'s own `effects` dict.
+ */
+const ClassSlotPassiveSchema = z.object({
+  name: str,
+  description: str,
+  mods: z.record(num).default({}),
+});
+
+/**
+ * §4's basic attack: "every class auto-attacks the nearest enemy with its
+ * band profile." The range/dmg/spd/aoe band columns SPEC-FINAL's tables give
+ * as low/medium/high are resolved to real numbers here, per the architecture
+ * rule that content and numbers live in `/data`, never in code (`aoe: 0`
+ * means single-target; `> 0` is a splash radius around the primary target).
+ */
+const ClassBasicAttackSchema = z.object({ dps: num, range: num, interval: num, aoe: num });
+
+const LegacyClassSchema = z.object({
+  key: str,
+  name: str,
+  unlockedByDefault: z.boolean(),
+  unlockQuest: str.nullable(),
+  legacy: z.literal(true),
+  trait: str,
+  mods: z.record(num),
+  active: ClassActiveSchema,
+  passive: ClassPassiveSchema,
+  manualAttack: z.object({ name: str, dps: num, range: num, interval: num }),
+});
+
+const NewClassSchema = z.object({
+  key: str,
+  name: str,
+  unlockedByDefault: z.boolean(),
+  unlockQuest: str.nullable(),
+  legacy: z.literal(false),
+  /** §4's "move" band, resolved to a fractional bonus into the `moveSpeedPct` stat. */
+  moveSpeedBonus: num,
+  basicAttack: ClassBasicAttackSchema,
+  passive: ClassSlotPassiveSchema,
+  active1: ClassEffectSchema,
+  active2: ClassEffectSchema,
+  towerPassive: ClassSlotPassiveSchema,
+});
+
 const ClassesFileSchema = z.object({
-  classes: z.array(
-    z.object({
-      key: str,
-      name: str,
-      unlockedByDefault: z.boolean(),
-      unlockQuest: str.nullable(),
-      trait: str,
-      mods: z.record(num),
-      active: ClassActiveSchema,
-      passive: ClassPassiveSchema,
-      manualAttack: z.object({ name: str, dps: num, range: num, interval: num }),
-    }),
-  ),
+  classes: z.array(z.discriminatedUnion('legacy', [LegacyClassSchema, NewClassSchema])),
 });
 
 /**
@@ -969,7 +1037,11 @@ export type AffixDef = z.infer<typeof AffixSchema>;
 export type TreeNode = z.infer<typeof TreeNodeSchema>;
 export type ModifierDef = z.infer<typeof ModifiersFileSchema>['modifiers'][number];
 export type ClassDef = z.infer<typeof ClassesFileSchema>['classes'][number];
+export type LegacyClassDef = Extract<ClassDef, { legacy: true }>;
+export type NewClassDef = Extract<ClassDef, { legacy: false }>;
 export type ClassActive = z.infer<typeof ClassActiveSchema>;
+/** Exported so a test can drive "a class missing a slot fails the loader" directly (p6a, G2). */
+export { ClassesFileSchema };
 export type AffinityDef = z.infer<typeof AffinityFileSchema>['affinities'][number];
 export type QuestDef = z.infer<typeof QuestsFileSchema>['quests'][number];
 export type DamageTypeDef = z.infer<typeof DamageTypeSchema>;
