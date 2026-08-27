@@ -112,6 +112,81 @@ coverage gaps session 1's log recorded. All five are inside Scope as written.*
       as a recorded snapshot, so a content change is visible and distinguishable
       from a P-phase-not-reached-yet gap rather than a silent regression —
       refs: SPEC-FINAL §13, "Definition of 1.0 complete"
+- [x] (q17) [polish] `tools/gate-audit.ts`'s own G17 `KNOWN_HOLES` entry is
+      stale: it still reads "no test runs a 50-seed soak... q12/q13 the
+      in-Scope equivalents" though q12 (soak) and q13 (perf-ratio) both landed
+      and satisfy G17's three clauses (the soak clause verbatim; the ⚖
+      per-simulated-minute/350-enemy-all-weapons clause via a ratio instead of
+      a literal fps number) — a deferral nobody re-measured, CLAUDE.md's own
+      named trap — acceptance: G17 reclassified to `covered` citing
+      `tests/q12-soak.test.ts`/`tests/q13-perf-ratio.test.ts`, the q10 pinned
+      covered/hole split updated, and a new `staleHoleRefs` check (cross-
+      referencing `KNOWN_HOLES` notes against BACKLOG-QUALITY.md's own
+      checkboxes) so a hole citing an already-`[x]`'d lane item goes red by
+      name instead of silently rotting again — refs: q10, sessions 6/8/9 logs
+- [ ] (q18) [bug][feat] Architecture rule 2's content-hash replay guarantee
+      ("RunConfig carries a content hash so a replay against edited /data
+      fails loudly") has zero implementation and zero test coverage — grepping
+      the whole repo for `contentHash`/`dataHash`/`configHash` finds no hits
+      outside docs (gate-audit.ts's own G2 note already flags this: "no test
+      greps for 'contentHash'") — write a regression test proving a replay run
+      against in-memory-mutated `/data` content does not fail loudly today
+      (no thrown error, a silent divergent or matching hash), `it.skip`'d per
+      lane convention, and file it as a bug for main lane in this file's Log —
+      acceptance: `tests/q18-content-hash-replay.test.ts` demonstrates the gap
+      with a live repro — refs: CLAUDE.md architecture rule 2, gate-audit.ts G2
+- [ ] (q19) [feat] Fast-forward bit-identity, named missing by gate-audit's G2
+      note ("no test asserts a fast_forward run's end hash against the same
+      run at 1x") — PROGRESS.md's M8 section claims fast-forward is "more
+      fixed ticks per frame rather than a longer tick, so a fast-forwarded run
+      is bit-identical to the same run at 1x" but nothing pins that invariant
+      — acceptance: a test drives a seeded run through whatever the shipped
+      fast-forward mechanism actually is (read the renderer/loop code first;
+      if it turns out to be frame-stepping with no distinct sim entrypoint,
+      the test still pins today's trivial bit-identity so a future refactor
+      that adds real tick-batching can't silently break it) and asserts
+      identical `endHash` across several seeds — refs: gate-audit.ts G2, M8
+- [ ] (q20) [feat] Mutation-probe list expansion: `tools/mutation-probe.ts`'s
+      `MUTATIONS` array has 6 entries, all sourced from sessions 4/5 (q8/q9);
+      sessions 8/9/11 each hand-verified further mutations that killed real
+      tests (soak's `POISONER` `gold=NaN` case, perf-ratio's sequential-vs-
+      interleaved timing regression, gate-audit's `entirelyRetiredCoverage`/
+      `hasLiveTopLevelDescribe` hollowing, command-domain-fuzz's `classify()`/
+      `digest()` hollowing) and none of them are in the automated list —
+      acceptance: `MUTATIONS` grows to at least 10 entries, each `source`
+      naming the session log it came from the way the existing six do, and
+      `tests/q14-mutation-smoke.test.ts` runs the expanded list green — refs:
+      q14, sessions 8/9/11 logs
+- [ ] (q21) [feat] Soul-weapon boundary fuzz for P5's two remaining pricing
+      items — fuzz `data/weapons.json`'s 6-level tracks at their boundaries
+      (level 0/1/6 transitions, the Awakening gate at Lv6 + boon rank 3,
+      inheritance when a build has fewer distinct souls than weapon slots)
+      confined to headless runs, recording which boundary the current system
+      handles correctly vs. not, pinned q7/q15-style so a regression at any
+      boundary goes red by name — acceptance: a pinned map in
+      `tests/q21-weapon-boundary-fuzz.ts`, exercised green by
+      `tests/q21-weapon-boundary-fuzz.test.ts` — refs: PROGRESS.md P5 audit
+      line, M2 soul-weapons section
+
+*Generated 2026-08-27, session 12, under CLAUDE.md's generation rule scoped to
+this lane: only q16 was actionable (fewer than 3) — q1/q4/q5/q6 remain
+Scope-blocked, unchanged. (a) Ran `tools/sweep.ts --seeds 12
+--policies maxbuild,hybrid` (0% win, medSurv ~120 either policy — matches
+PROGRESS.md's already-documented bimodal-Act-II state, nothing new) and
+`npx tsx tools/gate-audit.ts`, which is this lane's own G1–G20 diff tool from
+q10 — running it surfaced q17 directly: G17's hole note names q12/q13 as its
+own fix and both are checked done, so the note itself was the finding rather
+than needing a fresh audit pass. (b) SPEC-FINAL coverage diff: q16 already
+covers the content-totals gap; gate-audit's other eleven holes all trace to a
+P-phase genuinely not built yet (P2/P3/P6/P7/P9), not to a lane testing gap —
+matches session 6's finding that most remaining holes are infrastructure, not
+missing tests. (c) Two engineer's-judgment items grounded in gate-audit's own
+G2 note, which names two concrete untested claims (content-hash replay,
+fast-forward bit-identity) rather than a vague gap: q18, q19. Plus q20
+(automate mutations three more sessions have hand-verified since q14 shipped)
+and q21 (the one remaining un-fuzzed built system — soul-weapon boundaries).
+Took q17, the top item, since it was the concrete finding from step (a) and
+the smallest, most self-contained fix.*
 
 *Generated 2026-08-26, session 6, under CLAUDE.md's generation rule scoped to
 this lane: only q10 and q11 were actionable (fewer than 3). (a) Ran
@@ -130,6 +205,79 @@ resolve if it wants the CLI entry points too. All five are inside Scope as
 written; none needs a `package.json` edit.*
 
 ## Log
+
+### 2026-08-27 — session 12
+
+**Feedback inbox:** `feedback/` does not exist in this worktree (checked with
+`ls`). Nothing to process, nothing moved.
+
+**q17's implementation was found already sitting in the worktree, uncommitted,
+at session start** — the same shape sessions 7/9/10 have each hit before (a
+prior session did the work and the generation-rule note at the top of the
+queue, but stopped before code review/QA/commit). Verified rather than
+trusted, per this file's own standing lesson: `tools/gate-audit.ts` and
+`tests/q10-gate-audit.test.ts` both had real, uncommitted diffs implementing
+q17 exactly as the queue's session-12 generation note describes (G17 moved
+`KNOWN_HOLES` → `GATE_COVERAGE`, `staleHoleRefs`/`backlogCheckboxes` added, 4
+new tests). Five actionable items remained after it (q18–q21 plus q17 itself),
+so the generation rule did not need to run.
+
+**q17 done.** `tools/gate-audit.ts` (G17 reclassified + `staleHoleRefs`/
+`backlogCheckboxes`) and `tests/q10-gate-audit.test.ts` (19 tests, up from 14).
+
+**Review (code-reviewer, REQUEST-CHANGES, 2 Major, both fixed here).** (1) The
+inherited G17 note claimed the gate fully `covered` with no hedge, but
+SPEC-FINAL §16 explicitly assigns "re-baseline perf as G17's per-sim-minute
+budget" to **P10** — the repo is nowhere near P10, so the gate's first clause
+(the actual chosen host-independent per-simulated-minute number) cannot be
+tested yet; only clauses two (a10's fps floor) and three (q12's soak) are
+solidly live. This is the exact "covered but actually not" shape session 6's
+QA caught G1/G19 doing, one layer subtler: not zero live assertions, but the
+spec's own build order saying the number itself isn't chosen yet. Fixed by
+rewriting the note to disclose the P10-deferred remainder explicitly — same
+bar as G13's existing note for a comparably partial gate — instead of
+declaring the clause done. `tests/q13-perf-ratio.test.ts` is now described as
+supplying the *measurement mechanism* the eventual re-baseline will need, not
+the finished budget. (2) `staleHoleRefs`'s citation regex (`\bq(\d+)\b`) had
+no way to tell "cites qNN as the unlanded fix" from "cites a `qNN-*.test.ts`
+filename" — and this lane's own test files are named exactly that way, all
+already `[x]`-checked, so a future, entirely legitimate note citing one by
+name (this file's own established style — see G12's `c7-no-orbs.test.ts`)
+would have tripped the tripwire and flipped the CLI's exit code for no real
+staleness. Fixed by excluding a `qNN` immediately followed by a hyphen
+(`\bq(\d+)\b(?!-)`), with a new regression test covering both the excluded
+filename form and the still-caught bare form side by side. Independently
+re-derived both findings by reading SPEC-FINAL.md §14/§16 directly and by
+constructing the filename-collision case by hand before trusting review's
+read of it.
+
+**QA (qa-playtester, PASS, no bugs found).** Ran the 19-test file standalone
+(genuine execution, not vacuous). Mutation-tested `staleHoleRefs` end to end:
+reintroduced a bare stale citation into `KNOWN_HOLES`, confirmed the CLI
+prints the STALE section and exits 1 and the tripwire test itself goes red,
+reverted via a pre-mutation backup, confirmed byte-identical restoration.
+Mutation-tested the filename-exclusion fix specifically: a `qNN-*.test.ts`
+citation is not flagged, a bare `qNN` citation still is, a note containing
+both is still flagged once, and boundary cases (`q1` vs `q12` vs `q120` vs
+`q123abc`, trailing punctuation) all resolve correctly with no substring
+bleed-through. Cross-checked the shipped G17 note's claims against the actual
+bodies of `a10-performance.test.ts`, `q12-soak.test.ts` and
+`q13-perf-ratio.test.ts` directly against SPEC-FINAL.md's own G17 row and P10
+paragraph — neither overclaiming nor underclaiming. Confirmed Scope
+(`git diff --stat` restricted outside `tests/**`/`tools/**`/`BACKLOG-QUALITY.md`
+is empty) and that the working tree held exactly the three intended files
+after mutation testing.
+
+**Suite state.** `npx vitest run tests/q10-gate-audit.test.ts` — 19/19 green.
+A full `npx vitest run` taken *before* this commit correctly failed one test
+(`tests/q14-mutation-smoke.test.ts`'s "fixture must start clean" assertion) —
+an artifact of the working tree carrying real uncommitted diffs at measurement
+time, not a defect in this change; that test asserts a precondition on `git
+diff` being empty and will read clean again once this lands. `npx tsc --noEmit
+-p .` clean throughout.
+
+**Four actionable items remain** (q18–q21, all unchecked and unblocked), so
+the generation rule does not need to run next session either.
 
 ### 2026-08-27 — session 11
 

@@ -14,6 +14,8 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   auditGates,
+  backlogCheckboxes,
+  BACKLOG_PATH,
   entirelyRetiredCoverage,
   GATE_COVERAGE,
   hasLiveTopLevelDescribe,
@@ -22,6 +24,7 @@ import {
   parseGates,
   REPO_ROOT,
   SPEC_PATH,
+  staleHoleRefs,
   type Gate,
 } from '../tools/gate-audit';
 
@@ -60,19 +63,22 @@ describe('q10 — gate-coverage audit', () => {
     expect(untracked.map((r) => `${r.id}: ${r.text}`)).toEqual([]);
   });
 
-  it('the recorded split is exactly eight covered and twelve holes at HEAD', () => {
+  it('the recorded split is exactly nine covered and eleven holes at HEAD', () => {
     // Pinned like q9's RECORDED_FLOOR: a gate moving from hole to covered (or
     // the other way) is real news about the P-phase it names — worth a look,
     // not a silent pass. If this drifts, re-derive it against the live suite
     // rather than just widening the pin. (Was ten/ten at first cut; QA found
     // G1 and G19 were `covered` by files that are entirely describe.skip'd —
-    // zero live assertions — and they moved to KNOWN_HOLES below.)
+    // zero live assertions — and they moved to KNOWN_HOLES. Was eight/twelve
+    // at q10; G17 moved to `covered` at q17, session 12, once q12's soak and
+    // q13's perf-ratio probe were re-measured against the hole note that had
+    // named them as the not-yet-shipped fix.)
     const gates = parseGates(SPEC_TEXT);
     const rows = auditGates(gates).filter((r) => /^G([1-9]|1[0-9]|20)$/.test(r.id));
     const covered = rows.filter((r) => r.status === 'covered').map((r) => r.id).sort();
     const holes = rows.filter((r) => r.status === 'hole').map((r) => r.id).sort();
-    expect(covered).toEqual(['G13', 'G14', 'G16', 'G18', 'G2', 'G20', 'G4', 'G5'].sort());
-    expect(holes).toEqual(['G1', 'G10', 'G11', 'G12', 'G15', 'G17', 'G19', 'G3', 'G6', 'G7', 'G8', 'G9'].sort());
+    expect(covered).toEqual(['G13', 'G14', 'G16', 'G17', 'G18', 'G2', 'G20', 'G4', 'G5'].sort());
+    expect(holes).toEqual(['G1', 'G10', 'G11', 'G12', 'G15', 'G19', 'G3', 'G6', 'G7', 'G8', 'G9'].sort());
   });
 
   it('no `covered` gate is backed only by files that are entirely describe.skip\'d', () => {
@@ -141,5 +147,57 @@ describe('q10 — gate-coverage audit', () => {
     const gates = parseGates(SPEC_TEXT);
     expect(gates.every((g) => /^G\d+$/.test(g.id))).toBe(true);
     expect(gates.every((g) => g.text.length > 0)).toBe(true);
+  });
+
+  describe('q17 — hole notes stay honest as lane items ship', () => {
+    it('BACKLOG-QUALITY.md exists where the tool expects it', () => {
+      expect(existsSync(BACKLOG_PATH)).toBe(true);
+    });
+
+    it('backlogCheckboxes reads real checked and unchecked lane items', () => {
+      const boxes = backlogCheckboxes(readFileSync(BACKLOG_PATH, 'utf8'));
+      // q2 and q12 are checked done well before this test was written; q1 is
+      // permanently blocked (unchecked) by the lane's own Scope boundary.
+      // Hand-picked known quantities, not the census under test.
+      expect(boxes.q2).toBe(true);
+      expect(boxes.q12).toBe(true);
+      expect(boxes.q1).toBe(false);
+    });
+
+    it('no KNOWN_HOLES note today cites a lane item BACKLOG-QUALITY.md marks done', () => {
+      // The actual bug this guards: G17's hole note cited q12/q13 as "the
+      // in-Scope equivalents" that would close it, and nobody re-checked the
+      // note for three sessions after both shipped. G17 moved to
+      // GATE_COVERAGE at q17, so today's KNOWN_HOLES should cite nothing done.
+      expect(staleHoleRefs()).toEqual([]);
+    });
+
+    it('staleHoleRefs actually flags a hole note that cites a done item, and clears once the item is undone', () => {
+      // Anti-vacuity, q9/q10's pattern: a hand-built fixture, not the live
+      // KNOWN_HOLES map, proves the check can fail before trusting it to ever
+      // exercise that branch again for real.
+      const backlogText = '- [x] (q99) [feat] a finished lane item\n- [ ] (q100) [feat] a still-open one\n';
+      expect(staleHoleRefs({ G1: 'blocked on q99 landing' }, backlogText)).toEqual([
+        'G1: cites q99, which BACKLOG-QUALITY.md now marks done ([x])',
+      ]);
+      expect(staleHoleRefs({ G1: 'blocked on q100 landing' }, backlogText)).toEqual([]);
+      expect(staleHoleRefs({ G1: 'no lane item named here' }, backlogText)).toEqual([]);
+    });
+
+    it('staleHoleRefs does not flag a qNN-*.test.ts filename citation as a backlog-item reference', () => {
+      // Regression (code review, q17, session 12): this lane's own test files
+      // are named qNN-*.test.ts (q3-save-fuzz.test.ts, q12-soak.test.ts, ...),
+      // all of which are checked done in BACKLOG-QUALITY.md, and citing one by
+      // filename is this file's own established note style (see G12's
+      // c7-no-orbs.test.ts). A note that says "see q99-widget.test.ts" is
+      // citing a file, not claiming backlog item q99 is the unlanded fix, and
+      // must not trip the tripwire — only a bare "q99" citation should.
+      const backlogText = '- [x] (q99) [feat] a finished lane item\n';
+      expect(staleHoleRefs({ G1: 'see tests/q99-widget.test.ts for the pattern' }, backlogText)).toEqual([]);
+      expect(staleHoleRefs({ G1: 'q99-widget.test.ts covers half of this' }, backlogText)).toEqual([]);
+      expect(staleHoleRefs({ G1: 'blocked on q99 landing (see q99-widget.test.ts)' }, backlogText)).toEqual([
+        'G1: cites q99, which BACKLOG-QUALITY.md now marks done ([x])',
+      ]);
+    });
   });
 });

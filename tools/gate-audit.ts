@@ -16,6 +16,12 @@
  * `UNTRACKED`: the state this tool exists to make impossible to ship
  * quietly.
  *
+ * A curated map has its own failure mode, found the hard way (BACKLOG-QUALITY
+ * q17, session 12): a `KNOWN_HOLES` reason can go stale the moment the lane
+ * items it names as still-missing actually ship, and nothing re-checks it
+ * until a human happens to reread the note. `staleHoleRefs` below is the
+ * tripwire — see its own comment.
+ *
  *   npx tsx tools/gate-audit.ts
  *   npx tsx tools/gate-audit.ts --json
  */
@@ -105,6 +111,28 @@ export const GATE_COVERAGE: Record<string, CoverageEntry> = {
       'tests/light-build.test.ts',
     ],
   },
+  G17: {
+    files: ['tests/a10-performance.test.ts', 'tests/q12-soak.test.ts', 'tests/q13-perf-ratio.test.ts'],
+    note:
+      "This entry was a KNOWN_HOLES hole at q10 (session 6); q12 (session 8) and q13 (session 9) shipped the " +
+      "in-Scope substance of two of G17's three clauses afterward and the hole was never re-measured against them " +
+      "until now (BACKLOG-QUALITY q17, session 12) — exactly the 'a deferral is a measurement with an expiry " +
+      "date' trap CLAUDE.md names. G17's second clause, '350 enemies + all weapons ≥60fps benchmark', is a " +
+      "concrete non-⚖ number, and tests/a10-performance.test.ts is what actually backs it — it runs the identical " +
+      "worstCaseWorld (all 8 weapons, filled to the spawn director's alive cap) and asserts perTick against a " +
+      "concrete SIM_BUDGET_MS derived from 16.7ms/60fps, the fps floor itself, on this host. " +
+      "tests/q12-soak.test.ts covers the third clause verbatim (50 seeded full runs, mixed policies, zero " +
+      "exceptions/NaN). The first clause — 'sim budget per simulated minute (host-independent) ⚖' — is only " +
+      "PARTIALLY covered: SPEC-FINAL §16 names 're-baseline perf as G17's per-sim-minute budget' as explicit " +
+      "P10 work ('The pending balance re-baseline (old M27) becomes P10 and additionally: … re-baseline perf as " +
+      "G17's per-sim-minute budget'), so the actual chosen budget number is not yet decided and cannot be tested " +
+      "yet. tests/q13-perf-ratio.test.ts supplies the *measurement mechanism* the eventual P10 re-baseline will " +
+      "need — a host-independent ratio against a calibration loop, proven stable across iteration counts, pinned " +
+      "against a recorded ceiling — not the finished per-sim-minute budget itself, and it measures a static " +
+      "worst-case tick rather than cost amortized over an actual simulated minute of gameplay. This gate is " +
+      "listed `covered` on the strength of clauses two and three being solidly live-tested (same bar as G13's " +
+      'note for a comparably partial gate), with this note as the standing disclosure of the P10-deferred remainder.',
+  },
 };
 
 /**
@@ -127,7 +155,6 @@ export const KNOWN_HOLES: Record<string, string> = {
   G11: 'Stormcaller does not exist in data/classes.json yet (P6).',
   G12: "The equipment / skill-point reward pipeline is not built (P7); only the gate's 'orbs nowhere' clause has a live test (c7-no-orbs.test.ts).",
   G15: 'The Tuner is not built (P9); there is nothing to round-trip yet.',
-  G17: 'a10-performance.test.ts checks a wall-clock frame/tick budget, not a host-independent per-simulated-minute ratio, and no test runs a 50-seed soak asserting zero exceptions/NaN — BACKLOG-QUALITY.md q1/q4 are the blocked versions of this, q12/q13 the in-Scope equivalents.',
   G19: "tests/a8-sundering-head-start.test.ts (the only file naming G19) is entirely describe.skip'd — its own " +
     "header reads 'RETIRED (SPEC-FINAL §6.1, reconcile §16)'. Even when live, its body only ever measured " +
     'maxbuild-vs-rush win-rate and gold/tier ratios, never sealed/open strategy mix or multi-summon usage, so ' +
@@ -186,6 +213,53 @@ export function entirelyRetiredCoverage(coverage: Record<string, CoverageEntry> 
   return flagged;
 }
 
+export const BACKLOG_PATH = resolve(REPO_ROOT, 'BACKLOG-QUALITY.md');
+
+/** `{ q12: true, q16: false, ... }` from BACKLOG-QUALITY.md's own `- [x] (q12) ...` / `- [ ] (q16) ...` lines. */
+export function backlogCheckboxes(text: string): Record<string, boolean> {
+  const map: Record<string, boolean> = {};
+  const re = /^- \[([ xX])\] \((q\d+)\)/gm;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text))) map[m[2]] = m[1].toLowerCase() === 'x';
+  return map;
+}
+
+/**
+ * G17's own hole entry named q12/q13 as "the in-Scope equivalents" of the
+ * work that would close it, and sat unrevisited for three sessions after both
+ * actually shipped — a live instance of CLAUDE.md's "a deferral is a
+ * measurement with an expiry date" (BACKLOG-QUALITY q17, session 12). This is
+ * the tripwire so the next such note does not need a human QA pass to notice:
+ * any `KNOWN_HOLES` reason that names a lane backlog item (`qNN`) which
+ * BACKLOG-QUALITY.md's own checkboxes now mark done is stale and worth a
+ * re-look, whether or not the gate turns out to still be a real hole once
+ * checked.
+ *
+ * The citation regex deliberately excludes a `qNN` immediately followed by a
+ * hyphen (`q(\d+)\b(?!-)`), because this lane's own test files are named
+ * `qNN-*.test.ts` (`q3-save-fuzz.test.ts`, `q12-soak.test.ts`, ...) and a
+ * hole note citing one of those *filenames* — a legitimate, common pattern in
+ * this file's own notes (see G12's `c7-no-orbs.test.ts`) — is not the same
+ * claim as citing the backlog item id as "the fix that hasn't landed." Code
+ * review (q17, session 12) flagged the bare form as a foreseeable false
+ * positive wired directly to the CLI's exit code; a bare "q99" or "q99
+ * landing" citation still matches, only the filename shape is excluded.
+ */
+export function staleHoleRefs(
+  holes: Record<string, string> = KNOWN_HOLES,
+  backlogText: string = readFileSync(BACKLOG_PATH, 'utf8'),
+): string[] {
+  const done = backlogCheckboxes(backlogText);
+  const flagged: string[] = [];
+  for (const [id, note] of Object.entries(holes)) {
+    const cited = new Set([...note.matchAll(/\bq(\d+)\b(?!-)/g)].map((m) => `q${m[1]}`));
+    for (const qid of cited) {
+      if (done[qid]) flagged.push(`${id}: cites ${qid}, which BACKLOG-QUALITY.md now marks done ([x])`);
+    }
+  }
+  return flagged;
+}
+
 /* ------------------------------------------------------------------- CLI */
 
 function main(argv: string[]): void {
@@ -210,6 +284,13 @@ function main(argv: string[]): void {
   const untracked = rows.filter((r) => r.status === 'UNTRACKED');
   if (untracked.length > 0) {
     console.log(`\nUNTRACKED gates (no test, no recorded hole): ${untracked.map((r) => r.id).join(', ')}`);
+    process.exitCode = 1;
+  }
+
+  const stale = staleHoleRefs();
+  if (stale.length > 0) {
+    console.log(`\nSTALE hole notes (cite a lane item BACKLOG-QUALITY.md now marks done):`);
+    for (const s of stale) console.log(`  ${s}`);
     process.exitCode = 1;
   }
 }
