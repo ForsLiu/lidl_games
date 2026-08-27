@@ -419,7 +419,27 @@ other 2, `tests/q15-command-domain-fuzz.test.ts`'s `rekindle.structureId`
 probe classifying `"hangs"` instead of `"rejected"`/`"accepted"`, are the
 same non-reproducible full-suite worker-contention timeout shape sessions
 9/13/15/17 already documented for sibling probes. Re-ran both files
-standalone after this commit lands (tree clean) to confirm: see below.
+standalone post-commit (tree clean): **41/41 green** (21/21
+`q14-mutation-smoke.test.ts`, 20/20 `q15-command-domain-fuzz.test.ts`),
+confirming both readings were exactly the documented artifacts and not a
+real regression.
+
+**A verification mistake worth recording, made and caught in this session.**
+While mutation-testing the new assertion pre-commit, `git checkout --
+tests/a11-determinism.test.ts` was used to "revert" the temporary mutation —
+but with the file's real q22 changes still uncommitted at that point,
+`checkout --` reverted all the way to HEAD, silently destroying the
+uncommitted work along with the mutation. Caught immediately by re-checking
+`git diff HEAD` before staging (empty, where 20+ lines were expected) rather
+than trusting the earlier "confirmed clean" note — a git-dirty precondition
+this same log entry was already relying on elsewhere. Recovered by
+reconstructing the change byte-for-byte from the full diff this session had
+already captured in its own transcript, then re-diffing against that exact
+text to confirm an identical result before re-running and re-committing. The
+lesson for next time: when verifying uncommitted work with a throwaway
+mutation, isolate the revert (`git stash`/manual re-edit) rather than
+`checkout --`, which cannot distinguish "the mutation I just made" from
+"everything since the last commit."
 
 **Five actionable items remain** (q23–q27, all unchecked and unblocked), so
 the generation rule does not need to run next session either.
