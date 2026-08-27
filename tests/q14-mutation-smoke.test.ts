@@ -2,13 +2,14 @@
  * q14 — mutation smoke (BACKLOG-QUALITY), the in-Scope substance of q6.
  *
  * Automates the manual mutation testing qa-playtester has done by hand across
- * the q8 and q9 sessions: apply one named source mutation, run the single
- * test file that originally caught it, confirm red — via
- * `tools/mutation-probe.ts`, which see for why every mutation runs against a
- * throwaway scratch copy of src/tests/tools/data rather than the real files
- * (mutating src/meta/meta.ts, src/sim/run.ts or src/bots/policies.ts in place
- * while `npm test`'s other worker threads import those same paths would make
- * this file a flake generator for the whole suite, not just itself).
+ * the q8, q9, q12, q10, q15 and q13 sessions (BACKLOG-QUALITY q14, expanded
+ * by q20): apply one named source mutation, run the single test file that
+ * originally caught it, confirm red — via `tools/mutation-probe.ts`, which
+ * see for why every mutation runs against a throwaway scratch copy of
+ * src/tests/tools/data rather than the real files (mutating a shared `src/`
+ * or `tools/` file in place while `npm test`'s other worker threads import
+ * those same paths would make this file a flake generator for the whole
+ * suite, not just itself).
  *
  * Each mutation's test runs a nested `npx vitest run` and therefore takes
  * real wall-clock time (a handful to ~30s per mutation); the control runs
@@ -43,13 +44,16 @@ describe('q14 — mutation smoke', () => {
     cleanupAllScratch();
   });
 
-  it('has at least the six mutations recorded from the q8/q9 sessions', () => {
-    expect(MUTATIONS.length).toBeGreaterThanOrEqual(6);
+  it('has at least the ten mutations recorded from the q8/q9/q12/q10/q15/q13 sessions (q20)', () => {
+    expect(MUTATIONS.length).toBeGreaterThanOrEqual(10);
   });
 
-  it('every mutation names a file inside its own testFile\'s natural import graph (src/*, not tests/tools)', () => {
+  it('every mutation names a file inside its own testFile\'s natural import graph (src/* or tools/*, not tests/data)', () => {
     for (const m of MUTATIONS) {
-      expect(m.file.startsWith('src/'), `${m.name}: expected a src/ file, got ${m.file}`).toBe(true);
+      expect(
+        m.file.startsWith('src/') || m.file.startsWith('tools/'),
+        `${m.name}: expected a src/ or tools/ file, got ${m.file}`,
+      ).toBe(true);
       expect(m.testFile.startsWith('tests/'), `${m.name}: expected a tests/ file, got ${m.testFile}`).toBe(true);
     }
   });

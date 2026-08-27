@@ -146,7 +146,7 @@ coverage gaps session 1's log recorded. All five are inside Scope as written.*
       the test still pins today's trivial bit-identity so a future refactor
       that adds real tick-batching can't silently break it) and asserts
       identical `endHash` across several seeds — refs: gate-audit.ts G2, M8
-- [ ] (q20) [feat] Mutation-probe list expansion: `tools/mutation-probe.ts`'s
+- [x] (q20) [feat] Mutation-probe list expansion: `tools/mutation-probe.ts`'s
       `MUTATIONS` array has 6 entries, all sourced from sessions 4/5 (q8/q9);
       sessions 8/9/11 each hand-verified further mutations that killed real
       tests (soak's `POISONER` `gold=NaN` case, perf-ratio's sequential-vs-
@@ -167,6 +167,116 @@ coverage gaps session 1's log recorded. All five are inside Scope as written.*
       `tests/q21-weapon-boundary-fuzz.ts`, exercised green by
       `tests/q21-weapon-boundary-fuzz.test.ts` — refs: PROGRESS.md P5 audit
       line, M2 soul-weapons section
+- [ ] (q22) [bug][feat] QUALITY.md ALPHA's automated determinism line reads
+      "100/100 replay hash match, including class actives and uniques," but
+      `tests/a11-determinism.test.ts`'s 100-seed test drives every seed
+      through `tests/helpers.ts`'s `makeInputLog`, which only ever emits
+      movement/dash/attack input plus an occasional `{k:'call'}` — never a
+      `{k:'class_active'}` or `{k:'equip', relic}` Command. The literal claim
+      is untested for the two things it names by name — the same "note
+      overstates the coverage it cites" shape q17/q19 already found twice in
+      `tools/gate-audit.ts`'s own notes, found here in QUALITY.md's line
+      instead — acceptance: a new determinism case drives seeded runs through
+      an input log that also fires `class_active` (reachable per
+      `tests/f004-class-framework.test.ts`'s live block) and `equip` for at
+      least one relic across several seeds, asserting the same
+      record-twice-compare-hash property `a11`'s existing test uses; if
+      `equip`'s dead switch case (q15's filed bug) makes it a no-op rather
+      than a state change, the test still asserts the hash match (determinism
+      holds either way) and the CLI-visible gap is called out by name in the
+      test's own comment rather than silently sidestepped — refs: QUALITY.md
+      ALPHA determinism line, tests/a11-determinism.test.ts, q15's filed
+      `equip` bug
+- [ ] (q23) [bug][feat] `tools/soak.ts`'s `soakOne` has two unguarded
+      boundary inputs recorded but not filed at session 8 (BACKLOG-QUALITY.md
+      session 8 log): `maxTicks <= 0` or a `scanEvery` of `0` (since `tick % 0`
+      is `NaN` and the periodic-scan check never fires) reports a "clean"
+      result for a run that was truncated to nothing or never scanned at all,
+      and an unregistered policy name throws out of `makePolicy` before
+      `soakOne`'s own `try` block, so it never surfaces through
+      `SoakResult.threw` the way every other in-run exception does — a caller
+      passing a bad policy name gets an uncaught exception instead of a
+      readable `SoakResult`. Neither is reachable through the shipped CLI or
+      `tests/q12-soak.test.ts` today (both only ever use the defaults and
+      `shippedPolicies()`), but q20 just established the pattern of automating
+      a recorded-not-filed gap once one exists, and `soakOne`'s own doc
+      comment already promises "scanning the world every `scanEvery` ticks" —
+      a `scanEvery: 0` call that silently never scans breaks that promise
+      silently — acceptance: `soakOne` guards `maxTicks <= 0` and `scanEvery
+      <= 0` as usage errors (thrown, not a fake-clean result) and wraps
+      `makePolicy` inside its own `try` so an unregistered policy name comes
+      back as `SoakResult.threw`, each guarded by a new regression test in
+      `tests/q12-soak.test.ts` — refs: session 8 log, tools/soak.ts
+- [ ] (q24) [feat] Two small, recorded-not-filed gaps in
+      `tools/fuzz-command-domain.ts` from session 11's QA pass: (1) `digest()`
+      has no direct unit test — every Category A hole recorded today happens
+      to also be caught by `scanWorld`, so a future Category A hole that
+      `scanWorld` can't see would depend on `digest()` alone with nothing
+      exercising it directly; (2) the CLI's `describeOutcome()` prints "no
+      observable effect" for `dev.fast_forward.amount:fractional` even though
+      `act2Time` visibly changes (100.5), because `digest()` doesn't track
+      `act2Time` — the verdict is correct either way, only the human-readable
+      detail string misleads for that one line — acceptance: a direct
+      `digest()` unit test in `tests/q15-command-domain-fuzz.test.ts` proving
+      it changes when `gold`/`coreHp`/`structures` etc. change and stays fixed
+      otherwise, and `describeOutcome()` either tracks `act2Time` or names the
+      fields it does *not* cover in its own "no observable effect" string so
+      the message stops overclaiming — refs: session 11 log,
+      tools/fuzz-command-domain.ts
+- [ ] (q25) [polish] `tools/content-census.ts`'s `main()` has no try/catch
+      around `loadContent()` (session 13 QA, recorded not filed): a
+      `/data` corruption failure would print a raw stack trace instead of a
+      clean CLI message, and `--json` mode would emit nothing parseable —
+      not reachable by anything shipped today, since `loadContent()` only
+      throws on invalid `/data`, which the loader itself already guards
+      against at every other call site, but every sibling CLI in this lane
+      (`tools/gate-audit.ts`, `tools/phase-coverage.ts`, `tools/soak.ts`)
+      handles its own failure path instead of leaving it to an uncaught
+      throw — acceptance: `main()` wraps `loadContent()`/`census()`, prints a
+      one-line error (or a `{error: string}` JSON object under `--json`) and
+      exits nonzero instead of an uncaught stack trace, proven by a test that
+      points the CLI at a deliberately invalid data snapshot — refs: session
+      13 log, tools/content-census.ts
+- [ ] (q26) [feat] `tools/perf-ratio.ts`'s interleaved-measurement design
+      (session 9) is proven only empirically — the wall-clock ceiling test
+      shows the *outcome* is contention-tolerant, but nothing asserts the
+      *mechanism* itself: that `measureRatioForWorld` actually alternates one
+      calibration chunk with one tick rather than, say, running all
+      calibration first. Session 9's own log named this explicitly ("no
+      deterministic (non-timing) test proves the interleaving call order
+      itself, only the empirical wall-clock outcome") and it is also why q20
+      could not automate the sequential-vs-interleaved regression as a
+      mutation-probe entry (see `tools/mutation-probe.ts`'s doc comment above
+      `MUTATIONS`, added this session) — a call-order assertion would close
+      that gap without depending on timing at all — acceptance: a test that
+      instruments (spies on, or counts calls into) `calibrationWork` and
+      `run.step` — or an equivalent call-order-recording seam added to
+      `measureRatioForWorld` — and asserts the two interleave rather than
+      run in two separate blocks, independent of wall-clock reading — refs:
+      session 9 log, tools/perf-ratio.ts
+
+*Generated 2026-08-27, session 16, under CLAUDE.md's generation rule scoped
+to this lane: only q20 and q21 were actionable (fewer than 3) — q1/q4/q5/q6
+remain Scope-blocked, unchanged. (a) Ran `npx tsx tools/gate-audit.ts` and
+`npx tsx tools/sweep.ts --seeds 12 --policies maxbuild,hybrid`: the gate split
+is unchanged from session 12's read (8 covered, 12 holes, every hole tracing
+to a P-phase not yet reached — P2/P3/P6/P7/P9), and the sweep numbers
+(0% win, medSurv ~119-120 either policy) match PROGRESS.md's already-
+documented bimodal-Act-II state — nothing new from either tool standing
+alone. (b) Diffing QUALITY.md's ALPHA bar itself against the code (rather
+than re-running q10's own gate-vs-SPEC diff) surfaced a real, undocumented
+gap: `tests/a11-determinism.test.ts`'s 100-seed test never fires a
+`class_active` or `equip` Command, so ALPHA's own "including class actives
+and uniques" clause is unverified by the test that's supposed to prove
+it — filed as q22, the top item this pass, since it is a live gap in the
+lane's own definition-of-done bar rather than a P-phase-not-built gap. (c)
+The remaining four (q23-q26) are the accumulated backlog of "recorded, not
+filed — too small on its own" gaps QA has logged across sessions 8, 11 and 13
+plus the loose end q20's own mutation substitution (this session) creates in
+`tools/perf-ratio.ts` — individually minor, but four sessions deep is enough
+to stop being "too small" collectively, the same reasoning that turned
+session 9-13's individually-recorded gaps into this batch now. Took q20, the
+top pre-existing item.*
 
 *Generated 2026-08-27, session 12, under CLAUDE.md's generation rule scoped to
 this lane: only q16 was actionable (fewer than 3) — q1/q4/q5/q6 remain
@@ -205,6 +315,101 @@ resolve if it wants the CLI entry points too. All five are inside Scope as
 written; none needs a `package.json` edit.*
 
 ## Log
+
+### 2026-08-27 — session 16
+
+**Feedback inbox:** `feedback/` does not exist in this worktree. Nothing to
+process, nothing moved.
+
+**q20's implementation was found already sitting in the worktree, uncommitted,
+at session start** — the same shape sessions 7/9/10/12/14 have each hit
+before (a prior session did the work and wrote the session-16 generation note
+at the top of the queue — q22 through q26 — but stopped before verification/
+commit). Verified rather than trusted, per this file's own standing lesson.
+
+**q20 done.** `tools/mutation-probe.ts` (`MUTATIONS` grown from 6 to 10, plus
+a `COPY_FILES` fix found during verification) and
+`tests/q14-mutation-smoke.test.ts` (assertions widened for the new count and
+`tools/*` targets).
+
+**What it does.** Adds four mutations targeting `tools/soak.ts`,
+`tools/gate-audit.ts`, `tools/fuzz-command-domain.ts` and `tools/perf-ratio.ts`
+— all sourced from a real red a prior session's QA pass produced by hand
+(sessions 8, 6, 11 and 9 respectively), matching q20's own acceptance line.
+The fourth is a deliberate substitution rather than a literal replay: session
+9's actual finding (`measureRatioForWorld`'s interleaved-vs-sequential timing
+regression) only fails under real external CPU contention, which `probeOne`'s
+single, uncontended nested `vitest run` does not reproduce reliably — using it
+here would make the mutation-smoke suite itself flaky in the direction that
+erodes trust in a "caught" result. `worstCaseWorld()` hollowed to an empty
+world (session 9's own anti-vacuity/fixture-reachability catch) stands in
+instead, with the substitution and its reasoning disclosed in the file's own
+doc comment rather than silently swapped.
+
+**Found and fixed before trusting the work — the interesting part.** Running
+the expanded suite for real surfaced a genuine bug the prior session's
+uncommitted diff hadn't caught: `tools/gate-audit.ts` resolves `REPO_ROOT` via
+`fileURLToPath(new URL('..', import.meta.url))` — relative to its own module
+location — and reads `SPEC-FINAL.md`/`BACKLOG-QUALITY.md` from that root at
+`SPEC_PATH`/`BACKLOG_PATH`. Inside `probeOne`'s scratch copy this resolves to
+a path that doesn't exist, since `COPY_FILES` only ever had
+`vitest.config.ts`/`tsconfig.json` — so both the plain control run of
+`tests/q10-gate-audit.test.ts` and the new
+`gate-audit-hasLiveTopLevelDescribe-hollow` mutation crashed with ENOENT
+instead of exercising the real assertion (confirmed live, not reasoned about:
+`npx vitest run tests/q14-mutation-smoke.test.ts -t "gate-audit"` failed
+before the fix and passed after). Fixed by adding both files to `COPY_FILES`.
+Grepped every newly-targeted file and its test file for any other
+root-relative read (`REPO_ROOT`, `import.meta.url`, root-relative
+`readFileSync`/`existsSync`) before trusting the fix was complete — none
+found; the only other absolute-ish resolution
+(`fuzz-command-domain.ts`'s worker path) targets a sibling file already
+covered by `COPY_DIRS`'s recursive `tools/` copy.
+
+**Isolated each new mutation's two assertions apart from a separate, known
+issue.** With the working tree's own three touched files still uncommitted at
+verification time, `probeOne`'s `realFileUntouched` check — a whole-repo
+`gitDiffClean()`, not scoped to the mutated file — reads false for every
+single mutation, old and new alike, purely because *something* in the repo is
+dirty. This is the same "fixture must start clean" shape sessions 12/14
+already documented for the suite's positive-control precondition, one layer
+over: it also poisons `probeOne`'s own untouched-check, not just the explicit
+precondition test. Ran each new mutation individually via `-t` to confirm the
+*other* half — the nested run genuinely going red — passes cleanly
+independent of that noise, before treating any of the four as verified.
+
+**Review (code-reviewer, APPROVE, 1 Nit, fixed here).** Independently diffed
+every new mutation's `find` anchor against live source (character-for-
+character matches), confirmed `applyEdits` fails loudly rather than silently
+no-opping on a stale anchor, confirmed the `COPY_FILES` fix is complete via
+its own grep pass, and confirmed Scope (`git diff --stat` restricted to the
+three permitted paths). One Nit: the doc comment claimed q20 "quadrupled the
+mutation count" — mutations went 6→10 (~1.7x) and nested runs 8→16 (2x),
+neither is 4x, the same "note overstates itself" shape this lane's own log
+keeps finding. Reworded to "roughly doubled the nested-run count."
+
+**QA (qa-playtester, PASS).** Independently isolated all four new mutations
+via `-t`, confirmed each genuinely fails its target test with only
+`realFileUntouched` red (the documented git-dirty artifact); hand-verified
+`soak.ts`'s two anchor strings match verbatim and that the mutation truly
+disables both invariant-scan call sites; grepped the same four files
+independently for other missing root reads (none found beyond what review
+already confirmed); confirmed scratch cleanup left no stray directories and
+`git status` shows only the three expected files. Noted one non-reproducible
+flake (`control: tests/q9-phase-coverage.test.ts` once failed to load
+`/data/towers.json` under 16 sequential nested-vitest contention, passed 3/3
+on isolated retry) — not filed, per QA's own non-reproducible-flake bar,
+matching the shape sessions 9/13/15 already documented for sibling probes.
+
+**Suite state.** Full `npx vitest run tests/q14-mutation-smoke.test.ts` taken
+pre-commit: 9 passed / 12 failed — every failure traced to the pre-commit
+git-dirty artifact above (`realFileUntouched` or the "fixture must start
+clean" precondition), none to a real regression; reads clean once this commit
+lands, same as every prior session's identical note. `npx tsc --noEmit -p .`
+clean throughout.
+
+**Six actionable items remain** (q21–q26, all unchecked and unblocked), so
+the generation rule does not need to run next session either.
 
 ### 2026-08-27 — session 15
 

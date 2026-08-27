@@ -53,10 +53,13 @@
  * same false-positive shape PROGRESS.md's M18 section warns about ("a
  * positive control rewritten into comparing 0 to 0").
  *
- * Cost, recorded rather than hidden: 8 nested `npx vitest run` invocations
- * (2 controls + 6 mutations) add real wall-clock time to `npm test` — about
- * 230s measured on this host — on top of the ~5 minutes CLAUDE.md already
- * documents. That is the price of testing the tests rather than just the code.
+ * Cost, recorded rather than hidden: this now runs 16 nested `npx vitest run`
+ * invocations (6 controls, one per distinct `testFile`, + 10 mutations),
+ * up from the original 8 (BACKLOG-QUALITY q20 roughly doubled the nested-run
+ * count without adding a `package.json` alias to parallelize them) — measure
+ * the real number on this host with `npx vitest run tests/q14-mutation-smoke.test.ts`
+ * rather than trusting this comment to stay current. That is the price of
+ * testing the tests rather than just the code.
  *
  *   npx tsx tools/mutation-probe.ts             # runs every recorded mutation, prints a table
  */
@@ -73,7 +76,14 @@ const ROOT = fileURLToPath(new URL('..', import.meta.url));
 // to `.gitignore` itself.
 const SCRATCH_ROOT = path.join(ROOT, 'bench', '.tmp', 'q14-mutation-scratch');
 const COPY_DIRS = ['src', 'tests', 'tools', 'data'];
-const COPY_FILES = ['vitest.config.ts', 'tsconfig.json'];
+// `tools/gate-audit.ts`'s `SPEC_PATH`/`BACKLOG_PATH` resolve relative to its
+// own module URL (`REPO_ROOT`), which inside a scratch copy means
+// `<scratchDir>/SPEC-FINAL.md` and `<scratchDir>/BACKLOG-QUALITY.md` — without
+// these, both the q10-gate-audit control run and the
+// `gate-audit-hasLiveTopLevelDescribe-hollow` mutation (q20) throw ENOENT
+// instead of exercising the real assertion. Found by actually running the
+// expanded suite, not reasoned out in advance.
+const COPY_FILES = ['vitest.config.ts', 'tsconfig.json', 'BACKLOG-QUALITY.md', 'SPEC-FINAL.md'];
 /** Exec timeout for the nested vitest run, kept well under the outer `it()` timeout (see the test file) so a genuine hang reports as a timeout, not a false "caught". */
 const NESTED_VITEST_TIMEOUT_MS = 150_000;
 
@@ -95,10 +105,38 @@ export interface Mutation {
 }
 
 /**
- * Six mutations, drawn from the ones qa-playtester actually applied to real
- * `/src` files and reverted while verifying q8 and q9 — not reasoned-about,
- * not synthetic. Each entry's `source` names the session log describing the
- * red count it originally produced.
+ * Ten mutations. The first six are drawn from the ones qa-playtester actually
+ * applied to real `/src` files and reverted while verifying q8 and q9 — not
+ * reasoned-about, not synthetic. Each entry's `source` names the session log
+ * describing the red count it originally produced.
+ *
+ * The remaining four (BACKLOG-QUALITY q20) close the gap q20 itself named:
+ * sessions 8, 9, 11 and 12 each hand-verified a further mutation that killed
+ * a real test and none of them were in this list. Three of the four are the
+ * mutation as originally applied, against a `tools/*` file rather than a
+ * `src/*` one — `tools/soak.ts`, `tools/gate-audit.ts` and
+ * `tools/fuzz-command-domain.ts` are all inside `COPY_DIRS`, so the scratch
+ * copy and the whole-repo `gitDiffClean()` check both already cover them; the
+ * fourth (`tools/perf-ratio.ts`) is a **deliberate substitution**: session 9's
+ * actual finding — reverting `measureRatioForWorld`'s interleaved timing to
+ * the old sequential two-block shape — only fails the ceiling test under real
+ * external CPU contention from *other* concurrently-running vitest workers
+ * (measured directly: quiet-host sequential readings were ~14,000-27,000,
+ * safely under the ceiling; only a genuinely contended host pushed it to
+ * ~57,000-78,000). `probeOne` runs one nested, single-file `vitest run` with
+ * no sibling contention by design, so that specific mutation would not
+ * reliably be "caught" here — it would flake in the exact direction that
+ * makes a mutation-smoke suite untrustworthy (a mutation reported as missed
+ * when the real defect class is real, just not reproduced by this harness's
+ * shape). Session 9's own log already flagged this ("no deterministic
+ * (non-timing) test proves the interleaving call order itself... left as a
+ * possible future strengthening"). `worstCaseWorld()` hollowed to an empty
+ * world is the deterministic mutation session 9's own QA pass verified
+ * against the same file and test suite (the anti-vacuity and
+ * fixture-reachability tests), so it stands in as this file's automated
+ * probe of "perf-ratio's fixture stays a real worst case," while the timing
+ * regression itself stays a manual/future concern, recorded here rather than
+ * silently dropped.
  */
 export const MUTATIONS: Mutation[] = [
   {
@@ -182,6 +220,62 @@ export const MUTATIONS: Mutation[] = [
     testFile: 'tests/q9-phase-coverage.test.ts',
     source:
       'BACKLOG-QUALITY.md session 5 log (q9): "rebound `hybrid`\'s registration in `src/bots/policies.ts` to `IdlePolicy` (exactly 2/16 red — hybrid\'s own floor test and the exact-set test for hybrid only)".',
+  },
+  {
+    name: 'soak-disable-invariant-scan',
+    file: 'tools/soak.ts',
+    edits: [
+      {
+        find: `      if (w.tick % scanEvery === 0) problems.push(...scanWorld(w));`,
+        replace: `      if (false && w.tick % scanEvery === 0) problems.push(...scanWorld(w));`,
+      },
+      {
+        find: `      problems.push(...scanReport(report));`,
+        replace: `      if (false) problems.push(...scanReport(report));`,
+      },
+    ],
+    testFile: 'tests/q12-soak.test.ts',
+    source:
+      'BACKLOG-QUALITY.md session 8 log (q12): "Disabling both `scanWorld`/`scanReport` calls entirely (`if (false && ...)` / `if (false)`) left all 6 tests passing" — the gap QA found and closed in the same session by adding the `POISONER` anti-vacuity case, which is what makes this mutation catchable today.',
+  },
+  {
+    name: 'gate-audit-hasLiveTopLevelDescribe-hollow',
+    file: 'tools/gate-audit.ts',
+    edits: [
+      {
+        find: `export function hasLiveTopLevelDescribe(absPath: string): boolean {\n  const text = readFileSync(absPath, 'utf8');\n  return /^describe\\(/m.test(text);\n}`,
+        replace: `export function hasLiveTopLevelDescribe(absPath: string): boolean {\n  const text = readFileSync(absPath, 'utf8');\n  return false;\n}`,
+      },
+    ],
+    testFile: 'tests/q10-gate-audit.test.ts',
+    source:
+      'BACKLOG-QUALITY.md session 6 log (q10): QA found "G1 and G19 were marked `covered` by files that are entirely `describe.skip`\'d — zero live assertions backing either gate," which is what `hasLiveTopLevelDescribe`/`entirelyRetiredCoverage` were added to catch automatically; hollowing the primitive to always say "not live" is the mutation their own dedicated anti-vacuity tests (q10\'s "tells a live file from an entirely retired one" case) exist to catch.',
+  },
+  {
+    name: 'command-domain-classify-hollow',
+    file: 'tools/fuzz-command-domain.ts',
+    edits: [
+      {
+        find: `export function classify(spec: FieldSpec, outcome: Pick<ProbeOutcome, 'threw' | 'problems' | 'digestChanged'>): Verdict {\n  if (outcome.threw) return 'threw';\n  if (spec.category === 'B') return outcome.problems.length > 0 ? 'accepted' : 'rejected';\n  return outcome.digestChanged || outcome.problems.length > 0 ? 'accepted' : 'rejected';\n}`,
+        replace: `export function classify(spec: FieldSpec, outcome: Pick<ProbeOutcome, 'threw' | 'problems' | 'digestChanged'>): Verdict {\n  return 'rejected';\n}`,
+      },
+    ],
+    testFile: 'tests/q15-command-domain-fuzz.test.ts',
+    source:
+      'BACKLOG-QUALITY.md session 11 log (q15): QA "hollowing `classify()` to always return \'rejected\' correctly turned 5 tests red."',
+  },
+  {
+    name: 'perf-ratio-worstCaseWorld-hollow',
+    file: 'tools/perf-ratio.ts',
+    edits: [
+      {
+        find: `export function worstCaseWorld(): World {\n  const w = new World(cfg({ seed: 9 }));\n  w.gold = 1e6;\n  const keys = ['arrow_spire', 'ballista', 'venom_spore', 'mortar', 'tesla_coil', 'palisade'];\n  let i = 0;\n  for (let y = 3; y < GRID_H - 3; y += 2) {\n    for (let x = 3; x < GRID_W - 6; x += 2) {\n      w.warden.x = x + 0.5;\n      w.warden.y = y + 0.5;\n      const def = w.content.towerByKey.get(keys[i++ % keys.length])!;\n      buildTower(w, def.id, x, y);\n    }\n  }\n  finishSundering(w, ['arrow_volley', 'piercing_bolt', 'toxic_trail', 'mortar_lob']);\n  for (const def of w.content.weapons.weapons) grantWeapon(w, def.key, 6, 0.4);\n\n  w.act2Time = 540;\n  const cap = w.content.spawns.aliveCap;\n  const pool = ['husk', 'sprinter', 'bulwark', 'spitter', 'wraith', 'bomber', 'charger', 'shellback'];\n  let n = 0;\n  for (let ring = 2; ring < 18 && n < cap; ring++) {\n    for (let k = 0; k < 40 && n < cap; k++) {\n      const x = 1.5 + ((ring * 7 + k * 3) % (GRID_W - 3));\n      const y = 1.5 + ((ring * 3 + k * 5) % (GRID_H - 3));\n      if (spawnEnemy(w, pool[n % pool.length], x, y, { overlay: true })) n++;\n    }\n  }\n  return w;\n}`,
+        replace: `export function worstCaseWorld(): World {\n  return new World(cfg({ seed: 9 }));\n}`,
+      },
+    ],
+    testFile: 'tests/q13-perf-ratio.test.ts',
+    source:
+      'BACKLOG-QUALITY.md session 9 log (q13): QA "Hollowed `worstCaseWorld()` to an empty world before adding anything: both the anti-vacuity test... and the fixture-reachability test... went red." Substituted for the session\'s own "sequential-vs-interleaved timing regression" mutation named in q20 — see the doc comment above `MUTATIONS` for why that one is not a reliable fit for this harness.',
   },
 ];
 
