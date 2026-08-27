@@ -80,6 +80,10 @@ export interface CoreState {
   corpseExplodeRadius: number;
   /** Corpse step 3: seconds between auto-fires that dump the whole store at the highest-HP enemy regardless of affordability. 0 = not bought. */
   corpseAutoFireInterval: number;
+  /** Time step 3/4: max ring (tiles) the decay aura reaches — 0 = not bought, 5 at step 3, 10 at step 4. */
+  decayRadius: number;
+  /** Time step 3/5: the aura's per-ring multiplier — 1.2 at step 3, 1.5 at step 5. Meaningless while `decayRadius` is 0. */
+  decayMult: number;
 }
 
 function emptyCoreState(): CoreState {
@@ -109,6 +113,8 @@ function emptyCoreState(): CoreState {
     corpseExecuteExplode: false,
     corpseExplodeRadius: 0,
     corpseAutoFireInterval: 0,
+    decayRadius: 0,
+    decayMult: 1.2,
   };
 }
 
@@ -165,6 +171,8 @@ export function computeCoreState(content: Content, coreKey: string, coreStep: nu
     if (step.storeRatio !== undefined) st.corpseStoreRatio = step.storeRatio;
     if (step.executeExplode) st.corpseExecuteExplode = true;
     if (step.autoFireInterval !== undefined) st.corpseAutoFireInterval = step.autoFireInterval;
+    if (step.decayRadius !== undefined) st.decayRadius = step.decayRadius;
+    if (step.decayMult !== undefined) st.decayMult = step.decayMult;
   }
   return st;
 }
@@ -556,4 +564,48 @@ function updateCorpseAutoFire(w: World, dt: number): void {
   const spend = w.corpseStore;
   w.corpseStore = 0;
   damageEnemy(w, target, spend, 'corpse', { type: 'normal', noLifesteal: true });
+}
+
+/**
+ * §5.5 Time steps 3-5: the TD-only decay aura ("enemies within r5 lose
+ * `1 × 1.2^(5 − ring)` HP/s ignoring armor"). Gated on `decayRadius > 0`
+ * (bought) and `!w.huntsWarden` — the same TD-only rule `nearCoreSlowAura`
+ * already applies to Time's other radius effect, since the general §5.5 rule
+ * is "enemies still ignore the Core during VS waves." No timer/store state is
+ * needed (unlike Corpse): the tick is a plain per-frame `HP/s * dt` drain
+ * recomputed fresh from live enemy positions, so nothing new needs hashing —
+ * `w.core.decayRadius`/`decayMult` are already covered by `hashWorld`'s
+ * generic `w.core` loop.
+ *
+ * `ring` is `ceil(edge distance)`, clamped to at least 1 — a `distance` of
+ * exactly 0 (standing on the Core's own footprint) is still ring 1's `(0,1]`
+ * band, not a ring 0 that the formula has no defined rate for; distance
+ * beyond `decayRadius` gets nothing. Q115 records the one judgment call this
+ * needed: SPEC-FINAL's formula bakes in the literal constant 5
+ * (`1.2^(5-ring)`), matching step 3's own r5 worked example verbatim, so
+ * step 4's "decay aura starts at r10 (same per-ring scaling)" is read as
+ * "the same fixed formula now also covers rings 6-10" — giving those newly
+ * -reached outer rings a fractional (sub-1/s) rate via a negative exponent —
+ * rather than "re-derive the formula around a new base of 10," which would
+ * silently double every ring the aura already covered the instant step 4 is
+ * bought (rings 1-5 would jump from `mult^(5-ring)` to `mult^(10-ring)`).
+ * The literal wording "same...scaling," not "same...shape," reads as the
+ * former: the formula itself is unchanged, only the cutoff moves.
+ */
+export function updateTimeDecay(w: World, dt: number): void {
+  if (w.huntsWarden || w.core.decayRadius <= 0) return;
+  const cc = coreCenter();
+  const r = w.core.decayRadius;
+  // Same bucket-scan padding rule `nearestEnemiesToCore` documents: the scan
+  // is center-anchored, padded by the footprint's own half-diagonal so it
+  // can't clip a real edge hit the exact `coreEdgeDist2` filter below would
+  // otherwise have kept.
+  for (const e of w.enemiesInRadius(cc.x, cc.y, r + 1.5)) {
+    if (e.dead) continue;
+    const d2 = coreEdgeDist2(e.x, e.y);
+    if (d2 > r * r) continue;
+    const ring = Math.max(1, Math.ceil(Math.sqrt(d2)));
+    const rate = Math.pow(w.core.decayMult, 5 - ring);
+    damageEnemy(w, e, rate * dt, 'time', { dot: true, type: 'normal', noLifesteal: true });
+  }
 }

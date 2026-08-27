@@ -5,6 +5,93 @@
 
 ## Current state — SPEC-FINAL
 
+- **`p-core-e` is done this commit — SPEC-FINAL §5.5's Time is live in full:
+  steps 3-5 give it a TD-only decay aura, and G21 is green in full across all
+  five Cores.** `p-core-b` gave Time steps 1-2 (flat gold/s, tower regen +
+  healing received) real numbers; this item is the first to give Time's
+  "enemies within r5 lose `1 × 1.2^(5 − ring)` HP/s ignoring armor" real
+  gameplay. `data/cores.json` extends Time's `upgrade.steps` array with step
+  3 (`decayRadius: 5, decayMult: 1.2`), step 4 (`decayRadius: 10`, an
+  override, not an addend — the same assignment-not-accumulation shape every
+  other override step in this file already uses, e.g. Corpse's `storeRatio`)
+  and step 5 (`decayMult: 1.5`, also an override). `CoreState`
+  (`src/sim/cores.ts`) gains matching `decayRadius`/`decayMult` fields; new
+  `updateTimeDecay(w, dt)` is wired into every TD tick path in `Run.step`
+  beside the existing `updateCoreEffects`/`updateCarnivorousPlant`/
+  `updateCorpse` (and, matching those siblings' own precedent, also called
+  from `updateAct2` where it self-gates a no-op via `!w.huntsWarden`). Unlike
+  every other Core so far, this effect needs **no new persistent `World`
+  field** — no timer, no store — because it is a stateless per-tick
+  recomputation: each frame, for every live enemy within `decayRadius` of the
+  Core's real 2×2 footprint (bucket-scanned via `enemiesInRadius`, the same
+  `+1.5` half-diagonal scan padding `nearestEnemiesToCore` already
+  documents), `ring = max(1, ceil(edge distance))` and the tick deals
+  `decayMult ^ (5 − ring)` HP × `dt`, via `damageEnemy(..., { dot: true,
+  noLifesteal: true })` — `dot: true` is what makes the hit ignore armor
+  (`enemies.ts`'s pre-existing `if (!opts.dot) dmg *= damageTakenMul(...)`
+  gate), `noLifesteal: true` is the same §5.5 Core-attack opt-out every prior
+  Core in this file already sets. Because nothing new is stored, `hashWorld`
+  needed no edit at all — its existing generic `Object.keys(w.core).sort()`
+  loop already covers the two new `CoreState` fields for free, verified
+  empirically by both code review and QA (two worlds differing only in
+  `decayRadius`/`decayMult` hash differently). **Q115 records the one
+  genuine SPEC-FINAL prose gap**: step 4's "decay aura starts at r10 (same
+  per-ring scaling)" does not say whether the formula's literal constant 5
+  stays fixed once the radius grows to 10, or re-derives around the new
+  radius. Chosen default: the constant 5 stays fixed as a literal inside
+  `updateTimeDecay` (not a data field, so nothing can accidentally re-derive
+  it) — rings 6-10, newly reached once step 4 is bought, get the same
+  formula extended past its original domain via a negative exponent (a
+  fractional, sub-1/s rate weaker than ring 5's own 1/s), while rings 1-5
+  stay completely unchanged by the purchase. The rejected reading
+  (re-deriving the exponent's base around whatever the current radius is)
+  would have silently doubled every already-bought inner ring's rate the
+  instant step 4 lands — ring 1 jumping from `1.2^4` (2.0736) to `1.2^9`
+  (5.16) — which a range-only upgrade note ("starts at r10") does not
+  describe; "same...scaling," not "same...shape re-centered," reads as the
+  literal formula being unchanged, only its cutoff moving. **code-reviewer
+  APPROVE**, no Critical/Major: independently verified the ring math by hand
+  against SPEC-FINAL's own worked example (r5→r4: 1, r4→r3: 1.2, r3→r2:
+  1.44 — matches `1.2^0`, `1.2^1`, `1.2^2` exactly), confirmed the "no new
+  `World` field, no `hashWorld` edit" claim by reading the actual diff
+  (`git diff -- src/sim/world.ts` empty), confirmed the TD-only gate matches
+  Time's existing `nearCoreSlowAura` convention, confirmed perf sits in the
+  same cost class as the sibling bucket-scan functions it's modeled on (and
+  is actually slightly cheaper than `nearestEnemiesToCore`, no `.sort()`/
+  `.filter()` array churn), and confirmed the Q115 reasoning is sound and
+  monotonic (step 4 can only add new, weaker, outer coverage — it can never
+  reprice a ring step 3 already bought). One Minor noted, not fixed since
+  it's a pre-existing pattern rather than a regression: `enemiesInRadius`'s
+  default `out` param allocates a fresh array every tick once the aura is
+  bought, the same allocation `nearestEnemiesToCore` already carries.
+  **qa-playtester PASS**, no bugs found: real (non-scripted) `hybrid`-policy
+  bot runs across three seeds — with `upgrade_core` commands manually
+  injected into the bot's `TickInput`, since bot policies do not buy Core
+  upgrades on their own, a pre-existing gap shared by every Core item since
+  `p-core-a`, not introduced or needing fixing here — bought all five Time
+  steps mid-run and confirmed the aura fires under real play with no
+  NaN/Infinity anywhere in gold, HP or any enemy's HP, and zero VS leakage
+  across all three seeds despite each reaching VS waves with the aura fully
+  bought; replay-hash determinism held across two independent same-seed
+  runs; a different Core selected (`stone_heart`) left both new fields at
+  neutral defaults with the aura never firing; an enemy standing exactly on
+  the `decayRadius` boundary was correctly included, not excluded; a
+  Splitter enemy killed by decay damage still spawned its children through
+  the normal `killEnemy` chain; a 20-simulated-minute (72,000-tick) stress
+  run against a 1e9-HP enemy held finite with zero NaN drift from repeated
+  floating-point accumulation; step 4 left rings 1-5 byte-identical to the
+  step-3-only case while rings 6-10 went fractional as designed, and step 5
+  raised *every* ring's rate uniformly (independently verified at ring 6 and
+  ring 10, not just the inner rings the unit tests already covered) — the
+  single scalar `decayMult` structurally guarantees no ring can retain a
+  stale multiplier once step 5 is bought. `npm test`: 805 passed / 33
+  skipped (0 failed, up from 787/33 pre-item — 18 new cases in
+  `tests/p-core-e-time-decay.test.ts`); `npx tsc --noEmit` clean — refs:
+  §5.5, G21, Q115. **P5.5 is done bar `p-core-f`** (the four §5.5 unlock
+  quests through the §8.4 system, the Codex page, and gates G22/G23 — each
+  core shifts the run fingerprint by ≥0.10 vs. Stone Heart, and each clears
+  T1 at 35–70% win rate with the scripted bot). **Next action: `p-core-f`.**
+
 - **`p-core-d` is done this commit — SPEC-FINAL §5.5's Corpse is live in
   full: the TD damage store, its 1s execute, step 2's execution explosion,
   step 3's auto-fire, and the flat VS +10% EXP.** `data/cores.json` authors

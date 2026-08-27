@@ -26,6 +26,7 @@ import {
   updateCarnivorousPlant,
   updateCoreEffects,
   updateCorpse,
+  updateTimeDecay,
   upgradeCore,
 } from './cores';
 import { shouldSpawnBoss, spawnFinalBoss, updateDirector } from './act2';
@@ -89,6 +90,7 @@ export class Run {
         updateCoreEffects(w, dt);
         updateCarnivorousPlant(w, dt);
         updateCorpse(w, dt);
+        updateTimeDecay(w, dt);
         updateProjectiles(w, dt);
         updateAreas(w, dt);
         updateAct1Build(w, dt);
@@ -100,6 +102,7 @@ export class Run {
         updateCoreEffects(w, dt);
         updateCarnivorousPlant(w, dt);
         updateCorpse(w, dt);
+        updateTimeDecay(w, dt);
         updateAct1Wave(w, dt);
         updateProjectiles(w, dt);
         updateAreas(w, dt);
@@ -599,6 +602,7 @@ function updateAct2(w: World, input: TickInput, dt: number): void {
   updateCoreEffects(w, dt);
   updateCarnivorousPlant(w, dt);
   updateCorpse(w, dt);
+  updateTimeDecay(w, dt);
   updateEnemies(w, dt);
   updateProjectiles(w, dt);
   updateAreas(w, dt);
