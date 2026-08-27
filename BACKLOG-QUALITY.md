@@ -379,7 +379,7 @@ coverage gaps session 1's log recorded. All five are inside Scope as written.*
       `WeaponState` for that key, so a future change to either `grantWeapon`
       or the `souls` case that reintroduces duplication is caught by name —
       refs: q29, src/sim/progression.ts:266-296, src/sim/weapons.ts:61-79
-- [ ] (q33) [bug][feat] qa-playtester's q28 verification pass found a sibling
+- [x] (q33) [bug][feat] qa-playtester's q28 verification pass found a sibling
       gap q28 itself doesn't close: q28 (and q25 before it) only catch
       *schema* violations in `/data/*.json` (a value of the wrong type,
       caught by `loadContent()`'s zod parse at runtime) — a JSON *syntax*
@@ -502,6 +502,71 @@ coverage gaps session 1's log recorded. All five are inside Scope as written.*
       future dedupe fix is visible as a test change rather than silent —
       refs: q32, qa-playtester's q32 verification pass (session 30 log),
       src/sim/run.ts:164-169, src/sim/progression.ts:270
+- [ ] (q37) [bug][feat] qa-playtester's q33 verification pass (session 31)
+      found the same uncaught-crash mechanism q33 pinned for the four lane
+      CLIs also hits three tools q33 never covers — `tools/sim.ts`,
+      `tools/sweep.ts` and `tools/handoff-metrics.ts`, all three commands
+      CLAUDE.md's own "Stack & commands" section documents as the headline
+      entry points (`npm run sim -- --seed 1 --policy hybrid`,
+      `npx tsx tools/sweep.ts --seeds 12 --policies maxbuild,hybrid`,
+      `npx tsx tools/handoff-metrics.ts`) — so this is arguably a
+      higher-traffic instance of the same gap than the four q33 already
+      named. Session 31's QA pass live-reproduced all three directly (scratch
+      copy, corrupted `data/towers.json`, torn down after): each crashes with
+      the identical raw, multi-frame `Error: Transform failed with 1 error`
+      stack trace q33 pinned for `content-census.ts`/`phase-coverage.ts`/
+      `soak.ts`, and none of the three ever had a q25/q28-style try/catch to
+      begin with (grepped: no `catch` in any of the three), so this is not a
+      regression, just an always-open instance of the same architectural gap.
+      QA did not exhaustively check the remaining `tools/*.ts` files that
+      also transitively import `src/sim/content.ts` (`invariants.ts`,
+      `fuzz-*.ts`, `mutation-probe.ts`, `perf-ratio.ts`, `probe-boss.ts`,
+      `a4probe.ts`, `a5probe.ts`, `m20d-*.ts` per a grep census) — reported
+      only what was actually measured live, so more siblings may exist
+      beyond these three — acceptance: a sibling test (e.g.
+      `tests/q37-cli-json-syntax-error-siblings.test.ts`) reusing q33's
+      scratch-copy idiom, pinning today's crash for `sim.ts`, `sweep.ts` and
+      `handoff-metrics.ts` the same way `tests/q33-cli-json-syntax-error
+      .test.ts` pins it for the other three; the underlying fix is the same
+      out-of-Scope `src/sim/content.ts` change q33 already filed for main
+      lane (see this file's session 31 Log entry for the filing; q38 for the
+      one CLI where a smaller in-Scope workaround is also possible) — refs:
+      q33, q38, qa-playtester's q33 verification pass (session 31 log),
+      tools/sim.ts, tools/sweep.ts, tools/handoff-metrics.ts
+- [ ] (q38) [feat] Session 31's QA pass, while verifying q33, tested — rather
+      than assumed — whether the "root cause can't be moved, only pinned"
+      framing q33/q37 both carry is actually true for every affected CLI. It
+      is not, for one of them: a scratch-copy experiment on
+      `tools/content-census.ts` (type-only `import type { Content } from
+      '../src/sim/content'` plus replacing the static `loadContent` import
+      with a dynamic `const { loadContent } = await import(...)` call inside
+      `main()`'s own existing try/catch) fully closes the gap with **zero**
+      `/src/**` changes — verified live: a syntactically corrupted
+      `data/towers.json` now produces the same one-line `content-census:
+      Transform failed with 1 error: ...` message (plain mode) or a single
+      parseable `{"error": "..."}` line (`--json` mode) that q25/q28 already
+      established as this lane's bar, instead of the raw uncaught stack
+      trace. The same trick does *not* extend cleanly to `phase-coverage.ts`
+      or `soak.ts`: both call `Run`/`makePolicy` from inside multiple
+      exported, synchronously-called functions that existing tests already
+      call as plain sync functions (`soakOne`/`soak`/`shippedPolicies`;
+      `reachedPhases`/`censusOne`/`census`), so making the import dynamic
+      would force those functions `async` — a breaking signature change
+      rippling into `tests/q12-soak.test.ts` and friends — a materially
+      larger refactor QA time-boxed rather than built. Net: filing the
+      `src/sim/content.ts` fix as main-lane work (per q33/q37) is still the
+      right long-term call — it fixes the problem once instead of a
+      bespoke, only-partially-applicable patch per CLI — but
+      `content-census.ts` specifically has a working, in-Scope, low-risk
+      interim fix available today — acceptance: apply the verified
+      type-only-import + dynamic-`loadContent()`-import pattern to
+      `tools/content-census.ts` for real (not scratch), confirm
+      `tests/q25-content-census-cli.test.ts` still passes unchanged and
+      `tests/q33-cli-json-syntax-error.test.ts`'s `content-census.ts` cases
+      flip from "crashes uncaught" to "clean one-line message" (test update
+      required — today's assertions pin the *broken* behaviour), `tsc`
+      clean, no `/src/**` edits — refs: q33, q37, qa-playtester's q33
+      verification pass (session 31 log), tools/content-census.ts
 
 *Generated 2026-08-27, session 23, under CLAUDE.md's generation rule scoped
 to this lane: only q26 and q27 were actionable (fewer than 3) — q1/q4/q5/q6
@@ -587,6 +652,123 @@ resolve if it wants the CLI entry points too. All five are inside Scope as
 written; none needs a `package.json` edit.*
 
 ## Log
+
+### 2026-08-27 — session 31
+
+**Feedback inbox:** no `feedback/` directory exists in this worktree (checked
+with `ls feedback/`). Nothing to process, nothing moved.
+
+**Found q33's implementation already sitting in the worktree, uncommitted, at
+session start** — the same leftover-work shape sessions 14/16/18/19/20/22/29
+have each hit before (a prior session implemented and stopped short of
+review/commit). Present: `tests/q33-cli-json-syntax-error.test.ts` (new, 7
+tests) and a `BACKLOG-QUALITY.md` diff marking q33 `[x]` and adding q37. No
+Log entry existed for this work yet. Verified rather than trusted, per this
+file's own standing lesson.
+
+**q33 done.** `tests/q33-cli-json-syntax-error.test.ts` pins the gap q25/q28
+don't close: those two items' try/catch guards only catch *schema*
+violations in `/data/*.json` (a zod parse failure at `loadContent()`
+runtime); a JSON *syntax* error never reaches `loadContent()` at all,
+because `/data/*.json` is loaded via static ES module `import` in
+`src/sim/content.ts`, parsed by `tsx`'s esbuild transform at module-load
+time — before any of `main()`'s code, including every try/catch q25/q28
+added, ever runs. The test corrupts a scratch copy's `data/towers.json`
+with `{ not valid json` and drives real nested `npx tsx tools/<tool>`
+processes for `content-census.ts`, `phase-coverage.ts` and `soak.ts`,
+asserting each crashes uncaught (nonzero exit, empty stdout, a raw
+multi-frame `Transform failed with N error` esbuild stack on stderr, in
+both plain and `--json` mode), plus a control proving `gate-audit.ts` is
+genuinely unaffected (it never imports `src/sim/content.ts`/`Run` at all,
+so a corrupted `/data` file leaves it clean).
+
+**Review (code-reviewer, REQUEST-CHANGES then addressed).** Confirmed the
+test itself is correct, green (7/7), `tsc`-clean, and Scope-compliant (only
+`tests/**` + this file touched), and independently confirmed
+`gate-audit.ts`'s imports never reach `src/sim/content.ts`. Found two Major
+bookkeeping gaps in the leftover diff, both about this file's own discipline
+rather than the test: (1) q33 was marked `[x]` without satisfying its own
+acceptance line, which requires filing the `src/sim/content.ts` fix as
+main-lane work in this file's Log — no such entry existed; (2) q37's refs
+line cited "session 31 log" when no session 31 entry existed anywhere in the
+file yet — a dangling citation for a QA pass that, at diff time, had no
+corresponding record. Both are fixed by this entry and the real
+qa-playtester pass below, which is what session 31's log now actually
+documents.
+
+**QA (qa-playtester, PASS with a correction).** Independently reproduced
+q33's gap live in a throwaway scratch copy (corrupted `data/towers.json`,
+ran `content-census.ts` directly, got the identical raw `Transform failed
+with 1 error` stack; ran `gate-audit.ts` against the same corruption,
+confirmed clean exit 0) before trusting the test's own claims. Confirmed
+`tests/q33-cli-json-syntax-error.test.ts` green (7/7) and leak-free (no
+stray `bench/.tmp/q33-*` directories survive a run; noted one unrelated,
+pre-existing stale directory under `bench/.tmp/q14-mutation-scratch/` from
+an older session, not created by this test or this session, out of scope
+here).
+
+Adversarially extended q33's own scope (per this lane's standing pattern):
+grepped all of `tools/*.ts` for imports of `src/sim/content.ts`/`Run`/
+`loadContent` (16 hits, far more than the four q33 scoped) and live-
+reproduced the identical crash on three of them — `tools/sim.ts`,
+`tools/sweep.ts`, `tools/handoff-metrics.ts` — all three the exact commands
+CLAUDE.md's own "Stack & commands" section documents as headline entry
+points, none of them previously guarded by any try/catch. Filed as an
+expanded q37 (originally drafted citing only `sim.ts`/`sweep.ts`; corrected
+to add `handoff-metrics.ts`, the genuinely-substantiated session-31
+citation, and a note that the remaining 13 grep hits were not individually
+reproduced, only measured-as-plausible, so more siblings may still exist).
+
+QA also **tested rather than assumed** q33/q37's shared premise that the
+root-cause fix can't be moved into this lane's Scope at all, and found that
+premise overstated for one CLI: a scratch-copy experiment (type-only
+`import type { Content }` plus a dynamic `await import('../src/sim/
+content')` call inside `content-census.ts`'s own existing try/catch) fully
+closed the gap with zero `/src/**` changes, producing the exact clean
+one-line-message / single-parseable-`--json`-line q25/q28 already
+established as this lane's bar. The same trick does not extend cleanly to
+`phase-coverage.ts`/`soak.ts` (both call `Run`/`makePolicy` from inside
+multiple exported, synchronously-called functions that `tests/q12-soak
+.test.ts` and friends already call as plain sync functions — making the
+import dynamic would force those `async`, a breaking signature change QA
+time-boxed rather than built). Filed as q38: a real, in-Scope, verified-
+working interim fix opportunity for `content-census.ts` specifically,
+distinct from q33/q37's pin-only acceptance. This is the same "a claim
+overstates what was actually checked" shape this lane has now caught five
+times (q17, q19, q22, q28, and this) — this time in the lane's own item
+text rather than a tool's doc comment.
+
+**Main-lane bug filed (q33's own acceptance line, per q18's precedent for
+an unfixable-from-Scope gap):** the root-cause fix — replace `src/sim/
+content.ts`'s static `import ... from '../../data/*.json'` statements (all
+15 files) with a dynamic, pre-validated read (`readFileSync` +
+`JSON.parse` inside `loadContent()`, or the dynamic-`import()` pattern q38
+verifies works for at least one call shape) — is outside this lane's Scope
+(`/src/**` is forbidden here) and needs main-lane engineering. Concretely:
+today, a JSON *syntax* error (not a schema violation — q25/q28 already
+handle those) in any `/data/*.json` file crashes every CLI that
+transitively imports `src/sim/content.ts` with a raw, multi-frame esbuild
+`TransformError` stack trace, before any `main()`-level error handling
+(including everything q25/q28 added) ever gets a chance to run. Confirmed
+affecting at least seven entry points this lane has now checked
+(`content-census.ts`, `phase-coverage.ts`, `soak.ts`, `gate-audit.ts` is
+the one exception; `sim.ts`, `sweep.ts`, `handoff-metrics.ts`), including
+the two headline commands (`npm run sim`, `tools/sweep.ts`) CLAUDE.md's own
+"Stack & commands" section names directly. Regression coverage:
+`tests/q33-cli-json-syntax-error.test.ts` (this session) pins three of the
+seven; q37 (filed this session) is the not-yet-implemented sibling test for
+the other three now-confirmed CLIs.
+
+**Suite state.** `npx vitest run tests/q33-cli-json-syntax-error.test.ts` —
+7/7 green. `npx tsc --noEmit -p .` clean. `git status --porcelain` before
+commit: only `BACKLOG-QUALITY.md` (modified) and
+`tests/q33-cli-json-syntax-error.test.ts` (new) — Scope-compliant.
+
+**Committed.**
+
+**Five actionable items remain** (q34, q35, q36, q37, q38 — q38 filed this
+session), above the generation rule's floor of 3, so the generation rule
+does not need to run next session either.
 
 ### 2026-08-27 — session 30
 
