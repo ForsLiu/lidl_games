@@ -47,6 +47,103 @@ still in test headers.
 Both corrections (x001, x002) are **done** — see the Done section. The queue
 resumes at P1.
 
+### Feedback — owner-filed items (2026-08-27), processed from `feedback/`
+
+Filed from the owner's 2026-08-27 feedback batch (12 files, `verdicts-q1-121`
+processed separately into QUESTIONS.md). **Execution order note**: the same
+verdict batch carries a PRIORITY DIRECTIVE (QUESTIONS.md Q121's verdict log
+entry) putting `p8a` immediately after the item in flight at filing time
+(`p6e`), ahead of every other queued item including the ones below — these are
+filed and ready, not next up.
+
+- [ ] (b016) [bug] top priority: a tower can be built directly on the
+      character's own tile, trapping the Warden inside it (`build` has no
+      check against the Warden's current position) — acceptance: **a failing
+      regression test lands first** (drives a `{k:'build'}` Command targeting
+      the Warden's own tile, asserts the placement is rejected or the Warden
+      is relocated), then either the placement is rejected (the UI's red-ghost
+      case reflected in the sim as a rejected Command) or the Warden is nudged
+      to the nearest free walkable tile before the build lands — refs: §12
+      rule 3, owner feedback `bug-build-on-character`. **Superseded in intent**
+      by (fb002) below if that lands first — once the Warden ignores structure
+      collision entirely, standing on a to-be-built tile is legal and this bug
+      cannot occur; if fb002 ships first this item closes as moot rather than
+      needing its own fix.
+- [ ] (fb001) [feat] top priority: dev profile (`data/dev.json`) unlocks every
+      Core from §5.5, the same pattern already used for classes/maps —
+      acceptance: a dev build shows all Cores selectable; `npm run build`
+      ships them locked; covered by the existing G16 test — refs: §5.5, §11,
+      G16, owner feedback `feature-unlock-cores-dev`.
+- [ ] (fb002) [feat] Character (and dash) ignore collision with the Core and
+      all friendly structures — walks/flies over them freely; enemies keep
+      current pathing rules — acceptance: character crosses a sealed base
+      freely in both TD and VS phases; enemy pathing is unaffected; a test
+      covers movement over structures — refs: §10 (amends character movement),
+      owner feedback `feature-character-passes-structures`. Supersedes b016's
+      nudge-fix approach if b016 has not yet landed — placement on the
+      Warden's own tile then becomes legal rather than rejected.
+- [ ] (fb003) [feat] VS level-up auto-pick toggle (settings + on-screen): when
+      on, resolves level-up offers without pausing for input — prefer the
+      highest-rank owned stat boon, else the first offered card; manual choice
+      any time the toggle is off; auto-pick choices are ordinary Commands
+      (replay-safe) — acceptance: toggle-on runs never pause in the level-up
+      phase; replay determinism holds; a test covers the pick rule — refs:
+      §6.3, owner feedback `feature-auto-pick-boons`.
+- [ ] (fb004) [feat] Character panel: every final stat with its multiplier
+      breakdown by source (class × tree × equipment × boons, per §2's
+      stacking rules) plus every boon taken this run with rank and current
+      contribution — acceptance: panel opens in both phases; a test compares
+      panel data against `Stats`' own derived output field-for-field — refs:
+      §2, §6.3, §11, owner feedback `feature-boon-stats-panel`.
+- [ ] (fb005) [feat] Per-damage-type color/font in floating damage numbers,
+      defined in `data/damagetypes.json` (not code); crits/execute render
+      larger; colorblind-safe variants respect the existing palette setting —
+      acceptance: each of the six damage types plus the two statuses visibly
+      differs in a mixed fight; the style mapping lives in `/data`; a test
+      asserts the mapping — refs: §3, §11, owner feedback
+      `feature-damage-type-colors`.
+- [ ] (fb006) [feat] Enemy HP bars show a shaded/hatched segment sized to the
+      unfinished DoT total, shrinking per tick as the DoT resolves —
+      acceptance: applying poison shows the segment at the correct size;
+      Spreading Plague's death transfer keeps it correct; a test covers
+      sizing — refs: §3, §11, owner feedback `feature-dot-hp-indicator`.
+- [ ] (fb007) [feat] DPS summary panel (toggle key): damage dealt and DPS over
+      the current wave and the whole run, broken down by source — each tower
+      type (TD), each wielded tower-type attack (VS), each class active, each
+      damage type — acceptance: panel totals reconcile with `RunReport`'s own
+      damage-share telemetry (test compares them); visible in both phases —
+      refs: §11, owner feedback `feature-dps-summary`.
+- [ ] (fb008) [feat] Auto-collect all uncollected VS XP gems when a wave ends;
+      EXP beyond the character's current level-up need converts to gold at a
+      tunable ratio (start 1 gold per 2 EXP, log the chosen ratio to
+      QUESTIONS.md) — acceptance: ending a wave with gems on the ground yields
+      their EXP; overflow appears as gold with a HUD toast; a test covers both
+      the pure-EXP and overflow-to-gold paths — refs: §1.1, §2 (amends the
+      "gems do not convert" line), owner feedback `feature-exp-to-gold`.
+- [ ] (fb009) [feat] Remove the early-call bonus-gold mechanic (including
+      multi-summon's per-wave bonus) entirely; every TD wave cleared instead
+      pays a fixed `20 + 10 × wave` reward (tunable); multi-summon (stacking
+      up to 3 waves) stays, without the bonus — acceptance: an early call
+      grants no gold; clearing wave N pays the formula; gate G6 and the
+      economy tests are updated to match; a test covers it — refs: §1.1
+      (supersedes the early-call bonus rule), owner feedback
+      `feature-fixed-wave-reward`.
+- [ ] (fb010) [feat] Game speed options extended to 1/2/3/10/50×; at 10× and
+      above the renderer may skip frames but the sim itself stays fixed 60 Hz
+      per sim-second with determinism unchanged — acceptance: a x50 run of a
+      full wave produces an end-state hash identical to the same seed at x1; a
+      test covers hash equality; available at minimum in the dev profile (log
+      to QUESTIONS.md if kept out of the normal game) — refs: §11, owner
+      feedback `feature-game-speed-x10-x50`.
+- [ ] (fb011) [feat] Remove the max-rank limit on VS stat boons and Type
+      Mastery cards (were ×5 / ×3) — they keep appearing in offers at any
+      rank; skill cards keep their existing caps; stacking still follows §2
+      (ranks within one boon add, then multiply as one source) — acceptance:
+      a boon can be taken 10+ times with its effect matching the stacking
+      rule; the offer pool never exhausts on rank alone; a test covers a
+      10-rank case — refs: §6.3 (supersedes the rank caps), owner feedback
+      `feature-remove-boon-rank-caps`.
+
 ### P1 — TD core: sealing (G7)
 
 P1 is **done** — p1a and p1b are in the Done section. G7 is green in full;
