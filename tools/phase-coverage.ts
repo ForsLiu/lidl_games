@@ -100,7 +100,19 @@ function main(argv: string[]): void {
   const seedStart = intArg(argv, '--seed-start', 1, false);
   const json = argv.includes('--json');
 
-  const rows = census(shippedPolicies(), seeds, seedStart);
+  let rows: PolicyCensus[];
+  try {
+    rows = census(shippedPolicies(), seeds, seedStart);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (json) {
+      console.log(JSON.stringify({ error: message }));
+    } else {
+      console.error(`phase-coverage: ${message.replace(/\s+/g, ' ').trim()}`);
+    }
+    process.exitCode = 1;
+    return;
+  }
 
   if (json) {
     console.log(JSON.stringify(rows, null, 2));

@@ -19,6 +19,7 @@
  */
 
 import { Run } from '../src/sim/run';
+import type { World } from '../src/sim/world';
 import type { RunConfig } from '../src/sim/types';
 import { makePolicy, policyNames } from '../src/bots';
 import '../src/bots';
@@ -68,22 +69,28 @@ export function soakOne(
   }
 
   const started = performance.now();
-  const cfg: RunConfig = {
-    seed,
-    classKey: 'engineer',
-    tier: 1,
-    modifiers: [],
-    allocated: [],
-    relics: [],
-    policy: policyName,
-    cycles: 3,
-  };
-  const run = new Run(cfg);
-  const w = run.world;
+  let run: Run | undefined;
+  let w: World | undefined;
   const problems: string[] = [];
   let threw = false;
 
   try {
+    const cfg: RunConfig = {
+      seed,
+      classKey: 'engineer',
+      tier: 1,
+      modifiers: [],
+      allocated: [],
+      relics: [],
+      policy: policyName,
+      cycles: 3,
+    };
+    // `new Run(cfg)` lives inside this try (not before it) so a `/data` load
+    // failure at construction — e.g. a corrupted content file — comes back
+    // through `SoakResult.threw` like any other in-run exception, rather
+    // than propagating straight out of `soakOne` uncaught (q28).
+    run = new Run(cfg);
+    w = run.world;
     const policy = makePolicy(policyName);
     while (!run.done && w.tick < maxTicks) {
       run.step(policy.act(w));
@@ -92,12 +99,13 @@ export function soakOne(
     }
   } catch (err) {
     threw = true;
-    problems.push(`tick ${w.tick} threw ${(err as Error)?.stack ?? String(err)}`);
+    const where = w ? `tick ${w.tick}` : 'construction';
+    problems.push(`${where} threw ${(err as Error)?.stack ?? String(err)}`);
   }
 
   let endHash = '';
-  let outcome = w.outcome;
-  if (!threw && problems.length === 0) {
+  let outcome: string = w?.outcome ?? 'construction_failed';
+  if (!threw && problems.length === 0 && run && w) {
     try {
       const report = run.report();
       endHash = report.endHash;
@@ -112,7 +120,7 @@ export function soakOne(
   return {
     seed,
     policy: policyName,
-    ticks: w.tick,
+    ticks: w?.tick ?? 0,
     outcome,
     endHash,
     problems: problems.slice(0, 8),

@@ -269,11 +269,27 @@ export function staleHoleRefs(
 /* ------------------------------------------------------------------- CLI */
 
 function main(argv: string[]): void {
-  const specText = readFileSync(SPEC_PATH, 'utf8');
-  const gates = parseGates(specText);
-  const rows = auditGates(gates);
+  const json = argv.includes('--json');
 
-  if (argv.includes('--json')) {
+  let rows: GateAuditRow[];
+  let stale: string[];
+  try {
+    const specText = readFileSync(SPEC_PATH, 'utf8');
+    const gates = parseGates(specText);
+    rows = auditGates(gates);
+    stale = staleHoleRefs();
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (json) {
+      console.log(JSON.stringify({ error: message }));
+    } else {
+      console.error(`gate-audit: ${message.replace(/\s+/g, ' ').trim()}`);
+    }
+    process.exitCode = 1;
+    return;
+  }
+
+  if (json) {
     console.log(JSON.stringify(rows, null, 2));
     return;
   }
@@ -293,7 +309,6 @@ function main(argv: string[]): void {
     process.exitCode = 1;
   }
 
-  const stale = staleHoleRefs();
   if (stale.length > 0) {
     console.log(`\nSTALE hole notes (cite a lane item BACKLOG-QUALITY.md now marks done):`);
     for (const s of stale) console.log(`  ${s}`);

@@ -275,6 +275,167 @@ coverage gaps session 1's log recorded. All five are inside Scope as written.*
       `tools/fuzz-weapon-boundary.ts`, and a named repro test alongside the
       existing "applyOffer applies an Awakening..." describe block — refs:
       q21 QA pass (session 17 log), src/sim/progression.ts:182-186
+- [x] (q28) [bug][feat] q25's own commit note claims "every sibling CLI in
+      this lane (`tools/gate-audit.ts`, `tools/phase-coverage.ts`,
+      `tools/soak.ts`) handles its own failure path" — re-checked this
+      session by reading each `main()` directly, and the claim is wrong for
+      all three: `tools/gate-audit.ts:271-273`'s `main()` calls
+      `readFileSync(SPEC_PATH, 'utf8')` with no try/catch; `tools/phase-
+      coverage.ts:98-103`'s `main()` calls `census(shippedPolicies(), ...)`
+      with no try/catch, and `census`→`censusOne`→`reachedPhases` constructs
+      a `Run`/`World` (hence calls `loadContent()`) before anything catches;
+      `tools/soak.ts`'s `soakOne` (q23's own guard target) constructs
+      `new Run(cfg)` at line 81 — one line *before* its own `try` at line
+      86 — so a `/data` load failure there is just as uncaught as the other
+      two, q23's guards notwithstanding. All three would crash with a raw
+      stack trace and (under `--json`) print nothing parseable, the exact
+      shape q25 fixed for `tools/content-census.ts` — the same "a note
+      overstates the coverage it cites" trap this lane has now found four
+      times (q17, q19, q22, and this) — acceptance: each of the three
+      `main()`s wraps its `/data`-load-reachable call in a try/catch that
+      prints a one-line error (or `{error}` JSON under `--json`) and sets
+      `process.exitCode = 1`, matching `content-census.ts`'s pattern exactly,
+      proven by a test per file that points it at a corrupted scratch `/data`
+      snapshot the way `tests/q25-content-census-cli.test.ts` already does —
+      refs: q25, tools/gate-audit.ts, tools/phase-coverage.ts, tools/soak.ts
+- [ ] (q29) [bug][feat] `src/sim/weapons.ts`'s `grantWeapon` has two branches
+      and only one is guarded: the create branch (no existing `WeaponState`)
+      clamps `level` to `[1, maxLevel]` (q21 already fuzzed this one), but
+      the *update* branch (`existing` found, lines 62-66) does
+      `existing.level = Math.max(existing.level, level)` with no clamp and
+      no finite guard at all — a `level: NaN` or `level: Infinity` passed to
+      an *update* call silently contaminates an already-bound weapon's level
+      (`NaN` propagates into the next `Math.max` update forever), the same
+      "crashes the fire loop on the next tick" failure mode q21/q27 already
+      pinned, through a fourth entry point. Reached through `bindSouls`
+      (`src/sim/progression.ts:292-296`, called by the `souls` Command) or
+      `applyOffer`'s `'weapon'` case (q27) when either passes an
+      out-of-domain `level`/`damageBonus` to an *already-granted* weapon —
+      not reachable via the real Command surface today (`bindSouls`'s own
+      inputs are always legal integers) — acceptance: a
+      `weapon:updateLevelNan`-style case added to
+      `tests/q21-weapon-boundary-fuzz.ts`'s pinned map that calls
+      `grantWeapon` twice (once to create, once to update with a poisoned
+      value) and asserts today's actual behaviour (contamination or crash,
+      whichever it measures), exercised by
+      `tests/q21-weapon-boundary-fuzz.test.ts` — refs: q21, q27,
+      src/sim/weapons.ts:61-79
+- [ ] (q30) [bug][feat] `applyOffer`'s `'boon'` case
+      (`src/sim/progression.ts:187-196`) has *zero* validation of
+      `offer.toLevel` — unlike the `'weapon'` case (q27), which at least
+      clamps the upper bound, `w.boonRanks[b.key] = offer.toLevel;` assigns a
+      forged offer's value straight through with no clamp, no finite check,
+      nothing. That value then flows into `w.stats.addAll(...)` (the shared
+      stat pipeline every stat consumer reads) and into the determinism hash
+      (`src/sim/run.ts:658`, `h.int(w.boonRanks[k])`) with a
+      `boonRanks[key]` of `NaN`/`Infinity`/negative — worth knowing whether
+      the hash function chokes on a non-finite `int()` input or silently
+      produces a degenerate hash, either of which is worse than the weapon
+      case since there is no partial clamp acting as a safety net at all.
+      Same reachability caveat as q21/q27/q29: `rollOffers`/`buildOfferPool`
+      only ever emit a legal `toLevel`, so this needs a forged `Offer` — not
+      a live Command-surface exploit — acceptance: a
+      `boon:toLevelNan`/`boon:toLevelNegative`/`boon:toLevelInfinite`-style
+      set of cases added to `tests/q21-weapon-boundary-fuzz.ts`'s pinned map
+      (or a new sibling const, since this is a different offer kind),
+      probing `applyOffer`'s `'boon'` case directly and recording what
+      `h.int()` actually does with the poisoned value, exercised by
+      `tests/q21-weapon-boundary-fuzz.test.ts` — refs: q27, q29,
+      src/sim/progression.ts:187-196, src/sim/run.ts:658
+- [ ] (q31) [feat] Mutation-probe coverage gap: `tools/mutation-probe.ts`'s
+      `MUTATIONS` list (10 entries as of q20) has zero entries for the two
+      most recent guard-shaped fixes this lane has landed —
+      `tools/soak.ts`'s q23 `maxTicks`/`scanEvery` boundary guards and
+      `tools/content-census.ts`'s q25 try/catch — so a future accidental
+      revert of either guard (someone "simplifying" `soakOne`'s top or
+      `content-census.ts`'s `main()`) would ship silently, caught by neither
+      the mutation-smoke suite nor (per q28, if q28 hasn't landed yet when
+      this runs) any other automated check — acceptance: `MUTATIONS` grows
+      by at least two entries (one per fix), each reverting the guard/
+      try-catch to its pre-fix shape, targeting `tests/q12-soak.test.ts`'s
+      q23 describe block and `tests/q25-content-census-cli.test.ts`
+      respectively, each `source` naming this item the way q20's entries
+      name their sessions, and `tests/q14-mutation-smoke.test.ts` runs the
+      expanded list green — refs: q20, q23, q25, tools/mutation-probe.ts
+- [ ] (q32) [feat] `bindSouls` (`src/sim/progression.ts:266-296`) turned out,
+      on inspection while filing q29, to already be safe against a case that
+      looked at first like a bug: the `souls` Command's `keys` array is
+      never deduplicated (`applyCommand`'s `'souls'` case just filters
+      against `soulCandidates`, `src/sim/run.ts:164-169`), so a hand-crafted
+      `{k:'souls', keys:['ballista','ballista']}` reaches `bindSouls` with a
+      duplicate key — but `grantWeapon`'s create-vs-update branch (see q29)
+      finds the existing `WeaponState` by key on the second call and updates
+      it in place rather than pushing a second entry, so no duplicate
+      `WeaponState` for one weapon key is possible this way. That safety net
+      is exactly what stops a duplicate-key `souls` Command from being a
+      fifth, independent hole here — worth pinning as a positive/negative
+      control now that three related holes (q21, q27, q29) sit right next
+      to it, the same "prove the real path stays clean" pattern q21's own
+      review added for `rollOffers` — acceptance: a regression test (in
+      `tests/q21-weapon-boundary-fuzz.test.ts` or a small addition to an
+      existing weapons/progression test file already in Scope) that drives
+      a real `souls` Command with a duplicated valid key through
+      `applyCommand` and asserts `w.weapons` contains exactly one
+      `WeaponState` for that key, so a future change to either `grantWeapon`
+      or the `souls` case that reintroduces duplication is caught by name —
+      refs: q29, src/sim/progression.ts:266-296, src/sim/weapons.ts:61-79
+- [ ] (q33) [bug][feat] qa-playtester's q28 verification pass found a sibling
+      gap q28 itself doesn't close: q28 (and q25 before it) only catch
+      *schema* violations in `/data/*.json` (a value of the wrong type,
+      caught by `loadContent()`'s zod parse at runtime) — a JSON *syntax*
+      error (e.g. a stray unclosed brace) crashes all four lane CLIs
+      (`content-census.ts`, `gate-audit.ts`, `phase-coverage.ts`, `soak.ts`)
+      with a raw, uncaught esbuild `TransformError` stack trace that no
+      `main()`-level try/catch can intercept, because `/data/*.json` is
+      loaded via a static ES module `import` in `src/sim/content.ts`, which
+      is transformed and evaluated at module-load time — *before* any of
+      `main()`'s code, including every try/catch q25/q28 added, ever runs.
+      Live repro (QA's session): overwrite `data/towers.json` with
+      `{ not valid json` (not a schema violation, a syntax error) and run
+      any of the four CLIs — each crashes with a multi-frame stack trace
+      instead of the one-line message q25/q28 established as this lane's
+      own bar for a `/data`-load failure. Not a regression introduced by
+      q28 — it was already true of `content-census.ts` at q25 — but it is a
+      real gap in the "clean CLI error" pattern this lane has now built out
+      across four tools, worth closing rather than leaving as a silent
+      asterisk on q25/q28's own acceptance claims — acceptance: a new test
+      (e.g. `tests/q33-cli-json-syntax-error.test.ts`, reusing the scratch-
+      copy idiom already common to q25/q28) that writes syntactically
+      invalid JSON to a `/data` file and runs each of the four lane CLIs
+      against it, recording today's actual behaviour (crash) if this proves
+      genuinely unfixable from this lane's Scope — dynamic `import()` of a
+      pre-validated string read via `readFileSync`/`JSON.parse` inside
+      `loadContent()` would fix it at the source, but `src/sim/content.ts`
+      is outside this lane's Scope (`/src/**`), so if the root cause can't
+      be moved, the acceptance line is to *pin* the gap precisely (which of
+      the four CLIs, what today's exact failure looks like) the way q18
+      pins the content-hash-replay gap, and file the `/src/sim/content.ts`
+      fix as main-lane work in this file's Log — refs: q25, q28, qa-
+      playtester's q28 verification pass (session 23 log)
+
+*Generated 2026-08-27, session 23, under CLAUDE.md's generation rule scoped
+to this lane: only q26 and q27 were actionable (fewer than 3) — q1/q4/q5/q6
+remain Scope-blocked, unchanged. (a) Ran `npx tsx tools/gate-audit.ts` and
+`npx tsx tools/sweep.ts --seeds 12 --policies maxbuild,hybrid`: the gate
+split is unchanged yet again (8 covered, 12 holes, every hole tracing to a
+P-phase not yet reached), and the sweep numbers (0% win, medSurv ~119-120
+either policy) match the already-documented bimodal-Act-II state — nothing
+new from either tool alone, same reading as sessions 12 and 16. (b) SPEC-
+FINAL coverage diff: no change since session 12's read (P2/P3/P6/P7/P9 holes
+are infrastructure not yet built, not a lane testing gap). (c) Engineer's
+judgment, grounded in reading actual source rather than re-running a tool:
+re-checked q25's own claim that every sibling CLI "handles its own failure
+path" by reading `gate-audit.ts`/`phase-coverage.ts`/`soak.ts`'s `main()`s
+directly rather than trusting the prior session's note — the claim is false
+for all three (q28, the top item this pass, the fourth instance of this
+lane's own "note overstates coverage" trap). While reading `applyOffer`'s
+neighbor cases and `grantWeapon` to scope q28's blast radius, found two more
+siblings of q21/q27's unclamped-`Offer`-field shape (q29, q30) and a
+positive control worth pinning alongside them (q32), plus the mutation-probe
+gap q20 leaves open every time a new guard lands without a matching
+mutation (q31). Took q28, the top item, since it is the concrete finding
+from step (c) and — like q22 before it — a live gap in this lane's own
+tooling rather than a P-phase-not-built gap.*
 
 *Generated 2026-08-27, session 16, under CLAUDE.md's generation rule scoped
 to this lane: only q20 and q21 were actionable (fewer than 3) — q1/q4/q5/q6
@@ -336,6 +497,108 @@ resolve if it wants the CLI entry points too. All five are inside Scope as
 written; none needs a `package.json` edit.*
 
 ## Log
+
+### 2026-08-27 — session 23
+
+**Feedback inbox:** no `feedback/` directory exists in this worktree (checked
+with Glob for `feedback/**`). Nothing to process, nothing moved.
+
+**Only two actionable items were in queue** (q26, q27), below the generation
+rule's floor of 3, so the generation rule ran first. (a) Ran
+`npx tsx tools/gate-audit.ts` and `npx tsx tools/sweep.ts --seeds 12
+--policies maxbuild,hybrid`: unchanged from sessions 12/16 (8 covered, 12
+holes, all P-phase-not-built; 0% win, medSurv ~119-120). (b) SPEC-FINAL
+coverage diff: no change. (c) Read actual source rather than trusting a
+prior session's note: re-checked q25's own claim that
+`gate-audit.ts`/`phase-coverage.ts`/`soak.ts` already "handle their own
+failure path" and found it false for all three (filed as q28, the fourth
+instance of this lane's "note overstates its own coverage" trap, after q17,
+q19, q22). While scoping q28's blast radius, reading `applyOffer`'s
+`'boon'` case and `grantWeapon` turned up two further unclamped-`Offer`-field
+siblings of q21/q27 (q29, q30) and a positive control worth pinning
+alongside them (q32), plus the standing mutation-probe coverage gap q20
+leaves open every time a new guard lands (q31). Five items appended
+(q28-q32); took q28, the top item.
+
+**q28 done.** `tools/gate-audit.ts`, `tools/phase-coverage.ts`,
+`tools/soak.ts` (each `main()`/`soakOne` now fails cleanly on a `/data`- or
+spec-load failure) and `tests/q28-cli-error-handling.test.ts` (new, 9 tests).
+
+**What it does.** q25's own commit note claimed every sibling CLI in this
+lane already handled its own failure path — checked this session by reading
+each `main()` directly rather than trusting the note, and it was wrong for
+all three. `gate-audit.ts`'s `main()` called `readFileSync(SPEC_PATH,
+'utf8')` with no try/catch (crashes if SPEC-FINAL.md is missing/unreadable).
+`phase-coverage.ts`'s `main()` called `census(shippedPolicies(), ...)` with
+no try/catch, and `census`→`censusOne`→`reachedPhases` constructs a
+`Run`/`World` (hence calls `loadContent()`) before anything catches.
+`soak.ts`'s `soakOne` constructed `new Run(cfg)` one line *before* its own
+internal `try` block, so a `/data` load failure there propagated straight
+out uncaught — q23's `maxTicks`/`scanEvery` guards did not cover this path.
+
+Fixed `gate-audit.ts` and `phase-coverage.ts` by wrapping the reachable call
+in `main()`'s own try/catch, printing a one-line message (or `{error}` JSON
+under `--json`) and setting `process.exitCode = 1`, matching
+`content-census.ts`'s existing q25 pattern exactly (removed the now-dead
+duplicate `staleHoleRefs()` call site in `gate-audit.ts` rather than leaving
+it stale). Fixed `soak.ts` differently, at the root: moved `new Run(cfg)`
+inside `soakOne`'s existing try block (declaring `run`/`w` as
+possibly-undefined beforehand), so a construction failure now surfaces as a
+normal `SoakResult.threw: true` — the CLI prints a `FAIL ...` line and still
+reaches its usual `N/M clean` summary, rather than crashing before printing
+anything.
+
+**Review (code-reviewer, APPROVE, 1 Minor/paperwork nit — fixed here).**
+Independently confirmed all three fixes by reading the files directly (not
+just the diff): no use-before-assignment in `soak.ts`'s restructured
+`run`/`w`, the post-try `report()` call and return correctly guarded, no
+stale duplicate `staleHoleRefs()` call left in `gate-audit.ts`, `intArg`/
+`usage()`'s own `process.exit(2)` path in `phase-coverage.ts` untouched by
+the new catch (it runs before the try). Verified the new tests are
+non-vacuous by stashing the three tool fixes and re-running — the 6
+failure-path tests went red for the right reason (raw stack traces/empty
+stdout), the 3 control tests stayed green — then restored and reconfirmed
+9/9. Ran the three pre-existing sibling suites (45 tests), no regression.
+`tsc --noEmit` clean. One Minor: the q28 checkbox was still `[ ]` in the
+diff despite the fix being complete — flipped to `[x]` per this file's own
+established convention (every prior completed item was checked off in the
+same commit).
+
+**QA (qa-playtester, PASS).** Independently reproduced all three pre-fix
+crashes live in throwaway scratch copies built from `git show HEAD:...`
+(raw `ZodError`/`ENOENT` stack traces, zero clean output), confirmed the
+post-fix behavior for real, ran the new suite (9/9) plus all three sibling
+suites (45/45, no regression), and mutation-tested `gate-audit.ts`'s fix
+specifically (reverted it via `git checkout --` after confirming the
+uncommitted diff was exactly this session's fix, watched exactly its 2
+tests go red, restored via `git apply` of a saved patch, reconfirmed
+9/9 and a clean `git status`). Two adversarial variants beyond q28's literal
+scope — corrupting `BACKLOG-QUALITY.md` itself (also read by
+`gate-audit.ts`'s `staleHoleRefs()`) and corrupting a `/data` file other than
+`towers.json` — both already handled cleanly, since the fix wraps the whole
+reachable call rather than special-casing one file; neither filed.
+
+**QA found one real, pre-existing gap outside q28's scope, filed as q33:**
+q25/q28 only catch *schema* violations (a zod parse failure at
+`loadContent()` runtime) — a JSON *syntax* error in any `/data/*.json` file
+crashes all four lane CLIs with a raw, uncaught esbuild `TransformError`,
+because `/data` is loaded via a static ES module `import` in
+`src/sim/content.ts`, transformed and evaluated at module-load time, before
+any of `main()`'s code (including every try/catch q25/q28 added) ever runs.
+Confirmed live by QA against `content-census.ts` too, so this is not a q28
+regression — it was already true of the q25 baseline, just never named
+until this session's adversarial pass reached it. Not fixed here: the root
+cause (a static `import` for `/data`) lives in `src/sim/content.ts`, outside
+this lane's Scope.
+
+**Suite state.** `npx vitest run tests/q28-cli-error-handling.test.ts
+tests/q10-gate-audit.test.ts tests/q9-phase-coverage.test.ts
+tests/q12-soak.test.ts tests/q25-content-census-cli.test.ts` — 57/57 green.
+`npx tsc --noEmit -p .` clean.
+
+**Seven actionable items remain** (q26, q27, q29, q30, q31, q32, q33, all
+unchecked and unblocked), so the generation rule does not need to run next
+session either.
 
 ### 2026-08-27 — session 22
 
