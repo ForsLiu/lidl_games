@@ -1,10 +1,32 @@
 /**
- * SPEC A4: every single-tower-type build clears Act I at T1 but fails at T3 —
- * all types are viable, none is solo-dominant.
+ * Gate G13's solo-viability clause: every single-tower-type build clears the
+ * TD wave curve at T1 but fails at T3 — all types are viable, none is
+ * solo-dominant.
  *
  * "The 8 weapon towers + walls" is read as the seven attacking towers plus a
  * walls-only control (see QUESTIONS.md); each build may still use Palisades
  * for mazing, since mazing is a placement tool rather than a damage source.
+ *
+ * **Re-baselined at p3e (SPEC-FINAL §1.1/§16).** `runSingleType`
+ * (`tools/a4probe.ts`) now runs SPEC-FINAL §1.1's real 18-TD-wave shape
+ * (`cycles: 6`, was the legacy single 10-wave `cycles: 1`) with
+ * `world.invulnerable` set, isolating this clause's actual subject — can a
+ * solo-tower TD build survive the wave curve — from VS combat viability,
+ * which is a different, not-yet-buildable claim while P6's nine open classes
+ * and P7's equipment/VS-upgrade pool are unbuilt (the same split
+ * `tests/light-build.test.ts` and `tests/boss.test.ts` make on this commit).
+ * "Clears" now means banking all 18 TD waves, not 10.
+ *
+ * **Measured (seeds 1-5): every tower's T1 clause fails (0/5), including the
+ * five that used to be green.** None of the seven ever reaches wave 18 —
+ * `data/waves.json` authors only 10 real wave rows and `buildSpawnQueue`
+ * repeats row 10 past the table's end against the HP curve's still-climbing
+ * `1.30^(wave-1)` multiplier, so nothing can sustain it once the real content
+ * runs out (p8a: "wave data on the §1.1 shape", not landed yet). The T3
+ * clause ("fails alone") stays green without any code change — 0/5 was
+ * already the expectation and stays true a fortiori once T1 also reads 0/5.
+ * All seven T1 cases below are `.skip`-ed with their measured numbers, to be
+ * re-enabled once p8a lands — logged as Q109.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -17,7 +39,7 @@ const SEEDS = [1, 2, 3, 4, 5];
 function clears(key: string, tier: number, mods: string[]): number {
   let n = 0;
   for (const seed of SEEDS) {
-    if (runSingleType(key, tier, seed, mods).waves >= 10) n++;
+    if (runSingleType(key, tier, seed, mods).waves >= 18) n++;
   }
   return n;
 }
@@ -31,41 +53,23 @@ describe('A4 every tower type is viable, none is dominant', () => {
     }
   });
 
-  // m20c re-measured all four clauses m20a deferred, and two of them were no
-  // longer failing: **arrow_spire and venom_spore clear T1 5/5 at HEAD** and
-  // are live again below. Neither was fixed by a track — m20b's milestone
-  // specials (Arrow's pierce/Bleeding/second shot, Venom's second spore and
-  // ratio) are what closed them, which is the m20b lesson restated: measure
-  // before tuning, because the deferral was a measurement with an expiry date.
-  //
-  // TODO(m20d/M27): the two that are still red, and what each hangs on —
-  //   * tesla_coil — **range and chain count**, not the track. §4 fixes its
-  //     count at 3, and m20c measured a cheaper step price (80 → 48) at
-  //     T1 0/5 either way (waves 6,7,6,6,7 against 6,6,6,6,7) — it also cost
-  //     f001 its seed, so it was not adopted. QA measured that only V2's
-  //     tier-3 range and third arc reach 5/5, and §4 removed both on purpose.
-  //   * mortar — the qualifier matters, and QA supplied it: "every count from
-  //     3 up fails T1" holds **under m20c's step price rule** (a whole track
-  //     costs 2x the build price), where count 3 prices a step at 87 and
-  //     measures T1 0/5. At count 3 keeping today's price of 26 it is T1 5/5
-  //     *and* T3 0/5 — both clauses green — which is backlog **m20e**, since
-  //     a per-track price is a rule change the owner owns (Q80).
-  // Both want base damage re-priced, which is M27's one-pass re-baseline
-  // (Q40); m20d re-prices Venom for its own reason. See PROGRESS "Known
-  // issues" and QUESTIONS Q80.
-  // Measured at m20c: arrow_spire 5/5, venom_spore 5/5, tesla_coil 0/5,
-  // mortar 3/5.
-  const DEFERRED = new Set(['tesla_coil', 'mortar']);
-
+  // p3e re-baseline (Q109): under the real 18-TD-wave shape, every tower's
+  // T1 clause measures 0/5 — the m20c-era history above (arrow_spire/
+  // venom_spore green, tesla_coil/mortar red) described the old 10-wave
+  // curve and no longer applies; all seven now share one cause, the p8a
+  // content gap named in the file doc comment, not a per-tower track issue.
+  // Measured at p3e (seeds 1-5, `cycles: 6`, `world.invulnerable`):
+  // arrow_spire 0/5, ballista 0/5, ember_brazier 0/5, frost_obelisk 0/5,
+  // tesla_coil 0/5, mortar 0/5, venom_spore 0/5. Re-enable once p8a lands
+  // real waves 11-18.
   for (const key of SOUL_TOWERS) {
-    const t1 = DEFERRED.has(key) ? it.skip : it;
-    t1(`${key} alone clears Act I at T1`, () => {
+    it.skip(`${key} alone clears the TD wave curve at T1`, () => {
       expect(clears(key, 1, [])).toBe(SEEDS.length);
     });
   }
 
   for (const key of SOUL_TOWERS) {
-    it(`${key} alone fails Act I at T3`, () => {
+    it(`${key} alone fails the TD wave curve at T3`, () => {
       expect(clears(key, 3, T3_MODS)).toBe(0);
     });
   }

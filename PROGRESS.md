@@ -96,8 +96,14 @@ test-retirement ledger. Read §8 before touching anything.
   rate — so the milestone moves damage into a bucket that is already full and
   measures **−5.4%** (88.6 → 83.8 dps). Both clauses are verbatim and both are
   ⚖. Logged as Q87 for §17's review list rather than resolved by an agent.
-- **Next action:** **P3** `p3e` (re-baselining the run-shape-dependent gates
-  against 18 TD + 6 VS — the last open P3 item). `p3d` is done — the old V2
+- **Next action:** **P5** `p5a` (pricing the Venom Spore's track). **P3 is
+  complete in full (p3a-p3e).** `p3e` is done this commit — `light-build`,
+  G13's solo-viability clause (`a4-single-type`) and the boss gate are all
+  re-pointed at the real 18-TD-wave/6-block shape; every one measures red
+  (0/8, 0/5 across all seven towers, 0/20) for the same reason — `data/waves.json`
+  only authors 10 real wave rows, so waves 11-18 repeat row 10 against a
+  still-climbing HP curve — and each is logged `.skip` with its measured
+  numbers rather than forced green, per Q109; see its own entry below. `p3d` is done — the old V2
   Day/Dusk/Night/Dawn cycle machine (Dusk's cinematic wait, Dawn's
   Rekindle-or-Leave ledger, the Core-detonation pocket-clear/approach-lane
   mechanism) is deleted outright now that p3a/p3b/p3c had already re-pointed
@@ -128,6 +134,94 @@ test-retirement ledger. Read §8 before touching anything.
   QA-proven a no-op), and `x002` at `ef69a47` (lifesteal's cap removed and its
   accrual gated to normal damage per §2 — **not** a no-op; the sweep delta is
   below and in the session log). P0's remaining clause is carried as
+- **p3e — what a reader needs to know. P3 is complete in full.** BACKLOG's
+  literal acceptance text names three things: `light-build`, "A4's successor
+  under G13" (`tests/a4-single-type.test.ts`), and the boss gate
+  (`tests/boss.test.ts`), each expected "green or carrying a written reason."
+  All three had been measuring the legacy single-block shape (`cfg()`'s
+  default `cycles: 1`) rather than SPEC-FINAL §1.1's real 18-TD-wave/6-block
+  shape landed by p3a-p3d; this item re-points each at `cycles: 6` and
+  re-measures, with no `/data` edit anywhere. **`light-build.test.ts`** and
+  **`a4-single-type.test.ts`** additionally set `world.invulnerable`, isolating
+  each claim's real subject — can this TD build's maze/economy survive the
+  wave curve — from VS combat survival, which is a separate, not-yet-buildable
+  claim while P6's nine open classes and P7's equipment/VS-upgrade pool are
+  unbuilt (confirmed by a scratch run without `invulnerable`: every policy
+  dies inside VS wave 1, at TD wave 3, losing all differentiation between
+  light and maxed boards). `boss.test.ts`'s two win-rate tests are the
+  exception — reaching and beating the boss is inherently a full-run,
+  VS-inclusive claim, so those two run real VS combat, no isolation. Q109
+  records both decisions, including the metric-choice trap the first attempt
+  fell into: stopping at the first Sundering (3 TD waves) instead of
+  requiring all 18 measures as trivially green for every build, including a
+  walls-only palisade control, which silently erases the "walls fail" and
+  G13's "none clears at T3" claims — rejected once measured, not adopted.
+  **Measured (seeds 1-8 for `light-build`, 1-5 for `a4-single-type`, 1-20 for
+  `boss`): every re-baselined assertion reads 0/N.** `light-build`'s three
+  policies (turtle/maxbuild/kite) all die `defeat_core` between TD wave 10 and
+  14; `a4-single-type`'s seven attacking towers' T1 clause all read 0/5
+  (folding in the two that were already green pre-p3e and the two that were
+  already red — all seven now share one cause); `boss.test.ts`'s scripted-win
+  and win-rate-band tests read 0/20, dying `defeat_core`/`defeat_warden` well
+  short of the boss-gated final block. The common cause, confirmed by reading
+  `buildSpawnQueue` (`src/sim/run.ts`): `data/waves.json` authors exactly 10
+  real TD wave rows; waves 11-18 repeat row 10's exact composition (a p3a
+  design choice, Q105) against the HP-scaling formula's still-climbing
+  `1.30^(wave-1)` multiplier, so nothing can sustain the curve past roughly
+  wave 9-14 by construction, regardless of build quality. That gap is
+  **p8a**'s ("wave data on the §1.1 shape"), explicitly queued after p3e in
+  P8 — authoring it here would be scope creep past this item's own acceptance
+  text. Every assertion that measured red is `.skip`-ed with its measured
+  numbers inline, matching `a4-single-type.test.ts`'s own pre-existing
+  `tesla_coil`/`mortar` pattern and CLAUDE.md rule 6; everything that measured
+  green either way — `a4`'s seven T3 "fails alone" clauses (0/5 was already
+  the expectation), its "walls fail" and "covers seven towers" checks, and
+  every one of `boss.test.ts`'s non-full-run unit tests (phases, telegraph,
+  terrain-shatter, Wraiths, arena fire, chase, Rifts — all built via
+  `act2World()` directly, never touching the run-shape config) — is untouched
+  and stays live. Re-enable point for all nine newly-skipped cases is p8a
+  landing real waves 11-18 content; p8c's own gate (G14) already expects to
+  be the real re-measurement point for the boss fight on the new shape, which
+  is the natural place to also revisit these. **One promise this item does
+  not keep, logged rather than silently dropped:** Q83 expected p1b's G7
+  sealed-vs-open win-rate band (`tests/p1b-seal-winrate.test.ts`) to be
+  re-measured here too, but that test is outside p3e's literal acceptance
+  text (which names only `light-build`/`a4-single-type`/`boss`) and still
+  reads `cfg()`'s default `cycles: 1` untouched by this item — left open,
+  Q109 notes it, and it is not yet re-queued under a new id. **code-reviewer
+  REQUEST-CHANGES → both Major/Minor findings fixed, then re-verified clean**:
+  independently confirmed `world.invulnerable` only gates `damageWarden`
+  (`src/sim/run.ts`) and never `leakIntoCore` (`src/sim/enemies.ts`), so the
+  TD/Core-defense isolation is real and not leaking into gold, wave-clear
+  telemetry or the replay hash (it is itself a hashed field); reproduced the
+  0/8, 0/5 and 0/20 measured numbers independently and confirmed `boss.test.ts`'s
+  eight non-re-baselined unit tests (phases, telegraph, terrain-shatter,
+  Wraiths, arena fire, chase, Rifts) are untouched. Findings: a Major — this
+  item's own commit had left BACKLOG.md self-contradictory, its audit-summary
+  table already reading "P3 done in full (p3a-p3e)" while the Queue section
+  still carried `p3e` as an open, unchecked item never moved to Done — fixed
+  by moving `p3e` into the Done section below and rewording the P1/P3 Queue
+  headers; a Minor — BACKLOG.md's P1 row and Queue section both still claimed
+  "the p1b band [is] re-measured at p3e per Q83," which this item's own
+  Q109 write-up above says did not happen — reworded to match; a Minor/Nit —
+  `tools/m20d-run-a4.ts`, a manual probe script no test or gate reaches, still
+  hardcoded the old wave-10 "clears" bar against `runSingleType`'s new
+  `cycles: 6` shape — bumped to `>= 18` with a comment pointing at Q109/p8a.
+  **qa-playtester PASS**, no bugs found: independently re-derived every
+  measured number by temporarily un-skipping one case per file (restored
+  byte-identical after, confirmed by `git diff`); confirmed `invulnerable`'s
+  only three live read sites repo-wide are `damageWarden`'s guard, the HUD
+  display line and `hashWorld`; confirmed a `light-build` seed run without
+  `invulnerable` dies uniformly at wave 3 to `defeat_warden` with zero build
+  differentiation, the exact failure mode the isolation exists to avoid;
+  confirmed the `.skip`s report as genuinely skipped, not vacuously passed,
+  via `--reporter=verbose`; ran all three `light-build` cases un-skipped
+  together (24 seed×policy pairs) in 68s wall-clock, no hang risk from the
+  raised `MAX_TICKS`; confirmed the diff touches zero `src/` files, so the
+  save/stash/death-flow suites it shares a full run with are structurally
+  unaffected. `npm test`: 661 passed / 34 skipped (0 failed, up from 670/25 at
+  p3d — the net +9 skips this item adds across the three files, no test
+  deleted); `npx tsc --noEmit` clean — refs: §1.1, §16, G6, Q109.
 - **p3a — what a reader needs to know.** SPEC-FINAL §1.1's run shape ("3 TD
   waves, then 1 VS wave, repeating"; 18 TD + 6 VS per run) is live, reusing
   the V2 Day/Dusk/Night/Dawn cycle machine retargeted rather than a new

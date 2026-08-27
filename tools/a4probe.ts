@@ -54,10 +54,15 @@ export function runSingleType(
     allocated: [],
     relics: [],
     policy: `single:${towerKey}`,
-    // SPEC A4 measures the original 10-wave Act I, not the SPEC-V2 cycle split.
-    cycles: 1,
+    // SPEC-FINAL §1.1's real run shape (re-baselined at p3e): 18 TD waves
+    // across 6 blocks, not the old single 10-wave Act I.
+    cycles: 6,
   };
   const run = new Run(cfg);
+  // Isolate solo-tower TD viability from VS combat viability — P6/P7 are
+  // unbuilt, so no build can out-fight a VS wave on character kit alone
+  // today. See tests/a4-single-type.test.ts's doc comment and Q109.
+  run.world.invulnerable = true;
   const policy = new BuilderPolicy(`single:${towerKey}`, {
     towerKeys: [towerKey],
     wallRatio: 0.3,
@@ -66,11 +71,13 @@ export function runSingleType(
     act2: 'kite',
     rushWaves: false,
   });
-  while (!run.done && run.world.tick < 60 * 60 * 45) run.step(policy.act(run.world));
+  while (!run.done && run.world.tick < 60 * 60 * 45 && run.world.wavesCleared < 18) {
+    run.step(policy.act(run.world));
+  }
   const r = run.report();
   return {
     waves: r.wavesCleared,
-    cleared: r.outcome !== 'defeat_core',
+    cleared: r.wavesCleared >= 18,
     outcome: r.outcome,
     survival: r.survivalSeconds,
   };

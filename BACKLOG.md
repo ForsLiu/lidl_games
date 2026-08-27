@@ -29,9 +29,9 @@ still in test headers.
 | Band | State |
 |---|---|
 | P0 sim skeleton | **done** — fixed 60 Hz, named RNG streams, Commands, headless CLI, end-state hash (G2 green except tuner-edited content and fast-forward, see p9f) |
-| P1 TD core | **done** — pathing, 3 owner towers, 20 enemies, economy live; p1a landed sealing (breach pathing, §10), p1b measured G7's win-rate band as a live test — G7 green in full, band re-measured at p3e per Q83 |
+| P1 TD core | **done** — pathing, 3 owner towers, 20 enemies, economy live; p1a landed sealing (breach pathing, §10), p1b measured G7's win-rate band as a live test — G7 green in full; Q83's promised re-measurement of that band at p3e did **not** happen (still `cfg()`'s legacy `cycles: 1`) and is left open, unqueued, per Q109 |
 | P2 VS core | **done in full (p2a-p2f)** — inheritance formula built and wired live, towers inert with their §5 specials live, weapon-panel lineage live, the superseded soul-weapon roster and Dusk picker deleted (G3 green in full) |
-| P3 interleave | **the interleave pattern, multi-summon, leak coupling and the old machine's deletion done, G6 green in full; only the re-baseline is not** — `p3a` retargets the reused V2 cycle machine to 18 TD + 6 VS, 20s build, 75s VS (G6's pattern half); `p3b` stacks up to `maxStackedWaves` TD waves via the `call` command (G6's stacking half); `p3c` re-points leak coupling's existing ×2-into-next-VS-wave mechanism onto TD→VS vocabulary and the real 6-block shape; `p3d` deletes the V2 Day/Dusk/Night/Dawn machine, Rekindle and the Core-detonation pocket/lane mechanism outright; `p3e` (re-baseline) is still open |
+| P3 interleave | **done in full (p3a-p3e)** — `p3a` retargets the reused V2 cycle machine to 18 TD + 6 VS, 20s build, 75s VS (G6's pattern half); `p3b` stacks up to `maxStackedWaves` TD waves via the `call` command (G6's stacking half); `p3c` re-points leak coupling's existing ×2-into-next-VS-wave mechanism onto TD→VS vocabulary and the real 6-block shape; `p3d` deletes the V2 Day/Dusk/Night/Dawn machine, Rekindle and the Core-detonation pocket/lane mechanism outright; `p3e` re-baselines `light-build`/G13's solo-viability clause (`a4-single-type`)/the boss gate against the real shape — all three measure red past ~wave 10-14 (a p8a content gap, not a P3 defect) and are logged `.skip` with their numbers rather than forced green (Q109) |
 | P4 core math | **done** — multiplicative stacking, armor cap +99 / floor −100, 6 damage types + 2 statuses (G4, G5 green) |
 | P5 tower roster | **done bar pricing** — all 10 towers, upgrade tracks, defense bands; two tracks carry a `note` instead of §5's count (G20 unasserted) |
 | P6 classes | **3 of 11**, and on V2's one-Active + Signature framework, not §4's Passive + Q + E + tower passive (G8–G11 unmet) |
@@ -49,8 +49,12 @@ resumes at P1.
 
 ### P1 — TD core: sealing (G7)
 
-P1 is **done** — p1a and p1b are in the Done section. G7 is green in full; per
-Q83 the p1b band is re-measured at p3e after the §1.1 run shape lands.
+P1 is **done** — p1a and p1b are in the Done section. G7 is green in full;
+Q83 expected the p1b band to be re-measured at p3e after the §1.1 run shape
+landed, but p3e's own acceptance text named only `light-build`/
+`a4-single-type`/`boss` and did not touch `tests/p1b-seal-winrate.test.ts` —
+that test still runs `cfg()`'s legacy `cycles: 1` shape, unchanged. Left
+open, logged at Q109, not yet re-queued under a new id.
 
 ### P2 — VS core: the inheritance formula (G3)
 
@@ -64,15 +68,13 @@ line; p2e deleted the superseded soul-weapon roster and picker wholesale.
 
 ### P3 — interleave and leak coupling (G6)
 
-**Gate G6 is green in full** — p3a landed the pattern half, p3b lands
-the stacking half, p3c restates leak coupling on the new shape, p3d (this
-commit) deletes the old cycle machine outright. p3e (re-baseline) is still
-open.
-
-- [ ] (p3e) [balance] Re-baseline the run-shape-dependent gates against 18 TD + 6 VS
-      — acceptance: `light-build`, A4's successor under G13, and the boss gate each
-      green or carrying a written reason; the run-length gate is deferred to p10d,
-      which owns G1 — refs: §16
+**P3 is done in full** — p3a, p3b, p3c, p3d and p3e are all in the Done
+section. Gate G6 is green in full (p3a landed the pattern half, p3b the
+stacking half, p3c restates leak coupling on the new shape, p3d deletes the
+old cycle machine outright); p3e re-baselined `light-build`, G13's
+solo-viability clause (`a4-single-type`) and the boss gate against the real
+18-TD/6-block shape — all three measure red past the wave-10-14 content gap
+and are `.skip`-ed with their numbers per Q109, not forced green.
 
 ### P5 — full tower roster and upgrade tracks (G20)
 
@@ -380,6 +382,70 @@ logged in MIGRATION.md §8 rather than carried as dead items.
   **G19**. The work is `p10d`.
 
 ## Done
+
+- [x] (p3e) [balance] Re-baseline the run-shape-dependent gates against 18 TD + 6
+      VS — this commit. **P3 is complete in full (p3a-p3e).** `light-build.test.ts`,
+      `tests/a4-single-type.test.ts` (G13's solo-viability clause) and
+      `tests/boss.test.ts`'s two win-rate tests all previously measured the legacy
+      single-block 10-wave shape (`cfg()`'s default `cycles: 1`); this item, plus
+      `tools/a4probe.ts`, re-points each at SPEC-FINAL §1.1's real shape
+      (`cycles: 6`, 18 TD waves across 6 blocks) and raises "clears" from wave 10
+      to wave 18. `light-build.test.ts` and `tools/a4probe.ts` additionally set
+      `world.invulnerable`, isolating the TD/Core-defense claim each makes from VS
+      combat survival — a separate, not-yet-buildable claim while P6's nine open
+      classes and P7's equipment/VS-upgrade pool are unbuilt (confirmed empirically:
+      without `invulnerable`, every policy dies inside VS wave 1 at TD wave 3, no
+      differentiation between light and maxed boards). `boss.test.ts`'s two
+      win-rate tests are the deliberate exception — reaching and beating the boss
+      is inherently a full-run, VS-inclusive claim, so they keep real VS combat.
+      **Measured (seeds 1-8 `light-build`, 1-5 `a4-single-type`, 1-20 `boss`):
+      every re-baselined assertion reads 0/N**, all dying `defeat_core` (or, for
+      the un-isolated boss tests, `defeat_core`/`defeat_warden`) between TD wave
+      9 and 14 — never later, never earlier, regardless of build. Root cause,
+      confirmed by reading `buildSpawnQueue` (`src/sim/run.ts`):
+      `data/waves.json` authors exactly 10 real TD wave rows; waves 11-18 repeat
+      row 10's exact composition against the HP-scaling formula's still-climbing
+      `1.30^(wave-1)` multiplier, so nothing can sustain the curve past roughly
+      wave 9-14 by construction — a content gap, not a P3 defect, tracked
+      separately as `p8a` ("wave data on the §1.1 shape"), explicitly queued
+      after this item in P8. Per CLAUDE.md rule 6 (never delete a test to go
+      green), every assertion that measured red is `.skip`-ed in place with its
+      measured numbers inline; every assertion that measured green either way —
+      `a4`'s seven T3 "fails alone" clauses, its "walls fail" and "covers seven
+      towers" checks, and `boss.test.ts`'s eight non-full-run unit tests (phases,
+      telegraph, terrain-shatter, Wraiths, arena fire, chase, Rifts, all built via
+      `act2World()` directly) — is untouched and stays live. Q109 records both
+      design decisions this item needed (what "clears" means once Act I is no
+      longer one linear pass, and what to do once every measurement came back
+      red) and the one promise it does not keep: Q83 expected p1b's G7
+      sealed-vs-open win-rate band (`tests/p1b-seal-winrate.test.ts`) to be
+      re-measured here too, but that test is outside this item's literal
+      acceptance text and still reads `cfg()`'s legacy `cycles: 1`, untouched —
+      left open, not yet re-queued under a new id.
+      **code-reviewer REQUEST-CHANGES → fixed, then re-verified clean**:
+      independently confirmed `world.invulnerable` only gates `damageWarden`
+      and never `leakIntoCore`, so the isolation is real and doesn't leak into
+      gold/telemetry/the replay hash; reproduced every measured number.
+      Findings, all fixed: a Major (this item's own commit left BACKLOG.md
+      self-contradictory — the audit table already read "P3 done in full
+      (p3a-p3e)" while the Queue section still carried `p3e` as an open,
+      unchecked item, never moved to Done — fixed by this entry and the
+      P1/P3 Queue header rewording above), a Minor (BACKLOG.md's P1 row and
+      Queue section both claimed "the p1b band [is] re-measured at p3e per
+      Q83," contradicting this item's own Q109 finding that it wasn't —
+      reworded), and a Minor/Nit (`tools/m20d-run-a4.ts`, a manual probe no
+      test or gate reaches, still hardcoded the old wave-10 bar — bumped to
+      `>= 18`). **qa-playtester PASS**, no bugs found: independently
+      re-derived every measured number by temporarily un-skipping one case
+      per file; confirmed `invulnerable`'s only three live read sites are
+      `damageWarden`'s guard, the HUD line and `hashWorld` (itself hashed, so
+      it can't silently desync a replay); confirmed the `.skip`s report as
+      genuinely skipped via `--reporter=verbose`, not vacuously passed; ran
+      all three `light-build` cases un-skipped together with no hang risk
+      from the raised `MAX_TICKS`; confirmed the diff touches zero `src/`
+      files. `npm test`: 661 passed / 34 skipped (0 failed, up from 670/25 at
+      p3d — the net +9 skips this item adds across the three files, no test
+      deleted); `npx tsc --noEmit` clean — refs: §1.1, §16, G6, Q109.
 
 - [x] (p3d) [polish] Delete the Day/Dusk/Night/Dawn cycle machine, Rekindle, and
       the V2 Core-detonation clauses — this commit. **Gate G6 is unaffected (it
