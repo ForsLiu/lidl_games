@@ -404,9 +404,10 @@ matching the shape sessions 9/13/15 already documented for sibling probes.
 **Suite state.** Full `npx vitest run tests/q14-mutation-smoke.test.ts` taken
 pre-commit: 9 passed / 12 failed — every failure traced to the pre-commit
 git-dirty artifact above (`realFileUntouched` or the "fixture must start
-clean" precondition), none to a real regression; reads clean once this commit
-lands, same as every prior session's identical note. `npx tsc --noEmit -p .`
-clean throughout.
+clean" precondition), none to a real regression. Unlike prior sessions'
+identical note, actually re-ran it post-commit rather than asserting it would
+land clean: 21/21 green, ~352s, `git status` clean throughout the run.
+`npx tsc --noEmit -p .` clean throughout.
 
 **Six actionable items remain** (q21–q26, all unchecked and unblocked), so
 the generation rule does not need to run next session either.
