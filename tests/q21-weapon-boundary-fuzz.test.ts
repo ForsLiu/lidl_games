@@ -15,8 +15,10 @@
  */
 import { describe, expect, it } from 'vitest';
 
+import { Hasher } from '../src/sim/hash';
 import { applyOffer, bindSouls, deriveSouls, rollOffers } from '../src/sim/progression';
 import { hashWorld } from '../src/sim/run';
+import type { StatKey } from '../src/sim/stats';
 import { beginSoulPick } from '../src/sim/sundering';
 import { grantWeapon, levelStats, updateWeapons } from '../src/sim/weapons';
 import {
@@ -25,6 +27,7 @@ import {
   AWAKENING_WEAPON,
   type BoundaryCase,
   awakeningGateCases,
+  boonOfferBoundaryCases,
   forcePlace,
   inheritanceCases,
   levelBoundaryCases,
@@ -37,6 +40,7 @@ import {
 } from '../tools/fuzz-weapon-boundary';
 import {
   AWAKENING_GATE_HOLES,
+  BOON_OFFER_HOLES,
   INHERITANCE_HOLES,
   LEVEL_BOUNDARY_HOLES,
   WEAPON_OFFER_HOLES,
@@ -52,14 +56,15 @@ function toHoleMap(cases: BoundaryCase[]): Record<string, string> {
 }
 
 describe('q21 soul-weapon boundary fuzz', () => {
-  it('runs 9 level + 12 inheritance + 4 awakening + 2 weaponOffer + 9 weaponUpdate cases, one each', () => {
+  it('runs 9 level + 12 inheritance + 4 awakening + 2 weaponOffer + 9 weaponUpdate + 3 boon cases, one each', () => {
     const census = runCensus();
-    expect(census.length).toBe(36);
+    expect(census.length).toBe(39);
     expect(census.filter((c) => c.category === 'level').length).toBe(9);
     expect(census.filter((c) => c.category === 'inheritance').length).toBe(12);
     expect(census.filter((c) => c.category === 'awakening').length).toBe(4);
     expect(census.filter((c) => c.category === 'weaponOffer').length).toBe(2);
     expect(census.filter((c) => c.category === 'weaponUpdate').length).toBe(9);
+    expect(census.filter((c) => c.category === 'boon').length).toBe(3);
     const seen = new Set(census.map((c) => `${c.category}:${c.id}`));
     expect(seen.size).toBe(census.length);
   });
@@ -84,6 +89,10 @@ describe('q21 soul-weapon boundary fuzz', () => {
     expect(toHoleMap(weaponUpdateBoundaryCases())).toEqual(WEAPON_UPDATE_HOLES);
   });
 
+  it('boon-offer census matches the recorded holes exactly', () => {
+    expect(toHoleMap(boonOfferBoundaryCases())).toEqual(BOON_OFFER_HOLES);
+  });
+
   it('everything not in a recorded hole is cleanly ok', () => {
     for (const c of runCensus()) {
       const holes =
@@ -95,7 +104,9 @@ describe('q21 soul-weapon boundary fuzz', () => {
               ? AWAKENING_GATE_HOLES
               : c.category === 'weaponOffer'
                 ? WEAPON_OFFER_HOLES
-                : WEAPON_UPDATE_HOLES;
+                : c.category === 'weaponUpdate'
+                  ? WEAPON_UPDATE_HOLES
+                  : BOON_OFFER_HOLES;
       if (c.id in holes) continue;
       expect(c.verdict, `${c.category}:${c.id} — ${c.detail}`).toBe('ok');
     }
@@ -394,6 +405,158 @@ describe('q21 soul-weapon boundary fuzz', () => {
       for (const ws of w.weapons) {
         expect(Number.isInteger(ws.level) && ws.level >= 1).toBe(true);
         if (firstBind.has(ws.key)) expect(ws.level).toBe(firstBind.get(ws.key));
+      }
+    });
+  });
+
+  describe("finding: applyOffer's 'boon' case stores a forged toLevel with zero validation at all (q30)", () => {
+    // progression.ts:187-196: `w.boonRanks[b.key] = offer.toLevel` — not even
+    // the upper-bound-only clamp the 'weapon' case (q27) gets. The measured
+    // consequence splits three ways depending on what `buildOfferPool`'s
+    // `rank >= b.maxRank` re-offer cap (progression.ts:129) does with the
+    // poisoned value once it reads it back.
+    it('toLevel=Infinity: stored illegally, but buildOfferPool legitimately excludes it — Infinity >= maxRank is sound', () => {
+      const w = newWorld();
+      applyOffer(w, { kind: 'boon', key: AWAKENING_BOON, name: 'x', desc: 'x', toLevel: Infinity });
+      expect(w.boonRanks[AWAKENING_BOON]).toBe(Infinity);
+      w.phase = 'levelup';
+      for (let i = 0; i < 25; i++) {
+        const offers = rollOffers(w);
+        expect(offers.some((o) => o.kind === 'boon' && o.key === AWAKENING_BOON)).toBe(false);
+      }
+    });
+
+    it("toLevel=Infinity: hashWorld distinguishes it from a legitimately-maxed boon, but only because 0 is unreachable, not because Infinity has a distinct hash contribution", () => {
+      // hash.ts:12-20's Hasher.int(v) does `v | 0` (JS ToInt32), which
+      // coerces NaN, +Infinity, -Infinity AND an explicit 0 to the IDENTICAL
+      // hash contribution — measured directly here, not assumed. So
+      // hashWorld only "sees" the Infinity poisoning because no legitimate
+      // applyOffer call ever stores 0 in boonRanks (every real offer is
+      // rank + 1 >= 1) — the poisoned state collides with an unreachable
+      // rank, not with anything a real run could ever produce.
+      const legit = newWorld();
+      applyOffer(legit, { kind: 'boon', key: AWAKENING_BOON, name: 'x', desc: 'x', toLevel: 5 }); // legitimate max rank
+      const poisoned = newWorld();
+      applyOffer(poisoned, { kind: 'boon', key: AWAKENING_BOON, name: 'x', desc: 'x', toLevel: Infinity });
+      expect(hashWorld(legit)).not.toBe(hashWorld(poisoned));
+
+      const h = new Hasher();
+      h.str(AWAKENING_BOON).int(Infinity);
+      const hZero = new Hasher();
+      hZero.str(AWAKENING_BOON).int(0);
+      expect(h.value).toBe(hZero.value); // the actual collision this claim rests on
+    });
+
+    it('toLevel=NaN: stored illegally, and defeats the ENTIRE draw\'s weighting, not just its own re-offer cap', () => {
+      // NaN >= maxRank is false, so the offer stays in the pool with a NaN
+      // rollOffers weight. Rng.weightedIndex sums weights into a NaN total,
+      // which makes every `r < 0` scan comparison false and falls through to
+      // `return weights.length - 1` — deterministically the LAST remaining
+      // pool entry, every draw, regardless of the RNG stream. It happens not
+      // to be last in this pool's order, so it never wins itself, but every
+      // other offer drawn in the same call is no longer a fair weighted pick
+      // either — proven here by asserting the draw becomes fully
+      // reproducible across repeated calls that would otherwise advance the
+      // RNG stream and vary the result.
+      const w = newWorld();
+      applyOffer(w, { kind: 'boon', key: AWAKENING_BOON, name: 'x', desc: 'x', toLevel: NaN });
+      expect(w.boonRanks[AWAKENING_BOON]).toBeNaN();
+      w.phase = 'levelup';
+      const first = rollOffers(w).map((o) => `${o.kind}:${o.key}`);
+      const second = rollOffers(w).map((o) => `${o.kind}:${o.key}`);
+      expect(second).toEqual(first); // a fair weighted draw would vary as the RNG stream advances
+      expect(first.includes(`boon:${AWAKENING_BOON}`)).toBe(false);
+    });
+
+    it('toLevel=-5: stored illegally, and buildOfferPool keeps offering it — a real, unbounded re-pick exploit', () => {
+      // -5 >= maxRank is false too, but -5 / maxRank is finite, so the
+      // weight stays finite and the draw's fairness is undisturbed: the
+      // corrupted boon really does keep winning a real (if disfavoured)
+      // share of draws. StatBag.add (stats.ts:159) accumulates `perRank`
+      // per re-pick with no cap of its own, so re-picking it stacks the stat
+      // past maxRank indefinitely.
+      const w = newWorld();
+      applyOffer(w, { kind: 'boon', key: AWAKENING_BOON, name: 'x', desc: 'x', toLevel: -5 });
+      expect(w.boonRanks[AWAKENING_BOON]).toBe(-5);
+      w.phase = 'levelup';
+      let picks = 0;
+      for (let i = 0; i < 100 && picks < 3; i++) {
+        const offers = rollOffers(w);
+        if (offers.some((o) => o.kind === 'boon' && o.key === AWAKENING_BOON)) {
+          applyOffer(w, { kind: 'boon', key: AWAKENING_BOON, name: 'x', desc: 'x', toLevel: -5 + picks + 1 });
+          picks++;
+        }
+      }
+      expect(picks).toBeGreaterThan(0); // the cap never stopped it from re-surfacing
+      const haste = w.content.boonByKey.get(AWAKENING_BOON)!;
+      const attackSpeedTotal = w.stats.total(haste.stat as StatKey);
+      // One addAll(`boon:haste`, ...) per applyOffer call (the initial -5
+      // grant plus each re-pick), all accumulated under the same source key.
+      expect(attackSpeedTotal).toBeCloseTo(haste.perRank * (picks + 1), 5);
+    });
+
+    it('the legitimate case (a real boon-rank offer) also applies and stays in-domain — this is not a general applyOffer failure', () => {
+      const w = newWorld();
+      applyOffer(w, { kind: 'boon', key: AWAKENING_BOON, name: 'x', desc: 'x', toLevel: 1 });
+      expect(w.boonRanks[AWAKENING_BOON]).toBe(1);
+      w.phase = 'levelup';
+      expect(() => rollOffers(w)).not.toThrow();
+    });
+
+    it('not reachable through the real Command surface: rollOffers only ever emits toLevel = rank + 1, capped by maxRank', () => {
+      const w = newWorld();
+      w.phase = 'levelup';
+      for (let i = 0; i < 25; i++) {
+        const offers = rollOffers(w);
+        for (const o of offers.filter((x) => x.kind === 'boon')) {
+          const rank = w.boonRanks[o.key] ?? 0;
+          expect(o.toLevel).toBe(rank + 1);
+          expect(o.toLevel).toBeLessThanOrEqual(w.content.boonByKey.get(o.key)!.maxRank);
+        }
+      }
+    });
+  });
+
+  describe('finding: a poisoned boonRanks value also fools buildOfferPool\'s own Awakening rank gate at generation time — not just applyOffer trusting a forged offer', () => {
+    // progression.ts:147: `(w.boonRanks[a.boon] ?? 0) < a.boonRank) continue;`
+    // is the real, correctly-written generation-time gate — distinct from
+    // the already-pinned AWAKENING_GATE_HOLES finding, which is about
+    // applyOffer trusting an already-forged Offer. Here the *real*,
+    // unforged buildOfferPool/rollOffers path is fooled because it reads
+    // back a boonRanks value corrupted by an earlier forged 'boon' offer —
+    // a two-hop chain, still not reachable via a single forged Command.
+    it('boonRank=NaN, weapon level met: buildOfferPool reliably surfaces the Awakening despite the (corrupted) rank gate', () => {
+      const w = newWorld();
+      grantWeapon(w, AWAKENING_WEAPON, 6, 0); // level gate legitimately met
+      applyOffer(w, { kind: 'boon', key: AWAKENING_BOON, name: 'x', desc: 'x', toLevel: NaN }); // rank gate poisoned
+      w.phase = 'levelup';
+      let seen = false;
+      for (let i = 0; i < 10 && !seen; i++) {
+        seen = rollOffers(w).some((o) => o.kind === 'awakening' && o.key === AWAKENING_KEY);
+      }
+      expect(seen).toBe(true);
+    });
+
+    it('boonRank=Infinity, weapon level met: buildOfferPool surfaces the Awakening — Infinity < 3 is false, same gate logic bypass', () => {
+      const w = newWorld();
+      grantWeapon(w, AWAKENING_WEAPON, 6, 0);
+      applyOffer(w, { kind: 'boon', key: AWAKENING_BOON, name: 'x', desc: 'x', toLevel: Infinity });
+      w.phase = 'levelup';
+      let seen = false;
+      for (let i = 0; i < 25 && !seen; i++) {
+        seen = rollOffers(w).some((o) => o.kind === 'awakening' && o.key === AWAKENING_KEY);
+      }
+      expect(seen).toBe(true);
+    });
+
+    it('boonRank=-5, weapon level met: buildOfferPool correctly keeps the gate closed — -5 < 3 is true', () => {
+      const w = newWorld();
+      grantWeapon(w, AWAKENING_WEAPON, 6, 0);
+      applyOffer(w, { kind: 'boon', key: AWAKENING_BOON, name: 'x', desc: 'x', toLevel: -5 });
+      w.phase = 'levelup';
+      for (let i = 0; i < 25; i++) {
+        const offers = rollOffers(w);
+        expect(offers.some((o) => o.kind === 'awakening' && o.key === AWAKENING_KEY)).toBe(false);
       }
     });
   });

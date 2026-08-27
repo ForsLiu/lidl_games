@@ -15,9 +15,9 @@
  * the write-up (session 17).
  *
  * Regenerate by running `npx tsx tools/fuzz-weapon-boundary.ts` and
- * transcribing every non-`ok` line — there are 11 today, against 36 total
- * (9 level + 12 inheritance + 4 awakening + 2 weaponOffer + 9 weaponUpdate,
- * the last added by q29).
+ * transcribing every non-`ok` line — there are 14 today, against 39 total
+ * (9 level + 12 inheritance + 4 awakening + 2 weaponOffer + 9 weaponUpdate +
+ * 3 boon, the last added by q30).
  */
 import type { Verdict } from '../tools/fuzz-weapon-boundary';
 
@@ -120,4 +120,42 @@ export const WEAPON_UPDATE_HOLES: Readonly<Record<string, Verdict>> = {
   posInf: 'contaminated',
   nan: 'crashes',
   fractional: 'crashes',
+};
+
+/**
+ * `applyOffer`'s `'boon'` case (progression.ts:187-196) has *zero*
+ * validation of `offer.toLevel` — not even the upper-bound-only clamp
+ * `WEAPON OFFER` gets — so `w.boonRanks[b.key] = offer.toLevel` assigns a
+ * forged offer's value straight through (q30). All three probed values
+ * (`NaN`, `-5`, `Infinity`) leave the *stored* rank illegal, but the
+ * measured, live consequence splits three ways, not two:
+ *   - `Infinity`: `buildOfferPool`'s `rank >= b.maxRank` cap (line 129)
+ *     legitimately excludes it from the offer pool — `Infinity >= 5` is
+ *     mathematically sound. `'contaminated'`, not `'ungated'`: the cap
+ *     genuinely holds, only the stored value is illegal.
+ *   - `NaN`: `NaN >= b.maxRank` is `false`, so the offer *is* pushed into
+ *     the pool with a `NaN` weight — but `Rng.weightedIndex` sums weights
+ *     into a `NaN` total, which makes every in-loop `r < 0` check false and
+ *     falls through to its `return weights.length - 1` fallback: the *last*
+ *     remaining pool entry, deterministically, every draw. The corrupted
+ *     boon happens not to be last in this content's pool order, so it never
+ *     wins — measured 0/200 draws — but that is a side effect of the whole
+ *     draw's weighting being defeated, not the cap working. Still
+ *     `'contaminated'` here (it does not reoffer), but for a structurally
+ *     different and more concerning reason than the `Infinity` case, spelled
+ *     out in `tools/fuzz-weapon-boundary.ts`'s own doc comment.
+ *   - `-5` (negative): `-5 >= b.maxRank` is `false` too, but `-5 / b.maxRank`
+ *     is finite, so the weight stays finite and the draw's fairness is
+ *     undisturbed — the boon really does keep winning a real (if
+ *     disfavoured) share of draws, measured 48/200. `'ungated'`: a genuine,
+ *     unbounded exploit, since `StatBag.add` (stats.ts:159) accumulates
+ *     `perRank` per re-pick with no cap of its own.
+ * Not reachable through the real Command surface today: `buildOfferPool`
+ * only ever emits `toLevel: rank + 1`, always a legal integer in
+ * `[1, maxRank]`.
+ */
+export const BOON_OFFER_HOLES: Readonly<Record<string, Verdict>> = {
+  'boon:toLevelNan': 'contaminated',
+  'boon:toLevelNegative': 'ungated',
+  'boon:toLevelInfinite': 'contaminated',
 };

@@ -320,7 +320,7 @@ coverage gaps session 1's log recorded. All five are inside Scope as written.*
       whichever it measures), exercised by
       `tests/q21-weapon-boundary-fuzz.test.ts` — refs: q21, q27,
       src/sim/weapons.ts:61-79
-- [ ] (q30) [bug][feat] `applyOffer`'s `'boon'` case
+- [x] (q30) [bug][feat] `applyOffer`'s `'boon'` case
       (`src/sim/progression.ts:187-196`) has *zero* validation of
       `offer.toLevel` — unlike the `'weapon'` case (q27), which at least
       clamps the upper bound, `w.boonRanks[b.key] = offer.toLevel;` assigns a
@@ -533,6 +533,105 @@ resolve if it wants the CLI entry points too. All five are inside Scope as
 written; none needs a `package.json` edit.*
 
 ## Log
+
+### 2026-08-27 — session 28
+
+**Feedback inbox:** no `feedback/` directory exists in this worktree (checked
+with Glob for `feedback/**`). Nothing to process, nothing moved.
+
+**Five actionable items were in queue** (q30, q31, q32, q33, q34, all
+unchecked and unblocked), at the generation rule's floor, so the generation
+rule did not run. Took q30, the top item.
+
+**q30 done.** `tools/fuzz-weapon-boundary.ts` (new 6th `BoundaryCase`
+category `'boon'`, `boonOfferBoundaryCases()`, wired into `runCensus()`),
+`tests/q21-weapon-boundary-fuzz.ts` (new `BOON_OFFER_HOLES` pinned map),
+`tests/q21-weapon-boundary-fuzz.test.ts` (+10 tests, 43 total).
+
+**What it does.** `applyOffer`'s `'boon'` case (`src/sim/progression.ts:
+187-196`) does `w.boonRanks[b.key] = offer.toLevel` with *zero* validation —
+not even the upper-bound-only clamp the `'weapon'` case (q27) gets. Probed
+the same `AWAKENING_BOON` ('haste', maxRank 5) with `NaN`/`-5`/`Infinity` and
+measured (not assumed) three genuinely different mechanisms, not a uniform
+"illegal value" story:
+- `Infinity`: `buildOfferPool`'s `rank >= b.maxRank` re-offer cap
+  (progression.ts:129) legitimately excludes it — `Infinity >= 5` is
+  mathematically sound. `'contaminated'` (stored value illegal, cap holds).
+- `NaN`: `NaN >= 5` is `false`, so the poisoned offer stays in the pool with
+  a `NaN` `rollOffers` weight. `Rng.weightedIndex` (`src/sim/rng.ts`) sums
+  weights into a `NaN` total, which defeats every `r < 0` scan comparison and
+  falls through to `return weights.length - 1` — deterministically the last
+  remaining pool entry, every draw, regardless of the RNG stream (confirmed:
+  two consecutive `rollOffers` calls return byte-identical results, which a
+  fair weighted draw would not). The boon itself never wins as a side effect
+  of this (0/200 in a wider manual sample), but the *entire draw's fairness*
+  is defeated whenever a NaN weight is anywhere in the pool — a more general,
+  unfixed-here RNG-fairness gap this finding surfaced. Still
+  `'contaminated'`, for a structurally different reason than `Infinity`.
+- `-5` (negative): also not caught by `>=`, but finite, so the draw stays
+  fairly weighted and the corrupted boon genuinely keeps winning re-picks
+  (measured 48/200). `'ungated'`: a real, unbounded exploit —
+  `StatBag.add` (`src/sim/stats.ts:159`) accumulates `perRank` per re-pick
+  with no cap of its own, demonstrated live by re-picking 3 times and
+  asserting the accumulated `attackSpeed` total.
+
+A second, bonus finding in its own describe block: the same poisoned
+`boonRanks[AWAKENING_BOON]` also fools `buildOfferPool`'s own, separately-
+written Awakening rank gate (progression.ts:147) at *generation* time via the
+real `rollOffers` path — not just `applyOffer` trusting an already-forged
+offer (the earlier, already-pinned `AWAKENING_GATE_HOLES` finding). Measured:
+NaN rank → Awakening reliably surfaces despite the rank gate being unmet;
+Infinity rank → surfaces ~62.5% of draws; negative rank → correctly stays
+gated closed (`-5 < 3` is `true`).
+
+**Review (code-reviewer, REQUEST-CHANGES then APPROVE after fix).**
+Independently re-derived every mechanism against the live source
+(`progression.ts`, `rng.ts`, `stats.ts`, `hash.ts`) and reproduced the exact
+measured figures (0/200, 48/200, the `weightedIndex` fallback). Found one
+**Major**: the doc comment claimed the Infinity-poisoned boon rank was
+"observable via the determinism hash" without any test proving it —
+BACKLOG-QUALITY.md's own q30 acceptance line explicitly required "recording
+what `h.int()` actually does with the poisoned value," which was simply not
+implemented. Measured directly: `Hasher.int()`'s `v | 0` (hash.ts:13)
+collapses `NaN`, `±Infinity`, *and* an explicit `0` to the identical hash —
+the claim was true only because no legitimate `applyOffer` call ever stores
+`0`, a narrower and different claim than originally written. Fixed by adding
+a `hashWorld`-comparison test (legit rank-5 vs. Infinity-poisoned) plus a
+direct `Hasher.int(Infinity)` vs `Hasher.int(0)` equality assertion pinning
+the actual collision, and correcting the doc comment to state the nuanced
+truth. Re-verified (43/43, `tsc` clean) before re-approving.
+
+**QA (qa-playtester, PASS).** Cross-checked every claimed mechanism against
+the live source independently. Mutation-tested for real: patched the `'boon'`
+case with a naive `Math.max(0, Math.min(b.maxRank, offer.toLevel))` clamp,
+reran — exactly 3/43 tests went red for the right reason (the raw-stored-
+value assertions for Infinity/-5 plus the hashWorld-distinguish test); the
+NaN-stored test correctly stayed green since `Math.max/min` still propagates
+`NaN` in JS, matching what the doc comments already claim. Restored
+`src/sim/progression.ts` byte-for-byte via `git checkout --`, confirmed
+`git status --porcelain` back to the three expected files. Adversarially
+reviewed all of `progression.ts` and `weapons.ts` for a further sibling gap
+now that all three `Offer` kinds have a pinned finding (`'weapon'`: q27,
+`'boon'`: q30, `'awakening'`: no numeric field to poison, correctly not a
+gap) — found one candidate (`applyOffer`'s awakening case pushes
+`w.awakenings` with no dedupe) but traced every reader and confirmed zero
+observable consequence today, so did not file it. Confirmed q14's
+`gitDiffClean()` failures against the uncommitted lane diff are the same
+pre-existing artifact prior sessions have documented, not a new regression
+(21/21 green standalone on a clean tree).
+
+**Suite state.** `npx vitest run tests/q21-weapon-boundary-fuzz.test.ts` —
+43/43 green. `npx tsc --noEmit -p .` clean. Full `npx vitest run` this
+session (background, before the hash-test fix landed) — 894 passed, 11
+failed (all `tests/q14-mutation-smoke.test.ts`, the documented
+`gitDiffClean()`-sees-the-uncommitted-lane-diff artifact), 79 skipped;
+QA separately reran `q14-mutation-smoke.test.ts` standalone on a clean tree
+(21/21 green) after this session's diff was in place, confirming no new
+regression.
+
+**Four actionable items remain** (q31, q32, q33, q34, all unchecked and
+unblocked), still at or above the generation rule's floor of 3, so the
+generation rule does not need to run next session either.
 
 ### 2026-08-27 — session 27
 

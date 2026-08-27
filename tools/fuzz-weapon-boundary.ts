@@ -44,6 +44,14 @@
  *      or `applyOffer`'s `'weapon'` case when either passes an out-of-domain
  *      `level` to an *already-granted* weapon — not a live Command-surface
  *      exploit today, since neither caller's real inputs are ever illegal.
+ *   6. BOON OFFER (q30) — `applyOffer`'s `'boon'` case (progression.ts:
+ *      187-196) has *zero* validation of `offer.toLevel`, not even the
+ *      upper-bound-only clamp WEAPON OFFER gets: `w.boonRanks[b.key] =
+ *      offer.toLevel` assigns a forged offer's value straight through. The
+ *      poisoned rank then corrupts `buildOfferPool`'s own, independently
+ *      correct `rank >= b.maxRank` re-offer cap (progression.ts:129) — NaN
+ *      and negative values defeat the comparison and let the boon be
+ *      re-picked (and its stats re-stacked) forever past `maxRank`.
  *
  * Every probe is a direct `World` construction (`new World(cfg(), content)`)
  * plus, where needed, `forcePlace` — the same "write a Structure directly,
@@ -56,7 +64,7 @@
  */
 
 import { type Content, loadContent } from '../src/sim/content';
-import { applyOffer, bindSouls, deriveSouls } from '../src/sim/progression';
+import { applyOffer, bindSouls, deriveSouls, rollOffers } from '../src/sim/progression';
 import { beginSoulPick } from '../src/sim/sundering';
 import type { RunConfig, Structure } from '../src/sim/types';
 import { grantWeapon, updateWeapons } from '../src/sim/weapons';
@@ -65,7 +73,7 @@ import { World } from '../src/sim/world';
 export type Verdict = 'ok' | 'crashes' | 'ungated' | 'contaminated';
 
 export interface BoundaryCase {
-  category: 'level' | 'inheritance' | 'awakening' | 'weaponOffer' | 'weaponUpdate';
+  category: 'level' | 'inheritance' | 'awakening' | 'weaponOffer' | 'weaponUpdate' | 'boon';
   id: string;
   verdict: Verdict;
   detail: string;
@@ -331,6 +339,78 @@ export function weaponUpdateBoundaryCases(content: Content = loadContent()): Bou
   });
 }
 
+/* ========================================================== 6. BOON OFFER ========================================================== */
+
+/**
+ * Reuses `AWAKENING_BOON` ('haste', maxRank 5 — the same boon
+ * `AWAKENING_GATE_INPUTS` already gates the Awakening on, at rank 3) as the
+ * probed boon, so the same poisoned state can also demonstrate, in the test
+ * file, that `buildOfferPool`'s independently-written Awakening rank check
+ * (progression.ts:147) is fooled by the same corruption — not just its own
+ * `'boon'`-offer re-cap check (progression.ts:129).
+ *
+ * Verdict measured (not assumed, and not the same mechanism for all three —
+ * checked live with `tools/_scratch-probe*.ts`, not committed): does
+ * `buildOfferPool`'s `rank >= b.maxRank` cap (progression.ts:129) still stop
+ * the boon reappearing in the pool once its rank is poisoned?
+ *   - Infinity: `Infinity >= 5` is `true` — the comparison is mathematically
+ *     sound even on the poisoned value, so the boon is legitimately excluded
+ *     from the pool. `'contaminated'`: the stored rank is still illegal.
+ *     Distinguishable from every *legitimately reachable* `hashWorld` state
+ *     for this boon key, but not for the reason it first looks like —
+ *     `Hasher.int()`'s `v | 0` (hash.ts:13) coerces `NaN`/`±Infinity` *and*
+ *     an explicit `0` to the identical hash contribution, measured directly;
+ *     it only reads as "observable" because no legitimate `applyOffer` call
+ *     ever stores `0` (every real offer is `rank + 1 >= 1`), not because
+ *     `Infinity` carries a distinct bit pattern.
+ *   - NaN: `NaN >= 5` is `false`, so the offer *is* pushed into the pool,
+ *     with `value: NaN / 5 = NaN` and therefore a `NaN` `rollOffers` weight.
+ *     `Rng.weightedIndex` sums weights into `total`; a `NaN` total makes
+ *     every `r < 0` comparison in its scan false, so the loop falls through
+ *     to its `return weights.length - 1` fallback — deterministically the
+ *     *last remaining pool entry*, not the corrupted one, every single draw
+ *     (measured: 0/200 across a wider sample than the census itself takes).
+ *     So it never reoffers, but not because the cap held — the cap did
+ *     *not* fire, and the cost is a side effect worse than a single boon
+ *     reoffering: the entire draw's weighting is defeated whenever a NaN
+ *     weight is anywhere in the pool, an independent, more general RNG-
+ *     fairness gap this finding surfaced but does not fix (filed
+ *     separately). `'contaminated'`, same as Infinity, but for a
+ *     structurally different and more concerning reason.
+ *   - Negative (-5): `-5 >= 5` is `false`, so the offer is pushed into the
+ *     pool too, but `value: -5 / 5 = -1` is finite, so its `rollOffers`
+ *     weight is finite and the draw's weighting is undisturbed — it really
+ *     does keep winning a fair (if slightly disfavoured) share of draws,
+ *     confirmed at 48/200 in a wider sample. `'ungated'`: a genuine,
+ *     unbounded exploit — `applyOffer`'s own `+= b.perRank` stat add
+ *     accumulates per re-pick (`StatBag.add`, stats.ts:159), so this lets a
+ *     forged-offer-poisoned boon stack past `maxRank` indefinitely.
+ */
+const BOON_OFFER_INPUTS: readonly { id: string; toLevel: number }[] = [
+  { id: 'boon:toLevelNan', toLevel: NaN },
+  { id: 'boon:toLevelNegative', toLevel: -5 },
+  { id: 'boon:toLevelInfinite', toLevel: Infinity },
+];
+
+export function boonOfferBoundaryCases(content: Content = loadContent()): BoundaryCase[] {
+  return BOON_OFFER_INPUTS.map(({ id, toLevel }) => {
+    const w = newWorld(content);
+    applyOffer(w, { kind: 'boon', key: AWAKENING_BOON, name: 'x', desc: 'x', toLevel });
+    const storedRank = w.boonRanks[AWAKENING_BOON];
+    w.phase = 'levelup';
+    let reoffered = false;
+    for (let i = 0; i < 100 && !reoffered; i++) {
+      const offers = rollOffers(w);
+      if (offers.some((o) => o.kind === 'boon' && o.key === AWAKENING_BOON)) reoffered = true;
+    }
+    const verdict: Verdict = reoffered ? 'ungated' : 'contaminated';
+    const detail = reoffered
+      ? `applyOffer(toLevel=${toLevel}) -> boonRanks.${AWAKENING_BOON}=${storedRank}, buildOfferPool keeps offering it (cap bypassed)`
+      : `applyOffer(toLevel=${toLevel}) -> boonRanks.${AWAKENING_BOON}=${storedRank}, buildOfferPool never re-offers it in 100 draws`;
+    return { category: 'boon', id, verdict, detail };
+  });
+}
+
 /* =============================================================== census =============================================================== */
 
 export function runCensus(content: Content = loadContent()): BoundaryCase[] {
@@ -340,6 +420,7 @@ export function runCensus(content: Content = loadContent()): BoundaryCase[] {
     ...awakeningGateCases(content),
     ...weaponOfferBoundaryCases(content),
     ...weaponUpdateBoundaryCases(content),
+    ...boonOfferBoundaryCases(content),
   ];
 }
 
