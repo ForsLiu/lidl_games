@@ -124,7 +124,7 @@ coverage gaps session 1's log recorded. All five are inside Scope as written.*
       referencing `KNOWN_HOLES` notes against BACKLOG-QUALITY.md's own
       checkboxes) so a hole citing an already-`[x]`'d lane item goes red by
       name instead of silently rotting again — refs: q10, sessions 6/8/9 logs
-- [ ] (q18) [bug][feat] Architecture rule 2's content-hash replay guarantee
+- [x] (q18) [bug][feat] Architecture rule 2's content-hash replay guarantee
       ("RunConfig carries a content hash so a replay against edited /data
       fails loudly") has zero implementation and zero test coverage — grepping
       the whole repo for `contentHash`/`dataHash`/`configHash` finds no hits
@@ -205,6 +205,99 @@ resolve if it wants the CLI entry points too. All five are inside Scope as
 written; none needs a `package.json` edit.*
 
 ## Log
+
+### 2026-08-27 — session 14
+
+**Feedback inbox:** `feedback/` does not exist in this worktree (checked with
+`ls`). Nothing to process, nothing moved.
+
+**Four actionable items were in queue** (q18–q21, all unchecked and
+unblocked), so the generation rule did not run. Found `tests/q18-content-hash-replay.test.ts`
+already sitting in the worktree, uncommitted, at session start — the same
+shape prior sessions have repeatedly hit (a prior session wrote the probe but
+stopped before verification/commit). Verified rather than trusted, per this
+file's own standing lesson: temporarily un-skipped the test and confirmed it
+genuinely fails today (`expected false to be true`), then restored `it.skip`
+and confirmed a clean `git status`/`git diff` before treating any of it as
+done.
+
+**q18 done.** `tests/q18-content-hash-replay.test.ts` (1 test, `it.skip`'d).
+
+**What it does.** CLAUDE.md's architecture rule 2 promises "`RunConfig`
+carries a content hash so a replay against edited `/data` fails loudly."
+Grepping the whole repo for `contentHash`/`dataHash`/`configHash` finds no
+hits outside docs/comments (`tools/gate-audit.ts`'s own G2 note already flags
+this), and `RunConfig` (`src/sim/types.ts`) has no such field. The test
+records a run via `replay(config, log)`, then mutates the live cached
+`Content` singleton in place (`loadContent().enemyByKey.get('husk').hp *=
+50`) — the in-process stand-in for editing `enemies.json` on disk between
+record and replay, and the only way to exercise this within one process,
+since a second `loadContent()` call would just hand back the same cached
+object regardless of what's on disk — and replays the identical
+`RunConfig`+log again. Measured today: the second `replay()` does not throw;
+the two runs' end-state hashes silently diverge instead (`c8585c4c`/kills=2
+before the mutation, `4cf0f10d`/kills=0 after, at this fixture's seed/log).
+The assertion is written to the *desired* behavior (`expect(threw).toBe(true)`)
+and wrapped in `it.skip`, since this lane cannot edit `/src` to build the
+actual guarantee — unskip with the fix.
+
+**BUG filed for main lane:** architecture rule 2's "replay against edited
+`/data` fails loudly" guarantee has zero implementation. `RunConfig` carries
+no content hash, `loadContent()`'s parsed result is never fingerprinted, and
+a replay whose backing content has changed since it was recorded neither
+throws nor is detected — it silently produces a different end-state hash
+with no signal to the caller that anything is wrong. Repro is
+`tests/q18-content-hash-replay.test.ts`; unskip its one test to reproduce
+live. Fix belongs at `RunConfig`'s construction (stamp a hash of the loaded
+content) and at replay time (recompute and compare, throw on mismatch).
+
+**Review (code-reviewer, APPROVE, 1 Minor, addressed by this Log entry).**
+Independently re-verified the repro (un-skipped, reproduced the exact
+failure, re-skipped, confirmed no lingering diff), confirmed `World`'s
+constructor defaults to the module-level `loadContent()` singleton and enemy
+spawning reads `def.hp` live off that shared object rather than a value
+baked in earlier — so the in-place mutation is a faithful stand-in for an
+on-disk edit, not a strawman. Confirmed the comment's cited `RunReport`
+fields, `Hasher.hex()` format, and the `finally`-block restoration of
+`husk.hp` are all correct and leave no cross-test contamination. Confirmed
+scope (`git diff --stat` restricted to the one new test file). The one
+Minor — the test's own comments and the backlog item both point at a Log
+write-up and checkbox flip that didn't exist yet at review time — is closed
+by this entry.
+
+**QA (qa-playtester, PASS, no bugs found).** Ran the file standalone (skipped,
+clean) and confirmed the live repro independently: un-skipped, ran, got
+`threw=false`; re-skipped, confirmed byte-identical file content via checksum
+before/after and a clean working tree. Mutation-tested the test's own logic
+with a disposable, never-committed scratch file: confirmed two replays of the
+*same unmutated* config+log produce byte-identical reports (ruling out
+replay non-determinism as an alternate explanation for the assertion
+failing), and confirmed the mutated replay diverges with the exact figures
+(`kills` 2→0, `leaks` 1→2, `endHash` `c8585c4c`→`4cf0f10d`) quoted in the
+test's own comment — the failure is genuinely caused by the induced content
+edit, not vacuous. Independently grepped for `contentHash`/`dataHash`/
+`configHash`, confirmed zero implementation (the one hit outside this test
+and `gate-audit.ts`'s note is `BACKLOG-TUNER.md`'s unrelated, unstarted t26d
+item in a different lane, whose referenced path does not exist).
+`npx tsc --noEmit -p .` clean throughout.
+
+**Suite state.** `npx vitest run tests/q18-content-hash-replay.test.ts` — 1
+skipped, exit 0. A full `npx vitest run` taken while this write-up was still
+uncommitted read **816 passed / 92 skipped, 1 file failed** — a single
+`q14-mutation-smoke.test.ts` case (`removeDir`'s `bench/.tmp/q14-mutation-scratch`
+cleanup) failed with a Windows `EPERM` on the scratch directory, a transient
+file-lock this file's `RM_RETRY` already exists to paper over and unrelated
+to this session's change (q18 touches neither `tools/mutation-probe.ts` nor
+`bench/`). Re-running `q14-mutation-smoke.test.ts` alone immediately after
+hit the *other*, expected failure instead: its "fixture must start clean"
+precondition, which checks whole-repo `git diff --exit-code` and correctly
+sees this very commit's own still-uncommitted `BACKLOG-QUALITY.md` edit —
+the exact artifact session 12's log already documented ("will read clean
+again once this lands"). Both readings are pre-commit noise, not a defect;
+the full suite is re-run clean after this commit lands (see below).
+
+**Three actionable items remain** (q19, q20, q21, all unchecked and
+unblocked), so the generation rule does not need to run next session either.
 
 ### 2026-08-27 — session 13
 
