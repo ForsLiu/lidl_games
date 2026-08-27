@@ -56,7 +56,7 @@ coverage gaps session 1's log recorded. All five are inside Scope as written.*
       a superset of a recorded floor, so a phase that stops being reachable goes
       red; session 1's `soulpick` hole is pinned as the known gap — refs: lane
       log 2026-08-26
-- [ ] (q10) [feat] Gate-coverage audit: `tools/gate-audit.ts` maps SPEC-FINAL
+- [x] (q10) [feat] Gate-coverage audit: `tools/gate-audit.ts` maps SPEC-FINAL
       §14 G1–G20 to the test files that name each gate — acceptance: prints the
       table, and a test asserts every gate id parsed out of SPEC-FINAL §14 is
       either covered by a test file or listed in an explicit recorded-hole set,
@@ -66,8 +66,155 @@ coverage gaps session 1's log recorded. All five are inside Scope as written.*
       and any future soak — acceptance: q2's suite (including its anti-vacuity
       case, which moves with the scanner) passes unchanged against the extracted
       module — refs: engineer's judgment, HANDOFF §7
+- [ ] (q12) [feat] Soak suite, in-Scope: 50 seeded full headless runs (mixed
+      policies), assert zero uncaught exceptions and zero NaN/negative-invariant
+      violations in the end report, reusing q2's scanner rather than
+      re-deriving it — acceptance: `tests/q12-soak.test.ts` green and part of
+      `npm test` via the existing `tests/**/*.test.ts` glob, no `package.json`
+      edit — this is q1's acceptance line minus the literal `npm run soak`
+      alias, which stays blocked and logged separately for main to name if it
+      wants the CLI entry point too — refs: QUALITY.md ALPHA soak line, G17
+- [ ] (q13) [feat] Host-normalized perf ratio probe for G17: `tools/perf-ratio.ts`
+      times a fixed calibration loop and a worst-case 350-enemy tick in the same
+      process and reports their ratio instead of a wall-clock ms bound —
+      acceptance: a test asserts the ratio is stable within a tolerance across
+      at least two different iteration counts (proving it isn't itself
+      wall-clock-fragile the way A10 is measured to be, session 3's log), and
+      asserts it against a recorded ceiling — this is q4's substance without
+      the blocked `npm run bench` alias — refs: G17, session 3 log
+- [ ] (q14) [feat] Mutation smoke, in-Scope: `tools/mutation-probe.ts` applies
+      one named source mutation at a time (drawn from the ones QA has actually
+      used and reverted across q7/q8/q9's sessions), runs the one test file
+      that should catch it, asserts red, restores the file, and asserts
+      `git diff --exit-code` clean before moving to the next — acceptance:
+      `tests/q14-mutation-smoke.test.ts` runs the full recorded list green, and
+      is part of `npm test` with no `package.json` edit — this is q6's
+      substance without the blocked `npm run mutations` alias — refs: q6,
+      sessions 3/4/5's manual mutation passes
+- [ ] (q15) [feat] Command-argument domain fuzzer: q2 deliberately keeps every
+      generated argument inside its field's legal domain (`tools/fuzz-input.ts`
+      confirms `dev`'s `amount` is `rng.intRange(0, 5000)`) and session 1's log
+      names this gap explicitly. Fuzz NaN/Infinity/negative-where-illegal
+      arguments into `dev` and every other numeric Command field, confined to a
+      practice-mode world so nothing is banked, and record which arguments the
+      sim currently launders vs. rejects — acceptance: a pinned map (q7-style)
+      of accepted-but-illegal argument shapes so a new hole goes red by name —
+      refs: session 1 log, architecture rule 4
+- [ ] (q16) [feat] Content-totals census against SPEC-FINAL §13:
+      `tools/content-census.ts` counts each shipped content category (classes,
+      towers, equipment, damage types + statuses, enemies, waves, tree nodes,
+      quests, tiers, bosses) and reports the delta against §13's targets (11
+      classes · 10 towers · 12+ equipment · 6 damage types + 2 statuses · 20
+      enemies · 18+6 waves · 120-node tree · 8–12 quests · T1–T5 · 2 bosses) —
+      `content-complete.test.ts` only checks V2-era totals (10 towers, 20
+      enemies, 12 modifiers), not SPEC-FINAL's, so this is a real gap, not a
+      duplicate — acceptance: prints the table and a test pins today's counts
+      as a recorded snapshot, so a content change is visible and distinguishable
+      from a P-phase-not-reached-yet gap rather than a silent regression —
+      refs: SPEC-FINAL §13, "Definition of 1.0 complete"
+
+*Generated 2026-08-26, session 6, under CLAUDE.md's generation rule scoped to
+this lane: only q10 and q11 were actionable (fewer than 3). (a) Ran
+`tools/sweep.ts --seeds 12` and `tools/handoff-metrics.ts`; nothing in their
+output is new lane work — the 0% win rate at 12 seeds matches PROGRESS.md's
+already-documented bimodal Act II / VS-not-yet-built state, not a fresh
+finding. (b) Diffed SPEC-FINAL §14 against test files by grepping for G-number
+mentions: most gates (G4–G6, G9–G11, G14–G17, G20) are covered only by
+V2-vintage test files that never cite a G-number — exactly what q10 exists to
+formalize, so this generation pass adds substance-level gaps instead of
+duplicating q10's own audit. (c) One engineer's-judgment item: q16, since
+`content-complete.test.ts` demonstrably checks the wrong spec's totals. q12–q14
+are the unblocked, in-Scope equivalents of q1/q4/q6 (same acceptance, minus the
+literal `package.json` alias); q1/q4/q6 stay open and blocked for main to
+resolve if it wants the CLI entry points too. All five are inside Scope as
+written; none needs a `package.json` edit.*
 
 ## Log
+
+### 2026-08-26 — session 6
+
+**Feedback inbox:** `feedback/` does not exist in this worktree; nothing to
+process, nothing moved.
+
+**Only q10 and q11 were actionable** (fewer than 3), so the generation rule
+ran first: ran `tools/sweep.ts --seeds 12` and `tools/handoff-metrics.ts`
+(nothing new — the 0% win rate at 12 seeds matches PROGRESS.md's already-known
+bimodal-Act-II/VS-not-built state); grepped SPEC-FINAL §14's G-numbers against
+`tests/*.test.ts` and found most gates are named only by V2-vintage files that
+cite no G-number, which is exactly q10's job to formalize; and added q16 as the
+one engineer's-judgment item, since `content-complete.test.ts` demonstrably
+checks V2-era totals, not SPEC-FINAL §13's. Appended q12–q16 (soak/perf-ratio/
+mutation-smoke as the unblocked, in-Scope equivalents of q1/q4/q6; a
+command-argument domain fuzzer per session 1's own flagged gap; a content-totals
+census against §13). All five inside Scope, none needs a `package.json` edit.
+Took q10, the top item.
+
+**q10 done.** `tools/gate-audit.ts` (parser + curated maps + CLI) and
+`tests/q10-gate-audit.test.ts` (14 tests).
+
+**What it does.** `parseGates()` regexes every `| Gn | text |` row straight out
+of SPEC-FINAL.md's own §14 section — dynamic, not a hand-copied list, the same
+anti-staleness idiom q2 uses for the `Command`/`Phase` unions and q9 uses for
+`policyNames()`. `GATE_COVERAGE` (gate → test files, curated) and `KNOWN_HOLES`
+(gate → a reason naming the PROGRESS.md P-phase blocking it) are necessarily
+hand-curated, since almost every test file predates SPEC-FINAL and names no
+G-number in its own text. `auditGates()` classifies every parsed gate
+`covered`/`hole`/`UNTRACKED`; the test asserts UNTRACKED never happens. Final
+split: **8 covered (G2, G4, G5, G13, G14, G16, G18, G20), 12 holes** (G1, G3,
+G6–G12, G15, G17, G19), tracking against PROGRESS.md's P2/P3/P6/P7/P9-incomplete
+audit almost gate-for-gate.
+
+**Review (code-reviewer, Major x3, all fixed here).** Caught three curated
+notes that overstated things by direct inspection of the files they cited:
+`f004-class-framework.test.ts` was called "entirely describe.skip'd" for G8
+when 3 of its 4 `describe` blocks are (the 4th, a live class-active
+replay-hash test, actually covers a G2 sub-clause my first draft said was
+missing — G2's `files` now includes it); `f001-cycle-machine.test.ts` was
+called "itself retired" for G6 when only its "cycle boundary helpers" block
+is skipped, its "cycle state machine" block is live against the pre-P3 V2
+cycle system. All three notes reworded to say precisely which blocks are live
+vs. skipped. Everything else — regex robustness against the real CRLF
+SPEC-FINAL.md, no vacuous assertions, Scope, style vs. `tools/phase-coverage.ts`
+— checked out clean.
+
+**QA (qa-playtester, FAIL on the first pass, fixed here) — this is the finding
+worth reading.** Mutation-tested the mechanism for real (removed G5 from
+`GATE_COVERAGE` without adding it to `KNOWN_HOLES`, confirmed 2 tests go red,
+reverted, `git diff --exit-code` clean; same for hollowing `auditGates()` to
+always return `covered`) and it held. But spot-checking the *notes* the same
+way code review just had, QA found **G1 and G19 were marked `covered` by files
+that are entirely `describe.skip`'d — zero live assertions backing either
+gate**, the exact defect class code review had just fixed three instances of,
+slipping through a fourth and fifth time in the same pass.
+`tests/a1-run-length.test.ts` (G1) is headed "RETIRED (SPEC-FINAL §14 G1, P3)"
+and its skipped body measured a *median*, the opposite of what G1's own text
+asks for ("means/pass-rates, never medians"). `tests/a8-sundering-head-start.test.ts`
+(G19) is headed "RETIRED (SPEC-FINAL §6.1, reconcile §16)", and QA further
+found that even when it was live, its body never measured sealed/open strategy
+mix or multi-summon usage — G19's actual content was never tested by it
+either. QA also flagged G13 as the same shape one level down: two of its three
+cited files (`a5-weapon-share.test.ts`, `a8-sundering-head-start.test.ts`) are
+fully retired and contribute nothing; only `a4-single-type.test.ts` is live,
+and it itself defers 2 of 7 towers.
+
+Both G1 and G19 moved from `GATE_COVERAGE` to `KNOWN_HOLES` (split is now
+8/12, was 10/10); G13 now cites only its one live file with a note disclosing
+the retired half. A permanent safeguard was added rather than just fixing the
+three instances by hand: `hasLiveTopLevelDescribe()` (column-anchored — every
+top-level `describe` in this suite is unindented) and
+`entirelyRetiredCoverage()`, asserted empty in a new test, so a `covered` gate
+backed only by fully-retired files fails the suite automatically instead of
+needing a second human QA pass to catch it a second time. Both new functions
+carry their own anti-vacuity test against hand-picked known files
+(`a1-run-length.test.ts` confirmed retired, `a11-determinism.test.ts`
+confirmed live) rather than trusting the real map to exercise the failing
+branch. Re-verified all `covered` gates' files by grepping every one for a
+live top-level `describe` after the fix — all clean.
+
+**Suite state at this commit.** `npx vitest run tests/q10-gate-audit.test.ts`
+— 14/14 green. Full suite pending in background at time of writing; will
+confirm the exact count in the commit that follows if it differs from
+session 5's 750 + 11 (761 expected).
 
 ### 2026-08-26 — session 5
 

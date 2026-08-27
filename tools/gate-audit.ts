@@ -1,0 +1,218 @@
+/**
+ * Gate-coverage audit (BACKLOG-QUALITY q10): maps SPEC-FINAL §14's G1–G20
+ * gates to the test files that actually exercise each one today, so a gate
+ * can never quietly arrive — or quietly lose its only test — unnoticed.
+ *
+ * The gate list itself is parsed straight out of SPEC-FINAL.md's own §14
+ * table, not a hand-copied list, the same way q2 parses the `Command`/
+ * `Phase` unions out of `src/sim/types.ts` and q9 parses `policyNames()`
+ * rather than hand-copying either: a gate SPEC-FINAL adds, renames or
+ * removes is picked up automatically on the next run. What is *not*
+ * automatic, and cannot be — most of this codebase's test files predate
+ * SPEC-FINAL and were never given a G-number in their own text — is which
+ * file covers which gate. `GATE_COVERAGE` and `KNOWN_HOLES` below are
+ * curated by hand against the live suite (see BACKLOG-QUALITY.md's q10 log
+ * for how each entry was checked), and a gate absent from both is
+ * `UNTRACKED`: the state this tool exists to make impossible to ship
+ * quietly.
+ *
+ *   npx tsx tools/gate-audit.ts
+ *   npx tsx tools/gate-audit.ts --json
+ */
+
+import { existsSync, readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+export const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
+export const SPEC_PATH = resolve(REPO_ROOT, 'SPEC-FINAL.md');
+
+export interface Gate {
+  id: string;
+  text: string;
+}
+
+/** Parse every `| Gn | ... |` row out of SPEC-FINAL.md's §14 table. */
+export function parseGates(specText: string): Gate[] {
+  const section = specText.split(/^## 14\./m)[1]?.split(/^## 15\./m)[0];
+  if (!section) {
+    throw new Error('gate-audit: could not find SPEC-FINAL §14 between a "## 14." and a "## 15." heading');
+  }
+  const gates: Gate[] = [];
+  const rowRe = /^\|\s*(G\d+)\s*\|\s*(.+?)\s*\|\s*$/gm;
+  let m: RegExpExecArray | null;
+  while ((m = rowRe.exec(section))) {
+    gates.push({ id: m[1], text: m[2] });
+  }
+  return gates;
+}
+
+export type GateStatus = 'covered' | 'hole' | 'UNTRACKED';
+
+export interface GateAuditRow extends Gate {
+  status: GateStatus;
+  files: string[];
+  note?: string;
+}
+
+export interface CoverageEntry {
+  files: string[];
+  note?: string;
+}
+
+/**
+ * Which test files (repo-relative) exercise each gate, curated by hand
+ * against the live suite at the time this was written (2026-08-26). Gates
+ * whose subsystem is not built yet (per PROGRESS.md's P-order audit) live in
+ * `KNOWN_HOLES` instead — see its own comment.
+ */
+export const GATE_COVERAGE: Record<string, CoverageEntry> = {
+  G2: {
+    files: ['tests/a11-determinism.test.ts', 'tests/f004-class-framework.test.ts'],
+    note:
+      "a11 covers the 100-seed replay hash match; f004's live describe block (line 115, the other three are " +
+      "describe.skip'd — see G8/G9) has 'replays to an identical end-state hash with class_active in the input " +
+      "log', covering actives. Still missing: tuner-edited content-hash replay (the Tuner is unbuilt — see G15) " +
+      "and fast-forward bit-identity — no test greps for 'contentHash' and no test asserts a fast_forward run's " +
+      'end hash against the same run at 1x.',
+  },
+  G4: { files: ['tests/c3-armor.test.ts', 'tests/m19c-damage-types.test.ts'] },
+  G5: { files: ['tests/c4-stacking.test.ts'] },
+  G13: {
+    files: ['tests/a4-single-type.test.ts'],
+    note:
+      "a4-single-type.test.ts live-checks solo-viability (5 of 7 towers; tesla_coil and mortar are it.skip'd " +
+      "per m20c's measured T1 clauses) but only that half of G13. The '35% damage share' half's own test, " +
+      "a5-weapon-share.test.ts, is entirely describe.skip'd/retired (SPEC-FINAL §6.1 reconcile), so no live " +
+      'test currently checks it; a8-sundering-head-start.test.ts is also entirely retired and contributes nothing.',
+  },
+  G14: { files: ['tests/boss.test.ts'] },
+  G16: { files: ['tests/c8-dev-profile.test.ts', 'tests/t4-god-mode.test.ts'] },
+  G18: {
+    files: [
+      'tests/b10-death-flow.test.ts',
+      'tests/b003-stash-ux.test.ts',
+      'tests/q3-save-fuzz.test.ts',
+      'tests/q8-save-roundtrip.test.ts',
+      'tests/t6c-save-migration.test.ts',
+    ],
+  },
+  G20: {
+    files: [
+      'tests/m20a-upgrade-tracks.test.ts',
+      'tests/m20b-owner-towers.test.ts',
+      'tests/m20c-roster-tracks.test.ts',
+      'tests/light-build.test.ts',
+    ],
+  },
+};
+
+/**
+ * Gates with no live test today, and why. Every reason names the PROGRESS.md
+ * P-phase that has to land before a test could even be written, so this is a
+ * floor to re-check as phases complete (per CLAUDE.md's "a deferral is a
+ * measurement with an expiry date"), not a permanent exemption.
+ */
+export const KNOWN_HOLES: Record<string, string> = {
+  G1: "tests/a1-run-length.test.ts (the only file naming G1) is entirely describe.skip'd — its own header reads " +
+    "'RETIRED (SPEC-FINAL §1.1 + §14 G1, P3)', and its assertions measured a median under the V2 Day/Night " +
+    'cycle, the opposite metric from G1\'s "means/pass-rates, never medians." Zero live test currently checks a ' +
+    'mean 30–36 min victorious run.',
+  G3: "VS inheritance formula (§6.1) is not built (P2) — act2.test.ts exercises the pre-spec weapon/soul system, not §6.1's worked example.",
+  G6: "TD×3→VS interleave is not built (P3); f001-cycle-machine.test.ts only tests the V2 Day/Dusk/Night/Dawn cycle machine that PROGRESS.md confirms is still the production cycle system, not SPEC-FINAL's interleave pattern — its 'cycle boundary helpers' describe block is describe.skip'd, but its 'cycle state machine' describe block is live and passing against the pre-P3 system, so 'retired' would overstate it.",
+  G7: "Sealing removal is p1a, PROGRESS.md's stated next action, not done yet; a7/a8/sundering.test.ts test today's opposite requirement (the path guarantee must hold), not the sealed-Core clause G7 wants.",
+  G8: "No scripted-kit-bot win-rate test exists. f004-class-framework.test.ts (the only file that names G8 in its own text) has 3 of its 4 describe blocks describe.skip'd pending p6's class rebuild; its one live block tests the Active-skill Command plumbing, not a win-rate. Only 3 of SPEC-FINAL's 11 classes exist in data/classes.json (engineer, pyromancer, frost_warden).",
+  G9: 'Swordsman and Plaguebringer do not exist in data/classes.json yet (P6 has 3 of 11 classes).',
+  G10: 'Archer does not exist in data/classes.json yet (P6).',
+  G11: 'Stormcaller does not exist in data/classes.json yet (P6).',
+  G12: "The equipment / skill-point reward pipeline is not built (P7); only the gate's 'orbs nowhere' clause has a live test (c7-no-orbs.test.ts).",
+  G15: 'The Tuner is not built (P9); there is nothing to round-trip yet.',
+  G17: 'a10-performance.test.ts checks a wall-clock frame/tick budget, not a host-independent per-simulated-minute ratio, and no test runs a 50-seed soak asserting zero exceptions/NaN — BACKLOG-QUALITY.md q1/q4 are the blocked versions of this, q12/q13 the in-Scope equivalents.',
+  G19: "tests/a8-sundering-head-start.test.ts (the only file naming G19) is entirely describe.skip'd — its own " +
+    "header reads 'RETIRED (SPEC-FINAL §6.1, reconcile §16)'. Even when live, its body only ever measured " +
+    'maxbuild-vs-rush win-rate and gold/tier ratios, never sealed/open strategy mix or multi-summon usage, so ' +
+    "G19's actual content ('winning sim builds include both sealed and open strategies, and multi-summon usage') " +
+    'was never tested by it either. No live test anywhere names multi-summon usage.',
+};
+
+export function auditGates(
+  gates: Gate[],
+  coverage: Record<string, CoverageEntry> = GATE_COVERAGE,
+  holes: Record<string, string> = KNOWN_HOLES,
+): GateAuditRow[] {
+  return gates.map((g) => {
+    const c = coverage[g.id];
+    if (c) return { ...g, status: 'covered', files: c.files, note: c.note };
+    const h = holes[g.id];
+    if (h !== undefined) return { ...g, status: 'hole', files: [], note: h };
+    return { ...g, status: 'UNTRACKED', files: [] };
+  });
+}
+
+/** Every `files` entry in `GATE_COVERAGE` that does not exist on disk, as `"Gn: path"`. */
+export function missingCoverageFiles(coverage: Record<string, CoverageEntry> = GATE_COVERAGE): string[] {
+  const missing: string[] = [];
+  for (const [id, entry] of Object.entries(coverage)) {
+    for (const f of entry.files) {
+      if (!existsSync(resolve(REPO_ROOT, f))) missing.push(`${id}: ${f}`);
+    }
+  }
+  return missing;
+}
+
+/**
+ * A test file has at least one top-level `describe(...)` that is not
+ * `describe.skip(...)`. Column-anchored deliberately: every file in this
+ * suite writes its top-level `describe`s unindented, so this does not need
+ * to parse the AST to tell "this file still has live assertions in it" from
+ * "this file is entirely retired" — the exact distinction G1 and G19 got
+ * wrong (a `covered` gate backed only by a fully `describe.skip`'d file is
+ * the same UNTRACKED failure this tool exists to catch, wearing a different
+ * label — found by qa-playtester, not by this tool, which is why this
+ * function now exists).
+ */
+export function hasLiveTopLevelDescribe(absPath: string): boolean {
+  const text = readFileSync(absPath, 'utf8');
+  return /^describe\(/m.test(text);
+}
+
+/** Every `covered` gate whose every cited file is entirely `describe.skip`'d, as `"Gn: reason"`. */
+export function entirelyRetiredCoverage(coverage: Record<string, CoverageEntry> = GATE_COVERAGE): string[] {
+  const flagged: string[] = [];
+  for (const [id, entry] of Object.entries(coverage)) {
+    const live = entry.files.some((f) => hasLiveTopLevelDescribe(resolve(REPO_ROOT, f)));
+    if (!live) flagged.push(`${id}: none of [${entry.files.join(', ')}] has a live top-level describe block`);
+  }
+  return flagged;
+}
+
+/* ------------------------------------------------------------------- CLI */
+
+function main(argv: string[]): void {
+  const specText = readFileSync(SPEC_PATH, 'utf8');
+  const gates = parseGates(specText);
+  const rows = auditGates(gates);
+
+  if (argv.includes('--json')) {
+    console.log(JSON.stringify(rows, null, 2));
+    return;
+  }
+
+  console.log(`gate audit — ${rows.length} gates parsed from SPEC-FINAL.md §14`);
+  const idW = Math.max(...rows.map((r) => r.id.length), 'id'.length) + 2;
+  const statusW = Math.max(...rows.map((r) => r.status.length), 'status'.length) + 2;
+  console.log('id'.padEnd(idW) + 'status'.padEnd(statusW) + 'files / reason');
+  for (const r of rows) {
+    const detail = r.status === 'covered' ? r.files.join(', ') : (r.note ?? '');
+    console.log(r.id.padEnd(idW) + r.status.padEnd(statusW) + detail);
+  }
+
+  const untracked = rows.filter((r) => r.status === 'UNTRACKED');
+  if (untracked.length > 0) {
+    console.log(`\nUNTRACKED gates (no test, no recorded hole): ${untracked.map((r) => r.id).join(', ')}`);
+    process.exitCode = 1;
+  }
+}
+
+const invokedDirectly = process.argv[1]?.replace(/\\/g, '/').endsWith('tools/gate-audit.ts');
+if (invokedDirectly) main(process.argv.slice(2));
