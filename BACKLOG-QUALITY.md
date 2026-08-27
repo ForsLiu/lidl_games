@@ -448,6 +448,32 @@ coverage gaps session 1's log recorded. All five are inside Scope as written.*
       corruption — refs: q29, q30, qa-playtester's q29 verification pass
       (session 25 log), src/sim/weapons.ts:61-79, src/sim/enemies.ts:200,
       src/sim/hash.ts
+- [ ] (q35) [bug][feat] Fuzzing q30's `applyOffer` `'boon'` case surfaced a
+      more general gap in `Rng.weightedIndex` (`src/sim/rng.ts:65-75`) itself,
+      not specific to boons: if any candidate's weight is `NaN` (reachable
+      here via `buildOfferPool`'s `value: rank / b.maxRank` when a poisoned
+      `boonRanks` entry is `NaN`, `progression.ts:139`), `weightedIndex`'s
+      `total` sum goes `NaN`, every `r < 0` scan comparison during the pick
+      loop is therefore `false`, and the function falls through to
+      `return weights.length - 1` — deterministically the *last* remaining
+      candidate, every call, regardless of the RNG stream. Measured while
+      building q30: two consecutive `rollOffers` calls against a `NaN`-
+      poisoned pool return byte-identical results, which a fair weighted draw
+      never would. q30's own tests only observe this indirectly (the
+      poisoned boon itself never wins, as a side effect of always losing to
+      whatever pool entry sits last) — nothing pins the mechanism directly
+      against `weightedIndex` in isolation, and nothing checks whether a
+      `NaN` weight can arise from a source *other* than a forged boon offer
+      (a corrupted `Luck` stat feeding `luckBias`, per `rollOffers`'s own
+      `luckBias * o.value` term, looks like the most plausible other one —
+      unconfirmed, not yet traced) — acceptance: a direct unit test of
+      `Rng.weightedIndex` (no `World`/`applyOffer` involved) that passes a
+      weights array containing one `NaN` alongside finite values and pins
+      today's actual fallback behaviour (always the last index, independent
+      of the RNG stream/seed), plus a check of whether `luckBias` can itself
+      go non-finite through any real, in-domain `Luck` stat value — refs:
+      q30, src/sim/rng.ts:65-75, src/sim/progression.ts:90 (`luckBias`),
+      139 (`value: rank / b.maxRank`)
 
 *Generated 2026-08-27, session 23, under CLAUDE.md's generation rule scoped
 to this lane: only q26 and q27 were actionable (fewer than 3) — q1/q4/q5/q6
@@ -629,9 +655,10 @@ QA separately reran `q14-mutation-smoke.test.ts` standalone on a clean tree
 (21/21 green) after this session's diff was in place, confirming no new
 regression.
 
-**Four actionable items remain** (q31, q32, q33, q34, all unchecked and
-unblocked), still at or above the generation rule's floor of 3, so the
-generation rule does not need to run next session either.
+**Five actionable items remain** (q31, q32, q33, q34, q35 — the last filed
+this session, see above — all unchecked and unblocked), still at or above
+the generation rule's floor of 3, so the generation rule does not need to
+run next session either.
 
 ### 2026-08-27 — session 27
 
