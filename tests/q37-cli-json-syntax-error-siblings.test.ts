@@ -122,3 +122,36 @@ describe.each([
     }
   }, NESTED_TSX_TIMEOUT_MS + 10_000);
 });
+
+/**
+ * q42: `sweep.ts` is the one of q37's three siblings with a `--json` mode
+ * (`sim.ts`/`handoff-metrics.ts` have no such flag). Session 35's QA pass
+ * judged the crash "almost certainly" identical under `--json`, since the
+ * esbuild transform runs at module load, before `sweep.ts`'s own `parse()`
+ * ever inspects `argv` — the same reasoning q33 already proved live for its
+ * own three tools' `--json` cases — but left it unverified for `sweep.ts`
+ * itself. Verified live before writing this (scratch copy, torn down after):
+ * `npx tsx tools/sweep.ts --seeds 1 --json` against a syntax-broken
+ * `data/towers.json` crashes identically to the plain-mode case above — exit
+ * 1, empty stdout, the same raw `TransformError` stack on stderr; the flag
+ * is never reached.
+ */
+describe('sweep.ts --json crashes uncaught on a /data JSON syntax error too (q42)', () => {
+  it('the same corruption under --json still crashes uncaught (the flag is never reached)', () => {
+    const dir = scratchPath('sweep-json');
+    try {
+      populateScratch(dir);
+      breakTowersJsonSyntax(dir);
+      const { exitCode, stdout, stderr } = runCli(dir, 'sweep.ts', ['--seeds', '1', '--json']);
+      expect(exitCode).not.toBe(0);
+      // A fixed CLI would emit one parseable `{error}` line under --json
+      // (q25/q28/q33's own bar); today it emits nothing on stdout at all.
+      expect(stdout).toBe('');
+      expect(stderr).toMatch(ESBUILD_TRANSFORM_ERROR);
+      expect(stderr).toMatch(RAW_STACK_FRAME);
+      expect(stderr).toContain('towers.json');
+    } finally {
+      rmSync(dir, RM_RETRY);
+    }
+  }, NESTED_TSX_TIMEOUT_MS + 10_000);
+});

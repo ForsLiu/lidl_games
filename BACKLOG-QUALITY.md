@@ -647,7 +647,7 @@ coverage gaps session 1's log recorded. All five are inside Scope as written.*
       q37, tools/perf-ratio.ts, tools/a4probe.ts, tools/a5probe.ts,
       tools/mutation-probe.ts, tools/fuzz-input.ts, tools/fuzz-save.ts,
       tools/fuzz-weapon-boundary.ts, tools/fuzz-command-domain.ts
-- [ ] (q42) [feat] Session 35's own log records a non-blocking QA
+- [x] (q42) [feat] Session 35's own log records a non-blocking QA
       observation that was never promoted to an item: `tests/q37-cli-json-
       syntax-error-siblings.test.ts` has no `--json`-flag variant the way
       `tests/q33-cli-json-syntax-error.test.ts` does for its three tools —
@@ -817,6 +817,58 @@ resolve if it wants the CLI entry points too. All five are inside Scope as
 written; none needs a `package.json` edit.*
 
 ## Log
+
+### 2026-08-27 — session 39
+
+**Feedback inbox:** `feedback/` exists but is empty. Nothing to process, nothing
+moved.
+
+**Found unlogged follow-on work already sitting in the worktree, uncommitted,
+at session start** — the same recurring shape session 38's own log named
+(sessions 14/16/18/19/20/37/38): a new `describe` block for q42
+(`sweep.ts --json` crashes uncaught on a `/data` JSON syntax error too) was
+already appended to `tests/q37-cli-json-syntax-error-siblings.test.ts`, fully
+written and matching q42's acceptance criteria, but `git log` showed no commit
+for it and session 38's own log didn't mention it (session 38 committed q41
+only). `git status --porcelain` before starting showed only that one modified
+file.
+
+Verified rather than trusted: ran the file live (`npx vitest run tests/q37-
+cli-json-syntax-error-siblings.test.ts`) — 4/4 green, including the new q42
+case. `npx tsc --noEmit -p .` — clean.
+
+**Review (code-reviewer, APPROVE, 0 Critical/Major — 1 Minor, 2 Nits).**
+Confirmed the new test targets a code path (`sweep.ts --json`) the existing
+`describe.each` block never exercises, confirmed live against `sweep.ts`'s
+own source that the crash precedes `parse(process.argv)`, and confirmed the
+`expect(stdout).toBe('')` assertion is the load-bearing discriminator against
+a future fix. Minor: the new block drops the `not.toContain('sweep:')`
+assertion its `describe.each` sibling carries — not a correctness gap, just
+an unexplained asymmetry, left as-is. Scope and harness reuse both clean.
+
+**QA (qa-playtester, PASS).** Live run 4/4 green. Adversarially confirmed the
+assertions are load-bearing two ways: a manual control run against intact
+`/data` (exit 0, clean JSON, empty stderr) contrasts with the corrupted-scratch
+case; and temporarily removing the corruption call from the q42 block made the
+test correctly fail (`exitCode` 0 vs `not.toBe(0)`), then restored byte-
+identical. No leftover `bench/.tmp` dirs from this session's own runs. Flagged
+one pre-existing, unrelated stray scratch dir (predates this session, gitignored,
+no scope impact) for whoever next touches scratch-cleanup hygiene — not filed
+as a q42 bug.
+
+**Suite state.** `npx vitest run tests/q37-cli-json-syntax-error-siblings.
+test.ts` — 4/4 green. `npx tsc --noEmit -p .` clean. `git status --porcelain`
+before commit: `BACKLOG-QUALITY.md`, `tests/q37-cli-json-syntax-error-
+siblings.test.ts` only — Scope-compliant.
+
+**Committed.**
+
+**Three actionable items remain** (q43, q44, plus q39 as a Scope-blocked
+tracking entry — its own acceptance is already satisfied by
+`tests/q35-weighted-index-nan.test.ts`'s existing "gap found by QA
+verification" describe block; the remaining half needs main lane's `/src/**`
+fix first). At the generation floor, so the next session runs the generation
+rule before executing.
 
 ### 2026-08-27 — session 38
 
