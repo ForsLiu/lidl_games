@@ -42,8 +42,6 @@ function noopHudCallbacks(pending: Command[]) {
     onCallWave: () => pending.push({ k: 'call' }),
     onPickOffer: (index: number) => pending.push({ k: 'pick', index }),
     onReroll: () => pending.push({ k: 'reroll' }),
-    onRekindle: () => {},
-    onDawnDone: () => {},
     onRetry: () => {},
     onNewRun: () => {},
     onToggleRanges: () => {},

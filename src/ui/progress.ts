@@ -52,26 +52,6 @@ function act1Progress(w: World): RunProgress {
   const total = Math.max(1, w.waveCount);
   const cleared = w.wavesCleared;
 
-  if (w.phase === 'dusk') {
-    return {
-      title: 'Dusk',
-      detail: `The Vale is holding. ${Math.ceil(w.duskTimer)}s before your towers petrify.`,
-      fraction: 1,
-      markers: [],
-      sub: null,
-    };
-  }
-
-  if (w.phase === 'dawn') {
-    return {
-      title: `Dawn — Cycle ${w.cycle} of ${w.totalCycles}`,
-      detail: 'Rekindle a petrified tower to fight again, or leave it standing.',
-      fraction: 0,
-      markers: [],
-      sub: null,
-    };
-  }
-
   const building = w.phase === 'act1_build';
   const remaining = waveRemaining(w);
   const wave = Math.max(1, w.wave || cleared + 1);

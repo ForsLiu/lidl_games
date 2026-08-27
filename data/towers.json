@@ -4,7 +4,6 @@
   "sellRefund": 0.5,
   "upgradeTotalCostMul": 2,
   "buildRange": 4,
-  "rekindleCostMul": 0.4,
   "pierceFalloff": 0.82,
   "pierceFalloffFloor": 0.2,
   "aoeFullTargets": 5,

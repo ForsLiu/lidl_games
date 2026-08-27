@@ -83,19 +83,14 @@ export class World {
   phase: Phase = 'act1_build';
   outcome: RunOutcome = 'running';
   /**
-   * 1-based index of the TD-block/VS-wave pair in progress, reusing the V2
-   * Day/Dusk/Night/Dawn cycle machine's counters and phases (`dusk`, `act2`,
-   * `dawn`) as the least-disruptive vehicle for SPEC-FINAL §1.1's "3 TD waves,
-   * then 1 VS wave, repeating" pattern (P3 p3a). The old per-cycle content
-   * tables (`waveEndByCycle`, `nightSecondsByCycle`) are retired in favor of
-   * `tdWavesPerVsWave`/`vsWaveSeconds` below; the machine itself — and this
-   * field's name — is deleted outright at p3d.
+   * 1-based index of the TD-block/VS-wave pair in progress (SPEC-FINAL §1.1's
+   * "3 TD waves, then 1 VS wave, repeating" pattern). Every block transition
+   * is immediate — no Dusk/Dawn wait, no Rekindle ledger (both deleted at
+   * p3d) — see `finishSundering`/`advanceToNextBlock` in `sundering.ts`.
    */
   cycle = 1;
   /** VS waves this run plays before the Warden-Eater ends it (cfg.cycles, default 6 per §1.1). */
   readonly totalCycles: number;
-  /** Counts up while the Dawn ledger is open; auto-advances past DAWN_AUTO_SECONDS. */
-  dawnTimer = 0;
   /**
    * Set the instant a defeat condition is met; `outcome` stays 'running' and
    * play keeps ticking for `dyingTimer` more seconds (SPEC-V2 D1's slow-mo
@@ -135,7 +130,6 @@ export class World {
   act1Ticks = 0;
 
   /* ---- Sundering ---- */
-  duskTimer = 0;
   sundered = false;
   lastStandUsed = false;
   heartstoneX = 0;
@@ -318,10 +312,13 @@ export class World {
     this.stats.add('modifiers', 'pickupPct', this.mods.pickupMul);
     this.derived = derive(content, this.stats, 1 + this.mods.residualMul);
 
-    // `totalCycles <= 1` is the legacy single-pass escape hatch a lot of the
+    // `totalCycles <= 1` stays the single-pass escape hatch a lot of the
     // suite still opts into on purpose (tests/helpers.ts's default `cfg()`,
     // light-build.test.ts): a full walk of the authored wave table into one
-    // Sundering, one boss-only Night. SPEC-FINAL §1.1's real shape (any
+    // Sundering, one boss-only VS wave. p3d deleted the Dusk/Dawn *phase
+    // machine* this shape used to ride (no more waiting phases, no Rekindle),
+    // but the wave-COUNT formula itself is untouched — that is p3e's
+    // re-baseline, not this item's (Q108). SPEC-FINAL §1.1's real shape (any
     // `totalCycles > 1`) instead targets 18 TD waves total — `tdWavesPerVsWave`
     // x `totalCycles`, e.g. 3 x 6 — even though `data/waves.json` only authors
     // 10 rows today; `buildSpawnQueue` (run.ts) already repeats the last
@@ -608,15 +605,14 @@ export function makeStats(): Stats {
 }
 
 /**
- * SPEC-FINAL §1.1 (p3a): last TD wave (global index) of the given block —
+ * SPEC-FINAL §1.1: last TD wave (global index) of the given block —
  * `tdWavesPerVsWave x cycle` — except the final block, which always ends at
  * `w.waveCount` exactly (so it lands on TD wave 18 even though only 10 are
  * authored; `w.waveCount` already accounts for that, see the World
- * constructor). `totalCycles <= 1` keeps the legacy single-pass shape: every
- * "cycle" is the final one, so this always returns the full wave count.
+ * constructor).
  */
 export function cycleWaveEnd(w: World, cycle: number): number {
-  if (w.totalCycles <= 1 || cycle >= w.totalCycles) return w.waveCount;
+  if (cycle >= w.totalCycles) return w.waveCount;
   return Math.min(w.content.waves.tdWavesPerVsWave * cycle, w.waveCount);
 }
 

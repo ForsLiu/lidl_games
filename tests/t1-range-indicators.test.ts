@@ -315,7 +315,7 @@ describe('T1: showRanges changes what is drawn', () => {
   });
 
   it('a petrified tower gets no ring — it cannot fire', () => {
-    // At Dawn every structure is petrified, so this used to ring the whole board.
+    // During a VS wave every structure is petrified, so this used to ring the whole board.
     const { w, tx, ty } = skewedWorld();
     const def = content.towerByKey.get('ballista')!;
     const s = w.structureAt(tx, ty)!;

@@ -54,8 +54,7 @@ describe('Night-phase Warden death (SPEC-V2 D1)', () => {
     expect(run.world.outcome).toBe('running');
     expect(run.world.phase).toBe('act2');
 
-    // 1.5s of ticks at 60Hz is 90, +/- one for float accumulation on the
-    // countdown (the same tolerance `duskTimer` relies on elsewhere).
+    // 1.5s of ticks at 60Hz is 90, +/- one for float accumulation on the countdown.
     let ticks = 85;
     while (!run.done && ticks < 95) {
       run.step(emptyInput());
@@ -124,8 +123,6 @@ function mountHud(): { root: HTMLElement; hud: Hud; log: Record<string, number> 
     onCallWave: () => {},
     onPickOffer: () => {},
     onReroll: () => {},
-    onRekindle: () => {},
-    onDawnDone: () => {},
     onRetry: () => log.retry++,
     onNewRun: () => log.newrun++,
     onToggleRanges: () => {},

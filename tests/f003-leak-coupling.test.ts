@@ -11,10 +11,13 @@
  * is p3c's re-pointing of that coverage onto §1.1's TD/VS vocabulary (was
  * SPEC-V2 §1's Day/Night) plus one new test (below) proving the same
  * mechanism repeats correctly across all 6 TD-block -> VS-wave boundaries of
- * the real §1.1 shape (BACKLOG p3a), not just the single Dusk-to-Night
- * transition the pre-existing cases drove under the legacy `cycles: 3`
- * config. No behavior changed — `leakIntoCore`/`finishSundering` are
- * untouched by this item.
+ * the real §1.1 shape (BACKLOG p3a). p3d then deleted the Dusk/Dawn phase
+ * machine these cases used to step through by name; the TD-block -> VS-wave
+ * transition these cases exercise is now immediate (`finishSundering` fires
+ * synchronously the instant the block's last wave clears — see `completeWave`,
+ * run.ts), and the VS-wave -> next-TD-block transition is `advanceToNextBlock`,
+ * with no Dawn ledger command to drive. No leak-coupling behavior changed —
+ * `leakIntoCore`/`finishSundering` are untouched by this item.
  */
 
 import { readFileSync } from 'node:fs';
@@ -22,7 +25,7 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { Run, applyCommand, hashWorld } from '../src/sim/run';
+import { Run, hashWorld } from '../src/sim/run';
 import { spawnEnemy } from '../src/sim/enemies';
 import { CORE_X, CORE_Y } from '../src/sim/grid';
 import { cycleWaveEnd, World } from '../src/sim/world';
@@ -108,7 +111,7 @@ describe('BACKLOG f003/p3c: leak coupling (SPEC-FINAL §1.1, gate G6)', () => {
     expect(w.content.spawns.costs.husk).not.toBe(5);
   });
 
-  it('the accumulated bonus lands in spawnBudget exactly once, at the Dusk-to-Night transition, then clears for the next Day', () => {
+  it('the accumulated bonus lands in spawnBudget exactly once, at the TD-block-to-VS-wave transition, then clears for the next block', () => {
     const run = new Run(cfg({ cycles: 3 }));
     const w = run.world;
     const huskCost = w.content.spawns.costs.husk;
@@ -119,42 +122,32 @@ describe('BACKLOG f003/p3c: leak coupling (SPEC-FINAL §1.1, gate G6)', () => {
     const expectedBonus = huskCost * mul * 10;
     expect(w.nightBudgetBonus).toBeCloseTo(expectedBonus, 6);
 
+    // The block-boundary transition is immediate (p3d): `forceWaveClear`'s own
+    // `run.step` already runs `completeWave` -> `finishSundering` synchronously.
     forceWaveClear(run, cycleWaveEnd(w, 1));
-    expect(w.phase).toBe('dusk');
-    // Nothing is spent yet: Dusk itself is not the Night.
-    expect(w.nightBudgetBonus).toBeCloseTo(expectedBonus, 6);
-
-    w.duskTimer = 0;
-    run.step(emptyInput());
     expect(w.phase).toBe('act2');
     expect(w.spawnBudget).toBeCloseTo(expectedBonus, 6);
-    // Spent and reset: Night 1 does not get paid twice, and Day 2 starts clean.
+    // Spent and reset: VS wave 1 does not get paid twice, and block 2 starts clean.
     expect(w.nightBudgetBonus).toBe(0);
     expect(w.looseInTheDark).toBe(0);
   });
 
-  it('a Night with no Day leaks gets no bonus (spawnBudget starts at 0, same as before this feature)', () => {
+  it('a VS wave with no TD leaks gets no bonus (spawnBudget starts at 0, same as before this feature)', () => {
     const run = new Run(cfg());
     const w = run.world;
     forceWaveClear(run, cycleWaveEnd(w, 1));
-    w.duskTimer = 0;
-    run.step(emptyInput());
     expect(w.phase).toBe('act2');
     expect(w.spawnBudget).toBe(0);
   });
 
-  it('+10 leaked Husks in a Day measurably raises that Night\'s starting spawn budget (gate B7\'s budget half)', () => {
+  it('+10 leaked Husks in a TD block measurably raises that VS wave\'s starting spawn budget (gate G6\'s budget half)', () => {
     const baseline = new Run(cfg({ cycles: 3 }));
     forceWaveClear(baseline, cycleWaveEnd(baseline.world, 1));
-    baseline.world.duskTimer = 0;
-    baseline.step(emptyInput());
     const baselineBudget = baseline.world.spawnBudget;
 
     const withLeaks = new Run(cfg({ cycles: 3 }));
     for (let i = 0; i < 10; i++) leakOne(withLeaks, 'husk');
     forceWaveClear(withLeaks, cycleWaveEnd(withLeaks.world, 1));
-    withLeaks.world.duskTimer = 0;
-    withLeaks.step(emptyInput());
 
     const huskCost = withLeaks.world.content.spawns.costs.husk;
     const mul = withLeaks.world.content.spawns.leakBudgetMultiplier;
@@ -209,24 +202,23 @@ describe('BACKLOG f003/p3c: leak coupling (SPEC-FINAL §1.1, gate G6)', () => {
     expect(a.leaks).toBeGreaterThanOrEqual(5);
   });
 
-  it('applyCommand path: a full Dusk-to-Dawn cycle carries the bonus even when routed through the command layer', () => {
+  it('a full TD-block-to-VS-wave-to-next-TD-block cycle carries the bonus, and does not re-apply or carry it forward', () => {
     const run = new Run(cfg({ cycles: 3 }));
     const w = run.world;
     for (let i = 0; i < 3; i++) leakOne(run, 'sprinter');
     const expectedBonus = w.content.spawns.costs.sprinter * w.content.spawns.leakBudgetMultiplier * 3;
 
     forceWaveClear(run, cycleWaveEnd(w, 1));
-    w.duskTimer = 0;
-    run.step(emptyInput());
     expect(w.spawnBudget).toBeCloseTo(expectedBonus, 6);
 
-    // Burn through Night 1 and confirm Dawn 1 -> Day 2 does not re-apply or
-    // carry over a stale bonus from cycle 1.
-    w.act2Time = 999999;
+    // Burn through VS wave 1 (its 75s timer, not the boss-gated final one) and
+    // confirm the immediate transition into block 2 does not re-apply or
+    // carry over a stale bonus from block 1 (p3d: no Dawn ledger to route
+    // through — `advanceToNextBlock` fires directly from `updateAct2`).
+    w.act2Time = w.content.waves.vsWaveSeconds;
     run.step(emptyInput());
-    expect(w.phase).toBe('dawn');
-    applyCommand(w, { k: 'dawn_done' });
     expect(w.phase).toBe('act1_build');
+    expect(w.cycle).toBe(2);
     expect(w.nightBudgetBonus).toBe(0);
     expect(w.looseInTheDark).toBe(0);
   });
@@ -245,10 +237,10 @@ describe('BACKLOG f003/p3c: leak coupling (SPEC-FINAL §1.1, gate G6)', () => {
       expect(w.looseInTheDark).toBe(block);
       expect(w.nightBudgetBonus).toBeCloseTo(huskCost * mul * block, 6);
 
+      // The block-boundary transition is immediate (p3d): the same
+      // `forceWaveClear` step that clears the block's last wave already runs
+      // `finishSundering` synchronously, landing straight in 'act2'.
       forceWaveClear(run, cycleWaveEnd(w, block));
-      expect(w.phase).toBe('dusk');
-      w.duskTimer = 0;
-      run.step(emptyInput());
       expect(w.phase).toBe('act2');
       expect(w.cycle).toBe(block);
       // This block's leaks land in spawnBudget exactly once, at the
@@ -259,18 +251,17 @@ describe('BACKLOG f003/p3c: leak coupling (SPEC-FINAL §1.1, gate G6)', () => {
 
       if (block < 6) {
         // Burn through this VS wave and land back in TD build for the next
-        // block, confirming the bonus does not leak (pun intended) forward.
+        // block (p3d: immediate, no Dawn ledger), confirming the bonus does
+        // not leak (pun intended) forward.
         w.act2Time = w.content.waves.vsWaveSeconds;
         run.step(emptyInput());
-        expect(w.phase).toBe('dawn');
-        applyCommand(w, { k: 'dawn_done' });
         expect(w.phase).toBe('act1_build');
         expect(w.cycle).toBe(block + 1);
       }
       // else: the final VS wave is boss-gated (BACKLOG p3a), not timed, but
       // the same finishSundering transition already paid it its own bonus
-      // above (asserted at line 256) — the boss-gating changes how VS wave 6
-      // *ends*, not how it is funded, so there is nothing further to drive.
+      // above — the boss-gating changes how VS wave 6 *ends*, not how it is
+      // funded, so there is nothing further to drive.
     }
   });
 });
@@ -285,8 +276,6 @@ describe('BACKLOG f003/p3c: TD HUD shows the "Loose in the dark" counter', () =>
       onCallWave: () => {},
       onPickOffer: () => {},
       onReroll: () => {},
-      onRekindle: () => {},
-      onDawnDone: () => {},
       onRetry: () => {},
       onNewRun: () => {},
       onToggleRanges: () => {},

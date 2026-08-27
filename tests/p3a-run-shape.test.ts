@@ -7,8 +7,8 @@
  *
  * Drives a full scripted 18+6 run by forcing each wave boundary the same way
  * the rest of the suite does (`forceWaveClear`-style direct pokes — see
- * tests/f001-cycle-machine.test.ts, tests/f003-leak-coupling.test.ts): this
- * is a phase-machine counting/transition test, not a combat-balance test, and
+ * tests/f003-leak-coupling.test.ts): this is a phase-machine counting/
+ * transition test, not a combat-balance test, and
  * `data/waves.json` only authors 10 real TD waves today (waves past the table
  * repeat wave 10's composition — see `buildSpawnQueue` in src/sim/run.ts;
  * authoring real 11-18 content is BACKLOG p8a, not this item's job).
@@ -69,32 +69,23 @@ describe('p3a: SPEC-FINAL §1.1 run shape (gate G6 pattern half)', () => {
 
         const shouldEnterVs = tdWaveCount % 3 === 0;
         if (shouldEnterVs) {
-          // VS after TD wave 3/6/9/12/15/18 — not before, not at any other count.
-          expect(w.phase).toBe('dusk');
-          // The reused V2 "Dusk" transition (petrify/pocket-clear/lanes, still
-          // live for p3d to formally retire) must not reopen a legal-to-build
-          // window on top of the 20s the player already had: SPEC-FINAL §1.1
-          // states only 20s build + 75s VS per block, nothing between them.
-          expect(w.duskTimer).toBe(0);
-          // QA regression (p3a): a build landing on this exact tick — phase
-          // 'dusk', duskTimer already 0, one tick before `finishSundering`
-          // actually flips the phase to 'act2' — used to go through anyway,
-          // because `canBuildNow` only checked `phase === 'dusk'`, not
-          // whether Dusk had any time left. Checked here, before the
-          // transition step below runs, so it can't be masked by the
-          // transition happening to land in the same tick as the command.
+          // VS after TD wave 3/6/9/12/15/18 — not before, not at any other
+          // count — and immediately: p3d deleted the Dusk wait entirely, so
+          // the very `run.step` that cleared this wave already ran
+          // `finishSundering` synchronously (`completeWave`, run.ts) and
+          // landed straight in 'act2'. SPEC-FINAL §1.1 states only 20s build +
+          // 75s VS per block, nothing between them.
+          expect(w.phase).toBe('act2');
           expect(checkBuild(w, arrowSpireId, 5, 5)).toBe('phase');
-          const duskBuiltBefore = w.towersBuilt;
+          const vsBuiltBefore = w.towersBuilt;
           applyCommand(w, { k: 'build', tower: arrowSpireId, tx: 5, ty: 5 });
-          expect(w.towersBuilt).toBe(duskBuiltBefore);
+          expect(w.towersBuilt).toBe(vsBuiltBefore);
         } else {
           expect(w.phase).toBe('act1_build');
           expect(w.buildTimer).toBe(buildPhaseSeconds);
         }
       }
 
-      expect(w.phase).toBe('dusk');
-      run.step(emptyInput()); // duskTimer already 0 -> finishSundering fires this tick
       expect(w.phase).toBe('act2');
       vsWaveCount++;
       expect(w.cycle).toBe(block);
@@ -114,12 +105,10 @@ describe('p3a: SPEC-FINAL §1.1 run shape (gate G6 pattern half)', () => {
         run.step(emptyInput());
         expect(w.phase).toBe('act2');
 
-        // At 75s: ends into Dawn (auto-resolved via the real `dawn_done` command).
+        // At 75s: the block ends immediately into the next TD block's build
+        // phase (p3d: no Dawn ledger — `advanceToNextBlock` fires directly).
         w.act2Time = vsWaveSeconds;
         run.step(emptyInput());
-        expect(w.phase).toBe('dawn');
-
-        applyCommand(w, { k: 'dawn_done' });
         expect(w.phase).toBe('act1_build');
         expect(w.cycle).toBe(block + 1);
       } else {

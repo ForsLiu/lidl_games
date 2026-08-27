@@ -45,15 +45,6 @@ describe('run progress', () => {
     expect(p.sub).toBeNull();
   });
 
-  it('Dusk is its own stage, and reads as the end of Act I', () => {
-    const w = world();
-    w.phase = 'dusk';
-    w.duskTimer = 12;
-    const p = runProgress(w);
-    expect(p.title).toBe('Dusk');
-    expect(p.fraction).toBe(1);
-  });
-
   it('waveRemaining counts what is standing plus what is still queued', () => {
     const w = world();
     expect(waveRemaining(w)).toBe(0);

@@ -464,7 +464,7 @@ the same ones SPEC-FINAL removes. Four things are genuinely new:
 | m21d | p2e | unchanged |
 | m22a | p3a | unchanged |
 | m22b | p3b | early-call bonus formula stated (`2 gold x un-elapsed build seconds`) |
-| m22c | p3d | unchanged |
+| m22c | p3d | unchanged; done — the phase machine, Rekindle and both cycle-shape data fields (`waveEndByCycle`/`nightSecondsByCycle`) are deleted, `World.cycle`/`totalCycles` kept (Q108) |
 | m22d | p3e | run length split out to p10d, which owns G1 |
 | m23a–c | p6a–c | acceptance now G9 |
 | m23d | p6f | inverted: §4 re-authors Engineer and Pyro, so the legacy trio is migrated onto §4's shape, not badged as legacy |
@@ -516,7 +516,7 @@ itself rather than its tuning:
 | `content-complete.test.ts` › `has 12 boons…` | §6.3's pool (stat boons rank x5, Type Mastery rank x3, 3 skill cards per class rank x2) replaces `boons.json`'s flat 12. | p7a |
 | `content-complete.test.ts` › `introduces the Gatebreaker on wave 10` | §1.1 puts the Gatebreaker at the end of **TD wave 18** of 18. | p8a |
 | `content-complete.test.ts` › `rolls relics with the right affix counts per rarity` | §7's equipment is a fixed 12-item table across 6 slots, granted 1 per TD wave cleared. Nothing rolls. | p7d |
-| `b004-ember-survival.test.ts` — both describes | §8 removes Ember; §1.1 removes the multi-Night run there was a cumulative survival counter for. | p7d |
+| `b004-ember-survival.test.ts` — both describes | §8 removes Ember; §1.1 removes the multi-Night run there was a cumulative survival counter for. | **p3d**, not p7d as first planned — both `describe.skip` bodies still referenced `w.phase === 'dawn'`, `{k:'dawn_done'}` and `onRekindle`/`onDawnDone` literally, which stopped type-checking the moment p3d dropped those members from `Phase`/`Command`/`HudCallbacks` (TypeScript checks skipped test bodies same as any other code); the file could not survive to p7d unedited, so it was deleted early rather than rewritten to keep a placeholder shell (code review on p3d) |
 
 **Reasons restated, not newly retired** — A5, A6, A7 and A8 were already retired
 against V3 at M17. Their headers now name the SPEC-FINAL gate that supersedes
@@ -532,9 +532,14 @@ file. A8's carried-forward claim is **not** re-filed: see the m27b row above.
   baseline they are measured against once p3a changes the run shape.
 - **A10** stays live and red-adjacent rather than retired: §16 asks for it to be
   *re-baselined* as G17, not dropped. p10e owns it.
-- `f001-cycle-machine.test.ts` — its four Rekindle/Dusk cases are already skipped
-  from M17; the rest still guards the live phase machine and is retired wholesale
-  at **p3d**, when that machine is deleted.
+- `f001-cycle-machine.test.ts` — its four Rekindle/Dusk cases were already skipped
+  from M17; the rest guarded the live phase machine and was retired wholesale
+  (file deleted) **at p3d**, when that machine was deleted. `cycleEliteMul`'s
+  and `act2Minute`'s per-cycle heat coverage, the only two live assertions in
+  the file with no successor elsewhere, moved to `tests/p3d-cycle-machine.test.ts`
+  rather than being dropped; a new un-petrify-for-free regression case (a
+  code-review finding — `advanceToNextBlock`'s replacement for Rekindle had no
+  direct test) joined it in the same file.
 - `light-build.test.ts` — its subject survives as a TD-wave claim; re-baselined
   at p3e.
 

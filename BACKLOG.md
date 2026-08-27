@@ -31,7 +31,7 @@ still in test headers.
 | P0 sim skeleton | **done** — fixed 60 Hz, named RNG streams, Commands, headless CLI, end-state hash (G2 green except tuner-edited content and fast-forward, see p9f) |
 | P1 TD core | **done** — pathing, 3 owner towers, 20 enemies, economy live; p1a landed sealing (breach pathing, §10), p1b measured G7's win-rate band as a live test — G7 green in full, band re-measured at p3e per Q83 |
 | P2 VS core | **done in full (p2a-p2f)** — inheritance formula built and wired live, towers inert with their §5 specials live, weapon-panel lineage live, the superseded soul-weapon roster and Dusk picker deleted (G3 green in full) |
-| P3 interleave | **the interleave pattern, multi-summon and leak coupling done, G6 green in full; the old machine's deletion and the re-baseline not** — `p3a` retargets the reused V2 cycle machine to 18 TD + 6 VS, 20s build, 75s VS (G6's pattern half); `p3b` stacks up to `maxStackedWaves` TD waves via the `call` command (G6's stacking half); `p3c` re-points leak coupling's existing ×2-into-next-VS-wave mechanism onto TD→VS vocabulary and the real 6-block shape; `p3d` (delete the old machine) and `p3e` (re-baseline) are still open |
+| P3 interleave | **the interleave pattern, multi-summon, leak coupling and the old machine's deletion done, G6 green in full; only the re-baseline is not** — `p3a` retargets the reused V2 cycle machine to 18 TD + 6 VS, 20s build, 75s VS (G6's pattern half); `p3b` stacks up to `maxStackedWaves` TD waves via the `call` command (G6's stacking half); `p3c` re-points leak coupling's existing ×2-into-next-VS-wave mechanism onto TD→VS vocabulary and the real 6-block shape; `p3d` deletes the V2 Day/Dusk/Night/Dawn machine, Rekindle and the Core-detonation pocket/lane mechanism outright; `p3e` (re-baseline) is still open |
 | P4 core math | **done** — multiplicative stacking, armor cap +99 / floor −100, 6 damage types + 2 statuses (G4, G5 green) |
 | P5 tower roster | **done bar pricing** — all 10 towers, upgrade tracks, defense bands; two tracks carry a `note` instead of §5's count (G20 unasserted) |
 | P6 classes | **3 of 11**, and on V2's one-Active + Signature framework, not §4's Passive + Q + E + tower passive (G8–G11 unmet) |
@@ -65,13 +65,10 @@ line; p2e deleted the superseded soul-weapon roster and picker wholesale.
 ### P3 — interleave and leak coupling (G6)
 
 **Gate G6 is green in full** — p3a landed the pattern half, p3b lands
-the stacking half, p3c (this commit) restates leak coupling on the new shape.
-p3d (deleting the old cycle machine) and p3e (re-baseline) are still open.
+the stacking half, p3c restates leak coupling on the new shape, p3d (this
+commit) deletes the old cycle machine outright. p3e (re-baseline) is still
+open.
 
-- [ ] (p3d) [polish] Delete the Day/Dusk/Night/Dawn cycle machine, Rekindle, and the
-      `cycles` config — acceptance: the `Phase` union carries only §1.1's phases,
-      MIGRATION.md §8's retire-with-p3d rows are checked off, `npm test` green —
-      refs: §1.1
 - [ ] (p3e) [balance] Re-baseline the run-shape-dependent gates against 18 TD + 6 VS
       — acceptance: `light-build`, A4's successor under G13, and the boss gate each
       green or carrying a written reason; the run-length gate is deferred to p10d,
@@ -383,6 +380,89 @@ logged in MIGRATION.md §8 rather than carried as dead items.
   **G19**. The work is `p10d`.
 
 ## Done
+
+- [x] (p3d) [polish] Delete the Day/Dusk/Night/Dawn cycle machine, Rekindle, and
+      the V2 Core-detonation clauses — this commit. **Gate G6 is unaffected (it
+      was already green in full at p3c); this item is the cleanup §1.1/§6.2 asked
+      for once nothing still depended on the old machine.** `Phase` now carries
+      exactly §1.1's five phases (`act1_build`, `act1_wave`, `act2`, `levelup`,
+      `results` — `dusk`/`dawn` gone); `Command` drops `rekindle`/`dawn_done`;
+      `World.dawnTimer`/`duskTimer` and `DAWN_AUTO_SECONDS` are gone.
+      `src/sim/sundering.ts`'s `beginDawn`/`advanceFromDawn`/`rekindleTower` are
+      replaced by one `advanceToNextBlock`: every live tower simply un-petrifies
+      for free — no Rekindle cost, nothing to choose — and the next TD block's
+      build phase starts on the very same tick a VS wave's timer (or, on the
+      final block, the Warden-Eater) ends. `finishSundering` (the TD-block →
+      VS-wave direction) now fires synchronously too: `completeWave` (`run.ts`)
+      calls it directly instead of setting a `dusk` phase with a countdown, so a
+      block's VS wave begins the instant its last TD wave clears, matching
+      §1.1's "20s build, 75s VS, nothing between them" literally rather than via
+      the `duskTimer`-collapsed-to-0 workaround p3a shipped. `canBuildNow`
+      (`src/sim/towers.ts`) is now exactly the two Act I phases — no more
+      `duskTimer > 0` grace clause, since Dusk itself is gone. `clearCorePocket`/
+      `openApproachLanes` (the V2 Core-detonation force-clear and guaranteed
+      approach lanes) are deleted outright rather than migrated: §6.2 states
+      towers stand "inert but present... solid obstacles" through a VS wave,
+      which is the opposite of force-clearing a pocket around them, and §10's
+      breach-cost pathing (p1a) already guarantees a route exists without
+      bulldozing anything. `rekindleCostMul` (`data/towers.json`) and
+      `waveEndByCycle`/`nightSecondsByCycle` (`data/waves.json`) are deleted;
+      `World.cycle`/`totalCycles`/`RunConfig.cycles` are **kept** despite the
+      item's own title naming `cycles` — Q108 records why (§1.1's run is still
+      counted in TD-block/VS-wave pairs, and every reader of the field —
+      `cycleWaveEnd`, `nightLengthSeconds`, `cycleEliteMul`, `act2Minute` — is
+      untouched by this item, all still correct for the §1.1 shape).
+      `tests/f001-cycle-machine.test.ts` (the file that drove the old machine
+      end to end) and `tests/b004-ember-survival.test.ts` (both `describe.skip`
+      bodies referenced `w.phase === 'dawn'`/`{k:'dawn_done'}`/
+      `onRekindle`/`onDawnDone` literally, which stopped type-checking the
+      moment this item dropped those members — MIGRATION.md originally
+      scheduled its deletion for p7d, moved up here since a skipped test still
+      has to compile) are both deleted; a new `tests/p3d-cycle-machine.test.ts`
+      carries forward the two live assertions `f001` had no successor for
+      (`cycleEliteMul`'s per-cycle table read, `act2Minute`'s
+      `nightMinuteOffsetPerCycle` compounding — both still-live §16-deferred
+      balance knobs `p3e` re-baselines, untouched by this item) plus a new
+      regression case built to close a real coverage gap code review found: no
+      test anywhere drove a *real* built tower through petrify → VS wave →
+      `advanceToNextBlock`'s un-petrify loop and confirmed it actually came back
+      live — a silent regression there (e.g. a revert to conditional/Rekindle-
+      gated un-petrify, or the loop simply being dropped) would have
+      permanently stopped every tower from firing past the first VS wave with
+      nothing catching it. Verified the new case actually catches that class of
+      bug by temporarily deleting the un-petrify loop and confirming the test
+      fails, then restoring it. code-reviewer **REQUEST-CHANGES → both Major
+      findings fixed, then re-verified**: (1) this diff originally landed with
+      no MIGRATION.md/BACKLOG.md/PROGRESS.md updates and a design decision
+      (deleting `clearCorePocket`/`openApproachLanes`, and keeping `cycles`)
+      cited in code comments as "Q108" before Q108 actually existed in
+      QUESTIONS.md — both fixed (this entry, the MIGRATION.md rows below, and
+      the Q108 write-up); (2) `advanceToNextBlock`'s un-petrify loop had no
+      direct regression test — fixed with the new case above. One Minor taken:
+      `src/bots/policies.ts`'s `POCKET_CLEAR_RADIUS` site-scoring penalty
+      referenced the now-deleted `clearCorePocket` in its comment as if still
+      live; corrected to name the mechanic as gone and the penalty's continued
+      existence as a deferred p3e balance question (Q108) rather than changed
+      blind, since altering `BuilderPolicy`'s site scoring reaches every
+      seed-pinned gate a `maxbuild`/`hybrid`/`sealed`/`turtle`/`greedy` bot
+      plays — exactly the blast-radius CLAUDE.md's measurement rules warn a
+      "narrow" fix can have. **qa-playtester PASS**, no bugs found: real
+      (non-scripted) bot runs across several seeds/policies/cycle-counts
+      through every TD-block↔VS-wave boundary with no hang or stuck phase;
+      `canBuildNow` rejects every build attempt during `act2`, spam included; a
+      structure killed mid-VS-wave stays dead through the immediate block
+      transition (not resurrected, not double-counted) while its live siblings
+      un-petrify with HP intact; multi-summon (p3b) stacking still caps and
+      still can't cross a block boundary; leak coupling (p3c) still funds the
+      following VS wave correctly now that the transition is synchronous;
+      replay-hash determinism holds across independent runs at multiple cycle
+      counts; a repo-wide grep for `dusk`/`dawn`/`rekindle`/`Rekindle`/
+      `DAWN_AUTO_SECONDS`/`duskTimer`/`dawnTimer` turns up nothing live outside
+      doc-comments and this file's own history text. `npm test`: 670 pass / 25
+      skipped (main config, up from 667/25 — the 3 new
+      `tests/p3d-cycle-machine.test.ts` cases net against the tests deleted
+      alongside `f001`/`b004`) + 3 pass (perf config); `npx tsc --noEmit`
+      clean — refs: §1.1, §6.2, G6, Q108
 
 - [x] (p3c) [feat] Leak coupling restated on the new shape — this commit. The
       mechanism itself (`leakIntoCore` in `src/sim/enemies.ts`, `finishSundering`

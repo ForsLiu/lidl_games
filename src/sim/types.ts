@@ -5,14 +5,7 @@
 export const FIXED_DT = 1 / 60;
 export const TICKS_PER_SECOND = 60;
 
-export type Phase =
-  | 'act1_build'
-  | 'act1_wave'
-  | 'dusk'
-  | 'act2'
-  | 'levelup'
-  | 'dawn'
-  | 'results';
+export type Phase = 'act1_build' | 'act1_wave' | 'act2' | 'levelup' | 'results';
 
 export type RunOutcome = 'running' | 'victory' | 'defeat_core' | 'defeat_warden';
 
@@ -26,8 +19,6 @@ export type Command =
   | { k: 'pick'; index: number }
   | { k: 'reroll' }
   | { k: 'equip'; relic: number }
-  | { k: 'rekindle'; structureId: number }
-  | { k: 'dawn_done' }
   | { k: 'class_active' }
   | { k: 'dev'; op: DevOp; amount: number };
 
@@ -313,14 +304,17 @@ export interface RunConfig {
   /** Bot policy name, headless only. */
   policy?: string;
   /**
-   * SPEC-FINAL §1.1 (p3a): number of TD-block/VS-wave pairs the run plays
-   * before the Warden-Eater ends it. Defaults to 6 (18 TD + 6 VS, the shipped
-   * run shape — 3 TD waves per block, `data/waves.json`'s `tdWavesPerVsWave`).
-   * Tests may pass 1 to keep the legacy single-pass shape (a full walk of the
-   * authored wave table into one Sundering, one boss-only VS wave) still used
-   * by most of the suite (`tests/helpers.ts`'s default `cfg()`). This field
-   * and the V2 cycle machine it drives (`World.cycle`, `dusk`/`dawn` phases)
-   * are deleted outright at p3d.
+   * SPEC-FINAL §1.1: number of TD-block/VS-wave pairs the run plays before
+   * the Warden-Eater ends it. Defaults to 6 (18 TD + 6 VS, the shipped run
+   * shape — 3 TD waves per block, `data/waves.json`'s `tdWavesPerVsWave`).
+   * `World.cycle` counts these 1-based as the run progresses; a test may pass
+   * a smaller number for a quicker single- or few-block run (e.g. `1` is 3 TD
+   * waves then one boss-gated VS wave). p3d deleted the V2 Day/Dusk/Night/Dawn
+   * phase machine and its Rekindle mechanic that this field used to drive —
+   * every block transition is now immediate (see `finishSundering`/
+   * `advanceToNextBlock` in `sundering.ts`) — but the block-count concept
+   * itself survives: `cycleEliteMul`'s per-cycle heat (§16, deferred to p3e)
+   * still reads `World.cycle`/`totalCycles` (Q108).
    */
   cycles?: number;
   /**

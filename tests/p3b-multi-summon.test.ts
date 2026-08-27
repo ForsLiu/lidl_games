@@ -80,8 +80,9 @@ describe('p3b: multi-summon (gate G6 stacking half)', () => {
     expect(w.goldEarnedByWave[1]).toBeLessThan(w.goldEarnedByWave[2]);
     expect(w.goldEarnedByWave[2]).toBeLessThan(w.goldEarnedByWave[3]);
     // Wave 3 is this block's last (tdWavesPerVsWave = 3): clearing it, even
-    // via a stack, ends the block exactly like clearing it one at a time.
-    expect(w.phase).toBe('dusk');
+    // via a stack, ends the block exactly like clearing it one at a time —
+    // and immediately (p3d deleted the Dusk wait), landing straight in 'act2'.
+    expect(w.phase).toBe('act2');
   });
 
   it('a summon command during a VS wave is a no-op', () => {

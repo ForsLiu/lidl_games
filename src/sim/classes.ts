@@ -9,8 +9,8 @@ import { damageEnemy } from './enemies';
 import type { Phase } from './types';
 import { World } from './world';
 
-/** Usable both Day and Night, per SPEC-V2 §2 — but not in menu/transition phases. */
-const ACTIVE_PHASES: ReadonlySet<Phase> = new Set(['act1_build', 'act1_wave', 'dusk', 'act2']);
+/** Usable both TD and VS, per SPEC-V2 §2 — but not in menu/transition phases. */
+const ACTIVE_PHASES: ReadonlySet<Phase> = new Set(['act1_build', 'act1_wave', 'act2']);
 
 /** Returns whether the Active fired; false on cooldown, wrong phase, or no active defined. */
 export function useClassActive(w: World): boolean {

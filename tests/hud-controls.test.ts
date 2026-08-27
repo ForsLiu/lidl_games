@@ -40,8 +40,6 @@ function makeHud(root: HTMLElement, log: Log, pacer: Pacer): Hud {
     onCallWave: () => {},
     onPickOffer: () => {},
     onReroll: () => {},
-    onRekindle: () => {},
-    onDawnDone: () => {},
     onRetry: () => {},
     onNewRun: () => {},
     onToggleRanges: () => log.ranges++,

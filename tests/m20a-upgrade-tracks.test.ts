@@ -30,7 +30,6 @@ import {
   upgradeStatMul,
   upgradeTower,
 } from '../src/sim/towers';
-import { petrify, rekindleTower } from '../src/sim/sundering';
 import { World } from '../src/sim/world';
 import { cfg } from './helpers';
 
@@ -163,28 +162,6 @@ describe('m20a — sell refunds 50% of total spent, at every step (§4)', () => 
     const before = w.gold;
     expect(sellTower(w, tx, ty)).toBe(true);
     expect(w.gold - before).toBe(Math.round(paid * 0.5));
-  });
-
-  it('counts a Rekindle as gold spent on the structure', () => {
-    // §4 says "build + upgrades" and V2's Rekindle is neither, but it is money
-    // paid for this structure, so it joins the ledger (Q73). QA found the line
-    // had no test: deleting it left the whole suite green.
-    const def = content.towerByKey.get('ballista')!;
-    const { w, tx, ty, s } = place(def);
-    w.gold = 1e6;
-    expect(upgradeTower(w, tx, ty)).toBe(true);
-    const built = s.spent;
-
-    petrify(w);
-    w.phase = 'dawn';
-    const rekindle = Math.max(1, Math.round(towerCost(w, def) * w.content.towers.rekindleCostMul));
-    expect(rekindleTower(w, s.id)).toBe(true);
-    expect(s.spent).toBe(built + rekindle);
-
-    w.phase = 'act1_build';
-    const before = w.gold;
-    expect(sellTower(w, tx, ty)).toBe(true);
-    expect(w.gold - before).toBe(Math.round((built + rekindle) * 0.5));
   });
 
   it('charges a flat cost per step — no ladder', () => {

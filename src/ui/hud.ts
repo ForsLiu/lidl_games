@@ -18,10 +18,6 @@ export interface HudCallbacks {
   onCallWave(): void;
   onPickOffer(index: number): void;
   onReroll(): void;
-  /** Dawn: Rekindle one petrified tower back to life for the next Day. */
-  onRekindle(structureId: number): void;
-  /** Dawn: done choosing; the next Day begins. */
-  onDawnDone(): void;
   /** Results screen: same seed, same config, straight back in. */
   onRetry(): void;
   /** Results screen: same config, a fresh seed, straight back in. */
@@ -427,27 +423,15 @@ export class Hud {
     }
   }
 
-  /** Modal screens: level-up, Dawn, results. */
+  /** Modal screens: level-up, results. */
   syncModal(w: World): void {
     if (this.paused) return;
-    // Only the Dawn ledger needs to react to gold and petrified-tower changes
-    // frame to frame; keying on them elsewhere would re-render every tick a
-    // tower earns gold.
-    const dawnKey =
-      w.phase === 'dawn'
-        ? `:${w.gold}:${w.structures
-            .filter((s) => s.petrified)
-            .map((s) => s.id)
-            .join(',')}`
-        : '';
-    const key = `${w.phase}:${w.offers.length}:${w.outcome}:${w.level}${dawnKey}`;
+    const key = `${w.phase}:${w.offers.length}:${w.outcome}:${w.level}`;
     if (key === this.lastModalKey) return;
     this.lastModalKey = key;
 
     if (w.phase === 'levelup') {
       this.showOffers(w, w.offers);
-    } else if (w.phase === 'dawn') {
-      this.showDawn(w);
     } else if (w.phase === 'results') {
       this.showResults(w);
     } else {
@@ -465,42 +449,6 @@ export class Hud {
   private openModal(): void {
     this.modal.hidden = false;
     this.modal.classList.remove('sw-off');
-  }
-
-  private showDawn(w: World): void {
-    this.openModal();
-    const petrified = w.structures.filter((s) => !s.dead && s.petrified);
-    this.modal.innerHTML = `
-      <div class="sw-card wide">
-        <h2>Dawn — Cycle ${w.cycle} of ${w.totalCycles}</h2>
-        <p>Rekindle a tower to fight again by Day; leave it and it stays petrified through Night.</p>
-        <div class="sw-souls">
-          ${
-            petrified.length === 0
-              ? '<p class="sw-note">Nothing petrified survived the Night.</p>'
-              : petrified
-                  .map((s) => {
-                    const def = w.content.towerById.get(s.towerId)!;
-                    const cost = Math.max(
-                      1,
-                      Math.round(towerCost(w, def) * w.content.towers.rekindleCostMul),
-                    );
-                    const afford = w.gold >= cost;
-                    return `<button class="sw-soul ${afford ? '' : 'poor'}" data-id="${s.id}" ${
-                      afford ? '' : 'disabled'
-                    }>
-                      <b>${def.name}</b><small>Level ${s.tier}</small>
-                      <span>Rekindle for ${cost}g</span></button>`;
-                  })
-                  .join('')
-          }
-        </div>
-        <button class="sw-go">Begin Day ${w.cycle + 1}</button>
-      </div>`;
-    for (const el of this.modal.querySelectorAll<HTMLElement>('.sw-soul')) {
-      el.addEventListener('click', () => this.cb.onRekindle(Number(el.dataset.id)));
-    }
-    this.modal.querySelector('.sw-go')?.addEventListener('click', () => this.cb.onDawnDone());
   }
 
   private showOffers(w: World, offers: Offer[]): void {

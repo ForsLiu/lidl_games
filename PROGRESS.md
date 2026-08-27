@@ -96,8 +96,13 @@ test-retirement ledger. Read §8 before touching anything.
   rate — so the milestone moves damage into a bucket that is already full and
   measures **−5.4%** (88.6 → 83.8 dps). Both clauses are verbatim and both are
   ⚖. Logged as Q87 for §17's review list rather than resolved by an agent.
-- **Next action:** **P3** `p3d` (deleting the old Day/Dusk/Night/Dawn cycle
-  machine now that its consumers are all re-pointed). `p3c` is done — leak
+- **Next action:** **P3** `p3e` (re-baselining the run-shape-dependent gates
+  against 18 TD + 6 VS — the last open P3 item). `p3d` is done — the old V2
+  Day/Dusk/Night/Dawn cycle machine (Dusk's cinematic wait, Dawn's
+  Rekindle-or-Leave ledger, the Core-detonation pocket-clear/approach-lane
+  mechanism) is deleted outright now that p3a/p3b/p3c had already re-pointed
+  every one of its consumers onto §1.1's shape; see its own entry below.
+  `p3c` is done — leak
   coupling's existing ×2-into-next-VS-wave mechanism (already spec-exact before
   this item) is re-pointed onto TD→VS vocabulary and proven correct across the
   real 6-block §1.1 shape; see its own entry below. `p3b` is done — multi-summon (stacking up to `maxStackedWaves`
@@ -155,6 +160,75 @@ test-retirement ledger. Read §8 before touching anything.
   failed, unchanged before and after every fix; `npx tsc --noEmit` clean.
   `p3b` (multi-summon), `p3c` (leak coupling's ×2-into-next-VS restatement)
   and `p3d` (deleting the old cycle machine outright) are still open.
+- **p3d — what a reader needs to know.** The V2 Day/Dusk/Night/Dawn phase
+  machine is deleted outright, not just retargeted: `Phase` carries exactly
+  §1.1's five values (`act1_build`, `act1_wave`, `act2`, `levelup`, `results`),
+  `Command` drops `rekindle`/`dawn_done`, and `World.dawnTimer`/`duskTimer`/
+  `DAWN_AUTO_SECONDS` are gone. `src/sim/sundering.ts`'s `beginDawn`/
+  `advanceFromDawn`/`rekindleTower` collapse into one `advanceToNextBlock`:
+  every live tower un-petrifies for free (no Rekindle cost, nothing to
+  choose) the instant a VS wave ends, landing straight in the next block's
+  build phase on the same tick. The other direction (`finishSundering`, TD
+  block → VS wave) is now called directly from `completeWave` instead of
+  going through a timed `dusk` phase, so a block's VS wave starts the instant
+  its last TD wave clears — §1.1's "20s build, 75s VS, nothing between them"
+  literally, replacing the `duskTimer`-collapsed-to-zero workaround p3a
+  shipped as a stopgap. `canBuildNow` (`src/sim/towers.ts`) is now exactly
+  the two Act I phases, no grace clause needed since Dusk itself is gone.
+  `clearCorePocket`/`openApproachLanes` (V2's Core-detonation force-clear and
+  guaranteed approach lanes) are deleted rather than migrated — §6.2 says
+  towers stand "inert but present," the opposite of force-clearing space
+  around them, and §10's breach-cost pathing (p1a) already guarantees a
+  route without bulldozing anything. **Q108** records the one genuine scope
+  call the item's own title left ambiguous: `World.cycle`/`totalCycles`/
+  `RunConfig.cycles` are *kept*, not deleted, because they still count
+  §1.1's TD-block/VS-wave pairs and every reader of the field
+  (`cycleWaveEnd`, `nightLengthSeconds`, `cycleEliteMul`, `act2Minute`) is
+  correct as-is for the new shape — only the *machine built around* the
+  counter (Dusk/Dawn/Rekindle) is what SPEC-FINAL has no room for. Deleting
+  `tests/f001-cycle-machine.test.ts` (the phase machine's own end-to-end
+  test) and `tests/b004-ember-survival.test.ts` (its two `describe.skip`
+  bodies stopped type-checking the moment `Phase`/`Command`/`HudCallbacks`
+  dropped the members they still referenced by name, even skipped — MIGRATION
+  had scheduled b004 for p7d, moved up here since a skipped test still has to
+  compile) needed a replacement for the two assertions in `f001` with no
+  successor elsewhere: `tests/p3d-cycle-machine.test.ts` carries forward
+  `cycleEliteMul`'s per-cycle table read and `act2Minute`'s
+  `nightMinuteOffsetPerCycle` compounding (both still-live, §16-deferred to
+  `p3e`, untouched by this item), plus a new regression case for a real gap
+  code review found: no test anywhere drove an actually-built tower through
+  petrify → VS wave → `advanceToNextBlock`'s un-petrify loop and confirmed it
+  came back live — verified this catches the class of bug it's meant to by
+  temporarily deleting the un-petrify loop and watching the new test fail,
+  then restoring it. **code-reviewer REQUEST-CHANGES → both Major findings
+  fixed, then re-verified clean**: the first draft landed with no
+  MIGRATION.md/BACKLOG.md/PROGRESS.md updates and cited a design decision as
+  "Q108" in code comments before Q108 existed in QUESTIONS.md — both fixed
+  (this write-up, the MIGRATION.md rows, and Q108 itself, which also covers
+  the `clearCorePocket`/`openApproachLanes` deletion and the `cycles`-kept
+  call); and `advanceToNextBlock`'s un-petrify loop had no direct test —
+  fixed with the case above. One Minor taken:
+  `src/bots/policies.ts`'s `POCKET_CLEAR_RADIUS` site-scoring penalty
+  described the now-deleted `clearCorePocket` as if still live in its
+  comment; corrected to name the mechanic as gone and the penalty's
+  continued existence as a deferred `p3e` balance question (Q108) rather
+  than silently changed, since touching `BuilderPolicy`'s site scoring
+  reaches every seed-pinned gate a `maxbuild`/`hybrid`/`sealed`/`turtle`/
+  `greedy` bot plays. **qa-playtester PASS**, no bugs found: real
+  (non-scripted) bot runs across several seeds/policies/cycle-counts through
+  every TD-block↔VS-wave boundary with no hang or stuck phase; `canBuildNow`
+  rejects every build attempt during `act2` including command spam; a
+  structure killed mid-VS-wave stays dead through the immediate block
+  transition (not resurrected, not double-counted) while live siblings
+  un-petrify with HP intact; multi-summon (p3b) stacking still caps and
+  still can't cross a block boundary; leak coupling (p3c) still funds the
+  following VS wave correctly now that the transition is synchronous;
+  replay-hash determinism holds across independent runs at multiple cycle
+  counts; a repo-wide grep for `dusk`/`dawn`/`rekindle`/`Rekindle`/
+  `DAWN_AUTO_SECONDS`/`duskTimer`/`dawnTimer` turns up nothing live outside
+  doc-comments and history text. `npm test`: 670 pass / 25 skipped (main
+  config, up from 667/25) + 3 pass (perf config); `npx tsc --noEmit` clean —
+  refs: §1.1, §6.2, G6, Q108
 - **p3c — what a reader needs to know.** Leak coupling's mechanism
   (`leakIntoCore` in `src/sim/enemies.ts`, `finishSundering` in
   `src/sim/sundering.ts`) already matched SPEC-FINAL §1.1's literal text before

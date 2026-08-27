@@ -19,7 +19,16 @@ interface Site {
   score: number;
 }
 
-/** Matches the pocket the Core detonation clears (SPEC 4, step 2). */
+/**
+ * V2's Core-detonation pocket radius (SPEC 4, step 2) — the mechanic this
+ * matched (`clearCorePocket`) is deleted at p3d, since §6.2 keeps built
+ * towers inert-but-present through a VS wave rather than force-clearing them.
+ * The heuristic below still avoids the tile ring for now; whether it should
+ * (nothing bulldozes a core-adjacent tower anymore) is a bot-heuristic
+ * balance question left to p3e rather than changed here, since a scoring
+ * change here reaches every seed-pinned gate a `BuilderPolicy`-derived bot
+ * plays (Q108).
+ */
 const POCKET_CLEAR_RADIUS = 3.2;
 
 export interface BuilderOptions {
@@ -104,12 +113,6 @@ export class BuilderPolicy implements BotPolicy {
       case 'act1_build':
       case 'act1_wave':
         return this.act1(w);
-      case 'dusk':
-        return emptyInput();
-      case 'dawn':
-        // Always Leave: a bot has no basis to spend gold on Rekindle. Dawn
-        // auto-advances after DAWN_AUTO_SECONDS regardless.
-        return emptyInput();
       case 'levelup':
         return { ...emptyInput(), cmds: [{ k: 'pick', index: this.pickOffer(w) }] };
       case 'act2':
@@ -125,8 +128,9 @@ export class BuilderPolicy implements BotPolicy {
     const input = emptyInput();
     if (this.planWave !== w.wave || this.plan.length === 0) this.replan(w);
 
-    // Petrified towers from an earlier cycle are terrain, not budget spent: a
-    // multi-cycle Day must still be able to build up to a fresh cap.
+    // `petrified` is always false in a TD phase (p3d: towers un-petrify for
+    // free the instant a block's VS wave ends) — this filter is defensive,
+    // not load-bearing, the same shape `updateTowers`'s own check keeps.
     const live = w.structures.filter((s) => !s.dead && !s.petrified).length;
     if (live >= this.opts.maxStructures) this.plan.length = 0;
 
@@ -503,8 +507,9 @@ export function rankSites(w: World): Site[] {
           }
         }
         const d = Math.sqrt(dist2(tx + 0.5, ty + 0.5, core.x, core.y));
-        // Anything inside the Sundering blast pocket is force-cleared at dusk
-        // (SPEC 4), so building there throws the investment away.
+        // V2 residue (POCKET_CLEAR_RADIUS's own doc comment): nothing
+        // force-clears this ring anymore, so this penalty is no longer about
+        // a wasted investment. Left as-is per Q108 rather than tuned here.
         const doomed = d <= POCKET_CLEAR_RADIUS ? 40 : 0;
         sites.push({ tx, ty, score: adjacency * 4 - d - doomed });
       }

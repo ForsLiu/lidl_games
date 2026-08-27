@@ -21,7 +21,7 @@ import { setAreaDamageHandler, updateAreas, updateProjectiles } from './combat';
 import { buildTower, collectSproutGold, sellTower, updateTowers, upgradeTower } from './towers';
 import { shouldSpawnBoss, spawnFinalBoss, updateDirector } from './act2';
 import { addXp, openLevelUpIfPending, rerollOffers, takeOffer, updateGems } from './progression';
-import { advanceFromDawn, beginDawn, DAWN_AUTO_SECONDS, finishSundering, rekindleTower } from './sundering';
+import { advanceToNextBlock, finishSundering } from './sundering';
 import { useClassActive } from './classes';
 import { updateTerrainEffects } from './weapons';
 import { updateWieldedAttacks } from './vswield';
@@ -90,21 +90,10 @@ export class Run {
         updateAreas(w, dt);
         w.act1Ticks++;
         break;
-      case 'dusk':
-        updateWarden(w, input, dt);
-        w.duskTimer -= dt;
-        w.act1Ticks++;
-        if (w.duskTimer <= 0) finishSundering(w);
-        break;
       case 'act2':
         updateAct2(w, input, dt);
         break;
       case 'levelup':
-        break;
-      case 'dawn':
-        // Waiting on `rekindle`/`dawn_done` commands; auto-advance (all Leave) if none arrive.
-        w.dawnTimer += dt;
-        if (w.dawnTimer > DAWN_AUTO_SECONDS) advanceFromDawn(w);
         break;
       case 'results':
         break;
@@ -188,12 +177,6 @@ export function applyCommand(w: World, c: Command): void {
       break;
     case 'reroll':
       rerollOffers(w);
-      break;
-    case 'rekindle':
-      rekindleTower(w, c.structureId);
-      break;
-    case 'dawn_done':
-      advanceFromDawn(w);
       break;
     case 'class_active':
       useClassActive(w);
@@ -525,22 +508,11 @@ function completeWave(w: World): void {
   w.emit('waveclear', 0, 0, w.wave, totalBonus);
 
   if (w.wave >= cycleWaveEnd(w, w.cycle)) {
-    w.phase = 'dusk';
-    // V2's 15s Dusk cinematic (code-reviewer, p3a): SPEC-FINAL §1.1 states two
-    // wall-clock numbers for the interleave — 20s build, 75s VS — and says
-    // nothing about a beat between them, so keeping the old 15s delay here
-    // would have quietly bought every non-final block 15s of legal building
-    // (`canBuildNow` still allows it during `dusk`) on top of the spec's 20s,
-    // and inflated a block's total length to 20+15+75=110s instead of 95s.
-    // The legacy single-pass escape hatch (`totalCycles <= 1`, still used by
-    // most of the suite and real V2-shape probes) keeps the original 15s so
-    // its one Dusk beat is unchanged; every §1.1 run (`totalCycles > 1`)
-    // collapses it to effectively one tick, so `finishSundering` fires on the
-    // very next step and no extra build window opens. `dusk` itself stays
-    // live rather than skipped outright because `finishSundering` still does
-    // real work here (petrify, pocket-clear, approach lanes, spire linking) —
-    // deleting the phase is p3d's job, not this item's.
-    w.duskTimer = w.totalCycles <= 1 ? 15 : 0;
+    // SPEC-FINAL §1.1 states two wall-clock numbers for the interleave — 20s
+    // build, 75s VS — and nothing about a beat between them. p3d deleted V2's
+    // 15s Dusk cinematic outright, so the block's VS wave begins on the very
+    // same tick its last TD wave clears.
+    finishSundering(w);
   } else {
     w.phase = 'act1_build';
     w.buildTimer = w.mods.buildPhase || c.buildPhaseSeconds;
@@ -576,9 +548,10 @@ function updateAct2(w: World, input: TickInput, dt: number): void {
       return;
     }
   } else if (!w.dying && w.act2Time >= nightLengthSeconds(w, w.cycle)) {
-    // SPEC-V2 §1: only the last cycle's Night ends by boss kill; every other
-    // Night simply runs its length, then Dawn's reclamation choices open.
-    beginDawn(w);
+    // SPEC-FINAL §1.1: only the final block's VS wave ends by boss kill;
+    // every other VS wave simply runs its length, then the next TD block
+    // begins immediately — no Dawn ledger (deleted at p3d).
+    advanceToNextBlock(w);
     return;
   }
   // The defeat slow-mo beat is meant to be a frozen "you've lost" moment, not

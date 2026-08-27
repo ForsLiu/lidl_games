@@ -207,8 +207,6 @@ export const TowersFileSchema = z.object({
    */
   upgradeTotalCostMul: num.positive(),
   buildRange: num,
-  /** SPEC-V2 §1: Rekindle at Dawn costs this fraction of base build cost. */
-  rekindleCostMul: num,
   /**
    * Many-target damage damping shared by every AoE/cone/ground-field hit
    * (SPEC A5): the first `aoeFullTargets` bodies a blast touches take full
@@ -312,20 +310,13 @@ const WavesFileSchema = z.object({
   spawnIntervalSeconds: num,
   enemyStructureDpsFactor: num,
   waves: z.array(z.object({ wave: num, groups: z.array(WaveGroupSchema) })),
-  /** SPEC-V2 §1: last wave (1-based, global index) of each Day cycle. */
-  waveEndByCycle: z.array(num),
-  /** Fixed Night length for every cycle but the last, which ends by boss kill. */
-  nightSecondsByCycle: z.array(num),
   /** Elite spawn-count multiplier keyed by cycle number (as a string), e.g. cycle 2's "Elite pressure x2". */
   eliteMulByCycle: z.record(num).optional(),
   /** SPEC-V2 §1: added to a Night's minute-of-warmup per prior cycle, so later Nights start hotter. */
   nightMinuteOffsetPerCycle: num.optional(),
   /**
-   * SPEC-FINAL §1.1 (P3, p3a): TD waves per interleave block before a VS wave
-   * fires ("3 TD waves, then 1 VS wave, repeating"). Replaces `waveEndByCycle`
-   * for any run of more than one block; that field and `nightSecondsByCycle`
-   * are read no further and are deleted at p3d along with the rest of the
-   * V2 cycle machine they belonged to.
+   * SPEC-FINAL §1.1: TD waves per interleave block before a VS wave fires
+   * ("3 TD waves, then 1 VS wave, repeating").
    */
   tdWavesPerVsWave: num,
   /** SPEC-FINAL §1.1: VS wave length, 75s ⚖ (the final VS wave ignores this and runs until the boss dies). */
