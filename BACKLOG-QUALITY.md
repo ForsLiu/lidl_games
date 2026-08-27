@@ -448,7 +448,7 @@ coverage gaps session 1's log recorded. All five are inside Scope as written.*
       corruption — refs: q29, q30, qa-playtester's q29 verification pass
       (session 25 log), src/sim/weapons.ts:61-79, src/sim/enemies.ts:200,
       src/sim/hash.ts
-- [ ] (q35) [bug][feat] Fuzzing q30's `applyOffer` `'boon'` case surfaced a
+- [x] (q35) [bug][feat] Fuzzing q30's `applyOffer` `'boon'` case surfaced a
       more general gap in `Rng.weightedIndex` (`src/sim/rng.ts:65-75`) itself,
       not specific to boons: if any candidate's weight is `NaN` (reachable
       here via `buildOfferPool`'s `value: rank / b.maxRank` when a poisoned
@@ -567,6 +567,43 @@ coverage gaps session 1's log recorded. All five are inside Scope as written.*
       required — today's assertions pin the *broken* behaviour), `tsc`
       clean, no `/src/**` edits — refs: q33, q37, qa-playtester's q33
       verification pass (session 31 log), tools/content-census.ts
+- [ ] (q39) [bug][feat] qa-playtester's q35 verification pass found that
+      `Stats.add`'s finite guard (`src/sim/stats.ts:148`) protects only
+      against a *single* non-finite contribution — it checks the incoming
+      value, not the running sum — so two contributions that are each
+      individually finite can still overflow `total()`/`factor()`'s
+      summation loop to `±Infinity`, with nothing downstream catching it.
+      Measured live: `s.add('relic:1','luck',1.5e308); s.add('relic:2',
+      'luck',1.5e308); s.total('luck')` is `Infinity` (`1.5e308` alone passes
+      `Number.isFinite` cleanly). Worse in the negative direction:
+      `derive()`'s `luck: s.total('luck')` has no clamp, so two `-1.5e308`
+      contributions make `derived.luck = -Infinity`, and
+      `progression.ts:89`'s `luckBias = Math.min(0.5, w.derived.luck *
+      0.004)` clamps the *positive* overflow case down to 0.5 (masking it)
+      but does nothing for `-Infinity`, so a `-Infinity` `luckBias` reaches
+      `rollOffers`'s `weight * (1 + luckBias * o.value)` uncaught —
+      reproducing q35's own NaN/Infinity-total `weightedIndex` fallback
+      through a second, previously-untraced vector. Reachability: QA traced
+      a real, currently-unvalidated delivery path — `src/meta/meta.ts:322`'s
+      `deserializeMeta` does `JSON.parse(json) as Partial<SaveFile>` with
+      **zero zod/schema validation**, so a hand-edited save with two stash
+      relics carrying an affix `{"stat":"luck","value":1.5e308}` round-trips
+      unchanged and would carry the poisoned values straight into a real
+      run's `Stats` via `relicStats()` → `Stats.addAll`. Separately,
+      `src/sim/content.ts:380-387`'s `AffixSchema` uses `num = z.number()`
+      for `min`/`max` with no `.finite()`/upper-bound check, so the same
+      class of value is authorable in `/data` content directly, not only via
+      a corrupted save. Both fixes (`Stats.add`/`total()` guarding the
+      running sum, `AffixSchema` bounding affix values, `deserializeMeta`
+      validating against a schema) are `/src/**` changes outside this lane's
+      Scope — acceptance: file confirms today's overflow behaviour is
+      already pinned by `tests/q35-weighted-index-nan.test.ts`'s "gap found
+      by QA verification" describe block; this item is the tracking entry
+      for main lane to apply one or more of the three `/src/**` fixes above,
+      then this lane can add a regression test proving the guard holds
+      post-fix — refs: q35, qa-playtester's q35 verification pass (session
+      32 log), src/sim/stats.ts:148,182-188, src/sim/progression.ts:89,
+      src/meta/meta.ts:322, src/sim/content.ts:380-387
 
 *Generated 2026-08-27, session 23, under CLAUDE.md's generation rule scoped
 to this lane: only q26 and q27 were actionable (fewer than 3) — q1/q4/q5/q6
@@ -652,6 +689,87 @@ resolve if it wants the CLI entry points too. All five are inside Scope as
 written; none needs a `package.json` edit.*
 
 ## Log
+
+### 2026-08-27 — session 33
+
+**Feedback inbox:** no `feedback/` directory exists in this worktree (checked
+with `ls feedback/`). Nothing to process, nothing moved. `git status` at
+session start was clean — no leftover uncommitted work this time.
+
+**Four actionable items were in queue** (q35-q38, above the generation
+rule's floor of 3). Took q35, the top item: a direct unit test of
+`Rng.weightedIndex`'s NaN-weight fallback, plus a check of whether
+`luckBias`/`derived.luck` can go non-finite through a real Luck source.
+
+**q35 done.** `tests/q35-weighted-index-nan.test.ts` (new file, no `World`/
+`applyOffer` involved per the item's own acceptance line): pins
+`weightedIndex`'s NaN mechanism directly (`total` goes `NaN`, every `r < 0`
+scan comparison is therefore `false`, falls through to `weights.length - 1`)
+across several seeds, several NaN positions, an all-zero-plus-NaN case, and
+a byte-identical-across-RNG-states case mirroring q30's own indirect
+symptom, plus a fairness control proving the invariant is about the NaN and
+not a blanket always-last-index bug. Second half: confirmed via `Stats.add`
+(`src/sim/stats.ts:148`) that a *single* poisoned Luck source can never
+reach `total('luck')` non-finite, since `add` drops non-finite values before
+storing them — traced and confirmed no other writer of `Derived.luck`
+exists (`derive()` is the sole one, always `s.total('luck')`).
+
+**Review (code-reviewer, APPROVE, 0 findings, 1 nit).** Independently
+re-derived the NaN-fallthrough mechanism against `src/sim/rng.ts`,
+independently confirmed `Stats.add`'s guard is sufficient for the
+single-source claim, ran the test and `tsc` clean, confirmed no duplicate
+test exists (`a11-determinism.test.ts` tests `weightedIndex` fairness only,
+`q21-weapon-boundary-fuzz.test.ts` tests the *indirect* symptom through
+`World`/`applyOffer`), confirmed Scope compliance. One nit: the header
+comment's claims duplicate what the acceptance line already required
+checking — not a defect.
+
+**QA (qa-playtester, PASS) found a real gap the "even a maximally poisoned
+set... can never make total('luck') non-finite" claim overstated** — the
+same "note overstates the coverage it cites" trap this lane has hit before
+(q17, q19, q22, q28), this time in a claim I wrote this session rather than
+inherited. `Stats.add`'s guard checks only the incoming value, not the
+running sum: two *individually finite* extreme contributions (each a legal
+double, e.g. `1.5e308`, comfortably under `Number.isFinite`'s bar) overflow
+`total()`'s own summation loop to `±Infinity` with no guard anywhere in that
+path. QA traced the negative case all the way to `luckBias`:
+`Math.min(0.5, x)` clamps the positive overflow to 0.5 (silently masking
+it) but does nothing for `-Infinity`, so a `-Infinity` `luckBias` reaches
+`rollOffers` uncaught, reproducing this same item's `weightedIndex`
+fallback through a second vector. QA also traced a real, reachable delivery
+path: `src/meta/meta.ts:322`'s `deserializeMeta` does a bare `JSON.parse` +
+type assertion with **zero schema validation**, so a tampered save with two
+extreme-valued relic affixes round-trips unchanged into a real run's
+`Stats`; separately `src/sim/content.ts:380-387`'s `AffixSchema` has no
+`.finite()`/bound on affix `min`/`max`, so the same class of value is
+authorable in `/data` directly. Independently re-verified QA's repro live
+(scratch vitest file, deleted after) before trusting it: confirmed both the
+positive-overflow-to-`Infinity` and negative-overflow-to-`-Infinity`-through-
+`luckBias` results exactly as reported.
+
+**Corrected the test file rather than leaving the overclaim standing.**
+Narrowed the docstring/describe-block title from "cannot go non-finite
+through a real Luck source" to "...through a single poisoned source," and
+added two new pinned cases (`tests/q35-weighted-index-nan.test.ts`'s final
+describe block) reproducing the overflow-to-`Infinity` and the
+uncaught-`luckBias`-to--`Infinity` chain, so today's actual gap is on
+record precisely instead of a claim that doesn't cover it. Filed the fix
+itself as **q39** for main lane (`Stats.add`/`total()` guarding the running
+sum, `AffixSchema` bounding values, `deserializeMeta` validating against a
+schema — all `/src/**`, outside this lane's Scope).
+
+**Suite state.** `npx vitest run tests/q35-weighted-index-nan.test.ts` —
+9/9 green (7 original + 2 added post-QA). `npx tsc --noEmit -p .` clean.
+`git status --porcelain` before commit: `BACKLOG-QUALITY.md`,
+`tests/q35-weighted-index-nan.test.ts` — Scope-compliant.
+
+Full-suite run (`npx vitest run`) deferred to background per this lane's
+usual ~5-9 minute runtime; will confirm clean before or note any
+pre-existing-cluster overlap in a follow-up entry if it surfaces anything
+not already documented in prior sessions' logs.
+
+**Three actionable items remain** (q36, q37, q38) plus the newly-filed
+q39 (four total), still above the generation rule's floor of 3.
 
 ### 2026-08-27 — session 32
 
