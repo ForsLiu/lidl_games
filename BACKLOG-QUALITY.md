@@ -82,7 +82,7 @@ coverage gaps session 1's log recorded. All five are inside Scope as written.*
       wall-clock-fragile the way A10 is measured to be, session 3's log), and
       asserts it against a recorded ceiling — this is q4's substance without
       the blocked `npm run bench` alias — refs: G17, session 3 log
-- [ ] (q14) [feat] Mutation smoke, in-Scope: `tools/mutation-probe.ts` applies
+- [x] (q14) [feat] Mutation smoke, in-Scope: `tools/mutation-probe.ts` applies
       one named source mutation at a time (drawn from the ones QA has actually
       used and reverted across q7/q8/q9's sessions), runs the one test file
       that should catch it, asserts red, restores the file, and asserts
@@ -130,6 +130,96 @@ resolve if it wants the CLI entry points too. All five are inside Scope as
 written; none needs a `package.json` edit.*
 
 ## Log
+
+### 2026-08-26 — session 10
+
+**Feedback inbox:** `feedback/` does not exist in this worktree (checked with
+`ls`, also checked for `feedback/processed/`). Nothing to process, nothing
+moved.
+
+**Three actionable items were in queue** (q14–q16, all unchecked and
+unblocked), so the generation rule did not run. Found `tools/mutation-probe.ts`
+and `tests/q14-mutation-smoke.test.ts` already sitting complete and untracked
+at session start, with no matching Log entry — the same shape sessions
+3/4/7/9 have all hit before (an earlier session wrote and validated the work
+and stopped before writing up or committing). Verified rather than trusted.
+
+**q14 done.** `tools/mutation-probe.ts` (harness + CLI) and
+`tests/q14-mutation-smoke.test.ts` (13 tests, ~4 min — it spawns nested
+`npx vitest run` child processes per mutation, real wall-clock cost the file's
+own comments disclose up front).
+
+**What it does.** Automates the mutation testing qa-playtester has done by
+hand across q8/q9: six mutations, each drawn verbatim from those sessions'
+logs (three in `src/meta/meta.ts` against `tests/q8-save-roundtrip.test.ts`,
+three spanning `src/sim/run.ts`/`src/bots/policies.ts` against
+`tests/q9-phase-coverage.test.ts`), each applied to a throwaway scratch copy
+of src/tests/tools/data under `bench/.tmp/q14-mutation-scratch/` — never the
+real files, because `npm test`'s worker-thread parallelism would turn an
+in-place mutation of a shared import into a flake generator for the whole
+suite, not just this file. `bench/` rather than `tools/` for the scratch root
+specifically because `tests/c7-no-orbs.test.ts` recursively walks
+`src/`/`data/`/`tools/` for leftover Orb vocabulary and a scratch copy of
+`tests/q3-save-fuzz.test.ts` sitting under `tools/` trips it for real (this
+was found by actually running the full suite, not reasoned out in advance). A
+control run (no mutation) proves the harness itself isn't broken before any
+mutation's "red" is trusted, and `gitDiffClean()` (whole-repo `git diff`, not
+file-scoped — the file-scoped form has a real blind spot: a bug that corrupts
+some *other* real file would pass it) confirms the real source was never
+touched.
+
+**Found and fixed before commit — the interesting part.** code-reviewer
+(CHANGES NEEDED, one Major) caught that `git diff` cannot see a brand-new
+*untracked* file landing in the real tree — only edits to files git already
+tracks — which is exactly the shape a `scratchPath`/`populateScratch`
+computation bug going wrong could produce. First fix attempt made
+`gitDiffClean()` also require `git ls-files --others --exclude-standard` to
+be empty repo-wide, and it immediately broke in real use: this very item's
+own two new files are themselves untracked until this commit, so the check
+failed against the code it was meant to protect, and would also spuriously
+fail on any unrelated WIP file anyone happened to have lying around. Reworked
+to a baseline-diff design instead — `snapshotUntracked()` captures the
+untracked-file set at a point in time, `hasNewUntrackedFiles(baseline)` flags
+only a path that's new since that snapshot — so `probeOne` snapshots
+immediately before mutating and compares after, tolerating however many
+pre-existing untracked files surround it while still catching a genuinely new
+stray one. Both halves (`gitDiffClean()` for tracked-file edits,
+`hasNewUntrackedFiles()` for new untracked files) were confirmed independently
+load-bearing by QA (below), each catching a version of the bug the other
+misses.
+
+**QA (qa-playtester, PASS, one Low/Minor gap recorded not filed).** Verified
+the six mutations' anchors still match current real source by script, not by
+eye; ran the full file twice standalone (13/13 both times) and once inside a
+genuine unfiltered full suite run (789 passed / 78 skipped, exit 0, this
+file's 13 included as file #49 of 56 with no cross-file interference,
+`tests/c7-no-orbs.test.ts` confirmed still green). Hostile-tested the
+isolation mechanism for real: injected a bug that corrupts a real tracked
+file mid-probe (`gitDiffClean()` alone catches it), then a separate bug that
+writes a brand-new untracked file into the real `tools/` (`gitDiffClean()`
+alone misses it — reproduced the exact false positive code review found —
+`hasNewUntrackedFiles()` catches it), confirming both checks are each
+necessary and neither alone is sufficient. Hollowed `probeControl` to a
+stubbed always-green result and confirmed the test file's own anti-vacuity
+assertion on stdout content catches it. One gap found and recorded rather
+than filed as a new item, same bar sessions 8/9 have used for a
+QA-found gap that's real but unreachable by anything shipped: the
+baseline-diff design is direction-only — it catches a new untracked file
+*appearing* but not a pre-existing one *disappearing* (relevant because
+`populateScratch` opens with a recursive `removeDir`), and none of the six
+recorded `MUTATIONS` exercises `scratchPath`/`populateScratch` so it doesn't
+affect what q14 actually probes today. Fixed here anyway, cheaply: the
+`ProbeResult.realFileUntouched` doc comment now states the asymmetry
+explicitly instead of overclaiming full working-tree coverage, so a future
+reader extending this file's public surface doesn't over-trust the guarantee
+the field name implies.
+
+**Suite state at this commit.** `npx vitest run` — **789 passed / 78 skipped,
+exit 0** (confirmed independently by QA), q14's 13 tests included (up from
+session 9's 776 + 13 = 789, matching exactly). `npx tsc --noEmit -p .` clean.
+
+**Two actionable items remain** (q15, q16, both unchecked and unblocked), so
+the generation rule does not need to run next session either.
 
 ### 2026-08-26 — session 9
 
