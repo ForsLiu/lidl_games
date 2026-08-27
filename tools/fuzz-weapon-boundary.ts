@@ -36,6 +36,14 @@
  *      the upper bound and never re-validates the result the way
  *      `grantWeapon`'s own create-branch clamp does, so a forged `toLevel`
  *      can still land an illegal value in `ws.level`.
+ *   5. WEAPON UPDATE (q29) — `grantWeapon`'s *update* branch (an existing
+ *      `WeaponState` found by key, weapons.ts:63-66) does
+ *      `existing.level = Math.max(existing.level, level)` with no clamp and
+ *      no finite guard at all, unlike the create branch's own
+ *      `Math.max(1, Math.min(maxLevel, level))`. Reached through `bindSouls`
+ *      or `applyOffer`'s `'weapon'` case when either passes an out-of-domain
+ *      `level` to an *already-granted* weapon — not a live Command-surface
+ *      exploit today, since neither caller's real inputs are ever illegal.
  *
  * Every probe is a direct `World` construction (`new World(cfg(), content)`)
  * plus, where needed, `forcePlace` — the same "write a Structure directly,
@@ -54,10 +62,10 @@ import type { RunConfig, Structure } from '../src/sim/types';
 import { grantWeapon, updateWeapons } from '../src/sim/weapons';
 import { World } from '../src/sim/world';
 
-export type Verdict = 'ok' | 'crashes' | 'ungated';
+export type Verdict = 'ok' | 'crashes' | 'ungated' | 'contaminated';
 
 export interface BoundaryCase {
-  category: 'level' | 'inheritance' | 'awakening' | 'weaponOffer';
+  category: 'level' | 'inheritance' | 'awakening' | 'weaponOffer' | 'weaponUpdate';
   id: string;
   verdict: Verdict;
   detail: string;
@@ -281,6 +289,48 @@ export function weaponOfferBoundaryCases(content: Content = loadContent()): Boun
   });
 }
 
+/* ======================================================== 5. WEAPON UPDATE ======================================================== */
+
+/**
+ * Same weapon `levelBoundaryCases`/`weaponOfferBoundaryCases` above already
+ * use, granted first at the track's floor (level 1) so any input above it is
+ * a genuine change `Math.max` will let through.
+ */
+export const WEAPON_UPDATE_TARGET = 'flame_cone';
+
+/**
+ * The create branch's own clamp (`Math.max(1, Math.min(maxLevel, level))`)
+ * means the *stored* result of an update call can differ from what the same
+ * input would produce on a fresh grant — `grantWeapon`'s update branch skips
+ * that clamp entirely. A result is `'contaminated'` when it neither crashes
+ * the live fire loop (levelStats's own read-time
+ * `Math.max(1, Math.min(top, ws.level))` clamp still protects most reads)
+ * nor stays inside the legal `[1, maxLevel]` domain the create branch would
+ * have enforced — so a raw reader of `ws.level` sees an illegal value the
+ * fire loop's defensive clamp never surfaces. Measured (not assumed): the
+ * determinism hash (`hashWorld`, run.ts:656, `h.int(wp.level)`) genuinely
+ * discriminates a contaminated 7 from the legitimate cap 6; `buildOfferPool`
+ * (progression.ts:112, `ws.level < maxLevel`) does NOT — 6 < 6 and 7 < 6 are
+ * both false, so it excludes both cases identically and is not a
+ * discriminating consequence of this hole.
+ */
+export function weaponUpdateBoundaryCases(content: Content = loadContent()): BoundaryCase[] {
+  const maxLevel = content.weapons.maxLevel;
+  return LEVEL_INPUTS.map((level) => {
+    const w = newWorld(content);
+    grantWeapon(w, WEAPON_UPDATE_TARGET, 1, 0); // create at the track's floor
+    const ws = grantWeapon(w, WEAPON_UPDATE_TARGET, level, 0); // update with the poisoned value
+    const updatedLevel = ws.level;
+    const r = tryRun(() => updateWeapons(w, 1 / 60));
+    const inDomain = updatedLevel >= 1 && updatedLevel <= maxLevel;
+    const verdict: Verdict = r.threw ? 'crashes' : inDomain ? 'ok' : 'contaminated';
+    const detail = r.threw
+      ? `create(level=1) then update(level=${level}) -> ws.level=${updatedLevel}, updateWeapons() threw: ${r.message}`
+      : `create(level=1) then update(level=${level}) -> ws.level=${updatedLevel}, fires cleanly${inDomain ? '' : ' (out of [1, maxLevel] domain)'}`;
+    return { category: 'weaponUpdate', id: levelCaseId(level), verdict, detail };
+  });
+}
+
 /* =============================================================== census =============================================================== */
 
 export function runCensus(content: Content = loadContent()): BoundaryCase[] {
@@ -289,6 +339,7 @@ export function runCensus(content: Content = loadContent()): BoundaryCase[] {
     ...inheritanceCases(content),
     ...awakeningGateCases(content),
     ...weaponOfferBoundaryCases(content),
+    ...weaponUpdateBoundaryCases(content),
   ];
 }
 
@@ -296,7 +347,7 @@ export function runCensus(content: Content = loadContent()): BoundaryCase[] {
 function main(): void {
   const rows = runCensus();
   for (const r of rows) {
-    console.log(`[${r.verdict.padEnd(7)}] ${r.category}:${r.id} — ${r.detail}`);
+    console.log(`[${r.verdict.padEnd(12)}] ${r.category}:${r.id} — ${r.detail}`);
   }
   const holes = rows.filter((r) => r.verdict !== 'ok');
   console.log(`\n${holes.length}/${rows.length} boundary cases are not cleanly 'ok'.`);

@@ -298,7 +298,7 @@ coverage gaps session 1's log recorded. All five are inside Scope as written.*
       proven by a test per file that points it at a corrupted scratch `/data`
       snapshot the way `tests/q25-content-census-cli.test.ts` already does —
       refs: q25, tools/gate-audit.ts, tools/phase-coverage.ts, tools/soak.ts
-- [ ] (q29) [bug][feat] `src/sim/weapons.ts`'s `grantWeapon` has two branches
+- [x] (q29) [bug][feat] `src/sim/weapons.ts`'s `grantWeapon` has two branches
       and only one is guarded: the create branch (no existing `WeaponState`)
       clamps `level` to `[1, maxLevel]` (q21 already fuzzed this one), but
       the *update* branch (`existing` found, lines 62-66) does
@@ -412,6 +412,42 @@ coverage gaps session 1's log recorded. All five are inside Scope as written.*
       pins the content-hash-replay gap, and file the `/src/sim/content.ts`
       fix as main-lane work in this file's Log — refs: q25, q28, qa-
       playtester's q28 verification pass (session 23 log)
+- [ ] (q34) [bug][feat] `grantWeapon`'s `damageBonus` parameter
+      (`src/sim/weapons.ts:61-79`) is unguarded in **both** branches — worse
+      than q29's `level` finding, since the create branch does a bare
+      assignment (`damageBonus,`) with no clamp at all, and the update
+      branch's `Math.max(existing.damageBonus, damageBonus)` propagates a
+      non-finite value the same way the `level` update branch does. Unlike
+      every `level`-shaped hole this file has pinned so far (q21/q27/q29,
+      which either crash the fire loop or get re-floored by `levelStats`'s
+      read-time clamp), a poisoned `damageBonus` produces **silent,
+      permanent, non-crashing corruption with no observable signal
+      anywhere**: `weaponDamageMul`'s `(1 + ws.damageBonus)` feeds `damage`
+      into `damageEnemy`, whose own guard (`if (e.dead || amount <= 0)
+      return 0`, `src/sim/enemies.ts:200`) does not catch `NaN` (`NaN <= 0`
+      is `false`), so `e.hp -= NaN` sets the enemy's hp to `NaN` forever — it
+      can never die again, since every future `e.hp <= 0` check is also
+      `false` — and `w.damageTotal`/`w.damageByWeapon[source]` go `NaN` for
+      the rest of the run. It does not even register as a hash anomaly:
+      `Hasher.num()`/`int()` (`src/sim/hash.ts`) use `v | 0`, which silently
+      coerces `NaN` to `0`, so a replay comparison would read this as
+      "looks like zero damage" rather than flag a divergence. QA reproduced
+      live, twice, with identical results, while verifying q29 — grepped
+      `BACKLOG-QUALITY.md`/`tests/` for `damageBonus` first to confirm this
+      isn't already covered by q29 (level only) or q30 (boon ranks, a
+      different field) — acceptance: a 6th `BoundaryCase` category (e.g.
+      `'damageBonus'`) added to `tools/fuzz-weapon-boundary.ts` fuzzing
+      `grantWeapon`'s `damageBonus` argument on both branches with the same
+      `{0, negative, ±Infinity, NaN, fractional}` domain q21/q29 already use
+      for `level`, a `DAMAGE_BONUS_HOLES` pinned map in
+      `tests/q21-weapon-boundary-fuzz.ts` recording today's actual measured
+      behaviour, and a describe block in `tests/q21-weapon-boundary-fuzz.test.ts`
+      that spawns a real enemy and drives `updateWeapons` far enough to
+      observe `e.hp`/`w.damageTotal` going non-finite — not just
+      `ws.damageBonus` itself, since that alone doesn't prove the downstream
+      corruption — refs: q29, q30, qa-playtester's q29 verification pass
+      (session 25 log), src/sim/weapons.ts:61-79, src/sim/enemies.ts:200,
+      src/sim/hash.ts
 
 *Generated 2026-08-27, session 23, under CLAUDE.md's generation rule scoped
 to this lane: only q26 and q27 were actionable (fewer than 3) — q1/q4/q5/q6
@@ -497,6 +533,97 @@ resolve if it wants the CLI entry points too. All five are inside Scope as
 written; none needs a `package.json` edit.*
 
 ## Log
+
+### 2026-08-27 — session 26
+
+**Feedback inbox:** `feedback/` exists in this worktree but is empty (checked
+with `ls feedback/`). Nothing to process, nothing moved.
+
+**Five actionable items were in queue** (q29, q30, q31, q32, q33, all
+unchecked and unblocked), at the generation rule's floor of 3, so the
+generation rule did not run. Took q29, the top item.
+
+**q29 done.** `tools/fuzz-weapon-boundary.ts` (new 5th `BoundaryCase`
+category `'weaponUpdate'`, `weaponUpdateBoundaryCases()`, a new `'contaminated'`
+`Verdict` variant, wired into `runCensus()`), `tests/q21-weapon-boundary-fuzz.ts`
+(new `WEAPON_UPDATE_HOLES` pinned map), `tests/q21-weapon-boundary-fuzz.test.ts`
+(+9 tests, 33 total).
+
+**What it does.** `grantWeapon`'s update branch (`src/sim/weapons.ts:63-66`,
+an existing `WeaponState` found by key) does
+`existing.level = Math.max(existing.level, level)` with no clamp at all,
+unlike the create branch's `Math.max(1, Math.min(maxLevel, level))`. Measured
+the actual behaviour against the same 9-value `LEVEL_INPUTS` domain the
+sibling "level" category already uses (granting at level 1 first, then
+updating): `NaN` and a fractional value above the existing level still crash
+the live fire loop, matching the pre-existing `nan`/`fractional` holes. But
+`7` and `Infinity` do **not** crash — `levelStats`'s own read-time clamp
+(`Math.max(1, Math.min(top, ws.level))`) re-floors them back to a legal index
+on every fire-loop read. The *stored* `ws.level` is still left outside
+`[1, maxLevel]`, though, which a raw reader elsewhere in the sim can observe
+directly — added a `'contaminated'` verdict for this shape, distinct from
+`'crashes'`/`'ok'`/`'ungated'`. Confirmed a genuinely discriminating
+consequence exists (the determinism hash, `hashWorld` at `src/sim/run.ts:656`,
+hashes `wp.level` directly, so a contaminated 7 and the legitimate cap 6 hash
+differently) and, separately, that the first candidate consequence I tried
+(`buildOfferPool`'s `ws.level < maxLevel` cutoff) does **not** discriminate —
+`6 < 6` and `7 < 6` are both `false` — caught by code-reviewer before commit,
+below.
+
+**Review (code-reviewer, REQUEST-CHANGES then APPROVE after fixes).**
+Independently verified the NaN/fractional-crash vs. 7/Infinity-contaminated
+split by reading `grantWeapon`/`levelStats` directly and running the harness.
+Found one **Major**: the "buildOfferPool stops offering more levels for it"
+test and its accompanying doc comments (all three files) claimed a
+discriminating consequence that measurably isn't one — verified live that
+`buildOfferPool` excludes a legitimately-capped weapon (level 6) and a
+contaminated one (level 7) identically, so the test would pass whether the
+bug were fixed or not, exactly the "plausible story instead of the control
+run" trap CLAUDE.md's measurement rules name. Fixed by replacing that test
+with a `hashWorld`-based one that does discriminate, adding a companion test
+that pins the non-discriminating `buildOfferPool` behaviour explicitly rather
+than silently dropping the finding, and correcting the doc comments in all
+three files to state the measured (not assumed) split. One **Minor**: the
+`bindSouls` negative-control test's comment claimed a second bind
+"re-enters the update branch for real," but `bindSouls` rebuilds `w.weapons`
+from scratch every call (filtering to only the slotless innate before
+granting chosen souls), so a picked soul always takes the *create* branch,
+never update — fixed by rewriting the test and its comment to state what's
+actually exercised. Two **Nits** (an off-by-one line citation, a CLI column-
+padding width) fixed. Re-ran the suite (33/33) and `tsc --noEmit` (clean)
+after every fix.
+
+**QA (qa-playtester, PASS).** Reran the suite (33/33) and `tsc --noEmit`
+(clean). Mutation-tested for real: patched the update branch with a naive
+full clamp, reran — exactly 4 tests went red (the census-match aggregate,
+`update level=7`, `update level=Infinity`, and the hash-discrimination test),
+and confirmed the NaN/fractional-crash tests stayed green because
+`Math.max(1, NaN)` is still `NaN` in JS — the naive clamp doesn't fix that
+case, matching what the doc comments already claimed. Restored
+`src/sim/weapons.ts` via `git checkout --`, confirmed `git status --porcelain`
+confined to the three expected files.
+
+**QA found one real, unfiled, more-severe sibling gap, filed as q34:**
+`grantWeapon`'s `damageBonus` parameter is unguarded in *both* branches (the
+create branch is a bare assignment, not even a `Math.max`) — worse than every
+`level` hole this file pins, because a poisoned `damageBonus` produces
+silent, permanent, non-crashing corruption with no observable signal
+anywhere: `damageEnemy`'s own `amount <= 0` guard doesn't catch `NaN`
+(`NaN <= 0` is `false`), so `e.hp -= NaN` makes an enemy permanently
+unkillable and `w.damageTotal`/`w.damageByWeapon` go `NaN` for the rest of
+the run — and it doesn't even register as a hash anomaly, since
+`Hasher.num()`/`int()` use `v | 0`, which silently coerces `NaN` to `0`.
+Reproduced live twice with identical results. Confirmed not already covered
+by q29 (level only) or q30 (boon ranks, a different field) by grepping for
+`damageBonus` across `BACKLOG-QUALITY.md`/`tests/` first.
+
+**Suite state.** `npx vitest run tests/q21-weapon-boundary-fuzz.test.ts` —
+33/33 green. `npx tsc --noEmit -p .` clean. `git status --porcelain` limited
+to the three expected files (`tools/fuzz-weapon-boundary.ts`,
+`tests/q21-weapon-boundary-fuzz.ts`, `tests/q21-weapon-boundary-fuzz.test.ts`).
+
+**Five actionable items remain** (q30, q31, q32, q33, q34, all unchecked and
+unblocked), so the generation rule does not need to run next session either.
 
 ### 2026-08-27 — session 25
 

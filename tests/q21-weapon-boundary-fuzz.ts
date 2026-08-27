@@ -15,9 +15,9 @@
  * the write-up (session 17).
  *
  * Regenerate by running `npx tsx tools/fuzz-weapon-boundary.ts` and
- * transcribing every non-`ok` line — there are 7 today, against 27 total
- * (9 level + 12 inheritance + 4 awakening + 2 weaponOffer, the last added by
- * q27).
+ * transcribing every non-`ok` line — there are 11 today, against 36 total
+ * (9 level + 12 inheritance + 4 awakening + 2 weaponOffer + 9 weaponUpdate,
+ * the last added by q29).
  */
 import type { Verdict } from '../tools/fuzz-weapon-boundary';
 
@@ -88,4 +88,36 @@ export const AWAKENING_GATE_HOLES: Readonly<Record<string, Verdict>> = {
  */
 export const WEAPON_OFFER_HOLES: Readonly<Record<string, Verdict>> = {
   'weapon:toLevelNan': 'crashes',
+};
+
+/**
+ * `grantWeapon`'s *update* branch (an existing `WeaponState` found by key,
+ * weapons.ts:63-66) does `existing.level = Math.max(existing.level, level)`
+ * with no clamp and no finite guard at all — unlike the create branch's own
+ * `Math.max(1, Math.min(maxLevel, level))` (q29). Measured against the same
+ * `LEVEL_INPUTS` domain the create branch uses (`levelBoundaryCases`), the
+ * live fire loop turns out to be protected for most of them: `levelStats`'s
+ * own read-time clamp (`Math.max(1, Math.min(top, ws.level))`) re-floors
+ * `7`/`Infinity` back to a legal index on every read, so neither crashes —
+ * they are `'contaminated'` instead, because the *stored* `ws.level` itself
+ * sits outside `[1, maxLevel]` where a raw reader sees the illegal value
+ * directly. Measured (not assumed) which raw readers actually discriminate
+ * it: the determinism hash (`hashWorld`, run.ts:656, `h.int(wp.level)`) does
+ * — a contaminated 7 and the legitimate cap 6 hash differently even though
+ * the fire loop treats them identically; `buildOfferPool`'s own
+ * `ws.level < maxLevel` cutoff (progression.ts:112) does NOT — `6 < 6` and
+ * `7 < 6` are both false, so it excludes both cases the same way. `NaN` and
+ * a fractional value above the existing level still crash, the same failure
+ * mode the `level`/`inheritance`/`weaponOffer` `nan`/`fractional` holes
+ * already pin, just through a fourth entry point. Not reachable through the
+ * real Command surface today: `bindSouls`'s own inputs are always legal
+ * integers, and `applyOffer`'s `'weapon'` case (q27) is the only other
+ * caller of an update-branch `grantWeapon`, itself only reachable via a
+ * forged `Offer`.
+ */
+export const WEAPON_UPDATE_HOLES: Readonly<Record<string, Verdict>> = {
+  '7': 'contaminated',
+  posInf: 'contaminated',
+  nan: 'crashes',
+  fractional: 'crashes',
 };

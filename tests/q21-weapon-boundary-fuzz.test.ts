@@ -16,6 +16,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { applyOffer, bindSouls, deriveSouls, rollOffers } from '../src/sim/progression';
+import { hashWorld } from '../src/sim/run';
 import { beginSoulPick } from '../src/sim/sundering';
 import { grantWeapon, levelStats, updateWeapons } from '../src/sim/weapons';
 import {
@@ -31,8 +32,16 @@ import {
   runCensus,
   WEAPON_OFFER_TARGET,
   weaponOfferBoundaryCases,
+  WEAPON_UPDATE_TARGET,
+  weaponUpdateBoundaryCases,
 } from '../tools/fuzz-weapon-boundary';
-import { AWAKENING_GATE_HOLES, INHERITANCE_HOLES, LEVEL_BOUNDARY_HOLES, WEAPON_OFFER_HOLES } from './q21-weapon-boundary-fuzz';
+import {
+  AWAKENING_GATE_HOLES,
+  INHERITANCE_HOLES,
+  LEVEL_BOUNDARY_HOLES,
+  WEAPON_OFFER_HOLES,
+  WEAPON_UPDATE_HOLES,
+} from './q21-weapon-boundary-fuzz';
 
 function toHoleMap(cases: BoundaryCase[]): Record<string, string> {
   const out: Record<string, string> = {};
@@ -43,13 +52,14 @@ function toHoleMap(cases: BoundaryCase[]): Record<string, string> {
 }
 
 describe('q21 soul-weapon boundary fuzz', () => {
-  it('runs 9 level + 12 inheritance + 4 awakening + 2 weaponOffer cases, one each', () => {
+  it('runs 9 level + 12 inheritance + 4 awakening + 2 weaponOffer + 9 weaponUpdate cases, one each', () => {
     const census = runCensus();
-    expect(census.length).toBe(27);
+    expect(census.length).toBe(36);
     expect(census.filter((c) => c.category === 'level').length).toBe(9);
     expect(census.filter((c) => c.category === 'inheritance').length).toBe(12);
     expect(census.filter((c) => c.category === 'awakening').length).toBe(4);
     expect(census.filter((c) => c.category === 'weaponOffer').length).toBe(2);
+    expect(census.filter((c) => c.category === 'weaponUpdate').length).toBe(9);
     const seen = new Set(census.map((c) => `${c.category}:${c.id}`));
     expect(seen.size).toBe(census.length);
   });
@@ -70,6 +80,10 @@ describe('q21 soul-weapon boundary fuzz', () => {
     expect(toHoleMap(weaponOfferBoundaryCases())).toEqual(WEAPON_OFFER_HOLES);
   });
 
+  it('weapon-update census matches the recorded holes exactly', () => {
+    expect(toHoleMap(weaponUpdateBoundaryCases())).toEqual(WEAPON_UPDATE_HOLES);
+  });
+
   it('everything not in a recorded hole is cleanly ok', () => {
     for (const c of runCensus()) {
       const holes =
@@ -79,7 +93,9 @@ describe('q21 soul-weapon boundary fuzz', () => {
             ? INHERITANCE_HOLES
             : c.category === 'awakening'
               ? AWAKENING_GATE_HOLES
-              : WEAPON_OFFER_HOLES;
+              : c.category === 'weaponOffer'
+                ? WEAPON_OFFER_HOLES
+                : WEAPON_UPDATE_HOLES;
       if (c.id in holes) continue;
       expect(c.verdict, `${c.category}:${c.id} — ${c.detail}`).toBe('ok');
     }
@@ -261,6 +277,123 @@ describe('q21 soul-weapon boundary fuzz', () => {
         for (const o of offers.filter((x) => x.kind === 'weapon' && x.key === WEAPON_OFFER_TARGET)) {
           expect(o.toLevel).toBe(ws.level + 1);
         }
+      }
+    });
+  });
+
+  describe("finding: grantWeapon's update branch has no clamp at all, unlike its own create branch (q29)", () => {
+    // weapons.ts:62-66: `existing.level = Math.max(existing.level, level)` on
+    // an already-granted weapon skips the create branch's own
+    // `Math.max(1, Math.min(maxLevel, level))`. NaN and a fractional value
+    // above the existing level still crash the live fire loop the same way
+    // the level/inheritance/weaponOffer `nan`/`fractional` holes do; a value
+    // past the track's own top (7, Infinity) does NOT crash, because
+    // `levelStats`'s read-time clamp still protects the fire loop — but the
+    // *stored* `ws.level` is left outside `[1, maxLevel]`, which a raw
+    // reader elsewhere in the sim (not levelStats) can observe directly.
+    it('update level=NaN: grantWeapon stores NaN, the next tick throws', () => {
+      const w = newWorld();
+      grantWeapon(w, WEAPON_UPDATE_TARGET, 1, 0);
+      const ws = grantWeapon(w, WEAPON_UPDATE_TARGET, NaN, 0);
+      expect(ws.level).toBeNaN();
+      expect(() => updateWeapons(w, 1 / 60)).toThrow(/reading 'range'/);
+    });
+
+    it('update level=2.5 (fractional, above the existing level): grantWeapon stores the fraction, the next tick throws', () => {
+      const w = newWorld();
+      grantWeapon(w, WEAPON_UPDATE_TARGET, 1, 0);
+      const ws = grantWeapon(w, WEAPON_UPDATE_TARGET, 2.5, 0);
+      expect(ws.level).toBe(2.5);
+      expect(() => updateWeapons(w, 1 / 60)).toThrow(/reading 'range'/);
+    });
+
+    it('update level=7 (past the 6-level track top): stored uncapped, but the live fire loop stays clean', () => {
+      const w = newWorld();
+      grantWeapon(w, WEAPON_UPDATE_TARGET, 1, 0);
+      const ws = grantWeapon(w, WEAPON_UPDATE_TARGET, 7, 0);
+      expect(ws.level).toBe(7); // the create branch would have clamped this to 6
+      expect(() => updateWeapons(w, 1 / 60)).not.toThrow();
+      expect(levelStats(w, ws)).toBe(w.content.weaponByKey.get(WEAPON_UPDATE_TARGET)!.levels[5]);
+    });
+
+    it('update level=Infinity: same contamination shape as 7, still fires cleanly', () => {
+      const w = newWorld();
+      grantWeapon(w, WEAPON_UPDATE_TARGET, 1, 0);
+      const ws = grantWeapon(w, WEAPON_UPDATE_TARGET, Infinity, 0);
+      expect(ws.level).toBe(Infinity);
+      expect(() => updateWeapons(w, 1 / 60)).not.toThrow();
+    });
+
+    it('the contamination is observable outside the fire loop: the determinism hash treats 7 and the legitimate cap 6 as different states', () => {
+      // run.ts:656's hashWorld hashes `wp.level` directly (`h.int(wp.level)`),
+      // not through levelStats's read-time clamp — so two worlds that the
+      // live fire loop treats identically (both fire as if capped at 6) hash
+      // differently, because the stored field itself still disagrees.
+      // (buildOfferPool's own `ws.level < maxLevel` cutoff at progression.ts:112
+      // is NOT a discriminating consequence here: 6 < 6 and 7 < 6 are both
+      // false, so a legitimately-capped weapon and a contaminated one are
+      // excluded identically — checked directly below.)
+      const atCap = newWorld();
+      grantWeapon(atCap, WEAPON_UPDATE_TARGET, 1, 0);
+      grantWeapon(atCap, WEAPON_UPDATE_TARGET, 6, 0);
+      const contaminated = newWorld();
+      grantWeapon(contaminated, WEAPON_UPDATE_TARGET, 1, 0);
+      grantWeapon(contaminated, WEAPON_UPDATE_TARGET, 7, 0);
+      expect(hashWorld(atCap)).not.toBe(hashWorld(contaminated));
+    });
+
+    it('buildOfferPool excludes a legitimately-capped weapon and a contaminated one identically — not a discriminating consequence', () => {
+      for (const level of [6, 7]) {
+        const w = newWorld();
+        grantWeapon(w, WEAPON_UPDATE_TARGET, 1, 0);
+        grantWeapon(w, WEAPON_UPDATE_TARGET, level, 0);
+        w.phase = 'levelup';
+        for (let i = 0; i < 25; i++) {
+          const offers = rollOffers(w);
+          expect(offers.some((o) => o.kind === 'weapon' && o.key === WEAPON_UPDATE_TARGET), `level=${level}`).toBe(
+            false,
+          );
+        }
+      }
+    });
+
+    it('the clamp does hold at every value the update branch also leaves in-domain: 0/negative/-Infinity, and the legal top 6', () => {
+      for (const [input, expected] of [
+        [0, 1],
+        [-1, 1],
+        [-Infinity, 1],
+        [6, 6],
+      ] as const) {
+        const w = newWorld();
+        grantWeapon(w, WEAPON_UPDATE_TARGET, 1, 0);
+        const ws = grantWeapon(w, WEAPON_UPDATE_TARGET, input, 0);
+        expect(ws.level, `update(level=${input})`).toBe(expected);
+        expect(() => updateWeapons(w, 1 / 60)).not.toThrow();
+      }
+    });
+
+    it('not reachable through the real Command surface: bindSouls never leaves an illegal level, though not via the update branch', () => {
+      // bindSouls (progression.ts:288) rebuilds `w.weapons` from scratch
+      // every call — filtering to only the slotless innate before granting
+      // the chosen souls — so a picked soul (arrow_spire, ballista) always
+      // takes the *create* branch here, never update, no matter how many
+      // times bindSouls runs. The only thing that actually re-enters the
+      // update branch through this path is the slotless innate's own
+      // re-grant (`grantWeapon(w, def.key, 1, 0)`), always with the fixed,
+      // always-in-domain level 1 — so this real path never reaches the
+      // update branch with an out-of-domain input at all; this test pins
+      // that fact rather than a defense the update branch itself provides.
+      const w = newWorld();
+      const keys = ['arrow_spire', 'ballista'];
+      keys.forEach((k, i) => forcePlace(w, k, 5 + i, 5, 3));
+      const souls = deriveSouls(w);
+      for (const s of souls) expect(Number.isInteger(s.level) && s.level >= 1).toBe(true);
+      bindSouls(w, souls.map((s) => s.key));
+      const firstBind = new Map(w.weapons.map((ws) => [ws.key, ws.level]));
+      bindSouls(w, souls.map((s) => s.key)); // rebuilds from scratch again — still create, not update
+      for (const ws of w.weapons) {
+        expect(Number.isInteger(ws.level) && ws.level >= 1).toBe(true);
+        if (firstBind.has(ws.key)) expect(ws.level).toBe(firstBind.get(ws.key));
       }
     });
   });
