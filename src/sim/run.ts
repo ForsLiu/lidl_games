@@ -3,6 +3,7 @@
  * end-state hashing. A run is fully determined by RunConfig + input log.
  */
 
+import { defaultCoreKey, loadContent } from './content';
 import { GATES, GRID_H, GRID_W, coreCenter } from './grid';
 import { Hasher } from './hash';
 import { clamp, dist2, normalize } from './math';
@@ -122,6 +123,50 @@ export class Run {
   report(): RunReport {
     return buildReport(this.world);
   }
+}
+
+/**
+ * Pairs the `RunConfig` a run was played under with its full input log, so a
+ * later replay attempt can be checked against what was actually recorded
+ * before it runs. `p9a` (queued, unbuilt) generalizes this "replay disagrees
+ * with what was recorded" check to the whole config via a content hash; for
+ * now (`p-core-a`, G21's plumbing half) it covers the one field a replay is
+ * most likely to silently desync on today — which Core the run used.
+ */
+export interface RecordedRun {
+  config: RunConfig;
+  inputLog: TickInput[];
+}
+
+/**
+ * Replays a recorded run, throwing outright if `cfg`'s Core disagrees with
+ * the one `recorded` was actually played with — the "no default +10%, chosen
+ * once at run start" shape of §5.5 means a Core swap mid-replay is never a
+ * legitimate divergence to silently allow through, unlike input noise.
+ */
+export function replayRecorded(recorded: RecordedRun, cfg: RunConfig): RunReport {
+  const content = loadContent();
+  const recordedCore = recorded.config.core ?? defaultCoreKey(content);
+  const replayCore = cfg.core ?? defaultCoreKey(content);
+  // QA found the mismatch check alone hollow: two sides sharing the same
+  // nonexistent key "matched" and sailed through. Both keys must resolve to a
+  // real row before they are even compared, so a hand-built RunConfig/replay
+  // file naming a core that was never authored fails loudly instead of
+  // silently agreeing with itself.
+  if (!content.coreByKey.has(recordedCore)) {
+    throw new Error(`replay recorded config names unknown core '${recordedCore}'`);
+  }
+  if (!content.coreByKey.has(replayCore)) {
+    throw new Error(`replay config names unknown core '${replayCore}'`);
+  }
+  if (replayCore !== recordedCore) {
+    throw new Error(`replay core mismatch: recorded '${recordedCore}', replaying '${replayCore}'`);
+  }
+  const run = new Run(cfg);
+  for (let t = 0; t < recorded.inputLog.length && !run.done; t++) {
+    run.step(recorded.inputLog[t] ?? emptyInput());
+  }
+  return run.report();
 }
 
 /* ---------------------------------------------------------------- commands */
@@ -652,6 +697,11 @@ export function hashWorld(w: World): string {
   h.int(w.level).num(w.xp);
   h.num(w.act2Time);
   h.int(w.cycle);
+  // SPEC-FINAL §5.5: two runs differing only in Core choice must hash
+  // differently (G21). `p-core-a` is plumbing only — no Core effect yet
+  // writes to `w.stats`/`w.derived` — so the key itself is hashed directly,
+  // the same way `w.phase`/`w.outcome` are.
+  h.str(w.coreKey);
   // Practice-tool flags are sim state: they change what damage lands, so they
   // belong in the hash. `invulnerable` was already unhashed before god mode
   // existed - the same class of hashing gap the f001 review found elsewhere.
@@ -719,6 +769,7 @@ export function buildReport(w: World): RunReport {
     seed: w.cfg.seed,
     policy: w.cfg.policy ?? 'none',
     classKey: w.cfg.classKey,
+    core: w.coreKey,
     tier: w.cfg.tier,
     modifiers: w.modKeys,
     outcome: w.outcome,

@@ -86,14 +86,10 @@ full; `p5d` closed the last open item, a bug QA filed against `p5b`.
 Placement logged in Q93: after P5 so the §1.1 run shape (P3) and the full
 tower roster precede the Cores' VS halves and interactions; p-core-f's
 quest unlocks ride the §8.4 system and may complete alongside p7e.
+**`p-core-a` is done** — see the Done section. G21's plumbing half is green
+in full; each Core's real TD/VS numbers are `p-core-b` through `p-core-e`'s
+job, still open below.
 
-- [ ] (p-core-a) [feat] Core selection: `data/cores.json` with the five §5.5
-      rows, Hub pick beside class select (default Stone Heart, locked cores
-      refused), core choice in `RunConfig` and in the end-state hash inputs —
-      acceptance: gate **G21**'s plumbing half — two runs differing only in
-      core hash differently, a replay carrying a mismatched core is rejected,
-      and the loader refuses a core row whose effects it cannot pay — refs:
-      §5.5, G21
 - [ ] (p-core-b) [feat] Stone Heart, Vampire Heart, and Time steps 1–2: the
       shared Core-upgrade rule (bought by interacting at the Core under the
       build-range rule, flat cost per step, only the listed effect, never
@@ -359,6 +355,83 @@ logged in MIGRATION.md §8 rather than carried as dead items.
   **G19**. The work is `p10d`.
 
 ## Done
+
+- [x] (p-core-a) [feat] Core selection plumbing (SPEC-FINAL §5.5, gate **G21**'s
+      plumbing half) — this commit. `data/cores.json` authors the five owner
+      rows verbatim (Stone Heart 500 HP/3 steps/50g, Carnivorous Plant 200
+      HP/4/60g, Vampire Heart 350 HP/3/80g, Corpse 500 HP/3/100g, Time 300
+      HP/5/150g), each carrying only `baseHp`/`unlockedByDefault`/
+      `unlockCondition`/`upgrade{count,stepCost,desc}` — plumbing only, no
+      gameplay effect; each Core's real TD/VS numbers are `p-core-b` through
+      `p-core-e`'s job, not this item's. `src/sim/content.ts` gains
+      `CoreSchema`/`CoresFileSchema`, an exported `validateCoreUpgrade`
+      (rejects a priced-but-stepless or stepped-but-unpriced row — a Core has
+      no build cost to derive a total from the way a tower's `costMul` does,
+      so this is `validateUpgradeTrack`'s simpler two-branch rule, not
+      `validateStepPrice`'s derived one) and `validateDefaultCore` (rejects
+      zero or more than one `unlockedByDefault` row), both wired into
+      `loadContent()` unconditionally, plus an exported `defaultCoreKey(content)`
+      helper so "default: Stone Heart" is one content lookup, not a literal
+      repeated at every call site. `RunConfig.core?: string` (optional — an
+      omitted value is the pre-Cores config shape, not a distinct choice) and
+      `MetaState.unlockedCores: string[]` (mirrors `unlockedClasses`, defaults
+      to `[defaultCoreKey(content)]`); `World.coreKey` resolves the default
+      once in the constructor, and `hashWorld`/`buildReport` both read it, so
+      two runs differing only in Core hash differently and an omitted vs.
+      explicit-default core hash identically. `src/ui/hub.ts` gets a Core
+      panel beside Class, mirroring its exact structure, plus a click-listener
+      guard stronger than Class's own precedent (a locked core's button gets
+      no listener at all, not just `disabled`) and a submit-time fallback.
+      **The one new mechanism this item had to build, not mirror**: "a replay
+      carrying a mismatched core is rejected" has no existing precedent in the
+      codebase — `p9a` (the general content-hash replay-rejection system) is
+      still unbuilt — so `src/sim/run.ts` gains a `RecordedRun` type and
+      `replayRecorded(recorded, cfg)`, the first such check, scoped to the one
+      field p9a would otherwise leave silently desyncable today. **code-reviewer
+      APPROVE**, no Critical/Major: confirmed no architecture-rule violation
+      (no DOM/`Math.random`/`Date.now` in `/src/sim`, all new numbers live in
+      `data/cores.json`), confirmed `cores.json`'s five rows match SPEC-FINAL
+      §5.5's table exactly, confirmed both loader validators are unconditional
+      in `loadContent()` (a bad row fails at import time, not lazily),
+      confirmed `git diff --stat` touched only the files the item describes.
+      One Minor taken: the Hub's submit-time fallback fell back straight to
+      the content-wide default rather than to whatever the account actually
+      has unlocked, a latent edge case if `unlockedCores` were ever non-empty
+      but missing the default — fixed (falls back to `unlockedCores[0] ??
+      defaultCoreKey(content)`). **qa-playtester found two real plumbing bugs,
+      both fixed with regression tests before this commit, per CLAUDE.md rule
+      3**: (1) `replayRecorded`'s mismatch check was hollow — two sides naming
+      the identical *nonexistent* core key "matched" and sailed through, since
+      equality was checked before existence; fixed by validating both the
+      recorded and replayed core resolve to a real `content.coreByKey` row
+      before they are ever compared, each with its own regression case
+      (`tests/p-core-a-selection.test.ts`, "throws even when both sides share
+      the identical nonexistent core key" and its two one-sided siblings).
+      (2) An `unlockedCores` that migrated to `[]` (an *empty array* passes
+      the `Array.isArray` corruption guard, since it genuinely is an array —
+      QA reproduced this by handing `Hub` a bare `unlockedCores: []` directly,
+      bypassing `migrate()` entirely) rendered Stone Heart, §5.5's guaranteed
+      default, as simultaneously `on` and `locked` in the Hub. Fixed in two
+      places, both defense-in-depth: `migrate()` now guarantees the default
+      core key is always present in `unlockedCores` (mirroring the existing
+      `if (!out.allocated.includes(0)) out.allocated.unshift(0)` pattern), and
+      the Hub's own `locked`/click-listener checks now treat the default core
+      key as never locked regardless of `unlockedCores`'s contents, so the
+      contradiction can't render even if something else ever constructs a
+      `Hub` without going through `migrate()`. Regression tests added in both
+      `tests/p-core-a-selection.test.ts` (the empty-array migration case) and
+      `tests/hub-testing.test.ts` (three new Hub-DOM cases: default selected
+      and unlocked, a locked core genuinely refused even after forcing its
+      `disabled` attribute off, Stone Heart never rendered `on`+`locked`).
+      QA's non-bugs, correctly not filed: every Core's TD/VS gameplay effect
+      doing nothing yet (by design, `p-core-b`..`p-core-f`); `classKey` has
+      the identical no-existence-check gap `core` briefly inherited, but that
+      is pre-existing project debt outside this item's scope, not something
+      this diff regressed. `npm test`: 708 passed / 33 skipped (0 failed, up
+      from 681/33 pre-item — 24 new cases in `tests/p-core-a-selection.test.ts`
+      and 3 new cases in `tests/hub-testing.test.ts`, plus a `core` field
+      added to two pre-existing `RunReport` test literals); perf config 3/3;
+      `npx tsc --noEmit` clean — refs: §5.5, G21, Q93.
 
 - [x] (p5d) [bug] `Structure.damageDealt` now credits `pierce`- and `lob`-kind
       tower attacks — this commit. QA filed this against `p5b`: `fireTower`'s

@@ -3,7 +3,7 @@
  * system module that takes a World. No DOM, no Math.random, no Date.now.
  */
 
-import { loadContent, type Content, type ModifierDef } from './content';
+import { defaultCoreKey, loadContent, type Content, type ModifierDef } from './content';
 import { GRID_H, GRID_W, Grid, GATES, coreCenter, type Field, type GateDef } from './grid';
 import { RngSet } from './rng';
 import { baseRunStats, damageTakenMul, derive, emptyStats, type Derived, type Stats } from './stats';
@@ -78,6 +78,13 @@ export class World {
   readonly gates: GateDef[];
   readonly mods: ModifierEffects;
   readonly modKeys: string[];
+  /**
+   * SPEC-FINAL §5.5: the resolved Core key, defaulted from content (the one
+   * `unlockedByDefault` row, Stone Heart) when `cfg.core` is omitted, so every
+   * reader (`hashWorld`, `buildReport`) sees a real key rather than deciding
+   * its own fallback.
+   */
+  readonly coreKey: string;
 
   tick = 0;
   phase: Phase = 'act1_build';
@@ -272,6 +279,7 @@ export class World {
   constructor(cfg: RunConfig, content: Content = loadContent()) {
     this.content = content;
     this.cfg = cfg;
+    this.coreKey = cfg.core ?? defaultCoreKey(content);
     this.totalCycles = Math.max(1, Math.round(cfg.cycles ?? 6));
     this.rng = new RngSet(cfg.seed);
     this.grid = new Grid();

@@ -1,0 +1,44 @@
+{
+  "cores": [
+    {
+      "key": "stone_heart",
+      "name": "Stone Heart",
+      "baseHp": 500,
+      "unlockedByDefault": true,
+      "unlockCondition": null,
+      "upgrade": { "count": 3, "stepCost": 50, "desc": "+100 Core HP per step" }
+    },
+    {
+      "key": "carnivorous_plant",
+      "name": "Carnivorous Plant",
+      "baseHp": 200,
+      "unlockedByDefault": false,
+      "unlockCondition": "300 lifetime poison kills",
+      "upgrade": { "count": 4, "stepCost": 60, "desc": "+1 devour range and -1s cooldown per step" }
+    },
+    {
+      "key": "vampire_heart",
+      "name": "Vampire Heart",
+      "baseHp": 350,
+      "unlockedByDefault": false,
+      "unlockCondition": "Finish a run with the Core at or below 25% HP",
+      "upgrade": { "count": 3, "stepCost": 80, "desc": "step 1: tower overheal also converts 20:1; step 2: both conversions become 10:1; step 3: tower lifesteal 0.3%" }
+    },
+    {
+      "key": "corpse",
+      "name": "Corpse",
+      "baseHp": 500,
+      "unlockedByDefault": false,
+      "unlockCondition": "Deal 100,000 lifetime damage",
+      "upgrade": { "count": 3, "stepCost": 100, "desc": "step 1: store ratio 2%; step 2: executions also explode (victim max HP, AoE r2); step 3: auto-fire every 5s spending the store non-lethally" }
+    },
+    {
+      "key": "time",
+      "name": "Time",
+      "baseHp": 300,
+      "unlockedByDefault": false,
+      "unlockCondition": "Win a run in under 32 minutes",
+      "upgrade": { "count": 5, "stepCost": 150, "desc": "step 1: +1 gold/s; step 2: +1 HP regen/s and +20% healing received; step 3: decay aura r5 (1x1.2^(5-ring)/s); step 4: decay aura starts r10; step 5: decay multiplier 1.2 -> 1.5" }
+    }
+  ]
+}

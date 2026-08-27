@@ -6,7 +6,7 @@
  * reads persisted state directly.
  */
 
-import { loadContent } from '../sim/content';
+import { defaultCoreKey, loadContent } from '../sim/content';
 import { rollRelic } from '../sim/loot';
 import { Rng } from '../sim/rng';
 import type { MetaState, Relic, RunReport } from '../sim/types';
@@ -39,7 +39,8 @@ const RETIRED_KEYS: readonly { key: string; retiredIn: number }[] = [
 ];
 
 export function defaultMeta(): MetaState {
-  const ember = loadContent().tree.startingEmber;
+  const content = loadContent();
+  const ember = content.tree.startingEmber;
   return {
     accountLevel: accountLevelFor(ember),
     ember,
@@ -47,6 +48,7 @@ export function defaultMeta(): MetaState {
     stash: [],
     equipped: { sigil: null, plate: null, charm: null },
     unlockedClasses: ['engineer'],
+    unlockedCores: [defaultCoreKey(content)],
     highestTier: 1,
     questProgress: {},
     completedQuests: [],
@@ -343,11 +345,23 @@ function migrate(meta: MetaState, version: number): MetaState {
     questProgress: { ...(meta.questProgress ?? {}) },
     completedQuests: [...(meta.completedQuests ?? [])],
     unlockedClasses: [...(meta.unlockedClasses ?? base.unlockedClasses)],
+    // `Array.isArray`, not just `?? base`: a corrupt non-array value (e.g. a
+    // string) would otherwise spread character-by-character into a
+    // same-shaped-but-wrong array, the same class of gap p7g fixes for
+    // `stash` — cheap to guard against here since the field is new.
+    unlockedCores: Array.isArray(meta.unlockedCores) ? [...meta.unlockedCores] : base.unlockedCores,
     allocated: [...(meta.allocated ?? base.allocated)],
     stash: (meta.stash ?? []).map((r: Relic) => ({ ...r, affixes: [...(r.affixes ?? [])] })),
   };
   if (!out.allocated.includes(0)) out.allocated.unshift(0);
   if (!isConnected(out.allocated)) out.allocated = [0];
+  // §5.5: Stone Heart is the guaranteed default, never itself locked out — an
+  // `unlockedCores` that migrated to `[]` (QA found this reachable: an
+  // explicitly-empty array survives the `Array.isArray` guard above, since
+  // that guard only catches non-arrays) must not leave the Hub rendering the
+  // default core as simultaneously selected and locked.
+  const defaultCore = defaultCoreKey(loadContent());
+  if (!out.unlockedCores.includes(defaultCore)) out.unlockedCores.unshift(defaultCore);
   // The `...meta` spread above copies whatever the old save held, including
   // keys whose systems are gone. Strip them so they do not round-trip.
   //

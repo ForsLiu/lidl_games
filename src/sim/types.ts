@@ -297,6 +297,8 @@ export interface MetaState {
   stash: Relic[];
   equipped: { sigil: number | null; plate: number | null; charm: number | null };
   unlockedClasses: string[];
+  /** SPEC-FINAL §5.5: mirrors `unlockedClasses`. Defaults to Stone Heart only. */
+  unlockedCores: string[];
   highestTier: number;
   questProgress: Record<string, number>;
   completedQuests: string[];
@@ -306,6 +308,15 @@ export interface MetaState {
 export interface RunConfig {
   seed: number;
   classKey: string;
+  /**
+   * SPEC-FINAL §5.5: the Core chosen at run start. Defaults to `'stone_heart'`
+   * when absent (an omitted `core` is the pre-Cores config shape, not a
+   * distinct choice) — every reader (`hashWorld`, `buildReport`, the World
+   * constructor) applies that same default rather than leaving it undefined,
+   * so two configs that differ only by an explicit vs. omitted default core
+   * hash identically, as they should.
+   */
+  core?: string;
   tier: number;
   modifiers: string[];
   /** Allocated Constellation node ids. */
@@ -347,6 +358,7 @@ export interface RunReport {
   seed: number;
   policy: string;
   classKey: string;
+  core: string;
   tier: number;
   modifiers: string[];
   outcome: RunOutcome;

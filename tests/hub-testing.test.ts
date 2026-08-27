@@ -93,6 +93,40 @@ describe('seeding a test account', () => {
   });
 });
 
+describe('Core selection (§5.5, p-core-a)', () => {
+  it('defaults to Stone Heart selected and unlocked', () => {
+    const { root } = openHub(defaultMeta());
+    const stone = root.querySelector('[data-core="stone_heart"]') as HTMLButtonElement;
+    expect(stone.disabled).toBe(false);
+    expect(stone.className).toContain('on');
+    expect(stone.className).not.toContain('locked');
+  });
+
+  it('refuses a locked core: no click listener fires and it never becomes selected', () => {
+    const { root } = openHub(defaultMeta()); // unlockedCores: ['stone_heart'] only
+    const locked = root.querySelector('[data-core="time"]') as HTMLButtonElement;
+    expect(locked.disabled).toBe(true);
+    locked.disabled = false; // simulate a stray DOM edit; the listener guard is the real gate
+    locked.click();
+    expect(root.querySelector('[data-core="time"]')!.className).not.toContain('on');
+    expect(root.querySelector('[data-core="stone_heart"]')!.className).toContain('on');
+  });
+
+  // QA repro: an account whose `unlockedCores` migrated to `[]` (reachable —
+  // see tests/p-core-a-selection.test.ts's migration coverage) must not leave
+  // Stone Heart, §5.5's guaranteed default, rendered as simultaneously
+  // selected and locked. `migrate()` now guarantees the default core is
+  // always present, so a bare `{ unlockedCores: [] }` passed directly here
+  // (bypassing migration) is the one remaining way to force this state, and
+  // this pins the Hub's own defense: it never lets that combination render.
+  it('never renders Stone Heart as both selected and locked, even if unlockedCores is emptied', () => {
+    const meta = { ...defaultMeta(), unlockedCores: [] as string[] };
+    const { root } = openHub(meta);
+    const stone = root.querySelector('[data-core="stone_heart"]') as HTMLButtonElement;
+    expect(stone.className.includes('on') && stone.className.includes('locked')).toBe(false);
+  });
+});
+
 describe('account counters explain themselves', () => {
   it('every counter carries help text, not just a number', () => {
     const html = accountMarkup(defaultMeta());

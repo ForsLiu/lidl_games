@@ -19,6 +19,7 @@ import questsRaw from '../../data/quests.json';
 import devRaw from '../../data/dev.json';
 import wardenRaw from '../../data/warden.json';
 import damageTypesRaw from '../../data/damagetypes.json';
+import coresRaw from '../../data/cores.json';
 
 const num = z.number();
 const str = z.string();
@@ -521,6 +522,37 @@ const AffinityFileSchema = z.object({
   ),
 });
 
+/**
+ * SPEC-FINAL §5.5: the Core is chosen at run start, keeps its existing TD
+ * rules (target, HP 0 in TD = defeat), and its upgrade steps are bought at
+ * flat cost — no `costMul`, no default +10%, never sellable — so its schema
+ * carries only `count`/`stepCost` (no `specials`/`costMul`/`note`, unlike a
+ * tower's `UpgradeTrackSchema`). This item (`p-core-a`) is the plumbing half
+ * only: selection, hashing and loader validation. Each Core's real TD/VS
+ * effects (the gameplay a `desc` line only describes here) are `p-core-b`
+ * through `p-core-f`'s job.
+ */
+const CoreUpgradeSchema = z
+  .object({
+    count: z.number().int().min(0),
+    stepCost: num,
+    desc: str,
+  })
+  .strict();
+
+const CoreSchema = z
+  .object({
+    key: str,
+    name: str,
+    baseHp: num.positive(),
+    unlockedByDefault: z.boolean(),
+    unlockCondition: str.nullable(),
+    upgrade: CoreUpgradeSchema,
+  })
+  .strict();
+
+const CoresFileSchema = z.object({ cores: z.array(CoreSchema) });
+
 /* ------------------------------------------------------------ damage types */
 
 /**
@@ -630,6 +662,34 @@ export function validateStepPrice(
   const want = Math.round((t.cost * mul) / t.upgrades.count);
   if (t.upgrades.stepCost !== want) {
     throw new Error(`${where} prices a step at ${t.upgrades.stepCost}, not ${want}`);
+  }
+}
+
+/**
+ * A Core row's own "cannot pay" rule (`p-core-a`'s acceptance line). Unlike a
+ * tower, a Core has no build cost to derive a total from — §5.5 prices every
+ * step flat — so this is `validateUpgradeTrack`'s two step/price mismatch
+ * branches with nothing else to check against.
+ */
+export function validateCoreUpgrade(c: { key: string; upgrade: { count: number; stepCost: number } }): void {
+  const where = `cores.json: ${c.key}`;
+  if (c.upgrade.count > 0 && c.upgrade.stepCost <= 0) {
+    throw new Error(`${where} has ${c.upgrade.count} upgrade steps and no price for them`);
+  }
+  if (c.upgrade.count === 0 && c.upgrade.stepCost !== 0) {
+    throw new Error(`${where} prices a step at ${c.upgrade.stepCost} and has no steps`);
+  }
+}
+
+/**
+ * §5.5: "default: Stone Heart" is a load-time guarantee, not a Hub-side
+ * fallback — two default rows (or none) would leave `defaultCoreKey` picking
+ * arbitrarily among ties, or throwing on `.find()!` returning `undefined`.
+ */
+export function validateDefaultCore(cores: { key: string; unlockedByDefault: boolean }[]): void {
+  const defaults = cores.filter((c) => c.unlockedByDefault);
+  if (defaults.length !== 1) {
+    throw new Error(`cores.json: exactly one core must be unlockedByDefault, found ${defaults.length}`);
   }
 }
 
@@ -890,6 +950,7 @@ export type DamageTypeDef = z.infer<typeof DamageTypeSchema>;
 export type DamageStatusDef = z.infer<typeof DamageStatusSchema>;
 export type DamageTypesFile = z.infer<typeof DamageTypesFileSchema>;
 export type WaveDef = z.infer<typeof WavesFileSchema>['waves'][number];
+export type CoreDef = z.infer<typeof CoresFileSchema>['cores'][number];
 
 /**
  * SPEC-V3 T3. `devMode` here is the *authored* value; whether it is honoured
@@ -926,6 +987,7 @@ export interface Content {
   quests: z.infer<typeof QuestsFileSchema>;
   damageTypes: DamageTypesFile;
   dev: DevConfig;
+  cores: z.infer<typeof CoresFileSchema>;
 
   towerByKey: Map<string, TowerDef>;
   towerById: Map<number, TowerDef>;
@@ -937,6 +999,17 @@ export interface Content {
   modifierByKey: Map<string, ModifierDef>;
   affinityByClass: Map<string, AffinityDef>;
   damageTypeByKey: Map<string, DamageTypeDef>;
+  coreByKey: Map<string, CoreDef>;
+}
+
+/**
+ * SPEC-FINAL §5.5: "default: Stone Heart" as a content lookup rather than a
+ * hardcoded key repeated at every call site (`World`, `hashWorld`,
+ * `buildReport`, the Hub) — `loadContent` already guarantees exactly one row
+ * carries `unlockedByDefault`.
+ */
+export function defaultCoreKey(content: Content): string {
+  return content.cores.cores.find((c) => c.unlockedByDefault)!.key;
 }
 
 let cached: Content | null = null;
@@ -957,6 +1030,7 @@ export function loadContent(): Content {
   const dev = DevFileSchema.parse(devRaw);
   const quests = QuestsFileSchema.parse(questsRaw);
   const damageTypes = DamageTypesFileSchema.parse(damageTypesRaw);
+  const cores = CoresFileSchema.parse(coresRaw);
 
   // Cross-file referential integrity: a typo in /data must fail loudly at load.
   const towerKeys = new Set(towers.towers.map((t) => t.key));
@@ -1030,6 +1104,9 @@ export function loadContent(): Content {
     }
   }
 
+  validateDefaultCore(cores.cores);
+  for (const c of cores.cores) validateCoreUpgrade(c);
+
   cached = {
     warden: wardenBase,
     towers,
@@ -1045,6 +1122,7 @@ export function loadContent(): Content {
     dev,
     quests,
     damageTypes,
+    cores,
     towerByKey: new Map(towers.towers.map((t) => [t.key, t])),
     towerById: new Map(towers.towers.map((t) => [t.id, t])),
     enemyByKey: new Map(enemies.enemies.map((e) => [e.key, e])),
@@ -1055,6 +1133,7 @@ export function loadContent(): Content {
     modifierByKey: new Map(modifiers.modifiers.map((m) => [m.key, m])),
     affinityByClass: new Map(affinity.affinities.map((a) => [a.classKey, a])),
     damageTypeByKey: new Map(damageTypes.types.map((d) => [d.key, d])),
+    coreByKey: new Map(cores.cores.map((c) => [c.key, c])),
   };
   return cached;
 }

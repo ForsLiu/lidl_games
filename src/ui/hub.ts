@@ -5,7 +5,7 @@
  * Presentation only — every rule lives in /src/meta and /src/sim.
  */
 
-import { loadContent, type Content } from '../sim/content';
+import { defaultCoreKey, loadContent, type Content } from '../sim/content';
 import type { MetaState, Relic, RunConfig } from '../sim/types';
 import {
   accountLevelFor,
@@ -50,6 +50,8 @@ export class Hub {
   /** Practice runs enable the in-run tool and bank nothing. */
   private practice = false;
   private classKey: string;
+  /** SPEC-FINAL §5.5: mirrors `classKey` — chosen beside class select, defaults to Stone Heart. */
+  private coreKey: string;
   private tier = 1;
   private picks: number[] = [];
   private seed: number;
@@ -69,6 +71,7 @@ export class Hub {
     this.cb = cb;
     this.seed = seed;
     this.classKey = meta.unlockedClasses[0] ?? 'engineer';
+    this.coreKey = meta.unlockedCores[0] ?? 'stone_heart';
     this.settings = cb.settings;
   }
 
@@ -151,6 +154,28 @@ export class Hub {
       </div>
 
       <div class="sw-panel">
+        <h2>Core</h2>
+        <div class="sw-choices">
+          ${content.cores.cores
+            .map((core) => {
+              // §5.5's default is never itself locked out — guarding here too,
+              // not just in `migrate()`, since QA reproduced this by handing
+              // the Hub a bare `unlockedCores: []` directly (a malformed-meta
+              // shape `migrate()` can't intercept if something else ever
+              // constructs a `Hub` without going through it).
+              const locked = core.key !== defaultCoreKey(content) && !this.meta.unlockedCores.includes(core.key);
+              return `<button class="sw-choice ${this.coreKey === core.key ? 'on' : ''} ${
+                locked ? 'locked' : ''
+              }" data-core="${core.key}" ${locked ? 'disabled' : ''}>
+                <b>${core.name}</b><span>${core.baseHp} HP</span>
+                ${locked ? `<small>Locked — ${core.unlockCondition ?? 'complete a quest'}</small>` : ''}
+              </button>`;
+            })
+            .join('')}
+        </div>
+      </div>
+
+      <div class="sw-panel">
         <h2>Map tier</h2>
         <div class="sw-tiers">
           ${[1, 2, 3, 4, 5]
@@ -218,6 +243,24 @@ export class Hub {
         this.show();
       });
     }
+    // "locked cores refused": only a button for an unlocked core gets a
+    // listener at all, on top of `disabled` — the same defense-in-depth
+    // `data-tier`'s `t > maxTier` disabled check relies on the attribute
+    // alone for, but a Core choice flows straight into RunConfig with no
+    // further validation before a run starts, so this guard is the one place
+    // "locked" is actually enforced rather than merely displayed.
+    for (const b of body.querySelectorAll<HTMLElement>('[data-core]')) {
+      const key = b.dataset.core!;
+      // Mirrors the render-time `locked` computation above exactly (default
+      // core always allowed) — otherwise an emptied `unlockedCores` would
+      // render Stone Heart as clickable but silently attach no listener.
+      const unlocked = key === defaultCoreKey(content) || this.meta.unlockedCores.includes(key);
+      if (!unlocked) continue;
+      b.addEventListener('click', () => {
+        this.coreKey = key;
+        this.show();
+      });
+    }
     for (const b of body.querySelectorAll<HTMLElement>('[data-tier]')) {
       b.addEventListener('click', () => {
         this.tier = Number(b.dataset.tier);
@@ -237,9 +280,20 @@ export class Hub {
     });
     body.querySelector('#sw-start')?.addEventListener('click', () => {
       const modifiers = draft.map((slot, i) => slot.options[this.picks[i] ?? 0].key);
+      // Belt-and-suspenders against a locked core reaching RunConfig at all
+      // (e.g. `unlockedCores` shrinking between render and click): fall back
+      // to whatever the account actually has unlocked, not the content-wide
+      // default outright — a save whose `unlockedCores` omits the default row
+      // (data-corruption territory `migrate` doesn't produce today, but not
+      // structurally impossible) would otherwise still let a submit through
+      // for a core nothing on the account actually unlocked.
+      const core = this.meta.unlockedCores.includes(this.coreKey)
+        ? this.coreKey
+        : this.meta.unlockedCores[0] ?? defaultCoreKey(content);
       this.cb.onStart({
         seed: this.seed,
         classKey: this.classKey,
+        core,
         tier: this.tier,
         modifiers,
         allocated: this.meta.allocated,

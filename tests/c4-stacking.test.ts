@@ -37,6 +37,7 @@ function baseReport(): RunReport {
     seed: 1,
     policy: 'none',
     classKey: 'engineer',
+    core: 'stone_heart',
     tier: 1,
     modifiers: [],
     outcome: 'victory',

@@ -5,7 +5,48 @@
 
 ## Current state — SPEC-FINAL
 
-- **`p5d` is done this commit — P5 is now complete in full, no open items.**
+- **`p-core-a` is done this commit — SPEC-FINAL §5.5's Core selection
+  plumbing, gate **G21**'s plumbing half, is green in full.** `data/cores.json`
+  authors the five owner rows verbatim (Stone Heart, Carnivorous Plant,
+  Vampire Heart, Corpse, Time — HP/step-count/step-cost only, no gameplay
+  effect: that's `p-core-b` through `p-core-e`, still open). `RunConfig.core`
+  is optional (an omitted value defaults to Stone Heart everywhere it's read),
+  hashed via `World.coreKey` in `hashWorld`/`buildReport`, so two runs
+  differing only in Core hash differently and an omitted vs. explicit-default
+  core hash identically. The Hub gets a Core panel beside Class, defaulting
+  to Stone Heart with locked cores genuinely refused (no click listener
+  attached, not just `disabled`). `src/sim/content.ts` gained two new
+  exported loader rules, `validateCoreUpgrade` (a Core's own "cannot pay"
+  check — no build cost to derive a total from the way a tower's `costMul`
+  does, so it is `validateUpgradeTrack`'s simpler two-branch price/step-count
+  mismatch rule) and `validateDefaultCore` (exactly one `unlockedByDefault`
+  row), both unconditional in `loadContent()`. The one genuinely new
+  mechanism (not mirrored off an existing pattern): "a replay carrying a
+  mismatched core is rejected" has no precedent anywhere in the codebase —
+  `p9a`, the general content-hash replay-rejection system, is still unbuilt —
+  so `src/sim/run.ts` gained a `RecordedRun` type and `replayRecorded`, the
+  first such check, scoped to the one field a replay could silently desync on
+  today. **code-reviewer APPROVE**, one Minor taken (the Hub's submit-time
+  fallback now falls back to whatever the account actually has unlocked, not
+  straight to the content-wide default). **qa-playtester found two real bugs,
+  both fixed with regression tests before this commit**: `replayRecorded`'s
+  mismatch check was hollow (two sides sharing an identical *nonexistent*
+  core key "matched"; fixed by validating both sides resolve to a real
+  `content.coreByKey` row before comparing), and an `unlockedCores` that
+  migrated to `[]` (an empty array passes the `Array.isArray` corruption
+  guard since it genuinely is an array) rendered Stone Heart as simultaneously
+  selected and locked in the Hub (fixed in both `migrate()`, which now
+  guarantees the default core key is always present, and the Hub's own
+  locked/click checks, which now treat the default as never locked
+  regardless of `unlockedCores`'s contents — defense in depth against a
+  future caller that constructs a `Hub` without going through `migrate()`).
+  `npm test`: 708 passed / 33 skipped (0 failed, up from 681/33 pre-item — 24
+  new cases in `tests/p-core-a-selection.test.ts`, 3 new cases in
+  `tests/hub-testing.test.ts`); perf config 3/3; `npx tsc --noEmit` clean —
+  refs: §5.5, G21, Q93. **Next action: `p-core-b`** (Stone Heart/Vampire
+  Heart/Time steps 1–2, the shared Core-upgrade rule).
+
+- **`p5d` is done — P5 is complete in full, no open items.**
   QA's own bug from `p5b`: `fireTower`'s `pierce` (Ballista) and `lob` (Mortar)
   cases fired through `spawnProjectile`/`updateProjectiles`/`detonate`
   (`src/sim/combat.ts`) without ever crediting `Structure.damageDealt`, unlike
