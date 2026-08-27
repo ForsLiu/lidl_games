@@ -621,7 +621,7 @@ coverage gaps session 1's log recorded. All five are inside Scope as written.*
       `tests/q28-cli-error-handling.test.ts` and `tests/q12-soak.test.ts`,
       exercised green by `tests/q14-mutation-smoke.test.ts` — refs: q28,
       q31, tools/mutation-probe.ts
-- [ ] (q41) [feat] CLI-crash pinning gap, sibling of q33/q37: q37's own log
+- [x] (q41) [feat] CLI-crash pinning gap, sibling of q33/q37: q37's own log
       named the caveat explicitly ("QA did not exhaustively check the
       remaining `tools/*.ts` files that also transitively import
       `src/sim/content.ts`... more siblings may exist beyond these three").
@@ -817,6 +817,60 @@ resolve if it wants the CLI entry points too. All five are inside Scope as
 written; none needs a `package.json` edit.*
 
 ## Log
+
+### 2026-08-27 — session 38
+
+**Feedback inbox:** no `feedback/` directory exists in this worktree. Nothing
+to process, nothing moved.
+
+**Found unlogged follow-on work already sitting in the worktree, uncommitted,
+at session start** — the same recurring shape (sessions 14/16/18/19/20/37):
+`tests/q41-cli-json-syntax-error-siblings-2.test.ts` existed on disk, fully
+written and matching q41's acceptance criteria exactly, but `git log` shows no
+commit for it and no prior session's log entry described it. `git status
+--porcelain` before starting showed only that one untracked file — nothing
+else.
+
+Verified rather than trusted, per this file's own standing lesson: ran the
+file live (`npx vitest run tests/q41-...test.ts`) — 8/8 green, real nested
+`tsx` subprocess invocations against scratch copies, not mocked. Ran
+`npx tsc --noEmit -p .` — clean. Confirmed Scope compliance (`git status
+--porcelain` showed only the one test file, no `/src/**`/`/data/**` touched).
+
+**Review (code-reviewer, APPROVE, 0 Critical/Major/Minor/Nit — 2 non-blocking
+observations).** Independently traced import chains confirming the file's
+core claim: `perf-ratio.ts`, `a4probe.ts`, `a5probe.ts`, `fuzz-input.ts`,
+`fuzz-save.ts`, `fuzz-weapon-boundary.ts` and `fuzz-command-domain.ts` all
+transitively import `src/sim/content.ts` (via `Run`/`World`/`loadContent` or
+tower/enemy helpers that import `world.ts`), while `mutation-probe.ts` has
+zero such import and only ever fails on an uncaught `ENOENT` from its own
+`populateScratch`, past module load. Ran the new file alongside both q33/q37
+siblings together — 18/18 pass, no scratch-path collisions. Noted a stray
+`.bak` file glimpsed transiently during review (an earlier draft of the
+author's own authoring process) that was gone by review's end and not part of
+the working tree — confirmed absent before commit.
+
+**QA (qa-playtester, PASS).** Ran the file live, 8/8 green. Adversarial check
+1: an intact `towers.json` in a `tests/`-less scratch dir fails with a
+*different* error (`ERR_MODULE_NOT_FOUND` on `tests/helpers`), proving the
+pinned `TransformError` is specifically the JSON-syntax corruption's doing,
+not an artifact of the minimal scratch fixture. Adversarial check 2: swapped
+`mutation-probe.ts` into the "crashes at import" `describe.each` list — the
+test correctly went red, proving the assertions discriminate rather than
+rubber-stamp. Confirmed no leftover `bench/.tmp/*q41*` scratch dirs after both
+a clean pass and the deliberately-failed mutation run. Scope clean before and
+after.
+
+**Suite state.** `npx vitest run tests/q41-cli-json-syntax-error-siblings-2
+.test.ts` — 8/8 green. `npx tsc --noEmit -p .` clean. `git status --porcelain`
+before commit: `BACKLOG-QUALITY.md`, `tests/q41-cli-json-syntax-error-
+siblings-2.test.ts` only — Scope-compliant.
+
+**Committed.**
+
+**Four actionable items remain** (q42, q43, q44, plus q39 as a Scope-blocked
+tracking entry), above the generation rule's floor of 3, so the next session
+does not need to run it.
 
 ### 2026-08-27 — session 37
 
