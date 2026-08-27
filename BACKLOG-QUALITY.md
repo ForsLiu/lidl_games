@@ -61,7 +61,7 @@ coverage gaps session 1's log recorded. All five are inside Scope as written.*
       table, and a test asserts every gate id parsed out of SPEC-FINAL §14 is
       either covered by a test file or listed in an explicit recorded-hole set,
       so a new gate cannot arrive uncovered and unnoticed — refs: SPEC-FINAL §14
-- [ ] (q11) [polish] Extract the world/report invariant scanner from
+- [x] (q11) [polish] Extract the world/report invariant scanner from
       `tools/fuzz-input.ts` into `tools/invariants.ts` and reuse it from q2, q3
       and any future soak — acceptance: q2's suite (including its anti-vacuity
       case, which moves with the scanner) passes unchanged against the extracted
@@ -130,6 +130,59 @@ resolve if it wants the CLI entry points too. All five are inside Scope as
 written; none needs a `package.json` edit.*
 
 ## Log
+
+### 2026-08-26 — session 7
+
+**Feedback inbox:** `feedback/` exists in this worktree and is empty (checked
+with `ls -la`). Nothing to process, nothing moved.
+
+**More than 3 actionable items were in queue** (q11–q16 unchecked and
+unblocked), so the generation rule did not run.
+
+**q11 was found already implemented, uncommitted, at session start** — same
+shape as sessions 3/4's q7/q8 discoveries: `tools/invariants.ts` (new),
+`tools/fuzz-input.ts` and `tests/q2-input-fuzz.test.ts` (both modified) were
+sitting in the worktree with no matching Log entry. Verified rather than
+trusted, per this file's own standing lesson.
+
+**What it does.** `scanWorld`/`scanReport` and their private helpers (`bad`,
+`scanDerived`, `DERIVED_POSITIVE`, `DERIVED_NON_NEGATIVE`) moved out of
+`tools/fuzz-input.ts` into `tools/invariants.ts` verbatim — a pure mechanical
+extraction, no behavior change. `tools/fuzz-input.ts` now imports both from
+`./invariants` and re-exports them, so q7's `tests/q7-data-fuzz.test.ts`
+(which reaches the scanner through `const scan = await
+import('../tools/fuzz-input')`) keeps working unchanged; `tests/q2-input-fuzz.test.ts`
+was repointed to import `scanWorld` directly from `../tools/invariants`. The
+acceptance line's parenthetical — "including its anti-vacuity case, which
+moves with the scanner" — refers to q2's `has an invariant scan that actually
+fires` test, which stayed in `tests/q2-input-fuzz.test.ts` and was not
+duplicated into the new module.
+
+**Review (code-reviewer, APPROVE, no findings).** Confirmed the moved code is
+byte-identical between the old location (via `git diff`) and the new file;
+grepped the whole repo for any other importer of `scanWorld`/`scanReport` and
+found only the four expected sites; traced `tools/invariants.ts`'s own imports
+(`World` type, `GRID_H`/`GRID_W`, `STAT_KEYS`) for cycles — none, same pattern
+`tools/fuzz-input.ts` and `tools/phase-coverage.ts` already use; confirmed the
+docstring's claim about q7 reaching the scanner through the re-export is true;
+ran q2 and q7 standalone, both green.
+
+**QA (qa-playtester, PASS).** Ran q2 and q7 standalone (16/16, 29 passed/7
+skipped — identical to the pre-refactor baseline via `git stash`). Mutation-
+tested for real: `return [];` as `scanWorld`'s first line correctly failed
+q2's anti-vacuity case and nothing else; commenting out `fuzz-input.ts`'s
+`export { scanReport, scanWorld };` line correctly failed 5 of q7's tests with
+`scan.scanWorld is not a function`, proving q7's dependency on the re-export
+is real rather than incidental. Both reverted, `git diff --stat` matched the
+original pre-mutation diff exactly. Re-grepped independently for any missed
+caller (none) and re-confirmed Scope (`tests/**`/`tools/**` only touched).
+
+**Suite state at this commit.** `npx vitest run` — **764 passed / 78 skipped,
+exit 0**, q11's extraction included, ~236s.
+
+**Fewer than 3 actionable items will remain after this commit's queue update**
+is not yet true — q12–q16 (5 items) are still unchecked and unblocked, so the
+generation rule does not need to run next session either.
 
 ### 2026-08-26 — session 6
 

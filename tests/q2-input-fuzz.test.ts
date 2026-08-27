@@ -25,7 +25,11 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { loadContent } from '../src/sim/content';
-import { COMMAND_KINDS, PHASES, describeFailure, fuzzPhase, fuzzRun, runInPhase, scanWorld } from '../tools/fuzz-input';
+import { COMMAND_KINDS, PHASES, describeFailure, fuzzPhase, fuzzRun, runInPhase } from '../tools/fuzz-input';
+// The scanner itself lives in `tools/invariants.ts` (lane item q11); imported
+// from there directly rather than through fuzz-input's re-export, since the
+// case below tests the scanner, not the fuzzer.
+import { scanWorld } from '../tools/invariants';
 
 /** The QUALITY.md number, per phase. */
 const N = 10000;
