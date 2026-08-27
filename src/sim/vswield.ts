@@ -106,7 +106,10 @@ function wieldOneType(w: World, def: TowerDef, group: readonly Structure[]): Wie
  * §6.1's last clause: a wielded attack fires from the Warden, on its own
  * per-type cooldown, scaled by the *character's* stats — Power, attack speed
  * and Area, never `towerDamageMul`/`towerRangeMul`/`affinityMul`, which are
- * the Act I tower-side multipliers and stay Act I's. It reuses `combat.ts`'s
+ * the Act I tower-side multipliers and stay Act I's. The one deliberate
+ * exception is `towerAttackSpeedMul`: §4.1 Wind Slash (p6b) names itself
+ * "effective in VS" verbatim, unlike any other tower-side stat, so it rides
+ * alongside the character's own `attackSpeedMul` below (Q118). It reuses `combat.ts`'s
  * shape-by-`kind` primitives (the same ones `fireTower` and `fireWeapon`
  * call), so lifesteal and damage attribution fall out for free: `dealHit`'s
  * `DamageOptions` carries no `dot`/typed override, so `damageEnemy`'s §2 leech
@@ -126,7 +129,7 @@ function wieldOneType(w: World, def: TowerDef, group: readonly Structure[]): Wie
  */
 export function updateWieldedAttacks(w: World, dt: number): void {
   // SPEC-FINAL §5.5 Time: "VS: character attack and movement speed +20%".
-  const speedMul = w.derived.attackSpeedMul * coreAttackSpeedMul(w);
+  const speedMul = w.derived.attackSpeedMul * w.derived.towerAttackSpeedMul * coreAttackSpeedMul(w);
   for (const wielded of cachedWieldedAttacks(w)) {
     let cd = (w.wieldedCooldown.get(wielded.towerId) ?? 0) - dt * speedMul;
     if (cd > 0) {

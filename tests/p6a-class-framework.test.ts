@@ -83,7 +83,12 @@ describe('p6a: the loader rejects a legacy: false class missing any of the four 
 
   it('still accepts every shipped legacy: true class (the real data/classes.json)', () => {
     expect(() => ClassesFileSchema.parse(content.classes)).not.toThrow();
-    for (const c of content.classes.classes) expect(c.legacy).toBe(true);
+    // p6b ships the first real legacy: false class (Swordsman); the three
+    // original V2-era classes stay legacy: true (Q38).
+    const legacyKeys = ['engineer', 'pyromancer', 'frost_warden'];
+    for (const c of content.classes.classes) {
+      expect(c.legacy).toBe(legacyKeys.includes(c.key));
+    }
   });
 });
 
@@ -191,7 +196,7 @@ describe('p6a: the basic attack auto-fires on the band profile with no input.att
     )!;
     const hpBefore = e.hp;
     for (let t = 0; t < 60 && !e.dead; t++) {
-      run.step({ mx: 0, my: 0, dash: false, attack: false, aimX: 0, aimY: 0, cmds: [] });
+      run.step({ mx: 0, my: 0, dash: false, attack: false, aimX: 0, aimY: 0, active1Held: false, cmds: [] });
     }
     expect(e.dead || e.hp < hpBefore).toBe(true);
   });
@@ -207,7 +212,7 @@ describe('p6a: the basic attack auto-fires on the band profile with no input.att
     )!;
     const hpBefore = e.hp;
     for (let t = 0; t < 60; t++) {
-      run.step({ mx: 0, my: 0, dash: false, attack: false, aimX: 0, aimY: 0, cmds: [] });
+      run.step({ mx: 0, my: 0, dash: false, attack: false, aimX: 0, aimY: 0, active1Held: false, cmds: [] });
     }
     expect(e.hp).toBe(hpBefore);
   });
@@ -219,7 +224,7 @@ describe('p6a: the basic attack auto-fires on the band profile with no input.att
     const e = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 1, w.warden.y)!;
     w.rebuildBuckets();
     const hpBefore = e.hp;
-    const input: TickInput = { mx: 0, my: 0, dash: false, attack: false, aimX: 0, aimY: 0, cmds: [] };
+    const input: TickInput = { mx: 0, my: 0, dash: false, attack: false, aimX: 0, aimY: 0, active1Held: false, cmds: [] };
     for (let t = 0; t < 60; t++) updateWarden(w, input, 1 / 60);
     expect(e.hp).toBe(hpBefore);
   });
@@ -232,7 +237,7 @@ describe('p6a: replay-hash determinism with Active1/Active2 and the auto basic a
       const cmds: Command[] = [];
       if (t === 60) cmds.push({ k: 'class_active' });
       if (t === 120) cmds.push({ k: 'class_active2' });
-      log.push({ mx: t % 7 === 0 ? 1 : 0, my: 0, dash: false, attack: false, aimX: 0, aimY: 0, cmds });
+      log.push({ mx: t % 7 === 0 ? 1 : 0, my: 0, dash: false, attack: false, aimX: 0, aimY: 0, active1Held: false, cmds });
     }
 
     const a = new Run(cfg({ classKey: FIXTURE.key }), FIXTURE_CONTENT);

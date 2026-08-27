@@ -42,6 +42,7 @@ export function makeInputLog(seed: number, ticks: number): TickInput[] {
       attack: rng.float() < 0.4,
       aimX: 0,
       aimY: 0,
+      active1Held: false,
       cmds,
     });
   }

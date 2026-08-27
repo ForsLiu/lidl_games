@@ -34,7 +34,7 @@ still in test headers.
 | P3 interleave | **done in full (p3a-p3e)** — `p3a` retargets the reused V2 cycle machine to 18 TD + 6 VS, 20s build, 75s VS (G6's pattern half); `p3b` stacks up to `maxStackedWaves` TD waves via the `call` command (G6's stacking half); `p3c` re-points leak coupling's existing ×2-into-next-VS-wave mechanism onto TD→VS vocabulary and the real 6-block shape; `p3d` deletes the V2 Day/Dusk/Night/Dawn machine, Rekindle and the Core-detonation pocket/lane mechanism outright; `p3e` re-baselines `light-build`/G13's solo-viability clause (`a4-single-type`)/the boss gate against the real shape — all three measure red past ~wave 10-14 (a p8a content gap, not a P3 defect) and are logged `.skip` with their numbers rather than forced green (Q109) |
 | P4 core math | **done** — multiplicative stacking, armor cap +99 / floor −100, 6 damage types + 2 statuses (G4, G5 green) |
 | P5 tower roster | **done in full (p5a-p5d, G20 green)** — all 10 towers, upgrade tracks, defense bands; `p5b` gave Ember Brazier/Mortar their own `costMul`; `p5c` authored the four remaining §5.2 milestone specials (Ballista, Fire Brazier, Ice Obelisk, Mortar) and the G20 loader rule; `p5d` fixed the QA-filed `damageDealt` telemetry bug on pierce/lob-kind towers |
-| P6 classes | **framework done (`p6a`)** — §4's Passive + Q + E + tower passive is live; still **3 of 11** real kits, all on the legacy V2 shape (`p6b`/`p6c`/`p6d` author the §4 kits) (G8–G11 unmet) |
+| P6 classes | **framework done (`p6a`), first real kit done (`p6b`)** — §4's Passive + Q + E + tower passive is live; Swordsman is the first §4-shaped kit (G9's first half green); still **1 of 11** new-shape kits, the other 3 legacy classes remain on the V2 shape (`p6c`/`p6d` author the rest) (G8, G9's second half, G10, G11 unmet) |
 | P7 equipment/rewards/VS upgrades | **superseded systems in place** — relic affixes, Ember, 12 boons; §7's 12-item table, §6.3's pool and §8's reward pipeline unbuilt (G12 unmet) |
 | P8 enemies/waves/bosses | **roster and both bosses done** — all 20 §9 enemies by name; waves still on the 10-wave cycle shape (G14 measured on the old shape) |
 | P9 tooling | **dev mode, god mode, UX flows done; Codex read-half in flight on `lane/tuner`; Tuner unbuilt** (G15 unmet, G16/G18 largely green) |
@@ -96,18 +96,13 @@ quest engine doesn't exist yet — are re-filed as `p7h` in P7, below.
 
 ### P6 — classes (G8, G9, G10, G11)
 
-**`p6a` is done** — see the Done section. SPEC-FINAL §4's class framework
-(archetype bands resolved to a numeric basic-attack profile, Passive,
-Active1 (Q), Active2 (E), Tower passive) is live, proven by a fixture class;
-the three existing V2-era classes carry forward as `legacy: true` (Q38). No
-real §4 kit is authored yet — that starts at `p6b`.
+**`p6a` and `p6b` are done** — see the Done section. SPEC-FINAL §4's class
+framework (archetype bands resolved to a numeric basic-attack profile,
+Passive, Active1 (Q), Active2 (E), Tower passive) is live, proven by a
+fixture class; the three existing V2-era classes carry forward as `legacy:
+true` (Q38). `p6b` authored the first real §4 kit, Swordsman, and gate
+**G9**'s first half (the Circle Slash/Dash Slash merge) is green.
 
-- [ ] (p6b) [feat] Swordsman kit (§4.1 verbatim): Thousand Cuts, Circle Slash
-      (charge-scaled, cap 3 s-equivalent), Dash Slash, Wind Slash tower passive —
-      acceptance: gate **G9**'s first half — Dash during a Circle Slash charge is
-      one merged attack whose hit range is widened by the current charge radius and
-      whose damages sum, and each enemy struck takes exactly 1 Bleeding — refs:
-      §4.1, G9
 - [ ] (p6c) [feat] Plaguebringer kit (§4.1 verbatim): Spreading Plague, Poison
       Barrel, Poison Boost, +10% tower poison damage — acceptance: gate **G9**'s
       second half — an enemy dying with unfinished DoT deals exactly the unfinished
@@ -335,6 +330,116 @@ logged in MIGRATION.md §8 rather than carried as dead items.
   **G19**. The work is `p10d`.
 
 ## Done
+
+- [x] (p6b) [feat] Swordsman kit (§4.1 verbatim): Thousand Cuts, Circle Slash,
+      Dash Slash, Wind Slash tower passive — this commit. `data/classes.json`
+      authors the first real §4-shape class row: `basicAttack` (dps 26, range
+      2.5, interval 0.55, aoe 1.5), `moveSpeedBonus` 0.30, `passive.kind:
+      'thousand_cuts'`, `active1` (`kind: 'charge_nova'`, Circle Slash: 6s
+      cooldown, radius 4/damage 60 at full charge scaling down to
+      minRadius 1.5/minDamage 10 at zero charge, knockback 3, chargeCapSeconds
+      3), `active2` (`kind: 'dash_line'`, Dash Slash: 4s cooldown, damage 30,
+      dashRange 5, dashWidth 1), `towerPassive.mods: { towerAttackSpeed: 0.10
+      }`. Circle Slash is the framework's first *held* Active — a new
+      continuous `TickInput.active1Held` field (alongside the pre-existing
+      `dash`/`attack` booleans) drives `tickClassCharge` (`src/sim/classes.ts`)
+      every tick: starts charging on the first held tick (blocked while
+      `active1Cooldown` still runs), accumulates to `chargeCapSeconds`, fires
+      on release via `fireCircleSlash`, scaling radius/damage/knockback from
+      their `min*`/0 floor up to their full value by charge fraction (`lerp`).
+      The pre-existing `{k:'class_active'}` Command is a deliberate no-op for
+      a `charge_nova`-kind Active1. Dash Slash (`fireDashSlash`) is
+      mouse-aimed (`{k:'class_active2', aimX, aimY}`, both new optional
+      Command fields) and implements G9's merge: if Active1 is mid-charge when
+      Active2 fires, the charge's current radius widens `lineHit`'s detection
+      reach (not the physical dash distance) and its damage sums into the one
+      `lineHit` call — one attack event, so Thousand Cuts' Bleeding
+      (`passiveOnHit`, threaded through `applyAoE`/`lineHit`/a direct
+      `damageEnemy`+`applyEffects` pair) applies exactly once per enemy
+      struck, not once per merged source — and Active1's cooldown starts at
+      its flat, non-charge-scaled value, same as a plain release. Knockback
+      does not carry into the merge (§4.1 names only range and damage as
+      transferring). "Knockback" itself is an instant, walkable-tile-clamped
+      reposition (`knockbackEnemy`) since the sim has no velocity/impulse
+      mechanism anywhere (same clamp-and-probe pattern `run.ts`'s
+      `blinkWarden` already uses for the Warden's own dash, hand-duplicated
+      rather than imported to avoid a `classes.ts`<->`run.ts` cycle). Wind
+      Slash needed a new `towerAttackSpeed` stat key (`src/sim/stats.ts`)
+      distinct from the pre-existing `attackSpeed` (which already drives the
+      *character's* own cooldowns) — threaded through both `attackSpeedFor`
+      (Act I, `src/sim/towers.ts`) and `updateWieldedAttacks` (VS,
+      `src/sim/vswield.ts`), the one deliberate exception among tower-side
+      stats to the "stays Act I's" rule, since §4.1 states Wind Slash
+      "effective in VS" verbatim. New `validateClassEffect`
+      (`src/sim/content.ts`), wired into `loadContent()`'s existing per-class
+      loop, rejects a `charge_nova` row missing `minRadius`/`minDamage`/
+      `chargeCapSeconds`/`knockback` or a `dash_line` row missing
+      `dashRange`/`dashWidth` rather than letting `classes.ts`'s `?? 0` reads
+      silently ship an inert kit. **Q118 records six genuine SPEC-FINAL
+      prose gaps**: a held Active1 needs a continuous input field, not a
+      Command (a discrete keydown Command can't carry a hold duration);
+      "knockback" reads as an instant reposition given the sim's total lack
+      of a physics body; the merge's "hit range" widens detection reach only,
+      never the physical dash travel; a merged charge still pays Active1's
+      flat (not fraction-scaled) cooldown, same as any release; Wind Slash's
+      "+10% tower attack speed" needs its own stat key rather than reusing
+      the character-scoped `attackSpeed`; and the band-number table itself
+      (dps/range/interval/aoe/cooldowns/damages), picked for internal
+      consistency with the legacy classes' numbers, ⚖ and freely re-tunable
+      at P10. **code-reviewer APPROVE**, one Minor fixed before commit:
+      `validateClassEffect`'s `charge_nova` branch checked `minRadius`/
+      `minDamage`/`chargeCapSeconds` but not `knockback`, despite the
+      function's own doc comment claiming to close exactly this "silent `??
+      0` instead of a load error" gap and §4.1 naming knockback as one of the
+      three charge-scaled effects — fixed by adding the missing check plus a
+      fourth case to the existing missing-field test loop in
+      `tests/p6b-swordsman.test.ts`. Two Nits not fixed (both pre-existing,
+      low-risk, and independently re-confirmed after the fix): the Dash Slash
+      row carries an unused `radius: 0` field the `dash_line` code path never
+      reads (`dashRange`/`dashWidth` cover its actual geometry); `{k:
+      'class_active2'}`'s `aimX`/`aimY` are independently optional at the
+      type level with nothing enforcing they're supplied as a pair (not
+      reachable today — the one real producer, `src/ui/main.ts`'s `aim()`
+      binding, always supplies both or neither). Also independently
+      confirmed: the code review's re-run of the full suite after the fix
+      landed still green (869/0 before the fix's own new test, 870/0 after);
+      the `w.dying` guard added to both `useClassActive`/`useClassActive2`
+      closes a real bug (`Run.step` applies `input.cmds` before the
+      phase-specific `updateWarden` call, so `w.phase` alone never blocked a
+      Command-driven Active during the post-defeat slow-mo — only `w.dying`
+      does) uniformly across legacy and new-shape classes; the merge's damage
+      math is exactly `(eff.damage + mergedDamage) * powerMul` in one
+      `lineHit` call, no double-multiplication; `hashWorld` hashes the two
+      new `Warden` fields (`active1Charge`/`active1Charging`) through the
+      same quantizing `Hasher.num`, so float accumulation during a charge
+      can't fork a replay. **qa-playtester PASS**, no bugs found: real
+      (non-scripted) headless `Run`s across 5 seeds with a genuine hold/
+      release/dash schedule (not the unit tests' own scripted timings) ran to
+      completion with replay-hash determinism holding on every seed; a
+      same-tick release+dash didn't double-fire; a literal zero-charge
+      tap-then-instant-E correctly did *not* merge (plain Dash Slash damage,
+      byte-identical to a solo dash); a 10-second hold (far past the 3s cap)
+      fired exactly once at the cap-clamped value; a merge followed
+      immediately by a new hold attempt and a second Active2 press was
+      cleanly blocked by cooldowns with charge state untouched, not silently
+      consumed; a merged hit against 3 enemies gave each exactly 1 Bleeding;
+      a genuine mid-charge death via a real fatal `damageWarden` call froze
+      the charge state through the whole slow-mo with no throw, no force-fire
+      and no decay, and `Run.step`/`report()`/`hash()` all stayed sound
+      post-resolution; a hand-corrupted `data/classes.json` (missing
+      `chargeCapSeconds`) threw the new loader's exact, specific error
+      message; Wind Slash's bonus was confirmed fully scoped to Swordsman
+      (`towerAttackSpeedMul === 1`, zero contributions, on a `pyromancer`
+      World). One non-blocking observation logged, not filed as a bug (no
+      failing repro could be built against the sim itself): a player
+      pressing E before any `mousemove` event would aim Dash Slash at
+      whatever `ViewState`'s cursor default is, a UI-state question outside
+      what a headless check can verify. `npm test`: 870 passed / 37 skipped
+      (0 failed, up from 835/37 pre-item — 35 new cases in
+      `tests/p6b-swordsman.test.ts`, mechanical `TickInput`-shape updates in
+      six other test files for the new `active1Held` field); perf config
+      3/3; `npx tsc --noEmit` clean — refs: §4.1, G9, Q118. **Next action:
+      `p6c`** (Plaguebringer kit, gate G9's second half).
 
 - [x] (p6a) [feat] Class framework per §4: archetype bands resolved to a
       numeric basic-attack profile + Passive + Active1 (Q) + Active2 (E) +

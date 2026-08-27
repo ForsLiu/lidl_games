@@ -315,7 +315,7 @@ describe('T2: clicking the canvas reaches the handler', () => {
       const host = view();
       const handler = makeSelectHandler(host, () => run.world);
       for (let t = 0; t < 300; t++) {
-        run.step({ mx: t % 2, my: 0, dash: false, attack: false, aimX: 0, aimY: 0, cmds: [] });
+        run.step({ mx: t % 2, my: 0, dash: false, attack: false, aimX: 0, aimY: 0, active1Held: false, cmds: [] });
         if (select) {
           handler(run.world.warden.x, run.world.warden.y);
           sweepSelection(host, run.world);

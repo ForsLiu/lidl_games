@@ -284,7 +284,14 @@ export function attackSpeedFor(w: World, s: Structure): number {
   // they multiply. Overlapping auras sum into `bonus` first (ranks within one
   // source), matching the shrine rule in weapons.ts.
   // SPEC-FINAL §5.5 Vampire Heart: "... and attack speed per 1% HP missing".
-  return w.derived.attackSpeedMul * (1 + (w.auraBonus.get(s.id) ?? 0)) * vampireMissingHpBuffMul(w, s);
+  // §4.1 Wind Slash (p6b): "all towers +10% attack speed" — a tower-side
+  // multiplier distinct from the Warden's own `attackSpeedMul` above.
+  return (
+    w.derived.attackSpeedMul *
+    w.derived.towerAttackSpeedMul *
+    (1 + (w.auraBonus.get(s.id) ?? 0)) *
+    vampireMissingHpBuffMul(w, s)
+  );
 }
 
 /* ---------------------------------------------------------------- firing */

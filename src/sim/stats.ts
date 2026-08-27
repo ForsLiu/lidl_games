@@ -42,6 +42,7 @@ export const STAT_KEYS = [
   'towerCost',
   'towerDamage',
   'towerRange',
+  'towerAttackSpeed',
   'coreHp',
   'buildRange',
   'wallHp',
@@ -87,6 +88,7 @@ export const STAT_KIND: Record<StatKey, StatKind> = {
   towerCost: 'mul',
   towerDamage: 'mul',
   towerRange: 'mul',
+  towerAttackSpeed: 'mul',
   wallHp: 'mul',
   sproutGold: 'mul',
   residualPotency: 'mul',
@@ -316,6 +318,13 @@ export interface Derived {
   towerCostMul: number;
   towerDamageMul: number;
   towerRangeMul: number;
+  /**
+   * Unlike `towerDamageMul`/`towerRangeMul` (Act I only — `vswield.ts` reads
+   * neither on purpose), Wind Slash (p6b, §4.1) is textually "effective in
+   * VS", so this one also multiplies `updateWieldedAttacks`'s cooldown speed
+   * (Q118) — the one deliberate exception to that file's own "stays Act I's" rule.
+   */
+  towerAttackSpeedMul: number;
   buildRange: number;
   wallHpMul: number;
   goldPerKill: number;
@@ -361,6 +370,7 @@ export function derive(content: Content, s: Stats, residualScale = 1): Derived {
     towerCostMul: Math.max(0.25, s.factor('towerCost')),
     towerDamageMul: s.factor('towerDamage'),
     towerRangeMul: s.factor('towerRange'),
+    towerAttackSpeedMul: s.factor('towerAttackSpeed'),
     buildRange: content.towers.buildRange + s.total('buildRange'),
     wallHpMul: s.factor('wallHp'),
     goldPerKill: s.total('goldPerKill'),

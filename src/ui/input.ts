@@ -110,6 +110,8 @@ export interface KeyBinding {
   cycleSpeed?: () => void;
   isChoosing?: () => boolean;
   onAnyKey?: () => void;
+  /** Current mouse-aim point in tile coords, for a `dash_line`-kind Active2 (p6b). */
+  aim?: () => { x: number; y: number };
 }
 
 /** Returns the keydown handler, so callers can attach and detach it. */
@@ -127,7 +129,10 @@ export function makeKeyDownHandler(b: KeyBinding): (e: KeyboardEvent) => void {
     if (k === ' ') e.preventDefault();
     if (k === 'enter') b.queue.push({ k: 'call' });
     if (k === 'q') b.queue.push({ k: 'class_active' });
-    if (k === 'e') b.queue.push({ k: 'class_active2' });
+    if (k === 'e') {
+      const aim = b.aim?.();
+      b.queue.push({ k: 'class_active2', aimX: aim?.x, aimY: aim?.y });
+    }
     if (k === 'r') b.toggleRanges?.();
     if (k === 'f') b.cycleSpeed?.();
     if (k === '0') b.clearSelection?.();
@@ -137,6 +142,24 @@ export function makeKeyDownHandler(b: KeyBinding): (e: KeyboardEvent) => void {
       else b.selectTowerByIndex?.(Number(k) - 1);
     }
   };
+}
+
+/**
+ * Clears held keys for a pause — except `q`. Every other key here drives a
+ * momentary action (movement, dash, attack) that must not carry through to
+ * the resume; `q` drives a multi-tick hold/release state machine
+ * (Circle-Slash-style charging, p6b) instead, so clearing it would read as
+ * a release on the very next resumed tick's `gatherInput()` call (no
+ * keydown re-fires for an already-held key), silently firing whatever
+ * charge had accumulated with no player intent to release — a real
+ * QA-found bug. A genuine release during the pause still works correctly:
+ * `keyup` listeners stay attached and armed while paused, so physically
+ * letting go of `q` mid-pause still removes it before this ever runs.
+ */
+export function clearKeysForPause(keys: Set<string>): void {
+  const heldCharge = keys.has('q');
+  keys.clear();
+  if (heldCharge) keys.add('q');
 }
 
 /** Movement axes from the held keys, quantised so replays stay exact. */
@@ -165,6 +188,9 @@ export function gatherInput(
   input.attack = true;
   input.aimX = cursorX;
   input.aimY = cursorY;
+  // §4.1 (p6b): held continuously, like `dash`/`attack` — a charge-kind
+  // Active1 reads this every tick rather than through a discrete Command.
+  input.active1Held = keys.has('q');
   input.cmds = pending;
   return input;
 }

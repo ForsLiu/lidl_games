@@ -130,7 +130,16 @@ describe('practice tool', () => {
 
   it('a practice run banks nothing: no Ember, no relics', () => {
     const run = new Run({ ...cfg(), practice: true, policy: 'none' });
-    run.step({ mx: 0, my: 0, dash: false, attack: false, aimX: 0, aimY: 0, cmds: [{ k: 'dev', op: 'gold', amount: 999 }] });
+    run.step({
+      mx: 0,
+      my: 0,
+      dash: false,
+      attack: false,
+      aimX: 0,
+      aimY: 0,
+      active1Held: false,
+      cmds: [{ k: 'dev', op: 'gold', amount: 999 }],
+    });
     const w = run.world;
     w.relicsFound.push({ id: 0, name: 'Test Relic', slot: 'ring', rarity: 'rare', affixes: [] });
 
@@ -162,7 +171,16 @@ describe('practice tool', () => {
     expect(clean.report().practiceUsed).toBe(false);
 
     const dirty = new Run({ ...cfg(), practice: true, policy: 'none' });
-    dirty.step({ mx: 0, my: 0, dash: false, attack: false, aimX: 0, aimY: 0, cmds: [{ k: 'dev', op: 'heal', amount: 0 }] });
+    dirty.step({
+      mx: 0,
+      my: 0,
+      dash: false,
+      attack: false,
+      aimX: 0,
+      aimY: 0,
+      active1Held: false,
+      cmds: [{ k: 'dev', op: 'heal', amount: 0 }],
+    });
     expect(dirty.report().practiceUsed).toBe(true);
   });
 
@@ -181,6 +199,7 @@ describe('practice tool', () => {
           attack: false,
           aimX: 0,
           aimY: 0,
+          active1Held: false,
           cmds: t === 30 ? cmds : [],
         });
       }

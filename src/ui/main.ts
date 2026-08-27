@@ -11,7 +11,7 @@ import './style.css';
 
 import { Run } from '../sim/run';
 import type { Command, MetaState, RunConfig, TickInput } from '../sim/types';
-import { bindCanvasInput, gatherInput, makeKeyDownHandler } from './input';
+import { bindCanvasInput, clearKeysForPause, gatherInput, makeKeyDownHandler } from './input';
 import { makeSelectHandler, sweepSelection } from './selection';
 import { Renderer, type ViewState } from '../render/canvas';
 import { Hud } from './hud';
@@ -157,7 +157,8 @@ class Game {
     this.paused = paused;
     // Movement keys held when pausing must not carry through to the resume, and
     // the time banked while frozen must not surge the sim on the first frame.
-    if (paused) this.keys.clear();
+    // `q` is the one exception `clearKeysForPause` preserves — see its own doc.
+    if (paused) clearKeysForPause(this.keys);
     else this.pacer.clearBacklog();
     this.hud.setPaused(paused, this.run.world);
   }
@@ -176,6 +177,7 @@ class Game {
         this.view.selection = null;
       },
       isChoosing: () => this.run?.world.phase === 'levelup',
+      aim: () => ({ x: this.view.cursorX, y: this.view.cursorY }),
       pickOffer: (i) => this.pending.push({ k: 'pick', index: i }),
       selectTowerByIndex: (i) => {
         if (this.run) this.hud.selectByIndex(this.run.world, i);

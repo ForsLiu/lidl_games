@@ -173,7 +173,7 @@ describe('f004: class Active skill as a sim Command', () => {
     const log: TickInput[] = [];
     for (let t = 0; t < 400; t++) {
       const cmds: Command[] = t === 120 ? [{ k: 'class_active' }] : [];
-      log.push({ mx: 0, my: 0, dash: false, attack: true, aimX: 0, aimY: 0, cmds });
+      log.push({ mx: 0, my: 0, dash: false, attack: true, aimX: 0, aimY: 0, active1Held: false, cmds });
     }
     const a = new Run(cfg({ classKey: 'pyromancer' }));
     for (const input of log) a.step(input);

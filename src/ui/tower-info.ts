@@ -212,7 +212,13 @@ function rangeOf(w: World, def: TowerDef, tier: number): number {
  */
 export function towerInfo(w: World, def: TowerDef, existing?: Structure): TowerInfo {
   const tier = existing?.tier ?? 1;
-  const speedMul = existing ? attackSpeedFor(w, existing) : w.derived.attackSpeedMul;
+  // The pre-build preview has no `Structure` yet, so it can't read
+  // `attackSpeedFor`'s aura/Vampire-Heart-missing-HP terms (both keyed by
+  // structure id) — but `towerAttackSpeedMul` (Wind Slash, p6b) is a
+  // Warden-level derived stat, not structure-specific, so it's available
+  // and must be included here too, or the build-menu tooltip understates
+  // every tower's fire rate by exactly Wind Slash's bonus (QA-found bug).
+  const speedMul = existing ? attackSpeedFor(w, existing) : w.derived.attackSpeedMul * w.derived.towerAttackSpeedMul;
   const hasNext = tier < maxLevel(def);
   const a = def.attack;
   const stats: StatLine[] = [];

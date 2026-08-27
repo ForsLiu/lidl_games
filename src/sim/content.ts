@@ -504,7 +504,14 @@ const ClassPassiveSchema = z.object({ name: str, description: str });
  */
 const ClassEffectSchema = z.object({
   name: str,
-  kind: z.enum(['burst_damage']),
+  /**
+   * `charge_nova` (p6b, Circle Slash) and `dash_line` (p6b, Dash Slash) are
+   * the first two kinds past the framework's `burst_damage`. `radius`/
+   * `damage` above double as each kind's full-charge (or flat) value; the
+   * `min*` fields below are the zero-charge floor a `charge_nova` scales up
+   * from (Q118).
+   */
+  kind: z.enum(['burst_damage', 'charge_nova', 'dash_line']),
   cooldownSeconds: num,
   radius: num,
   damage: num,
@@ -512,6 +519,16 @@ const ClassEffectSchema = z.object({
   slowDuration: num.optional(),
   burnDps: num.optional(),
   burnDuration: num.optional(),
+  /** `charge_nova` only: nova radius/damage at zero charge (`radius`/`damage` above are the full-charge values). */
+  minRadius: num.optional(),
+  minDamage: num.optional(),
+  /** `charge_nova` only: max instant-reposition distance dealt to a struck enemy at full charge (Q118 reads SPEC-FINAL's "knockback" as an instant reposition — the sim has no velocity-impulse mechanism). */
+  knockback: num.optional(),
+  /** `charge_nova` only: charge time (seconds) at which the scale above reaches 1; holding longer holds at the cap rather than growing further or force-firing (§4.1's "charge time is unlimited"). */
+  chargeCapSeconds: num.optional(),
+  /** `dash_line` only: dash travel distance and the line's perpendicular half-width. */
+  dashRange: num.optional(),
+  dashWidth: num.optional(),
 });
 
 /**
@@ -531,6 +548,13 @@ const ClassSlotPassiveSchema = z.object({
   name: str,
   description: str,
   mods: z.record(num).default({}),
+  /**
+   * Non-stat-shaped passives (Thousand Cuts' on-hit Bleeding, p6b) get their
+   * own bespoke dispatch tag here, the same `kind`-dispatches-to-engine-code
+   * pattern `active1`/`active2` already use, rather than living in `mods`
+   * where an unrecognized key would silently do nothing (Q118).
+   */
+  kind: z.enum(['thousand_cuts']).optional(),
 });
 
 /**
@@ -788,6 +812,32 @@ export function validateDefaultCore(cores: { key: string; unlockedByDefault: boo
 }
 
 /**
+ * `charge_nova`/`dash_line`'s kind-specific fields (`minRadius`/`minDamage`/
+ * `chargeCapSeconds`, `dashRange`/`dashWidth`) are all `.optional()` on
+ * `ClassEffectSchema` — necessarily, since only one kind's fields are
+ * meaningful on any given row — but `classes.ts` reads a missing one as a
+ * silent `?? 0` (a zero-radius nova, a zero-distance dash), not a load
+ * error. CLAUDE.md's loader rule ("a rule that refuses unpayable data is
+ * worth more than a comment saying the data must be valid") applies here
+ * exactly the way it already does to `validateOnHit`/`validateDamageRatio`
+ * (code review on p6b: this was a real gap in the framework's first draft,
+ * caught before a second `charge_nova`/`dash_line` class could ship
+ * through it silently inert).
+ */
+export function validateClassEffect(eff: ClassEffect, where: string): void {
+  if (eff.kind === 'charge_nova') {
+    if (eff.minRadius === undefined) throw new Error(`${where}: charge_nova needs minRadius`);
+    if (eff.minDamage === undefined) throw new Error(`${where}: charge_nova needs minDamage`);
+    if (eff.chargeCapSeconds === undefined) throw new Error(`${where}: charge_nova needs chargeCapSeconds`);
+    if (eff.knockback === undefined) throw new Error(`${where}: charge_nova needs knockback`);
+  }
+  if (eff.kind === 'dash_line') {
+    if (eff.dashRange === undefined) throw new Error(`${where}: dash_line needs dashRange`);
+    if (eff.dashWidth === undefined) throw new Error(`${where}: dash_line needs dashWidth`);
+  }
+}
+
+/**
  * Whether a tower's `defense` is one of the authored bands, throwing if it is
  * not. See `defenseBands` — the point is that ten towers keep three legible
  * tiers of toughness rather than ten numbers nobody can compare (Q80).
@@ -1040,6 +1090,7 @@ export type ClassDef = z.infer<typeof ClassesFileSchema>['classes'][number];
 export type LegacyClassDef = Extract<ClassDef, { legacy: true }>;
 export type NewClassDef = Extract<ClassDef, { legacy: false }>;
 export type ClassActive = z.infer<typeof ClassActiveSchema>;
+export type ClassEffect = z.infer<typeof ClassEffectSchema>;
 /** Exported so a test can drive "a class missing a slot fails the loader" directly (p6a, G2). */
 export { ClassesFileSchema };
 export type AffinityDef = z.infer<typeof AffinityFileSchema>['affinities'][number];
@@ -1152,6 +1203,11 @@ export function loadContent(): Content {
     }
   }
   const classKeys = new Set(classes.classes.map((c) => c.key));
+  for (const c of classes.classes) {
+    if (c.legacy) continue;
+    validateClassEffect(c.active1, `classes.json: ${c.key}.active1`);
+    validateClassEffect(c.active2, `classes.json: ${c.key}.active2`);
+  }
   for (const a of affinity.affinities) {
     if (!classKeys.has(a.classKey)) {
       throw new Error(`affinity.json: unknown class "${a.classKey}"`);

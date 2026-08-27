@@ -22,8 +22,14 @@ export type Command =
   | { k: 'reroll' }
   | { k: 'equip'; relic: number }
   | { k: 'class_active' }
-  /** SPEC-FINAL §4: Active2 (E). No-op for a `legacy: true` class, which has only one Active. */
-  | { k: 'class_active2' }
+  /**
+   * SPEC-FINAL §4: Active2 (E). No-op for a `legacy: true` class, which has
+   * only one Active. `aimX`/`aimY` are the mouse-aim point in tile
+   * coordinates, meaningful only to a `dash_line`-kind Active2 (p6b, Dash
+   * Slash) — omitted or ignored, a `burst_damage`-kind Active2 is
+   * self-centered exactly as before.
+   */
+  | { k: 'class_active2'; aimX?: number; aimY?: number }
   | { k: 'dev'; op: DevOp; amount: number };
 
 /**
@@ -52,11 +58,18 @@ export interface TickInput {
   /** Aim point in tile coords (used by the manual attack only). */
   aimX: number;
   aimY: number;
+  /**
+   * SPEC-FINAL §4.1 (p6b): true while a charge-kind Active1 (e.g. Circle
+   * Slash) is held. Continuous like `dash`/`attack`, not a Command, because
+   * the fire event is time-shifted to release — a discrete keydown Command
+   * cannot carry a hold duration (`tickClassCharge`, classes.ts).
+   */
+  active1Held: boolean;
   cmds: Command[];
 }
 
 export function emptyInput(): TickInput {
-  return { mx: 0, my: 0, dash: false, attack: false, aimX: 0, aimY: 0, cmds: [] };
+  return { mx: 0, my: 0, dash: false, attack: false, aimX: 0, aimY: 0, active1Held: false, cmds: [] };
 }
 
 /** A run is fully described by seed + config + this sparse log (SPEC 9.2). */
@@ -256,6 +269,14 @@ export interface Warden {
   /** SPEC-FINAL §4 Active1 (Q) / Active2 (E), `legacy: false` classes only; tick down in `updateWarden`. */
   active1Cooldown: number;
   active2Cooldown: number;
+  /**
+   * SPEC-FINAL §4.1 (p6b): a `charge_nova`-kind Active1 (Circle Slash) held
+   * seconds, and whether one is currently being held — see
+   * `tickClassCharge` (classes.ts). Both stay at their zero/false default
+   * for every other kind and every `legacy: true` class.
+   */
+  active1Charge: number;
+  active1Charging: boolean;
   /** Last non-zero movement direction; Flame Cone fires along it. */
   fx: number;
   fy: number;

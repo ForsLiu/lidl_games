@@ -395,6 +395,8 @@ export class World {
       activeCooldown: 0,
       active1Cooldown: 0,
       active2Cooldown: 0,
+      active1Charge: 0,
+      active1Charging: false,
       fx: -1,
       fy: 0,
       outOfCombat: 0,

@@ -32,7 +32,7 @@ import {
 import { shouldSpawnBoss, spawnFinalBoss, updateDirector } from './act2';
 import { addXp, openLevelUpIfPending, rerollOffers, takeOffer, updateGems } from './progression';
 import { advanceToNextBlock, finishSundering } from './sundering';
-import { classBasicAttack, useClassActive, useClassActive2 } from './classes';
+import { classBasicAttack, tickClassCharge, useClassActive, useClassActive2 } from './classes';
 import { updateTerrainEffects } from './weapons';
 import { updateWieldedAttacks } from './vswield';
 import { updateVsSpecials } from './vsspecials';
@@ -247,7 +247,7 @@ export function applyCommand(w: World, c: Command): void {
       useClassActive(w);
       break;
     case 'class_active2':
-      useClassActive2(w);
+      useClassActive2(w, c.aimX, c.aimY);
       break;
     case 'dev':
       applyDevCommand(w, c.op, c.amount);
@@ -379,6 +379,8 @@ export function updateWarden(w: World, input: TickInput, dt: number): void {
 
   const cls = w.content.classByKey.get(w.cfg.classKey);
   if (cls && !cls.legacy) {
+    // SPEC-FINAL §4.1 (p6b): charge/release for a charge-kind Active1, both TD and VS.
+    tickClassCharge(w, cls, input, dt);
     // SPEC-FINAL §4: the band-profile basic attack auto-fires, TD-only (Q117) — no `input.attack` press needed.
     if (!w.huntsWarden) classBasicAttack(w, cls);
   } else if (input.attack && !w.huntsWarden) {
@@ -746,6 +748,9 @@ export function hashWorld(w: World): string {
   // Active1/Active2 determinism to hold is being built.
   h.num(w.warden.attackCooldown).num(w.warden.activeCooldown);
   h.num(w.warden.active1Cooldown).num(w.warden.active2Cooldown);
+  // p6b: a charge-kind Active1's held-seconds/charging state gates the same
+  // class of future damage the two cooldowns above are hashed for.
+  h.num(w.warden.active1Charge).bool(w.warden.active1Charging);
   h.int(w.level).num(w.xp);
   h.num(w.act2Time);
   h.int(w.cycle);

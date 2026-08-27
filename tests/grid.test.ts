@@ -93,7 +93,7 @@ describe('content', () => {
     expect(c.boons.boons).toHaveLength(12);
     expect(c.modifiers.modifiers).toHaveLength(12);
     expect(c.quests.quests).toHaveLength(8);
-    expect(c.classes.classes).toHaveLength(3);
+    expect(c.classes.classes).toHaveLength(4);
     expect(c.tree.nodes.filter((n) => n.kind !== 'start')).toHaveLength(120);
     expect(c.tree.nodes.filter((n) => n.kind === 'keystone')).toHaveLength(3);
     expect(c.relics.affixes).toHaveLength(12);

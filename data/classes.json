@@ -1,6 +1,43 @@
 {
   "classes": [
     {
+      "key": "swordsman", "name": "Swordsman", "unlockedByDefault": true, "unlockQuest": null,
+      "legacy": false,
+      "moveSpeedBonus": 0.30,
+      "basicAttack": { "dps": 26, "range": 2.5, "interval": 0.55, "aoe": 1.5 },
+      "passive": {
+        "name": "Thousand Cuts",
+        "description": "Each attack (including Active attacks; each damage instance from an Active counts as 1 attack) applies 1 Bleeding.",
+        "mods": {},
+        "kind": "thousand_cuts"
+      },
+      "active1": {
+        "name": "Circle Slash",
+        "kind": "charge_nova",
+        "cooldownSeconds": 6,
+        "radius": 4,
+        "damage": 60,
+        "minRadius": 1.5,
+        "minDamage": 10,
+        "knockback": 3,
+        "chargeCapSeconds": 3
+      },
+      "active2": {
+        "name": "Dash Slash",
+        "kind": "dash_line",
+        "cooldownSeconds": 4,
+        "radius": 0,
+        "damage": 30,
+        "dashRange": 5,
+        "dashWidth": 1
+      },
+      "towerPassive": {
+        "name": "Wind Slash",
+        "description": "All towers +10% attack speed, effective in VS.",
+        "mods": { "towerAttackSpeed": 0.10 }
+      }
+    },
+    {
       "key": "engineer", "name": "Engineer", "unlockedByDefault": true, "unlockQuest": null,
       "legacy": true,
       "trait": "Towers cost -10%; build range +1",

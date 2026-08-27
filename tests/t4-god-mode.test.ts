@@ -29,7 +29,7 @@ function god(w: World): void {
 }
 
 function input(cmds: TickInput['cmds'] = []): TickInput {
-  return { mx: 0, my: 0, dash: false, attack: false, aimX: 0, aimY: 0, cmds };
+  return { mx: 0, my: 0, dash: false, attack: false, aimX: 0, aimY: 0, active1Held: false, cmds };
 }
 
 /**
