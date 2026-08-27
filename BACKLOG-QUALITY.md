@@ -775,7 +775,7 @@ coverage gaps session 1's log recorded. All five are inside Scope as written.*
       stdout, `Transform failed`+stack on stderr, no clean prefixed
       message) — refs: q33, q37, q41, q42, tools/m20d-run-a4.ts,
       tools/m20d-swarm.ts, tools/probe-boss.ts
-- [ ] (q47) [feat] Automate the "which `tools/*.ts` files are CLI-invocable
+- [x] (q47) [feat] Automate the "which `tools/*.ts` files are CLI-invocable
       and crash-unprotected" census itself: q37, q41 and q46 each
       independently re-derived this by hand-grepping `tools/*.ts` for
       top-level executable code and a transitive `content.ts` import, three
@@ -849,6 +849,35 @@ coverage gaps session 1's log recorded. All five are inside Scope as written.*
       `not a soul tower: ...` inside `m20d-run-a4.ts`) and asserts the
       restore still happens — refs: tools/m20d-price-probe.ts,
       tools/m20d-run-a4.ts
+- [ ] (q50) [bug] `tools/cli-crash-coverage.ts`'s `stripCommentsAndBacktickStrings`
+      strips backtick template-literal contents but copies single/double-quoted
+      string contents through untouched — a double-quoted string using a
+      backslash-newline line continuation (valid JS) produces a real physical
+      newline mid-string, and if the next line inside that string happens to
+      start with `import ... from '...'`, `VALUE_IMPORT_RE`'s `^`-anchored
+      multiline match fires on it even though it is pure string data, never
+      evaluated as an import — false positive, confirmed empirically (a throw
+      placed in a stand-in `content.ts` never fires when the consumer is run
+      under `npx tsx`) — acceptance: a regression test in
+      `tests/q47-cli-crash-coverage.test.ts` (same scratch-dir idiom as the
+      existing "unpaired backtick in a doc comment" case) using this shape
+      asserts `importsContent === false`, and the fix (quoted-string contents
+      get the same treatment backtick contents already get, or an equivalent)
+      makes it pass — refs: q47, tools/cli-crash-coverage.ts (QA finding,
+      qa-playtester, session 45)
+- [ ] (q51) [bug] `tools/cli-crash-coverage.ts`'s `VALUE_IMPORT_RE` exclusion
+      for type-only imports is `import\s+(?!type\s)...`, which only catches a
+      literal `import type { ... }` statement — it misses the equally-valid,
+      equally-erased per-specifier form `import { type Foo, type Bar } from
+      '...'` where every named specifier is individually marked `type` and no
+      value is imported. False positive, confirmed empirically against real
+      esbuild/tsx erasure (a throw placed at the top of a stand-in `content.ts`
+      never fires when the only import of it is all-`type`-specifiers) —
+      acceptance: a regression test in `tests/q47-cli-crash-coverage.test.ts`
+      using this shape asserts `importsContent === false`, and
+      `VALUE_IMPORT_RE` (or a post-match specifier-list check) is fixed to
+      exclude it — refs: q47, tools/cli-crash-coverage.ts (QA finding,
+      qa-playtester, session 45)
 
 *Generated 2026-08-27, session 40, under CLAUDE.md's generation rule scoped
 to this lane: only q43 and q44 were actionable (below the floor of 3; q39
@@ -999,6 +1028,82 @@ resolve if it wants the CLI entry points too. All five are inside Scope as
 written; none needs a `package.json` edit.*
 
 ## Log
+
+### 2026-08-27 — session 45
+
+**Feedback inbox:** no `feedback/` directory in this worktree. Nothing to
+process.
+
+**Session start state:** `tools/cli-crash-coverage.ts` and
+`tests/q47-cli-crash-coverage.test.ts` were already sitting in the worktree,
+untracked, complete and matching q47's acceptance criteria verbatim — the
+same interrupted-session shape sessions 14/16/18/19/20/33/37/38/39/40/42/44
+each logged. `git log` showed no commit for either and q47 was still
+unchecked in the Queue. Verified rather than trusted: ran the suite live
+before touching anything.
+
+**q47 done.** `tools/cli-crash-coverage.ts` does real static analysis (not a
+hand-curated list) for (a)/(b): `listToolFiles` recomputes today's
+`tools/*.ts` set live; `importsContentTransitively` does a real BFS over
+value imports (static, dynamic, and bare side-effect) with a single left-to-
+right scan that strips comments and backtick-string contents before matching,
+specifically to survive `mutation-probe.ts`'s fixture strings that embed a
+real `await import('../src/sim/content')` as string data. (a) "is this a real
+CLI" and the "which test pins this" fact stay hand-curated
+(`NOT_INVOCABLE`/`PIN_COVERAGE`), the same shape `gate-audit.ts`'s
+`KNOWN_HOLES`/`GATE_COVERAGE` already use, because those two facts aren't
+mechanically derivable. `npx tsx tools/cli-crash-coverage.ts` run live: 23
+files classified (22 q47 counted plus the tool itself), zero gaps, every
+named bucket from the acceptance criteria matches exactly (q33/q37/q41/q45/
+q46 pins, `mutation-probe.ts`/`invariants.ts`/`fuzz-data.ts`/
+`fuzz-command-domain-worker.ts`/`m20d-price-probe.ts` exempt, `gen-tree.mjs`
+correctly absent from the `.ts`-only listing).
+
+`npx vitest run tests/q47-cli-crash-coverage.test.ts`: 17/17 green.
+`npx tsc --noEmit -p .`: clean. `git status --porcelain`: the two new files
+only — Scope-compliant.
+
+**Review (code-reviewer, APPROVE, 0 Critical/Major — 2 Minor, 2 Nit).**
+Hand-traced the `mutation-probe.ts` single-pass-vs-two-pass claim against the
+live fixture on disk and confirmed a two-pass sweep would corrupt it as
+described; confirmed the `invariants.ts -> stats.ts -> content.ts` two-hop
+chain live; spot-checked all 16 `PIN_COVERAGE` entries against their listed
+test files and the 3+4+16=23 arithmetic. Minor: `VALUE_IMPORT_RE`'s bare-
+side-effect-import branch requires a trailing `;` (undocumented, no live
+gap); relative-only import matching silently misses `tsconfig.json`'s unused
+`@/*` alias (undocumented, no live gap). Nit: dead `.tsx` resolution
+branches (repo has no `.tsx` files); dynamic-import branch could over-match
+a type-position `import(...).Foo` reference (fails loud, not silent). Folded
+both Minor findings into the file's own "Known limitations" doc comment
+(comment-only, no assertion change), re-ran green after.
+
+**QA (qa-playtester, PASS — 2 minor non-blocking bugs found, both filed as
+new items).** Confirmed all three acceptance-criteria commands live, then
+ran 11 adversarial import shapes through a scratch harness outside `tools/`:
+a 4-hop chain, mixed `{ type Foo, loadContent }`, pure `import type`, a
+`//`-commented-out fake import, a division operator before a real import, a
+barrel re-export chain, an escaped-`//` inside a regex literal, an escaped-
+nested-backtick template literal, a cyclic import (terminates, no infinite
+loop), and an escaped-quote string — 9 of 11 correct. Two false positives
+(push toward "flag something that isn't a real import," not the dangerous
+"miss something that is" direction the tool exists to prevent), neither
+present in today's real 22 files, so no live misclassification: (1) a
+backslash-newline line continuation inside a double-quoted string is copied
+through unstripped, so a string body whose second physical line starts with
+`import ... from '...'` false-positives; (2) `import { type Foo, type Bar }
+from '...'` (every specifier individually marked `type`, no bare `import
+type` keyword) isn't recognized as type-only. Both verified empirically
+against real esbuild/tsx erasure, not just asserted. Filed as q50/q51 with
+regression-test acceptance criteria, per this lane's "a QA-filed bug becomes
+a new backlog item with a regression test" rule. Confirmed `git status
+--porcelain` unchanged after QA's own scratch-dir cleanup — nothing left
+outside Scope.
+
+**Suite state.** Isolated file green (above); no other test/tool file
+touched this session (the code-review fix was a doc comment inside the new
+file itself), so a full `npm test` re-run was not needed for this item.
+`git status --porcelain` before commit: the two new files plus
+`BACKLOG-QUALITY.md` — Scope-compliant.
 
 ### 2026-08-27 — session 44
 
