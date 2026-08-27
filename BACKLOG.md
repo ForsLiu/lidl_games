@@ -86,20 +86,13 @@ full; `p5d` closed the last open item, a bug QA filed against `p5b`.
 Placement logged in Q93: after P5 so the §1.1 run shape (P3) and the full
 tower roster precede the Cores' VS halves and interactions; p-core-f's
 quest unlocks ride the §8.4 system and may complete alongside p7e.
-**`p-core-a`, `p-core-b`, `p-core-c`, `p-core-d` and `p-core-e` are done** —
-see the Done section. G21 is green in full: all five Cores' base gameplay
+**`p-core-a` through `p-core-f` are done** — see the Done section. **P5.5 is
+complete in full.** G21 is green in full: all five Cores' base gameplay
 numbers (Stone Heart in full, Vampire Heart in full, Time in full including
 its steps 3-5 decay aura, Carnivorous Plant in full, Corpse in full) are
-live. Only `p-core-f` (the unlock quests, Codex page, and gates G22/G23)
-remains open below.
-
-- [ ] (p-core-f) [feat] Core unlock quests (the four §5.5 unlock lines through
-      the §8.4 quest system), Codex page, and the gates: **G22** (each core
-      shifts the run fingerprint — damage-source or economy vector — by ≥0.10
-      vs Stone Heart on the same seed/build) and **G23** (every core clears T1
-      at 35–70% win rate with the scripted bot) measured as live tests —
-      acceptance: G21 in full, G22 and G23 green with per-core numbers printed
-      on failure — refs: §5.5, §8.4, G21, G22, G23
+live. `p-core-f` shipped G22 and G23 as live tests (Q116); the item's
+unlock-quests and Codex-page thirds — deferred by Q116 because the real §8.4
+quest engine doesn't exist yet — are re-filed as `p7h` in P7, below.
 
 ### P6 — classes (G8, G9, G10, G11)
 
@@ -186,6 +179,20 @@ remains open below.
       or an array containing null) coerces to `[]` and every other field survives;
       `tests/meta.test.ts`'s corrupt-save case is extended past `'{}'` — refs: §11,
       QA on t6c bug 4
+- [ ] (p7h) [feat] Core unlock quests and Codex page, split out of `p-core-f`
+      by Q116 because the real §8.4 quest engine this needs doesn't exist yet:
+      the four §5.5 unlock lines (Stone Heart is `unlockedByDefault`; the
+      other four Cores' `unlockCondition` strings in `data/cores.json` become
+      real quests through whatever `p7e` builds for §8.4 — "300 lifetime
+      poison kills", "finish a run with the Core at or below 25% HP", "deal
+      100,000 lifetime damage", "win a run in under 32 minutes"), plus a Codex
+      page listing all five Cores' `effects`/`upgrade.steps` the way `p9b`'s
+      page lists every other content collection — acceptance: each of the
+      four non-default Cores has exactly one unlock quest driving its own
+      `unlockCondition` metric to completion in a test; the Codex page renders
+      all five Cores with live numbers read from `data/cores.json`, matching
+      `p9b`'s "a field added to a schema appears with no change to the page"
+      rule — refs: §5.5, §8.4, Q93, Q116
 
 ### P8 — enemies, waves, bosses complete (G14)
 
@@ -330,6 +337,76 @@ logged in MIGRATION.md §8 rather than carried as dead items.
   **G19**. The work is `p10d`.
 
 ## Done
+
+- [x] (p-core-f) [feat] G22 and G23 as live tests (SPEC-FINAL §5.5, gate G21's
+      companions) — this commit. **P5.5 is complete in full.** The original
+      item bundled three things — four Core unlock quests through §8.4, a
+      Codex page, and gates G22/G23 — but Q93 had already anticipated that
+      the §8.4 quest engine might not exist yet when this item came up, and
+      said so explicitly: split it, ship the gates now, join the quests half
+      to `p7e`. `data/quests.json` is confirmed still the V2-era Ember/relic
+      roster, not §8.4's shape, so that's exactly what happened: the
+      unlock-quests/Codex thirds are re-filed as `p7h` in P7 (Q116), and this
+      item ships only `tests/p-core-f-gates.test.ts`. New harness
+      `runCoreScripted`: no bot policy buys Core upgrade steps on its own (a
+      named gap since `p-core-a`), so it snaps the Warden onto the Core's
+      tile and queues `{k:'upgrade_core'}` every TD tick a step remains,
+      relying on `upgradeCore`'s own affordability/range gating — commands
+      apply before `updateWarden` moves the character each tick
+      (`Run.step`), so the snapped position is what the same-tick command
+      sees. **G22** (Q116's formula, matching what Q93 deferred verbatim):
+      `max(L1 distance over normalized damageByWeapon shares, relative delta
+      of a gold/level economy pair)` between a Core's run and a same-seed
+      Stone Heart baseline, both `hybrid`-policy, `cycles: 6`. Measured
+      (seeds 1-2): every non-default Core clears the 0.10 bar by a wide
+      margin (5.9-13.3), all economy-dominated — pinned live, not `.skip`-ed.
+      **G23**: 12-seed `hybrid`/`cycles: 6` win rate per Core. Only
+      `carnivorous_plant` is live (5/12 = 41.7%, at the passing floor
+      exactly, `Math.ceil(12*0.35)=5`) — its devour/poison damage is
+      Core-driven and stat-independent, the one Core whose output doesn't
+      bottleneck on either wall the other four hit. `vampire_heart`/`corpse`/
+      `time`/`stone_heart` are `.skip`-ed at measured 0/12 each, for two
+      *different* documented reasons, not one: `stone_heart` dies
+      `defeat_warden` at TD wave 3 every seed (the p3e-documented "every
+      policy dies inside VS wave 1" VS-combat-weakness story, since Stone
+      Heart gives towers/leaks/character nothing at all); the other three
+      die `defeat_core` around wave 10-13 after clearing multiple full VS
+      cycles first — squarely the wave-9-to-14 death band `a4-single-type`/
+      `boss.test` already pinned to the p8a wave-data content gap (only 10
+      real TD wave rows against a still-climbing HP curve), not VS weakness.
+      Re-enable points differ accordingly: `stone_heart` once P6/P7 land, the
+      other three once `p8a` lands. **code-reviewer REQUEST-CHANGES → fixed,
+      then re-verified clean**: the first draft's `.skip` reasoning for
+      `vampire_heart`/`corpse`/`time` copied Stone Heart's VS-weakness story
+      without checking it against the harness's own per-seed data, which
+      shows the opposite (they reach deep into VS, then lose the Core to
+      leaks) — fixed by correcting the doc comments here, in the test file,
+      and in QUESTIONS.md's Q116. Separately, a `carnivorous_plant` seed hit
+      a 60-simulated-minute tick cap and returned non-terminal `outcome:
+      'running'`, silently miscounted as a loss by the first draft's
+      `winRate` — fixed by raising the cap to 90 simulated minutes (headroom
+      over the slowest observed real resolution, ~70 simulated minutes) and
+      adding an explicit `expect(outcome).not.toBe('running')` per seed so a
+      future timeout fails loudly instead of miscounting. **qa-playtester
+      PASS**, no bugs found: independently re-verified the fix landed as
+      described; reproduced 9 passed/4 skipped identically across three
+      independent runs (two standalone, one inside the full suite) with no
+      flakiness; independently confirmed `Run.step`'s command-before-movement
+      ordering against the real source; confirmed a Core with 0 steps bought
+      still gets its always-on `effects` (`computeCoreState` folds them
+      unconditionally); ran all five Cores across seeds 13-20 (40 runs
+      outside the file's own range) with zero throws and death causes
+      matching the documented pattern exactly; spot-checked
+      `vampire_heart`/`corpse`/`time`/`stone_heart` seed 1's exact death tick
+      and confirmed each matches its documented cause precisely (Core HP at
+      0 for the three, still-healthy Core with a dead Warden for Stone
+      Heart). One fragility flagged for the record, not a bug: Carnivorous
+      Plant's 5/12 sits exactly at the passing floor, so any future `/data`
+      tuning touching its devour/poison numbers or the wave curve should
+      re-run this gate rather than assume it still holds. `npm test`: 814
+      passed / 37 skipped (0 failed, up from 805/33 pre-item — 9 new live
+      cases and 4 new skips in `tests/p-core-f-gates.test.ts`); `npx tsc
+      --noEmit` clean — refs: §5.5, §8.4, G21, G22, G23, Q93, Q116.
 
 - [x] (p-core-e) [feat] Time decay aura, steps 3-5 — this commit.
       `data/cores.json` extends Time's `upgrade.steps` array (already carrying

@@ -5,6 +5,68 @@
 
 ## Current state — SPEC-FINAL
 
+- **`p-core-f` is done this commit — SPEC-FINAL §5.5's Cores feature is
+  complete in full (P5.5 done, G21/G22/G23 all green).** The item's original
+  title bundled three things (four Core unlock quests through §8.4, a Codex
+  page, and gates G22/G23), but QUESTIONS.md's Q93 had already anticipated
+  the real blocker: the §8.4 quest engine doesn't exist yet
+  (`data/quests.json` is still the V2-era Ember/relic-reward roster `p7d`/
+  `p7e` haven't replaced), so per Q93's own precommitted contingency this
+  item split — gates shipped now, quests+Codex re-filed as `p7h` in P7
+  (Q116). New `tests/p-core-f-gates.test.ts`'s `runCoreScripted` harness
+  fills the one gap every Core item since `p-core-a` has carried (no bot
+  policy buys Core upgrade steps on its own): it snaps the Warden onto the
+  Core's tile and queues `{k:'upgrade_core'}` every TD tick a step remains,
+  relying on `upgradeCore`'s own affordability/range gating — commands apply
+  before `updateWarden` moves the character each tick (`Run.step`), so this
+  is safe and doesn't fight the policy's own movement. **G22** (each
+  non-default Core shifts the run fingerprint ≥0.10 vs Stone Heart, same
+  seed/build) finalizes the formula Q93 deferred: `max(L1 distance over
+  normalized damageByWeapon shares, relative delta of a gold/level economy
+  pair)`. Measured at seeds 1-2, every non-default Core clears the bar by a
+  wide margin (5.9-13.3, all economy-dominated) — pinned live. **G23**
+  (every Core clears T1 at 35-70% win rate, 12 seeds, `hybrid`, `cycles: 6`)
+  is genuinely core-sensitive, not uniformly gated: `carnivorous_plant`
+  measures 5/12 (41.7%, at the passing floor) because its devour/poison
+  damage is Core-driven and stat-independent — live and green. The other
+  four measure 0/12 for two *different* reasons, both `.skip`-ed with the
+  measured numbers rather than forced: `stone_heart` dies `defeat_warden` at
+  TD wave 3 every seed (the already-documented p3e "every policy dies inside
+  VS wave 1" VS-combat-weakness finding, since it's the one Core that gives
+  towers/leaks/character nothing at all); `vampire_heart`/`corpse`/`time`
+  instead clear multiple full VS cycles before losing the *Core* to leaks
+  around wave 10-13 — squarely the already-documented p8a wave-data content
+  gap (`a4-single-type`/`boss.test`'s own finding: only 10 real TD wave rows
+  against a still-climbing HP curve), not VS weakness. **code-reviewer
+  REQUEST-CHANGES → fixed, then re-verified clean**: the first draft's
+  `.skip` doc comment copied Stone Heart's VS-weakness story onto the other
+  three Cores without checking it against the harness's own per-seed data,
+  which shows the opposite (they reach deep into VS combat, then lose the
+  Core, not the Warden) — corrected in the test file and QUESTIONS.md's
+  Q116. Separately, a `carnivorous_plant` seed hit a 60-simulated-minute
+  tick cap and returned non-terminal `outcome: 'running'`, silently
+  miscounted as a loss — fixed by raising the cap to 90 simulated minutes
+  (real observed resolution: ~70 simulated minutes) and asserting
+  `outcome !== 'running'` per seed so a future timeout fails loudly instead.
+  **qa-playtester PASS**, no bugs found: reproduced 9 passed/4 skipped
+  identically across three independent runs with no flakiness; independently
+  verified the `Run.step` command-before-movement ordering against source;
+  confirmed a 0-step Core still gets its always-on `effects`; ran all five
+  Cores across seeds 13-20 (40 runs outside the file's own range) with zero
+  throws, every death cause matching the documented pattern exactly;
+  spot-checked each `.skip`-ed Core's seed-1 death tick precisely (Core HP 0
+  for the three p8a-bound Cores; a still-healthy Core with a dead Warden for
+  Stone Heart). One fragility flagged for the record: Carnivorous Plant's
+  5/12 sits exactly at the passing floor, so future `/data` tuning touching
+  its numbers or the wave curve should re-run this gate rather than assume
+  it still holds. `npm test`: 814 passed / 37 skipped (0 failed, up from
+  805/33 pre-item — 9 new live cases and 4 new skips in
+  `tests/p-core-f-gates.test.ts`); `npx tsc --noEmit` clean — refs: §5.5,
+  §8.4, G21, G22, G23, Q93, Q116. **P5.5 is done in full. Next action:**
+  P6 (`p6a`, the §4 class framework) is next in P order; P7's `p7h`
+  (Core unlock quests + Codex page) is queued alongside `p7e` whenever the
+  §8.4 quest engine lands.
+
 - **`p-core-e` is done this commit — SPEC-FINAL §5.5's Time is live in full:
   steps 3-5 give it a TD-only decay aura, and G21 is green in full across all
   five Cores.** `p-core-b` gave Time steps 1-2 (flat gold/s, tower regen +
