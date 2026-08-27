@@ -613,7 +613,7 @@ against the suite's own `describe.each` structure, confirming it's fully
 explained by working-tree state rather than a defect in the new entries. No
 bugs filed.
 
-**Committed** (`9a7c2af` — see `git log`), then reran
+**Committed** (`c108b54`), then reran
 `npx vitest run tests/q14-mutation-smoke.test.ts` standalone on the
 now-clean tree to close the loop this session's own finding opened:
 **24/24 green**, confirming the dirty-tree diagnosis rather than leaving it
