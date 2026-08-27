@@ -167,7 +167,7 @@ coverage gaps session 1's log recorded. All five are inside Scope as written.*
       `tests/q21-weapon-boundary-fuzz.ts`, exercised green by
       `tests/q21-weapon-boundary-fuzz.test.ts` — refs: PROGRESS.md P5 audit
       line, M2 soul-weapons section
-- [ ] (q22) [bug][feat] QUALITY.md ALPHA's automated determinism line reads
+- [x] (q22) [bug][feat] QUALITY.md ALPHA's automated determinism line reads
       "100/100 replay hash match, including class actives and uniques," but
       `tests/a11-determinism.test.ts`'s 100-seed test drives every seed
       through `tests/helpers.ts`'s `makeInputLog`, which only ever emits
@@ -336,6 +336,93 @@ resolve if it wants the CLI entry points too. All five are inside Scope as
 written; none needs a `package.json` edit.*
 
 ## Log
+
+### 2026-08-27 — session 18
+
+**Feedback inbox:** `feedback/` does not exist in this worktree (checked with
+Glob). Nothing to process, nothing moved.
+
+**Six actionable items were in queue** (q22–q27, all unchecked and
+unblocked), so the generation rule did not run. Took q22, the top item.
+
+**q22 done.** `tests/a11-determinism.test.ts` (+1 helper, +1 test, 9 tests
+total).
+
+**What it does.** QUALITY.md ALPHA's determinism line claims "100/100 replay
+hash match, including class actives and uniques," but `a11`'s 100-seed test
+drives every seed through `makeInputLog`, which never emits `class_active` or
+`equip`. Added `withSkillCommands`, which layers a periodic `{k:'class_active'}`
+(every 300 ticks) and one `{k:'equip', relic}` onto a `makeInputLog` log, and a
+new test that runs the same record-twice/compare-`endHash` property across 5
+seeds (1, 5, 13, 42, 87) with a relic built via `rollRelic` passed through
+`RunConfig.relics`. Confirmed live, before trusting it: a throwaway scratch
+test (deleted after) showed the skill-augmented log's `damageTotal`/`kills`
+diverge from a plain log's for most of the 5 seeds — `class_active` is
+genuinely reached and has effect, not vacuously skipped by cooldown or phase.
+
+**`equip` is confirmed a dead command today, exactly as q15 filed it.**
+Read `src/sim/run.ts`'s `applyCommand` switch directly: there is no `case
+'equip'`, so it falls to `default: break` — relics only ever apply through
+`RunConfig.relics` at `Run` construction, never through an in-run Command.
+The test fires it anyway and asserts the hash match holds regardless (which
+it does, since a no-op can't break determinism), with the gap named by
+sentence in the test's own doc comment rather than silently working around it
+— exactly what the acceptance line asked for instead of quietly dropping the
+half of the item that can't be "fixed" from this lane.
+
+Mutation-tested the new assertion myself before trusting it: temporarily
+pointed run `b` at `seed + 1000` while keeping the same input log, confirmed
+the test fails immediately with a genuine hash mismatch, reverted, confirmed
+`git diff --stat` restricted to the one file with no residual diff.
+
+**Review (code-reviewer, APPROVE, 2 non-blocking Minor/Nit).** Independently
+confirmed `equip`'s dead switch case by reading `src/sim/run.ts` directly,
+traced `engineer`'s `burst_damage` active (8 s cooldown) against the every-
+300-tick (5 s) injection cadence and confirmed it fires on roughly every
+other attempt rather than trivially always-or-never, confirmed the relic
+id/seed choice has no collision risk (id is unread since `equip` is a no-op),
+confirmed no `src/ui`/`src/render` imports or architecture-rule violations,
+and confirmed Scope. Non-blocking notes: the same relic instance is reused
+across all 5 seeds rather than rolled per-seed (harmless today since `equip`
+does nothing), and the `t === 50` equip-fire tick is arbitrary but adequately
+explained by the surrounding comment.
+
+**QA (qa-playtester, PASS).** Independently re-confirmed `equip`'s dead case
+by reading the source, independently re-derived the non-vacuity finding via
+its own scratch comparison (3/5 committed seeds show observable
+damage/kill divergence; the other 2 show none at their specific injection
+ticks, which is expected range/cooldown-timing variance, not a defect, since
+the test's claim is determinism, not guaranteed damage). Ran the file
+standalone (9/9 green), mutation-tested the oracle itself
+(seed-offset break → immediate red → reverted from a byte-identical backup,
+confirmed via `git diff --exit-code`), confirmed Scope, and adversarially
+tried 7 additional ad-hoc seeds outside the committed set — determinism held
+7/7, with `class_active`/`equip` changing the outcome in 4/7, confirming the
+5 committed seeds aren't a lucky fluke for the property actually being
+asserted.
+
+**Suite state.** `npx vitest run tests/a11-determinism.test.ts` — 9/9 green,
+standalone. `npx tsc --noEmit -p .` clean. Independently re-verified this
+session before committing (per this file's own standing lesson — verify
+uncommitted work rather than trust it): re-ran the file standalone (9/9
+green), then mutation-tested the new assertion myself (offset run `b`'s seed
+by +1000, confirmed an immediate hash-mismatch red at seed 1, reverted via
+`git checkout --`, confirmed a clean `git status`). A full `npx vitest run`
+taken before this commit: **844 passed / 79 skipped, 13 failed** (936 total,
+60 files, 400s) — all 13 confined to two files, both pre-existing, documented
+artifacts unrelated to this change: 11 in `tests/q14-mutation-smoke.test.ts`
+are the "fixture must start clean" / `realFileUntouched` whole-repo
+`git diff` precondition, tripped only because this session's own
+`BACKLOG-QUALITY.md` edit was still uncommitted at measurement time (the
+exact pre-commit-noise shape sessions 12/14/15/16 already documented); the
+other 2, `tests/q15-command-domain-fuzz.test.ts`'s `rekindle.structureId`
+probe classifying `"hangs"` instead of `"rejected"`/`"accepted"`, are the
+same non-reproducible full-suite worker-contention timeout shape sessions
+9/13/15/17 already documented for sibling probes. Re-ran both files
+standalone after this commit lands (tree clean) to confirm: see below.
+
+**Five actionable items remain** (q23–q27, all unchecked and unblocked), so
+the generation rule does not need to run next session either.
 
 ### 2026-08-27 — session 17
 
