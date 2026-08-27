@@ -157,7 +157,7 @@ coverage gaps session 1's log recorded. All five are inside Scope as written.*
       naming the session log it came from the way the existing six do, and
       `tests/q14-mutation-smoke.test.ts` runs the expanded list green — refs:
       q14, sessions 8/9/11 logs
-- [ ] (q21) [feat] Soul-weapon boundary fuzz for P5's two remaining pricing
+- [x] (q21) [feat] Soul-weapon boundary fuzz for P5's two remaining pricing
       items — fuzz `data/weapons.json`'s 6-level tracks at their boundaries
       (level 0/1/6 transitions, the Awakening gate at Lv6 + boon rank 3,
       inheritance when a build has fewer distinct souls than weapon slots)
@@ -254,6 +254,27 @@ coverage gaps session 1's log recorded. All five are inside Scope as written.*
       `measureRatioForWorld` — and asserts the two interleave rather than
       run in two separate blocks, independent of wall-clock reading — refs:
       session 9 log, tools/perf-ratio.ts
+- [ ] (q27) [bug][feat] q21's QA pass found a sibling of the Awakening gate
+      bug it pinned, in `applyOffer`'s `'weapon'` case
+      (`src/sim/progression.ts:182-186`): `ws.level = Math.min(maxLevel,
+      offer.toLevel)` clamps only the upper bound and never re-validates
+      `offer.toLevel` the way `grantWeapon`'s own clamp does, so a hand-built
+      `Offer` with `toLevel: NaN` sets `ws.level = NaN` and crashes the fire
+      loop on the next tick — the identical failure mode as the already-pinned
+      `level:nan`/`tier:nan` holes, just through a third entry point. A
+      negative `toLevel` (e.g. -5) is latent rather than crashing today only
+      because `levelStats`'s own read-time clamp happens to re-floor it.
+      Same reachability caveat as q21's Awakening finding: `buildOfferPool`
+      only ever emits `toLevel: ws.level + 1`, always a legal positive
+      integer, so this needs a forged `Offer`, not a live Command-surface
+      exploit — acceptance: extend `tests/q21-weapon-boundary-fuzz.ts`'s
+      `AWAKENING_GATE_HOLES`-style pinning (or a new sibling const in the
+      same file) with a `weapon:toLevelNan`/`weapon:toLevelNegative`-style
+      pair of cases probing `applyOffer`'s `'weapon'` case directly, following
+      the same `forcePlace`/`newWorld` harness pattern already in
+      `tools/fuzz-weapon-boundary.ts`, and a named repro test alongside the
+      existing "applyOffer applies an Awakening..." describe block — refs:
+      q21 QA pass (session 17 log), src/sim/progression.ts:182-186
 
 *Generated 2026-08-27, session 16, under CLAUDE.md's generation rule scoped
 to this lane: only q20 and q21 were actionable (fewer than 3) — q1/q4/q5/q6
@@ -315,6 +336,112 @@ resolve if it wants the CLI entry points too. All five are inside Scope as
 written; none needs a `package.json` edit.*
 
 ## Log
+
+### 2026-08-27 — session 17
+
+**Feedback inbox:** `feedback/` exists but is empty in this worktree. Nothing
+to process, nothing moved.
+
+**Six actionable items were in queue** (q21–q26, all unchecked and
+unblocked), so the generation rule did not run. Took q21, the top item.
+
+**q21 done.** `tools/fuzz-weapon-boundary.ts` (harness, 3 categories x 9/12/4
+cases = 25 total), `tests/q21-weapon-boundary-fuzz.ts` (pinned holes, q7's
+multi-const idiom — one `Record<string, Verdict>` per named boundary category
+rather than q15's single flat map, since this item has three qualitatively
+different boundary mechanisms) and `tests/q21-weapon-boundary-fuzz.test.ts`
+(19 tests).
+
+**What it does.** Fuzzes the *shipped* V2/V3 soul-weapon system
+(`src/sim/weapons.ts`'s `grantWeapon`/`levelStats`, `src/sim/progression.ts`'s
+`soulLevelFor`/`deriveSouls`/`bindSouls`/`applyOffer`) at the three boundaries
+q21 named: weapon level 0/1/6 transitions, the Awakening gate at Lv6 + boon
+rank 3, and inheritance when a build has fewer distinct souls than weapon
+slots. `soulLevelFor`'s own comment already marks this system's retirement
+date (SPEC-FINAL §6.1 replaces it wholesale at p2e) — the fuzz is about what's
+live today, not a critique of a formula already scheduled for removal. Every
+probe is a direct `World` construction plus `forcePlace` (the retired
+`tests/sundering.test.ts`'s own technique for writing a `Structure` directly,
+bypassing build legality) — no `src/ui`/`src/render` import anywhere, so
+headless by construction the same way q15 is.
+
+**Three real findings, each verified live (ran the harness, then confirmed
+by temporarily mutating `/src` and reverting) before pinning.** (1)
+`grantWeapon`/`levelStats` clamp level 0/negative/±Infinity correctly to
+[1,6], but `Math.max`/`Math.min` propagate `NaN` and neither clamp forces an
+integer, so `level=NaN` or a fractional level (e.g. 2.5) crashes the live
+fire loop on the next tick (`Cannot read properties of undefined (reading
+'range')`) — every `fireWeapon` branch dereferences `levelStats`'s result
+unconditionally. (2) The identical crash is reachable through the inheritance
+path: a `Structure.tier` of `NaN` (not reachable via `upgradeTower`'s own
+legality checks today, only by writing the field directly) propagates through
+`soulLevelFor`'s `Math.round` into a granted weapon's level. (3) `applyOffer`'s
+`'awakening'` case only checks the granting weapon exists — it never re-checks
+the Lv6+rank-3 gate that the private `buildOfferPool` enforces when
+*generating* an offer, so calling `applyOffer` directly with a hand-built
+awakening offer applies it regardless. Verified this is not reachable through
+the real Command surface: `takeOffer` only ever plays back `w.offers[index]`,
+populated exclusively by the correctly-gated `rollOffers`, and grepping
+`src/bots/**`/`src/ui/**` for the relevant function names turns up nothing —
+so it's pinned as a defense-in-depth gap (verdict `'ungated'`), not a live
+exploit, and the test file includes a positive/negative control against
+`rollOffers` itself proving the real path stays clean.
+
+**Review (code-reviewer, APPROVE, 2 Minor/Nit, both fixed here).** Independently
+re-ran the harness and the mutation-recovery experiment, traced all three
+findings against live `/src` line numbers, confirmed the pinned-map
+bidirectionality by temporarily editing the pinned file both ways (missing
+entry and bogus extra entry), and confirmed scope. Two small findings: the
+"25x negative control" against `rollOffers` didn't actually exercise 25
+independent trials of the Awakening gate (the gate check is a deterministic
+field comparison, unaffected by RNG) — split into an honest negative control
+plus a new positive control that *does* need repetition (proving the offer
+surfaces within a bounded number of `rollOffers` draws once eligible, since
+each call only samples 3 of the pool); and `forcePlace`'s `hp`/`maxHp` use
+flat `def.hp` rather than the real `structureMaxHp` scaling — harmless for
+every case in this file (none read HP) but now flagged with a comment for
+whoever reuses the helper next.
+
+**QA (qa-playtester, PASS).** Independently reproduced all three findings
+against unmodified `/src`, then mutation-tested the pinned map's
+bidirectionality for real: deleted an entry (2 tests correctly went red),
+and separately patched `src/sim/weapons.ts`'s `levelStats` to guard
+non-finite/non-integer levels as if a real fix had landed (5 tests correctly
+went red, since the "still crashes" pins go stale the moment the bug is
+fixed) — both reverted, `git status` clean throughout. Cross-checked every
+data fact the harness assumes (`weapons.json`'s `slots`/`maxLevel`/6-entry
+tracks, the `storm_avatar` awakening's exact weapon/boon/rank, the 7 towers
+that carry a `soul`) directly against `/data`. Adversarially fuzzed
+`Structure.tier` with values outside this session's 5-value set (2.5,
+±Infinity, `MAX_SAFE_INTEGER`, -0) looking for a second tier hole — none
+found; `Math.round` always yields an integer for any finite input, so `NaN`
+is the only propagation gap and it's already pinned.
+
+**QA found one real bug outside q21's three named categories, filed as q27**
+(this lane cannot edit `/src`): `applyOffer`'s `'weapon'` case
+(`progression.ts:182-186`) has the identical missing-validation shape as the
+Awakening finding — `ws.level = Math.min(maxLevel, offer.toLevel)` has no
+lower bound and no finite/integer guard, so a forged `Offer` with
+`toLevel: NaN` crashes the fire loop the same way, while a negative
+`toLevel` is merely latent today (re-floored by `levelStats`'s own read-time
+clamp). Same reachability caveat as finding 3: `buildOfferPool` only ever
+emits a legal `toLevel`, so this needs a hand-built `Offer`, not a live
+exploit. Not folded into q21 itself (its acceptance criteria names three
+specific categories, not exhaustive `Offer`-kind coverage) — filed as its own
+item so it doesn't silently disappear.
+
+**Suite state.** `npx vitest run tests/q21-weapon-boundary-fuzz.test.ts` —
+19/19 green, standalone, twice (before and after the review fixes). A full
+`npx vitest run` taken before this commit: **854 passed / 79 skipped, 2
+failed** (935 total, 60 files) — both failures confined to
+`tests/q15-command-domain-fuzz.test.ts`'s `rekindle.structureId:negInf`
+worker-timeout probe, the exact non-reproducible full-suite-contention flake
+sessions 9/13/15 already documented for sibling probes; re-ran that file
+standalone immediately after, 20/20 green. Not a q21 defect and not fixed
+here. `npx tsc --noEmit -p .` clean throughout.
+
+**Six actionable items remain** (q22–q27, all unchecked and unblocked), so
+the generation rule does not need to run next session either.
 
 ### 2026-08-27 — session 16
 
