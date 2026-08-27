@@ -303,13 +303,13 @@ export const MUTATIONS: Mutation[] = [
     file: 'tools/content-census.ts',
     edits: [
       {
-        find: `  let rows: CensusRow[];\n  try {\n    rows = census();\n  } catch (err) {\n    const message = err instanceof Error ? err.message : String(err);\n    if (json) {\n      console.log(JSON.stringify({ error: message }));\n    } else {\n      // ZodError.message is itself multi-line JSON; collapse to one line so\n      // a /data load failure reads as a clean CLI message, not a second\n      // stack-trace-shaped wall of text.\n      console.error(\`content-census: \${message.replace(/\\s+/g, ' ').trim()}\`);\n    }\n    process.exitCode = 1;\n    return;\n  }`,
-        replace: `  const rows: CensusRow[] = census();`,
+        find: `  let rows: CensusRow[];\n  try {\n    const { loadContent } = await import('../src/sim/content');\n    rows = census(loadContent());\n  } catch (err) {\n    const message = err instanceof Error ? err.message : String(err);\n    if (json) {\n      console.log(JSON.stringify({ error: message }));\n    } else {\n      // ZodError.message is itself multi-line JSON; collapse to one line so\n      // a /data load failure reads as a clean CLI message, not a second\n      // stack-trace-shaped wall of text.\n      console.error(\`content-census: \${message.replace(/\\s+/g, ' ').trim()}\`);\n    }\n    process.exitCode = 1;\n    return;\n  }`,
+        replace: `  const { loadContent } = await import('../src/sim/content');\n  const rows: CensusRow[] = census(loadContent());`,
       },
     ],
     testFile: 'tests/q25-content-census-cli.test.ts',
     source:
-      'BACKLOG-QUALITY.md q25/q31: reverts `content-census.ts`\'s `main()` to its pre-q25 shape (no try/catch around `census()`), so a corrupted `/data` snapshot crashes with a raw, multi-line stack trace instead of the one-line message q25 established.',
+      'BACKLOG-QUALITY.md q25/q31/q38: reverts `content-census.ts`\'s `main()` to its pre-q25 shape (no try/catch around the load/census call), so a corrupted `/data` snapshot crashes with a raw, multi-line stack trace instead of the one-line message q25 established. Updated at q38 when `main()` switched to a dynamic `loadContent` import inside the same try.',
   },
 ];
 
