@@ -53,10 +53,10 @@
  * same false-positive shape PROGRESS.md's M18 section warns about ("a
  * positive control rewritten into comparing 0 to 0").
  *
- * Cost, recorded rather than hidden: this now runs 19 nested `npx vitest run`
- * invocations (7 controls, one per distinct `testFile`, + 12 mutations),
- * up from 16 (BACKLOG-QUALITY q31 added a 7th distinct `testFile`,
- * `tests/q25-content-census-cli.test.ts`, without a `package.json` alias to
+ * Cost, recorded rather than hidden: this now runs 23 nested `npx vitest run`
+ * invocations (8 controls, one per distinct `testFile`, + 15 mutations),
+ * up from 19 (BACKLOG-QUALITY q40 added an 8th distinct `testFile`,
+ * `tests/q28-cli-error-handling.test.ts`, without a `package.json` alias to
  * parallelize any of this) — measure the real number on this host with
  * `npx vitest run tests/q14-mutation-smoke.test.ts` rather than trusting this
  * comment to stay current. That is the price of testing the tests rather
@@ -106,7 +106,7 @@ export interface Mutation {
 }
 
 /**
- * Twelve mutations. The first six are drawn from the ones qa-playtester
+ * Fifteen mutations. The first six are drawn from the ones qa-playtester
  * actually applied to real `/src` files and reverted while verifying q8 and
  * q9 — not reasoned-about, not synthetic. Each entry's `source` names the
  * session log describing the red count it originally produced.
@@ -138,6 +138,14 @@ export interface Mutation {
  * probe of "perf-ratio's fixture stays a real worst case," while the timing
  * regression itself stays a manual/future concern, recorded here rather than
  * silently dropped.
+ *
+ * Two more (BACKLOG-QUALITY q31) close q31's own gap for q23/q25's guards;
+ * see the inline comment above those two entries below. The final three
+ * (BACKLOG-QUALITY q40) close the identical gap one fix-generation later:
+ * q28 landed three try/catch-shaped guards (`gate-audit.ts` and
+ * `phase-coverage.ts`'s `main()`s, and moving `soak.ts`'s `new Run(cfg)`
+ * inside its own `try`) but q31's list only ever covered q23/q25's guards,
+ * not q28's — see the inline comment above those three entries below.
  */
 export const MUTATIONS: Mutation[] = [
   {
@@ -310,6 +318,54 @@ export const MUTATIONS: Mutation[] = [
     testFile: 'tests/q25-content-census-cli.test.ts',
     source:
       'BACKLOG-QUALITY.md q25/q31/q38: reverts `content-census.ts`\'s `main()` to its pre-q25 shape (no try/catch around the load/census call), so a corrupted `/data` snapshot crashes with a raw, multi-line stack trace instead of the one-line message q25 established. Updated at q38 when `main()` switched to a dynamic `loadContent` import inside the same try.',
+  },
+  // The final three (BACKLOG-QUALITY q40) close the identical gap one
+  // fix-generation later: q28 landed three try/catch-shaped guards
+  // (gate-audit.ts's and phase-coverage.ts's `main()`s, plus moving
+  // soak.ts's `new Run(cfg)` inside its own `try`) but q31's list above only
+  // ever covered q23's and q25's guards, not q28's — so an accidental
+  // revert of any of q28's three guards would ship silently, caught by
+  // neither this suite (until now) nor any other automated check (q40's own
+  // finding, confirmed live this session against tests/q28-cli-error-
+  // handling.test.ts's corrupted-/data cases before being added here).
+  {
+    name: 'gate-audit-remove-main-trycatch',
+    file: 'tools/gate-audit.ts',
+    edits: [
+      {
+        find: `function main(argv: string[]): void {\n  const json = argv.includes('--json');\n\n  let rows: GateAuditRow[];\n  let stale: string[];\n  try {\n    const specText = readFileSync(SPEC_PATH, 'utf8');\n    const gates = parseGates(specText);\n    rows = auditGates(gates);\n    stale = staleHoleRefs();\n  } catch (err) {\n    const message = err instanceof Error ? err.message : String(err);\n    if (json) {\n      console.log(JSON.stringify({ error: message }));\n    } else {\n      console.error(\`gate-audit: \${message.replace(/\\s+/g, ' ').trim()}\`);\n    }\n    process.exitCode = 1;\n    return;\n  }\n\n  if (json) {`,
+        replace: `function main(argv: string[]): void {\n  const json = argv.includes('--json');\n  const specText = readFileSync(SPEC_PATH, 'utf8');\n  const gates = parseGates(specText);\n  const rows = auditGates(gates);\n  const stale = staleHoleRefs();\n\n  if (json) {`,
+      },
+    ],
+    testFile: 'tests/q28-cli-error-handling.test.ts',
+    source:
+      'BACKLOG-QUALITY.md q28/q40: reverts `gate-audit.ts`\'s `main()` to its pre-q28 shape (no try/catch around the spec-read/parse/audit call), so a missing SPEC-FINAL.md crashes with a raw, multi-line stack trace instead of the one-line message q28 established. Targets the "gate-audit.ts CLI failure path" describe block\'s missing-spec cases.',
+  },
+  {
+    name: 'phase-coverage-remove-main-trycatch',
+    file: 'tools/phase-coverage.ts',
+    edits: [
+      {
+        find: `  let rows: PolicyCensus[];\n  try {\n    rows = census(shippedPolicies(), seeds, seedStart);\n  } catch (err) {\n    const message = err instanceof Error ? err.message : String(err);\n    if (json) {\n      console.log(JSON.stringify({ error: message }));\n    } else {\n      console.error(\`phase-coverage: \${message.replace(/\\s+/g, ' ').trim()}\`);\n    }\n    process.exitCode = 1;\n    return;\n  }`,
+        replace: `  const rows: PolicyCensus[] = census(shippedPolicies(), seeds, seedStart);`,
+      },
+    ],
+    testFile: 'tests/q28-cli-error-handling.test.ts',
+    source:
+      'BACKLOG-QUALITY.md q28/q40: reverts `phase-coverage.ts`\'s `main()` to its pre-q28 shape (no try/catch around the `census()` call), so a corrupted `/data` snapshot crashes with a raw, multi-line ZodError dump instead of the one-line message q28 established. Targets the "phase-coverage.ts CLI failure path" describe block\'s corrupted-data cases.',
+  },
+  {
+    name: 'soak-construction-outside-try',
+    file: 'tools/soak.ts',
+    edits: [
+      {
+        find: `  const started = performance.now();\n  let run: Run | undefined;\n  let w: World | undefined;\n  const problems: string[] = [];\n  let threw = false;\n\n  try {\n    const cfg: RunConfig = {\n      seed,\n      classKey: 'engineer',\n      tier: 1,\n      modifiers: [],\n      allocated: [],\n      relics: [],\n      policy: policyName,\n      cycles: 3,\n    };\n    // \`new Run(cfg)\` lives inside this try (not before it) so a \`/data\` load\n    // failure at construction — e.g. a corrupted content file — comes back\n    // through \`SoakResult.threw\` like any other in-run exception, rather\n    // than propagating straight out of \`soakOne\` uncaught (q28).\n    run = new Run(cfg);\n    w = run.world;\n    const policy = makePolicy(policyName);`,
+        replace: `  const started = performance.now();\n  const cfg: RunConfig = {\n    seed,\n    classKey: 'engineer',\n    tier: 1,\n    modifiers: [],\n    allocated: [],\n    relics: [],\n    policy: policyName,\n    cycles: 3,\n  };\n  const run: Run = new Run(cfg);\n  const w: World = run.world;\n  const problems: string[] = [];\n  let threw = false;\n\n  try {\n    const policy = makePolicy(policyName);`,
+      },
+    ],
+    testFile: 'tests/q28-cli-error-handling.test.ts',
+    source:
+      'BACKLOG-QUALITY.md q28/q40: reverts `soak.ts`\'s `soakOne` to its pre-q28 shape (`new Run(cfg)` constructed one line before its own `try`, not inside it), so a `/data` corruption at construction propagates straight out of `soakOne` uncaught instead of coming back as `SoakResult.threw` — q23\'s `maxTicks`/`scanEvery` guards do not cover this path. Targets the "soak.ts CLI failure path" describe block\'s corrupted-data cases (distinguishing signal is `main()` never reaching its own output, not exit code — see that test\'s own doc comment).',
   },
 ];
 

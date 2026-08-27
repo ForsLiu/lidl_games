@@ -604,7 +604,7 @@ coverage gaps session 1's log recorded. All five are inside Scope as written.*
       post-fix — refs: q35, qa-playtester's q35 verification pass (session
       32 log), src/sim/stats.ts:148,182-188, src/sim/progression.ts:89,
       src/meta/meta.ts:322, src/sim/content.ts:380-387
-- [ ] (q40) [bug][feat] Mutation-probe coverage gap, sibling of q31's own:
+- [x] (q40) [bug][feat] Mutation-probe coverage gap, sibling of q31's own:
       q28 landed three try/catch guards (`tools/gate-audit.ts`'s `main()`,
       `tools/phase-coverage.ts`'s `main()`, and `tools/soak.ts`'s `new
       Run(cfg)` moved inside its own `try`, one line earlier than q23's own
@@ -817,6 +817,80 @@ resolve if it wants the CLI entry points too. All five are inside Scope as
 written; none needs a `package.json` edit.*
 
 ## Log
+
+### 2026-08-27 — session 37
+
+**Feedback inbox:** no `feedback/` directory exists in this worktree. Nothing
+to process, nothing moved.
+
+**Found session 36's unlogged follow-on work already sitting in the
+worktree, uncommitted, at session start** — the same shape sessions
+14/16/18/19/20 each hit before: `tools/mutation-probe.ts` had a diff on disk
+implementing q40 in full (three new `MUTATIONS` entries —
+`gate-audit-remove-main-trycatch`, `phase-coverage-remove-main-trycatch`,
+`soak-construction-outside-try` — reverting q28's three try/catch guards in
+`gate-audit.ts`/`phase-coverage.ts`/`soak.ts`, plus the doc-comment count
+bump to 23 invocations / 15 mutations / 8 testFiles), but no session log
+entry described it and it was never committed. `git status --porcelain`
+before starting showed only that one file modified — nothing else. q39 was
+skipped first: its own acceptance text says the QA-verification pin already
+exists (confirmed live in `tests/q35-weighted-index-nan.test.ts`'s "gap
+found by QA verification" describe block) and the only remaining action is
+one of three `/src/**` fixes, out of Scope — a tracking entry with no
+further in-Scope work until main lane acts, not a skip without reason.
+
+Verified rather than trusted, per this file's own standing lesson: read the
+diff directly and checked each new mutation's `find` anchor against the live
+`tools/gate-audit.ts`, `tools/phase-coverage.ts` and `tools/soak.ts` (exact
+match, matches the pre-q28 shape each mutation's `source` comment claims);
+confirmed `tests/q28-cli-error-handling.test.ts` has the three named describe
+blocks (`gate-audit.ts CLI failure path (q28)`, `phase-coverage.ts CLI
+failure path (q28)`, `soak.ts CLI failure path (q28)`) the new entries
+target. Ran `npx vitest run tests/q28-cli-error-handling.test.ts
+tests/q12-soak.test.ts` standalone — 19/19 green — and `npx tsc --noEmit -p .`
+— clean. Also ran the full `tests/q14-mutation-smoke.test.ts` live: 16/28
+red, every one the documented `gitDiffClean()`-sees-the-uncommitted-lane-diff
+artifact (sessions 26-29, 36) — each failing case's `testFailed` assertion
+(the substantive check) passed; only `realFileUntouched` (which necessarily
+sees this session's own uncommitted `tools/mutation-probe.ts` diff under a
+whole-repo, no-pathspec `git diff`) failed, plus the suite's own
+fixture-must-start-clean case for the same reason. Not a regression, not
+touched.
+
+**Review (code-reviewer, APPROVE, 0 Critical/Major/Minor/Nit).** Independently
+verified all three `find` anchors against the live files, confirmed the
+`replace` text reproduces each pre-q28 shape, confirmed doc-comment
+arithmetic (15 mutations, 8 distinct `testFile`s, 23 invocations) is exact,
+confirmed Scope (`tools/mutation-probe.ts` only), and re-derived the
+`gitDiffClean()` self-referential-artifact reasoning independently from the
+source rather than taking it on faith.
+
+**QA (qa-playtester, PASS).** Ran all three new mutations for real via
+`probeOne` against fresh scratch copies plus a `probeControl` positive
+control (9/9 green unmutated); confirmed each mutation reds *exactly* its
+claimed two test cases and nothing else, with the distinguishing failure
+signal matching each mutation's own description (raw ENOENT stack for
+gate-audit, raw multi-line ZodError dump for phase-coverage, empty stdout —
+`main()` never reaching its own output — for soak's construction-outside-try
+case). Adversarial: could not make any mutation fail for the wrong reason,
+touch an unrelated file, or leave the tree dirty across two independent
+runs. One non-bug observation: q40's acceptance text names both
+`tests/q28-cli-error-handling.test.ts` and `tests/q12-soak.test.ts` as
+targets, but all three new entries wire only to the former — checked
+`q12-soak.test.ts` directly and it has no construction-time-corruption case
+to catch these three mutations against, so the narrower wiring is correct
+engineering, just looser backlog wording than the shipped implementation.
+
+**Suite state.** `npx vitest run tests/q28-cli-error-handling.test.ts
+tests/q12-soak.test.ts` — 19/19 green. `npx tsc --noEmit -p .` clean.
+`git status --porcelain` before commit: `BACKLOG-QUALITY.md`,
+`tools/mutation-probe.ts` only — Scope-compliant.
+
+**Committed.**
+
+**Five actionable items remain** (q41, q42, q43, q44, plus q39 as a
+Scope-blocked tracking entry), above the generation rule's floor of 3, so
+the next session does not need to run it.
 
 ### 2026-08-27 — session 36
 
