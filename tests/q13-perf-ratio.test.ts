@@ -1,0 +1,133 @@
+/**
+ * q13 — host-normalized perf ratio probe (BACKLOG-QUALITY.md), for SPEC-FINAL
+ * §14 G17: "Perf: sim budget per simulated minute (host-independent)".
+ *
+ * `tests/a10-performance.test.ts` asserts an absolute millisecond budget, and
+ * this lane's own session-2 log caught it failing for a reason that had
+ * nothing to do with the sim: five node processes competing for CPU in the
+ * main checkout inflated a green run's timings by ~30-40% minutes later, on
+ * the same commit. `tools/perf-ratio.ts` times a fixed, sim-independent unit
+ * of CPU work (`calibrationWork`) in the same process as the worst-case tick
+ * and reports their ratio, so both halves inflate together under host
+ * contention instead of only the numerator moving.
+ *
+ * This suite does not re-assert the absolute ms budget A10 already owns — it
+ * proves the *ratio itself* is a sound instrument: stable when the iteration
+ * counts that produced it change (the A10 failure mode, reproduced here on
+ * purpose and shown not to move the ratio), and actually sensitive to real
+ * sim cost rather than measuring the calibration loop against itself
+ * (anti-vacuity, the standing lesson from every prior lane session that
+ * shipped a metric nothing could move).
+ */
+import { describe, expect, it } from 'vitest';
+import { World } from '../src/sim/world';
+import { measureRatioForWorld, worstCaseWorld, calibrationWork } from '../tools/perf-ratio';
+import { cfg } from './helpers';
+
+function median(xs: number[]): number {
+  const s = [...xs].sort((a, b) => a - b);
+  return s[Math.floor(s.length / 2)];
+}
+
+/** Median ratio over `n` independent measurements, each against a fresh world from `worldFactory`. */
+function medianRatio(
+  worldFactory: () => World,
+  calibIters: number,
+  tickSamples: number,
+  warmupTicks: number,
+  n: number,
+): number {
+  const rs: number[] = [];
+  for (let i = 0; i < n; i++) rs.push(measureRatioForWorld(worldFactory(), calibIters, tickSamples, warmupTicks).ratio);
+  return median(rs);
+}
+
+function medianWorstCaseRatio(calibIters: number, tickSamples: number, warmupTicks: number, n: number): number {
+  return medianRatio(worstCaseWorld, calibIters, tickSamples, warmupTicks, n);
+}
+
+/**
+ * Recorded ceiling (session 9 measurement, this host). A quiet host reads
+ * ~14,000-27,000 at the "A" config below; running the same measurement
+ * concurrently with a real `npm test` invocation (genuine contention, not a
+ * synthetic load) pushed the median to ~29,000-30,000 and individual samples
+ * as high as ~39,700. This lane's Scope cannot move this file into
+ * `vitest.perf.config.ts`'s single-threaded run the way A10 is isolated
+ * (that config file sits outside `tests/**`/`tools/**`), so this test runs
+ * inside `npm test`'s own parallel file execution and has to tolerate that
+ * contention rather than avoid it — see `tools/perf-ratio.ts`'s
+ * `measureRatioForWorld` doc comment for the interleaved-measurement fix
+ * that keeps the ratio from spiking further than this under exactly that
+ * load. The ceiling sits at roughly 1.6-2.2x the contended reading (and
+ * ~3-4x the quiet one), so ordinary `npm test` contention stays quiet while
+ * an actual multi-x regression in the worst-case tick's relative cost still
+ * trips it.
+ */
+const RECORDED_CEILING = 65_000;
+
+/** Two configurations differing in both calibration and tick sample size, not just one. */
+const CONFIG_A = { calibIters: 20_000_000, tickSamples: 500, warmupTicks: 200 };
+const CONFIG_B = { calibIters: 40_000_000, tickSamples: 900, warmupTicks: 200 };
+const REPEATS = 5;
+/** Relative-difference tolerance between the two configs' ratios (see session 9 log for the measured spread). */
+const STABILITY_TOLERANCE = 0.4;
+
+describe('q13 — host-normalized perf ratio', () => {
+  it('is stable across two different (calibration, tick-sample) iteration counts', () => {
+    const a = medianWorstCaseRatio(CONFIG_A.calibIters, CONFIG_A.tickSamples, CONFIG_A.warmupTicks, REPEATS);
+    const b = medianWorstCaseRatio(CONFIG_B.calibIters, CONFIG_B.tickSamples, CONFIG_B.warmupTicks, REPEATS);
+    const rel = Math.abs(a - b) / Math.max(a, b);
+    expect(rel, `ratio A=${a.toFixed(0)} ratio B=${b.toFixed(0)} rel=${(rel * 100).toFixed(1)}%`).toBeLessThan(
+      STABILITY_TOLERANCE,
+    );
+  });
+
+  it('sits under the recorded ceiling', () => {
+    const a = medianWorstCaseRatio(CONFIG_A.calibIters, CONFIG_A.tickSamples, CONFIG_A.warmupTicks, REPEATS);
+    expect(a, `ratio=${a.toFixed(0)} ceiling=${RECORDED_CEILING}`).toBeLessThan(RECORDED_CEILING);
+  });
+
+  it('is actually sensitive to sim cost, not vacuous — an empty world scores an order of magnitude lower', () => {
+    // Anti-vacuity: if the ratio were dominated by fixed overhead (Run.step's
+    // dispatch, the calibration loop's own noise) rather than by what the
+    // worst-case world actually costs to tick, a near-empty world would score
+    // close to the worst case instead of far below it.
+    //
+    // An empty tick is cheap enough that its msPerTick sits near timer
+    // resolution, so a single sample (or even a median of 5 at CONFIG_A's
+    // 500 ticks) is itself noisy — session 9 measured a single-sample empty
+    // ratio low enough by chance to fail this check even though the
+    // mechanism was sound. Sampling far more ticks (cheap, since each one is
+    // near-empty work) averages that noise down before taking the median.
+    const EMPTY_TICK_SAMPLES = 5000;
+    const worstRatio = medianRatio(worstCaseWorld, CONFIG_A.calibIters, CONFIG_A.tickSamples, CONFIG_A.warmupTicks, REPEATS);
+    const emptyRatio = medianRatio(
+      () => new World(cfg({ seed: 1 })),
+      CONFIG_A.calibIters,
+      EMPTY_TICK_SAMPLES,
+      CONFIG_A.warmupTicks,
+      REPEATS,
+    );
+    expect(emptyRatio).toBeGreaterThan(0);
+    expect(worstRatio, `worst=${worstRatio.toFixed(0)} empty=${emptyRatio.toFixed(0)}`).toBeGreaterThan(
+      emptyRatio * 10,
+    );
+  });
+
+  it('the worst-case world actually reaches the alive cap and full weapon set the ratio is measured against', () => {
+    // If worstCaseWorld regressed to a small or empty world, the ceiling and
+    // stability checks above would still pass trivially — they would just be
+    // measuring nothing, the same trap the anti-vacuity test above exists to
+    // catch from the other direction (a fixture check rather than a
+    // measurement-mechanism check).
+    const w = worstCaseWorld();
+    expect(w.weapons.length).toBe(8);
+    expect(w.enemies.length).toBeGreaterThanOrEqual(w.content.spawns.aliveCap);
+    expect(w.structures.length).toBeGreaterThan(0);
+  });
+
+  it('calibrationWork is deterministic for a fixed iteration count, so the unit itself is not a noise source', () => {
+    expect(calibrationWork(500_000)).toBe(calibrationWork(500_000));
+    expect(calibrationWork(500_000)).not.toBe(calibrationWork(500_001));
+  });
+});

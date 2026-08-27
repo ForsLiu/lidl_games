@@ -13,16 +13,11 @@ import { execSync } from 'node:child_process';
 import { describe, expect, it } from 'vitest';
 
 import { Run } from '../src/sim/run';
-import { World } from '../src/sim/world';
-import { spawnEnemy } from '../src/sim/enemies';
-import { buildTower } from '../src/sim/towers';
-import { grantWeapon } from '../src/sim/weapons';
-import { finishSundering } from '../src/sim/sundering';
-import { GRID_H, GRID_W } from '../src/sim/grid';
 import { emptyInput } from '../src/sim/types';
 import { makePolicy } from '../src/bots';
 import '../src/bots';
 import { cfg } from './helpers';
+import { worstCaseWorld } from '../tools/perf-ratio';
 
 const FRAME_BUDGET_MS = 16.7;
 /** The sim gets half a frame; the rest is the renderer's. */
@@ -30,42 +25,11 @@ const SIM_BUDGET_MS = FRAME_BUDGET_MS / 2;
 const RUN_BUDGET_MS = 5000;
 const NEWLINES = /\r?\n/;
 
-function worstCaseWorld(): World {
-  const w = new World(cfg({ seed: 9 }));
-  w.gold = 1e6;
-  // A field of towers, so Act II has a full spread of petrified terrain.
-  const keys = ['arrow_spire', 'ballista', 'venom_spore', 'mortar', 'tesla_coil', 'palisade'];
-  let i = 0;
-  for (let y = 3; y < GRID_H - 3; y += 2) {
-    for (let x = 3; x < GRID_W - 6; x += 2) {
-      w.warden.x = x + 0.5;
-      w.warden.y = y + 0.5;
-      const def = w.content.towerByKey.get(keys[i++ % keys.length])!;
-      buildTower(w, def.id, x, y);
-    }
-  }
-  finishSundering(w, ['arrow_volley', 'piercing_bolt', 'toxic_trail', 'mortar_lob']);
-  for (const def of w.content.weapons.weapons) grantWeapon(w, def.key, 6, 0.4);
-  expect(w.weapons.length).toBe(8);
-
-  w.act2Time = 540;
-  const cap = w.content.spawns.aliveCap;
-  const pool = ['husk', 'sprinter', 'bulwark', 'spitter', 'wraith', 'bomber', 'charger', 'shellback'];
-  let n = 0;
-  for (let ring = 2; ring < 18 && n < cap; ring++) {
-    for (let k = 0; k < 40 && n < cap; k++) {
-      const x = 1.5 + ((ring * 7 + k * 3) % (GRID_W - 3));
-      const y = 1.5 + ((ring * 3 + k * 5) % (GRID_H - 3));
-      if (spawnEnemy(w, pool[n % pool.length], x, y, { overlay: true })) n++;
-    }
-  }
-  expect(w.enemies.length).toBeGreaterThanOrEqual(cap);
-  return w;
-}
-
 describe('A10 performance', () => {
   it('simulates a worst-case Act II frame inside half a frame budget', () => {
     const w = worstCaseWorld();
+    expect(w.weapons.length).toBe(8);
+    expect(w.enemies.length).toBeGreaterThanOrEqual(w.content.spawns.aliveCap);
     const run = Object.create(Run.prototype) as Run;
     Object.defineProperty(run, 'world', { value: w, writable: false });
 

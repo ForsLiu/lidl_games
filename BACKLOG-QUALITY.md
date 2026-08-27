@@ -74,7 +74,7 @@ coverage gaps session 1's log recorded. All five are inside Scope as written.*
       edit — this is q1's acceptance line minus the literal `npm run soak`
       alias, which stays blocked and logged separately for main to name if it
       wants the CLI entry point too — refs: QUALITY.md ALPHA soak line, G17
-- [ ] (q13) [feat] Host-normalized perf ratio probe for G17: `tools/perf-ratio.ts`
+- [x] (q13) [feat] Host-normalized perf ratio probe for G17: `tools/perf-ratio.ts`
       times a fixed calibration loop and a worst-case 350-enemy tick in the same
       process and reports their ratio instead of a wall-clock ms bound —
       acceptance: a test asserts the ratio is stable within a tolerance across
@@ -130,6 +130,126 @@ resolve if it wants the CLI entry points too. All five are inside Scope as
 written; none needs a `package.json` edit.*
 
 ## Log
+
+### 2026-08-26 — session 9
+
+**Feedback inbox:** `feedback/` exists in this worktree and is empty. Nothing
+to process, nothing moved.
+
+**Four actionable items were in queue** (q13–q16, all unchecked and
+unblocked), so the generation rule did not run. Took q13, the top item.
+
+**q13 done.** `tools/perf-ratio.ts` (harness + CLI) and
+`tests/q13-perf-ratio.test.ts` (5 tests, ~13s standalone).
+
+**What it does.** `calibrationWork(iterations)` is a fixed, deterministic,
+pure-integer-arithmetic loop with no dependency on the sim, the heap, or GC
+pressure — its wall-clock cost is (to first order) just "how fast is this
+CPU," the same quantity a tick's wall-clock cost depends on.
+`worstCaseWorld()` is moved here from `tests/a10-performance.test.ts` (which
+now imports it back) rather than re-derived, q11's reuse-not-re-derive shape
+again. `measureRatioForWorld(world, calibIters, tickSamples, warmupTicks)`
+reports `ratio = msPerTick / msPerCalibUnit` — "how many calibration units
+one tick costs" — instead of an absolute ms bound.
+
+**The measurement needed two real fixes before it survived contact with a
+genuinely contended host, not just a quiet one — both found by actually
+running it under load, not by reasoning about it.**
+
+1. The first cut measured calibration and ticks as two back-to-back blocks
+   (`timeCalibration` then `timeWorstCaseTick`). Quiet-host readings were
+   ~14,000-27,000. Run inside a real `npm test`-equivalent (`npx vitest run`,
+   which parallelizes many files across worker threads — the exact reason
+   `tests/a10-performance.test.ts` itself runs isolated under
+   `vitest.perf.config.ts`), the same code read **56,772** against a
+   first-draft ceiling of 45,000 — a contention burst was landing on one
+   block and not the other. This lane's Scope cannot move the new test into
+   `vitest.perf.config.ts` (that file sits outside `tests/**`/`tools/**`), so
+   the fix had to be survive-contention, not avoid-contention:
+   `measureRatioForWorld` now interleaves at fine grain, one calibration
+   chunk immediately followed by one tick, `tickSamples` times over, so a
+   burst shorter than the whole window falls on both kinds of work roughly
+   in proportion. Re-measured under real contention afterward:
+   medians ~29,000-30,000, individual samples up to ~39,700 — much closer to
+   the quiet-host range than the sequential design's ~2x-4x blowout.
+   `RECORDED_CEILING` is 65,000 (~1.6-2.2x the contended reading, ~3-4x the
+   quiet one).
+2. The anti-vacuity check (worst-case ratio must dwarf an empty world's)
+   originally took a single sample for the empty world and a 50x threshold.
+   Under a different contended run it read `worst=39107 empty=1321` and
+   failed (39107 is not > 1321×50=66069) — not because the mechanism is
+   unsound, but because a single sample of a near-timer-resolution quantity
+   is itself noisy in either direction. Fixed by taking a median of 5 for the
+   empty world too, sampled 5000 ticks instead of 500 (cheap, since each
+   empty tick is nearly free, and more samples average the noise down
+   before the median), with the threshold relaxed to 10x — still an order of
+   magnitude, comfortably clear of anything a real measurement produced.
+
+Both fixes were found by actually running the full suite repeatedly (not
+just the new file standalone) — the first failure only showed up once
+inside genuine `npm test`-scale parallelism, and the second only showed up
+on a different run under different contention. Two consecutive clean
+`npx vitest run` passes (776 passed / 78 skipped, exit 0 each) after both
+fixes landed.
+
+**An artifact of measuring this, recorded so it isn't repeated:** simulating
+contention by spawning ~16-25 synthetic `node -e "while(true){...}"`
+busy-loop processes escaped this session's own `pkill` (Windows/git-bash
+`pkill` did not match the spawned `node.exe` processes) and kept running
+after the shell command returned, adding real load on top of the machine's
+*other* live session (`D:\lidl_games` — a separate checkout running its own
+`npm run dev` and `vitest run`) until they were found and killed individually
+via `Get-CimInstance Win32_Process` / `Stop-Process` by PID. No further
+synthetic contention was manufactured after that; the ceiling and stability
+numbers above instead come from measuring alongside a second real, bounded
+`npx vitest run` invocation. Anyone extending this probe should do the same —
+a genuine concurrent test run is realistic contention and cleans itself up on
+its own; ad hoc busy-loops do not and can leak onto a shared machine.
+
+**Review (code-reviewer, APPROVE, 3 Minor + 1 nit, none blocking).** Verified
+Scope, architecture rules (n/a — `tools/` is outside the `/src/sim` ban on
+`Math.random`/`Date.now`/native trig), that `worstCaseWorld`'s extraction is
+byte-for-byte behavior-preserving against its prior home in
+`tests/a10-performance.test.ts`, and the ratio math itself. Ran the suite
+independently under real contention (~26 concurrent node processes it
+observed mid-run) and it passed clean. Minors, not fixed (see below):
+this Log entry was missing at review time (now written, this entry); the
+65,000 ceiling's contention-tolerance necessarily trades away sensitivity to
+a genuine ~2-3x regression measured on a quiet host (an inherent tension in
+a contention-tolerant probe, already disclosed in the test's own comment,
+not a defect); no *deterministic* (non-timing) test proves the interleaving
+call order itself, only the empirical wall-clock outcome — left as a
+possible future strengthening, not filed as its own item (too small on its
+own, same bar session 8 used for `soak.ts`'s two boundary-input gaps).
+
+**QA (qa-playtester, PASS) — mutation-tested the two fixes for real, not by
+re-reading them.** Reverted the interleaving to the old sequential shape and
+ran the ceiling test three times while a second real `npx vitest run` was
+going in the background: **failed twice** (77,910 and 74,881 against 65,000),
+passed once the background run had finished — confirming the interleaving is
+a load-bearing fix, not a defensive comment nobody needs. Hollowed
+`worstCaseWorld()` to an empty world before adding anything: both the
+anti-vacuity test (`worst=172 empty=167`, correctly not >10x) and the
+fixture-reachability test (`expected +0 to be 8`) went red. A milder
+mutation (enemies capped at 5, towers/weapons intact) tripped only the
+fixture check, not anti-vacuity — correctly describing that anti-vacuity's
+separation is dominated by tower/weapon cost, not raw enemy count, which is
+what the fixture check exists to guard from the other side. Injected
+`Math.random()` into `calibrationWork`: the determinism test correctly
+failed. Two independent full `npx vitest run` invocations both green
+(776/78, exit 0), one deliberately overlapped with a second concurrent run
+for contention. All mutations reverted, confirmed clean. No bugs filed —
+none found.
+
+**Suite state at this commit.** `npx vitest run` — **776 passed / 78 skipped,
+exit 0**, q13's 5 tests included (up from session 8's 771 + 5 = 776, matching
+exactly). `npx vitest run --config vitest.perf.config.ts` (A10, now importing
+`worstCaseWorld` from `tools/perf-ratio.ts` instead of its own copy) —
+3/3 green, confirming the extraction didn't disturb A10's own budget test.
+`npx tsc --noEmit -p .` clean.
+
+**Three actionable items remain** (q14–q16, all unchecked and unblocked), so
+the generation rule does not need to run next session either.
 
 ### 2026-08-26 — session 8
 
