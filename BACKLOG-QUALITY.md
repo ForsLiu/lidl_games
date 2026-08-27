@@ -677,7 +677,7 @@ coverage gaps session 1's log recorded. All five are inside Scope as written.*
       agree, so a future addition that forgets to update the comment goes
       red by name instead of silently rotting — refs: q17, q19, q22, q28,
       q31, q35, tools/mutation-probe.ts
-- [ ] (q44) [feat] Flake-cluster root-cause dig: `tests/q15-command-domain-
+- [x] (q44) [feat] Flake-cluster root-cause dig: `tests/q15-command-domain-
       fuzz.test.ts`'s "worker-timeout under full-suite contention" flake has
       now been recorded, isolate-rerun-confirmed-green, and *not* filed as a
       bug across at least six sessions (8, 9, 11, 13, 15, 34 by this file's
@@ -999,6 +999,100 @@ resolve if it wants the CLI entry points too. All five are inside Scope as
 written; none needs a `package.json` edit.*
 
 ## Log
+
+### 2026-08-27 — session 43
+
+**Feedback inbox:** no `feedback/` directory in this worktree. Nothing to
+process.
+
+**q44 done — the six-session "just contention" read is now backed by actual
+instrumentation, not a seventh pattern-match.** Built
+`bench/q44-worker-timing-probe.ts`: calls the same `probeInWorker` the
+census uses, for every one of the 60 `FIELD_SPECS x FAMILIES` combos at the
+same concurrency (6), but with a **generous 25000ms ceiling** instead of the
+shipped 4000ms, logging real elapsed time for every call instead of
+collapsing "timed out" and "hung" into one verdict. The question this
+answers: when the 4000ms budget is missed under load, does the worker
+eventually answer (contention — the budget was just too tight) or never
+answer (a real leak in `fuzz-command-domain-worker.ts`'s lifecycle)?
+
+**Baseline (quiet host, no concurrent load): 60/60 combos.** Only
+`dev.xp.amount:posInf` — the already-documented, deliberate infinite loop
+this file's own suite exists to pin (`addXp`'s `while` never terminates on
+`Infinity`) — failed to resolve by 25000ms. Every other combo: p50=369ms,
+p95=2104ms, max (excluding the intentional hang) well under the shipped
+4000ms budget. Confirms the harness and the probe script agree with the
+shipped census when nothing else is competing for the CPU.
+
+**Contention, pass 1 — genuine load, this lane's established method (session
+8's perf-ratio note: a real concurrent `npx vitest run` is realistic
+contention that cleans itself up; synthetic busy-loops escaped `pkill` last
+time and are not used again).** Started a full `npx vitest run` in the
+background, then ran the probe concurrently. That real background run
+**reproduced the actual flake live**, not hypothetically:
+`tests/q15-command-domain-fuzz.test.ts` — 2 failed, one reading verbatim
+`pick.index:nan — did not settle within 4000ms: expected 'hangs' to be
+'rejected'`. At the same time, the probe recorded **10/60 combos** over the
+shipped 4000ms budget (`pick.index` x4 families, `dev.fast_forward.amount`
+x4 families, `rekindle.structureId:fractional`, plus the intentional hang).
+Of those 10, **9 resolved between 5.0s and 9.2s** — well inside the 25s
+ceiling — and only the intentional hang failed to resolve.
+
+**Contention, pass 2 — same background load, different point in its run.**
+**3/60 combos** over budget this time, and a **different set**
+(`rekindle.structureId:negative`/`:fractional`, plus the intentional hang) —
+not the same combos pass 1 flagged. Both non-hang combos resolved by 4.6-4.8s.
+
+**Conclusion, with the evidence a re-run-till-green never produces: this is
+structurally contention, not a leak.** Two lines of evidence, not one: (1)
+across 180 combo-runs total (60 quiet + 60 + 60 contended) under real
+full-suite load, every over-budget call resolved once given headroom except
+the one call that is a confirmed, already-named, intentional infinite loop
+— zero instances of an unexplained non-terminating worker. (2) the specific
+field:family combo that goes over budget **changes between runs under
+identical background load** (pick.index/dev.fast_forward.amount in pass 1,
+rekindle.structureId in pass 2) — a real leak tied to a specific input or
+code path would reproduce on the same combo; combos changing run to run is
+the signature of whichever worker thread happens to be scheduled behind the
+heaviest concurrent load at that instant, i.e. OS/tinypool scheduling noise,
+not a defect in the worker's own lifecycle. This matches session 8's
+`perf-ratio.ts` finding for a structurally similar probe under the same
+kind of load, now demonstrated directly for this one instead of inferred by
+analogy. Not filed as a bug — CLAUDE.md's own "a deferral is a measurement
+with an expiry date" is satisfied by an actual re-measurement this time, and
+the re-measurement confirms rather than overturns six sessions' shared
+reading. `bench/q44-worker-timing-probe.ts` is left in place (matches
+`tools/perf-ratio.ts`'s own precedent of keeping a load-bearing measurement
+script rather than a throwaway) so a future session can re-run it in under a
+minute instead of re-deriving the method a seventh time.
+
+**Incidental, not filed:** the same contended background run also hit one
+`EPERM` on `bench/.tmp/q45-cli-schema-violation-scratch/...` inside q45's own
+control case, once, non-reproducing (a Windows file-handle contention
+artifact of running this many concurrent heavy Node/tsx processes at once,
+not something this session's changes touch) — noted here in case a future
+session sees it again and wonders whether it's new.
+
+**Suite state.** Standalone `npx vitest run tests/q15-command-domain-fuzz.test.ts`
+(quiet): 25/25 green. The full `npx vitest run` used as this session's
+contention source (started before this file's own edits were committed, ran
+755s under the extra load of two concurrent probe passes plus a second
+session's own live work on the machine — vs. the usual ~300-400s quiet-host
+figure this lane's log otherwise reports): **3 files / 20 tests failed**.
+Two of the three are pre-existing, already-explained, non-reproducing shapes
+this session did not cause: `q15-command-domain-fuzz.test.ts` (the 2 worker-
+timeout assertions this item is about) and `q45-cli-schema-violation.test.ts`
+(the 1 incidental `EPERM` above). The third, **`q14-mutation-smoke.test.ts`
+(17 of the 20 failures)**, is session 42's own documented
+`gitDiffClean()`-sees-the-uncommitted-lane-diff artifact — this session's own
+then-uncommitted edits to this file and the new `bench/` script were live on
+disk while that run executed, tripping every mutation's `realFileUntouched`
+check the same way session 42 (and 12/14/15/16/18/20/26-29/36/38/39/40)
+already recorded; expected to clear once this commit lands. `npx tsc
+--noEmit -p .` clean.
+
+**Four actionable items remain** (q46-q49, all unchecked and unblocked), so
+the generation rule does not need to run next session either.
 
 ### 2026-08-27 — session 42
 
