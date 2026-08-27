@@ -207,7 +207,7 @@ coverage gaps session 1's log recorded. All five are inside Scope as written.*
       `makePolicy` inside its own `try` so an unregistered policy name comes
       back as `SoakResult.threw`, each guarded by a new regression test in
       `tests/q12-soak.test.ts` — refs: session 8 log, tools/soak.ts
-- [ ] (q24) [feat] Two small, recorded-not-filed gaps in
+- [x] (q24) [feat] Two small, recorded-not-filed gaps in
       `tools/fuzz-command-domain.ts` from session 11's QA pass: (1) `digest()`
       has no direct unit test — every Category A hole recorded today happens
       to also be caught by `scanWorld`, so a future Category A hole that
@@ -336,6 +336,73 @@ resolve if it wants the CLI entry points too. All five are inside Scope as
 written; none needs a `package.json` edit.*
 
 ## Log
+
+### 2026-08-27 — session 21
+
+**Feedback inbox:** no `feedback/` directory exists in this worktree (checked
+with Glob for `feedback/**`). Nothing to process, nothing moved.
+
+**Four actionable items were in queue** (q24–q27, all unchecked and
+unblocked), so the generation rule did not run. Took q24, the top item.
+
+**q24 done.** `tools/fuzz-command-domain.ts` (`digest()` exported, now tracks
+`act2Time`) and `tests/q15-command-domain-fuzz.test.ts` (+5 tests, 25 total).
+
+**What it does.** Two sub-gaps session 11's QA pass recorded but did not
+file: (1) `digest()` — the snapshot helper `classify()` uses to tell whether a
+Category A command illegally mutated world state — had no direct unit test;
+every recorded hole happens to also be caught by `scanWorld`, so a future
+Category A hole invisible to `scanWorld` would rely on `digest()` alone with
+zero coverage. (2) `describeOutcome()` printed "no observable effect" for
+`dev.fast_forward.amount:fractional` even though `w.act2Time` visibly moves
+to 100.5, because `digest()` never read `act2Time` — the `classify()` verdict
+was always correct (`'rejected'`, since a fractional magnitude is legal for a
+Category B command and trips no `scanWorld` problem), only the human-readable
+detail string was misleading for that one line.
+
+Fixed by adding `act2Time: w.act2Time` to `digest()`'s tracked fields and
+exporting the function, plus a new `describe('digest() (q24)...')` block with
+5 direct tests: changes on `gold`, `coreHp`, a built structure, and `act2Time`
+each independently, plus a fixed-point check when nothing changes. Verified
+before trusting it that this couldn't shift any of the 60 census verdicts,
+not just the description text: grepped every `act2Time` writer in `src/sim`
+(the `act2`-phase tick loop, `dev.fast_forward`/`dev.summon_boss`, and
+`finishSundering`) and confirmed none of the five Category A commands
+(`build`/`upgrade`/`sell`/`pick`/`rekindle`) can reach any of them, and that
+`classify()`'s Category B branch reads only `problems.length`, never
+`digestChanged` — so `tests/q15-command-domain-holes.ts` needed no edit. Ran
+`npx tsx tools/fuzz-command-domain.ts` before and after: still exactly 7/60
+non-rejected, only `dev.fast_forward.amount:fractional`'s printed detail
+changed (now "accepted as a legal magnitude, no invariant violated").
+
+**Review (code-reviewer, APPROVE, no findings).** Independently traced every
+`act2Time` writer against the five Category A field specs and confirmed none
+overlap; independently confirmed `classify()`'s Category B branch never reads
+`digestChanged`; re-ran the CLI census and confirmed the 7/60 count and the
+changed description text; confirmed tile `(1,1)`'s buildability by reading
+`src/sim/grid.ts` directly (not a Border/Gate/Core tile, `occ` starts at 0);
+confirmed Scope and no architecture-rule concerns; ran `tsc --noEmit` and the
+test file standalone (25/25 green).
+
+**QA (qa-playtester, PASS).** Independently re-traced `applyCommand`'s five
+Category A cases and every `act2Time` writer in `src/sim`, confirming the same
+non-overlap. Mutation-tested for real: commented out the `act2Time` line in
+`digest()`, confirmed the new "changes when act2Time changes" test went red,
+restored, confirmed `git diff --stat` returned to the exact pre-mutation
+state. Cross-checked `tests/q15-command-domain-holes.ts`'s 7 entries against
+the live CLI census — exact match, no drift. Ran the test file twice, no
+flakes.
+
+**Suite state.** `npx vitest run tests/q15-command-domain-fuzz.test.ts` —
+25/25 green, standalone. `npx tsc --noEmit -p .` clean. The one pre-existing
+mutation-smoke failure (`command-domain-classify-hollow`, refusing to run
+because `tools/fuzz-command-domain.ts` had uncommitted changes) is the same
+documented "fixture must start clean" artifact sessions 12/14/15/16/18/20 each
+hit before this same commit landed — re-checked after committing, below.
+
+**Three actionable items remain** (q25–q27, all unchecked and unblocked), so
+the generation rule will need to run next session to bring the queue back
+above three.
 
 ### 2026-08-27 — session 20
 

@@ -17,6 +17,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 
 import {
   classify,
+  digest,
   FAMILIES,
   fieldSpec,
   FIELD_SPECS,
@@ -26,6 +27,8 @@ import {
   runSingleProbe,
   type CensusEntry,
 } from '../tools/fuzz-command-domain';
+import { runInPhase } from '../tools/fuzz-input';
+import { buildTower } from '../src/sim/towers';
 import { ALIAS_HOLES, HOLES } from './q15-command-domain-holes';
 
 /** Every numeric `Command` field this file fuzzes. `equip.relic` and `souls.keys` are deliberately absent — see the header comment in `tools/fuzz-command-domain.ts`. */
@@ -175,6 +178,51 @@ describe('q15 command-argument domain fuzz', () => {
 
     it('category B: a scanWorld problem is "accepted" regardless of the digest', () => {
       expect(classify(specB, { threw: false, problems: ['gold=NaN is not finite'], digestChanged: true })).toBe('accepted');
+    });
+  });
+
+  describe('digest() (q24) — direct unit test, not just indirectly via runSingleProbe', () => {
+    // Every category A hole recorded in HOLES today also happens to be
+    // caught by scanWorld, so digest()'s own behaviour has never been
+    // exercised directly — a future category A hole that scanWorld can't see
+    // would depend on digest() alone with nothing testing it. Pin the
+    // fields it's actually documented to track (gold, coreHp, structures)
+    // plus act2Time (q24's own addition, tracking dev.fast_forward), and pin
+    // that it's a fixed point when nothing tracked changes.
+    it('changes when gold changes', () => {
+      const w = runInPhase('act1_build').world;
+      const before = digest(w);
+      w.gold += 1;
+      expect(digest(w)).not.toBe(before);
+    });
+
+    it('changes when coreHp changes', () => {
+      const w = runInPhase('act1_build').world;
+      const before = digest(w);
+      w.coreHp -= 1;
+      expect(digest(w)).not.toBe(before);
+    });
+
+    it('changes when a structure is added', () => {
+      const w = runInPhase('act1_build').world;
+      w.gold = 1e9;
+      w.derived.buildRange = 1e6;
+      const before = digest(w);
+      const built = buildTower(w, w.content.towers.towers[0].id, 1, 1);
+      expect(built.ok).toBe(true);
+      expect(digest(w)).not.toBe(before);
+    });
+
+    it('changes when act2Time changes (q24 — dev.fast_forward would otherwise be invisible to it)', () => {
+      const w = runInPhase('act2').world;
+      const before = digest(w);
+      w.act2Time += 100.5;
+      expect(digest(w)).not.toBe(before);
+    });
+
+    it('is a fixed point when nothing tracked changes', () => {
+      const w = runInPhase('act1_build').world;
+      expect(digest(w)).toBe(digest(w));
     });
   });
 

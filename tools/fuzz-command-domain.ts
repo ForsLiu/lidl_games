@@ -262,8 +262,18 @@ export function fieldSpec(key: string): FieldSpec {
   return spec;
 }
 
-/** Everything a legal use of a Category A command can touch, snapshotted cheaply for an equality check. */
-function digest(w: World): string {
+/**
+ * Everything a legal use of a Category A command can touch, snapshotted
+ * cheaply for an equality check. Exported (q24) for a direct unit test — it
+ * had previously only ever been exercised indirectly through `runSingleProbe`.
+ * Includes `act2Time` (q24): `dev.fast_forward` is the one Category B command
+ * whose whole point is to move a field this digest otherwise never reads, so
+ * a fractional-amount probe used to `digestChanged === false` while
+ * `act2Time` visibly moved — `describeOutcome`'s "no observable effect" text
+ * was wrong for that one line even though the `classify()` verdict (which
+ * never depended on `digestChanged` for Category B) was always correct.
+ */
+export function digest(w: World): string {
   return JSON.stringify({
     gold: w.gold,
     goldEarned: w.goldEarned,
@@ -275,6 +285,7 @@ function digest(w: World): string {
     offers: w.offers.length,
     coreHp: w.coreHp,
     wardenHp: w.warden.hp,
+    act2Time: w.act2Time,
     structures: w.structures
       .map((s) => [s.id, s.tx, s.ty, s.tier, s.hp, s.spent])
       .sort((a, b) => (a[0] as number) - (b[0] as number)),
