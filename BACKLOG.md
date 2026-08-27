@@ -78,17 +78,9 @@ and are `.skip`-ed with their numbers per Q109, not forced green.
 
 ### P5 — full tower roster and upgrade tracks (G20)
 
-- [ ] (p5a) [balance] Price the Venom Spore's track so its `+1 projectile @2` can
-      pay out. The spare spore is dropped when fewer enemies are in range than the
-      tower has shots, so the step buys nothing against a lone Gatebreaker or the
-      boss; aiming it at the leading target instead takes the single-type viability
-      measurement from 0/5 to 5/5 at T3, so the fix and the tower's damage are one
-      decision. Same item covers the non-monotonic @4 ratio shift (a level-5 Venom
-      clears 40 husks 34% slower than a level-4 one) — acceptance:
-      `tests/m20b-owner-towers.test.ts`'s skipped "still fires that second spore"
-      case is enabled and green, the "worth nothing at @2" case that pins today's
-      behaviour is deleted with it, and G13's T3 clause holds for venom — refs: §5,
-      Q79, QA on m20b
+P5's first item, `p5a`, is done — see the Done section. `p5b` and `p5c` are
+still open.
+
 - [ ] (p5b) [balance] Give an upgrade track its own price multiplier and put Ember
       Brazier and Mortar on §5's count line. The line was measured infeasible *only
       because* shortening a track raises its step price under `upgradeTotalCostMul`;
@@ -382,6 +374,67 @@ logged in MIGRATION.md §8 rather than carried as dead items.
   **G19**. The work is `p10d`.
 
 ## Done
+
+- [x] (p5a) [balance] Poison's `+1 projectile @2` fixed — not by pricing, by a
+      spec-contradiction correction (Q110) — this commit. p5a was scoped as a
+      pricing decision: aim the spare spore at the leading target instead of
+      dropping it, re-price the tower alongside, and take G13's T3 clause from
+      0/5 to 5/5. That scoping was written against the SPEC-V3-era reading
+      Q79/Q86 recorded — Poison's second spore "spreads" to a second enemy,
+      unlike Arrow's, which §4 spelled out as "same path." **SPEC-FINAL §5.1's
+      own table has since given Poison's second projectile the identical
+      annotation Arrow's carries: "+1 projectile (same path, not spread) @2"**
+      — the same three words. The shipped code (`targetFirstN`,
+      `src/sim/combat.ts`, Poison's only caller) and the m20b tests asserting
+      the spread both predate SPEC-FINAL and were never reconciled against it.
+      CLAUDE.md rule 3 makes an un-reconciled disagreement with SPEC-FINAL a
+      bug, not a gap, outranking the queue — so the fix landed as a spec
+      correction, not as the pricing decision p5a was scoped for. **What
+      changed:** Poison's `fireTower` case now calls `targetFirst` (one
+      primary enemy, matching Arrow's `single` case) and fires every one of
+      `prof.projectiles` shots at it — no second-target selection exists at
+      all, milestone or not. `targetFirstN` is deleted outright (one caller,
+      no other SPEC-FINAL §5 row spreads a milestone projectile). No `/data`
+      value changed — `venom_spore`'s damage stays 45. `src/ui/tower-info.ts`'s
+      panel text and `attackOutput`'s single-target damage-preview math are
+      updated to match (a lone target now takes every projectile, the same
+      formula every other kind already used — Poison was the one exception).
+      Full write-up at QUESTIONS.md Q110. **What this does NOT do: it does not
+      flip G13's T3 clause.** Re-measured with the fix in place (seeds 1-5,
+      `tests/a4-single-type.test.ts`'s live `venom_spore alone fails the TD
+      wave curve at T3` case): still 0/5, unchanged — every tower's T3 clause
+      is now dominated by the p8a wave-11-18 content gap (Q109), not by any
+      tower's own damage, so the "same-path fix flips T3 to 5/5" outcome
+      Q79/Q86/Q87 worried about (and which the rejected `wip/m20d` tree hit by
+      cutting damage 45→23) does not reproduce under the current, re-baselined
+      gate. Measured, not assumed, per the standing rule that a deferral is a
+      measurement with an expiry date. Acceptance met on two of the item's
+      three original clauses: `tests/m20b-owner-towers.test.ts`'s
+      "still fires that second spore" case is un-skipped and green (now
+      "same path, not spread," structurally never drops a shot); the "worth
+      nothing at @2 against a lone target" case that pinned the old wart is
+      deleted with it, since that behaviour no longer exists. The third clause
+      ("G13's T3 clause holds for venom") does not hold and is not claimed to
+      — it is content-gap-bound, re-enable point is `p8a` landing real wave
+      11-18 data, same as every other T3 clause p3e already logged this way.
+      **code-reviewer APPROVE**, no Critical/Major findings (one Minor, taken:
+      flagged that this entry needed to say the T3 clause is unmet/blocked
+      rather than silently checking p5a off as if it were). **qa-playtester
+      PASS**, no bugs found: live-fire scenarios with 3+ enemies clustered at
+      different path-distances confirmed the volley never spreads past its
+      one primary target even with candidates available; splash (`aoe: 1`)
+      still independently hits bystanders within its radius, proving "no
+      spread in primary targeting" and "no splash" are distinct mechanisms and
+      the fix touched only the former; poison DoT stacking across a same-
+      target 2-spore volley is exactly 2x the 1-spore case, no double-refresh;
+      the weapon-info panel's live and pre-upgrade-preview numbers both
+      matched real fire exactly; a 12-seed sweep (`maxbuild`/`hybrid`) was
+      byte-identical stashed vs. unstashed, confirming no balance drift;
+      replay-hash determinism held across two independent seeded runs that
+      actually built and fired a Venom Spore. `npm test`: 661 passed / 33
+      skipped (0 failed, down one skip from p3e's 661/34 — the one
+      newly-enabled case, net against the one deleted case); `npx tsc
+      --noEmit` clean — refs: §5.1, Q79, Q86, Q87, Q109, Q110, QA on m20b
 
 - [x] (p3e) [balance] Re-baseline the run-shape-dependent gates against 18 TD + 6
       VS — this commit. **P3 is complete in full (p3a-p3e).** `light-build.test.ts`,

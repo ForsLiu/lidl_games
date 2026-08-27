@@ -83,7 +83,7 @@ export function applyEffects(w: World, e: Enemy, fx: HitEffects): void {
  * rebuilt in a fixed order each tick) and it is what every balance number in
  * the repo was measured against: making ties break on entity id instead, which
  * this comment used to claim, focuses fire hard enough to take `venom_spore`
- * from 0/5 to 5/5 on A4's T3 clause. `targetFirstN` matches it deliberately.
+ * from 0/5 to 5/5 on A4's T3 clause.
  */
 export function targetFirst(w: World, x: number, y: number, range: number): Enemy | null {
   const list = w.enemiesInRadius(x, y, range);
@@ -98,44 +98,6 @@ export function targetFirst(w: World, x: number, y: number, range: number): Enem
     }
   }
   return best;
-}
-
-/**
- * The `n` enemies nearest the Core within range, best first — "first"
- * targeting for a tower firing more than one shot (SPEC-V3 §4 gives Poison a
- * second projectile at upgrade 2). Selection rather than a sort: `n` is 2 in
- * all shipped content and the candidate list is the whole horde in range.
- *
- * Spending all shots on one enemy would make the milestone worthless against
- * anything but a boss, so the shots spread; a caller wanting them stacked (§4
- * spells Arrow's out as "same path") does not ask for targets twice.
- */
-export function targetFirstN(w: World, x: number, y: number, range: number, n: number): Enemy[] {
-  if (n <= 1) {
-    const one = targetFirst(w, x, y, range);
-    return one ? [one] : [];
-  }
-  const list = w.enemiesInRadius(x, y, range);
-  const picked: Enemy[] = [];
-  const keys: number[] = [];
-  for (const e of list) {
-    const d = w.grid.distAt(Math.floor(e.x), Math.floor(e.y), e.flying || e.ghosting);
-    const key = d < 0 ? 1e9 + dist2(e.x, e.y, x, y) : d;
-    // Insertion into a list of at most `n`. Strictly-greater, so a tie leaves
-    // the enemy the bucket scan reached first in front — the same rule
-    // `targetFirst` uses, which is what makes this tower's primary target the
-    // same one before and after its second projectile unlocks (QA, m20b).
-    let i = picked.length;
-    while (i > 0 && keys[i - 1] > key) i--;
-    if (i >= n) continue;
-    picked.splice(i, 0, e);
-    keys.splice(i, 0, key);
-    if (picked.length > n) {
-      picked.pop();
-      keys.pop();
-    }
-  }
-  return picked;
 }
 
 /**

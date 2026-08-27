@@ -96,7 +96,9 @@ test-retirement ledger. Read §8 before touching anything.
   rate — so the milestone moves damage into a bucket that is already full and
   measures **−5.4%** (88.6 → 83.8 dps). Both clauses are verbatim and both are
   ⚖. Logged as Q87 for §17's review list rather than resolved by an agent.
-- **Next action:** **P5** `p5a` (pricing the Venom Spore's track). **P3 is
+- **Next action:** **P5** `p5b` (Ember Brazier/Mortar's count line and a
+  per-track price multiplier). `p5a` is done this commit — see its own entry
+  below; it turned out not to be a pricing decision at all. **P3 is
   complete in full (p3a-p3e).** `p3e` is done this commit — `light-build`,
   G13's solo-viability clause (`a4-single-type`) and the boss gate are all
   re-pointed at the real 18-TD-wave/6-block shape; every one measures red
@@ -134,6 +136,46 @@ test-retirement ledger. Read §8 before touching anything.
   QA-proven a no-op), and `x002` at `ef69a47` (lifesteal's cap removed and its
   accrual gated to normal damage per §2 — **not** a no-op; the sweep delta is
   below and in the session log). P0's remaining clause is carried as
+- **p5a — what a reader needs to know.** Scoped as a pricing decision
+  (aim Poison's spare @2 spore at the leading target instead of dropping it,
+  re-price the tower alongside, take G13's T3 clause 0/5 → 5/5); landed
+  instead as a SPEC-FINAL correction (Q110), because the pricing scope was
+  written against a stale SPEC-V3-era reading of the milestone. SPEC-FINAL
+  §5.1's own table gives Poison's second projectile the identical annotation
+  Arrow's carries — "+1 projectile (same path, not spread) @2" — so the
+  shipped "spreads to a second enemy" behavior (`targetFirstN`,
+  `src/sim/combat.ts`, Poison's only caller, now deleted) and the m20b tests
+  pinning it both contradicted SPEC-FINAL outright, which CLAUDE.md rule 3
+  ranks as a bug ahead of the queue rather than a pricing gap. Poison's
+  `fireTower` case now fires every one of `prof.projectiles` shots at one
+  `targetFirst` primary target, matching Arrow's own `single` case exactly;
+  `src/ui/tower-info.ts`'s panel text and single-target damage-preview math
+  are updated to match. **No `/data` value changed** — `venom_spore` stays at
+  45 damage. **Re-measured, not assumed: G13's T3 clause does not flip.**
+  `tests/a4-single-type.test.ts`'s live `venom_spore` T3 case is still 0/5
+  with the fix in place, because every tower's T3 clause is dominated by the
+  p8a wave-11-18 content gap (Q109) regardless of any tower's own damage —
+  the flip-to-5/5 outcome Q79/Q86/Q87 worried about (the same one the
+  rejected `wip/m20d` tree hit, by cutting damage 45→23 instead) does not
+  reproduce under the current, re-baselined gate. Two of p5a's three literal
+  acceptance clauses are met (`tests/m20b-owner-towers.test.ts`'s
+  "still fires that second spore" case un-skipped and green; the "worth
+  nothing at @2" case pinning the old wart deleted with it); the third
+  ("G13's T3 clause holds for venom") is explicitly not — content-gap-bound,
+  re-enable point is `p8a`, same as every T3 clause p3e already logged this
+  way. **code-reviewer APPROVE**, one Minor taken (this write-up needed to
+  say the T3 clause is unmet rather than silently checking the item off).
+  **qa-playtester PASS**: live-fire scenarios with 3+ clustered enemies at
+  different path-distances confirmed the volley never spreads even with
+  candidates available; splash (`aoe: 1`) still independently hits bystanders
+  in radius, proving "no spread in primary targeting" and "no splash" are
+  distinct and only the former changed; poison DoT stacking on a same-target
+  2-spore volley is exactly 2x the 1-spore case; the weapon-info panel's live
+  and pre-upgrade-preview numbers matched real fire exactly; a 12-seed sweep
+  was byte-identical stashed vs. unstashed; replay-hash determinism held
+  across two independent runs that actually built and fired a Venom Spore.
+  `npm test`: 661 passed / 33 skipped (0 failed, one fewer skip than p3e's
+  661/34); `npx tsc --noEmit` clean — refs: §5.1, Q79, Q86, Q87, Q109, Q110.
 - **p3e — what a reader needs to know. P3 is complete in full.** BACKLOG's
   literal acceptance text names three things: `light-build`, "A4's successor
   under G13" (`tests/a4-single-type.test.ts`), and the boss gate

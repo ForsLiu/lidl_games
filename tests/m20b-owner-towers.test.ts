@@ -322,9 +322,17 @@ describe('m20b — Poison: the 1:1 split, +1 projectile @2, ratio 1:1.5 @4 (§4)
     expect(dotOutstanding(e1)).toBeCloseTo(dotOutstanding(e0) * step, 6);
   });
 
-  it('fires a second spore at @2, at a second enemy', () => {
+  // SPEC-FINAL §5.1 gives Poison's second spore the identical annotation
+  // Arrow's own second projectile carries — "(same path, not spread) @2" —
+  // which m20b's original reading of the older SPEC-V3 table got backwards
+  // ("§4 spells 'same path' out for Arrow and not here"). p5a corrects it
+  // (QUESTIONS Q110): both spores always land on the tower's one primary
+  // target, never a second enemy, even when a second one is standing right
+  // there to spread onto.
+  it('fires both spores at the same target at @2 — same path, not spread (§5.1)', () => {
     const at2 = VENOM.upgrades.specials[0].at;
-    // Two lanes, each well outside the other's splash.
+    // A second candidate present, well outside the primary's splash, so a
+    // spread would show up as damage landing on it too.
     const pair = (t: ReturnType<typeof tower>) => [dummy(t.w, t.x + 2, t.y), dummy(t.w, t.x, t.y + 2)];
 
     const one = tower(VENOM, at2 - 1);
@@ -333,8 +341,8 @@ describe('m20b — Poison: the 1:1 split, +1 projectile @2, ratio 1:1.5 @4 (§4)
     const two = tower(VENOM, at2);
     expect(attackProfile(VENOM, at2 + 1).projectiles).toBe(2);
     const both = fireOnce(two.w, pair(two));
-    expect(both.filter((d) => d > 0), 'one spore each').toHaveLength(2);
-    for (const d of both) expect(d).toBeCloseTo(two.hit * 0.5, 6);
+    expect(both.filter((d) => d > 0), 'both spores land on the one primary target').toHaveLength(1);
+    expect(Math.max(...both)).toBeCloseTo(two.hit * 0.5 * 2, 6);
   });
 
   it('bursts its small AoE on whoever is standing with the target', () => {
@@ -363,14 +371,11 @@ describe('m20b — Poison: the 1:1 split, +1 projectile @2, ratio 1:1.5 @4 (§4)
     expect(effectiveTowerAoe(far.w, VENOM)).toBeCloseTo(VENOM.attack!.aoe!, 10);
   });
 
-  // TODO(m20d): QA filed the milestone as a paid no-op against a single enemy —
-  // the spare spore is dropped rather than aimed at the target again, so @2 is
-  // worth nothing against a lone Gatebreaker or the boss, on a step that also
-  // gave up its +10% to be a milestone. Implemented, it flips A4's
-  // "venom_spore alone fails Act I at T3" from 0/5 to 5/5, so it cannot ship
-  // without re-pricing the tower — m20c/m20d's job with owner sign-off (Q79).
-  // Left here, red-when-enabled, so the gap is visible rather than remembered.
-  it.skip('still fires that second spore when there is only one enemy to fire it at', () => {
+  // p5a: same-path means a lone target was never actually at risk of losing
+  // the second spore (there is no "spare" to drop) — this is the case Q79
+  // originally worried about (nothing against a lone Gatebreaker or the
+  // boss), now true for a structural reason rather than a fallback rule.
+  it('still fires that second spore when there is only one enemy to fire it at', () => {
     const at2 = VENOM.upgrades.specials[0].at;
     const one = tower(VENOM, at2 - 1);
     const lone0 = dummy(one.w, one.x + 1.5, one.y);
@@ -381,18 +386,6 @@ describe('m20b — Poison: the 1:1 split, +1 projectile @2, ratio 1:1.5 @4 (§4)
     const after = fireOnce(two.w, [lone1])[0];
     expect(after, 'both spores land on the only target there is').toBeCloseTo(before * 2, 6);
     expect(dotOutstanding(lone1)).toBeCloseTo(dotOutstanding(lone0) * 2, 6);
-  });
-
-  it('is worth nothing at @2 against a lone target — the wart, pinned (QA)', () => {
-    // The complement of the skipped case above: this is what ships, and it is
-    // asserted so that fixing it turns *this* red rather than passing silently.
-    const at2 = VENOM.upgrades.specials[0].at;
-    const one = tower(VENOM, at2 - 1);
-    const before = fireOnce(one.w, [dummy(one.w, one.x + 1.5, one.y)])[0];
-    const two = tower(VENOM, at2);
-    const after = fireOnce(two.w, [dummy(two.w, two.x + 1.5, two.y)])[0];
-    expect(two.hit, 'and the step bought no +10% either').toBeCloseTo(one.hit, 10);
-    expect(after).toBeCloseTo(before, 6);
   });
 
   it('moves its split to 1:1.5 at @4 — less impact, more poison', () => {
@@ -407,14 +400,14 @@ describe('m20b — Poison: the 1:1 split, +1 projectile @2, ratio 1:1.5 @4 (§4)
     const impact1 = fireOnce(after.w, [e1])[0];
 
     // Both levels carry the same stat multiplier (§4 spends step 4 on the
-    // milestone) and both fire the same two spores at the lone target, so every
-    // difference below is the ratio.
+    // milestone) and both fire two spores at the one target, same path (p5a) —
+    // so every difference below is the ratio, doubled for the two landed spores.
     expect(after.hit).toBeCloseTo(before.hit, 10);
     expect(damageShare(attackProfile(VENOM, at4 + 1).ratio, 'poison')).toBeCloseTo(1.5 / 2.5, 12);
-    expect(impact0).toBeCloseTo(before.hit * 0.5, 6);
-    expect(impact1).toBeCloseTo(after.hit * 0.4, 6);
-    expect(dotOutstanding(e0)).toBeCloseTo(owed(before.hit, 0.5), 6);
-    expect(dotOutstanding(e1)).toBeCloseTo(owed(after.hit, 0.6), 6);
+    expect(impact0).toBeCloseTo(before.hit * 0.5 * 2, 6);
+    expect(impact1).toBeCloseTo(after.hit * 0.4 * 2, 6);
+    expect(dotOutstanding(e0)).toBeCloseTo(owed(before.hit, 0.5) * 2, 6);
+    expect(dotOutstanding(e1)).toBeCloseTo(owed(after.hit, 0.6) * 2, 6);
     expect(dotOutstanding(e1)).toBeGreaterThan(dotOutstanding(e0));
   });
 });

@@ -20,7 +20,6 @@ import {
   lineHit,
   spawnProjectile,
   targetFirst,
-  targetFirstN,
 } from './combat';
 import type { TowerDef } from './content';
 import { applyDamageType } from './damagetypes';
@@ -433,20 +432,16 @@ function fireTower(w: World, s: Structure, def: TowerDef): void {
       break;
     }
     case 'poison': {
-      // SPEC-V3 §4 Poison: "small AoE", and a milestone that adds a second
-      // spore. The second one goes to the next enemy down the path rather than
-      // stacking on the first — §4 spells "same path" out for Arrow and not
-      // here — so a Venom Spore at 3 covers two lanes.
-      // A spore with no second enemy to go to is dropped, so the milestone is
-      // worth nothing against a lone Gatebreaker or the boss — QA's finding,
-      // and a real wart. The obvious fix (spare shots fall back onto the
-      // leading target) is a bigger buff than it looks: it takes A4's
-      // "venom_spore alone fails Act I at T3" from 0/5 to **5/5**, i.e. it
-      // makes the tower solo the gate that exists to stop exactly that. It
-      // needs the tower's damage re-priced with it, which is m20c's job with
-      // owner sign-off (BACKLOG m20d, QUESTIONS Q79).
-      const targets = targetFirstN(w, x, y, range, prof.projectiles);
-      if (targets.length === 0) {
+      // §5.1 Poison: "small AoE", and a milestone that adds a second spore
+      // "(same path, not spread) @2" — the identical annotation §5.1 gives
+      // Arrow's own second projectile, not the "spreads to the next enemy
+      // down the path" reading m20b shipped under the older SPEC-V3 table
+      // (p5a, QUESTIONS Q79/Q86/Q87/Q110). So every spore this tower fires,
+      // milestone or not, lands on the one primary target — same as Arrow's
+      // `single` case above, just without the line/pierce geometry Poison
+      // never authors.
+      const t = targetFirst(w, x, y, range);
+      if (!t) {
         s.cooldown = 0;
         return;
       }
@@ -455,7 +450,7 @@ function fireTower(w: World, s: Structure, def: TowerDef): void {
       // attack rather than with a number nobody remembers to upgrade.
       // One reading of the radius, the panel's: two would drift (the m20a trap).
       const splash = effectiveTowerAoe(w, def);
-      for (const t of targets) {
+      for (let i = 0; i < prof.projectiles; i++) {
         if (splash > 0) {
           s.damageDealt += applyAoE(w, t.x, t.y, splash, dmg, source, fx, {
             primary: t,

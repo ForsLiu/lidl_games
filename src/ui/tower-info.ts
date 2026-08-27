@@ -99,7 +99,7 @@ const KIND_TEXT: Record<string, (a: TowerAttack, p: AttackProfile) => string> = 
   poison: (a, p) => {
     const targets =
       p.projectiles > 1
-        ? `Fires ${p.projectiles} spores at the ${p.projectiles} enemies furthest along the path`
+        ? `Fires ${p.projectiles} spores at whichever enemy is furthest along the path`
         : 'Fires a spore at whichever enemy is furthest along the path';
     const splash = (a.aoe ?? 0) > 0 ? `, each bursting for ${fmt(a.aoe!)}-tile splash` : '';
     return `${targets}${splash}. Its poison keeps ticking after the shot lands.`;
@@ -187,13 +187,11 @@ function attackOutput(w: World, def: TowerDef, tier: number): { impact: number; 
   // V2's authored burn, which the Ember Brazier still uses.
   if (a.burn) ailment += a.burn.dps * upgradeStatMul(w, def, tier) * a.burn.duration * potency('burning');
 
-  // Only shots that share a path stack on one enemy. §4 gives Arrow its second
-  // projectile "(same path)", so a lone target takes both; Poison's second
-  // spore goes to the next enemy along and a lone target takes one — these are
-  // single-target numbers, so counting it here would overstate the tower by 2x
-  // exactly as failing to count Arrow's understated it (QA, m20b).
-  const stacked = a.kind === 'poison' ? 1 : prof.projectiles;
-  return { impact: impact * stacked, ailment: ailment * stacked };
+  // These are single-target numbers: a lone enemy takes every projectile a
+  // shot fires. §5.1 gives both Arrow and Poison their second projectile
+  // "(same path, not spread)" — every shot a tower fires lands on the one
+  // primary target (p5a, QUESTIONS Q110), so a lone target takes them all.
+  return { impact: impact * prof.projectiles, ailment: ailment * prof.projectiles };
 }
 
 /**
