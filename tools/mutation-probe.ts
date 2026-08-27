@@ -183,18 +183,26 @@ export const MUTATIONS: Mutation[] = [
     // Retargeted at the lane/quality merge: the dusk/dawn cycle machine this
     // mutation originally broke was deleted with P3's interleave. The same
     // intent — "a phase transition silently stops firing" — now aims at the
-    // current machine's `startWave`, so `act1_wave` never appears.
-    name: 'run-startWave-never-enters-act1-wave',
+    // `results` entries. Deliberately NOT `startWave`'s `act1_wave` entry: that
+    // mutation stalls every census run to its tick cap and the nested vitest
+    // blows its 150 s budget (measured at this merge — a NestedVitestTimeout is
+    // a harness failure, not a catch). `Run.done` reads `outcome`, not `phase`,
+    // so runs still terminate at full speed and only the phase census goes red.
+    name: 'run-results-phase-never-set',
     file: 'src/sim/run.ts',
     edits: [
       {
-        find: `export function startWave(w: World): void {\n  w.wave++;\n  w.phase = 'act1_wave';`,
-        replace: `export function startWave(w: World): void {\n  w.wave++;\n  if (false) w.phase = 'act1_wave';`,
+        find: `      w.outcome = 'victory';\n      w.phase = 'results';`,
+        replace: `      w.outcome = 'victory';\n      if (false) w.phase = 'results';`,
+      },
+      {
+        find: `  w.outcome = w.dying;\n  w.phase = 'results';`,
+        replace: `  w.outcome = w.dying;\n  if (false) w.phase = 'results';`,
       },
     ],
     testFile: 'tests/q9-phase-coverage.test.ts',
     source:
-      "BACKLOG-QUALITY.md session 5 log (q9), retargeted at the lane/quality merge: the original mutation forced `completeWave` to never enter dusk; dusk no longer exists, so the same silent-phase-loss shape is applied to `startWave`'s `act1_wave` entry.",
+      "BACKLOG-QUALITY.md session 5 log (q9), retargeted at the lane/quality merge: the original mutation forced `completeWave` to never enter dusk; dusk no longer exists, so the same silent-phase-loss shape is applied to both `results` entries (victory and the resolveDefeat path).",
   },
   {
     // Retargeted at the lane/quality merge: the original made the dawn trigger
