@@ -126,10 +126,10 @@
       "cost": 70,
       "defense": 5,
       "upgrades": {
-        "count": 10,
+        "count": 4,
         "stepCost": 14,
         "specials": [],
-        "note": "m20c: §4 count line says 4. At 4 the A4 T1 clause measures 0/5 at the rule price 35 (and at 28); it is 5/5 only at this track current sub-rule price of 14, which count 4 could not keep — see m20e (Q80)."
+        "costMul": 0.8
       },
       "hp": 110,
       "blocks": true,
@@ -227,10 +227,10 @@
       "cost": 130,
       "defense": 5,
       "upgrades": {
-        "count": 10,
+        "count": 3,
         "stepCost": 26,
         "specials": [],
-        "note": "m20c: §4 count line says 3. At 3 the A4 T1 clause measures 0/5 at the rule price 87; at this track current price of 26 it is 5/5 with T3 still 0/5, which is a red clause turning green and is filed as m20e (Q80)."
+        "costMul": 0.6
       },
       "hp": 120,
       "blocks": true,

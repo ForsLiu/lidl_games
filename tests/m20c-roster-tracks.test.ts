@@ -103,26 +103,45 @@ describe('m20c — the count rule, and §4 as its own evidence', () => {
   });
 
   it('makes every tower that is off the line say why, and nothing else carry a note', () => {
-    // The four towers §4 left open are all off it, and every one is a
-    // *measured* exception rather than a preference. Shortening a track under
-    // the price rule below is two nerfs at once — the ceiling falls (x2.59 ->
-    // x1.46) and each step gets dearer, since the same total buys fewer of
-    // them. At the line's count and the rule's price: Ballista alone takes the
-    // boss gate's scripted maxbuild run from `victory` to `defeat_warden`, and
-    // Ember Brazier, Frost Obelisk and Mortar all drop A4's T1 clause to 0/5.
-    // The qualifier is load-bearing and QA had to supply it — Ember Brazier at
-    // count 4 and Mortar at 3 pass A4 at the price they charge *today*, which
-    // the rule would not let them keep. That is m20e. Q80 has every run.
+    // Two towers §4 left open stay off the line, each a *measured* exception
+    // rather than a preference: at the line's count and the shared price rule,
+    // Ballista alone takes the boss gate's scripted maxbuild run from `victory`
+    // to `defeat_warden`, and Frost Obelisk's A4 T1 clause never clears 4/5 no
+    // matter the price (Q80). Ember Brazier and Mortar used to sit here too —
+    // shortening their tracks under the *shared* price rule was two nerfs at
+    // once (the ceiling falls and each step gets dearer, since the same total
+    // buys fewer of them), which is what dropped A4's T1 clause to 0/5. p5b
+    // gives each its own `costMul` instead, so the count moves onto the line
+    // while the step price — and everything the price rule protects — stays
+    // exactly what it was.
     const offLine = TOWERS.filter((t) => t.attack && t.upgrades.count !== familyCount(t.cost)).map((t) => t.key);
-    expect(offLine).toEqual(['ballista', 'ember_brazier', 'frost_obelisk', 'mortar']);
+    expect(offLine).toEqual(['ballista', 'frost_obelisk']);
     for (const key of offLine) expect(content.towerByKey.get(key)!.upgrades.note, key).toBeTruthy();
 
     // The other side of the same claim: `note` marks a departure, so a tower
     // that follows the line must not carry one, or the field decays into
     // commentary and stops meaning "this one is deliberate".
     const onLine = TOWERS.filter((t) => t.attack && t.upgrades.count === familyCount(t.cost)).map((t) => t.key);
-    expect(onLine).toEqual(['arrow_spire', 'tesla_coil', 'venom_spore']);
+    expect(onLine).toEqual(['arrow_spire', 'ember_brazier', 'tesla_coil', 'mortar', 'venom_spore']);
     for (const key of onLine) expect(content.towerByKey.get(key)!.upgrades.note, key).toBeUndefined();
+  });
+
+  it('gives Ember Brazier and Mortar their own price multiplier rather than the shared one (p5b)', () => {
+    // Both sit on the count line now (4 and 3), but at today's step price —
+    // the shared rule would have demanded 35 and 87 respectively, which the
+    // note above used to record as the reason they stayed off it.
+    const ember = content.towerByKey.get('ember_brazier')!;
+    const mortar = content.towerByKey.get('mortar')!;
+    expect(ember.upgrades.count).toBe(4);
+    expect(ember.upgrades.stepCost).toBe(14);
+    expect(ember.upgrades.costMul).toBeCloseTo(0.8, 10);
+    expect(mortar.upgrades.count).toBe(3);
+    expect(mortar.upgrades.stepCost).toBe(26);
+    expect(mortar.upgrades.costMul).toBeCloseTo(0.6, 10);
+    // What the shared rule would have charged instead, so a reader can see the
+    // gap `costMul` is closing without re-deriving it.
+    expect(Math.round((ember.cost * FILE.upgradeTotalCostMul) / ember.upgrades.count)).toBe(35);
+    expect(Math.round((mortar.cost * FILE.upgradeTotalCostMul) / mortar.upgrades.count)).toBe(87);
   });
 
   it('leaves the three attackless towers outside the rule, each with its reason', () => {
@@ -140,17 +159,24 @@ describe('m20c — the count rule, and §4 as its own evidence', () => {
 });
 
 describe('m20c — a whole track costs what V2’s three tiers cost, however many steps it has', () => {
-  it('prices all ten towers by the rule, with no exception anywhere', () => {
+  it('prices all ten towers by the rule (a track\'s own costMul standing in where present), with no exception anywhere', () => {
     expect(FILE.upgradeTotalCostMul).toBeCloseTo(2, 10);
     for (const def of TOWERS) {
       if (def.upgrades.count === 0) {
         expect(def.upgrades.stepCost, def.key).toBe(0);
         continue;
       }
-      const want = Math.round((def.cost * FILE.upgradeTotalCostMul) / def.upgrades.count);
+      const mul = def.upgrades.costMul ?? FILE.upgradeTotalCostMul;
+      const want = Math.round((def.cost * mul) / def.upgrades.count);
       expect(def.upgrades.stepCost, `${def.key} step price`).toBe(want);
       expect(() => validateStepPrice(FILE.upgradeTotalCostMul, def, def.key), def.key).not.toThrow();
     }
+    // Exactly the two towers p5b gave their own multiplier, so this isn't
+    // vacuously true of a roster where nothing ever overrides it.
+    expect(TOWERS.filter((t) => t.upgrades.costMul !== undefined).map((t) => t.key).sort()).toEqual([
+      'ember_brazier',
+      'mortar',
+    ]);
   });
 
   it('refuses a hand-typed price, note or no note', () => {
@@ -168,6 +194,20 @@ describe('m20c — a whole track costs what V2’s three tiers cost, however man
     expect(() =>
       validateStepPrice(FILE.upgradeTotalCostMul, { ...wall, upgrades: { ...wall.upgrades, stepCost: 99 } }, 'x'),
     ).toThrow(/has no steps/);
+  });
+
+  it('honours a track\'s own costMul over the file-wide one, and still refuses a wrong price under it (p5b)', () => {
+    // The branch `validateStepPrice` gains with a track-level override: same
+    // shape as the file-wide-rule branch above, but reading `costMul` instead,
+    // and still catching a hand-typed price that disagrees with it.
+    const ember = content.towerByKey.get('ember_brazier')!;
+    expect(() => validateStepPrice(FILE.upgradeTotalCostMul, ember, ember.key)).not.toThrow();
+    // Passing the *file's* 2x here would demand 35, not 14 — proof the
+    // function is really reading the track's own 0.8, not falling back.
+    const wrong = { ...ember, upgrades: { ...ember.upgrades, costMul: undefined } };
+    expect(() => validateStepPrice(FILE.upgradeTotalCostMul, wrong, 'x')).toThrow(/prices a step at 14, not 35/);
+    const badMul = { ...ember, upgrades: { ...ember.upgrades, costMul: 1 } };
+    expect(() => validateStepPrice(FILE.upgradeTotalCostMul, badMul, 'x')).toThrow(/prices a step at 14, not 18/);
   });
 
   it('charges the authored price through the real till', () => {

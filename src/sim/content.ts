@@ -153,12 +153,20 @@ const UpgradeTrackSchema = z.object({
   /**
    * Why this track's `count` departs from, or sits outside, m20c's count line
    * — `5 - (cost - 50) / 35`, the line through §4's own three (Q80). Present
-   * on exactly the seven that do, and `tests/m20c-roster-tracks.test.ts`
+   * on exactly the towers that do, and `tests/m20c-roster-tracks.test.ts`
    * enforces both directions: a track that quietly disagrees with the line and
    * one that disagrees for a measured reason are the same diff otherwise. The
-   * step *price* has no such escape — see `validateStepPrice`.
+   * step *price* has its own escape now too — see `costMul`/`validateStepPrice`.
    */
   note: str.optional(),
+  /**
+   * §5's own line: "total track cost = 2x build cost ⚖, per-track `costMul`
+   * allowed" — an override of `TowersFile.upgradeTotalCostMul` for this one
+   * track, not a multiplier of it. `validateStepPrice` reads it in place of
+   * the file-wide constant when present; omitted, a track prices exactly like
+   * every other one (p5b, Q80).
+   */
+  costMul: num.positive().optional(),
 }).strict();
 
 export const TowerSchema = z.object({
@@ -573,17 +581,17 @@ export function validateUpgradeTrack(
  * `upgradeTotalCostMul x` the build price, however many steps it has**, so a
  * step is that total divided by the count, *rounded* — which is why the claim
  * holds per step and not to the gold on a track whose count does not divide
- * the total (Venom Spore's four steps of 38 come to 152, not 150). All ten
- * towers follow it exactly.
+ * the total (Venom Spore's four steps of 38 come to 152, not 150).
  *
- * There is deliberately no `note` escape here, unlike the count line: a price
- * is derived from two numbers the file already holds, so a track that wants a
- * different one is asking for a different *rule*, and that is a decision to
- * take in the open (m20d re-prices Venom Spore and will have to).
+ * SPEC-FINAL §5 names the one escape the rule always lacked: a track's own
+ * `costMul`, used in place of the file-wide `totalCostMul` when the track
+ * carries one (p5b, Q80) — unlike `note` on the count line, this changes the
+ * number rather than explaining a departure from it, so a track with a
+ * `costMul` is still fully priced by *a* rule, just not the shared one.
  */
 export function validateStepPrice(
   totalCostMul: number,
-  t: { cost: number; upgrades: { count: number; stepCost: number } },
+  t: { cost: number; upgrades: { count: number; stepCost: number; costMul?: number } },
   where: string,
 ): void {
   if (t.upgrades.count === 0) {
@@ -594,7 +602,8 @@ export function validateStepPrice(
     }
     return;
   }
-  const want = Math.round((t.cost * totalCostMul) / t.upgrades.count);
+  const mul = t.upgrades.costMul ?? totalCostMul;
+  const want = Math.round((t.cost * mul) / t.upgrades.count);
   if (t.upgrades.stepCost !== want) {
     throw new Error(`${where} prices a step at ${t.upgrades.stepCost}, not ${want}`);
   }

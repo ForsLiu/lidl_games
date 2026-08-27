@@ -96,10 +96,13 @@ test-retirement ledger. Read §8 before touching anything.
   rate — so the milestone moves damage into a bucket that is already full and
   measures **−5.4%** (88.6 → 83.8 dps). Both clauses are verbatim and both are
   ⚖. Logged as Q87 for §17's review list rather than resolved by an agent.
-- **Next action:** **P5** `p5b` (Ember Brazier/Mortar's count line and a
-  per-track price multiplier). `p5a` is done this commit — see its own entry
-  below; it turned out not to be a pricing decision at all. **P3 is
-  complete in full (p3a-p3e).** `p3e` is done this commit — `light-build`,
+- **Next action:** **P5** `p5c` (gate G20). `p5b` is done this commit — Ember
+  Brazier and Mortar now carry their own `costMul` and sit on §5's count line
+  with no `note`; see its own entry below. QA filed a new, unrelated bug at
+  `p5b` — `p5d` (`Structure.damageDealt` never credited for `pierce`/`lob`-kind
+  towers) — filed rather than fixed here, same as `p2f`'s precedent. `p5a` is
+  done — see its own entry below; it turned out not to be a pricing decision at
+  all. **P3 is complete in full (p3a-p3e).** `p3e` is done this commit — `light-build`,
   G13's solo-viability clause (`a4-single-type`) and the boss gate are all
   re-pointed at the real 18-TD-wave/6-block shape; every one measures red
   (0/8, 0/5 across all seven towers, 0/20) for the same reason — `data/waves.json`
@@ -136,6 +139,57 @@ test-retirement ledger. Read §8 before touching anything.
   QA-proven a no-op), and `x002` at `ef69a47` (lifesteal's cap removed and its
   accrual gated to normal damage per §2 — **not** a no-op; the sweep delta is
   below and in the session log). P0's remaining clause is carried as
+- **p5b — what a reader needs to know.** SPEC-FINAL §5 names the escape the
+  price rule always lacked — "total track cost = 2x build cost ⚖, per-track
+  `costMul` allowed" — so `UpgradeTrackSchema` (`src/sim/content.ts`) gains an
+  optional `costMul`, and `validateStepPrice` reads it in place of the
+  file-wide `upgradeTotalCostMul` when a track carries one. Ember Brazier
+  moves from count 10 (held there since m20c specifically because shortening
+  it under the shared price rule would have doubled as a stealth nerf — the
+  ceiling falls *and* each step gets dearer) to count 4 with `costMul: 0.8`,
+  `stepCost` unchanged at 14; Mortar moves from count 10 to count 3 with
+  `costMul: 0.6`, `stepCost` unchanged at 26 — both now sit on §5's count line
+  with no `note`, the same status Arrow Spire/Tesla Coil/Venom Spore already
+  had. Ballista and Frost Obelisk are untouched (Ballista alone still flips
+  the boss gate's scripted maxbuild run to `defeat_warden` at the line's
+  count/price; Frost Obelisk's A4 T1 clause never clears 4/5 at any price),
+  so "every gate p5b touches stays where it was, boss included" holds by
+  construction — neither is touched. **Q111 records the one acceptance clause
+  this item does not meet.** p5b's own text expected `mortar alone clears TD
+  at T1` to un-skip once Mortar's count/price matched the line — that
+  expectation was written before p3a-p3e landed SPEC-FINAL §1.1's real
+  18-TD-wave shape and re-baselined every T1 clause (Q109). **Re-measured, not
+  assumed**, with the `costMul` change live: still 0/5 for both Ember Brazier
+  and Mortar, unchanged, because every one of the seven attacking towers' T1
+  clauses is now dominated by the same p8a wave-11-18 content gap regardless
+  of any tower's own price or count — the clause was never reachable from this
+  item's actions once that was true. `tests/a4-single-type.test.ts` needed no
+  edit; its existing skip already generalizes across all seven. **code-reviewer
+  APPROVE**, no Critical/Major: independently confirmed the arithmetic on both
+  towers (`round(70*0.8/4)=14`, `round(130*0.6/3)=26`), confirmed `costMul` is
+  read only at loader/validation time (`src/sim/upgrades.ts`'s runtime charging
+  reads `stepCost` directly, no second site to update), confirmed SPEC-FINAL
+  §5 literally authorizes a per-track override, and confirmed no unrelated
+  `/data` value moved. **qa-playtester PASS**: a real (non-scripted)
+  `single:ember_brazier`/`single:mortar` BuilderPolicy run bought exactly 4/3
+  steps at the unchanged 14/26 gold each with the next purchase rejected
+  outright (no gold or tier change); post-max stats stayed finite through a
+  full 10-wave run; Ballista/Arrow Spire's pricing is byte-identical
+  pre/post-diff; the mortar T1 skip reports as genuinely skipped
+  (`--reporter=verbose`: "9 passed, 7 skipped" on that file alone), not
+  silently passing or deleted; replay-hash determinism held across independent
+  replays at 3 seeds that build and max both towers. **One pre-existing,
+  unrelated bug found and filed rather than fixed here, matching `p2f`'s
+  precedent**: neither `pierce`- nor `lob`-kind towers (Ballista, Mortar) ever
+  credit `Structure.damageDealt` in `fireTower` (`src/sim/towers.ts`) — every
+  other attack kind does so inline — so their stats panels always read 0
+  regardless of real output. It reproduces identically on Ballista, which this
+  item never touched, confirming it predates and is unrelated to `costMul`.
+  Filed as `p5d`, per CLAUDE.md's rule that a fix needs its own failing
+  regression test first, not a same-item patch for an unrelated edge. `npm
+  test`: 663 passed / 33 skipped (0 failed, up from 661/33 — the two new
+  `m20c-roster-tracks.test.ts` cases, one per `validateStepPrice` branch);
+  `npx tsc --noEmit` clean — refs: §5, Q80, Q109, Q111, QA on m20c, QA on p5b
 - **p5a — what a reader needs to know.** Scoped as a pricing decision
   (aim Poison's spare @2 spore at the leading target instead of dropping it,
   re-price the tower alongside, take G13's T3 clause 0/5 → 5/5); landed
