@@ -100,7 +100,7 @@ coverage gaps session 1's log recorded. All five are inside Scope as written.*
       sim currently launders vs. rejects — acceptance: a pinned map (q7-style)
       of accepted-but-illegal argument shapes so a new hole goes red by name —
       refs: session 1 log, architecture rule 4
-- [ ] (q16) [feat] Content-totals census against SPEC-FINAL §13:
+- [x] (q16) [feat] Content-totals census against SPEC-FINAL §13:
       `tools/content-census.ts` counts each shipped content category (classes,
       towers, equipment, damage types + statuses, enemies, waves, tree nodes,
       quests, tiers, bosses) and reports the delta against §13's targets (11
@@ -205,6 +205,73 @@ resolve if it wants the CLI entry points too. All five are inside Scope as
 written; none needs a `package.json` edit.*
 
 ## Log
+
+### 2026-08-27 — session 13
+
+**Feedback inbox:** `feedback/` does not exist in this worktree (checked with
+`ls`). Nothing to process, nothing moved.
+
+**Five actionable items were in queue** (q16, q18, q19, q20, q21, all unchecked
+and unblocked), so the generation rule did not run. Took q16, the top item.
+
+**q16 done.** `tools/content-census.ts` (harness + CLI) and
+`tests/q16-content-census.test.ts` (15 tests).
+
+**What it does.** `census(content)` counts each of SPEC-FINAL §13's ten content
+categories straight out of `loadContent()` (plus `MAX_TIER` from
+`src/sim/tiers.ts` for the one category — map tiers — that is a formula
+constant, not an authored data array) and reports each against its §13
+target. **7 of 10 categories are already at target** today: towers (10/10),
+damage types + statuses (6+2/6+2), enemies (20/20), tree nodes (120/120,
+excluding the single `kind: 'start'` node the way `tests/grid.test.ts:92` and
+`gen-tree.mjs` already do), quests (8, inside the 8–12 range), map tiers
+(T1–T5), bosses (2/2, counted via the same `traits.includes('boss')`
+predicate `src/sim/loot.ts` uses, not a hand-picked key list — resolves to
+exactly `gatebreaker`/`warden_eater`). **3 are short, each carrying a note
+naming the P-phase that owns the gap** rather than reading as a silent
+regression: classes (3/11, P6), waves (10 of 18+6=24, P3's interleave), and
+equipment (0/12+, P7 — deliberately hardcoded rather than counting
+`data/relics.json`'s 12 affixes, which is a different, superseded system per
+PROGRESS.md's P7 audit line and would have been a wrong-but-passing number).
+The pinned test asserts the full table, that every unmet category has a note,
+and that the short set is exactly `{classes, equipment, waves}` — the P-phase
+audit's own claim turned into something that goes red if it drifts.
+
+**Review (code-reviewer, APPROVE, no findings).** Independently recomputed
+every category from `/data` and `src/sim/tiers.ts` by hand, confirmed
+equipment is genuinely hardcoded to 0 rather than reading `relics.affixes`,
+mutation-tested the pin itself (hollowed `met: classCount === 11` to `true`,
+2 tests correctly went red, reverted clean), confirmed the tree-node exclusion
+matches `tests/grid.test.ts:92` exactly, and confirmed CLI/doc-comment style
+parity with `tools/gate-audit.ts`/`tools/phase-coverage.ts`. No Critical,
+Major, Minor or Nit findings.
+
+**QA (qa-playtester, PASS).** Cross-checked every count against the raw
+`/data` files directly, confirmed `--json` output parses as valid JSON,
+mutation-tested three independent mutations (the classes count check, the
+tree-node start-exclusion filter, the boss-trait predicate) — each caught by
+2–3 tests, each cleanly reverted (byte-identical diff). One non-blocking gap
+recorded, not filed: `tools/content-census.ts`'s `main()` has no try/catch
+around `loadContent()`, so a data-corruption failure would print a raw stack
+trace instead of a clean CLI message and `--json` mode would emit nothing
+parseable — not reachable by anything shipped, since `loadContent()` only
+throws on invalid `/data`, which the loader itself already guards against at
+every other call site.
+
+QA's own fresh full-suite run read 2 failures in `tests/q15-command-domain-fuzz.test.ts`
+(a file from the already-shipped q15, untouched by this commit). Re-ran that
+file standalone immediately after: 20/20 green. Session 9's log already
+documents this exact shape for a sibling worker-thread-timeout probe (contention-
+sensitive, not a regression); q15's own worker/timeout harness is the same
+kind of mechanism. Not a q16 defect and not fixed here — flagged for whoever
+next touches q15 if it recurs outside contention.
+
+**Suite state.** A clean `npx vitest run` taken before QA's parallel run:
+**829 passed / 78 skipped, exit 0** (51 files passed, 7 skipped), ~296s.
+`npx tsc --noEmit -p .` clean.
+
+**Four actionable items remain** (q18–q21, all unchecked and unblocked), so
+the generation rule does not need to run next session either.
 
 ### 2026-08-27 — session 12
 
