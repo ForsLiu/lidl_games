@@ -701,6 +701,188 @@ coverage gaps session 1's log recorded. All five are inside Scope as written.*
       be contention and not a leak — refs: sessions 8/9/11/13/15/34 logs,
       tests/q15-command-domain-fuzz.test.ts, tools/fuzz-command-domain-
       worker.ts
+- [x] (q45) [bug][feat] A second, distinct CLI-crash mechanism, never
+      checked before this session: every q33/q37/q41/q42 test corrupts
+      `/data` with a JSON *syntax* error (`{ not valid json`), which fails
+      at ES-module *transform* time — before any of a file's own code, try/
+      catch included, ever runs (the load-bearing reason those fixes all
+      live outside this lane's Scope, in `src/sim/content.ts`). A *schema*
+      violation — valid JSON, wrong shape — is a different animal:
+      `loadContent()`'s zod `.parse()` throws its `ZodError` at **runtime**,
+      inside `loadContent()`'s own call, which a caller's try/catch *would*
+      catch if one existed. Verified live this session: a scratch copy's
+      `data/towers.json` with `towers[0].cost` set to the string
+      `"not-a-number"` (valid JSON, invalid schema) crashes
+      `tools/m20d-run-a4.ts` with an uncaught multi-line `ZodError` dump and
+      a raw stack frame through `loadContent` (`at ZodObject.parse
+      .../zod/v3/types.js`, `at loadContent (.../src/sim/content.ts:858)`) —
+      because `m20d-run-a4.ts`, like q41's seven **content-importing**
+      siblings (`perf-ratio.ts`, `a4probe.ts`, `a5probe.ts`, `fuzz-input.ts`,
+      `fuzz-save.ts`, `fuzz-weapon-boundary.ts`, `fuzz-command-domain.ts` —
+      q41's eighth tool, `mutation-probe.ts`, is a confirmed **exception**:
+      its own `tests/q41-cli-json-syntax-error-siblings-2.test.ts` describe
+      block proves it imports none of `src/sim/content.ts`/`Run`/`World`/
+      `loadContent`, so it is exempt from this bug too, not a ninth target)
+      and q46's other two (`m20d-swarm.ts`, `probe-boss.ts`), has **no
+      try/catch anywhere in the file** (q41's own log already established
+      this for its seven; true for both q46 tools too — grepped). Unlike the
+      syntax-error class, this one is fully fixable **inside this lane's
+      Scope** (`tools/**`) — the same one-line-message-and-nonzero-exit
+      shape q28/q38 already gave `gate-audit.ts`/`phase-coverage.ts`/
+      `soak.ts`/`content-census.ts` (`<tool>: <message>` on stderr,
+      `process.exitCode = 1`, no raw dump) — acceptance: for each of the
+      **ten** content-importing tools (the seven above plus
+      `m20d-run-a4.ts`/`m20d-swarm.ts`/`probe-boss.ts`), a regression test
+      (scratch copy, live-verified) pins today's uncaught-`ZodError` crash,
+      then each tool's entry point (its `main()`/`invokedDirectly` guard for
+      the seven with that shape, or the top-level script body wrapped in a
+      small function for `m20d-run-a4.ts`/`m20d-swarm.ts`/`probe-boss.ts`)
+      gets a try/catch around its `loadContent`-reaching call printing one
+      line and exiting nonzero instead of a raw dump, with the test flipped
+      to assert the fixed behaviour — following q28/q38's established shape
+      exactly, no `/src/**` or `/data/**` edit — refs: q25, q28, q33, q37,
+      q38, q41, q42, q46, src/sim/content.ts's zod schemas
+- [ ] (q46) [feat] CLI JSON-syntax-error crash pinning, siblings of
+      q33/q37/q41/q42: grepping every `tools/*.ts` file for top-level
+      executable code that transitively imports `src/sim/content.ts` (not
+      just the eight q41 covered) finds three more, missed because they
+      don't match a "tool"/CLI-framed naming pattern q41's grep used:
+      `tools/m20d-run-a4.ts` and `tools/m20d-swarm.ts` (both call
+      `loadContent`/import `Run`/`World` at module scope) and
+      `tools/probe-boss.ts` (imports `../tests/helpers`, which imports
+      `../src/sim/run` → `./world` → `./content`, a *value* import).
+      `tools/m20d-price-probe.ts` is exempt by the same reasoning as
+      `gate-audit.ts`'s own carve-out — it imports only `node:fs`/
+      `node:child_process`, no content import in its own process (it shells
+      out to `m20d-run-a4.ts` instead); `tools/gen-tree.mjs` (no content
+      import, pure layout math), `tools/fuzz-data.ts` and
+      `tools/invariants.ts` (library modules, no top-level executable code
+      or `process.argv` read) and `tools/fuzz-command-domain-worker.ts`
+      (a `Worker` entry point, not directly invocable) are exempt too.
+      Verified live this session in a throwaway scratch copy (`bench/.tmp`,
+      torn down after): all three crash identically to q33/q37/q41's
+      pattern against a syntax-broken `data/towers.json` — `m20d-run-a4.ts`/
+      `m20d-swarm.ts` throw an uncaught `Error: Transform failed with 1
+      error` with a raw stack frame naming `towers.json`, exit nonzero,
+      empty stdout; `probe-boss.ts` needs a `tests/` copy alongside
+      `src`/`tools`/`data` in the scratch dir to even reach that same crash
+      (its own import chain reaching `tests/helpers`, not a difference in
+      outcome — without it, it fails earlier with `ERR_MODULE_NOT_FOUND`,
+      also uncaught) — acceptance: a new describe block (in
+      `tests/q41-cli-json-syntax-error-siblings-2.test.ts` or a small q46
+      sibling file) pins the live-verified crash for all three tools,
+      matching q37/q41's `describe.each` assertions (nonzero exit, empty
+      stdout, `Transform failed`+stack on stderr, no clean prefixed
+      message) — refs: q33, q37, q41, q42, tools/m20d-run-a4.ts,
+      tools/m20d-swarm.ts, tools/probe-boss.ts
+- [ ] (q47) [feat] Automate the "which `tools/*.ts` files are CLI-invocable
+      and crash-unprotected" census itself: q37, q41 and q46 each
+      independently re-derived this by hand-grepping `tools/*.ts` for
+      top-level executable code and a transitive `content.ts` import, three
+      sessions running — the exact repeated-manual-re-derivation shape q10's
+      gate-audit tool and q14's mutation smoke already exist to prevent for
+      their own domains. A new tool (`tools/cli-crash-coverage.ts`, or a
+      classification folded into `gate-audit.ts`) statically lists every
+      `tools/*.ts` file, classifies each as (a) has its own top-level
+      executable code (not just exported functions/types), (b) transitively
+      imports `src/sim/content.ts`, and (c) has a `catch` anywhere in the
+      file, then reports which combination of (a)+(b) without (c) are
+      pinned by a named test file vs. an unpinned gap — acceptance: the
+      tool's classification for today's 22 `tools/*.ts` files matches this
+      session's hand-derived set exactly (`content-census.ts`/
+      `gate-audit.ts`/`phase-coverage.ts`/`soak.ts` exempt via their own
+      try/catch; `sim.ts`/`sweep.ts`/`handoff-metrics.ts` pinned by
+      q37/q42; the q41 seven pinned by q41, its eighth (`mutation-probe.ts`)
+      confirmed exempt by the same item; `m20d-run-a4.ts`/`m20d-swarm.ts`/
+      `probe-boss.ts` pinned by q46; `m20d-price-probe.ts`/
+      `gen-tree.mjs`/`fuzz-data.ts`/`invariants.ts`/
+      `fuzz-command-domain-worker.ts` exempt by no-content-import or
+      not-directly-invocable), and a test asserts a new `tools/*.ts` file
+      added in future with none of the three protections surfaces as an
+      unpinned gap by name rather than needing a fourth hand-grep session —
+      refs: q10, q14, q37, q41, q45, q46
+- [ ] (q48) [feat] Now that q45 establishes `tools/**` CAN carry an
+      in-Scope try/catch fix (unlike the syntax-error class, which needs
+      `src/sim/content.ts`), re-check whether q38's *other* in-Scope
+      workaround — splitting `Content` into a type-only import and making
+      `loadContent` a dynamic `await import(...)` call inside an existing
+      `try` — also generalizes to any of q41/q46's ten content-importing
+      vulnerable tools (`mutation-probe.ts` excluded — confirmed exempt, it
+      never imports content at all), not just `content-census.ts`. q38's own
+      log gave a reason it didn't extend to `sim.ts`/`sweep.ts` (multiple
+      exported, synchronously-called functions with existing sync-signature
+      external callers) or `handoff-metrics.ts` (module-top-level
+      `loadContent()` call, before `main()` starts) — but none of the ten
+      q41/q46 tools were individually checked against that same test. Read
+      each one's call shape directly (single `main()`-style entry vs.
+      multiple sync-exported call sites vs. a module-top-level load) and
+      record, per tool, whether the dynamic-import workaround is
+      structurally viable — acceptance: a table (in this file's Log, or a
+      doc comment in the q45/q46 test file) naming, for each of the ten,
+      "viable" or the specific structural reason it is not (module-top-level
+      load / multiple sync exported call sites / other), and for at least
+      one tool
+      where it's viable, the workaround is actually applied and its
+      syntax-error test flips from "crashes uncaught" to "clean message"
+      the same way q38 did for `content-census.ts` — refs: q38, q41, q45,
+      q46
+- [ ] (q49) [bug][feat] `tools/m20d-price-probe.ts` has zero test coverage
+      and is the one tool in this lane's purview that mutates a **real,
+      version-controlled `/data` file in place** as its documented mechanism
+      (`measure()` reads `data/towers.json`, edits `cost`/`attack.damage`/
+      `upgradeTotalCostMul`/every tower's `stepCost`, writes it back, shells
+      out to `m20d-run-a4.ts`, then restores the original bytes in a
+      `finally`). The restore is `try`/`finally`-only — safe against a
+      normal throw (including the nested CLI exiting nonzero, which makes
+      `execFileSync` throw) but unverified for a *nested-process failure*
+      specifically (e.g. once q45 lands, a spec that produces a
+      schema-invalid `towers.json` would make `m20d-run-a4.ts` itself throw
+      mid-flight) — does the `finally` still restore correctly, or does some
+      intermediate write get skipped? Never checked: does even the plain
+      happy path restore byte-identical original content? — acceptance: a
+      scratch-copy test (matching q37/q41/q46's throwaway-copy idiom, `cwd`
+      set to the scratch dir so the tool's relative `data/towers.json` path
+      never touches the real file) runs `m20d-price-probe.ts` with a valid
+      spec and asserts the scratch `towers.json` is byte-identical before
+      and after, then forces the nested `m20d-run-a4.ts` call to fail (e.g.
+      an argv naming a non-existent tower key, which today throws
+      `not a soul tower: ...` inside `m20d-run-a4.ts`) and asserts the
+      restore still happens — refs: tools/m20d-price-probe.ts,
+      tools/m20d-run-a4.ts
+
+*Generated 2026-08-27, session 40, under CLAUDE.md's generation rule scoped
+to this lane: only q43 and q44 were actionable (below the floor of 3; q39
+stays a Scope-blocked tracking entry) — q1/q4/q5/q6 remain Scope-blocked,
+unchanged. (a) Ran `npx tsx tools/gate-audit.ts` and `npx tsx tools/sweep.ts
+--seeds 12 --policies maxbuild,hybrid`: 9 covered / 11 holes, every hole
+still tracing to a P-phase not yet reached (P1–P3, P6, P7, P9), and the
+sweep numbers (0% win, medSurv ~119–120 either policy) still match the
+documented bimodal-Act-II state — nothing new, same reading as every prior
+session back to session 6. (b) `tools/content-census.ts`: unchanged since
+session 23 (7/10 categories, same three P-phase-gated misses). (c)
+Engineer's judgment, extending q41's own "more siblings may exist" grep to
+tools q41 missed because they don't read like CLIs: `tools/m20d-run-a4.ts`,
+`tools/m20d-swarm.ts` and `tools/probe-boss.ts` all transitively import
+`src/sim/content.ts` and crash identically to q33/q37/q41's pinned pattern
+— verified live, filed as q46. While tracing each one's import chain,
+found a second, previously-unchecked crash mechanism: a *schema* violation
+(not a syntax error) throws a runtime `ZodError` that a try/catch *could*
+catch — and unlike the syntax-error class this fix is fully in-Scope
+(`tools/**`), so q45 pins it and fixes it for all ten affected tools
+(`mutation-probe.ts` re-confirmed exempt — it never imports content)
+rather than only pinning it, and is ranked above q46 for exactly that
+reason. q47 automates the census q37/q41/q46 each re-derived by hand three
+times running, the same q10/q14-shaped fix this lane keeps reaching for.
+q48 asks whether q38's other in-Scope workaround (dynamic import) also
+applies to any of the ten q45/q46 tools, not just `content-census.ts`.
+q49 is a standalone finding from reading `tools/m20d-price-probe.ts` while
+tracing q46's `m20d-run-a4.ts` caller: it mutates a real tracked `/data`
+file in place with no test ever exercising its restore path. Took **q45**,
+ranked top: it is a confirmed, live-verified bug (CLAUDE.md rule 3 outranks
+the queue) whose fix — unlike every prior CLI-crash item in this lane — is
+fully achievable inside Scope rather than only pinnable, giving it strictly
+more value than q46's pin-only sibling sweep or q47/q48/q49's smaller,
+narrower scope.*
 
 *Generated 2026-08-27, session 36, under CLAUDE.md's generation rule scoped
 to this lane: only q38 and q39 were actionable (below the floor of 3) —
@@ -817,6 +999,90 @@ resolve if it wants the CLI entry points too. All five are inside Scope as
 written; none needs a `package.json` edit.*
 
 ## Log
+
+### 2026-08-27 — session 40
+
+**Feedback inbox:** `feedback/` exists but is empty. Nothing to process, nothing
+moved.
+
+**Found the generation rule's output and q45's full implementation already
+sitting in the worktree, uncommitted, at session start** — the same recurring
+interrupted-session shape sessions 14/16/18/19/20/37/38/39 each logged. Ten
+`tools/*.ts` modified plus a new `tests/q45-cli-schema-violation.test.ts`, and
+BACKLOG-QUALITY.md already carried the generation rule's five new items
+(q45–q49) with its own "Generated ... session 40" note and rationale for
+ranking q45 top. `git log` showed no commit for any of it. Verified rather
+than trusted, per this lane's standing rule.
+
+**q45** ports the q28/q38 `<tool>: <message>`-on-stderr /
+`process.exitCode = 1` shape to the ten tools that transitively import
+`src/sim/content.ts` and had no try/catch anywhere: a runtime zod
+`ZodError` (a schema violation — valid JSON, wrong shape — as opposed to
+q33/q37/q41/q42's JSON *syntax*-error class, which fails at ES-module
+transform time before any in-file try/catch could ever run) previously
+escaped as a raw multi-frame stack dump. Seven tools get their `main()`
+invocation wrapped; `fuzz-command-domain.ts`'s `main()` is an unawaited
+async IIFE so it gets `.catch()` instead (a sync try/catch around the call
+site cannot see a later promise rejection); the three top-level-script tools
+(`m20d-run-a4.ts`, `m20d-swarm.ts`, `probe-boss.ts`) get their whole
+executable body wrapped; `a4probe.ts` additionally guards its own
+module-scope `loadContent()` call with `process.exit(1)` (needed so TS can
+narrow `content`'s definite assignment past the catch), which is also what
+fixes `m20d-run-a4.ts`'s crash on that path since it imports `a4probe.ts`.
+
+Ran `npx vitest run tests/q45-cli-schema-violation.test.ts` live: 11/11
+green. `npx tsc --noEmit -p .`: clean.
+
+**Review (code-reviewer, APPROVE, 0 Critical/Major — 1 Minor, 1 Nit).** Traced
+`m20d-swarm.ts`'s `clearSeconds` conversion from a top-level `function` to a
+`const` arrow function nested inside the new outer `try` and confirmed its
+`return` statements exit only the arrow function, never the outer `try`
+block. Confirmed `fuzz-command-domain.ts`'s `.catch()` is the only construct
+that can intercept the async IIFE's rejection. Confirmed the seven
+`main()`/`invokedDirectly`-shaped tools' try/catch sit inside their existing
+invocation guards, so importing them as modules is unaffected. Confirmed
+`upgradeStepMul` is `z.number()` in `src/sim/content.ts`, so the test's
+mutation is a genuine schema violation, not a syntax error — not vacuous.
+Confirmed Scope: `git diff --stat -- src/** data/**` empty. Minor:
+`m20d-run-a4.ts`'s own try/catch is dead code on the a4probe-import failure
+path (a4probe's `process.exit(1)` fires first, so the user always sees
+`a4probe: ...`, never `m20d-run-a4: ...`) — intentional, matches the test's
+own `'a4probe'` prefix expectation, no fix needed. Nit: `a4probe.ts` mixes
+`process.exit(1)` (immediate) with the rest of the fix's `process.exitCode = 1`
+(deferred) — defensible (TS needs `never` to narrow `content`), left as-is.
+
+**QA (qa-playtester, PASS).** Live 11/11. Manually verified two tools
+(`perf-ratio.ts`, `probe-boss.ts`) outside the harness in a throwaway scratch
+copy: clean one-line prefixed stderr, nonzero exit, no stack frame. Reverted
+`perf-ratio.ts`'s fix via `git stash push` on just that file, reran its test
+case alone, confirmed it goes red with the raw `ZodError` dump restored,
+`git stash pop` restored byte-identical state. Adversarial probes beyond the
+test's own single-field mutation — a different file (`classes.json`), a
+two-file double corruption, a zod enum violation, and a non-zod
+cross-reference throw (`waves.json` naming an unknown enemy key) — all
+produced clean single-line messages; no coverage gap found. **Bug filed, not
+blocking:** an intermittent (1-of-3 runs, not reliably reproducible) orphaned
+scratch dir under `bench/.tmp/q45-cli-schema-violation-scratch/` on Windows,
+same EBUSY/EPERM-class race the file's own header already documents for
+q25/q28/q33/q37/q41's sibling scratch tests — reported as observed-once per
+this lane's "cannot reproduce twice" honesty rule, not as a confirmed defect;
+left as a note for whoever next touches scratch-cleanup hygiene rather than
+filed as a new numbered item, since it's the same pre-existing class q46's
+own convention already accepts.
+
+**Suite state.** `npx vitest run tests/q45-cli-schema-violation.test.ts` —
+11/11 green. `npx tsc --noEmit -p .` clean. Cleaned two empty scratch dirs
+this session's own manual QA verification left under `bench/.tmp/`
+(gitignored, no Scope impact either way) before committing.
+`git status --porcelain` before commit: `BACKLOG-QUALITY.md`, the ten
+`tools/*.ts` files, and `tests/q45-cli-schema-violation.test.ts` only —
+Scope-compliant.
+
+**Committed.**
+
+**Four actionable items remain** (q46, q47, q48, q49; q39 stays a
+Scope-blocked tracking entry). Above the generation floor of 3, so the next
+session executes the top one (q46) directly.
 
 ### 2026-08-27 — session 39
 

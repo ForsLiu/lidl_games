@@ -5,10 +5,17 @@
 
 import { Run } from '../src/sim/run';
 import { BuilderPolicy } from '../src/bots/policies';
-import { loadContent } from '../src/sim/content';
+import { loadContent, type Content } from '../src/sim/content';
 import type { RunConfig } from '../src/sim/types';
 
-const content = loadContent();
+let content: Content;
+try {
+  content = loadContent();
+} catch (err) {
+  const message = err instanceof Error ? err.message : String(err);
+  console.error(`a4probe: ${message.replace(/\s+/g, ' ').trim()}`);
+  process.exit(1);
+}
 
 export const SOUL_TOWERS = content.towers.towers
   .filter((t) => t.soul !== null)
@@ -100,4 +107,12 @@ function main(): void {
   }
 }
 
-if (process.argv[1]?.includes('a4probe')) main();
+if (process.argv[1]?.includes('a4probe')) {
+  try {
+    main();
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`a4probe: ${message.replace(/\s+/g, ' ').trim()}`);
+    process.exitCode = 1;
+  }
+}

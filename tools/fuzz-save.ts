@@ -755,4 +755,12 @@ function main(argv: string[]): void {
 }
 
 const invokedDirectly = process.argv[1]?.replace(/\\/g, '/').endsWith('tools/fuzz-save.ts');
-if (invokedDirectly) main(process.argv.slice(2));
+if (invokedDirectly) {
+  try {
+    main(process.argv.slice(2));
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`fuzz-save: ${message.replace(/\s+/g, ' ').trim()}`);
+    process.exitCode = 1;
+  }
+}

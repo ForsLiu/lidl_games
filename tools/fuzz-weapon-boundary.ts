@@ -516,4 +516,12 @@ function main(): void {
 }
 
 const invokedDirectly = process.argv[1]?.replace(/\\/g, '/').endsWith('tools/fuzz-weapon-boundary.ts');
-if (invokedDirectly) main();
+if (invokedDirectly) {
+  try {
+    main();
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`fuzz-weapon-boundary: ${message.replace(/\s+/g, ' ').trim()}`);
+    process.exitCode = 1;
+  }
+}
