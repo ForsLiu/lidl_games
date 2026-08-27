@@ -86,19 +86,12 @@ full; `p5d` closed the last open item, a bug QA filed against `p5b`.
 Placement logged in Q93: after P5 so the §1.1 run shape (P3) and the full
 tower roster precede the Cores' VS halves and interactions; p-core-f's
 quest unlocks ride the §8.4 system and may complete alongside p7e.
-**`p-core-a` and `p-core-b` are done** — see the Done section. G21's plumbing
-half and three of its five Cores' gameplay numbers (Stone Heart in full,
-Vampire Heart in full, Time's steps 1-2) are green; Carnivorous Plant,
-Corpse and Time's steps 3-5 are `p-core-c` through `p-core-e`'s job, still
-open below.
+**`p-core-a`, `p-core-b` and `p-core-c` are done** — see the Done section.
+G21's plumbing half and four of its five Cores' gameplay numbers (Stone
+Heart in full, Vampire Heart in full, Time's steps 1-2, Carnivorous Plant in
+full) are green; Corpse and Time's steps 3-5 are `p-core-d` and `p-core-e`'s
+job, still open below.
 
-- [ ] (p-core-c) [feat] Carnivorous Plant + Digestion: TD devour (r2, 8 s,
-      non-elite instant kill / elite 200, +5 Core HP, +1 Digestion stack per
-      devour for the run); VS poison volleys every 1.5 s, one bullet per 5
-      stacks (perf cap 10/volley), each 10 normal + poison, targeting nearest
-      to the Core; 4 steps of +1 range / −1 s — acceptance: G21 unit tests
-      incl. the volley cap and the Core-attack rules (no character scaling, no
-      lifesteal, feeds on-map damage effects) — refs: §5.5, G21
 - [ ] (p-core-d) [feat] Corpse: 1% of all map damage stored, 1 s execute of
       the highest-HP affordable enemy with the execution counting as map
       damage (1% restores), VS +10% EXP, steps: ratio 2%, execute explosion
@@ -347,6 +340,103 @@ logged in MIGRATION.md §8 rather than carried as dead items.
   **G19**. The work is `p10d`.
 
 ## Done
+
+- [x] (p-core-c) [feat] Carnivorous Plant + Digestion in full — this commit.
+      `data/cores.json` authors the Core's `effects` block (`devourRadius: 2`,
+      `devourCooldown: 8`, `devourEliteDamage: 200`, `devourCoreHeal: 5`,
+      `poisonVolleyInterval: 1.5`, `poisonStacksPerBullet: 5`,
+      `poisonVolleyCap: 10`, `poisonBulletDamage: 10`) and its 4-step upgrade
+      track (`devourRangeBonus`/`devourCooldownReduction`, +1 range/−1s each,
+      cooldown floored at 1s in `computeCoreState` so no future re-author of
+      the track can reach zero/negative). New `updateCarnivorousPlant`
+      (`src/sim/cores.ts`), called from every TD and VS tick path in
+      `Run.step` alongside the existing `updateCoreEffects`, branches on
+      `w.huntsWarden`: TD devours the single nearest live enemy within
+      `devourRadius` of the Core's real 2x2 footprint (`coreEdgeDist2`, the
+      same edge-clamped distance `inCoreBuildRange`/`nearCoreSlowAura`
+      already use) every `devourCooldown` seconds — a non-elite is killed via
+      `damageEnemy(..., { pure: true, dot: true })` (armor/trait mitigation
+      bypassed, so it's always exactly lethal while still crediting real
+      damage through the normal pipeline), an elite instead takes a flat
+      `devourEliteDamage` hit that stays ordinarily armor/trait-mitigated
+      (Q113's addendum: only the instant-kill clause bypasses mitigation,
+      since that's the only reading under which "instant kill" differs from
+      "a big normal hit") — either branch heals the Core `devourCoreHeal` HP
+      (capped at max) and adds one permanent Digestion stack
+      (`w.digestionStacks`, never reset TD or VS). VS fires
+      `floor(digestionStacks / poisonStacksPerBullet)` bullets (capped at
+      `poisonVolleyCap` for perf) every `poisonVolleyInterval` seconds at the
+      nearest enemies to the Core, unbounded range (Q113: the owner prose
+      names no VS radius, unlike the TD devour's explicit r2, read as
+      deliberate) — each bullet is 10 flat normal damage plus a poison DoT
+      triggered by that same 10, reusing `poison`'s own authored
+      `ratio`/`duration` from `data/damagetypes.json` rather than inventing a
+      number, via a new `applyCoreHitPoison` that reimplements
+      `damagetypes.ts`'s `dotDpsFor` formula by hand to avoid a real import
+      cycle (`cores.ts` → `damagetypes.ts` → `combat.ts` → `cores.ts`).
+      **The shared "Core attack" rule §5.5 states once** — not scaled by
+      character stats, no lifesteal, still feeds on-map damage effects — is
+      built as a new `noLifesteal` flag on `DamageOptions`
+      (`src/sim/enemies.ts`), the one explicit opt-out neither `damageEnemy`
+      nor character-stat scaling otherwise grants (both plant call sites set
+      it; every other call site is unaffected); "not scaled by character
+      stats" already holds for free since both call sites pass pre-computed
+      flat literals, never routing through `w.stats`/`w.derived`; "feeds
+      on-map damage effects" already holds for free since both go through
+      the normal `damageEnemy` pipeline, which always credits
+      `damageByWeapon`/`damageTotal`. `hashWorld` gains
+      `plantDevourTimer`/`plantVolleyTimer`/`digestionStacks` explicitly (the
+      same rule the VS-special timers above them already follow). Q113
+      records three genuine SPEC-FINAL prose gaps a builder had to fill (the
+      "10 normal + poison" arithmetic, the instant-kill damage pipeline, the
+      VS volley's unbounded range) plus two addenda added during
+      review/QA (the elite branch's own mitigation; Digestion's permanent,
+      never-spent nature, confirmed correct by the backlog's own "for the
+      run" wording rather than a gap). **code-reviewer APPROVE**, no
+      Critical/Major: confirmed no architecture-rule violation, confirmed
+      `noLifesteal` is threaded narrowly (only the two new call sites set
+      it), confirmed the poison DoT math matches `dotDpsFor` exactly,
+      confirmed `hashWorld`'s new fields are sufficient and not
+      double-hashed, confirmed the bucket-scan padding
+      (`scanRadius = radius + 1.5`) is provably sufficient against the
+      footprint's own ~1.42 half-diagonal so no edge-case enemy is dropped
+      before the exact `coreEdgeDist2` cut. Two Minor findings, both
+      addressed before commit: the elite branch's mitigation asymmetry
+      versus the non-elite kill was undocumented (fixed — Q113 addendum
+      plus a new pinning regression test, "the elite flat-200 hit is still
+      armor-mitigated, unlike the non-elite instant kill"); a dormant risk
+      that a future `frozen`-applying source reaching Act I would
+      over-credit the instant-kill's `damageByWeapon`/`damageTotal` via
+      `statusDamageTakenMul` (fixed — flagged with a code comment at the
+      call site rather than engineered around, since no `/data` row applies
+      `frozen` today). **qa-playtester PASS**, no bugs found: real
+      (non-scripted) headless runs via `src/bots` policies (`hybrid`,
+      `turtle`, `maxbuild`, `sealed`, and others) across multiple seeds
+      confirmed devours and volleys both fire under real play, not just the
+      isolated unit-test harness, with Digestion accruing from real kills
+      and volleys firing once Digestion crosses 5 at VS entry; replay-hash
+      determinism held across independent same-seed runs; `stone_heart` and
+      `vampire_heart` runs over a full 6-cycle length left every plant-only
+      field (`digestionStacks`, both timers, `damageByWeapon['carnivorous_
+      plant']`) at zero, confirming the Core is fully inert unless selected;
+      a repo-wide search confirmed `w.warden.leechAccumulator` has exactly
+      one writer, gated by the same `!opts.noLifesteal` check both plant
+      call sites set, with no second on-hit hook anywhere in `src/sim` that
+      could leak lifesteal around it; `+500%` power left devour/volley
+      damage exactly unchanged in both the unit tests and a scripted run;
+      edge cases (overheal clamping exactly to `coreMaxHp`, a zero-enemy
+      timer fire no-oping and re-arming cleanly, an enemy exactly on the
+      devour-radius boundary being included, `digestionStacks` at one
+      billion still capping the volley at exactly `poisonVolleyCap` hits in
+      ~1ms) all held. One design-questionable non-bug flagged for the
+      record, not filed as a bug: Digestion is never spent by firing a
+      volley, so "one bullet per 5 stacks" is a permanent, monotonically
+      -growing tier rather than a spend-and-refill economy — confirmed
+      correct against the backlog's own "for the run" wording (Q113's
+      second addendum), not a gap. `npm test`: 764 passed / 33 skipped (0
+      failed, up from 743/33 pre-item — 21 new cases in
+      `tests/p-core-c-plant.test.ts`); perf config 3/3; `npx tsc --noEmit`
+      clean — refs: §5.5, G21, Q113.
 
 - [x] (p-core-b) [feat] Stone Heart, Vampire Heart, and Time steps 1-2 —
       this commit. `p-core-a` was plumbing only (selection/hashing/loader

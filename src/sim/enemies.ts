@@ -181,6 +181,16 @@ export interface DamageOptions {
    * class actives — is armor-reduced basic damage, i.e. normal, and does.
    */
   type?: DamageTypeKey;
+  /**
+   * SPEC-FINAL §5.5: a Core-sourced attack (Carnivorous Plant's devour and
+   * poison bullets, Corpse's execution) "is not scaled by character stats,
+   * no lifesteal, but it does feed on-map damage effects." Every other
+   * clause already holds for a plain `damageEnemy` call — it never routes
+   * through `Stats`, and it already credits `damageByWeapon`/`damageTotal` —
+   * so only lifesteal needs an explicit opt-out, since every other
+   * normal-type hit during a VS wave earns it.
+   */
+  noLifesteal?: boolean;
 }
 
 /**
@@ -241,6 +251,7 @@ export function damageEnemy(
     w.derived.leech > 0 &&
     w.huntsWarden &&
     !opts.dot &&
+    !opts.noLifesteal &&
     (opts.type ?? 'normal') === 'normal'
   ) {
     w.warden.leechAccumulator += dmg * w.derived.leech;

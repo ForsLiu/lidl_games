@@ -19,7 +19,27 @@
       "baseHp": 200,
       "unlockedByDefault": false,
       "unlockCondition": "300 lifetime poison kills",
-      "upgrade": { "count": 4, "stepCost": 60, "desc": "+1 devour range and -1s cooldown per step" }
+      "effects": {
+        "devourRadius": 2,
+        "devourCooldown": 8,
+        "devourEliteDamage": 200,
+        "devourCoreHeal": 5,
+        "poisonVolleyInterval": 1.5,
+        "poisonStacksPerBullet": 5,
+        "poisonVolleyCap": 10,
+        "poisonBulletDamage": 10
+      },
+      "upgrade": {
+        "count": 4,
+        "stepCost": 60,
+        "desc": "+1 devour range and -1s cooldown per step",
+        "steps": [
+          { "devourRangeBonus": 1, "devourCooldownReduction": 1 },
+          { "devourRangeBonus": 1, "devourCooldownReduction": 1 },
+          { "devourRangeBonus": 1, "devourCooldownReduction": 1 },
+          { "devourRangeBonus": 1, "devourCooldownReduction": 1 }
+        ]
+      }
     },
     {
       "key": "vampire_heart",

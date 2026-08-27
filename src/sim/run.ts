@@ -20,7 +20,13 @@ import {
 } from './enemies';
 import { setAreaDamageHandler, updateAreas, updateProjectiles } from './combat';
 import { buildTower, collectSproutGold, sellTower, updateTowers, upgradeTower } from './towers';
-import { applyHealingToWarden, coreMoveSpeedMul, updateCoreEffects, upgradeCore } from './cores';
+import {
+  applyHealingToWarden,
+  coreMoveSpeedMul,
+  updateCarnivorousPlant,
+  updateCoreEffects,
+  upgradeCore,
+} from './cores';
 import { shouldSpawnBoss, spawnFinalBoss, updateDirector } from './act2';
 import { addXp, openLevelUpIfPending, rerollOffers, takeOffer, updateGems } from './progression';
 import { advanceToNextBlock, finishSundering } from './sundering';
@@ -80,6 +86,7 @@ export class Run {
         updateWarden(w, input, dt);
         updateTowers(w, dt);
         updateCoreEffects(w, dt);
+        updateCarnivorousPlant(w, dt);
         updateProjectiles(w, dt);
         updateAreas(w, dt);
         updateAct1Build(w, dt);
@@ -89,6 +96,7 @@ export class Run {
         updateWarden(w, input, dt);
         updateTowers(w, dt);
         updateCoreEffects(w, dt);
+        updateCarnivorousPlant(w, dt);
         updateAct1Wave(w, dt);
         updateProjectiles(w, dt);
         updateAreas(w, dt);
@@ -586,6 +594,7 @@ function updateAct2(w: World, input: TickInput, dt: number): void {
   updateWieldedAttacks(w, dt);
   updateVsSpecials(w, dt);
   updateCoreEffects(w, dt);
+  updateCarnivorousPlant(w, dt);
   updateEnemies(w, dt);
   updateProjectiles(w, dt);
   updateAreas(w, dt);
@@ -773,6 +782,11 @@ export function hashWorld(w: World): string {
   // p2c's VS-special timers gate exactly the same class of future damage/CC
   // as `wieldedCooldown` does, so they are hashed on the same rule.
   h.num(w.vsPoisonTrailTimer).num(w.vsFrostAuraTimer).num(w.vsWireGridTimer);
+  // p-core-c: Carnivorous Plant's own timers gate the same class of future
+  // damage as the VS-special timers above, and Digestion is permanent run
+  // state a replay must agree on (it gates every future VS volley's bullet
+  // count).
+  h.num(w.plantDevourTimer).num(w.plantVolleyTimer).int(w.digestionStacks);
   // Not yet read by anything gameplay-facing (no on-attack passive exists),
   // but §4.1's "counts as 1 attack" hook is the kind of state that gates a
   // future system, and this project has been bitten by exactly this gap

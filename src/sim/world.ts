@@ -92,6 +92,11 @@ export class World {
   core: CoreState;
   /** Sub-1-gold trickle from Time's step-1 income and Vampire Heart's overheal conversion (`src/sim/cores.ts`), flushed into `gold` once it crosses a whole unit. */
   coreGoldAccumulator = 0;
+  /** Carnivorous Plant (`p-core-c`, `src/sim/cores.ts`): TD devours and VS bullets both fire on their own countdown, same shape as the VS-special timers below. */
+  plantDevourTimer = 0;
+  plantVolleyTimer = 0;
+  /** Carnivorous Plant §5.5: "+1 Digestion stack for the run" — never resets across a TD block or a VS wave, only ever increases. */
+  digestionStacks = 0;
 
   tick = 0;
   phase: Phase = 'act1_build';
