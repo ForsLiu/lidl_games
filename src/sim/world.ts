@@ -4,6 +4,7 @@
  */
 
 import { defaultCoreKey, loadContent, type Content, type ModifierDef } from './content';
+import { computeCoreState, coreHpBonus, type CoreState } from './cores';
 import { GRID_H, GRID_W, Grid, GATES, coreCenter, type Field, type GateDef } from './grid';
 import { RngSet } from './rng';
 import { baseRunStats, damageTakenMul, derive, emptyStats, type Derived, type Stats } from './stats';
@@ -85,6 +86,12 @@ export class World {
    * its own fallback.
    */
   readonly coreKey: string;
+  /** SPEC-FINAL §5.5: steps bought on the current Core's upgrade track (0..`upgrade.count`). Never decreases — a Core cannot be sold. */
+  coreStep = 0;
+  /** The current Core's live numbers, folded from `effects` + steps bought (`p-core-b`, `src/sim/cores.ts`); recomputed by `recomputeCore()` on every purchase. */
+  core: CoreState;
+  /** Sub-1-gold trickle from Time's step-1 income and Vampire Heart's overheal conversion (`src/sim/cores.ts`), flushed into `gold` once it crosses a whole unit. */
+  coreGoldAccumulator = 0;
 
   tick = 0;
   phase: Phase = 'act1_build';
@@ -318,7 +325,17 @@ export class World {
 
     this.stats = baseRunStats(content, cfg);
     this.stats.add('modifiers', 'pickupPct', this.mods.pickupMul);
+    // SPEC-FINAL §5.5 Vampire Heart: "VS: character +1% lifesteal" is a base
+    // effect (no step required) and `leech` is already a generic Warden stat
+    // (`damageEnemy`, enemies.ts) gated to VS by its own `huntsWarden` check —
+    // so this is the one Core number that rides the existing Stats pipeline
+    // rather than `CoreState` (see cores.ts's file header). Added once, here,
+    // never again: `coreStep` never changes `vsLifestealPct`.
+    const coreDef = content.coreByKey.get(this.coreKey);
+    const vsLifesteal = coreDef?.effects?.vsLifestealPct;
+    if (vsLifesteal) this.stats.add(`core:${this.coreKey}`, 'leech', vsLifesteal);
     this.derived = derive(content, this.stats, 1 + this.mods.residualMul);
+    this.core = computeCoreState(content, this.coreKey, this.coreStep);
 
     // `totalCycles <= 1` stays the single-pass escape hatch a lot of the
     // suite still opts into on purpose (tests/helpers.ts's default `cfg()`,
@@ -338,9 +355,17 @@ export class World {
         : content.waves.tdWavesPerVsWave * this.totalCycles + this.mods.extraWaves;
     this.buildTimer = this.mods.buildPhase || content.waves.buildPhaseSeconds;
     this.gold = content.waves.startGold;
+    // `p-core-a` left this reading `content.waves.coreHp` unconditionally,
+    // which happens to equal Stone Heart's own `baseHp` (500) but silently
+    // gave every other Core the wrong base HP the instant one was chosen —
+    // `p-core-b` is the first item to give a non-default Core a real numeric
+    // effect, so it is also the first to notice. `coreHpBonus` is always 0 at
+    // construction (`coreStep` starts at 0); it only matters once Stone
+    // Heart's own steps are bought (`upgradeCore`, cores.ts).
+    const coreBaseHp = coreDef?.baseHp ?? content.waves.coreHp;
     this.coreMaxHp = Math.max(
       1,
-      content.waves.coreHp + this.stats.total('coreHp') + this.mods.coreHp,
+      coreBaseHp + coreHpBonus(content, this.coreKey, this.coreStep) + this.stats.total('coreHp') + this.mods.coreHp,
     );
     this.coreHp = this.coreMaxHp;
 
@@ -373,6 +398,11 @@ export class World {
 
   recomputeDerived(): void {
     this.derived = derive(this.content, this.stats, 1 + this.mods.residualMul);
+  }
+
+  /** Refolds `core` from `coreStep` — called by `upgradeCore` (cores.ts) after every purchase. */
+  recomputeCore(): void {
+    this.core = computeCoreState(this.content, this.coreKey, this.coreStep);
   }
 
   /** True once enemies chase the Warden rather than the Core. */

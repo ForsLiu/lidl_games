@@ -526,17 +526,32 @@ const AffinityFileSchema = z.object({
  * SPEC-FINAL §5.5: the Core is chosen at run start, keeps its existing TD
  * rules (target, HP 0 in TD = defeat), and its upgrade steps are bought at
  * flat cost — no `costMul`, no default +10%, never sellable — so its schema
- * carries only `count`/`stepCost` (no `specials`/`costMul`/`note`, unlike a
- * tower's `UpgradeTrackSchema`). This item (`p-core-a`) is the plumbing half
- * only: selection, hashing and loader validation. Each Core's real TD/VS
- * effects (the gameplay a `desc` line only describes here) are `p-core-b`
- * through `p-core-f`'s job.
+ * carries only `count`/`stepCost` (no `costMul`/`note`, unlike a tower's
+ * `UpgradeTrackSchema`). `p-core-a` was the plumbing half only: selection,
+ * hashing and loader validation, with no numeric gameplay effect anywhere.
+ *
+ * `p-core-b` gives a Core's numbers somewhere to live: `effects` is the
+ * always-on base row (no step required — Vampire Heart's VS lifesteal, Time's
+ * TD slow aura and VS speed are all live the instant the Core is chosen), and
+ * `upgrade.steps` is a per-step numeric delta, folded cumulatively as steps
+ * are bought (`computeCoreState`, `src/sim/cores.ts`). Both are untyped
+ * dictionaries rather than a `SPECIAL_KEYS`-style enum on purpose: the five
+ * Cores' step shapes are too heterogeneous (a flat HP add, a ratio override, a
+ * decay-radius jump) to share one struct the way a tower's milestone specials
+ * do, and every numeric key this project actually reads is named in
+ * `src/sim/cores.ts`'s `computeCoreState`/`coreHpBonus`. A core or a step with
+ * no gameplay wired yet (Carnivorous Plant, Corpse, Time's steps 3-5) simply
+ * omits `effects`/`steps` entries — `p-core-c` through `p-core-e`'s job, not
+ * a loader gap, since an *absent* key already resolves to a zero-effect
+ * default in `computeCoreState`.
  */
 const CoreUpgradeSchema = z
   .object({
     count: z.number().int().min(0),
     stepCost: num,
     desc: str,
+    /** Per-step numeric deltas, index 0 = step 1. May be shorter than `count`. */
+    steps: z.array(z.record(z.string(), z.number())).optional(),
   })
   .strict();
 
@@ -548,6 +563,8 @@ const CoreSchema = z
     unlockedByDefault: z.boolean(),
     unlockCondition: str.nullable(),
     upgrade: CoreUpgradeSchema,
+    /** Always-on base numbers, live the instant the Core is chosen — no step required. */
+    effects: z.record(z.string(), z.number()).optional(),
   })
   .strict();
 
@@ -671,13 +688,22 @@ export function validateStepPrice(
  * step flat — so this is `validateUpgradeTrack`'s two step/price mismatch
  * branches with nothing else to check against.
  */
-export function validateCoreUpgrade(c: { key: string; upgrade: { count: number; stepCost: number } }): void {
+export function validateCoreUpgrade(c: {
+  key: string;
+  upgrade: { count: number; stepCost: number; steps?: Record<string, number>[] };
+}): void {
   const where = `cores.json: ${c.key}`;
   if (c.upgrade.count > 0 && c.upgrade.stepCost <= 0) {
     throw new Error(`${where} has ${c.upgrade.count} upgrade steps and no price for them`);
   }
   if (c.upgrade.count === 0 && c.upgrade.stepCost !== 0) {
     throw new Error(`${where} prices a step at ${c.upgrade.stepCost} and has no steps`);
+  }
+  // `computeCoreState`/`coreHpBonus` (src/sim/cores.ts) only ever read indices
+  // 0..count-1 — an authored step past the real count is dead data nobody can
+  // ever buy, almost certainly a copy-paste miscount rather than intent.
+  if (c.upgrade.steps && c.upgrade.steps.length > c.upgrade.count) {
+    throw new Error(`${where} authors ${c.upgrade.steps.length} step effects for only ${c.upgrade.count} steps`);
   }
 }
 

@@ -31,6 +31,7 @@ import type { TowerAttack, TowerDef } from './content';
 import { applySlow } from './enemies';
 import { dist2, normalize } from './math';
 import { arcElectric, effectiveTowerAoe, LINE_HALF_WIDTH, leadTarget, pickLobTarget } from './towers';
+import { coreAttackSpeedMul } from './cores';
 import { attackProfile, type AttackProfile, upgradeStatMul } from './upgrades';
 import type { Enemy, Structure } from './types';
 import type { World } from './world';
@@ -124,8 +125,10 @@ function wieldOneType(w: World, def: TowerDef, group: readonly Structure[]): Wie
  * only the next one.
  */
 export function updateWieldedAttacks(w: World, dt: number): void {
+  // SPEC-FINAL §5.5 Time: "VS: character attack and movement speed +20%".
+  const speedMul = w.derived.attackSpeedMul * coreAttackSpeedMul(w);
   for (const wielded of cachedWieldedAttacks(w)) {
-    let cd = (w.wieldedCooldown.get(wielded.towerId) ?? 0) - dt * w.derived.attackSpeedMul;
+    let cd = (w.wieldedCooldown.get(wielded.towerId) ?? 0) - dt * speedMul;
     if (cd > 0) {
       w.wieldedCooldown.set(wielded.towerId, cd);
       continue;

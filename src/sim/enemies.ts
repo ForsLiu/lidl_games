@@ -4,8 +4,8 @@
  */
 
 import type { EnemyDef } from './content';
+import { CORE_H, CORE_W, CORE_X, CORE_Y, GRID_H, GRID_W } from './grid';
 import type { DamageTypeKey } from './damagetypes';
-import { GRID_H, GRID_W } from './grid';
 import { clamp, dcos, dist, dist2, dsin, normalize } from './math';
 import { damageTakenMul } from './stats';
 import { structureArmor } from './upgrades';
@@ -416,10 +416,26 @@ export function isChilled(e: Enemy): boolean {
   return e.slowRemaining > 0 || e.frostRemaining > 0 || e.frozenRemaining > 0;
 }
 
+/**
+ * SPEC-FINAL §5.5 Time: "TD: enemies within r3 have attack and movement speed
+ * -20%" — read off `w.core.tdSlowRadius`/`tdSlowPct` (0 for every Core but
+ * Time, so this is a no-op check for everyone else) rather than a hardcoded
+ * `coreKey === 'time'`, the same data-driven shape a tower's own aura uses.
+ * TD only: enemies hunt the Warden, not the Core, once `huntsWarden` is true.
+ */
+function nearCoreSlowAura(w: World, e: Enemy): boolean {
+  if (w.huntsWarden || w.core.tdSlowRadius <= 0) return false;
+  if ((e.flags & TRAIT.slowImmune) !== 0) return false;
+  const cx = clamp(e.x, CORE_X, CORE_X + CORE_W);
+  const cy = clamp(e.y, CORE_Y, CORE_Y + CORE_H);
+  return dist2(e.x, e.y, cx, cy) <= w.core.tdSlowRadius * w.core.tdSlowRadius;
+}
+
 /** Frost's attack-speed penalty, as a multiplier on every cooldown an enemy runs. */
 export function enemyAttackSpeedMul(w: World, e: Enemy): number {
-  if (e.frostRemaining <= 0) return 1;
-  return 1 + (w.content.damageTypes.statuses.frost.attackSpeed ?? 0);
+  let mul = e.frostRemaining > 0 ? 1 + (w.content.damageTypes.statuses.frost.attackSpeed ?? 0) : 1;
+  if (nearCoreSlowAura(w, e)) mul *= 1 - w.core.tdSlowPct;
+  return mul;
 }
 
 /** Frozen's +30% damage taken, as a multiplier. Applies to ailments too. */
@@ -720,7 +736,8 @@ export function effectiveSpeed(w: World, e: Enemy): number {
   if (e.frozenRemaining > 0) return 0;
   const st = w.content.damageTypes.statuses.frost;
   const frost = e.frostRemaining > 0 ? 1 + (st.moveSpeed ?? 0) : 1;
-  return e.speed * (1 - e.slowAmount) * (1 + e.buffSpeed) * frost;
+  const coreSlow = nearCoreSlowAura(w, e) ? 1 - w.core.tdSlowPct : 1;
+  return e.speed * (1 - e.slowAmount) * (1 + e.buffSpeed) * frost * coreSlow;
 }
 
 /* ----------------------------------------------------------------- update */

@@ -86,20 +86,12 @@ full; `p5d` closed the last open item, a bug QA filed against `p5b`.
 Placement logged in Q93: after P5 so the §1.1 run shape (P3) and the full
 tower roster precede the Cores' VS halves and interactions; p-core-f's
 quest unlocks ride the §8.4 system and may complete alongside p7e.
-**`p-core-a` is done** — see the Done section. G21's plumbing half is green
-in full; each Core's real TD/VS numbers are `p-core-b` through `p-core-e`'s
-job, still open below.
+**`p-core-a` and `p-core-b` are done** — see the Done section. G21's plumbing
+half and three of its five Cores' gameplay numbers (Stone Heart in full,
+Vampire Heart in full, Time's steps 1-2) are green; Carnivorous Plant,
+Corpse and Time's steps 3-5 are `p-core-c` through `p-core-e`'s job, still
+open below.
 
-- [ ] (p-core-b) [feat] Stone Heart, Vampire Heart, and Time steps 1–2: the
-      shared Core-upgrade rule (bought by interacting at the Core under the
-      build-range rule, flat cost per step, only the listed effect, never
-      sellable), Stone Heart's +100 HP steps, Vampire Heart's TD tower
-      lifesteal 0.1% + missing-HP buff (+0.5% dmg/atk-spd per 1% missing, cap
-      +30%) and VS +1% character lifesteal with overheal→gold 20:1 plus its
-      three steps, Time's ±20% TD/VS speed auras plus step 1 (+1 flat gold/s)
-      and step 2 (+1 HP regen/s, +20% healing received) — acceptance: G21 unit
-      tests for every listed number, incl. the no-default-+10% rule and the
-      cannot-sell rule — refs: §5.5, G21
 - [ ] (p-core-c) [feat] Carnivorous Plant + Digestion: TD devour (r2, 8 s,
       non-elite instant kill / elite 200, +5 Core HP, +1 Digestion stack per
       devour for the run); VS poison volleys every 1.5 s, one bullet per 5
@@ -355,6 +347,107 @@ logged in MIGRATION.md §8 rather than carried as dead items.
   **G19**. The work is `p10d`.
 
 ## Done
+
+- [x] (p-core-b) [feat] Stone Heart, Vampire Heart, and Time steps 1-2 —
+      this commit. `p-core-a` was plumbing only (selection/hashing/loader
+      validation, zero gameplay effect); this item is the first to give a
+      Core real numbers. `CoreUpgradeSchema` gains an optional `steps:
+      Record<string,number>[]` (per-step numeric deltas) and `CoreSchema`
+      gains an optional `effects: Record<string,number>` (always-on base
+      numbers, live the instant the Core is chosen, no step required) —
+      untyped dictionaries rather than a tower-style `SPECIAL_KEYS` enum on
+      purpose, since the five Cores' step shapes are too heterogeneous (a
+      flat HP add, a ratio override, a decay-radius jump) to share one
+      struct; `data/cores.json` authors both for `stone_heart`,
+      `vampire_heart` and `time` with SPEC-FINAL §5.5's exact numbers, and a
+      new `validateCoreUpgrade` clause rejects an authored step past the
+      track's own count. New `src/sim/cores.ts` is where these numbers
+      become gameplay: `computeCoreState` is a **pure fold** of
+      (core key, steps bought) into a `CoreState`, recomputed on every
+      purchase rather than accumulated — the same shape `derive()` gives
+      `Stats`, chosen specifically so buying step 2 can never double-count
+      step 1's own contribution (code-reviewer verified this holds).
+      `upgradeCore` mirrors `upgradeTower` exactly: TD-phase-only,
+      build-range-gated (`inCoreBuildRange`, against the Core's real 2x2
+      footprint, not just its center point), flat `stepCost` (never
+      `towerCostMul` — SPEC-FINAL §5.5 prices every step flat), never
+      sellable (no reverse function exists, and `Command` has no
+      `sell_core` variant at all). A wound survives a Stone Heart HP step
+      the same way it survives a tower upgrade (`s.hp = s.maxHp * ratio`
+      preserved, not healed to full). Two Core numbers ride the *existing*
+      `Stats`/`Derived` pipeline instead of `CoreState` because they are
+      already generic stats every other system reads (`w.stats.add` +
+      `w.recomputeDerived()`, the same call a boon or Constellation node
+      makes): Vampire Heart's base "+1% VS lifesteal" (added once at
+      construction — `leech` is already VS-gated at its own read site in
+      `enemies.ts`) and Time step 2's character "+1 HP regen/s" (added once,
+      keyed uniquely per step, when that step is bought). Every other
+      number is bespoke: `vampireMissingHpBuffMul` ("+0.5% dmg/atk-spd per
+      1% missing HP, cap +30%", read by `towerDamage`/`attackSpeedFor`,
+      `towers.ts`); `applyHealingToWarden`/`applyHealingToStructure`
+      (`amount * healingReceivedMul`, clamped to `maxHp`, with any excess
+      converted to gold via `addCoreGold` at `overhealGoldRatio` — a
+      fractional-gold accumulator, `World.coreGoldAccumulator`, so a
+      sub-1-gold trickle never rounds to nothing); `applyTowerLifesteal`
+      ("all towers gain 0.1% lifesteal", called from every site that
+      actually credits `Structure.damageDealt` — see the code-review finding
+      below); `updateCoreEffects` (Time step 1's flat gold/s, deliberately
+      bypassing `goldFindMul` per §5.5's "unaffected by gold-gain bonuses",
+      and step 2's tower regen); `nearCoreSlowAura`
+      (`src/sim/enemies.ts`, folded into `enemyAttackSpeedMul`/
+      `effectiveSpeed`, data-driven off `w.core.tdSlowRadius`/`tdSlowPct`
+      rather than a hardcoded `coreKey === 'time'` check, so a future Core
+      authoring the same two `effects` keys gets the aura for free);
+      `coreAttackSpeedMul`/`coreMoveSpeedMul` (Time's VS-only +20% speed,
+      read by `updateWarden`'s move-speed line and `updateWieldedAttacks`'s
+      cooldown decrement — deliberately *not* routed through `Stats`, since
+      that would leak the buff into Act I movement the way Vampire Heart's
+      leech addition safely doesn't). **One genuine pre-existing bug fixed
+      as a side effect, not a design choice**: `World.coreMaxHp` read
+      `content.waves.coreHp` (a hardcoded 500) regardless of which Core was
+      chosen — coincidentally Stone Heart's own `baseHp`, so the default
+      case was silently correct, but every other Core got the wrong base HP
+      the instant it was chosen. Fixed to read `content.coreByKey.get(w.coreKey).baseHp`;
+      confirmed no other reader of `content.waves.coreHp` would now
+      disagree. `hashWorld` gains `coreMaxHp`/`coreStep`/
+      `coreGoldAccumulator` plus a generic loop hashing every field of
+      `w.core`, mirroring the existing `w.derived` loop, on the same m19a
+      precedent ("hash the whole cache, not a hand-picked few"). **code-reviewer
+      REQUEST-CHANGES → fixed, then re-verified clean**: the first draft's
+      tower lifesteal only wrapped `updateTowers`'s synchronous
+      before/after `Structure.damageDealt` snapshot, which is always 0 for
+      `pierce`-kind (Ballista) and `lob`-kind (Mortar) towers — their damage
+      lands *later*, asynchronously, through `combat.ts`'s
+      `updateProjectiles`/`detonate` (the same two-site split `p5d` already
+      established for `damageDealt` crediting itself) — so Vampire Heart's
+      lifesteal was silently a no-op for two of the game's highest-damage
+      towers, unexercised by the first draft's Arrow-only test. Fixed by
+      extracting `applyTowerLifesteal` and calling it from both
+      `combat.ts` sites too; a new Ballista-based regression test added
+      alongside the existing Arrow-based one. **qa-playtester PASS, one
+      defensive-programming gap found and fixed before this commit**: an
+      independently-constructed live-fire Mortar scenario confirmed the
+      async-lifesteal fix; all 5 Core keys confirmed to read their own
+      `baseHp` after a full run to Core-death. The one real finding — a
+      non-finite (`NaN`/`Infinity`) heal amount permanently poisoned
+      `World.coreGoldAccumulator` (`Math.floor(NaN)` is `NaN`, `NaN > 0` is
+      always `false`, so the "flush whole gold" branch could never fire
+      again, silently discarding every *legitimate* trickle for the rest of
+      the run) — QA explicitly flagged this as not currently
+      player-reachable (every live heal source is already guarded upstream)
+      but worth a guard on permanent run state regardless; fixed with the
+      same `Number.isFinite` check `Stats.add` already applies to every
+      other contribution, in both `applyHealing` and `addCoreGold`, with a
+      regression test. Every other adversarial check QA ran — the
+      no-default-+10% rule, the cannot-sell rule, build-range/phase/gold
+      rejection boundaries, the flat-cost-immune-to-`towerCost`-boons rule,
+      Time's aura correctly exempting `slowImmune` enemies and shutting off
+      in VS, Time's gold/s correctly bypassing `goldFind` while Sprout's own
+      income doesn't, and replay-hash determinism across upgrade-mid-run
+      replays — held with no further findings. `npm test`: 743 passed / 33
+      skipped (0 failed, up from 708/33 pre-item — 36 new cases in
+      `tests/p-core-b-effects.test.ts`); perf config 3/3; `npx tsc --noEmit`
+      clean — refs: §5.5, G21.
 
 - [x] (p-core-a) [feat] Core selection plumbing (SPEC-FINAL §5.5, gate **G21**'s
       plumbing half) — this commit. `data/cores.json` authors the five owner

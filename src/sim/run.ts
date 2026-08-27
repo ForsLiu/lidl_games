@@ -20,6 +20,7 @@ import {
 } from './enemies';
 import { setAreaDamageHandler, updateAreas, updateProjectiles } from './combat';
 import { buildTower, collectSproutGold, sellTower, updateTowers, upgradeTower } from './towers';
+import { applyHealingToWarden, coreMoveSpeedMul, updateCoreEffects, upgradeCore } from './cores';
 import { shouldSpawnBoss, spawnFinalBoss, updateDirector } from './act2';
 import { addXp, openLevelUpIfPending, rerollOffers, takeOffer, updateGems } from './progression';
 import { advanceToNextBlock, finishSundering } from './sundering';
@@ -78,6 +79,7 @@ export class Run {
       case 'act1_build':
         updateWarden(w, input, dt);
         updateTowers(w, dt);
+        updateCoreEffects(w, dt);
         updateProjectiles(w, dt);
         updateAreas(w, dt);
         updateAct1Build(w, dt);
@@ -86,6 +88,7 @@ export class Run {
       case 'act1_wave':
         updateWarden(w, input, dt);
         updateTowers(w, dt);
+        updateCoreEffects(w, dt);
         updateAct1Wave(w, dt);
         updateProjectiles(w, dt);
         updateAreas(w, dt);
@@ -217,6 +220,9 @@ export function applyCommand(w: World, c: Command): void {
     case 'sell':
       sellTower(w, c.tx, c.ty);
       break;
+    case 'upgrade_core':
+      upgradeCore(w);
+      break;
     case 'pick':
       takeOffer(w, c.index);
       break;
@@ -328,20 +334,27 @@ export function updateWarden(w: World, input: TickInput, dt: number): void {
     w.emit('dash', wd.x, wd.y, n.x, n.y);
   }
 
-  const speed = d.moveSpeed;
+  // SPEC-FINAL §5.5 Time: "VS: character attack and movement speed +20%" —
+  // VS-only (`coreMoveSpeedMul` reads `w.huntsWarden`), so it cannot touch
+  // Act I movement the way adding it to `Stats` would.
+  const speed = d.moveSpeed * coreMoveSpeedMul(w);
   moveWarden(w, n.x * speed * dt, n.y * speed * dt);
 
   // Regen: out of combat only during Act I, always in Act II (SPEC 2.1).
   const regenOk = w.huntsWarden || wd.outOfCombat >= BASE.outOfCombatSeconds;
   if (regenOk && wd.hp < d.maxHp) {
-    wd.hp = Math.min(d.maxHp, wd.hp + d.hpRegen * dt);
+    applyHealingToWarden(w, d.hpRegen * dt);
   }
 
   // SPEC-FINAL §2: lifesteal has "no per-second cap" — the V2 3 HP/s rail is
   // removed on purpose (x002, Q88). The accumulator survives only as the
   // one-tick hand-off from `damageEnemy`, which has no maxHp to clamp against.
+  // SPEC-FINAL §5.5 Vampire Heart: past `maxHp` this converts to gold at
+  // `overhealGoldRatio` instead of being discarded (`applyHealingToWarden`,
+  // cores.ts) — VS-only and 0 for every other Core, so this is a no-op
+  // everywhere it always was.
   if (wd.leechAccumulator > 0) {
-    wd.hp = Math.min(d.maxHp, wd.hp + wd.leechAccumulator);
+    applyHealingToWarden(w, wd.leechAccumulator);
     wd.leechAccumulator = 0;
   }
 
@@ -572,6 +585,7 @@ function updateAct2(w: World, input: TickInput, dt: number): void {
   updateTerrainEffects(w, dt);
   updateWieldedAttacks(w, dt);
   updateVsSpecials(w, dt);
+  updateCoreEffects(w, dt);
   updateEnemies(w, dt);
   updateProjectiles(w, dt);
   updateAreas(w, dt);
@@ -685,6 +699,10 @@ export function hashWorld(w: World): string {
   const h = new Hasher();
   h.int(w.tick).int(w.phase.length).str(w.phase).str(w.outcome);
   h.num(w.coreHp).num(w.gold).int(w.wave).int(w.kills).int(w.leaks);
+  // p-core-b: Core-HP steps (Stone Heart) mutate `coreMaxHp`, and the flat
+  // gold trickle / overheal conversion (Time, Vampire Heart) mutate this
+  // sub-1-gold accumulator between the ticks it flushes into `w.gold`.
+  h.num(w.coreMaxHp).int(w.coreStep).num(w.coreGoldAccumulator);
   // p3b: gates when the current fight's completion advances to the next
   // block/dusk, exactly the class of timing state `wieldedCooldown` is
   // hashed for.
@@ -712,6 +730,15 @@ export function hashWorld(w: World): string {
   // for a stable field order; `secondWind` is the one non-numeric member.
   for (const k of Object.keys(w.derived).sort()) {
     const v = (w.derived as unknown as Record<string, number | boolean>)[k];
+    if (typeof v === 'boolean') h.bool(v);
+    else h.num(v);
+  }
+  // p-core-b: `w.core` is `Derived`'s sibling for Core numbers (folded from
+  // `coreKey`/`coreStep`, already hashed above) — hashed the same generic way
+  // for the same reason m19a's review gave: a consumer added later that reads
+  // a field this hash does not cover would otherwise regress silently.
+  for (const k of Object.keys(w.core).sort()) {
+    const v = (w.core as unknown as Record<string, number | boolean>)[k];
     if (typeof v === 'boolean') h.bool(v);
     else h.num(v);
   }

@@ -22,6 +22,7 @@ import {
   targetFirst,
 } from './combat';
 import type { TowerDef } from './content';
+import { applyTowerLifesteal, vampireMissingHpBuffMul } from './cores';
 import { applyDamageType } from './damagetypes';
 import { dist2, normalize } from './math';
 import { applySlow } from './enemies';
@@ -177,7 +178,13 @@ export function affinityMul(w: World, towerKey: string): number {
 export function towerDamage(w: World, s: Structure, base: number): number {
   const def = w.content.towerById.get(s.towerId)!;
   return (
-    base * upgradeStatMul(w, def, s.tier) * w.derived.powerMul * w.derived.towerDamageMul * affinityMul(w, def.key)
+    base *
+    upgradeStatMul(w, def, s.tier) *
+    w.derived.powerMul *
+    w.derived.towerDamageMul *
+    affinityMul(w, def.key) *
+    // SPEC-FINAL §5.5 Vampire Heart: "+0.5% damage ... per 1% HP missing".
+    vampireMissingHpBuffMul(w, s)
   );
 }
 
@@ -276,7 +283,8 @@ export function attackSpeedFor(w: World, s: Structure): number {
   // V3 §2: buff auras are a different origin from the Warden's own stat stack, so
   // they multiply. Overlapping auras sum into `bonus` first (ranks within one
   // source), matching the shrine rule in weapons.ts.
-  return w.derived.attackSpeedMul * (1 + (w.auraBonus.get(s.id) ?? 0));
+  // SPEC-FINAL §5.5 Vampire Heart: "... and attack speed per 1% HP missing".
+  return w.derived.attackSpeedMul * (1 + (w.auraBonus.get(s.id) ?? 0)) * vampireMissingHpBuffMul(w, s);
 }
 
 /* ---------------------------------------------------------------- firing */
@@ -291,7 +299,17 @@ export function updateTowers(w: World, dt: number): void {
     if (s.cooldown > 0) continue;
     s.cooldown += def.attack.interval;
     if (s.cooldown < 0) s.cooldown = 0;
+    // SPEC-FINAL §5.5 Vampire Heart: "TD: all towers gain 0.1% lifesteal" —
+    // read as the delta `fireTower` synchronously landed (`damageDealt`'s own
+    // before/after). This only covers `single`/`cone`/`aura`/`chain`/`poison`
+    // — `pierce`/`lob` land later, asynchronously, through `combat.ts`'s
+    // `updateProjectiles`/`detonate`, which call `applyTowerLifesteal`
+    // themselves at the same two sites `p5d` already credits `damageDealt`
+    // from, so every attack kind lifesteals exactly once regardless of when
+    // its damage actually lands.
+    const before = s.damageDealt;
     fireTower(w, s, def);
+    applyTowerLifesteal(w, s, s.damageDealt - before);
   }
 }
 

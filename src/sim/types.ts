@@ -15,6 +15,8 @@ export type Command =
   | { k: 'build'; tower: number; tx: number; ty: number }
   | { k: 'upgrade'; tx: number; ty: number }
   | { k: 'sell'; tx: number; ty: number }
+  /** SPEC-FINAL §5.5: buys the Core's next upgrade step (`upgradeCore`, cores.ts). No tx/ty — the Core has one fixed tile. */
+  | { k: 'upgrade_core' }
   | { k: 'call' }
   | { k: 'pick'; index: number }
   | { k: 'reroll' }
