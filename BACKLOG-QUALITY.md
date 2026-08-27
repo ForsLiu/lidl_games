@@ -567,7 +567,7 @@ coverage gaps session 1's log recorded. All five are inside Scope as written.*
       required — today's assertions pin the *broken* behaviour), `tsc`
       clean, no `/src/**` edits — refs: q33, q37, qa-playtester's q33
       verification pass (session 31 log), tools/content-census.ts
-- [ ] (q39) [bug][feat] qa-playtester's q35 verification pass found that
+- [x] (q39) [bug][feat] qa-playtester's q35 verification pass found that
       `Stats.add`'s finite guard (`src/sim/stats.ts:148`) protects only
       against a *single* non-finite contribution — it checks the incoming
       value, not the running sum — so two contributions that are each
@@ -999,6 +999,42 @@ resolve if it wants the CLI entry points too. All five are inside Scope as
 written; none needs a `package.json` edit.*
 
 ## Log
+
+### 2026-08-27 — session 41
+
+**Feedback inbox:** `feedback/` empty. Nothing to process.
+
+**q39** was the top actionable item, but its own text already establishes that
+the actual fix (guarding `Stats.total()`'s running-sum overflow, clamping
+`luckBias`, schema-validating `deserializeMeta`, bounding `AffixSchema`) is a
+`/src/**` change outside this lane's Scope. Its acceptance line is narrower
+than "fix the bug": it only asks the tracking entry to confirm today's
+overflow behaviour is already pinned by `tests/q35-weighted-index-nan.test.ts`'s
+"gap found by QA verification" describe block. Ran that file live
+(`npx vitest run tests/q35-weighted-index-nan.test.ts`): 9/9 green, not
+skipped, and its two `it` blocks pin exactly the two-contribution overflow
+q39 describes (`1.5e308` twice → `total()` is `Infinity`; `-1.5e308` twice →
+`total()` is `-Infinity` → unclamped `luckBias` is `-Infinity` → a `NaN`
+weight in `rollOffers`). Spot-checked all four line references in q39's text
+against current source (`src/sim/stats.ts:148`'s single-contribution
+`Number.isFinite` guard, `src/sim/progression.ts:89`'s positive-only
+`Math.min(0.5, ...)` clamp, `src/meta/meta.ts:322`'s unvalidated
+`JSON.parse`, `src/sim/content.ts:380-387`'s unbounded `AffixSchema` `num`
+fields) — none stale, all still accurate.
+
+**QA (qa-playtester, PASS).** Independently re-verified all four of the
+above from scratch (live test run, source-line spot-check, `git status`
+clean) rather than trusting this session's own read. No coverage gap found;
+confirmed this closure is documentation-only and the underlying bug remains
+correctly tracked as out-of-Scope /src/** work for main lane.
+
+**Suite state.** No `/src/**` or `/data/**` files touched; `git status
+--porcelain` before commit: `BACKLOG-QUALITY.md` only. Full `npm test` not
+re-run since no test or tool file changed this session — only the isolated
+`tests/q35-weighted-index-nan.test.ts` file, confirmed green live above, is
+relevant to this item.
+
+**Committed.**
 
 ### 2026-08-27 — session 40
 
