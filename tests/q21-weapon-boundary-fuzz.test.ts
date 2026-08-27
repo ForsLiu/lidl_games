@@ -15,6 +15,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
+import { spawnEnemy } from '../src/sim/enemies';
 import { Hasher } from '../src/sim/hash';
 import { applyOffer, bindSouls, deriveSouls, rollOffers } from '../src/sim/progression';
 import { applyCommand, hashWorld } from '../src/sim/run';
@@ -28,6 +29,7 @@ import {
   type BoundaryCase,
   awakeningGateCases,
   boonOfferBoundaryCases,
+  damageBonusBoundaryCases,
   forcePlace,
   inheritanceCases,
   levelBoundaryCases,
@@ -41,6 +43,7 @@ import {
 import {
   AWAKENING_GATE_HOLES,
   BOON_OFFER_HOLES,
+  DAMAGE_BONUS_HOLES,
   INHERITANCE_HOLES,
   LEVEL_BOUNDARY_HOLES,
   WEAPON_OFFER_HOLES,
@@ -56,15 +59,16 @@ function toHoleMap(cases: BoundaryCase[]): Record<string, string> {
 }
 
 describe('q21 soul-weapon boundary fuzz', () => {
-  it('runs 9 level + 12 inheritance + 4 awakening + 2 weaponOffer + 9 weaponUpdate + 3 boon cases, one each', () => {
+  it('runs 9 level + 12 inheritance + 4 awakening + 2 weaponOffer + 9 weaponUpdate + 3 boon + 12 damageBonus cases, one each', () => {
     const census = runCensus();
-    expect(census.length).toBe(39);
+    expect(census.length).toBe(51);
     expect(census.filter((c) => c.category === 'level').length).toBe(9);
     expect(census.filter((c) => c.category === 'inheritance').length).toBe(12);
     expect(census.filter((c) => c.category === 'awakening').length).toBe(4);
     expect(census.filter((c) => c.category === 'weaponOffer').length).toBe(2);
     expect(census.filter((c) => c.category === 'weaponUpdate').length).toBe(9);
     expect(census.filter((c) => c.category === 'boon').length).toBe(3);
+    expect(census.filter((c) => c.category === 'damageBonus').length).toBe(12);
     const seen = new Set(census.map((c) => `${c.category}:${c.id}`));
     expect(seen.size).toBe(census.length);
   });
@@ -93,6 +97,10 @@ describe('q21 soul-weapon boundary fuzz', () => {
     expect(toHoleMap(boonOfferBoundaryCases())).toEqual(BOON_OFFER_HOLES);
   });
 
+  it('damage-bonus census matches the recorded holes exactly', () => {
+    expect(toHoleMap(damageBonusBoundaryCases())).toEqual(DAMAGE_BONUS_HOLES);
+  });
+
   it('everything not in a recorded hole is cleanly ok', () => {
     for (const c of runCensus()) {
       const holes =
@@ -106,7 +114,9 @@ describe('q21 soul-weapon boundary fuzz', () => {
                 ? WEAPON_OFFER_HOLES
                 : c.category === 'weaponUpdate'
                   ? WEAPON_UPDATE_HOLES
-                  : BOON_OFFER_HOLES;
+                  : c.category === 'boon'
+                    ? BOON_OFFER_HOLES
+                    : DAMAGE_BONUS_HOLES;
       if (c.id in holes) continue;
       expect(c.verdict, `${c.category}:${c.id} — ${c.detail}`).toBe('ok');
     }
@@ -557,6 +567,79 @@ describe('q21 soul-weapon boundary fuzz', () => {
       for (let i = 0; i < 25; i++) {
         const offers = rollOffers(w);
         expect(offers.some((o) => o.kind === 'awakening' && o.key === AWAKENING_KEY)).toBe(false);
+      }
+    });
+  });
+
+  /* --------------------------------------------------------- damage bonus */
+
+  describe("finding: grantWeapon's damageBonus is unguarded in both branches, corrupting hp/damageTotal instead of crashing (q34)", () => {
+    // weapons.ts:61-79: the create branch does a bare `damageBonus,`
+    // assignment with no clamp at all, and the update branch's
+    // `Math.max(existing.damageBonus, damageBonus)` propagates a non-finite
+    // value the same way the level update branch does (q29). Unlike every
+    // level-shaped hole above, damageBonus never indexes an array — it only
+    // feeds weaponDamageMul's `(1 + ws.damageBonus)` multiplier — so a
+    // poisoned value never crashes fireWeapon. It corrupts the enemy it
+    // hits and the run's damage totals instead, silently and permanently.
+    // Each case grants a real arrow_volley, spawns a real husk in range,
+    // rebuilds the spatial hash (updateWeapons/nearestEnemy read it, and
+    // only Run.step() would otherwise refresh it), and fires one tick.
+    function fireOnce(damageBonus: number, branch: 'create' | 'update') {
+      const w = newWorld();
+      if (branch === 'update') grantWeapon(w, 'arrow_volley', 1, 0);
+      grantWeapon(w, 'arrow_volley', 1, damageBonus);
+      const e = spawnEnemy(w, 'husk', w.warden.x + 1, w.warden.y, { overlay: false })!;
+      w.rebuildBuckets();
+      updateWeapons(w, 1 / 60);
+      return { w, e };
+    }
+
+    it.each(['create', 'update'] as const)(
+      'damageBonus=Infinity (%s branch): the hit is finite-fatal, but damageTotal is poisoned to Infinity permanently',
+      (branch) => {
+        const { w, e } = fireOnce(Infinity, branch);
+        expect(e.hp).toBe(-Infinity);
+        expect(e.dead).toBe(true); // -Infinity <= 0 is true, so the kill itself looks correct
+        expect(w.damageTotal).toBe(Infinity);
+        // The poison never clears: any further real, finite damage this run
+        // adds to the same accumulator stays Infinity for good.
+        w.damageTotal += 9999;
+        expect(w.damageTotal).toBe(Infinity);
+      },
+    );
+
+    it.each(['create', 'update'] as const)(
+      'damageBonus=NaN (%s branch): the enemy is left immortal, not dead — hp and damageTotal both go NaN forever',
+      (branch) => {
+        const { w, e } = fireOnce(NaN, branch);
+        expect(e.hp).toBeNaN();
+        expect(e.dead).toBe(false); // NaN <= 0 is false: killEnemy is never called
+        expect(w.damageTotal).toBeNaN();
+        // A second tick can't recover it either — NaN propagates through
+        // every future subtraction the same way.
+        updateWeapons(w, 1 / 60);
+        expect(e.hp).toBeNaN();
+        expect(e.dead).toBe(false);
+      },
+    );
+
+    it('the legitimate case (a real, capped inheritance bonus) deals a clean, finite, correctly-scaled hit', () => {
+      const { w, e } = fireOnce(0.4, 'create'); // data/weapons.json's own inheritDamageCap
+      expect(e.hp).toBeCloseTo(20 - 16 * 1.4, 5); // arrow_volley Lv1 damage (16) x (1 + 0.4)
+      expect(w.damageTotal).toBeCloseTo(16 * 1.4, 5);
+      expect(Number.isFinite(e.hp)).toBe(true);
+    });
+
+    it('not reachable through the real Command surface: deriveSouls only ever emits a finite, non-negative, already-capped bonus', () => {
+      const w = newWorld();
+      forcePlace(w, 'arrow_spire', 5, 5, 3);
+      forcePlace(w, 'ballista', 6, 5, 3);
+      const souls = deriveSouls(w);
+      for (const s of souls) {
+        expect(Number.isFinite(s.damageBonus)).toBe(true);
+        expect(s.damageBonus).toBeGreaterThanOrEqual(0);
+        expect(s.damageBonus).toBeLessThanOrEqual(w.content.weapons.inheritDamageCap);
       }
     });
   });

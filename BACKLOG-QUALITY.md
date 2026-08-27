@@ -412,7 +412,7 @@ coverage gaps session 1's log recorded. All five are inside Scope as written.*
       pins the content-hash-replay gap, and file the `/src/sim/content.ts`
       fix as main-lane work in this file's Log — refs: q25, q28, qa-
       playtester's q28 verification pass (session 23 log)
-- [ ] (q34) [bug][feat] `grantWeapon`'s `damageBonus` parameter
+- [x] (q34) [bug][feat] `grantWeapon`'s `damageBonus` parameter
       (`src/sim/weapons.ts:61-79`) is unguarded in **both** branches — worse
       than q29's `level` finding, since the create branch does a bare
       assignment (`damageBonus,`) with no clamp at all, and the update
@@ -652,6 +652,99 @@ resolve if it wants the CLI entry points too. All five are inside Scope as
 written; none needs a `package.json` edit.*
 
 ## Log
+
+### 2026-08-27 — session 32
+
+**Feedback inbox:** no `feedback/` directory exists in this worktree (checked
+with `ls feedback/`). Nothing to process, nothing moved.
+
+**Found session 31's q33 implementation sitting uncommitted at session
+start** — the same leftover-work shape sessions 14/16/18/19/20/22/27/29 have
+each hit before. Present: `tests/q33-cli-json-syntax-error.test.ts` and a
+`BACKLOG-QUALITY.md` diff marking q33 `[x]` and adding q37/q38, exactly
+matching session 31's own Log entry (which claimed "Committed" but the
+commit never actually landed — `git log` topped out at q32/`6a1e20d`).
+Independently re-verified rather than trusted: `npx vitest run
+tests/q33-cli-json-syntax-error.test.ts` (7/7 green), `npx tsc --noEmit -p .`
+(clean), Scope compliance (only `BACKLOG-QUALITY.md` + the one new test file).
+Recovered and committed as `72ff595`.
+
+**Five actionable items were in queue** (q34-q38, above the generation
+rule's floor of 3, so the generation rule did not run). Took q34, the top
+item.
+
+**q34 done.** `tools/fuzz-weapon-boundary.ts` gains a 6th `BoundaryCase`
+category, `'damageBonus'`: `damageBonusBoundaryCases()` fuzzes both
+`grantWeapon` branches (create and update) over `[0, 0.5, -1, Infinity,
+-Infinity, NaN]`, granting a real `arrow_volley`, spawning a real `husk` in
+range, and measuring the verdict from `Number.isFinite(e.hp)`/
+`Number.isFinite(w.damageTotal)` after one `updateWeapons` tick — not from
+`ws.damageBonus` alone, per the item's own acceptance line. Had to add
+`w.rebuildBuckets()` after `spawnEnemy` — without it `nearestEnemy`/
+`enemiesInRadius` read an empty spatial hash (only `Run.step()` or an
+explicit rebuild populates it; `f004-class-framework.test.ts` already uses
+the identical pattern) and the weapon silently never fires, which the first
+run of the tool surfaced directly (`e.hp` unchanged, `damageTotal=0` for
+every case, including the ones expected to corrupt).
+
+**Measured (not assumed) results**, matching the bug report's own framing:
+`create:posInf`/`update:posInf` — enemy dies cleanly (`-Infinity <= 0` is
+`true`) but `w.damageTotal` is poisoned to `Infinity` permanently;
+`create:nan`/`update:nan` — enemy is left immortal (`NaN <= 0` is `false`,
+`killEnemy` never fires) and `damageTotal` goes `NaN` permanently. Two
+adjacent inputs measure `'ok'` and are pinned as such with reasoning rather
+than silently passed over: `fractional` (0.5) exceeds `data/weapons.json`'s
+`inheritDamageCap` (0.4) uncapped on the *stored* field — a real but
+non-corrupting cap-bypass gap, distinct from this category's hp/damageTotal
+measure, noted in the doc comment rather than filed as a new item (it's a
+narrower version of the same "no clamp at all" root cause q34 already
+covers); `negInf` on the create branch produces `damage = -Infinity`, which
+`damageEnemy`'s own `amount <= 0` guard happens to catch before writing
+anything. On the *update* branch specifically, `negative`/`negInf` also
+measure `'ok'`, but only because `Math.max(existing.damageBonus=0, x)`
+incidentally floors both back to `0` — the same "accidental safety net"
+shape q32 already found for a different field, not a real guard.
+`DAMAGE_BONUS_HOLES` pins all of this in `tests/q21-weapon-boundary-fuzz.ts`;
+`tests/q21-weapon-boundary-fuzz.test.ts` adds the hole-map assertion, a new
+describe block with `it.each` repros for both `posInf`/`nan` branches
+directly asserting `e.hp`/`e.dead`/`w.damageTotal`, a legitimate-case control
+at the real `inheritDamageCap` (0.4, clean finite hit), and a reachability
+control confirming `deriveSouls`'s real output is always finite/`>= 0`/
+capped. Census: 39 -> 51 total cases, 14 -> 18 non-`'ok'`.
+
+**Review (code-reviewer, APPROVE, 0 findings).** Independently re-derived the
+NaN/Infinity/guard mechanism against `src/sim/weapons.ts`/`src/sim/
+enemies.ts` rather than trusting the test's own comments, independently ran
+`npx tsx tools/fuzz-weapon-boundary.ts` and confirmed the live output
+matches `DAMAGE_BONUS_HOLES` exactly, confirmed the update-branch
+`Math.max`-floor reasoning, confirmed `rebuildBuckets()` is the same
+idiomatic pattern already used in `f004-class-framework.test.ts`, and swept
+`WeaponState` for other unguarded `grantWeapon` parameters (found none beyond
+`level`/`damageBonus`, already covered).
+
+**QA (qa-playtester, PASS).** Independently reproduced both `Infinity`/`NaN`
+cases live in a throwaway scratch script (deleted after use, `git status`
+clean afterward), confirmed `w.damageByWeapon[source]` is poisoned
+identically to `damageTotal` (same write site, `enemies.ts:220-221` — not a
+new gap, already covered by the acceptance line's own text), checked a third
+`grantWeapon` call (update-then-update-again) behaves identically to the
+tested create-then-update sequence, and checked a poisoned-then-legitimate
+re-grant does not recover (`Math.max(NaN, 0.3)` stays `NaN` — a true
+corollary of the documented propagation, not a newly *reachable* risk, since
+the only real caller always passes a finite capped value once per
+Sundering). No new bugs filed.
+
+**Suite state.** `npx vitest run tests/q21-weapon-boundary-fuzz.test.ts` —
+51/51 green (up from 39). `npx tsc --noEmit -p .` clean. `git status
+--porcelain` before commit: `BACKLOG-QUALITY.md`, `tests/q21-weapon-boundary
+-fuzz.ts`, `tests/q21-weapon-boundary-fuzz.test.ts`, `tools/fuzz-weapon
+-boundary.ts` — Scope-compliant. Full-suite background run
+(`npx vitest run`) was still in flight at write time; will confirm clean
+before/at commit.
+
+**Four actionable items remain** (q35, q36, q37, q38), above the generation
+rule's floor of 3, so the generation rule does not need to run next session
+either.
 
 ### 2026-08-27 — session 31
 

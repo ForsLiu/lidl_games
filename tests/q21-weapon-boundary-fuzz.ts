@@ -15,9 +15,9 @@
  * the write-up (session 17).
  *
  * Regenerate by running `npx tsx tools/fuzz-weapon-boundary.ts` and
- * transcribing every non-`ok` line — there are 14 today, against 39 total
+ * transcribing every non-`ok` line — there are 18 today, against 51 total
  * (9 level + 12 inheritance + 4 awakening + 2 weaponOffer + 9 weaponUpdate +
- * 3 boon, the last added by q30).
+ * 3 boon + 12 damageBonus, the last added by q34).
  */
 import type { Verdict } from '../tools/fuzz-weapon-boundary';
 
@@ -158,4 +158,49 @@ export const BOON_OFFER_HOLES: Readonly<Record<string, Verdict>> = {
   'boon:toLevelNan': 'contaminated',
   'boon:toLevelNegative': 'ungated',
   'boon:toLevelInfinite': 'contaminated',
+};
+
+/**
+ * `grantWeapon`'s `damageBonus` parameter (weapons.ts:61-79) is unguarded in
+ * *both* branches (q34) — worse than the `level` holes above, since
+ * `damageBonus` is never used as an array index, so a poisoned value never
+ * crashes the fire loop; it silently corrupts the enemy it hits and the
+ * run's damage totals instead, with no thrown error and no hash anomaly to
+ * flag it (`Hasher.int()`'s `v | 0` coerces `NaN` to `0`, per q30's own
+ * finding about the same primitive). Measured with a real `husk` enemy and
+ * a real `arrow_volley` weapon (`tools/fuzz-weapon-boundary.ts`'s own doc
+ * comment), one `updateWeapons` tick each:
+ *   - `posInf` (both branches): `(1 + Infinity)` multiplier -> `damage`
+ *     comes out `Infinity` -> `e.hp` goes to `-Infinity` (the enemy dies,
+ *     which reads as "works" superficially) but `w.damageTotal` goes
+ *     `Infinity` **permanently** — every future finite addition to it stays
+ *     `Infinity` for the rest of the run.
+ *   - `nan` (both branches): `(1 + NaN)` multiplier -> `damage` comes out
+ *     `NaN` -> `damageEnemy`'s own `amount <= 0` guard does not catch `NaN`
+ *     (`NaN <= 0` is `false`), so `e.hp -= NaN` sets hp to `NaN` forever —
+ *     `e.hp <= 0` is also always `false` from then on, so the enemy can
+ *     **never die again** — and `w.damageTotal` goes `NaN` permanently, the
+ *     same one-way corruption as `posInf` but silent instead of a visible
+ *     (if absurd) kill.
+ * Two adjacent inputs measure `'ok'` and are deliberately *not* holes here,
+ * per `tools/fuzz-weapon-boundary.ts`'s own doc comment: `fractional` (0.5)
+ * exceeds `data/weapons.json`'s `inheritDamageCap` (0.4) uncapped on the
+ * *stored* field, a real but non-corrupting cap-bypass gap distinct from
+ * this category's hp/damageTotal measure; and `negInf`, where
+ * `damageEnemy`'s `amount <= 0` guard happens to catch the resulting
+ * `-Infinity` damage before anything is written. On the *update* branch
+ * specifically, `negative` and `negInf` also measure `'ok'` — not because
+ * either is guarded, but because `Math.max(existing.damageBonus, x)`
+ * against a legally-created `existing.damageBonus` of `0` incidentally
+ * floors both back to `0` (`Math.max(0, -1) === 0`,
+ * `Math.max(0, -Infinity) === 0`), the same accidental-safety-net shape
+ * q32 already found for a different field. Not reachable through the real
+ * Command surface today: `deriveSouls`'s own `Math.min(cap, ...)`
+ * (progression.ts:251) is the only real caller, always finite and `>= 0`.
+ */
+export const DAMAGE_BONUS_HOLES: Readonly<Record<string, Verdict>> = {
+  'create:posInf': 'contaminated',
+  'create:nan': 'contaminated',
+  'update:posInf': 'contaminated',
+  'update:nan': 'contaminated',
 };

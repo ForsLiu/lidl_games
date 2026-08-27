@@ -64,6 +64,7 @@
  */
 
 import { type Content, loadContent } from '../src/sim/content';
+import { spawnEnemy } from '../src/sim/enemies';
 import { applyOffer, bindSouls, deriveSouls, rollOffers } from '../src/sim/progression';
 import { beginSoulPick } from '../src/sim/sundering';
 import type { RunConfig, Structure } from '../src/sim/types';
@@ -73,7 +74,7 @@ import { World } from '../src/sim/world';
 export type Verdict = 'ok' | 'crashes' | 'ungated' | 'contaminated';
 
 export interface BoundaryCase {
-  category: 'level' | 'inheritance' | 'awakening' | 'weaponOffer' | 'weaponUpdate' | 'boon';
+  category: 'level' | 'inheritance' | 'awakening' | 'weaponOffer' | 'weaponUpdate' | 'boon' | 'damageBonus';
   id: string;
   verdict: Verdict;
   detail: string;
@@ -411,6 +412,85 @@ export function boonOfferBoundaryCases(content: Content = loadContent()): Bounda
   });
 }
 
+/* ======================================================== 7. DAMAGE BONUS ======================================================== */
+
+/**
+ * `grantWeapon`'s `damageBonus` parameter (weapons.ts:61-79) is unguarded in
+ * *both* branches (q34): the create branch does a bare assignment with no
+ * clamp at all, and the update branch's `Math.max(existing.damageBonus,
+ * damageBonus)` propagates a non-finite value the same way the `level`
+ * update branch does (q29). Unlike every `level`-shaped hole this file pins
+ * (which either crash the array-index lookup or get re-floored by
+ * `levelStats`'s read-time clamp), `damageBonus` is never used as an index —
+ * it only ever feeds `weaponDamageMul`'s `(1 + ws.damageBonus)` multiplier —
+ * so a poisoned value never crashes the fire loop. Instead it silently
+ * corrupts *external* state the loop touches: `damageEnemy`'s own guard
+ * (`e.dead || amount <= 0`) does not catch `NaN` (`NaN <= 0` is `false`), so
+ * `e.hp -= NaN` sets the enemy's hp to `NaN` forever (every future
+ * `e.hp <= 0` check is also `false`, so it can never die again), and
+ * `w.damageTotal` goes `NaN` for the rest of the run.
+ *
+ * A real, non-forged `damageBonus` is always `deriveSouls`'s
+ * `Math.min(cap, (count - 1) * per)` (progression.ts:251) — finite,
+ * `>= 0`, already capped upstream — so this needs a direct `grantWeapon`
+ * call, not a live Command-surface exploit, same reachability caveat as the
+ * `level`-shaped findings above.
+ *
+ * Each case spawns a real `husk` enemy in range of a real `arrow_volley`
+ * weapon and drives one `updateWeapons` tick (the weapon's cooldown starts
+ * at 0, so it fires immediately) — verdict is measured from `e.hp`/
+ * `w.damageTotal` after the tick, not from `ws.damageBonus` alone, since a
+ * poisoned value that never crashes could otherwise look clean at the
+ * stored-field level while still corrupting everything downstream. Two
+ * cases are worth naming even though they measure `'ok'` here: `0.5`
+ * (`'fractional'`) is stored and applied uncapped even though it exceeds
+ * `data/weapons.json`'s `inheritDamageCap` (0.4) — a real cap-bypass gap on
+ * the *stored* field, but one that produces a merely stronger (still
+ * finite, still correctly-signed) hit, not the corruption this category
+ * exists to catch, so it is not pinned as a hole under this file's
+ * hp/damageTotal measure; and `-Infinity`, where `(1 + -Infinity)` yields a
+ * multiplier of `-Infinity`, `damage` comes out `-Infinity`, and
+ * `damageEnemy`'s own `amount <= 0` guard (`-Infinity <= 0` is `true`)
+ * happens to catch it before anything is written — the stored field is
+ * still illegally negative, but nothing downstream ever observes it.
+ */
+const DAMAGE_BONUS_TARGET = 'arrow_volley';
+
+const DAMAGE_BONUS_INPUTS: readonly number[] = [0, 0.5, -1, Infinity, -Infinity, NaN];
+
+function damageBonusCaseId(v: number): string {
+  if (Number.isNaN(v)) return 'nan';
+  if (v === Infinity) return 'posInf';
+  if (v === -Infinity) return 'negInf';
+  if (v < 0) return 'negative';
+  if (!Number.isInteger(v)) return 'fractional';
+  return String(v);
+}
+
+function damageBonusCase(content: Content, branch: 'create' | 'update', damageBonus: number): BoundaryCase {
+  const w = newWorld(content);
+  if (branch === 'update') grantWeapon(w, DAMAGE_BONUS_TARGET, 1, 0); // legal create first
+  const ws = grantWeapon(w, DAMAGE_BONUS_TARGET, 1, damageBonus);
+  const storedBonus = ws.damageBonus;
+  const e = spawnEnemy(w, 'husk', w.warden.x + 1, w.warden.y, { overlay: false })!;
+  w.rebuildBuckets(); // enemiesInRadius/nearestEnemy read the spatial hash Run.step() would otherwise refresh
+  const r = tryRun(() => updateWeapons(w, 1 / 60));
+  const hpFinite = Number.isFinite(e.hp);
+  const totalFinite = Number.isFinite(w.damageTotal);
+  const verdict: Verdict = r.threw ? 'crashes' : !hpFinite || !totalFinite ? 'contaminated' : 'ok';
+  const detail = r.threw
+    ? `${branch}(damageBonus=${damageBonus}) -> ws.damageBonus=${storedBonus}, updateWeapons() threw: ${r.message}`
+    : `${branch}(damageBonus=${damageBonus}) -> ws.damageBonus=${storedBonus}, e.hp=${e.hp}, e.dead=${e.dead}, damageTotal=${w.damageTotal}`;
+  return { category: 'damageBonus', id: `${branch}:${damageBonusCaseId(damageBonus)}`, verdict, detail };
+}
+
+export function damageBonusBoundaryCases(content: Content = loadContent()): BoundaryCase[] {
+  return [
+    ...DAMAGE_BONUS_INPUTS.map((v) => damageBonusCase(content, 'create', v)),
+    ...DAMAGE_BONUS_INPUTS.map((v) => damageBonusCase(content, 'update', v)),
+  ];
+}
+
 /* =============================================================== census =============================================================== */
 
 export function runCensus(content: Content = loadContent()): BoundaryCase[] {
@@ -421,6 +501,7 @@ export function runCensus(content: Content = loadContent()): BoundaryCase[] {
     ...weaponOfferBoundaryCases(content),
     ...weaponUpdateBoundaryCases(content),
     ...boonOfferBoundaryCases(content),
+    ...damageBonusBoundaryCases(content),
   ];
 }
 
