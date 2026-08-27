@@ -661,7 +661,7 @@ coverage gaps session 1's log recorded. All five are inside Scope as written.*
       block (or a small sibling test), run live first per this lane's
       convention, pinning today's actual measured behaviour — refs: q37,
       session 35 log, tools/sweep.ts
-- [ ] (q43) [polish] `tools/mutation-probe.ts`'s own doc comment states a
+- [x] (q43) [polish] `tools/mutation-probe.ts`'s own doc comment states a
       running total of mutation count / distinct `testFile` count /
       invocation count (q31's commit note records manually recounting
       these rather than trusting the comment, the same defensive habit
@@ -999,6 +999,57 @@ resolve if it wants the CLI entry points too. All five are inside Scope as
 written; none needs a `package.json` edit.*
 
 ## Log
+
+### 2026-08-27 — session 42
+
+**Feedback inbox:** no `feedback/` directory in this worktree. Nothing to
+process.
+
+**Session start state:** `tests/q14-mutation-smoke.test.ts` already carried an
+uncommitted diff — a prior session's unfinished q43 work (the new "doc comment
+matches the real MUTATIONS array" test), matching this file's own convention
+of recovering session-N's uncommitted work (q33 did the same for session 31).
+Verified the diff was exactly q43's acceptance criteria and finished it rather
+than starting over.
+
+**q43 done.** The new test reads `tools/mutation-probe.ts`'s source text,
+collapses the wrapped block-comment lines, regex-extracts the three numbers
+from "this now runs N nested `npx vitest run` invocations (C controls, one per
+distinct `testFile`, + M mutations)", and asserts each against `MUTATIONS`
+computed live: `MUTATIONS.length` (15), `new Set(MUTATIONS.map(testFile)).size`
+(8), and their sum (23) — all three currently agree with the doc comment.
+
+**Suite state.** Standalone filtered run (`-t "doc comment matches the real
+MUTATIONS array"`) — 1 passed. Full `tests/q14-mutation-smoke.test.ts`
+(background, 637s): 16 failed / 13 passed, exactly the documented
+`gitDiffClean()`-sees-the-uncommitted-lane-diff artifact (sessions
+12/14/15/16/18/20/26-29/36/38/39/40 etc.) — 15 mutations' `realFileUntouched`
+plus the suite's own fixture-must-start-clean case, tripped by this session's
+own then-uncommitted diff to this same file. Not re-filed. `npx tsc --noEmit
+-p .` clean. `git status --porcelain` before commit: `tests/q14-mutation-
+smoke.test.ts`, `BACKLOG-QUALITY.md` only — Scope-compliant.
+
+**Review (code-reviewer, APPROVE, 0 Critical/Major).** Independently confirmed
+the regex matches the live doc comment, the `.not.toBeNull()` guard fails
+loudly rather than silently skipping if the comment is reworded, sum logic has
+no off-by-one, diff is scoped to `tests/q14-mutation-smoke.test.ts` only, no
+`/src/sim` import or architecture-rule concern.
+
+**QA (qa-playtester, PASS).** Proved it's a real regression test, not a
+tautology: bumped the stated total 23→24 (fails: "total invocation count no
+longer equals controls + mutations"), reverted; bumped only the mutation count
+15→16 (fails on that assertion specifically), reverted; bumped only the
+controls count 8→9 (fails on that assertion specifically), reverted — each
+edit isolated and `git diff --stat tools/mutation-probe.ts` confirmed empty
+before the next. All three assertions independently load-bearing. Confirmed
+the full-file failure count (16) matches the documented artifact and confirmed
+nothing outside `tests/**` was touched.
+
+**Committed.**
+
+**Several actionable items remain** (q44, q46, q47, q48, q49, all unchecked
+and unblocked), above the generation rule's floor of 3, so the next session
+does not need to run it.
 
 ### 2026-08-27 — session 41
 
