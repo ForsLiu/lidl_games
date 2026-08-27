@@ -22,7 +22,7 @@ export function upgradeCost(w: World, def: TowerDef): number {
 }
 
 /** SPEC-V3 §4: level 1 is the built tower, so `count` steps reach `count + 1`. */
-export function maxLevel(def: TowerDef): number {
+export function maxLevel(def: Pick<TowerDef, 'upgrades'>): number {
   return def.upgrades.count + 1;
 }
 
@@ -69,11 +69,34 @@ export interface AttackProfile {
   onHit: readonly string[];
   /** §4 Electric @3: the electric portion arcs to the nearest other enemy. */
   electricChain: boolean;
+  /** §5.2 Fire Brazier @4: the cone's half-angle multiplier ("+50%" → 1.5). */
+  coneWidthMul: number;
+  /**
+   * §5.2 Fire Brazier: how many times this attack's authored `burn` counts per
+   * hit — 0 for an attack with no `burn` at all, 1 for one that has it
+   * unmilestoned. Read as a dps multiplier by `fireTower`'s cone case, not as
+   * literal extra Burning stacks: Burning's own row caps at 1 stack today
+   * (`refresh: 'strongest'`), and raising that cap is p10a's job, not a
+   * milestone's — a stack count here would fold into the same one slot and
+   * measure as a no-op (Q112).
+   */
+  burnStacks: number;
+  /**
+   * Seconds this tower's own `slow` lasts — already resolved against the
+   * authored `slowDuration` (1 where neither says anything), so a milestone
+   * that repeats the base number reads as no change (gate G20). §5.2 Frost
+   * Obelisk @3: "frost from this tower lasts 5s" replaces it.
+   */
+  slowDuration: number;
+  /** §5.2 Mortar @3: the shell leaves a ground-fire patch where it lands. */
+  groundBurn: boolean;
+  /** Seconds the patch above burns for — meaningful only when `groundBurn` is true. */
+  groundBurnSeconds: number;
 }
 
 const NO_ON_HIT: readonly string[] = [];
 
-export function attackProfile(def: TowerDef, level: number): AttackProfile {
+export function attackProfile(def: Pick<TowerDef, 'attack' | 'upgrades'>, level: number): AttackProfile {
   const a = def.attack;
   const prof: AttackProfile = {
     pierce: a?.pierce ?? 0,
@@ -81,6 +104,11 @@ export function attackProfile(def: TowerDef, level: number): AttackProfile {
     ratio: a?.damageRatio ?? null,
     onHit: a?.onHit ?? NO_ON_HIT,
     electricChain: false,
+    coneWidthMul: 1,
+    burnStacks: a?.burn ? 1 : 0,
+    slowDuration: a?.slowDuration ?? 1,
+    groundBurn: false,
+    groundBurnSeconds: 0,
   };
   const steps = Math.max(0, Math.min(level, maxLevel(def)) - 1);
   for (const sp of def.upgrades.specials) {
@@ -100,6 +128,19 @@ export function attackProfile(def: TowerDef, level: number): AttackProfile {
         break;
       case 'electricChain':
         prof.electricChain = true;
+        break;
+      case 'coneWidth':
+        prof.coneWidthMul = sp.mul!;
+        break;
+      case 'burnStacks':
+        prof.burnStacks += sp.value!;
+        break;
+      case 'slowDuration':
+        prof.slowDuration = sp.seconds!;
+        break;
+      case 'burnPatch':
+        prof.groundBurn = true;
+        prof.groundBurnSeconds = sp.seconds!;
         break;
     }
   }

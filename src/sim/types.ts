@@ -198,6 +198,10 @@ export interface Projectile {
   onHit: readonly string[];
   /** SPEC-V3 §3 split this shot's damage lands as, or null for all Normal. */
   ratio: Readonly<Record<string, number>> | null;
+  /** §5.2 Mortar @3: this shell leaves a ground-fire patch where it detonates. */
+  groundBurn: boolean;
+  /** Seconds the patch above burns for — meaningful only when `groundBurn` is true. */
+  groundBurnSeconds: number;
   dead: boolean;
 }
 

@@ -407,6 +407,9 @@ export interface ProjectileSpec {
   pierce?: number;
   source: string;
   fx?: HitEffects;
+  /** §5.2 Mortar @3: leave a ground-fire patch on impact — see `detonate`. */
+  groundBurn?: boolean;
+  groundBurnSeconds?: number;
 }
 
 export function spawnProjectile(w: World, spec: ProjectileSpec): Projectile {
@@ -432,6 +435,8 @@ export function spawnProjectile(w: World, spec: ProjectileSpec): Projectile {
     slowDuration: spec.fx?.slowDuration ?? 0,
     onHit: spec.fx?.onHit ?? EMPTY_ON_HIT,
     ratio: spec.fx?.ratio ?? null,
+    groundBurn: spec.groundBurn ?? false,
+    groundBurnSeconds: spec.groundBurnSeconds ?? 0,
     dead: false,
   };
   w.projectiles.push(p);
@@ -497,6 +502,32 @@ function projectileEffects(p: Projectile): HitEffects {
 function detonate(w: World, p: Projectile): void {
   w.emit('boom', p.x, p.y, p.aoe, 0);
   applyAoE(w, p.x, p.y, p.aoe, p.damage, p.source, projectileEffects(p));
+  if (p.groundBurn) spawnBurningPatch(w, p);
+}
+
+/**
+ * §5.2 Mortar @3: "shells leave a burning patch" — a ground-fire hazard sized
+ * to the shell's own blast radius, reusing the generic ground-area tick
+ * (`updateAreas`) the Cinderling's fire trail already drives (`'burn'` is not
+ * `'poison'`/`'enemyFire'`/`'bossSlam'`, so it falls into the plain
+ * damage-over-time branch). The magnitude is the Burning row's own authored
+ * dps (`damagetypes.json`) rather than an invented number — SPEC-FINAL names
+ * no dps for the patch, so this is the least-invented default (Q112).
+ */
+function spawnBurningPatch(w: World, p: Projectile): void {
+  const dps = w.content.damageTypeByKey.get('burning')?.dps ?? 1;
+  w.areas.push({
+    id: w.newId(),
+    x: p.x,
+    y: p.y,
+    radius: p.aoe,
+    dps,
+    remaining: p.groundBurnSeconds,
+    type: 'burn',
+    source: p.source,
+    acc: 0,
+    dead: false,
+  });
 }
 
 /* ------------------------------------------------------------ ground areas */

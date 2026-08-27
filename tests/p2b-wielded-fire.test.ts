@@ -17,7 +17,7 @@ import { buildTower, upgradeTower } from '../src/sim/towers';
 import { emptyInput } from '../src/sim/types';
 import type { Enemy } from '../src/sim/types';
 import { updateProjectiles } from '../src/sim/combat';
-import { upgradeStatMul } from '../src/sim/upgrades';
+import { attackProfile, upgradeStatMul } from '../src/sim/upgrades';
 import { updateWieldedAttacks } from '../src/sim/vswield';
 import { World } from '../src/sim/world';
 import { cfg } from './helpers';
@@ -222,7 +222,11 @@ describe('p2b — wielded attacks fire as character attacks (§6.1 last clause)'
     w.warden.y = t1.ty + 0.5;
     w.gold = 1e6;
     expect(upgradeTower(w, t1.tx, t1.ty)).toBe(true);
-    expect(upgradeTower(w, t1.tx, t1.ty)).toBe(true); // tier 3: 2 stat steps
+    // tier 3: 1 stat step (step 1) plus p5c's `burnStacks` milestone (step 2,
+    // "+1 Burning per hit" — a dps multiplier, see `AttackProfile.burnStacks`'s
+    // doc comment in upgrades.ts), which is live by tier 3 and folded into
+    // `expectedBurnDps` below rather than assumed away.
+    expect(upgradeTower(w, t1.tx, t1.ty)).toBe(true);
     w.stats.add('boon:power', 'power', 3); // +300% Power — must not touch the burn rider
     w.recomputeDerived();
     w.phase = 'act2';
@@ -233,7 +237,8 @@ describe('p2b — wielded attacks fire as character attacks (§6.1 last clause)'
 
     const burn = e.dots.find((d) => d.type === 'burning');
     expect(burn).toBeDefined();
-    const expectedBurnDps = BRAZIER.attack!.burn!.dps * upgradeStatMul(w, BRAZIER, 3);
+    const expectedBurnDps =
+      BRAZIER.attack!.burn!.dps * attackProfile(BRAZIER, 3).burnStacks * upgradeStatMul(w, BRAZIER, 3);
     expect(burn!.dps).toBeCloseTo(expectedBurnDps, 6);
   });
 

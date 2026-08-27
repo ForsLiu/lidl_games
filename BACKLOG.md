@@ -33,7 +33,7 @@ still in test headers.
 | P2 VS core | **done in full (p2a-p2f)** — inheritance formula built and wired live, towers inert with their §5 specials live, weapon-panel lineage live, the superseded soul-weapon roster and Dusk picker deleted (G3 green in full) |
 | P3 interleave | **done in full (p3a-p3e)** — `p3a` retargets the reused V2 cycle machine to 18 TD + 6 VS, 20s build, 75s VS (G6's pattern half); `p3b` stacks up to `maxStackedWaves` TD waves via the `call` command (G6's stacking half); `p3c` re-points leak coupling's existing ×2-into-next-VS-wave mechanism onto TD→VS vocabulary and the real 6-block shape; `p3d` deletes the V2 Day/Dusk/Night/Dawn machine, Rekindle and the Core-detonation pocket/lane mechanism outright; `p3e` re-baselines `light-build`/G13's solo-viability clause (`a4-single-type`)/the boss gate against the real shape — all three measure red past ~wave 10-14 (a p8a content gap, not a P3 defect) and are logged `.skip` with their numbers rather than forced green (Q109) |
 | P4 core math | **done** — multiplicative stacking, armor cap +99 / floor −100, 6 damage types + 2 statuses (G4, G5 green) |
-| P5 tower roster | **done bar G20** (`p5c`) — all 10 towers, upgrade tracks, defense bands; `p5b` gave Ember Brazier/Mortar their own `costMul` so only two tracks (Ballista, Frost Obelisk) still carry a `note` instead of §5's count, each for a measured reason |
+| P5 tower roster | **done in full (G20 green)** — all 10 towers, upgrade tracks, defense bands; `p5b` gave Ember Brazier/Mortar their own `costMul`; `p5c` authored the four remaining §5.2 milestone specials (Ballista, Fire Brazier, Ice Obelisk, Mortar) and the G20 loader rule; `p5d` (a QA-filed `damageDealt` telemetry bug) is the one item still open |
 | P6 classes | **3 of 11**, and on V2's one-Active + Signature framework, not §4's Passive + Q + E + tower passive (G8–G11 unmet) |
 | P7 equipment/rewards/VS upgrades | **superseded systems in place** — relic affixes, Ember, 12 boons; §7's 12-item table, §6.3's pool and §8's reward pipeline unbuilt (G12 unmet) |
 | P8 enemies/waves/bosses | **roster and both bosses done** — all 20 §9 enemies by name; waves still on the 10-wave cycle shape (G14 measured on the old shape) |
@@ -78,14 +78,10 @@ and are `.skip`-ed with their numbers per Q109, not forced green.
 
 ### P5 — full tower roster and upgrade tracks (G20)
 
-P5's first two items, `p5a` and `p5b`, are done — see the Done section. `p5c`
-is still open, and QA filed a new bug against `p5b` as `p5d`.
+P5's first three items, `p5a`, `p5b` and `p5c`, are done — see the Done
+section. **Gate G20 is green in full.** `p5d`, a bug QA filed against `p5b`,
+is the one item still open.
 
-- [ ] (p5c) [feat] Gate **G20**: every §5 milestone special measurably changes the
-      attack it names, and the loader validates it — acceptance: a loader rule
-      rejects a `specials` entry whose key does not resolve to an `attackProfile`
-      change, and a test drives each of the ten towers' tracks asserting a measured
-      difference at each milestone step — refs: §5, G20
 - [ ] (p5d) [bug] `Structure.damageDealt` is never credited for `pierce`- and
       `lob`-kind tower attacks: `fireTower`'s `pierce` case (Ballista) and `lob`
       case (Mortar) call `spawnProjectile` without ever incrementing `s.damageDealt`,
@@ -375,6 +371,89 @@ logged in MIGRATION.md §8 rather than carried as dead items.
   **G19**. The work is `p10d`.
 
 ## Done
+
+- [x] (p5c) [feat] Gate **G20** — every §5 milestone special measurably changes
+      the attack it names, and the loader validates it — this commit. **Gate G20
+      is green in full; P5 is done bar the unrelated `p5d` telemetry bug.**
+      Ballista, Fire Brazier, Ice Obelisk and Mortar shipped with an empty
+      `specials: []` array despite SPEC-FINAL §5.2 naming a milestone for each —
+      `data/towers.json` now authors all four: Ballista reuses Arrow's own
+      `pierce`/`projectiles` keys verbatim (+1 pierce @2, +1 projectile @4); Fire
+      Brazier gets two new keys, `burnStacks` (+1 Burning per hit @2) and
+      `coneWidth` (cone width +50% @4); Ice Obelisk gets `slowDuration` ("frost
+      lasts 5s" @3); Mortar gets `burnPatch` ("shells leave a burning patch" @3,
+      `seconds: 2`). `AttackProfile` (`src/sim/upgrades.ts`) grows matching
+      fields (`coneWidthMul`, `burnStacks`, `slowDuration`, `groundBurn`,
+      `groundBurnSeconds`), read by `fireTower`'s cone/aura/lob cases
+      (`src/sim/towers.ts`) exactly as every existing special already is.
+      Mortar's ground patch is a new `GroundArea` (`type: 'burn'`, spawned by a
+      new `spawnBurningPatch` in `src/sim/combat.ts`) that reuses the generic
+      damage-over-time branch `updateAreas` already runs for the Cinderling's
+      fire trail — no new mechanism, just a new caller of an existing one.
+      **Two genuine spec gaps needed a judgment call, both logged as Q112**:
+      Burning's own row is `maxStacks: 1, refresh: 'strongest'` today (raising
+      that cap is `p10a`'s job, explicitly a later phase), so "+1 Burning per
+      hit" is read as a dps multiplier on the one stack an enemy can carry, not
+      a second literal stack; the patch's dps has no §5.2 number at all, so it
+      reuses `damagetypes.json`'s own authored `burning.dps` (1) rather than
+      inventing one, and its radius reuses the shell's own blast `aoe`. Neither
+      touches a shipped balance number — both are flagged in `/data` `note`
+      fields and code comments pointing at Q112. The loader half of G20 is a new
+      `validateSpecialChangesProfile` (`src/sim/content.ts`), wired into
+      `loadContent`'s existing per-special validation loop alongside
+      `validateSpecial`: it evaluates the tower's own real `attackProfile` one
+      step below a milestone against one step at it and throws if the two are
+      byte-identical, so a special that structurally validates (right kind,
+      right companion field) but changes nothing the fire loop reads is still a
+      load error, not a step a player pays gold for and receives nothing from.
+      **code-reviewer REQUEST-CHANGES → fixed, then re-verified clean**: the
+      first draft wired all four milestones into `fireTower` (Act I) but missed
+      `fireWielded` (`src/sim/vswield.ts`) entirely — SPEC-FINAL §6.1 wields
+      "the highest upgrade effect" of every built tower type into a VS wave, so
+      a milestone that only fired in Act I contradicted the spec's own
+      inheritance contract and gate G3, untested by anything in the suite.
+      Fixed by mirroring the same four field reads into `fireWielded`'s
+      cone/aura/lob cases; a new "the same milestones apply to the VS-wielded
+      attack (§6.1)" describe block in `tests/p5c-milestone-specials.test.ts`
+      drives all four through `updateWieldedAttacks` and would fail if any were
+      dropped again, and a pre-existing wielded-burn test in
+      `tests/p2b-wielded-fire.test.ts` (written before Fire Brazier had any
+      milestone) needed its own expected value corrected to fold in
+      `burnStacks` rather than assume pure stat scaling. **qa-playtester FAIL on
+      first pass → fixed, then re-verified PASS**: QA built a real, hand-authored
+      counterexample the shipped loader accepted silently — a *second*
+      `slowDuration` special on Frost Obelisk's real track repeating the
+      *first* milestone's own value (not the attack's base) — and reproduced it
+      twice independently against `loadContent()` directly, not just the unit
+      test. Root cause: `validateSpecialChangesProfile`'s first draft compared
+      each special against a synthetic single-special track, which can only
+      ever detect "repeats the attack's absolute base," not "repeats a
+      different, earlier milestone already active on the same real track."
+      Fixed by passing the tower's real, full `upgrades` (all its specials)
+      into the before/after comparison instead of a synthetic one-special
+      track — every other already-active milestone now stays live in both
+      snapshots, isolating exactly the one flip under test — with a new
+      regression test pinning QA's own repro shape. QA then independently
+      re-reproduced the original failure against the fix (confirmed it now
+      throws `towers.json: frost_obelisk special "slowDuration" does not
+      change the attack it names`), rechecked the full suite, and confirmed no
+      new false-positive rejects any of the twelve real shipped specials.
+      **One QA process incident, disclosed and resolved, not a code defect**:
+      during re-verification QA accidentally ran `git checkout -- data/towers.json`
+      while trying to revert its own scratch edit, which discarded the entire
+      legitimate uncommitted `data/towers.json` diff along with it. QA
+      reconstructed the four towers' `specials` blocks from the still-intact
+      surrounding diff (`upgrades.ts`/`towers.ts`/`vswield.ts`/`combat.ts`/
+      `tower-info.ts`/`QUESTIONS.md`/the untracked test file, which pins every
+      `at`/`value`/`mul`/`seconds`) and flagged that the player-visible `note`
+      strings on three of the four towers were its own reconstructed prose, not
+      guaranteed verbatim — confirmed correct in substance (`git diff --stat`
+      matched the original 44 insertions / 4 deletions, full suite and `tsc`
+      both stayed green) but re-reviewed and tightened by hand afterward for
+      tone, since a `note` is flavor text no test asserts. `npm test`: 677
+      passed / 33 skipped (0 failed, up from 663/33 before this item — 14 new
+      cases in `tests/p5c-milestone-specials.test.ts`); perf config 3/3; `npx
+      tsc --noEmit` clean — refs: §5.2, G3, G20, Q112.
 
 - [x] (p5b) [balance] Give an upgrade track its own price multiplier (`costMul`)
       and put Ember Brazier and Mortar on §5's count line — this commit. §5's own

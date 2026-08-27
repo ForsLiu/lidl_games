@@ -281,9 +281,12 @@ describe('m20c — §4’s defense words are three bands, and they are live dama
   it('scales the band with the track, so §4’s "+10% Defense" is not inert', () => {
     // m20a proved the arithmetic against an authored 20; now a shipped tower
     // carries it, which is the difference between a rule and a rule with a
-    // caller.
-    const def = content.towerByKey.get('ballista')!;
-    const { w, tx, ty } = place('ballista');
+    // caller. Beacon Totem, not Ballista: p5c gave Ballista its own §5.2
+    // milestones (`specials`), which replace some of its steps' +10% rather
+    // than stacking with it — this test wants a tower whose every step is a
+    // plain stat bump, and Beacon Totem's track still is one.
+    const def = content.towerByKey.get('beacon_totem')!;
+    const { w, tx, ty } = place('beacon_totem');
     const s = w.structureAt(tx, ty)!;
     expect(structureArmor(w, s)).toBeGreaterThan(0);
     for (let step = 1; step <= def.upgrades.count; step++) {

@@ -99,7 +99,20 @@
       "upgrades": {
         "count": 10,
         "stepCost": 18,
-        "specials": [],
+        "specials": [
+          {
+            "at": 2,
+            "key": "pierce",
+            "value": 1,
+            "note": "+1 pierce (same path) — §5.2"
+          },
+          {
+            "at": 4,
+            "key": "projectiles",
+            "value": 1,
+            "note": "+1 projectile (same path, not spread) — §5.2"
+          }
+        ],
         "note": "m20c: §4 count line says 4. At 4 the rule price is 45 and shortening Ballista alone takes the boss gate scripted maxbuild run from victory to defeat_warden — V2-equivalent 10 kept (Q80)."
       },
       "hp": 140,
@@ -128,7 +141,20 @@
       "upgrades": {
         "count": 4,
         "stepCost": 14,
-        "specials": [],
+        "specials": [
+          {
+            "at": 2,
+            "key": "burnStacks",
+            "value": 1,
+            "note": "+1 Burning per hit — read as a dps multiplier on the one Burning application a hit deals, not a second stack, since Burning caps at 1 stack today (Q112, p10a) — §5.2"
+          },
+          {
+            "at": 4,
+            "key": "coneWidth",
+            "mul": 1.5,
+            "note": "cone width +50% — §5.2"
+          }
+        ],
         "costMul": 0.8
       },
       "hp": 110,
@@ -160,7 +186,14 @@
       "upgrades": {
         "count": 10,
         "stepCost": 14,
-        "specials": [],
+        "specials": [
+          {
+            "at": 3,
+            "key": "slowDuration",
+            "seconds": 5,
+            "note": "frost from this tower lasts 5s, up from the base 1.2s (p5c, §5.2)"
+          }
+        ],
         "note": "m20c: §4 count line says 4. At 4 the A4 T1 clause measures 0/5 at the rule price 35 and at 28, and 4/5 at 14, against the 5/5 the gate wants — V2-equivalent 10 kept (Q80)."
       },
       "hp": 130,
@@ -229,7 +262,14 @@
       "upgrades": {
         "count": 3,
         "stepCost": 26,
-        "specials": [],
+        "specials": [
+          {
+            "at": 3,
+            "key": "burnPatch",
+            "seconds": 2,
+            "note": "shells leave a burning patch for 2s (p5c, §5.2, Q112)"
+          }
+        ],
         "costMul": 0.6
       },
       "hp": 120,

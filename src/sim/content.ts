@@ -4,6 +4,7 @@
  */
 import { z } from 'zod';
 
+import { attackProfile } from './upgrades';
 import towersRaw from '../../data/towers.json';
 import enemiesRaw from '../../data/enemies.json';
 import wavesRaw from '../../data/waves.json';
@@ -128,22 +129,45 @@ const TerrainSchema = z.object({
  * step that silently buys nothing, which is the failure m19a's orphaned
  * `shredArmor` shipped as. What each key needs alongside it is cross-checked by
  * `validateSpecial`, since the requirement depends on the key.
+ *
+ * `coneWidth`/`burnStacks`/`slowDuration`/`burnPatch` are p5c's four (Ballista
+ * needs none — it reuses `pierce`/`projectiles` verbatim): Fire Brazier's cone
+ * widens and its burn hits harder, Frost Obelisk's own slow lasts longer, and
+ * Mortar's shell leaves a ground patch — see `attackProfile` (`upgrades.ts`)
+ * for what each actually changes, and `validateSpecialChangesProfile` below
+ * for gate **G20**'s loader rule.
  */
-const SPECIAL_KEYS = ['pierce', 'projectiles', 'onHit', 'damageRatio', 'electricChain'] as const;
+const SPECIAL_KEYS = [
+  'pierce',
+  'projectiles',
+  'onHit',
+  'damageRatio',
+  'electricChain',
+  'coneWidth',
+  'burnStacks',
+  'slowDuration',
+  'burnPatch',
+] as const;
 
 const UpgradeSpecialSchema = z.object({
   at: num.int().positive(),
   key: z.enum(SPECIAL_KEYS),
-  /** `pierce`/`projectiles`: how many this step adds. */
+  /** `pierce`/`projectiles`/`burnStacks`: how many this step adds. */
   value: num.int().positive().optional(),
   /** `onHit`: the §3 damage type or status the attack starts applying. */
   type: str.optional(),
   /** `damageRatio`: the split this step replaces the attack's own with. */
   ratio: DamageRatioSchema.optional(),
+  /** `coneWidth`: the cone half-angle's new multiplier (§5.2 "+50%" → 1.5). */
+  mul: num.positive().optional(),
+  /** `slowDuration`/`burnPatch`: seconds — the new slow duration, or how long the ground patch burns. */
+  seconds: num.positive().optional(),
   note: str.optional(),
   // Closed on purpose: `values: 1` for `value: 1` would otherwise be dropped in
   // silence and the step would buy nothing.
 }).strict();
+
+export type UpgradeSpecial = z.infer<typeof UpgradeSpecialSchema>;
 
 const UpgradeTrackSchema = z.object({
   count: num.int().min(0).max(20),
@@ -671,13 +695,17 @@ export function validateDamageRatio(
 }
 
 /**
- * Which attack shapes actually read each special, for the two keys that are not
+ * Which attack shapes actually read each special, for the keys that are not
  * universal. `onHit`, `damageRatio` and `electricChain` ride on every shape
  * (`HitEffects`), so they are absent here.
  */
 const SPECIAL_KINDS: Record<string, readonly string[] | undefined> = {
   pierce: ['single', 'pierce'],
   projectiles: ['single', 'pierce', 'poison'],
+  coneWidth: ['cone'],
+  burnStacks: ['cone'],
+  slowDuration: ['aura'],
+  burnPatch: ['lob'],
 };
 
 /**
@@ -691,8 +719,12 @@ const SPECIAL_KINDS: Record<string, readonly string[] | undefined> = {
  */
 export function validateSpecial(
   types: DamageTypesFile,
-  sp: { key: string; value?: number; type?: string; ratio?: Record<string, number> },
-  attack: { kind: string; damageRatio?: Record<string, number> } | null,
+  sp: { key: string; value?: number; type?: string; ratio?: Record<string, number>; mul?: number; seconds?: number },
+  attack: {
+    kind: string;
+    damageRatio?: Record<string, number>;
+    burn?: { dps: number; duration: number };
+  } | null,
   where: string,
 ): void {
   const what = `${where} special "${sp.key}"`;
@@ -725,8 +757,61 @@ export function validateSpecial(
         throw new Error(`${what} needs an attack with an electric share`);
       }
       break;
+    case 'coneWidth':
+      if (sp.mul === undefined) throw new Error(`${what} needs a mul`);
+      break;
+    case 'burnStacks':
+      if (sp.value === undefined) throw new Error(`${what} needs a value`);
+      // The special boosts a burn this attack already deals per hit — see
+      // `attackProfile`'s doc comment for why that is a dps multiplier and not
+      // literal extra Burning stacks (Q112, p10a).
+      if (!attack.burn) throw new Error(`${what} needs an attack that already burns`);
+      break;
+    case 'slowDuration':
+      if (sp.seconds === undefined) throw new Error(`${what} needs seconds`);
+      break;
+    case 'burnPatch':
+      if (sp.seconds === undefined) throw new Error(`${what} needs seconds`);
+      break;
     default:
       throw new Error(`${what} is not a special the engine pays out`);
+  }
+}
+
+/**
+ * Gate **G20**: "every §5 milestone special measurably changes the attack it
+ * names, and the loader validates it." `validateSpecial` above checks that a
+ * special is structurally well-formed (the right companion field, a kind that
+ * reads it); this checks the thing G20 actually asks for — that buying the
+ * step changes what `attackProfile` (`upgrades.ts`) computes, so a special
+ * that parses clean but folds into a no-op (the wrong kind restriction typo'd
+ * away, a `slowDuration` milestone that repeats the base `slowDuration` *or
+ * an earlier milestone's own `seconds` on the same track*, and so on) is
+ * still a load error rather than a step the player pays for and receives
+ * nothing from.
+ *
+ * Compares the profile one step below `sp.at` (the special not yet active)
+ * against `sp.at` itself (active) on the tower's own **real** `upgrades`
+ * track, not a synthetic single-special one (QA, this item's own review): a
+ * synthetic track can only ever compare `sp` against the attack's absolute
+ * unmilestoned default, so a second special repeating a *different, earlier*
+ * milestone's value on the same real track reads as "changes the profile"
+ * (it does differ from the bare default) when it does not actually change
+ * anything past what the earlier milestone already set. Passing the real
+ * track keeps every other, already-active special live in both snapshots, so
+ * only the one flip `sp.at` itself causes is what gets measured.
+ */
+export function validateSpecialChangesProfile(
+  sp: UpgradeSpecial,
+  attack: TowerAttack | null,
+  upgrades: { count: number; stepCost: number; specials: UpgradeSpecial[] },
+  where: string,
+): void {
+  if (!attack) return; // validateSpecial already rejects this case.
+  const before = attackProfile({ attack, upgrades }, sp.at);
+  const after = attackProfile({ attack, upgrades }, sp.at + 1);
+  if (JSON.stringify(before) === JSON.stringify(after)) {
+    throw new Error(`${where} special "${sp.key}" does not change the attack it names`);
   }
 }
 
@@ -912,7 +997,10 @@ export function loadContent(): Content {
     validateUpgradeTrack(t.upgrades, where);
     validateStepPrice(towers.upgradeTotalCostMul, t, where);
     validateDefense(towers.defenseBands, t.defense, where);
-    for (const sp of t.upgrades.specials) validateSpecial(damageTypes, sp, t.attack, where);
+    for (const sp of t.upgrades.specials) {
+      validateSpecial(damageTypes, sp, t.attack, where);
+      validateSpecialChangesProfile(sp, t.attack, t.upgrades, where);
+    }
   }
 
   // A damage type that says nothing about its magnitude would apply as a

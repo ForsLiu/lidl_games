@@ -363,15 +363,19 @@ function fireTower(w: World, s: Structure, def: TowerDef): void {
       break;
     }
     case 'cone': {
-      const halfAngle = (a.coneHalfAngle ?? 0.6) * area;
+      // §5.2 Fire Brazier @4: "cone width +50%" is a multiplier on the
+      // authored half-angle, on top of the character's own Area stat.
+      const halfAngle = (a.coneHalfAngle ?? 0.6) * area * prof.coneWidthMul;
       const dir = bestConeDirection(w, x, y, range, halfAngle);
       if (!dir) {
         s.cooldown = 0;
         return;
       }
+      // §5.2 Fire Brazier @2: "+1 Burning per hit" reads as a dps multiplier,
+      // not a second stack — see `AttackProfile.burnStacks`'s doc comment.
       s.damageDealt += coneHit(w, x, y, dir.x, dir.y, range, halfAngle, dmg, source, {
         ...fx,
-        burnDps: a.burn ? a.burn.dps * upgradeStatMul(w, def, s.tier) : 0,
+        burnDps: a.burn ? a.burn.dps * prof.burnStacks * upgradeStatMul(w, def, s.tier) : 0,
         burnDuration: a.burn?.duration ?? 0,
       });
       w.emit('cone', x, y, dir.x, dir.y);
@@ -384,7 +388,9 @@ function fireTower(w: World, s: Structure, def: TowerDef): void {
         if (e.dead) continue;
         s.damageDealt += dealHit(w, e, dmg, source, fx, { fromX: x, fromY: y });
         if (e.dead) continue;
-        if (a.slow) applySlow(w, e, a.slow, a.slowDuration ?? 1);
+        // §5.2 Frost Obelisk @3: "frost from this tower lasts 5s" — `prof`
+        // already resolves this against the authored `slowDuration`.
+        if (a.slow) applySlow(w, e, a.slow, prof.slowDuration);
         applyEffects(w, e, fx);
       }
       if (list.length > 0) w.emit('pulse', x, y, r, 0);
@@ -428,6 +434,10 @@ function fireTower(w: World, s: Structure, def: TowerDef): void {
         aoe: (a.aoe ?? 1.5) * area,
         source,
         fx,
+        // §5.2 Mortar @3: "shells leave a burning patch" — a ground hazard
+        // spawned on impact, not a per-enemy hit effect (see `detonate`).
+        groundBurn: prof.groundBurn,
+        groundBurnSeconds: prof.groundBurnSeconds,
       });
       break;
     }

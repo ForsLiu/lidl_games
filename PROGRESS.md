@@ -96,7 +96,25 @@ test-retirement ledger. Read §8 before touching anything.
   rate — so the milestone moves damage into a bucket that is already full and
   measures **−5.4%** (88.6 → 83.8 dps). Both clauses are verbatim and both are
   ⚖. Logged as Q87 for §17's review list rather than resolved by an agent.
-- **Next action:** **P5** `p5c` (gate G20). `p5b` is done this commit — Ember
+- **`p5c` is done this commit — gate G20 is green in full, and P5 is done bar
+  the unrelated `p5d` telemetry bug.** Ballista, Fire Brazier, Ice Obelisk and
+  Mortar shipped with an empty `specials: []` array despite SPEC-FINAL §5.2
+  naming a milestone for each; all four are now authored in `data/towers.json`
+  and read through `attackProfile` (`src/sim/upgrades.ts`) by both `fireTower`
+  (Act I, `src/sim/towers.ts`) and `fireWielded` (VS, `src/sim/vswield.ts`) —
+  see its own entry below for the two Q112 judgment calls (Burning's "+1 per
+  hit" is a dps multiplier, not a second stack, since raising its 1-stack cap
+  is `p10a`'s job; Mortar's burning-patch dps reuses `damagetypes.json`'s own
+  `burning.dps` rather than inventing one), the code-review Major
+  (`fireWielded` missed all four milestones in the first draft — §6.1 wields a
+  tower's "highest upgrade effect" into VS, so that was a real spec
+  contradiction, not a nice-to-have — fixed and regression-tested), and the
+  QA FAIL→fix→PASS cycle (the G20 loader rule's first draft validated each
+  special against a synthetic single-special track, which could not catch a
+  second milestone silently repeating an *earlier* milestone's value on the
+  same real track — fixed by validating against the tower's real, full
+  `upgrades` instead, with QA's own repro pinned as a regression test).
+  **Next action: P5.5** (`p-core-a`, Core selection). `p5b` is done — Ember
   Brazier and Mortar now carry their own `costMul` and sit on §5's count line
   with no `note`; see its own entry below. QA filed a new, unrelated bug at
   `p5b` — `p5d` (`Structure.damageDealt` never credited for `pierce`/`lob`-kind
@@ -139,6 +157,100 @@ test-retirement ledger. Read §8 before touching anything.
   QA-proven a no-op), and `x002` at `ef69a47` (lifesteal's cap removed and its
   accrual gated to normal damage per §2 — **not** a no-op; the sweep delta is
   below and in the session log). P0's remaining clause is carried as
+- **p5c — what a reader needs to know. Gate G20 is green in full, and P5 is
+  done bar the unrelated `p5d` telemetry bug.** BACKLOG's literal acceptance
+  text: "a loader rule rejects a `specials` entry whose key does not resolve
+  to an `attackProfile` change, and a test drives each of the ten towers'
+  tracks asserting a measured difference at each milestone step." Four towers
+  — Ballista, Fire Brazier, Ice Obelisk, Mortar — shipped with an empty
+  `specials: []` array despite SPEC-FINAL §5.2 naming a real milestone for
+  each; `data/towers.json` now authors all four. Ballista reuses Arrow's own
+  `pierce`/`projectiles` keys verbatim (+1 pierce @2, +1 projectile @4) — no
+  engine change needed, both keys already existed. Fire Brazier and Ice
+  Obelisk and Mortar needed three new special keys: `coneWidth` (Fire Brazier
+  @4, cone half-angle ×1.5), `burnStacks` (Fire Brazier @2), `slowDuration`
+  (Ice Obelisk @3, overrides the aura's own slow duration), `burnPatch`
+  (Mortar @3, spawns a ground-fire `GroundArea` on shell impact).
+  `AttackProfile` (`src/sim/upgrades.ts`) grows a matching field for each,
+  read identically by `fireTower` (Act I, `src/sim/towers.ts`) and — after a
+  code-review fix, below — `fireWielded` (VS, `src/sim/vswield.ts`), exactly
+  the way every pre-existing special already is. Mortar's patch reuses the
+  generic ground-damage tick `updateAreas` already runs for the Cinderling's
+  `enemyFire` trail (`src/sim/combat.ts`'s new `spawnBurningPatch`) rather
+  than a new mechanism. **Two genuine spec gaps needed a judgment call,
+  logged as Q112, not tuned.** SPEC-FINAL gives "+1 Burning per hit" no
+  engine meaning under today's Burning row (`maxStacks: 1, refresh:
+  'strongest'` — a second literal application collapses into the same one
+  slot the first already claimed, a no-op in practice even though it reads
+  as a milestone); raising that cap is `p10a`'s job, explicitly a later
+  phase, so `burnStacks` is read as a dps multiplier on the one stack an
+  enemy can actually carry instead — "+1 Burning" reads as "this hit's
+  Burning is worth two applications' worth of damage." The patch's dps has
+  no §5.2 number at all (only its 2s duration is given), so it reuses
+  `damagetypes.json`'s own authored `burning.dps` (1) rather than inventing
+  one, and its radius reuses the shell's own blast `aoe` rather than a second
+  authored radius — the same no-invented-magnitude discipline Q98/Q99 set at
+  p2c for the VS specials. The loader half of G20 is a new
+  `validateSpecialChangesProfile` (`src/sim/content.ts`), wired into
+  `loadContent`'s existing per-special validation loop: it evaluates the
+  tower's own real `attackProfile` one step below a milestone against one
+  step at it and throws if the two come back byte-identical, so a special
+  that structurally validates (right kind, right companion field) but
+  changes nothing the fire loop reads is still a load error. **code-reviewer
+  REQUEST-CHANGES → fixed, then re-verified clean.** The first draft wired
+  all four milestones into `fireTower` but never touched `fireWielded` —
+  SPEC-FINAL §6.1 wields "the highest upgrade effect" of every built tower
+  type into a VS wave, so a milestone that only fired in Act I directly
+  contradicted the spec's own inheritance contract and gate G3, and nothing
+  in the suite would have caught it (the existing wielded-fire tests only
+  assert that *an* attack fires, never that a milestone effect is present).
+  Fixed by mirroring the same four field reads into `fireWielded`'s
+  cone/aura/lob cases; `tests/p5c-milestone-specials.test.ts` gained a fourth
+  describe block driving all four through `updateWieldedAttacks`, and a
+  pre-existing wielded-burn test in `tests/p2b-wielded-fire.test.ts` (written
+  before Fire Brazier had any milestone at all) needed its own expected value
+  corrected to fold in `burnStacks` rather than assume pure +10%-per-step
+  stat scaling. **qa-playtester FAIL on first pass → fixed, then re-verified
+  PASS.** QA built a real, hand-authored counterexample the shipped loader
+  accepted silently: a *second* `slowDuration` special appended to Frost
+  Obelisk's real track, repeating the *first* milestone's own value (not the
+  attack's base) — reproduced twice, independently, directly against
+  `loadContent()`, not just the unit test. Root cause: the first draft of
+  `validateSpecialChangesProfile` compared a special against a *synthetic
+  single-special* track, which can only ever detect "repeats the attack's
+  absolute base" — it has no way to see a *different, earlier* milestone
+  already active on the tower's real track, so a second special repeating
+  that earlier value still reads as "differs from the bare default" and
+  passes. Fixed by passing the tower's real, full `upgrades` (every special
+  it actually carries) into both `attackProfile` calls instead of a
+  synthetic one — every other already-active milestone stays live in both
+  the "before" and "after" snapshots, so only the one flip under test is
+  what gets measured — with a new regression test pinning QA's own repro
+  shape (two `slowDuration` specials on one synthetic track, the second
+  repeating the first). QA then independently re-reproduced the original
+  failure against the fix (confirmed `loadContent()` now throws
+  `towers.json: frost_obelisk special "slowDuration" does not change the
+  attack it names`), rechecked the full suite, and confirmed no real shipped
+  special is a false-positive reject. **One QA process incident, disclosed
+  and resolved, not a code defect:** while reproducing its own repro a second
+  time, QA ran `git checkout -- data/towers.json` to revert a scratch edit,
+  not realizing that discards *all* uncommitted changes to the file, not
+  just the one line it had just added — destroying the entire legitimate
+  p5c `data/towers.json` diff along with it. QA reconstructed the four
+  towers' `specials` blocks from the still-intact surrounding diff (every
+  other touched file, plus the untracked test file, which pins every
+  `at`/`value`/`mul`/`seconds` via assertions) and flagged, rather than
+  silently passed off as original, that the player-visible `note` strings on
+  three of the four towers were its own reconstructed prose. Verified correct
+  in substance (`git diff --stat` matched the original 44 insertions / 4
+  deletions exactly, full suite and `tsc` both stayed green through the
+  reconstruction) and the `note` text was re-read and tightened by hand
+  afterward for tone, since a `note` is player-visible flavor text no test
+  asserts. `npm test`: 677 passed / 33 skipped (0 failed, up from 663/33
+  pre-p5c — 14 new cases in `tests/p5c-milestone-specials.test.ts`, one
+  existing case in `tests/p2b-wielded-fire.test.ts` corrected rather than
+  added); perf config 3/3; `npx tsc --noEmit` clean — refs: §5.2, G3, G20,
+  Q112.
 - **p5b — what a reader needs to know.** SPEC-FINAL §5 names the escape the
   price rule always lacked — "total track cost = 2x build cost ⚖, per-track
   `costMul` allowed" — so `UpgradeTrackSchema` (`src/sim/content.ts`) gains an

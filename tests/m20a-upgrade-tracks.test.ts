@@ -16,6 +16,7 @@ import { damageStructure, dotOutstanding, spawnEnemy } from '../src/sim/enemies'
 import { hashWorld } from '../src/sim/run';
 import { damageTakenMul } from '../src/sim/stats';
 import {
+  attackProfile,
   buildTower,
   effectiveTowerRange,
   maxLevel,
@@ -212,7 +213,11 @@ describe('m20a — a step buys +10% HP, Attack and Defense (§4)', () => {
     //
     // Venom Spore used to be the second case here; m20b restated its poison as
     // §3's ratio, so its DoT now scales through the attack itself and is
-    // covered by m20b's own file.
+    // covered by m20b's own file. Ember Brazier now also carries p5c's own
+    // `burnStacks` milestone (@2), which doubles the dps on top of whatever
+    // stat steps the track still pays out below it — the expected ratio at
+    // max level folds both in, the same way `fireTower` itself does, rather
+    // than assuming every step is a plain +10%.
     for (const key of ['ember_brazier']) {
       const def = content.towerByKey.get(key)!;
       const owed = (levels: number) => {
@@ -225,11 +230,17 @@ describe('m20a — a step buys +10% HP, Attack and Defense (§4)', () => {
         e.hp = 1e9;
         w.rebuildBuckets();
         updateTowers(w, 1 / 60);
-        return dotOutstanding(e);
+        return { w, outstanding: dotOutstanding(e) };
       };
       const base = owed(0);
-      expect(base, `${key} must apply a DoT at all`).toBeGreaterThan(0);
-      expect(owed(def.upgrades.count), `${key} ailment at max`).toBeCloseTo(base * STEP ** def.upgrades.count, 4);
+      expect(base.outstanding, `${key} must apply a DoT at all`).toBeGreaterThan(0);
+      const maxed = owed(def.upgrades.count);
+      const statRatio = upgradeStatMul(maxed.w, def, maxLevel(def));
+      const burnStacksRatio = attackProfile(def, maxLevel(def)).burnStacks;
+      expect(maxed.outstanding, `${key} ailment at max`).toBeCloseTo(
+        base.outstanding * statRatio * burnStacksRatio,
+        4,
+      );
     }
   });
 
@@ -308,12 +319,21 @@ describe('m20a — milestone steps and the stat bump (§4, Q73)', () => {
   });
 
   it('costs the shipped roster exactly its milestone steps and no more', () => {
-    // m20b authored §4's specials onto the three owner towers, so the flag is
-    // live: those three pay for their milestones out of the stat bump, and the
-    // other seven still bump on every step.
+    // m20b authored §4's specials onto the three owner towers; p5c adds the
+    // four §5.2 towers (Ballista, Fire Brazier, Ice Obelisk, Mortar). All
+    // seven pay for their milestones out of the stat bump; the remaining
+    // three (wall, beacon totem, harvest sprout) still bump on every step.
     const w = new World(cfg());
     const withSpecials = TOWERS.filter((t) => t.upgrades.specials.length > 0).map((t) => t.key);
-    expect(withSpecials).toEqual(['arrow_spire', 'tesla_coil', 'venom_spore']);
+    expect(withSpecials).toEqual([
+      'arrow_spire',
+      'ballista',
+      'ember_brazier',
+      'frost_obelisk',
+      'tesla_coil',
+      'mortar',
+      'venom_spore',
+    ]);
     for (const def of TOWERS) {
       const statSteps = def.upgrades.count - def.upgrades.specials.length;
       expect(upgradeStatMul(w, def, maxLevel(def)), def.key).toBeCloseTo(STEP ** statSteps, 10);

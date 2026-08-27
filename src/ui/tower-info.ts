@@ -184,8 +184,12 @@ function attackOutput(w: World, def: TowerDef, tier: number): { impact: number; 
   if (prof.electricChain) impact += damageShare(prof.ratio, 'electric') * dmg;
   // §3 riders ride once per shot; a status (frost, frozen) owes no damage.
   for (const k of prof.onHit) if (w.content.damageTypeByKey.has(k)) typed(k, 0);
-  // V2's authored burn, which the Ember Brazier still uses.
-  if (a.burn) ailment += a.burn.dps * upgradeStatMul(w, def, tier) * a.burn.duration * potency('burning');
+  // V2's authored burn, which the Ember Brazier still uses. §5.2 @2:
+  // "+1 Burning per hit" reads as `prof.burnStacks`, a dps multiplier — see
+  // `AttackProfile.burnStacks`'s doc comment.
+  if (a.burn) {
+    ailment += a.burn.dps * prof.burnStacks * upgradeStatMul(w, def, tier) * a.burn.duration * potency('burning');
+  }
 
   // These are single-target numbers: a lone enemy takes every projectile a
   // shot fires. §5.1 gives both Arrow and Poison their second projectile
@@ -279,15 +283,17 @@ export function towerInfo(w: World, def: TowerDef, existing?: Structure): TowerI
       });
     }
     if (a.slow) {
+      // §5.2 Frost Obelisk @3: "frost from this tower lasts 5s" — `prof`
+      // already resolves this against the authored `slowDuration`.
       stats.push({
         label: 'Slow',
-        value: `${Math.round(a.slow * 100)}% for ${fmt(a.slowDuration ?? 1)}s`,
+        value: `${Math.round(a.slow * 100)}% for ${fmt(prof.slowDuration)}s`,
       });
     }
     if (a.burn) {
       stats.push({
         label: 'Burn',
-        value: `${fmt(a.burn.dps * upgradeStatMul(w, def, tier))} dps for ${fmt(a.burn.duration)}s`,
+        value: `${fmt(a.burn.dps * prof.burnStacks * upgradeStatMul(w, def, tier))} dps for ${fmt(a.burn.duration)}s`,
       });
     }
   }

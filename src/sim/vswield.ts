@@ -225,7 +225,9 @@ function fireWielded(w: World, wielded: WieldedAttack, def: TowerDef, a: TowerAt
       break;
     }
     case 'cone': {
-      const halfAngle = (a.coneHalfAngle ?? 0.6) * area;
+      // §5.2 Fire Brazier @4: "cone width +50%" — mirrors `fireTower`'s own
+      // cone case (towers.ts).
+      const halfAngle = (a.coneHalfAngle ?? 0.6) * area * prof.coneWidthMul;
       const dir = bestConeDirection(w, x, y, range, halfAngle);
       if (!dir) return false;
       coneHit(w, x, y, dir.x, dir.y, range, halfAngle, dmg, source, {
@@ -233,8 +235,10 @@ function fireWielded(w: World, wielded: WieldedAttack, def: TowerDef, a: TowerAt
         // Mirrors `fireTower`'s cone case exactly (towers.ts): the burn rider
         // scales with the group's own highest upgrade tier, never with
         // character Power — the direct-hit half of this attack already
-        // carries Power via `dmg` above.
-        burnDps: a.burn ? a.burn.dps * upgradeStatMul(w, def, wielded.highestTier) : 0,
+        // carries Power via `dmg` above. §5.2 @2: "+1 Burning per hit" reads
+        // as `prof.burnStacks`, a dps multiplier — see
+        // `AttackProfile.burnStacks`'s doc comment (upgrades.ts).
+        burnDps: a.burn ? a.burn.dps * prof.burnStacks * upgradeStatMul(w, def, wielded.highestTier) : 0,
         burnDuration: a.burn?.duration ?? 0,
       });
       w.emit('cone', x, y, dir.x, dir.y);
@@ -253,7 +257,9 @@ function fireWielded(w: World, wielded: WieldedAttack, def: TowerDef, a: TowerAt
         hitAny = true;
         dealHit(w, e, dmg, source, fx, { fromX: x, fromY: y });
         if (e.dead) continue;
-        if (a.slow) applySlow(w, e, a.slow, a.slowDuration ?? 1);
+        // §5.2 Frost Obelisk @3: "frost from this tower lasts 5s" — `prof`
+        // already resolves this against the authored `slowDuration`.
+        if (a.slow) applySlow(w, e, a.slow, prof.slowDuration);
         applyEffects(w, e, fx);
       }
       if (!hitAny) return false;
@@ -286,6 +292,10 @@ function fireWielded(w: World, wielded: WieldedAttack, def: TowerDef, a: TowerAt
         aoe: effectiveTowerAoe(w, def),
         source,
         fx,
+        // §5.2 Mortar @3: "shells leave a burning patch" — mirrors
+        // `fireTower`'s own lob case (towers.ts).
+        groundBurn: prof.groundBurn,
+        groundBurnSeconds: prof.groundBurnSeconds,
       });
       break;
     }
