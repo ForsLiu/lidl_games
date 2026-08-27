@@ -74,13 +74,19 @@ export interface CoverageEntry {
  */
 export const GATE_COVERAGE: Record<string, CoverageEntry> = {
   G2: {
-    files: ['tests/a11-determinism.test.ts', 'tests/f004-class-framework.test.ts'],
+    files: ['tests/a11-determinism.test.ts', 'tests/f004-class-framework.test.ts', 'tests/pacer.test.ts'],
     note:
       "a11 covers the 100-seed replay hash match; f004's live describe block (line 115, the other three are " +
       "describe.skip'd — see G8/G9) has 'replays to an identical end-state hash with class_active in the input " +
-      "log', covering actives. Still missing: tuner-edited content-hash replay (the Tuner is unbuilt — see G15) " +
-      "and fast-forward bit-identity — no test greps for 'contentHash' and no test asserts a fast_forward run's " +
-      'end hash against the same run at 1x.',
+      "log', covering actives. This note previously claimed 'no test asserts a fast_forward run's end hash " +
+      "against the same run at 1x' — stale the same way q17 (session 12) found G17's own note stale: " +
+      "tests/pacer.test.ts already had a test doing exactly that (it predates this audit tool, shipped with the " +
+      "fast-forward feature itself), just at one seed and one speed. BACKLOG-QUALITY q19 (session 15) widened it " +
+      "to several seeds across all three SPEEDS, reading src/ui/main.ts first to confirm fast-forward really is " +
+      "frame-stepping with no distinct sim entrypoint (Pacer.plan() only picks how many times the loop calls the " +
+      "same Run.step(), never a longer tick), so the bit-identity is structural, not incidental. Still missing: " +
+      "tuner-edited content-hash replay (the Tuner is unbuilt — see G15) — no test greps for 'contentHash' " +
+      '(BACKLOG-QUALITY q18 pins this specific gap as a live, skipped repro).',
   },
   G4: { files: ['tests/c3-armor.test.ts', 'tests/m19c-damage-types.test.ts'] },
   G5: { files: ['tests/c4-stacking.test.ts'] },

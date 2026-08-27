@@ -135,7 +135,7 @@ coverage gaps session 1's log recorded. All five are inside Scope as written.*
       lane convention, and file it as a bug for main lane in this file's Log —
       acceptance: `tests/q18-content-hash-replay.test.ts` demonstrates the gap
       with a live repro — refs: CLAUDE.md architecture rule 2, gate-audit.ts G2
-- [ ] (q19) [feat] Fast-forward bit-identity, named missing by gate-audit's G2
+- [x] (q19) [feat] Fast-forward bit-identity, named missing by gate-audit's G2
       note ("no test asserts a fast_forward run's end hash against the same
       run at 1x") — PROGRESS.md's M8 section claims fast-forward is "more
       fixed ticks per frame rather than a longer tick, so a fast-forwarded run
@@ -205,6 +205,96 @@ resolve if it wants the CLI entry points too. All five are inside Scope as
 written; none needs a `package.json` edit.*
 
 ## Log
+
+### 2026-08-27 — session 15
+
+**Feedback inbox:** `feedback/` does not exist in this worktree. Nothing to
+process, nothing moved.
+
+**Three actionable items were in queue** (q19, q20, q21, all unchecked and
+unblocked), so the generation rule did not run. Took q19, the top item.
+
+**q19 done.** `tests/pacer.test.ts` (+1 test, 9 total) and `tools/gate-audit.ts`
+(G2 note rewritten).
+
+**What it does.** gate-audit.ts's own G2 note claimed "no test asserts a
+fast_forward run's end hash against the same run at 1x." Read
+`src/ui/main.ts:222-266` first, per the item's own instruction, to find out
+what the shipped mechanism actually is before writing anything: fast-forward
+is the Pacer's 1x/2x/3x UI speed control (the F key), and it is pure
+frame-stepping — `Pacer.plan(dtReal)` only returns a tick count, and the loop
+calls the same `run.step()` that many times; there is no distinct sim
+entrypoint, so the bit-identity is structural, not incidental. (This is a
+different mechanism from the `dev.fast_forward` practice-mode Command in
+`src/sim/run.ts`, which deliberately skips simulated time and is *not*
+supposed to be bit-identical — same name, unrelated concept, easy to
+conflate.)
+
+**The premise was stale — the finding, not a fresh gap.** `tests/pacer.test.ts`
+already had a test, "a run stepped in pacer-sized batches hashes the same as
+one stepped evenly," that predates this entire lane: `git log --follow` shows
+it shipped whole-cloth in `5f57936 feat: fast-forward button and in-run
+control row` (2026-08-25), two days before this lane's first commit. It
+already proved the invariant — just for one seed (7) at one speed (3x). Same
+shape as q17/G17's staleness, one layer smaller: not "zero coverage" but
+"real coverage the note failed to credit." Fixed by (1) adding a new test
+right after it that widens the same pattern to 5 seeds (1, 3, 11, 42, 99) x
+all 3 `SPEEDS` values (15 combinations total, each an independent
+`Run`/`Pacer` pair), satisfying q19's literal "several seeds" acceptance
+line, and (2) rewriting G2's `GATE_COVERAGE` entry to add
+`tests/pacer.test.ts` to its `files` and stop claiming zero fast-forward
+coverage, disclosing what's genuinely still missing (tuner content-hash
+replay — q18's territory, the Tuner is unbuilt per G15).
+
+Mutation-tested the new test myself before trusting it: temporarily offset
+the `fast` run's seed by 1000, confirmed it went red on the very first
+combination, reverted, confirmed `git diff --stat` clean. Separately
+confirmed via a throwaway script (`bench/.tmp/`, deleted after) that
+`Run.hash()` genuinely differs across different seeds, so the equality
+assertion is a real oracle. Confirmed `tests/q10-gate-audit.test.ts` has no
+assertion on G2's literal note text (only on `status` and ID-list membership),
+so the rewrite doesn't break anything there.
+
+**Review (code-reviewer, APPROVE, 1 Minor — this Log entry closes it).**
+Independently confirmed the pre-existing test's provenance via
+`git log --follow`, confirmed no hardcoded G2 note-text assertions, confirmed
+the new test is genuine widening (5 seeds x 3 speeds, not boilerplate),
+confirmed Scope (`git diff --stat` restricted to `tests/pacer.test.ts` and
+`tools/gate-audit.ts`), and confirmed no architecture-rule concerns (only
+`Run.step`/`Run.hash`/`Pacer`/`FIXED_DT` used, no `Math.random`/`Date.now`/
+trig introduced). The one Minor — BACKLOG-QUALITY.md not yet updated at
+review time — is closed by this entry.
+
+**QA (qa-playtester, PASS).** Ran both touched test files standalone (28/28
+green, independent of this session's own run), read `src/ui/main.ts` itself
+to confirm the frame-stepping mechanism and the `dev.fast_forward` distinction
+independently rather than trusting the write-up. Mutation-tested for real:
+broke the `even` run's seed by +1, confirmed the test failed immediately at
+the first of 15 combinations with the exact wrong-hash message, restored and
+confirmed byte-identical via `md5sum`; separately instrumented (then removed)
+a counter to confirm all 15 seed x speed combinations actually execute with
+no early exit. Confirmed scope and the pre-existing test's provenance via
+`git log --follow`/`git blame` independently. Full-suite run surfaced one
+non-reproducible flake unrelated to this change — `tests/q15-command-domain-
+fuzz.test.ts`'s `rekindle.structureId:negInf` classified `"hangs"` instead of
+`"rejected"` once under full-suite worker contention, then green on two
+follow-up runs (one standalone, one full-suite retry) — the same
+contention-sensitive worker-timeout shape sessions 9 and 13 already
+documented for sibling probes; not filed, per QA's own non-reproducible-flake
+bar.
+
+**Suite state.** `npx vitest run tests/pacer.test.ts tests/q10-gate-audit.test.ts`
+— 28/28 green. A full `npx vitest run` taken before this commit: **823
+passed / 79 skipped, 7 failed** — all 7 confined to
+`tests/q14-mutation-smoke.test.ts`'s "fixture must start clean" precondition
+on whole-repo `git diff --exit-code`, tripped only because this session's own
+edits were still uncommitted at measurement time (the exact pre-commit-noise
+shape sessions 12 and 14 already documented; it reads clean once this commit
+lands). `npx tsc --noEmit -p .` clean.
+
+**Two actionable items remain** (q20, q21, both unchecked and unblocked), so
+the generation rule will need to run next session to bring the queue back
+above three.
 
 ### 2026-08-27 — session 14
 
