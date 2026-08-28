@@ -108,6 +108,7 @@ class Game {
       onToggleRanges: () => this.setShowRanges(!this.view.showRanges),
       onToggleAutoPick: () =>
         this.pending.push({ k: 'set_autopick', on: !this.run!.world.cfg.autoPickLevelUps }),
+      onToggleCharacterPanel: () => this.hud.toggleCharacterPanel(this.run!.world),
       onResume: () => this.setPaused(false),
       onPause: () => this.setPaused(true),
       onCycleSpeed: () => this.hud.setSpeed(this.pacer.cycle()),
@@ -126,6 +127,7 @@ class Game {
     this.hud.buildTowerBar(this.run.world);
     this.hud.showPracticeTools(cfg.practice === true);
     this.hud.resetModalKey();
+    this.hud.closeCharacterPanel();
     this.view.selectedTower = 0;
     this.view.selection = null;
     this.pending = [];
@@ -173,6 +175,9 @@ class Game {
       togglePause: () => this.togglePause(),
       cycleSpeed: () => this.hud.setSpeed(this.pacer.cycle()),
       toggleRanges: () => this.setShowRanges(!this.view.showRanges),
+      toggleCharacterPanel: () => {
+        if (this.run) this.hud.toggleCharacterPanel(this.run.world);
+      },
       clearSelection: () => {
         this.hud.clearSelection();
         // `0` clears both selections; deselecting used to need bare ground.

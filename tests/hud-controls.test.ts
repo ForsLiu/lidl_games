@@ -31,6 +31,7 @@ interface Log {
   speed: number;
   ranges: number;
   autopick: number;
+  character: number;
   pause: number;
   dev: DevOp[];
 }
@@ -45,6 +46,7 @@ function makeHud(root: HTMLElement, log: Log, pacer: Pacer): Hud {
     onNewRun: () => {},
     onToggleRanges: () => log.ranges++,
     onToggleAutoPick: () => log.autopick++,
+    onToggleCharacterPanel: () => log.character++,
     onResume: () => {},
     onPause: () => log.pause++,
     onCycleSpeed: () => {
@@ -65,7 +67,7 @@ describe('in-run control row', () => {
 
   beforeEach(() => {
     root = mount();
-    log = { speed: 0, ranges: 0, autopick: 0, pause: 0, dev: [] };
+    log = { speed: 0, ranges: 0, autopick: 0, character: 0, pause: 0, dev: [] };
     pacer = new Pacer();
     hud = makeHud(root, log, pacer);
     hud.buildTowerBar(new World(cfg()));
@@ -73,9 +75,185 @@ describe('in-run control row', () => {
   });
 
   it('shows every control the help line promises', () => {
-    for (const act of ['speed', 'ranges', 'autopick', 'pause']) {
+    for (const act of ['speed', 'ranges', 'autopick', 'character', 'pause']) {
       expect(root.querySelector(`[data-act="${act}"]`), act).not.toBeNull();
     }
+  });
+
+  it('the character button reaches the callback and toggling shows and hides the panel', () => {
+    const btn = root.querySelector('#sw-character') as HTMLButtonElement;
+    expect(btn.classList.contains('on')).toBe(false);
+    btn.click();
+    expect(log.character).toBe(1);
+
+    // The click only asked for the flip; `Hud.toggleCharacterPanel` is the
+    // real open/close logic, the same round-trip `main.ts` wires the button
+    // through in the real game.
+    const w = new World(cfg());
+    expect(hud.characterPanelOpen).toBe(false);
+    hud.toggleCharacterPanel(w);
+    expect(hud.characterPanelOpen).toBe(true);
+    hud.update(w);
+    expect(btn.classList.contains('on')).toBe(true);
+    const panel = root.querySelector('#sw-charpanel') as HTMLElement;
+    expect(panel.hidden).toBe(false);
+    expect(panel.textContent).toContain('Character');
+
+    hud.toggleCharacterPanel(w);
+    expect(hud.characterPanelOpen).toBe(false);
+    hud.update(w);
+    expect(btn.classList.contains('on')).toBe(false);
+    expect(panel.hidden).toBe(true);
+  });
+
+  it('the character panel opens in Act I and in Act II', () => {
+    for (const phase of ['act1_build', 'act1_wave', 'act2'] as const) {
+      const w = new World(cfg());
+      w.phase = phase;
+      const h = makeHud(mount(), { ...log }, pacer);
+      h.toggleCharacterPanel(w);
+      expect(h.characterPanelOpen, phase).toBe(true);
+    }
+  });
+
+  it('does not open once the run has ended, and force-closes if it ends while open', () => {
+    const w = new World(cfg());
+    hud.toggleCharacterPanel(w);
+    expect(hud.characterPanelOpen).toBe(true);
+    w.outcome = 'victory';
+    hud.update(w);
+    expect(hud.characterPanelOpen).toBe(false);
+
+    const w2 = new World(cfg());
+    w2.outcome = 'defeat_core';
+    hud.toggleCharacterPanel(w2);
+    expect(hud.characterPanelOpen).toBe(false);
+  });
+
+  it('the close button inside the panel closes it', () => {
+    const w = new World(cfg());
+    hud.toggleCharacterPanel(w);
+    const panel = root.querySelector('#sw-charpanel') as HTMLElement;
+    (panel.querySelector('[data-act="close"]') as HTMLElement).click();
+    expect(hud.characterPanelOpen).toBe(false);
+    expect(panel.hidden).toBe(true);
+  });
+
+  // code-reviewer finding: both `#sw-modal` and `#sw-charpanel` are opaque,
+  // full-stage overlays, so opening the character panel over an already-
+  // showing pause card or level-up offer screen used to hide it and eat its
+  // clicks rather than refuse to open.
+  it('refuses to open over the pause card, and over the level-up offer screen', () => {
+    const w = new World(cfg());
+    hud.setPaused(true, w);
+    hud.toggleCharacterPanel(w);
+    expect(hud.characterPanelOpen, 'must not open while paused').toBe(false);
+    hud.setPaused(false, w);
+
+    w.phase = 'levelup';
+    w.offers = [{ kind: 'boon', key: 'power', name: 'Power', desc: '', toLevel: 1 }];
+    hud.syncModal(w);
+    expect(hud.modalOpen).toBe(true);
+    hud.toggleCharacterPanel(w);
+    expect(hud.characterPanelOpen, 'must not open over the level-up screen').toBe(false);
+    const modal = root.querySelector('#sw-modal') as HTMLElement;
+    expect(modal.hasAttribute('hidden'), 'the level-up screen must still be showing').toBe(false);
+
+    // And once the offer screen clears, the panel opens normally again.
+    w.phase = 'act2';
+    w.offers = [];
+    hud.syncModal(w);
+    hud.toggleCharacterPanel(w);
+    expect(hud.characterPanelOpen).toBe(true);
+  });
+
+  // qa-playtester finding on fb004: the above test only covered opening the
+  // panel *over* an already-showing modal. The reverse — opening the panel
+  // first, then a level-up fires or the player hits Escape — let both opaque
+  // full-stage overlays show at once, the panel on top eating the modal's
+  // clicks (the single most common real interaction, since level-ups happen
+  // constantly in Act II, exactly when a player is likely to have the panel
+  // open to check their build).
+  it('closes itself if a level-up offer screen opens while it is showing', () => {
+    const w = new World(cfg());
+    hud.toggleCharacterPanel(w);
+    expect(hud.characterPanelOpen).toBe(true);
+
+    w.phase = 'levelup';
+    w.offers = [{ kind: 'boon', key: 'power', name: 'Power', desc: '', toLevel: 1 }];
+    hud.syncModal(w);
+
+    expect(hud.characterPanelOpen, 'the panel must not survive under the offer screen').toBe(false);
+    const modal = root.querySelector('#sw-modal') as HTMLElement;
+    const panel = root.querySelector('#sw-charpanel') as HTMLElement;
+    expect(modal.hasAttribute('hidden'), 'the offer screen must be showing').toBe(false);
+    expect(panel.hidden, 'only one overlay may be visible at a time').toBe(true);
+  });
+
+  it('closes itself if the player pauses while it is showing', () => {
+    const w = new World(cfg());
+    hud.toggleCharacterPanel(w);
+    expect(hud.characterPanelOpen).toBe(true);
+
+    hud.setPaused(true, w);
+
+    expect(hud.characterPanelOpen, 'the panel must not survive under the pause card').toBe(false);
+    const modal = root.querySelector('#sw-modal') as HTMLElement;
+    const panel = root.querySelector('#sw-charpanel') as HTMLElement;
+    expect(modal.hasAttribute('hidden'), 'the pause card must be showing').toBe(false);
+    expect(panel.hidden, 'only one overlay may be visible at a time').toBe(true);
+  });
+
+  // code-reviewer finding: `w.sundered` is a one-shot flag that never resets,
+  // so a fingerprint keyed on it went stale the moment a second Sundering's
+  // terrain passives accumulated onto the existing `terrain` source — the
+  // panel kept showing the first Sundering's armor number.
+  it("stays live across a second Sundering's terrain accumulation, not just the first", async () => {
+    const { applyTerrainPassives } = await import('../src/sim/weapons');
+    const w = new World(cfg());
+    const palisade = w.content.towerByKey.get('palisade')!;
+    w.gold = 99999;
+
+    const tx1 = Math.floor(w.warden.x) + 1;
+    const ty1 = Math.floor(w.warden.y);
+    expect(buildTower(w, palisade.id, tx1, ty1).ok).toBe(true);
+    applyTerrainPassives(w); // first Sundering: one wall's worth of armor
+
+    hud.toggleCharacterPanel(w);
+    hud.update(w);
+    const panel = root.querySelector('#sw-charpanel') as HTMLElement;
+    const firstRevision = w.stats.revision;
+    const firstArmor = w.stats.total('armor');
+    const firstMarkup = panel.innerHTML;
+    expect(panel.textContent).toContain('Armour');
+    expect(firstMarkup).toContain(`+${Math.round(firstArmor * 100) / 100}`);
+
+    // A second, different free tile near the Warden — not assumed to be
+    // `tx1 + 1`, which can already be occupied by map scenery.
+    let tx2 = -1;
+    let ty2 = -1;
+    outer: for (let dy = -2; dy <= 2; dy++) {
+      for (let dx = -2; dx <= 2; dx++) {
+        const cx = Math.floor(w.warden.x) + dx;
+        const cy = Math.floor(w.warden.y) + dy;
+        if ((cx !== tx1 || cy !== ty1) && w.grid.passable(cx, cy) && !w.structureAt(cx, cy)) {
+          tx2 = cx;
+          ty2 = cy;
+          break outer;
+        }
+      }
+    }
+    expect(tx2, 'must find a second free tile near the Warden').toBeGreaterThanOrEqual(0);
+    expect(buildTower(w, palisade.id, tx2, ty2).ok).toBe(true);
+    applyTerrainPassives(w); // second Sundering: two walls' worth now
+    const secondArmor = w.stats.total('armor');
+    expect(secondArmor, 'the fixture must actually change the number under test').toBeGreaterThan(firstArmor);
+    expect(w.stats.revision, 'Stats must record the second accumulation').toBeGreaterThan(firstRevision);
+
+    hud.update(w);
+    const secondMarkup = panel.innerHTML;
+    expect(secondMarkup, 'the panel must redraw, not keep the first Sundering\'s markup').not.toBe(firstMarkup);
+    expect(secondMarkup).toContain(`+${Math.round(secondArmor * 100) / 100}`);
   });
 
   it('the auto-pick button reaches the callback and lights from sim state, not click count', () => {

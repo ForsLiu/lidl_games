@@ -146,6 +146,24 @@ export class Stats {
   /** stat -> source -> summed contribution from that source. */
   private readonly bySource = new Map<StatKey, Map<StatSource, number>>();
 
+  /**
+   * Bumped once per stored contribution. Not read by any sim math — its only
+   * consumer is UI code that needs a cheap "has anything in here changed"
+   * signal (the character panel, fb004) without hand-tracking every event
+   * that can call `add`/`addAll` (a boon pick, a Core step purchase, a
+   * Sundering's terrain passives, ...). A boolean flag like `World.sundered`
+   * cannot serve that purpose — it stays `true` across a second Sundering,
+   * so a UI fingerprint keyed on it goes stale the moment `terrain` accumulates
+   * a second time (code-reviewer finding on fb004). A monotonic counter has
+   * no such blind spot: it is exhaustively correct over every `add` call site
+   * by construction, not by enumeration.
+   */
+  private _revision = 0;
+
+  get revision(): number {
+    return this._revision;
+  }
+
   add(source: StatSource, stat: StatKey, value: number): void {
     // NaN/Infinity are dropped rather than stored, on m19a's precedent: a NaN
     // that reaches `derive()` survives `Math.max` (`Math.max(0.25, NaN)` is NaN)
@@ -163,6 +181,7 @@ export class Stats {
       this.bySource.set(stat, m);
     }
     m.set(source, (m.get(source) ?? 0) + value);
+    this._revision++;
   }
 
   /** Bulk-add a `{stat: value}` record, ignoring keys that are not stats. */

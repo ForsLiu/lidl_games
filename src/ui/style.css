@@ -154,6 +154,26 @@ html, body {
 .sw-card h2 { margin: 0 0 6px; font-size: 20px; }
 .sw-card p { margin: 0 0 14px; color: var(--dim); }
 
+/* -------------------------------------------------------- character panel */
+
+.sw-charcard { max-height: 86vh; overflow-y: auto; text-align: left; }
+.sw-charcard h2 { text-align: center; }
+.sw-charstats { display: flex; flex-direction: column; gap: 2px; }
+.sw-charstat { border: 1px solid var(--line); border-radius: 4px; padding: 3px 8px; }
+.sw-charstat summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 12px;
+  list-style: none;
+}
+.sw-charstat summary::-webkit-details-marker { display: none; }
+.sw-charstat summary span { color: var(--dim); }
+.sw-charstat summary b { color: var(--text); }
+.sw-charstat .sw-statlist { margin: 4px 0 4px; }
+.sw-row.small i { font-style: normal; color: #66707e; margin-left: 4px; }
+
 .sw-offers, .sw-souls { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
 
 .sw-offer, .sw-soul {

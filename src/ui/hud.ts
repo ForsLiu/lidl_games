@@ -12,6 +12,8 @@ import { towerInfo, wieldedLineageText, type TowerInfo } from './tower-info';
 import { runProgress, type RunProgress } from './progress';
 import type { DevOp } from '../sim/types';
 import { selectedEnemy, selectedStructure, type Selection } from './selection';
+import { characterPanelData, type CharacterPanelData } from './character-panel';
+import type { StatKind } from '../sim/stats';
 
 export interface HudCallbacks {
   onSelectTower(id: number): void;
@@ -25,6 +27,8 @@ export interface HudCallbacks {
   onToggleRanges(): void;
   /** SPEC-FINAL §6.3, owner feedback `feature-auto-pick-boons`: flips level-up auto-pick mid-run. */
   onToggleAutoPick(): void;
+  /** SPEC-FINAL §2/§6.3/§11, owner feedback `feature-boon-stats-panel`: opens/closes the character panel. */
+  onToggleCharacterPanel(): void;
   onResume(): void;
   onPause(): void;
   /** Fast-forward: cycles 1x / 2x / 3x. */
@@ -44,12 +48,15 @@ export class Hud {
   private towerInfoEl: HTMLElement;
   private progressEl: HTMLElement;
   private practiceEl: HTMLElement;
+  private charPanelEl: HTMLElement;
   private lastInfoKey = '';
   private cb: HudCallbacks;
   private selected = 0;
   private lastModalKey = '';
+  private lastCharPanelKey = '';
   private paused = false;
   private confirmingAbandon = false;
+  private charPanelOpen = false;
 
   constructor(root: HTMLElement, cb: HudCallbacks) {
     this.root = root;
@@ -59,6 +66,7 @@ export class Hud {
         <div class="sw-stage">
           <canvas id="sw-canvas"></canvas>
           <div class="sw-modal sw-off" id="sw-modal" hidden></div>
+          <div class="sw-modal sw-off" id="sw-charpanel" hidden></div>
           <div class="sw-toast" id="sw-toast"></div>
         </div>
         <div class="sw-side">
@@ -66,6 +74,7 @@ export class Hud {
             <button class="sw-ctl" data-act="speed" id="sw-speed" title="Fast-forward (F)">1x</button>
             <button class="sw-ctl" data-act="ranges" id="sw-ranges" aria-pressed="false" title="Show tower ranges (R)">Ranges</button>
             <button class="sw-ctl" data-act="autopick" id="sw-autopick" aria-pressed="false" title="Resolve level-ups automatically">Auto-pick</button>
+            <button class="sw-ctl" data-act="character" id="sw-character" aria-pressed="false" title="Character stats (C)">Character</button>
             <button class="sw-ctl" data-act="pause" title="Pause (Esc)">Pause</button>
           </div>
           <div class="sw-practice" id="sw-practice" hidden></div>
@@ -77,7 +86,7 @@ export class Hud {
             <b>WASD</b> move &middot; <b>Space</b> dash &middot; <b>LMB</b> build &middot;
             <b>RMB</b> sell &middot; <b>U</b>+click upgrade &middot; <b>1-9</b> pick tower &middot;
             <b>0</b> clear &middot; <b>Enter</b> call wave &middot; <b>Q</b> class active &middot;
-            <b>R</b> ranges &middot; <b>F</b> speed &middot; <b>Esc</b> pause
+            <b>R</b> ranges &middot; <b>F</b> speed &middot; <b>C</b> character &middot; <b>Esc</b> pause
           </div>
         </div>
       </div>`;
@@ -89,6 +98,7 @@ export class Hud {
     this.towerInfoEl = root.querySelector('#sw-towerinfo') as HTMLElement;
     this.progressEl = root.querySelector('#sw-progress') as HTMLElement;
     this.practiceEl = root.querySelector('#sw-practice') as HTMLElement;
+    this.charPanelEl = root.querySelector('#sw-charpanel') as HTMLElement;
     this.wireControls();
   }
 
@@ -97,6 +107,7 @@ export class Hud {
     controls?.querySelector('[data-act="speed"]')?.addEventListener('click', () => this.cb.onCycleSpeed());
     controls?.querySelector('[data-act="ranges"]')?.addEventListener('click', () => this.cb.onToggleRanges());
     controls?.querySelector('[data-act="autopick"]')?.addEventListener('click', () => this.cb.onToggleAutoPick());
+    controls?.querySelector('[data-act="character"]')?.addEventListener('click', () => this.cb.onToggleCharacterPanel());
     controls?.querySelector('[data-act="pause"]')?.addEventListener('click', () => this.cb.onPause());
   }
 
@@ -160,6 +171,76 @@ export class Hud {
     el.classList.toggle('on', on);
   }
 
+  /** True while the character panel is open — presentation state, read by tests and `main.ts`. */
+  get characterPanelOpen(): boolean {
+    return this.charPanelOpen;
+  }
+
+  /**
+   * SPEC-FINAL §2/§6.3/§11, owner feedback `feature-boon-stats-panel`
+   * (fb004): every final stat's §2 multiplier breakdown by source, plus
+   * every boon taken this run with its rank and current contribution.
+   *
+   * Uses its own DOM element (`#sw-charpanel`) rather than the pause/level-up
+   * /results modal (`this.modal`), but the two are not independent overlays
+   * once both can be visible: they are siblings painted in the same
+   * `position: absolute; inset: 0` stack, so opening this one on top of an
+   * already-showing level-up offer screen or pause card would hide it and
+   * eat its clicks (code-reviewer finding: reproduced by opening the level-up
+   * screen, then this panel, and finding both `hidden === false` at once).
+   * Refusing to open while paused or while `this.modal` is showing avoids
+   * that entirely, rather than trying to z-index or coordinate two
+   * independently-driven overlays. Available "in both phases" (SPEC-FINAL
+   * §11) still holds: any `outcome === 'running'` run, Act I or Act II, just
+   * not stacked on top of the other overlay `Hud` already owns.
+   * `update()` force-closes it once the run ends, since the results screen
+   * owns the overlay at that point.
+   */
+  toggleCharacterPanel(w: World): void {
+    if (this.charPanelOpen) {
+      this.closeCharacterPanel();
+      return;
+    }
+    if (w.outcome !== 'running' || this.paused || !this.modal.hidden) return;
+    this.charPanelOpen = true;
+    this.renderCharacterPanel(w);
+  }
+
+  closeCharacterPanel(): void {
+    this.charPanelOpen = false;
+    this.lastCharPanelKey = '';
+    this.charPanelEl.hidden = true;
+    this.charPanelEl.classList.add('sw-off');
+    this.charPanelEl.innerHTML = '';
+  }
+
+  /**
+   * `Stats.revision` (stats.ts) bumps once per stored contribution — a boon
+   * pick, a Core step purchase, a Sundering's terrain passives, the
+   * once-only map-modifier application — and nothing else, so it is an
+   * exhaustively correct "has anything in here changed" signal, unlike a
+   * hand-picked list of World fields. `w.sundered` in particular is a
+   * one-shot flag that stays `true` across every Sundering after the first,
+   * so keying on it (an earlier version of this code did) went stale the
+   * moment `terrain` accumulated a second time (code-reviewer finding).
+   */
+  private renderCharacterPanel(w: World): void {
+    const key = `char:${w.stats.revision}`;
+    if (key === this.lastCharPanelKey) return;
+    this.lastCharPanelKey = key;
+    this.charPanelEl.hidden = false;
+    this.charPanelEl.classList.remove('sw-off');
+    this.charPanelEl.innerHTML = characterPanelMarkup(characterPanelData(w));
+    this.charPanelEl.querySelector('[data-act="close"]')?.addEventListener('click', () => this.closeCharacterPanel());
+  }
+
+  private syncCharacterPanelToggle(): void {
+    const el = this.root.querySelector('#sw-character');
+    if (!el) return;
+    el.setAttribute('aria-pressed', String(this.charPanelOpen));
+    el.classList.toggle('on', this.charPanelOpen);
+  }
+
   /** Reflects the pacer's speed; the pacer itself owns the cycling. */
   setSpeed(speed: number): void {
     this.speedBtn.textContent = `${speed}x`;
@@ -168,7 +249,7 @@ export class Hud {
 
   /** True while any overlay owns input, so clicks must not reach the canvas. */
   get modalOpen(): boolean {
-    return !this.modal.hidden;
+    return !this.modal.hidden || !this.charPanelEl.hidden;
   }
 
   get canvas(): HTMLCanvasElement {
@@ -253,6 +334,9 @@ export class Hud {
     this.progressEl.innerHTML = progressMarkup(runProgress(w));
     this.syncPracticeToggles(w);
     this.syncAutoPickToggle(w);
+    if (this.charPanelOpen && w.outcome !== 'running') this.closeCharacterPanel();
+    else if (this.charPanelOpen) this.renderCharacterPanel(w);
+    this.syncCharacterPanelToggle();
     // A selection describes itself — but never at the cost of the panels the
     // player needs to act: a tower queued on the build bar has to show its own
     // stats, and in Act II the weapon panel carries the only weapon switcher.
@@ -479,7 +563,20 @@ export class Hud {
     this.modal.innerHTML = '';
   }
 
+  /**
+   * Every path onto `this.modal` (pause, level-up offers, results) funnels
+   * through here, so this is the one place that has to know about the
+   * character panel rather than every caller remembering it. `toggleCharacterPanel`
+   * already refuses to open a *new* panel on top of an already-showing modal
+   * (see its own doc comment) — that only covers panel-then-modal ordering.
+   * The reverse (modal-then-panel: open the panel mid-run, then a level-up
+   * fires, or the player hits Escape) was not covered and let both opaque,
+   * full-stage overlays show at once, the panel on top eating the modal's
+   * clicks — a qa-playtester finding on fb004. Closing the panel here
+   * handles every current and future `openModal()` caller in one place.
+   */
   private openModal(): void {
+    if (this.charPanelOpen) this.closeCharacterPanel();
     this.modal.hidden = false;
     this.modal.classList.remove('sw-off');
   }
@@ -597,6 +694,79 @@ export function towerInfoMarkup(info: TowerInfo, gold: number, placed: boolean):
         : ''
     }
     ${info.terrainText ? `<p class="sw-note dim">${info.terrainText}</p>` : ''}`;
+}
+
+function formatFlat(value: number): string {
+  const rounded = Math.round(value * 100) / 100;
+  return `${rounded > 0 ? '+' : ''}${rounded}`;
+}
+
+function formatPercent(fraction: number): string {
+  const pct = Math.round(fraction * 1000) / 10;
+  return `${pct > 0 ? '+' : ''}${pct}%`;
+}
+
+/**
+ * `Stats.factor()` (a `mul` stat's own aggregate) is a multiplier (`1.32`);
+ * the panel reads better as the net percent the sim reports elsewhere
+ * (`wardenInfoMarkup`'s `+32%`), so `mul` subtracts 1 before formatting.
+ * A per-source contribution (`StatSourceRow.value`/`BoonRow.contribution`) is
+ * already the fraction `Stats` stores (0.08 = +8%, per `stats.ts`'s own doc
+ * comment) — no base to subtract — so it formats straight through.
+ */
+function formatStatValue(kind: StatKind, value: number): string {
+  return kind === 'mul' ? formatPercent(value - 1) : formatFlat(value);
+}
+
+function formatSourceValue(kind: StatKind, value: number): string {
+  return kind === 'mul' ? formatPercent(value) : formatFlat(value);
+}
+
+/**
+ * SPEC-FINAL §2/§6.3/§11 (fb004): every final stat with its §2 multiplier
+ * breakdown by source, plus every boon taken this run with rank and current
+ * contribution. See `character-panel.ts` for why there is no Equipment
+ * section (§7 is unbuilt — BACKLOG.md p7b).
+ */
+export function characterPanelMarkup(data: CharacterPanelData): string {
+  const boonRows =
+    data.boons.length === 0
+      ? '<p class="sw-note">No boons taken yet.</p>'
+      : data.boons
+          .map(
+            (b) =>
+              `<div class="sw-row small"><span>${b.name} <i>rank ${b.rank}/${b.maxRank}</i></span>` +
+              `<b>${formatSourceValue(b.kind, b.contribution)} ${b.statLabel}</b></div>`,
+          )
+          .join('');
+
+  const statRows = data.stats
+    .map((s) => {
+      const sources =
+        s.sources.length === 0
+          ? '<p class="sw-note dim">Base only — no contributing source.</p>'
+          : `<ul class="sw-statlist">${s.sources
+              .map((src) => `<li>${src.label}: ${formatSourceValue(s.kind, src.value)}</li>`)
+              .join('')}</ul>`;
+      return `<details class="sw-charstat">
+          <summary><span>${s.label}</span><b>${formatStatValue(s.kind, s.value)}</b></summary>
+          ${sources}
+        </details>`;
+    })
+    .join('');
+
+  return `
+    <div class="sw-card sw-charcard wide">
+      <h2>Character</h2>
+      <p class="sw-note">Every final stat's class &times; tree &times; relic &times; boon breakdown
+        (SPEC-FINAL &sect;2: ranks within one source add, sources multiply).
+        Click a stat to see where it comes from.</p>
+      <div class="sw-sub">Boons taken</div>
+      ${boonRows}
+      <div class="sw-sub">Stats</div>
+      <div class="sw-charstats">${statRows}</div>
+      <button class="sw-reroll" data-act="close">Close</button>
+    </div>`;
 }
 
 /**
