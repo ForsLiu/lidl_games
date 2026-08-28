@@ -1213,9 +1213,12 @@ re-confirming `q14-mutation-smoke.test.ts` green post-commit. Also flagged
 `tests/q52-m20d-run-a4-bad-key.test.ts` passes standalone (test + control)
 and cleans up its scratch dir.
 
-**Next: commit, then re-run `npx vitest run tests/q14-mutation-smoke.test.ts`
-once more against the clean tree to get the true final green confirmation**
-before treating q52 as fully closed out.
+Committed (`fefcf0c`). Post-commit, against the clean tree:
+`npx vitest run tests/q14-mutation-smoke.test.ts` — **44/44 green**
+(901s), confirming the true final result QA's caveat asked for: every one
+of the 12 controls and all 26 mutations (including q52's 11) now passes for
+real, with no self-inflicted `gitDiffClean()` noise. q52 is fully closed
+out.
 
 Five actionable items remained before this session (q52-q56); four remain
 now (q53-q56), still above the floor of 3, so the generation rule does not
