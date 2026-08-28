@@ -6,7 +6,7 @@
  * re-derivation shape q10's `gate-audit.ts` and q14's mutation smoke already
  * exist to prevent for their own domains.
  *
- * Every `tools/*.ts` file is classified on two *computed* static properties
+ * Every `tools/*.ts` file is classified on three *computed* static properties
  * — not hand-curated, so a new file is picked up automatically the moment it
  * exists on disk:
  *
@@ -26,6 +26,17 @@
  *       different claims — trusting the former to imply the latter is
  *       exactly the "note overstates coverage" trap this lane's log has hit
  *       four separate times (q10, q17, q25 session log).
+ *   (d) does it read a `/data/*.json` file directly — `readFileSync` (with
+ *       an inline literal, a `const`-bound literal, or a `join('data', ...)`/
+ *       `path.join('data', ...)` call mentioning `.json`, code review's own
+ *       finding against `tools/fuzz-data.ts` while landing this check) —
+ *       followed by `JSON.parse` anywhere in the file — bypassing
+ *       `loadContent()` entirely (q54, generalizing q53's hand-found bug in
+ *       `tools/m20d-price-probe.ts`)? This is deliberately guard-agnostic,
+ *       same reasoning as (c): a file that currently wraps the parse in a
+ *       `try` still needs a named pin, or a future guard regression falls
+ *       silently back to "safe" — the exact way q53 itself went unnoticed
+ *       until a hand-read found it.
  *
  * (a) "is this file meant to be invoked directly as a CLI" is not mechanical
  * — a worker-thread entry point or a pure exported-function library can have
@@ -65,6 +76,135 @@ export function listToolFiles(dir: string = TOOLS_DIR): string[] {
 /** Cheap, deliberately imprecise text check — see file doc comment for why this is informational, not decisive. */
 export function hasCatch(absPath: string): boolean {
   return /\bcatch\s*[({]/.test(readFileSync(absPath, 'utf8'));
+}
+
+/** A `/data/*.json`-shaped relative path literal — `data/x.json`, `./data/x/y.json`, `../data/x.json`. Anchored full-match against an already-unquoted string. */
+const DATA_JSON_PATH_RE = /^(?:\.\.?\/)?data\/[\w.-]+(?:\/[\w.-]+)*\.json$/;
+
+/** Strips one matching pair of leading/trailing `'` or `"` if present; otherwise returns the trimmed input unchanged. */
+function unquote(s: string): string {
+  const trimmed = s.trim();
+  const m = trimmed.match(/^(['"])(.*)\1$/);
+  return m ? m[2] : trimmed;
+}
+
+/**
+ * Strips `//` and `/* *\/` comments only — unlike
+ * `stripCommentsAndBacktickStrings`, every string/template literal is
+ * copied through untouched (content and delimiters both), because
+ * `READFILESYNC_JOIN_DATA_RE` below needs to see inside a template literal's
+ * static text. Comment-start sequences inside any quoted string (including
+ * a backtick's `${...}` interpolation, which cannot itself contain an
+ * unescaped backtick) are correctly left alone because the scan tracks
+ * quote state before checking for `//`/`/*`.
+ */
+function stripComments(text: string): string {
+  let out = '';
+  let i = 0;
+  const n = text.length;
+  let quote: string | null = null;
+  while (i < n) {
+    const c = text[i];
+    if (quote) {
+      out += c;
+      if (c === '\\' && i + 1 < n) {
+        out += text[i + 1];
+        i += 2;
+        continue;
+      }
+      if (c === quote) quote = null;
+      i++;
+      continue;
+    }
+    if (c === "'" || c === '"' || c === '`') {
+      quote = c;
+      out += c;
+      i++;
+      continue;
+    }
+    if (c === '/' && text[i + 1] === '/') {
+      while (i < n && text[i] !== '\n') i++;
+      continue;
+    }
+    if (c === '/' && text[i + 1] === '*') {
+      i += 2;
+      while (i < n && !(text[i] === '*' && text[i + 1] === '/')) i++;
+      i = Math.min(i + 2, n);
+      continue;
+    }
+    out += c;
+    i++;
+  }
+  return out;
+}
+
+/**
+ * A `readFileSync(join('data', ...))` / `readFileSync(path.join('data', ...))`
+ * call whose `join`'s first literal argument is exactly `data` or
+ * `data/...` and whose remaining arguments mention `.json` — covers both a
+ * plain string second argument and a template literal like
+ * `` `${file}.json` ``. Found live in `tools/fuzz-data.ts` by q54 code
+ * review: the plain-literal-path check in `readsDataJsonDirectly` below
+ * cannot see it, because that check runs on
+ * `stripCommentsAndBacktickStrings`'s output, which drops template-literal
+ * contents entirely to dodge the q47 fixture-string false positive. This
+ * regex instead runs on `stripComments`'s output (comments only stripped,
+ * strings/templates left intact), so it can see the `.json` inside the
+ * template. Deliberately narrow, matched non-greedily up to `join`'s own
+ * closing paren — an argument containing an unbalanced `)` (a nested call
+ * more elaborate than a literal or simple template) can defeat it; that is
+ * no worse than every other regex heuristic in this file, and an
+ * undetected case just falls back to whatever this file would have said
+ * before this check existed.
+ */
+const READFILESYNC_JOIN_DATA_RE =
+  /\breadFileSync\s*\(\s*(?:path\s*\.\s*)?join\s*\(\s*(['"])data(?:\/[\w.-]+)*\1\s*,([\s\S]*?)\)\s*[,)]/g;
+
+/**
+ * True when `absPath` reads a hardcoded `/data/*.json` path directly via
+ * `readFileSync` — an inline string literal argument, a `const NAME =
+ * '...'`-bound one, or a `join('data', ...)`/`path.join('data', ...)` call
+ * whose arguments mention `.json` (q54 code review's `tools/fuzz-data.ts`
+ * finding) — and calls `JSON.parse` anywhere in the file. The q53 crash
+ * shape: this bypasses `loadContent()`'s zod guard entirely, so
+ * `importsContentTransitively` alone cannot see it. Reuses
+ * `stripCommentsAndBacktickStrings` for the same false-positive reasons
+ * `importsContentTransitively` does (q47's `mutation-probe.ts` fixture-
+ * string regression), except for the `join(...)` check, which needs
+ * `stripComments`'s gentler stripping instead (see that regex's doc
+ * comment). Guard-agnostic on purpose — see file doc comment (d).
+ *
+ * Known limitations (code review + qa-playtester, q54), same standard as
+ * this file's other documented regex gaps: the `const`-binding scan requires
+ * a semicolon-terminated single/double-quoted literal (`const FILE =
+ * 'data/x.json';`) — a `let`-bound constant, one relying on ASI (no trailing
+ * `;`), or a backtick-bound literal path is not recognized as a bound
+ * variable. And `READFILESYNC_JOIN_DATA_RE` requires `'data'`/`'data/...'`
+ * to be `join`'s *first* argument — `join(dirname(__dirname), 'data',
+ * 'x.json')` is not detected, because the literal sits in a later position.
+ * Neither shape exists in `tools/*.ts` today (checked).
+ */
+export function readsDataJsonDirectly(absPath: string): boolean {
+  if (!existsSync(absPath)) return false;
+  const raw = readFileSync(absPath, 'utf8');
+  const text = stripCommentsAndBacktickStrings(raw);
+  if (!/\bJSON\.parse\s*\(/.test(text)) return false;
+
+  const boundVars = new Set<string>();
+  for (const m of text.matchAll(/\bconst\s+(\w+)\s*=\s*(['"][^'"]*['"])\s*;/g)) {
+    if (DATA_JSON_PATH_RE.test(unquote(m[2]))) boundVars.add(m[1]);
+  }
+
+  for (const m of text.matchAll(/\breadFileSync\s*\(\s*([^,)]+)/g)) {
+    const arg = m[1].trim();
+    if (boundVars.has(arg) || DATA_JSON_PATH_RE.test(unquote(arg))) return true;
+  }
+
+  const commentsStripped = stripComments(raw);
+  for (const m of commentsStripped.matchAll(READFILESYNC_JOIN_DATA_RE)) {
+    if (/\.json\b/.test(m[2])) return true;
+  }
+  return false;
 }
 
 /** Matches a relative `import`/`export ... from '...'`, a dynamic `import('...')` call (a target module starts evaluating the instant `import(...)` runs, whether or not the result is `await`ed — code review caught the regex requiring a literal `await` first, which missed a fire-and-forget or `.then()`-chained dynamic import), or a bare side-effect `import '...'` (no `from` clause) — value imports only; `import type { X } from '...'` is excluded on purpose (see file doc comment). A bare side-effect import still evaluates its target module, so it counts. The import branch's clause (between `import` and `from`) is captured separately so the per-specifier `{ type X, type Y }` form (q51) can be filtered out below — this regex alone cannot distinguish it from a real named import. */
@@ -339,14 +479,24 @@ export const PIN_COVERAGE: Record<string, string[]> = {
     'tests/q46-cli-json-syntax-error-siblings-3.test.ts',
     'tests/q45-cli-schema-violation.test.ts',
   ],
+  // q54: tools/m20d-price-probe.ts reads data/towers.json directly
+  // (readsDataJsonDirectly, not importsContent) — this is the pin for that
+  // axis, not the content-import one; q53's fix is what this test covers.
+  'tools/m20d-price-probe.ts': ['tests/q53-price-probe-json-crash.test.ts'],
 };
 
-export type ClassificationStatus = 'not-invocable' | 'no-content-import' | 'pinned' | 'gap';
+export type ClassificationStatus =
+  | 'not-invocable'
+  | 'no-content-import'
+  | 'pinned'
+  | 'gap'
+  | 'unguarded-data-read';
 
 export interface ToolClassification {
   file: string;
   importsContent: boolean;
   hasCatch: boolean;
+  readsDataJsonDirectly: boolean;
   status: ClassificationStatus;
   reason: string;
   testFiles: string[];
@@ -363,31 +513,64 @@ export function classifyTool(
 
   const importsContent = importsContentTransitively(absPath, contentPath);
   const catches = hasCatch(absPath);
+  const readsDataJson = readsDataJsonDirectly(absPath);
 
   const notInvocableReason = notInvocable[file];
   if (notInvocableReason !== undefined) {
-    return { file, importsContent, hasCatch: catches, status: 'not-invocable', reason: notInvocableReason, testFiles: [] };
-  }
-  if (!importsContent) {
     return {
       file,
       importsContent,
       hasCatch: catches,
+      readsDataJsonDirectly: readsDataJson,
+      status: 'not-invocable',
+      reason: notInvocableReason,
+      testFiles: [],
+    };
+  }
+  if (!importsContent && !readsDataJson) {
+    return {
+      file,
+      importsContent,
+      hasCatch: catches,
+      readsDataJsonDirectly: readsDataJson,
       status: 'no-content-import',
-      reason: 'does not transitively value-import src/sim/content.ts — a /data load failure cannot reach this file',
+      reason: 'does not transitively value-import src/sim/content.ts and does not read a /data/*.json file directly — a /data load failure cannot reach this file',
       testFiles: [],
     };
   }
   const pin = pinCoverage[file];
   if (pin) {
-    return { file, importsContent, hasCatch: catches, status: 'pinned', reason: `pinned by ${pin.join(', ')}`, testFiles: pin };
+    return {
+      file,
+      importsContent,
+      hasCatch: catches,
+      readsDataJsonDirectly: readsDataJson,
+      status: 'pinned',
+      reason: `pinned by ${pin.join(', ')}`,
+      testFiles: pin,
+    };
+  }
+  if (readsDataJson && !importsContent) {
+    return {
+      file,
+      importsContent,
+      hasCatch: catches,
+      readsDataJsonDirectly: readsDataJson,
+      status: 'unguarded-data-read',
+      reason:
+        'reads a /data/*.json file directly (readFileSync + JSON.parse, bypassing loadContent()) but no test in PIN_COVERAGE names its crash behaviour (q54)',
+      testFiles: [],
+    };
   }
   return {
     file,
     importsContent,
     hasCatch: catches,
+    readsDataJsonDirectly: readsDataJson,
     status: 'gap',
-    reason: 'invocable and imports src/sim/content.ts, but no test in PIN_COVERAGE names its crash behaviour',
+    reason: readsDataJson
+      ? 'invocable, imports src/sim/content.ts, and also reads a /data/*.json file directly, but no test in PIN_COVERAGE names its crash behaviour'
+      : 'invocable and imports src/sim/content.ts, but no test in PIN_COVERAGE names its crash behaviour',
     testFiles: [],
   };
 }
@@ -396,9 +579,9 @@ export function classifyAll(files: string[] = listToolFiles(), root: string = RE
   return files.map((f) => classifyTool(f, resolve(root, f)));
 }
 
-/** Every `gap` row, the state this tool exists to make loud rather than silently missed. */
+/** Every `gap` or `unguarded-data-read` row, the state this tool exists to make loud rather than silently missed. */
 export function gaps(rows: ToolClassification[]): ToolClassification[] {
-  return rows.filter((r) => r.status === 'gap');
+  return rows.filter((r) => r.status === 'gap' || r.status === 'unguarded-data-read');
 }
 
 /* ------------------------------------------------------------------- CLI */
@@ -417,7 +600,9 @@ function main(argv: string[]): void {
     console.log('file'.padEnd(w) + 'status'.padEnd(sw) + 'reason');
     for (const r of rows) console.log(r.file.padEnd(w) + r.status.padEnd(sw) + r.reason);
     if (found.length > 0) {
-      console.log(`\nGAPS (invocable, imports content, no named test): ${found.map((r) => r.file).join(', ')}`);
+      console.log(
+        `\nGAPS (invocable, imports content or reads /data/*.json directly, no named test): ${found.map((r) => r.file).join(', ')}`,
+      );
     }
   }
 

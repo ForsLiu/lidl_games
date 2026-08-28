@@ -919,10 +919,10 @@ coverage gaps session 1's log recorded. All five are inside Scope as written.*
       the tool print a clean one-line message and exit nonzero instead,
       without changing the existing `finally`-restore behavior q49 covers —
       refs: q49, tools/m20d-price-probe.ts, tools/cli-crash-coverage.ts
-- [ ] (q54) [feat] Generalize `tools/cli-crash-coverage.ts`'s census (q47) to
+- [x] (q54) [feat] Generalize `tools/cli-crash-coverage.ts`'s census (q47) to
       detect q53's crash class — a tool that reads a `/data/*.json` file
       directly (`readFileSync` + `JSON.parse`, bypassing `loadContent()`)
-      with no enclosing `try` — as its own named category, distinct from
+      — as its own named category, distinct from
       `no-content-import`'s current meaning ("safe, never touches
       `content.ts`"). Today a tool in this shape reads as safe by the same
       logic that hid q53 for however many sessions this file existed
@@ -962,6 +962,29 @@ coverage gaps session 1's log recorded. All five are inside Scope as written.*
       detection logic is caught the same way as a regression in the old —
       acceptance: one new `MUTATIONS` entry, green, and q43's own pinned
       doc-comment/array-length parity check still holds — refs: q43, q54
+- [ ] (q57) [polish] `readsDataJsonDirectly()` (q54) has two undocumented
+      false-negative shapes, found by qa-playtester's adversarial pass against
+      synthetic scratch fixtures (never touching real `tools/`/`data`/`src`):
+      an inline template-literal path with no `join()` wrapper
+      (`` readFileSync(`data/${file}.json`, 'utf8') ``) and a string-
+      concatenated path (`readFileSync('data/' + name + '.json', 'utf8')`)
+      both return `false` even though the doc comment's stated intent
+      ("does it read a `/data/*.json` file directly... followed by
+      `JSON.parse`... bypassing `loadContent()` entirely") covers them. Grep
+      confirms no live `tools/*.ts` file uses either shape today, so q54's
+      own acceptance criteria hold and nothing is misclassified — this is a
+      latent gap for a future tool author, not a regression, filed rather
+      than fixed inline per qa-playtester's non-blocking severity call —
+      acceptance: either the two shapes are detected (extend
+      `readsDataJsonDirectly` and add the two synthetic-fixture tests QA
+      already scoped, one next to the existing template-literal/const-bound
+      cases in `tests/q54-unguarded-data-read.test.ts`) or, if judged not
+      worth the regex complexity, both shapes are named explicitly in
+      `readsDataJsonDirectly`'s "Known limitations" doc comment alongside the
+      existing `let`-bound/ASI/backtick-const and non-first-arg `join()`
+      gaps, so the next session finds the gap in the comment instead of
+      hand-rediscovering it the way q53 itself was hand-found — refs: q54,
+      session 52 QA finding
 
 *Generated 2026-08-27, session 48, under CLAUDE.md's generation rule scoped
 to this lane: only q49 and q51 were actionable (below the floor of 3, after
@@ -1146,6 +1169,89 @@ resolve if it wants the CLI entry points too. All five are inside Scope as
 written; none needs a `package.json` edit.*
 
 ## Log
+
+### 2026-08-28 — session 52
+
+**Feedback inbox:** no `feedback/` directory in this worktree. Nothing to
+process.
+
+**Session start state:** `tools/cli-crash-coverage.ts` (modified),
+`tests/q47-cli-crash-coverage.test.ts` (modified) and a new
+`tests/q54-unguarded-data-read.test.ts` were sitting uncommitted in the
+working tree — q54's implementation was already done by a previous session
+but never tested, reviewed, logged or committed, the same shape session 51
+found for q53. Verified it against q54's acceptance criteria rather than
+redoing it.
+
+**q54 done.** `tools/cli-crash-coverage.ts` gains `readsDataJsonDirectly()`
+(guard-agnostic on purpose: flags the shape even inside an existing `try`,
+so a future guard regression can't silently fall back to "safe" the way
+q53's own bug did) and a new `unguarded-data-read` `ClassificationStatus`,
+threaded through `classifyTool()`'s branch order (not-invocable →
+no-content-import → pinned → unguarded-data-read → gap) and into `gaps()`/
+the CLI summary line. `tools/m20d-price-probe.ts` gets a `PIN_COVERAGE`
+entry naming `tests/q53-price-probe-json-crash.test.ts`, flipping its status
+from the old wrong `no-content-import` to `pinned`; `tests/q47-cli-crash-
+coverage.test.ts`'s expected-status table updated for that one flip. New
+`tests/q54-unguarded-data-read.test.ts` (13 tests) covers both live positive
+cases (`tools/fuzz-data.ts`, `tools/m20d-price-probe.ts`), the pinned
+reclassification, the "no other of the 23 files newly flagged" acceptance
+line directly, `fuzz-data.ts` staying `not-invocable` (short-circuits ahead
+of the new check), and eight synthetic-fixture edge cases for the regex
+detector (join() with template literal, join() with plain string, join() on
+a non-"data" first arg, already-guarded shape, pre-fix unguarded shape,
+inline literal with no const-binding, text read with no `JSON.parse`, and a
+non-`/data` path `JSON.parse`).
+
+Removed the backlog item's own "with no enclosing `try`" clause from the
+acceptance wording below per code review's Nit — the shipped detector is
+deliberately broader (guard-agnostic), so the historical record now matches
+shipped behavior instead of contradicting it.
+
+`npx tsc --noEmit -p .` clean. Targeted run (`tests/q54-unguarded-data-
+read.test.ts`, `tests/q47-cli-crash-coverage.test.ts`,
+`tests/q53-price-probe-json-crash.test.ts`, `tests/q49-price-probe-
+restore.test.ts`) — 36/36 green.
+
+Full `npm test`: 31 failed / 988 passed. All 31 traced to pre-existing
+lane-documented noise, none to this diff — confirmed by re-running each
+failing file standalone: `tests/q45-cli-schema-violation.test.ts` and
+`tests/q49-price-probe-restore.test.ts` failed only on a transient Windows
+`EPERM` scratch-dir-cleanup race under full-suite parallel load, both green
+standalone (13/13, 2/2); `tests/q15-command-domain-fuzz.test.ts` hit the
+same documented flaky "hangs" timing class session 51 already logged, green
+standalone (25/25); `tests/q14-mutation-smoke.test.ts` (28/28 failed
+standalone too, with the dirty tree still in place) is a `gitDiffClean()`-
+on-a-dirty-tree artifact by construction — the file's own tests assert
+git-diff cleanliness, and this session's uncommitted `cli-crash-coverage.ts`
+diff necessarily reads dirty until committed, the identical pattern
+sessions 50/51 already documented and re-confirmed green post-commit; same
+re-confirmation done here (see below).
+
+code-reviewer **APPROVE** — no Critical/Major findings. Two Minors (regex
+double-normalization-pass note-worthy but not blocking; a loose quote-match
+in the const-binding regex that `unquote`'s stricter check already
+neutralizes) and the Nit above about the acceptance wording, applied.
+
+qa-playtester **PASS** against q54's stated acceptance criteria — verified
+the `unguarded-data-read` status, the `m20d-price-probe.ts` → `pinned` flip,
+the "no other file newly flagged" claim (both via test and a live
+`npx tsx tools/cli-crash-coverage.ts` run), and Scope compliance, each
+independently. Adversarially probed the detector with its own scratch
+fixtures (deleted after, real files untouched) and found one non-blocking
+gap: `readsDataJsonDirectly()` false-negatives on an inline template-literal
+path and a string-concatenated path, neither used by any live `tools/*.ts`
+file today so nothing is misclassified — filed as **q57** rather than fixed
+inline, per QA's own severity call.
+
+Post-commit re-confirmation (this lane's own standing practice after a
+dirty-tree false alarm, sessions 50/51): re-ran `tests/q14-mutation-
+smoke.test.ts` and the four targeted files again against the committed
+tree — see below for the result.
+
+Four actionable items remained before this session (q54-q56, plus q57 filed
+this session); three remain now (q55, q56, q57), at the floor of 3, so next
+session's generation rule will need to run.
 
 ### 2026-08-28 — session 51
 

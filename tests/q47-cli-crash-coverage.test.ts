@@ -67,7 +67,10 @@ const EXPECTED_STATUS: Record<string, ToolClassification['status']> = {
   // tools/gen-tree.mjs deliberately absent — not a .ts file, must never appear in listToolFiles().
   'tools/handoff-metrics.ts': 'pinned',
   'tools/invariants.ts': 'not-invocable',
-  'tools/m20d-price-probe.ts': 'no-content-import',
+  // q54: reads data/towers.json directly (readsDataJsonDirectly), not via
+  // content.ts — pinned by tests/q53-price-probe-json-crash.test.ts, which
+  // covers the exact bug q53 found and q54's classifier now tracks by name.
+  'tools/m20d-price-probe.ts': 'pinned',
   'tools/m20d-run-a4.ts': 'pinned',
   'tools/m20d-swarm.ts': 'pinned',
   'tools/mutation-probe.ts': 'no-content-import',
