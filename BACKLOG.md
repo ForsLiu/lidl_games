@@ -606,6 +606,22 @@ were not re-filed. Ordering within this section is by severity, not P-band.
       centered on the Warden and asserts it either does not place the
       covering tile or the Warden can still move off its own tile
       immediately after; refs: §10, QA on Q120 ORDER 2
+- [ ] (b020) [bug] Wielded attacks (and Beacon Totem's `shrineHaste`
+      speedup) keep firing through the entire defeat slow-mo window:
+      `updateWieldedAttacks` (`src/sim/vswield.ts`) has no `w.dying` guard,
+      and `updateAct2` (`src/sim/run.ts`) calls it unconditionally every tick
+      while `w.phase==='act2'`, which stays true for the whole
+      `DEFEAT_SLOWMO` window (`w.outcome` only flips at `resolveDefeat`) — a
+      wielded tower fires 3+ full volleys after the Warden is already dead,
+      the same bug class already fixed once for class Actives (`src/sim/
+      classes.ts`'s `w.dying` guard on Active firing). QA-filed (Q102
+      ORDER's qa-playtester pass), pre-existing (confirmed identical on HEAD
+      before that item's own diff), general to the wielded-attack mechanism
+      rather than specific to `shrineHaste` — acceptance: `updateWieldedAttacks`
+      is a no-op (cooldown map untouched, no attack fires) once `w.dying` is
+      truthy; a regression test builds a wielded tower, kills the Warden and
+      steps through the slow-mo window asserting no attack fires — refs:
+      §12 rule 2, QA on Q102 ORDER
 
 ## Retired from the queue by SPEC-FINAL
 
@@ -805,6 +821,49 @@ logged in MIGRATION.md §8 rather than carried as dead items.
       PROGRESS.md record for the pass/fail tally; `npx tsc --noEmit` clean
       throughout. Q102 (Beacon's `shrineHaste` wiring) remains open, next in
       the PRIORITY DIRECTIVE's own sequence — refs: §2, Q88, Q91, x002.
+
+- [x] (q102) [bug] Q102 ORDER (owner verdict, correction item, before P10):
+      Beacon Totem's §5.2 VS special (`w.shrineHaste`, +15% character attack
+      speed within r2.5 of a petrified shrine) is real again — wired into
+      `updateWieldedAttacks`'s cooldown formula (`src/sim/vswield.ts`)
+      multiplicatively, `speedMul = attackSpeedMul * towerAttackSpeedMul *
+      coreAttackSpeedMul(w) * (1 + w.shrineHaste)`, the same third-origin
+      treatment `towers.ts`'s `attackSpeedFor` already gives its own
+      `auraBonus` per §2/Q64 — this commit. Found already implemented but
+      uncommitted at session start (a prior session's in-progress work — the
+      `vswield.ts` formula/comment change, a new regression test in
+      `tests/p2b-wielded-fire.test.ts`, and a stale-comment fix in
+      `tests/c4-stacking.test.ts`) — verified end to end rather than
+      re-implemented, the same protocol every recent P6/p8a/Q91/Q120 item in
+      this file's history sets. **code-reviewer APPROVE**, no Critical/Major:
+      confirmed exactly one writer of `shrineHaste` (`weapons.ts`'s
+      `updateTerrainEffects`, reset to 0 every tick) and exactly one
+      production reader (this line); confirmed the new test fails without the
+      fix (stash-verified) and is not a hash-coverage gap (`shrineHaste` is
+      purely distance-derived, no RNG/wall-clock, and only flows into the
+      already-hashed `wieldedCooldown` map); confirmed Beacon's VS-only scope
+      holds (`updateTerrainEffects` only runs from `updateAct2`; Act I's
+      `manualAttack`/`classBasicAttack` never reference it). One Minor, not
+      fixed: the new test's own `toBeCloseTo(1.61, 12)` line self-checks a
+      hand-computed literal rather than production code, harmless dead
+      weight. **qa-playtester PASS** on all of the ORDER's own acceptance
+      (real end-to-end Beacon-shrine + wielded-attack driving, not just the
+      unit test's `w.shrineHaste = 0.15` shortcut; correct multiplicative
+      stacking with a real boon; falloff back to baseline on leaving radius;
+      no Act I leak; replay-hash determinism across two independent same-seed
+      runs) — **one real, pre-existing bug found and filed rather than fixed
+      under this item's scope** (confirmed identical on HEAD before this
+      diff, the same precedent `b017`/`b018`/`b019` already set):
+      `updateWieldedAttacks` has no `w.dying` guard, so a wielded tower (and
+      Beacon's own speedup) keeps firing full volleys through the entire
+      defeat slow-mo window — the same bug class already fixed once for class
+      Actives. Filed as **b020** with a regression-test acceptance criterion.
+      `npx tsc --noEmit` clean throughout; targeted suite
+      (`tests/p2b-wielded-fire.test.ts`, `tests/c4-stacking.test.ts`,
+      `tests/p2c-vs-specials.test.ts`): 64/64 passing. **Both the Q91 and
+      Q102 corrections are now done — the PRIORITY DIRECTIVE's own sequence
+      is complete; the queue returns to ordinary BACKLOG.md order.** — refs:
+      §2, §5.2, Q64, Q101, Q102.
 
 - [x] (p8a) [feat] Wave data on the §1.1 shape: `data/waves.json` carries 18
       real TD wave compositions, the §9 VS-budget curve is live — this

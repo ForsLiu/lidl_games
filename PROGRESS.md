@@ -5,6 +5,90 @@
 
 ## Current state — SPEC-FINAL
 
+- **Q102 ORDER (owner verdict, correction item, before P10) is done this
+  commit — the PRIORITY DIRECTIVE's own sequence is now complete: both the
+  Q91 and Q102 corrections have landed.** Beacon Totem's §5.2 VS special
+  (`w.shrineHaste`, +15% character attack speed within r2.5 of a petrified
+  shrine, recomputed every Act II tick by `updateTerrainEffects` in
+  `src/sim/weapons.ts`) had been silently inert since an earlier deletion
+  pass removed its one reader (Q102's own original entry). `updateWieldedAttacks`
+  (`src/sim/vswield.ts`) now multiplies its cooldown `speedMul` by
+  `(1 + w.shrineHaste)` alongside `attackSpeedMul`/`towerAttackSpeedMul`/
+  `coreAttackSpeedMul(w)` — the same multiplicative third-origin treatment
+  `towers.ts`'s `attackSpeedFor` already gives its own `auraBonus`, per
+  §2/Q64's rule that a boost outside the class/tree/relic/boon/terrain stack
+  is its own multiplicative source. Found already implemented but
+  uncommitted at session start (a prior session's in-progress work — the
+  `vswield.ts` formula/doc-comment change, a new regression test in
+  `tests/p2b-wielded-fire.test.ts` asserting the multiply-not-add arithmetic
+  against a real second attack-speed source, and a stale-comment fix in
+  `tests/c4-stacking.test.ts` pointing at the new reader) — this session
+  verified it end to end rather than re-implementing it, the same protocol
+  every recent P6/p8a/Q91/Q120 item in this file's history sets: `npx tsc
+  --noEmit` clean, targeted suite (`tests/p2b-wielded-fire.test.ts`,
+  `tests/c4-stacking.test.ts`, `tests/p2c-vs-specials.test.ts`) 64/64 green,
+  before delegating review.
+  **code-reviewer APPROVE, no Critical/Major.** Independently re-derived the
+  formula against `attackSpeedFor`'s `auraBonus` precedent; confirmed
+  `shrineHaste` has exactly one writer (`weapons.ts`'s `updateTerrainEffects`,
+  reset to 0 every tick before re-accumulating, so no cross-tick leak) and
+  exactly one production reader (the new line); confirmed the new test
+  actually fails without the fix (verified by stashing just the `vswield.ts`
+  hunk); confirmed no hash-coverage gap (`shrineHaste` is purely
+  `dist2`-derived — no RNG, no wall clock — and only flows into the
+  already-hashed `wieldedCooldown` map); confirmed Beacon's VS-only scoping
+  holds (`updateTerrainEffects` only runs from `updateAct2`; Act I's
+  `manualAttack`/`classBasicAttack` never reference `shrineHaste`, so the
+  special can't leak into TD-phase attack timing). One Minor left unfixed,
+  harmless: the new test's own `expect(speedMul).toBeCloseTo(1.61, 12)` line
+  self-checks a hand-computed JS literal rather than production code — dead
+  weight, not incorrect, and the two following assertions already carry the
+  real coverage.
+  **qa-playtester PASS on every one of the ORDER's own acceptance clauses,
+  driven as real end-to-end sim state rather than the unit test's
+  `w.shrineHaste = 0.15` shortcut**: a real petrified Beacon shrine +
+  wielded Arrow Spire, stepped through `updateTerrainEffects`/
+  `updateWieldedAttacks`/full `Run.step`, showed the in-radius cooldown
+  matching `interval - dt*(1+0.15)` exactly and the out-of-radius cooldown
+  matching baseline exactly; combined with a real boon
+  (`w.stats.add('boon:haste','attackSpeed',0.4)`) the two sources
+  multiplied (`1.4*1.15`) rather than added (`1.55`); leaving shrine radius
+  returned `shrineHaste` to 0 the very next tick with no residual
+  speed-up; Act I's `act1_build`/`act1_wave` branches never call
+  `updateTerrainEffects`/`updateWieldedAttacks` at all, so there is no
+  leak into TD-phase timing; two independent same-seed 600-tick Act II runs
+  (Beacon + wielded Arrow Spire) produced identical `hashWorld`.
+  **One real, pre-existing bug found while probing the `w.dying` edge case
+  the ORDER's own checklist named, filed rather than fixed under this
+  item's scope** (confirmed byte-identical on HEAD before this diff, the
+  same QA-filed-pre-existing-bug precedent `b017`/`b018`/`b019` already
+  set): `updateWieldedAttacks` has no `w.dying` guard, and `updateAct2`
+  calls it unconditionally every tick while `w.phase==='act2'`, which stays
+  true through the entire `DEFEAT_SLOWMO` window (`w.outcome` only flips at
+  `resolveDefeat`) — so a wielded tower (and Beacon's own speedup) keeps
+  firing full volleys after the Warden is already dead, the same bug class
+  already fixed once for class Actives (`src/sim/classes.ts`'s `w.dying`
+  guard on Active firing). Reproduced twice (direct function-call driving
+  and the full `Run.step` pipeline): build an Arrow Spire + petrified
+  Beacon, call `damageWarden(w, 1e9)` in Act II, step `Run` ~90 ticks —
+  `w.dying==='defeat_warden'` for the whole window yet the wielded Arrow
+  Spire fires 3+ full volleys with the shrine's 1.15x speedup still
+  applied. Filed as **BACKLOG.md b020** with a regression-test acceptance
+  criterion. A secondary QA observation — multiple overlapping shrines
+  accumulate additively inside `w.shrineHaste` itself, uncapped, before the
+  single `(1+...)` multiply is applied — was judged consistent with the
+  codebase's existing "one source, more ranks" convention
+  (`applyTerrainPassives`'s own comment, `weapons.ts`) rather than a Q102
+  regression, and was not filed.
+  A dated "Q102 ORDER EXECUTED" entry was appended to QUESTIONS.md under
+  the original Q102 entry, on the same append-don't-rewrite precedent
+  Q91/Q128's corrections already set.
+  `npx tsc --noEmit`: clean throughout, checked after every edit.
+  **Next action: with both the Q91 and Q102 corrections done, the PRIORITY
+  DIRECTIVE's own sequence is complete — the queue returns to ordinary
+  BACKLOG.md order** (the top of the Feedback section, or `p6f`, whichever
+  BACKLOG.md's own ordering resolves to next).
+
 - **Q91 ORDER (owner verdict, correction item, before P10) is done this
   commit — lifesteal now accrues from `min(damage, target's remaining HP
   before the hit)`, fixing the overkill-leech bug x002's own QA pass had

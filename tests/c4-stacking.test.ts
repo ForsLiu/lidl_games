@@ -544,8 +544,10 @@ describe('C4 — origins that are not the boon/tree/relic stack (QA bugs 1, 3, 5
     // loop it belonged to; the rule it enforced — a shrine is a separate
     // multiplicative origin from the boon/tree/relic stack, same as a tower
     // buff aura (see `attackSpeedFor`, towers.ts) — is asserted directly
-    // against the raw numbers instead. See QUESTIONS.md Q101 for the note
-    // that `w.shrineHaste` itself has no reader left after that deletion.
+    // against the raw numbers instead. Q102 ORDER (`vswield.ts`'s
+    // `updateWieldedAttacks`) re-wired a real reader onto the same formula;
+    // see `tests/p2b-wielded-fire.test.ts`'s own Q102 case for that reader's
+    // regression test.
     const w = new World(cfg());
     w.stats.add('boon:haste', 'attackSpeed', 0.4);
     w.recomputeDerived();

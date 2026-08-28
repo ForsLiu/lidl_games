@@ -140,6 +140,34 @@ describe('p2b — wielded attacks fire as character attacks (§6.1 last clause)'
     expect(cd).toBeCloseTo(ARROW.attack!.interval - 2 * DT, 6);
   });
 
+  it("Beacon Totem's shrineHaste multiplies the wielded cooldown, not adds (Q102 ORDER)", () => {
+    // Q102: `intervalFor` (weapons.ts) was the one and only reader of
+    // `w.shrineHaste` before p2e deleted the soul-weapon fire loop it
+    // belonged to, leaving the effect computed every tick but silently
+    // inert. The owner verdict says wire it into the wielded-attack cooldown
+    // (this is what "character attack speed" now means post-p2b) and
+    // multiply per §2/Q64 — the same rule `towers.ts`'s `attackSpeedFor`
+    // already gives its own `auraBonus`, not `attackSpeedMul + shrineHaste`.
+    const w = new World(cfg(), content);
+    const [t1] = tiles(w, 1);
+    build(w, ARROW, t1.tx, t1.ty);
+    w.phase = 'act2';
+    w.stats.add('boon:haste', 'attackSpeed', 0.4); // a real second source, like c4-stacking's own QA-bug-3 case
+    w.recomputeDerived();
+    w.warden.x = t1.tx + 0.5;
+    w.warden.y = t1.ty + 0.5;
+    dummy(w, w.warden.x + 1, w.warden.y);
+    w.rebuildBuckets();
+    w.shrineHaste = 0.15;
+
+    updateWieldedAttacks(w, DT); // first shot, arms the cooldown
+    const cd = w.wieldedCooldown.get(ARROW.id)!;
+    const speedMul = 1.4 * 1.15; // multiplicative: 1.61, not the additive 1.55
+    expect(speedMul).toBeCloseTo(1.61, 12);
+    expect(cd).toBeCloseTo(ARROW.attack!.interval - DT * speedMul, 6);
+    expect(cd).not.toBeCloseTo(ARROW.attack!.interval - DT * 1.55, 6);
+  });
+
   it('lifesteal heals the character from a wielded tower attack', () => {
     const w = new World(cfg(), content);
     const [t1] = tiles(w, 1);
