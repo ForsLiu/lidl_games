@@ -134,20 +134,200 @@
       "wave": 10,
       "groups": [
         {
+          "enemy": "husk",
+          "perGate": 8
+        },
+        {
+          "enemy": "bulwark",
+          "perGate": 4
+        },
+        {
+          "enemy": "shellback",
+          "perGate": 4
+        },
+        {
+          "enemy": "charger",
+          "perGate": 3
+        }
+      ]
+    },
+    {
+      "wave": 11,
+      "groups": [
+        {
+          "enemy": "sprinter",
+          "perGate": 8
+        },
+        {
+          "enemy": "spitter",
+          "perGate": 6
+        },
+        {
+          "enemy": "bomber",
+          "perGate": 4
+        },
+        {
+          "enemy": "warlock",
+          "perGate": 3
+        }
+      ]
+    },
+    {
+      "wave": 12,
+      "groups": [
+        {
+          "enemy": "husk",
+          "perGate": 10
+        },
+        {
+          "enemy": "frostkin",
+          "perGate": 5
+        },
+        {
+          "enemy": "cinderling",
+          "perGate": 5
+        },
+        {
+          "enemy": "gale_imp",
+          "perGate": 4
+        }
+      ]
+    },
+    {
+      "wave": 13,
+      "groups": [
+        {
+          "enemy": "bulwark",
+          "perGate": 6
+        },
+        {
+          "enemy": "shellback",
+          "perGate": 5
+        },
+        {
+          "enemy": "charger",
+          "perGate": 4
+        },
+        {
+          "enemy": "burrower",
+          "perGate": 4
+        },
+        {
+          "enemy": "wraith",
+          "perGate": 3
+        }
+      ]
+    },
+    {
+      "wave": 14,
+      "groups": [
+        {
+          "enemy": "swarm_rat",
+          "perGate": 18
+        },
+        {
+          "enemy": "splitling",
+          "perGate": 8
+        },
+        {
+          "enemy": "mender",
+          "perGate": 5
+        },
+        {
+          "enemy": "bomber",
+          "perGate": 4
+        }
+      ]
+    },
+    {
+      "wave": 15,
+      "groups": [
+        {
+          "enemy": "colossus",
+          "total": 2
+        },
+        {
+          "enemy": "husk",
+          "perGate": 10
+        },
+        {
+          "enemy": "spitter",
+          "perGate": 6
+        },
+        {
+          "enemy": "warlock",
+          "perGate": 4
+        }
+      ]
+    },
+    {
+      "wave": 16,
+      "groups": [
+        {
+          "enemy": "herald",
+          "total": 1
+        },
+        {
+          "enemy": "bulwark",
+          "perGate": 8
+        },
+        {
+          "enemy": "frostkin",
+          "perGate": 5
+        },
+        {
+          "enemy": "cinderling",
+          "perGate": 5
+        }
+      ]
+    },
+    {
+      "wave": 17,
+      "groups": [
+        {
+          "enemy": "charger",
+          "perGate": 6
+        },
+        {
+          "enemy": "shellback",
+          "perGate": 6
+        },
+        {
+          "enemy": "wraith",
+          "perGate": 5
+        },
+        {
+          "enemy": "burrower",
+          "perGate": 5
+        },
+        {
+          "enemy": "gale_imp",
+          "perGate": 5
+        },
+        {
+          "enemy": "warlock",
+          "perGate": 4
+        }
+      ]
+    },
+    {
+      "wave": 18,
+      "groups": [
+        {
           "enemy": "gatebreaker",
           "total": 1
         },
         {
-          "enemy": "husk",
+          "enemy": "bulwark",
           "perGate": 6
         },
         {
-          "enemy": "bulwark",
-          "perGate": 3
+          "enemy": "shellback",
+          "perGate": 6
         },
         {
-          "enemy": "wraith",
-          "perGate": 2
+          "enemy": "charger",
+          "perGate": 4
         }
       ]
     }

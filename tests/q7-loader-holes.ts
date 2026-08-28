@@ -22,11 +22,14 @@
  *     `open` = no row is, `partial` = some are and some are not, which is the
  *     one-directional-integrity finding (E1).
  *
- * Recorded 2026-08-27 against 5,747 effective mutations; 3,706 rejected, 2,041
- * accepted. First recorded 2026-08-26 against the pre-merge roster (with
- * `weapons.json`, before `cores.json` and P6's eleven-class `classes.json`);
- * this recording replaces it wholesale after the merge. See BACKLOG-QUALITY.md's
- * Log for the write-ups E1-E7.
+ * Recorded 2026-08-27 (p8a) against 5,758 effective mutations; 3,711 rejected,
+ * 2,047 accepted — up from 5,747/3,706/2,041 the same day, pre-p8a: one field
+ * added (`spawns.budgetGrowthPerVsWave`), six new accepted mutations, ACCEPTED
+ * updated in place, INEFFECTIVE and REF_VERDICTS unchanged. First recorded
+ * 2026-08-26 against the pre-merge roster (with `weapons.json`, before
+ * `cores.json` and P6's eleven-class `classes.json`); this recording replaces
+ * it wholesale after the merge. See BACKLOG-QUALITY.md's Log for the write-ups
+ * E1-E7.
  */
 import type { RefVerdict } from '../tools/fuzz-data';
 
@@ -318,6 +321,7 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'spawns.bossTimeSeconds': ['negative', 'zero', 'infinite', 'fractional'],
   'spawns.budgetBase': ['negative', 'zero', 'infinite', 'fractional'],
   'spawns.budgetGrowthPerMinute': ['negative', 'zero', 'infinite', 'fractional'],
+  'spawns.budgetGrowthPerVsWave': ['negative', 'zero', 'infinite', 'fractional', 'drop-key', 'rename-key'],
   'spawns.burrowSurfaceDistance': ['negative', 'zero', 'infinite', 'fractional'],
   'spawns.contactInterval': ['negative', 'zero', 'infinite', 'fractional'],
   'spawns.contactPadding': ['negative', 'zero', 'infinite', 'fractional'],

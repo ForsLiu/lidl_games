@@ -20,7 +20,7 @@ const RECORDED: Record<string, { actual: string; target: string; met: boolean }>
   equipment: { actual: '0', target: '12+', met: false },
   damageTypesAndStatuses: { actual: '6+2', target: '6+2', met: true },
   enemies: { actual: '20', target: '20', met: true },
-  waves: { actual: '10', target: '18+6 (24)', met: false },
+  waves: { actual: '18+6 (24)', target: '18+6 (24)', met: true },
   treeNodes: { actual: '120', target: '120', met: true },
   quests: { actual: '9', target: '8-12', met: true },
   tiers: { actual: 'T1-T5', target: 'T1-T5', met: true },
@@ -50,9 +50,9 @@ describe('content census (SPEC-FINAL §13)', () => {
     }
   });
 
-  it('the met/unmet split matches the P-phase audit: exactly equipment/waves are short', () => {
+  it('the met/unmet split matches the P-phase audit: exactly equipment is short (p8a filled waves)', () => {
     const unmet = rows.filter((r) => !r.met).map((r) => r.key).sort();
-    expect(unmet).toEqual(['equipment', 'waves'].sort());
+    expect(unmet).toEqual(['equipment']);
   });
 
   it('bosses is counted from the same "boss" trait loot.ts uses, not a hand-picked key list', () => {

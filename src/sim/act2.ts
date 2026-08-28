@@ -134,6 +134,20 @@ export function updateDirector(w: World, dt: number): void {
 }
 
 /**
+ * SPEC-FINAL §9: "VS budget per wave: `150 x 1.21^(waveIndex)`" — the base
+ * every VS block's director ramp starts from, `waveIndex` being the VS wave
+ * count (block 1 = index 0, block 6 = index 5), distinct from `budgetFor`'s
+ * existing per-minute-within-a-block ramp below (which already reused the
+ * same 1.21 constant for a different axis before p8a). Isolated into its own
+ * pure function so it can be pinned against the closed-form formula directly,
+ * the same precedent `waveHpScale` already sets for the TD curve.
+ */
+export function vsBudgetBaseline(w: World, cycle: number): number {
+  const sp = w.content.spawns;
+  return sp.budgetBase * Math.pow(sp.budgetGrowthPerVsWave ?? 1, cycle - 1);
+}
+
+/**
  * Director budget. The ramp is exponential per minute (SPEC 5.1), with a short
  * warm-up on top: at full strength from the first second, whether a build lived
  * at all came down to the opening ten seconds, which made Act II a coin flip
@@ -141,7 +155,7 @@ export function updateDirector(w: World, dt: number): void {
  */
 export function budgetFor(w: World): number {
   const sp = w.content.spawns;
-  const ramp = sp.budgetBase * Math.pow(sp.budgetGrowthPerMinute, w.act2Time / 60);
+  const ramp = vsBudgetBaseline(w, w.cycle) * Math.pow(sp.budgetGrowthPerMinute, w.act2Time / 60);
   if (sp.warmupSeconds <= 0) return ramp;
   const t = Math.min(1, w.act2Time / sp.warmupSeconds);
   return ramp * (sp.warmupStart + (1 - sp.warmupStart) * t);

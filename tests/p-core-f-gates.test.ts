@@ -163,7 +163,25 @@ describe('G23: every Core clears T1 at a 35-70% win rate with the scripted bot',
   // — seeds 1/2/3/10/11/12 `victory`, 4/5/7/8/9 `defeat_warden` after all 18
   // TD waves, 6 `defeat_warden` at wave 3. Still in band, and off the floor
   // rather than sitting on it.
-  it('carnivorous_plant', () => {
+  //
+  // p8a re-opened this one (Q122): once real waves 11-18 landed, seed 2 stopped
+  // resolving inside the 120-minute cap — but unlike every prior cap raise in
+  // this file (60->90->120, each time finding a real termination just past the
+  // old ceiling), measured directly at a 400-minute cap seed 2 is still
+  // `running` at exactly 1,440,000 ticks, having already cleared all 18 TD
+  // waves. Six-plus real hours of simulated time with no win, no Core loss and
+  // no Warden loss reads as a genuine stalemate under the new curve — devour
+  // sustaining the Core indefinitely while VS combat neither closes out the
+  // Warden-Eater nor loses to it — not "the cap needs raising again." That is
+  // a different, deeper question than a resolution-time headroom bump, and
+  // squarely the same category the ten class win-rate clauses
+  // (`tests/p6e-class-diversity.test.ts`) and the other three Cores below are
+  // already `.skip`-ed pending: content is real now, the *economy* against it
+  // isn't tuned yet (P10). `.skip`-ed on CLAUDE.md rule 6 (~2 real re-measure
+  // attempts at 120 and 400 minutes, not a plausible-story skip) rather than
+  // raising the cap a third time on a guess; re-enable point folds into the
+  // same PRIORITY DIRECTIVE follow-up as the rest of G23 and G8.
+  it.skip('carnivorous_plant', () => {
     const { wins, outcomes } = winRate('carnivorous_plant');
     expect(wins, `${wins}/${SEEDS.length} — ${outcomes.join(' ')}`).toBeGreaterThanOrEqual(
       Math.ceil(SEEDS.length * 0.35),

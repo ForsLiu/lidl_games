@@ -5,6 +5,94 @@
 
 ## Current state — SPEC-FINAL
 
+- **`p8a` is done this commit — SPEC-FINAL §9/§1.1's wave data is real: all 18
+  TD wave rows are authored, and the §9 VS-budget curve is live.** This was
+  the PRIORITY DIRECTIVE's critical-path item (Q121's verdict log): roughly
+  fifteen skipped gates and every class/Core win-rate measurement named it as
+  their re-enable point. Found already implemented but uncommitted at session
+  start (a prior session's in-progress work — `data/waves.json`'s waves
+  11-18, `data/spawns.json`'s new `budgetGrowthPerVsWave`, the matching
+  `src/sim/content.ts` schema field, `src/sim/act2.ts`'s new
+  `vsBudgetBaseline`, and mechanical updates to five existing test files) —
+  verified end to end rather than re-implemented, the same protocol
+  `p6a`-`p6e` set. `vsBudgetBaseline(w, cycle) = budgetBase x
+  budgetGrowthPerVsWave^(cycle-1)` composes multiplicatively with
+  `budgetFor`'s pre-existing per-minute-within-a-block ramp — two genuinely
+  orthogonal axes (cross-block escalation vs. within-block ramp), so no
+  double-counting; the field is `.optional()` with a `?? 1` fallback so an
+  older/hand-edited `data/spawns.json` still loads. New
+  `tests/p8a-wave-content.test.ts` covers the two acceptance clauses no prior
+  test touched (the TD HP curve and the VS-budget curve, each asserted at
+  three sample points) plus the Warden-Eater's cycle-6 gate. **Q122 records
+  five genuine judgment calls**, the two consequential ones both being
+  honest-measurement corrections on the item's own inherited draft: the
+  uncommitted `tests/a10-performance.test.ts` edit had asserted
+  `wavesCleared === 18` for a single-pass `maxbuild` run without ever
+  checking a completed run (the exact Q121(4) failure mode one item later) —
+  actually running it shows all three seeds dying `defeat_core` at wave 16,
+  corrected to the honest number; and that same real-content wall broke three
+  *other* previously-live tests (`tests/a3-movement-mandatory.test.ts`,
+  `tests/p-core-f-gates.test.ts`'s G23 `carnivorous_plant` case,
+  `tests/p6e-class-diversity.test.ts`'s shared `beforeAll` and its lone
+  surviving `cryomancer` win-rate case), each `.skip`-ed with its own measured
+  numbers on the same precedent `tests/a4-single-type.test.ts` already set —
+  **G8's win-rate clause is now honestly 0/11, not 1/11**, and Carnivorous
+  Plant's G23 case is a genuine measured stalemate (still `running` at a
+  400-simulated-minute cap, over 3x the prior headroom, having already
+  cleared all 18 TD waves — not a "raise the cap again" situation).
+  **code-reviewer REQUEST-CHANGES → fixed, then re-verified clean**: the
+  first draft's `p6e` `beforeAll` fix (recording a `'timeout'` outcome
+  instead of throwing on a tick-cap timeout) still folded a non-terminal
+  seed's partial `damageByWeapon` into `ownDamage`/`allDamage` — a run capped
+  mid-simulation covers a much longer, incomparable window than a seed that
+  actually terminates, risking a silent skew of `topLabel`/the live
+  diversity-count pin — fixed to exclude `'running'`-outcome reports from
+  both records entirely, the same non-participation `wins` already gave them,
+  re-measured with the diversity pin unaffected. One Minor also fixed:
+  `tests/p8a-wave-content.test.ts` mutated the module-level cached `Content`
+  singleton via `delete` with no restore; changed to save/restore.
+  PROGRESS.md/BACKLOG.md updates (this entry) were missing from the first
+  draft and added before commit. **qa-playtester PASS, with one real bug
+  found and fixed**: real (non-scripted) `hybrid`/`maxbuild` runs across ~25
+  seeds, `--cycles 1` and `--cycles 6`, including `Long Watch` at tier 2,
+  found no NaN/Infinity anywhere, wave 15 (Colossus x2) and wave 16 (Herald
+  x1) cleared without incident, replay-hash determinism held across two
+  independent same-seed runs, and all three `.skip`-ed writeups were
+  independently spot-verified by temporarily un-skipping and restoring each
+  file byte-identical (`a3-movement-mandatory` reproduced both original
+  failures exactly; `p6e`'s `cryomancer` reproduced the documented 2/12
+  outcome string character-for-character; `p-core-f-gates`'s
+  `carnivorous_plant` corroborated the stalemate directionally at a smaller
+  150-minute cap). **The one real bug**: `buildSpawnQueue`'s pre-existing
+  repeat-last-row fallback for waves past the authored table (Long Watch's
+  `extraWaves`) now repeats wave 18's own row — the one this item just moved
+  the Gatebreaker onto — so a Long Watch run spawns a second and third
+  Gatebreaker on waves 19/20, directly contradicting this item's own
+  "Gatebreaker on wave 18, and only wave 18" test title. Fixed in
+  `src/sim/run.ts`: a `boss`-trait group (the same trait check `loot.ts`
+  already reads) is dropped once a wave falls back past the table's end,
+  since a capstone enemy is a one-time event rather than ordinary repeatable
+  wave content; a regression test walks a Long Watch run's full 20-wave
+  `waveCount` and asserts the Gatebreaker appears on wave 18 only, confirmed
+  to fail without the fix and pass with it. A second, unrelated, pre-existing
+  bug qa-playtester surfaced (`src/meta/meta.ts`'s `completionFraction`
+  hardcoding a wave-10 completion ceiling, stale since `p3e` moved a full run
+  to 18 waves, confirmed untouched by this item's own diff) is filed as
+  **b017** rather than fixed here. `npm test`: 1277+ passed / 67 skipped (0
+  failed outside `tests/q14-mutation-smoke.test.ts`'s known, pre-existing
+  uncommitted-tree artifact — its own `gitDiffClean()` correctly seeing this
+  item's own then-uncommitted diff, the same artifact `p6e` already
+  documented; re-run post-commit to confirm); `npx tsc --noEmit` clean —
+  refs: §9, §1.1, Q122. **G8's win-rate clause moving from 1/11 to 0/11, and
+  several gates now measuring genuine stalemates rather than resolving, is
+  real information, not a regression: the wave-11-17 wall survives landing
+  real content, so it is the un-tuned Act I/class/Core economy against that
+  curve — not a content gap — blocking every one of the roughly fifteen gates
+  the PRIORITY DIRECTIVE named. Next action: the PRIORITY DIRECTIVE's own
+  re-measurement pass (Q109, Q111, Q116, Q121), which this item's own
+  findings make more urgent, not less — after that, the two Q120 orders, then
+  the Q91/Q102 corrections.**
+
 - **`p6e` is done this commit — SPEC-FINAL §4's gate **G8** (win-rate and
   damage-diversity across the class roster) is measured live, honestly, and
   is red.** Found already implemented but uncommitted at session start (a

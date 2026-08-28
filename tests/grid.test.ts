@@ -89,7 +89,8 @@ describe('content', () => {
     const c = loadContent();
     expect(c.towers.towers).toHaveLength(10);
     expect(c.enemies.enemies).toHaveLength(20);
-    expect(c.waves.waves).toHaveLength(10);
+    // p8a: SPEC-FINAL §1.1's 18 real TD wave rows (was 10).
+    expect(c.waves.waves).toHaveLength(18);
     expect(c.boons.boons).toHaveLength(12);
     expect(c.modifiers.modifiers).toHaveLength(12);
     expect(c.quests.quests).toHaveLength(9);

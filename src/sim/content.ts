@@ -368,6 +368,8 @@ const WavesFileSchema = z.object({
 const SpawnsFileSchema = z.object({
   budgetBase: num,
   budgetGrowthPerMinute: num,
+  /** SPEC-FINAL §9: VS budget's per-wave-index growth (p8a); optional, defaults to 1 (no cross-wave escalation) for back-compat. */
+  budgetGrowthPerVsWave: num.optional(),
   warmupSeconds: num,
   warmupStart: num,
   directorIntervalSeconds: num,

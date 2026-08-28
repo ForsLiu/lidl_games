@@ -559,11 +559,17 @@ function buildSpawnQueue(w: World, wave: number): number[][] {
   const table = content.waves.waves;
   // Waves past the authored table (Long Watch modifier) repeat the last entry
   // with continued HP scaling.
+  const pastTable = wave > table.length;
   const def = table[Math.min(wave, table.length) - 1];
   const queue: number[][] = [];
   const gateCount = w.gates.length;
   for (const g of def.groups) {
     const e = content.enemyByKey.get(g.enemy)!;
+    // A `boss`-trait group (the Gatebreaker on wave 18) is a one-time
+    // capstone, not ordinary wave content — repeating the last authored row
+    // past the table's end must not spawn a second one on wave 19+ (p8a bug,
+    // QA-filed: Long Watch's extraWaves used to re-trigger it every wave).
+    if (pastTable && e.traits.includes('boss')) continue;
     if (g.total !== undefined) {
       for (let i = 0; i < g.total; i++) queue.push([e.id, i % gateCount, wave]);
     } else {

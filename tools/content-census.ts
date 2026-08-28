@@ -71,14 +71,19 @@ export function census(content: Content = loadContent()): CensusRow[] {
   const enemyCount = content.enemies.enemies.length;
   rows.push({ key: 'enemies', label: 'Enemies', actual: String(enemyCount), target: '20', met: enemyCount === 20 });
 
-  const waveCount = content.waves.waves.length;
+  // p8a: P3's interleave is built (18 TD waves in blocks of `tdWavesPerVsWave`,
+  // 6 VS waves — SPEC-FINAL §1.1) and `data/waves.json` now authors all 18 TD
+  // rows for real. The "6" VS-wave count is a run-shape constant (world.ts's
+  // own `cfg.cycles ?? 6` default), not data `loadContent()` carries anywhere
+  // — every VS wave is director-driven (`act2.ts`), not a discrete table row.
+  const tdWaveCount = content.waves.waves.length;
+  const DEFAULT_VS_WAVES = 6;
   rows.push({
     key: 'waves',
     label: 'Waves',
-    actual: String(waveCount),
+    actual: `${tdWaveCount}+${DEFAULT_VS_WAVES} (${tdWaveCount + DEFAULT_VS_WAVES})`,
     target: '18+6 (24)',
-    met: false,
-    note: "P3 interleave unbuilt; today's waves are V2's Day/Dusk/Night/Dawn cycle with no TD/VS split to count separately — see PROGRESS.md P3 audit line",
+    met: tdWaveCount === 18,
   });
 
   // gen-tree.mjs's own header and tests/grid.test.ts:92 both already exclude

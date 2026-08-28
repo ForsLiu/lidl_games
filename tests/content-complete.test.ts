@@ -27,17 +27,24 @@ describe('content completeness', () => {
 
   it('has 20 enemies and every wave references real ones', () => {
     expect(content.enemies.enemies).toHaveLength(20);
-    expect(content.waves.waves).toHaveLength(10);
+    expect(content.waves.waves).toHaveLength(18);
     for (const wave of content.waves.waves) {
       for (const g of wave.groups) expect(content.enemyByKey.has(g.enemy), g.enemy).toBe(true);
     }
   });
 
-  // RETIRED (SPEC-FINAL §1.1) — a run is 18 TD + 6 VS waves and the
-  // Gatebreaker ends **TD wave 18**, not wave 10. Re-asserted by **p8a**.
-  it.skip('introduces the Gatebreaker on wave 10', () => {
-    const last = content.waves.waves[9];
+  // SPEC-FINAL §1.1: a run is 18 TD + 6 VS waves and the Gatebreaker ends
+  // **TD wave 18**. Re-asserted by p8a (previously wave 10 under the old
+  // 10-wave table); also checks no earlier wave carries one, since
+  // `buildSpawnQueue` repeating the last authored row was exactly what put a
+  // Gatebreaker on every wave 10-18 before p8a authored real 11-18 content.
+  it('introduces the Gatebreaker on wave 18, and only wave 18', () => {
+    const last = content.waves.waves[17];
+    expect(last.wave).toBe(18);
     expect(last.groups.some((g) => g.enemy === 'gatebreaker')).toBe(true);
+    for (const wave of content.waves.waves.slice(0, 17)) {
+      expect(wave.groups.some((g) => g.enemy === 'gatebreaker'), `wave ${wave.wave}`).toBe(false);
+    }
   });
 
   // RETIRED (SPEC-FINAL §6.3) — `boons.json`'s flat 12 is replaced by the
