@@ -56,19 +56,12 @@ entry) putting `p8a` immediately after the item in flight at filing time
 (`p6e`), ahead of every other queued item including the ones below — these are
 filed and ready, not next up.
 
-- [ ] (b016) [bug] top priority: a tower can be built directly on the
-      character's own tile, trapping the Warden inside it (`build` has no
-      check against the Warden's current position) — acceptance: **a failing
-      regression test lands first** (drives a `{k:'build'}` Command targeting
-      the Warden's own tile, asserts the placement is rejected or the Warden
-      is relocated), then either the placement is rejected (the UI's red-ghost
-      case reflected in the sim as a rejected Command) or the Warden is nudged
-      to the nearest free walkable tile before the build lands — refs: §12
-      rule 3, owner feedback `bug-build-on-character`. **Superseded in intent**
-      by (fb002) below if that lands first — once the Warden ignores structure
-      collision entirely, standing on a to-be-built tile is legal and this bug
-      cannot occur; if fb002 ships first this item closes as moot rather than
-      needing its own fix.
+- [x] (b016) [bug] top priority: a tower can be built directly on the
+      character's own tile, trapping the Warden inside it — **done, see Done
+      section.** Note for whoever picks up (fb002): once the Warden ignores
+      structure collision entirely, this fix's relocation logic becomes moot
+      (standing on a to-be-built tile becomes legal) but is harmless to leave
+      in place — refs: §12 rule 3, owner feedback `bug-build-on-character`.
 - [ ] (fb001) [feat] top priority: dev profile (`data/dev.json`) unlocks every
       Core from §5.5, the same pattern already used for classes/maps —
       acceptance: a dev build shows all Cores selectable; `npm run build`
@@ -606,6 +599,12 @@ were not re-filed. Ordering within this section is by severity, not P-band.
       centered on the Warden and asserts it either does not place the
       covering tile or the Warden can still move off its own tile
       immediately after; refs: §10, QA on Q120 ORDER 2
+- [x] (b019) [bug] A self-cast Ice Wall can trap the Warden in place for the
+      wall's full `wallSeconds` — **done, see Done section**: closed as a
+      side effect of (b016)'s Warden-tile-relocation fix, verified by
+      qa-playtester across 13,004 real Ice Wall casts (both the center
+      self-aim case and edge-segment cases) rather than assumed — refs: §10,
+      QA on Q120 ORDER 2, Q129.
 - [ ] (b020) [bug] Wielded attacks (and Beacon Totem's `shrineHaste`
       speedup) keep firing through the entire defeat slow-mo window:
       `updateWieldedAttacks` (`src/sim/vswield.ts`) has no `w.dying` guard,
@@ -652,6 +651,52 @@ logged in MIGRATION.md §8 rather than carried as dead items.
   **G19**. The work is `p10d`.
 
 ## Done
+
+- [x] (b016) [bug] top priority: a tower can be built directly on the
+      character's own tile, trapping the Warden inside it — this commit.
+      Found already implemented but uncommitted at session start (a prior
+      session's in-progress work — `findEscapeTile`, an unbounded BFS
+      flood-fill in `src/sim/towers.ts`'s `buildTower` that relocates the
+      Warden to the nearest passable tile when a build lands on its own
+      tile, refusing the build outright with gold untouched if no escape
+      tile exists anywhere on the grid; new regression tests in
+      `tests/act1.test.ts` (direct `buildTower` call, the real `applyCommand`
+      Command path, and a fully-walled no-escape refusal case) and
+      `tests/p6d-nine-classes.test.ts` (the Cryomancer Ice Wall interaction))
+      — verified end to end rather than re-implemented, the same protocol
+      every recent P6/p8a/Q91/Q102/Q120 item in this section already sets.
+      **code-reviewer APPROVE**, no Critical/Major; one Minor fixed before
+      commit (`warden_displaced` renamed to `wardendisplaced` to match the
+      codebase's bare-word `w.emit` convention; confirmed unused elsewhere,
+      a pure no-op rename). **qa-playtester PASS**: real `Run.step`/
+      `applyCommand` builds (not just the unit tests) confirmed relocation in
+      both Act I and Act II, a ring-surrounded Warden still finds an escape
+      tile, a fully-walled grid correctly refuses the build with gold
+      untouched, 500-iteration build-spam produced no hang/leak/crash, and
+      two headless `npm run sim` runs plus 5-seed bot-policy runs stayed
+      clean. **This fix also closed the separately-filed (b019)** as a side
+      effect — see that entry below — verified with its own dedicated
+      13,004-cast adversarial sweep rather than assumed. `npx tsc --noEmit`
+      clean throughout. Logged as Q129 — refs: §12 rule 3, owner feedback
+      `bug-build-on-character`.
+
+- [x] (b019) [bug] A self-cast Ice Wall can trap the Warden in place for the
+      wall's full `wallSeconds` — closed this commit as a side effect of
+      (b016)'s fix, not a separate implementation. `fireIceWall` places its
+      three wall segments through the same `buildTower` path (b016)'s
+      `findEscapeTile` now guards, so any segment landing on the Warden's
+      tile relocates it before the wall forms. qa-playtester verified this
+      with a dedicated adversarial sweep rather than trusting the mechanism
+      claim: 13,004 real Ice Wall casts (five Warden sub-tile offsets x a
+      fine aim grid) where the wall's footprint touched the Warden's
+      original tile — 499 the exact self-aim/center case the new
+      `tests/p6d-nine-classes.test.ts` case covers, 342 genuine edge-segment
+      cases (aiming near-but-not-at yourself, a realistic input, where the
+      Warden's tile is an outer segment rather than the center) — all 13,004
+      ended with the Warden off the blocked footprint on a passable tile,
+      including chained relocations where the Warden was bounced onto a
+      not-yet-built future segment. No residual gap found. Logged as Q129 —
+      refs: §10, QA on Q120 ORDER 2.
 
 - [x] (q120o1) [feat] Q120 ORDER 1 (owner verdict, PRIORITY DIRECTIVE sequence):
       minimal taunt — a taunted enemy (Clarion Taunt r6; Recall Totem's TD

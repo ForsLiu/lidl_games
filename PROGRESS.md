@@ -5,6 +5,89 @@
 
 ## Current state — SPEC-FINAL
 
+- **(b016) is done this commit — the top-priority owner-filed bug (a tower
+  buildable directly on the Warden's own tile, trapping it) is fixed, and it
+  closed the separately-filed (b019) as a side effect.** With both Q120
+  orders and the Q91/Q102 corrections already landed, the PRIORITY
+  DIRECTIVE's own named sequence is fully complete, so this session returned
+  to ordinary BACKLOG.md order — the top of the Feedback section, per that
+  section's own note. Found already implemented but uncommitted at session
+  start (a prior session's in-progress work — `findEscapeTile`, an unbounded
+  BFS flood-fill added to `src/sim/towers.ts`'s `buildTower`: if a build
+  target tile is the Warden's own current tile, the Warden is relocated to
+  the nearest passable tile (excluding the target) right after the structure
+  lands, emitting a new `warden_displaced` event; if no escape tile exists
+  anywhere on the (small, fixed-size) grid, the build is refused with
+  `{ok:false, reason:'occupied'}` before any gold is spent; two new
+  regression tests, one in `tests/act1.test.ts` (direct `buildTower` call,
+  the real `{k:'build'}` `applyCommand` Command path, and a fully-walled
+  no-escape refusal case) and one in `tests/p6d-nine-classes.test.ts`
+  (casting Cryomancer's Ice Wall aimed at the Warden's own tile)) — this
+  session verified it end to end rather than re-implementing it, the same
+  protocol every recent P6/p8a/Q91/Q102/Q120 item in this file's history
+  sets. `npx tsc --noEmit` clean, targeted suite (`tests/act1.test.ts`,
+  `tests/p6d-nine-classes.test.ts`) 132/132 green, plus a broader sweep
+  (`p1a-sealing`, `p1b-seal-winrate`, `p6a-class-framework`,
+  `p6b-swordsman`, `p6c-plaguebringer`, `x001-dot-stack-caps`, `grid`)
+  112/112 green, before delegating review.
+  **code-reviewer APPROVE, no Critical/Major.** Independently re-verified the
+  BFS is unbounded and terminating on the fixed-size grid with no off-by-one;
+  that the escape check runs before `w.gold -= cost`/`w.addStructure`, so a
+  rejected no-escape build truly leaves `w.gold`/`w.goldSpent` untouched and
+  the search runs against the correct pre-build grid state; that every other
+  `buildTower`/`checkBuild` caller (bot policies, the UI ghost preview, Ice
+  Wall, ~15 test files) is unaffected; that the BFS has no RNG/iteration-order
+  determinism hazard; and that `w.warden.x`/`w.warden.y` were already hashed
+  (`run.ts`), so relocation is automatically covered for replay determinism
+  with no further hash-coverage work needed. One Minor, fixed before commit:
+  the new `warden_displaced` event used snake_case against the codebase's
+  bare-word `w.emit` convention (`build`, `sell`, `wardenhit`, `secondwind`)
+  — renamed to `wardendisplaced`, confirmed unused elsewhere so the rename
+  was a pure no-op. One Nit left unfixed, harmless: `findEscapeTile`'s
+  docstring says "nearest" where the 4-connected BFS is nearest by hop-count,
+  not Euclidean distance — no observable correctness problem, since every
+  candidate the search returns is a valid, passable, non-trapping tile.
+  **qa-playtester PASS, no bugs found**, driven as real end-to-end sim state
+  rather than just the unit tests: a real `Run.step`/`applyCommand` build in
+  both Act I and Act II relocated the Warden as expected; a ring-surrounded
+  Warden (four orthogonal neighbors pre-built) still found an escape tile
+  beyond the ring; a fully-walled grid (every tile but the Warden's own
+  occupied) correctly refused the build with gold untouched, the Warden
+  unmoved, and no crash; 500 iterations of build-spam targeting the Warden's
+  own (shifting) tile produced no hang, no gold leak, no NaN, finishing in
+  about 1ms; two headless runs (`npm run sim -- --seed 1 --policy hybrid`,
+  `--seed 2 --policy maxbuild`) stayed clean with valid `endHash`; and
+  bot-policy play (`hybrid`/`maxbuild`, 5 seeds, 20 in-game minutes each)
+  never once triggered `wardendisplaced` (bots never target their own tile)
+  with zero crashes or regressions to auto-play. **The fix also closed
+  (b019)** ("a self-cast Ice Wall can trap the Warden") **as a side effect,
+  verified rather than assumed**: `fireIceWall` places its three wall
+  segments through this same `buildTower` path, so qa-playtester ran a
+  dedicated adversarial sweep — 13,004 real Ice Wall casts across five
+  Warden sub-tile offsets and a fine aim grid, everywhere the wall's
+  footprint touched the Warden's original tile. 499 were the exact
+  self-aim/center case the new `p6d-nine-classes.test.ts` case covers; 342
+  were genuine edge-segment cases (aiming near-but-not-at yourself — a
+  realistic input — puts the Warden's tile on an outer segment rather than
+  the center) that no existing test had covered. All 13,004 ended with the
+  Warden off the blocked footprint on a passable tile, including chained
+  relocations where the Warden was bounced onto a not-yet-built future
+  segment mid-loop. No residual gap found, so (b019) is marked done in this
+  commit rather than left open — the same "fixed, not filed" precedent
+  Q102's own session already set for a bug that turned out to be the same
+  item's own mechanism rather than a separate concern. A dated Q129 entry
+  was appended to QUESTIONS.md recording both closures and the reasoning
+  (CLAUDE.md's "check a data row's blast radius" measurement rule
+  generalizes to code fixes: a fix scoped to one bug's literal repro can
+  still close a second, differently-filed bug through the same choke point,
+  but only a dedicated adversarial sweep — not the plausible story — turns
+  that into a verified claim).
+  `npx tsc --noEmit`: clean throughout, checked after every edit including
+  the Minor fix. **Next action: with the Feedback section's top item done,
+  BACKLOG.md order continues with (fb001)** (dev-profile Core unlocks) — the
+  next Feedback item, per that section's own file-order — unless a fresh
+  `npm test`/gate sweep surfaces something more urgent first.
+
 - **Q102 ORDER (owner verdict, correction item, before P10) is done this
   commit — the PRIORITY DIRECTIVE's own sequence is now complete: both the
   Q91 and Q102 corrections have landed.** Beacon Totem's §5.2 VS special

@@ -2,11 +2,11 @@
 
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { Run } from '../src/sim/run';
+import { Run, applyCommand } from '../src/sim/run';
 import { World } from '../src/sim/world';
 import { buildTower, checkBuild, collectSproutGold, sellTower, towerCost, updateTowers, upgradeTower } from '../src/sim/towers';
 import { damageEnemy, spawnEnemy } from '../src/sim/enemies';
-import { GATES, coreCenter } from '../src/sim/grid';
+import { GATES, GRID_H, GRID_W, coreCenter } from '../src/sim/grid';
 import { emptyInput } from '../src/sim/types';
 import { cfg } from './helpers';
 
@@ -53,6 +53,56 @@ describe('placement rules (SPEC 3.1)', () => {
     expect(checkBuild(w, 1, 1, 10)).toBeNull(); // …and it is legal
     expect(buildTower(w, 1, 1, 10).ok).toBe(true);
     expect(w.grid.allGatesReachable()).toBe(false);
+  });
+
+  it('relocates the Warden instead of trapping it when a build lands on its own tile (b016)', () => {
+    // Repro: the Warden's tile is otherwise buildable (open, unoccupied, in
+    // range), so nothing stopped a tower from landing directly under it,
+    // trapping the Warden inside the new structure's now-blocked footprint.
+    // §10 legalises sealing the Core with structures, so rejecting the
+    // placement outright would be the wrong call here — the Warden is
+    // relocated to the nearest open tile instead, before the build lands.
+    warp(w, 5, 5);
+    expect(checkBuild(w, 1, 5, 5)).toBeNull();
+    const built = buildTower(w, 1, 5, 5);
+    expect(built.ok).toBe(true);
+    expect(w.grid.passable(5, 5)).toBe(false); // the tower now occupies it
+    // the Warden left the now-blocked tile for the nearest open one
+    expect(w.grid.passable(Math.floor(w.warden.x), Math.floor(w.warden.y))).toBe(true);
+    expect(w.warden.x === 5.5 && w.warden.y === 5.5).toBe(false);
+
+    // Same relocation through the real player-facing Command path.
+    warp(w, 8, 8);
+    applyCommand(w, { k: 'build', tower: 1, tx: 8, ty: 8 });
+    expect(w.grid.passable(8, 8)).toBe(false);
+    expect(w.warden.x === 8.5 && w.warden.y === 8.5).toBe(false);
+
+    // A tile the Warden is merely near, not standing on, is unaffected.
+    warp(w, 12, 12);
+    expect(buildTower(w, 1, 13, 12).ok).toBe(true);
+    expect(w.warden.x).toBe(12.5);
+    expect(w.warden.y).toBe(12.5);
+  });
+
+  it('refuses a build that would leave the Warden with no reachable escape tile (b016)', () => {
+    // A capped-radius rescue search can exhaust itself against a real ring
+    // of towers and silently report success while leaving the Warden
+    // trapped — the exact bug this item exists to close. Block every tile
+    // on the grid except the Warden's own, so the escape search (an
+    // unbounded flood fill) genuinely has nowhere to send it.
+    warp(w, 5, 5);
+    for (let ty = 0; ty < GRID_H; ty++) {
+      for (let tx = 0; tx < GRID_W; tx++) {
+        if (tx === 5 && ty === 5) continue;
+        w.grid.setOcc(tx, ty, 999999);
+      }
+    }
+    const before = { x: w.warden.x, y: w.warden.y };
+    const res = buildTower(w, 1, 5, 5);
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.reason).toBe('occupied');
+    expect(w.warden.x).toBe(before.x);
+    expect(w.warden.y).toBe(before.y);
   });
 
   it('charges gold and refunds 70% on sale', () => {
