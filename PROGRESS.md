@@ -5,6 +5,85 @@
 
 ## Current state — SPEC-FINAL
 
+- **(fb003) is done this commit — the VS level-up auto-pick toggle (owner
+  feedback `feature-auto-pick-boons`, SPEC-FINAL §6.3).** With (fb002)
+  already landed, this session continued ordinary BACKLOG.md order via the
+  Feedback section's own file order. Found already implemented but
+  uncommitted at session start (a prior session's in-progress work — a new
+  `RunConfig.autoPickLevelUps` field and `set_autopick` Command
+  (`src/sim/types.ts`), a `pickAutoOfferIndex` pick rule and a drain loop in
+  `openLevelUpIfPending` (`src/sim/progression.ts`) that resolves every
+  currently-pending level-up in one call instead of pausing, a `World.cfg`
+  shallow copy (`src/sim/world.ts`) so `set_autopick` never mutates the
+  caller's shared `RunConfig`, a Hub pre-run checkbox and a HUD mid-run
+  button (`src/ui/hub.ts`, `src/ui/hud.ts`, `src/ui/main.ts`) wired through
+  the Command queue rather than `Settings` (per `settings.ts`'s own
+  sim-must-be-unaffected doc comment), new coverage in
+  `tests/act2.test.ts` (pick-rule ties/fallback, the drain loop, both toggle
+  directions, mid-toggle-during-a-manual-offer, the `World.cfg` identity
+  regression) and `tests/a11-determinism.test.ts` (bot-policy-driven
+  end-hash equality with auto-pick on, across 3 seeds), a new `set_autopick`
+  case in `tools/fuzz-input.ts`'s `COMMAND_KINDS`, and a new Q131 entry in
+  QUESTIONS.md recording the two design calls — this session verified it
+  end to end rather than re-implementing it, the same protocol every recent
+  P6/p8a/Q91/Q102/Q120/b016/fb001/fb002 item in this file's history sets:
+  `npx tsc --noEmit` clean, targeted suite (`tests/a11-determinism.test.ts`,
+  `tests/act2.test.ts`, `tests/hud-controls.test.ts`,
+  `tests/b10-death-flow.test.ts`, `tests/c7-no-orbs.test.ts`,
+  `tests/f003-leak-coupling.test.ts`, `tests/p2d-weapon-lineage.test.ts`,
+  `tests/t2-selection.test.ts`, `tests/ui-input.test.ts`) 141/141 green (1
+  pre-existing unrelated skip) before delegating review.
+  **code-reviewer APPROVE, no Critical/Major.** Confirmed no
+  DOM/`Math.random`/`Date.now`/native-trig introduced in `/src/sim`;
+  confirmed `set_autopick` is an ordinary Command dispatched through the
+  same `applyCommand`/input-log path as `pick`/`reroll`/`call`, so it's
+  replay-safe by construction; confirmed `pickAutoOfferIndex` correctly
+  excludes never-taken boons (`owned > 0`) and breaks ties by offer order;
+  confirmed the drain loop re-rolls offers per iteration against the
+  just-updated `boonRanks` so a multi-level XP grant picks the same way a
+  manual chain through `takeOffer` would; grepped `/src` for any code
+  relying on `w.cfg === cfg` reference identity before approving the
+  shallow-copy change — none found; confirmed the mid-toggle-during-a-
+  manual-offer path resolves through the same `takeOffer` a player click
+  would use, with no double-resolution or `offers`/`rerollsLeft` desync.
+  Two non-blocking Minor/Nit notes left as-is: an `o.kind !== 'boon'` guard
+  in `pickAutoOfferIndex` is currently unreachable dead code since
+  `OfferKind` is `'boon'`-only today (harmless future-proofing); resetting
+  `rerollsLeft` after an auto-drain is unobservable but harmless symmetry
+  with the manual path.
+  **qa-playtester PASS, no bugs found**, driven adversarially rather than
+  just re-reading the shipped tests: a single-tick 60-level XP dump with
+  auto-pick on resolved cleanly (`level=60, phase='act2', pending=0`, no
+  stall); 50 rapid on/off toggles interleaved with level-ups, including
+  toggling exactly while a manual offer was showing, produced no desync in
+  `offers`/`rerollsLeft`/`pendingLevelUps` and no stuck phase; a real
+  `hybrid`-bot-driven run at a fixed seed with auto-pick on produced
+  identical end-hashes across two runs; the empty-offer-pool edge case
+  (every boon force-maxed) with auto-pick on resolved silently with no hang,
+  correctly distinct from the known out-of-scope manual-mode dead end
+  (b005); a throwaway jsdom probe confirmed the Hub checkbox reaches
+  `RunConfig.autoPickLevelUps` on `onStart` both checked and unchecked
+  (deleted after, not needed as a permanent test); the HUD button lights
+  from `w.cfg.autoPickLevelUps`, not click count; two independent full
+  `npm test` runs (one by qa-playtester, one by this session) each found
+  only the same 3 pre-existing failures (`tests/q13-perf-ratio.test.ts`,
+  `tests/q15-command-domain-fuzz.test.ts`, `tests/q28-cli-error-handling.test.ts`)
+  reproduced identically on clean `master` via `git stash` — host-load
+  perf-ratio flakiness and a Windows scratch-dir `EPERM`, unrelated to any
+  file this item touched; `tools/fuzz-input.ts` at 20,000 random commands
+  per phase (`act2`/`levelup`/`act1_build`/`act1_wave`/`results`), including
+  heavy `set_autopick` fuzzing, plus 6 full randomized runs, all clean, no
+  hangs or crashes. Two non-blocking observations logged, neither a
+  regression: sending `set_autopick`/`pick` while `w.dying` is truthy
+  resolves the pending offer immediately, but this is pre-existing behavior
+  shared by plain manual `pick`, not introduced here; `set_autopick{on:true}`
+  sent while already stuck in b005's manual dead end doesn't unstick it,
+  consistent with b005 being explicitly out of scope (auto-pick itself never
+  reaches that dead end, since it resolves the empty-pool case inline).
+  `npx tsc --noEmit`: clean throughout.
+  **Next action:** `fb004` (character panel: stat breakdown by source), the
+  next Feedback item in file order.
+
 - **(fb002) is done this commit — the Warden (and every class dash) now
   ignores collision with the Core and all friendly structures, walking and
   flying over them freely, while enemy pathing is completely unaffected.**

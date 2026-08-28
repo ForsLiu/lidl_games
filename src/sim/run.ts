@@ -30,7 +30,14 @@ import {
   upgradeCore,
 } from './cores';
 import { shouldSpawnBoss, spawnFinalBoss, updateDirector } from './act2';
-import { addXp, openLevelUpIfPending, rerollOffers, takeOffer, updateGems } from './progression';
+import {
+  addXp,
+  openLevelUpIfPending,
+  pickAutoOfferIndex,
+  rerollOffers,
+  takeOffer,
+  updateGems,
+} from './progression';
 import { advanceToNextBlock, finishSundering } from './sundering';
 import {
   classArmorBonus,
@@ -258,6 +265,16 @@ export function applyCommand(w: World, c: Command): void {
       break;
     case 'reroll':
       rerollOffers(w);
+      break;
+    case 'set_autopick':
+      w.cfg.autoPickLevelUps = c.on;
+      // Flipping the toggle on while a manual offer is already up (`phase
+      // === 'levelup'`) has nothing else to prompt `openLevelUpIfPending`
+      // again until a manual pick returns the phase to 'act2' — resolve the
+      // now-showing offer immediately so "never pauses" holds even mid-pause.
+      if (c.on && w.phase === 'levelup' && w.offers.length > 0) {
+        takeOffer(w, pickAutoOfferIndex(w, w.offers));
+      }
       break;
     case 'class_active':
       useClassActive(w, c.aimX, c.aimY);

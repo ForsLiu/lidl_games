@@ -134,6 +134,7 @@ export const COMMAND_KINDS = [
   'call',
   'pick',
   'reroll',
+  'set_autopick',
   'equip',
   'class_active',
   'class_active2',
@@ -165,6 +166,8 @@ export function randomCommand(rng: Rng, w: World): Command {
       return { k: 'pick', index: rng.intRange(0, Math.max(0, w.offers.length - 1)) };
     case 'reroll':
       return { k: 'reroll' };
+    case 'set_autopick':
+      return { k: 'set_autopick', on: rng.chance(0.5) };
     case 'equip':
       return { k: 'equip', relic: rng.intRange(0, Math.max(0, w.relicsFound.length - 1)) };
     case 'class_active': {

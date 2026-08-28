@@ -49,6 +49,8 @@ export class Hub {
   private tab: Tab = 'run';
   /** Practice runs enable the in-run tool and bank nothing. */
   private practice = false;
+  /** SPEC-FINAL §6.3: resolves level-ups without pausing (owner feedback `feature-auto-pick-boons`). */
+  private autoPick = false;
   private classKey: string;
   /** SPEC-FINAL §5.5: mirrors `classKey` — chosen beside class select, defaults to Stone Heart. */
   private coreKey: string;
@@ -241,6 +243,15 @@ export class Hub {
             ? 'The in-run tool is on: kill the board, add gold, skip a wave, summon the boss. Nothing is banked — no Ember, no relics, no quest progress.'
             : 'A normal run. Everything you earn is kept.'
         }</p>
+        <label class="sw-setting autopick">
+          <span>Auto-pick level-ups</span>
+          <input type="checkbox" id="sw-autopick" ${this.autoPick ? 'checked' : ''} />
+        </label>
+        <p class="sw-note">${
+          this.autoPick
+            ? 'Level-ups resolve themselves: the highest-rank boon you already own, or the first card offered. Can be flipped mid-run from the HUD.'
+            : 'Level-ups pause the run for your choice.'
+        }</p>
         <button class="sw-go" id="sw-start">${this.practice ? 'Begin practice run' : 'Begin the Daywatch'}</button>
       </div>`;
 
@@ -285,6 +296,10 @@ export class Hub {
       this.practice = !this.practice;
       this.show();
     });
+    body.querySelector('#sw-autopick')?.addEventListener('change', () => {
+      this.autoPick = !this.autoPick;
+      this.show();
+    });
     body.querySelector('#sw-start')?.addEventListener('click', () => {
       const modifiers = draft.map((slot, i) => slot.options[this.picks[i] ?? 0].key);
       // Belt-and-suspenders against a locked core reaching RunConfig at all
@@ -306,6 +321,7 @@ export class Hub {
         allocated: this.meta.allocated,
         relics: equippedRelics(this.meta),
         practice: this.practice,
+        autoPickLevelUps: this.autoPick,
       });
     });
   }

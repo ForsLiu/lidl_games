@@ -167,6 +167,7 @@ describe('C7: Orbs are gone from what a player sees', () => {
       onRetry: () => {},
       onNewRun: () => {},
       onToggleRanges: () => {},
+      onToggleAutoPick: () => {},
       onResume: () => {},
       onPause: () => {},
       onCycleSpeed: () => {},

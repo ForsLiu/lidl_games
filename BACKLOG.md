@@ -68,13 +68,14 @@ filed and ready, not next up.
 - [x] (fb002) [feat] Character (and dash) ignore collision with the Core and
       all friendly structures — walks/flies over them freely; enemies keep
       current pathing rules — **done, see Done section.**
-- [ ] (fb003) [feat] VS level-up auto-pick toggle (settings + on-screen): when
+- [x] (fb003) [feat] VS level-up auto-pick toggle (settings + on-screen): when
       on, resolves level-up offers without pausing for input — prefer the
       highest-rank owned stat boon, else the first offered card; manual choice
       any time the toggle is off; auto-pick choices are ordinary Commands
       (replay-safe) — acceptance: toggle-on runs never pause in the level-up
-      phase; replay determinism holds; a test covers the pick rule — refs:
-      §6.3, owner feedback `feature-auto-pick-boons`.
+      phase; replay determinism holds; a test covers the pick rule — **done,
+      see Done section.** — refs: §6.3, owner feedback
+      `feature-auto-pick-boons`.
 - [ ] (fb004) [feat] Character panel: every final stat with its multiplier
       breakdown by source (class × tree × equipment × boons, per §2's
       stacking rules) plus every boon taken this run with rank and current
@@ -716,6 +717,61 @@ logged in MIGRATION.md §8 rather than carried as dead items.
       (amends character movement), owner feedback
       `feature-character-passes-structures`, Q129 (b016, superseded by this
       item per its own note).
+
+- [x] (fb003) [feat] VS level-up auto-pick toggle (settings + on-screen) —
+      this commit. Found already implemented but uncommitted at session
+      start (a prior session's in-progress work — `RunConfig.autoPickLevelUps`
+      and a new `set_autopick` Command (`src/sim/types.ts`); a
+      `pickAutoOfferIndex` pick rule and an auto-drain loop in
+      `openLevelUpIfPending` (`src/sim/progression.ts`) that resolves every
+      currently-pending level-up in one call instead of setting
+      `phase = 'levelup'`; a `World.cfg` shallow copy (`src/sim/world.ts`) so
+      the Command only ever mutates the World's own config, never the
+      caller's shared `RunConfig`; a Hub pre-run checkbox and a HUD mid-run
+      button (`src/ui/hub.ts`, `src/ui/hud.ts`, `src/ui/main.ts`), both
+      routed through the Command queue rather than `Settings` per
+      `settings.ts`'s own "nothing here may change the simulation" doc
+      comment; new coverage in `tests/act2.test.ts` and
+      `tests/a11-determinism.test.ts`; a new `set_autopick` case in
+      `tools/fuzz-input.ts`; QUESTIONS.md's Q131 recording the two design
+      calls — the toggle lives on `RunConfig` not `Settings`, and "highest-
+      rank owned" reads as "offered, in `boonRanks` already, rank > 0",
+      ties broken by offer order) — this session verified it end to end
+      rather than re-implementing it, the same protocol every recent
+      P6/p8a/Q91/Q102/Q120/b016/fb001/fb002 item in this file's history
+      sets: `npx tsc --noEmit` clean, targeted suite (`tests/a11-determinism.test.ts`,
+      `tests/act2.test.ts`, `tests/hud-controls.test.ts`,
+      `tests/b10-death-flow.test.ts`, `tests/c7-no-orbs.test.ts`,
+      `tests/f003-leak-coupling.test.ts`, `tests/p2d-weapon-lineage.test.ts`,
+      `tests/t2-selection.test.ts`, `tests/ui-input.test.ts`) 141/141 green
+      (1 pre-existing unrelated skip) before delegating review.
+      **code-reviewer APPROVE, no Critical/Major.** Confirmed no
+      DOM/`Math.random`/`Date.now`/native-trig introduced in `/src/sim`;
+      confirmed `set_autopick` dispatches through the same
+      `applyCommand`/input-log path as `pick`/`reroll`/`call`, replay-safe
+      by construction; confirmed the pick rule excludes never-taken boons
+      and the drain loop re-rolls per iteration against the just-updated
+      `boonRanks`; grepped `/src` for code relying on `w.cfg === cfg`
+      reference identity before approving the shallow-copy change — none
+      found; confirmed the mid-toggle-during-a-manual-offer path resolves
+      through the same `takeOffer` a player click uses, no double-
+      resolution or `offers`/`rerollsLeft` desync. Two non-blocking
+      Minor/Nit notes left as-is (an unreachable `o.kind !== 'boon'` guard;
+      an unobservable but harmless `rerollsLeft` reset after auto-drain).
+      **qa-playtester PASS, no bugs found**: a single-tick 60-level XP dump
+      resolved cleanly with no stall; 50 rapid on/off toggles interleaved
+      with level-ups (including exactly mid-manual-offer) produced no
+      desync; a real `hybrid`-bot-driven run at a fixed seed produced
+      identical end-hashes across two runs; the empty-offer-pool edge case
+      with auto-pick on resolved silently with no hang (distinct from the
+      known out-of-scope b005 manual-mode dead end); the Hub checkbox was
+      confirmed reaching `RunConfig.autoPickLevelUps` via a throwaway jsdom
+      probe; the HUD button lights from sim state, not click count; two
+      independent full `npm test` runs each found only the same 3
+      pre-existing, unrelated failures reproduced identically on clean
+      `master`; a 20,000-command-per-phase fuzz pass plus 6 full randomized
+      runs were clean. `npx tsc --noEmit`: clean throughout. — refs: §6.3,
+      Q131, owner feedback `feature-auto-pick-boons`.
 
 - [x] (fb001) [feat] dev profile (`data/dev.json`) unlocks every Core from
       §5.5, the same pattern already used for classes/maps — this commit.

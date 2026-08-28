@@ -137,6 +137,7 @@ describe('p2d — Hud panel reflects the live wielded roster, not a stale cache'
       onRetry: () => {},
       onNewRun: () => {},
       onToggleRanges: () => {},
+      onToggleAutoPick: () => {},
       onResume: () => {},
       onPause: () => {},
       onCycleSpeed: () => {},

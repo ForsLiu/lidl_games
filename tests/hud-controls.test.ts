@@ -30,6 +30,7 @@ function mount(): HTMLElement {
 interface Log {
   speed: number;
   ranges: number;
+  autopick: number;
   pause: number;
   dev: DevOp[];
 }
@@ -43,6 +44,7 @@ function makeHud(root: HTMLElement, log: Log, pacer: Pacer): Hud {
     onRetry: () => {},
     onNewRun: () => {},
     onToggleRanges: () => log.ranges++,
+    onToggleAutoPick: () => log.autopick++,
     onResume: () => {},
     onPause: () => log.pause++,
     onCycleSpeed: () => {
@@ -63,7 +65,7 @@ describe('in-run control row', () => {
 
   beforeEach(() => {
     root = mount();
-    log = { speed: 0, ranges: 0, pause: 0, dev: [] };
+    log = { speed: 0, ranges: 0, autopick: 0, pause: 0, dev: [] };
     pacer = new Pacer();
     hud = makeHud(root, log, pacer);
     hud.buildTowerBar(new World(cfg()));
@@ -71,9 +73,27 @@ describe('in-run control row', () => {
   });
 
   it('shows every control the help line promises', () => {
-    for (const act of ['speed', 'ranges', 'pause']) {
+    for (const act of ['speed', 'ranges', 'autopick', 'pause']) {
       expect(root.querySelector(`[data-act="${act}"]`), act).not.toBeNull();
     }
+  });
+
+  it('the auto-pick button reaches the callback and lights from sim state, not click count', () => {
+    const btn = root.querySelector('#sw-autopick') as HTMLButtonElement;
+    expect(btn.classList.contains('on')).toBe(false);
+    btn.click();
+    expect(log.autopick).toBe(1);
+    // The click only asked for the flip; the button lights once the sim
+    // actually reflects it (the same round-trip a real `set_autopick`
+    // Command takes through the world).
+    const w = new World(cfg());
+    expect(btn.classList.contains('on')).toBe(false);
+    w.cfg.autoPickLevelUps = true;
+    hud.update(w);
+    expect(btn.classList.contains('on')).toBe(true);
+    w.cfg.autoPickLevelUps = false;
+    hud.update(w);
+    expect(btn.classList.contains('on')).toBe(false);
   });
 
   it('starts at 1x', () => {

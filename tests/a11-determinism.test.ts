@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { cfg, makeInputLog, replay } from './helpers';
+import { cfg, makeInputLog, replay, runWithPolicy } from './helpers';
 import { Rng, RngSet, fnv1a } from '../src/sim/rng';
 import { dcos, dsin, datan2 } from '../src/sim/math';
 import { loadContent } from '../src/sim/content';
@@ -70,6 +70,31 @@ describe('A11 determinism', () => {
       expect(b.kills).toBe(a.kills);
       expect(b.damageTotal).toBe(a.damageTotal);
     }
+  });
+  /**
+   * fb003 (owner feedback `feature-auto-pick-boons`): auto-pick's choices are
+   * ordinary Commands, not a side-channel, so a run that used it replays
+   * exactly like any other. Driven by a real bot policy through real Act II
+   * play (not a hand-built log) so real level-ups actually fire.
+   */
+  it('reproduces the end-state hash with auto-pick level-ups on', () => {
+    for (const seed of [1, 2, 3]) {
+      const config = cfg({ seed, cycles: 2, autoPickLevelUps: true });
+      const a = runWithPolicy(config, 'hybrid');
+      const b = runWithPolicy(config, 'hybrid');
+      expect(b.report.endHash, `seed ${seed}`).toBe(a.report.endHash);
+      expect(b.report.wavesCleared).toBe(a.report.wavesCleared);
+    }
+  });
+
+  it('never leaves the world sitting in the levelup phase when auto-pick is on', () => {
+    const config = cfg({ seed: 4, cycles: 2, autoPickLevelUps: true });
+    const { run } = runWithPolicy(config, 'hybrid');
+    // A run that got through real Act II play (boonRanks non-empty means at
+    // least one level-up actually fired and resolved itself) never left the
+    // phase machine parked waiting for input.
+    expect(Object.keys(run.world.boonRanks).length).toBeGreaterThan(0);
+    expect(run.world.phase).not.toBe('levelup');
   });
 });
 

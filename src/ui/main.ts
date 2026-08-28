@@ -106,6 +106,8 @@ class Game {
         this.startRun({ ...this.lastCfg!, seed });
       },
       onToggleRanges: () => this.setShowRanges(!this.view.showRanges),
+      onToggleAutoPick: () =>
+        this.pending.push({ k: 'set_autopick', on: !this.run!.world.cfg.autoPickLevelUps }),
       onResume: () => this.setPaused(false),
       onPause: () => this.setPaused(true),
       onCycleSpeed: () => this.hud.setSpeed(this.pacer.cycle()),

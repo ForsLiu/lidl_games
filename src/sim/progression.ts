@@ -26,13 +26,50 @@ function queueLevelUp(w: World): void {
   w.pendingLevelUps++;
 }
 
-/** Called by the run loop when it is safe to pause for a choice. */
+/**
+ * Called by the run loop when it is safe to pause for a choice. With
+ * `autoPickLevelUps` on (SPEC-FINAL §6.3, owner feedback
+ * `feature-auto-pick-boons`), it never actually pauses: a `while` loop
+ * resolves every currently-pending level-up in this one call (rather than
+ * recursing through `takeOffer`, whose own depth would otherwise scale with
+ * how many levels a single large XP grant produces), so a caller never
+ * observes `phase === 'levelup'` even transiently.
+ */
 export function openLevelUpIfPending(w: World): void {
   if (w.pendingLevelUps <= 0 || w.phase !== 'act2') return;
+  if (w.cfg.autoPickLevelUps) {
+    while (w.pendingLevelUps > 0) {
+      w.pendingLevelUps--;
+      const offers = rollOffers(w);
+      if (offers.length === 0) continue;
+      applyOffer(w, offers[pickAutoOfferIndex(w, offers)]);
+    }
+    w.offers = [];
+    w.rerollsLeft = w.content.boons.rerollsPerLevel;
+    return;
+  }
   w.pendingLevelUps--;
   w.offers = rollOffers(w);
   w.rerollsLeft = w.content.boons.rerollsPerLevel;
   w.phase = 'levelup';
+}
+
+/**
+ * The auto-pick rule: prefer the highest-rank owned stat boon among the
+ * offers, else the first offered card.
+ */
+export function pickAutoOfferIndex(w: World, offers: Offer[]): number {
+  let bestIdx = 0;
+  let bestRank = -1;
+  offers.forEach((o, i) => {
+    if (o.kind !== 'boon') return;
+    const owned = w.boonRanks[o.key] ?? 0;
+    if (owned > 0 && owned > bestRank) {
+      bestRank = owned;
+      bestIdx = i;
+    }
+  });
+  return bestIdx;
 }
 
 /* ------------------------------------------------------------------ gems */

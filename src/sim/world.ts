@@ -320,7 +320,11 @@ export class World {
 
   constructor(cfg: RunConfig, content: Content = loadContent()) {
     this.content = content;
-    this.cfg = cfg;
+    // A shallow copy: `set_autopick` (and any future cfg-mutating Command)
+    // must only ever touch this World's own config, never the caller's
+    // shared RunConfig object (e.g. `main.ts`'s `lastCfg`, reused verbatim
+    // across Retry).
+    this.cfg = { ...cfg };
     this.coreKey = cfg.core ?? defaultCoreKey(content);
     this.totalCycles = Math.max(1, Math.round(cfg.cycles ?? 6));
     this.rng = new RngSet(cfg.seed);

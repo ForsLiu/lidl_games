@@ -20,6 +20,13 @@ export type Command =
   | { k: 'call' }
   | { k: 'pick'; index: number }
   | { k: 'reroll' }
+  /**
+   * SPEC-FINAL §6.3, owner feedback `feature-auto-pick-boons`: flips the
+   * level-up auto-pick setting mid-run. An ordinary Command (not a Settings
+   * field) because it changes which boons a run ends up with, so it has to
+   * be in the input log for a replay to reproduce the same picks.
+   */
+  | { k: 'set_autopick'; on: boolean }
   | { k: 'equip'; relic: number }
   /**
    * SPEC-FINAL §4 Active1 (Q). `aimX`/`aimY` mirror `class_active2`'s: p6d is
@@ -502,6 +509,15 @@ export interface RunConfig {
    * a run that used one banks no Ember and no relics.
    */
   practice?: boolean;
+  /**
+   * SPEC-FINAL §6.3, owner feedback `feature-auto-pick-boons`: when true, a
+   * level-up resolves itself the instant it is rolled instead of pausing the
+   * run for input, preferring the highest-rank owned boon offered, else the
+   * first offered card. Sim-affecting (unlike `Settings`), so it lives here
+   * and can also be flipped mid-run via the `set_autopick` Command, keeping
+   * every pick, manual or automatic, replay-safe.
+   */
+  autoPickLevelUps?: boolean;
 }
 
 /* --------------------------------------------------------------- reporting */

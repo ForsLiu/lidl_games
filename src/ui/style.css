@@ -520,7 +520,7 @@ html, body {
   gap: 5px;
 }
 
-.sw-setting.practice { margin-top: 8px; }
+.sw-setting.practice, .sw-setting.autopick { margin-top: 8px; }
 
 /* -------------------------------------------------- account counters, zeros */
 

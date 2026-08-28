@@ -23,6 +23,8 @@ export interface HudCallbacks {
   /** Results screen: same config, a fresh seed, straight back in. */
   onNewRun(): void;
   onToggleRanges(): void;
+  /** SPEC-FINAL §6.3, owner feedback `feature-auto-pick-boons`: flips level-up auto-pick mid-run. */
+  onToggleAutoPick(): void;
   onResume(): void;
   onPause(): void;
   /** Fast-forward: cycles 1x / 2x / 3x. */
@@ -63,6 +65,7 @@ export class Hud {
           <div class="sw-controls" id="sw-controls">
             <button class="sw-ctl" data-act="speed" id="sw-speed" title="Fast-forward (F)">1x</button>
             <button class="sw-ctl" data-act="ranges" id="sw-ranges" aria-pressed="false" title="Show tower ranges (R)">Ranges</button>
+            <button class="sw-ctl" data-act="autopick" id="sw-autopick" aria-pressed="false" title="Resolve level-ups automatically">Auto-pick</button>
             <button class="sw-ctl" data-act="pause" title="Pause (Esc)">Pause</button>
           </div>
           <div class="sw-practice" id="sw-practice" hidden></div>
@@ -93,6 +96,7 @@ export class Hud {
     const controls = this.root.querySelector('#sw-controls');
     controls?.querySelector('[data-act="speed"]')?.addEventListener('click', () => this.cb.onCycleSpeed());
     controls?.querySelector('[data-act="ranges"]')?.addEventListener('click', () => this.cb.onToggleRanges());
+    controls?.querySelector('[data-act="autopick"]')?.addEventListener('click', () => this.cb.onToggleAutoPick());
     controls?.querySelector('[data-act="pause"]')?.addEventListener('click', () => this.cb.onPause());
   }
 
@@ -138,6 +142,20 @@ export class Hud {
   setShowRanges(on: boolean): void {
     const el = this.root.querySelector('#sw-ranges');
     if (!el) return;
+    el.setAttribute('aria-pressed', String(on));
+    el.classList.toggle('on', on);
+  }
+
+  /**
+   * Lights the auto-pick button from the sim's own `cfg.autoPickLevelUps`,
+   * not from click count, the same reasoning `syncPracticeToggles` uses: the
+   * flag can change via a `set_autopick` Command from any source (this
+   * button, a bot, a replay), and the button must agree with the World.
+   */
+  private syncAutoPickToggle(w: World): void {
+    const el = this.root.querySelector('#sw-autopick');
+    if (!el) return;
+    const on = w.cfg.autoPickLevelUps === true;
     el.setAttribute('aria-pressed', String(on));
     el.classList.toggle('on', on);
   }
@@ -234,6 +252,7 @@ export class Hud {
     this.bar.classList.toggle('hidden', w.huntsWarden);
     this.progressEl.innerHTML = progressMarkup(runProgress(w));
     this.syncPracticeToggles(w);
+    this.syncAutoPickToggle(w);
     // A selection describes itself — but never at the cost of the panels the
     // player needs to act: a tower queued on the build bar has to show its own
     // stats, and in Act II the weapon panel carries the only weapon switcher.

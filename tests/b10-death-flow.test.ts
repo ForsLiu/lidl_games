@@ -126,6 +126,7 @@ function mountHud(): { root: HTMLElement; hud: Hud; log: Record<string, number> 
     onRetry: () => log.retry++,
     onNewRun: () => log.newrun++,
     onToggleRanges: () => {},
+    onToggleAutoPick: () => {},
     onResume: () => {},
     onPause: () => {},
     onCycleSpeed: () => {},

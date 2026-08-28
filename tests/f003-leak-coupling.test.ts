@@ -287,6 +287,7 @@ describe('BACKLOG f003/p3c: TD HUD shows the "Loose in the dark" counter', () =>
       onRetry: () => {},
       onNewRun: () => {},
       onToggleRanges: () => {},
+      onToggleAutoPick: () => {},
       onResume: () => {},
       onPause: () => {},
       onCycleSpeed: () => {},
