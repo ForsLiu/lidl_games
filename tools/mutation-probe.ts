@@ -53,10 +53,12 @@
  * same false-positive shape PROGRESS.md's M18 section warns about ("a
  * positive control rewritten into comparing 0 to 0").
  *
- * Cost, recorded rather than hidden: this now runs 23 nested `npx vitest run`
- * invocations (8 controls, one per distinct `testFile`, + 15 mutations),
- * up from 19 (BACKLOG-QUALITY q40 added an 8th distinct `testFile`,
- * `tests/q28-cli-error-handling.test.ts`, without a `package.json` alias to
+ * Cost, recorded rather than hidden: this now runs 38 nested `npx vitest run`
+ * invocations (12 controls, one per distinct `testFile`, + 26 mutations),
+ * up from 23 (BACKLOG-QUALITY q52 added four new distinct `testFile`s —
+ * `tests/q45-cli-schema-violation.test.ts`, `tests/q46-cli-json-syntax-error-
+ * siblings-3.test.ts`, `tests/q47-cli-crash-coverage.test.ts` and
+ * `tests/q52-m20d-run-a4-bad-key.test.ts` — without a `package.json` alias to
  * parallelize any of this) — measure the real number on this host with
  * `npx vitest run tests/q14-mutation-smoke.test.ts` rather than trusting this
  * comment to stay current. That is the price of testing the tests rather
@@ -140,12 +142,48 @@ export interface Mutation {
  * silently dropped.
  *
  * Two more (BACKLOG-QUALITY q31) close q31's own gap for q23/q25's guards;
- * see the inline comment above those two entries below. The final three
+ * see the inline comment above those two entries below. Three more
  * (BACKLOG-QUALITY q40) close the identical gap one fix-generation later:
  * q28 landed three try/catch-shaped guards (`gate-audit.ts` and
  * `phase-coverage.ts`'s `main()`s, and moving `soak.ts`'s `new Run(cfg)`
  * inside its own `try`) but q31's list only ever covered q23/q25's guards,
  * not q28's — see the inline comment above those three entries below.
+ *
+ * The final eleven (BACKLOG-QUALITY q52) close the same recurring gap a
+ * third time. q45 gave nine tools (`a4probe.ts`, `a5probe.ts`,
+ * `fuzz-command-domain.ts`, `fuzz-input.ts`, `fuzz-save.ts`,
+ * `fuzz-weapon-boundary.ts`, `m20d-run-a4.ts`, `m20d-swarm.ts`,
+ * `probe-boss.ts`) a try/catch (or, for `fuzz-command-domain.ts`'s unawaited
+ * async IIFE, a `.catch()`) around their executable body so a `/data` schema
+ * violation exits with a clean one-line message instead of a raw `ZodError`
+ * dump; q48 separately turned `probe-boss.ts`'s one static
+ * `import { cfg, runWithPolicy } from '../tests/helpers'` into a dynamic
+ * `await import(...)` made from inside that same try, so a JSON *syntax*
+ * error (which fails at transform time, one step earlier than a schema
+ * violation) is caught too; q50 fixed a false positive in
+ * `cli-crash-coverage.ts`'s own `stripCommentsAndBacktickStrings` where a
+ * backslash-newline line-continuation inside a quoted string was copied
+ * through as a real newline, letting `VALUE_IMPORT_RE`'s multiline match
+ * false-fire on pure string data. Each of q45/q48's guards was mutation-
+ * verified by hand in its own session (git stash the file to its pre-fix
+ * state, confirm the matching test in `tests/q45-cli-schema-violation.test.ts`
+ * or `tests/q46-cli-json-syntax-error-siblings-3.test.ts` goes red, restore)
+ * but never landed as an automated entry here until now; q50's fix likewise
+ * against `tests/q47-cli-crash-coverage.test.ts`. `probe-boss.ts` gets two
+ * separate entries — one reverting q45's try/catch wrap, one reverting q48's
+ * dynamic-import workaround independently — because the two fixes are
+ * independently revertible and each has its own dedicated assertion.
+ * `m20d-run-a4.ts`'s entry is the one exception: probed live against
+ * `tests/q45-cli-schema-violation.test.ts` first (matching q45's own
+ * describe.each list, which includes this tool), it came back "PASSED
+ * (missed!)" — a `/data` schema violation never reaches this tool's own
+ * catch, because `a4probe.ts`'s module-scope guard (which it imports) calls
+ * `process.exit(1)` first, before this tool's module body ever runs. No
+ * existing test distinguishes "caught cleanly" from "uncaught raw stack" for
+ * this tool's own try, so it gets a new dedicated one,
+ * `tests/q52-m20d-run-a4-bad-key.test.ts`, reaching the one failure mode
+ * local to its own try (an unknown CLI tower-key argument, `/data`
+ * untouched).
  */
 export const MUTATIONS: Mutation[] = [
   {
@@ -366,6 +404,160 @@ export const MUTATIONS: Mutation[] = [
     testFile: 'tests/q28-cli-error-handling.test.ts',
     source:
       'BACKLOG-QUALITY.md q28/q40: reverts `soak.ts`\'s `soakOne` to its pre-q28 shape (`new Run(cfg)` constructed one line before its own `try`, not inside it), so a `/data` corruption at construction propagates straight out of `soakOne` uncaught instead of coming back as `SoakResult.threw` — q23\'s `maxTicks`/`scanEvery` guards do not cover this path. Targets the "soak.ts CLI failure path" describe block\'s corrupted-data cases (distinguishing signal is `main()` never reaching its own output, not exit code — see that test\'s own doc comment).',
+  },
+  // The final eleven (BACKLOG-QUALITY q52) close the identical recurring gap
+  // a third time: q45's nine try/catch/.catch() guards, q48's probe-boss.ts
+  // dynamic-import fix, and q50's cli-crash-coverage.ts line-continuation
+  // fix — see the doc comment above `MUTATIONS` for the full account.
+  {
+    name: 'a4probe-remove-module-scope-trycatch',
+    file: 'tools/a4probe.ts',
+    edits: [
+      {
+        find: "let content: Content;\ntry {\n  content = loadContent();\n} catch (err) {\n  const message = err instanceof Error ? err.message : String(err);\n  console.error(`a4probe: ${message.replace(/\\s+/g, ' ').trim()}`);\n  process.exit(1);\n}",
+        replace: "const content: Content = loadContent();",
+      },
+    ],
+    testFile: 'tests/q45-cli-schema-violation.test.ts',
+    source:
+      'BACKLOG-QUALITY.md q45/q52: reverts `a4probe.ts`\'s module-scope `content` assignment to its pre-q45 bare call (no try/catch), so a `/data` schema violation crashes with an uncaught `ZodError` dump at module-evaluation time instead of an `a4probe:`-prefixed one-line message — this is also what fixes `m20d-run-a4.ts`\'s crash, since it imports `a4probe.ts`.',
+  },
+  {
+    name: 'a5probe-remove-main-trycatch',
+    file: 'tools/a5probe.ts',
+    edits: [
+      {
+        find: "if (process.argv[1]?.includes('a5probe')) {\n  try {\n    main();\n  } catch (err) {\n    const message = err instanceof Error ? err.message : String(err);\n    console.error(`a5probe: ${message.replace(/\\s+/g, ' ').trim()}`);\n    process.exitCode = 1;\n  }\n}",
+        replace: "if (process.argv[1]?.includes('a5probe')) {\n  main();\n}",
+      },
+    ],
+    testFile: 'tests/q45-cli-schema-violation.test.ts',
+    source:
+      'BACKLOG-QUALITY.md q45/q52: reverts `a5probe.ts`\'s `main()` call site to its pre-q45 shape (no try/catch), so a `/data` schema violation crashes with an uncaught `ZodError` dump instead of an `a5probe:`-prefixed one-line message.',
+  },
+  {
+    name: 'fuzz-command-domain-remove-iife-catch',
+    file: 'tools/fuzz-command-domain.ts',
+    edits: [
+      {
+        find: "  })().catch((err: unknown) => {\n    const message = err instanceof Error ? err.message : String(err);\n    console.error(`fuzz-command-domain: ${message.replace(/\\s+/g, ' ').trim()}`);\n    process.exitCode = 1;\n  });\n}",
+        replace: "  })();\n}",
+      },
+    ],
+    testFile: 'tests/q45-cli-schema-violation.test.ts',
+    source:
+      'BACKLOG-QUALITY.md q45/q52: reverts `fuzz-command-domain.ts`\'s unawaited async IIFE to its pre-q45 shape (no `.catch()`), so a `/data` schema violation surfaces as an unhandled promise rejection instead of an `fuzz-command-domain:`-prefixed one-line message — a plain call-site try/catch cannot see a promise rejection, which is why this tool needed a `.catch()` rather than the other eight tools\' try/catch shape.',
+  },
+  {
+    name: 'fuzz-input-remove-main-trycatch',
+    file: 'tools/fuzz-input.ts',
+    edits: [
+      {
+        find: "if (entry.endsWith('tools/fuzz-input.ts')) {\n  try {\n    main();\n  } catch (err) {\n    const message = err instanceof Error ? err.message : String(err);\n    console.error(`fuzz-input: ${message.replace(/\\s+/g, ' ').trim()}`);\n    process.exitCode = 1;\n  }\n}",
+        replace: "if (entry.endsWith('tools/fuzz-input.ts')) {\n  main();\n}",
+      },
+    ],
+    testFile: 'tests/q45-cli-schema-violation.test.ts',
+    source:
+      'BACKLOG-QUALITY.md q45/q52: reverts `fuzz-input.ts`\'s `main()` call site to its pre-q45 shape (no try/catch), so a `/data` schema violation crashes with an uncaught `ZodError` dump instead of an `fuzz-input:`-prefixed one-line message.',
+  },
+  {
+    name: 'fuzz-save-remove-main-trycatch',
+    file: 'tools/fuzz-save.ts',
+    edits: [
+      {
+        find: "if (invokedDirectly) {\n  try {\n    main(process.argv.slice(2));\n  } catch (err) {\n    const message = err instanceof Error ? err.message : String(err);\n    console.error(`fuzz-save: ${message.replace(/\\s+/g, ' ').trim()}`);\n    process.exitCode = 1;\n  }\n}",
+        replace: "if (invokedDirectly) {\n  main(process.argv.slice(2));\n}",
+      },
+    ],
+    testFile: 'tests/q45-cli-schema-violation.test.ts',
+    source:
+      'BACKLOG-QUALITY.md q45/q52: reverts `fuzz-save.ts`\'s `main()` call site to its pre-q45 shape (no try/catch), so a `/data` schema violation crashes with an uncaught `ZodError` dump instead of an `fuzz-save:`-prefixed one-line message.',
+  },
+  {
+    name: 'fuzz-weapon-boundary-remove-main-trycatch',
+    file: 'tools/fuzz-weapon-boundary.ts',
+    edits: [
+      {
+        find: "if (invokedDirectly) {\n  try {\n    main();\n  } catch (err) {\n    const message = err instanceof Error ? err.message : String(err);\n    console.error(`fuzz-weapon-boundary: ${message.replace(/\\s+/g, ' ').trim()}`);\n    process.exitCode = 1;\n  }\n}",
+        replace: "if (invokedDirectly) {\n  main();\n}",
+      },
+    ],
+    testFile: 'tests/q45-cli-schema-violation.test.ts',
+    source:
+      'BACKLOG-QUALITY.md q45/q52: reverts `fuzz-weapon-boundary.ts`\'s `main()` call site to its pre-q45 shape (no try/catch), so a `/data` schema violation crashes with an uncaught `ZodError` dump instead of an `fuzz-weapon-boundary:`-prefixed one-line message.',
+  },
+  {
+    name: 'm20d-run-a4-remove-try-catch',
+    file: 'tools/m20d-run-a4.ts',
+    edits: [
+      { find: 'try {', replace: '{' },
+      {
+        find: "} catch (err) {\n  const message = err instanceof Error ? err.message : String(err);\n  console.error(`m20d-run-a4: ${message.replace(/\\s+/g, ' ').trim()}`);\n  process.exitCode = 1;\n}",
+        replace: '}',
+      },
+    ],
+    testFile: 'tests/q52-m20d-run-a4-bad-key.test.ts',
+    source:
+      'BACKLOG-QUALITY.md q45/q52: reverts `m20d-run-a4.ts`\'s top-level executable body to its pre-q45 shape (no wrapping try/catch). Not `tests/q45-cli-schema-violation.test.ts` — confirmed empirically (live probe run, session this item was written) that a `/data` schema violation never reaches this tool\'s own catch at all: `a4probe.ts`\'s module-scope guard calls `process.exit(1)` before `m20d-run-a4.ts`\'s module body ever runs, so removing this try/catch does not flip that test red (a false "PASSED (missed!)" the first time this entry was probed). `tests/q52-m20d-run-a4-bad-key.test.ts` reaches this tool\'s own catch directly, with an invalid CLI tower-key argument that never touches `/data`.',
+  },
+  {
+    name: 'm20d-swarm-remove-try-catch',
+    file: 'tools/m20d-swarm.ts',
+    edits: [
+      { find: 'try {', replace: '{' },
+      {
+        find: "} catch (err) {\n  const message = err instanceof Error ? err.message : String(err);\n  console.error(`m20d-swarm: ${message.replace(/\\s+/g, ' ').trim()}`);\n  process.exitCode = 1;\n}",
+        replace: '}',
+      },
+    ],
+    testFile: 'tests/q45-cli-schema-violation.test.ts',
+    source:
+      'BACKLOG-QUALITY.md q45/q52: reverts `m20d-swarm.ts`\'s top-level executable body to its pre-q45 shape (no wrapping try/catch), so a `/data` schema violation crashes with an uncaught `ZodError` dump instead of an `m20d-swarm:`-prefixed one-line message.',
+  },
+  {
+    name: 'probe-boss-remove-try-catch',
+    file: 'tools/probe-boss.ts',
+    edits: [
+      { find: 'try {', replace: '{' },
+      {
+        find: "} catch (err) {\n  const message = err instanceof Error ? err.message : String(err);\n  console.error(`probe-boss: ${message.replace(/\\s+/g, ' ').trim()}`);\n  process.exitCode = 1;\n}",
+        replace: '}',
+      },
+    ],
+    testFile: 'tests/q45-cli-schema-violation.test.ts',
+    source:
+      'BACKLOG-QUALITY.md q45/q52: reverts `probe-boss.ts`\'s top-level executable body to its pre-q45 shape (no wrapping try/catch), so a `/data` schema violation crashes with an uncaught `ZodError` dump instead of a `probe-boss:`-prefixed one-line message. Independent of `probe-boss-revert-dynamic-import` below — this one only removes the try/catch, leaving q48\'s dynamic import in place.',
+  },
+  {
+    name: 'probe-boss-revert-dynamic-import',
+    file: 'tools/probe-boss.ts',
+    edits: [
+      {
+        find: `export {}; // Makes this a module so top-level \`await\` below is legal (no other import/export remains).`,
+        replace: `import { cfg, runWithPolicy } from '../tests/helpers';`,
+      },
+      {
+        find: `  // Dynamic, not static: a static \`import ... from '../tests/helpers'\` pulls\n  // in that file's own static chain (\`../src/sim/run\` -> \`./world\` ->\n  // \`./content\`, which statically imports every \`/data/*.json\`) at\n  // module-transform time, before this \`try\` itself starts running — a\n  // JSON *syntax* error in \`/data\` fails there, invisible to any try/catch\n  // in this file (q46's finding). A dynamic \`import()\` made from inside\n  // this already-running \`try\` defers that same transform to here, turning\n  // the failure into an ordinary rejected promise this \`catch\` can see —\n  // the same workaround q38 applied to \`content-census.ts\` (BACKLOG-QUALITY q48).\n  const { cfg, runWithPolicy } = await import('../tests/helpers');\n`,
+        replace: ``,
+      },
+    ],
+    testFile: 'tests/q46-cli-json-syntax-error-siblings-3.test.ts',
+    source:
+      'BACKLOG-QUALITY.md q48/q52: reverts `probe-boss.ts`\'s dynamic `await import(\'../tests/helpers\')` (made from inside its top-level try) back to a static top-level import, so a `/data` JSON *syntax* error fails at transform time — before the try ever starts running — producing a raw multi-frame esbuild stack instead of a clean `probe-boss:`-prefixed one-line message. Independent of `probe-boss-remove-try-catch` above — this one keeps the try/catch, reverting only the import shape.',
+  },
+  {
+    name: 'cli-crash-coverage-remove-line-continuation-fix',
+    file: 'tools/cli-crash-coverage.ts',
+    edits: [
+      {
+        find: "while (i < n && text[i] !== quote) {\n        if (text[i] === '\\\\' && i + 1 < n) {\n          // A backslash immediately followed by a real line terminator is a\n          // JS line-continuation escape: the newline contributes nothing to\n          // the string's value. Copying it through as a literal newline (the\n          // old behaviour) leaves a real `\\n` inside `out`, which is exactly\n          // what VALUE_IMPORT_RE's `^`-anchored, multiline match looks for —\n          // a following physical line that happens to start with\n          // `import ... from '...'` false-positives even though it is pure\n          // string data, never evaluated as an import (q50).\n          if (text[i + 1] === '\\n') {\n            i += 2;\n          } else if (text[i + 1] === '\\r' && text[i + 2] === '\\n') {\n            i += 3;\n          } else {\n            out += text[i] + text[i + 1];\n            i += 2;\n          }\n        } else {\n          out += text[i];\n          i++;\n        }\n      }",
+        replace: "while (i < n && text[i] !== quote) {\n        if (text[i] === '\\\\' && i + 1 < n) {\n          out += text[i] + text[i + 1];\n          i += 2;\n        } else {\n          out += text[i];\n          i++;\n        }\n      }",
+      },
+    ],
+    testFile: 'tests/q47-cli-crash-coverage.test.ts',
+    source:
+      'BACKLOG-QUALITY.md q50/q52: reverts `cli-crash-coverage.ts`\'s `stripCommentsAndBacktickStrings` to its pre-q50 shape (a backslash-newline line-continuation inside a quoted string copied through as a real newline), reproducing the false positive q50 fixed: a following physical line starting with `import ... from \'...\'` inside string data false-fires `VALUE_IMPORT_RE`\'s multiline match.',
   },
 ];
 

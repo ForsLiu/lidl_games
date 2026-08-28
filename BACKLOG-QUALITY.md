@@ -878,7 +878,7 @@ coverage gaps session 1's log recorded. All five are inside Scope as written.*
       `VALUE_IMPORT_RE` (or a post-match specifier-list check) is fixed to
       exclude it — refs: q47, tools/cli-crash-coverage.ts (QA finding,
       qa-playtester, session 45)
-- [ ] (q52) [feat] Mutation-probe coverage gap, third occurrence of the
+- [x] (q52) [feat] Mutation-probe coverage gap, third occurrence of the
       q20/q31/q40 shape: `tools/mutation-probe.ts`'s `MUTATIONS` array still
       has only the pre-q40 15 entries (confirmed by direct count this
       session), and none of the guards landed since q40 has a matching entry
@@ -1146,6 +1146,80 @@ resolve if it wants the CLI entry points too. All five are inside Scope as
 written; none needs a `package.json` edit.*
 
 ## Log
+
+### 2026-08-27 — session 50
+
+**Feedback inbox:** `feedback/` exists but is empty. Nothing to process.
+
+**q52 done.** `tools/mutation-probe.ts`'s `MUTATIONS` array gained 11 entries
+covering q45's nine try/catch/`.catch()` guards (`a4probe.ts`, `a5probe.ts`,
+`fuzz-command-domain.ts`'s unawaited-IIFE `.catch()`, `fuzz-input.ts`,
+`fuzz-save.ts`, `fuzz-weapon-boundary.ts`, `m20d-run-a4.ts`, `m20d-swarm.ts`,
+`probe-boss.ts`), q48's `probe-boss.ts` dynamic-import fix, and q50's
+`cli-crash-coverage.ts` line-continuation fix — 26 total now, 12 distinct
+`testFile`s, 38 nested `npx vitest run` invocations.
+
+Two findings worth recording. **(1)** A self-inflicted false positive:
+writing the `probe-boss-revert-dynamic-import` entry's `find`/`replace` as
+plain double-quoted strings put a literal `import { cfg, runWithPolicy }
+from '../tests/helpers';` into `tools/mutation-probe.ts`'s own source text,
+outside any backtick — which `tools/cli-crash-coverage.ts`'s census (q47)
+then read as a real import and flagged `tools/mutation-probe.ts` itself as a
+content-import gap (`tests/q47-cli-crash-coverage.test.ts` went red). Fixed
+by moving that entry's `find`/`replace` into backtick template literals,
+matching every other entry's established convention — the file's own doc
+comment already warns about this exact trap for embedded `//` comments, it
+just hadn't been hit for an embedded `import` before. **(2)** `m20d-run-a4.ts`
+turned out to be untestable via the test I'd planned: probing
+`m20d-run-a4-remove-try-catch` against `tests/q45-cli-schema-violation.test.ts`
+came back "PASSED (missed!)" — `a4probe.ts`'s module-scope guard (which
+`m20d-run-a4.ts` imports) calls `process.exit(1)` before `m20d-run-a4.ts`'s
+own module body ever runs, so a `/data` schema violation never reaches its
+own catch, and none of the three existing tests that invoke this tool
+(q45/q46/q49) distinguish caught-clean from uncaught for its own try. Added
+`tests/q52-m20d-run-a4-bad-key.test.ts`, which reaches it directly via an
+invalid CLI tower-key argument (no `/data` involved), and pointed the
+mutation there instead.
+
+`npx tsc --noEmit -p .` clean throughout. `npx tsx tools/mutation-probe.ts`
+(run twice, ~38 nested vitest invocations each): all 12 controls `ok`, all
+26 mutations `test failed (caught)` both times — "real file DIRTY" on every
+line both runs, confirmed to be this item's own legitimate uncommitted diff
+to `tools/mutation-probe.ts` tripping the tool's whole-repo `gitDiffClean()`
+check (`git status --porcelain` showed only the two expected files dirty
+throughout), not a real leak. A full `npm test` run in the same window
+turned up 5 failing test files (`q15-command-domain-fuzz` timing-sensitive
+"hangs" outcomes, `q45`/`q49`/`q52-*` EPERM on scratch-dir cleanup) — all
+four re-ran green standalone on a quiet host, matching this lane's
+already-documented Windows scratch/timing flake class (session 49's log
+names the same EPERM shape); not a regression from this item.
+
+code-reviewer **APPROVE**, 1 Nit (a doc-comment typo, fixed) and one process
+note (flip the BACKLOG-QUALITY checkbox before commit, done here). Also
+independently confirmed no other new entry leaks an import-shaped string
+outside a backtick, and that every new entry's `find` string is a verbatim
+substring of the real target file.
+
+qa-playtester **PASS**, with one caveat surfaced and resolved rather than
+filed as a bug: `tests/q14-mutation-smoke.test.ts` itself is red while this
+diff sits uncommitted, for the identical whole-repo-`gitDiffClean()` reason
+above (all 26 `describe.each` rows and the dedicated cross-file-dirty fixture
+test fail on `realFileUntouched`/its own precondition). QA independently
+verified the new entries are real via the raw CLI tool and a hand-reverted
+`a5probe.ts` against the real (unmutated) `tests/q45-cli-schema-violation.test.ts`,
+concluding this is a structural precondition of the harness (checking a clean
+tree), not a defect in the new entries — recommended committing, then
+re-confirming `q14-mutation-smoke.test.ts` green post-commit. Also flagged
+`tests/q52-m20d-run-a4-bad-key.test.ts` passes standalone (test + control)
+and cleans up its scratch dir.
+
+**Next: commit, then re-run `npx vitest run tests/q14-mutation-smoke.test.ts`
+once more against the clean tree to get the true final green confirmation**
+before treating q52 as fully closed out.
+
+Five actionable items remained before this session (q52-q56); four remain
+now (q53-q56), still above the floor of 3, so the generation rule does not
+need to run next session either.
 
 ### 2026-08-27 — session 49
 
