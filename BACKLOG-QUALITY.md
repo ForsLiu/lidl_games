@@ -801,7 +801,7 @@ coverage gaps session 1's log recorded. All five are inside Scope as written.*
       added in future with none of the three protections surfaces as an
       unpinned gap by name rather than needing a fourth hand-grep session —
       refs: q10, q14, q37, q41, q45, q46
-- [ ] (q48) [feat] Now that q45 establishes `tools/**` CAN carry an
+- [x] (q48) [feat] Now that q45 establishes `tools/**` CAN carry an
       in-Scope try/catch fix (unlike the syntax-error class, which needs
       `src/sim/content.ts`), re-check whether q38's *other* in-Scope
       workaround — splitting `Content` into a type-only import and making
@@ -1028,6 +1028,84 @@ resolve if it wants the CLI entry points too. All five are inside Scope as
 written; none needs a `package.json` edit.*
 
 ## Log
+
+### 2026-08-27 — session 47
+
+**Feedback inbox:** no `feedback/` directory in this worktree. Nothing to
+process.
+
+**Session start state:** clean (`git status --porcelain` empty), matching
+session 46's closing note. Three actionable items in queue (q48, q49, q51);
+at the generation floor of 3, so no generation needed. Took **q48**, the top
+item.
+
+**q48 done.** Read all ten q41/q46 content-importing tools' import shapes
+directly (not re-derived from memory) and checked each against q38's
+disqualifying tests — a module-top-level `loadContent()` call feeding further
+top-level code (`handoff-metrics.ts`'s shape), or multiple exported,
+synchronously-called functions with existing sync-signature external callers
+(`sim.ts`/`sweep.ts`'s shape) — by grepping every `tests/*.ts` file for a
+`from '../tools/<name>'` import and reading what it pulls in. Full table:
+
+| tool | viable? | reason |
+|---|---|---|
+| `perf-ratio.ts` | no | `worstCaseWorld`, `measureRatioForWorld`, `calibrationWork` are exported and called synchronously by three external test files (`tests/a10-performance.test.ts`, `tests/q13-perf-ratio.test.ts`, `tests/q26-perf-ratio-interleave.test.ts`) — the `sim.ts`/`sweep.ts` shape |
+| `a4probe.ts` | no | `content = loadContent()` runs at module top level, feeding a further top-level export (`SOUL_TOWERS`) — the `handoff-metrics.ts` shape — *and* `SOUL_TOWERS`/`T3_MODS`/`runSingleType` are imported synchronously by `tests/a4-single-type.test.ts` |
+| `a5probe.ts` | no | `collect`, `topTen`, `aggregateShares`, `BUILDS` are exported and called synchronously by `tests/a5-weapon-share.test.ts` |
+| `fuzz-input.ts` | no | `COMMAND_KINDS`, `PHASES`, `describeFailure`, `fuzzPhase`, `fuzzRun`, `runInPhase` are exported and called synchronously by `tests/q2-input-fuzz.test.ts` and `tests/q15-command-domain-fuzz.test.ts` |
+| `fuzz-save.ts` | no | `validMeta` and siblings are exported and called synchronously by `tests/q3-save-fuzz.test.ts` and `tests/q8-save-roundtrip.test.ts` |
+| `fuzz-weapon-boundary.ts` | no | eight exported functions each default a `content: Content = loadContent()` parameter, called with no argument (relying on the default) by `tests/q21-weapon-boundary-fuzz.test.ts` — same multiple-sync-callers class, just spread across defaults instead of one signature |
+| `fuzz-command-domain.ts` | no | `runSingleProbe`, `digest`, `fieldSpec`, `classify`, `probeInWorker`, `runCensus`, `runAliasProbe`, `aliasProbeInWorker` are exported and called synchronously by `tests/q15-command-domain-fuzz.test.ts` and `tests/q15-command-domain-holes.ts` (its own `./fuzz-input` import could be made dynamic independently of `fuzz-input.ts`'s own fixability, the same way `m20d-run-a4.ts` relates to `a4probe.ts` below — but that CLI's *own* multiple sync exports still block it) |
+| `m20d-run-a4.ts` | **yes** (not applied) | single top-level `try`, zero external callers of its own (`grep`-confirmed no test imports `tools/m20d-run-a4`) — its only import is `./a4probe`'s named exports, and deferring *that one import* to `await import('./a4probe')` inside its own `try` works regardless of `a4probe.ts`'s own internal shape, because the dynamic import defers `a4probe.ts`'s entire module instantiation (including its problematic static chain into `content.ts`) to runtime, inside the caller's `try` — the same relationship that let q38's fix for `content-census.ts` not need `src/sim/content.ts` itself to change |
+| `m20d-swarm.ts` | **yes** (not applied) | single top-level `try`, zero external callers; `World`/`spawnEnemy`/`buildTower`/etc. all take `content`/`World` as call arguments rather than loading it themselves, so the only content-touching static import is the direct `import { loadContent } from '../src/sim/content'` — one dynamic import fixes it |
+| `probe-boss.ts` | **yes — applied this session** | single top-level `try`, zero external callers, exactly one import (`../tests/helpers`) used only inside that `try` — the cleanest instance of q38's shape of all ten |
+
+Applied the fix to **`probe-boss.ts`**: its static
+`import { cfg, runWithPolicy } from '../tests/helpers'` is now a dynamic
+`const { cfg, runWithPolicy } = await import('../tests/helpers')` made from
+inside the file's own top-level `try` (top-level `await` needed an
+`export {}` added first — `tsc` rejected it otherwise, since the file had no
+other import/export left to mark it a module). Verified live in a throwaway
+scratch copy before writing anything permanent: a syntax-broken
+`data/towers.json` now prints one line, `probe-boss: Transform failed with 1
+error: ...`, exit 1, empty stdout — no raw stack frame — where before it
+dumped an uncaught multi-frame esbuild trace. Bonus, not hunted for
+separately: the *other* pre-existing failure mode q46 pinned as a control
+(`probe-boss.ts` run without a `tests/` directory in the scratch copy, which
+previously failed even earlier on an uncaught `ERR_MODULE_NOT_FOUND`) is now
+*also* caught cleanly by the same change, since deferring the import makes
+every failure in that subgraph an ordinary rejected promise, not just the
+JSON-syntax one.
+
+`tests/q46-cli-json-syntax-error-siblings-3.test.ts` updated the same way
+q38 updated `tests/q33-cli-json-syntax-error.test.ts`: `probe-boss.ts`'s two
+"crashes uncaught" cases became "no longer crashes uncaught" cases pinning
+the clean-message behaviour (both the with-`tests/` and without-`tests/`
+shapes), `m20d-run-a4.ts`/`m20d-swarm.ts`'s cases are untouched (still
+crash — the general `src/sim/content.ts` fix is still out of Scope for
+those two), and the file's header doc comment was rewritten to record which
+of the three is now fixed and why the other two aren't, so a reader doesn't
+have to diff against git history to find out.
+
+Mutation-verified: stashed just `tools/probe-boss.ts` back to its committed
+(pre-fix) state with the new tests still present (`git stash push -u -m
+"q48-mutation-check" -- tools/probe-boss.ts`, never a bare `stash pop` since
+the stack is shared across worktrees) — both new assertions failed as
+expected (one on the raw-stack-trace shape, one on the raw
+`ERR_MODULE_NOT_FOUND` dump) — then restored via `git stash apply <sha>` +
+`git stash drop` and confirmed the file was back to its fixed, byte-identical
+state.
+
+`npx tsc --noEmit -p .`: clean (after adding `export {}` — a file with no
+import/export left is a script, not a module, and top-level `await` is a
+module-only construct). `npx vitest run
+tests/q46-cli-json-syntax-error-siblings-3.test.ts
+tests/q45-cli-schema-violation.test.ts tests/q47-cli-crash-coverage.test.ts`:
+33/33 green (q45's `probe-boss.ts` schema-violation case, which exercises the
+same file through a different failure path, still passes unchanged — dynamic
+vs. static import doesn't matter for a failure that already happened at
+runtime inside a function call). `npm test` kicked off in the background for
+the full-suite pass; see below for its result once landed.
 
 ### 2026-08-27 — session 46
 
