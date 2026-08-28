@@ -67,9 +67,45 @@ export function hasCatch(absPath: string): boolean {
   return /\bcatch\s*[({]/.test(readFileSync(absPath, 'utf8'));
 }
 
-/** Matches a relative `import`/`export ... from '...'`, a dynamic `import('...')` call (a target module starts evaluating the instant `import(...)` runs, whether or not the result is `await`ed — code review caught the regex requiring a literal `await` first, which missed a fire-and-forget or `.then()`-chained dynamic import), or a bare side-effect `import '...'` (no `from` clause) — value imports only; `import type { X } from '...'` is excluded on purpose (see file doc comment). A bare side-effect import still evaluates its target module, so it counts. */
+/** Matches a relative `import`/`export ... from '...'`, a dynamic `import('...')` call (a target module starts evaluating the instant `import(...)` runs, whether or not the result is `await`ed — code review caught the regex requiring a literal `await` first, which missed a fire-and-forget or `.then()`-chained dynamic import), or a bare side-effect `import '...'` (no `from` clause) — value imports only; `import type { X } from '...'` is excluded on purpose (see file doc comment). A bare side-effect import still evaluates its target module, so it counts. The import branch's clause (between `import` and `from`) is captured separately so the per-specifier `{ type X, type Y }` form (q51) can be filtered out below — this regex alone cannot distinguish it from a real named import. */
 const VALUE_IMPORT_RE =
-  /^\s*import\s+(?!type\s)[^;]*?\bfrom\s+['"](\.[^'"]+)['"]|^\s*export\s+(?!type\s)[^;]*?\bfrom\s+['"](\.[^'"]+)['"]|\bimport\(\s*['"](\.[^'"]+)['"]\s*\)|^\s*import\s+['"](\.[^'"]+)['"]\s*;/gm;
+  /^\s*import\s+(?!type\s)([^;]*?)\bfrom\s+['"](\.[^'"]+)['"]|^\s*export\s+(?!type\s)[^;]*?\bfrom\s+['"](\.[^'"]+)['"]|\bimport\(\s*['"](\.[^'"]+)['"]\s*\)|^\s*import\s+['"](\.[^'"]+)['"]\s*;/gm;
+
+/**
+ * True when an `import`-branch clause (the text between `import` and `from`)
+ * is a braced named-imports list where **every** specifier is individually
+ * marked `type` (q51) — e.g. `{ type Foo, type Bar }` or `{ type Foo as F }`.
+ * Erased by esbuild/tsx exactly like a leading `import type { ... }`, so it
+ * must not count as a value import even though `VALUE_IMPORT_RE`'s
+ * `(?!type\s)` lookahead — which only rejects a *leading* `type` right after
+ * `import` — lets it through.
+ *
+ * A clause with a default or namespace binding (`Def, { type X }`, `* as ns`)
+ * is not this shape — a real value is bound — so it returns false, same as an
+ * empty-braces or otherwise-unrecognized clause (fail open toward "value
+ * import," this file's existing default for anything ambiguous).
+ *
+ * Known limitations, accepted rather than solved (code review, q51), same
+ * standard as the ones above `stripCommentsAndBacktickStrings`: a specifier
+ * of the exact shape `type as X` (no name between `type` and `as`) is real TS
+ * grammar for a *value* import of a binding literally named `type`, aliased
+ * to `X` — the `/^type\s/` check misreads it as the type-only modifier and
+ * would false-negative. And `VALUE_IMPORT_RE`'s `export { ... } from '...'`
+ * branch never gained this clause-capture treatment, so a type-only
+ * re-export (`export { type Foo } from '../src/sim/content'`) still
+ * false-positives symmetrically to the bug this function fixes. Neither
+ * shape appears in `tools/*.ts` or `src/sim/*.ts` today (checked).
+ */
+function isTypeOnlyNamedImportClause(clause: string): boolean {
+  const m = clause.trim().match(/^\{([^}]*)\}$/);
+  if (!m) return false;
+  const specifiers = m[1]
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (specifiers.length === 0) return false;
+  return specifiers.every((s) => /^type\s/.test(s));
+}
 
 /**
  * Strips `//` and `/* *\/` comments and backtick template-literal contents
@@ -214,7 +250,8 @@ export function importsContentTransitively(
   if (!existsSync(absPath)) return false;
   const text = stripCommentsAndBacktickStrings(readFileSync(absPath, 'utf8'));
   for (const m of text.matchAll(VALUE_IMPORT_RE)) {
-    const spec = m[1] ?? m[2] ?? m[3] ?? m[4];
+    if (m[1] !== undefined && isTypeOnlyNamedImportClause(m[1])) continue;
+    const spec = m[2] ?? m[3] ?? m[4] ?? m[5];
     if (!spec) continue;
     const resolved = resolveRelativeImport(absPath, spec);
     if (resolved && importsContentTransitively(resolved, contentPath, seen)) return true;

@@ -232,6 +232,58 @@ describe('q47 — CLI-crash coverage census', () => {
     expect(importsContentTransitively(path.join(REPO_ROOT, 'src', 'sim', 'grid.ts'))).toBe(false);
   });
 
+  it("ignores a per-specifier type-only import — `import { type Foo, type Bar } from '...'` — where every named specifier is individually marked `type` and no value is imported (q51 regression: VALUE_IMPORT_RE's `(?!type\\s)` lookahead only catches a leading `import type { ... }`, not this equally-erased form)", () => {
+    const dir = scratchPath('per-specifier-type-only-import');
+    try {
+      mkdirSync(path.join(dir, 'src', 'sim'), { recursive: true });
+      mkdirSync(path.join(dir, 'tools'), { recursive: true });
+      writeFileSync(
+        path.join(dir, 'src', 'sim', 'content.ts'),
+        'export interface Foo {}\nexport interface Bar {}\nthrow new Error("content.ts evaluated");\n',
+      );
+      writeFileSync(
+        path.join(dir, 'tools', 'new-tool.ts'),
+        "import { type Foo, type Bar } from '../src/sim/content';\nexport const x: Foo | Bar | null = null;\n",
+      );
+      const scratchContentPath = path.join(dir, 'src', 'sim', 'content.ts');
+      const row = classifyTool('tools/new-tool.ts', path.join(dir, 'tools', 'new-tool.ts'), {
+        contentPath: scratchContentPath,
+        notInvocable: {},
+        pinCoverage: {},
+      });
+      expect(row.importsContent).toBe(false);
+      expect(row.status).toBe('no-content-import');
+    } finally {
+      rmSync(dir, RM_RETRY);
+    }
+  });
+
+  it("still follows a mixed import — `import { type Foo, loadContent } from '...'` — where at least one specifier is a real value (negative control for q51's fix: not every braced import is type-only)", () => {
+    const dir = scratchPath('mixed-type-and-value-import');
+    try {
+      mkdirSync(path.join(dir, 'src', 'sim'), { recursive: true });
+      mkdirSync(path.join(dir, 'tools'), { recursive: true });
+      writeFileSync(
+        path.join(dir, 'src', 'sim', 'content.ts'),
+        'export interface Foo {}\nexport function loadContent() { return 1; }\n',
+      );
+      writeFileSync(
+        path.join(dir, 'tools', 'new-tool.ts'),
+        "import { type Foo, loadContent } from '../src/sim/content';\nconsole.log(loadContent());\n",
+      );
+      const scratchContentPath = path.join(dir, 'src', 'sim', 'content.ts');
+      const row = classifyTool('tools/new-tool.ts', path.join(dir, 'tools', 'new-tool.ts'), {
+        contentPath: scratchContentPath,
+        notInvocable: {},
+        pinCoverage: {},
+      });
+      expect(row.importsContent).toBe(true);
+      expect(row.status).toBe('gap');
+    } finally {
+      rmSync(dir, RM_RETRY);
+    }
+  });
+
   it('hasCatch is true for a file with a real catch clause and false for one with none', () => {
     expect(hasCatch(path.join(REPO_ROOT, 'tools', 'gate-audit.ts'))).toBe(true);
     expect(hasCatch(path.join(REPO_ROOT, 'tools', 'sim.ts'))).toBe(false);

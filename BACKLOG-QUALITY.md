@@ -865,7 +865,7 @@ coverage gaps session 1's log recorded. All five are inside Scope as written.*
       get the same treatment backtick contents already get, or an equivalent)
       makes it pass — refs: q47, tools/cli-crash-coverage.ts (QA finding,
       qa-playtester, session 45)
-- [ ] (q51) [bug] `tools/cli-crash-coverage.ts`'s `VALUE_IMPORT_RE` exclusion
+- [x] (q51) [bug] `tools/cli-crash-coverage.ts`'s `VALUE_IMPORT_RE` exclusion
       for type-only imports is `import\s+(?!type\s)...`, which only catches a
       literal `import type { ... }` statement — it misses the equally-valid,
       equally-erased per-specifier form `import { type Foo, type Bar } from
@@ -1146,6 +1146,72 @@ resolve if it wants the CLI entry points too. All five are inside Scope as
 written; none needs a `package.json` edit.*
 
 ## Log
+
+### 2026-08-27 — session 49
+
+**Feedback inbox:** no `feedback/` directory in this worktree. Nothing to
+process.
+
+**Session start state:** the previous session's work on q51 was sitting
+uncommitted in the working tree (`tools/cli-crash-coverage.ts`,
+`tests/q47-cli-crash-coverage.test.ts`) — implemented but never tested,
+reviewed, logged or committed. Verified it against q51's acceptance criteria
+rather than redoing it: `VALUE_IMPORT_RE` gained a captured import-clause
+group and a new `isTypeOnlyNamedImportClause()` helper that recognizes a
+braced named-import list where every specifier is individually marked `type`
+(`{ type Foo, type Bar }`) — the per-specifier form q51 filed, distinct from
+the leading `import type { ... }` form the old `(?!type\s)` lookahead already
+caught. Two new tests: the false-positive repro (all-type-specifiers import
+of a throwing scratch `content.ts` correctly classifies `no-content-import`)
+and a negative control (a mixed `{ type Foo, loadContent }` import still
+classifies `gap`, proving the fix doesn't blanket-exempt every braced
+import).
+
+**q51 done.** `npx tsc --noEmit -p .` clean. `npx vitest run
+tests/q47-cli-crash-coverage.test.ts`: 20/20 green. Full `npm test` in the
+background surfaced three failures (`q45-cli-schema-violation.test.ts`'s
+control case, `q49-price-probe-restore.test.ts`'s happy path,
+`q15-command-domain-fuzz.test.ts`, 2 cases) all on the same
+`EPERM, Permission denied` on a `bench/.tmp/*-scratch` `rmSync` cleanup —
+none of the three touches `tools/cli-crash-coverage.ts` or
+`tests/q47-cli-crash-coverage.test.ts`. Isolated to a clean HEAD (patched my
+two files out via `git checkout --`, confirmed q45's control case passes
+there too, reapplied the patch via `git apply`) and reran q45 standalone
+twice more with the patch back in: green both times. Pre-existing Windows
+scratch-dir flake (the same class q49's own session-48 review flagged as a
+shared Minor: no stale-scratch-dir sweep across a hard-killed prior run),
+not a regression from this change.
+
+code-reviewer (APPROVE, 0 Critical/Major, 1 Nit: the default-import +
+type-specifier mixed case, `import Foo, { type Bar } from '...'`, is reasoned
+through correctly in `isTypeOnlyNamedImportClause` but has no dedicated test
+— only the namespace-free `{ type Foo, loadContent }` mixed case is covered)
+confirmed the regex capture-group reindex is correct (verified live: revert
+the tool file, the new test goes red with the exact expected message) and
+grepped `tools/*.ts`/`src/sim/*.ts` for the two documented known-limitation
+shapes (`type as X`, `export { type Foo } from '...'` re-export), confirming
+neither appears in the live codebase.
+
+qa-playtester **PASS**, no bugs filed. Repeated the mutation-check
+independently, then hand-probed `classifyTool` with 13 adversarial import-
+clause shapes (multi-line whitespace, trailing comma, an identifier merely
+starting with "type", no-whitespace `import{...}from`, irregular internal
+spacing, `type as X`, a value import literally named `type`, invalid nested
+braces, mixed default+type, namespace import, empty braces). Two shapes slip
+through — `import{...}from` with no surrounding whitespace (a pre-existing
+`VALUE_IMPORT_RE` limitation predating q51, `import\s+` requires the
+whitespace) and `{ type as X }` (documented known limitation in the new
+JSDoc) — neither is new, both are already absent from every real
+`tools/*.ts`/`src/sim/*.ts` file today, and neither is in scope for q51.
+Confirmed no other test file references `VALUE_IMPORT_RE`,
+`isTypeOnlyNamedImportClause` or `importsContentTransitively`.
+
+`git status --porcelain` before commit: `tools/cli-crash-coverage.ts`,
+`tests/q47-cli-crash-coverage.test.ts`, `BACKLOG-QUALITY.md` only —
+Scope-compliant.
+
+**Five actionable items remain** (q52-q56), so the generation rule does not
+need to run next session either.
 
 ### 2026-08-27 — session 48
 
