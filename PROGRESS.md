@@ -5,6 +5,151 @@
 
 ## Current state — SPEC-FINAL
 
+- **PRIORITY DIRECTIVE re-measurement pass done this commit — every gate that
+  named `p8a` as its re-enable point (Q109, Q111, Q116, Q121) was re-measured
+  live against the real content, plus `tests/boss.test.ts`'s two win-rate
+  assertions named directly in this session's scope. None flipped green.**
+  This is a measurement-only item (Q40: no `/data` tuning before P10) —
+  the PRIORITY DIRECTIVE's own first clause, executed in full, ahead of the
+  two Q120 orders and the Q91/Q102 corrections it names next.
+
+  **`tests/a4-single-type.test.ts`** (Q109/Q111, cheapest file, run first):
+  `tools/a4probe.ts`'s own `main()` re-ran all seven attacking towers at T1,
+  seeds 1-5, `cycles: 6`, `world.invulnerable`. Unchanged — still **0/5** for
+  every tower (arrow_spire, ballista, ember_brazier, frost_obelisk,
+  tesla_coil, mortar, venom_spore). The wave-11-18 wall moved (real,
+  escalating content instead of a flat repeat) but no tower crosses it.
+
+  **`tests/boss.test.ts`** (named directly, not via a Q109-style file):
+  re-ran both win-rate assertions at their own seeds/cycles (seed 1 /
+  seeds 1-20, `hybrid`, `cycles: 6`, default 45-simulated-minute cap — every
+  seed resolved, none timed out). Seed 1 itself: still `defeat_core` at wave
+  16, never reaches the boss. The 20-seed rate: **2/20** (seeds 7 and 10,
+  both real `victory`/`bossKilled: true`), up from 0/20 pre-p8a but still far
+  under the 25%-65% band's floor. Full per-seed breakdown recorded in the
+  test file's own doc comment.
+
+  **`tests/a3-movement-mandatory.test.ts`** (Q122 had already re-opened this
+  one inside the p8a commit itself; this session's job was to re-verify, not
+  re-derive): re-ran all 12 `no-move` seeds and the first 6 `hybrid` seeds —
+  byte-identical to the doc comment already in place (every seed dies
+  `defeat_core` at wave 16-17, `survivalSeconds: 0`, Sundering never reached
+  under `cycles: 1`). One judgment call this session added on top (**Q124**):
+  three of the file's older `.skip`-ed assertions ("dies within 600s," "half
+  dead inside 3:00," "every seed dead by 3:00") are now *technically*
+  satisfied, vacuously, because `survivalSeconds` is 0 for every seed — but
+  that is the same trap Q109 already rejected once (a trivially-true reading
+  that erases the fact the test exists to check), so none were un-skipped on
+  the technicality; a fourth assertion ("moves survives 2x as long") stayed
+  genuinely red (0.0s vs 0.0s, not vacuous) and needed no special reasoning.
+
+  **`tests/p-core-f-gates.test.ts`** G23 (all five Cores re-measured,
+  `runCoreScripted`, the file's own 120-minute cap unless noted): `stone_heart`
+  moved from a uniform 0/12 wave-3 death to a genuinely mixed **3/12** (3
+  `victory`/w18, 3 `defeat_core` wave 13-17, 6 still `defeat_warden` wave 3) —
+  P6 landed in full since Q116's original measurement, so `stone_heart`'s
+  cause is now split rather than singular (**Q125**): the wave-3 losses stay
+  P7-bound (equipment/VS-upgrade pool still unbuilt), the wave-13-17 losses
+  move to P10. `vampire_heart` unchanged at **0/12** (failure point shifted
+  later, wave 8-17 vs. 10-11, same cause). `time` moved **0/12 → 2/12**
+  (seeds 6, 10 victory). `carnivorous_plant` moved **6/12 → 3/12** and, at the
+  file's own cap, gained a *second* non-terminating seed (9, alongside the
+  already-known seed 2) — both counted as non-wins, not chased to a third cap
+  raise (**Q126**, same two-attempt-per-mechanism budget already spent at
+  p8a). `corpse` moved **0/12 → 3/12** and surfaced its *first* non-terminating
+  seed (2) — given the full two-attempt treatment since it was new (120
+  minutes, then 400 minutes, both `running`, the second at ~374 simulated
+  Act II minutes with all 18 TD waves cleared) before being accepted as a
+  stalemate rather than a resolution-time problem. G22 (the fingerprint gate)
+  was not named by the PRIORITY DIRECTIVE and was not re-verified live this
+  session; it stays at Q116's last measurement.
+
+  **`tests/p6e-class-diversity.test.ts`** (Q121, the most expensive file —
+  ~3500-3575s wall per full `beforeAll`, run twice: once live to confirm the
+  suite still passes its own live assertions, once with a temporary
+  diagnostic `console.log` to extract the real per-class numbers, removed
+  before commit). **G8's win-rate clause stays at 0/11** — Cryomancer
+  reconfirmed identical to its p8a-era correction (2/12, seeds 9/10 victory);
+  the other ten, freshly measured rather than inherited: swordsman 2/12,
+  plaguebringer 0/12, engineer 3/12, pyromancer 1/12, archer 2/12,
+  necromancer 0/12, stormcaller 2/12, bloodlord 4/12, animist 3/12, paladin
+  0/12 — none clears the 35% floor. Necromancer's and Paladin's own header
+  paragraph (written during the pre-p8a tuning-verification pass) had the
+  wrong specific counts for their early-`defeat_warden` share; corrected in
+  place to the real post-p8a numbers (Necromancer 3/12 early, 9/12 wall;
+  Paladin 4/12 early, 8/12 wall — same conclusion, right numbers). The
+  diversity clause stays at 2/11 distinct (`ballista`/`frost_obelisk`); its
+  own-kit-share continuum was also corrected (real range 0.4%-15.4%, animist
+  at the low end, not engineer as the pre-p8a text said). **The one genuinely
+  new fact (Q127):** letting the full `beforeAll` actually run to completion,
+  rather than trusting the p8a commit's own spot-check, surfaced **9
+  non-terminating `'timeout'` seeds across 4 classes** (swordsman 4/12,
+  archer 2/12, stormcaller 1/12, bloodlord 2/12) where only one instance
+  (swordsman seed 1) was previously known. None chased to a higher cap —
+  the mechanism is already established by `p-core-f-gates.test.ts`'s Core
+  stalemates, and a ninth-through-seventeenth instance on the class roster is
+  corroborating evidence, not a new question.
+
+  **The unifying finding (Q123):** every clause whose doc comment said
+  "re-enable point: p8a" now says **P10** instead. p8a satisfied its own
+  named trigger (real wave 11-18 content shipped and is what every file
+  above measured against); none of the roughly fifteen gates it was blocking
+  turned green on that basis alone. The remaining blocker, measured
+  consistently across five independent files (single-tower TD builds, the
+  boss fight, five Cores, eleven classes), is the same un-tuned Act I/class/
+  Core economy racing the real, escalating HP curve — P10's job, not a
+  further content gap. No `/data` value was touched anywhere in this pass.
+
+  **code-reviewer APPROVE** (independently re-executed `a4probe.ts` and
+  several files' own measurement code from scratch and got exact matches
+  everywhere it checked; confirmed no assertion band/threshold was loosened
+  and no stray diagnostic code was left behind). Two Minors, both fixed
+  before this commit: the `tests/p-core-f-gates.test.ts` per-core doc
+  comments didn't disclose that their full 12-seed breakdowns were gathered
+  with a non-throwing variant of `winRate` (the shipped function throws on
+  the first `'running'` seed by design) — added the same disclosure
+  `tests/p6e-class-diversity.test.ts`'s header already gives for its own
+  diagnostic pass; and this entry's own forward-reference to "findings filled
+  in before commit" is exactly what this paragraph now does. One Nit
+  (pre-existing CRLF/LF churn, unrelated) needs no action.
+
+  **qa-playtester PASS.** Independently re-ran the actual measurement code
+  (not just re-read the doc comments) for `tests/a4-single-type.test.ts`
+  (all seven towers), `tests/boss.test.ts` (all 20 seeds), `tests/
+  a3-movement-mandatory.test.ts` (its live test, all 12 seeds), `tests/
+  p-core-f-gates.test.ts` (`stone_heart`'s full 12-seed, two-cause
+  breakdown, plus `time`), and four individual class/seed spot-checks in
+  `tests/p6e-class-diversity.test.ts` (`swordsman` seeds 1 and 4, `bloodlord`
+  seeds 1 and 12) — every one matched exactly, including the two
+  non-terminating `carnivorous_plant`/`corpse` seeds reproducing `running`
+  at the file's own cap. One real, cosmetic bug filed and fixed before this
+  commit: `tests/p-core-f-gates.test.ts`'s `time` comment claimed "one at
+  wave 15" where the actual breakdown has zero at wave 15 (three at wave 16,
+  seven at wave 17) — the win count (2/12) and every conclusion were already
+  correct, only the parenthetical was wrong; corrected alongside the
+  methodology-disclosure fix above. A follow-up full-suite run over the four
+  cheaper touched files (413s, run independently by qa-playtester) came back
+  clean: 4 files / 28 passed / 20 skipped / 0 failed, including both
+  Cores' non-terminating seeds resolving to valid (if slow) fingerprints
+  under G22, which this session didn't touch.
+
+  **`npm test`** (full suite, run once with this session's diff still
+  uncommitted): 1 file failed / 78 passed / 4 skipped (83 files); 13 failed /
+  1281 passed / 67 skipped (1361 tests); 2545s total (`p6e-class-diversity`'s
+  own `beforeAll` alone accounts for roughly 3500-3600s within that when it
+  runs standalone, but overlapped here with the rest of the suite). All 13
+  failures are `tests/q14-mutation-smoke.test.ts`'s own known,
+  pre-existing artifact — `gitDiffClean()`'s whole-repo check correctly
+  seeing this item's own then-uncommitted diff, the identical false failure
+  `p6e`'s and `p8a`'s own commits already documented and re-ran clean after
+  committing. The perf config leg (`vitest.perf.config.ts`) did not run this
+  time since `npm test`'s `&&` chain short-circuited on the main run's
+  non-zero exit; re-run separately post-commit alongside a full clean-tree
+  `npm test` to confirm both. `npx tsc --noEmit`: clean throughout (checked
+  after every file edit, not just once at the end). Next: `p8b`/`p8c` (P8's
+  own remaining items), then eventually P10's balance pass, which is what
+  every clause this session touched is now waiting on.
+
 - **`p8a` is done this commit — SPEC-FINAL §9/§1.1's wave data is real: all 18
   TD wave rows are authored, and the §9 VS-budget curve is live.** This was
   the PRIORITY DIRECTIVE's critical-path item (Q121's verdict log): roughly

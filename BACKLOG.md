@@ -34,7 +34,7 @@ still in test headers.
 | P3 interleave | **done in full (p3a-p3e)** — `p3a` retargets the reused V2 cycle machine to 18 TD + 6 VS, 20s build, 75s VS (G6's pattern half); `p3b` stacks up to `maxStackedWaves` TD waves via the `call` command (G6's stacking half); `p3c` re-points leak coupling's existing ×2-into-next-VS-wave mechanism onto TD→VS vocabulary and the real 6-block shape; `p3d` deletes the V2 Day/Dusk/Night/Dawn machine, Rekindle and the Core-detonation pocket/lane mechanism outright; `p3e` re-baselines `light-build`/G13's solo-viability clause (`a4-single-type`)/the boss gate against the real shape — all three measure red past ~wave 10-14 (a p8a content gap, not a P3 defect) and are logged `.skip` with their numbers rather than forced green (Q109) |
 | P4 core math | **done** — multiplicative stacking, armor cap +99 / floor −100, 6 damage types + 2 statuses (G4, G5 green) |
 | P5 tower roster | **done in full (p5a-p5d, G20 green)** — all 10 towers, upgrade tracks, defense bands; `p5b` gave Ember Brazier/Mortar their own `costMul`; `p5c` authored the four remaining §5.2 milestone specials (Ballista, Fire Brazier, Ice Obelisk, Mortar) and the G20 loader rule; `p5d` fixed the QA-filed `damageDealt` telemetry bug on pierce/lob-kind towers |
-| P6 classes | **framework done (`p6a`), eleven of eleven real kits done (`p6b`, `p6c`, `p6d`)** — §4's Passive + Q + E + tower passive is live for all 11 classes; **gate G9 is green in full**, and `p6d` measured **G10 and G11 green** (Archer's dps-optimal charge peaks at t=5.0 inside [2,6], full charge one-shots the toughest non-elite; Stormcaller's max chain multiplier is 3.5832 ≤ 3.6); `p6e` measured **G8 honestly red** (win rate green for 1/11 classes, diversity 2/11 not ≥8/11), both clauses `.skip`-ed per-class with measured numbers, re-enable point `p8a`; `p6f` (V2 framework residue retirement) remains |
+| P6 classes | **framework done (`p6a`), eleven of eleven real kits done (`p6b`, `p6c`, `p6d`)** — §4's Passive + Q + E + tower passive is live for all 11 classes; **gate G9 is green in full**, and `p6d` measured **G10 and G11 green** (Archer's dps-optimal charge peaks at t=5.0 inside [2,6], full charge one-shots the toughest non-elite; Stormcaller's max chain multiplier is 3.5832 ≤ 3.6); `p6e` measured **G8 honestly red**; re-measured in full against p8a's real content this session (Q123, Q127) — **win rate is 0/11** (was 1/11; Cryomancer's own pre-p8a pass no longer clears the floor), diversity 2/11 not ≥8/11, both clauses `.skip`-ed per-class with real measured numbers, re-enable point **P10** (not `p8a` — already landed and re-measured); `p6f` (V2 framework residue retirement) remains |
 | P7 equipment/rewards/VS upgrades | **superseded systems in place** — relic affixes, Ember, 12 boons; §7's 12-item table, §6.3's pool and §8's reward pipeline unbuilt (G12 unmet) |
 | P8 enemies/waves/bosses | **roster, both bosses and real wave data done (`p8a`)** — all 20 §9 enemies by name; `data/waves.json` authors real TD waves 1-18 on the §1.1 shape (Gatebreaker on 18 only, Warden-Eater on VS 6), the §9 VS-budget curve is live; `p8b`/`p8c` (alive-cap overshoot, gate G14) remain |
 | P9 tooling | **dev mode, god mode, UX flows done; Codex read-half in flight on `lane/tuner`; Tuner unbuilt** (G15 unmet, G16/G18 largely green) |
@@ -191,6 +191,18 @@ live. `p-core-f` shipped G22 and G23 as live tests (Q116); the item's
 unlock-quests and Codex-page thirds — deferred by Q116 because the real §8.4
 quest engine doesn't exist yet — are re-filed as `p7h` in P7, below.
 
+**G23 re-measured against p8a's real content this session (Q123, Q125,
+Q126)**: still not green. `vampire_heart` unchanged at 0/12; `time` 0/12 →
+2/12; `carnivorous_plant` 6/12 → 3/12 with a second seed now non-terminating
+at the file's own tick cap (was one); `corpse` 0/12 → 3/12 with a first
+non-terminating seed; `stone_heart` moved from a uniform wave-3 death to a
+mixed 3/12 (P6 landed since Q116's measurement, so its cause is now split:
+P7-bound for the wave-3 losses, P10-bound for the rest). All five stay
+`.skip`-ed with the real numbers; re-enable point is P10, not `p8a` (already
+landed and re-measured). G22 (the fingerprint gate) was not named by the
+PRIORITY DIRECTIVE's re-enable list and stays as Q116 last measured it —
+green, wide margins over its 0.10 floor — not re-verified live this session.
+
 ### P6 — classes (G8, G9, G10, G11)
 
 **`p6a`, `p6b`, `p6c`, `p6d` and `p6e` are done** — see the Done section. SPEC-FINAL
@@ -215,6 +227,24 @@ wave-11-to-17 `defeat_core`/`defeat_warden` wall G23 already pinned to the
 tautological) and is `.skip`-ed on the same `p8a` precedent, with a pinning
 test holding the red count at 2 so it can't silently drift. **G8 is not
 green — both clauses re-enable at `p8a`.**
+
+**Re-measured in full against p8a's real content this session (PRIORITY
+DIRECTIVE follow-up, Q123, Q127) — G8 stays red for all eleven classes.**
+Cryomancer's own re-measurement (already corrected in p8a's own commit)
+reconfirmed identical: 2/12. The other ten, freshly measured (not inherited):
+swordsman 2/12, plaguebringer 0/12, engineer 3/12, pyromancer 1/12, archer
+2/12, necromancer 0/12, stormcaller 2/12, bloodlord 4/12, animist 3/12,
+paladin 0/12 — none clears the 35% floor (5/12). The diversity clause stays
+at 2/11 distinct (`ballista`/`frost_obelisk`), unchanged; its own-kit-share
+continuum is corrected to 0.4%-15.4% (was mismeasured pre-p8a as 0.4%-16.6%
+with the wrong class at the low end). One new finding: letting the full
+`beforeAll` run to completion (rather than a spot-check) surfaced 9
+non-terminating `'timeout'` seeds across 4 classes (swordsman, archer,
+stormcaller, bloodlord), not the single `swordsman` seed 1 previously known
+— corroborating, not contradicting, `tests/p-core-f-gates.test.ts`'s
+`carnivorous_plant`/`corpse` stalemate finding (Q127). Every clause stays
+`.skip`-ed with its real number; re-enable point moves from `p8a` (done) to
+**P10**.
 
 - [ ] (p6f) [polish] Retire the three V2 classes' framework residue: `affinity.json`,
       class `mods`, the single `active`/`passive`/`manualAttack` shape, and the
@@ -295,6 +325,26 @@ also reproduced the wave-11-17 wall roughly fifteen other gates were already
 `.skip`-ed pending, honestly (not fixed by landing real content, as hoped) —
 **next action is the PRIORITY DIRECTIVE's re-measurement pass** (Q109, Q111,
 Q116, Q121), ahead of `p8b`/`p8c` below.
+
+**The PRIORITY DIRECTIVE's re-measurement pass is done this commit — every
+named gate stayed red, honestly re-measured against the real content (Q123).**
+`tests/a4-single-type.test.ts`'s seven T1 clauses are unchanged (still 0/5
+each). `tests/boss.test.ts`'s two win-rate assertions moved from 0/20 to
+2/20 (real content narrowed the gap without closing it). `tests/
+p-core-f-gates.test.ts`'s G23: `vampire_heart` unchanged at 0/12;
+`carnivorous_plant` fell from 6/12 to 3/12 and gained a second
+non-terminating seed (Q126); `corpse` moved from 0/12 to 3/12 and gained its
+first non-terminating seed (Q126); `time` moved from 0/12 to 2/12;
+`stone_heart` moved from a uniform 0/12 wave-3 death to a mixed 3/12 (Q125,
+now partly P7-bound, partly P10-bound). `tests/p6e-class-diversity.test.ts`'s
+G8 (win-rate and diversity) re-measured live this session — see PROGRESS.md's
+dated entry for the full per-class breakdown. Every clause whose doc comment
+said "re-enable point: p8a" now says **P10** instead (Q123) — p8a satisfied
+its own trigger condition; the remaining blocker is the un-tuned Act I/class/
+Core economy against the real curve, which is P10's job, not a further
+content gap. No `/data` value was touched. code-reviewer and qa-playtester
+both ran against this diff; see PROGRESS.md for findings. `p8b`/`p8c` remain
+next in P8's own queue.
 
 - [ ] (p8b) [bug] Alive count exceeds `aliveCap`: 353 measured against a cap of 350,
       because elite and summon spawns bypass the check `spendBudget` applies —

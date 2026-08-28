@@ -173,6 +173,29 @@ describe('the Warden-Eater (SPEC 5.5)', () => {
   // both cases are `.skip`-ed with their measured numbers, to be re-enabled
   // once p8a lands (p8c's own gate, G14, already expects to be the real
   // re-measurement point for this fight on the new shape).
+  //
+  // **Re-measured this session, now that p8a's real waves 11-18 are live**
+  // (PRIORITY DIRECTIVE follow-up, Q123): seeds 1-20, `hybrid`, `cycles: 6`,
+  // default `maxTicks` (45 simulated minutes) — every seed resolves cleanly,
+  // none times out. **2/20 wins now** (seeds 7 and 10, both `victory`/
+  // `bossKilled: true`, wavesCleared 18, survival 1037s/1078s) — up from
+  // 0/20 before real content, but still far short of either test's band.
+  // Seed 1 specifically (this test's own seed) still reads `defeat_core` at
+  // wave 16, survival 375s — the Core is lost to leak accumulation two waves
+  // short of the real content's own end, never reaching the boss-gated final
+  // block. Full 20-seed breakdown: 1 defeat_core/w16, 2 defeat_core/w12, 3
+  // defeat_core/w16, 4 defeat_core/w9, 5 defeat_core/w12, 6
+  // defeat_warden/w6, 7 victory/w18, 8 defeat_core/w17, 9 defeat_core/w12,
+  // 10 victory/w18, 11 defeat_core/w15, 12 defeat_core/w16, 13
+  // defeat_core/w14, 14 defeat_core/w17, 15 defeat_core/w17, 16
+  // defeat_core/w13, 17 defeat_core/w16, 18 defeat_warden/w9, 19
+  // defeat_warden/w3, 20 defeat_core/w10. Real content narrowed the gap
+  // (deaths now cluster wave 12-17, not 9-14) without closing it — the same
+  // un-tuned-economy-against-the-real-curve conclusion `tests/
+  // a4-single-type.test.ts`, `tests/p-core-f-gates.test.ts` (G23) and
+  // `tests/p6e-class-diversity.test.ts` (G8) independently reached. Still
+  // `.skip`-ed with the real number; re-enable point moves from `p8a` (done)
+  // to **P10**. See QUESTIONS.md Q123.
   it.skip('a scripted run reaches it, kills it and wins', () => {
     const { report } = runWithPolicy(cfg({ seed: 1, cycles: 6 }), 'hybrid');
     expect(report.outcome).toBe('victory');
@@ -200,6 +223,12 @@ describe('the Warden-Eater (SPEC 5.5)', () => {
   //
   // p3e re-baseline: see the doc comment above the previous test — measured
   // 0/20 at `cycles: 6`, `.skip`-ed for the same reason, same re-enable point.
+  //
+  // Re-measured this session against p8a's real wave 11-18 content (Q123):
+  // **2/20 (10%)** — still below the band's floor (need >=5/20), though real
+  // content did move two seeds all the way to `victory` where none did
+  // before. Full breakdown in the doc comment above. `.skip`-ed with the
+  // real number; re-enable point moves from `p8a` (done) to **P10**.
   it.skip('is a real fight: the scripted bot wins some and loses some', () => {
     let wins = 0;
     const seeds = Array.from({ length: 20 }, (_, i) => i + 1);

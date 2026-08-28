@@ -181,6 +181,26 @@ describe('G23: every Core clears T1 at a 35-70% win rate with the scripted bot',
   // attempts at 120 and 400 minutes, not a plausible-story skip) rather than
   // raising the cap a third time on a guess; re-enable point folds into the
   // same PRIORITY DIRECTIVE follow-up as the rest of G23 and G8.
+  //
+  // **Re-measured this session, executing that follow-up (Q126): the
+  // stalemate widened, not narrowed.** At the file's own 120-minute cap,
+  // seed 2 reproduces the exact non-terminal result Q122 already found
+  // (`running`, all 18 TD waves cleared, ~94 simulated minutes of Act II) —
+  // but **seed 9 now also fails to resolve** within the same 120-minute cap
+  // (`running`, ~93 simulated minutes of Act II), a seed that terminated
+  // cleanly at every prior measurement (p6d/Q120: 106.8 min, a real
+  // `defeat_warden`; p8a/Q122 didn't flag it). Of the ten seeds that do
+  // resolve, **3/12 win** (seeds 3, 7, 12 — `victory`/w18), down from the
+  // pre-p8a 6/12: seeds 1/5/8 now `defeat_warden` at w18 (full TD clear,
+  // lost the VS fight), 6 `defeat_warden` at w3, 4/10/11 `defeat_core` at
+  // w16-17. Even reading both non-terminal seeds as losses (the
+  // conservative bound), 3/12 (25%) sits under the 35% floor. Per CLAUDE.md
+  // rule 6, seed 9 was not chased to a 400-minute cap the way seed 2 already
+  // was at p8a (two real cap-raise attempts already spent on this exact
+  // mechanism; a second non-terminating seed corroborates the same
+  // "devour sustains the Core indefinitely" cause rather than raising a new
+  // question) — `.skip`-ed with both real numbers. Re-enable point moves
+  // from the PRIORITY DIRECTIVE follow-up (this session) to **P10**.
   it.skip('carnivorous_plant', () => {
     const { wins, outcomes } = winRate('carnivorous_plant');
     expect(wins, `${wins}/${SEEDS.length} — ${outcomes.join(' ')}`).toBeGreaterThanOrEqual(
@@ -211,6 +231,13 @@ describe('G23: every Core clears T1 at a 35-70% win rate with the scripted bot',
   // rather than three independent VS-weakness stories. Re-enable point is
   // `p8a` (wave data on the real §1.1 shape); re-measure first, per
   // CLAUDE.md's measurement rules, rather than assume this is still true.
+  //
+  // Re-measured this session against p8a's real content (PRIORITY DIRECTIVE
+  // follow-up, Q123): still **0/12**. Failure point shifted later (wave 8-17
+  // now, mostly 14-17, vs. wave 10-11 before) but the outcome didn't — same
+  // `defeat_core` cause, real content just pushed it a few waves out. Still
+  // `.skip`-ed with the real numbers; re-enable point moves from `p8a` (done)
+  // to **P10**.
   it.skip('vampire_heart', () => {
     const { wins, outcomes } = winRate('vampire_heart');
     expect(wins, `${wins}/${SEEDS.length} — ${outcomes.join(' ')}`).toBeGreaterThanOrEqual(
@@ -221,6 +248,22 @@ describe('G23: every Core clears T1 at a 35-70% win rate with the scripted bot',
     );
   });
 
+  // Re-measured this session against p8a's real content (Q126): a new
+  // stalemate, parallel to `carnivorous_plant`'s. At the file's own
+  // 120-minute cap, seed 2 does not resolve (`running`, all 18 TD waves
+  // cleared, ~94 simulated minutes of Act II) — this seed was never flagged
+  // as non-terminal before. Re-checked at a 400-minute cap (the same
+  // headroom `carnivorous_plant`'s seed 2 was checked at, at p8a): **still
+  // `running`**, now ~374 simulated minutes of Act II with no win, no Core
+  // loss, no Warden loss — over 6 real hours of simulated time, a genuine
+  // stalemate, not a resolution-time problem (two real cap-raise attempts
+  // spent, per CLAUDE.md rule 6, matching the exact precedent already set
+  // for `carnivorous_plant`). Of the other 11 seeds: seeds 1/9/10 `victory`/
+  // w18, seeds 3/6 `defeat_warden` at wave 3, seeds 4/5/7/11/12 `defeat_core`
+  // at wave 16, seed 8 `defeat_core` at wave 17 — **3/12 (25%)** even under
+  // the conservative reading that counts the non-terminal seed as a loss,
+  // still under the 35% floor. `.skip`-ed with both real numbers; re-enable
+  // point moves from `p8a` (done) to **P10**.
   it.skip('corpse', () => {
     const { wins, outcomes } = winRate('corpse');
     expect(wins, `${wins}/${SEEDS.length} — ${outcomes.join(' ')}`).toBeGreaterThanOrEqual(
@@ -231,6 +274,19 @@ describe('G23: every Core clears T1 at a 35-70% win rate with the scripted bot',
     );
   });
 
+  // Re-measured this session against p8a's real content (Q123): **2/12** —
+  // seeds 6 and 10 `victory`/w18, the other ten `defeat_core` (seeds
+  // 1,2,3,4,5,7,9 at wave 17; seeds 8,11,12 at wave 16). Up from 0/12, still
+  // short of the 35% floor (need >=5/12). Re-enable point moves from `p8a`
+  // (done) to **P10**. (Methodology note, qa-playtester round: this
+  // breakdown and every other per-core breakdown in this file's `.skip`
+  // comments were gathered with a non-throwing variant of `winRate` above —
+  // the shipped `winRate` throws on the first `'running'` seed by design, so
+  // a full 12-seed breakdown on a Core with a non-terminating seed, like
+  // `carnivorous_plant`/`corpse` below, could not literally come from calling
+  // the live function end-to-end. Same disclosure `tests/
+  // p6e-class-diversity.test.ts`'s header already gives for its own
+  // diagnostic pass.)
   it.skip('time', () => {
     const { wins, outcomes } = winRate('time');
     expect(wins, `${wins}/${SEEDS.length} — ${outcomes.join(' ')}`).toBeGreaterThanOrEqual(
@@ -252,6 +308,25 @@ describe('G23: every Core clears T1 at a 35-70% win rate with the scripted bot',
   // Core" G23 names) rather than omitted; `.skip`-ed with its own reason
   // (P6/P7 VS weakness, not p8a) since the two failure modes are genuinely
   // different, even though both currently read 0/12.
+  //
+  // **Re-measured this session against p8a's real content (Q125): no longer
+  // a uniform wave-3 death.** `stone_heart`'s own re-enable point was never
+  // `p8a` (Q116 named it P6/P7 VS weakness instead) — but P6 shipped in full
+  // between that measurement and this one (all 11 real classes, `p6a`-`p6e`),
+  // and `cfg()`'s default `classKey: 'engineer'` is now a materially stronger
+  // §4.2 kit than the one this harness ran under at Q116. Measured: **3/12**
+  // — seeds 1/5/8 `victory`/w18, seeds 4/7/9 `defeat_core` at wave 16-17,
+  // seeds 3/6/10/11/12 still `defeat_warden` at wave 3, seed 2 `defeat_core`
+  // at wave 13. Three genuinely different outcomes on one Core with zero
+  // passive numbers of its own — real class-kit variance now decides it,
+  // not a uniform "dies wave 3 every time" story anymore. Still below the
+  // 35% floor (need >=5/12) and still `.skip`-ed, but the *cause* is no
+  // longer cleanly "P6/P7 VS weakness" (P6 is done) or cleanly the
+  // wave-11-17 wall (five seeds still die at wave 3, before ever reaching
+  // it) — it reads as both, seed-dependent. P7's equipment/VS-upgrade pool
+  // is still unbuilt, so re-enable point stays P7 for the wave-3 losses and
+  // moves to P10 for the wave-13-17 losses; re-measure again once either
+  // lands, not before.
   it.skip('stone_heart (the default Core)', () => {
     const { wins, outcomes } = winRate('stone_heart');
     expect(wins, `${wins}/${SEEDS.length} — ${outcomes.join(' ')}`).toBeGreaterThanOrEqual(

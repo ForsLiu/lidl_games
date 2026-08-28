@@ -27,6 +27,21 @@
  * already the expectation and stays true a fortiori once T1 also reads 0/5.
  * All seven T1 cases below are `.skip`-ed with their measured numbers, to be
  * re-enabled once p8a lands — logged as Q109.
+ *
+ * **Re-measured after p8a landed real waves 11-18 (PRIORITY DIRECTIVE
+ * follow-up, this session).** `tools/a4probe.ts`'s own `main()` re-ran all
+ * seven towers at T1, seeds 1-5, `cycles: 6`, `world.invulnerable`, against
+ * the real (not repeated) wave 11-18 content: every tower still measures
+ * **0/5** — arrow_spire (min/med waves 10/12), ballista (12/14), ember_brazier
+ * (12/14), frost_obelisk (12/13), tesla_coil (6/6), mortar (12/16),
+ * venom_spore (12/15) — none reaches wave 18 on any of the 5 seeds. The wall
+ * moved (real content is a harder, escalating curve, not a flat repeat) but
+ * the outcome didn't: this is no longer a content gap (p8a shipped real
+ * rows), it's the un-tuned Act I economy against the real curve, the same
+ * conclusion `tests/p-core-f-gates.test.ts` (G23) and
+ * `tests/p6e-class-diversity.test.ts` (G8) independently reached. Still
+ * `.skip`-ed, still with measured numbers — re-enable point moves from `p8a`
+ * (done) to **P10** (the one balance pass). See QUESTIONS.md Q123.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -60,8 +75,11 @@ describe('A4 every tower type is viable, none is dominant', () => {
   // content gap named in the file doc comment, not a per-tower track issue.
   // Measured at p3e (seeds 1-5, `cycles: 6`, `world.invulnerable`):
   // arrow_spire 0/5, ballista 0/5, ember_brazier 0/5, frost_obelisk 0/5,
-  // tesla_coil 0/5, mortar 0/5, venom_spore 0/5. Re-enable once p8a lands
-  // real waves 11-18.
+  // tesla_coil 0/5, mortar 0/5, venom_spore 0/5.
+  //
+  // Re-measured this session, now that p8a's real wave 11-18 content is
+  // live: unchanged, still 0/5 for all seven (see file header). Re-enable
+  // point is P10 (the balance pass), not p8a (already landed and measured).
   for (const key of SOUL_TOWERS) {
     it.skip(`${key} alone clears the TD wave curve at T1`, () => {
       expect(clears(key, 1, [])).toBe(SEEDS.length);

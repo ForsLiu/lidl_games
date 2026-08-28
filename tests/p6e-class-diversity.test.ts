@@ -73,14 +73,23 @@
  *     0.60->0.80, Clarion Taunt cooldown 14->8s, `tauntDurationSeconds` 4->6,
  *     `wrathDamageMul` 1.5->2.2). Neither crossed into the band — both are
  *     still 0/12 — but both re-measured with early `defeat_warden` now the
- *     *minority* outcome (Necromancer 7/12, mostly waves 6-12 rather than
- *     wave 3; Paladin 3/12, all wave 3) and the majority converged onto the
- *     same wave 11-16 `defeat_core` signature every other class hits (below).
- *     That is real, verified progress, not a wash: it moved both classes from
- *     "loses to a generic VS-baseline gap" onto "loses to the same wall as the
- *     rest of the roster," which is the honest floor this bot can reach
- *     without inventing a fourth reason to keep tuning numbers that no longer
- *     move the outcome.
+ *     *minority* outcome and the majority converged onto the same wave 11-17
+ *     `defeat_core` signature every other class hits (below). That is real,
+ *     verified progress, not a wash: it moved both classes from "loses to a
+ *     generic VS-baseline gap" onto "loses to the same wall as the rest of
+ *     the roster," which is the honest floor this bot can reach without
+ *     inventing a fourth reason to keep tuning numbers that no longer move
+ *     the outcome.
+ *
+ *     **CORRECTED (PRIORITY DIRECTIVE follow-up, this session, Q123):** the
+ *     two counts this paragraph used to give (Necromancer 7/12, Paladin
+ *     3/12) described the tuning-verification pass, not this file's real
+ *     p8a content. The first full re-run of this `beforeAll` against p8a's
+ *     real waves (this session) measures **Necromancer: 3/12 `defeat_warden`
+ *     (waves 3/6/15), 9/12 `defeat_core` (waves 13-17), 0/12 wins** and
+ *     **Paladin: 4/12 `defeat_warden` (three at wave 3, one at wave 6), 8/12
+ *     `defeat_core` (waves 8/15/16), 0/12 wins** — both still majority
+ *     wave-11-17-wall, same conclusion, corrected numbers.
  *
  * **The wall the other ten hit** (nine outright, one — Necromancer — mostly):
  * every seed that isn't Cryomancer's clears TD wave 11-17 and then dies
@@ -134,6 +143,27 @@
  * eleven of eleven classes, not ten of eleven; see `cryomancer`'s own updated
  * `it.skip` below for the numbers. The diversity clause's own finding (2/11
  * distinct, Q121(4)) is unaffected by this correction.
+ *
+ * **RE-MEASURED IN FULL (PRIORITY DIRECTIVE follow-up, this session, Q123,
+ * Q127).** The p8a commit corrected only Cryomancer's number and the
+ * diversity count by spot-check; this session let the full `beforeAll` run
+ * to completion twice (once live, once with a temporary diagnostic dump) and
+ * recorded every class's real number below. **None of the eleven clears the
+ * band — G8's win rate stays 0/11.** Every `it.skip` below carries its real,
+ * freshly measured outcome string. One new fact this full re-run surfaces
+ * that the earlier spot-check did not: **non-terminating `'timeout'` seeds
+ * are no longer isolated to `swordsman` seed 1.** This run measured
+ * `swordsman` at 4/12 seeds timing out (1, 2, 5, 9), `archer` at 2/12 (2,
+ * 11), `stormcaller` at 1/12 (6), and `bloodlord` at 2/12 (1, 12) — 9 timeout
+ * instances across 4 classes, up from the single instance previously
+ * recorded. None were chased to a higher cap (Q127): the mechanism (the
+ * wave-11-17 wall pushing some seeds into a genuine stalemate rather than a
+ * slow loss) is already established by `tests/p-core-f-gates.test.ts`'s
+ * `carnivorous_plant`/`corpse` cases, which spent real cap-raise attempts
+ * proving it; a ninth-and-tenth confirmation on the class roster is
+ * corroborating evidence, not a new question. The existing `'timeout'`
+ * handling (excluded from `wins`, excluded from `ownDamage`/`allDamage`)
+ * already treats these correctly.
  */
 import { beforeAll, describe, expect, it } from 'vitest';
 
@@ -280,6 +310,14 @@ function describeSource(cls: NewClassDef, key: string): string {
  * `.skip`-ed diversity assertion below and its QUESTIONS.md Q121(4)
  * correction for the honest (red) result and why no threshold that still
  * means anything fixes it.
+ *
+ * RE-CORRECTED (PRIORITY DIRECTIVE follow-up, this session, Q123): the
+ * paragraph above was itself measured against pre-p8a content. The full
+ * post-p8a re-run measures the continuum as **0.4% (animist) to 15.4%
+ * (plaguebringer)** — engineer is 2.1%, not the roster's low end. Every one
+ * of the eleven still sits under the 20% bar; the conclusion (no threshold
+ * that still means anything clears 8/11) is unchanged, only the two named
+ * classes at the continuum's ends moved.
  */
 const MATERIALITY_SHARE = 0.20;
 
@@ -400,27 +438,38 @@ describe('p6e: G8 measured as a live test over the seed set (SPEC-FINAL §4, §1
   // other ten already hit, not a separate story. `.skip`-ed with the measured
   // number on the same precedent, re-enable point folded into the same
   // follow-up re-measurement pass as the rest of G8.
-  it.skip('cryomancer', () => assertBand('cryomancer')); // 2/12 — 10/12 defeat_core/defeat_warden wave 15-18, 2/12 victory/w18
+  // Reconfirmed in full this session (PRIORITY DIRECTIVE follow-up, Q123):
+  // identical to the p8a-era number above — 2/12 (seeds 9, 10 victory/w18),
+  // no timeouts. Unchanged.
+  it.skip('cryomancer', () => assertBand('cryomancer')); // 2/12 — 9:victory/w18, 10:victory/w18, other ten defeat_core/defeat_warden wave 15-18
 
   // Every one of the ten below converges on the same wave-11-to-17
   // `defeat_core`/`defeat_warden` wall (this file's header; G23's own
   // precedent for reading that signature as the p8a content gap, not a
   // balance story). Re-enable point: p8a authors real wave rows past 10.
-  it.skip('swordsman', () => assertBand('swordsman')); // 0/12 — all defeat_core, wave 15-16, no early losses
-  it.skip('plaguebringer', () => assertBand('plaguebringer')); // 0/12 — all defeat_core, wave 12-16
-  it.skip('engineer', () => assertBand('engineer')); // 0/12 — all defeat_core, wave 14-16
-  it.skip('pyromancer', () => assertBand('pyromancer')); // 0/12 — 11/12 defeat_core wave 15-16, one early outlier (seed w3)
-  it.skip('archer', () => assertBand('archer')); // 0/12 — 9/12 defeat_core wave 16, 3/12 early (waves 3, 3, 6)
-  // Tuned (header): Raise's cooldown/potency/duration/radius all buffed.
-  // Early defeat_warden dropped from a clear majority to a minority (7/12,
-  // now mostly waves 6-12 rather than wave 3) — real progress, still 0/12.
+  //
+  // Re-measured in full this session (Q123, Q127) — every number below is
+  // freshly measured against real p8a content, not inherited from an older
+  // pre-p8a pass. `timeout` means the seed hit the 120-minute cap without
+  // resolving (Q127); it counts as a non-win, matching every other
+  // non-`victory` outcome.
+  it.skip('swordsman', () => assertBand('swordsman')); // 2/12 — 4:victory/w18, 6:victory/w18, 4 timeouts (seeds 1,2,5,9), rest defeat_core/defeat_warden wave16-18
+  it.skip('plaguebringer', () => assertBand('plaguebringer')); // 0/12 — all defeat_core wave13-17 except seed4 defeat_warden/w18
+  it.skip('engineer', () => assertBand('engineer')); // 3/12 — seeds 7,9,10 victory/w18, rest defeat_core/defeat_warden wave14-17
+  it.skip('pyromancer', () => assertBand('pyromancer')); // 1/12 — seed6 victory/w18, seed3 early defeat_warden/w3, rest defeat_core/defeat_warden wave16-18
+  it.skip('archer', () => assertBand('archer')); // 2/12 — seeds 4,6 victory/w18, 2 timeouts (seeds 2,11), seeds 3,5 early defeat_warden/w3, rest defeat_core/defeat_warden wave16-18
+  // Tuned (header, corrected this session — Q123): Raise's
+  // cooldown/potency/duration/radius all buffed. Early defeat_warden is now
+  // the minority (3/12: waves 3/6/15) against a defeat_core majority (9/12:
+  // waves 13-17) — real progress, still 0/12, no timeouts, no victories.
   it.skip('necromancer', () => assertBand('necromancer'));
-  it.skip('stormcaller', () => assertBand('stormcaller')); // 0/12 — 11/12 defeat_core wave 12-16, one early outlier (seed w9)
-  it.skip('bloodlord', () => assertBand('bloodlord')); // 0/12 — all defeat_core, wave 15-17
-  it.skip('animist', () => assertBand('animist')); // 0/12 — all defeat_core, wave 11-15
-  // Tuned (header): Guardian Stance/Clarion Taunt/Judgement all buffed.
-  // Early defeat_warden dropped from a majority to 3/12 (all wave 3); the
-  // other 9/12 converged onto the shared wave 11-14 defeat_core wall.
+  it.skip('stormcaller', () => assertBand('stormcaller')); // 2/12 — seeds 7,10 victory/w18, 1 timeout (seed6), seed2 early defeat_warden/w6, rest defeat_core wave10-17/defeat_warden w18
+  it.skip('bloodlord', () => assertBand('bloodlord')); // 4/12 — seeds 6,7,9,10 victory/w18, 2 timeouts (seeds 1,12), rest defeat_core/defeat_warden wave16-18
+  it.skip('animist', () => assertBand('animist')); // 3/12 — seeds 2,6,10 victory/w18, rest defeat_core wave13-17, no timeouts
+  // Tuned (header, corrected this session — Q123): Guardian
+  // Stance/Clarion Taunt/Judgement all buffed. Early defeat_warden is 4/12
+  // (three at wave 3, one at wave 6) against a defeat_core majority (8/12:
+  // waves 8/15/16) — still 0/12, no timeouts, no victories.
   it.skip('paladin', () => assertBand('paladin'));
 
   it('every one of the eleven §4 classes was actually measured (no key silently skipped)', () => {
@@ -451,6 +500,15 @@ describe('p6e: G8 top-damage-source diversity (>=8 of 11 distinct)', () => {
   // economy has far more time to compound than any cooldown-gated class kit,
   // and `p8a`'s real wave content is what would shorten that runway — though
   // this item does not prove that link directly. Re-enable point: p8a.
+  //
+  // RE-CORRECTED (PRIORITY DIRECTIVE follow-up, this session, Q123): p8a
+  // landed and this was re-measured in full — **distinct count is still 2**
+  // (`frost_obelisk`/`ballista`), unchanged. The paragraph's own-kit-share
+  // numbers were measured pre-p8a and are superseded: real post-p8a shares
+  // run 0.4% (animist) to 15.4% (plaguebringer), and the 8th-largest is
+  // cryomancer's 1.7%, not paladin's — same conclusion (no non-tautological
+  // bar clears 8/11), corrected numbers. Re-enable point moves from `p8a`
+  // (done) to **P10**, the same as every other clause this pass re-measured.
   it.skip('at least 8 of the 11 classes top out on a different source', () => {
     const labels = CLASS_KEYS.map((k) => measurements.get(k)!.topLabel);
     const distinct = new Set(labels);
