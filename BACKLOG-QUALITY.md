@@ -1245,9 +1245,12 @@ file today so nothing is misclassified — filed as **q57** rather than fixed
 inline, per QA's own severity call.
 
 Post-commit re-confirmation (this lane's own standing practice after a
-dirty-tree false alarm, sessions 50/51): re-ran `tests/q14-mutation-
-smoke.test.ts` and the four targeted files again against the committed
-tree — see below for the result.
+dirty-tree false alarm, sessions 50/51): committed (`5e35029`), confirmed
+`git status` clean, then re-ran `tests/q54-unguarded-data-read.test.ts` +
+`tests/q47-cli-crash-coverage.test.ts` (33/33 green) and the full
+`tests/q14-mutation-smoke.test.ts` (44/44 green, ~1180s) against the
+committed tree — all pass, confirming every session-52 full-suite failure
+was the dirty-tree artifact and not a real regression.
 
 Four actionable items remained before this session (q54-q56, plus q57 filed
 this session); three remain now (q55, q56, q57), at the floor of 3, so next
