@@ -1312,6 +1312,7 @@ const DevFileSchema = z
     devMode: z.boolean(),
     skillPoints: z.number().int().min(0),
     unlockAllClasses: z.boolean(),
+    unlockAllCores: z.boolean(),
     unlockAllTiers: z.boolean(),
     completeAllQuests: z.boolean(),
     fillStash: z.boolean(),

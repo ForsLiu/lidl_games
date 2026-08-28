@@ -5,6 +5,52 @@
 
 ## Current state — SPEC-FINAL
 
+- **(fb001) is done this commit — the dev profile now unlocks every Core from
+  §5.5, the same pattern already used for classes/maps.** With (b016) already
+  landed, this session moved to the top of ordinary BACKLOG.md order per the
+  Feedback section's own note: (fb001), dev-profile Core unlocks. Found
+  already implemented but uncommitted at session start (a prior session's
+  in-progress work — a new `unlockAllCores` boolean added alongside
+  `unlockAllClasses` in `data/dev.json`, `src/sim/content.ts`'s
+  `DevFileSchema` (required, matching every sibling field), and
+  `src/meta/devprofile.ts`'s `applyDevProfile`, which sets
+  `out.unlockedCores` to every real `content.cores.cores` key exactly
+  mirroring the pre-existing `unlockAllClasses` → `unlockedClasses` branch;
+  matching updates to `tests/c8-dev-profile.test.ts` and a new
+  `dev.unlockAllCores` row in `tests/q7-loader-holes.ts`'s census) — this
+  session verified it end to end rather than re-implementing it, the same
+  protocol every recent P6/p8a/Q91/Q102/Q120/b016 item in this file's history
+  sets: `npx tsc --noEmit` clean, targeted suite (`tests/c8-dev-profile.test.ts`,
+  `tests/q7-data-fuzz.test.ts`, `tests/p-core-a-selection.test.ts`,
+  `tests/hub-testing.test.ts`) 86/86 passed (7 skipped, unrelated) before
+  delegating review.
+  **code-reviewer APPROVE, no Critical/Major/Minor.** Independently traced the
+  prod-lock guarantee: `applyDevProfile` is reached only through
+  `src/ui/main.ts`'s single call site, gated on `devProfileActive()` →
+  `devMode && isDevBuild()`, the same pre-existing gate the whole `DevConfig`
+  (including `unlockAllClasses`) already relies on — no new gap. Confirmed the
+  schema field is required, not `.optional`, like every sibling, so a
+  hand-edited `data/dev.json` missing it fails loudly. One Nit left unfixed,
+  harmless: the new test's `out.unlockedCores.sort()` mutates the returned
+  array in place, a copy-paste of the same pre-existing pattern the classes
+  test above it already uses; the object isn't reused afterward.
+  **qa-playtester PASS, no bugs found.** Cross-checked the real
+  `data/cores.json` against a real `applyDevProfile` call (not a hardcoded
+  comparison) — output matches all five live core keys exactly. Confirmed 4 of
+  5 real cores default locked (`unlockedByDefault: false`) for a fresh
+  `defaultMeta()`, becoming selectable only through this dev path.
+  Independently re-verified the prod-lock clause by building and executing a
+  real production bundle (not a grep). Hostile checks: calling
+  `applyDevProfile` twice in a row is idempotent (same 5-element set, no
+  duplicates) and does not mutate the caller's original `meta.unlockedCores`
+  array (confirms the `.slice()` copy-on-write holds). Noted for the record,
+  not a defect: `applyDevProfile` itself is not self-gating against
+  `isDevBuild()` — that's the caller's documented responsibility, and the sole
+  call site already does it correctly.
+  `npx tsc --noEmit`: clean throughout. **Next action: (fb002)** (character
+  and dash ignore collision with the Core and friendly structures), the next
+  Feedback item in file order.
+
 - **(b016) is done this commit — the top-priority owner-filed bug (a tower
   buildable directly on the Warden's own tile, trapping it) is fixed, and it
   closed the separately-filed (b019) as a side effect.** With both Q120

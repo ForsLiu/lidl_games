@@ -236,6 +236,7 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'dev.fillStash': ['flip-bool'],
   'dev.skillPoints': ['zero'],
   'dev.unlockAllClasses': ['flip-bool'],
+  'dev.unlockAllCores': ['flip-bool'],
   'dev.unlockAllTiers': ['flip-bool'],
   'enemies.enemies': ['dupe-element'],
   'enemies.enemies[].attackDamage': ['negative', 'zero', 'infinite', 'fractional', 'drop-key', 'rename-key'],

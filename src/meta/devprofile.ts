@@ -96,10 +96,14 @@ export function applyDevProfile(meta: MetaState, config: DevConfig = devConfig()
     questProgress: { ...meta.questProgress },
     completedQuests: meta.completedQuests.slice(),
     unlockedClasses: meta.unlockedClasses.slice(),
+    unlockedCores: meta.unlockedCores.slice(),
   };
 
   if (config.unlockAllClasses) {
     out.unlockedClasses = content.classes.classes.map((c) => c.key);
+  }
+  if (config.unlockAllCores) {
+    out.unlockedCores = content.cores.cores.map((c) => c.key);
   }
   if (config.unlockAllTiers) {
     out.highestTier = Math.max(out.highestTier, MAX_TIER);

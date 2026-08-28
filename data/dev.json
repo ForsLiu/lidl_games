@@ -2,6 +2,7 @@
   "devMode": true,
   "skillPoints": 999,
   "unlockAllClasses": true,
+  "unlockAllCores": true,
   "unlockAllTiers": true,
   "completeAllQuests": true,
   "fillStash": true

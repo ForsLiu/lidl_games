@@ -44,6 +44,7 @@ const ALL_ON: DevConfig = {
   devMode: true,
   skillPoints: 999,
   unlockAllClasses: true,
+  unlockAllCores: true,
   unlockAllTiers: true,
   completeAllQuests: true,
   fillStash: true,
@@ -63,6 +64,12 @@ describe('C8: the dev profile unlocks everything', () => {
     const out = applyDevProfile(defaultMeta(), ALL_ON);
     expect(out.unlockedClasses.sort()).toEqual(content.classes.classes.map((c) => c.key).sort());
     expect(defaultMeta().unlockedClasses.length).toBeLessThan(out.unlockedClasses.length);
+  });
+
+  it('unlocks every core', () => {
+    const out = applyDevProfile(defaultMeta(), ALL_ON);
+    expect(out.unlockedCores.sort()).toEqual(content.cores.cores.map((c) => c.key).sort());
+    expect(defaultMeta().unlockedCores.length).toBeLessThan(out.unlockedCores.length);
   });
 
   it('unlocks every tier and completes every quest', () => {
@@ -122,6 +129,7 @@ describe('C8: the dev profile unlocks everything', () => {
       devMode: true,
       skillPoints: 0,
       unlockAllClasses: false,
+      unlockAllCores: false,
       unlockAllTiers: false,
       completeAllQuests: false,
       fillStash: false,

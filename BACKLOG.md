@@ -62,11 +62,9 @@ filed and ready, not next up.
       structure collision entirely, this fix's relocation logic becomes moot
       (standing on a to-be-built tile becomes legal) but is harmless to leave
       in place — refs: §12 rule 3, owner feedback `bug-build-on-character`.
-- [ ] (fb001) [feat] top priority: dev profile (`data/dev.json`) unlocks every
-      Core from §5.5, the same pattern already used for classes/maps —
-      acceptance: a dev build shows all Cores selectable; `npm run build`
-      ships them locked; covered by the existing G16 test — refs: §5.5, §11,
-      G16, owner feedback `feature-unlock-cores-dev`.
+- [x] (fb001) [feat] dev profile (`data/dev.json`) unlocks every Core from
+      §5.5, the same pattern already used for classes/maps — **done, see Done
+      section.**
 - [ ] (fb002) [feat] Character (and dash) ignore collision with the Core and
       all friendly structures — walks/flies over them freely; enemies keep
       current pathing rules — acceptance: character crosses a sealed base
@@ -651,6 +649,53 @@ logged in MIGRATION.md §8 rather than carried as dead items.
   **G19**. The work is `p10d`.
 
 ## Done
+
+- [x] (fb001) [feat] dev profile (`data/dev.json`) unlocks every Core from
+      §5.5, the same pattern already used for classes/maps — this commit.
+      Found already implemented but uncommitted at session start (a prior
+      session's in-progress work — a new `unlockAllCores` boolean added
+      alongside `unlockAllClasses` in `data/dev.json`, `src/sim/content.ts`'s
+      `DevFileSchema` (required, non-optional, matching every sibling field),
+      and `src/meta/devprofile.ts`'s `applyDevProfile`, which sets
+      `out.unlockedCores` to every real `content.cores.cores` key exactly
+      mirroring the pre-existing `unlockAllClasses` → `unlockedClasses`
+      branch; matching updates to `tests/c8-dev-profile.test.ts`'s `ALL_ON`/
+      all-off fixtures plus a new "unlocks every core" case, and a new
+      `dev.unlockAllCores: ['flip-bool']` row in `tests/q7-loader-holes.ts`'s
+      census) — verified end to end rather than re-implemented, the same
+      protocol every recent P6/p8a/Q91/Q102/Q120/b016 item already sets:
+      `npx tsc --noEmit` clean, targeted suite (`tests/c8-dev-profile.test.ts`,
+      `tests/q7-data-fuzz.test.ts`, `tests/p-core-a-selection.test.ts`,
+      `tests/hub-testing.test.ts`) 86/86 passed (7 skipped, unrelated) before
+      delegating review.
+      **code-reviewer APPROVE**, no Critical/Major/Minor. Independently traced
+      the prod-lock guarantee: `applyDevProfile` is reached only through
+      `src/ui/main.ts`'s single call site, gated on `devProfileActive()` →
+      `devMode && isDevBuild()`, the same pre-existing gate the whole
+      `DevConfig` (including `unlockAllClasses`) already relies on — no new
+      gap introduced. Confirmed the schema field is required (not `.optional`)
+      like every sibling, so a hand-edited `data/dev.json` missing it fails
+      loudly rather than silently defaulting. One Nit, not fixed: the new
+      test's `out.unlockedCores.sort()` mutates the returned array in place —
+      copy-paste of the same pre-existing pattern the classes test above it
+      already uses, harmless since the object isn't reused afterward.
+      **qa-playtester PASS, no bugs found.** Cross-checked the real
+      `data/cores.json` against a real `applyDevProfile` call (not a
+      hardcoded comparison) — output matches all five live core keys exactly.
+      Confirmed 4 of 5 real cores default locked (`unlockedByDefault: false`)
+      for a fresh `defaultMeta()`, becoming selectable only through this dev
+      path. Independently re-verified the prod-lock clause by building and
+      executing a real production bundle (not a grep). Hostile checks: calling
+      `applyDevProfile` twice in a row is idempotent (same 5-element set, no
+      duplicates) and does not mutate the caller's original `meta.unlockedCores`
+      array (confirms the `.slice()` copy-on-write holds). Noted for the
+      record, not a defect: `applyDevProfile` itself is not self-gating
+      against `isDevBuild()` — that's the caller's documented responsibility,
+      and the sole call site already does it correctly.
+      `npx tsc --noEmit`: clean throughout. Next action: (fb002) (character/
+      dash ignore collision with the Core and friendly structures), the next
+      Feedback item in file order — refs: §5.5, §11, G16, owner feedback
+      `feature-unlock-cores-dev`.
 
 - [x] (b016) [bug] top priority: a tower can be built directly on the
       character's own tile, trapping the Warden inside it — this commit.
