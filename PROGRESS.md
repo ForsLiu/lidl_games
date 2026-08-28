@@ -5,6 +5,112 @@
 
 ## Current state — SPEC-FINAL
 
+- **Q120 ORDER 2 (Ice Wall castable during VS waves) is done this commit —
+  both Q120 orders are now complete; next in the PRIORITY DIRECTIVE's own
+  sequence is the Q91/Q102 corrections.** Found already implemented but
+  uncommitted at session start (a prior session's in-progress work — the new
+  `BuildOptions { ignorePhase? }` param threaded through `checkBuild`/
+  `buildTower` in `src/sim/towers.ts`, `fireIceWall`'s `{ ignorePhase: true }`
+  call and its post-placement `w.updateNav(true)` in `src/sim/classes.ts`, and
+  four new/updated tests in `tests/p6d-nine-classes.test.ts`) — this session
+  verified it end to end rather than re-implementing it, the same protocol
+  every P6/p8a/q120o1 item in this file's history sets. A cast during Act II
+  now places real, gold-neutral, blocking temporary structures (previously it
+  silently placed nothing and only paid its cooldown) and forces an immediate
+  Warden-chase-field recompute, since `updateNav` otherwise only refires when
+  the Warden crosses into a new tile — the same precedent `sundering.ts`
+  already set for a sudden occupancy change with no Warden movement.
+  Independently re-read the other three `buildTower`/`checkBuild` callers
+  (`src/bots/policies.ts`, `src/sim/run.ts`'s `build` Command,
+  `src/render/canvas.ts`'s UI ghost) and confirmed each omits `opts`, so
+  `ignorePhase` is reachable only through Ice Wall's own call — ordinary
+  construction stays Act-I-only.
+  **This session's own independent `code-reviewer` pass (not reusing the
+  inherited draft's stale claim) returned REQUEST-CHANGES → fixed, then
+  re-verified clean.** One real Major: `removeStructure`'s
+  `if (this.huntsWarden) this.updateNav(true);` recomputes the whole
+  Warden-chase Dijkstra field on *every* VS structure death, not just Ice
+  Wall's, bypassing `updateNav`'s own documented rate-limiter — and this is
+  concretely reachable, not hypothetical: `boss.ts`'s `shatterAlong` (a boss
+  charge shattering petrified terrain) calls `damageStructure`/
+  `removeStructure` for every structure in a 3-wide band at every step along
+  the whole charge path in one synchronous pass, each one separately forcing
+  a full recompute. Fixed by marking a new `World.navDirty` flag instead of
+  recomputing eagerly in `removeStructure`; `updateNav` treats a set flag as
+  an implicit `force` (and clears it) the next time it runs — `updateAct2`'s
+  existing unconditional per-tick `w.updateNav()` call already consumes it
+  within one tick either way, so a same-tick batch of removals now costs one
+  Dijkstra pass instead of one per removal. `updateTempWalls`
+  (`src/sim/classes.ts`) gained one explicit `w.updateNav()` call after its
+  own expiry loop (mirroring `fireIceWall`'s existing once-after-the-loop
+  precedent on the placement side) so its own regression test — which calls
+  `updateTempWalls` directly without stepping a further `updateAct2` tick —
+  still sees the un-staled field immediately, with no other behavior change.
+  Everything else in the reviewer's pass held on independent re-derivation
+  (not trusting the diff's own comments): `ignorePhase` is unreachable from
+  any player-facing path (grepped every `buildTower`/`checkBuild` call site
+  fresh); no double-recompute on the placement side (`fireIceWall` calls
+  `updateNav(true)` once, after its segment loop, not per segment); no
+  determinism hazard (`navGround`/`navTile`/`navTick` are pure derived state,
+  not RNG/wall-clock-driven, and aren't a hashed field); no gold-accounting
+  bug (the pre-fund/build/refund dance nets to zero, independently reverified
+  against the new tests' own gold/goldSpent/towersBuilt assertions). One Nit,
+  not fixed: `finishSundering`'s bulk `petrify`/`stripTerrain` removal loop
+  currently skips the new dirty-flag cost only because it runs before
+  `w.phase = 'act2'` is set (`huntsWarden` false at that point) — an implicit
+  ordering dependency rather than an explicit guard, harmless today.
+  **qa-playtester independently drove all seven of the order's own
+  acceptance clauses as real ticked runs (not just read the diff) and all
+  seven held**: gold-neutral blocking placement, correct expiry during VS,
+  ordinary builds still rejected in VS, cooldown-spam safety (3000 ticks),
+  a hunting enemy still reaching the Warden with a wall standing next to it,
+  replay-hash determinism across two independent same-seed runs, and a
+  fully-occupied-target cast staying a safe no-op. No stray scratch file
+  remained in the tree at the end of its pass.
+  **Two real bugs found, handled differently.** (1) A self-cast Ice Wall
+  centered on the Warden's own tile traps the Warden in place for the wall's
+  full duration — `walkable()` (`src/sim/run.ts`) only checks the destination
+  tile, and every candidate destination inside the Warden's own now-blocked
+  cell is rejected. Reproduced identically in Act I, so this predates Q120
+  ORDER 2 and is not fixed under its scope (the order's own text is only
+  about VS-castability); filed as **BACKLOG.md b019** with a regression-test
+  acceptance criterion, the same QA-filed-pre-existing-bug precedent
+  `b017`/`b018` already set — Q120 ORDER 2 just made it reachable mid-combat
+  rather than only during the build phase, which is why it surfaced here.
+  (2) The field staleness this item's own placement path forces a recompute
+  for turned out to apply symmetrically in reverse on removal: a VS wall
+  destroyed by combat or expiring via `updateTempWalls` left `navGround`
+  routing enemies around a tile that was no longer blocked, for as long as
+  the Warden stood still, since neither `updateTempWalls` nor the generic
+  combat-death removal path forced a refresh the way `fireIceWall`'s
+  placement side does. **Fixed, not filed** — this one completes this item's
+  own stated mechanism rather than being a separate concern. The fix lands in
+  `removeStructure` (`src/sim/world.ts`), the one choke point every
+  structure-death path (sell, breach/siege kill, sundering pocket-clear,
+  Ice Wall expiry) already funnels through to invalidate the Beacon-aura/
+  wielded-attack caches (a p2b code-review precedent) — gated on
+  `w.huntsWarden`, so it costs nothing outside VS, marking the `navDirty` flag
+  this session's own code-reviewer pass introduced (see above) rather than
+  the inherited draft's eager `updateNav(true)` call, and naturally scoped to
+  Ice Wall today since it is still the only source of VS-phase structures. A
+  new regression test in `tests/p6d-nine-classes.test.ts` ("the field
+  un-stales once a VS-cast wall is gone") casts, lets the wall expire with
+  the Warden held stationary, and asserts the tile's `navGround.dist` leaves
+  `-1` on its own — the file is 112 tests, all green (was 111), unchanged by
+  the later navDirty fix since that fix only changes *how* the recompute is
+  triggered, not the observable outcome any existing test checks.
+  `npx tsc --noEmit`: clean throughout, checked after every edit, including
+  after the navDirty fix. A broader sweep
+  (`p6a`/`p6b`/`p6c`/`p6d`/`q120-order1-taunt`/`grid`/`boss`) stayed green,
+  re-run after the navDirty fix. A full `npm test` was run to completion
+  post-fix; the only
+  failures traced to `tests/q14-mutation-smoke.test.ts`'s own known,
+  pre-existing artifact (`gitDiffClean()`'s whole-repo check correctly seeing
+  this item's own then-uncommitted diff), the same precedent every prior
+  P6/p8a/q120o1 commit already documents; re-run post-commit to confirm
+  clean. **Both Q120 orders are now done. Next action: the Q91/Q102
+  corrections**, per the PRIORITY DIRECTIVE's own sequence.
+
 - **Q120 ORDER 1 (minimal taunt) is done this commit — the PRIORITY
   DIRECTIVE's own sequence puts this immediately after the p8a
   re-measurement pass, ahead of ORDER 2 and the Q91/Q102 corrections.**

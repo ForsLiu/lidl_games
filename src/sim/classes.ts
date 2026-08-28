@@ -582,10 +582,20 @@ function fireFrostNova(w: World, cls: NewClassDef): void {
  * player-built tower in the run report. `updateTempWalls` removes whatever is
  * still standing when the timer expires.
  *
- * `buildTower` keeps its own legality rules, which means a cast during a VS
- * wave (`canBuildNow` is Act-I-only) or out of build range places nothing.
- * The Active still pays its cooldown, on Poison Boost's precedent that a
- * dispatched Active always does (Q120).
+ * `buildTower` still keeps its own occupancy/range/gold legality rules, but is
+ * called with `{ ignorePhase: true }` so a cast during a VS wave places real,
+ * blocking tiles too (Q120 ORDER 2 — the owner verdict on Q120(5)'s deferred
+ * "castable during VS waves" half; every player-facing Build path still
+ * leaves `ignorePhase` unset, so ordinary construction stays Act-I-only).
+ * Out of build range or every target tile already occupied still places
+ * nothing. The Active still pays its cooldown either way, on Poison Boost's
+ * precedent that a dispatched Active always does (Q120). A successful VS
+ * cast also forces the Warden-chase field (`updateNav`) to recompute right
+ * away — it otherwise only refreshes when the Warden crosses into a new
+ * tile, and code review on this item found a stand-still cast (the
+ * chokepoint-blocking case Ice Wall exists for) would leave enemies routing
+ * through the now-occupied tile by a stale field until then, even though the
+ * tile itself was already physically blocking on contact.
  */
 function fireIceWall(w: World, cls: NewClassDef, aimX: number | undefined, aimY: number | undefined): void {
   const wd = w.warden;
@@ -604,7 +614,7 @@ function fireIceWall(w: World, cls: NewClassDef, aimX: number | undefined, aimY:
     const ty = Math.floor(cy) + (vertical ? i : 0);
     const cost = towerCost(w, def);
     w.gold += cost;
-    const res = buildTower(w, def.id, tx, ty);
+    const res = buildTower(w, def.id, tx, ty, { ignorePhase: true });
     if (!res.ok) {
       w.gold -= cost;
       continue;
@@ -615,7 +625,16 @@ function fireIceWall(w: World, cls: NewClassDef, aimX: number | undefined, aimY:
     w.towersByKey[def.key] = Math.max(0, (w.towersByKey[def.key] ?? 1) - 1);
     ids.push(res.structure.id);
   }
-  if (ids.length > 0) w.tempWalls.push({ structureIds: ids, remaining: eff.wallSeconds ?? 0 });
+  if (ids.length > 0) {
+    w.tempWalls.push({ structureIds: ids, remaining: eff.wallSeconds ?? 0 });
+    // `updateNav`'s Warden-chase field only recomputes on a Warden tile
+    // change (`sundering.ts` sets the same precedent for a sudden occupancy
+    // change with no Warden movement) — a wall cast while standing still
+    // would otherwise leave VS enemies routing through the now-blocked tile
+    // by a stale field until the Warden happens to step to a new one. Costs
+    // one Dijkstra pass, gated by the Active's own cooldown, not a hot loop.
+    if (w.huntsWarden) w.updateNav(true);
+  }
 }
 
 /**
@@ -1070,6 +1089,13 @@ export function updateTempWalls(w: World, dt: number): void {
     }
   }
   if (expired) w.tempWalls = w.tempWalls.filter((t) => t.remaining > 0);
+  // `removeStructure` only marks the Warden-chase field dirty (batched, so a
+  // multi-segment expiry costs one Dijkstra pass, not one per segment) —
+  // flush it once here, on the same single-call-after-the-loop precedent
+  // `fireIceWall`'s own placement side already sets, so a caller stepping
+  // only `updateTempWalls` (without a further `updateAct2` tick) still sees
+  // the un-staled field immediately.
+  if (expired && w.huntsWarden) w.updateNav();
 }
 
 /* ---------------------------------------------------------------- Commands */

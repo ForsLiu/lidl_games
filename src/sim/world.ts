@@ -294,6 +294,19 @@ export class World {
   readonly navGround = Grid.makeField();
   private navTile = -1;
   private navTick = -1000;
+  /**
+   * Set instead of eagerly recomputing when a structure death happens
+   * mid-batch (a boss charge's `shatterAlong` can call `removeStructure`
+   * dozens of times in one synchronous pass, `code-reviewer` on Q120 ORDER
+   * 2) — `updateNav` treats a set flag as an implicit `force` the next time
+   * it runs, so a batch of same-tick removals costs one Dijkstra pass, not
+   * one per removal. `updateAct2`'s existing unconditional per-tick
+   * `w.updateNav()` call consumes it within a tick either way; a caller that
+   * needs the field correct before that (e.g. `updateTempWalls`, so its own
+   * regression test sees the un-staled field without simulating another
+   * tick) calls `updateNav()` once itself after its own removal batch.
+   */
+  private navDirty = false;
 
   private nextEntityId = 1;
 
@@ -461,6 +474,10 @@ export class World {
 
   /** Recompute the Warden-sourced fields when they go stale. */
   updateNav(force = false): void {
+    if (this.navDirty) {
+      force = true;
+      this.navDirty = false;
+    }
     const tx = Math.floor(this.warden.x);
     const ty = Math.floor(this.warden.y);
     if (!this.grid.inBounds(tx, ty)) return;
@@ -527,6 +544,18 @@ export class World {
     // enemy-caused death.
     this.auraDirty = true;
     this.wieldedDirty = true;
+    // The same staleness `fireIceWall` (classes.ts) forces a recompute for on
+    // placement applies in reverse on removal: `updateNav`'s early-return
+    // only refires when the Warden's own tile changes, so a VS-phase wall
+    // destroyed by combat or timed out by `updateTempWalls` would otherwise
+    // leave `navGround` routing enemies around a tile that is no longer
+    // blocked for as long as the Warden stands still (QA on Q120 ORDER 2).
+    // Marked dirty rather than recomputed eagerly here — a single event can
+    // funnel many removals through this choke point synchronously (a boss
+    // charge's `shatterAlong` kills every petrified structure along its
+    // path in one pass), and each is its own full Dijkstra rebuild otherwise
+    // (code-reviewer, Major, on this same item).
+    if (this.huntsWarden) this.navDirty = true;
   }
 
   structureAt(tx: number, ty: number): Structure | null {

@@ -389,12 +389,91 @@ describe('p6d: Cryomancer Ice Wall — free, real, and temporary', () => {
     expect(s).toBeNull();
   });
 
-  it('still pays its cooldown when no tile could be placed', () => {
+  it('still pays its cooldown when no tile could be placed (every target tile already occupied)', () => {
     const w = worldWith('cryomancer');
-    w.phase = 'act2'; // canBuildNow is Act I only
+    w.warden.x = 10;
+    w.warden.y = 10;
+    const arrow = content.towerByKey.get('arrow_spire')!;
+    // The vertical wall this aim produces lands at tx=12, ty in {9,10,11} —
+    // pre-occupy all three with real towers so `buildTower` rejects every one.
+    for (const ty of [9, 10, 11]) {
+      expect(buildTower(w, arrow.id, 12, ty).ok).toBe(true);
+    }
     applyCommand(w, { k: 'class_active2', aimX: 12, aimY: 10 });
     expect(w.tempWalls).toHaveLength(0);
     expect(w.warden.active2Cooldown).toBeGreaterThan(0);
+  });
+
+  it('places real, blocking tiles during a VS wave too (Q120 ORDER 2)', () => {
+    const w = worldWith('cryomancer');
+    w.gold = 500;
+    w.warden.x = 10;
+    w.warden.y = 10;
+    w.phase = 'act2';
+    const gold = w.gold;
+    applyCommand(w, { k: 'class_active2', aimX: 12, aimY: 10 });
+    expect(w.tempWalls).toHaveLength(1);
+    expect(w.tempWalls[0].structureIds.length).toBeGreaterThan(0);
+    expect(w.gold).toBe(gold);
+    expect(w.goldSpent).toBe(0);
+    expect(w.towersBuilt).toBe(0);
+    for (const id of w.tempWalls[0].structureIds) {
+      const s = w.structureById.get(id)!;
+      expect(s.spent).toBe(0);
+      // The tile is actually occupied, not a cosmetic no-op placement.
+      expect(w.grid.buildable(s.tx, s.ty)).toBe(false);
+    }
+  });
+
+  it('a stand-still VS cast reroutes enemies immediately, not only after the Warden crosses a tile', () => {
+    const w = worldWith('cryomancer');
+    w.gold = 500;
+    w.warden.x = 10;
+    w.warden.y = 10;
+    w.phase = 'act2';
+    // Establish a fresh baseline chase field on the Warden's current tile —
+    // the same tile the cast below reuses, so only the wall's own occupancy
+    // change (not a Warden move) can explain any difference.
+    w.updateNav(true);
+    const idx = w.grid.idx(12, 10); // the wall's middle tile for this aim
+    expect(w.navGround.dist[idx]).not.toBe(-1);
+    applyCommand(w, { k: 'class_active2', aimX: 12, aimY: 10 });
+    // `updateNav`'s own early-return would otherwise skip this recompute
+    // entirely (the Warden's tile hasn't changed) — `fireIceWall` must force it.
+    expect(w.navGround.dist[idx]).toBe(-1);
+  });
+
+  it('the field un-stales once a VS-cast wall is gone, not only when it goes up', () => {
+    const w = worldWith('cryomancer');
+    w.gold = 500;
+    w.warden.x = 10;
+    w.warden.y = 10;
+    w.phase = 'act2';
+    applyCommand(w, { k: 'class_active2', aimX: 12, aimY: 10 });
+    const idx = w.grid.idx(12, 10);
+    expect(w.navGround.dist[idx]).toBe(-1); // blocked while the wall stands
+    const seconds = newClass('cryomancer').active2.wallSeconds!;
+    for (let t = 0; t < Math.ceil(seconds * 60) + 2; t++) updateTempWalls(w, DT);
+    w.compact();
+    expect(w.tempWalls).toHaveLength(0);
+    expect(w.grid.buildable(12, 10)).toBe(true);
+    // Removal is a `removeStructure` choke-point event, not a Warden tile
+    // change — the Warden never moved, so only a forced recompute on
+    // removal (not just on placement) explains the field seeing this tile
+    // as reachable again.
+    expect(w.navGround.dist[idx]).not.toBe(-1);
+  });
+
+  it('a player Build Command still cannot place a tower during a VS wave (ignorePhase is Ice Wall-only)', () => {
+    const w = worldWith('cryomancer');
+    w.gold = 500;
+    w.warden.x = 10;
+    w.warden.y = 10;
+    w.phase = 'act2';
+    const arrow = content.towerByKey.get('arrow_spire')!;
+    const res = buildTower(w, arrow.id, 12, 10);
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.reason).toBe('phase');
   });
 });
 

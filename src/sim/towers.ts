@@ -78,9 +78,26 @@ export function inBuildRange(w: World, tx: number, ty: number): boolean {
   return dist2(w.warden.x, w.warden.y, tx + 0.5, ty + 0.5) <= r * r;
 }
 
+export interface BuildOptions {
+  /**
+   * Skips `canBuildNow`'s Act-I-only gate. Only Ice Wall's internal placement
+   * call (`fireIceWall`, classes.ts) sets this — every player-facing Build
+   * path (the `build` Command, the UI ghost, bot policies) always leaves it
+   * unset, so ordinary tower placement stays Act-I-only per §12 rule 3
+   * (Q120 ORDER 2).
+   */
+  ignorePhase?: boolean;
+}
+
 /** Full legality check without side effects — the renderer uses it for ghosts. */
-export function checkBuild(w: World, towerId: number, tx: number, ty: number): BuildRejection | null {
-  if (!canBuildNow(w)) return 'phase';
+export function checkBuild(
+  w: World,
+  towerId: number,
+  tx: number,
+  ty: number,
+  opts?: BuildOptions,
+): BuildRejection | null {
+  if (!opts?.ignorePhase && !canBuildNow(w)) return 'phase';
   const def = w.content.towerById.get(towerId);
   if (!def) return 'unknown_tower';
   if (!w.grid.buildable(tx, ty)) return 'occupied';
@@ -90,8 +107,14 @@ export function checkBuild(w: World, towerId: number, tx: number, ty: number): B
   return null;
 }
 
-export function buildTower(w: World, towerId: number, tx: number, ty: number): BuildResult {
-  const reason = checkBuild(w, towerId, tx, ty);
+export function buildTower(
+  w: World,
+  towerId: number,
+  tx: number,
+  ty: number,
+  opts?: BuildOptions,
+): BuildResult {
+  const reason = checkBuild(w, towerId, tx, ty, opts);
   if (reason) return { ok: false, reason };
   const def = w.content.towerById.get(towerId)!;
   const cost = towerCost(w, def);

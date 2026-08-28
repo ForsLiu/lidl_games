@@ -586,6 +586,26 @@ were not re-filed. Ordering within this section is by severity, not P-band.
       one is never silently dropped; a regression test drives a cooldown to
       its exact float-residual boundary and asserts the next cast fires —
       refs: §12 rule 2, QA on Q120 ORDER 1
+- [ ] (b019) [bug] A self-cast Ice Wall can trap the Warden in place for the
+      wall's full `wallSeconds`: `walkable()` (`src/sim/run.ts`) checks only
+      the destination tile via `grid.passable`, and Ice Wall's 1x3 footprint
+      centered on the Warden's own tile blocks every candidate destination
+      inside that cell, so `moveWarden` never lets it leave until the wall
+      expires or is destroyed. Repro (deterministic, reproduced twice): cast
+      `class_active2` with the aim on the Warden's own position (a realistic
+      input — cursor hovering the character) and feed movement input every
+      tick; the Warden's `x`/`y` do not change for the wall's full duration.
+      Reproduces identically in Act I and Act II, so it predates Q120 ORDER 2
+      — that item only made it reachable mid-VS-combat, which is why
+      qa-playtester surfaced it there. Two candidate fixes, either is
+      spec-consistent: reject an Ice Wall placement that would cover the
+      Warden's own tile (mirrors b016's proposed treatment of the Warden's
+      own tile as unbuildable), or have `walkable`/`moveWarden` treat the
+      Warden's current occupied cell as passable for itself regardless of
+      `grid.passable` — acceptance: a regression test casts Ice Wall
+      centered on the Warden and asserts it either does not place the
+      covering tile or the Warden can still move off its own tile
+      immediately after; refs: §10, QA on Q120 ORDER 2
 
 ## Retired from the queue by SPEC-FINAL
 
@@ -671,6 +691,73 @@ logged in MIGRATION.md §8 rather than carried as dead items.
       (Ice Wall castable during VS waves) remains open, queued next after the
       Q91/Q102 corrections per the PRIORITY DIRECTIVE's own sequence — refs:
       Q120(5), Q128, §4.2.
+
+- [x] (q120o2) [feat] Q120 ORDER 2 (owner verdict): Ice Wall castable during
+      VS waves — a cast during Act II now places real, gold-neutral, blocking
+      temporary structures instead of silently no-oping, and forces an
+      immediate Warden-chase-field recompute so a stand-still cast reroutes
+      enemies right away — this commit. Found already implemented but
+      uncommitted at session start (a prior session's in-progress work — the
+      new `BuildOptions { ignorePhase? }` param on `checkBuild`/`buildTower`
+      (`src/sim/towers.ts`), `fireIceWall`'s `{ ignorePhase: true }` call and
+      its post-placement `w.updateNav(true)` (`src/sim/classes.ts`), and four
+      new/updated tests in `tests/p6d-nine-classes.test.ts`) — verified end to
+      end rather than re-implemented, the same protocol every P6/p8a/q120o1
+      item this session's history sets. Every other `buildTower`/`checkBuild`
+      caller (`src/bots/policies.ts`, `src/sim/run.ts`'s `build` Command,
+      `src/render/canvas.ts`'s UI ghost) was independently re-read and
+      confirmed to omit `opts`, so ordinary construction stays Act-I-only —
+      `ignorePhase` is reachable only through Ice Wall's own call.
+      **code-reviewer APPROVE**, no Critical/Major. Minors: the `navGround`
+      field the VS recompute forces uses strict `'blocked'` Dijkstra mode
+      (not Act I's `'breach'` mode), a pre-existing distinction confirmed not
+      to deadlock (an unrouted enemy's `flowAim` beeline-and-chew fallback
+      already handles a fully-blocked field, `src/sim/enemies.ts`), but the
+      full-encirclement case had no direct test — logged as a cheap follow-up,
+      not chased under this item's scope; a stray QA scratch file
+      (`tests/_qa_scratch_icewall.ts`) was flagged and was already removed by
+      the qa-playtester pass itself before this commit. **qa-playtester found
+      two real bugs while verifying all seven of the order's own acceptance
+      clauses (gold-neutral blocking placement, correct expiry, ordinary
+      builds still rejected in VS, cooldown-spam safety, a hunting enemy still
+      reaching a Warden a wall stands next to, replay-hash determinism, and a
+      fully-occupied-target no-op) — all seven held.** The two bugs: (1) a
+      self-cast Ice Wall centered on the Warden's own tile traps the Warden in
+      place for the wall's full duration, since `walkable()` only checks the
+      destination tile and every candidate destination inside the Warden's
+      own now-blocked cell is rejected — reproduced identically in Act I, so
+      it predates this item and is not fixed under its scope; filed as
+      **b019** with a regression-test acceptance criterion, on the same
+      QA-filed-pre-existing-bug precedent `b017`/`b018` already set. (2) the
+      field staleness this item's own placement path forces a recompute for
+      applies symmetrically in reverse on removal — a VS wall destroyed by
+      combat or expiring via `updateTempWalls` left `navGround` routing
+      enemies around a tile that was no longer blocked for as long as the
+      Warden stood still, since neither `updateTempWalls` nor the generic
+      combat-death removal path (`src/sim/enemies.ts`) forced a refresh the
+      way `fireIceWall`'s placement side does. **Fixed**, not filed: this one
+      directly completes this item's own stated mechanism rather than being a
+      separate concern, so the fix landed in `removeStructure`
+      (`src/sim/world.ts`) — the same choke point every structure-death path
+      already funnels through to invalidate the Beacon-aura/wielded-attack
+      caches (p2b precedent) — gated on `w.huntsWarden` so it costs nothing
+      outside VS and is naturally scoped to Ice Wall today (the only source of
+      VS-phase structures). A new regression test
+      (`tests/p6d-nine-classes.test.ts`, "the field un-stales once a VS-cast
+      wall is gone") casts, lets the wall expire via `updateTempWalls` with
+      the Warden held stationary, and asserts the tile's `navGround.dist`
+      leaves `-1` on its own — `tests/p6d-nine-classes.test.ts` is now 112
+      tests, all green (was 111). `npx tsc --noEmit` clean throughout, checked
+      after every edit. A broader sweep
+      (`p6a`/`p6b`/`p6c`/`p6d`/`q120-order1-taunt`/`grid`) stayed green at 213
+      passed. A full `npm test` was run to completion post-fix; the only
+      failures traced to `tests/q14-mutation-smoke.test.ts`'s own known,
+      pre-existing artifact (`gitDiffClean()`'s whole-repo check correctly
+      seeing this item's own then-uncommitted diff), the same precedent every
+      prior P6/p8a/q120o1 commit in this Done section already documents;
+      re-run post-commit to confirm clean. Both Q120 orders are now done —
+      next queued: the Q91/Q102 corrections per the PRIORITY DIRECTIVE's own
+      sequence — refs: Q120(5), §4.2, §10.
 
 - [x] (p8a) [feat] Wave data on the §1.1 shape: `data/waves.json` carries 18
       real TD wave compositions, the §9 VS-budget curve is live — this
