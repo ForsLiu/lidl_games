@@ -5,6 +5,85 @@
 
 ## Current state — SPEC-FINAL
 
+- **(fb004) is done this commit (`df1771f`) — the character panel (owner
+  feedback `feature-boon-stats-panel`, SPEC-FINAL §2/§6.3/§11).** With
+  (fb001)-(fb003) already landed, this session continued ordinary
+  BACKLOG.md order via the Feedback section's own file order. Built fresh
+  this session (not found pre-implemented, unlike fb001-fb003): a new
+  `src/ui/character-panel.ts` — a pure function `characterPanelData(w)`
+  returning `stats: StatRow[]` (one row per `StatKey`, `value` read straight
+  off `w.stats.total`/`factor`, `sources` read straight off
+  `w.stats.contributions`, human-labelled generically over whatever source
+  prefix actually fed the stat — class/tree/relic/boon/core/modifiers/
+  terrain) and `boons: BoonRow[]` (every taken boon's rank/maxRank/
+  contribution, the contribution read back from `Stats.contributions`
+  rather than recomputed) — wired into `src/ui/hud.ts` as a new
+  `#sw-charpanel` overlay, a HUD button, and a `C` keybinding
+  (`src/ui/input.ts`/`src/ui/main.ts`). §7 Equipment gets no section since
+  §7 is still unbuilt (p7b); a relic is the closest live analog and already
+  shows up generically in the source breakdown (QUESTIONS.md Q132). New
+  `tests/character-panel.test.ts` (10 tests) asserts the data model
+  field-for-field against `Stats`' own `total`/`factor`/`contributions`
+  directly, per the acceptance criterion's own wording, across a world with
+  every generic source kind live at once.
+  **code-reviewer round 1: REQUEST-CHANGES**, 2 Major findings, both fixed:
+  (1) the panel could open on top of an already-showing pause/level-up
+  modal (both are opaque full-stage siblings) and eat its clicks — fixed by
+  refusing to open while paused or while the modal is showing; (2) the
+  redraw-skip fingerprint keyed on `w.sundered`, a one-shot flag that never
+  resets, so it went stale after a *second* Sundering's terrain
+  accumulation — fixed by adding a `revision` counter directly to the
+  `Stats` class (`src/sim/stats.ts`, bumped once per stored contribution
+  inside `add()`), confirmed never read by `hashWorld`/replay
+  (`a11-determinism.test.ts`'s full suite stayed green).
+  **code-reviewer round 2: APPROVE**, both fixes verified against the real
+  diff, both new regression tests confirmed non-vacuous.
+  **qa-playtester round 1: PASS on the literal acceptance criteria, but
+  found 2 bugs judged blocking in spirit** — the *reverse* direction of
+  code-reviewer's Major (1): opening the panel first, then a level-up or
+  Escape-pause, let the modal open on top of an *already-open* panel, since
+  `showPause`/`showOffers`/`showResults` all funnel through a shared
+  `openModal()` that never checked panel state. Fixed by closing the panel
+  at the front of `openModal()` itself, with regression tests for both
+  directions. Also found one **non-blocking cosmetic bug**, filed as a new
+  BACKLOG.md item **(b021)** per its own recommendation rather than folded
+  in: `cdr`/`leech` render as raw decimals ("+0.06") instead of percentages
+  ("+6%") in the panel, since both are `STAT_KIND: 'flat'` for correct §2
+  stacking-math reasons but are actually authored as fractional rates, not
+  point totals — the underlying data is exactly right, this is
+  display-formatting only.
+  **qa-playtester round 2 (targeted re-verification): PASS** — reproduced
+  both original repros against the fix and confirmed fixed; confirmed the
+  new regression tests are non-vacuous by temporarily reverting the fix,
+  watching exactly those two tests go red, and restoring it.
+  `npx tsc --noEmit`: clean throughout. Targeted suite (`character-panel`,
+  `hud-controls`, `tower-info`, `ui-input`, `b10-death-flow`, `c7-no-orbs`,
+  `f003-leak-coupling`, `p2d-weapon-lineage`, `t2-selection`, `act2`,
+  `a11-determinism`): 171/172 green (1 pre-existing unrelated skip).
+  **A full `npm test` could not be completed clean end-to-end this
+  session**: `tests/q14-mutation-smoke.test.ts` reproducibly spawned a
+  runaway tree of 191+ orphaned nested `vitest` subprocesses (~90%
+  sustained host CPU) and hung on a Windows scratch-dir `EPERM` during
+  cleanup — the same pre-existing issue class already documented below for
+  `q13-perf-ratio`/`q15-command-domain-fuzz`/`q28-cli-error-handling` (q14
+  wraps q9/q12/q15 as literal nested "control" reruns, so it inherits and
+  amplifies their flakiness under load). After manually killing the
+  orphaned process tree (verified none of it was the pre-existing,
+  unrelated `npm run dev`/`vite` dev-server processes before killing
+  anything — those were left untouched), `npx vitest run --exclude tests/
+  q14-mutation-smoke.test.ts` ran clean: 79 files passed, 4 skipped, 1321
+  tests passed, 67 skipped, **zero failures**, covering every file in the
+  repo except q14 (excluded) and two individually very heavy files still in
+  flight when this session stopped chasing a single complete invocation
+  (`a10-performance.test.ts`, a perf benchmark; `p6e-class-diversity.test.ts`,
+  already documented in BACKLOG.md's own audit summary as a `.skip`-ed,
+  honestly-measured-red G8 gate unrelated to any UI code) — neither touches
+  `/src/ui`. This q14 process-explosion/hang behavior is worth a future
+  session's attention as its own infrastructure item (not filed as a
+  BACKLOG bug this session — it's `tools/mutation-probe.ts`/Windows
+  scratch-dir plumbing, well outside fb004's scope) if it keeps costing
+  session time.
+
 - **(fb003) is done this commit — the VS level-up auto-pick toggle (owner
   feedback `feature-auto-pick-boons`, SPEC-FINAL §6.3).** With (fb002)
   already landed, this session continued ordinary BACKLOG.md order via the

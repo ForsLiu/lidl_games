@@ -76,12 +76,11 @@ filed and ready, not next up.
       phase; replay determinism holds; a test covers the pick rule — **done,
       see Done section.** — refs: §6.3, owner feedback
       `feature-auto-pick-boons`.
-- [ ] (fb004) [feat] Character panel: every final stat with its multiplier
+- [x] (fb004) [feat] Character panel: every final stat with its multiplier
       breakdown by source (class × tree × equipment × boons, per §2's
       stacking rules) plus every boon taken this run with rank and current
-      contribution — acceptance: panel opens in both phases; a test compares
-      panel data against `Stats`' own derived output field-for-field — refs:
-      §2, §6.3, §11, owner feedback `feature-boon-stats-panel`.
+      contribution — **done, see Done section** — refs: §2, §6.3, §11,
+      owner feedback `feature-boon-stats-panel`.
 - [ ] (fb005) [feat] Per-damage-type color/font in floating damage numbers,
       defined in `data/damagetypes.json` (not code); crits/execute render
       larger; colorblind-safe variants respect the existing palette setting —
@@ -615,6 +614,30 @@ were not re-filed. Ordering within this section is by severity, not P-band.
       truthy; a regression test builds a wielded tower, kills the Warden and
       steps through the slow-mo window asserting no attack fires — refs:
       §12 rule 2, QA on Q102 ORDER
+- [ ] (b021) [bug] The character panel (fb004) renders `cdr` and `leech`
+      as raw decimals instead of percentages. Both are classified `'flat'`
+      in `STAT_KIND` (`src/sim/stats.ts`) for correct §2 stacking-math
+      reasons (a fraction with no base to multiply against, per that file's
+      own doc comment) — but both are authored as fractional rates
+      (`data/boons.json`: "focus" is `+6% Cooldown Reduction` at `perRank:
+      0.06`, "leech" is `Heal 1% of normal damage dealt` at `perRank: 0.01`),
+      not point totals like `armor`/`maxHp`. `formatStatValue`/
+      `formatSourceValue` (`src/ui/hud.ts`) treat every `'flat'`-kind stat
+      identically via `formatFlat` (2-decimal, no `%`), so a rank of Focus
+      prints "+0.06" instead of "+6%". QA-filed (qa-playtester's fb004 pass,
+      non-blocking — the underlying `StatRow.value`/`BoonRow.contribution`
+      numbers are still exactly right, this is a display-only bug, and
+      fb004's own acceptance test only checks the numeric field). No prior
+      HUD surface displayed `cdr`/`leech` before fb004, so there is no
+      existing convention this breaks, but it undercuts the panel's own
+      stated purpose ("why is my final number what it is") — acceptance:
+      `cdr` and `leech` (and any future fractional-rate `'flat'` stat) render
+      as a signed percentage in the character panel, distinguished from a
+      true point total (`armor`, `maxHp`, `dashCharges`, ...) by a new
+      per-stat display-kind classification (not by guessing from `STAT_KIND`
+      alone, which conflates "flat point total" and "flat fraction"); a test
+      asserts the rendered string for a `cdr`/`leech` contribution — refs:
+      §2, §11, QA on fb004.
 
 ## Retired from the queue by SPEC-FINAL
 
@@ -645,6 +668,108 @@ logged in MIGRATION.md §8 rather than carried as dead items.
   **G19**. The work is `p10d`.
 
 ## Done
+
+- [x] (fb004) [feat] Character panel: every final stat's §2 multiplier
+      breakdown by source, plus every boon taken this run with rank and
+      current contribution — this commit (`df1771f`). New `src/ui/
+      character-panel.ts`: a pure function `characterPanelData(w)` returns
+      `stats: StatRow[]` (one row per `StatKey` in `stats.ts`'s `STAT_KEYS`,
+      each with `kind` from `STAT_KIND`, `value` read straight off
+      `w.stats.total(key)`/`w.stats.factor(key)`, and `sources` read straight
+      off `w.stats.contributions(key)`, human-labelled via a `sourceLabel()`
+      switch over the source-id prefix — `class:`/`tree:`/`relic:`/`boon:`/
+      `core:`/`modifiers`/`terrain`, generic over whatever actually fed a
+      stat) and `boons: BoonRow[]` (every boon with `rank > 0` in
+      `w.boonRanks`, `contribution` read back from `Stats.contributions`'s
+      `boon:<key>` entry rather than recomputed as `rank * perRank`). Wired
+      into `src/ui/hud.ts` as a new `#sw-charpanel` overlay independent of
+      the existing pause/level-up/results `#sw-modal`, a `#sw-character` HUD
+      button, and a new `C` keybinding (`src/ui/input.ts`/`src/ui/main.ts`,
+      `C` was unbound). §7 Equipment has no section — §7 is still unbuilt
+      (p7b); a relic is the closest live analog and already appears
+      generically via the source breakdown — logged as QUESTIONS.md Q132.
+      New `tests/character-panel.test.ts` (10 tests) asserts the data model
+      field-for-field against `Stats.total`/`factor`/`contributions`
+      directly (not a hand-duplicated calculation), across a world with
+      class+tree+relic+boon+core+modifiers sources all live at once, plus a
+      stacking-math cross-check, max-rank-boon and zero-boon cases, and a
+      `legacy: true` class (`frost_warden`) source-label check. 6 other test
+      files (`b10-death-flow`, `c7-no-orbs`, `f003-leak-coupling`,
+      `p2d-weapon-lineage`, `t2-selection`, `ui-input`) got a one-line
+      `onToggleCharacterPanel: () => {}` stub to satisfy the now-required
+      `HudCallbacks` field — mechanical, no behavior change.
+      **code-reviewer, round 1: REQUEST-CHANGES**, two Major findings, both
+      fixed before commit: (1) `toggleCharacterPanel` only refused to open
+      when `w.outcome !== 'running'`, so it could open on top of an
+      already-showing pause card or level-up offer screen — both are opaque
+      `position: absolute; inset: 0` siblings, so the panel painted over and
+      ate clicks meant for the modal underneath — fixed by also refusing
+      when `this.paused` or `!this.modal.hidden`. (2) `renderCharacterPanel`'s
+      redraw-skip fingerprint keyed on `w.sundered`, a one-shot flag that is
+      set `true` once and never reset, so it went stale after a *second*
+      Sundering accumulated more onto the `terrain` `Stats` source (`w.stats
+      .add('terrain', ...)`, `src/sim/weapons.ts`'s `applyTerrainPassives`)
+      — the panel kept showing the first Sundering's numbers. Fixed by
+      adding a `revision` counter directly to the `Stats` class
+      (`src/sim/stats.ts`), incremented once per stored contribution inside
+      `add()`, so it is exhaustively correct over every call site by
+      construction rather than by enumerating World fields; confirmed
+      UI-only (never read by `hashWorld`/replay/determinism — `a11-
+      determinism.test.ts`'s full 11-test suite stayed green). **round 2:
+      APPROVE**, both fixes verified correct against the actual diff (not
+      just the description), confirmed the two new regression tests would
+      have failed pre-fix, confirmed `Stats.revision` doesn't leak into
+      hashing/replay, reran `tsc`/the targeted suite clean.
+      **qa-playtester, round 1: PASS on the literal acceptance criteria**
+      (field-for-field data-model test genuinely compares against `Stats`,
+      not a re-derivation; panel opens in both phases and refuses to open on
+      results/pause/level-up; multi-source world drops nothing and
+      double-counts nothing; max-rank boons — including `second_wind`, whose
+      real `maxRank` is 1, not the 5 assumed going in — report correctly;
+      zero-boon runs render an empty state; the `frost_warden` legacy class
+      labels as a plain `class:frost_warden` source) **but found 2 bugs it
+      judged should block ship in spirit** (the *reverse* of code-reviewer's
+      Major (1): opening the panel first, then triggering a level-up or
+      hitting Escape, let the modal open on top of an *already-open* panel —
+      `showPause`/`showOffers`/`showResults` all call a shared private
+      `openModal()` that never checked panel state) **and one non-blocking
+      cosmetic bug**, filed separately below as (b021) per its own
+      recommendation rather than folded into this fix. Fixed the 2 blocking
+      bugs by closing the panel at the front of `openModal()` itself — the
+      one place every modal path already funnels through — with two new
+      regression tests confirming both directions (level-up-over-panel,
+      pause-over-panel) plus confirming the original direction still holds.
+      **qa-playtester, round 2 (targeted re-verification): PASS** — 
+      reproduced both original bug repros against the fix and confirmed
+      fixed; confirmed the two new regression tests are non-vacuous by
+      temporarily reverting the one-line fix, rerunning, watching exactly
+      those two tests go red, and restoring it; reran the targeted suite and
+      `tsc` clean. `npx tsc --noEmit`: clean throughout. Targeted suite
+      (`character-panel`, `hud-controls`, `tower-info`, `ui-input`,
+      `b10-death-flow`, `c7-no-orbs`, `f003-leak-coupling`,
+      `p2d-weapon-lineage`, `t2-selection`, `act2`, `a11-determinism`):
+      171/172 green (1 pre-existing unrelated skip). A full `npm test`
+      (`vitest run && vitest run --config vitest.perf.config.ts`) could not
+      be completed clean end-to-end this session: `tests/q14-mutation-smoke
+      .test.ts` reproducibly spawns a runaway tree of nested `vitest`
+      subprocesses (191+ orphaned `node.exe`, ~90% sustained CPU) that hangs
+      on a Windows scratch-dir `EPERM` during cleanup — the same class of
+      pre-existing issue PROGRESS.md already documents for `q13-perf-ratio`/
+      `q15-command-domain-fuzz`/`q28-cli-error-handling` (q14 wraps q9/q12/
+      q15 as literal nested "control" reruns, so it inherits their
+      flakiness under load, worse). Ran `npx vitest run --exclude tests/
+      q14-mutation-smoke.test.ts` instead after manually killing the
+      orphaned process tree (verified none of it was the pre-existing,
+      unrelated `npm run dev`/`vite` processes before killing anything): 79
+      files passed, 4 skipped, 1321 tests passed, 67 skipped, **zero
+      failures**, covering every other file in the repo except two
+      individually-heavy files (`a10-performance.test.ts`, a perf benchmark;
+      `p6e-class-diversity.test.ts`, already documented in this file's own
+      audit summary as a `.skip`-ed, honestly-measured-red G8 gate
+      unrelated to any UI code) that were still in flight when this session
+      had to stop chasing a complete single-invocation run. Neither touches
+      `/src/ui`. — refs: §2, §6.3, §11, owner feedback
+      `feature-boon-stats-panel`, QUESTIONS Q132, follow-up (b021).
 
 - [x] (fb002) [feat] Character (and dash) ignore collision with the Core and
       all friendly structures — walks/flies over them freely; enemies keep
