@@ -759,6 +759,53 @@ logged in MIGRATION.md §8 rather than carried as dead items.
       next queued: the Q91/Q102 corrections per the PRIORITY DIRECTIVE's own
       sequence — refs: Q120(5), §4.2, §10.
 
+- [x] (q91) [bug] Q91 ORDER (owner verdict, correction item, before P10):
+      lifesteal accrues from `min(damage, target's remaining HP before the
+      hit)`, not the raw post-mitigation hit — fixes an overkill-leech bug
+      (a 1000-damage hit on a 10 HP enemy leeched 1% of 1000, not 1% of 10)
+      x002's own QA pass had surfaced and recorded but not fixed, pending
+      this owner ORDER — this commit. `damageEnemy` (`src/sim/enemies.ts`)
+      now captures `hpBeforeHit = e.hp` immediately before `e.hp -= dmg` —
+      after every mitigation (`damageTakenMul`, frozen status,
+      `flatReduction`/`frontReduction`) is already baked into `dmg`, so the
+      clamp compares the same post-mitigation number the HP subtraction
+      itself uses — and the leech accrual line changed from
+      `dmg * w.derived.leech` to `Math.min(dmg, hpBeforeHit) * w.derived.leech`.
+      `damageTotal`/`damageByWeapon` stay overkill-inclusive on purpose — the
+      ORDER named only the leech accrual, not those telemetry fields, which
+      keep their own pre-existing convention. Three regression cases were
+      added to `tests/x002-lifesteal.test.ts` under a new "Q91 ORDER" describe
+      block: a normal (non-overkill) hit is unaffected, a 1000-damage hit on
+      a 10 HP husk leeches exactly 1% of 10, and an exact-kill boundary case
+      (`damage === remaining HP`) leeches the full amount with no off-by-one
+      — the file is 14 tests, all green (was 11). **code-reviewer APPROVE**,
+      no Critical/Major/Minor: independently confirmed the clamp point sits
+      after all mitigation and before the HP subtraction, that `hpBeforeHit`
+      is never stale or non-positive (the function's own early
+      `e.dead || amount <= 0` guard and `killEnemy`'s synchronous same-call
+      dispatch rule that out), that DoT ticks/typed-non-normal/`noLifesteal`
+      hits are unaffected (the clamp lives inside the pre-existing `normal`
+      gate), and that every `leechAccumulator` reader/writer
+      (`world.ts` init, this accrual site, `run.ts`'s single drain-to-heal
+      site and hash coverage) is untouched outside the one line changed — one
+      Nit (an unconditional `hpBeforeHit` read on every call, including
+      non-leech hits; negligible, not fixed). **qa-playtester PASS**, no bugs
+      found: a real (non-scripted) headless `hybrid`/Bloodlord run (base
+      `leech: 0.03` plus two ranked leech boons), seed 42, a full Act I + VS
+      session (48,112 kills, 6.8M total damage) reproduced byte-identical
+      `endHash` across two independent runs; hostile scripted scenarios
+      (three enemies overkilled simultaneously in one tick, a DoT kill, a
+      typed-electric overkill, an exact-kill boundary, a non-overkill hit on
+      a low-HP enemy, and two sequential hits on the same enemy where the
+      second hit's leech clamps against post-first-hit HP, not original max
+      HP) all matched the `min(damage, remaining HP before the hit)`
+      contract exactly, with `applyHealing`'s existing finite/overheal
+      guards (`cores.ts`) confirmed to leave no NaN/negative-HP path. `npm
+      test`: full suite run to completion post-fix — see this entry's own
+      PROGRESS.md record for the pass/fail tally; `npx tsc --noEmit` clean
+      throughout. Q102 (Beacon's `shrineHaste` wiring) remains open, next in
+      the PRIORITY DIRECTIVE's own sequence — refs: §2, Q88, Q91, x002.
+
 - [x] (p8a) [feat] Wave data on the §1.1 shape: `data/waves.json` carries 18
       real TD wave compositions, the §9 VS-budget curve is live — this
       commit. **The PRIORITY DIRECTIVE's critical-path item — roughly fifteen

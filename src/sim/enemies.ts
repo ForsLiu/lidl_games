@@ -244,6 +244,7 @@ export function damageEnemy(
     }
   }
 
+  const hpBeforeHit = e.hp;
   e.hp -= dmg;
   w.damageByWeapon[source] = (w.damageByWeapon[source] ?? 0) + dmg;
   w.damageTotal += dmg;
@@ -265,6 +266,9 @@ export function damageEnemy(
   // SPEC-FINAL §2: lifesteal "heals from normal damage dealt" — DoT ticks and
   // typed non-normal hits do not leech. The Bleeding Ring's §7 exception
   // ("lifesteal now also applies to Bleeding damage") is p7b's, not wired here.
+  // Q91 ORDER (owner verdict, before P10): accrues from the target's actual
+  // remaining HP, not the raw armor-reduced hit — otherwise a huge hit on a
+  // near-dead enemy leeches as if the whole overkill amount had landed.
   if (
     w.derived.leech > 0 &&
     w.huntsWarden &&
@@ -272,7 +276,7 @@ export function damageEnemy(
     !opts.noLifesteal &&
     (opts.type ?? 'normal') === 'normal'
   ) {
-    w.warden.leechAccumulator += dmg * w.derived.leech;
+    w.warden.leechAccumulator += Math.min(dmg, hpBeforeHit) * w.derived.leech;
   }
 
   if (e.hp <= 0) killEnemy(w, e, source);

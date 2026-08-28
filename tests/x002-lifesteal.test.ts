@@ -158,6 +158,44 @@ describe('x002 §2: lifesteal heals from normal damage only', () => {
   });
 });
 
+describe('Q91 ORDER: lifesteal accrues from min(damage, remaining HP before the hit)', () => {
+  it('a normal hit well under the target\'s HP is unaffected — leeches the full dealt amount', () => {
+    const w = world();
+    const e = dummy(w);
+    damageEnemy(w, e, 100, 'test');
+    expect(w.warden.leechAccumulator).toBeCloseTo(100 * LEECH, 6);
+  });
+
+  it('an overkill hit leeches only the HP the target actually had left, not the raw armor-reduced hit', () => {
+    const w = world();
+    const e = dummy(w);
+    e.hp = 10;
+    e.maxHp = 10;
+    // A 1000-damage hit on a 10 HP husk should leech 1% of 10, not 1% of 1000.
+    damageEnemy(w, e, 1000, 'test');
+    expect(e.dead).toBe(true);
+    expect(w.warden.leechAccumulator).toBeCloseTo(10 * LEECH, 6);
+  });
+
+  it('an exact-kill hit (damage === remaining HP) leeches the full amount, no off-by-one', () => {
+    const w = world();
+    const e = dummy(w);
+    // enemyArmor(husk) may not be zero, so damageTakenMul could scale the raw
+    // 'amount' passed to damageEnemy — set hp to the true post-armor dealt
+    // amount by reading it back from a probe hit first.
+    e.hp = 1e6;
+    const probeBefore = e.hp;
+    damageEnemy(w, e, 50, 'test');
+    const dealt = probeBefore - e.hp;
+    w.warden.leechAccumulator = 0;
+
+    e.hp = dealt;
+    damageEnemy(w, e, 50, 'test');
+    expect(e.dead).toBe(true);
+    expect(w.warden.leechAccumulator).toBeCloseTo(dealt * LEECH, 6);
+  });
+});
+
 describe('x002: the accumulator is hashed warden state', () => {
   it('two worlds differing only in leechAccumulator hash differently', () => {
     // `updateWarden` drains the accumulator *before* the damage systems refill
