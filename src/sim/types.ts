@@ -221,6 +221,24 @@ export interface Enemy {
   bossTimer: number;
   bossAction: number;
   spawnedAt: number;
+  /**
+   * §4.2 Paladin *Clarion Taunt* / Animist *Recall Totem* (Q120 ORDER 1):
+   * seconds left overriding this enemy's pathing destination onto whichever
+   * entity `tauntKind` names, instead of the normal Core/Warden target.
+   */
+  tauntRemaining: number;
+  /** 0 = not taunted, 1 = the Warden (Clarion Taunt), 2 = the Animist totem (Recall Totem). */
+  tauntKind: number;
+  /**
+   * `tauntKind === 2` only: the specific `ClassSummon.id` that applied the
+   * tag (qa-playtester finding, Q120 ORDER 1) — a totem re-tags by matching
+   * this id, not "any live totem," so an enemy tagged by a totem that gets
+   * replaced (a fresh cast before the old one's own lifetime ends) falls back
+   * to normal pathing during the tag's decay tail instead of snapping onto
+   * the new totem's position, the same as it already does when a totem
+   * expires outright with no replacement.
+   */
+  tauntSourceId: number;
 }
 
 /**
@@ -380,6 +398,8 @@ export interface ClassSummon {
   isAura?: boolean;
   auraAtkSpdMul?: number;
   auraRadius?: number;
+  /** Recall Totem only (Q120 ORDER 1): its per-tick taunt re-tag's decay window. */
+  auraTauntTickSeconds?: number;
   kind: string;
 }
 

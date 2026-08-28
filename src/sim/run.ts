@@ -853,6 +853,10 @@ export function hashWorld(w: World): string {
     // p6d: `frostHitStacks` is Cryomancer's countdown to a freeze — the same
     // class of CC-gating state the two status timers beside it already are.
     h.num(e.frostRemaining).num(e.frozenRemaining).int(e.frostHitStacks).int(e.dots.length);
+    // Q120 ORDER 1: a taunted enemy's overridden pathing destination is real
+    // sim state — a replay that disagreed on it would walk a different path
+    // and could breach a different tile without the hash ever noticing.
+    h.num(e.tauntRemaining).int(e.tauntKind).int(e.tauntSourceId);
     for (const d of e.dots) h.str(d.type).num(d.remaining).num(d.dps);
   }
   h.int(w.structures.length);

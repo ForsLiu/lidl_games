@@ -22,6 +22,18 @@
  *     `open` = no row is, `partial` = some are and some are not, which is the
  *     one-directional-integrity finding (E1).
  *
+ * Recorded 2026-08-27 (Q120 ORDER 1) against 5,769 effective mutations; 3,716
+ * rejected, 2,053 accepted — up from 5,758/3,711/2,047 the same day, pre-order:
+ * one field added (`classes.classes[].active2.totemTauntTickSeconds`, the
+ * Recall Totem taunt-tag decay window this order made data-driven per
+ * CLAUDE.md's architecture rule 4), six new accepted mutations (the same
+ * shape every other optional-with-a-`??`-fallback field already gets — see
+ * `spawns.budgetGrowthPerVsWave` two entries below), ACCEPTED updated in
+ * place, INEFFECTIVE and REF_VERDICTS unchanged. Not itself a new hole this
+ * order is obligated to close: it is one more instance of the pre-existing,
+ * already-filed gap b013 covers (numeric `/data` fields with no range guard),
+ * not a regression this item introduced deliberately unguarded.
+ *
  * Recorded 2026-08-27 (p8a) against 5,758 effective mutations; 3,711 rejected,
  * 2,047 accepted — up from 5,747/3,706/2,041 the same day, pre-p8a: one field
  * added (`spawns.budgetGrowthPerVsWave`), six new accepted mutations, ACCEPTED
@@ -104,6 +116,7 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'classes.classes[].active2.summonDurationSeconds': ['negative', 'zero', 'infinite', 'fractional'],
   'classes.classes[].active2.summonStatMul': ['negative', 'zero', 'infinite', 'fractional'],
   'classes.classes[].active2.totemDurationSeconds': ['negative', 'zero', 'infinite', 'fractional'],
+  'classes.classes[].active2.totemTauntTickSeconds': ['negative', 'zero', 'infinite', 'fractional', 'drop-key', 'rename-key'],
   'classes.classes[].active2.trailSegments': ['negative', 'zero', 'infinite', 'fractional'],
   'classes.classes[].active2.volleyShots': ['negative', 'zero', 'infinite', 'fractional'],
   'classes.classes[].active2.wallSeconds': ['negative', 'zero', 'infinite', 'fractional'],

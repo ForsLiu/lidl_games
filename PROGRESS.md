@@ -5,6 +5,67 @@
 
 ## Current state — SPEC-FINAL
 
+- **Q120 ORDER 1 (minimal taunt) is done this commit — the PRIORITY
+  DIRECTIVE's own sequence puts this immediately after the p8a
+  re-measurement pass, ahead of ORDER 2 and the Q91/Q102 corrections.**
+  Clarion Taunt (Paladin) and Recall Totem (Animist) now really redirect a
+  taunted enemy's pathing destination onto the taunting entity's live
+  position, per §4.2 and Q120(5)'s deferred half. Found already implemented
+  but uncommitted at session start (a prior session's in-progress work —
+  `Enemy.tauntRemaining`/`tauntKind`/`tauntSourceId`, the cast-time snapshot
+  and continuous per-tick re-tag, the exported `tauntTarget` helper feeding a
+  `beeline` flag into `moveEnemy`, `hashWorld` coverage, the new
+  `totemTauntTickSeconds` data field, and `tests/q120-order1-taunt.test.ts` —
+  QUESTIONS.md's Q128 already narrated a prior code-reviewer round finding
+  and fixing two Major bugs in that same draft: a live-null-fallback gap and
+  a breach-scope gap) — this session verified it end to end rather than
+  re-implementing it, the same protocol every recent P6/p8a item in this
+  file's history sets.
+  **This session's own independent `code-reviewer` pass: APPROVE**, no
+  Critical/Major — re-derived both of Q128's prior fixes cold (not trusting
+  the doc-comment narrative) and confirmed both hold; two Minors left as
+  cheap follow-ups rather than fixed (`tauntTarget`'s per-tick `{x,y}`
+  allocation inside the hot `updateEnemies` loop, inconsistent with the same
+  diff's own `totemTauntScratch` reuse pattern; `fireClarionTaunt`'s
+  `enemiesInRadius` call not passing a scratch array the way the totem
+  re-tag three lines over does).
+  **`qa-playtester` found one further Major bug Q128's own "genuine no-op"
+  claim missed.** Q128's VS test only asserted that a Clarion-tagged enemy's
+  `tauntTarget` resolves to the same *destination* every VS enemy already
+  targets (`w.targetPoint()`) — never that it takes the same *path*. It
+  doesn't: the beeline branch walks a straight line, while ordinary VS
+  movement routes through `flowAim`'s Dijkstra flow field, which persisted
+  Act I structures still block. Deterministic repro (reproduced twice,
+  identical both times): a full-height palisade wall between a Clarion-tagged
+  enemy and the Warden in VS left the tagged enemy stalled roughly 7 tiles
+  short after 30 simulated seconds, while an untagged control reached the
+  Warden normally. **Fixed** in `tauntTarget` (`src/sim/enemies.ts`):
+  `TAUNT_WARDEN` now resolves to `null` whenever `w.huntsWarden` is true, so
+  VS falls all the way through to ordinary flow-field movement — the tag
+  itself is still applied and still hashed (real state), it simply drives no
+  movement override once the flow field already reaches the identical point
+  correctly on its own. The existing VS-no-op test was corrected to assert
+  `tauntTarget(w, e)` is `null` while `tauntKind` stays tagged (was asserting
+  equality with `w.targetPoint()`, the now-known-wrong claim), and a new
+  regression test (tagged vs. untagged control, both routing around a real
+  wall to reach the Warden on the same timeline) was added —
+  `tests/q120-order1-taunt.test.ts` is 12 tests, all green (was 11 in the
+  inherited draft). Recorded as a dated correction appended to Q128 in
+  QUESTIONS.md, on the same precedent Q121(4)'s correction already set,
+  rather than rewriting the pending entry in place.
+  `npx tsc --noEmit`: clean throughout, checked after every edit.
+  `tests/q7-data-fuzz.test.ts` (consumes this item's `tests/q7-loader-holes.ts`
+  census update for the new `totemTauntTickSeconds` field): 29 passed / 7
+  skipped, unaffected. A full `npm test` was run to completion: every failure
+  traced to `tests/q14-mutation-smoke.test.ts`'s own known, pre-existing
+  artifact (`gitDiffClean()`'s whole-repo check correctly seeing this item's
+  own then-uncommitted diff, the identical false failure every recent
+  P6/p8a/PRIORITY-DIRECTIVE commit in this file already documents and reran
+  clean after committing); re-run post-commit to confirm clean, alongside the
+  perf config leg. **Q120 ORDER 2** (Ice Wall castable during VS waves)
+  remains open — the owner verdict queues it right after ORDER 1, ahead of
+  the Q91/Q102 corrections. Next action: Q120 ORDER 2.
+
 - **PRIORITY DIRECTIVE re-measurement pass done this commit — every gate that
   named `p8a` as its re-enable point (Q109, Q111, Q116, Q121) was re-measured
   live against the real content, plus `tests/boss.test.ts`'s two win-rate

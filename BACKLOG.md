@@ -570,6 +570,22 @@ were not re-filed. Ordering within this section is by severity, not P-band.
       config (`w.waveCount`, not a literal `10` or `18`) rather than a second
       hardcoded constant; a regression test covers a defeat at wave 15 under the
       real 18-wave shape — refs: §1, QA on p8a
+- [ ] (b018) [bug] Every cooldown gate in the sim (`wd.active1Cooldown`,
+      `active2Cooldown`, `activeCooldown`, `attackCooldown`, `dashCooldown`,
+      tower `s.cooldown`) is a strict `> 0` float compare with no epsilon, so
+      a cooldown that decrements to a tiny positive float residual (observed:
+      `2.34e-14`) instead of exactly 0 silently eats the next cast one tick
+      later than the authored `cooldownSeconds` promises, with no error or
+      feedback — intermittent by direction (a second run of the same drill
+      landed on `-1.46e-13` and worked). QA-filed (Q120 ORDER 1's
+      qa-playtester pass, hostile "spam the Active the instant cooldown
+      allows" testing), pre-existing and general to the cooldown mechanism,
+      not specific to any one Active — acceptance: cooldown gates compare
+      against a small epsilon (or cooldowns are floored to 0 once below one
+      tick's worth) so a cast issued exactly `cooldownSeconds` after the last
+      one is never silently dropped; a regression test drives a cooldown to
+      its exact float-residual boundary and asserts the next cast fires —
+      refs: §12 rule 2, QA on Q120 ORDER 1
 
 ## Retired from the queue by SPEC-FINAL
 
@@ -600,6 +616,61 @@ logged in MIGRATION.md §8 rather than carried as dead items.
   **G19**. The work is `p10d`.
 
 ## Done
+
+- [x] (q120o1) [feat] Q120 ORDER 1 (owner verdict, PRIORITY DIRECTIVE sequence):
+      minimal taunt — a taunted enemy (Clarion Taunt r6; Recall Totem's TD
+      taunt) sets its pathing destination to the taunting entity for the
+      stated duration, per-enemy target override, TD and VS, hashed state,
+      regression test covering the leak-catch case — this commit. Found
+      already implemented but uncommitted at session start (a prior session's
+      in-progress work — `Enemy.tauntRemaining`/`tauntKind`/`tauntSourceId`
+      (types.ts), `fireClarionTaunt`'s cast-time snapshot tag and
+      `updateClassSummons`'s continuous per-tick totem re-tag (classes.ts),
+      the exported `tauntTarget` helper and its `beeline` threading through
+      `moveEnemy` (enemies.ts), `hashWorld` coverage (run.ts), the new
+      `totemTauntTickSeconds` data field (content.ts, data/classes.json), and
+      the new `tests/q120-order1-taunt.test.ts` — QUESTIONS.md's Q128 already
+      documented two Major bugs a prior code-reviewer round had caught and
+      fixed in that same uncommitted draft: a live-null-fallback bug (a
+      totem-taunted enemy kept beelining toward its old target after the
+      totem itself vanished) and a breach-scope bug (a taunted enemy's
+      beeline inherited the flying/ghosting fallback's breach-everything
+      rule instead of respecting G7's "incidental shove on an open path
+      deals nothing")) — verified end to end rather than re-implemented, the
+      same protocol every P6/p8a item this session's history sets. This
+      session's own independent `code-reviewer` pass (APPROVE, no
+      Critical/Major, re-derived both prior fixes cold rather than trusting
+      Q128's narrative and confirmed they hold; two Minors left as cheap
+      follow-ups, not fixed: `tauntTarget`'s per-tick object allocation and
+      `fireClarionTaunt`'s unscratched `enemiesInRadius` call) and
+      `qa-playtester` pass found **one further Major bug Q128's own "genuine
+      no-op" claim missed**: a Clarion-tagged enemy in VS resolves to the
+      *same destination* every VS enemy already targets, but the beeline
+      branch that destination drove took a *different path* than the routed
+      flow field `flowAim` uses for every other VS enemy — a taunted enemy
+      could stall against a persisted Act I wall a normal one would route
+      around, deterministically reproduced (see Q128 CORRECTION,
+      QUESTIONS.md). Fixed by having `tauntTarget` return `null` for
+      `TAUNT_WARDEN` whenever `w.huntsWarden` is true, so VS falls all the
+      way through to ordinary flow-field movement — the tag itself still
+      applies and is still hashed, it just drives no override once the flow
+      field already reaches the same point correctly. The VS-no-op test was
+      corrected to assert `tauntTarget(...)` is `null` (not
+      `w.targetPoint()`), and a new wall-routing regression test (tagged vs.
+      untagged control, both reaching the Warden on the same timeline behind
+      a real obstacle) was added — `tests/q120-order1-taunt.test.ts` is now
+      12 tests, all green (was 11). `npx tsc --noEmit` clean throughout.
+      `tests/q7-data-fuzz.test.ts` (consumes this item's
+      `tests/q7-loader-holes.ts` census update) unaffected: 29 passed / 7
+      skipped. A full `npm test` was run; its only failures are
+      `tests/q14-mutation-smoke.test.ts`'s own known, pre-existing artifact —
+      `gitDiffClean()`'s whole-repo check correctly seeing this item's own
+      then-uncommitted diff, the same precedent every prior P6/p8a item in
+      this Done section already documents; re-run post-commit to confirm
+      clean. Two Q120 orders were queued by the owner verdict; **ORDER 2**
+      (Ice Wall castable during VS waves) remains open, queued next after the
+      Q91/Q102 corrections per the PRIORITY DIRECTIVE's own sequence — refs:
+      Q120(5), Q128, §4.2.
 
 - [x] (p8a) [feat] Wave data on the §1.1 shape: `data/waves.json` carries 18
       real TD wave compositions, the §9 VS-budget curve is live — this

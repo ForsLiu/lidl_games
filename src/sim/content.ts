@@ -608,6 +608,14 @@ const ClassEffectSchema = z.object({
   /** `recall_totem`: the attack-speed bonus the totem projects, and how long it stands. */
   auraAtkSpdMul: num.optional(),
   totemDurationSeconds: num.optional(),
+  /**
+   * `recall_totem`: how long its per-tick taunt re-tag (Q120 ORDER 1) lasts
+   * before decaying — refreshed every tick an enemy stays in its radius, so
+   * this is only ever the tail after it leaves, not the totem's own
+   * lifetime. Optional with a `?? 0.5` fallback (classes.ts) since it is not
+   * itself a §4.2-stated number.
+   */
+  totemTauntTickSeconds: num.optional(),
   /** `clarion_taunt`: seconds the taunt window runs. */
   tauntDurationSeconds: num.optional(),
   /** `judgement`: multiplier on stored Wrath when it is released ("stored x1.5"). */

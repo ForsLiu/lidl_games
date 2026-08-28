@@ -130,9 +130,18 @@ export function makeEnemy(w: World, def: EnemyDef, x: number, y: number, opts: S
     bossTimer: 0,
     bossAction: 0,
     spawnedAt: w.tick,
+    tauntRemaining: 0,
+    tauntKind: TAUNT_NONE,
+    tauntSourceId: 0,
   };
   return e;
 }
+
+/** `Enemy.tauntKind` values (Q120 ORDER 1) — exported so classes.ts can tag a taunted enemy. */
+export const TAUNT_NONE = 0 as const;
+export const TAUNT_WARDEN = 1 as const;
+export const TAUNT_TOTEM = 2 as const;
+export type TauntKind = typeof TAUNT_NONE | typeof TAUNT_WARDEN | typeof TAUNT_TOTEM;
 
 export function spawnEnemy(w: World, key: string, x: number, y: number, opts: SpawnOptions = {}): Enemy | null {
   const def = w.content.enemyByKey.get(key);
@@ -864,6 +873,13 @@ function tickTimers(w: World, e: Enemy, dt: number): void {
   }
   if (e.frostRemaining > 0) e.frostRemaining -= dt;
   if (e.frozenRemaining > 0) e.frozenRemaining -= dt;
+  if (e.tauntRemaining > 0) {
+    e.tauntRemaining -= dt;
+    if (e.tauntRemaining <= 0) {
+      e.tauntRemaining = 0;
+      e.tauntKind = TAUNT_NONE;
+    }
+  }
   tickDots(w, e, dt);
   if (e.dead) return;
   if (e.buffRemaining > 0) {
@@ -907,7 +923,8 @@ export function updateEnemies(w: World, dt: number): void {
     // chase movement whenever the script has nothing to say this tick.
     if ((e.flags & TRAIT.finalBoss) !== 0 && bossUpdate(w, e, dt)) continue;
 
-    moveEnemy(w, e, def, dt, target);
+    const taunted = tauntTarget(w, e);
+    moveEnemy(w, e, def, dt, taunted ?? target, taunted !== null);
 
     // Reaching the objective.
     if (huntWarden) {
@@ -1143,7 +1160,45 @@ function setNormalized(x: number, y: number): void {
   outY = y / l;
 }
 
-function moveEnemy(w: World, e: Enemy, def: EnemyDef, dt: number, target: { x: number; y: number }): void {
+/**
+ * Resolves a taunted enemy's overridden pathing destination (Q120 ORDER 1):
+ * the Warden's live position for Clarion Taunt, or the Animist totem's live
+ * position for Recall Totem — both may move, so this is read fresh every
+ * tick rather than snapshotted at taunt time. Returns null once the taunt
+ * has lapsed or (for a totem taunt) the totem it named is already gone, so
+ * the caller falls back to the normal Core/Warden target.
+ *
+ * qa-playtester finding (Q120 ORDER 1, post-review): a Clarion Taunt tag
+ * during VS resolves to the *same point* `w.targetPoint()` already gives
+ * every enemy (`huntsWarden` true), but the beeline branch this return value
+ * drives walks a straight line instead of `flowAim`'s routed flow field —
+ * genuinely the same destination, a genuinely different (and worse, since it
+ * can snag on a persisted Act I wall) path to it. In TD, `huntsWarden` is
+ * false and the Warden is a real diversion away from the Core, so the
+ * override still applies there.
+ */
+export function tauntTarget(w: World, e: Enemy): { x: number; y: number } | null {
+  if (e.tauntRemaining <= 0) return null;
+  if (e.tauntKind === TAUNT_WARDEN) return w.huntsWarden ? null : { x: w.warden.x, y: w.warden.y };
+  if (e.tauntKind === TAUNT_TOTEM) {
+    // Matched by the specific summon that tagged this enemy, not "any live
+    // totem" (qa-playtester finding): a totem replaced mid-tag (a fresh cast
+    // before the old one's own lifetime ends) must not snap a leftover tag
+    // onto the new totem's position.
+    const totem = w.classSummons.find((s) => s.id === e.tauntSourceId && s.kind === 'animist_totem');
+    return totem ? { x: totem.x, y: totem.y } : null;
+  }
+  return null;
+}
+
+function moveEnemy(
+  w: World,
+  e: Enemy,
+  def: EnemyDef,
+  dt: number,
+  target: { x: number; y: number },
+  beeline: boolean,
+): void {
   let speed = effectiveSpeed(w, e);
   let dx: number;
   let dy: number;
@@ -1163,6 +1218,22 @@ function moveEnemy(w: World, e: Enemy, def: EnemyDef, dt: number, target: { x: n
     setNormalized(target.x - e.x, target.y - e.y);
     dx = outX;
     dy = outY;
+  } else if (beeline) {
+    // A taunted ground enemy beelines at the (already-resolved-live) taunting
+    // entity instead of following the Core/Warden flow field (Q120 ORDER 1)
+    // — the field has no route to an arbitrary totem, and this reuses the
+    // flying/ghosting beeline math above rather than building a second flow
+    // field toward an arbitrary point. Unlike that fallback, this walker
+    // *does* have a real answer (a straight line), not "no route exists" —
+    // `aimHadStep` is left true so it does NOT inherit the no-route branch's
+    // breach-everything rule below: G7's "an incidental shove against a wall
+    // on an open path deals nothing" still holds for a taunted enemy that
+    // merely beelines into an unrelated wall, exactly as it would for a
+    // normally-pathing one.
+    setNormalized(target.x - e.x, target.y - e.y);
+    dx = outX;
+    dy = outY;
+    aimHadStep = true;
   } else {
     flowAim(w, e, target);
     setNormalized(outX - e.x, outY - e.y);

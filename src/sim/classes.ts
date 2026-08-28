@@ -38,7 +38,7 @@ import { applyAoE, applyEffects, lineHit } from './combat';
 import type { ClassEffect, NewClassDef, TowerDef } from './content';
 import { applyHealingToWarden } from './cores';
 import { applyDamageType } from './damagetypes';
-import { applyFrost, applyFrozen, damageEnemy } from './enemies';
+import { applyFrost, applyFrozen, damageEnemy, TAUNT_TOTEM, TAUNT_WARDEN } from './enemies';
 import { GRID_H, GRID_W } from './grid';
 import { clamp, dist2, lerp, normalize } from './math';
 import { buildTower, effectiveTowerAoe, LINE_HALF_WIDTH, towerCost } from './towers';
@@ -785,9 +785,12 @@ function fireManifestSpirit(w: World, cls: NewClassDef): void {
 
 /**
  * §4.2 Animist *Recall Totem*: "place a totem — character & summons near it
- * +15% atk spd; in TD it taunts nearby enemies." The taunt half is not built:
- * the sim has no targeting-priority mechanism for an enemy to be redirected
- * with (Q120).
+ * +15% atk spd; in TD it taunts nearby enemies." Both halves are built: the
+ * atk-speed aura here, the taunt as a continuous re-tag applied every tick
+ * from `updateClassSummons` (Q120 ORDER 1) while the totem stands and the
+ * phase is TD (`!w.huntsWarden`) — "in TD" is a real phase gate, since in VS
+ * every enemy already hunts the Warden and a totem taunt there would divert
+ * them away from it instead of doing nothing.
  */
 function fireRecallTotem(w: World, cls: NewClassDef): void {
   const wd = w.warden;
@@ -808,6 +811,7 @@ function fireRecallTotem(w: World, cls: NewClassDef): void {
     isAura: true,
     auraAtkSpdMul: eff.auraAtkSpdMul ?? 0,
     auraRadius: eff.radius,
+    auraTauntTickSeconds: eff.totemTauntTickSeconds ?? TOTEM_TAUNT_SECONDS_DEFAULT,
     kind: 'animist_totem',
   });
   w.emit('class_active2', wd.x, wd.y, eff.radius, 0);
@@ -815,14 +819,27 @@ function fireRecallTotem(w: World, cls: NewClassDef): void {
 
 /**
  * §4.2 Paladin *Clarion Taunt*: "enemies in r6 target the Paladin 4 s; 60% of
- * damage taken stores into Wrath." Only the second clause is built — see
- * `fireRecallTotem` on why the taunt is not (Q120). The window itself is real
- * sim state: `damageWarden` (run.ts) reads it to bank the stronger share.
+ * damage taken stores into Wrath." Both clauses are built (Q120 ORDER 1): a
+ * snapshot at cast time — the enemies actually inside r6 right now, not
+ * whoever wanders in later — is tagged for `tauntDurationSeconds`. In VS this
+ * is a harmless no-op (`huntsWarden` already points every enemy at the
+ * Warden, and the Paladin *is* the Warden); the clause is only ever a real
+ * redirect during TD, where enemies normally path to the Core. The window
+ * itself was already real sim state before this order: `damageWarden`
+ * (run.ts) reads `clarionRemaining` to bank the stronger Wrath share.
  */
 function fireClarionTaunt(w: World, cls: NewClassDef): void {
   const wd = w.warden;
-  wd.clarionRemaining = cls.active1.tauntDurationSeconds ?? 0;
-  w.emit('class_active', wd.x, wd.y, cls.active1.radius, 0);
+  const radius = cls.active1.radius;
+  const duration = cls.active1.tauntDurationSeconds ?? 0;
+  wd.clarionRemaining = duration;
+  if (duration > 0) {
+    for (const e of w.enemiesInRadius(wd.x, wd.y, radius)) {
+      e.tauntRemaining = duration;
+      e.tauntKind = TAUNT_WARDEN;
+    }
+  }
+  w.emit('class_active', wd.x, wd.y, radius, 0);
 }
 
 /** §4.2 Paladin *Judgement*: "release Wrath as a holy nova (stored ×1.5 as normal damage)". */
@@ -969,6 +986,20 @@ function updatePactedTowers(w: World, cls: NewClassDef, dt: number): void {
  */
 const PYLON_SECONDS = 1e9;
 
+/**
+ * Fallback for `ClassSummon.auraTauntTickSeconds` (Q120 ORDER 1) if
+ * `data/classes.json`'s `totemTauntTickSeconds` is absent — an
+ * older/hand-edited file still loads, same precedent as every other
+ * `?? <default>` field in this module. The authored value lives in
+ * `data/classes.json` (CLAUDE.md architecture rule 4); this is not itself
+ * the number read at runtime whenever the data row sets its own.
+ */
+const TOTEM_TAUNT_SECONDS_DEFAULT = 0.5;
+
+// Reused across ticks rather than allocated per totem-taunt query, same
+// precedent as `flameScratch` above.
+const totemTauntScratch: Enemy[] = [];
+
 /** Ticks every live summon: lifetime, then either its attack cadence or nothing (a totem). */
 export function updateClassSummons(w: World, dt: number): void {
   if (w.classSummons.length === 0) return;
@@ -979,7 +1010,33 @@ export function updateClassSummons(w: World, dt: number): void {
       expired = true;
       continue;
     }
-    if (s.isAura) continue;
+    if (s.isAura) {
+      // Recall Totem's "in TD it taunts nearby enemies" (Q120 ORDER 1): a
+      // continuous re-tag, not a one-shot snapshot like Clarion Taunt, since
+      // a totem is a standing structure rather than a burst effect —
+      // refreshed to `auraTauntTickSeconds` every tick an enemy is in range,
+      // so it decays shortly after the enemy leaves rather than outliving
+      // the totem's reach. TD-only: in VS every enemy already hunts the Warden.
+      if (s.kind === 'animist_totem' && !w.huntsWarden) {
+        const radius = s.auraRadius ?? 0;
+        const tick = s.auraTauntTickSeconds ?? TOTEM_TAUNT_SECONDS_DEFAULT;
+        // qa-playtester finding (Q120 ORDER 1): a non-positive tick (a
+        // corrupted/misauthored `totemTauntTickSeconds`, not today's shipped
+        // 0.5) must not tag at all — `tickTimers` only clears `tauntKind`
+        // back to TAUNT_NONE from inside its `tauntRemaining > 0` branch, so
+        // assigning a <=0 value here would leave `tauntKind` stuck at
+        // TAUNT_TOTEM forever, the same `duration > 0` guard
+        // `fireClarionTaunt` already applies to its own one-shot tag.
+        if (radius > 0 && tick > 0) {
+          for (const e of w.enemiesInRadius(s.x, s.y, radius, totemTauntScratch)) {
+            e.tauntRemaining = tick;
+            e.tauntKind = TAUNT_TOTEM;
+            e.tauntSourceId = s.id;
+          }
+        }
+      }
+      continue;
+    }
     s.attackCooldown -= dt;
     if (s.attackCooldown > 0) continue;
     const target = w.nearestEnemy(s.x, s.y, s.range);
