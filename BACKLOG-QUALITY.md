@@ -898,7 +898,7 @@ coverage gaps session 1's log recorded. All five are inside Scope as written.*
       q14-mutation-smoke.test.ts` green with all of them, and the doc
       comment's nested-run count (q43's own pinned total) updated to match —
       refs: q20, q31, q40 (same recurring gap), q45, q48, q50
-- [ ] (q53) [bug] `tools/m20d-price-probe.ts`'s `measure()` reads
+- [x] (q53) [bug] `tools/m20d-price-probe.ts`'s `measure()` reads
       `data/towers.json` with a bare `JSON.parse(raw)` (line 23) that is
       **not** inside the function's only `try` (which starts at line 38 and
       wraps just the nested `execFileSync` call) — a JSON syntax error in
@@ -1146,6 +1146,61 @@ resolve if it wants the CLI entry points too. All five are inside Scope as
 written; none needs a `package.json` edit.*
 
 ## Log
+
+### 2026-08-28 — session 51
+
+**Feedback inbox:** no `feedback/` directory in this worktree. Nothing to
+process.
+
+**Session start state:** `tools/m20d-price-probe.ts` and a new
+`tests/q53-price-probe-json-crash.test.ts` were sitting uncommitted in the
+working tree — q53's implementation was already done by a previous session
+but never tested, reviewed, logged or committed. Verified it against q53's
+acceptance criteria rather than redoing it, per the same pattern session 49
+used for an inherited uncommitted diff.
+
+**q53 done.** The bare `JSON.parse(raw)` in `measure()` that used to sit
+outside the function's only `try` (previously wrapping just the nested
+`execFileSync` call) is now inside a `try` widened to cover
+parse+mutate+write+the nested `execFileSync`, with the existing `finally`
+still restoring the file on every failure path — q49's guarantee, unchanged.
+A new top-level `try/catch` around the CLI's `for (const spec of
+process.argv.slice(2))` loop prints one clean `m20d-price-probe: <message>`
+line to stderr and sets `process.exitCode = 1` instead of letting any
+exception escape raw.
+
+`npx tsc --noEmit -p .` clean. `npx vitest run
+tests/q53-price-probe-json-crash.test.ts tests/q49-price-probe-restore.test.ts`
+— 3/3 green. Full `npm test`: 2 failed files, both pre-existing and unrelated
+to this diff (confirmed the diff touches only `tools/m20d-price-probe.ts` and
+the new test file) — `tests/q14-mutation-smoke.test.ts`'s whole-repo
+`gitDiffClean()` checks go red on any dirty working tree (same shape session
+50 already documented and re-confirmed green post-commit) and
+`tests/q15-command-domain-fuzz.test.ts` hit its documented flaky "hangs"
+timing case (`rekindle.structureId:negInf`), which re-ran green standalone.
+
+code-reviewer **APPROVE** — no Critical/Major findings. One Minor noted for
+the record, not a blocker: the widened `try` also silently cleans up two
+crash paths that were never a filed bug and have no dedicated regression test
+(a bad spec-part argument like `x5`, and a hypothetical `writeFileSync`
+failure) — both get the same clean one-line treatment via the new top-level
+catch, traced by inspection (not just asserted) to restore correctly, but
+worth a future test if either becomes its own item. One Nit (the
+whitespace-collapsing of a nested `execFileSync` error's embedded stderr into
+one line is intentional per the tool's stated goal, not a defect).
+
+qa-playtester **PASS**. Re-verified the fix line-by-line against the
+BACKLOG-QUALITY entry, ran the two targeted test files green, and adversarially
+tried four more crash shapes via throwaway scratch copies (never touching the
+real `data/towers.json`): a `towers` array missing entirely, a `towers.json`
+with the `venom_spore` entry removed (fails inside the nested `m20d-run-a4.ts`
+call instead), a bad CLI spec prefix (`x5`), and an empty spec string — every
+one printed the clean one-line message with no raw stack frames and exited
+nonzero; a no-args run still exits 0 cleanly. No bugs filed.
+
+Four actionable items remained before this session (q53-q56); three remain
+now (q54-q56), at the floor of 3, so next session's generation rule will need
+to run.
 
 ### 2026-08-27 — session 50
 
