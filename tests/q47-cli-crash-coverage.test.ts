@@ -290,6 +290,42 @@ describe('q47 — CLI-crash coverage census', () => {
     }
   });
 
+  it('a line-continuation escape inside a double-quoted string does not leak a real newline that makes the next string line read as a top-level import (QA regression, q50)', () => {
+    // A backslash immediately followed by a real newline inside a
+    // single/double-quoted string is a valid JS line-continuation escape —
+    // the newline contributes nothing to the string's value. The old
+    // stripCommentsAndBacktickStrings copied that newline through literally,
+    // so a following physical line that happened to start with
+    // `import ... from '...'` (still pure string data, never evaluated as an
+    // import) matched VALUE_IMPORT_RE's `^`-anchored, multiline alternative.
+    const dir = scratchPath('line-continuation-string');
+    try {
+      mkdirSync(path.join(dir, 'src', 'sim'), { recursive: true });
+      mkdirSync(path.join(dir, 'tools'), { recursive: true });
+      writeFileSync(path.join(dir, 'src', 'sim', 'content.ts'), 'export {};\n');
+      writeFileSync(
+        path.join(dir, 'tools', 'new-tool.ts'),
+        [
+          'const s = "foo\\',
+          "import { loadContent } from '../src/sim/content';\\",
+          'bar";',
+          'console.log(s);',
+          '',
+        ].join('\n'),
+      );
+      const scratchContentPath = path.join(dir, 'src', 'sim', 'content.ts');
+      const row = classifyTool('tools/new-tool.ts', path.join(dir, 'tools', 'new-tool.ts'), {
+        contentPath: scratchContentPath,
+        notInvocable: {},
+        pinCoverage: {},
+      });
+      expect(row.importsContent).toBe(false);
+      expect(row.status).toBe('no-content-import');
+    } finally {
+      rmSync(dir, RM_RETRY);
+    }
+  });
+
   it('resolves an import specifier that already names its own .ts extension (code-review regression: `${base}.ts` would look for the nonexistent "foo.ts.ts")', () => {
     const dir = scratchPath('explicit-extension-import');
     try {

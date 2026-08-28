@@ -91,7 +91,10 @@ const VALUE_IMPORT_RE =
  * Single/double-quoted strings are copied through untouched (not scanned
  * for comment-like content, not stripped) — a real import specifier is
  * always single/double-quoted, and `VALUE_IMPORT_RE` has to still see it
- * after this runs.
+ * after this runs. The one exception: a backslash-newline line-continuation
+ * escape is *not* copied through as a literal newline (q50) — that would
+ * leave a real `\n` inside a string's contents for `VALUE_IMPORT_RE`'s
+ * `^`-anchored match to false-positive on.
  *
  * Known limitations, accepted rather than solved (code review, q47): this
  * does not distinguish a `/` division operator from a regex-literal
@@ -116,6 +119,14 @@ const VALUE_IMPORT_RE =
  * classify as `no-content-import` rather than surfacing as a `gap`. Both
  * fail silent rather than raising a false alarm, and neither is live —
  * accepted for the same reason as the two above.
+ *
+ * One more (code review, q50): the line-continuation fix above only
+ * special-cases `\` + `\n` and `\` + `\r\n`. A bare `\r` line terminator
+ * (old Mac-style) or `\` followed by the Unicode line separators
+ * (U+2028, U+2029) are also valid JS line-continuation targets and would
+ * reproduce the same false-positive class — checked, no `tools/*.ts` file
+ * uses either today (git/editors normalize them away) — accepted for the
+ * same reason as the others above.
  */
 function stripCommentsAndBacktickStrings(text: string): string {
   let out = '';
@@ -146,8 +157,22 @@ function stripCommentsAndBacktickStrings(text: string): string {
       i++;
       while (i < n && text[i] !== quote) {
         if (text[i] === '\\' && i + 1 < n) {
-          out += text[i] + text[i + 1];
-          i += 2;
+          // A backslash immediately followed by a real line terminator is a
+          // JS line-continuation escape: the newline contributes nothing to
+          // the string's value. Copying it through as a literal newline (the
+          // old behaviour) leaves a real `\n` inside `out`, which is exactly
+          // what VALUE_IMPORT_RE's `^`-anchored, multiline match looks for —
+          // a following physical line that happens to start with
+          // `import ... from '...'` false-positives even though it is pure
+          // string data, never evaluated as an import (q50).
+          if (text[i + 1] === '\n') {
+            i += 2;
+          } else if (text[i + 1] === '\r' && text[i + 2] === '\n') {
+            i += 3;
+          } else {
+            out += text[i] + text[i + 1];
+            i += 2;
+          }
         } else {
           out += text[i];
           i++;

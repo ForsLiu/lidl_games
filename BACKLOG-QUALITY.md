@@ -849,7 +849,7 @@ coverage gaps session 1's log recorded. All five are inside Scope as written.*
       `not a soul tower: ...` inside `m20d-run-a4.ts`) and asserts the
       restore still happens — refs: tools/m20d-price-probe.ts,
       tools/m20d-run-a4.ts
-- [ ] (q50) [bug] `tools/cli-crash-coverage.ts`'s `stripCommentsAndBacktickStrings`
+- [x] (q50) [bug] `tools/cli-crash-coverage.ts`'s `stripCommentsAndBacktickStrings`
       strips backtick template-literal contents but copies single/double-quoted
       string contents through untouched — a double-quoted string using a
       backslash-newline line continuation (valid JS) produces a real physical
@@ -1028,6 +1028,75 @@ resolve if it wants the CLI entry points too. All five are inside Scope as
 written; none needs a `package.json` edit.*
 
 ## Log
+
+### 2026-08-27 — session 46
+
+**Feedback inbox:** no `feedback/` directory in this worktree. Nothing to
+process.
+
+**Session start state:** `tools/cli-crash-coverage.ts` and
+`tests/q47-cli-crash-coverage.test.ts` were already modified in the
+worktree (both tracked, both showing `M`), matching q50's acceptance
+criteria verbatim and the same interrupted-session shape sessions
+14/16/18/19/20/33/37/38/39/40/42/44/45 each logged. `git log` showed no
+commit including these changes and q50 was still unchecked in the Queue.
+Verified rather than trusted before touching anything.
+
+**q50 done.** The fix: in `stripCommentsAndBacktickStrings`'s quoted-string
+copy loop, a `\` immediately followed by a real `\n` or `\r\n` (a valid JS
+line-continuation escape) is now consumed without emitting output, instead
+of being copied through literally. The old behaviour left a real newline
+inside the copied-through string content, which `VALUE_IMPORT_RE`'s
+`^`-anchored multiline match could fire on if the following string-internal
+line happened to start with `import ... from '...'` — pure string data,
+never evaluated as an import, but misclassified as a real one. A doc
+comment records the accepted residual gap (bare `\r`, U+2028/U+2029 — not
+currently produced by any `tools/*.ts` file since editors/git normalize
+them away).
+
+Mutation-verified before dispatching review: stashed just
+`tools/cli-crash-coverage.ts` back to its committed (pre-fix) state with
+the new test still present — the q50 test failed (`expected true to be
+false`) as expected — then restored the fix via `git stash apply` +
+`git stash drop` (never a bare `stash pop`, since the stack is shared
+across worktrees) and confirmed the file's diff was byte-identical to
+before. `npx vitest run tests/q47-cli-crash-coverage.test.ts`: 18/18 green.
+`npx tsc --noEmit -p .`: clean. `git status --porcelain`: the two modified
+files only — Scope-compliant.
+
+**Review (code-reviewer, APPROVE, 0 Critical/Major — 1 Minor, 1 Nit,
+already-disclosed).** Walked the escape-handling loop character-by-
+character and confirmed `\"`/`\\` still fall to the unchanged `else`
+branch; independently reverted the source file alone and reran to confirm
+the new test is a genuine regression test, not a tautology; confirmed
+`tsc` clean and Scope compliance. The Minor (a bare `\r` or U+2028/U+2029
+line terminator reproduces the same false-positive class) is exactly the
+gap the new doc comment already discloses as checked-and-currently-
+inapplicable, so nothing further to fix.
+
+**QA (qa-playtester, PASS, no new defects).** Ran the suite live (18/18),
+confirmed the acceptance-criteria test uses the described scratch-dir
+idiom and asserts the right fields, then adversarially probed 6 constructed
+shapes via a throwaway driver script outside `tools/` (single-quoted
+version, CRLF file, continuation at end-of-file, nested-backslash parity,
+adjacent backtick-stripping interaction, and an escaped-backslash-pair-plus-
+raw-newline construction) — all correct, and the one shape that still
+false-positives (an unescaped raw newline inside a quoted string not
+immediately preceded by a lone `\`) is not valid, type-checking JS/TS, so
+it cannot occur in any real `tools/*.ts` file the census actually scans;
+same accepted-limitation class as the doc comment's existing bare-`\r`/
+U+2028/U+2029 disclosure, not a new live bug. `git status --porcelain`
+confirmed clean before and after (scratch driver never touched tracked
+files).
+
+**Suite state.** Isolated file green (above); no other test/tool file
+touched this session, so a full `npm test` re-run was not needed for this
+item. `git status --porcelain` before commit: the two modified files plus
+`BACKLOG-QUALITY.md` — Scope-compliant.
+
+**Three actionable items remain** (q48, q49, q51; q39 stays a Scope-blocked
+tracking entry) — at the generation floor of 3, so the next session should
+run the generation rule before executing if fewer than 3 remain by then.
 
 ### 2026-08-27 — session 45
 
