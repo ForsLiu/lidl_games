@@ -464,13 +464,13 @@ describe('p6d: Cryomancer Ice Wall — free, real, and temporary', () => {
     expect(w.navGround.dist[idx]).not.toBe(-1);
   });
 
-  it("a self-aimed cast (own tile inside the wall's footprint) relocates the Warden instead of trapping it (b016 interaction)", () => {
+  it("a self-aimed cast (own tile inside the wall's footprint) does not move or trap the Warden (fb002, supersedes b016)", () => {
     // fireIceWall's own placement calls go through `buildTower` with
-    // `{ ignorePhase: true }`, the same function b016's fix lives in —
-    // aiming a self-defense cast at the Warden's own tile puts that tile
-    // inside the wall's 1x3 footprint, so it must not silently trap the
-    // Warden (or, worse in VS, leave no recovery since `sellTower` is
-    // Act-I-only).
+    // `{ ignorePhase: true }`, the same function b016's fix used to live in.
+    // fb002 supersedes that fix: the Warden ignores structure collision
+    // entirely (`wardenPassable`), so a self-defense cast landing on its own
+    // tile is ordinary — the Warden stays put and can still walk freely, in
+    // both Act I and VS, with no relocation needed.
     const w = worldWith('cryomancer');
     w.gold = 500;
     w.warden.x = 10;
@@ -478,10 +478,12 @@ describe('p6d: Cryomancer Ice Wall — free, real, and temporary', () => {
     w.phase = 'act2';
     applyCommand(w, { k: 'class_active2', aimX: 10, aimY: 10 });
     expect(w.tempWalls).toHaveLength(1);
-    expect(w.grid.buildable(10, 10)).toBe(false); // the wall covers the Warden's old tile...
-    // ...but the Warden was moved off it before the wall formed.
-    expect(w.grid.passable(Math.floor(w.warden.x), Math.floor(w.warden.y))).toBe(true);
-    expect(w.warden.x === 10 && w.warden.y === 10).toBe(false);
+    expect(w.grid.buildable(10, 10)).toBe(false); // the wall still blocks everyone else...
+    expect(w.grid.passable(10, 10)).toBe(false);
+    // ...but the Warden was never moved and can still freely stand/leave.
+    expect(w.warden.x).toBe(10);
+    expect(w.warden.y).toBe(10);
+    expect(w.grid.wardenPassable(10, 10)).toBe(true);
   });
 
   it('a player Build Command still cannot place a tower during a VS wave (ignorePhase is Ice Wall-only)', () => {

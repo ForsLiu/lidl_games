@@ -65,14 +65,9 @@ filed and ready, not next up.
 - [x] (fb001) [feat] dev profile (`data/dev.json`) unlocks every Core from
       §5.5, the same pattern already used for classes/maps — **done, see Done
       section.**
-- [ ] (fb002) [feat] Character (and dash) ignore collision with the Core and
+- [x] (fb002) [feat] Character (and dash) ignore collision with the Core and
       all friendly structures — walks/flies over them freely; enemies keep
-      current pathing rules — acceptance: character crosses a sealed base
-      freely in both TD and VS phases; enemy pathing is unaffected; a test
-      covers movement over structures — refs: §10 (amends character movement),
-      owner feedback `feature-character-passes-structures`. Supersedes b016's
-      nudge-fix approach if b016 has not yet landed — placement on the
-      Warden's own tile then becomes legal rather than rejected.
+      current pathing rules — **done, see Done section.**
 - [ ] (fb003) [feat] VS level-up auto-pick toggle (settings + on-screen): when
       on, resolves level-up offers without pausing for input — prefer the
       highest-rank owned stat boon, else the first offered card; manual choice
@@ -649,6 +644,78 @@ logged in MIGRATION.md §8 rather than carried as dead items.
   **G19**. The work is `p10d`.
 
 ## Done
+
+- [x] (fb002) [feat] Character (and dash) ignore collision with the Core and
+      all friendly structures — walks/flies over them freely; enemies keep
+      current pathing rules — this commit. Found already implemented but
+      uncommitted at session start (a prior session's in-progress work — a
+      new `Grid.wardenPassable(tx,ty)` in `src/sim/grid.ts`, bounds-checked
+      and blocked only by the map border, never by `occ`/structures; wired
+      into `walkable()` (`src/sim/run.ts`, covering both `moveWarden` and the
+      dodge-dash `blinkWarden`) and into `dashWarden` (`src/sim/classes.ts`,
+      the shared choke point for every class Active's dash); b016's now-moot
+      `findEscapeTile`/Warden-relocation-on-build logic removed from
+      `buildTower` (`src/sim/towers.ts`), since a build landing on the
+      Warden's own tile can no longer trap it; the two b016 regression tests
+      in `tests/act1.test.ts` and the Ice Wall self-cast test in
+      `tests/p6d-nine-classes.test.ts` rewritten (not deleted) to assert the
+      new behavior; a new `fb002` describe block in `tests/act1.test.ts`
+      covering straight-through movement in both phases, the Core footprint,
+      and the dodge-dash landing on a structure tile, plus a stale-assumption
+      fix and floor adjustment in `tests/q2-input-fuzz.test.ts` (see below);
+      QUESTIONS.md's Q130 entry) — this session verified it end to end rather
+      than re-implementing it, the same protocol every recent
+      P6/p8a/Q91/Q102/Q120/b016/fb001 item in this file's history sets:
+      `npx tsc --noEmit` clean, targeted suite (`tests/act1.test.ts`,
+      `tests/p6d-nine-classes.test.ts`, `tests/q2-input-fuzz.test.ts`)
+      149/149 green, plus a broader sweep (`grid`, `p1a-sealing`,
+      `p6a-class-framework`, `p6b-swordsman`, `p6c-plaguebringer`, `boss`,
+      `q120-order1-taunt`) 124/124 green (2 skipped, unrelated), before
+      delegating review.
+      **code-reviewer APPROVE, no Critical/Major.** Independently grepped
+      every `passable`/`blocked`/`wardenPassable` usage across `/src/sim` and
+      confirmed enemy pathing (`src/sim/enemies.ts`, `src/sim/act2.ts`, the
+      `dijkstra`/flow-field code in `grid.ts`) is untouched by this diff and
+      still reads `passable`/`blocked` directly; confirmed `wardenPassable`
+      is reachable only from `walkable()` and `dashWarden`, never from
+      `knockbackEnemy` or any build/placement path; confirmed removing
+      `findEscapeTile` is safe since `checkBuild`/`buildable` still gate on
+      `occ` unchanged; confirmed the Core's own footprint was already
+      Warden-passable before this diff (no `occ`, never `Border`), so the
+      real behavioral change is scoped to built structures as intended; no
+      DOM/`Math.random`/`Date.now`/native-trig violations, deterministic
+      (pure array/bounds lookups). Two Minors left as cheap follow-ups, not
+      fixed: `wardenPassable` is byte-for-byte identical to the pre-existing
+      `passableGhost` (worth collapsing to one predicate later); `src/bots/policies.ts`'s
+      `walkableAt` still calls `grid.passable`, so the bot kiting heuristic
+      keeps treating friendly structures as obstacles even though the Warden
+      itself no longer does — a stale heuristic, not a correctness bug, filed
+      as a future polish item rather than fixed under fb002's own scope. One
+      stray untracked scratch file the reviewer's own pass had created
+      (`tests/_scratch_fb002_qa.test.ts`) was flagged and removed before
+      commit.
+      **qa-playtester PASS, no bugs found**, driven as real end-to-end sim
+      state rather than just the unit tests: a full 3x3 tower ring built
+      around the Warden was crossed freely in all 8 directions in both Act I
+      and Act II; every dash-granting Active kind in `data/classes.json`
+      (`dash_line`/`dash_trail`/`dash_volley`/`dash_heal`) landed on a
+      structure tile without deflection; the Core's own footprint was stood
+      on and crossed; a self-targeted Ice Wall cast on the Warden's own tile
+      left it in place, free to leave; a live enemy stepped 600 ticks against
+      the same tower ring never resolved standing on a blocked tile, in the
+      same world where the Warden crossed it freely; two headless
+      `npm run sim -- --seed 1 --policy hybrid` runs produced identical
+      `endHash` despite differing wall-clock `simMs`; seeds 2 (`hybrid`,
+      victory) and 3 (`maxbuild`, defeat_warden) completed cleanly with no
+      NaN/crash. Full `npm test` ran ~85/86 files clean before the pass
+      concluded; the one known pre-existing artifact
+      (`tests/q14-mutation-smoke.test.ts` refusing to run against an
+      uncommitted `src/sim` diff by design) clears once committed, the same
+      artifact every prior P6/p8a/Q91/Q102/Q120 commit already documents.
+      `npx tsc --noEmit`: clean throughout. Logged as Q130 — refs: §10
+      (amends character movement), owner feedback
+      `feature-character-passes-structures`, Q129 (b016, superseded by this
+      item per its own note).
 
 - [x] (fb001) [feat] dev profile (`data/dev.json`) unlocks every Core from
       §5.5, the same pattern already used for classes/maps — this commit.

@@ -188,12 +188,28 @@ describe('q2 input fuzz', () => {
     // Core unkillable — so a practice run legitimately rides the tick cap
     // still 'running'. What this case owns is that the dev surface is reached
     // and everything stays finite; the substance check is that the run got
-    // deep enough to fuzz Act II at all.
+    // deep enough to fuzz Act II at all — `r.visited` containing `'act2'`
+    // already proves that directly, so `r.commands` is a secondary depth
+    // floor, not the real check.
+    //
+    // fb002 (the Warden ignores collision with the Core and friendly
+    // structures): `input.mx`/`input.my` here are pure per-tick noise, not a
+    // bot's own kiting decision, so pre-fb002 that noise regularly walked the
+    // Warden into the maze of towers its own Act I build had just made and
+    // left it physically wedged there — an accidental side effect of the old
+    // collision rule that also shielded it from part of the horde. fb002
+    // removes that: seed 1 now legitimately wanders out into the open and
+    // dies at tick 1008 (950 commands, `outcome: 'defeat_warden'`, zero
+    // `problems`) instead of riding the tick cap. That is real, deterministic,
+    // intended fallout of the feature, not a bug — the floor is lowered to
+    // match the honestly measured number rather than nudged just enough to
+    // pass. Re-measured this session: seed 1 = 950, seeds 2-3 still ride the
+    // cap at ~161k commands each.
     for (const seed of [1, 2, 3]) {
       const r = fuzzRun(seed, true);
       expect(r.problems, `seed ${seed}:\n  ${r.problems.join('\n  ')}`).toEqual([]);
       expect(r.visited, `seed ${seed} visited ${r.visited.join(',')}`).toContain('act2');
-      expect(r.commands).toBeGreaterThan(1000);
+      expect(r.commands).toBeGreaterThan(500);
     }
   });
 

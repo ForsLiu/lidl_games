@@ -152,6 +152,17 @@ export class Grid {
     return this.tile[ty * GRID_W + tx] !== TileType.Border;
   }
 
+  /**
+   * True if the Warden (walk or dash) can stand here — only the map border
+   * blocks (fb002, §10 amendment): the Warden walks/flies freely through the
+   * Core and every friendly structure. Enemy pathing keeps reading
+   * `passable`/`blocked` unchanged, so this predicate is Warden-only.
+   */
+  wardenPassable(tx: number, ty: number): boolean {
+    if (!this.inBounds(tx, ty)) return false;
+    return this.tile[ty * GRID_W + tx] !== TileType.Border;
+  }
+
   /** Tiles a tower may be placed on before the path-guarantee check. */
   buildable(tx: number, ty: number): boolean {
     if (!this.inBounds(tx, ty)) return false;

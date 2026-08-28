@@ -118,21 +118,12 @@ export function buildTower(
   if (reason) return { ok: false, reason };
   const def = w.content.towerById.get(towerId)!;
 
-  // b016: `checkBuild` has no path-guarantee-style check against the
-  // Warden's own tile (§10 legalises sealing, so "occupied by the Warden"
-  // isn't a placement rule the way "occupied by a structure" is) — the
-  // Warden is relocated to the nearest reachable open tile instead of
-  // ending up trapped inside the structure's now-blocked footprint. The
-  // escape search treats (tx,ty) as already blocked (it is, the instant
-  // this build lands) and is an unbounded flood fill, not a capped radius —
-  // a capped search can exhaust itself against a real ring of towers and
-  // silently leave the Warden trapped, the exact bug this exists to close.
-  // If genuinely no tile is reachable, the build is refused outright rather
-  // than reporting success while trapping the Warden.
-  const wardenHere = Math.floor(w.warden.x) === tx && Math.floor(w.warden.y) === ty;
-  const escape = wardenHere ? findEscapeTile(w, tx, ty) : null;
-  if (wardenHere && !escape) return { ok: false, reason: 'occupied' };
-
+  // b016 used to relocate (or refuse to place) a build landing on the
+  // Warden's own tile, to avoid trapping it inside the structure's
+  // now-blocked footprint. fb002 supersedes that: the Warden ignores
+  // structure collision entirely (`wardenPassable`, run.ts/classes.ts), so
+  // standing inside a just-built structure's tile is legal and never traps
+  // it — placement on the Warden's own tile is ordinary, not a special case.
   const cost = towerCost(w, def);
   w.gold -= cost;
   w.goldSpent += cost;
@@ -163,46 +154,7 @@ export function buildTower(
   w.towersByKey[def.key] = (w.towersByKey[def.key] ?? 0) + 1;
   w.emit('build', tx + 0.5, ty + 0.5, def.id, 1);
   markAuraDirty(w);
-  if (escape) {
-    w.warden.x = escape[0] + 0.5;
-    w.warden.y = escape[1] + 0.5;
-    w.emit('wardendisplaced', w.warden.x, w.warden.y, 0, 0);
-  }
   return { ok: true, structure: s };
-}
-
-/**
- * Nearest tile reachable from (tx,ty) that isn't `(tx,ty)` itself and is
- * currently passable — an unbounded BFS over the (small, fixed-size) grid,
- * so it always finds a reachable open tile if one exists at all, rather
- * than a capped radius that can exhaust itself against a real ring of
- * built structures. Deterministic: iterates `grid.passable`, no RNG.
- */
-function findEscapeTile(w: World, tx: number, ty: number): [number, number] | null {
-  const seen = new Set<number>([w.grid.idx(tx, ty)]);
-  let frontier: Array<[number, number]> = [[tx, ty]];
-  while (frontier.length > 0) {
-    const next: Array<[number, number]> = [];
-    for (const [x, y] of frontier) {
-      for (const [dx, dy] of [
-        [1, 0],
-        [-1, 0],
-        [0, 1],
-        [0, -1],
-      ]) {
-        const nx = x + dx;
-        const ny = y + dy;
-        if (!w.grid.inBounds(nx, ny)) continue;
-        const i = w.grid.idx(nx, ny);
-        if (seen.has(i)) continue;
-        seen.add(i);
-        if (w.grid.passable(nx, ny)) return [nx, ny];
-        next.push([nx, ny]);
-      }
-    }
-    frontier = next;
-  }
-  return null;
 }
 
 export function upgradeTower(w: World, tx: number, ty: number): boolean {

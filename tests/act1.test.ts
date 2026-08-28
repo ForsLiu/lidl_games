@@ -55,41 +55,34 @@ describe('placement rules (SPEC 3.1)', () => {
     expect(w.grid.allGatesReachable()).toBe(false);
   });
 
-  it('relocates the Warden instead of trapping it when a build lands on its own tile (b016)', () => {
-    // Repro: the Warden's tile is otherwise buildable (open, unoccupied, in
-    // range), so nothing stopped a tower from landing directly under it,
-    // trapping the Warden inside the new structure's now-blocked footprint.
-    // §10 legalises sealing the Core with structures, so rejecting the
-    // placement outright would be the wrong call here — the Warden is
-    // relocated to the nearest open tile instead, before the build lands.
+  it('fb002: a build landing on the Warden\'s own tile succeeds without relocating it (supersedes b016\'s nudge-fix)', () => {
+    // b016 used to relocate the Warden away from a build landing on its own
+    // tile, to avoid trapping it under the structure's now-blocked
+    // footprint. fb002 supersedes that (BACKLOG.md's own note): the Warden
+    // ignores structure collision entirely, so it stays exactly where it
+    // was — standing inside the new structure is now legal, not a special
+    // case, and it can still freely walk back off at any time.
     warp(w, 5, 5);
     expect(checkBuild(w, 1, 5, 5)).toBeNull();
     const built = buildTower(w, 1, 5, 5);
     expect(built.ok).toBe(true);
-    expect(w.grid.passable(5, 5)).toBe(false); // the tower now occupies it
-    // the Warden left the now-blocked tile for the nearest open one
-    expect(w.grid.passable(Math.floor(w.warden.x), Math.floor(w.warden.y))).toBe(true);
-    expect(w.warden.x === 5.5 && w.warden.y === 5.5).toBe(false);
+    expect(w.grid.passable(5, 5)).toBe(false); // the tower still blocks everyone else
+    expect(w.warden.x).toBe(5.5);
+    expect(w.warden.y).toBe(5.5); // the Warden did not move
+    expect(w.grid.wardenPassable(5, 5)).toBe(true); // but can still freely leave
 
-    // Same relocation through the real player-facing Command path.
+    // Same, through the real player-facing Command path.
     warp(w, 8, 8);
     applyCommand(w, { k: 'build', tower: 1, tx: 8, ty: 8 });
     expect(w.grid.passable(8, 8)).toBe(false);
-    expect(w.warden.x === 8.5 && w.warden.y === 8.5).toBe(false);
-
-    // A tile the Warden is merely near, not standing on, is unaffected.
-    warp(w, 12, 12);
-    expect(buildTower(w, 1, 13, 12).ok).toBe(true);
-    expect(w.warden.x).toBe(12.5);
-    expect(w.warden.y).toBe(12.5);
+    expect(w.warden.x).toBe(8.5);
+    expect(w.warden.y).toBe(8.5);
   });
 
-  it('refuses a build that would leave the Warden with no reachable escape tile (b016)', () => {
-    // A capped-radius rescue search can exhaust itself against a real ring
-    // of towers and silently report success while leaving the Warden
-    // trapped — the exact bug this item exists to close. Block every tile
-    // on the grid except the Warden's own, so the escape search (an
-    // unbounded flood fill) genuinely has nowhere to send it.
+  it('fb002: a build succeeds even with no reachable escape tile for the Warden (supersedes b016)', () => {
+    // Pre-fb002 this was refused outright (b016) because a fully-walled
+    // tile left the Warden with nowhere to escape to. Now that the Warden
+    // ignores structure collision, there is nothing to escape from.
     warp(w, 5, 5);
     for (let ty = 0; ty < GRID_H; ty++) {
       for (let tx = 0; tx < GRID_W; tx++) {
@@ -97,12 +90,10 @@ describe('placement rules (SPEC 3.1)', () => {
         w.grid.setOcc(tx, ty, 999999);
       }
     }
-    const before = { x: w.warden.x, y: w.warden.y };
     const res = buildTower(w, 1, 5, 5);
-    expect(res.ok).toBe(false);
-    if (!res.ok) expect(res.reason).toBe('occupied');
-    expect(w.warden.x).toBe(before.x);
-    expect(w.warden.y).toBe(before.y);
+    expect(res.ok).toBe(true);
+    expect(w.warden.x).toBe(5.5);
+    expect(w.warden.y).toBe(5.5);
   });
 
   it('charges gold and refunds 70% on sale', () => {
@@ -261,5 +252,56 @@ describe('economy and wave flow', () => {
     // 8 Husks per gate x 3 gates.
     expect(w.kills + w.leaks + w.enemies.length).toBe(24);
     expect(GATES.length).toBe(3);
+  });
+});
+
+describe('fb002: the Warden (and dash) ignore collision with the Core and friendly structures (§10 amendment)', () => {
+  it('walks straight through a built structure in Act I', () => {
+    const run = new Run(cfg());
+    const w = run.world;
+    warp(w, 5, 5);
+    expect(buildTower(w, 1, 6, 5).ok).toBe(true);
+    expect(w.grid.passable(6, 5)).toBe(false); // the structure still blocks everyone else
+    warp(w, 3, 5);
+    for (let i = 0; i < 200; i++) run.step({ ...emptyInput(), mx: 1, my: 0 });
+    expect(w.warden.x).toBeGreaterThan(7.5); // crossed straight through the structure's tile
+    expect(w.grid.passable(6, 5)).toBe(false); // still a blocked tile for anyone else
+  });
+
+  it('walks through a structure and the Core footprint during Act II (VS)', () => {
+    const run = new Run(cfg());
+    const w = run.world;
+    warp(w, 5, 5);
+    expect(buildTower(w, 1, 6, 5).ok).toBe(true);
+    w.phase = 'act2';
+    warp(w, 3, 5);
+    for (let i = 0; i < 200; i++) run.step({ ...emptyInput(), mx: 1, my: 0 });
+    expect(w.warden.x).toBeGreaterThan(7.5);
+    const c = coreCenter();
+    warp(w, Math.floor(c.x), Math.floor(c.y));
+    expect(w.grid.wardenPassable(Math.floor(c.x), Math.floor(c.y))).toBe(true);
+  });
+
+  it('the dodge-dash lands on a structure tile instead of stopping short of it', () => {
+    const run = new Run(cfg());
+    const w = run.world;
+    warp(w, 9, 5); // within build range of the dash's landing tile
+    expect(buildTower(w, 1, 10, 5).ok).toBe(true);
+    warp(w, 6, 5); // exactly BASE.dashDistance (4 tiles) west of the structure
+    run.step({ ...emptyInput(), mx: 1, my: 0, dash: true });
+    // Pre-fb002, `blinkWarden` would have backed off along the dash line until
+    // it found a passable tile short of (10,5); now it lands on it directly.
+    expect(Math.floor(w.warden.x)).toBe(10);
+    expect(w.grid.passable(10, 5)).toBe(false); // the structure is still there and still blocks others
+  });
+
+  it('enemy pathing keeps treating the structure as blocked (the Warden-only predicate is separate)', () => {
+    const w = new World(cfg());
+    warp(w, 5, 5);
+    expect(buildTower(w, 1, 6, 5).ok).toBe(true);
+    w.grid.refresh();
+    expect(w.grid.passable(6, 5)).toBe(false);
+    expect(w.grid.blocked[w.grid.idx(6, 5)]).toBe(1);
+    expect(w.grid.wardenPassable(6, 5)).toBe(true); // Warden-only: the new predicate ignores it
   });
 });

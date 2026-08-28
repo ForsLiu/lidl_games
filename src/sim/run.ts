@@ -443,7 +443,10 @@ function walkable(w: World, x: number, y: number): boolean {
   const tx = Math.floor(x);
   const ty = Math.floor(y);
   if (tx < 0 || ty < 0 || tx >= GRID_W || ty >= GRID_H) return false;
-  return w.grid.passable(tx, ty);
+  // fb002: the Warden ignores collision with the Core and every friendly
+  // structure — only the border blocks it. Enemy pathing is untouched; it
+  // reads `grid.passable`/`blocked` directly, never this function.
+  return w.grid.wardenPassable(tx, ty);
 }
 
 function manualAttack(w: World, input: TickInput, _dt: number): void {

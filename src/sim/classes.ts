@@ -281,7 +281,9 @@ function dashWarden(w: World, dx: number, dy: number): void {
   const wd = w.warden;
   const tx = clamp(wd.x + dx, 0.4, GRID_W - 0.4);
   const ty = clamp(wd.y + dy, 0.4, GRID_H - 0.4);
-  if (w.grid.passable(Math.floor(tx), Math.floor(ty))) {
+  // fb002: dash ignores collision with the Core and friendly structures the
+  // same as ordinary movement — `wardenPassable` only fails on the border.
+  if (w.grid.wardenPassable(Math.floor(tx), Math.floor(ty))) {
     wd.x = tx;
     wd.y = ty;
     return;
@@ -289,7 +291,7 @@ function dashWarden(w: World, dx: number, dy: number): void {
   for (let s = 0.9; s > 0; s -= 0.1) {
     const px = clamp(wd.x + dx * s, 0.4, GRID_W - 0.4);
     const py = clamp(wd.y + dy * s, 0.4, GRID_H - 0.4);
-    if (w.grid.passable(Math.floor(px), Math.floor(py))) {
+    if (w.grid.wardenPassable(Math.floor(px), Math.floor(py))) {
       wd.x = px;
       wd.y = py;
       return;
