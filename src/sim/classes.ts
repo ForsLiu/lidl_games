@@ -196,8 +196,16 @@ function knockbackEnemy(w: World, e: Enemy, fromX: number, fromY: number, distan
   }
 }
 
-/** §4.1 Circle Slash: nova radius/damage/knockback scale from their `min*` floor (0 charge) up to the full `radius`/`damage`/`knockback` value at `chargeCapSeconds` (default 3, per "cap = 3 s-equivalent"). */
-function circleSlashValues(
+/**
+ * §4.1 Circle Slash: nova radius/damage/knockback scale from their `min*`
+ * floor (0 charge) up to the full `radius`/`damage`/`knockback` value at
+ * `chargeCapSeconds` (default 3, per "cap = 3 s-equivalent"). Exported for
+ * fb016: `canvas.ts`'s charge indicator reads the live radius the same way
+ * `fireCircleSlash` does, rather than re-deriving the lerp — the same
+ * render-imports-a-pure-sim-helper precedent `effectiveTowerRange` already
+ * set for the tower range rings.
+ */
+export function circleSlashValues(
   eff: ClassEffect,
   chargeSeconds: number,
 ): { radius: number; damage: number; knockback: number } {
@@ -676,6 +684,9 @@ function fireIceWall(w: World, cls: NewClassDef, aimX: number | undefined, aimY:
     // by a stale field until the Warden happens to step to a new one. Costs
     // one Dijkstra pass, gated by the Active's own cooldown, not a hot loop.
     if (w.huntsWarden) w.updateNav(true);
+    // fb016: the only Active2 kind that fired with no `w.emit` at all —
+    // every other kind already had one, just no renderer case reading it.
+    w.emit('class_active2', cx, cy, 0, 0);
   }
 }
 
@@ -996,6 +1007,14 @@ function updateContagiousFlame(w: World, cls: NewClassDef, dt: number): void {
       const other = list[j];
       if (other === e || other.dead) continue;
       damageEnemy(w, other, tick, 'class_passive', { pure: true, dot: true });
+      // fb016: `dot: true` above deliberately suppresses `damageEnemy`'s own
+      // 'hit' spark (same reasoning as `updateCorpseExecute`'s 'execute'
+      // event) — without this, Contagious Flame's touch damage was the one
+      // passive trigger in the registry with a claimed "visible cue" and
+      // nothing rendering it at all (QA fb016 finding #1). `this.flashes` in
+      // canvas.ts dedupes same-tick re-triggers by enemy id, so this is safe
+      // to emit every tick a carrier is in range, not just once.
+      w.emit('class_passive', other.x, other.y, tick, other.id);
     }
   }
 }

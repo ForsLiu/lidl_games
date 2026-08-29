@@ -613,6 +613,7 @@ const SLIDERS: { key: keyof Settings; label: string }[] = [
 const TOGGLES: { key: keyof Settings; label: string }[] = [
   { key: 'damageNumbers', label: 'Damage numbers' },
   { key: 'accessiblePalette', label: 'Color-blind-safe damage colors' },
+  { key: 'reducedFlash', label: 'Reduced flash (dims skill & Core effect flashes)' },
   { key: 'showRanges', label: 'Show tower ranges' },
   { key: 'showGrid', label: 'Show grid' },
   // SPEC-V3 T3. Presentation-adjacent rather than presentation-only: it decides

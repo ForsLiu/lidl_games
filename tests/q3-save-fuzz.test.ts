@@ -664,6 +664,7 @@ describe('q3 save fuzz: the settings blob', () => {
       showRanges: true,
       showGrid: true,
       accessiblePalette: true,
+      reducedFlash: true,
       cleanProfile: true,
       maxDamageNumbers: 137,
     };
@@ -701,7 +702,7 @@ describe('q3 save fuzz: the settings blob', () => {
       expect(Number.isInteger(got.maxDamageNumbers), mut.label).toBe(true);
       expect(got.maxDamageNumbers, mut.label).toBeGreaterThanOrEqual(0);
       expect(got.maxDamageNumbers, mut.label).toBeLessThanOrEqual(400);
-      for (const key of ['damageNumbers', 'showRanges', 'showGrid', 'cleanProfile'] as const) {
+      for (const key of ['damageNumbers', 'showRanges', 'showGrid', 'reducedFlash', 'cleanProfile'] as const) {
         expect(typeof got[key], `${mut.label} ${key}`).toBe('boolean');
       }
       // A one-field corruption must not reset the other seven.

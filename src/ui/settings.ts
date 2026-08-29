@@ -20,6 +20,13 @@ export interface Settings {
    */
   accessiblePalette: boolean;
   /**
+   * fb016 (§11 extended to skills/Cores): dims/thins every skill- and
+   * Core-fire flash instead of the full opaque pulse, and skips their fill
+   * entirely — the strobing surface a photosensitivity setting exists to cut,
+   * not damage numbers or the DoT/status rings those already read as static.
+   */
+  reducedFlash: boolean;
+  /**
    * SPEC-V3 T3: opts out of the dev profile, so a developer can see what a
    * real new player sees. Ignored entirely in a production build, where the
    * dev profile is never applied in the first place.
@@ -40,6 +47,7 @@ export function defaultSettings(): Settings {
     showRanges: false,
     showGrid: false,
     accessiblePalette: false,
+    reducedFlash: false,
     cleanProfile: false,
     maxDamageNumbers: 60,
   };
@@ -74,6 +82,7 @@ export function sanitize(s: Settings): Settings {
     showRanges: !!s.showRanges,
     showGrid: !!s.showGrid,
     accessiblePalette: !!s.accessiblePalette,
+    reducedFlash: !!s.reducedFlash,
     cleanProfile: !!s.cleanProfile,
     maxDamageNumbers: Number.isFinite(s.maxDamageNumbers)
       ? Math.min(400, Math.max(0, Math.round(s.maxDamageNumbers)))

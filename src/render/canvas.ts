@@ -16,6 +16,8 @@ import {
 import { dotOutstanding, dotRemaining } from '../sim/enemies';
 import { damageStyleColor, executeStyle } from '../sim/damagetypes';
 import { BASE } from '../sim/stats';
+import { circleSlashValues, classArmorBonus } from '../sim/classes';
+import { normalize } from '../sim/math';
 import type { World } from '../sim/world';
 import {
   checkBuild,
@@ -32,6 +34,7 @@ import {
   projectileStyle,
   type ProjectileStyle,
 } from './theme';
+import { ACTIVE_KIND_SHAPE, CLASS_VFX, CORE_VFX, type VfxShape } from './vfx-registry';
 import type { Settings } from '../ui/settings';
 import {
   pickAt,
@@ -88,6 +91,32 @@ export interface FloatingNumber {
   fontScale: number;
 }
 
+/**
+ * fb016: a short-lived skill-cast or Core-effect flash. `shape` decides how
+ * `x2`/`y2`/`r` read — `nova` uses `r` (self-centered), `line` uses `x2`/`y2`
+ * (a directed slash/dash/beam), `point` uses neither (a small pulse at
+ * `x`/`y`). Deliberately not merged with `Tracer`/`ConeFlash`: those are
+ * shaped by a tower's projectile style, this by a class/Core registry entry.
+ */
+interface CastFx {
+  x: number;
+  y: number;
+  x2: number;
+  y2: number;
+  r: number;
+  shape: VfxShape;
+  color: string;
+  life: number;
+  maxLife: number;
+}
+
+const CAST_FX_LIFE = 0.28;
+
+/** The registered color for one of a Core's listed effects, falling back for a key the registry does not name. */
+function coreEffectColor(coreKey: string, effectKey: string, fallback: string): string {
+  return CORE_VFX[coreKey]?.effects.find((e) => e.key === effectKey)?.color ?? fallback;
+}
+
 /** Builds the short-lived line an instant-hit attack leaves behind. */
 function tracer(
   e: { k: string; x: number; y: number; a: number; b: number },
@@ -113,6 +142,7 @@ export class Renderer {
   private telegraphs: { x: number; y: number; dx: number; dy: number }[] = [];
   private tracers: Tracer[] = [];
   private cones: ConeFlash[] = [];
+  private casts: CastFx[] = [];
   private shakeX = 0;
   private shakeY = 0;
   private rngPhase = 0;
@@ -173,6 +203,12 @@ export class Renderer {
         continue;
       }
       switch (e.k) {
+        // fb016: Contagious Flame's touch damage (classes.ts's
+        // `updateContagiousFlame`) — the same enemy-flash cue a normal hit
+        // gets, since `dot: true` suppresses the `hit:` event above.
+        case 'class_passive':
+          this.flashes.set(e.b, 0.12);
+          break;
         case 'wardenhit':
           view.shake = Math.max(view.shake, Math.min(9, 2 + e.a * 0.25));
           if (view.settings.damageNumbers) {
@@ -236,10 +272,59 @@ export class Renderer {
         case 'bossslam':
           view.shake = Math.max(view.shake, 7);
           break;
+        // fb016: every class Active's `fire*` function in classes.ts already
+        // called `w.emit('class_active'/'class_active2', ...)` — these two
+        // cases had no home in this switch before now, so every skill cast in
+        // the game rendered nothing at all.
+        case 'class_active':
+        case 'class_active2': {
+          const cls = w.content.classByKey.get(w.cfg.classKey);
+          if (!cls) break;
+          const kind = cls.legacy ? cls.active.kind : e.k === 'class_active' ? cls.active1.kind : cls.active2.kind;
+          const shape = ACTIVE_KIND_SHAPE[kind] ?? 'point';
+          if (shape === 'skip') break;
+          const entry = cls.legacy ? undefined : CLASS_VFX[w.cfg.classKey];
+          const style = entry ? (e.k === 'class_active' ? entry.q : entry.e) : undefined;
+          this.pushCast(shape, e.x, e.y, e.a, e.b, style?.color ?? '#ffffff');
+          break;
+        }
+        case 'core_plant':
+          this.pushCast('point', e.x, e.y, 0, 0, coreEffectColor(w.coreKey, 'devour', '#7ac74f'));
+          break;
+        case 'core_lifesteal':
+          this.pushCast(
+            'line',
+            e.x,
+            e.y,
+            CORE_X + CORE_W / 2,
+            CORE_Y + CORE_H / 2,
+            coreEffectColor(w.coreKey, 'lifesteal', '#ff5577'),
+          );
+          break;
+        case 'core_beam':
+          this.pushCast('line', e.x, e.y, e.a, e.b, coreEffectColor(w.coreKey, 'execute', '#ffd166'));
+          break;
+        case 'core_explode':
+          this.pushCast('nova', e.x, e.y, e.a, 0, coreEffectColor(w.coreKey, 'explode', '#ff8844'));
+          break;
         default:
           break;
       }
     }
+  }
+
+  private pushCast(shape: VfxShape, x: number, y: number, a: number, b: number, color: string): void {
+    this.casts.push({
+      x,
+      y,
+      r: shape === 'nova' ? a : 0,
+      x2: shape === 'line' ? a : x,
+      y2: shape === 'line' ? b : y,
+      shape,
+      color,
+      life: CAST_FX_LIFE,
+      maxLife: CAST_FX_LIFE,
+    });
   }
 
   update(dt: number, view: ViewState): void {
@@ -253,6 +338,8 @@ export class Renderer {
     this.tracers = this.tracers.filter((t) => t.life > 0);
     for (const c of this.cones) c.life -= dt;
     this.cones = this.cones.filter((c) => c.life > 0);
+    for (const c of this.casts) c.life -= dt;
+    this.casts = this.casts.filter((c) => c.life > 0);
     for (const [k, v] of [...this.flashes]) {
       const nv = v - dt;
       if (nv <= 0) this.flashes.delete(k);
@@ -281,6 +368,7 @@ export class Renderer {
 
     this.drawTiles(w, night);
     this.drawArenaFire(w);
+    this.drawCoreStatus(w);
     this.drawAreas(w);
     this.drawTelegraphs();
     this.drawStructures(w);
@@ -288,7 +376,9 @@ export class Renderer {
     this.drawEnemies(w, view);
     this.drawProjectiles(w);
     this.drawTracers();
+    this.drawCasts(view);
     this.drawWarden(w);
+    this.drawChargeIndicator(w, view);
     this.drawHover(w, view);
     this.drawSelection(w, view);
     if (!night) this.drawRangeRings(w, view);
@@ -722,6 +812,19 @@ export class Renderer {
       ctx.arc(px, py, 14, 0, Math.PI * 2);
       ctx.stroke();
     }
+    // fb016: Guardian Stance's "armor glow while standing still" — the one
+    // registry passive cue with nothing drawing it before this fix (QA fb016
+    // finding #2). `classArmorBonus` is the same live sim state the armor
+    // formula itself reads, so the ring appears exactly when the bonus does.
+    if (classArmorBonus(w) > 0) {
+      const color = CLASS_VFX[w.cfg.classKey]?.passive.color ?? '#ffd166';
+      ctx.strokeStyle = `${color}aa`;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(px, py, 11, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.lineWidth = 1;
+    }
     ctx.fillStyle = PALETTE.warden;
     ctx.beginPath();
     ctx.arc(px, py, 8, 0, Math.PI * 2);
@@ -742,6 +845,155 @@ export class Renderer {
       ctx.arc(px, py, w.derived.pickupRadius * TILE, 0, Math.PI * 2);
       ctx.stroke();
     }
+  }
+
+  /**
+   * fb016: the fire-moment flash for every class Active and Core effect
+   * `ingest()` turned into a `CastFx` (`vfx-registry.ts`'s `ACTIVE_KIND_SHAPE`
+   * decided the shape when the event arrived). `reducedFlash` drops the fill
+   * and dims the stroke rather than removing the cue outright — SPEC-FINAL
+   * §11's "respects reduced-flash" without going silent.
+   */
+  private drawCasts(view: ViewState): void {
+    if (this.casts.length === 0) return;
+    const ctx = this.ctx;
+    const reduced = view.settings.reducedFlash;
+    for (const c of this.casts) {
+      const t = Math.max(0, c.life / c.maxLife);
+      ctx.globalAlpha = t * (reduced ? 0.45 : 1);
+      ctx.strokeStyle = c.color;
+      ctx.fillStyle = c.color;
+      if (c.shape === 'nova') {
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(c.x * TILE, c.y * TILE, c.r * TILE * (1.15 - t * 0.15), 0, Math.PI * 2);
+        ctx.stroke();
+        if (!reduced) {
+          ctx.globalAlpha *= 0.2;
+          ctx.fill();
+        }
+      } else if (c.shape === 'line') {
+        ctx.lineWidth = 3;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(c.x * TILE, c.y * TILE);
+        ctx.lineTo(c.x2 * TILE, c.y2 * TILE);
+        ctx.stroke();
+      } else {
+        ctx.beginPath();
+        ctx.arc(c.x * TILE, c.y * TILE, 6, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    ctx.globalAlpha = 1;
+    ctx.lineWidth = 1;
+    ctx.lineCap = 'butt';
+  }
+
+  /**
+   * fb016: a charge-kind Active1 (Circle Slash's nova, Deadeye Draw's shot
+   * line) is the one Active shape with real pre-fire state to preview —
+   * `w.warden.active1Charging`/`active1Charge` — so this is the only "aim
+   * indicator" backed by live sim state rather than a fire-moment flash.
+   * Every other kind fires atomically from a Command with no held phase to
+   * telegraph (Explore's finding, fb016 research); its cast flash from
+   * `drawCasts` is the indicator the input model actually has room for.
+   */
+  private drawChargeIndicator(w: World, view: ViewState): void {
+    const cls = w.content.classByKey.get(w.cfg.classKey);
+    if (!cls || cls.legacy || !w.warden.active1Charging) return;
+    const wd = w.warden;
+    const ctx = this.ctx;
+    const color = CLASS_VFX[w.cfg.classKey]?.q.color ?? '#ffffff';
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    // fb016: "brightens with hold" (both charge kinds' registry text) reads
+    // the same charge fraction `circleSlashValues` already lerps its radius
+    // by, so the claim holds for Archer's line as well as Swordsman's nova
+    // (QA fb016 finding #3 — this was previously a flat 0.6 regardless of hold).
+    const cap = cls.active1.chargeCapSeconds ?? 3;
+    const chargeRatio = cap > 0 ? Math.min(1, wd.active1Charge / cap) : 1;
+    ctx.globalAlpha = 0.35 + 0.45 * chargeRatio;
+    if (cls.active1.kind === 'charge_nova') {
+      const { radius } = circleSlashValues(cls.active1, wd.active1Charge);
+      ctx.beginPath();
+      ctx.arc(wd.x * TILE, wd.y * TILE, radius * TILE, 0, Math.PI * 2);
+      ctx.stroke();
+    } else if (cls.active1.kind === 'charge_pierce') {
+      const dir = normalize(view.cursorX - wd.x, view.cursorY - wd.y);
+      const ux = dir.x !== 0 || dir.y !== 0 ? dir.x : wd.fx;
+      const uy = dir.x !== 0 || dir.y !== 0 ? dir.y : wd.fy;
+      const len = cls.active1.radius;
+      ctx.beginPath();
+      ctx.moveTo(wd.x * TILE, wd.y * TILE);
+      ctx.lineTo((wd.x + ux * len) * TILE, (wd.y + uy * len) * TILE);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+    ctx.lineWidth = 1;
+  }
+
+  /**
+   * fb016: static, always-live Core overlays — a devour range ring +
+   * Digestion counter (Plant), a store readout (Corpse), a slow-aura/decay
+   * ring pair (Time), a lifesteal-share ring (Vampire Heart). Read straight
+   * from `w.core`/`w.coreKey`/`w.digestionStacks`/`w.corpseStore` every frame
+   * rather than from an emitted event — these are standing state, not a
+   * one-shot moment, the same reasoning `drawArenaFire`/the Core hp bar
+   * already apply to other continuous Core-adjacent state. Upgrade steps
+   * that add a new effect (e.g. Time's decay ring) are "visibly reflected"
+   * for free: the ring simply does not exist until its radius is non-zero.
+   */
+  private drawCoreStatus(w: World): void {
+    const ctx = this.ctx;
+    const cx = (CORE_X + CORE_W / 2) * TILE;
+    const cy = (CORE_Y + CORE_H / 2) * TILE;
+    const core = w.core;
+    const labelY = CORE_Y * TILE - 10;
+    ctx.font = '11px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    if (w.coreKey === 'carnivorous_plant' && !w.huntsWarden && core.devourRadius > 0) {
+      ctx.strokeStyle = '#7ac74f55';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([4, 3]);
+      ctx.beginPath();
+      ctx.arc(cx, cy, core.devourRadius * TILE, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = '#c8f7b0';
+      ctx.fillText(`Digestion ${w.digestionStacks}`, cx, labelY);
+    }
+    if (w.coreKey === 'time') {
+      if (!w.huntsWarden && core.tdSlowRadius > 0) {
+        ctx.strokeStyle = '#7fd4ff55';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(cx, cy, core.tdSlowRadius * TILE, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      if (core.decayRadius > 0) {
+        ctx.strokeStyle = '#c9a6ff66';
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([2, 4]);
+        ctx.beginPath();
+        ctx.arc(cx, cy, core.decayRadius * TILE, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+    }
+    if (w.coreKey === 'corpse' && !w.huntsWarden && core.corpseExecuteInterval > 0) {
+      ctx.fillStyle = '#ffd166';
+      ctx.fillText(`Store ${Math.round(w.corpseStore)}`, cx, labelY);
+    }
+    if (w.coreKey === 'vampire_heart' && core.towerLifestealPct > 0) {
+      ctx.strokeStyle = '#ff557755';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(cx, cy, Math.max(CORE_W, CORE_H) * TILE * 0.9, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.textAlign = 'left';
+    ctx.lineWidth = 1;
   }
 
   /**

@@ -272,7 +272,10 @@ export function applyHealingToStructure(w: World, s: Structure, amount: number):
  * lifesteals exactly once.
  */
 export function applyTowerLifesteal(w: World, s: Structure, dealt: number): void {
-  if (dealt > 0 && w.core.towerLifestealPct > 0) applyHealingToStructure(w, s, dealt * w.core.towerLifestealPct);
+  if (dealt <= 0 || w.core.towerLifestealPct <= 0) return;
+  applyHealingToStructure(w, s, dealt * w.core.towerLifestealPct);
+  // fb016: lifesteal motes flowing from the healed structure to the Core.
+  w.emit('core_lifesteal', s.tx + 0.5, s.ty + 0.5, 0, 0);
 }
 
 /** Fractional-gold accumulator so a sub-1-gold/tick trickle (Time step 1, overheal conversion) never rounds to nothing. */
@@ -412,6 +415,9 @@ function updatePlantDevour(w: World, dt: number): void {
   }
   w.coreHp = Math.min(w.coreMaxHp, w.coreHp + w.core.devourCoreHeal);
   w.digestionStacks++;
+  // fb016: the devour bite, so it reads as a distinct Core attack rather than
+  // just another 'hit:normal' flash.
+  w.emit('core_plant', target.x, target.y, 0, 0);
 }
 
 /** A poison DoT triggered by `amount` of the poison row's own authored ratio/duration/cap — same math `damagetypes.ts`'s `dotDpsFor` gives a ratio row, without importing that module (see the file's cycle note). */
@@ -445,6 +451,9 @@ function updatePlantVolley(w: World, dt: number): void {
     const dmg = w.core.poisonBulletDamage;
     damageEnemy(w, e, dmg, 'carnivorous_plant', { type: 'normal', noLifesteal: true });
     if (!e.dead) applyCoreHitPoison(w, e, dmg, 'carnivorous_plant');
+    // fb016: same bite cue as the TD devour — `poisonVolleyCap` already bounds
+    // this to a handful of emits per volley.
+    w.emit('core_plant', e.x, e.y, 0, 0);
   }
 }
 
@@ -516,6 +525,8 @@ function highestHpEnemy(w: World): Enemy | undefined {
 
 /** Flat, armor-mitigated AoE r`radius` splash around `(x, y)` — step 2's execution explosion. Reimplemented by hand rather than importing `combat.ts`'s `applyAoE`, the same real-cycle avoidance `applyCoreHitPoison` already documents (`cores.ts` → `combat.ts` → `cores.ts`, since `combat.ts` already imports `applyTowerLifesteal` from this file). No falloff/primary-target logic — SPEC-FINAL names only a flat radius, no tower-style diminishing-per-target rule. */
 function corpseExplode(w: World, x: number, y: number, radius: number, dmg: number): void {
+  // fb016: the step-2 explosion nova, distinct from the plain execute beam below.
+  w.emit('core_explode', x, y, radius, 0);
   for (const e of w.enemiesInRadius(x, y, radius)) {
     damageEnemy(w, e, dmg, 'corpse', { type: 'normal', noLifesteal: true });
   }
@@ -549,6 +560,10 @@ function updateCorpseExecute(w: World, dt: number): void {
   // hit in the game (there is no generic crit mechanic — QUESTIONS.md fb005),
   // fired once per execution rather than reusing the suppressed 'hit' path.
   w.emit('execute', tx, ty, spend, 0);
+  // fb016: the execution beam from the Core to the target, alongside the
+  // larger floating number the 'execute' event above already drives.
+  const cc = coreCenter();
+  w.emit('core_beam', cc.x, cc.y, tx, ty);
   // The kill above already credited `corpseStoreRatio` of `spend` back into
   // the store via the `damageEnemy` hook (enemies.ts) — subtracting the full
   // `spend` here, after that credit landed, is what makes the net result
