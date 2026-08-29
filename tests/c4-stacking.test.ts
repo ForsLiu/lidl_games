@@ -58,6 +58,7 @@ function baseReport(): RunReport {
     kills: 300,
     leaks: 0,
     damageByWeapon: {},
+    damageByType: {},
     damageTotal: 0,
     spawnedByWave: [],
     leaksByWave: [],

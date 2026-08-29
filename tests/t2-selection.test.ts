@@ -471,6 +471,7 @@ describe('T2: the selection gets a stats panel', () => {
       onToggleRanges: () => {},
       onToggleAutoPick: () => {},
       onToggleCharacterPanel: () => {},
+      onToggleDpsPanel: () => {},
       onResume: () => {},
       onPause: () => {},
       onCycleSpeed: () => {},
@@ -545,7 +546,7 @@ describe('T2: the selection gets a stats panel', () => {
     const hud = new Hud(root, {
       onSelectTower: () => {}, onCallWave: () => {}, onPickOffer: () => {},
       onReroll: () => {}, onRetry: () => {},
-      onNewRun: () => {}, onToggleRanges: () => {}, onToggleAutoPick: () => {}, onToggleCharacterPanel: () => {}, onResume: () => {}, onPause: () => {},
+      onNewRun: () => {}, onToggleRanges: () => {}, onToggleAutoPick: () => {}, onToggleCharacterPanel: () => {}, onToggleDpsPanel: () => {}, onResume: () => {}, onPause: () => {},
       onCycleSpeed: () => {}, onDev: () => {}, onQuitToHub: () => {},
     });
     hud.buildTowerBar(w);
@@ -573,7 +574,7 @@ describe('T2: the selection gets a stats panel', () => {
     const hud = new Hud(root, {
       onSelectTower: () => {}, onCallWave: () => {}, onPickOffer: () => {},
       onReroll: () => {}, onRetry: () => {},
-      onNewRun: () => {}, onToggleRanges: () => {}, onToggleAutoPick: () => {}, onToggleCharacterPanel: () => {}, onResume: () => {}, onPause: () => {},
+      onNewRun: () => {}, onToggleRanges: () => {}, onToggleAutoPick: () => {}, onToggleCharacterPanel: () => {}, onToggleDpsPanel: () => {}, onResume: () => {}, onPause: () => {},
       onCycleSpeed: () => {}, onDev: () => {}, onQuitToHub: () => {},
     });
     hud.buildTowerBar(w);

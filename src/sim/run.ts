@@ -572,6 +572,12 @@ export function startWave(w: World): void {
   w.phase = 'act1_wave';
   w.spawnQueue = buildSpawnQueue(w, w.wave);
   w.spawnTimer = 0;
+  // fb007 DPS panel: snapshot damage-so-far so "this wave" can be isolated
+  // the same way `damageAtSunder` isolates Act II (a stacked multi-summon
+  // fight only takes this snapshot once, at the base wave's own start).
+  w.damageAtWaveStart = { ...w.damageByWeapon };
+  w.damageTypeAtWaveStart = { ...w.damageByType };
+  w.waveStartTick = w.tick;
 }
 
 function buildSpawnQueue(w: World, wave: number): number[][] {
@@ -722,14 +728,27 @@ function updateAct2(w: World, input: TickInput, dt: number): void {
   if (!w.dying) openLevelUpIfPending(w);
 }
 
-/** Damage dealt since the Sundering, by source. */
-export function act2DamageSoFar(w: World): Record<string, number> {
+/**
+ * `current` minus its earlier `snapshot`, keyed the same way, dropping
+ * non-positive deltas. Shared by every "damage since X" window the DPS panel
+ * and `act2DamageSoFar` need — Act II since Sunder, Act I since wave start,
+ * for both the by-source and by-type accumulators.
+ */
+export function damageSince(
+  current: Record<string, number>,
+  snapshot: Record<string, number>,
+): Record<string, number> {
   const out: Record<string, number> = {};
-  for (const key of Object.keys(w.damageByWeapon)) {
-    const delta = w.damageByWeapon[key] - (w.damageAtSunder[key] ?? 0);
+  for (const key of Object.keys(current)) {
+    const delta = current[key] - (snapshot[key] ?? 0);
     if (delta > 0) out[key] = delta;
   }
   return out;
+}
+
+/** Damage dealt since the Sundering, by source. */
+export function act2DamageSoFar(w: World): Record<string, number> {
+  return damageSince(w.damageByWeapon, w.damageAtSunder);
 }
 
 /**
@@ -932,6 +951,22 @@ export function hashWorld(w: World): string {
   for (const k of attackKeys) h.str(k).int(w.attacksFired[k]);
   const boonKeys = Object.keys(w.boonRanks).sort();
   for (const k of boonKeys) h.str(k).int(w.boonRanks[k]);
+  // fb007: `damageByType` is a second choke-point accumulator alongside
+  // `damageByWeapon` (only `damageTotal`, their shared sum, was hashed below)
+  // and the four wave/Sunder snapshots gate what the DPS panel's "this wave"
+  // window isolates — same gap class as `soulLevels` (f001 review) and
+  // `enemyArmor` (m19a): a consumer reads state this hash didn't cover.
+  for (const rec of [
+    w.damageByWeapon,
+    w.damageByType,
+    w.damageAtSunder,
+    w.damageTypeAtSunder,
+    w.damageAtWaveStart,
+    w.damageTypeAtWaveStart,
+  ]) {
+    for (const k of Object.keys(rec).sort()) h.str(k).num(rec[k]);
+  }
+  h.int(w.waveStartTick);
   const st = w.rng.getState();
   h.int(st.waves).int(st.spawns).int(st.drops).int(st.offers).int(st.ai);
   h.num(w.damageTotal);
@@ -943,6 +978,8 @@ export function hashWorld(w: World): string {
 export function buildReport(w: World): RunReport {
   const damageByWeapon: Record<string, number> = {};
   for (const k of Object.keys(w.damageByWeapon).sort()) damageByWeapon[k] = w.damageByWeapon[k];
+  const damageByType: Record<string, number> = {};
+  for (const k of Object.keys(w.damageByType).sort()) damageByType[k] = w.damageByType[k];
   return {
     seed: w.cfg.seed,
     policy: w.cfg.policy ?? 'none',
@@ -968,6 +1005,7 @@ export function buildReport(w: World): RunReport {
     kills: w.kills,
     leaks: w.leaks,
     damageByWeapon,
+    damageByType,
     damageTotal: round2(w.damageTotal),
     damageThroughMinute8: w.damageThroughMinute8,
     spawnedByWave: w.spawnedByWave.slice(),

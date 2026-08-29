@@ -32,6 +32,7 @@ interface Log {
   ranges: number;
   autopick: number;
   character: number;
+  dps: number;
   pause: number;
   dev: DevOp[];
 }
@@ -47,6 +48,7 @@ function makeHud(root: HTMLElement, log: Log, pacer: Pacer): Hud {
     onToggleRanges: () => log.ranges++,
     onToggleAutoPick: () => log.autopick++,
     onToggleCharacterPanel: () => log.character++,
+    onToggleDpsPanel: () => log.dps++,
     onResume: () => {},
     onPause: () => log.pause++,
     onCycleSpeed: () => {
@@ -67,7 +69,7 @@ describe('in-run control row', () => {
 
   beforeEach(() => {
     root = mount();
-    log = { speed: 0, ranges: 0, autopick: 0, character: 0, pause: 0, dev: [] };
+    log = { speed: 0, ranges: 0, autopick: 0, character: 0, dps: 0, pause: 0, dev: [] };
     pacer = new Pacer();
     hud = makeHud(root, log, pacer);
     hud.buildTowerBar(new World(cfg()));
@@ -75,7 +77,7 @@ describe('in-run control row', () => {
   });
 
   it('shows every control the help line promises', () => {
-    for (const act of ['speed', 'ranges', 'autopick', 'character', 'pause']) {
+    for (const act of ['speed', 'ranges', 'autopick', 'character', 'dps', 'pause']) {
       expect(root.querySelector(`[data-act="${act}"]`), act).not.toBeNull();
     }
   });
@@ -254,6 +256,117 @@ describe('in-run control row', () => {
     const secondMarkup = panel.innerHTML;
     expect(secondMarkup, 'the panel must redraw, not keep the first Sundering\'s markup').not.toBe(firstMarkup);
     expect(secondMarkup).toContain(`+${Math.round(secondArmor * 100) / 100}`);
+  });
+
+  it('the DPS button reaches the callback and toggling shows and hides the panel', () => {
+    const btn = root.querySelector('#sw-dps') as HTMLButtonElement;
+    expect(btn.classList.contains('on')).toBe(false);
+    btn.click();
+    expect(log.dps).toBe(1);
+
+    const w = new World(cfg());
+    expect(hud.dpsPanelOpen).toBe(false);
+    hud.toggleDpsPanel(w);
+    expect(hud.dpsPanelOpen).toBe(true);
+    hud.update(w);
+    expect(btn.classList.contains('on')).toBe(true);
+    const panel = root.querySelector('#sw-dpspanel') as HTMLElement;
+    expect(panel.hidden).toBe(false);
+    expect(panel.textContent).toContain('DPS Summary');
+
+    hud.toggleDpsPanel(w);
+    expect(hud.dpsPanelOpen).toBe(false);
+    hud.update(w);
+    expect(btn.classList.contains('on')).toBe(false);
+    expect(panel.hidden).toBe(true);
+  });
+
+  it('the DPS panel opens in Act I and in Act II', () => {
+    for (const phase of ['act1_build', 'act1_wave', 'act2'] as const) {
+      const w = new World(cfg());
+      w.phase = phase;
+      const h = makeHud(mount(), { ...log }, pacer);
+      h.toggleDpsPanel(w);
+      expect(h.dpsPanelOpen, phase).toBe(true);
+    }
+  });
+
+  it('does not open the DPS panel once the run has ended, and force-closes if it ends while open', () => {
+    const w = new World(cfg());
+    hud.toggleDpsPanel(w);
+    expect(hud.dpsPanelOpen).toBe(true);
+    w.outcome = 'victory';
+    hud.update(w);
+    expect(hud.dpsPanelOpen).toBe(false);
+
+    const w2 = new World(cfg());
+    w2.outcome = 'defeat_core';
+    hud.toggleDpsPanel(w2);
+    expect(hud.dpsPanelOpen).toBe(false);
+  });
+
+  it('the close button inside the DPS panel closes it', () => {
+    const w = new World(cfg());
+    hud.toggleDpsPanel(w);
+    const panel = root.querySelector('#sw-dpspanel') as HTMLElement;
+    (panel.querySelector('[data-act="close"]') as HTMLElement).click();
+    expect(hud.dpsPanelOpen).toBe(false);
+    expect(panel.hidden).toBe(true);
+  });
+
+  it('the DPS panel refuses to open over the pause card and the level-up offer screen, and closes itself if either opens while it is showing', () => {
+    const w = new World(cfg());
+    hud.setPaused(true, w);
+    hud.toggleDpsPanel(w);
+    expect(hud.dpsPanelOpen, 'must not open while paused').toBe(false);
+    hud.setPaused(false, w);
+
+    hud.toggleDpsPanel(w);
+    expect(hud.dpsPanelOpen).toBe(true);
+    hud.setPaused(true, w);
+    expect(hud.dpsPanelOpen, 'must not survive under the pause card').toBe(false);
+    hud.setPaused(false, w);
+
+    hud.toggleDpsPanel(w);
+    expect(hud.dpsPanelOpen).toBe(true);
+    w.phase = 'levelup';
+    w.offers = [{ kind: 'boon', key: 'power', name: 'Power', desc: '', toLevel: 1 }];
+    hud.syncModal(w);
+    expect(hud.dpsPanelOpen, 'must not survive under the offer screen').toBe(false);
+  });
+
+  it('the DPS panel and the Character panel never both show at once (qa-playtester finding)', () => {
+    const w = new World(cfg());
+    hud.toggleCharacterPanel(w);
+    hud.toggleDpsPanel(w);
+    expect(hud.characterPanelOpen, 'opening DPS must close Character').toBe(false);
+    expect(hud.dpsPanelOpen).toBe(true);
+    hud.update(w);
+    expect((root.querySelector('#sw-charpanel') as HTMLElement).hidden).toBe(true);
+    expect((root.querySelector('#sw-dpspanel') as HTMLElement).hidden).toBe(false);
+
+    hud.toggleDpsPanel(w); // close DPS
+    hud.toggleDpsPanel(w); // reopen DPS
+    hud.toggleCharacterPanel(w);
+    expect(hud.dpsPanelOpen, 'opening Character must close DPS').toBe(false);
+    expect(hud.characterPanelOpen).toBe(true);
+    hud.update(w);
+    expect((root.querySelector('#sw-dpspanel') as HTMLElement).hidden).toBe(true);
+    expect((root.querySelector('#sw-charpanel') as HTMLElement).hidden).toBe(false);
+  });
+
+  it('the DPS panel shows this-wave and whole-run damage broken down by source and by type', () => {
+    const w = new World(cfg());
+    const arrow = w.content.towerByKey.get('arrow_spire')!;
+    w.damageByWeapon[arrow.key] = 120;
+    w.damageTotal = 120;
+    w.damageByType.normal = 120;
+    hud.toggleDpsPanel(w);
+    hud.update(w);
+    const panel = root.querySelector('#sw-dpspanel') as HTMLElement;
+    expect(panel.textContent).toContain(arrow.name);
+    expect(panel.textContent).toContain('Normal');
+    expect(panel.textContent).toContain('120');
   });
 
   it('the auto-pick button reaches the callback and lights from sim state, not click count', () => {

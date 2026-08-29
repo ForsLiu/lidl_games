@@ -23,6 +23,7 @@ export function finishSundering(w: World): void {
   w.warden.hp = w.derived.maxHp;
   w.sundered = true;
   w.damageAtSunder = { ...w.damageByWeapon };
+  w.damageTypeAtSunder = { ...w.damageByType };
   w.phase = 'act2';
   w.act2Time = 0;
   w.directorTimer = 0;

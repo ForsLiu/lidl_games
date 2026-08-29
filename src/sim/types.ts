@@ -547,6 +547,8 @@ export interface RunReport {
   kills: number;
   leaks: number;
   damageByWeapon: Record<string, number>;
+  /** fb007: cumulative damage by §3 damage-type key (`data/damagetypes.json`). */
+  damageByType: Record<string, number>;
   damageTotal: number;
   /** Per-wave Act I telemetry, indexed by wave number (1-based). */
   spawnedByWave: number[];

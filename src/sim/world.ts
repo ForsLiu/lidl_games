@@ -233,6 +233,8 @@ export class World {
   towersByKey: Record<string, number> = {};
   damageByWeapon: Record<string, number> = {};
   damageTotal = 0;
+  /** fb007 DPS panel: cumulative damage by §3 damage-type key, the same choke point as `damageByWeapon`. */
+  damageByType: Record<string, number> = {};
   /** Per-wave Act I telemetry, indexed by wave number (1-based). */
   spawnedByWave: number[] = [];
   leaksByWave: number[] = [];
@@ -248,6 +250,13 @@ export class World {
   looseInTheDark = 0;
   /** Cumulative damage at the Sundering, so Act II shares can be isolated. */
   damageAtSunder: Record<string, number> = {};
+  /** fb007: `damageByType` snapshot at the same moment as `damageAtSunder`. */
+  damageTypeAtSunder: Record<string, number> = {};
+  /** fb007 DPS panel: `damageByWeapon`/`damageByType` snapshot at the current Act I wave's start (`startWave`), so its "this wave" window can be isolated the same way `damageAtSunder` isolates Act II. */
+  damageAtWaveStart: Record<string, number> = {};
+  damageTypeAtWaveStart: Record<string, number> = {};
+  /** Tick `damageAtWaveStart` was taken at, so the panel can compute the window's elapsed seconds. */
+  waveStartTick = 0;
   /** Act II damage-by-source through minute 8, for SPEC A5. Null until reached. */
   damageThroughMinute8: Record<string, number> | null = null;
   /** Per-tick event log the renderer drains (never read by the sim). */

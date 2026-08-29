@@ -289,6 +289,7 @@ describe('BACKLOG f003/p3c: TD HUD shows the "Loose in the dark" counter', () =>
       onToggleRanges: () => {},
       onToggleAutoPick: () => {},
       onToggleCharacterPanel: () => {},
+      onToggleDpsPanel: () => {},
       onResume: () => {},
       onPause: () => {},
       onCycleSpeed: () => {},

@@ -248,6 +248,8 @@ export function damageEnemy(
   e.hp -= dmg;
   w.damageByWeapon[source] = (w.damageByWeapon[source] ?? 0) + dmg;
   w.damageTotal += dmg;
+  const dmgType = opts.type ?? 'normal';
+  w.damageByType[dmgType] = (w.damageByType[dmgType] ?? 0) + dmg;
   // §5.5 Corpse: "1% of all damage dealt to enemies on the map is stored"
   // (TD only) — the one Core effect that has to hook every damage source
   // rather than fire its own attack, so it lives at this single choke point

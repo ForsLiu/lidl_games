@@ -109,6 +109,7 @@ class Game {
       onToggleAutoPick: () =>
         this.pending.push({ k: 'set_autopick', on: !this.run!.world.cfg.autoPickLevelUps }),
       onToggleCharacterPanel: () => this.hud.toggleCharacterPanel(this.run!.world),
+      onToggleDpsPanel: () => this.hud.toggleDpsPanel(this.run!.world),
       onResume: () => this.setPaused(false),
       onPause: () => this.setPaused(true),
       onCycleSpeed: () => this.hud.setSpeed(this.pacer.cycle()),
@@ -128,6 +129,7 @@ class Game {
     this.hud.showPracticeTools(cfg.practice === true);
     this.hud.resetModalKey();
     this.hud.closeCharacterPanel();
+    this.hud.closeDpsPanel();
     this.view.selectedTower = 0;
     this.view.selection = null;
     this.pending = [];
@@ -177,6 +179,9 @@ class Game {
       toggleRanges: () => this.setShowRanges(!this.view.showRanges),
       toggleCharacterPanel: () => {
         if (this.run) this.hud.toggleCharacterPanel(this.run.world);
+      },
+      toggleDpsPanel: () => {
+        if (this.run) this.hud.toggleDpsPanel(this.run.world);
       },
       clearSelection: () => {
         this.hud.clearSelection();

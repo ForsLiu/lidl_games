@@ -110,6 +110,8 @@ export interface KeyBinding {
   cycleSpeed?: () => void;
   /** SPEC-FINAL §11, owner feedback `feature-boon-stats-panel`: opens/closes the character panel. */
   toggleCharacterPanel?: () => void;
+  /** SPEC-FINAL §11, owner feedback `feature-dps-summary`: opens/closes the DPS summary panel. */
+  toggleDpsPanel?: () => void;
   isChoosing?: () => boolean;
   onAnyKey?: () => void;
   /** Current mouse-aim point in tile coords, for a `dash_line`-kind Active2 (p6b). */
@@ -143,6 +145,7 @@ export function makeKeyDownHandler(b: KeyBinding): (e: KeyboardEvent) => void {
     if (k === 'r') b.toggleRanges?.();
     if (k === 'f') b.cycleSpeed?.();
     if (k === 'c') b.toggleCharacterPanel?.();
+    if (k === 'p') b.toggleDpsPanel?.();
     if (k === '0') b.clearSelection?.();
 
     if (k >= '1' && k <= '9') {

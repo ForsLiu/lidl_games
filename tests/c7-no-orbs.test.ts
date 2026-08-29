@@ -169,6 +169,7 @@ describe('C7: Orbs are gone from what a player sees', () => {
       onToggleRanges: () => {},
       onToggleAutoPick: () => {},
       onToggleCharacterPanel: () => {},
+      onToggleDpsPanel: () => {},
       onResume: () => {},
       onPause: () => {},
       onCycleSpeed: () => {},

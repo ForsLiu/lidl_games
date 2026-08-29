@@ -13,6 +13,7 @@ import { runProgress, type RunProgress } from './progress';
 import type { DevOp } from '../sim/types';
 import { selectedEnemy, selectedStructure, type Selection } from './selection';
 import { characterPanelData, type CharacterPanelData } from './character-panel';
+import { dpsPanelData, type DpsPanelData, type DpsWindow } from './dps-panel';
 import type { StatKind } from '../sim/stats';
 
 export interface HudCallbacks {
@@ -29,6 +30,8 @@ export interface HudCallbacks {
   onToggleAutoPick(): void;
   /** SPEC-FINAL §2/§6.3/§11, owner feedback `feature-boon-stats-panel`: opens/closes the character panel. */
   onToggleCharacterPanel(): void;
+  /** SPEC-FINAL §11, owner feedback `feature-dps-summary`: opens/closes the DPS summary panel. */
+  onToggleDpsPanel(): void;
   onResume(): void;
   onPause(): void;
   /** Fast-forward: cycles 1x / 2x / 3x. */
@@ -49,6 +52,7 @@ export class Hud {
   private progressEl: HTMLElement;
   private practiceEl: HTMLElement;
   private charPanelEl: HTMLElement;
+  private dpsPanelEl: HTMLElement;
   private lastInfoKey = '';
   private cb: HudCallbacks;
   private selected = 0;
@@ -57,6 +61,7 @@ export class Hud {
   private paused = false;
   private confirmingAbandon = false;
   private charPanelOpen = false;
+  private dpsPanelOpen_ = false;
 
   constructor(root: HTMLElement, cb: HudCallbacks) {
     this.root = root;
@@ -67,6 +72,7 @@ export class Hud {
           <canvas id="sw-canvas"></canvas>
           <div class="sw-modal sw-off" id="sw-modal" hidden></div>
           <div class="sw-modal sw-off" id="sw-charpanel" hidden></div>
+          <div class="sw-modal sw-off" id="sw-dpspanel" hidden></div>
           <div class="sw-toast" id="sw-toast"></div>
         </div>
         <div class="sw-side">
@@ -75,6 +81,7 @@ export class Hud {
             <button class="sw-ctl" data-act="ranges" id="sw-ranges" aria-pressed="false" title="Show tower ranges (R)">Ranges</button>
             <button class="sw-ctl" data-act="autopick" id="sw-autopick" aria-pressed="false" title="Resolve level-ups automatically">Auto-pick</button>
             <button class="sw-ctl" data-act="character" id="sw-character" aria-pressed="false" title="Character stats (C)">Character</button>
+            <button class="sw-ctl" data-act="dps" id="sw-dps" aria-pressed="false" title="Damage/DPS summary (P)">DPS</button>
             <button class="sw-ctl" data-act="pause" title="Pause (Esc)">Pause</button>
           </div>
           <div class="sw-practice" id="sw-practice" hidden></div>
@@ -86,7 +93,7 @@ export class Hud {
             <b>WASD</b> move &middot; <b>Space</b> dash &middot; <b>LMB</b> build &middot;
             <b>RMB</b> sell &middot; <b>U</b>+click upgrade &middot; <b>1-9</b> pick tower &middot;
             <b>0</b> clear &middot; <b>Enter</b> call wave &middot; <b>Q</b> class active &middot;
-            <b>R</b> ranges &middot; <b>F</b> speed &middot; <b>C</b> character &middot; <b>Esc</b> pause
+            <b>R</b> ranges &middot; <b>F</b> speed &middot; <b>C</b> character &middot; <b>P</b> DPS &middot; <b>Esc</b> pause
           </div>
         </div>
       </div>`;
@@ -99,6 +106,7 @@ export class Hud {
     this.progressEl = root.querySelector('#sw-progress') as HTMLElement;
     this.practiceEl = root.querySelector('#sw-practice') as HTMLElement;
     this.charPanelEl = root.querySelector('#sw-charpanel') as HTMLElement;
+    this.dpsPanelEl = root.querySelector('#sw-dpspanel') as HTMLElement;
     this.wireControls();
   }
 
@@ -108,6 +116,7 @@ export class Hud {
     controls?.querySelector('[data-act="ranges"]')?.addEventListener('click', () => this.cb.onToggleRanges());
     controls?.querySelector('[data-act="autopick"]')?.addEventListener('click', () => this.cb.onToggleAutoPick());
     controls?.querySelector('[data-act="character"]')?.addEventListener('click', () => this.cb.onToggleCharacterPanel());
+    controls?.querySelector('[data-act="dps"]')?.addEventListener('click', () => this.cb.onToggleDpsPanel());
     controls?.querySelector('[data-act="pause"]')?.addEventListener('click', () => this.cb.onPause());
   }
 
@@ -202,6 +211,12 @@ export class Hud {
       return;
     }
     if (w.outcome !== 'running' || this.paused || !this.modal.hidden) return;
+    // The DPS panel is the same kind of sibling overlay this panel already
+    // refuses to stack under `this.modal` for — opening on top of it would
+    // hide it and eat its clicks the same way (qa-playtester finding: fb007
+    // opened over an already-showing Character panel with neither closing
+    // the other).
+    if (this.dpsPanelOpen_) this.closeDpsPanel();
     this.charPanelOpen = true;
     this.renderCharacterPanel(w);
   }
@@ -241,6 +256,56 @@ export class Hud {
     el.classList.toggle('on', this.charPanelOpen);
   }
 
+  /** True while the DPS panel is open — presentation state, read by tests and `main.ts`. */
+  get dpsPanelOpen(): boolean {
+    return this.dpsPanelOpen_;
+  }
+
+  /**
+   * SPEC-FINAL §11, owner feedback `feature-dps-summary` (fb007): damage
+   * dealt and DPS over the current wave and the whole run, by source and by
+   * damage type. Same refusal rule as `toggleCharacterPanel` (fb004) and the
+   * same reason: two independently-driven overlays painted in the same
+   * `position: absolute; inset: 0` stack would hide one another and eat its
+   * clicks.
+   */
+  toggleDpsPanel(w: World): void {
+    if (this.dpsPanelOpen_) {
+      this.closeDpsPanel();
+      return;
+    }
+    if (w.outcome !== 'running' || this.paused || !this.modal.hidden) return;
+    // See `toggleCharacterPanel`'s matching comment: without this, the two
+    // panels could both render at once (qa-playtester finding).
+    if (this.charPanelOpen) this.closeCharacterPanel();
+    this.dpsPanelOpen_ = true;
+    this.renderDpsPanel(w);
+  }
+
+  closeDpsPanel(): void {
+    this.dpsPanelOpen_ = false;
+    this.dpsPanelEl.hidden = true;
+    this.dpsPanelEl.classList.add('sw-off');
+    this.dpsPanelEl.innerHTML = '';
+  }
+
+  /** Damage keeps changing every tick, unlike the character panel's rarely-changing
+   * stats, so this redraws unconditionally on every `update()` call while open rather
+   * than gating on a memoized key. */
+  private renderDpsPanel(w: World): void {
+    this.dpsPanelEl.hidden = false;
+    this.dpsPanelEl.classList.remove('sw-off');
+    this.dpsPanelEl.innerHTML = dpsPanelMarkup(dpsPanelData(w));
+    this.dpsPanelEl.querySelector('[data-act="close"]')?.addEventListener('click', () => this.closeDpsPanel());
+  }
+
+  private syncDpsPanelToggle(): void {
+    const el = this.root.querySelector('#sw-dps');
+    if (!el) return;
+    el.setAttribute('aria-pressed', String(this.dpsPanelOpen_));
+    el.classList.toggle('on', this.dpsPanelOpen_);
+  }
+
   /** Reflects the pacer's speed; the pacer itself owns the cycling. */
   setSpeed(speed: number): void {
     this.speedBtn.textContent = `${speed}x`;
@@ -249,7 +314,7 @@ export class Hud {
 
   /** True while any overlay owns input, so clicks must not reach the canvas. */
   get modalOpen(): boolean {
-    return !this.modal.hidden || !this.charPanelEl.hidden;
+    return !this.modal.hidden || !this.charPanelEl.hidden || !this.dpsPanelEl.hidden;
   }
 
   get canvas(): HTMLCanvasElement {
@@ -337,6 +402,9 @@ export class Hud {
     if (this.charPanelOpen && w.outcome !== 'running') this.closeCharacterPanel();
     else if (this.charPanelOpen) this.renderCharacterPanel(w);
     this.syncCharacterPanelToggle();
+    if (this.dpsPanelOpen_ && w.outcome !== 'running') this.closeDpsPanel();
+    else if (this.dpsPanelOpen_) this.renderDpsPanel(w);
+    this.syncDpsPanelToggle();
     // A selection describes itself — but never at the cost of the panels the
     // player needs to act: a tower queued on the build bar has to show its own
     // stats, and in Act II the weapon panel carries the only weapon switcher.
@@ -577,6 +645,7 @@ export class Hud {
    */
   private openModal(): void {
     if (this.charPanelOpen) this.closeCharacterPanel();
+    if (this.dpsPanelOpen_) this.closeDpsPanel();
     this.modal.hidden = false;
     this.modal.classList.remove('sw-off');
   }
@@ -765,6 +834,56 @@ export function characterPanelMarkup(data: CharacterPanelData): string {
       ${boonRows}
       <div class="sw-sub">Stats</div>
       <div class="sw-charstats">${statRows}</div>
+      <button class="sw-reroll" data-act="close">Close</button>
+    </div>`;
+}
+
+function formatDamage(v: number): string {
+  return Math.round(v).toLocaleString();
+}
+
+function formatDps(v: number): string {
+  return (Math.round(v * 10) / 10).toLocaleString();
+}
+
+/** Elapsed-seconds label: rounded, but never thousands-grouped like `formatDps`
+ * (a long run's raw tick count would otherwise print "1,245.0s"). */
+function formatSeconds(v: number): string {
+  return String(Math.round(v * 10) / 10);
+}
+
+function dpsRowsMarkup(rows: DpsWindow['bySource']): string {
+  if (rows.length === 0) return '<p class="sw-note dim">No damage dealt yet.</p>';
+  return `<ul class="sw-statlist">${rows
+    .map((r) => `<li>${r.label}: <b>${formatDamage(r.damage)}</b> (${formatDps(r.dps)}/s)</li>`)
+    .join('')}</ul>`;
+}
+
+function dpsWindowMarkup(win: DpsWindow): string {
+  return `<div class="sw-sub">${win.label} <i>(${formatSeconds(win.seconds)}s)</i></div>
+    <div class="sw-row small"><span>Total</span><b>${formatDamage(win.damage)} (${formatDps(win.dps)}/s)</b></div>
+    <details class="sw-charstat" open>
+      <summary><span>By source</span></summary>
+      ${dpsRowsMarkup(win.bySource)}
+    </details>
+    <details class="sw-charstat">
+      <summary><span>By damage type</span></summary>
+      ${dpsRowsMarkup(win.byType)}
+    </details>`;
+}
+
+/**
+ * SPEC-FINAL §11 (fb007): damage dealt and DPS over the current wave and the
+ * whole run, broken down by source and by damage type. See `dps-panel.ts`
+ * for why the source rows read correctly in both phases without a separate
+ * TD/VS split.
+ */
+export function dpsPanelMarkup(data: DpsPanelData): string {
+  return `
+    <div class="sw-card sw-charcard wide">
+      <h2>DPS Summary</h2>
+      ${dpsWindowMarkup(data.wave)}
+      ${dpsWindowMarkup(data.run)}
       <button class="sw-reroll" data-act="close">Close</button>
     </div>`;
 }
