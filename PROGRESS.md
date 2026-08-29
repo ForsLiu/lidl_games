@@ -5,6 +5,81 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-29 session: fb016 done (`35dcba2`) — indicators + VFX for every
+  skill and Core function, SPEC-FINAL §11 extended to skills/Cores, next in
+  the owner priority queue after fb015.** Found already implemented and
+  uncommitted at this session's start — a prior session's complete, in-flight
+  work (its own code-review/QA fixes for three overclaimed cues already
+  baked into `tests/fb016-vfx-registry.test.ts`'s comments) that never made
+  it through the loop-mode contract's commit step. This session's job was to
+  independently re-verify rather than re-derive: read the full diff end to
+  end, confirmed `npx tsc --noEmit` clean, ran the targeted tests
+  (`tests/fb016-vfx-registry.test.ts` + `tests/q3-save-fuzz.test.ts`, both
+  green), then `npm run test:fast`, which came back with 4 failures
+  (`q15-command-domain-fuzz` timeouts, `q49`/`q52` scratch-dir `EPERM`) —
+  each re-run standalone and passed cleanly, matching the pre-existing
+  Windows host-load-dependent flake class already filed as b028/b029, not a
+  regression from this item. A fresh **qa-playtester pass: PASS**, no bugs
+  found (independently traced every `fire*`/Core-effect function to a draw
+  path, confirmed `reducedFlash` dims rather than suppresses, confirmed
+  every new `w.emit(...)` in `classes.ts`/`cores.ts` is a pure
+  `this.fx.push(...)` with no RNG/`Date.now`/state mutation, grepped the
+  diff for sim-purity violations — none found).
+  New `src/render/vfx-registry.ts` is the one style module SPEC-FINAL's
+  "style constants live in one render module" clause asks for: `CLASS_VFX`
+  (all 11 real classes' Q/E indicator+fire text and a passive cue, each with
+  a color), `CORE_VFX` (all 5 Cores' indicator + per-effect VFX/color), and
+  `ACTIVE_KIND_SHAPE` (all 22 authored `ClassEffect.kind` values mapped to a
+  generic `nova`/`line`/`point`/`skip` render shape deciding how an emitted
+  event's `(x,y,a,b)` payload reads). `missingVfxCoverage()` backs the
+  acceptance criterion's "a data-driven registry checklist test asserts
+  every class/Core has indicator+VFX entries so a new skill without them
+  fails the test" directly — a synthetic unregistered class/Core key is
+  asserted missing in the same test that asserts the real content is fully
+  covered. `canvas.ts` turned the registry into actual pixels: `drawCasts()`
+  renders the fire-moment flash for any `class_active`/`class_active2`/
+  `core_plant`/`core_lifesteal`/`core_beam`/`core_explode` event `ingest()`
+  now has a case for (previously every one of the 22 `fire*` functions in
+  `classes.ts` already called `w.emit(...)` with nothing on the renderer side
+  to catch it — every skill cast in the game rendered nothing before this
+  item); `drawChargeIndicator()` previews `charge_nova`/`charge_pierce`
+  Actives' live charge state (`w.warden.active1Charging`/`active1Charge`),
+  reusing `classes.ts`'s now-exported `circleSlashValues` so the preview
+  radius is exactly what firing will produce, not a re-derived lerp;
+  `drawCoreStatus()` draws the four Cores' *standing* state every frame
+  (Plant's devour ring + live Digestion counter, Time's slow-aura/decay-ring
+  pair, Corpse's store readout, Vampire Heart's lifesteal-share ring) rather
+  than from a one-shot event, so an upgrade step that adds a new ring (e.g.
+  Time's decay ring) is "visibly reflected" for free — the ring simply does
+  not exist until its radius is non-zero; Guardian Stance's armor glow reads
+  `classArmorBonus(w)` (the same state the armor formula itself reads) so
+  the ring appears exactly when the bonus does. A new `reducedFlash` setting
+  (`settings.ts`/`hub.ts` Options toggle, default off) is SPEC-FINAL §11's
+  "respects reduced-flash" clause: `drawCasts()` dims the cast layer to
+  alpha 0.45 and drops its fill rather than suppressing it outright, so the
+  cue survives for a photosensitivity setting without going silent — a test
+  explicitly checks the alpha actually differs (not just "still draws
+  something"), since a deleted dimming multiplier would otherwise pass a
+  weaker check. The `classes.ts`/`cores.ts` edits are visibility-only:
+  `fireIceWall` gained the one missing `w.emit('class_active2', ...)` call
+  (the only Active2 kind with zero emit at all before this item),
+  `updateContagiousFlame`'s touch-damage tick and four Core-effect functions
+  (`applyTowerLifesteal`, `updatePlantDevour`, `updatePlantVolley`,
+  `corpseExplode`, `updateCorpseExecute`) gained matching emits — no damage,
+  cooldown, or RNG-stream change in any of them. qa-playtester's prior pass
+  (baked into the test file already) had found three registry entries whose
+  claimed cue was fabricated — Pyromancer's Contagious Flame touch damage and
+  Paladin's Guardian Stance armor glow rendered nothing at all, and both
+  charge indicators' "brightens with hold" claim was a flat, non-dynamic
+  alpha — all three now real; Judgement's fabricated "brightens with stored
+  Wrath" claim (it fires instantly, no charge phase to telegraph) was a doc
+  fix in the registry text rather than new render code. 17 new tests in
+  `tests/fb016-vfx-registry.test.ts`; `tests/q3-save-fuzz.test.ts` updated
+  for `reducedFlash` joining the settings blob's corruption-fuzz coverage.
+  `npm run test:fast`: 1408/1447 passed, 34 skipped, 4 failed — all 4 the
+  pre-existing b028/b029 Windows flake class, individually confirmed green
+  in isolation this session. `npx tsc --noEmit`: clean.
+
 - **2026-08-29 session: fb015 done (`dc6129b`) — the equipment system per
   SPEC-FINAL §7/§8.1, top of the owner priority queue.** Six slots (weapon,
   armor, shoes, ring, necklace, bracelet), the owner's 12-item table in the

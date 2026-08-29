@@ -58,22 +58,8 @@ reappear here.
 
 - [x] (fb015) [feat] top priority: realize the equipment system per §7 —
       **done, see Done section.**
-- [ ] (fb016) [feat] top priority: indicators + VFX for every skill and Core
-      function — every class active gets an aim/charge indicator while
-      casting and a firing VFX (Circle Slash radius-at-charge, Dash Slash
-      path, Poison Barrel circle, Glaciate nova, Taunt radius, Manifest
-      placement, Ice Wall footprint, etc.); every listed passive trigger
-      gets a visible cue (Thousand Cuts bleed tick, Spreading Plague jump
-      line, Conduction jump counter, Parry flash, shatter burst, Paladin
-      Wrath glow); every Core gets its listed indicator/VFX (Plant devour
-      bite + range ring, Corpse execution beam + store meter, Vampire
-      Heart lifesteal motes, Time slow-aura/decay-ring shading, upgrade
-      steps visibly reflected); primitive shapes are fine, style constants
-      live in one render module, respects reduced-flash, no sim changes —
-      acceptance: a data-driven registry checklist test asserts every
-      class/Core has indicator+VFX entries so a new skill without them
-      fails the test — refs: §11 indicators extended to skills/Cores,
-      owner feedback `feature-skill-core-vfx`.
+- [x] (fb016) [feat] top priority: indicators + VFX for every skill and Core
+      function — **done, see Done section.**
 - [ ] (fb019) [feat] Training grounds: a Hub-accessible practice arena for
       trying classes, towers, equipment and Cores outside a real run —
       spawn-on-demand enemies (type/tier/count picked from a panel),
@@ -901,6 +887,32 @@ logged in MIGRATION.md §8 rather than carried as dead items.
   **G19**. The work is `p10d`.
 
 ## Done
+
+- [x] (fb016) [feat] indicators + VFX for every skill and Core function per
+      §11 extended to skills/Cores — commit `35dcba2`. New
+      `src/render/vfx-registry.ts` holds the one style module (`CLASS_VFX`
+      for all 11 classes' q/e/passive, `CORE_VFX` for all 5 Cores,
+      `ACTIVE_KIND_SHAPE` mapping every `ClassEffect.kind` to a
+      nova/line/point/skip render shape) plus `missingVfxCoverage()`, backing
+      a data-driven registry checklist test
+      (`tests/fb016-vfx-registry.test.ts`, 17 tests) that fails on any new
+      skill/Core with no entry. `canvas.ts` gained `drawCasts()` (fire-moment
+      flashes), `drawChargeIndicator()` (live charge-ratio preview),
+      `drawCoreStatus()` (always-live Core overlays), and a Guardian Stance
+      armor-glow ring; a new `reducedFlash` setting dims the cast layer
+      (alpha 1 → 0.45) rather than removing it. `classes.ts`/`cores.ts`
+      changes are visibility-only new `w.emit(...)` calls (fixing Ice Wall's
+      previously-missing Active2 emit, Contagious Flame's touch-damage cue,
+      and Core-effect cues) — no damage/cooldown/RNG changes.
+      Found already implemented and uncommitted at this session's start (a
+      prior session's in-flight work, complete with its own code-review/QA
+      fixes baked into the test file's comments but never committed);
+      this session independently re-verified before finalizing: `npx tsc
+      --noEmit` clean, targeted tests green, `npm run test:fast` green
+      except 4 pre-existing Windows load-dependent flakes (q15 timeouts,
+      q49/q52 scratch-dir EPERM — the documented b028/b029 class), each
+      individually re-run and confirmed passing in isolation, plus a fresh
+      **qa-playtester: PASS**, no bugs found.
 
 - [x] (fb015) [feat] realize the equipment system per §7/§8.1 — commit
       `dc6129b`, code-reviewer REQUEST-CHANGES (1 Major, 1 Minor, both fixed:
