@@ -618,7 +618,6 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'warden.pickupRadius': ['negative', 'zero', 'infinite', 'fractional'],
   'waves.buildPhaseSeconds': ['negative', 'zero', 'infinite', 'fractional'],
   'waves.coreHp': ['negative', 'zero', 'infinite', 'fractional'],
-  'waves.earlyCallGoldPerSecond': ['negative', 'zero', 'infinite', 'fractional'],
   'waves.eliteMulByCycle': ['drop-key', 'rename-key'],
   'waves.eliteMulByCycle.2': ['negative', 'zero', 'infinite', 'fractional', 'drop-key', 'rename-key'],
   'waves.enemyStructureDpsFactor': ['negative', 'zero', 'infinite', 'fractional'],

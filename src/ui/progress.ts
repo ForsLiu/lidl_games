@@ -60,9 +60,7 @@ function act1Progress(w: World): RunProgress {
   return {
     title: building ? `${dayLabel}Build — wave ${wave} of ${total}` : `${dayLabel}Wave ${wave} of ${total}`,
     detail: building
-      ? `${Math.ceil(w.buildTimer)}s to build. Enter calls the wave early for ${Math.round(
-          w.buildTimer * w.content.waves.earlyCallGoldPerSecond,
-        )} gold.`
+      ? `${Math.ceil(w.buildTimer)}s to build. Enter calls the wave early.`
       : `${remaining} enemy${remaining === 1 ? '' : 'ies'} left in this wave · Core at ${Math.round(
           (w.coreHp / w.coreMaxHp) * 100,
         )}%`,

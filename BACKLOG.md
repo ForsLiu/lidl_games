@@ -134,14 +134,14 @@ filed and ready, not next up.
       **done, see Done section** — refs: §11, owner feedback
       `feature-dps-summary`.
 - (fb008) — moved to the **Owner priority queue (2026-08-29 directive)** above.
-- [ ] (fb009) [feat] Remove the early-call bonus-gold mechanic (including
+- [x] (fb009) [feat] Remove the early-call bonus-gold mechanic (including
       multi-summon's per-wave bonus) entirely; every TD wave cleared instead
       pays a fixed `20 + 10 × wave` reward (tunable); multi-summon (stacking
       up to 3 waves) stays, without the bonus — acceptance: an early call
       grants no gold; clearing wave N pays the formula; gate G6 and the
       economy tests are updated to match; a test covers it — refs: §1.1
       (supersedes the early-call bonus rule), owner feedback
-      `feature-fixed-wave-reward`.
+      `feature-fixed-wave-reward`. **done, see Done section.**
 - (fb010) — moved to the **Owner priority queue (2026-08-29 directive)** above.
 - (fb011) — moved to the **Owner priority queue (2026-08-29 directive)** above.
 
@@ -863,6 +863,40 @@ logged in MIGRATION.md §8 rather than carried as dead items.
 
 ## Done
 
+- [x] (fb009) [feat] Removed the early-call bonus-gold mechanic entirely;
+      every TD wave cleared now pays a fixed `20 + 10 × wave` reward — this
+      commit (2026-08-29). `src/sim/run.ts`'s `call` Command no longer pays
+      gold in either branch (`act1_build`'s single-wave early call, or
+      `act1_wave`'s multi-summon stacking) — both keep their state-changing
+      behavior (`buildTimer` zeroes / `stackDepth` increments and the next
+      wave's spawns merge in) with the `Math.round(seconds *
+      earlyCallGoldPerSecond)` payout deleted, along with the field itself
+      (`data/waves.json`, `src/sim/content.ts`'s schema). `completeWave`'s
+      unchanged per-wave-cleared formula (`(waveClearBase + waveClearPerWave
+      * wave) * goldFindMul`) nets out to exactly `20 + 10 × wave` before
+      goldFind now that `waveClearBase` moved 50 → 20 in `/data` — it pays on
+      every wave clear regardless of how the wave was reached, so no second
+      payout mechanism was needed for the "fixed reward" half of the request.
+      `src/ui/progress.ts` dropped the gold-amount clause from the Act I
+      build-phase HUD text. SPEC-FINAL.md §1.1 and the G6 row of §14's gate
+      table updated to state the new rule instead of the deleted `2 gold ×
+      un-elapsed build seconds` formula (canonical text `tools/gate-audit.ts`
+      parses verbatim). Five tests updated: `tests/act1.test.ts`,
+      `tests/progress.test.ts`, `tests/p3b-multi-summon.test.ts`,
+      `tests/q7-loader-holes.ts`, `tests/c4-stacking.test.ts` (a hardcoded
+      192 → 120 expectation the `waveClearBase` change would otherwise have
+      silently broken). code-reviewer **REQUEST-CHANGES → taken** (the one
+      Major: SPEC-FINAL/G6 text left stale against the item's own acceptance
+      criterion naming G6). qa-playtester **PASS**: confirmed zero gold at
+      six elapsed-countdown fractions and across every stack depth up to and
+      past the cap, confirmed a stacked clear pays the sum of each merged
+      wave's own formula value rather than one flat payout, grepped every
+      other `buildTimer` reader in `src/sim` for a leftover bonus path,
+      checked the HUD text, and confirmed replay determinism holds for a
+      `call`-bearing input log. `npm run test:fast` green apart from the
+      pre-existing Windows host-load flake class already logged as b028/b029
+      (all four re-ran standalone-clean) — refs: SPEC-FINAL §1.1, owner
+      feedback `feature-fixed-wave-reward`.
 - [x] (fb014) [feat] Constellation tree counts as fully allocated on every run
       (temporary supersede of §8.3) — this commit (2026-08-29). New
       `TREE_AUTO_MAX = true` and `allTreeNodeIds(content)` (`src/meta/meta.ts`)

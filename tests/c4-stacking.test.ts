@@ -408,8 +408,9 @@ describe('C4 — every rebased consumer reads a finished multiplier', () => {
     w.enemies = [];
     const before = w.gold;
     run.step(emptyInput());
-    // (50 + 10x3) x 2.4 = 192. Additive -> 168. Double-applied -> 272.
-    expect(w.gold - before).toBe(192);
+    // fb009: waveClearBase is now 20 (was 50). (20 + 10x3) x 2.4 = 120.
+    // Additive -> 105. Double-applied -> 170.
+    expect(w.gold - before).toBe(120);
   });
 
   it('emberFor scales by emberFind (meta.ts)', () => {

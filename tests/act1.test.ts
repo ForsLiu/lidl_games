@@ -234,13 +234,12 @@ describe('economy and wave flow', () => {
     expect(w.gold).toBe(before + 5);
   });
 
-  it('calling a wave early pays 2 gold per second skipped', () => {
+  it('calling a wave early grants no gold (fb009: early-call bonus removed)', () => {
     const run = new Run(cfg());
     const w = run.world;
     const before = w.gold;
-    const skipped = w.buildTimer;
     run.step({ ...emptyInput(), cmds: [{ k: 'call' }] });
-    expect(w.gold).toBe(before + Math.round(skipped * 2));
+    expect(w.gold).toBe(before);
     expect(w.phase).toBe('act1_wave');
   });
 

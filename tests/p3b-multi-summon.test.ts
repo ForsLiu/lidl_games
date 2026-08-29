@@ -1,18 +1,22 @@
 /**
  * SPEC-FINAL §1.1 (P3, BACKLOG p3b), gate G6's stacking half: "the player may
- * call the next TD wave(s) early, stacking up to 3 at once; early-call bonus
- * = 2 gold x that wave's un-elapsed build seconds, paid once per wave against
- * its own timer. VS waves cannot be stacked or skipped."
+ * call the next TD wave(s) early, stacking up to 3 at once. VS waves cannot
+ * be stacked or skipped." fb009 supersedes the original early-call bonus
+ * rule (2 gold x that wave's un-elapsed build seconds): calling early now
+ * grants no gold at all, and every wave instead pays a fixed clear reward
+ * (`waveClearBase + waveClearPerWave x wave`) regardless of how it was
+ * called.
  *
  * `src/sim/run.ts`'s `call` command handles two distinct cases: in
  * `act1_build`, calling early is the pre-existing single-wave behavior
- * (unchanged: pay off whatever is left of the live `buildTimer`, then let
- * `updateAct1Build`'s own zero-check start the wave). In `act1_wave` (a wave
- * already fighting), calling pulls the *next* wave's own not-yet-started
- * build phase forward and merges its spawn queue into the fight in progress
- * — `World.stackDepth` counts the 0..`maxStackedWaves-1` extra waves merged
- * in this way. `completeWave` then clears the whole merged range at once,
- * each wave still paying its own clear bonus.
+ * (unchanged except no longer paying a bonus: zero out the live
+ * `buildTimer`, then let `updateAct1Build`'s own zero-check start the wave).
+ * In `act1_wave` (a wave already fighting), calling pulls the *next* wave's
+ * own not-yet-started build phase forward and merges its spawn queue into
+ * the fight in progress — `World.stackDepth` counts the
+ * 0..`maxStackedWaves-1` extra waves merged in this way. `completeWave` then
+ * clears the whole merged range at once, each wave still paying its own
+ * (now fixed) clear bonus.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -23,7 +27,7 @@ import { emptyInput } from '../src/sim/types';
 import { cfg } from './helpers';
 
 describe('p3b: multi-summon (gate G6 stacking half)', () => {
-  it('stacks up to maxStackedWaves TD waves, each paying its own early-call bonus exactly once, and rejects a further stack', () => {
+  it('stacks up to maxStackedWaves TD waves, none of them paying an early-call gold bonus (fb009), and rejects a further stack', () => {
     const run = new Run(cfg({ cycles: 6, seed: 1 }));
     const w = run.world;
     w.invulnerable = true;
@@ -31,31 +35,26 @@ describe('p3b: multi-summon (gate G6 stacking half)', () => {
 
     const c = w.content.waves;
     expect(c.maxStackedWaves).toBe(3);
-    const perWaveBonus = Math.round(c.buildPhaseSeconds * c.earlyCallGoldPerSecond);
 
     // Call wave 1 early (the pre-existing single-wave path — full buildTimer,
-    // since nothing has ticked yet).
+    // since nothing has ticked yet). No gold changes hands.
     let gold = w.gold;
     applyCommand(w, { k: 'call' });
-    expect(w.gold).toBe(gold + perWaveBonus);
-    gold = w.gold;
+    expect(w.gold).toBe(gold);
     run.step(emptyInput());
     expect(w.phase).toBe('act1_wave');
     expect(w.wave).toBe(1);
     expect(w.stackDepth).toBe(0);
 
-    // Stack wave 2 onto the fight already in progress: pays its own bonus
-    // (the *full* build phase, since that wave's own timer never started).
+    // Stack wave 2 onto the fight already in progress: still no gold.
     applyCommand(w, { k: 'call' });
-    expect(w.gold).toBe(gold + perWaveBonus);
+    expect(w.gold).toBe(gold);
     expect(w.stackDepth).toBe(1);
-    gold = w.gold;
 
     // Stack wave 3: the third and last legal stack (maxStackedWaves = 3).
     applyCommand(w, { k: 'call' });
-    expect(w.gold).toBe(gold + perWaveBonus);
+    expect(w.gold).toBe(gold);
     expect(w.stackDepth).toBe(2);
-    gold = w.gold;
     const queueLenAtCap = w.spawnQueue.length;
 
     // A fourth stack is rejected outright: no gold, no depth change, no

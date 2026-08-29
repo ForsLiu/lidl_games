@@ -215,18 +215,16 @@ export function replayRecorded(recorded: RecordedRun, cfg: RunConfig): RunReport
 export function applyCommand(w: World, c: Command): void {
   switch (c.k) {
     case 'call': {
-      // SPEC-FINAL §1.1: calling early pays 2 gold per second skipped. A VS
-      // wave can be neither stacked nor skipped, so any phase but the two TD
-      // ones is a no-op.
+      // SPEC-FINAL §1.1 (fb009 supersedes the early-call bonus rule): calling
+      // early grants no gold — it only pulls the wave forward. A VS wave can
+      // be neither stacked nor skipped, so any phase but the two TD ones is a
+      // no-op.
       if (w.phase !== 'act1_build' && w.phase !== 'act1_wave') break;
       const wc = w.content.waves;
       if (w.phase === 'act1_build') {
-        // The wave already counting down its own build timer: pay off
-        // whatever is left of it, then updateAct1Build's own zero-check
-        // starts it as normal (unchanged from pre-multi-summon behavior).
-        const bonus = Math.round(w.buildTimer * wc.earlyCallGoldPerSecond);
-        w.gold += bonus;
-        w.goldEarned += bonus;
+        // The wave already counting down its own build timer: skip whatever
+        // is left of it, then updateAct1Build's own zero-check starts it as
+        // normal (unchanged from pre-multi-summon behavior).
         w.buildTimer = 0;
         break;
       }
@@ -239,12 +237,6 @@ export function applyCommand(w: World, c: Command): void {
       const nextWave = w.wave + w.stackDepth + 1;
       // Can't stack across the block boundary into the VS wave that follows.
       if (nextWave > cycleWaveEnd(w, w.cycle)) break;
-      // That wave's own build timer has not ticked at all yet, so the whole
-      // of it is "un-elapsed".
-      const buildSeconds = w.mods.buildPhase || wc.buildPhaseSeconds;
-      const bonus = Math.round(buildSeconds * wc.earlyCallGoldPerSecond);
-      w.gold += bonus;
-      w.goldEarned += bonus;
       w.stackDepth++;
       w.spawnQueue.push(...buildSpawnQueue(w, nextWave));
       break;

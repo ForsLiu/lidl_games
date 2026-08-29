@@ -35,13 +35,13 @@ describe('run progress', () => {
     expect(p.markers.filter((m) => m.done).length).toBe(5);
   });
 
-  it('the build phase says what calling early is worth', () => {
+  it('the build phase says calling early is available, with no gold amount (fb009)', () => {
     const w = world();
     w.phase = 'act1_build';
     w.buildTimer = 20;
     const p = runProgress(w);
-    const bonus = Math.round(20 * w.content.waves.earlyCallGoldPerSecond);
-    expect(p.detail).toContain(String(bonus));
+    expect(p.detail).toContain('calls the wave early');
+    expect(p.detail).not.toContain('gold');
     expect(p.sub).toBeNull();
   });
 

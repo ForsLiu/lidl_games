@@ -338,7 +338,6 @@ const WaveGroupSchema = z.object({
 const WavesFileSchema = z.object({
   hpScalePerWave: num,
   buildPhaseSeconds: num,
-  earlyCallGoldPerSecond: num,
   waveClearBase: num,
   waveClearPerWave: num,
   startGold: num,

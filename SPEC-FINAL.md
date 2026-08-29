@@ -25,9 +25,12 @@ persistent skill tree.
 - TD wave 18 ends with the **Gatebreaker** miniboss; the final VS wave ends
   with the **Warden-Eater** boss — killing it wins the run.
 - **Multi-summon**: the player may call the next TD wave(s) early, stacking
-  up to 3 at once ⚖; early-call bonus = `2 gold × that wave's un-elapsed
-  build seconds`, paid once per wave against its own timer. VS waves cannot
-  be stacked or skipped.
+  up to 3 at once ⚖, with no gold bonus for calling early (fb009 supersedes
+  the original early-call bonus rule — `2 gold × that wave's un-elapsed build
+  seconds` — after it proved to reward rushing over play). VS waves cannot be
+  stacked or skipped. Every TD wave cleared instead pays a fixed reward,
+  `20 + 10 × wave` gold ⚖, regardless of whether it was called early or
+  stacked.
 - Build phase between waves: 20 s ⚖. Building disabled during VS waves.
 - VS wave length: 75 s ⚖ (final VS wave: until the boss dies).
 - **Leak coupling**: each enemy reaching the Core in TD adds `2 × its spawn
@@ -353,7 +356,7 @@ VS upgrade pool per §6.3 · Codex & Tuner.
 | G3 | VS inheritance unit tests incl. §6.1's worked example verbatim. |
 | G4 | Armor edges: +99→99%, clamp above, −90→×1.9, floor −100; DoTs ignore armor; Burning shred lowers it. |
 | G5 | Stacking: two different-source 10%/20% boosts = exactly ×1.32; same-source ranks add. |
-| G6 | Interleave: TD×3→VS pattern; multi-summon ≤3 with per-wave bonus; VS unstackable. |
+| G6 | Interleave: TD×3→VS pattern; multi-summon ≤3, no early-call gold bonus (fb009), fixed `20 + 10 × wave` clear reward; VS unstackable. |
 | G7 | Sealing: sealed Core → structures damaged en route; open path → no structure-chewing by pathing; sealed-build win rate ≤ open-build +10 pts at T2. |
 | G8 | Every class clears T1 at 35–70% win rate (scripted kit bot); top damage source differs across ≥8 of 11 classes. |
 | G9 | Swordsman combo: Dash during charge = one merged attack, widened range, exactly 1 Bleeding per enemy struck. Plaguebringer: unfinished DoT transfers once to nearest. |

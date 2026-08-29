@@ -5,6 +5,49 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-29 session: fb009 done — the early-call bonus-gold mechanic is
+  removed entirely; every TD wave cleared pays a fixed `20 + 10 × wave`
+  reward instead.** Owner feedback `feature-fixed-wave-reward` (SPEC-FINAL
+  §1.1, superseding its old "early-call bonus = 2 gold × un-elapsed build
+  seconds" rule). `src/sim/run.ts`'s `call` Command handler no longer pays
+  gold in either branch — `act1_build` (calling early during the pre-wave
+  countdown) just zeroes `buildTimer`, and `act1_wave` (multi-summon,
+  stacking up to `maxStackedWaves` waves onto a fight in progress) just
+  increments `stackDepth` and merges the next wave's spawn queue; both used
+  to also add `Math.round(seconds * earlyCallGoldPerSecond)` gold, now
+  deleted along with the field itself (`data/waves.json`,
+  `src/sim/content.ts`'s zod schema). `completeWave`'s existing per-wave-
+  cleared payout (`(waveClearBase + waveClearPerWave * wave) * goldFindMul`,
+  paid once per wave in a stacked-clear range — code untouched) now nets out
+  to exactly `20 + 10 × wave` before goldFind, since `waveClearBase` moved
+  50 → 20 in `/data`; this formula pays regardless of whether the wave was
+  called early, multi-summoned, or cleared normally, satisfying the "fixed
+  reward" half of the request without a second payout mechanism.
+  `src/ui/progress.ts`'s Act I build-phase HUD text dropped its gold-amount
+  clause. SPEC-FINAL.md §1.1 and the G6 row of §14's gate table were updated
+  to state the new no-bonus/fixed-reward rule (the old text named a specific
+  formula that tooling — `tools/gate-audit.ts`'s `parseGates` — reads
+  verbatim off that table, so leaving it stale would have let canonical spec
+  text keep describing a deleted mechanic). Five test files updated to match
+  (`tests/act1.test.ts`, `tests/progress.test.ts`,
+  `tests/p3b-multi-summon.test.ts`, `tests/q7-loader-holes.ts`,
+  `tests/c4-stacking.test.ts` — the last had a hardcoded wave-clear-bonus-
+  times-goldFind expectation, 192 → 120, that the `waveClearBase` change
+  would otherwise have silently broken). code-reviewer's one Major finding
+  (SPEC-FINAL/G6 text left stale, acceptance criteria explicitly named G6)
+  was fixed before commit. qa-playtester **PASS**: drove the real sim to
+  confirm zero gold at six different elapsed-countdown fractions and across
+  every multi-summon stack depth up to and past the cap, confirmed a
+  stacked clear of waves N..N+k pays the sum of each wave's own formula
+  value rather than one flat payout, grepped every other `buildTimer`
+  reader in `src/sim` to confirm no other path still pays an early-call-
+  style bonus, checked the HUD text for dangling fragments, and confirmed
+  replay determinism holds unchanged for a `call`-bearing input log. `npm
+  run test:fast` green apart from the same pre-existing Windows host-load
+  flake class already logged as b028/b029 (`q15-command-domain-fuzz`,
+  `q49-price-probe-restore`, `q13-perf-ratio`, `q52-m20d-run-a4-bad-key` —
+  QA re-ran each standalone and all passed clean).
+
 - **2026-08-29 session: fb014 done — the Constellation tree counts as fully
   allocated on every run, next in the owner priority queue after fb011.**
   Temporary supersede of §8.3 per the owner's `feature-constellation-auto-max`
