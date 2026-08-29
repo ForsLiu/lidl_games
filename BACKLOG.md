@@ -68,14 +68,14 @@ reappear here.
 - [x] (fb010) [feat] Game speed options extended to 1/2/3/10/50×; at 10× and
       above the renderer may skip frames but the sim itself stays fixed 60 Hz
       per sim-second with determinism unchanged — **done, see Done section.**
-- [ ] (fb011) [feat] Remove the max-rank limit on VS stat boons and Type
+- [x] (fb011) [feat] Remove the max-rank limit on VS stat boons and Type
       Mastery cards (were ×5 / ×3) — they keep appearing in offers at any
       rank; skill cards keep their existing caps; stacking still follows §2
       (ranks within one boon add, then multiply as one source) — acceptance:
       a boon can be taken 10+ times with its effect matching the stacking
       rule; the offer pool never exhausts on rank alone; a test covers a
       10-rank case — refs: §6.3 (supersedes the rank caps), owner feedback
-      `feature-remove-boon-rank-caps`.
+      `feature-remove-boon-rank-caps`. **done, see Done section.**
 - [ ] (fb014) [feat] Constellation tree counts as fully allocated on every
       run (temporary supersede of §8.3) — no point-spending or allocation
       UI; the tree data and the skill-point counter stay live so the system
@@ -870,6 +870,39 @@ logged in MIGRATION.md §8 rather than carried as dead items.
 
 ## Done
 
+- [x] (fb011) [feat] Removed the rank cap on VS stat boons — this commit
+      (2026-08-29). `data/boons.json`'s 11 stat boons (`power` through
+      `fortune`) each gained `"uncapped": true`; `second_wind` (a one-off
+      "survive a killing blow once per run" unlock, not a stacking stat) kept
+      no such flag and stays capped at rank 1 — this codebase has no separate
+      "Type Mastery" card system yet (that's SPEC-FINAL §6.3's full VS
+      level-up pool rewrite, unbuilt, tracked as `p7a`), so the item's scope
+      was the stat-boon half only; the Type-Mastery half is inherited by
+      `p7a` when it lands. `src/sim/content.ts`'s `BoonSchema` gained the
+      optional `uncapped: boolean` field (a missing/renamed/flipped value
+      falls back to capped, so the loader needs no extra guard — confirmed
+      via the `q7` data-fuzz census, `tests/q7-loader-holes.ts` updated).
+      `progression.ts`'s `buildOfferPool` skips the `rank >= maxRank`
+      exclusion for an uncapped boon, and its Luck-weighting "value" (0..1)
+      now saturates at `Math.min(1, rank/5)` past the old cap instead of
+      dividing by a `maxRank` that no longer bounds it, so Luck-biasing keeps
+      its pre-fb011 shape rather than treating rank 6+ as ever-better.
+      `romanRank()` was a fixed `['I'..'V']` lookup (silently falling back to
+      the bare number past rank 5, which would have looked like a bug even
+      though nothing was broken) — replaced with a real subtractive-notation
+      roman-numeral algorithm so offer names read correctly at rank 10+ too.
+      `character-panel.ts`/`hud.ts` show a bare rank (no `/maxRank`) for an
+      uncapped boon. code-reviewer found no Critical/Major issues.
+      qa-playtester independently drove `vitality` to rank 20 and `power` to
+      rank 15 via the real `applyOffer` path and confirmed the stacking math
+      (ranks add within the boon's own source, then multiply out per §2, not
+      compounding per rank); set every uncapped boon's rank to 500 with
+      Luck at 999999 and rolled 50 times with the pool always returning 3
+      offers; confirmed `second_wind` still stops appearing after rank 1
+      even with every other boon maxed; ran a real 3-cycle autopick playthrough
+      (seed 7) that organically exceeded the old rank-5 cap and reproduced an
+      identical replay hash; and re-ran `q7-data-fuzz` green. No bugs filed
+      against the change itself.
 - [x] (fb010) [feat] Game speed options extended to 1/2/3/10/50× — this commit
       (2026-08-29). `src/ui/pacer.ts`'s `SPEEDS` array (already read
       generically everywhere — the HUD button's cycling, its label, the

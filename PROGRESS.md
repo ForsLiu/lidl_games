@@ -5,6 +5,25 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-29 session: fb011 done — removed the rank cap on VS stat boons,
+  next in the owner priority queue after fb010.** `data/boons.json`'s 11
+  stat boons gained `"uncapped": true`; `second_wind` (a one-off unlock, not
+  a stacking stat) kept no such flag and stays capped at rank 1. This
+  codebase has no separate "Type Mastery" card system yet (that's SPEC-FINAL
+  §6.3's unbuilt VS level-up pool rewrite, `p7a`), so the item's real scope
+  was the stat-boon half; `p7a` inherits the Type-Mastery half. `BoonSchema`
+  gained an optional `uncapped: boolean`; `progression.ts`'s
+  `buildOfferPool` stops excluding an uncapped boon at `maxRank` and
+  saturates its Luck-weighting value at `Math.min(1, rank/5)` instead of
+  dividing by a `maxRank` that no longer bounds it; `romanRank()` was
+  rewritten from a fixed 5-entry lookup to a real numeral algorithm so offer
+  names read correctly past rank 5. code-reviewer found no Critical/Major
+  issues. qa-playtester drove boons to rank 15-20 and confirmed the §2
+  add-then-multiply stacking math held, set every uncapped boon to rank 500
+  with extreme Luck and confirmed the 3-offer pool never starves,
+  reconfirmed `second_wind` still caps at rank 1, and replayed a real
+  autopick run that organically exceeded the old cap with an identical
+  end-state hash — no bugs filed. See BACKLOG.md's Done section for detail.
 - **2026-08-29 session: fb010 done — game speed options extended to
   1/2/3/10/50×, next in the owner priority queue after fb008.**
   `src/ui/pacer.ts`'s `SPEEDS` array grew from `[1, 2, 3]` to

@@ -104,6 +104,9 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'boons.boons[].name': ['to-string', 'empty-string'],
   'boons.boons[].perRank': ['negative', 'zero', 'infinite', 'fractional'],
   'boons.boons[].stat': ['to-string', 'empty-string'],
+  // fb011: optional — a missing/renamed/flipped `uncapped` just falls back
+  // to capped (`b.uncapped` is falsy), so the loader has nothing to guard.
+  'boons.boons[].uncapped': ['flip-bool', 'drop-key', 'rename-key'],
   'boons.rerollsPerLevel': ['negative', 'zero', 'infinite', 'fractional'],
   // fb015 (§7): dropping a class row can drop 'swordsman', which
   // equipment.json's classFallback rows (Sleeve Sword, Swordsman Armor,

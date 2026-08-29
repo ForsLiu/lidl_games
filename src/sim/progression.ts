@@ -184,7 +184,7 @@ function buildOfferPool(w: World): WeightedOffer[] {
 
   for (const b of w.content.boons.boons) {
     const rank = w.boonRanks[b.key] ?? 0;
-    if (rank >= b.maxRank) continue;
+    if (!b.uncapped && rank >= b.maxRank) continue;
     out.push({
       offer: {
         kind: 'boon',
@@ -194,15 +194,34 @@ function buildOfferPool(w: World): WeightedOffer[] {
         toLevel: rank + 1,
       },
       weight: 8,
-      value: rank / b.maxRank,
+      // Uncapped boons have no denominator to read "how good is this" off
+      // of; saturate at the old rank-5 cap instead so Luck biasing keeps
+      // its pre-fb011 shape rather than treating rank 6+ as ever-better.
+      value: b.uncapped ? Math.min(1, rank / 5) : rank / b.maxRank,
     });
   }
 
   return out;
 }
 
+/** Standard subtractive-notation numerals; ranks are small but no longer
+ * bounded at 5 (fb011), so this replaces the old fixed I-V lookup. */
+const ROMAN: [number, string][] = [
+  [1000, 'M'], [900, 'CM'], [500, 'D'], [400, 'CD'],
+  [100, 'C'], [90, 'XC'], [50, 'L'], [40, 'XL'],
+  [10, 'X'], [9, 'IX'], [5, 'V'], [4, 'IV'], [1, 'I'],
+];
+
 function romanRank(n: number): string {
-  return ['I', 'II', 'III', 'IV', 'V'][n - 1] ?? String(n);
+  let rest = n;
+  let out = '';
+  for (const [value, symbol] of ROMAN) {
+    while (rest >= value) {
+      out += symbol;
+      rest -= value;
+    }
+  }
+  return out;
 }
 
 export function takeOffer(w: World, index: number): boolean {

@@ -1,17 +1,17 @@
 {
   "rerollsPerLevel": 1,
   "boons": [
-    { "key": "power",       "name": "Power",       "maxRank": 5, "stat": "power",        "perRank": 0.08, "desc": "+8% Power" },
-    { "key": "haste",       "name": "Haste",       "maxRank": 5, "stat": "attackSpeed",  "perRank": 0.08, "desc": "+8% Attack Speed" },
-    { "key": "reach",       "name": "Reach",       "maxRank": 5, "stat": "area",         "perRank": 0.08, "desc": "+8% Area" },
-    { "key": "swift",       "name": "Swift",       "maxRank": 5, "stat": "moveSpeedPct", "perRank": 0.05, "desc": "+5% Move Speed" },
-    { "key": "vitality",    "name": "Vitality",    "maxRank": 5, "stat": "maxHp",        "perRank": 15,   "desc": "+15 Max HP" },
-    { "key": "plating",     "name": "Plating",     "maxRank": 5, "stat": "armor",        "perRank": 6,    "desc": "+6 Armor" },
-    { "key": "magnet",      "name": "Magnet",      "maxRank": 5, "stat": "pickupPct",    "perRank": 0.25, "desc": "+25% Pickup Radius" },
-    { "key": "leech",       "name": "Leech",       "maxRank": 5, "stat": "leech",        "perRank": 0.01, "desc": "Heal 1% of normal damage dealt" },
-    { "key": "focus",       "name": "Focus",       "maxRank": 5, "stat": "cdr",          "perRank": 0.06, "desc": "+6% Cooldown Reduction" },
-    { "key": "greed",       "name": "Greed",       "maxRank": 5, "stat": "goldFind",     "perRank": 0.10, "desc": "+10% Gold / Ember find" },
-    { "key": "fortune",     "name": "Fortune",     "maxRank": 5, "stat": "luck",         "perRank": 10,   "desc": "+10 Luck" },
+    { "key": "power",       "name": "Power",       "maxRank": 5, "stat": "power",        "perRank": 0.08, "desc": "+8% Power", "uncapped": true },
+    { "key": "haste",       "name": "Haste",       "maxRank": 5, "stat": "attackSpeed",  "perRank": 0.08, "desc": "+8% Attack Speed", "uncapped": true },
+    { "key": "reach",       "name": "Reach",       "maxRank": 5, "stat": "area",         "perRank": 0.08, "desc": "+8% Area", "uncapped": true },
+    { "key": "swift",       "name": "Swift",       "maxRank": 5, "stat": "moveSpeedPct", "perRank": 0.05, "desc": "+5% Move Speed", "uncapped": true },
+    { "key": "vitality",    "name": "Vitality",    "maxRank": 5, "stat": "maxHp",        "perRank": 15,   "desc": "+15 Max HP", "uncapped": true },
+    { "key": "plating",     "name": "Plating",     "maxRank": 5, "stat": "armor",        "perRank": 6,    "desc": "+6 Armor", "uncapped": true },
+    { "key": "magnet",      "name": "Magnet",      "maxRank": 5, "stat": "pickupPct",    "perRank": 0.25, "desc": "+25% Pickup Radius", "uncapped": true },
+    { "key": "leech",       "name": "Leech",       "maxRank": 5, "stat": "leech",        "perRank": 0.01, "desc": "Heal 1% of normal damage dealt", "uncapped": true },
+    { "key": "focus",       "name": "Focus",       "maxRank": 5, "stat": "cdr",          "perRank": 0.06, "desc": "+6% Cooldown Reduction", "uncapped": true },
+    { "key": "greed",       "name": "Greed",       "maxRank": 5, "stat": "goldFind",     "perRank": 0.10, "desc": "+10% Gold / Ember find", "uncapped": true },
+    { "key": "fortune",     "name": "Fortune",     "maxRank": 5, "stat": "luck",         "perRank": 10,   "desc": "+10 Luck", "uncapped": true },
     { "key": "second_wind", "name": "Second Wind", "maxRank": 1, "stat": "secondWind",   "perRank": 1,    "desc": "Once per run, survive a killing blow at 30% HP" }
   ]
 }

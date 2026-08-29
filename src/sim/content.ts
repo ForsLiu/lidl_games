@@ -411,6 +411,11 @@ const BoonSchema = z.object({
   stat: str,
   perRank: num,
   desc: str,
+  /** fb011 (§6.3 supersede, owner feedback `feature-remove-boon-rank-caps`):
+   * a stat boon with this set keeps appearing in offers past `maxRank`,
+   * which then serves only as the historical/display reference rank. Skill
+   * cards (e.g. `second_wind`) omit it and stay capped. */
+  uncapped: z.boolean().optional(),
 });
 
 const BoonsFileSchema = z.object({ rerollsPerLevel: num, boons: z.array(BoonSchema) });

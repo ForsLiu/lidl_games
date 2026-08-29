@@ -6,6 +6,7 @@ import { World } from '../src/sim/world';
 import { spawnEnemy } from '../src/sim/enemies';
 import {
   addXp,
+  applyOffer,
   openLevelUpIfPending,
   pickAutoOfferIndex,
   rollOffers,
@@ -81,6 +82,58 @@ describe('XP and levelling (SPEC 5.2)', () => {
       for (const o of rollOffers(w)) {
         expect(o.key === 'second_wind' && o.kind === 'boon').toBe(false);
       }
+    }
+  });
+
+  /**
+   * fb011 (§6.3 supersede, owner feedback `feature-remove-boon-rank-caps`):
+   * stat boons no longer stop at their old `maxRank` (5) — only skill-card-
+   * style boons like `second_wind` keep a real cap.
+   */
+  it('keeps stacking and keeps appearing in offers well past the old x5 rank cap', () => {
+    const w = act2World();
+    const boon = w.content.boons.boons.find((b) => b.key === 'power')!;
+    expect(boon.uncapped).toBe(true);
+    for (let r = 1; r <= 10; r++) {
+      applyOffer(w, { kind: 'boon', key: boon.key, name: boon.name, desc: '', toLevel: r });
+    }
+    expect(w.boonRanks.power).toBe(10);
+    // Ranks within one boon add, then multiply out as one source (§2).
+    const [[source, contribution]] = w.stats.contributions('power');
+    expect(source).toBe('boon:power');
+    expect(contribution).toBeCloseTo(boon.perRank * 10, 10);
+    expect(w.derived.powerMul).toBeCloseTo(1 + boon.perRank * 10, 10);
+
+    // Uniform random 3-of-12 draws (luck is 0 here, so weights are flat):
+    // P('power' missing from every one of 200 independent draws) is
+    // (9/12)^200-ish, i.e. not a realistic flake.
+    let sawPower = false;
+    for (let i = 0; i < 200 && !sawPower; i++) {
+      sawPower = rollOffers(w).some((o) => o.kind === 'boon' && o.key === 'power');
+    }
+    expect(sawPower).toBe(true);
+  });
+
+  it('the offer pool never exhausts on rank alone even with every uncapped boon deep past its old cap', () => {
+    const w = act2World();
+    for (const b of w.content.boons.boons) {
+      if (b.uncapped) w.boonRanks[b.key] = 20;
+    }
+    for (let i = 0; i < 20; i++) {
+      const offers = rollOffers(w);
+      expect(offers.length).toBe(3);
+      expect(offers.every((o) => o.kind === 'boon')).toBe(true);
+    }
+  });
+
+  it('second_wind stays capped at rank 1 even once every other boon is deep past its old cap', () => {
+    const w = act2World();
+    for (const b of w.content.boons.boons) {
+      if (b.uncapped) w.boonRanks[b.key] = 30;
+    }
+    w.boonRanks.second_wind = 1;
+    for (let i = 0; i < 50; i++) {
+      expect(rollOffers(w).some((o) => o.kind === 'boon' && o.key === 'second_wind')).toBe(false);
     }
   });
 });
