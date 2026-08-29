@@ -21,6 +21,7 @@ import { devProfileActive, startupProfile } from '../meta/devprofile';
 import { loadSettings, saveSettings, type Settings } from './settings';
 import { Sfx } from '../render/sfx';
 import { Pacer } from './pacer';
+import { installAuditHook, type AuditBridge } from './audit-hook';
 
 class Game {
   private root!: HTMLElement;
@@ -66,9 +67,33 @@ class Game {
     }).meta;
     this.view.settings = this.settings;
     this.view.showRanges = this.settings.showRanges;
+    // fb018: dev-only UI self-audit bridge (`window.__stonewakeAudit`). A
+    // no-op in a production build — `installAuditHook` re-checks
+    // `isDevBuild()` itself, the same gate `devProfileActive()` above uses.
+    this.installAuditHook();
     this.showHub();
     this.last = performance.now();
     requestAnimationFrame(this.frame);
+  }
+
+  /** fb018: wires `src/ui/audit-hook.ts` to this instance's private state. */
+  private installAuditHook(): void {
+    const bridge: AuditBridge = {
+      world: () => this.run?.world ?? null,
+      showHub: () => this.showHub(),
+      startRun: (cfg) => this.startRun(cfg),
+      pushCommand: (cmd) => this.pending.push(cmd),
+      setSelection: (sel) => {
+        this.view.selection = sel;
+      },
+      toggleCharacterPanel: () => {
+        if (this.run) this.hud.toggleCharacterPanel(this.run.world);
+      },
+      toggleDpsPanel: () => {
+        if (this.run) this.hud.toggleDpsPanel(this.run.world);
+      },
+    };
+    installAuditHook(bridge);
   }
 
   private showHub(): void {

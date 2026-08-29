@@ -8,3 +8,7 @@ out/
 .qa-*/
 .review-mut/
 .tmp/
+
+# fb018 ui-audit generated output (audit/README.md stays tracked)
+audit/*.png
+audit/report.json

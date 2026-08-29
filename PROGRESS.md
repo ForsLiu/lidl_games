@@ -5,6 +5,39 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-29 session: fb018 done — UI self-audit tool, per owner feedback
+  `feature-ui-self-audit` (§11 tooling, QUALITY.md Beta bar).** `npm run
+  ui-audit` boots Vite in-process, drives headless Playwright Chromium at a
+  fixed 1920x1080 viewport through 7 deterministic scenes (Hub, mid-TD wave
+  with the selection panel open, 350-enemy VS chaos with all 6 damage types +
+  2 statuses applied, level-up offer, character panel, Codex, Defeat Results)
+  via a new dev-only bridge (`src/ui/audit-hook.ts`, `window.__stonewakeAudit`,
+  gated on `isDevBuild()` the same way `startupProfile` already is), screenshots
+  each, decodes the PNGs with `pngjs` to sample real composited pixels, and
+  checks WCAG text contrast (>=4.5:1), min font size (12px), HUD overlap,
+  off-screen interactive elements, and damage-type color distance in both
+  palettes (`tools/audit/checks.ts`, pure math, `tests/ui-audit-checks.test.ts`)
+  — writing `audit/report.json` with every failure naming the offending
+  element. Gate **G16** is now directly regression-tested: a new
+  `tests/c8-dev-profile.test.ts` case builds the real client bundle and
+  asserts the audit hook's markers are absent. A code-reviewer pass found and
+  fixed two Majors pre-commit (a dead/mislabeled `forceDefeat('warden')`
+  branch removed; the G16 test above added, since it didn't exist yet). A
+  qa-playtester pass confirmed determinism across two runs and confirmed the
+  tool captures real rendered state, and found three real, reproducible
+  accessibility bugs in the audited game itself — filed as b031 (sub-12px HUD
+  text), b032 (off-screen tower-panel rows), b033 (sub-4.5:1 contrast on
+  several panels) rather than fixed here, since this item built the audit
+  tool, not a fix pass. Judgment calls logged as QUESTIONS Q140 (Codex/Tuner
+  scene scope — `p9c` Tuner and `p9b` Codex-Hub-nav are both still unbuilt, so
+  the Codex is captured directly as an overlay) and Q141
+  (`COLOR_DISTANCE_MIN=40`, justified against the closest real damage-type
+  color pair). `npm run test:fast` is green (88 files) modulo 3 pre-existing
+  Windows full-suite parallel-worker flakes unrelated to this item
+  (`q15-command-domain-fuzz`, `q49-price-probe-restore`,
+  `q52-m20d-run-a4-bad-key` — each verified green individually by both the
+  implementing agent and QA).
+
 - **2026-08-29 session: fb013 done — Time Lord, the 12th class, per owner
   feedback `feature-class-timelord` (SPEC-FINAL §4.2 addition, QUESTIONS.md
   Q139).** Passive *Time Flow* converts damage taken into a 4 s Warden-side

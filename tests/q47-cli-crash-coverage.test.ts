@@ -80,14 +80,20 @@ const EXPECTED_STATUS: Record<string, ToolClassification['status']> = {
   'tools/sim.ts': 'pinned',
   'tools/soak.ts': 'pinned',
   'tools/sweep.ts': 'pinned',
+  // fb018: the ui-audit orchestrator. It only `import type`s from
+  // src/ui/audit-hook.ts (erased before this classifier's BFS ever runs) and
+  // otherwise imports vite/playwright/pngjs/node builtins plus its own
+  // tools/audit/checks.ts (pure math, no content.ts import either) — no live
+  // route to src/sim/content.ts.
+  'tools/ui-audit.ts': 'no-content-import',
 };
 
 describe('q47 — CLI-crash coverage census', () => {
-  it("lists exactly today's 23 tools/*.ts files (the 22 q47 found plus this tool itself; gen-tree.mjs excluded, not a .ts file)", () => {
+  it("lists exactly today's 24 tools/*.ts files (the 22 q47 found plus this tool itself plus fb018's tools/ui-audit.ts; gen-tree.mjs excluded, not a .ts file; tools/audit/checks.ts excluded, not a direct child of tools/)", () => {
     const files = listToolFiles();
     expect(files).not.toContain('tools/gen-tree.mjs');
     expect(files.every((f) => f.endsWith('.ts'))).toBe(true);
-    expect(files.length).toBe(23);
+    expect(files.length).toBe(24);
   });
 
   it("today's classification matches this session's hand-derived table exactly", () => {

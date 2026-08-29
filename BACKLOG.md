@@ -175,22 +175,36 @@ called out in their own titles instead.
       57 s green; CLAUDE.md loop contract amended; flakes filed as b028/
       b029) — refs: CLAUDE.md working rules/loop contract amendment, owner
       feedback `feature-test-tiers`.
-- [ ] (fb018) [feat] UI self-audit tool: a dev-mode audit rendering a fixed set
-      of deterministic scenes (Hub, mid-TD wave with selection panel open,
-      350-enemy VS chaos with all damage types active, level-up offer screen,
-      character panel, Codex/Tuner page, defeat Results) to PNG files under
-      /audit plus report.json, with objective checks: text contrast ratio
-      >= 4.5:1 against actual background, font sizes >= 12px at 1080p, HUD
-      element overlap detection, off-screen interactive elements, color
-      distance between all damage-type pairs in both palettes above a stated
-      threshold, character-vs-background contrast in the VS chaos scene; runs
-      via `npm run ui-audit` (dev only, excluded from prod build), headless
-      where possible else via dev server at a fixed 1920x1080 viewport —
-      acceptance: `npm run ui-audit` writes all scene PNGs + report.json;
-      failures list the offending element by name; the check suite has its
-      own tests (a deliberately low-contrast fixture fails); a README line in
-      /audit explains each scene — refs: §11 tooling, QUALITY.md Beta bar
-      (accessibility), owner feedback `feature-ui-self-audit`.
+- [x] (fb018) [feat] UI self-audit tool — done, see Done section. refs: §11
+      tooling, QUALITY.md Beta bar (accessibility), owner feedback
+      `feature-ui-self-audit`.
+- [ ] (b031) [bug] `npm run ui-audit` (fb018) found real, reproducible HUD
+      text below the 12px floor across 6 of 7 scenes: the control-hints bar
+      (`b "WASD"`/`"Space"`/`"LMB"`/`"RMB"`/`"U"`/`"1-9"`/`"0"`/`"Enter"`/
+      `"Q"`/`"R"`/`"F"`/`"C"`/`"P"`/`"Esc"`) plus `div.sw-sub "Practice tool"`,
+      `div.sw-sub "Spawn enemy"` and `small "BOON"` all render at 10-11px —
+      acceptance: `npm run ui-audit`'s `font-size` rule has 0 failures; a
+      regression test (fast tier) pins the control-hints bar's and
+      `.sw-sub`'s computed font size at >=12px — refs: §11, QUALITY.md Beta
+      bar, `audit/report.json`.
+- [ ] (b032) [bug] `npm run ui-audit` (fb018) found tower-build-panel rows
+      #6-#10 (Tesla Coil, Mortar, Venom Spore, Beacon Totem, Harvest Sprout)
+      partly or fully clipped below the fold at the fixed 1920x1080 viewport
+      (e.g. `button.sw-tower` bottom edge at y=1263 against a 1080px-tall
+      viewport) in both the "mid-TD wave, selection panel open" and "defeat
+      results" scenes — acceptance: `npm run ui-audit`'s
+      `offscreen-interactive` rule has 0 failures for the tower panel; a
+      regression test asserts the panel's last row's
+      `getBoundingClientRect().bottom <= 1080` at the standard viewport —
+      refs: §11, QUALITY.md Beta bar, `audit/report.json`.
+- [ ] (b033) [bug] `npm run ui-audit` (fb018) found HUD text well under the
+      4.5:1 WCAG floor: `small "BOON"` at 3.07:1 (level-up offer + character
+      panel scenes); on the Defeat Results screen, `span.sw-tname "7. Mortar"`
+      at 1.03:1, `span.sw-tcost "68g"` at 1.48:1, several `span.sw-tdesc`
+      lines around 2.46:1 — acceptance: `npm run ui-audit`'s `text-contrast`
+      rule has 0 failures for these selectors; a regression test pins their
+      computed-vs-sampled contrast at >=4.5:1 — refs: §11, QUALITY.md Beta
+      bar, `audit/report.json`.
 - [ ] (p8d) [feat] Boss termination guarantee (§9 addendum, QUESTIONS Q126/Q127):
       the Warden-Eater gains a hard escalation from 3:00 of boss-fight time —
       +10% damage and +5% move/attack speed every 30 s, stacking without cap
@@ -875,6 +889,55 @@ logged in MIGRATION.md §8 rather than carried as dead items.
   **G19**. The work is `p10d`.
 
 ## Done
+
+- [x] (fb018) [feat] UI self-audit tool — this commit (2026-08-29), refs: §11
+      tooling, QUALITY.md Beta bar (accessibility), owner feedback
+      `feature-ui-self-audit`. `npm run ui-audit` boots Vite in-process,
+      launches headless Playwright Chromium at a fixed 1920x1080 viewport,
+      and drives the real running game (real Commands: `build`/`call`/`pick`/
+      `dev`, plus three narrowly-scoped, documented, `isDevBuild()`-gated
+      debug shortcuts in the new `src/ui/audit-hook.ts` bridge —
+      `finishSundering`, direct DoT/status application, Core-HP zeroing)
+      through 7 fixed deterministic scenes: Hub, mid-TD wave with the
+      selection panel open, 350-enemy VS chaos with all 6 damage types + 2
+      statuses applied, the level-up offer screen, the character panel, the
+      Codex (mounted as a full-viewport overlay — QUESTIONS Q140: `p9b`'s Hub
+      nav entry and `p9c`'s Tuner are both still unbuilt, so this captures
+      what exists rather than blocking on either), and Defeat Results.
+      `tools/audit/checks.ts` holds the pure WCAG contrast/luminance, sRGB
+      color-distance and rect overlap/offscreen math (`CONTRAST_MIN=4.5`,
+      `MIN_FONT_PX=12`, `COLOR_DISTANCE_MIN=40` — justified in QUESTIONS
+      Q141 against the closest real pair in `data/damagetypes.json`);
+      `tools/ui-audit.ts` decodes each screenshot with `pngjs` to sample
+      real composited pixels (not just declared CSS) for text-contrast and
+      the Warden-vs-background check, runs the damage-type color-distance
+      check once against both palettes, and writes `audit/report.json` with
+      every failure naming the offending element. `tests/ui-audit-checks.test.ts`
+      (20 tests, fast tier) covers the check math, including fixtures the
+      checker must correctly reject. Gate **G16** (prod build has no dev
+      surface) is now regression-tested directly: a new test in
+      `tests/c8-dev-profile.test.ts` builds the real client bundle (the same
+      `index.html` entry `npm run build` uses, not a synthetic probe) and
+      asserts `__stonewakeAudit` and the bridge's privileged-shortcut names
+      are entirely absent from it.
+
+      A code-reviewer pass found and fixed two Major issues before this
+      commit: `forceDefeat('warden')` set `w.warden.hp = 0` directly, but
+      nothing in `src/sim/run.ts` polls Warden HP outside the real
+      damage-application path, so the branch was dead and mislabeled — it was
+      unused by all 7 scenes, so the `'warden'` option was removed rather
+      than built out, and the doc comment corrected; and the item shipped
+      without the G16 regression test above, which was then added. A
+      qa-playtester pass verified determinism (two `npm run ui-audit` runs
+      produced byte-identical pass/fail verdicts and check counts, differing
+      only in a cosmetic pixel-variance float), confirmed the tool captures
+      real rendered state rather than faking any scene, and confirmed the
+      dev hook is absent from `dist/assets/*.js`. It also surfaced three real,
+      reproducible accessibility defects in the audited game itself (sub-12px
+      HUD text, off-screen tower-panel rows, sub-4.5:1 contrast on several
+      panels) — exactly the class of bug this tool exists to catch; filed as
+      b031/b032/b033 rather than fixed here, since fb018 built the audit tool,
+      not a fix pass.
 
 - [x] (fb013) [feat] New class #12: Time Lord — this commit (2026-08-29),
       refs: §4.2 addition, owner feedback `feature-class-timelord`, QUESTIONS

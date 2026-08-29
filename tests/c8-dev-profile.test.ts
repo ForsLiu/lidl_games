@@ -16,7 +16,7 @@
  */
 
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -221,6 +221,34 @@ describe('C8: a production build has the dev profile off', () => {
     expect(parsed.active, 'the dev profile must be off in production').toBe(false);
   }, 120_000);
 
+  it('fb018: the real client bundle has no audit-hook dev surface', () => {
+    // Same "build fresh, then check the real artifact" discipline as the SSR
+    // probe above, but for `src/ui/audit-hook.ts` (fb018's UI self-audit
+    // bridge) rather than the dev-profile unlock: this is the actual
+    // `index.html`-entry client build `npm run build` produces, not a
+    // synthetic probe entry, since the audit hook is only ever reached via
+    // `main.ts`'s real bootstrap. A later change that hoists the hook's
+    // `window.__stonewakeAudit` assignment above its `isDevBuild()` guard, or
+    // that adds a second unguarded call site, must fail this test.
+    const outDir = join(process.cwd(), '.c8-probe-client-out');
+    execFileSync('npx', ['vite', 'build', '--mode', 'production', '--outDir', outDir, '--logLevel', 'error'], {
+      cwd: process.cwd(),
+      shell: true,
+      stdio: 'pipe',
+      env: { ...process.env, NODE_ENV: 'production' },
+    });
+    const bundle = readdirSync(join(outDir, 'assets'))
+      .filter((f) => f.endsWith('.js'))
+      .map((f) => readFileSync(join(outDir, 'assets', f), 'utf8'))
+      .join('\n');
+    // The bridge's window property plus its three privileged, Command-bypassing
+    // shortcuts (see audit-hook.ts's header comment) — any one of these
+    // surviving into the bundle means the dev surface is reachable in prod.
+    for (const marker of ['__stonewakeAudit', 'stonewakeAudit', 'forceStatusShowcase', 'forceDefeat', 'forceVsPhase']) {
+      expect(bundle.includes(marker), `production bundle must not contain "${marker}"`).toBe(false);
+    }
+  }, 120_000);
+
   it('the source logic is safe on its own, without a bundler folding it', () => {
     // The failure mode QA found: an env object that exists but is unpopulated
     // used to answer "dev build". It must answer "not a dev build".
@@ -261,6 +289,7 @@ afterAll(() => {
   rmSync(tmpRoot, { recursive: true, force: true });
   rmSync(join(process.cwd(), '.c8-probe-entry.ts'), { force: true });
   rmSync(join(process.cwd(), '.c8-probe-out'), { recursive: true, force: true });
+  rmSync(join(process.cwd(), '.c8-probe-client-out'), { recursive: true, force: true });
 });
 
 // Referenced so the import is not dead when the build test is the only user.
