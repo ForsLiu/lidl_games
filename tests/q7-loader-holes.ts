@@ -22,6 +22,35 @@
  *     `open` = no row is, `partial` = some are and some are not, which is the
  *     one-directional-integrity finding (E1).
  *
+ * Recorded 2026-08-28 (fb005 QA fix) against the same 5,860 effective
+ * mutations; 3,783 rejected, 2,077 accepted — down from 3,775/2,085 earlier
+ * the same day: the six `damagetypes.types[]`/`statuses.frost`/
+ * `statuses.frozen` `color`/`colorblindColor` fields and the two top-level
+ * `executeColor`/`colorblindExecuteColor` fields moved from `str.optional()`
+ * to a `hexColor` (`z.string().min(1)`) schema, closing a QA-filed bug where
+ * an authored `color: ""` silently bypassed the documented white fallback
+ * (`??` only guards `null`/`undefined`, not `""`) instead of behaving like an
+ * unset field. Eight `empty-string` mutations move from ACCEPTED to
+ * rejected, one per field — no other family changes and no new fields.
+ * ACCEPTED updated in place, INEFFECTIVE and REF_VERDICTS unchanged.
+ *
+ * Recorded 2026-08-28 (fb005) against 5,860 effective mutations; 3,775
+ * rejected, 2,085 accepted — up from 5,769/3,716/2,053 the same day, pre-item:
+ * nine fields added (`color`/`colorblindColor` on every `damagetypes.types[]`
+ * row and on `statuses.frost`/`statuses.frozen`, plus top-level
+ * `executeColor`/`colorblindExecuteColor`/`executeFontScale` — the fb005
+ * floating-damage-number style mapping, all optional with a neutral-fallback
+ * reader per CLAUDE.md's architecture rule 4), 32 new accepted mutations, the
+ * same optional-with-a-`??`-fallback shape every other field in this pattern
+ * already gets. One real hole closed, not opened: `damagetypes.types |
+ * dupe-element` was previously ACCEPTED (a duplicated damage-type row loaded
+ * silently) and is now rejected, because `validateDamageStyleColors`
+ * (content.ts, called from `loadContent`) throws on the duplicate's now-
+ * identical color — the same distinctness rule fb005 added to satisfy "each
+ * damage type visibly differs" catches a pre-existing referential gap as a
+ * side effect. ACCEPTED updated in place, INEFFECTIVE and REF_VERDICTS
+ * unchanged.
+ *
  * Recorded 2026-08-27 (Q120 ORDER 1) against 5,769 effective mutations; 3,716
  * rejected, 2,053 accepted — up from 5,758/3,711/2,047 the same day, pre-order:
  * one field added (`classes.classes[].active2.totemTauntTickSeconds`, the
@@ -215,15 +244,23 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'cores.cores[].upgrade.steps[].storeRatio': ['negative', 'zero', 'infinite', 'fractional', 'drop-key', 'rename-key'],
   'cores.cores[].upgrade.steps[].towerLifestealBonus': ['negative', 'zero', 'infinite', 'fractional', 'drop-key', 'rename-key'],
   'cores.cores[].upgrade.steps[].towerOverhealConverts': ['negative', 'zero', 'infinite', 'fractional', 'drop-key', 'rename-key'],
+  'damagetypes.colorblindExecuteColor': ['to-string', 'drop-key', 'rename-key'],
+  'damagetypes.executeColor': ['to-string', 'drop-key', 'rename-key'],
+  'damagetypes.executeFontScale': ['negative', 'zero', 'infinite', 'fractional', 'drop-key', 'rename-key'],
   'damagetypes.statuses.frost.attackSpeed': ['negative', 'zero', 'infinite', 'fractional', 'drop-key'],
+  'damagetypes.statuses.frost.color': ['to-string', 'drop-key'],
+  'damagetypes.statuses.frost.colorblindColor': ['to-string', 'drop-key'],
   'damagetypes.statuses.frost.desc': ['to-string', 'empty-string'],
   'damagetypes.statuses.frost.duration': ['negative', 'zero', 'infinite', 'fractional'],
   'damagetypes.statuses.frost.moveSpeed': ['negative', 'zero', 'infinite', 'fractional', 'drop-key'],
+  'damagetypes.statuses.frozen.color': ['to-string', 'drop-key'],
+  'damagetypes.statuses.frozen.colorblindColor': ['to-string', 'drop-key'],
   'damagetypes.statuses.frozen.damageTaken': ['negative', 'zero', 'infinite', 'fractional', 'drop-key'],
   'damagetypes.statuses.frozen.desc': ['to-string', 'empty-string'],
   'damagetypes.statuses.frozen.duration': ['negative', 'zero', 'infinite', 'fractional'],
-  'damagetypes.types': ['dupe-element'],
   'damagetypes.types[].armorShredPerSecond': ['negative', 'zero', 'infinite', 'fractional', 'drop-key'],
+  'damagetypes.types[].color': ['to-string', 'drop-key'],
+  'damagetypes.types[].colorblindColor': ['to-string', 'drop-key'],
   'damagetypes.types[].desc': ['to-string', 'empty-string'],
   'damagetypes.types[].dps': ['negative', 'zero', 'infinite', 'fractional'],
   'damagetypes.types[].duration': ['infinite', 'fractional'],
@@ -601,8 +638,16 @@ export const REF_VERDICTS: Readonly<Record<string, RefVerdict>> = {
   'cores.cores[].name': 'open',
   'cores.cores[].unlockCondition': 'open',
   'cores.cores[].upgrade.desc': 'open',
+  'damagetypes.colorblindExecuteColor': 'open',
+  'damagetypes.executeColor': 'open',
+  'damagetypes.statuses.frost.color': 'open',
+  'damagetypes.statuses.frost.colorblindColor': 'open',
   'damagetypes.statuses.frost.desc': 'open',
+  'damagetypes.statuses.frozen.color': 'open',
+  'damagetypes.statuses.frozen.colorblindColor': 'open',
   'damagetypes.statuses.frozen.desc': 'open',
+  'damagetypes.types[].color': 'open',
+  'damagetypes.types[].colorblindColor': 'open',
   'damagetypes.types[].desc': 'open',
   'damagetypes.types[].effect': 'checked',
   'damagetypes.types[].key': 'partial',

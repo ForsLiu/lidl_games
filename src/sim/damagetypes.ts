@@ -36,6 +36,33 @@ export function damageTypeDef(w: World, key: string): DamageTypeDef | undefined 
 }
 
 /**
+ * fb005: the floating-number/DoT-marker color for a §3 damage type, `key`
+ * being anything `applyDamageType` accepts plus the two statuses (`frost`,
+ * `frozen`) since players read them as part of the same "what hit me" set.
+ * Falls back to white for an unknown key or an unset color, rather than
+ * throwing — this is a display concern, and `loadContent`'s own distinctness
+ * check (content.ts) already guarantees every authored row is unique.
+ */
+export function damageStyleColor(w: World, key: string, colorblind: boolean): string {
+  const def = damageTypeDef(w, key);
+  // `||`, not `??`: an authored `""` must fall back exactly like an unset field
+  // (QUESTIONS.md fb005 entry) — `??` only guards `null`/`undefined`.
+  if (def) return (colorblind ? def.colorblindColor : undefined) || def.color || '#ffffff';
+  if (key === 'frost' || key === 'frozen') {
+    const st = w.content.damageTypes.statuses[key];
+    return (colorblind ? st.colorblindColor : undefined) || st.color || '#ffffff';
+  }
+  return '#ffffff';
+}
+
+/** fb005: Corpse Core's execution kill — the game's only "instant, larger, distinct" hit. */
+export function executeStyle(w: World, colorblind: boolean): { color: string; fontScale: number } {
+  const f = w.content.damageTypes;
+  const color = (colorblind ? f.colorblindExecuteColor : undefined) || f.executeColor || '#ffffff';
+  return { color, fontScale: f.executeFontScale ?? 1 };
+}
+
+/**
  * Dot rows state their magnitude one of two ways, and the difference is the
  * whole reason Poison and Toxic read as "120%/180% of the triggering damage"
  * while Bleeding and Burning read as flat per-second numbers.

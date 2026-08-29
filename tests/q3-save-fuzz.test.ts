@@ -659,6 +659,7 @@ describe('q3 save fuzz: the settings blob', () => {
       damageNumbers: false,
       showRanges: true,
       showGrid: true,
+      accessiblePalette: true,
       cleanProfile: true,
       maxDamageNumbers: 137,
     };

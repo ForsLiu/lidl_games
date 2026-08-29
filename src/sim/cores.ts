@@ -542,6 +542,13 @@ function updateCorpseExecute(w: World, dt: number): void {
   // same finding QA logged on Carnivorous Plant's devour at p-core-c, not
   // fixed since nothing currently reaches it.
   damageEnemy(w, target, spend, 'corpse', { pure: true, dot: true, type: 'normal', noLifesteal: true });
+  // fb005: the `dot: true` above deliberately skips `damageEnemy`'s own 'hit'
+  // spark (it bypasses armor, not the "ailment ticks are silent" perf rule
+  // that flag also happens to gate) — so an execution kill otherwise shows no
+  // floating number at all. This is the one real "instant, larger, distinct"
+  // hit in the game (there is no generic crit mechanic — QUESTIONS.md fb005),
+  // fired once per execution rather than reusing the suppressed 'hit' path.
+  w.emit('execute', tx, ty, spend, 0);
   // The kill above already credited `corpseStoreRatio` of `spend` back into
   // the store via the `damageEnemy` hook (enemies.ts) — subtracting the full
   // `spend` here, after that credit landed, is what makes the net result

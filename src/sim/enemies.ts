@@ -261,7 +261,12 @@ export function damageEnemy(
   // every carrier's neighbours too, so a 350-strong burning horde is thousands
   // of events that would starve the buffer of shots, impacts and deaths. The
   // renderer already marks a burning or bleeding enemy from its `dots` list.
-  if (!opts.dot) w.emit('hit', e.x, e.y, dmg, e.id);
+  // fb005: the §3 type rides along in the fx *kind* (`hit:normal`, `hit:electric`,
+  // …) rather than a new field on `World.fx`'s shared `{k,x,y,a,b}` tuple, which
+  // every other emit call site would otherwise have to grow a field to ignore.
+  // `fx` is drained every tick and outside `hashWorld` (run.ts), so this is a
+  // presentation-only change with no replay/determinism surface.
+  if (!opts.dot) w.emit(`hit:${opts.type ?? 'normal'}`, e.x, e.y, dmg, e.id);
 
   // SPEC-FINAL §2: lifesteal "heals from normal damage dealt" — DoT ticks and
   // typed non-normal hits do not leech. The Bleeding Ring's §7 exception

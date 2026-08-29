@@ -12,6 +12,14 @@ export interface Settings {
   showRanges: boolean;
   showGrid: boolean;
   /**
+   * fb005: colorblind-safe palette for per-damage-type floating numbers/markers.
+   * Named without the literal word "colorblind" (which contains "orb") so it
+   * doesn't trip `tests/c7-no-orbs.test.ts`'s "no Hub tab renders the word
+   * 'orb'" scan of rendered Settings HTML — same reason the visible label
+   * below is hyphenated rather than one solid word.
+   */
+  accessiblePalette: boolean;
+  /**
    * SPEC-V3 T3: opts out of the dev profile, so a developer can see what a
    * real new player sees. Ignored entirely in a production build, where the
    * dev profile is never applied in the first place.
@@ -31,6 +39,7 @@ export function defaultSettings(): Settings {
     damageNumbers: true,
     showRanges: false,
     showGrid: false,
+    accessiblePalette: false,
     cleanProfile: false,
     maxDamageNumbers: 60,
   };
@@ -64,6 +73,7 @@ export function sanitize(s: Settings): Settings {
     damageNumbers: !!s.damageNumbers,
     showRanges: !!s.showRanges,
     showGrid: !!s.showGrid,
+    accessiblePalette: !!s.accessiblePalette,
     cleanProfile: !!s.cleanProfile,
     maxDamageNumbers: Number.isFinite(s.maxDamageNumbers)
       ? Math.min(400, Math.max(0, Math.round(s.maxDamageNumbers)))

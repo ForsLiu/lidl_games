@@ -23,6 +23,8 @@ import coresRaw from '../../data/cores.json';
 
 const num = z.number();
 const str = z.string();
+/** fb005: color fields reject `""` so an empty string can't silently bypass the documented white fallback. */
+const hexColor = z.string().min(1);
 
 /* ------------------------------------------------------------------ towers */
 
@@ -835,6 +837,15 @@ const DamageTypeSchema = z
     /** Burning's spread and Electric's inherent blast, in tiles. */
     radius: num.optional(),
     desc: str,
+    /**
+     * fb005: the floating-damage-number and DoT-marker color for this type.
+     * Optional so an older/hand-edited file without it still loads; readers
+     * fall back to a neutral white, same convention as every other
+     * optional-with-a-default field this schema already carries.
+     */
+    color: hexColor.optional(),
+    /** Colorblind-safe variant, shown when Settings.accessiblePalette is on. Falls back to `color`. */
+    colorblindColor: hexColor.optional(),
   })
   .strict();
 
@@ -845,6 +856,9 @@ const DamageStatusSchema = z
     moveSpeed: num.optional(),
     damageTaken: num.optional(),
     desc: str,
+    /** fb005: same color convention as `DamageTypeSchema`. */
+    color: hexColor.optional(),
+    colorblindColor: hexColor.optional(),
   })
   .strict();
 
@@ -1229,6 +1243,15 @@ const DamageTypesFileSchema = z.object({
   maxStacksPerEnemy: num.int().min(1),
   types: z.array(DamageTypeSchema),
   statuses: z.object({ frost: DamageStatusSchema, frozen: DamageStatusSchema }),
+  /**
+   * fb005: Corpse Core's execution kill (§5.5) is the only "instant, larger,
+   * distinct" hit in the game — there is no generic crit mechanic to style
+   * (QUESTIONS.md fb005 entry). Optional with a neutral-white/no-scale
+   * fallback, same back-compat convention as every field above.
+   */
+  executeColor: hexColor.optional(),
+  colorblindExecuteColor: hexColor.optional(),
+  executeFontScale: num.optional(),
 });
 
 /* ------------------------------------------------------------------ quests */
@@ -1299,6 +1322,50 @@ export type QuestDef = z.infer<typeof QuestsFileSchema>['quests'][number];
 export type DamageTypeDef = z.infer<typeof DamageTypeSchema>;
 export type DamageStatusDef = z.infer<typeof DamageStatusSchema>;
 export type DamageTypesFile = z.infer<typeof DamageTypesFileSchema>;
+
+/**
+ * fb005: every §3 damage type, the two statuses, and Corpse Core's execution
+ * kill must render as a *visibly distinct* color, in both the normal and
+ * colorblind-safe palettes — a loader rule, not a hope. Unset/empty colors
+ * default to white (the readers' own fallback, `damagetypes.ts`'s
+ * `damageStyleColor`/`executeStyle`), so two rows that both forget to author
+ * a color collide here too, the same way an all-white regression would.
+ */
+export function validateDamageStyleColors(damageTypes: DamageTypesFile): void {
+  const rows: { key: string; color: string; colorblindColor: string }[] = [
+    ...damageTypes.types.map((d) => ({
+      key: d.key,
+      color: d.color || '#ffffff',
+      colorblindColor: d.colorblindColor || d.color || '#ffffff',
+    })),
+    ...(['frost', 'frozen'] as const).map((k) => {
+      const st = damageTypes.statuses[k];
+      return { key: k, color: st.color || '#ffffff', colorblindColor: st.colorblindColor || st.color || '#ffffff' };
+    }),
+    {
+      key: 'execute',
+      color: damageTypes.executeColor || '#ffffff',
+      colorblindColor: damageTypes.colorblindExecuteColor || damageTypes.executeColor || '#ffffff',
+    },
+  ];
+  const seenNormal = new Map<string, string>();
+  const seenColorblind = new Map<string, string>();
+  for (const r of rows) {
+    const normalKey = r.color.toLowerCase();
+    const colorblindKey = r.colorblindColor.toLowerCase();
+    const dupeNormal = seenNormal.get(normalKey);
+    if (dupeNormal) throw new Error(`damagetypes.json: "${r.key}" and "${dupeNormal}" share color ${r.color}`);
+    seenNormal.set(normalKey, r.key);
+    const dupeColorblind = seenColorblind.get(colorblindKey);
+    if (dupeColorblind) {
+      throw new Error(
+        `damagetypes.json: "${r.key}" and "${dupeColorblind}" share colorblindColor ${r.colorblindColor}`,
+      );
+    }
+    seenColorblind.set(colorblindKey, r.key);
+  }
+}
+
 export type WaveDef = z.infer<typeof WavesFileSchema>['waves'][number];
 export type CoreDef = z.infer<typeof CoresFileSchema>['cores'][number];
 
@@ -1460,6 +1527,13 @@ export function loadContent(): Content {
       throw new Error(`damagetypes.json: "${d.key}" is a hit but carries dot fields`);
     }
   }
+
+  // fb005: "each damage type plus each status visibly differs" is a loader
+  // rule, not a hope — two rows quietly sharing a color (in either palette)
+  // would silently fail the acceptance criterion the next time someone edits
+  // this file, the same m19a-shaped failure every other rule in this block
+  // guards against.
+  validateDamageStyleColors(damageTypes);
 
   const treeIds = new Set(tree.nodes.map((n) => n.id));
   for (const n of tree.nodes) {

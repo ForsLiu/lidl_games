@@ -1040,9 +1040,11 @@ describe('§3 — regressions from the m19c review', () => {
     for (const e of es) applyDot(w, e, 'burning', 1, 3, 'brazier');
     w.fx.length = 0;
     run(w, 1);
-    expect(w.fx.filter((f) => f.k === 'hit').length).toBe(0);
+    // fb005: a non-dot hit's fx kind now carries its §3 type (`hit:normal`,
+    // `hit:electric`, …) rather than a bare 'hit' — match on the prefix.
+    expect(w.fx.filter((f) => f.k.startsWith('hit:')).length).toBe(0);
     // A normal hit still sparks — this is about dots, not about the buffer.
     damageEnemy(w, es[0], 5, 'test');
-    expect(w.fx.filter((f) => f.k === 'hit').length).toBe(1);
+    expect(w.fx.filter((f) => f.k === 'hit:normal').length).toBe(1);
   });
 });

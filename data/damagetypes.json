@@ -6,7 +6,9 @@
       "name": "Normal",
       "effect": "hit",
       "ignoresArmor": false,
-      "desc": "Basic damage; reduced by armor."
+      "desc": "Basic damage; reduced by armor.",
+      "color": "#ffd9a0",
+      "colorblindColor": "#E69F00"
     },
     {
       "key": "bleeding",
@@ -17,7 +19,9 @@
       "duration": 5,
       "maxStacks": 50,
       "refresh": "shortest",
-      "desc": "Each application deals 1 damage per second for 5 seconds. Applications stack independently."
+      "desc": "Each application deals 1 damage per second for 5 seconds. Applications stack independently.",
+      "color": "#cc2244",
+      "colorblindColor": "#D55E00"
     },
     {
       "key": "poison",
@@ -28,7 +32,9 @@
       "duration": 3,
       "maxStacks": 3,
       "refresh": "shortest",
-      "desc": "A damage-over-time totalling 120% of the triggering damage over 3 seconds."
+      "desc": "A damage-over-time totalling 120% of the triggering damage over 3 seconds.",
+      "color": "#7ac74f",
+      "colorblindColor": "#009E73"
     },
     {
       "key": "toxic",
@@ -39,7 +45,9 @@
       "duration": 9,
       "maxStacks": 3,
       "refresh": "shortest",
-      "desc": "A damage-over-time totalling 180% of the triggering damage over 9 seconds."
+      "desc": "A damage-over-time totalling 180% of the triggering damage over 9 seconds.",
+      "color": "#b34fe6",
+      "colorblindColor": "#CC79A7"
     },
     {
       "key": "burning",
@@ -52,7 +60,9 @@
       "refresh": "strongest",
       "armorShredPerSecond": 1,
       "radius": 1,
-      "desc": "Each application deals 1 damage and strips 1 armor per second for 3 seconds; both effects land in a radius around the victim."
+      "desc": "Each application deals 1 damage and strips 1 armor per second for 3 seconds; both effects land in a radius around the victim.",
+      "color": "#ff8833",
+      "colorblindColor": "#F0E442"
     },
     {
       "key": "electric",
@@ -60,7 +70,9 @@
       "effect": "hit",
       "ignoresArmor": false,
       "radius": 0.8,
-      "desc": "Deals its damage in a small area around the target."
+      "desc": "Deals its damage in a small area around the target.",
+      "color": "#ffe066",
+      "colorblindColor": "#56B4E9"
     }
   ],
   "statuses": {
@@ -68,12 +80,19 @@
       "duration": 3,
       "attackSpeed": -0.3,
       "moveSpeed": -0.3,
-      "desc": "-30% attack speed and move speed for 3 seconds."
+      "desc": "-30% attack speed and move speed for 3 seconds.",
+      "color": "#8fd8ff",
+      "colorblindColor": "#0072B2"
     },
     "frozen": {
       "duration": 3,
       "damageTaken": 0.3,
-      "desc": "Cannot move for 3 seconds and takes +30% damage."
+      "desc": "Cannot move for 3 seconds and takes +30% damage.",
+      "color": "#3aa0ff",
+      "colorblindColor": "#FFFFFF"
     }
-  }
+  },
+  "executeColor": "#fff6d0",
+  "colorblindExecuteColor": "#fff6d0",
+  "executeFontScale": 1.6
 }

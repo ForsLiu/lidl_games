@@ -14,6 +14,7 @@ import {
   TileType,
 } from '../sim/grid';
 import { dotRemaining } from '../sim/enemies';
+import { damageStyleColor, executeStyle } from '../sim/damagetypes';
 import { BASE } from '../sim/stats';
 import type { World } from '../sim/world';
 import {
@@ -83,6 +84,8 @@ export interface FloatingNumber {
   text: string;
   life: number;
   color: string;
+  /** fb005: Corpse Core execution kills render larger; every other number is 1. */
+  fontScale: number;
 }
 
 /** Builds the short-lived line an instant-hit attack leaves behind. */
@@ -152,25 +155,44 @@ export class Renderer {
   /** Drain this tick's sim events into presentation-only effects. */
   ingest(w: World, view: ViewState): void {
     for (const e of w.fx) {
+      // fb005: a normal enemy hit's §3 damage type rides in the fx kind
+      // (`hit:normal`, `hit:electric`, …) rather than the `switch` below, so a
+      // 'hit' isn't one more case among unrelated one-off events.
+      if (e.k.startsWith('hit:')) {
+        this.flashes.set(e.b, 0.12);
+        if (e.a >= 1 && view.settings.damageNumbers && this.numbers.length < view.settings.maxDamageNumbers) {
+          this.numbers.push({
+            x: e.x,
+            y: e.y,
+            text: String(Math.round(e.a)),
+            life: 0.6,
+            color: damageStyleColor(w, e.k.slice(4), view.settings.accessiblePalette),
+            fontScale: 1,
+          });
+        }
+        continue;
+      }
       switch (e.k) {
-        case 'hit':
-          this.flashes.set(e.b, 0.12);
-          if (e.a >= 1 && view.settings.damageNumbers && this.numbers.length < view.settings.maxDamageNumbers) {
-            this.numbers.push({
-              x: e.x,
-              y: e.y,
-              text: String(Math.round(e.a)),
-              life: 0.6,
-              color: '#ffd9a0',
-            });
-          }
-          break;
         case 'wardenhit':
           view.shake = Math.max(view.shake, Math.min(9, 2 + e.a * 0.25));
           if (view.settings.damageNumbers) {
-            this.numbers.push({ x: e.x, y: e.y, text: `-${Math.round(e.a)}`, life: 0.8, color: '#ff8080' });
+            this.numbers.push({ x: e.x, y: e.y, text: `-${Math.round(e.a)}`, life: 0.8, color: '#ff8080', fontScale: 1 });
           }
           break;
+        case 'execute': {
+          const style = executeStyle(w, view.settings.accessiblePalette);
+          if (view.settings.damageNumbers) {
+            this.numbers.push({
+              x: e.x,
+              y: e.y,
+              text: `-${Math.round(e.a)}`,
+              life: 1,
+              color: style.color,
+              fontScale: style.fontScale,
+            });
+          }
+          break;
+        }
         case 'leak':
           view.shake = Math.max(view.shake, 6);
           break;
@@ -180,7 +202,7 @@ export class Renderer {
           view.shake = Math.max(view.shake, 3);
           break;
         case 'levelup':
-          this.numbers.push({ x: e.x, y: e.y, text: 'LEVEL UP', life: 1.2, color: '#9ff' });
+          this.numbers.push({ x: e.x, y: e.y, text: 'LEVEL UP', life: 1.2, color: '#9ff', fontScale: 1 });
           break;
         case 'sunder':
           view.shake = Math.max(view.shake, 14);
@@ -263,7 +285,7 @@ export class Renderer {
     this.drawTelegraphs();
     this.drawStructures(w);
     this.drawGems(w);
-    this.drawEnemies(w);
+    this.drawEnemies(w, view);
     this.drawProjectiles(w);
     this.drawTracers();
     this.drawWarden(w);
@@ -422,8 +444,9 @@ export class Renderer {
     }
   }
 
-  private drawEnemies(w: World): void {
+  private drawEnemies(w: World, view: ViewState): void {
     const ctx = this.ctx;
+    const cb = view.settings.accessiblePalette;
     for (const e of w.enemies) {
       if (e.dead) continue;
       const def = w.content.enemyById.get(e.defId)!;
@@ -444,29 +467,48 @@ export class Renderer {
       }
       // SPEC-V3 §3: frozen is a hard stop and reads as a solid rime shell;
       // frost and the generic slow share the thinner ring they always had.
+      // fb005: both colors come from data/damagetypes.json's statuses now, so
+      // frost and frozen read as two distinct shades (and swap together under
+      // the colorblind palette) instead of sharing one hardcoded blue.
       if (e.frozenRemaining > 0) {
-        ctx.fillStyle = '#8fd8ff44';
+        const color = damageStyleColor(w, 'frozen', cb);
+        ctx.fillStyle = `${color}44`;
         ctx.beginPath();
         ctx.arc(px, py, r + 2, 0, Math.PI * 2);
         ctx.fill();
-        ctx.strokeStyle = '#cdefff';
+        ctx.strokeStyle = color;
         ctx.stroke();
       } else if (e.slowAmount > 0 || e.frostRemaining > 0) {
-        ctx.strokeStyle = '#8fd8ffcc';
+        ctx.strokeStyle = `${damageStyleColor(w, 'frost', cb)}cc`;
         ctx.beginPath();
         ctx.arc(px, py, r + 2, 0, Math.PI * 2);
         ctx.stroke();
       }
+      // fb005: one small data-driven marker per active DoT, at a distinct
+      // corner so a poisoned-and-burning enemy shows both at once. Poison and
+      // Toxic previously had no marker of their own at all.
       if (dotRemaining(e, 'burning') > 0) {
-        ctx.fillStyle = '#ff883355';
+        ctx.fillStyle = `${damageStyleColor(w, 'burning', cb)}55`;
         ctx.beginPath();
         ctx.arc(px, py - r, 3, 0, Math.PI * 2);
         ctx.fill();
       }
       if (dotRemaining(e, 'bleeding') > 0) {
-        ctx.fillStyle = '#cc224466';
+        ctx.fillStyle = `${damageStyleColor(w, 'bleeding', cb)}66`;
         ctx.beginPath();
         ctx.arc(px - r, py - r, 3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      if (dotRemaining(e, 'poison') > 0) {
+        ctx.fillStyle = `${damageStyleColor(w, 'poison', cb)}66`;
+        ctx.beginPath();
+        ctx.arc(px + r, py - r, 3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      if (dotRemaining(e, 'toxic') > 0) {
+        ctx.fillStyle = `${damageStyleColor(w, 'toxic', cb)}66`;
+        ctx.beginPath();
+        ctx.arc(px, py + r, 3, 0, Math.PI * 2);
         ctx.fill();
       }
       ctx.globalAlpha = 1;
@@ -825,11 +867,12 @@ export class Renderer {
 
   private drawNumbers(): void {
     const ctx = this.ctx;
-    ctx.font = 'bold 12px system-ui, sans-serif';
     ctx.textAlign = 'center';
     for (const n of this.numbers) {
       ctx.globalAlpha = Math.min(1, n.life * 2);
       ctx.fillStyle = n.color;
+      // fb005: Corpse Core execution kills render larger via `fontScale`.
+      ctx.font = `bold ${Math.round(12 * n.fontScale)}px system-ui, sans-serif`;
       ctx.fillText(n.text, n.x * TILE, n.y * TILE);
     }
     ctx.globalAlpha = 1;
