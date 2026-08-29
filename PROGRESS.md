@@ -5,6 +5,29 @@
 
 ## Current state — SPEC-FINAL
 
+- **(b026) is done this commit — Clarion Taunt's `tauntDurationSeconds`
+  corrected from 6 to 4 (SPEC-FINAL §4.2, QUESTIONS.md Q128).** Found
+  already implemented and uncommitted at session start (`data/classes.json`'s
+  `active1.tauntDurationSeconds` already edited to 4, plus a new
+  `tests/b026-clarion-taunt-duration.test.ts` — a prior session's in-flight
+  work, BACKLOG.md/PROGRESS.md not yet updated for it). A p6e balance pass
+  had bumped this value 4→6 chasing Paladin's G8/G10 win-rate band; Q128's
+  owner verdict already ruled this a spec-conformance fix, not tuning, so
+  Q40's "no balance tuning before P10" does not defer it. This session
+  independently re-verified before finalizing: confirmed the regression test
+  is genuinely red against 6 (temporarily reverted the data value, reran,
+  saw `expected 6 to be 4`, restored), delegated qa-playtester for a hostile
+  pass (rapid recast, mid-taunt refresh, 200-cast spam probe, a live headless
+  Paladin run, and a grep audit of every `tauntDurationSeconds`/
+  `tauntRemaining`/`tauntKind` reader/writer in `/src/sim` for a hardcoded
+  `6` assumption) — PASS, no reproducible bugs. Checked blast radius before
+  calling it narrow (CLAUDE.md's own measurement rule): Paladin's G8 win-rate
+  band assertion in `tests/p6e-class-diversity.test.ts` is already
+  `it.skip`-ed, so this cannot flip a currently-green gate red; `tests/
+  q120-order1-taunt.test.ts`/`p6d-nine-classes.test.ts`/`dps-panel.test.ts`
+  (132 tests, the suites that actually touch the taunt fields) all green.
+  `npx tsc --noEmit` clean.
+
 - **(fb007) is done (`6517320`, with a QA-filed post-commit bug fixed this
   session) — DPS summary panel (owner feedback `feature-dps-summary`,
   SPEC-FINAL §11).** Found already implemented and committed at session

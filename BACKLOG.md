@@ -252,15 +252,6 @@ called out in their own titles instead.
       the known stalemate seeds (carnivorous_plant seeds 2 and 9, corpse seed
       2, swordsman 1/2/5/9, archer 2/11, stormcaller 6, bloodlord 1/12) all
       resolve to real outcomes — refs: §9 addendum, QUESTIONS.md Q126, Q127.
-- [ ] (b026) [bug] Clarion Taunt's `tauntDurationSeconds` is 6 in
-      `data/classes.json` but SPEC-FINAL §4.2 states 4 — spec conformance, not
-      tuning, so Q40 does not defer it (P10 may re-tune from 4) —
-      acceptance: a failing regression test lands first (CLAUDE.md rule 3)
-      asserting the loaded value is 4 (it fails against the current 6);
-      correcting the data value makes it green — refs: §4.2, QUESTIONS.md
-      Q128. (Filed as b026, not b017 — b017 is already
-      `src/meta/meta.ts`'s completionFraction ceiling bug; b018-b025 are also
-      taken, so b026 is the next free id.)
 
 ### P1 — TD core: sealing (G7)
 
@@ -881,6 +872,28 @@ logged in MIGRATION.md §8 rather than carried as dead items.
   **G19**. The work is `p10d`.
 
 ## Done
+
+- [x] (b026) [bug] Clarion Taunt's `tauntDurationSeconds` corrected from 6 to
+      4 in `data/classes.json` — this commit, implementation found already
+      uncommitted at session start (a prior session's in-flight work: the
+      data edit and `tests/b026-clarion-taunt-duration.test.ts` both
+      pre-existed with no matching commit and no BACKLOG/PROGRESS update).
+      SPEC-FINAL §4.2 states Clarion Taunt's redirect lasts 4 s; a p6e
+      balance pass had bumped it to 6 chasing Paladin's G8/G10 win-rate band
+      (QUESTIONS.md Q128, owner-approved as spec conformance, not deferred by
+      Q40). This session re-verified rather than re-implementing: confirmed
+      `tests/b026-clarion-taunt-duration.test.ts` is genuinely red against
+      the old value 6 (reverted, reran, saw the expected failure, restored),
+      and delegated qa-playtester for a hostile pass — rapid Clarion Taunt
+      recast, mid-taunt refresh (not additive/stacking), a 200-cast spam
+      probe (no NaN/stuck tags), a live headless Paladin run, and a grep
+      audit of every `tauntDurationSeconds`/`tauntRemaining`/`tauntKind`
+      reader/writer in `/src/sim` for a hardcoded old-value assumption — PASS,
+      no reproducible bugs. Blast radius checked: Paladin's G8 win-rate band
+      in `tests/p6e-class-diversity.test.ts` is `it.skip`-ed already, so no
+      currently-green gate can regress; `tests/q120-order1-taunt.test.ts` /
+      `p6d-nine-classes.test.ts` / `dps-panel.test.ts` (132 tests touching the
+      taunt fields) all green — refs: §4.2, QUESTIONS.md Q128.
 
 - [x] (fb007) [feat] DPS summary panel (damage/DPS by source and type) —
       `6517320`, with a QA-filed post-commit bug fixed this session
