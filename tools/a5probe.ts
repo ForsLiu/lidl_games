@@ -139,4 +139,12 @@ function main(): void {
   }
 }
 
-if (process.argv[1]?.includes('a5probe')) main();
+if (process.argv[1]?.includes('a5probe')) {
+  try {
+    main();
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`a5probe: ${message.replace(/\s+/g, ' ').trim()}`);
+    process.exitCode = 1;
+  }
+}

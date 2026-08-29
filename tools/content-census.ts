@@ -12,9 +12,23 @@
  *
  *   npx tsx tools/content-census.ts
  *   npx tsx tools/content-census.ts --json
+ *
+ * `loadContent` is imported dynamically inside `main()` rather than
+ * statically at the top of this file (BACKLOG-QUALITY q38): a static
+ * `import { loadContent } from '../src/sim/content'` pulls in every
+ * `/data/*.json` file via a static ES-module import, which `tsx`'s esbuild
+ * transform parses at module-load time — before any of this file's own
+ * code, including `main()`'s try/catch, ever runs. A `/data` file with a
+ * JSON *syntax* error (not a schema violation) would then crash with a raw,
+ * uncaught `Transform failed with 1 error` stack trace no try/catch here
+ * could intercept (q33's finding). The dynamic `await import(...)` below
+ * defers that load until it is inside `main()`'s own try, so the same
+ * failure surfaces as this file's clean one-line message instead. `census`
+ * therefore takes `content` as a required argument rather than defaulting
+ * it to a `loadContent()` call at the top level.
  */
 
-import { type Content, loadContent } from '../src/sim/content';
+import type { Content } from '../src/sim/content';
 import { MAX_TIER } from '../src/sim/tiers';
 
 export interface CensusRow {
@@ -26,7 +40,7 @@ export interface CensusRow {
   note?: string;
 }
 
-export function census(content: Content = loadContent()): CensusRow[] {
+export function census(content: Content): CensusRow[] {
   const rows: CensusRow[] = [];
 
   // §4's 11 classes are the non-legacy rows; `legacy: true` classes (Q38's
@@ -130,12 +144,13 @@ export function census(content: Content = loadContent()): CensusRow[] {
 
 /* ------------------------------------------------------------------- CLI */
 
-function main(argv: string[]): void {
+async function main(argv: string[]): Promise<void> {
   const json = argv.includes('--json');
 
   let rows: CensusRow[];
   try {
-    rows = census();
+    const { loadContent } = await import('../src/sim/content');
+    rows = census(loadContent());
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     if (json) {
@@ -173,4 +188,9 @@ function main(argv: string[]): void {
 }
 
 const invokedDirectly = process.argv[1]?.replace(/\\/g, '/').endsWith('tools/content-census.ts');
-if (invokedDirectly) main(process.argv.slice(2));
+if (invokedDirectly) {
+  main(process.argv.slice(2)).catch((err) => {
+    console.error(err);
+    process.exitCode = 1;
+  });
+}

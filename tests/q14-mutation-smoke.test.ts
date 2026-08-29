@@ -35,6 +35,7 @@ import {
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const FIXTURE = path.join(ROOT, 'tools', 'mutation-probe-fixture.txt');
+const MUTATION_PROBE_SOURCE = path.join(ROOT, 'tools', 'mutation-probe.ts');
 
 describe('q14 — mutation smoke', () => {
   beforeAll(() => {
@@ -46,6 +47,45 @@ describe('q14 — mutation smoke', () => {
 
   it('has at least the ten mutations recorded from the q8/q9/q12/q10/q15/q13 sessions (q20)', () => {
     expect(MUTATIONS.length).toBeGreaterThanOrEqual(10);
+  });
+
+  it('mutation-probe.ts\'s own "cost, recorded rather than hidden" doc comment matches the real MUTATIONS array (q43)', () => {
+    // Regression target (q43): the doc comment above `MUTATIONS` in
+    // tools/mutation-probe.ts states a running total ("this now runs 23
+    // nested `npx vitest run` invocations (8 controls, one per distinct
+    // `testFile`, + 15 mutations)") that nothing previously checked against
+    // reality — the same "note overstates the coverage it claims" trap this
+    // lane has hit at least five times before (q17, q19, q22, q28, q35), just
+    // in this file's own header instead of gate-audit.ts's KNOWN_HOLES. This
+    // parses the comment's stated numbers and asserts they still agree with
+    // MUTATIONS.length / the distinct testFile count, so a future mutation
+    // added without updating the comment goes red by name.
+    // Collapse block-comment line wrapping (each continuation line starts
+    // with " * ") to single spaces before matching — the sentence this test
+    // targets wraps across three source lines.
+    const source = readFileSync(MUTATION_PROBE_SOURCE, 'utf8').replace(/\r?\n\s*\*\s?/g, ' ');
+    const match = source.match(
+      /runs (\d+) nested `npx vitest run` invocations \((\d+) controls, one per distinct `testFile`, \+ (\d+) mutations\)/,
+    );
+    expect(
+      match,
+      'expected to find the "N nested `npx vitest run` invocations (C controls... + M mutations)" doc comment in tools/mutation-probe.ts — has it been reworded?',
+    ).not.toBeNull();
+    const [, statedTotal, statedControls, statedMutations] = match!;
+    const realMutationCount = MUTATIONS.length;
+    const realTestFileCount = new Set(MUTATIONS.map((m) => m.testFile)).size;
+    expect(
+      Number(statedMutations),
+      'doc comment\'s mutation count is stale — update tools/mutation-probe.ts\'s "cost, recorded rather than hidden" comment',
+    ).toBe(realMutationCount);
+    expect(
+      Number(statedControls),
+      'doc comment\'s distinct-testFile (control) count is stale — update tools/mutation-probe.ts\'s "cost, recorded rather than hidden" comment',
+    ).toBe(realTestFileCount);
+    expect(
+      Number(statedTotal),
+      'doc comment\'s total invocation count no longer equals controls + mutations',
+    ).toBe(realTestFileCount + realMutationCount);
   });
 
   it('every mutation names a file inside its own testFile\'s natural import graph (src/* or tools/*, not tests/data)', () => {

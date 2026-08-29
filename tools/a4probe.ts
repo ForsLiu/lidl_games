@@ -5,10 +5,17 @@
 
 import { Run } from '../src/sim/run';
 import { BuilderPolicy } from '../src/bots/policies';
-import { loadContent } from '../src/sim/content';
+import { loadContent, type Content } from '../src/sim/content';
 import type { RunConfig } from '../src/sim/types';
 
-const content = loadContent();
+let content: Content;
+try {
+  content = loadContent();
+} catch (err) {
+  const message = err instanceof Error ? err.message : String(err);
+  console.error(`a4probe: ${message.replace(/\s+/g, ' ').trim()}`);
+  process.exit(1);
+}
 
 // SPEC-FINAL §6.1 (p2e) dropped the soul-weapon roster, so "soul-granting"
 // is no longer a field of its own — it was always exactly the towers with an
@@ -85,8 +92,20 @@ export function runSingleType(
 
 function main(): void {
   const seeds = [1, 2, 3, 4, 5];
+  // Optional CLI filter: `npx tsx tools/a4probe.ts venom_spore` probes one
+  // tower instead of the full roster. Added at the 2026-08-28 lane merge:
+  // p8a's real 18-wave data made the full table a multi-minute run, so
+  // tests/q45-cli-schema-violation.test.ts's control case (which only needs
+  // "clean data exits 0 with the table header") probes a single tower to
+  // stay inside its 60 s nested-process budget. No argument keeps the full
+  // table unchanged.
+  const only = process.argv[2];
+  const roster = [...SOUL_TOWERS, 'palisade'];
+  if (only !== undefined && !roster.includes(only)) {
+    throw new Error(`not a probeable tower: ${only}`);
+  }
   console.log('tower            T1 waves(min/med)  T1 clears   T3 waves(min/med)  T3 clears');
-  for (const key of [...SOUL_TOWERS, 'palisade']) {
+  for (const key of only !== undefined ? [only] : roster) {
     const t1: number[] = [];
     const t3: number[] = [];
     let c1 = 0;
@@ -111,4 +130,12 @@ function main(): void {
   }
 }
 
-if (process.argv[1]?.includes('a4probe')) main();
+if (process.argv[1]?.includes('a4probe')) {
+  try {
+    main();
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`a4probe: ${message.replace(/\s+/g, ' ').trim()}`);
+    process.exitCode = 1;
+  }
+}

@@ -639,6 +639,69 @@ were not re-filed. Ordering within this section is by severity, not P-band.
       asserts the rendered string for a `cdr`/`leech` contribution — refs:
       §2, §11, QA on fb004.
 
+### Filed at the lane/quality merge (2026-08-28) — from BACKLOG-QUALITY.md's log and open queue
+
+The lane's sessions 30–52 (q33–q57) landed as tests/tools in this merge. Its
+Log's main-lane bug reports were checked against merged HEAD before filing:
+the JSON-syntax-error crash class is already queued as b014, the content-hash
+replay gap as p9a, the save/loader laundering families as b012/b013 — none
+re-filed. The lane's q36 souls-command slot-waste regression (its one q21
+addition since the 2026-08-27 port) was dropped, not merged: it exercises the
+deleted soul-weapon system (`beginSoulPick`/`souls` Command), the same
+died-with-the-system rule the 08-27 merge applied. What follows is the one
+Log-filed defect with no existing item
+(q39) plus the lane's three still-open queue items (q55–q57), carried over
+because the lane worktree retires at this merge.
+
+- [ ] (b022) [bug] `Stats.add`'s finite guard checks only the *incoming* value
+      (`src/sim/stats.ts:172`), not the running sum, so two individually-finite
+      contributions (`1.5e308` twice) overflow `total()`/`factor()` to
+      `±Infinity` with nothing downstream catching it: `derive()`'s
+      `luck: s.total('luck')` has no clamp, and `progression.ts`'s
+      `luckBias = Math.min(0.5, ...)` masks the positive overflow but passes
+      `-Infinity` straight into `rollOffers`'s `weight * (1 + luckBias *
+      o.value)` — a second, previously-untraced route into b010's NaN-weight
+      constant-index fallback. Reachable via an unvalidated hand-edited save
+      (stash-relic affix values through `deserializeMeta`'s bare `JSON.parse`,
+      b012's family) and authorable in `/data` directly (`AffixSchema`'s
+      unbounded `num` fields, b013's family). Already pinned live by
+      `tests/q35-weighted-index-nan.test.ts`'s "gap found by QA verification"
+      describe block — acceptance: the running sum is guarded (in `add` or
+      `total()`/`factor()`) so no sequence of finite contributions yields a
+      non-finite total, and `AffixSchema` bounds its values; the q35 pins flip
+      to the fixed contract — refs: §12 rule 2, BACKLOG-QUALITY q39
+      (sessions 32/41 logs)
+- [ ] (b023) [feat] Re-measure the quality lane's `it.skip`'d bug-pin tests —
+      15+ accumulated across `tests/q7-data-fuzz.test.ts` (E1–E7),
+      `tests/q18-content-hash-replay.test.ts`,
+      `tests/q21-weapon-boundary-fuzz.test.ts` and `tests/q3-save-fuzz.test.ts`
+      (D1–D7, D9), each pinning a live main-lane bug as of the session that
+      filed it, none re-checked against `/src` since ("a deferral is a
+      measurement with an expiry date") — acceptance: each skipped case is
+      temporarily un-skipped and run against current `/src`; any that now
+      passes is reported by name so its owning item (b012, b013, p9a, ...) can
+      close or shrink, and gets its skip comment updated; any still red is
+      re-confirmed and left as-is; the count re-verified is recorded — refs:
+      CLAUDE.md measurement rules, BACKLOG-QUALITY q55
+- [ ] (b024) [polish] Mutation-probe coverage for q54's `unguarded-data-read`
+      classifier: add a `tools/mutation-probe.ts` `MUTATIONS` entry that
+      hollows `cli-crash-coverage.ts`'s `readsDataJsonDirectly()` and asserts
+      `tests/q47-cli-crash-coverage.test.ts` goes red — the same treatment q43
+      gives the two pre-existing classifiers, so a regression in the new
+      detection logic is caught the same way as one in the old — acceptance:
+      one new `MUTATIONS` entry, green, and q43's pinned doc-comment/
+      array-length parity check still holds — refs: BACKLOG-QUALITY q54/q56
+- [ ] (b025) [polish] `readsDataJsonDirectly()` (`tools/cli-crash-coverage.ts`)
+      false-negatives on two path shapes its doc-comment intent covers: an
+      inline template-literal path with no `join()` wrapper and a
+      string-concatenated path. No live `tools/*.ts` file uses either today
+      (nothing misclassified — latent gap for a future tool author, QA-filed
+      non-blocking) — acceptance: either both shapes are detected (extend the
+      regex, add the two synthetic-fixture tests QA scoped next to the
+      existing cases in `tests/q54-unguarded-data-read.test.ts`) or both are
+      named in the function's "Known limitations" doc comment alongside the
+      existing gaps — refs: BACKLOG-QUALITY q57, session 52 QA
+
 ## Retired from the queue by SPEC-FINAL
 
 These carried acceptance criteria that SPEC-FINAL no longer defines. Reasons are

@@ -448,7 +448,7 @@ coverage gaps session 1's log recorded. All five are inside Scope as written.*
       corruption — refs: q29, q30, qa-playtester's q29 verification pass
       (session 25 log), src/sim/weapons.ts:61-79, src/sim/enemies.ts:200,
       src/sim/hash.ts
-- [ ] (q35) [bug][feat] Fuzzing q30's `applyOffer` `'boon'` case surfaced a
+- [x] (q35) [bug][feat] Fuzzing q30's `applyOffer` `'boon'` case surfaced a
       more general gap in `Rng.weightedIndex` (`src/sim/rng.ts:65-75`) itself,
       not specific to boons: if any candidate's weight is `NaN` (reachable
       here via `buildOfferPool`'s `value: rank / b.maxRank` when a poisoned
@@ -474,7 +474,7 @@ coverage gaps session 1's log recorded. All five are inside Scope as written.*
       go non-finite through any real, in-domain `Luck` stat value — refs:
       q30, src/sim/rng.ts:65-75, src/sim/progression.ts:90 (`luckBias`),
       139 (`value: rank / b.maxRank`)
-- [ ] (q36) [bug][feat] qa-playtester's q32 verification pass found a real
+- [x] (q36) [bug][feat] qa-playtester's q32 verification pass found a real
       sibling gap to q32's own positive-control finding: q32 proved a
       duplicate key in a hand-crafted `souls` Command never creates a second
       `WeaponState` (`grantWeapon`'s create-vs-update branch collapses it),
@@ -502,7 +502,7 @@ coverage gaps session 1's log recorded. All five are inside Scope as written.*
       future dedupe fix is visible as a test change rather than silent —
       refs: q32, qa-playtester's q32 verification pass (session 30 log),
       src/sim/run.ts:164-169, src/sim/progression.ts:270
-- [ ] (q37) [bug][feat] qa-playtester's q33 verification pass (session 31)
+- [x] (q37) [bug][feat] qa-playtester's q33 verification pass (session 31)
       found the same uncaught-crash mechanism q33 pinned for the four lane
       CLIs also hits three tools q33 never covers — `tools/sim.ts`,
       `tools/sweep.ts` and `tools/handoff-metrics.ts`, all three commands
@@ -533,7 +533,7 @@ coverage gaps session 1's log recorded. All five are inside Scope as written.*
       one CLI where a smaller in-Scope workaround is also possible) — refs:
       q33, q38, qa-playtester's q33 verification pass (session 31 log),
       tools/sim.ts, tools/sweep.ts, tools/handoff-metrics.ts
-- [ ] (q38) [feat] Session 31's QA pass, while verifying q33, tested — rather
+- [x] (q38) [feat] Session 31's QA pass, while verifying q33, tested — rather
       than assumed — whether the "root cause can't be moved, only pinned"
       framing q33/q37 both carry is actually true for every affected CLI. It
       is not, for one of them: a scratch-copy experiment on
@@ -567,6 +567,529 @@ coverage gaps session 1's log recorded. All five are inside Scope as written.*
       required — today's assertions pin the *broken* behaviour), `tsc`
       clean, no `/src/**` edits — refs: q33, q37, qa-playtester's q33
       verification pass (session 31 log), tools/content-census.ts
+- [x] (q39) [bug][feat] qa-playtester's q35 verification pass found that
+      `Stats.add`'s finite guard (`src/sim/stats.ts:148`) protects only
+      against a *single* non-finite contribution — it checks the incoming
+      value, not the running sum — so two contributions that are each
+      individually finite can still overflow `total()`/`factor()`'s
+      summation loop to `±Infinity`, with nothing downstream catching it.
+      Measured live: `s.add('relic:1','luck',1.5e308); s.add('relic:2',
+      'luck',1.5e308); s.total('luck')` is `Infinity` (`1.5e308` alone passes
+      `Number.isFinite` cleanly). Worse in the negative direction:
+      `derive()`'s `luck: s.total('luck')` has no clamp, so two `-1.5e308`
+      contributions make `derived.luck = -Infinity`, and
+      `progression.ts:89`'s `luckBias = Math.min(0.5, w.derived.luck *
+      0.004)` clamps the *positive* overflow case down to 0.5 (masking it)
+      but does nothing for `-Infinity`, so a `-Infinity` `luckBias` reaches
+      `rollOffers`'s `weight * (1 + luckBias * o.value)` uncaught —
+      reproducing q35's own NaN/Infinity-total `weightedIndex` fallback
+      through a second, previously-untraced vector. Reachability: QA traced
+      a real, currently-unvalidated delivery path — `src/meta/meta.ts:322`'s
+      `deserializeMeta` does `JSON.parse(json) as Partial<SaveFile>` with
+      **zero zod/schema validation**, so a hand-edited save with two stash
+      relics carrying an affix `{"stat":"luck","value":1.5e308}` round-trips
+      unchanged and would carry the poisoned values straight into a real
+      run's `Stats` via `relicStats()` → `Stats.addAll`. Separately,
+      `src/sim/content.ts:380-387`'s `AffixSchema` uses `num = z.number()`
+      for `min`/`max` with no `.finite()`/upper-bound check, so the same
+      class of value is authorable in `/data` content directly, not only via
+      a corrupted save. Both fixes (`Stats.add`/`total()` guarding the
+      running sum, `AffixSchema` bounding affix values, `deserializeMeta`
+      validating against a schema) are `/src/**` changes outside this lane's
+      Scope — acceptance: file confirms today's overflow behaviour is
+      already pinned by `tests/q35-weighted-index-nan.test.ts`'s "gap found
+      by QA verification" describe block; this item is the tracking entry
+      for main lane to apply one or more of the three `/src/**` fixes above,
+      then this lane can add a regression test proving the guard holds
+      post-fix — refs: q35, qa-playtester's q35 verification pass (session
+      32 log), src/sim/stats.ts:148,182-188, src/sim/progression.ts:89,
+      src/meta/meta.ts:322, src/sim/content.ts:380-387
+- [x] (q40) [bug][feat] Mutation-probe coverage gap, sibling of q31's own:
+      q28 landed three try/catch guards (`tools/gate-audit.ts`'s `main()`,
+      `tools/phase-coverage.ts`'s `main()`, and `tools/soak.ts`'s `new
+      Run(cfg)` moved inside its own `try`, one line earlier than q23's own
+      guards), but `tools/mutation-probe.ts`'s `MUTATIONS` list only reverts
+      q23's `soakOne` boundary guards and q25's `content-census.ts`
+      try/catch — q31's own text names only those two, and grepping
+      `mutation-probe.ts` for `gate-audit`/`phase-coverage`/a line-81-style
+      reversion this session finds none — so q31 closed q23/q25's gap but
+      never covered q28's own three guards, the identical "a guard-shaped
+      fix lands with no matching mutation" shape q31 exists to close, one
+      fix-generation later — acceptance: `MUTATIONS` grows by three entries
+      reverting each of q28's three guards to its pre-fix shape (each
+      `source` naming this item), targeting the relevant describe blocks in
+      `tests/q28-cli-error-handling.test.ts` and `tests/q12-soak.test.ts`,
+      exercised green by `tests/q14-mutation-smoke.test.ts` — refs: q28,
+      q31, tools/mutation-probe.ts
+- [x] (q41) [feat] CLI-crash pinning gap, sibling of q33/q37: q37's own log
+      named the caveat explicitly ("QA did not exhaustively check the
+      remaining `tools/*.ts` files that also transitively import
+      `src/sim/content.ts`... more siblings may exist beyond these three").
+      Grepped every remaining CLI-invokable tool (one with a direct-
+      invocation entry point, not just a library module) this session:
+      `perf-ratio.ts`, `a4probe.ts` and `a5probe.ts` have zero `catch`
+      anywhere in the file; `mutation-probe.ts`, `fuzz-input.ts`,
+      `fuzz-save.ts`, `fuzz-weapon-boundary.ts` and `fuzz-command-domain.ts`
+      each have `catch` blocks elsewhere (guarding unrelated per-command or
+      git-shell failures), but none of those can help here either, for the
+      same root-cause reason q33 already established: the crash is a static
+      ES-module `import` transformed at module-load time, before any of a
+      file's own code — try/catch included — ever runs. Not yet live-
+      verified for any of these eight; that verification is this item's own
+      first step, per this lane's "run it before pinning it" convention —
+      acceptance: for each of the eight tools, either a live repro joins
+      q33/q37's scratch-copy suite (a new
+      `tests/q41-cli-json-syntax-error-siblings-2.test.ts` or an extension
+      of `tests/q37-...`) pinning today's crash, or — if a tool turns out
+      not to load `/data` at module scope the way `gate-audit.ts` doesn't —
+      the file records why it's exempt, matching `gate-audit.ts`'s own
+      carve-out in `tests/q33-cli-json-syntax-error.test.ts` — refs: q33,
+      q37, tools/perf-ratio.ts, tools/a4probe.ts, tools/a5probe.ts,
+      tools/mutation-probe.ts, tools/fuzz-input.ts, tools/fuzz-save.ts,
+      tools/fuzz-weapon-boundary.ts, tools/fuzz-command-domain.ts
+- [x] (q42) [feat] Session 35's own log records a non-blocking QA
+      observation that was never promoted to an item: `tests/q37-cli-json-
+      syntax-error-siblings.test.ts` has no `--json`-flag variant the way
+      `tests/q33-cli-json-syntax-error.test.ts` does for its three tools —
+      `sim.ts`/`handoff-metrics.ts` have no such flag, but `sweep.ts`'s
+      `--json` path is untested against the JSON-syntax-error crash. QA's
+      note judged this "almost certainly crashes identically, since the
+      crash precedes `argv` inspection, but unverified" — an assumption
+      resting on the same reasoning q33 already proved for its own three
+      tools, not yet proved for `sweep.ts` specifically — acceptance: a
+      `sweep.ts --json` case added alongside q37's existing describe.each
+      block (or a small sibling test), run live first per this lane's
+      convention, pinning today's actual measured behaviour — refs: q37,
+      session 35 log, tools/sweep.ts
+- [x] (q43) [polish] `tools/mutation-probe.ts`'s own doc comment states a
+      running total of mutation count / distinct `testFile` count /
+      invocation count (q31's commit note records manually recounting
+      these rather than trusting the comment, the same defensive habit
+      this lane has needed at least five times now — q17, q19, q22, q28,
+      q35 each found a note that overstated the coverage it claimed).
+      Nothing currently *automates* that check — a future entry added
+      without updating the doc comment's totals would silently drift, the
+      same trap category recurring a sixth time, just in this file's own
+      header instead of `gate-audit.ts`'s `KNOWN_HOLES` — acceptance: a
+      test (in `tests/q14-mutation-smoke.test.ts` or a small sibling) reads
+      `tools/mutation-probe.ts`'s doc-comment totals and the real
+      `MUTATIONS` array/derived `testFile` set at runtime and asserts they
+      agree, so a future addition that forgets to update the comment goes
+      red by name instead of silently rotting — refs: q17, q19, q22, q28,
+      q31, q35, tools/mutation-probe.ts
+- [x] (q44) [feat] Flake-cluster root-cause dig: `tests/q15-command-domain-
+      fuzz.test.ts`'s "worker-timeout under full-suite contention" flake has
+      now been recorded, isolate-rerun-confirmed-green, and *not* filed as a
+      bug across at least six sessions (8, 9, 11, 13, 15, 34 by this file's
+      own log — grep `contention`/`flake` for the full list), always with
+      the same read: non-reproducible in isolation, therefore noise. CLAUDE.md's
+      own measurement rules name exactly this shape ("a deferral is a
+      measurement with an expiry date... re-measure... before inheriting
+      it") — six sessions of the identical unexamined conclusion is long
+      enough that the conclusion itself, not just the flake, is due for a
+      check: is it actually pure resource contention (worker pool
+      starvation under N parallel nested `tsx` invocations), or is some
+      real timeout/leak in `fuzz-command-domain-worker.ts`'s worker
+      lifecycle masked by every prior session re-running rather than
+      instrumenting? — acceptance: a session actually instruments the
+      failure (e.g. runs the full suite with worker-pool logging, or
+      isolates the minimal set of concurrently-running files that
+      reproduces it) rather than re-running it green and moving on, and
+      either files a real bug with a mechanism (not just a repro) or
+      records, for the first time with actual evidence rather than a
+      pattern-match to prior sessions, why it is structurally guaranteed to
+      be contention and not a leak — refs: sessions 8/9/11/13/15/34 logs,
+      tests/q15-command-domain-fuzz.test.ts, tools/fuzz-command-domain-
+      worker.ts
+- [x] (q45) [bug][feat] A second, distinct CLI-crash mechanism, never
+      checked before this session: every q33/q37/q41/q42 test corrupts
+      `/data` with a JSON *syntax* error (`{ not valid json`), which fails
+      at ES-module *transform* time — before any of a file's own code, try/
+      catch included, ever runs (the load-bearing reason those fixes all
+      live outside this lane's Scope, in `src/sim/content.ts`). A *schema*
+      violation — valid JSON, wrong shape — is a different animal:
+      `loadContent()`'s zod `.parse()` throws its `ZodError` at **runtime**,
+      inside `loadContent()`'s own call, which a caller's try/catch *would*
+      catch if one existed. Verified live this session: a scratch copy's
+      `data/towers.json` with `towers[0].cost` set to the string
+      `"not-a-number"` (valid JSON, invalid schema) crashes
+      `tools/m20d-run-a4.ts` with an uncaught multi-line `ZodError` dump and
+      a raw stack frame through `loadContent` (`at ZodObject.parse
+      .../zod/v3/types.js`, `at loadContent (.../src/sim/content.ts:858)`) —
+      because `m20d-run-a4.ts`, like q41's seven **content-importing**
+      siblings (`perf-ratio.ts`, `a4probe.ts`, `a5probe.ts`, `fuzz-input.ts`,
+      `fuzz-save.ts`, `fuzz-weapon-boundary.ts`, `fuzz-command-domain.ts` —
+      q41's eighth tool, `mutation-probe.ts`, is a confirmed **exception**:
+      its own `tests/q41-cli-json-syntax-error-siblings-2.test.ts` describe
+      block proves it imports none of `src/sim/content.ts`/`Run`/`World`/
+      `loadContent`, so it is exempt from this bug too, not a ninth target)
+      and q46's other two (`m20d-swarm.ts`, `probe-boss.ts`), has **no
+      try/catch anywhere in the file** (q41's own log already established
+      this for its seven; true for both q46 tools too — grepped). Unlike the
+      syntax-error class, this one is fully fixable **inside this lane's
+      Scope** (`tools/**`) — the same one-line-message-and-nonzero-exit
+      shape q28/q38 already gave `gate-audit.ts`/`phase-coverage.ts`/
+      `soak.ts`/`content-census.ts` (`<tool>: <message>` on stderr,
+      `process.exitCode = 1`, no raw dump) — acceptance: for each of the
+      **ten** content-importing tools (the seven above plus
+      `m20d-run-a4.ts`/`m20d-swarm.ts`/`probe-boss.ts`), a regression test
+      (scratch copy, live-verified) pins today's uncaught-`ZodError` crash,
+      then each tool's entry point (its `main()`/`invokedDirectly` guard for
+      the seven with that shape, or the top-level script body wrapped in a
+      small function for `m20d-run-a4.ts`/`m20d-swarm.ts`/`probe-boss.ts`)
+      gets a try/catch around its `loadContent`-reaching call printing one
+      line and exiting nonzero instead of a raw dump, with the test flipped
+      to assert the fixed behaviour — following q28/q38's established shape
+      exactly, no `/src/**` or `/data/**` edit — refs: q25, q28, q33, q37,
+      q38, q41, q42, q46, src/sim/content.ts's zod schemas
+- [x] (q46) [feat] CLI JSON-syntax-error crash pinning, siblings of
+      q33/q37/q41/q42: grepping every `tools/*.ts` file for top-level
+      executable code that transitively imports `src/sim/content.ts` (not
+      just the eight q41 covered) finds three more, missed because they
+      don't match a "tool"/CLI-framed naming pattern q41's grep used:
+      `tools/m20d-run-a4.ts` and `tools/m20d-swarm.ts` (both call
+      `loadContent`/import `Run`/`World` at module scope) and
+      `tools/probe-boss.ts` (imports `../tests/helpers`, which imports
+      `../src/sim/run` → `./world` → `./content`, a *value* import).
+      `tools/m20d-price-probe.ts` is exempt by the same reasoning as
+      `gate-audit.ts`'s own carve-out — it imports only `node:fs`/
+      `node:child_process`, no content import in its own process (it shells
+      out to `m20d-run-a4.ts` instead); `tools/gen-tree.mjs` (no content
+      import, pure layout math), `tools/fuzz-data.ts` and
+      `tools/invariants.ts` (library modules, no top-level executable code
+      or `process.argv` read) and `tools/fuzz-command-domain-worker.ts`
+      (a `Worker` entry point, not directly invocable) are exempt too.
+      Verified live this session in a throwaway scratch copy (`bench/.tmp`,
+      torn down after): all three crash identically to q33/q37/q41's
+      pattern against a syntax-broken `data/towers.json` — `m20d-run-a4.ts`/
+      `m20d-swarm.ts` throw an uncaught `Error: Transform failed with 1
+      error` with a raw stack frame naming `towers.json`, exit nonzero,
+      empty stdout; `probe-boss.ts` needs a `tests/` copy alongside
+      `src`/`tools`/`data` in the scratch dir to even reach that same crash
+      (its own import chain reaching `tests/helpers`, not a difference in
+      outcome — without it, it fails earlier with `ERR_MODULE_NOT_FOUND`,
+      also uncaught) — acceptance: a new describe block (in
+      `tests/q41-cli-json-syntax-error-siblings-2.test.ts` or a small q46
+      sibling file) pins the live-verified crash for all three tools,
+      matching q37/q41's `describe.each` assertions (nonzero exit, empty
+      stdout, `Transform failed`+stack on stderr, no clean prefixed
+      message) — refs: q33, q37, q41, q42, tools/m20d-run-a4.ts,
+      tools/m20d-swarm.ts, tools/probe-boss.ts
+- [x] (q47) [feat] Automate the "which `tools/*.ts` files are CLI-invocable
+      and crash-unprotected" census itself: q37, q41 and q46 each
+      independently re-derived this by hand-grepping `tools/*.ts` for
+      top-level executable code and a transitive `content.ts` import, three
+      sessions running — the exact repeated-manual-re-derivation shape q10's
+      gate-audit tool and q14's mutation smoke already exist to prevent for
+      their own domains. A new tool (`tools/cli-crash-coverage.ts`, or a
+      classification folded into `gate-audit.ts`) statically lists every
+      `tools/*.ts` file, classifies each as (a) has its own top-level
+      executable code (not just exported functions/types), (b) transitively
+      imports `src/sim/content.ts`, and (c) has a `catch` anywhere in the
+      file, then reports which combination of (a)+(b) without (c) are
+      pinned by a named test file vs. an unpinned gap — acceptance: the
+      tool's classification for today's 22 `tools/*.ts` files matches this
+      session's hand-derived set exactly (`content-census.ts`/
+      `gate-audit.ts`/`phase-coverage.ts`/`soak.ts` exempt via their own
+      try/catch; `sim.ts`/`sweep.ts`/`handoff-metrics.ts` pinned by
+      q37/q42; the q41 seven pinned by q41, its eighth (`mutation-probe.ts`)
+      confirmed exempt by the same item; `m20d-run-a4.ts`/`m20d-swarm.ts`/
+      `probe-boss.ts` pinned by q46; `m20d-price-probe.ts`/
+      `gen-tree.mjs`/`fuzz-data.ts`/`invariants.ts`/
+      `fuzz-command-domain-worker.ts` exempt by no-content-import or
+      not-directly-invocable), and a test asserts a new `tools/*.ts` file
+      added in future with none of the three protections surfaces as an
+      unpinned gap by name rather than needing a fourth hand-grep session —
+      refs: q10, q14, q37, q41, q45, q46
+- [x] (q48) [feat] Now that q45 establishes `tools/**` CAN carry an
+      in-Scope try/catch fix (unlike the syntax-error class, which needs
+      `src/sim/content.ts`), re-check whether q38's *other* in-Scope
+      workaround — splitting `Content` into a type-only import and making
+      `loadContent` a dynamic `await import(...)` call inside an existing
+      `try` — also generalizes to any of q41/q46's ten content-importing
+      vulnerable tools (`mutation-probe.ts` excluded — confirmed exempt, it
+      never imports content at all), not just `content-census.ts`. q38's own
+      log gave a reason it didn't extend to `sim.ts`/`sweep.ts` (multiple
+      exported, synchronously-called functions with existing sync-signature
+      external callers) or `handoff-metrics.ts` (module-top-level
+      `loadContent()` call, before `main()` starts) — but none of the ten
+      q41/q46 tools were individually checked against that same test. Read
+      each one's call shape directly (single `main()`-style entry vs.
+      multiple sync-exported call sites vs. a module-top-level load) and
+      record, per tool, whether the dynamic-import workaround is
+      structurally viable — acceptance: a table (in this file's Log, or a
+      doc comment in the q45/q46 test file) naming, for each of the ten,
+      "viable" or the specific structural reason it is not (module-top-level
+      load / multiple sync exported call sites / other), and for at least
+      one tool
+      where it's viable, the workaround is actually applied and its
+      syntax-error test flips from "crashes uncaught" to "clean message"
+      the same way q38 did for `content-census.ts` — refs: q38, q41, q45,
+      q46
+- [x] (q49) [bug][feat] `tools/m20d-price-probe.ts` has zero test coverage
+      and is the one tool in this lane's purview that mutates a **real,
+      version-controlled `/data` file in place** as its documented mechanism
+      (`measure()` reads `data/towers.json`, edits `cost`/`attack.damage`/
+      `upgradeTotalCostMul`/every tower's `stepCost`, writes it back, shells
+      out to `m20d-run-a4.ts`, then restores the original bytes in a
+      `finally`). The restore is `try`/`finally`-only — safe against a
+      normal throw (including the nested CLI exiting nonzero, which makes
+      `execFileSync` throw) but unverified for a *nested-process failure*
+      specifically (e.g. once q45 lands, a spec that produces a
+      schema-invalid `towers.json` would make `m20d-run-a4.ts` itself throw
+      mid-flight) — does the `finally` still restore correctly, or does some
+      intermediate write get skipped? Never checked: does even the plain
+      happy path restore byte-identical original content? — acceptance: a
+      scratch-copy test (matching q37/q41/q46's throwaway-copy idiom, `cwd`
+      set to the scratch dir so the tool's relative `data/towers.json` path
+      never touches the real file) runs `m20d-price-probe.ts` with a valid
+      spec and asserts the scratch `towers.json` is byte-identical before
+      and after, then forces the nested `m20d-run-a4.ts` call to fail (e.g.
+      an argv naming a non-existent tower key, which today throws
+      `not a soul tower: ...` inside `m20d-run-a4.ts`) and asserts the
+      restore still happens — refs: tools/m20d-price-probe.ts,
+      tools/m20d-run-a4.ts
+- [x] (q50) [bug] `tools/cli-crash-coverage.ts`'s `stripCommentsAndBacktickStrings`
+      strips backtick template-literal contents but copies single/double-quoted
+      string contents through untouched — a double-quoted string using a
+      backslash-newline line continuation (valid JS) produces a real physical
+      newline mid-string, and if the next line inside that string happens to
+      start with `import ... from '...'`, `VALUE_IMPORT_RE`'s `^`-anchored
+      multiline match fires on it even though it is pure string data, never
+      evaluated as an import — false positive, confirmed empirically (a throw
+      placed in a stand-in `content.ts` never fires when the consumer is run
+      under `npx tsx`) — acceptance: a regression test in
+      `tests/q47-cli-crash-coverage.test.ts` (same scratch-dir idiom as the
+      existing "unpaired backtick in a doc comment" case) using this shape
+      asserts `importsContent === false`, and the fix (quoted-string contents
+      get the same treatment backtick contents already get, or an equivalent)
+      makes it pass — refs: q47, tools/cli-crash-coverage.ts (QA finding,
+      qa-playtester, session 45)
+- [x] (q51) [bug] `tools/cli-crash-coverage.ts`'s `VALUE_IMPORT_RE` exclusion
+      for type-only imports is `import\s+(?!type\s)...`, which only catches a
+      literal `import type { ... }` statement — it misses the equally-valid,
+      equally-erased per-specifier form `import { type Foo, type Bar } from
+      '...'` where every named specifier is individually marked `type` and no
+      value is imported. False positive, confirmed empirically against real
+      esbuild/tsx erasure (a throw placed at the top of a stand-in `content.ts`
+      never fires when the only import of it is all-`type`-specifiers) —
+      acceptance: a regression test in `tests/q47-cli-crash-coverage.test.ts`
+      using this shape asserts `importsContent === false`, and
+      `VALUE_IMPORT_RE` (or a post-match specifier-list check) is fixed to
+      exclude it — refs: q47, tools/cli-crash-coverage.ts (QA finding,
+      qa-playtester, session 45)
+- [x] (q52) [feat] Mutation-probe coverage gap, third occurrence of the
+      q20/q31/q40 shape: `tools/mutation-probe.ts`'s `MUTATIONS` array still
+      has only the pre-q40 15 entries (confirmed by direct count this
+      session), and none of the guards landed since q40 has a matching entry
+      — q45's nine try/catch/`.catch()` guards (`a4probe.ts`, `a5probe.ts`,
+      `fuzz-command-domain.ts`'s unawaited-IIFE `.catch()`, `fuzz-input.ts`,
+      `fuzz-save.ts`, `fuzz-weapon-boundary.ts`, `m20d-run-a4.ts`,
+      `m20d-swarm.ts`, `probe-boss.ts` — `content-census.ts`'s pre-existing
+      guard is the only one of the ten already covered, by
+      `content-census-remove-trycatch`), q48's `probe-boss.ts`
+      dynamic-import fix, and q50's `cli-crash-coverage.ts` line-continuation
+      escape-handling fix were each mutation-verified by hand in their own
+      session (git stash the file back to its pre-fix state, confirm the new
+      test goes red, restore) but that manual check never landed as an
+      automated `MUTATIONS` entry — acceptance: 11 new entries (one per
+      guard/fix named above), each reverting exactly that guard and
+      asserting its matching q45/q46/q50 test goes red, `tests/
+      q14-mutation-smoke.test.ts` green with all of them, and the doc
+      comment's nested-run count (q43's own pinned total) updated to match —
+      refs: q20, q31, q40 (same recurring gap), q45, q48, q50
+- [x] (q53) [bug] `tools/m20d-price-probe.ts`'s `measure()` reads
+      `data/towers.json` with a bare `JSON.parse(raw)` (line 23) that is
+      **not** inside the function's only `try` (which starts at line 38 and
+      wraps just the nested `execFileSync` call) — a JSON syntax error in
+      `data/towers.json` crashes this tool with an uncaught raw `SyntaxError`
+      stack trace instead of a clean CLI message. Confirmed empirically in a
+      throwaway scratch copy this session: appending garbage to a scratch
+      `towers.json` and running `JSON.parse` on it throws `SyntaxError:
+      Unexpected non-whitespace character after JSON...` with no handler
+      above it. This is a distinct crash mechanism from the q45/q46/q47
+      `loadContent()`/zod class — `cli-crash-coverage.ts` correctly
+      classifies this tool `no-content-import` (it never touches
+      `src/sim/content.ts`), but that classification doesn't cover this
+      tool's own separate raw-JSON-file read path, so the census currently
+      reads this tool as safe when it isn't — acceptance: a regression test
+      (scratch-copy idiom, `cwd` set so the tool's relative path never
+      touches the real file) proves the raw-crash today, then a `try`
+      widened to cover the read+parse+mutate span (or an equivalent) makes
+      the tool print a clean one-line message and exit nonzero instead,
+      without changing the existing `finally`-restore behavior q49 covers —
+      refs: q49, tools/m20d-price-probe.ts, tools/cli-crash-coverage.ts
+- [x] (q54) [feat] Generalize `tools/cli-crash-coverage.ts`'s census (q47) to
+      detect q53's crash class — a tool that reads a `/data/*.json` file
+      directly (`readFileSync` + `JSON.parse`, bypassing `loadContent()`)
+      — as its own named category, distinct from
+      `no-content-import`'s current meaning ("safe, never touches
+      `content.ts`"). Today a tool in this shape reads as safe by the same
+      logic that hid q53 for however many sessions this file existed
+      unnoticed; the point of automating a census (q37/q41/q46 by hand, then
+      q47) is exactly to stop a hole like this needing a fifth hand-grep
+      session to find — acceptance: the classifier flags any `tools/*.ts`
+      file matching this shape as a new `unguarded-data-read` status (or
+      folds it into `no-content-import`'s existing bucket with a sub-reason),
+      `tools/m20d-price-probe.ts` is the one live positive case pre-q53-fix
+      and moves to `pinned`-equivalent post-q53-fix, and a test asserts no
+      other one of the 23 files is newly flagged (so this is additive
+      census coverage, not a surprise regression elsewhere) — refs: q47, q53
+- [ ] (q55) [bug][feat] Re-measure this lane's own `it.skip`'d bug-pin
+      regression tests before inheriting them another session, per CLAUDE.md's
+      measurement rule ("a deferral is a measurement with an expiry date...
+      two of m20a's five were already green") — this lane has accumulated at
+      least 15 across `tests/q7-data-fuzz.test.ts` (E1-E7),
+      `tests/q18-content-hash-replay.test.ts`, `tests/q21-weapon-boundary-
+      fuzz.test.ts`, and `tests/q3-save-fuzz.test.ts` (D1-D7, D9), each pinning
+      a live main-lane bug as of the session that filed it, and none has been
+      re-checked against current `/src` since filing even though main-lane
+      commits have landed in the interim — acceptance: each skipped case is
+      temporarily un-skipped and run against current `/src`; any that now
+      passes (main lane already fixed the underlying bug) is reported in this
+      file's Log by name so main lane can close the corresponding item, and
+      is left `it.skip`'d with an updated comment rather than silently
+      deleted or left claiming a bug that no longer exists; any still red is
+      re-confirmed and left as-is; the count of skips re-verified this pass is
+      recorded — refs: CLAUDE.md Measurement rules, q3, q7, q18, q21
+- [ ] (q56) [polish] Once q54 lands its new `unguarded-data-read` classifier
+      inside `cli-crash-coverage.ts`, add a matching `tools/mutation-probe.ts`
+      entry that hollows the new classifier function and asserts
+      `tests/q47-cli-crash-coverage.test.ts` goes red — the same treatment
+      q43 already gives the two pre-existing classifiers
+      (`gate-audit-hasLiveTopLevelDescribe-hollow`,
+      `command-domain-classify-hollow`), so a future regression in the new
+      detection logic is caught the same way as a regression in the old —
+      acceptance: one new `MUTATIONS` entry, green, and q43's own pinned
+      doc-comment/array-length parity check still holds — refs: q43, q54
+- [ ] (q57) [polish] `readsDataJsonDirectly()` (q54) has two undocumented
+      false-negative shapes, found by qa-playtester's adversarial pass against
+      synthetic scratch fixtures (never touching real `tools/`/`data`/`src`):
+      an inline template-literal path with no `join()` wrapper
+      (`` readFileSync(`data/${file}.json`, 'utf8') ``) and a string-
+      concatenated path (`readFileSync('data/' + name + '.json', 'utf8')`)
+      both return `false` even though the doc comment's stated intent
+      ("does it read a `/data/*.json` file directly... followed by
+      `JSON.parse`... bypassing `loadContent()` entirely") covers them. Grep
+      confirms no live `tools/*.ts` file uses either shape today, so q54's
+      own acceptance criteria hold and nothing is misclassified — this is a
+      latent gap for a future tool author, not a regression, filed rather
+      than fixed inline per qa-playtester's non-blocking severity call —
+      acceptance: either the two shapes are detected (extend
+      `readsDataJsonDirectly` and add the two synthetic-fixture tests QA
+      already scoped, one next to the existing template-literal/const-bound
+      cases in `tests/q54-unguarded-data-read.test.ts`) or, if judged not
+      worth the regex complexity, both shapes are named explicitly in
+      `readsDataJsonDirectly`'s "Known limitations" doc comment alongside the
+      existing `let`-bound/ASI/backtick-const and non-first-arg `join()`
+      gaps, so the next session finds the gap in the comment instead of
+      hand-rediscovering it the way q53 itself was hand-found — refs: q54,
+      session 52 QA finding
+
+**Merged into master 2026-08-28.** The three open items above moved to the
+main BACKLOG.md ("Filed at the lane/quality merge (2026-08-28)" section):
+q55 → b023, q56 → b024, q57 → b025; the Log's q39 finding (Stats running-sum
+overflow) was re-verified against merged `/src` and filed there as b022. This
+file is history from here — work from BACKLOG.md.
+
+*Generated 2026-08-27, session 48, under CLAUDE.md's generation rule scoped
+to this lane: only q49 and q51 were actionable (below the floor of 3, after
+q48 landed) — q1/q4/q5/q6 remain Scope-blocked, unchanged. (a) Ran `npx tsx
+tools/gate-audit.ts` and `npx tsx tools/sweep.ts --seeds 12 --policies
+maxbuild,hybrid`: 9 covered / 11 holes, every hole still tracing to a
+P-phase not yet reached (P1-P3, P6, P7, P9), and the sweep numbers (0% win,
+medSurv ~119-120 either policy) unchanged from every session back to 6 —
+nothing new. (b) `tools/content-census.ts`: unchanged since session 23
+(7/10 categories, same three P-phase-gated misses). (c) Engineer's
+judgment, grounded in reading source directly rather than re-deriving from
+memory: counted `tools/mutation-probe.ts`'s `MUTATIONS` array by hand (still
+15) and cross-checked it against every try/catch/`.catch()` guard q45/q48/
+q50 landed since q40's own fix for the same gap — nine of q45's ten guards,
+q48's dynamic-import fix and q50's escape-handling fix have never had a
+matching entry, the third time this exact shape has recurred (q52). While
+reading every tool in the q45/q46 pinned set for that check, read
+`tools/m20d-price-probe.ts` in full (already the subject of q49) and found
+a second, independent bug in the same file: its own `JSON.parse` is outside
+its only `try`, an uncaught-crash class distinct from q49's restore-safety
+concern and from the `loadContent()` class q45/q46/q47 already track (q53).
+q54 generalizes q47's own census to catch that shape automatically rather
+than needing this session's hand-read to find the next instance. q55 is a
+direct application of CLAUDE.md's own measurement rule, cited by name, to a
+category of test (bug-pin skips) this lane has never systematically
+re-verified as a batch, only ever assumed still-red one file at a time. q56
+is q43's own pattern, applied forward to whatever q54 adds — filed now so it
+doesn't get lost, executed only after q54 lands. Took **q49**, the oldest
+ready item in the queue (filed session 40, actionable every session since
+but never top-ranked until now) and the most concretely scoped of the six
+now-actionable items — a confirmed gap in a tool that mutates a real
+tracked `/data` file with zero test coverage of its restore path, CLAUDE.md
+rule 3's bug-outranks-the-queue reasoning applying here as directly as it
+did for q45.*
+
+*Generated 2026-08-27, session 40, under CLAUDE.md's generation rule scoped
+to this lane: only q43 and q44 were actionable (below the floor of 3; q39
+stays a Scope-blocked tracking entry) — q1/q4/q5/q6 remain Scope-blocked,
+unchanged. (a) Ran `npx tsx tools/gate-audit.ts` and `npx tsx tools/sweep.ts
+--seeds 12 --policies maxbuild,hybrid`: 9 covered / 11 holes, every hole
+still tracing to a P-phase not yet reached (P1–P3, P6, P7, P9), and the
+sweep numbers (0% win, medSurv ~119–120 either policy) still match the
+documented bimodal-Act-II state — nothing new, same reading as every prior
+session back to session 6. (b) `tools/content-census.ts`: unchanged since
+session 23 (7/10 categories, same three P-phase-gated misses). (c)
+Engineer's judgment, extending q41's own "more siblings may exist" grep to
+tools q41 missed because they don't read like CLIs: `tools/m20d-run-a4.ts`,
+`tools/m20d-swarm.ts` and `tools/probe-boss.ts` all transitively import
+`src/sim/content.ts` and crash identically to q33/q37/q41's pinned pattern
+— verified live, filed as q46. While tracing each one's import chain,
+found a second, previously-unchecked crash mechanism: a *schema* violation
+(not a syntax error) throws a runtime `ZodError` that a try/catch *could*
+catch — and unlike the syntax-error class this fix is fully in-Scope
+(`tools/**`), so q45 pins it and fixes it for all ten affected tools
+(`mutation-probe.ts` re-confirmed exempt — it never imports content)
+rather than only pinning it, and is ranked above q46 for exactly that
+reason. q47 automates the census q37/q41/q46 each re-derived by hand three
+times running, the same q10/q14-shaped fix this lane keeps reaching for.
+q48 asks whether q38's other in-Scope workaround (dynamic import) also
+applies to any of the ten q45/q46 tools, not just `content-census.ts`.
+q49 is a standalone finding from reading `tools/m20d-price-probe.ts` while
+tracing q46's `m20d-run-a4.ts` caller: it mutates a real tracked `/data`
+file in place with no test ever exercising its restore path. Took **q45**,
+ranked top: it is a confirmed, live-verified bug (CLAUDE.md rule 3 outranks
+the queue) whose fix — unlike every prior CLI-crash item in this lane — is
+fully achievable inside Scope rather than only pinnable, giving it strictly
+more value than q46's pin-only sibling sweep or q47/q48/q49's smaller,
+narrower scope.*
+
+*Generated 2026-08-27, session 36, under CLAUDE.md's generation rule scoped
+to this lane: only q38 and q39 were actionable (below the floor of 3) —
+q1/q4/q5/q6 remain Scope-blocked, unchanged. (a) Ran `npx tsx tools/gate-
+audit.ts` and `npx tsx tools/sweep.ts --seeds 12 --policies maxbuild,hybrid`:
+the gate split is unchanged yet again (8 covered, 12 holes, every hole
+tracing to a P-phase not yet reached) and the sweep numbers (0% win, medSurv
+~119-120 either policy) match the already-documented bimodal-Act-II state —
+nothing new from either tool alone, the same reading as sessions 12/16/23.
+(b) SPEC-FINAL coverage diff and `tools/content-census.ts`'s own re-run: both
+unchanged since session 23's read (7/10 categories, same three P-phase-gated
+misses named by their own notes) — no new lane gap. (c) Engineer's judgment,
+grounded in reading `tools/mutation-probe.ts` and every remaining CLI-
+invokable `tools/*.ts` file directly rather than re-running a tool: q28
+landed three try/catch guards but q31's own text (and a fresh grep this
+session) shows only two of the three ever got a matching mutation-probe
+entry — q40, the concrete finding and this session's pick. While tracing
+that, re-read q37's own log, which had already named its own caveat
+("more siblings may exist beyond these three") — q41 runs that check for
+real across every other CLI-invokable tool, and q42 closes the one specific
+untested `--json` path the session-35 log flagged but did not file. q43
+generalises q31's own "recount rather than trust the doc comment" habit
+into an automated check, closing a sixth instance of this lane's most
+recurring trap shape before it happens again. q44 is the one item that
+isn't a fresh code-reading finding but a challenge to an assumption this
+lane has repeated six times running — CLAUDE.md's own measurement rules
+exist for exactly that shape. Took q38, already queued and the most
+concretely ready item (a verified-live, in-Scope fix with a named test file
+and a clear before/after), over the newly generated q40-q44, since none of
+the five needs to jump the queue on urgency and q38 was one session away
+from executing already.*
 
 *Generated 2026-08-27, session 23, under CLAUDE.md's generation rule scoped
 to this lane: only q26 and q27 were actionable (fewer than 3) — q1/q4/q5/q6
@@ -652,6 +1175,1426 @@ resolve if it wants the CLI entry points too. All five are inside Scope as
 written; none needs a `package.json` edit.*
 
 ## Log
+
+### 2026-08-28 — session 52
+
+**Feedback inbox:** no `feedback/` directory in this worktree. Nothing to
+process.
+
+**Session start state:** `tools/cli-crash-coverage.ts` (modified),
+`tests/q47-cli-crash-coverage.test.ts` (modified) and a new
+`tests/q54-unguarded-data-read.test.ts` were sitting uncommitted in the
+working tree — q54's implementation was already done by a previous session
+but never tested, reviewed, logged or committed, the same shape session 51
+found for q53. Verified it against q54's acceptance criteria rather than
+redoing it.
+
+**q54 done.** `tools/cli-crash-coverage.ts` gains `readsDataJsonDirectly()`
+(guard-agnostic on purpose: flags the shape even inside an existing `try`,
+so a future guard regression can't silently fall back to "safe" the way
+q53's own bug did) and a new `unguarded-data-read` `ClassificationStatus`,
+threaded through `classifyTool()`'s branch order (not-invocable →
+no-content-import → pinned → unguarded-data-read → gap) and into `gaps()`/
+the CLI summary line. `tools/m20d-price-probe.ts` gets a `PIN_COVERAGE`
+entry naming `tests/q53-price-probe-json-crash.test.ts`, flipping its status
+from the old wrong `no-content-import` to `pinned`; `tests/q47-cli-crash-
+coverage.test.ts`'s expected-status table updated for that one flip. New
+`tests/q54-unguarded-data-read.test.ts` (13 tests) covers both live positive
+cases (`tools/fuzz-data.ts`, `tools/m20d-price-probe.ts`), the pinned
+reclassification, the "no other of the 23 files newly flagged" acceptance
+line directly, `fuzz-data.ts` staying `not-invocable` (short-circuits ahead
+of the new check), and eight synthetic-fixture edge cases for the regex
+detector (join() with template literal, join() with plain string, join() on
+a non-"data" first arg, already-guarded shape, pre-fix unguarded shape,
+inline literal with no const-binding, text read with no `JSON.parse`, and a
+non-`/data` path `JSON.parse`).
+
+Removed the backlog item's own "with no enclosing `try`" clause from the
+acceptance wording below per code review's Nit — the shipped detector is
+deliberately broader (guard-agnostic), so the historical record now matches
+shipped behavior instead of contradicting it.
+
+`npx tsc --noEmit -p .` clean. Targeted run (`tests/q54-unguarded-data-
+read.test.ts`, `tests/q47-cli-crash-coverage.test.ts`,
+`tests/q53-price-probe-json-crash.test.ts`, `tests/q49-price-probe-
+restore.test.ts`) — 36/36 green.
+
+Full `npm test`: 31 failed / 988 passed. All 31 traced to pre-existing
+lane-documented noise, none to this diff — confirmed by re-running each
+failing file standalone: `tests/q45-cli-schema-violation.test.ts` and
+`tests/q49-price-probe-restore.test.ts` failed only on a transient Windows
+`EPERM` scratch-dir-cleanup race under full-suite parallel load, both green
+standalone (13/13, 2/2); `tests/q15-command-domain-fuzz.test.ts` hit the
+same documented flaky "hangs" timing class session 51 already logged, green
+standalone (25/25); `tests/q14-mutation-smoke.test.ts` (28/28 failed
+standalone too, with the dirty tree still in place) is a `gitDiffClean()`-
+on-a-dirty-tree artifact by construction — the file's own tests assert
+git-diff cleanliness, and this session's uncommitted `cli-crash-coverage.ts`
+diff necessarily reads dirty until committed, the identical pattern
+sessions 50/51 already documented and re-confirmed green post-commit; same
+re-confirmation done here (see below).
+
+code-reviewer **APPROVE** — no Critical/Major findings. Two Minors (regex
+double-normalization-pass note-worthy but not blocking; a loose quote-match
+in the const-binding regex that `unquote`'s stricter check already
+neutralizes) and the Nit above about the acceptance wording, applied.
+
+qa-playtester **PASS** against q54's stated acceptance criteria — verified
+the `unguarded-data-read` status, the `m20d-price-probe.ts` → `pinned` flip,
+the "no other file newly flagged" claim (both via test and a live
+`npx tsx tools/cli-crash-coverage.ts` run), and Scope compliance, each
+independently. Adversarially probed the detector with its own scratch
+fixtures (deleted after, real files untouched) and found one non-blocking
+gap: `readsDataJsonDirectly()` false-negatives on an inline template-literal
+path and a string-concatenated path, neither used by any live `tools/*.ts`
+file today so nothing is misclassified — filed as **q57** rather than fixed
+inline, per QA's own severity call.
+
+Post-commit re-confirmation (this lane's own standing practice after a
+dirty-tree false alarm, sessions 50/51): committed (`5e35029`), confirmed
+`git status` clean, then re-ran `tests/q54-unguarded-data-read.test.ts` +
+`tests/q47-cli-crash-coverage.test.ts` (33/33 green) and the full
+`tests/q14-mutation-smoke.test.ts` (44/44 green, ~1180s) against the
+committed tree — all pass, confirming every session-52 full-suite failure
+was the dirty-tree artifact and not a real regression.
+
+Four actionable items remained before this session (q54-q56, plus q57 filed
+this session); three remain now (q55, q56, q57), at the floor of 3, so next
+session's generation rule will need to run.
+
+### 2026-08-28 — session 51
+
+**Feedback inbox:** no `feedback/` directory in this worktree. Nothing to
+process.
+
+**Session start state:** `tools/m20d-price-probe.ts` and a new
+`tests/q53-price-probe-json-crash.test.ts` were sitting uncommitted in the
+working tree — q53's implementation was already done by a previous session
+but never tested, reviewed, logged or committed. Verified it against q53's
+acceptance criteria rather than redoing it, per the same pattern session 49
+used for an inherited uncommitted diff.
+
+**q53 done.** The bare `JSON.parse(raw)` in `measure()` that used to sit
+outside the function's only `try` (previously wrapping just the nested
+`execFileSync` call) is now inside a `try` widened to cover
+parse+mutate+write+the nested `execFileSync`, with the existing `finally`
+still restoring the file on every failure path — q49's guarantee, unchanged.
+A new top-level `try/catch` around the CLI's `for (const spec of
+process.argv.slice(2))` loop prints one clean `m20d-price-probe: <message>`
+line to stderr and sets `process.exitCode = 1` instead of letting any
+exception escape raw.
+
+`npx tsc --noEmit -p .` clean. `npx vitest run
+tests/q53-price-probe-json-crash.test.ts tests/q49-price-probe-restore.test.ts`
+— 3/3 green. Full `npm test`: 2 failed files, both pre-existing and unrelated
+to this diff (confirmed the diff touches only `tools/m20d-price-probe.ts` and
+the new test file) — `tests/q14-mutation-smoke.test.ts`'s whole-repo
+`gitDiffClean()` checks go red on any dirty working tree (same shape session
+50 already documented and re-confirmed green post-commit) and
+`tests/q15-command-domain-fuzz.test.ts` hit its documented flaky "hangs"
+timing case (`rekindle.structureId:negInf`), which re-ran green standalone.
+
+code-reviewer **APPROVE** — no Critical/Major findings. One Minor noted for
+the record, not a blocker: the widened `try` also silently cleans up two
+crash paths that were never a filed bug and have no dedicated regression test
+(a bad spec-part argument like `x5`, and a hypothetical `writeFileSync`
+failure) — both get the same clean one-line treatment via the new top-level
+catch, traced by inspection (not just asserted) to restore correctly, but
+worth a future test if either becomes its own item. One Nit (the
+whitespace-collapsing of a nested `execFileSync` error's embedded stderr into
+one line is intentional per the tool's stated goal, not a defect).
+
+qa-playtester **PASS**. Re-verified the fix line-by-line against the
+BACKLOG-QUALITY entry, ran the two targeted test files green, and adversarially
+tried four more crash shapes via throwaway scratch copies (never touching the
+real `data/towers.json`): a `towers` array missing entirely, a `towers.json`
+with the `venom_spore` entry removed (fails inside the nested `m20d-run-a4.ts`
+call instead), a bad CLI spec prefix (`x5`), and an empty spec string — every
+one printed the clean one-line message with no raw stack frames and exited
+nonzero; a no-args run still exits 0 cleanly. No bugs filed.
+
+Four actionable items remained before this session (q53-q56); three remain
+now (q54-q56), at the floor of 3, so next session's generation rule will need
+to run.
+
+### 2026-08-27 — session 50
+
+**Feedback inbox:** `feedback/` exists but is empty. Nothing to process.
+
+**q52 done.** `tools/mutation-probe.ts`'s `MUTATIONS` array gained 11 entries
+covering q45's nine try/catch/`.catch()` guards (`a4probe.ts`, `a5probe.ts`,
+`fuzz-command-domain.ts`'s unawaited-IIFE `.catch()`, `fuzz-input.ts`,
+`fuzz-save.ts`, `fuzz-weapon-boundary.ts`, `m20d-run-a4.ts`, `m20d-swarm.ts`,
+`probe-boss.ts`), q48's `probe-boss.ts` dynamic-import fix, and q50's
+`cli-crash-coverage.ts` line-continuation fix — 26 total now, 12 distinct
+`testFile`s, 38 nested `npx vitest run` invocations.
+
+Two findings worth recording. **(1)** A self-inflicted false positive:
+writing the `probe-boss-revert-dynamic-import` entry's `find`/`replace` as
+plain double-quoted strings put a literal `import { cfg, runWithPolicy }
+from '../tests/helpers';` into `tools/mutation-probe.ts`'s own source text,
+outside any backtick — which `tools/cli-crash-coverage.ts`'s census (q47)
+then read as a real import and flagged `tools/mutation-probe.ts` itself as a
+content-import gap (`tests/q47-cli-crash-coverage.test.ts` went red). Fixed
+by moving that entry's `find`/`replace` into backtick template literals,
+matching every other entry's established convention — the file's own doc
+comment already warns about this exact trap for embedded `//` comments, it
+just hadn't been hit for an embedded `import` before. **(2)** `m20d-run-a4.ts`
+turned out to be untestable via the test I'd planned: probing
+`m20d-run-a4-remove-try-catch` against `tests/q45-cli-schema-violation.test.ts`
+came back "PASSED (missed!)" — `a4probe.ts`'s module-scope guard (which
+`m20d-run-a4.ts` imports) calls `process.exit(1)` before `m20d-run-a4.ts`'s
+own module body ever runs, so a `/data` schema violation never reaches its
+own catch, and none of the three existing tests that invoke this tool
+(q45/q46/q49) distinguish caught-clean from uncaught for its own try. Added
+`tests/q52-m20d-run-a4-bad-key.test.ts`, which reaches it directly via an
+invalid CLI tower-key argument (no `/data` involved), and pointed the
+mutation there instead.
+
+`npx tsc --noEmit -p .` clean throughout. `npx tsx tools/mutation-probe.ts`
+(run twice, ~38 nested vitest invocations each): all 12 controls `ok`, all
+26 mutations `test failed (caught)` both times — "real file DIRTY" on every
+line both runs, confirmed to be this item's own legitimate uncommitted diff
+to `tools/mutation-probe.ts` tripping the tool's whole-repo `gitDiffClean()`
+check (`git status --porcelain` showed only the two expected files dirty
+throughout), not a real leak. A full `npm test` run in the same window
+turned up 5 failing test files (`q15-command-domain-fuzz` timing-sensitive
+"hangs" outcomes, `q45`/`q49`/`q52-*` EPERM on scratch-dir cleanup) — all
+four re-ran green standalone on a quiet host, matching this lane's
+already-documented Windows scratch/timing flake class (session 49's log
+names the same EPERM shape); not a regression from this item.
+
+code-reviewer **APPROVE**, 1 Nit (a doc-comment typo, fixed) and one process
+note (flip the BACKLOG-QUALITY checkbox before commit, done here). Also
+independently confirmed no other new entry leaks an import-shaped string
+outside a backtick, and that every new entry's `find` string is a verbatim
+substring of the real target file.
+
+qa-playtester **PASS**, with one caveat surfaced and resolved rather than
+filed as a bug: `tests/q14-mutation-smoke.test.ts` itself is red while this
+diff sits uncommitted, for the identical whole-repo-`gitDiffClean()` reason
+above (all 26 `describe.each` rows and the dedicated cross-file-dirty fixture
+test fail on `realFileUntouched`/its own precondition). QA independently
+verified the new entries are real via the raw CLI tool and a hand-reverted
+`a5probe.ts` against the real (unmutated) `tests/q45-cli-schema-violation.test.ts`,
+concluding this is a structural precondition of the harness (checking a clean
+tree), not a defect in the new entries — recommended committing, then
+re-confirming `q14-mutation-smoke.test.ts` green post-commit. Also flagged
+`tests/q52-m20d-run-a4-bad-key.test.ts` passes standalone (test + control)
+and cleans up its scratch dir.
+
+Committed (`fefcf0c`). Post-commit, against the clean tree:
+`npx vitest run tests/q14-mutation-smoke.test.ts` — **44/44 green**
+(901s), confirming the true final result QA's caveat asked for: every one
+of the 12 controls and all 26 mutations (including q52's 11) now passes for
+real, with no self-inflicted `gitDiffClean()` noise. q52 is fully closed
+out.
+
+Five actionable items remained before this session (q52-q56); four remain
+now (q53-q56), still above the floor of 3, so the generation rule does not
+need to run next session either.
+
+### 2026-08-27 — session 49
+
+**Feedback inbox:** no `feedback/` directory in this worktree. Nothing to
+process.
+
+**Session start state:** the previous session's work on q51 was sitting
+uncommitted in the working tree (`tools/cli-crash-coverage.ts`,
+`tests/q47-cli-crash-coverage.test.ts`) — implemented but never tested,
+reviewed, logged or committed. Verified it against q51's acceptance criteria
+rather than redoing it: `VALUE_IMPORT_RE` gained a captured import-clause
+group and a new `isTypeOnlyNamedImportClause()` helper that recognizes a
+braced named-import list where every specifier is individually marked `type`
+(`{ type Foo, type Bar }`) — the per-specifier form q51 filed, distinct from
+the leading `import type { ... }` form the old `(?!type\s)` lookahead already
+caught. Two new tests: the false-positive repro (all-type-specifiers import
+of a throwing scratch `content.ts` correctly classifies `no-content-import`)
+and a negative control (a mixed `{ type Foo, loadContent }` import still
+classifies `gap`, proving the fix doesn't blanket-exempt every braced
+import).
+
+**q51 done.** `npx tsc --noEmit -p .` clean. `npx vitest run
+tests/q47-cli-crash-coverage.test.ts`: 20/20 green. Full `npm test` in the
+background surfaced three failures (`q45-cli-schema-violation.test.ts`'s
+control case, `q49-price-probe-restore.test.ts`'s happy path,
+`q15-command-domain-fuzz.test.ts`, 2 cases) all on the same
+`EPERM, Permission denied` on a `bench/.tmp/*-scratch` `rmSync` cleanup —
+none of the three touches `tools/cli-crash-coverage.ts` or
+`tests/q47-cli-crash-coverage.test.ts`. Isolated to a clean HEAD (patched my
+two files out via `git checkout --`, confirmed q45's control case passes
+there too, reapplied the patch via `git apply`) and reran q45 standalone
+twice more with the patch back in: green both times. Pre-existing Windows
+scratch-dir flake (the same class q49's own session-48 review flagged as a
+shared Minor: no stale-scratch-dir sweep across a hard-killed prior run),
+not a regression from this change.
+
+code-reviewer (APPROVE, 0 Critical/Major, 1 Nit: the default-import +
+type-specifier mixed case, `import Foo, { type Bar } from '...'`, is reasoned
+through correctly in `isTypeOnlyNamedImportClause` but has no dedicated test
+— only the namespace-free `{ type Foo, loadContent }` mixed case is covered)
+confirmed the regex capture-group reindex is correct (verified live: revert
+the tool file, the new test goes red with the exact expected message) and
+grepped `tools/*.ts`/`src/sim/*.ts` for the two documented known-limitation
+shapes (`type as X`, `export { type Foo } from '...'` re-export), confirming
+neither appears in the live codebase.
+
+qa-playtester **PASS**, no bugs filed. Repeated the mutation-check
+independently, then hand-probed `classifyTool` with 13 adversarial import-
+clause shapes (multi-line whitespace, trailing comma, an identifier merely
+starting with "type", no-whitespace `import{...}from`, irregular internal
+spacing, `type as X`, a value import literally named `type`, invalid nested
+braces, mixed default+type, namespace import, empty braces). Two shapes slip
+through — `import{...}from` with no surrounding whitespace (a pre-existing
+`VALUE_IMPORT_RE` limitation predating q51, `import\s+` requires the
+whitespace) and `{ type as X }` (documented known limitation in the new
+JSDoc) — neither is new, both are already absent from every real
+`tools/*.ts`/`src/sim/*.ts` file today, and neither is in scope for q51.
+Confirmed no other test file references `VALUE_IMPORT_RE`,
+`isTypeOnlyNamedImportClause` or `importsContentTransitively`.
+
+`git status --porcelain` before commit: `tools/cli-crash-coverage.ts`,
+`tests/q47-cli-crash-coverage.test.ts`, `BACKLOG-QUALITY.md` only —
+Scope-compliant.
+
+**Five actionable items remain** (q52-q56), so the generation rule does not
+need to run next session either.
+
+### 2026-08-27 — session 48
+
+**Feedback inbox:** `feedback/` exists but is empty. Nothing to process.
+
+**Session start state:** clean (`git status --porcelain` empty), matching
+session 47's closing note. Two actionable items in queue (q49, q51) — below
+the generation floor of 3. Ran the generation rule: (a) `tools/gate-audit.ts`
+(9 covered / 11 holes, all P-phase-gated, unchanged) and `tools/sweep.ts
+--seeds 12 --policies maxbuild,hybrid` (0% win, medSurv ~119-120, unchanged)
+— nothing new. (b) `tools/content-census.ts` unchanged since session 23. (c)
+Read `tools/mutation-probe.ts`'s `MUTATIONS` array directly (still 15 named
+entries) and cross-checked it against every try/catch/`.catch()` guard q45/
+q48/q50 landed since q40's own fix for this exact gap: nine of q45's ten
+guards, q48's dynamic-import fix, and q50's escape-handling fix have never
+had a matching entry — filed as q52. While re-reading every q45/q46-pinned
+tool for that check, read `tools/m20d-price-probe.ts` in full (already the
+subject of open item q49) and found a second, independent bug: its own
+`JSON.parse(raw)` (line 23) sits outside its only `try` (which starts at
+line 38 and wraps just the nested `execFileSync` call), so a JSON syntax
+error in `data/towers.json` crashes it with an uncaught raw `SyntaxError`
+— confirmed empirically in a scratch copy — filed as q53, with q54
+generalizing `cli-crash-coverage.ts`'s census to catch that shape by name
+next time instead of needing another hand-read, and q56 extending q43's
+mutation-probe-doc-comment-parity pattern forward once q54 lands. q55 applies
+CLAUDE.md's own measurement rule ("a deferral is a measurement with an
+expiry date") to this lane's ~15 accumulated `it.skip`'d bug-pin tests,
+never re-verified as a batch. Appended all five (q52-q56). Took **q49**, the
+oldest ready item in the queue and the most concretely scoped of the six
+now-actionable items.
+
+**q49 done.** Added `tests/q49-price-probe-restore.test.ts`, two cases
+against throwaway scratch copies (never the real `data/towers.json`,
+`cwd` set to the scratch dir): (1) happy path — a successful run leaves
+`data/towers.json` byte-identical before and after; (2) nested-process
+failure — `venom_spore`'s `soul` field is nulled first (drops it out of
+`a4probe.ts`'s `SOUL_TOWERS`, so the nested `m20d-run-a4.ts venom_spore`
+call throws `not a soul tower: venom_spore` and exits nonzero, the only
+lever available to force that specific nested failure since the target
+tower is hardcoded), and the `finally` still restores the file
+byte-identical even though the whole CLI exits nonzero. No source change to
+`tools/m20d-price-probe.ts` — this is a pure regression-test addition.
+
+code-reviewer (APPROVE, 0 Critical/Major — 1 Minor already-shared across
+every sibling scratch-idiom file: no `beforeAll` sweep of stale
+`bench/.tmp/*-scratch/` entries from a hard-killed prior run, not unique to
+or worsened by this file; 1 Nit, confirmed-correct `COPY_FILES` divergence
+from q45/q46) verified the trigger mechanism, isolation and restore-identity
+reasoning directly against source rather than trusting the file's own
+comments.
+
+qa-playtester's first pass **FAILED** the nested-failure test's own
+mutation-check: `breakVenomSporeSoul()`'s original implementation did a
+`JSON.parse`/`JSON.stringify` round-trip to set `soul: null`, which
+silently pre-normalized the scratch file's line endings from the repo's
+real CRLF to `measure()`'s own LF output shape *before* the test's "before"
+snapshot was taken — combined with the test's spec (`u2`) being a
+content no-op (matches the file's existing `upgradeTotalCostMul: 2`), the
+"before" and "after" snapshots were byte-identical regardless of whether
+the `finally` restore ran at all. QA reproduced this twice (breaking the
+`finally` write left the nested-failure test green). Fixed by rewriting
+`breakVenomSporeSoul()` to a targeted single-occurrence string replace on
+the raw CRLF text (matching `mutation-probe.ts`'s own anchor-replace idiom:
+asserts exactly one occurrence before touching it) instead of a JSON
+round-trip, so the "before" snapshot keeps the file's real CRLF and stays
+distinguishable from a broken restore's LF-reformatted output. Re-ran the
+same mutation-check myself after the fix: breaking `tools/m20d-price-
+probe.ts`'s `finally` write now fails **both** tests (confirmed the diff is
+a real CRLF-vs-LF/reformat mismatch, not a flake), then restored the tool
+via `git checkout -- tools/m20d-price-probe.ts` and confirmed `git status
+--porcelain` byte-identical to committed. Re-ran green against the real
+committed tool afterward: 2/2 passed.
+
+`npx tsc --noEmit -p .`: clean. `npm test` (full suite, background):
+green, exit 0. `git status --porcelain` before commit:
+`tests/q49-price-probe-restore.test.ts`, `BACKLOG-QUALITY.md` only —
+Scope-compliant.
+
+**Six actionable items remain** (q51-q56), so the generation rule does not
+need to run next session either.
+
+### 2026-08-27 — session 47
+
+**Feedback inbox:** no `feedback/` directory in this worktree. Nothing to
+process.
+
+**Session start state:** clean (`git status --porcelain` empty), matching
+session 46's closing note. Three actionable items in queue (q48, q49, q51);
+at the generation floor of 3, so no generation needed. Took **q48**, the top
+item.
+
+**q48 done.** Read all ten q41/q46 content-importing tools' import shapes
+directly (not re-derived from memory) and checked each against q38's
+disqualifying tests — a module-top-level `loadContent()` call feeding further
+top-level code (`handoff-metrics.ts`'s shape), or multiple exported,
+synchronously-called functions with existing sync-signature external callers
+(`sim.ts`/`sweep.ts`'s shape) — by grepping every `tests/*.ts` file for a
+`from '../tools/<name>'` import and reading what it pulls in. Full table:
+
+| tool | viable? | reason |
+|---|---|---|
+| `perf-ratio.ts` | no | `worstCaseWorld`, `measureRatioForWorld`, `calibrationWork` are exported and called synchronously by three external test files (`tests/a10-performance.test.ts`, `tests/q13-perf-ratio.test.ts`, `tests/q26-perf-ratio-interleave.test.ts`) — the `sim.ts`/`sweep.ts` shape |
+| `a4probe.ts` | no | `content = loadContent()` runs at module top level, feeding a further top-level export (`SOUL_TOWERS`) — the `handoff-metrics.ts` shape — *and* `SOUL_TOWERS`/`T3_MODS`/`runSingleType` are imported synchronously by `tests/a4-single-type.test.ts` |
+| `a5probe.ts` | no | `collect`, `topTen`, `aggregateShares`, `BUILDS` are exported and called synchronously by `tests/a5-weapon-share.test.ts` |
+| `fuzz-input.ts` | no | `COMMAND_KINDS`, `PHASES`, `describeFailure`, `fuzzPhase`, `fuzzRun`, `runInPhase` are exported and called synchronously by `tests/q2-input-fuzz.test.ts` and `tests/q15-command-domain-fuzz.test.ts` |
+| `fuzz-save.ts` | no | `validMeta` and siblings are exported and called synchronously by `tests/q3-save-fuzz.test.ts` and `tests/q8-save-roundtrip.test.ts` |
+| `fuzz-weapon-boundary.ts` | no | eight exported functions each default a `content: Content = loadContent()` parameter, called with no argument (relying on the default) by `tests/q21-weapon-boundary-fuzz.test.ts` — same multiple-sync-callers class, just spread across defaults instead of one signature |
+| `fuzz-command-domain.ts` | no | `runSingleProbe`, `digest`, `fieldSpec`, `classify`, `probeInWorker`, `runCensus`, `runAliasProbe`, `aliasProbeInWorker` are exported and called synchronously by `tests/q15-command-domain-fuzz.test.ts` and `tests/q15-command-domain-holes.ts` (its own `./fuzz-input` import could be made dynamic independently of `fuzz-input.ts`'s own fixability, the same way `m20d-run-a4.ts` relates to `a4probe.ts` below — but that CLI's *own* multiple sync exports still block it) |
+| `m20d-run-a4.ts` | **yes** (not applied) | single top-level `try`, zero external callers of its own (`grep`-confirmed no test imports `tools/m20d-run-a4`) — its only import is `./a4probe`'s named exports, and deferring *that one import* to `await import('./a4probe')` inside its own `try` works regardless of `a4probe.ts`'s own internal shape, because the dynamic import defers `a4probe.ts`'s entire module instantiation (including its problematic static chain into `content.ts`) to runtime, inside the caller's `try` — the same relationship that let q38's fix for `content-census.ts` not need `src/sim/content.ts` itself to change |
+| `m20d-swarm.ts` | **yes** (not applied) | single top-level `try`, zero external callers; `World`/`spawnEnemy`/`buildTower`/etc. all take `content`/`World` as call arguments rather than loading it themselves, so the only content-touching static import is the direct `import { loadContent } from '../src/sim/content'` — one dynamic import fixes it |
+| `probe-boss.ts` | **yes — applied this session** | single top-level `try`, zero external callers, exactly one import (`../tests/helpers`) used only inside that `try` — the cleanest instance of q38's shape of all ten |
+
+Applied the fix to **`probe-boss.ts`**: its static
+`import { cfg, runWithPolicy } from '../tests/helpers'` is now a dynamic
+`const { cfg, runWithPolicy } = await import('../tests/helpers')` made from
+inside the file's own top-level `try` (top-level `await` needed an
+`export {}` added first — `tsc` rejected it otherwise, since the file had no
+other import/export left to mark it a module). Verified live in a throwaway
+scratch copy before writing anything permanent: a syntax-broken
+`data/towers.json` now prints one line, `probe-boss: Transform failed with 1
+error: ...`, exit 1, empty stdout — no raw stack frame — where before it
+dumped an uncaught multi-frame esbuild trace. Bonus, not hunted for
+separately: the *other* pre-existing failure mode q46 pinned as a control
+(`probe-boss.ts` run without a `tests/` directory in the scratch copy, which
+previously failed even earlier on an uncaught `ERR_MODULE_NOT_FOUND`) is now
+*also* caught cleanly by the same change, since deferring the import makes
+every failure in that subgraph an ordinary rejected promise, not just the
+JSON-syntax one.
+
+`tests/q46-cli-json-syntax-error-siblings-3.test.ts` updated the same way
+q38 updated `tests/q33-cli-json-syntax-error.test.ts`: `probe-boss.ts`'s two
+"crashes uncaught" cases became "no longer crashes uncaught" cases pinning
+the clean-message behaviour (both the with-`tests/` and without-`tests/`
+shapes), `m20d-run-a4.ts`/`m20d-swarm.ts`'s cases are untouched (still
+crash — the general `src/sim/content.ts` fix is still out of Scope for
+those two), and the file's header doc comment was rewritten to record which
+of the three is now fixed and why the other two aren't, so a reader doesn't
+have to diff against git history to find out.
+
+Mutation-verified: stashed just `tools/probe-boss.ts` back to its committed
+(pre-fix) state with the new tests still present (`git stash push -u -m
+"q48-mutation-check" -- tools/probe-boss.ts`, never a bare `stash pop` since
+the stack is shared across worktrees) — both new assertions failed as
+expected (one on the raw-stack-trace shape, one on the raw
+`ERR_MODULE_NOT_FOUND` dump) — then restored via `git stash apply <sha>` +
+`git stash drop` and confirmed the file was back to its fixed, byte-identical
+state.
+
+`npx tsc --noEmit -p .`: clean (after adding `export {}` — a file with no
+import/export left is a script, not a module, and top-level `await` is a
+module-only construct). `npx vitest run
+tests/q46-cli-json-syntax-error-siblings-3.test.ts
+tests/q45-cli-schema-violation.test.ts tests/q47-cli-crash-coverage.test.ts`:
+33/33 green (q45's `probe-boss.ts` schema-violation case, which exercises the
+same file through a different failure path, still passes unchanged — dynamic
+vs. static import doesn't matter for a failure that already happened at
+runtime inside a function call). `npm test` kicked off in the background for
+the full-suite pass; see below for its result once landed.
+
+### 2026-08-27 — session 46
+
+**Feedback inbox:** no `feedback/` directory in this worktree. Nothing to
+process.
+
+**Session start state:** `tools/cli-crash-coverage.ts` and
+`tests/q47-cli-crash-coverage.test.ts` were already modified in the
+worktree (both tracked, both showing `M`), matching q50's acceptance
+criteria verbatim and the same interrupted-session shape sessions
+14/16/18/19/20/33/37/38/39/40/42/44/45 each logged. `git log` showed no
+commit including these changes and q50 was still unchecked in the Queue.
+Verified rather than trusted before touching anything.
+
+**q50 done.** The fix: in `stripCommentsAndBacktickStrings`'s quoted-string
+copy loop, a `\` immediately followed by a real `\n` or `\r\n` (a valid JS
+line-continuation escape) is now consumed without emitting output, instead
+of being copied through literally. The old behaviour left a real newline
+inside the copied-through string content, which `VALUE_IMPORT_RE`'s
+`^`-anchored multiline match could fire on if the following string-internal
+line happened to start with `import ... from '...'` — pure string data,
+never evaluated as an import, but misclassified as a real one. A doc
+comment records the accepted residual gap (bare `\r`, U+2028/U+2029 — not
+currently produced by any `tools/*.ts` file since editors/git normalize
+them away).
+
+Mutation-verified before dispatching review: stashed just
+`tools/cli-crash-coverage.ts` back to its committed (pre-fix) state with
+the new test still present — the q50 test failed (`expected true to be
+false`) as expected — then restored the fix via `git stash apply` +
+`git stash drop` (never a bare `stash pop`, since the stack is shared
+across worktrees) and confirmed the file's diff was byte-identical to
+before. `npx vitest run tests/q47-cli-crash-coverage.test.ts`: 18/18 green.
+`npx tsc --noEmit -p .`: clean. `git status --porcelain`: the two modified
+files only — Scope-compliant.
+
+**Review (code-reviewer, APPROVE, 0 Critical/Major — 1 Minor, 1 Nit,
+already-disclosed).** Walked the escape-handling loop character-by-
+character and confirmed `\"`/`\\` still fall to the unchanged `else`
+branch; independently reverted the source file alone and reran to confirm
+the new test is a genuine regression test, not a tautology; confirmed
+`tsc` clean and Scope compliance. The Minor (a bare `\r` or U+2028/U+2029
+line terminator reproduces the same false-positive class) is exactly the
+gap the new doc comment already discloses as checked-and-currently-
+inapplicable, so nothing further to fix.
+
+**QA (qa-playtester, PASS, no new defects).** Ran the suite live (18/18),
+confirmed the acceptance-criteria test uses the described scratch-dir
+idiom and asserts the right fields, then adversarially probed 6 constructed
+shapes via a throwaway driver script outside `tools/` (single-quoted
+version, CRLF file, continuation at end-of-file, nested-backslash parity,
+adjacent backtick-stripping interaction, and an escaped-backslash-pair-plus-
+raw-newline construction) — all correct, and the one shape that still
+false-positives (an unescaped raw newline inside a quoted string not
+immediately preceded by a lone `\`) is not valid, type-checking JS/TS, so
+it cannot occur in any real `tools/*.ts` file the census actually scans;
+same accepted-limitation class as the doc comment's existing bare-`\r`/
+U+2028/U+2029 disclosure, not a new live bug. `git status --porcelain`
+confirmed clean before and after (scratch driver never touched tracked
+files).
+
+**Suite state.** Isolated file green (above); no other test/tool file
+touched this session, so a full `npm test` re-run was not needed for this
+item. `git status --porcelain` before commit: the two modified files plus
+`BACKLOG-QUALITY.md` — Scope-compliant.
+
+**Three actionable items remain** (q48, q49, q51; q39 stays a Scope-blocked
+tracking entry) — at the generation floor of 3, so the next session should
+run the generation rule before executing if fewer than 3 remain by then.
+
+### 2026-08-27 — session 45
+
+**Feedback inbox:** no `feedback/` directory in this worktree. Nothing to
+process.
+
+**Session start state:** `tools/cli-crash-coverage.ts` and
+`tests/q47-cli-crash-coverage.test.ts` were already sitting in the worktree,
+untracked, complete and matching q47's acceptance criteria verbatim — the
+same interrupted-session shape sessions 14/16/18/19/20/33/37/38/39/40/42/44
+each logged. `git log` showed no commit for either and q47 was still
+unchecked in the Queue. Verified rather than trusted: ran the suite live
+before touching anything.
+
+**q47 done.** `tools/cli-crash-coverage.ts` does real static analysis (not a
+hand-curated list) for (a)/(b): `listToolFiles` recomputes today's
+`tools/*.ts` set live; `importsContentTransitively` does a real BFS over
+value imports (static, dynamic, and bare side-effect) with a single left-to-
+right scan that strips comments and backtick-string contents before matching,
+specifically to survive `mutation-probe.ts`'s fixture strings that embed a
+real `await import('../src/sim/content')` as string data. (a) "is this a real
+CLI" and the "which test pins this" fact stay hand-curated
+(`NOT_INVOCABLE`/`PIN_COVERAGE`), the same shape `gate-audit.ts`'s
+`KNOWN_HOLES`/`GATE_COVERAGE` already use, because those two facts aren't
+mechanically derivable. `npx tsx tools/cli-crash-coverage.ts` run live: 23
+files classified (22 q47 counted plus the tool itself), zero gaps, every
+named bucket from the acceptance criteria matches exactly (q33/q37/q41/q45/
+q46 pins, `mutation-probe.ts`/`invariants.ts`/`fuzz-data.ts`/
+`fuzz-command-domain-worker.ts`/`m20d-price-probe.ts` exempt, `gen-tree.mjs`
+correctly absent from the `.ts`-only listing).
+
+`npx vitest run tests/q47-cli-crash-coverage.test.ts`: 17/17 green.
+`npx tsc --noEmit -p .`: clean. `git status --porcelain`: the two new files
+only — Scope-compliant.
+
+**Review (code-reviewer, APPROVE, 0 Critical/Major — 2 Minor, 2 Nit).**
+Hand-traced the `mutation-probe.ts` single-pass-vs-two-pass claim against the
+live fixture on disk and confirmed a two-pass sweep would corrupt it as
+described; confirmed the `invariants.ts -> stats.ts -> content.ts` two-hop
+chain live; spot-checked all 16 `PIN_COVERAGE` entries against their listed
+test files and the 3+4+16=23 arithmetic. Minor: `VALUE_IMPORT_RE`'s bare-
+side-effect-import branch requires a trailing `;` (undocumented, no live
+gap); relative-only import matching silently misses `tsconfig.json`'s unused
+`@/*` alias (undocumented, no live gap). Nit: dead `.tsx` resolution
+branches (repo has no `.tsx` files); dynamic-import branch could over-match
+a type-position `import(...).Foo` reference (fails loud, not silent). Folded
+both Minor findings into the file's own "Known limitations" doc comment
+(comment-only, no assertion change), re-ran green after.
+
+**QA (qa-playtester, PASS — 2 minor non-blocking bugs found, both filed as
+new items).** Confirmed all three acceptance-criteria commands live, then
+ran 11 adversarial import shapes through a scratch harness outside `tools/`:
+a 4-hop chain, mixed `{ type Foo, loadContent }`, pure `import type`, a
+`//`-commented-out fake import, a division operator before a real import, a
+barrel re-export chain, an escaped-`//` inside a regex literal, an escaped-
+nested-backtick template literal, a cyclic import (terminates, no infinite
+loop), and an escaped-quote string — 9 of 11 correct. Two false positives
+(push toward "flag something that isn't a real import," not the dangerous
+"miss something that is" direction the tool exists to prevent), neither
+present in today's real 22 files, so no live misclassification: (1) a
+backslash-newline line continuation inside a double-quoted string is copied
+through unstripped, so a string body whose second physical line starts with
+`import ... from '...'` false-positives; (2) `import { type Foo, type Bar }
+from '...'` (every specifier individually marked `type`, no bare `import
+type` keyword) isn't recognized as type-only. Both verified empirically
+against real esbuild/tsx erasure, not just asserted. Filed as q50/q51 with
+regression-test acceptance criteria, per this lane's "a QA-filed bug becomes
+a new backlog item with a regression test" rule. Confirmed `git status
+--porcelain` unchanged after QA's own scratch-dir cleanup — nothing left
+outside Scope.
+
+**Suite state.** Isolated file green (above); no other test/tool file
+touched this session (the code-review fix was a doc comment inside the new
+file itself), so a full `npm test` re-run was not needed for this item.
+`git status --porcelain` before commit: the two new files plus
+`BACKLOG-QUALITY.md` — Scope-compliant.
+
+### 2026-08-27 — session 44
+
+**Feedback inbox:** no `feedback/` directory in this worktree. Nothing to
+process.
+
+**Session start state:** `tests/q46-cli-json-syntax-error-siblings-3.test.ts`
+was already sitting in the worktree, untracked, complete and matching q46's
+acceptance criteria verbatim — the same interrupted-session shape sessions
+14/16/18/19/20/33/37/38/39/40/42 each logged. `git log` showed no commit for
+it and q46 was still unchecked in the Queue. Verified rather than trusted:
+ran it live before touching anything.
+
+**q46 done.** `describe.each` pins the identical uncaught-crash shape
+q33/q37/q41 established for `tools/m20d-run-a4.ts` and `tools/m20d-swarm.ts`
+(both transitively import `src/sim/content.ts`, no naming pattern q41's grep
+matched), plus a `probe-boss.ts` pair: one case with a `tests/` copy in the
+scratch dir (needed for its `../tests/helpers` import chain to reach
+`content.ts`'s transform at all) asserting the same crash, and a control case
+without `tests/` present asserting the genuinely different failure
+(`ERR_MODULE_NOT_FOUND` for the missing `tests/helpers`, not a transform
+error) — proving the `tests/`-present case isn't incidentally passing for an
+unrelated reason.
+
+Ran `npx vitest run tests/q46-cli-json-syntax-error-siblings-3.test.ts` live:
+4/4 green. `npx tsc --noEmit -p .` clean. `git status --porcelain`: the one
+new test file only — Scope-compliant.
+
+**Review (code-reviewer, APPROVE, 0 Critical/Major — 1 Minor, 1 Nit).**
+Confirmed the three import chains directly (`probe-boss.ts` →
+`tests/helpers.ts` → `src/sim/run.ts` → `src/sim/world.ts` →
+`src/sim/content.ts`), confirmed `m20d-run-a4.ts`/`m20d-swarm.ts`'s q45-added
+try/catch cannot fire against a syntax error (proving this is genuinely new
+coverage, not a q45 duplicate), confirmed the `tests/`-absent control
+diverges for real. Minor: the inline comment misattributed `m20d-swarm.ts` as
+importing `a4probe.ts` (it doesn't — it imports `loadContent` directly and
+has its own top-level try/catch; that clause belongs to `m20d-run-a4.ts`,
+which does import `a4probe.ts`) — fixed here, comment-only, no assertion
+change, re-ran green after. Nit (not fixed, doesn't affect behaviour): the
+`m20d-run-a4.ts` case's `'venom_spore'` arg is accurate but moot, since the
+crash pre-empts `process.argv` ever being read.
+
+**QA (qa-playtester, PASS, no defects).** Ran the suite live twice
+consecutively (no interference, scratch dirs fully cleaned both times via the
+per-pid/random-suffixed paths). Independently reproduced `m20d-swarm.ts`'s
+crash by hand in a throwaway scratch copy outside the harness — exit 1, empty
+stdout, the same raw `Transform failed with 1 error` stack, matching the
+test's assertions byte-for-byte in shape. Independently reproduced
+`probe-boss.ts`'s "without `tests/`" control and confirmed it's genuinely
+`ERR_MODULE_NOT_FOUND`, not a coincidental transform-error match. Confirmed
+`bench/.tmp/` is gitignored and `git status --porcelain` shows only the new
+test file.
+
+**Suite state.** Isolated file green (above); no other test/tool file
+touched this session, so a full `npm test` re-run was not needed for this
+item. `git status --porcelain` before commit: the one test file plus
+`BACKLOG-QUALITY.md` — Scope-compliant.
+
+**Committed.**
+
+**Three actionable items remain** (q47, q48, q49; q39 stays a Scope-blocked
+tracking entry) — at the generation floor of 3, so the next session should
+run the generation rule before executing if fewer than 3 remain by then;
+today it does not need to.
+
+### 2026-08-27 — session 43
+
+**Feedback inbox:** no `feedback/` directory in this worktree. Nothing to
+process.
+
+**q44 done — the six-session "just contention" read is now backed by actual
+instrumentation, not a seventh pattern-match.** Built
+`bench/q44-worker-timing-probe.ts`: calls the same `probeInWorker` the
+census uses, for every one of the 60 `FIELD_SPECS x FAMILIES` combos at the
+same concurrency (6), but with a **generous 25000ms ceiling** instead of the
+shipped 4000ms, logging real elapsed time for every call instead of
+collapsing "timed out" and "hung" into one verdict. The question this
+answers: when the 4000ms budget is missed under load, does the worker
+eventually answer (contention — the budget was just too tight) or never
+answer (a real leak in `fuzz-command-domain-worker.ts`'s lifecycle)?
+
+**Baseline (quiet host, no concurrent load): 60/60 combos.** Only
+`dev.xp.amount:posInf` — the already-documented, deliberate infinite loop
+this file's own suite exists to pin (`addXp`'s `while` never terminates on
+`Infinity`) — failed to resolve by 25000ms. Every other combo: p50=369ms,
+p95=2104ms, max (excluding the intentional hang) well under the shipped
+4000ms budget. Confirms the harness and the probe script agree with the
+shipped census when nothing else is competing for the CPU.
+
+**Contention, pass 1 — genuine load, this lane's established method (session
+8's perf-ratio note: a real concurrent `npx vitest run` is realistic
+contention that cleans itself up; synthetic busy-loops escaped `pkill` last
+time and are not used again).** Started a full `npx vitest run` in the
+background, then ran the probe concurrently. That real background run
+**reproduced the actual flake live**, not hypothetically:
+`tests/q15-command-domain-fuzz.test.ts` — 2 failed, one reading verbatim
+`pick.index:nan — did not settle within 4000ms: expected 'hangs' to be
+'rejected'`. At the same time, the probe recorded **10/60 combos** over the
+shipped 4000ms budget (`pick.index` x4 families, `dev.fast_forward.amount`
+x4 families, `rekindle.structureId:fractional`, plus the intentional hang).
+Of those 10, **9 resolved between 5.0s and 9.2s** — well inside the 25s
+ceiling — and only the intentional hang failed to resolve.
+
+**Contention, pass 2 — same background load, different point in its run.**
+**3/60 combos** over budget this time, and a **different set**
+(`rekindle.structureId:negative`/`:fractional`, plus the intentional hang) —
+not the same combos pass 1 flagged. Both non-hang combos resolved by 4.6-4.8s.
+
+**Conclusion, with the evidence a re-run-till-green never produces: this is
+structurally contention, not a leak.** Two lines of evidence, not one: (1)
+across 180 combo-runs total (60 quiet + 60 + 60 contended) under real
+full-suite load, every over-budget call resolved once given headroom except
+the one call that is a confirmed, already-named, intentional infinite loop
+— zero instances of an unexplained non-terminating worker. (2) the specific
+field:family combo that goes over budget **changes between runs under
+identical background load** (pick.index/dev.fast_forward.amount in pass 1,
+rekindle.structureId in pass 2) — a real leak tied to a specific input or
+code path would reproduce on the same combo; combos changing run to run is
+the signature of whichever worker thread happens to be scheduled behind the
+heaviest concurrent load at that instant, i.e. OS/tinypool scheduling noise,
+not a defect in the worker's own lifecycle. This matches session 8's
+`perf-ratio.ts` finding for a structurally similar probe under the same
+kind of load, now demonstrated directly for this one instead of inferred by
+analogy. Not filed as a bug — CLAUDE.md's own "a deferral is a measurement
+with an expiry date" is satisfied by an actual re-measurement this time, and
+the re-measurement confirms rather than overturns six sessions' shared
+reading. `bench/q44-worker-timing-probe.ts` is left in place (matches
+`tools/perf-ratio.ts`'s own precedent of keeping a load-bearing measurement
+script rather than a throwaway) so a future session can re-run it in under a
+minute instead of re-deriving the method a seventh time.
+
+**Incidental, not filed:** the same contended background run also hit one
+`EPERM` on `bench/.tmp/q45-cli-schema-violation-scratch/...` inside q45's own
+control case, once, non-reproducing (a Windows file-handle contention
+artifact of running this many concurrent heavy Node/tsx processes at once,
+not something this session's changes touch) — noted here in case a future
+session sees it again and wonders whether it's new.
+
+**Suite state.** Standalone `npx vitest run tests/q15-command-domain-fuzz.test.ts`
+(quiet): 25/25 green. The full `npx vitest run` used as this session's
+contention source (started before this file's own edits were committed, ran
+755s under the extra load of two concurrent probe passes plus a second
+session's own live work on the machine — vs. the usual ~300-400s quiet-host
+figure this lane's log otherwise reports): **3 files / 20 tests failed**.
+Two of the three are pre-existing, already-explained, non-reproducing shapes
+this session did not cause: `q15-command-domain-fuzz.test.ts` (the 2 worker-
+timeout assertions this item is about) and `q45-cli-schema-violation.test.ts`
+(the 1 incidental `EPERM` above). The third, **`q14-mutation-smoke.test.ts`
+(17 of the 20 failures)**, is session 42's own documented
+`gitDiffClean()`-sees-the-uncommitted-lane-diff artifact — this session's own
+then-uncommitted edits to this file and the new `bench/` script were live on
+disk while that run executed, tripping every mutation's `realFileUntouched`
+check the same way session 42 (and 12/14/15/16/18/20/26-29/36/38/39/40)
+already recorded; expected to clear once this commit lands. `npx tsc
+--noEmit -p .` clean.
+
+**Four actionable items remain** (q46-q49, all unchecked and unblocked), so
+the generation rule does not need to run next session either.
+
+### 2026-08-27 — session 42
+
+**Feedback inbox:** no `feedback/` directory in this worktree. Nothing to
+process.
+
+**Session start state:** `tests/q14-mutation-smoke.test.ts` already carried an
+uncommitted diff — a prior session's unfinished q43 work (the new "doc comment
+matches the real MUTATIONS array" test), matching this file's own convention
+of recovering session-N's uncommitted work (q33 did the same for session 31).
+Verified the diff was exactly q43's acceptance criteria and finished it rather
+than starting over.
+
+**q43 done.** The new test reads `tools/mutation-probe.ts`'s source text,
+collapses the wrapped block-comment lines, regex-extracts the three numbers
+from "this now runs N nested `npx vitest run` invocations (C controls, one per
+distinct `testFile`, + M mutations)", and asserts each against `MUTATIONS`
+computed live: `MUTATIONS.length` (15), `new Set(MUTATIONS.map(testFile)).size`
+(8), and their sum (23) — all three currently agree with the doc comment.
+
+**Suite state.** Standalone filtered run (`-t "doc comment matches the real
+MUTATIONS array"`) — 1 passed. Full `tests/q14-mutation-smoke.test.ts`
+(background, 637s): 16 failed / 13 passed, exactly the documented
+`gitDiffClean()`-sees-the-uncommitted-lane-diff artifact (sessions
+12/14/15/16/18/20/26-29/36/38/39/40 etc.) — 15 mutations' `realFileUntouched`
+plus the suite's own fixture-must-start-clean case, tripped by this session's
+own then-uncommitted diff to this same file. Not re-filed. `npx tsc --noEmit
+-p .` clean. `git status --porcelain` before commit: `tests/q14-mutation-
+smoke.test.ts`, `BACKLOG-QUALITY.md` only — Scope-compliant.
+
+**Review (code-reviewer, APPROVE, 0 Critical/Major).** Independently confirmed
+the regex matches the live doc comment, the `.not.toBeNull()` guard fails
+loudly rather than silently skipping if the comment is reworded, sum logic has
+no off-by-one, diff is scoped to `tests/q14-mutation-smoke.test.ts` only, no
+`/src/sim` import or architecture-rule concern.
+
+**QA (qa-playtester, PASS).** Proved it's a real regression test, not a
+tautology: bumped the stated total 23→24 (fails: "total invocation count no
+longer equals controls + mutations"), reverted; bumped only the mutation count
+15→16 (fails on that assertion specifically), reverted; bumped only the
+controls count 8→9 (fails on that assertion specifically), reverted — each
+edit isolated and `git diff --stat tools/mutation-probe.ts` confirmed empty
+before the next. All three assertions independently load-bearing. Confirmed
+the full-file failure count (16) matches the documented artifact and confirmed
+nothing outside `tests/**` was touched.
+
+**Committed.**
+
+**Several actionable items remain** (q44, q46, q47, q48, q49, all unchecked
+and unblocked), above the generation rule's floor of 3, so the next session
+does not need to run it.
+
+### 2026-08-27 — session 41
+
+**Feedback inbox:** `feedback/` empty. Nothing to process.
+
+**q39** was the top actionable item, but its own text already establishes that
+the actual fix (guarding `Stats.total()`'s running-sum overflow, clamping
+`luckBias`, schema-validating `deserializeMeta`, bounding `AffixSchema`) is a
+`/src/**` change outside this lane's Scope. Its acceptance line is narrower
+than "fix the bug": it only asks the tracking entry to confirm today's
+overflow behaviour is already pinned by `tests/q35-weighted-index-nan.test.ts`'s
+"gap found by QA verification" describe block. Ran that file live
+(`npx vitest run tests/q35-weighted-index-nan.test.ts`): 9/9 green, not
+skipped, and its two `it` blocks pin exactly the two-contribution overflow
+q39 describes (`1.5e308` twice → `total()` is `Infinity`; `-1.5e308` twice →
+`total()` is `-Infinity` → unclamped `luckBias` is `-Infinity` → a `NaN`
+weight in `rollOffers`). Spot-checked all four line references in q39's text
+against current source (`src/sim/stats.ts:148`'s single-contribution
+`Number.isFinite` guard, `src/sim/progression.ts:89`'s positive-only
+`Math.min(0.5, ...)` clamp, `src/meta/meta.ts:322`'s unvalidated
+`JSON.parse`, `src/sim/content.ts:380-387`'s unbounded `AffixSchema` `num`
+fields) — none stale, all still accurate.
+
+**QA (qa-playtester, PASS).** Independently re-verified all four of the
+above from scratch (live test run, source-line spot-check, `git status`
+clean) rather than trusting this session's own read. No coverage gap found;
+confirmed this closure is documentation-only and the underlying bug remains
+correctly tracked as out-of-Scope /src/** work for main lane.
+
+**Suite state.** No `/src/**` or `/data/**` files touched; `git status
+--porcelain` before commit: `BACKLOG-QUALITY.md` only. Full `npm test` not
+re-run since no test or tool file changed this session — only the isolated
+`tests/q35-weighted-index-nan.test.ts` file, confirmed green live above, is
+relevant to this item.
+
+**Committed.**
+
+### 2026-08-27 — session 40
+
+**Feedback inbox:** `feedback/` exists but is empty. Nothing to process, nothing
+moved.
+
+**Found the generation rule's output and q45's full implementation already
+sitting in the worktree, uncommitted, at session start** — the same recurring
+interrupted-session shape sessions 14/16/18/19/20/37/38/39 each logged. Ten
+`tools/*.ts` modified plus a new `tests/q45-cli-schema-violation.test.ts`, and
+BACKLOG-QUALITY.md already carried the generation rule's five new items
+(q45–q49) with its own "Generated ... session 40" note and rationale for
+ranking q45 top. `git log` showed no commit for any of it. Verified rather
+than trusted, per this lane's standing rule.
+
+**q45** ports the q28/q38 `<tool>: <message>`-on-stderr /
+`process.exitCode = 1` shape to the ten tools that transitively import
+`src/sim/content.ts` and had no try/catch anywhere: a runtime zod
+`ZodError` (a schema violation — valid JSON, wrong shape — as opposed to
+q33/q37/q41/q42's JSON *syntax*-error class, which fails at ES-module
+transform time before any in-file try/catch could ever run) previously
+escaped as a raw multi-frame stack dump. Seven tools get their `main()`
+invocation wrapped; `fuzz-command-domain.ts`'s `main()` is an unawaited
+async IIFE so it gets `.catch()` instead (a sync try/catch around the call
+site cannot see a later promise rejection); the three top-level-script tools
+(`m20d-run-a4.ts`, `m20d-swarm.ts`, `probe-boss.ts`) get their whole
+executable body wrapped; `a4probe.ts` additionally guards its own
+module-scope `loadContent()` call with `process.exit(1)` (needed so TS can
+narrow `content`'s definite assignment past the catch), which is also what
+fixes `m20d-run-a4.ts`'s crash on that path since it imports `a4probe.ts`.
+
+Ran `npx vitest run tests/q45-cli-schema-violation.test.ts` live: 11/11
+green. `npx tsc --noEmit -p .`: clean.
+
+**Review (code-reviewer, APPROVE, 0 Critical/Major — 1 Minor, 1 Nit).** Traced
+`m20d-swarm.ts`'s `clearSeconds` conversion from a top-level `function` to a
+`const` arrow function nested inside the new outer `try` and confirmed its
+`return` statements exit only the arrow function, never the outer `try`
+block. Confirmed `fuzz-command-domain.ts`'s `.catch()` is the only construct
+that can intercept the async IIFE's rejection. Confirmed the seven
+`main()`/`invokedDirectly`-shaped tools' try/catch sit inside their existing
+invocation guards, so importing them as modules is unaffected. Confirmed
+`upgradeStepMul` is `z.number()` in `src/sim/content.ts`, so the test's
+mutation is a genuine schema violation, not a syntax error — not vacuous.
+Confirmed Scope: `git diff --stat -- src/** data/**` empty. Minor:
+`m20d-run-a4.ts`'s own try/catch is dead code on the a4probe-import failure
+path (a4probe's `process.exit(1)` fires first, so the user always sees
+`a4probe: ...`, never `m20d-run-a4: ...`) — intentional, matches the test's
+own `'a4probe'` prefix expectation, no fix needed. Nit: `a4probe.ts` mixes
+`process.exit(1)` (immediate) with the rest of the fix's `process.exitCode = 1`
+(deferred) — defensible (TS needs `never` to narrow `content`), left as-is.
+
+**QA (qa-playtester, PASS).** Live 11/11. Manually verified two tools
+(`perf-ratio.ts`, `probe-boss.ts`) outside the harness in a throwaway scratch
+copy: clean one-line prefixed stderr, nonzero exit, no stack frame. Reverted
+`perf-ratio.ts`'s fix via `git stash push` on just that file, reran its test
+case alone, confirmed it goes red with the raw `ZodError` dump restored,
+`git stash pop` restored byte-identical state. Adversarial probes beyond the
+test's own single-field mutation — a different file (`classes.json`), a
+two-file double corruption, a zod enum violation, and a non-zod
+cross-reference throw (`waves.json` naming an unknown enemy key) — all
+produced clean single-line messages; no coverage gap found. **Bug filed, not
+blocking:** an intermittent (1-of-3 runs, not reliably reproducible) orphaned
+scratch dir under `bench/.tmp/q45-cli-schema-violation-scratch/` on Windows,
+same EBUSY/EPERM-class race the file's own header already documents for
+q25/q28/q33/q37/q41's sibling scratch tests — reported as observed-once per
+this lane's "cannot reproduce twice" honesty rule, not as a confirmed defect;
+left as a note for whoever next touches scratch-cleanup hygiene rather than
+filed as a new numbered item, since it's the same pre-existing class q46's
+own convention already accepts.
+
+**Suite state.** `npx vitest run tests/q45-cli-schema-violation.test.ts` —
+11/11 green. `npx tsc --noEmit -p .` clean. Cleaned two empty scratch dirs
+this session's own manual QA verification left under `bench/.tmp/`
+(gitignored, no Scope impact either way) before committing.
+`git status --porcelain` before commit: `BACKLOG-QUALITY.md`, the ten
+`tools/*.ts` files, and `tests/q45-cli-schema-violation.test.ts` only —
+Scope-compliant.
+
+**Committed.**
+
+**Four actionable items remain** (q46, q47, q48, q49; q39 stays a
+Scope-blocked tracking entry). Above the generation floor of 3, so the next
+session executes the top one (q46) directly.
+
+### 2026-08-27 — session 39
+
+**Feedback inbox:** `feedback/` exists but is empty. Nothing to process, nothing
+moved.
+
+**Found unlogged follow-on work already sitting in the worktree, uncommitted,
+at session start** — the same recurring shape session 38's own log named
+(sessions 14/16/18/19/20/37/38): a new `describe` block for q42
+(`sweep.ts --json` crashes uncaught on a `/data` JSON syntax error too) was
+already appended to `tests/q37-cli-json-syntax-error-siblings.test.ts`, fully
+written and matching q42's acceptance criteria, but `git log` showed no commit
+for it and session 38's own log didn't mention it (session 38 committed q41
+only). `git status --porcelain` before starting showed only that one modified
+file.
+
+Verified rather than trusted: ran the file live (`npx vitest run tests/q37-
+cli-json-syntax-error-siblings.test.ts`) — 4/4 green, including the new q42
+case. `npx tsc --noEmit -p .` — clean.
+
+**Review (code-reviewer, APPROVE, 0 Critical/Major — 1 Minor, 2 Nits).**
+Confirmed the new test targets a code path (`sweep.ts --json`) the existing
+`describe.each` block never exercises, confirmed live against `sweep.ts`'s
+own source that the crash precedes `parse(process.argv)`, and confirmed the
+`expect(stdout).toBe('')` assertion is the load-bearing discriminator against
+a future fix. Minor: the new block drops the `not.toContain('sweep:')`
+assertion its `describe.each` sibling carries — not a correctness gap, just
+an unexplained asymmetry, left as-is. Scope and harness reuse both clean.
+
+**QA (qa-playtester, PASS).** Live run 4/4 green. Adversarially confirmed the
+assertions are load-bearing two ways: a manual control run against intact
+`/data` (exit 0, clean JSON, empty stderr) contrasts with the corrupted-scratch
+case; and temporarily removing the corruption call from the q42 block made the
+test correctly fail (`exitCode` 0 vs `not.toBe(0)`), then restored byte-
+identical. No leftover `bench/.tmp` dirs from this session's own runs. Flagged
+one pre-existing, unrelated stray scratch dir (predates this session, gitignored,
+no scope impact) for whoever next touches scratch-cleanup hygiene — not filed
+as a q42 bug.
+
+**Suite state.** `npx vitest run tests/q37-cli-json-syntax-error-siblings.
+test.ts` — 4/4 green. `npx tsc --noEmit -p .` clean. `git status --porcelain`
+before commit: `BACKLOG-QUALITY.md`, `tests/q37-cli-json-syntax-error-
+siblings.test.ts` only — Scope-compliant.
+
+**Committed.**
+
+**Three actionable items remain** (q43, q44, plus q39 as a Scope-blocked
+tracking entry — its own acceptance is already satisfied by
+`tests/q35-weighted-index-nan.test.ts`'s existing "gap found by QA
+verification" describe block; the remaining half needs main lane's `/src/**`
+fix first). At the generation floor, so the next session runs the generation
+rule before executing.
+
+### 2026-08-27 — session 38
+
+**Feedback inbox:** no `feedback/` directory exists in this worktree. Nothing
+to process, nothing moved.
+
+**Found unlogged follow-on work already sitting in the worktree, uncommitted,
+at session start** — the same recurring shape (sessions 14/16/18/19/20/37):
+`tests/q41-cli-json-syntax-error-siblings-2.test.ts` existed on disk, fully
+written and matching q41's acceptance criteria exactly, but `git log` shows no
+commit for it and no prior session's log entry described it. `git status
+--porcelain` before starting showed only that one untracked file — nothing
+else.
+
+Verified rather than trusted, per this file's own standing lesson: ran the
+file live (`npx vitest run tests/q41-...test.ts`) — 8/8 green, real nested
+`tsx` subprocess invocations against scratch copies, not mocked. Ran
+`npx tsc --noEmit -p .` — clean. Confirmed Scope compliance (`git status
+--porcelain` showed only the one test file, no `/src/**`/`/data/**` touched).
+
+**Review (code-reviewer, APPROVE, 0 Critical/Major/Minor/Nit — 2 non-blocking
+observations).** Independently traced import chains confirming the file's
+core claim: `perf-ratio.ts`, `a4probe.ts`, `a5probe.ts`, `fuzz-input.ts`,
+`fuzz-save.ts`, `fuzz-weapon-boundary.ts` and `fuzz-command-domain.ts` all
+transitively import `src/sim/content.ts` (via `Run`/`World`/`loadContent` or
+tower/enemy helpers that import `world.ts`), while `mutation-probe.ts` has
+zero such import and only ever fails on an uncaught `ENOENT` from its own
+`populateScratch`, past module load. Ran the new file alongside both q33/q37
+siblings together — 18/18 pass, no scratch-path collisions. Noted a stray
+`.bak` file glimpsed transiently during review (an earlier draft of the
+author's own authoring process) that was gone by review's end and not part of
+the working tree — confirmed absent before commit.
+
+**QA (qa-playtester, PASS).** Ran the file live, 8/8 green. Adversarial check
+1: an intact `towers.json` in a `tests/`-less scratch dir fails with a
+*different* error (`ERR_MODULE_NOT_FOUND` on `tests/helpers`), proving the
+pinned `TransformError` is specifically the JSON-syntax corruption's doing,
+not an artifact of the minimal scratch fixture. Adversarial check 2: swapped
+`mutation-probe.ts` into the "crashes at import" `describe.each` list — the
+test correctly went red, proving the assertions discriminate rather than
+rubber-stamp. Confirmed no leftover `bench/.tmp/*q41*` scratch dirs after both
+a clean pass and the deliberately-failed mutation run. Scope clean before and
+after.
+
+**Suite state.** `npx vitest run tests/q41-cli-json-syntax-error-siblings-2
+.test.ts` — 8/8 green. `npx tsc --noEmit -p .` clean. `git status --porcelain`
+before commit: `BACKLOG-QUALITY.md`, `tests/q41-cli-json-syntax-error-
+siblings-2.test.ts` only — Scope-compliant.
+
+**Committed.**
+
+**Four actionable items remain** (q42, q43, q44, plus q39 as a Scope-blocked
+tracking entry), above the generation rule's floor of 3, so the next session
+does not need to run it.
+
+### 2026-08-27 — session 37
+
+**Feedback inbox:** no `feedback/` directory exists in this worktree. Nothing
+to process, nothing moved.
+
+**Found session 36's unlogged follow-on work already sitting in the
+worktree, uncommitted, at session start** — the same shape sessions
+14/16/18/19/20 each hit before: `tools/mutation-probe.ts` had a diff on disk
+implementing q40 in full (three new `MUTATIONS` entries —
+`gate-audit-remove-main-trycatch`, `phase-coverage-remove-main-trycatch`,
+`soak-construction-outside-try` — reverting q28's three try/catch guards in
+`gate-audit.ts`/`phase-coverage.ts`/`soak.ts`, plus the doc-comment count
+bump to 23 invocations / 15 mutations / 8 testFiles), but no session log
+entry described it and it was never committed. `git status --porcelain`
+before starting showed only that one file modified — nothing else. q39 was
+skipped first: its own acceptance text says the QA-verification pin already
+exists (confirmed live in `tests/q35-weighted-index-nan.test.ts`'s "gap
+found by QA verification" describe block) and the only remaining action is
+one of three `/src/**` fixes, out of Scope — a tracking entry with no
+further in-Scope work until main lane acts, not a skip without reason.
+
+Verified rather than trusted, per this file's own standing lesson: read the
+diff directly and checked each new mutation's `find` anchor against the live
+`tools/gate-audit.ts`, `tools/phase-coverage.ts` and `tools/soak.ts` (exact
+match, matches the pre-q28 shape each mutation's `source` comment claims);
+confirmed `tests/q28-cli-error-handling.test.ts` has the three named describe
+blocks (`gate-audit.ts CLI failure path (q28)`, `phase-coverage.ts CLI
+failure path (q28)`, `soak.ts CLI failure path (q28)`) the new entries
+target. Ran `npx vitest run tests/q28-cli-error-handling.test.ts
+tests/q12-soak.test.ts` standalone — 19/19 green — and `npx tsc --noEmit -p .`
+— clean. Also ran the full `tests/q14-mutation-smoke.test.ts` live: 16/28
+red, every one the documented `gitDiffClean()`-sees-the-uncommitted-lane-diff
+artifact (sessions 26-29, 36) — each failing case's `testFailed` assertion
+(the substantive check) passed; only `realFileUntouched` (which necessarily
+sees this session's own uncommitted `tools/mutation-probe.ts` diff under a
+whole-repo, no-pathspec `git diff`) failed, plus the suite's own
+fixture-must-start-clean case for the same reason. Not a regression, not
+touched.
+
+**Review (code-reviewer, APPROVE, 0 Critical/Major/Minor/Nit).** Independently
+verified all three `find` anchors against the live files, confirmed the
+`replace` text reproduces each pre-q28 shape, confirmed doc-comment
+arithmetic (15 mutations, 8 distinct `testFile`s, 23 invocations) is exact,
+confirmed Scope (`tools/mutation-probe.ts` only), and re-derived the
+`gitDiffClean()` self-referential-artifact reasoning independently from the
+source rather than taking it on faith.
+
+**QA (qa-playtester, PASS).** Ran all three new mutations for real via
+`probeOne` against fresh scratch copies plus a `probeControl` positive
+control (9/9 green unmutated); confirmed each mutation reds *exactly* its
+claimed two test cases and nothing else, with the distinguishing failure
+signal matching each mutation's own description (raw ENOENT stack for
+gate-audit, raw multi-line ZodError dump for phase-coverage, empty stdout —
+`main()` never reaching its own output — for soak's construction-outside-try
+case). Adversarial: could not make any mutation fail for the wrong reason,
+touch an unrelated file, or leave the tree dirty across two independent
+runs. One non-bug observation: q40's acceptance text names both
+`tests/q28-cli-error-handling.test.ts` and `tests/q12-soak.test.ts` as
+targets, but all three new entries wire only to the former — checked
+`q12-soak.test.ts` directly and it has no construction-time-corruption case
+to catch these three mutations against, so the narrower wiring is correct
+engineering, just looser backlog wording than the shipped implementation.
+
+**Suite state.** `npx vitest run tests/q28-cli-error-handling.test.ts
+tests/q12-soak.test.ts` — 19/19 green. `npx tsc --noEmit -p .` clean.
+`git status --porcelain` before commit: `BACKLOG-QUALITY.md`,
+`tools/mutation-probe.ts` only — Scope-compliant.
+
+**Committed.**
+
+**Five actionable items remain** (q41, q42, q43, q44, plus q39 as a
+Scope-blocked tracking entry), above the generation rule's floor of 3, so
+the next session does not need to run it.
+
+### 2026-08-27 — session 36
+
+**Feedback inbox:** no `feedback/` directory exists in this worktree. Nothing
+to process, nothing moved.
+
+**Two actionable items were in queue** (q38, q39 — below the generation
+rule's floor of 3), so the generation rule ran first. (a) Ran `npx tsx
+tools/gate-audit.ts` and `npx tsx tools/sweep.ts --seeds 12 --policies
+maxbuild,hybrid`: gate split unchanged (8 covered, 12 holes, every hole
+tracing to a P-phase not yet reached), sweep numbers match the documented
+bimodal-Act-II state — nothing new. (b) SPEC-FINAL coverage diff and
+`tools/content-census.ts`'s own re-run: unchanged since session 23 (7/10
+categories). (c) Engineer's judgment, reading `tools/mutation-probe.ts` and
+every remaining CLI-invokable `tools/*.ts` file directly: q28's three
+try/catch guards only got two matching mutation-probe entries — filed q40.
+While tracing that, re-read q37's own "more siblings may exist" caveat and
+filed q41 (check every other CLI-invokable tool for real) and q42 (the one
+specific untested `sweep.ts --json` path session 35's log flagged but never
+filed). q43 automates q31's "recount rather than trust the doc comment"
+habit, closing a sixth instance of this lane's most recurring trap. q44
+challenges the six-session-repeated "just contention" read on the
+`q15-command-domain-fuzz` flake per CLAUDE.md's own measurement rules. Five
+items appended (q40-q44). Took **q38**, the already-queued, most concretely
+ready item — a verified-live, in-Scope fix with a named test file and a
+clear before/after — over the freshly generated q40-q44.
+
+**q38 done.** `tools/content-census.ts`'s `main()` used to run inside a
+`try` around a `census()` call whose *default parameter* (`loadContent()`)
+was resolved from a **statically** imported `loadContent`, so a `/data`
+JSON *syntax* error crashed at module-transform time, before the try/catch
+this file itself owns ever ran (q33's finding, inherited unfixed at q37
+because the general fix lives in `src/sim/content.ts`, outside this lane's
+Scope). Session 31's QA pass on q33 found a working, in-Scope, per-file
+workaround for this one CLI specifically: split `Content` into a type-only
+import (erased at compile time, no runtime load) and make `loadContent`
+itself a dynamic `await import('../src/sim/content')` call made *inside*
+`main()`'s existing try. `census()` now takes `content: Content` as a
+required argument instead of defaulting it. `main()` becomes `async`, with
+a `.catch()` fallback on its top-level invocation. `tools/mutation-probe.ts`'s
+`content-census-remove-trycatch` entry updated in lockstep so its `find`
+string still matches the new source shape byte-for-byte.
+`tests/q33-cli-json-syntax-error.test.ts` updated: `content-census.ts`
+dropped from the "still crashes uncaught" `describe.each` table, doc
+comment rewritten to explain the two-tier state (general fix still owed to
+main lane; this one CLI's per-file workaround landed), and a new describe
+block pins the fixed behaviour live — plain mode's single `content-census:
+...` stderr line and `--json` mode's single parseable `{"error": ...}`
+stdout line, both nonzero exit, neither a raw stack frame.
+
+**Review (code-reviewer, APPROVE, 0 Critical/Major, 1 harmless Nit).**
+Live-ran the target test files (25/25 green) plus `tsc --noEmit` (clean)
+rather than reading the diff cold. Verified the fix's entire premise
+directly rather than trusting the doc comment: a rejected dynamic `import()`
+inside an `async` function's `try` is a normal `throw`, caught by the
+existing `catch` — confirmed live against a syntax-broken `towers.json`.
+Checked `census()`'s new required-argument signature against every call
+site (`main()` itself, `tests/q16-content-census.test.ts`) — both already
+pass an explicit argument, no compile break. Checked the updated
+`mutation-probe.ts` `find` string for an exact byte match against the new
+source; an initial naive comparison against the on-disk CRLF file read as
+zero occurrences, which the reviewer traced to `applyEdits`'s own
+pre-existing `\n`→`\r\n` normalization (undiffed logic) rather than filing
+it as a bug — one occurrence once normalized correctly. Nit: the new
+top-level `.catch(console.error)` fallback is unreachable given current
+code paths — harmless, no action taken.
+
+**QA (qa-playtester, PASS).** Independently reproduced the syntax-error fix
+live in a fresh scratch copy for both plain and `--json` modes, matching
+the acceptance text verbatim. Positive control (valid `towers.json`
+restored) still produces normal output, ruling out a vacuous "never reaches
+main" pass. Confirmed no regression on the adjacent case q25 already owns —
+a schema-valid-but-semantically-broken `/data` file still gets the
+collapsed one-line zod-message treatment, unaffected by this change.
+Grepped `census(` repo-wide: `phase-coverage.ts`/`fuzz-data.ts` define
+unrelated same-named functions; the only external caller of this file's
+`census()` already passes an explicit argument. Ran `tests/q14-mutation-
+smoke.test.ts` in full and inspected all 13 failures individually: every
+one is a `gitDiffClean()`-based "real file must be untouched"/"fixture must
+start clean" pre-check seeing this session's own then-uncommitted diff to
+`tools/content-census.ts`/`tools/mutation-probe.ts` — the same documented
+artifact sessions 26-29 already recorded, not a mutation-detection-logic
+failure, and not touched. No bugs filed.
+
+**Suite state.** `npx vitest run tests/q33-cli-json-syntax-error.test.ts
+tests/q25-content-census-cli.test.ts tests/q16-content-census.test.ts` —
+25/25 green. `npx tsc --noEmit -p .` clean. `git status --porcelain` before
+commit: `BACKLOG-QUALITY.md`, `tests/q33-cli-json-syntax-error.test.ts`,
+`tools/content-census.ts`, `tools/mutation-probe.ts` — Scope-compliant.
+
+**Committed.**
+
+**Six actionable items remain** (q39, q40, q41, q42, q43, q44, all unchecked
+and unblocked), above the generation rule's floor of 3, so the next session
+does not need to run it.
+
+### 2026-08-27 — session 35
+
+**Feedback inbox:** no `feedback/` directory exists in this worktree (checked
+with `ls feedback/`). Nothing to process, nothing moved. `git status` at
+session start was clean.
+
+**Three actionable items were in queue** (q37, q38, q39 — at the generation
+rule's floor of 3, so the generation rule did not run). Took q37, the top
+item: pin the q33 uncaught-crash gap (a `/data` JSON *syntax* error crashes
+`main()`-level try/catch cannot intercept, because `src/sim/content.ts`
+loads `/data/*.json` via a static ES import transformed before any of a
+CLI's own code runs) for the three CLIs q33 never covered —
+`tools/sim.ts`, `tools/sweep.ts`, `tools/handoff-metrics.ts`, all three
+CLAUDE.md's own documented headline entry points.
+
+**q37 done.** New file `tests/q37-cli-json-syntax-error-siblings.test.ts`,
+modeled directly on `tests/q33-cli-json-syntax-error.test.ts`'s scratch-copy
+idiom: `breakTowersJsonSyntax` writes `'{ not valid json'` to a scratch
+copy's `data/towers.json`, then each of the three tools is run with its
+CLAUDE.md-documented example args (`sim.ts --seed 1 --policy hybrid`,
+`sweep.ts --seeds 1`, `handoff-metrics.ts` with no args — it takes none and
+calls `loadContent()` at module top level, before its own `main()` even
+starts) and asserted to crash identically to q33's other three: exit
+non-zero, empty stdout, stderr matching `Transform failed with N error` plus
+a raw stack frame, `towers.json` named, no clean `toolname:`-prefixed
+message. Ran all three live before writing assertions, per this lane's own
+convention.
+
+**Review (code-reviewer, APPROVE, 0 Critical/Major, 1 cosmetic Minor).**
+Confirmed the syntax-error helper is genuine (not a schema violation),
+confirmed each tool's CLI args against its real `parseArgs`/`parse`
+function, confirmed the scratch-copy/cleanup logic is structurally
+identical to q33's and leaves no leaked temp dirs, confirmed the assertions
+pin real (not vacuous) behaviour by running the file, confirmed Scope
+compliance (`tests/**` only). The one Minor — a Node `DEP0190` deprecation
+warning from `execFileSync`'s `shell: true` — is inherited verbatim from
+q33, not new risk.
+
+**QA (qa-playtester, PASS).** Independently reproduced the crash by hand
+for all three tools in a separate manual scratch copy (confirming along the
+way that the scratch dir's placement inside `bench/.tmp` — nested in the
+repo tree, so Node's module resolution walks up to the root `node_modules`
+— is load-bearing: a copy under `/tmp` fails differently, with `Cannot find
+module 'zod'`). Ran a positive control (valid `towers.json` restored) to
+rule out a vacuous pass: `sim.ts` exits 0 and prints a full JSON report
+line, proving `execFileSync`'s catch branch and the `stdout === ''`
+assertion are genuine crash signals, not artifacts of the tools being
+normally silent. Confirmed no leftover scratch dirs from this session's
+runs (one stale `q33` scratch dir was found but its timestamp/PID predate
+this session — not a q37 regression). Full suite: 935 passed / 2 failed,
+both the already-documented `tests/q15-command-domain-fuzz.test.ts`
+worker-timeout flake cluster — isolate-rerun 25/25 green, confirmed
+non-reproducible per this lane's established flake bar rather than filed as
+new. One non-blocking observation: unlike q33's sibling test, this file has
+no `--json`-flag variant; `sim.ts`/`handoff-metrics.ts` have no such flag,
+and `sweep.ts`'s `--json` path is untested here (almost certainly crashes
+identically, since the crash precedes `argv` inspection, but unverified) —
+QA judged this doesn't fail q37's literal acceptance text and did not file
+it as a bug.
+
+**Suite state.** `npx vitest run tests/q37-cli-json-syntax-error-siblings
+.test.ts` — 3/3 green. `npx tsc --noEmit -p .` clean. `git status
+--porcelain` before commit: `BACKLOG-QUALITY.md`,
+`tests/q37-cli-json-syntax-error-siblings.test.ts` — Scope-compliant.
+
+**Two actionable items remain** (q38, q39), one below the generation rule's
+floor of 3 — the next session runs the generation rule before executing.
+
+### 2026-08-27 — session 34
+
+**Feedback inbox:** no `feedback/` directory exists in this worktree (checked
+with `ls feedback/`). Nothing to process, nothing moved. `git status` at
+session start was clean.
+
+**Four actionable items were in queue** (q36-q39, above the generation
+rule's floor of 3, so the generation rule did not run). Took q36, the top
+item.
+
+**q36 done.** Added a new describe block to `tests/q21-weapon-boundary-fuzz
+.test.ts`, right after q32's positive-control block: a world with 7 valid
+soul candidates and `weaponSlots=6`, a real `souls` Command submitted with 6
+keys where one repeats (5 distinct), driven through the real `applyCommand`.
+Confirms today's actual behaviour: only 5 souls bind, not 6 — the duplicate
+consumes a slot instead of being rejected or deduped in favour of the 7th
+candidate.
+
+**Review (code-reviewer, APPROVE, 0 Critical/Major, 1 Minor, 1 Nit).**
+Independently re-derived the mechanism against `src/sim/run.ts`'s `'souls'`
+case, `src/sim/sundering.ts`'s `finishSundering`, and `src/sim/progression
+.ts`'s `bindSouls`, confirmed the test's key arithmetic (7 candidates, 6
+submitted with exactly 1 repeat) is well-formed rather than an off-by-one,
+confirmed no duplicate assertion exists elsewhere, ran the file (52/52) and
+`tsc` (clean), confirmed Scope compliance. The Minor: the closing assertion
+only counted overlap with the 5 submitted-distinct keys, so it would stay
+green even under a future "dedupe the input, then backfill the freed slot
+from an unclaimed candidate" fix — narrower than the acceptance line's own
+"a future dedupe fix is visible as a test change" claim. Strengthened before
+QA: added a total-roster-size assertion (`w.weapons.length === distinctPicked
+.length + 1`) and an explicit check that no unsubmitted valid candidate ever
+gets bound, so a backfill-shaped fix flips this test too.
+
+**QA (qa-playtester, PASS) found the strengthening still had a real gap** —
+the same "note overstates the coverage it cites" shape this lane has hit
+before (q17, q19, q22, q28, q35): a plausible "dedupe the submitted keys,
+then slice to `weaponSlots`, no backfill" fix produces a *bit-identical*
+result to today's bug in this exact scenario (5 bound, one candidate never
+offered a slot) — confirmed by QA both arithmetically and by swapping
+`bindSouls`'s loop for a `Set`-based dedupe-then-slice implementation against
+the real harness and re-running the new assertions unchanged. That fix shape
+doesn't actually resolve the underlying complaint (a slot is still wasted),
+but nothing in the test would flag it as unresolved. QA confirmed the
+reject-whole-command and dedupe-and-backfill fix shapes are both genuinely
+caught; only dedupe-without-backfill slips through invisibly. QA also
+confirmed no ordering/state-leak issues and that the test's soul-key setup
+doesn't rely on any assumed sort order.
+
+**Added an aspirational `it.skip` pinning the fully-fixed target** rather
+than stretching the live assertions to cover a fix shape that produces
+identical numbers to the bug (nothing observable *can* distinguish "still
+buggy via incidental collapse" from "still wasting the slot via an explicit
+dedupe-only fix" in this one scenario — the two are the same behaviour by
+construction). The skipped case asserts `boundSoulCount === weaponSlots`
+(all 6 slots filled, the unclaimed 7th candidate irrelevant once a real fix
+lands) with a comment naming today's actual number (5) and QA's finding by
+name, so a fix that only dedupes without backfilling is a visible `.skip`
+still sitting there for the next session to notice and flip, rather than a
+silently-passing test that looks like the bug was fixed when the design
+defect (wasted slot) persists under a different mechanism.
+
+**Suite state.** `npx vitest run tests/q21-weapon-boundary-fuzz.test.ts` —
+53/53 green (52 + 1 new `.skip`, so 52 run + 1 skipped). `npx tsc --noEmit -p
+.` clean. Full suite (`npx vitest run`) run in background: 918 passed / 79
+skipped / 16 failed, but every failure is the already-documented
+`tests/q14-mutation-smoke.test.ts`/`tests/q15-command-domain-fuzz.test.ts`
+resource-contention flake cluster (this lane's log has now recorded this
+exact non-reproducible worker-timeout shape well over half a dozen times —
+see the many `contention`/`flake` hits across this file). Confirmed rather
+than assumed: re-ran `tests/q15-command-domain-fuzz.test.ts` alone
+immediately after — 25/25 green — and confirmed `tests/q21-weapon-boundary-
+fuzz.test.ts` itself passed cleanly inside the same full-suite run (52/52,
+302ms). Not filed as a new bug, per QA's own established non-reproducible-
+flake bar this lane has applied consistently since session ~9.
+`git status --porcelain` before commit: `BACKLOG-QUALITY.md`,
+`tests/q21-weapon-boundary-fuzz.test.ts` — Scope-compliant.
+
+**Three actionable items remain** (q37, q38, q39), at the generation rule's
+floor of 3.
+
+### 2026-08-27 — session 33
+
+**Feedback inbox:** no `feedback/` directory exists in this worktree (checked
+with `ls feedback/`). Nothing to process, nothing moved. `git status` at
+session start was clean — no leftover uncommitted work this time.
+
+**Four actionable items were in queue** (q35-q38, above the generation
+rule's floor of 3). Took q35, the top item: a direct unit test of
+`Rng.weightedIndex`'s NaN-weight fallback, plus a check of whether
+`luckBias`/`derived.luck` can go non-finite through a real Luck source.
+
+**q35 done.** `tests/q35-weighted-index-nan.test.ts` (new file, no `World`/
+`applyOffer` involved per the item's own acceptance line): pins
+`weightedIndex`'s NaN mechanism directly (`total` goes `NaN`, every `r < 0`
+scan comparison is therefore `false`, falls through to `weights.length - 1`)
+across several seeds, several NaN positions, an all-zero-plus-NaN case, and
+a byte-identical-across-RNG-states case mirroring q30's own indirect
+symptom, plus a fairness control proving the invariant is about the NaN and
+not a blanket always-last-index bug. Second half: confirmed via `Stats.add`
+(`src/sim/stats.ts:148`) that a *single* poisoned Luck source can never
+reach `total('luck')` non-finite, since `add` drops non-finite values before
+storing them — traced and confirmed no other writer of `Derived.luck`
+exists (`derive()` is the sole one, always `s.total('luck')`).
+
+**Review (code-reviewer, APPROVE, 0 findings, 1 nit).** Independently
+re-derived the NaN-fallthrough mechanism against `src/sim/rng.ts`,
+independently confirmed `Stats.add`'s guard is sufficient for the
+single-source claim, ran the test and `tsc` clean, confirmed no duplicate
+test exists (`a11-determinism.test.ts` tests `weightedIndex` fairness only,
+`q21-weapon-boundary-fuzz.test.ts` tests the *indirect* symptom through
+`World`/`applyOffer`), confirmed Scope compliance. One nit: the header
+comment's claims duplicate what the acceptance line already required
+checking — not a defect.
+
+**QA (qa-playtester, PASS) found a real gap the "even a maximally poisoned
+set... can never make total('luck') non-finite" claim overstated** — the
+same "note overstates the coverage it cites" trap this lane has hit before
+(q17, q19, q22, q28), this time in a claim I wrote this session rather than
+inherited. `Stats.add`'s guard checks only the incoming value, not the
+running sum: two *individually finite* extreme contributions (each a legal
+double, e.g. `1.5e308`, comfortably under `Number.isFinite`'s bar) overflow
+`total()`'s own summation loop to `±Infinity` with no guard anywhere in that
+path. QA traced the negative case all the way to `luckBias`:
+`Math.min(0.5, x)` clamps the positive overflow to 0.5 (silently masking
+it) but does nothing for `-Infinity`, so a `-Infinity` `luckBias` reaches
+`rollOffers` uncaught, reproducing this same item's `weightedIndex`
+fallback through a second vector. QA also traced a real, reachable delivery
+path: `src/meta/meta.ts:322`'s `deserializeMeta` does a bare `JSON.parse` +
+type assertion with **zero schema validation**, so a tampered save with two
+extreme-valued relic affixes round-trips unchanged into a real run's
+`Stats`; separately `src/sim/content.ts:380-387`'s `AffixSchema` has no
+`.finite()`/bound on affix `min`/`max`, so the same class of value is
+authorable in `/data` directly. Independently re-verified QA's repro live
+(scratch vitest file, deleted after) before trusting it: confirmed both the
+positive-overflow-to-`Infinity` and negative-overflow-to-`-Infinity`-through-
+`luckBias` results exactly as reported.
+
+**Corrected the test file rather than leaving the overclaim standing.**
+Narrowed the docstring/describe-block title from "cannot go non-finite
+through a real Luck source" to "...through a single poisoned source," and
+added two new pinned cases (`tests/q35-weighted-index-nan.test.ts`'s final
+describe block) reproducing the overflow-to-`Infinity` and the
+uncaught-`luckBias`-to--`Infinity` chain, so today's actual gap is on
+record precisely instead of a claim that doesn't cover it. Filed the fix
+itself as **q39** for main lane (`Stats.add`/`total()` guarding the running
+sum, `AffixSchema` bounding values, `deserializeMeta` validating against a
+schema — all `/src/**`, outside this lane's Scope).
+
+**Suite state.** `npx vitest run tests/q35-weighted-index-nan.test.ts` —
+9/9 green (7 original + 2 added post-QA). `npx tsc --noEmit -p .` clean.
+`git status --porcelain` before commit: `BACKLOG-QUALITY.md`,
+`tests/q35-weighted-index-nan.test.ts` — Scope-compliant.
+
+Full-suite run (`npx vitest run`) deferred to background per this lane's
+usual ~5-9 minute runtime; will confirm clean before or note any
+pre-existing-cluster overlap in a follow-up entry if it surfaces anything
+not already documented in prior sessions' logs.
+
+**Three actionable items remain** (q36, q37, q38) plus the newly-filed
+q39 (four total), still above the generation rule's floor of 3.
 
 ### 2026-08-27 — session 32
 

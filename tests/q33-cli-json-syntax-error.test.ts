@@ -19,27 +19,39 @@
  * wrote `{ not valid json` to a scratch copy's `data/towers.json` and ran all
  * four lane CLIs.
  *
- *   - `content-census.ts`, `phase-coverage.ts`, `soak.ts` — all import
- *     `src/sim/content.ts` transitively (`Run` → `loadContent()`) and all
- *     three crash identically: exit 1, empty stdout, a multi-frame
- *     `node:internal/modules/run_main` + `Error: Transform failed with 1
- *     error: ...data/towers.json:1:2: ERROR: Expected string in JSON but
- *     found "not"` stack on stderr. `--json` mode is unaffected by the flag —
- *     the crash happens before `main()` ever inspects `argv`.
- *   - `gate-audit.ts` is the one exception, not a fourth instance of the
- *     bug: reading its imports shows it has none of `src/sim/content.ts`,
- *     `Run` or `loadContent` anywhere — it works by `readFileSync`-ing
+ *   - `phase-coverage.ts`, `soak.ts` — both import `src/sim/content.ts`
+ *     transitively (`Run` → `loadContent()`) and both crash identically:
+ *     exit 1, empty stdout, a multi-frame `node:internal/modules/run_main` +
+ *     `Error: Transform failed with 1 error: ...data/towers.json:1:2: ERROR:
+ *     Expected string in JSON but found "not"` stack on stderr. `--json`
+ *     mode is unaffected by the flag — the crash happens before `main()`
+ *     ever inspects `argv`.
+ *   - `gate-audit.ts` is one exception, not a third instance of the bug:
+ *     reading its imports shows it has none of `src/sim/content.ts`, `Run`
+ *     or `loadContent` anywhere — it works by `readFileSync`-ing
  *     `SPEC-FINAL.md` and grepping test files by name, never touching
  *     `/data` at all. A corrupted `data/towers.json` leaves it at a clean
  *     exit 0, table intact. Worth pinning by name too, since "all four CLIs"
  *     was the assumption this item's own acceptance text carried in from
  *     QA's session-23 finding, and it is one CLI too many.
+ *   - `content-census.ts` is a **second** exception, landed later (q38):
+ *     it now imports `loadContent` dynamically, inside `main()`'s own try,
+ *     instead of statically at module scope — verified live, re-run after
+ *     q38's fix, that a syntax-broken `towers.json` now produces the same
+ *     one-line `content-census: Transform failed with 1 error: ...` message
+ *     (plain) or a single parseable `{"error": "..."}` line (`--json`) that
+ *     q25/q28 already established as this lane's bar, rather than the raw
+ *     stack trace it produced when this test was first written. Its own
+ *     describe block below pins the *fixed* behaviour, the mirror image of
+ *     `gate-audit.ts`'s "never affected" block.
  *
- * The fix (dynamic `import()` of a pre-validated string read via
- * `readFileSync`/`JSON.parse` inside `loadContent()`) touches
- * `src/sim/content.ts`, outside this lane's Scope (`/src/**`) — filed as
- * main-lane work in BACKLOG-QUALITY.md's Log, per q18's precedent for an
- * unfixable-from-here gap.
+ * The general fix (dynamic `import()` of a pre-validated string read via
+ * `readFileSync`/`JSON.parse` inside `loadContent()` itself, covering every
+ * CLI at once) touches `src/sim/content.ts`, outside this lane's Scope
+ * (`/src/**`) — filed as main-lane work in BACKLOG-QUALITY.md's Log, per
+ * q18's precedent for an unfixable-from-here gap. `content-census.ts`'s
+ * per-file workaround (q38) does not extend to `phase-coverage.ts`/
+ * `soak.ts`, which is why those two are still pinned as broken below.
  */
 import { execFileSync } from 'node:child_process';
 import { cpSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
@@ -99,7 +111,6 @@ const RAW_STACK_FRAME = /\bat \S+ \(/;
 const ESBUILD_TRANSFORM_ERROR = /Transform failed with \d+ error/;
 
 describe.each([
-  ['content-census.ts', [] as string[]],
   ['phase-coverage.ts', ['--seeds', '1']],
   ['soak.ts', ['--seeds', '1']],
 ])('%s crashes uncaught on a /data JSON syntax error (q33)', (tool, args) => {
@@ -152,6 +163,46 @@ describe('gate-audit.ts is unaffected by a /data JSON syntax error (q33)', () =>
       expect(stderr, stderr).toBe('');
       expect(exitCode).toBe(0);
       expect(stdout).toContain('gate audit');
+    } finally {
+      rmSync(dir, RM_RETRY);
+    }
+  }, NESTED_TSX_TIMEOUT_MS + 10_000);
+});
+
+describe('content-census.ts no longer crashes uncaught on a /data JSON syntax error (q38)', () => {
+  it('plain mode: exits nonzero with the same clean one-line message a schema violation gets', () => {
+    const dir = scratchPath('content-census-fixed');
+    try {
+      populateScratch(dir);
+      breakTowersJsonSyntax(dir);
+      const { exitCode, stdout, stderr } = runCli(dir, 'content-census.ts', []);
+      expect(exitCode).not.toBe(0);
+      expect(stdout).toBe('');
+      expect(stderr).toContain('content-census:');
+      expect(stderr.trim().split('\n')).toHaveLength(1);
+      expect(stderr).not.toMatch(RAW_STACK_FRAME);
+      // The underlying failure is still the esbuild transform (q38's fix
+      // only moves *when* it runs, not what it is) — the message text
+      // still names it, just as a one-liner instead of a stack trace.
+      expect(stderr).toMatch(ESBUILD_TRANSFORM_ERROR);
+      expect(stderr).toContain('towers.json');
+    } finally {
+      rmSync(dir, RM_RETRY);
+    }
+  }, NESTED_TSX_TIMEOUT_MS + 10_000);
+
+  it('--json mode: exits nonzero with a single parseable {error} line', () => {
+    const dir = scratchPath('content-census-fixed-json');
+    try {
+      populateScratch(dir);
+      breakTowersJsonSyntax(dir);
+      const { exitCode, stdout, stderr } = runCli(dir, 'content-census.ts', ['--json']);
+      expect(exitCode).not.toBe(0);
+      expect(stderr).toBe('');
+      expect(stdout.trim().split('\n')).toHaveLength(1);
+      const parsed = JSON.parse(stdout);
+      expect(typeof parsed.error).toBe('string');
+      expect(parsed.error).toMatch(ESBUILD_TRANSFORM_ERROR);
     } finally {
       rmSync(dir, RM_RETRY);
     }

@@ -517,4 +517,12 @@ function main(): void {
 }
 
 const entry = (process.argv[1] ?? '').replace(/\\/g, '/');
-if (entry.endsWith('tools/fuzz-input.ts')) main();
+if (entry.endsWith('tools/fuzz-input.ts')) {
+  try {
+    main();
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`fuzz-input: ${message.replace(/\s+/g, ' ').trim()}`);
+    process.exitCode = 1;
+  }
+}
