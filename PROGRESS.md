@@ -5,6 +5,49 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-29 owner-directive session: fb017 done (fast test tier), BACKLOG
+  reordered under a new owner priority queue, fb019 filed, b028/b029 filed.**
+  Housekeeping findings first: the lane/quality and lane/tuner merges left
+  **no conflicts or markers** (verified by grep and `git status` — both lane
+  tips are ancestors of master, no merge in progress); fb007 was already
+  committed (`6517320` + `8668cc8`) and its targeted suite re-verified green
+  this session (dps-panel + hud-controls, 36 tests). The only stranded
+  uncommitted work found anywhere is in the **`D:\lidl_games-tuner` worktree**:
+  a dirty draft of the G7 sealing engine work (grid/towers/content edits + a
+  `tests/g7-sealing.test.ts`) sitting on the old `417f9a3` base —
+  **superseded by master's p1a commit `170fa41`**, which implements the same
+  clauses with its own tests. Left untouched rather than committed (committing
+  a stale duplicate onto a merged lane helps nobody) — a future session may
+  discard that worktree's dirt once the owner confirms.
+  **(fb017)**: `vitest.fast.config.ts` + `npm run test:fast`; final tier
+  measured green at **99.8 s wall, 84 files + 4 skipped, 1364 tests passed**
+  (first cut 57 s before eight measured-fast suspects were restored).
+  Exclusions are measured, not guessed: a4 116 s, p1b 121 s, q2 122 s, q9
+  184 s standalone; a1/a7/q18 (fully `.skip`ed), q26 (31 ms), a2 (9.2 s),
+  q13 (10 s), q15 (17.6 s), a11 (21.6 s) all measured under 60 s and kept in
+  the tier. p6e/p-core-f/q12/q14/boss/a3/a9 excluded on their documented
+  costs (p6e alone ~1 h, b027). CLAUDE.md's commands list, working rule 2 and
+  loop-mode contract now say: per-item verification = targeted tests +
+  `test:fast`; FULL `npm test` only at phase (P) completion, lane merges, and
+  before DONE.md; never as a background run inside an ordinary item. The two
+  Windows flakes are filed as **b028** (q14 runaway-subprocess hang; this
+  session also found and killed **252 orphaned vitest/tinypool/npm-test
+  processes** accumulated from prior sessions — 228 tinypool workers, 12
+  vitest mains, 5 whole `npm test` trees dating back to 07:39 — sparing the
+  `npm run dev`/vite pair, which still runs) and **b029** (q28 scratch-dir
+  EPERM rename race). Subagent review/QA was skipped for this item by the
+  owner-directive's own instruction to verify with targeted tests only — the
+  acceptance criteria are all direct measurements recorded here.
+  **BACKLOG reorder (owner 2026-08-29 directive)**: a new "Owner priority
+  queue" section now sits at the very top — fb015 (equipment), fb016
+  (skill/Core VFX), fb019 (training grounds, NEW — no feedback file exists;
+  scoped as a Hub practice arena on the existing practice/god-mode plumbing
+  and logged as **Q135**, owner verdict pending), fb008 (exp-to-gold), fb010
+  (x10/x50 speed), fb011 (boon rank caps), fb014 (constellation auto-max), in
+  that order; only a bug directly blocking one of them may outrank them. The
+  directive's "DoT HP-bar segment" is fb006, already done (`e460be1`), so it
+  is noted, not re-queued.
+
 - **(b026) is done this commit — Clarion Taunt's `tauntDurationSeconds`
   corrected from 6 to 4 (SPEC-FINAL §4.2, QUESTIONS.md Q128).** Found
   already implemented and uncommitted at session start (`data/classes.json`'s

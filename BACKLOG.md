@@ -47,6 +47,92 @@ still in test headers.
 Both corrections (x001, x002) are **done** — see the Done section. The queue
 resumes at P1.
 
+### Owner priority queue (2026-08-29 directive) — execute top-down
+
+The owner's 2026-08-29 instruction pins these eight items to the very top of
+the queue, in this exact order, ahead of every other section (including the
+Q121 PRIORITY DIRECTIVE's remnants). **Only a bug that directly blocks one of
+these items may sit above it.** The directive also listed the DoT HP-bar
+segment — that is **fb006, already done** (commit `e460be1`), so it does not
+reappear here.
+
+- [ ] (fb015) [feat] top priority: realize the equipment system per §7 (the
+      current build does not implement it) — six slots (weapon, armor,
+      shoes, ring, necklace, bracelet); `data/equipment.json` holds the
+      full owner-authored 12-item table (exact HP/Atk/Def flats, atk-speed
+      and move multipliers, every conditional line including class checks
+      and written fallbacks, and the sword+armor cross-item interaction
+      changing Circle Slash scaling); multipliers stack per §2 (one source
+      per item), flats add; each fully cleared TD wave grants 1 random item
+      at Results (win or lose), duplicates allowed (Q42); stash + equip UI
+      with click-to-swap; character panel (fb004) stops treating equipment
+      as inert and shows item sources in stat breakdowns (closes Q132's
+      open gap); dev profile pre-stashes all 12 items (existing T3 rule) —
+      acceptance: all 12 items exist, equip/unequip works, every
+      conditional line (including the two-item interaction and one
+      "if not class" fallback) has a unit test, loot pays 1 item per
+      cleared TD wave at Results, G12's equipment clause is green — refs:
+      §7, §8.1, §2, gate G12, owner feedback `feature-equipment-realize`.
+- [ ] (fb016) [feat] top priority: indicators + VFX for every skill and Core
+      function — every class active gets an aim/charge indicator while
+      casting and a firing VFX (Circle Slash radius-at-charge, Dash Slash
+      path, Poison Barrel circle, Glaciate nova, Taunt radius, Manifest
+      placement, Ice Wall footprint, etc.); every listed passive trigger
+      gets a visible cue (Thousand Cuts bleed tick, Spreading Plague jump
+      line, Conduction jump counter, Parry flash, shatter burst, Paladin
+      Wrath glow); every Core gets its listed indicator/VFX (Plant devour
+      bite + range ring, Corpse execution beam + store meter, Vampire
+      Heart lifesteal motes, Time slow-aura/decay-ring shading, upgrade
+      steps visibly reflected); primitive shapes are fine, style constants
+      live in one render module, respects reduced-flash, no sim changes —
+      acceptance: a data-driven registry checklist test asserts every
+      class/Core has indicator+VFX entries so a new skill without them
+      fails the test — refs: §11 indicators extended to skills/Cores,
+      owner feedback `feature-skill-core-vfx`.
+- [ ] (fb019) [feat] Training grounds: a Hub-accessible practice arena for
+      trying classes, towers, equipment and Cores outside a real run —
+      spawn-on-demand enemies (type/tier/count picked from a panel),
+      leave any time back to the Hub; built on the existing practice-run
+      plumbing (t4 god mode, `practice` dev ops) so every action stays a
+      replay-safe Command and the existing bank-nothing rule applies
+      unchanged — acceptance: enterable and leavable from the Hub; a
+      spawned enemy of a chosen type fights with its real stats; nothing
+      (gold/EXP/items/quest progress) persists to the profile; tests
+      cover entry/exit, one spawn op, and the nothing-banked rule — refs:
+      owner directive 2026-08-29 (no feedback file — filed per CLAUDE.md's
+      gap rule, logged QUESTIONS.md Q135), §11 practice tools, t4.
+- [ ] (fb008) [feat] Auto-collect all uncollected VS XP gems when a wave ends;
+      EXP beyond the character's current level-up need converts to gold at a
+      tunable ratio (start 1 gold per 2 EXP, log the chosen ratio to
+      QUESTIONS.md) — acceptance: ending a wave with gems on the ground yields
+      their EXP; overflow appears as gold with a HUD toast; a test covers both
+      the pure-EXP and overflow-to-gold paths — refs: §1.1, §2 (amends the
+      "gems do not convert" line), owner feedback `feature-exp-to-gold`.
+- [ ] (fb010) [feat] Game speed options extended to 1/2/3/10/50×; at 10× and
+      above the renderer may skip frames but the sim itself stays fixed 60 Hz
+      per sim-second with determinism unchanged — acceptance: a x50 run of a
+      full wave produces an end-state hash identical to the same seed at x1; a
+      test covers hash equality; available at minimum in the dev profile (log
+      to QUESTIONS.md if kept out of the normal game) — refs: §11, owner
+      feedback `feature-game-speed-x10-x50`.
+- [ ] (fb011) [feat] Remove the max-rank limit on VS stat boons and Type
+      Mastery cards (were ×5 / ×3) — they keep appearing in offers at any
+      rank; skill cards keep their existing caps; stacking still follows §2
+      (ranks within one boon add, then multiply as one source) — acceptance:
+      a boon can be taken 10+ times with its effect matching the stacking
+      rule; the offer pool never exhausts on rank alone; a test covers a
+      10-rank case — refs: §6.3 (supersedes the rank caps), owner feedback
+      `feature-remove-boon-rank-caps`.
+- [ ] (fb014) [feat] Constellation tree counts as fully allocated on every
+      run (temporary supersede of §8.3) — no point-spending or allocation
+      UI; the tree data and the skill-point counter stay live so the system
+      can be re-enabled later — acceptance: a fresh profile plays with
+      every node's effect active; skill points still accrue and display;
+      the tree screen shows every node allocated; gates that measured point
+      economies are `.skip`-ed with this reason — refs: §8.3 temporary
+      supersede, Q134 (applies in dev and normal play), owner feedback
+      `feature-constellation-auto-max`.
+
 ### Feedback — owner-filed items (2026-08-27), processed from `feedback/`
 
 Filed from the owner's 2026-08-27 feedback batch (12 files, `verdicts-q1-121`
@@ -101,13 +187,7 @@ filed and ready, not next up.
       damage-share telemetry (test compares them); visible in both phases —
       **done, see Done section** — refs: §11, owner feedback
       `feature-dps-summary`.
-- [ ] (fb008) [feat] Auto-collect all uncollected VS XP gems when a wave ends;
-      EXP beyond the character's current level-up need converts to gold at a
-      tunable ratio (start 1 gold per 2 EXP, log the chosen ratio to
-      QUESTIONS.md) — acceptance: ending a wave with gems on the ground yields
-      their EXP; overflow appears as gold with a HUD toast; a test covers both
-      the pure-EXP and overflow-to-gold paths — refs: §1.1, §2 (amends the
-      "gems do not convert" line), owner feedback `feature-exp-to-gold`.
+- (fb008) — moved to the **Owner priority queue (2026-08-29 directive)** above.
 - [ ] (fb009) [feat] Remove the early-call bonus-gold mechanic (including
       multi-summon's per-wave bonus) entirely; every TD wave cleared instead
       pays a fixed `20 + 10 × wave` reward (tunable); multi-summon (stacking
@@ -116,21 +196,8 @@ filed and ready, not next up.
       economy tests are updated to match; a test covers it — refs: §1.1
       (supersedes the early-call bonus rule), owner feedback
       `feature-fixed-wave-reward`.
-- [ ] (fb010) [feat] Game speed options extended to 1/2/3/10/50×; at 10× and
-      above the renderer may skip frames but the sim itself stays fixed 60 Hz
-      per sim-second with determinism unchanged — acceptance: a x50 run of a
-      full wave produces an end-state hash identical to the same seed at x1; a
-      test covers hash equality; available at minimum in the dev profile (log
-      to QUESTIONS.md if kept out of the normal game) — refs: §11, owner
-      feedback `feature-game-speed-x10-x50`.
-- [ ] (fb011) [feat] Remove the max-rank limit on VS stat boons and Type
-      Mastery cards (were ×5 / ×3) — they keep appearing in offers at any
-      rank; skill cards keep their existing caps; stacking still follows §2
-      (ranks within one boon add, then multiply as one source) — acceptance:
-      a boon can be taken 10+ times with its effect matching the stacking
-      rule; the offer pool never exhausts on rank alone; a test covers a
-      10-rank case — refs: §6.3 (supersedes the rank caps), owner feedback
-      `feature-remove-boon-rank-caps`.
+- (fb010) — moved to the **Owner priority queue (2026-08-29 directive)** above.
+- (fb011) — moved to the **Owner priority queue (2026-08-29 directive)** above.
 
 Filed from the owner's 2026-08-28 feedback batch (6 files, all `[feature]`,
 none carrying verdict blocks — nothing to apply to QUESTIONS.md beyond
@@ -170,62 +237,15 @@ called out in their own titles instead.
       (mark icons above enemies for past/present/future); class-count
       gates, census, Codex and dev profile updated for 12 classes — refs:
       §4.2 addition, owner feedback `feature-class-timelord`.
-- [ ] (fb014) [feat] Constellation tree counts as fully allocated on every
-      run (temporary supersede of §8.3) — no point-spending or allocation
-      UI; the tree data and the skill-point counter stay live so the system
-      can be re-enabled later — acceptance: a fresh profile plays with
-      every node's effect active; skill points still accrue and display;
-      the tree screen shows every node allocated; gates that measured point
-      economies are `.skip`-ed with this reason — refs: §8.3 temporary
-      supersede, Q134 (applies in dev and normal play), owner feedback
-      `feature-constellation-auto-max`.
-- [ ] (fb015) [feat] top priority: realize the equipment system per §7 (the
-      current build does not implement it) — six slots (weapon, armor,
-      shoes, ring, necklace, bracelet); `data/equipment.json` holds the
-      full owner-authored 12-item table (exact HP/Atk/Def flats, atk-speed
-      and move multipliers, every conditional line including class checks
-      and written fallbacks, and the sword+armor cross-item interaction
-      changing Circle Slash scaling); multipliers stack per §2 (one source
-      per item), flats add; each fully cleared TD wave grants 1 random item
-      at Results (win or lose), duplicates allowed (Q42); stash + equip UI
-      with click-to-swap; character panel (fb004) stops treating equipment
-      as inert and shows item sources in stat breakdowns (closes Q132's
-      open gap); dev profile pre-stashes all 12 items (existing T3 rule) —
-      acceptance: all 12 items exist, equip/unequip works, every
-      conditional line (including the two-item interaction and one
-      "if not class" fallback) has a unit test, loot pays 1 item per
-      cleared TD wave at Results, G12's equipment clause is green — refs:
-      §7, §8.1, §2, gate G12, owner feedback `feature-equipment-realize`.
-- [ ] (fb016) [feat] top priority: indicators + VFX for every skill and Core
-      function — every class active gets an aim/charge indicator while
-      casting and a firing VFX (Circle Slash radius-at-charge, Dash Slash
-      path, Poison Barrel circle, Glaciate nova, Taunt radius, Manifest
-      placement, Ice Wall footprint, etc.); every listed passive trigger
-      gets a visible cue (Thousand Cuts bleed tick, Spreading Plague jump
-      line, Conduction jump counter, Parry flash, shatter burst, Paladin
-      Wrath glow); every Core gets its listed indicator/VFX (Plant devour
-      bite + range ring, Corpse execution beam + store meter, Vampire
-      Heart lifesteal motes, Time slow-aura/decay-ring shading, upgrade
-      steps visibly reflected); primitive shapes are fine, style constants
-      live in one render module, respects reduced-flash, no sim changes —
-      acceptance: a data-driven registry checklist test asserts every
-      class/Core has indicator+VFX entries so a new skill without them
-      fails the test — refs: §11 indicators extended to skills/Cores,
-      owner feedback `feature-skill-core-vfx`.
-- [ ] (fb017) [feat] top priority: split tests into fast/slow tiers so loop
-      iterations stop burning 40+ minutes per item — tag every suite over
-      ~60 s (p6e-class-diversity, soak, q14 mutation-smoke, long fuzz/
-      live-sim files) and add `npm run test:fast` excluding them, under 5
-      minutes total; amend CLAUDE.md's loop contract so per-item
-      verification is targeted tests + `test:fast`, with full `npm test`
-      reserved for phase (P-milestone) completion, before any lane merge,
-      and before DONE.md; file the two known Windows flakes (q14
-      mutation-smoke's runaway-subprocess hang, documented this session in
-      PROGRESS.md's fb004 entry; the q28 EPERM temp-file rename) as their
-      own backlog items with repros so they stop polluting unrelated runs —
-      acceptance: `npm run test:fast` exists and finishes under 5 minutes;
-      CLAUDE.md updated; both flakes filed — refs: CLAUDE.md working
-      rules/loop contract amendment, owner feedback `feature-test-tiers`.
+- (fb014) — moved to the **Owner priority queue (2026-08-29 directive)** above.
+- (fb015) — moved to the **Owner priority queue (2026-08-29 directive)** above.
+- (fb016) — moved to the **Owner priority queue (2026-08-29 directive)** above.
+- [x] (fb017) [feat] top priority: split tests into fast/slow tiers so loop
+      iterations stop burning 40+ minutes per item — **done, see Done
+      section** (`vitest.fast.config.ts` + `npm run test:fast`, measured
+      57 s green; CLAUDE.md loop contract amended; flakes filed as b028/
+      b029) — refs: CLAUDE.md working rules/loop contract amendment, owner
+      feedback `feature-test-tiers`.
 - [ ] (fb018) [feat] UI self-audit tool: a dev-mode audit rendering a fixed set
       of deterministic scenes (Hub, mid-TD wave with selection panel open,
       350-enemy VS chaos with all damage types active, level-up offer screen,
@@ -842,6 +862,30 @@ because the lane worktree retires at this merge.
       re-pin the assertion to the new honestly-measured count with the reason
       recorded, or fix the determinism gap if one is found — refs: SPEC-FINAL
       §14 G8, CLAUDE.md measurement rules, BACKLOG.md audit summary P6 row.
+- [ ] (b028) [bug] `tests/q14-mutation-smoke.test.ts` on Windows can spawn a
+      runaway tree of orphaned nested `vitest` subprocesses and hang. Repro
+      (documented in PROGRESS.md's fb004 entry, 2026-08-28): run the full
+      `npm test` under host load — q14 reproducibly spawned 191+ orphaned
+      nested `vitest` processes (~90% sustained host CPU) and hung on a
+      Windows scratch-dir `EPERM` during cleanup; q14 wraps q9/q12/q15 as
+      literal nested "control" reruns, so it inherits and amplifies their
+      flakiness. Filed per fb017 so it stops polluting unrelated runs (q14 is
+      excluded from `test:fast` regardless) — acceptance: q14's child runs
+      get a hard timeout + process-tree kill on the Windows path (or the
+      nested-rerun design is replaced with something that cannot orphan
+      children); three consecutive full-suite runs complete with no orphaned
+      `vitest` processes left behind — refs: fb017, PROGRESS.md fb004 entry,
+      `tools/mutation-probe.ts`.
+- [ ] (b029) [bug] `tests/q28-cli-error-handling.test.ts` intermittently fails
+      on Windows with an `EPERM` on a scratch-dir temp-file rename (same
+      scratch-dir cleanup race class PROGRESS.md documents for q13/q15; q28's
+      instance reproduced 0/3 in isolation — it is a load-dependent race, not
+      a logic bug). Filed per fb017 so it stops polluting unrelated runs —
+      acceptance: the temp-file rename gets a bounded retry-on-EPERM (the
+      standard Windows AV/indexer-hold workaround) or each case gets a unique
+      scratch subdir removing the shared-handle race; ten consecutive q28 runs
+      under a concurrent full-suite load pass — refs: fb017, PROGRESS.md
+      (q13/q15/q28 EPERM class), CLAUDE.md rule 6.
 
 ## Retired from the queue by SPEC-FINAL
 
@@ -872,6 +916,30 @@ logged in MIGRATION.md §8 rather than carried as dead items.
   **G19**. The work is `p10d`.
 
 ## Done
+
+- [x] (fb017) [feat] fast/slow test tiers — this commit (2026-08-29).
+      `vitest.fast.config.ts` extends the base config with an exclude list of
+      every suite measured or documented over ~60 s on this host: p6e (~1 h
+      per b027's note), p-core-f-gates, q12-soak, q14-mutation-smoke, boss
+      (20-seed runs), a3/a9 (long mandatory-mechanism sims), and — measured
+      standalone this session rather than excluded on plausibility
+      (CLAUDE.md measurement rules) — a4 116 s, p1b 121 s, q2 122 s,
+      q9 184 s; a10 stays in the perf config as before. Eight suspects
+      measured UNDER 60 s stayed in the fast tier (a1/a7/q18 fully `.skip`ed,
+      q26 31 ms, a2 9.2 s, q13 10 s, q15 17.6 s, a11 21.6 s).
+      `npm run test:fast` runs the rest — first cut measured green at 57 s
+      wall (79 files, 1316 tests passed, 26 skipped), and the final tier
+      re-verified green well under the 5-minute acceptance bar with the
+      eight restored files included (numbers in PROGRESS.md). CLAUDE.md
+      amended in three places (commands list, working rule 2, loop-mode
+      contract): per-item verification is targeted tests + `test:fast`; the
+      FULL `npm test` is reserved for phase (P) completion, lane merges, and
+      before DONE.md, and is never started as a background run inside an
+      ordinary item. Both known Windows flakes filed with repros as b028
+      (q14's runaway-subprocess hang — this session found and killed 252
+      orphaned vitest/tinypool/npm-test processes accumulated from prior
+      sessions' runs, dev server untouched) and b029 (q28's scratch-dir
+      EPERM rename race).
 
 - [x] (b026) [bug] Clarion Taunt's `tauntDurationSeconds` corrected from 6 to
       4 in `data/classes.json` — this commit, implementation found already
