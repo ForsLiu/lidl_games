@@ -5,6 +5,60 @@
 
 ## Current state — SPEC-FINAL
 
+- **(fb005) is done (`d0b6ad4`) — per-damage-type color/font in floating
+  damage numbers (owner feedback `feature-damage-type-colors`, SPEC-FINAL
+  §3/§11).** Also processed this session: the owner's 2026-08-28 feedback
+  batch (6 new `[feature]` files, none carrying verdict blocks) filed as
+  BACKLOG items **fb012–fb017** (`0dfb9f8`) — autopick-in-options, class #12
+  Time Lord, Constellation auto-max (Q134), equipment realize (top
+  priority), skill/Core VFX (top priority), and test fast/slow tiers (top
+  priority) — moved to `feedback/processed/`. fb005 itself was found
+  already substantially implemented, uncommitted, at session start (a prior
+  session's in-flight work; QUESTIONS.md's Q133 entry documents its five
+  design calls, written before this session started). This session verified
+  it end to end rather than re-implementing: style mapping lives entirely in
+  `data/damagetypes.json` (`color`/`colorblindColor` per damage type and
+  status, `executeColor`/`colorblindExecuteColor`/`executeFontScale` for
+  Corpse Core's execution kill — the game's only real "instant, larger,
+  distinct" hit, since no crit mechanic exists), read only through new
+  `src/sim/damagetypes.ts` helpers; `enemies.ts`'s `damageEnemy` now emits
+  `hit:${type}` so the renderer knows which §3 type landed (DoT ticks stay
+  silent by design, an existing perf tradeoff, but now draw distinct marker
+  dots); `cores.ts`'s Corpse execution fires a dedicated `execute` fx event,
+  previously silent; `content.ts` gained a loader-time
+  `validateDamageStyleColors` rule (closed a real pre-existing hole as a
+  side effect — a duplicated `damagetypes.types` row used to load silently);
+  a new `Settings.accessiblePalette` Hub toggle, deliberately not named with
+  the literal word "colorblind" (contains the substring "orb", which trips
+  `tests/c7-no-orbs.test.ts`'s scan for the retired Orb system).
+  **code-reviewer: APPROVE**, no Critical/Major (one Minor — case-sensitive
+  color dedup — fixed in the same pass).
+  **qa-playtester: PASS** against the literal acceptance criteria, verified
+  in real gameplay (a headless sim run, not just synthetic fx pushes), filed
+  two Minor bugs, both fixed in the same commit with regression tests: an
+  authored `color: ""` bypassed the documented white fallback (`??` only
+  guards `null`/`undefined`) — fixed with a new non-empty `hexColor` schema
+  plus `||`-based runtime fallbacks; and `executeColor` wasn't checked
+  against the other 8 rows for a color collision — fixed by adding it as a
+  ninth row to the collision set. Two non-blocking observations left as-is
+  (see BACKLOG.md's fb005 Done entry for detail): the shipped execute color
+  is identical in both palettes (a designer question, not a bug), and no
+  renderer-level test directly exercises the real marker-dot/status-ring
+  paths (only their underlying color values and the gameplay-unreachable
+  floating-number path for DoT types are asserted at the renderer level).
+  `tests/q7-loader-holes.ts` regenerated twice (once for the original 9
+  fields, once more for the `hexColor` tightening — 8 `empty-string`
+  mutations move from accepted to rejected, nothing else changes).
+  `npx tsc --noEmit` clean throughout. Targeted suite (`fb005-damage-
+  colors`, `m19c-damage-types`, `q7-data-fuzz`, `c7-no-orbs`,
+  `hud-controls`, `q3-save-fuzz`, `content-complete`) green. Full
+  `npx vitest run --exclude tests/q14-mutation-smoke.test.ts --exclude
+  tests/p6e-class-diversity.test.ts --exclude tests/a10-performance.test.ts`
+  (94 files): 1411/1412 passed, 55 skipped — the only failure was
+  `tests/q49-price-probe-restore.test.ts`'s pre-existing, documented Windows
+  scratch-dir `EPERM` cleanup flake (same class as q13/q15/q28), unrelated
+  to this item's files.
+
 - **The second lane/quality merge is done (`03eb4a2`)** — the lane's sessions
   30–52 (q36–q57: the CLI crash-coverage harness `tools/cli-crash-coverage.ts`,
   the q33/q37/q41/q45/q46 JSON-syntax/schema-violation CLI suites, the q49/q53

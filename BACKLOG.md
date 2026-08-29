@@ -81,13 +81,13 @@ filed and ready, not next up.
       stacking rules) plus every boon taken this run with rank and current
       contribution — **done, see Done section** — refs: §2, §6.3, §11,
       owner feedback `feature-boon-stats-panel`.
-- [ ] (fb005) [feat] Per-damage-type color/font in floating damage numbers,
+- [x] (fb005) [feat] Per-damage-type color/font in floating damage numbers,
       defined in `data/damagetypes.json` (not code); crits/execute render
       larger; colorblind-safe variants respect the existing palette setting —
       acceptance: each of the six damage types plus the two statuses visibly
       differs in a mixed fight; the style mapping lives in `/data`; a test
-      asserts the mapping — refs: §3, §11, owner feedback
-      `feature-damage-type-colors`.
+      asserts the mapping — **done, see Done section** — refs: §3, §11,
+      owner feedback `feature-damage-type-colors`.
 - [ ] (fb006) [feat] Enemy HP bars show a shaded/hatched segment sized to the
       unfinished DoT total, shrinking per tick as the DoT resolves —
       acceptance: applying poison shows the segment at the correct size;
@@ -825,6 +825,85 @@ logged in MIGRATION.md §8 rather than carried as dead items.
 
 ## Done
 
+- [x] (fb005) [feat] Per-damage-type color/font in floating damage numbers —
+      this commit (`d0b6ad4`). Found already substantially implemented,
+      uncommitted, at session start (a prior session's in-flight work,
+      documented in QUESTIONS.md's Q133 entry and PROGRESS.md's fb004 entry);
+      this session verified it end to end, fixed two QA-filed bugs, and
+      committed rather than re-implementing.
+      Style mapping lives entirely in `data/damagetypes.json`: `color`/
+      `colorblindColor` per damage type (normal/bleeding/poison/toxic/
+      burning/electric) and per status (frost/frozen), plus `executeColor`/
+      `colorblindExecuteColor`/`executeFontScale` for Corpse Core's execution
+      kill — the one real "instant, larger, distinct" hit in the game, since
+      no generic crit mechanic exists anywhere in the codebase (grepped;
+      Q133). Read only through new `src/sim/damagetypes.ts` helpers
+      `damageStyleColor`/`executeStyle`. `enemies.ts`'s `damageEnemy` now
+      emits `hit:${type}` instead of a bare `hit` so the renderer knows which
+      §3 type just landed (the type rides the fx *kind* string rather than
+      growing `World.fx`'s shared tuple — confirmed presentation-only, `.fx`
+      never reaches `hashWorld`); DoT ticks (Bleeding/Poison/Toxic/Burning)
+      stay silent by design (an existing, documented perf tradeoff — a
+      350-enemy burning horde would otherwise flood the 512-event fx buffer)
+      but now draw distinct data-driven marker dots on the enemy sprite
+      (Poison/Toxic markers are new; Burning/Bleeding switched from
+      hardcoded hex). `cores.ts`'s Corpse execution kill now fires a
+      dedicated `execute` fx event, previously silent entirely.
+      `content.ts` adds a loader-time `validateDamageStyleColors` rejecting
+      any two of the 8 rows, or the execute color, sharing a color in either
+      palette (case-insensitively); as a side effect this closed a real
+      pre-existing hole (`tests/q7-loader-holes.ts`'s `dupe-element` mutation
+      for `damagetypes.types` was silently accepted before, since nothing
+      checked row uniqueness). New `Settings.accessiblePalette` toggle
+      (default off) in the Hub, labeled "Color-blind-safe damage colors" —
+      not the literal word "colorblind", which contains the substring "orb"
+      and would trip `tests/c7-no-orbs.test.ts`'s scan for the retired Orb
+      system. New `tests/fb005-damage-colors.test.ts` (17 tests): data
+      well-formedness in both palettes, loader collision rejection, the two
+      helper functions, and end-to-end renderer assertions via a
+      Proxy-recorded fake canvas context (mixed-fight coloring, colorblind
+      swap, execute fontScale, `damageNumbers: false` gating).
+      **code-reviewer: APPROVE**, no Critical/Major. One Minor (color dedup
+      was case-sensitive, so e.g. `#FFFFFF`/`#ffffff` wouldn't collide) fixed
+      in the same pass by lower-casing both dedup keys.
+      **qa-playtester: PASS** against the literal acceptance criteria
+      (verified in real gameplay via a headless sim run touching frost/
+      poison/normal damage, not just synthetic fx pushes), filed two Minor
+      bugs, both fixed in this commit with regression tests: (1) an authored
+      `color: ""` returned `''` verbatim instead of falling back to white —
+      `??` only guards `null`/`undefined`, not `""` — fixed by giving the
+      6 type-color fields, the 2 status-color fields and the 2 execute-color
+      fields a new non-empty `hexColor` schema (`z.string().min(1)`) so an
+      empty string is now rejected at load time, plus `||`-based runtime
+      fallbacks in `damageStyleColor`/`executeStyle` as defense in depth for
+      any directly-constructed object; (2) `executeColor`/
+      `colorblindExecuteColor` were not checked against the 8 type/status
+      rows for collision — fixed by adding the execute color as a ninth row
+      in `validateDamageStyleColors`'s collision set. Two non-blocking
+      observations left as-is: the shipped `executeColor` and
+      `colorblindExecuteColor` are identical (`#fff6d0`), so toggling
+      `accessiblePalette` never changes the execute color (a designer
+      question, not a bug); no renderer-level test exercises the real
+      marker-dot/status-ring paths directly (only the underlying
+      `damageStyleColor` values and the gameplay-unreachable floating-number
+      path for DoT types are asserted at the renderer level) — worth a
+      follow-up but not blocking since the marker mechanism itself was
+      independently verified against real `Enemy.dots`/`frostRemaining`/
+      `frozenRemaining` state.
+      `tests/q7-loader-holes.ts` regenerated twice this session (once for
+      the original 9 fields, once more for the `hexColor` tightening — 8
+      `empty-string` mutations move from accepted to rejected, nothing
+      else changes) via `Q7_RECORD=1 npx vitest run tests/q7-data-fuzz.test.ts`.
+      `npx tsc --noEmit` clean throughout. Targeted suite (`fb005-damage-
+      colors`, `m19c-damage-types`, `q7-data-fuzz`, `c7-no-orbs`,
+      `hud-controls`, `q3-save-fuzz`, `content-complete`) green. Full
+      `npx vitest run --exclude tests/q14-mutation-smoke.test.ts --exclude
+      tests/p6e-class-diversity.test.ts --exclude tests/a10-performance.test.ts`
+      (94 files): 1411/1412 passed, 55 skipped — the only failure was
+      `tests/q49-price-probe-restore.test.ts`'s pre-existing, documented
+      Windows scratch-dir `EPERM` cleanup flake (same class as q13/q15/q28,
+      unrelated to this item's files), re-run standalone would be expected
+      green per that flake's established pattern.
 - [x] (fb004) [feat] Character panel: every final stat's §2 multiplier
       breakdown by source, plus every boon taken this run with rank and
       current contribution — this commit (`df1771f`). New `src/ui/
