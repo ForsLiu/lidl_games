@@ -39,7 +39,11 @@ function rightClick(el: Element): void {
   el.dispatchEvent(new window.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
 }
 
-describe('a fresh account can undo a misclicked Constellation point', () => {
+// fb014 (Q134, SPEC-FINAL §8.3 temporary supersede): the Constellation tree's
+// click-to-allocate/right-click-to-refund UI is disabled while every node
+// counts as allocated for actual play. Re-enable when TREE_AUTO_MAX (src/meta/
+// meta.ts) flips back to false.
+describe.skip('a fresh account can undo a misclicked Constellation point', () => {
   const content = loadContent();
   const firstNode = content.treeById.get(0)!.links[0];
 

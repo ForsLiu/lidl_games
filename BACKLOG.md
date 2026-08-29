@@ -76,15 +76,8 @@ reappear here.
       rule; the offer pool never exhausts on rank alone; a test covers a
       10-rank case — refs: §6.3 (supersedes the rank caps), owner feedback
       `feature-remove-boon-rank-caps`. **done, see Done section.**
-- [ ] (fb014) [feat] Constellation tree counts as fully allocated on every
-      run (temporary supersede of §8.3) — no point-spending or allocation
-      UI; the tree data and the skill-point counter stay live so the system
-      can be re-enabled later — acceptance: a fresh profile plays with
-      every node's effect active; skill points still accrue and display;
-      the tree screen shows every node allocated; gates that measured point
-      economies are `.skip`-ed with this reason — refs: §8.3 temporary
-      supersede, Q134 (applies in dev and normal play), owner feedback
-      `feature-constellation-auto-max`.
+- [x] (fb014) [feat] Constellation tree counts as fully allocated on every
+      run — **done, see Done section.**
 
 ### Feedback — owner-filed items (2026-08-27), processed from `feedback/`
 
@@ -869,6 +862,53 @@ logged in MIGRATION.md §8 rather than carried as dead items.
   **G19**. The work is `p10d`.
 
 ## Done
+
+- [x] (fb014) [feat] Constellation tree counts as fully allocated on every run
+      (temporary supersede of §8.3) — this commit (2026-08-29). New
+      `TREE_AUTO_MAX = true` and `allTreeNodeIds(content)` (`src/meta/meta.ts`)
+      are the one seam: `Hub.beginRun` (`src/ui/hub.ts`, both the normal Begin
+      button and fb019's Training Grounds entry) feeds every node id into
+      `RunConfig.allocated` instead of the account's real `meta.allocated`, so
+      `baseRunStats`/`derive` (`src/sim/stats.ts`, untouched) fold in every
+      node's stats — `meta.ts`'s `allocate`/`refund`/`pointsAvailable` stay
+      generic and unmodified, so real point accrual/display and a path back to
+      real spending both survive intact. `tree-view.ts` renders every
+      node/edge as lit ("120 / 120 allocated", full branch legend) with a note
+      explaining the temporary supersede while still showing the real banked
+      `pointsAvailable(meta)`; `wire()` skips attaching the click-to-
+      allocate/right-click-refund handlers entirely while the flag is on
+      (hover-to-read a node still works). The account "Points" cell's help
+      text no longer invites spending while points > 0, unchanged at exactly
+      0 points. `.skip`-ed the two now-inert spend/refund UI tests in
+      `tests/ui-input.test.ts` and the whole `tests/ui-refund-repro.test.ts`
+      describe, each commented fb014/Q134/TREE_AUTO_MAX. New
+      `tests/fb014-tree-auto-max.test.ts` (5 tests): the flag is on, a
+      Hub-started run's `RunConfig.allocated` covers every node id, the full
+      allocation reaches `baseRunStats` (a measurable `power`-factor delta
+      from an empty tree), the real `pointsAvailable()` figure still renders
+      in the account cell, and the tree screen shows every node `taken` with
+      click/right-click provably inert. code-reviewer found no Critical
+      issues; one Major (non-blocking, logged as **Q138** rather than fixed
+      here) — `tools/sim.ts`/`tools/sweep.ts`/`tools/handoff-metrics.ts` still
+      default `allocated: []`, so headless balance runs now measure a
+      materially weaker character than real (auto-max) play, left for P10's
+      re-baseline since forcing every tool to mirror the flag would remove
+      balance-analyst's ability to test partial-tree scenarios on purpose; two
+      Minor findings (a weak test assertion, a coverage-gap comment) fixed
+      before commit. qa-playtester **PASS** on all four acceptance criteria:
+      verified the stat difference through a real `Run`/`World` (maxHp 100 →
+      120.4, power factor 1.0 → 1.72 after 600 ticks), confirmed replay
+      determinism across 4 seeds with the full 121-id array baked into
+      `RunConfig`, confirmed clicking/right-clicking every rendered node on
+      both a fresh and a mid-progress (real pre-existing `meta.allocated`)
+      account never mutates `meta.allocated` or charges Ember, and confirmed
+      the dev profile's Ember/account-level grants don't interact with the
+      flag (it never touches `meta.ts`'s save/load/migrate or
+      `devprofile.ts`) — no bugs filed. `npx tsc --noEmit` clean; `npm run
+      test:fast` green apart from the two documented pre-existing Windows
+      host-load flakes (`q15-command-domain-fuzz`, `q49-price-probe-restore`),
+      both reproduced standalone-clean — refs: §8.3 temporary supersede, Q134,
+      Q138, owner feedback `feature-constellation-auto-max`.
 
 - [x] (fb011) [feat] Removed the rank cap on VS stat boons — this commit
       (2026-08-29). `data/boons.json`'s 11 stat boons (`power` through

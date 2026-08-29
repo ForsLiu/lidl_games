@@ -12,9 +12,11 @@ import {
   defaultMeta,
   seedTestAccount,
   allocate,
+  allTreeNodeIds,
   pointsAvailable,
   refund,
   stashCapacity,
+  TREE_AUTO_MAX,
 } from '../meta/meta';
 import { modifierDraft } from '../sim/tiers';
 import { devProfileActive } from '../meta/devprofile';
@@ -319,7 +321,9 @@ export class Hub {
         core,
         tier: this.tier,
         modifiers,
-        allocated: this.meta.allocated,
+        // fb014 (Q134): §8.3 supersede — every node's effect is live in an
+        // actual run regardless of what's really allocated on the account.
+        allocated: TREE_AUTO_MAX ? allTreeNodeIds(content) : this.meta.allocated,
         relics: equippedRelics(this.meta),
         equipment: equippedEquipmentList(this.meta),
         practice: practiceOverride ?? this.practice,
@@ -746,7 +750,9 @@ export function accountMarkup(meta: MetaState): string {
       value: String(points),
       help:
         points > 0
-          ? `${points} unspent — spend them on the Constellation tab.`
+          ? TREE_AUTO_MAX
+            ? `${points} banked. Every Constellation node is active regardless (temporary — see the Constellation tab).`
+            : `${points} unspent — spend them on the Constellation tab.`
           : 'All spent. Earn Ember to raise your account level for more.',
     },
   ];

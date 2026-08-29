@@ -6,7 +6,7 @@
  * reads persisted state directly.
  */
 
-import { defaultCoreKey, loadContent } from '../sim/content';
+import { defaultCoreKey, loadContent, type Content } from '../sim/content';
 import { rollRelic } from '../sim/loot';
 import { Rng } from '../sim/rng';
 import type { MetaState, Relic, RunReport } from '../sim/types';
@@ -256,6 +256,21 @@ export function pointsAvailable(meta: MetaState): number {
 }
 
 /* ------------------------------------------------------------------- tree */
+
+/**
+ * fb014 (Q134, SPEC-FINAL §8.3 temporary supersede): the Constellation counts
+ * as fully allocated for actual play, in dev and normal builds alike, until an
+ * owner verdict says otherwise. `MetaState.allocated`/`pointsAvailable` keep
+ * tracking real progression underneath unchanged, so points still accrue and
+ * display and a future flip back to `false` restores real spending with no
+ * data migration.
+ */
+export const TREE_AUTO_MAX = true;
+
+/** Every allocatable node id, in authored order — the "fully allocated" run input. */
+export function allTreeNodeIds(content: Content): number[] {
+  return [...content.treeById.keys()];
+}
 
 /** A node may be taken only if it touches something already allocated. */
 export function canAllocate(meta: MetaState, nodeId: number): boolean {

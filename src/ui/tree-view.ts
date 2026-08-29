@@ -11,7 +11,7 @@
  */
 
 import { loadContent, type TreeNode } from '../sim/content';
-import { canAllocate, pointsAvailable, refundBlocker } from '../meta/meta';
+import { canAllocate, pointsAvailable, refundBlocker, TREE_AUTO_MAX } from '../meta/meta';
 import type { MetaState } from '../sim/types';
 
 export const BRANCH_COLORS: Record<string, string> = {
@@ -116,25 +116,33 @@ function markup(
   const edges = edgeMarkup(content, meta, pos);
   const nodes = nodeMarkup(content.tree.nodes, meta, pos);
   const cost = content.tree.respecCostPerNode;
-  const allocated = meta.allocated.filter((id) => id !== 0).length;
+  const total = content.tree.nodes.filter((n) => n.kind !== 'start').length;
+  const allocated = TREE_AUTO_MAX ? total : meta.allocated.filter((id) => id !== 0).length;
 
   const legend = Object.keys(BRANCH_NAMES)
     .filter((k) => k !== 'start')
     .map((key) => {
-      const taken = meta.allocated.filter((id) => content.treeById.get(id)?.branch === key).length;
-      const total = content.tree.nodes.filter((n) => n.branch === key).length;
-      return `<span><i style="background:${BRANCH_COLORS[key]}"></i>${BRANCH_NAMES[key]} ${taken}/${total}</span>`;
+      const branchTotal = content.tree.nodes.filter((n) => n.branch === key).length;
+      const taken = TREE_AUTO_MAX
+        ? branchTotal
+        : meta.allocated.filter((id) => content.treeById.get(id)?.branch === key).length;
+      return `<span><i style="background:${BRANCH_COLORS[key]}"></i>${BRANCH_NAMES[key]} ${taken}/${branchTotal}</span>`;
     })
     .join('');
+
+  // fb014 (Q134, SPEC-FINAL §8.3 temporary supersede): no spend/refund copy or
+  // controls while every node is auto-active — real points still bank and show.
+  const note = TREE_AUTO_MAX
+    ? `Every node is active for this profile (temporary — SPEC-FINAL §8.3 supersede). Allocation
+       is off; you still have <b>${pointsAvailable(meta)}</b> point(s) banked for whenever it returns.`
+    : `<b>${pointsAvailable(meta)}</b> point(s) to spend &middot; left-click a lit node to take it
+       &middot; right-click to take one back. Points spent since you opened the Hub come back
+       <b>free</b>; older ones cost ${cost} Ember (you have <b>${meta.ember}</b>).`;
 
   return `
     <div class="sw-panel wide">
       <h2>Constellation <small>${allocated} / 120 allocated</small></h2>
-      <p class="sw-note">
-        <b>${pointsAvailable(meta)}</b> point(s) to spend &middot; left-click a lit node to take it
-        &middot; right-click to take one back. Points spent since you opened the Hub come back
-        <b>free</b>; older ones cost ${cost} Ember (you have <b>${meta.ember}</b>).
-      </p>
+      <p class="sw-note">${note}</p>
       <div class="sw-treewrap">
         <svg viewBox="0 0 ${size} ${size}" class="sw-tree" role="img" aria-label="Constellation">
           ${guides}${edges}${nodes}
@@ -175,7 +183,7 @@ function edgeMarkup(
       const o = content.treeById.get(l);
       if (!o) continue;
       const b = pos(o);
-      const lit = meta.allocated.includes(n.id) && meta.allocated.includes(l);
+      const lit = TREE_AUTO_MAX || (meta.allocated.includes(n.id) && meta.allocated.includes(l));
       const branch = n.branch === 'start' ? o.branch : n.branch;
       const colour = lit ? BRANCH_COLORS[branch] ?? '#7ae2c3' : '#232b38';
       out.push(
@@ -195,8 +203,8 @@ function nodeMarkup(
   return nodes
     .map((n) => {
       const p = pos(n);
-      const taken = meta.allocated.includes(n.id);
-      const open = canAllocate(meta, n.id);
+      const taken = TREE_AUTO_MAX || meta.allocated.includes(n.id);
+      const open = !TREE_AUTO_MAX && canAllocate(meta, n.id);
       const r = n.kind === 'keystone' ? 13 : n.kind === 'notable' ? 9 : 5.5;
       const branch = BRANCH_COLORS[n.branch] ?? '#e8edf5';
       const fill = taken ? branch : open ? '#39445a' : '#1a2029';
@@ -224,7 +232,7 @@ export function nodeCard(id: number | null, meta: MetaState): string {
   }
   const node = content.treeById.get(id);
   if (!node) return '';
-  const taken = meta.allocated.includes(id);
+  const taken = TREE_AUTO_MAX || meta.allocated.includes(id);
   const stats = Object.entries(node.stats).map((entry) => `<li>${describeStat(entry[0], entry[1])}</li>`);
   return `
     <h3 style="color:${BRANCH_COLORS[node.branch] ?? '#fff'}">${node.name}</h3>
@@ -244,6 +252,13 @@ function wire(body: HTMLElement, cb: TreeViewCallbacks): void {
   for (const el of body.querySelectorAll<SVGCircleElement>('.sw-node')) {
     const id = Number(el.dataset.node);
     el.addEventListener('mouseenter', () => (info.innerHTML = nodeCard(id, cb.meta())));
+
+    // fb014 (Q134): no point-spending/allocation UI while every node is
+    // auto-active — hover info above still works, click/refund do not attach.
+    // `allocationRefusal`/`refusalText` below go untested while this branch is
+    // taken (their only callers are click/contextmenu, both skipped here) —
+    // re-check them by hand if editing either while TREE_AUTO_MAX is on.
+    if (TREE_AUTO_MAX) continue;
 
     el.addEventListener('click', () => {
       const meta = cb.meta();

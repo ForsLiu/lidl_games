@@ -5,6 +5,66 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-29 session: fb014 done — the Constellation tree counts as fully
+  allocated on every run, next in the owner priority queue after fb011.**
+  Temporary supersede of §8.3 per the owner's `feature-constellation-auto-max`
+  feedback and Q134's logged default ("applies in dev AND normal play until
+  the owner says otherwise"). New `TREE_AUTO_MAX = true` and
+  `allTreeNodeIds(content)` (`src/meta/meta.ts`) are the single seam: `Hub`'s
+  `beginRun` (`src/ui/hub.ts`, both the normal Begin button and fb019's
+  Training Grounds entry) now feeds every node id into `RunConfig.allocated`
+  instead of the account's real `meta.allocated`, so `baseRunStats`/`derive`
+  fold in every node's stats unmodified — `src/sim/stats.ts` and
+  `src/meta/meta.ts`'s `allocate`/`refund`/`pointsAvailable` stay untouched
+  and generic (architecture rule 4), preserving real point accrual/display and
+  a clean path back to real spending if the flag flips off later. The
+  Constellation screen (`src/ui/tree-view.ts`) renders every node/edge as lit,
+  the header as "120 / 120 allocated", and the branch legend as full, with a
+  note explaining the temporary supersede while still showing the real
+  `pointsAvailable(meta)` banked count; `wire()` skips attaching the
+  click-to-allocate/right-click-refund handlers entirely while the flag is on
+  (hover-to-read a node still works). The account "Points" cell's help text
+  was also fixed to stop inviting spending ("banked ... every node is active
+  regardless") while points > 0, but left byte-identical at exactly 0 points
+  ("All spent. Earn Ember...") so the pre-existing `hub-testing.test.ts`
+  zero-points test keeps its meaning. `.skip`-ed the two tests that exercise
+  the now-disabled spend/refund UI path (`tests/ui-input.test.ts`'s "actually
+  refunds on right-click when affordable" / "leaves the node alone and says
+  why when the Ember is short") and the whole `tests/ui-refund-repro.test.ts`
+  describe, each with an fb014/Q134/TREE_AUTO_MAX comment. New
+  `tests/fb014-tree-auto-max.test.ts` (5 tests) covers the flag, that a
+  Hub-started run's `RunConfig.allocated` really covers every node id, that
+  the full allocation reaches `baseRunStats` (a measurable `power` factor
+  difference from an empty tree), that the real `pointsAvailable()` figure
+  still renders in the account "Points" cell, and that the tree screen shows
+  every node as `taken` with clicking/right-clicking provably inert (no
+  `meta.allocated` mutation). code-reviewer found no Critical issues; one
+  Major (non-blocking) — `tools/sim.ts`/`tools/sweep.ts`/`tools/handoff-
+  metrics.ts` still default `allocated: []`, so headless balance runs now
+  measure a materially weaker character than real (auto-max) play — logged as
+  **Q138** rather than fixed here, since forcing every tool to mirror
+  `TREE_AUTO_MAX` would remove balance-analyst's ability to test partial-tree
+  scenarios on purpose, and P10 is where sweep inputs get re-baselined against
+  the run's actual current shape anyway. Two Minor findings (a weak "points
+  still display" test assertion; `allocationRefusal`/`refusalText` losing all
+  coverage while the flag is on) were fixed before commit — the test now
+  targets the exact "Points" `<b>` value via DOM query instead of a loose
+  text-content regex, and a comment flags the coverage gap at the `wire()`
+  skip site. qa-playtester **PASS** on all four acceptance criteria: verified
+  the stat sheet difference through a real `Run`/`World` (maxHp 100 → 120.4,
+  power factor 1.0 → 1.72 after 600 ticks on a fresh profile), confirmed
+  replay determinism holds across 4 seeds with the full 121-id array baked
+  into `RunConfig`, confirmed clicking/right-clicking every rendered node on
+  both a fresh account and a mid-progress account (real pre-existing
+  `meta.allocated` entries) never changes `meta.allocated` or charges Ember,
+  and confirmed the dev profile's Ember/account-level grants never interact
+  badly with the flag (it only touches `hub.ts`/`tree-view.ts`, never
+  `meta.ts`'s save/load/migrate or `devprofile.ts`). `npx tsc --noEmit` clean;
+  `npm run test:fast` green apart from the two documented pre-existing
+  Windows host-load flakes (`q15-command-domain-fuzz`, `q49-price-probe-
+  restore` — both reproduced standalone-clean, the same b028/b029 class noted
+  in every recent session).
+
 - **2026-08-29 session: fb011 done — removed the rank cap on VS stat boons,
   next in the owner priority queue after fb010.** `data/boons.json`'s 11
   stat boons gained `"uncapped": true`; `second_wind` (a one-off unlock, not

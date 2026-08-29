@@ -225,7 +225,11 @@ describe('Constellation refund (SPEC 8.1)', () => {
     expect(canRefund(flush, node)).toBe(true);
   });
 
-  it('actually refunds on right-click when affordable', () => {
+  // fb014 (Q134, SPEC-FINAL §8.3 temporary supersede): right-click refund is
+  // disabled in the Hub tree UI while every node counts as allocated for
+  // actual play (TREE_AUTO_MAX, src/meta/meta.ts). Re-enable if that flips
+  // back to false.
+  it.skip('actually refunds on right-click when affordable', () => {
     const root = mount();
     const cost = content.tree.respecCostPerNode;
     let meta = metaWithOneNode(cost + 10);
@@ -248,7 +252,8 @@ describe('Constellation refund (SPEC 8.1)', () => {
     expect(meta.ember).toBe(cost + 10 - cost);
   });
 
-  it('leaves the node alone and says why when the Ember is short', () => {
+  // fb014: same reason as the skip above — right-click refund UI is off.
+  it.skip('leaves the node alone and says why when the Ember is short', () => {
     const root = mount();
     const cost = content.tree.respecCostPerNode;
     let meta = metaWithOneNode(cost - 1);
