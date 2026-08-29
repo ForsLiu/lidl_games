@@ -27,11 +27,15 @@ default and log it in QUESTIONS.md.
 ## Stack & commands
 TypeScript + Vite + canvas, Vitest, zod, all tuning in `/data/*.json`, Node 22+.
 - `npm run dev` · `npm test` · `npm run build`
+- `npm run test:fast` — fast tier (<5 min): the full suite minus every file in
+  `vitest.fast.config.ts`'s exclude list (the >60 s sim/soak/fuzz suites)
 - `npm run sim -- --seed 1 --policy hybrid` — headless run report
 - `npx tsx tools/sweep.ts --seeds 12 --policies maxbuild,hybrid` — balance sweep
 - `npx tsx tools/handoff-metrics.ts` — regenerate HANDOFF measured sections
 
-`npm test` takes ~5 minutes. Run it in the background and keep working.
+The FULL `npm test` takes 40+ minutes on this host; `npm run test:fast` is the
+per-item tier. A suite that grows past ~60 s moves to the fast config's exclude
+list (with a comment naming why) rather than silently fattening the fast tier.
 
 ## Architecture rules (hard) — SPEC-FINAL §12
 1. `/src/sim`: no DOM, no `Math.random`, no `Date.now`, no native trig. Fixed 60 Hz.
@@ -49,8 +53,11 @@ TypeScript + Vite + canvas, Vitest, zod, all tuning in `/data/*.json`, Node 22+.
 1. Phases **P0 → P10** (SPEC-FINAL §15) in order; a phase is done only when the
    §14 gates it names are green. Within a phase, work from BACKLOG.md, whose ids
    are `p<band><letter>`.
-2. `npm test` after every meaningful change; commit at every green stable point
-   and every phase (`P<n> <id>: <summary>` or `<type>: <summary>`).
+2. Verify every meaningful change with the item's targeted tests plus
+   `npm run test:fast`; commit at every green stable point and every phase
+   (`P<n> <id>: <summary>` or `<type>: <summary>`). The FULL `npm test` runs
+   only at phase (P) completion, at lane merges, and before DONE.md — never
+   start a full-suite background run inside an ordinary item.
 3. Confirmed bugs get a failing regression test **before** the fix. Code that
    contradicts SPEC-FINAL is a bug, not a gap, and outranks the queue.
 4. Update PROGRESS.md at every phase gate and before any stop. Update BACKLOG.md
@@ -88,9 +95,12 @@ BACKLOG.md is an ordered list. Item format:
 `- [ ] (id) [feat|bug|balance|polish] title — acceptance: <objective check> — refs: <spec §>`
 
 **Loop-mode contract:** when invoked with the one-item instruction, execute
-exactly one item end-to-end (implement → tests green → QA subagent pass → commit
-→ update PROGRESS/BACKLOG), then stop. Prefer the top item; skip only with a
-logged reason.
+exactly one item end-to-end (implement → targeted tests + `npm run test:fast`
+green → QA subagent pass → commit → update PROGRESS/BACKLOG), then stop. Prefer
+the top item; skip only with a logged reason. Per-item verification is targeted
+tests + `test:fast` — the FULL `npm test` is reserved for phase (P) completion,
+lane merges, and before DONE.md, and is never started as a background run
+inside an ordinary item.
 
 **Generation rule:** if fewer than 3 actionable items remain, generate before
 executing: (a) run the sweep + handoff-metrics and diff against every §14 gate

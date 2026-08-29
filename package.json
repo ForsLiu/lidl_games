@@ -8,6 +8,7 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "test": "vitest run && vitest run --config vitest.perf.config.ts",
+    "test:fast": "vitest run --config vitest.fast.config.ts",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "sim": "tsx tools/sim.ts",

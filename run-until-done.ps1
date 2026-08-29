@@ -1,9 +1,9 @@
-# run-until-done.ps1 — loop until SPEC-FINAL is fully built, with a safety cap.
-# Usage:  .\run-until-done.ps1                (Opus, 48h safety cap)
-#         .\run-until-done.ps1 -MaxHours 72
+# run-until-done.ps1 v2 - loop until SPEC-FINAL is fully built; fast-tier verification per item.
+# Usage:  .\run-until-done.ps1                (Opus? no - default sonnet, 48h safety cap)
+#         .\run-until-done.ps1 -MaxHours 72 -Model opus
 
 param(
-  [string]$Model = "opus",
+  [string]$Model = "sonnet",
   [double]$MaxHours = 48,
   [string]$Backlog = "BACKLOG.md",
   [string]$Inbox = "D:\lidl_inbox"
@@ -18,21 +18,24 @@ $prompt = @"
 Read CLAUDE.md, PROGRESS.md, and $Backlog.
 
 FIRST, completion check: if every item in $Backlog is done, SPEC-FINAL has
-no unimplemented requirement (walk §1-§14 against the code), and every gate
-G1-G20 passes in npm test, then write DONE.md summarizing the final state,
-commit it, and stop. Do not generate new items in that case.
+no unimplemented requirement (walk its sections against the code), and the
+FULL npm test suite is green including every G gate, then write DONE.md
+summarizing the final state, commit it, and stop. Do not generate new
+items in that case.
 
 SECOND, process owner feedback: for each file in feedback/ not yet in
 feedback/processed/: apply verdict blocks to QUESTIONS.md exactly as
 written, convert bugs to top-of-queue items (failing regression test
-first), convert requirements to items referencing SPEC-FINAL sections, move
-the message to feedback/processed/, commit.
+first), convert requirements to items referencing SPEC-FINAL sections,
+move the message to feedback/processed/, commit.
 
-THEN execute exactly ONE backlog item end to end: implement, npm test
-green, qa-playtester pass, commit, update PROGRESS.md and $Backlog. If
-fewer than 3 actionable items remain, generate first - but only items that
-close a SPEC-FINAL gap or a red G-gate, never inventions beyond the spec.
-One item only, then stop.
+THEN execute exactly ONE backlog item end to end: implement, verify per
+CLAUDE.md's test policy (targeted tests + npm run test:fast; NEVER launch
+the full npm test inside an ordinary item - full suite only at phase
+completion, lane merges, or the DONE.md check), qa-playtester pass,
+commit, update PROGRESS.md and $Backlog. If fewer than 3 actionable items
+remain, generate first - but only items that close a SPEC-FINAL gap or a
+red gate, never inventions beyond the spec. One item only, then stop.
 "@
 
 $i = 0
