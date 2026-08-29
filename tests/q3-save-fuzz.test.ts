@@ -418,6 +418,13 @@ describe('q3 save fuzz: the pinned holes in the repair path', () => {
     'unlockedClasses=string',
     'questProgress=string', 'questProgress=array',
     'completedQuests=string',
+    // fb012: not a real repair-path hole — `autoPickLevelUps` is the first
+    // boolean-typed MetaState field, and `fieldMatrix`'s coerced heuristic
+    // compares `WRONG_TYPES`' own label `'bool'` against `typeof` value
+    // `'boolean'`, which never match for *any* correctly-typed boolean, valid
+    // or not. `migrate` keeps a real boolean (guarded, like `unlockedCores`)
+    // rather than converting it, so there is nothing here to fix.
+    'autoPickLevelUps=bool',
   ];
   /**
    * Laundering with a consequence on screen. The `highestTier` three arrived

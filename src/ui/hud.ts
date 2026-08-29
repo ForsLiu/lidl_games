@@ -60,6 +60,8 @@ export class Hud {
   private lastCharPanelKey = '';
   private paused = false;
   private confirmingAbandon = false;
+  /** fb012: the pause card's "Options" sub-screen, holding the auto-pick toggle. */
+  private showingOptions = false;
   private charPanelOpen = false;
   private dpsPanelOpen_ = false;
 
@@ -577,13 +579,47 @@ export class Hud {
     if (this.paused === paused) return;
     this.paused = paused;
     this.confirmingAbandon = false;
+    this.showingOptions = false;
     this.lastModalKey = '';
-    if (paused) this.showPause();
+    if (paused) this.showPause(w);
     else this.syncModal(w);
   }
 
-  private showPause(): void {
+  /**
+   * fb012: three sub-screens sharing one card slot — the plain pause card, the
+   * Abandon confirm, and Options (currently just the auto-pick toggle moved
+   * out of the Hub's start menu, replay-safe via the same `set_autopick`
+   * Command the level-up screen's toggle and the HUD sidebar button use).
+   * Phase-agnostic like the rest of pause (b002): reachable from both Act I
+   * and Act II since `togglePause` only gates on `outcome === 'running'`.
+   */
+  private showPause(w: World): void {
     this.openModal();
+    if (this.showingOptions) {
+      const on = w.cfg.autoPickLevelUps === true;
+      this.modal.innerHTML = `
+      <div class="sw-card">
+        <h2>Options</h2>
+        <label class="sw-setting autopick">
+          <span>Auto-pick level-ups</span>
+          <input type="checkbox" id="sw-opt-autopick" ${on ? 'checked' : ''} />
+        </label>
+        <p class="sw-note">${
+          on
+            ? 'Level-ups resolve themselves: the highest-rank boon you already own, or the first card offered.'
+            : 'Level-ups pause the run for your choice.'
+        }</p>
+        <div class="sw-pausebuttons">
+          <button class="sw-reroll" data-act="back">Back</button>
+        </div>
+      </div>`;
+      this.modal.querySelector('#sw-opt-autopick')?.addEventListener('change', () => this.cb.onToggleAutoPick());
+      this.modal.querySelector('[data-act="back"]')?.addEventListener('click', () => {
+        this.showingOptions = false;
+        this.showPause(w);
+      });
+      return;
+    }
     this.modal.innerHTML = this.confirmingAbandon
       ? `
       <div class="sw-card">
@@ -600,6 +636,7 @@ export class Hud {
         <p>The Vale holds its breath.</p>
         <div class="sw-pausebuttons">
           <button class="sw-go" data-act="resume">Resume</button>
+          <button class="sw-reroll" data-act="options">Options</button>
           <button class="sw-reroll" data-act="quit">Abandon run</button>
         </div>
         <p class="sw-note">Esc resumes · abandoning returns to the Hub and keeps nothing.</p>
@@ -609,7 +646,7 @@ export class Hud {
         .querySelector('[data-act="cancel"]')
         ?.addEventListener('click', () => {
           this.confirmingAbandon = false;
-          this.showPause();
+          this.showPause(w);
         });
       this.modal
         .querySelector('[data-act="confirm"]')
@@ -619,10 +656,16 @@ export class Hud {
         .querySelector('[data-act="resume"]')
         ?.addEventListener('click', () => this.cb.onResume());
       this.modal
+        .querySelector('[data-act="options"]')
+        ?.addEventListener('click', () => {
+          this.showingOptions = true;
+          this.showPause(w);
+        });
+      this.modal
         .querySelector('[data-act="quit"]')
         ?.addEventListener('click', () => {
           this.confirmingAbandon = true;
-          this.showPause();
+          this.showPause(w);
         });
     }
   }
@@ -671,6 +714,14 @@ export class Hud {
 
   private showOffers(w: World, offers: Offer[]): void {
     this.openModal();
+    // fb012: this screen only ever shows while auto-pick is off (on, it
+    // resolves without pausing — see `openLevelUpIfPending`), so the checkbox
+    // here is always unchecked. Checking it sends the same `set_autopick`
+    // Command every other door onto this setting sends, and `run.ts`'s
+    // handler (fb003, deliberately: "never leaving the run parked in
+    // levelup") resolves *this* now-showing offer immediately too, the same
+    // as it would from the sidebar button or the pause Options screen — the
+    // label below says so rather than promising otherwise.
     this.modal.innerHTML = `
       <div class="sw-card">
         <h2>Level ${w.level}</h2>
@@ -685,11 +736,16 @@ export class Hud {
             .join('')}
         </div>
         <button class="sw-reroll" ${w.rerollsLeft <= 0 ? 'disabled' : ''}>Reroll (${w.rerollsLeft})</button>
+        <label class="sw-setting autopick sw-offer-autopick">
+          <span>Auto-pick (this offer too)</span>
+          <input type="checkbox" id="sw-offer-autopick" />
+        </label>
       </div>`;
     for (const el of this.modal.querySelectorAll<HTMLElement>('.sw-offer')) {
       el.addEventListener('click', () => this.cb.onPickOffer(Number(el.dataset.i)));
     }
     this.modal.querySelector('.sw-reroll')?.addEventListener('click', () => this.cb.onReroll());
+    this.modal.querySelector('#sw-offer-autopick')?.addEventListener('change', () => this.cb.onToggleAutoPick());
   }
 
   private showResults(w: World): void {

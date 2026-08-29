@@ -59,6 +59,7 @@ export function defaultMeta(): MetaState {
     questProgress: {},
     completedQuests: [],
     nextRelicId: 1,
+    autoPickLevelUps: false,
   };
 }
 
@@ -391,6 +392,10 @@ function migrate(meta: MetaState, version: number): MetaState {
     unlockedCores: Array.isArray(meta.unlockedCores) ? [...meta.unlockedCores] : base.unlockedCores,
     allocated: [...(meta.allocated ?? base.allocated)],
     stash: (meta.stash ?? []).map((r: Relic) => ({ ...r, affixes: [...(r.affixes ?? [])] })),
+    // fb012: guarded rather than left to the bare `...meta` spread above (the
+    // laundering hole q3-save-fuzz pins for `accountLevel`/`ember`/etc.) —
+    // cheap to close here since, like `unlockedCores`, the field is new.
+    autoPickLevelUps: typeof meta.autoPickLevelUps === 'boolean' ? meta.autoPickLevelUps : base.autoPickLevelUps,
   };
   if (!out.allocated.includes(0)) out.allocated.unshift(0);
   if (!isConnected(out.allocated)) out.allocated = [0];

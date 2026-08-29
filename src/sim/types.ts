@@ -474,6 +474,12 @@ export interface MetaState {
   questProgress: Record<string, number>;
   completedQuests: string[];
   nextRelicId: number;
+  /**
+   * fb012: the level-up auto-pick default a new run starts with. Lives on the
+   * save profile (not `Settings`, which is presentation-only) because it feeds
+   * `RunConfig.autoPickLevelUps` — real sim behavior, not a display choice.
+   */
+  autoPickLevelUps: boolean;
 }
 
 export interface RunConfig {

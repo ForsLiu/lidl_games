@@ -51,8 +51,6 @@ export class Hub {
   private tab: Tab = 'run';
   /** Practice runs enable the in-run tool and bank nothing. */
   private practice = false;
-  /** SPEC-FINAL §6.3: resolves level-ups without pausing (owner feedback `feature-auto-pick-boons`). */
-  private autoPick = false;
   private classKey: string;
   /** SPEC-FINAL §5.5: mirrors `classKey` — chosen beside class select, defaults to Stone Heart. */
   private coreKey: string;
@@ -245,15 +243,6 @@ export class Hub {
             ? 'The in-run tool is on: kill the board, add gold, skip a wave, summon the boss, spawn any enemy on demand. Nothing is banked — no Ember, no relics, no quest progress.'
             : 'A normal run. Everything you earn is kept.'
         }</p>
-        <label class="sw-setting autopick">
-          <span>Auto-pick level-ups</span>
-          <input type="checkbox" id="sw-autopick" ${this.autoPick ? 'checked' : ''} />
-        </label>
-        <p class="sw-note">${
-          this.autoPick
-            ? 'Level-ups resolve themselves: the highest-rank boon you already own, or the first card offered. Can be flipped mid-run from the HUD.'
-            : 'Level-ups pause the run for your choice.'
-        }</p>
         <button class="sw-go" id="sw-start">${this.practice ? 'Begin practice run' : 'Begin the Daywatch'}</button>
         <button class="sw-go sw-secondary" id="sw-training" title="The chosen class, Core and equipment, with the practice tool on and every spawn-panel enemy available. Leave any time back to this Hub; nothing is banked.">Enter Training Grounds</button>
       </div>`;
@@ -299,10 +288,6 @@ export class Hub {
       this.practice = !this.practice;
       this.show();
     });
-    body.querySelector('#sw-autopick')?.addEventListener('change', () => {
-      this.autoPick = !this.autoPick;
-      this.show();
-    });
     const beginRun = (practiceOverride?: boolean): void => {
       const modifiers = draft.map((slot, i) => slot.options[this.picks[i] ?? 0].key);
       // Belt-and-suspenders against a locked core reaching RunConfig at all
@@ -327,7 +312,10 @@ export class Hub {
         relics: equippedRelics(this.meta),
         equipment: equippedEquipmentList(this.meta),
         practice: practiceOverride ?? this.practice,
-        autoPickLevelUps: this.autoPick,
+        // fb012: the toggle now lives in the in-run Esc options menu and the
+        // level-up screen, not here — a run starts with whatever the profile
+        // last had it set to.
+        autoPickLevelUps: this.meta.autoPickLevelUps,
       });
     };
     body.querySelector('#sw-start')?.addEventListener('click', () => beginRun());

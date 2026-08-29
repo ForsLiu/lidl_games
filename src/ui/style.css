@@ -549,6 +549,7 @@ html, body {
 .sw-spawnrow select, .sw-spawnrow input { font: inherit; background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 4px; }
 
 .sw-setting.practice, .sw-setting.autopick { margin-top: 8px; }
+.sw-offer-autopick { margin-top: 14px; font-size: 12px; }
 
 /* -------------------------------------------------- account counters, zeros */
 

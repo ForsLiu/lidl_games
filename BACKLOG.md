@@ -153,14 +153,15 @@ None are bugs, so none are forced to the top of the queue by the feedback
 protocol's bug clause; the three the owner marked `Priority: top` are
 called out in their own titles instead.
 
-- [ ] (fb012) [feat] Move the VS level-up auto-pick toggle (fb003) into the
+- [x] (fb012) [feat] Move the VS level-up auto-pick toggle (fb003) into the
       in-game Esc options menu (both phases) plus a small toggle on the
       level-up screen itself; remove it from the start/hub menu; setting
       persists per profile; stays a replay-safe Command — acceptance: toggle
       absent from the starting menu; present and functional in Esc options
       during both phases; a mid-run flip changes the next level-up; a test
       covers it — refs: §6.3, §11, owner feedback
-      `feature-autopick-in-options` (fb003 follow-up).
+      `feature-autopick-in-options` (fb003 follow-up). **done, see Done
+      section.**
 - [ ] (fb013) [feat] New class #12: Time Lord — passive "Time Flow" (damage
       to the character becomes a 4 s DoT, mitigated once by armor before
       converting; a dormant, shipped-disabled flag for "character DoT 100%
@@ -832,6 +833,36 @@ because the lane worktree retires at this merge.
       scratch subdir removing the shared-handle race; ten consecutive q28 runs
       under a concurrent full-suite load pass — refs: fb017, PROGRESS.md
       (q13/q15/q28 EPERM class), CLAUDE.md rule 6.
+- [ ] (b030) [bug] `Game.onToggleAutoPick` (`src/ui/main.ts`) computes the
+      `set_autopick` Command's `on` value by reading `this.run!.world.cfg.
+      autoPickLevelUps` and negating it, but that field only changes when a
+      queued Command is actually applied inside `run.step`, which only runs
+      while the sim is ticking — never while `this.paused` is true (`frame`
+      returns early). Every command source wired to this callback (the
+      always-visible HUD sidebar button, and — new as of fb012 — the pause
+      Esc Options screen's checkbox) is reachable while paused, since neither
+      `#sw-controls` nor `#sw-modal`'s Options sub-screen is blocked from
+      receiving clicks during pause. Two clicks in a row while paused both
+      read the same stale `cfg.autoPickLevelUps` and therefore push the
+      *same* `on` value twice instead of alternating, so the second click is
+      a no-op on the sim/profile side even though the checkbox's native
+      `checked` state visually flips back — the on-screen state and the
+      value that will actually apply on resume (and the value persisted to
+      `MetaState.autoPickLevelUps` next) disagree. Pre-existing since fb003
+      introduced the sidebar button; not a fb012 regression, but fb012 adds a
+      second, more discoverable reachable-while-paused surface (QA/code-
+      reviewer finding on fb012, both independently confirmed the sidebar
+      button was already reachable while paused pre-fb012) — acceptance: a
+      test drives the real Hud DOM, pauses, clicks an auto-pick checkbox
+      twice without resuming, and confirms the resulting persisted/queued
+      value actually toggled twice (ends back where it started) rather than
+      landing on the same value both times; likely fix mirrors `setShowRanges`'s
+      existing pattern (`main.ts`'s own comment at `setShowRanges`: "the first
+      two wrote only to the view... until T1") — track the pending value in
+      `Game` itself (or read `this.meta.autoPickLevelUps`, updated
+      synchronously by the same callback) rather than off ticked sim state —
+      refs: fb003, fb012, `src/ui/main.ts` `onToggleAutoPick`/`setShowRanges`,
+      code-reviewer + qa-playtester findings on fb012 (2026-08-29).
 
 ## Retired from the queue by SPEC-FINAL
 
@@ -863,6 +894,59 @@ logged in MIGRATION.md §8 rather than carried as dead items.
 
 ## Done
 
+- [x] (fb012) [feat] Auto-pick toggle moved out of the Hub's start menu — this
+      commit (2026-08-29). `MetaState` gained `autoPickLevelUps: boolean`
+      (`src/sim/types.ts`), the actual save-profile persistence point (not
+      `Settings`, which stays presentation-only): `defaultMeta()` defaults it
+      false and `migrate()` guards it (`typeof === 'boolean'`, else the
+      default), the same pattern `unlockedCores` already uses for a corrupt
+      saved type. `src/ui/hub.ts`'s Run tab no longer renders the checkbox at
+      all — `beginRun()` seeds `RunConfig.autoPickLevelUps` straight from
+      `this.meta.autoPickLevelUps`. `src/ui/hud.ts`'s pause card gained a
+      third sub-screen (`showingOptions`) behind a new "Options" button,
+      holding the checkbox, reachable from both Act I and Act II since pause
+      itself is already phase-agnostic (b002); the level-up offer screen
+      (`showOffers`) gained its own small checkbox. Both wire to the same
+      `HudCallbacks.onToggleAutoPick()` the pre-existing always-visible HUD
+      sidebar button already used, and `main.ts`'s handler now also writes
+      the flipped value onto `this.meta` and calls `saveMeta` so it carries
+      into the next run regardless of which of the three doors changed it.
+      `tests/fb012-autopick-options.test.ts` (8 tests) covers the Hub tab's
+      checkbox being gone, a run picking up the profile default, the Options
+      sub-screen being reachable while paused in both `act1_build` and
+      `act2`, and the level-up screen's checkbox.
+
+      code-reviewer and qa-playtester, run in parallel, both independently
+      caught the same real defect in the first draft: the level-up screen's
+      checkbox was labeled "Auto-pick from now on" and commented as leaving
+      the currently-shown offer alone, but checking it sends the identical
+      `set_autopick` Command every other door sends, and `run.ts`'s handler
+      (fb003, deliberately — `tests/act2.test.ts`'s "flipping the toggle on
+      while a manual offer is already up resolves it immediately, never
+      leaving the run parked in levelup") resolves the now-showing offer too.
+      That invariant (`autoPickLevelUps` true ⇒ phase can never be
+      `'levelup'`) is pre-existing, load-bearing, and out of this item's
+      scope to relax — the actual bug was the new label/comment promising
+      behavior the well-tested sim code was never going to deliver. Fixed by
+      correcting the label to "Auto-pick (this offer too)" and the comment to
+      describe the real behavior, and replacing the test that had asserted
+      the wrong claim (via a mocked callback that never exercised the real
+      Command) with one driving `applyCommand`/`openLevelUpIfPending`
+      end-to-end and asserting the offer *does* resolve.
+
+      code-reviewer's second Major finding — `onToggleAutoPick` reads
+      `world.cfg.autoPickLevelUps` to compute the flip, but that field is
+      frozen while paused (`run.step` never runs), so two clicks on any door
+      onto this callback while paused push the same value twice instead of
+      alternating — was independently confirmed real by both subagents, and
+      independently confirmed (by this session, driving the actual HUD DOM)
+      to already reproduce via the pre-existing sidebar button *before*
+      fb012's diff: `#sw-controls` sits outside `.sw-modal`'s overlay, so it
+      was never blocked from clicks during pause. fb012 adds a second,
+      easier-to-notice reachable-while-paused surface but is not this bug's
+      origin. Filed forward as **b030** with a full repro and suggested fix
+      rather than fixed inline, matching the QA-filed-bug protocol and
+      keeping this item's diff scoped to what fb012 actually asked for.
 - [x] (fb009) [feat] Removed the early-call bonus-gold mechanic entirely;
       every TD wave cleared now pays a fixed `20 + 10 × wave` reward — this
       commit (2026-08-29). `src/sim/run.ts`'s `call` Command no longer pays

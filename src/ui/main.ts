@@ -106,8 +106,14 @@ class Game {
         this.startRun({ ...this.lastCfg!, seed });
       },
       onToggleRanges: () => this.setShowRanges(!this.view.showRanges),
-      onToggleAutoPick: () =>
-        this.pending.push({ k: 'set_autopick', on: !this.run!.world.cfg.autoPickLevelUps }),
+      onToggleAutoPick: () => {
+        const on = !this.run!.world.cfg.autoPickLevelUps;
+        this.pending.push({ k: 'set_autopick', on });
+        // fb012: the profile remembers the last-chosen value, so the next run
+        // (from any of the three doors onto this toggle) starts with it.
+        this.meta = { ...this.meta, autoPickLevelUps: on };
+        saveMeta(this.meta);
+      },
       onToggleCharacterPanel: () => this.hud.toggleCharacterPanel(this.run!.world),
       onToggleDpsPanel: () => this.hud.toggleDpsPanel(this.run!.world),
       onResume: () => this.setPaused(false),

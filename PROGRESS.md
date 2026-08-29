@@ -5,6 +5,68 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-29 session: fb012 done — the level-up auto-pick toggle (fb003)
+  moved out of the Hub's start menu into the in-run Esc pause Options screen
+  and a small checkbox on the level-up offer screen itself; the choice now
+  persists on the save profile.** `MetaState` gained `autoPickLevelUps:
+  boolean` (`src/sim/types.ts`) — the real persistence point, distinct from
+  `Settings` which stays presentation-only per its own doc comment, since
+  this field seeds `RunConfig.autoPickLevelUps`, real sim behavior.
+  `defaultMeta()` defaults it false; `migrate()` guards it
+  (`typeof === 'boolean'`, else the default), mirroring `unlockedCores`'s
+  existing guard against a corrupt saved type — `tools/fuzz-save.ts`'s
+  `validMeta` fixture and `tests/q3-save-fuzz.test.ts`'s pinned-hole lists
+  were updated to match (one new, explained false-positive entry in
+  `KNOWN_COERCED`: the wrong-type matrix's `'bool'` label never equals
+  `typeof true === 'boolean'`, so a correctly-kept valid boolean gets
+  misclassified as "coerced junk" by that heuristic — traced through
+  `fieldMatrix()` to confirm it isn't a real repair-path hole before pinning
+  it). `src/ui/hub.ts`'s Run tab no longer renders the checkbox at all;
+  `beginRun()` seeds `RunConfig.autoPickLevelUps` from
+  `this.meta.autoPickLevelUps` directly. `src/ui/hud.ts`'s pause card gained
+  a third sub-screen (`showingOptions`) behind a new "Options" button
+  reachable from both Act I and Act II (pause is already phase-agnostic,
+  b002), and the level-up offer screen gained its own checkbox — both wire
+  to the same `HudCallbacks.onToggleAutoPick()` the pre-existing always-
+  visible HUD sidebar button already used; `main.ts`'s handler now also
+  writes the flipped value onto `this.meta` and calls `saveMeta`, so any of
+  the three doors carries into the next run. `tests/fb012-autopick-
+  options.test.ts` (8 tests).
+
+  code-reviewer and qa-playtester (run in parallel) both independently
+  caught the same real defect in the first draft: the level-up screen's
+  checkbox was labeled "Auto-pick from now on" and commented as leaving the
+  currently-shown offer alone, but it sends the identical `set_autopick`
+  Command every other door sends, and `run.ts`'s handler (fb003, by design —
+  `tests/act2.test.ts`'s "flipping the toggle on while a manual offer is
+  already up resolves it immediately, never leaving the run parked in
+  levelup") resolves the now-showing offer too. That invariant
+  (`autoPickLevelUps` true ⇒ phase can never be `'levelup'`) is pre-existing,
+  load-bearing, and out of scope to relax for this item — the real bug was
+  the new label/comment promising behavior the already-tested sim code was
+  never going to deliver. Fixed by correcting the label ("Auto-pick (this
+  offer too)") and the comment, and replacing the test that had asserted the
+  wrong claim (via a mocked callback that never exercised the real Command)
+  with one driving `applyCommand`/`openLevelUpIfPending` end-to-end.
+
+  code-reviewer's second Major finding — `onToggleAutoPick` computes the
+  flip from `world.cfg.autoPickLevelUps`, which is frozen while paused
+  (`run.step` never runs), so two clicks on any door onto this callback
+  while paused push the same value twice instead of alternating — was
+  independently confirmed real by both subagents, and independently
+  confirmed by this session (driving the actual HUD DOM) to already
+  reproduce via the pre-existing sidebar button *before* fb012's diff:
+  `#sw-controls` sits outside `.sw-modal`'s overlay, so it was never blocked
+  from clicks during pause. fb012 adds a second, easier-to-notice reachable-
+  while-paused surface but is not this bug's origin. Filed forward as
+  **b030** with a full repro and suggested fix (track the intended next
+  value the same way `setShowRanges`'s own comment already explains for a
+  near-identical class of bug, rather than fixed inline) — kept this item's
+  diff scoped to what fb012 actually asked for. `npm run test:fast` green
+  apart from the pre-existing Windows host-load flake class (b028/b029:
+  `q15-command-domain-fuzz`, `q49-price-probe-restore`, `q52-m20d-run-a4-
+  bad-key` — each reproduced standalone-clean).
+
 - **2026-08-29 session: fb009 done — the early-call bonus-gold mechanic is
   removed entirely; every TD wave cleared pays a fixed `20 + 10 × wave`
   reward instead.** Owner feedback `feature-fixed-wave-reward` (SPEC-FINAL
