@@ -132,9 +132,11 @@ filed and ready, not next up.
 
 Filed from the owner's 2026-08-28 feedback batch (6 files, all `[feature]`,
 none carrying verdict blocks — nothing to apply to QUESTIONS.md beyond
-Q134, filed inline at fb014 below). None are bugs, so none are forced to
-the top of the queue by the feedback protocol's bug clause; the three the
-owner marked `Priority: top` are called out in their own titles instead.
+Q134, filed inline at fb014 below; a 7th file, `feature-ui-self-audit`,
+arrived slightly later in the same batch and is filed below as fb018).
+None are bugs, so none are forced to the top of the queue by the feedback
+protocol's bug clause; the three the owner marked `Priority: top` are
+called out in their own titles instead.
 
 - [ ] (fb012) [feat] Move the VS level-up auto-pick toggle (fb003) into the
       in-game Esc options menu (both phases) plus a small toggle on the
@@ -222,6 +224,41 @@ owner marked `Priority: top` are called out in their own titles instead.
       acceptance: `npm run test:fast` exists and finishes under 5 minutes;
       CLAUDE.md updated; both flakes filed — refs: CLAUDE.md working
       rules/loop contract amendment, owner feedback `feature-test-tiers`.
+- [ ] (fb018) [feat] UI self-audit tool: a dev-mode audit rendering a fixed set
+      of deterministic scenes (Hub, mid-TD wave with selection panel open,
+      350-enemy VS chaos with all damage types active, level-up offer screen,
+      character panel, Codex/Tuner page, defeat Results) to PNG files under
+      /audit plus report.json, with objective checks: text contrast ratio
+      >= 4.5:1 against actual background, font sizes >= 12px at 1080p, HUD
+      element overlap detection, off-screen interactive elements, color
+      distance between all damage-type pairs in both palettes above a stated
+      threshold, character-vs-background contrast in the VS chaos scene; runs
+      via `npm run ui-audit` (dev only, excluded from prod build), headless
+      where possible else via dev server at a fixed 1920x1080 viewport —
+      acceptance: `npm run ui-audit` writes all scene PNGs + report.json;
+      failures list the offending element by name; the check suite has its
+      own tests (a deliberately low-contrast fixture fails); a README line in
+      /audit explains each scene — refs: §11 tooling, QUALITY.md Beta bar
+      (accessibility), owner feedback `feature-ui-self-audit`.
+- [ ] (p8d) [feat] Boss termination guarantee (§9 addendum, QUESTIONS Q126/Q127):
+      the Warden-Eater gains a hard escalation from 3:00 of boss-fight time —
+      +10% damage and +5% move/attack speed every 30 s, stacking without cap
+      (⚖); whenever it cannot reach the Warden it attacks structures and the
+      Core (Core loss = defeat as normal); intent: no run can stalemate, every
+      seed terminates — acceptance: across the standard G8/G23 measurement
+      matrices with a 60-sim-minute boss cap, zero 'running'/timeout outcomes;
+      the known stalemate seeds (carnivorous_plant seeds 2 and 9, corpse seed
+      2, swordsman 1/2/5/9, archer 2/11, stormcaller 6, bloodlord 1/12) all
+      resolve to real outcomes — refs: §9 addendum, QUESTIONS.md Q126, Q127.
+- [ ] (b026) [bug] Clarion Taunt's `tauntDurationSeconds` is 6 in
+      `data/classes.json` but SPEC-FINAL §4.2 states 4 — spec conformance, not
+      tuning, so Q40 does not defer it (P10 may re-tune from 4) —
+      acceptance: a failing regression test lands first (CLAUDE.md rule 3)
+      asserting the loaded value is 4 (it fails against the current 6);
+      correcting the data value makes it green — refs: §4.2, QUESTIONS.md
+      Q128. (Filed as b026, not b017 — b017 is already
+      `src/meta/meta.ts`'s completionFraction ceiling bug; b018-b025 are also
+      taken, so b026 is the next free id.)
 
 ### P1 — TD core: sealing (G7)
 
