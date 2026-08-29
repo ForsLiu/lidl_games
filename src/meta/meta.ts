@@ -47,6 +47,8 @@ export function defaultMeta(): MetaState {
     allocated: [0],
     stash: [],
     equipped: { sigil: null, plate: null, charm: null },
+    equipmentStash: {},
+    equippedEquipment: Object.fromEntries(content.equipment.slots.map((slot) => [slot, null])),
     // Read off the roster rather than hardcoded: SPEC-FINAL §4.2's Unlocks line
     // names three free classes (Swordsman, Archer, Engineer), and a literal
     // here silently locked the other two out of a fresh account even though
@@ -140,6 +142,8 @@ export function applyRunResult(meta: MetaState, report: RunReport, w: World): Me
     unlockedClasses: meta.unlockedClasses.slice(),
     allocated: meta.allocated.slice(),
     equipped: { ...meta.equipped },
+    equipmentStash: { ...meta.equipmentStash },
+    equippedEquipment: { ...meta.equippedEquipment },
   };
 
   const ember = emberFor(report, w);
@@ -150,6 +154,14 @@ export function applyRunResult(meta: MetaState, report: RunReport, w: World): Me
   for (const r of w.relicsFound) {
     if (next.stash.length >= stashCapacity(next)) break;
     next.stash.push({ ...r, id: next.nextRelicId++ });
+  }
+
+  // fb015 (§8.1): "each TD wave cleared -> 1 random equipment ... granted at
+  // run end, win or lose ... duplicates allowed" — no stash cap, unlike the
+  // relic stash: the owner table names none, and "duplicates allowed" reads
+  // as deliberately uncapped.
+  for (const key of w.equipmentFound) {
+    next.equipmentStash[key] = (next.equipmentStash[key] ?? 0) + 1;
   }
 
   if (report.outcome === 'victory' && report.tier >= next.highestTier) {
@@ -346,6 +358,14 @@ function migrate(meta: MetaState, version: number): MetaState {
     ...base,
     ...meta,
     equipped: { ...base.equipped, ...(meta.equipped ?? {}) },
+    // fb015 (§7): same "old save has neither field" case `equipped` handles —
+    // an object-typed field guards against the same corrupt-non-object class
+    // `unlockedCores`'s `Array.isArray` check guards against below.
+    equipmentStash:
+      meta.equipmentStash && typeof meta.equipmentStash === 'object' && !Array.isArray(meta.equipmentStash)
+        ? { ...meta.equipmentStash }
+        : {},
+    equippedEquipment: { ...base.equippedEquipment, ...(meta.equippedEquipment ?? {}) },
     questProgress: { ...(meta.questProgress ?? {}) },
     completedQuests: [...(meta.completedQuests ?? [])],
     unlockedClasses: [...(meta.unlockedClasses ?? base.unlockedClasses)],

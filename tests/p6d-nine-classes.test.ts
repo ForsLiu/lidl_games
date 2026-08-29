@@ -770,6 +770,22 @@ describe('p6d: Paladin — Guardian Stance, Wrath and Judgement', () => {
     expect(w2.warden.active2Cooldown).toBeGreaterThan(0);
   });
 
+  it('code review, fb015: 0 stored Wrath still deals nothing even with an atkFlat-granting item equipped', () => {
+    // Regression: characterDamage (classes.ts) folds equipment's flat Atk in
+    // before classAttackPowerMul, and fireJudgement used to run that fold on
+    // the raw `wrathStored * wrathDamageMul` product *before* gating on it
+    // being positive — so 0 Wrath plus any atkFlat item (10 of fb015's 12)
+    // still dealt that flat's worth of damage on cooldown alone.
+    const w = worldWith('paladin', { equipment: ['greatsword'] });
+    expect(w.derived.atkFlat).toBeGreaterThan(0);
+    const e = dummy(w, w.warden.x + 1, w.warden.y);
+    w.rebuildBuckets();
+    expect(w.warden.wrathStored).toBe(0);
+    applyCommand(w, { k: 'class_active2' });
+    expect(e.hp).toBe(1e6);
+    expect(w.warden.active2Cooldown).toBeGreaterThan(0);
+  });
+
   it('the tower passive adds both HP and defense points', () => {
     const arrow = content.towerByKey.get('arrow_spire')!;
     const pal = worldWith('paladin');

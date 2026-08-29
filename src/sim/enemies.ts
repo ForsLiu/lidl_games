@@ -276,13 +276,15 @@ export function damageEnemy(
   // Q91 ORDER (owner verdict, before P10): accrues from the target's actual
   // remaining HP, not the raw armor-reduced hit — otherwise a huge hit on a
   // near-dead enemy leeches as if the whole overkill amount had landed.
-  if (
-    w.derived.leech > 0 &&
-    w.huntsWarden &&
-    !opts.dot &&
-    !opts.noLifesteal &&
-    (opts.type ?? 'normal') === 'normal'
-  ) {
+  // fb015 (§7) Bleeding Ring: "lifesteal now also applies to Bleeding damage"
+  // — the one authored exception to the "normal damage only" rule above.
+  // Bleeding is a DoT (`opts.dot` is always true for its ticks — `tickDot`
+  // below), so the exception has to bypass the `!opts.dot` guard too, not
+  // just the type check.
+  const lifestealEligible =
+    ((opts.type ?? 'normal') === 'normal' && !opts.dot) ||
+    (w.derived.bleedLifesteal && opts.type === 'bleeding');
+  if (w.derived.leech > 0 && w.huntsWarden && !opts.noLifesteal && lifestealEligible) {
     w.warden.leechAccumulator += Math.min(dmg, hpBeforeHit) * w.derived.leech;
   }
 

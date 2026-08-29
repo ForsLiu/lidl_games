@@ -211,7 +211,10 @@ export function affinityMul(w: World, towerKey: string): number {
 export function towerDamage(w: World, s: Structure, base: number): number {
   const def = w.content.towerById.get(s.towerId)!;
   return (
-    base *
+    // fb015 (§7) Builder's Necklace: "all towers +1 flat attack (boostable by
+    // upgrades ...)" — added before `upgradeStatMul` so the flat point itself
+    // grows with the tower's own upgrade level, not just the base.
+    (base + w.derived.towerAtkFlat) *
     upgradeStatMul(w, def, s.tier) *
     w.derived.powerMul *
     w.derived.towerDamageMul *

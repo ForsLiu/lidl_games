@@ -192,7 +192,10 @@ export const KNOWN_HOLES: Record<string, string> = {
   G8: 'All 11 §4 classes now exist (p6b–p6d), but the scripted-kit-bot win-rate / top-damage-diversity ' +
     "measurement G8 actually asks for is p6e's, which has not landed. f004-class-framework.test.ts's one live " +
     'block tests the Active-skill Command plumbing, not a win-rate.',
-  G12: "The equipment / skill-point reward pipeline is not built (P7); only the gate's 'orbs nowhere' clause has a live test (c7-no-orbs.test.ts).",
+  G12: "fb015 built and tested the gate's equipment clause (data/equipment.json's 12 items, six slots, " +
+    "1 item per fully cleared TD wave — tests/fb015-equipment.test.ts) and 'orbs nowhere' already had a live " +
+    "test (c7-no-orbs.test.ts); the gate stays a hole because its third clause, 'M VS waves -> M skill points' " +
+    '(§8.2), remains unbuilt.',
   G15: 'The Tuner is not built (P9); there is nothing to round-trip yet.',
   G19: "tests/a8-sundering-head-start.test.ts (the only file naming G19) is entirely describe.skip'd — its own " +
     "header reads 'RETIRED (SPEC-FINAL §6.1, reconcile §16)'. Even when live, its body only ever measured " +

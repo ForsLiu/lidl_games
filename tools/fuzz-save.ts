@@ -143,6 +143,12 @@ export function validMeta(rng: Rng): MetaState {
     allocated: connectedAllocation(rng, rng.intRange(1, 9)),
     stash,
     equipped,
+    // fb015 (§7): fuzzed the same shallow way `equipped`/`stash` are — random
+    // counts, a random subset equipped into their matching slots.
+    equipmentStash: Object.fromEntries(
+      c.equipment.items.filter(() => rng.chance(0.5)).map((it) => [it.key, rng.intRange(1, 3)]),
+    ),
+    equippedEquipment: Object.fromEntries(c.equipment.slots.map((slot) => [slot, null])),
     unlockedClasses: [
       ...new Set(['engineer', ...c.classes.classes.filter(() => rng.chance(0.6)).map((k) => k.key)]),
     ],

@@ -1,0 +1,104 @@
+{
+  "slots": ["weapon", "armor", "shoes", "ring", "necklace", "bracelet"],
+  "items": [
+    {
+      "key": "greatsword",
+      "slot": "weapon",
+      "name": "Greatsword",
+      "mods": { "atkFlat": 10, "armor": 5, "attackSpeed": -0.1 },
+      "effectKey": "none",
+      "desc": "A plain heavy blade. HP 0 / Atk 10 / Def 5, atk speed x0.9. No special effect."
+    },
+    {
+      "key": "sleeve_sword",
+      "slot": "weapon",
+      "name": "Sleeve Sword",
+      "mods": { "atkFlat": 5, "attackSpeed": 0.2 },
+      "effectKey": "sleeve_sword",
+      "classFallback": { "notClassKey": "swordsman", "mods": { "attackSpeed": 0.2 } },
+      "desc": "HP 0 / Atk 5 / Def 0, atk speed x1.2. Circle Slash needs no charge and fires at max-charge effect. If not Swordsman: atk speed x1.2 (so 1.2x1.2)."
+    },
+    {
+      "key": "normal_armor",
+      "slot": "armor",
+      "name": "Normal Armor",
+      "mods": { "maxHp": 10, "armor": 10 },
+      "effectKey": "none",
+      "desc": "HP 10 / Atk 0 / Def 10. No special effect."
+    },
+    {
+      "key": "swordsman_armor",
+      "slot": "armor",
+      "name": "Swordsman Armor",
+      "mods": { "maxHp": 5, "atkFlat": 5, "armor": 5, "attackSpeed": 0.1 },
+      "effectKey": "swordsman_armor",
+      "classFallback": { "notClassKey": "swordsman", "mods": { "attackSpeed": 0.5 } },
+      "desc": "HP 5 / Atk 5 / Def 5, atk speed x1.1. Circle Slash charging speed = original x attack speed; if Sleeve Sword is also equipped, Circle Slash damage is boosted by attack speed instead. If not Swordsman: atk speed x1.5 (so 1.1x1.5)."
+    },
+    {
+      "key": "normal_shoes",
+      "slot": "shoes",
+      "name": "Normal Shoes",
+      "mods": { "maxHp": 5, "armor": 5, "moveSpeedPct": 0.5 },
+      "effectKey": "none",
+      "desc": "HP 5 / Atk 0 / Def 5, move x1.5. No special effect."
+    },
+    {
+      "key": "swordsman_shoes",
+      "slot": "shoes",
+      "name": "Swordsman Shoes",
+      "mods": { "maxHp": 3, "atkFlat": 3, "armor": 3, "attackSpeed": 0.1, "moveSpeedPct": 1 },
+      "effectKey": "swordsman_shoes",
+      "classFallback": { "notClassKey": "swordsman", "mods": { "moveSpeedPct": 0.1 } },
+      "desc": "HP 3 / Atk 3 / Def 3, atk speed x1.1, move x2. Doubles Dash Slash distance. If not Swordsman: x1.1 movement."
+    },
+    {
+      "key": "normal_ring",
+      "slot": "ring",
+      "name": "Normal Ring",
+      "mods": { "maxHp": 1, "atkFlat": 1, "armor": 1, "hpRegen": 1 },
+      "effectKey": "none",
+      "desc": "HP 1 / Atk 1 / Def 1. Life regen +1."
+    },
+    {
+      "key": "bleeding_ring",
+      "slot": "ring",
+      "name": "Bleeding Ring",
+      "mods": { "atkFlat": 2, "armor": 1, "leech": 0.0001, "bleedLifesteal": 1 },
+      "effectKey": "none",
+      "desc": "HP 0 / Atk 2 / Def 1. +0.01% lifesteal; lifesteal now also applies to Bleeding damage."
+    },
+    {
+      "key": "normal_necklace",
+      "slot": "necklace",
+      "name": "Normal Necklace",
+      "mods": { "maxHp": 1, "atkFlat": 1, "armor": 1, "xpGain": 0.2, "towerCost": -0.2 },
+      "effectKey": "none",
+      "desc": "HP 1 / Atk 1 / Def 1. EXP +20%; tower upgrade cost -20%."
+    },
+    {
+      "key": "builders_necklace",
+      "slot": "necklace",
+      "name": "Builder's Necklace",
+      "mods": { "maxHp": 1, "armor": 2, "towerAtkFlat": 1 },
+      "effectKey": "none",
+      "desc": "HP 1 / Atk 0 / Def 2. All towers +1 flat attack (boostable by upgrades / VS count multiplier)."
+    },
+    {
+      "key": "normal_bracelet",
+      "slot": "bracelet",
+      "name": "Normal Bracelet",
+      "mods": { "maxHp": 1, "atkFlat": 1, "armor": 1, "area": 0.1 },
+      "effectKey": "none",
+      "desc": "HP 1 / Atk 1 / Def 1. Character and tower area +10%."
+    },
+    {
+      "key": "sniper_bracelet",
+      "slot": "bracelet",
+      "name": "Sniper Bracelet",
+      "mods": { "maxHp": 2, "atkFlat": 1, "towerRange": 0.1, "charRange": 0.1 },
+      "effectKey": "none",
+      "desc": "HP 2 / Atk 1 / Def 0. Character and tower range +10%."
+    }
+  ]
+}

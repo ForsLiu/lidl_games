@@ -222,6 +222,13 @@ export class World {
   offers: Offer[] = [];
   rerollsLeft = 0;
   relicsFound: Relic[] = [];
+  /**
+   * fb015 (§7/§8.1): one random `data/equipment.json` item key per fully
+   * cleared TD wave, rolled in `completeWave` (run.ts) on the `drops` RNG
+   * stream — the same "readback list, not sim state" treatment `relicsFound`
+   * already gets, so it is not part of `hashWorld`.
+   */
+  equipmentFound: string[] = [];
   /** Filled in at results time by the meta layer. */
   emberEarned = 0;
 

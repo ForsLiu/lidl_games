@@ -84,7 +84,12 @@ function wieldOneType(w: World, def: TowerDef, group: readonly Structure[]): Wie
   let sum = 0;
   let highestTier = 1;
   for (const s of group) {
-    sum += def.attack!.damage * upgradeStatMul(w, def, s.tier);
+    // fb015 (§7) Builder's Necklace: the same flat-before-upgrade-scaling
+    // treatment `towerDamage` (towers.ts) gives it, so the point is also
+    // "boostable by ... the VS count multiplier" — `damage`'s own
+    // `* (1 + 0.1 * count)` below, applied to `perTowerAverage` which this
+    // flat already fed.
+    sum += (def.attack!.damage + w.derived.towerAtkFlat) * upgradeStatMul(w, def, s.tier);
     if (s.tier > highestTier) highestTier = s.tier;
   }
   const perTowerAverage = sum / count;
@@ -198,7 +203,12 @@ function fireWielded(w: World, wielded: WieldedAttack, def: TowerDef, a: TowerAt
   const x = wd.x;
   const y = wd.y;
   const area = w.derived.areaMul;
-  const range = a.range * area;
+  // fb015 (§7) Sniper Bracelet: "character ... range +10%" — wielded attacks
+  // are explicitly "treated as character attacks" (§6.1), so the character
+  // half of the bracelet's bonus rides along here; the tower half
+  // (`towerRange`) deliberately does not — see this file's header comment on
+  // why `towerRangeMul` stays Act I's.
+  const range = a.range * area * w.derived.charRangeMul;
   const dmg = wielded.damage * w.derived.powerMul;
   const prof = wielded.profile;
   const source = wielded.towerKey;

@@ -455,6 +455,15 @@ export interface MetaState {
   allocated: number[];
   stash: Relic[];
   equipped: { sigil: number | null; plate: number | null; charm: number | null };
+  /**
+   * SPEC-FINAL §7, fb015: owned counts of each `data/equipment.json` item key.
+   * Equipment items are fixed rows, not procedurally rolled instances like a
+   * `Relic`, so "duplicates allowed" (§8.1) is just a higher count rather than
+   * a second stash entry with its own id.
+   */
+  equipmentStash: Record<string, number>;
+  /** §7's six fixed slots (weapon/armor/shoes/ring/necklace/bracelet) -> the equipped item key, or null. */
+  equippedEquipment: Record<string, string | null>;
   unlockedClasses: string[];
   /** SPEC-FINAL §5.5: mirrors `unlockedClasses`. Defaults to Stone Heart only. */
   unlockedCores: string[];
@@ -482,6 +491,8 @@ export interface RunConfig {
   allocated: number[];
   /** Relics equipped for this run. */
   relics: Relic[];
+  /** SPEC-FINAL §7, fb015: equipment item keys equipped for this run (one per slot, at most 6). */
+  equipment?: string[];
   /** Bot policy name, headless only. */
   policy?: string;
   /**
@@ -561,6 +572,8 @@ export interface RunReport {
   topWeaponMinute8: string;
   boons: Record<string, number>;
   relicsFound: number;
+  /** fb015 (§8.1): equipment items rolled this run, one per fully cleared TD wave. */
+  equipmentFound: number;
   ember: number;
   bossKilled: boolean;
   bossKillSeconds: number;

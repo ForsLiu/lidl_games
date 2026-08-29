@@ -13,14 +13,11 @@
  * whatever sources actually fed the stat (class, tree, relic, boon, core,
  * terrain, map modifiers), not special-cased per source kind.
  *
- * §7's Equipment table (weapon/armor/shoes/ring/necklace/bracelet) is not yet
- * implemented — it is still BACKLOG.md's p7b, unbuilt as of this item. A
- * relic (`relic:<id>` source) is the closest live analog and already shows
- * up generically in the per-stat breakdown below. There is deliberately no
- * separate "Equipment" section: one would either render empty (nothing to
- * show) or would have to invent numbers no `/data` file defines yet, which
- * CLAUDE.md's architecture rule 4 (content lives in `/data`, never invented
- * in code) forbids. Logged as QUESTIONS.md Q132.
+ * fb015 (§7): equipment items are folded into `Stats` the same way a relic
+ * is — one `equipment:<key>` source per equipped item, plus an
+ * `equipment:<key>:fallback` source for an "if not <class>" line that
+ * applies — so they already show up generically in the per-stat breakdown
+ * below with no separate "Equipment" section needed. Closes Q132's gap.
  *
  * Presentation only — this module never writes to the World.
  */
@@ -71,6 +68,10 @@ const STAT_LABELS: Partial<Record<StatKey, string>> = {
   slowPotency: 'Slow Potency',
   chilledDamageTaken: 'Chilled Damage Taken',
   xpGain: 'XP Gain',
+  atkFlat: 'Attack',
+  towerAtkFlat: 'Tower Attack (flat)',
+  charRange: 'Range',
+  bleedLifesteal: 'Lifesteal from Bleeding',
 };
 
 export function statLabel(key: StatKey): string {
@@ -159,6 +160,21 @@ function sourceLabel(w: World, source: StatSource): string {
       const def = w.content.coreByKey.get(parts[1]);
       const name = def?.name ?? parts[1];
       return parts[2] ? `Core: ${name} (${parts[2]})` : `Core: ${name}`;
+    }
+    case 'equipment': {
+      // fb015 (§7): qa-playtester finding — this case was missing entirely,
+      // so an equipped item's contribution rendered as the raw internal
+      // source string (e.g. "equipment:greatsword") instead of a label,
+      // silently undercutting fb015's own "shows item sources in stat
+      // breakdowns" acceptance line despite the source being present.
+      const item = w.content.equipmentByKey.get(parts[1]);
+      const name = item?.name ?? parts[1];
+      if (parts[2] === 'fallback') {
+        const notClass = item?.classFallback?.notClassKey;
+        const notClassName = notClass ? w.content.classByKey.get(notClass)?.name ?? notClass : null;
+        return notClassName ? `Equipment: ${name} (if not ${notClassName})` : `Equipment: ${name} (fallback)`;
+      }
+      return `Equipment: ${name}`;
     }
     case 'modifiers':
       return 'Map modifiers';

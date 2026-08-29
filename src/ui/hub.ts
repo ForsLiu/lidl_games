@@ -29,7 +29,7 @@ import { devProfileActive } from '../meta/devprofile';
 const DEV_BUILD = (import.meta as unknown as { env?: { DEV?: unknown } }).env?.DEV === true;
 const DEV_BADGE =
   '<span class="sw-devbadge" title="data/dev.json devMode is on. Production builds always run with this off.">DEV PROFILE</span>';
-import { discard, equip } from '../meta/stash';
+import { discard, equip, equipItem } from '../meta/stash';
 import { renderTreeView } from './tree-view';
 import { sanitize, type Settings } from './settings';
 
@@ -320,6 +320,7 @@ export class Hub {
         modifiers,
         allocated: this.meta.allocated,
         relics: equippedRelics(this.meta),
+        equipment: equippedEquipmentList(this.meta),
         practice: this.practice,
         autoPickLevelUps: this.autoPick,
       });
@@ -445,6 +446,42 @@ export class Hub {
 
     body.innerHTML = `
       <div class="sw-panel">
+        <h2>Equipment</h2>
+        <div class="sw-equipped" id="sw-equipment-equipped">
+          ${content.equipment.slots
+            .map((slot) => {
+              const key = this.meta.equippedEquipment[slot] ?? null;
+              const item = key ? content.equipmentByKey.get(key) : null;
+              return `<div class="sw-slot" data-eqitemslot="${slot}"
+                           title="${item ? `Click to unequip ${item.name}.` : ''}">
+                        <span>${slot}</span><b>${item ? item.name : '—'}</b>
+                      </div>`;
+            })
+            .join('')}
+        </div>
+        <div class="sw-itemstash">
+          ${
+            Object.entries(this.meta.equipmentStash).filter(([, n]) => n > 0).length === 0
+              ? `<p class="sw-note">
+                   Empty. Fully clearing a TD wave grants one random equipment item at Results,
+                   win or lose. Click an owned item to equip it (click again to unequip).
+                 </p>`
+              : Object.entries(this.meta.equipmentStash)
+                  .filter(([, count]) => count > 0)
+                  .map(([key, count]) => {
+                    const item = content.equipmentByKey.get(key);
+                    if (!item) return '';
+                    const isEquipped = this.meta.equippedEquipment[item.slot] === key;
+                    return `<button class="sw-relic ${isEquipped ? 'equipped' : ''}" data-item="${key}"
+                                title="${item.desc}">
+                        <b>${item.name}</b><small>${item.slot} · x${count}${isEquipped ? ' · equipped' : ''}</small>
+                      </button>`;
+                  })
+                  .join('')
+          }
+        </div>
+      </div>
+      <div class="sw-panel">
         <h2>Stash <small>${this.meta.stash.length}/${cap}</small></h2>
         <div class="sw-equipped" id="sw-stash-equipped">
           ${content.relics.slots
@@ -510,6 +547,20 @@ export class Hub {
         }
       </div>`;
 
+    for (const el of body.querySelectorAll<HTMLElement>('[data-item]')) {
+      const key = el.dataset.item!;
+      el.addEventListener('click', () => {
+        const item = content.equipmentByKey.get(key)!;
+        const isEq = this.meta.equippedEquipment[item.slot] === key;
+        this.commit(equipItem(this.meta, item.slot, isEq ? null : key));
+      });
+    }
+    for (const el of body.querySelectorAll<HTMLElement>('[data-eqitemslot]')) {
+      const slot = el.dataset.eqitemslot!;
+      el.addEventListener('click', () => {
+        if (this.meta.equippedEquipment[slot]) this.commit(equipItem(this.meta, slot, null));
+      });
+    }
     for (const el of body.querySelectorAll<HTMLElement>('[data-relic]')) {
       const id = Number(el.dataset.relic);
       el.addEventListener('click', () => {
@@ -580,6 +631,11 @@ export function equippedRelics(meta: MetaState): Relic[] {
     if (r) out.push(r);
   }
   return out;
+}
+
+/** fb015 (§7): the equipped item keys, for `RunConfig.equipment`. */
+export function equippedEquipmentList(meta: MetaState): string[] {
+  return Object.values(meta.equippedEquipment).filter((k): k is string => k !== null);
 }
 
 /** The relic currently equipped in a slot, if any. */

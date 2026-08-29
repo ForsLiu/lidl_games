@@ -88,7 +88,13 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'boons.boons[].perRank': ['negative', 'zero', 'infinite', 'fractional'],
   'boons.boons[].stat': ['to-string', 'empty-string'],
   'boons.rerollsPerLevel': ['negative', 'zero', 'infinite', 'fractional'],
-  'classes.classes': ['drop-element', 'dupe-element'],
+  // fb015 (§7): dropping a class row can drop 'swordsman', which
+  // equipment.json's classFallback rows (Sleeve Sword, Swordsman Armor,
+  // Swordsman Shoes) all reference — `loadContent`'s new equipment
+  // cross-file check now rejects that outright, closing the 'drop-element'
+  // hole this used to have (q7's own "records no hole that has since been
+  // closed" tripwire).
+  'classes.classes': ['dupe-element'],
   'classes.classes[].active.cooldownSeconds': ['negative', 'zero', 'infinite', 'fractional'],
   'classes.classes[].active.damage': ['negative', 'zero', 'infinite', 'fractional'],
   'classes.classes[].active.dayUse': ['to-string', 'empty-string'],
@@ -154,7 +160,10 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'classes.classes[].basicAttack.dps': ['negative', 'zero', 'infinite', 'fractional'],
   'classes.classes[].basicAttack.interval': ['negative', 'zero', 'infinite', 'fractional'],
   'classes.classes[].basicAttack.range': ['negative', 'zero', 'infinite', 'fractional'],
-  'classes.classes[].key': ['to-string', 'empty-string'],
+  // fb015: retyping/emptying a class's own `key` can rename 'swordsman' away
+  // (the one class equipment.json's classFallback rows target), which the
+  // new equipment cross-file check now rejects — same closed hole as
+  // `classes.classes` | drop-element above, see its comment.
   'classes.classes[].manualAttack.dps': ['negative', 'zero', 'infinite', 'fractional'],
   'classes.classes[].manualAttack.interval': ['negative', 'zero', 'infinite', 'fractional'],
   'classes.classes[].manualAttack.name': ['to-string', 'empty-string'],
@@ -312,6 +321,36 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'enemies.enemies[].trailDps': ['negative', 'zero', 'infinite', 'fractional', 'drop-key', 'rename-key'],
   'enemies.enemies[].trailRadius': ['negative', 'zero', 'infinite', 'fractional', 'drop-key', 'rename-key'],
   'enemies.enemies[].traits[]': ['to-string', 'empty-string'],
+  // fb015 (§7): nothing else references an equipment item by index or count,
+  // so dropping/duplicating/emptying `items` is accepted, same as
+  // `modifiers.modifiers` below. `slots` duplicating is likewise harmless
+  // (the loader reads it into a `Set`); dropping/emptying it is *not*
+  // accepted — it desyncs from every item's own `.slot` and is rejected,
+  // the same reasoning `classes.classes | drop-element` lost above.
+  'equipment.items': ['empty-array', 'drop-element', 'dupe-element'],
+  'equipment.items[].classFallback': ['drop-key'], // optional; absent is valid
+  'equipment.items[].classFallback.mods.attackSpeed': ['negative', 'zero', 'infinite', 'fractional', 'drop-key', 'rename-key'],
+  'equipment.items[].classFallback.mods.moveSpeedPct': ['negative', 'zero', 'infinite', 'fractional', 'drop-key', 'rename-key'],
+  'equipment.items[].desc': ['to-string', 'empty-string'],
+  'equipment.items[].effectKey': ['drop-key'], // defaults to 'none'
+  'equipment.items[].key': ['to-string', 'empty-string'],
+  'equipment.items[].mods': ['drop-key'], // defaults to {}
+  'equipment.items[].mods.area': ['negative', 'zero', 'infinite', 'fractional', 'drop-key', 'rename-key'],
+  'equipment.items[].mods.armor': ['negative', 'zero', 'infinite', 'fractional', 'drop-key', 'rename-key'],
+  'equipment.items[].mods.atkFlat': ['negative', 'zero', 'infinite', 'fractional', 'drop-key', 'rename-key'],
+  'equipment.items[].mods.attackSpeed': ['negative', 'zero', 'infinite', 'fractional', 'drop-key', 'rename-key'],
+  'equipment.items[].mods.bleedLifesteal': ['negative', 'zero', 'infinite', 'fractional', 'drop-key', 'rename-key'],
+  'equipment.items[].mods.charRange': ['negative', 'zero', 'infinite', 'fractional', 'drop-key', 'rename-key'],
+  'equipment.items[].mods.hpRegen': ['negative', 'zero', 'infinite', 'fractional', 'drop-key', 'rename-key'],
+  'equipment.items[].mods.leech': ['negative', 'zero', 'infinite', 'fractional', 'drop-key', 'rename-key'],
+  'equipment.items[].mods.maxHp': ['negative', 'zero', 'infinite', 'fractional', 'drop-key', 'rename-key'],
+  'equipment.items[].mods.moveSpeedPct': ['negative', 'zero', 'infinite', 'fractional', 'drop-key', 'rename-key'],
+  'equipment.items[].mods.towerAtkFlat': ['negative', 'zero', 'infinite', 'fractional', 'drop-key', 'rename-key'],
+  'equipment.items[].mods.towerCost': ['negative', 'zero', 'infinite', 'fractional', 'drop-key', 'rename-key'],
+  'equipment.items[].mods.towerRange': ['negative', 'zero', 'infinite', 'fractional', 'drop-key', 'rename-key'],
+  'equipment.items[].mods.xpGain': ['negative', 'zero', 'infinite', 'fractional', 'drop-key', 'rename-key'],
+  'equipment.items[].name': ['to-string', 'empty-string'],
+  'equipment.slots': ['dupe-element'],
   'modifiers.modifiers': ['empty-array', 'drop-element', 'dupe-element'],
   'modifiers.modifiers[].desc': ['to-string', 'empty-string'],
   'modifiers.modifiers[].effect.bossHp': ['negative', 'zero', 'infinite', 'fractional', 'drop-key', 'rename-key'],
@@ -657,6 +696,18 @@ export const REF_VERDICTS: Readonly<Record<string, RefVerdict>> = {
   'enemies.enemies[].key': 'partial',
   'enemies.enemies[].name': 'open',
   'enemies.enemies[].traits[]': 'open',
+  // fb015 (§7): `slot`/`effectKey`/`classFallback.notClassKey` are all
+  // cross-checked at load (`equipmentSlots.has`/zod enum/`classKeys.has`
+  // respectively, content.ts) — a garbage rename of any of them, or of the
+  // `slots[]` row it targets, is rejected. `key`/`name`/`desc` are display
+  // text nothing else references, same as every other item table's own.
+  'equipment.items[].classFallback.notClassKey': 'checked',
+  'equipment.items[].desc': 'open',
+  'equipment.items[].effectKey': 'checked',
+  'equipment.items[].key': 'open',
+  'equipment.items[].name': 'open',
+  'equipment.items[].slot': 'checked',
+  'equipment.slots[]': 'checked',
   'modifiers.modifiers[].desc': 'open',
   'modifiers.modifiers[].key': 'open',
   'modifiers.modifiers[].name': 'open',

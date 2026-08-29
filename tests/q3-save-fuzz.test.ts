@@ -411,6 +411,10 @@ describe('q3 save fuzz: the pinned holes in the repair path', () => {
    */
   const KNOWN_COERCED = [
     'equipped=string', 'equipped=array',
+    // fb015 (§7): `equippedEquipment` merges with `base.equippedEquipment`
+    // the same `{ ...base.x, ...(meta.x ?? {}) }` way `equipped` already
+    // does, so it inherits the exact same string/array coercion hole.
+    'equippedEquipment=string', 'equippedEquipment=array',
     'unlockedClasses=string',
     'questProgress=string', 'questProgress=array',
     'completedQuests=string',

@@ -65,7 +65,7 @@ import { ACCEPTED, INEFFECTIVE, REF_VERDICTS } from './q7-loader-holes';
  */
 const holders = vi.hoisted(() => {
   const names = [
-    'affinity', 'boons', 'classes', 'cores', 'damagetypes', 'dev', 'enemies',
+    'affinity', 'boons', 'classes', 'cores', 'damagetypes', 'dev', 'enemies', 'equipment',
     'modifiers', 'quests', 'relics', 'spawns', 'towers', 'tree', 'warden', 'waves',
   ];
   const h: Record<string, Record<string, unknown>> = {};
@@ -80,6 +80,7 @@ vi.mock('../data/cores.json', () => ({ default: holders.cores }));
 vi.mock('../data/damagetypes.json', () => ({ default: holders.damagetypes }));
 vi.mock('../data/dev.json', () => ({ default: holders.dev }));
 vi.mock('../data/enemies.json', () => ({ default: holders.enemies }));
+vi.mock('../data/equipment.json', () => ({ default: holders.equipment }));
 vi.mock('../data/modifiers.json', () => ({ default: holders.modifiers }));
 vi.mock('../data/quests.json', () => ({ default: holders.quests }));
 vi.mock('../data/relics.json', () => ({ default: holders.relics }));

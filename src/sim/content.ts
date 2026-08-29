@@ -20,6 +20,7 @@ import devRaw from '../../data/dev.json';
 import wardenRaw from '../../data/warden.json';
 import damageTypesRaw from '../../data/damagetypes.json';
 import coresRaw from '../../data/cores.json';
+import equipmentRaw from '../../data/equipment.json';
 
 const num = z.number();
 const str = z.string();
@@ -803,6 +804,49 @@ const CoreSchema = z
 
 const CoresFileSchema = z.object({ cores: z.array(CoreSchema) });
 
+/* --------------------------------------------------------------- equipment */
+
+/**
+ * SPEC-FINAL §7's owner equipment table, fb015. `mods` is a plain `Stats`
+ * contribution bag — every numeric column (HP/Atk/Def/AtkSpd/Move) and every
+ * effect line that reduces to a stat (Bleeding Ring's lifesteal, Builder's
+ * Necklace's flat tower attack, the bracelets' area/range bonuses) folds in
+ * here rather than earning bespoke engine code, the same `addAll`-onto-`Stats`
+ * precedent a relic's affixes and a class's passive already set.
+ *
+ * `effectKey` is the escape hatch for the three lines that cannot be a stat —
+ * Sleeve Sword's no-charge Circle Slash, Swordsman Armor's charge-speed/
+ * cross-item damage rule, Swordsman Shoes' doubled Dash Slash distance — all
+ * three read straight off `cls.active1`/`active2`'s *kind*, not off a name, so
+ * they are inert (not merely unauthored) on every class without that kind.
+ *
+ * `classFallback` is the owner table's own "if not <class>: ..." lines, kept
+ * data-driven (CLAUDE.md architecture rule 4) rather than a hardcoded class
+ * check per item: an extra `Stats` source granted only when the run's class
+ * does not match `notClassKey`.
+ */
+const EquipmentItemSchema = z
+  .object({
+    key: str,
+    slot: str,
+    name: str,
+    mods: z.record(num).default({}),
+    effectKey: z.enum(['none', 'sleeve_sword', 'swordsman_armor', 'swordsman_shoes']).default('none'),
+    classFallback: z.object({ notClassKey: str, mods: z.record(num) }).optional(),
+    desc: str,
+  })
+  .strict();
+
+const EquipmentFileSchema = z
+  .object({
+    slots: z.array(str),
+    items: z.array(EquipmentItemSchema),
+  })
+  .strict();
+
+export type EquipmentItem = z.infer<typeof EquipmentItemSchema>;
+export type EquipmentFile = z.infer<typeof EquipmentFileSchema>;
+
 /* ------------------------------------------------------------ damage types */
 
 /**
@@ -1406,6 +1450,7 @@ export interface Content {
   damageTypes: DamageTypesFile;
   dev: DevConfig;
   cores: z.infer<typeof CoresFileSchema>;
+  equipment: EquipmentFile;
 
   towerByKey: Map<string, TowerDef>;
   towerById: Map<number, TowerDef>;
@@ -1418,6 +1463,7 @@ export interface Content {
   affinityByClass: Map<string, AffinityDef>;
   damageTypeByKey: Map<string, DamageTypeDef>;
   coreByKey: Map<string, CoreDef>;
+  equipmentByKey: Map<string, EquipmentItem>;
 }
 
 /**
@@ -1449,6 +1495,7 @@ export function loadContent(): Content {
   const quests = QuestsFileSchema.parse(questsRaw);
   const damageTypes = DamageTypesFileSchema.parse(damageTypesRaw);
   const cores = CoresFileSchema.parse(coresRaw);
+  const equipment = EquipmentFileSchema.parse(equipmentRaw);
 
   // Cross-file referential integrity: a typo in /data must fail loudly at load.
   const towerKeys = new Set(towers.towers.map((t) => t.key));
@@ -1545,6 +1592,20 @@ export function loadContent(): Content {
   validateDefaultCore(cores.cores);
   for (const c of cores.cores) validateCoreUpgrade(c);
 
+  // fb015 (§7): a typo'd slot or `notClassKey` would otherwise silently equip
+  // into nowhere or grant a fallback nobody can ever fail to qualify for.
+  const equipmentSlots = new Set(equipment.slots);
+  for (const item of equipment.items) {
+    if (!equipmentSlots.has(item.slot)) {
+      throw new Error(`equipment.json: ${item.key} has unknown slot "${item.slot}"`);
+    }
+    if (item.classFallback && !classKeys.has(item.classFallback.notClassKey)) {
+      throw new Error(
+        `equipment.json: ${item.key}.classFallback references unknown class "${item.classFallback.notClassKey}"`,
+      );
+    }
+  }
+
   cached = {
     warden: wardenBase,
     towers,
@@ -1561,6 +1622,7 @@ export function loadContent(): Content {
     quests,
     damageTypes,
     cores,
+    equipment,
     towerByKey: new Map(towers.towers.map((t) => [t.key, t])),
     towerById: new Map(towers.towers.map((t) => [t.id, t])),
     enemyByKey: new Map(enemies.enemies.map((e) => [e.key, e])),
@@ -1572,6 +1634,7 @@ export function loadContent(): Content {
     affinityByClass: new Map(affinity.affinities.map((a) => [a.classKey, a])),
     damageTypeByKey: new Map(damageTypes.types.map((d) => [d.key, d])),
     coreByKey: new Map(cores.cores.map((c) => [c.key, c])),
+    equipmentByKey: new Map(equipment.items.map((e) => [e.key, e])),
   };
   return cached;
 }

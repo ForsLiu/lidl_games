@@ -59,17 +59,18 @@ export function census(content: Content): CensusRow[] {
   const towerCount = content.towers.towers.length;
   rows.push({ key: 'towers', label: 'Towers', actual: String(towerCount), target: '10', met: towerCount === 10 });
 
-  // §7/§8's fixed 12-item equipment table (P7) does not exist yet.
-  // `data/relics.json`'s 12 affixes are a different, superseded system
-  // (MIGRATION.md / PROGRESS.md's P7 audit line) — counting them here would
-  // hide the real gap behind a coincidental matching number.
+  // fb015: §7's fixed 12-item equipment table now lives in
+  // data/equipment.json, loaded the same way every other category on this
+  // page is counted (qa-playtester finding: this row was still hardcoded to
+  // 0/unbuilt after fb015 shipped, which would have kept telling a future
+  // session equipment is missing and risked spawning a duplicate item).
+  const equipmentCount = content.equipment.items.length;
   rows.push({
     key: 'equipment',
     label: 'Equipment',
-    actual: '0',
+    actual: String(equipmentCount),
     target: '12+',
-    met: false,
-    note: 'P7 unbuilt; the relic/Ember/boon systems are the current stand-in, not equipment — see PROGRESS.md P7 audit line',
+    met: equipmentCount >= 12,
   });
 
   const damageTypeCount = content.damageTypes.types.length;

@@ -65,6 +65,14 @@ export const STAT_KEYS = [
   'slowPotency',
   'chilledDamageTaken',
   'xpGain',
+  /** fb015 (§7): flat "Atk" column, added wherever `classAttackPowerMul` already scales a character hit — see `characterDamage` (classes.ts). */
+  'atkFlat',
+  /** fb015: Builder's Necklace's "all towers +1 flat attack" — added to a tower's base damage before `upgradeStatMul`/the VS wielding count bonus, so it is "boostable" by both. */
+  'towerAtkFlat',
+  /** fb015: Sniper Bracelet's "character ... range +10%" — `towerRange` already covers the tower half. */
+  'charRange',
+  /** fb015: Bleeding Ring's "lifesteal now also applies to Bleeding damage" — a boolean flag in stat form, the same `secondWind` precedent. */
+  'bleedLifesteal',
 ] as const;
 
 export type StatKey = (typeof STAT_KEYS)[number];
@@ -102,6 +110,7 @@ export const STAT_KIND: Record<StatKey, StatKind> = {
   slowPotency: 'mul',
   chilledDamageTaken: 'mul',
   xpGain: 'mul',
+  charRange: 'mul',
 
   // Point totals. There is no base for these to scale, so they add.
   maxHp: 'flat',
@@ -123,6 +132,9 @@ export const STAT_KIND: Record<StatKey, StatKind> = {
   luck: 'flat',
   secondWind: 'flat',
   lastStandSundering: 'flat',
+  atkFlat: 'flat',
+  towerAtkFlat: 'flat',
+  bleedLifesteal: 'flat',
   // A reduction with its own cap (`cdrCap`), not a multiplier on a base. V3 §2's
   // rule is about boosts; see QUESTIONS Q62.
   //
@@ -276,6 +288,19 @@ export function baseRunStats(content: Content, cfg: RunConfig): Stats {
   // A relic is one source: its implicit and its affixes are ranks of that item.
   for (const r of cfg.relics) s.addAll(`relic:${r.id}`, relicStats(content, r));
 
+  // fb015 (§7): each equipped item is its own source (one weapon, one armor, ...),
+  // same "one source per item" reading a relic already gets. `classFallback` is
+  // the owner table's "if not <class>: ..." line, kept data-driven (content.ts's
+  // doc comment on `EquipmentItemSchema`) rather than a hardcoded class check.
+  for (const key of cfg.equipment ?? []) {
+    const item = content.equipmentByKey.get(key);
+    if (!item) continue;
+    s.addAll(`equipment:${key}`, item.mods);
+    if (item.classFallback && cfg.classKey !== item.classFallback.notClassKey) {
+      s.addAll(`equipment:${key}:fallback`, item.classFallback.mods);
+    }
+  }
+
   return s;
 }
 
@@ -394,6 +419,14 @@ export interface Derived {
   /** Hoisted out of `Stats` at m19b: `damageEnemy` reads it per hit. */
   chilledDamageTakenMul: number;
   xpMul: number;
+  /** fb015: flat "Atk" from equipment, folded in wherever `classAttackPowerMul` already scales a character hit. */
+  atkFlat: number;
+  /** fb015: Builder's Necklace's flat tower attack, folded in before `upgradeStatMul`/the VS wielding bonus. */
+  towerAtkFlat: number;
+  /** fb015: Sniper Bracelet's character-range half (`towerRange` already covers the tower half). */
+  charRangeMul: number;
+  /** fb015: Bleeding Ring — true once its stat contribution is present at all. */
+  bleedLifesteal: boolean;
 }
 
 export function derive(content: Content, s: Stats, residualScale = 1): Derived {
@@ -437,5 +470,9 @@ export function derive(content: Content, s: Stats, residualScale = 1): Derived {
     slowPotencyMul: s.factor('slowPotency'),
     chilledDamageTakenMul: s.factor('chilledDamageTaken'),
     xpMul: s.factor('xpGain'),
+    atkFlat: s.total('atkFlat'),
+    towerAtkFlat: s.total('towerAtkFlat'),
+    charRangeMul: s.factor('charRange'),
+    bleedLifesteal: s.total('bleedLifesteal') > 0,
   };
 }

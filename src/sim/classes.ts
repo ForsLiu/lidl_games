@@ -39,6 +39,7 @@ import type { ClassEffect, NewClassDef, TowerDef } from './content';
 import { applyHealingToWarden } from './cores';
 import { applyDamageType } from './damagetypes';
 import { applyFrost, applyFrozen, damageEnemy, TAUNT_TOTEM, TAUNT_WARDEN } from './enemies';
+import { hasEquipment } from './equipment';
 import { GRID_H, GRID_W } from './grid';
 import { clamp, dist2, lerp, normalize } from './math';
 import { buildTower, effectiveTowerAoe, LINE_HALF_WIDTH, towerCost } from './towers';
@@ -114,6 +115,16 @@ export function classAttackPowerMul(w: World, cls: NewClassDef): number {
   const p = cls.passive;
   if (p.kind !== 'blood_frenzy') return w.derived.powerMul;
   return w.derived.powerMul * (1 + (w.huntsWarden ? p.frenzyVsMul ?? 0 : p.frenzyTdMul ?? 0));
+}
+
+/**
+ * fb015 (§7): every site below already scales a character hit by
+ * `classAttackPowerMul` — equipment's flat "Atk" column rides along at every
+ * one of them, the same footprint the %-power stat already has, added before
+ * the multiplier per §2 ("flats add[, then sources multiply]").
+ */
+function characterDamage(w: World, cls: NewClassDef, base: number): number {
+  return (base + w.derived.atkFlat) * classAttackPowerMul(w, cls);
 }
 
 /**
@@ -199,16 +210,40 @@ function circleSlashValues(
   };
 }
 
-/** Fires a (possibly zero-charge) Circle Slash: a self-centered nova, scaled by how long it was held. */
-function fireCircleSlash(w: World, cls: NewClassDef, chargeSeconds: number): void {
+/**
+ * Fires a (possibly zero-charge) Circle Slash: a self-centered nova, scaled by
+ * how long it was held.
+ *
+ * fb015 (§7) Swordsman Armor's cross-item clause: "if Sleeve Sword is also
+ * equipped, Circle Slash damage is boosted by attack speed instead" — of the
+ * charge-speed bonus it otherwise gives (`circleSlashChargeRate` below), since
+ * Sleeve Sword already skips charging outright. `atkSpdDamageBoost` is that
+ * "instead": an extra `attackSpeedMul` factor on top of the ordinary
+ * power/flat-Atk scaling every other Active already gets.
+ */
+function fireCircleSlash(w: World, cls: NewClassDef, chargeSeconds: number, atkSpdDamageBoost = false): void {
   const wd = w.warden;
   const eff = cls.active1;
   const { radius, damage, knockback } = circleSlashValues(eff, chargeSeconds);
   const onHit = passiveOnHit(cls);
   const hitList = knockback > 0 ? w.enemiesInRadius(wd.x, wd.y, radius).slice() : null;
-  applyAoE(w, wd.x, wd.y, radius, damage * classAttackPowerMul(w, cls), 'class_active', { onHit }, {});
+  const boost = atkSpdDamageBoost ? w.derived.attackSpeedMul : 1;
+  applyAoE(w, wd.x, wd.y, radius, characterDamage(w, cls, damage) * boost, 'class_active', { onHit }, {});
   if (hitList) for (const e of hitList) if (!e.dead) knockbackEnemy(w, e, wd.x, wd.y, knockback);
   w.emit('class_active', wd.x, wd.y, radius, 0);
+}
+
+/**
+ * fb015 (§7) Swordsman Armor: "Circle Slash charging speed = original x
+ * attack speed" — the hold accumulates by `dt * attackSpeedMul` instead of a
+ * flat `dt`. Inert without the item, and superseded (not stacked) by Sleeve
+ * Sword's no-charge-needed rule when both are equipped — see
+ * `fireCircleSlash`'s cross-item damage boost for what replaces it then.
+ */
+function circleSlashChargeRate(w: World, cls: NewClassDef): number {
+  if (cls.active1.kind !== 'charge_nova') return 1;
+  if (!hasEquipment(w, 'swordsman_armor') || hasEquipment(w, 'sleeve_sword')) return 1;
+  return w.derived.attackSpeedMul;
 }
 
 /**
@@ -259,9 +294,14 @@ function fireDashSlash(w: World, cls: NewClassDef, aimX: number | undefined, aim
   }
 
   const dir = aimDirection(w, aimX, aimY);
-  const dashRange = eff.dashRange ?? 0;
+  // fb015 (§7): Swordsman Shoes "double Dash Slash distance". This function is
+  // only ever reached for `dash_line` (the switch in `useClassActive2`), which
+  // no class but Swordsman's authors, so no separate class check is needed —
+  // the item is inert on every other kit for the structural reason it names
+  // ("if not Swordsman") rather than a hardcoded one.
+  const dashRange = (eff.dashRange ?? 0) * (hasEquipment(w, 'swordsman_shoes') ? 2 : 1);
   const hitRange = dashRange + mergedRadius;
-  const damage = (eff.damage + mergedDamage) * classAttackPowerMul(w, cls);
+  const damage = characterDamage(w, cls, eff.damage + mergedDamage);
   lineHit(w, wd.x, wd.y, dir.x, dir.y, hitRange, eff.dashWidth ?? 0, damage, 'class_active2', 9999, { onHit });
 
   const before = { x: wd.x, y: wd.y };
@@ -315,7 +355,7 @@ function firePoisonBarrel(w: World, cls: NewClassDef): void {
     x: wd.x,
     y: wd.y,
     radius: eff.radius,
-    dps: eff.damage * classAttackPowerMul(w, cls),
+    dps: characterDamage(w, cls, eff.damage),
     remaining: eff.groundDurationSeconds ?? 5,
     type: 'poison',
     source: 'class_active',
@@ -449,7 +489,7 @@ function fireDeadeyeDraw(
   const wd = w.warden;
   const eff = cls.active1;
   const held = Math.min(chargeSeconds, eff.chargeCapSeconds ?? 0);
-  const damage = eff.damage * Math.pow(1 + (eff.compoundPerSecond ?? 0), held) * classAttackPowerMul(w, cls);
+  const damage = characterDamage(w, cls, eff.damage * Math.pow(1 + (eff.compoundPerSecond ?? 0), held));
   const hits = Math.min(eff.pierceCap ?? 1, 1 + Math.floor(held));
   const dir = aimDirection(w, aimX, aimY);
   // `radius` is this kind's shot length — the same field-reuse precedent
@@ -476,7 +516,7 @@ function fireQuickstep(w: World, cls: NewClassDef, aimX: number | undefined, aim
   const onHit = passiveOnHit(cls);
   const shots = Math.max(0, Math.round(eff.volleyShots ?? 0));
   const struck = new Set<number>();
-  const damage = eff.damage * classAttackPowerMul(w, cls);
+  const damage = characterDamage(w, cls, eff.damage);
   for (let i = 0; i < shots; i++) {
     const t = w.nearestEnemy(wd.x, wd.y, eff.radius, (e) => !struck.has(e.id));
     if (!t) break;
@@ -535,7 +575,7 @@ function fireFlameRoad(w: World, cls: NewClassDef, aimX: number | undefined, aim
   dashWarden(w, dir.x * (eff.dashRange ?? 0), dir.y * (eff.dashRange ?? 0));
 
   const segments = Math.max(1, Math.round(eff.trailSegments ?? 1));
-  const dps = eff.damage * classAttackPowerMul(w, cls);
+  const dps = characterDamage(w, cls, eff.damage);
   for (let i = 0; i < segments; i++) {
     const t = segments === 1 ? 0 : i / (segments - 1);
     w.areas.push({
@@ -558,7 +598,7 @@ function fireFlameRoad(w: World, cls: NewClassDef, aimX: number | undefined, aim
 function fireFrostNova(w: World, cls: NewClassDef): void {
   const wd = w.warden;
   const eff = cls.active1;
-  const damage = eff.damage * classAttackPowerMul(w, cls);
+  const damage = characterDamage(w, cls, eff.damage);
   for (const e of w.enemiesInRadius(wd.x, wd.y, eff.radius).slice()) {
     if (e.dead) continue;
     // Read before the hit: the shatter this nova can trigger keys off `frozen`,
@@ -662,7 +702,7 @@ function fireChainSurge(w: World, cls: NewClassDef, aimX: number | undefined, ai
   const jumps = Math.max(1, Math.round((eff.chainCount ?? 1) + extra));
   const capIndex = Math.max(1, Math.round(eff.chainCap ?? 1)) - 1;
   const growth = eff.chainGrowth ?? 0;
-  const base = eff.damage * classAttackPowerMul(w, cls);
+  const base = characterDamage(w, cls, eff.damage);
   const struck = new Set<number>();
   let px = wd.x;
   let py = wd.y;
@@ -867,9 +907,15 @@ function fireClarionTaunt(w: World, cls: NewClassDef): void {
 function fireJudgement(w: World, cls: NewClassDef): void {
   const wd = w.warden;
   const eff = cls.active2;
-  const damage = wd.wrathStored * (eff.wrathDamageMul ?? 0) * classAttackPowerMul(w, cls);
+  // code review, fb015: the resource gate has to run on the raw Wrath payout,
+  // before `characterDamage` folds in equipment's flat Atk — otherwise 0
+  // stored Wrath plus any atkFlat-granting item (10 of the 12 fb015 items do)
+  // would still deal that flat's worth of damage, turning "nothing banked,
+  // nothing dealt" into a free AoE nova on cooldown alone.
+  const rawWrath = wd.wrathStored * (eff.wrathDamageMul ?? 0);
   wd.wrathStored = 0;
-  if (damage > 0) {
+  if (rawWrath > 0) {
+    const damage = characterDamage(w, cls, rawWrath);
     applyAoE(w, wd.x, wd.y, eff.radius, damage, 'class_active2', { onHit: passiveOnHit(cls) }, {});
   }
   w.emit('class_active2', wd.x, wd.y, eff.radius, 0);
@@ -1261,11 +1307,22 @@ export function tickClassCharge(w: World, cls: NewClassDef, input: TickInput, dt
   if (input.active1Held) {
     if (!wd.active1Charging) {
       if (wd.active1Cooldown > 0) return;
+      // fb015 (§7) Sleeve Sword: "Circle Slash needs no charge and fires at
+      // max-charge effect" — fires on the very first held tick, at full
+      // charge, and never enters the held/charging state at all, which is
+      // also why `circleSlashChargeRate` never has to consider this case
+      // (charging with Sleeve Sword equipped is unreachable).
+      if (cls.active1.kind === 'charge_nova' && hasEquipment(w, 'sleeve_sword')) {
+        const cap = cls.active1.chargeCapSeconds ?? 3;
+        fireCircleSlash(w, cls, cap, hasEquipment(w, 'swordsman_armor'));
+        wd.active1Cooldown = cls.active1.cooldownSeconds * (1 - w.derived.cdr);
+        return;
+      }
       wd.active1Charging = true;
       wd.active1Charge = 0;
     }
     const cap = cls.active1.chargeCapSeconds ?? 3;
-    wd.active1Charge = Math.min(wd.active1Charge + dt, cap);
+    wd.active1Charge = Math.min(wd.active1Charge + dt * circleSlashChargeRate(w, cls), cap);
     return;
   }
 
@@ -1305,10 +1362,11 @@ export function classBasicAttack(w: World, cls: NewClassDef): void {
   const wd = w.warden;
   if (wd.attackCooldown > 0) return;
   const a = cls.basicAttack;
-  const target = w.nearestEnemy(wd.x, wd.y, a.range);
+  // fb015 (§7): Sniper Bracelet's "character ... range +10%".
+  const target = w.nearestEnemy(wd.x, wd.y, a.range * w.derived.charRangeMul);
   if (!target) return;
   wd.attackCooldown = a.interval / (w.derived.attackSpeedMul * auraSpeedMul(w, wd.x, wd.y));
-  const dmg = a.dps * a.interval * classAttackPowerMul(w, cls);
+  const dmg = characterDamage(w, cls, a.dps * a.interval);
   const onHit = passiveOnHit(cls);
   if (a.aoe > 0) {
     // Splash routes through the shared AoE convention (aoeFullTargets/aoeFalloff/

@@ -93,6 +93,8 @@ export function applyDevProfile(meta: MetaState, config: DevConfig = devConfig()
     stash: meta.stash.slice(),
     allocated: meta.allocated.slice(),
     equipped: { ...meta.equipped },
+    equipmentStash: { ...meta.equipmentStash },
+    equippedEquipment: { ...meta.equippedEquipment },
     questProgress: { ...meta.questProgress },
     completedQuests: meta.completedQuests.slice(),
     unlockedClasses: meta.unlockedClasses.slice(),
@@ -127,6 +129,20 @@ export function applyDevProfile(meta: MetaState, config: DevConfig = devConfig()
   if (config.fillStash && out.stash.length === 0) {
     out = fillDevStash(out);
   }
+  // fb015 (§7): "dev profile pre-stashes all 12 items" — the existing T3 rule,
+  // reusing `fillStash` rather than a second flag. Gated on the equipment
+  // stash itself being empty (not `out.stash`, the relic one) so a developer
+  // who has genuinely earned equipment keeps it.
+  if (config.fillStash && Object.keys(out.equipmentStash).length === 0) {
+    out = { ...out, equipmentStash: allEquipmentOnce() };
+  }
+  return out;
+}
+
+/** One of every `data/equipment.json` item — fb015's dev-profile pre-stash. */
+function allEquipmentOnce(): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const item of loadContent().equipment.items) out[item.key] = 1;
   return out;
 }
 

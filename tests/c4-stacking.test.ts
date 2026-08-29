@@ -68,6 +68,7 @@ function baseReport(): RunReport {
     topWeaponMinute8: '',
     boons: {},
     relicsFound: 0,
+    equipmentFound: 0,
     ember: 0,
     bossKilled: true,
     bossKillSeconds: 590,

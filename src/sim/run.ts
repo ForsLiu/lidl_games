@@ -664,6 +664,13 @@ function completeWave(w: World): void {
     collectSproutGold(w);
     w.goldEarnedByWave[wv] = w.goldEarned;
     w.wavesCleared++;
+    // fb015 (§8.1): "each TD wave cleared -> 1 random equipment (even
+    // weights), granted at run end, win or lose." Rolled here, on the same
+    // `drops` stream a relic roll uses, so loot never perturbs combat
+    // determinism (loot.ts's header comment) and a stacked multi-summon
+    // clear still pays one item per wave actually cleared, not one per stack.
+    const items = w.content.equipment.items;
+    if (items.length > 0) w.equipmentFound.push(items[w.rng.drops.int(items.length)].key);
   }
   w.wave = lastWave;
   w.stackDepth = 0;
@@ -1017,6 +1024,7 @@ export function buildReport(w: World): RunReport {
     topWeaponMinute8: w.damageThroughMinute8 ? topWeaponShare(w, w.damageThroughMinute8).key : '',
     boons: { ...w.boonRanks },
     relicsFound: w.relicsFound.length,
+    equipmentFound: w.equipmentFound.length,
     ember: 0,
     bossKilled: w.bossKilled,
     bossKillSeconds: round2(w.bossKillTime),

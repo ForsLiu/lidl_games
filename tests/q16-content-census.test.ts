@@ -17,7 +17,8 @@ const RECORDED: Record<string, { actual: string; target: string; met: boolean }>
   // 12th data row is Q38's `legacy: true` frost_warden, excluded by census.
   classes: { actual: '11', target: '11', met: true },
   towers: { actual: '10', target: '10', met: true },
-  equipment: { actual: '0', target: '12+', met: false },
+  // fb015: data/equipment.json's real §7 table replaced the hardcoded 0/unbuilt row.
+  equipment: { actual: '12', target: '12+', met: true },
   damageTypesAndStatuses: { actual: '6+2', target: '6+2', met: true },
   enemies: { actual: '20', target: '20', met: true },
   waves: { actual: '18+6 (24)', target: '18+6 (24)', met: true },
@@ -50,9 +51,9 @@ describe('content census (SPEC-FINAL §13)', () => {
     }
   });
 
-  it('the met/unmet split matches the P-phase audit: exactly equipment is short (p8a filled waves)', () => {
+  it('the met/unmet split matches the P-phase audit: every §13 category is met (fb015 filled equipment)', () => {
     const unmet = rows.filter((r) => !r.met).map((r) => r.key).sort();
-    expect(unmet).toEqual(['equipment']);
+    expect(unmet).toEqual([]);
   });
 
   it('bosses is counted from the same "boss" trait loot.ts uses, not a hand-picked key list', () => {
