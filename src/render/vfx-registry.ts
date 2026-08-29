@@ -44,6 +44,12 @@ export const ACTIVE_KIND_SHAPE: Record<ClassEffect['kind'], VfxShape> = {
   judgement: 'nova',
   blood_tithe: 'point',
   dash_heal: 'line',
+  // fb013 Time Lord: `time_mark` is a Warden-centered AoE pulse (every enemy
+  // in r7 advances a stage, like Clarion Taunt/Judgement's own self-centered
+  // radius); `time_lock` is a self-cast zone (a nova at the cast point, like
+  // Recall Totem's placement).
+  time_mark: 'nova',
+  time_lock: 'nova',
 };
 
 export interface SkillVfxEntry {
@@ -60,7 +66,7 @@ export interface ClassVfxEntry {
   passive: { cue: string; color: string };
 }
 
-/** SPEC-FINAL §13's eleven real classes (`frost_warden`'s `legacy: true` row is excluded, same as `tools/content-census.ts`). */
+/** SPEC-FINAL §13's twelve real classes, fb013 (`frost_warden`'s `legacy: true` row is excluded, same as `tools/content-census.ts`). */
 export const CLASS_VFX: Record<string, ClassVfxEntry> = {
   swordsman: {
     q: { indicator: 'charge ring at the Warden, radius grows with hold', fire: 'expanding slash nova + knockback', color: '#e0c46c' },
@@ -116,6 +122,11 @@ export const CLASS_VFX: Record<string, ClassVfxEntry> = {
     q: { indicator: 'self nova ring', fire: 'taunt pulse over every retargeted enemy', color: '#ffd166' },
     e: { indicator: 'none — fires instantly, no charge phase to telegraph', fire: 'holy nova flash', color: '#ffd166' },
     passive: { cue: 'armor glow while standing still (Guardian Stance)', color: '#ffd166' },
+  },
+  time_lord: {
+    q: { indicator: 'r7 ring around the Warden', fire: 'mark-stage pulse across every enemy caught in it (a distinct past/present/future ring per enemy, drawn every frame by drawEnemies)', color: '#9a7fe6' },
+    e: { indicator: 'placement ring at the cursor', fire: 'zone nova at cast, teleport + detonation burst on any enemies a recast displaces', color: '#6fd6c9' },
+    passive: { cue: 'a warden-side DoT tick in place of an ordinary hit flash (Time Flow)', color: '#9a7fe6' },
   },
 };
 

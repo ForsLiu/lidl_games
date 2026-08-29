@@ -23,6 +23,7 @@ import type {
   RunConfig,
   RunOutcome,
   Structure,
+  TimeLockZone,
   Warden,
 } from './types';
 
@@ -211,6 +212,8 @@ export class World {
    * expires (`updateTempWalls`, classes.ts).
    */
   tempWalls: { structureIds: number[]; remaining: number }[] = [];
+  /** fb013 Time Lord *Time Lock*: the single live no-exit zone, or null. */
+  timeLockZone: TimeLockZone | null = null;
 
   /* ---- progression ---- */
   stats: Stats;
@@ -430,6 +433,12 @@ export class World {
     this.coreHp = this.coreMaxHp;
 
     const cc = coreCenter();
+    // fb013: an ammo-style Active starts at full charges, read off the class's
+    // own `maxCharges` (undefined/1 for every class but Time Lord, for which
+    // this is just `1` and the ammo fields go unread — see `tickAmmoRecharge`).
+    const startCls = content.classByKey.get(this.cfg.classKey);
+    const active1MaxCharges = startCls && !startCls.legacy ? startCls.active1.maxCharges ?? 1 : 1;
+    const active2MaxCharges = startCls && !startCls.legacy ? startCls.active2.maxCharges ?? 1 : 1;
     this.warden = {
       x: cc.x - 3,
       y: cc.y,
@@ -455,6 +464,11 @@ export class World {
       lastStillY: cc.y,
       wrathStored: 0,
       clarionRemaining: 0,
+      active1Ammo: active1MaxCharges,
+      active1AmmoCooldown: 0,
+      active2Ammo: active2MaxCharges,
+      active2AmmoCooldown: 0,
+      dots: [],
     };
   }
 

@@ -38,7 +38,17 @@ import { applyAoE, applyEffects, lineHit } from './combat';
 import type { ClassEffect, NewClassDef, TowerDef } from './content';
 import { applyHealingToWarden } from './cores';
 import { applyDamageType } from './damagetypes';
-import { applyFrost, applyFrozen, damageEnemy, TAUNT_TOTEM, TAUNT_WARDEN } from './enemies';
+import {
+  applyAtkSlow,
+  applyDot,
+  applyFrost,
+  applyFrozen,
+  applySlow,
+  damageEnemy,
+  dotOutstanding,
+  TAUNT_TOTEM,
+  TAUNT_WARDEN,
+} from './enemies';
 import { hasEquipment } from './equipment';
 import { GRID_H, GRID_W } from './grid';
 import { clamp, dist2, lerp, normalize } from './math';
@@ -932,6 +942,215 @@ function fireJudgement(w: World, cls: NewClassDef): void {
   w.emit('class_active2', wd.x, wd.y, eff.radius, 0);
 }
 
+/* -------------------------------------------------------------- fb013: Time Lord */
+
+/** Sampling resolution (seconds) for `updateTimeLordHistory`'s ring buffer — an engine granularity constant, not a tunable design number. */
+const POS_HISTORY_SAMPLE_SECONDS = 0.25;
+
+/**
+ * `active1.markRewindSeconds` (data/classes.json) drives how many samples the
+ * ring buffer keeps — QA found this field previously unread (the buffer was a
+ * hardcoded 12-sample/3 s constant regardless of what the data authored).
+ */
+function historySampleCount(cls: NewClassDef): number {
+  const seconds = cls.active1.markRewindSeconds ?? 3;
+  return Math.max(1, Math.round(seconds / POS_HISTORY_SAMPLE_SECONDS));
+}
+
+/**
+ * §4.2 (fb013) Time Lord *Time*: samples every live enemy's position onto its
+ * own ring buffer, oldest first, so the unmarked->past stage's "N s-ago
+ * position" (`advanceTimeMark`) has something to rewind to, N being
+ * `active1.markRewindSeconds`. Only ticked while the active class's Active1
+ * is `time_mark` (`updateClassPassives`) — every other run leaves
+ * `Enemy.posHistory` empty and free.
+ */
+function updateTimeLordHistory(w: World, cls: NewClassDef, dt: number): void {
+  const samples = historySampleCount(cls);
+  for (const e of w.enemies) {
+    if (e.dead) continue;
+    e.posHistoryTimer -= dt;
+    if (e.posHistoryTimer > 0) continue;
+    e.posHistoryTimer += POS_HISTORY_SAMPLE_SECONDS;
+    e.posHistory.push({ x: e.x, y: e.y });
+    if (e.posHistory.length > samples) e.posHistory.shift();
+  }
+}
+
+/**
+ * §4.2 (fb013) Time Lord *Time*: advances one enemy's 4-stage mark by one
+ * stage — `fireTimeMark` calls this once per enemy caught in the r7 pulse
+ * (the owner feedback text: "every enemy within r7 advances one time-mark
+ * stage" is an unbracketed, literal AoE clause, not a [designer note]
+ * interpretation, so it is not read as a single-target pick). Every stage's
+ * DoT is authored as Bleeding — the sim's six damage types are already at
+ * §13's stated total, so a 7th type for one class's flavor is not a reading
+ * this loader rule allows without contradicting a content-totals gate (Q139).
+ */
+function advanceTimeMark(w: World, cls: NewClassDef, e: Enemy): void {
+  const eff = cls.active1;
+  const stage = e.timeMarkStage;
+  if (stage === 0) {
+    // unmarked -> past: rewind to the oldest sample we have (a fresh spawn
+    // with no 3 s of history yet rewinds to the oldest it does have) unless
+    // Time Lock is holding it — a trapped enemy is "immune to Time's
+    // rewind-pull" (§4.2), so the teleport half is skipped but the mark still
+    // advances and its DoT still lands.
+    const hist = e.posHistory[0];
+    if (hist && e.timeLockZoneId === 0) {
+      e.x = hist.x;
+      e.y = hist.y;
+    }
+    applyDot(w, e, 'bleeding', characterDamage(w, cls, eff.markPastDotDps ?? 0), eff.markPastDotSeconds ?? 0, 'class_active');
+    e.timeMarkStage = 1;
+  } else if (stage === 1) {
+    // past -> present: "stun-locks 3 s" reuses `frozen`'s own authored 3 s
+    // duration (Q139) — the sim has no separate generic stun, and frozen's
+    // "cannot move" is exactly what a stun-lock reads as.
+    applyFrozen(w, e);
+    applyDot(w, e, 'bleeding', characterDamage(w, cls, eff.markPresentDotDps ?? 0), eff.markPresentDotSeconds ?? 0, 'class_active');
+    e.timeMarkStage = 2;
+  } else if (stage === 2) {
+    // present -> future: -20% atk/move speed, deferred while stunned/frozen
+    // (`tickTimers`, enemies.ts, applies it once `frozenRemaining` clears),
+    // plus a DoT worth its current HP spread over `markFutureDotSeconds`.
+    const amount = eff.markFutureSlowAmount ?? 0;
+    const seconds = eff.markFutureSlowSeconds ?? 0;
+    if (e.frozenRemaining > 0) {
+      e.timeMarkPendingSlow = true;
+      e.timeMarkPendingSlowAmount = amount;
+      e.timeMarkPendingSlowSeconds = seconds;
+    } else {
+      applySlow(w, e, amount, seconds);
+      applyAtkSlow(w, e, amount, seconds);
+    }
+    const dotSeconds = eff.markFutureDotSeconds ?? 0;
+    if (dotSeconds > 0 && e.hp > 0) {
+      applyDot(w, e, 'bleeding', e.hp / dotSeconds, dotSeconds, 'class_active');
+    }
+    e.timeMarkStage = 3;
+  } else {
+    // future -> executed: an ordinary enemy takes the Corpse/Carnivorous
+    // Plant "instant kill" precedent (a `pure`/`dot` hit for its exact
+    // current HP, its own larger 'execute' event). Q139/the designer note
+    // asks for a logged choice on whether the execute counts for on-kill/
+    // lifesteal purposes; QUESTIONS.md's Q139 reconciliation now answers
+    // that both branches deny it (`noLifesteal: true`) — the same
+    // guaranteed, unmitigated hit shape either way, since the engine's one
+    // armor-bypass mechanism (`dot: true`) is definitionally tied to
+    // ailment-tick semantics that already exclude lifesteal eligibility, and
+    // giving the elite branch a different shape than the non-elite branch
+    // was itself a bug (armor silently ate most of the 50%, QA-found).
+    const tx = e.x;
+    const ty = e.y;
+    if (e.elite || e.boss) {
+      const spend = e.hp * (eff.markEliteExecuteFraction ?? 0.5);
+      damageEnemy(w, e, spend, 'class_active', { pure: true, dot: true, type: 'normal', noLifesteal: true });
+      w.emit('execute', tx, ty, spend, 0);
+    } else {
+      const spend = e.hp;
+      damageEnemy(w, e, spend, 'class_active', { pure: true, dot: true, type: 'normal', noLifesteal: true });
+      w.emit('execute', tx, ty, spend, 0);
+    }
+    e.timeMarkStage = 0;
+  }
+}
+
+/**
+ * §4.2 (fb013) Time Lord *Time*: "every enemy within r7 advances one
+ * time-mark stage" — an AoE pulse centered on the Warden (the same
+ * `enemiesInRadius(wd.x, wd.y, ...)` convention Clarion Taunt/Judgement
+ * already use for a self-centered r-radius Active), not a single-target
+ * aim pick.
+ */
+function fireTimeMark(w: World, cls: NewClassDef): void {
+  const wd = w.warden;
+  const eff = cls.active1;
+  let hit = false;
+  for (const e of w.enemiesInRadius(wd.x, wd.y, eff.radius)) {
+    if (e.dead) continue;
+    advanceTimeMark(w, cls, e);
+    hit = true;
+  }
+  if (hit) w.emit('class_active', wd.x, wd.y, eff.radius, 0);
+}
+
+/** Frees every enemy a since-expired/replaced Time Lock zone was still holding. */
+function releaseTimeLockZone(w: World, id: number): void {
+  for (const e of w.enemies) {
+    if (e.timeLockZoneId === id) e.timeLockZoneId = 0;
+  }
+}
+
+/**
+ * §4.2 (fb013) Time Lord *Time Lock*: "re-casting while one exists teleports
+ * its enemies into the new zone and detonates all their remaining DoT as one
+ * instant burst" — read literally: every DoT they carry, not just this
+ * zone's own contribution, on the same "hand back everything still owed"
+ * precedent `dotOutstanding`/Spreading Plague's death transfer already set.
+ */
+function fireTimeLock(w: World, cls: NewClassDef, aimX: number | undefined, aimY: number | undefined): void {
+  const wd = w.warden;
+  const eff = cls.active2;
+  const cx = aimX ?? wd.x;
+  const cy = aimY ?? wd.y;
+  const old = w.timeLockZone;
+  if (old) {
+    for (const e of w.enemies) {
+      if (e.dead || e.timeLockZoneId !== old.id) continue;
+      const burst = dotOutstanding(e);
+      if (burst > 0) damageEnemy(w, e, burst, 'class_active2', { pure: true, dot: true, type: 'normal' });
+      e.dots = [];
+      if (e.dead) continue;
+      e.x = cx;
+      e.y = cy;
+      e.timeLockZoneId = 0;
+    }
+  }
+  w.timeLockZone = {
+    id: w.newId(),
+    x: cx,
+    y: cy,
+    radius: eff.radius,
+    remaining: eff.groundDurationSeconds ?? 5,
+    dotSeconds: eff.zoneDotSeconds ?? 10,
+    dps: characterDamage(w, cls, eff.damage),
+  };
+  w.emit('class_active2', cx, cy, eff.radius, 0);
+}
+
+/**
+ * §4.2 (fb013) Time Lord *Time Lock*'s own per-tick half: tags a newly-entered
+ * enemy once (installing its entry DoT), then clamps every tagged enemy back
+ * inside the radius every tick regardless of how it tried to leave — the
+ * "5 s no-exit" clause. Safe to call every tick of every run: a no-op unless
+ * `w.timeLockZone` is actually set, which only *Time Lock* itself ever does.
+ */
+function updateTimeLockZone(w: World, dt: number): void {
+  const z = w.timeLockZone;
+  if (!z) return;
+  z.remaining -= dt;
+  if (z.remaining <= 0) {
+    releaseTimeLockZone(w, z.id);
+    w.timeLockZone = null;
+    return;
+  }
+  const r2 = z.radius * z.radius;
+  for (const e of w.enemies) {
+    if (e.dead) continue;
+    const already = e.timeLockZoneId === z.id;
+    const inside = dist2(e.x, e.y, z.x, z.y) <= r2;
+    if (!already && inside) {
+      e.timeLockZoneId = z.id;
+      applyDot(w, e, 'bleeding', z.dps, z.dotSeconds, 'class_active2');
+    } else if (already && !inside) {
+      const n = normalize(e.x - z.x, e.y - z.y);
+      e.x = z.x + (n.x || 0) * z.radius;
+      e.y = z.y + (n.y || 0) * z.radius;
+    }
+  }
+}
+
 /* ------------------------------------------------- p6d: per-tick class state */
 
 // Reused across ticks rather than allocated per burning enemy — Contagious
@@ -961,6 +1180,10 @@ export function updateClassPassives(w: World, dt: number): void {
     }
     if (expired) w.corpses = w.corpses.filter((c) => c.remaining > 0);
   }
+  // fb013: a no-op unless `w.timeLockZone` is set, which only Time Lord's own
+  // Active2 ever sets — cheap and safe to run unconditionally, same reasoning
+  // the corpse-decay block above already gives.
+  updateTimeLockZone(w, dt);
 
   const cls = w.content.classByKey.get(w.cfg.classKey);
   if (!cls || cls.legacy) return;
@@ -968,6 +1191,8 @@ export function updateClassPassives(w: World, dt: number): void {
   // Keyed off the Active that creates the pact, not off the passive: a pact
   // tower is Necromancer-only state and nothing else can ever set the flag.
   if (cls.active2.kind === 'death_pact') updatePactedTowers(w, cls, dt);
+  // fb013: position sampling for *Time*'s rewind, kept off for every other kit.
+  if (cls.active1.kind === 'time_mark') updateTimeLordHistory(w, cls, dt);
 
   switch (cls.passive.kind) {
     case 'contagious_flame':
@@ -1202,7 +1427,14 @@ export function useClassActive(w: World, aimX?: number, aimY?: number): boolean 
   // regardless of whether the kind switch below matched anything at all).
   if (isChargeKind(cls.active1.kind)) return false;
 
-  if (wd.active1Cooldown > 0) return false;
+  // fb013: `maxCharges > 1` (Time Lord's *Time*) gates on ammo instead of the
+  // single `active1Cooldown` every other kind still uses untouched.
+  const max1 = cls.active1.maxCharges ?? 1;
+  if (max1 > 1) {
+    if (wd.active1Ammo <= 0) return false;
+  } else if (wd.active1Cooldown > 0) {
+    return false;
+  }
   switch (cls.active1.kind) {
     case 'burst_damage':
       fireEffect(w, wd.x, wd.y, cls.active1, passiveOnHit(cls));
@@ -1231,13 +1463,21 @@ export function useClassActive(w: World, aimX?: number, aimY?: number): boolean 
     case 'clarion_taunt':
       fireClarionTaunt(w, cls);
       break;
+    case 'time_mark':
+      fireTimeMark(w, cls);
+      break;
     default:
       // Same bug class as the legacy branch above: an unhandled kind (or one
       // that fires only from `tickClassCharge`'s hold/release path) must not
       // silently consume the cooldown.
       return false;
   }
-  wd.active1Cooldown = cls.active1.cooldownSeconds * (1 - w.derived.cdr);
+  if (max1 > 1) {
+    wd.active1Ammo--;
+    if (wd.active1AmmoCooldown <= 0) wd.active1AmmoCooldown = (cls.active1.rechargeSeconds ?? 0) * (1 - w.derived.cdr);
+  } else {
+    wd.active1Cooldown = cls.active1.cooldownSeconds * (1 - w.derived.cdr);
+  }
   return true;
 }
 
@@ -1262,7 +1502,13 @@ export function useClassActive2(w: World, aimX?: number, aimY?: number): boolean
   if (!cls || cls.legacy) return false;
 
   const wd = w.warden;
-  if (wd.active2Cooldown > 0) return false;
+  // fb013: see the matching Active1 ammo gate above.
+  const max2 = cls.active2.maxCharges ?? 1;
+  if (max2 > 1) {
+    if (wd.active2Ammo <= 0) return false;
+  } else if (wd.active2Cooldown > 0) {
+    return false;
+  }
   switch (cls.active2.kind) {
     case 'burst_damage':
       fireEffect(w, wd.x, wd.y, cls.active2, passiveOnHit(cls));
@@ -1300,14 +1546,48 @@ export function useClassActive2(w: World, aimX?: number, aimY?: number): boolean
     case 'judgement':
       fireJudgement(w, cls);
       break;
+    case 'time_lock':
+      fireTimeLock(w, cls, aimX, aimY);
+      break;
     default:
       // Guarded so a future mismatch (e.g. a charge kind authored onto Active2
       // by mistake) can't silently consume the cooldown for nothing, the same
       // bug class `useClassActive` above was fixed for (p6b).
       return false;
   }
-  wd.active2Cooldown = cls.active2.cooldownSeconds * (1 - w.derived.cdr);
+  if (max2 > 1) {
+    wd.active2Ammo--;
+    if (wd.active2AmmoCooldown <= 0) wd.active2AmmoCooldown = (cls.active2.rechargeSeconds ?? 0) * (1 - w.derived.cdr);
+  } else {
+    wd.active2Cooldown = cls.active2.cooldownSeconds * (1 - w.derived.cdr);
+  }
   return true;
+}
+
+/**
+ * fb013: refills a `maxCharges`-authored Active's ammo, one charge per
+ * `rechargeSeconds` up to the cap — the same increment-while-below-cap /
+ * restart-timer-on-use shape the Warden's own dash charges already use
+ * (`updateWarden`). A no-op for every kind that leaves `maxCharges` unset.
+ */
+export function tickAmmoRecharge(w: World, cls: NewClassDef, dt: number): void {
+  const wd = w.warden;
+  const max1 = cls.active1.maxCharges ?? 1;
+  if (max1 > 1 && wd.active1Ammo < max1) {
+    wd.active1AmmoCooldown -= dt;
+    if (wd.active1AmmoCooldown <= 0) {
+      wd.active1Ammo++;
+      if (wd.active1Ammo < max1) wd.active1AmmoCooldown = (cls.active1.rechargeSeconds ?? 0) * (1 - w.derived.cdr);
+    }
+  }
+  const max2 = cls.active2.maxCharges ?? 1;
+  if (max2 > 1 && wd.active2Ammo < max2) {
+    wd.active2AmmoCooldown -= dt;
+    if (wd.active2AmmoCooldown <= 0) {
+      wd.active2Ammo++;
+      if (wd.active2Ammo < max2) wd.active2AmmoCooldown = (cls.active2.rechargeSeconds ?? 0) * (1 - w.derived.cdr);
+    }
+  }
 }
 
 /**

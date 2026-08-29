@@ -249,6 +249,57 @@ export interface Enemy {
    * expires outright with no replacement.
    */
   tauntSourceId: number;
+  /**
+   * fb013 Time Lord *Time*: 0 unmarked, 1 past, 2 present, 3 future. Advances
+   * one stage per hit and persists across hits (no decay) until the future
+   * stage is struck again, which executes and resets it to 0.
+   */
+  timeMarkStage: number;
+  /**
+   * fb013: the present->future stage's -20% atk/move slow, deferred while
+   * this enemy is stunned/frozen (`frozenRemaining > 0`) at the moment it
+   * would apply — see `tickTimers`, which applies it the tick the stun ends.
+   */
+  timeMarkPendingSlow: boolean;
+  timeMarkPendingSlowAmount: number;
+  timeMarkPendingSlowSeconds: number;
+  /**
+   * fb013: recent position samples for *Time*'s unmarked->past rewind, oldest
+   * first, ~0.25 s apart (`updateTimeLordHistory`, classes.ts) — populated
+   * only while the active class's Active1 is `time_mark`, left empty (and
+   * free) for every other run.
+   */
+  posHistory: { x: number; y: number }[];
+  /** fb013: seconds until `posHistory`'s next sample; counts down from `POS_HISTORY_SAMPLE_SECONDS`. */
+  posHistoryTimer: number;
+  /** fb013 Time Lord *Time Lock*: the zone id currently trapping this enemy, 0 = none. */
+  timeLockZoneId: number;
+  /**
+   * Generic enemy attack-speed debuff, mirroring `slowAmount`/`slowRemaining`
+   * (which cover move speed only) — fb013 is its first source (*Time*'s
+   * present->future -20% atk speed half), but the mechanism is not itself
+   * Time-Lord-specific.
+   */
+  atkSlowAmount: number;
+  atkSlowRemaining: number;
+}
+
+/**
+ * fb013 Time Lord *Time Lock*: a single no-exit zone (one at a time — a
+ * recast detonates and replaces it, `fireTimeLock`, classes.ts). Enemies
+ * inside are clamped to its radius and immune to *Time*'s rewind-pull
+ * (`Enemy.timeLockZoneId` tags membership) until it expires.
+ */
+export interface TimeLockZone {
+  id: number;
+  x: number;
+  y: number;
+  radius: number;
+  remaining: number;
+  /** Seconds the entry DoT installed on a newly-trapped enemy is spread over. */
+  dotSeconds: number;
+  /** That DoT's dps. */
+  dps: number;
 }
 
 /**
@@ -383,6 +434,26 @@ export interface Warden {
   wrathStored: number;
   /** §4.2 Paladin *Clarion Taunt*: seconds left of the window that stores taken damage too. */
   clarionRemaining: number;
+  /**
+   * fb013: an ammo-style multi-charge gate for a `maxCharges`-authored
+   * Active — distinct from `active1Charge`/`active1Charging` (`charge_nova`'s
+   * hold-to-charge-power). `tickAmmoRecharge` (classes.ts) drives both pairs;
+   * every class but Time Lord leaves `maxCharges` unset (`?? 1`), for which
+   * these fields are never read, so existing single-cooldown behaviour is
+   * unchanged.
+   */
+  active1Ammo: number;
+  active1AmmoCooldown: number;
+  active2Ammo: number;
+  active2AmmoCooldown: number;
+  /**
+   * fb013 Time Lord *Time Flow*: damage the passive converted into a DoT
+   * instead of applying at once, ticked by `tickWardenDots` (run.ts) via a
+   * recursive `damageWarden(..., { dot: true })` call per stack. Independent
+   * stacks, like `Enemy.dots` — a second hit within 4 s adds a second entry
+   * rather than refreshing the first.
+   */
+  dots: { dps: number; remaining: number }[];
 }
 
 /**

@@ -44,6 +44,7 @@ import {
   classArmorBonus,
   classBasicAttack,
   classMoveSpeedMul,
+  tickAmmoRecharge,
   tickClassCharge,
   updateClassPassives,
   updateClassSummons,
@@ -430,6 +431,9 @@ export function updateWarden(w: World, input: TickInput, dt: number): void {
 
   const cls = w.content.classByKey.get(w.cfg.classKey);
   if (cls && !cls.legacy) {
+    // fb013: refills a `maxCharges`-authored Active's ammo (Time Lord only —
+    // a no-op for every other kit's single-cooldown Actives).
+    tickAmmoRecharge(w, cls, dt);
     // SPEC-FINAL §4.1 (p6b): charge/release for a charge-kind Active1, both TD and VS.
     tickClassCharge(w, cls, input, dt);
     // SPEC-FINAL §4: the band-profile basic attack auto-fires, TD-only (Q117) — no `input.attack` press needed.
@@ -437,6 +441,11 @@ export function updateWarden(w: World, input: TickInput, dt: number): void {
   } else if (input.attack && !w.huntsWarden) {
     manualAttack(w, input, dt);
   }
+  // fb013 Time Lord *Time Flow*: DoT the passive converted incoming damage
+  // into. Placed last so a kill lands the same tick order every other
+  // in-tick damage source already does (movement/attacks resolve, then this
+  // frame's damage) rather than pre-empting the Warden's own movement.
+  tickWardenDots(w, dt);
 }
 
 function moveWarden(w: World, dx: number, dy: number): void {
@@ -511,19 +520,76 @@ export function wardenArmor(w: World): number {
   return w.derived.armor - w.warden.armorShred + classArmorBonus(w);
 }
 
+/** fb013 Time Lord *Time Flow*: the fixed base duration its converted DoT resolves over at `charDotSpeedMul === 1`. */
+const TIME_FLOW_BASE_SECONDS = 4;
+
 /**
- * `dot` marks ailment damage, which SPEC-V3 §2 says ignores armor. Nothing
- * inflicts a DoT on the Warden yet; the flag exists so that when §3's statuses
- * land they cannot silently arrive armored.
+ * fb013 Time Lord *Time Flow*: ticks every DoT the passive has converted
+ * incoming damage into, each tick re-entering `damageWarden` with `{ dot:
+ * true }` so second wind/reform/defeat all resolve exactly as they would for
+ * an ordinary hit — `dot: true` also short-circuits the passive's own
+ * convert-to-DoT branch below, so a DoT tick cannot recursively spawn another.
+ */
+export function tickWardenDots(w: World, dt: number): void {
+  const wd = w.warden;
+  if (wd.dots.length === 0) return;
+  let expired = false;
+  const n = wd.dots.length;
+  for (let i = 0; i < n; i++) {
+    const d = wd.dots[i];
+    const step = Math.min(dt, d.remaining);
+    d.remaining -= dt;
+    if (d.remaining <= 0) expired = true;
+    if (step > 0) damageWarden(w, d.dps * step, { dot: true });
+    if (w.outcome !== 'running') break;
+  }
+  if (expired) wd.dots = wd.dots.filter((d) => d.remaining > 0);
+}
+
+/**
+ * `dot` marks ailment damage, which SPEC-V3 §2 says ignores armor — Time
+ * Flow's re-entrant ticks (`tickWardenDots`) are the first real source.
  */
 export function damageWarden(w: World, amount: number, opts?: WardenDamageOptions): void {
   const wd = w.warden;
   if (wd.dashIFrames > 0 || w.invulnerable || w.godMode) return;
   const dmg = opts?.dot ? amount : amount * damageTakenMul(wardenArmor(w));
-  wd.hp -= dmg;
   wd.outOfCombat = 0;
   storeWrath(w, amount - dmg, dmg);
   w.emit('wardenhit', wd.x, wd.y, dmg, 0);
+
+  if (!opts?.dot) {
+    const cls = w.content.classByKey.get(w.cfg.classKey);
+    if (cls && !cls.legacy && cls.passive.kind === 'time_flow') {
+      // "mitigated once by armor before converting": `dmg` above already is
+      // that one mitigation — the DoT itself then bypasses armor entirely
+      // (`dot: true` on the re-entrant tick), the same convention every
+      // enemy-facing DoT in the sim already follows.
+      const speedMul = Math.max(cls.passive.charDotSpeedMul ?? 1, 0.01);
+      const cap = w.content.damageTypes.maxStacksPerEnemy;
+      if (wd.dots.length < cap) {
+        wd.dots.push({ dps: (dmg * speedMul) / TIME_FLOW_BASE_SECONDS, remaining: TIME_FLOW_BASE_SECONDS / speedMul });
+      } else {
+        // A VS horde landing dozens of simultaneous contact hits would
+        // otherwise grow this array once per attacker per tick with no
+        // ceiling — `applyDot`'s enemy-side per-enemy cap (same
+        // `maxStacksPerEnemy` budget, enemies.ts) is the precedent this
+        // mirrors. Merge the incoming hit's full damage (`dmg`, since
+        // dps * remaining collapses to exactly `dmg` for a freshly-pushed
+        // stack) into the shortest-remaining stack rather than dropping it,
+        // so no damage is lost, only its timing is folded into another
+        // stack's remaining window.
+        let shortest = 0;
+        for (let i = 1; i < wd.dots.length; i++) {
+          if (wd.dots[i].remaining < wd.dots[shortest].remaining) shortest = i;
+        }
+        wd.dots[shortest].dps += dmg / wd.dots[shortest].remaining;
+      }
+      return;
+    }
+  }
+
+  wd.hp -= dmg;
   if (wd.hp <= 0) {
     if (w.derived.secondWind && !wd.secondWindUsed) {
       wd.secondWindUsed = true;
@@ -660,6 +726,26 @@ function updateAct1Wave(w: World, dt: number): void {
   }
 }
 
+/**
+ * §4.2 (fb013) Time Lord *Chronal Surge*: "every 2 TD waves, all towers gain
+ * one free uncapped bonus level: +10% range, +10% AoE area, no milestone
+ * triggers." Folded into the ordinary `towerRange`/`area` Stats sources
+ * (`Stats.add` sums per source across repeated calls) so `effectiveTowerRange`/
+ * `effectiveTowerAoe` pick it up with no towers.ts change at all — the same
+ * add-then-recompute shape every other run-long stat change already follows
+ * (`progression.ts`'s boon picks, `cores.ts`'s Core steps).
+ */
+function applyChronalSurge(w: World): void {
+  const cls = w.content.classByKey.get(w.cfg.classKey);
+  if (!cls || cls.legacy || cls.towerPassive.kind !== 'chronal_surge') return;
+  const interval = Math.max(1, Math.round(cls.towerPassive.waveInterval ?? 2));
+  if (w.wavesCleared % interval !== 0) return;
+  const source = `class:${w.cfg.classKey}:chronal_surge`;
+  w.stats.add(source, 'towerRange', cls.towerPassive.bonusRangeMul ?? 0);
+  w.stats.add(source, 'area', cls.towerPassive.bonusAoeMul ?? 0);
+  w.recomputeDerived();
+}
+
 function completeWave(w: World): void {
   const c = w.content.waves;
   // p3b: a stacked fight clears every wave merged into it at once — from the
@@ -680,6 +766,7 @@ function completeWave(w: World): void {
     collectSproutGold(w);
     w.goldEarnedByWave[wv] = w.goldEarned;
     w.wavesCleared++;
+    applyChronalSurge(w);
     // fb015 (§8.1): "each TD wave cleared -> 1 random equipment (even
     // weights), granted at run end, win or lose." Rolled here, on the same
     // `drops` stream a relic roll uses, so loot never perturbs combat
@@ -878,6 +965,12 @@ export function hashWorld(w: World): string {
   // x002's leechAccumulator review named.
   h.num(w.warden.overloadRemaining).num(w.warden.standStillTimer);
   h.num(w.warden.wrathStored).num(w.warden.clarionRemaining);
+  // fb013: Time Lord's ammo-style charge gate and Time Flow's converted DoT
+  // are the same class of future-damage-gating state as the cooldowns above.
+  h.num(w.warden.active1Ammo).num(w.warden.active1AmmoCooldown);
+  h.num(w.warden.active2Ammo).num(w.warden.active2AmmoCooldown);
+  h.int(w.warden.dots.length);
+  for (const d of w.warden.dots) h.num(d.dps).num(d.remaining);
   h.int(w.level).num(w.xp);
   h.num(w.act2Time);
   h.int(w.cycle);
@@ -924,6 +1017,15 @@ export function hashWorld(w: World): string {
     // and could breach a different tile without the hash ever noticing.
     h.num(e.tauntRemaining).int(e.tauntKind).int(e.tauntSourceId);
     for (const d of e.dots) h.str(d.type).num(d.remaining).num(d.dps);
+    // fb013: Time Lord's per-enemy mark stage/deferred-slow gate future
+    // damage the same way the statuses above do; `posHistory` decides where
+    // an unmarked->past hit rewinds it to, and `timeLockZoneId` decides
+    // whether it is currently trapped (and rewind-immune).
+    h.int(e.timeMarkStage).bool(e.timeMarkPendingSlow);
+    h.num(e.timeMarkPendingSlowAmount).num(e.timeMarkPendingSlowSeconds);
+    h.int(e.timeLockZoneId).num(e.atkSlowAmount).num(e.atkSlowRemaining);
+    h.int(e.posHistory.length);
+    for (const p of e.posHistory) h.num(p.x).num(p.y);
   }
   h.int(w.structures.length);
   for (const s of w.structures) {
@@ -945,6 +1047,13 @@ export function hashWorld(w: World): string {
   for (const tw of w.tempWalls) {
     h.num(tw.remaining);
     for (const id of [...tw.structureIds].sort((a, b) => a - b)) h.int(id);
+  }
+  // fb013: Time Lord's single Time Lock zone gates the same class of future
+  // damage/pathing the walls above do.
+  h.bool(!!w.timeLockZone);
+  if (w.timeLockZone) {
+    const z = w.timeLockZone;
+    h.int(z.id).num(z.x).num(z.y).num(z.radius).num(z.remaining).num(z.dotSeconds).num(z.dps);
   }
   h.int(w.projectiles.length);
   for (const p of w.projectiles) h.int(p.id).num(p.x).num(p.y).num(p.damage);

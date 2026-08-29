@@ -133,6 +133,15 @@ export function makeEnemy(w: World, def: EnemyDef, x: number, y: number, opts: S
     tauntRemaining: 0,
     tauntKind: TAUNT_NONE,
     tauntSourceId: 0,
+    timeMarkStage: 0,
+    timeMarkPendingSlow: false,
+    timeMarkPendingSlowAmount: 0,
+    timeMarkPendingSlowSeconds: 0,
+    posHistory: [],
+    posHistoryTimer: 0,
+    timeLockZoneId: 0,
+    atkSlowAmount: 0,
+    atkSlowRemaining: 0,
   };
   return e;
 }
@@ -520,6 +529,23 @@ export function applySlow(w: World, e: Enemy, amount: number, duration: number):
 }
 
 /**
+ * Generic attack-speed debuff, mirroring `applySlow` (move speed) — fb013
+ * Time Lord *Time*'s present->future stage is its first source. Not itself
+ * Time-Lord-specific: a future source can call this the same way `applySlow`
+ * already serves every slow in the game, not just one class's.
+ */
+export function applyAtkSlow(w: World, e: Enemy, amount: number, duration: number): void {
+  if ((e.flags & TRAIT.slowImmune) !== 0) return;
+  const scaled = clamp(amount * w.derived.slowPotencyMul * w.derived.ailmentMul, 0, 0.9);
+  if (scaled >= e.atkSlowAmount || e.atkSlowRemaining <= 0) {
+    e.atkSlowAmount = scaled;
+    e.atkSlowRemaining = Math.max(e.atkSlowRemaining, duration);
+  } else {
+    e.atkSlowRemaining = Math.max(e.atkSlowRemaining, duration);
+  }
+}
+
+/**
  * SPEC-V3 §3 frost: −30% attack speed and move speed for 3 s. Both numbers and
  * the duration are read from data/damagetypes.json, never inlined.
  *
@@ -565,6 +591,7 @@ function nearCoreSlowAura(w: World, e: Enemy): boolean {
 /** Frost's attack-speed penalty, as a multiplier on every cooldown an enemy runs. */
 export function enemyAttackSpeedMul(w: World, e: Enemy): number {
   let mul = e.frostRemaining > 0 ? 1 + (w.content.damageTypes.statuses.frost.attackSpeed ?? 0) : 1;
+  if (e.atkSlowRemaining > 0) mul *= 1 - e.atkSlowAmount;
   if (nearCoreSlowAura(w, e)) mul *= 1 - w.core.tdSlowPct;
   return mul;
 }
@@ -886,6 +913,19 @@ function tickTimers(w: World, e: Enemy, dt: number): void {
   }
   if (e.frostRemaining > 0) e.frostRemaining -= dt;
   if (e.frozenRemaining > 0) e.frozenRemaining -= dt;
+  if (e.atkSlowRemaining > 0) {
+    e.atkSlowRemaining -= dt;
+    if (e.atkSlowRemaining <= 0) e.atkSlowAmount = 0;
+  }
+  // fb013 Time Lord *Time*: the present->future stage's -20% atk/move slow,
+  // deferred while this enemy was stunned/frozen at the moment it would have
+  // applied — "stunned" is read as `frozenRemaining > 0` (the sim's one hard
+  // CC), the same reuse `advanceTimeMark` (classes.ts) makes for "stun-locks".
+  if (e.timeMarkPendingSlow && e.frozenRemaining <= 0) {
+    e.timeMarkPendingSlow = false;
+    applySlow(w, e, e.timeMarkPendingSlowAmount, e.timeMarkPendingSlowSeconds);
+    applyAtkSlow(w, e, e.timeMarkPendingSlowAmount, e.timeMarkPendingSlowSeconds);
+  }
   if (e.tauntRemaining > 0) {
     e.tauntRemaining -= dt;
     if (e.tauntRemaining <= 0) {

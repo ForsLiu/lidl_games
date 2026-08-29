@@ -82,7 +82,7 @@ all damage; statuses affect the character only when a source is authored.
 **Status** — frozen: cannot move 3 s, +30% damage taken. frost: −30% attack
 speed and movement speed for 3 s.
 
-## 4. Characters (11 classes)
+## 4. Characters (12 classes)
 
 Framework: each class = archetype bands (low/medium/high, mapped to numbers
 in `data/classes.json` ⚖) + **Passive** + **Active1 (Q)** + **Active2 (E)**
@@ -124,8 +124,13 @@ Tower passive: all towers +10% poison damage.
 | **Bloodlord** | low/high/med/small/high | 3% lifesteal on normal damage; +10% attack in VS waves, −5% in TD waves | *Blood Tithe* (target tower): tower pays 30% current HP once → permanently +25% dmg; its share of VS attacks lifesteals +1% | *Crimson Rush*: dash through enemies, +2 HP per enemy passed | all towers +10% damage, −10% max HP |
 | **Animist** | med/low/med/no/med | aura effects also affect summons; summon cap +1 | *Manifest*: summon a walking spirit of any built tower type (30% of its stats at highest upgrade), 20 s, cap 3 | *Recall Totem*: place a totem — character & summons near it +15% atk spd; in TD it taunts nearby enemies | all towers +10% area |
 | **Paladin** | low/med/low/yes/low | +30 defense after standing still 1 s; blocked damage charges Wrath | *Clarion Taunt*: enemies in r6 target the Paladin 4 s; 60% of damage taken stores into Wrath | *Judgement*: release Wrath as a holy nova (stored ×1.5 as normal damage) | all towers +10% HP and +5 defense |
+| **Time Lord** | med/med/med/no/med | *Time Flow*: damage taken becomes a 4 s DoT after one armor mitigation (a dormant "character DoT 100% faster" flag ships disabled, reserved for future equipment) | *Time*: r7 four-stage mark per enemy, advanced one stage per cast — unmarked→past rewinds to a 3 s-ago position + DoT, past→present stun-locks 3 s + DoT, present→future −20% atk/move speed (deferred if stunned/frozen) + DoT equal to remaining HP, future→executed instant-kill (elites/bosses: −50% current HP instead); 3 charges/6 s recharge | *Time Lock*: 5 s no-exit zone at the cursor, immune to Time's rewind-pull, DoT over 10 s; recasting while one exists teleports its enemies into the new zone and detonates their remaining DoT as one burst; 2 charges/10 s recharge | every 2 TD waves, all towers gain one free uncapped bonus level: +10% range, +10% AoE area |
 
-Unlocks: Swordsman, Archer, Engineer free; others via quests (§8.4).
+Unlocks: Swordsman, Archer, Engineer free; others via quests (§8.4). Time Lord
+added post-1.0-draft via owner feedback (`feature-class-timelord`, fb013,
+QUESTIONS.md Q139) — a 12th class past this section's original nine-row
+template, unlocked by the `chrono_veteran` quest (§8.4) rather than the
+template's default quest-per-class pattern.
 
 ## 5. Towers (10; `data/towers.json`)
 
@@ -343,7 +348,7 @@ content hash in RunConfig; `npm test` green gates every commit.
 
 ## 13. Content totals at 1.0
 
-11 classes · 10 towers · 12+ equipment · 6 damage types + 2 statuses ·
+12 classes · 10 towers · 12+ equipment · 6 damage types + 2 statuses ·
 20 enemies · 18+6 waves · 120-node tree · 8–12 quests · T1–T5 · 2 bosses ·
 VS upgrade pool per §6.3 · Codex & Tuner.
 
@@ -358,7 +363,7 @@ VS upgrade pool per §6.3 · Codex & Tuner.
 | G5 | Stacking: two different-source 10%/20% boosts = exactly ×1.32; same-source ranks add. |
 | G6 | Interleave: TD×3→VS pattern; multi-summon ≤3, no early-call gold bonus (fb009), fixed `20 + 10 × wave` clear reward; VS unstackable. |
 | G7 | Sealing: sealed Core → structures damaged en route; open path → no structure-chewing by pathing; sealed-build win rate ≤ open-build +10 pts at T2. |
-| G8 | Every class clears T1 at 35–70% win rate (scripted kit bot); top damage source differs across ≥8 of 11 classes. |
+| G8 | Every class clears T1 at 35–70% win rate (scripted kit bot); top damage source differs across ≥9 of 12 classes (fb013's Time Lord folded in at the same ~73% ratio as the original ≥8 of 11). |
 | G9 | Swordsman combo: Dash during charge = one merged attack, widened range, exactly 1 Bleeding per enemy struck. Plaguebringer: unfinished DoT transfers once to nearest. |
 | G10 | Archer: dps-optimal charge finite (2–6 s); full charge one-shots any non-elite at mid scaling. |
 | G11 | Stormcaller: max chain multiplier ≤ ×3.6. |

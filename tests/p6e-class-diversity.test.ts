@@ -2,6 +2,15 @@
  * p6e — SPEC-FINAL §4, gate **G8**: "every class clears T1 at 35-70% win rate
  * (scripted kit bot); top damage source differs across >=8 of 11 classes."
  *
+ * fb013 (2026-08-29) added a 12th class, Time Lord — `CLASS_KEYS` below picks
+ * it up automatically via the same `!c.legacy` filter, and SPEC-FINAL's own
+ * G8 text now reads ">=9 of 12" (the same ~73% ratio). This file's entire
+ * win-rate sweep was already `.skip`-ed per class pending **P10** before
+ * fb013 landed (see the dated corrections below); Time Lord has not been run
+ * through it — a full re-run costs ~1 h (b027's note) and stays out of scope
+ * for an ordinary item per CLAUDE.md's ban on starting a background full/heavy
+ * suite inside one. Re-measure Time Lord alongside the rest of G8 at P10.
+ *
  * Precedent and gap (Q120's own list, and p6b/p6c/p6d's write-ups all name it):
  * **no stock bot policy in `src/bots` ever issues `class_active`/`class_active2`,
  * or drives `active1Held` for a charge-kind Active1.** `tests/p-core-f-gates.
@@ -182,7 +191,7 @@ const SEEDS = Array.from({ length: 12 }, (_, i) => i + 1);
 const BAND_LO = 0.35;
 const BAND_HI = 0.70;
 
-/** The eleven §4-shaped classes (`frost_warden` is the one `legacy: true` row §13's roster excludes — Q38/p6d). */
+/** The twelve §4-shaped classes, fb013 (`frost_warden` is the one `legacy: true` row §13's roster excludes — Q38/p6d). */
 const CLASS_KEYS = content.classes.classes.filter((c) => !c.legacy).map((c) => c.key);
 
 const CHARGE_KINDS = new Set(['charge_nova', 'charge_pierce']);
@@ -509,7 +518,9 @@ describe('p6e: G8 top-damage-source diversity (>=8 of 11 distinct)', () => {
   // cryomancer's 1.7%, not paladin's — same conclusion (no non-tautological
   // bar clears 8/11), corrected numbers. Re-enable point moves from `p8a`
   // (done) to **P10**, the same as every other clause this pass re-measured.
-  it.skip('at least 8 of the 11 classes top out on a different source', () => {
+  // fb013: SPEC-FINAL's own G8 text now reads ">=9 of 12" (Time Lord folded
+  // in at the original ~73% ratio) — threshold updated to match, unmeasured.
+  it.skip('at least 9 of the 12 classes top out on a different source', () => {
     const labels = CLASS_KEYS.map((k) => measurements.get(k)!.topLabel);
     const distinct = new Set(labels);
     const breakdown = CLASS_KEYS.map((k) => {
@@ -519,12 +530,19 @@ describe('p6e: G8 top-damage-source diversity (>=8 of 11 distinct)', () => {
     expect(
       distinct.size,
       `only ${distinct.size}/${CLASS_KEYS.length} distinct top sources:\n${breakdown}`,
-    ).toBeGreaterThanOrEqual(8);
+    ).toBeGreaterThanOrEqual(9);
   });
 
   // Pins the honest measurement so a future change is forced to re-examine
-  // this rather than silently drifting: today it is 2 (see the skip above).
-  it('the current (red) distinct-source count is pinned, not silently drifting', () => {
+  // this rather than silently drifting: pre-fb013 (11 classes) it was 2.
+  //
+  // fb013: `CLASS_KEYS` now includes Time Lord, and this file's ~1 h
+  // `beforeAll` sweep has not been re-run against the 12-class roster (out of
+  // scope for an ordinary item per CLAUDE.md — see this file's header note).
+  // Asserting the stale pre-fb013 number here would be an unearned pin, not a
+  // measured one, so this is `.skip`-ed too until P10 re-measures all of G8
+  // (win rate and diversity, all twelve classes) together.
+  it.skip('the current (red) distinct-source count is pinned, not silently drifting', () => {
     const labels = CLASS_KEYS.map((k) => measurements.get(k)!.topLabel);
     const distinct = new Set(labels);
     expect(distinct.size).toBe(2);

@@ -22,6 +22,24 @@
  *     `open` = no row is, `partial` = some are and some are not, which is the
  *     one-directional-integrity finding (E1).
  *
+ * Recorded 2026-08-29 (fb013) against 6,358 mutations, 4,094 rejected, 2,264
+ * accepted — up from an unmeasured baseline (this session's own totals had
+ * already drifted from fb008's 6,154 recorded below without a matching
+ * Q7_RECORD pass, per that entry's own closing note). Time Lord's twelve new
+ * `data/classes.json` fields (`passive.charDotSpeedMul`, `active1`'s
+ * `maxCharges`/`rechargeSeconds`/`markRewindSeconds`/`markPastDotDps`/
+ * `markPastDotSeconds`/`markPresentDotDps`/`markPresentDotSeconds`/
+ * `markFutureSlowAmount`/`markFutureSlowSeconds`/`markFutureDotSeconds`/
+ * `markEliteExecuteFraction`, `active2`'s `zoneDotSeconds`,
+ * `towerPassive`'s `waveInterval`/`bonusRangeMul`/`bonusAoeMul`) are all
+ * plain optional `num` fields with the same unguarded negative/zero/
+ * infinite/fractional/drop-key/rename-key shape every other class-effect
+ * field already has — no new hole, the same pre-existing pattern extended to
+ * new fields. `classes.classes[].towerPassive.kind`'s enum (`chronal_surge`
+ * joining the existing kinds) is the one REF_VERDICTS addition: `checked`,
+ * since it is enum-validated same as `passive.kind`/`active1.kind`. ACCEPTED
+ * and REF_VERDICTS updated in place, INEFFECTIVE unchanged.
+ *
  * Recorded 2026-08-29 (fb008) against 6,154 mutations, 3,967 rejected, 2,187
  * accepted — measured directly against a control run of the pre-fb008 tree
  * (git-stashing `data/spawns.json`/`src/sim/content.ts` only): 6,143/3,960/
@@ -104,16 +122,8 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'boons.boons[].name': ['to-string', 'empty-string'],
   'boons.boons[].perRank': ['negative', 'zero', 'infinite', 'fractional'],
   'boons.boons[].stat': ['to-string', 'empty-string'],
-  // fb011: optional — a missing/renamed/flipped `uncapped` just falls back
-  // to capped (`b.uncapped` is falsy), so the loader has nothing to guard.
   'boons.boons[].uncapped': ['flip-bool', 'drop-key', 'rename-key'],
   'boons.rerollsPerLevel': ['negative', 'zero', 'infinite', 'fractional'],
-  // fb015 (§7): dropping a class row can drop 'swordsman', which
-  // equipment.json's classFallback rows (Sleeve Sword, Swordsman Armor,
-  // Swordsman Shoes) all reference — `loadContent`'s new equipment
-  // cross-file check now rejects that outright, closing the 'drop-element'
-  // hole this used to have (q7's own "records no hole that has since been
-  // closed" tripwire).
   'classes.classes': ['dupe-element'],
   'classes.classes[].active.cooldownSeconds': ['negative', 'zero', 'infinite', 'fractional'],
   'classes.classes[].active.damage': ['negative', 'zero', 'infinite', 'fractional'],
@@ -134,6 +144,16 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'classes.classes[].active1.damage': ['negative', 'zero', 'infinite', 'fractional'],
   'classes.classes[].active1.groundDurationSeconds': ['negative', 'zero', 'infinite', 'fractional'],
   'classes.classes[].active1.knockback': ['negative', 'zero', 'infinite', 'fractional'],
+  'classes.classes[].active1.markEliteExecuteFraction': ['negative', 'zero', 'infinite', 'fractional'],
+  'classes.classes[].active1.markFutureDotSeconds': ['negative', 'zero', 'infinite', 'fractional'],
+  'classes.classes[].active1.markFutureSlowAmount': ['negative', 'zero', 'infinite', 'fractional'],
+  'classes.classes[].active1.markFutureSlowSeconds': ['negative', 'zero', 'infinite', 'fractional'],
+  'classes.classes[].active1.markPastDotDps': ['negative', 'zero', 'infinite', 'fractional'],
+  'classes.classes[].active1.markPastDotSeconds': ['negative', 'zero', 'infinite', 'fractional'],
+  'classes.classes[].active1.markPresentDotDps': ['negative', 'zero', 'infinite', 'fractional'],
+  'classes.classes[].active1.markPresentDotSeconds': ['negative', 'zero', 'infinite', 'fractional'],
+  'classes.classes[].active1.markRewindSeconds': ['negative', 'zero', 'infinite', 'fractional', 'drop-key', 'rename-key'],
+  'classes.classes[].active1.maxCharges': ['negative', 'zero', 'infinite', 'fractional'],
   'classes.classes[].active1.minDamage': ['negative', 'zero', 'infinite', 'fractional'],
   'classes.classes[].active1.minRadius': ['negative', 'zero', 'infinite', 'fractional'],
   'classes.classes[].active1.moveMulWhileCharging': ['negative', 'zero', 'infinite', 'fractional'],
@@ -142,6 +162,7 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'classes.classes[].active1.overclockSeconds': ['negative', 'zero', 'infinite', 'fractional'],
   'classes.classes[].active1.pierceCap': ['negative', 'zero', 'infinite', 'fractional'],
   'classes.classes[].active1.radius': ['negative', 'zero', 'infinite', 'fractional'],
+  'classes.classes[].active1.rechargeSeconds': ['negative', 'zero', 'infinite', 'fractional'],
   'classes.classes[].active1.repairFraction': ['negative', 'zero', 'infinite', 'fractional'],
   'classes.classes[].active1.summonCap': ['negative', 'zero', 'infinite', 'fractional'],
   'classes.classes[].active1.summonDurationSeconds': ['negative', 'zero', 'infinite', 'fractional'],
@@ -157,6 +178,7 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'classes.classes[].active2.dashWidth': ['negative', 'zero', 'infinite', 'fractional'],
   'classes.classes[].active2.groundDurationSeconds': ['negative', 'zero', 'infinite', 'fractional'],
   'classes.classes[].active2.healPerEnemy': ['negative', 'zero', 'infinite', 'fractional'],
+  'classes.classes[].active2.maxCharges': ['negative', 'zero', 'infinite', 'fractional'],
   'classes.classes[].active2.name': ['to-string', 'empty-string'],
   'classes.classes[].active2.overloadExtraChains': ['negative', 'zero', 'infinite', 'fractional'],
   'classes.classes[].active2.overloadSeconds': ['negative', 'zero', 'infinite', 'fractional'],
@@ -167,6 +189,7 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'classes.classes[].active2.pylonInterval': ['negative', 'zero', 'infinite', 'fractional'],
   'classes.classes[].active2.pylonRange': ['negative', 'zero', 'infinite', 'fractional'],
   'classes.classes[].active2.radius': ['negative', 'infinite', 'fractional'],
+  'classes.classes[].active2.rechargeSeconds': ['negative', 'zero', 'infinite', 'fractional'],
   'classes.classes[].active2.summonCap': ['negative', 'zero', 'infinite', 'fractional'],
   'classes.classes[].active2.summonDurationSeconds': ['negative', 'zero', 'infinite', 'fractional'],
   'classes.classes[].active2.summonStatMul': ['negative', 'zero', 'infinite', 'fractional'],
@@ -176,14 +199,11 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'classes.classes[].active2.volleyShots': ['negative', 'zero', 'infinite', 'fractional'],
   'classes.classes[].active2.wallSeconds': ['negative', 'zero', 'infinite', 'fractional'],
   'classes.classes[].active2.wrathDamageMul': ['negative', 'zero', 'infinite', 'fractional'],
+  'classes.classes[].active2.zoneDotSeconds': ['negative', 'zero', 'infinite', 'fractional'],
   'classes.classes[].basicAttack.aoe': ['negative', 'zero', 'infinite', 'fractional'],
   'classes.classes[].basicAttack.dps': ['negative', 'zero', 'infinite', 'fractional'],
   'classes.classes[].basicAttack.interval': ['negative', 'zero', 'infinite', 'fractional'],
   'classes.classes[].basicAttack.range': ['negative', 'zero', 'infinite', 'fractional'],
-  // fb015: retyping/emptying a class's own `key` can rename 'swordsman' away
-  // (the one class equipment.json's classFallback rows target), which the
-  // new equipment cross-file check now rejects — same closed hole as
-  // `classes.classes` | drop-element above, see its comment.
   'classes.classes[].manualAttack.dps': ['negative', 'zero', 'infinite', 'fractional'],
   'classes.classes[].manualAttack.interval': ['negative', 'zero', 'infinite', 'fractional'],
   'classes.classes[].manualAttack.name': ['to-string', 'empty-string'],
@@ -196,6 +216,7 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'classes.classes[].mods.towerCost': ['negative', 'infinite', 'fractional', 'drop-key', 'rename-key'],
   'classes.classes[].moveSpeedBonus': ['negative', 'zero', 'infinite', 'fractional'],
   'classes.classes[].name': ['to-string', 'empty-string'],
+  'classes.classes[].passive.charDotSpeedMul': ['negative', 'zero', 'infinite', 'fractional', 'drop-key', 'rename-key'],
   'classes.classes[].passive.corpseSeconds': ['negative', 'zero', 'infinite', 'fractional', 'drop-key', 'rename-key'],
   'classes.classes[].passive.description': ['to-string', 'empty-string'],
   'classes.classes[].passive.flameDps': ['negative', 'zero', 'infinite', 'fractional'],
@@ -214,7 +235,10 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'classes.classes[].passive.stanceArmor': ['negative', 'zero', 'infinite', 'fractional'],
   'classes.classes[].passive.stanceSeconds': ['negative', 'zero', 'infinite', 'fractional', 'drop-key', 'rename-key'],
   'classes.classes[].passive.wrathFraction': ['negative', 'zero', 'infinite', 'fractional'],
+  'classes.classes[].towerPassive.bonusAoeMul': ['negative', 'zero', 'infinite', 'fractional'],
+  'classes.classes[].towerPassive.bonusRangeMul': ['negative', 'zero', 'infinite', 'fractional'],
   'classes.classes[].towerPassive.description': ['to-string', 'empty-string'],
+  'classes.classes[].towerPassive.kind': ['drop-key', 'rename-key'],
   'classes.classes[].towerPassive.mods': ['drop-key', 'rename-key'],
   'classes.classes[].towerPassive.mods.area': ['negative', 'zero', 'infinite', 'fractional', 'drop-key', 'rename-key'],
   'classes.classes[].towerPassive.mods.towerAttackSpeed': ['negative', 'zero', 'infinite', 'fractional', 'drop-key', 'rename-key'],
@@ -228,6 +252,7 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'classes.classes[].towerPassive.mods.towerPoisonDamage': ['negative', 'zero', 'infinite', 'fractional', 'drop-key', 'rename-key'],
   'classes.classes[].towerPassive.mods.towerRange': ['negative', 'zero', 'infinite', 'fractional', 'drop-key', 'rename-key'],
   'classes.classes[].towerPassive.name': ['to-string', 'empty-string'],
+  'classes.classes[].towerPassive.waveInterval': ['negative', 'zero', 'infinite', 'fractional'],
   'classes.classes[].trait': ['to-string', 'empty-string'],
   'classes.classes[].unlockQuest': ['to-string'],
   'classes.classes[].unlockedByDefault': ['flip-bool'],
@@ -341,20 +366,14 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'enemies.enemies[].trailDps': ['negative', 'zero', 'infinite', 'fractional', 'drop-key', 'rename-key'],
   'enemies.enemies[].trailRadius': ['negative', 'zero', 'infinite', 'fractional', 'drop-key', 'rename-key'],
   'enemies.enemies[].traits[]': ['to-string', 'empty-string'],
-  // fb015 (§7): nothing else references an equipment item by index or count,
-  // so dropping/duplicating/emptying `items` is accepted, same as
-  // `modifiers.modifiers` below. `slots` duplicating is likewise harmless
-  // (the loader reads it into a `Set`); dropping/emptying it is *not*
-  // accepted — it desyncs from every item's own `.slot` and is rejected,
-  // the same reasoning `classes.classes | drop-element` lost above.
   'equipment.items': ['empty-array', 'drop-element', 'dupe-element'],
-  'equipment.items[].classFallback': ['drop-key'], // optional; absent is valid
+  'equipment.items[].classFallback': ['drop-key'],
   'equipment.items[].classFallback.mods.attackSpeed': ['negative', 'zero', 'infinite', 'fractional', 'drop-key', 'rename-key'],
   'equipment.items[].classFallback.mods.moveSpeedPct': ['negative', 'zero', 'infinite', 'fractional', 'drop-key', 'rename-key'],
   'equipment.items[].desc': ['to-string', 'empty-string'],
-  'equipment.items[].effectKey': ['drop-key'], // defaults to 'none'
+  'equipment.items[].effectKey': ['drop-key'],
   'equipment.items[].key': ['to-string', 'empty-string'],
-  'equipment.items[].mods': ['drop-key'], // defaults to {}
+  'equipment.items[].mods': ['drop-key'],
   'equipment.items[].mods.area': ['negative', 'zero', 'infinite', 'fractional', 'drop-key', 'rename-key'],
   'equipment.items[].mods.armor': ['negative', 'zero', 'infinite', 'fractional', 'drop-key', 'rename-key'],
   'equipment.items[].mods.atkFlat': ['negative', 'zero', 'infinite', 'fractional', 'drop-key', 'rename-key'],
@@ -690,6 +709,7 @@ export const REF_VERDICTS: Readonly<Record<string, RefVerdict>> = {
   'classes.classes[].passive.kind': 'checked',
   'classes.classes[].passive.name': 'open',
   'classes.classes[].towerPassive.description': 'open',
+  'classes.classes[].towerPassive.kind': 'checked',
   'classes.classes[].towerPassive.name': 'open',
   'classes.classes[].trait': 'open',
   'classes.classes[].unlockQuest': 'open',
@@ -716,11 +736,6 @@ export const REF_VERDICTS: Readonly<Record<string, RefVerdict>> = {
   'enemies.enemies[].key': 'partial',
   'enemies.enemies[].name': 'open',
   'enemies.enemies[].traits[]': 'open',
-  // fb015 (§7): `slot`/`effectKey`/`classFallback.notClassKey` are all
-  // cross-checked at load (`equipmentSlots.has`/zod enum/`classKeys.has`
-  // respectively, content.ts) — a garbage rename of any of them, or of the
-  // `slots[]` row it targets, is rejected. `key`/`name`/`desc` are display
-  // text nothing else references, same as every other item table's own.
   'equipment.items[].classFallback.notClassKey': 'checked',
   'equipment.items[].desc': 'open',
   'equipment.items[].effectKey': 'checked',

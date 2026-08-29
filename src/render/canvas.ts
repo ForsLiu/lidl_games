@@ -112,6 +112,9 @@ interface CastFx {
 
 const CAST_FX_LIFE = 0.28;
 
+/** fb013 Time Lord *Time*: one marker color per mark stage (1 past, 2 present, 3 future). */
+const TIME_MARK_STAGE_COLORS: readonly string[] = ['#9a7fe6', '#ffb454', '#ff5577'];
+
 /**
  * fb010: hard ceilings on presentation-only fx queued per `ingest()` call.
  * These arrays only get pruned once per rendered frame, in `update()` — but a
@@ -623,6 +626,14 @@ export class Renderer {
         ctx.fillStyle = `${damageStyleColor(w, 'toxic', cb)}66`;
         ctx.beginPath();
         ctx.arc(px, py + r, 3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      // fb013 Time Lord *Time*: a mark icon above the enemy, one distinct
+      // color per stage so past/present/future read apart at a glance.
+      if (e.timeMarkStage > 0) {
+        ctx.fillStyle = TIME_MARK_STAGE_COLORS[e.timeMarkStage - 1] ?? '#9a7fe6';
+        ctx.beginPath();
+        ctx.arc(px, py - r - 5, 3, 0, Math.PI * 2);
         ctx.fill();
       }
       ctx.globalAlpha = 1;

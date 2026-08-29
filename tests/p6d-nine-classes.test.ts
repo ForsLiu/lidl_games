@@ -94,9 +94,11 @@ describe('p6d: §4.2 ships nine legacy: false classes with the four §4 slots ea
     expect(c.towerPassive.name.length).toBeGreaterThan(0);
   });
 
-  it('§13 content total: eleven SPEC-FINAL classes are authored', () => {
+  it('§13 content total: twelve SPEC-FINAL classes are authored', () => {
+    // fb013 added a 12th (Time Lord) past a direct owner directive, after
+    // §13's original eleven were filled — see QUESTIONS.md Q139.
     const specFinal = content.classes.classes.filter((c) => !c.legacy);
-    expect(specFinal).toHaveLength(11);
+    expect(specFinal).toHaveLength(12);
   });
 
   it('§4.2 Unlocks: Swordsman, Archer and Engineer are the free three', () => {

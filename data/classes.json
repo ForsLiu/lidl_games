@@ -426,6 +426,57 @@
         "description": "All towers +10% HP and +5 defense.",
         "mods": { "towerHp": 0.10, "towerDefenseBonus": 5 }
       }
+    },
+    {
+      "key": "time_lord", "name": "Time Lord", "unlockedByDefault": false, "unlockQuest": "chrono_veteran",
+      "legacy": false,
+      "moveSpeedBonus": 0.05,
+      "basicAttack": { "dps": 9, "range": 4.5, "interval": 0.9, "aoe": 0 },
+      "passive": {
+        "name": "Time Flow",
+        "description": "Damage taken becomes a 4 s DoT after one armor mitigation, instead of landing at once.",
+        "mods": {},
+        "kind": "time_flow",
+        "charDotSpeedMul": 1
+      },
+      "active1": {
+        "name": "Time",
+        "kind": "time_mark",
+        "cooldownSeconds": 6,
+        "radius": 7,
+        "damage": 0,
+        "maxCharges": 3,
+        "rechargeSeconds": 6,
+        "markRewindSeconds": 3,
+        "markPastDotDps": 12,
+        "markPastDotSeconds": 6,
+        "markPresentDotDps": 16,
+        "markPresentDotSeconds": 6,
+        "markFutureSlowAmount": 0.20,
+        "markFutureSlowSeconds": 3,
+        "markFutureDotSeconds": 6,
+        "markEliteExecuteFraction": 0.50
+      },
+      "active2": {
+        "name": "Time Lock",
+        "kind": "time_lock",
+        "cooldownSeconds": 10,
+        "radius": 3,
+        "damage": 14,
+        "maxCharges": 2,
+        "rechargeSeconds": 10,
+        "groundDurationSeconds": 5,
+        "zoneDotSeconds": 10
+      },
+      "towerPassive": {
+        "name": "Chronal Surge",
+        "description": "Every 2 TD waves cleared, all towers gain one free uncapped bonus level: +10% range, +10% AoE area (no milestone triggers).",
+        "mods": {},
+        "kind": "chronal_surge",
+        "waveInterval": 2,
+        "bonusRangeMul": 0.10,
+        "bonusAoeMul": 0.10
+      }
     }
   ]
 }

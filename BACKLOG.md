@@ -162,28 +162,10 @@ called out in their own titles instead.
       covers it — refs: §6.3, §11, owner feedback
       `feature-autopick-in-options` (fb003 follow-up). **done, see Done
       section.**
-- [ ] (fb013) [feat] New class #12: Time Lord — passive "Time Flow" (damage
-      to the character becomes a 4 s DoT, mitigated once by armor before
-      converting; a dormant, shipped-disabled flag for "character DoT 100%
-      faster" reserved for future equipment); Active1 "Time" (3 charges/6 s
-      recharge, r7 four-stage mark per enemy: unmarked→past teleports to a
-      3 s-ago position + high DoT, past→present stun-locks 3 s + high DoT,
-      present→future −20% atk/move speed [deferred if stunned/frozen] +
-      DoT equal to remaining HP, future→executed instant-kill or −50%
-      current HP for elites/bosses, marks persist until consumed); Active2
-      "Time Lock" (2 charges/10 s recharge, 5 s no-exit cursor zone immune
-      to Time's rewind-pull, high DoT over 10 s, re-casting while one
-      exists teleports its enemies into the new zone and detonates all
-      their remaining DoT as one instant burst); tower passive: every 2 TD
-      waves, all towers gain one free uncapped bonus level (+10% range,
-      +10% AoE area, no milestone triggers) — acceptance: full kit
-      implemented per the spec text; a unit test per Active1 stage
-      (rewind position, deferred slow timer, elite half-HP branch) and for
-      Time Lock's no-exit clamp, rewind interaction and DoT detonation;
-      dormant passive flag present and off; VFX/indicators registered
-      (mark icons above enemies for past/present/future); class-count
-      gates, census, Codex and dev profile updated for 12 classes — refs:
-      §4.2 addition, owner feedback `feature-class-timelord`.
+- [x] (fb013) [feat] New class #12: Time Lord — **done, see Done section**
+      (full kit, dormant flag off, VFX registered, census/Codex/dev-profile
+      at 12 classes; two qa-playtester passes, no open bugs) — refs: §4.2
+      addition, owner feedback `feature-class-timelord`, QUESTIONS Q139.
 - (fb014) — moved to the **Owner priority queue (2026-08-29 directive)** above.
 - (fb015) — moved to the **Owner priority queue (2026-08-29 directive)** above.
 - (fb016) — moved to the **Owner priority queue (2026-08-29 directive)** above.
@@ -894,6 +876,58 @@ logged in MIGRATION.md §8 rather than carried as dead items.
 
 ## Done
 
+- [x] (fb013) [feat] New class #12: Time Lord — this commit (2026-08-29),
+      refs: §4.2 addition, owner feedback `feature-class-timelord`, QUESTIONS
+      Q139. Passive *Time Flow* converts damage taken into a 4 s Warden-side
+      DoT after one armor mitigation (`src/sim/run.ts`), with a dormant
+      `charDotSpeedMul` flag shipped at `1` (no effect, one read site,
+      reserved for future equipment). Active1 *Time* (3 charges/6 s recharge,
+      r7 Warden-centered AoE, `src/sim/classes.ts`) advances every enemy in
+      range through a 4-stage mark: unmarked→past rewinds to a recorded
+      position + Bleeding DoT, past→present reuses `frozen` as the stun-lock
+      + DoT, present→future applies −20% atk/move speed (deferred while
+      stunned/frozen) + a DoT for remaining HP, future→executed instantly
+      kills a normal enemy or hits an elite/boss for an armor-ignoring 50% of
+      current HP. Active2 *Time Lock* (2 charges/10 s recharge) is a 5 s
+      no-exit zone immune to Time's rewind-pull; re-casting while one exists
+      teleports its captives into the new zone and detonates all outstanding
+      DoT as one burst. Tower passive *Chronal Surge* grants all towers one
+      free uncapped +10% range/+10% AoE level every 2 TD waves
+      (`applyChronalSurge`, `src/sim/run.ts`). New quest `chrono_veteran`
+      ("Win 6 runs", `data/quests.json`) unlocks the class; Codex and the dev
+      profile needed no edit since both already derive class lists from
+      `content.classes.classes` generically. `tests/fb013-timelord.test.ts`
+      (30 tests) covers every mark stage, both ammo gates, Time Lock's
+      clamp/rewind-immunity/detonation, the dormant flag, the `Warden.dots`
+      cap, and replay determinism with both Actives in the input log.
+
+      QUESTIONS.md's Q139 logs six judgment calls the owner feedback's prose
+      left open (Bleeding reused rather than an 8th damage type; the
+      stun-lock reusing `frozen`; a new generic `atkSlowAmount`/
+      `atkSlowRemaining` pair; the ammo-charge gate as new additive engine
+      surface beside the existing single-cooldown one; the new quest;
+      Time Lock's radius). A code-reviewer pass corrected SPEC-FINAL's and
+      CLAUDE.md's own §13 totals and G8's gate text to 12 classes/≥9-of-12,
+      and capped `Warden.dots` at the same `maxStacksPerEnemy` budget
+      `Enemy.dots` already had (an uncapped VS-horde burst could otherwise
+      grow it without bound). A qa-playtester pass before the first commit
+      found and fixed four real bugs: Active1 was a nearest-target pick
+      instead of the spec's literal "every enemy within r7" AoE; the
+      elite/boss execute branch was silently armor-mitigated instead of the
+      non-elite branch's guaranteed hit; four of Active1's authored durations
+      didn't match the owner feedback text's literal numbers; and
+      `markRewindSeconds` was authored in `data/classes.json` but never read
+      by the position-history ring buffer. A second, independent
+      qa-playtester pass this session re-verified all of the above
+      adversarially — enemy death mid-mark-stage, boss-vs-elite execute
+      parity, Time Lock zone natural expiry then recast, replay determinism
+      with interleaved `class_active`/`class_active2` — via scratch probes
+      (written and deleted, no tracked files touched) and filed no new bugs.
+      `npm run test:fast`: 1439 passed / 4 failed / 40 skipped; the four
+      failures are the pre-existing, already-documented Windows host-load
+      flakes tracked as b028/b029 (`q15-command-domain-fuzz` timeouts,
+      `q49`/`q52-*-restore` scratch-dir `EPERM`) in files this change never
+      touches.
 - [x] (fb012) [feat] Auto-pick toggle moved out of the Hub's start menu — this
       commit (2026-08-29). `MetaState` gained `autoPickLevelUps: boolean`
       (`src/sim/types.ts`), the actual save-profile persistence point (not

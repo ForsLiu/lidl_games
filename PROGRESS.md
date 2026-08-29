@@ -5,6 +5,50 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-29 session: fb013 done — Time Lord, the 12th class, per owner
+  feedback `feature-class-timelord` (SPEC-FINAL §4.2 addition, QUESTIONS.md
+  Q139).** Passive *Time Flow* converts damage taken into a 4 s Warden-side
+  DoT after one armor mitigation (`src/sim/run.ts`), with a dormant
+  `charDotSpeedMul` flag shipped at `1` (no effect) reserved for future
+  equipment. Active1 *Time* (3 charges/6 s recharge, r7 Warden-centered AoE)
+  advances every enemy in range through a 4-stage mark — unmarked→past
+  (rewind to a recorded position + Bleeding DoT), past→present (reuses
+  `frozen` as the stun-lock + DoT), present→future (−20% atk/move speed,
+  deferred while stunned, + DoT for remaining HP), future→executed (instant
+  kill, or an armor-ignoring 50%-current-HP hit for elites/bosses) —
+  `src/sim/classes.ts`. Active2 *Time Lock* (2 charges/10 s recharge) is a 5 s
+  no-exit zone immune to Time's rewind-pull; re-casting while one exists
+  teleports its captives into the new zone and detonates all outstanding DoT
+  as one burst. Tower passive *Chronal Surge* grants all towers one free
+  uncapped +10% range/+10% AoE level every 2 TD waves. New quest
+  `chrono_veteran` ("Win 6 runs", `data/quests.json`) unlocks the class;
+  Codex and the dev profile needed no change since both already derive from
+  `content.classes.classes` generically. `tests/fb013-timelord.test.ts` (30
+  tests) covers every mark stage, the ammo gates, Time Lock's clamp/rewind-
+  immunity/detonation, the dormant flag, the `Warden.dots` cap, and replay
+  determinism with both actives in the input log.
+
+  QUESTIONS.md's Q139 logs six judgment calls the owner feedback's prose left
+  open (Bleeding reused rather than an 8th damage type, the stun-lock reusing
+  `frozen`, a new generic `atkSlowAmount/Remaining` pair, the ammo-charge
+  gate as new additive engine surface, the new quest, Time Lock's radius)
+  plus a code-reviewer pass (SPEC-FINAL/CLAUDE.md §13 totals and G8's gate
+  text corrected to 12 classes/≥9-of-12; `Warden.dots` given the same
+  `maxStacksPerEnemy` cap `Enemy.dots` already had) and a qa-playtester pass
+  before the first commit, which found and fixed four real bugs: Active1 was
+  a nearest-target pick instead of the spec's literal AoE-over-everyone-in-
+  range; the elite/boss execute branch was silently armor-mitigated instead
+  of guaranteed; four of Active1's authored durations didn't match the
+  feedback text's literal numbers; and `markRewindSeconds` was authored but
+  never read by the position-history buffer. A second, independent
+  qa-playtester pass this session re-verified all of the above adversarially
+  (mid-mark-stage death, boss-vs-elite execute parity, zone-expiry-then-
+  recast, mixed-Active replay determinism) with scratch probes and filed no
+  new bugs. `npm run test:fast`: 1439 passed / 4 failed / 40 skipped — all
+  four failures are the pre-existing, already-documented Windows host-load
+  flakes (b028/b029: `q15-command-domain-fuzz` timeouts,
+  `q49`/`q52-*-restore` scratch-dir `EPERM`), untouched by this change.
+
 - **2026-08-29 session: fb012 done — the level-up auto-pick toggle (fb003)
   moved out of the Hub's start menu into the in-run Esc pause Options screen
   and a small checkbox on the level-up offer screen itself; the choice now

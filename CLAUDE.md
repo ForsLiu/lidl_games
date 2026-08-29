@@ -113,7 +113,7 @@ QUESTIONS.md instead.
 
 ## Definition of "1.0 complete" (SPEC-FINAL §15 P10)
 P0–P10 done, **all twenty §14 gates G1–G20 green**, §13's content totals met
-(11 classes · 10 towers · 12+ equipment · 6 damage types + 2 statuses · 20 enemies
+(12 classes · 10 towers · 12+ equipment · 6 damage types + 2 statuses · 20 enemies
 · 18+6 waves · 120-node tree · 8–12 quests · T1–T5 · 2 bosses · the §6.3 upgrade
 pool · Codex & Tuner), QUALITY.md's bar fully green, HANDOFF.md regenerated at the
 final commit.

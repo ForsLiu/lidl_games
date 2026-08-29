@@ -13,9 +13,11 @@ import { loadContent } from '../src/sim/content';
 import { census } from '../tools/content-census';
 
 const RECORDED: Record<string, { actual: string; target: string; met: boolean }> = {
-  // classes counts §4's non-legacy rows: P6 (main lane) filled all 11; the
-  // 12th data row is Q38's `legacy: true` frost_warden, excluded by census.
-  classes: { actual: '11', target: '11', met: true },
+  // classes counts §4's non-legacy rows: P6 (main lane) filled all 11; fb013
+  // added a 12th (Time Lord) past a direct owner directive, so both
+  // actual/target moved together. The 13th data row is Q38's `legacy: true`
+  // frost_warden, excluded by census.
+  classes: { actual: '12', target: '12', met: true },
   towers: { actual: '10', target: '10', met: true },
   // fb015: data/equipment.json's real §7 table replaced the hardcoded 0/unbuilt row.
   equipment: { actual: '12', target: '12+', met: true },
@@ -23,7 +25,9 @@ const RECORDED: Record<string, { actual: string; target: string; met: boolean }>
   enemies: { actual: '20', target: '20', met: true },
   waves: { actual: '18+6 (24)', target: '18+6 (24)', met: true },
   treeNodes: { actual: '120', target: '120', met: true },
-  quests: { actual: '9', target: '8-12', met: true },
+  // fb013: `chrono_veteran` (Time Lord's unlock) is the 10th quest, still
+  // inside the 8-12 band.
+  quests: { actual: '10', target: '8-12', met: true },
   tiers: { actual: 'T1-T5', target: 'T1-T5', met: true },
   bosses: { actual: '2', target: '2', met: true },
 };

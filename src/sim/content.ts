@@ -555,6 +555,13 @@ const ClassEffectSchema = z.object({
     // Bloodlord's two, which the p6d design note's kind list omitted (Q120).
     'blood_tithe',
     'dash_heal',
+    // fb013, §4.2 addition: Time Lord's Active1 "Time" (a 4-stage per-enemy
+    // mark, advanced one stage per hit) and Active2 "Time Lock" (a no-exit
+    // zone). Both are the first kinds to author `maxCharges`/`rechargeSeconds`
+    // — an ammo-style multi-charge gate distinct from `charge_nova`'s
+    // hold-to-charge-power (`isChargeKind`), see `tickAmmoRecharge` (classes.ts).
+    'time_mark',
+    'time_lock',
   ]),
   cooldownSeconds: num,
   radius: num,
@@ -647,6 +654,32 @@ const ClassEffectSchema = z.object({
    * error rather than an Active that silently does nothing.
    */
   towerKey: str.optional(),
+
+  /**
+   * `time_mark`/`time_lock` (fb013): an ammo-style multi-charge Active — N
+   * charges, each spent on cast and refilled independently on its own
+   * `rechargeSeconds` timer (`tickAmmoRecharge`, classes.ts). Absent or `1`
+   * keeps every other kind's existing single `cooldownSeconds` gate untouched.
+   */
+  maxCharges: num.optional(),
+  rechargeSeconds: num.optional(),
+  /** `time_mark`: seconds back the unmarked->past stage rewinds a struck enemy's position (default 3, §4.2's "3 s-ago"). */
+  markRewindSeconds: num.optional(),
+  /** `time_mark`: the unmarked->past stage's "high DoT" (a flat dps/duration pair, applied as Bleeding — Q139 reads "high DoT" as a stated magnitude rather than a new 7th damage type, which §13's content totals fix at six). */
+  markPastDotDps: num.optional(),
+  markPastDotSeconds: num.optional(),
+  /** `time_mark`: the past->present stage's own "high DoT", on top of the stun-lock (which reuses `frozen`'s own authored 3 s — Q139). */
+  markPresentDotDps: num.optional(),
+  markPresentDotSeconds: num.optional(),
+  /** `time_mark`: the present->future stage's "-20% atk/move speed" (deferred while stunned/frozen) and its duration. */
+  markFutureSlowAmount: num.optional(),
+  markFutureSlowSeconds: num.optional(),
+  /** `time_mark`: the present->future stage's "DoT equal to remaining HP" — the seconds that total is spread over. */
+  markFutureDotSeconds: num.optional(),
+  /** `time_mark`: the future stage's execute — the elite/boss branch deals this fraction of current HP instead of an instant kill. */
+  markEliteExecuteFraction: num.optional(),
+  /** `time_lock`: seconds the "high DoT" a trapped enemy takes on entry is spread over (`groundDurationSeconds` is the zone's own no-exit lifetime, reused rather than a second duration field). */
+  zoneDotSeconds: num.optional(),
 });
 
 /**
@@ -685,6 +718,10 @@ const ClassSlotPassiveSchema = z.object({
       'frost_touch',
       'guardian_stance',
       'blood_frenzy',
+      // fb013: Time Lord's character-passive (damage taken becomes a DoT) and
+      // tower-passive (a free range/AoE level every N TD waves) kinds.
+      'time_flow',
+      'chronal_surge',
     ])
     .optional(),
   /** `contagious_flame`: damage per second a Burning enemy deals to everything within `flameRadius`. */
@@ -703,6 +740,19 @@ const ClassSlotPassiveSchema = z.object({
   /** `blood_frenzy`: §4.2's "+10% attack in VS waves, −5% in TD waves", as multipliers. */
   frenzyVsMul: num.optional(),
   frenzyTdMul: num.optional(),
+  /**
+   * `time_flow` (fb013): a dormant, shipped-disabled multiplier on how fast
+   * the Warden's converted DoT resolves — `1` (the authored default) is
+   * normal speed; the fiction's "100% faster" is `2`, reserved for a future
+   * equipment item to grant, on the same one-field-flip precedent Burning's
+   * `maxStacks` sets (MIGRATION.md §8's note on that row) rather than new
+   * engine code. Read with a `?? 1` fallback, so its absence is inert too.
+   */
+  charDotSpeedMul: num.optional(),
+  /** `chronal_surge` (fb013): every `waveInterval` TD waves cleared, towers gain one free uncapped range/AoE bump (`completeWave`, run.ts) — no milestone triggers, just `bonusRangeMul`/`bonusAoeMul` folded into the ordinary `towerRange`/`area` Stats sources. */
+  waveInterval: num.optional(),
+  bonusRangeMul: num.optional(),
+  bonusAoeMul: num.optional(),
 });
 
 /**
@@ -1074,6 +1124,19 @@ const REQUIRED_EFFECT_FIELDS: Record<string, readonly string[]> = {
   recall_totem: ['auraAtkSpdMul', 'totemDurationSeconds'],
   clarion_taunt: ['tauntDurationSeconds'],
   judgement: ['wrathDamageMul'],
+  time_mark: [
+    'maxCharges',
+    'rechargeSeconds',
+    'markPastDotDps',
+    'markPastDotSeconds',
+    'markPresentDotDps',
+    'markPresentDotSeconds',
+    'markFutureSlowAmount',
+    'markFutureSlowSeconds',
+    'markFutureDotSeconds',
+    'markEliteExecuteFraction',
+  ],
+  time_lock: ['maxCharges', 'rechargeSeconds', 'groundDurationSeconds', 'zoneDotSeconds'],
 };
 
 /**
@@ -1088,6 +1151,7 @@ const REQUIRED_PASSIVE_FIELDS: Record<string, readonly string[]> = {
   frost_touch: ['shatterRadius', 'shatterDamage'],
   guardian_stance: ['stanceArmor', 'wrathFraction'],
   blood_frenzy: ['frenzyVsMul', 'frenzyTdMul'],
+  chronal_surge: ['waveInterval', 'bonusRangeMul', 'bonusAoeMul'],
 };
 
 /** Passive-slot counterpart to `validateClassEffect` — see `REQUIRED_PASSIVE_FIELDS`. */

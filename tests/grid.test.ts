@@ -93,12 +93,13 @@ describe('content', () => {
     expect(c.waves.waves).toHaveLength(18);
     expect(c.boons.boons).toHaveLength(12);
     expect(c.modifiers.modifiers).toHaveLength(12);
-    expect(c.quests.quests).toHaveLength(9);
-    // SPEC-FINAL §13's eleven, plus `frost_warden` — the one V2-era class §4
-    // does not re-spec, kept `legacy: true` so existing save unlocks stay
-    // valid (p6d, Q120).
-    expect(c.classes.classes).toHaveLength(12);
-    expect(c.classes.classes.filter((x) => !x.legacy)).toHaveLength(11);
+    // fb013 added `chrono_veteran` (Time Lord's unlock quest), the 10th.
+    expect(c.quests.quests).toHaveLength(10);
+    // SPEC-FINAL §13's eleven plus fb013's owner-directed 12th (Time Lord),
+    // plus `frost_warden` — the one V2-era class §4 does not re-spec, kept
+    // `legacy: true` so existing save unlocks stay valid (p6d, Q120).
+    expect(c.classes.classes).toHaveLength(13);
+    expect(c.classes.classes.filter((x) => !x.legacy)).toHaveLength(12);
     expect(c.tree.nodes.filter((n) => n.kind !== 'start')).toHaveLength(120);
     expect(c.tree.nodes.filter((n) => n.kind === 'keystone')).toHaveLength(3);
     expect(c.relics.affixes).toHaveLength(12);
