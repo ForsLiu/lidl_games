@@ -726,6 +726,19 @@ export class Hud {
     window.setTimeout(() => this.toast.classList.remove('show'), 1400);
   }
 
+  /**
+   * fb008: one tick's worth of `World.fx` events, scanned for the ones that
+   * warrant a toast. Called per-tick from `main.ts`'s frame loop (mirroring
+   * `Sfx.emit`'s own per-tick call), not once per rendered frame — `World.fx`
+   * is cleared every sim tick, so a once-per-frame read would miss events
+   * from earlier ticks during fast-forward.
+   */
+  ingestFx(fx: readonly { k: string; a: number }[]): void {
+    for (const e of fx) {
+      if (e.k === 'xp_overflow_gold') this.say(`+${e.a} gold (EXP overflow)`);
+    }
+  }
+
   resetModalKey(): void {
     this.lastModalKey = '';
   }

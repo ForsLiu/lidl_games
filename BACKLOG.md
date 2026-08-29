@@ -62,13 +62,9 @@ reappear here.
       function — **done, see Done section.**
 - [x] (fb019) [feat] Training grounds: a Hub-accessible practice arena —
       **done, see Done section.**
-- [ ] (fb008) [feat] Auto-collect all uncollected VS XP gems when a wave ends;
+- [x] (fb008) [feat] Auto-collect all uncollected VS XP gems when a wave ends;
       EXP beyond the character's current level-up need converts to gold at a
-      tunable ratio (start 1 gold per 2 EXP, log the chosen ratio to
-      QUESTIONS.md) — acceptance: ending a wave with gems on the ground yields
-      their EXP; overflow appears as gold with a HUD toast; a test covers both
-      the pure-EXP and overflow-to-gold paths — refs: §1.1, §2 (amends the
-      "gems do not convert" line), owner feedback `feature-exp-to-gold`.
+      tunable ratio — **done, see Done section.**
 - [ ] (fb010) [feat] Game speed options extended to 1/2/3/10/50×; at 10× and
       above the renderer may skip frames but the sim itself stays fixed 60 Hz
       per sim-second with determinism unchanged — acceptance: a x50 run of a
@@ -877,6 +873,47 @@ logged in MIGRATION.md §8 rather than carried as dead items.
   **G19**. The work is `p10d`.
 
 ## Done
+
+- [x] (fb008) [feat] Auto-collect leftover VS gems on wave end; EXP overflow
+      past the current level-up need converts to gold with a HUD toast —
+      this commit (2026-08-29). `collectRemainingGems` (`src/sim/progression.ts`)
+      sums every live gem's value, marks them dead (no per-gem fx, to avoid
+      flooding `World.fx`'s 512-slot-per-tick cap against up to `gemCap`=500
+      live gems), applies up to `xpToReach(level+1) - xp` as ordinary XP, and
+      converts any remainder to gold via `data/spawns.json`'s new
+      `expToGoldRatio` (0.5 — the owner's own stated "1 gold per 2 EXP"
+      default, floored) — Q137 logs why a bulk sweep grants **at most one**
+      level rather than cascading through `addXp`'s normal multi-level loop:
+      letting a wave-end field of stacked gems chain several free levels is
+      exactly what the "beyond the current need converts to gold" clause is
+      guarding against. Wired at both places a VS wave actually ends in
+      `src/sim/run.ts`'s `updateAct2` — the ordinary `advanceToNextBlock`
+      path and the final boss-kill victory path. The toast rides the
+      pre-existing, previously-unused `Hud.say()` via a new `Hud.ingestFx()`
+      scan of the new `'xp_overflow_gold'` fx kind, called per sim tick from
+      `main.ts` (alongside the existing `Sfx.emit` call — `World.fx` is
+      cleared every tick, so a once-per-rendered-frame read would miss
+      events during fast-forward). `tests/fb008-exp-to-gold.test.ts` (9
+      tests) covers the pure-EXP path, the overflow-to-gold path (gold
+      amount, single-level cap, fx event), multi-gem summing, a dead-gems
+      no-op, and real `Run.step()`-driven integration tests through both
+      wave-end call sites, plus jsdom coverage of `Hud.ingestFx` actually
+      producing the toast text. code-reviewer found no Critical/Major
+      issues (one Minor — the HUD toast wiring had no test — fixed by
+      adding the three jsdom `ingestFx` tests before commit). qa-playtester
+      **PASS** on all three acceptance criteria: adversarially verified the
+      exact-threshold-overflow boundary (zero gold, no toast), a non-1
+      `xpMul` build (unit-consistent math), double-invocation safety (a
+      second call is a structural no-op — gems already dead, and `Run.step`
+      itself no-ops once `outcome !== 'running'`), and a hand-built probe of
+      the boss-kill path with a gem left far outside pickup radius; filed no
+      bugs, and confirmed the full `npm run test:fast` tier (88 files, 1431
+      tests) stays green including `A11 determinism` with auto-pick on. Also
+      regenerated `tests/q7-loader-holes.ts`'s recorded data-fuzz census for
+      the new `spawns.expToGoldRatio` field, measured against a real
+      before/after control run (6,143→6,154 mutations, 2,183→2,187 accepted
+      — entirely this one field's unguarded-`num` shape, the pre-existing
+      b013 gap, not a new hole).
 
 - [x] (fb019) [feat] Training Grounds: a Hub-accessible practice arena for
       trying classes, towers, equipment and Cores outside a real run —

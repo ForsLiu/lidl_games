@@ -22,6 +22,23 @@
  *     `open` = no row is, `partial` = some are and some are not, which is the
  *     one-directional-integrity finding (E1).
  *
+ * Recorded 2026-08-29 (fb008) against 6,154 mutations, 3,967 rejected, 2,187
+ * accepted — measured directly against a control run of the pre-fb008 tree
+ * (git-stashing `data/spawns.json`/`src/sim/content.ts` only): 6,143/3,960/
+ * 2,183 before, so this item's one new field (`spawns.expToGoldRatio`, gold
+ * per point of gem EXP that overflows the character's current level-up need
+ * — see `src/sim/progression.ts`'s `collectRemainingGems`) accounts for the
+ * entire delta (+11 trials, +4 accepted: the same unguarded negative/zero/
+ * infinite/fractional shape every other plain `num` field in `spawns.json`
+ * already has — the pre-existing, already-filed b013 gap, not a new one).
+ * ACCEPTED updated in place, INEFFECTIVE and REF_VERDICTS unchanged. This
+ * session's own totals (6,143 before this item) already differ from the
+ * 5,860 baseline the entries below cite — content added since 2026-08-28
+ * (fb015 equipment, fb016 VFX registry, fb019 training grounds, etc.) grew
+ * the schema without a matching Q7_RECORD pass; closing that drift is not
+ * this item's job and is left for whoever next needs an accurate mid-range
+ * baseline.
+ *
  * Recorded 2026-08-28 (fb005 QA fix) against the same 5,860 effective
  * mutations; 3,783 rejected, 2,077 accepted — down from 3,775/2,085 earlier
  * the same day: the six `damagetypes.types[]`/`statuses.frost`/
@@ -437,6 +454,7 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'spawns.eliteIntervalSeconds': ['negative', 'zero', 'infinite', 'fractional'],
   'spawns.eliteWeights.colossus': ['negative', 'zero', 'infinite', 'fractional', 'drop-key', 'rename-key'],
   'spawns.eliteWeights.herald': ['negative', 'zero', 'infinite', 'fractional', 'drop-key', 'rename-key'],
+  'spawns.expToGoldRatio': ['negative', 'zero', 'infinite', 'fractional'],
   'spawns.gemCap': ['negative', 'zero', 'infinite', 'fractional'],
   'spawns.gemLifetimeSeconds': ['negative', 'zero', 'infinite', 'fractional'],
   'spawns.hpOverlay': ['negative', 'zero', 'infinite', 'fractional'],

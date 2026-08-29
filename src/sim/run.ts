@@ -32,6 +32,7 @@ import {
 import { pickSpawnPoint, shouldSpawnBoss, spawnFinalBoss, updateDirector } from './act2';
 import {
   addXp,
+  collectRemainingGems,
   openLevelUpIfPending,
   pickAutoOfferIndex,
   rerollOffers,
@@ -742,6 +743,8 @@ function updateAct2(w: World, input: TickInput, dt: number): void {
   }
   if (finalNight) {
     if (w.bossKilled) {
+      // fb008: the last VS wave just ended by boss kill — sweep the ground clean.
+      collectRemainingGems(w);
       w.outcome = 'victory';
       w.phase = 'results';
       return;
@@ -750,6 +753,8 @@ function updateAct2(w: World, input: TickInput, dt: number): void {
     // SPEC-FINAL §1.1: only the final block's VS wave ends by boss kill;
     // every other VS wave simply runs its length, then the next TD block
     // begins immediately — no Dawn ledger (deleted at p3d).
+    // fb008: auto-collect every gem still on the ground before the block turns over.
+    collectRemainingGems(w);
     advanceToNextBlock(w);
     return;
   }

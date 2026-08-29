@@ -256,6 +256,7 @@ class Game {
       run.step(this.gatherInput());
       this.renderer.ingest(run.world, this.view);
       this.sfx.emit(run.world.fx, this.settings);
+      this.hud.ingestFx(run.world.fx);
     }
 
     const w = run.world;

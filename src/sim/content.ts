@@ -395,6 +395,8 @@ const SpawnsFileSchema = z.object({
   contactPadding: num,
   gemLifetimeSeconds: num,
   gemCap: num,
+  /** fb008: gold per point of gem EXP that overflows past the current level-up need. */
+  expToGoldRatio: num,
   costs: z.record(num),
   weightsByMinute: z.array(z.object({ minute: num, weights: z.record(num) })),
   eliteWeights: z.record(num),

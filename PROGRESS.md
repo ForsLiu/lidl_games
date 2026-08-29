@@ -5,6 +5,47 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-29 session: fb008 done — auto-collect leftover VS gems on wave
+  end, EXP overflow past the current level-up need converts to gold with a
+  HUD toast, next in the owner priority queue after fb019.** New
+  `collectRemainingGems` (`src/sim/progression.ts`) sums every live gem's
+  value at wave end, marks them dead (deliberately no per-gem fx, to avoid
+  flooding `World.fx`'s 512-slot-per-tick cap against up to `gemCap`=500 live
+  gems), applies up to the character's remaining need to the next level as
+  ordinary XP, and converts anything past it to gold via `data/spawns.json`'s
+  new `expToGoldRatio` (0.5 — the owner's own stated "1 gold per 2 EXP"
+  default, floored not rounded). Q137 logs the one real judgment call: a bulk
+  sweep grants **at most one** level rather than cascading through `addXp`'s
+  normal multi-level loop, since letting a wave-end field of stacked gems
+  chain several free levels would make the gold-overflow clause dead code in
+  practice. Wired at both places a VS wave actually ends in `updateAct2`
+  (`src/sim/run.ts`) — the ordinary block-advance path and the final
+  boss-kill victory path. The toast rides the pre-existing, previously-unused
+  `Hud.say()` via a new `Hud.ingestFx()` scan of a new `'xp_overflow_gold'`
+  fx kind, called per sim tick from `main.ts` alongside the existing
+  `Sfx.emit` call (`World.fx` clears every tick, so a once-per-rendered-frame
+  read would miss events during fast-forward). `tests/fb008-exp-to-gold.test.ts`
+  (9 tests) covers the pure-EXP path, the overflow-to-gold path, multi-gem
+  summing, a dead-gems no-op, real `Run.step()`-driven integration tests
+  through both wave-end call sites, and jsdom coverage of the toast itself.
+  Confirmed `npx tsc --noEmit` clean, ran the targeted suite then
+  `npm run test:fast` (88 files / 1431 tests green, one `q49` scratch-dir
+  `EPERM` flake reproduced standalone-clean to confirm it predates this item
+  — the documented b028/b029 Windows class). Also regenerated
+  `tests/q7-loader-holes.ts`'s recorded data-fuzz census for the new
+  `spawns.expToGoldRatio` field, measured against a real `git stash`
+  before/after control run (6,143→6,154 mutations, 2,183→2,187 accepted —
+  entirely this one field's unguarded-`num` shape, the pre-existing b013 gap,
+  not a new hole; noted in the file's own header that the *baseline* it was
+  regenerated against had already drifted since 2026-08-28 from fb015/fb016/
+  fb019's own un-recorded schema growth — flagged, not this item's job to
+  close). code-reviewer found no Critical/Major issues (one Minor — the HUD
+  toast wiring had no test — fixed by adding jsdom `ingestFx` tests before
+  commit). qa-playtester **PASS** on all three acceptance criteria after
+  adversarially probing the exact-threshold-overflow boundary, a non-1
+  `xpMul` build, double-invocation safety, and a hand-built boss-kill-path
+  probe; filed no bugs.
+
 - **2026-08-29 session: fb019 done — Training Grounds, a Hub-accessible
   practice arena, next in the owner priority queue after fb016.** Found
   already implemented and uncommitted at this session's start (another prior

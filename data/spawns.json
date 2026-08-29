@@ -220,6 +220,7 @@
   "contactPadding": 0.45,
   "gemLifetimeSeconds": 18,
   "gemCap": 500,
+  "expToGoldRatio": 0.5,
   "actIICarry": 3.2,
   "warmupSeconds": 100,
   "warmupStart": 0.25,

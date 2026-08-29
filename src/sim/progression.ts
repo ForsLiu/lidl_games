@@ -110,6 +110,47 @@ export function updateGems(w: World, dt: number): void {
   }
 }
 
+/**
+ * fb008 (owner feedback `feature-exp-to-gold`): called once when a VS wave
+ * ends. Every gem still on the ground is collected at once instead of being
+ * left to fade. Only enough of that XP to fill the character's *current*
+ * level-up need is actually applied — the rest converts to gold at
+ * `expToGoldRatio` (Q137) so one bulk end-of-wave pickup cannot cascade
+ * through several levels the way a single huge `addXp` call would.
+ */
+export function collectRemainingGems(w: World): void {
+  // No per-gem `emit('gem', ...)` here, unlike the proximity-pickup path
+  // below: up to `gemCap` (500) gems can be live at once, and `World.fx`
+  // holds only 512 events a tick — flooding it here could crowd out this
+  // same tick's `levelup`/`xp_overflow_gold` toast events (see the identical
+  // concern documented at `enemies.ts`'s "ailment ticks do not spark").
+  let totalRaw = 0;
+  for (const g of w.gems) {
+    if (g.dead) continue;
+    totalRaw += g.value;
+    g.dead = true;
+  }
+  if (totalRaw <= 0) return;
+  const totalXp = totalRaw * w.derived.xpMul;
+  const need = xpToReach(w.level + 1) - w.xp;
+  if (totalXp < need) {
+    // Doesn't even finish the current level: ordinary partial progress, no overflow.
+    w.xp += totalXp;
+    return;
+  }
+  w.xp = 0;
+  w.level++;
+  w.emit('levelup', w.warden.x, w.warden.y, w.level, 0);
+  queueLevelUp(w);
+  const overflowXp = totalXp - need;
+  const gold = Math.floor(overflowXp * w.content.spawns.expToGoldRatio);
+  if (gold > 0) {
+    w.gold += gold;
+    w.goldEarned += gold;
+    w.emit('xp_overflow_gold', w.warden.x, w.warden.y, gold, 0);
+  }
+}
+
 /* ---------------------------------------------------------------- offers */
 
 const OFFER_COUNT = 3;
