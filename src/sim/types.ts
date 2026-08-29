@@ -43,7 +43,8 @@ export type Command =
    * self-centered exactly as before.
    */
   | { k: 'class_active2'; aimX?: number; aimY?: number }
-  | { k: 'dev'; op: DevOp; amount: number };
+  /** `enemyKey` is only read by the `'spawn'` op (fb019, Training Grounds); every other op ignores it. */
+  | { k: 'dev'; op: DevOp; amount: number; enemyKey?: string };
 
 /**
  * Practice-tool actions (SPEC has none; see QUESTIONS.md). They are Commands
@@ -59,7 +60,9 @@ export type DevOp =
   | 'god'
   | 'skip_wave'
   | 'summon_boss'
-  | 'fast_forward';
+  | 'fast_forward'
+  /** fb019: Training Grounds' spawn-on-demand panel. `amount` is the count, capped and floored in `applyDevCommand`. */
+  | 'spawn';
 
 export interface TickInput {
   /** Movement axis, quantized to -1 | 0 | 1 so replays are exact. */

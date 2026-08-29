@@ -240,7 +240,7 @@ export class Hub {
         </label>
         <p class="sw-note">${
           this.practice
-            ? 'The in-run tool is on: kill the board, add gold, skip a wave, summon the boss. Nothing is banked — no Ember, no relics, no quest progress.'
+            ? 'The in-run tool is on: kill the board, add gold, skip a wave, summon the boss, spawn any enemy on demand. Nothing is banked — no Ember, no relics, no quest progress.'
             : 'A normal run. Everything you earn is kept.'
         }</p>
         <label class="sw-setting autopick">
@@ -253,6 +253,7 @@ export class Hub {
             : 'Level-ups pause the run for your choice.'
         }</p>
         <button class="sw-go" id="sw-start">${this.practice ? 'Begin practice run' : 'Begin the Daywatch'}</button>
+        <button class="sw-go sw-secondary" id="sw-training" title="The chosen class, Core and equipment, with the practice tool on and every spawn-panel enemy available. Leave any time back to this Hub; nothing is banked.">Enter Training Grounds</button>
       </div>`;
 
     for (const b of body.querySelectorAll<HTMLElement>('[data-class]')) {
@@ -300,7 +301,7 @@ export class Hub {
       this.autoPick = !this.autoPick;
       this.show();
     });
-    body.querySelector('#sw-start')?.addEventListener('click', () => {
+    const beginRun = (practiceOverride?: boolean): void => {
       const modifiers = draft.map((slot, i) => slot.options[this.picks[i] ?? 0].key);
       // Belt-and-suspenders against a locked core reaching RunConfig at all
       // (e.g. `unlockedCores` shrinking between render and click): fall back
@@ -321,10 +322,16 @@ export class Hub {
         allocated: this.meta.allocated,
         relics: equippedRelics(this.meta),
         equipment: equippedEquipmentList(this.meta),
-        practice: this.practice,
+        practice: practiceOverride ?? this.practice,
         autoPickLevelUps: this.autoPick,
       });
-    });
+    };
+    body.querySelector('#sw-start')?.addEventListener('click', () => beginRun());
+    // fb019 Training Grounds: a one-click practice entry over the same class/Core/
+    // tier/equipment the Run tab already has selected — Q135's "no new game
+    // systems invented" default, just a second door into the existing practice
+    // run with its spawn panel.
+    body.querySelector('#sw-training')?.addEventListener('click', () => beginRun(true));
   }
 
   /* -------------------------------------------------------------- tree tab */

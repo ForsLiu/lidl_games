@@ -60,18 +60,8 @@ reappear here.
       **done, see Done section.**
 - [x] (fb016) [feat] top priority: indicators + VFX for every skill and Core
       function — **done, see Done section.**
-- [ ] (fb019) [feat] Training grounds: a Hub-accessible practice arena for
-      trying classes, towers, equipment and Cores outside a real run —
-      spawn-on-demand enemies (type/tier/count picked from a panel),
-      leave any time back to the Hub; built on the existing practice-run
-      plumbing (t4 god mode, `practice` dev ops) so every action stays a
-      replay-safe Command and the existing bank-nothing rule applies
-      unchanged — acceptance: enterable and leavable from the Hub; a
-      spawned enemy of a chosen type fights with its real stats; nothing
-      (gold/EXP/items/quest progress) persists to the profile; tests
-      cover entry/exit, one spawn op, and the nothing-banked rule — refs:
-      owner directive 2026-08-29 (no feedback file — filed per CLAUDE.md's
-      gap rule, logged QUESTIONS.md Q135), §11 practice tools, t4.
+- [x] (fb019) [feat] Training grounds: a Hub-accessible practice arena —
+      **done, see Done section.**
 - [ ] (fb008) [feat] Auto-collect all uncollected VS XP gems when a wave ends;
       EXP beyond the character's current level-up need converts to gold at a
       tunable ratio (start 1 gold per 2 EXP, log the chosen ratio to
@@ -887,6 +877,43 @@ logged in MIGRATION.md §8 rather than carried as dead items.
   **G19**. The work is `p10d`.
 
 ## Done
+
+- [x] (fb019) [feat] Training Grounds: a Hub-accessible practice arena for
+      trying classes, towers, equipment and Cores outside a real run —
+      this commit (2026-08-29). Built entirely on the existing practice-run
+      plumbing rather than a new system: the Hub gained a second entry
+      button (`#sw-training` in `src/ui/hub.ts`) that forces `practice: true`
+      over whatever class/Core/tier/equipment the Run tab already has
+      selected, leaving the existing `#sw-practice` checkbox path untouched.
+      A new `'spawn'` `DevOp` (`src/sim/types.ts`, `applyDevCommand` in
+      `src/sim/run.ts`) spawns `count` (clamped 1-50) real enemies of a
+      chosen key with no `hpMul` — Act I via a new `gateSpawnPoint` helper
+      (cycles `w.gates` with `w.rng.spawns` jitter, matching
+      `updateAct1Wave`'s own spawn shape including `gate` index for correct
+      split-child inheritance), Act II via the existing `pickSpawnPoint`, so
+      the stat overlay behavior matches live director spawns exactly. The
+      HUD's practice panel (`showPracticeTools` in `src/ui/hud.ts`) gained a
+      spawn row (enemy select + count + button) reading the real enemy
+      roster off the live `World`. Leaving uses the existing pause-menu
+      Abandon Run → Hub flow unchanged. `tests/fb019-training-grounds.test.ts`
+      (6 tests) covers the Hub entry button (including that it doesn't touch
+      the checkbox and the normal Begin button still banks), the HUD spawn
+      panel (including the no-`World` fallback), and leaving via Abandon Run;
+      `tests/practice.test.ts` gained 4 tests covering the spawn op's real
+      stats, count clamp, silent no-op on a bad/missing key, and — the
+      harder case than the existing baseline — that a session which *only*
+      manually spawns and kills enemies still banks nothing.
+      code-reviewer found no Critical/Major issues (two Minor fixed inline:
+      a redundant explicit `overlay` option that only restated the existing
+      default, and `gateSpawnPoint` not passing a `gate` index the way
+      `updateAct1Wave`'s own spawns do, which would have given a manually
+      spawned splitter's children the wrong gate). qa-playtester adversarially
+      probed the 50-count cap, NaN/negative/fractional amounts, pack/splitter/
+      burrower/boss enemy keys, spawning through an entire death slow-mo beat
+      and after `phase==='results'`, a 2000-enemy rapid-spawn stress case, and
+      determinism (two worlds fed identical spawn command sequences produce
+      byte-identical enemy state) — confirmed the acceptance criteria hold
+      and filed no bugs. `npm run test:fast`: 1423 passed / 34 skipped.
 
 - [x] (fb016) [feat] indicators + VFX for every skill and Core function per
       §11 extended to skills/Cores — commit `35dcba2`. New

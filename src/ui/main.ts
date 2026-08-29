@@ -113,7 +113,7 @@ class Game {
       onResume: () => this.setPaused(false),
       onPause: () => this.setPaused(true),
       onCycleSpeed: () => this.hud.setSpeed(this.pacer.cycle()),
-      onDev: (op, amount) => this.pending.push({ k: 'dev', op, amount }),
+      onDev: (op, amount, enemyKey) => this.pending.push({ k: 'dev', op, amount, enemyKey }),
       onQuitToHub: () => this.showHub(),
     });
     this.renderer = new Renderer(this.hud.canvas);
@@ -126,7 +126,7 @@ class Game {
     this.resultBanked = false;
     this.paused = false;
     this.hud.buildTowerBar(this.run.world);
-    this.hud.showPracticeTools(cfg.practice === true);
+    this.hud.showPracticeTools(cfg.practice === true, this.run.world);
     this.hud.resetModalKey();
     this.hud.closeCharacterPanel();
     this.hud.closeDpsPanel();

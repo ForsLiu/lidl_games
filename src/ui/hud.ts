@@ -36,8 +36,8 @@ export interface HudCallbacks {
   onPause(): void;
   /** Fast-forward: cycles 1x / 2x / 3x. */
   onCycleSpeed(): void;
-  /** Practice tool; only reachable in a run started with practice on. */
-  onDev(op: DevOp, amount: number): void;
+  /** Practice tool; only reachable in a run started with practice on. `enemyKey` is only meaningful for the `'spawn'` op. */
+  onDev(op: DevOp, amount: number, enemyKey?: string): void;
   onQuitToHub(): void;
 }
 
@@ -123,13 +123,17 @@ export class Hud {
   /**
    * Shows the practice tool. Called once at run start; a run that did not opt
    * in never sees the panel, and the sim ignores the commands anyway.
+   *
+   * `w` supplies the enemy roster for the fb019 Training Grounds spawn panel —
+   * omitted only by tests that don't care about the spawn row.
    */
-  showPracticeTools(on: boolean): void {
+  showPracticeTools(on: boolean, w?: World): void {
     this.practiceEl.hidden = !on;
     if (!on) {
       this.practiceEl.innerHTML = '';
       return;
     }
+    const enemies = [...(w?.content.enemies.enemies ?? [])].sort((a, b) => a.name.localeCompare(b.name));
     this.practiceEl.innerHTML =
       '<div class="sw-sub">Practice tool</div>' +
       '<p class="sw-note">This run banks nothing.</p>' +
@@ -137,12 +141,27 @@ export class Hud {
       PRACTICE_BUTTONS.map(
         (b) => `<button class="sw-ctl" data-dev="${b.op}" data-amount="${b.amount}" title="${b.title}">${b.label}</button>`,
       ).join('') +
-      '</div>';
+      '</div>' +
+      (enemies.length > 0
+        ? '<div class="sw-sub">Spawn enemy</div>' +
+          '<div class="sw-spawnrow">' +
+          `<select id="sw-spawn-enemy">${enemies
+            .map((e) => `<option value="${e.key}">${e.name} (grade ${e.grade})</option>`)
+            .join('')}</select>` +
+          '<input id="sw-spawn-count" type="number" min="1" max="50" value="1" />' +
+          '<button class="sw-ctl" id="sw-spawn-go" title="Spawns the chosen enemy with its real stats">Spawn</button>' +
+          '</div>'
+        : '');
     for (const el of this.practiceEl.querySelectorAll<HTMLElement>('[data-dev]')) {
       el.addEventListener('click', () => {
         this.cb.onDev(el.dataset.dev as DevOp, Number(el.dataset.amount));
       });
     }
+    this.practiceEl.querySelector('#sw-spawn-go')?.addEventListener('click', () => {
+      const key = (this.practiceEl.querySelector('#sw-spawn-enemy') as HTMLSelectElement | null)?.value;
+      const count = Number((this.practiceEl.querySelector('#sw-spawn-count') as HTMLInputElement | null)?.value ?? 1);
+      if (key) this.cb.onDev('spawn', count, key);
+    });
   }
 
   /**

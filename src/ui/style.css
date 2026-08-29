@@ -213,6 +213,7 @@ html, body {
 }
 .sw-reroll { background: var(--panel2); color: var(--text); border: 1px solid var(--line); }
 .sw-go:disabled, .sw-reroll:disabled { opacity: .4; cursor: default; }
+.sw-go.sw-secondary { margin-top: 8px; background: var(--panel2); color: var(--text); border: 1px solid var(--line); }
 
 .sw-results { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 20px; margin: 8px 0; }
 .sw-results div { display: flex; justify-content: space-between; }
@@ -539,6 +540,13 @@ html, body {
   grid-template-columns: 1fr 1fr;
   gap: 5px;
 }
+
+.sw-spawnrow {
+  display: grid;
+  grid-template-columns: 1fr 56px auto;
+  gap: 5px;
+}
+.sw-spawnrow select, .sw-spawnrow input { font: inherit; background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 4px; }
 
 .sw-setting.practice, .sw-setting.autopick { margin-top: 8px; }
 

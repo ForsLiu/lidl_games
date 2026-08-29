@@ -29,6 +29,7 @@ const OP_COVERAGE: Record<DevOp, true> = {
   skip_wave: true,
   summon_boss: true,
   fast_forward: true,
+  spawn: true,
 };
 
 const ALL_OPS = Object.keys(OP_COVERAGE) as DevOp[];
@@ -37,8 +38,8 @@ function practiceWorld(): World {
   return new World({ ...cfg(), practice: true });
 }
 
-function dev(w: World, op: DevOp, amount = 0): void {
-  applyCommand(w, { k: 'dev', op, amount });
+function dev(w: World, op: DevOp, amount = 0, enemyKey?: string): void {
+  applyCommand(w, { k: 'dev', op, amount, enemyKey });
 }
 
 describe('practice tool', () => {
@@ -128,6 +129,33 @@ describe('practice tool', () => {
     expect(w.act2Time).toBe(w.content.spawns.bossTimeSeconds);
   });
 
+  it('spawn (fb019 Training Grounds) puts a real enemy on the board with its full stats', () => {
+    const w = practiceWorld();
+    const def = w.content.enemyByKey.get('husk')!;
+    const before = w.enemies.length;
+    dev(w, 'spawn', 1, 'husk');
+    const alive = w.enemies.filter((e) => !e.dead);
+    expect(alive.length).toBe(before + 1);
+    // No hpMul: a Training Grounds enemy fights exactly as it would in a live run.
+    expect(alive[alive.length - 1].maxHp).toBe(def.hp);
+  });
+
+  it('spawn respects the requested count, clamped to a sane range', () => {
+    const w = practiceWorld();
+    dev(w, 'spawn', 5, 'husk');
+    expect(w.enemies.filter((e) => !e.dead).length).toBe(5);
+    dev(w, 'spawn', 9999, 'husk');
+    expect(w.enemies.filter((e) => !e.dead).length).toBe(5 + 50);
+  });
+
+  it('spawn is a silent no-op for a missing key or an unknown enemy', () => {
+    const w = practiceWorld();
+    dev(w, 'spawn', 1);
+    expect(w.enemies.length).toBe(0);
+    dev(w, 'spawn', 1, 'not_a_real_enemy');
+    expect(w.enemies.length).toBe(0);
+  });
+
   it('a practice run banks nothing: no Ember, no relics', () => {
     const run = new Run({ ...cfg(), practice: true, policy: 'none' });
     run.step({
@@ -141,6 +169,29 @@ describe('practice tool', () => {
       cmds: [{ k: 'dev', op: 'gold', amount: 999 }],
     });
     const w = run.world;
+    w.relicsFound.push({ id: 0, name: 'Test Relic', slot: 'ring', rarity: 'rare', affixes: [] });
+
+    const before = defaultMeta();
+    const after = applyRunResult(before, run.report(), w);
+    expect(after).toBe(before);
+    expect(w.emberEarned).toBe(0);
+  });
+
+  it('fb019 Training Grounds: a session that only ever spawned enemies still banks nothing', () => {
+    const run = new Run({ ...cfg(), practice: true, policy: 'none' });
+    run.step({
+      mx: 0,
+      my: 0,
+      dash: false,
+      attack: false,
+      aimX: 0,
+      aimY: 0,
+      active1Held: false,
+      cmds: [{ k: 'dev', op: 'spawn', amount: 3, enemyKey: 'husk' }],
+    });
+    const w = run.world;
+    expect(w.enemies.filter((e) => !e.dead).length).toBe(3);
+    w.gold += 12345; // a spawned enemy could be killed for bounty; still must not bank
     w.relicsFound.push({ id: 0, name: 'Test Relic', slot: 'ring', rarity: 'rare', affixes: [] });
 
     const before = defaultMeta();

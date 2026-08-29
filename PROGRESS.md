@@ -5,6 +5,41 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-29 session: fb019 done — Training Grounds, a Hub-accessible
+  practice arena, next in the owner priority queue after fb016.** Found
+  already implemented and uncommitted at this session's start (another prior
+  session's in-flight work); this session's job was independent
+  re-verification, not re-derivation. Built entirely on the existing
+  practice-run plumbing rather than a new system, per Q135's design default:
+  the Hub gained a second entry button (`#sw-training`) that forces
+  `practice: true` over whatever class/Core/tier/equipment the Run tab
+  already has selected, leaving the existing practice checkbox untouched; a
+  new `'spawn'` `DevOp` puts `count` (clamped 1-50) real enemies of a chosen
+  key on the board with no `hpMul`, via a new `gateSpawnPoint` helper in Act I
+  (mirrors `updateAct1Wave`'s own gate-cycling/jitter/`w.rng.spawns` shape,
+  including the `gate` index so a manually spawned splitter's children
+  inherit the right gate) or the existing `pickSpawnPoint` in Act II, so the
+  stat-overlay behavior matches live director spawns exactly; the HUD's
+  practice panel gained a spawn row reading the real enemy roster off the
+  live `World`. Confirmed `npx tsc --noEmit` clean, ran the targeted suites
+  (`tests/fb019-training-grounds.test.ts`, new, 6 tests; the 4 new cases in
+  `tests/practice.test.ts`), then `npm run test:fast`, which came back with
+  the same 4 pre-existing Windows host-load flakes as fb016
+  (`q15-command-domain-fuzz` timeouts, `q49`/`q52` scratch-dir `EPERM`,
+  b028/b029) — reproduced them standalone against a clean stash of this
+  item's diff to confirm they predate it, then re-ran clean. code-reviewer
+  found no Critical/Major issues (two Minor fixed inline: a redundant
+  explicit `overlay` option restating the existing default, and
+  `gateSpawnPoint` missing the `gate` index its `updateAct1Wave` twin sets).
+  qa-playtester adversarially probed the 50-count cap, NaN/negative/
+  fractional spawn amounts, pack/splitter/burrower/boss enemy keys, spawning
+  through an entire death slow-mo beat and after `phase==='results'`, a
+  2000-enemy rapid-spawn stress case, and cross-run determinism — confirmed
+  every acceptance criterion (enterable/leavable from the Hub, real stats on
+  a spawned enemy, nothing banked even for a spawn-only session, and full
+  test coverage of entry/exit + the spawn op + the bank-nothing rule) and
+  filed no bugs.
+
 - **2026-08-29 session: fb016 done (`35dcba2`) — indicators + VFX for every
   skill and Core function, SPEC-FINAL §11 extended to skills/Cores, next in
   the owner priority queue after fb015.** Found already implemented and

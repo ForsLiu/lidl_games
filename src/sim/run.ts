@@ -29,7 +29,7 @@ import {
   updateTimeDecay,
   upgradeCore,
 } from './cores';
-import { shouldSpawnBoss, spawnFinalBoss, updateDirector } from './act2';
+import { pickSpawnPoint, shouldSpawnBoss, spawnFinalBoss, updateDirector } from './act2';
 import {
   addXp,
   openLevelUpIfPending,
@@ -283,7 +283,7 @@ export function applyCommand(w: World, c: Command): void {
       useClassActive2(w, c.aimX, c.aimY);
       break;
     case 'dev':
-      applyDevCommand(w, c.op, c.amount);
+      applyDevCommand(w, c.op, c.amount, c.enemyKey);
       break;
     default:
       break;
@@ -298,7 +298,7 @@ export function applyCommand(w: World, c: Command): void {
  * it even with a hand-written input log. The first command that lands marks the
  * run, and a marked run banks no Ember and no relics (see applyRunResult).
  */
-export function applyDevCommand(w: World, op: DevOp, amount: number): void {
+export function applyDevCommand(w: World, op: DevOp, amount: number, enemyKey?: string): void {
   if (!w.cfg.practice) return;
   w.practiceUsed = true;
   switch (op) {
@@ -345,9 +345,32 @@ export function applyDevCommand(w: World, op: DevOp, amount: number): void {
       // director's schedule can be reached without playing through it.
       if (w.phase === 'act2') w.act2Time += Math.max(0, amount);
       break;
+    case 'spawn': {
+      // fb019 Training Grounds: spawns a real enemy of the panel's chosen type
+      // with its full stats (no hpMul), so it fights exactly as it would in a
+      // live run. An unknown key (stale panel option after a data edit) is a
+      // silent no-op rather than a thrown error, matching every other op here.
+      if (!enemyKey || !w.content.enemyByKey.has(enemyKey)) break;
+      const count = clamp(Math.round(amount), 1, 50);
+      for (let i = 0; i < count; i++) {
+        const p = w.huntsWarden ? pickSpawnPoint(w) : gateSpawnPoint(w, i);
+        // gate: matches updateAct1Wave's own spawns so a later split (TRAIT.splits)
+        // hands its children the gate this enemy actually entered from.
+        spawnEnemy(w, enemyKey, p.x, p.y, { gate: i % Math.max(1, w.gates.length) });
+      }
+      break;
+    }
     default:
       break;
   }
+}
+
+/** fb019: an Act I gate position for a manually spawned enemy, cycling gates so a multi-count spawn spreads out. */
+function gateSpawnPoint(w: World, i: number): { x: number; y: number } {
+  const gate = w.gates[i % Math.max(1, w.gates.length)] ?? GATES[0];
+  const jitterX = w.rng.spawns.range(-0.25, 0.25);
+  const jitterY = w.rng.spawns.range(-0.25, 0.25);
+  return { x: gate.tx + 0.5 + jitterX, y: gate.ty + 0.5 + jitterY };
 }
 
 /* ------------------------------------------------------------------ warden */
