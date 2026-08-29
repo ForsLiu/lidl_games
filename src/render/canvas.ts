@@ -112,6 +112,21 @@ interface CastFx {
 
 const CAST_FX_LIFE = 0.28;
 
+/**
+ * fb010: hard ceilings on presentation-only fx queued per `ingest()` call.
+ * These arrays only get pruned once per rendered frame, in `update()` — but a
+ * fast-forward catch-up frame can call `ingest()` up to `MAX_CATCHUP_TICKS *
+ * speed` times (400 at 50x, see ui/pacer.ts) before the next prune, so an
+ * unbounded push here would balloon the very frame the player is already
+ * waiting on. `maxDamageNumbers` is a separate, user-facing clutter setting
+ * for `hit:` numbers; these are an internal safety bound, not a preference.
+ */
+const MAX_TRACERS = 300;
+const MAX_CONES = 150;
+const MAX_TELEGRAPHS = 150;
+const MAX_CASTS = 150;
+const MAX_OTHER_NUMBERS = 150;
+
 /** The registered color for one of a Core's listed effects, falling back for a key the registry does not name. */
 function coreEffectColor(coreKey: string, effectKey: string, fallback: string): string {
   return CORE_VFX[coreKey]?.effects.find((e) => e.key === effectKey)?.color ?? fallback;
@@ -211,13 +226,13 @@ export class Renderer {
           break;
         case 'wardenhit':
           view.shake = Math.max(view.shake, Math.min(9, 2 + e.a * 0.25));
-          if (view.settings.damageNumbers) {
+          if (view.settings.damageNumbers && this.numbers.length < MAX_OTHER_NUMBERS) {
             this.numbers.push({ x: e.x, y: e.y, text: `-${Math.round(e.a)}`, life: 0.8, color: '#ff8080', fontScale: 1 });
           }
           break;
         case 'execute': {
           const style = executeStyle(w, view.settings.accessiblePalette);
-          if (view.settings.damageNumbers) {
+          if (view.settings.damageNumbers && this.numbers.length < MAX_OTHER_NUMBERS) {
             this.numbers.push({
               x: e.x,
               y: e.y,
@@ -238,35 +253,43 @@ export class Renderer {
           view.shake = Math.max(view.shake, 3);
           break;
         case 'levelup':
-          this.numbers.push({ x: e.x, y: e.y, text: 'LEVEL UP', life: 1.2, color: '#9ff', fontScale: 1 });
+          if (this.numbers.length < MAX_OTHER_NUMBERS) {
+            this.numbers.push({ x: e.x, y: e.y, text: 'LEVEL UP', life: 1.2, color: '#9ff', fontScale: 1 });
+          }
           break;
         case 'sunder':
           view.shake = Math.max(view.shake, 14);
           break;
         case 'shot':
-          this.tracers.push(tracer(e, w.huntsWarden ? 'arrow_volley' : 'arrow_spire', false));
+          if (this.tracers.length < MAX_TRACERS) {
+            this.tracers.push(tracer(e, w.huntsWarden ? 'arrow_volley' : 'arrow_spire', false));
+          }
           break;
         case 'manual':
-          this.tracers.push(tracer(e, 'wardens_arrow', false));
+          if (this.tracers.length < MAX_TRACERS) this.tracers.push(tracer(e, 'wardens_arrow', false));
           break;
         case 'arc':
-          this.tracers.push(tracer(e, w.huntsWarden ? 'chain_lightning' : 'tesla_coil', true));
+          if (this.tracers.length < MAX_TRACERS) {
+            this.tracers.push(tracer(e, w.huntsWarden ? 'chain_lightning' : 'tesla_coil', true));
+          }
           break;
         case 'spit':
-          this.tracers.push(tracer(e, 'spitter', false));
+          if (this.tracers.length < MAX_TRACERS) this.tracers.push(tracer(e, 'spitter', false));
           break;
         case 'cone':
-          this.cones.push({
-            x: e.x,
-            y: e.y,
-            dx: e.a,
-            dy: e.b,
-            life: 0.1,
-            style: projectileStyle(w.huntsWarden ? 'flame_cone' : 'ember_brazier'),
-          });
+          if (this.cones.length < MAX_CONES) {
+            this.cones.push({
+              x: e.x,
+              y: e.y,
+              dx: e.a,
+              dy: e.b,
+              life: 0.1,
+              style: projectileStyle(w.huntsWarden ? 'flame_cone' : 'ember_brazier'),
+            });
+          }
           break;
         case 'bosstelegraph':
-          this.telegraphs.push({ x: e.x, y: e.y, dx: e.a, dy: e.b });
+          if (this.telegraphs.length < MAX_TELEGRAPHS) this.telegraphs.push({ x: e.x, y: e.y, dx: e.a, dy: e.b });
           break;
         case 'bossphase':
         case 'bossslam':
@@ -314,6 +337,7 @@ export class Renderer {
   }
 
   private pushCast(shape: VfxShape, x: number, y: number, a: number, b: number, color: string): void {
+    if (this.casts.length >= MAX_CASTS) return;
     this.casts.push({
       x,
       y,

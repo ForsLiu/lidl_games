@@ -34,7 +34,7 @@ export interface HudCallbacks {
   onToggleDpsPanel(): void;
   onResume(): void;
   onPause(): void;
-  /** Fast-forward: cycles 1x / 2x / 3x. */
+  /** Fast-forward: cycles through the declared speeds (`SPEEDS`). */
   onCycleSpeed(): void;
   /** Practice tool; only reachable in a run started with practice on. `enemyKey` is only meaningful for the `'spawn'` op. */
   onDev(op: DevOp, amount: number, enemyKey?: string): void;

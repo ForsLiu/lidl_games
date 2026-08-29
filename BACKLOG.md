@@ -65,13 +65,9 @@ reappear here.
 - [x] (fb008) [feat] Auto-collect all uncollected VS XP gems when a wave ends;
       EXP beyond the character's current level-up need converts to gold at a
       tunable ratio — **done, see Done section.**
-- [ ] (fb010) [feat] Game speed options extended to 1/2/3/10/50×; at 10× and
+- [x] (fb010) [feat] Game speed options extended to 1/2/3/10/50×; at 10× and
       above the renderer may skip frames but the sim itself stays fixed 60 Hz
-      per sim-second with determinism unchanged — acceptance: a x50 run of a
-      full wave produces an end-state hash identical to the same seed at x1; a
-      test covers hash equality; available at minimum in the dev profile (log
-      to QUESTIONS.md if kept out of the normal game) — refs: §11, owner
-      feedback `feature-game-speed-x10-x50`.
+      per sim-second with determinism unchanged — **done, see Done section.**
 - [ ] (fb011) [feat] Remove the max-rank limit on VS stat boons and Type
       Mastery cards (were ×5 / ×3) — they keep appearing in offers at any
       rank; skill cards keep their existing caps; stacking still follows §2
@@ -873,6 +869,53 @@ logged in MIGRATION.md §8 rather than carried as dead items.
   **G19**. The work is `p10d`.
 
 ## Done
+
+- [x] (fb010) [feat] Game speed options extended to 1/2/3/10/50× — this commit
+      (2026-08-29). `src/ui/pacer.ts`'s `SPEEDS` array (already read
+      generically everywhere — the HUD button's cycling, its label, the
+      catch-up cap `MAX_CATCHUP_TICKS * speed`, and every test) went from
+      `[1, 2, 3]` to `[1, 2, 3, 10, 50]`; no other production code needed a
+      distinct code path for the new speeds, since `Pacer.plan()` always
+      converts real frame time into a whole number of fixed 60 Hz ticks —
+      "50x" only ever means more calls to the same `Run.step()`, never a
+      longer tick, so bit-identity with 1x was structural, not something this
+      item had to build. `tests/pacer.test.ts`'s existing "the batching
+      invariant holds across several seeds and every shipped speed" test
+      (BACKLOG-QUALITY q19) iterates `for (const speed of SPEEDS)` and so
+      automatically gained 10x/50x hash-equality coverage against 5 seeds.
+      The button is in the normal (non-dev-gated) HUD, exceeding the "at
+      minimum in the dev profile" bar. code-reviewer (APPROVE) found two
+      Minors, both fixed before commit: two stale "cycles 1x/2x/3x" doc
+      comments (`hud.ts`, `input.ts`) reworded to name `SPEEDS` instead of a
+      count, and the dedicated catch-up-cap test
+      (`tests/pacer.test.ts`'s "scales the cap with the speed") only pinned
+      3x — added a second case parametrizing `MAX_CATCHUP_TICKS * speed` and
+      the post-cap carryover tick count over every shipped speed.
+      qa-playtester confirmed all three acceptance criteria PASS (real,
+      non-weak hash-equality assertion; no dt shortcut in `Pacer.plan`; no
+      dev-only gate on the button) and adversarially probed rapid speed
+      cycling, pause/resume mid-fast-forward, and the death slow-mo beat's
+      interaction with the new speeds — clean — but filed one real Medium
+      bug: several `Renderer.ingest()` (`src/render/canvas.ts`) fx arrays
+      (`tracers`, `cones`, `telegraphs`, `casts`, and the non-`hit:` floating
+      numbers from `wardenhit`/`execute`/`levelup`) had no push cap at all,
+      only pruned once per rendered frame in `update()` — which runs *after*
+      a whole catch-up batch's `ingest()` calls. Before this item the worst
+      case was `MAX_CATCHUP_TICKS * 3` = 24 ticks/frame; at 50x it became 400,
+      a ~17x jump, so a busy fight during a real stall could balloon these
+      arrays right when the game is already stalling. Fixed in-scope (a
+      direct consequence of this item's own change, not a separate concern):
+      added `MAX_TRACERS`/`MAX_CONES`/`MAX_TELEGRAPHS`/`MAX_CASTS`/
+      `MAX_OTHER_NUMBERS` ceilings guarding every push site, distinct from
+      the pre-existing user-facing `maxDamageNumbers` setting (that one's a
+      clutter preference for `hit:` numbers specifically, not a safety
+      bound). `tests/fb010-fx-cap.test.ts` (new, 2 tests) drives a real
+      `Renderer` through `MAX_CATCHUP_TICKS * 50` = 400 uncapped `ingest()`
+      calls and asserts each array lands strictly under that count.
+      `npx tsc --noEmit` clean; `npm run test:fast` (88 files / 1433 tests)
+      green except the pre-existing Windows host-load flakes documented
+      under b028/b029 (`q15-command-domain-fuzz`, `q49-price-probe-restore`),
+      both reproduced clean standalone to confirm they predate this item.
 
 - [x] (fb008) [feat] Auto-collect leftover VS gems on wave end; EXP overflow
       past the current level-up need converts to gold with a HUD toast —

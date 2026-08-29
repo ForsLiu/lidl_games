@@ -57,6 +57,18 @@ describe('Pacer', () => {
     expect(p.plan(10)).toBe(MAX_CATCHUP_TICKS * 3);
   });
 
+  it('scales the cap with the speed at every shipped speed, including 10x/50x — fb010', () => {
+    for (const speed of SPEEDS) {
+      const p = new Pacer();
+      while (p.speed !== speed) p.cycle();
+      expect(p.plan(10), `${speed}x`).toBe(MAX_CATCHUP_TICKS * speed);
+      // The dropped backlog must not reappear on the next frame, same as the
+      // 1x/3x case above — a plain frame at this speed runs its usual tick
+      // count, not an inflated one.
+      expect(p.plan(FIXED_DT), `${speed}x carryover`).toBe(speed);
+    }
+  });
+
   it('clearBacklog drops banked time, so resuming from pause does not surge', () => {
     const p = new Pacer();
     p.plan(FIXED_DT * 0.9);

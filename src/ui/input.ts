@@ -106,7 +106,7 @@ export interface KeyBinding {
   clearSelection?: () => void;
   toggleRanges?: () => void;
   togglePause?: () => void;
-  /** Fast-forward: cycles 1x / 2x / 3x. */
+  /** Fast-forward: cycles through the declared speeds (`SPEEDS`). */
   cycleSpeed?: () => void;
   /** SPEC-FINAL §11, owner feedback `feature-boon-stats-panel`: opens/closes the character panel. */
   toggleCharacterPanel?: () => void;

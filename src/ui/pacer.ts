@@ -12,7 +12,7 @@
 import { FIXED_DT } from '../sim/types';
 
 /** Speeds the fast-forward button cycles through. */
-export const SPEEDS = [1, 2, 3] as const;
+export const SPEEDS = [1, 2, 3, 10, 50] as const;
 
 /** Ticks a single frame may run at 1x before the loop gives up catching up. */
 export const MAX_CATCHUP_TICKS = 8;

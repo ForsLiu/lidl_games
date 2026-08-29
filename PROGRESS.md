@@ -5,6 +5,38 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-29 session: fb010 done — game speed options extended to
+  1/2/3/10/50×, next in the owner priority queue after fb008.**
+  `src/ui/pacer.ts`'s `SPEEDS` array grew from `[1, 2, 3]` to
+  `[1, 2, 3, 10, 50]`; every consumer (the HUD fast-forward button's
+  cycling/label, the catch-up cap `MAX_CATCHUP_TICKS * speed`, and every
+  existing test) was already written generically over `SPEEDS`, so the
+  hash-equality acceptance criterion — a x50 run's end-state hash matching
+  the same seed at x1 — fell out of `tests/pacer.test.ts`'s existing
+  cross-seed, cross-speed batching-invariant test with no new test needed;
+  the speed button lives in the normal (non-dev-gated) HUD, exceeding "at
+  minimum in the dev profile." code-reviewer approved with two Minor fixes
+  applied before commit (stale "1x/2x/3x" doc comments; the catch-up-cap
+  test only pinned 3x, now parametrized over every shipped speed).
+  qa-playtester confirmed all three acceptance criteria but filed a real
+  Medium bug: several `Renderer.ingest()` fx arrays in `src/render/canvas.ts`
+  (tracers, cones, telegraphs, casts, non-`hit:` floating numbers) had no
+  push cap, only pruned once per rendered frame — at 50x a single catch-up
+  frame can call `ingest()` up to 400 times (was 24 at the old 3x max)
+  before that prune runs, so a busy fight during a real stall could balloon
+  these arrays right when the game is already stalling. Fixed in-scope
+  (direct consequence of this item's own speed increase): added explicit
+  ceilings (`MAX_TRACERS`/`MAX_CONES`/`MAX_TELEGRAPHS`/`MAX_CASTS`/
+  `MAX_OTHER_NUMBERS`) distinct from the pre-existing user-facing
+  `maxDamageNumbers` clutter setting. `tests/fb010-fx-cap.test.ts` (new, 2
+  tests) drives a real `Renderer` through 400 uncapped-by-design `ingest()`
+  calls and asserts every array lands strictly under that count. Confirmed
+  `npx tsc --noEmit` clean, then `npm run test:fast` (88 files / 1433 tests)
+  green except the documented pre-existing Windows host-load flakes
+  (`q15-command-domain-fuzz`, `q49-price-probe-restore` — both reproduced
+  standalone-clean to confirm they predate this item, the same b028/b029
+  class noted in prior sessions).
+
 - **2026-08-29 session: fb008 done — auto-collect leftover VS gems on wave
   end, EXP overflow past the current level-up need converts to gold with a
   HUD toast, next in the owner priority queue after fb019.** New
