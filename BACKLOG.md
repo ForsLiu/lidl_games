@@ -130,6 +130,99 @@ filed and ready, not next up.
       10-rank case — refs: §6.3 (supersedes the rank caps), owner feedback
       `feature-remove-boon-rank-caps`.
 
+Filed from the owner's 2026-08-28 feedback batch (6 files, all `[feature]`,
+none carrying verdict blocks — nothing to apply to QUESTIONS.md beyond
+Q134, filed inline at fb014 below). None are bugs, so none are forced to
+the top of the queue by the feedback protocol's bug clause; the three the
+owner marked `Priority: top` are called out in their own titles instead.
+
+- [ ] (fb012) [feat] Move the VS level-up auto-pick toggle (fb003) into the
+      in-game Esc options menu (both phases) plus a small toggle on the
+      level-up screen itself; remove it from the start/hub menu; setting
+      persists per profile; stays a replay-safe Command — acceptance: toggle
+      absent from the starting menu; present and functional in Esc options
+      during both phases; a mid-run flip changes the next level-up; a test
+      covers it — refs: §6.3, §11, owner feedback
+      `feature-autopick-in-options` (fb003 follow-up).
+- [ ] (fb013) [feat] New class #12: Time Lord — passive "Time Flow" (damage
+      to the character becomes a 4 s DoT, mitigated once by armor before
+      converting; a dormant, shipped-disabled flag for "character DoT 100%
+      faster" reserved for future equipment); Active1 "Time" (3 charges/6 s
+      recharge, r7 four-stage mark per enemy: unmarked→past teleports to a
+      3 s-ago position + high DoT, past→present stun-locks 3 s + high DoT,
+      present→future −20% atk/move speed [deferred if stunned/frozen] +
+      DoT equal to remaining HP, future→executed instant-kill or −50%
+      current HP for elites/bosses, marks persist until consumed); Active2
+      "Time Lock" (2 charges/10 s recharge, 5 s no-exit cursor zone immune
+      to Time's rewind-pull, high DoT over 10 s, re-casting while one
+      exists teleports its enemies into the new zone and detonates all
+      their remaining DoT as one instant burst); tower passive: every 2 TD
+      waves, all towers gain one free uncapped bonus level (+10% range,
+      +10% AoE area, no milestone triggers) — acceptance: full kit
+      implemented per the spec text; a unit test per Active1 stage
+      (rewind position, deferred slow timer, elite half-HP branch) and for
+      Time Lock's no-exit clamp, rewind interaction and DoT detonation;
+      dormant passive flag present and off; VFX/indicators registered
+      (mark icons above enemies for past/present/future); class-count
+      gates, census, Codex and dev profile updated for 12 classes — refs:
+      §4.2 addition, owner feedback `feature-class-timelord`.
+- [ ] (fb014) [feat] Constellation tree counts as fully allocated on every
+      run (temporary supersede of §8.3) — no point-spending or allocation
+      UI; the tree data and the skill-point counter stay live so the system
+      can be re-enabled later — acceptance: a fresh profile plays with
+      every node's effect active; skill points still accrue and display;
+      the tree screen shows every node allocated; gates that measured point
+      economies are `.skip`-ed with this reason — refs: §8.3 temporary
+      supersede, Q134 (applies in dev and normal play), owner feedback
+      `feature-constellation-auto-max`.
+- [ ] (fb015) [feat] top priority: realize the equipment system per §7 (the
+      current build does not implement it) — six slots (weapon, armor,
+      shoes, ring, necklace, bracelet); `data/equipment.json` holds the
+      full owner-authored 12-item table (exact HP/Atk/Def flats, atk-speed
+      and move multipliers, every conditional line including class checks
+      and written fallbacks, and the sword+armor cross-item interaction
+      changing Circle Slash scaling); multipliers stack per §2 (one source
+      per item), flats add; each fully cleared TD wave grants 1 random item
+      at Results (win or lose), duplicates allowed (Q42); stash + equip UI
+      with click-to-swap; character panel (fb004) stops treating equipment
+      as inert and shows item sources in stat breakdowns (closes Q132's
+      open gap); dev profile pre-stashes all 12 items (existing T3 rule) —
+      acceptance: all 12 items exist, equip/unequip works, every
+      conditional line (including the two-item interaction and one
+      "if not class" fallback) has a unit test, loot pays 1 item per
+      cleared TD wave at Results, G12's equipment clause is green — refs:
+      §7, §8.1, §2, gate G12, owner feedback `feature-equipment-realize`.
+- [ ] (fb016) [feat] top priority: indicators + VFX for every skill and Core
+      function — every class active gets an aim/charge indicator while
+      casting and a firing VFX (Circle Slash radius-at-charge, Dash Slash
+      path, Poison Barrel circle, Glaciate nova, Taunt radius, Manifest
+      placement, Ice Wall footprint, etc.); every listed passive trigger
+      gets a visible cue (Thousand Cuts bleed tick, Spreading Plague jump
+      line, Conduction jump counter, Parry flash, shatter burst, Paladin
+      Wrath glow); every Core gets its listed indicator/VFX (Plant devour
+      bite + range ring, Corpse execution beam + store meter, Vampire
+      Heart lifesteal motes, Time slow-aura/decay-ring shading, upgrade
+      steps visibly reflected); primitive shapes are fine, style constants
+      live in one render module, respects reduced-flash, no sim changes —
+      acceptance: a data-driven registry checklist test asserts every
+      class/Core has indicator+VFX entries so a new skill without them
+      fails the test — refs: §11 indicators extended to skills/Cores,
+      owner feedback `feature-skill-core-vfx`.
+- [ ] (fb017) [feat] top priority: split tests into fast/slow tiers so loop
+      iterations stop burning 40+ minutes per item — tag every suite over
+      ~60 s (p6e-class-diversity, soak, q14 mutation-smoke, long fuzz/
+      live-sim files) and add `npm run test:fast` excluding them, under 5
+      minutes total; amend CLAUDE.md's loop contract so per-item
+      verification is targeted tests + `test:fast`, with full `npm test`
+      reserved for phase (P-milestone) completion, before any lane merge,
+      and before DONE.md; file the two known Windows flakes (q14
+      mutation-smoke's runaway-subprocess hang, documented this session in
+      PROGRESS.md's fb004 entry; the q28 EPERM temp-file rename) as their
+      own backlog items with repros so they stop polluting unrelated runs —
+      acceptance: `npm run test:fast` exists and finishes under 5 minutes;
+      CLAUDE.md updated; both flakes filed — refs: CLAUDE.md working
+      rules/loop contract amendment, owner feedback `feature-test-tiers`.
+
 ### P1 — TD core: sealing (G7)
 
 P1 is **done** — p1a and p1b are in the Done section. G7 is green in full;
