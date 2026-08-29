@@ -94,12 +94,13 @@ filed and ready, not next up.
       Spreading Plague's death transfer keeps it correct; a test covers
       sizing — **done, see Done section** — refs: §3, §11, owner feedback
       `feature-dot-hp-indicator`.
-- [ ] (fb007) [feat] DPS summary panel (toggle key): damage dealt and DPS over
+- [x] (fb007) [feat] DPS summary panel (toggle key): damage dealt and DPS over
       the current wave and the whole run, broken down by source — each tower
       type (TD), each wielded tower-type attack (VS), each class active, each
       damage type — acceptance: panel totals reconcile with `RunReport`'s own
       damage-share telemetry (test compares them); visible in both phases —
-      refs: §11, owner feedback `feature-dps-summary`.
+      **done, see Done section** — refs: §11, owner feedback
+      `feature-dps-summary`.
 - [ ] (fb008) [feat] Auto-collect all uncollected VS XP gems when a wave ends;
       EXP beyond the character's current level-up need converts to gold at a
       tunable ratio (start 1 gold per 2 EXP, log the chosen ratio to
@@ -880,6 +881,53 @@ logged in MIGRATION.md §8 rather than carried as dead items.
   **G19**. The work is `p10d`.
 
 ## Done
+
+- [x] (fb007) [feat] DPS summary panel (damage/DPS by source and type) —
+      `6517320`, with a QA-filed post-commit bug fixed this session
+      (uncommitted at session start). Toggle-able panel (P key) showing
+      damage dealt and DPS over the current wave and the whole run, broken
+      down by source (tower type for TD, wielded tower-type attack for VS,
+      class active/passive/summon, and the handful of literal sources
+      `damageEnemy` already sees) and by the six §3 damage types. A new
+      `World.damageByType` accumulator rides alongside the existing
+      `damageByWeapon`, credited in `sim/enemies.ts`'s `damageEnemy`; the
+      "this wave" window isolates a slice via `damageSince()` against
+      whichever snapshot marks the window's start —
+      `damageAtWaveStart`/`damageTypeAtWaveStart`/`waveStartTick` for an Act I
+      wave (`startWave`, `sim/run.ts`), `damageAtSunder`/`damageTypeAtSunder`
+      for the current VS wave (`finishSundering`, `sim/sundering.ts`), the
+      same snapshot A5's own `act2DamageSoFar` already isolates Act II with.
+      `hashWorld` now covers all the new accumulators/snapshots (and closed a
+      pre-existing gap: `damageByWeapon` itself wasn't hashed before this).
+      `src/ui/dps-panel.ts`'s pure `dpsPanelData(w)` is presentation-only
+      (never writes to `World`); `src/ui/hud.ts` renders it.
+      qa-playtester filed one real bug post-commit: `advanceToNextBlock`
+      (`sim/sundering.ts`) flips the phase back to `act1_build` the instant a
+      VS wave ends, but only `startWave` — the *next* TD wave actually
+      spawning, after the full build-phase countdown — retook the
+      `damageAtWaveStart`/`damageTypeAtWaveStart`/`waveStartTick` snapshot.
+      Reproduced on a real hybrid-policy bot run: the entire build-phase
+      countdown between a VS wave's end and the next TD wave's start read the
+      "current wave" window as the stale pre-Sundering snapshot, folding the
+      whole just-finished VS wave's damage and duration under the previous TD
+      wave's label (~96% of a whole run's damage misattributed to "Wave 3"
+      this way on the repro). Fixed by re-taking the same three-field
+      snapshot in `advanceToNextBlock` itself, so the window resets to zero
+      the instant the VS wave ends rather than waiting for the next wave to
+      spawn. `tests/dps-panel.test.ts` gained a regression test driving this
+      exact sequence (pre-Sundering TD damage → `finishSundering` → VS-wave
+      damage → `advanceToNextBlock`) asserting the run total is unaffected
+      but the wave window reads zero immediately after. qa-playtester also
+      caught, across two earlier rounds on the same session, that the
+      original Act-II-reconciliation test never actually exercised the
+      `damageAtSunder` branch (the `cycles: 1` bot always dies in Act I
+      before reaching a Sundering) and that a naive fix snapshotting *at* the
+      Sundering tick is a zero/zero instant indistinguishable from a wrong
+      snapshot — both are now covered by a `cycles: 3` test that steps a real
+      hybrid-policy run to 300 ticks past a genuine Sundering and checks the
+      wave window against an independently-computed `damageSince(...,
+      damageAtSunder)` expectation, not a bare `>0`. `npx tsc --noEmit`
+      clean; targeted suite (`tests/dps-panel.test.ts`, 7 tests) green.
 
 - [x] (fb006) [feat] Enemy HP bars show a shaded/hatched segment for
       unfinished DoT damage — this commit. Found already substantially

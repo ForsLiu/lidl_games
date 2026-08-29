@@ -5,6 +5,38 @@
 
 ## Current state — SPEC-FINAL
 
+- **(fb007) is done (`6517320`, with a QA-filed post-commit bug fixed this
+  session) — DPS summary panel (owner feedback `feature-dps-summary`,
+  SPEC-FINAL §11).** Found already implemented and committed at session
+  start, but qa-playtester's post-commit pass had left a real bug and its
+  fix uncommitted in the working tree (a prior session's in-flight work);
+  this session verified the fix, re-ran the targeted suite, and committed
+  rather than re-implementing. The panel (toggle key P) shows damage/DPS
+  over the current wave and the whole run, broken down by source (tower
+  type for TD, wielded tower-type attack for VS, class active/passive/
+  summon) and by the six §3 damage types, reading straight off
+  `World.damageByWeapon`/the new `damageByType` accumulator so the "whole
+  run" totals cannot drift from `RunReport`'s own numbers (asserted by
+  test). The bug: `advanceToNextBlock` (`sim/sundering.ts`) flips the phase
+  back to `act1_build` the instant a VS wave ends, but only the *next* TD
+  wave's `startWave` call retook the `damageAtWaveStart`/
+  `damageTypeAtWaveStart`/`waveStartTick` snapshot marking the "this wave"
+  window's start — so the entire build-phase countdown between a VS wave's
+  end and the next TD wave's start read the window as the stale
+  pre-Sundering snapshot, misattributing the whole just-finished VS wave's
+  damage under the previous TD wave's label (~96% of a run's damage on the
+  bot repro). Fixed by re-taking that same snapshot inside
+  `advanceToNextBlock` itself. `tests/dps-panel.test.ts` gained a direct
+  regression test for this sequence, plus a `cycles: 3` test (added across
+  two further qa-playtester rounds on the same session, after the first
+  Act-II-reconciliation test turned out to never reach a real Sundering,
+  and a second attempt snapshotted at a zero/zero instant indistinguishable
+  from a wrong snapshot) that steps a real hybrid-policy run 300 ticks past
+  a genuine Sundering and checks the wave window against an independently
+  computed `damageSince(..., damageAtSunder)` expectation. `npx tsc
+  --noEmit` clean; targeted suite (7 tests) green; full `npm test` run this
+  session (see below for result).
+
 - **(fb006) is done this commit — enemy HP bars show a shaded/hatched segment
   for unfinished DoT damage (owner feedback `feature-dot-hp-indicator`,
   SPEC-FINAL §3/§11).** Found already substantially implemented, uncommitted,

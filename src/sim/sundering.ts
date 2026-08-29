@@ -56,6 +56,14 @@ export function advanceToNextBlock(w: World): void {
   w.cycle++;
   w.phase = 'act1_build';
   w.buildTimer = w.mods.buildPhase || w.content.waves.buildPhaseSeconds;
+  // fb007 DPS panel: the VS wave just ended and `startWave` won't run until
+  // the next TD wave actually spawns, after the build countdown — without
+  // retaking this snapshot here, the "current wave" window would carry the
+  // just-finished VS wave's damage/duration into the build interlude under
+  // the previous TD wave's stale label (QA-filed post-commit).
+  w.damageAtWaveStart = { ...w.damageByWeapon };
+  w.damageTypeAtWaveStart = { ...w.damageByType };
+  w.waveStartTick = w.tick;
 }
 
 /**
