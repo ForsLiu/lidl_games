@@ -56,23 +56,8 @@ these items may sit above it.** The directive also listed the DoT HP-bar
 segment — that is **fb006, already done** (commit `e460be1`), so it does not
 reappear here.
 
-- [ ] (fb015) [feat] top priority: realize the equipment system per §7 (the
-      current build does not implement it) — six slots (weapon, armor,
-      shoes, ring, necklace, bracelet); `data/equipment.json` holds the
-      full owner-authored 12-item table (exact HP/Atk/Def flats, atk-speed
-      and move multipliers, every conditional line including class checks
-      and written fallbacks, and the sword+armor cross-item interaction
-      changing Circle Slash scaling); multipliers stack per §2 (one source
-      per item), flats add; each fully cleared TD wave grants 1 random item
-      at Results (win or lose), duplicates allowed (Q42); stash + equip UI
-      with click-to-swap; character panel (fb004) stops treating equipment
-      as inert and shows item sources in stat breakdowns (closes Q132's
-      open gap); dev profile pre-stashes all 12 items (existing T3 rule) —
-      acceptance: all 12 items exist, equip/unequip works, every
-      conditional line (including the two-item interaction and one
-      "if not class" fallback) has a unit test, loot pays 1 item per
-      cleared TD wave at Results, G12's equipment clause is green — refs:
-      §7, §8.1, §2, gate G12, owner feedback `feature-equipment-realize`.
+- [x] (fb015) [feat] top priority: realize the equipment system per §7 —
+      **done, see Done section.**
 - [ ] (fb016) [feat] top priority: indicators + VFX for every skill and Core
       function — every class active gets an aim/charge indicator while
       casting and a firing VFX (Circle Slash radius-at-charge, Dash Slash
@@ -916,6 +901,18 @@ logged in MIGRATION.md §8 rather than carried as dead items.
   **G19**. The work is `p10d`.
 
 ## Done
+
+- [x] (fb015) [feat] realize the equipment system per §7/§8.1 — commit
+      `dc6129b`, code-reviewer REQUEST-CHANGES (1 Major, 1 Minor, both fixed:
+      `fireJudgement`'s resource gate ran after `characterDamage`'s flat-Atk
+      fold-in, so 0 stored Wrath still dealt damage with any `atkFlat` item
+      equipped; `equipItem` had no slot-consistency check unlike its relic
+      sibling), qa-playtester PASS (2 more bugs found and fixed in the same
+      commit: `tools/content-census.ts`'s Equipment row was still hardcoded
+      to 0/unbuilt; the character panel's `sourceLabel` had no `case
+      'equipment'`, so a contribution rendered as the raw `equipment:<key>`
+      string). See PROGRESS.md for the full account. Four judgement calls
+      logged as QUESTIONS.md Q136.
 
 - [x] (fb017) [feat] fast/slow test tiers — this commit (2026-08-29).
       `vitest.fast.config.ts` extends the base config with an exclude list of

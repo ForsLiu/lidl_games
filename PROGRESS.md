@@ -5,6 +5,93 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-29 session: fb015 done (`dc6129b`) — the equipment system per
+  SPEC-FINAL §7/§8.1, top of the owner priority queue.** Six slots (weapon,
+  armor, shoes, ring, necklace, bracelet), the owner's 12-item table in the
+  new `data/equipment.json`, stacking per §2 (one equipped item is one
+  `Stats` source, `equipment:<key>`), and the loot channel (each fully
+  cleared TD wave grants 1 random item at Results, win or lose, rolled on
+  the `drops` RNG stream in `completeWave`, run.ts). Four new generic `Stats`
+  keys — `atkFlat`, `towerAtkFlat`, `charRange`, `bleedLifesteal` — carry
+  most of the table's effects through the existing multiplicative-stacking
+  machinery with zero bespoke code: `atkFlat` rides every site
+  `classAttackPowerMul` already scales (a new `characterDamage(w, cls,
+  base)` wrapper in classes.ts, swapped into ~10 call sites), `towerAtkFlat`
+  is added before `upgradeStatMul` in both `towerDamage` (towers.ts) and the
+  VS wielding formula (`wieldOneType`, vswield.ts) so Builder's Necklace's
+  "+1 flat attack" is genuinely "boostable by upgrades / VS count
+  multiplier," `charRange` is Sniper Bracelet's character-side range bonus
+  (the tower half already existed as `towerRange`), and `bleedLifesteal` is
+  a boolean-in-stat-form (the `secondWind` precedent) that lets Bleeding
+  Ring's lifesteal exception through the one hardcoded "normal damage only"
+  gate in `enemies.ts` — including bypassing that gate's `!opts.dot` check,
+  since Bleeding ticks are always `dot: true`. Only three of the twelve
+  items needed real engine dispatch beyond a stat bag, all in classes.ts and
+  all gated on `hasEquipment(w, key)` (new `src/sim/equipment.ts`, a
+  type-only `World` import so nothing downstream risks a cycle): Sleeve
+  Sword makes Circle Slash fire instantly at max-charge effect instead of
+  requiring a hold; Swordsman Armor scales the hold's charge rate by
+  `attackSpeedMul` — *unless* Sleeve Sword is also equipped, in which case
+  (per the owner table's own cross-item clause) charging is moot and
+  Circle Slash's *damage* is multiplied by `attackSpeedMul` instead
+  (`fireCircleSlash`'s new `atkSpdDamageBoost` parameter); Swordsman Shoes
+  doubles Dash Slash's dash range. Every "if not Swordsman: <bonus instead>"
+  fallback line is a second, data-driven `Stats` source
+  (`classFallback` on the equipment schema, folded in `baseRunStats`,
+  stats.ts) rather than a hardcoded class check, so a future item naming a
+  different class needs no engine change. The Hub's Stash tab gained a
+  click-to-swap Equipment panel (six slots, an owned-items grid grouped by
+  count since duplicates are just a higher count, not a second stash
+  entry); the character panel's existing generic per-stat source breakdown
+  picked up equipment sources for free once they used the same
+  `equipment:<key>` naming convention a relic's `relic:<id>` already has —
+  closing Q132's previously-logged gap with no new UI code. Dev profile
+  pre-stashes all 12 items (existing T3 rule, reusing `fillStash`).
+  **code-reviewer: REQUEST-CHANGES, both findings fixed before commit.** The
+  Major: the new `characterDamage` helper let Paladin's *Judgement* fire as
+  a free AoE nova on 0 stored Wrath whenever any `atkFlat`-granting item was
+  equipped (10 of the 12 items grant it) — `fireJudgement`'s zero-gate was
+  checking the *post-flat* damage instead of the raw Wrath payout, so an
+  empty store no longer meant "nothing dealt." Fixed by gating on
+  `rawWrath > 0` before folding in `atkFlat`; a regression test now covers
+  it directly (`tests/p6d-nine-classes.test.ts`). The Minor: `equipItem`
+  (meta/stash.ts) had no slot-consistency check unlike its relic sibling
+  `equip()` — fixed by validating `equipmentByKey.get(itemKey)?.slot ===
+  slot` before writing. **qa-playtester: PASS, 2 further bugs found and
+  fixed in the same commit** (one of which was the same `equipItem` gap,
+  found independently, plus a corrupted-save angle on it logged as a
+  judgement call rather than fixed — see Q136(4)): `tools/content-census.ts`
+  had a hardcoded "Equipment: 0, unbuilt" row surviving from before this
+  item landed, which would have kept telling a future session the system
+  was missing and risked spawning a duplicate backlog item — fixed to read
+  `content.equipment.items.length` live, with `tests/q16-content-census.ts`'s
+  pinned snapshot updated to match (every §13 category is now met). The
+  character panel's `sourceLabel` had no `case 'equipment'`, so an equipped
+  item's contribution rendered as the raw `equipment:greatsword`-style
+  string instead of "Equipment: Greatsword" — fixed and covered by two new
+  tests. Also verified: the loot roll never perturbs the replay hash (a
+  same-seed determinism check with equipment in `RunConfig` was already in
+  the new suite; qa independently re-verified via a real bot-driven run
+  through both a win and a forced defeat), practice runs bank nothing,
+  equipment is locked in at `World` construction only (no mid-run re-equip
+  path exists to worry about), and gate G12 is honestly still a hole
+  overall — only its equipment clause is closed; the "M VS waves -> M skill
+  points" clause (§8.2) remains unbuilt and `tools/gate-audit.ts`'s note
+  says so explicitly rather than claiming the whole gate. Four judgement
+  calls (towerCost's build+upgrade dual reuse, atkFlat's footprint,
+  charRange's scope, and declining to extend migrate()-time validation to
+  `equippedEquipment` beyond what its relic-equivalent `equipped` field
+  already gets, to avoid an inconsistent, unscoped fix) logged as
+  QUESTIONS.md Q136. 38 new/changed tests, all in `tests/fb015-equipment.
+  test.ts` plus small additions to `p6d-nine-classes.test.ts` and
+  `q16-content-census.test.ts`; three pre-existing pinned "hole-tracking"
+  fuzz tests (`q3-save-fuzz`, `q7-data-fuzz`, `q7-loader-holes`) needed
+  updating because the new file/fields genuinely moved their measured
+  surface — two stale `ACCEPTED` holes in `q7-loader-holes.ts` closed
+  outright (the new equipment cross-file validation now correctly rejects
+  two `classes.json` mutations that used to load silently). `npm run
+  test:fast`: 1396/1396 green. `npx tsc --noEmit`: clean.
+
 - **2026-08-29 owner-directive session: fb017 done (fast test tier), BACKLOG
   reordered under a new owner priority queue, fb019 filed, b028/b029 filed.**
   Housekeeping findings first: the lane/quality and lane/tuner merges left
