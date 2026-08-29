@@ -18,6 +18,9 @@ export const PALETTE = {
   grid: '#00000022',
   hpBack: '#000000aa',
   hpFront: '#e05555',
+  /** fb006: unfinished-DoT segment overlaid on the HP front, hatched on top. */
+  hpDot: '#e8edf5aa',
+  hpDotHatch: '#000000cc',
   text: '#e8edf5',
   textDim: '#8b97a8',
   gold: '#f2c14e',

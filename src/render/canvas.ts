@@ -13,7 +13,7 @@ import {
   TILE,
   TileType,
 } from '../sim/grid';
-import { dotRemaining } from '../sim/enemies';
+import { dotOutstanding, dotRemaining } from '../sim/enemies';
 import { damageStyleColor, executeStyle } from '../sim/damagetypes';
 import { BASE } from '../sim/stats';
 import type { World } from '../sim/world';
@@ -512,12 +512,41 @@ export class Renderer {
         ctx.fill();
       }
       ctx.globalAlpha = 1;
-      if (e.hp < e.maxHp && (e.elite || e.boss || r > 8)) {
-        const frac = Math.max(0, e.hp / e.maxHp);
-        ctx.fillStyle = PALETTE.hpBack;
-        ctx.fillRect(px - r, py - r - 6, r * 2, 3);
-        ctx.fillStyle = PALETTE.hpFront;
-        ctx.fillRect(px - r, py - r - 6, r * 2 * frac, 3);
+      if (e.elite || e.boss || r > 8) {
+        // A DoT-only hit (the poison field ticks before the enemy has taken any
+        // direct damage) leaves hp === maxHp for up to one tick, so the bar must
+        // stay gated on outstanding DoT too or the segment it's meant to show
+        // would have nothing to draw on.
+        const outstanding = dotOutstanding(e);
+        if (e.hp < e.maxHp || outstanding > 0) {
+          const frac = Math.max(0, e.hp / e.maxHp);
+          const barLeft = px - r;
+          const barTop = py - r - 6;
+          const barWidth = r * 2;
+          ctx.fillStyle = PALETTE.hpBack;
+          ctx.fillRect(barLeft, barTop, barWidth, 3);
+          ctx.fillStyle = PALETTE.hpFront;
+          ctx.fillRect(barLeft, barTop, barWidth * frac, 3);
+          // fb006: the damage every live DoT still owes, shown as a shaded/
+          // hatched segment just behind the live front — it shrinks tick by
+          // tick as `dotOutstanding` resolves into real hp loss, so it never
+          // needs its own decay timer.
+          if (outstanding > 0) {
+            const dotFrac = Math.min(frac, outstanding / e.maxHp);
+            const dotRight = barLeft + barWidth * frac;
+            const dotLeft = dotRight - barWidth * dotFrac;
+            ctx.fillStyle = PALETTE.hpDot;
+            ctx.fillRect(dotLeft, barTop, dotRight - dotLeft, 3);
+            ctx.strokeStyle = PALETTE.hpDotHatch;
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            for (let hx = Math.ceil(dotLeft); hx < dotRight; hx += 2) {
+              ctx.moveTo(hx, barTop);
+              ctx.lineTo(hx, barTop + 3);
+            }
+            ctx.stroke();
+          }
+        }
       }
     }
   }

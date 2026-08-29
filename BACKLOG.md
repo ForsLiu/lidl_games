@@ -88,11 +88,12 @@ filed and ready, not next up.
       differs in a mixed fight; the style mapping lives in `/data`; a test
       asserts the mapping — **done, see Done section** — refs: §3, §11,
       owner feedback `feature-damage-type-colors`.
-- [ ] (fb006) [feat] Enemy HP bars show a shaded/hatched segment sized to the
+- [x] (fb006) [feat] Enemy HP bars show a shaded/hatched segment sized to the
       unfinished DoT total, shrinking per tick as the DoT resolves —
       acceptance: applying poison shows the segment at the correct size;
       Spreading Plague's death transfer keeps it correct; a test covers
-      sizing — refs: §3, §11, owner feedback `feature-dot-hp-indicator`.
+      sizing — **done, see Done section** — refs: §3, §11, owner feedback
+      `feature-dot-hp-indicator`.
 - [ ] (fb007) [feat] DPS summary panel (toggle key): damage dealt and DPS over
       the current wave and the whole run, broken down by source — each tower
       type (TD), each wielded tower-type attack (VS), each class active, each
@@ -831,6 +832,24 @@ because the lane worktree retires at this merge.
       existing cases in `tests/q54-unguarded-data-read.test.ts`) or both are
       named in the function's "Known limitations" doc comment alongside the
       existing gaps — refs: BACKLOG-QUALITY q57, session 52 QA
+- [ ] (b027) [bug] `tests/p6e-class-diversity.test.ts`'s G8 diversity pin
+      (`distinct.size` asserted `toBe(2)`, the audit-summary's documented
+      "2/11 not >=8/11") measured `3` on a full unexcluded `npm test` run at
+      the fb006 session (2026-08-29) — a genuine drift, not one of that run's
+      other four failures (all the already-documented Windows scratch-dir
+      `EPERM` class or q13's host-load perf-ratio flake). fb006's own diff
+      (`src/render/canvas.ts`, `src/render/theme.ts`, a new test file) touches
+      no `/src/sim` or `/data` file the measurement reads, and this file is
+      routinely excluded from prior sessions' full-suite runs for its own
+      ~3500-3600s cost (see the audit-summary's P6 row and PROGRESS.md's
+      `--exclude tests/p6e-class-diversity.test.ts` precedent), so the drift's
+      origin is unmeasured, not ruled out as pre-existing — acceptance: re-run
+      `tests/p6e-class-diversity.test.ts` standalone, identify which class's
+      `topLabel` changed and why (balance data edit, or a genuine sim
+      determinism gap given CLAUDE.md's no-`Math.random` rule), then either
+      re-pin the assertion to the new honestly-measured count with the reason
+      recorded, or fix the determinism gap if one is found — refs: SPEC-FINAL
+      §14 G8, CLAUDE.md measurement rules, BACKLOG.md audit summary P6 row.
 
 ## Retired from the queue by SPEC-FINAL
 
@@ -861,6 +880,41 @@ logged in MIGRATION.md §8 rather than carried as dead items.
   **G19**. The work is `p10d`.
 
 ## Done
+
+- [x] (fb006) [feat] Enemy HP bars show a shaded/hatched segment for
+      unfinished DoT damage — this commit. Found already substantially
+      implemented, uncommitted, at session start (a prior session's in-flight
+      work: `src/render/canvas.ts`, `src/render/theme.ts`,
+      `tests/fb006-dot-hp-indicator.test.ts` all pre-existed with no matching
+      commit); this session verified it end to end, removed a duplicated
+      leftover comment block in `canvas.ts`, and committed rather than
+      re-implementing. The HP-bar draw block computes `dotOutstanding(e)`
+      (pre-existing `src/sim/enemies.ts` export: sum of `dps * remaining`
+      across every live DoT) and draws a hatched `PALETTE.hpDot`/
+      `hpDotHatch` segment sized to `min(liveHpFraction, outstanding/maxHp)`,
+      anchored flush against the live HP front edge so it reads as "about to
+      be consumed." The bar's draw-gate widened from `e.hp < e.maxHp` to
+      `e.hp < e.maxHp || outstanding > 0` so a DoT-only hit (poison ticking
+      before any direct damage) still shows a bar. `tests/fb006-dot-hp-
+      indicator.test.ts` (6 tests): correct initial sizing, the DoT-only-hit
+      edge case, tick-by-tick shrink as the DoT resolves, no segment without
+      a live DoT, capping at the front edge when outstanding exceeds current
+      hp, and Spreading Plague's death transfer (flat damage, not a new DoT,
+      so the target shows no spurious segment and the dead source leaves no
+      stale bar). code-reviewer found no Critical/Major issues (renderer-only,
+      reads sim state via the pure `dotOutstanding`/`dotRemaining` without
+      mutating it; approved). qa-playtester independently probed multi-type
+      DoT stacking, overkill-death with a live DoT, rapid re-application,
+      natural DoT expiry and heal-to-full-while-doomed — verdict PASS, no
+      regressions in fb006's diff; it noted one pre-existing, unrelated gap
+      (the outer bar-visibility gate `e.elite || e.boss || r > 8` excludes
+      `swarm_rat`, the one enemy row at exactly `r === 8`, regardless of
+      outstanding DoT) — not introduced by this change, left as-is. Full
+      `npm test` (unexcluded, ~8431s): 1419 passed, 5 failed — four are the
+      already-documented Windows scratch-dir `EPERM`/host-load perf-ratio
+      flakes (q13, q45, q49, q52); the fifth, `p6e-class-diversity`'s G8
+      diversity pin measuring 3 instead of 2, is unrelated to this item's
+      files and filed as b027 for future investigation.
 
 - [x] (fb005) [feat] Per-damage-type color/font in floating damage numbers —
       this commit (`d0b6ad4`). Found already substantially implemented,

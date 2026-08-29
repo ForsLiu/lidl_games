@@ -5,6 +5,42 @@
 
 ## Current state — SPEC-FINAL
 
+- **(fb006) is done this commit — enemy HP bars show a shaded/hatched segment
+  for unfinished DoT damage (owner feedback `feature-dot-hp-indicator`,
+  SPEC-FINAL §3/§11).** Found already substantially implemented, uncommitted,
+  at session start (`src/render/canvas.ts`, `src/render/theme.ts`,
+  `tests/fb006-dot-hp-indicator.test.ts` all pre-existed with no matching
+  commit — a prior session's in-flight work); this session verified it end to
+  end, removed a duplicated leftover comment block in `canvas.ts`, and
+  committed rather than re-implementing. The HP-bar draw block computes
+  `dotOutstanding(e)` (pre-existing `src/sim/enemies.ts` export summing
+  `dps * remaining` across every live DoT) and draws a hatched
+  `PALETTE.hpDot`/`hpDotHatch` segment sized to
+  `min(liveHpFraction, outstanding/maxHp)`, anchored flush against the live
+  HP front edge; the bar's draw-gate widened from `e.hp < e.maxHp` to
+  `e.hp < e.maxHp || outstanding > 0` so a DoT-only hit (poison ticking before
+  any direct damage) still shows a bar. `tests/fb006-dot-hp-indicator.test.ts`
+  (6 tests) covers initial sizing, the DoT-only-hit edge case, tick-by-tick
+  shrink, no segment without a live DoT, capping at the front edge when
+  outstanding exceeds current hp, and Spreading Plague's death transfer
+  (flat damage, not a new DoT — no spurious segment, no stale bar for the
+  dead source). code-reviewer: no Critical/Major findings, approved
+  (renderer-only, reads sim state via the pure `dotOutstanding`/`dotRemaining`
+  without mutating it). qa-playtester: **PASS** — adversarially probed
+  multi-type DoT stacking, overkill-death with a live DoT, rapid
+  re-application, natural DoT expiry and heal-to-full-while-doomed, no
+  regressions in this item's diff; filed one pre-existing, unrelated,
+  non-blocking observation (the outer bar-visibility gate
+  `e.elite || e.boss || r > 8` excludes `swarm_rat`, the one enemy row at
+  exactly `r === 8`, regardless of outstanding DoT — not introduced by this
+  change). Full `npm test` (unexcluded, ~8431s wall): 1419 passed, 5 failed —
+  four are the already-documented Windows scratch-dir `EPERM`/host-load
+  perf-ratio flakes (q13, q45, q49, q52, same class already noted throughout
+  this file); the fifth, `tests/p6e-class-diversity.test.ts`'s G8 diversity
+  pin measuring 3 distinct top-damage-sources instead of the documented
+  pinned 2, touches no file this item changed and is filed as **b027** for a
+  future session to re-measure and re-pin or fix. `npx tsc --noEmit`: clean.
+
 - **(fb005) is done (`d0b6ad4`) — per-damage-type color/font in floating
   damage numbers (owner feedback `feature-damage-type-colors`, SPEC-FINAL
   §3/§11).** Also processed this session: the owner's 2026-08-28 feedback
