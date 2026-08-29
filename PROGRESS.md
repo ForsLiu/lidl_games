@@ -5,7 +5,24 @@
 
 ## Current state — SPEC-FINAL
 
-- **(fb004) is done this commit (`df1771f`) — the character panel (owner
+- **The second lane/quality merge is done (`03eb4a2`)** — the lane's sessions
+  30–52 (q36–q57: the CLI crash-coverage harness `tools/cli-crash-coverage.ts`,
+  the q33/q37/q41/q45/q46 JSON-syntax/schema-violation CLI suites, the q49/q53
+  price-probe restore/crash pins, q52's m20d-run-a4 guard, q54's
+  `unguarded-data-read` classifier) landed on master. Resolution: main wins on
+  `src`/`data`; lane tests/tools kept and ported where the lane's stale data
+  snapshot showed (per-track `costMul` in `m20d-price-probe.ts`, q49's fixture
+  re-anchored off the deleted `soul` field, a single-tower filter for
+  `a4probe.ts` so q45's control fits its 60 s budget); the lane's q36
+  souls-command test died with the soul-weapon system and was dropped. Still-
+  relevant lane findings filed as **b022–b025** (BACKLOG.md, "Filed at the
+  lane/quality merge (2026-08-28)"); BACKLOG-QUALITY.md is history from here.
+  Verified: tsc clean; vitest minus the three slow suites 1398 passed, with
+  the only failures the documented q15 timing flake and EPERM cleanup races,
+  re-run green standalone. `npm test`'s slow suites were not re-run at the
+  merge itself; fb005's in-flight working-tree changes (damage-type colors)
+  were left uncommitted, untouched by the merge.
+- **(fb004) is done commit (`df1771f`) — the character panel (owner
   feedback `feature-boon-stats-panel`, SPEC-FINAL §2/§6.3/§11).** With
   (fb001)-(fb003) already landed, this session continued ordinary
   BACKLOG.md order via the Feedback section's own file order. Built fresh
