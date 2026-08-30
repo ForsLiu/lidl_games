@@ -1,11 +1,19 @@
-/** SPEC A11: same seed + input log produces an identical end-state hash, 100/100. */
+/**
+ * SPEC-FINAL §14 G2: "Determinism: 100/100 replay hash match, incl. actives,
+ * tuner-edited content (per content hash), fast-forward." Formerly named for
+ * SPEC-V2's A11; renamed at p9f to match SPEC-FINAL's gate numbering and
+ * widened to cover G2's other two named additions directly (fast-forward's
+ * bit-identity is covered separately in `pacer.test.ts`, which predates this
+ * file and needs no duplication here — see `tools/gate-audit.ts`'s G2 entry).
+ */
 
 import { describe, expect, it } from 'vitest';
 
 import { cfg, makeInputLog, replay, runWithPolicy } from './helpers';
 import { Rng, RngSet, fnv1a } from '../src/sim/rng';
 import { dcos, dsin, datan2 } from '../src/sim/math';
-import { loadContent } from '../src/sim/content';
+import { contentHash, loadContent } from '../src/sim/content';
+import { Run } from '../src/sim/run';
 import type { Command, TickInput } from '../src/sim/types';
 
 /**
@@ -27,7 +35,7 @@ function withSkillCommands(log: TickInput[], slot: string, itemKey: string): Tic
   });
 }
 
-describe('A11 determinism', () => {
+describe('G2 determinism', () => {
   it('reproduces the end-state hash for 100 seeds', () => {
     const TICKS = 2400; // 40 s of play: covers build phases, waves and leaks
     for (let seed = 1; seed <= 100; seed++) {
@@ -94,6 +102,47 @@ describe('A11 determinism', () => {
     // phase machine parked waiting for input.
     expect(Object.keys(run.world.boonRanks).length).toBeGreaterThan(0);
     expect(run.world.phase).not.toBe('levelup');
+  });
+
+  /**
+   * G2's "tuner-edited content (per content hash)" clause, end to end: a
+   * Tuner save is, from the sim's perspective, exactly `loadContent()` fed a
+   * substitute document (`saveTunerFile`'s own dry-run does this same
+   * substitution before ever touching disk, see `src/devserver/tunerSave.ts`
+   * and `tests/p9c-tuner-save.test.ts`) — so building `Content` this way
+   * exercises the real substitution path rather than a hand-rolled stand-in.
+   * A record/replay pair against the *edited* content must match each other
+   * exactly, and CLAUDE.md architecture rule 2's "replay against edited data
+   * fails loudly" must hold at the boundary between them (p9a).
+   */
+  it('replays correctly against Tuner-edited content when the recorded hash matches, and rejects a stale one', () => {
+    const base = loadContent();
+    const editedTowersDoc = {
+      ...base.towers,
+      towers: base.towers.towers.map((t, i) => (i === 0 ? { ...t, cost: t.cost + 5 } : t)),
+    };
+    const edited = loadContent({ towers: editedTowersDoc });
+    const editedHash = contentHash(edited);
+    expect(editedHash).not.toBe(contentHash(base));
+
+    const log = makeInputLog(3, 900);
+    const config = cfg({ seed: 3 });
+
+    // Recording a run against the edited content stamps its hash onto the
+    // shared RunConfig, exactly as a real Tuner-edited session would.
+    const recorded = new Run(config, edited);
+    for (const input of log) recorded.step(input);
+    expect(config.contentHash).toBe(editedHash);
+
+    // Replaying the same config + log against the same edited content is a
+    // real replay hash match, not just an identity check on the same object.
+    const replayed = new Run({ ...config }, edited);
+    for (const input of log) replayed.step(input);
+    expect(replayed.hash()).toBe(recorded.hash());
+
+    // Replaying that config against unedited /data — the content it was
+    // *not* recorded against — fails loudly rather than silently diverging.
+    expect(() => new Run({ ...config }, base)).toThrow(/content hash mismatch/);
   });
 });
 

@@ -104,7 +104,7 @@ describe('q10 — gate-coverage audit', () => {
       { id: 'G2', text: 'has a recorded hole' },
       { id: 'G999', text: 'nobody has looked at this one' },
     ];
-    const rows = auditGates(fake, { G1: { files: ['tests/a11-determinism.test.ts'] } }, { G2: 'not built yet' });
+    const rows = auditGates(fake, { G1: { files: ['tests/g2-determinism.test.ts'] } }, { G2: 'not built yet' });
     expect(rows.find((r) => r.id === 'G1')?.status).toBe('covered');
     expect(rows.find((r) => r.id === 'G2')?.status).toBe('hole');
     expect(rows.find((r) => r.id === 'G999')?.status).toBe('UNTRACKED');
@@ -118,10 +118,10 @@ describe('q10 — gate-coverage audit', () => {
 
   it('hasLiveTopLevelDescribe tells a live file from an entirely retired one', () => {
     // tests/a1-run-length.test.ts is confirmed entirely describe.skip'd
-    // (its own header says RETIRED); tests/a11-determinism.test.ts is live.
+    // (its own header says RETIRED); tests/g2-determinism.test.ts is live.
     // Both are hand-picked known quantities, not the fixture under test.
     expect(hasLiveTopLevelDescribe(resolve(REPO_ROOT, 'tests/a1-run-length.test.ts'))).toBe(false);
-    expect(hasLiveTopLevelDescribe(resolve(REPO_ROOT, 'tests/a11-determinism.test.ts'))).toBe(true);
+    expect(hasLiveTopLevelDescribe(resolve(REPO_ROOT, 'tests/g2-determinism.test.ts'))).toBe(true);
   });
 
   it('entirelyRetiredCoverage actually flags a covered gate backed only by a retired file', () => {
@@ -130,7 +130,7 @@ describe('q10 — gate-coverage audit', () => {
     // real map to ever exercise the failing branch again.
     const fakeCoverage = {
       G1: { files: ['tests/a1-run-length.test.ts'] }, // entirely retired — should flag
-      G2: { files: ['tests/a1-run-length.test.ts', 'tests/a11-determinism.test.ts'] }, // one live — should not
+      G2: { files: ['tests/a1-run-length.test.ts', 'tests/g2-determinism.test.ts'] }, // one live — should not
     };
     expect(entirelyRetiredCoverage(fakeCoverage)).toEqual([
       'G1: none of [tests/a1-run-length.test.ts] has a live top-level describe block',

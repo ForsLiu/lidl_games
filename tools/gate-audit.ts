@@ -125,22 +125,22 @@ export const GATE_COVERAGE: Record<string, CoverageEntry> = {
   G22: { files: ['tests/p-core-f-gates.test.ts'] },
   G23: { files: ['tests/p-core-f-gates.test.ts'] },
   G2: {
-    files: ['tests/a11-determinism.test.ts', 'tests/p6a-class-framework.test.ts', 'tests/pacer.test.ts'],
+    files: ['tests/g2-determinism.test.ts', 'tests/p6a-class-framework.test.ts', 'tests/pacer.test.ts'],
     note:
-      "a11 covers the 100-seed replay hash match; p6a-class-framework.test.ts's 'replay-hash determinism with " +
-      "Active1/Active2 and the auto basic attack in the log' describe (f004-class-framework.test.ts's equivalent " +
-      "coverage before p6f deleted that file, Q38) covers actives. This note previously claimed 'no test asserts " +
-      "a fast_forward run's end hash " +
-      "against the same run at 1x' — stale the same way q17 (session 12) found G17's own note stale: " +
-      "tests/pacer.test.ts already had a test doing exactly that (it predates this audit tool, shipped with the " +
-      "fast-forward feature itself), just at one seed and one speed. BACKLOG-QUALITY q19 (session 15) widened it " +
-      "to several seeds across all three SPEEDS, reading src/ui/main.ts first to confirm fast-forward really is " +
-      "frame-stepping with no distinct sim entrypoint (Pacer.plan() only picks how many times the loop calls the " +
-      "same Run.step(), never a longer tick), so the bit-identity is structural, not incidental. p9a built the " +
-      "underlying mechanism BACKLOG-QUALITY q18 found missing (RunConfig.contentHash, stamped by World's " +
-      "constructor and checked on replay) and unskipped tests/q18-content-hash-replay.test.ts's repro, now " +
-      "green. Still missing: an actual Tuner-edited replay case end to end (the Tuner itself is unbuilt, see " +
-      'G15/p9c) and folding this coverage into a G2 test proper (p9f).',
+      "p9f: renamed from tests/a11-determinism.test.ts (SPEC-V2's A11) to match SPEC-FINAL's gate numbering, " +
+      "folding in the gate's three named additions. g2-determinism.test.ts covers the 100-seed replay hash " +
+      "match, class actives + a mid-run equip_item swap, and auto-pick level-ups; " +
+      "p6a-class-framework.test.ts's 'replay-hash determinism with Active1/Active2 and the auto basic attack " +
+      "in the log' describe (f004-class-framework.test.ts's equivalent coverage before p6f deleted that file, " +
+      "Q38) covers actives from a second angle. tests/pacer.test.ts covers fast-forward: a run stepped in " +
+      "pacer-sized batches at every shipped SPEEDS value hashes the same as one stepped evenly, across several " +
+      "seeds (BACKLOG-QUALITY q19, session 15) — confirmed structural, not incidental, since Pacer.plan() only " +
+      "picks how many times the loop calls the same Run.step(), never a longer tick. g2-determinism.test.ts " +
+      "adds the third: a Tuner-edited-content case end to end (loadContent() fed the same substitute-document " +
+      "shape saveTunerFile's dry-run uses, per src/devserver/tunerSave.ts), asserting a record/replay pair " +
+      "against the edited content matches and a replay against un-edited content throws per architecture rule " +
+      '2 (p9a built the underlying RunConfig.contentHash mechanism; BACKLOG-QUALITY q18\'s repro is separately ' +
+      'green in tests/q18-content-hash-replay.test.ts). All three of G2\'s named additions now have a live case.',
   },
   G4: { files: ['tests/c3-armor.test.ts', 'tests/m19c-damage-types.test.ts'] },
   G5: { files: ['tests/c4-stacking.test.ts'] },
