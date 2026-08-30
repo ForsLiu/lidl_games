@@ -101,9 +101,10 @@ describe('p7e: every non-free class has exactly one unlock quest that actually u
     }
   });
 
-  it('§8.4: 8-12 quests total', () => {
-    expect(content.quests.quests.length).toBeGreaterThanOrEqual(8);
-    expect(content.quests.quests.length).toBeLessThanOrEqual(12);
+  it('§8.4: 8-12 quests total (Q148: scoped to non-Core rewards — §8.4\'s own worked examples are all class unlocks, and §5.5\'s four Core-unlock quests are a separate, exactly-enumerated content bucket, not part of this range)', () => {
+    const nonCore = content.quests.quests.filter((q) => q.reward.kind !== 'core');
+    expect(nonCore.length).toBeGreaterThanOrEqual(8);
+    expect(nonCore.length).toBeLessThanOrEqual(12);
   });
 
   it('§8.4: "quests award unlocks only, never currency" — no reward kind is currency-shaped', () => {

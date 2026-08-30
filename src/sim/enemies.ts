@@ -299,7 +299,13 @@ export function damageEnemy(
     w.warden.leechAccumulator += Math.min(dmg, hpBeforeHit) * w.derived.leech;
   }
 
-  if (e.hp <= 0) killEnemy(w, e, source);
+  if (e.hp <= 0) {
+    // p7h: the killing blow's own type, not what dealt the most damage over
+    // the enemy's life — matches §5.5's literal "poison kills" reading and
+    // the fastest thing to compute at the one choke point that knows both.
+    if (dmgType === 'poison') w.poisonKills++;
+    killEnemy(w, e, source);
+  }
   return dmg;
 }
 

@@ -113,7 +113,11 @@ export function census(content: Content): CensusRow[] {
     met: nonStartNodes === 120,
   });
 
-  const questCount = content.quests.quests.length;
+  // p7h/Q148: §8.4's "8-12" is scoped to class-unlock quests (its own three
+  // worked examples are all class rewards) — the 4 §5.5 Core-unlock quests
+  // are a separate, exactly-enumerated bucket (one per non-default Core),
+  // not double-counted against this range. See tests/p7e-quests.test.ts.
+  const questCount = content.quests.quests.filter((q) => q.reward.kind !== 'core').length;
   rows.push({
     key: 'quests',
     label: 'Quests',

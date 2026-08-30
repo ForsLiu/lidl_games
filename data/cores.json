@@ -6,6 +6,7 @@
       "baseHp": 500,
       "unlockedByDefault": true,
       "unlockCondition": null,
+      "unlockQuest": null,
       "upgrade": {
         "count": 3,
         "stepCost": 50,
@@ -19,6 +20,7 @@
       "baseHp": 200,
       "unlockedByDefault": false,
       "unlockCondition": "300 lifetime poison kills",
+      "unlockQuest": "poison_purge",
       "effects": {
         "devourRadius": 2,
         "devourCooldown": 8,
@@ -47,6 +49,7 @@
       "baseHp": 350,
       "unlockedByDefault": false,
       "unlockCondition": "Finish a run with the Core at or below 25% HP",
+      "unlockQuest": "scrape_by",
       "effects": {
         "towerLifestealPct": 0.001,
         "missingHpBuffPerPct": 0.005,
@@ -71,6 +74,7 @@
       "baseHp": 500,
       "unlockedByDefault": false,
       "unlockCondition": "Deal 100,000 lifetime damage",
+      "unlockQuest": "hundred_grand",
       "effects": {
         "corpseStoreRatio": 0.01,
         "corpseExecuteInterval": 1,
@@ -94,6 +98,7 @@
       "baseHp": 300,
       "unlockedByDefault": false,
       "unlockCondition": "Win a run in under 32 minutes",
+      "unlockQuest": "speedrunner",
       "effects": {
         "tdSlowRadius": 3,
         "tdSlowPct": 0.2,

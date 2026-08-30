@@ -263,6 +263,13 @@ export class World {
    */
   everSealed = false;
   /**
+   * p7h (§5.5, §8.4): lifetime-across-runs count feeding the "300 lifetime
+   * poison kills" Carnivorous Plant unlock quest. A readback counter like
+   * `everSealed` above, not part of `hashWorld` — it never gates future tick
+   * behaviour, only end-of-run reporting.
+   */
+  poisonKills = 0;
+  /**
    * §8.2 (p7c): "each VS wave cleared -> 1 skill point," counted only for a
    * VS wave that actually ends by its own means — the block timer
    * (`advanceToNextBlock`) or, for the final block, the Warden-Eater kill —

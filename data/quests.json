@@ -9,6 +9,10 @@
     { "key": "hoarder",           "name": "Hoarder",            "desc": "Bank 5000 gold across all runs",           "metric": "lifetime_gold",      "target": 5000, "compare": "gte", "reward": { "kind": "class",    "value": "stormcaller" } },
     { "key": "maze_master",       "name": "Maze Master",        "desc": "Finish a run with 60+ Palisades standing", "metric": "max_palisades_end",  "target": 60,   "compare": "gte", "reward": { "kind": "passive",  "value": "wall_hp_10" } },
     { "key": "archivist",         "name": "Archivist",          "desc": "Own 3 of the same equipment item at once", "metric": "max_equipment_dupes", "target": 3, "compare": "gte", "reward": { "kind": "class",    "value": "animist" } },
-    { "key": "chrono_veteran",    "name": "Chrono Veteran",     "desc": "Win 6 runs",                               "metric": "wins",               "target": 6,    "compare": "gte", "reward": { "kind": "class",    "value": "time_lord" } }
+    { "key": "chrono_veteran",    "name": "Chrono Veteran",     "desc": "Win 6 runs",                               "metric": "wins",               "target": 6,    "compare": "gte", "reward": { "kind": "class",    "value": "time_lord" } },
+    { "key": "poison_purge",      "name": "Toxic Harvest",      "desc": "Get 300 lifetime poison kills",            "metric": "poison_kills",       "target": 300,  "compare": "gte", "reward": { "kind": "core",     "value": "carnivorous_plant" } },
+    { "key": "scrape_by",         "name": "Scrape By",          "desc": "Finish a run with the Core at or below 25% HP", "metric": "core_finish_low_hp", "target": 1, "compare": "gte", "reward": { "kind": "core",     "value": "vampire_heart" } },
+    { "key": "hundred_grand",     "name": "Overkill",           "desc": "Deal 100,000 lifetime damage",             "metric": "lifetime_damage",    "target": 100000, "compare": "gte", "reward": { "kind": "core",   "value": "corpse" } },
+    { "key": "speedrunner",       "name": "Against the Clock",  "desc": "Win a run in under 32 minutes",            "metric": "fastest_win_seconds", "target": 1920, "compare": "lte", "reward": { "kind": "core",   "value": "time" } }
   ]
 }

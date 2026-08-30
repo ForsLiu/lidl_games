@@ -97,10 +97,42 @@ export function metricsFor(report: RunReport, w: World): Record<string, number> 
     // the post-update account state, not the report alone" treatment
     // `max_rare_relics` used to get for the now-retired relic stash.
     max_equipment_dupes: 0,
+    // p7h (§5.5, §8.4): the four Core-unlock metrics, same "computed from the
+    // report/world, banked lifetime or per-run" families the class quests
+    // above already use.
+    poison_kills: w.poisonKills,
+    // "finish a run with the Core at or below 25% HP" (§5.5) — win or lose,
+    // since §5.5 says "finish", not "win" (Time's quest below says "win"
+    // explicitly, so the distinction is deliberate, not an oversight).
+    core_finish_low_hp: report.coreMaxHp > 0 && report.coreHp <= report.coreMaxHp * 0.25 ? 1 : 0,
+    lifetime_damage: report.damageTotal,
+    fastest_win_seconds: won ? report.totalSeconds : Number.POSITIVE_INFINITY,
   };
 }
 
-const CUMULATIVE = new Set(['wins', 'wins_sealed', 'wins_max4towertypes', 'built_frost_obelisk', 'lifetime_gold']);
+const CUMULATIVE = new Set([
+  'wins',
+  'wins_sealed',
+  'wins_max4towertypes',
+  'built_frost_obelisk',
+  'lifetime_gold',
+  'poison_kills',
+  'lifetime_damage',
+]);
+/**
+ * p7h: generalizes what used to be a single `fastest_boss_kill`-only special
+ * case below the generic loop — a metric here tracks its running *minimum*
+ * across runs (a `Number.POSITIVE_INFINITY` sentinel for "not achieved this
+ * run" is skipped, never banked) instead of the generic loop's running
+ * maximum/sum. Kept out of the generic loop entirely (not just given a
+ * separate follow-up pass, the old shape): the loop's own `Math.max` would
+ * otherwise write a *worse* value first — a boss kill slower than the
+ * standing best used to clobber `questProgress.fastest_boss_kill` with the
+ * slower time before the old special case's `Math.min` ran second and agreed
+ * with whatever the loop had just (wrongly) written, permanently forgetting
+ * the real best.
+ */
+const MIN_TRACKED = new Set(['fastest_boss_kill', 'fastest_win_seconds']);
 
 export function applyRunResult(meta: MetaState, report: RunReport, w: World): MetaState {
   const c = loadContent();
@@ -115,6 +147,11 @@ export function applyRunResult(meta: MetaState, report: RunReport, w: World): Me
     questProgress: { ...meta.questProgress },
     completedQuests: meta.completedQuests.slice(),
     unlockedClasses: meta.unlockedClasses.slice(),
+    // p7h: was missing here — without it, `next.unlockedCores.push` below
+    // would mutate `meta.unlockedCores` (the same array, via the `...meta`
+    // spread above) in place, breaking every caller that assumes `meta`
+    // itself is left untouched.
+    unlockedCores: meta.unlockedCores.slice(),
     allocated: meta.allocated.slice(),
     equipmentStash: { ...meta.equipmentStash },
     equippedEquipment: { ...meta.equippedEquipment },
@@ -143,13 +180,16 @@ export function applyRunResult(meta: MetaState, report: RunReport, w: World): Me
   metrics.max_equipment_dupes = maxDupes;
 
   for (const [key, value] of Object.entries(metrics)) {
+    if (MIN_TRACKED.has(key)) continue; // handled below by its own running-minimum pass
     if (!Number.isFinite(value)) continue;
     const prev = next.questProgress[key] ?? 0;
     next.questProgress[key] = CUMULATIVE.has(key) ? prev + value : Math.max(prev, value);
   }
-  if (metrics.fastest_boss_kill !== Number.POSITIVE_INFINITY) {
-    const prev = next.questProgress.fastest_boss_kill ?? Number.POSITIVE_INFINITY;
-    next.questProgress.fastest_boss_kill = Math.min(prev, metrics.fastest_boss_kill);
+  for (const key of MIN_TRACKED) {
+    const value = metrics[key];
+    if (value === undefined || value === Number.POSITIVE_INFINITY) continue;
+    const prev = next.questProgress[key] ?? Number.POSITIVE_INFINITY;
+    next.questProgress[key] = Math.min(prev, value);
   }
 
   for (const q of c.quests.quests) {
@@ -161,6 +201,8 @@ export function applyRunResult(meta: MetaState, report: RunReport, w: World): Me
     next.completedQuests.push(q.key);
     if (q.reward.kind === 'class' && !next.unlockedClasses.includes(q.reward.value)) {
       next.unlockedClasses.push(q.reward.value);
+    } else if (q.reward.kind === 'core' && !next.unlockedCores.includes(q.reward.value)) {
+      next.unlockedCores.push(q.reward.value);
     }
   }
 

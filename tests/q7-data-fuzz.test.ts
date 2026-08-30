@@ -484,11 +484,20 @@ describe('q7 — cross-file references, row by row', () => {
     // p7e: three `quests.quests[]` fields *joined* this list. `content.ts`
     // now cross-references a non-free class's `unlockQuest` against a real
     // quest whose `reward` names that exact class (§8.4) — but only 9 of the
-    // 10 authored quests are any class's `unlockQuest` (`maze_master` is a
-    // standalone achievement, unlinked to any class), so `key`/`reward.kind`/
-    // `reward.value` are each caught on 9 rows and open on the 10th.
+    // 10 class-rewarding quests are any class's `unlockQuest` (`maze_master`
+    // is a standalone achievement, unlinked to any class), so `key`/
+    // `reward.kind`/`reward.value` are each caught on some rows and open on
+    // the rest.
+    //
+    // p7h: `cores.cores[].key` *joined* this list too — the same shape as
+    // p7e's class rule, applied to Cores: a non-default Core's `unlockQuest`
+    // is now cross-referenced against a quest whose `reward` names that exact
+    // Core (§5.5), but only 4 of 5 Core keys are ever any quest's
+    // `reward.value` (the default `stone_heart` has no unlock quest to name
+    // it), so `cores.cores[].key` is caught on 4 rows and open on the 5th.
     const partial = Object.keys(observed).filter((p) => observed[p] === 'partial');
     expect(partial.sort()).toEqual([
+      'cores.cores[].key',
       'damagetypes.types[].key',
       'enemies.enemies[].key',
       'quests.quests[].key',

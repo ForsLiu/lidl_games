@@ -44,6 +44,7 @@ export function buildCodexCollections(content: Content = loadContent()): CodexCo
     { key: 'modifiers', label: 'Modifiers', rows: asRows(content.modifiers.modifiers) },
     { key: 'tree', label: 'Constellation Nodes', rows: asRows(content.tree.nodes) },
     { key: 'quests', label: 'Quests', rows: asRows(content.quests.quests) },
+    { key: 'cores', label: 'Cores', rows: asRows(content.cores.cores) },
     { key: 'warden', label: 'Warden', rows: asRows(content.warden) },
   ];
 }

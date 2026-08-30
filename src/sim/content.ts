@@ -793,6 +793,8 @@ const CoreSchema = z
     baseHp: num.positive(),
     unlockedByDefault: z.boolean(),
     unlockCondition: str.nullable(),
+    /** p7h (§5.5, §8.4): the machine-checkable twin of `unlockCondition`'s display text — mirrors `ClassSchema.unlockQuest`. */
+    unlockQuest: str.nullable(),
     upgrade: CoreUpgradeSchema,
     /** Always-on base numbers, live the instant the Core is chosen — no step required. */
     effects: z.record(z.string(), z.number()).optional(),
@@ -1554,6 +1556,27 @@ export function loadContent(): Content {
     if (quest.reward.kind !== 'class' || quest.reward.value !== c.key) {
       throw new Error(
         `quests.json: "${quest.key}" is ${c.key}'s unlockQuest but its reward is ${quest.reward.kind}:${quest.reward.value}, not class:${c.key}`,
+      );
+    }
+  }
+
+  // p7h (§5.5, §8.4): the same rule as classes' unlockQuest above, applied to
+  // Cores — a non-default Core with no quest, or a quest that doesn't reward
+  // it, is a silent dead end exactly like the one 5 of 9 classes shipped with
+  // (p7e). Reuses `questByKey` from the class loop above.
+  for (const c of cores.cores) {
+    if (c.unlockedByDefault) {
+      if (c.unlockQuest !== null) {
+        throw new Error(`cores.json: ${c.key} is unlockedByDefault but names unlockQuest "${c.unlockQuest}"`);
+      }
+      continue;
+    }
+    if (c.unlockQuest === null) throw new Error(`cores.json: ${c.key} is not free and has no unlockQuest`);
+    const quest = questByKey.get(c.unlockQuest);
+    if (!quest) throw new Error(`cores.json: ${c.key}.unlockQuest "${c.unlockQuest}" has no matching quest`);
+    if (quest.reward.kind !== 'core' || quest.reward.value !== c.key) {
+      throw new Error(
+        `quests.json: "${quest.key}" is ${c.key}'s unlockQuest but its reward is ${quest.reward.kind}:${quest.reward.value}, not core:${c.key}`,
       );
     }
   }

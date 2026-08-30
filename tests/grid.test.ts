@@ -94,8 +94,10 @@ describe('content', () => {
     // p7a (SPEC-FINAL §6.3): 7 stat boons replace the old flat 12.
     expect(c.boons.statBoons).toHaveLength(7);
     expect(c.modifiers.modifiers).toHaveLength(12);
-    // fb013 added `chrono_veteran` (Time Lord's unlock quest), the 10th.
-    expect(c.quests.quests).toHaveLength(10);
+    // fb013 added `chrono_veteran` (Time Lord's unlock quest), the 10th; p7h
+    // added the 4 §5.5 Core-unlock quests (Q148: a separate content bucket
+    // from §8.4's 8-12 class-quest range, not double-counted against it).
+    expect(c.quests.quests).toHaveLength(14);
     // SPEC-FINAL §13's eleven plus fb013's owner-directed 12th (Time Lord).
     expect(c.classes.classes).toHaveLength(12);
     expect(c.tree.nodes.filter((n) => n.kind !== 'start')).toHaveLength(120);
