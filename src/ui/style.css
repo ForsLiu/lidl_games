@@ -196,7 +196,7 @@ html, body {
 .sw-soul.on { border-color: var(--accent); background: #1c2a2a; }
 .sw-offer b, .sw-soul b { font-size: 14px; }
 .sw-offer span, .sw-soul span { font-size: 12px; color: var(--dim); }
-.sw-offer small { font-size: 12px; letter-spacing: .1em; color: #66707e; }
+.sw-offer small { font-size: 12px; letter-spacing: .1em; color: var(--dim); }
 .sw-soul small { font-size: 12px; color: #66707e; }
 
 .sw-go, .sw-reroll {

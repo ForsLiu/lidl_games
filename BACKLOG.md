@@ -182,21 +182,8 @@ called out in their own titles instead.
       refs: §11, QUALITY.md Beta bar, `audit/report.json`.
 - [x] (b032) [bug] `npm run ui-audit` (fb018) found tower-build-panel rows
       #6-#10 clipped below the fold — **done, see Done section.**
-- [ ] (b033) [bug] `npm run ui-audit` (fb018) found HUD text well under the
-      4.5:1 WCAG floor: `small "BOON"` at 3.07:1 (level-up offer + character
-      panel scenes); on the Defeat Results screen, `span.sw-tname "7. Mortar"`
-      at 1.03:1, `span.sw-tcost "68g"` at 1.48:1, several `span.sw-tdesc`
-      lines around 2.46:1 — acceptance: `npm run ui-audit`'s `text-contrast`
-      rule has 0 failures for these selectors; a regression test pins their
-      computed-vs-sampled contrast at >=4.5:1 — refs: §11, QUALITY.md Beta
-      bar, `audit/report.json`. Note for whoever picks this up: b032 deleted
-      `span.sw-tdesc` outright (its text moved to the tower button's `title`
-      tooltip) and reordered the side panel, so re-run `npm run ui-audit`
-      before touching anything here — the Defeat Results `sw-tname`/`sw-tcost`
-      failures named above were already gone by the time b032 landed (not
-      reproduced against current `main`, cause unknown — possibly stale even
-      before b032) and `sw-tdesc` no longer exists to fix; only the `BOON`
-      failures were confirmed still live.
+- [x] (b033) [bug] `npm run ui-audit` found HUD text under the 4.5:1 WCAG
+      floor — **done, see Done section.**
 - [ ] (b034) [bug] QA-filed while verifying b032: `tools/ui-audit.ts`'s "Mid-TD
       wave, selection panel open" scene calls `build(1, 8, 8)` without ever
       moving the Warden from its spawn near `(23, 10)`, and `inBuildRange`
@@ -903,6 +890,47 @@ logged in MIGRATION.md §8 rather than carried as dead items.
 
 ## Done
 
+- [x] (b033) [bug] `small "BOON"` badge under the 4.5:1 WCAG contrast floor —
+      this commit (2026-08-30), refs: §11, QUALITY.md Beta bar,
+      `audit/report.json`. `npm run ui-audit` found the level-up offer card's
+      kind badge (`.sw-offer small`, renders as "BOON") at 3.07:1 against its
+      card background in both the "Level-up offer screen" and "Character
+      panel" scenes (the latter's own toggle can leave a still-open offer
+      modal on screen instead of the character panel — separate, unfixed
+      here). The bug also named three Defeat Results selectors
+      (`span.sw-tname`, `span.sw-tcost`, `span.sw-tdesc`) at 1.03-2.46:1; all
+      three were already gone by the time b032 landed (`sw-tdesc` deleted
+      outright, its text moved into the tower button's `title`; the panel
+      reordered) — re-confirmed via a fresh `npm run ui-audit` run before
+      starting, "Defeat Results" already PASSes with 0 failures, so only the
+      `BOON` badge needed a fix. `src/ui/style.css`'s `.sw-offer small` rule's
+      `color` swapped from a hardcoded `#66707e` (3.07:1) to `var(--dim)`
+      (`#8b97a8`, ~5.2:1) — the same token already used for the sibling
+      `.sw-offer span` description text one line below it, which was already
+      passing. `tests/b033-boon-contrast.test.ts` mounts the real `style.css`
+      into jsdom and pins the badge's resolved contrast at >=4.5:1 via the
+      audit tool's own `contrastRatio`/`hexToRgb`/`CONTRAST_MIN`
+      (`tools/audit/checks.ts`) rather than reimplementing WCAG math — jsdom
+      doesn't resolve `var()` inside `color`/`background-color`, so the test
+      reads the raw declared value and resolves any `var(--name)` token
+      against `:root`'s own computed custom-property value, the same source
+      of truth a real browser cascade uses; verified failing at the bug's
+      exact 3.070724356981383 ratio pre-fix via `git stash` on just
+      `style.css`, passing post-fix. `npm run ui-audit` post-fix: both named
+      scenes PASS with 0 `text-contrast` failures; all previously-passing
+      scenes (350-enemy VS chaos, Defeat Results, Palette color-distance)
+      still PASS. code-reviewer: no Critical/Major (approved); noted
+      `.sw-soul small` shares the same old hardcoded `#66707e` but that
+      markup is dead code (no `.ts` file generates `.sw-soul`/`.sw-souls`
+      since P2's `p2e` deleted the soul-weapon roster) and unreached by any
+      audit scene, so left alone rather than fixed speculatively.
+      qa-playtester pass: confirmed both criteria live via a fresh
+      `ui-audit` + test run, confirmed no other in-play surface renders the
+      same badge markup, confirmed `.sw-soul` is genuinely unreachable (not a
+      live bug), and confirmed `npm run test:fast`'s one failure
+      (`b032-tower-panel-fold`, hook timeout) is the documented
+      Playwright-under-load flake, reproducing as a clean pass standalone —
+      no bugs filed. `npm run test:fast`: 1469 passed / 42 skipped.
 - [x] (b032) [bug] tower-build-panel rows clipped below the fold — this commit
       (2026-08-30), refs: §11, QUALITY.md Beta bar, `audit/report.json`. `npm
       run ui-audit` found `button.sw-tower` rows #6-#10 partly or fully past

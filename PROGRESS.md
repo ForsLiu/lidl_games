@@ -5,6 +5,37 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-30 session: b033 done — HUD text under the 4.5:1 WCAG contrast
+  floor, filed by `npm run ui-audit` (§11, QUALITY.md Beta bar).** The
+  level-up offer card's kind badge (`.sw-offer small`, renders "BOON") sat at
+  3.07:1 in both the "Level-up offer screen" and "Character panel" scenes.
+  The bug also named three Defeat Results selectors (`sw-tname`, `sw-tcost`,
+  `sw-tdesc`) at 1.03-2.46:1, but a fresh audit run before starting showed
+  b032 had already made all three moot (`sw-tdesc` deleted outright, its text
+  moved into the tower button's `title`; the panel reordered) — "Defeat
+  Results" already PASSes with 0 failures, so only the badge needed a fix.
+  `src/ui/style.css`'s `.sw-offer small` color swapped from a hardcoded
+  `#66707e` to `var(--dim)`, matching the sibling `.sw-offer span` text one
+  line below it (already passing at that token). `tests/b033-boon-contrast
+  .test.ts` mounts the real `style.css` into jsdom and pins the badge's
+  contrast at >=4.5:1 via the audit tool's own `contrastRatio`/`hexToRgb`
+  (`tools/audit/checks.ts`), resolving `var()` tokens against `:root`'s
+  computed custom properties by hand since jsdom doesn't do that resolution
+  itself for color/background — verified failing at the bug's exact
+  3.070724356981383 ratio pre-fix via `git stash` on just `style.css`,
+  passing post-fix. Post-fix `npm run ui-audit`: both named scenes PASS with
+  0 `text-contrast` failures; every previously-passing scene still passes.
+  code-reviewer: no Critical/Major; noted `.sw-soul small` carries the same
+  old hardcoded color but that markup is dead (no `.ts` file generates
+  `.sw-soul`/`.sw-souls` since `p2e` deleted the soul-weapon roster) and
+  unreached by any audit scene, so left alone. qa-playtester: confirmed both
+  criteria live, confirmed no other in-play surface renders the same badge
+  markup, confirmed `.sw-soul` is genuinely unreachable, and confirmed
+  `npm run test:fast`'s one failure (`b032-tower-panel-fold`, hook timeout)
+  reproduces as a clean pass standalone — the documented Playwright-under-
+  load flake, not a regression. No bugs filed. `npm run test:fast`: 1469
+  passed / 42 skipped.
+
 - **2026-08-30 session: b032 done — tower-build-panel rows clipped below the
   fold, filed by `npm run ui-audit` (§11, QUALITY.md Beta bar).**
   `button.sw-tower` rows #6-#10 sat partly or fully past the 1080px fold in
