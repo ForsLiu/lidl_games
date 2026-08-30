@@ -7,7 +7,7 @@
 
 - **2026-08-30 session: p9h done — the enemy/Warden panel's armour row now
   shows the effective (floored/capped) value, not the raw shredded number —
-  commit `TBD`.** `armourText` (`src/ui/hud.ts`), the single call site behind
+  commit `5087d6b`.** `armourText` (`src/ui/hud.ts`), the single call site behind
   both `enemyInfoMarkup` and `wardenInfoMarkup`, previously printed
   `Math.round(armor)` — the raw, unclamped value — next to a percentage
   already computed from the floored/capped value via `armorReduction`, so a

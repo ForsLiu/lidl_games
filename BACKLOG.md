@@ -951,7 +951,7 @@ logged in MIGRATION.md §8 rather than carried as dead items.
       case (-100 raw, no clamping occurred → no marker, correct), NaN armour (→
       "0 (0% off)", no crash, matching `effectiveArmor`'s documented NaN→0
       behavior), and ±Infinity armour (correctly floors/caps) — no bugs filed —
-      commit `TBD`.
+      commit `5087d6b`.
 - [x] (p9g) [bug] `hashWorld` covers structures, enemies, weapons, derived stats and
       the RNG streams but **not `w.gold`/`w.goldSpent`**, so two replays that
       disagreed only on a refund or a cost would hash identically until the
