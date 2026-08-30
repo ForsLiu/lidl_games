@@ -42,11 +42,11 @@ const CSS = readFileSync(join(process.cwd(), 'src', 'ui', 'style.css'), 'utf8');
  *
  * Deliberately excludes a bare `.ember`/`.accountLevel` property-access
  * pattern: `migrateWithNotice`'s one-time Q46 conversion (`src/meta/meta.ts`)
- * has to read a pre-p7d save's raw `ember` value to convert it, the same way
- * `RETIRED_KEYS` legitimately still names the string `'orbs'` in
- * `c7-no-orbs.test.ts`'s own carve-out. What is banned is every *declared*
- * name — a function, field or constant — since none of those has any
- * legitimate reason to exist post-retirement.
+ * has to read a pre-p7d save's raw `ember` value off the parsed JSON to
+ * convert it, the same way `c7-no-orbs.test.ts`'s own carve-out names the
+ * string `'orbs'` legitimately. What is banned is every *declared* name — a
+ * function, field or constant — since none of those has any legitimate
+ * reason to exist post-retirement.
  */
 const EMBER_CURRENCY = [
   /\bemberFor\b/,

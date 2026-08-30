@@ -184,9 +184,25 @@ describe('q3 save fuzz: the corpus is not degenerate', () => {
    * 92.2, drop-key 75.0, rename-key 98.5, extreme-number 87.2,
    * empty-container 91.1, grow-array 91.7, proto-key 96.6, deep-nest 93.7,
    * long-string 93.7, version 13.5 (all %).
+   *
+   * p7f re-measurement: `migrate` no longer copies an unrecognised key into
+   * `out` at all (it is built field-by-field from the known `MetaState`
+   * shape, not a `{...base, ...meta}` spread), so a mutation whose only
+   * effect was to plant a stray key at the *root* of `meta` stopped being
+   * observable through `loadMeta`'s output. Two families lost most of their
+   * effectiveness this way: `proto-key` (it plants `__proto__`/`constructor`/
+   * etc. on a random object node — the root `meta` object is one of only a
+   * handful of plain-object nodes in the tree, so a large share of hits used
+   * to round-trip as a visible junk key and now do not) fell from 96.6% to
+   * 34.7%, and `version` (whose only remaining version-gated effect is the
+   * Ember->skillPoints conversion, now that the retired-key strip this
+   * comment used to describe is gone) fell from 13.5% to 7.4%. Both drops are
+   * the fix working as intended, not drift — a mutation that used to "succeed"
+   * only because the bug let junk survive is now correctly a no-op more often.
    */
   const FLOOR: Partial<Record<Family, number>> = {
-    version: 0.1,
+    version: 0.05,
+    'proto-key': 0.3,
     'drop-key': 0.65,
     'extreme-number': 0.75,
   };
@@ -226,28 +242,35 @@ describe('q3 save fuzz: the corpus is not degenerate', () => {
   });
 
   it('the legacy bases carry something the version stamp is read for', () => {
-    // `version`'s floor is only 10%, so pin the mechanism directly rather than
-    // leaning on the rate: the stamp's sole reader is the retired-key strip.
-    // p7d widened `legacySave` to carry six retired keys (`orbs` plus the five
-    // Ember-economy fields), not one — every one of them must round-trip the
-    // same way orbs alone used to.
+    // p7f superseded the mechanism this test used to pin: `migrate` no longer
+    // spreads `meta` wholesale, so all six retired keys (`orbs` plus the five
+    // Ember-economy fields) are now stripped unconditionally, at every
+    // version — see the dedicated p7f coverage in tests/meta.test.ts and
+    // t6c-save-migration.test.ts for that. What the version stamp still
+    // gates, and the only thing left for the `version` family to move, is the
+    // one-time Ember->skillPoints conversion (`ECONOMY_RETIRED_AT`).
     const rng = new Rng(23);
     for (let i = 0; i < 20; i++) {
       const legacy = JSON.parse(legacySave(rng)) as { version: number; meta: Record<string, unknown> };
       expect(legacy.version).toBe(1);
       const retired = Object.keys(legacy.meta).filter((k) => !(k in defaultMeta()));
       expect(retired.length, 'a legacy base must carry every retired key').toBe(6);
-      // Stamped v1 every retired key is dropped; re-stamped current, each
-      // survives. That difference is the whole of what the `version` family
-      // can move.
+      // Every retired key is stripped regardless of the stamp...
       const asV1 = deserializeMeta(JSON.stringify(legacy)) as unknown as Record<string, unknown>;
       const asNow = deserializeMeta(
         JSON.stringify({ version: SAVE_VERSION, meta: legacy.meta }),
       ) as unknown as Record<string, unknown>;
       for (const key of retired) {
         expect(asV1[key], key).toBeUndefined();
-        expect(asNow[key], key).toEqual(legacy.meta[key]);
+        expect(asNow[key], key).toBeUndefined();
       }
+      // ...but the Ember conversion still depends on it: v1 converts, current
+      // does not (the raw `ember` value round-trips into skillPoints only
+      // below `ECONOMY_RETIRED_AT`).
+      const ember = legacy.meta.ember as number;
+      const base = legacy.meta.skillPoints as number;
+      expect((asV1 as unknown as MetaState).skillPoints).toBe(base + Math.floor(ember / 100));
+      expect((asNow as unknown as MetaState).skillPoints).toBe(base);
     }
   });
 
@@ -351,20 +374,26 @@ describe('q3 save fuzz: the corpus is not degenerate', () => {
 });
 
 describe('q3 save fuzz: version migration', () => {
-  // p7d: `< ECONOMY_RETIRED_AT` (4) coerces exactly like `< retiredIn` already
-  // does below — `null`/`true`/`'3'`/`[]` all land under 4 and drop the Ember-
-  // economy fields, `{v: 4}` coerces to NaN and does not.
+  // p7d: `< ECONOMY_RETIRED_AT` (4) coerces exactly like `< retiredIn` used to
+  // for the (now-removed, p7f) retired-key strip — `null`/`true`/`'3'`/`[]`
+  // all land under 4 and convert the Ember balance, `{v: 4}` coerces to NaN
+  // and does not. Since p7f, `ember`/`accountLevel` themselves are dropped
+  // unconditionally at every stamp (they are not `MetaState` fields); only
+  // the *conversion into skillPoints* stays version-gated.
   const ECONOMY_STAMPS: [unknown, boolean][] = [
     [0, true], [1, true], [2, true], [3, true], [4, false], [999, false], [-1, true],
     [1.5, true], ['3', true], [null, true], [true, true], [[], true], [{ v: 4 }, false],
   ];
 
-  it.each(ECONOMY_STAMPS)('loads a save stamped version %p through the repair path', (version, stripsEconomy) => {
+  it.each(ECONOMY_STAMPS)('loads a save stamped version %p through the repair path', (version, convertsEmber) => {
     const meta = { ...validMeta(new Rng(6)), ember: 500, accountLevel: 7 };
     const loaded = withSavedRaw(JSON.stringify({ version, meta }), loadMeta) as unknown as Record<string, unknown>;
     expect(checkMeta(loaded)).toEqual([]);
-    expect(loaded.ember === undefined, `version ${JSON.stringify(version)}`).toBe(stripsEconomy);
-    expect(loaded.accountLevel === undefined, `version ${JSON.stringify(version)}`).toBe(stripsEconomy);
+    expect(loaded.ember, `version ${JSON.stringify(version)}`).toBeUndefined();
+    expect(loaded.accountLevel, `version ${JSON.stringify(version)}`).toBeUndefined();
+    expect((loaded as unknown as MetaState).skillPoints, `version ${JSON.stringify(version)}`).toBe(
+      meta.skillPoints + (convertsEmber ? 5 : 0),
+    );
     expect((loaded as unknown as MetaState).completedQuests).toEqual(meta.completedQuests);
   });
 
@@ -375,24 +404,24 @@ describe('q3 save fuzz: version migration', () => {
     expect(loaded.skillPoints).toBe(meta.skillPoints);
   });
 
-  it('keeps the retired-key rule under a hostile version stamp', () => {
-    // t6c pins this for the two honest versions. The fuzzer's version family
-    // reaches values `migrate`'s `version < retiredIn` comparison was never
-    // written for. `<` coerces: `null`, `true` and `[]` all become a number
-    // below 2 and therefore strip, while `'2'` becomes 2 and `{v:2}` becomes
-    // NaN and therefore keep. None of that was designed — it is what the
-    // operator does — so this records which side each stamp lands on rather
-    // than asserting a rule. The account survives either way, which is the
-    // part that matters.
+  it('p7f: strips an unknown key under any version stamp, hostile or honest', () => {
+    // Before p7f this pinned that `orbs` only stripped on one side of
+    // `migrate`'s `version < retiredIn` comparison — a real gap, since the
+    // comparison coerces oddly under a hostile stamp (`null`/`true`/`[]` land
+    // below 2 and strip, `'2'` and `{v:2}` do not). Since `migrate` no longer
+    // reads `version` to decide whether to *carry* an unknown key at all — it
+    // is built field-by-field from the known `MetaState` shape — `orbs` is
+    // absent from the output under every stamp here, honest or not. The
+    // version value can still be reached by `<` coercion for other purposes
+    // (the Ember conversion above), just not this one any more.
     const meta = validMeta(new Rng(8));
     const withOrbs = { ...meta, orbs: { whetting: 3 } };
-    const cases: [unknown, boolean][] = [
-      [-1, true], [0, true], [1, true], [1.5, true], [null, true], [true, true], [false, true], [[], true],
-      [2, false], [3, false], [999, false], ['2', false], [{ v: 2 }, false],
+    const hostileVersions: unknown[] = [
+      -1, 0, 1, 1.5, null, true, false, [], 2, 3, 999, '2', { v: 2 },
     ];
-    for (const [version, stripped] of cases) {
+    for (const version of hostileVersions) {
       const out = deserializeMeta(JSON.stringify({ version, meta: withOrbs })) as unknown as Record<string, unknown>;
-      expect(out.orbs === undefined, `version ${JSON.stringify(version)}`).toBe(stripped);
+      expect(out.orbs, `version ${JSON.stringify(version)}`).toBeUndefined();
       expect((out as unknown as MetaState).skillPoints, `version ${JSON.stringify(version)}`).toBe(meta.skillPoints);
     }
   });

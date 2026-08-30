@@ -41,20 +41,6 @@ const ECONOMY_RETIRED_AT = 4;
 /** p7d (Q46): "one-time 100:1 Ember conversion". */
 const EMBER_TO_SKILL_POINTS = 100;
 
-/**
- * Keys a migration drops, with the SAVE_VERSION that retired each one. The
- * version gate matters: without it the strip would run forever, including on
- * saves written by a *newer* client that legitimately reuses the name for
- * something else — which would silently eat that field on every load.
- */
-const RETIRED_KEYS: readonly { key: string; retiredIn: number }[] = [
-  { key: 'orbs', retiredIn: 2 },
-  { key: 'ember', retiredIn: ECONOMY_RETIRED_AT },
-  { key: 'accountLevel', retiredIn: ECONOMY_RETIRED_AT },
-  { key: 'stash', retiredIn: ECONOMY_RETIRED_AT },
-  { key: 'equipped', retiredIn: ECONOMY_RETIRED_AT },
-  { key: 'nextRelicId', retiredIn: ECONOMY_RETIRED_AT },
-];
 
 export function defaultMeta(): MetaState {
   const content = loadContent();
@@ -340,8 +326,8 @@ function migrate(meta: MetaState, version: number): MetaState {
  * round-tripped a leftover value some other way. Both fields are read off the
  * *raw* parsed object rather than the typed `MetaState` parameter, since
  * `Relic`/`stash`/`equipped`/`ember`/`accountLevel` no longer exist on the
- * type at all past this migration — the same reason `RETIRED_KEYS` strips
- * them by name below rather than by field access.
+ * type at all past this migration (p7f: nor does `out` below copy them in by
+ * name or by any other route — see that field's own comment).
  */
 function migrateWithNotice(
   meta: MetaState,
@@ -359,9 +345,18 @@ function migrateWithNotice(
     version < ECONOMY_RETIRED_AT && typeof raw.ember === 'number' && Number.isFinite(raw.ember) && raw.ember > 0
       ? Math.floor(raw.ember / EMBER_TO_SKILL_POINTS)
       : 0;
+  // p7f: built field-by-field from the known `MetaState` key set, never a
+  // `{...base, ...meta}` spread — a spread copies every key `meta` happens to
+  // carry, so a junk field (an old client's dead currency, a hand-edit, a
+  // future field this client has never heard of) became a permanent fixed
+  // point of every re-serialize. Building explicitly makes "unknown key" and
+  // "known key, repaired" the only two outcomes.
+  // Field order below matches `defaultMeta()`'s so a save this client wrote
+  // reloads and re-serializes byte-identically (tests/q3-save-fuzz.test.ts's
+  // "reloads byte-identically" — `JSON.stringify` key order is insertion
+  // order, and there is no `{...base}` here any more to fix it implicitly).
   const out: MetaState = {
-    ...base,
-    ...meta,
+    allocated: [...(meta.allocated ?? base.allocated)],
     // fb015 (§7): an old save has neither field the same way `equipped` used
     // to before fb015 — an object-typed field guards against the same
     // corrupt-non-object class `unlockedCores`'s `Array.isArray` check
@@ -379,15 +374,20 @@ function migrateWithNotice(
       meta.equippedEquipment && typeof meta.equippedEquipment === 'object' && !Array.isArray(meta.equippedEquipment)
         ? { ...base.equippedEquipment, ...meta.equippedEquipment }
         : { ...base.equippedEquipment },
-    questProgress: { ...(meta.questProgress ?? {}) },
-    completedQuests: [...(meta.completedQuests ?? [])],
     unlockedClasses: [...(meta.unlockedClasses ?? base.unlockedClasses)],
     // `Array.isArray`, not just `?? base`: a corrupt non-array value (e.g. a
     // string) would otherwise spread character-by-character into a
     // same-shaped-but-wrong array, the same class of gap p7g fixes for
     // `stash` — cheap to guard against here since the field is new.
     unlockedCores: Array.isArray(meta.unlockedCores) ? [...meta.unlockedCores] : base.unlockedCores,
-    allocated: [...(meta.allocated ?? base.allocated)],
+    // No type guard, deliberately: this is the one field the fuzz-pinned
+    // `KNOWN_LAUNDERED`/`KNOWN_HUB_NAN` lists (tests/q3-save-fuzz.test.ts)
+    // still document as unrepaired. Kept byte-for-byte equivalent to the old
+    // `{...base, ...meta}` spread's behaviour for this field specifically —
+    // present in `meta` (any type) wins, absent falls back to the default.
+    highestTier: meta.highestTier !== undefined ? meta.highestTier : base.highestTier,
+    questProgress: { ...(meta.questProgress ?? {}) },
+    completedQuests: [...(meta.completedQuests ?? [])],
     // fb012: guarded rather than left to the bare `...meta` spread above (the
     // laundering hole q3-save-fuzz pins for `accountLevel`/`ember`/etc.) —
     // cheap to close here since, like `unlockedCores`, the field is new.
@@ -408,17 +408,9 @@ function migrateWithNotice(
   // default core as simultaneously selected and locked.
   const defaultCore = defaultCoreKey(loadContent());
   if (!out.unlockedCores.includes(defaultCore)) out.unlockedCores.unshift(defaultCore);
-  // The `...meta` spread above copies whatever the old save held, including
-  // keys whose systems are gone. Strip them so they do not round-trip.
-  //
-  // Two guards, both from QA on this item: only strip from saves older than
-  // the version that retired the key, and never strip a name the current
-  // MetaState actually uses — otherwise a future field reusing a retired name
-  // would be eaten silently.
-  const bag = out as unknown as Record<string, unknown>;
-  for (const { key, retiredIn } of RETIRED_KEYS) {
-    if (version < retiredIn && !(key in base)) delete bag[key];
-  }
+  // p7f: no key-stripping pass needed here any more — `out` above is built
+  // field-by-field from the known `MetaState` shape, so a retired or unknown
+  // key in `meta` was simply never copied in the first place.
   return { meta: out, relicsDropped: dropRelics, skillPointsFromEmber };
 }
 

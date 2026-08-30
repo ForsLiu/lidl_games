@@ -85,15 +85,20 @@ describe('C7: migrating a v0.2 save', () => {
     expect(Object.keys(out).sort()).toEqual(Object.keys(fresh).sort());
   });
 
-  it('only strips a retired key from saves older than the version that retired it', () => {
-    // QA's repro: a future client that legitimately reuses the name for
-    // something else must not have that field eaten on every load.
+  it('p7f: strips a retired (or any unknown) key at every version, including the current one', () => {
+    // Superseded by p7f: `migrate` used to strip `RETIRED_KEYS` only for
+    // saves older than the version that retired each one, on the theory that
+    // a future client might legitimately reuse the name — but that same
+    // `{...base, ...meta}` spread let *any* unknown key round-trip forever at
+    // the current version too, which is the actual bug (BACKLOG p7f). The
+    // migrated object is now built field-by-field from the known
+    // `MetaState` key set, so an unknown key never survives, at any version.
     const future = JSON.stringify({
       version: SAVE_VERSION,
       meta: { ...defaultMeta(), orbs: { newMechanic: 42 } },
     });
     const out = deserializeMeta(future) as unknown as Record<string, unknown>;
-    expect(out.orbs).toEqual({ newMechanic: 42 });
+    expect(out.orbs).toBeUndefined();
   });
 
   it('never strips a name the current MetaState actually uses', () => {
@@ -184,9 +189,11 @@ describe('fb023/p7d: dropping relics at migration', () => {
 
   it('never reports a relics notice for a save already at SAVE_VERSION, even hand-crafted with a stash', () => {
     // A save at or past the cutoff cannot legitimately hold a `stash` (nothing
-    // ever writes one post-migration, and the field is not even in the type),
-    // but the check is keyed on version, not presence, so even a hand-crafted
-    // one is left alone — it just round-trips as an unused extra key.
+    // ever writes one post-migration, and the field is not even in the type).
+    // The relics-dropped *notice* stays keyed on version, not presence — a
+    // hand-crafted `stash` at the current version never triggers it — and
+    // (p7f) the stray key itself is now stripped on output rather than
+    // round-tripping as an unused extra key.
     const current = JSON.stringify({
       version: SAVE_VERSION,
       meta: { ...defaultMeta(), stash: [{ id: 1, slot: 'sigil' }] },

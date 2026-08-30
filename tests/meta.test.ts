@@ -6,6 +6,7 @@ import { loadContent } from '../src/sim/content';
 import { baseRunStats, derive } from '../src/sim/stats';
 import type { MetaState } from '../src/sim/types';
 import {
+  SAVE_VERSION,
   allocate,
   canAllocate,
   canRefund,
@@ -170,10 +171,37 @@ describe('save / load', () => {
       version: 4,
       meta: { ...metaWith(), skillPoints: 5, ember: 9999 },
     });
-    // version >= ECONOMY_RETIRED_AT: no conversion, and the stray field is not
-    // stripped either (only saves *older* than the retirement version are
-    // stripped) — it simply never contributes to skillPoints.
+    // version >= ECONOMY_RETIRED_AT: no conversion — the stray field never
+    // contributes to skillPoints. (It is also dropped outright, per p7f below;
+    // this test only pins the non-conversion.)
     expect(deserializeMeta(modern).skillPoints).toBe(5);
+  });
+
+  it('p7f: migrate() builds from the known key set, not a wholesale spread — a junk key never round-trips, at any version', () => {
+    // Before p7f, `{...base, ...meta, <overrides>}` copied every key `meta`
+    // carried, so an arbitrary key survived every re-serialize forever
+    // (RETIRED_KEYS only ever stripped its own six named fields, and only for
+    // saves older than the version that retired each one). A save carrying a
+    // field the client has never heard of — a future field, a hand-edit, a
+    // save from a fork — must not become a permanent zombie in this account.
+    for (const version of [0, 1, 4, SAVE_VERSION, 999]) {
+      const dirty = JSON.stringify({
+        version,
+        meta: { ...metaWith(), someFutureField: 'zzz', anotherOne: { nested: 1 }, 7: 'index-key' },
+      });
+      const migrated = deserializeMeta(dirty) as unknown as Record<string, unknown>;
+      expect(Object.keys(migrated).sort(), `version ${version}`).toEqual(Object.keys(defaultMeta()).sort());
+    }
+  });
+
+  it('p7f: a non-object meta (e.g. a bare string) migrates to exactly the MetaState key set, not a character-spread', () => {
+    // `{"meta":"orbs"}` used to string-spread into indexed keys (`{0:'o',1:'r',...}`)
+    // via `...meta`, and those junk keys re-serialised stably. A non-object
+    // `meta` should just fall back to defaults field-by-field.
+    const stringMeta = JSON.stringify({ version: SAVE_VERSION, meta: 'orbs' });
+    const migrated = deserializeMeta(stringMeta) as unknown as Record<string, unknown>;
+    expect(Object.keys(migrated).sort()).toEqual(Object.keys(defaultMeta()).sort());
+    expect(migrated).toEqual(defaultMeta());
   });
 });
 

@@ -24,9 +24,9 @@
  *
  * What this file does *not* reach, by construction of `validMeta`: every
  * generated save already has node 0 in `allocated`, is already connected, and
- * is already current-version-shaped, so `migrate`'s actual repair branches
- * (`src/meta/meta.ts`'s `allocated.unshift(0)`, the `isConnected` reset, the
- * `RETIRED_KEYS` strip) never fire across the 2000 main-sweep iterations —
+ * carries no unknown/retired key, so `migrate`'s actual repair branches
+ * (`src/meta/meta.ts`'s `allocated.unshift(0)`, the `isConnected` reset)
+ * never fire across the 2000 main-sweep iterations —
  * that territory is q3's, correctly, since this lane may not edit `/src` to
  * fix what it would find. The one negative-control case below hand-corrupts a
  * meta specifically to touch the `unshift(0)` branch, so the property this
