@@ -5,6 +5,32 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-30 session: p9g done — `hashWorld`'s `w.goldSpent` coverage gap
+  closed — commit `ed0fc96`.** The item's premise was checked before
+  implementing (per CLAUDE.md's measurement rules): `git log -S` confirmed
+  `w.gold` has been hashed in `hashWorld` (`src/sim/run.ts`) since the
+  project's very first commit, so the actual gap was narrower than the
+  backlog title suggested — only `w.goldSpent`, the lifetime running-total
+  spend ledger (mutated in `towers.ts`'s build/upgrade, `cores.ts`'s Core
+  upgrade, and `classes.ts`'s wall-build reversal, never read back into any
+  gameplay decision), was missing. Added `h.num(w.goldSpent)` immediately
+  after the existing `w.gold` hash line. `tests/p9g-gold-hash.test.ts` pins
+  two worlds with equal `gold` but different `goldSpent` now hashing
+  differently, plus the pre-existing `gold`-only-difference case so that
+  coverage can't silently regress alongside it. code-reviewer **APPROVE**:
+  confirmed no other hash-coverage gap exists near `goldSpent` (`RunReport`
+  already includes it; `w.coreGoldAccumulator` was already hashed, per the
+  `p-core-b` comment) and independently verified by stashing the fix that the
+  new test fails pre-fix. qa-playtester **PASS**: reproduced the pre-fix hash
+  collision directly (`373990b4` == `373990b4` with the hash line removed),
+  confirmed gate G2 (`tests/g2-determinism.test.ts`) stays green, grepped
+  every `goldSpent` writer (four sites, none a reset), confirmed `Hasher.num`
+  needs no special-casing for it, and reran `npm run test:fast` (1663 passed,
+  30 skipped; only the 4 pre-existing Playwright fold-test port-contention
+  flakes b032/b034/b035/b036 red, unrelated). No bugs filed. Also corrected
+  the P9 audit table in BACKLOG.md, which had drifted: `p9f` (gate G2) was
+  already committed (`0516e9a`) but the table still listed it under
+  "remaining" — now reads `p9a`-`p9g` done, `p9h` remaining.
 - **2026-08-30 session: p9f done — gate G2 closed in full (actives,
   tuner-edited content, fast-forward) — commit `0516e9a`.**
   `tests/a11-determinism.test.ts` (SPEC-V2's A11) renamed to
