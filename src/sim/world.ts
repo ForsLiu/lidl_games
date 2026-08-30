@@ -3,7 +3,7 @@
  * system module that takes a World. No DOM, no Math.random, no Date.now.
  */
 
-import { defaultCoreKey, loadContent, type Content, type ModifierDef } from './content';
+import { contentHash, defaultCoreKey, loadContent, type Content, type ModifierDef } from './content';
 import { computeCoreState, coreHpBonus, type CoreState } from './cores';
 import { GRID_H, GRID_W, Grid, GATES, coreCenter, type Field, type GateDef } from './grid';
 import { RngSet } from './rng';
@@ -377,6 +377,21 @@ export class World {
 
   constructor(cfg: RunConfig, content: Content = loadContent()) {
     this.content = content;
+    // p9a (architecture rule 2, Q45): the one deliberate exception to "never
+    // touch the caller's shared RunConfig object" below — recording *is*
+    // stamping the content hash onto the config the caller holds, the first
+    // time it is used to create a run, so that same object is already a
+    // valid `RecordedRun.config` for a caller to persist. A config already
+    // carrying a hash (a real replay attempt) is checked instead of stamped;
+    // a mismatch means `/data` changed since this run was recorded, which
+    // must fail loudly rather than silently diverge.
+    const liveContentHash = contentHash(content);
+    if (cfg.contentHash !== undefined && cfg.contentHash !== liveContentHash) {
+      throw new Error(
+        `RunConfig content hash mismatch: recorded against '${cfg.contentHash}', current /data hashes to '${liveContentHash}'`,
+      );
+    }
+    if (cfg.contentHash === undefined) cfg.contentHash = liveContentHash;
     // A shallow copy: `set_autopick` (and any future cfg-mutating Command)
     // must only ever touch this World's own config, never the caller's
     // shared RunConfig object (e.g. `main.ts`'s `lastCfg`, reused verbatim

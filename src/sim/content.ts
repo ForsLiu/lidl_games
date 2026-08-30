@@ -5,6 +5,7 @@
 import { z } from 'zod';
 
 import { attackProfile } from './upgrades';
+import { Hasher } from './hash';
 import towersRaw from '../../data/towers.json';
 import enemiesRaw from '../../data/enemies.json';
 import wavesRaw from '../../data/waves.json';
@@ -1481,6 +1482,40 @@ export interface Content {
  */
 export function defaultCoreKey(content: Content): string {
   return content.cores.cores.find((c) => c.unlockedByDefault)!.key;
+}
+
+/**
+ * `p9a` (CLAUDE.md architecture rule 2, Q45): a run is `RunConfig` + input
+ * log, and `RunConfig` carries a content hash so a replay against edited
+ * `/data` fails loudly. Computed from the live field values of every
+ * `/data`-sourced file on `content` — not cached at load time — so an
+ * in-place edit to the loaded content (a re-authored JSON file picked up by a
+ * fresh `loadContent()`, or a dev-mode Tuner write) changes the hash exactly
+ * when it changes what a run would actually play out as. The derived
+ * `*ByKey`/`*ById` maps are excluded: they share object references with the
+ * arrays already included, so they carry no information the arrays don't.
+ */
+export function contentHash(content: Content): string {
+  const h = new Hasher();
+  h.str(
+    JSON.stringify({
+      warden: content.warden,
+      towers: content.towers,
+      enemies: content.enemies,
+      waves: content.waves,
+      spawns: content.spawns,
+      boons: content.boons,
+      tree: content.tree,
+      modifiers: content.modifiers,
+      classes: content.classes,
+      quests: content.quests,
+      damageTypes: content.damageTypes,
+      dev: content.dev,
+      cores: content.cores,
+      equipment: content.equipment,
+    }),
+  );
+  return h.hex();
 }
 
 let cached: Content | null = null;

@@ -179,10 +179,12 @@ export class Run {
 /**
  * Pairs the `RunConfig` a run was played under with its full input log, so a
  * later replay attempt can be checked against what was actually recorded
- * before it runs. `p9a` (queued, unbuilt) generalizes this "replay disagrees
- * with what was recorded" check to the whole config via a content hash; for
- * now (`p-core-a`, G21's plumbing half) it covers the one field a replay is
- * most likely to silently desync on today — which Core the run used.
+ * before it runs. `p9a` generalized the "replay disagrees with what was
+ * recorded" check to the whole config via a content hash (`World`'s
+ * constructor stamps/checks it, `contentHash()` in `content.ts`); the Core
+ * check below predates that and stays as its own explicit, specifically-
+ * worded error — the one field §5.5 singles out as never a legitimate
+ * mid-replay divergence — rather than folding into the generic message.
  */
 export interface RecordedRun {
   config: RunConfig;
@@ -193,7 +195,9 @@ export interface RecordedRun {
  * Replays a recorded run, throwing outright if `cfg`'s Core disagrees with
  * the one `recorded` was actually played with — the "no default +10%, chosen
  * once at run start" shape of §5.5 means a Core swap mid-replay is never a
- * legitimate divergence to silently allow through, unlike input noise.
+ * legitimate divergence to silently allow through, unlike input noise — or
+ * if the live `/data` no longer hashes to what `recorded` was played against
+ * (`p9a`).
  */
 export function replayRecorded(recorded: RecordedRun, cfg: RunConfig): RunReport {
   const content = loadContent();
@@ -213,7 +217,11 @@ export function replayRecorded(recorded: RecordedRun, cfg: RunConfig): RunReport
   if (replayCore !== recordedCore) {
     throw new Error(`replay core mismatch: recorded '${recordedCore}', replaying '${replayCore}'`);
   }
-  const run = new Run(cfg);
+  // p9a: forward the recorded content hash (always set once a run has
+  // actually been created — `World`'s constructor stamps it in) rather than
+  // whatever `cfg.contentHash` itself carries, so `World`'s general
+  // stamp-or-check logic does the enforcement instead of a second copy of it.
+  const run = new Run({ ...cfg, contentHash: recorded.config.contentHash });
   for (let t = 0; t < recorded.inputLog.length && !run.done; t++) {
     run.step(recorded.inputLog[t] ?? emptyInput());
   }
@@ -1017,6 +1025,10 @@ export function hashWorld(w: World): string {
   // writes to `w.stats`/`w.derived` — so the key itself is hashed directly,
   // the same way `w.phase`/`w.outcome` are.
   h.str(w.coreKey);
+  // p9a: two runs differing only in the `/data` they were played against
+  // (a tuner edit between them) must hash differently, the same
+  // belt-and-suspenders reasoning `coreKey` above already gets.
+  h.str(w.cfg.contentHash ?? '');
   // fb023: two runs differing only in a mid-run `equip_item` swap must hash
   // differently even on the (unlikely but possible) chance two items' `mods`
   // happen to net out identical in `w.derived` — the same belt-and-suspenders

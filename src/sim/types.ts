@@ -624,6 +624,17 @@ export interface RunConfig {
    * every pick, manual or automatic, replay-safe.
    */
   autoPickLevelUps?: boolean;
+  /**
+   * `p9a` (CLAUDE.md architecture rule 2, Q45): the `/data` content hash this
+   * run was created against, per `contentHash()` (`src/sim/content.ts`).
+   * Absent on a fresh config — `World`'s constructor stamps it onto this
+   * object in place the first time it is used to create a run, so the same
+   * `RunConfig` a caller then persists alongside its input log (a
+   * `RecordedRun`) already carries what it was recorded against. A later
+   * replay passing a config that already carries a hash disagreeing with the
+   * live `/data` throws immediately instead of silently diverging.
+   */
+  contentHash?: string;
 }
 
 /* --------------------------------------------------------------- reporting */

@@ -30,7 +30,7 @@ import { loadContent } from '../src/sim/content';
  * Unskip with the fix. Full write-up: BACKLOG-QUALITY.md Log.
  */
 describe('q18 — filed defect (unskip with the fix)', () => {
-  it.skip('a replay against edited /data content fails loudly (architecture rule 2)', () => {
+  it('a replay against edited /data content fails loudly (architecture rule 2)', () => {
     const config = cfg({ seed: 1 });
     const log = makeInputLog(1, 1200);
 

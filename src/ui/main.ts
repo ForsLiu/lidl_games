@@ -48,6 +48,14 @@ class Game {
   private resultBanked = false;
   private inputBound = false;
   private paused = false;
+  /**
+   * p9a: reused verbatim across Retry, and spread-with-a-new-seed across New
+   * Run — both carry forward whatever `contentHash` `World`'s constructor
+   * stamped onto it from the first run. Harmless today (nothing edits loaded
+   * `/data` at runtime), but p9c's Tuner will make that possible; a Retry
+   * after a live Tuner edit would then throw a content-hash mismatch instead
+   * of just replaying against the new numbers — p9c's own concern to resolve.
+   */
   private lastCfg: RunConfig | null = null;
   /** fb023: a one-time save-migration notice, consumed by the first `showHub()` call after `start()`. */
   private pendingHubNotice: string | null = null;

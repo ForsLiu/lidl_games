@@ -136,9 +136,11 @@ export const GATE_COVERAGE: Record<string, CoverageEntry> = {
       "fast-forward feature itself), just at one seed and one speed. BACKLOG-QUALITY q19 (session 15) widened it " +
       "to several seeds across all three SPEEDS, reading src/ui/main.ts first to confirm fast-forward really is " +
       "frame-stepping with no distinct sim entrypoint (Pacer.plan() only picks how many times the loop calls the " +
-      "same Run.step(), never a longer tick), so the bit-identity is structural, not incidental. Still missing: " +
-      "tuner-edited content-hash replay (the Tuner is unbuilt — see G15) — no test greps for 'contentHash' " +
-      '(BACKLOG-QUALITY q18 pins this specific gap as a live, skipped repro).',
+      "same Run.step(), never a longer tick), so the bit-identity is structural, not incidental. p9a built the " +
+      "underlying mechanism BACKLOG-QUALITY q18 found missing (RunConfig.contentHash, stamped by World's " +
+      "constructor and checked on replay) and unskipped tests/q18-content-hash-replay.test.ts's repro, now " +
+      "green. Still missing: an actual Tuner-edited replay case end to end (the Tuner itself is unbuilt, see " +
+      'G15/p9c) and folding this coverage into a G2 test proper (p9f).',
   },
   G4: { files: ['tests/c3-armor.test.ts', 'tests/m19c-damage-types.test.ts'] },
   G5: { files: ['tests/c4-stacking.test.ts'] },
