@@ -225,21 +225,9 @@ verdict blocks — nothing to apply to QUESTIONS.md). Two are marked
 of the older b034/p8d items above on that basis, logged here rather than by
 renumbering the whole queue.
 
-- [ ] (fb020) [balance] top priority, owner order: enemies overall slower and
-      tankier — a scoped, owner-granted exception to the "no tuning before
-      P10" freeze (CLAUDE.md working rules, precedent Q79). Apply global
-      multipliers in `data/enemies.json` — movement speed ×0.8, HP ×1.4 (both
-      then tunable), across all *non-boss* enemies (grades F/S/E); boss grade
-      (`gatebreaker`, `warden_eater`) stays unscaled since the same feedback's
-      TTK-band instruction says "bosses unchanged" — per-enemy identity ratios
-      are preserved automatically since every value is scaled by the same
-      factor. Create `BALANCE.md` (did not previously exist) recording the TTK
-      intent: fodder 2–4 hits, elite 12–20 s focused, bosses unchanged. Re-pin
-      any test whose literal numbers assumed the old speed/HP with a logged
-      reason — acceptance: multipliers live in `/data`, `BALANCE.md` written
-      with the new bands, `npm run test:fast` green, a before/after sweep
-      report recorded in PROGRESS.md — refs: owner feedback
-      `balance-enemies-slower-tankier`, precedent QUESTIONS.md Q79.
+- [x] (fb020) [balance] enemies overall slower and tankier — done, see Done
+      section. refs: owner feedback `balance-enemies-slower-tankier`,
+      precedent QUESTIONS.md Q79.
 - [ ] (fb021) [feat] top priority: basic-attack visual effects for all 12
       classes, registered in the same data-driven VFX registry `fb016` built
       for skills and Cores (`src/render/vfx-registry.ts`'s `CLASS_VFX`/
@@ -955,6 +943,37 @@ logged in MIGRATION.md §8 rather than carried as dead items.
 
 ## Done
 
+- [x] (fb020) [balance] enemies overall slower and tankier — this commit
+      (2026-08-30), refs: owner feedback `balance-enemies-slower-tankier`,
+      precedent QUESTIONS.md Q79. Owner-filed, top-priority, a scoped
+      exception to the "no tuning before P10" freeze. `data/enemies.json`:
+      every non-boss entry (grade F/S/E, ids 1-18) scaled by flat
+      `speed` ×0.8 and `hp` ×1.4; `gatebreaker`/`warden_eater` (grade B)
+      untouched per the feedback's "bosses unchanged." A single multiplier
+      per field preserves per-enemy identity ratios automatically (Sprinter
+      stays fastest, Colossus stays tankiest) — no per-enemy hand-tuning.
+      `BALANCE.md` created at the repo root with the TTK intent (fodder 2-4
+      hits, elite 12-20s focused, bosses unchanged) and an explicit note that
+      P10's real re-fit tunes *from* these values, not back to the old ones.
+      Two tests hardcoded the pre-change husk (hp 20) / colossus (hp 400)
+      numbers and were re-pinned with fb020 comments naming the reason:
+      `tests/p-core-c-plant.test.ts` (Carnivorous Plant's non-elite
+      instant-kill and elite flat-200-devour assertions) and
+      `tests/p-core-d-corpse.test.ts` (Corpse's execution-explosion "victim's
+      maxHp" assertion) — no test's actual assertion was weakened, only the
+      literal expected numbers moved. `npm run test:fast`: 1469 passed / 42
+      skipped, the sole failure (`b032-tower-panel-fold`, hook timeout) is
+      the documented pre-existing Playwright-under-load flake, confirmed a
+      clean standalone pass, unrelated to this change. Before/after control
+      run (means/pass-rates over 12 seeds, not medians, per §14) and a
+      `tools/a4probe.ts` gate-coupling check are recorded in full in
+      PROGRESS.md's 2026-08-30 fb020 entry: `hybrid` win rate 0.167→0.083 and
+      mean survival 591s→490s (the 40%-more-HP side outweighs the
+      20%-slower-approach side for a DPS-check policy), G13's already-red,
+      already-`.skip`-ed T1 solo-viability clause degraded further in degree
+      for several towers (not a gate flip, since it was already red) —
+      reported per CLAUDE.md's gate-coupling rule, for P10's re-fit to
+      account for.
 - [x] (b033) [bug] `small "BOON"` badge under the 4.5:1 WCAG contrast floor —
       this commit (2026-08-30), refs: §11, QUALITY.md Beta bar,
       `audit/report.json`. `npm run ui-audit` found the level-up offer card's

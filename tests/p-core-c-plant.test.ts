@@ -79,15 +79,15 @@ describe('p-core-c — TD devour', () => {
     const w = plantWorld();
     w.coreHp = 100; // well under max (200) so the heal has room
     const e = spawnEnemy(w, 'husk', NEAR_X, CORE_Y)!;
-    expect(e.hp).toBe(20);
+    expect(e.hp).toBe(28); // fb020: husk hp 20 -> 28 (x1.4)
     tickPlant(w, 8);
     expect(e.dead).toBe(true);
     expect(w.coreHp).toBe(105);
     expect(w.digestionStacks).toBe(1);
     // "feeds on-map damage effects": the kill lands through damageEnemy, so it
     // counts as real damage dealt, not a bare killEnemy with no attribution.
-    expect(w.damageByWeapon['carnivorous_plant']).toBe(20);
-    expect(w.damageTotal).toBe(20);
+    expect(w.damageByWeapon['carnivorous_plant']).toBe(28); // fb020: husk hp 20 -> 28
+    expect(w.damageTotal).toBe(28); // fb020: husk hp 20 -> 28
   });
 
   it('instant kill ignores armor: a heavily armored non-elite still dies to the exact one hit', () => {
@@ -96,28 +96,28 @@ describe('p-core-c — TD devour', () => {
     e.armor = 90; // would reduce a normal hit to a fraction of itself
     tickPlant(w, 8);
     expect(e.dead).toBe(true);
-    expect(w.damageByWeapon['carnivorous_plant']).toBe(20); // full pre-armor HP, not shredded by mitigation
+    expect(w.damageByWeapon['carnivorous_plant']).toBe(28); // full pre-armor HP, not shredded by mitigation (fb020: 20 -> 28)
   });
 
   it('devours an elite for flat 200, not a kill, and still grants the Digestion stack and Core heal', () => {
     const w = plantWorld();
     w.coreHp = 100;
-    const e = spawnEnemy(w, 'colossus', NEAR_X, CORE_Y)!; // 400 hp, elite trait
+    const e = spawnEnemy(w, 'colossus', NEAR_X, CORE_Y)!; // 560 hp (fb020: 400 -> 560), elite trait
     expect(e.elite).toBe(true);
     tickPlant(w, 8);
     expect(e.dead).toBe(false);
-    expect(e.hp).toBe(200); // exactly 400 - 200, no armor (colossus has none)
+    expect(e.hp).toBe(360); // exactly 560 - 200, no armor (colossus has none) (fb020: was 400 - 200 = 200)
     expect(w.coreHp).toBe(105);
     expect(w.digestionStacks).toBe(1);
   });
 
-  it('does not scale with character stats: boosting power leaves the elite hit at exactly 200', () => {
+  it('does not scale with character stats: boosting power leaves the elite hit at exactly 200 off', () => {
     const w = plantWorld();
     w.stats.add('test', 'power', 5); // +500% power, would matter if this scaled
     w.recomputeDerived();
     const e = spawnEnemy(w, 'colossus', NEAR_X, CORE_Y)!;
     tickPlant(w, 8);
-    expect(e.hp).toBe(200);
+    expect(e.hp).toBe(360); // fb020: colossus hp 400 -> 560, so 560 - 200 = 360
   });
 
   // Q113 addendum: unlike the non-elite kill (which explicitly bypasses armor
@@ -271,7 +271,7 @@ describe('p-core-c — VS poison volley', () => {
     // proving that branch truly never runs while `huntsWarden` is false.
     const e = spawnEnemy(w, 'husk', CORE_X - 20, CORE_Y)!;
     tickPlant(w, 8);
-    expect(e.hp).toBe(20);
+    expect(e.hp).toBe(28); // fb020: husk hp 20 -> 28
   });
 });
 

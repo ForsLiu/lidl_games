@@ -5,6 +5,79 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-30 session: fb020 done — enemies overall slower and tankier, owner
+  order (scoped exception to the tuning freeze, precedent Q79), balance-analyst
+  subagent, `/data` only.** `data/enemies.json`: every non-boss entry (grade
+  F/S/E, ids 1-18) got `speed` ×0.8 and `hp` ×1.4; `gatebreaker`/`warden_eater`
+  (grade B) are untouched, per the feedback's explicit "bosses unchanged."
+  Per-enemy identity ratios (Sprinter fastest, Colossus tankiest) are
+  preserved automatically — a single flat multiplier per field, no
+  hand-tuning. `BALANCE.md` created at the repo root recording the TTK intent
+  (fodder 2-4 hits, elite 12-20s focused, bosses unchanged) and flagging this
+  as a starting point P10's real re-fit tunes *from*, not back to. Two tests
+  hardcoded the old husk (20) / colossus (400) HP and were re-pinned with
+  fb020 comments: `tests/p-core-c-plant.test.ts` (Carnivorous Plant's
+  non-elite instant-kill and elite flat-200 devour assertions) and
+  `tests/p-core-d-corpse.test.ts` (Corpse's execution-explosion "victim's
+  maxHp" assertion). `npm run test:fast`: 1469 passed / 42 skipped, the one
+  failure (`b032-tower-panel-fold`, hook timeout under full-parallel host
+  load) is the documented pre-existing Playwright flake (PROGRESS.md
+  2026-08-30 b033 entry), confirmed a clean standalone pass, unrelated to
+  this change.
+
+  **Before/after measurement (control run, not a plausible story).** Means
+  and pass-rates over 12 seeds (§14; CLAUDE.md explicitly wants means, not
+  medians), engineer/T1, seeds 1-12, via a throwaway `tools/`-local script
+  (`Run`/`RunReport`, same machinery as `sweep.ts`, deleted before commit —
+  not shipped):
+
+  | policy   | metric              | before  | after   | delta |
+  |----------|---------------------|---------|---------|-------|
+  | maxbuild | winRate             | 0       | 0       | 0 |
+  | maxbuild | coreDefeatRate      | 0       | 0       | 0 |
+  | maxbuild | meanSurvivalSeconds | 43.9    | 44.5    | +0.6 |
+  | maxbuild | meanWavesCleared    | 3       | 3       | 0 |
+  | maxbuild | meanLevel           | 6.67    | 6.08    | −0.59 |
+  | maxbuild | meanKills           | 551.7   | 493.3   | −58.4 |
+  | hybrid   | winRate             | 0.167 (2/12) | 0.083 (1/12) | **−0.084** |
+  | hybrid   | coreDefeatRate      | 0.583 (7/12) | 0.833 (10/12) | **+0.25** |
+  | hybrid   | meanSurvivalSeconds | 591.1   | 489.9   | **−101.2** |
+  | hybrid   | meanWavesCleared    | 16      | 16.83   | +0.83 |
+  | hybrid   | meanLevel           | 31.17   | 26.92   | −4.25 |
+  | hybrid   | meanKills           | 21959.5 | 13934.1 | **−8025.4** |
+
+  `tools/sweep.ts --seeds 12 --policies maxbuild,hybrid` (medians, the
+  project's own tool, run as a cross-check): before `hybrid` win 0.17,
+  medSurv 375.08, medWaves 17, medKills 10186; after `hybrid` win 0.08,
+  medSurv 375.08 (median unchanged — the mean move is a tail effect, exactly
+  why §14 wants means, not medians, here), medWaves 16.83, medKills 9616.
+  maxbuild medians near-flat both tools agree (medSurv ~44, medWaves 3).
+
+  **Gate-coupling check (the A4/A7 lesson) — reported, not hidden.**
+  `npx tsx tools/a4probe.ts` (solo-tower-type TD viability, seeds 1-5, T1 and
+  T3): G13's T1 solo-viability clause is *already* red and `.skip`-ed
+  pre-existing (un-tuned Act I economy vs. the real wave curve, Q123 —
+  unrelated to this change), so no gate flips green/red. But the *degree*
+  moved measurably worse for several towers: `arrow_spire` T1 median waves
+  15→12, `ember_brazier` 14→12, `venom_spore` 16→15; `ballista`'s T1 clear
+  count (the one tower that sometimes *did* clear pre-fb020) dropped 4/5→2/5;
+  `tesla_coil` T3 median waves 5→3. Net read: the 40%-more-HP side of this
+  change outweighs the 20%-slower-approach side for solo-tower DPS checks —
+  towers need proportionally more time-on-target than the slower approach
+  buys them. `frost_obelisk`/`palisade` were flat or slightly up. This is a
+  real, measurable degradation of an already-red, already-deferred-to-P10
+  gate — flagged here per CLAUDE.md's coupling rule, not something P10's
+  tuning pass should be surprised by.
+
+  **Net read:** the change achieves its stated intent (enemies read as
+  slower, tankier fights; per-enemy identity preserved) but at a real cost to
+  `hybrid`'s win rate and solo-tower DPS checks that P10's full re-fit needs
+  to account for, not just the TTK-band framing in `BALANCE.md`. `maxbuild`
+  is a weak sensor for this change (its runs truncate too early —
+  medWaves 3 both before and after — to reach content where enemy HP/speed
+  matter). Files: `data/enemies.json`, `BALANCE.md` (new),
+  `tests/p-core-c-plant.test.ts`, `tests/p-core-d-corpse.test.ts`.
+
 - **2026-08-30 session: b033 done — HUD text under the 4.5:1 WCAG contrast
   floor, filed by `npm run ui-audit` (§11, QUALITY.md Beta bar).** The
   level-up offer card's kind badge (`.sw-offer small`, renders "BOON") sat at
