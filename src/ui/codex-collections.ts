@@ -19,6 +19,20 @@ export interface CodexCollection {
   key: string;
   label: string;
   rows: Record<string, unknown>[];
+  /**
+   * p9c: the `TUNER_FILES` registry key backing this collection, so the
+   * Tuner knows which file/schema a save targets. Undefined for a
+   * collection with no editable `/data` file of its own (none today, but a
+   * future Codex-only derived view should not be forced to invent one).
+   */
+  tunerFile?: string;
+  /**
+   * p9c: the *whole* underlying document, not just `rows` — several
+   * collections (Stat Boons/Skill Cards) are two views of one file, and a
+   * save has to round-trip the full document or it would silently drop the
+   * other view's data.
+   */
+  raw?: unknown;
 }
 
 function asRows(value: unknown): Record<string, unknown>[] {
@@ -29,22 +43,48 @@ function asRows(value: unknown): Record<string, unknown>[] {
 
 export function buildCodexCollections(content: Content = loadContent()): CodexCollection[] {
   return [
-    { key: 'classes', label: 'Classes', rows: asRows(content.classes.classes) },
-    { key: 'towers', label: 'Towers', rows: asRows(content.towers.towers) },
-    { key: 'equipment', label: 'Equipment', rows: asRows(content.equipment.items) },
-    { key: 'damagetypes', label: 'Damage Types', rows: asRows(content.damageTypes.types) },
-    { key: 'enemies', label: 'Enemies', rows: asRows(content.enemies.enemies) },
-    { key: 'waves', label: 'Waves', rows: asRows(content.waves.waves) },
-    { key: 'boons', label: 'Stat Boons', rows: asRows(content.boons.statBoons) },
+    { key: 'classes', label: 'Classes', rows: asRows(content.classes.classes), tunerFile: 'classes', raw: content.classes },
+    { key: 'towers', label: 'Towers', rows: asRows(content.towers.towers), tunerFile: 'towers', raw: content.towers },
+    {
+      key: 'equipment',
+      label: 'Equipment',
+      rows: asRows(content.equipment.items),
+      tunerFile: 'equipment',
+      raw: content.equipment,
+    },
+    {
+      key: 'damagetypes',
+      label: 'Damage Types',
+      rows: asRows(content.damageTypes.types),
+      tunerFile: 'damagetypes',
+      raw: content.damageTypes,
+    },
+    { key: 'enemies', label: 'Enemies', rows: asRows(content.enemies.enemies), tunerFile: 'enemies', raw: content.enemies },
+    { key: 'waves', label: 'Waves', rows: asRows(content.waves.waves), tunerFile: 'waves', raw: content.waves },
+    { key: 'boons', label: 'Stat Boons', rows: asRows(content.boons.statBoons), tunerFile: 'vsupgrades', raw: content.boons },
     {
       key: 'skillcards',
       label: 'Skill Cards',
       rows: asRows(Object.values(content.boons.skillCards).flat()),
+      tunerFile: 'vsupgrades',
+      raw: content.boons,
     },
-    { key: 'modifiers', label: 'Modifiers', rows: asRows(content.modifiers.modifiers) },
-    { key: 'tree', label: 'Constellation Nodes', rows: asRows(content.tree.nodes) },
-    { key: 'quests', label: 'Quests', rows: asRows(content.quests.quests) },
-    { key: 'cores', label: 'Cores', rows: asRows(content.cores.cores) },
-    { key: 'warden', label: 'Warden', rows: asRows(content.warden) },
+    {
+      key: 'modifiers',
+      label: 'Modifiers',
+      rows: asRows(content.modifiers.modifiers),
+      tunerFile: 'modifiers',
+      raw: content.modifiers,
+    },
+    {
+      key: 'tree',
+      label: 'Constellation Nodes',
+      rows: asRows(content.tree.nodes),
+      tunerFile: 'tree',
+      raw: content.tree,
+    },
+    { key: 'quests', label: 'Quests', rows: asRows(content.quests.quests), tunerFile: 'quests', raw: content.quests },
+    { key: 'cores', label: 'Cores', rows: asRows(content.cores.cores), tunerFile: 'cores', raw: content.cores },
+    { key: 'warden', label: 'Warden', rows: asRows(content.warden), tunerFile: 'warden', raw: content.warden },
   ];
 }

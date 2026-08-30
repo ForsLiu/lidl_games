@@ -8,6 +8,7 @@
  * BACKLOG-TUNER.md's Log for the lane history that built this standalone.
  */
 import { buildCodexCollections, type CodexCollection } from './codex-collections';
+import { mountTunerPanel } from './tuner';
 
 function formatCell(value: unknown): string {
   if (value === undefined) return '';
@@ -120,6 +121,11 @@ export function mountCodex(
     content.appendChild(count);
 
     content.appendChild(renderCodexTable(collection.rows));
+
+    const tunerRoot = document.createElement('div');
+    tunerRoot.className = 'sw-codex-tuner';
+    content.appendChild(tunerRoot);
+    mountTunerPanel(tunerRoot, collection);
   }
 
   for (const collection of collections) {

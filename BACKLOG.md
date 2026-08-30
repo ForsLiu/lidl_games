@@ -451,13 +451,14 @@ next in P8's own queue.
       acceptance: every content collection renders and a field added to a schema
       appears with no change to the page; counts match the data files — **done,
       see Done section.** — refs: §11
-- [ ] (p9c) [feat] Tuner: in dev mode every numeric and enum field in the Codex is
+- [x] (p9c) [feat] Tuner: in dev mode every numeric and enum field in the Codex is
       editable including wave composition; Save persists to the real `/data/*.json`
       through a Vite dev-server endpoint that validates the whole document against
       its schema and rejects invalid edits with field-level errors; prod is
       read-only Codex plus Export/Import JSON — acceptance: gate **G15** —
       edit→save→reload round-trip, invalid rejected, an edited run visibly flagged,
-      and a production build containing no endpoint — refs: §11, G15
+      and a production build containing no endpoint — **done, see Done section.**
+      — refs: §11, G15
 - [ ] (p9d) [polish] Gate **G16**'s unasserted half: the production bundle still
       ships the whole dev profile — `applyDevProfile`, the unlocks, `data/dev.json`
       with `devMode:true` and the dev badge CSS are all in `dist`. It is unreachable
@@ -939,6 +940,83 @@ logged in MIGRATION.md §8 rather than carried as dead items.
   **G19**. The work is `p10d`.
 
 ## Done
+
+- [x] (p9c) [feat] Tuner: in dev mode every numeric and enum field in the Codex is
+      editable including wave composition; Save persists to the real `/data/*.json`
+      through a Vite dev-server endpoint that validates the whole document against
+      its schema and rejects invalid edits with field-level errors; prod is
+      read-only Codex plus Export/Import JSON — acceptance: gate **G15** —
+      edit→save→reload round-trip, invalid rejected, an edited run visibly flagged,
+      and a production build containing no endpoint — refs: §11, G15 — commit
+      pending in this change.
+      A new `TUNER_FILES` registry (`src/sim/content.ts`) pairs each of the 12
+      `/data/*.json` files the Codex shows a nav tab for with the exact zod
+      schema `loadContent()` already parses it with. `src/devserver/tunerSave.ts`
+      (pure Node) validates a candidate document against that schema, then
+      dry-runs `loadContent()`'s own cross-file referential checks against it via
+      a new optional `loadContent(overrides)` parameter (never touching the
+      process's cached `Content` or any file on disk) before writing atomically
+      (unique temp file + rename). `src/devserver/tunerPlugin.ts` wraps that in a
+      Vite plugin — `apply: 'serve'`, Vite's own mechanism for excluding a plugin
+      from `vite build`/`vite preview` — exposing `POST /__tuner/save`, registered
+      in `vite.config.ts`. Client-side, `src/ui/tuner.ts` mounts under every Codex
+      collection (`src/ui/codex.ts`): Export (download) and Import
+      (upload-and-preview-only, never persisted) render in every build; a dev-only
+      editable JSON textarea + Save button (gated `if (!isDevBuild()) return`,
+      mirroring `audit-hook.ts`'s proven-eliminated-from-prod shape) edits the
+      *whole* backing document, since Stat Boons/Skill Cards are two Codex views
+      over one file (`vsupgrades.json`) and a save scoped to the narrower "rows"
+      view would silently drop the other view's data. `src/ui/tuner-state.ts`
+      tracks per-file dirty state and an in-memory draft (surviving a Codex tab
+      remount without discarding an unsaved edit). `src/ui/hub.ts` forces
+      `RunConfig.practice = true` on run start while any file is dirty, reusing
+      the existing practice-run plumbing/Results-screen messaging rather than
+      inventing a second "edited" banner — SPEC-FINAL §11's "a run started after
+      unsaved live edits is visibly flagged like practice," made literally true.
+      Scoping choice (whole-document JSON textarea rather than a bespoke typed
+      widget per numeric/enum field, which would mean bespoke editors for deeply
+      nested shapes like a tower's `attack` or a wave's `groups[]`) logged as
+      QUESTIONS.md Q150. New tests: `tests/p9c-tuner-save.test.ts`,
+      `p9c-tuner-plugin.test.ts`, `p9c-tuner-ui.test.ts`, `p9c-tuner-prod-ui.test.ts`,
+      `p9c-tuner-hub-flag.test.ts`, `p9c-tuner-prod-build.test.ts` (a real
+      production `vite build`, grepping the emitted bundle the same way gate C8's
+      `c8-dev-profile.test.ts` "fb018" test already proves `audit-hook.ts` is gone
+      — confirms the save endpoint's server-only code is absent while Export
+      still renders), plus one addition to `tests/codex.test.ts`. code-reviewer
+      **REQUEST-CHANGES** on the first pass (2 Major, 4 Minor/Nit), both Majors
+      and three of the Minors fixed before commit: (1) switching Codex tabs (or
+      between the two tabs sharing `vsupgrades.json`) remounted the editor from
+      on-disk content, silently discarding an unsaved edit while the dirty flag
+      kept claiming there was still one to lose — fixed via the draft store
+      above, with a regression test proving a remount restores exactly what was
+      typed. (2) `saveTunerFile` validated only the single file's own schema, so
+      a schema-valid-but-referentially-broken edit (a wave naming an unknown
+      enemy, equipment naming an unknown class) would be accepted and then crash
+      every `loadContent()` caller on the very next reload — fixed via the
+      `loadContent(overrides)` dry-run, with regression tests for both repro
+      shapes. Minors also fixed: a test now pins that every Codex collection's
+      `tunerFile` names a real `TUNER_FILES` key; the HTTP body reader now caps
+      at 10 MB instead of buffering unboundedly; the temp-file write uses a
+      per-call unique suffix instead of a fixed name two overlapping saves could
+      race on. qa-playtester **PASS** on all five acceptance clauses, verified
+      through real DOM interaction (typing in an actual mounted textarea element,
+      not calling internal setters) and a real `vite build`/`vite preview` round
+      trip against a scratch copy of `/data`: valid edits round-trip byte-for-byte,
+      a schema-mismatched document (an enemies doc posted under the `towers` key)
+      is rejected 400 with per-field errors and the file on disk is untouched,
+      Export/Import render in every build while the editable textarea/Save button
+      are provably absent from a real production bundle, `GET`/`POST
+      /__tuner/save` against `vite preview` fall through to the SPA/404 rather
+      than reaching an endpoint, and marking a file dirty through real DOM
+      interaction genuinely flags the next Hub run as practice with a save
+      restoring normal runs. It independently found the same two Major gaps
+      code-reviewer had already flagged (missing cross-file validation; unbounded
+      body size) and re-verified both fixes independently rather than trusting
+      the new tests; no bugs filed. It also confirmed the 4 pre-existing
+      port-contention Playwright fold-test flakes (b032/b034/b035/b036) reproduce
+      identically with or without this change and pass cleanly in isolation once
+      a stray leftover dev-server process is cleared — environmental, not a
+      regression, consistent with every prior session's note on these four.
 
 - [x] (p9b) [feat] Codex: a Hub page listing every class, tower, equipment,
       damage type, enemy and wave with live stats read from `/data` and its

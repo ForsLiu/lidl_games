@@ -341,6 +341,15 @@ html, body {
 .sw-codex-table th, .sw-codex-table td { border: 1px solid var(--line); padding: 4px 8px; text-align: left; white-space: nowrap; }
 .sw-codex-table th { color: var(--dim); font-weight: 600; }
 
+.sw-codex-tuner { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 10px; }
+.sw-tuner-toolbar { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; }
+.sw-tuner-export, .sw-tuner-save { background: var(--panel); border: 1px solid var(--line); border-radius: 5px; color: var(--text); padding: 5px 10px; font: inherit; cursor: pointer; }
+.sw-tuner-import { display: inline-flex; align-items: center; gap: 6px; color: var(--dim); font-size: 12px; cursor: pointer; }
+.sw-tuner-editor { width: 100%; box-sizing: border-box; font-family: monospace; font-size: 12px; background: #0d1016; color: var(--text); border: 1px solid var(--line); border-radius: 5px; padding: 8px; }
+.sw-tuner-row { margin-top: 6px; }
+.sw-tuner-status, .sw-tuner-import-status { font-size: 12px; color: var(--dim); margin-top: 6px; }
+.sw-tuner-status.sw-tuner-error { color: #e06060; }
+
 .sw-itemstash { display: flex; flex-wrap: wrap; gap: 6px; }
 .sw-lootitem {
   flex: 1 1 150px; display: flex; flex-direction: column; align-items: flex-start;

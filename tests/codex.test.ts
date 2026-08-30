@@ -16,7 +16,7 @@ import { describe, expect, it } from 'vitest';
 
 import { collectColumns, renderCodexTable, mountCodex } from '../src/ui/codex';
 import { buildCodexCollections, type CodexCollection } from '../src/ui/codex-collections';
-import { loadContent } from '../src/sim/content';
+import { loadContent, TUNER_FILES } from '../src/sim/content';
 
 describe('collectColumns — generic, schema-agnostic', () => {
   it('derives columns from the union of keys actually present, in first-seen order', () => {
@@ -131,6 +131,19 @@ describe('buildCodexCollections — every /data collection is reachable', () => 
     const firstRowCells = table.querySelectorAll('tbody tr')[0].querySelectorAll('td');
     const col = headers.indexOf('futureUpgradeSlot');
     expect(firstRowCells[col].textContent).toBe('prismatic');
+  });
+
+  it('p9c: every collection\'s tunerFile names a real TUNER_FILES entry (code-reviewer Minor #3)', () => {
+    // Nothing ties `codex-collections.ts`'s hardcoded `tunerFile` strings to
+    // `TUNER_FILES`'s keys at compile time — a future collection added to one
+    // side and not the other would silently render an editor whose Save
+    // always 400s with "unknown tuner file", discovered only by a developer
+    // clicking Save, not by any test.
+    const validKeys = new Set(TUNER_FILES.map((f) => f.key));
+    for (const c of collections) {
+      expect(c.tunerFile, `${c.key} has no tunerFile`).toBeDefined();
+      expect(validKeys.has(c.tunerFile!), `${c.key}.tunerFile "${c.tunerFile}" is not in TUNER_FILES`).toBe(true);
+    }
   });
 
   it('a real field (tower cost) survives the generic pipeline into a rendered cell', () => {

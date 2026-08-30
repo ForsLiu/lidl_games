@@ -1518,24 +1518,85 @@ export function contentHash(content: Content): string {
   return h.hex();
 }
 
+/**
+ * p9c (§11, gate G15): the Tuner's save endpoint validates a whole document
+ * against the same schema `loadContent()` parses it with — one registry
+ * shared by both, so a schema change can never let the endpoint accept what
+ * the loader would reject. Deliberately covers only the files the Codex
+ * shows a nav tab for (`codex-collections.ts`); `spawns.json` and
+ * `dev.json` have no Codex collection and are out of scope here.
+ */
+/**
+ * Raw (pre-schema) document overrides `loadContent()` accepts for exactly
+ * one purpose: a Tuner save can dry-run a candidate edit through the same
+ * cross-file referential checks the loader itself enforces, without ever
+ * touching the process's cached `Content` or the real `/data` files. Every
+ * field is optional and unioned with the real import at each call site, so
+ * `loadContent()` with no argument is unchanged.
+ */
+export interface ContentOverrides {
+  towers?: unknown;
+  enemies?: unknown;
+  waves?: unknown;
+  spawns?: unknown;
+  boons?: unknown;
+  tree?: unknown;
+  modifiers?: unknown;
+  classes?: unknown;
+  quests?: unknown;
+  damageTypes?: unknown;
+  cores?: unknown;
+  equipment?: unknown;
+}
+
+export interface TunerFileEntry {
+  key: string;
+  fileName: string;
+  schema: z.ZodTypeAny;
+  /**
+   * The `loadContent(overrides)` key this file's parsed document substitutes
+   * for — code-reviewer's Major #2: a document can be schema-valid on its
+   * own and still name an enemy/class/tower/quest that doesn't exist, which
+   * is exactly what `loadContent()`'s own cross-file checks below already
+   * catch. Undefined for a file (only `warden.json` today) with no
+   * cross-file checks to run.
+   */
+  contentField?: keyof ContentOverrides;
+}
+
+export const TUNER_FILES: TunerFileEntry[] = [
+  { key: 'towers', fileName: 'towers.json', schema: TowersFileSchema, contentField: 'towers' },
+  { key: 'enemies', fileName: 'enemies.json', schema: EnemiesFileSchema, contentField: 'enemies' },
+  { key: 'waves', fileName: 'waves.json', schema: WavesFileSchema, contentField: 'waves' },
+  { key: 'vsupgrades', fileName: 'vsupgrades.json', schema: VsUpgradesFileSchema, contentField: 'boons' },
+  { key: 'tree', fileName: 'tree.json', schema: TreeFileSchema, contentField: 'tree' },
+  { key: 'modifiers', fileName: 'modifiers.json', schema: ModifiersFileSchema, contentField: 'modifiers' },
+  { key: 'classes', fileName: 'classes.json', schema: ClassesFileSchema, contentField: 'classes' },
+  { key: 'quests', fileName: 'quests.json', schema: QuestsFileSchema, contentField: 'quests' },
+  { key: 'damagetypes', fileName: 'damagetypes.json', schema: DamageTypesFileSchema, contentField: 'damageTypes' },
+  { key: 'cores', fileName: 'cores.json', schema: CoresFileSchema, contentField: 'cores' },
+  { key: 'equipment', fileName: 'equipment.json', schema: EquipmentFileSchema, contentField: 'equipment' },
+  { key: 'warden', fileName: 'warden.json', schema: WardenFileSchema },
+];
+
 let cached: Content | null = null;
 
-export function loadContent(): Content {
-  if (cached) return cached;
+export function loadContent(overrides?: ContentOverrides): Content {
+  if (!overrides && cached) return cached;
 
-  const towers = TowersFileSchema.parse(towersRaw);
-  const enemies = EnemiesFileSchema.parse(enemiesRaw);
-  const waves = WavesFileSchema.parse(wavesRaw);
-  const spawns = SpawnsFileSchema.parse(spawnsRaw);
-  const boons = VsUpgradesFileSchema.parse(vsupgradesRaw);
-  const tree = TreeFileSchema.parse(treeRaw);
-  const modifiers = ModifiersFileSchema.parse(modifiersRaw);
-  const classes = ClassesFileSchema.parse(classesRaw);
+  const towers = TowersFileSchema.parse(overrides?.towers ?? towersRaw);
+  const enemies = EnemiesFileSchema.parse(overrides?.enemies ?? enemiesRaw);
+  const waves = WavesFileSchema.parse(overrides?.waves ?? wavesRaw);
+  const spawns = SpawnsFileSchema.parse(overrides?.spawns ?? spawnsRaw);
+  const boons = VsUpgradesFileSchema.parse(overrides?.boons ?? vsupgradesRaw);
+  const tree = TreeFileSchema.parse(overrides?.tree ?? treeRaw);
+  const modifiers = ModifiersFileSchema.parse(overrides?.modifiers ?? modifiersRaw);
+  const classes = ClassesFileSchema.parse(overrides?.classes ?? classesRaw);
   const dev = DevFileSchema.parse(devRaw);
-  const quests = QuestsFileSchema.parse(questsRaw);
-  const damageTypes = DamageTypesFileSchema.parse(damageTypesRaw);
-  const cores = CoresFileSchema.parse(coresRaw);
-  const equipment = EquipmentFileSchema.parse(equipmentRaw);
+  const quests = QuestsFileSchema.parse(overrides?.quests ?? questsRaw);
+  const damageTypes = DamageTypesFileSchema.parse(overrides?.damageTypes ?? damageTypesRaw);
+  const cores = CoresFileSchema.parse(overrides?.cores ?? coresRaw);
+  const equipment = EquipmentFileSchema.parse(overrides?.equipment ?? equipmentRaw);
 
   // Cross-file referential integrity: a typo in /data must fail loudly at load.
   const towerKeys = new Set(towers.towers.map((t) => t.key));
@@ -1702,7 +1763,7 @@ export function loadContent(): Content {
     }
   }
 
-  cached = {
+  const result: Content = {
     warden: wardenBase,
     towers,
     enemies,
@@ -1730,5 +1791,9 @@ export function loadContent(): Content {
     coreByKey: new Map(cores.cores.map((c) => [c.key, c])),
     equipmentByKey: new Map(equipment.items.map((e) => [e.key, e])),
   };
-  return cached;
+  // A dry-run validation (an `overrides` call, used by the Tuner's save path
+  // below) must never poison the real cache with a candidate that hasn't
+  // actually been written to disk.
+  if (!overrides) cached = result;
+  return result;
 }

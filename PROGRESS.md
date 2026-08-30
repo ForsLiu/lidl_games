@@ -5,6 +5,54 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-30 session: p9c done — the Tuner, gate G15 — commit pending in
+  this change.** A `TUNER_FILES` registry (`src/sim/content.ts`) pairs each
+  of the 12 `/data/*.json` files the Codex has a nav tab for with the exact
+  zod schema `loadContent()` already parses it with. `src/devserver/
+  tunerSave.ts` (pure Node) validates a candidate document against that
+  schema, then dry-runs `loadContent()`'s own cross-file referential checks
+  against it through a new optional `loadContent(overrides)` parameter
+  (never touching the process's cached `Content` or any file on disk)
+  before writing atomically. `src/devserver/tunerPlugin.ts` wraps that in a
+  Vite plugin — `apply: 'serve'`, so it is structurally excluded from `vite
+  build`/`vite preview`, not just guarded at runtime — exposing `POST
+  /__tuner/save`, registered in `vite.config.ts`. Client-side, `src/ui/
+  tuner.ts` mounts under every Codex collection: Export/Import render in
+  every build (prod's "read-only + export/import"); a dev-only editable
+  JSON textarea + Save button edits the *whole* backing document (Stat
+  Boons/Skill Cards share one file, so a narrower per-collection edit would
+  silently drop the other view's data), gated the same proven
+  `if (!isDevBuild()) return` shape as `audit-hook.ts`. `src/ui/
+  tuner-state.ts` tracks dirty state and an in-memory draft so a Codex tab
+  remount restores an unsaved edit instead of discarding it.
+  `src/ui/hub.ts` forces `RunConfig.practice = true` on run start while any
+  file is dirty, reusing the existing practice-run plumbing rather than a
+  second "edited" banner — SPEC-FINAL §11's "a run started after unsaved
+  live edits is visibly flagged like practice," made literally true. The
+  literal reading of BACKLOG.md's "every numeric and enum field... editable"
+  (a bespoke typed widget per field, including deeply nested shapes like a
+  tower's `attack` or a wave's `groups[]`) was scoped down to one editable
+  JSON document per collection, logged as QUESTIONS.md Q150.
+  code-reviewer **REQUEST-CHANGES** on the first pass (2 Major, 4 Minor/Nit):
+  a Codex tab remount used to silently discard an unsaved edit while the
+  dirty flag kept claiming there was still one to lose (fixed via the draft
+  store), and `saveTunerFile` validated only the single file's own schema,
+  so a schema-valid-but-referentially-broken edit (a wave naming an unknown
+  enemy, equipment naming an unknown class) would be accepted and then
+  crash every `loadContent()` caller on the very next reload (fixed via the
+  `loadContent(overrides)` dry-run). Three Minors fixed too: a test now pins
+  every Codex collection's `tunerFile` against a real `TUNER_FILES` key; the
+  HTTP body reader caps at 10 MB; the temp-file write uses a per-call unique
+  suffix rather than a fixed name two overlapping saves could race on.
+  qa-playtester **PASS** on all five acceptance clauses, verified through
+  real DOM interaction and a real `vite build`/`vite preview` round trip
+  against a scratch `/data` copy — independently found the same two Major
+  gaps code-reviewer had already flagged and re-verified both fixes rather
+  than trusting the new tests; no bugs filed. `npm run test:fast`: 1651
+  passed (was 1643), 30 skipped, the same 4 pre-existing Playwright
+  fold-test port-contention flakes (b032/b034/b035/b036), reconfirmed
+  unrelated by both this session and qa-playtester independently.
+
 - **2026-08-30 session: p9b done — the Codex is wired into the Hub — commit
   `0cfdf45`.** The read-only Codex renderer (`src/ui/codex.ts`,
   `src/ui/codex-collections.ts`) and its generic-ness proof

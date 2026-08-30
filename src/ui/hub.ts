@@ -38,6 +38,7 @@ import { coreDetailMarkup } from './core-info';
 import { modLines, modLinesHtml } from './info-format';
 import { STAT_KIND, type StatKey } from '../sim/stats';
 import { mountCodex } from './codex';
+import { hasUnsavedTunerEdits } from './tuner-state';
 
 type Tab = 'run' | 'tree' | 'equipment' | 'codex' | 'settings';
 
@@ -145,6 +146,11 @@ export class Hub {
     if (this.tier > maxTier) this.tier = maxTier;
     const draft = modifierDraft(content, this.seed, this.tier);
     if (this.picks.length !== draft.length) this.picks = draft.map(() => 0);
+    // p9c/G15: unsaved Tuner edits get treated like practice — the run isn't
+    // played against whatever is actually saved to `/data`, so its outcome
+    // shouldn't be bankable. `hasUnsavedTunerEdits()` is always false in a
+    // production build (the Tuner's editable half never mounts there).
+    const unsavedTunerEdits = hasUnsavedTunerEdits();
 
     body.innerHTML = `
       <div class="sw-panel">
@@ -254,9 +260,13 @@ export class Hub {
         <p class="sw-note">${
           this.practice
             ? 'The in-run tool is on: kill the board, add gold, skip a wave, summon the boss, spawn any enemy on demand. Nothing is banked — no skill points, no equipment, no quest progress.'
-            : 'A normal run. Everything you earn is kept.'
+            : unsavedTunerEdits
+              ? 'Unsaved Tuner edits are live in this session. This run will be treated as a practice run and nothing will be banked — save or reload to play for real.'
+              : 'A normal run. Everything you earn is kept.'
         }</p>
-        <button class="sw-go" id="sw-start">${this.practice ? 'Begin practice run' : 'Begin the Daywatch'}</button>
+        <button class="sw-go" id="sw-start">${
+          this.practice || unsavedTunerEdits ? 'Begin practice run' : 'Begin the Daywatch'
+        }</button>
         <button class="sw-go sw-secondary" id="sw-training" title="The chosen class, Core and equipment, with the practice tool on and every spawn-panel enemy available. Leave any time back to this Hub; nothing is banked.">Enter Training Grounds</button>
       </div>`;
 
@@ -327,7 +337,7 @@ export class Hub {
         // (character panel) can validate a mid-run `equip_item` swap without
         // the sim ever reaching back into `MetaState`.
         ownedEquipment: { ...this.meta.equipmentStash },
-        practice: practiceOverride ?? this.practice,
+        practice: practiceOverride ?? (this.practice || unsavedTunerEdits),
         // fb012: the toggle now lives in the in-run Esc options menu and the
         // level-up screen, not here — a run starts with whatever the profile
         // last had it set to.
