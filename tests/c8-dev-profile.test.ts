@@ -187,8 +187,20 @@ describe('C8: a production build has the dev profile off', () => {
     writeFileSync(
       entry,
       [
-        "import { isDevBuild, devProfileActive } from './src/meta/devprofile';",
-        'console.log(JSON.stringify({ isDevBuild: isDevBuild(), active: devProfileActive() }));',
+        "import { isDevBuild, devProfileActive, devConfig, startupProfile } from './src/meta/devprofile';",
+        "import { defaultMeta } from './src/meta/meta';",
+        'const fresh = defaultMeta();',
+        // p9d: main.ts's exact startup call, run inside the executed production
+        // bundle rather than assumed from the predicate alone.
+        'const started = startupProfile(fresh, { devActive: devProfileActive(), cleanProfile: false }).meta;',
+        'console.log(JSON.stringify({',
+        '  isDevBuild: isDevBuild(),',
+        '  active: devProfileActive(),',
+        '  authoredDevMode: devConfig().devMode,',
+        '  authoredUnlockAllClasses: devConfig().unlockAllClasses,',
+        '  defaultHighestTier: fresh.highestTier,',
+        '  startedHighestTier: started.highestTier,',
+        '}));',
       ].join('\n'),
     );
     // Output inside the repo too: an SSR build externalises `zod`, so the
@@ -210,9 +222,29 @@ describe('C8: a production build has the dev profile off', () => {
     );
     const built = join(outDir, '.c8-probe-entry.js');
     const answer = execFileSync('node', [built], { encoding: 'utf8' });
-    const parsed = JSON.parse(answer.trim()) as { isDevBuild: boolean; active: boolean };
+    const parsed = JSON.parse(answer.trim()) as {
+      isDevBuild: boolean;
+      active: boolean;
+      authoredDevMode: boolean;
+      authoredUnlockAllClasses: boolean;
+      defaultHighestTier: number;
+      startedHighestTier: number;
+    };
     expect(parsed.isDevBuild, 'a production bundle must not report itself as a dev build').toBe(false);
     expect(parsed.active, 'the dev profile must be off in production').toBe(false);
+    // p9d (G16's unasserted half): `data/dev.json` and `applyDevProfile` are
+    // not tree-shaken out of a production bundle — the generic `/data` loader
+    // that ships every legitimate content file ships this one too (CLAUDE.md
+    // rule 4: content loading stays generic, no per-file special-casing). So
+    // the authored config really is present and "on" inside this exact
+    // executed bundle...
+    expect(parsed.authoredDevMode, 'data/dev.json ships with devMode on, even in prod — that is expected').toBe(true);
+    expect(parsed.authoredUnlockAllClasses, 'the dev unlock config ships in prod — that is expected').toBe(true);
+    // ...and yet running main.ts's real startup call against it, in this same
+    // production bundle, produces no effect: presence, proven inert.
+    expect(parsed.startedHighestTier, 'a production startup must not apply the dev unlocks').toBe(
+      parsed.defaultHighestTier,
+    );
   }, 120_000);
 
   it('fb018: the real client bundle has no audit-hook dev surface', () => {
@@ -241,6 +273,43 @@ describe('C8: a production build has the dev profile off', () => {
     for (const marker of ['__stonewakeAudit', 'stonewakeAudit', 'forceStatusShowcase', 'forceDefeat', 'forceVsPhase']) {
       expect(bundle.includes(marker), `production bundle must not contain "${marker}"`).toBe(false);
     }
+    // p9d: unlike the audit hook above, the dev profile's *data and logic* are
+    // not expected to disappear from this real client bundle (the generic
+    // `/data` loader ships every content file, dev.json included) — this
+    // confirms the premise this item is about is still true, rather than
+    // asserting a stale one. `DevConfig`'s own field names are used nowhere
+    // else in the app, so their presence is specific to the dev profile.
+    for (const marker of ['unlockAllClasses', 'unlockAllCores', 'unlockAllTiers', 'completeAllQuests', 'fillStash']) {
+      expect(bundle.includes(marker), `expected the dev profile's "${marker}" to still ship in prod`).toBe(true);
+    }
+    // The dev badge *markup* — the `'<span class="sw-devbadge"...>DEV PROFILE</span>'`
+    // string hub.ts would concatenate into the DOM — is guarded by
+    // `DEV_BUILD && ...` with `DEV_BUILD` folded to the literal `false` in a
+    // production build. The minifier proves that ternary branch unreachable
+    // and drops the string entirely. Pinned here so a change that makes the
+    // badge reachable some other way (losing the fold) is caught the moment
+    // it stops disappearing.
+    expect(bundle.includes('sw-devbadge'), 'the dev badge markup should be dead code, folded out of prod').toBe(
+      false,
+    );
+    // The CSS *rule* for `.sw-devbadge` (src/ui/style.css) is a different
+    // story: Vite/esbuild does not purge unused CSS selectors, so the rule
+    // itself ships into dist/assets/*.css unconditionally, unlike the JS-side
+    // markup string above. That is fine, not a hole to close — a selector
+    // with no matching element does nothing — and the assertion just above is
+    // exactly the proof that it can never match anything: if the literal
+    // `"sw-devbadge"` class name string is absent from every shipped .js file,
+    // no runtime code path can ever assign that class to a DOM element, so an
+    // orphaned CSS rule for it is inert by construction. Asserted directly
+    // here rather than left as an inference, so a future PurgeCSS-style build
+    // step that starts stripping it doesn't silently invalidate this reasoning.
+    const css = readdirSync(join(outDir, 'assets'))
+      .filter((f) => f.endsWith('.css'))
+      .map((f) => readFileSync(join(outDir, 'assets', f), 'utf8'))
+      .join('\n');
+    expect(css.includes('sw-devbadge'), 'expected the (inert) .sw-devbadge CSS rule to still ship in prod').toBe(
+      true,
+    );
   }, 120_000);
 
   it('the source logic is safe on its own, without a bundler folding it', () => {
@@ -255,6 +324,37 @@ describe('C8: a production build has the dev profile off', () => {
     expect(isDevEnv({ DEV: 'true' })).toBe(false);
     expect(isDevEnv({ DEV: 1 })).toBe(false);
     expect(isDevEnv({ DEV: true })).toBe(true);
+  });
+});
+
+describe('C8: the Hub dev badge', () => {
+  it('renders when the dev profile is active (this suite runs under a dev build with devMode on)', async () => {
+    // p9d: the production-build tests above prove the badge markup is dead
+    // code once folded away; nothing previously proved the other direction —
+    // that it is live, reachable markup under the conditions it is meant for,
+    // not simply unreachable everywhere. Vitest is a dev build (`isDevBuild()`
+    // true) and the authored `data/dev.json` ships with `devMode: true`, so
+    // `devProfileActive()` is true here with no mocking needed.
+    //
+    // This does mean the test is coupled to that authored value, unlike the
+    // `ALL_ON`-injected tests above — deliberately: `vi.mock('../src/meta/
+    // devprofile')` would swap the module for this whole file, contaminating
+    // the real-config tests elsewhere in it (see tests/p9c-tuner-prod-ui.test.ts's
+    // header comment on that trade-off). If `data/dev.json` is ever authored
+    // with `devMode: false`, this assertion fails first and names the real
+    // cause, rather than the badge query failing confusingly underneath it.
+    expect(devProfileActive()).toBe(true);
+    const { Hub } = await import('../src/ui/hub');
+    document.body.innerHTML = '<div id="app"></div>';
+    const root = document.getElementById('app') as HTMLElement;
+    const hub = new Hub(root, defaultMeta(), 1, {
+      settings: defaultSettings(),
+      onSettingsChanged: () => {},
+      onStart: () => {},
+      onMetaChanged: () => {},
+    });
+    hub.show();
+    expect(root.querySelector('.sw-devbadge')).not.toBeNull();
   });
 });
 
