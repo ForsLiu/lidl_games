@@ -36,6 +36,7 @@ import {
   pickAutoOfferIndex,
   rerollOffers,
   takeOffer,
+  tickLevelupIdle,
   updateGems,
 } from './progression';
 import { advanceToNextBlock, finishSundering } from './sundering';
@@ -146,6 +147,7 @@ export class Run {
         updateAct2(w, input, dt);
         break;
       case 'levelup':
+        tickLevelupIdle(w);
         break;
       case 'results':
         break;
@@ -1018,6 +1020,9 @@ export function hashWorld(w: World): string {
   h.int(w.warden.dots.length);
   for (const d of w.warden.dots) h.num(d.dps).num(d.remaining);
   h.int(w.level).num(w.xp);
+  // p9e: gates `tickLevelupIdle`'s auto-resolve, the same class of
+  // future-behavior-gating timer the cooldowns above are hashed for.
+  h.int(w.levelupIdleTicks);
   h.num(w.act2Time);
   h.int(w.cycle);
   // SPEC-FINAL §5.5: two runs differing only in Core choice must hash

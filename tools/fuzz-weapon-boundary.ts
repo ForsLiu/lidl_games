@@ -319,10 +319,13 @@ export function rerollBoundaryCases(content: Content = loadContent()): BoundaryC
  * Every stat boon and skill card legitimately at `maxRank` (the ladder
  * `applyOffer` itself walks) empties `buildOfferPool` (Type Mastery is
  * already empty here — no tower is ever built in this probe). A level-up
- * then opens 'levelup' with zero offers — and `takeOffer` (no offer at any
- * index) and `rerollOffers` (rerolls to another empty list) both leave the
- * phase where it is. Reachable through real play (7 stat boons x 5 ranks + 3
- * skill cards x 2 ranks), so this one carries no forged-input caveat.
+ * used to still open 'levelup' with zero offers regardless — and `takeOffer`
+ * (no offer at any index) and `rerollOffers` (rerolls to another empty list)
+ * both left the phase where it was: a permanent softlock, reachable through
+ * real play (7 stat boons x 5 ranks + 3 skill cards x 2 ranks), no forged-
+ * input caveat. CLOSED at p9e (G18): `openLevelUpIfPending`'s manual branch
+ * now mirrors the `autoPickLevelUps` branch's own guard and simply consumes
+ * the pending level-up when the roll comes back empty, so this reports 'ok'.
  */
 export function poolExhaustedCases(content: Content = loadContent()): BoundaryCase[] {
   const w = newWorld(content);

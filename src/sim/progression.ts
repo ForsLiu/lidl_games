@@ -103,9 +103,51 @@ export function openLevelUpIfPending(w: World): void {
     return;
   }
   w.pendingLevelUps--;
-  w.offers = rollOffers(w);
+  // p9e (code-reviewer finding): an exhausted offer pool (every stat boon,
+  // built-type Type Mastery and this class's skill card already at max rank)
+  // is legitimate — mirror the autopick branch above and simply consume the
+  // level-up with nothing to show, rather than opening `levelup` with zero
+  // offers, which was a second, still-live G18 dead-end (nothing could ever
+  // resolve a phase with no offer to pick).
+  const offers = rollOffers(w);
+  if (offers.length === 0) return;
+  w.offers = offers;
   w.rerollsLeft = w.content.boons.rerollsPerLevel;
   w.phase = 'levelup';
+  w.levelupIdleTicks = 0;
+}
+
+/**
+ * p9e (G18's dead-end clause, QA on t4 bug 4): every other decision phase
+ * either times out (Act I's build/wave timers) or is driven by a Command; a
+ * `levelup` offer with `autoPickLevelUps` off had no such floor, so an
+ * unattended run (no bot policy, no player, e.g. a stepped headless/practice
+ * run) parked in `phase === 'levelup'` forever once XP queued one. Called
+ * once per tick the run loop spends in that phase (`run.ts`); after
+ * `LEVELUP_IDLE_TIMEOUT_TICKS` with no `pick`/`reroll` Command applied, it
+ * resolves the standing offer with the same rule `autoPickLevelUps` already
+ * uses (Q150: 20s, the precedent V2's Dawn auto-advance set for "unattended
+ * decision phase must not stall forever") — this never fires for a player
+ * actually driving the level-up screen inside that window; it only bounds
+ * the worst case for a run nobody is deciding for.
+ */
+export const LEVELUP_IDLE_TIMEOUT_TICKS = 20 * 60;
+
+export function tickLevelupIdle(w: World): void {
+  if (w.phase !== 'levelup') return;
+  w.levelupIdleTicks++;
+  if (w.levelupIdleTicks < LEVELUP_IDLE_TIMEOUT_TICKS) return;
+  // `openLevelUpIfPending` no longer opens this phase with an empty offer
+  // list, so this should be unreachable in practice — kept as a defensive
+  // fallback (belt-and-suspenders, same discipline this codebase applies
+  // elsewhere) rather than a silent no-op forever if some future caller ever
+  // does leave `w.offers` empty mid-phase: with nothing to pick, resume the
+  // run instead of parking, which is the one thing G18 actually forbids.
+  if (w.offers.length === 0) {
+    w.phase = 'act2';
+    return;
+  }
+  takeOffer(w, pickAutoOfferIndex(w, w.offers));
 }
 
 /**
@@ -337,6 +379,12 @@ export function rerollOffers(w: World): boolean {
   if (w.phase !== 'levelup' || w.rerollsLeft <= 0) return false;
   w.rerollsLeft--;
   w.offers = rollOffers(w);
+  // p9e (code-reviewer finding): a reroll is a fresh offer roll exactly like
+  // the one `openLevelUpIfPending` resets the idle clock for — without this,
+  // a player who spends ~20s deciding and then rerolls (the clearest signal
+  // of active engagement this phase has) could have the new offer auto-
+  // resolved out from under them almost immediately.
+  w.levelupIdleTicks = 0;
   return true;
 }
 

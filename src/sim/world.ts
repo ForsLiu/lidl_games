@@ -228,6 +228,16 @@ export class World {
   offers: Offer[] = [];
   rerollsLeft = 0;
   /**
+   * p9e (G18): ticks spent parked in `phase === 'levelup'` since the current
+   * offer was rolled, reset whenever `openLevelUpIfPending` opens a fresh
+   * offer and whenever `rerollOffers` re-rolls the standing one (both are
+   * "a fresh offer was just shown" in the sense this idle clock cares about).
+   * Inert once the phase leaves `levelup`. Gates `tickLevelupIdle`'s
+   * (`progression.ts`) auto-resolve, the same class of future-behavior-gating
+   * timer `wieldedCooldown` et al. are hashed for.
+   */
+  levelupIdleTicks = 0;
+  /**
    * fb015 (§7/§8.1): one random `data/equipment.json` item key per fully
    * cleared TD wave, rolled in `completeWave` (run.ts) on the `drops` RNG
    * stream — a readback list, not sim state, so it is not part of `hashWorld`.

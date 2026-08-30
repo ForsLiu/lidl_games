@@ -20,9 +20,9 @@
  * follows the fix.
  *
  * Regenerate by running `npx tsx tools/fuzz-weapon-boundary.ts` and
- * transcribing every non-`ok` line — there are 3 today (p7a closed b011's 7
- * boonRank holes), against 37 total (9 boonRank + 4 boonKey + 7 pickIndex +
- * 4 reroll + 1 pool + 6 wieldTier + 6 wieldRoster).
+ * transcribing every non-`ok` line — there are 2 today (p7a closed b011's 7
+ * boonRank holes; p9e closed the 1 pool hole), against 37 total (9 boonRank +
+ * 4 boonKey + 7 pickIndex + 4 reroll + 1 pool + 6 wieldTier + 6 wieldRoster).
  */
 import type { Verdict } from '../tools/fuzz-weapon-boundary';
 
@@ -64,19 +64,21 @@ export const REROLL_HOLES: Readonly<Record<string, Verdict>> = {
 };
 
 /**
- * The one hole reachable through *legitimate* play: with every stat boon and
- * every one of the run class's 3 skill cards at `maxRank` (Type Mastery
- * never contributes — no tower is ever built in this probe), `buildOfferPool`
- * is empty, yet `openLevelUpIfPending` (progression.ts:30) still enters
- * `'levelup'` with `offers = []`. `takeOffer` finds no offer at any index and
- * `rerollOffers` rerolls to another empty list, so nothing on the Command
- * surface can leave the phase — a permanent softlock. A sim bug (reported
- * upstream), pinned here rather than fixed because this lane may not edit
- * `/src`.
+ * CLOSED at p9e (G18). With every stat boon and every one of the run class's
+ * 3 skill cards at `maxRank` (Type Mastery never contributes — no tower is
+ * ever built in this probe), `buildOfferPool` empties, and `openLevelUpIfPending`
+ * (progression.ts) used to still enter `'levelup'` with `offers = []` — a
+ * permanent softlock reachable through legitimate play (`takeOffer` finds no
+ * offer at any index, `rerollOffers` rerolls to another empty list, nothing on
+ * the Command surface could leave the phase). `openLevelUpIfPending`'s manual
+ * branch now mirrors the `autoPickLevelUps` branch's own pre-existing guard —
+ * an empty roll consumes the pending level-up without opening the phase at
+ * all — closing this the same way p9e closed the general "unattended run
+ * parks in levelup forever" gap. `tests/q21-weapon-boundary-fuzz.test.ts`'s
+ * former "sim bug, pinned not fixed" describe block now asserts the fixed
+ * behavior instead, the same pattern `BOON_RANK_HOLES`'s b011 closure used.
  */
-export const POOL_HOLES: Readonly<Record<string, Verdict>> = {
-  'pool:exhausted': 'softlock',
-};
+export const POOL_HOLES: Readonly<Record<string, Verdict>> = {};
 
 /**
  * Successor of the original INHERITANCE map's `tier:nan` (the corrupted

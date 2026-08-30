@@ -268,13 +268,16 @@ describe('q21 offer/wielding boundary fuzz', () => {
     });
   });
 
-  describe('finding: an exhausted level-up pool softlocks the levelup phase — reachable through legitimate play (sim bug, pinned not fixed)', () => {
+  describe('finding: an exhausted level-up pool used to softlock the levelup phase — CLOSED at p9e (G18)', () => {
     // With every stat boon and every one of the run class's 3 skill cards at
     // maxRank (Type Mastery never contributes here — no tower is ever built
-    // in this probe), buildOfferPool is empty, yet openLevelUpIfPending
-    // still enters 'levelup' with offers = []. takeOffer finds no offer at
-    // any index; rerollOffers "succeeds" into another empty list; nothing on
-    // the Command surface leaves the phase.
+    // in this probe), buildOfferPool is empty. openLevelUpIfPending's manual
+    // branch used to still enter 'levelup' with offers = [] regardless — a
+    // permanent softlock, since takeOffer finds no offer at any index and
+    // rerollOffers "succeeds" into another empty list. p9e made the manual
+    // branch mirror the autopick branch's own pre-existing empty-pool guard:
+    // an exhausted pool now just consumes the pending level-up in place,
+    // same as "b011 closed" below documents for the boon-rank holes.
     function maxAllBoons(w: ReturnType<typeof newWorld>): void {
       for (const b of w.content.boons.statBoons) {
         for (let rank = 1; rank <= b.maxRank; rank++) {
@@ -288,28 +291,28 @@ describe('q21 offer/wielding boundary fuzz', () => {
       }
     }
 
-    it('openLevelUpIfPending enters levelup with zero offers', () => {
+    it('openLevelUpIfPending no longer enters levelup with zero offers — it consumes the pending level-up and stays in act2', () => {
       const w = newWorld();
       maxAllBoons(w);
       w.phase = 'act2';
       w.pendingLevelUps = 1;
       openLevelUpIfPending(w);
-      expect(w.phase).toBe('levelup');
+      expect(w.phase).toBe('act2');
+      expect(w.pendingLevelUps).toBe(0);
       expect(w.offers).toEqual([]);
     });
 
-    it('no pick and no reroll can leave the phase', () => {
+    it('never sits in the phase in the first place, so pick/reroll have nothing to escape', () => {
       const w = newWorld();
       maxAllBoons(w);
       w.phase = 'act2';
       w.pendingLevelUps = 1;
       openLevelUpIfPending(w);
+      expect(w.phase).toBe('act2');
       for (const index of [0, 1, 2]) applyCommand(w, { k: 'pick', index });
-      expect(w.phase).toBe('levelup');
-      applyCommand(w, { k: 'reroll' }); // spends the reroll on another empty list
-      expect(w.offers).toEqual([]);
-      for (const index of [0, 1, 2]) applyCommand(w, { k: 'pick', index });
-      expect(w.phase).toBe('levelup'); // softlocked
+      expect(w.phase).toBe('act2');
+      applyCommand(w, { k: 'reroll' });
+      expect(w.phase).toBe('act2');
     });
 
     it('negative control: one boon short of the cap still offers it, so the lock needs the full cap', () => {
