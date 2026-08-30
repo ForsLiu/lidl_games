@@ -1009,7 +1009,7 @@ logged in MIGRATION.md §8 rather than carried as dead items.
       (an engine-side `src/sim` mechanism, out of a data-only balance pass).
       `tools/gate-audit.ts`'s G13 coverage note updated to record both clauses now
       have a live test, one clause's cap assertion still red. Full accounting in
-      PROGRESS.md's p10c entry.
+      PROGRESS.md's p10c entry. Commit `882d542`.
 - [x] (p10a) [feat] Flip Burning to per-application stacking per §3's owner intent:
       each application deals 1 damage and −1 armor per second for 3 s, stacking like
       Bleeding under the shared 50-stack-per-enemy cap, replacing today's

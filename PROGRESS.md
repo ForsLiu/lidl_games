@@ -5,6 +5,55 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-30 session: p10c done — gate G13 re-priced against the real §1.1
+  run shape, damage-share cap left `.skip`-ed with measured numbers — commit
+  `882d542`.** Solo-viability clause: `data/waves.json`'s `hpScalePerWave`
+  1.30 -> 1.22 (the dominant lever — `1.3^17 ≈ 101x` HP growth by wave 18
+  against linear gold growth was unbeatable by any per-tower economy), plus
+  targeted `data/towers.json` fixes for the three towers still measuring 0/5
+  at every curve tried (`arrow_spire` damage 5.5->10; `tesla_coil` its own
+  `costMul: 1`/`stepCost` 80->40/damage 18->29) and one that swung the other
+  way into clearing T3 (`ember_brazier` dropped its p5b `costMul: 0.8`/
+  `burn.dps` 6->3; `frost_obelisk` damage 22->19; `venom_spore` damage 45->38).
+  `tests/a4-single-type.test.ts` un-skipped: all seven towers now measure live
+  5/5 T1 / 0/5 T3 (seeds 1-5). `tests/m20c-roster-tracks.test.ts` and
+  `tests/p8a-wave-content.test.ts` updated for the moved constants.
+  Damage-share clause: `tools/a5probe.ts` rebuilt against SPEC-FINAL's real
+  §1.1 shape (18 TD + 6 VS waves, `cycles: 6`) — the retired
+  `a5-weapon-share.test.ts`'s "Act II minute 8" snapshot was structurally
+  unreachable under it. The new probe accumulates VS-phase damage tick-by-tick
+  across every wave of a run instead; new live test
+  `tests/p10c-weapon-share.test.ts` replaces the retired one. Two rounds of
+  balance-analyst retuning moved `frost_obelisk` 51.1%->46.0% and
+  `ember_brazier` 31.3%->27.8% (now under cap) via `data/towers.json` alone,
+  each re-verified against `tests/a4-single-type.test.ts`'s 5/5 T1 / 0/5 T3
+  bar. `frost_obelisk` could not be closed further without breaking that bar —
+  bisection on every field found its solo-TD economy only ~9-10% above the T1
+  failure line, well short of the ~55% cut its share would need. A first
+  attempted fix (raising `data/warden.json`'s `maxHp` 100->1500) numerically
+  passed G13 but by trivializing Act II's `defeat_warden` loss condition
+  game-wide, flagging real blast radius onto G1/G8/G14 — reverted,
+  `warden.json` untouched in the final diff. The remaining ~11-point overage
+  on `frost_obelisk` is structural per CLAUDE.md rule 6 (stuck after far more
+  than 5 distinct attempts, including two dead-end levers found and reverted:
+  buffing `tesla_coil`'s `electricWireGrid` special 6x produced zero
+  simulation change since it links board structures rather than protecting
+  the Warden, and `venom_spore`'s VS-only `poisonTrail` special
+  non-monotonically broke a4's T1 5/5 because VS kills feed the XP ->
+  Power-boon pipeline and `towerDamage()` applies `powerMul` to TD firing
+  too) — `.skip`-ed with the measured numbers, follow-up filed as BACKLOG p10j
+  (an engine-side `src/sim` mechanism, out of a data-only balance pass).
+  `tools/gate-audit.ts`'s G13 coverage note updated. This session found the
+  prior session's work uncommitted (`tools/a5diag.ts`, a scratch diagnostic
+  companion to `a5probe.ts`, left untracked and broke
+  `tests/q47-cli-crash-coverage.test.ts`'s tool-inventory census since it was
+  never added to `PIN_COVERAGE`); deleted it as a one-off debugging aid never
+  referenced by the Done write-up, re-verified q47 green, then committed the
+  rest as `882d542`. `npm run test:fast` (targeted subset): a4/m20c/p8a/p10c
+  all green; the full fast run separately showed only the documented
+  host-load-contention flakes (`b032`/`b034`/`b035`/`b036`, `q49`)
+  red, reconfirmed as pre-existing port/temp-file contention under parallel
+  load, not caused by this change.
 - **2026-08-30 session: p10b done — DoT immunity is a per-row `/data` trait,
   not a hardcoded engine check — commit `28934c2`.** `immuneToDot` used to test `type ===
   'burning' && (e.flags & TRAIT.burnImmune)` directly, so a second immune
