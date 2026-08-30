@@ -5,6 +5,41 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-30 session: p9h done — the enemy/Warden panel's armour row now
+  shows the effective (floored/capped) value, not the raw shredded number —
+  commit `TBD`.** `armourText` (`src/ui/hud.ts`), the single call site behind
+  both `enemyInfoMarkup` and `wardenInfoMarkup`, previously printed
+  `Math.round(armor)` — the raw, unclamped value — next to a percentage
+  already computed from the floored/capped value via `armorReduction`, so a
+  horde-density Brazier board could read "-294 (100% more taken)": honest
+  about the percentage, misleading about the number, since the enemy actually
+  defends at the -100 floor. Now renders `Math.round(effectiveArmor(armor))`
+  and appends " (floor)" or " (cap)" when rounding shows the -100 floor or
+  +99 cap actually changed the displayed integer (comparing rounded values on
+  both sides, so a raw value that rounds to the same integer either way — e.g.
+  -100.4 — gets no spurious marker). `tests/p9h-armour-floor-display.test.ts`
+  covers an enemy shredded past -100 (shows "-100 (floor)", never "-294"), an
+  unclamped enemy (no marker), and a Warden buffed past +99 armour (shows
+  "99 (cap)"). code-reviewer **APPROVE**: verified the floor/cap direction
+  live via `git stash` (a very-negative raw value clamps *up* to the floor, a
+  very-positive one clamps *down* to the cap — the first draft had this
+  backwards, caught by the new test's own pre-fix failure), confirmed
+  `wardenArmor`/`enemyArmor` both stay raw and unclamped with no bypass of the
+  shared function, confirmed `tower-info.ts`'s same-named local (wall/structure
+  defense text) is an unrelated concept correctly left untouched, and flagged
+  one gap — no cap-side test — closed before commit by adding the Warden case.
+  qa-playtester **PASS**: independently drove the real `applyDot`/
+  `updateEnemies` tick loop (not the `shredArmor` unit-test shortcut) across
+  150 simulated seconds to shred an enemy to -147.98 raw armour and confirmed
+  the panel showed "-100 (floor)"; probed the exact-boundary case (raw armour
+  already at -100, nothing to clamp → no marker, correct), NaN armour (→
+  "0 (0% off)", no crash, matching `effectiveArmor`'s documented NaN→0
+  behavior), and ±Infinity armour (floors/caps correctly); grepped `src/ui`
+  and `src/render` and confirmed no other surface reads a live clamped armour
+  total outside `hud.ts`'s `armourText`. `npm run test:fast`: 1666 passed;
+  only the 4 pre-existing Playwright fold-test port-contention flakes
+  (b032/b034/b035/b036) red under parallel load, confirmed green in isolation.
+  No bugs filed.
 - **2026-08-30 session: p9g done — `hashWorld`'s `w.goldSpent` coverage gap
   closed — commit `ed0fc96`.** The item's premise was checked before
   implementing (per CLAUDE.md's measurement rules): `git log -S` confirmed

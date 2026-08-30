@@ -37,7 +37,7 @@ still in test headers.
 | P6 classes | **done in full (`p6a`-`p6f`)** — §4's Passive + Q + E + tower passive is live for all 12 classes; **gate G9 is green in full**, and `p6d` measured **G10 and G11 green** (Archer's dps-optimal charge peaks at t=5.0 inside [2,6], full charge one-shots the toughest non-elite; Stormcaller's max chain multiplier is 3.5832 ≤ 3.6); `p6e` measured **G8 honestly red**; re-measured in full against p8a's real content this session (Q123, Q127) — **win rate is 0/11** (was 1/11; Cryomancer's own pre-p8a pass no longer clears the floor), diversity 2/11 not ≥8/11, both clauses `.skip`-ed per-class with real measured numbers, re-enable point **P10** (not `p8a` — already landed and re-measured); `p6f` retired the V2 legacy dual class schema (`affinity.json`, `manualAttack`, `frost_warden`) — `data/classes.json` now holds 12 classes, all in the uniform §4 shape |
 | P7 equipment/rewards/VS upgrades | **`p7a`-`p7g` done** — §6.3's VS level-up pool replaces the flat 12-boon list (closing b011 as a side effect); §7's 12-item equipment table is live; §8's reward pipeline is complete and **gate G12 is green in full**; the superseded meta economy (relic affixes, Ember) is retired outright, skill points are the tree's only currency; §8.4's unlock quests are live and correct for all 9 non-free classes (p7e fixed 5 quests whose reward never actually unlocked their class, and repointed Paladin's quest at a new "win with a sealed Core" mechanism matching spec text); `p7f`/`p7g` closed the save-migration holes `migrateWithNotice` had — an unknown key, and a corrupt `allocated`/`unlockedClasses`/`completedQuests`/`equipmentStash`/`questProgress`, can no longer discard or corrupt the account. Remaining: `p7h` (Core unlock quests + Codex page) |
 | P8 enemies/waves/bosses | **done in full (`p8a`-`p8c`)** — all 20 §9 enemies by name; `data/waves.json` authors real TD waves 1-18 on the §1.1 shape (Gatebreaker on 18 only, Warden-Eater on VS 6), the §9 VS-budget curve is live; `p8b` closed the elite/boss-summon spawn paths that bypassed `spendBudget`'s `aliveCap` check; `p8c` formally measured gate G14 on the real shape — **honestly red, 0/20**, `.skip`-ed with the number, re-enable point P10 (no gate in this codebase is force-passed by tuning outside P10) |
-| P9 tooling | **`p9a`-`p9g` done** — content-hash replay check (`p9a`), the Codex wired into the Hub (`p9b`), the Tuner built and gate **G15 green** (`p9c`), G16's dist-presence-is-inert half explicitly asserted (`p9d`), **gate G18's dead-end clause closed in full** (`p9e`), **gate G2 closed in full** (`p9f`), and `hashWorld`'s `w.goldSpent` coverage gap closed (`p9g`) (remaining: `p9h`) |
+| P9 tooling | **done in full (`p9a`-`p9h`)** — content-hash replay check (`p9a`), the Codex wired into the Hub (`p9b`), the Tuner built and gate **G15 green** (`p9c`), G16's dist-presence-is-inert half explicitly asserted (`p9d`), **gate G18's dead-end clause closed in full** (`p9e`), **gate G2 closed in full** (`p9f`), `hashWorld`'s `w.goldSpent` coverage gap closed (`p9g`), and the enemy/Warden panel's armour row now shows the effective (floored/capped) value instead of the raw shredded number (`p9h`) |
 | P10 balance | **not started** — Burning still refresh-strongest, perf budget still host-dependent wall-clock |
 
 ## Queue
@@ -469,11 +469,11 @@ next in P8's own queue.
       difference changed a build decision — acceptance: a test builds two worlds
       differing only in `w.gold` and asserts different hashes; G2 stays green —
       **done, see Done section.** — refs: §12, QA on m20a
-- [ ] (p9h) [polish] The enemy panel prints raw shredded armour: past the −100 floor
+- [x] (p9h) [polish] The enemy panel prints raw shredded armour: past the −100 floor
       a horde-density Brazier board reads "−294 (100% more taken)", honest about the
       percentage and misleading about the number — acceptance: the panel shows the
       effective (floored) armour, or marks the floor — refs: §2, `src/ui/hud.ts`
-      `armourText`
+      `armourText` — **done, see Done section.**
 
 ### P10 — balance re-baseline and feel pass (G1, G13, G17, G19)
 
@@ -927,6 +927,31 @@ logged in MIGRATION.md §8 rather than carried as dead items.
 
 ## Done
 
+- [x] (p9h) [polish] The enemy panel prints raw shredded armour: past the −100 floor
+      a horde-density Brazier board reads "−294 (100% more taken)", honest about the
+      percentage and misleading about the number — acceptance: the panel shows the
+      effective (floored) armour, or marks the floor — refs: §2, `src/ui/hud.ts`
+      `armourText`.
+      `armourText` (`src/ui/hud.ts`, feeding both `enemyInfoMarkup` and
+      `wardenInfoMarkup` — the only two live armour-display call sites; the
+      structure/wall defense line in `src/ui/tower-info.ts` is an unrelated local
+      of the same name, out of scope) now renders `effectiveArmor()`'s clamped
+      value instead of the raw unclamped one, and appends `(floor)`/`(cap)` when
+      rounding shows the -100 floor or +99 cap actually changed the displayed
+      number. `tests/p9h-armour-floor-display.test.ts` covers an enemy shredded
+      past -100 (shows "-100 (floor)", never "-294"), an unclamped enemy (no
+      marker), and a Warden buffed past +99 armour (shows "99 (cap)"). code-
+      reviewer confirmed the floor/cap direction (a very-negative raw value
+      clamps *up* to the floor, a very-positive one clamps *down* to the cap) and
+      approved with one minor gap noted — no cap-side test — closed by adding the
+      Warden case before commit. qa-playtester independently drove the real
+      `applyDot`/`updateEnemies` tick loop (not the direct `shredArmor` shortcut)
+      to shred an enemy to -147.98 raw armour over 150 simulated seconds and
+      confirmed the panel showed "-100 (floor)"; also probed the exact-boundary
+      case (-100 raw, no clamping occurred → no marker, correct), NaN armour (→
+      "0 (0% off)", no crash, matching `effectiveArmor`'s documented NaN→0
+      behavior), and ±Infinity armour (correctly floors/caps) — no bugs filed —
+      commit `TBD`.
 - [x] (p9g) [bug] `hashWorld` covers structures, enemies, weapons, derived stats and
       the RNG streams but **not `w.gold`/`w.goldSpent`**, so two replays that
       disagreed only on a refund or a cost would hash identically until the

@@ -6,7 +6,7 @@ import type { Offer } from '../sim/types';
 import { ENEMY_COLORS, PALETTE, TOWER_COLORS } from '../render/theme';
 import { dotRemaining, dotStacks, effectiveSpeed, enemyArmor } from '../sim/enemies';
 import { wardenArmor } from '../sim/run';
-import { armorReduction } from '../sim/stats';
+import { armorReduction, effectiveArmor } from '../sim/stats';
 import type { Enemy } from '../sim/types';
 import { towerInfo, wieldedLineageText, type TowerInfo } from './tower-info';
 import { runProgress, type RunProgress } from './progress';
@@ -1241,9 +1241,12 @@ export function enemyInfoMarkup(w: World, e: Enemy): string {
  * row has to say which — "-30% off" would read as a small benefit.
  */
 function armourText(armor: number): string {
+  const raw = Math.round(armor);
+  const eff = Math.round(effectiveArmor(armor));
   const pct = Math.round(armorReduction(armor) * 100);
   const suffix = pct < 0 ? `${-pct}% more taken` : `${pct}% off`;
-  return `${Math.round(armor)} (${suffix})`;
+  const clampNote = eff > raw ? ' (floor)' : eff < raw ? ' (cap)' : '';
+  return `${eff}${clampNote} (${suffix})`;
 }
 
 /** SPEC-V3 T2: the character's own stats. */
