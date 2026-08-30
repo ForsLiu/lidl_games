@@ -856,6 +856,23 @@ because the lane worktree retires at this merge.
       scratch subdir removing the shared-handle race; ten consecutive q28 runs
       under a concurrent full-suite load pass — refs: fb017, PROGRESS.md
       (q13/q15/q28 EPERM class), CLAUDE.md rule 6.
+- [ ] (b038) [bug] `tests/q9-phase-coverage.test.ts` (excluded from
+      `test:fast`, so not caught by the per-item tier) currently fails on
+      `master`: the `rush` bot policy no longer reaches `levelup` against its
+      `RECORDED_FLOOR` entry (`['act1_build', 'act1_wave', 'act2', 'levelup',
+      'results']`). Found by code-reviewer during p7d's review; confirmed via
+      a disposable `git worktree` at the pre-p7d commit (`ec83d4f`) that the
+      failure is identical on both HEAD and p7d — pre-existing and unrelated
+      to p7d's meta-economy retirement, not a regression it introduced.
+      Genuinely red on `master` right now, so worth closing before the next
+      full-suite/phase-gate checkpoint (`npm test` only runs there, per
+      CLAUDE.md, so a slow-tier-only regression like this can sit unnoticed
+      between checkpoints) — acceptance: either `rush` reaches `levelup`
+      again (a real behavior fix, if `rush`'s policy or the run/leveling
+      shape drifted), or `RECORDED_FLOOR.rush` is deliberately narrowed with
+      a logged reason (if reaching `levelup` is no longer a valid floor for
+      that policy) — a regression test either way per CLAUDE.md rule 3 —
+      refs: `tests/q9-phase-coverage.test.ts`, `src/bots/policies.ts`.
 - [ ] (b030) [bug] `Game.onToggleAutoPick` (`src/ui/main.ts`) computes the
       `set_autopick` Command's `on` value by reading `this.run!.world.cfg.
       autoPickLevelUps` and negating it, but that field only changes when a
