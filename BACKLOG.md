@@ -37,7 +37,7 @@ still in test headers.
 | P6 classes | **done in full (`p6a`-`p6f`)** — §4's Passive + Q + E + tower passive is live for all 12 classes; **gate G9 is green in full**, and `p6d` measured **G10 and G11 green** (Archer's dps-optimal charge peaks at t=5.0 inside [2,6], full charge one-shots the toughest non-elite; Stormcaller's max chain multiplier is 3.5832 ≤ 3.6); `p6e` measured **G8 honestly red**; re-measured in full against p8a's real content this session (Q123, Q127) — **win rate is 0/11** (was 1/11; Cryomancer's own pre-p8a pass no longer clears the floor), diversity 2/11 not ≥8/11, both clauses `.skip`-ed per-class with real measured numbers, re-enable point **P10** (not `p8a` — already landed and re-measured); `p6f` retired the V2 legacy dual class schema (`affinity.json`, `manualAttack`, `frost_warden`) — `data/classes.json` now holds 12 classes, all in the uniform §4 shape |
 | P7 equipment/rewards/VS upgrades | **`p7a`-`p7g` done** — §6.3's VS level-up pool replaces the flat 12-boon list (closing b011 as a side effect); §7's 12-item equipment table is live; §8's reward pipeline is complete and **gate G12 is green in full**; the superseded meta economy (relic affixes, Ember) is retired outright, skill points are the tree's only currency; §8.4's unlock quests are live and correct for all 9 non-free classes (p7e fixed 5 quests whose reward never actually unlocked their class, and repointed Paladin's quest at a new "win with a sealed Core" mechanism matching spec text); `p7f`/`p7g` closed the save-migration holes `migrateWithNotice` had — an unknown key, and a corrupt `allocated`/`unlockedClasses`/`completedQuests`/`equipmentStash`/`questProgress`, can no longer discard or corrupt the account. Remaining: `p7h` (Core unlock quests + Codex page) |
 | P8 enemies/waves/bosses | **done in full (`p8a`-`p8c`)** — all 20 §9 enemies by name; `data/waves.json` authors real TD waves 1-18 on the §1.1 shape (Gatebreaker on 18 only, Warden-Eater on VS 6), the §9 VS-budget curve is live; `p8b` closed the elite/boss-summon spawn paths that bypassed `spendBudget`'s `aliveCap` check; `p8c` formally measured gate G14 on the real shape — **honestly red, 0/20**, `.skip`-ed with the number, re-enable point P10 (no gate in this codebase is force-passed by tuning outside P10) |
-| P9 tooling | **`p9a`-`p9d` done** — content-hash replay check (`p9a`), the Codex wired into the Hub (`p9b`), the Tuner built and gate **G15 green** (`p9c`), and G16's dist-presence-is-inert half explicitly asserted (`p9d`) (G18 largely green; remaining: `p9e`-`p9h`) |
+| P9 tooling | **`p9a`-`p9e` done** — content-hash replay check (`p9a`), the Codex wired into the Hub (`p9b`), the Tuner built and gate **G15 green** (`p9c`), G16's dist-presence-is-inert half explicitly asserted (`p9d`), and **gate G18's dead-end clause closed in full** (`p9e`) (remaining: `p9f`-`p9h`) |
 | P10 balance | **not started** — Burning still refresh-strongest, perf budget still host-dependent wall-clock |
 
 ## Queue
@@ -459,13 +459,6 @@ next in P8's own queue.
       edit→save→reload round-trip, invalid rejected, an edited run visibly flagged,
       and a production build containing no endpoint — **done, see Done section.**
       — refs: §11, G15
-- [ ] (p9e) [bug] Gate **G18**'s dead-end clause: `levelup` has no auto-resolve, so
-      an unattended run parks in it forever, where every other decision phase has
-      one. Repro: a practice run with god mode injected at tick 1, stepped 72 000
-      ticks, ends `outcome running, phase levelup, wavesCleared 10, alive 351` —
-      acceptance: an unattended run either advances or terminates; a headless run
-      stepped past its tick budget never sits in a decision phase — refs: §11, G18,
-      QA on t4 bug 4
 - [ ] (p9f) [feat] Gate **G2** in full: 100/100 replay hash match including class
       actives, tuner-edited content (per content hash) and fast-forward —
       acceptance: G2's three additions each get a case; the existing A11 coverage is
@@ -933,6 +926,49 @@ logged in MIGRATION.md §8 rather than carried as dead items.
   **G19**. The work is `p10d`.
 
 ## Done
+
+- [x] (p9e) [bug] Gate **G18**'s dead-end clause: `levelup` has no auto-resolve, so
+      an unattended run parks in it forever, where every other decision phase has
+      one. Repro: a practice run with god mode injected at tick 1, stepped 72 000
+      ticks, ends `outcome running, phase levelup, wavesCleared 10, alive 351` —
+      acceptance: an unattended run either advances or terminates; a headless run
+      stepped past its tick budget never sits in a decision phase — refs: §11, G18,
+      QA on t4 bug 4 — commit `a645225`. New `World.levelupIdleTicks` +
+      `progression.ts`'s `tickLevelupIdle` (wired into `run.ts`'s phase switch,
+      called once per tick spent in `levelup`) auto-resolve the standing offer via
+      the same `pickAutoOfferIndex` rule `autoPickLevelUps` already uses, once
+      `LEVELUP_IDLE_TIMEOUT_TICKS` (20s, Q151 — no spec number exists, reused V2
+      Dawn's old 20s auto-advance precedent) elapses with no `pick`/`reroll`
+      Command applied; a genuinely engaged player is never affected, since
+      `Run.step` applies that tick's Commands before `tickLevelupIdle` runs, so a
+      pick/reroll landing on the exact timeout tick always resolves the phase
+      first. `levelupIdleTicks` is hashed (`hashWorld`) for G2 replay coverage.
+      code-reviewer **REQUEST-CHANGES** (2 Major), both fixed: `rerollOffers`
+      didn't reset the idle clock, so a reroll spent near the timeout (the
+      clearest signal of active engagement this phase has) could have its fresh
+      offer auto-resolved out from under the player almost immediately — fixed,
+      and covered by a new regression test; and the pre-existing manual
+      (non-autopick) branch of `openLevelUpIfPending` didn't guard against an
+      exhausted offer pool (every stat boon/Type Mastery/skill card already at
+      max rank) the way the autopick branch already did, so it could still open
+      `levelup` with zero offers — a second, independent G18 dead-end (nothing
+      could ever resolve a phase with no offer to pick) that the new idle timeout
+      alone could not close (its own defensive fallback for that exact case was
+      added too, belt-and-suspenders). This second dead-end was a real,
+      previously-known bug: `tests/q21-weapon-boundary-fuzz.ts`'s `POOL_HOLES`
+      had it pinned as `'pool:exhausted': 'softlock'` under a "sim bug, reported
+      upstream, pinned not fixed" comment (that lane may not edit `/src`) — now
+      closed (`POOL_HOLES` emptied, same pattern `BOON_RANK_HOLES`'s b011 closure
+      used), with its regression tests flipped from documenting the softlock to
+      asserting the fix. qa-playtester **PASS**: independently reproduced the
+      pre-fix stuck repro via `git stash` (parked 59,280 straight ticks in
+      `levelup` pre-fix vs. never stuck post-fix on the identical script),
+      confirmed engaged-player safety at the exact timeout boundary, traced every
+      Command/DevOp surface for another route to a mid-phase dead-end (none
+      found), confirmed replay-hash determinism across two identical seeded runs
+      that each traverse 4 idle-timeout auto-resolves, and reran the fast tier
+      (1660 passed, only the 4 pre-existing unrelated Playwright fold-test
+      flakes red) — no bugs filed.
 
 - [x] (p9d) [polish] Gate **G16**'s unasserted half: the production bundle still
       ships the whole dev profile — `applyDevProfile`, the unlocks and

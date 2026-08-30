@@ -5,6 +5,43 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-30 session: p9e done — gate G18's dead-end clause closed in full —
+  commit `a645225`.** An unattended run (no bot, no player, `autoPickLevelUps`
+  off) that queued a level-up used to park in `phase === 'levelup'` forever —
+  every other decision phase either times out on its own (Act I's build/wave
+  timers, a VS block) or is Command-driven, but this one had no floor. New
+  `World.levelupIdleTicks` + `progression.ts`'s `tickLevelupIdle` (called once
+  per tick from `run.ts`'s phase switch while parked in `levelup`) auto-resolve
+  the standing offer via the same `pickAutoOfferIndex` rule the
+  `autoPickLevelUps` player toggle already uses, once `LEVELUP_IDLE_TIMEOUT_TICKS`
+  (20s at fixed 60Hz, Q151 — no SPEC-FINAL number exists for this, reused the
+  old V2 Dawn phase's 20s auto-advance as precedent) elapses with no
+  `pick`/`reroll` Command applied. A genuinely engaged player is never affected:
+  `Run.step` applies a tick's Commands before `tickLevelupIdle` runs that same
+  tick, so a pick or reroll landing on the exact timeout tick always resolves
+  the phase first. `levelupIdleTicks` is hashed for G2 replay coverage.
+  code-reviewer's review (**REQUEST-CHANGES**, 2 Major) caught two related
+  dead-ends, both fixed in the same commit: `rerollOffers` wasn't resetting the
+  idle clock, so a reroll spent near the timeout (the clearest engagement
+  signal this phase has) could lose its fresh offer to auto-resolve almost
+  immediately; and the pre-existing manual (non-autopick) branch of
+  `openLevelUpIfPending` didn't guard against an exhausted offer pool the way
+  the autopick branch already did, so it could open `levelup` with zero offers
+  — a second, independent, genuinely unresolvable dead-end the new idle timeout
+  alone couldn't close. That second bug was already a known, pinned finding —
+  `tests/q21-weapon-boundary-fuzz.ts`'s `POOL_HOLES` had it on record as
+  `'pool:exhausted': 'softlock'` under a "sim bug, reported upstream, pinned not
+  fixed" comment (that fuzz lane may not touch `/src`) — now closed, with its
+  regression tests flipped from documenting the softlock to asserting the fix,
+  the same pattern `BOON_RANK_HOLES`'s b011 closure set. qa-playtester
+  **PASS**: independently reproduced the pre-fix stuck repro via `git stash`
+  (parked 59,280 straight ticks in `levelup` pre-fix vs. never stuck post-fix
+  on the identical script), confirmed the engaged-player boundary case,
+  traced every Command/DevOp surface for another route to a dead-end (found
+  none), confirmed replay-hash determinism across two seeded runs each
+  traversing 4 idle-timeout auto-resolves, and reran the fast tier (1660
+  passed; only the 4 pre-existing, unrelated Playwright fold-test flakes red)
+  — no bugs filed.
 - **2026-08-30 session: p9d done — gate G16's unasserted half, dev-profile
   dist presence proven inert — commit `212ebf0`.** `data/dev.json` and
   `applyDevProfile` cannot be tree-shaken out of a production build (they
