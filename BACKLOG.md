@@ -36,7 +36,7 @@ still in test headers.
 | P5 tower roster | **done in full (p5a-p5d, G20 green)** — all 10 towers, upgrade tracks, defense bands; `p5b` gave Ember Brazier/Mortar their own `costMul`; `p5c` authored the four remaining §5.2 milestone specials (Ballista, Fire Brazier, Ice Obelisk, Mortar) and the G20 loader rule; `p5d` fixed the QA-filed `damageDealt` telemetry bug on pierce/lob-kind towers |
 | P6 classes | **done in full (`p6a`-`p6f`)** — §4's Passive + Q + E + tower passive is live for all 12 classes; **gate G9 is green in full**, and `p6d` measured **G10 and G11 green** (Archer's dps-optimal charge peaks at t=5.0 inside [2,6], full charge one-shots the toughest non-elite; Stormcaller's max chain multiplier is 3.5832 ≤ 3.6); `p6e` measured **G8 honestly red**; re-measured in full against p8a's real content this session (Q123, Q127) — **win rate is 0/11** (was 1/11; Cryomancer's own pre-p8a pass no longer clears the floor), diversity 2/11 not ≥8/11, both clauses `.skip`-ed per-class with real measured numbers, re-enable point **P10** (not `p8a` — already landed and re-measured); `p6f` retired the V2 legacy dual class schema (`affinity.json`, `manualAttack`, `frost_warden`) — `data/classes.json` now holds 12 classes, all in the uniform §4 shape |
 | P7 equipment/rewards/VS upgrades | **`p7a`-`p7g` done** — §6.3's VS level-up pool replaces the flat 12-boon list (closing b011 as a side effect); §7's 12-item equipment table is live; §8's reward pipeline is complete and **gate G12 is green in full**; the superseded meta economy (relic affixes, Ember) is retired outright, skill points are the tree's only currency; §8.4's unlock quests are live and correct for all 9 non-free classes (p7e fixed 5 quests whose reward never actually unlocked their class, and repointed Paladin's quest at a new "win with a sealed Core" mechanism matching spec text); `p7f`/`p7g` closed the save-migration holes `migrateWithNotice` had — an unknown key, and a corrupt `allocated`/`unlockedClasses`/`completedQuests`/`equipmentStash`/`questProgress`, can no longer discard or corrupt the account. Remaining: `p7h` (Core unlock quests + Codex page) |
-| P8 enemies/waves/bosses | **roster, both bosses and real wave data done (`p8a`)** — all 20 §9 enemies by name; `data/waves.json` authors real TD waves 1-18 on the §1.1 shape (Gatebreaker on 18 only, Warden-Eater on VS 6), the §9 VS-budget curve is live; `p8b`/`p8c` (alive-cap overshoot, gate G14) remain |
+| P8 enemies/waves/bosses | **roster, both bosses, real wave data and the alive-cap overshoot fix done (`p8a`, `p8b`)** — all 20 §9 enemies by name; `data/waves.json` authors real TD waves 1-18 on the §1.1 shape (Gatebreaker on 18 only, Warden-Eater on VS 6), the §9 VS-budget curve is live; `p8b` closed the elite/boss-summon spawn paths that bypassed `spendBudget`'s `aliveCap` check; `p8c` (gate G14's win-rate band) remains |
 | P9 tooling | **dev mode, god mode, UX flows done; Codex read-half in flight on `lane/tuner`; Tuner unbuilt** (G15 unmet, G16/G18 largely green) |
 | P10 balance | **not started** — Burning still refresh-strongest, perf budget still host-dependent wall-clock |
 
@@ -436,10 +436,9 @@ content gap. No `/data` value was touched. code-reviewer and qa-playtester
 both ran against this diff; see PROGRESS.md for findings. `p8b`/`p8c` remain
 next in P8's own queue.
 
-- [ ] (p8b) [bug] Alive count exceeds `aliveCap`: 353 measured against a cap of 350,
+- [x] (p8b) [bug] Alive count exceeds `aliveCap`: 353 measured against a cap of 350,
       because elite and summon spawns bypass the check `spendBudget` applies —
-      acceptance: no spawn path can push `w.enemies` past `aliveCap`; a test drives
-      elites and boss summons at the cap — refs: §9, QA on t4
+      **done, see Done section.**
 - [ ] (p8c) [balance] Gate **G14**: over 20 seeds the scripted-build win rate against
       the Warden-Eater is ≥60% and <100% — acceptance: G14 measured on the §1.1 run
       shape (so it must run after p3a), with the per-seed outcomes printed on
@@ -924,6 +923,37 @@ logged in MIGRATION.md §8 rather than carried as dead items.
   **G19**. The work is `p10d`.
 
 ## Done
+
+- [x] (p8b) [bug] Alive count exceeds `aliveCap`: 353 measured against a cap of
+      350 — acceptance: no spawn path can push `w.enemies` past `aliveCap`; a
+      test drives elites and boss summons at the cap — refs: §9, QA on t4 —
+      commit `81b5b4e`. `spendBudget` (act2.ts) already refused to spawn once
+      `w.enemies.length >= aliveCap`, but two other Act II spawn paths called
+      `spawnEnemy` with no such check: `spawnElite` (the elite-timer branch of
+      `updateDirector`, gated only by `w.eliteTimer`, independent of the
+      spend-budget loop) and the Warden-Eater's `updateSummonsAndSlams`
+      (boss.ts, a periodic wraith-summon burst once the boss drops below 66%
+      HP) — neither is bounded by the budget the director spends, so both kept
+      adding enemies with no upper bound as a run sat at or above the cap.
+      Both now carry the same `w.enemies.length >= w.content.spawns.aliveCap`
+      guard `spendBudget` already had (the boss's guard sits inside its
+      per-wraith loop so the ground-slam AOE still fires even once summoning
+      stops). `spawnFinalBoss` is deliberately left unguarded, documented
+      inline: it is a one-shot, flag-gated (`w.bossSpawned`) spawn of a single
+      non-pack enemy, so it can add at most +1 over the cap, and guarding it
+      would require deciding what happens to `bossSpawned`/`bossSpawnTime` on
+      a blocked attempt — a materially bigger change than this bug warrants.
+      Pack/split enemy overshoot (`swarm_rat`'s `packSize:4`, `splitling`'s
+      `splitCount:2`) is a separate, already-tolerated class of overshoot
+      (`tests/a10-performance.test.ts`'s `aliveCap * 1.2` slop) and is
+      untouched by this fix, confirmed by QA still isolated to that path
+      post-fix. New regression coverage: `tests/p8b-alive-cap.test.ts` proves
+      both paths refuse to spawn once already at cap (verified to fail
+      pre-fix: 351/355 vs the 350/351 bound) plus an end-to-end 30-simulated-
+      second drive of both paths together from a filled world. code-reviewer
+      and qa-playtester both passed; qa-playtester additionally stress-tested
+      extreme `eliteMul` and sustained boss summons and confirmed no runaway
+      growth from either fixed path.
 
 - [x] (p7h) [feat] Core unlock quests and Codex page — acceptance: each of the
       four non-default Cores has exactly one unlock quest driving its own

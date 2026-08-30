@@ -5,6 +5,40 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-30 session: p8b done — elite and boss-summon spawns can no longer
+  push `w.enemies` past `aliveCap` — commit `81b5b4e`.** `spendBudget`
+  (`src/sim/act2.ts`) already refused to spawn once `w.enemies.length >=
+  aliveCap`, but two other Act II spawn paths ignored it entirely:
+  `spawnElite` (the elite-timer branch of `updateDirector`, gated only by
+  `w.eliteTimer`, independent of the spend-budget loop) and the
+  Warden-Eater's `updateSummonsAndSlams` (`src/sim/boss.ts`, a periodic
+  4-wraith summon burst once the boss drops below 66% HP) — QA had measured
+  353 against a cap of 350. Both now carry the same
+  `w.enemies.length >= w.content.spawns.aliveCap` guard `spendBudget` already
+  had (the boss's sits inside its per-wraith loop, so the ground-slam AOE
+  still fires even once summoning itself stops). `spawnFinalBoss` stays
+  deliberately unguarded, with an inline comment explaining why: it's a
+  one-shot, `w.bossSpawned`-gated spawn of a single non-pack enemy (+1 over
+  cap at most), and guarding it would mean deciding what happens to
+  `bossSpawned`/`bossSpawnTime` on a blocked attempt — a materially bigger
+  change than this bug warrants. Pack/split enemy overshoot (`swarm_rat`'s
+  `packSize:4`, `splitling`'s `splitCount:2`) is a separate, already-tolerated
+  class of overshoot (`tests/a10-performance.test.ts`'s `aliveCap * 1.2`
+  slop) and is untouched by this fix. New `tests/p8b-alive-cap.test.ts` (3
+  tests) proves both paths refuse to spawn once already at cap — verified to
+  fail pre-fix (351/355 vs the 350/351 bound) — plus an end-to-end 30-
+  simulated-second drive of both paths together. code-reviewer's one Major
+  finding (an unused `Enemy` import in the new test file breaking `tsc
+  --noEmit`) was fixed and re-verified clean. qa-playtester **PASS**: beyond
+  the shipped tests, stress-tested extreme `w.mods.eliteMul` (up to 1e7 in a
+  single `updateDirector` call, 350 enemies exactly, no runaway) and 5
+  sim-minutes of sustained boss summons at the cap — the only overshoot
+  observed in either case traced entirely to the pre-existing, already-
+  tolerated pack path, confirmed identical with `eliteMul` at its default. No
+  new bugs filed; two pre-existing, unrelated items reconfirmed (not
+  regressions): `a10-performance.test.ts`'s `wavesCleared` 15-vs-16 assertion,
+  and the b032/b034/b035/b036 Playwright fold-test port-contention flakes.
+  `npm run test:fast`: 1613 passed, 31 skipped, same 4 pre-existing flakes.
 - **2026-08-30 session: p7h done — the four non-default Cores unlock through
   real quests, and the Codex gained a Cores page — commit `eb2fe98`.**
   Closes P7's last open item. `data/cores.json` gains an `unlockQuest` field
