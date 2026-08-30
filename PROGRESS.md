@@ -5,6 +5,34 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-29 session: b031 done — HUD text below the 12px accessibility
+  floor, filed by `npm run ui-audit` against fb018's own commit (§11,
+  QUALITY.md Beta bar).** `src/ui/style.css` bumps thirteen font-size
+  declarations from 10-11px to 12px: the six the bug named (`.sw-help` control-
+  hints bar, `.sw-sub` section labels, `.sw-choice small`, `.sw-offer small`
+  "BOON" badge, `.sw-devbadge`, `.sw-tdesc`) plus seven more found while
+  closing it out — a code-reviewer pass flagged `.sw-towerinfo h3 small` (the
+  tier line on nearly every tower click), `.sw-hint`, `.sw-kind`, `.sw-relic
+  small`, `.sw-mod small` and `.sw-soul small` as real 11px text reachable in
+  play that the audit's 7 fixed scenes don't happen to visit, and a
+  qa-playtester pass caught `.sw-panel h2 small` (Constellation/Stash tab
+  header badges) relying on the CSS `smaller` keyword rather than an explicit
+  rule. `tests/b031-font-size-floor.test.ts` (4 tests, fast tier) mounts the
+  real `Hud` and `towerInfo`/`towerInfoMarkup` into jsdom with the real
+  `style.css` and pins `getComputedStyle(...).fontSize >= 12px` on every
+  touched selector — verified via git-stash to fail on the pre-fix CSS and
+  pass on the fix. `npm run ui-audit` measured 0 `font-size` rule failures
+  across all 7 scenes post-fix (was ~135 individual failures pre-fix).
+  Pre-existing `offscreen-interactive` failures on the Hub/Codex class-select
+  cards and `#sw-start`/`#sw-training` (unrelated to font-size, tracked
+  separately / left for b032) were confirmed via the same git-stash comparison
+  to predate this change — the bump only shifted their y-coordinates a few px.
+  `npm run test:fast`: 88 files / 1461 tests passed, apart from the
+  pre-existing Windows host-load flake class (this run: `q13-perf-ratio`,
+  `q15-command-domain-fuzz`, `q49-price-probe-restore`,
+  `q52-m20d-run-a4-bad-key` — the specific set varies run to run with host
+  load; q13 re-ran clean standalone).
+
 - **2026-08-29 session: fb018 done — UI self-audit tool, per owner feedback
   `feature-ui-self-audit` (§11 tooling, QUALITY.md Beta bar).** `npm run
   ui-audit` boots Vite in-process, drives headless Playwright Chromium at a

@@ -178,15 +178,8 @@ called out in their own titles instead.
 - [x] (fb018) [feat] UI self-audit tool — done, see Done section. refs: §11
       tooling, QUALITY.md Beta bar (accessibility), owner feedback
       `feature-ui-self-audit`.
-- [ ] (b031) [bug] `npm run ui-audit` (fb018) found real, reproducible HUD
-      text below the 12px floor across 6 of 7 scenes: the control-hints bar
-      (`b "WASD"`/`"Space"`/`"LMB"`/`"RMB"`/`"U"`/`"1-9"`/`"0"`/`"Enter"`/
-      `"Q"`/`"R"`/`"F"`/`"C"`/`"P"`/`"Esc"`) plus `div.sw-sub "Practice tool"`,
-      `div.sw-sub "Spawn enemy"` and `small "BOON"` all render at 10-11px —
-      acceptance: `npm run ui-audit`'s `font-size` rule has 0 failures; a
-      regression test (fast tier) pins the control-hints bar's and
-      `.sw-sub`'s computed font size at >=12px — refs: §11, QUALITY.md Beta
-      bar, `audit/report.json`.
+- [x] (b031) [bug] HUD text below the 12px floor — **done, see Done section.**
+      refs: §11, QUALITY.md Beta bar, `audit/report.json`.
 - [ ] (b032) [bug] `npm run ui-audit` (fb018) found tower-build-panel rows
       #6-#10 (Tesla Coil, Mortar, Venom Spore, Beacon Totem, Harvest Sprout)
       partly or fully clipped below the fold at the fixed 1920x1080 viewport
@@ -889,6 +882,43 @@ logged in MIGRATION.md §8 rather than carried as dead items.
   **G19**. The work is `p10d`.
 
 ## Done
+
+- [x] (b031) [bug] HUD text below the 12px accessibility floor — this commit
+      (2026-08-29), refs: §11, QUALITY.md Beta bar, `audit/report.json`. `npm
+      run ui-audit` (fb018) found real HUD text at 10-11px across 6 of 7
+      scenes: the control-hints bar (`.sw-help`, its `WASD`/`Space`/etc. `<b>`
+      labels), `.sw-sub` section labels ("Practice tool", "Spawn enemy",
+      "Boons"), the class-select screen's `.sw-choice small` active-line
+      tooltip, the level-up offer's `.sw-offer small` "BOON" kind badge, and
+      the Hub's `.sw-devbadge` "DEV PROFILE" badge — all bumped to 12px in
+      `src/ui/style.css`. A code-reviewer pass (before commit) found a Major:
+      six more 11px rules reachable in real gameplay that the tool's 7 fixed
+      scenes don't happen to visit — `.sw-towerinfo h3 small` (the tier line
+      shown on nearly every tower click), `.sw-hint` (its upgrade-hint line),
+      `.sw-kind` (Constellation node label), `.sw-relic small`/`.sw-mod small`
+      (equipment/relic panel), `.sw-soul small` (soul-shop screen) — folded
+      into the same commit rather than left for a near-identical follow-up
+      bug. A qa-playtester pass then found one more: `.sw-panel h2 small` (the
+      Constellation "120/120 allocated" and Stash "N/cap" tab-header badges)
+      relied on the CSS `smaller` keyword rather than an explicit rule, and
+      only happened to compute above 12px as a side effect of `.sw-panel h2`'s
+      current size — pinned explicitly too. `tests/b031-font-size-floor.test.ts`
+      (4 tests, fast tier) mounts the real `Hud` class and the real
+      `towerInfo`/`towerInfoMarkup` functions into jsdom with the real
+      `style.css`, asserting `getComputedStyle(...).fontSize >= 12px` on every
+      selector this item touched; verified to fail on the pre-fix CSS and pass
+      on the fix via a git-stash comparison. `npm run ui-audit` confirmed 0
+      `font-size` rule failures across all 7 scenes post-fix (was ~135
+      individual failures). The pre-existing `offscreen-interactive` failures
+      on the Hub/Codex class-select cards and `#sw-start`/`#sw-training`
+      buttons were confirmed (via the same git-stash comparison) to predate
+      this change — the font-size bump only shifted their y-coordinates a few
+      px, it did not create a new failure category; left for b032/a future
+      item, not fixed here. `npm run test:fast` green apart from the
+      pre-existing Windows host-load flake class (varies run to run across
+      q13/q15/q45/q49/q52 — file-system EPERM and worker-exit issues, all
+      unrelated to CSS/UI code; each independently confirmed to reproduce
+      standalone-clean).
 
 - [x] (fb018) [feat] UI self-audit tool — this commit (2026-08-29), refs: §11
       tooling, QUALITY.md Beta bar (accessibility), owner feedback
