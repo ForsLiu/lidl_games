@@ -459,10 +459,10 @@ next in P8's own queue.
       edit→save→reload round-trip, invalid rejected, an edited run visibly flagged,
       and a production build containing no endpoint — **done, see Done section.**
       — refs: §11, G15
-- [ ] (p9f) [feat] Gate **G2** in full: 100/100 replay hash match including class
+- [x] (p9f) [feat] Gate **G2** in full: 100/100 replay hash match including class
       actives, tuner-edited content (per content hash) and fast-forward —
       acceptance: G2's three additions each get a case; the existing A11 coverage is
-      folded into the G2 test — refs: §12, G2
+      folded into the G2 test — **done, see Done section.** — refs: §12, G2
 - [ ] (p9g) [bug] `hashWorld` covers structures, enemies, weapons, derived stats and
       the RNG streams but **not `w.gold`/`w.goldSpent`**, so two replays that
       disagreed only on a refund or a cost would hash identically until the
@@ -926,6 +926,40 @@ logged in MIGRATION.md §8 rather than carried as dead items.
   **G19**. The work is `p10d`.
 
 ## Done
+
+- [x] (p9f) [feat] Gate **G2** in full: 100/100 replay hash match including class
+      actives, tuner-edited content (per content hash) and fast-forward —
+      acceptance: G2's three additions each get a case; the existing A11 coverage is
+      folded into the G2 test — refs: §12, G2 — commit `0516e9a`.
+      `tests/a11-determinism.test.ts` (SPEC-V2's A11) renamed to
+      `tests/g2-determinism.test.ts` to match SPEC-FINAL's gate numbering, its
+      top-level `describe` renamed 'A11 determinism' → 'G2 determinism'; its
+      existing coverage (100-seed replay hash match, class_active + a mid-run
+      equip_item swap across 5 seeds, auto-pick level-ups through real Act II
+      play) carried over unchanged. Added the gate's missing case: a real
+      Tuner-edited-content replay built through `loadContent({ towers: ... })`
+      — the same substitute-document shape `src/devserver/tunerSave.ts`'s
+      `saveTunerFile` dry-runs before ever writing to disk — asserting a
+      record/replay pair against the edited content matches by hash, and a
+      replay of that same (now hash-stamped) config against un-edited `/data`
+      throws per architecture rule 2 rather than silently diverging.
+      Fast-forward's case was judged already satisfied by the pre-existing
+      `tests/pacer.test.ts` (its batching-invariant test already asserts
+      hash-identity across every shipped `SPEEDS` value and 5 seeds, from
+      BACKLOG-QUALITY q19) — no duplicate case added there, only
+      `tools/gate-audit.ts`'s G2 entry rewritten to explain the three-way
+      split and point at the renamed file, and `tests/q10-gate-audit.test.ts`'s
+      3 fixture references to the old filename updated to match.
+      qa-playtester **PASS**: independently confirmed the new Tuner-edited-
+      content case isn't a tautology by tracing both ways it could pass for
+      the wrong reason (a `contentHash()` that stopped hashing `towers`, or a
+      deleted `World` mismatch check) and confirming the test's own
+      assertions would catch each; confirmed `pacer.test.ts`'s fast-forward
+      coverage is real by reading it directly; confirmed
+      `q10-gate-audit.test.ts` stays green with its renamed fixture
+      references; grepped `/src`, `/tools`, `/tests` for dangling references
+      to the old filename (none found outside expected historical-log prose).
+      No bugs found.
 
 - [x] (p9e) [bug] Gate **G18**'s dead-end clause: `levelup` has no auto-resolve, so
       an unattended run parks in it forever, where every other decision phase has

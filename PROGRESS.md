@@ -5,6 +5,38 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-30 session: p9f done — gate G2 closed in full (actives,
+  tuner-edited content, fast-forward) — commit `0516e9a`.**
+  `tests/a11-determinism.test.ts` (SPEC-V2's A11) renamed to
+  `tests/g2-determinism.test.ts` to match SPEC-FINAL's gate numbering (its
+  top-level `describe` renamed 'A11 determinism' → 'G2 determinism'), folding
+  in its existing coverage per p9f's acceptance: the 100-seed replay hash
+  match, class_active + a mid-run equip_item swap across 5 seeds, and
+  auto-pick level-ups through real Act II play. Added the one case G2 was
+  actually missing: a Tuner-edited-content replay built through
+  `loadContent({ towers: editedTowersDoc })` — the same substitute-document
+  shape `src/devserver/tunerSave.ts`'s `saveTunerFile` dry-runs before ever
+  writing to disk, so this exercises the real substitution path rather than a
+  hand-rolled stand-in — asserting a record/replay pair against the edited
+  content matches by hash, and that replaying the same (now hash-stamped)
+  config against un-edited `/data` throws per CLAUDE.md architecture rule 2
+  rather than silently diverging. Fast-forward's case turned out to already
+  exist: `tests/pacer.test.ts`'s batching-invariant test (BACKLOG-QUALITY
+  q19) already asserts hash-identity across every shipped `SPEEDS` value and
+  5 seeds, so no duplicate was added there — only `tools/gate-audit.ts`'s G2
+  entry was rewritten to explain the three-way split across files and point
+  at the renamed one, and `tests/q10-gate-audit.test.ts`'s 3 fixture
+  references to the old filename were updated to match. qa-playtester
+  **PASS**: independently confirmed the new Tuner-edited-content case isn't a
+  tautology (traced both ways it could pass for the wrong reason — a
+  `contentHash()` that stopped hashing `towers`, or a deleted `World`
+  mismatch check — and confirmed the test's own assertions would catch
+  each), confirmed `pacer.test.ts`'s fast-forward coverage is real by reading
+  it directly, confirmed `q10-gate-audit.test.ts` stays green, and grepped
+  `/src`/`/tools`/`/tests` for dangling references to the old filename (none
+  found outside expected historical-log prose). No bugs found. `npm run
+  test:fast`: 1661 passed; only the same 4 pre-existing, unrelated Playwright
+  fold-test port-contention flakes red (confirmed pass in isolation).
 - **2026-08-30 session: p9e done — gate G18's dead-end clause closed in full —
   commit `a645225`.** An unattended run (no bot, no player, `autoPickLevelUps`
   off) that queued a level-up used to park in `phase === 'levelup'` forever —
