@@ -42,6 +42,19 @@
  * `tests/p6e-class-diversity.test.ts` (G8) independently reached. Still
  * `.skip`-ed, still with measured numbers — re-enable point moves from `p8a`
  * (done) to **P10** (the one balance pass). See QUESTIONS.md Q123.
+ *
+ * **p10c re-tune, un-skipped (this session).** `data/waves.json`'s
+ * `hpScalePerWave` 1.30 -> 1.22 (the dominant driver — `1.3^17 ≈ 101x` HP
+ * growth by wave 18 against linear gold growth, unbeatable by any realistic
+ * per-tower economy) plus per-tower fixes for the three towers that still
+ * measured 0/5 at every curve value tried (arrow_spire damage 5.5->10,
+ * tesla_coil upgrades.costMul 1 (was the shared 2x)/stepCost 80->40/damage
+ * 18->29) and one that had swung the other way and now cleared T3 (ember_
+ * brazier dropped its p5b `costMul: 0.8`, `burn.dps` 6->3; frost_obelisk
+ * damage 22->19; venom_spore damage 45->38). Re-measured, all seven T1: 5/5.
+ * Re-measured, all seven T3 (with `T3_MODS`): 0/5, unchanged — the curve
+ * still bites, a solo tower still can't tank T3 alone. Full before/after
+ * table and rationale: PROGRESS.md's p10c entry.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -68,20 +81,11 @@ describe('A4 every tower type is viable, none is dominant', () => {
     }
   });
 
-  // p3e re-baseline (Q109): under the real 18-TD-wave shape, every tower's
-  // T1 clause measures 0/5 — the m20c-era history above (arrow_spire/
-  // venom_spore green, tesla_coil/mortar red) described the old 10-wave
-  // curve and no longer applies; all seven now share one cause, the p8a
-  // content gap named in the file doc comment, not a per-tower track issue.
-  // Measured at p3e (seeds 1-5, `cycles: 6`, `world.invulnerable`):
-  // arrow_spire 0/5, ballista 0/5, ember_brazier 0/5, frost_obelisk 0/5,
-  // tesla_coil 0/5, mortar 0/5, venom_spore 0/5.
-  //
-  // Re-measured this session, now that p8a's real wave 11-18 content is
-  // live: unchanged, still 0/5 for all seven (see file header). Re-enable
-  // point is P10 (the balance pass), not p8a (already landed and measured).
+  // p10c re-tune (this session): every tower's T1 clause now measures 5/5 —
+  // see the file header for what changed and PROGRESS.md's p10c entry for
+  // the full before/after table. Un-skipped.
   for (const key of SOUL_TOWERS) {
-    it.skip(`${key} alone clears the TD wave curve at T1`, () => {
+    it(`${key} alone clears the TD wave curve at T1`, () => {
       expect(clears(key, 1, [])).toBe(SEEDS.length);
     });
   }

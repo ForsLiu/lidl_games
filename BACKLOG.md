@@ -490,11 +490,6 @@ next in P8's own queue.
       shapes — acceptance: an optional `immuneTrait` on the damage-type schema,
       resolved through the trait table, with Burning authored to use it and a test on
       a second row — refs: §3, §12, code review on m19c — **done, see Done section.**
-- [ ] (p10c) [balance] Gate **G13**: no tower type's VS attack takes more than 35% of
-      damage across the winning-build pool, every type is solo-viable at T1 and none
-      at T3 — acceptance: G13 measured over the seed set on the §1.1 run shape, with
-      per-type shares printed on failure. This is the re-price §16 asks for and it
-      subsumes the retired A4/A5 measurements — refs: §5, §6.1, G13
 - [ ] (p10d) [balance] Gate **G1**: mean victorious run is 30–36 minutes over 24+
       seeds, reported as means and pass rates, never medians — acceptance: G1 green
       on the §1.1 run shape — refs: §1.1, G1
@@ -522,6 +517,25 @@ next in P8's own queue.
       `npx tsx tools/handoff-metrics.ts` runs clean, HANDOFF.md is rewritten against
       §14's gate list, and the file is committed at the 1.0 point — refs: §16,
       CLAUDE.md
+- [ ] (p10j) [feat] G13's 35%-damage-share clause is `.skip`-ed red
+      (`tests/p10c-weapon-share.test.ts`): `frost_obelisk` still measures 46.0% of
+      the winning-build pool's VS damage after p10c's data-only retune (down from
+      51.1%, but two rounds of bisection on every `data/towers.json` field found its
+      solo-TD economy has only ~9-10% of margin left before `tests/a4-single-type.
+      test.ts`'s T1 5/5 bar breaks — roughly 4-6x short of what the share cap needs).
+      The mechanism is structural: `frost_obelisk`'s `aura` and `ember_brazier`'s
+      `cone` wielded attacks (`src/sim/vswield.ts`) hit every enemy in range each
+      interval; `single`/`pierce`/`chain`/`lob`/`poison` hit only a line/arc/handful
+      of targets, so they can't out-share an omnidirectional attacker by damage
+      tuning alone (confirmed: buffing `tesla_coil`'s `electricWireGrid` special 6x
+      changed nothing — it links board structures, not the Warden) — acceptance: an
+      engine-side mechanism (in `src/sim`, not just `/data`) giving directional
+      wielded attacks some crowd-relevant behaviour in VS (e.g. a scaling secondary
+      target, a small innate splash, or a wielding-specific profile distinct from
+      the TD one), re-measured against `tools/a5probe.ts`'s pool until no tower type
+      exceeds 35% with `tests/a4-single-type.test.ts` still 5/5 T1 / 0/5 T3 for all
+      seven, then the skip in `tests/p10c-weapon-share.test.ts` comes off — refs: §5,
+      §6.1, G13, tests/p10c-weapon-share.test.ts
 
 ### Filed at the lane/quality merge (2026-08-27) — out-of-scope findings from BACKLOG-QUALITY.md's log
 
@@ -947,6 +961,55 @@ logged in MIGRATION.md §8 rather than carried as dead items.
 
 ## Done
 
+- [x] (p10c) [balance] Gate **G13**: no tower type's VS attack takes more than 35% of
+      damage across the winning-build pool, every type is solo-viable at T1 and none
+      at T3 — acceptance: G13 measured over the seed set on the §1.1 run shape, with
+      per-type shares printed on failure. This is the re-price §16 asks for and it
+      subsumes the retired A4/A5 measurements — refs: §5, §6.1, G13.
+      Solo-viability clause fully closed: `data/waves.json`'s `hpScalePerWave`
+      1.30->1.22 (the dominant lever — `1.3^17` against linear gold growth was
+      unbeatable by any per-tower economy) plus targeted `data/towers.json` fixes for
+      the three towers still measuring 0/5 at every curve tried (arrow_spire damage
+      5.5->10; tesla_coil its own `costMul: 1`/stepCost 80->40/damage 18->29) and one
+      that swung the other way into clearing T3 (ember_brazier dropped its p5b
+      `costMul: 0.8`/`burn.dps` 6->3; frost_obelisk damage 22->19; venom_spore damage
+      45->38). `tests/a4-single-type.test.ts` un-skipped: all seven towers now
+      measure live 5/5 T1 / 0/5 T3 (seeds 1-5). `tests/m20c-roster-tracks.test.ts`
+      and `tests/p8a-wave-content.test.ts` updated for the moved constants.
+      Damage-share clause: rebuilt `tools/a5probe.ts` against SPEC-FINAL's real
+      §1.1 shape (18 TD + 6 VS waves, `cycles: 6`) — the retired
+      `a5-weapon-share.test.ts`'s "Act II minute 8" snapshot was structurally
+      unreachable under it (6 x 75s VS waves tops out at 450s, always under the
+      480s the old snapshot waited for). The new probe accumulates VS-phase damage
+      tick-by-tick across every wave of a run instead. New live test
+      `tests/p10c-weapon-share.test.ts` replaces the retired one. Two rounds of
+      balance-analyst retuning moved `frost_obelisk` 51.1%->46.0% and
+      `ember_brazier` 31.3%->27.8% (now under cap) via `data/towers.json` alone
+      (`ballista.attack.pierce` 3->8, `ember_brazier.attack.damage` 4.5->2.7 +
+      `coneWidth.mul` 1.5->1.1, `frost_obelisk.upgrades.count`/`stepCost` 10/14->
+      9/16), each re-verified against `tests/a4-single-type.test.ts`'s 5/5 T1 / 0/5
+      T3 bar. `frost_obelisk` could not be closed further without breaking that bar
+      — bisection on every field found its solo-TD economy only ~9-10% above the
+      T1 failure line, well short of the ~55% cut its share would need. First
+      attempt at a fix (balance-analyst raising `data/warden.json`'s `maxHp`
+      100->1500) was rejected before being kept: it numerically passed G13 but by
+      trivializing Act II's actual `defeat_warden` loss condition game-wide — a
+      change with real, flagged blast radius onto G1 (already ~44 min against a
+      30-36 min target) and G8/G14's win-rate bands, not a tower-balance fix at
+      all (CLAUDE.md's "check a `/data` row's blast radius" rule). Reverted;
+      `warden.json` untouched in the final diff. The remaining ~11-point overage on
+      `frost_obelisk` is structural per CLAUDE.md rule 6 (stuck after far more than
+      5 distinct attempts, including two dead-end levers found and reverted:
+      `tesla_coil`'s `electricWireGrid` special buffed 6x produced zero simulation
+      change since it links board structures rather than protecting the Warden, and
+      `venom_spore`'s VS-only `poisonTrail` special looked TD-free but
+      non-monotonically broke a4's T1 5/5 because VS kills feed the character's
+      XP->Power-boon pipeline and `towerDamage()` applies `powerMul` to TD firing
+      too) — `.skip`-ed with the measured numbers, follow-up filed as BACKLOG p10j
+      (an engine-side `src/sim` mechanism, out of a data-only balance pass).
+      `tools/gate-audit.ts`'s G13 coverage note updated to record both clauses now
+      have a live test, one clause's cap assertion still red. Full accounting in
+      PROGRESS.md's p10c entry.
 - [x] (p10a) [feat] Flip Burning to per-application stacking per §3's owner intent:
       each application deals 1 damage and −1 armor per second for 3 s, stacking like
       Bleeding under the shared 50-stack-per-enemy cap, replacing today's

@@ -77,7 +77,7 @@
       "blocks": true,
       "attack": {
         "kind": "single",
-        "damage": 5.5,
+        "damage": 10,
         "interval": 0.5,
         "range": 5,
         "pierce": 0,
@@ -122,7 +122,7 @@
         "damage": 18,
         "interval": 1,
         "range": 8,
-        "pierce": 3,
+        "pierce": 8,
         "projectileSpeed": 14
       },
       "terrain": {
@@ -140,7 +140,7 @@
       "defense": 5,
       "upgrades": {
         "count": 4,
-        "stepCost": 14,
+        "stepCost": 35,
         "specials": [
           {
             "at": 2,
@@ -151,22 +151,21 @@
           {
             "at": 4,
             "key": "coneWidth",
-            "mul": 1.5,
+            "mul": 1.1,
             "note": "cone width +50% — §5.2"
           }
-        ],
-        "costMul": 0.8
+        ]
       },
       "hp": 110,
       "blocks": true,
       "attack": {
         "kind": "cone",
-        "damage": 4.5,
+        "damage": 2.7,
         "interval": 0.25,
         "range": 3.5,
         "coneHalfAngle": 0.6,
         "burn": {
-          "dps": 6,
+          "dps": 3,
           "duration": 3
         }
       },
@@ -184,8 +183,8 @@
       "cost": 70,
       "defense": 10,
       "upgrades": {
-        "count": 10,
-        "stepCost": 14,
+        "count": 9,
+        "stepCost": 16,
         "specials": [
           {
             "at": 3,
@@ -194,13 +193,13 @@
             "note": "frost from this tower lasts 5s, up from the base 1.2s (p5c, §5.2)"
           }
         ],
-        "note": "m20c: §4 count line says 4. At 4 the A4 T1 clause measures 0/5 at the rule price 35 and at 28, and 4/5 at 14, against the 5/5 the gate wants — V2-equivalent 10 kept (Q80)."
+        "note": "m20c: §4 count line says 4. At 4 the A4 T1 clause measures 0/5 at the rule price 35 and at 28, and 4/5 at 14, against the 5/5 the gate wants — V2-equivalent 10 kept (Q80). p10c: at the retuned curve this tower's deep 10-step track let it also clear T3 (+45% HP/+30% speed) on 1/5 seeds — damage 22->19 trims that margin (see a4probe before/after). p10c further cut count 10->9/stepCost 14->16 chasing G13's 35% VS-share cap (frost_obelisk's aura wielded attack still measures 46.0%, the deepest safe cut found on any single field or combination — see tests/p10c-weapon-share.test.ts and BACKLOG p10j)."
       },
       "hp": 130,
       "blocks": true,
       "attack": {
         "kind": "aura",
-        "damage": 22,
+        "damage": 19,
         "interval": 1,
         "range": 3,
         "slow": 0.25,
@@ -221,20 +220,21 @@
       "defense": 10,
       "upgrades": {
         "count": 3,
-        "stepCost": 80,
+        "stepCost": 40,
         "specials": [
           {
             "at": 3,
             "key": "electricChain",
             "note": "the electric portion chains to the nearest other enemy; twice on the first if it is alone"
           }
-        ]
+        ],
+        "costMul": 1
       },
       "hp": 110,
       "blocks": true,
       "attack": {
         "kind": "chain",
-        "damage": 18,
+        "damage": 29,
         "interval": 1,
         "range": 5,
         "chains": 1,
@@ -321,7 +321,7 @@
       "blocks": true,
       "attack": {
         "kind": "poison",
-        "damage": 45,
+        "damage": 38,
         "interval": 1,
         "range": 4.5,
         "aoe": 1,

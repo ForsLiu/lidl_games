@@ -103,17 +103,16 @@ describe('m20c — the count rule, and §4 as its own evidence', () => {
   });
 
   it('makes every tower that is off the line say why, and nothing else carry a note', () => {
-    // Two towers §4 left open stay off the line, each a *measured* exception
-    // rather than a preference: at the line's count and the shared price rule,
-    // Ballista alone takes the boss gate's scripted maxbuild run from `victory`
-    // to `defeat_warden`, and Frost Obelisk's A4 T1 clause never clears 4/5 no
-    // matter the price (Q80). Ember Brazier and Mortar used to sit here too —
-    // shortening their tracks under the *shared* price rule was two nerfs at
-    // once (the ceiling falls and each step gets dearer, since the same total
-    // buys fewer of them), which is what dropped A4's T1 clause to 0/5. p5b
-    // gives each its own `costMul` instead, so the count moves onto the line
-    // while the step price — and everything the price rule protects — stays
-    // exactly what it was.
+    // Ballista and Frost Obelisk stay off the line for §4 count reasons (Q80).
+    // Ember Brazier and Mortar used to sit here too for a price reason —
+    // Ember Brazier's own p5b `costMul: 0.8` let it clear T3 (should never
+    // happen, G13) at every curve the p10c re-tune tried, so it was dropped
+    // rather than shrunk; at the retuned curve Ember Brazier's price now lands
+    // exactly on the shared rule's own number with no override at all (see the
+    // next test), so it moves fully onto the line, count *and* price. Mortar's
+    // and (since p10c) Tesla Coil's own multipliers are unchanged/added but
+    // both stay on the *count* line (their price departs, not their count —
+    // see the next `describe`).
     const offLine = TOWERS.filter((t) => t.attack && t.upgrades.count !== familyCount(t.cost)).map((t) => t.key);
     expect(offLine).toEqual(['ballista', 'frost_obelisk']);
     for (const key of offLine) expect(content.towerByKey.get(key)!.upgrades.note, key).toBeTruthy();
@@ -126,22 +125,35 @@ describe('m20c — the count rule, and §4 as its own evidence', () => {
     for (const key of onLine) expect(content.towerByKey.get(key)!.upgrades.note, key).toBeUndefined();
   });
 
-  it('gives Ember Brazier and Mortar their own price multiplier rather than the shared one (p5b)', () => {
-    // Both sit on the count line now (4 and 3), but at today's step price —
-    // the shared rule would have demanded 35 and 87 respectively, which the
-    // note above used to record as the reason they stayed off it.
+  it('gives Mortar and (since p10c) Tesla Coil their own price multiplier rather than the shared one; Ember Brazier moved onto the shared rule at p10c', () => {
+    // All three sit on the count line, but at a step price the shared rule
+    // would not produce on its own — each track's own `costMul` is what
+    // closes that gap. Ember Brazier used to work the same way (its own 0.8),
+    // but p10c dropped the override once the retuned curve made it the one
+    // tower that could still clear T3 (G13's "none at T3" clause) at every
+    // override value tried; with no override its step price now equals the
+    // shared rule's own number exactly, so it needs no multiplier at all any
+    // more. Tesla Coil is the opposite move: p10c's T1 solo-clear read 0/5 at
+    // every curve tried (only 2 targets hit per shot, too weak against the
+    // curve's zerg-heavy groups) until its own track was made cheaper than
+    // the shared 2x rule would price it.
     const ember = content.towerByKey.get('ember_brazier')!;
     const mortar = content.towerByKey.get('mortar')!;
+    const tesla = content.towerByKey.get('tesla_coil')!;
     expect(ember.upgrades.count).toBe(4);
-    expect(ember.upgrades.stepCost).toBe(14);
-    expect(ember.upgrades.costMul).toBeCloseTo(0.8, 10);
+    expect(ember.upgrades.stepCost).toBe(35);
+    expect(ember.upgrades.costMul).toBeUndefined();
     expect(mortar.upgrades.count).toBe(3);
     expect(mortar.upgrades.stepCost).toBe(26);
     expect(mortar.upgrades.costMul).toBeCloseTo(0.6, 10);
-    // What the shared rule would have charged instead, so a reader can see the
-    // gap `costMul` is closing without re-deriving it.
+    expect(tesla.upgrades.count).toBe(3);
+    expect(tesla.upgrades.stepCost).toBe(40);
+    expect(tesla.upgrades.costMul).toBeCloseTo(1, 10);
+    // What the shared rule would charge instead, so a reader can see the gap
+    // each override is closing (or, for Ember Brazier, no longer needs to).
     expect(Math.round((ember.cost * FILE.upgradeTotalCostMul) / ember.upgrades.count)).toBe(35);
     expect(Math.round((mortar.cost * FILE.upgradeTotalCostMul) / mortar.upgrades.count)).toBe(87);
+    expect(Math.round((tesla.cost * FILE.upgradeTotalCostMul) / tesla.upgrades.count)).toBe(80);
   });
 
   it('leaves the three attackless towers outside the rule, each with its reason', () => {
@@ -171,11 +183,14 @@ describe('m20c — a whole track costs what V2’s three tiers cost, however man
       expect(def.upgrades.stepCost, `${def.key} step price`).toBe(want);
       expect(() => validateStepPrice(FILE.upgradeTotalCostMul, def, def.key), def.key).not.toThrow();
     }
-    // Exactly the two towers p5b gave their own multiplier, so this isn't
-    // vacuously true of a roster where nothing ever overrides it.
+    // Exactly the two towers with their own multiplier today, so this isn't
+    // vacuously true of a roster where nothing ever overrides it: Mortar's is
+    // p5b's own (unchanged); Tesla Coil's is p10c's (an explicit 1x, replacing
+    // the implicit file-wide 2x, since T1 solo-clear needed the cheaper track
+    // — see the previous `describe`).
     expect(TOWERS.filter((t) => t.upgrades.costMul !== undefined).map((t) => t.key).sort()).toEqual([
-      'ember_brazier',
       'mortar',
+      'tesla_coil',
     ]);
   });
 
@@ -199,15 +214,17 @@ describe('m20c — a whole track costs what V2’s three tiers cost, however man
   it('honours a track\'s own costMul over the file-wide one, and still refuses a wrong price under it (p5b)', () => {
     // The branch `validateStepPrice` gains with a track-level override: same
     // shape as the file-wide-rule branch above, but reading `costMul` instead,
-    // and still catching a hand-typed price that disagrees with it.
-    const ember = content.towerByKey.get('ember_brazier')!;
-    expect(() => validateStepPrice(FILE.upgradeTotalCostMul, ember, ember.key)).not.toThrow();
-    // Passing the *file's* 2x here would demand 35, not 14 — proof the
-    // function is really reading the track's own 0.8, not falling back.
-    const wrong = { ...ember, upgrades: { ...ember.upgrades, costMul: undefined } };
-    expect(() => validateStepPrice(FILE.upgradeTotalCostMul, wrong, 'x')).toThrow(/prices a step at 14, not 35/);
-    const badMul = { ...ember, upgrades: { ...ember.upgrades, costMul: 1 } };
-    expect(() => validateStepPrice(FILE.upgradeTotalCostMul, badMul, 'x')).toThrow(/prices a step at 14, not 18/);
+    // and still catching a hand-typed price that disagrees with it. Retargeted
+    // at p10c from Ember Brazier (which lost its override, see above) to
+    // Mortar, the roster's other track that still carries one.
+    const mortar = content.towerByKey.get('mortar')!;
+    expect(() => validateStepPrice(FILE.upgradeTotalCostMul, mortar, mortar.key)).not.toThrow();
+    // Passing the *file's* 2x here would demand 87, not 26 — proof the
+    // function is really reading the track's own 0.6, not falling back.
+    const wrong = { ...mortar, upgrades: { ...mortar.upgrades, costMul: undefined } };
+    expect(() => validateStepPrice(FILE.upgradeTotalCostMul, wrong, 'x')).toThrow(/prices a step at 26, not 87/);
+    const badMul = { ...mortar, upgrades: { ...mortar.upgrades, costMul: 1 } };
+    expect(() => validateStepPrice(FILE.upgradeTotalCostMul, badMul, 'x')).toThrow(/prices a step at 26, not 43/);
   });
 
   it('charges the authored price through the real till', () => {

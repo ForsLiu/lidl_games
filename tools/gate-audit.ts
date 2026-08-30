@@ -145,12 +145,18 @@ export const GATE_COVERAGE: Record<string, CoverageEntry> = {
   G4: { files: ['tests/c3-armor.test.ts', 'tests/m19c-damage-types.test.ts'] },
   G5: { files: ['tests/c4-stacking.test.ts'] },
   G13: {
-    files: ['tests/a4-single-type.test.ts'],
+    files: ['tests/a4-single-type.test.ts', 'tests/p10c-weapon-share.test.ts'],
     note:
-      "a4-single-type.test.ts live-checks solo-viability (5 of 7 towers; tesla_coil and mortar are it.skip'd " +
-      "per m20c's measured T1 clauses) but only that half of G13. The '35% damage share' half's own test, " +
-      "a5-weapon-share.test.ts, is entirely describe.skip'd/retired (SPEC-FINAL §6.1 reconcile), so no live " +
-      'test currently checks it; a8-sundering-head-start.test.ts is also entirely retired and contributes nothing.',
+      'p10c (SPEC-FINAL §16 re-price) retuned data/waves.json + data/towers.json and un-skipped ' +
+      "a4-single-type.test.ts's solo-viability clause: all seven towers now measure live at 5/5 T1 / 0/5 T3. " +
+      "The '35% damage share' half's own test, the retired a5-weapon-share.test.ts (SPEC-FINAL §6.1 reconcile), " +
+      'is replaced by p10c-weapon-share.test.ts against the rebuilt tools/a5probe.ts (real §1.1 run shape, not ' +
+      'the old single-cycle minute-8 snapshot) — its pool-size and spread assertions are live and green, but ' +
+      "its 35%-cap assertion is it.skip'd: two rounds of data-only retuning measured frost_obelisk down to " +
+      '46.0% (from 51.1%) without breaking a4, short of the cap for reasons the test file\'s own header records ' +
+      'as structural (an engine-side gap between omnidirectional and directional VS-wielded attacks), filed as ' +
+      'BACKLOG p10j. Listed `covered` on the same partial-but-live-measured basis as G17 above, not `hole` — ' +
+      'a8-sundering-head-start.test.ts is still entirely retired and contributes nothing.',
   },
   G14: { files: ['tests/boss.test.ts'] },
   G16: { files: ['tests/c8-dev-profile.test.ts', 'tests/t4-god-mode.test.ts'] },

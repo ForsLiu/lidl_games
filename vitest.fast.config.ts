@@ -40,6 +40,9 @@ export default mergeConfig(
         'tests/p1b-seal-winrate.test.ts',
         'tests/q2-input-fuzz.test.ts',
         'tests/q9-phase-coverage.test.ts',
+        // p10c: 12 builds x 5 seeds x cycles:6 full VS-combat runs (not
+        // invulnerable, unlike a4-single-type above) — slower than a4.
+        'tests/p10c-weapon-share.test.ts',
       ],
     },
   }),

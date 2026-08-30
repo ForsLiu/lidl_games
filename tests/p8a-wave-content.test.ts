@@ -15,11 +15,18 @@ import { GRID_H, GRID_W } from '../src/sim/grid';
 import { cfg } from './helpers';
 
 describe('p8a wave content (SPEC-FINAL §9, §1.1)', () => {
-  it('TD HP scale is exactly 1.30^(wave-1) at waves 1, 9 and 18', () => {
+  // p10c re-baselined data/waves.json's hpScalePerWave from 1.30 to 1.22 (G13:
+  // the un-tuned 1.30 curve made every solo tower's T1 clause unwinnable by
+  // wave ~12 regardless of build quality). Read the exponent from content
+  // rather than re-hardcoding the old literal, so a future re-tune can't
+  // silently drift this test out of sync with the data again.
+  it('TD HP scale is exactly hpScalePerWave^(wave-1) at waves 1, 9 and 18', () => {
     const w = new World(cfg());
+    const scale = w.content.waves.hpScalePerWave;
+    expect(scale).toBeCloseTo(1.22, 10);
     expect(waveHpScale(w, 1)).toBeCloseTo(1, 10);
-    expect(waveHpScale(w, 9)).toBeCloseTo(Math.pow(1.3, 8), 10);
-    expect(waveHpScale(w, 18)).toBeCloseTo(Math.pow(1.3, 17), 10);
+    expect(waveHpScale(w, 9)).toBeCloseTo(Math.pow(scale, 8), 10);
+    expect(waveHpScale(w, 18)).toBeCloseTo(Math.pow(scale, 17), 10);
   });
 
   it('VS budget baseline is exactly 150 x 1.21^(waveIndex) at cycles 1, 3 and 6', () => {
