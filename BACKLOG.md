@@ -36,7 +36,7 @@ still in test headers.
 | P5 tower roster | **done in full (p5a-p5d, G20 green)** — all 10 towers, upgrade tracks, defense bands; `p5b` gave Ember Brazier/Mortar their own `costMul`; `p5c` authored the four remaining §5.2 milestone specials (Ballista, Fire Brazier, Ice Obelisk, Mortar) and the G20 loader rule; `p5d` fixed the QA-filed `damageDealt` telemetry bug on pierce/lob-kind towers |
 | P6 classes | **done in full (`p6a`-`p6f`)** — §4's Passive + Q + E + tower passive is live for all 12 classes; **gate G9 is green in full**, and `p6d` measured **G10 and G11 green** (Archer's dps-optimal charge peaks at t=5.0 inside [2,6], full charge one-shots the toughest non-elite; Stormcaller's max chain multiplier is 3.5832 ≤ 3.6); `p6e` measured **G8 honestly red**; re-measured in full against p8a's real content this session (Q123, Q127) — **win rate is 0/11** (was 1/11; Cryomancer's own pre-p8a pass no longer clears the floor), diversity 2/11 not ≥8/11, both clauses `.skip`-ed per-class with real measured numbers, re-enable point **P10** (not `p8a` — already landed and re-measured); `p6f` retired the V2 legacy dual class schema (`affinity.json`, `manualAttack`, `frost_warden`) — `data/classes.json` now holds 12 classes, all in the uniform §4 shape |
 | P7 equipment/rewards/VS upgrades | **`p7a`-`p7g` done** — §6.3's VS level-up pool replaces the flat 12-boon list (closing b011 as a side effect); §7's 12-item equipment table is live; §8's reward pipeline is complete and **gate G12 is green in full**; the superseded meta economy (relic affixes, Ember) is retired outright, skill points are the tree's only currency; §8.4's unlock quests are live and correct for all 9 non-free classes (p7e fixed 5 quests whose reward never actually unlocked their class, and repointed Paladin's quest at a new "win with a sealed Core" mechanism matching spec text); `p7f`/`p7g` closed the save-migration holes `migrateWithNotice` had — an unknown key, and a corrupt `allocated`/`unlockedClasses`/`completedQuests`/`equipmentStash`/`questProgress`, can no longer discard or corrupt the account. Remaining: `p7h` (Core unlock quests + Codex page) |
-| P8 enemies/waves/bosses | **roster, both bosses, real wave data and the alive-cap overshoot fix done (`p8a`, `p8b`)** — all 20 §9 enemies by name; `data/waves.json` authors real TD waves 1-18 on the §1.1 shape (Gatebreaker on 18 only, Warden-Eater on VS 6), the §9 VS-budget curve is live; `p8b` closed the elite/boss-summon spawn paths that bypassed `spendBudget`'s `aliveCap` check; `p8c` (gate G14's win-rate band) remains |
+| P8 enemies/waves/bosses | **done in full (`p8a`-`p8c`)** — all 20 §9 enemies by name; `data/waves.json` authors real TD waves 1-18 on the §1.1 shape (Gatebreaker on 18 only, Warden-Eater on VS 6), the §9 VS-budget curve is live; `p8b` closed the elite/boss-summon spawn paths that bypassed `spendBudget`'s `aliveCap` check; `p8c` formally measured gate G14 on the real shape — **honestly red, 0/20**, `.skip`-ed with the number, re-enable point P10 (no gate in this codebase is force-passed by tuning outside P10) |
 | P9 tooling | **dev mode, god mode, UX flows, `p9a`'s content-hash replay check done; Codex read-half in flight on `lane/tuner`; Tuner unbuilt** (G15 unmet, G16/G18 largely green) |
 | P10 balance | **not started** — Burning still refresh-strongest, perf budget still host-dependent wall-clock |
 
@@ -439,10 +439,10 @@ next in P8's own queue.
 - [x] (p8b) [bug] Alive count exceeds `aliveCap`: 353 measured against a cap of 350,
       because elite and summon spawns bypass the check `spendBudget` applies —
       **done, see Done section.**
-- [ ] (p8c) [balance] Gate **G14**: over 20 seeds the scripted-build win rate against
+- [x] (p8c) [balance] Gate **G14**: over 20 seeds the scripted-build win rate against
       the Warden-Eater is ≥60% and <100% — acceptance: G14 measured on the §1.1 run
       shape (so it must run after p3a), with the per-seed outcomes printed on
-      failure — refs: §9, G14
+      failure — **done, see Done section.** — refs: §9, G14
 
 ### P9 — tooling: dev mode, Codex and Tuner, UX flows (G15, G16, G18)
 
@@ -940,6 +940,36 @@ logged in MIGRATION.md §8 rather than carried as dead items.
   **G19**. The work is `p10d`.
 
 ## Done
+
+- [x] (p8c) [balance] Gate **G14**: over 20 seeds the scripted-build win rate
+      against the Warden-Eater is ≥60% and <100% — acceptance: G14 measured
+      on the §1.1 run shape (so it must run after p3a), with the per-seed
+      outcomes printed on failure — refs: §9, G14 — commit `93cdf44`.
+      Reworked `tests/boss.test.ts`'s informal, pre-G-numbering "wins some
+      and loses some" test (a hand-pinned 25%-65% band) into a test named
+      literally for the gate, asserting G14's own §14 text (`>= ceil(20*0.6)`
+      i.e. ≥12/20, `< 20`), on the same shape p8a's prior re-measurement used
+      (seeds 1-20, `hybrid` policy, `cycles: 6`) so the number stays
+      comparable across passes. The per-seed breakdown (outcome, wave,
+      survival seconds) is now built and folded into the assertion's own
+      failure message by the test itself, not hand-transcribed into a
+      comment. Per CLAUDE.md's "a deferral is a measurement with an expiry
+      date," re-ran rather than inherited Q123's 2/20 figure: **now 0/20
+      (0%)** — `p8b` (landed after Q123, capping elite/boss-summon spawns at
+      `aliveCap`) is the intervening change, closing out the two seeds
+      (7, 10) that used to scrape a win under the old overshoot behavior.
+      `.skip`-ed with this honest number; re-enable point **P10** per the
+      standing no-balance-tuning-before-P10 constraint — this item is the
+      measurement, not the fix. code-reviewer approved with no Critical/
+      Major findings (two Nits: the failure message recomputes the win-rate
+      floor twice rather than sharing a `const`, and the accumulated doc
+      comment across three re-measurement passes is getting long — neither
+      blocking). qa-playtester independently re-ran the test and reproduced
+      0/20 with the identical per-seed breakdown, confirmed the band matches
+      SPEC-FINAL §14's literal G14 text, confirmed `tests/boss.test.ts` and
+      `tests/q10-gate-audit.test.ts` both stay green with the test `.skip`-ed
+      (gate-audit still reports G14 `covered` off file presence, unaffected
+      by skip state), and confirmed no other test imports from this file.
 
 - [x] (p9a) [feat] Content hash in `RunConfig` and in the end-state hash
       inputs, so a replay against edited `/data` fails loudly — acceptance:

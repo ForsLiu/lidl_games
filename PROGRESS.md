@@ -5,6 +5,38 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-30 session: p8c done — gate G14 formally measured on the real
+  §1.1 shape, honestly red — commit `93cdf44`. P8 (enemies/waves/bosses) is
+  now done in full.** `tests/boss.test.ts`'s informal, pre-G-numbering
+  "wins some and loses some" test (a hand-pinned 25%-65% band) was reworked
+  into a test named literally for the gate, asserting G14's own §14 text
+  verbatim (win count in `[ceil(20*0.6), 20)`, i.e. ≥12/20 and <20/20), on
+  the same shape/policy p8a's prior re-measurement used (seeds 1-20,
+  `hybrid`, `cycles: 6`) so the number stays comparable across passes. The
+  per-seed breakdown (outcome, wave, survival seconds) is now built and
+  folded into the assertion's own failure message by the test itself,
+  rather than hand-transcribed into a comment after each manual run.
+  Per CLAUDE.md's "a deferral is a measurement with an expiry date," this
+  session re-ran the measurement rather than inheriting Q123's stale 2/20
+  figure: **now 0/20 (0%)** — `p8b` (landed after Q123, capping elite/
+  boss-summon spawns at `aliveCap`) is the intervening change, closing out
+  the two seeds (7, 10) that used to scrape a win under the old overshoot
+  behavior. Left `.skip`-ed with this honest number; re-enable point is
+  **P10**, per the standing "no balance tuning before P10" constraint — this
+  item was the measurement, not the fix. `npm run test:fast`: same 4
+  pre-existing Playwright fold-test port-contention flakes as p9a's session,
+  confirmed unrelated (all four pass in isolation, and pass on `master` too).
+  code-reviewer **APPROVE**, no Critical/Major findings (two Nits: the
+  failure message recomputes the win-rate floor twice instead of sharing a
+  `const`; the doc comment, now three re-measurement passes deep, is due a
+  trim next time this file is touched — neither blocking). qa-playtester
+  independently re-ran the test and reproduced 0/20 with an identical
+  per-seed breakdown, confirmed the band matches SPEC-FINAL §14's literal
+  G14 text, confirmed `tests/boss.test.ts` and `tests/q10-gate-audit.test.ts`
+  both stay green with the test `.skip`-ed (gate-audit reports G14 `covered`
+  off file presence, unaffected by skip state), and confirmed nothing else
+  imports from this file.
+
 - **2026-08-30 session: p9a done — `RunConfig` carries a content hash, and a
   replay against edited `/data` now fails loudly — commit `3129237`.**
   CLAUDE.md's architecture rule 2 promised this and had zero implementation
