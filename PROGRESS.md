@@ -5,6 +5,48 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-30 session: fb022 done — live, data-derived numbers on every info
+  surface (§11, extends fb004/the Codex p9b, owner feedback
+  `feature-info-surfacing`) — commit `b13fcf0`.** Four presentation surfaces,
+  all reading `/data` + `World`/`Stats` only, sharing one new generic
+  formatter module (`src/ui/info-format.ts`) so no surface hand-writes a
+  duplicate numeric string: (1) the Hub Class screen + in-run character panel
+  (`src/ui/class-info.ts`) render every active/passive/tower-passive/
+  basic-attack field, with the in-run panel resolving `cooldownSeconds` and
+  `damage`/`dps` through the sim's own live formulas (`w.derived.cdr`,
+  `classAttackPowerMul`/`characterDamage`); (2) the Hub Core screen + in-run
+  Core tooltip (`src/ui/core-info.ts`) show TD/VS-grouped effects, the
+  current upgrade step, and a next-step preview, diffing the live `CoreState`
+  against a "nothing bought" baseline so inert fields don't show as active
+  bonuses; (3) the Constellation tab gained a summary view listing every
+  allocated node plus combined per-stat totals (`src/ui/tree-view.ts`,
+  compatible with `TREE_AUTO_MAX`); (4) equipment stash items show full
+  `mods` as generated stat lines, a `classFallback` active/inert indicator,
+  and an equipped-vs-candidate compare block (`src/ui/hub.ts`). Two sim
+  functions (`characterDamage`, `emptyCoreState`) were made `export` with no
+  behavior change, purely so the UI reuses the sim's own formulas rather than
+  re-deriving them. code-reviewer REQUEST-CHANGES→fixed in the same commit
+  (a DPS miscalculation when `atkFlat` is nonzero and `interval != 1`; a
+  legacy class's damage overstated by `atkFlat`, which its sim path never
+  adds; a Blood Frenzy stale-panel cache-key gap across a TD⇄VS transition).
+  qa-playtester ran three passes: the first two each found one instance of
+  the same real bug — an equipment item's `mods`/`classFallback.mods` and a
+  Constellation node's `stats` across every allocated node are each separate
+  `Stats` sources that must combine *multiplicatively* for a `mul`-kind stat
+  (`Π(1+v)-1`, SPEC-FINAL §2/`STAT_KIND`), not by summing raw values — both
+  fixed identically with regression tests deriving the expected number
+  through a real `Stats`/`World` instance; the third pass, hunting
+  specifically for a third instance of that bug class elsewhere in the diff,
+  found none and PASSed clean. `tests/fb022-info-surfacing.test.ts` (23
+  tests) covers all four surfaces, both bug classes, and a dedicated
+  "changing a `/data` value changes the displayed text with no code edit"
+  pair. `npm run test:fast`: green except the four pre-existing, unrelated
+  b032/b034/b035/b036 fold tests (confirmed via a `git stash` A/B run to fail
+  identically on the pre-fb022 codebase — a host-memory-pressure
+  Playwright-under-parallel-load flake, passing cleanly in isolation), not a
+  regression. Deferred to QUESTIONS.md Q142 (pre-existing, out of scope):
+  `tree-view.ts`'s `describeStat`/`PERCENT_STATS` disagree with `STAT_KIND`
+  on whether `cdr`/`leech` are percent- or flat-formatted.
 - **2026-08-30 session: p8d done — boss termination guarantee (§9 addendum,
   QUESTIONS Q126/Q127).** The Warden-Eater now escalates: from 3:00 of
   boss-fight time (`w.act2Time - w.bossSpawnTime`) it gains +10% damage and

@@ -220,7 +220,7 @@ renumbering the whole queue.
       their own existing visuals unchanged — refs: SPEC-FINAL §11, owner
       feedback `feature-basic-attack-vfx` (fb016 follow-up). **done, see Done
       section.**
-- [ ] (fb022) [feat] Surface live, data-derived numbers on every info surface:
+- [x] (fb022) [feat] Surface live, data-derived numbers on every info surface:
       class screen + in-run character panel show each active/passive's full
       effect text with current resolved numbers (cooldown, charges, radius,
       damage bands, scaling); Core selection screen and in-run tooltip show TD
@@ -234,7 +234,8 @@ renumbering the whole queue.
       of the four surfaces shows live numbers; a test asserts panel numbers
       equal the sim's derived values; changing a `/data` value changes
       displayed text with no code edit — refs: SPEC-FINAL §11, extends fb004
-      and the Codex (p9b), owner feedback `feature-info-surfacing`.
+      and the Codex (p9b), owner feedback `feature-info-surfacing`. **done,
+      see Done section.**
 - [ ] (fb023) [feat] Remove the legacy relic UI and the separate stash window;
       equipment lives in one screen — one Equipment screen (Hub + in-run via
       the character panel) with six slot boxes plus an owned-items list beside
@@ -924,6 +925,106 @@ logged in MIGRATION.md §8 rather than carried as dead items.
 
 ## Done
 
+- [x] (fb022) [feat] Surface live, data-derived numbers on every info surface
+      (SPEC-FINAL §11, extends fb004 and the Codex p9b, owner feedback
+      `feature-info-surfacing`) — commit `b13fcf0`. Four surfaces, all
+      presentation-only against `/data` + `World`/`Stats`, sharing one new
+      generic formatter module (`src/ui/info-format.ts`: `/data`-field-name
+      → label, value → display-text, plus a `Stats`-mods-record → signed
+      stat-line formatter reusing `stats.ts`'s `STAT_KIND`) so no surface
+      hand-writes a duplicate numeric string. (1) **Class screen** (Hub Run
+      tab) + **in-run character panel**: `src/ui/class-info.ts`'s
+      `classAbilitiesMarkup(cls, opts)` renders every active/passive/
+      tower-passive/basic-attack field (or the legacy single-Active shape for
+      `frost_warden`) generically; the in-run panel additionally passes a
+      `ClassLiveContext` (`cdr`, `atkFlat`, `damageMul`) so `cooldownSeconds`
+      and `damage`/`dps` resolve through the sim's own live formulas
+      (`w.derived.cdr`, `classAttackPowerMul`/`characterDamage`, the latter
+      newly `export`ed from `src/sim/classes.ts` — no behavior change, just
+      UI reuse) instead of showing raw authored numbers. (2) **Core
+      screen** + **in-run Core tooltip**: `src/ui/core-info.ts`'s
+      `coreDetailMarkup` (Hub, pre-run: base `effects` + a numbered
+      per-step preview) and `coreLiveMarkup` (in-run: the live
+      `World.core` `CoreState` diffed against `emptyCoreState()` — newly
+      `export`ed from `src/sim/cores.ts` — so a field still at its inert
+      "nothing bought" baseline is hidden rather than shown as an active
+      bonus, plus the live `coreStep` and next-step preview). Every numeric
+      field is tagged TD-only/VS-only/both via a hand-authored table
+      cross-referenced against `cores.ts`'s own `w.huntsWarden` gates.
+      (3) **Constellation summary**: `src/ui/tree-view.ts`'s new
+      `constellationSummaryMarkup` lists every allocated node (every node,
+      since `TREE_AUTO_MAX` is currently true) plus combined per-stat
+      totals, in two `<details>` disclosures. (4) **Equipment stash**:
+      items gained a right-click "select for detail" affordance (mirroring
+      the existing relic pattern), an "Equipment item" detail panel with
+      full `mods` as generated stat lines (not just the old hand-written
+      `desc` string), a `classFallback` "(active)"/"(inert for &lt;class&gt;)"
+      indicator, and an equipped-vs-candidate compare block
+      (`src/ui/hub.ts`).
+
+      code-reviewer **REQUEST-CHANGES** on the first pass (two Major, several
+      Minor), fixed in the same commit: a basic-attack DPS miscalculation
+      whenever `atkFlat` is nonzero and `interval != 1` (the override added
+      `atkFlat` to the rate directly instead of folding it into the
+      per-hit `dps*interval` amount `characterDamage`'s real call site uses,
+      then dividing back by `interval`); a legacy class's (`frost_warden`)
+      damage/DPS overstated by the full `atkFlat` stat, since its sim path
+      (`fireEffect`/the legacy basic-attack call) has no `atkFlat` term at
+      all unlike the non-legacy `characterDamage` path — fixed by zeroing
+      `atkFlat` in the live context for a `legacy: true` class; a Blood
+      Frenzy (Bloodlord) stale-panel bug, where the phase-dependent damage
+      swing reads `w.huntsWarden` live but the panel's re-render was gated
+      only on `w.stats.revision`, which a TD⇄VS transition never bumps —
+      fixed by folding `w.huntsWarden` into the cache key; plus dropping
+      dead, unwired `cooldowns`/`ClassCooldownState` plumbing, widening
+      `fieldValueText`'s duration heuristic to cover `...Cooldown`/
+      `...Interval`/bare `interval` fields (not just `...Seconds`), and a
+      signature-consistency cleanup on the two equipment-detail helpers.
+      Deferred to QUESTIONS.md Q142 (pre-existing, not introduced by fb022,
+      out of this item's scope): `tree-view.ts`'s `describeStat`/
+      `PERCENT_STATS` disagree with `STAT_KIND` on whether `cdr`/`leech`
+      are percent- or flat-formatted.
+
+      qa-playtester ran **three** passes, finding one real bug on each of
+      the first two (the third was a clean **PASS**) — both instances of
+      the *same* bug class, caught independently in two different files:
+      an equipment item's `mods` and its `classFallback.mods`, and a
+      Constellation node's `stats` across every allocated node, are each
+      **separate `Stats` sources** (`equipment:<key>`/`equipment:<key>:
+      fallback`, one `tree:<id>` per node — `baseRunStats`, stats.ts), so
+      per SPEC-FINAL §2 a `mul`-kind stat (`STAT_KIND`) must combine
+      *multiplicatively* across them (`Π(1+v)-1`, the same rule
+      `Stats.factor` itself implements) — both the equipment compare
+      (`src/ui/hub.ts`'s `effectiveEquipmentMods`) and the Constellation
+      combined totals (`src/ui/tree-view.ts`'s `constellationSummaryMarkup`)
+      instead summed the raw values, understating every `mul`-kind stat
+      (concretely verified: Swordsman Armor's `attackSpeed` showed +60%
+      instead of the real +65% `(1.1)*(1.5)-1`; the live Constellation
+      totals understated `power`/`attackSpeed`/`towerDamage`/etc. by
+      several points each with every node allocated). Both fixed
+      identically — branch on `STAT_KIND[key]`, multiply for `mul`, still
+      sum for `flat` (correct there, since a flat stat has no base to
+      scale) — with regression tests that independently re-derive the
+      expected number through a real `Stats`/`World` instance
+      (`emptyStats()`+`addAll`+`.factor()`, or `World.derived`) rather than
+      a hand-duplicate of the fix's own formula, the same posture the rest
+      of the test file already takes. The third pass specifically hunted
+      for a third instance of this bug class elsewhere in the diff
+      (`class-info.ts`'s `atkFlat` handling, `core-info.ts`'s field
+      display) and found none — both are genuinely additive/single-source,
+      not a miss.
+
+      `tests/fb022-info-surfacing.test.ts` (23 tests) covers all four
+      surfaces — including the two qa-playtester regressions above and the
+      two code-reviewer atkFlat/DPS regressions — plus a dedicated
+      "changing a `/data` value changes the displayed text with no code
+      edit" pair of tests that mutate a synthetic class/Core fixture between
+      two calls to the same formatter. `npm run test:fast`: green except
+      the four pre-existing, unrelated b032/b034/b035/b036 fold tests,
+      confirmed via a `git stash` A/B run to fail identically on the
+      pre-fb022 codebase (a host-memory-pressure Playwright flake under the
+      full parallel suite, passing cleanly in isolation) — not a
+      regression.
 - [x] (p8d) [feat] Boss termination guarantee (§9 addendum, QUESTIONS Q126/
       Q127) — commit `c375c72`, refs: §9 addendum, QUESTIONS.md Q126, Q127. `src/sim/boss.ts` gained
       `escalationStacks`/`escalationDamageMul`/`escalationSpeedMul`
