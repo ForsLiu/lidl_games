@@ -215,6 +215,7 @@ function spendBudget(w: World, budget: number): number {
 }
 
 function spawnElite(w: World): void {
+  if (w.enemies.length >= w.content.spawns.aliveCap) return;
   const weights = w.content.spawns.eliteWeights;
   const keys = Object.keys(weights).sort();
   if (keys.length === 0) return;
@@ -230,6 +231,13 @@ export function shouldSpawnBoss(w: World): boolean {
   return !w.bossSpawned && w.act2Time >= w.content.spawns.bossTimeSeconds;
 }
 
+/**
+ * p8b: deliberately not `aliveCap`-guarded, unlike `spawnElite`/`spendBudget` —
+ * this is a one-shot, flag-gated event (`w.bossSpawned` prevents re-entry) and
+ * a non-`pack` enemy, so it can add at most +1 over the cap; skipping it would
+ * mean deciding what happens to `bossSpawned`/`bossSpawnTime` on a blocked
+ * attempt, which is a materially bigger change than this bug warrants.
+ */
 export function spawnFinalBoss(w: World): void {
   w.bossSpawned = true;
   w.bossSpawnTime = w.act2Time;

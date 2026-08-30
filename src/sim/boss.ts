@@ -247,6 +247,7 @@ function updateSummonsAndSlams(w: World, e: Enemy, dt: number): void {
   e.abilityTimer = SUMMON_INTERVAL / escalationSpeedMul(w);
 
   for (let i = 0; i < SUMMON_COUNT; i++) {
+    if (w.enemies.length >= w.content.spawns.aliveCap) break;
     const a = (i / SUMMON_COUNT) * 6.283185307179586;
     const ox = clamp(e.x + dcos(a) * 2, 1.5, GRID_W - 1.5);
     const oy = clamp(e.y + dsin(a) * 2, 1.5, GRID_H - 1.5);
