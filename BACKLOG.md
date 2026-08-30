@@ -948,7 +948,7 @@ logged in MIGRATION.md §8 rather than carried as dead items.
       read-only Codex plus Export/Import JSON — acceptance: gate **G15** —
       edit→save→reload round-trip, invalid rejected, an edited run visibly flagged,
       and a production build containing no endpoint — refs: §11, G15 — commit
-      pending in this change.
+      `e0ddfb6`.
       A new `TUNER_FILES` registry (`src/sim/content.ts`) pairs each of the 12
       `/data/*.json` files the Codex shows a nav tab for with the exact zod
       schema `loadContent()` already parses it with. `src/devserver/tunerSave.ts`

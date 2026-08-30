@@ -5,8 +5,7 @@
 
 ## Current state — SPEC-FINAL
 
-- **2026-08-30 session: p9c done — the Tuner, gate G15 — commit pending in
-  this change.** A `TUNER_FILES` registry (`src/sim/content.ts`) pairs each
+- **2026-08-30 session: p9c done — the Tuner, gate G15 — commit `e0ddfb6`.** A `TUNER_FILES` registry (`src/sim/content.ts`) pairs each
   of the 12 `/data/*.json` files the Codex has a nav tab for with the exact
   zod schema `loadContent()` already parses it with. `src/devserver/
   tunerSave.ts` (pure Node) validates a candidate document against that
