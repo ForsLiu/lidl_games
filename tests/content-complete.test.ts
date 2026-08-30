@@ -166,7 +166,8 @@ describe('enemy behaviours', () => {
 describe('loot (SPEC 7)', () => {
   // RETIRED (SPEC-FINAL §7, §8) — relic rarities and affix rolls are replaced
   // by §7's fixed 12-item equipment table across 6 slots, granted 1 per TD wave
-  // cleared. Nothing rolls. Re-asserted by **p7b**/**p7c**; deleted at **p7d**.
+  // cleared. Nothing rolls. Re-asserted by fb015/**p7b** (tests/fb015-equipment.test.ts)
+  // and **p7c** (the rewards pipeline); deleted at **p7d**.
   it.skip('rolls relics with the right affix counts per rarity', () => {
     const rng = new Rng(7);
     for (let i = 0; i < 300; i++) {

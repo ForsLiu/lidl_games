@@ -50,6 +50,73 @@ describe('fb015: data/equipment.json loads as 12 items across the 6 §7 slots', 
   });
 });
 
+// p7b (qa-playtester finding): hardcoded per SPEC-FINAL §7's owner table, so a
+// mis-typed value in data/equipment.json fails this test instead of passing
+// vacuously — reading the "expected" value back out of the same JSON under
+// test (as an earlier draft of this file did) can only ever catch a broken
+// fold, never a wrong authored number.
+const EXPECTED_ITEM_MODS: Record<string, Record<string, number>> = {
+  greatsword: { atkFlat: 10, armor: 5, attackSpeed: -0.1 },
+  sleeve_sword: { atkFlat: 5, attackSpeed: 0.2 },
+  normal_armor: { maxHp: 10, armor: 10 },
+  swordsman_armor: { maxHp: 5, atkFlat: 5, armor: 5, attackSpeed: 0.1 },
+  normal_shoes: { maxHp: 5, armor: 5, moveSpeedPct: 0.5 },
+  swordsman_shoes: { maxHp: 3, atkFlat: 3, armor: 3, attackSpeed: 0.1, moveSpeedPct: 1 },
+  normal_ring: { maxHp: 1, atkFlat: 1, armor: 1, hpRegen: 1 },
+  bleeding_ring: { atkFlat: 2, armor: 1, leech: 0.0001, bleedLifesteal: 1 },
+  normal_necklace: { maxHp: 1, atkFlat: 1, armor: 1, xpGain: 0.2, towerCost: -0.2 },
+  builders_necklace: { maxHp: 1, armor: 2, towerAtkFlat: 1 },
+  normal_bracelet: { maxHp: 1, atkFlat: 1, armor: 1, area: 0.1 },
+  sniper_bracelet: { maxHp: 2, atkFlat: 1, towerRange: 0.1, charRange: 0.1 },
+};
+
+const EXPECTED_FALLBACK_MODS: Record<string, Record<string, number>> = {
+  sleeve_sword: { attackSpeed: 0.2 },
+  swordsman_armor: { attackSpeed: 0.5 },
+  swordsman_shoes: { moveSpeedPct: 0.1 },
+};
+
+describe('p7b: every one of the 12 items\' every mods column reaches Stats as its own equipment: source', () => {
+  it('data/equipment.json has exactly the owner-table 12 keys, no more no less', () => {
+    expect(content.equipment.items.map((i) => i.key).sort()).toEqual(Object.keys(EXPECTED_ITEM_MODS).sort());
+  });
+
+  it('each item, equipped alone, contributes every mods key at its owner-table value', () => {
+    for (const item of content.equipment.items) {
+      const w = new World(cfg({ classKey: 'engineer', equipment: [item.key] }));
+      const expectedMods = EXPECTED_ITEM_MODS[item.key];
+      // Also pins that the item authors no column beyond the owner table's.
+      expect(Object.keys(item.mods).sort()).toEqual(Object.keys(expectedMods).sort());
+      for (const [statKey, value] of Object.entries(expectedMods)) {
+        expect(w.stats.contributions(statKey as never)).toContainEqual([`equipment:${item.key}`, value]);
+      }
+    }
+  });
+
+  it('each of the 3 classFallback items contributes its fallback mods for a non-excluded class', () => {
+    expect(content.equipment.items.filter((i) => i.classFallback).map((i) => i.key).sort()).toEqual(
+      Object.keys(EXPECTED_FALLBACK_MODS).sort(),
+    );
+    for (const [key, expectedMods] of Object.entries(EXPECTED_FALLBACK_MODS)) {
+      const w = new World(cfg({ classKey: 'engineer', equipment: [key] })); // engineer !== swordsman
+      for (const [statKey, value] of Object.entries(expectedMods)) {
+        expect(w.stats.contributions(statKey as never)).toContainEqual([`equipment:${key}:fallback`, value]);
+      }
+    }
+  });
+
+  it('each of the 3 classFallback items withholds its fallback mods for the excluded class itself', () => {
+    for (const key of Object.keys(EXPECTED_FALLBACK_MODS)) {
+      const item = content.equipmentByKey.get(key)!;
+      const w = new World(cfg({ classKey: item.classFallback!.notClassKey, equipment: [key] }));
+      for (const statKey of Object.keys(EXPECTED_FALLBACK_MODS[key])) {
+        const sources = w.stats.contributions(statKey as never).map(([s]) => s);
+        expect(sources).not.toContain(`equipment:${key}:fallback`);
+      }
+    }
+  });
+});
+
 describe('fb015: §2 stacking — an equipped item is one Stats source, flats add, mults multiply', () => {
   it('a plain stat item (greatsword) contributes atkFlat/armor/attackSpeed as its own source', () => {
     const w = worldWith({ equipment: ['greatsword'] });

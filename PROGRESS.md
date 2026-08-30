@@ -5,6 +5,34 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-30 session: p7b done — §7's 12-item equipment table gets full
+  data-test coverage — no commit hash for production code (test-only change).**
+  Investigation found the equipment system itself (`data/equipment.json`, 6
+  slots, 12 items, `src/sim/equipment.ts`, the generic mods-fold in
+  `stats.ts`'s `baseRunStats`) was already built in full by an earlier
+  owner-feedback item, fb015, with its own 31-test file
+  (`tests/fb015-equipment.test.ts`) covering stacking, the reward loop and one
+  dedicated test per conditional `effectKey` including all three "if not
+  Swordsman" fallbacks. The one literal gap against p7b's acceptance text —
+  "a data test covers all 12 items' every column" — was that the 4 plain-stat
+  items (normal_armor, normal_shoes, normal_ring, normal_necklace) never had
+  their individual mods columns (hpRegen, xpGain, towerCost, moveSpeedPct,
+  etc.) asserted anywhere; only the 8 special-`effectKey` items got per-column
+  exercise via gameplay-level tests. Closed by adding a `p7b` describe block
+  to `tests/fb015-equipment.test.ts` covering all 12 items' every mods column
+  and all 3 classFallback items' present/withheld fallback mods.
+  code-reviewer APPROVE (no Critical/Major). qa-playtester's first pass caught
+  a real defect in the initial draft: it read its "expected" value from
+  `item.mods` itself (the same JSON under test), so it could only ever catch a
+  broken fold, never a wrong number authored into `data/equipment.json` —
+  confirmed by mutating `normal_ring`'s `hpRegen` in the data file and seeing
+  the suite stay green. Rewritten against a hardcoded per-item expected-value
+  table transcribed from the owner's §7 table; the same mutation now fails the
+  suite (re-verified, then reverted). No production code changed.
+  `npm run test:fast`: 1555 passed, 38 skipped, the same 4 pre-existing
+  Playwright fold-test flakes (b032/b034/b035/b036) already documented below,
+  reconfirmed unrelated.
+
 - **2026-08-30 session: p7a done — the SPEC-FINAL §6.3 VS level-up pool
   replaces the flat 12-boon list — commit `16613c8`.** `data/vsupgrades.json`
   (replacing `data/boons.json`) authors all three §6.3 card families: 7 stat

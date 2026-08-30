@@ -35,7 +35,7 @@ still in test headers.
 | P4 core math | **done** — multiplicative stacking, armor cap +99 / floor −100, 6 damage types + 2 statuses (G4, G5 green) |
 | P5 tower roster | **done in full (p5a-p5d, G20 green)** — all 10 towers, upgrade tracks, defense bands; `p5b` gave Ember Brazier/Mortar their own `costMul`; `p5c` authored the four remaining §5.2 milestone specials (Ballista, Fire Brazier, Ice Obelisk, Mortar) and the G20 loader rule; `p5d` fixed the QA-filed `damageDealt` telemetry bug on pierce/lob-kind towers |
 | P6 classes | **done in full (`p6a`-`p6f`)** — §4's Passive + Q + E + tower passive is live for all 12 classes; **gate G9 is green in full**, and `p6d` measured **G10 and G11 green** (Archer's dps-optimal charge peaks at t=5.0 inside [2,6], full charge one-shots the toughest non-elite; Stormcaller's max chain multiplier is 3.5832 ≤ 3.6); `p6e` measured **G8 honestly red**; re-measured in full against p8a's real content this session (Q123, Q127) — **win rate is 0/11** (was 1/11; Cryomancer's own pre-p8a pass no longer clears the floor), diversity 2/11 not ≥8/11, both clauses `.skip`-ed per-class with real measured numbers, re-enable point **P10** (not `p8a` — already landed and re-measured); `p6f` retired the V2 legacy dual class schema (`affinity.json`, `manualAttack`, `frost_warden`) — `data/classes.json` now holds 12 classes, all in the uniform §4 shape |
-| P7 equipment/rewards/VS upgrades | **`p7a` done** — §6.3's VS level-up pool (7 stat boons rank ×5, Type Mastery rank ×3, 3 skill cards per class rank ×2) replaces the flat 12-boon list, closing BACKLOG b011 as a side effect; superseded systems (relic affixes, Ember) still in place — §7's 12-item table and §8's reward pipeline remain unbuilt (G12 still unmet) |
+| P7 equipment/rewards/VS upgrades | **`p7a`/`p7b` done** — §6.3's VS level-up pool (7 stat boons rank ×5, Type Mastery rank ×3, 3 skill cards per class rank ×2) replaces the flat 12-boon list, closing BACKLOG b011 as a side effect; §7's 12-item equipment table (found already built by fb015, now with full per-column data-test coverage) is live — superseded systems (relic affixes, Ember) still in place; §8's reward pipeline remains unbuilt (G12 still unmet) |
 | P8 enemies/waves/bosses | **roster, both bosses and real wave data done (`p8a`)** — all 20 §9 enemies by name; `data/waves.json` authors real TD waves 1-18 on the §1.1 shape (Gatebreaker on 18 only, Warden-Eater on VS 6), the §9 VS-budget curve is live; `p8b`/`p8c` (alive-cap overshoot, gate G14) remain |
 | P9 tooling | **dev mode, god mode, UX flows done; Codex read-half in flight on `lane/tuner`; Tuner unbuilt** (G15 unmet, G16/G18 largely green) |
 | P10 balance | **not started** — Burning still refresh-strongest, perf budget still host-dependent wall-clock |
@@ -356,12 +356,11 @@ closing BACKLOG b011 as a side effect (the old boon-only path had no such
 guard). `hashWorld`/`RunReport` cover the two new World fields
 (`typeMasteryRanks`/`skillCardRanks`) the same way `boonRanks` already was.
 
-- [ ] (p7b) [feat] Equipment per §7 in `data/equipment.json`: 6 slots (weapon,
-      armor, shoes, ring, necklace, bracelet), the 12-item table, flats adding and
-      multipliers multiplying per §2, class-conditional lines inert elsewhere unless
-      a fallback is written — acceptance: a data test covers all 12 items' every
-      column; one test per conditional effect including its "if not Swordsman"
-      fallback (sleeve sword, swordsman armor, swordsman shoes) — refs: §7, §2
+**`p7b` is done** — see the Done section. §7's 12-item equipment table was
+found already built by fb015; this item closed the one literal acceptance gap
+(a hardcoded, non-tautological per-column data test for all 12 items and all
+3 class-fallback lines).
+
 - [ ] (p7c) [feat] Rewards pipeline per §8: each TD wave cleared grants 1 random
       equipment (even weights), each VS wave cleared grants 1 skill point, both
       granted at run end, win or lose, for waves fully cleared; duplicates allowed —
@@ -927,6 +926,38 @@ logged in MIGRATION.md §8 rather than carried as dead items.
   **G19**. The work is `p10d`.
 
 ## Done
+
+- [x] (p7b) [feat] Equipment per §7 in `data/equipment.json`: 6 slots, the
+      12-item table, flats adding and multipliers multiplying per §2,
+      class-conditional lines inert elsewhere unless a fallback is written —
+      refs: §7, §2 — found already built in full by an earlier owner-feedback
+      item, fb015 (`data/equipment.json`, `src/sim/equipment.ts`, the generic
+      mods-fold in `stats.ts`'s `baseRunStats`, and `tests/fb015-equipment.test.ts`'s
+      31 tests covering stacking, the reward loop, and one dedicated test per
+      conditional `effectKey` including all three "if not Swordsman" fallbacks).
+      The one literal gap against this item's acceptance text — "a data test
+      covers all 12 items' every column" — was that the 4 plain-stat items
+      (normal_armor, normal_shoes, normal_ring, normal_necklace) never had
+      their individual mods columns (hpRegen, xpGain, towerCost, moveSpeedPct,
+      etc.) asserted anywhere; only the 8 special-`effectKey` items got
+      per-column exercise via gameplay-level tests. Closed by adding a `p7b`
+      describe block to `tests/fb015-equipment.test.ts`: every item's every
+      `mods` column against a hardcoded expected-value table (not read back
+      out of the same JSON under test), plus fallback-present/fallback-withheld
+      coverage for all 3 classFallback items against the same hardcoded values.
+      code-reviewer APPROVE (no Critical/Major; noted the pre-existing `as
+      never` cast on `Stats.contributions(stat: StatKey)`, a typing looseness
+      from fb015 itself, out of this item's scope). qa-playtester's first pass
+      caught the real defect: the initial draft read its "expected" value from
+      `item.mods` itself, so it could only ever catch a broken fold, never a
+      wrong number authored into `data/equipment.json` — verified by mutating
+      `normal_ring`'s `hpRegen` in the data file and confirming the suite
+      stayed green. Rewritten against a hardcoded per-item table transcribed
+      from the owner's §7 table; the same mutation now fails the suite
+      (verified, then reverted — working tree confirmed clean before commit).
+      No production code changed. `npm run test:fast`: 1555 passed, 38 skipped,
+      the same 4 pre-existing Playwright fold-test flakes (b032/b034/b035/b036)
+      already documented, reconfirmed unrelated.
 
 - [x] (p7a) [feat] VS level-up pool per §6.3 in `data/vsupgrades.json`: each level
       offers 1 of 3 cards with 1 free reroll; stat boons (Attack, Attack Speed, Move,
