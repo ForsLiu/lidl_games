@@ -314,6 +314,27 @@ export class Renderer {
           this.pushCast(shape, e.x, e.y, e.a, e.b, style?.color ?? '#ffffff');
           break;
         }
+        // fb021: `classBasicAttack`/`updateClassSummons` (classes.ts) already
+        // emitted this fx (origin -> target) for the DPS panel's telemetry,
+        // but `ingest()` had no case for it, so every basic attack in the
+        // game — the actual firing shape, not the `hit:` impact flash, which
+        // already renders via the case above — was invisible. `swing` reads
+        // as a lingering slash (the `CastFx` `line` shape, like a class
+        // Active's dash trail); `projectile` reads as a travelling shot (the
+        // same `Tracer` mechanism a tower's `shot`/`spit` already use), keyed
+        // by class in `theme.ts`'s `STYLES` so each class's basic attack
+        // looks like its own weapon.
+        case 'class_basic': {
+          const cls = w.content.classByKey.get(w.cfg.classKey);
+          const entry = cls && !cls.legacy ? CLASS_VFX[w.cfg.classKey] : undefined;
+          if (!entry) break;
+          if (entry.basic.shape === 'swing') {
+            this.pushCast('line', e.x, e.y, e.a, e.b, entry.basic.color);
+          } else if (this.tracers.length < MAX_TRACERS) {
+            this.tracers.push(tracer(e, w.cfg.classKey, false));
+          }
+          break;
+        }
         case 'core_plant':
           this.pushCast('point', e.x, e.y, 0, 0, coreEffectColor(w.coreKey, 'devour', '#7ac74f'));
           break;

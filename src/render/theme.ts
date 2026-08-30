@@ -1,5 +1,7 @@
 /** Palette and small drawing constants. Render-side only. */
 
+import { CLASS_VFX } from './vfx-registry';
+
 export const PALETTE = {
   bgDay: '#1b2028',
   bgNight: '#0b0d14',
@@ -112,6 +114,22 @@ const STYLES: Record<string, ProjectileStyle> = {
   warden_eater: { color: '#ff4f70', shape: 'orb', size: 6, trail: 1.4 },
   spitter: { color: '#9fbf6a', shape: 'glob', size: 3, trail: 1 },
   cinderling: { color: '#ff9a4a', shape: 'spark', size: 3, trail: 0.8 },
+  // fb021: the nine projectile-basic-attack classes (`vfx-registry.ts`'s
+  // `CLASS_VFX[key].basic.shape === 'projectile'`), keyed by class so a
+  // class's basic attack reads as its own weapon, not a generic dart. Color
+  // reads from `CLASS_VFX[key].basic.color` (not repeated here) so the
+  // registry stays the one place a class's basic-attack color is authored —
+  // code-reviewer flagged the earlier hardcoded duplicates as a
+  // could-silently-drift dead field.
+  plaguebringer: { color: CLASS_VFX.plaguebringer.basic.color, shape: 'glob', size: 4, trail: 1 },
+  engineer: { color: CLASS_VFX.engineer.basic.color, shape: 'bolt', size: 5, trail: 1.8 },
+  pyromancer: { color: CLASS_VFX.pyromancer.basic.color, shape: 'orb', size: 4, trail: 1.6 },
+  archer: { color: CLASS_VFX.archer.basic.color, shape: 'dart', size: 3, trail: 2.4 },
+  necromancer: { color: CLASS_VFX.necromancer.basic.color, shape: 'orb', size: 4, trail: 1 },
+  cryomancer: { color: CLASS_VFX.cryomancer.basic.color, shape: 'orb', size: 4, trail: 0 },
+  stormcaller: { color: CLASS_VFX.stormcaller.basic.color, shape: 'spark', size: 3, trail: 0.6 },
+  animist: { color: CLASS_VFX.animist.basic.color, shape: 'dart', size: 3, trail: 1.4 },
+  time_lord: { color: CLASS_VFX.time_lord.basic.color, shape: 'orb', size: 4, trail: 1.2 },
 };
 
 /**

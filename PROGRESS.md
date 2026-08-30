@@ -5,6 +5,56 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-30 session: fb021 done — basic-attack visual effects for all 12
+  classes (owner priority queue, `feature-basic-attack-vfx`, fb016
+  follow-up).** `classBasicAttack`/`updateClassSummons` (`src/sim/classes.ts`,
+  untouched) already emitted a `class_basic` fx event every basic attack
+  (origin → target), but `Renderer.ingest()` (`src/render/canvas.ts`) had no
+  case for it, so the firing shape itself was invisible — only the separate
+  `hit:<type>` fx (impact flash + fb005 damage-type-colored number) rendered.
+  `src/render/vfx-registry.ts`'s `ClassVfxEntry` gained a `basic: { shape:
+  'swing'|'projectile'; fire; color }` field for all 12 real classes: `swing`
+  for the three melee-range (2.5) classes (swordsman, bloodlord, paladin),
+  `projectile` for the other nine, matching each class's `data/classes.json`
+  `basicAttack.range`. `canvas.ts`'s new `case 'class_basic'` routes `swing`
+  through the existing `pushCast('line', …)` CastFx mechanism (fb016's) and
+  `projectile` through the existing `tracer()`/`projectileStyle()` mechanism
+  (towers' `shot`/`spit`), both already capped (`MAX_TRACERS`/`MAX_CASTS`).
+  `theme.ts` gained 9 `STYLES` rows for the projectile classes; their `color`
+  reads from `CLASS_VFX[key].basic.color` rather than a second literal, so
+  there is one source of truth per class color.
+
+  `tests/fb016-vfx-registry.test.ts`'s completeness test now requires every
+  class's `basic` fields; two new tests fire a swing (Swordsman) and a
+  projectile (Archer) basic attack and assert the drawn line's *color*
+  matches the real mechanism (CastFx vs. tracer/theme), not just that a line
+  reached the target — code-reviewer's finding was that the first draft of
+  these tests would have passed even with the two classes' shapes swapped,
+  since both mechanisms draw a line to the same endpoint; fixed by teaching
+  the test file's `recordingCanvas()` helper to snapshot `ctx.strokeStyle`
+  the same way it already snapshot `globalAlpha`. code-reviewer's other
+  finding (the theme.ts/vfx-registry.ts color duplication above) was fixed in
+  the same commit. Both were Minor, no Critical/Major. A third new test loops
+  all 12 real classes confirming each draws something for its basic attack.
+
+  qa-playtester **PASS** on all three acceptance criteria: drove all 12
+  classes' basic attacks through a real `World` and confirmed each produces
+  real draw calls; confirmed VS wielded-tower attacks are untouched
+  (`classBasicAttack` fires only under `!w.huntsWarden`, verified via a real
+  bot run through `act1_wave`/`act2`/`levelup` showing `class_basic` present
+  only in `act1_wave`); adversarially probed an invalid classKey (no-ops,
+  does not throw), 10,000 spammed `class_basic` events against both shapes
+  (render caps hold, no crash), and a necromancer skeleton summon's own
+  `class_basic` emit (renders from the summon's position without crashing).
+  Noted `drawTracers` doesn't dim under `reducedFlash` for the new projectile
+  shapes, but confirmed every pre-existing tower tracer (`shot`/`spit`/`arc`)
+  already ignores that setting identically — pre-existing scope, not a fb021
+  regression, not filed. `npm run test:fast`: 1472 passed / 42 skipped, the
+  sole failure (`b032-tower-panel-fold`, hook timeout) is the documented
+  pre-existing Playwright-under-load flake, unrelated to this change. Files:
+  `src/render/vfx-registry.ts`, `src/render/theme.ts`, `src/render/canvas.ts`,
+  `tests/fb016-vfx-registry.test.ts`.
+
 - **2026-08-30 session: fb020 done — enemies overall slower and tankier, owner
   order (scoped exception to the tuning freeze, precedent Q79), balance-analyst
   subagent, `/data` only.** `data/enemies.json`: every non-boss entry (grade

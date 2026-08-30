@@ -228,7 +228,7 @@ renumbering the whole queue.
 - [x] (fb020) [balance] enemies overall slower and tankier — done, see Done
       section. refs: owner feedback `balance-enemies-slower-tankier`,
       precedent QUESTIONS.md Q79.
-- [ ] (fb021) [feat] top priority: basic-attack visual effects for all 12
+- [x] (fb021) [feat] top priority: basic-attack visual effects for all 12
       classes, registered in the same data-driven VFX registry `fb016` built
       for skills and Cores (`src/render/vfx-registry.ts`'s `CLASS_VFX`/
       `CORE_VFX` pattern) — per class, a firing shape (projectile or swing)
@@ -238,7 +238,8 @@ renumbering the whole queue.
       test (`tests/fb016-vfx-registry.test.ts`'s pattern) extends to basic
       attacks so a class missing one fails; VS wielded-tower attacks keep
       their own existing visuals unchanged — refs: SPEC-FINAL §11, owner
-      feedback `feature-basic-attack-vfx` (fb016 follow-up).
+      feedback `feature-basic-attack-vfx` (fb016 follow-up). **done, see Done
+      section.**
 - [ ] (fb022) [feat] Surface live, data-derived numbers on every info surface:
       class screen + in-run character panel show each active/passive's full
       effect text with current resolved numbers (cooldown, charges, radius,
@@ -943,6 +944,55 @@ logged in MIGRATION.md §8 rather than carried as dead items.
 
 ## Done
 
+- [x] (fb021) [feat] basic-attack visual effects for all 12 classes — commit
+      pending (this change), refs: SPEC-FINAL §11, owner feedback
+      `feature-basic-attack-vfx` (fb016 follow-up). `class_basic` was already
+      emitted by `classBasicAttack`/`updateClassSummons` (`src/sim/classes.ts`,
+      untouched by this item) but `Renderer.ingest()` had no case for it, so
+      every basic attack in the game — the "shot travelling from Warden/summon
+      to target" itself, not the impact flash — rendered nothing; the impact
+      flash + fb005 damage-type coloring already existed via the separate
+      `hit:<type>` fx `damageEnemy` fires. `src/render/vfx-registry.ts`'s
+      `ClassVfxEntry` gained a `basic: { shape: 'swing'|'projectile'; fire;
+      color }` field, populated for all 12 real classes (3 melee `swing`:
+      swordsman, bloodlord, paladin; 9 `projectile`: the rest) following the
+      fantasy each class's `data/classes.json` `basicAttack.range` already
+      implies (2.5 = melee). `canvas.ts`'s new `case 'class_basic'` routes
+      `swing` through the existing `pushCast('line', …)` CastFx mechanism and
+      `projectile` through the existing `tracer()`/`projectileStyle()`
+      mechanism towers' own `shot`/`spit` already use, capped by the existing
+      `MAX_TRACERS`/`MAX_CASTS`. `theme.ts` gained 9 `STYLES` rows for the
+      projectile classes, each shape/size/trail authored directly but `color`
+      read from `CLASS_VFX[key].basic.color` rather than a second hardcoded
+      literal (code-reviewer's Minor finding: two sources of truth for the
+      same color could silently drift). `tests/fb016-vfx-registry.test.ts`:
+      the completeness test now requires every class's `basic` fields; two new
+      tests fire a swing (Swordsman) and a projectile (Archer) basic attack
+      and assert not just that a line reaches the target but that its *color*
+      matches the shape's real render mechanism (CastFx color vs. tracer/theme
+      color) — code-reviewer's other Minor finding was that the first draft of
+      these two tests only checked the line landed at the target, which would
+      have passed even with the two classes' shapes swapped, since both
+      mechanisms draw a line to the same endpoint; fixed by teaching
+      `recordingCanvas()` to snapshot `ctx.strokeStyle` the same way it already
+      snapshot `globalAlpha`. A third new test loops all 12 real classes
+      confirming each draws something. code-reviewer: APPROVE, no
+      Critical/Major, both Minors fixed in this commit. qa-playtester: PASS on
+      all three acceptance criteria — drove all 12 classes' basic attacks
+      through a real `World`, confirmed VS wielded-tower attacks are untouched
+      (`classBasicAttack` fires only under `!w.huntsWarden`, verified via a
+      real bot run through `act1_wave`/`act2`/`levelup`), and adversarially
+      probed an invalid classKey (no-ops, does not throw), 10,000 spammed
+      `class_basic` events against both a swing and a projectile class (caps
+      hold, no crash), and a necromancer skeleton summon's own `class_basic`
+      emit (renders from the summon's position without crashing). Noted
+      `drawTracers` doesn't respect `reducedFlash` for the new projectile
+      shapes — confirmed pre-existing scope (every tower `shot`/`spit`/`arc`
+      tracer already ignores that setting identically), not a fb021
+      regression, so not filed as a bug. `npm run test:fast`: 1472 passed / 42
+      skipped, the sole failure (`b032-tower-panel-fold`, hook timeout) is the
+      documented pre-existing Playwright-under-load flake, unrelated to this
+      change.
 - [x] (fb020) [balance] enemies overall slower and tankier — commit `1d920a8`
       (2026-08-30), refs: owner feedback `balance-enemies-slower-tankier`,
       precedent QUESTIONS.md Q79. Owner-filed, top-priority, a scoped

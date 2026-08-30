@@ -21,6 +21,7 @@ import { describe, expect, it } from 'vitest';
 import { loadContent, type NewClassDef } from '../src/sim/content';
 import { ACTIVE_KIND_SHAPE, CLASS_VFX, CORE_VFX, missingVfxCoverage } from '../src/render/vfx-registry';
 import { Renderer, type ViewState } from '../src/render/canvas';
+import { projectileStyle } from '../src/render/theme';
 import { World } from '../src/sim/world';
 import { CORE_X, CORE_Y, CORE_W, CORE_H, TILE } from '../src/sim/grid';
 import { defaultSettings } from '../src/ui/settings';
@@ -60,6 +61,10 @@ describe('fb016: the VFX registry covers every real class and Core', () => {
       }
       expect(entry.passive.cue.length, `${key}.passive.cue`).toBeGreaterThan(0);
       expect(entry.passive.color, `${key}.passive.color`).toMatch(/^#[0-9a-f]{6}$/i);
+      // fb021: every class's basic attack needs its own registered fire shape.
+      expect(['swing', 'projectile']).toContain(entry.basic.shape);
+      expect(entry.basic.fire.length, `${key}.basic.fire`).toBeGreaterThan(0);
+      expect(entry.basic.color, `${key}.basic.color`).toMatch(/^#[0-9a-f]{6}$/i);
     }
   });
 
@@ -108,21 +113,27 @@ describe('fb016: the VFX registry covers every real class and Core', () => {
 function recordingCanvas(): {
   canvas: HTMLCanvasElement;
   arcs: { x: number; y: number; r: number; alpha: number }[];
-  lines: { x: number; y: number }[];
+  // fb021 code review: `color` snapshots `ctx.strokeStyle` at call time (the
+  // same `set`-trap pattern `alpha` already used for `globalAlpha`) so a test
+  // can tell a `CastFx` line (drawn with the registry's `basic.color`) apart
+  // from a `Tracer` line (drawn with `theme.ts`'s `projectileStyle` color) —
+  // without it, two lines to the same endpoint are indistinguishable, so a
+  // swing/projectile shape swap in `vfx-registry.ts` would pass silently.
+  lines: { x: number; y: number; color: string }[];
 } {
   const arcs: { x: number; y: number; r: number; alpha: number }[] = [];
-  const lines: { x: number; y: number }[] = [];
-  const state = { globalAlpha: 1 };
+  const lines: { x: number; y: number; color: string }[] = [];
+  const state = { globalAlpha: 1, strokeStyle: '' };
   const ctx = new Proxy(
     {
       arc(x: number, y: number, r: number) {
         arcs.push({ x, y, r, alpha: state.globalAlpha });
       },
       moveTo(x: number, y: number) {
-        lines.push({ x, y });
+        lines.push({ x, y, color: state.strokeStyle });
       },
       lineTo(x: number, y: number) {
-        lines.push({ x, y });
+        lines.push({ x, y, color: state.strokeStyle });
       },
       createLinearGradient: () => ({ addColorStop() {} }),
       createRadialGradient: () => ({ addColorStop() {} }),
@@ -131,11 +142,13 @@ function recordingCanvas(): {
     {
       get(target, prop) {
         if (prop === 'globalAlpha') return state.globalAlpha;
+        if (prop === 'strokeStyle') return state.strokeStyle;
         if (prop in target) return target[prop as string];
         return () => undefined;
       },
       set(_target, prop, value) {
         if (prop === 'globalAlpha') state.globalAlpha = value as number;
+        if (prop === 'strokeStyle') state.strokeStyle = value as string;
         return true;
       },
     },
@@ -203,6 +216,49 @@ describe('fb016: firing a skill or Core effect actually draws something', () => 
     renderer.draw(w, view());
 
     expect(withCast.arcs.length).toBe(baseline.arcs.length);
+  });
+
+  it('fb021: a swing-shape basic attack (Swordsman) draws a line to its target, in the registry\'s own basic.color', () => {
+    const w = new World(cfg({ classKey: 'swordsman' }));
+    expect(CLASS_VFX.swordsman.basic.shape).toBe('swing');
+    const { canvas, lines } = recordingCanvas();
+    const renderer = new Renderer(canvas);
+    w.fx.push({ k: 'class_basic', x: 5, y: 6, a: 9, b: 6 });
+    renderer.ingest(w, view());
+    renderer.draw(w, view());
+    const hit = lines.find((p) => Math.abs(p.x - 9 * TILE) < 0.01 && Math.abs(p.y - 6 * TILE) < 0.01);
+    expect(hit, 'a basic-attack swing must draw to its target').toBeDefined();
+    // Distinguishes the `pushCast('line', …)` path (CastFx, reads
+    // `entry.basic.color`) from the `Tracer` path (reads `theme.ts`'s
+    // `projectileStyle`, a different color for this class) — a shape swap in
+    // the registry would fail this even though both mechanisms draw a line
+    // to the same endpoint.
+    expect(hit!.color).toBe(CLASS_VFX.swordsman.basic.color);
+  });
+
+  it('fb021: a projectile-shape basic attack (Archer) draws a travelling shot to its target, styled by theme.ts, not a CastFx line', () => {
+    const w = new World(cfg({ classKey: 'archer' }));
+    expect(CLASS_VFX.archer.basic.shape).toBe('projectile');
+    const { canvas, lines } = recordingCanvas();
+    const renderer = new Renderer(canvas);
+    w.fx.push({ k: 'class_basic', x: 5, y: 6, a: 9, b: 6 });
+    renderer.ingest(w, view());
+    renderer.draw(w, view());
+    const hit = lines.find((p) => Math.abs(p.x - 9 * TILE) < 0.01 && Math.abs(p.y - 6 * TILE) < 0.01);
+    expect(hit, 'a basic-attack projectile must draw to its target').toBeDefined();
+    expect(hit!.color).toBe(projectileStyle('archer').color);
+  });
+
+  it('fb021: every non-legacy class basic attack draws something (registry completeness at the render layer)', () => {
+    for (const key of realClassKeys) {
+      const w = new World(cfg({ classKey: key }));
+      const { canvas, arcs, lines } = recordingCanvas();
+      const renderer = new Renderer(canvas);
+      w.fx.push({ k: 'class_basic', x: 5, y: 6, a: 9, b: 6 });
+      renderer.ingest(w, view());
+      renderer.draw(w, view());
+      expect(arcs.length + lines.length, `${key} basic attack drew nothing`).toBeGreaterThan(0);
+    }
   });
 
   it('the Corpse Core execution beam draws from the Core to the target', () => {
