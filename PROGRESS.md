@@ -5,6 +5,54 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-30 session: p9d done — gate G16's unasserted half, dev-profile
+  dist presence proven inert — commit `212ebf0`.** `data/dev.json` and
+  `applyDevProfile` cannot be tree-shaken out of a production build (they
+  load through the same generic `/data` loader every legitimate content file
+  uses — CLAUDE.md rule 4 forbids per-file special-casing), so the acceptance
+  criterion's other branch was taken: `tests/c8-dev-profile.test.ts` gained an
+  explicit assertion that this dist presence is inert. Verified the item's
+  premise empirically before writing anything (built a real prod bundle and
+  grepped it): the dev-badge *markup string* (`sw-devbadge`/"DEV PROFILE") is
+  already gone from the JS bundle — `DEV_BUILD && devProfileActive() ?
+  DEV_BADGE : ''` folds to `''` in production and the minifier drops the dead
+  string — so that half of the item's premise was already stale, while
+  `data/dev.json`'s authored values and `applyDevProfile`'s logic body are
+  genuinely present, as expected. Extended the existing SSR-probe test (the
+  one gate C8 already uses to build+execute a real production bundle) to also
+  run `main.ts`'s exact `startupProfile()` call inside that same executed
+  bundle: the authored config reads present-and-on (`devMode`,
+  `unlockAllClasses` both `true`), while the resulting `MetaState` is
+  unchanged from a fresh default — presence, proven inert, against a real
+  artifact rather than the isolated predicate functions alone. Extended the
+  fb018 client-bundle test to assert the `DevConfig`-specific field names ship
+  in the real client JS (confirming "it ships" isn't a stale claim) and that
+  `sw-devbadge` is present in the built CSS asset (Vite doesn't purge unused
+  selectors) but absent from the JS — each with a comment on why that's
+  harmless. Added the previously entirely-missing positive-direction test: a
+  real `Hub` mounted in jsdom (a dev build under Vitest) does render
+  `.sw-devbadge` when the profile is genuinely active. `npm run test:fast`:
+  1651 passed, 30 skipped, the same 4 pre-existing Playwright fold-test
+  port-contention flakes (b032/b034/b035/b036), unrelated (test-only change).
+  code-reviewer **REQUEST-CHANGES** on the first pass (1 Major, 1 Minor), both
+  fixed: the Major was a real gap in the first draft — the fb018 check only
+  read the `.js` output and its comment claimed the badge was "folded out of
+  prod" without qualifying that this holds only for the JS bundle, not the
+  CSS asset (the reviewer independently built prod and grepped
+  `dist/assets/*.css` to confirm `.sw-devbadge` still ships there); fixed by
+  adding the CSS-asset assertion and correcting the comment to state both
+  halves honestly. The Minor — the new Hub-badge test reads the live authored
+  `data/dev.json` value rather than an injected config, unlike this file's own
+  stated convention — was fixed with a comment documenting the trade-off
+  (`vi.mock` would contaminate the file's other real-config tests) rather than
+  restructuring. qa-playtester **PASS**: independently confirmed
+  `applyDevProfile`/`startupProfile` have no second, unguarded call site
+  anywhere in `src/`, that `hub.ts`'s separate `DEV_BUILD` constant folds via
+  the identical literal pattern `isDevBuild()` uses, ran a real `npm run
+  build` to confirm no regression and no stray temp files, and reconfirmed
+  `npm run test:fast`'s only failures are the 4 pre-existing, already-
+  documented flakes. No bugs filed.
+
 - **2026-08-30 session: p9c done — the Tuner, gate G15 — commit `e0ddfb6`.** A `TUNER_FILES` registry (`src/sim/content.ts`) pairs each
   of the 12 `/data/*.json` files the Codex has a nav tab for with the exact
   zod schema `loadContent()` already parses it with. `src/devserver/
