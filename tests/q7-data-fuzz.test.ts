@@ -66,7 +66,7 @@ import { ACCEPTED, INEFFECTIVE, REF_VERDICTS } from './q7-loader-holes';
 const holders = vi.hoisted(() => {
   const names = [
     'vsupgrades', 'classes', 'cores', 'damagetypes', 'dev', 'enemies', 'equipment',
-    'modifiers', 'quests', 'relics', 'spawns', 'towers', 'tree', 'warden', 'waves',
+    'modifiers', 'quests', 'spawns', 'towers', 'tree', 'warden', 'waves',
   ];
   const h: Record<string, Record<string, unknown>> = {};
   for (const n of names) h[n] = {};
@@ -82,7 +82,6 @@ vi.mock('../data/enemies.json', () => ({ default: holders.enemies }));
 vi.mock('../data/equipment.json', () => ({ default: holders.equipment }));
 vi.mock('../data/modifiers.json', () => ({ default: holders.modifiers }));
 vi.mock('../data/quests.json', () => ({ default: holders.quests }));
-vi.mock('../data/relics.json', () => ({ default: holders.relics }));
 vi.mock('../data/spawns.json', () => ({ default: holders.spawns }));
 vi.mock('../data/towers.json', () => ({ default: holders.towers }));
 vi.mock('../data/tree.json', () => ({ default: holders.tree }));
@@ -526,7 +525,6 @@ async function probe(p: Probe): Promise<ProbeResult> {
       tier: 1,
       modifiers: [],
       allocated: [],
-      relics: [],
       policy: 'greedy',
       cycles: 1,
       practice: false,
@@ -727,10 +725,10 @@ describe('q7 — filed defects (unskip with the fix)', () => {
   });
 
   it.skip('E6 — a stat key /data invents is a load error, not a silent no-op', async () => {
-    // Six authoring paths write into a `z.record(num)` whose keys are read by
-    // name against `STAT_KEYS`. `tree.nodes[].stats` is the one asserted here;
-    // `classes[].mods`, `boons[].stat`, `relics.affixes[].stat`,
-    // `relics.implicits.*.stat` and `modifiers[].effect` are the same shape.
+    // Several authoring paths write into a `z.record(num)` whose keys are read
+    // by name against `STAT_KEYS`. `tree.nodes[].stats` is the one asserted
+    // here; `classes[].mods`, `boons[].stat`, `equipment[].mods` and
+    // `modifiers[].effect` are the same shape.
     const root = pristine('tree') as { nodes: Record<string, JsonValue>[] };
     const node = root.nodes.find((n) => Object.keys(n.stats as object).length > 0)!;
     const stats = node.stats as Record<string, JsonValue>;

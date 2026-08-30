@@ -156,7 +156,7 @@ describe('practice tool', () => {
     expect(w.enemies.length).toBe(0);
   });
 
-  it('a practice run banks nothing: no Ember, no relics', () => {
+  it('a practice run banks nothing: no skill points, no equipment', () => {
     const run = new Run({ ...cfg(), practice: true, policy: 'none' });
     run.step({
       mx: 0,
@@ -169,12 +169,11 @@ describe('practice tool', () => {
       cmds: [{ k: 'dev', op: 'gold', amount: 999 }],
     });
     const w = run.world;
-    w.relicsFound.push({ id: 0, name: 'Test Relic', slot: 'ring', rarity: 'rare', affixes: [] });
+    w.equipmentFound.push('greatsword');
 
     const before = defaultMeta();
     const after = applyRunResult(before, run.report(), w);
     expect(after).toBe(before);
-    expect(w.emberEarned).toBe(0);
   });
 
   it('fb019 Training Grounds: a session that only ever spawned enemies still banks nothing', () => {
@@ -192,28 +191,28 @@ describe('practice tool', () => {
     const w = run.world;
     expect(w.enemies.filter((e) => !e.dead).length).toBe(3);
     w.gold += 12345; // a spawned enemy could be killed for bounty; still must not bank
-    w.relicsFound.push({ id: 0, name: 'Test Relic', slot: 'ring', rarity: 'rare', affixes: [] });
+    w.equipmentFound.push('greatsword');
 
     const before = defaultMeta();
     const after = applyRunResult(before, run.report(), w);
     expect(after).toBe(before);
-    expect(w.emberEarned).toBe(0);
   });
 
   it('an ordinary run still banks its rewards', () => {
     // The counterweight to the practice test above: this is the only place
     // that proves `applyRunResult` banks anything at all, so it asserts a
-    // real relic arriving and Ember moving, not just "nothing exploded".
+    // real equipment item arriving and skill points moving, not just
+    // "nothing exploded".
     const run = new Run({ ...cfg(), policy: 'none' });
     run.step();
     const w = run.world;
-    w.relicsFound.push({ id: 0, name: 'Test Relic', slot: 'sigil', rarity: 'rare', affixes: [] });
+    w.equipmentFound.push('greatsword');
     w.wavesCleared = 4;
+    w.vsWavesCleared = 2;
     const before = defaultMeta();
     const after = applyRunResult(before, run.report(), w);
-    expect(after.stash.length).toBe(before.stash.length + 1);
-    expect(after.stash[after.stash.length - 1].name).toBe('Test Relic');
-    expect(after.ember).toBeGreaterThan(before.ember);
+    expect(after.equipmentStash.greatsword).toBe((before.equipmentStash.greatsword ?? 0) + 1);
+    expect(after.skillPoints).toBeGreaterThan(before.skillPoints);
   });
 
   it('the report says whether the tool was used', () => {

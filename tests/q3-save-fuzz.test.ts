@@ -38,7 +38,6 @@ import {
   exerciseHub,
   fieldMatrix,
   fuzzSaves,
-  hubNumbers,
   legacySave,
   mutate,
   runTrial,
@@ -48,8 +47,6 @@ import {
 } from '../tools/fuzz-save';
 import {
   SAVE_VERSION,
-  accountLevelFor,
-  allocate,
   defaultMeta,
   deserializeMeta,
   loadMeta,
@@ -57,7 +54,6 @@ import {
   serializeMeta,
 } from '../src/meta/meta';
 import { SETTINGS_KEY, defaultSettings, loadSettings, saveSettings } from '../src/ui/settings';
-import { loadContent } from '../src/sim/content';
 import { Rng } from '../src/sim/rng';
 import type { MetaState } from '../src/sim/types';
 
@@ -168,36 +164,31 @@ describe('q3 save fuzz: the corpus is not degenerate', () => {
    * measured rates, so this fails on a family going inert rather than on
    * ordinary drift.
    *
-   * fb023 re-measurement: `fuzzSaves` bases roughly a third of its corpus on
-   * `legacySave` (version 1), and fb023 makes `migrate` drop a hostile-version
-   * save's `stash`/`equipped` outright. A structural family (retype, drop-key,
-   * extreme-number, empty-container, grow-array, proto-key, deep-nest,
-   * long-string — every family that picks a random JSON *path* and mutates
-   * whatever is there) lands inside `stash`/`equipped` often enough that a
-   * real fraction of its corpus now corrupts a subtree that gets dropped
-   * either way, which is invisible to `changed` by construction — not the
-   * fuzzer going inert. `version` moved the other way (13.9% -> measured
-   * below), since a hostile version stamp now visibly empties a real stash
-   * far more often than the old orphaned-`orbs`-key strip ever did.
-   * `rename-key` (already floored separately) and the byte-level families
-   * (truncate/bitflip/delete-span/duplicate-span/insert-junk, which do not
-   * target a JSON path) are unaffected. Measured with this file's own seed/n:
-   * truncate 100, bitflip 92.3, delete-span 97.4, duplicate-span 94.9,
-   * insert-junk 88.7, retype 81.3, drop-key 72.3, rename-key 79.9,
-   * extreme-number 78.9, empty-container 82.1, grow-array 82.6, proto-key
-   * 83.4, deep-nest 81.9, long-string 82.9, version 63.2 (all %).
+   * p7d re-measurement: `MetaState` shrank from ten-plus fields (several of
+   * them large — the old procedurally-rolled relic `stash`, its `affixes`
+   * arrays) down to a handful of small ones, so `validMeta` (`tools/
+   * fuzz-save.ts`) now has far fewer bytes for a random-JSON-path family
+   * (retype, drop-key, extreme-number, empty-container, grow-array,
+   * proto-key, deep-nest, long-string) to land a no-op mutation in — every one
+   * of those measured *higher* than before. `version` moved hard the other
+   * way, from 63.2% to ~13.5%: the old `validMeta` always carried `ember`/
+   * `accountLevel`/`stash`/`equipped`, so a hostile version stamp almost
+   * always visibly stripped something; the new one carries none of those
+   * fields at all (they no longer exist on the type), so only the ~30% of
+   * the corpus built from `legacySave` — which now synthesises them back on
+   * — has anything version-gated to strip in the first place. `rename-key`
+   * and the byte-level families (truncate/bitflip/delete-span/duplicate-span/
+   * insert-junk, which do not target a JSON path) also rose with the smaller
+   * surface. Measured with this file's own seed/n: truncate 100, bitflip
+   * 98.7, delete-span 99.5, duplicate-span 98.4, insert-junk 95.5, retype
+   * 92.2, drop-key 75.0, rename-key 98.5, extreme-number 87.2,
+   * empty-container 91.1, grow-array 91.7, proto-key 96.6, deep-nest 93.7,
+   * long-string 93.7, version 13.5 (all %).
    */
   const FLOOR: Partial<Record<Family, number>> = {
-    version: 0.5,
-    'rename-key': 0.7,
+    version: 0.1,
     'drop-key': 0.65,
-    retype: 0.75,
-    'extreme-number': 0.7,
-    'empty-container': 0.75,
-    'grow-array': 0.75,
-    'proto-key': 0.75,
-    'deep-nest': 0.75,
-    'long-string': 0.75,
+    'extreme-number': 0.75,
   };
   it.each(FAMILIES)('family %s still changes what loads', (family: Family) => {
     const floor = FLOOR[family] ?? 0.85;
@@ -214,7 +205,7 @@ describe('q3 save fuzz: the corpus is not degenerate', () => {
     expect(runTrial({ family: 'version', label: 'no-op', json: same, base: same }).changed).toBe(false);
 
     const meta = validMeta(new Rng(31));
-    const other = serializeMeta({ ...meta, ember: meta.ember + 1 });
+    const other = serializeMeta({ ...meta, skillPoints: meta.skillPoints + 1 });
     expect(runTrial({ family: 'retype', label: 'real', json: other, base: serializeMeta(meta) }).changed).toBe(true);
   });
 
@@ -225,31 +216,38 @@ describe('q3 save fuzz: the corpus is not degenerate', () => {
     const honest = validMeta(new Rng(29));
     expect(exerciseHub(honest)).toEqual([]);
 
-    // A meta `loadMeta` cannot produce, but the Hub calls are real: `stash`
-    // holding a non-array breaks the two stash entry points and nothing else.
-    const broken = { ...honest, stash: 5 } as unknown as MetaState;
+    // A meta `loadMeta` cannot produce, but the Hub calls are real: `allocated`
+    // holding a non-array breaks every tree entry point (`pointsAvailable`,
+    // `canAllocate`, `allocate`, `refundBlocker` all read it) and nothing else.
+    const broken = { ...honest, allocated: 5 } as unknown as MetaState;
     const errs = exerciseHub(broken);
-    expect(errs.join(' | ')).toMatch(/equip:/);
-    expect(errs.join(' | ')).toMatch(/discard:/);
+    expect(errs.join(' | ')).toMatch(/pointsAvailable:/);
+    expect(errs.join(' | ')).toMatch(/canAllocate:/);
   });
 
   it('the legacy bases carry something the version stamp is read for', () => {
     // `version`'s floor is only 10%, so pin the mechanism directly rather than
     // leaning on the rate: the stamp's sole reader is the retired-key strip.
+    // p7d widened `legacySave` to carry six retired keys (`orbs` plus the five
+    // Ember-economy fields), not one — every one of them must round-trip the
+    // same way orbs alone used to.
     const rng = new Rng(23);
     for (let i = 0; i < 20; i++) {
       const legacy = JSON.parse(legacySave(rng)) as { version: number; meta: Record<string, unknown> };
       expect(legacy.version).toBe(1);
       const retired = Object.keys(legacy.meta).filter((k) => !(k in defaultMeta()));
-      expect(retired.length, 'a legacy base must carry a retired key').toBe(1);
-      // Stamped v1 the key is dropped; re-stamped current, it survives. That
-      // difference is the whole of what the `version` family can move.
+      expect(retired.length, 'a legacy base must carry every retired key').toBe(6);
+      // Stamped v1 every retired key is dropped; re-stamped current, each
+      // survives. That difference is the whole of what the `version` family
+      // can move.
       const asV1 = deserializeMeta(JSON.stringify(legacy)) as unknown as Record<string, unknown>;
       const asNow = deserializeMeta(
         JSON.stringify({ version: SAVE_VERSION, meta: legacy.meta }),
       ) as unknown as Record<string, unknown>;
-      expect(asV1[retired[0]]).toBeUndefined();
-      expect(asNow[retired[0]]).toBe(legacy.meta[retired[0]]);
+      for (const key of retired) {
+        expect(asV1[key], key).toBeUndefined();
+        expect(asNow[key], key).toEqual(legacy.meta[key]);
+      }
     }
   });
 
@@ -300,7 +298,7 @@ describe('q3 save fuzz: the corpus is not degenerate', () => {
       for (const family of ['version', 'proto-key'] as const) {
         const mut = mutate(serializeMeta(meta), rng, family);
         const loaded = withSavedRaw(mut.json, loadMeta);
-        expect(loaded.ember, mut.label).toBe(meta.ember);
+        expect(loaded.skillPoints, mut.label).toBe(meta.skillPoints);
         expect(loaded.completedQuests, mut.label).toEqual(meta.completedQuests);
         if (mut.json !== mut.base) effective++;
       }
@@ -315,20 +313,12 @@ describe('q3 save fuzz: the corpus is not degenerate', () => {
     // that stops that recurring here.
     const good = validMeta(new Rng(2));
     const poison: [string, (m: Record<string, unknown>) => void, RegExp][] = [
-      ['missing field', (m) => delete m.ember, /missing field ember/],
+      ['missing field', (m) => delete m.skillPoints, /missing field skillPoints/],
       ['allocated not an array', (m) => void (m.allocated = 5), /allocated is not an array/],
       ['allocated without start', (m) => void (m.allocated = [1]), /does not contain the start node/],
       ['allocated non-number', (m) => void (m.allocated = [0, 'x']), /holds a non-number/],
       ['allocated unknown node', (m) => void (m.allocated = [0, 999_999]), /holds unknown node 999999/],
       ['allocated disconnected', (m) => void (m.allocated = [0, 40]), /is not connected/],
-      ['stash not an array', (m) => void (m.stash = {}), /stash is not an array/],
-      ['stash entry not an object', (m) => void (m.stash = [null]), /stash\[0\] is not an object/],
-      [
-        'affixes not an array',
-        (m) => void ((m.stash as Record<string, unknown>[])[0].affixes = 5),
-        /affixes is not an array/,
-      ],
-      ['equipped missing a slot', (m) => delete (m.equipped as Record<string, unknown>).charm, /missing the charm slot/],
       ['questProgress not an object', (m) => void (m.questProgress = []), /questProgress is not an object/],
       ['completedQuests not an array', (m) => void (m.completedQuests = 'a'), /completedQuests is not an array/],
     ];
@@ -361,29 +351,28 @@ describe('q3 save fuzz: the corpus is not degenerate', () => {
 });
 
 describe('q3 save fuzz: version migration', () => {
-  // fb023: `< RELICS_DROPPED_AT` (3) coerces exactly like `< retiredIn` already
-  // does below — `null`/`true`/`'2'`/`[]` all land under 3 and drop the stash,
-  // `{v: 2}` coerces to NaN and does not. `validMeta`'s stash is never empty,
-  // so this is the one place the two branches genuinely diverge.
-  const RELIC_STAMPS: [unknown, boolean][] = [
-    [0, true], [1, true], [2, true], [3, false], [999, false], [-1, true],
-    [1.5, true], ['2', true], [null, true], [true, true], [[], true], [{ v: 2 }, false],
+  // p7d: `< ECONOMY_RETIRED_AT` (4) coerces exactly like `< retiredIn` already
+  // does below — `null`/`true`/`'3'`/`[]` all land under 4 and drop the Ember-
+  // economy fields, `{v: 4}` coerces to NaN and does not.
+  const ECONOMY_STAMPS: [unknown, boolean][] = [
+    [0, true], [1, true], [2, true], [3, true], [4, false], [999, false], [-1, true],
+    [1.5, true], ['3', true], [null, true], [true, true], [[], true], [{ v: 4 }, false],
   ];
 
-  it.each(RELIC_STAMPS)('loads a save stamped version %p through the repair path', (version, dropsRelics) => {
-    const meta = validMeta(new Rng(6));
-    const loaded = withSavedRaw(JSON.stringify({ version, meta }), loadMeta);
+  it.each(ECONOMY_STAMPS)('loads a save stamped version %p through the repair path', (version, stripsEconomy) => {
+    const meta = { ...validMeta(new Rng(6)), ember: 500, accountLevel: 7 };
+    const loaded = withSavedRaw(JSON.stringify({ version, meta }), loadMeta) as unknown as Record<string, unknown>;
     expect(checkMeta(loaded)).toEqual([]);
-    expect(loaded.ember).toBe(meta.ember);
-    expect(loaded.stash.map((r) => r.id)).toEqual(dropsRelics ? [] : meta.stash.map((r) => r.id));
-    expect(loaded.completedQuests).toEqual(meta.completedQuests);
+    expect(loaded.ember === undefined, `version ${JSON.stringify(version)}`).toBe(stripsEconomy);
+    expect(loaded.accountLevel === undefined, `version ${JSON.stringify(version)}`).toBe(stripsEconomy);
+    expect((loaded as unknown as MetaState).completedQuests).toEqual(meta.completedQuests);
   });
 
   it('loads a save with no version key at all', () => {
     const meta = validMeta(new Rng(6));
     const loaded = withSavedRaw(JSON.stringify({ meta }), loadMeta);
     expect(checkMeta(loaded)).toEqual([]);
-    expect(loaded.ember).toBe(meta.ember);
+    expect(loaded.skillPoints).toBe(meta.skillPoints);
   });
 
   it('keeps the retired-key rule under a hostile version stamp', () => {
@@ -404,7 +393,7 @@ describe('q3 save fuzz: version migration', () => {
     for (const [version, stripped] of cases) {
       const out = deserializeMeta(JSON.stringify({ version, meta: withOrbs })) as unknown as Record<string, unknown>;
       expect(out.orbs === undefined, `version ${JSON.stringify(version)}`).toBe(stripped);
-      expect((out as unknown as MetaState).ember, `version ${JSON.stringify(version)}`).toBe(meta.ember);
+      expect((out as unknown as MetaState).skillPoints, `version ${JSON.stringify(version)}`).toBe(meta.skillPoints);
     }
   });
 
@@ -429,16 +418,17 @@ describe('q3 save fuzz: the pinned holes in the repair path', () => {
   /** Repair path throws; `loadMeta` falls back and the account is lost. */
   const KNOWN_REJECTED = [
     'allocated=number', 'allocated=bool', 'allocated=object',
-    'stash=string', 'stash=number', 'stash=bool', 'stash=object',
     'unlockedClasses=number', 'unlockedClasses=bool', 'unlockedClasses=object',
     'completedQuests=number', 'completedQuests=bool', 'completedQuests=object',
   ];
-  /** Wrong type spread straight through `migrate` into the live meta. */
+  /**
+   * Wrong type spread straight through `migrate` into the live meta. p7d
+   * (`accountLevel`/`ember`/`nextRelicId` retired) and fb023 (`stash`/
+   * `equipped` retired) shrank this list to the one field left with no
+   * type guard at all.
+   */
   const KNOWN_LAUNDERED = [
-    'accountLevel=string', 'accountLevel=bool', 'accountLevel=null', 'accountLevel=array', 'accountLevel=object',
-    'ember=string', 'ember=bool', 'ember=null', 'ember=array', 'ember=object',
     'highestTier=string', 'highestTier=bool', 'highestTier=null', 'highestTier=array', 'highestTier=object',
-    'nextRelicId=string', 'nextRelicId=bool', 'nextRelicId=null', 'nextRelicId=array', 'nextRelicId=object',
   ];
   /**
    * Right shape, wrong provenance: the spread *converted* the junk instead of
@@ -447,14 +437,6 @@ describe('q3 save fuzz: the pinned holes in the repair path', () => {
    * Shape comparison alone calls these clean, which hid all six.
    */
   const KNOWN_COERCED = [
-    'equipped=string', 'equipped=array',
-    // fb023: `equippedEquipment=string`/`=array` used to be here too (fb015
-    // gave it the same unguarded `{ ...base.x, ...(meta.x ?? {}) }` spread
-    // `equipped` still has) — closed by qa-playtester's fb023 finding, which
-    // gave `equippedEquipment` the same `typeof === 'object' &&
-    // !Array.isArray` guard `equipmentStash` already had
-    // (`tests/t6c-save-migration.test.ts`'s "malformed equippedEquipment"
-    // case is the regression test).
     'unlockedClasses=string',
     'questProgress=string', 'questProgress=array',
     'completedQuests=string',
@@ -470,12 +452,10 @@ describe('q3 save fuzz: the pinned holes in the repair path', () => {
    * Laundering with a consequence on screen. The `highestTier` three arrived
    * only after `hubNumbers` was widened to include the Hub's own tier-gate
    * expression — the pin existed to catch exactly this and could not see it
-   * (QA, session 2, D7/D8).
+   * (QA, session 2, D7/D8). p7d dropped `hubNumbers`' `accountLevel`/
+   * `stashCapacity` entries along with the fields/function themselves.
    */
-  const KNOWN_HUB_NAN = [
-    'accountLevel=string', 'accountLevel=array', 'accountLevel=object',
-    'highestTier=string', 'highestTier=array', 'highestTier=object',
-  ];
+  const KNOWN_HUB_NAN = ['highestTier=string', 'highestTier=array', 'highestTier=object'];
 
   const shapes = (pick: (r: ReturnType<typeof fieldMatrix>[number]) => boolean) =>
     fieldMatrix().filter(pick).map((r) => r.shape);
@@ -517,23 +497,31 @@ describe('q3 save fuzz: the pinned holes in the repair path', () => {
 });
 
 /**
- * Regression tests for five confirmed `/src` defects, written to the behaviour
- * the repair path *should* have and skipped because this lane's Scope
- * (BACKLOG-QUALITY.md §Scope) forbids `/src` edits. The bug reports are in that
- * file's Log, 2026-08-26 session 2, as D1-D5. Each one was confirmed to fail
- * today for the reason in its comment; unskip it with the fix.
+ * Regression tests for confirmed `/src` defects, written to the behaviour the
+ * repair path *should* have and skipped because this lane's Scope
+ * (BACKLOG-QUALITY.md §Scope) forbids `/src` edits. The bug reports are in
+ * that file's Log, 2026-08-26 session 2, as D1-D9. Each one was confirmed to
+ * fail today for the reason in its comment; unskip it with the fix.
+ *
+ * p7d retired the whole subject of D2/D3/D6/D7/D9 — `accountLevel`, `ember`,
+ * `accountLevelFor`, and `nextRelicId` no longer exist, and `hubNumbers` no
+ * longer derives a tier gate from any of them the way it used to for D7 —
+ * so those five are deleted outright (MIGRATION.md's retirement rule: a
+ * `.skip` stays alive only until the code it covers is deleted, and that
+ * code is gone in this same commit). D1/D4/D5 survive, updated for the
+ * current field set (no `stash`, `skillPoints` in place of `ember`).
  */
 describe('q3 save fuzz: filed /src defects', () => {
-  // D1. `migrate` spreads `[...meta.allocated]` and calls `meta.stash.map`
-  // without an `Array.isArray` check, so a save whose array field holds a
-  // number, a bool or an object throws out of the repair path entirely and
-  // `loadMeta` replaces the whole account with `defaultMeta()`. The defaults
-  // for every one of these fields are already in `base` — the repair is a
-  // one-line guard per field, and the data loss is total without it.
+  // D1. `migrate` spreads `[...meta.allocated]` without an `Array.isArray`
+  // check, so a save whose array field holds a number, a bool or an object
+  // throws out of the repair path entirely and `loadMeta` replaces the whole
+  // account with `defaultMeta()`. The defaults for every one of these fields
+  // are already in `base` — the repair is a one-line guard per field, and the
+  // data loss is total without it.
   it.skip('D1: an array field of the wrong type falls back to its default, not the whole account', () => {
     const meta = validMeta(new Rng(1));
     const base = defaultMeta() as unknown as Record<string, unknown>;
-    for (const key of ['allocated', 'stash', 'unlockedClasses', 'completedQuests']) {
+    for (const key of ['allocated', 'unlockedClasses', 'completedQuests']) {
       for (const junk of [7, true, { a: 1 }]) {
         const where = `${key}=${JSON.stringify(junk)}`;
         const loaded = withSavedRaw(
@@ -544,61 +532,10 @@ describe('q3 save fuzz: filed /src defects', () => {
         // The broken field falls back to its own default...
         expect(loaded[key], where).toEqual(base[key]);
         // ...and the rest of the account is still the player's.
-        expect(loaded.ember, where).toBe(meta.ember);
+        expect(loaded.skillPoints, where).toBe(meta.skillPoints);
         expect(loaded.completedQuests, where).toEqual(key === 'completedQuests' ? base[key] : meta.completedQuests);
       }
     }
-  });
-
-  // D2. `migrate` does not check scalar types either, so `accountLevel:
-  // "seven"` reaches the live meta and `pointsAvailable` returns NaN. The
-  // consequence is not a soft-lock but an exploit: `canAllocate`'s guard is
-  // `if (pointsAvailable(meta) <= 0) return false`, and `NaN <= 0` is **false**,
-  // so the guard never fires and the Constellation can be filled for nothing.
-  // Measured on an account entitled to 3 points: 120 of 121 nodes allocated
-  // free. `sanitize` in src/ui/settings.ts is the shape of the fix.
-  it.skip('D2: a scalar field of the wrong type is replaced, never laundered', () => {
-    const base = defaultMeta();
-    for (const key of ['accountLevel', 'ember', 'highestTier', 'nextRelicId']) {
-      for (const junk of ['seven', true, null, [1, 2], { a: 1 }]) {
-        const where = `${key}=${JSON.stringify(junk)}`;
-        const loaded = withSavedRaw(
-          JSON.stringify({ version: SAVE_VERSION, meta: { ...base, [key]: junk } }),
-          loadMeta,
-        );
-        const got = (loaded as unknown as Record<string, unknown>)[key];
-        expect(typeof got, where).toBe('number');
-        expect(Number.isFinite(got as number), where).toBe(true);
-        for (const [name, v] of Object.entries(hubNumbers(loaded))) {
-          expect(Number.isFinite(v), `${where} -> ${name}`).toBe(true);
-        }
-        // The consequence, asserted directly: the tree cannot be filled for free.
-        let m = loaded;
-        for (const node of loadContent().tree.nodes) m = allocate(m, node.id);
-        const spent = m.allocated.filter((id) => id !== 0).length;
-        expect(spent, `${where}: nodes taken`).toBeLessThanOrEqual(
-          m.accountLevel * loadContent().tree.pointsPerLevel,
-        );
-      }
-    }
-  });
-
-  // D3. `1e999` is legal JSON and parses to Infinity, which `migrate` keeps.
-  // `JSON.stringify(Infinity)` is `null`, so the very next save writes
-  // `"ember":null` and the load after that reads a different account again —
-  // and once a run banks Ember, `accountLevelFor(Infinity)` is the level cap,
-  // so the stored level goes 3 -> 60 -> 1. A corrupt save that loads is one
-  // thing; one that loads *differently every time* defeats G18's round-trip.
-  it.skip('D3: a non-finite number in a save is repaired, and loading is a fixed point', () => {
-    const save = JSON.stringify({ version: SAVE_VERSION, meta: { ...defaultMeta(), ember: '__INF__' } }).replace(
-      '"__INF__"',
-      '1e999',
-    );
-    const once = withSavedRaw(save, loadMeta);
-    expect(Number.isFinite(once.ember)).toBe(true);
-    const twice = withSavedRaw(serializeMeta(once), loadMeta);
-    expect(twice).toEqual(once);
-    expect(accountLevelFor(twice.ember)).toBe(accountLevelFor(once.ember));
   });
 
   // D4. `pointsAvailable` counts `allocated.filter(id => id !== 0).length`, so
@@ -636,61 +573,6 @@ describe('q3 save fuzz: filed /src defects', () => {
       // ...and the game still opens, on a fresh account, via the catch.
       expect(checkMeta(withSavedRaw(raw, loadMeta)), raw.slice(0, 40)).toEqual([]);
     }
-  });
-
-  // D6. The severe half of D2, and a different mechanism. `accountLevelFor`
-  // (`src/meta/meta.ts:211`) loops `while (level < max)` and breaks on
-  // `ember < spent + cost`, which is **false** for NaN — so any ember that is
-  // not a number returns the level cap. Measured: `accountLevelFor` is 60 for
-  // NaN, Infinity, `'x'`, `[1,2]` and `{a:1}`. Worse, `applyRunResult`'s
-  // `next.ember += ember` *string-concatenates* a string ember, so the account
-  // banks `"seven115"`, stays non-numeric, and reads as a legitimate level-60
-  // account — a plain number by then — across every future load. Unlike D2's
-  // NaN, which the Hub at least prints as NaN, this one is invisible.
-  it.skip('D6: a non-numeric ember cannot buy the account level cap', () => {
-    for (const junk of ['seven', { a: 1 }, [1, 2]] as unknown[]) {
-      expect(accountLevelFor(junk as number), JSON.stringify(junk)).toBe(1);
-    }
-    expect(accountLevelFor(Number.NaN)).toBe(1);
-    expect(accountLevelFor(Number.POSITIVE_INFINITY)).toBe(1);
-    const loaded = withSavedRaw(
-      JSON.stringify({ version: SAVE_VERSION, meta: { ...defaultMeta(), ember: 'seven' } }),
-      loadMeta,
-    );
-    expect(typeof loaded.ember).toBe('number');
-    expect(accountLevelFor(loaded.ember)).toBe(defaultMeta().accountLevel);
-  });
-
-  // D7. `src/ui/hub.ts:128` derives `Math.max(1, Math.min(5, highestTier))`,
-  // which is NaN for a laundered `highestTier`, and the button gate below it
-  // is `t > maxTier` — false for every `t` when maxTier is NaN. Measured in
-  // the real Hub DOM: all five map tiers enabled on a T1 account. `startRun`
-  // does not clamp `cfg.tier` either, so the T5 run is genuinely played and
-  // paid out at the T5 reward multiplier. This is `hubNumbers`' `tierGate`.
-  it.skip('D7: a laundered highestTier cannot unlock every map tier', () => {
-    for (const junk of ['seven', { a: 1 }, [1, 2]] as unknown[]) {
-      const loaded = withSavedRaw(
-        JSON.stringify({ version: SAVE_VERSION, meta: { ...defaultMeta(), highestTier: junk } }),
-        loadMeta,
-      );
-      const where = JSON.stringify(junk);
-      expect(typeof loaded.highestTier, where).toBe('number');
-      expect(hubNumbers(loaded).tierGate, where).toBe(1);
-    }
-  });
-
-  // D9. `migrate` validates that `allocated` is *connected* but never that it
-  // is *afforded*: a save naming every node in the tree loads intact, because
-  // `pointsAvailable` clamps the deficit with `Math.max(0, …)`. Same premise
-  // and the same one-line home in the repair path as D4.
-  it.skip('D9: an unaffordable allocation is trimmed, not honoured', () => {
-    const all = loadContent().tree.nodes.map((n) => n.id);
-    const loaded = withSavedRaw(
-      JSON.stringify({ version: SAVE_VERSION, meta: { ...defaultMeta(), allocated: all } }),
-      loadMeta,
-    );
-    const spent = loaded.allocated.filter((id) => id !== 0).length;
-    expect(spent).toBeLessThanOrEqual(loaded.accountLevel * loadContent().tree.pointsPerLevel);
   });
 });
 

@@ -50,8 +50,6 @@ const DERIVED_POSITIVE = [
   'towerRangeMul',
   'towerCostMul',
   'goldFindMul',
-  'emberFindMul',
-  'relicFindMul',
   'wallHpMul',
 ] as const;
 
@@ -111,7 +109,6 @@ export function scanWorld(w: World): string[] {
   nonNeg('spawnBudget', w.spawnBudget);
   nonNeg('cycle', w.cycle);
   nonNeg('tick', w.tick);
-  nonNeg('emberEarned', w.emberEarned);
   // Timers and counters the fuzzed commands write directly: `call` zeroes
   // `buildTimer`, `pick` moves `pendingLevelUps`.
   //

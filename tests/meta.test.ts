@@ -1,28 +1,22 @@
-/** Meta layer (SPEC 8): Ember, Constellation, stash, save/load. */
+/** Meta layer (SPEC 8): skill points, Constellation, equipment stash, save/load. */
 
 import { describe, expect, it } from 'vitest';
 
 import { loadContent } from '../src/sim/content';
-import { Rng } from '../src/sim/rng';
-import { rollRelic } from '../src/sim/loot';
 import { baseRunStats, derive } from '../src/sim/stats';
-import type { MetaState, Relic } from '../src/sim/types';
+import type { MetaState } from '../src/sim/types';
 import {
-  accountLevelFor,
   allocate,
   canAllocate,
   canRefund,
   defaultMeta,
   deserializeMeta,
-  emberFor,
   isConnected,
   metricsFor,
   pointsAvailable,
   refund,
   serializeMeta,
-  stashCapacity,
 } from '../src/meta/meta';
-import { discard, equip } from '../src/meta/stash';
 import type { RunReport } from '../src/sim/types';
 import { World } from '../src/sim/world';
 import { cfg } from './helpers';
@@ -33,11 +27,7 @@ function metaWith(over: Partial<MetaState> = {}): MetaState {
   return { ...defaultMeta(), ...over };
 }
 
-function someRelic(id = 1, rarity = 'magic'): Relic {
-  return rollRelic(content, new Rng(id * 17 + 3), 0, id, rarity);
-}
-
-describe('the Constellation (SPEC 8.1)', () => {
+describe('the Constellation (SPEC 8.1, 8.3)', () => {
   it('has 120 allocatable nodes, 3 keystones, and a connected graph', () => {
     const allocatable = content.tree.nodes.filter((n) => n.kind !== 'start');
     expect(allocatable).toHaveLength(120);
@@ -48,13 +38,16 @@ describe('the Constellation (SPEC 8.1)', () => {
     }
   });
 
-  it('grants one point per account level', () => {
-    const m = metaWith({ accountLevel: 5 });
+  it('p7d: skill points are the tree\'s only currency — available points is skillPoints minus allocated', () => {
+    const m = metaWith({ skillPoints: 5 });
     expect(pointsAvailable(m)).toBe(5);
+    const a = content.treeById.get(0)!.links[0];
+    const spent = allocate(m, a);
+    expect(pointsAvailable(spent)).toBe(4);
   });
 
   it('only allows nodes adjacent to what is already taken', () => {
-    const m = metaWith({ accountLevel: 3 });
+    const m = metaWith({ skillPoints: 3 });
     const start = content.treeById.get(0)!;
     const near = start.links[0];
     const far = content.tree.nodes.find(
@@ -65,14 +58,14 @@ describe('the Constellation (SPEC 8.1)', () => {
   });
 
   it('refuses to allocate without points', () => {
-    const m = metaWith({ accountLevel: 1, allocated: [0, content.treeById.get(0)!.links[0]] });
+    const m = metaWith({ skillPoints: 1, allocated: [0, content.treeById.get(0)!.links[0]] });
     expect(pointsAvailable(m)).toBe(0);
     const next = content.treeById.get(content.treeById.get(0)!.links[0])!.links.find((l) => l !== 0)!;
     expect(canAllocate(m, next)).toBe(false);
   });
 
   it('refuses a refund that would orphan a downstream node', () => {
-    let m = metaWith({ accountLevel: 10, ember: 1000 });
+    let m = metaWith({ skillPoints: 10 });
     const a = content.treeById.get(0)!.links[0];
     m = allocate(m, a);
     const b = content.treeById.get(a)!.links.find((l) => l !== 0)!;
@@ -81,14 +74,32 @@ describe('the Constellation (SPEC 8.1)', () => {
     expect(canRefund(m, a)).toBe(false);
   });
 
-  it('charges Ember to refund a node', () => {
-    let m = metaWith({ accountLevel: 10, ember: 1000 });
+  it('§8.3 (Q46): "respec 1 point per node" — refunding charges the tree\'s respecCostPerNode in skill points', () => {
+    let m = metaWith({ skillPoints: 10 });
     const a = content.treeById.get(0)!.links[0];
     m = allocate(m, a);
-    const before = m.ember;
+    const before = m.skillPoints;
     m = refund(m, a);
     expect(m.allocated).not.toContain(a);
-    expect(before - m.ember).toBe(content.tree.respecCostPerNode);
+    expect(before - m.skillPoints).toBe(content.tree.respecCostPerNode);
+  });
+
+  it('a free (same-visit) refund costs nothing', () => {
+    let m = metaWith({ skillPoints: 10 });
+    const a = content.treeById.get(0)!.links[0];
+    m = allocate(m, a);
+    const before = m.skillPoints;
+    m = refund(m, a, { free: true });
+    expect(m.skillPoints).toBe(before);
+  });
+
+  it('refuses a paid refund without enough skill points banked', () => {
+    let m = metaWith({ skillPoints: content.tree.respecCostPerNode });
+    const a = content.treeById.get(0)!.links[0];
+    m = allocate(m, a);
+    // Spending down to exactly 0 leaves nothing to pay the respec fee with.
+    m = { ...m, skillPoints: 0 };
+    expect(canRefund(m, a)).toBe(false);
   });
 
   it('feeds allocated node stats into the run stat sheet', () => {
@@ -97,52 +108,20 @@ describe('the Constellation (SPEC 8.1)', () => {
     const withNode = derive(content, baseRunStats(content, cfg({ allocated: [node.id] })));
     expect(withNode.powerMul).toBeGreaterThan(plain.powerMul);
   });
-
-  it('raises the account level as Ember accumulates', () => {
-    expect(accountLevelFor(0)).toBe(1);
-    expect(accountLevelFor(100)).toBe(2);
-    expect(accountLevelFor(1e9)).toBe(content.tree.maxAccountLevel);
-  });
-});
-
-// SPEC-V3 §8 deletes Orbs, so the five Orb-crafting tests that lived here
-// (Whetting / Turning / Ascension / spend-and-refuse / purity) went with
-// `src/meta/crafting.ts`. Equip and discard are stash mechanics V3 keeps.
-describe('the relic stash (SPEC 7)', () => {
-  it('equips only into the matching slot, and discarding unequips', () => {
-    const relic = someRelic(6, 'magic');
-    let m = metaWith({ stash: [relic] });
-    const wrong = content.relics.slots.find((s) => s !== relic.slot)!;
-    expect(equip(m, wrong, relic.id).equipped).toEqual(m.equipped);
-    m = equip(m, relic.slot, relic.id);
-    expect(m.equipped[relic.slot as 'sigil']).toBe(relic.id);
-    m = discard(m, relic.id);
-    expect(m.stash).toHaveLength(0);
-    expect(m.equipped[relic.slot as 'sigil']).toBeNull();
-  });
-
-  it('caps the stash at the SPEC 7 size', () => {
-    expect(stashCapacity(defaultMeta())).toBe(content.relics.stashSlots);
-    expect(stashCapacity(metaWith({ completedQuests: ['archivist'] }))).toBe(
-      content.relics.stashSlots + 8,
-    );
-  });
 });
 
 describe('save / load', () => {
   it('round-trips a populated account exactly', () => {
     const a = content.treeById.get(0)!.links[0];
     const meta = metaWith({
-      accountLevel: 7,
-      ember: 1234,
+      skillPoints: 7,
       allocated: [0, a],
-      stash: [someRelic(1, 'rare'), someRelic(2, 'magic')],
-      equipped: { sigil: null, plate: null, charm: null },
+      equipmentStash: { greatsword: 2 },
+      equippedEquipment: { ...defaultMeta().equippedEquipment, weapon: 'greatsword' },
       unlockedClasses: ['engineer', 'pyromancer'],
       highestTier: 3,
       questProgress: { wins: 4, lifetime_gold: 9000 },
       completedQuests: ['win_a_run'],
-      nextRelicId: 9,
     });
     const back = deserializeMeta(serializeMeta(meta));
     expect(back).toEqual(meta);
@@ -155,12 +134,10 @@ describe('save / load', () => {
     expect(deserializeMeta('{"version":1}').allocated).toEqual([0]);
   });
 
-  it('opens a new account with the starting Ember and the level it buys', () => {
+  it('opens a new account with 0 skill points — the Hub explains itself rather than starting pre-spent', () => {
     const fresh = defaultMeta();
-    expect(fresh.ember).toBe(content.tree.startingEmber);
-    expect(fresh.accountLevel).toBe(accountLevelFor(content.tree.startingEmber));
-    // The point of the starting Ember is that the Hub is not a dead screen.
-    expect(pointsAvailable(fresh)).toBeGreaterThan(0);
+    expect(fresh.skillPoints).toBe(0);
+    expect(pointsAvailable(fresh)).toBe(0);
   });
 
   it('repairs a save whose allocation graph is disconnected', () => {
@@ -168,63 +145,35 @@ describe('save / load', () => {
     expect(isConnected([0, 119])).toBe(false);
     expect(deserializeMeta(bad).allocated).toEqual([0]);
   });
-});
 
-describe('Ember rewards (SPEC 8.1)', () => {
-  it('pays more for a higher tier and more modifiers', () => {
-    const base = {
-      seed: 1,
-      policy: 'x',
-      classKey: 'engineer',
-      core: 'stone_heart',
-      modifiers: [] as string[],
-      outcome: 'victory' as const,
-      ticks: 0,
-      totalSeconds: 0,
-      act1Seconds: 0,
-      act2Seconds: 0,
-      wavesCleared: 10,
-      vsWavesCleared: 2,
-      coreHp: 100,
-      coreMaxHp: 500,
-      goldEarned: 0,
-      goldSpent: 0,
-      goldLeft: 0,
-      towersBuilt: 0,
-      towersByKey: {},
-      survivalSeconds: 600,
-      level: 30,
-      kills: 0,
-      leaks: 0,
-      damageByWeapon: {},
-      damageByType: {},
-      damageTotal: 0,
-      damageThroughMinute8: null,
-      spawnedByWave: [],
-      leaksByWave: [],
-      goldEarnedByWave: [],
-      topWeaponShareMinute8: 0,
-      topWeaponMinute8: '',
-      weapons: [],
-      boons: {},
-      typeMastery: {},
-      skillCards: {},
-      relicsFound: 0,
-      equipmentFound: 0,
-      ember: 0,
-      bossKilled: true,
-      bossKillSeconds: 590,
-      endHash: '',
-      practiceUsed: false,
-    };
-    // A real World, not a hand-built stub: the stub this replaced was cast
-    // `as never`, so when m19b renamed `derived.emberFind` to `emberFindMul`
-    // nothing type-checked it and `emberFor` quietly returned NaN.
-    const w = new World(cfg());
-    const t1 = emberFor({ ...base, tier: 1 }, w);
-    const t3 = emberFor({ ...base, tier: 3, modifiers: ['tough', 'fleet'] }, w);
-    expect(t1).toBeGreaterThan(0);
-    expect(t3).toBeGreaterThan(t1);
+  it('p7d (Q46): a pre-p7d save\'s leftover Ember converts once, at 100:1, into skill points', () => {
+    const legacy = JSON.stringify({
+      version: 3,
+      meta: { ...metaWith(), ember: 1234, accountLevel: 9 },
+    });
+    const migrated = deserializeMeta(legacy);
+    expect(migrated.skillPoints).toBe(Math.floor(1234 / 100));
+    expect((migrated as unknown as Record<string, unknown>).ember).toBeUndefined();
+    expect((migrated as unknown as Record<string, unknown>).accountLevel).toBeUndefined();
+  });
+
+  it('adds the converted Ember on top of any skillPoints already earned this way', () => {
+    const legacy = JSON.stringify({
+      version: 2,
+      meta: { ...metaWith(), skillPoints: 5, ember: 300 },
+    });
+    expect(deserializeMeta(legacy).skillPoints).toBe(5 + 3);
+  });
+
+  it('a save already at SAVE_VERSION 4 does not re-convert a stray ember field', () => {
+    const modern = JSON.stringify({
+      version: 4,
+      meta: { ...metaWith(), skillPoints: 5, ember: 9999 },
+    });
+    // version >= ECONOMY_RETIRED_AT: no conversion, and the stray field is not
+    // stripped either (only saves *older* than the retirement version are
+    // stripped) — it simply never contributes to skillPoints.
+    expect(deserializeMeta(modern).skillPoints).toBe(5);
   });
 });
 
@@ -267,9 +216,7 @@ describe('quest metrics (Q101, p2e)', () => {
       boons: {},
       typeMastery: {},
       skillCards: {},
-      relicsFound: 0,
       equipmentFound: 0,
-      ember: 0,
       bossKilled: true,
       bossKillSeconds: 590,
       endHash: '',

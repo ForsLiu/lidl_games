@@ -100,7 +100,8 @@ describe('content', () => {
     expect(c.classes.classes).toHaveLength(12);
     expect(c.tree.nodes.filter((n) => n.kind !== 'start')).toHaveLength(120);
     expect(c.tree.nodes.filter((n) => n.kind === 'keystone')).toHaveLength(3);
-    expect(c.relics.affixes).toHaveLength(12);
+    // §13: "12+ equipment" — p7d retired the relic affix table this used to pin.
+    expect(c.equipment.items.length).toBeGreaterThanOrEqual(12);
   });
 
   it('is cached, so repeated loads are the same object', () => {

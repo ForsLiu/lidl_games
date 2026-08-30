@@ -187,17 +187,20 @@ export interface Mutation {
  */
 export const MUTATIONS: Mutation[] = [
   {
-    name: 'meta-drop-ember-on-serialize',
+    // p7d: retargeted from `ember` (retired along with the whole account-
+    // level economy) to `skillPoints`, the field that now plays the same
+    // "a real currency the round-trip test must notice going missing" role.
+    name: 'meta-drop-skillpoints-on-serialize',
     file: 'src/meta/meta.ts',
     edits: [
       {
         find: `export function serializeMeta(meta: MetaState): string {\n  return JSON.stringify({ version: SAVE_VERSION, meta } satisfies SaveFile);\n}`,
-        replace: `export function serializeMeta(meta: MetaState): string {\n  const obj = { version: SAVE_VERSION, meta } satisfies SaveFile;\n  delete (obj.meta as unknown as Record<string, unknown>).ember;\n  return JSON.stringify(obj);\n}`,
+        replace: `export function serializeMeta(meta: MetaState): string {\n  const obj = { version: SAVE_VERSION, meta } satisfies SaveFile;\n  delete (obj.meta as unknown as Record<string, unknown>).skillPoints;\n  return JSON.stringify(obj);\n}`,
       },
     ],
     testFile: 'tests/q8-save-roundtrip.test.ts',
     source:
-      'BACKLOG-QUALITY.md session 4 log (q8): "dropping `ember` from `serializeMeta`\'s output" — QA confirmed red on the first generated meta.',
+      'BACKLOG-QUALITY.md session 4 log (q8): "dropping `ember` from `serializeMeta`\'s output" — QA confirmed red on the first generated meta. Retargeted at p7d to `skillPoints`, the field ember retired into.',
   },
   {
     name: 'meta-reverse-migrate-spread-order',
@@ -416,8 +419,8 @@ export const MUTATIONS: Mutation[] = [
     file: 'tools/soak.ts',
     edits: [
       {
-        find: `  const started = performance.now();\n  let run: Run | undefined;\n  let w: World | undefined;\n  const problems: string[] = [];\n  let threw = false;\n\n  try {\n    const cfg: RunConfig = {\n      seed,\n      classKey: 'engineer',\n      tier: 1,\n      modifiers: [],\n      allocated: [],\n      relics: [],\n      policy: policyName,\n      cycles: 3,\n    };\n    // \`new Run(cfg)\` lives inside this try (not before it) so a \`/data\` load\n    // failure at construction — e.g. a corrupted content file — comes back\n    // through \`SoakResult.threw\` like any other in-run exception, rather\n    // than propagating straight out of \`soakOne\` uncaught (q28).\n    run = new Run(cfg);\n    w = run.world;\n    const policy = makePolicy(policyName);`,
-        replace: `  const started = performance.now();\n  const cfg: RunConfig = {\n    seed,\n    classKey: 'engineer',\n    tier: 1,\n    modifiers: [],\n    allocated: [],\n    relics: [],\n    policy: policyName,\n    cycles: 3,\n  };\n  const run: Run = new Run(cfg);\n  const w: World = run.world;\n  const problems: string[] = [];\n  let threw = false;\n\n  try {\n    const policy = makePolicy(policyName);`,
+        find: `  const started = performance.now();\n  let run: Run | undefined;\n  let w: World | undefined;\n  const problems: string[] = [];\n  let threw = false;\n\n  try {\n    const cfg: RunConfig = {\n      seed,\n      classKey: 'engineer',\n      tier: 1,\n      modifiers: [],\n      allocated: [],\n      policy: policyName,\n      cycles: 3,\n    };\n    // \`new Run(cfg)\` lives inside this try (not before it) so a \`/data\` load\n    // failure at construction — e.g. a corrupted content file — comes back\n    // through \`SoakResult.threw\` like any other in-run exception, rather\n    // than propagating straight out of \`soakOne\` uncaught (q28).\n    run = new Run(cfg);\n    w = run.world;\n    const policy = makePolicy(policyName);`,
+        replace: `  const started = performance.now();\n  const cfg: RunConfig = {\n    seed,\n    classKey: 'engineer',\n    tier: 1,\n    modifiers: [],\n    allocated: [],\n    policy: policyName,\n    cycles: 3,\n  };\n  const run: Run = new Run(cfg);\n  const w: World = run.world;\n  const problems: string[] = [];\n  let threw = false;\n\n  try {\n    const policy = makePolicy(policyName);`,
       },
     ],
     testFile: 'tests/q28-cli-error-handling.test.ts',

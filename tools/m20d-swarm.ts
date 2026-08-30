@@ -31,7 +31,7 @@ try {
 
   const cfg = (): RunConfig => ({
     seed: 1, classKey: 'engineer', tier: 1, modifiers: [],
-    allocated: [], relics: [], policy: 'hybrid', cycles: 1,
+    allocated: [], policy: 'hybrid', cycles: 1,
   });
 
   /** Seconds for one Venom Spore at `level` to kill `n` husks of `hp` each. */

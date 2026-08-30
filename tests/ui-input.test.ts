@@ -210,16 +210,26 @@ describe('the overlay stylesheet cannot lose the cascade', () => {
 describe('Constellation refund (SPEC 8.1)', () => {
   const content = loadContent();
 
-  function metaWithOneNode(ember: number): MetaState {
+  /**
+   * Hand-built rather than reached through `allocate`: with `respecCostPerNode`
+   * now 1 (Q46, the same currency `allocate` spends), a node reached through
+   * ordinary play can never actually go "broke" for its own refund — refunding
+   * it both frees the slot `allocate` consumed and pays the fee from the same
+   * pool, so the two exactly cancel. A `skillPoints` short of `respecCostPerNode`
+   * is still a real state (e.g. mid-migration, or `TREE_AUTO_MAX` flipping off
+   * under an account that never had this many points), so `refundBlocker`'s
+   * cost branch is tested directly against a constructed one.
+   */
+  function metaWithOneNode(skillPoints: number): MetaState {
     const first = content.treeById.get(0)!.links[0];
-    return allocate({ ...defaultMeta(), accountLevel: 5, ember }, first);
+    return { ...defaultMeta(), skillPoints, allocated: [0, first] };
   }
 
-  it('reports a node as refundable only when the Ember is there', () => {
+  it('reports a node as refundable only when the skill points are there', () => {
     const cost = content.tree.respecCostPerNode;
     const node = content.treeById.get(0)!.links[0];
 
-    const broke = metaWithOneNode(cost - 1);
+    const broke = metaWithOneNode(Math.max(0, cost - 1));
     expect(canRefund(broke, node)).toBe(false);
 
     const flush = metaWithOneNode(cost);
@@ -250,14 +260,14 @@ describe('Constellation refund (SPEC 8.1)', () => {
     el.dispatchEvent(new window.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
 
     expect(meta.allocated).not.toContain(node);
-    expect(meta.ember).toBe(cost + 10 - cost);
+    expect(meta.skillPoints).toBe(cost + 10 - cost);
   });
 
   // fb014: same reason as the skip above — right-click refund UI is off.
-  it.skip('leaves the node alone and says why when the Ember is short', () => {
+  it.skip('leaves the node alone and says why when the skill points are short', () => {
     const root = mount();
     const cost = content.tree.respecCostPerNode;
-    let meta = metaWithOneNode(cost - 1);
+    let meta = metaWithOneNode(Math.max(0, cost - 1));
     const node = content.treeById.get(0)!.links[0];
 
     const hub = new Hub(root, meta, 1, {
@@ -274,7 +284,7 @@ describe('Constellation refund (SPEC 8.1)', () => {
 
     expect(meta.allocated).toContain(node);
     // The player must be told why nothing happened.
-    expect(root.textContent).toMatch(/Ember/i);
+    expect(root.textContent).toMatch(/skill point/i);
   });
 
   it('suppresses the browser context menu over the tree', () => {
@@ -295,10 +305,10 @@ describe('Constellation refund (SPEC 8.1)', () => {
     expect(evt.defaultPrevented).toBe(true);
   });
 
-  it('refuses a refund that would orphan a downstream node, whatever the Ember', () => {
+  it('refuses a refund that would orphan a downstream node, whatever the skill points', () => {
     const a = content.treeById.get(0)!.links[0];
     const b = content.treeById.get(a)!.links.find((l) => l !== 0)!;
-    let meta = { ...defaultMeta(), accountLevel: 10, ember: 1000 };
+    let meta = { ...defaultMeta(), skillPoints: 10 };
     meta = allocate(meta, a);
     meta = allocate(meta, b);
     expect(canRefund(meta, a)).toBe(false);

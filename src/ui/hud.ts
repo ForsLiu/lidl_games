@@ -855,7 +855,7 @@ export class Hud {
           <div><span>Kills</span><b>${w.kills}</b></div>
           <div><span>Towers built</span><b>${w.towersBuilt}</b></div>
           <div><span>Equipment found</span><b>${w.equipmentFound.length}</b></div>
-          <div><span>Ember</span><b>${w.emberEarned}</b></div>
+          <div><span>Skill points</span><b>${w.vsWavesCleared}</b></div>
         </div>
         ${w.practiceUsed ? '<p class="sw-note">Practice run — nothing was banked.</p>' : ''}
         <div class="sw-resultbuttons">
@@ -1024,7 +1024,7 @@ function equipmentSectionMarkup(w: World): string {
             if (!item) return '';
             const isEq = w.equippedEquipment[item.slot] === key;
             const tip = isEq ? 'Click to unequip.' : `Click to equip to ${item.slot}.`;
-            return `<button class="sw-relic ${isEq ? 'equipped' : ''}" data-runitem="${key}" title="${tip}">
+            return `<button class="sw-lootitem ${isEq ? 'equipped' : ''}" data-runitem="${key}" title="${tip}">
                 <b>${item.name}</b><small>${item.slot} · x${count}${isEq ? ' · equipped' : ''}</small>
               </button>`;
           })

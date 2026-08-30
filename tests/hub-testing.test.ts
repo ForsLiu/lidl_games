@@ -6,7 +6,9 @@
  *
  * A fresh account showed four counters, two of which read zero and explained
  * nothing, and a Stash screen that could not be reached without an hour of
- * play. These drive the real Hub DOM.
+ * play. These drive the real Hub DOM. p7d retired the relic stash and the
+ * Ember/account-level pipeline outright — `seedTestAccount` now grants skill
+ * points directly.
  */
 
 import { readFileSync } from 'node:fs';
@@ -15,7 +17,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { Hub, accountMarkup } from '../src/ui/hub';
-import { defaultMeta, seedTestAccount, stashCapacity } from '../src/meta/meta';
+import { defaultMeta, seedTestAccount } from '../src/meta/meta';
 import { defaultSettings } from '../src/ui/settings';
 import type { MetaState } from '../src/sim/types';
 
@@ -41,38 +43,16 @@ function openHub(meta: MetaState): { root: HTMLElement; hub: Hub; latest: () => 
 }
 
 describe('seeding a test account', () => {
-  it('grants relics and Ember', () => {
+  it('grants skill points', () => {
     const before = defaultMeta();
     const after = seedTestAccount(before);
-    expect(after.stash.length).toBe(8);
-
-    expect(after.ember).toBe(before.ember + 600);
-    expect(before.stash.length).toBe(0);
+    expect(after.skillPoints).toBe(before.skillPoints + 20);
   });
 
-  it('includes at least one rare, so the craft screen has something to work on', () => {
-    expect(seedTestAccount(defaultMeta()).stash.some((r) => r.rarity === 'rare')).toBe(true);
-  });
-
-  it('gives every relic a unique id and a real slot', () => {
-    const meta = seedTestAccount(defaultMeta());
-    const ids = new Set(meta.stash.map((r) => r.id));
-    expect(ids.size).toBe(meta.stash.length);
-    for (const r of meta.stash) expect(r.slot.length).toBeGreaterThan(0);
-  });
-
-  it('is deterministic for the same account, and different for the next batch', () => {
-    const a = seedTestAccount(defaultMeta());
-    const b = seedTestAccount(defaultMeta());
-    expect(a.stash.map((r) => r.name)).toEqual(b.stash.map((r) => r.name));
-    const second = seedTestAccount(a);
-    expect(second.stash.slice(8).map((r) => r.name)).not.toEqual(a.stash.map((r) => r.name));
-  });
-
-  it('never overfills the stash', () => {
-    let meta = defaultMeta();
-    for (let i = 0; i < 10; i++) meta = seedTestAccount(meta);
-    expect(meta.stash.length).toBeLessThanOrEqual(stashCapacity(meta));
+  it('is additive: seeding twice tops the total up further rather than resetting it', () => {
+    const once = seedTestAccount(defaultMeta());
+    const twice = seedTestAccount(once);
+    expect(twice.skillPoints).toBe(once.skillPoints + 20);
   });
 
   it('the Settings button seeds the account it is looking at', () => {
@@ -81,13 +61,9 @@ describe('seeding a test account', () => {
     const seed = root.querySelector('#sw-seed') as HTMLButtonElement;
     expect(seed).not.toBeNull();
     seed.click();
-    // fb023: the button's own job is the Equipment screen now — it still
-    // seeds the retired relic stash internally too (harmless, unreachable),
-    // which is why `stash.length` is still 8, but the notice it shows talks
-    // about equipment.
-    expect(latest().stash.length).toBe(8);
+    expect(latest().skillPoints).toBe(20);
     expect(Object.values(latest().equipmentStash).every((n) => n >= 3)).toBe(true);
-    expect(root.textContent).toMatch(/Seeded equipment and 600 Ember\./);
+    expect(root.textContent).toMatch(/Seeded equipment and 20 skill points\./);
   });
 
   it('the wipe button puts the account back to new', () => {
@@ -138,17 +114,17 @@ describe('account counters explain themselves', () => {
     const holder = document.createElement('div');
     holder.innerHTML = html;
     const cells = [...holder.querySelectorAll('span')];
-    // Level / Ember / Points. The fourth, Orbs, went with SPEC-V3 §8.
-    expect(cells.length).toBe(3);
+    // Skill Points / Points (available). Level/Ember/Orbs are all retired.
+    expect(cells.length).toBe(2);
     for (const c of cells) expect(c.getAttribute('title')?.length ?? 0).toBeGreaterThan(20);
   });
 
   it('with no points left, the help says how to earn more', () => {
-    const meta = { ...defaultMeta(), accountLevel: 1, allocated: [0, 1] };
+    const meta = { ...defaultMeta(), skillPoints: 1, allocated: [0, 1] };
     const holder = document.createElement('div');
     holder.innerHTML = accountMarkup(meta);
     const points = [...holder.querySelectorAll('span')].find((s) => s.textContent?.startsWith('Points'))!;
-    expect(points.getAttribute('title')).toMatch(/Ember/);
+    expect(points.getAttribute('title')).toMatch(/VS wave/);
     expect(points.className).toContain('zero');
   });
 

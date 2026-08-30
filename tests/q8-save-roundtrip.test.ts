@@ -36,7 +36,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { validMeta } from '../tools/fuzz-save';
-import { applyRunResult, deserializeMeta, emberFor, serializeMeta } from '../src/meta/meta';
+import { applyRunResult, deserializeMeta, serializeMeta } from '../src/meta/meta';
 import { Run } from '../src/sim/run';
 import { Rng } from '../src/sim/rng';
 import type { RunReport } from '../src/sim/types';
@@ -99,15 +99,11 @@ describe('q8 save round-trip: valid saves are a fixed point', () => {
  * than hand-authored — this is what makes "grown through applyRunResult"
  * mean what it says. Built once and reused across many starting metas.
  *
- * `applyRunResult` reads `report` and `world.relicsFound`/`world.derived`/
- * `world.lastStandUsed`, and also writes `world.emberEarned` (the Ember
- * banked by that call). Reusing the same 5 `World`s across many calls is
- * safe here only because nothing downstream ever reads `emberEarned` back —
- * each call's write is simply overwritten by the next. If a future
- * `applyRunResult` change starts reading it back (e.g. to guard against
- * double-application), this reuse would start leaking state between
- * iterations silently; noted here rather than defended against, since
- * nothing today exercises that path.
+ * `applyRunResult` reads `report` and `world.equipmentFound`. Reusing the
+ * same 5 `World`s across many calls is safe here only because nothing
+ * downstream ever reads those fields back after the fact — each call's
+ * growth is computed fresh from `report`/`world` and written into a new
+ * `MetaState`, not accumulated on the `World` itself.
  */
 function buildGrowthCases(): { label: string; report: RunReport; world: World }[] {
   const cases: { label: string; report: RunReport; world: World }[] = [];
@@ -120,25 +116,22 @@ function buildGrowthCases(): { label: string; report: RunReport; world: World }[
     cases.push({ label: 'practice', report: run.report(), world: run.world });
   }
 
-  // A single-tick run with no relics found: the minimal non-practice growth.
+  // A single-tick run with no equipment found: the minimal non-practice growth.
   {
     const run = new Run({ ...cfg(), policy: 'none' });
     run.step();
     cases.push({ label: 'ordinary-short', report: run.report(), world: run.world });
   }
 
-  // A run with relics found and waves cleared, at a higher tier, so the
-  // reward/quest/stash-cap arithmetic in applyRunResult actually moves.
+  // A run with equipment found and waves cleared, at a higher tier, so the
+  // reward/quest arithmetic in applyRunResult actually moves.
   {
     const run = new Run({ ...cfg({ tier: 3 }), policy: 'none' });
     run.step();
     const w = run.world;
-    w.relicsFound.push(
-      { id: 0, name: 'Test Relic A', slot: 'sigil', rarity: 'rare', affixes: [] },
-      { id: 1, name: 'Test Relic B', slot: 'plate', rarity: 'magic', affixes: [] },
-    );
+    w.equipmentFound.push('greatsword', 'normal_armor');
     w.wavesCleared = 4;
-    cases.push({ label: 'relics-tier3', report: run.report(), world: w });
+    cases.push({ label: 'equipment-tier3', report: run.report(), world: w });
   }
 
   // A full real sim run, played to a quick defeat by a real bot policy.
@@ -166,15 +159,14 @@ describe('q8 save round-trip: metas grown through a real applyRunResult', () => 
     expect(cases.map((c) => c.label)).toEqual([
       'practice',
       'ordinary-short',
-      'relics-tier3',
+      'equipment-tier3',
       'no-move-full',
       'hybrid-tier2-full',
     ]);
-    // `report.ember` is always the placeholder 0 (src/sim/run.ts) — the real
-    // reward is computed by `emberFor`, which is what `applyRunResult` itself
-    // calls, so check that instead of a field that cannot fail by construction.
+    // `report.vsWavesCleared` is what `applyRunResult` banks into
+    // `skillPoints`, §8.2/§8.3 — check that it is always well-formed.
     for (const c of cases) {
-      expect(Number.isFinite(emberFor(c.report, c.world)), c.label).toBe(true);
+      expect(Number.isFinite(c.report.vsWavesCleared), c.label).toBe(true);
     }
   });
 

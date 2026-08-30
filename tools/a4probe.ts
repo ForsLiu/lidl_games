@@ -57,7 +57,6 @@ export function runSingleType(
     tier,
     modifiers: mods,
     allocated: [],
-    relics: [],
     policy: `single:${towerKey}`,
     // SPEC-FINAL §1.1's real run shape (re-baselined at p3e): 18 TD waves
     // across 6 blocks, not the old single 10-wave Act I.

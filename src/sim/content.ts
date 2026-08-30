@@ -10,7 +10,6 @@ import enemiesRaw from '../../data/enemies.json';
 import wavesRaw from '../../data/waves.json';
 import spawnsRaw from '../../data/spawns.json';
 import vsupgradesRaw from '../../data/vsupgrades.json';
-import relicsRaw from '../../data/relics.json';
 import treeRaw from '../../data/tree.json';
 import modifiersRaw from '../../data/modifiers.json';
 import classesRaw from '../../data/classes.json';
@@ -444,29 +443,6 @@ const VsUpgradesFileSchema = z.object({
   skillCards: z.record(z.array(SkillCardSchema)),
 });
 
-/* ------------------------------------------------------------------ relics */
-
-const AffixSchema = z.object({
-  key: str,
-  name: str,
-  stat: str,
-  min: num,
-  max: num,
-  pct: z.boolean(),
-});
-
-const RelicsFileSchema = z.object({
-  stashSlots: num,
-  slots: z.array(str),
-  implicits: z.record(z.object({ stat: str, value: num })),
-  rarities: z.array(
-    z.object({ key: str, name: str, minAffixes: num, maxAffixes: num, weight: num }),
-  ),
-  luckRarityShift: num,
-  affixes: z.array(AffixSchema),
-  dropRates: z.record(num),
-});
-
 /* -------------------------------------------------------------------- tree */
 
 const TreeNodeSchema = z.object({
@@ -483,12 +459,8 @@ const TreeNodeSchema = z.object({
 });
 
 const TreeFileSchema = z.object({
-  maxAccountLevel: num,
-  emberBase: num,
-  /** Ember a brand-new account opens with, so the Hub has something to do. */
-  startingEmber: num,
+  /** p7d (§8.3, Q46): skill points are the tree's only currency — 1 point per node. */
   respecCostPerNode: num,
-  pointsPerLevel: num,
   nodes: z.array(TreeNodeSchema),
 });
 
@@ -837,7 +809,7 @@ const CoresFileSchema = z.object({ cores: z.array(CoreSchema) });
  * effect line that reduces to a stat (Bleeding Ring's lifesteal, Builder's
  * Necklace's flat tower attack, the bracelets' area/range bonuses) folds in
  * here rather than earning bespoke engine code, the same `addAll`-onto-`Stats`
- * precedent a relic's affixes and a class's passive already set.
+ * precedent a Constellation node's stats and a class's passive already set.
  *
  * `effectKey` is the escape hatch for the three lines that cannot be a stat —
  * Sleeve Sword's no-charge Circle Slash, Swordsman Armor's charge-speed/
@@ -1391,7 +1363,6 @@ export type VsSpecial = z.infer<typeof VsSpecialSchema>;
 export type EnemyDef = z.infer<typeof EnemySchema>;
 export type BoonDef = z.infer<typeof BoonSchema>;
 export type SkillCardDef = z.infer<typeof SkillCardSchema>;
-export type AffixDef = z.infer<typeof AffixSchema>;
 export type TreeNode = z.infer<typeof TreeNodeSchema>;
 export type ModifierDef = z.infer<typeof ModifiersFileSchema>['modifiers'][number];
 export type ClassDef = z.infer<typeof ClassesFileSchema>['classes'][number];
@@ -1477,7 +1448,6 @@ export interface Content {
   waves: z.infer<typeof WavesFileSchema>;
   spawns: z.infer<typeof SpawnsFileSchema>;
   boons: z.infer<typeof VsUpgradesFileSchema>;
-  relics: z.infer<typeof RelicsFileSchema>;
   tree: z.infer<typeof TreeFileSchema>;
   modifiers: z.infer<typeof ModifiersFileSchema>;
   classes: z.infer<typeof ClassesFileSchema>;
@@ -1521,7 +1491,6 @@ export function loadContent(): Content {
   const waves = WavesFileSchema.parse(wavesRaw);
   const spawns = SpawnsFileSchema.parse(spawnsRaw);
   const boons = VsUpgradesFileSchema.parse(vsupgradesRaw);
-  const relics = RelicsFileSchema.parse(relicsRaw);
   const tree = TreeFileSchema.parse(treeRaw);
   const modifiers = ModifiersFileSchema.parse(modifiersRaw);
   const classes = ClassesFileSchema.parse(classesRaw);
@@ -1659,7 +1628,6 @@ export function loadContent(): Content {
     waves,
     spawns,
     boons,
-    relics,
     tree,
     modifiers,
     classes,

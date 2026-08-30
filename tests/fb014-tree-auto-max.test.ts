@@ -72,7 +72,7 @@ describe('fb014: Constellation auto-allocation', () => {
   });
 
   it('skill points still display the real pointsAvailable() figure, untouched by auto-max', () => {
-    const meta: MetaState = { ...defaultMeta(), accountLevel: 5 };
+    const meta: MetaState = { ...defaultMeta(), skillPoints: 5 };
     const want = pointsAvailable(meta);
     expect(want).toBeGreaterThan(0);
     const { root } = mountHub(meta, () => {});
@@ -85,7 +85,7 @@ describe('fb014: Constellation auto-allocation', () => {
   });
 
   it('the tree screen shows every node allocated and banks real points, with no spend/refund controls wired', () => {
-    const meta = { ...defaultMeta(), accountLevel: 5 };
+    const meta = { ...defaultMeta(), skillPoints: 5 };
     const { root, hub, latest } = mountHub(meta, () => {});
     hub.openTab('tree');
 

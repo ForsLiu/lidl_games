@@ -19,7 +19,6 @@ import type {
   Offer,
   Phase,
   Projectile,
-  Relic,
   RunConfig,
   RunOutcome,
   Structure,
@@ -228,16 +227,12 @@ export class World {
   pendingLevelUps = 0;
   offers: Offer[] = [];
   rerollsLeft = 0;
-  relicsFound: Relic[] = [];
   /**
    * fb015 (§7/§8.1): one random `data/equipment.json` item key per fully
    * cleared TD wave, rolled in `completeWave` (run.ts) on the `drops` RNG
-   * stream — the same "readback list, not sim state" treatment `relicsFound`
-   * already gets, so it is not part of `hashWorld`.
+   * stream — a readback list, not sim state, so it is not part of `hashWorld`.
    */
   equipmentFound: string[] = [];
-  /** Filled in at results time by the meta layer. */
-  emberEarned = 0;
   /**
    * fb023: the six equipment slots -> the item key equipped in each, or null.
    * Seeded from `cfg.equipment` (a flat key list, one per slot) at

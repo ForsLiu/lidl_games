@@ -35,7 +35,6 @@ import { defaultCoreKey, loadContent } from '../src/sim/content';
 import {
   SAVE_KEY,
   SAVE_VERSION,
-  accountLevelFor,
   allocate,
   canAllocate,
   defaultMeta,
@@ -45,9 +44,7 @@ import {
   pointsAvailable,
   refundBlocker,
   serializeMeta,
-  stashCapacity,
 } from '../src/meta/meta';
-import { discard, equip } from '../src/meta/stash';
 import { Rng } from '../src/sim/rng';
 import type { MetaState } from '../src/sim/types';
 
@@ -112,39 +109,14 @@ function connectedAllocation(rng: Rng, count: number): number[] {
  */
 export function validMeta(rng: Rng): MetaState {
   const c = loadContent();
-  const slots = ['sigil', 'plate', 'charm'];
-  const affixKeys = ['power', 'guard', 'haste', 'greed'];
-  const stashSize = rng.intRange(2, 6);
-  const stash = Array.from({ length: stashSize }, (_, i) => ({
-    id: i + 1,
-    slot: rng.pick(slots),
-    rarity: rng.pick(['common', 'magic', 'rare']),
-    name: `Relic ${i + 1}`,
-    affixes: Array.from({ length: rng.intRange(1, 3) }, () => ({
-      key: rng.pick(affixKeys),
-      stat: rng.pick(affixKeys),
-      value: rng.intRange(1, 20) / 100,
-    })),
-  }));
-  const ember = rng.intRange(0, 8000);
-  const equipped: MetaState['equipped'] = { sigil: null, plate: null, charm: null };
-  for (const r of stash) {
-    if (r.slot in equipped && rng.chance(0.5)) {
-      equipped[r.slot as keyof typeof equipped] = r.id;
-    }
-  }
   const questProgress: Record<string, number> = {};
   for (const m of new Set(c.quests.quests.map((q) => q.metric))) {
     if (rng.chance(0.7)) questProgress[m] = rng.intRange(0, 5000);
   }
   return {
-    accountLevel: accountLevelFor(ember),
-    ember,
     allocated: connectedAllocation(rng, rng.intRange(1, 9)),
-    stash,
-    equipped,
-    // fb015 (§7): fuzzed the same shallow way `equipped`/`stash` are — random
-    // counts, a random subset equipped into their matching slots.
+    // fb015 (§7): fuzzed the same shallow way the old relic stash was —
+    // random counts, a random subset equipped into their matching slots.
     equipmentStash: Object.fromEntries(
       c.equipment.items.filter(() => rng.chance(0.5)).map((it) => [it.key, rng.intRange(1, 3)]),
     ),
@@ -163,7 +135,6 @@ export function validMeta(rng: Rng): MetaState {
     highestTier: rng.intRange(1, 5),
     questProgress,
     completedQuests: c.quests.quests.filter(() => rng.chance(0.3)).map((q) => q.key),
-    nextRelicId: stashSize + 1,
     autoPickLevelUps: rng.chance(0.5),
     skillPoints: rng.intRange(0, 200),
   };
@@ -174,22 +145,33 @@ export function validSave(rng: Rng): string {
 }
 
 /**
- * A save as a v0.2 client wrote it: stamped version 1 and carrying the key
- * `RETIRED_KEYS` drops. Without one of these in the corpus the `version` family
- * is a provable no-op — the only thing `migrate` reads the stamp for is that
- * strip, so re-stamping a save with nothing to strip changes nothing any
- * assertion could see. (Code review, session 2.)
+ * A save as an older client wrote it: stamped a version behind `SAVE_VERSION`
+ * and carrying the keys `RETIRED_KEYS` drops. Without one of these in the
+ * corpus the `version` family is a provable no-op — the only thing `migrate`
+ * reads the stamp for is that strip, so re-stamping a save with nothing to
+ * strip changes nothing any assertion could see. (Code review, session 2.)
  *
- * The value is a scalar rather than the sub-object the deleted currency
- * actually used, for two reasons. The strip is keyed on the field *name*, so a
- * scalar exercises it identically — and `tests/c7-no-orbs.test.ts` scans
- * `tools/` for that currency's vocabulary, deliberately and with no
- * exemptions, so spelling the old shape out here turns C7 red.
- * `tests/t6c-save-migration.test.ts` already covers malformed values of this
- * key, `5` among them. (QA, session 2.)
+ * `ember`/`accountLevel`/`stash`/`equipped`/`nextRelicId` (p7d, retired at
+ * `SAVE_VERSION` 4) ride along on scalar/simple values rather than the shapes
+ * the deleted economy actually used, for the same two reasons `orbs` already
+ * did: the strip is keyed on the field *name*, so a scalar exercises it
+ * identically — and `tests/c7-no-orbs.test.ts` scans `tools/` for that
+ * currency's vocabulary, deliberately and with no exemptions, so spelling the
+ * old shapes out here would turn that gate red.
  */
 export function legacySave(rng: Rng): string {
-  return JSON.stringify({ version: 1, meta: { ...validMeta(rng), orbs: rng.int(9) } });
+  return JSON.stringify({
+    version: 1,
+    meta: {
+      ...validMeta(rng),
+      orbs: rng.int(9),
+      ember: rng.intRange(0, 8000),
+      accountLevel: rng.intRange(1, 60),
+      stash: [],
+      equipped: {},
+      nextRelicId: rng.intRange(1, 20),
+    },
+  });
 }
 
 /* -------------------------------------------------------------- mutation */
@@ -422,8 +404,6 @@ export function mutate(json: string, rng: Rng, family: Family = rng.pick(FAMILIE
 
 /* ------------------------------------------------------------ invariants */
 
-const SLOTS = ['sigil', 'plate', 'charm'] as const;
-
 /**
  * What must hold of whatever `loadMeta` hands back, however corrupt the save.
  * Every clause was measured against the fuzzer before it was written — see the
@@ -451,24 +431,6 @@ export function checkMeta(m: unknown): string[] {
     if (!isConnected(allocated as number[])) bad.push('allocated is not connected to the start node');
   }
 
-  const stash = meta.stash;
-  if (!Array.isArray(stash)) bad.push('stash is not an array');
-  else {
-    for (const [i, r] of stash.entries()) {
-      if (r === null || typeof r !== 'object') bad.push(`stash[${i}] is not an object`);
-      else if (!Array.isArray((r as Record<string, unknown>).affixes)) {
-        bad.push(`stash[${i}].affixes is not an array`);
-      }
-    }
-  }
-
-  const equipped = meta.equipped;
-  if (equipped === null || typeof equipped !== 'object' || Array.isArray(equipped)) {
-    bad.push('equipped is not an object');
-  } else {
-    for (const s of SLOTS) if (!(s in equipped)) bad.push(`equipped is missing the ${s} slot`);
-  }
-
   const qp = meta.questProgress;
   if (qp === null || typeof qp !== 'object' || Array.isArray(qp)) bad.push('questProgress is not an object');
 
@@ -481,7 +443,7 @@ export function checkMeta(m: unknown): string[] {
 /**
  * A repaired save has to survive what the Hub does to it, not merely exist.
  * These are the entry points a player reaches by opening the Hub at all: the
- * point count, the stash header, the tree, the relic slots, and the re-save.
+ * point count, the tree, and the re-save.
  */
 export function exerciseHub(m: MetaState): string[] {
   const errs: string[] = [];
@@ -493,13 +455,9 @@ export function exerciseHub(m: MetaState): string[] {
     }
   };
   call('pointsAvailable', () => pointsAvailable(m));
-  call('stashCapacity', () => stashCapacity(m));
-  call('accountLevelFor', () => accountLevelFor(m.ember));
   call('canAllocate', () => canAllocate(m, 1));
   call('allocate', () => allocate(m, 1));
   call('refundBlocker', () => refundBlocker(m, 1));
-  call('equip', () => equip(m, 'sigil', 1));
-  call('discard', () => discard(m, 1));
   call('serializeMeta', () => serializeMeta(m));
   call('reload', () => withSavedRaw(serializeMeta(m), loadMeta));
   return errs;
@@ -648,8 +606,6 @@ export interface ShapeResult {
 export function hubNumbers(m: MetaState): Record<string, number> {
   return {
     pointsAvailable: pointsAvailable(m),
-    stashCapacity: stashCapacity(m),
-    accountLevelFor: accountLevelFor(m.ember),
     tierGate: Math.max(1, Math.min(5, m.highestTier)),
   };
 }

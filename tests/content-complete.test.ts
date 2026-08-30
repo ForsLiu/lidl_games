@@ -7,8 +7,6 @@ import { loadContent } from '../src/sim/content';
 import { applyBurn, applySlow, damageEnemy, dotRemaining, spawnEnemy, updateEnemies } from '../src/sim/enemies';
 import { buildTower } from '../src/sim/towers';
 import type { StatKey } from '../src/sim/stats';
-import { handleKillDrops, rollRelic } from '../src/sim/loot';
-import { Rng } from '../src/sim/rng';
 import { autoDraft, hardestDraft, modifierDraft, rewardMultiplier } from '../src/sim/tiers';
 import { cfg } from './helpers';
 
@@ -163,56 +161,14 @@ describe('enemy behaviours', () => {
   });
 });
 
-describe('loot (SPEC 7)', () => {
-  // RETIRED (SPEC-FINAL §7, §8) — relic rarities and affix rolls are replaced
-  // by §7's fixed 12-item equipment table across 6 slots, granted 1 per TD wave
-  // cleared. Nothing rolls. Re-asserted by fb015/**p7b** (tests/fb015-equipment.test.ts)
-  // and **p7c** (the rewards pipeline); deleted at **p7d**.
-  it.skip('rolls relics with the right affix counts per rarity', () => {
-    const rng = new Rng(7);
-    for (let i = 0; i < 300; i++) {
-      const r = rollRelic(content, rng, 0, i);
-      const rarity = content.relics.rarities.find((x) => x.key === r.rarity)!;
-      expect(r.affixes.length).toBeGreaterThanOrEqual(rarity.minAffixes);
-      expect(r.affixes.length).toBeLessThanOrEqual(rarity.maxAffixes);
-      expect(new Set(r.affixes.map((a) => a.key)).size).toBe(r.affixes.length);
-      expect(content.relics.slots).toContain(r.slot);
-    }
-  });
-
-  it('keeps affix values inside their authored ranges', () => {
-    const rng = new Rng(11);
-    for (let i = 0; i < 300; i++) {
-      for (const a of rollRelic(content, rng, 0, i).affixes) {
-        const def = content.relics.affixes.find((d) => d.key === a.key)!;
-        expect(a.value).toBeGreaterThanOrEqual(def.pct ? def.min - 0.001 : Math.floor(def.min));
-        expect(a.value).toBeLessThanOrEqual(def.pct ? def.max + 0.001 : Math.ceil(def.max));
-      }
-    }
-  });
-
-  it('shifts rarity upward with Luck', () => {
-    const rare = (luck: number): number => {
-      const rng = new Rng(3);
-      let n = 0;
-      for (let i = 0; i < 2000; i++) if (rollRelic(content, rng, luck, i).rarity === 'rare') n++;
-      return n;
-    };
-    expect(rare(100)).toBeGreaterThan(rare(0));
-  });
-
-  it('always drops a relic from an elite and from the final boss', () => {
-    const w = new World(cfg());
-    w.phase = 'act2';
-    const elite = spawnEnemy(w, 'colossus', 10, 10, { overlay: true })!;
-    handleKillDrops(w, elite, content.enemyByKey.get('colossus')!);
-    expect(w.relicsFound.length).toBe(1);
-    const boss = spawnEnemy(w, 'warden_eater', 12, 10, { overlay: false })!;
-    handleKillDrops(w, boss, content.enemyByKey.get('warden_eater')!);
-    expect(w.relicsFound.length).toBe(2);
-    expect(w.relicsFound[1].rarity).toBe('rare');
-  });
-});
+// RETIRED (SPEC-FINAL §7, §8, p7d) — the `describe('loot (SPEC 7)')` block
+// that lived here (relic rarity/affix rolls, `handleKillDrops`) tested the
+// relic drop pipeline `src/sim/loot.ts` owned. §7's fixed 12-item equipment
+// table across 6 slots, granted 1 per TD wave cleared, replaced it — covered
+// by fb015/**p7b** (tests/fb015-equipment.test.ts) and **p7c**'s rewards
+// pipeline. `loot.ts` and its tests are deleted outright, not `.skip`-ed:
+// MIGRATION.md's retirement rule keeps a skipped test alive only until the
+// code it covers is deleted, and that code is gone in this same commit.
 
 describe('map tiers (SPEC 8.3)', () => {
   it('offers tier-1 modifiers as N-1 slots of 1-of-2', () => {

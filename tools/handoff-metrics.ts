@@ -23,7 +23,6 @@ function runOne(policy: string, seed: number, tier: number, classKey = 'engineer
     tier,
     modifiers,
     allocated: [],
-    relics: [],
     policy,
   };
   const run = new Run(cfg);

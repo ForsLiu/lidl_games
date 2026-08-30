@@ -98,11 +98,19 @@ export const GATE_COVERAGE: Record<string, CoverageEntry> = {
     note: "p6d's 'G11 — Stormcaller chain multiplier stays under x3.6' is live (re-derived at the lane/quality merge).",
   },
   G12: {
-    files: ['tests/fb015-equipment.test.ts', 'tests/c7-no-orbs.test.ts', 'tests/p7c-reward-pipeline.test.ts'],
+    files: [
+      'tests/fb015-equipment.test.ts',
+      'tests/c7-no-orbs.test.ts',
+      'tests/p7c-reward-pipeline.test.ts',
+      'tests/fb023-remove-stash-relics.test.ts',
+      'tests/p7d-retire-economy.test.ts',
+    ],
     note: "fb015 covers the equipment clause (1 item per fully cleared TD wave) and c7-no-orbs covers 'orbs " +
       "nowhere'; p7c adds the gate's last clause, 'M VS waves -> M skill points' (§8.2) — a VS wave credits only " +
       'when it ends by its own means (block timer or the final boss kill), never by a defeat, and the report/meta ' +
-      'total is exercised end to end.',
+      "total is exercised end to end. p7d extends 'orbs nowhere' to relics (retired outright — fb023's file, " +
+      "widened past its original UI-only scope, is the source+DOM scan) and to Ember (p7d-retire-economy's own " +
+      'scan) — the whole superseded meta economy this gate names is gone, not merely hidden.',
   },
   G21: {
     files: [

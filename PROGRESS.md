@@ -5,6 +5,42 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-30 session: p7d done — the superseded meta economy is retired in
+  full — commit pending in this change.**
+  Relic affixes/rarities (`data/relics.json`, `src/sim/loot.ts`) and the
+  Ember→account-level pipeline (`emberFor`/`accountLevelFor`/`stashCapacity`
+  in `src/meta/meta.ts`) are deleted outright, not merely hidden behind UI —
+  `MetaState.stash`/`equipped`/`nextRelicId`/`accountLevel`/`ember`,
+  `RunConfig.relics`, `RunReport.relicsFound`/`ember`, `World.relicsFound`/
+  `emberEarned` and the `emberFind`/`relicFind` stat keys are all gone.
+  `MetaState.skillPoints` is the tree's only currency now: `pointsAvailable`
+  is `skillPoints - allocatedCount` directly, and `refund` spends
+  `tree.respecCostPerNode` (repriced 5 Ember-units → 1 skill point, Q46) from
+  it. A save older than the bumped `SAVE_VERSION` (3→4) converts any leftover
+  Ember once at 100:1 into skill points before the whole retired field set is
+  stripped, reusing fb023's one-time-notice mechanism for both the relic-drop
+  and the new Ember-conversion notice. Closes **b037** (the relic drop/bank
+  pipeline QA found still running after fb023's UI removal) — `archivist`'s
+  quest metric moves from "own 3 Rare finds" to `max_equipment_dupes`. Gate
+  **G12**'s "orbs nowhere" clause is extended to relics (fb023's test file
+  widened past its original UI-only scope to the data layer) and to Ember
+  (new `tests/p7d-retire-economy.test.ts`, mirroring `c7-no-orbs.test.ts`'s
+  source+DOM two-layer shape, both scoped away from the in-run tower bar
+  since "Ember Brazier" is a real, kept tower name). 15 Constellation nodes
+  and the `modRewardBonus` stat lost their only consumer (`emberFor`) and are
+  left inert rather than guessed at — retargeting onto a live stat risked
+  either breaking G12's exact equipment-count invariant (Q50's original
+  bonus-drop idea) or inflating the economy under `TREE_AUTO_MAX` with no
+  sweep to protect G1/G14/G6 — logged as **QUESTIONS Q146**, flagged for the
+  P10 balance/content pass. `tools/gen-tree.mjs`, `tools/fuzz-save.ts`,
+  `tools/fuzz-data.ts`, `tools/invariants.ts` and two stale `tools/
+  mutation-probe.ts` mutation templates updated for the new shape;
+  `tests/q7-loader-holes.ts` (the generated loader-fuzz artefact) regenerated
+  in full. ~20 test files across the relic/Ember surface updated; `npx tsc
+  --noEmit` clean project-wide; `npm run test:fast` green (1558 passed, 32
+  skipped, the same 4 pre-existing Playwright dev-server-port fold-test
+  flakes this session independently confirmed pass in isolation).
+
 - **2026-08-30 session: p7c done — gate G12 is green in full — commit
   `fea8e99`.**
   §8's reward pipeline had two clauses already built and tested (fb015's

@@ -309,7 +309,7 @@ describe('fb022 Surface 4: equipment tooltips show mods, the classFallback activ
     root.querySelector<HTMLElement>('[data-item="greatsword"]')!.dispatchEvent(
       new window.MouseEvent('contextmenu', { bubbles: true, cancelable: true }),
     );
-    const detail = root.querySelector('.sw-relicdetail')!.textContent ?? '';
+    const detail = root.querySelector('.sw-itemdetail')!.textContent ?? '';
     const item = content.equipmentByKey.get('greatsword')!;
     expect(detail).toContain(`+${item.mods.atkFlat}`);
     expect(detail).toContain(`+${item.mods.armor}`);
@@ -323,7 +323,7 @@ describe('fb022 Surface 4: equipment tooltips show mods, the classFallback activ
       new window.MouseEvent('contextmenu', { bubbles: true, cancelable: true }),
     );
     // Default Hub class is meta.unlockedClasses[0] — the fixture below forces it.
-    expect(rootA.querySelector('.sw-relicdetail')?.textContent).toMatch(/inert/i);
+    expect(rootA.querySelector('.sw-itemdetail')?.textContent).toMatch(/inert/i);
   });
 
   it('an equipped-vs-candidate compare block shows the real mod delta between two weapons', () => {

@@ -38,7 +38,6 @@ export const CUES: Record<string, Cue> = {
   waveclear: { freq: 660, duration: 0.3, type: 'triangle', gain: 0.16, sweepTo: 990 },
   sunder: { freq: 90, duration: 1.1, type: 'sawtooth', gain: 0.3, sweepTo: 420 },
   dash: { freq: 700, duration: 0.08, type: 'sine', gain: 0.08, sweepTo: 340 },
-  relic: { freq: 980, duration: 0.3, type: 'sine', gain: 0.16, sweepTo: 1470 },
   boss: { freq: 70, duration: 1.3, type: 'sawtooth', gain: 0.32, sweepTo: 190 },
   bossphase: { freq: 110, duration: 0.6, type: 'sawtooth', gain: 0.26, sweepTo: 300 },
   bosstelegraph: { freq: 300, duration: 0.12, type: 'square', gain: 0.1 },

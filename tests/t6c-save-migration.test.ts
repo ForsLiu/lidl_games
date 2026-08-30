@@ -19,11 +19,7 @@ import {
   serializeMeta,
 } from '../src/meta/meta';
 import { withSavedRaw } from '../tools/fuzz-save';
-import type { MetaState, Relic } from '../src/sim/types';
-
-function relic(id: number, slot: string): Relic {
-  return { id, slot, rarity: 'rare', name: `Relic ${id}`, affixes: [{ key: 'power', stat: 'power', value: 0.08 }] };
-}
+import type { MetaState } from '../src/sim/types';
 
 /** A save exactly as a v0.2 client would have written it, orbs and all. */
 function v2Save(): string {
@@ -33,7 +29,10 @@ function v2Save(): string {
       accountLevel: 7,
       ember: 1234,
       allocated: [0],
-      stash: [relic(1, 'sigil'), relic(2, 'plate')],
+      stash: [
+        { id: 1, slot: 'sigil', rarity: 'rare', name: 'Relic 1', affixes: [{ key: 'power', stat: 'power', value: 0.08 }] },
+        { id: 2, slot: 'plate', rarity: 'rare', name: 'Relic 2', affixes: [{ key: 'power', stat: 'power', value: 0.08 }] },
+      ],
       equipped: { sigil: 1, plate: null, charm: null },
       orbs: { whetting: 3, turning: 2, ascension: 1 },
       unlockedClasses: ['engineer', 'pyromancer'],
@@ -53,15 +52,15 @@ describe('C7: migrating a v0.2 save', () => {
 
   it('keeps every other field intact', () => {
     const out = deserializeMeta(v2Save());
-    expect(out.accountLevel).toBe(7);
-    expect(out.ember).toBe(1234);
     expect(out.highestTier).toBe(4);
-    expect(out.nextRelicId).toBe(9);
     expect(out.unlockedClasses).toEqual(['engineer', 'pyromancer']);
     expect(out.completedQuests).toEqual(['win_a_run']);
     expect(out.questProgress).toEqual({ wins: 6, lifetime_gold: 12000 });
-    // fb023: `stash`/`equipped` are the one exception — see the dedicated
-    // "dropping relics at migration" block below for why they do not survive.
+    // p7d: `accountLevel`/`ember`/`nextRelicId` are the exception — the whole
+    // economy they belonged to is retired, not merely a field rename. See the
+    // dedicated "retiring the Ember economy" block below for what happens to
+    // the value `ember` carried. `stash`/`equipped` are the older fb023
+    // exception — see the "dropping relics at migration" block.
   });
 
   it('re-serialises without the orbs key, and stably', () => {
@@ -110,7 +109,9 @@ describe('C7: migrating a v0.2 save', () => {
   it('survives a save with no orbs key at all (already-migrated)', () => {
     const migrated = serializeMeta(deserializeMeta(v2Save()));
     expect(() => deserializeMeta(migrated)).not.toThrow();
-    expect(deserializeMeta(migrated).ember).toBe(1234);
+    // p7d: the 1234 Ember the fixture carried converted once, at 100:1, into
+    // 12 skill points — see the dedicated migration block below.
+    expect(deserializeMeta(migrated).skillPoints).toBe(12);
   });
 
   it('survives a save whose orbs key is malformed', () => {
@@ -119,7 +120,7 @@ describe('C7: migrating a v0.2 save', () => {
       expect(() => deserializeMeta(save), junk).not.toThrow();
       const out = deserializeMeta(save) as unknown as Record<string, unknown>;
       expect(out.orbs, junk).toBeUndefined();
-      expect((out as unknown as MetaState).ember, junk).toBe(1234);
+      expect((out as unknown as MetaState).skillPoints, junk).toBe(12);
     }
   });
 
@@ -145,22 +146,24 @@ describe('C7: migrating a v0.2 save', () => {
 
 /**
  * fb023 (SPEC-FINAL §7): the relic stash/equip UI is retired, so a save
- * written before `RELICS_DROPPED_AT` (3) has its `stash`/`equipped` dropped
+ * written before `RELICS_DROPPED_AT` (3) had its `stash`/`equipped` dropped
  * outright on load rather than carried forward into a screen that no longer
- * exists to show them — "old relics are dropped with a one-time notice" from
- * the owner feedback this item implements. Same v0.2 fixture `v2Save()`
- * already uses above (`version: 1`, well under the cutoff).
+ * existed to show them. p7d goes further: `MetaState` no longer declares
+ * `stash`/`equipped` at all (retired at `SAVE_VERSION` 4), so a pre-p7d save's
+ * copies are stripped from the output entirely rather than reset to an empty
+ * shape — checked here as raw-object absence, since the type no longer has a
+ * `.stash`/`.equipped` field to read.
  */
-describe('fb023: dropping relics at migration', () => {
-  it('an old save with a real relic loadout has it dropped', () => {
-    const out = deserializeMeta(v2Save());
-    expect(out.stash).toEqual([]);
-    expect(out.equipped).toEqual({ sigil: null, plate: null, charm: null });
+describe('fb023/p7d: dropping relics at migration', () => {
+  it('an old save with a real relic loadout has stash/equipped stripped, not merely emptied', () => {
+    const out = deserializeMeta(v2Save()) as unknown as Record<string, unknown>;
+    expect(out.stash).toBeUndefined();
+    expect(out.equipped).toBeUndefined();
   });
 
   it('loadMetaWithNotice reports the one-time drop for an old save that had relics', () => {
     const { meta, notice } = withSavedRaw(v2Save(), () => loadMetaWithNotice());
-    expect(meta.stash).toEqual([]);
+    expect((meta as unknown as Record<string, unknown>).stash).toBeUndefined();
     expect(notice).toMatch(/relics/i);
   });
 
@@ -179,16 +182,47 @@ describe('fb023: dropping relics at migration', () => {
     expect(notice).toBeNull();
   });
 
-  it('never reports a notice or drops anything for a save already at SAVE_VERSION', () => {
-    // A save at or past the cutoff cannot legitimately hold relics (nothing
-    // ever writes them post-migration), but the check is keyed on version,
-    // not presence, so even a hand-crafted one is left alone.
+  it('never reports a relics notice for a save already at SAVE_VERSION, even hand-crafted with a stash', () => {
+    // A save at or past the cutoff cannot legitimately hold a `stash` (nothing
+    // ever writes one post-migration, and the field is not even in the type),
+    // but the check is keyed on version, not presence, so even a hand-crafted
+    // one is left alone — it just round-trips as an unused extra key.
     const current = JSON.stringify({
       version: SAVE_VERSION,
-      meta: { ...defaultMeta(), stash: [relic(1, 'sigil')], equipped: { sigil: 1, plate: null, charm: null } },
+      meta: { ...defaultMeta(), stash: [{ id: 1, slot: 'sigil' }] },
     });
-    const { meta, notice } = withSavedRaw(current, () => loadMetaWithNotice());
+    const { notice } = withSavedRaw(current, () => loadMetaWithNotice());
     expect(notice).toBeNull();
-    expect(meta.stash.map((r) => r.id)).toEqual([1]);
+  });
+});
+
+/**
+ * p7d (SPEC-FINAL §8, Q46): the Ember → account-level economy is retired
+ * outright. A save older than `SAVE_VERSION` 4 has any leftover `ember`
+ * converted once, at 100:1, into skill points, then `ember`/`accountLevel`
+ * are dropped — see `tests/meta.test.ts` for the conversion arithmetic
+ * itself; this file's job is the interaction with the *other* migration
+ * layers (orbs, relics) a save this old also carries.
+ */
+describe('p7d: retiring the Ember economy at migration', () => {
+  it('converts Ember to skill points in the same load that drops orbs and relics', () => {
+    const out = deserializeMeta(v2Save()) as unknown as Record<string, unknown>;
+    expect(out.ember).toBeUndefined();
+    expect(out.accountLevel).toBeUndefined();
+    expect(out.skillPoints).toBe(12); // floor(1234 / 100)
+  });
+
+  it('a save with 0 Ember converts to 0 extra skill points, not a stray field', () => {
+    const zero = JSON.stringify({ version: 3, meta: { ...defaultMeta(), ember: 0 } });
+    const out = deserializeMeta(zero);
+    expect(out.skillPoints).toBe(0);
+  });
+
+  it('re-serialises without ember/accountLevel, and stably', () => {
+    const once = serializeMeta(deserializeMeta(v2Save()));
+    expect(once).not.toMatch(/"ember"/);
+    expect(once).not.toMatch(/"accountLevel"/);
+    const twice = serializeMeta(deserializeMeta(once));
+    expect(twice).toBe(once);
   });
 });

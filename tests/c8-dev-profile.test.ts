@@ -78,41 +78,35 @@ describe('C8: the dev profile unlocks everything', () => {
     expect(out.completedQuests.sort()).toEqual(content.quests.quests.map((q) => q.key).sort());
   });
 
-  it('grants Constellation points to spend', () => {
+  it('grants Constellation points to spend, at the full 999 T3 asked for (p7d: no account-level cap left)', () => {
     const out = applyDevProfile(defaultMeta(), ALL_ON);
     expect(pointsAvailable(out)).toBeGreaterThan(pointsAvailable(defaultMeta()));
-    // 60 today, not 999: `maxAccountLevel` caps it, so roughly half the tree is
-    // still unreachable on a dev profile. Logged as QUESTIONS Q53; this bound
-    // rises to the full tree when skill points land at M24.
-    expect(pointsAvailable(out)).toBe(content.tree.maxAccountLevel * content.tree.pointsPerLevel);
+    expect(out.skillPoints).toBe(999);
+    expect(pointsAvailable(out)).toBe(999);
   });
 
-  it('fills a stash that covers every equipment slot', () => {
+  it('fills an equipment stash that covers every equipment slot', () => {
     const out = applyDevProfile(defaultMeta(), ALL_ON);
-    expect(out.stash.length).toBeGreaterThan(0);
-    for (const slot of content.relics.slots) {
-      expect(out.stash.some((r) => r.slot === slot), `no ${slot} in the dev stash`).toBe(true);
+    expect(Object.keys(out.equipmentStash).length).toBeGreaterThan(0);
+    for (const slot of content.equipment.slots) {
+      expect(
+        content.equipment.items.some((it) => it.slot === slot && (out.equipmentStash[it.key] ?? 0) > 0),
+        `no ${slot} in the dev equipment stash`,
+      ).toBe(true);
     }
   });
 
-  it('never overwrites a stash that already has relics', () => {
-    const owned = {
-      ...defaultMeta(),
-      stash: [{ id: 7, slot: 'sigil', rarity: 'rare', name: 'Keepsake', affixes: [] }],
-    };
+  it('never overwrites an equipment stash that already has items', () => {
+    const owned = { ...defaultMeta(), equipmentStash: { greatsword: 3 } };
     const out = applyDevProfile(owned, ALL_ON);
-    expect(out.stash).toHaveLength(1);
-    expect(out.stash[0].name).toBe('Keepsake');
+    expect(out.equipmentStash).toEqual({ greatsword: 3 });
   });
 
   it('never reduces an account, at any skillPoints setting', () => {
-    // `refund()` spends Ember without recomputing the level, so {level 5,
-    // ember 0} is a reachable real state that a bare recompute would demote.
-    const played = { ...defaultMeta(), accountLevel: 5, ember: 0, highestTier: 4 };
+    const played = { ...defaultMeta(), skillPoints: 5, highestTier: 4 };
     for (const skillPoints of [0, 1, 2, 50, 999]) {
       const out = applyDevProfile(played, { ...ALL_ON, skillPoints });
-      expect(out.accountLevel, `skillPoints ${skillPoints}`).toBeGreaterThanOrEqual(played.accountLevel);
-      expect(out.ember, `skillPoints ${skillPoints}`).toBeGreaterThanOrEqual(played.ember);
+      expect(out.skillPoints, `skillPoints ${skillPoints}`).toBeGreaterThanOrEqual(played.skillPoints);
       expect(out.highestTier, `skillPoints ${skillPoints}`).toBeGreaterThanOrEqual(played.highestTier);
     }
   });
@@ -162,7 +156,7 @@ describe('C8: startup applies the profile as a view, never a write', () => {
   });
 
   it('a real account passes through a dev launch unchanged in the save', () => {
-    const played = { ...defaultMeta(), ember: 250, accountLevel: 3, highestTier: 2 };
+    const played = { ...defaultMeta(), skillPoints: 250, highestTier: 2 };
     const snapshot = JSON.stringify(played);
     startupProfile(played, { devActive: true, cleanProfile: false });
     expect(JSON.stringify(played), 'startup must not mutate the loaded account').toBe(snapshot);

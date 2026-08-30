@@ -1,9 +1,5 @@
 {
- "maxAccountLevel": 60,
- "emberBase": 100,
- "startingEmber": 400,
- "respecCostPerNode": 5,
- "pointsPerLevel": 1,
+ "respecCostPerNode": 1,
  "nodes": [
   {
    "id": 0,
@@ -1658,11 +1654,9 @@
    "id": 84,
    "branch": "wanderer",
    "kind": "small",
-   "name": "Emberkeeper",
+   "name": "Keen Eye",
    "desc": "",
-   "stats": {
-    "emberFind": 0.04
-   },
+   "stats": {},
    "x": 2.18,
    "y": -0.87,
    "angle": -0.377,
@@ -1679,9 +1673,7 @@
    "kind": "small",
    "name": "Scavenger",
    "desc": "",
-   "stats": {
-    "relicFind": 0.04
-   },
+   "stats": {},
    "x": 2.29,
    "y": 0.52,
    "angle": 0.223,
@@ -1779,10 +1771,8 @@
    "kind": "notable",
    "key": "tinkerer",
    "name": "Tinkerer",
-   "desc": "Loot find +25%",
-   "stats": {
-    "relicFind": 0.25
-   },
+   "desc": "Currently inert (formerly loot find) — see QUESTIONS Q146",
+   "stats": {},
    "x": 2.77,
    "y": 1.6,
    "angle": 0.524,
@@ -1799,11 +1789,9 @@
    "id": 91,
    "branch": "wanderer",
    "kind": "small",
-   "name": "Emberkeeper",
+   "name": "Keen Eye",
    "desc": "",
-   "stats": {
-    "emberFind": 0.04
-   },
+   "stats": {},
    "x": 1.8,
    "y": 2.65,
    "angle": 0.974,
@@ -1821,9 +1809,7 @@
    "kind": "small",
    "name": "Scavenger",
    "desc": "",
-   "stats": {
-    "relicFind": 0.04
-   },
+   "stats": {},
    "x": 0.47,
    "y": 3.17,
    "angle": 1.424,
@@ -1838,11 +1824,9 @@
    "id": 93,
    "branch": "wanderer",
    "kind": "small",
-   "name": "Emberkeeper",
+   "name": "Keen Eye",
    "desc": "",
-   "stats": {
-    "emberFind": 0.04
-   },
+   "stats": {},
    "x": 3.77,
    "y": -1.49,
    "angle": -0.377,
@@ -1859,9 +1843,7 @@
    "kind": "small",
    "name": "Scavenger",
    "desc": "",
-   "stats": {
-    "relicFind": 0.04
-   },
+   "stats": {},
    "x": 4.05,
    "y": -0.07,
    "angle": -0.017,
@@ -2019,10 +2001,9 @@
    "kind": "notable",
    "key": "gilded_path",
    "name": "Gilded Path",
-   "desc": "Gold and Ember find +20%",
+   "desc": "Gold find +20%",
    "stats": {
-    "goldFind": 0.2,
-    "emberFind": 0.2
+    "goldFind": 0.2
    },
    "x": 4.24,
    "y": 2.45,
@@ -2042,9 +2023,7 @@
    "kind": "small",
    "name": "Scavenger",
    "desc": "",
-   "stats": {
-    "relicFind": 0.04
-   },
+   "stats": {},
    "x": 3.33,
    "y": 3.6,
    "angle": 0.824,
@@ -2099,11 +2078,9 @@
    "id": 106,
    "branch": "wanderer",
    "kind": "small",
-   "name": "Emberkeeper",
+   "name": "Keen Eye",
    "desc": "",
-   "stats": {
-    "emberFind": 0.04
-   },
+   "stats": {},
    "x": 5.35,
    "y": -2.12,
    "angle": -0.377,
@@ -2120,9 +2097,7 @@
    "kind": "small",
    "name": "Scavenger",
    "desc": "",
-   "stats": {
-    "relicFind": 0.04
-   },
+   "stats": {},
    "x": 5.71,
    "y": -0.69,
    "angle": -0.12,
@@ -2217,11 +2192,9 @@
    "id": 112,
    "branch": "wanderer",
    "kind": "small",
-   "name": "Emberkeeper",
+   "name": "Keen Eye",
    "desc": "",
-   "stats": {
-    "emberFind": 0.04
-   },
+   "stats": {},
    "x": 2.26,
    "y": 5.29,
    "angle": 1.167,
@@ -2239,9 +2212,7 @@
    "kind": "small",
    "name": "Scavenger",
    "desc": "",
-   "stats": {
-    "relicFind": 0.04
-   },
+   "stats": {},
    "x": 0.84,
    "y": 5.69,
    "angle": 1.424,
@@ -2312,11 +2283,9 @@
    "id": 117,
    "branch": "wanderer",
    "kind": "small",
-   "name": "Emberkeeper",
+   "name": "Keen Eye",
    "desc": "",
-   "stats": {
-    "emberFind": 0.04
-   },
+   "stats": {},
    "x": 5.03,
    "y": 4.27,
    "angle": 0.704,
@@ -2334,9 +2303,7 @@
    "kind": "small",
    "name": "Scavenger",
    "desc": "",
-   "stats": {
-    "relicFind": 0.04
-   },
+   "stats": {},
    "x": 3.2,
    "y": 5.77,
    "angle": 1.064,

@@ -328,14 +328,14 @@ html, body {
 .sw-slot span { color: var(--dim); text-transform: capitalize; }
 
 .sw-itemstash { display: flex; flex-wrap: wrap; gap: 6px; }
-.sw-relic {
+.sw-lootitem {
   flex: 1 1 150px; display: flex; flex-direction: column; align-items: flex-start;
   background: var(--panel2); border: 1px solid var(--line); border-left-width: 3px;
   border-radius: 5px; padding: 7px 10px; color: var(--text); font: inherit; cursor: pointer;
 }
-.sw-relic small { font-size: 12px; color: var(--dim); text-transform: capitalize; }
-.sw-relic.on { border-color: var(--accent); border-left-color: var(--accent); }
-.sw-relic.equipped { background: #1c2a24; }
+.sw-lootitem small { font-size: 12px; color: var(--dim); text-transform: capitalize; }
+.sw-lootitem.on { border-color: var(--accent); border-left-color: var(--accent); }
+.sw-lootitem.equipped { background: #1c2a24; }
 
 /* fb022: full effect-text blocks (class/Core detail, equipment detail) — a
    named header plus whatever generic stat/field list the info-format.ts
@@ -349,8 +349,8 @@ html, body {
 .sw-phase-td { color: #7fb2ff; }
 .sw-phase-vs { color: #ff8f8f; }
 
-.sw-relicdetail { display: flex; flex-direction: column; gap: 3px; }
-.sw-affix { font-size: 12px; color: #9fd3c7; }
+.sw-itemdetail { display: flex; flex-direction: column; gap: 3px; }
+.sw-modline { font-size: 12px; color: #9fd3c7; }
 .sw-compare { margin-top: 8px; padding-top: 6px; border-top: 1px solid var(--line); }
 .sw-compare b { font-size: 12px; }
 .sw-craftrow { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }

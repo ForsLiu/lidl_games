@@ -42,11 +42,6 @@ const STAT_LABELS: Record<string, string> = {
   pickupPct: 'Pickup Radius',
   luck: 'Luck',
   goldFind: 'Gold Find',
-  emberFind: 'Ember Find',
-  // fb023: displayed as "Loot Find" — the internal StatKey stays `relicFind`
-  // (data/tree.json, stats.ts, loot.ts's drop-rate scaling all read it by
-  // that name), only the retired-relic-UI-facing label changed.
-  relicFind: 'Loot Find',
   ailmentPotency: 'Ailment Potency',
   towerCost: 'Tower Cost',
   towerDamage: 'Tower Damage',
@@ -71,7 +66,7 @@ const STAT_LABELS: Record<string, string> = {
 /** Stats stored as fractions read as percentages; the rest are flat. */
 const PERCENT_STATS = new Set([
   'power', 'attackSpeed', 'area', 'moveSpeedPct', 'maxHpPct', 'cdr', 'pickupPct',
-  'goldFind', 'emberFind', 'relicFind', 'ailmentPotency', 'towerCost', 'towerDamage',
+  'goldFind', 'ailmentPotency', 'towerCost', 'towerDamage',
   'towerRange', 'wallHp', 'sproutGold', 'residualPotency', 'leech', 'modRewardBonus', 'xpGain',
 ]);
 
@@ -141,7 +136,7 @@ function markup(
        is off; you still have <b>${pointsAvailable(meta)}</b> point(s) banked for whenever it returns.`
     : `<b>${pointsAvailable(meta)}</b> point(s) to spend &middot; left-click a lit node to take it
        &middot; right-click to take one back. Points spent since you opened the Hub come back
-       <b>free</b>; older ones cost ${cost} Ember (you have <b>${meta.ember}</b>).`;
+       <b>free</b>; older ones cost ${cost} skill point${cost === 1 ? '' : 's'} (you have <b>${meta.skillPoints}</b>).`;
 
   return `
     <div class="sw-panel wide">
@@ -358,7 +353,7 @@ export function allocationRefusal(meta: MetaState, id: number): string {
   const node = loadContent().treeById.get(id);
   if (!node || node.kind === 'start') return 'That is the centre of the tree — it is always yours.';
   if (meta.allocated.includes(id)) return 'Already allocated — right-click to take it back.';
-  if (pointsAvailable(meta) <= 0) return 'No points left. Earn Ember to raise your account level.';
+  if (pointsAvailable(meta) <= 0) return 'No points left. Clear more VS waves for more.';
   return 'Not connected yet — allocate a neighbouring node first.';
 }
 
@@ -368,5 +363,5 @@ export function refusalText(blocked: string, meta: MetaState): string {
   if (blocked === 'would_orphan') {
     return 'Refund the nodes beyond it first — this one holds them to the tree.';
   }
-  return `Refunding costs ${cost} Ember and you have ${meta.ember}.`;
+  return `Refunding costs ${cost} skill point${cost === 1 ? '' : 's'} and you have ${meta.skillPoints}.`;
 }

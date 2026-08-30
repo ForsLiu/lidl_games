@@ -81,7 +81,6 @@ function main(): void {
         tier: o.tier,
         modifiers: o.modifiers,
         allocated: o.allocated,
-        relics: [],
       };
       reports.push(runOne(cfg, policy, o.maxTicks));
     }

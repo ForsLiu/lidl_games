@@ -506,22 +506,6 @@ export interface Corpse {
   remaining: number;
 }
 
-/* ----------------------------------------------------------------- relics */
-
-export interface RelicAffix {
-  key: string;
-  stat: string;
-  value: number;
-}
-
-export interface Relic {
-  id: number;
-  slot: string;
-  rarity: string;
-  name: string;
-  affixes: RelicAffix[];
-}
-
 /* ------------------------------------------------------------- level-ups */
 
 /** SPEC-FINAL §6.3's three card families: a stat boon, a Type Mastery card
@@ -542,16 +526,13 @@ export interface Offer {
 /* ------------------------------------------------------------- run config */
 
 export interface MetaState {
-  accountLevel: number;
-  ember: number;
+  /** Allocated Constellation node ids, always including `0` (the start node). */
   allocated: number[];
-  stash: Relic[];
-  equipped: { sigil: number | null; plate: number | null; charm: number | null };
   /**
    * SPEC-FINAL §7, fb015: owned counts of each `data/equipment.json` item key.
-   * Equipment items are fixed rows, not procedurally rolled instances like a
-   * `Relic`, so "duplicates allowed" (§8.1) is just a higher count rather than
-   * a second stash entry with its own id.
+   * Equipment items are fixed rows, not procedurally rolled instances, so
+   * "duplicates allowed" (§8.1) is just a higher count rather than a second
+   * stash entry with its own id.
    */
   equipmentStash: Record<string, number>;
   /** §7's six fixed slots (weapon/armor/shoes/ring/necklace/bracelet) -> the equipped item key, or null. */
@@ -562,7 +543,6 @@ export interface MetaState {
   highestTier: number;
   questProgress: Record<string, number>;
   completedQuests: string[];
-  nextRelicId: number;
   /**
    * fb012: the level-up auto-pick default a new run starts with. Lives on the
    * save profile (not `Settings`, which is presentation-only) because it feeds
@@ -570,10 +550,11 @@ export interface MetaState {
    */
   autoPickLevelUps: boolean;
   /**
-   * §8.2 (p7c): 1 per VS wave fully cleared, granted at run end. Accumulates
-   * here independently of the Ember/account-level tree-point supply; p7d
-   * (not yet built) is what retires that supply and makes this the tree's
-   * only currency with a one-time conversion.
+   * §8.2/§8.3 (p7c, p7d): the tree's only currency — 1 per VS wave fully
+   * cleared, granted at run end, plus a one-time 100:1 conversion of any
+   * Ember a save carried from before p7d retired that pipeline. Spent by
+   * `allocate` (implicitly, via `pointsAvailable`'s subtraction) and by
+   * `refund`'s per-node respec cost.
    */
   skillPoints: number;
 }
@@ -594,8 +575,6 @@ export interface RunConfig {
   modifiers: string[];
   /** Allocated Constellation node ids. */
   allocated: number[];
-  /** Relics equipped for this run. */
-  relics: Relic[];
   /** SPEC-FINAL §7, fb015: equipment item keys equipped for this run (one per slot, at most 6). */
   equipment?: string[];
   /**
@@ -633,7 +612,7 @@ export interface RunConfig {
   stripTerrain?: boolean;
   /**
    * Enables the in-run practice tool. Dev commands are ignored without it, and
-   * a run that used one banks no Ember and no relics.
+   * a run that used one banks nothing to the meta account.
    */
   practice?: boolean;
   /**
@@ -692,10 +671,8 @@ export interface RunReport {
   /** p7a (§6.3): the other two pool families, alongside `boons` (stat boons). */
   typeMastery: Record<string, number>;
   skillCards: Record<string, number>;
-  relicsFound: number;
   /** fb015 (§8.1): equipment items rolled this run, one per fully cleared TD wave. */
   equipmentFound: number;
-  ember: number;
   bossKilled: boolean;
   bossKillSeconds: number;
   endHash: string;

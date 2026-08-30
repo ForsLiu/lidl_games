@@ -368,17 +368,25 @@ points, granted at run end, win or lose, for waves fully cleared" —
 `tools/gate-audit.ts`'s `GATE_COVERAGE` now names G12, moved out of
 `KNOWN_HOLES`.
 
-- [ ] (p7d) [feat] Retire the superseded meta economy: relic affixes and rarities,
-      the Ember → level → points pipeline, and `data/relics.json`'s affix table.
-      Skill points become the tree's only currency with a one-time conversion, and
-      respec is priced in skill points — acceptance: no Ember or relic affix in sim,
-      meta or UI; a save written before the change migrates with its Ember converted;
-      gate **G12**'s "orbs nowhere" clause extended to relics — refs: §8, Q46, Q49.
-      fb023 already dropped `meta.stash`/`equipped` outright for any save older
-      than `SAVE_VERSION` 3 (the relic UI's removal, QUESTIONS Q143) — this
-      item's design starts from "stash is already empty for every real
-      account," not from "convert a live stash," and should also close b037
-      (the drop/bank pipeline QA found still running with fb023's UI gone).
+**`p7d` is done** — see the Done section. Retired the superseded meta economy in
+full: relic affixes/rarities, `data/relics.json`, the Ember→account-level
+pipeline, `src/sim/loot.ts`. Skill points (`MetaState.skillPoints`) are the
+tree's only currency — `pointsAvailable` reads it directly, `refund` spends
+`tree.respecCostPerNode` (repriced to 1, Q46) from it. A save older than
+`SAVE_VERSION` 4 converts any leftover Ember once at 100:1 (Q46) before the
+whole `ember`/`accountLevel`/`stash`/`equipped`/`nextRelicId` field set is
+stripped, folding into fb023's existing relic-drop notice. Gate **G12**'s
+"orbs nowhere" clause is extended to both relics (`tests/fb023-remove-stash-
+relics.test.ts`, widened past its original UI-only scope to the data layer
+too) and Ember (`tests/p7d-retire-economy.test.ts`, new). Closes **b037**
+(the relic drop/bank pipeline is deleted outright, not merely made
+unreachable) — the `archivist` quest is repointed at an equipment-shaped
+metric (`max_equipment_dupes`) since relics no longer exist to count.
+15 Constellation nodes (6 "Emberkeeper"→"Keen Eye" smalls, 7 "Scavenger"
+smalls, the Tinkerer and Gilded Path notables) and the `modRewardBonus` stat
+lost their only consumer and are left inert rather than guessed at — QUESTIONS
+Q146, flagged for the P10 balance/content pass rather than risking gates
+G1/G14/G6 with an unswept buff.
 - [ ] (p7e) [feat] Unlock quests per §8.4: 8–12 quests in `data/quests.json` awarding
       unlocks only, never currency, covering the §4.2 classes (win a run → Pyro;
       build 40 ice obelisks lifetime → Cryomancer; win with a sealed Core → Paladin)
@@ -878,25 +886,13 @@ because the lane worktree retires at this merge.
       synchronously by the same callback) rather than off ticked sim state —
       refs: fb003, fb012, `src/ui/main.ts` `onToggleAutoPick`/`setShowRanges`,
       code-reviewer + qa-playtester findings on fb012 (2026-08-29).
-- [ ] (b037) [bug] The relic loot pipeline (elite/boss/win drops via
-      `src/sim/loot.ts`'s `dropRelic`, banked into `meta.stash` up to cap by
-      `applyRunResult`, `src/meta/meta.ts`) stayed fully live after fb023
-      deleted every UI path that could equip or discard a relic — an ordinary
-      (non-practice) run keeps silently growing `meta.stash` forever for a
-      payoff (the `archivist` quest, `data/quests.json`, reward
-      `stash_plus_8`) nothing shows working toward or having reached; QA
-      confirmed both the drop and the bank fire on a real run and that
-      `archivist` is still completable while being invisible end to end
-      (qa-playtester finding on fb023, logged at QUESTIONS Q143). This is the
-      earn-pipeline half of the "supersedes the 'stash holds earned items'
-      line in fb015" clause fb023's UI-only fix didn't reach — properly
-      p7d's job ("retire the superseded meta economy"), not a narrow patch —
-      acceptance: an ordinary run banks no new relic into `meta.stash` (or
-      the whole relic system, drop included, is retired outright per p7d's
-      own scope, whichever lands first); a regression test on
-      `applyRunResult`/the drop path; `archivist`'s quest text/reward is
-      either retired alongside or repointed at an equipment-shaped metric —
-      refs: p7d, fb015, fb023, QUESTIONS Q143.
+- [x] (b037) [bug] The relic loot pipeline stayed fully live after fb023
+      deleted every UI path that could equip or discard a relic — **closed by
+      p7d, see the Done section.** `src/sim/loot.ts` (`dropRelic`,
+      `handleKillDrops`) and `meta.stash` are deleted outright, not merely
+      made unreachable; `archivist` is repointed at `max_equipment_dupes`
+      (own 3 of the same equipment item at once) — refs: p7d, fb015, fb023,
+      QUESTIONS Q143.
 
 ## Retired from the queue by SPEC-FINAL
 
@@ -927,6 +923,92 @@ logged in MIGRATION.md §8 rather than carried as dead items.
   **G19**. The work is `p10d`.
 
 ## Done
+
+- [x] (p7d) [feat] Retire the superseded meta economy: relic affixes/rarities and
+      the Ember→account-level pipeline — acceptance: no Ember or relic affix in
+      sim, meta or UI; a save written before the change migrates with its Ember
+      converted; gate **G12**'s "orbs nowhere" clause extended to relics — refs:
+      §8, Q46, Q49 — commit pending in this change. `data/relics.json` and
+      `src/sim/loot.ts` deleted outright (`RelicAffix`/`Relic` types,
+      `MetaState.stash`/`equipped`/`nextRelicId`/`accountLevel`/`ember`,
+      `RunConfig.relics`, `RunReport.relicsFound`/`ember`, `World.relicsFound`/
+      `emberEarned`, `meta.ts`'s `emberFor`/`accountLevelFor`/`stashCapacity`,
+      `stash.ts`'s `equip`/`discard`, `stats.ts`'s `relicStats`/`emberFind`/
+      `relicFind` stat keys). `MetaState.skillPoints` is the tree's only
+      currency: `pointsAvailable` = `skillPoints - allocatedCount` directly (no
+      account-level multiplier), `refund` spends `tree.respecCostPerNode`
+      (`data/tree.json`, repriced 5→1 Ember-units to 1 skill point, Q46) from
+      it. `SAVE_VERSION` 3→4; a save older than 4 converts any leftover `ember`
+      once at 100:1 (Q46) into `skillPoints` before the whole
+      `ember`/`accountLevel`/`stash`/`equipped`/`nextRelicId` field set is
+      stripped (`RETIRED_KEYS`), reusing fb023's existing one-time-notice
+      mechanism (`loadMetaWithNotice`) for both the relic-drop and the
+      Ember-conversion notices. `seedTestAccount` grants skill points directly
+      instead of rolling a fake relic stash; `devprofile.ts`'s dev-profile
+      skill-point grant (`data/dev.json`'s `skillPoints: 999`) no longer routes
+      through a fake Ember purchase, so a dev account gets the full 999 SPEC-V3
+      T3 asked for instead of the old 60-point account-level cap (QUESTIONS
+      Q53, now moot). 15 Constellation nodes that granted `emberFind`/
+      `relicFind` (6 "Emberkeeper"→renamed "Keen Eye" smalls, 7 "Scavenger"
+      smalls, the Tinkerer and Gilded Path notables) and the `modRewardBonus`
+      stat (the Cartographer notable, whose only reader was `emberFor`) lost
+      their consumer; `tools/gen-tree.mjs` regenerated `data/tree.json` with
+      those nodes' `stats` emptied (Gilded Path keeps its still-live
+      `goldFind` half, drops only the dead `emberFind` half) rather than
+      retargeted at a live stat — retargeting risked either breaking gate
+      G12's exact "N TD waves → N equipment" invariant (Q50's original
+      bonus-equipment-drop suggestion) or materially inflating the economy
+      under `TREE_AUTO_MAX` (every node live in every real run) with no sweep
+      to verify G1/G14/G6 still hold — logged as QUESTIONS **Q146**, flagged
+      for the P10 balance/content pass. Closes **b037** (the relic drop/bank
+      pipeline is deleted, not merely made unreachable) — the `archivist`
+      quest (`data/quests.json`) is repointed from "own 3 Rare finds" at
+      `max_equipment_dupes` ("own 3 of the same equipment item at once"), its
+      old `stash_plus_8` reward (a relic-stash-capacity bonus with no
+      surviving stash to cap) repointed at a flavor-only `archivist_badge`
+      matching every other non-`class`-kind reward in the table. Gate G12's
+      "orbs nowhere" clause is extended to relics — `tests/fb023-remove-stash-
+      relics.test.ts`'s `RELIC_UI` source scan widened past its original
+      UI-only carve-out to ban the retired data-layer identifiers too, since
+      p7d removes what fb023 had explicitly left in place — and to Ember, in
+      a new `tests/p7d-retire-economy.test.ts` mirroring `c7-no-orbs.test.ts`'s
+      two-layer (source vocabulary + Hub/Results-modal DOM) shape; both scans
+      are scoped away from the in-run tower-build bar, which legitimately
+      still renders "Ember Brazier" (a kept tower name, §4). `tools/gen-tree.mjs`,
+      `tools/fuzz-save.ts` (`validMeta`/`legacySave`/`checkMeta`/`exerciseHub`/
+      `hubNumbers` all updated for the new `MetaState` shape), `tools/fuzz-data.ts`
+      (`DATA_FILES` 15→14), `tools/invariants.ts` and `tools/mutation-probe.ts`
+      (two mutation entries whose `find` template had gone stale against the
+      edited source — `meta.ts`'s Ember-drop mutation retargeted at
+      `skillPoints`, `soak.ts`'s RunConfig-literal mutation's `relics: []` line
+      dropped) all updated to match. `tests/q7-loader-holes.ts` (the generated
+      loader-fuzz artefact) regenerated in full via `Q7_RECORD=1`: 6,599
+      mutations (down from 6,968), 4,371 rejected, 2,228 accepted. Roughly a
+      dozen test files across the relic/Ember surface updated for the new
+      shape (`meta.test.ts`, `q3-save-fuzz.test.ts`, `t6c-save-migration.test.ts`,
+      `c8-dev-profile.test.ts`, `hub-testing.test.ts`, `practice.test.ts`,
+      `character-panel.test.ts`, `c4-stacking.test.ts`, `content-complete.test.ts`
+      — its `describe('loot (SPEC 7)')` block deleted outright per
+      MIGRATION.md's retirement rule, not `.skip`-ed, since the code it
+      covered is deleted in this same commit — `ui-input.test.ts`,
+      `ui-refund-repro.test.ts`, `b003-stash-ux.test.ts`,
+      `fb022-info-surfacing.test.ts`, `boss.test.ts`, `grid.test.ts`,
+      `p7c-reward-pipeline.test.ts`, `q8-save-roundtrip.test.ts`,
+      `fb015-equipment.test.ts`, `fb014-tree-auto-max.test.ts`,
+      `fb023-remove-stash-relics.test.ts`, `light-build.test.ts`,
+      `q7-data-fuzz.test.ts`). `npx tsc --noEmit` clean project-wide;
+      `npm run test:fast` green (1558 passed, 32 skipped, the same 4
+      pre-existing Playwright dev-server-port fold-test flakes this session
+      confirmed pass individually — a known class of Windows-host flake, not
+      a regression this item introduced).
+
+- [x] (b037) [bug] The relic loot pipeline (elite/boss/win drops via
+      `src/sim/loot.ts`'s `dropRelic`, banked into `meta.stash` by
+      `applyRunResult`) stayed fully live after fb023 deleted every UI path
+      that could equip or discard a relic — **closed by p7d, see above.**
+      `src/sim/loot.ts` and `meta.stash` are deleted outright, not merely made
+      unreachable; `archivist` is repointed at `max_equipment_dupes` — refs:
+      p7d, fb015, fb023, QUESTIONS Q143 — commit pending in this change.
 
 - [x] (p7c) [feat] Rewards pipeline per §8: each TD wave cleared grants 1 random
       equipment (even weights), each VS wave cleared grants 1 skill point, both

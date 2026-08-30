@@ -70,7 +70,7 @@ export interface BoundaryCase {
 }
 
 export function cfg(): RunConfig {
-  return { seed: 1, classKey: 'engineer', tier: 1, modifiers: [], allocated: [], relics: [], policy: 'none', cycles: 1 };
+  return { seed: 1, classKey: 'engineer', tier: 1, modifiers: [], allocated: [], policy: 'none', cycles: 1 };
 }
 
 export function newWorld(content: Content = loadContent()): World {

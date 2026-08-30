@@ -22,6 +22,19 @@
  *     `open` = no row is, `partial` = some are and some are not, which is the
  *     one-directional-integrity finding (E1).
  *
+ * Recorded 2026-08-30 (p7d) against 6,599 mutations, 4,371 rejected, 2,228
+ * accepted — down from 6,968/4,622/2,346: p7d retired `data/relics.json`
+ * (the relic affix/rarity table) outright — `DATA_FILES` drops to fourteen
+ * files, so every `relics.*` path disappears from ACCEPTED, INEFFECTIVE and
+ * REF_VERDICTS. `tree.json` also lost its top-level `maxAccountLevel`/
+ * `emberBase`/`startingEmber`/`pointsPerLevel` fields (skill points are the
+ * tree's only currency now, Q46; `respecCostPerNode` survives, repriced to
+ * 1) and the `tree.nodes[].stats.emberFind`/`.relicFind` shape rows, since no
+ * node grants either stat anymore (the affected nodes are inert pending a
+ * balance pass — QUESTIONS.md's p7d entry). ACCEPTED, INEFFECTIVE and
+ * REF_VERDICTS all regenerated in full rather than patched in place, since
+ * the file-list change touches every record's shape.
+ *
  * Recorded 2026-08-30 (p7a) against 6,968 mutations, 4,622 rejected, 2,346
  * accepted — up from 6,064/3,890/2,174: `data/boons.json`'s flat 12-boon
  * list is replaced by `data/vsupgrades.json`'s SPEC-FINAL §6.3 pool (7 stat
@@ -415,35 +428,6 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'quests.quests[].reward.kind': ['to-string', 'empty-string'],
   'quests.quests[].reward.value': ['to-string', 'empty-string'],
   'quests.quests[].target': ['negative', 'zero', 'infinite', 'fractional'],
-  'relics.affixes': ['empty-array', 'drop-element', 'dupe-element'],
-  'relics.affixes[].key': ['to-string', 'empty-string'],
-  'relics.affixes[].max': ['negative', 'zero', 'infinite', 'fractional'],
-  'relics.affixes[].min': ['negative', 'zero', 'infinite', 'fractional'],
-  'relics.affixes[].name': ['to-string', 'empty-string'],
-  'relics.affixes[].pct': ['flip-bool'],
-  'relics.affixes[].stat': ['to-string', 'empty-string'],
-  'relics.dropRates.bossRelic': ['negative', 'zero', 'infinite', 'fractional', 'drop-key', 'rename-key'],
-  'relics.dropRates.eliteRelic': ['negative', 'zero', 'infinite', 'fractional', 'drop-key', 'rename-key'],
-  'relics.dropRates.waveRelic': ['negative', 'zero', 'infinite', 'fractional', 'drop-key', 'rename-key'],
-  'relics.implicits.charm': ['drop-key', 'rename-key'],
-  'relics.implicits.charm.stat': ['to-string', 'empty-string'],
-  'relics.implicits.charm.value': ['negative', 'zero', 'infinite', 'fractional'],
-  'relics.implicits.plate': ['drop-key', 'rename-key'],
-  'relics.implicits.plate.stat': ['to-string', 'empty-string'],
-  'relics.implicits.plate.value': ['negative', 'zero', 'infinite', 'fractional'],
-  'relics.implicits.sigil': ['drop-key', 'rename-key'],
-  'relics.implicits.sigil.stat': ['to-string', 'empty-string'],
-  'relics.implicits.sigil.value': ['negative', 'zero', 'infinite', 'fractional'],
-  'relics.luckRarityShift': ['negative', 'zero', 'infinite', 'fractional'],
-  'relics.rarities': ['empty-array', 'drop-element', 'dupe-element'],
-  'relics.rarities[].key': ['to-string', 'empty-string'],
-  'relics.rarities[].maxAffixes': ['negative', 'infinite', 'fractional'],
-  'relics.rarities[].minAffixes': ['negative', 'infinite', 'fractional'],
-  'relics.rarities[].name': ['to-string', 'empty-string'],
-  'relics.rarities[].weight': ['negative', 'zero', 'infinite', 'fractional'],
-  'relics.slots': ['empty-array', 'drop-element', 'dupe-element'],
-  'relics.slots[]': ['to-string', 'empty-string'],
-  'relics.stashSlots': ['negative', 'zero', 'infinite', 'fractional'],
   'spawns.actIICarry': ['negative', 'zero', 'infinite', 'fractional'],
   'spawns.aliveCap': ['negative', 'zero', 'infinite', 'fractional'],
   'spawns.bossTimeSeconds': ['negative', 'zero', 'infinite', 'fractional'],
@@ -575,8 +559,6 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'towers.towers[].vsSpecial.radius': ['infinite', 'fractional'],
   'towers.towers[].vsSpecial.ratio': ['infinite', 'fractional'],
   'towers.upgradeStepMul': ['negative', 'zero', 'infinite', 'fractional'],
-  'tree.emberBase': ['negative', 'zero', 'infinite', 'fractional'],
-  'tree.maxAccountLevel': ['negative', 'zero', 'infinite', 'fractional'],
   'tree.nodes': ['empty-array', 'dupe-element'],
   'tree.nodes[].angle': ['to-null', 'to-string', 'to-bool', 'to-array', 'to-object', 'negative', 'zero', 'infinite', 'fractional', 'drop-key', 'rename-key'],
   'tree.nodes[].branch': ['to-string', 'empty-string'],
@@ -593,7 +575,6 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'tree.nodes[].stats.buildRange': ['negative', 'zero', 'infinite', 'fractional', 'drop-key', 'rename-key'],
   'tree.nodes[].stats.coreHp': ['negative', 'zero', 'infinite', 'fractional', 'drop-key', 'rename-key'],
   'tree.nodes[].stats.dashCharges': ['negative', 'zero', 'infinite', 'fractional', 'drop-key', 'rename-key'],
-  'tree.nodes[].stats.emberFind': ['negative', 'zero', 'infinite', 'fractional', 'drop-key', 'rename-key'],
   'tree.nodes[].stats.goldFind': ['negative', 'zero', 'infinite', 'fractional', 'drop-key', 'rename-key'],
   'tree.nodes[].stats.goldPerKill': ['negative', 'zero', 'infinite', 'fractional', 'drop-key', 'rename-key'],
   'tree.nodes[].stats.hpRegen': ['negative', 'zero', 'infinite', 'fractional', 'drop-key', 'rename-key'],
@@ -606,7 +587,6 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'tree.nodes[].stats.moveSpeedPct': ['negative', 'zero', 'infinite', 'fractional', 'drop-key', 'rename-key'],
   'tree.nodes[].stats.pickupPct': ['negative', 'zero', 'infinite', 'fractional', 'drop-key', 'rename-key'],
   'tree.nodes[].stats.power': ['negative', 'zero', 'infinite', 'fractional', 'drop-key', 'rename-key'],
-  'tree.nodes[].stats.relicFind': ['negative', 'zero', 'infinite', 'fractional', 'drop-key', 'rename-key'],
   'tree.nodes[].stats.residualPotency': ['negative', 'zero', 'infinite', 'fractional', 'drop-key', 'rename-key'],
   'tree.nodes[].stats.sproutGold': ['negative', 'zero', 'infinite', 'fractional', 'drop-key', 'rename-key'],
   'tree.nodes[].stats.teslaLinks': ['negative', 'zero', 'infinite', 'fractional', 'drop-key', 'rename-key'],
@@ -616,9 +596,7 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'tree.nodes[].stats.wallHp': ['negative', 'zero', 'infinite', 'fractional', 'drop-key', 'rename-key'],
   'tree.nodes[].x': ['negative', 'infinite', 'fractional'],
   'tree.nodes[].y': ['negative', 'infinite', 'fractional'],
-  'tree.pointsPerLevel': ['negative', 'zero', 'infinite', 'fractional'],
   'tree.respecCostPerNode': ['negative', 'zero', 'infinite', 'fractional'],
-  'tree.startingEmber': ['negative', 'zero', 'infinite', 'fractional'],
   'vsupgrades.rerollsPerLevel': ['negative', 'zero', 'infinite', 'fractional'],
   'vsupgrades.skillCards.animist[].desc': ['to-string', 'empty-string'],
   'vsupgrades.skillCards.animist[].key': ['to-string', 'empty-string'],
@@ -731,8 +709,6 @@ export const INEFFECTIVE: readonly string[] = [
   'enemies.enemies[].traits | empty-array',
   'enemies.enemies[].traits | drop-element',
   'enemies.enemies[].traits | dupe-element',
-  'relics.rarities[].minAffixes | zero',
-  'relics.rarities[].maxAffixes | zero',
   'spawns.weightsByMinute[].minute | zero',
   'towers.defenseBands.none | zero',
   'towers.towers[].defense | zero',
@@ -747,6 +723,7 @@ export const INEFFECTIVE: readonly string[] = [
   'tree.nodes[].y | zero',
   'tree.nodes[].ring | zero',
   'warden.armor | zero',
+
 ];
 
 /** Canonical string path -> how its rows scored under a garbage rename. */
@@ -805,15 +782,6 @@ export const REF_VERDICTS: Readonly<Record<string, RefVerdict>> = {
   'quests.quests[].name': 'open',
   'quests.quests[].reward.kind': 'open',
   'quests.quests[].reward.value': 'open',
-  'relics.affixes[].key': 'open',
-  'relics.affixes[].name': 'open',
-  'relics.affixes[].stat': 'open',
-  'relics.implicits.charm.stat': 'open',
-  'relics.implicits.plate.stat': 'open',
-  'relics.implicits.sigil.stat': 'open',
-  'relics.rarities[].key': 'open',
-  'relics.rarities[].name': 'open',
-  'relics.slots[]': 'open',
   'towers.towers[].attack.kind': 'checked',
   'towers.towers[].desc': 'open',
   'towers.towers[].key': 'partial',

@@ -48,7 +48,7 @@ export interface PolicyCensus {
 
 /** Play one seeded run of `policyName` to completion (or `maxTicks`), recording every phase visited. */
 export function reachedPhases(policyName: string, seed: number, maxTicks = DEFAULT_MAX_TICKS): Set<Phase> {
-  const cfg: RunConfig = { seed, classKey: 'engineer', tier: 1, modifiers: [], allocated: [], relics: [] };
+  const cfg: RunConfig = { seed, classKey: 'engineer', tier: 1, modifiers: [], allocated: [] };
   const run = new Run({ ...cfg, policy: policyName });
   const policy = makePolicy(policyName);
   const reached = new Set<Phase>();

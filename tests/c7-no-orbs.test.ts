@@ -83,13 +83,10 @@ describe('C7: Orbs are gone from the source', () => {
     expect(leaks, `Orb references still present:\n${leaks.join('\n')}`).toEqual([]);
   });
 
-  it('the content schema no longer carries an orbs collection', () => {
-    const relics = loadContent().relics as unknown as Record<string, unknown>;
-    expect(relics.orbs).toBeUndefined();
-    const rates = relics.dropRates as Record<string, unknown>;
-    for (const key of ['orbPerElite', 'orbPerBoss', 'orbPerWin']) {
-      expect(rates[key], key).toBeUndefined();
-    }
+  it('the content schema no longer carries an orbs (or, p7d, a relics) collection', () => {
+    const content = loadContent() as unknown as Record<string, unknown>;
+    expect(content.orbs).toBeUndefined();
+    expect(content.relics).toBeUndefined();
   });
 
   it('no Constellation node grants an Orb', () => {

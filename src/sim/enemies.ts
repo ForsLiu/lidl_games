@@ -383,7 +383,6 @@ export function killEnemy(w: World, e: Enemy, source: string): void {
     }
   }
 
-  onEnemyKilledForDrops(w, e, def);
   void source;
 }
 
@@ -504,12 +503,6 @@ function triggerBurningExplode(w: World, e: Enemy): void {
     }
     w.emit('explosion', e.x, e.y, radius, 0);
   }
-}
-
-/** Overridden by loot.ts at import time to avoid a cycle; default is a no-op. */
-export let onEnemyKilledForDrops: (w: World, e: Enemy, def: EnemyDef) => void = () => {};
-export function setDropHandler(fn: (w: World, e: Enemy, def: EnemyDef) => void): void {
-  onEnemyKilledForDrops = fn;
 }
 
 export function dropGem(w: World, x: number, y: number, value: number): void {

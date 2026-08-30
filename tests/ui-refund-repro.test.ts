@@ -56,9 +56,9 @@ describe.skip('a fresh account can undo a misclicked Constellation point', () =>
   });
 
   it('takes that point back on right click, on a brand new account', () => {
-    // A fresh account has 0 Ember, and Ember only arrives at the end of a run.
-    // Without an undo the very first misclick is permanent, which is what the
-    // playtest read as "refund does not work".
+    // A fresh account has 0 skill points, and points only arrive at the end
+    // of a run. Without an undo the very first misclick is permanent, which
+    // is what the playtest read as "refund does not work".
     const { root, latest } = mountHub(defaultMeta());
     const node = root.querySelector(`[data-node="${firstNode}"]`) as SVGCircleElement;
     node.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
@@ -69,12 +69,12 @@ describe.skip('a fresh account can undo a misclicked Constellation point', () =>
     expect(latest().allocated).not.toContain(firstNode);
   });
 
-  it('does not charge Ember the account does not have', () => {
+  it('does not charge skill points the account does not have', () => {
     const { root, latest } = mountHub(defaultMeta());
     const node = root.querySelector(`[data-node="${firstNode}"]`) as SVGCircleElement;
     node.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
     rightClick(root.querySelector(`[data-node="${firstNode}"]`) as Element);
-    expect(latest().ember).toBeGreaterThanOrEqual(0);
+    expect(latest().skillPoints).toBeGreaterThanOrEqual(0);
   });
 
   it('shows the tree updating, not just the underlying state', () => {

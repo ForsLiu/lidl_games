@@ -15,15 +15,11 @@ import { World } from '../src/sim/world';
 import { loadContent } from '../src/sim/content';
 import { STAT_KEYS, STAT_KIND } from '../src/sim/stats';
 import { applyOffer } from '../src/sim/progression';
-import type { Offer, Relic } from '../src/sim/types';
+import type { Offer } from '../src/sim/types';
 import { characterPanelData } from '../src/ui/character-panel';
 import { cfg } from './helpers';
 
 const content = loadContent();
-
-function relic(id: number, slot: string, affixes: { key: string; stat: string; value: number }[] = []): Relic {
-  return { id, slot, rarity: affixes.length === 0 ? 'normal' : 'magic', name: `Test Relic ${id}`, affixes };
-}
 
 /**
  * Drives a boon to `rank` through the real `applyOffer` path, one rank at a
@@ -49,18 +45,15 @@ describe('character panel data model', () => {
 
   it("every stat row's kind, value and per-source breakdown match Stats field-for-field", () => {
     // Every generic source kind alive at once: class (both a plain trait and
-    // its move-speed band), tree, relic (implicit + affix), boon, core and
-    // map modifiers — so no source-prefix branch in the panel goes untested.
+    // its move-speed band), tree, equipment, boon, core and map modifiers —
+    // so no source-prefix branch in the panel goes untested.
     const w = new World(
       cfg({
         classKey: 'engineer', // moveSpeedBonus 0.15 -> class:engineer:bands
         core: 'vampire_heart', // vsLifestealPct 0.01 -> core:vampire_heart / leech
         modifiers: ['shortarm'], // pickupMul -0.20 -> modifiers / pickupPct
         allocated: [41, 50], // power 0.03 (id 41); moveSpeedPct 0.1 + dashCharges 1 (id 50)
-        relics: [
-          relic(1, 'sigil', [{ key: 'power', stat: 'power', value: 0.07 }]),
-          relic(2, 'charm'),
-        ],
+        equipment: ['normal_shoes', 'normal_ring'],
       }),
     );
     takeBoonToRank(w, 'swift', 3); // moveSpeedPct, perRank 0.05 -> boon:swift
@@ -86,17 +79,26 @@ describe('character panel data model', () => {
     // Sanity: this world really did exercise every generic source prefix,
     // not just the ones with a default value of zero.
     const allSources = data.stats.flatMap((s) => s.sources.map((src) => src.source));
-    for (const prefix of ['class:engineer', 'tree:41', 'tree:50', 'relic:1', 'relic:2', 'boon:swift', 'core:vampire_heart', 'modifiers']) {
+    for (const prefix of [
+      'class:engineer',
+      'tree:41',
+      'tree:50',
+      'equipment:normal_shoes',
+      'equipment:normal_ring',
+      'boon:swift',
+      'core:vampire_heart',
+      'modifiers',
+    ]) {
       expect(allSources.some((s) => s.startsWith(prefix)), prefix).toBe(true);
     }
   });
 
-  it("stacks class x tree x relic x boon multiplicatively on one stat, per SPEC-FINAL section 2", () => {
+  it("stacks class x tree x equipment x boon multiplicatively on one stat, per SPEC-FINAL section 2", () => {
     const w = new World(
       cfg({
         classKey: 'engineer', // moveSpeedBonus 0.15
         allocated: [50], // moveSpeedPct 0.1 (plus dashCharges, irrelevant here)
-        relics: [relic(2, 'charm')], // implicit moveSpeedPct 0.05
+        equipment: ['normal_shoes'], // moveSpeedPct 0.5
       }),
     );
     takeBoonToRank(w, 'swift', 2); // perRank 0.10, rank 2 -> boon:swift totals 0.20
@@ -104,13 +106,13 @@ describe('character panel data model', () => {
     // "10% + 20% atk speed -> x1.1 x1.2": each source's own ranks add, then
     // sources multiply. Computed from the raw authored numbers above, not
     // from Stats — an independent cross-check of the stacking rule itself.
-    const expected = (1 + 0.15) * (1 + 0.1) * (1 + 0.05) * (1 + 0.2);
+    const expected = (1 + 0.15) * (1 + 0.1) * (1 + 0.5) * (1 + 0.2);
     expect(w.stats.factor('moveSpeedPct')).toBeCloseTo(expected, 10);
 
     const row = characterPanelData(w).stats.find((s) => s.key === 'moveSpeedPct')!;
     expect(row.value).toBe(w.stats.factor('moveSpeedPct'));
     expect(row.sources.map((s) => s.source).sort()).toEqual(
-      ['boon:swift', 'class:engineer:bands', 'relic:2', 'tree:50'].sort(),
+      ['boon:swift', 'class:engineer:bands', 'equipment:normal_shoes', 'tree:50'].sort(),
     );
   });
 

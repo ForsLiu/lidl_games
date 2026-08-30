@@ -67,16 +67,24 @@ const BRANCHES = [
       { name: 'Long Reach', stats: { pickupPct: 0.08 } },
       { name: 'Lucky Find', stats: { luck: 4 } },
       { name: 'Coinsense', stats: { goldFind: 0.04 } },
-      { name: 'Emberkeeper', stats: { emberFind: 0.04 } },
-      { name: 'Scavenger', stats: { relicFind: 0.04 } },
+      // p7d (§8): retired with the Ember economy — SPEC-FINAL has no
+      // replacement mechanism for a Constellation node to boost, and every
+      // still-live `mul` stat is already relied on by a balance gate (G1/
+      // G14/G6), so inventing a target here risks moving one without a
+      // sweep. Left inert and flagged at QUESTIONS Q146 for a content/
+      // balance pass rather than guessed at. `key: undefined` (a `small`
+      // node), so no id/name of its own to carry the old wording either.
+      { name: 'Keen Eye', stats: {} },
+      { name: 'Scavenger', stats: {} },
       { name: 'Swift Step', stats: { moveSpeedPct: 0.02 } },
     ],
     notables: [
       { key: 'prospector', name: 'Prospector', desc: 'Harvest Sprouts +50% output', stats: { sproutGold: 0.5 } },
       { key: 'cartographer', name: 'Cartographer', desc: 'Each map modifier grants +10% more reward', stats: { modRewardBonus: 0.1 } },
-      { key: 'tinkerer', name: 'Tinkerer', desc: 'Relic find +25%', stats: { relicFind: 0.25 } },
+      // p7d: same "retired, not repointed" reasoning as Keen Eye/Scavenger above.
+      { key: 'tinkerer', name: 'Tinkerer', desc: 'Currently inert (formerly loot find) — see QUESTIONS Q146', stats: {} },
       { key: 'lodestone', name: 'Lodestone', desc: 'Pickup radius +50%', stats: { pickupPct: 0.5 } },
-      { key: 'gilded_path', name: 'Gilded Path', desc: 'Gold and Ember find +20%', stats: { goldFind: 0.2, emberFind: 0.2 } },
+      { key: 'gilded_path', name: 'Gilded Path', desc: 'Gold find +20%', stats: { goldFind: 0.2 } },
       { key: 'star_reader', name: 'Star Reader', desc: '+25 Luck', stats: { luck: 25 } },
     ],
     keystone: {
@@ -213,11 +221,9 @@ if (allocatable.length !== NODES_PER_BRANCH * BRANCHES.length) {
 for (const n of nodes) n.links.sort((a, c) => a - c);
 
 const out = {
-  maxAccountLevel: 60,
-  emberBase: 100,
-  startingEmber: 400,
-  respecCostPerNode: 5,
-  pointsPerLevel: 1,
+  // p7d (§8.3, Q46): skill points are the tree's only currency now — 1 per
+  // VS wave cleared, respec 1 point per node.
+  respecCostPerNode: 1,
   nodes,
 };
 writeFileSync(new URL('../data/tree.json', import.meta.url), JSON.stringify(out, null, 1) + '\n');

@@ -6,9 +6,8 @@
  */
 
 import { defaultCoreKey, loadContent, type Content, type EquipmentItem } from '../sim/content';
-import type { MetaState, Relic, RunConfig } from '../sim/types';
+import type { MetaState, RunConfig } from '../sim/types';
 import {
-  accountLevelFor,
   defaultMeta,
   seedTestAccount,
   seedTestEquipment,
@@ -68,7 +67,7 @@ export class Hub {
   private notice = '';
   /**
    * Points spent in this Hub visit. They have not been taken into a run yet, so
-   * taking one back is an undo rather than a respec, and costs no Ember.
+   * taking one back is an undo rather than a respec, and costs no skill points.
    */
   private readonly spentThisVisit = new Set<number>();
 
@@ -252,7 +251,7 @@ export class Hub {
         </label>
         <p class="sw-note">${
           this.practice
-            ? 'The in-run tool is on: kill the board, add gold, skip a wave, summon the boss, spawn any enemy on demand. Nothing is banked — no Ember, no equipment, no quest progress.'
+            ? 'The in-run tool is on: kill the board, add gold, skip a wave, summon the boss, spawn any enemy on demand. Nothing is banked — no skill points, no equipment, no quest progress.'
             : 'A normal run. Everything you earn is kept.'
         }</p>
         <button class="sw-go" id="sw-start">${this.practice ? 'Begin practice run' : 'Begin the Daywatch'}</button>
@@ -321,7 +320,6 @@ export class Hub {
         // fb014 (Q134): §8.3 supersede — every node's effect is live in an
         // actual run regardless of what's really allocated on the account.
         allocated: TREE_AUTO_MAX ? allTreeNodeIds(content) : this.meta.allocated,
-        relics: equippedRelics(this.meta),
         equipment: equippedEquipmentList(this.meta),
         // fb023: a snapshot of owned counts so the in-run Equipment section
         // (character panel) can validate a mid-run `equip_item` swap without
@@ -358,7 +356,7 @@ export class Hub {
         this.meta = refund(this.meta, id, { free });
         this.cb.onMetaChanged(this.meta);
         // Set after commit-equivalent work: commit() clears the notice.
-        this.notice = free ? 'Point returned.' : `Node refunded for ${cost} Ember.`;
+        this.notice = free ? 'Point returned.' : `Node refunded for ${cost} skill point${cost === 1 ? '' : 's'}.`;
         this.show();
       },
       onRefuse: (message) => {
@@ -401,7 +399,7 @@ export class Hub {
         <h2>Testing</h2>
         <p class="sw-note">
           Fills the account so Equipment and the Constellation can be tried without
-          playing for them: a few of every equipment item and 600 Ember.
+          playing for them: a few of every equipment item and 20 skill points.
           Practice runs are the matching switch on the Run tab.
         </p>
         <button class="sw-reroll" id="sw-seed">Seed a test account</button>
@@ -429,13 +427,9 @@ export class Hub {
       });
     }
     body.querySelector('#sw-seed')?.addEventListener('click', () => {
-      // fb023: `seedTestAccount` still fills the retired relic stash too (kept
-      // internally for save-migration coverage — see meta.ts) — harmless,
-      // since nothing shows it — but the button's own job now is the
-      // Equipment screen, so `seedTestEquipment` is what the notice reports.
       const next = seedTestEquipment(seedTestAccount(this.meta));
       this.commit(next);
-      this.notice = 'Seeded equipment and 600 Ember.';
+      this.notice = 'Seeded equipment and 20 skill points.';
       this.show();
     });
     body.querySelector('#sw-wipe')?.addEventListener('click', () => {
@@ -497,7 +491,7 @@ export class Hub {
                       : eq
                         ? equipmentCompareTitle(this.classKey, item, eq)
                         : `Click to equip to ${item.slot}.`;
-                    return `<button class="sw-relic ${isEquipped ? 'equipped' : ''} ${
+                    return `<button class="sw-lootitem ${isEquipped ? 'equipped' : ''} ${
                       this.selectedEquipment === key ? 'on' : ''
                     }" data-item="${key}" title="${tip}">
                         <b>${item.name}</b><small>${item.slot} · x${count}${isEquipped ? ' · equipped' : ''}</small>
@@ -511,7 +505,7 @@ export class Hub {
         <h2>Equipment item</h2>
         ${
           selectedItem
-            ? `<div class="sw-relicdetail">
+            ? `<div class="sw-itemdetail">
                  <b>${selectedItem.name}</b>
                  ${modLinesHtml(selectedItem.mods)}
                  ${equipmentFallbackBlock(content, this.classKey, selectedItem)}
@@ -537,7 +531,7 @@ export class Hub {
         this.commit(equipItem(this.meta, item.slot, isEq ? null : key));
       });
       el.addEventListener('contextmenu', (e) => {
-        // Right-click selects an item for the detail/compare panel without equipping it — same convention data-relic already sets.
+        // Right-click selects an item for the detail/compare panel without equipping it.
         e.preventDefault();
         this.selectedEquipment = key;
         this.show();
@@ -578,17 +572,6 @@ const TOGGLES: { key: keyof Settings; label: string }[] = [
 ];
 
 /* ----------------------------------------------------------------- helpers */
-
-export function equippedRelics(meta: MetaState): Relic[] {
-  const out: Relic[] = [];
-  for (const slot of ['sigil', 'plate', 'charm'] as const) {
-    const id = meta.equipped[slot];
-    if (id === null) continue;
-    const r = meta.stash.find((x) => x.id === id);
-    if (r) out.push(r);
-  }
-  return out;
-}
 
 /** fb015 (§7): the equipped item keys, for `RunConfig.equipment`. */
 export function equippedEquipmentList(meta: MetaState): string[] {
@@ -653,7 +636,7 @@ function equipmentCompareBlock(content: Content, meta: MetaState, classKey: stri
   const html = modLinesHtml(delta);
   return `<div class="sw-compare">
     <b>vs equipped — ${equipped.name}</b>
-    ${html || '<div class="sw-affix">No stat difference.</div>'}
+    ${html || '<div class="sw-modline">No stat difference.</div>'}
   </div>`;
 }
 
@@ -670,12 +653,10 @@ function equipmentFallbackBlock(content: Content, classKey: string, item: Equipm
   const active = item.classFallback.notClassKey !== classKey;
   const lines = modLines(item.classFallback.mods);
   const status = active ? '<span class="sw-phase-vs">(active)</span>' : `<span class="dim">(inert for ${className})</span>`;
-  return `<div class="sw-affix">If not ${content.classByKey.get(item.classFallback.notClassKey)?.name ?? item.classFallback.notClassKey}: ${
+  return `<div class="sw-modline">If not ${content.classByKey.get(item.classFallback.notClassKey)?.name ?? item.classFallback.notClassKey}: ${
     lines.map((l) => l.text).join(', ')
   } ${status}</div>`;
 }
-
-export { accountLevelFor };
 
 /**
  * The account counters, each saying what it is for. A number that reads zero
@@ -685,15 +666,10 @@ export function accountMarkup(meta: MetaState): string {
   const points = pointsAvailable(meta);
   const cells: { label: string; value: string; cls?: string; help: string }[] = [
     {
-      label: 'Level',
-      value: String(meta.accountLevel),
-      help: 'Account level. Every level is one Constellation point; levels cost 100 x level Ember.',
-    },
-    {
-      label: 'Ember',
-      value: String(meta.ember),
+      label: 'Skill Points',
+      value: String(meta.skillPoints),
       cls: 'gold',
-      help: 'Earned from every run, won or lost. Raises your account level and pays for respecs.',
+      help: 'Earned 1 per VS wave cleared, win or lose. The Constellation’s only currency — also pays for respecs.',
     },
     {
       label: 'Points',
@@ -701,9 +677,9 @@ export function accountMarkup(meta: MetaState): string {
       help:
         points > 0
           ? TREE_AUTO_MAX
-            ? `${points} banked. Every Constellation node is active regardless (temporary — see the Constellation tab).`
+            ? `${points} unspent. Every Constellation node is active regardless (temporary — see the Constellation tab).`
             : `${points} unspent — spend them on the Constellation tab.`
-          : 'All spent. Earn Ember to raise your account level for more.',
+          : 'All spent. Clear more VS waves for more.',
     },
   ];
   return cells

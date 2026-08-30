@@ -10,11 +10,11 @@
  * aggregate, for every `StatKey` the sim knows about. `StatRow.sources` is
  * `Stats.contributions(key)` itself, human-labelled — the "multiplier
  * breakdown by source" the acceptance criteria ask for, generic over
- * whatever sources actually fed the stat (class, tree, relic, boon, core,
+ * whatever sources actually fed the stat (class, tree, equipment, boon, core,
  * terrain, map modifiers), not special-cased per source kind.
  *
- * fb015 (§7): equipment items are folded into `Stats` the same way a relic
- * is — one `equipment:<key>` source per equipped item, plus an
+ * fb015 (§7): equipment items are folded into `Stats` the same way any other
+ * source is — one `equipment:<key>` source per equipped item, plus an
  * `equipment:<key>:fallback` source for an "if not <class>" line that
  * applies — so they already show up generically in the per-stat breakdown
  * below with no separate numbers section needed. Closes Q132's gap. fb023
@@ -42,9 +42,6 @@ const STAT_LABELS: Partial<Record<StatKey, string>> = {
   pickupPct: 'Pickup Radius',
   luck: 'Luck',
   goldFind: 'Gold Find',
-  emberFind: 'Ember Find',
-  // fb023: displayed as "Loot Find" — the internal StatKey stays `relicFind`.
-  relicFind: 'Loot Find',
   ailmentPotency: 'Ailment Potency',
   towerCost: 'Tower Cost',
   towerDamage: 'Tower Damage',
@@ -149,11 +146,6 @@ function sourceLabel(w: World, source: StatSource): string {
       const id = Number(parts[1]);
       const node = w.content.treeById.get(id);
       return node ? `Constellation: ${node.name}` : `Constellation node ${parts[1]}`;
-    }
-    case 'relic': {
-      const id = Number(parts[1]);
-      const relic = w.cfg.relics.find((r) => r.id === id);
-      return relic ? `Relic: ${relic.name}` : `Relic #${parts[1]}`;
     }
     case 'boon': {
       const def = w.content.boonByKey.get(parts[1]);

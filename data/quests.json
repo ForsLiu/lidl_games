@@ -8,7 +8,7 @@
     { "key": "tier5",             "name": "Vale Conqueror",     "desc": "Win a Tier 5 map",                         "metric": "wins_t5",            "target": 1,    "compare": "gte", "reward": { "kind": "cosmetic", "value": "crown_of_the_vale" } },
     { "key": "hoarder",           "name": "Hoarder",            "desc": "Bank 5000 gold across all runs",           "metric": "lifetime_gold",      "target": 5000, "compare": "gte", "reward": { "kind": "passive",  "value": "start_gold_25" } },
     { "key": "maze_master",       "name": "Maze Master",        "desc": "Finish a run with 60+ Palisades standing", "metric": "max_palisades_end",  "target": 60,   "compare": "gte", "reward": { "kind": "passive",  "value": "wall_hp_10" } },
-    { "key": "archivist",         "name": "Archivist",          "desc": "Own 3 Rare finds at once",                "metric": "max_rare_relics",    "target": 3,    "compare": "gte", "reward": { "kind": "feature",  "value": "stash_plus_8" } },
+    { "key": "archivist",         "name": "Archivist",          "desc": "Own 3 of the same equipment item at once", "metric": "max_equipment_dupes", "target": 3, "compare": "gte", "reward": { "kind": "feature",  "value": "archivist_badge" } },
     { "key": "chrono_veteran",    "name": "Chrono Veteran",     "desc": "Win 6 runs",                               "metric": "wins",               "target": 6,    "compare": "gte", "reward": { "kind": "class",    "value": "time_lord" } }
   ]
 }

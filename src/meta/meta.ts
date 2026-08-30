@@ -1,19 +1,17 @@
 /**
- * Meta progression state (SPEC 8): account level, Constellation allocation,
- * relic stash, quests, tier unlocks — plus save/load.
+ * Meta progression state (SPEC 8): the Constellation allocation, equipment
+ * stash, quests, tier unlocks — plus save/load.
  *
  * This lives outside /src/sim: the sim receives a plain RunConfig and never
  * reads persisted state directly.
  */
 
 import { defaultCoreKey, loadContent, type Content } from '../sim/content';
-import { rollRelic } from '../sim/loot';
-import { Rng } from '../sim/rng';
-import type { MetaState, Relic, RunReport } from '../sim/types';
+import type { MetaState, RunReport } from '../sim/types';
 import type { World } from '../sim/world';
 
 /**
- * Deliberately frozen at `v1` even though SAVE_VERSION is now 3: renaming the
+ * Deliberately frozen at `v1` even though SAVE_VERSION is now 4: renaming the
  * storage key would orphan every existing save and the migration below would
  * never get the chance to run. The key names the slot, not the format.
  */
@@ -25,13 +23,23 @@ export const SAVE_KEY = 'stonewake.save.v1';
  * relic stash/equip UI is retired, so a save older than this version has its
  * `stash`/`equipped` dropped on load rather than carried forward into a
  * screen that no longer exists to show them (`migrateWithNotice` below).
+ * 4 = p7d (SPEC-FINAL §8, Q46/Q49): the Ember -> account-level economy and
+ * the relic affix/rarity system are retired outright — skill points are the
+ * tree's only currency now. A save older than this version has any leftover
+ * `ember` converted once into skill points at 100:1, then `ember`,
+ * `accountLevel`, `stash`, `equipped` and `nextRelicId` are dropped — there
+ * is no `Relic` type or account level left to carry them.
  *
  * Every destructive migration bumps this and gets a round-trip test, or a
  * save written by an older client will not survive an upgrade.
  */
-export const SAVE_VERSION = 3;
+export const SAVE_VERSION = 4;
 /** fb023: the SAVE_VERSION that first drops relics — see `migrateWithNotice`. */
 const RELICS_DROPPED_AT = 3;
+/** p7d: the SAVE_VERSION that converts Ember and drops the economy it priced. */
+const ECONOMY_RETIRED_AT = 4;
+/** p7d (Q46): "one-time 100:1 Ember conversion". */
+const EMBER_TO_SKILL_POINTS = 100;
 
 /**
  * Keys a migration drops, with the SAVE_VERSION that retired each one. The
@@ -41,17 +49,17 @@ const RELICS_DROPPED_AT = 3;
  */
 const RETIRED_KEYS: readonly { key: string; retiredIn: number }[] = [
   { key: 'orbs', retiredIn: 2 },
+  { key: 'ember', retiredIn: ECONOMY_RETIRED_AT },
+  { key: 'accountLevel', retiredIn: ECONOMY_RETIRED_AT },
+  { key: 'stash', retiredIn: ECONOMY_RETIRED_AT },
+  { key: 'equipped', retiredIn: ECONOMY_RETIRED_AT },
+  { key: 'nextRelicId', retiredIn: ECONOMY_RETIRED_AT },
 ];
 
 export function defaultMeta(): MetaState {
   const content = loadContent();
-  const ember = content.tree.startingEmber;
   return {
-    accountLevel: accountLevelFor(ember),
-    ember,
     allocated: [0],
-    stash: [],
-    equipped: { sigil: null, plate: null, charm: null },
     equipmentStash: {},
     equippedEquipment: Object.fromEntries(content.equipment.slots.map((slot) => [slot, null])),
     // Read off the roster rather than hardcoded: SPEC-FINAL §4.2's Unlocks line
@@ -63,39 +71,9 @@ export function defaultMeta(): MetaState {
     highestTier: 1,
     questProgress: {},
     completedQuests: [],
-    nextRelicId: 1,
     autoPickLevelUps: false,
     skillPoints: 0,
   };
-}
-
-/* ------------------------------------------------------------------ ember */
-
-/** SPEC 8.1: Ember = base 100 x completion% x tier multiplier. */
-export function emberFor(report: RunReport, w: World): number {
-  const c = loadContent();
-  const completion = completionFraction(report);
-  const tierMul = 1 + c.modifiers.tierRewardPerStep * (report.tier - 1);
-  const modBonus = report.modifiers.reduce((acc, key) => {
-    const m = c.modifierByKey.get(key);
-    return acc + (m ? m.rewardBonus * w.derived.modRewardBonusMul : 0);
-  }, 0);
-  const lastStandPenalty = w.lastStandUsed ? 0.7 : 1;
-  const leftoverGold = report.goldLeft / 10; // SPEC 3.2: 10 gold : 1 Ember
-  const base = c.tree.emberBase * completion * tierMul * (1 + modBonus);
-  return Math.round((base + leftoverGold) * w.derived.emberFindMul * lastStandPenalty);
-}
-
-/**
- * How much of the run was completed. Act I is worth 40%, Act II survival 50%,
- * the boss kill the last 10%; a defeat in Act I keeps SPEC 1's 40% floor share.
- */
-export function completionFraction(report: RunReport): number {
-  const wavePart = Math.min(1, report.wavesCleared / 10) * 0.4;
-  const survivalPart = Math.min(1, report.survivalSeconds / 600) * 0.5;
-  const bossPart = report.bossKilled ? 0.1 : 0;
-  const raw = wavePart + survivalPart + bossPart;
-  return report.outcome === 'victory' ? Math.max(raw, 1) : raw * 0.4 + raw * 0.6 * 0.4 + raw * 0.36;
 }
 
 /* ------------------------------------------------------------------ quests */
@@ -126,7 +104,10 @@ export function metricsFor(report: RunReport, w: World): Record<string, number> 
     lifetime_gold: report.goldEarned,
     max_palisades_end: palisades,
     fastest_boss_kill: report.bossKilled ? report.bossKillSeconds : Number.POSITIVE_INFINITY,
-    max_rare_relics: 0,
+    // p7d: real value filled in by `applyRunResult`, the same "computed from
+    // the post-update account state, not the report alone" treatment
+    // `max_rare_relics` used to get for the now-retired relic stash.
+    max_equipment_dupes: 0,
   };
 }
 
@@ -134,54 +115,43 @@ const CUMULATIVE = new Set(['wins', 'wins_t5', 'wins_max4towertypes', 'built_fro
 
 export function applyRunResult(meta: MetaState, report: RunReport, w: World): MetaState {
   const c = loadContent();
-  // A practice run is a sandbox: it banks no Ember, no relics, and it
-  // advances no quest or tier unlock. Otherwise "add money" would be a way to
-  // farm the meta rather than a way to test.
+  // A practice run is a sandbox: it banks nothing, and it advances no quest
+  // or tier unlock. Otherwise "add money" would be a way to farm the meta
+  // rather than a way to test.
   if (report.practiceUsed) {
-    w.emberEarned = 0;
     return meta;
   }
   const next: MetaState = {
     ...meta,
-    stash: meta.stash.slice(),
     questProgress: { ...meta.questProgress },
     completedQuests: meta.completedQuests.slice(),
     unlockedClasses: meta.unlockedClasses.slice(),
     allocated: meta.allocated.slice(),
-    equipped: { ...meta.equipped },
     equipmentStash: { ...meta.equipmentStash },
     equippedEquipment: { ...meta.equippedEquipment },
   };
 
-  const ember = emberFor(report, w);
-  w.emberEarned = ember;
-  next.ember += ember;
-  next.accountLevel = accountLevelFor(next.ember);
-
-  for (const r of w.relicsFound) {
-    if (next.stash.length >= stashCapacity(next)) break;
-    next.stash.push({ ...r, id: next.nextRelicId++ });
-  }
-
   // fb015 (§8.1): "each TD wave cleared -> 1 random equipment ... granted at
   // run end, win or lose ... duplicates allowed" — no stash cap, unlike the
-  // relic stash: the owner table names none, and "duplicates allowed" reads
-  // as deliberately uncapped.
+  // old relic stash: the owner table names none, and "duplicates allowed"
+  // reads as deliberately uncapped.
   for (const key of w.equipmentFound) {
     next.equipmentStash[key] = (next.equipmentStash[key] ?? 0) + 1;
   }
 
   // §8.2 (p7c): "each VS wave cleared -> 1 skill point," the same "granted
-  // at run end, win or lose" rule the equipment loop above follows.
+  // at run end, win or lose" rule the equipment loop above follows. §8.3
+  // (p7d, Q46): skill points are the tree's only currency, so this is the
+  // account's entire growth — no account level, no Ember.
   next.skillPoints += report.vsWavesCleared;
 
   if (report.outcome === 'victory' && report.tier >= next.highestTier) {
     next.highestTier = Math.min(5, report.tier + 1);
   }
 
-  const rareCount = next.stash.filter((r) => r.rarity === 'rare').length;
+  const maxDupes = Object.values(next.equipmentStash).reduce((m, n) => Math.max(m, n), 0);
   const metrics = metricsFor(report, w);
-  metrics.max_rare_relics = rareCount;
+  metrics.max_equipment_dupes = maxDupes;
 
   for (const [key, value] of Object.entries(metrics)) {
     if (!Number.isFinite(value)) continue;
@@ -209,36 +179,12 @@ export function applyRunResult(meta: MetaState, report: RunReport, w: World): Me
 }
 
 /**
- * Fills a fresh account with enough to exercise the stash and
- * the Constellation without playing for an hour (playtest report, 2026-08-25:
- * "add some basic stash/relic for testing", "if there is a feature, let there
- * be a use, like Points 0").
- *
- * Deterministic from the account's own next relic id, so pressing it twice
- * gives two different batches and a reload gives the same ones.
+ * Grants skill points so the Constellation can be tried without playing for
+ * them (playtest report, 2026-08-25: "if there is a feature, let there be a
+ * use, like Points 0"). `seedTestEquipment` is the matching equipment half.
  */
-export function seedTestAccount(meta: MetaState, count = 8): MetaState {
-  const content = loadContent();
-  const rng = new Rng((meta.nextRelicId * 2654435761 + meta.stash.length) >>> 0);
-  const cap = stashCapacity(meta);
-  const next: MetaState = {
-    ...meta,
-    stash: meta.stash.slice(),
-    allocated: meta.allocated.slice(),
-    equipped: { ...meta.equipped },
-    questProgress: { ...meta.questProgress },
-    completedQuests: meta.completedQuests.slice(),
-    unlockedClasses: meta.unlockedClasses.slice(),
-  };
-  // One guaranteed rare, so the craft buttons have something worth working on.
-  const rarities = ['rare', ...Array(Math.max(0, count - 1)).fill(undefined)];
-  for (const forced of rarities) {
-    if (next.stash.length >= cap) break;
-    next.stash.push(rollRelic(content, rng, 0, next.nextRelicId++, forced));
-  }
-  next.ember += 600;
-  next.accountLevel = accountLevelFor(next.ember);
-  return next;
+export function seedTestAccount(meta: MetaState, points = 20): MetaState {
+  return { ...meta, skillPoints: meta.skillPoints + points };
 }
 
 /**
@@ -246,8 +192,8 @@ export function seedTestAccount(meta: MetaState, count = 8): MetaState {
  * the Hub's Equipment screen (not the retired Stash tab) is what a developer
  * presses this to try — a few of every `data/equipment.json` item, so every
  * slot has more than one candidate to compare and swap between. Additive like
- * `seedTestAccount`'s relics: pressing it twice tops counts up further rather
- * than resetting them.
+ * `seedTestAccount`, pressing it twice tops counts up further rather than
+ * resetting them.
  */
 export function seedTestEquipment(meta: MetaState, countEach = 3): MetaState {
   const content = loadContent();
@@ -258,29 +204,9 @@ export function seedTestEquipment(meta: MetaState, countEach = 3): MetaState {
   return { ...meta, equipmentStash };
 }
 
-export function stashCapacity(meta: MetaState): number {
-  const base = loadContent().relics.stashSlots;
-  return base + (meta.completedQuests.includes('archivist') ? 8 : 0);
-}
-
-/** Account level from total Ember: each level costs 100 x level Ember. */
-export function accountLevelFor(ember: number): number {
-  const max = loadContent().tree.maxAccountLevel;
-  let level = 1;
-  let spent = 0;
-  while (level < max) {
-    const cost = 100 * level;
-    if (ember < spent + cost) break;
-    spent += cost;
-    level++;
-  }
-  return level;
-}
-
 export function pointsAvailable(meta: MetaState): number {
-  const perLevel = loadContent().tree.pointsPerLevel;
   const allocated = meta.allocated.filter((id) => id !== 0).length;
-  return Math.max(0, meta.accountLevel * perLevel - allocated);
+  return Math.max(0, meta.skillPoints - allocated);
 }
 
 /* ------------------------------------------------------------------- tree */
@@ -319,8 +245,8 @@ export interface RefundOptions {
   /**
    * True for a point spent in this Hub visit and not yet taken into a run.
    * Undoing a misclick is not a respec, so it costs nothing — without this a
-   * fresh account (0 Ember, and Ember only arrives at the end of a run) could
-   * never take back its very first point.
+   * fresh account (0 skill points banked yet) could never take back its very
+   * first point.
    */
   free?: boolean;
 }
@@ -334,7 +260,7 @@ export function canRefund(meta: MetaState, nodeId: number, opts: RefundOptions =
   return refundBlocker(meta, nodeId, opts) === null;
 }
 
-export type RefundBlocker = 'not_allocated' | 'would_orphan' | 'ember';
+export type RefundBlocker = 'not_allocated' | 'would_orphan' | 'points';
 
 /** Why a refund is not available, or null when it is. */
 export function refundBlocker(
@@ -344,16 +270,17 @@ export function refundBlocker(
 ): RefundBlocker | null {
   if (nodeId === 0 || !meta.allocated.includes(nodeId)) return 'not_allocated';
   if (!isConnected(meta.allocated.filter((id) => id !== nodeId))) return 'would_orphan';
-  if (!opts.free && meta.ember < loadContent().tree.respecCostPerNode) return 'ember';
+  if (!opts.free && meta.skillPoints < loadContent().tree.respecCostPerNode) return 'points';
   return null;
 }
 
+/** §8.3 (Q46): "respec 1 point per node" — the same currency `allocate` spends. */
 export function refund(meta: MetaState, nodeId: number, opts: RefundOptions = {}): MetaState {
   if (!canRefund(meta, nodeId, opts)) return meta;
   const cost = opts.free ? 0 : loadContent().tree.respecCostPerNode;
   return {
     ...meta,
-    ember: meta.ember - cost,
+    skillPoints: meta.skillPoints - cost,
     allocated: meta.allocated.filter((id) => id !== nodeId),
   };
 }
@@ -400,28 +327,42 @@ function migrate(meta: MetaState, version: number): MetaState {
 }
 
 /**
- * fb023: `migrate` plus the one piece of information a caller needs to show a
- * one-time notice — whether this load just dropped a real, nonempty relic
- * stash/loadout. A save older than `RELICS_DROPPED_AT` had a live Stash UI
+ * fb023/p7d: `migrate` plus the information a caller needs to show one-time
+ * notices — whether this load just dropped a real, nonempty relic stash/
+ * loadout, and how many skill points a leftover Ember balance converted into.
+ *
+ * `relicsDropped`: a save older than `RELICS_DROPPED_AT` had a live Stash UI
  * that could genuinely hold relics; one at or past it never could, so
- * `relicsDropped` is always `false` there even if `stash`/`equipped` round-
- * tripped a leftover value some other way (there is no path that writes one
- * post-migration, but the check is keyed on the version, not just presence,
- * for the same "guess the safe direction" reason `RETIRED_KEYS` gates on
- * `retiredIn` rather than "field is absent").
+ * `relicsDropped` is always `false` there even if `stash`/`equipped`
+ * round-tripped a leftover value some other way. Both fields are read off the
+ * *raw* parsed object rather than the typed `MetaState` parameter, since
+ * `Relic`/`stash`/`equipped`/`ember`/`accountLevel` no longer exist on the
+ * type at all past this migration — the same reason `RETIRED_KEYS` strips
+ * them by name below rather than by field access.
  */
-function migrateWithNotice(meta: MetaState, version: number): { meta: MetaState; relicsDropped: boolean } {
+function migrateWithNotice(
+  meta: MetaState,
+  version: number,
+): { meta: MetaState; relicsDropped: boolean; skillPointsFromEmber: number } {
   const base = defaultMeta();
+  const raw = meta as unknown as Record<string, unknown>;
   const dropRelics =
     version < RELICS_DROPPED_AT &&
-    ((meta.stash?.length ?? 0) > 0 || Object.values(meta.equipped ?? {}).some((v) => v != null));
+    ((Array.isArray(raw.stash) && raw.stash.length > 0) ||
+      (raw.equipped != null &&
+        typeof raw.equipped === 'object' &&
+        Object.values(raw.equipped as Record<string, unknown>).some((v) => v != null)));
+  const skillPointsFromEmber =
+    version < ECONOMY_RETIRED_AT && typeof raw.ember === 'number' && Number.isFinite(raw.ember) && raw.ember > 0
+      ? Math.floor(raw.ember / EMBER_TO_SKILL_POINTS)
+      : 0;
   const out: MetaState = {
     ...base,
     ...meta,
-    equipped: dropRelics ? { ...base.equipped } : { ...base.equipped, ...(meta.equipped ?? {}) },
-    // fb015 (§7): same "old save has neither field" case `equipped` handles —
-    // an object-typed field guards against the same corrupt-non-object class
-    // `unlockedCores`'s `Array.isArray` check guards against below.
+    // fb015 (§7): an old save has neither field the same way `equipped` used
+    // to before fb015 — an object-typed field guards against the same
+    // corrupt-non-object class `unlockedCores`'s `Array.isArray` check
+    // guards against below.
     equipmentStash:
       meta.equipmentStash && typeof meta.equipmentStash === 'object' && !Array.isArray(meta.equipmentStash)
         ? { ...meta.equipmentStash }
@@ -444,20 +385,16 @@ function migrateWithNotice(meta: MetaState, version: number): { meta: MetaState;
     // `stash` — cheap to guard against here since the field is new.
     unlockedCores: Array.isArray(meta.unlockedCores) ? [...meta.unlockedCores] : base.unlockedCores,
     allocated: [...(meta.allocated ?? base.allocated)],
-    // fb023: an old save's relics are dropped outright, not carried forward —
-    // there is no UI left to view, equip or discard them (`equipped` above
-    // gets the matching treatment). A save at or past `RELICS_DROPPED_AT`
-    // still gets the field-shape guard (`?? []`/spread-affixes) it always
-    // had, for the same "corrupt-value" reasons p7g tracks generally.
-    stash: dropRelics ? [] : (meta.stash ?? []).map((r: Relic) => ({ ...r, affixes: [...(r.affixes ?? [])] })),
     // fb012: guarded rather than left to the bare `...meta` spread above (the
     // laundering hole q3-save-fuzz pins for `accountLevel`/`ember`/etc.) —
     // cheap to close here since, like `unlockedCores`, the field is new.
     autoPickLevelUps: typeof meta.autoPickLevelUps === 'boolean' ? meta.autoPickLevelUps : base.autoPickLevelUps,
-    // p7c: same "guard a new field cheaply" reasoning as `autoPickLevelUps`
+    // p7d: same "guard a new field cheaply" reasoning as `autoPickLevelUps`
     // just above — a corrupt or absent value falls back rather than laundering
-    // a NaN/string into a currency total that only ever grows.
-    skillPoints: Number.isFinite(meta.skillPoints) ? meta.skillPoints : base.skillPoints,
+    // a NaN/string into a currency total that only ever grows. The converted
+    // Ember (Q46's one-time 100:1 rate) is added on top, so a pre-p7d save's
+    // real currency survives the retirement instead of evaporating.
+    skillPoints: (Number.isFinite(meta.skillPoints) ? meta.skillPoints : base.skillPoints) + skillPointsFromEmber,
   };
   if (!out.allocated.includes(0)) out.allocated.unshift(0);
   if (!isConnected(out.allocated)) out.allocated = [0];
@@ -479,7 +416,7 @@ function migrateWithNotice(meta: MetaState, version: number): { meta: MetaState;
   for (const { key, retiredIn } of RETIRED_KEYS) {
     if (version < retiredIn && !(key in base)) delete bag[key];
   }
-  return { meta: out, relicsDropped: dropRelics };
+  return { meta: out, relicsDropped: dropRelics, skillPointsFromEmber };
 }
 
 export function loadMeta(): MetaState {
@@ -487,10 +424,11 @@ export function loadMeta(): MetaState {
 }
 
 /**
- * fb023: `loadMeta` plus a one-time notice string when this load just retired
- * a real relic stash/loadout, for the Hub to show once on the first screen
- * after the upgrade. `main.ts` is the one caller that needs the notice; every
- * existing `loadMeta()` call site (tests included) keeps working unchanged.
+ * fb023/p7d: `loadMeta` plus a one-time notice string when this load just
+ * retired a real relic stash/loadout and/or converted a leftover Ember
+ * balance, for the Hub to show once on the first screen after the upgrade.
+ * `main.ts` is the one caller that needs the notice; every existing
+ * `loadMeta()` call site (tests included) keeps working unchanged.
  */
 export function loadMetaWithNotice(): { meta: MetaState; notice: string | null } {
   try {
@@ -498,13 +436,22 @@ export function loadMetaWithNotice(): { meta: MetaState; notice: string | null }
     if (!raw) return { meta: defaultMeta(), notice: null };
     const parsed = JSON.parse(raw) as Partial<SaveFile>;
     if (!parsed || typeof parsed !== 'object' || !parsed.meta) return { meta: defaultMeta(), notice: null };
-    const { meta, relicsDropped } = migrateWithNotice(parsed.meta as MetaState, parsed.version ?? 0);
-    return {
-      meta,
-      notice: relicsDropped
-        ? 'Relics have been retired — your stashed relics were removed. Equipment (Hub → Equipment) is unaffected.'
-        : null,
-    };
+    const { meta, relicsDropped, skillPointsFromEmber } = migrateWithNotice(
+      parsed.meta as MetaState,
+      parsed.version ?? 0,
+    );
+    const notices: string[] = [];
+    if (relicsDropped) {
+      notices.push('Relics have been retired — your stashed relics were removed. Equipment (Hub → Equipment) is unaffected.');
+    }
+    if (skillPointsFromEmber > 0) {
+      notices.push(
+        `Ember has been retired — your leftover Ember converted to ${skillPointsFromEmber} skill point${
+          skillPointsFromEmber === 1 ? '' : 's'
+        }.`,
+      );
+    }
+    return { meta, notice: notices.length > 0 ? notices.join(' ') : null };
   } catch {
     return { meta: defaultMeta(), notice: null };
   }

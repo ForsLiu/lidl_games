@@ -201,7 +201,7 @@ describe('the Warden-Eater (SPEC 5.5)', () => {
     expect(report.outcome).toBe('victory');
     expect(report.bossKilled).toBe(true);
     expect(report.bossKillSeconds).toBeGreaterThan(600);
-    expect(report.relicsFound).toBeGreaterThan(0);
+    expect(report.equipmentFound).toBeGreaterThan(0);
   });
 
   // Twenty seeds, not eight. The claim is a *rate* — the bot loses this fight

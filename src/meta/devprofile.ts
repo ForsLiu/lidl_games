@@ -21,7 +21,6 @@
 import { loadContent, type DevConfig } from '../sim/content';
 import { MAX_TIER } from '../sim/tiers';
 import type { MetaState } from '../sim/types';
-import { accountLevelFor, seedTestAccount } from './meta';
 
 /**
  * True only where the toolchain says so: Vite sets `import.meta.env.DEV` in a
@@ -83,16 +82,15 @@ export function startupProfile(
  * Opens up an account for development. Pure — returns a new state, so the
  * "clean profile" setting is just declining to call this.
  *
- * Never *reduces* anything: a real account that already has more Ember, a
- * higher tier or more unlocks than the profile grants keeps what it had.
+ * Never *reduces* anything: a real account that already has more skill
+ * points, a higher tier or more unlocks than the profile grants keeps what
+ * it had.
  */
 export function applyDevProfile(meta: MetaState, config: DevConfig = devConfig()): MetaState {
   const content = loadContent();
-  let out: MetaState = {
+  const out: MetaState = {
     ...meta,
-    stash: meta.stash.slice(),
     allocated: meta.allocated.slice(),
-    equipped: { ...meta.equipped },
     equipmentStash: { ...meta.equipmentStash },
     equippedEquipment: { ...meta.equippedEquipment },
     questProgress: { ...meta.questProgress },
@@ -114,27 +112,15 @@ export function applyDevProfile(meta: MetaState, config: DevConfig = devConfig()
     const done = new Set([...out.completedQuests, ...content.quests.quests.map((q) => q.key)]);
     out.completedQuests = [...done];
   }
-  if (config.skillPoints > 0) {
-    // Skill points arrive at M24 (SPEC-V3 §8). Until then the Constellation is
-    // still priced in Ember, so the request is granted as the Ember that buys
-    // that many points — capped by the tree's own account-level ceiling, which
-    // is why a dev account gets 60 points rather than 999 (QUESTIONS Q53).
-    //
-    // `Math.max` on both figures: `refund()` spends Ember without recomputing
-    // the level, so `{level: 5, ember: 0}` is a reachable real state and a bare
-    // recompute would demote it.
-    out.ember = Math.max(out.ember, emberForPoints(config.skillPoints));
-    out.accountLevel = Math.max(out.accountLevel, accountLevelFor(out.ember));
-  }
-  if (config.fillStash && out.stash.length === 0) {
-    out = fillDevStash(out);
-  }
-  // fb015 (§7): "dev profile pre-stashes all 12 items" — the existing T3 rule,
-  // reusing `fillStash` rather than a second flag. Gated on the equipment
-  // stash itself being empty (not `out.stash`, the relic one) so a developer
-  // who has genuinely earned equipment keeps it.
+  // p7d (§8.3): skill points are the tree's only currency now, so the T3
+  // request is granted directly rather than through an Ember-derived account
+  // level (QUESTIONS Q53's 60-point cap died with that level).
+  out.skillPoints = Math.max(out.skillPoints, config.skillPoints);
+  // fb015 (§7): "dev profile pre-stashes all 12 items" — gated on the
+  // equipment stash being empty so a developer who has genuinely earned
+  // equipment keeps it.
   if (config.fillStash && Object.keys(out.equipmentStash).length === 0) {
-    out = { ...out, equipmentStash: allEquipmentOnce() };
+    out.equipmentStash = allEquipmentOnce();
   }
   return out;
 }
@@ -144,45 +130,4 @@ function allEquipmentOnce(): Record<string, number> {
   const out: Record<string, number> = {};
   for (const item of loadContent().equipment.items) out[item.key] = 1;
   return out;
-}
-
-/**
- * Seeds a stash that covers every equipment slot. `seedTestAccount` alone is
- * seeded deterministically and happens to roll no sigils at all, which left a
- * whole slot untriable on a dev account — the opposite of what T3 is for.
- */
-function fillDevStash(meta: MetaState): MetaState {
-  // `seedTestAccount` grants Ember and recomputes the account level from it, which
-  // demotes an account whose level is ahead of its Ember (reachable via
-  // `refund()`). Keep whichever level is higher.
-  const seeded = seedTestAccount(meta);
-  let out: MetaState = {
-    ...seeded,
-    accountLevel: Math.max(meta.accountLevel, seeded.accountLevel),
-    ember: Math.max(meta.ember, seeded.ember),
-  };
-  const slots = loadContent().relics.slots;
-  const missing = slots.filter((slot) => !out.stash.some((r) => r.slot === slot));
-  for (const slot of missing) {
-    // Re-slot a spare rather than rolling more, so the stash stays the size the
-    // seeding advertised.
-    const spare = [...out.stash]
-      .reverse()
-      .find((r) => out.stash.filter((o) => o.slot === r.slot).length > 1);
-    if (!spare) break;
-    out = {
-      ...out,
-      stash: out.stash.map((r) => (r.id === spare.id ? { ...r, slot } : r)),
-    };
-  }
-  return out;
-}
-
-/** Ember needed to reach `points` Constellation points, at 100 x level per level. */
-function emberForPoints(points: number): number {
-  const tree = loadContent().tree;
-  const levels = Math.min(tree.maxAccountLevel, Math.ceil(points / tree.pointsPerLevel));
-  let ember = 0;
-  for (let level = 1; level < levels; level++) ember += 100 * level;
-  return ember;
 }

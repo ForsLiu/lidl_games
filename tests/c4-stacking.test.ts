@@ -21,64 +21,13 @@ import { World } from '../src/sim/world';
 import { Run, hashWorld } from '../src/sim/run';
 import { applyOffer } from '../src/sim/progression';
 import { killEnemy, spawnEnemy, updateEnemies } from '../src/sim/enemies';
-import { handleKillDrops } from '../src/sim/loot';
 import { applyTerrainPassives } from '../src/sim/weapons';
 import { attackSpeedFor, buildTower, collectSproutGold } from '../src/sim/towers';
 import { enemyInfoMarkup } from '../src/ui/hud';
-import { emberFor } from '../src/meta/meta';
-import { emptyInput, type Relic, type RunReport } from '../src/sim/types';
+import { emptyInput } from '../src/sim/types';
 import { cfg } from './helpers';
 
 const content = loadContent();
-
-/** A finished victory report, so `emberFor` has something real to price. */
-function baseReport(): RunReport {
-  return {
-    seed: 1,
-    policy: 'none',
-    classKey: 'engineer',
-    core: 'stone_heart',
-    tier: 1,
-    modifiers: [],
-    outcome: 'victory',
-    ticks: 36000,
-    totalSeconds: 600,
-    act1Seconds: 300,
-    act2Seconds: 300,
-    wavesCleared: 10,
-    vsWavesCleared: 2,
-    coreHp: 100,
-    coreMaxHp: 500,
-    goldEarned: 1000,
-    goldSpent: 900,
-    goldLeft: 100,
-    towersBuilt: 10,
-    towersByKey: {},
-    survivalSeconds: 300,
-    level: 5,
-    kills: 300,
-    leaks: 0,
-    damageByWeapon: {},
-    damageByType: {},
-    damageTotal: 0,
-    spawnedByWave: [],
-    leaksByWave: [],
-    goldEarnedByWave: [],
-    damageThroughMinute8: null,
-    topWeaponShareMinute8: 0,
-    topWeaponMinute8: '',
-    boons: {},
-    typeMastery: {},
-    skillCards: {},
-    relicsFound: 0,
-    equipmentFound: 0,
-    ember: 0,
-    bossKilled: true,
-    bossKillSeconds: 590,
-    endHash: '',
-    practiceUsed: false,
-  };
-}
 
 function derivedFrom(build: (s: Stats) => void) {
   const s = emptyStats();
@@ -415,51 +364,12 @@ describe('C4 — every rebased consumer reads a finished multiplier', () => {
     expect(w.gold - before).toBe(120);
   });
 
-  it('emberFor scales by emberFind (meta.ts)', () => {
-    const rep = baseReport();
-    expect(emberFor(rep, new World(cfg()))).toBe(110);
-    // 110 x 2.4 = 264. Additive -> 231. Double-applied -> 374.
-    expect(emberFor(rep, boosted('emberFind'))).toBe(264);
-  });
-
-  it('emberFor scales the modifier bonus by modRewardBonus (meta.ts)', () => {
-    const rep = { ...baseReport(), modifiers: ['tough', 'fleet'] };
-    expect(emberFor(rep, new World(cfg()))).toBe(130);
-    // The bonus is inside a (1 + modBonus) term, so this one is not a flat x2.4.
-    expect(emberFor(rep, boosted('modRewardBonus'))).toBe(158);
-  });
-
-  it('relic find multiplies the wave drop chance (loot.ts)', () => {
-    const def = content.enemyByKey.get('bulwark')!; // grade S: the only sensitive path
-    const seen: number[] = [];
-    const w = boosted('relicFind');
-    const e = spawnEnemy(w, 'bulwark', 10, 10)!;
-    w.rng.drops.chance = (p: number) => {
-      seen.push(p);
-      return false;
-    };
-    handleKillDrops(w, e, def);
-    // 0.12 x 0.02 x 2.4 = 0.00576. Additive -> 0.00504. Double-applied -> 0.00816.
-    expect(seen).toHaveLength(1);
-    expect(seen[0]).toBeCloseTo(0.00576, 12);
-  });
-
-  it('the elite path cannot see relic find at all, which is why the test above is not elite', () => {
-    // eliteRelic is 1.0, so Math.min(1, 1 x findMul) saturates identically at any
-    // multiplier. Documented so nobody "strengthens" the test by making it elite.
-    for (const w of [new World(cfg()), boosted('relicFind')]) {
-      const def = content.enemyByKey.get('bulwark')!;
-      const seen: number[] = [];
-      const e = spawnEnemy(w, 'bulwark', 10, 10)!;
-      e.elite = true;
-      w.rng.drops.chance = (p: number) => {
-        seen.push(p);
-        return false;
-      };
-      handleKillDrops(w, e, def);
-      expect(seen).toEqual([1]);
-    }
-  });
+  // RETIRED (p7d, §8): `emberFor`'s emberFind/modRewardBonus scaling and
+  // `handleKillDrops`'s relicFind scaling tested `src/meta/meta.ts`'s
+  // `emberFor` and `src/sim/loot.ts`, both deleted along with the Ember
+  // economy and the relic drop pipeline. `modRewardBonus` (Cartographer)
+  // itself is not deleted — see QUESTIONS.md's p7d entry — it is simply
+  // inert until a live consumer exists again.
 
   it('a chilled enemy hits for coreDamage x chilledDamageTaken (enemies.ts)', () => {
     const def = content.enemyByKey.get('husk')!;
@@ -492,56 +402,40 @@ describe('C4 — every rebased consumer reads a finished multiplier', () => {
   });
 });
 
-describe('C4 — origins that are not the boon/tree/relic stack (QA bugs 1, 3, 5, 6)', () => {
-  it('two equipped relics are two sources, not one (QA bug 1)', () => {
-    // Relics are the commonest way a player holds two same-stat sources, and Q61
-    // decides their granularity — but the headline C4 test writes `relic:7` onto a
-    // bare `Stats` by hand, so collapsing the real `relic:${r.id}` key to a
-    // constant left the whole suite green.
-    // `ring` has no implicit, so goldFind comes only from the affixes.
-    const relics: Relic[] = [
-      {
-        id: 1,
-        slot: 'ring',
-        rarity: 'magic',
-        name: 'A',
-        affixes: [{ key: 'goldFind', stat: 'goldFind', value: 0.1 }],
-      },
-      {
-        id: 2,
-        slot: 'ring',
-        rarity: 'magic',
-        name: 'B',
-        affixes: [{ key: 'goldFind', stat: 'goldFind', value: 0.2 }],
-      },
-    ];
-    const w = new World(cfg({ relics }));
+describe('C4 — origins that are not the boon/tree/equipment stack (QA bugs 1, 3, 5, 6)', () => {
+  // p7d retired relics; equipment is the commonest way a player holds two
+  // same-stat sources now, and Q61's granularity rule reads the same way —
+  // one equipped item is one source (`equipment:<key>`) — but the headline
+  // C4 test writes a source id onto a bare `Stats` by hand, so collapsing
+  // the real key to a constant would leave the whole suite green.
+  it('two equipped items are two sources, not one (QA bug 1)', () => {
+    // `normal_necklace` (xpGain 0.2, towerCost -0.2) has no goldFind, so pick
+    // two items that both carry it — none do in the shipped 12-item table, so
+    // this reaches through `w.stats.add` the same way the equipment mod
+    // pipeline itself would (`baseRunStats`'s `s.addAll('equipment:<key>', ...)`),
+    // one source id per item.
+    const w = new World(cfg());
+    w.stats.add('equipment:ring_a', 'goldFind', 0.1);
+    w.stats.add('equipment:ring_b', 'goldFind', 0.2);
+    w.recomputeDerived();
     const names = w.stats.contributions('goldFind').map((c) => c[0]);
-    expect(names).toContain('relic:1');
-    expect(names).toContain('relic:2');
-    // Gate C4's own numbers, reached through the real RunConfig pipeline.
+    expect(names).toContain('equipment:ring_a');
+    expect(names).toContain('equipment:ring_b');
+    // Gate C4's own numbers, reached through the real Stats aggregation.
     expect(w.derived.goldFindMul).toBeCloseTo(1.32, 12);
     expect(w.derived.goldFindMul).not.toBeCloseTo(1.3, 4);
   });
 
-  it("one relic's implicit and affixes are ranks of that one relic (Q61)", () => {
-    // `sigil` carries an implicit +0.06 power, so this covers the implicit-plus-
-    // affix case Q61 rules on rather than two affixes alone.
-    const relics: Relic[] = [
-      {
-        id: 5,
-        slot: 'sigil',
-        rarity: 'rare',
-        name: 'C',
-        affixes: [{ key: 'power', stat: 'power', value: 0.14 }],
-      },
-    ];
-    const w = new World(cfg({ relics }));
-    expect(content.relics.implicits.sigil.stat).toBe('power');
-    expect(w.stats.contributions('power')).toEqual([['relic:5', 0.2]]);
-    // Ranks add within the source: x1.20, NOT 1.06 x 1.14 = x1.2084.
-    expect(w.derived.powerMul).toBeCloseTo(1.2, 12);
-    expect(w.derived.powerMul).not.toBeCloseTo(1.2084, 4);
+  it('one equipped item is one source spanning every stat it grants (Q61)', () => {
+    // `normal_shoes` grants maxHp and armor in one mods bag (its third stat,
+    // moveSpeedPct, is skipped here — `cfg()`'s default engineer class also
+    // grants that one, via `class:engineer:bands`) — both must trace back to
+    // the same `equipment:normal_shoes` source.
+    const w = new World(cfg({ equipment: ['normal_shoes'] }));
+    for (const stat of ['maxHp', 'armor'] as const) {
+      const names = w.stats.contributions(stat).map((c) => c[0]);
+      expect(names, stat).toEqual(['equipment:normal_shoes']);
+    }
   });
 
   it('shrine haste multiplies the Warden stack rather than adding into it (QA bug 3)', () => {

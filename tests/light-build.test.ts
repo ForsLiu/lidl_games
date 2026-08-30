@@ -54,7 +54,6 @@ function clearsAllTdWaves(policy: string, seed: number): boolean {
     tier: 1,
     modifiers: [],
     allocated: [],
-    relics: [],
     policy,
     // SPEC-FINAL §1.1's real run shape: 18 TD waves across 6 blocks.
     cycles: 6,

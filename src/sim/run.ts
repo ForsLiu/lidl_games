@@ -57,8 +57,6 @@ import { updateVsSpecials } from './vsspecials';
 import { updateBossSlam } from './boss';
 // Registers the Warden-Eater script with enemies.ts.
 import './boss';
-// Registers the kill-drop handler with enemies.ts.
-import './loot';
 import {
   FIXED_DT,
   emptyInput,
@@ -330,7 +328,7 @@ function equipItemCommand(w: World, slot: string, itemKey: string | null): void 
  *
  * Off unless the run was started with `practice`, so a normal run cannot reach
  * it even with a hand-written input log. The first command that lands marks the
- * run, and a marked run banks no Ember and no relics (see applyRunResult).
+ * run, and a marked run banks nothing to the meta account (see applyRunResult).
  */
 export function applyDevCommand(w: World, op: DevOp, amount: number, enemyKey?: string): void {
   if (!w.cfg.practice) return;
@@ -788,10 +786,10 @@ function completeWave(w: World): void {
     w.wavesCleared++;
     applyChronalSurge(w);
     // fb015 (§8.1): "each TD wave cleared -> 1 random equipment (even
-    // weights), granted at run end, win or lose." Rolled here, on the same
-    // `drops` stream a relic roll uses, so loot never perturbs combat
-    // determinism (loot.ts's header comment) and a stacked multi-summon
-    // clear still pays one item per wave actually cleared, not one per stack.
+    // weights), granted at run end, win or lose." Rolled here, on its own
+    // `drops` RNG stream so loot never perturbs combat determinism, and a
+    // stacked multi-summon clear still pays one item per wave actually
+    // cleared, not one per stack.
     const items = w.content.equipment.items;
     if (items.length > 0) w.equipmentFound.push(items[w.rng.drops.int(items.length)].key);
   }
@@ -1202,9 +1200,7 @@ export function buildReport(w: World): RunReport {
     boons: { ...w.boonRanks },
     typeMastery: { ...w.typeMasteryRanks },
     skillCards: { ...w.skillCardRanks },
-    relicsFound: w.relicsFound.length,
     equipmentFound: w.equipmentFound.length,
-    ember: 0,
     bossKilled: w.bossKilled,
     bossKillSeconds: round2(w.bossKillTime),
     endHash: hashWorld(w),

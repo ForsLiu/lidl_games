@@ -150,7 +150,6 @@ function runOne(args: Args, seed: number): RunReport {
     tier: args.tier,
     modifiers: args.modifiers,
     allocated: args.allocated,
-    relics: [],
     policy: args.policy,
     cycles: args.cycles,
   };

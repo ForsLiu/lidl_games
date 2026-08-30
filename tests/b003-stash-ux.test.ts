@@ -130,7 +130,7 @@ describe('right-click compares without equipping', () => {
     );
     rightClick(root.querySelector('[data-item="greatsword"]')!);
     expect(latest().equippedEquipment.weapon).toBe('sleeve_sword');
-    expect(root.querySelector('.sw-relicdetail b')?.textContent).toBe('Greatsword');
+    expect(root.querySelector('.sw-itemdetail b')?.textContent).toBe('Greatsword');
   });
 
   it('shows a compare block against the currently equipped item', () => {

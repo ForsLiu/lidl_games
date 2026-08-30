@@ -117,8 +117,8 @@ function wieldOneType(w: World, def: TowerDef, group: readonly Structure[]): Wie
  * "effective in VS" verbatim, unlike any other tower-side stat, so it rides
  * alongside the character's own `attackSpeedMul` below (Q118). Beacon Totem's
  * `w.shrineHaste` (§5.2, terrain residual) is a third origin distinct from
- * both — §2/Q64's rule for a boost outside the class/tree/relic/boon/terrain
- * stack is that it multiplies, the same treatment `towers.ts`'s
+ * both — §2/Q64's rule for a boost outside the class/tree/equipment/boon/
+ * terrain stack is that it multiplies, the same treatment `towers.ts`'s
  * `attackSpeedFor` already gives its own `auraBonus` (Q102 ORDER). It reuses `combat.ts`'s
  * shape-by-`kind` primitives (the same ones `fireTower` and `fireWeapon`
  * call), so lifesteal and damage attribution fall out for free: `dealHit`'s

@@ -19,7 +19,7 @@
 
 import { wardenBase, type Content } from './content';
 import { clamp } from './math';
-import type { Relic, RunConfig } from './types';
+import type { RunConfig } from './types';
 
 /** The Warden's base stat sheet (SPEC 2.1). Tuning lives in data/warden.json. */
 export const BASE = wardenBase;
@@ -36,8 +36,6 @@ export const STAT_KEYS = [
   'pickupPct',
   'luck',
   'goldFind',
-  'emberFind',
-  'relicFind',
   'ailmentPotency',
   'towerCost',
   'towerDamage',
@@ -93,8 +91,6 @@ export const STAT_KIND: Record<StatKey, StatKind> = {
   maxHpPct: 'mul',
   pickupPct: 'mul',
   goldFind: 'mul',
-  emberFind: 'mul',
-  relicFind: 'mul',
   ailmentPotency: 'mul',
   towerCost: 'mul',
   towerDamage: 'mul',
@@ -150,7 +146,7 @@ export const STAT_KIND: Record<StatKey, StatKind> = {
 /**
  * Where a contribution came from. Two contributions share a source id exactly
  * when V3 §2 would call them "ranks of the same source": every rank of one boon,
- * every point of one Constellation node, both affixes of one relic.
+ * every point of one Constellation node, every mod line of one equipped item.
  */
 export type StatSource = string;
 
@@ -227,9 +223,9 @@ export class Stats {
    * when listing what a node granted).
    *
    * Sorted for the same reason `factor()` is: float *addition* is no more
-   * associative than multiplication, and `leech` reaches six tree nodes at
-   * 0.003 plus a boon and a relic affix, whose sum is 0.0417 or
-   * 0.04170000000000001 depending on the order they went in. That feeds
+   * associative than multiplication, and `leech` can reach several tree nodes
+   * plus a boon plus an equipped item's mod line, whose sum can land on
+   * slightly different floats depending on the order they went in. That feeds
    * `warden.hp`, which `hashWorld` hashes.
    */
   total(stat: StatKey): number {
@@ -270,12 +266,12 @@ export function emptyStats(): Stats {
 }
 
 /**
- * Stats that are fixed for the whole run: class + tree + relics.
+ * Stats that are fixed for the whole run: class + tree + equipment.
  *
  * Source granularity (QUESTIONS Q61): one class, **one Constellation node**, one
- * relic. Each node is its own origin, so two +4% power nodes multiply — which is
- * what V3 §2 says about "different sources" and is the reading that makes the
- * tree's branches feel different from one long additive column.
+ * equipped item. Each node is its own origin, so two +4% power nodes multiply —
+ * which is what V3 §2 says about "different sources" and is the reading that
+ * makes the tree's branches feel different from one long additive column.
  */
 export function baseRunStats(content: Content, cfg: RunConfig): Stats {
   const s = emptyStats();
@@ -297,13 +293,10 @@ export function baseRunStats(content: Content, cfg: RunConfig): Stats {
     if (node) s.addAll(`tree:${id}`, node.stats);
   }
 
-  // A relic is one source: its implicit and its affixes are ranks of that item.
-  for (const r of cfg.relics) s.addAll(`relic:${r.id}`, relicStats(content, r));
-
-  // fb015 (§7): each equipped item is its own source (one weapon, one armor, ...),
-  // same "one source per item" reading a relic already gets. `classFallback` is
-  // the owner table's "if not <class>: ..." line, kept data-driven (content.ts's
-  // doc comment on `EquipmentItemSchema`) rather than a hardcoded class check.
+  // fb015 (§7): each equipped item is its own source (one weapon, one armor, ...).
+  // `classFallback` is the owner table's "if not <class>: ..." line, kept
+  // data-driven (content.ts's doc comment on `EquipmentItemSchema`) rather
+  // than a hardcoded class check.
   for (const key of cfg.equipment ?? []) {
     const item = content.equipmentByKey.get(key);
     if (!item) continue;
@@ -314,14 +307,6 @@ export function baseRunStats(content: Content, cfg: RunConfig): Stats {
   }
 
   return s;
-}
-
-export function relicStats(content: Content, relic: Relic): Record<string, number> {
-  const out: Record<string, number> = {};
-  const imp = content.relics.implicits[relic.slot];
-  if (imp) out[imp.stat] = (out[imp.stat] ?? 0) + imp.value;
-  for (const a of relic.affixes) out[a.stat] = (out[a.stat] ?? 0) + a.value;
-  return out;
 }
 
 /**
@@ -370,14 +355,12 @@ export interface Derived {
   pickupRadius: number;
   luck: number;
   /**
-   * Renamed from `goldFind`/`emberFind`/`relicFind` at m19b: they are now the
-   * finished multiplier, not the fraction the caller had to add 1 to. The rename
-   * is deliberate — a `mul` stat whose consumers still write `1 + x` would
-   * silently apply V3 §2's product on top of an additive `+1`.
+   * Renamed from `goldFind` at m19b: it is now the finished multiplier, not
+   * the fraction the caller had to add 1 to. The rename is deliberate — a
+   * `mul` stat whose consumers still write `1 + x` would silently apply V3
+   * §2's product on top of an additive `+1`.
    */
   goldFindMul: number;
-  emberFindMul: number;
-  relicFindMul: number;
   ailmentMul: number;
   towerCostMul: number;
   towerDamageMul: number;
@@ -456,8 +439,6 @@ export function derive(content: Content, s: Stats, residualScale = 1): Derived {
     pickupRadius: Math.max(0.25, BASE.pickupRadius * s.factor('pickupPct')),
     luck: s.total('luck'),
     goldFindMul: s.factor('goldFind'),
-    emberFindMul: s.factor('emberFind'),
-    relicFindMul: s.factor('relicFind'),
     ailmentMul: s.factor('ailmentPotency'),
     towerCostMul: Math.max(0.25, s.factor('towerCost')),
     towerDamageMul: s.factor('towerDamage'),

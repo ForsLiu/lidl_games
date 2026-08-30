@@ -110,7 +110,6 @@ export function installAuditHook(bridge: AuditBridge): void {
         tier: 1,
         modifiers: [],
         allocated: [],
-        relics: [],
         equipment: [],
         practice: true,
         autoPickLevelUps: false,

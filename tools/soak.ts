@@ -81,7 +81,6 @@ export function soakOne(
       tier: 1,
       modifiers: [],
       allocated: [],
-      relics: [],
       policy: policyName,
       cycles: 3,
     };

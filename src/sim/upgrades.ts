@@ -179,8 +179,8 @@ export function structureArmor(w: World, s: Structure): number {
 /**
  * SPEC-V3 §4: sell refunds 50% of **total spent** — which is why `Structure`
  * records what it was actually charged instead of this recomputing the track.
- * A recompute is wrong the moment `towerCostMul` moves mid-run (a relic, a
- * Constellation node): the player would be refunded against today's prices for
+ * A recompute is wrong the moment `towerCostMul` moves mid-run (an `equip_item`
+ * slot swap, a boon): the player would be refunded against today's prices for
  * gold they paid at yesterday's.
  */
 export function sellValue(w: World, s: Structure): number {

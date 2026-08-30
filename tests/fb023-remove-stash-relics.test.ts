@@ -6,12 +6,18 @@
  * relic-window code paths remain."
  *
  * Same two-layer shape c7-no-orbs.test.ts already proved out for the Orb
- * currency: a source-level scan for the relic-UI-only vocabulary (functions
- * and DOM hooks `src/ui/hub.ts`'s `renderEquipment` used to own), and a
- * DOM-level scan of every real Hub tab a player can actually reach. Relic
- * *data structures* (`MetaState.stash`/`equipped`, `Relic`, `meta/stash.ts`'s
- * `equip`/`discard`) are explicitly allowed to remain internally per the
- * feedback's own text — this only asserts the UI is gone.
+ * currency: a source-level scan for the relic vocabulary (UI functions/DOM
+ * hooks `src/ui/hub.ts`'s `renderEquipment` used to own, plus the data-layer
+ * identifiers `RELIC_UI` below folds in), and a DOM-level scan of every real
+ * Hub tab a player can actually reach.
+ *
+ * p7d (SPEC-FINAL §8, gate G12's "orbs nowhere" clause extended to relics)
+ * retired the relic *data structures* too — `Relic`/`RelicAffix`,
+ * `MetaState.stash`/`equipped`, `rollRelic`/`dropRelic`, `data/relics.json` —
+ * fb023 originally carved those out as "allowed to remain internally"; that
+ * carve-out is gone, so `RELIC_UI` below now bans the data layer as well as
+ * the UI layer, the same "no exemptions" rule c7-no-orbs.test.ts states for
+ * why it dropped its own file exemptions.
  */
 
 import { readFileSync, readdirSync, statSync } from 'node:fs';
@@ -30,12 +36,13 @@ import { cfg } from './helpers';
 const CSS = readFileSync(join(process.cwd(), 'src', 'ui', 'style.css'), 'utf8');
 
 /**
- * Identifiers and DOM hooks that only ever belonged to the retired relic
- * Stash panel (`renderStash`, its compare/discard helpers, its `[data-relic]`/
- * `[data-eqslot]`/`[data-discard]` hooks). Not "relic"/"stash" themselves —
- * those remain legitimate as internal data-structure names
- * (`MetaState.stash`, `Relic`, `equipmentStash`) per the feedback's own "data
- * structures may remain internally" carve-out — only the UI-specific surface.
+ * Identifiers and DOM hooks that belonged to the retired relic Stash panel
+ * (`renderStash`, its compare/discard helpers, its `[data-relic]`/
+ * `[data-eqslot]`/`[data-discard]` hooks), plus (p7d) the relic *data layer*
+ * itself: the `Relic`/`RelicAffix` types, the roll/drop pipeline, and the
+ * account fields only that pipeline ever fed. `equipmentStash` is exempt —
+ * it is the real §7 equipment system, not the retired relic one, and shares
+ * no vocabulary with it.
  */
 const RELIC_UI = [
   /\brenderStash\b/,
@@ -48,6 +55,16 @@ const RELIC_UI = [
   /\bcompareTitle\(/,
   /\bimplicitLine\(/,
   /\bequippedIn\(/,
+  /\bRelicAffix\b/,
+  /:\s*Relic\b/,
+  /\bRelic\[\]/,
+  /\brollRelic\b/,
+  /\brollAffix\b/,
+  /\bdropRelic\b/,
+  /content\.relics\b/,
+  /data\/relics\.json/,
+  /meta\.stash\b/,
+  /meta\.equipped\b/,
 ];
 
 function walk(dir: string, out: string[] = []): string[] {
@@ -104,12 +121,9 @@ describe('fb023: no stash or relic window is reachable from the Hub', () => {
     expect(text).not.toMatch(/data-tab="stash"/);
   });
 
-  it('nor on an account seeded with a real (internal-only) relic stash', () => {
-    // seedTestAccount still fills `meta.stash` internally (kept for save-
-    // migration coverage) — the point of this test is that having relics on
-    // the account changes nothing a player can see.
-    const meta = seedTestAccount(defaultMeta());
-    expect(meta.stash.length).toBeGreaterThan(0);
+  it('nor on an account seeded with skill points and equipment (p7d: relics no longer exist at all)', () => {
+    const meta = seedTestEquipment(seedTestAccount(defaultMeta()));
+    expect(meta.skillPoints).toBeGreaterThan(0);
     const text = hubText(meta);
     expect(text).not.toMatch(/>Stash</);
     expect(text).not.toMatch(/>Relic</);
