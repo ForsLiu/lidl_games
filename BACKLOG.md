@@ -945,7 +945,7 @@ logged in MIGRATION.md §8 rather than carried as dead items.
 ## Done
 
 - [x] (fb021) [feat] basic-attack visual effects for all 12 classes — commit
-      pending (this change), refs: SPEC-FINAL §11, owner feedback
+      `be6985a` (2026-08-30), refs: SPEC-FINAL §11, owner feedback
       `feature-basic-attack-vfx` (fb016 follow-up). `class_basic` was already
       emitted by `classBasicAttack`/`updateClassSummons` (`src/sim/classes.ts`,
       untouched by this item) but `Renderer.ingest()` had no case for it, so
