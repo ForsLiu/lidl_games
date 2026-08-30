@@ -190,19 +190,6 @@ called out in their own titles instead.
       section.**
 - [x] (b035) [bug] `#sw-towerinfo` rendered ~230px below the 1080px fold in
       Training Grounds once a tower was selected — **done, see Done section.**
-- [ ] (b036) [polish] QA-filed while verifying b035: in the same Training
-      Grounds scenario (`startPracticeRun({classKey:'engineer',
-      core:'stone_heart', seed:1})` → `build(1,21,10)` → `callWave()` →
-      `selectTile(21,10)`), `.sw-help` (the WASD/keybind hint, last element in
-      `.sw-side`) sits at `bottom ≈ 1096.9px`, ~17px past the 1080 fold —
-      the same "`.sw-side` has no scroll" root cause b035 fixed for
-      `#sw-towerinfo`, on a lower-priority, non-interactive panel (`npm run
-      ui-audit`'s `offscreen-interactive` rule does not catch it, since
-      `.sw-help` has no interactive controls) — acceptance: `.sw-help`'s
-      bottom edge is <=1080px at the standard viewport in the same scenario;
-      a regression test in the b035/b032/b034 real-browser pattern pins the
-      bound — refs: §11, QUALITY.md Beta bar, QA repro during b035
-      verification.
 - [ ] (p8d) [feat] Boss termination guarantee (§9 addendum, QUESTIONS Q126/Q127):
       the Warden-Eater gains a hard escalation from 3:00 of boss-fight time —
       +10% damage and +5% move/attack speed every 30 s, stacking without cap
@@ -942,6 +929,32 @@ logged in MIGRATION.md §8 rather than carried as dead items.
 
 ## Done
 
+- [x] (b036) [polish] `.sw-help` (the WASD/keybind hint, last element in
+      `.sw-side`) sat at `bottom ≈ 1096.9px` in the same Training Grounds
+      scenario b035 fixed for `#sw-towerinfo` (`startPracticeRun({classKey:
+      'engineer', core:'stone_heart', seed:1})` → `build(1,21,10)` →
+      `callWave()` → `selectTile(21,10)`), ~17px past the 1080 fold — same
+      "`.sw-side` has no scroll" root cause, QA-filed during b035 verification
+      — commit pending, refs: §11, QUALITY.md Beta bar. Fixed in
+      `src/ui/style.css`: `.sw-side`'s flex `gap` 10px→8px (six inter-panel
+      gaps, saves ~12px) and `.sw-help`'s `line-height` 1.7→1.45 (saves a few
+      px per wrapped line) — comfortably covers the overage without visually
+      cramping the panel. `tests/b036-help-fold.test.ts` (same real dev-
+      server + headless Chromium + `window.__stonewakeAudit` bridge pattern
+      as b032/b034/b035) asserts `.sw-help`'s `getBoundingClientRect().bottom
+      <= 1080`; verified failing pre-fix at 1096.92 and passing post-fix at
+      1075.92. `npm run ui-audit`'s "Mid-TD wave, selection panel open" and
+      "Defeat Results" scenes (the two that render `.sw-side`) both still
+      PASS at the same 1355/1407 total as pre-fix — the Hub/Codex failures
+      are the pre-existing, unrelated ones already on file since b035.
+      code-reviewer pass: no Critical/Major findings, both rules scoped to
+      the single `.sw-side`/`.sw-help` usage in `src/ui/hud.ts`. qa-playtester
+      **PASS**: reproduced the fix directly, confirmed `#sw-towerinfo` (b035)
+      unmoved in relative ordering and still well clear of the fold, checked
+      four classes for overlap/readability at the standard viewport (none),
+      and noted (out of scope, pre-existing, not a regression) that `.sw-side`
+      already overflows smaller viewports like 1366x768 both before and
+      after this change.
 - [x] (b035) [bug] `#sw-towerinfo` (name/stats/Upgrade/Sell) rendered with its
       bottom edge at ~1311px against the standard 1920x1080 viewport once a
       tower was selected in Training Grounds — ~230px below the fold and

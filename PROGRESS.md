@@ -5,6 +5,36 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-30 session: b036 done — `.sw-help` no longer renders below the
+  1080px fold in Training Grounds (QA-filed while verifying b035).** Same
+  scenario and root cause as b035 (`.sw-side` has no scroll of its own):
+  once b035's collapse fix shrank the practice panel, `.sw-help` (the WASD/
+  keybind hint, last element in `.sw-side`) still sat at `bottom ≈ 1096.9px`,
+  ~17px past the fold. Fixed in `src/ui/style.css` with two small, globally-
+  scoped rule changes (`.sw-side` and `.sw-help` are each used in exactly one
+  place, `src/ui/hud.ts`'s game HUD side column): `.sw-side`'s flex `gap`
+  10px→8px (six inter-panel gaps, ~12px saved) and `.sw-help`'s `line-height`
+  1.7→1.45 (a few more px per wrapped line) — together enough margin to clear
+  the fold without visually cramping the panel. New regression test
+  `tests/b036-help-fold.test.ts` (same real dev-server + headless Chromium +
+  `window.__stonewakeAudit`-bridge pattern as b032/b034/b035) pins `.sw-help`'s
+  `getBoundingClientRect().bottom <= 1080`; verified failing pre-fix at
+  1096.92 and passing post-fix at 1075.92. `npm run ui-audit` re-run: the
+  "Mid-TD wave, selection panel open" and "Defeat Results" scenes (the two
+  that render `.sw-side`) both still PASS, same 1355/1407 total as before —
+  the Hub/Codex failures are the pre-existing, unrelated ones already on file
+  since b035 (class-active text contrast, level-up choice-button offscreen).
+  `npm run test:fast`: b032/b034/b035/b036 (the four real-browser fold tests)
+  failed together in one parallel run and then passed cleanly in isolation —
+  the same host-dependent Playwright-under-parallel-load flake already on
+  file as b028/b029/b035, not a regression. code-reviewer pass: no Critical/
+  Major findings. qa-playtester **PASS**: reproduced the fix directly (with a
+  `git stash` A/B confirming the pre-fix number), confirmed b035's
+  `#sw-towerinfo` fix is unmoved and still well clear of the fold, checked
+  four classes for overlap/readability regressions at the standard viewport
+  (none found), and noted — out of scope, pre-existing, not a regression —
+  that `.sw-side` already overflows smaller viewports like 1366x768 both
+  before and after this change.
 - **2026-08-30 session: b035 done — `#sw-towerinfo` no longer renders below
   the 1080px fold in Training Grounds (QA-filed while verifying b034).**
   Once a tower was selected in a practice run, `#sw-towerinfo` rendered with
