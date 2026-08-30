@@ -5,6 +5,50 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-30 session: b035 done — `#sw-towerinfo` no longer renders below
+  the 1080px fold in Training Grounds (QA-filed while verifying b034).**
+  Once a tower was selected in a practice run, `#sw-towerinfo` rendered with
+  its bottom edge at ~1311px against the standard 1920x1080 viewport —
+  ~230px past the fold and unreachable, because `#sw-practice` (9 dev
+  buttons + the spawn-enemy row) sat above it in `.sw-side`, which has no
+  scroll of its own; `src/ui/hud.ts`'s own b032-era comment had flagged this
+  as an accepted tradeoff until b034's fix made the panel actually populate
+  with real content there, turning it into a live bug. Fixed by collapsing
+  the practice-tool panel by default: `showPracticeTools` (`src/ui/hud.ts`)
+  now renders a clickable `#sw-practice-toggle` header ("Practice tool
+  ▸"/"▾", mouse + Enter/Space) whose body starts `.collapsed`
+  (`display: none`); a new `Hud.practiceCollapsed` field (default `true`,
+  fresh per run) tracks it. The dev buttons and spawn controls stay in the
+  DOM regardless of collapse state, so `syncPracticeToggles` (god-mode
+  lighting etc.) and every existing `[data-dev]`-selector test are
+  unaffected. New regression test `tests/b035-towerinfo-fold.test.ts` (real
+  dev server + headless Chromium, same `window.__stonewakeAudit`-bridge
+  pattern as b032/b034) drives `startPracticeRun` → `build(1,21,10)` →
+  `callWave()` → `selectTile(21,10)` and asserts `#sw-towerinfo`'s
+  `getBoundingClientRect().bottom <= 1080`; verified failing pre-fix at
+  1310.875 and passing post-fix. `npm run ui-audit` re-run: the "Mid-TD
+  wave, selection panel open" scene went from a spurious 9 `text-contrast`
+  failures (sampled pixels clamped from off-canvas coordinates) plus this
+  item's own new stray `font-size` miss on the chevron glyph (fixed by
+  bumping it to 12px) down to 0/169 failures; the Hub/Codex scenes'
+  pre-existing, unrelated failures (class-active text contrast, level-up
+  choice-button offscreen) were confirmed present on `master` before this
+  change via `git stash` and are out of scope. `npm run test:fast`: the
+  three real-browser tests (b032/b034/b035) intermittently fail together
+  under the fast tier's parallel-worker load (30s hook timeout racing for
+  dev-server ports) but pass reliably in isolation — the same host-dependent
+  Playwright-under-load flake already on file as b028/b029, not a
+  regression from this change (reproduced across two full `test:fast` runs
+  with a different unrelated test failing each time). qa-playtester
+  **PASS** on all three acceptance criteria; adversarially confirmed toggle
+  click/keyboard-spam determinism, dev-button firing and god-mode lighting
+  while collapsed, and spawn-dropdown behavior while expanded. It filed one
+  new low-priority finding: the same "`.sw-side` has no scroll" root cause
+  also pushes the non-interactive `.sw-help` keybind hint ~17px past the
+  fold in the identical scenario (not caught by `ui-audit`'s
+  offscreen-interactive rule, which only checks interactive elements) —
+  filed as **b036** rather than blocking this item.
+
 - **2026-08-30 session: b034 done — `tools/ui-audit.ts`'s "Mid-TD wave,
   selection panel open" scene fixed to build inside the Warden's buildRange.**
   QA found this while verifying b032: the scene called `build(1, 8, 8)`

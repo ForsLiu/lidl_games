@@ -64,6 +64,8 @@ export class Hud {
   private showingOptions = false;
   private charPanelOpen = false;
   private dpsPanelOpen_ = false;
+  /** b035: the practice tool panel is tall enough to push `#sw-towerinfo` past the fold; collapsed by default. */
+  private practiceCollapsed = true;
 
   constructor(root: HTMLElement, cb: HudCallbacks) {
     this.root = root;
@@ -137,6 +139,12 @@ export class Hud {
    *
    * `w` supplies the enemy roster for the fb019 Training Grounds spawn panel —
    * omitted only by tests that don't care about the spawn row.
+   *
+   * b035: the full panel (9 dev buttons + the spawn row) is tall enough that,
+   * stacked above `#sw-towerinfo` in `.sw-side`, it pushed a populated tower
+   * info panel ~230px past the 1080px fold with no way to reach it. Collapsed
+   * by default behind a `sw-sub` toggle — the tools are optional, the tower
+   * info panel below them is not.
    */
   showPracticeTools(on: boolean, w?: World): void {
     this.practiceEl.hidden = !on;
@@ -146,7 +154,10 @@ export class Hud {
     }
     const enemies = [...(w?.content.enemies.enemies ?? [])].sort((a, b) => a.name.localeCompare(b.name));
     this.practiceEl.innerHTML =
-      '<div class="sw-sub">Practice tool</div>' +
+      `<div class="sw-sub sw-practice-toggle" id="sw-practice-toggle" role="button" tabindex="0" ` +
+      `aria-expanded="${String(!this.practiceCollapsed)}">Practice tool ` +
+      `<span class="sw-practice-chevron">${this.practiceCollapsed ? '▸' : '▾'}</span></div>` +
+      `<div class="sw-practice-body${this.practiceCollapsed ? ' collapsed' : ''}" id="sw-practice-body">` +
       '<p class="sw-note">This run banks nothing.</p>' +
       '<div class="sw-devgrid">' +
       PRACTICE_BUTTONS.map(
@@ -162,7 +173,24 @@ export class Hud {
           '<input id="sw-spawn-count" type="number" min="1" max="50" value="1" />' +
           '<button class="sw-ctl" id="sw-spawn-go" title="Spawns the chosen enemy with its real stats">Spawn</button>' +
           '</div>'
-        : '');
+        : '') +
+      '</div>';
+    const toggle = this.practiceEl.querySelector('#sw-practice-toggle') as HTMLElement;
+    const body = this.practiceEl.querySelector('#sw-practice-body') as HTMLElement;
+    const flip = (): void => {
+      this.practiceCollapsed = !this.practiceCollapsed;
+      body.classList.toggle('collapsed', this.practiceCollapsed);
+      toggle.setAttribute('aria-expanded', String(!this.practiceCollapsed));
+      const chevron = toggle.querySelector('.sw-practice-chevron');
+      if (chevron) chevron.textContent = this.practiceCollapsed ? '▸' : '▾';
+    };
+    toggle.addEventListener('click', flip);
+    toggle.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        flip();
+      }
+    });
     for (const el of this.practiceEl.querySelectorAll<HTMLElement>('[data-dev]')) {
       el.addEventListener('click', () => {
         this.cb.onDev(el.dataset.dev as DevOp, Number(el.dataset.amount));

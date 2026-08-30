@@ -188,36 +188,21 @@ called out in their own titles instead.
       scene built out of the Warden's buildRange, so it silently exercised the
       empty-selection fallback instead of a real tower — **done, see Done
       section.**
-- [ ] (b035) [bug] QA-filed while verifying b034: in Training Grounds/practice
-      runs (the only place the audit or a player reaches a fully-populated
-      10-tower build bar), once a tower is actually selected `#sw-towerinfo`
-      renders with its bottom edge at ~1311px against the standard 1920x1080
-      viewport — the whole panel (name, description, stats, Upgrade/Sell
-      buttons) sits ~230px below the fold and is unreadable/unreachable
-      without scrolling, and `.sw-side` does not scroll. Repro: real-browser,
-      `startPracticeRun({classKey:'engineer', core:'stone_heart', seed:1})` →
-      `build(1,21,10)` → `callWave()` → `selectTile(21,10)` →
-      `#sw-towerinfo`'s `getBoundingClientRect()` is `{y:1126, bottom:1311}`;
-      `npm run ui-audit`'s "Mid-TD wave, selection panel open" scene shows 9
-      `text-contrast` failures against `#sw-towerinfo` content for the same
-      reason (the checker samples pixels that are off-canvas). Confirmed
-      specific to the practice build bar: forcing `#sw-practice.hidden = true`
-      (an ordinary, non-practice run never renders that block, per
-      `showPracticeTools`, `src/ui/hud.ts`) drops `towerinfo.bottom` to 980,
-      fully on-screen. `src/ui/hud.ts`'s own b032-era comment (lines ~90-98)
-      already flagged `#sw-towerinfo` as one of the panels that "may run past
-      the fold" as an accepted tradeoff at the time b032 landed — b034's fix
-      is what now makes that panel actually populate with real content in the
-      audited scene, surfacing the tradeoff as a live, visible bug — acceptance:
-      `#sw-towerinfo`'s bottom edge is <=1080px at the standard viewport in
-      Training Grounds after selecting a built tower (either the panel
-      reflows/scrolls or the practice build bar's footprint shrinks); a
-      regression test (real-browser, `window.__stonewakeAudit` bridge, same
-      pattern as b032/b034) pins the bound, failing pre-fix and passing
-      post-fix; `npm run ui-audit`'s "Mid-TD wave, selection panel open" scene
-      shows 0 `text-contrast`/offscreen failures against `#sw-towerinfo` — refs:
-      §11, QUALITY.md Beta bar, `src/ui/hud.ts` `showPracticeTools`/panel
-      stacking, QA repro during b034 verification.
+- [x] (b035) [bug] `#sw-towerinfo` rendered ~230px below the 1080px fold in
+      Training Grounds once a tower was selected — **done, see Done section.**
+- [ ] (b036) [polish] QA-filed while verifying b035: in the same Training
+      Grounds scenario (`startPracticeRun({classKey:'engineer',
+      core:'stone_heart', seed:1})` → `build(1,21,10)` → `callWave()` →
+      `selectTile(21,10)`), `.sw-help` (the WASD/keybind hint, last element in
+      `.sw-side`) sits at `bottom ≈ 1096.9px`, ~17px past the 1080 fold —
+      the same "`.sw-side` has no scroll" root cause b035 fixed for
+      `#sw-towerinfo`, on a lower-priority, non-interactive panel (`npm run
+      ui-audit`'s `offscreen-interactive` rule does not catch it, since
+      `.sw-help` has no interactive controls) — acceptance: `.sw-help`'s
+      bottom edge is <=1080px at the standard viewport in the same scenario;
+      a regression test in the b035/b032/b034 real-browser pattern pins the
+      bound — refs: §11, QUALITY.md Beta bar, QA repro during b035
+      verification.
 - [ ] (p8d) [feat] Boss termination guarantee (§9 addendum, QUESTIONS Q126/Q127):
       the Warden-Eater gains a hard escalation from 3:00 of boss-fight time —
       +10% damage and +5% move/attack speed every 30 s, stacking without cap
@@ -957,6 +942,41 @@ logged in MIGRATION.md §8 rather than carried as dead items.
 
 ## Done
 
+- [x] (b035) [bug] `#sw-towerinfo` (name/stats/Upgrade/Sell) rendered with its
+      bottom edge at ~1311px against the standard 1920x1080 viewport once a
+      tower was selected in Training Grounds — ~230px below the fold and
+      unreachable, because `#sw-practice` (9 dev buttons + the spawn-enemy
+      row) sat above it in `.sw-side`, which has no scroll of its own —
+      commit pending, refs: §11, QUALITY.md Beta bar, QA repro during b034
+      verification. Fixed by collapsing the practice-tool panel by default:
+      `showPracticeTools` (`src/ui/hud.ts`) now renders a clickable
+      `#sw-practice-toggle` header ("Practice tool ▸"/"▾", mouse + Enter/
+      Space) whose body (`#sw-practice-body` — the note, the devgrid, the
+      spawn row) starts `.collapsed` (`display: none`, `style.css`); a new
+      `Hud.practiceCollapsed` field (defaults `true`, fresh per run since a
+      new `Hud` is constructed each start) tracks the toggle. The dev buttons
+      and spawn controls stay in the DOM either way, so `syncPracticeToggles`
+      (god-mode lighting etc.) and every existing `[data-dev]`-selector test
+      are unaffected by collapse state. `tests/b035-towerinfo-fold.test.ts`
+      (real dev server + headless Chromium, `window.__stonewakeAudit` bridge,
+      same pattern as b032/b034) drives `startPracticeRun` → `build(1,21,10)`
+      → `callWave()` → `selectTile(21,10)` and asserts `#sw-towerinfo`'s
+      `getBoundingClientRect().bottom <= 1080`; verified failing pre-fix at
+      1310.875 and passing post-fix. `npm run ui-audit` re-run post-fix: the
+      "Mid-TD wave, selection panel open" scene goes from 1 failure (a stray
+      `font-size` miss on the new chevron glyph, fixed by bumping it to 12px)
+      to 0/169 failures; the Hub/Codex scenes' pre-existing, unrelated
+      text-contrast/offscreen failures (class-active text, level-up choice
+      buttons) were confirmed present on `master` before this change via
+      `git stash` and are out of this item's scope. qa-playtester pass:
+      confirmed the bound (1025.75px measured live), the regression test and
+      full `npm run ui-audit` scene, and adversarially checked toggle
+      click/keyboard spam, dev-button firing and god-mode lighting while
+      collapsed, and spawn-dropdown behavior while expanded — no bugs found
+      against b035 itself. It filed one new low-priority finding (the same
+      root cause on the non-interactive `.sw-help` block, ~17px past the
+      fold in the identical scenario) — filed as b036 rather than blocking
+      this item.
 - [x] (b034) [bug] `tools/ui-audit.ts`'s "Mid-TD wave, selection panel open"
       scene called `build(1, 8, 8)` without ever moving the Warden from its
       spawn near `(23, 10)` (`coreCenter().x - 3`, `src/sim/world.ts`) —
