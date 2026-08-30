@@ -75,10 +75,10 @@ export interface AttackProfile {
    * §5.2 Fire Brazier: how many times this attack's authored `burn` counts per
    * hit — 0 for an attack with no `burn` at all, 1 for one that has it
    * unmilestoned. Read as a dps multiplier by `fireTower`'s cone case, not as
-   * literal extra Burning stacks: Burning's own row caps at 1 stack today
-   * (`refresh: 'strongest'`), and raising that cap is p10a's job, not a
-   * milestone's — a stack count here would fold into the same one slot and
-   * measure as a no-op (Q112).
+   * literal extra Burning stacks — Burning now stacks per application (p10a),
+   * but Q112's owner-approved reading of this milestone deliberately stayed a
+   * dps multiplier on the one application a hit deals rather than a second
+   * literal `applyDot` call, so it is unaffected by p10a's cap change.
    */
   burnStacks: number;
   /**

@@ -146,7 +146,7 @@
             "at": 2,
             "key": "burnStacks",
             "value": 1,
-            "note": "+1 Burning per hit — read as a dps multiplier on the one Burning application a hit deals, not a second stack, since Burning caps at 1 stack today (Q112, p10a) — §5.2"
+            "note": "+1 Burning per hit — read as a dps multiplier on the one Burning application a hit deals, not a second stack, per Q112's owner-approved reading (unaffected by p10a's stacking-cap flip) — §5.2"
           },
           {
             "at": 4,

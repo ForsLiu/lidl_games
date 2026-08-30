@@ -366,16 +366,22 @@ describe('§3 Burning — 1 dmg and −1 armor per second for 3 s, both AoE (r1)
     expect(e.armorShred).toBe(0);
   });
 
-  it('refreshes to the stronger application rather than stacking (Q65)', () => {
-    // The one row where §3s "each application" is read as refresh: the shred
-    // already accumulates per application, so Q44s arithmetic holds either way,
-    // and stacking the damage would be a balance move ahead of the M27 pass.
+  it('stacks per application like Bleeding rather than refreshing (p10a)', () => {
+    // Owner intent (SPEC-FINAL §3, Q65 confirmed): Burning stacks per
+    // application, replacing the old maxStacks 1 / refresh-strongest rule —
+    // two applications tick twice and shred twice.
     const w = world();
-    const e = dummy(w);
-    applyDot(w, e, 'burning', 6, 3, 'brazier');
-    applyDot(w, e, 'burning', 2, 3, 'weaker');
-    expect(dotStacks(e, 'burning')).toBe(1);
-    expect(tick(w, e, 3)).toBeCloseTo(18, 4);
+    const e = dummy(w, 10, 10, 0);
+    applyDot(w, e, 'burning', 1, 3, 'first');
+    applyDot(w, e, 'burning', 1, 3, 'second');
+    expect(dotStacks(e, 'burning')).toBe(2);
+    expect(tick(w, e, 3)).toBeCloseTo(6, 4);
+    expect(e.armorShred).toBeCloseTo(6, 4);
+  });
+
+  it('is authored to share the 50-stack perf cap, same as Bleeding', () => {
+    expect(row('burning').maxStacks).toBe(content.damageTypes.maxStacksPerEnemy);
+    expect(row('burning').refresh).toBe('shortest');
   });
 });
 
@@ -823,15 +829,32 @@ describe('§3 the shared 50-stack budget cannot starve a type out of existence',
     expect(dotStacks(e, 'burning')).toBe(1);
   });
 
+  it('Bleeding still lands on an enemy already carrying 50 Burning stacks (p10a symmetry)', () => {
+    // p10a made Burning the second row, after Bleeding, whose own cap equals
+    // the shared budget — the mirror of the first test in this block, with
+    // the saturating and arriving types swapped.
+    const w = world();
+    const e = dummy(w, 10, 10);
+    for (let i = 0; i < 50; i++) applyDamageType(w, e, 'burning', 1, 'burn');
+    expect(dotStacks(e, 'burning')).toBe(50);
+
+    applyDamageType(w, e, 'bleeding', 1, 'bleed');
+    expect(dotStacks(e, 'bleeding')).toBe(1);
+    expect(dotStacks(e, 'burning')).toBe(49);
+    expect(e.dots.length).toBe(content.damageTypes.maxStacksPerEnemy);
+  });
+
   it('a type at its own cap still refreshes rather than evicting a bystander', () => {
     const w = world();
     const e = dummy(w, 10, 10);
-    applyDamageType(w, e, 'burning', 1, 'burn');
+    applyDamageType(w, e, 'poison', 10, 'venom');
+    applyDamageType(w, e, 'poison', 10, 'venom');
+    applyDamageType(w, e, 'poison', 10, 'venom');
     applyDamageType(w, e, 'bleeding', 1, 'bleed');
-    // Burning's own maxStacks is 1, so a second application refreshes it (Q65)
-    // and must not reach for the Bleeding stack sitting next to it.
-    applyDamageType(w, e, 'burning', 1, 'burn');
-    expect(dotStacks(e, 'burning')).toBe(1);
+    // Poison's own maxStacks is 3, so a fourth application refreshes an
+    // existing stack rather than reaching for the Bleeding stack next to it.
+    applyDamageType(w, e, 'poison', 10, 'venom');
+    expect(dotStacks(e, 'poison')).toBe(3);
     expect(dotStacks(e, 'bleeding')).toBe(1);
   });
 });
@@ -1017,12 +1040,37 @@ describe('§3 — regressions from the m19c review', () => {
     for (const e of es) expect(e.armorShred).toBeCloseTo(3, 4);
   });
 
-  it('a strongest-refresh takes the higher dps and the longer timer (QA)', () => {
-    // V2's burn rule, kept deliberately at m19c (Q65) — but it composes two
-    // applications into one stronger than either. Not reachable with shipped
-    // content (every authored burn's longest source is also its strongest);
-    // pinned so m20b and M27 cannot flip it without meaning to.
+  it('splash to a neighbour sums every same-type stack once per tick, not once per stack (code review on p10a)', () => {
+    // p10a let one enemy carry dozens of concurrent Burning stacks. Querying
+    // and splashing once *per stack* would have multiplied the neighbour
+    // query and neighbour damage by stack count; the aggregated magnitude
+    // must still equal the plain sum of every live stack's dps/shred.
     const w = world();
+    const e = dummy(w, 10, 10);
+    const near = dummy(w, 10.5, 10);
+    applyDot(w, e, 'burning', 1, 3, 'first');
+    applyDot(w, e, 'burning', 2, 3, 'second');
+    expect(dotStacks(e, 'burning')).toBe(2);
+    const dealt = tick(w, near, 1);
+    expect(dealt).toBeCloseTo(3, 4);
+    expect(near.armorShred).toBeCloseTo(2, 4);
+  });
+
+  it('a strongest-refresh takes the higher dps and the longer timer (QA)', () => {
+    // V2's original burn rule. No shipped row uses `refresh: 'strongest'`
+    // after p10a flipped Burning to per-application stacking, but the engine
+    // branch stays generic (CLAUDE.md's "content is data" rule) for a future
+    // row that wants refresh-over-stack — driven here against a content doc
+    // with Burning's own `refresh` authored back to 'strongest', not against
+    // shipped content, so the branch keeps real coverage rather than going dark.
+    const strongestBurn = {
+      ...content.damageTypes,
+      types: content.damageTypes.types.map((t) =>
+        t.key === 'burning' ? { ...t, maxStacks: 1, refresh: 'strongest' as const } : t,
+      ),
+    };
+    const w = new World(cfg(), loadContent({ damageTypes: strongestBurn }));
+    w.gold = 100000;
     const e = dummy(w);
     applyDot(w, e, 'burning', 1, 30, 'weak-long');
     applyDot(w, e, 'burning', 50, 0.1, 'strong-short');

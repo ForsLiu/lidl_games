@@ -155,9 +155,9 @@ describe('p5c — Ballista: +1 pierce @2, +1 projectile @4', () => {
 
 describe('p5c — Fire Brazier: +1 Burning per hit @2, cone width +50% @4', () => {
   it('the burn a hit deals doubles once the level-3 milestone is live', () => {
-    // Burning's own row caps at 1 stack (refresh: strongest) — see
-    // `AttackProfile.burnStacks`'s doc comment — so "+1 Burning" is read as a
-    // dps multiplier on the one stack an enemy can carry, not a second stack.
+    // Burning stacks per application since p10a, but this milestone stays a
+    // dps multiplier on the one application a hit deals rather than a second
+    // literal stack — see `AttackProfile.burnStacks`'s doc comment (Q112).
     const unmilestoned = tower(EMBER, 0);
     const e1 = dummy(unmilestoned.w, unmilestoned.x, unmilestoned.y - 1);
     unmilestoned.w.rebuildBuckets();

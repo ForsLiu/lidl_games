@@ -737,18 +737,20 @@ export function applyDot(
 
   // The per-enemy cap is shared across types: it exists so a 350-strong horde
   // cannot grow unbounded per-enemy arrays in the hot loop, and that budget is
-  // one budget. Only Bleeding, whose own cap *is* it, can reach it alone.
+  // one budget. Bleeding and Burning, whose own caps equal it (p10a), can each
+  // reach it alone.
   if (live < perType) {
     if (e.dots.length < cap) {
       e.dots.push({ type, remaining: duration, dps: scaled, source });
       return;
     }
-    // A shared budget must not let one type *own* it. Bleeding is the only row
-    // that can fill 50 slots by itself, and dropping the application here would
-    // make a bleeding enemy permanently immune to Burning — i.e. to the armour
-    // shred §3 designs as the way armour gets broken — with nothing to see. So
-    // a type still under its own cap takes a slot from the most numerous other
-    // type instead of being lost.
+    // A shared budget must not let one type *own* it. Bleeding or Burning can
+    // each fill 50 slots by itself, and dropping the application here would
+    // make a bleeding- or burning-saturated enemy permanently immune to
+    // whatever type still needs a slot — for Burning arriving against a
+    // Bleeding-saturated enemy that is the armour shred §3 designs as the way
+    // armour gets broken — with nothing to see. So a type still under its own
+    // cap takes a slot from the most numerous other type instead of being lost.
     const victim = evictionIndex(e, type, live);
     if (victim < 0) return;
     e.dots[victim] = { type, remaining: duration, dps: scaled, source };
@@ -758,7 +760,11 @@ export function applyDot(
 
   const d = e.dots[shortest];
   if (def.refresh === 'strongest') {
-    // V2's burn rule: the stronger application wins, and the longer timer wins.
+    // V2's original burn rule: the stronger application wins, and the longer
+    // timer wins. No shipped row uses it after p10a flipped Burning to
+    // per-application stacking (`refresh: 'shortest'`) — kept generic in the
+    // engine per CLAUDE.md's "content is data" rule, for a future row that
+    // wants refresh-over-stack.
     if (scaled >= d.dps) {
       d.dps = scaled;
       d.source = source;
@@ -852,37 +858,57 @@ export function applyPoison(
 const dotScratch: Enemy[] = [];
 
 /**
- * One DoT stack's damage for one tick. Rows with a `radius` — Burning — land
- * their damage *and* their armor shred on everything around the victim
- * (SPEC-V3 §3). The spread carries the effects, not the application: a stack
- * that re-applied itself to its neighbours would cascade across the horde.
+ * One DoT stack's *direct* damage and armor shred for one tick, against the
+ * enemy actually carrying it. Splash (Burning's radius) is handled separately
+ * by `tickDots`/`tickDotSplash`, aggregated once per type rather than once
+ * per stack — see that function's comment for why.
  */
 function tickDot(w: World, e: Enemy, d: DotStack, dt: number): void {
   const def = w.content.damageTypeByKey.get(d.type);
   const shred = def?.armorShredPerSecond ?? 0;
-  const radius = def?.radius ?? 0;
-
-  // The victim is hit directly rather than by falling inside its own blast:
-  // the spatial buckets are rebuilt once a tick, so a stale bucket would
-  // otherwise turn Burning into a no-op on the enemy actually carrying it.
   if (shred > 0) shredArmor(e, shred * dt);
   // `d.type` is a validated damagetypes key by the time a stack exists.
   const dotType = d.type as DamageTypeKey;
   damageEnemy(w, e, d.dps * dt, d.source, { pure: true, dot: true, type: dotType });
-  if (radius <= 0) return;
+}
 
+interface SplashAccum {
+  source: string;
+  dps: number;
+  shred: number;
+  radius: number;
+}
+
+/**
+ * Rows with a `radius` — Burning — land their damage *and* armor shred on
+ * everything around the victim (SPEC-V3 §3), once per type per enemy per
+ * tick with every live same-type stack's magnitude summed in. p10a's flip to
+ * per-application stacking let a single enemy carry dozens of concurrent
+ * Burning stacks (a Brazier corridor, `interval: 0.25` vs `duration: 3`, can
+ * reach a dozen from one tower alone); querying+splashing once *per stack*
+ * would have turned that into a 12-50x per-tick neighbour-query and
+ * neighbour-damage multiplier that nothing in p10a measured (code review).
+ * The spread carries the effects, not the application: a stack that
+ * re-applied itself to its neighbours would cascade across the horde.
+ */
+function tickDotSplash(w: World, e: Enemy, type: DamageTypeKey, acc: SplashAccum): void {
   // `burnSpread` is a point bonus on the radius; `area` scales every effect (§2).
-  const r = (radius + w.derived.burnSpread) * w.derived.areaMul;
+  const r = (acc.radius + w.derived.burnSpread) * w.derived.areaMul;
   const list = w.enemiesInRadius(e.x, e.y, r, dotScratch);
   for (let i = 0; i < list.length; i++) {
     const n = list[i];
     if (n === e || n.dead) continue;
     // The spread carries the row's effects, so it carries the row's immunity.
-    if (immuneToDot(n, d.type)) continue;
-    if (shred > 0) shredArmor(n, shred * dt);
-    damageEnemy(w, n, d.dps * dt, d.source, { pure: true, dot: true, type: dotType });
+    if (immuneToDot(n, type)) continue;
+    if (acc.shred > 0) shredArmor(n, acc.shred);
+    damageEnemy(w, n, acc.dps, acc.source, { pure: true, dot: true, type });
   }
 }
+
+// Reused across every enemy/tick, same reasoning as `dotScratch`: a
+// 350-strong horde with Burning live on most of it would otherwise allocate
+// a fresh Map per enemy per frame in the hot loop.
+const splashScratch = new Map<string, SplashAccum>();
 
 function tickDots(w: World, e: Enemy, dt: number): void {
   if (e.dots.length === 0) return;
@@ -893,6 +919,7 @@ function tickDots(w: World, e: Enemy, dt: number): void {
   // loop must wait for the next frame rather than be ticked on the frame it
   // landed, and the eviction path can overwrite the entry the loop is on.
   const n = e.dots.length;
+  splashScratch.clear();
   for (let i = 0; i < n; i++) {
     const d = e.dots[i];
     // The tick is clipped to the time actually left, not skipped when the stack
@@ -904,8 +931,27 @@ function tickDots(w: World, e: Enemy, dt: number): void {
     if (d.remaining <= 0) expired = true;
     // Ailment damage is booked against the weapon that applied it, so A5 sees
     // the true share of each weapon rather than a generic "burn" bucket.
-    if (step > 0) tickDot(w, e, d, step);
+    if (step > 0) {
+      tickDot(w, e, d, step);
+      const def = w.content.damageTypeByKey.get(d.type);
+      const radius = def?.radius ?? 0;
+      if (radius > 0) {
+        const shred = def?.armorShredPerSecond ?? 0;
+        const acc = splashScratch.get(d.type);
+        if (acc) {
+          acc.dps += d.dps * step;
+          acc.shred += shred * step;
+        } else {
+          // First same-type stack this tick names the splash's attribution;
+          // every stack shares one row's dps/shred/radius by construction.
+          splashScratch.set(d.type, { source: d.source, dps: d.dps * step, shred: shred * step, radius });
+        }
+      }
+    }
     if (e.dead) break;
+  }
+  if (!e.dead) {
+    for (const [type, acc] of splashScratch) tickDotSplash(w, e, type as DamageTypeKey, acc);
   }
   if (expired) e.dots = e.dots.filter((d) => d.remaining > 0);
 }
