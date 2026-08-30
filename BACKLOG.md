@@ -931,7 +931,7 @@ logged in MIGRATION.md §8 rather than carried as dead items.
 - [x] (p7c) [feat] Rewards pipeline per §8: each TD wave cleared grants 1 random
       equipment (even weights), each VS wave cleared grants 1 skill point, both
       granted at run end, win or lose, for waves fully cleared; duplicates allowed —
-      acceptance: gate **G12** — refs: §8, G12. The equipment and "orbs nowhere"
+      acceptance: gate **G12** — refs: §8, G12 — commit `fea8e99`. The equipment and "orbs nowhere"
       clauses were already built and tested by fb015/`c7-no-orbs.test.ts`; this item
       built the one remaining clause, "M VS waves -> M skill points." A new
       `World.vsWavesCleared` counter increments only when a VS wave ends by its own

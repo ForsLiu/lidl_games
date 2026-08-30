@@ -6,7 +6,7 @@
 ## Current state — SPEC-FINAL
 
 - **2026-08-30 session: p7c done — gate G12 is green in full — commit
-  pending.**
+  `fea8e99`.**
   §8's reward pipeline had two clauses already built and tested (fb015's
   1-random-equipment-per-cleared-TD-wave, and "orbs nowhere" via
   `tests/c7-no-orbs.test.ts`); this item built the third, "each VS wave
