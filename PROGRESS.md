@@ -6,7 +6,7 @@
 ## Current state — SPEC-FINAL
 
 - **2026-08-30 session: p7d done — the superseded meta economy is retired in
-  full — commit pending in this change.**
+  full — commit `09eac64`.**
   Relic affixes/rarities (`data/relics.json`, `src/sim/loot.ts`) and the
   Ember→account-level pipeline (`emberFor`/`accountLevelFor`/`stashCapacity`
   in `src/meta/meta.ts`) are deleted outright, not merely hidden behind UI —

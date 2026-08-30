@@ -928,7 +928,7 @@ logged in MIGRATION.md §8 rather than carried as dead items.
       the Ember→account-level pipeline — acceptance: no Ember or relic affix in
       sim, meta or UI; a save written before the change migrates with its Ember
       converted; gate **G12**'s "orbs nowhere" clause extended to relics — refs:
-      §8, Q46, Q49 — commit pending in this change. `data/relics.json` and
+      §8, Q46, Q49 — commit `09eac64`. `data/relics.json` and
       `src/sim/loot.ts` deleted outright (`RelicAffix`/`Relic` types,
       `MetaState.stash`/`equipped`/`nextRelicId`/`accountLevel`/`ember`,
       `RunConfig.relics`, `RunReport.relicsFound`/`ember`, `World.relicsFound`/
@@ -997,10 +997,22 @@ logged in MIGRATION.md §8 rather than carried as dead items.
       `fb015-equipment.test.ts`, `fb014-tree-auto-max.test.ts`,
       `fb023-remove-stash-relics.test.ts`, `light-build.test.ts`,
       `q7-data-fuzz.test.ts`). `npx tsc --noEmit` clean project-wide;
-      `npm run test:fast` green (1558 passed, 32 skipped, the same 4
+      `npm run test:fast` green (1566 passed, 32 skipped, the same 4
       pre-existing Playwright dev-server-port fold-test flakes this session
       confirmed pass individually — a known class of Windows-host flake, not
-      a regression this item introduced).
+      a regression this item introduced). code-reviewer: **APPROVE**, no
+      Critical/Major findings (two Minor nits fixed in the same commit —
+      the `.sw-affix`/`sw-relicdetail` CSS class names hadn't been renamed
+      alongside `sw-relic`→`sw-lootitem`; an extra blank line in
+      QUESTIONS.md). qa-playtester independently drove a real headless run
+      through `applyRunResult` (skill points banked = `vsWavesCleared`,
+      `archivist` completing at 3 duplicate equipment items and not at 2),
+      round-tripped hand-built pre-p7d saves (string/null/object/negative/
+      NaN/Infinity `ember`, and an already-v4 save with a stray `ember` key
+      that correctly does *not* convert) through the real `loadMetaWithNotice`
+      path, and independently re-derived the Q146 node count against
+      `data/tree.json` (6 Keen Eye + 7 Scavenger + Tinkerer + Gilded Path =
+      15) — **no bugs found**, every acceptance criterion confirmed met.
 
 - [x] (b037) [bug] The relic loot pipeline (elite/boss/win drops via
       `src/sim/loot.ts`'s `dropRelic`, banked into `meta.stash` by
@@ -1008,7 +1020,7 @@ logged in MIGRATION.md §8 rather than carried as dead items.
       that could equip or discard a relic — **closed by p7d, see above.**
       `src/sim/loot.ts` and `meta.stash` are deleted outright, not merely made
       unreachable; `archivist` is repointed at `max_equipment_dupes` — refs:
-      p7d, fb015, fb023, QUESTIONS Q143 — commit pending in this change.
+      p7d, fb015, fb023, QUESTIONS Q143 — commit `09eac64`.
 
 - [x] (p7c) [feat] Rewards pipeline per §8: each TD wave cleared grants 1 random
       equipment (even weights), each VS wave cleared grants 1 skill point, both
