@@ -6,7 +6,7 @@
 ## Current state — SPEC-FINAL
 
 - **2026-08-30 session: p7a done — the SPEC-FINAL §6.3 VS level-up pool
-  replaces the flat 12-boon list — commit TBD.** `data/vsupgrades.json`
+  replaces the flat 12-boon list — commit `16613c8`.** `data/vsupgrades.json`
   (replacing `data/boons.json`) authors all three §6.3 card families: 7 stat
   boons at rank ×5 (Attack/Attack Speed/Move/Max HP/Defense/Area/Range), one
   Type Mastery record at rank ×3 (one card per built tower type with a VS

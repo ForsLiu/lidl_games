@@ -932,7 +932,7 @@ logged in MIGRATION.md §8 rather than carried as dead items.
       offers 1 of 3 cards with 1 free reroll; stat boons (Attack, Attack Speed, Move,
       Max HP, Defense, Area, Range) at rank ×5, Type Mastery at rank ×3 (one card per
       built tower type, +20% that type's VS damage), and 3 skill cards per class at
-      rank ×2 — refs: §6.3 — commit TBD. `data/boons.json`'s flat 12-boon list is
+      rank ×2 — refs: §6.3 — commit `16613c8`. `data/boons.json`'s flat 12-boon list is
       deleted outright and replaced by `data/vsupgrades.json`'s three families;
       `content.ts`'s loader validates every class has exactly one
       `active1_potency`/`active2_cdr`/`class_line` skill card and that every skill
