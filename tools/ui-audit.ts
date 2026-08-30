@@ -352,11 +352,16 @@ async function runScenes(page: Page): Promise<SceneResult[]> {
   // 3. Mid-TD wave with the selection panel open.
   await call(page, 'startPracticeRun', { classKey: 'engineer', core: 'stone_heart', seed: 1 });
   await settle(page, 400);
-  await call(page, 'build', 1, 8, 8); // Palisade (tower id 1), a known-buildable tile (tests/act1.test.ts).
+  // Palisade (tower id 1) on a tile well within the Warden's build range of
+  // its spawn near (23, 10) (`coreCenter().x - 3`, world.ts) — b034: (8, 8)
+  // sat ~15 tiles away, so `inBuildRange` silently rejected the build every
+  // run and `selectTile` below just showed the empty-selection fallback
+  // instead of a real tower's info.
+  await call(page, 'build', 1, 21, 10);
   await settle(page, 200);
   await call(page, 'callWave');
   await settle(page, 900); // let the wave actually spawn a few enemies before the screenshot.
-  await call(page, 'selectTile', 8, 8);
+  await call(page, 'selectTile', 21, 10);
   await settle(page, 200);
   scenes.push(await captureScene(page, 'Mid-TD wave, selection panel open', 'mid-td-wave-selection'));
 

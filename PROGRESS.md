@@ -5,6 +5,45 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-30 session: b034 done — `tools/ui-audit.ts`'s "Mid-TD wave,
+  selection panel open" scene fixed to build inside the Warden's buildRange.**
+  QA found this while verifying b032: the scene called `build(1, 8, 8)`
+  without ever moving the Warden from its spawn near `(23, 10)`
+  (`coreCenter().x - 3`, `src/sim/world.ts`); `inBuildRange`
+  (`src/sim/towers.ts`) rejects anything past the base `buildRange` of 4
+  tiles (`data/towers.json`), and `(8, 8)` sat ~15 tiles away, so the build
+  silently failed every run (`checkBuild` → `'out_of_range'`, no gold spent)
+  and the scene's own `selectTile(8, 8)` just showed `#sw-towerinfo`'s
+  generic "Pick a tower below…" fallback — every audit run and every test
+  that samples that scene's screenshot had been exercising the
+  empty-selection panel, not a real selected tower, since the scene was
+  authored. Fixed by retargeting the scene's build/select tile to `(21, 10)`,
+  ~2 tiles from spawn (well inside the base range; Engineer's own passive
+  widens it further but isn't needed). New regression test
+  `tests/b034-mid-td-scene-build-range.test.ts` drives the real dev server +
+  a real headless Chromium through the real `window.__stonewakeAudit` bridge
+  and asserts `#sw-towerinfo`'s innerHTML has no fallback text and matches
+  the placed-tower `Level 1 / <n>` pattern; verified failing against the old
+  `(8, 8)` target and passing at `(21, 10)`. `npm run ui-audit` re-run
+  post-fix: the scene's DOM now shows real Palisade info. `tests/b032-tower-
+  panel-fold.test.ts` was confirmed unaffected — it only asserts build-
+  palette row positions, never `#sw-towerinfo` content. `npm run test:fast`:
+  the one failure observed across three runs was the already-documented
+  Playwright-under-load OOM/timeout flake (a different file failed each run,
+  "Worker exited unexpectedly"/heap exhaustion; both browser tests pass
+  reliably standalone) — pre-existing and host-dependent, not caused by this
+  change (matches the flake class already on file as b028/b029 and noted in
+  b033's own Done entry). code-reviewer: no Critical/Major, one Minor
+  (a comment overstated the Engineer-adjusted build range) fixed inline.
+  qa-playtester **PASS** on both acceptance criteria, and filed a new bug
+  while verifying: **b035** — `#sw-towerinfo` renders with its bottom edge at
+  ~1311px against the standard 1080px viewport once a tower is actually
+  selected in Training Grounds/practice runs (only reachable once this fix
+  makes the panel populate with real content there), fully below the fold
+  and unreadable without scrolling; `src/ui/hud.ts` already flagged this
+  panel as fold-risk at b032-era, and this fix is what surfaces it live.
+  Filed as its own backlog item with a repro and acceptance criteria.
+
 - **2026-08-30 session: fb021 done — basic-attack visual effects for all 12
   classes (owner priority queue, `feature-basic-attack-vfx`, fb016
   follow-up).** `classBasicAttack`/`updateClassSummons` (`src/sim/classes.ts`,

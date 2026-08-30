@@ -184,27 +184,40 @@ called out in their own titles instead.
       #6-#10 clipped below the fold — **done, see Done section.**
 - [x] (b033) [bug] `npm run ui-audit` found HUD text under the 4.5:1 WCAG
       floor — **done, see Done section.**
-- [ ] (b034) [bug] QA-filed while verifying b032: `tools/ui-audit.ts`'s "Mid-TD
-      wave, selection panel open" scene calls `build(1, 8, 8)` without ever
-      moving the Warden from its spawn near `(23, 10)`, and `inBuildRange`
-      (`src/sim/towers.ts`) rejects any build target beyond `buildRange` (4
-      tiles) of the Warden — tile `(8, 8)` is ~15 tiles away, so the build
-      silently fails every run (`checkBuild` returns `'out_of_range'`, gold
-      never spent) and the scene's own `selectTile(8, 8)` then shows
-      `#sw-towerinfo`'s generic "Pick a tower below..." fallback instead of a
-      real built tower's info. The scene's name and every check that samples
-      its screenshot (e.g. b033's now-stale Defeat-Results contrast numbers,
-      any future audit of `#sw-towerinfo`'s real content/contrast) have been
-      silently exercising the empty-selection panel, not a selected tower,
-      since the scene was authored — acceptance: the scene either warps the
-      Warden near the build tile first (`warp(w, tx, ty)`, the pattern
-      `tests/act1.test.ts` already uses) or targets a tile inside the
-      Warden's real starting `buildRange`; a regression test asserts
-      `#sw-towerinfo` contains real tower stats (e.g. a "Level" row or the
-      tower's cost) after the scene's `build`+`selectTile` steps, failing
-      against today's code and passing after the fix — refs: `tools/ui-audit.ts`
-      scene 3, `src/sim/towers.ts` `inBuildRange`, `src/sim/world.ts` Warden
-      spawn, QA repro during b032 verification.
+- [x] (b034) [bug] `tools/ui-audit.ts`'s "Mid-TD wave, selection panel open"
+      scene built out of the Warden's buildRange, so it silently exercised the
+      empty-selection fallback instead of a real tower — **done, see Done
+      section.**
+- [ ] (b035) [bug] QA-filed while verifying b034: in Training Grounds/practice
+      runs (the only place the audit or a player reaches a fully-populated
+      10-tower build bar), once a tower is actually selected `#sw-towerinfo`
+      renders with its bottom edge at ~1311px against the standard 1920x1080
+      viewport — the whole panel (name, description, stats, Upgrade/Sell
+      buttons) sits ~230px below the fold and is unreadable/unreachable
+      without scrolling, and `.sw-side` does not scroll. Repro: real-browser,
+      `startPracticeRun({classKey:'engineer', core:'stone_heart', seed:1})` →
+      `build(1,21,10)` → `callWave()` → `selectTile(21,10)` →
+      `#sw-towerinfo`'s `getBoundingClientRect()` is `{y:1126, bottom:1311}`;
+      `npm run ui-audit`'s "Mid-TD wave, selection panel open" scene shows 9
+      `text-contrast` failures against `#sw-towerinfo` content for the same
+      reason (the checker samples pixels that are off-canvas). Confirmed
+      specific to the practice build bar: forcing `#sw-practice.hidden = true`
+      (an ordinary, non-practice run never renders that block, per
+      `showPracticeTools`, `src/ui/hud.ts`) drops `towerinfo.bottom` to 980,
+      fully on-screen. `src/ui/hud.ts`'s own b032-era comment (lines ~90-98)
+      already flagged `#sw-towerinfo` as one of the panels that "may run past
+      the fold" as an accepted tradeoff at the time b032 landed — b034's fix
+      is what now makes that panel actually populate with real content in the
+      audited scene, surfacing the tradeoff as a live, visible bug — acceptance:
+      `#sw-towerinfo`'s bottom edge is <=1080px at the standard viewport in
+      Training Grounds after selecting a built tower (either the panel
+      reflows/scrolls or the practice build bar's footprint shrinks); a
+      regression test (real-browser, `window.__stonewakeAudit` bridge, same
+      pattern as b032/b034) pins the bound, failing pre-fix and passing
+      post-fix; `npm run ui-audit`'s "Mid-TD wave, selection panel open" scene
+      shows 0 `text-contrast`/offscreen failures against `#sw-towerinfo` — refs:
+      §11, QUALITY.md Beta bar, `src/ui/hud.ts` `showPracticeTools`/panel
+      stacking, QA repro during b034 verification.
 - [ ] (p8d) [feat] Boss termination guarantee (§9 addendum, QUESTIONS Q126/Q127):
       the Warden-Eater gains a hard escalation from 3:00 of boss-fight time —
       +10% damage and +5% move/attack speed every 30 s, stacking without cap
@@ -944,6 +957,45 @@ logged in MIGRATION.md §8 rather than carried as dead items.
 
 ## Done
 
+- [x] (b034) [bug] `tools/ui-audit.ts`'s "Mid-TD wave, selection panel open"
+      scene called `build(1, 8, 8)` without ever moving the Warden from its
+      spawn near `(23, 10)` (`coreCenter().x - 3`, `src/sim/world.ts`) —
+      `inBuildRange` (`src/sim/towers.ts`) rejects anything past the base
+      `buildRange` of 4 tiles (`data/towers.json`), and `(8, 8)` sat ~15 tiles
+      away, so `checkBuild` silently returned `'out_of_range'` every run, no
+      gold spent, and the scene's own `selectTile(8, 8)` then showed
+      `#sw-towerinfo`'s generic "Pick a tower below…" fallback instead of a
+      real built tower's info — this commit (2026-08-30), refs:
+      `tools/ui-audit.ts` scene 3, QA repro during b032 verification. Fixed by
+      retargeting the scene's build/select tile to `(21, 10)`, ~2 tiles from
+      spawn and well inside range (Engineer's own passive widens it further,
+      `+2`, but the base 4 already covers it). `tests/b034-mid-td-scene-build-
+      range.test.ts` drives the real dev server + a real headless Chromium
+      through the real `window.__stonewakeAudit` bridge (`startPracticeRun` →
+      `build` → `callWave` → `selectTile`) and asserts `#sw-towerinfo`'s
+      innerHTML has no "Pick a tower below" fallback text and matches the
+      placed-tower `Level 1 / <n>` pattern; verified failing against the old
+      `(8, 8)` target (reproduces the exact fallback string) and passing at
+      `(21, 10)`. `npm run ui-audit` re-run post-fix: the scene's DOM now
+      contains real Palisade info ("Palisade — Level 1 / 1", "Blocks path",
+      "Upgrade", "Sell (RMB)", …). `tests/b032-tower-panel-fold.test.ts` still
+      uses its own independent `(8, 8)` call but only asserts `button.sw-
+      tower` build-palette row positions, never `#sw-towerinfo` content, so it
+      was never exercising this bug and needed no change. code-reviewer:
+      no Critical/Major (approved); one Minor (a comment overstated the
+      Engineer-adjusted build range instead of the base data value), fixed
+      inline. qa-playtester: **PASS** on both acceptance criteria, confirmed
+      via a live `npm run ui-audit` run reading `#sw-towerinfo`'s real
+      innerHTML, confirmed `(21, 10)` is never pre-occupied by anything in the
+      practice-run startup path, confirmed seed 1's starting gold (250) covers
+      Palisade's cost regardless of Engineer's discount, and confirmed
+      `tests/b032-tower-panel-fold.test.ts` is genuinely unaffected. QA's own
+      verification of this fix surfaced a new, real, twice-reproduced bug —
+      filed as its own item: b035 (`#sw-towerinfo` renders below the 1080px
+      fold in Training Grounds once a tower is actually selected — this fix is
+      what first makes the audit/a player populate that panel with real
+      content there, so the pre-existing fold risk `src/ui/hud.ts` already
+      flagged for it becomes a live, visible bug).
 - [x] (fb021) [feat] basic-attack visual effects for all 12 classes — commit
       `be6985a` (2026-08-30), refs: SPEC-FINAL §11, owner feedback
       `feature-basic-attack-vfx` (fb016 follow-up). `class_basic` was already
