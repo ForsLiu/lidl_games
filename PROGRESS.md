@@ -5,6 +5,49 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-30 session: p7g done — `migrate()` no longer discards the whole
+  account on a corrupt array field — commit `9642101`.**
+  Re-measured before touching anything, per CLAUDE.md's "a deferral is a
+  measurement with an expiry date": the item's literal repro
+  (`deserializeMeta('{"version":1,"meta":{"stash":"nope"}}')`) no longer
+  throws — `stash` was renamed/reshaped to the `Record<string, number>`-typed
+  `equipmentStash` back in p7d and already gained a type guard then. A first
+  pass landed only a regression test pinning that. code-reviewer's pass on it
+  caught that the same failure class was still live on three sibling fields
+  in `migrateWithNotice` (`src/meta/meta.ts`): `allocated`, `unlockedClasses`
+  and `completedQuests` used bare array spread (`[...(meta.X ?? base.X)]`),
+  which throws `TypeError: ... is not iterable` for any non-nullish
+  non-iterable value (a number, boolean, or plain object) — propagating out
+  of `migrate()` into `loadMeta`'s outer catch and discarding the *entire*
+  account, exactly p7g's bug, just relocated. Fixed with the same
+  `Array.isArray` guard `unlockedCores` already had; `questProgress` got the
+  matching object-typeof guard `equipmentStash` has (it laundered a
+  string/array into junk numeric keys via object spread rather than
+  throwing — same bug class, quieter symptom). This closed a pre-existing,
+  already-`it.skip`-ped regression test in `tests/q3-save-fuzz.test.ts` — `D1:
+  an array field of the wrong type falls back to its default, not the whole
+  account` — filed and known-failing in an earlier session's confirmed-defect
+  log, exactly the shape CLAUDE.md rule 3 asks for; now un-skipped and green,
+  with that file's `KNOWN_REJECTED` (9→0) and `KNOWN_COERCED` (5→1) fuzz-pin
+  lists re-measured and lowered with the same "the hole this closes was
+  inflating those counts" reasoning p7f used for its own pins, not drift.
+  `tests/meta.test.ts` gained three regression tests, proven (via `git
+  stash`) to fail on the pre-fix code with the exact `TypeError` described.
+  `highestTier` stays deliberately unguarded, unchanged — the pre-existing,
+  separately-tracked `b012` exception. code-reviewer: two passes (first
+  caught the still-open sibling-field bug; second APPROVE, no Critical/
+  Major — one Minor noted as pre-existing and out of scope: the
+  `Array.isArray` guards check container type only, not element type, e.g.
+  `unlockedClasses: [1, 2]` still passes through unrepaired, a gap the old
+  code always had too). qa-playtester: **PASS** — independently ran a
+  50k-trial `tools/fuzz-save.ts` soak (0 crashes, 0 laundered fields outside
+  the known `highestTier` exception), hand-crafted hostile inputs (every
+  wrong-type shape, `__proto__`-keyed objects, deeply nested junk) across all
+  nine now-guarded `MetaState` fields, and confirmed populated sibling fields
+  survive corruption of any one field. `npx tsc --noEmit` clean; `npm run
+  test:fast`: 1589 passed, the same 4 pre-existing Playwright fold-test
+  flakes (b032/b034/b035/b036) reconfirmed passing standalone (port
+  contention under full concurrent load, unrelated to this change).
 - **2026-08-30 session: p7f done — `migrate()` no longer lets an unknown save
   key survive forever — commit `b5cc75a`.**
   `migrateWithNotice` (`src/meta/meta.ts`) used to build its output as

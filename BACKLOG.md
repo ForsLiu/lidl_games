@@ -35,7 +35,7 @@ still in test headers.
 | P4 core math | **done** — multiplicative stacking, armor cap +99 / floor −100, 6 damage types + 2 statuses (G4, G5 green) |
 | P5 tower roster | **done in full (p5a-p5d, G20 green)** — all 10 towers, upgrade tracks, defense bands; `p5b` gave Ember Brazier/Mortar their own `costMul`; `p5c` authored the four remaining §5.2 milestone specials (Ballista, Fire Brazier, Ice Obelisk, Mortar) and the G20 loader rule; `p5d` fixed the QA-filed `damageDealt` telemetry bug on pierce/lob-kind towers |
 | P6 classes | **done in full (`p6a`-`p6f`)** — §4's Passive + Q + E + tower passive is live for all 12 classes; **gate G9 is green in full**, and `p6d` measured **G10 and G11 green** (Archer's dps-optimal charge peaks at t=5.0 inside [2,6], full charge one-shots the toughest non-elite; Stormcaller's max chain multiplier is 3.5832 ≤ 3.6); `p6e` measured **G8 honestly red**; re-measured in full against p8a's real content this session (Q123, Q127) — **win rate is 0/11** (was 1/11; Cryomancer's own pre-p8a pass no longer clears the floor), diversity 2/11 not ≥8/11, both clauses `.skip`-ed per-class with real measured numbers, re-enable point **P10** (not `p8a` — already landed and re-measured); `p6f` retired the V2 legacy dual class schema (`affinity.json`, `manualAttack`, `frost_warden`) — `data/classes.json` now holds 12 classes, all in the uniform §4 shape |
-| P7 equipment/rewards/VS upgrades | **`p7a`-`p7e` done** — §6.3's VS level-up pool replaces the flat 12-boon list (closing b011 as a side effect); §7's 12-item equipment table is live; §8's reward pipeline is complete and **gate G12 is green in full**; the superseded meta economy (relic affixes, Ember) is retired outright, skill points are the tree's only currency; §8.4's unlock quests are live and correct for all 9 non-free classes (p7e fixed 5 quests whose reward never actually unlocked their class, and repointed Paladin's quest at a new "win with a sealed Core" mechanism matching spec text). Remaining: `p7f`/`p7g` (save-migration bugs), `p7h` (Core unlock quests + Codex page) |
+| P7 equipment/rewards/VS upgrades | **`p7a`-`p7g` done** — §6.3's VS level-up pool replaces the flat 12-boon list (closing b011 as a side effect); §7's 12-item equipment table is live; §8's reward pipeline is complete and **gate G12 is green in full**; the superseded meta economy (relic affixes, Ember) is retired outright, skill points are the tree's only currency; §8.4's unlock quests are live and correct for all 9 non-free classes (p7e fixed 5 quests whose reward never actually unlocked their class, and repointed Paladin's quest at a new "win with a sealed Core" mechanism matching spec text); `p7f`/`p7g` closed the save-migration holes `migrateWithNotice` had — an unknown key, and a corrupt `allocated`/`unlockedClasses`/`completedQuests`/`equipmentStash`/`questProgress`, can no longer discard or corrupt the account. Remaining: `p7h` (Core unlock quests + Codex page) |
 | P8 enemies/waves/bosses | **roster, both bosses and real wave data done (`p8a`)** — all 20 §9 enemies by name; `data/waves.json` authors real TD waves 1-18 on the §1.1 shape (Gatebreaker on 18 only, Warden-Eater on VS 6), the §9 VS-budget curve is live; `p8b`/`p8c` (alive-cap overshoot, gate G14) remain |
 | P9 tooling | **dev mode, god mode, UX flows done; Codex read-half in flight on `lane/tuner`; Tuner unbuilt** (G15 unmet, G16/G18 largely green) |
 | P10 balance | **not started** — Burning still refresh-strongest, perf budget still host-dependent wall-clock |
@@ -401,13 +401,8 @@ literally. `content.ts`'s loader now refuses any non-free class whose
 taken in the same commit).
 - [x] (p7f) [bug] `migrate()` preserves unknown save keys forever — **done, see
       Done section.**
-- [ ] (p7g) [bug] A save whose `stash` alone is corrupt loses the whole account:
-      `deserializeMeta('{"version":1,"meta":{"stash":"nope"}}')` throws in
-      `migrate()`, `loadMeta` catches it and returns a brand-new account, discarding
-      account level, unlocks and quests — acceptance: a malformed `stash` (non-array,
-      or an array containing null) coerces to `[]` and every other field survives;
-      `tests/meta.test.ts`'s corrupt-save case is extended past `'{}'` — refs: §11,
-      QA on t6c bug 4
+- [x] (p7g) [bug] A save whose `stash` alone is corrupt loses the whole account —
+      **done, see Done section.**
 - [ ] (p7h) [feat] Core unlock quests and Codex page, split out of `p-core-f`
       by Q116 because the real §8.4 quest engine this needs doesn't exist yet:
       the four §5.5 unlock lines (Stone Heart is `unlockedByDefault`; the
@@ -979,6 +974,54 @@ logged in MIGRATION.md §8 rather than carried as dead items.
       bug this item fixes (planting a junk key at the root of `meta` and having it
       round-trip), so closing the bug correctly reduced how often those mutations
       are still observable.
+- [x] (p7g) [bug] A save whose `stash` alone is corrupt loses the whole account —
+      acceptance: a malformed `stash` (non-array, or an array containing null)
+      coerces to `[]` and every other field survives; `tests/meta.test.ts`'s
+      corrupt-save case is extended past `'{}'` — refs: §11, QA on t6c bug 4 —
+      commit `9642101`. Re-measured before touching anything (CLAUDE.md's "a
+      deferral is a measurement with an expiry date"): the literal repro no
+      longer throws — `stash` was renamed/reshaped to the `Record<string,
+      number>`-typed `equipmentStash` back in p7d and already gained a type
+      guard then. But a code-reviewer pass on the first (test-only) attempt
+      caught that the same failure class was still live on three sibling
+      fields in `migrateWithNotice` (`src/meta/meta.ts`): `allocated`,
+      `unlockedClasses` and `completedQuests` used bare array spread
+      (`[...(meta.X ?? base.X)]`), which throws `TypeError: ... is not
+      iterable` for any non-nullish non-iterable value (a number, boolean, or
+      plain object) — propagating out of `migrate()` into `loadMeta`'s outer
+      catch and discarding the *entire* account, the exact bug p7g named, just
+      relocated. Fixed with the same `Array.isArray` guard `unlockedCores`
+      already had; `questProgress` got the matching object-typeof guard
+      `equipmentStash` has (it laundered a string/array into junk numeric keys
+      via object spread rather than throwing — same bug class, different
+      symptom). This closed a pre-existing, already-`it.skip`-ped regression
+      test in `tests/q3-save-fuzz.test.ts` — `D1: an array field of the wrong
+      type falls back to its default, not the whole account` (filed in an
+      earlier session's confirmed-defect log, written and known-failing
+      before this fix, exactly the CLAUDE.md rule-3 shape) — now un-skipped
+      and green, with that file's `KNOWN_REJECTED` (9→0) and `KNOWN_COERCED`
+      (5→1) fuzz-pin lists re-measured and lowered with the same "the hole
+      this closes was making those counts non-zero" reasoning p7f used, not
+      drift. `tests/meta.test.ts` gained three regression tests: the
+      equipmentStash/questProgress object-guard cases, the newly-guarded
+      array fields with values proven (via `git stash`) to throw pre-fix, and
+      a case confirming sibling fields (skillPoints, highestTier,
+      unlockedClasses) survive corruption of an unrelated field. `highestTier`
+      stays deliberately unguarded, unchanged — the pre-existing, separately-
+      tracked b012 exception. code-reviewer: two passes (first caught the
+      still-open sibling-field bug; second APPROVE, no Critical/Major — one
+      Minor noted as pre-existing and out of scope: the `Array.isArray`
+      guards check container type only, not element type, e.g.
+      `unlockedClasses: [1, 2]` still passes through unrepaired, the same gap
+      the old code always had). qa-playtester: **PASS** — independently ran a
+      50k-trial `tools/fuzz-save.ts` soak (0 crashes, 0 laundered fields
+      outside the known `highestTier` exception), hand-crafted hostile inputs
+      (every wrong-type shape, `__proto__`-keyed objects, deeply nested junk)
+      across all nine now-guarded `MetaState` fields, and confirmed populated
+      sibling fields survive corruption of any one field. `npx tsc --noEmit`
+      clean; `npm run test:fast`: 1589 passed, the same 4 pre-existing
+      Playwright fold-test flakes (b032/b034/b035/b036) reconfirmed passing
+      standalone.
 - [x] (p7e) [feat] Unlock quests per §8.4: every non-free class has exactly one
       working unlock quest; no quest grants currency — acceptance: every
       non-free class has exactly one unlock quest; a test drives one quest of
