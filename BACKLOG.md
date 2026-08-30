@@ -939,7 +939,7 @@ logged in MIGRATION.md §8 rather than carried as dead items.
 
 - [x] (fb023) [feat] Remove the legacy relic UI and the separate stash window;
       equipment lives in one screen (SPEC-FINAL §7, §11, owner feedback
-      `feature-remove-stash-relics`) — commit pending. **Sim**: replaced the
+      `feature-remove-stash-relics`) — commit `d30fa75`. **Sim**: replaced the
       dead, never-wired `{k:'equip', relic}` Command (BACKLOG b015's own
       subject — closed as a side effect) with a real `{k:'equip_item', slot,
       item}` that swaps an owned item into a slot mid-run

@@ -7,7 +7,7 @@
 
 - **2026-08-30 session: fb023 done — the legacy relic UI and separate stash
   window are gone; equipment lives in one screen (§7, §11, owner feedback
-  `feature-remove-stash-relics`) — commit pending.** The Hub's `stash` tab is
+  `feature-remove-stash-relics`) — commit `d30fa75`.** The Hub's `stash` tab is
   now `equipment`: the relic Stash panel (3-slot box, owned-relic grid with
   rarity/compare/discard, drag-and-drop) and its helper functions are deleted
   outright, and fb015's six-slot Equipment panel + owned-items grid is the one
