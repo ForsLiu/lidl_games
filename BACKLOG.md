@@ -35,7 +35,7 @@ still in test headers.
 | P4 core math | **done** — multiplicative stacking, armor cap +99 / floor −100, 6 damage types + 2 statuses (G4, G5 green) |
 | P5 tower roster | **done in full (p5a-p5d, G20 green)** — all 10 towers, upgrade tracks, defense bands; `p5b` gave Ember Brazier/Mortar their own `costMul`; `p5c` authored the four remaining §5.2 milestone specials (Ballista, Fire Brazier, Ice Obelisk, Mortar) and the G20 loader rule; `p5d` fixed the QA-filed `damageDealt` telemetry bug on pierce/lob-kind towers |
 | P6 classes | **done in full (`p6a`-`p6f`)** — §4's Passive + Q + E + tower passive is live for all 12 classes; **gate G9 is green in full**, and `p6d` measured **G10 and G11 green** (Archer's dps-optimal charge peaks at t=5.0 inside [2,6], full charge one-shots the toughest non-elite; Stormcaller's max chain multiplier is 3.5832 ≤ 3.6); `p6e` measured **G8 honestly red**; re-measured in full against p8a's real content this session (Q123, Q127) — **win rate is 0/11** (was 1/11; Cryomancer's own pre-p8a pass no longer clears the floor), diversity 2/11 not ≥8/11, both clauses `.skip`-ed per-class with real measured numbers, re-enable point **P10** (not `p8a` — already landed and re-measured); `p6f` retired the V2 legacy dual class schema (`affinity.json`, `manualAttack`, `frost_warden`) — `data/classes.json` now holds 12 classes, all in the uniform §4 shape |
-| P7 equipment/rewards/VS upgrades | **`p7a`/`p7b` done** — §6.3's VS level-up pool (7 stat boons rank ×5, Type Mastery rank ×3, 3 skill cards per class rank ×2) replaces the flat 12-boon list, closing BACKLOG b011 as a side effect; §7's 12-item equipment table (found already built by fb015, now with full per-column data-test coverage) is live — superseded systems (relic affixes, Ember) still in place; §8's reward pipeline remains unbuilt (G12 still unmet) |
+| P7 equipment/rewards/VS upgrades | **`p7a`-`p7e` done** — §6.3's VS level-up pool replaces the flat 12-boon list (closing b011 as a side effect); §7's 12-item equipment table is live; §8's reward pipeline is complete and **gate G12 is green in full**; the superseded meta economy (relic affixes, Ember) is retired outright, skill points are the tree's only currency; §8.4's unlock quests are live and correct for all 9 non-free classes (p7e fixed 5 quests whose reward never actually unlocked their class, and repointed Paladin's quest at a new "win with a sealed Core" mechanism matching spec text). Remaining: `p7f`/`p7g` (save-migration bugs), `p7h` (Core unlock quests + Codex page) |
 | P8 enemies/waves/bosses | **roster, both bosses and real wave data done (`p8a`)** — all 20 §9 enemies by name; `data/waves.json` authors real TD waves 1-18 on the §1.1 shape (Gatebreaker on 18 only, Warden-Eater on VS 6), the §9 VS-budget curve is live; `p8b`/`p8c` (alive-cap overshoot, gate G14) remain |
 | P9 tooling | **dev mode, god mode, UX flows done; Codex read-half in flight on `lane/tuner`; Tuner unbuilt** (G15 unmet, G16/G18 largely green) |
 | P10 balance | **not started** — Burning still refresh-strongest, perf budget still host-dependent wall-clock |
@@ -387,12 +387,18 @@ smalls, the Tinkerer and Gilded Path notables) and the `modRewardBonus` stat
 lost their only consumer and are left inert rather than guessed at — QUESTIONS
 Q146, flagged for the P10 balance/content pass rather than risking gates
 G1/G14/G6 with an unswept buff.
-- [ ] (p7e) [feat] Unlock quests per §8.4: 8–12 quests in `data/quests.json` awarding
-      unlocks only, never currency, covering the §4.2 classes (win a run → Pyro;
-      build 40 ice obelisks lifetime → Cryomancer; win with a sealed Core → Paladin)
-      — acceptance: every non-free class has exactly one unlock quest; a test drives
-      one quest of each trigger family to completion; no quest grants currency —
-      refs: §8.4, §4.2
+**`p7e` is done** — see the Done section. The quest engine (`data/quests.json`,
+`data/classes.json`'s `unlockQuest`) already existed, but 5 of 9 non-free
+classes' named quests rewarded a `feature`/`cosmetic`/`passive` instead of the
+class itself — a silent dead end, since the reward never actually unlocked
+anything. Fixed by repointing each broken quest's reward at the class it was
+supposed to unlock, and by replacing Paladin's quest (which named "win a Tier
+5 map," contradicting §8.4's own worked example) with a new `sealed_win`
+quest/`World.everSealed` latch matching "win with a sealed Core → Paladin"
+literally. `content.ts`'s loader now refuses any non-free class whose
+`unlockQuest` doesn't resolve to a real class-rewarding quest (CLAUDE.md's
+"a loader rule is worth more than a comment" — a code-reviewer suggestion
+taken in the same commit).
 - [ ] (p7f) [bug] `migrate()` preserves unknown save keys forever: it spreads
       `...meta` wholesale, so any key a save carries survives every round trip as a
       fixed point. A non-object `meta` is worse — `{"meta":"orbs"}` string-spreads
@@ -941,6 +947,73 @@ logged in MIGRATION.md §8 rather than carried as dead items.
 
 ## Done
 
+- [x] (p7e) [feat] Unlock quests per §8.4: every non-free class has exactly one
+      working unlock quest; no quest grants currency — acceptance: every
+      non-free class has exactly one unlock quest; a test drives one quest of
+      each trigger family to completion; no quest grants currency — refs:
+      §8.4, §4.2 — commit `3e71d10`. The quest engine
+      (`data/quests.json`, `data/classes.json`'s `unlockQuest`,
+      `src/meta/meta.ts`'s `metricsFor`/`applyRunResult`) was already fully
+      built by an earlier session, but never end-to-end tested: 5 of 9
+      non-free classes (necromancer, stormcaller, bloodlord, animist,
+      paladin) had their `unlockQuest` pointing at a real, completable quest
+      whose `reward.kind` was `feature`/`cosmetic`/`passive` instead of
+      `class` — completing it logged a `completedQuests` entry and did
+      nothing else, so those 5 classes were permanently unobtainable outside
+      the dev profile. Fixed by repointing `four_slot_win`/`hoarder`/
+      `fast_boss`/`archivist`'s rewards at the class each was already
+      supposed to unlock. Paladin's own quest text ("win a Tier 5 map")
+      additionally contradicted SPEC-FINAL §8.4's own worked example ("win
+      with a sealed Core → Paladin") — replaced by a new `sealed_win` quest
+      (metric `wins_sealed`) backed by a new `World.everSealed` latch
+      (`src/sim/world.ts`/`run.ts`): sampled every 120 ticks during Act I,
+      the same guarded cadence `tests/p1b-seal-winrate.test.ts`'s own
+      external diagnostic already uses, so the cost this adds to every real
+      run is the same shape already perf-validated there — never re-checked
+      once latched, never hashed (a pure readback flag like
+      `equipmentFound`/`vsWavesCleared`, not sim state that gates future
+      behaviour). `RunReport.sealed` carries it into `metricsFor`'s new
+      `wins_sealed` metric (`won && report.sealed`, cumulative like `wins`).
+      `content.ts`'s `loadContent()` gained a referential-integrity rule
+      (code-reviewer's one suggestion, taken in this commit, per CLAUDE.md's
+      "a loader rule is worth more than a comment"): a non-free class's
+      `unlockQuest` must resolve to a quest whose `reward` is exactly
+      `{kind:'class', value:<that class's own key>}`, or the loader throws —
+      closing the exact class of bug this item found so a future class added
+      straight to `/data` can't silently reintroduce it. `tests/
+      p7e-quests.test.ts` (17 tests) covers: a static sweep of every
+      class/quest/reward triple; the 8-12 quest-count band; a "no currency
+      reward" check; one quest of each trigger family (cumulative win
+      counter, multi-win threshold, cumulative lifetime counter, cumulative
+      gold sum, running-best/min, a per-run boolean derived from the report,
+      the new sealed-run boolean, and an account-state-derived metric) driven
+      end-to-end through `applyRunResult`; a real-sim regression proving
+      `World.everSealed`/`report.sealed` actually latch via the `sealed` bot
+      policy and never falsely latch on an open `maxbuild` board; and a
+      `metricsFor` unit check. `tests/q7-loader-holes.ts` (the generated
+      loader-fuzz artefact) and one hardcoded expectation in
+      `tests/q7-data-fuzz.test.ts` regenerated/updated for the ten ACCEPTED
+      holes the new loader rule closes and the three `quests.quests[].*`
+      fields that newly appear `partial` in REF_VERDICTS (`maze_master` is a
+      standalone achievement with no class to check it against). Existing
+      `RunReport` literals in `tests/meta.test.ts`/`tests/
+      p7c-reward-pipeline.test.ts`/`tests/fb015-equipment.test.ts` got a
+      `sealed: false` default. code-reviewer: APPROVE, no Critical/Major (the
+      loader-rule suggestion above taken; one Minor noted and accepted as-is
+      — the "no currency reward" test guards against a currency-named
+      `reward.kind` string but couldn't catch a hypothetical future
+      `passive`/`feature` handler that granted currency under the hood,
+      which doesn't exist today). qa-playtester **PASS**: independently
+      re-verified all 9 class/quest/reward triples by hand, traced
+      `World.everSealed`'s single write site and confirmed it cannot
+      un-latch or falsely trigger, confirmed the practice-run early-return
+      in `applyRunResult` blocks quest progress on a practice run regardless
+      of `sealed`, confirmed `hub.ts`'s only other `unlockQuest` consumer
+      (a display-only tooltip lookup) still resolves correctly for the
+      repointed classes, and ran the full targeted suite plus
+      `npm run test:fast` (1583 passed, the same 4 pre-existing Playwright
+      fold-test flakes b032/b034/b035/b036, reconfirmed passing standalone) —
+      no bugs filed.
 - [x] (p7d) [feat] Retire the superseded meta economy: relic affixes/rarities and
       the Ember→account-level pipeline — acceptance: no Ember or relic affix in
       sim, meta or UI; a save written before the change migrates with its Ember

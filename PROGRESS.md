@@ -5,6 +5,40 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-30 session: p7e done — §8.4's unlock quests now actually work for
+  all 9 non-free classes — commit `3e71d10`.**
+  The quest engine (`data/quests.json`, `data/classes.json`'s `unlockQuest`,
+  `src/meta/meta.ts`) was already fully built by an earlier session but never
+  end-to-end verified: 5 of 9 non-free classes' named quests rewarded a
+  `feature`/`cosmetic`/`passive` instead of the class they were displayed as
+  unlocking, so completing them did nothing — those 5 classes (necromancer,
+  stormcaller, bloodlord, animist, paladin) were permanently unobtainable
+  outside the dev profile. Fixed by repointing each broken quest's `reward`
+  at the right class. Paladin's quest also literally contradicted
+  SPEC-FINAL's own worked example ("win a Tier 5 map" vs. §8.4's "win with a
+  sealed Core → Paladin") — replaced with a new `sealed_win` quest backed by
+  a new `World.everSealed` latch (`src/sim/world.ts`/`run.ts`), sampled every
+  120 ticks during Act I at the same cadence `tests/p1b-seal-winrate.test.ts`
+  already perf-validates, carried into `RunReport.sealed` and a new
+  `wins_sealed` quest metric. `content.ts`'s `loadContent()` gained a
+  referential-integrity rule (a code-reviewer suggestion taken in the same
+  commit) that throws if any non-free class's `unlockQuest` doesn't resolve
+  to a quest that actually rewards that exact class — closing the whole bug
+  class at the loader, not just at one test. `tests/p7e-quests.test.ts` (17
+  tests) covers the static class/quest/reward wiring, the 8-12 quest count,
+  a "no currency reward" check, one quest of each trigger family driven
+  end-to-end, and a real-sim regression proving the sealed latch fires on a
+  genuinely sealed board and never on an open one. `tests/q7-loader-holes.ts`
+  (the loader-fuzz artefact) regenerated for the ten holes the new loader
+  rule closes; one hardcoded expectation in `tests/q7-data-fuzz.test.ts`
+  updated for the three `quests.quests[].*` fields that newly read `partial`
+  (`maze_master` has no class to cross-check it against). code-reviewer:
+  APPROVE, no Critical/Major. qa-playtester: **PASS**, independently
+  re-verified every class/quest/reward triple by hand and found no bugs.
+  `npx tsc --noEmit` clean; `npm run test:fast`: 1583 passed, the same 4
+  pre-existing Playwright fold-test flakes (b032/b034/b035/b036) reconfirmed
+  passing standalone.
+
 - **2026-08-30 session: p7d done — the superseded meta economy is retired in
   full — commit `09eac64`.**
   Relic affixes/rarities (`data/relics.json`, `src/sim/loot.ts`) and the
