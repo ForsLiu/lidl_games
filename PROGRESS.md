@@ -6,7 +6,7 @@
 ## Current state — SPEC-FINAL
 
 - **2026-08-30 session: p10b done — DoT immunity is a per-row `/data` trait,
-  not a hardcoded engine check.** `immuneToDot` used to test `type ===
+  not a hardcoded engine check — commit `28934c2`.** `immuneToDot` used to test `type ===
   'burning' && (e.flags & TRAIT.burnImmune)` directly, so a second immune
   taxonomy row would have needed an engine edit, against CLAUDE.md's rule that
   new mechanics are data shapes. `src/sim/content.ts`'s `DamageTypeSchema`

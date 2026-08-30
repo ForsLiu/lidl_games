@@ -1032,7 +1032,7 @@ logged in MIGRATION.md §8 rather than carried as dead items.
       byte-for-byte unchanged — confirmed the acceptance criteria met, no bugs
       filed. `npm run test:fast`: 1674 passed; only the same documented
       host-load-contention flakes (`b032`/`b034`/`b035`/`b036`) red, reconfirmed
-      pre-existing on unmodified `master`.
+      pre-existing on unmodified `master`. Commit `28934c2`.
 - [x] (p9h) [polish] The enemy panel prints raw shredded armour: past the −100 floor
       a horde-density Brazier board reads "−294 (100% more taken)", honest about the
       percentage and misleading about the number — acceptance: the panel shows the
