@@ -5,6 +5,41 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-30 session: p9a done — `RunConfig` carries a content hash, and a
+  replay against edited `/data` now fails loudly — commit `3129237`.**
+  CLAUDE.md's architecture rule 2 promised this and had zero implementation
+  (BACKLOG-QUALITY q18 pinned the gap with a live, `it.skip`'d repro:
+  `tests/q18-content-hash-replay.test.ts`). New `contentHash()`
+  (`src/sim/content.ts`) hashes the live field values of every
+  `/data`-sourced file on `Content` through the existing `Hasher`,
+  deliberately *not* cached at load time — an in-place edit to already-loaded
+  content (standing in for a re-authored JSON file, or a future Tuner write)
+  changes the hash exactly when it changes what a run would play out as.
+  `RunConfig` gains an optional `contentHash`; `World`'s constructor computes
+  the live hash and either throws (a config already carrying a hash that
+  disagrees with it) or stamps it onto the caller's own config object in
+  place, the one deliberate exception to "never touch the caller's shared
+  RunConfig" in the same constructor — the stamp *is* what recording means,
+  so the object a caller persists as a `RecordedRun.config` already carries
+  what it was played against. `hashWorld` folds `w.cfg.contentHash` into the
+  end-state hash (G2's "content hash in the end-state hash inputs" half);
+  `replayRecorded` forwards the recorded hash so its existing Core-mismatch
+  check gets a general sibling for free. `tests/q18-content-hash-replay.
+  test.ts`'s repro is unskipped and green; `tools/gate-audit.ts`'s G2 note
+  updated to say so. `npm run test:fast`: 1614 passed, 30 skipped, the same 4
+  pre-existing Playwright fold-test port-contention flakes (confirmed
+  identical pass/fail with and without this diff, run in isolation).
+  code-reviewer **APPROVE**, no Critical/Major findings — one Minor: `main.ts`
+  `lastCfg` (reused across Retry/New Run) will need attention once p9c's
+  Tuner makes a live `/data` edit possible mid-session; a comment on the
+  field flags it for that item. qa-playtester independently confirmed the
+  acceptance line (a cosmetic `desc`-only edit changes the hash too; unedited
+  replays never spuriously throw) and found two real, dormant gaps in the
+  mechanism — a `RecordedRun` whose `config.contentHash` was never actually
+  stamped bypasses the check entirely (no `/src` path builds one that way
+  today), and `tests/helpers.ts`'s `runWithPolicy` spreads into `new Run`
+  rather than mutating its caller's config in place, so it never stamps the
+  hash back at all. Filed as **b039**.
 - **2026-08-30 session: p8b done — elite and boss-summon spawns can no longer
   push `w.enemies` past `aliveCap` — commit `81b5b4e`.** `spendBudget`
   (`src/sim/act2.ts`) already refused to spawn once `w.enemies.length >=

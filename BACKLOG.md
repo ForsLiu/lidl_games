@@ -37,7 +37,7 @@ still in test headers.
 | P6 classes | **done in full (`p6a`-`p6f`)** — §4's Passive + Q + E + tower passive is live for all 12 classes; **gate G9 is green in full**, and `p6d` measured **G10 and G11 green** (Archer's dps-optimal charge peaks at t=5.0 inside [2,6], full charge one-shots the toughest non-elite; Stormcaller's max chain multiplier is 3.5832 ≤ 3.6); `p6e` measured **G8 honestly red**; re-measured in full against p8a's real content this session (Q123, Q127) — **win rate is 0/11** (was 1/11; Cryomancer's own pre-p8a pass no longer clears the floor), diversity 2/11 not ≥8/11, both clauses `.skip`-ed per-class with real measured numbers, re-enable point **P10** (not `p8a` — already landed and re-measured); `p6f` retired the V2 legacy dual class schema (`affinity.json`, `manualAttack`, `frost_warden`) — `data/classes.json` now holds 12 classes, all in the uniform §4 shape |
 | P7 equipment/rewards/VS upgrades | **`p7a`-`p7g` done** — §6.3's VS level-up pool replaces the flat 12-boon list (closing b011 as a side effect); §7's 12-item equipment table is live; §8's reward pipeline is complete and **gate G12 is green in full**; the superseded meta economy (relic affixes, Ember) is retired outright, skill points are the tree's only currency; §8.4's unlock quests are live and correct for all 9 non-free classes (p7e fixed 5 quests whose reward never actually unlocked their class, and repointed Paladin's quest at a new "win with a sealed Core" mechanism matching spec text); `p7f`/`p7g` closed the save-migration holes `migrateWithNotice` had — an unknown key, and a corrupt `allocated`/`unlockedClasses`/`completedQuests`/`equipmentStash`/`questProgress`, can no longer discard or corrupt the account. Remaining: `p7h` (Core unlock quests + Codex page) |
 | P8 enemies/waves/bosses | **roster, both bosses, real wave data and the alive-cap overshoot fix done (`p8a`, `p8b`)** — all 20 §9 enemies by name; `data/waves.json` authors real TD waves 1-18 on the §1.1 shape (Gatebreaker on 18 only, Warden-Eater on VS 6), the §9 VS-budget curve is live; `p8b` closed the elite/boss-summon spawn paths that bypassed `spendBudget`'s `aliveCap` check; `p8c` (gate G14's win-rate band) remains |
-| P9 tooling | **dev mode, god mode, UX flows done; Codex read-half in flight on `lane/tuner`; Tuner unbuilt** (G15 unmet, G16/G18 largely green) |
+| P9 tooling | **dev mode, god mode, UX flows, `p9a`'s content-hash replay check done; Codex read-half in flight on `lane/tuner`; Tuner unbuilt** (G15 unmet, G16/G18 largely green) |
 | P10 balance | **not started** — Burning still refresh-strongest, perf budget still host-dependent wall-clock |
 
 ## Queue
@@ -446,10 +446,6 @@ next in P8's own queue.
 
 ### P9 — tooling: dev mode, Codex and Tuner, UX flows (G15, G16, G18)
 
-- [ ] (p9a) [feat] Content hash in `RunConfig` and in the end-state hash inputs, so a
-      replay against edited `/data` fails loudly — acceptance: editing any `/data`
-      value changes the config hash, and a replay carrying a mismatched hash is
-      rejected — refs: §11, §12, Q45 (**do this before p9b**)
 - [ ] (p9b) [feat] Codex: a Hub page listing every class, tower, equipment, damage
       type, enemy and wave with live stats read from `/data` and its zod schemas —
       acceptance: every content collection renders and a field added to a schema
@@ -886,6 +882,27 @@ because the lane worktree retires at this merge.
       synchronously by the same callback) rather than off ticked sim state —
       refs: fb003, fb012, `src/ui/main.ts` `onToggleAutoPick`/`setShowRanges`,
       code-reviewer + qa-playtester findings on fb012 (2026-08-29).
+- [ ] (b039) [bug] p9a's content-hash mismatch check only fires when
+      `RunConfig.contentHash` is already set (`World`'s constructor,
+      `src/sim/world.ts`) — a `RecordedRun` whose config never actually passed
+      through `World`/`Run` (e.g. a hand-built replay file, or one round-
+      tripped through a JSON serializer that drops `undefined` fields) carries
+      no hash at all and silently replays against edited `/data` with no
+      error, the exact failure architecture rule 2 exists to prevent.
+      `tests/helpers.ts`'s `runWithPolicy` compounds this: unlike `replay()`
+      and `main.ts`'s `startRun`, it calls `new Run({ ...config, policy })` —
+      a spread, not the same object — so it never stamps the hash back onto
+      the caller's config at all, meaning any `RecordedRun` built from a bot-
+      driven run inherits the same silent gap. Found by qa-playtester
+      verifying p9a (2026-08-30), reproduced twice; dormant today since
+      nothing in `/src` currently builds a `RecordedRun` through either path
+      — acceptance: a `RecordedRun` with `config.contentHash` left `undefined`
+      also rejects a replay against edited `/data` (design choice: either
+      `replayRecorded` requires a hash to be present, or treats "absent" as
+      "must match a freshly-computed hash of what `/data` looked like when
+      `inputLog` began" — log the choice in QUESTIONS.md); `runWithPolicy`
+      stamps the hash back onto its caller's config the same way `replay()`
+      already does — refs: p9a, CLAUDE.md architecture rule 2.
 - [x] (b037) [bug] The relic loot pipeline stayed fully live after fb023
       deleted every UI path that could equip or discard a relic — **closed by
       p7d, see the Done section.** `src/sim/loot.ts` (`dropRelic`,
@@ -923,6 +940,43 @@ logged in MIGRATION.md §8 rather than carried as dead items.
   **G19**. The work is `p10d`.
 
 ## Done
+
+- [x] (p9a) [feat] Content hash in `RunConfig` and in the end-state hash
+      inputs, so a replay against edited `/data` fails loudly — acceptance:
+      editing any `/data` value changes the config hash, and a replay
+      carrying a mismatched hash is rejected — refs: §11, §12, Q45 — commit
+      `3129237`. `contentHash()` (`src/sim/content.ts`) hashes the live field
+      values of every `/data`-sourced file on `Content` via the existing
+      `Hasher`, deliberately uncached so an in-place edit (a re-authored JSON
+      file, or a future Tuner write) changes it. `RunConfig` gains an
+      optional `contentHash`; `World`'s constructor computes the live hash
+      and either throws (a config already carrying a hash that disagrees) or
+      stamps it onto the caller's own config object in place the first time
+      it's used — a deliberate exception to the "never touch the caller's
+      shared RunConfig" rule right below it in the same constructor, since
+      this stamp *is* what "recording" means: the object a caller then
+      persists as a `RecordedRun.config` already carries what it was played
+      against. `hashWorld` folds `w.cfg.contentHash` into the end-state hash;
+      `replayRecorded` forwards `recorded.config.contentHash` so the same
+      general check covers it (its pre-existing Core-specific mismatch check,
+      with its own specific error message a test regexes, is untouched).
+      `tests/q18-content-hash-replay.test.ts` (BACKLOG-QUALITY q18's live
+      repro of this exact gap) is unskipped and green; `npm run test:fast`
+      green (4 pre-existing Playwright browser-fold tests flaked on dev-
+      server port contention under full parallel load, confirmed unrelated —
+      all four pass in isolation). code-reviewer approved with no Critical/
+      Major findings (one Minor: `main.ts`'s `lastCfg`, reused across Retry/
+      New Run, will need attention once p9c's Tuner makes a live `/data` edit
+      possible — a Retry after one would throw instead of gracefully
+      re-recording; left a comment on the field for p9c to pick up).
+      qa-playtester independently confirmed the acceptance line adversarially
+      (cosmetic `desc`-only edits change the hash too; unedited replays never
+      spuriously throw) and found two real but dormant gaps — a
+      `RecordedRun` whose `config.contentHash` was never actually stamped (no
+      `/src` code path builds one that way today) bypasses the check
+      entirely, and `tests/helpers.ts`'s `runWithPolicy` never stamps its
+      caller's config at all (it spreads into `new Run`, unlike `replay()`)
+      — filed as **b039**.
 
 - [x] (p8b) [bug] Alive count exceeds `aliveCap`: 353 measured against a cap of
       350 — acceptance: no spawn path can push `w.enemies` past `aliveCap`; a
