@@ -361,12 +361,13 @@ found already built by fb015; this item closed the one literal acceptance gap
 (a hardcoded, non-tautological per-column data test for all 12 items and all
 3 class-fallback lines).
 
-- [ ] (p7c) [feat] Rewards pipeline per §8: each TD wave cleared grants 1 random
-      equipment (even weights), each VS wave cleared grants 1 skill point, both
-      granted at run end, win or lose, for waves fully cleared; duplicates allowed —
-      acceptance: gate **G12** — N TD waves cleared yields exactly N equipment, M VS
-      waves yields exactly M skill points, a defeat still pays for fully-cleared
-      waves, and no orb appears anywhere — refs: §8, G12
+**`p7c` is done** — see the Done section. **Gate G12 is now green in full**:
+the equipment and "orbs nowhere" clauses were already covered by fb015/
+c7-no-orbs; this item built the last one, "M VS waves cleared -> M skill
+points, granted at run end, win or lose, for waves fully cleared" —
+`tools/gate-audit.ts`'s `GATE_COVERAGE` now names G12, moved out of
+`KNOWN_HOLES`.
+
 - [ ] (p7d) [feat] Retire the superseded meta economy: relic affixes and rarities,
       the Ember → level → points pipeline, and `data/relics.json`'s affix table.
       Skill points become the tree's only currency with a one-time conversion, and
@@ -926,6 +927,41 @@ logged in MIGRATION.md §8 rather than carried as dead items.
   **G19**. The work is `p10d`.
 
 ## Done
+
+- [x] (p7c) [feat] Rewards pipeline per §8: each TD wave cleared grants 1 random
+      equipment (even weights), each VS wave cleared grants 1 skill point, both
+      granted at run end, win or lose, for waves fully cleared; duplicates allowed —
+      acceptance: gate **G12** — refs: §8, G12. The equipment and "orbs nowhere"
+      clauses were already built and tested by fb015/`c7-no-orbs.test.ts`; this item
+      built the one remaining clause, "M VS waves -> M skill points." A new
+      `World.vsWavesCleared` counter increments only when a VS wave ends by its own
+      means — `advanceToNextBlock` (`src/sim/sundering.ts`) for every non-final
+      block's timer, and the boss-kill victory branch in `updateAct2`
+      (`src/sim/run.ts`) for the final block, which only ever ends that way — never
+      on a defeat cutting the wave short. `RunReport.vsWavesCleared` and a new
+      `MetaState.skillPoints` (`src/sim/types.ts`) carry the count through
+      `buildReport` into `applyRunResult` (`src/meta/meta.ts`), which adds it to the
+      account's running total at run end under the same practice-run-banks-nothing
+      guard the Ember/equipment grants already use; `migrateWithNotice` guards the
+      new save field against a corrupt/missing value the same way `autoPickLevelUps`
+      already is. `skillPoints` accumulates independently of the Ember/account-level
+      point supply for now — p7d (queued) is what retires Ember and makes this the
+      tree's only currency. `tools/gate-audit.ts`'s `GATE_COVERAGE` now names **G12**
+      (moved out of `KNOWN_HOLES`), citing the new `tests/p7c-reward-pipeline.test.ts`
+      alongside `fb015-equipment.test.ts`/`c7-no-orbs.test.ts`;
+      `tests/q10-gate-audit.test.ts`'s covered/holes pins moved with it.
+      code-reviewer found no Critical/Major issues (one Minor same-tick edge case —
+      a Core-death/VS-timer race that could bank a point for the block in progress
+      right before a `defeat_core` — logged as QUESTIONS Q145 rather than fixed, a
+      defensible reading of "fully cleared" and consistent with how the codebase
+      already resolves the mirror-image boss-kill/defeat race). qa-playtester
+      **PASS**: independently drove `cycles: 1`/`cycles: 8` soaks, a mid-VS-wave
+      tick-budget truncation, a `practice: true` run and a 500-seed save-fuzz pass
+      against `tools/fuzz-save.ts`, found no double-counting, no drift and no
+      laundered non-finite `skillPoints`; the one edge case it independently
+      rediscovered was the same one already logged at Q145. `npm run test:fast`:
+      1563 passed, 38 skipped, the same 4 pre-existing Playwright fold-test flakes
+      (b032/b034/b035/b036) already documented, reconfirmed unrelated.
 
 - [x] (p7b) [feat] Equipment per §7 in `data/equipment.json`: 6 slots, the
       12-item table, flats adding and multipliers multiplying per §2,

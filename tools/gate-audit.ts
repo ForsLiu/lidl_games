@@ -97,6 +97,13 @@ export const GATE_COVERAGE: Record<string, CoverageEntry> = {
     files: ['tests/p6d-nine-classes.test.ts'],
     note: "p6d's 'G11 — Stormcaller chain multiplier stays under x3.6' is live (re-derived at the lane/quality merge).",
   },
+  G12: {
+    files: ['tests/fb015-equipment.test.ts', 'tests/c7-no-orbs.test.ts', 'tests/p7c-reward-pipeline.test.ts'],
+    note: "fb015 covers the equipment clause (1 item per fully cleared TD wave) and c7-no-orbs covers 'orbs " +
+      "nowhere'; p7c adds the gate's last clause, 'M VS waves -> M skill points' (§8.2) — a VS wave credits only " +
+      'when it ends by its own means (block timer or the final boss kill), never by a defeat, and the report/meta ' +
+      'total is exercised end to end.',
+  },
   G21: {
     files: [
       'tests/p-core-a-selection.test.ts',
@@ -193,10 +200,6 @@ export const KNOWN_HOLES: Record<string, string> = {
   G8: 'All 12 §4 classes now exist (p6b–p6d), but the scripted-kit-bot win-rate / top-damage-diversity ' +
     "measurement G8 actually asks for is p6e's, which has not landed. p6a-class-framework.test.ts's live " +
     'replay-hash block tests the Active-skill Command plumbing, not a win-rate.',
-  G12: "fb015 built and tested the gate's equipment clause (data/equipment.json's 12 items, six slots, " +
-    "1 item per fully cleared TD wave — tests/fb015-equipment.test.ts) and 'orbs nowhere' already had a live " +
-    "test (c7-no-orbs.test.ts); the gate stays a hole because its third clause, 'M VS waves -> M skill points' " +
-    '(§8.2), remains unbuilt.',
   G15: 'The Tuner is not built (P9); there is nothing to round-trip yet.',
   G19: "tests/a8-sundering-head-start.test.ts (the only file naming G19) is entirely describe.skip'd — its own " +
     "header reads 'RETIRED (SPEC-FINAL §6.1, reconcile §16)'. Even when live, its body only ever measured " +

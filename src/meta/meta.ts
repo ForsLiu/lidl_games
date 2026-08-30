@@ -65,6 +65,7 @@ export function defaultMeta(): MetaState {
     completedQuests: [],
     nextRelicId: 1,
     autoPickLevelUps: false,
+    skillPoints: 0,
   };
 }
 
@@ -169,6 +170,10 @@ export function applyRunResult(meta: MetaState, report: RunReport, w: World): Me
   for (const key of w.equipmentFound) {
     next.equipmentStash[key] = (next.equipmentStash[key] ?? 0) + 1;
   }
+
+  // §8.2 (p7c): "each VS wave cleared -> 1 skill point," the same "granted
+  // at run end, win or lose" rule the equipment loop above follows.
+  next.skillPoints += report.vsWavesCleared;
 
   if (report.outcome === 'victory' && report.tier >= next.highestTier) {
     next.highestTier = Math.min(5, report.tier + 1);
@@ -449,6 +454,10 @@ function migrateWithNotice(meta: MetaState, version: number): { meta: MetaState;
     // laundering hole q3-save-fuzz pins for `accountLevel`/`ember`/etc.) —
     // cheap to close here since, like `unlockedCores`, the field is new.
     autoPickLevelUps: typeof meta.autoPickLevelUps === 'boolean' ? meta.autoPickLevelUps : base.autoPickLevelUps,
+    // p7c: same "guard a new field cheaply" reasoning as `autoPickLevelUps`
+    // just above — a corrupt or absent value falls back rather than laundering
+    // a NaN/string into a currency total that only ever grows.
+    skillPoints: Number.isFinite(meta.skillPoints) ? meta.skillPoints : base.skillPoints,
   };
   if (!out.allocated.includes(0)) out.allocated.unshift(0);
   if (!isConnected(out.allocated)) out.allocated = [0];

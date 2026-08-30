@@ -5,6 +5,39 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-30 session: p7c done — gate G12 is green in full — commit
+  pending.**
+  §8's reward pipeline had two clauses already built and tested (fb015's
+  1-random-equipment-per-cleared-TD-wave, and "orbs nowhere" via
+  `tests/c7-no-orbs.test.ts`); this item built the third, "each VS wave
+  cleared → 1 skill point, granted at run end, win or lose, for waves fully
+  cleared." A new `World.vsWavesCleared` counter increments only on a VS wave
+  actually reaching its own end — `advanceToNextBlock`'s non-final-block timer
+  path (`src/sim/sundering.ts`) and the final block's boss-kill victory branch
+  in `updateAct2` (`src/sim/run.ts`, the only way that block ever ends) — never
+  on a defeat cutting the wave short, mirroring `wavesCleared`'s existing "fully
+  cleared" rule for TD waves. `RunReport.vsWavesCleared` (`buildReport`) and a
+  new `MetaState.skillPoints` (`src/sim/types.ts`) carry the count into
+  `applyRunResult` (`src/meta/meta.ts`), which banks it at run end under the
+  same practice-run-guard the Ember/equipment grants already use;
+  `migrateWithNotice` guards the new save field the same way `autoPickLevelUps`
+  already is. `skillPoints` accumulates independently of the existing
+  Ember/account-level point supply — p7d (queued next in P7) is what retires
+  Ember and makes this the tree's sole currency, per its own acceptance text.
+  `tools/gate-audit.ts` moves **G12** from `KNOWN_HOLES` to `GATE_COVERAGE`,
+  citing the new `tests/p7c-reward-pipeline.test.ts` alongside the two
+  already-live files; `tests/q10-gate-audit.test.ts`'s covered/holes pins moved
+  with it. code-reviewer: no Critical/Major (one Minor same-tick Core-
+  death/VS-timer race logged as QUESTIONS Q145 rather than fixed — a defensible
+  "fully cleared" reading, consistent with how the codebase already resolves
+  the mirror-image boss-kill/defeat race). qa-playtester **PASS**: independently
+  drove `cycles: 1`/`cycles: 8` soaks, a mid-VS-wave tick-budget truncation, a
+  practice run and a 500-seed save-fuzz pass, found no double-counting, drift,
+  or laundered non-finite `skillPoints`; the one edge case it rediscovered was
+  the same one already at Q145. `npm run test:fast`: 1563 passed, 38 skipped,
+  the same 4 pre-existing Playwright fold-test flakes (b032/b034/b035/b036)
+  already documented, reconfirmed unrelated.
+
 - **2026-08-30 session: p7b done — §7's 12-item equipment table gets full
   data-test coverage — commit `6dfe8eb`.**
   Investigation found the equipment system itself (`data/equipment.json`, 6

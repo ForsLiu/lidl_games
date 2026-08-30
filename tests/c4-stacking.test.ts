@@ -46,6 +46,7 @@ function baseReport(): RunReport {
     act1Seconds: 300,
     act2Seconds: 300,
     wavesCleared: 10,
+    vsWavesCleared: 2,
     coreHp: 100,
     coreMaxHp: 500,
     goldEarned: 1000,

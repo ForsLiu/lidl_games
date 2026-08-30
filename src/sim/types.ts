@@ -569,6 +569,13 @@ export interface MetaState {
    * `RunConfig.autoPickLevelUps` — real sim behavior, not a display choice.
    */
   autoPickLevelUps: boolean;
+  /**
+   * §8.2 (p7c): 1 per VS wave fully cleared, granted at run end. Accumulates
+   * here independently of the Ember/account-level tree-point supply; p7d
+   * (not yet built) is what retires that supply and makes this the tree's
+   * only currency with a one-time conversion.
+   */
+  skillPoints: number;
 }
 
 export interface RunConfig {
@@ -655,6 +662,8 @@ export interface RunReport {
   act1Seconds: number;
   act2Seconds: number;
   wavesCleared: number;
+  /** p7c (§8.2): VS waves that ended by their own means (timer or the final boss kill), never by a defeat. */
+  vsWavesCleared: number;
   coreHp: number;
   coreMaxHp: number;
   goldEarned: number;

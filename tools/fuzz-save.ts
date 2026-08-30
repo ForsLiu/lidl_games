@@ -165,6 +165,7 @@ export function validMeta(rng: Rng): MetaState {
     completedQuests: c.quests.quests.filter(() => rng.chance(0.3)).map((q) => q.key),
     nextRelicId: stashSize + 1,
     autoPickLevelUps: rng.chance(0.5),
+    skillPoints: rng.intRange(0, 200),
   };
 }
 

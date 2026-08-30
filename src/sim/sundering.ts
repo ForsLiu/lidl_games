@@ -46,6 +46,10 @@ export function finishSundering(w: World): void {
  * block's VS wave began, live again.
  */
 export function advanceToNextBlock(w: World): void {
+  // §8.2 (p7c): this VS wave just ran its full length without a defeat
+  // cutting it short — the same "reached the end on its own" test
+  // `completeWave` applies to a TD wave before crediting it.
+  w.vsWavesCleared++;
   for (const e of w.enemies) e.dead = true;
   w.deadEnemies = true;
   for (const s of w.structures) {

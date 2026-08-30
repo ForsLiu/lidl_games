@@ -260,6 +260,14 @@ export class World {
   kills = 0;
   leaks = 0;
   wavesCleared = 0;
+  /**
+   * §8.2 (p7c): "each VS wave cleared -> 1 skill point," counted only for a
+   * VS wave that actually ends by its own means — the block timer
+   * (`advanceToNextBlock`) or, for the final block, the Warden-Eater kill —
+   * never by a defeat cutting it short. Mirrors `wavesCleared`'s "fully
+   * cleared" rule for TD waves (§8.1) on the VS side.
+   */
+  vsWavesCleared = 0;
   towersBuilt = 0;
   towersByKey: Record<string, number> = {};
   damageByWeapon: Record<string, number> = {};

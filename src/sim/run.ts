@@ -844,6 +844,10 @@ function updateAct2(w: World, input: TickInput, dt: number): void {
     if (w.bossKilled) {
       // fb008: the last VS wave just ended by boss kill — sweep the ground clean.
       collectRemainingGems(w);
+      // §8.2 (p7c): the final block's VS wave only ever ends this way (boss
+      // kill, not a timer), so this is its own `advanceToNextBlock`-equivalent
+      // "cleared" credit.
+      w.vsWavesCleared++;
       w.outcome = 'victory';
       w.phase = 'results';
       return;
@@ -1172,6 +1176,7 @@ export function buildReport(w: World): RunReport {
     act1Seconds: round2(w.act1Ticks / 60),
     act2Seconds: round2(w.act2Ticks / 60),
     wavesCleared: w.wavesCleared,
+    vsWavesCleared: w.vsWavesCleared,
     coreHp: round2(w.coreHp),
     coreMaxHp: w.coreMaxHp,
     goldEarned: w.goldEarned,

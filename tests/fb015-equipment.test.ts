@@ -211,6 +211,7 @@ function minimalReport(): import('../src/sim/types').RunReport {
     act1Seconds: 0,
     act2Seconds: 0,
     wavesCleared: 0,
+    vsWavesCleared: 0,
     coreHp: 100,
     coreMaxHp: 500,
     goldEarned: 0,

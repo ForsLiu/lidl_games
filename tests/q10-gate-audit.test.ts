@@ -81,9 +81,9 @@ describe('q10 — gate-coverage audit', () => {
     const covered = rows.filter((r) => r.status === 'covered').map((r) => r.id).sort();
     const holes = rows.filter((r) => r.status === 'hole').map((r) => r.id).sort();
     expect(covered).toEqual(
-      ['G10', 'G11', 'G13', 'G14', 'G16', 'G17', 'G18', 'G2', 'G20', 'G3', 'G4', 'G5', 'G6', 'G7', 'G9'].sort(),
+      ['G10', 'G11', 'G12', 'G13', 'G14', 'G16', 'G17', 'G18', 'G2', 'G20', 'G3', 'G4', 'G5', 'G6', 'G7', 'G9'].sort(),
     );
-    expect(holes).toEqual(['G1', 'G12', 'G15', 'G19', 'G8'].sort());
+    expect(holes).toEqual(['G1', 'G15', 'G19', 'G8'].sort());
   });
 
   it('no `covered` gate is backed only by files that are entirely describe.skip\'d', () => {
