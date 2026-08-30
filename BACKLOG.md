@@ -935,7 +935,7 @@ logged in MIGRATION.md §8 rather than carried as dead items.
       'engineer', core:'stone_heart', seed:1})` → `build(1,21,10)` →
       `callWave()` → `selectTile(21,10)`), ~17px past the 1080 fold — same
       "`.sw-side` has no scroll" root cause, QA-filed during b035 verification
-      — commit pending, refs: §11, QUALITY.md Beta bar. Fixed in
+      — commit `a18a5bd`, refs: §11, QUALITY.md Beta bar. Fixed in
       `src/ui/style.css`: `.sw-side`'s flex `gap` 10px→8px (six inter-panel
       gaps, saves ~12px) and `.sw-help`'s `line-height` 1.7→1.45 (saves a few
       px per wrapped line) — comfortably covers the overage without visually
