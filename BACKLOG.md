@@ -925,8 +925,7 @@ logged in MIGRATION.md §8 rather than carried as dead items.
 ## Done
 
 - [x] (p8d) [feat] Boss termination guarantee (§9 addendum, QUESTIONS Q126/
-      Q127) — commit pending (recorded in a follow-up docs commit), refs: §9
-      addendum, QUESTIONS.md Q126, Q127. `src/sim/boss.ts` gained
+      Q127) — commit `c375c72`, refs: §9 addendum, QUESTIONS.md Q126, Q127. `src/sim/boss.ts` gained
       `escalationStacks`/`escalationDamageMul`/`escalationSpeedMul`
       (exported), computed from `w.act2Time - w.bossSpawnTime`: 0 before 3:00
       of boss-fight time, +1 stack every 30s after with no cap, applied to
