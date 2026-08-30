@@ -943,7 +943,7 @@ logged in MIGRATION.md §8 rather than carried as dead items.
 
 ## Done
 
-- [x] (fb020) [balance] enemies overall slower and tankier — this commit
+- [x] (fb020) [balance] enemies overall slower and tankier — commit `1d920a8`
       (2026-08-30), refs: owner feedback `balance-enemies-slower-tankier`,
       precedent QUESTIONS.md Q79. Owner-filed, top-priority, a scoped
       exception to the "no tuning before P10" freeze. `data/enemies.json`:
