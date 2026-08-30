@@ -11,11 +11,11 @@ import {
   accountLevelFor,
   defaultMeta,
   seedTestAccount,
+  seedTestEquipment,
   allocate,
   allTreeNodeIds,
   pointsAvailable,
   refund,
-  stashCapacity,
   TREE_AUTO_MAX,
 } from '../meta/meta';
 import { modifierDraft } from '../sim/tiers';
@@ -31,7 +31,7 @@ import { devProfileActive } from '../meta/devprofile';
 const DEV_BUILD = (import.meta as unknown as { env?: { DEV?: unknown } }).env?.DEV === true;
 const DEV_BADGE =
   '<span class="sw-devbadge" title="data/dev.json devMode is on. Production builds always run with this off.">DEV PROFILE</span>';
-import { discard, equip, equipItem } from '../meta/stash';
+import { equipItem } from '../meta/stash';
 import { renderTreeView } from './tree-view';
 import { sanitize, type Settings } from './settings';
 import { classAbilitiesMarkup } from './class-info';
@@ -39,7 +39,7 @@ import { coreDetailMarkup } from './core-info';
 import { modLines, modLinesHtml } from './info-format';
 import { STAT_KIND, type StatKey } from '../sim/stats';
 
-type Tab = 'run' | 'tree' | 'stash' | 'settings';
+type Tab = 'run' | 'tree' | 'equipment' | 'settings';
 
 export interface HubCallbacks {
   settings: Settings;
@@ -61,8 +61,7 @@ export class Hub {
   private tier = 1;
   private picks: number[] = [];
   private seed: number;
-  private selectedRelic: number | null = null;
-  /** fb022: the stash's equipment counterpart to `selectedRelic` — right-click selects an item for the Equipment detail panel without equipping it. */
+  /** fb022: right-click selects an owned item for the Equipment detail panel without equipping it. */
   private selectedEquipment: string | null = null;
   private settings: Settings;
   /** Transient one-line feedback under the tab bar. */
@@ -73,7 +72,7 @@ export class Hub {
    */
   private readonly spentThisVisit = new Set<number>();
 
-  constructor(root: HTMLElement, meta: MetaState, seed: number, cb: HubCallbacks) {
+  constructor(root: HTMLElement, meta: MetaState, seed: number, cb: HubCallbacks, initialNotice?: string) {
     this.root = root;
     this.meta = meta;
     this.cb = cb;
@@ -81,6 +80,11 @@ export class Hub {
     this.classKey = meta.unlockedClasses[0] ?? 'engineer';
     this.coreKey = meta.unlockedCores[0] ?? 'stone_heart';
     this.settings = cb.settings;
+    // fb023: a one-time "your relics were dropped" notice from a save
+    // migration, shown on this first Hub screen only — `commit()` clears it
+    // exactly like every other transient notice, so it cannot resurface after
+    // the next Constellation spend or Equipment swap.
+    if (initialNotice) this.notice = initialNotice;
   }
 
   /** Switches tab and re-renders. Also the seam tests use to reach a tab. */
@@ -100,11 +104,11 @@ export class Hub {
         ${DEV_BUILD && devProfileActive() ? DEV_BADGE : ''}
       </header>
       <nav>
-        ${(['run', 'tree', 'stash', 'settings'] as Tab[])
+        ${(['run', 'tree', 'equipment', 'settings'] as Tab[])
           .map(
             (t) =>
               `<button data-tab="${t}" class="${this.tab === t ? 'on' : ''}">${
-                { run: 'Run', tree: 'Constellation', stash: 'Stash', settings: 'Settings' }[t]
+                { run: 'Run', tree: 'Constellation', equipment: 'Equipment', settings: 'Settings' }[t]
               }</button>`,
           )
           .join('')}
@@ -121,7 +125,7 @@ export class Hub {
     const body = el.querySelector('#sw-hub-body') as HTMLElement;
     if (this.tab === 'run') this.renderRun(body);
     else if (this.tab === 'tree') this.renderTree(body);
-    else if (this.tab === 'stash') this.renderStash(body);
+    else if (this.tab === 'equipment') this.renderEquipment(body);
     else this.renderSettings(body);
   }
 
@@ -236,23 +240,24 @@ export class Hub {
       <div class="sw-panel">
         <h2>Loadout</h2>
         <div class="sw-equipped">
-          ${content.relics.slots
+          ${content.equipment.slots
             .map((slot) => {
-              const id = this.meta.equipped[slot as 'sigil'];
-              const relic = this.meta.stash.find((r) => r.id === id);
+              const key = this.meta.equippedEquipment[slot] ?? null;
+              const item = key ? content.equipmentByKey.get(key) : null;
               return `<div class="sw-slot"><span>${slot}</span><b>${
-                relic ? relic.name : '—'
+                item ? item.name : '—'
               }</b></div>`;
             })
             .join('')}
         </div>
+        <p class="sw-note">Change loadout on the Equipment tab.</p>
         <label class="sw-setting practice">
           <span>Practice run</span>
           <input type="checkbox" id="sw-practice" ${this.practice ? 'checked' : ''} />
         </label>
         <p class="sw-note">${
           this.practice
-            ? 'The in-run tool is on: kill the board, add gold, skip a wave, summon the boss, spawn any enemy on demand. Nothing is banked — no Ember, no relics, no quest progress.'
+            ? 'The in-run tool is on: kill the board, add gold, skip a wave, summon the boss, spawn any enemy on demand. Nothing is banked — no Ember, no equipment, no quest progress.'
             : 'A normal run. Everything you earn is kept.'
         }</p>
         <button class="sw-go" id="sw-start">${this.practice ? 'Begin practice run' : 'Begin the Daywatch'}</button>
@@ -323,6 +328,10 @@ export class Hub {
         allocated: TREE_AUTO_MAX ? allTreeNodeIds(content) : this.meta.allocated,
         relics: equippedRelics(this.meta),
         equipment: equippedEquipmentList(this.meta),
+        // fb023: a snapshot of owned counts so the in-run Equipment section
+        // (character panel) can validate a mid-run `equip_item` swap without
+        // the sim ever reaching back into `MetaState`.
+        ownedEquipment: { ...this.meta.equipmentStash },
         practice: practiceOverride ?? this.practice,
         // fb012: the toggle now lives in the in-run Esc options menu and the
         // level-up screen, not here — a run starts with whatever the profile
@@ -396,8 +405,8 @@ export class Hub {
       <div class="sw-panel">
         <h2>Testing</h2>
         <p class="sw-note">
-          Fills the account so the Stash and the Constellation can be tried without
-          playing for them: eight relics (one guaranteed rare) and 600 Ember.
+          Fills the account so Equipment and the Constellation can be tried without
+          playing for them: a few of every equipment item and 600 Ember.
           Practice runs are the matching switch on the Run tab.
         </p>
         <button class="sw-reroll" id="sw-seed">Seed a test account</button>
@@ -425,15 +434,18 @@ export class Hub {
       });
     }
     body.querySelector('#sw-seed')?.addEventListener('click', () => {
-      const before = this.meta.stash.length;
-      const next = seedTestAccount(this.meta);
+      // fb023: `seedTestAccount` still fills the retired relic stash too (kept
+      // internally for save-migration coverage — see meta.ts) — harmless,
+      // since nothing shows it — but the button's own job now is the
+      // Equipment screen, so `seedTestEquipment` is what the notice reports.
+      const next = seedTestEquipment(seedTestAccount(this.meta));
       this.commit(next);
-      this.notice = `Seeded ${next.stash.length - before} relics and 600 Ember.`;
+      this.notice = 'Seeded equipment and 600 Ember.';
       this.show();
     });
     body.querySelector('#sw-wipe')?.addEventListener('click', () => {
       this.spentThisVisit.clear();
-      this.selectedRelic = null;
+      this.selectedEquipment = null;
       this.commit(defaultMeta());
       this.notice = 'Account wiped.';
       this.show();
@@ -448,12 +460,10 @@ export class Hub {
     });
   }
 
-  /* ------------------------------------------------------------- stash tab */
+  /* --------------------------------------------------------- equipment tab */
 
-  private renderStash(body: HTMLElement): void {
+  private renderEquipment(body: HTMLElement): void {
     const content = loadContent();
-    const cap = stashCapacity(this.meta);
-    const selected = this.meta.stash.find((r) => r.id === this.selectedRelic) ?? null;
     const selectedItem = this.selectedEquipment ? content.equipmentByKey.get(this.selectedEquipment) ?? null : null;
 
     body.innerHTML = `
@@ -521,71 +531,6 @@ export class Hub {
                </div>`
             : '<p class="sw-note">Select an owned item (right-click to compare without equipping it).</p>'
         }
-      </div>
-      <div class="sw-panel">
-        <h2>Stash <small>${this.meta.stash.length}/${cap}</small></h2>
-        <div class="sw-equipped" id="sw-stash-equipped">
-          ${content.relics.slots
-            .map((slot) => {
-              const relic = equippedIn(this.meta, slot);
-              return `<div class="sw-slot" data-eqslot="${slot}" draggable="${relic ? 'true' : 'false'}"
-                           title="${relic ? `Click, or drag to the Stash below, to unequip ${relic.name}.` : ''}">
-                        <span>${slot}</span><b>${relic ? relic.name : '—'}</b>
-                      </div>`;
-            })
-            .join('')}
-        </div>
-        <div class="sw-stash">
-          ${
-            this.meta.stash.length === 0
-              ? `<p class="sw-note">
-                   Empty. Relics drop from elites, from the Warden-Eater, and at the end of a
-                   won run; click one to equip it (click again, or drag it here from the slot
-                   above, to unequip) and its affixes apply for the whole run — Settings has a
-                   button that seeds a test account if you want to try the screen now.
-                 </p>`
-              : this.meta.stash
-                  .map((r) => {
-                    const eq = equippedIn(this.meta, r.slot);
-                    const isEquipped = eq?.id === r.id;
-                    const tip = isEquipped
-                      ? 'Click to unequip.'
-                      : eq
-                        ? compareTitle(content, r, eq)
-                        : `Click to equip to ${r.slot}.`;
-                    return `<button class="sw-relic ${r.rarity} ${
-                      this.selectedRelic === r.id ? 'on' : ''
-                    } ${isEquipped ? 'equipped' : ''}" data-relic="${r.id}" title="${tip}">
-                        <b>${r.name}</b><small>${r.slot} · ${r.rarity}${isEquipped ? ' · equipped' : ''}</small>
-                      </button>`;
-                  })
-                  .join('')
-          }
-        </div>
-      </div>
-      <div class="sw-panel">
-        <h2>Relic</h2>
-        ${
-          selected
-            ? `<div class="sw-relicdetail">
-                 <b>${selected.name}</b>
-                 <div class="sw-affix implicit">${implicitLine(selected)}</div>
-                 ${selected.affixes
-                   .map((a) => {
-                     const def = content.relics.affixes.find((d) => d.key === a.key)!;
-                     return `<div class="sw-affix">${def.name} — ${formatStat(a.stat, a.value, def.pct)}</div>`;
-                   })
-                   .join('')}
-                 ${renderCompareBlock(content, this.meta, selected)}
-                 <div class="sw-craftrow">
-                   <button data-equip="1">${
-                     isEquipped(this.meta, selected) ? `Unequip from ${selected.slot}` : `Equip to ${selected.slot}`
-                   }</button>
-                   <button data-discard="1" class="danger">Discard</button>
-                 </div>
-               </div>`
-            : '<p class="sw-note">Select a relic (right-click to compare without equipping it).</p>'
-        }
       </div>`;
 
     for (const el of body.querySelectorAll<HTMLElement>('[data-item]')) {
@@ -609,50 +554,12 @@ export class Hub {
         if (this.meta.equippedEquipment[slot]) this.commit(equipItem(this.meta, slot, null));
       });
     }
-    for (const el of body.querySelectorAll<HTMLElement>('[data-relic]')) {
-      const id = Number(el.dataset.relic);
-      el.addEventListener('click', () => {
-        const relic = this.meta.stash.find((r) => r.id === id)!;
-        this.selectedRelic = id;
-        this.commit(equip(this.meta, relic.slot, isEquipped(this.meta, relic) ? null : id));
-      });
-      el.addEventListener('contextmenu', (e) => {
-        // Right-click compares against the equipped item without swapping it in.
-        e.preventDefault();
-        this.selectedRelic = id;
-        this.show();
-      });
-    }
-    for (const el of body.querySelectorAll<HTMLElement>('[data-eqslot]')) {
-      const slot = el.dataset.eqslot!;
-      el.addEventListener('click', () => {
-        if (this.meta.equipped[slot as 'sigil' | 'plate' | 'charm']) this.commit(equip(this.meta, slot, null));
-      });
-      el.addEventListener('dragstart', (e) => {
-        (e as DragEvent).dataTransfer?.setData('text/plain', slot);
-      });
-    }
-    const dropTarget = body.querySelector('.sw-stash');
-    dropTarget?.addEventListener('dragover', (e) => e.preventDefault());
-    dropTarget?.addEventListener('drop', (e) => {
-      e.preventDefault();
-      const slot = (e as DragEvent).dataTransfer?.getData('text/plain');
-      if (slot) this.commit(equip(this.meta, slot, null));
-    });
     if (selectedItem) {
       body.querySelector('[data-equipitem]')?.addEventListener('click', () => {
         const isEq = this.meta.equippedEquipment[selectedItem.slot] === selectedItem.key;
         this.commit(equipItem(this.meta, selectedItem.slot, isEq ? null : selectedItem.key));
       });
     }
-    if (!selected) return;
-    body.querySelector('[data-equip]')?.addEventListener('click', () => {
-      this.commit(equip(this.meta, selected.slot, isEquipped(this.meta, selected) ? null : selected.id));
-    });
-    body.querySelector('[data-discard]')?.addEventListener('click', () => {
-      this.selectedRelic = null;
-      this.commit(discard(this.meta, selected.id));
-    });
   }
 }
 
@@ -693,69 +600,6 @@ export function equippedEquipmentList(meta: MetaState): string[] {
   return Object.values(meta.equippedEquipment).filter((k): k is string => k !== null);
 }
 
-/** The relic currently equipped in a slot, if any. */
-function equippedIn(meta: MetaState, slot: string): Relic | null {
-  const id = meta.equipped[slot as 'sigil' | 'plate' | 'charm'];
-  if (id === null || id === undefined) return null;
-  return meta.stash.find((r) => r.id === id) ?? null;
-}
-
-function isEquipped(meta: MetaState, relic: Relic): boolean {
-  return meta.equipped[relic.slot as 'sigil' | 'plate' | 'charm'] === relic.id;
-}
-
-/** Whether a stat reads as a percentage, preferring the affix pool's own flag over a guess. */
-function statIsPct(content: Content, stat: string, value: number): boolean {
-  const def = content.relics.affixes.find((d) => d.stat === stat);
-  return def ? def.pct : value < 1;
-}
-
-/** Implicit + affix stats summed by stat key, for comparing two relics of the same slot. */
-function statTotals(content: Content, relic: Relic): Map<string, { value: number; pct: boolean }> {
-  const totals = new Map<string, { value: number; pct: boolean }>();
-  const imp = content.relics.implicits[relic.slot];
-  if (imp) totals.set(imp.stat, { value: imp.value, pct: statIsPct(content, imp.stat, imp.value) });
-  for (const a of relic.affixes) {
-    const def = content.relics.affixes.find((d) => d.key === a.key);
-    const pct = def?.pct ?? false;
-    const prev = totals.get(a.stat);
-    totals.set(a.stat, { value: (prev?.value ?? 0) + a.value, pct });
-  }
-  return totals;
-}
-
-/** Per-stat delta of `candidate` vs `equipped`, formatted, dropping stats with no difference. */
-function compareRelics(content: Content, candidate: Relic, equipped: Relic): string[] {
-  const a = statTotals(content, candidate);
-  const b = statTotals(content, equipped);
-  const lines: string[] = [];
-  for (const stat of new Set([...a.keys(), ...b.keys()])) {
-    const delta = (a.get(stat)?.value ?? 0) - (b.get(stat)?.value ?? 0);
-    if (delta === 0) continue;
-    const pct = a.get(stat)?.pct ?? b.get(stat)?.pct ?? false;
-    const label = stat.replace(/([A-Z])/g, ' $1').toLowerCase();
-    const sign = delta > 0 ? '+' : '';
-    const shown = pct ? `${sign}${Math.round(delta * 1000) / 10}%` : `${sign}${delta}`;
-    lines.push(`${shown} ${label}`);
-  }
-  return lines;
-}
-
-function compareTitle(content: Content, candidate: Relic, equipped: Relic): string {
-  const diff = compareRelics(content, candidate, equipped);
-  return `vs ${equipped.name}: ${diff.length ? diff.join(', ') : 'no stat difference'}`;
-}
-
-function renderCompareBlock(content: Content, meta: MetaState, selected: Relic): string {
-  const eq = equippedIn(meta, selected.slot);
-  if (!eq || eq.id === selected.id) return '';
-  const diff = compareRelics(content, selected, eq);
-  return `<div class="sw-compare">
-    <b>vs equipped — ${eq.name}</b>
-    ${diff.length ? diff.map((l) => `<div class="sw-affix">${l}</div>`).join('') : '<div class="sw-affix">No stat difference.</div>'}
-  </div>`;
-}
-
 /**
  * fb022: an equipment item's real, class-dependent stat bag — its `mods`
  * plus `classFallback.mods` when the run's class does not equal
@@ -789,7 +633,7 @@ function effectiveEquipmentMods(item: EquipmentItem, classKey: string): Record<s
   return out;
 }
 
-/** Per-stat delta between two effective mod bags, dropping stats with no difference — the equipment counterpart to `statTotals`/`compareRelics` above. */
+/** Per-stat delta between two effective mod bags, dropping stats with no difference. */
 function equipmentModDelta(a: Record<string, number>, b: Record<string, number>): Record<string, number> {
   const out: Record<string, number> = {};
   for (const stat of new Set([...Object.keys(a), ...Object.keys(b)])) {
@@ -834,18 +678,6 @@ function equipmentFallbackBlock(content: Content, classKey: string, item: Equipm
   return `<div class="sw-affix">If not ${content.classByKey.get(item.classFallback.notClassKey)?.name ?? item.classFallback.notClassKey}: ${
     lines.map((l) => l.text).join(', ')
   } ${status}</div>`;
-}
-
-function implicitLine(relic: Relic): string {
-  const content = loadContent();
-  const imp = content.relics.implicits[relic.slot];
-  if (!imp) return '';
-  return `${formatStat(imp.stat, imp.value, statIsPct(content, imp.stat, imp.value))} (implicit)`;
-}
-
-function formatStat(stat: string, value: number, pct: boolean): string {
-  const label = stat.replace(/([A-Z])/g, ' $1').toLowerCase();
-  return pct ? `+${Math.round(value * 1000) / 10}% ${label}` : `+${value} ${label}`;
 }
 
 export { accountLevelFor };

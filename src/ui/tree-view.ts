@@ -43,7 +43,10 @@ const STAT_LABELS: Record<string, string> = {
   luck: 'Luck',
   goldFind: 'Gold Find',
   emberFind: 'Ember Find',
-  relicFind: 'Relic Find',
+  // fb023: displayed as "Loot Find" — the internal StatKey stays `relicFind`
+  // (data/tree.json, stats.ts, loot.ts's drop-rate scaling all read it by
+  // that name), only the retired-relic-UI-facing label changed.
+  relicFind: 'Loot Find',
   ailmentPotency: 'Ailment Potency',
   towerCost: 'Tower Cost',
   towerDamage: 'Tower Damage',

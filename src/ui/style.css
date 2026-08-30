@@ -326,18 +326,14 @@ html, body {
 .sw-equipped { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
 .sw-slot { display: flex; justify-content: space-between; font-size: 13px; }
 .sw-slot span { color: var(--dim); text-transform: capitalize; }
-#sw-stash-equipped .sw-slot[draggable="true"] { cursor: grab; }
-#sw-stash-equipped .sw-slot[draggable="true"]:hover { color: var(--accent); }
 
-.sw-stash, .sw-itemstash { display: flex; flex-wrap: wrap; gap: 6px; }
+.sw-itemstash { display: flex; flex-wrap: wrap; gap: 6px; }
 .sw-relic {
   flex: 1 1 150px; display: flex; flex-direction: column; align-items: flex-start;
   background: var(--panel2); border: 1px solid var(--line); border-left-width: 3px;
   border-radius: 5px; padding: 7px 10px; color: var(--text); font: inherit; cursor: pointer;
 }
 .sw-relic small { font-size: 12px; color: var(--dim); text-transform: capitalize; }
-.sw-relic.magic { border-left-color: #6fa8ff; }
-.sw-relic.rare { border-left-color: var(--gold); }
 .sw-relic.on { border-color: var(--accent); border-left-color: var(--accent); }
 .sw-relic.equipped { background: #1c2a24; }
 
@@ -355,7 +351,6 @@ html, body {
 
 .sw-relicdetail { display: flex; flex-direction: column; gap: 3px; }
 .sw-affix { font-size: 12px; color: #9fd3c7; }
-.sw-affix.implicit { color: var(--dim); }
 .sw-compare { margin-top: 8px; padding-top: 6px; border-top: 1px solid var(--line); }
 .sw-compare b { font-size: 12px; }
 .sw-craftrow { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
@@ -364,7 +359,6 @@ html, body {
   color: var(--text); padding: 6px 10px; font: inherit; font-size: 12px; cursor: pointer;
 }
 .sw-craftrow button:disabled { opacity: .35; cursor: default; }
-.sw-craftrow button.danger { border-color: #6a3535; color: #e09090; }
 
 .sw-setting {
   display: grid;

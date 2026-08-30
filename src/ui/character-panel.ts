@@ -17,7 +17,10 @@
  * is — one `equipment:<key>` source per equipped item, plus an
  * `equipment:<key>:fallback` source for an "if not <class>" line that
  * applies — so they already show up generically in the per-stat breakdown
- * below with no separate "Equipment" section needed. Closes Q132's gap.
+ * below with no separate numbers section needed. Closes Q132's gap. fb023
+ * later added an Equipment *section* to the rendered panel (`hud.ts`'s
+ * `equipmentSectionMarkup`) — that is the equip/swap control surface, not a
+ * second source of numbers; this model still has no equipment-specific field.
  *
  * Presentation only — this module never writes to the World.
  */
@@ -40,7 +43,8 @@ const STAT_LABELS: Partial<Record<StatKey, string>> = {
   luck: 'Luck',
   goldFind: 'Gold Find',
   emberFind: 'Ember Find',
-  relicFind: 'Relic Find',
+  // fb023: displayed as "Loot Find" — the internal StatKey stays `relicFind`.
+  relicFind: 'Loot Find',
   ailmentPotency: 'Ailment Potency',
   towerCost: 'Tower Cost',
   towerDamage: 'Tower Damage',

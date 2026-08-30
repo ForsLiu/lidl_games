@@ -270,6 +270,9 @@ export function applyCommand(w: World, c: Command): void {
         takeOffer(w, pickAutoOfferIndex(w, w.offers));
       }
       break;
+    case 'equip_item':
+      equipItemCommand(w, c.slot, c.item);
+      break;
     case 'class_active':
       useClassActive(w, c.aimX, c.aimY);
       break;
@@ -282,6 +285,44 @@ export function applyCommand(w: World, c: Command): void {
     default:
       break;
   }
+}
+
+/**
+ * fb023 (SPEC-FINAL §7): swap the item in one equipment slot mid-run, or
+ * clear it with `item: null`. Mirrors `meta/stash.ts`'s `equipItem` guard
+ * shape (unknown slot, unowned item, item whose own `slot` disagrees with the
+ * target slot are all silent no-ops) but works against `World`'s live copies
+ * (`equippedEquipment`/`ownedEquipment`) instead of `MetaState`, since a run
+ * never reaches back into the meta layer once started.
+ *
+ * An item is a fixed row owned as a count, not a unique instance consumed by
+ * equipping it (the same rule the Hub's equip screen follows), so swapping
+ * never touches `ownedEquipment` — only whichever `Stats` sources are live
+ * changes, exactly the two sources `baseRunStats` would have added for this
+ * item at construction had it been equipped from the start.
+ */
+function equipItemCommand(w: World, slot: string, itemKey: string | null): void {
+  if (!(slot in w.equippedEquipment)) return;
+  if (itemKey !== null) {
+    if (!(w.ownedEquipment[itemKey] > 0)) return;
+    const item = w.content.equipmentByKey.get(itemKey);
+    if (!item || item.slot !== slot) return;
+  }
+  const prevKey = w.equippedEquipment[slot];
+  if (prevKey === itemKey) return;
+  if (prevKey) {
+    w.stats.removeSource(`equipment:${prevKey}`);
+    w.stats.removeSource(`equipment:${prevKey}:fallback`);
+  }
+  w.equippedEquipment[slot] = itemKey;
+  if (itemKey) {
+    const item = w.content.equipmentByKey.get(itemKey)!;
+    w.stats.addAll(`equipment:${itemKey}`, item.mods);
+    if (item.classFallback && w.cfg.classKey !== item.classFallback.notClassKey) {
+      w.stats.addAll(`equipment:${itemKey}:fallback`, item.classFallback.mods);
+    }
+  }
+  w.recomputeDerived();
 }
 
 /**
@@ -983,6 +1024,14 @@ export function hashWorld(w: World): string {
   // writes to `w.stats`/`w.derived` — so the key itself is hashed directly,
   // the same way `w.phase`/`w.outcome` are.
   h.str(w.coreKey);
+  // fb023: two runs differing only in a mid-run `equip_item` swap must hash
+  // differently even on the (unlikely but possible) chance two items' `mods`
+  // happen to net out identical in `w.derived` — the same belt-and-suspenders
+  // reasoning `coreKey` above already gets. Sorted by slot for a stable field
+  // order, same discipline `Stats.total`/`factor` follow for the same reason.
+  for (const slot of Object.keys(w.equippedEquipment).sort()) {
+    h.str(slot).str(w.equippedEquipment[slot] ?? '');
+  }
   // Practice-tool flags are sim state: they change what damage lands, so they
   // belong in the hash. `invulnerable` was already unhashed before god mode
   // existed - the same class of hashing gap the f001 review found elsewhere.

@@ -33,6 +33,8 @@ export interface HudCallbacks {
   onToggleAutoPick(): void;
   /** SPEC-FINAL §2/§6.3/§11, owner feedback `feature-boon-stats-panel`: opens/closes the character panel. */
   onToggleCharacterPanel(): void;
+  /** fb023 (SPEC-FINAL §7): swap an owned item into (or `null` out of) an equipment slot, mid-run, from the character panel. */
+  onEquipItem(slot: string, item: string | null): void;
   /** SPEC-FINAL §11, owner feedback `feature-dps-summary`: opens/closes the DPS summary panel. */
   onToggleDpsPanel(): void;
   onResume(): void;
@@ -313,6 +315,21 @@ export class Hud {
     this.charPanelEl.classList.remove('sw-off');
     this.charPanelEl.innerHTML = characterPanelMarkup(characterPanelData(w), w);
     this.charPanelEl.querySelector('[data-act="close"]')?.addEventListener('click', () => this.closeCharacterPanel());
+    for (const el of this.charPanelEl.querySelectorAll<HTMLElement>('[data-runeqslot]')) {
+      const slot = el.dataset.runeqslot!;
+      el.addEventListener('click', () => {
+        if (w.equippedEquipment[slot]) this.cb.onEquipItem(slot, null);
+      });
+    }
+    for (const el of this.charPanelEl.querySelectorAll<HTMLElement>('[data-runitem]')) {
+      const key = el.dataset.runitem!;
+      el.addEventListener('click', () => {
+        const item = w.content.equipmentByKey.get(key);
+        if (!item) return;
+        const isEq = w.equippedEquipment[item.slot] === key;
+        this.cb.onEquipItem(item.slot, isEq ? null : key);
+      });
+    }
   }
 
   private syncCharacterPanelToggle(): void {
@@ -823,7 +840,7 @@ export class Hud {
           <div><span>Level</span><b>${w.level}</b></div>
           <div><span>Kills</span><b>${w.kills}</b></div>
           <div><span>Towers built</span><b>${w.towersBuilt}</b></div>
-          <div><span>Relics</span><b>${w.relicsFound.length}</b></div>
+          <div><span>Equipment found</span><b>${w.equipmentFound.length}</b></div>
           <div><span>Ember</span><b>${w.emberEarned}</b></div>
         </div>
         ${w.practiceUsed ? '<p class="sw-note">Practice run — nothing was banked.</p>' : ''}
@@ -971,12 +988,53 @@ function characterAbilitiesMarkup(w: World): string {
 }
 
 /**
+ * fb023 (SPEC-FINAL §7): the character panel's Equipment section — six slot
+ * boxes plus the owned-items list beside them, the same "click an owned item
+ * to equip/swap into its slot" screen the Hub's Equipment tab uses, so a run
+ * never has to return to the Hub to change loadout. Reads `w.equippedEquipment`/
+ * `w.ownedEquipment` (live sim state, kept in step by the `equip_item`
+ * Command) rather than `MetaState` — a run cannot reach back into the meta
+ * layer once started (CLAUDE.md architecture rule 3).
+ */
+function equipmentSectionMarkup(w: World): string {
+  const slots = w.content.equipment.slots
+    .map((slot) => {
+      const key = w.equippedEquipment[slot] ?? null;
+      const item = key ? w.content.equipmentByKey.get(key) : null;
+      return `<div class="sw-slot" data-runeqslot="${slot}"
+                   title="${item ? `Click to unequip ${item.name}.` : ''}">
+                <span>${slot}</span><b>${item ? item.name : '—'}</b>
+              </div>`;
+    })
+    .join('');
+  const owned = Object.entries(w.ownedEquipment).filter(([, n]) => n > 0);
+  const items =
+    owned.length === 0
+      ? '<p class="sw-note dim">No equipment owned yet.</p>'
+      : owned
+          .map(([key, count]) => {
+            const item = w.content.equipmentByKey.get(key);
+            if (!item) return '';
+            const isEq = w.equippedEquipment[item.slot] === key;
+            const tip = isEq ? 'Click to unequip.' : `Click to equip to ${item.slot}.`;
+            return `<button class="sw-relic ${isEq ? 'equipped' : ''}" data-runitem="${key}" title="${tip}">
+                <b>${item.name}</b><small>${item.slot} · x${count}${isEq ? ' · equipped' : ''}</small>
+              </button>`;
+          })
+          .join('');
+  return `<div class="sw-sub">Equipment</div>
+    <div class="sw-equipped">${slots}</div>
+    <div class="sw-itemstash">${items}</div>`;
+}
+
+/**
  * SPEC-FINAL §2/§6.3/§11 (fb004): every final stat with its §2 multiplier
  * breakdown by source, plus every boon taken this run with rank and current
  * contribution, plus (fb022) the class's own active/passive effect text with
- * live numbers. See `character-panel.ts` for why there is no Equipment
- * section (§7 is unbuilt — BACKLOG.md p7b; equipment mods are already folded
- * into the generic Stats sections above via fb015's `equipment:<key>` source).
+ * live numbers, plus (fb023) an Equipment section to swap loadout mid-run.
+ * Equipment mods themselves are already folded into the generic Stats
+ * sections above too, via fb015's `equipment:<key>` source — the section here
+ * is only the equip/swap control surface, not a second source of numbers.
  */
 export function characterPanelMarkup(data: CharacterPanelData, w?: World): string {
   const boonRows =
@@ -1010,7 +1068,7 @@ export function characterPanelMarkup(data: CharacterPanelData, w?: World): strin
   return `
     <div class="sw-card sw-charcard wide">
       <h2>Character</h2>
-      <p class="sw-note">Every final stat's class &times; tree &times; relic &times; boon breakdown
+      <p class="sw-note">Every final stat's class &times; tree &times; equipment &times; boon breakdown
         (SPEC-FINAL &sect;2: ranks within one source add, sources multiply).
         Click a stat to see where it comes from.</p>
       ${
@@ -1019,6 +1077,7 @@ export function characterPanelMarkup(data: CharacterPanelData, w?: World): strin
              <div class="sw-classdetail">${abilities}</div>`
           : ''
       }
+      ${w ? equipmentSectionMarkup(w) : ''}
       <div class="sw-sub">Boons taken</div>
       ${boonRows}
       <div class="sw-sub">Stats</div>

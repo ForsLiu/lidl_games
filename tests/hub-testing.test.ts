@@ -81,8 +81,13 @@ describe('seeding a test account', () => {
     const seed = root.querySelector('#sw-seed') as HTMLButtonElement;
     expect(seed).not.toBeNull();
     seed.click();
+    // fb023: the button's own job is the Equipment screen now — it still
+    // seeds the retired relic stash internally too (harmless, unreachable),
+    // which is why `stash.length` is still 8, but the notice it shows talks
+    // about equipment.
     expect(latest().stash.length).toBe(8);
-    expect(root.textContent).toMatch(/Seeded 8 relics/);
+    expect(Object.values(latest().equipmentStash).every((n) => n >= 3)).toBe(true);
+    expect(root.textContent).toMatch(/Seeded equipment and 600 Ember\./);
   });
 
   it('the wipe button puts the account back to new', () => {
@@ -147,10 +152,10 @@ describe('account counters explain themselves', () => {
     expect(points.className).toContain('zero');
   });
 
-  it('an empty stash says what relics are for', () => {
+  it('an empty Equipment screen says what equipment is for', () => {
     const { root, hub } = openHub(defaultMeta());
-    hub.openTab('stash');
-    expect(root.textContent).toMatch(/Relics drop from elites/);
-    expect(root.textContent).toMatch(/click one to equip it/);
+    hub.openTab('equipment');
+    expect(root.textContent).toMatch(/Fully clearing a TD wave grants one random equipment item/);
+    expect(root.textContent).toMatch(/Click an owned item to equip it/);
   });
 });

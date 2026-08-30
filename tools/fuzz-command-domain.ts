@@ -141,12 +141,14 @@ export interface FieldSpec {
 }
 
 /**
- * Every numeric `Command` field. `equip.relic` is deliberately absent:
- * `equip` is already a filed bug (BACKLOG-QUALITY.md session 1 log, finding 3
- * — the `applyCommand` switch *still* has no `'equip'` case after the
- * SPEC-FINAL rework, so any argument is a no-op) and re-fuzzing dead code
- * would only restate that finding under a new name. `upgrade_core`, `call`
- * and `reroll` carry no numeric field; `upgrade_core` is covered by
+ * Every numeric `Command` field. `equip_item`'s `slot`/`item` are deliberately
+ * absent: both are strings, not numbers, so they fall outside this file's
+ * domain the same way `set_autopick.on` (a boolean) does — `tools/fuzz-input.ts`
+ * already exercises `equip_item` with real string arguments as part of the
+ * whole-union random fuzzer. (fb023: `equip_item` replaces the never-wired
+ * `{k:'equip', relic}` this comment used to describe as dead code — it now has
+ * a real handler, `equipItemCommand` in run.ts.) `upgrade_core`, `call` and
+ * `reroll` carry no numeric field; `upgrade_core` is covered by
  * `runCoreUpgradeProbe` below.
  */
 export const FIELD_SPECS: readonly FieldSpec[] = [

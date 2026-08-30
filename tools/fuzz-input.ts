@@ -135,7 +135,7 @@ export const COMMAND_KINDS = [
   'pick',
   'reroll',
   'set_autopick',
-  'equip',
+  'equip_item',
   'class_active',
   'class_active2',
   'dev',
@@ -168,8 +168,14 @@ export function randomCommand(rng: Rng, w: World): Command {
       return { k: 'reroll' };
     case 'set_autopick':
       return { k: 'set_autopick', on: rng.chance(0.5) };
-    case 'equip':
-      return { k: 'equip', relic: rng.intRange(0, Math.max(0, w.relicsFound.length - 1)) };
+    case 'equip_item': {
+      const slots = w.content.equipment.slots;
+      const slot = rng.pick(slots);
+      if (rng.chance(0.3)) return { k: 'equip_item', slot, item: null };
+      const itemsForSlot = w.content.equipment.items.filter((i) => i.slot === slot);
+      const item = itemsForSlot.length > 0 ? rng.pick(itemsForSlot).key : 'nonexistent';
+      return { k: 'equip_item', slot, item };
+    }
     case 'class_active': {
       // Half aimed (the p6d mouse-aimed Active1s), half omitted — an omitted
       // aim is the documented "self-centered" default and both are legal.

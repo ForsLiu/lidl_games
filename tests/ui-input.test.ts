@@ -47,6 +47,7 @@ function noopHudCallbacks(pending: Command[]) {
     onToggleRanges: () => {},
     onToggleAutoPick: () => {},
     onToggleCharacterPanel: () => {},
+    onEquipItem: () => {},
     onToggleDpsPanel: () => {},
     onResume: () => {},
     onPause: () => {},

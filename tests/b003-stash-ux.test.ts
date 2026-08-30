@@ -1,13 +1,20 @@
 /**
  * @vitest-environment jsdom
  *
- * SPEC-V2 D2 / gate B10 (stash half): clicking a relic while its slot is
- * occupied swaps it in (old relic returns to the stash, it is never removed
- * from it to begin with); an equipped relic can be unequipped again by
- * clicking it a second time, by the explicit button in the detail panel, or
- * by dragging the equipped slot onto the stash list — so there is no state
- * a click can walk you into and not back out of. Right-click selects a relic
- * for the compare panel without equipping it.
+ * SPEC-V2 D2 / gate B10 (stash half), repurposed at fb023: clicking an owned
+ * equipment item while its slot is occupied swaps it in (the old item stays
+ * owned, it is never removed from the account to begin with); an equipped
+ * item can be unequipped again by clicking it a second time or by the
+ * explicit button in the detail panel, or by clicking the slot box itself —
+ * so there is no state a click can walk you into and not back out of.
+ * Right-click selects an item for the compare panel without equipping it.
+ *
+ * fb023 (SPEC-FINAL §7, §11) retired the relic stash/equip UI this file used
+ * to cover (`[data-relic]`, `[data-eqslot]` drag-and-drop, `[data-discard]`
+ * — none of that DOM exists in the Hub anymore, see `src/ui/hub.ts`'s
+ * `renderEquipment`). The "never a dead end" guarantee itself still applies,
+ * just to the surviving Equipment screen, so this file was rewritten in
+ * place against `[data-item]`/`[data-eqitemslot]` rather than deleted.
  */
 
 import { readFileSync } from 'node:fs';
@@ -18,17 +25,13 @@ import { describe, expect, it } from 'vitest';
 import { Hub } from '../src/ui/hub';
 import { defaultMeta } from '../src/meta/meta';
 import { defaultSettings } from '../src/ui/settings';
-import type { MetaState, Relic } from '../src/sim/types';
+import type { MetaState } from '../src/sim/types';
 
 const CSS = readFileSync(join(process.cwd(), 'src', 'ui', 'style.css'), 'utf8');
 
-function relic(id: number, slot: string, name: string, affixes: Relic['affixes'] = []): Relic {
-  return { id, slot, rarity: affixes.length ? 'magic' : 'normal', name, affixes };
-}
-
-function metaWith(stash: Relic[], equipped: Partial<MetaState['equipped']> = {}): MetaState {
+function metaWith(equipmentStash: Record<string, number>, equippedEquipment: Record<string, string | null> = {}): MetaState {
   const base = defaultMeta();
-  return { ...base, stash, equipped: { ...base.equipped, ...equipped } };
+  return { ...base, equipmentStash, equippedEquipment: { ...base.equippedEquipment, ...equippedEquipment } };
 }
 
 function mountHub(meta: MetaState): { root: HTMLElement; latest: () => MetaState } {
@@ -43,7 +46,7 @@ function mountHub(meta: MetaState): { root: HTMLElement; latest: () => MetaState
     onSettingsChanged: () => {},
   });
   hub.show();
-  hub.openTab('stash');
+  hub.openTab('equipment');
   return { root, latest: () => current };
 }
 
@@ -55,160 +58,91 @@ function rightClick(el: Element): void {
   el.dispatchEvent(new window.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
 }
 
-describe('clicking a stash relic equips it, swapping whatever was there', () => {
-  const ringA = relic(1, 'sigil', 'Ring A');
-  const ringB = relic(2, 'sigil', 'Ring B');
-
+describe('clicking an owned item equips it, swapping whatever was there', () => {
   it('equips into an empty slot on the first click', () => {
-    const { root, latest } = mountHub(metaWith([ringA]));
-    click(root.querySelector('[data-relic="1"]')!);
-    expect(latest().equipped.sigil).toBe(1);
+    const { root, latest } = mountHub(metaWith({ sleeve_sword: 1 }));
+    click(root.querySelector('[data-item="sleeve_sword"]')!);
+    expect(latest().equippedEquipment.weapon).toBe('sleeve_sword');
   });
 
-  it('swaps in the new relic and leaves the old one in the stash, not discarded', () => {
-    const { root, latest } = mountHub(metaWith([ringA, ringB], { sigil: 1 }));
-    click(root.querySelector('[data-relic="2"]')!);
-    expect(latest().equipped.sigil).toBe(2);
-    expect(latest().stash.map((r) => r.id)).toEqual(expect.arrayContaining([1, 2]));
+  it('swaps in the new item and leaves the old one owned, not discarded', () => {
+    const { root, latest } = mountHub(
+      metaWith({ sleeve_sword: 1, greatsword: 1 }, { weapon: 'sleeve_sword' }),
+    );
+    click(root.querySelector('[data-item="greatsword"]')!);
+    expect(latest().equippedEquipment.weapon).toBe('greatsword');
+    expect(latest().equipmentStash.sleeve_sword).toBe(1);
   });
 
-  it('never lands on a relic equipped in the wrong slot', () => {
-    const plate = relic(3, 'plate', 'Plate A');
-    const { root, latest } = mountHub(metaWith([ringA, plate]));
-    click(root.querySelector('[data-relic="3"]')!);
-    expect(latest().equipped.plate).toBe(3);
-    expect(latest().equipped.sigil).toBeNull();
+  it('never lands an item in the wrong slot', () => {
+    const { root, latest } = mountHub(metaWith({ sleeve_sword: 1, swordsman_armor: 1 }));
+    click(root.querySelector('[data-item="swordsman_armor"]')!);
+    expect(latest().equippedEquipment.armor).toBe('swordsman_armor');
+    expect(latest().equippedEquipment.weapon).toBeNull();
   });
 });
 
-describe('an equipped relic is never a dead end', () => {
-  const ringA = relic(1, 'sigil', 'Ring A');
-
-  it('clicking the equipped relic again unequips it', () => {
-    const { root, latest } = mountHub(metaWith([ringA], { sigil: 1 }));
-    click(root.querySelector('[data-relic="1"]')!);
-    expect(latest().equipped.sigil).toBeNull();
-    // The relic itself is untouched — unequip is not discard.
-    expect(latest().stash.map((r) => r.id)).toContain(1);
+describe('an equipped item is never a dead end', () => {
+  it('clicking the equipped item again unequips it', () => {
+    const { root, latest } = mountHub(metaWith({ sleeve_sword: 1 }, { weapon: 'sleeve_sword' }));
+    click(root.querySelector('[data-item="sleeve_sword"]')!);
+    expect(latest().equippedEquipment.weapon).toBeNull();
+    // The item itself is untouched — unequip does not consume it.
+    expect(latest().equipmentStash.sleeve_sword).toBe(1);
   });
 
-  it('the detail panel button reads "Unequip" for an equipped relic and works', () => {
-    const { root, latest } = mountHub(metaWith([ringA], { sigil: 1 }));
+  it('the detail panel button reads "Unequip" for an equipped item and works', () => {
+    const { root, latest } = mountHub(metaWith({ sleeve_sword: 1 }, { weapon: 'sleeve_sword' }));
     // Right-click selects for the detail panel without touching the equip state.
-    rightClick(root.querySelector('[data-relic="1"]')!);
-    expect(latest().equipped.sigil).toBe(1);
-    const btn = root.querySelector('[data-equip]') as HTMLButtonElement;
+    rightClick(root.querySelector('[data-item="sleeve_sword"]')!);
+    expect(latest().equippedEquipment.weapon).toBe('sleeve_sword');
+    const btn = root.querySelector('[data-equipitem]') as HTMLButtonElement;
     expect(btn.textContent).toMatch(/Unequip/);
     click(btn);
-    expect(latest().equipped.sigil).toBeNull();
+    expect(latest().equippedEquipment.weapon).toBeNull();
   });
 
-  it('clicking the equipped slot in the Loadout strip unequips it', () => {
-    const { root, latest } = mountHub(metaWith([ringA], { sigil: 1 }));
-    click(root.querySelector('[data-eqslot="sigil"]')!);
-    expect(latest().equipped.sigil).toBeNull();
+  it('clicking the equipped slot box unequips it', () => {
+    const { root, latest } = mountHub(metaWith({ sleeve_sword: 1 }, { weapon: 'sleeve_sword' }));
+    click(root.querySelector('[data-eqitemslot="weapon"]')!);
+    expect(latest().equippedEquipment.weapon).toBeNull();
   });
 
-  it('dragging the equipped slot onto the stash list unequips it', () => {
-    const { root, latest } = mountHub(metaWith([ringA], { sigil: 1 }));
-    const slotEl = root.querySelector('[data-eqslot="sigil"]') as HTMLElement;
-    const stashEl = root.querySelector('.sw-stash') as HTMLElement;
-
-    const dragStart = new window.Event('dragstart', { bubbles: true, cancelable: true });
-    const store = new Map<string, string>();
-    (dragStart as any).dataTransfer = { setData: (k: string, v: string) => store.set(k, v) };
-    slotEl.dispatchEvent(dragStart);
-
-    const drop = new window.Event('drop', { bubbles: true, cancelable: true });
-    (drop as any).dataTransfer = { getData: (k: string) => store.get(k) ?? '' };
-    stashEl.dispatchEvent(drop);
-
-    expect(latest().equipped.sigil).toBeNull();
+  it('clicking an empty slot box is a no-op', () => {
+    const { root, latest } = mountHub(metaWith({}));
+    click(root.querySelector('[data-eqitemslot="weapon"]')!);
+    expect(latest().equippedEquipment.weapon).toBeNull();
   });
 
-  it('dropping on a relic button (not just the container) still unequips, via bubbling', () => {
-    const ringB = relic(2, 'sigil', 'Ring B');
-    const { root, latest } = mountHub(metaWith([ringA, ringB], { sigil: 1 }));
-    const slotEl = root.querySelector('[data-eqslot="sigil"]') as HTMLElement;
-    const relicBtn = root.querySelector('[data-relic="2"]') as HTMLElement;
-
-    const dragStart = new window.Event('dragstart', { bubbles: true, cancelable: true });
-    const store = new Map<string, string>();
-    (dragStart as any).dataTransfer = { setData: (k: string, v: string) => store.set(k, v) };
-    slotEl.dispatchEvent(dragStart);
-
-    const drop = new window.Event('drop', { bubbles: true, cancelable: true });
-    (drop as any).dataTransfer = { getData: (k: string) => store.get(k) ?? '' };
-    relicBtn.dispatchEvent(drop);
-
-    expect(latest().equipped.sigil).toBeNull();
-  });
-
-  it('the drop target still exists and works when the stash list is in its empty-state markup', () => {
-    // The 0-relic branch of renderStash swaps the relic-button grid for a
-    // <p class="sw-note">, but .sw-stash itself (the drop target) still
-    // wraps it — this pins that the handler survives that branch.
+  it('the owned-items grid still exists and works when it is in its empty-state markup', () => {
     const meta = defaultMeta();
-    meta.stash = [];
-    const { root, latest } = mountHub(meta);
-    const stashEl = root.querySelector('.sw-stash') as HTMLElement;
-    expect(stashEl).not.toBeNull();
-    const drop = new window.Event('drop', { bubbles: true, cancelable: true });
-    (drop as any).dataTransfer = { getData: () => 'sigil' };
-    expect(() => stashEl.dispatchEvent(drop)).not.toThrow();
-    expect(latest().equipped.sigil).toBeNull();
-  });
-
-  it('discarding an equipped relic also clears its slot', () => {
-    const { root, latest } = mountHub(metaWith([ringA], { sigil: 1 }));
-    rightClick(root.querySelector('[data-relic="1"]')!);
-    click(root.querySelector('[data-discard]')!);
-    expect(latest().equipped.sigil).toBeNull();
-    expect(latest().stash).toHaveLength(0);
+    const { root } = mountHub(meta);
+    const grid = root.querySelector('.sw-itemstash') as HTMLElement;
+    expect(grid).not.toBeNull();
+    expect(grid.textContent).toMatch(/Empty/);
   });
 });
 
 describe('right-click compares without equipping', () => {
-  const equipped = relic(1, 'sigil', 'Ring A', [{ key: 'power', stat: 'power', value: 0.08 }]);
-  const candidate = relic(2, 'sigil', 'Ring B', [{ key: 'power', stat: 'power', value: 0.04 }]);
-
-  it('selects the relic for the detail panel but leaves the equip state alone', () => {
-    const { root, latest } = mountHub(metaWith([equipped, candidate], { sigil: 1 }));
-    rightClick(root.querySelector('[data-relic="2"]')!);
-    expect(latest().equipped.sigil).toBe(1);
-    expect(root.querySelector('.sw-relicdetail b')?.textContent).toBe('Ring B');
+  it('selects the item for the detail panel but leaves the equip state alone', () => {
+    const { root, latest } = mountHub(
+      metaWith({ sleeve_sword: 1, greatsword: 1 }, { weapon: 'sleeve_sword' }),
+    );
+    rightClick(root.querySelector('[data-item="greatsword"]')!);
+    expect(latest().equippedEquipment.weapon).toBe('sleeve_sword');
+    expect(root.querySelector('.sw-relicdetail b')?.textContent).toBe('Greatsword');
   });
 
-  it('shows a compare block against the currently equipped relic', () => {
-    const { root } = mountHub(metaWith([equipped, candidate], { sigil: 1 }));
-    rightClick(root.querySelector('[data-relic="2"]')!);
+  it('shows a compare block against the currently equipped item', () => {
+    const { root } = mountHub(metaWith({ sleeve_sword: 1, greatsword: 1 }, { weapon: 'sleeve_sword' }));
+    rightClick(root.querySelector('[data-item="greatsword"]')!);
     const compare = root.querySelector('.sw-compare');
     expect(compare).not.toBeNull();
-    expect(compare?.textContent).toMatch(/Ring A/);
-    expect(compare?.textContent).toMatch(/power/);
   });
 
-  it('the stash button carries a compare tooltip against the equipped relic', () => {
-    const { root } = mountHub(metaWith([equipped, candidate], { sigil: 1 }));
-    const btn = root.querySelector('[data-relic="2"]') as HTMLButtonElement;
-    expect(btn.title).toMatch(/vs Ring A/);
-  });
-
-  it('shows no compare block for the relic that is already equipped', () => {
-    const { root } = mountHub(metaWith([equipped, candidate], { sigil: 1 }));
-    rightClick(root.querySelector('[data-relic="1"]')!);
+  it('shows no compare block for the item that is already equipped', () => {
+    const { root } = mountHub(metaWith({ sleeve_sword: 1, greatsword: 1 }, { weapon: 'sleeve_sword' }));
+    rightClick(root.querySelector('[data-item="sleeve_sword"]')!);
     expect(root.querySelector('.sw-compare')).toBeNull();
-  });
-
-  it('merges an implicit-only candidate against an equipped relic with an affix on that same stat', () => {
-    // Sigil's implicit is `power`; ringA (equipped) also carries a `power`
-    // affix. A candidate with no affixes at all should still diff cleanly
-    // against the combined implicit+affix total, not double-count or crash.
-    const plainRing = relic(3, 'sigil', 'Plain Ring');
-    const { root } = mountHub(metaWith([equipped, plainRing], { sigil: 1 }));
-    rightClick(root.querySelector('[data-relic="3"]')!);
-    const compare = root.querySelector('.sw-compare');
-    expect(compare).not.toBeNull();
-    expect(compare?.textContent).toMatch(/power/);
   });
 });

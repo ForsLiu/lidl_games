@@ -13,7 +13,7 @@ import type { MetaState, Relic, RunReport } from '../sim/types';
 import type { World } from '../sim/world';
 
 /**
- * Deliberately frozen at `v1` even though SAVE_VERSION is now 2: renaming the
+ * Deliberately frozen at `v1` even though SAVE_VERSION is now 3: renaming the
  * storage key would orphan every existing save and the migration below would
  * never get the chance to run. The key names the slot, not the format.
  */
@@ -21,12 +21,17 @@ export const SAVE_KEY = 'stonewake.save.v1';
 /**
  * 1 = v0.1/v0.2. 2 = SPEC-V3 §8: the Orb currency is deleted, so `orbs` is
  * stripped from the save rather than carried forward as a zombie key that
- * `serializeMeta` would write back forever.
+ * `serializeMeta` would write back forever. 3 = fb023 (SPEC-FINAL §7): the
+ * relic stash/equip UI is retired, so a save older than this version has its
+ * `stash`/`equipped` dropped on load rather than carried forward into a
+ * screen that no longer exists to show them (`migrateWithNotice` below).
  *
  * Every destructive migration bumps this and gets a round-trip test, or a
  * save written by an older client will not survive an upgrade.
  */
-export const SAVE_VERSION = 2;
+export const SAVE_VERSION = 3;
+/** fb023: the SAVE_VERSION that first drops relics — see `migrateWithNotice`. */
+const RELICS_DROPPED_AT = 3;
 
 /**
  * Keys a migration drops, with the SAVE_VERSION that retired each one. The
@@ -231,6 +236,23 @@ export function seedTestAccount(meta: MetaState, count = 8): MetaState {
   return next;
 }
 
+/**
+ * fb023: the Settings "Seed a test account" button's equipment half, now that
+ * the Hub's Equipment screen (not the retired Stash tab) is what a developer
+ * presses this to try — a few of every `data/equipment.json` item, so every
+ * slot has more than one candidate to compare and swap between. Additive like
+ * `seedTestAccount`'s relics: pressing it twice tops counts up further rather
+ * than resetting them.
+ */
+export function seedTestEquipment(meta: MetaState, countEach = 3): MetaState {
+  const content = loadContent();
+  const equipmentStash = { ...meta.equipmentStash };
+  for (const item of content.equipment.items) {
+    equipmentStash[item.key] = (equipmentStash[item.key] ?? 0) + countEach;
+  }
+  return { ...meta, equipmentStash };
+}
+
 export function stashCapacity(meta: MetaState): number {
   const base = loadContent().relics.stashSlots;
   return base + (meta.completedQuests.includes('archivist') ? 8 : 0);
@@ -369,11 +391,29 @@ export function deserializeMeta(json: string): MetaState {
 }
 
 function migrate(meta: MetaState, version: number): MetaState {
+  return migrateWithNotice(meta, version).meta;
+}
+
+/**
+ * fb023: `migrate` plus the one piece of information a caller needs to show a
+ * one-time notice — whether this load just dropped a real, nonempty relic
+ * stash/loadout. A save older than `RELICS_DROPPED_AT` had a live Stash UI
+ * that could genuinely hold relics; one at or past it never could, so
+ * `relicsDropped` is always `false` there even if `stash`/`equipped` round-
+ * tripped a leftover value some other way (there is no path that writes one
+ * post-migration, but the check is keyed on the version, not just presence,
+ * for the same "guess the safe direction" reason `RETIRED_KEYS` gates on
+ * `retiredIn` rather than "field is absent").
+ */
+function migrateWithNotice(meta: MetaState, version: number): { meta: MetaState; relicsDropped: boolean } {
   const base = defaultMeta();
+  const dropRelics =
+    version < RELICS_DROPPED_AT &&
+    ((meta.stash?.length ?? 0) > 0 || Object.values(meta.equipped ?? {}).some((v) => v != null));
   const out: MetaState = {
     ...base,
     ...meta,
-    equipped: { ...base.equipped, ...(meta.equipped ?? {}) },
+    equipped: dropRelics ? { ...base.equipped } : { ...base.equipped, ...(meta.equipped ?? {}) },
     // fb015 (§7): same "old save has neither field" case `equipped` handles —
     // an object-typed field guards against the same corrupt-non-object class
     // `unlockedCores`'s `Array.isArray` check guards against below.
@@ -381,7 +421,15 @@ function migrate(meta: MetaState, version: number): MetaState {
       meta.equipmentStash && typeof meta.equipmentStash === 'object' && !Array.isArray(meta.equipmentStash)
         ? { ...meta.equipmentStash }
         : {},
-    equippedEquipment: { ...base.equippedEquipment, ...(meta.equippedEquipment ?? {}) },
+    // qa-playtester (fb023): unguarded like `equipped`'s pre-fb015 shape used
+    // to be — a corrupt non-object `equippedEquipment` (a string, an array)
+    // spread character-by-character/index-by-index into junk keys that then
+    // persisted through every re-serialize. Same guard `equipmentStash` gets
+    // two lines up.
+    equippedEquipment:
+      meta.equippedEquipment && typeof meta.equippedEquipment === 'object' && !Array.isArray(meta.equippedEquipment)
+        ? { ...base.equippedEquipment, ...meta.equippedEquipment }
+        : { ...base.equippedEquipment },
     questProgress: { ...(meta.questProgress ?? {}) },
     completedQuests: [...(meta.completedQuests ?? [])],
     unlockedClasses: [...(meta.unlockedClasses ?? base.unlockedClasses)],
@@ -391,7 +439,12 @@ function migrate(meta: MetaState, version: number): MetaState {
     // `stash` — cheap to guard against here since the field is new.
     unlockedCores: Array.isArray(meta.unlockedCores) ? [...meta.unlockedCores] : base.unlockedCores,
     allocated: [...(meta.allocated ?? base.allocated)],
-    stash: (meta.stash ?? []).map((r: Relic) => ({ ...r, affixes: [...(r.affixes ?? [])] })),
+    // fb023: an old save's relics are dropped outright, not carried forward —
+    // there is no UI left to view, equip or discard them (`equipped` above
+    // gets the matching treatment). A save at or past `RELICS_DROPPED_AT`
+    // still gets the field-shape guard (`?? []`/spread-affixes) it always
+    // had, for the same "corrupt-value" reasons p7g tracks generally.
+    stash: dropRelics ? [] : (meta.stash ?? []).map((r: Relic) => ({ ...r, affixes: [...(r.affixes ?? [])] })),
     // fb012: guarded rather than left to the bare `...meta` spread above (the
     // laundering hole q3-save-fuzz pins for `accountLevel`/`ember`/etc.) —
     // cheap to close here since, like `unlockedCores`, the field is new.
@@ -417,16 +470,34 @@ function migrate(meta: MetaState, version: number): MetaState {
   for (const { key, retiredIn } of RETIRED_KEYS) {
     if (version < retiredIn && !(key in base)) delete bag[key];
   }
-  return out;
+  return { meta: out, relicsDropped: dropRelics };
 }
 
 export function loadMeta(): MetaState {
+  return loadMetaWithNotice().meta;
+}
+
+/**
+ * fb023: `loadMeta` plus a one-time notice string when this load just retired
+ * a real relic stash/loadout, for the Hub to show once on the first screen
+ * after the upgrade. `main.ts` is the one caller that needs the notice; every
+ * existing `loadMeta()` call site (tests included) keeps working unchanged.
+ */
+export function loadMetaWithNotice(): { meta: MetaState; notice: string | null } {
   try {
     const raw = globalThis.localStorage?.getItem(SAVE_KEY);
-    if (!raw) return defaultMeta();
-    return deserializeMeta(raw);
+    if (!raw) return { meta: defaultMeta(), notice: null };
+    const parsed = JSON.parse(raw) as Partial<SaveFile>;
+    if (!parsed || typeof parsed !== 'object' || !parsed.meta) return { meta: defaultMeta(), notice: null };
+    const { meta, relicsDropped } = migrateWithNotice(parsed.meta as MetaState, parsed.version ?? 0);
+    return {
+      meta,
+      notice: relicsDropped
+        ? 'Relics have been retired — your stashed relics were removed. Equipment (Hub → Equipment) is unaffected.'
+        : null,
+    };
   } catch {
-    return defaultMeta();
+    return { meta: defaultMeta(), notice: null };
   }
 }
 

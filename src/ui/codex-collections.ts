@@ -7,12 +7,11 @@
  * file and it needs one line here, same as loadContent() already needs one
  * line to load it.
  *
- * "Equipment" has no live /data file yet — SPEC-V3 §7's `equipment.json`
- * lands at M24 (BACKLOG m24a). Until then the closest thing a player equips
- * is relic affixes, so those stand in under the `equipment` key gate C6
- * requires; the Q54 precedent (seeding a dev stash from relics before §7
- * existed) treats this the same way. Swapping in the real file later is a
- * one-line change here.
+ * fb023: "Equipment" used to stand in with relic affixes here (a placeholder
+ * from before `data/equipment.json` existed) even after fb015 shipped the
+ * real file — a stale cross-reference this item fixes along with the rest of
+ * the relic UI, since the Codex is exactly the "tooltips" surface CLAUDE.md's
+ * "delete relic UI remnants everywhere" line means.
  */
 import { loadContent, type Content } from '../sim/content';
 
@@ -32,7 +31,7 @@ export function buildCodexCollections(content: Content = loadContent()): CodexCo
   return [
     { key: 'classes', label: 'Classes', rows: asRows(content.classes.classes) },
     { key: 'towers', label: 'Towers', rows: asRows(content.towers.towers) },
-    { key: 'equipment', label: 'Equipment — Relic Affixes', rows: asRows(content.relics.affixes) },
+    { key: 'equipment', label: 'Equipment', rows: asRows(content.equipment.items) },
     { key: 'damagetypes', label: 'Damage Types', rows: asRows(content.damageTypes.types) },
     { key: 'enemies', label: 'Enemies', rows: asRows(content.enemies.enemies) },
     { key: 'waves', label: 'Waves', rows: asRows(content.waves.waves) },

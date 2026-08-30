@@ -1779,7 +1779,7 @@
    "kind": "notable",
    "key": "tinkerer",
    "name": "Tinkerer",
-   "desc": "Relic find +25%",
+   "desc": "Loot find +25%",
    "stats": {
     "relicFind": 0.25
    },

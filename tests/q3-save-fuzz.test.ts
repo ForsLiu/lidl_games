@@ -165,12 +165,42 @@ describe('q3 save fuzz: the corpus is not degenerate', () => {
    * crash contract above cannot be violated by any input — a fuzzer that
    * quietly stopped corrupting anything would stay green forever. Each family
    * must therefore still change what loads. Floors are set well under the
-   * measured rates (85-100%, `version` 14%), so this fails on a family going
-   * inert rather than on ordinary drift.
+   * measured rates, so this fails on a family going inert rather than on
+   * ordinary drift.
+   *
+   * fb023 re-measurement: `fuzzSaves` bases roughly a third of its corpus on
+   * `legacySave` (version 1), and fb023 makes `migrate` drop a hostile-version
+   * save's `stash`/`equipped` outright. A structural family (retype, drop-key,
+   * extreme-number, empty-container, grow-array, proto-key, deep-nest,
+   * long-string — every family that picks a random JSON *path* and mutates
+   * whatever is there) lands inside `stash`/`equipped` often enough that a
+   * real fraction of its corpus now corrupts a subtree that gets dropped
+   * either way, which is invisible to `changed` by construction — not the
+   * fuzzer going inert. `version` moved the other way (13.9% -> measured
+   * below), since a hostile version stamp now visibly empties a real stash
+   * far more often than the old orphaned-`orbs`-key strip ever did.
+   * `rename-key` (already floored separately) and the byte-level families
+   * (truncate/bitflip/delete-span/duplicate-span/insert-junk, which do not
+   * target a JSON path) are unaffected. Measured with this file's own seed/n:
+   * truncate 100, bitflip 92.3, delete-span 97.4, duplicate-span 94.9,
+   * insert-junk 88.7, retype 81.3, drop-key 72.3, rename-key 79.9,
+   * extreme-number 78.9, empty-container 82.1, grow-array 82.6, proto-key
+   * 83.4, deep-nest 81.9, long-string 82.9, version 63.2 (all %).
    */
+  const FLOOR: Partial<Record<Family, number>> = {
+    version: 0.5,
+    'rename-key': 0.7,
+    'drop-key': 0.65,
+    retype: 0.75,
+    'extreme-number': 0.7,
+    'empty-container': 0.75,
+    'grow-array': 0.75,
+    'proto-key': 0.75,
+    'deep-nest': 0.75,
+    'long-string': 0.75,
+  };
   it.each(FAMILIES)('family %s still changes what loads', (family: Family) => {
-    // Measured: 92.7-100% for thirteen families, rename-key 89.3, version 13.9.
-    const floor = family === 'version' ? 0.1 : family === 'rename-key' ? 0.75 : 0.85;
+    const floor = FLOOR[family] ?? 0.85;
     const s = fuzzSaves(11, 1_500, family).byFamily[family];
     expect(s.total).toBe(1_500);
     expect(s.changed / s.total, `${family} effectiveness`).toBeGreaterThanOrEqual(floor);
@@ -331,14 +361,21 @@ describe('q3 save fuzz: the corpus is not degenerate', () => {
 });
 
 describe('q3 save fuzz: version migration', () => {
-  const HOSTILE = [0, 1, 2, 3, 999, -1, 1.5, '2', null, true, [] as unknown, { v: 2 }];
+  // fb023: `< RELICS_DROPPED_AT` (3) coerces exactly like `< retiredIn` already
+  // does below — `null`/`true`/`'2'`/`[]` all land under 3 and drop the stash,
+  // `{v: 2}` coerces to NaN and does not. `validMeta`'s stash is never empty,
+  // so this is the one place the two branches genuinely diverge.
+  const RELIC_STAMPS: [unknown, boolean][] = [
+    [0, true], [1, true], [2, true], [3, false], [999, false], [-1, true],
+    [1.5, true], ['2', true], [null, true], [true, true], [[], true], [{ v: 2 }, false],
+  ];
 
-  it.each(HOSTILE)('loads a save stamped version %p through the repair path', (version) => {
+  it.each(RELIC_STAMPS)('loads a save stamped version %p through the repair path', (version, dropsRelics) => {
     const meta = validMeta(new Rng(6));
     const loaded = withSavedRaw(JSON.stringify({ version, meta }), loadMeta);
     expect(checkMeta(loaded)).toEqual([]);
     expect(loaded.ember).toBe(meta.ember);
-    expect(loaded.stash.map((r) => r.id)).toEqual(meta.stash.map((r) => r.id));
+    expect(loaded.stash.map((r) => r.id)).toEqual(dropsRelics ? [] : meta.stash.map((r) => r.id));
     expect(loaded.completedQuests).toEqual(meta.completedQuests);
   });
 
@@ -411,10 +448,13 @@ describe('q3 save fuzz: the pinned holes in the repair path', () => {
    */
   const KNOWN_COERCED = [
     'equipped=string', 'equipped=array',
-    // fb015 (§7): `equippedEquipment` merges with `base.equippedEquipment`
-    // the same `{ ...base.x, ...(meta.x ?? {}) }` way `equipped` already
-    // does, so it inherits the exact same string/array coercion hole.
-    'equippedEquipment=string', 'equippedEquipment=array',
+    // fb023: `equippedEquipment=string`/`=array` used to be here too (fb015
+    // gave it the same unguarded `{ ...base.x, ...(meta.x ?? {}) }` spread
+    // `equipped` still has) — closed by qa-playtester's fb023 finding, which
+    // gave `equippedEquipment` the same `typeof === 'object' &&
+    // !Array.isArray` guard `equipmentStash` already had
+    // (`tests/t6c-save-migration.test.ts`'s "malformed equippedEquipment"
+    // case is the regression test).
     'unlockedClasses=string',
     'questProgress=string', 'questProgress=array',
     'completedQuests=string',

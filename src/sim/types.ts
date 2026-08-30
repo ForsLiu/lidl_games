@@ -27,7 +27,19 @@ export type Command =
    * be in the input log for a replay to reproduce the same picks.
    */
   | { k: 'set_autopick'; on: boolean }
-  | { k: 'equip'; relic: number }
+  /**
+   * SPEC-FINAL §7, fb023: swap an owned `data/equipment.json` item into (or
+   * `item: null` out of) one of the six equipment slots, mid-run. Owned
+   * counts (`World.ownedEquipment`) come from `RunConfig.ownedEquipment`, a
+   * snapshot of the account's equipment stash taken at run start — the same
+   * "fixed input, no live meta reads" rule every other Command already
+   * follows — so a slot swap is exactly as replayable from seed + input log
+   * as a boon pick. Supersedes the never-wired relic-id-shaped `equip` member
+   * this union used to carry, the same class of dead Command surface BACKLOG
+   * b015 named: this one has a real handler (`applyCommand`, run.ts) from
+   * the start.
+   */
+  | { k: 'equip_item'; slot: string; item: string | null }
   /**
    * SPEC-FINAL §4 Active1 (Q). `aimX`/`aimY` mirror `class_active2`'s: p6d is
    * the first item with mouse-aimed Active1s (Field Kit's target structure,
@@ -575,6 +587,17 @@ export interface RunConfig {
   relics: Relic[];
   /** SPEC-FINAL §7, fb015: equipment item keys equipped for this run (one per slot, at most 6). */
   equipment?: string[];
+  /**
+   * fb023: a snapshot of `MetaState.equipmentStash` taken when the run starts
+   * — every item key the account owns, with its count. `equip_item` (mid-run
+   * slot swap) validates against this rather than the live account, so a run
+   * replays identically from seed + input log regardless of what the Hub
+   * shows before or after it (the meta account cannot change while a run is
+   * in progress, so this snapshot never actually goes stale, but a Command
+   * reading it directly rather than reaching into `Hub`/`MetaState` keeps the
+   * sim/meta boundary CLAUDE.md's architecture rules draw).
+   */
+  ownedEquipment?: Record<string, number>;
   /** Bot policy name, headless only. */
   policy?: string;
   /**

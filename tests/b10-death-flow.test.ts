@@ -128,6 +128,7 @@ function mountHud(): { root: HTMLElement; hud: Hud; log: Record<string, number> 
     onToggleRanges: () => {},
     onToggleAutoPick: () => {},
     onToggleCharacterPanel: () => {},
+    onEquipItem: () => {},
     onToggleDpsPanel: () => {},
     onResume: () => {},
     onPause: () => {},

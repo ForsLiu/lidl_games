@@ -43,6 +43,7 @@ function makeHud(root: HTMLElement): Hud {
     onToggleRanges: () => {},
     onToggleAutoPick: () => {},
     onToggleCharacterPanel: () => {},
+    onEquipItem: () => {},
     onToggleDpsPanel: () => {},
     onResume: () => {},
     onPause: () => {},

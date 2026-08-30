@@ -206,6 +206,22 @@ export class Stats {
   }
 
   /**
+   * Retracts every contribution `source` made, across every stat — the
+   * inverse of `addAll` (fb023: mid-run equipment swap needs to undo the item
+   * leaving a slot, not just add the one replacing it). Unlike `add`, there is
+   * nothing to sum: the source's entry is deleted outright from each stat's
+   * map. Bumps `revision` only when something was actually removed, matching
+   * `add`'s own no-op-is-unobservable discipline for a zero contribution.
+   */
+  removeSource(source: StatSource): void {
+    let removed = false;
+    for (const m of this.bySource.values()) {
+      if (m.delete(source)) removed = true;
+    }
+    if (removed) this._revision++;
+  }
+
+  /**
    * Additive total across every source. The correct read for a `flat` stat, and
    * what the UI shows for a `mul` one ("+30% power" reads better than "×1.32"
    * when listing what a node granted).

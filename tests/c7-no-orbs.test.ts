@@ -16,7 +16,7 @@ import { describe, expect, it } from 'vitest';
 import { Hub } from '../src/ui/hub';
 import { Hud } from '../src/ui/hud';
 import { World } from '../src/sim/world';
-import { defaultMeta, seedTestAccount } from '../src/meta/meta';
+import { defaultMeta, seedTestAccount, seedTestEquipment } from '../src/meta/meta';
 import { defaultSettings } from '../src/ui/settings';
 import { loadContent } from '../src/sim/content';
 import { cfg } from './helpers';
@@ -110,7 +110,7 @@ describe('C7: Orbs are gone from what a player sees', () => {
       onMetaChanged: () => {},
     });
     let text = '';
-    for (const tab of ['run', 'tree', 'stash', 'settings'] as const) {
+    for (const tab of ['run', 'tree', 'equipment', 'settings'] as const) {
       hub.openTab(tab);
       text += ` ${root.textContent ?? ''} ${root.innerHTML}`;
     }
@@ -140,19 +140,19 @@ describe('C7: Orbs are gone from what a player sees', () => {
     }
   });
 
-  it('nor on a seeded account with a full stash and a relic selected', () => {
+  it('nor on a seeded account with owned equipment and an item selected', () => {
     const root = mount();
-    const meta = seedTestAccount(defaultMeta());
+    const meta = seedTestEquipment(seedTestAccount(defaultMeta()));
     const hub = new Hub(root, meta, 1, {
       settings: defaultSettings(),
       onSettingsChanged: () => {},
       onStart: () => {},
       onMetaChanged: () => {},
     });
-    hub.openTab('stash');
-    // Select the first relic, which is what used to reveal the craft row.
-    const first = root.querySelector<HTMLElement>('[data-relic]');
-    expect(first, 'seeded account should have a stash').not.toBeNull();
+    hub.openTab('equipment');
+    // Select the first item, which is what used to reveal the craft row.
+    const first = root.querySelector<HTMLElement>('[data-item]');
+    expect(first, 'seeded account should own equipment').not.toBeNull();
     first!.click();
     expect(`${root.textContent} ${root.innerHTML}`).not.toMatch(/orb/i);
   });
@@ -169,6 +169,7 @@ describe('C7: Orbs are gone from what a player sees', () => {
       onToggleRanges: () => {},
       onToggleAutoPick: () => {},
       onToggleCharacterPanel: () => {},
+      onEquipItem: () => {},
       onToggleDpsPanel: () => {},
       onResume: () => {},
       onPause: () => {},

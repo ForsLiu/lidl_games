@@ -75,6 +75,7 @@ function hudCoreTooltip(w: World): string {
     onToggleRanges: () => {},
     onToggleAutoPick: () => {},
     onToggleCharacterPanel: () => {},
+    onEquipItem: () => {},
     onToggleDpsPanel: () => {},
     onResume: () => {},
     onPause: () => {},
@@ -336,7 +337,7 @@ describe('fb022 Surface 4: equipment tooltips show mods, the classFallback activ
 
   it('mods render as generated stat lines rather than only the hand-written desc', () => {
     const { root } = mountHub(metaWithItems({ greatsword: 1 }));
-    root.querySelector<HTMLElement>('[data-tab="stash"]')!.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+    root.querySelector<HTMLElement>('[data-tab="equipment"]')!.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
     root.querySelector<HTMLElement>('[data-item="greatsword"]')!.dispatchEvent(
       new window.MouseEvent('contextmenu', { bubbles: true, cancelable: true }),
     );
@@ -349,7 +350,7 @@ describe('fb022 Surface 4: equipment tooltips show mods, the classFallback activ
   it('the classFallback line reads inert for the notClassKey and active for any other class', () => {
     const metaSwordsman = metaWithItems({ sleeve_sword: 1 });
     const { root: rootA } = mountHub(metaSwordsman);
-    rootA.querySelector<HTMLElement>('[data-tab="stash"]')!.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+    rootA.querySelector<HTMLElement>('[data-tab="equipment"]')!.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
     rootA.querySelector<HTMLElement>('[data-item="sleeve_sword"]')!.dispatchEvent(
       new window.MouseEvent('contextmenu', { bubbles: true, cancelable: true }),
     );
@@ -360,7 +361,7 @@ describe('fb022 Surface 4: equipment tooltips show mods, the classFallback activ
   it('an equipped-vs-candidate compare block shows the real mod delta between two weapons', () => {
     const meta = metaWithItems({ greatsword: 1, sleeve_sword: 1 }, { weapon: 'greatsword' });
     const { root } = mountHub(meta);
-    root.querySelector<HTMLElement>('[data-tab="stash"]')!.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+    root.querySelector<HTMLElement>('[data-tab="equipment"]')!.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
     root.querySelector<HTMLElement>('[data-item="sleeve_sword"]')!.dispatchEvent(
       new window.MouseEvent('contextmenu', { bubbles: true, cancelable: true }),
     );
@@ -382,7 +383,7 @@ describe('fb022 Surface 4: equipment tooltips show mods, the classFallback activ
     // Hub's default class is meta.unlockedClasses[0] = 'swordsman' (the
     // fallback's own notClassKey) — switch off it so the fallback is active.
     root.querySelector<HTMLElement>('[data-class="engineer"]')!.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
-    root.querySelector<HTMLElement>('[data-tab="stash"]')!.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+    root.querySelector<HTMLElement>('[data-tab="equipment"]')!.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
     root.querySelector<HTMLElement>('[data-item="swordsman_armor"]')!.dispatchEvent(
       new window.MouseEvent('contextmenu', { bubbles: true, cancelable: true }),
     );

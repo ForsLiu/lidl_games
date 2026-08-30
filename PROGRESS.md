@@ -5,6 +5,53 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-30 session: fb023 done — the legacy relic UI and separate stash
+  window are gone; equipment lives in one screen (§7, §11, owner feedback
+  `feature-remove-stash-relics`) — commit pending.** The Hub's `stash` tab is
+  now `equipment`: the relic Stash panel (3-slot box, owned-relic grid with
+  rarity/compare/discard, drag-and-drop) and its helper functions are deleted
+  outright, and fb015's six-slot Equipment panel + owned-items grid is the one
+  remaining equip screen, in the Hub and — new this item — mid-run, via a
+  matching Equipment section added to the in-run character panel. Equipping
+  mid-run is a real sim Command now: `equip_item` (`src/sim/run.ts`'s
+  `equipItemCommand`) replaces the dead, never-wired `{k:'equip', relic}`
+  Command (closing BACKLOG b015 as a side effect), validated against a new
+  `RunConfig.ownedEquipment` run-start snapshot so it stays replayable from
+  seed + input log without the sim reaching into meta state; `Stats` gained
+  `removeSource` (the inverse of `addAll`) to retract an unequipped item's
+  contributions, and `hashWorld` now covers `w.equippedEquipment`. A save
+  older than the new `SAVE_VERSION` 3 has its relic `stash`/`equipped` dropped
+  outright on load, with a one-time Hub notice (`loadMetaWithNotice`). Also
+  fixed a stale Codex "Equipment" collection that pre-dated fb015 and was
+  still showing relic-affix data, and reworded the one player-visible "relic"
+  mention left in quest text. code-reviewer APPROVE (one Minor fixed inline);
+  qa-playtester's first pass found and this item fixed three real gaps its own
+  grep test missed (heading-shaped matches only, not inline prose): "relic"
+  still in the character panel's stat-breakdown note, Constellation's
+  `relicFind` stat still labelled "Relic Find" in tooltips (relabelled "Loot
+  Find" display-side only, the internal StatKey untouched), and a missing
+  type guard on `equippedEquipment` migration that let a corrupted save spread
+  junk keys into it forever (fixed, regression test added, `q3-save-fuzz`'s
+  `KNOWN_COERCED` pin re-measured down). A fourth QA finding — the relic
+  loot-drop/bank pipeline is still fully live on ordinary runs even though no
+  UI can equip/discard a relic anymore — was judged out of this item's literal
+  scope (its own feedback text allows relic data structures to remain; fully
+  retiring the earn pipeline is BACKLOG p7d's already-queued job) and filed as
+  `b037` rather than folded in, logged at QUESTIONS Q143; p7d's own stale
+  "stash preserved" migration clause was corrected in the same commit since
+  fb023 already made it false. Two new test files
+  (`tests/fb023-remove-stash-relics.test.ts`,
+  `tests/fb023-midrun-equip.test.ts`); `tests/b003-stash-ux.test.ts` rewritten
+  in place from relic-UI to Equipment-UI coverage rather than deleted;
+  `tests/q3-save-fuzz.test.ts`'s "corpus is not degenerate" effectiveness
+  floors re-measured and adjusted for eight mutation families whose
+  effectiveness genuinely dropped once mutations inside a since-dropped
+  `stash`/`equipped` subtree became invisible by construction (`version`'s own
+  floor moved the other way, up). `npm run test:fast`: 1525 green, the same
+  four Playwright fold tests (b032/b034/b035/b036) flaky only under this run's
+  parallel resource contention and independently confirmed unrelated, both
+  before and after this item's changes.
+
 - **2026-08-30 session: fb022 done — live, data-derived numbers on every info
   surface (§11, extends fb004/the Codex p9b, owner feedback
   `feature-info-surfacing`) — commit `b13fcf0`.** Four presentation surfaces,

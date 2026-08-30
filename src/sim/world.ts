@@ -234,6 +234,23 @@ export class World {
   equipmentFound: string[] = [];
   /** Filled in at results time by the meta layer. */
   emberEarned = 0;
+  /**
+   * fb023: the six equipment slots -> the item key equipped in each, or null.
+   * Seeded from `cfg.equipment` (a flat key list, one per slot) at
+   * construction and mutated in place only by the `equip_item` Command
+   * (`applyCommand`, run.ts) — never assigned outside `World` after that, the
+   * same "cfg is the input, this is the live copy" split `cfg`/`modKeys` vs
+   * `mods` already draws.
+   */
+  equippedEquipment: Record<string, string | null>;
+  /**
+   * fb023: owned counts snapshotted from `cfg.ownedEquipment` at run start.
+   * Equipping never decrements this — like the Hub's `equipItem` (meta/
+   * stash.ts), an item is a fixed row owned as a count, not a unique instance
+   * consumed by equipping it — so this map is read-only for the run's whole
+   * life, just the domain `equip_item` validates against.
+   */
+  readonly ownedEquipment: Record<string, number>;
 
   /* ---- stats/telemetry ---- */
   kills = 0;
@@ -383,6 +400,15 @@ export class World {
 
     this.stats = baseRunStats(content, cfg);
     this.stats.add('modifiers', 'pickupPct', this.mods.pickupMul);
+    // fb023: derive the per-slot equipped map from the same flat `cfg.equipment`
+    // key list `baseRunStats` just folded into `Stats` above, so the two never
+    // disagree about what is equipped.
+    this.equippedEquipment = Object.fromEntries(content.equipment.slots.map((slot) => [slot, null]));
+    for (const key of cfg.equipment ?? []) {
+      const item = content.equipmentByKey.get(key);
+      if (item) this.equippedEquipment[item.slot] = key;
+    }
+    this.ownedEquipment = { ...(cfg.ownedEquipment ?? {}) };
     // SPEC-FINAL §5.5 Vampire Heart: "VS: character +1% lifesteal" is a base
     // effect (no step required) and `leech` is already a generic Warden stat
     // (`damageEnemy`, enemies.ts) gated to VS by its own `huntsWarden` check —

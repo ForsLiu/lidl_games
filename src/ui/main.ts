@@ -16,7 +16,7 @@ import { makeSelectHandler, sweepSelection } from './selection';
 import { Renderer, type ViewState } from '../render/canvas';
 import { Hud } from './hud';
 import { Hub } from './hub';
-import { applyRunResult, defaultMeta, loadMeta, saveMeta } from '../meta/meta';
+import { applyRunResult, defaultMeta, loadMetaWithNotice, saveMeta } from '../meta/meta';
 import { devProfileActive, startupProfile } from '../meta/devprofile';
 import { loadSettings, saveSettings, type Settings } from './settings';
 import { Sfx } from '../render/sfx';
@@ -49,10 +49,14 @@ class Game {
   private inputBound = false;
   private paused = false;
   private lastCfg: RunConfig | null = null;
+  /** fb023: a one-time save-migration notice, consumed by the first `showHub()` call after `start()`. */
+  private pendingHubNotice: string | null = null;
 
   start(rootEl: HTMLElement): void {
     this.root = rootEl;
-    this.meta = loadMeta();
+    const loaded = loadMetaWithNotice();
+    this.meta = loaded.meta;
+    this.pendingHubNotice = loaded.notice;
     // SPEC-V3 T3: a development build starts with everything open, unless the
     // player has asked for a clean profile. A production build never gets here
     // with `devProfileActive()` true (gate C8).
@@ -113,7 +117,8 @@ class Game {
         this.meta = meta;
         saveMeta(meta);
       },
-    });
+    }, this.pendingHubNotice ?? undefined);
+    this.pendingHubNotice = null;
     hub.show();
   }
 
@@ -139,6 +144,7 @@ class Game {
         this.meta = { ...this.meta, autoPickLevelUps: on };
         saveMeta(this.meta);
       },
+      onEquipItem: (slot, item) => this.pending.push({ k: 'equip_item', slot, item }),
       onToggleCharacterPanel: () => this.hud.toggleCharacterPanel(this.run!.world),
       onToggleDpsPanel: () => this.hud.toggleDpsPanel(this.run!.world),
       onResume: () => this.setPaused(false),
