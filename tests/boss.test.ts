@@ -229,14 +229,42 @@ describe('the Warden-Eater (SPEC 5.5)', () => {
   // content did move two seeds all the way to `victory` where none did
   // before. Full breakdown in the doc comment above. `.skip`-ed with the
   // real number; re-enable point moves from `p8a` (done) to **P10**.
-  it.skip('is a real fight: the scripted bot wins some and loses some', () => {
-    let wins = 0;
+  //
+  // p8c (G14 formal measurement, this session): the informal 25%-65% band
+  // above pre-dates SPEC-FINAL's G-numbering. G14's own text (§14) is
+  // literal: "20 seeds, scripted-build win rate >=60% and <100%". Restated
+  // this test against that literal band (seed count/policy/cycles unchanged
+  // from the p8a re-measurement — this is p8c's own gate, "measured on the
+  // §1.1 run shape, so it must run after p3a") and replaced the hand-
+  // transcribed per-seed breakdown in the comment above with a real per-seed
+  // diagnostic the test itself builds and prints in its failure message, so
+  // future re-measurement passes (P10) don't need to hand-copy numbers.
+  //
+  // CLAUDE.md: "a deferral is a measurement with an expiry date" — re-ran
+  // rather than inherited Q123's 2/20. **Now 0/20 (0%)**, not 2/20: seeds 7
+  // and 10, the two victories Q123 recorded, both now read `defeat_core` at
+  // wave 17. p8b (landed after Q123, capping elite/boss-summon spawns at
+  // `aliveCap`) is the intervening change on this path — consistent with
+  // more enemies actually reaching the Core now that overshoot spawns no
+  // longer die instantly to being over-cap, at the cost of the two seeds
+  // that used to scrape a win. Full breakdown: seeds 1,2,3,5,6,9,11-14,16,18
+  // defeat_core/w16; seeds 4,7,10,15,17,19,20 defeat_core/w17; seed 8
+  // defeat_warden/w3 (unchanged from Q123). `.skip`-ed with this honest
+  // number; re-enable point **P10** (CLAUDE.md: no balance tuning before
+  // P10) — this item (p8c) is the measurement, not the fix.
+  it.skip('G14: over 20 seeds, the scripted-build win rate is >=60% and <100%', () => {
     const seeds = Array.from({ length: 20 }, (_, i) => i + 1);
-    for (const seed of seeds) {
-      if (runWithPolicy(cfg({ seed, cycles: 6 }), 'hybrid').report.bossKilled) wins++;
-    }
-    expect(wins, `${wins}/${seeds.length} wins`).toBeGreaterThanOrEqual(Math.ceil(seeds.length * 0.25));
-    expect(wins, `${wins}/${seeds.length} wins`).toBeLessThanOrEqual(Math.floor(seeds.length * 0.65));
+    const results = seeds.map((seed) => {
+      const { report } = runWithPolicy(cfg({ seed, cycles: 6 }), 'hybrid');
+      return { seed, outcome: report.outcome, wavesCleared: report.wavesCleared, survivalSeconds: report.survivalSeconds };
+    });
+    const wins = results.filter((r) => r.outcome === 'victory').length;
+    const breakdown = results
+      .map((r) => `seed ${r.seed}: ${r.outcome} (wave ${r.wavesCleared}, ${r.survivalSeconds}s)`)
+      .join('\n');
+    const message = `${wins}/${seeds.length} wins (need >=${Math.ceil(seeds.length * 0.6)}, <${seeds.length})\n${breakdown}`;
+    expect(wins, message).toBeGreaterThanOrEqual(Math.ceil(seeds.length * 0.6));
+    expect(wins, message).toBeLessThan(seeds.length);
   });
 });
 
