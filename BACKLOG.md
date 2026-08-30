@@ -947,7 +947,7 @@ logged in MIGRATION.md §8 rather than carried as dead items.
       tower was selected in Training Grounds — ~230px below the fold and
       unreachable, because `#sw-practice` (9 dev buttons + the spawn-enemy
       row) sat above it in `.sw-side`, which has no scroll of its own —
-      commit pending, refs: §11, QUALITY.md Beta bar, QA repro during b034
+      commit `51bccd6`, refs: §11, QUALITY.md Beta bar, QA repro during b034
       verification. Fixed by collapsing the practice-tool panel by default:
       `showPracticeTools` (`src/ui/hud.ts`) now renders a clickable
       `#sw-practice-toggle` header ("Practice tool ▸"/"▾", mouse + Enter/
