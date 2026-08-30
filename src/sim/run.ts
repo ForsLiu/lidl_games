@@ -984,6 +984,10 @@ export function hashWorld(w: World): string {
   const h = new Hasher();
   h.int(w.tick).int(w.phase.length).str(w.phase).str(w.outcome);
   h.num(w.coreHp).num(w.gold).int(w.wave).int(w.kills).int(w.leaks);
+  // p9g: `w.gold` was already hashed above (since M0) but `w.goldSpent` —
+  // the running total a refund/cost bug would diverge on even when the
+  // final balance happens to net out the same — was not.
+  h.num(w.goldSpent);
   // p-core-b: Core-HP steps (Stone Heart) mutate `coreMaxHp`, and the flat
   // gold trickle / overheal conversion (Time, Vampire Heart) mutate this
   // sub-1-gold accumulator between the ticks it flushes into `w.gold`.
