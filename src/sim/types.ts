@@ -678,6 +678,8 @@ export interface RunReport {
   endHash: string;
   /** True if any practice-tool command was used; such a run banks nothing. */
   practiceUsed: boolean;
+  /** p7e (§10): true if Act I was ever sampled fully sealed this run. */
+  sealed: boolean;
   /** Wall time for the run loop, filled in by the headless CLI. */
   simMs?: number;
 }

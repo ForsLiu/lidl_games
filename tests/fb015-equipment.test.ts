@@ -240,6 +240,7 @@ function minimalReport(): import('../src/sim/types').RunReport {
     bossKillSeconds: 0,
     endHash: '',
     practiceUsed: false,
+    sealed: false,
   };
 }
 

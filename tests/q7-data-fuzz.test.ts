@@ -480,8 +480,22 @@ describe('q7 — cross-file references, row by row', () => {
     // `skillCards` key must name a real class (the reverse direction) — so
     // all 12 rows are caught now, not 9 of 12 through `affinity.json` (itself
     // deleted at p6f, which is why this row read `open` in between).
+    //
+    // p7e: three `quests.quests[]` fields *joined* this list. `content.ts`
+    // now cross-references a non-free class's `unlockQuest` against a real
+    // quest whose `reward` names that exact class (§8.4) — but only 9 of the
+    // 10 authored quests are any class's `unlockQuest` (`maze_master` is a
+    // standalone achievement, unlinked to any class), so `key`/`reward.kind`/
+    // `reward.value` are each caught on 9 rows and open on the 10th.
     const partial = Object.keys(observed).filter((p) => observed[p] === 'partial');
-    expect(partial.sort()).toEqual(['damagetypes.types[].key', 'enemies.enemies[].key', 'towers.towers[].key']);
+    expect(partial.sort()).toEqual([
+      'damagetypes.types[].key',
+      'enemies.enemies[].key',
+      'quests.quests[].key',
+      'quests.quests[].reward.kind',
+      'quests.quests[].reward.value',
+      'towers.towers[].key',
+    ]);
   }, 300_000);
 });
 

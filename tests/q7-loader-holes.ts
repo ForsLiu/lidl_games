@@ -22,6 +22,25 @@
  *     `open` = no row is, `partial` = some are and some are not, which is the
  *     one-directional-integrity finding (E1).
  *
+ * Recorded 2026-08-30 (p7e) against 6,599 mutations, 4,381 rejected, 2,218
+ * accepted — down from 4,371/2,228: p7e's `loadContent()` gained a
+ * referential-integrity check (§8.4) that every non-free class's
+ * `unlockQuest` names a real quest whose `reward` is exactly
+ * `{kind:'class', value:<that class's own key>}` — the loader rule that
+ * closes the exact bug the item found (5 of 9 non-free classes' unlock
+ * quests rewarded a `feature`/`cosmetic`/`passive` instead, silently never
+ * unlocking the class). Ten ACCEPTED holes close as a result
+ * (`classes.classes[].unlockQuest`, `classes.classes[].unlockedByDefault`,
+ * `quests.quests` `empty-array`/`drop-element`, and
+ * `quests.quests[].key`/`reward.kind`/`reward.value`'s `to-string`/
+ * `empty-string` families), and `classes.classes[].unlockQuest` and
+ * `quests.quests[].reward.kind`/`reward.value` newly appear in REF_VERDICTS
+ * (`checked`/`partial`/`partial` — `reward.kind`/`reward.value` read
+ * `partial` because `maze_master`'s quest is unlinked to any class and so is
+ * not cross-checked; `quests.quests[].key` moves from unlisted to `partial`
+ * for the same reason). ACCEPTED, INEFFECTIVE and REF_VERDICTS all
+ * regenerated in full.
+ *
  * Recorded 2026-08-30 (p7d) against 6,599 mutations, 4,371 rejected, 2,228
  * accepted — down from 6,968/4,622/2,346: p7d retired `data/relics.json`
  * (the relic affix/rarity table) outright — `DATA_FILES` drops to fourteen
@@ -266,8 +285,6 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'classes.classes[].towerPassive.mods.towerRange': ['negative', 'zero', 'infinite', 'fractional', 'drop-key', 'rename-key'],
   'classes.classes[].towerPassive.name': ['to-string', 'empty-string'],
   'classes.classes[].towerPassive.waveInterval': ['negative', 'zero', 'infinite', 'fractional'],
-  'classes.classes[].unlockQuest': ['to-string'],
-  'classes.classes[].unlockedByDefault': ['flip-bool'],
   'cores.cores[].baseHp': ['infinite', 'fractional'],
   'cores.cores[].effects': ['drop-key'],
   'cores.cores[].effects.corpseExecuteInterval': ['negative', 'zero', 'infinite', 'fractional', 'drop-key', 'rename-key'],
@@ -420,13 +437,10 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'modifiers.modifiers[].name': ['to-string', 'empty-string'],
   'modifiers.modifiers[].rewardBonus': ['negative', 'zero', 'infinite', 'fractional'],
   'modifiers.tierRewardPerStep': ['negative', 'zero', 'infinite', 'fractional'],
-  'quests.quests': ['empty-array', 'drop-element', 'dupe-element'],
+  'quests.quests': ['dupe-element'],
   'quests.quests[].desc': ['to-string', 'empty-string'],
-  'quests.quests[].key': ['to-string', 'empty-string'],
   'quests.quests[].metric': ['to-string', 'empty-string'],
   'quests.quests[].name': ['to-string', 'empty-string'],
-  'quests.quests[].reward.kind': ['to-string', 'empty-string'],
-  'quests.quests[].reward.value': ['to-string', 'empty-string'],
   'quests.quests[].target': ['negative', 'zero', 'infinite', 'fractional'],
   'spawns.actIICarry': ['negative', 'zero', 'infinite', 'fractional'],
   'spawns.aliveCap': ['negative', 'zero', 'infinite', 'fractional'],
@@ -723,7 +737,6 @@ export const INEFFECTIVE: readonly string[] = [
   'tree.nodes[].y | zero',
   'tree.nodes[].ring | zero',
   'warden.armor | zero',
-
 ];
 
 /** Canonical string path -> how its rows scored under a garbage rename. */
@@ -741,7 +754,7 @@ export const REF_VERDICTS: Readonly<Record<string, RefVerdict>> = {
   'classes.classes[].towerPassive.description': 'open',
   'classes.classes[].towerPassive.kind': 'checked',
   'classes.classes[].towerPassive.name': 'open',
-  'classes.classes[].unlockQuest': 'open',
+  'classes.classes[].unlockQuest': 'checked',
   'cores.cores[].key': 'open',
   'cores.cores[].name': 'open',
   'cores.cores[].unlockCondition': 'open',
@@ -777,11 +790,11 @@ export const REF_VERDICTS: Readonly<Record<string, RefVerdict>> = {
   'modifiers.modifiers[].name': 'open',
   'quests.quests[].compare': 'checked',
   'quests.quests[].desc': 'open',
-  'quests.quests[].key': 'open',
+  'quests.quests[].key': 'partial',
   'quests.quests[].metric': 'open',
   'quests.quests[].name': 'open',
-  'quests.quests[].reward.kind': 'open',
-  'quests.quests[].reward.value': 'open',
+  'quests.quests[].reward.kind': 'partial',
+  'quests.quests[].reward.value': 'partial',
   'towers.towers[].attack.kind': 'checked',
   'towers.towers[].desc': 'open',
   'towers.towers[].key': 'partial',

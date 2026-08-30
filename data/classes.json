@@ -360,7 +360,7 @@
       }
     },
     {
-      "key": "paladin", "name": "Paladin", "unlockedByDefault": false, "unlockQuest": "tier5",
+      "key": "paladin", "name": "Paladin", "unlockedByDefault": false, "unlockQuest": "sealed_win",
       "moveSpeedBonus": 0,
       "basicAttack": { "dps": 16, "range": 2.5, "interval": 0.8, "aoe": 1.5 },
       "passive": {

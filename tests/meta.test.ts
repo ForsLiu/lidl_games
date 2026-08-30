@@ -221,6 +221,7 @@ describe('quest metrics (Q101, p2e)', () => {
       bossKillSeconds: 590,
       endHash: '',
       practiceUsed: false,
+      sealed: false,
     };
   }
 

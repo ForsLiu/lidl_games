@@ -164,6 +164,7 @@ describe('p7c: the meta layer banks exactly report.vsWavesCleared skill points a
       bossKillSeconds: 0,
       endHash: '',
       practiceUsed: false,
+      sealed: false,
       ...over,
     };
   }

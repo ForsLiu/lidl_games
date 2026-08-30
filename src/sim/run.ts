@@ -98,6 +98,18 @@ export class Run {
     w.rebuildBuckets();
     w.grid.refresh();
 
+    // p7e: same sampling cadence and phase guard as p1b-seal-winrate.test.ts's
+    // external latch (a full `allGatesReachable` dijkstra every tick is
+    // wasted work the p1b comment already measured as unnecessary).
+    if (
+      !w.everSealed &&
+      w.tick % 120 === 0 &&
+      (w.phase === 'act1_build' || w.phase === 'act1_wave') &&
+      !w.grid.allGatesReachable()
+    ) {
+      w.everSealed = true;
+    }
+
     const dt = FIXED_DT;
     switch (w.phase) {
       case 'act1_build':
@@ -1205,6 +1217,7 @@ export function buildReport(w: World): RunReport {
     bossKillSeconds: round2(w.bossKillTime),
     endHash: hashWorld(w),
     practiceUsed: w.practiceUsed,
+    sealed: w.everSealed,
   };
 }
 

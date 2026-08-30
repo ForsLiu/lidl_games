@@ -256,6 +256,13 @@ export class World {
   leaks = 0;
   wavesCleared = 0;
   /**
+   * p7e (§8.4, §10): latches true the first time Act I is sampled fully
+   * sealed (`!grid.allGatesReachable()`), feeding the "win with a sealed
+   * Core" quest (Paladin). A readback flag like `equipmentFound`, not sim
+   * state that gates future behaviour, so it is not part of `hashWorld`.
+   */
+  everSealed = false;
+  /**
    * §8.2 (p7c): "each VS wave cleared -> 1 skill point," counted only for a
    * VS wave that actually ends by its own means — the block timer
    * (`advanceToNextBlock`) or, for the final block, the Warden-Eater kill —

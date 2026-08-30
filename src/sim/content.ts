@@ -1535,6 +1535,29 @@ export function loadContent(): Content {
     }
   }
 
+  // p7e (§8.4): a class's `unlockQuest` naming a quest whose `reward` does not
+  // actually unlock that class is a silent dead end — exactly the bug that
+  // left 5 of 9 non-free classes permanently unobtainable outside the dev
+  // profile until this rule caught it. A free class has no unlock quest; a
+  // non-free class's quest must exist and reward it by exact key.
+  const questByKey = new Map(quests.quests.map((q) => [q.key, q]));
+  for (const c of classes.classes) {
+    if (c.unlockedByDefault) {
+      if (c.unlockQuest !== null) {
+        throw new Error(`classes.json: ${c.key} is unlockedByDefault but names unlockQuest "${c.unlockQuest}"`);
+      }
+      continue;
+    }
+    if (c.unlockQuest === null) throw new Error(`classes.json: ${c.key} is not free and has no unlockQuest`);
+    const quest = questByKey.get(c.unlockQuest);
+    if (!quest) throw new Error(`classes.json: ${c.key}.unlockQuest "${c.unlockQuest}" has no matching quest`);
+    if (quest.reward.kind !== 'class' || quest.reward.value !== c.key) {
+      throw new Error(
+        `quests.json: "${quest.key}" is ${c.key}'s unlockQuest but its reward is ${quest.reward.kind}:${quest.reward.value}, not class:${c.key}`,
+      );
+    }
+  }
+
   // p7a (§6.3): every class needs exactly its 3 skill cards — one each of
   // active1_potency/active2_cdr/class_line — so `progression.ts`'s generic
   // per-effect lookup (`skillCard`) can assume exactly one match per class

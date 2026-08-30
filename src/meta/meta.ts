@@ -98,8 +98,11 @@ export function metricsFor(report: RunReport, w: World): Record<string, number> 
   const won = report.outcome === 'victory' ? 1 : 0;
   return {
     wins: won,
-    wins_t5: won && report.tier >= 5 ? 1 : 0,
     wins_max4towertypes: won && distinctTowerTypes <= 4 ? 1 : 0,
+    // p7e: "win with a sealed Core" (§8.4, Paladin) — `report.sealed` latches
+    // true the moment Act I is ever sampled fully sealed, win or lose, so
+    // this metric additionally requires the win.
+    wins_sealed: won && report.sealed ? 1 : 0,
     built_frost_obelisk: report.towersByKey['frost_obelisk'] ?? 0,
     lifetime_gold: report.goldEarned,
     max_palisades_end: palisades,
@@ -111,7 +114,7 @@ export function metricsFor(report: RunReport, w: World): Record<string, number> 
   };
 }
 
-const CUMULATIVE = new Set(['wins', 'wins_t5', 'wins_max4towertypes', 'built_frost_obelisk', 'lifetime_gold']);
+const CUMULATIVE = new Set(['wins', 'wins_sealed', 'wins_max4towertypes', 'built_frost_obelisk', 'lifetime_gold']);
 
 export function applyRunResult(meta: MetaState, report: RunReport, w: World): MetaState {
   const c = loadContent();
