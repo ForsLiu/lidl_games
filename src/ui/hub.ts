@@ -37,8 +37,9 @@ import { classAbilitiesMarkup } from './class-info';
 import { coreDetailMarkup } from './core-info';
 import { modLines, modLinesHtml } from './info-format';
 import { STAT_KIND, type StatKey } from '../sim/stats';
+import { mountCodex } from './codex';
 
-type Tab = 'run' | 'tree' | 'equipment' | 'settings';
+type Tab = 'run' | 'tree' | 'equipment' | 'codex' | 'settings';
 
 export interface HubCallbacks {
   settings: Settings;
@@ -103,11 +104,11 @@ export class Hub {
         ${DEV_BUILD && devProfileActive() ? DEV_BADGE : ''}
       </header>
       <nav>
-        ${(['run', 'tree', 'equipment', 'settings'] as Tab[])
+        ${(['run', 'tree', 'equipment', 'codex', 'settings'] as Tab[])
           .map(
             (t) =>
               `<button data-tab="${t}" class="${this.tab === t ? 'on' : ''}">${
-                { run: 'Run', tree: 'Constellation', equipment: 'Equipment', settings: 'Settings' }[t]
+                { run: 'Run', tree: 'Constellation', equipment: 'Equipment', codex: 'Codex', settings: 'Settings' }[t]
               }</button>`,
           )
           .join('')}
@@ -125,6 +126,7 @@ export class Hub {
     if (this.tab === 'run') this.renderRun(body);
     else if (this.tab === 'tree') this.renderTree(body);
     else if (this.tab === 'equipment') this.renderEquipment(body);
+    else if (this.tab === 'codex') this.renderCodex(body);
     else this.renderSettings(body);
   }
 
@@ -364,6 +366,18 @@ export class Hub {
         this.show();
       },
     });
+  }
+
+  /* ------------------------------------------------------------- codex tab */
+
+  /**
+   * p9b: the read-only Codex's Hub entry point. `mountCodex` owns its own nav
+   * and content DOM entirely within `body`, so it needs no wiring back into
+   * Hub state — `show()` tearing down `body` on every tab switch is enough
+   * cleanup, the same way every other tab here works.
+   */
+  private renderCodex(body: HTMLElement): void {
+    mountCodex(body);
   }
 
   /* ---------------------------------------------------------- settings tab */

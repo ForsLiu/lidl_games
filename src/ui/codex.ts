@@ -4,10 +4,8 @@
  * gaining a field (and data filling it) shows up with zero changes here. The
  * edit half (t26c) and the save endpoint (t26b) are separate lane items.
  *
- * Deliberately standalone — this lane may not touch `src/ui/hub.ts` or
- * `main.ts`, so `mountCodex` is not wired into the running game yet. See
- * BACKLOG-TUNER.md's Log for the entry-point wiring this leaves for the
- * merge.
+ * Wired into the Hub's Codex tab (`src/ui/hub.ts`, p9b). See
+ * BACKLOG-TUNER.md's Log for the lane history that built this standalone.
  */
 import { buildCodexCollections, type CodexCollection } from './codex-collections';
 
