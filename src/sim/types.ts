@@ -230,6 +230,8 @@ export interface Enemy {
   bossPhase: number;
   bossTimer: number;
   bossAction: number;
+  /** §9 addendum: seconds the flow field has found no route to the Warden, continuously. */
+  bossUnreachableTime: number;
   spawnedAt: number;
   /**
    * §4.2 Paladin *Clarion Taunt* / Animist *Recall Totem* (Q120 ORDER 1):

@@ -129,6 +129,7 @@ export function makeEnemy(w: World, def: EnemyDef, x: number, y: number, opts: S
     bossPhase: 0,
     bossTimer: 0,
     bossAction: 0,
+    bossUnreachableTime: 0,
     spawnedAt: w.tick,
     tauntRemaining: 0,
     tauntKind: TAUNT_NONE,

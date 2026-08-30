@@ -924,7 +924,11 @@ function resolveDefeat(w: World, dt: number): void {
 
 function checkDefeat(w: World): void {
   if (w.outcome !== 'running' || w.dying) return;
-  if (w.coreHp <= 0 && !w.huntsWarden) {
+  // §9 addendum (Q126/Q127): Core loss is defeat in either phase now that the
+  // boss can chip the Core directly when it cannot path to the Warden at all
+  // (`updateUnreachable`, boss.ts) — Act I leaks are still the only other
+  // writer of `coreHp`, and those never fire once `huntsWarden` is true.
+  if (w.coreHp <= 0) {
     w.coreHp = 0;
     beginDefeat(w, 'defeat_core');
   }
@@ -1016,6 +1020,10 @@ export function hashWorld(w: World): string {
     // sim state — a replay that disagreed on it would walk a different path
     // and could breach a different tile without the hash ever noticing.
     h.num(e.tauntRemaining).int(e.tauntKind).int(e.tauntSourceId);
+    // p8d (§9 addendum): gates the unreachable-boss Core/structure damage —
+    // a replay that disagreed here could go up to `UNREACHABLE_THRESHOLD`
+    // seconds before the divergence lands on a field already hashed below.
+    h.num(e.bossUnreachableTime);
     for (const d of e.dots) h.str(d.type).num(d.remaining).num(d.dps);
     // fb013: Time Lord's per-enemy mark stage/deferred-slow gate future
     // damage the same way the statuses above do; `posHistory` decides where

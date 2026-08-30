@@ -190,16 +190,11 @@ called out in their own titles instead.
       section.**
 - [x] (b035) [bug] `#sw-towerinfo` rendered ~230px below the 1080px fold in
       Training Grounds once a tower was selected — **done, see Done section.**
-- [ ] (p8d) [feat] Boss termination guarantee (§9 addendum, QUESTIONS Q126/Q127):
-      the Warden-Eater gains a hard escalation from 3:00 of boss-fight time —
-      +10% damage and +5% move/attack speed every 30 s, stacking without cap
-      (⚖); whenever it cannot reach the Warden it attacks structures and the
-      Core (Core loss = defeat as normal); intent: no run can stalemate, every
-      seed terminates — acceptance: across the standard G8/G23 measurement
-      matrices with a 60-sim-minute boss cap, zero 'running'/timeout outcomes;
-      the known stalemate seeds (carnivorous_plant seeds 2 and 9, corpse seed
-      2, swordsman 1/2/5/9, archer 2/11, stormcaller 6, bloodlord 1/12) all
-      resolve to real outcomes — refs: §9 addendum, QUESTIONS.md Q126, Q127.
+- [x] (p8d) [feat] Boss termination guarantee (§9 addendum, QUESTIONS Q126/Q127)
+      — **done, see Done section.** Full G8/G23 re-measurement across the
+      twelve named stalemate seeds is still P10's job (unchanged, expensive,
+      out of scope for one item per CLAUDE.md) — this shipped and verified
+      the actual mechanism the guarantee depends on.
 
 ### Feedback — owner-filed items (2026-08-29), processed from `feedback/`
 
@@ -929,6 +924,55 @@ logged in MIGRATION.md §8 rather than carried as dead items.
 
 ## Done
 
+- [x] (p8d) [feat] Boss termination guarantee (§9 addendum, QUESTIONS Q126/
+      Q127) — commit pending (recorded in a follow-up docs commit), refs: §9
+      addendum, QUESTIONS.md Q126, Q127. `src/sim/boss.ts` gained
+      `escalationStacks`/`escalationDamageMul`/`escalationSpeedMul`
+      (exported), computed from `w.act2Time - w.bossSpawnTime`: 0 before 3:00
+      of boss-fight time, +1 stack every 30s after with no cap, applied to
+      charge damage/speed/cooldown, slam-to-Warden damage, the summon/slam
+      cadence, arena-fire DPS, and (via the existing `buffSpeed` haste hook)
+      the generic chase-fallback speed. A second mechanism,
+      `canReachWarden`/`updateUnreachable`, reads the same Act II nav field
+      the ordinary chase already uses: once the boss's tile has had no route
+      to the Warden for 6 continuous seconds (`UNREACHABLE_THRESHOLD`,
+      exported) it deals escalation-scaled damage to the nearest structure
+      within 2.5 tiles or, lacking one, directly to the Core — `checkDefeat`
+      (run.ts) no longer gates Core-loss defeat behind `!huntsWarden`, so
+      Core loss now ends the run in Act II exactly as it already did in Act I
+      (verified no other `coreHp` writer fires once `huntsWarden` is true).
+      `tests/p8d-boss-termination.test.ts` (10 tests) covers the escalation
+      math directly, an "unbounded multiplier eventually beats a fixed
+      sustain rate the base kit cannot break" proof — the actual mechanism
+      behind the named stalemate seeds, which `tests/p-core-f-gates.test.ts`
+      and `tests/p6e-class-diversity.test.ts` already measured as a pure
+      damage/sustain race (a Core or class sustaining the Warden indefinitely
+      while neither side's damage closes the fight out); full re-measurement
+      of G8/G23 and the twelve named seeds against the real 60-minute cap is
+      P10's job per this item's own BACKLOG text and was not re-run here —
+      plus the structure/Core damage split when unreachable, a god-mode
+      exemption, and a route-reopens-mid-timer reset case.
+
+      code-reviewer **REQUEST-CHANGES** on the first pass (one Major, two
+      Minor), fixed in the same commit: the new direct-Core damage branch
+      bypassed `godMode`'s documented "Core takes no damage" contract (the
+      one pre-existing Core-HP writer, `leakIntoCore`, already gates on it)
+      — guarded the same way, with a new regression test; `bossUnreachableTime`
+      was left out of `hashWorld` despite gating a damage system, which the
+      file's own comments state as the hashing rule — added. qa-playtester
+      **PASS** on the item's real intent (verified the escalation clock
+      cannot go backward or reset while the real boss is alive, confirmed
+      `checkDefeat`'s widened Core check cannot fire falsely since Act II is
+      only ever reached with `coreHp > 0` already, confirmed
+      `canReachWarden` does not false-positive on an ordinary winding maze
+      over a 45s probe) but filed one real bug: a Warden-Eater spawned
+      through the practice panel's generic, unfiltered "Spawn enemy" debug
+      tool (`src/ui/hud.ts`) never goes through `spawnFinalBoss`, so
+      `bossSpawnTime` stayed -1 forever and escalation silently never
+      engaged for that spawn path — fixed by lazily latching
+      `w.bossSpawnTime` on `bossUpdate`'s first sight of a live boss (a no-op
+      on the normal `spawnFinalBoss` path, where it is already set by then),
+      with a regression test reproducing the debug-spawn path directly.
 - [x] (b036) [polish] `.sw-help` (the WASD/keybind hint, last element in
       `.sw-side`) sat at `bottom ≈ 1096.9px` in the same Training Grounds
       scenario b035 fixed for `#sw-towerinfo` (`startPracticeRun({classKey:

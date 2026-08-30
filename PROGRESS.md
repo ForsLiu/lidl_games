@@ -5,6 +5,33 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-30 session: p8d done — boss termination guarantee (§9 addendum,
+  QUESTIONS Q126/Q127).** The Warden-Eater now escalates: from 3:00 of
+  boss-fight time (`w.act2Time - w.bossSpawnTime`) it gains +10% damage and
+  +5% move/attack speed every 30s with no cap, applied to its charge, slam,
+  arena-fire and generic chase speed/cadence (`src/sim/boss.ts`'s new
+  `escalationStacks`/`escalationDamageMul`/`escalationSpeedMul`). Separately,
+  whenever the boss's own Act II nav-field tile has had no route to the
+  Warden for 6 continuous seconds, it chips the nearest structure within 2.5
+  tiles or, lacking one, the Core directly (`canReachWarden`/
+  `updateUnreachable`) — `checkDefeat` (run.ts) no longer gates Core-loss
+  defeat behind `!huntsWarden`, so Core loss now ends the run in Act II too.
+  This targets the actual measured mechanism behind the twelve named
+  stalemate seeds (a pure damage/sustain race — a Core or class sustaining
+  the Warden indefinitely while neither side's damage closes the fight out,
+  per `tests/p-core-f-gates.test.ts`/`tests/p6e-class-diversity.test.ts`'s
+  own numbers): escalation is unbounded, so it eventually exceeds any finite
+  sustain rate. `tests/p8d-boss-termination.test.ts` (10 tests) proves this
+  directly rather than re-running the expensive full seed sweep, which stays
+  P10's job per this item's own BACKLOG text. code-reviewer
+  REQUEST-CHANGES→fixed in the same commit (the new Core-damage branch
+  bypassed `godMode`'s documented invariant; `bossUnreachableTime` was
+  missing from `hashWorld` despite gating a damage system). qa-playtester
+  PASS on the item's real intent, filing one real bug fixed in the same
+  commit: a boss spawned via the practice panel's generic debug spawn tool
+  (not `spawnFinalBoss`) never escalated at all, since `bossSpawnTime` stayed
+  -1 forever — fixed by lazily latching it on `bossUpdate`'s first tick for
+  any live boss, covering every spawn path.
 - **2026-08-30 session: b036 done — `.sw-help` no longer renders below the
   1080px fold in Training Grounds (QA-filed while verifying b035).** Same
   scenario and root cause as b035 (`.sw-side` has no scroll of its own):

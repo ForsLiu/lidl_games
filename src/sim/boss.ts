@@ -18,7 +18,7 @@ import {
   setBossHandler,
   spawnEnemy,
 } from './enemies';
-import type { Enemy } from './types';
+import type { Enemy, Structure } from './types';
 import { World } from './world';
 
 /** Phase boundaries as a fraction of max HP. */
@@ -49,7 +49,92 @@ const IDLE = 0;
 const TELEGRAPH = 1;
 const CHARGING = 2;
 
+/**
+ * §9 addendum (Q126/Q127, ORDER from the 2026-08-28 verdict batch): "no run
+ * can stalemate, every seed terminates." From 3:00 of boss-fight time (not
+ * Act II time — `w.act2Time - w.bossSpawnTime`) the Warden-Eater gains +10%
+ * damage and +5% move/attack speed every 30s, stacking without cap (⚖) so
+ * that any finite sustain/kite race a scripted bot can set up is eventually
+ * overrun rather than drawn out indefinitely.
+ */
+const ESCALATION_START = 180;
+const ESCALATION_INTERVAL = 30;
+const ESCALATION_DAMAGE_PER_STACK = 0.1;
+const ESCALATION_SPEED_PER_STACK = 0.05;
+
+/** Exported for direct assertions (tests/p8d-boss-termination.test.ts) — same reason `updateBossSlam` is public. */
+export function escalationStacks(w: World): number {
+  if (w.bossSpawnTime < 0) return 0;
+  const elapsed = w.act2Time - w.bossSpawnTime;
+  if (elapsed < ESCALATION_START) return 0;
+  return 1 + Math.floor((elapsed - ESCALATION_START) / ESCALATION_INTERVAL);
+}
+
+export function escalationDamageMul(w: World): number {
+  return 1 + ESCALATION_DAMAGE_PER_STACK * escalationStacks(w);
+}
+
+export function escalationSpeedMul(w: World): number {
+  return 1 + ESCALATION_SPEED_PER_STACK * escalationStacks(w);
+}
+
+/**
+ * §9 addendum: whenever the boss cannot path to the Warden at all (a sealed
+ * pocket of standing structures, not merely a long route around them — the
+ * charge script above already shatters anything directly in a charge's line)
+ * it attacks the nearest structure and, lacking one in reach, the Core
+ * directly, so a truly walled-off Warden cannot stall the run forever behind
+ * an unreachable position. `checkDefeat` (run.ts) treats Core loss as defeat
+ * regardless of phase, same as Act I.
+ */
+export const UNREACHABLE_THRESHOLD = 6;
+const UNREACHABLE_STRUCTURE_RANGE = 2.5;
+const UNREACHABLE_DPS = 40;
+
+function canReachWarden(w: World, e: Enemy): boolean {
+  const wd = w.warden;
+  const tx = Math.floor(e.x);
+  const ty = Math.floor(e.y);
+  if (!w.grid.inBounds(tx, ty)) return true;
+  if (tx === Math.floor(wd.x) && ty === Math.floor(wd.y)) return true;
+  return w.navFieldFor(false).next[ty * GRID_W + tx] >= 0;
+}
+
+function updateUnreachable(w: World, e: Enemy, dt: number): void {
+  if (canReachWarden(w, e)) {
+    e.bossUnreachableTime = 0;
+    return;
+  }
+  e.bossUnreachableTime += dt;
+  if (e.bossUnreachableTime < UNREACHABLE_THRESHOLD) return;
+
+  const dps = UNREACHABLE_DPS * escalationDamageMul(w);
+  let nearest: Structure | null = null;
+  let nearestD2 = UNREACHABLE_STRUCTURE_RANGE * UNREACHABLE_STRUCTURE_RANGE;
+  for (const s of w.structures) {
+    if (s.dead) continue;
+    const d2 = dist2(e.x, e.y, s.tx + 0.5, s.ty + 0.5);
+    if (d2 <= nearestD2) {
+      nearest = s;
+      nearestD2 = d2;
+    }
+  }
+  if (nearest) damageStructure(w, nearest, dps * dt);
+  // Same god-mode contract `leakIntoCore` (enemies.ts) already honours: only
+  // the Core HP loss is suppressed, so a soak test stays immortal here too.
+  else if (!w.godMode) w.coreHp = Math.max(0, w.coreHp - dps * dt);
+}
+
 export function bossUpdate(w: World, e: Enemy, dt: number): boolean {
+  // `spawnFinalBoss` (act2.ts) sets this on the run's normal boss-spawn path;
+  // a boss placed any other way (the practice panel's generic debug spawn,
+  // `src/ui/hud.ts`'s unfiltered enemy picker included) would otherwise never
+  // start the escalation clock at all, defeating the "every seed terminates"
+  // guarantee for exactly that spawn. Lazily latching it here the first tick
+  // this script ever sees a live boss covers every spawn path uniformly and
+  // is a no-op on the normal path, where it is already set by then.
+  if (w.bossSpawnTime < 0) w.bossSpawnTime = w.act2Time;
+
   const phase = phaseFor(e);
   if (phase !== e.bossPhase) {
     e.bossPhase = phase;
@@ -61,6 +146,13 @@ export function bossUpdate(w: World, e: Enemy, dt: number): boolean {
 
   if (phase === 2) updateArenaFire(w, dt);
   if (phase >= 1) updateSummonsAndSlams(w, e, dt);
+
+  // The escalation's speed half drives the scripted charge below directly;
+  // the generic chase fallback (`moveEnemy`, enemies.ts) reads it back off
+  // `buffSpeed` — the same haste hook other speed buffs already use — on
+  // whichever tick this script has nothing left to say.
+  e.buffSpeed = escalationSpeedMul(w) - 1;
+  updateUnreachable(w, e, dt);
 
   return updateCharge(w, e, dt, phase);
 }
@@ -95,17 +187,20 @@ function updateCharge(w: World, e: Enemy, dt: number, phase: number): boolean {
 
   if (e.bossAction === CHARGING) {
     e.bossTimer -= dt;
-    const speed = CHARGE_SPEED * (phase === 2 ? ENRAGE_SPEED : 1);
+    const speedMul = escalationSpeedMul(w);
+    const speed = CHARGE_SPEED * (phase === 2 ? ENRAGE_SPEED : 1) * speedMul;
     const step = speed * dt;
     const nx = clamp(e.x + e.chargeVx * step, 1, GRID_W - 1);
     const ny = clamp(e.y + e.chargeVy * step, 1, GRID_H - 1);
     shatterAlong(w, e.x, e.y, nx, ny);
     e.x = nx;
     e.y = ny;
-    if (dist(e.x, e.y, wd.x, wd.y) <= CHARGE_WIDTH + e.radius) damageWarden(w, CHARGE_DAMAGE * dt * 2);
+    if (dist(e.x, e.y, wd.x, wd.y) <= CHARGE_WIDTH + e.radius) {
+      damageWarden(w, CHARGE_DAMAGE * dt * 2 * escalationDamageMul(w));
+    }
     if (e.bossTimer <= 0) {
       e.bossAction = IDLE;
-      e.bossTimer = CHARGE_COOLDOWN * (phase === 2 ? 0.7 : 1);
+      e.bossTimer = (CHARGE_COOLDOWN * (phase === 2 ? 0.7 : 1)) / speedMul;
     }
     return true;
   }
@@ -149,7 +244,7 @@ function shatterAlong(w: World, x0: number, y0: number, x1: number, y1: number):
 function updateSummonsAndSlams(w: World, e: Enemy, dt: number): void {
   e.abilityTimer -= dt;
   if (e.abilityTimer > 0) return;
-  e.abilityTimer = SUMMON_INTERVAL;
+  e.abilityTimer = SUMMON_INTERVAL / escalationSpeedMul(w);
 
   for (let i = 0; i < SUMMON_COUNT; i++) {
     const a = (i / SUMMON_COUNT) * 6.283185307179586;
@@ -186,7 +281,7 @@ export function updateBossSlam(w: World, dt: number): void {
     const wd = w.warden;
     const d = Math.sqrt(dist2(a.x, a.y, wd.x, wd.y));
     // Only the leading edge of the ring hurts.
-    if (Math.abs(d - a.radius) <= 0.8) damageWarden(w, SLAM_DAMAGE * dt * 2);
+    if (Math.abs(d - a.radius) <= 0.8) damageWarden(w, SLAM_DAMAGE * dt * 2 * escalationDamageMul(w));
     for (const en of w.enemiesInRadius(a.x, a.y, a.radius + 1)) {
       if (en.dead || en.boss) continue;
       const ed = Math.sqrt(dist2(a.x, a.y, en.x, en.y));
@@ -210,7 +305,7 @@ function updateArenaFire(w: World, dt: number): void {
   const cx = GRID_W / 2;
   const cy = GRID_H / 2;
   const r = w.arenaFireRadius;
-  if (dist2(w.warden.x, w.warden.y, cx, cy) > r * r) damageWarden(w, FIRE_DPS * dt);
+  if (dist2(w.warden.x, w.warden.y, cx, cy) > r * r) damageWarden(w, FIRE_DPS * dt * escalationDamageMul(w));
 }
 
 export function clearArenaFire(w: World): void {
