@@ -403,20 +403,8 @@ taken in the same commit).
       Done section.**
 - [x] (p7g) [bug] A save whose `stash` alone is corrupt loses the whole account —
       **done, see Done section.**
-- [ ] (p7h) [feat] Core unlock quests and Codex page, split out of `p-core-f`
-      by Q116 because the real §8.4 quest engine this needs doesn't exist yet:
-      the four §5.5 unlock lines (Stone Heart is `unlockedByDefault`; the
-      other four Cores' `unlockCondition` strings in `data/cores.json` become
-      real quests through whatever `p7e` builds for §8.4 — "300 lifetime
-      poison kills", "finish a run with the Core at or below 25% HP", "deal
-      100,000 lifetime damage", "win a run in under 32 minutes"), plus a Codex
-      page listing all five Cores' `effects`/`upgrade.steps` the way `p9b`'s
-      page lists every other content collection — acceptance: each of the
-      four non-default Cores has exactly one unlock quest driving its own
-      `unlockCondition` metric to completion in a test; the Codex page renders
-      all five Cores with live numbers read from `data/cores.json`, matching
-      `p9b`'s "a field added to a schema appears with no change to the page"
-      rule — refs: §5.5, §8.4, Q93, Q116
+- [x] (p7h) [feat] Core unlock quests and Codex page — **done, see Done
+      section.**
 
 ### P8 — enemies, waves, bosses complete (G14)
 
@@ -937,6 +925,60 @@ logged in MIGRATION.md §8 rather than carried as dead items.
 
 ## Done
 
+- [x] (p7h) [feat] Core unlock quests and Codex page — acceptance: each of the
+      four non-default Cores has exactly one unlock quest driving its own
+      `unlockCondition` metric to completion in a test; the Codex page renders
+      all five Cores with live numbers read from `data/cores.json` — refs:
+      §5.5, §8.4, Q93, Q116 — commit `eb2fe98`. The four non-default Cores
+      (Carnivorous Plant, Vampire Heart, Corpse, Time) now unlock through real
+      `data/quests.json` entries with `reward: {kind:'core', value:<core
+      key>}`, mirroring the class-unlock pattern `p7e` built — a new
+      `cores.json` `unlockQuest` field per Core, loader-validated the same
+      way `classes.json`'s already is (a non-default Core with no quest, or a
+      quest whose reward names the wrong Core, throws at load). Four new
+      metrics feed the four unlock conditions: a new `World.poisonKills`
+      counter (incremented in `damageEnemy` only on a lethal hit whose own
+      type is exactly `'poison'`, not `'toxic'`, not a prior non-lethal tick)
+      for "300 lifetime poison kills"; `core_finish_low_hp` (win or lose,
+      since §5.5 says "finish", not "win") for the 25%-HP condition;
+      `lifetime_damage` (`report.damageTotal`, summed) for the 100k-damage
+      condition; and `fastest_win_seconds` (a win's `totalSeconds`, running
+      minimum) for the sub-32-minute condition. `buildCodexCollections`
+      (`src/ui/codex-collections.ts`) gains a `cores` collection; the existing
+      generic, schema-agnostic `renderCodexTable`/`mountCodex` needed no
+      changes to render it. Two latent bugs fixed along the way: `applyRunResult`
+      never `.slice()`'d `unlockedCores` off `meta` before pushing into it, so
+      unlocking a Core would have mutated the caller's array in place; and the
+      `fastest_boss_kill` "running minimum" tracking had the generic per-metric
+      loop's `Math.max` run on it before its own dedicated `Math.min` pass, so
+      a slower boss kill after a fast one could silently overwrite the real
+      best (traced: `Math.min(Math.max(90,150), 150) === 150`, losing the 90).
+      Generalized into a `MIN_TRACKED` set, fully excluded from the generic
+      loop, that also covers the new `fastest_win_seconds`. QUESTIONS Q148
+      logs the one real judgment call: adding 4 Core quests to the existing
+      10 class quests would push `data/quests.json` to 14, over §8.4's
+      literal "8-12" — read in context (all three of §8.4's own worked
+      examples are class unlocks) as scoped to class-reward quests only, so
+      the 8-12 gate checks (`tests/p7e-quests.test.ts`,
+      `tools/content-census.ts`) now filter to `reward.kind !== 'core'`
+      rather than the full array. Q149 logs that "finish at or below 25%
+      Core HP" is trivially satisfied by any ordinary Core-death loss (defeat
+      always zeroes Core HP), left as the literal spec reading rather than
+      narrowed to a win-only or near-miss-only condition SPEC-FINAL's text
+      doesn't actually state. `tests/q7-data-fuzz.test.ts`/
+      `tests/q7-loader-holes.ts`'s recorded cross-reference-field census was
+      re-measured with `Q7_RECORD=1` (not guessed) and updated for the new
+      `cores.cores[].unlockQuest` field and its knock-on effect on
+      `cores.cores[].key` (now `partial`, caught by the new reward.value
+      cross-reference where it used to be fully `open`). code-reviewer
+      **APPROVE** (2 Minors: the `scrape_by` triviality and a suggestion to
+      flag Q148 for priority owner review — both addressed by logging Q149
+      and noting Q148's priority, not code changes). qa-playtester **PASS**:
+      ~25 adversarial cases beyond the shipped 21-test file (threshold
+      boundaries, cumulative/single-run/practice-run variants, all four
+      quests satisfied by one run, 5 hostile loader-mock cases, a real
+      per-tick `updateEnemies` poison-kill integration check, a live jsdom
+      Codex mount) — no bugs filed.
 - [x] (p7f) [bug] `migrate()` preserves unknown save keys forever: it spreads
       `...meta` wholesale, so any key a save carries survives every round trip as a
       fixed point. A non-object `meta` is worse — `{"meta":"orbs"}` string-spreads

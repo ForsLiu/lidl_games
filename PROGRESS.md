@@ -5,6 +5,54 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-30 session: p7h done — the four non-default Cores unlock through
+  real quests, and the Codex gained a Cores page — commit `eb2fe98`.**
+  Closes P7's last open item. `data/cores.json` gains an `unlockQuest` field
+  per Core (null for the default `stone_heart`), and `data/quests.json` gains
+  4 entries with `reward: {kind:'core', value:<core key>}`, mirroring `p7e`'s
+  class-unlock pattern exactly — including the same loader-side referential-
+  integrity check (`src/sim/content.ts`) that a non-default row with no
+  unlock quest, or a quest whose reward names the wrong row, throws at load
+  rather than silently doing nothing. Four new metrics in
+  `src/meta/meta.ts`'s `metricsFor` feed the four §5.5 conditions: a new
+  `World.poisonKills` counter (`src/sim/enemies.ts`'s `damageEnemy`,
+  incremented only when a lethal hit's own type is `'poison'`) for
+  "300 lifetime poison kills"; `core_finish_low_hp` (win or lose — §5.5 says
+  "finish", not "win") for the 25%-HP condition; `lifetime_damage`
+  (`report.damageTotal`, summed) for the 100k-damage condition; and
+  `fastest_win_seconds` (a win's `totalSeconds`, running minimum) for the
+  sub-32-minute condition. `src/ui/codex-collections.ts` gained a `cores`
+  collection; the existing generic Codex renderer needed zero changes to
+  show it. Two bugs found and fixed while touching this code, neither part
+  of the original scope: `applyRunResult` never copied `unlockedCores` off
+  `meta` before pushing into it (mutating the caller's array in place), and
+  the `fastest_boss_kill` running-minimum tracking could be silently
+  clobbered by a *worse* run because the generic per-metric loop's `Math.max`
+  ran on it before its own dedicated `Math.min` special case did — traced to
+  `Math.min(Math.max(90,150), 150) === 150`, losing a real best of 90.
+  Generalized into a `MIN_TRACKED` set, fully excluded from the generic loop,
+  covering both `fastest_boss_kill` and the new `fastest_win_seconds`.
+  QUESTIONS Q148/Q149 log the two real judgment calls: adding 4 Core quests
+  to the existing 10 class quests would push `data/quests.json` to 14, over
+  §8.4's literal "8-12" — read as scoped to class-reward quests only (all
+  three of §8.4's own worked examples are class unlocks), so the 8-12 gate
+  checks (`tests/p7e-quests.test.ts`, `tools/content-census.ts`) now filter
+  to non-Core rewards; and "finish at or below 25% Core HP" is trivially
+  satisfied by any ordinary Core-death loss (`checkDefeat` always zeroes
+  Core HP), left as the literal spec reading. `tests/q7-data-fuzz.test.ts`'s
+  recorded cross-reference census was re-measured with `Q7_RECORD=1` (not
+  guessed) for the new `cores.cores[].unlockQuest` field and its knock-on
+  effect on `cores.cores[].key` (now caught as `partial`, was fully `open`).
+  New `tests/p7h-core-quests.test.ts` (21 tests). code-reviewer **APPROVE**
+  (2 Minors, both resolved by logging Q148/Q149 rather than code changes: the
+  `scrape_by` triviality, and flagging Q148 for priority owner review).
+  qa-playtester **PASS**: ~25 of its own adversarial cases beyond the shipped
+  tests (threshold boundaries, cumulative/practice-run variants, all four
+  quests at once, 5 hostile loader-mock cases, a real per-tick poison-kill
+  sim integration check, a live jsdom Codex mount) — no bugs filed. `npx tsc
+  --noEmit` clean; `npm run test:fast`: 1610 passed, the same 4 pre-existing
+  Playwright fold-test flakes (b032/b034/b035/b036) reconfirmed passing
+  standalone (port contention, unrelated).
 - **2026-08-30 session: p7g done — `migrate()` no longer discards the whole
   account on a corrupt array field — commit `9642101`.**
   Re-measured before touching anything, per CLAUDE.md's "a deferral is a
