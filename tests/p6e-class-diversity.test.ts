@@ -3,8 +3,8 @@
  * (scripted kit bot); top damage source differs across >=8 of 11 classes."
  *
  * fb013 (2026-08-29) added a 12th class, Time Lord — `CLASS_KEYS` below picks
- * it up automatically via the same `!c.legacy` filter, and SPEC-FINAL's own
- * G8 text now reads ">=9 of 12" (the same ~73% ratio). This file's entire
+ * it up automatically, and SPEC-FINAL's own G8 text now reads ">=9 of 12"
+ * (the same ~73% ratio). This file's entire
  * win-rate sweep was already `.skip`-ed per class pending **P10** before
  * fb013 landed (see the dated corrections below); Time Lord has not been run
  * through it — a full re-run costs ~1 h (b027's note) and stays out of scope
@@ -180,7 +180,7 @@ import { Run } from '../src/sim/run';
 import { makePolicy } from '../src/bots';
 import '../src/bots';
 import { coreCenter } from '../src/sim/grid';
-import { loadContent, type NewClassDef } from '../src/sim/content';
+import { loadContent, type ClassDef } from '../src/sim/content';
 import type { RunConfig, RunReport, TickInput } from '../src/sim/types';
 import type { World } from '../src/sim/world';
 import { cfg } from './helpers';
@@ -191,8 +191,8 @@ const SEEDS = Array.from({ length: 12 }, (_, i) => i + 1);
 const BAND_LO = 0.35;
 const BAND_HI = 0.70;
 
-/** The twelve §4-shaped classes, fb013 (`frost_warden` is the one `legacy: true` row §13's roster excludes — Q38/p6d). */
-const CLASS_KEYS = content.classes.classes.filter((c) => !c.legacy).map((c) => c.key);
+/** The twelve §4-shaped classes, fb013. */
+const CLASS_KEYS = content.classes.classes.map((c) => c.key);
 
 const CHARGE_KINDS = new Set(['charge_nova', 'charge_pierce']);
 
@@ -221,7 +221,7 @@ function aimPoint(w: World): { x: number; y: number } {
 /** Drives one class's kit onto a stock policy's own TickInput, every tick Act I or Act II runs. See this file's header for the cadence/aim/sequencing rules. */
 function scriptClassKit(w: World, input: TickInput): void {
   const cls = w.content.classByKey.get(w.cfg.classKey);
-  if (!cls || cls.legacy) return;
+  if (!cls) return;
   const wd = w.warden;
   const aim = aimPoint(w);
 
@@ -281,7 +281,7 @@ function runClassScripted(classKey: string, seed: number): RunReport {
 const SUMMON_KINDS = new Set(['summon_turret', 'raise_skeletons', 'manifest_spirit']);
 
 /** Q121: resolves one raw `damageByWeapon` key to the specific named mechanism behind it — only called once a class's own-kit share has already cleared `MATERIALITY_SHARE` (below); this function never runs on a class whose kit is a bystander. */
-function describeSource(cls: NewClassDef, key: string): string {
+function describeSource(cls: ClassDef, key: string): string {
   switch (key) {
     case 'class_active':
       return cls.active1.name;
@@ -332,7 +332,7 @@ const MATERIALITY_SHARE = 0.20;
 
 interface ClassMeasurement {
   key: string;
-  cls: NewClassDef;
+  cls: ClassDef;
   wins: number;
   outcomes: string[];
   /** Summed over all 12 seeds, restricted to the class's own kit sources (header: tower keys are `hybrid`'s choice, not the kit's). */
@@ -393,7 +393,7 @@ const measurements = new Map<string, ClassMeasurement>();
 beforeAll(() => {
   for (const key of CLASS_KEYS) {
     const cls = content.classByKey.get(key);
-    if (!cls || cls.legacy) throw new Error(`${key}: expected a legacy: false §4 class`);
+    if (!cls) throw new Error(`${key}: expected a §4 class`);
     let wins = 0;
     const outcomes: string[] = [];
     const ownDamage: Record<string, number> = {};

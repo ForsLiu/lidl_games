@@ -30,7 +30,7 @@ import {
   validateClassEffect,
   validateClassPassive,
   type ClassEffect,
-  type NewClassDef,
+  type ClassDef,
 } from '../src/sim/content';
 import { applyDot, dotOutstanding, dotStacks, spawnEnemy } from '../src/sim/enemies';
 import { applyCommand, damageWarden, hashWorld, Run } from '../src/sim/run';
@@ -40,7 +40,7 @@ import { cfg } from './helpers';
 
 const DT = 1 / 60;
 const content = loadContent();
-const timeLord = content.classByKey.get('time_lord')! as NewClassDef;
+const timeLord = content.classByKey.get('time_lord')! as ClassDef;
 
 function idleInput(over: Partial<TickInput> = {}): TickInput {
   return { mx: 0, my: 0, dash: false, attack: false, aimX: 0, aimY: 0, active1Held: false, cmds: [], ...over };
@@ -65,14 +65,13 @@ function makeTarget(run: Run, dx = 1): Enemy {
   return e;
 }
 
-describe('fb013: Time Lord loads as a legacy: false class with the §4.2 kit', () => {
+describe('fb013: Time Lord loads with the §4.2 kit', () => {
   it('is authored with the right slot kinds, and is the twelfth real class', () => {
-    expect(timeLord.legacy).toBe(false);
     expect(timeLord.passive.kind).toBe('time_flow');
     expect(timeLord.active1.kind).toBe('time_mark');
     expect(timeLord.active2.kind).toBe('time_lock');
     expect(timeLord.towerPassive.kind).toBe('chronal_surge');
-    expect(content.classes.classes.filter((c) => !c.legacy).length).toBe(12);
+    expect(content.classes.classes.length).toBe(12);
   });
 
   it('the dormant charDotSpeedMul flag ships present and off (1 = normal speed)', () => {

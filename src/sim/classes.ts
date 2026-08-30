@@ -1,11 +1,9 @@
 /**
- * Class framework. Two shapes coexist (Q38): `legacy: true` classes
- * (`frost_warden` alone, since p6d converted `engineer`/`pyromancer` to the new
- * shape §4.2 gives them) keep SPEC-V2 §2's single Active, dispatched by
- * `useClassActive` exactly as before. `legacy: false` classes (SPEC-FINAL §4,
- * p6a) get Active1 (Q) and Active2 (E) as two independently cooled-down sim
- * Commands (`class_active` / `class_active2`) so bots and replays trigger
- * either exactly like any other action — plus a band-driven basic attack that
+ * Class framework (SPEC-FINAL §4, p6a; the SPEC-V2 §2 single-Active/`mods`/
+ * `manualAttack` shape was retired at p6f, Q38). Every class gets Active1 (Q)
+ * and Active2 (E) as two independently cooled-down sim Commands
+ * (`class_active` / `class_active2`) so bots and replays trigger either
+ * exactly like any other action — plus a band-driven basic attack that
  * auto-fires with no Command at all (`classBasicAttack`, called from
  * `updateWarden`).
  *
@@ -35,7 +33,7 @@
  *     palisades when their timer runs out.
  */
 import { applyAoE, applyEffects, lineHit } from './combat';
-import type { ClassEffect, NewClassDef, TowerDef } from './content';
+import type { ClassDef, ClassEffect, TowerDef } from './content';
 import { applyHealingToWarden } from './cores';
 import { applyDamageType } from './damagetypes';
 import {
@@ -57,15 +55,14 @@ import { maxLevel, upgradeStatMul } from './upgrades';
 import type { ClassSummon, Enemy, Phase, Structure, TickInput } from './types';
 import { World } from './world';
 
-/** Usable both TD and VS, per SPEC-V2 §2 / SPEC-FINAL §4 — but not in menu/transition phases. */
+/** Usable both TD and VS, per SPEC-FINAL §4 — but not in menu/transition phases. */
 const ACTIVE_PHASES: ReadonlySet<Phase> = new Set(['act1_build', 'act1_wave', 'act2']);
 
 /**
  * The fields the one shared `kind` (`burst_damage`) reads — deliberately
- * narrower than either schema's full Active/Effect shape (both the legacy
- * `dayUse`/`nightUse` and any future kind-specific fields are irrelevant
- * here), so this one function serves the legacy single Active and both
- * new-shape Active1/Active2 without either schema needing to match the other.
+ * narrower than the full Active/Effect schema (any kind-specific field is
+ * irrelevant here), so this one function serves both Active1/Active2 without
+ * a cast at either call site.
  */
 interface BurstEffect {
   // Not read inside `fireEffect` itself — the caller's switch already
@@ -103,7 +100,7 @@ const NO_ON_HIT: readonly string[] = [];
 const BLEEDING_ON_HIT: readonly string[] = ['bleeding'];
 const FROST_ON_HIT: readonly string[] = ['frost', 'frost_track'];
 
-function passiveOnHit(cls: NewClassDef): readonly string[] {
+function passiveOnHit(cls: ClassDef): readonly string[] {
   if (cls.passive.kind === 'thousand_cuts') return BLEEDING_ON_HIT;
   if (cls.passive.kind === 'frost_touch') return FROST_ON_HIT;
   return NO_ON_HIT;
@@ -121,7 +118,7 @@ function passiveOnHit(cls: NewClassDef): readonly string[] {
  * "attack", and every other clause in that table that means towers says
  * "towers".
  */
-export function classAttackPowerMul(w: World, cls: NewClassDef): number {
+export function classAttackPowerMul(w: World, cls: ClassDef): number {
   const p = cls.passive;
   if (p.kind !== 'blood_frenzy') return w.derived.powerMul;
   return w.derived.powerMul * (1 + (w.huntsWarden ? p.frenzyVsMul ?? 0 : p.frenzyTdMul ?? 0));
@@ -133,7 +130,7 @@ export function classAttackPowerMul(w: World, cls: NewClassDef): number {
  * one of them, the same footprint the %-power stat already has, added before
  * the multiplier per §2 ("flats add[, then sources multiply]").
  */
-export function characterDamage(w: World, cls: NewClassDef, base: number): number {
+export function characterDamage(w: World, cls: ClassDef, base: number): number {
   return (base + w.derived.atkFlat) * classAttackPowerMul(w, cls);
 }
 
@@ -145,7 +142,7 @@ export function characterDamage(w: World, cls: NewClassDef, base: number): numbe
  */
 export function classArmorBonus(w: World): number {
   const cls = w.content.classByKey.get(w.cfg.classKey);
-  if (!cls || cls.legacy || cls.passive.kind !== 'guardian_stance') return 0;
+  if (!cls || cls.passive.kind !== 'guardian_stance') return 0;
   return w.warden.standStillTimer >= (cls.passive.stanceSeconds ?? 1) ? cls.passive.stanceArmor ?? 0 : 0;
 }
 
@@ -239,7 +236,7 @@ export function circleSlashValues(
  * "instead": an extra `attackSpeedMul` factor on top of the ordinary
  * power/flat-Atk scaling every other Active already gets.
  */
-function fireCircleSlash(w: World, cls: NewClassDef, chargeSeconds: number, atkSpdDamageBoost = false): void {
+function fireCircleSlash(w: World, cls: ClassDef, chargeSeconds: number, atkSpdDamageBoost = false): void {
   const wd = w.warden;
   const eff = cls.active1;
   const { radius, damage, knockback } = circleSlashValues(eff, chargeSeconds);
@@ -258,7 +255,7 @@ function fireCircleSlash(w: World, cls: NewClassDef, chargeSeconds: number, atkS
  * Sword's no-charge-needed rule when both are equipped — see
  * `fireCircleSlash`'s cross-item damage boost for what replaces it then.
  */
-function circleSlashChargeRate(w: World, cls: NewClassDef): number {
+function circleSlashChargeRate(w: World, cls: ClassDef): number {
   if (cls.active1.kind !== 'charge_nova') return 1;
   if (!hasEquipment(w, 'swordsman_armor') || hasEquipment(w, 'sleeve_sword')) return 1;
   return w.derived.attackSpeedMul;
@@ -295,7 +292,7 @@ function aimDirection(w: World, aimX: number | undefined, aimY: number | undefin
  * charge fraction too — it never has, in either this path or the plain
  * release path in `tickClassCharge`; corrected here and in Q118(4)).
  */
-function fireDashSlash(w: World, cls: NewClassDef, aimX: number | undefined, aimY: number | undefined): void {
+function fireDashSlash(w: World, cls: ClassDef, aimX: number | undefined, aimY: number | undefined): void {
   const wd = w.warden;
   const eff = cls.active2;
   const onHit = passiveOnHit(cls);
@@ -365,7 +362,7 @@ function dashWarden(w: World, dx: number, dy: number): void {
  * self-centered on the Warden the same way Circle Slash is, since §4.1 gives
  * Poison Barrel no aim direction the way Dash Slash's "mouse direction" does.
  */
-function firePoisonBarrel(w: World, cls: NewClassDef): void {
+function firePoisonBarrel(w: World, cls: ClassDef): void {
   const wd = w.warden;
   const eff = cls.active1;
   w.areas.push({
@@ -499,7 +496,7 @@ function spawnClassSummon(
  */
 function fireDeadeyeDraw(
   w: World,
-  cls: NewClassDef,
+  cls: ClassDef,
   chargeSeconds: number,
   aimX: number | undefined,
   aimY: number | undefined,
@@ -524,7 +521,7 @@ function fireDeadeyeDraw(
  * untouched on purpose — unlike Dash Slash (§4.1), which explicitly consumes
  * and merges one.
  */
-function fireQuickstep(w: World, cls: NewClassDef, aimX: number | undefined, aimY: number | undefined): void {
+function fireQuickstep(w: World, cls: ClassDef, aimX: number | undefined, aimY: number | undefined): void {
   const wd = w.warden;
   const eff = cls.active2;
   const dir = aimDirection(w, aimX, aimY);
@@ -546,7 +543,7 @@ function fireQuickstep(w: World, cls: NewClassDef, aimX: number | undefined, aim
 }
 
 /** §4.2 Engineer *Field Kit*: "repair target structure 40% max HP + overclock +50% atk spd 6 s". */
-function fireFieldKit(w: World, cls: NewClassDef, aimX: number | undefined, aimY: number | undefined): void {
+function fireFieldKit(w: World, cls: ClassDef, aimX: number | undefined, aimY: number | undefined): void {
   const wd = w.warden;
   const eff = cls.active1;
   const s = nearestStructure(w, aimX ?? wd.x, aimY ?? wd.y, eff.radius);
@@ -557,7 +554,7 @@ function fireFieldKit(w: World, cls: NewClassDef, aimX: number | undefined, aimY
 }
 
 /** §4.2 Engineer *Pop Turret*: "deploy a mini arrow turret (30% stats) 10 s, cap 2". */
-function fireSummonTurret(w: World, cls: NewClassDef): void {
+function fireSummonTurret(w: World, cls: ClassDef): void {
   const wd = w.warden;
   const eff = cls.active2;
   const def = eff.towerKey ? w.content.towerByKey.get(eff.towerKey) : undefined;
@@ -585,7 +582,7 @@ function fireSummonTurret(w: World, cls: NewClassDef): void {
  * spaced along the line actually travelled, so a dash cut short by terrain
  * lays its fire only as far as the Warden got.
  */
-function fireFlameRoad(w: World, cls: NewClassDef, aimX: number | undefined, aimY: number | undefined): void {
+function fireFlameRoad(w: World, cls: ClassDef, aimX: number | undefined, aimY: number | undefined): void {
   const wd = w.warden;
   const eff = cls.active2;
   const dir = aimDirection(w, aimX, aimY);
@@ -613,7 +610,7 @@ function fireFlameRoad(w: World, cls: NewClassDef, aimX: number | undefined, aim
 }
 
 /** §4.2 Cryomancer *Glaciate*: "r4 nova applying frost; already-frosted enemies freeze". */
-function fireFrostNova(w: World, cls: NewClassDef): void {
+function fireFrostNova(w: World, cls: ClassDef): void {
   const wd = w.warden;
   const eff = cls.active1;
   const damage = characterDamage(w, cls, eff.damage);
@@ -657,7 +654,7 @@ function fireFrostNova(w: World, cls: NewClassDef): void {
  * through the now-occupied tile by a stale field until then, even though the
  * tile itself was already physically blocking on contact.
  */
-function fireIceWall(w: World, cls: NewClassDef, aimX: number | undefined, aimY: number | undefined): void {
+function fireIceWall(w: World, cls: ClassDef, aimX: number | undefined, aimY: number | undefined): void {
   const wd = w.warden;
   const eff = cls.active2;
   const def = eff.towerKey ? w.content.towerByKey.get(eff.towerKey) : undefined;
@@ -712,7 +709,7 @@ function fireIceWall(w: World, cls: NewClassDef, aimX: number | undefined, aimY:
  * on the *exponent*, per §4.2 ("cap 8 jumps" bounding the compounding), which
  * is exactly what gate G11's ×3.6 ceiling measures.
  */
-function fireChainSurge(w: World, cls: NewClassDef, aimX: number | undefined, aimY: number | undefined): void {
+function fireChainSurge(w: World, cls: ClassDef, aimX: number | undefined, aimY: number | undefined): void {
   const wd = w.warden;
   const eff = cls.active1;
   let cur =
@@ -739,14 +736,14 @@ function fireChainSurge(w: World, cls: NewClassDef, aimX: number | undefined, ai
 }
 
 /** §4.2 Stormcaller *Overload*: "5 s — electric effects jump +2; electric-tower wires pulse at double rate". */
-function fireOverload(w: World, cls: NewClassDef): void {
+function fireOverload(w: World, cls: ClassDef): void {
   const wd = w.warden;
   wd.overloadRemaining = cls.active2.overloadSeconds ?? 0;
   w.emit('class_active2', wd.x, wd.y, 0, 0);
 }
 
 /** §4.2 Necromancer *Raise*: "skeletons from corpses (cap 8, 15 s, 40% of char attack)". */
-function fireRaiseSkeletons(w: World, cls: NewClassDef): void {
+function fireRaiseSkeletons(w: World, cls: ClassDef): void {
   const wd = w.warden;
   const eff = cls.active1;
   const cap = Math.max(0, Math.round(eff.summonCap ?? 0));
@@ -782,7 +779,7 @@ function fireRaiseSkeletons(w: World, cls: NewClassDef): void {
 }
 
 /** §4.2 Necromancer *Death Pact*: a per-tower toggle; the drain and the Bone Pylon live in `updateClassPassives`. */
-function fireDeathPact(w: World, cls: NewClassDef, aimX: number | undefined, aimY: number | undefined): void {
+function fireDeathPact(w: World, cls: ClassDef, aimX: number | undefined, aimY: number | undefined): void {
   const wd = w.warden;
   const eff = cls.active2;
   const s = nearestStructure(w, aimX ?? wd.x, aimY ?? wd.y, eff.radius);
@@ -796,7 +793,7 @@ function fireDeathPact(w: World, cls: NewClassDef, aimX: number | undefined, aim
  * +25% dmg." Already-tithed towers are skipped by the search rather than
  * charged a second time for nothing, since the bonus does not stack.
  */
-function fireBloodTithe(w: World, cls: NewClassDef, aimX: number | undefined, aimY: number | undefined): void {
+function fireBloodTithe(w: World, cls: ClassDef, aimX: number | undefined, aimY: number | undefined): void {
   const wd = w.warden;
   const eff = cls.active1;
   const s = nearestStructure(w, aimX ?? wd.x, aimY ?? wd.y, eff.radius, (st) => !st.tithed);
@@ -807,7 +804,7 @@ function fireBloodTithe(w: World, cls: NewClassDef, aimX: number | undefined, ai
 }
 
 /** §4.2 Bloodlord *Crimson Rush*: "dash through enemies, +2 HP per enemy passed". */
-function fireCrimsonRush(w: World, cls: NewClassDef, aimX: number | undefined, aimY: number | undefined): void {
+function fireCrimsonRush(w: World, cls: ClassDef, aimX: number | undefined, aimY: number | undefined): void {
   const wd = w.warden;
   const eff = cls.active2;
   const dir = aimDirection(w, aimX, aimY);
@@ -839,7 +836,7 @@ function fireCrimsonRush(w: World, cls: NewClassDef, aimX: number | undefined, a
  * `maxLevel`, per "at highest upgrade" — not at the tier actually built, which
  * would make the spirit weaker than the sentence promises.
  */
-function fireManifestSpirit(w: World, cls: NewClassDef): void {
+function fireManifestSpirit(w: World, cls: ClassDef): void {
   const wd = w.warden;
   const eff = cls.active1;
   const s = nearestStructure(w, wd.x, wd.y, eff.summonRadius ?? 0, (st) => {
@@ -874,7 +871,7 @@ function fireManifestSpirit(w: World, cls: NewClassDef): void {
  * every enemy already hunts the Warden and a totem taunt there would divert
  * them away from it instead of doing nothing.
  */
-function fireRecallTotem(w: World, cls: NewClassDef): void {
+function fireRecallTotem(w: World, cls: ClassDef): void {
   const wd = w.warden;
   const eff = cls.active2;
   // One totem at a time: a second cast replaces the first rather than stacking
@@ -910,7 +907,7 @@ function fireRecallTotem(w: World, cls: NewClassDef): void {
  * itself was already real sim state before this order: `damageWarden`
  * (run.ts) reads `clarionRemaining` to bank the stronger Wrath share.
  */
-function fireClarionTaunt(w: World, cls: NewClassDef): void {
+function fireClarionTaunt(w: World, cls: ClassDef): void {
   const wd = w.warden;
   const radius = cls.active1.radius;
   const duration = cls.active1.tauntDurationSeconds ?? 0;
@@ -925,7 +922,7 @@ function fireClarionTaunt(w: World, cls: NewClassDef): void {
 }
 
 /** §4.2 Paladin *Judgement*: "release Wrath as a holy nova (stored ×1.5 as normal damage)". */
-function fireJudgement(w: World, cls: NewClassDef): void {
+function fireJudgement(w: World, cls: ClassDef): void {
   const wd = w.warden;
   const eff = cls.active2;
   // code review, fb015: the resource gate has to run on the raw Wrath payout,
@@ -952,7 +949,7 @@ const POS_HISTORY_SAMPLE_SECONDS = 0.25;
  * ring buffer keeps — QA found this field previously unread (the buffer was a
  * hardcoded 12-sample/3 s constant regardless of what the data authored).
  */
-function historySampleCount(cls: NewClassDef): number {
+function historySampleCount(cls: ClassDef): number {
   const seconds = cls.active1.markRewindSeconds ?? 3;
   return Math.max(1, Math.round(seconds / POS_HISTORY_SAMPLE_SECONDS));
 }
@@ -965,7 +962,7 @@ function historySampleCount(cls: NewClassDef): number {
  * is `time_mark` (`updateClassPassives`) — every other run leaves
  * `Enemy.posHistory` empty and free.
  */
-function updateTimeLordHistory(w: World, cls: NewClassDef, dt: number): void {
+function updateTimeLordHistory(w: World, cls: ClassDef, dt: number): void {
   const samples = historySampleCount(cls);
   for (const e of w.enemies) {
     if (e.dead) continue;
@@ -987,7 +984,7 @@ function updateTimeLordHistory(w: World, cls: NewClassDef, dt: number): void {
  * §13's stated total, so a 7th type for one class's flavor is not a reading
  * this loader rule allows without contradicting a content-totals gate (Q139).
  */
-function advanceTimeMark(w: World, cls: NewClassDef, e: Enemy): void {
+function advanceTimeMark(w: World, cls: ClassDef, e: Enemy): void {
   const eff = cls.active1;
   const stage = e.timeMarkStage;
   if (stage === 0) {
@@ -1063,7 +1060,7 @@ function advanceTimeMark(w: World, cls: NewClassDef, e: Enemy): void {
  * already use for a self-centered r-radius Active), not a single-target
  * aim pick.
  */
-function fireTimeMark(w: World, cls: NewClassDef): void {
+function fireTimeMark(w: World, cls: ClassDef): void {
   const wd = w.warden;
   const eff = cls.active1;
   let hit = false;
@@ -1089,7 +1086,7 @@ function releaseTimeLockZone(w: World, id: number): void {
  * zone's own contribution, on the same "hand back everything still owed"
  * precedent `dotOutstanding`/Spreading Plague's death transfer already set.
  */
-function fireTimeLock(w: World, cls: NewClassDef, aimX: number | undefined, aimY: number | undefined): void {
+function fireTimeLock(w: World, cls: ClassDef, aimX: number | undefined, aimY: number | undefined): void {
   const wd = w.warden;
   const eff = cls.active2;
   const cx = aimX ?? wd.x;
@@ -1186,7 +1183,7 @@ export function updateClassPassives(w: World, dt: number): void {
   updateTimeLockZone(w, dt);
 
   const cls = w.content.classByKey.get(w.cfg.classKey);
-  if (!cls || cls.legacy) return;
+  if (!cls) return;
 
   // Keyed off the Active that creates the pact, not off the passive: a pact
   // tower is Necromancer-only state and nothing else can ever set the flag.
@@ -1207,7 +1204,7 @@ export function updateClassPassives(w: World, dt: number): void {
 }
 
 /** §4.2 Pyro *Contagious Flame*: "Burning enemies deal 2 dmg/s to enemies touching them". */
-function updateContagiousFlame(w: World, cls: NewClassDef, dt: number): void {
+function updateContagiousFlame(w: World, cls: ClassDef, dt: number): void {
   const dps = cls.passive.flameDps ?? 0;
   const radius = cls.passive.flameRadius ?? 0;
   if (dps <= 0 || radius <= 0) return;
@@ -1245,7 +1242,7 @@ function updateContagiousFlame(w: World, cls: NewClassDef, dt: number): void {
 }
 
 /** §4.2 Paladin *Guardian Stance*'s stand-still ledger; `classArmorBonus` reads the result. */
-function updateGuardianStance(w: World, cls: NewClassDef, dt: number): void {
+function updateGuardianStance(w: World, cls: ClassDef, dt: number): void {
   const wd = w.warden;
   if (wd.x === wd.lastStillX && wd.y === wd.lastStillY) {
     wd.standStillTimer += dt;
@@ -1265,7 +1262,7 @@ function updateGuardianStance(w: World, cls: NewClassDef, dt: number): void {
  * the clause names a share of *max* HP, and routing it through the damage path
  * would put the tower's own defense between the pact and its price.
  */
-function updatePactedTowers(w: World, cls: NewClassDef, dt: number): void {
+function updatePactedTowers(w: World, cls: ClassDef, dt: number): void {
   const eff = cls.active2;
   const drain = eff.pactDrainPerSecond ?? 0;
   if (drain <= 0) return;
@@ -1406,18 +1403,6 @@ export function useClassActive(w: World, aimX?: number, aimY?: number): boolean 
   const cls = w.content.classByKey.get(w.cfg.classKey);
   if (!cls) return false;
 
-  if (cls.legacy) {
-    if (wd.activeCooldown > 0) return false;
-    const active = cls.active;
-    // Only `burst_damage` exists on the legacy shape today, but this must
-    // still not fire-and-consume-cooldown on an unhandled kind (see the
-    // Active1 comment below — the same bug class, guarded the same way).
-    if (active.kind !== 'burst_damage') return false;
-    fireEffect(w, wd.x, wd.y, active);
-    wd.activeCooldown = active.cooldownSeconds * (1 - w.derived.cdr);
-    return true;
-  }
-
   // A charge-kind Active1 (Circle Slash, Deadeye Draw) fires on release,
   // driven every tick by `TickInput.active1Held` through `tickClassCharge` —
   // the keydown that pushes this Command is what starts the hold, but the
@@ -1487,10 +1472,9 @@ function isChargeKind(kind: ClassEffect['kind']): boolean {
 }
 
 /**
- * SPEC-FINAL §4 Active2 (E). No-op for a `legacy: true` class — it has only
- * one Active. `aimX`/`aimY` (tile coords) are the mouse-aim point a
- * dash/placement-kind Active2 aims at; ignored by `burst_damage`, which
- * stays self-centered exactly as before.
+ * SPEC-FINAL §4 Active2 (E). `aimX`/`aimY` (tile coords) are the mouse-aim
+ * point a dash/placement-kind Active2 aims at; ignored by `burst_damage`,
+ * which stays self-centered exactly as before.
  */
 export function useClassActive2(w: World, aimX?: number, aimY?: number): boolean {
   if (!ACTIVE_PHASES.has(w.phase)) return false;
@@ -1499,7 +1483,7 @@ export function useClassActive2(w: World, aimX?: number, aimY?: number): boolean
   // visible (it moves the Warden and deals damage, not just a cosmetic no-op).
   if (w.dying) return false;
   const cls = w.content.classByKey.get(w.cfg.classKey);
-  if (!cls || cls.legacy) return false;
+  if (!cls) return false;
 
   const wd = w.warden;
   // fb013: see the matching Active1 ammo gate above.
@@ -1570,7 +1554,7 @@ export function useClassActive2(w: World, aimX?: number, aimY?: number): boolean
  * restart-timer-on-use shape the Warden's own dash charges already use
  * (`updateWarden`). A no-op for every kind that leaves `maxCharges` unset.
  */
-export function tickAmmoRecharge(w: World, cls: NewClassDef, dt: number): void {
+export function tickAmmoRecharge(w: World, cls: ClassDef, dt: number): void {
   const wd = w.warden;
   const max1 = cls.active1.maxCharges ?? 1;
   if (max1 > 1 && wd.active1Ammo < max1) {
@@ -1599,7 +1583,7 @@ export function tickAmmoRecharge(w: World, cls: NewClassDef, dt: number): void {
  * true` class. Called every tick `updateWarden` runs (TD and VS alike,
  * matching `ACTIVE_PHASES`), so no further phase gate is needed here.
  */
-export function tickClassCharge(w: World, cls: NewClassDef, input: TickInput, dt: number): void {
+export function tickClassCharge(w: World, cls: ClassDef, input: TickInput, dt: number): void {
   if (!isChargeKind(cls.active1.kind)) return;
   const wd = w.warden;
 
@@ -1644,20 +1628,19 @@ export function classMoveSpeedMul(w: World): number {
   const wd = w.warden;
   if (!wd.active1Charging) return 1;
   const cls = w.content.classByKey.get(w.cfg.classKey);
-  if (!cls || cls.legacy || cls.active1.kind !== 'charge_pierce') return 1;
+  if (!cls || cls.active1.kind !== 'charge_pierce') return 1;
   return cls.active1.moveMulWhileCharging ?? 1;
 }
 
 /**
  * SPEC-FINAL §4: "every class auto-attacks the nearest enemy with its band
- * profile" — unlike the legacy `manualAttack` (`run.ts`), this needs no
- * `input.attack` press and fires on its own whenever `wd.attackCooldown`
- * allows. Scoped TD-only (`!w.huntsWarden`), mirroring `manualAttack`'s own
- * existing scope — §6.1's wielded-tower-attack system is what the character
- * fights with during VS, and nothing in §4 asks the band-profile basic
- * attack to fire alongside it too (Q117).
+ * profile" — needs no `input.attack` press and fires on its own whenever
+ * `wd.attackCooldown` allows. Scoped TD-only (`!w.huntsWarden`) — §6.1's
+ * wielded-tower-attack system is what the character fights with during VS,
+ * and nothing in §4 asks the band-profile basic attack to fire alongside it
+ * too (Q117).
  */
-export function classBasicAttack(w: World, cls: NewClassDef): void {
+export function classBasicAttack(w: World, cls: ClassDef): void {
   const wd = w.warden;
   if (wd.attackCooldown > 0) return;
   const a = cls.basicAttack;

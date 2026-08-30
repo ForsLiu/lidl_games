@@ -509,8 +509,8 @@ itself rather than its tuning:
 | `act2.test.ts` › `soul weapons` | §6.1 has no weapon roster: named weapons with their own level ladders are replaced by per-tower-type derivation. | p2e |
 | `act2.test.ts` › `weapon inheritance (SPEC 4.1)` | §6.1 replaces "highest tier + 8%/duplicate, capped +40%, 6 slots" with "average across the type x (1 + 10% x count)", no slots and no cap. | p2e |
 | `act2.test.ts` › `applies a weapon offer` | §6.3's pool has no weapon cards. | p7a |
-| `f004-class-framework.test.ts` › `class content` | §4's framework is bands + Passive + Q + E + Tower passive; there is no Day-use/Night-use Active and no Signature. | p6f |
-| `f004-class-framework.test.ts` › `affinity replaces class locks` | §4 gives each class a Tower passive that applies to every tower; there is no per-class per-tower damage affinity. | p6f |
+| `f004-class-framework.test.ts` › `class content` | §4's framework is bands + Passive + Q + E + Tower passive; there is no Day-use/Night-use Active and no Signature. | **p6f — done.** `frost_warden`, the file's last `legacy: true` vehicle, was itself retired at p6f (Q38), so the file's third describe (`class Active skill as a sim Command`, the surviving half of f004) lost its fixture too — its coverage is already superseded by `p6a-class-framework.test.ts`'s Active1/Active2 suite, so the whole file was deleted rather than rewritten. |
+| `f004-class-framework.test.ts` › `affinity replaces class locks` | §4 gives each class a Tower passive that applies to every tower; there is no per-class per-tower damage affinity. | **p6f — done**, alongside `data/affinity.json`'s deletion and `affinityMul`'s removal from `towers.ts`. |
 | `f004-class-framework.test.ts` › `the Dusk picker binds for every class` | No picker and no slot budget: §6.1 grants every built type unconditionally. | p2e |
 | `content-complete.test.ts` › `has 8 weapons…` | As `soul weapons`. | p2e |
 | `content-complete.test.ts` › `has 12 boons…` | §6.3's pool (stat boons rank x5, Type Mastery rank x3, 3 skill cards per class rank x2) replaces `boons.json`'s flat 12. | p7a |

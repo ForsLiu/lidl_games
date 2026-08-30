@@ -201,12 +201,6 @@ export function sellTower(w: World, tx: number, ty: number): boolean {
 
 /* ------------------------------------------------------------ tower stats */
 
-/** SPEC-V2 §2: an affinity tower deals +`bonus` effectiveness for its class. */
-export function affinityMul(w: World, towerKey: string): number {
-  const aff = w.content.affinityByClass.get(w.cfg.classKey);
-  return aff && aff.towers.includes(towerKey) ? 1 + aff.bonus : 1;
-}
-
 /** SPEC 2.1: Power multiplies tower damage in Act I. */
 export function towerDamage(w: World, s: Structure, base: number): number {
   const def = w.content.towerById.get(s.towerId)!;
@@ -218,7 +212,6 @@ export function towerDamage(w: World, s: Structure, base: number): number {
     upgradeStatMul(w, def, s.tier) *
     w.derived.powerMul *
     w.derived.towerDamageMul *
-    affinityMul(w, def.key) *
     // SPEC-FINAL §5.5 Vampire Heart: "+0.5% damage ... per 1% HP missing".
     vampireMissingHpBuffMul(w, s) *
     // §4.2's per-structure class effects (p6d): Death Pact, Blood Tithe and
@@ -236,7 +229,7 @@ export function towerDamage(w: World, s: Structure, base: number): number {
  */
 function classTowerDamageMul(w: World, s: Structure): number {
   const cls = w.content.classByKey.get(w.cfg.classKey);
-  if (!cls || cls.legacy) return 1;
+  if (!cls) return 1;
   let mul = 1;
   if (s.pactActive && cls.active2.kind === 'death_pact') mul *= 1 + (cls.active2.pactDamageMul ?? 0);
   if (s.tithed && cls.active1.kind === 'blood_tithe') mul *= 1 + (cls.active1.titheDamageMul ?? 0);
@@ -256,7 +249,7 @@ function classTowerDamageMul(w: World, s: Structure): number {
 export function classTowerBonus(w: World): TowerClassBonus | null {
   if (w.huntsWarden) return null;
   const cls = w.content.classByKey.get(w.cfg.classKey);
-  if (!cls || cls.legacy) return null;
+  if (!cls) return null;
   const m = cls.towerPassive.mods;
   const extraElectricPct = m.towerExtraElectricPct ?? 0;
   const vsBurningPct = m.towerDamageVsBurning ?? 0;
@@ -378,7 +371,7 @@ export function attackSpeedFor(w: World, s: Structure): number {
 function classTowerAttackSpeedMul(w: World, s: Structure): number {
   if (s.atkSpdBuffRemaining <= 0 && !s.pactActive) return 1;
   const cls = w.content.classByKey.get(w.cfg.classKey);
-  if (!cls || cls.legacy) return 1;
+  if (!cls) return 1;
   let mul = 1;
   if (s.atkSpdBuffRemaining > 0 && cls.active1.kind === 'repair_heal') {
     mul *= 1 + (cls.active1.overclockAtkSpdMul ?? 0);

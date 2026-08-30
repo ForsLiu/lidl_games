@@ -506,18 +506,10 @@ export class Hud {
     return `<div class="sw-row" title="${tip}"><span>${name} (${key})</span><b class="${cd > 0 ? '' : 'ready'}">${status}</b></div>`;
   }
 
-  /**
-   * SPEC-V2 §2's single class Active (Q), for `legacy: true` classes; SPEC-FINAL
-   * §4's Active1 (Q) + Active2 (E), for `legacy: false` classes — which drop
-   * the Day-use/Night-use tooltip text SPEC-V2 §2 required (MIGRATION.md §8.3).
-   */
+  /** SPEC-FINAL §4's Active1 (Q) + Active2 (E). */
   private activeRow(w: World): string {
     const cls = w.content.classByKey.get(w.cfg.classKey);
     if (!cls) return '';
-    if (cls.legacy) {
-      const tip = `Day: ${cls.active.dayUse} Night: ${cls.active.nightUse}`;
-      return Hud.activeSkillRow(cls.active.name, 'Q', w.warden.activeCooldown, tip);
-    }
     return (
       Hud.activeSkillRow(cls.active1.name, 'Q', w.warden.active1Cooldown, cls.active1.name) +
       Hud.activeSkillRow(cls.active2.name, 'E', w.warden.active2Cooldown, cls.active2.name)
@@ -972,17 +964,10 @@ function characterAbilitiesMarkup(w: World): string {
   if (!cls) return '';
   const live: ClassLiveContext = {
     cdr: w.derived.cdr,
-    // code-reviewer (fb022): a `legacy: true` class's damage/DPS route through
-    // `fireEffect`/the legacy basic-attack path (classes.ts/run.ts), which
-    // multiply by `powerMul` only — no `atkFlat` term, unlike `characterDamage`
-    // (the non-legacy path `liveOverrides` otherwise assumes). Zeroing it here
-    // for a legacy class keeps the live-resolved number matching what the sim
-    // actually deals rather than overstating it by the equipment flat-Atk stat.
-    atkFlat: cls.legacy ? 0 : w.derived.atkFlat,
+    atkFlat: w.derived.atkFlat,
     // `classAttackPowerMul` only differs from plain `powerMul` for Blood
-    // Frenzy's phase-dependent swing, which only a `legacy: false` class row
-    // can author (blood_frenzy is not in the legacy passive kind list).
-    damageMul: cls.legacy ? w.derived.powerMul : classAttackPowerMul(w, cls),
+    // Frenzy's phase-dependent swing.
+    damageMul: classAttackPowerMul(w, cls),
   };
   return classAbilitiesMarkup(cls, { live });
 }

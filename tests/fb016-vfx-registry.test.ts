@@ -18,7 +18,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { loadContent, type NewClassDef } from '../src/sim/content';
+import { loadContent, type ClassDef } from '../src/sim/content';
 import { ACTIVE_KIND_SHAPE, CLASS_VFX, CORE_VFX, missingVfxCoverage } from '../src/render/vfx-registry';
 import { Renderer, type ViewState } from '../src/render/canvas';
 import { projectileStyle } from '../src/render/theme';
@@ -45,11 +45,11 @@ function nearBuildTile(w: World): { tx: number; ty: number } {
 }
 
 const content = loadContent();
-const realClassKeys = content.classes.classes.filter((c) => !c.legacy).map((c) => c.key);
+const realClassKeys = content.classes.classes.map((c) => c.key);
 const realCoreKeys = content.cores.cores.map((c) => c.key);
 
 describe('fb016: the VFX registry covers every real class and Core', () => {
-  it('has a CLASS_VFX row for every non-legacy class, with populated q/e/passive fields', () => {
+  it('has a CLASS_VFX row for every class, with populated q/e/passive fields', () => {
     expect(realClassKeys.length).toBe(12); // SPEC-FINAL §13, fb013
     for (const key of realClassKeys) {
       const entry = CLASS_VFX[key];
@@ -83,10 +83,6 @@ describe('fb016: the VFX registry covers every real class and Core', () => {
 
   it('maps every ClassEffect.kind actually authored in data/classes.json to a render shape', () => {
     for (const c of content.classes.classes) {
-      if (c.legacy) {
-        expect(ACTIVE_KIND_SHAPE[c.active.kind], `${c.key}.active`).toBeDefined();
-        continue;
-      }
       expect(ACTIVE_KIND_SHAPE[c.active1.kind], `${c.key}.active1`).toBeDefined();
       expect(ACTIVE_KIND_SHAPE[c.active2.kind], `${c.key}.active2`).toBeDefined();
     }
@@ -199,7 +195,7 @@ describe('fb016: firing a skill or Core effect actually draws something', () => 
   });
 
   it('a skip-kind Active (Stormcaller Chain Surge, already rendered via its own arc tracers) draws nothing extra from the cast layer', () => {
-    const stormcaller = content.classByKey.get('stormcaller')! as NewClassDef;
+    const stormcaller = content.classByKey.get('stormcaller')! as ClassDef;
     expect(ACTIVE_KIND_SHAPE[stormcaller.active1.kind]).toBe('skip');
 
     // Two fresh worlds/canvases (not a before/after on one draw) since the
@@ -249,7 +245,7 @@ describe('fb016: firing a skill or Core effect actually draws something', () => 
     expect(hit!.color).toBe(projectileStyle('archer').color);
   });
 
-  it('fb021: every non-legacy class basic attack draws something (registry completeness at the render layer)', () => {
+  it('fb021: every class basic attack draws something (registry completeness at the render layer)', () => {
     for (const key of realClassKeys) {
       const w = new World(cfg({ classKey: key }));
       const { canvas, arcs, lines } = recordingCanvas();

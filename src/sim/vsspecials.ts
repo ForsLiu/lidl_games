@@ -172,7 +172,7 @@ export function electricInterval(w: World): number {
     }
   }
   const cls = w.content.classByKey.get(w.cfg.classKey);
-  if (cls && !cls.legacy && cls.active2.kind === 'overload' && w.warden.overloadRemaining > 0) {
+  if (cls && cls.active2.kind === 'overload' && w.warden.overloadRemaining > 0) {
     return interval / 2;
   }
   return interval;

@@ -43,11 +43,9 @@ export interface CensusRow {
 export function census(content: Content): CensusRow[] {
   const rows: CensusRow[] = [];
 
-  // §4's 11 classes are the non-legacy rows, plus fb013's owner-directed 12th
-  // (Time Lord, filed after §13 was written); `legacy: true` classes (Q38's
-  // frost_warden, kept for old saves) are not §13 content and would inflate
-  // the count past the target it can never legitimately exceed.
-  const classCount = content.classes.classes.filter((c) => !c.legacy).length;
+  // §4's 11 classes, plus fb013's owner-directed 12th (Time Lord, filed
+  // after §13 was written).
+  const classCount = content.classes.classes.length;
   rows.push({
     key: 'classes',
     label: 'Classes',

@@ -9,7 +9,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { loadContent, validateClassEffect, type ClassEffect, type NewClassDef } from '../src/sim/content';
+import { loadContent, validateClassEffect, type ClassEffect, type ClassDef } from '../src/sim/content';
 import { applyDamageType } from '../src/sim/damagetypes';
 import { applyDot, damageEnemy, dotOutstanding, dotStacks, spawnEnemy } from '../src/sim/enemies';
 import { buildTower, updateTowers } from '../src/sim/towers';
@@ -19,7 +19,7 @@ import { World } from '../src/sim/world';
 import { cfg } from './helpers';
 
 const content = loadContent();
-const plaguebringer = content.classByKey.get('plaguebringer')! as NewClassDef;
+const plaguebringer = content.classByKey.get('plaguebringer')! as ClassDef;
 
 function idleInput(over: Partial<TickInput> = {}): TickInput {
   return { mx: 0, my: 0, dash: false, attack: false, aimX: 0, aimY: 0, active1Held: false, cmds: [], ...over };
@@ -35,9 +35,8 @@ function worldWith(over = {}): World {
   return w;
 }
 
-describe('p6c: Plaguebringer loads as a legacy: false class with the §4.1 kit', () => {
+describe('p6c: Plaguebringer loads with the §4.1 kit', () => {
   it('is authored with the four §4 slots and the right effect kinds', () => {
-    expect(plaguebringer.legacy).toBe(false);
     expect(plaguebringer.passive.kind).toBe('spreading_plague');
     expect(plaguebringer.active1.kind).toBe('ground_poison');
     expect(plaguebringer.active2.kind).toBe('poison_boost');

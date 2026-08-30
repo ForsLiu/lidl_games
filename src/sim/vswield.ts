@@ -110,8 +110,8 @@ function wieldOneType(w: World, def: TowerDef, group: readonly Structure[]): Wie
 /**
  * §6.1's last clause: a wielded attack fires from the Warden, on its own
  * per-type cooldown, scaled by the *character's* stats — Power, attack speed
- * and Area, never `towerDamageMul`/`towerRangeMul`/`affinityMul`, which are
- * the Act I tower-side multipliers and stay Act I's. The one deliberate
+ * and Area, never `towerDamageMul`/`towerRangeMul`, which are the Act I
+ * tower-side multipliers and stay Act I's. The one deliberate
  * exception is `towerAttackSpeedMul`: §4.1 Wind Slash (p6b) names itself
  * "effective in VS" verbatim, unlike any other tower-side stat, so it rides
  * alongside the character's own `attackSpeedMul` below (Q118). Beacon Totem's

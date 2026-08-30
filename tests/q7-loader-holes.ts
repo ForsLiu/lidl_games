@@ -22,6 +22,19 @@
  *     `open` = no row is, `partial` = some are and some are not, which is the
  *     one-directional-integrity finding (E1).
  *
+ * Recorded 2026-08-29 (p6f) against 6,064 mutations, 3,890 rejected, 2,174
+ * accepted — down from 6,358/4,094/2,264: p6f retired `frost_warden` (the
+ * repo's one `legacy: true` class row) and `data/affinity.json` wholesale
+ * (Q38, SPEC-FINAL §4 gives every class a Tower passive instead), so
+ * `DATA_FILES` drops to fifteen files and every `affinity.affinities[]`,
+ * `classes.classes[].mods.*`, `.active.*`, `.manualAttack.*` and `.trait`
+ * path disappears from both ACCEPTED and REF_VERDICTS (the legacy schema
+ * itself, `LegacyClassSchema`/`AffinityFileSchema`, was deleted from
+ * `content.ts`, not just the data row) — a shrink in schema surface, not a
+ * closed hole. ACCEPTED, INEFFECTIVE and REF_VERDICTS all regenerated in full
+ * rather than patched in place, since the file-list change touches every
+ * record's shape.
+ *
  * Recorded 2026-08-29 (fb013) against 6,358 mutations, 4,094 rejected, 2,264
  * accepted — up from an unmeasured baseline (this session's own totals had
  * already drifted from fb008's 6,154 recorded below without a matching
@@ -111,10 +124,6 @@ import type { RefVerdict } from '../tools/fuzz-data';
 
 /** Canonical field path -> mutation families `loadContent()` accepts for it. */
 export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
-  'affinity.affinities': ['empty-array', 'drop-element', 'dupe-element'],
-  'affinity.affinities[].bonus': ['negative', 'zero', 'infinite', 'fractional'],
-  'affinity.affinities[].perk': ['to-string', 'empty-string'],
-  'affinity.affinities[].towers': ['empty-array', 'drop-element', 'dupe-element'],
   'boons.boons': ['empty-array', 'drop-element', 'dupe-element'],
   'boons.boons[].desc': ['to-string', 'empty-string'],
   'boons.boons[].key': ['to-string', 'empty-string'],
@@ -125,14 +134,6 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'boons.boons[].uncapped': ['flip-bool', 'drop-key', 'rename-key'],
   'boons.rerollsPerLevel': ['negative', 'zero', 'infinite', 'fractional'],
   'classes.classes': ['dupe-element'],
-  'classes.classes[].active.cooldownSeconds': ['negative', 'zero', 'infinite', 'fractional'],
-  'classes.classes[].active.damage': ['negative', 'zero', 'infinite', 'fractional'],
-  'classes.classes[].active.dayUse': ['to-string', 'empty-string'],
-  'classes.classes[].active.name': ['to-string', 'empty-string'],
-  'classes.classes[].active.nightUse': ['to-string', 'empty-string'],
-  'classes.classes[].active.radius': ['negative', 'zero', 'infinite', 'fractional'],
-  'classes.classes[].active.slow': ['negative', 'zero', 'infinite', 'fractional', 'drop-key', 'rename-key'],
-  'classes.classes[].active.slowDuration': ['negative', 'zero', 'infinite', 'fractional', 'drop-key', 'rename-key'],
   'classes.classes[].active1.burnDps': ['negative', 'zero', 'infinite', 'fractional', 'drop-key', 'rename-key'],
   'classes.classes[].active1.burnDuration': ['negative', 'zero', 'infinite', 'fractional', 'drop-key', 'rename-key'],
   'classes.classes[].active1.chainCap': ['negative', 'zero', 'infinite', 'fractional'],
@@ -204,16 +205,6 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'classes.classes[].basicAttack.dps': ['negative', 'zero', 'infinite', 'fractional'],
   'classes.classes[].basicAttack.interval': ['negative', 'zero', 'infinite', 'fractional'],
   'classes.classes[].basicAttack.range': ['negative', 'zero', 'infinite', 'fractional'],
-  'classes.classes[].manualAttack.dps': ['negative', 'zero', 'infinite', 'fractional'],
-  'classes.classes[].manualAttack.interval': ['negative', 'zero', 'infinite', 'fractional'],
-  'classes.classes[].manualAttack.name': ['to-string', 'empty-string'],
-  'classes.classes[].manualAttack.range': ['negative', 'zero', 'infinite', 'fractional'],
-  'classes.classes[].mods.buildRange': ['negative', 'infinite', 'fractional', 'drop-key', 'rename-key'],
-  'classes.classes[].mods.burnDamage': ['negative', 'infinite', 'fractional', 'drop-key', 'rename-key'],
-  'classes.classes[].mods.burnSpread': ['negative', 'infinite', 'fractional', 'drop-key', 'rename-key'],
-  'classes.classes[].mods.chilledDamageTaken': ['negative', 'zero', 'infinite', 'fractional', 'drop-key', 'rename-key'],
-  'classes.classes[].mods.slowPotency': ['negative', 'zero', 'infinite', 'fractional', 'drop-key', 'rename-key'],
-  'classes.classes[].mods.towerCost': ['negative', 'infinite', 'fractional', 'drop-key', 'rename-key'],
   'classes.classes[].moveSpeedBonus': ['negative', 'zero', 'infinite', 'fractional'],
   'classes.classes[].name': ['to-string', 'empty-string'],
   'classes.classes[].passive.charDotSpeedMul': ['negative', 'zero', 'infinite', 'fractional', 'drop-key', 'rename-key'],
@@ -253,7 +244,6 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'classes.classes[].towerPassive.mods.towerRange': ['negative', 'zero', 'infinite', 'fractional', 'drop-key', 'rename-key'],
   'classes.classes[].towerPassive.name': ['to-string', 'empty-string'],
   'classes.classes[].towerPassive.waveInterval': ['negative', 'zero', 'infinite', 'fractional'],
-  'classes.classes[].trait': ['to-string', 'empty-string'],
   'classes.classes[].unlockQuest': ['to-string'],
   'classes.classes[].unlockedByDefault': ['flip-bool'],
   'cores.cores[].baseHp': ['infinite', 'fractional'],
@@ -659,10 +649,6 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
 /** Census cases whose mutation cannot move the authored value. */
 export const INEFFECTIVE: readonly string[] = [
   'classes.classes[].active2.radius | zero',
-  'classes.classes[].mods.towerCost | zero',
-  'classes.classes[].mods.buildRange | zero',
-  'classes.classes[].mods.burnDamage | zero',
-  'classes.classes[].mods.burnSpread | zero',
   'enemies.enemies[].traits | empty-array',
   'enemies.enemies[].traits | drop-element',
   'enemies.enemies[].traits | dupe-element',
@@ -686,24 +672,16 @@ export const INEFFECTIVE: readonly string[] = [
 
 /** Canonical string path -> how its rows scored under a garbage rename. */
 export const REF_VERDICTS: Readonly<Record<string, RefVerdict>> = {
-  'affinity.affinities[].classKey': 'checked',
-  'affinity.affinities[].perk': 'open',
-  'affinity.affinities[].towers[]': 'checked',
   'boons.boons[].desc': 'open',
   'boons.boons[].key': 'open',
   'boons.boons[].name': 'open',
   'boons.boons[].stat': 'open',
-  'classes.classes[].active.dayUse': 'open',
-  'classes.classes[].active.kind': 'checked',
-  'classes.classes[].active.name': 'open',
-  'classes.classes[].active.nightUse': 'open',
   'classes.classes[].active1.kind': 'checked',
   'classes.classes[].active1.name': 'open',
   'classes.classes[].active2.kind': 'checked',
   'classes.classes[].active2.name': 'open',
   'classes.classes[].active2.towerKey': 'checked',
   'classes.classes[].key': 'partial',
-  'classes.classes[].manualAttack.name': 'open',
   'classes.classes[].name': 'open',
   'classes.classes[].passive.description': 'open',
   'classes.classes[].passive.kind': 'checked',
@@ -711,7 +689,6 @@ export const REF_VERDICTS: Readonly<Record<string, RefVerdict>> = {
   'classes.classes[].towerPassive.description': 'open',
   'classes.classes[].towerPassive.kind': 'checked',
   'classes.classes[].towerPassive.name': 'open',
-  'classes.classes[].trait': 'open',
   'classes.classes[].unlockQuest': 'open',
   'cores.cores[].key': 'open',
   'cores.cores[].name': 'open',

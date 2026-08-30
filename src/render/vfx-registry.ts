@@ -77,7 +77,7 @@ export interface ClassVfxEntry {
   basic: BasicVfxEntry;
 }
 
-/** SPEC-FINAL §13's twelve real classes, fb013 (`frost_warden`'s `legacy: true` row is excluded, same as `tools/content-census.ts`). */
+/** SPEC-FINAL §13's twelve real classes, fb013. */
 export const CLASS_VFX: Record<string, ClassVfxEntry> = {
   swordsman: {
     q: { indicator: 'charge ring at the Warden, radius grows with hold', fire: 'expanding slash nova + knockback', color: '#e0c46c' },

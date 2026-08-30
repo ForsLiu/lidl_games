@@ -172,16 +172,6 @@ describe('character panel data model', () => {
     expect(power.contribution).toBeCloseTo(0.08, 10);
   });
 
-  it('a legacy-shaped class (frost_warden) still shows up as a plain class: source, not passive/towerPassive', () => {
-    const legacy = content.classes.classes.find((c) => c.legacy && c.key === 'frost_warden');
-    expect(legacy).toBeDefined(); // guards the fixture if the roster ever drops this class
-    const w = new World(cfg({ classKey: 'frost_warden' }));
-    const data = characterPanelData(w);
-    const row = data.stats.find((s) => s.key === 'slowPotency')!;
-    expect(row.sources.map((s) => s.source)).toEqual(['class:frost_warden']);
-    expect(row.value).toBe(w.stats.factor('slowPotency'));
-  });
-
   it('every boon in the pool is covered by a display name, even at rank 0 (never listed) and at max rank', () => {
     for (const b of content.boons.boons) {
       const w = new World(cfg());

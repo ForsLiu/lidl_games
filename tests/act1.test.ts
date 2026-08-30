@@ -178,7 +178,6 @@ describe('tower fire', () => {
   it('the Frost Obelisk slows what it pulses', () => {
     const w = newWorld();
     warp(w, 10, 10);
-    w.cfg.classKey = 'frost_warden';
     buildTower(w, 5, 10, 10);
     // Something that survives the pulse, so the slow is observable.
     const e = spawnEnemy(w, 'colossus', 11.5, 10, { overlay: false })!;
@@ -192,7 +191,6 @@ describe('tower fire', () => {
   it('Frostkin ignore slows', () => {
     const w = newWorld();
     warp(w, 10, 10);
-    w.cfg.classKey = 'frost_warden';
     buildTower(w, 5, 10, 10);
     const e = spawnEnemy(w, 'frostkin', 11.5, 10, { overlay: false })!;
     e.hp = 1e9;

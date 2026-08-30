@@ -12,7 +12,7 @@
  * Two things about the shape of the answer, both of which decided the design:
  *
  *   - The corpus is **exhaustive and deterministic, not sampled.** Every
- *     canonical field path in all sixteen `/data` files, crossed with every
+ *     canonical field path in all fifteen `/data` files, crossed with every
  *     mutation family that is a genuine change for that field's type. No RNG at
  *     all: the census is a *fact about the loader*, so re-running it must give
  *     the same list or it is not a fact. (q2 and q3 are seeded samplers because
@@ -42,13 +42,12 @@ import { join } from 'node:path';
 /* ------------------------------------------------------------------- data */
 
 /**
- * Exactly the sixteen files `src/sim/content.ts` imports. Kept as a literal
+ * Exactly the fifteen files `src/sim/content.ts` imports. Kept as a literal
  * rather than a `readdir` so a *new* `/data` file that nothing loads shows up as
- * a mismatch in the test's "the sixteen files are the ones the loader reads"
+ * a mismatch in the test's "the fifteen files are the ones the loader reads"
  * pin, instead of being fuzzed against a loader that never reads it.
  */
 export const DATA_FILES = [
-  'affinity',
   'boons',
   'classes',
   'cores',
@@ -485,7 +484,6 @@ export function scanContent(c: unknown): string[] {
     'tree',
     'modifiers',
     'classes',
-    'affinity',
     'quests',
     'damageTypes',
     'warden',

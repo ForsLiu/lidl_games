@@ -381,7 +381,6 @@ describe('fb015 (§7) bracelets: character AND tower area/range +10%', () => {
 
   it('Sniper Bracelet lets the basic attack reach an enemy just past the un-boosted range', () => {
     const cls = content.classByKey.get('swordsman')!;
-    if (cls.legacy) throw new Error('swordsman is legacy: false');
     const baseRange = cls.basicAttack.range;
 
     const w = worldWith({ equipment: ['sniper_bracelet'] });

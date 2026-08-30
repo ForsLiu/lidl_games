@@ -360,7 +360,7 @@ export function killEnemy(w: World, e: Enemy, source: string): void {
   // to overflow a recursive call stack the same way Burning's did (Q119).
   if (e.dots.length > 0) {
     const cls = w.content.classByKey.get(w.cfg.classKey);
-    if (cls && !cls.legacy && cls.passive.kind === 'spreading_plague') {
+    if (cls && cls.passive.kind === 'spreading_plague') {
       w.pendingPlagueTransfers.push(e);
       drainPlagueTransfers(w);
     }
@@ -370,7 +370,7 @@ export function killEnemy(w: World, e: Enemy, source: string): void {
   // scoped to their own class exactly the way Spreading Plague above is. One
   // lookup serves both.
   const kls = w.content.classByKey.get(w.cfg.classKey);
-  if (kls && !kls.legacy) {
+  if (kls) {
     if (kls.passive.kind === 'corpse_drop') {
       w.corpses.push({ id: w.newId(), x: e.x, y: e.y, remaining: kls.passive.corpseSeconds ?? 6 });
     } else if (kls.passive.kind === 'frost_touch' && e.frozenRemaining > 0) {
@@ -801,7 +801,7 @@ export function applyOnHit(w: World, e: Enemy, key: string, source: string): voi
     if (e.frostRemaining > 0) {
       e.frostHitStacks++;
       const cls = w.content.classByKey.get(w.cfg.classKey);
-      const need = cls && !cls.legacy ? cls.passive.freezeHits ?? 5 : 5;
+      const need = cls ? cls.passive.freezeHits ?? 5 : 5;
       if (e.frostHitStacks >= need) {
         applyFrozen(w, e);
         e.frostHitStacks = 0;

@@ -129,7 +129,7 @@ function printHelp(): void {
       '  --seed N              single seed (default 1)',
       '  --seeds A..B | a,b,c  seed sweep',
       '  --policy NAME         one of: ' + policyNames().join(', '),
-      '  --class KEY           engineer | pyromancer | frost_warden',
+      '  --class KEY           engineer | pyromancer | swordsman | ...',
       '  --tier N              map tier 1-5',
       '  --mods a,b            map modifier keys',
       '  --tree 1,2,3          allocated Constellation node ids',

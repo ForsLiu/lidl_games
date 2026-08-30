@@ -110,11 +110,12 @@ export const GATE_COVERAGE: Record<string, CoverageEntry> = {
   G22: { files: ['tests/p-core-f-gates.test.ts'] },
   G23: { files: ['tests/p-core-f-gates.test.ts'] },
   G2: {
-    files: ['tests/a11-determinism.test.ts', 'tests/f004-class-framework.test.ts', 'tests/pacer.test.ts'],
+    files: ['tests/a11-determinism.test.ts', 'tests/p6a-class-framework.test.ts', 'tests/pacer.test.ts'],
     note:
-      "a11 covers the 100-seed replay hash match; f004's live describe block (line 115, the other three are " +
-      "describe.skip'd — see G8/G9) has 'replays to an identical end-state hash with class_active in the input " +
-      "log', covering actives. This note previously claimed 'no test asserts a fast_forward run's end hash " +
+      "a11 covers the 100-seed replay hash match; p6a-class-framework.test.ts's 'replay-hash determinism with " +
+      "Active1/Active2 and the auto basic attack in the log' describe (f004-class-framework.test.ts's equivalent " +
+      "coverage before p6f deleted that file, Q38) covers actives. This note previously claimed 'no test asserts " +
+      "a fast_forward run's end hash " +
       "against the same run at 1x' — stale the same way q17 (session 12) found G17's own note stale: " +
       "tests/pacer.test.ts already had a test doing exactly that (it predates this audit tool, shipped with the " +
       "fast-forward feature itself), just at one seed and one speed. BACKLOG-QUALITY q19 (session 15) widened it " +
@@ -189,9 +190,9 @@ export const KNOWN_HOLES: Record<string, string> = {
     'cycle, the opposite metric from G1\'s "means/pass-rates, never medians." P3 has since landed the real run ' +
     "shape, but p3e's re-baseline measured the balance red past ~wave 10-14 (a p8a content gap, per Q109) and " +
     'logged its numbers as .skip — so zero live test currently checks a mean 30–36 min victorious run.',
-  G8: 'All 11 §4 classes now exist (p6b–p6d), but the scripted-kit-bot win-rate / top-damage-diversity ' +
-    "measurement G8 actually asks for is p6e's, which has not landed. f004-class-framework.test.ts's one live " +
-    'block tests the Active-skill Command plumbing, not a win-rate.',
+  G8: 'All 12 §4 classes now exist (p6b–p6d), but the scripted-kit-bot win-rate / top-damage-diversity ' +
+    "measurement G8 actually asks for is p6e's, which has not landed. p6a-class-framework.test.ts's live " +
+    'replay-hash block tests the Active-skill Command plumbing, not a win-rate.',
   G12: "fb015 built and tested the gate's equipment clause (data/equipment.json's 12 items, six slots, " +
     "1 item per fully cleared TD wave — tests/fb015-equipment.test.ts) and 'orbs nowhere' already had a live " +
     "test (c7-no-orbs.test.ts); the gate stays a hole because its third clause, 'M VS waves -> M skill points' " +

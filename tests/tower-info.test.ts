@@ -233,7 +233,7 @@ describe('tower info model', () => {
     }
   });
 
-  it('includes the class affinity bonus in the number it quotes', () => {
+  it('includes every class-driven damage multiplier in the number it quotes', () => {
     for (const cls of content.classes.classes) {
       const w = new World(cfg({ classKey: cls.key }));
       for (const def of content.towers.towers) {

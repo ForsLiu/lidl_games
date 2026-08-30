@@ -6,10 +6,9 @@
 import { defaultCoreKey, loadContent, type Content } from './content';
 import { GATES, GRID_H, GRID_W, coreCenter } from './grid';
 import { Hasher } from './hash';
-import { clamp, dist2, normalize } from './math';
+import { clamp, normalize } from './math';
 import { BASE, damageTakenMul } from './stats';
 import {
-  damageEnemy,
   effectiveSpeed,
   enemyArmor,
   killEnemy,
@@ -471,7 +470,7 @@ export function updateWarden(w: World, input: TickInput, dt: number): void {
   }
 
   const cls = w.content.classByKey.get(w.cfg.classKey);
-  if (cls && !cls.legacy) {
+  if (cls) {
     // fb013: refills a `maxCharges`-authored Active's ammo (Time Lord only —
     // a no-op for every other kit's single-cooldown Actives).
     tickAmmoRecharge(w, cls, dt);
@@ -479,8 +478,6 @@ export function updateWarden(w: World, input: TickInput, dt: number): void {
     tickClassCharge(w, cls, input, dt);
     // SPEC-FINAL §4: the band-profile basic attack auto-fires, TD-only (Q117) — no `input.attack` press needed.
     if (!w.huntsWarden) classBasicAttack(w, cls);
-  } else if (input.attack && !w.huntsWarden) {
-    manualAttack(w, input, dt);
   }
   // fb013 Time Lord *Time Flow*: DoT the passive converted incoming damage
   // into. Placed last so a kill lands the same tick order every other
@@ -530,24 +527,6 @@ function walkable(w: World, x: number, y: number): boolean {
   // structure — only the border blocks it. Enemy pathing is untouched; it
   // reads `grid.passable`/`blocked` directly, never this function.
   return w.grid.wardenPassable(tx, ty);
-}
-
-function manualAttack(w: World, input: TickInput, _dt: number): void {
-  const wd = w.warden;
-  if (wd.attackCooldown > 0) return;
-  const cls = w.content.classByKey.get(w.cfg.classKey);
-  if (!cls || !cls.legacy) return;
-  const a = cls.manualAttack;
-  const range = a.range;
-  let target = w.nearestEnemy(input.aimX, input.aimY, 1.5);
-  if (!target || dist2(target.x, target.y, wd.x, wd.y) > range * range) {
-    target = w.nearestEnemy(wd.x, wd.y, range);
-  }
-  if (!target) return;
-  wd.attackCooldown = a.interval / w.derived.attackSpeedMul;
-  const dmg = a.dps * a.interval * w.derived.powerMul;
-  damageEnemy(w, target, dmg, 'manual', { fromX: wd.x, fromY: wd.y });
-  w.emit('manual', wd.x, wd.y, target.x, target.y);
 }
 
 /**
@@ -601,7 +580,7 @@ export function damageWarden(w: World, amount: number, opts?: WardenDamageOption
 
   if (!opts?.dot) {
     const cls = w.content.classByKey.get(w.cfg.classKey);
-    if (cls && !cls.legacy && cls.passive.kind === 'time_flow') {
+    if (cls && cls.passive.kind === 'time_flow') {
       // "mitigated once by armor before converting": `dmg` above already is
       // that one mitigation — the DoT itself then bypasses armor entirely
       // (`dot: true` on the re-entrant tick), the same convention every
@@ -674,7 +653,7 @@ export function damageWarden(w: World, amount: number, opts?: WardenDamageOption
 function storeWrath(w: World, blocked: number, applied: number): void {
   const wd = w.warden;
   const cls = w.content.classByKey.get(w.cfg.classKey);
-  if (!cls || cls.legacy || cls.passive.kind !== 'guardian_stance') return;
+  if (!cls || cls.passive.kind !== 'guardian_stance') return;
   if (blocked > 0) wd.wrathStored += blocked;
   const share = cls.passive.wrathFraction ?? 0;
   if (share > 0 && wd.clarionRemaining > 0 && applied > 0) wd.wrathStored += applied * share;
@@ -778,7 +757,7 @@ function updateAct1Wave(w: World, dt: number): void {
  */
 function applyChronalSurge(w: World): void {
   const cls = w.content.classByKey.get(w.cfg.classKey);
-  if (!cls || cls.legacy || cls.towerPassive.kind !== 'chronal_surge') return;
+  if (!cls || cls.towerPassive.kind !== 'chronal_surge') return;
   const interval = Math.max(1, Math.round(cls.towerPassive.waveInterval ?? 2));
   if (w.wavesCleared % interval !== 0) return;
   const source = `class:${w.cfg.classKey}:chronal_surge`;

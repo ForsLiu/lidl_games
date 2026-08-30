@@ -10,7 +10,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { attackSpeedFor, buildTower } from '../src/sim/towers';
-import { loadContent, validateClassEffect, type ClassEffect, type NewClassDef } from '../src/sim/content';
+import { loadContent, validateClassEffect, type ClassEffect, type ClassDef } from '../src/sim/content';
 import { useClassActive, useClassActive2 } from '../src/sim/classes';
 import { dotStacks, spawnEnemy } from '../src/sim/enemies';
 import { applyCommand, damageWarden, hashWorld, Run, updateWarden } from '../src/sim/run';
@@ -21,7 +21,7 @@ import { towerInfo } from '../src/ui/tower-info';
 import { cfg } from './helpers';
 
 const content = loadContent();
-const swordsman = content.classByKey.get('swordsman')! as NewClassDef;
+const swordsman = content.classByKey.get('swordsman')! as ClassDef;
 
 function held(active1Held: boolean, over: Partial<TickInput> = {}): TickInput {
   return { mx: 0, my: 0, dash: false, attack: false, aimX: 0, aimY: 0, active1Held, cmds: [], ...over };
@@ -42,9 +42,8 @@ function worldWith(over = {}, opts: { suppressBasicAttack?: boolean } = {}): Wor
   return w;
 }
 
-describe('p6b: Swordsman loads as a legacy: false class with the §4.1 kit', () => {
+describe('p6b: Swordsman loads with the §4.1 kit', () => {
   it('is authored with the four §4 slots and the right effect kinds', () => {
-    expect(swordsman.legacy).toBe(false);
     expect(swordsman.passive.kind).toBe('thousand_cuts');
     expect(swordsman.active1.kind).toBe('charge_nova');
     expect(swordsman.active2.kind).toBe('dash_line');
@@ -90,8 +89,8 @@ describe('p6b: Thousand Cuts — every attack applies exactly 1 Bleeding', () =>
     expect(dotStacks(e, 'bleeding')).toBe(1);
   });
 
-  it('a legacy class never applies Bleeding from its own basic attack', () => {
-    const w = new World(cfg({ classKey: 'frost_warden' }));
+  it('a class without Thousand Cuts never applies Bleeding from its own basic attack', () => {
+    const w = new World(cfg({ classKey: 'engineer' }));
     w.gold = 1e6;
     const e = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 1, w.warden.y)!;
     w.rebuildBuckets();
@@ -383,9 +382,7 @@ describe('p6b: QA bug 1 — w.dying freezes Command-driven class actions, not ju
     // release via tickClassCharge, not this function) — so proving the
     // dying-guard actually gates this function needs a burst_damage class,
     // the kind that would otherwise really fire here. Pyro's Immolation Wave
-    // is still that class after p6d converted the row to §4.2's shape — it is
-    // now a `legacy: false` `burst_damage` Active1 rather than a `legacy: true`
-    // one, so the cooldown it would have eaten is `active1Cooldown`.
+    // is that class, with the cooldown it would have eaten on `active1Cooldown`.
     const w = new World(cfg({ classKey: 'pyromancer' }));
     w.gold = 1e6;
     w.phase = 'act2';
@@ -400,7 +397,6 @@ describe('p6b: QA bug 1 — w.dying freezes Command-driven class actions, not ju
     const fired = useClassActive(w);
     expect(fired).toBe(false);
     expect(e.hp).toBe(hpBefore);
-    expect(w.warden.activeCooldown).toBe(0);
     expect(w.warden.active1Cooldown).toBe(0);
   });
 

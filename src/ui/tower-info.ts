@@ -15,7 +15,6 @@ import type { Structure } from '../sim/types';
 import type { World } from '../sim/world';
 import { wieldedAttacks, type WieldedAttack } from '../sim/vswield';
 import {
-  affinityMul,
   attackProfile,
   type AttackProfile,
   attackSpeedFor,
@@ -120,17 +119,9 @@ function fmt(n: number, dp = 1): string {
   return String(r);
 }
 
-/** Damage-per-shot after upgrades, Power and Constellation tower damage. */
+/** Damage-per-shot after upgrades, Power and Constellation tower damage — every factor `towerDamage` applies. */
 function shotDamage(w: World, def: TowerDef, a: TowerAttack, tier: number): number {
-  // Every factor `towerDamage` applies, affinity included — the panel quoted a
-  // Ballista at 46.7 where an Engineer's actually hit for 56.
-  return (
-    a.damage *
-    upgradeStatMul(w, def, tier) *
-    w.derived.powerMul *
-    w.derived.towerDamageMul *
-    affinityMul(w, def.key)
-  );
+  return a.damage * upgradeStatMul(w, def, tier) * w.derived.powerMul * w.derived.towerDamageMul;
 }
 
 function shotInterval(a: TowerAttack, speedMul: number): number {

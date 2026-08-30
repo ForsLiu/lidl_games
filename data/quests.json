@@ -1,7 +1,7 @@
 {
   "quests": [
     { "key": "win_a_run",         "name": "First Dawn",         "desc": "Win a run",                                "metric": "wins",               "target": 1,    "compare": "gte", "reward": { "kind": "class",    "value": "pyromancer" } },
-    { "key": "build_40_obelisks", "name": "Winter Architect",   "desc": "Build 40 Frost Obelisks lifetime",         "metric": "built_frost_obelisk","target": 40,   "compare": "gte", "reward": { "kind": "class",    "value": "frost_warden" } },
+    { "key": "build_40_obelisks", "name": "Winter Architect",   "desc": "Build 40 Frost Obelisks lifetime",         "metric": "built_frost_obelisk","target": 40,   "compare": "gte", "reward": { "kind": "class",    "value": "cryomancer" } },
     { "key": "plaguebringer_veteran", "name": "Patient Zero",   "desc": "Win 3 runs",                               "metric": "wins",               "target": 3,    "compare": "gte", "reward": { "kind": "class",    "value": "plaguebringer" } },
     { "key": "four_slot_win",     "name": "Ascetic",            "desc": "Win having built at most 4 tower types",   "metric": "wins_max4towertypes", "target": 1,   "compare": "gte", "reward": { "kind": "feature",  "value": "keystone_respec" } },
     { "key": "fast_boss",         "name": "Ninety Seconds",     "desc": "Kill the Warden-Eater in under 90 s",      "metric": "fastest_boss_kill",  "target": 90,   "compare": "lte", "reward": { "kind": "cosmetic", "value": "heartstone_skin" } },

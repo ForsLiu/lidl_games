@@ -463,8 +463,8 @@ export class World {
     // own `maxCharges` (undefined/1 for every class but Time Lord, for which
     // this is just `1` and the ammo fields go unread — see `tickAmmoRecharge`).
     const startCls = content.classByKey.get(this.cfg.classKey);
-    const active1MaxCharges = startCls && !startCls.legacy ? startCls.active1.maxCharges ?? 1 : 1;
-    const active2MaxCharges = startCls && !startCls.legacy ? startCls.active2.maxCharges ?? 1 : 1;
+    const active1MaxCharges = startCls ? startCls.active1.maxCharges ?? 1 : 1;
+    const active2MaxCharges = startCls ? startCls.active2.maxCharges ?? 1 : 1;
     this.warden = {
       x: cc.x - 3,
       y: cc.y,

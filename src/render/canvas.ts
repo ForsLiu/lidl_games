@@ -306,10 +306,10 @@ export class Renderer {
         case 'class_active2': {
           const cls = w.content.classByKey.get(w.cfg.classKey);
           if (!cls) break;
-          const kind = cls.legacy ? cls.active.kind : e.k === 'class_active' ? cls.active1.kind : cls.active2.kind;
+          const kind = e.k === 'class_active' ? cls.active1.kind : cls.active2.kind;
           const shape = ACTIVE_KIND_SHAPE[kind] ?? 'point';
           if (shape === 'skip') break;
-          const entry = cls.legacy ? undefined : CLASS_VFX[w.cfg.classKey];
+          const entry = CLASS_VFX[w.cfg.classKey];
           const style = entry ? (e.k === 'class_active' ? entry.q : entry.e) : undefined;
           this.pushCast(shape, e.x, e.y, e.a, e.b, style?.color ?? '#ffffff');
           break;
@@ -326,7 +326,7 @@ export class Renderer {
         // looks like its own weapon.
         case 'class_basic': {
           const cls = w.content.classByKey.get(w.cfg.classKey);
-          const entry = cls && !cls.legacy ? CLASS_VFX[w.cfg.classKey] : undefined;
+          const entry = cls ? CLASS_VFX[w.cfg.classKey] : undefined;
           if (!entry) break;
           if (entry.basic.shape === 'swing') {
             this.pushCast('line', e.x, e.y, e.a, e.b, entry.basic.color);
@@ -957,7 +957,7 @@ export class Renderer {
    */
   private drawChargeIndicator(w: World, view: ViewState): void {
     const cls = w.content.classByKey.get(w.cfg.classKey);
-    if (!cls || cls.legacy || !w.warden.active1Charging) return;
+    if (!cls || !w.warden.active1Charging) return;
     const wd = w.warden;
     const ctx = this.ctx;
     const color = CLASS_VFX[w.cfg.classKey]?.q.color ?? '#ffffff';

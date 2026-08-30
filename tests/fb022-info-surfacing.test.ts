@@ -95,7 +95,6 @@ describe('fb022 Surface 1: class screen + in-run character panel show live numbe
   it('the Hub Class panel shows the selected class\'s active/passive numbers straight off content.classes', () => {
     const { root } = mountHub();
     const swordsman = content.classes.classes.find((c) => c.key === 'swordsman')!;
-    if (swordsman.legacy) throw new Error('fixture assumption broken: swordsman is legacy: false');
     const detail = root.querySelector('.sw-classdetail')!.textContent ?? '';
     expect(detail).toContain(`${swordsman.active1.cooldownSeconds}s`); // Circle Slash cooldown
     expect(detail).toContain(String(swordsman.active1.radius)); // Circle Slash radius
@@ -106,20 +105,10 @@ describe('fb022 Surface 1: class screen + in-run character panel show live numbe
   it('switching class on the Hub updates the detail block to the new class\'s own numbers', () => {
     const { root } = mountHub();
     const engineer = content.classes.classes.find((c) => c.key === 'engineer')!;
-    if (engineer.legacy) throw new Error('fixture assumption broken');
     root.querySelector<HTMLElement>('[data-class="engineer"]')!.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
     const detail = root.querySelector('.sw-classdetail')!.textContent ?? '';
     expect(detail).toContain(`${engineer.active1.cooldownSeconds}s`); // Field Kit cooldown
     expect(detail).toContain(String(engineer.active2.summonCap)); // Pop Turret summon cap
-  });
-
-  it('a legacy-shaped class (frost_warden) still renders through the same generic formatter', () => {
-    const legacy = content.classes.classes.find((c) => c.key === 'frost_warden')!;
-    if (!legacy.legacy) throw new Error('fixture assumption broken: frost_warden is legacy: true');
-    const html = classAbilitiesMarkup(legacy);
-    expect(html).toContain(`${legacy.active.cooldownSeconds}s`);
-    expect(html).toContain(String(legacy.active.radius));
-    expect(html).toContain(String(legacy.manualAttack.dps));
   });
 
   it('the in-run character panel resolves cooldownSeconds through w.derived.cdr, not the raw /data number', () => {
@@ -127,7 +116,6 @@ describe('fb022 Surface 1: class screen + in-run character panel show live numbe
     w.stats.add('test', 'cdr', 0.25); // 25% cooldown reduction
     w.recomputeDerived();
     const cls = w.content.classByKey.get('swordsman')!;
-    if (cls.legacy) throw new Error('fixture assumption broken');
 
     const html = characterPanelMarkup(characterPanelData(w), w);
     const expectedCooldown = cls.active1.cooldownSeconds * (1 - w.derived.cdr);
@@ -144,7 +132,6 @@ describe('fb022 Surface 1: class screen + in-run character panel show live numbe
     w.stats.add('test', 'power', 0.5); // +50% power
     w.recomputeDerived();
     const cls = w.content.classByKey.get('swordsman')!;
-    if (cls.legacy) throw new Error('fixture assumption broken');
 
     const html = characterPanelMarkup(characterPanelData(w), w);
     const expectedDamage = characterDamage(w, cls, cls.active1.damage);
@@ -162,7 +149,6 @@ describe('fb022 Surface 1: class screen + in-run character panel show live numbe
     w.stats.add('test', 'atkFlat', 10);
     w.recomputeDerived();
     const cls = w.content.classByKey.get('swordsman')!;
-    if (cls.legacy) throw new Error('fixture assumption broken');
     expect(w.derived.atkFlat).toBe(10);
 
     const html = characterPanelMarkup(characterPanelData(w), w);
@@ -171,24 +157,6 @@ describe('fb022 Surface 1: class screen + in-run character panel show live numbe
     expect(rounded).toBeCloseTo(44.18, 2);
     expect(html).toContain(`DPS: ${rounded}/s`);
     expect(html).not.toContain('DPS: 36/s'); // the interval-blind (dps + atkFlat) miscalculation
-  });
-
-  it('code-reviewer regression: a legacy class (frost_warden) shows undinflated damage/DPS — its sim path has no atkFlat term at all', () => {
-    // frost_warden's Active (`fireEffect`, classes.ts) and manualAttack
-    // (run.ts) both multiply by powerMul only, unlike `characterDamage`'s
-    // (base + atkFlat) * mul — an equipped flat-Atk stat must not touch either.
-    const w = new World(cfg({ classKey: 'frost_warden' }));
-    w.stats.add('test', 'atkFlat', 10);
-    w.recomputeDerived();
-    const legacy = content.classes.classes.find((c) => c.key === 'frost_warden')!;
-    if (!legacy.legacy) throw new Error('fixture assumption broken');
-    expect(w.derived.atkFlat).toBe(10);
-
-    const html = characterPanelMarkup(characterPanelData(w), w);
-    expect(html).toContain(`Damage: ${legacy.active.damage}`); // unchanged by atkFlat
-    expect(html).not.toContain(`Damage: ${legacy.active.damage + 10}`); // the atkFlat-leaked miscalculation
-    const expectedDps = (legacy.manualAttack.dps * legacy.manualAttack.interval) / legacy.manualAttack.interval;
-    expect(html).toContain(`DPS: ${expectedDps}/s`);
   });
 
   it('the character panel omits the ability section entirely when built with no World (Hub-style pre-run call is unaffected)', () => {
@@ -405,7 +373,6 @@ describe('fb022 Surface 4: equipment tooltips show mods, the classFallback activ
 describe('fb022: changing a /data value changes the displayed text with no code edit', () => {
   it('mutating a synthetic class fixture\'s cooldownSeconds changes classAbilitiesMarkup\'s output, with zero changes to the formatter', () => {
     const fixture: ClassDef = JSON.parse(JSON.stringify(content.classes.classes.find((c) => c.key === 'archer'))) as ClassDef;
-    if (fixture.legacy) throw new Error('fixture assumption broken');
 
     const before = classAbilitiesMarkup(fixture);
     expect(before).toContain(`${fixture.active1.cooldownSeconds}s`);

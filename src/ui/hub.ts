@@ -153,13 +153,8 @@ export class Hub {
             .map((c) => {
               const locked = !this.meta.unlockedClasses.includes(c.key);
               const quest = content.quests.quests.find((q) => q.key === c.unlockQuest);
-              // SPEC-FINAL §4 (`legacy: false`) has no single `trait` line or
-              // one Active — show the passive's own description and both
-              // Active names instead of the SPEC-V2 `trait`/single-Active pair.
-              const trait = c.legacy ? c.trait : c.passive.description;
-              const activeLine = c.legacy
-                ? `Active: ${c.active.name} (Q) &middot; Passive: ${c.passive.name}`
-                : `Active: ${c.active1.name} (Q)/${c.active2.name} (E) &middot; Passive: ${c.passive.name}`;
+              const trait = c.passive.description;
+              const activeLine = `Active: ${c.active1.name} (Q)/${c.active2.name} (E) &middot; Passive: ${c.passive.name}`;
               return `<button class="sw-choice ${this.classKey === c.key ? 'on' : ''} ${
                 locked ? 'locked' : ''
               }" data-class="${c.key}" ${locked ? 'disabled' : ''}>

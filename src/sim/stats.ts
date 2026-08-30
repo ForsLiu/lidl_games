@@ -282,18 +282,14 @@ export function baseRunStats(content: Content, cfg: RunConfig): Stats {
 
   const cls = content.classByKey.get(cfg.classKey);
   if (cls) {
-    if (cls.legacy) {
-      s.addAll(`class:${cfg.classKey}`, cls.mods);
-    } else {
-      // SPEC-FINAL §4, p6a: Passive and Tower passive are each their own
-      // generic stat source, folded in the same `addAll` legacy `mods` used —
-      // an unknown key (a non-stat-shaped passive) is silently ignored here,
-      // exactly the precedent `addAll`'s own doc comment already sets, and
-      // gets bespoke engine code from whichever item authors that kit.
-      s.addAll(`class:${cfg.classKey}:passive`, cls.passive.mods);
-      s.addAll(`class:${cfg.classKey}:towerPassive`, cls.towerPassive.mods);
-      if (cls.moveSpeedBonus) s.add(`class:${cfg.classKey}:bands`, 'moveSpeedPct', cls.moveSpeedBonus);
-    }
+    // SPEC-FINAL §4, p6a: Passive and Tower passive are each their own
+    // generic stat source, folded in the same `addAll` any stat-shaped
+    // source uses — an unknown key (a non-stat-shaped passive) is silently
+    // ignored here, exactly the precedent `addAll`'s own doc comment already
+    // sets, and gets bespoke engine code from whichever item authors that kit.
+    s.addAll(`class:${cfg.classKey}:passive`, cls.passive.mods);
+    s.addAll(`class:${cfg.classKey}:towerPassive`, cls.towerPassive.mods);
+    if (cls.moveSpeedBonus) s.add(`class:${cfg.classKey}:bands`, 'moveSpeedPct', cls.moveSpeedBonus);
   }
 
   for (const id of cfg.allocated) {

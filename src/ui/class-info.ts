@@ -54,10 +54,9 @@ function effectBlock(title: string, fields: Record<string, unknown>, live?: Clas
 
 /**
  * The full active/passive/tower-passive/basic-attack effect text for one
- * class, generic over `legacy`/non-`legacy` shapes (SPEC-FINAL §4 vs the
- * SPEC-V2 shape MIGRATION.md §8.3 keeps for `frost_warden`). `opts.live` is
- * omitted entirely on the Hub's pre-run Class screen — both surfaces call the
- * same function, only the second argument differs. Remaining-cooldown
+ * class (SPEC-FINAL §4). `opts.live` is omitted entirely on the Hub's
+ * pre-run Class screen — both surfaces call the same function, only the
+ * second argument differs. Remaining-cooldown
  * countdown text is deliberately not duplicated here: the HUD's own
  * `activeRow`/`Hud.activeSkillRow` (hud.ts) already renders it every frame
  * off `w.warden.active1Cooldown`/`active2Cooldown`, outside this panel's
@@ -68,21 +67,6 @@ function effectBlock(title: string, fields: Record<string, unknown>, live?: Clas
  */
 export function classAbilitiesMarkup(cls: ClassDef, opts: { live?: ClassLiveContext } = {}): string {
   const { live } = opts;
-  if (cls.legacy) {
-    const passiveMods = modLinesHtml(cls.mods);
-    return [
-      effectBlock(`${cls.active.name} (Q, Active)`, cls.active, live),
-      `<div class="sw-effectblock">
-        <b>${cls.passive.name} (Passive)</b>
-        <p class="sw-note">${cls.passive.description}</p>
-        ${passiveMods}
-      </div>`,
-      `<div class="sw-effectblock">
-        <b>${cls.manualAttack.name} (Basic attack)</b>
-        ${numericFieldListHtml(cls.manualAttack, liveOverrides(cls.manualAttack, live))}
-      </div>`,
-    ].join('');
-  }
   return [
     `<div class="sw-effectblock">
       <b>Basic attack</b>

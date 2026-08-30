@@ -13,10 +13,9 @@ import { loadContent } from '../src/sim/content';
 import { census } from '../tools/content-census';
 
 const RECORDED: Record<string, { actual: string; target: string; met: boolean }> = {
-  // classes counts §4's non-legacy rows: P6 (main lane) filled all 11; fb013
-  // added a 12th (Time Lord) past a direct owner directive, so both
-  // actual/target moved together. The 13th data row is Q38's `legacy: true`
-  // frost_warden, excluded by census.
+  // classes counts §4's rows: P6 (main lane) filled all 11; fb013 added a
+  // 12th (Time Lord) past a direct owner directive, so both actual/target
+  // moved together. p6f retired the legacy `frost_warden` row (Q38).
   classes: { actual: '12', target: '12', met: true },
   towers: { actual: '10', target: '10', met: true },
   // fb015: data/equipment.json's real §7 table replaced the hardcoded 0/unbuilt row.

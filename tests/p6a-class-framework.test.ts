@@ -1,14 +1,13 @@
 /**
  * p6a — SPEC-FINAL §4's class framework: archetype bands (resolved to a
  * numeric basic-attack profile) + Passive + Active1 (Q) + Active2 (E) + Tower
- * passive, each a `legacy: false` class alongside the three existing
- * `legacy: true` V2 kits (Q38). This item is the framework only — no real §4
- * kit is authored yet (Swordsman/Plaguebringer land at p6b/p6c, the other
- * nine at p6d) — so every case here drives a hand-built fixture class through
- * the real engine paths (`ClassesFileSchema`, `useClassActive`/
- * `useClassActive2`, `classBasicAttack`, `baseRunStats`), the same technique
- * `m20a-upgrade-tracks.test.ts`'s own `contentWith` helper already uses for a
- * tower row nothing in `/data` authors yet.
+ * passive. This item is the framework only — no real §4 kit is authored yet
+ * (Swordsman/Plaguebringer land at p6b/p6c, the other nine at p6d) — so every
+ * case here drives a hand-built fixture class through the real engine paths
+ * (`ClassesFileSchema`, `useClassActive`/`useClassActive2`, `classBasicAttack`,
+ * `baseRunStats`), the same technique `m20a-upgrade-tracks.test.ts`'s own
+ * `contentWith` helper already uses for a tower row nothing in `/data`
+ * authors yet.
  */
 import { describe, expect, it } from 'vitest';
 
@@ -16,7 +15,7 @@ import {
   ClassesFileSchema,
   loadContent,
   type Content,
-  type NewClassDef,
+  type ClassDef,
 } from '../src/sim/content';
 import { spawnEnemy } from '../src/sim/enemies';
 import { applyCommand, hashWorld, Run, updateWarden } from '../src/sim/run';
@@ -26,12 +25,11 @@ import { cfg } from './helpers';
 
 const content = loadContent();
 
-const FIXTURE: NewClassDef = {
+const FIXTURE: ClassDef = {
   key: 'test_framework',
   name: 'Test Framework',
   unlockedByDefault: true,
   unlockQuest: null,
-  legacy: false,
   moveSpeedBonus: 0.5,
   basicAttack: { dps: 100, range: 6, interval: 0.5, aoe: 2 },
   passive: { name: 'Test Passive', description: 'test', mods: { towerCost: -0.5 } },
@@ -49,7 +47,7 @@ const FIXTURE: NewClassDef = {
 };
 
 /** `content`, plus one extra class — mirrors `m20a-upgrade-tracks.test.ts`'s `contentWith`. */
-function contentWithClass(cls: NewClassDef): Content {
+function contentWithClass(cls: ClassDef): Content {
   const classes = [...content.classes.classes, cls];
   return {
     ...content,
@@ -66,10 +64,10 @@ function worldWith(over: Partial<RunConfig> = {}): World {
   return w;
 }
 
-describe('p6a: the loader rejects a legacy: false class missing any of the four slots', () => {
+describe('p6a: the loader rejects a class missing any of the four slots', () => {
   const SLOTS = ['basicAttack', 'passive', 'active1', 'active2', 'towerPassive'] as const;
 
-  it('accepts a well-formed new-shape class', () => {
+  it('accepts a well-formed class', () => {
     expect(() => ClassesFileSchema.parse({ classes: [FIXTURE] })).not.toThrow();
   });
 
@@ -81,16 +79,8 @@ describe('p6a: the loader rejects a legacy: false class missing any of the four 
     });
   }
 
-  it('still accepts every shipped legacy: true class (the real data/classes.json)', () => {
+  it('accepts every shipped class (the real data/classes.json)', () => {
     expect(() => ClassesFileSchema.parse(content.classes)).not.toThrow();
-    // p6b ships the first real legacy: false class (Swordsman); p6d converts
-    // `engineer`/`pyromancer` to the shape SPEC-FINAL §4.2 gives them, leaving
-    // `frost_warden` — a class §4 does not have — as the last legacy row (Q38,
-    // Q120).
-    const legacyKeys = ['frost_warden'];
-    for (const c of content.classes.classes) {
-      expect(c.legacy).toBe(legacyKeys.includes(c.key));
-    }
   });
 });
 
@@ -106,7 +96,6 @@ describe('p6a: Active1 (Q) and Active2 (E) are two independently cooled-down sim
     expect(e.hp).toBeLessThan(hpBefore);
     expect(w.warden.active1Cooldown).toBeGreaterThan(0);
     expect(w.warden.active2Cooldown).toBe(0);
-    expect(w.warden.activeCooldown).toBe(0); // the legacy field is untouched by the new-shape path
   });
 
   it('class_active2 fires Active2 independently, with its own cooldown and effect', () => {
@@ -133,27 +122,6 @@ describe('p6a: Active1 (Q) and Active2 (E) are two independently cooled-down sim
     applyCommand(w, { k: 'class_active2' }); // fires even though Active1 is still cooling down
     expect(e.hp).toBeLessThan(hpBefore);
   });
-
-  it('class_active2 is a no-op for a legacy: true class', () => {
-    const w = new World(cfg({ classKey: 'frost_warden' }));
-    const e = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 1, w.warden.y)!;
-    w.rebuildBuckets();
-    const hpBefore = e.hp;
-    applyCommand(w, { k: 'class_active2' });
-    expect(e.hp).toBe(hpBefore);
-    expect(w.warden.active2Cooldown).toBe(0);
-  });
-
-  it('a legacy: true class still fires its one Active through class_active exactly as before', () => {
-    const w = new World(cfg({ classKey: 'frost_warden' })); // Glaciate: burst_damage + slow
-    const e = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 1, w.warden.y)!;
-    w.rebuildBuckets();
-    const hpBefore = e.hp;
-    applyCommand(w, { k: 'class_active' });
-    expect(e.hp).toBeLessThan(hpBefore);
-    expect(w.warden.activeCooldown).toBeGreaterThan(0);
-    expect(w.warden.active1Cooldown).toBe(0); // the new-shape fields are untouched by the legacy path
-  });
 });
 
 describe('p6a: Passive and Tower passive fold into Stats like any other generic mods source', () => {
@@ -174,13 +142,13 @@ describe('p6a: Passive and Tower passive fold into Stats like any other generic 
   });
 
   it('a class with no passive/towerPassive mods contributes nothing extra (mods defaults to {})', () => {
-    const bare: NewClassDef = {
+    const bare: ClassDef = {
       ...FIXTURE,
       key: 'test_framework_bare',
-      passive: { name: 'Bare', description: 'test' } as NewClassDef['passive'],
-      towerPassive: { name: 'Bare', description: 'test' } as NewClassDef['towerPassive'],
+      passive: { name: 'Bare', description: 'test' } as ClassDef['passive'],
+      towerPassive: { name: 'Bare', description: 'test' } as ClassDef['towerPassive'],
     };
-    const parsed = ClassesFileSchema.parse({ classes: [bare] }).classes[0] as NewClassDef;
+    const parsed = ClassesFileSchema.parse({ classes: [bare] }).classes[0] as ClassDef;
     expect(parsed.passive.mods).toEqual({});
     expect(parsed.towerPassive.mods).toEqual({});
   });
@@ -219,7 +187,7 @@ describe('p6a: the basic attack auto-fires on the band profile with no input.att
     expect(e.hp).toBe(hpBefore);
   });
 
-  it("does not fire during VS (huntsWarden) — TD-only, matching the legacy manual attack's own scope (Q117)", () => {
+  it('does not fire during VS (huntsWarden) — TD-only (Q117)', () => {
     const w = worldWith();
     w.phase = 'act2';
     expect(w.huntsWarden).toBe(true);

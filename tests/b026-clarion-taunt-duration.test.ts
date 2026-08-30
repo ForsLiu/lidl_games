@@ -16,7 +16,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { loadContent, type NewClassDef } from '../src/sim/content';
+import { loadContent, type ClassDef } from '../src/sim/content';
 import { applyCommand, Run } from '../src/sim/run';
 import { spawnEnemy } from '../src/sim/enemies';
 import { emptyInput } from '../src/sim/types';
@@ -26,7 +26,7 @@ import { cfg } from './helpers';
 describe('b026: Clarion Taunt duration matches SPEC-FINAL §4.2 (4 s, not 6 s)', () => {
   it("loads the Paladin's active1.tauntDurationSeconds as 4", () => {
     const content = loadContent();
-    const paladin = content.classByKey.get('paladin')! as NewClassDef;
+    const paladin = content.classByKey.get('paladin')! as ClassDef;
     expect(paladin.active1.tauntDurationSeconds).toBe(4);
   });
 

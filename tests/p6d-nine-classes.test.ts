@@ -15,7 +15,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { loadContent, validateClassEffect, validateClassPassive, type ClassEffect, type NewClassDef } from '../src/sim/content';
+import { loadContent, validateClassEffect, validateClassPassive, type ClassEffect, type ClassDef } from '../src/sim/content';
 import { applyEffects, dealHit } from '../src/sim/combat';
 import { applyFrost, killEnemy, spawnEnemy } from '../src/sim/enemies';
 import { attackSpeedFor, buildTower, classTowerBonus, towerDamage, updateTowers } from '../src/sim/towers';
@@ -38,10 +38,8 @@ import { cfg } from './helpers';
 const content = loadContent();
 const DT = 1 / 60;
 
-function newClass(key: string): NewClassDef {
-  const c = content.classByKey.get(key)!;
-  if (c.legacy) throw new Error(`${key} is expected to be a legacy: false class`);
-  return c;
+function newClass(key: string): ClassDef {
+  return content.classByKey.get(key)!;
 }
 
 function idleInput(over: Partial<TickInput> = {}): TickInput {
@@ -80,10 +78,9 @@ const KITS: [string, string, string, string | undefined][] = [
   ['paladin', 'clarion_taunt', 'judgement', 'guardian_stance'],
 ];
 
-describe('p6d: §4.2 ships nine legacy: false classes with the four §4 slots each', () => {
+describe('p6d: §4.2 ships nine classes with the four §4 slots each', () => {
   it.each(KITS)('%s carries the right kinds and loads clean', (key, a1, a2, passive) => {
     const c = newClass(key);
-    expect(c.legacy).toBe(false);
     expect(c.active1.kind).toBe(a1);
     expect(c.active2.kind).toBe(a2);
     expect(c.passive.kind).toBe(passive);
@@ -97,8 +94,7 @@ describe('p6d: §4.2 ships nine legacy: false classes with the four §4 slots ea
   it('§13 content total: twelve SPEC-FINAL classes are authored', () => {
     // fb013 added a 12th (Time Lord) past a direct owner directive, after
     // §13's original eleven were filled — see QUESTIONS.md Q139.
-    const specFinal = content.classes.classes.filter((c) => !c.legacy);
-    expect(specFinal).toHaveLength(12);
+    expect(content.classes.classes).toHaveLength(12);
   });
 
   it('§4.2 Unlocks: Swordsman, Archer and Engineer are the free three', () => {
@@ -122,8 +118,8 @@ describe('p6d: §4.2 ships nine legacy: false classes with the four §4 slots ea
     ['death_pact', 'pactDrainPerSecond'],
     ['judgement', 'wrathDamageMul'],
   ])('the loader refuses a %s row missing "%s"', (kind, field) => {
-    const source = content.classes.classes.find((c) => !c.legacy && (c.active1.kind === kind || c.active2.kind === kind))!;
-    const eff = !source.legacy && source.active1.kind === kind ? source.active1 : (source as NewClassDef).active2;
+    const source = content.classes.classes.find((c) => c.active1.kind === kind || c.active2.kind === kind)!;
+    const eff = source.active1.kind === kind ? source.active1 : source.active2;
     const broken = { ...eff } as Record<string, unknown>;
     delete broken[field];
     expect(() => validateClassEffect(broken as ClassEffect, 'x')).toThrow();
@@ -135,15 +131,14 @@ describe('p6d: §4.2 ships nine legacy: false classes with the four §4 slots ea
     ['guardian_stance', 'wrathFraction'],
     ['blood_frenzy', 'frenzyVsMul'],
   ])('the loader refuses a %s passive row missing "%s"', (kind, field) => {
-    const source = content.classes.classes.find((c) => !c.legacy && c.passive.kind === kind)!;
-    const broken = { ...(source as NewClassDef).passive } as Record<string, unknown>;
+    const source = content.classes.classes.find((c) => c.passive.kind === kind)!;
+    const broken = { ...source.passive } as Record<string, unknown>;
     delete broken[field];
     expect(() => validateClassPassive(broken as { kind?: string }, 'x')).toThrow();
   });
 
   it('accepts every real, shipped passive and towerPassive row', () => {
     for (const c of content.classes.classes) {
-      if (c.legacy) continue;
       expect(() => validateClassPassive(c.passive, c.key)).not.toThrow();
       expect(() => validateClassPassive(c.towerPassive, c.key)).not.toThrow();
     }
