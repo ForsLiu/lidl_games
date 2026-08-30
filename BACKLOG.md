@@ -477,13 +477,13 @@ next in P8's own queue.
 
 ### P10 — balance re-baseline and feel pass (G1, G13, G17, G19)
 
-- [ ] (p10a) [feat] Flip Burning to per-application stacking per §3's owner intent:
+- [x] (p10a) [feat] Flip Burning to per-application stacking per §3's owner intent:
       each application deals 1 damage and −1 armor per second for 3 s, stacking like
       Bleeding under the shared 50-stack-per-enemy cap, replacing today's
       `maxStacks 1, refresh strongest` — acceptance: two applications tick twice and
       shred twice; the shared cap's eviction rule (a type under its own cap evicts
       the most numerous other type's shortest stack, never the reverse) holds with
-      Burning participating — refs: §3, §16
+      Burning participating — refs: §3, §16 — **done, see Done section.**
 - [ ] (p10b) [feat] DoT immunity is hardcoded in the engine: `immuneToDot` tests
       `type === 'burning' && TRAIT.burnImmune`, so a taxonomy row with an immunity of
       its own needs an engine edit, against the rule that new mechanics are data
@@ -889,6 +889,26 @@ because the lane worktree retires at this merge.
       `inputLog` began" — log the choice in QUESTIONS.md); `runWithPolicy`
       stamps the hash back onto its caller's config the same way `replay()`
       already does — refs: p9a, CLAUDE.md architecture rule 2.
+- [ ] (b040) [bug] `tests/q7-data-fuzz.test.ts`'s "writes nothing to /data" case
+      intermittently fails only under full-suite parallel load: it compares a
+      `DISK_AT_START` hash of every `/data/*.json` file captured once at module
+      load against a fresh `filesOnDisk()` read taken at assertion time, and on
+      a loaded host the two can legitimately differ without the test itself, or
+      anything in this repo, having written to the real `/data` — every CLI
+      probe test checked (q45, q49, q28, q52) operates on a `cpSync`'d scratch
+      copy, never the real files. Found by qa-playtester verifying p10a
+      (2026-08-30): failed once across two consecutive `npm run test:fast`
+      runs, passed 29/29 in isolation (`npx vitest run tests/q7-data-fuzz.test.ts`)
+      both times and did not recur on the second full-suite run — a race, not a
+      reproducible logic bug, so no regression test is filed yet per CLAUDE.md
+      rule 6 ("stuck ~5 distinct attempts" doesn't apply here since the first
+      attempt is to *reproduce* it deterministically, not fix it blind) —
+      acceptance: either both hashes are captured back-to-back immediately
+      around the assertion (removing the module-load-time gap a full suite run
+      can widen), or the case is marked to run outside whatever parallel
+      scheduling lets an unrelated file touch remain in flight across it; ten
+      consecutive `npm run test:fast` runs under host load pass this case —
+      refs: qa-playtester on p10a, `tests/q7-data-fuzz.test.ts`.
 - [x] (b037) [bug] The relic loot pipeline stayed fully live after fb023
       deleted every UI path that could equip or discard a relic — **closed by
       p7d, see the Done section.** `src/sim/loot.ts` (`dropRelic`,
@@ -927,6 +947,48 @@ logged in MIGRATION.md §8 rather than carried as dead items.
 
 ## Done
 
+- [x] (p10a) [feat] Flip Burning to per-application stacking per §3's owner intent:
+      each application deals 1 damage and −1 armor per second for 3 s, stacking like
+      Bleeding under the shared 50-stack-per-enemy cap, replacing today's
+      `maxStacks 1, refresh strongest` — acceptance: two applications tick twice and
+      shred twice; the shared cap's eviction rule (a type under its own cap evicts
+      the most numerous other type's shortest stack, never the reverse) holds with
+      Burning participating — refs: §3, §16.
+      `data/damagetypes.json`'s Burning row now matches Bleeding's shape
+      (`maxStacks: 50, refresh: "shortest"`); `src/sim/enemies.ts`'s `applyDot`
+      needed no logic change since the cap/refresh rule already reads generically
+      off the row, and the `refresh: 'strongest'` branch stays in the engine
+      (no shipped row uses it, kept per CLAUDE.md's "content is data" rule) with
+      its regression test now driven against a locally-edited content doc rather
+      than shipped content. code-reviewer **REQUEST-CHANGES** on the first pass,
+      one Major: Burning's radius-1 splash (`tickDot`) ran once per live stack,
+      so a Brazier corridor able to hold a dozen-plus concurrent stacks on one
+      target turned into a 12–50x per-tick neighbour-query and neighbour-damage
+      multiplier nothing had measured — the exact "check a `/data` row's blast
+      radius before calling it narrow" trap CLAUDE.md's Measurement rules name.
+      Fixed by splitting `tickDot` into the direct per-stack hit (unchanged) and
+      a new `tickDotSplash`, with `tickDots` aggregating every live same-type
+      `radius>0` stack's dps/shred into one `Map<string, SplashAccum>`
+      (`splashScratch`, reused across calls like the existing `dotScratch`
+      array) and paying the neighbour splash once per type per enemy per tick
+      instead of once per stack. One Minor also closed: added the mirror
+      eviction test (Burning saturating 50 stacks, Bleeding arriving and
+      evicting one) alongside the pre-existing Bleeding-saturating case.
+      qa-playtester **PASS** on the post-fix commit, verified independently
+      through the real `applyDot`/`updateEnemies`/tower/projectile pipeline: the
+      acceptance criteria directly (2 stacks tick/shred 2x via a live 60Hz loop,
+      not a synthetic call), both eviction directions, the splash-aggregation
+      fix's summed magnitude on a neighbour (not doubled, not dropped), a
+      mid-tick-expiry stack's clipped partial-step contributing correctly to the
+      aggregate, a single-Brazier steady-state of 12 concurrent stacks (matching
+      the commit's own claim), a 6-Brazier/48-enemy-ring stress case, and a
+      350-enemy/39-Brazier 10-second soak (max 50 stacks/enemy held, zero
+      NaN/Infinity, 0.8 ms/tick, no perf blowup) — confirmed the "no
+      neighbour-reapplication cascade" guard holds by reading `tickDotSplash`
+      (splash only calls `damageEnemy`/`shredArmor`, never `applyDot`). `npm run
+      test:fast`: 1667 passed; only the documented host-load-contention flakes
+      (`b032`/`b034`/`b035`/`b036`, `q13-perf-ratio`, `q49-price-probe-restore`)
+      red, each reconfirmed green standalone. No bugs filed. Commit `534d363`.
 - [x] (p9h) [polish] The enemy panel prints raw shredded armour: past the −100 floor
       a horde-density Brazier board reads "−294 (100% more taken)", honest about the
       percentage and misleading about the number — acceptance: the panel shows the

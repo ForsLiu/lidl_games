@@ -5,6 +5,50 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-30 session: p10a done — Burning flipped to per-application
+  stacking, P10's balance re-baseline phase opened — commit `534d363`.**
+  `data/damagetypes.json`'s Burning row now matches Bleeding's shape
+  (`maxStacks: 50, refresh: "shortest"`) instead of `maxStacks: 1, refresh:
+  "strongest"`, so two applications now tick twice and shred twice under the
+  shared 50-stack-per-enemy cap, per SPEC-FINAL §3's owner intent. `applyDot`
+  needed no logic change (the cap/refresh rule already reads generically off
+  the row); the now-dead `refresh: 'strongest'` branch stays in the engine per
+  CLAUDE.md's "content is data" rule, with its regression test re-driven
+  against a locally-edited content doc instead of shipped content so the
+  branch keeps real coverage. code-reviewer **REQUEST-CHANGES** on the first
+  pass caught a genuine Major this item's own acceptance text didn't measure:
+  Burning's radius-1 splash (`tickDot`) ran once per *live stack*, and since a
+  single Ember Brazier alone can hold ~12 concurrent Burning stacks on a
+  stationary target (`interval: 0.25` vs `duration: 3`), that turned into a
+  12–50x per-tick neighbour-query and neighbour-damage multiplier nothing had
+  measured — CLAUDE.md's Measurement rules name this exact trap ("check a
+  `/data` row's blast radius before calling it narrow"). Fixed in the same
+  commit: `tickDot` now only pays the direct per-stack hit; a new
+  `tickDotSplash`, fed by `tickDots` aggregating every live same-type
+  `radius>0` stack's dps/shred into one `Map<string, SplashAccum>`
+  (`splashScratch`, reused across calls the same way the existing `dotScratch`
+  array is), pays the neighbour splash once per type per enemy per tick
+  instead of once per stack. A Minor from the same review — no test drove the
+  eviction rule with Burning as the *saturating* type (only the reverse,
+  Bleeding-saturating direction existed) — was closed with a mirror test.
+  qa-playtester **PASS**, verified independently through the real
+  `applyDot`/`updateEnemies`/tower/projectile pipeline rather than trusting
+  the new tests' own assertions: the acceptance criteria directly (a live
+  60Hz loop, not a synthetic call), both eviction directions, the splash fix's
+  summed neighbour magnitude (not doubled, not dropped), a stack's mid-tick
+  expiry contributing its correctly clipped partial step to the aggregate, a
+  single-Brazier steady-state of 12 concurrent stacks, a 6-Brazier/48-enemy
+  stress case, and a 350-enemy/39-Brazier 10-second soak (max 50 stacks/enemy
+  held, zero NaN/Infinity, 0.8 ms/tick — no perf blowup from the fix); also
+  confirmed by reading `tickDotSplash` that splash damage never seeds new
+  Burning stacks on neighbours (only `damageEnemy`/`shredArmor`, never
+  `applyDot`), so the "no reapplication cascade" guard holds. `npm run
+  test:fast`: 1667 passed; only the documented host-load-contention flakes
+  (`b032`/`b034`/`b035`/`b036`, `q13-perf-ratio`, `q49-price-probe-restore`)
+  red, each reconfirmed green standalone. No bugs filed. Filed as its own item
+  (not blocking, not a p10a regression): `b040`, a `q7-data-fuzz.test.ts` race
+  qa-playtester hit once under full-suite load (a module-load-time disk-hash
+  snapshot compared against a later read; unrelated to this diff's files).
 - **2026-08-30 session: p9h done — the enemy/Warden panel's armour row now
   shows the effective (floored/capped) value, not the raw shredded number —
   commit `5087d6b`.** `armourText` (`src/ui/hud.ts`), the single call site behind
