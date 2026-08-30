@@ -86,7 +86,14 @@ export interface CoreState {
   decayMult: number;
 }
 
-function emptyCoreState(): CoreState {
+/**
+ * fb022: exported so `src/ui/info-format.ts` can diff a live `CoreState`
+ * against "nothing bought yet" generically (a field still equal to its
+ * baseline is inert and worth hiding from the info surfaces) rather than
+ * hand-listing which fields default to a non-zero identity (`decayMult`'s
+ * 1.2, `healingReceivedMul`'s 1) per Core.
+ */
+export function emptyCoreState(): CoreState {
   return {
     towerLifestealPct: 0,
     missingHpBuffPerPct: 0,

@@ -133,7 +133,7 @@ export function classAttackPowerMul(w: World, cls: NewClassDef): number {
  * one of them, the same footprint the %-power stat already has, added before
  * the multiplier per §2 ("flats add[, then sources multiply]").
  */
-function characterDamage(w: World, cls: NewClassDef, base: number): number {
+export function characterDamage(w: World, cls: NewClassDef, base: number): number {
   return (base + w.derived.atkFlat) * classAttackPowerMul(w, cls);
 }
 

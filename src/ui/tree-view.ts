@@ -13,6 +13,7 @@
 import { loadContent, type TreeNode } from '../sim/content';
 import { canAllocate, pointsAvailable, refundBlocker, TREE_AUTO_MAX } from '../meta/meta';
 import type { MetaState } from '../sim/types';
+import { STAT_KIND, type StatKey } from '../sim/stats';
 
 export const BRANCH_COLORS: Record<string, string> = {
   start: '#e8edf5',
@@ -150,7 +151,72 @@ function markup(
         <aside class="sw-nodeinfo" id="sw-nodeinfo">${nodeCard(null, meta)}</aside>
       </div>
       <div class="sw-legend">${legend}</div>
+      <div class="sw-sub">Summary</div>
+      <div class="sw-charstats">${constellationSummaryMarkup(content, meta)}</div>
     </div>`;
+}
+
+/**
+ * fb022 (SPEC-FINAL §11): every allocated node's own effect, plus every
+ * stat's combined total summed across them — compatible with `TREE_AUTO_MAX`
+ * (Q134's temporary supersede), where every node counts as allocated. Two
+ * plain `<details>` disclosures rather than new toggle state: `renderTreeView`
+ * rebuilds this markup from scratch on every re-render (a node click, a tab
+ * switch), so there is nowhere to persist an "is the summary open" flag that
+ * would not immediately go stale.
+ */
+export function constellationSummaryMarkup(content: ReturnType<typeof loadContent>, meta: MetaState): string {
+  const nodes = content.tree.nodes.filter(
+    (n) => n.kind !== 'start' && (TREE_AUTO_MAX || meta.allocated.includes(n.id)),
+  );
+  // qa-playtester (fb022): each allocated node is its own `Stats` source
+  // (`tree:${id}`, `baseRunStats`), so per §2 a `mul`-kind stat combines
+  // multiplicatively across nodes — `Stats.factor`'s own `Π(1+v)` — not by
+  // summing the raw per-node values the way a `flat`-kind stat correctly
+  // does (`Stats.total`, no base to scale). Mirrors the same fix
+  // `hub.ts`'s `effectiveEquipmentMods` needed for an item's classFallback.
+  const flatTotals = new Map<string, number>();
+  const mulProducts = new Map<string, number>();
+  for (const n of nodes) {
+    for (const [key, value] of Object.entries(n.stats)) {
+      if (STAT_KIND[key as StatKey] === 'mul') {
+        mulProducts.set(key, (mulProducts.get(key) ?? 1) * (1 + value));
+      } else {
+        flatTotals.set(key, (flatTotals.get(key) ?? 0) + value);
+      }
+    }
+  }
+  const totals = new Map<string, number>(flatTotals);
+  for (const [key, product] of mulProducts) totals.set(key, product - 1);
+  const totalRows = [...totals.entries()].sort(([a], [b]) => a.localeCompare(b));
+  const totalsHtml =
+    totalRows.length === 0
+      ? '<p class="sw-note dim">No stats yet.</p>'
+      : `<ul class="sw-statlist">${totalRows.map(([key, value]) => `<li>${describeStat(key, value)}</li>`).join('')}</ul>`;
+
+  const nodeRows =
+    nodes.length === 0
+      ? '<p class="sw-note dim">No nodes allocated yet.</p>'
+      : nodes
+          .map((n) => {
+            const stats = Object.entries(n.stats)
+              .map(([key, value]) => describeStat(key, value))
+              .join(', ');
+            return `<div class="sw-row small"><span>${n.name} <i>(${BRANCH_NAMES[n.branch] ?? n.branch})</i></span><b>${
+              stats || '—'
+            }</b></div>`;
+          })
+          .join('');
+
+  return `
+    <details class="sw-charstat" open>
+      <summary><span>Combined totals</span><b>${totalRows.length} stat${totalRows.length === 1 ? '' : 's'}</b></summary>
+      ${totalsHtml}
+    </details>
+    <details class="sw-charstat">
+      <summary><span>Allocated nodes</span><b>${nodes.length}</b></summary>
+      ${nodeRows}
+    </details>`;
 }
 
 /** Faint dashed circles, so the concentric structure is visible. */

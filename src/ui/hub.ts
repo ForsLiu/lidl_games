@@ -5,7 +5,7 @@
  * Presentation only — every rule lives in /src/meta and /src/sim.
  */
 
-import { defaultCoreKey, loadContent, type Content } from '../sim/content';
+import { defaultCoreKey, loadContent, type Content, type EquipmentItem } from '../sim/content';
 import type { MetaState, Relic, RunConfig } from '../sim/types';
 import {
   accountLevelFor,
@@ -34,6 +34,10 @@ const DEV_BADGE =
 import { discard, equip, equipItem } from '../meta/stash';
 import { renderTreeView } from './tree-view';
 import { sanitize, type Settings } from './settings';
+import { classAbilitiesMarkup } from './class-info';
+import { coreDetailMarkup } from './core-info';
+import { modLines, modLinesHtml } from './info-format';
+import { STAT_KIND, type StatKey } from '../sim/stats';
 
 type Tab = 'run' | 'tree' | 'stash' | 'settings';
 
@@ -58,6 +62,8 @@ export class Hub {
   private picks: number[] = [];
   private seed: number;
   private selectedRelic: number | null = null;
+  /** fb022: the stash's equipment counterpart to `selectedRelic` — right-click selects an item for the Equipment detail panel without equipping it. */
+  private selectedEquipment: string | null = null;
   private settings: Settings;
   /** Transient one-line feedback under the tab bar. */
   private notice = '';
@@ -160,6 +166,9 @@ export class Hub {
             })
             .join('')}
         </div>
+        <div class="sw-classdetail">${classAbilitiesMarkup(
+          content.classes.classes.find((c) => c.key === this.classKey) ?? content.classes.classes[0],
+        )}</div>
       </div>
 
       <div class="sw-panel">
@@ -182,6 +191,9 @@ export class Hub {
             })
             .join('')}
         </div>
+        <div class="sw-classdetail">${coreDetailMarkup(
+          content.cores.cores.find((c) => c.key === this.coreKey) ?? content.cores.cores[0],
+        )}</div>
       </div>
 
       <div class="sw-panel">
@@ -442,6 +454,7 @@ export class Hub {
     const content = loadContent();
     const cap = stashCapacity(this.meta);
     const selected = this.meta.stash.find((r) => r.id === this.selectedRelic) ?? null;
+    const selectedItem = this.selectedEquipment ? content.equipmentByKey.get(this.selectedEquipment) ?? null : null;
 
     body.innerHTML = `
       <div class="sw-panel">
@@ -471,14 +484,43 @@ export class Hub {
                     const item = content.equipmentByKey.get(key);
                     if (!item) return '';
                     const isEquipped = this.meta.equippedEquipment[item.slot] === key;
-                    return `<button class="sw-relic ${isEquipped ? 'equipped' : ''}" data-item="${key}"
-                                title="${item.desc}">
+                    const eq = this.meta.equippedEquipment[item.slot]
+                      ? content.equipmentByKey.get(this.meta.equippedEquipment[item.slot]!)
+                      : null;
+                    const tip = isEquipped
+                      ? 'Click to unequip.'
+                      : eq
+                        ? equipmentCompareTitle(this.classKey, item, eq)
+                        : `Click to equip to ${item.slot}.`;
+                    return `<button class="sw-relic ${isEquipped ? 'equipped' : ''} ${
+                      this.selectedEquipment === key ? 'on' : ''
+                    }" data-item="${key}" title="${tip}">
                         <b>${item.name}</b><small>${item.slot} · x${count}${isEquipped ? ' · equipped' : ''}</small>
                       </button>`;
                   })
                   .join('')
           }
         </div>
+      </div>
+      <div class="sw-panel">
+        <h2>Equipment item</h2>
+        ${
+          selectedItem
+            ? `<div class="sw-relicdetail">
+                 <b>${selectedItem.name}</b>
+                 ${modLinesHtml(selectedItem.mods)}
+                 ${equipmentFallbackBlock(content, this.classKey, selectedItem)}
+                 ${equipmentCompareBlock(content, this.meta, this.classKey, selectedItem)}
+                 <div class="sw-craftrow">
+                   <button data-equipitem="1">${
+                     this.meta.equippedEquipment[selectedItem.slot] === selectedItem.key
+                       ? `Unequip from ${selectedItem.slot}`
+                       : `Equip to ${selectedItem.slot}`
+                   }</button>
+                 </div>
+               </div>`
+            : '<p class="sw-note">Select an owned item (right-click to compare without equipping it).</p>'
+        }
       </div>
       <div class="sw-panel">
         <h2>Stash <small>${this.meta.stash.length}/${cap}</small></h2>
@@ -551,7 +593,14 @@ export class Hub {
       el.addEventListener('click', () => {
         const item = content.equipmentByKey.get(key)!;
         const isEq = this.meta.equippedEquipment[item.slot] === key;
+        this.selectedEquipment = key;
         this.commit(equipItem(this.meta, item.slot, isEq ? null : key));
+      });
+      el.addEventListener('contextmenu', (e) => {
+        // Right-click selects an item for the detail/compare panel without equipping it — same convention data-relic already sets.
+        e.preventDefault();
+        this.selectedEquipment = key;
+        this.show();
       });
     }
     for (const el of body.querySelectorAll<HTMLElement>('[data-eqitemslot]')) {
@@ -590,6 +639,12 @@ export class Hub {
       const slot = (e as DragEvent).dataTransfer?.getData('text/plain');
       if (slot) this.commit(equip(this.meta, slot, null));
     });
+    if (selectedItem) {
+      body.querySelector('[data-equipitem]')?.addEventListener('click', () => {
+        const isEq = this.meta.equippedEquipment[selectedItem.slot] === selectedItem.key;
+        this.commit(equipItem(this.meta, selectedItem.slot, isEq ? null : selectedItem.key));
+      });
+    }
     if (!selected) return;
     body.querySelector('[data-equip]')?.addEventListener('click', () => {
       this.commit(equip(this.meta, selected.slot, isEquipped(this.meta, selected) ? null : selected.id));
@@ -699,6 +754,86 @@ function renderCompareBlock(content: Content, meta: MetaState, selected: Relic):
     <b>vs equipped — ${eq.name}</b>
     ${diff.length ? diff.map((l) => `<div class="sw-affix">${l}</div>`).join('') : '<div class="sw-affix">No stat difference.</div>'}
   </div>`;
+}
+
+/**
+ * fb022: an equipment item's real, class-dependent stat bag — its `mods`
+ * plus `classFallback.mods` when the run's class does not equal
+ * `notClassKey`, exactly the condition `baseRunStats` (stats.ts) itself
+ * gates the fallback `Stats` source on. Comparing on this rather than on
+ * `item.mods` alone is what makes the equipped-vs-candidate compare (and the
+ * active/inert indicator) agree with what actually reaches `Stats` for the
+ * class currently selected on the Run tab.
+ *
+ * qa-playtester (fb022): `item.mods` and `item.classFallback.mods` are two
+ * *separate* `Stats` sources (`equipment:<key>` / `equipment:<key>:fallback`,
+ * `baseRunStats`, stats.ts), so for a `mul`-kind stat (STAT_KIND) they stack
+ * the way §2 says every source does — multiplicatively, `(1+base)*(1+fallback)`
+ * — not by summing the two raw mod values. Repro: Swordsman Armor's
+ * `attackSpeed` is `0.1` base / `0.5` fallback; a non-Swordsman's real
+ * `attackSpeedMul` is `1.1 * 1.5 = 1.65` (+65%), not `1 + 0.1 + 0.5 = 1.6`
+ * (+60%) a flat sum would show. A `flat`-kind stat has no such base to scale,
+ * so it still just adds (§2's "ranks within a source add" extended the
+ * obvious way to "un-based point totals add across sources too" — the same
+ * reading `Stats.total` already gives every flat stat regardless of source).
+ */
+function effectiveEquipmentMods(item: EquipmentItem, classKey: string): Record<string, number> {
+  const fallbackActive = item.classFallback && item.classFallback.notClassKey !== classKey;
+  const out: Record<string, number> = { ...item.mods };
+  if (!fallbackActive) return out;
+  for (const [k, v] of Object.entries(item.classFallback!.mods)) {
+    const kind = STAT_KIND[k as StatKey];
+    const base = out[k] ?? 0;
+    out[k] = kind === 'mul' ? (1 + base) * (1 + v) - 1 : base + v;
+  }
+  return out;
+}
+
+/** Per-stat delta between two effective mod bags, dropping stats with no difference — the equipment counterpart to `statTotals`/`compareRelics` above. */
+function equipmentModDelta(a: Record<string, number>, b: Record<string, number>): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const stat of new Set([...Object.keys(a), ...Object.keys(b)])) {
+    const delta = (a[stat] ?? 0) - (b[stat] ?? 0);
+    if (delta !== 0) out[stat] = delta;
+  }
+  return out;
+}
+
+function equipmentCompareTitle(classKey: string, candidate: EquipmentItem, equipped: EquipmentItem): string {
+  const delta = equipmentModDelta(effectiveEquipmentMods(candidate, classKey), effectiveEquipmentMods(equipped, classKey));
+  const lines = modLines(delta);
+  return `vs ${equipped.name}: ${lines.length ? lines.map((l) => l.text).join(', ') : 'no stat difference'}`;
+}
+
+function equipmentCompareBlock(content: Content, meta: MetaState, classKey: string, selected: EquipmentItem): string {
+  const eqKey = meta.equippedEquipment[selected.slot];
+  if (!eqKey || eqKey === selected.key) return '';
+  const equipped = content.equipmentByKey.get(eqKey);
+  if (!equipped) return '';
+  const delta = equipmentModDelta(effectiveEquipmentMods(selected, classKey), effectiveEquipmentMods(equipped, classKey));
+  const html = modLinesHtml(delta);
+  return `<div class="sw-compare">
+    <b>vs equipped — ${equipped.name}</b>
+    ${html || '<div class="sw-affix">No stat difference.</div>'}
+  </div>`;
+}
+
+/**
+ * fb022: the "if not &lt;class&gt;" line's active/inert indicator for the
+ * Hub's currently-selected class — mirrors the exact `notClassKey !==
+ * cfg.classKey` gate `baseRunStats` applies at run start (stats.ts). Takes
+ * `content` as a param (code-reviewer: consistency with `equipmentCompareBlock`
+ * rather than an internal `loadContent()` call of its own).
+ */
+function equipmentFallbackBlock(content: Content, classKey: string, item: EquipmentItem): string {
+  if (!item.classFallback) return '';
+  const className = content.classByKey.get(classKey)?.name ?? classKey;
+  const active = item.classFallback.notClassKey !== classKey;
+  const lines = modLines(item.classFallback.mods);
+  const status = active ? '<span class="sw-phase-vs">(active)</span>' : `<span class="dim">(inert for ${className})</span>`;
+  return `<div class="sw-affix">If not ${content.classByKey.get(item.classFallback.notClassKey)?.name ?? item.classFallback.notClassKey}: ${
+    lines.map((l) => l.text).join(', ')
+  } ${status}</div>`;
 }
 
 function implicitLine(relic: Relic): string {

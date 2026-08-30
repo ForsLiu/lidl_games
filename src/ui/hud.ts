@@ -15,6 +15,9 @@ import { selectedEnemy, selectedStructure, type Selection } from './selection';
 import { characterPanelData, type CharacterPanelData } from './character-panel';
 import { dpsPanelData, type DpsPanelData, type DpsWindow } from './dps-panel';
 import type { StatKind } from '../sim/stats';
+import { classAttackPowerMul } from '../sim/classes';
+import { classAbilitiesMarkup, type ClassLiveContext } from './class-info';
+import { coreLiveMarkup } from './core-info';
 
 export interface HudCallbacks {
   onSelectTower(id: number): void;
@@ -298,12 +301,17 @@ export class Hud {
    * moment `terrain` accumulated a second time (code-reviewer finding).
    */
   private renderCharacterPanel(w: World): void {
-    const key = `char:${w.stats.revision}`;
+    // fb022 code-reviewer finding: Blood Frenzy's phase-dependent swing
+    // (`classAttackPowerMul`) reads `w.huntsWarden` live but never touches
+    // `Stats`, so `w.stats.revision` alone cannot see a TD<->VS transition —
+    // folding phase into the key keeps the panel's live damage number from
+    // going stale across the Sundering while it is open.
+    const key = `char:${w.stats.revision}:${w.huntsWarden}`;
     if (key === this.lastCharPanelKey) return;
     this.lastCharPanelKey = key;
     this.charPanelEl.hidden = false;
     this.charPanelEl.classList.remove('sw-off');
-    this.charPanelEl.innerHTML = characterPanelMarkup(characterPanelData(w));
+    this.charPanelEl.innerHTML = characterPanelMarkup(characterPanelData(w), w);
     this.charPanelEl.querySelector('[data-act="close"]')?.addEventListener('click', () => this.closeCharacterPanel());
   }
 
@@ -558,6 +566,19 @@ export class Hud {
       if (key !== this.lastInfoKey) {
         this.lastInfoKey = key;
         this.towerInfoEl.innerHTML = enemyInfoMarkup(w, e);
+      }
+      return true;
+    }
+
+    if (sel.kind === 'core') {
+      // fb022: the Core's own live TD/VS effect text and next-step preview,
+      // not the Warden's stat sheet — `w.core` is `World`'s already-resolved
+      // `CoreState` (kept in sync by `recomputeCore` on every purchase, see
+      // cores.ts), so this reads the exact numbers the sim itself uses.
+      const key = `sel:core:${w.coreKey}:${w.coreStep}:${Math.round(w.coreHp)}:${Math.round(w.coreMaxHp)}`;
+      if (key !== this.lastInfoKey) {
+        this.lastInfoKey = key;
+        this.towerInfoEl.innerHTML = coreLiveMarkup(w.content, w.coreKey, w.coreStep, w.core, w.coreHp, w.coreMaxHp);
       }
       return true;
     }
@@ -921,12 +942,43 @@ function formatSourceValue(kind: StatKind, value: number): string {
 }
 
 /**
+ * fb022: the class's full active/passive/tower-passive effect text, with
+ * `cooldownSeconds` and `damage`/`dps` resolved through the exact live
+ * formulas the sim itself uses (`w.derived.cdr`, `classAttackPowerMul`) —
+ * everything else (radius, knockback, summon counts, ...) has no live sim
+ * equivalent to resolve through, so it falls back to the plain /data number,
+ * same as the Hub's pre-run Class screen (`hub.ts`) which calls the same
+ * `classAbilitiesMarkup` with no live context at all.
+ */
+function characterAbilitiesMarkup(w: World): string {
+  const cls = w.content.classByKey.get(w.cfg.classKey);
+  if (!cls) return '';
+  const live: ClassLiveContext = {
+    cdr: w.derived.cdr,
+    // code-reviewer (fb022): a `legacy: true` class's damage/DPS route through
+    // `fireEffect`/the legacy basic-attack path (classes.ts/run.ts), which
+    // multiply by `powerMul` only — no `atkFlat` term, unlike `characterDamage`
+    // (the non-legacy path `liveOverrides` otherwise assumes). Zeroing it here
+    // for a legacy class keeps the live-resolved number matching what the sim
+    // actually deals rather than overstating it by the equipment flat-Atk stat.
+    atkFlat: cls.legacy ? 0 : w.derived.atkFlat,
+    // `classAttackPowerMul` only differs from plain `powerMul` for Blood
+    // Frenzy's phase-dependent swing, which only a `legacy: false` class row
+    // can author (blood_frenzy is not in the legacy passive kind list).
+    damageMul: cls.legacy ? w.derived.powerMul : classAttackPowerMul(w, cls),
+  };
+  return classAbilitiesMarkup(cls, { live });
+}
+
+/**
  * SPEC-FINAL §2/§6.3/§11 (fb004): every final stat with its §2 multiplier
  * breakdown by source, plus every boon taken this run with rank and current
- * contribution. See `character-panel.ts` for why there is no Equipment
- * section (§7 is unbuilt — BACKLOG.md p7b).
+ * contribution, plus (fb022) the class's own active/passive effect text with
+ * live numbers. See `character-panel.ts` for why there is no Equipment
+ * section (§7 is unbuilt — BACKLOG.md p7b; equipment mods are already folded
+ * into the generic Stats sections above via fb015's `equipment:<key>` source).
  */
-export function characterPanelMarkup(data: CharacterPanelData): string {
+export function characterPanelMarkup(data: CharacterPanelData, w?: World): string {
   const boonRows =
     data.boons.length === 0
       ? '<p class="sw-note">No boons taken yet.</p>'
@@ -953,12 +1005,20 @@ export function characterPanelMarkup(data: CharacterPanelData): string {
     })
     .join('');
 
+  const abilities = w ? characterAbilitiesMarkup(w) : '';
+
   return `
     <div class="sw-card sw-charcard wide">
       <h2>Character</h2>
       <p class="sw-note">Every final stat's class &times; tree &times; relic &times; boon breakdown
         (SPEC-FINAL &sect;2: ranks within one source add, sources multiply).
         Click a stat to see where it comes from.</p>
+      ${
+        abilities
+          ? `<div class="sw-sub">Active &amp; passive effects</div>
+             <div class="sw-classdetail">${abilities}</div>`
+          : ''
+      }
       <div class="sw-sub">Boons taken</div>
       ${boonRows}
       <div class="sw-sub">Stats</div>
