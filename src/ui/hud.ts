@@ -87,10 +87,19 @@ export class Hud {
             <button class="sw-ctl" data-act="pause" title="Pause (Esc)">Pause</button>
           </div>
           <div class="sw-practice" id="sw-practice" hidden></div>
+          <!--
+            b032: the build bar sits right after the controls/practice tools
+            (not after progress/stats/towerinfo, its pre-fix position) so its
+            own row count never depends on how tall the info panels above it
+            get — at a 1080-tall viewport with Training Grounds' practice tool
+            open, the panels below (progress/stats/towerinfo/help) are the
+            ones that may run past the fold, and none of them carry an
+            interactive control the way the tower buttons do.
+          -->
+          <div class="sw-bar" id="sw-bar"></div>
           <div class="sw-progress" id="sw-progress"></div>
           <div class="sw-stats" id="sw-stats"></div>
           <div class="sw-towerinfo" id="sw-towerinfo"></div>
-          <div class="sw-bar" id="sw-bar"></div>
           <div class="sw-help">
             <b>WASD</b> move &middot; <b>Space</b> dash &middot; <b>LMB</b> build &middot;
             <b>RMB</b> sell &middot; <b>U</b>+click upgrade &middot; <b>1-9</b> pick tower &middot;
@@ -349,10 +358,14 @@ export class Hud {
       const b = document.createElement('button');
       b.className = 'sw-tower';
       b.dataset.id = String(t.id);
+      // b032: the description used to render as its own row, doubling every
+      // button's height and pushing the last few rows below a 1080-tall
+      // viewport; it is one hover away in the title tooltip and repeated in
+      // full in the towerinfo panel (`towerInfoMarkup`'s `attackText`).
+      b.title = t.desc;
       b.innerHTML = `<span class="sw-swatch" style="background:${TOWER_COLORS[t.key] ?? '#888'}"></span>
         <span class="sw-tname">${i + 1}. ${t.name}</span>
-        <span class="sw-tcost" data-cost="${t.id}"></span>
-        <span class="sw-tdesc">${t.desc}</span>`;
+        <span class="sw-tcost" data-cost="${t.id}"></span>`;
       b.addEventListener('click', () => this.select(t.id));
       this.bar.appendChild(b);
     });

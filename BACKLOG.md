@@ -180,16 +180,8 @@ called out in their own titles instead.
       `feature-ui-self-audit`.
 - [x] (b031) [bug] HUD text below the 12px floor — **done, see Done section.**
       refs: §11, QUALITY.md Beta bar, `audit/report.json`.
-- [ ] (b032) [bug] `npm run ui-audit` (fb018) found tower-build-panel rows
-      #6-#10 (Tesla Coil, Mortar, Venom Spore, Beacon Totem, Harvest Sprout)
-      partly or fully clipped below the fold at the fixed 1920x1080 viewport
-      (e.g. `button.sw-tower` bottom edge at y=1263 against a 1080px-tall
-      viewport) in both the "mid-TD wave, selection panel open" and "defeat
-      results" scenes — acceptance: `npm run ui-audit`'s
-      `offscreen-interactive` rule has 0 failures for the tower panel; a
-      regression test asserts the panel's last row's
-      `getBoundingClientRect().bottom <= 1080` at the standard viewport —
-      refs: §11, QUALITY.md Beta bar, `audit/report.json`.
+- [x] (b032) [bug] `npm run ui-audit` (fb018) found tower-build-panel rows
+      #6-#10 clipped below the fold — **done, see Done section.**
 - [ ] (b033) [bug] `npm run ui-audit` (fb018) found HUD text well under the
       4.5:1 WCAG floor: `small "BOON"` at 3.07:1 (level-up offer + character
       panel scenes); on the Defeat Results screen, `span.sw-tname "7. Mortar"`
@@ -197,7 +189,35 @@ called out in their own titles instead.
       lines around 2.46:1 — acceptance: `npm run ui-audit`'s `text-contrast`
       rule has 0 failures for these selectors; a regression test pins their
       computed-vs-sampled contrast at >=4.5:1 — refs: §11, QUALITY.md Beta
-      bar, `audit/report.json`.
+      bar, `audit/report.json`. Note for whoever picks this up: b032 deleted
+      `span.sw-tdesc` outright (its text moved to the tower button's `title`
+      tooltip) and reordered the side panel, so re-run `npm run ui-audit`
+      before touching anything here — the Defeat Results `sw-tname`/`sw-tcost`
+      failures named above were already gone by the time b032 landed (not
+      reproduced against current `main`, cause unknown — possibly stale even
+      before b032) and `sw-tdesc` no longer exists to fix; only the `BOON`
+      failures were confirmed still live.
+- [ ] (b034) [bug] QA-filed while verifying b032: `tools/ui-audit.ts`'s "Mid-TD
+      wave, selection panel open" scene calls `build(1, 8, 8)` without ever
+      moving the Warden from its spawn near `(23, 10)`, and `inBuildRange`
+      (`src/sim/towers.ts`) rejects any build target beyond `buildRange` (4
+      tiles) of the Warden — tile `(8, 8)` is ~15 tiles away, so the build
+      silently fails every run (`checkBuild` returns `'out_of_range'`, gold
+      never spent) and the scene's own `selectTile(8, 8)` then shows
+      `#sw-towerinfo`'s generic "Pick a tower below..." fallback instead of a
+      real built tower's info. The scene's name and every check that samples
+      its screenshot (e.g. b033's now-stale Defeat-Results contrast numbers,
+      any future audit of `#sw-towerinfo`'s real content/contrast) have been
+      silently exercising the empty-selection panel, not a selected tower,
+      since the scene was authored — acceptance: the scene either warps the
+      Warden near the build tile first (`warp(w, tx, ty)`, the pattern
+      `tests/act1.test.ts` already uses) or targets a tile inside the
+      Warden's real starting `buildRange`; a regression test asserts
+      `#sw-towerinfo` contains real tower stats (e.g. a "Level" row or the
+      tower's cost) after the scene's `build`+`selectTile` steps, failing
+      against today's code and passing after the fix — refs: `tools/ui-audit.ts`
+      scene 3, `src/sim/towers.ts` `inBuildRange`, `src/sim/world.ts` Warden
+      spawn, QA repro during b032 verification.
 - [ ] (p8d) [feat] Boss termination guarantee (§9 addendum, QUESTIONS Q126/Q127):
       the Warden-Eater gains a hard escalation from 3:00 of boss-fight time —
       +10% damage and +5% move/attack speed every 30 s, stacking without cap
@@ -882,6 +902,59 @@ logged in MIGRATION.md §8 rather than carried as dead items.
   **G19**. The work is `p10d`.
 
 ## Done
+
+- [x] (b032) [bug] tower-build-panel rows clipped below the fold — this commit
+      (2026-08-30), refs: §11, QUALITY.md Beta bar, `audit/report.json`. `npm
+      run ui-audit` found `button.sw-tower` rows #6-#10 partly or fully past
+      the fold at the fixed 1920x1080 viewport, in both the "mid-TD wave,
+      selection panel open" and "Defeat Results" scenes (e.g. row 6's bottom
+      edge at y=1263). Root cause: `.sw-side` stacks controls, the Training
+      Grounds practice-tool panel, progress, stats, tower-info and the
+      10-tower build bar with no scroll bound, and the practice tool alone
+      (~320px, shown in both failing scenes) was enough to push the unmodified
+      ~573px-tall build bar past the viewport bottom. Fixed two ways in
+      `src/ui/hud.ts`/`src/ui/style.css`: (1) the build bar (`#sw-bar`) now
+      renders immediately after `#sw-controls`/`#sw-practice` instead of after
+      `#sw-progress`/`#sw-stats`/`#sw-towerinfo` — those three never contain
+      an interactive element (verified by grep), so whatever ends up pushed
+      below the fold in the practice-tool scenario is informational text, not
+      something a player needs to click; (2) each tower button's description
+      moved from an always-visible `<span class="sw-tdesc">` row into the
+      button's `title` tooltip, roughly halving row height (the same text
+      stays reachable via `#sw-towerinfo`'s `attackText` once a tower is
+      hovered/selected). `tests/b032-tower-panel-fold.test.ts` boots a real
+      headless Chromium against the live dev server (jsdom, every other HUD
+      test's environment, never runs layout and so cannot see this bug class
+      at all) and asserts every `button.sw-tower`'s
+      `getBoundingClientRect().bottom <= 1080` in both real audit scenes;
+      verified failing on the pre-fix markup (1104.67 and 1129.97) and passing
+      after, via a git-stash comparison. `npm run ui-audit` confirmed 0
+      `offscreen-interactive` failures for `button.sw-tower` post-fix in both
+      scenes, and the audit's overall failure count improved (67 to 62; the
+      dropped `.sw-tdesc` spans also removed ~20 now-moot text-contrast/
+      font-size checks). code-reviewer found no Critical/Major issues (one
+      Minor noted: native `title` tooltips aren't reliably screen-reader
+      accessible as a description, though the button's own visible text still
+      names it and the full description remains one click away in
+      `#sw-towerinfo`; logged as a future-hardening note, not blocking).
+      qa-playtester independently re-ran `npm run ui-audit`, confirmed the
+      same numbers, drove real builds through all 10 tower buttons (including
+      one at the edge of the previously-clipped range), confirmed tooltips and
+      the tower-info panel both still carry the full description text, and
+      checked the narrow-viewport `@media` breakpoint still stacks sensibly
+      with the new order — no regressions filed. It did surface one
+      pre-existing, unrelated bug while probing scene 3 (`tools/ui-audit.ts`'s
+      `build(1, 8, 8)` targets a tile outside the Warden's actual
+      `buildRange`, so that scene's build silently no-ops and its
+      `selectTile` never shows real tower info) — reproduced identically
+      against the pre-fix baseline, so it predates and is independent of this
+      fix; filed as **b034** rather than fixed here. b033's own acceptance
+      text named `span.sw-tdesc`, which this fix deleted outright — annotated
+      b033 with a note to re-measure before picking it up. `npm run test:fast`
+      green apart from the pre-existing Windows host-load flake class
+      (`q15-command-domain-fuzz`, `q49-price-probe-restore`,
+      `q52-m20d-run-a4-bad-key` — already logged under b028/b029, unrelated to
+      CSS/UI code).
 
 - [x] (b031) [bug] HUD text below the 12px accessibility floor — this commit
       (2026-08-29), refs: §11, QUALITY.md Beta bar, `audit/report.json`. `npm

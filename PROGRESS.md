@@ -5,6 +5,45 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-30 session: b032 done — tower-build-panel rows clipped below the
+  fold, filed by `npm run ui-audit` (§11, QUALITY.md Beta bar).**
+  `button.sw-tower` rows #6-#10 sat partly or fully past the 1080px fold in
+  the "mid-TD wave" and "Defeat Results" scenes: `.sw-side` stacks controls,
+  the Training Grounds practice-tool panel, progress, stats, tower-info and
+  the 10-tower build bar with no scroll bound, and the practice panel alone
+  (~320px, present in both failing scenes) was enough to push the unmodified
+  ~573px build bar past the bottom. Fixed in `src/ui/hud.ts`/`src/ui/
+  style.css`: the build bar now renders right after `#sw-controls`/
+  `#sw-practice` instead of after `#sw-progress`/`#sw-stats`/`#sw-towerinfo`
+  (none of which hold an interactive element, verified by grep, so anything
+  still pushed below the fold there is informational text, not something a
+  player needs to click), and each tower button's description moved from an
+  always-visible row into its `title` tooltip (the same text stays reachable
+  via `#sw-towerinfo` on hover/select), roughly halving row height.
+  `tests/b032-tower-panel-fold.test.ts` boots a real headless Chromium against
+  the live dev server — jsdom, every other HUD test's environment, never runs
+  layout and cannot see this bug class — and pins every `button.sw-tower`'s
+  `getBoundingClientRect().bottom <= 1080` in both real scenes; verified
+  failing pre-fix (1104.67, 1129.97) and passing post-fix via git-stash.
+  `npm run ui-audit` confirmed 0 `offscreen-interactive` failures for the
+  tower panel post-fix, and the audit's overall failure count improved (67 to
+  62). code-reviewer: no Critical/Major (one Minor logged, not blocking:
+  native `title` tooltips aren't reliably screen-reader-exposed as a
+  description, though the button's visible text still names it and the full
+  description is one click away). qa-playtester independently re-ran the
+  audit, drove real builds through all 10 buttons, confirmed tooltips/
+  tower-info content and narrow-viewport stacking, and filed no regressions —
+  it did surface an unrelated pre-existing bug in `tools/ui-audit.ts`'s own
+  scene 3 (`build(1, 8, 8)` targets a tile outside the Warden's `buildRange`,
+  so that scene's build silently no-ops), reproduced identically against the
+  pre-fix baseline and filed as **b034** rather than fixed here. b033's own
+  acceptance text named `span.sw-tdesc`, which this fix deletes outright —
+  annotated b033 to re-measure before picking it up. `npm run test:fast`:
+  1463 passed / 42 skipped, 4 files failed — all four are the pre-existing
+  Windows host-load flake class already logged under b028/b029
+  (`q15-command-domain-fuzz`, `q49-price-probe-restore`,
+  `q52-m20d-run-a4-bad-key`), unrelated to CSS/UI code.
+
 - **2026-08-29 session: b031 done — HUD text below the 12px accessibility
   floor, filed by `npm run ui-audit` against fb018's own commit (§11,
   QUALITY.md Beta bar).** `src/ui/style.css` bumps thirteen font-size
