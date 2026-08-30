@@ -216,6 +216,71 @@ called out in their own titles instead.
       2, swordsman 1/2/5/9, archer 2/11, stormcaller 6, bloodlord 1/12) all
       resolve to real outcomes — refs: §9 addendum, QUESTIONS.md Q126, Q127.
 
+### Feedback — owner-filed items (2026-08-29), processed from `feedback/`
+
+Filed from the owner's 2026-08-29 feedback batch (4 files, none carrying
+verdict blocks — nothing to apply to QUESTIONS.md). Two are marked
+`Priority: top` by the owner with explicit apply-now language; per CLAUDE.md's
+"prefer the top item, skip only with a logged reason," they are executed ahead
+of the older b034/p8d items above on that basis, logged here rather than by
+renumbering the whole queue.
+
+- [ ] (fb020) [balance] top priority, owner order: enemies overall slower and
+      tankier — a scoped, owner-granted exception to the "no tuning before
+      P10" freeze (CLAUDE.md working rules, precedent Q79). Apply global
+      multipliers in `data/enemies.json` — movement speed ×0.8, HP ×1.4 (both
+      then tunable), across all *non-boss* enemies (grades F/S/E); boss grade
+      (`gatebreaker`, `warden_eater`) stays unscaled since the same feedback's
+      TTK-band instruction says "bosses unchanged" — per-enemy identity ratios
+      are preserved automatically since every value is scaled by the same
+      factor. Create `BALANCE.md` (did not previously exist) recording the TTK
+      intent: fodder 2–4 hits, elite 12–20 s focused, bosses unchanged. Re-pin
+      any test whose literal numbers assumed the old speed/HP with a logged
+      reason — acceptance: multipliers live in `/data`, `BALANCE.md` written
+      with the new bands, `npm run test:fast` green, a before/after sweep
+      report recorded in PROGRESS.md — refs: owner feedback
+      `balance-enemies-slower-tankier`, precedent QUESTIONS.md Q79.
+- [ ] (fb021) [feat] top priority: basic-attack visual effects for all 12
+      classes, registered in the same data-driven VFX registry `fb016` built
+      for skills and Cores (`src/render/vfx-registry.ts`'s `CLASS_VFX`/
+      `CORE_VFX` pattern) — per class, a firing shape (projectile or swing)
+      matching its fantasy plus an impact flash on the target, damage-type
+      colors applied (`fb005`), respecting reduced-flash — acceptance: all 12
+      classes' basic attacks show fire+impact visuals; the registry checklist
+      test (`tests/fb016-vfx-registry.test.ts`'s pattern) extends to basic
+      attacks so a class missing one fails; VS wielded-tower attacks keep
+      their own existing visuals unchanged — refs: SPEC-FINAL §11, owner
+      feedback `feature-basic-attack-vfx` (fb016 follow-up).
+- [ ] (fb022) [feat] Surface live, data-derived numbers on every info surface:
+      class screen + in-run character panel show each active/passive's full
+      effect text with current resolved numbers (cooldown, charges, radius,
+      damage bands, scaling); Core selection screen and in-run tooltip show TD
+      effect, VS effect, current upgrade step and next-step preview with
+      numbers; Constellation gets a summary view listing every allocated
+      node's effect and combined per-stat totals (compatible with auto-max);
+      every equipment tooltip shows full stats/effect text including
+      conditional lines with an active/inert indicator for the current class,
+      plus equipped-vs-candidate compare — all text generated from `/data` +
+      the stats engine, no hand-written duplicate strings — acceptance: each
+      of the four surfaces shows live numbers; a test asserts panel numbers
+      equal the sim's derived values; changing a `/data` value changes
+      displayed text with no code edit — refs: SPEC-FINAL §11, extends fb004
+      and the Codex (p9b), owner feedback `feature-info-surfacing`.
+- [ ] (fb023) [feat] Remove the legacy relic UI and the separate stash window;
+      equipment lives in one screen — one Equipment screen (Hub + in-run via
+      the character panel) with six slot boxes plus an owned-items list beside
+      them, click an owned item to equip/swap into its slot, no separate stash
+      window or relic tabs; delete relic UI remnants everywhere (windows,
+      tooltips, results screens, quest text) — relic data structures may
+      remain internally only if saves need them for migration; old stash-save
+      items appear in the new owned list, old relics drop with a one-time
+      notice — supersedes the "stash holds earned items" line in fb015's
+      already-shipped equipment-realize work — acceptance: no stash or relic
+      window is reachable; equipping works from the Equipment screen in Hub
+      and mid-run; a migration test covers an old save; a grep-level test
+      proves no relic-window code paths remain — refs: SPEC-FINAL §7, §11,
+      owner feedback `feature-remove-stash-relics`.
+
 ### P1 — TD core: sealing (G7)
 
 P1 is **done** — p1a and p1b are in the Done section. G7 is green in full;
