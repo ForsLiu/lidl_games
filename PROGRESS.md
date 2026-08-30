@@ -5,6 +5,40 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-30 session: p6f done — the V2 class-framework residue is retired
+  (§4, Q38) — commit `1cc5448`. P6 (classes) is now done in full, `p6a`-`p6f`.**
+  Found already implemented, uncommitted, in the working tree at session
+  start; this session verified it end to end, fixed the one regression it
+  introduced, and closed it out. Collapses the `legacy: true`/`legacy: false`
+  dual class schema (`LegacyClassDef`/`NewClassDef`) to one `ClassDef` in the
+  uniform §4 shape (bands + Passive + Active1/Q + Active2/E + Tower passive):
+  `frost_warden` (the sole `legacy: true` class) and `data/affinity.json` are
+  deleted wholesale, and `affinityMul`, `manualAttack`, and every `cls.legacy`
+  branch are gone from both the engine (`classes.ts`, `towers.ts`, `run.ts`,
+  `enemies.ts`, `vsspecials.ts`, `world.ts`, `content.ts`) and the UI
+  (`hub.ts`, `hud.ts`, `class-info.ts`, `tower-info.ts`, `canvas.ts`,
+  `vfx-registry.ts`, `codex-collections.ts`). `build_40_obelisks`'s quest
+  reward moves from `frost_warden` to `cryomancer`. `data/classes.json` now
+  holds 12 classes (not the backlog item's originally written "11", which
+  predated later class additions — SPEC-FINAL §4's header and gate G8 both
+  count 12). `tests/f004-class-framework.test.ts` is deleted outright: its
+  one surviving describe (replay-hash determinism with `class_active` in the
+  input log) was already superseded by `tests/p6a-class-framework.test.ts`'s
+  own Active1/Active2 replay suite. MIGRATION.md §8's two retire-with-p6f rows
+  are marked done. This session's fix: `tools/gate-audit.ts`'s
+  `GATE_COVERAGE.G2` still named the deleted f004 file, failing
+  `tests/q10-gate-audit.test.ts`'s "every file GATE_COVERAGE names exists on
+  disk" check — repointed at `p6a-class-framework.test.ts`, and the stale
+  "11 §4 classes" count in `KNOWN_HOLES.G8` corrected to 12. qa-playtester
+  **PASS**: no code outside historical comments reads a `legacy` field,
+  `NewClassDef`/`LegacyClassDef`, `manualAttack`, `affinityMul`, or
+  `data/affinity.json`; headless sims for cryomancer, engineer, pyromancer,
+  swordsman, time_lord and paladin all complete cleanly with abilities
+  firing; no quest-reward collision, no UI dead branches. `npm run
+  test:fast`: 1514 passed, 40 skipped, 4 failures — the same
+  `b032`/`b034`/`b035`/`b036` jsdom fold-test port-collision flake fb023
+  already documented below, reconfirmed unrelated and clean in isolation.
+
 - **2026-08-30 session: fb023 done — the legacy relic UI and separate stash
   window are gone; equipment lives in one screen (§7, §11, owner feedback
   `feature-remove-stash-relics`) — commit `d30fa75`.** The Hub's `stash` tab is

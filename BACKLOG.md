@@ -34,7 +34,7 @@ still in test headers.
 | P3 interleave | **done in full (p3a-p3e)** — `p3a` retargets the reused V2 cycle machine to 18 TD + 6 VS, 20s build, 75s VS (G6's pattern half); `p3b` stacks up to `maxStackedWaves` TD waves via the `call` command (G6's stacking half); `p3c` re-points leak coupling's existing ×2-into-next-VS-wave mechanism onto TD→VS vocabulary and the real 6-block shape; `p3d` deletes the V2 Day/Dusk/Night/Dawn machine, Rekindle and the Core-detonation pocket/lane mechanism outright; `p3e` re-baselines `light-build`/G13's solo-viability clause (`a4-single-type`)/the boss gate against the real shape — all three measure red past ~wave 10-14 (a p8a content gap, not a P3 defect) and are logged `.skip` with their numbers rather than forced green (Q109) |
 | P4 core math | **done** — multiplicative stacking, armor cap +99 / floor −100, 6 damage types + 2 statuses (G4, G5 green) |
 | P5 tower roster | **done in full (p5a-p5d, G20 green)** — all 10 towers, upgrade tracks, defense bands; `p5b` gave Ember Brazier/Mortar their own `costMul`; `p5c` authored the four remaining §5.2 milestone specials (Ballista, Fire Brazier, Ice Obelisk, Mortar) and the G20 loader rule; `p5d` fixed the QA-filed `damageDealt` telemetry bug on pierce/lob-kind towers |
-| P6 classes | **framework done (`p6a`), eleven of eleven real kits done (`p6b`, `p6c`, `p6d`)** — §4's Passive + Q + E + tower passive is live for all 11 classes; **gate G9 is green in full**, and `p6d` measured **G10 and G11 green** (Archer's dps-optimal charge peaks at t=5.0 inside [2,6], full charge one-shots the toughest non-elite; Stormcaller's max chain multiplier is 3.5832 ≤ 3.6); `p6e` measured **G8 honestly red**; re-measured in full against p8a's real content this session (Q123, Q127) — **win rate is 0/11** (was 1/11; Cryomancer's own pre-p8a pass no longer clears the floor), diversity 2/11 not ≥8/11, both clauses `.skip`-ed per-class with real measured numbers, re-enable point **P10** (not `p8a` — already landed and re-measured); `p6f` (V2 framework residue retirement) remains |
+| P6 classes | **done in full (`p6a`-`p6f`)** — §4's Passive + Q + E + tower passive is live for all 12 classes; **gate G9 is green in full**, and `p6d` measured **G10 and G11 green** (Archer's dps-optimal charge peaks at t=5.0 inside [2,6], full charge one-shots the toughest non-elite; Stormcaller's max chain multiplier is 3.5832 ≤ 3.6); `p6e` measured **G8 honestly red**; re-measured in full against p8a's real content this session (Q123, Q127) — **win rate is 0/11** (was 1/11; Cryomancer's own pre-p8a pass no longer clears the floor), diversity 2/11 not ≥8/11, both clauses `.skip`-ed per-class with real measured numbers, re-enable point **P10** (not `p8a` — already landed and re-measured); `p6f` retired the V2 legacy dual class schema (`affinity.json`, `manualAttack`, `frost_warden`) — `data/classes.json` now holds 12 classes, all in the uniform §4 shape |
 | P7 equipment/rewards/VS upgrades | **superseded systems in place** — relic affixes, Ember, 12 boons; §7's 12-item table, §6.3's pool and §8's reward pipeline unbuilt (G12 unmet) |
 | P8 enemies/waves/bosses | **roster, both bosses and real wave data done (`p8a`)** — all 20 §9 enemies by name; `data/waves.json` authors real TD waves 1-18 on the §1.1 shape (Gatebreaker on 18 only, Warden-Eater on VS 6), the §9 VS-budget curve is live; `p8b`/`p8c` (alive-cap overshoot, gate G14) remain |
 | P9 tooling | **dev mode, god mode, UX flows done; Codex read-half in flight on `lane/tuner`; Tuner unbuilt** (G15 unmet, G16/G18 largely green) |
@@ -341,13 +341,6 @@ stormcaller, bloodlord), not the single `swordsman` seed 1 previously known
 `carnivorous_plant`/`corpse` stalemate finding (Q127). Every clause stays
 `.skip`-ed with its real number; re-enable point moves from `p8a` (done) to
 **P10**.
-
-- [ ] (p6f) [polish] Retire the three V2 classes' framework residue: `affinity.json`,
-      class `mods`, the single `active`/`passive`/`manualAttack` shape, and the
-      Engineer/Pyromancer/Frost Warden rows insofar as §4 does not re-author them
-      (Engineer and Pyro do carry forward) — acceptance: `data/classes.json` holds
-      exactly the 11 §4 classes in the §4 shape, MIGRATION.md §8's retire-with-p6f
-      rows are checked off — refs: §4, Q38
 
 ### P7 — VS upgrade pool, equipment, rewards (G12)
 
@@ -936,6 +929,51 @@ logged in MIGRATION.md §8 rather than carried as dead items.
   **G19**. The work is `p10d`.
 
 ## Done
+
+- [x] (p6f) [polish] Retire the V2 classes' framework residue: `affinity.json`,
+      class `mods`, the single `active`/`passive`/`manualAttack` shape, and the
+      Frost Warden row, which §4 does not re-author (Engineer and Pyro carry
+      forward, per Q38) — refs: §4, Q38 — commit `1cc5448`. Collapses the
+      `legacy: true`/`legacy: false` dual class schema (`LegacyClassDef`/
+      `NewClassDef`) to one `ClassDef` in the uniform §4 shape; deletes
+      `frost_warden` (the sole `legacy: true` class) and `data/affinity.json`
+      wholesale, and removes `affinityMul`, `manualAttack`, and every
+      `cls.legacy` branch from the engine (`classes.ts`, `towers.ts`, `run.ts`,
+      `enemies.ts`, `vsspecials.ts`, `world.ts`, `content.ts`) and UI
+      (`hub.ts`, `hud.ts`, `class-info.ts`, `tower-info.ts`, `canvas.ts`,
+      `vfx-registry.ts`, `codex-collections.ts`). `build_40_obelisks`'s quest
+      reward moves from `frost_warden` to `cryomancer` (its old
+      `maze_master` unlock quest is untouched, having never been class-tied).
+      `data/classes.json` now holds 12 classes — not the item's originally
+      written "11", which predated later class additions (fb013 Time Lord,
+      p6d, p6e); SPEC-FINAL §4's own header and gate G8 both count 12, so 12
+      is the correct target. `tests/f004-class-framework.test.ts` is deleted
+      outright rather than rewritten: its one surviving describe block
+      (replay-hash determinism with `class_active` in the input log) was
+      already superseded by `tests/p6a-class-framework.test.ts`'s own
+      Active1/Active2 replay suite. MIGRATION.md §8's two retire-with-p6f
+      rows are marked done.
+
+      This item was found already implemented, uncommitted, in the working
+      tree at session start; this session's own contribution was verifying it
+      end to end and fixing the one regression it introduced:
+      `tools/gate-audit.ts`'s `GATE_COVERAGE.G2` still named the deleted
+      `f004-class-framework.test.ts`, failing `tests/q10-gate-audit.test.ts`'s
+      "every file GATE_COVERAGE names for a gate exists on disk" check —
+      repointed at `p6a-class-framework.test.ts` and the stale "11 §4
+      classes" count in `KNOWN_HOLES.G8` corrected to 12. qa-playtester
+      **PASS**: confirmed no code in `src/`, `tests/`, or `tools/` reads a
+      `legacy` field, `NewClassDef`/`LegacyClassDef`, `manualAttack`,
+      `affinityMul`, or `data/affinity.json` outside historical comments;
+      drove headless sims for cryomancer, engineer, pyromancer, swordsman,
+      time_lord and paladin, all completing cleanly with abilities firing;
+      confirmed no quest-reward collision from the `cryomancer` reassignment;
+      found no UI dead branches. `npm run test:fast`: 1514 passed, 40
+      skipped, 4 failures — all four (`b032`/`b034`/`b035`/`b036`, jsdom
+      "stays above the fold" tests that spin up a dev server) are a
+      pre-existing port-collision flake under full-suite parallelism,
+      verified to pass cleanly in isolation and reproduced as already-flaky
+      independent of this diff.
 
 - [x] (fb023) [feat] Remove the legacy relic UI and the separate stash window;
       equipment lives in one screen (SPEC-FINAL §7, §11, owner feedback
