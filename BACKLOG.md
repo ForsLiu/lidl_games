@@ -930,7 +930,8 @@ logged in MIGRATION.md §8 rather than carried as dead items.
 - [x] (p7b) [feat] Equipment per §7 in `data/equipment.json`: 6 slots, the
       12-item table, flats adding and multipliers multiplying per §2,
       class-conditional lines inert elsewhere unless a fallback is written —
-      refs: §7, §2 — found already built in full by an earlier owner-feedback
+      refs: §7, §2 — commit `6dfe8eb` — found already built in full by an
+      earlier owner-feedback
       item, fb015 (`data/equipment.json`, `src/sim/equipment.ts`, the generic
       mods-fold in `stats.ts`'s `baseRunStats`, and `tests/fb015-equipment.test.ts`'s
       31 tests covering stacking, the reward loop, and one dedicated test per

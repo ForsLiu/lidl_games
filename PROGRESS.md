@@ -6,7 +6,7 @@
 ## Current state — SPEC-FINAL
 
 - **2026-08-30 session: p7b done — §7's 12-item equipment table gets full
-  data-test coverage — no commit hash for production code (test-only change).**
+  data-test coverage — commit `6dfe8eb`.**
   Investigation found the equipment system itself (`data/equipment.json`, 6
   slots, 12 items, `src/sim/equipment.ts`, the generic mods-fold in
   `stats.ts`'s `baseRunStats`) was already built in full by an earlier
