@@ -5,6 +5,40 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-30 session: p9b done — the Codex is wired into the Hub — commit
+  `0cfdf45`.** The read-only Codex renderer (`src/ui/codex.ts`,
+  `src/ui/codex-collections.ts`) and its generic-ness proof
+  (`tests/codex.test.ts`, 19 tests) already existed from the `lane/tuner`
+  merge; this item was purely the Hub entry point its own backlog text
+  flagged as missing. Added a `'codex'` `Tab` to `src/ui/hub.ts` — a nav
+  button, a `renderCodex(body)` method that is a thin `mountCodex(body)`
+  call — plus matching `.sw-codex*` CSS in `src/ui/style.css`. No Hub-state
+  plumbing was needed: `mountCodex` owns its own nav/content DOM entirely
+  within the tab body, and `show()` already tears down and rebuilds
+  `#sw-hub-body` on every tab switch, the same mechanism every other tab
+  relies on for cleanup. Updated `codex.ts`'s header comment, which had
+  claimed it was deliberately unwired pending this merge. New
+  `tests/p9b-codex-hub.test.ts` (3 tests) drives a real `Hub` instance: the
+  Codex nav button exists, opening the tab mounts all 13 `/data` collections
+  from `buildCodexCollections()` with row counts matching
+  `collection.rows.length`, and switching away and back re-mounts fresh
+  rather than stale. `npm run test:fast`: green except the 4 pre-existing,
+  already-documented Playwright fold-test flakes (b032/b034/b035/b036),
+  unrelated to this UI-only change. code-reviewer **APPROVE**, no Critical/
+  Major findings (two Minors, neither blocking: the pre-existing untyped
+  `dataset.tab` cast in the nav click handler, and `renderCodex` discarding
+  the `CodexHandle` — safe today since `show()` fully tears down
+  `#sw-hub-body` on every tab switch, a latent trap only if that ever becomes
+  a partial re-render). qa-playtester independently drove the real `Hub`,
+  confirmed all 13 collections reachable with exact
+  row-count parity, adversarially spammed tab switches
+  (codex→run→codex→equipment→codex→tree→codex→settings→codex) with no
+  duplicate `.sw-codex` mounts or leaked nav buttons, confirmed Run-tab state
+  (class/tier/picks) survives a Codex visit untouched, and confirmed
+  `tsc --noEmit` stays clean. It noted one non-blocking UX quirk (an external
+  `hub.show()` call while a Codex sub-collection is selected resets the view
+  to the first collection) — not a functional break, not filed as a bug.
+
 - **2026-08-30 session: p8c done — gate G14 formally measured on the real
   §1.1 shape, honestly red — commit `93cdf44`. P8 (enemies/waves/bosses) is
   now done in full.** `tests/boss.test.ts`'s informal, pre-G-numbering

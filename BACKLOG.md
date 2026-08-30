@@ -37,7 +37,7 @@ still in test headers.
 | P6 classes | **done in full (`p6a`-`p6f`)** — §4's Passive + Q + E + tower passive is live for all 12 classes; **gate G9 is green in full**, and `p6d` measured **G10 and G11 green** (Archer's dps-optimal charge peaks at t=5.0 inside [2,6], full charge one-shots the toughest non-elite; Stormcaller's max chain multiplier is 3.5832 ≤ 3.6); `p6e` measured **G8 honestly red**; re-measured in full against p8a's real content this session (Q123, Q127) — **win rate is 0/11** (was 1/11; Cryomancer's own pre-p8a pass no longer clears the floor), diversity 2/11 not ≥8/11, both clauses `.skip`-ed per-class with real measured numbers, re-enable point **P10** (not `p8a` — already landed and re-measured); `p6f` retired the V2 legacy dual class schema (`affinity.json`, `manualAttack`, `frost_warden`) — `data/classes.json` now holds 12 classes, all in the uniform §4 shape |
 | P7 equipment/rewards/VS upgrades | **`p7a`-`p7g` done** — §6.3's VS level-up pool replaces the flat 12-boon list (closing b011 as a side effect); §7's 12-item equipment table is live; §8's reward pipeline is complete and **gate G12 is green in full**; the superseded meta economy (relic affixes, Ember) is retired outright, skill points are the tree's only currency; §8.4's unlock quests are live and correct for all 9 non-free classes (p7e fixed 5 quests whose reward never actually unlocked their class, and repointed Paladin's quest at a new "win with a sealed Core" mechanism matching spec text); `p7f`/`p7g` closed the save-migration holes `migrateWithNotice` had — an unknown key, and a corrupt `allocated`/`unlockedClasses`/`completedQuests`/`equipmentStash`/`questProgress`, can no longer discard or corrupt the account. Remaining: `p7h` (Core unlock quests + Codex page) |
 | P8 enemies/waves/bosses | **done in full (`p8a`-`p8c`)** — all 20 §9 enemies by name; `data/waves.json` authors real TD waves 1-18 on the §1.1 shape (Gatebreaker on 18 only, Warden-Eater on VS 6), the §9 VS-budget curve is live; `p8b` closed the elite/boss-summon spawn paths that bypassed `spendBudget`'s `aliveCap` check; `p8c` formally measured gate G14 on the real shape — **honestly red, 0/20**, `.skip`-ed with the number, re-enable point P10 (no gate in this codebase is force-passed by tuning outside P10) |
-| P9 tooling | **dev mode, god mode, UX flows, `p9a`'s content-hash replay check done; Codex read-half in flight on `lane/tuner`; Tuner unbuilt** (G15 unmet, G16/G18 largely green) |
+| P9 tooling | **dev mode, god mode, UX flows, `p9a`'s content-hash replay check done; `p9b` wired the Codex into the Hub; Tuner unbuilt** (G15 unmet, G16/G18 largely green) |
 | P10 balance | **not started** — Burning still refresh-strongest, perf budget still host-dependent wall-clock |
 
 ## Queue
@@ -446,12 +446,11 @@ next in P8's own queue.
 
 ### P9 — tooling: dev mode, Codex and Tuner, UX flows (G15, G16, G18)
 
-- [ ] (p9b) [feat] Codex: a Hub page listing every class, tower, equipment, damage
+- [x] (p9b) [feat] Codex: a Hub page listing every class, tower, equipment, damage
       type, enemy and wave with live stats read from `/data` and its zod schemas —
       acceptance: every content collection renders and a field added to a schema
-      appears with no change to the page; counts match the data files. The read-only
-      half exists on `lane/tuner` (`src/ui/codex.ts`, `src/ui/codex-collections.ts`,
-      `tests/codex.test.ts`) and needs its Hub entry point wired — refs: §11
+      appears with no change to the page; counts match the data files — **done,
+      see Done section.** — refs: §11
 - [ ] (p9c) [feat] Tuner: in dev mode every numeric and enum field in the Codex is
       editable including wave composition; Save persists to the real `/data/*.json`
       through a Vite dev-server endpoint that validates the whole document against
@@ -941,6 +940,41 @@ logged in MIGRATION.md §8 rather than carried as dead items.
 
 ## Done
 
+- [x] (p9b) [feat] Codex: a Hub page listing every class, tower, equipment,
+      damage type, enemy and wave with live stats read from `/data` and its
+      zod schemas — acceptance: every content collection renders and a field
+      added to a schema appears with no change to the page; counts match the
+      data files — refs: §11 — commit `0cfdf45`.
+      The read-only renderer (`src/ui/codex.ts`, `src/ui/codex-collections.ts`)
+      and its generic-ness proof (`tests/codex.test.ts`, 19 tests) already
+      existed from the `lane/tuner` merge; this item was purely the Hub entry
+      point the item's own text flagged as missing. Added a `'codex'` `Tab` to
+      `src/ui/hub.ts`: a nav button, a `renderCodex(body)` method that is a
+      thin `mountCodex(body)` call, and matching `.sw-codex*` CSS in
+      `src/ui/style.css`. No Hub state plumbing was needed — `mountCodex` owns
+      its own nav/content DOM entirely within the tab body, and `show()`
+      already tears down and rebuilds `#sw-hub-body` on every tab switch, the
+      same mechanism every other tab relies on for cleanup. Updated
+      `codex.ts`'s header comment, which had claimed it was deliberately
+      unwired. New `tests/p9b-codex-hub.test.ts` (3 tests) drives a real `Hub`
+      instance: the Codex nav button exists, opening the tab mounts all 13
+      `/data` collections from `buildCodexCollections()` with row counts
+      matching `collection.rows.length`, and switching away and back
+      re-mounts fresh rather than stale. code-reviewer **APPROVE**, no
+      Critical/Major findings (two Minors, neither blocking: the pre-existing
+      untyped `dataset.tab` cast in the nav click handler, and `renderCodex`
+      discarding the `CodexHandle` it gets back — safe today since `show()`
+      fully tears down `#sw-hub-body` on every tab switch, a latent trap only
+      if that ever becomes a partial re-render). qa-playtester independently
+      drove the real `Hub`, confirmed all 13 collections reachable with exact row-count
+      parity, adversarially spammed tab switches (codex→run→codex→equipment→
+      codex→tree→codex→settings→codex) with no duplicate `.sw-codex` mounts or
+      leaked nav buttons, confirmed Run-tab state (class/tier/picks) survives
+      a Codex visit untouched, and confirmed `tsc --noEmit` stays clean. It
+      noted one non-blocking UX quirk: an external `hub.show()` call (e.g.
+      from `onMetaChanged`) while a Codex sub-collection is selected resets
+      the view to the first collection rather than preserving the selection —
+      not a functional break, not filed as a bug.
 - [x] (p8c) [balance] Gate **G14**: over 20 seeds the scripted-build win rate
       against the Warden-Eater is ≥60% and <100% — acceptance: G14 measured
       on the §1.1 run shape (so it must run after p3a), with the per-seed
