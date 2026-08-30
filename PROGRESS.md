@@ -5,6 +5,46 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-30 session: p7f done — `migrate()` no longer lets an unknown save
+  key survive forever — commit `b5cc75a`.**
+  `migrateWithNotice` (`src/meta/meta.ts`) used to build its output as
+  `{...base, ...meta, <field overrides>}`, so any key a save happened to carry
+  — a dead field from an old client, a hand-edit, a name this client has never
+  heard of — round-tripped through every load/save forever, and a non-object
+  `meta` (e.g. `{"meta":"orbs"}`) was worse: it string-spread into indexed
+  keys (`{0:'o',1:'r',...}`) that then re-serialised just as stably. Rebuilt
+  entirely field-by-field from the known `MetaState` key set instead (order
+  matched to `defaultMeta()`'s, so a save this client wrote still reloads and
+  re-serializes byte-identically), so an unrecognized key can never enter the
+  output, at any `SAVE_VERSION`. The version-gated `RETIRED_KEYS` strip that
+  used to run after the spread (and only ever caught its own six named
+  fields) is now dead code with nothing left to strip and was deleted
+  outright. `highestTier` keeps its pre-existing missing type guard on
+  purpose — fixing it is out of this item's scope and is the separately
+  tracked `b012` — the fix is byte-identical to old behaviour for that one
+  field, still pinned by `tests/q3-save-fuzz.test.ts`'s
+  `KNOWN_LAUNDERED`/`KNOWN_HUB_NAN` lists. `tests/meta.test.ts` gained two
+  regression tests (junk keys at every version; a non-object string `meta`).
+  Several `tests/q3-save-fuzz.test.ts`/`tests/t6c-save-migration.test.ts`
+  assertions had pinned the *old* behaviour as the intended rule (a retired
+  key surviving once a save's version passed its own retirement threshold,
+  on the theory a future client might reuse the name) — rewritten to the new
+  unconditional-strip rule, including a corrected skillPoints/Ember-
+  conversion arithmetic check. Two fuzzer family-effectiveness floors
+  (`version` 0.1→0.05, `proto-key` implicit 0.85→0.3) were re-measured and
+  lowered with a documented reason: both families had been partly exploiting
+  the very bug this item fixes (a junk key planted at the root of `meta`
+  surviving), so closing the bug correctly makes those mutations less often
+  observable — not drift. code-reviewer: no Critical/Major findings,
+  confirmed every other field's guard survived the rewrite and no other code
+  still depends on `RETIRED_KEYS`. qa-playtester: **PASS** — adversarially
+  planted junk/`__proto__`-style keys and non-object `meta` values across
+  every version (old/current/future), ran the project's own 20k-trial save
+  fuzzer clean, and confirmed no code outside `src/meta/meta.ts` reaches for
+  a key this fix stops surviving. `npx tsc --noEmit` clean; `npm run
+  test:fast`: 1585 passed, the same 4 pre-existing Playwright fold-test
+  flakes (b032/b034/b035/b036) reconfirmed passing standalone (port
+  contention under full concurrent load, unrelated to this change).
 - **2026-08-30 session: p7e done — §8.4's unlock quests now actually work for
   all 9 non-free classes — commit `3e71d10`.**
   The quest engine (`data/quests.json`, `data/classes.json`'s `unlockQuest`,

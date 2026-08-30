@@ -399,13 +399,8 @@ literally. `content.ts`'s loader now refuses any non-free class whose
 `unlockQuest` doesn't resolve to a real class-rewarding quest (CLAUDE.md's
 "a loader rule is worth more than a comment" — a code-reviewer suggestion
 taken in the same commit).
-- [ ] (p7f) [bug] `migrate()` preserves unknown save keys forever: it spreads
-      `...meta` wholesale, so any key a save carries survives every round trip as a
-      fixed point. A non-object `meta` is worse — `{"meta":"orbs"}` string-spreads
-      into indexed keys and re-serialises stably — acceptance: the migrated object
-      is built from the known key set instead of a spread; a save carrying junk keys
-      and one with a non-object `meta` both migrate to exactly the MetaState key set
-      — refs: §11 save migration, QA on t6c bug 1
+- [x] (p7f) [bug] `migrate()` preserves unknown save keys forever — **done, see
+      Done section.**
 - [ ] (p7g) [bug] A save whose `stash` alone is corrupt loses the whole account:
       `deserializeMeta('{"version":1,"meta":{"stash":"nope"}}')` throws in
       `migrate()`, `loadMeta` catches it and returns a brand-new account, discarding
@@ -947,6 +942,43 @@ logged in MIGRATION.md §8 rather than carried as dead items.
 
 ## Done
 
+- [x] (p7f) [bug] `migrate()` preserves unknown save keys forever: it spreads
+      `...meta` wholesale, so any key a save carries survives every round trip as a
+      fixed point. A non-object `meta` is worse — `{"meta":"orbs"}` string-spreads
+      into indexed keys and re-serialises stably — acceptance: the migrated object
+      is built from the known key set instead of a spread; a save carrying junk keys
+      and one with a non-object `meta` both migrate to exactly the MetaState key set
+      — refs: §11 save migration, QA on t6c bug 1 — commit `b5cc75a`.
+      `migrateWithNotice` (`src/meta/meta.ts`) now builds its `out` object entirely
+      field-by-field from the known `MetaState` key set (matching `defaultMeta()`'s
+      order, so a save this client wrote still reloads and re-serializes
+      byte-identically) instead of `{...base, ...meta, <overrides>}` — a spread that
+      let any key `meta` happened to carry survive forever, at any version, since
+      the version-gated `RETIRED_KEYS` strip that used to run afterward only ever
+      caught its own six named fields. `RETIRED_KEYS` and its strip loop are deleted
+      outright as dead code: an unrecognized key can no longer enter `out` in the
+      first place, so there is nothing left to strip. The one field that already had
+      no type guard (`highestTier`) keeps that exact gap on purpose, to stay
+      byte-identical to the pre-existing, separately-tracked defect
+      `tests/q3-save-fuzz.test.ts`'s `KNOWN_LAUNDERED`/`KNOWN_HUB_NAN` lists pin
+      (BACKLOG b012) — fixing it was out of this item's scope. code-reviewer pass
+      (no Critical/Major findings; confirmed every other field's pre-existing guard
+      survived the rewrite unchanged). qa-playtester pass: adversarially planted
+      junk/`__proto__`-style keys and non-object `meta` values across every
+      SAVE_VERSION (old/current/future), ran the project's own 20k-trial save
+      fuzzer (`npx tsx tools/fuzz-save.ts --n 20000 --seed 7`, clean), and confirmed
+      no code outside `src/meta/meta.ts` reaches for a key this fix stops
+      surviving — no bugs filed. Several `tests/q3-save-fuzz.test.ts`/
+      `tests/t6c-save-migration.test.ts` assertions had pinned the *old* versioned
+      key-survival behavior as if it were the intended rule (a retired key like
+      `orbs`/`ember` was expected to survive once a save's version reached the
+      field's own retirement threshold, on the theory that a future client might
+      reuse the name) — rewritten to the new unconditional-strip rule. Two fuzzer
+      "family" effectiveness floors (`version`, `proto-key`) were re-measured and
+      lowered with a documented reason: both had been partly exploiting the very
+      bug this item fixes (planting a junk key at the root of `meta` and having it
+      round-trip), so closing the bug correctly reduced how often those mutations
+      are still observable.
 - [x] (p7e) [feat] Unlock quests per §8.4: every non-free class has exactly one
       working unlock quest; no quest grants currency — acceptance: every
       non-free class has exactly one unlock quest; a test drives one quest of
