@@ -67,6 +67,8 @@ function baseReport(): RunReport {
     topWeaponShareMinute8: 0,
     topWeaponMinute8: '',
     boons: {},
+    typeMastery: {},
+    skillCards: {},
     relicsFound: 0,
     equipmentFound: 0,
     ember: 0,
@@ -145,7 +147,7 @@ describe('C4 — ranks add within a source', () => {
 
   it('a boon taken to rank 3 through the real progression path is one source', () => {
     const w = new World(cfg());
-    const boon = content.boons.boons.find((b) => b.stat === 'power')!;
+    const boon = content.boons.statBoons.find((b) => b.stat === 'power')!;
     for (let rank = 1; rank <= 3; rank++) {
       applyOffer(w, { kind: 'boon', key: boon.key, name: boon.name, desc: '', toLevel: rank });
     }
@@ -322,7 +324,7 @@ describe('C4 — the real stat pipeline carries sources', () => {
     w.warden.y = 6.5;
     buildTower(w, 1, 5, 5); // palisade -> terrain armour
     buildTower(w, 9, 6, 5); // beacon totem -> terrain attack speed
-    const boon = content.boons.boons.find((b) => b.stat === 'attackSpeed');
+    const boon = content.boons.statBoons.find((b) => b.stat === 'attackSpeed');
     if (boon) applyOffer(w, { kind: 'boon', key: boon.key, name: boon.name, desc: '', toLevel: 1 });
 
     applyTerrainPassives(w);

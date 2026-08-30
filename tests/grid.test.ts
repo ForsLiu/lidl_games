@@ -91,7 +91,8 @@ describe('content', () => {
     expect(c.enemies.enemies).toHaveLength(20);
     // p8a: SPEC-FINAL §1.1's 18 real TD wave rows (was 10).
     expect(c.waves.waves).toHaveLength(18);
-    expect(c.boons.boons).toHaveLength(12);
+    // p7a (SPEC-FINAL §6.3): 7 stat boons replace the old flat 12.
+    expect(c.boons.statBoons).toHaveLength(7);
     expect(c.modifiers.modifiers).toHaveLength(12);
     // fb013 added `chrono_veteran` (Time Lord's unlock quest), the 10th.
     expect(c.quests.quests).toHaveLength(10);

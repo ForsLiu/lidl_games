@@ -20,46 +20,26 @@
  * follows the fix.
  *
  * Regenerate by running `npx tsx tools/fuzz-weapon-boundary.ts` and
- * transcribing every non-`ok` line — there are 10 today, against 37 total
- * (9 boonRank + 4 boonKey + 7 pickIndex + 4 reroll + 1 pool + 6 wieldTier +
- * 6 wieldRoster).
+ * transcribing every non-`ok` line — there are 3 today (p7a closed b011's 7
+ * boonRank holes), against 37 total (9 boonRank + 4 boonKey + 7 pickIndex +
+ * 4 reroll + 1 pool + 6 wieldTier + 6 wieldRoster).
  */
 import type { Verdict } from '../tools/fuzz-weapon-boundary';
 
 /**
- * Successor of the original LEVEL / WEAPON OFFER / BOON OFFER maps (q21,
- * q27, q30): `applyOffer`'s `'boon'` case (progression.ts:148-158) still
- * assigns a forged `offer.toLevel` into `w.boonRanks` with zero validation.
- * The consequence splits by what `buildOfferPool`'s `rank >= b.maxRank`
- * re-offer cap (progression.ts:109) does with the poisoned value:
- *   - `0`, `-5`, `2.5` — the comparison is false, so the boon keeps being
- *     re-offered while the stored rank is illegal. `'ungated'`: each re-pick
- *     re-runs `stats.addAll(\`boon:...\`)`, so a negative seed stacks the
- *     stat past `maxRank` indefinitely (measured in the test file).
- *   - `6`, `Infinity` — the comparison is (accidentally or genuinely) true,
- *     so the cap holds; only the stored field is illegal. `'contaminated'`.
- *   - `NaN`, `-Infinity` — the comparison is false, so the offer *is* pushed
- *     into the pool, but its `rollOffers` weight comes out NaN (`NaN`
- *     directly, or `0 * -Infinity` inside the luck-bias product at
- *     progression.ts:89), and `Rng.weightedIndex` with a NaN total falls
- *     through every `r < 0` check to its last-index fallback —
- *     deterministically the *last remaining pool entry* every draw, so the
- *     poisoned boon never surfaces and the whole draw's weighting is
- *     defeated (the RNG stream no longer matters — measured in the test
- *     file). `'contaminated'` because it does not re-offer, but for a
- *     structurally worse reason than the cap holding.
- * Not reachable through the real Command surface: `buildOfferPool` only
- * ever emits `toLevel: rank + 1`, a legal integer in `[1, maxRank]`.
+ * CLOSED at p7a (BACKLOG b011). `applyOffer`'s `'boon'` case used to assign a
+ * forged `offer.toLevel` into `w.boonRanks` with zero validation; p7a's pool
+ * rewrite (SPEC-FINAL §6.3) added `clampRank` (progression.ts), which every
+ * case below (`'boon'`, `'type_mastery'`, `'skill_card'`) now runs its
+ * `toLevel` through before storing: non-finite collapses to rank 1, everything
+ * else rounds and clamps to `[1, maxRank]`. Every input in `RANK_INPUTS`
+ * (`0, 1, 5, 6, -5, Infinity, -Infinity, NaN, 2.5`) now stores a legal,
+ * in-domain rank — no holes today. The detailed old exploit chain (unbounded
+ * stat-stacking from a forged `-5`, the NaN-poisoned draw, the `Infinity`/hash
+ * collision) is preserved as history in `tests/q21-weapon-boundary-fuzz.test.ts`'s
+ * "b011 closed" describe block, which now asserts the *fixed* behavior instead.
  */
-export const BOON_RANK_HOLES: Readonly<Record<string, Verdict>> = {
-  '0': 'ungated',
-  '6': 'contaminated',
-  negative: 'ungated',
-  posInf: 'contaminated',
-  negInf: 'contaminated',
-  nan: 'contaminated',
-  fractional: 'ungated',
-};
+export const BOON_RANK_HOLES: Readonly<Record<string, Verdict>> = {};
 
 /** A forged key `boonByKey` cannot resolve is a clean no-op in every probed
  * shape — no holes today. */
@@ -84,14 +64,15 @@ export const REROLL_HOLES: Readonly<Record<string, Verdict>> = {
 };
 
 /**
- * The one hole reachable through *legitimate* play: with every boon at
- * `maxRank` (character level 57+ — 11 boons x 5 ranks + Second Wind's 1),
- * `buildOfferPool` is empty, yet `openLevelUpIfPending` (progression.ts:30)
- * still enters `'levelup'` with `offers = []`. `takeOffer` finds no offer at
- * any index and `rerollOffers` rerolls to another empty list, so nothing on
- * the Command surface can leave the phase — a permanent softlock. A sim bug
- * (reported upstream), pinned here rather than fixed because this lane may
- * not edit `/src`.
+ * The one hole reachable through *legitimate* play: with every stat boon and
+ * every one of the run class's 3 skill cards at `maxRank` (Type Mastery
+ * never contributes — no tower is ever built in this probe), `buildOfferPool`
+ * is empty, yet `openLevelUpIfPending` (progression.ts:30) still enters
+ * `'levelup'` with `offers = []`. `takeOffer` finds no offer at any index and
+ * `rerollOffers` rerolls to another empty list, so nothing on the Command
+ * surface can leave the phase — a permanent softlock. A sim bug (reported
+ * upstream), pinned here rather than fixed because this lane may not edit
+ * `/src`.
  */
 export const POOL_HOLES: Readonly<Record<string, Verdict>> = {
   'pool:exhausted': 'softlock',

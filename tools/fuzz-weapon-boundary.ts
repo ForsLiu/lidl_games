@@ -125,9 +125,10 @@ function tryRun(fn: () => void): { threw: boolean; message?: string } {
 /** The boon every rank probe targets: maxRank 5, stat 'attackSpeed'. */
 export const PROBE_BOON = 'haste';
 
-/** How many `rollOffers` draws a re-offer probe samples. 3 of 12 boons per
- * draw at (mostly) equal weight makes a missing re-offer over 60 draws a
- * ~1e-7 event, not a plausible unlucky streak. */
+/** How many `rollOffers` draws a re-offer probe samples. 3 of a ~10-card pool
+ * (7 stat boons + 3 skill cards; Type Mastery is empty with no tower built)
+ * per draw at (mostly) equal weight makes a missing re-offer over 60 draws a
+ * ~1e-6 event, not a plausible unlucky streak. */
 const REOFFER_DRAWS = 60;
 
 function reoffersWithin(w: World, key: string, draws = REOFFER_DRAWS): boolean {
@@ -315,18 +316,28 @@ export function rerollBoundaryCases(content: Content = loadContent()): BoundaryC
 /* ======================================================== 5. POOL EXHAUSTED ======================================================== */
 
 /**
- * Every boon legitimately at `maxRank` (the ladder `applyOffer` itself walks)
- * empties `buildOfferPool`. A level-up then opens 'levelup' with zero offers
- * — and `takeOffer` (no offer at any index) and `rerollOffers` (rerolls to
- * another empty list) both leave the phase where it is. Reachable through
- * real play at character level 57+ (12 boons x 5 ranks, second_wind 1), so
- * this one carries no forged-input caveat.
+ * Every stat boon and skill card legitimately at `maxRank` (the ladder
+ * `applyOffer` itself walks) empties `buildOfferPool` (Type Mastery is
+ * already empty here — no tower is ever built in this probe). A level-up
+ * then opens 'levelup' with zero offers — and `takeOffer` (no offer at any
+ * index) and `rerollOffers` (rerolls to another empty list) both leave the
+ * phase where it is. Reachable through real play (7 stat boons x 5 ranks + 3
+ * skill cards x 2 ranks), so this one carries no forged-input caveat.
  */
 export function poolExhaustedCases(content: Content = loadContent()): BoundaryCase[] {
   const w = newWorld(content);
-  for (const b of content.boons.boons) {
+  // p7a (§6.3): the pool is 3 families now — stat boons, Type Mastery (never
+  // offered here since no tower is ever built in this probe, so it
+  // contributes nothing to exhaust) and the run class's 3 skill cards. Both
+  // real families have to be maxed for `buildOfferPool` to actually empty.
+  for (const b of content.boons.statBoons) {
     for (let rank = 1; rank <= b.maxRank; rank++) {
       applyOffer(w, { kind: 'boon', key: b.key, name: 'x', desc: 'x', toLevel: rank });
+    }
+  }
+  for (const card of content.boons.skillCards[w.cfg.classKey] ?? []) {
+    for (let rank = 1; rank <= card.maxRank; rank++) {
+      applyOffer(w, { kind: 'skill_card', key: card.key, name: 'x', desc: 'x', toLevel: rank });
     }
   }
   w.phase = 'act2';

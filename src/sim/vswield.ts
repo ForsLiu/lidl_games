@@ -32,6 +32,7 @@ import { applySlow } from './enemies';
 import { dist2, normalize } from './math';
 import { arcElectric, effectiveTowerAoe, LINE_HALF_WIDTH, leadTarget, pickLobTarget } from './towers';
 import { coreAttackSpeedMul } from './cores';
+import { typeMasteryMul } from './progression';
 import { attackProfile, type AttackProfile, upgradeStatMul } from './upgrades';
 import type { Enemy, Structure } from './types';
 import type { World } from './world';
@@ -209,7 +210,10 @@ function fireWielded(w: World, wielded: WieldedAttack, def: TowerDef, a: TowerAt
   // (`towerRange`) deliberately does not — see this file's header comment on
   // why `towerRangeMul` stays Act I's.
   const range = a.range * area * w.derived.charRangeMul;
-  const dmg = wielded.damage * w.derived.powerMul;
+  // SPEC-FINAL §6.3 Type Mastery: "+20% that type's VS attack damage" per
+  // rank, one card per built tower type — applied here, the single choke
+  // point every wielded-attack kind already funnels its damage through.
+  const dmg = wielded.damage * w.derived.powerMul * typeMasteryMul(w, wielded.towerKey);
   const prof = wielded.profile;
   const source = wielded.towerKey;
   const fx: HitEffects = { source, onHit: prof.onHit, ratio: prof.ratio };

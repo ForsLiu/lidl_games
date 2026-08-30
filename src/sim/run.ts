@@ -1123,6 +1123,13 @@ export function hashWorld(w: World): string {
   for (const k of attackKeys) h.str(k).int(w.attacksFired[k]);
   const boonKeys = Object.keys(w.boonRanks).sort();
   for (const k of boonKeys) h.str(k).int(w.boonRanks[k]);
+  // p7a (§6.3): the pool's other two card families — same sorted-key shape
+  // `boonRanks` above already uses, so a divergence in either can't pass G2
+  // undetected (the f001-review gap class named just above).
+  const masteryKeys = Object.keys(w.typeMasteryRanks).sort();
+  for (const k of masteryKeys) h.str(k).int(w.typeMasteryRanks[k]);
+  const skillCardKeys = Object.keys(w.skillCardRanks).sort();
+  for (const k of skillCardKeys) h.str(k).int(w.skillCardRanks[k]);
   // fb007: `damageByType` is a second choke-point accumulator alongside
   // `damageByWeapon` (only `damageTotal`, their shared sum, was hashed below)
   // and the four wave/Sunder snapshots gate what the DPS panel's "this wave"
@@ -1188,6 +1195,8 @@ export function buildReport(w: World): RunReport {
       : 0,
     topWeaponMinute8: w.damageThroughMinute8 ? topWeaponShare(w, w.damageThroughMinute8).key : '',
     boons: { ...w.boonRanks },
+    typeMastery: { ...w.typeMasteryRanks },
+    skillCards: { ...w.skillCardRanks },
     relicsFound: w.relicsFound.length,
     equipmentFound: w.equipmentFound.length,
     ember: 0,

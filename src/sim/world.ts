@@ -219,6 +219,10 @@ export class World {
   stats: Stats;
   derived: Derived;
   boonRanks: Record<string, number> = {};
+  /** p7a (§6.3): Type Mastery ranks, keyed by tower type key. */
+  typeMasteryRanks: Record<string, number> = {};
+  /** p7a (§6.3): per-class skill card ranks, keyed by the card's own globally-unique key. */
+  skillCardRanks: Record<string, number> = {};
   level = 1;
   xp = 0;
   pendingLevelUps = 0;

@@ -165,6 +165,8 @@ function minimalReport(): import('../src/sim/types').RunReport {
     topWeaponShareMinute8: 0,
     topWeaponMinute8: '',
     boons: {},
+    typeMastery: {},
+    skillCards: {},
     relicsFound: 0,
     equipmentFound: 0,
     ember: 0,

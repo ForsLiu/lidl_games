@@ -26,6 +26,7 @@ import { applyTowerLifesteal, vampireMissingHpBuffMul } from './cores';
 import { applyDamageType } from './damagetypes';
 import { dist2, normalize } from './math';
 import { applySlow } from './enemies';
+import { active1PotencyMul, classLineBonus } from './progression';
 import type { Enemy, Structure, TowerClassBonus } from './types';
 import {
   attackProfile,
@@ -232,7 +233,12 @@ function classTowerDamageMul(w: World, s: Structure): number {
   if (!cls) return 1;
   let mul = 1;
   if (s.pactActive && cls.active2.kind === 'death_pact') mul *= 1 + (cls.active2.pactDamageMul ?? 0);
-  if (s.tithed && cls.active1.kind === 'blood_tithe') mul *= 1 + (cls.active1.titheDamageMul ?? 0);
+  if (s.tithed && cls.active1.kind === 'blood_tithe') {
+    // p7a (§6.3): "Active1 potency +25%" scales the tithe's own granted %;
+    // skill card "Deeper Tithe" (`class_line`) adds a further flat bonus on
+    // top, rather than the same lever twice.
+    mul *= 1 + (cls.active1.titheDamageMul ?? 0) * active1PotencyMul(w) + classLineBonus(w);
+  }
   // "all towers +15% damage while below full HP" — Act I only, the default
   // every tower stat but Wind Slash already carries (Q118/Q119).
   const lowHp = cls.towerPassive.mods.towerLowHpDamageBonus ?? 0;

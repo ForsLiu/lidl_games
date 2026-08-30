@@ -99,12 +99,12 @@ describe('character panel data model', () => {
         relics: [relic(2, 'charm')], // implicit moveSpeedPct 0.05
       }),
     );
-    takeBoonToRank(w, 'swift', 2); // perRank 0.05, rank 2 -> boon:swift totals 0.10
+    takeBoonToRank(w, 'swift', 2); // perRank 0.10, rank 2 -> boon:swift totals 0.20
 
     // "10% + 20% atk speed -> x1.1 x1.2": each source's own ranks add, then
     // sources multiply. Computed from the raw authored numbers above, not
     // from Stats — an independent cross-check of the stacking rule itself.
-    const expected = (1 + 0.15) * (1 + 0.1) * (1 + 0.05) * (1 + 0.1);
+    const expected = (1 + 0.15) * (1 + 0.1) * (1 + 0.05) * (1 + 0.2);
     expect(w.stats.factor('moveSpeedPct')).toBeCloseTo(expected, 10);
 
     const row = characterPanelData(w).stats.find((s) => s.key === 'moveSpeedPct')!;
@@ -160,20 +160,20 @@ describe('character panel data model', () => {
 
   it('a flat-stat boon (armor) and a mul-stat boon (power) both format through the right stat kind', () => {
     const w = new World(cfg());
-    takeBoonToRank(w, 'plating', 2); // armor, flat, perRank 6
-    takeBoonToRank(w, 'power', 1); // power, mul, perRank 0.08
+    takeBoonToRank(w, 'plating', 2); // armor, flat, perRank 5
+    takeBoonToRank(w, 'power', 1); // power, mul, perRank 0.10
 
     const boons = characterPanelData(w).boons;
     const plating = boons.find((b) => b.key === 'plating')!;
     const power = boons.find((b) => b.key === 'power')!;
     expect(plating.kind).toBe('flat');
-    expect(plating.contribution).toBe(12);
+    expect(plating.contribution).toBe(10);
     expect(power.kind).toBe('mul');
-    expect(power.contribution).toBeCloseTo(0.08, 10);
+    expect(power.contribution).toBeCloseTo(0.1, 10);
   });
 
   it('every boon in the pool is covered by a display name, even at rank 0 (never listed) and at max rank', () => {
-    for (const b of content.boons.boons) {
+    for (const b of content.boons.statBoons) {
       const w = new World(cfg());
       takeBoonToRank(w, b.key, b.maxRank);
       const row = characterPanelData(w).boons.find((x) => x.key === b.key)!;

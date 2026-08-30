@@ -48,7 +48,7 @@ import { join } from 'node:path';
  * pin, instead of being fuzzed against a loader that never reads it.
  */
 export const DATA_FILES = [
-  'boons',
+  'vsupgrades',
   'classes',
   'cores',
   'damagetypes',

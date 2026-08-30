@@ -65,7 +65,7 @@ import { ACCEPTED, INEFFECTIVE, REF_VERDICTS } from './q7-loader-holes';
  */
 const holders = vi.hoisted(() => {
   const names = [
-    'boons', 'classes', 'cores', 'damagetypes', 'dev', 'enemies', 'equipment',
+    'vsupgrades', 'classes', 'cores', 'damagetypes', 'dev', 'enemies', 'equipment',
     'modifiers', 'quests', 'relics', 'spawns', 'towers', 'tree', 'warden', 'waves',
   ];
   const h: Record<string, Record<string, unknown>> = {};
@@ -73,7 +73,7 @@ const holders = vi.hoisted(() => {
   return h;
 });
 
-vi.mock('../data/boons.json', () => ({ default: holders.boons }));
+vi.mock('../data/vsupgrades.json', () => ({ default: holders.vsupgrades }));
 vi.mock('../data/classes.json', () => ({ default: holders.classes }));
 vi.mock('../data/cores.json', () => ({ default: holders.cores }));
 vi.mock('../data/damagetypes.json', () => ({ default: holders.damagetypes }));
@@ -463,24 +463,26 @@ describe('q7 — cross-file references, row by row', () => {
 
   it('checks references one way only, so an unreferenced row can be renamed (E1)', async () => {
     const observed = await runCensusB();
-    // The four primary-key fields that scored `partial`: some rows are pointed
-    // at from another file and caught, and the rest are not checked at all.
-    // This is *why* the canonical census over-reports — and why E1 exists.
+    // The three primary-key fields that scored `partial`: some rows are
+    // pointed at from another file and caught, and the rest are not checked
+    // at all. This is *why* the canonical census over-reports — and why E1
+    // exists.
     //
     // Post-merge deltas from the 2026-08-26 recording: `boons.boons[].key`
     // *left* this list for the wrong reason — `weapons.awakenings[].boon` was
     // the only /data reference to any boon key, so deleting the soul-weapon
-    // system left every boon key `open`, checked by nothing. And
-    // `classes.classes[].key` *joined* it: affinity.json's three rows are the
-    // only cross-file pointers at a class key, so 9 of the 12 rows (measured
-    // 9/12 accepted) rename freely.
+    // system left every boon key `open`, checked by nothing.
+    //
+    // p7a: `classes.classes[].key` *left* this list too, but for the opposite
+    // reason — it moved to fully `checked`, not to `open`. `content.ts`'s
+    // loader now cross-references every class's key twice over:
+    // `vsupgrades.json`'s `skillCards` must have an entry for every class
+    // (`classes.classes[].key` -> `vsupgrades.skillCards.<key>`) and every
+    // `skillCards` key must name a real class (the reverse direction) — so
+    // all 12 rows are caught now, not 9 of 12 through `affinity.json` (itself
+    // deleted at p6f, which is why this row read `open` in between).
     const partial = Object.keys(observed).filter((p) => observed[p] === 'partial');
-    expect(partial.sort()).toEqual([
-      'classes.classes[].key',
-      'damagetypes.types[].key',
-      'enemies.enemies[].key',
-      'towers.towers[].key',
-    ]);
+    expect(partial.sort()).toEqual(['damagetypes.types[].key', 'enemies.enemies[].key', 'towers.towers[].key']);
   }, 300_000);
 });
 

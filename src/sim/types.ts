@@ -524,7 +524,9 @@ export interface Relic {
 
 /* ------------------------------------------------------------- level-ups */
 
-export type OfferKind = 'boon';
+/** SPEC-FINAL §6.3's three card families: a stat boon, a Type Mastery card
+ * (one per built tower type) and a per-class skill card. */
+export type OfferKind = 'boon' | 'type_mastery' | 'skill_card';
 
 export interface Offer {
   kind: OfferKind;
@@ -533,6 +535,8 @@ export interface Offer {
   desc: string;
   /** Resulting level/rank if taken. */
   toLevel: number;
+  /** `type_mastery` only: which built tower type this card boosts. */
+  towerKey?: string;
 }
 
 /* ------------------------------------------------------------- run config */
@@ -676,6 +680,9 @@ export interface RunReport {
   topWeaponShareMinute8: number;
   topWeaponMinute8: string;
   boons: Record<string, number>;
+  /** p7a (§6.3): the other two pool families, alongside `boons` (stat boons). */
+  typeMastery: Record<string, number>;
+  skillCards: Record<string, number>;
   relicsFound: number;
   /** fb015 (§8.1): equipment items rolled this run, one per fully cleared TD wave. */
   equipmentFound: number;

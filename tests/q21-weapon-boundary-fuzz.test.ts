@@ -17,9 +17,8 @@
 import { describe, expect, it } from 'vitest';
 
 import { spawnEnemy } from '../src/sim/enemies';
-import { Hasher } from '../src/sim/hash';
 import { applyOffer, openLevelUpIfPending, rerollOffers, rollOffers, takeOffer } from '../src/sim/progression';
-import { applyCommand, hashWorld } from '../src/sim/run';
+import { applyCommand } from '../src/sim/run';
 import type { StatKey } from '../src/sim/stats';
 import { updateWieldedAttacks, wieldedAttacks } from '../src/sim/vswield';
 import {
@@ -122,16 +121,16 @@ describe('q21 offer/wielding boundary fuzz', () => {
 
   /* ---------------------------------------------------- named findings */
 
-  describe("finding: applyOffer's 'boon' case stores a forged toLevel with zero validation (ported q30)", () => {
-    // progression.ts:148-158: `w.boonRanks[b.key] = offer.toLevel` — no
-    // clamp, no integer check, no finite check. The measured consequence
-    // splits by what `buildOfferPool`'s `rank >= b.maxRank` re-offer cap
-    // (progression.ts:109) does with the poisoned value when it reads it
-    // back.
-    it('toLevel=Infinity: stored illegally, but buildOfferPool legitimately excludes it — Infinity >= maxRank is sound', () => {
+  describe("finding CLOSED at p7a: applyOffer's 'boon' case used to store a forged toLevel with zero validation (ported q30, BACKLOG b011)", () => {
+    // progression.ts's `clampRank` now runs every offer kind's `toLevel`
+    // through `[1, maxRank]` (non-finite collapses to rank 1) before it is
+    // stored — these cases pin the fixed behavior for exactly the forged
+    // inputs the old exploit chain used.
+    it('toLevel=Infinity clamps to maxRank, not stored illegally', () => {
       const w = newWorld();
+      const haste = w.content.boonByKey.get(PROBE_BOON)!;
       applyOffer(w, { kind: 'boon', key: PROBE_BOON, name: 'x', desc: 'x', toLevel: Infinity });
-      expect(w.boonRanks[PROBE_BOON]).toBe(Infinity);
+      expect(w.boonRanks[PROBE_BOON]).toBe(haste.maxRank);
       w.phase = 'levelup';
       for (let i = 0; i < 25; i++) {
         const offers = rollOffers(w);
@@ -139,64 +138,29 @@ describe('q21 offer/wielding boundary fuzz', () => {
       }
     });
 
-    it('toLevel=Infinity: hashWorld distinguishes it from a legitimately-maxed boon, but only because 0 is unreachable, not because Infinity has a distinct hash contribution', () => {
-      // hash.ts:12-20's Hasher.int(v) does `v | 0` (JS ToInt32), which
-      // coerces NaN, +Infinity, -Infinity AND an explicit 0 to the IDENTICAL
-      // hash contribution — measured directly here, not assumed. hashWorld
-      // (run.ts:903-904) hashes boonRanks through h.int, so it only "sees"
-      // the Infinity poisoning because no legitimate applyOffer call ever
-      // stores 0 in boonRanks (every real offer is rank + 1 >= 1) — the
-      // poisoned state collides with an unreachable rank, not with anything
-      // a real run could produce.
-      const legit = newWorld();
-      applyOffer(legit, { kind: 'boon', key: PROBE_BOON, name: 'x', desc: 'x', toLevel: 5 }); // legitimate max rank
-      const poisoned = newWorld();
-      applyOffer(poisoned, { kind: 'boon', key: PROBE_BOON, name: 'x', desc: 'x', toLevel: Infinity });
-      expect(hashWorld(legit)).not.toBe(hashWorld(poisoned));
-
-      const h = new Hasher();
-      h.str(PROBE_BOON).int(Infinity);
-      const hZero = new Hasher();
-      hZero.str(PROBE_BOON).int(0);
-      expect(h.value).toBe(hZero.value); // the actual collision this claim rests on
-    });
-
-    it("toLevel=NaN: stored illegally, and defeats the ENTIRE draw's weighting, not just its own re-offer cap", () => {
-      // NaN >= maxRank is false, so the offer stays in the pool with a NaN
-      // rollOffers weight (`8 * (1 + luckBias * NaN)`, progression.ts:89).
-      // Rng.weightedIndex (rng.ts:65-75) sums weights into a NaN total,
-      // which makes every `r < 0` scan comparison false and falls through to
-      // `return weights.length - 1` — deterministically the LAST remaining
-      // pool entry, every draw, regardless of the RNG stream. The poisoned
-      // boon happens not to be last in this content's pool order, so it
-      // never surfaces — but every other offer in the same call is no longer
-      // a fair weighted pick either, proven here by the draw becoming fully
-      // reproducible across repeated calls that would otherwise advance the
-      // RNG stream and vary the result.
+    it('toLevel=NaN clamps to rank 1 (the non-finite fallback), and a normal weighted draw still varies', () => {
       const w = newWorld();
       applyOffer(w, { kind: 'boon', key: PROBE_BOON, name: 'x', desc: 'x', toLevel: NaN });
-      expect(w.boonRanks[PROBE_BOON]).toBeNaN();
+      expect(w.boonRanks[PROBE_BOON]).toBe(1);
       w.phase = 'levelup';
       const first = rollOffers(w).map((o) => `${o.kind}:${o.key}`);
       const second = rollOffers(w).map((o) => `${o.kind}:${o.key}`);
-      expect(second).toEqual(first); // a fair weighted draw would vary as the RNG stream advances
-      expect(first.includes(`boon:${PROBE_BOON}`)).toBe(false);
+      // A real (non-NaN) weight lets the RNG stream actually vary the draw —
+      // the old bug made every draw identical regardless of the stream.
+      let sawDifference = false;
+      for (let i = 0; i < 25 && !sawDifference; i++) {
+        if (rollOffers(w).map((o) => `${o.kind}:${o.key}`).join(',') !== first.join(',')) sawDifference = true;
+      }
+      expect(second).toBeDefined();
+      expect(sawDifference).toBe(true);
     });
 
-    it('toLevel=-5: stored illegally, and the boon keeps re-surfacing — a real, unbounded stat-stacking exploit', () => {
-      // -5 >= maxRank is false, but -5 / maxRank is finite, so the weight
-      // stays finite and the draw's fairness is undisturbed: the corrupted
-      // boon keeps winning a real share of draws. Each re-pick re-runs
-      // `stats.addAll('boon:haste', ...)` (progression.ts:154), which sums
-      // under the same source key with no cap of its own — so climbing the
-      // ladder back from -5 stacks perRank far past what maxRank allows.
-      // The re-picks below go through the REAL surface (rollOffers ->
-      // takeOffer with the rolled offer's own index), not hand-built offers.
+    it('toLevel=-5 clamps to rank 1, not stored as a negative seed — no unbounded stat-stacking exploit', () => {
       const w = newWorld();
       const haste = w.content.boonByKey.get(PROBE_BOON)!;
       applyOffer(w, { kind: 'boon', key: PROBE_BOON, name: 'x', desc: 'x', toLevel: -5 });
-      expect(w.boonRanks[PROBE_BOON]).toBe(-5);
-      let picks = 0;
+      expect(w.boonRanks[PROBE_BOON]).toBe(1);
+      let picks = 1; // the forged pick above already landed at rank 1
       for (let i = 0; i < 400 && (w.boonRanks[PROBE_BOON] ?? 0) < haste.maxRank; i++) {
         w.phase = 'levelup';
         w.offers = rollOffers(w);
@@ -205,16 +169,14 @@ describe('q21 offer/wielding boundary fuzz', () => {
         expect(takeOffer(w, idx)).toBe(true);
         picks++;
       }
-      // The full ladder back from -5 to maxRank 5 is 10 legitimate-looking
-      // picks — double what a clean run could ever grant.
-      expect(picks).toBe(2 * haste.maxRank);
+      // The clean ladder from rank 1 to maxRank 5 is exactly maxRank picks —
+      // no doubling from a poisoned negative seed.
+      expect(picks).toBe(haste.maxRank);
       const attackSpeedTotal = w.stats.total(haste.stat as StatKey);
-      // One addAll per applyOffer call: the forged -5 seed plus each re-pick.
-      expect(attackSpeedTotal).toBeCloseTo(haste.perRank * (picks + 1), 5);
-      expect(attackSpeedTotal).toBeGreaterThan(haste.perRank * haste.maxRank);
+      expect(attackSpeedTotal).toBeCloseTo(haste.perRank * haste.maxRank, 5);
     });
 
-    it('the legitimate case (a real boon-rank offer) applies and stays in-domain — this is not a general applyOffer failure', () => {
+    it('the legitimate case (a real boon-rank offer) applies and stays in-domain — unaffected by the fix', () => {
       const w = newWorld();
       applyOffer(w, { kind: 'boon', key: PROBE_BOON, name: 'x', desc: 'x', toLevel: 1 });
       expect(w.boonRanks[PROBE_BOON]).toBe(1);
@@ -222,16 +184,25 @@ describe('q21 offer/wielding boundary fuzz', () => {
       expect(() => rollOffers(w)).not.toThrow();
     });
 
-    it('not reachable through the real Command surface: rollOffers only ever emits toLevel = rank + 1, capped by maxRank', () => {
+    it('rollOffers only ever emits toLevel = rank + 1, capped by maxRank, across all 3 pool families', () => {
       const w = newWorld();
       w.phase = 'levelup';
       for (let i = 0; i < 25; i++) {
         const offers = rollOffers(w);
         for (const o of offers) {
-          expect(o.kind).toBe('boon');
-          const rank = w.boonRanks[o.key] ?? 0;
-          expect(o.toLevel).toBe(rank + 1);
-          expect(o.toLevel).toBeLessThanOrEqual(w.content.boonByKey.get(o.key)!.maxRank);
+          if (o.kind === 'boon') {
+            const rank = w.boonRanks[o.key] ?? 0;
+            expect(o.toLevel).toBe(rank + 1);
+            expect(o.toLevel).toBeLessThanOrEqual(w.content.boonByKey.get(o.key)!.maxRank);
+          } else if (o.kind === 'type_mastery') {
+            const rank = w.typeMasteryRanks[o.key] ?? 0;
+            expect(o.toLevel).toBe(rank + 1);
+            expect(o.toLevel).toBeLessThanOrEqual(w.content.boons.typeMastery.maxRank);
+          } else {
+            const rank = w.skillCardRanks[o.key] ?? 0;
+            expect(o.toLevel).toBe(rank + 1);
+            expect(o.toLevel).toBeLessThanOrEqual(w.content.skillCardByKey.get(o.key)!.maxRank);
+          }
         }
       }
     });
@@ -297,16 +268,22 @@ describe('q21 offer/wielding boundary fuzz', () => {
     });
   });
 
-  describe('finding: an exhausted boon pool softlocks the levelup phase — reachable through legitimate play (sim bug, pinned not fixed)', () => {
-    // With all 12 boons at maxRank (level 57+: 11 x 5 ranks + Second Wind's
-    // 1), buildOfferPool is empty, yet openLevelUpIfPending
-    // (progression.ts:30-36) still enters 'levelup' with offers = [].
-    // takeOffer finds no offer at any index; rerollOffers "succeeds" into
-    // another empty list; nothing on the Command surface leaves the phase.
+  describe('finding: an exhausted level-up pool softlocks the levelup phase — reachable through legitimate play (sim bug, pinned not fixed)', () => {
+    // With every stat boon and every one of the run class's 3 skill cards at
+    // maxRank (Type Mastery never contributes here — no tower is ever built
+    // in this probe), buildOfferPool is empty, yet openLevelUpIfPending
+    // still enters 'levelup' with offers = []. takeOffer finds no offer at
+    // any index; rerollOffers "succeeds" into another empty list; nothing on
+    // the Command surface leaves the phase.
     function maxAllBoons(w: ReturnType<typeof newWorld>): void {
-      for (const b of w.content.boons.boons) {
+      for (const b of w.content.boons.statBoons) {
         for (let rank = 1; rank <= b.maxRank; rank++) {
           applyOffer(w, { kind: 'boon', key: b.key, name: 'x', desc: 'x', toLevel: rank });
+        }
+      }
+      for (const card of w.content.boons.skillCards[w.cfg.classKey] ?? []) {
+        for (let rank = 1; rank <= card.maxRank; rank++) {
+          applyOffer(w, { kind: 'skill_card', key: card.key, name: 'x', desc: 'x', toLevel: rank });
         }
       }
     }

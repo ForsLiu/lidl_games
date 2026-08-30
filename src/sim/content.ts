@@ -9,7 +9,7 @@ import towersRaw from '../../data/towers.json';
 import enemiesRaw from '../../data/enemies.json';
 import wavesRaw from '../../data/waves.json';
 import spawnsRaw from '../../data/spawns.json';
-import boonsRaw from '../../data/boons.json';
+import vsupgradesRaw from '../../data/vsupgrades.json';
 import relicsRaw from '../../data/relics.json';
 import treeRaw from '../../data/tree.json';
 import modifiersRaw from '../../data/modifiers.json';
@@ -400,8 +400,16 @@ const SpawnsFileSchema = z.object({
   eliteWeights: z.record(num),
 });
 
-/* ------------------------------------------------------------------- boons */
+/* ------------------------------------------------------------- vsupgrades */
 
+/**
+ * SPEC-FINAL §6.3: the VS level-up pool has three card families — stat
+ * boons (this shape), Type Mastery (one entry, applied per built tower
+ * type) and per-class skill cards (`SkillCardSchema` below). Superseded by
+ * this rewrite: fb011's "uncapped" boons (`feature-remove-boon-rank-caps`)
+ * — §6.3 states a fixed `rank x5` for stat boons with no uncapped clause,
+ * so that verdict does not carry forward to the new pool (logged Q144).
+ */
 const BoonSchema = z.object({
   key: str,
   name: str,
@@ -409,14 +417,32 @@ const BoonSchema = z.object({
   stat: str,
   perRank: num,
   desc: str,
-  /** fb011 (§6.3 supersede, owner feedback `feature-remove-boon-rank-caps`):
-   * a stat boon with this set keeps appearing in offers past `maxRank`,
-   * which then serves only as the historical/display reference rank. Skill
-   * cards (e.g. `second_wind`) omit it and stay capped. */
-  uncapped: z.boolean().optional(),
 });
 
-const BoonsFileSchema = z.object({ rerollsPerLevel: num, boons: z.array(BoonSchema) });
+const TypeMasterySchema = z.object({ maxRank: num, perRank: num });
+
+/**
+ * `effect` dispatches how `applyOffer`/`classes.ts` read the card:
+ * `active1_potency`/`active2_cdr` are generic (every class gets exactly
+ * one of each, read by key-less helpers in `progression.ts`); `class_line`
+ * is the bespoke third card, whose specific field it bumps is class-specific
+ * engine code, not data (the data only carries its rank/magnitude).
+ */
+const SkillCardSchema = z.object({
+  key: str,
+  name: str,
+  effect: z.enum(['active1_potency', 'active2_cdr', 'class_line']),
+  maxRank: num,
+  perRank: num,
+  desc: str,
+});
+
+const VsUpgradesFileSchema = z.object({
+  rerollsPerLevel: num,
+  statBoons: z.array(BoonSchema),
+  typeMastery: TypeMasterySchema,
+  skillCards: z.record(z.array(SkillCardSchema)),
+});
 
 /* ------------------------------------------------------------------ relics */
 
@@ -1364,6 +1390,7 @@ export type TerrainDef = z.infer<typeof TerrainSchema>;
 export type VsSpecial = z.infer<typeof VsSpecialSchema>;
 export type EnemyDef = z.infer<typeof EnemySchema>;
 export type BoonDef = z.infer<typeof BoonSchema>;
+export type SkillCardDef = z.infer<typeof SkillCardSchema>;
 export type AffixDef = z.infer<typeof AffixSchema>;
 export type TreeNode = z.infer<typeof TreeNodeSchema>;
 export type ModifierDef = z.infer<typeof ModifiersFileSchema>['modifiers'][number];
@@ -1449,7 +1476,7 @@ export interface Content {
   enemies: z.infer<typeof EnemiesFileSchema>;
   waves: z.infer<typeof WavesFileSchema>;
   spawns: z.infer<typeof SpawnsFileSchema>;
-  boons: z.infer<typeof BoonsFileSchema>;
+  boons: z.infer<typeof VsUpgradesFileSchema>;
   relics: z.infer<typeof RelicsFileSchema>;
   tree: z.infer<typeof TreeFileSchema>;
   modifiers: z.infer<typeof ModifiersFileSchema>;
@@ -1465,6 +1492,7 @@ export interface Content {
   enemyByKey: Map<string, EnemyDef>;
   enemyById: Map<number, EnemyDef>;
   boonByKey: Map<string, BoonDef>;
+  skillCardByKey: Map<string, SkillCardDef>;
   treeById: Map<number, TreeNode>;
   classByKey: Map<string, ClassDef>;
   modifierByKey: Map<string, ModifierDef>;
@@ -1492,7 +1520,7 @@ export function loadContent(): Content {
   const enemies = EnemiesFileSchema.parse(enemiesRaw);
   const waves = WavesFileSchema.parse(wavesRaw);
   const spawns = SpawnsFileSchema.parse(spawnsRaw);
-  const boons = BoonsFileSchema.parse(boonsRaw);
+  const boons = VsUpgradesFileSchema.parse(vsupgradesRaw);
   const relics = RelicsFileSchema.parse(relicsRaw);
   const tree = TreeFileSchema.parse(treeRaw);
   const modifiers = ModifiersFileSchema.parse(modifiersRaw);
@@ -1536,6 +1564,29 @@ export function loadContent(): Content {
         throw new Error(`classes.json: ${c.key}.${eff.name} references unknown tower "${eff.towerKey}"`);
       }
     }
+  }
+
+  // p7a (§6.3): every class needs exactly its 3 skill cards — one each of
+  // active1_potency/active2_cdr/class_line — so `progression.ts`'s generic
+  // per-effect lookup (`skillCard`) can assume exactly one match per class
+  // rather than silently reading `undefined` and granting nothing.
+  const skillCardKeys = new Set<string>();
+  for (const c of classes.classes) {
+    const cards = boons.skillCards[c.key];
+    if (!cards) throw new Error(`vsupgrades.json: class "${c.key}" has no skillCards entry`);
+    const effects = cards.map((card) => card.effect).sort();
+    if (cards.length !== 3 || effects.join(',') !== 'active1_potency,active2_cdr,class_line') {
+      throw new Error(
+        `vsupgrades.json: ${c.key}.skillCards must have exactly one active1_potency, active2_cdr and class_line card`,
+      );
+    }
+    for (const card of cards) {
+      if (skillCardKeys.has(card.key)) throw new Error(`vsupgrades.json: duplicate skill card key "${card.key}"`);
+      skillCardKeys.add(card.key);
+    }
+  }
+  for (const classKey of Object.keys(boons.skillCards)) {
+    if (!classKeys.has(classKey)) throw new Error(`vsupgrades.json: skillCards references unknown class "${classKey}"`);
   }
   for (const t of towers.towers) {
     const where = `towers.json: ${t.key}`;
@@ -1621,7 +1672,8 @@ export function loadContent(): Content {
     towerById: new Map(towers.towers.map((t) => [t.id, t])),
     enemyByKey: new Map(enemies.enemies.map((e) => [e.key, e])),
     enemyById: new Map(enemies.enemies.map((e) => [e.id, e])),
-    boonByKey: new Map(boons.boons.map((b) => [b.key, b])),
+    boonByKey: new Map(boons.statBoons.map((b) => [b.key, b])),
+    skillCardByKey: new Map(Object.values(boons.skillCards).flat().map((c) => [c.key, c])),
     treeById: new Map(tree.nodes.map((n) => [n.id, n])),
     classByKey: new Map(classes.classes.map((c) => [c.key, c])),
     modifierByKey: new Map(modifiers.modifiers.map((m) => [m.key, m])),

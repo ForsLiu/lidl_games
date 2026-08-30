@@ -1,11 +1,65 @@
 /**
- * Act II progression: XP gems, level-ups and the 1-of-3 offer screen
- * (SPEC 5.2-5.4). Luck weights offer rarity; each level grants one free reroll.
+ * Act II progression: XP gems, level-ups and the SPEC-FINAL §6.3 1-of-3
+ * level-up pool. Luck weights offer rarity; each level grants one free reroll.
+ *
+ * p7a rewrote the pool from a flat 12-boon list to §6.3's three card
+ * families — stat boons (`w.boonRanks`), Type Mastery per built tower type
+ * (`w.typeMasteryRanks`) and 3 skill cards per class (`w.skillCardRanks`) —
+ * and, as part of that rewrite, closed BACKLOG b011 (`applyOffer`'s boon
+ * case stored a forged `Offer.toLevel` unclamped): every case below now
+ * clamps to a finite integer in `[1, maxRank]` before it is stored.
  */
 
+import type { SkillCardDef } from './content';
 import { dist2, normalize } from './math';
 import type { Offer } from './types';
 import { World } from './world';
+
+/** An integer rank in `[1, maxRank]` — `applyOffer`'s guard against a forged
+ * `Offer.toLevel` (BACKLOG b011: `NaN`/`Infinity`/negative all landed in
+ * `boonRanks` unclamped before this rewrite). Only `NaN` needs a special
+ * case: `Math.round`/`Math.max`/`Math.min` already saturate `+Infinity` to
+ * `maxRank` and `-Infinity` to `1` correctly on their own. */
+function clampRank(toLevel: number, maxRank: number): number {
+  if (Number.isNaN(toLevel)) return 1;
+  return Math.min(maxRank, Math.max(1, Math.round(toLevel)));
+}
+
+/** The current class's own copy of one of its 3 skill cards, by `effect`. */
+function skillCard(w: World, effect: SkillCardDef['effect']): SkillCardDef | undefined {
+  return w.content.boons.skillCards[w.cfg.classKey]?.find((c) => c.effect === effect);
+}
+
+/** SPEC-FINAL §6.3 skill card "Active1 potency +25%/rank" — generic across
+ * every class's kind, since each class owns exactly one such card. */
+export function active1PotencyMul(w: World): number {
+  const card = skillCard(w, 'active1_potency');
+  if (!card) return 1;
+  return 1 + card.perRank * (w.skillCardRanks[card.key] ?? 0);
+}
+
+/** SPEC-FINAL §6.3 skill card "Active2 cooldown -25%/rank" — a fraction
+ * subtracted alongside the general `cdr` stat, same shape, different source. */
+export function active2CdrBonus(w: World): number {
+  const card = skillCard(w, 'active2_cdr');
+  if (!card) return 0;
+  return card.perRank * (w.skillCardRanks[card.key] ?? 0);
+}
+
+/** SPEC-FINAL §6.3's bespoke third skill card, e.g. "Thousand Cuts applies 2
+ * Bleeding" — the ready-to-use bonus amount (`rank * perRank`); which field
+ * it bumps is class-specific engine code, read at exactly one call site per
+ * class (Q144). */
+export function classLineBonus(w: World): number {
+  const card = skillCard(w, 'class_line');
+  if (!card) return 0;
+  return card.perRank * (w.skillCardRanks[card.key] ?? 0);
+}
+
+/** SPEC-FINAL §6.3 Type Mastery: "+20% that type's VS attack damage" per rank. */
+export function typeMasteryMul(w: World, towerKey: string): number {
+  return 1 + w.content.boons.typeMastery.perRank * (w.typeMasteryRanks[towerKey] ?? 0);
+}
 
 /** SPEC 5.2: XP to reach level n = 5n + n^2. */
 export function xpToReach(level: number): number {
@@ -179,12 +233,17 @@ interface WeightedOffer {
   value: number;
 }
 
+/**
+ * SPEC-FINAL §6.3's three card families, offer weighting even (each entry's
+ * `weight: 8` regardless of family — the spec's own wording; "Luck-style
+ * modifiers may weight later" is explicitly marked ⚖, i.e. not this pass).
+ */
 function buildOfferPool(w: World): WeightedOffer[] {
   const out: WeightedOffer[] = [];
 
-  for (const b of w.content.boons.boons) {
+  for (const b of w.content.boons.statBoons) {
     const rank = w.boonRanks[b.key] ?? 0;
-    if (!b.uncapped && rank >= b.maxRank) continue;
+    if (rank >= b.maxRank) continue;
     out.push({
       offer: {
         kind: 'boon',
@@ -194,10 +253,49 @@ function buildOfferPool(w: World): WeightedOffer[] {
         toLevel: rank + 1,
       },
       weight: 8,
-      // Uncapped boons have no denominator to read "how good is this" off
-      // of; saturate at the old rank-5 cap instead so Luck biasing keeps
-      // its pre-fb011 shape rather than treating rank 6+ as ever-better.
-      value: b.uncapped ? Math.min(1, rank / 5) : rank / b.maxRank,
+      value: rank / b.maxRank,
+    });
+  }
+
+  // Type Mastery: one card per built tower type that actually has a VS
+  // attack to boost (mirrors `vswield.ts`'s own `!def.attack` skip — a wall,
+  // Beacon Totem or Harvest Sprout has nothing for this card to multiply).
+  const mastery = w.content.boons.typeMastery;
+  for (const towerKey of Object.keys(w.towersByKey)) {
+    if ((w.towersByKey[towerKey] ?? 0) <= 0) continue;
+    const def = w.content.towerByKey.get(towerKey);
+    if (!def || !def.attack) continue;
+    const rank = w.typeMasteryRanks[towerKey] ?? 0;
+    if (rank >= mastery.maxRank) continue;
+    out.push({
+      offer: {
+        kind: 'type_mastery',
+        key: towerKey,
+        name: `${def.name} Mastery ${romanRank(rank + 1)}`,
+        desc: `+${Math.round(mastery.perRank * 100)}% ${def.name} VS damage`,
+        toLevel: rank + 1,
+        towerKey,
+      },
+      weight: 8,
+      value: rank / mastery.maxRank,
+    });
+  }
+
+  // Skill cards: only the 3 belonging to the run's own class.
+  const cards = w.content.boons.skillCards[w.cfg.classKey] ?? [];
+  for (const card of cards) {
+    const rank = w.skillCardRanks[card.key] ?? 0;
+    if (rank >= card.maxRank) continue;
+    out.push({
+      offer: {
+        kind: 'skill_card',
+        key: card.key,
+        name: `${card.name} ${romanRank(rank + 1)}`,
+        desc: card.desc,
+        toLevel: rank + 1,
+      },
+      weight: 8,
+      value: rank / card.maxRank,
     });
   }
 
@@ -243,13 +341,41 @@ export function rerollOffers(w: World): boolean {
 }
 
 export function applyOffer(w: World, offer: Offer): void {
-  if (offer.kind !== 'boon') return;
-  const b = w.content.boonByKey.get(offer.key);
-  if (!b) return;
-  w.boonRanks[b.key] = offer.toLevel;
-  // One boon is one source: its ranks add within it, then multiply out (V3 §2).
-  w.stats.addAll(`boon:${b.key}`, { [b.stat]: b.perRank });
-  w.recomputeDerived();
-  // Vitality-style Max HP gains heal for the amount added.
-  if (b.stat === 'maxHp') w.warden.hp = Math.min(w.derived.maxHp, w.warden.hp + b.perRank);
+  switch (offer.kind) {
+    case 'boon': {
+      const b = w.content.boonByKey.get(offer.key);
+      if (!b) return;
+      const before = w.boonRanks[b.key] ?? 0;
+      const toLevel = clampRank(offer.toLevel, b.maxRank);
+      w.boonRanks[b.key] = toLevel;
+      // One boon is one source: its ranks add within it, then multiply out
+      // (V3 §2) — `Stats.addAll` sums onto the same source key across
+      // repeated calls, so this must add only the ranks actually gained
+      // this call (`delta`), not a flat `perRank`: the real UI/`rollOffers`
+      // path only ever offers `rank + 1` so `delta` is always 1 there, but a
+      // forged offer jumping several ranks at once (QA finding, p7a) would
+      // otherwise under-credit `Stats` while `boonRanks` itself reports the
+      // full jump, desyncing the displayed rank from the real bonus.
+      const delta = toLevel - before;
+      if (delta > 0) w.stats.addAll(`boon:${b.key}`, { [b.stat]: b.perRank * delta });
+      w.recomputeDerived();
+      // Vitality-style Max HP gains heal for the amount actually added.
+      if (b.stat === 'maxHp' && delta > 0) {
+        w.warden.hp = Math.min(w.derived.maxHp, w.warden.hp + b.perRank * delta);
+      }
+      break;
+    }
+    case 'type_mastery': {
+      if (!offer.towerKey) return;
+      const toLevel = clampRank(offer.toLevel, w.content.boons.typeMastery.maxRank);
+      w.typeMasteryRanks[offer.towerKey] = toLevel;
+      break;
+    }
+    case 'skill_card': {
+      const card = w.content.skillCardByKey.get(offer.key);
+      if (!card) return;
+      w.skillCardRanks[card.key] = clampRank(offer.toLevel, card.maxRank);
+      break;
+    }
+  }
 }

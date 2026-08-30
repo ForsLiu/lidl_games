@@ -109,9 +109,6 @@ export interface BoonRow {
   name: string;
   rank: number;
   maxRank: number;
-  /** fb011: true if this boon keeps appearing (and stacking) past `maxRank` —
-   * the panel then shows a bare rank instead of `rank/maxRank`. */
-  uncapped: boolean;
   stat: StatKey;
   statLabel: string;
   /** `STAT_KIND[stat]` — the panel needs this to format `contribution`
@@ -223,7 +220,6 @@ export function characterPanelData(w: World): CharacterPanelData {
         name: def?.name ?? key,
         rank,
         maxRank: def?.maxRank ?? rank,
-        uncapped: def?.uncapped ?? false,
         stat,
         statLabel: statLabel(stat),
         kind: STAT_KIND[stat] ?? 'flat',

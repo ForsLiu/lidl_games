@@ -472,6 +472,28 @@ export class Hud {
               )
               .join('')
           : ''
+      }
+      ${
+        Object.keys(w.typeMasteryRanks).length > 0
+          ? `<div class="sw-sub">Type Mastery</div>` +
+            Object.entries(w.typeMasteryRanks)
+              .map(
+                ([k, v]) =>
+                  `<div class="sw-row small"><span>${w.content.towerByKey.get(k)?.name ?? k}</span><b>${v}</b></div>`,
+              )
+              .join('')
+          : ''
+      }
+      ${
+        Object.keys(w.skillCardRanks).length > 0
+          ? `<div class="sw-sub">Skill Cards</div>` +
+            Object.entries(w.skillCardRanks)
+              .map(
+                ([k, v]) =>
+                  `<div class="sw-row small"><span>${w.content.skillCardByKey.get(k)?.name ?? k}</span><b>${v}</b></div>`,
+              )
+              .join('')
+          : ''
       }`;
 
     for (const el of this.bar.querySelectorAll<HTMLElement>('.sw-tcost')) {
@@ -1028,7 +1050,7 @@ export function characterPanelMarkup(data: CharacterPanelData, w?: World): strin
       : data.boons
           .map(
             (b) =>
-              `<div class="sw-row small"><span>${b.name} <i>rank ${b.rank}${b.uncapped ? '' : '/' + b.maxRank}</i></span>` +
+              `<div class="sw-row small"><span>${b.name} <i>rank ${b.rank}/${b.maxRank}</i></span>` +
               `<b>${formatSourceValue(b.kind, b.contribution)} ${b.statLabel}</b></div>`,
           )
           .join('');

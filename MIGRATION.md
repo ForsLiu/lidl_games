@@ -448,7 +448,7 @@ the same ones SPEC-FINAL removes. Four things are genuinely new:
 3. **§4.2, §5.2 and §6.3 are filled in.** V3 left nine classes, seven towers and
    the VS upgrade pool as gaps; SPEC-FINAL authors all three as designer-fill,
    vetoable by the owner (§17). The seven towers were already built at M20; the
-   nine classes and the pool are **p6d** and **p7a**.
+   nine classes and the pool are **p6d** and **p7a — both done**.
 4. **§16 names the balance work explicitly**: flip Burning, re-price against G13,
    re-baseline perf as G17. These are **p10a**, **p10c**, **p10e**.
 
@@ -508,12 +508,12 @@ itself rather than its tuning:
 | `sundering.test.ts` — all 4 describes | §6.2 keeps towers inert-but-present; there is no Dusk, no petrification, no conversion table, no Heartstone, no slot picker. The three effects worth keeping become §5 VS specials (electric wire grid, beacon attack speed, sprout XP gems); the "always leaves a walkable lane" case is contradicted twice over, by §6.2 and by §10's legal sealing. | p2e |
 | `act2.test.ts` › `soul weapons` | §6.1 has no weapon roster: named weapons with their own level ladders are replaced by per-tower-type derivation. | p2e |
 | `act2.test.ts` › `weapon inheritance (SPEC 4.1)` | §6.1 replaces "highest tier + 8%/duplicate, capped +40%, 6 slots" with "average across the type x (1 + 10% x count)", no slots and no cap. | p2e |
-| `act2.test.ts` › `applies a weapon offer` | §6.3's pool has no weapon cards. | p7a |
+| `act2.test.ts` › `applies a weapon offer` | §6.3's pool has no weapon cards. | **p7a — done**, deleted outright as part of the pool rewrite. |
 | `f004-class-framework.test.ts` › `class content` | §4's framework is bands + Passive + Q + E + Tower passive; there is no Day-use/Night-use Active and no Signature. | **p6f — done.** `frost_warden`, the file's last `legacy: true` vehicle, was itself retired at p6f (Q38), so the file's third describe (`class Active skill as a sim Command`, the surviving half of f004) lost its fixture too — its coverage is already superseded by `p6a-class-framework.test.ts`'s Active1/Active2 suite, so the whole file was deleted rather than rewritten. |
 | `f004-class-framework.test.ts` › `affinity replaces class locks` | §4 gives each class a Tower passive that applies to every tower; there is no per-class per-tower damage affinity. | **p6f — done**, alongside `data/affinity.json`'s deletion and `affinityMul`'s removal from `towers.ts`. |
 | `f004-class-framework.test.ts` › `the Dusk picker binds for every class` | No picker and no slot budget: §6.1 grants every built type unconditionally. | p2e |
 | `content-complete.test.ts` › `has 8 weapons…` | As `soul weapons`. | p2e |
-| `content-complete.test.ts` › `has 12 boons…` | §6.3's pool (stat boons rank x5, Type Mastery rank x3, 3 skill cards per class rank x2) replaces `boons.json`'s flat 12. | p7a |
+| `content-complete.test.ts` › `has 12 boons…` | §6.3's pool (stat boons rank x5, Type Mastery rank x3, 3 skill cards per class rank x2) replaces `boons.json`'s flat 12. | **p7a — done**, replaced with real assertions against `data/vsupgrades.json`'s three families. |
 | `content-complete.test.ts` › `introduces the Gatebreaker on wave 10` | §1.1 puts the Gatebreaker at the end of **TD wave 18** of 18. | p8a |
 | `content-complete.test.ts` › `rolls relics with the right affix counts per rarity` | §7's equipment is a fixed 12-item table across 6 slots, granted 1 per TD wave cleared. Nothing rolls. | p7d |
 | `b004-ember-survival.test.ts` — both describes | §8 removes Ember; §1.1 removes the multi-Night run there was a cumulative survival counter for. | **p3d**, not p7d as first planned — both `describe.skip` bodies still referenced `w.phase === 'dawn'`, `{k:'dawn_done'}` and `onRekindle`/`onDawnDone` literally, which stopped type-checking the moment p3d dropped those members from `Phase`/`Command`/`HudCallbacks` (TypeScript checks skipped test bodies same as any other code); the file could not survive to p7d unedited, so it was deleted early rather than rewritten to keep a placeholder shell (code review on p3d) |

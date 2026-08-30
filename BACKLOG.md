@@ -35,7 +35,7 @@ still in test headers.
 | P4 core math | **done** — multiplicative stacking, armor cap +99 / floor −100, 6 damage types + 2 statuses (G4, G5 green) |
 | P5 tower roster | **done in full (p5a-p5d, G20 green)** — all 10 towers, upgrade tracks, defense bands; `p5b` gave Ember Brazier/Mortar their own `costMul`; `p5c` authored the four remaining §5.2 milestone specials (Ballista, Fire Brazier, Ice Obelisk, Mortar) and the G20 loader rule; `p5d` fixed the QA-filed `damageDealt` telemetry bug on pierce/lob-kind towers |
 | P6 classes | **done in full (`p6a`-`p6f`)** — §4's Passive + Q + E + tower passive is live for all 12 classes; **gate G9 is green in full**, and `p6d` measured **G10 and G11 green** (Archer's dps-optimal charge peaks at t=5.0 inside [2,6], full charge one-shots the toughest non-elite; Stormcaller's max chain multiplier is 3.5832 ≤ 3.6); `p6e` measured **G8 honestly red**; re-measured in full against p8a's real content this session (Q123, Q127) — **win rate is 0/11** (was 1/11; Cryomancer's own pre-p8a pass no longer clears the floor), diversity 2/11 not ≥8/11, both clauses `.skip`-ed per-class with real measured numbers, re-enable point **P10** (not `p8a` — already landed and re-measured); `p6f` retired the V2 legacy dual class schema (`affinity.json`, `manualAttack`, `frost_warden`) — `data/classes.json` now holds 12 classes, all in the uniform §4 shape |
-| P7 equipment/rewards/VS upgrades | **superseded systems in place** — relic affixes, Ember, 12 boons; §7's 12-item table, §6.3's pool and §8's reward pipeline unbuilt (G12 unmet) |
+| P7 equipment/rewards/VS upgrades | **`p7a` done** — §6.3's VS level-up pool (7 stat boons rank ×5, Type Mastery rank ×3, 3 skill cards per class rank ×2) replaces the flat 12-boon list, closing BACKLOG b011 as a side effect; superseded systems (relic affixes, Ember) still in place — §7's 12-item table and §8's reward pipeline remain unbuilt (G12 still unmet) |
 | P8 enemies/waves/bosses | **roster, both bosses and real wave data done (`p8a`)** — all 20 §9 enemies by name; `data/waves.json` authors real TD waves 1-18 on the §1.1 shape (Gatebreaker on 18 only, Warden-Eater on VS 6), the §9 VS-budget curve is live; `p8b`/`p8c` (alive-cap overshoot, gate G14) remain |
 | P9 tooling | **dev mode, god mode, UX flows done; Codex read-half in flight on `lane/tuner`; Tuner unbuilt** (G15 unmet, G16/G18 largely green) |
 | P10 balance | **not started** — Burning still refresh-strongest, perf budget still host-dependent wall-clock |
@@ -344,13 +344,18 @@ stormcaller, bloodlord), not the single `swordsman` seed 1 previously known
 
 ### P7 — VS upgrade pool, equipment, rewards (G12)
 
-- [ ] (p7a) [feat] VS level-up pool per §6.3 in `data/vsupgrades.json`: each level
-      offers 1 of 3 cards with 1 free reroll; stat boons (Attack, Attack Speed, Move,
-      Max HP, Defense, Area, Range) at rank ×5, Type Mastery at rank ×3 (one card per
-      built tower type, +20% that type's VS damage), and 3 skill cards per class at
-      rank ×2. Offer weighting even — acceptance: a data test covers every pool
-      family and its rank cap; a run test proves the free reroll is once per level
-      and that Type Mastery only offers types actually built — refs: §6.3
+**`p7a` is done** — see the Done section. §6.3's level-up pool is rewritten in
+full: `data/vsupgrades.json` replaces `data/boons.json`'s flat 12 with 7 stat
+boons (rank ×5), one Type Mastery record (rank ×3, one card per built tower
+type with a VS attack), and 3 skill cards per class (rank ×2 — a generic
+Active1-potency card, a generic Active2-cooldown card, and one bespoke
+"class line" card; SPEC-FINAL gives only 3 worked examples, the other 9
+classes' cards are an engineer's-judgment default logged at QUESTIONS Q144).
+`applyOffer` now clamps every offer kind's `toLevel` into `[1, maxRank]`,
+closing BACKLOG b011 as a side effect (the old boon-only path had no such
+guard). `hashWorld`/`RunReport` cover the two new World fields
+(`typeMasteryRanks`/`skillCardRanks`) the same way `boonRanks` already was.
+
 - [ ] (p7b) [feat] Equipment per §7 in `data/equipment.json`: 6 slots (weapon,
       armor, shoes, ring, necklace, bracelet), the 12-item table, flats adding and
       multipliers multiplying per §2, class-conditional lines inert elsewhere unless
@@ -601,13 +606,6 @@ were not re-filed. Ordering within this section is by severity, not P-band.
       unit test pins `weightedIndex`'s non-finite-weight behaviour (throw or skip),
       `luckBias`'s range is traced from its writers, and the reroll guard is
       finite-checked — refs: §12 rule 2, BACKLOG-QUALITY q35 (lane item, still open)
-- [ ] (b011) [bug] `applyOffer`'s boon case stores `offer.toLevel` unvalidated into
-      `boonRanks` (hash input, stat pipeline); a forged negative rank keeps winning
-      re-picks and `StatBag.add` accumulates `perRank` per re-pick with no cap —
-      forged-offer-only today, so defense-in-depth, not a live exploit —
-      acceptance: `applyOffer` clamps/validates `toLevel` to `[1, maxRank]` and
-      finite; the ported q21 pins flip to the fixed behaviour — refs: §6.3,
-      BACKLOG-QUALITY q30
 - [ ] (b012) [bug] Save/meta laundering beyond p7f/p7g: a mis-typed scalar
       (`accountLevel: "seven"`, non-numeric `ember`) walks to level 60 and unlimited
       Constellation points (`NaN <= 0` guards); `highestTier` laundering unlocks all
@@ -929,6 +927,79 @@ logged in MIGRATION.md §8 rather than carried as dead items.
   **G19**. The work is `p10d`.
 
 ## Done
+
+- [x] (p7a) [feat] VS level-up pool per §6.3 in `data/vsupgrades.json`: each level
+      offers 1 of 3 cards with 1 free reroll; stat boons (Attack, Attack Speed, Move,
+      Max HP, Defense, Area, Range) at rank ×5, Type Mastery at rank ×3 (one card per
+      built tower type, +20% that type's VS damage), and 3 skill cards per class at
+      rank ×2 — refs: §6.3 — commit TBD. `data/boons.json`'s flat 12-boon list is
+      deleted outright and replaced by `data/vsupgrades.json`'s three families;
+      `content.ts`'s loader validates every class has exactly one
+      `active1_potency`/`active2_cdr`/`class_line` skill card and that every skill
+      card key is globally unique. `progression.ts`'s `buildOfferPool` generates all
+      three families each level-up (stat boons from `content.boons.statBoons`; one
+      Type Mastery card per built tower type that actually has a VS attack, mirroring
+      `vswield.ts`'s own `!def.attack` skip; the run's own class's 3 skill cards from
+      `content.boons.skillCards[classKey]`), all at even weight per §6.3's own text.
+      Two new `World` fields (`typeMasteryRanks`, `skillCardRanks`) sit alongside the
+      existing `boonRanks`, both covered by `hashWorld` (replay determinism) and
+      `RunReport` the same way `boonRanks` already was. `applyOffer` now dispatches
+      on `Offer.kind` (`'boon' | 'type_mastery' | 'skill_card'`) and runs every
+      kind's `toLevel` through a new `clampRank` (`[1, maxRank]`, integer, NaN-safe),
+      closing BACKLOG b011 (the old boon-only path stored a forged `toLevel`
+      unvalidated) as a side effect of the pool rewrite rather than a separate patch.
+      Skill cards are read through four small helpers in `progression.ts`
+      (`active1PotencyMul`, `active2CdrBonus`, `classLineBonus`, `typeMasteryMul`),
+      each scoped to "the current run's own class's own card" so they are safe to
+      call from any class's dispatch-gated fire function with no cross-class
+      leakage; wired into all 12 classes across `classes.ts` (~24 call sites, one
+      per Active1/Active2 per class), `enemies.ts` (Plaguebringer's Spreading Plague
+      transfer count, Cryomancer's Frost Touch freeze-hit threshold) and `towers.ts`
+      (Bloodlord's Blood Tithe damage bonus). The 3 classes SPEC-FINAL gives worked
+      "class line" examples for (Swordsman: extra Bleeding stack via
+      `passiveOnHit`'s onHit-array-repeat trick; Plaguebringer: extra nearest-enemy
+      DoT transfer target; Stormcaller: Chain Surge jump cap +2) are built to the
+      letter; the other 9 classes' cards are this item's own small, low-risk,
+      locally-scoped defaults (logged at QUESTIONS Q144, alongside the other two
+      genuine gaps: fb011's "boons never cap" verdict does not carry forward since
+      §6.3 states fixed ranks, and `second_wind` has no successor anywhere in the
+      new pool/§7/the Constellation tree, so it is dropped from the pool with its
+      now-fully-dormant engine mechanic left in place rather than excised).
+      code-reviewer REQUEST-CHANGES→fixed in the same commit: a Major finding that
+      Swordsman's Circle-Slash-charge-merge-into-Dash-Slash path
+      (`fireDashSlash`) read the charge's damage before `active1PotencyMul` was
+      applied, so the "Circle Slash Potency" skill card silently failed to boost a
+      merged hit even though it correctly boosted a normal release — fixed by
+      scaling `mergedDamage` at the source, with a new regression test in
+      `tests/p6b-swordsman.test.ts`. qa-playtester **PASS** (one real bug filed and
+      fixed in the same commit, not deferred): adversarially verified the free
+      reroll is exactly once per level, Type Mastery only ever offers built types
+      across 2000+ draws, offer weighting is proportional/even, every forged
+      `Offer.toLevel`/`towerKey`/`key` combination across all three kinds clamps or
+      no-ops rather than corrupting state, `hashWorld` genuinely covers the two new
+      fields, replay determinism holds across a scripted `pick`/`reroll` log
+      touching all three families, and full headless bot-policy runs complete
+      clean with no NaN/Infinity contamination. The bug it found: `applyOffer`'s
+      `'boon'` case always credited `Stats` exactly one rank's worth
+      (`b.perRank`) regardless of how far a forged `toLevel` actually jumped,
+      desyncing the displayed `boonRanks` rank from the real stat bonus for any
+      caller that doesn't go through `rollOffers`'s always-`rank+1` path (the real
+      UI never hits this) — fixed by scaling the `Stats.addAll` call by the actual
+      rank delta, mirroring the pattern the adjacent Max-HP-heal-on-pickup branch
+      already used, with a new regression test in `tests/act2.test.ts`. Retired
+      `content-complete.test.ts`'s `it.skip('has 12 boons...')` (MIGRATION §8, "Re-
+      asserted by p7a") with three real assertions (7 stat boons rank ×5, Type
+      Mastery rank ×3, every class's 3-card rank-×2 skill set); rewrote
+      `act2.test.ts`'s fb011-era "uncapped boon" describe block (the mechanic it
+      covered no longer exists) into direct coverage of all three new families;
+      regenerated `tests/q7-loader-holes.ts` (q7's data-loader-fuzz artefact) in
+      full via its own `Q7_RECORD=1` workflow — `classes.classes[].key` moves from
+      `partial` to `checked` in `REF_VERDICTS`, a genuinely new cross-check (every
+      class now needs a matching `vsupgrades.json` skill-card entry, both
+      directions), not a mislabel. `npm run test:fast`: 1552 passed, 0 real
+      failures — the same 4 Playwright fold tests (b032/b034/b035/b036)
+      independently confirmed passing in isolation, flaky only under this run's
+      parallel resource contention (unrelated, pre-existing, documented at fb023).
 
 - [x] (p6f) [polish] Retire the V2 classes' framework residue: `affinity.json`,
       class `mods`, the single `active`/`passive`/`manualAttack` shape, and the

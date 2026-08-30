@@ -5,6 +5,40 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-30 session: p7a done — the SPEC-FINAL §6.3 VS level-up pool
+  replaces the flat 12-boon list — commit TBD.** `data/vsupgrades.json`
+  (replacing `data/boons.json`) authors all three §6.3 card families: 7 stat
+  boons at rank ×5 (Attack/Attack Speed/Move/Max HP/Defense/Area/Range), one
+  Type Mastery record at rank ×3 (one card per built tower type with a VS
+  attack, +20%/rank that type's VS damage), and 3 skill cards per class at
+  rank ×2 (a generic Active1-potency card, a generic Active2-cooldown card,
+  and one bespoke "class line" card — SPEC-FINAL worked-examples only 3 of
+  the 12 classes, so the other 9's cards are this item's own small,
+  locally-scoped defaults, logged at QUESTIONS Q144). `progression.ts`'s
+  `buildOfferPool`/`applyOffer` now dispatch on all three `Offer.kind`s, with
+  a new `clampRank` guarding every kind's `toLevel` into `[1, maxRank]` —
+  closing BACKLOG b011 (the old boon-only path stored a forged `toLevel`
+  unvalidated) as a side effect. Two new `World` fields
+  (`typeMasteryRanks`/`skillCardRanks`) are covered by `hashWorld`/
+  `RunReport` the same way `boonRanks` already was; the skill-card multiplier
+  helpers (`active1PotencyMul`/`active2CdrBonus`/`classLineBonus` in
+  `progression.ts`) are wired into all 12 classes' own dispatch-gated code
+  across `classes.ts`/`enemies.ts`/`towers.ts`, each scoped to "the run's own
+  class's own card" so no cross-class leakage is possible. code-reviewer
+  REQUEST-CHANGES→fixed in the same commit (Swordsman's Circle-Slash-charge-
+  merged-into-Dash-Slash path was reading the charge's damage before
+  `active1PotencyMul`, so the potency card silently missed that one path);
+  qa-playtester **PASS** with one real bug found and fixed in the same commit
+  (`applyOffer`'s `'boon'` case always credited `Stats` one rank's worth
+  regardless of how far a forged `toLevel` jumped, desyncing `boonRanks`'
+  displayed rank from the real stat bonus for any non-`rollOffers` caller —
+  the real UI never hits this). `tests/q7-loader-holes.ts` (the data-loader
+  fuzz artefact) regenerated in full via its own `Q7_RECORD=1` workflow.
+  `npm run test:fast`: 1552 passed, 0 real failures — the same 4 Playwright
+  fold tests (b032/b034/b035/b036) independently confirmed passing standalone,
+  flaky only under this run's parallel resource contention (pre-existing,
+  documented at fb023).
+
 - **2026-08-30 session: p6f done — the V2 class-framework residue is retired
   (§4, Q38) — commit `1cc5448`. P6 (classes) is now done in full, `p6a`-`p6f`.**
   Found already implemented, uncommitted, in the working tree at session

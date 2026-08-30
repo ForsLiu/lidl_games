@@ -120,7 +120,7 @@ function main(): void {
   // Boon pick counts: the end-of-run rank is how many times it was taken.
   const boonPicks = new Map<string, number>();
   const boonRuns = new Map<string, number>();
-  for (const b of content.boons.boons) {
+  for (const b of content.boons.statBoons) {
     boonPicks.set(b.key, 0);
     boonRuns.set(b.key, 0);
   }

@@ -1,0 +1,75 @@
+{
+  "rerollsPerLevel": 1,
+  "statBoons": [
+    { "key": "power",    "name": "Attack",       "maxRank": 5, "stat": "power",        "perRank": 0.10, "desc": "+10% Attack" },
+    { "key": "haste",    "name": "Attack Speed", "maxRank": 5, "stat": "attackSpeed",  "perRank": 0.10, "desc": "+10% Attack Speed" },
+    { "key": "swift",    "name": "Move",         "maxRank": 5, "stat": "moveSpeedPct", "perRank": 0.10, "desc": "+10% Move Speed" },
+    { "key": "vitality", "name": "Max HP",       "maxRank": 5, "stat": "maxHp",        "perRank": 15,   "desc": "+15 Max HP" },
+    { "key": "plating",  "name": "Defense",      "maxRank": 5, "stat": "armor",        "perRank": 5,    "desc": "+5 Defense" },
+    { "key": "reach",    "name": "Area",         "maxRank": 5, "stat": "area",         "perRank": 0.10, "desc": "+10% Area" },
+    { "key": "range",    "name": "Range",        "maxRank": 5, "stat": "charRange",    "perRank": 0.10, "desc": "+10% Range" }
+  ],
+  "typeMastery": { "maxRank": 3, "perRank": 0.20 },
+  "skillCards": {
+    "swordsman": [
+      { "key": "swordsman_active1_potency", "name": "Circle Slash Potency", "effect": "active1_potency", "maxRank": 2, "perRank": 0.25, "desc": "Circle Slash damage +25%" },
+      { "key": "swordsman_active2_cdr", "name": "Dash Slash Cooldown", "effect": "active2_cdr", "maxRank": 2, "perRank": 0.25, "desc": "Dash Slash cooldown -25%" },
+      { "key": "swordsman_bleed_stacks", "name": "Deeper Cuts", "effect": "class_line", "maxRank": 2, "perRank": 1, "desc": "Thousand Cuts applies 1 extra Bleeding stack per hit" }
+    ],
+    "plaguebringer": [
+      { "key": "plaguebringer_active1_potency", "name": "Poison Barrel Potency", "effect": "active1_potency", "maxRank": 2, "perRank": 0.25, "desc": "Poison Barrel damage +25%" },
+      { "key": "plaguebringer_active2_cdr", "name": "Poison Boost Cooldown", "effect": "active2_cdr", "maxRank": 2, "perRank": 0.25, "desc": "Poison Boost cooldown -25%" },
+      { "key": "plaguebringer_plague_spread", "name": "Wider Contagion", "effect": "class_line", "maxRank": 2, "perRank": 1, "desc": "Spreading Plague transfers to 1 extra nearest enemy" }
+    ],
+    "engineer": [
+      { "key": "engineer_active1_potency", "name": "Field Kit Potency", "effect": "active1_potency", "maxRank": 2, "perRank": 0.25, "desc": "Field Kit repair +25%" },
+      { "key": "engineer_active2_cdr", "name": "Pop Turret Cooldown", "effect": "active2_cdr", "maxRank": 2, "perRank": 0.25, "desc": "Pop Turret cooldown -25%" },
+      { "key": "engineer_turret_cap", "name": "Extra Turret", "effect": "class_line", "maxRank": 2, "perRank": 1, "desc": "Pop Turret cap +1" }
+    ],
+    "pyromancer": [
+      { "key": "pyromancer_active1_potency", "name": "Immolation Wave Potency", "effect": "active1_potency", "maxRank": 2, "perRank": 0.25, "desc": "Immolation Wave damage +25%" },
+      { "key": "pyromancer_active2_cdr", "name": "Flame Road Cooldown", "effect": "active2_cdr", "maxRank": 2, "perRank": 0.25, "desc": "Flame Road cooldown -25%" },
+      { "key": "pyromancer_burn_duration", "name": "Lingering Flame", "effect": "class_line", "maxRank": 2, "perRank": 2, "desc": "Immolation Wave's burn lasts 2s longer" }
+    ],
+    "archer": [
+      { "key": "archer_active1_potency", "name": "Deadeye Draw Potency", "effect": "active1_potency", "maxRank": 2, "perRank": 0.25, "desc": "Deadeye Draw damage +25%" },
+      { "key": "archer_active2_cdr", "name": "Quickstep Cooldown", "effect": "active2_cdr", "maxRank": 2, "perRank": 0.25, "desc": "Quickstep cooldown -25%" },
+      { "key": "archer_pierce_cap", "name": "Deeper Draw", "effect": "class_line", "maxRank": 2, "perRank": 2, "desc": "Deadeye Draw pierce cap +2" }
+    ],
+    "necromancer": [
+      { "key": "necromancer_active1_potency", "name": "Raise Potency", "effect": "active1_potency", "maxRank": 2, "perRank": 0.25, "desc": "Skeleton damage share +25%" },
+      { "key": "necromancer_active2_cdr", "name": "Death Pact Cooldown", "effect": "active2_cdr", "maxRank": 2, "perRank": 0.25, "desc": "Death Pact cooldown -25%" },
+      { "key": "necromancer_skeleton_cap", "name": "Deeper Grave", "effect": "class_line", "maxRank": 2, "perRank": 1, "desc": "Raise skeleton cap +1" }
+    ],
+    "cryomancer": [
+      { "key": "cryomancer_active1_potency", "name": "Glaciate Potency", "effect": "active1_potency", "maxRank": 2, "perRank": 0.25, "desc": "Glaciate damage +25%" },
+      { "key": "cryomancer_active2_cdr", "name": "Ice Wall Cooldown", "effect": "active2_cdr", "maxRank": 2, "perRank": 0.25, "desc": "Ice Wall cooldown -25%" },
+      { "key": "cryomancer_freeze_hits", "name": "Brittle Frost", "effect": "class_line", "maxRank": 2, "perRank": 1, "desc": "Frost Touch needs 1 fewer hit to freeze" }
+    ],
+    "stormcaller": [
+      { "key": "stormcaller_active1_potency", "name": "Chain Surge Potency", "effect": "active1_potency", "maxRank": 2, "perRank": 0.25, "desc": "Chain Surge damage +25%" },
+      { "key": "stormcaller_active2_cdr", "name": "Overload Cooldown", "effect": "active2_cdr", "maxRank": 2, "perRank": 0.25, "desc": "Overload cooldown -25%" },
+      { "key": "stormcaller_jump_cap", "name": "Longer Arc", "effect": "class_line", "maxRank": 2, "perRank": 2, "desc": "Chain Surge jump cap +2" }
+    ],
+    "bloodlord": [
+      { "key": "bloodlord_active1_potency", "name": "Blood Tithe Potency", "effect": "active1_potency", "maxRank": 2, "perRank": 0.25, "desc": "Blood Tithe damage bonus +25%" },
+      { "key": "bloodlord_active2_cdr", "name": "Crimson Rush Cooldown", "effect": "active2_cdr", "maxRank": 2, "perRank": 0.25, "desc": "Crimson Rush cooldown -25%" },
+      { "key": "bloodlord_tithe_bonus", "name": "Deeper Tithe", "effect": "class_line", "maxRank": 2, "perRank": 0.1, "desc": "Blood Tithe damage bonus +10%" }
+    ],
+    "animist": [
+      { "key": "animist_active1_potency", "name": "Manifest Potency", "effect": "active1_potency", "maxRank": 2, "perRank": 0.25, "desc": "Manifested spirit damage share +25%" },
+      { "key": "animist_active2_cdr", "name": "Recall Totem Cooldown", "effect": "active2_cdr", "maxRank": 2, "perRank": 0.25, "desc": "Recall Totem cooldown -25%" },
+      { "key": "animist_spirit_cap", "name": "Kindred Spirits", "effect": "class_line", "maxRank": 2, "perRank": 1, "desc": "Manifest spirit cap +1" }
+    ],
+    "paladin": [
+      { "key": "paladin_active1_potency", "name": "Clarion Taunt Potency", "effect": "active1_potency", "maxRank": 2, "perRank": 0.25, "desc": "Clarion Taunt duration +25%" },
+      { "key": "paladin_active2_cdr", "name": "Judgement Cooldown", "effect": "active2_cdr", "maxRank": 2, "perRank": 0.25, "desc": "Judgement cooldown -25%" },
+      { "key": "paladin_wrath_bonus", "name": "Righteous Fury", "effect": "class_line", "maxRank": 2, "perRank": 0.3, "desc": "Judgement Wrath multiplier +30%" }
+    ],
+    "time_lord": [
+      { "key": "time_lord_active1_potency", "name": "Time Potency", "effect": "active1_potency", "maxRank": 2, "perRank": 0.25, "desc": "Time's DoT damage +25%" },
+      { "key": "time_lord_active2_cdr", "name": "Time Lock Cooldown", "effect": "active2_cdr", "maxRank": 2, "perRank": 0.25, "desc": "Time Lock cooldown -25%" },
+      { "key": "time_lord_lock_duration", "name": "Lingering Stasis", "effect": "class_line", "maxRank": 2, "perRank": 2, "desc": "Time Lock zone lasts 2s longer" }
+    ]
+  }
+}

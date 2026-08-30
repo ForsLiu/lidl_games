@@ -47,17 +47,36 @@ describe('content completeness', () => {
     }
   });
 
-  // RETIRED (SPEC-FINAL §6.3) — `boons.json`'s flat 12 is replaced by the
-  // level-up pool: stat boons at rank x5, Type Mastery at rank x3 per built
-  // tower type, and 3 skill cards per class at rank x2. Re-asserted by **p7a**.
-  it.skip('has 12 boons, each mapping to a real stat', () => {
-    expect(content.boons.boons).toHaveLength(12);
+  // p7a (SPEC-FINAL §6.3): the level-up pool's 3 card families — stat boons
+  // at rank x5, Type Mastery at rank x3, and 3 skill cards per class at
+  // rank x2 (active1_potency, active2_cdr, class_line, exactly one each).
+  it('has 7 stat boons, each mapping to a real stat, rank x5', () => {
+    expect(content.boons.statBoons).toHaveLength(7);
     const w = new World(cfg());
-    for (const b of content.boons.boons) {
+    for (const b of content.boons.statBoons) {
+      expect(b.maxRank, b.key).toBe(5);
       const stat = b.stat as StatKey;
       const before = w.stats.total(stat);
       w.stats.addAll(`boon:${b.key}`, { [b.stat]: b.perRank });
       expect(w.stats.total(stat), b.key).not.toBe(before);
+    }
+  });
+
+  it('Type Mastery is rank x3', () => {
+    expect(content.boons.typeMastery.maxRank).toBe(3);
+    expect(content.boons.typeMastery.perRank).toBeGreaterThan(0);
+  });
+
+  it('every class has exactly 3 skill cards, rank x2, one of each effect', () => {
+    for (const c of content.classes.classes) {
+      const cards = content.boons.skillCards[c.key];
+      expect(cards, c.key).toBeDefined();
+      expect(cards, c.key).toHaveLength(3);
+      for (const card of cards) expect(card.maxRank, card.key).toBe(2);
+      const effects = cards.map((card) => card.effect).sort();
+      expect(effects, c.key).toEqual(['active1_potency', 'active2_cdr', 'class_line']);
+      // Every skill card key is globally unique (content.ts's loader rule).
+      for (const card of cards) expect(content.skillCardByKey.get(card.key)?.key, card.key).toBe(card.key);
     }
   });
 

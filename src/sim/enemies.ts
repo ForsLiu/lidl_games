@@ -7,6 +7,7 @@ import type { EnemyDef } from './content';
 import { CORE_H, CORE_W, CORE_X, CORE_Y, GRID_H, GRID_W } from './grid';
 import type { DamageTypeKey } from './damagetypes';
 import { clamp, dcos, dist, dist2, dsin, normalize } from './math';
+import { classLineBonus } from './progression';
 import { damageTakenMul } from './stats';
 import { structureArmor } from './upgrades';
 import type { DotStack, Enemy, Structure } from './types';
@@ -450,15 +451,23 @@ function drainPlagueTransfers(w: World): void {
     while ((e = w.pendingPlagueTransfers.pop()) !== undefined) {
       const total = dotOutstanding(e);
       if (total <= 0) continue;
-      // Unbounded range, the same `Infinity` idiom `cores.ts`'s Carnivorous
-      // Plant volley already uses for its own "unbounded range" clause
-      // (Q113) — §4.1 names no radius for Spreading Plague's transfer.
-      const target = w.nearestEnemy(e.x, e.y, Infinity);
-      if (!target) continue;
-      // `pure`/`dot`: the exact unfinished total, unmitigated by armor or a
-      // trait reduction — the same convention Corpse's execute uses
-      // (`p-core-d`) for "deal exactly this much damage."
-      damageEnemy(w, target, total, 'spreading_plague', { pure: true, dot: true });
+      // p7a (§6.3) skill card "Wider Contagion": transfers to 1 extra
+      // nearest enemy/rank, each taking the full unfinished total (not
+      // split) — §4.1 names only one, so a rank-0 run picks exactly it.
+      const targets = 1 + Math.round(classLineBonus(w));
+      const struck = new Set<number>();
+      for (let i = 0; i < targets; i++) {
+        // Unbounded range, the same `Infinity` idiom `cores.ts`'s Carnivorous
+        // Plant volley already uses for its own "unbounded range" clause
+        // (Q113) — §4.1 names no radius for Spreading Plague's transfer.
+        const target = w.nearestEnemy(e.x, e.y, Infinity, (t) => !struck.has(t.id));
+        if (!target) break;
+        struck.add(target.id);
+        // `pure`/`dot`: the exact unfinished total, unmitigated by armor or a
+        // trait reduction — the same convention Corpse's execute uses
+        // (`p-core-d`) for "deal exactly this much damage."
+        damageEnemy(w, target, total, 'spreading_plague', { pure: true, dot: true });
+      }
     }
   } finally {
     w.pendingPlagueTransfers.length = 0;
@@ -801,7 +810,8 @@ export function applyOnHit(w: World, e: Enemy, key: string, source: string): voi
     if (e.frostRemaining > 0) {
       e.frostHitStacks++;
       const cls = w.content.classByKey.get(w.cfg.classKey);
-      const need = cls ? cls.passive.freezeHits ?? 5 : 5;
+      // p7a (§6.3) skill card "Brittle Frost": freeze needs 1 fewer hit/rank.
+      const need = cls ? Math.max(1, (cls.passive.freezeHits ?? 5) - classLineBonus(w)) : 5;
       if (e.frostHitStacks >= need) {
         applyFrozen(w, e);
         e.frostHitStacks = 0;

@@ -26,7 +26,7 @@
 import { describe, expect, it } from 'vitest';
 
 import wardenRaw from '../data/warden.json';
-import boonsRaw from '../data/boons.json';
+import vsupgradesRaw from '../data/vsupgrades.json';
 import { damageEnemy, spawnEnemy, updateEnemies } from '../src/sim/enemies';
 import { applyDamageSplit, applyDamageType } from '../src/sim/damagetypes';
 import { hashWorld, updateWarden } from '../src/sim/run';
@@ -70,9 +70,13 @@ describe('x002 §2: lifesteal has no per-second cap', () => {
     expect('leechCapPerSecond' in wardenRaw).toBe(false);
   });
 
-  it('the leech boon no longer advertises a cap', () => {
-    const boon = boonsRaw.boons.find((b: { key: string }) => b.key === 'leech')!;
-    expect(boon.desc).not.toMatch(/cap/i);
+  // p7a (SPEC-FINAL §6.3) dropped `leech` from the VS level-up pool
+  // entirely — the named 7-stat-boon list has no leech row — so there is no
+  // longer a "leech boon" description to check for a stale cap mention.
+  it('no stat boon in the level-up pool targets leech (or mentions a cap)', () => {
+    const boon = vsupgradesRaw.statBoons.find((b: { stat: string }) => b.stat === 'leech');
+    expect(boon).toBeUndefined();
+    for (const b of vsupgradesRaw.statBoons) expect(b.desc).not.toMatch(/cap/i);
   });
 
   it('one tick heals the whole accumulator, not 3 HP/s worth of it', () => {

@@ -50,6 +50,7 @@ import {
 import { hasEquipment } from './equipment';
 import { GRID_H, GRID_W } from './grid';
 import { clamp, dist2, lerp, normalize } from './math';
+import { active1PotencyMul, active2CdrBonus, classLineBonus } from './progression';
 import { buildTower, effectiveTowerAoe, LINE_HALF_WIDTH, towerCost } from './towers';
 import { maxLevel, upgradeStatMul } from './upgrades';
 import type { ClassSummon, Enemy, Phase, Structure, TickInput } from './types';
@@ -100,8 +101,18 @@ const NO_ON_HIT: readonly string[] = [];
 const BLEEDING_ON_HIT: readonly string[] = ['bleeding'];
 const FROST_ON_HIT: readonly string[] = ['frost', 'frost_track'];
 
-function passiveOnHit(cls: ClassDef): readonly string[] {
-  if (cls.passive.kind === 'thousand_cuts') return BLEEDING_ON_HIT;
+/**
+ * p7a (§6.3): Swordsman's "Deeper Cuts" skill card ("Thousand Cuts applies 2
+ * Bleeding") reads as extra stacks per hit — `applyEffects` (combat.ts)
+ * already calls `applyOnHit` once per element of `onHit`, so repeating
+ * `'bleeding'` N+1 times applies it N+1 times with no change to that shared
+ * pipeline.
+ */
+function passiveOnHit(w: World, cls: ClassDef): readonly string[] {
+  if (cls.passive.kind === 'thousand_cuts') {
+    const extra = Math.round(classLineBonus(w));
+    return extra > 0 ? Array(1 + extra).fill('bleeding') : BLEEDING_ON_HIT;
+  }
   if (cls.passive.kind === 'frost_touch') return FROST_ON_HIT;
   return NO_ON_HIT;
 }
@@ -135,6 +146,16 @@ export function characterDamage(w: World, cls: ClassDef, base: number): number {
 }
 
 /**
+ * p7a (§6.3) skill card "Active2 cooldown -25%/rank": stacks with the
+ * general `cdr` stat as one combined subtractive fraction, floored the same
+ * way `cdr` alone already implicitly is (a `cooldownSeconds * (1 - x)` factor
+ * cannot legally go negative without an active2Cooldown that counts up).
+ */
+function active2CdrFactor(w: World): number {
+  return Math.max(0.05, 1 - w.derived.cdr - active2CdrBonus(w));
+}
+
+/**
  * §4.2 Paladin *Guardian Stance*: "+30 defense after standing still 1 s".
  * Armour points, in the same units `wardenArmor` (run.ts) already works in —
  * not a `Stats` contribution, because it toggles several times a second and
@@ -162,18 +183,34 @@ export function auraSpeedMul(w: World, x: number, y: number): number {
   return mul;
 }
 
-function fireEffect(w: World, x: number, y: number, eff: BurstEffect, onHit: readonly string[] = []): void {
+/**
+ * `potencyMul`/`extraBurnDuration` are only ever passed from the Active1
+ * dispatch (Pyro's Immolation Wave is the only `burst_damage` kind any
+ * current class authors): p7a's "Active1 potency"/class-line skill cards
+ * are per-class, current-class-only lookups (`active1PotencyMul`,
+ * `classLineBonus`), and this `kind` is shared with the (today unused)
+ * Active2 switch case, which must not read a class's Active1 cards.
+ */
+function fireEffect(
+  w: World,
+  x: number,
+  y: number,
+  eff: BurstEffect,
+  onHit: readonly string[] = [],
+  potencyMul = 1,
+  extraBurnDuration = 0,
+): void {
   const list = w.enemiesInRadius(x, y, eff.radius);
   for (const e of list) {
     if (e.dead) continue;
-    damageEnemy(w, e, eff.damage * w.derived.powerMul, 'class_active', { fromX: x, fromY: y });
+    damageEnemy(w, e, eff.damage * w.derived.powerMul * potencyMul, 'class_active', { fromX: x, fromY: y });
     if (e.dead) continue;
     applyEffects(w, e, {
       source: 'class_active',
       slow: eff.slow,
       slowDuration: eff.slowDuration,
       burnDps: eff.burnDps,
-      burnDuration: eff.burnDuration,
+      burnDuration: eff.burnDuration ? eff.burnDuration + extraBurnDuration : eff.burnDuration,
       onHit,
     });
   }
@@ -240,10 +277,19 @@ function fireCircleSlash(w: World, cls: ClassDef, chargeSeconds: number, atkSpdD
   const wd = w.warden;
   const eff = cls.active1;
   const { radius, damage, knockback } = circleSlashValues(eff, chargeSeconds);
-  const onHit = passiveOnHit(cls);
+  const onHit = passiveOnHit(w, cls);
   const hitList = knockback > 0 ? w.enemiesInRadius(wd.x, wd.y, radius).slice() : null;
   const boost = atkSpdDamageBoost ? w.derived.attackSpeedMul : 1;
-  applyAoE(w, wd.x, wd.y, radius, characterDamage(w, cls, damage) * boost, 'class_active', { onHit }, {});
+  applyAoE(
+    w,
+    wd.x,
+    wd.y,
+    radius,
+    characterDamage(w, cls, damage) * boost * active1PotencyMul(w),
+    'class_active',
+    { onHit },
+    {},
+  );
   if (hitList) for (const e of hitList) if (!e.dead) knockbackEnemy(w, e, wd.x, wd.y, knockback);
   w.emit('class_active', wd.x, wd.y, radius, 0);
 }
@@ -295,14 +341,17 @@ function aimDirection(w: World, aimX: number | undefined, aimY: number | undefin
 function fireDashSlash(w: World, cls: ClassDef, aimX: number | undefined, aimY: number | undefined): void {
   const wd = w.warden;
   const eff = cls.active2;
-  const onHit = passiveOnHit(cls);
+  const onHit = passiveOnHit(w, cls);
 
   let mergedRadius = 0;
   let mergedDamage = 0;
   if (cls.active1.kind === 'charge_nova' && wd.active1Charging) {
     const v = circleSlashValues(cls.active1, wd.active1Charge);
     mergedRadius = v.radius;
-    mergedDamage = v.damage;
+    // p7a (§6.3): the merged charge is still Circle Slash's own damage, so
+    // it earns "Active1 potency" exactly like a normal release does
+    // (`fireCircleSlash`) — code review found this path skipping it.
+    mergedDamage = v.damage * active1PotencyMul(w);
     wd.active1Charging = false;
     wd.active1Charge = 0;
     wd.active1Cooldown = cls.active1.cooldownSeconds * (1 - w.derived.cdr);
@@ -370,7 +419,7 @@ function firePoisonBarrel(w: World, cls: ClassDef): void {
     x: wd.x,
     y: wd.y,
     radius: eff.radius,
-    dps: characterDamage(w, cls, eff.damage),
+    dps: characterDamage(w, cls, eff.damage) * active1PotencyMul(w),
     remaining: eff.groundDurationSeconds ?? 5,
     type: 'poison',
     source: 'class_active',
@@ -504,13 +553,15 @@ function fireDeadeyeDraw(
   const wd = w.warden;
   const eff = cls.active1;
   const held = Math.min(chargeSeconds, eff.chargeCapSeconds ?? 0);
-  const damage = characterDamage(w, cls, eff.damage * Math.pow(1 + (eff.compoundPerSecond ?? 0), held));
-  const hits = Math.min(eff.pierceCap ?? 1, 1 + Math.floor(held));
+  const damage =
+    characterDamage(w, cls, eff.damage * Math.pow(1 + (eff.compoundPerSecond ?? 0), held)) * active1PotencyMul(w);
+  // p7a (§6.3) Archer skill card "Deeper Draw": pierce cap +2/rank.
+  const hits = Math.min((eff.pierceCap ?? 1) + classLineBonus(w), 1 + Math.floor(held));
   const dir = aimDirection(w, aimX, aimY);
   // `radius` is this kind's shot length — the same field-reuse precedent
   // `dash_line`'s own unused `radius: 0` set (Q118's Nit).
   lineHit(w, wd.x, wd.y, dir.x, dir.y, eff.radius, LINE_HALF_WIDTH, damage, 'class_active', hits, {
-    onHit: passiveOnHit(cls),
+    onHit: passiveOnHit(w, cls),
   });
   w.emit('class_active', wd.x, wd.y, wd.x + dir.x * eff.radius, wd.y + dir.y * eff.radius);
 }
@@ -528,7 +579,7 @@ function fireQuickstep(w: World, cls: ClassDef, aimX: number | undefined, aimY: 
   const from = { x: wd.x, y: wd.y };
   dashWarden(w, dir.x * (eff.dashRange ?? 0), dir.y * (eff.dashRange ?? 0));
 
-  const onHit = passiveOnHit(cls);
+  const onHit = passiveOnHit(w, cls);
   const shots = Math.max(0, Math.round(eff.volleyShots ?? 0));
   const struck = new Set<number>();
   const damage = characterDamage(w, cls, eff.damage);
@@ -548,7 +599,10 @@ function fireFieldKit(w: World, cls: ClassDef, aimX: number | undefined, aimY: n
   const eff = cls.active1;
   const s = nearestStructure(w, aimX ?? wd.x, aimY ?? wd.y, eff.radius);
   if (!s) return;
-  s.hp = Math.min(s.maxHp, s.hp + s.maxHp * (eff.repairFraction ?? 0));
+  // p7a (§6.3) skill card "Active1 potency +25%": read as "heals more" for
+  // a repair-shaped Active1, the same reading Field Kit's `repairFraction`
+  // already gives it as this class's one non-damage primary magnitude.
+  s.hp = Math.min(s.maxHp, s.hp + s.maxHp * (eff.repairFraction ?? 0) * active1PotencyMul(w));
   s.atkSpdBuffRemaining = Math.max(s.atkSpdBuffRemaining, eff.overclockSeconds ?? 0);
   w.emit('class_active', s.tx + 0.5, s.ty + 0.5, 0, 0);
 }
@@ -564,7 +618,8 @@ function fireSummonTurret(w: World, cls: ClassDef): void {
   spawnClassSummon(
     w,
     'engineer_turret',
-    eff.summonCap ?? 0,
+    // p7a (§6.3) skill card "Extra Turret": summon cap +1/rank.
+    (eff.summonCap ?? 0) + classLineBonus(w),
     wd.x,
     wd.y,
     p.dps * share,
@@ -613,7 +668,7 @@ function fireFlameRoad(w: World, cls: ClassDef, aimX: number | undefined, aimY: 
 function fireFrostNova(w: World, cls: ClassDef): void {
   const wd = w.warden;
   const eff = cls.active1;
-  const damage = characterDamage(w, cls, eff.damage);
+  const damage = characterDamage(w, cls, eff.damage) * active1PotencyMul(w);
   for (const e of w.enemiesInRadius(wd.x, wd.y, eff.radius).slice()) {
     if (e.dead) continue;
     // Read before the hit: the shatter this nova can trigger keys off `frozen`,
@@ -717,10 +772,13 @@ function fireChainSurge(w: World, cls: ClassDef, aimX: number | undefined, aimY:
   if (!cur) return;
 
   const extra = wd.overloadRemaining > 0 ? cls.active2.overloadExtraChains ?? 0 : 0;
-  const jumps = Math.max(1, Math.round((eff.chainCount ?? 1) + extra));
+  // p7a (§6.3) skill card "Longer Arc": jump cap +2/rank — the cast's own
+  // chain count, not Conduction's separate compounding cap (`chainCap`,
+  // gate G11's ceiling), which this leaves untouched.
+  const jumps = Math.max(1, Math.round((eff.chainCount ?? 1) + extra + classLineBonus(w)));
   const capIndex = Math.max(1, Math.round(eff.chainCap ?? 1)) - 1;
   const growth = eff.chainGrowth ?? 0;
-  const base = characterDamage(w, cls, eff.damage);
+  const base = characterDamage(w, cls, eff.damage) * active1PotencyMul(w);
   const struck = new Set<number>();
   let px = wd.x;
   let py = wd.y;
@@ -746,7 +804,8 @@ function fireOverload(w: World, cls: ClassDef): void {
 function fireRaiseSkeletons(w: World, cls: ClassDef): void {
   const wd = w.warden;
   const eff = cls.active1;
-  const cap = Math.max(0, Math.round(eff.summonCap ?? 0));
+  // p7a (§6.3) skill card "Deeper Grave": skeleton cap +1/rank.
+  const cap = Math.max(0, Math.round((eff.summonCap ?? 0) + classLineBonus(w)));
   let live = 0;
   for (const s of w.classSummons) if (s.kind === 'necro_skeleton') live++;
   let room = cap - live;
@@ -755,7 +814,8 @@ function fireRaiseSkeletons(w: World, cls: ClassDef): void {
   const r = eff.summonRadius ?? 0;
   const inReach = w.corpses.filter((c) => dist2(c.x, c.y, wd.x, wd.y) <= r * r);
   inReach.sort((a, b) => dist2(a.x, a.y, wd.x, wd.y) - dist2(b.x, b.y, wd.x, wd.y) || a.id - b.id);
-  const share = eff.summonStatMul ?? 0;
+  // p7a: skill card "Active1 potency +25%" — each skeleton's damage share.
+  const share = (eff.summonStatMul ?? 0) * active1PotencyMul(w);
   const a = cls.basicAttack;
   for (const c of inReach) {
     if (room <= 0) break;
@@ -846,11 +906,13 @@ function fireManifestSpirit(w: World, cls: ClassDef): void {
   if (!s) return;
   const def = w.content.towerById.get(s.towerId)!;
   const p = towerSummonProfile(w, def, maxLevel(def));
-  const share = eff.summonStatMul ?? 0;
+  // p7a (§6.3): "Active1 potency +25%" on the spirit's damage share.
+  const share = (eff.summonStatMul ?? 0) * active1PotencyMul(w);
   spawnClassSummon(
     w,
     'animist_spirit',
-    eff.summonCap ?? 0,
+    // p7a: skill card "Kindred Spirits" — spirit cap +1/rank.
+    (eff.summonCap ?? 0) + classLineBonus(w),
     s.tx + 0.5,
     s.ty + 0.5,
     p.dps * share,
@@ -910,7 +972,9 @@ function fireRecallTotem(w: World, cls: ClassDef): void {
 function fireClarionTaunt(w: World, cls: ClassDef): void {
   const wd = w.warden;
   const radius = cls.active1.radius;
-  const duration = cls.active1.tauntDurationSeconds ?? 0;
+  // p7a (§6.3): Clarion Taunt deals no damage, so "Active1 potency +25%"
+  // reads as a longer taunt/Wrath-banking window instead.
+  const duration = (cls.active1.tauntDurationSeconds ?? 0) * active1PotencyMul(w);
   wd.clarionRemaining = duration;
   if (duration > 0) {
     for (const e of w.enemiesInRadius(wd.x, wd.y, radius)) {
@@ -930,11 +994,12 @@ function fireJudgement(w: World, cls: ClassDef): void {
   // stored Wrath plus any atkFlat-granting item (10 of the 12 fb015 items do)
   // would still deal that flat's worth of damage, turning "nothing banked,
   // nothing dealt" into a free AoE nova on cooldown alone.
-  const rawWrath = wd.wrathStored * (eff.wrathDamageMul ?? 0);
+  // p7a (§6.3) skill card "Righteous Fury": Wrath multiplier +30%/rank.
+  const rawWrath = wd.wrathStored * ((eff.wrathDamageMul ?? 0) + classLineBonus(w));
   wd.wrathStored = 0;
   if (rawWrath > 0) {
     const damage = characterDamage(w, cls, rawWrath);
-    applyAoE(w, wd.x, wd.y, eff.radius, damage, 'class_active2', { onHit: passiveOnHit(cls) }, {});
+    applyAoE(w, wd.x, wd.y, eff.radius, damage, 'class_active2', { onHit: passiveOnHit(w, cls) }, {});
   }
   w.emit('class_active2', wd.x, wd.y, eff.radius, 0);
 }
@@ -998,14 +1063,28 @@ function advanceTimeMark(w: World, cls: ClassDef, e: Enemy): void {
       e.x = hist.x;
       e.y = hist.y;
     }
-    applyDot(w, e, 'bleeding', characterDamage(w, cls, eff.markPastDotDps ?? 0), eff.markPastDotSeconds ?? 0, 'class_active');
+    applyDot(
+      w,
+      e,
+      'bleeding',
+      characterDamage(w, cls, eff.markPastDotDps ?? 0) * active1PotencyMul(w),
+      eff.markPastDotSeconds ?? 0,
+      'class_active',
+    );
     e.timeMarkStage = 1;
   } else if (stage === 1) {
     // past -> present: "stun-locks 3 s" reuses `frozen`'s own authored 3 s
     // duration (Q139) — the sim has no separate generic stun, and frozen's
     // "cannot move" is exactly what a stun-lock reads as.
     applyFrozen(w, e);
-    applyDot(w, e, 'bleeding', characterDamage(w, cls, eff.markPresentDotDps ?? 0), eff.markPresentDotSeconds ?? 0, 'class_active');
+    applyDot(
+      w,
+      e,
+      'bleeding',
+      characterDamage(w, cls, eff.markPresentDotDps ?? 0) * active1PotencyMul(w),
+      eff.markPresentDotSeconds ?? 0,
+      'class_active',
+    );
     e.timeMarkStage = 2;
   } else if (stage === 2) {
     // present -> future: -20% atk/move speed, deferred while stunned/frozen
@@ -1109,7 +1188,8 @@ function fireTimeLock(w: World, cls: ClassDef, aimX: number | undefined, aimY: n
     x: cx,
     y: cy,
     radius: eff.radius,
-    remaining: eff.groundDurationSeconds ?? 5,
+    // p7a (§6.3) skill card "Lingering Stasis": zone duration +2s/rank.
+    remaining: (eff.groundDurationSeconds ?? 5) + classLineBonus(w),
     dotSeconds: eff.zoneDotSeconds ?? 10,
     dps: characterDamage(w, cls, eff.damage),
   };
@@ -1422,7 +1502,7 @@ export function useClassActive(w: World, aimX?: number, aimY?: number): boolean 
   }
   switch (cls.active1.kind) {
     case 'burst_damage':
-      fireEffect(w, wd.x, wd.y, cls.active1, passiveOnHit(cls));
+      fireEffect(w, wd.x, wd.y, cls.active1, passiveOnHit(w, cls), active1PotencyMul(w), classLineBonus(w));
       break;
     case 'ground_poison':
       firePoisonBarrel(w, cls);
@@ -1495,7 +1575,7 @@ export function useClassActive2(w: World, aimX?: number, aimY?: number): boolean
   }
   switch (cls.active2.kind) {
     case 'burst_damage':
-      fireEffect(w, wd.x, wd.y, cls.active2, passiveOnHit(cls));
+      fireEffect(w, wd.x, wd.y, cls.active2, passiveOnHit(w, cls));
       break;
     case 'dash_line':
       fireDashSlash(w, cls, aimX, aimY);
@@ -1541,9 +1621,9 @@ export function useClassActive2(w: World, aimX?: number, aimY?: number): boolean
   }
   if (max2 > 1) {
     wd.active2Ammo--;
-    if (wd.active2AmmoCooldown <= 0) wd.active2AmmoCooldown = (cls.active2.rechargeSeconds ?? 0) * (1 - w.derived.cdr);
+    if (wd.active2AmmoCooldown <= 0) wd.active2AmmoCooldown = (cls.active2.rechargeSeconds ?? 0) * active2CdrFactor(w);
   } else {
-    wd.active2Cooldown = cls.active2.cooldownSeconds * (1 - w.derived.cdr);
+    wd.active2Cooldown = cls.active2.cooldownSeconds * active2CdrFactor(w);
   }
   return true;
 }
@@ -1569,7 +1649,7 @@ export function tickAmmoRecharge(w: World, cls: ClassDef, dt: number): void {
     wd.active2AmmoCooldown -= dt;
     if (wd.active2AmmoCooldown <= 0) {
       wd.active2Ammo++;
-      if (wd.active2Ammo < max2) wd.active2AmmoCooldown = (cls.active2.rechargeSeconds ?? 0) * (1 - w.derived.cdr);
+      if (wd.active2Ammo < max2) wd.active2AmmoCooldown = (cls.active2.rechargeSeconds ?? 0) * active2CdrFactor(w);
     }
   }
 }
@@ -1649,7 +1729,7 @@ export function classBasicAttack(w: World, cls: ClassDef): void {
   if (!target) return;
   wd.attackCooldown = a.interval / (w.derived.attackSpeedMul * auraSpeedMul(w, wd.x, wd.y));
   const dmg = characterDamage(w, cls, a.dps * a.interval);
-  const onHit = passiveOnHit(cls);
+  const onHit = passiveOnHit(w, cls);
   if (a.aoe > 0) {
     // Splash routes through the shared AoE convention (aoeFullTargets/aoeFalloff/
     // aoeFalloffFloor, data/towers.json) so a future kit's basic-attack aoe (p6b+)

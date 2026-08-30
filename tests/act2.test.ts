@@ -11,11 +11,13 @@ import {
   pickAutoOfferIndex,
   rollOffers,
   takeOffer,
+  typeMasteryMul,
   updateGems,
   xpToReach,
 } from '../src/sim/progression';
 import { budgetFor, pickSpawnPoint, timeHpScale } from '../src/sim/act2';
 import { applyCommand } from '../src/sim/run';
+import { buildTower } from '../src/sim/towers';
 import { GRID_H, GRID_W } from '../src/sim/grid';
 import { cfg } from './helpers';
 
@@ -58,13 +60,6 @@ describe('XP and levelling (SPEC 5.2)', () => {
     expect(new Set(offers.map((o) => o.kind + o.key)).size).toBe(3);
   });
 
-  // RETIRED (SPEC-FINAL §6.3) — the level-up pool has no weapon cards: it
-  // offers stat boons, Type Mastery per built tower type, and per-class skill
-  // cards. Re-asserted by p7a. Deleted with the pool rewrite at **p7a**.
-  it.skip('applies a weapon offer', () => {
-    // No weapon offers exist since p2e; kept skipped for p7a's own asserts.
-  });
-
   it('applies a boon offer and its stat', () => {
     const w = act2World();
     const before = w.derived.powerMul;
@@ -72,69 +67,77 @@ describe('XP and levelling (SPEC 5.2)', () => {
     w.offers = [{ kind: 'boon', key: 'power', name: '', desc: '', toLevel: 1 }];
     takeOffer(w, 0);
     expect(w.boonRanks.power).toBe(1);
-    expect(w.derived.powerMul).toBeCloseTo(before + 0.08, 6);
+    expect(w.derived.powerMul).toBeCloseTo(before + 0.1, 6);
   });
 
-  it('never offers a boon past its max rank', () => {
+  // qa-playtester finding (p7a): a forged offer that jumps several ranks at
+  // once used to leave `boonRanks` reporting the full jump while `Stats`
+  // only ever credited one rank's worth (`addAll` always added `perRank`
+  // regardless of how far `toLevel` actually moved) — fixed by scaling the
+  // addAll call by the real rank delta.
+  it('a forged multi-rank jump credits Stats for every rank gained, not just one', () => {
     const w = act2World();
-    w.boonRanks.second_wind = 1;
+    const boon = w.content.boons.statBoons.find((b) => b.key === 'power')!;
+    const before = w.derived.powerMul;
+    applyOffer(w, { kind: 'boon', key: 'power', name: '', desc: '', toLevel: 5 });
+    expect(w.boonRanks.power).toBe(5);
+    expect(w.derived.powerMul).toBeCloseTo(before + boon.perRank * 5, 10);
+  });
+
+  it('never offers a stat boon past its rank x5 cap', () => {
+    const w = act2World();
+    for (const b of w.content.boons.statBoons) w.boonRanks[b.key] = b.maxRank;
+    for (let i = 0; i < 50; i++) {
+      for (const o of rollOffers(w)) expect(o.kind).not.toBe('boon');
+    }
+  });
+
+  it('offers Type Mastery only for tower types actually built, and only up to rank x3', () => {
+    const w = act2World();
+    w.gold = 9999;
+    const built = buildTower(w, w.content.towerByKey.get('arrow_spire')!.id, 18, 9, { ignorePhase: true });
+    expect(built.ok).toBe(true);
     for (let i = 0; i < 50; i++) {
       for (const o of rollOffers(w)) {
-        expect(o.key === 'second_wind' && o.kind === 'boon').toBe(false);
+        if (o.kind !== 'type_mastery') continue;
+        expect(o.towerKey).toBe('arrow_spire');
+      }
+    }
+    w.typeMasteryRanks.arrow_spire = w.content.boons.typeMastery.maxRank;
+    for (let i = 0; i < 50; i++) {
+      expect(rollOffers(w).some((o) => o.kind === 'type_mastery')).toBe(false);
+    }
+  });
+
+  it('applies a Type Mastery offer as a VS-damage multiplier for that type only', () => {
+    const w = act2World();
+    w.phase = 'levelup';
+    w.offers = [{ kind: 'type_mastery', key: 'arrow_spire', name: '', desc: '', toLevel: 1, towerKey: 'arrow_spire' }];
+    takeOffer(w, 0);
+    expect(w.typeMasteryRanks.arrow_spire).toBe(1);
+    expect(typeMasteryMul(w, 'arrow_spire')).toBeCloseTo(1 + w.content.boons.typeMastery.perRank, 10);
+    expect(typeMasteryMul(w, 'ember_brazier')).toBe(1);
+  });
+
+  it('offers exactly the 3 skill cards belonging to the run class, never another class’s', () => {
+    const w = act2World();
+    const own = new Set(w.content.boons.skillCards[w.cfg.classKey]!.map((c) => c.key));
+    for (let i = 0; i < 50; i++) {
+      for (const o of rollOffers(w)) {
+        if (o.kind !== 'skill_card') continue;
+        expect(own.has(o.key)).toBe(true);
       }
     }
   });
 
-  /**
-   * fb011 (§6.3 supersede, owner feedback `feature-remove-boon-rank-caps`):
-   * stat boons no longer stop at their old `maxRank` (5) — only skill-card-
-   * style boons like `second_wind` keep a real cap.
-   */
-  it('keeps stacking and keeps appearing in offers well past the old x5 rank cap', () => {
+  it('applies a skill card offer to its own rank map, clamped to its own rank x2', () => {
     const w = act2World();
-    const boon = w.content.boons.boons.find((b) => b.key === 'power')!;
-    expect(boon.uncapped).toBe(true);
-    for (let r = 1; r <= 10; r++) {
-      applyOffer(w, { kind: 'boon', key: boon.key, name: boon.name, desc: '', toLevel: r });
-    }
-    expect(w.boonRanks.power).toBe(10);
-    // Ranks within one boon add, then multiply out as one source (§2).
-    const [[source, contribution]] = w.stats.contributions('power');
-    expect(source).toBe('boon:power');
-    expect(contribution).toBeCloseTo(boon.perRank * 10, 10);
-    expect(w.derived.powerMul).toBeCloseTo(1 + boon.perRank * 10, 10);
-
-    // Uniform random 3-of-12 draws (luck is 0 here, so weights are flat):
-    // P('power' missing from every one of 200 independent draws) is
-    // (9/12)^200-ish, i.e. not a realistic flake.
-    let sawPower = false;
-    for (let i = 0; i < 200 && !sawPower; i++) {
-      sawPower = rollOffers(w).some((o) => o.kind === 'boon' && o.key === 'power');
-    }
-    expect(sawPower).toBe(true);
-  });
-
-  it('the offer pool never exhausts on rank alone even with every uncapped boon deep past its old cap', () => {
-    const w = act2World();
-    for (const b of w.content.boons.boons) {
-      if (b.uncapped) w.boonRanks[b.key] = 20;
-    }
-    for (let i = 0; i < 20; i++) {
-      const offers = rollOffers(w);
-      expect(offers.length).toBe(3);
-      expect(offers.every((o) => o.kind === 'boon')).toBe(true);
-    }
-  });
-
-  it('second_wind stays capped at rank 1 even once every other boon is deep past its old cap', () => {
-    const w = act2World();
-    for (const b of w.content.boons.boons) {
-      if (b.uncapped) w.boonRanks[b.key] = 30;
-    }
-    w.boonRanks.second_wind = 1;
-    for (let i = 0; i < 50; i++) {
-      expect(rollOffers(w).some((o) => o.kind === 'boon' && o.key === 'second_wind')).toBe(false);
-    }
+    const card = w.content.boons.skillCards[w.cfg.classKey]!.find((c) => c.effect === 'active1_potency')!;
+    applyOffer(w, { kind: 'skill_card', key: card.key, name: '', desc: '', toLevel: 1 });
+    expect(w.skillCardRanks[card.key]).toBe(1);
+    // A forged offer past maxRank (BACKLOG b011's shape) clamps, not overflows.
+    applyOffer(w, { kind: 'skill_card', key: card.key, name: '', desc: '', toLevel: 99 });
+    expect(w.skillCardRanks[card.key]).toBe(card.maxRank);
   });
 });
 

@@ -265,6 +265,38 @@ describe("p6b: G9 — Dash during a Circle Slash charge merges into one attack",
     expect(mergedLoss).toBeCloseTo(dashLoss + circleLoss, 5);
   });
 
+  /**
+   * p7a (§6.3) skill card "Circle Slash Potency" (`active1_potency`) code
+   * review finding: the merged charge is still Circle Slash's own damage
+   * (`circleSlashValues(cls.active1, ...)`), so it must scale by
+   * `active1PotencyMul` exactly like a normal, unmerged release
+   * (`fireCircleSlash`) does — this was found silently skipping it.
+   */
+  it('the Circle Slash Potency skill card scales the merged charge damage too, not just a solo release', () => {
+    const card = content.boons.skillCards['swordsman']!.find((c) => c.effect === 'active1_potency')!;
+
+    const unranked = worldWith();
+    const eUnranked = spawnEnemy(unranked, unranked.content.enemies.enemies[0].key, unranked.warden.x + 3, unranked.warden.y)!;
+    eUnranked.hp = 1e6;
+    eUnranked.maxHp = 1e6;
+    unranked.rebuildBuckets();
+    for (let t = 0; t < 250; t++) updateWarden(unranked, held(true), 1 / 60);
+    applyCommand(unranked, { k: 'class_active2', aimX: eUnranked.x, aimY: eUnranked.y });
+    const unrankedLoss = 1e6 - eUnranked.hp;
+
+    const ranked = worldWith();
+    ranked.skillCardRanks[card.key] = 1;
+    const eRanked = spawnEnemy(ranked, ranked.content.enemies.enemies[0].key, ranked.warden.x + 3, ranked.warden.y)!;
+    eRanked.hp = 1e6;
+    eRanked.maxHp = 1e6;
+    ranked.rebuildBuckets();
+    for (let t = 0; t < 250; t++) updateWarden(ranked, held(true), 1 / 60);
+    applyCommand(ranked, { k: 'class_active2', aimX: eRanked.x, aimY: eRanked.y });
+    const rankedLoss = 1e6 - eRanked.hp;
+
+    expect(rankedLoss).toBeGreaterThan(unrankedLoss);
+  });
+
   it('each enemy struck takes exactly 1 Bleeding from the merged attack, not 2', () => {
     const w = worldWith();
     const e = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 3, w.warden.y)!;

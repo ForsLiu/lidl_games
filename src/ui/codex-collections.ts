@@ -35,7 +35,12 @@ export function buildCodexCollections(content: Content = loadContent()): CodexCo
     { key: 'damagetypes', label: 'Damage Types', rows: asRows(content.damageTypes.types) },
     { key: 'enemies', label: 'Enemies', rows: asRows(content.enemies.enemies) },
     { key: 'waves', label: 'Waves', rows: asRows(content.waves.waves) },
-    { key: 'boons', label: 'Boons', rows: asRows(content.boons.boons) },
+    { key: 'boons', label: 'Stat Boons', rows: asRows(content.boons.statBoons) },
+    {
+      key: 'skillcards',
+      label: 'Skill Cards',
+      rows: asRows(Object.values(content.boons.skillCards).flat()),
+    },
     { key: 'modifiers', label: 'Modifiers', rows: asRows(content.modifiers.modifiers) },
     { key: 'tree', label: 'Constellation Nodes', rows: asRows(content.tree.nodes) },
     { key: 'quests', label: 'Quests', rows: asRows(content.quests.quests) },
