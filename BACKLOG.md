@@ -484,12 +484,12 @@ next in P8's own queue.
       shred twice; the shared cap's eviction rule (a type under its own cap evicts
       the most numerous other type's shortest stack, never the reverse) holds with
       Burning participating — refs: §3, §16 — **done, see Done section.**
-- [ ] (p10b) [feat] DoT immunity is hardcoded in the engine: `immuneToDot` tests
+- [x] (p10b) [feat] DoT immunity is hardcoded in the engine: `immuneToDot` tests
       `type === 'burning' && TRAIT.burnImmune`, so a taxonomy row with an immunity of
       its own needs an engine edit, against the rule that new mechanics are data
       shapes — acceptance: an optional `immuneTrait` on the damage-type schema,
       resolved through the trait table, with Burning authored to use it and a test on
-      a second row — refs: §3, §12, code review on m19c
+      a second row — refs: §3, §12, code review on m19c — **done, see Done section.**
 - [ ] (p10c) [balance] Gate **G13**: no tower type's VS attack takes more than 35% of
       damage across the winning-build pool, every type is solo-viable at T1 and none
       at T3 — acceptance: G13 measured over the seed set on the §1.1 run shape, with
@@ -989,6 +989,50 @@ logged in MIGRATION.md §8 rather than carried as dead items.
       test:fast`: 1667 passed; only the documented host-load-contention flakes
       (`b032`/`b034`/`b035`/`b036`, `q13-perf-ratio`, `q49-price-probe-restore`)
       red, each reconfirmed green standalone. No bugs filed. Commit `534d363`.
+- [x] (p10b) [feat] DoT immunity is hardcoded in the engine: `immuneToDot` tests
+      `type === 'burning' && TRAIT.burnImmune`, so a taxonomy row with an immunity of
+      its own needs an engine edit, against the rule that new mechanics are data
+      shapes — acceptance: an optional `immuneTrait` on the damage-type schema,
+      resolved through the trait table, with Burning authored to use it and a test on
+      a second row — refs: §3, §12, code review on m19c.
+      `src/sim/content.ts`'s `DamageTypeSchema` gained an optional `immuneTrait`
+      string; `data/damagetypes.json`'s Burning row now authors
+      `"immuneTrait": "burnImmune"`. `src/sim/enemies.ts`'s `immuneToDot(w, e,
+      type)` no longer names `'burning'`/`burnImmune` itself — it looks up
+      `w.content.damageTypeByKey.get(type)?.immuneTrait` and resolves that name
+      through the same `TRAIT` bitmask table `traitFlags` already folds
+      `EnemyDef.traits` against, so an unrecognised name is just never carried by
+      any enemy (the same silent-typo behaviour `traits` itself already has, a
+      pre-existing gap tracked separately as b013). Both call sites — the direct
+      application in `applyDot` and the neighbour-splash path `tickDotSplash`
+      p10a added — were updated to pass `w` through, preserving "the spread
+      carries the row's effects, so it carries the row's immunity." The loader's
+      existing hit-vs-dot cross-check (a hit row may not carry a dot-only field)
+      was extended to cover `immuneTrait` too, so a future hit row authoring it
+      is rejected at load rather than silently inert. `tests/m19c-damage-types.
+      test.ts` gained a `p10b` describe block: Bleeding authored with a synthetic
+      `immuneTrait: 'slowImmune'` via a `loadContent({ damageTypes })` override
+      (a row/trait pairing with nothing to do with Burning) proves the mechanism
+      is generic — a carrier is immune to both the hit and the dot, a
+      non-carrier is unaffected, Burning itself is untouched by the unrelated
+      row, an unauthored `immuneTrait` (Poison) is immune to nothing, and a hit
+      row (Electric) authoring `immuneTrait` throws at load. `tests/
+      q7-loader-holes.ts`'s generated census was regenerated (`Q7_RECORD=1`):
+      6,615 mutations, 4,394 rejected, 2,221 accepted (up from 6,599/4,381/
+      2,218), the new field's `ACCEPTED` entry matching every other optional
+      free-text field's `to-string`/`empty-string`/`drop-key` shape and its
+      `REF_VERDICTS` entry `'open'` (no cross-file check catches a typo'd trait
+      name, consistent with `traits[]` itself). code-reviewer found no Critical/
+      Major issues; its one Minor (the hit-vs-dot guard not yet covering
+      `immuneTrait`) was fixed inline with its own regression test before
+      qa-playtester's pass. qa-playtester independently re-verified both call
+      sites, the 50-stack shared-budget interaction (immunity short-circuits
+      before any stack bookkeeping, unchanged), multi-trait enemies, case
+      sensitivity, and that Cinderling's shipped `burnImmune` behaviour is
+      byte-for-byte unchanged — confirmed the acceptance criteria met, no bugs
+      filed. `npm run test:fast`: 1674 passed; only the same documented
+      host-load-contention flakes (`b032`/`b034`/`b035`/`b036`) red, reconfirmed
+      pre-existing on unmodified `master`.
 - [x] (p9h) [polish] The enemy panel prints raw shredded armour: past the −100 floor
       a horde-density Brazier board reads "−294 (100% more taken)", honest about the
       percentage and misleading about the number — acceptance: the panel shows the

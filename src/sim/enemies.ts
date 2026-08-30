@@ -617,9 +617,19 @@ export function statusDamageTakenMul(w: World, e: Enemy): number {
  * neighbour caught in another victim's spread — and an immunity honoured on
  * only one of them is worse than none: the Cinderling is authored `burnImmune`
  * and fights inside the Ember Brazier's cone alongside husks that are not.
+ *
+ * p10b: the row states its own immunity trait (`damagetypes.json`'s
+ * `immuneTrait`) instead of this function naming `'burning'`/`burnImmune`
+ * itself, so a second DoT row can be made immunable from `/data` alone. The
+ * trait name is resolved through the same `TRAIT` table `traitFlags` folds
+ * `EnemyDef.traits` against; an unauthored or unknown trait name is simply
+ * never carried by any enemy, same as any other typo'd trait string.
  */
-function immuneToDot(e: Enemy, type: string): boolean {
-  return type === 'burning' && (e.flags & TRAIT.burnImmune) !== 0;
+function immuneToDot(w: World, e: Enemy, type: string): boolean {
+  const trait = w.content.damageTypeByKey.get(type)?.immuneTrait;
+  if (!trait) return false;
+  const bit = (TRAIT as Record<string, number>)[trait];
+  return bit !== undefined && (e.flags & bit) !== 0;
 }
 
 export interface DotOptions {
@@ -711,7 +721,7 @@ export function applyDot(
   if (e.dead) return;
   const def = w.content.damageTypeByKey.get(type);
   if (!def || def.effect !== 'dot') return;
-  if (immuneToDot(e, type)) return;
+  if (immuneToDot(w, e, type)) return;
   if (duration <= 0) return;
   const scaled = dps * dotPotency(w, type, source);
   if (scaled <= 0) return;
@@ -899,7 +909,7 @@ function tickDotSplash(w: World, e: Enemy, type: DamageTypeKey, acc: SplashAccum
     const n = list[i];
     if (n === e || n.dead) continue;
     // The spread carries the row's effects, so it carries the row's immunity.
-    if (immuneToDot(n, type)) continue;
+    if (immuneToDot(w, n, type)) continue;
     if (acc.shred > 0) shredArmor(n, acc.shred);
     damageEnemy(w, n, acc.dps, acc.source, { pure: true, dot: true, type });
   }

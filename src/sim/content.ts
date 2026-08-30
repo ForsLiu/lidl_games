@@ -880,6 +880,12 @@ const DamageTypeSchema = z
     armorShredPerSecond: num.optional(),
     /** Burning's spread and Electric's inherent blast, in tiles. */
     radius: num.optional(),
+    /**
+     * p10b: an enemy trait (resolved through `enemies.ts`'s `TRAIT` table)
+     * that makes this row a no-op against a carrier — Burning authors
+     * `burnImmune` here so a new immunity is a data row, not an engine edit.
+     */
+    immuneTrait: str.optional(),
     desc: str,
     /**
      * fb005: the floating-damage-number and DoT-marker color for this type.
@@ -1727,7 +1733,13 @@ export function loadContent(overrides?: ContentOverrides): Content {
       if (d.maxStacks > damageTypes.maxStacksPerEnemy) {
         throw new Error(`damagetypes.json: "${d.key}" maxStacks exceeds maxStacksPerEnemy`);
       }
-    } else if (hasDps || hasRatio || d.duration !== undefined || d.armorShredPerSecond !== undefined) {
+    } else if (
+      hasDps ||
+      hasRatio ||
+      d.duration !== undefined ||
+      d.armorShredPerSecond !== undefined ||
+      d.immuneTrait !== undefined
+    ) {
       throw new Error(`damagetypes.json: "${d.key}" is a hit but carries dot fields`);
     }
   }

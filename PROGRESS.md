@@ -5,6 +5,44 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-30 session: p10b done — DoT immunity is a per-row `/data` trait,
+  not a hardcoded engine check.** `immuneToDot` used to test `type ===
+  'burning' && (e.flags & TRAIT.burnImmune)` directly, so a second immune
+  taxonomy row would have needed an engine edit, against CLAUDE.md's rule that
+  new mechanics are data shapes. `src/sim/content.ts`'s `DamageTypeSchema`
+  gained an optional `immuneTrait` string; `data/damagetypes.json`'s Burning
+  row now authors `"immuneTrait": "burnImmune"`; `immuneToDot(w, e, type)` now
+  looks up `w.content.damageTypeByKey.get(type)?.immuneTrait` and resolves
+  that name through the same `TRAIT` bitmask table `traitFlags` already folds
+  `EnemyDef.traits` against — an unrecognised name is simply never carried by
+  any enemy, the same silent-typo behaviour `traits[]` itself already has (a
+  pre-existing gap tracked separately as b013). Both call sites — the direct
+  `applyDot` application and p10a's neighbour-splash path `tickDotSplash` —
+  were updated to pass `w` through, so "the spread carries the row's effects,
+  so it carries the row's immunity" still holds. The loader's existing
+  hit-vs-dot cross-check (a hit row can't carry a dot-only field) was extended
+  to `immuneTrait` too. `tests/m19c-damage-types.test.ts` proves the mechanism
+  is generic with a `p10b` describe block: Bleeding authored with a synthetic
+  `immuneTrait: 'slowImmune'` via a `loadContent({ damageTypes })` override (a
+  row/trait pairing unrelated to Burning) shows a carrier immune to both the
+  hit and the dot, a non-carrier unaffected, Burning itself untouched by the
+  unrelated row, an unauthored `immuneTrait` (Poison) immune to nothing, and a
+  hit row (Electric) authoring `immuneTrait` rejected at load.
+  `tests/q7-loader-holes.ts`'s generated fuzz census was regenerated
+  (`Q7_RECORD=1`): 6,615 mutations, 4,394 rejected, 2,221 accepted (up from
+  6,599/4,381/2,218), the new field scored `open` in `REF_VERDICTS` (no
+  cross-file check catches a typo'd trait name) and given the same
+  `to-string`/`empty-string`/`drop-key` shape every other optional free-text
+  field already has. code-reviewer found no Critical/Major issues; its one
+  Minor (the hit-vs-dot guard not yet covering `immuneTrait`) was closed
+  inline with its own regression test. qa-playtester independently
+  re-verified both call sites, the 50-stack shared-budget interaction
+  (immunity short-circuits before any stack bookkeeping, unchanged),
+  multi-trait enemies, case sensitivity, and confirmed Cinderling's shipped
+  `burnImmune` behaviour is byte-for-byte unchanged — acceptance criteria met,
+  no bugs filed. `npm run test:fast`: 1674 passed; only the documented
+  host-load-contention flakes (`b032`/`b034`/`b035`/`b036`) red, reconfirmed
+  pre-existing on unmodified `master`.
 - **2026-08-30 session: p10a done — Burning flipped to per-application
   stacking, P10's balance re-baseline phase opened — commit `534d363`.**
   `data/damagetypes.json`'s Burning row now matches Bleeding's shape

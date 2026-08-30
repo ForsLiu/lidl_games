@@ -22,6 +22,18 @@
  *     `open` = no row is, `partial` = some are and some are not, which is the
  *     one-directional-integrity finding (E1).
  *
+ * Recorded 2026-08-30 (p10b) against 6,615 mutations, 4,394 rejected, 2,221
+ * accepted — up from 6,599/4,381/2,218: `damagetypes.types[].immuneTrait`
+ * (the new optional string that lets a row name its own DoT-immunity trait
+ * instead of `immuneToDot` hardcoding `'burning'`/`burnImmune`) is the one new
+ * field, and it gets the same unguarded `to-string`/`empty-string`/`drop-key`
+ * shape every other optional free-text field in this table already has — no
+ * new hole, the pre-existing b013 pattern extended to a new field. It reads
+ * `open` in REF_VERDICTS: nothing cross-checks it against `enemies.ts`'s
+ * `TRAIT` table (an unrecognised name is just never carried by any enemy,
+ * the same silent-typo behaviour `EnemyDef.traits` itself already has).
+ * ACCEPTED and REF_VERDICTS updated in place, INEFFECTIVE unchanged.
+ *
  * Recorded 2026-08-30 (p7e) against 6,599 mutations, 4,381 rejected, 2,218
  * accepted — down from 4,371/2,228: p7e's `loadContent()` gained a
  * referential-integrity check (§8.4) that every non-free class's
@@ -348,6 +360,7 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'damagetypes.types[].dps': ['negative', 'zero', 'infinite', 'fractional'],
   'damagetypes.types[].duration': ['infinite', 'fractional'],
   'damagetypes.types[].ignoresArmor': ['flip-bool'],
+  'damagetypes.types[].immuneTrait': ['to-string', 'empty-string', 'drop-key'],
   'damagetypes.types[].name': ['to-string', 'empty-string'],
   'damagetypes.types[].radius': ['negative', 'zero', 'infinite', 'fractional', 'drop-key'],
   'damagetypes.types[].ratio': ['negative', 'zero', 'infinite', 'fractional'],
@@ -772,6 +785,7 @@ export const REF_VERDICTS: Readonly<Record<string, RefVerdict>> = {
   'damagetypes.types[].colorblindColor': 'open',
   'damagetypes.types[].desc': 'open',
   'damagetypes.types[].effect': 'checked',
+  'damagetypes.types[].immuneTrait': 'open',
   'damagetypes.types[].key': 'partial',
   'damagetypes.types[].name': 'open',
   'damagetypes.types[].refresh': 'checked',

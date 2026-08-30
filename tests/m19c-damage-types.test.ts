@@ -288,6 +288,7 @@ describe('§3 Burning — 1 dmg and −1 armor per second for 3 s, both AoE (r1)
     expect(b.armorShredPerSecond).toBe(1);
     expect(b.duration).toBe(3);
     expect(b.radius).toBe(1);
+    expect(b.immuneTrait).toBe('burnImmune');
   });
 
   it('one application deals 3 damage over 3 s', () => {
@@ -382,6 +383,63 @@ describe('§3 Burning — 1 dmg and −1 armor per second for 3 s, both AoE (r1)
   it('is authored to share the 50-stack perf cap, same as Bleeding', () => {
     expect(row('burning').maxStacks).toBe(content.damageTypes.maxStacksPerEnemy);
     expect(row('burning').refresh).toBe('shortest');
+  });
+});
+
+describe('§3 DoT immunity is a per-row `/data` trait, not hardcoded to Burning (p10b)', () => {
+  // Bleeding authored with an immunity of its own, against a content doc that
+  // is not the shipped one — `slowImmune` has nothing to do with Burning, so
+  // this only passes if `immuneToDot` actually resolves the row's own
+  // `immuneTrait` through the trait table rather than testing `type ===
+  // 'burning'` under the hood.
+  const bleedImmune = {
+    ...content.damageTypes,
+    types: content.damageTypes.types.map((t) =>
+      t.key === 'bleeding' ? { ...t, immuneTrait: 'slowImmune' } : t,
+    ),
+  };
+
+  it('a carrier of the row-named trait takes neither the hit nor the dot', () => {
+    const w = new World(cfg(), loadContent({ damageTypes: bleedImmune }));
+    w.gold = 100000;
+    const immune = variant(w, 'slowImmune');
+    applyDamageType(w, immune, 'bleeding', 1, 'test');
+    expect(dotStacks(immune, 'bleeding')).toBe(0);
+    expect(tick(w, immune, 5)).toBe(0);
+  });
+
+  it('an enemy without the trait is unaffected — the row is opt-in, not global', () => {
+    const w = new World(cfg(), loadContent({ damageTypes: bleedImmune }));
+    w.gold = 100000;
+    const e = dummy(w);
+    applyDamageType(w, e, 'bleeding', 1, 'test');
+    expect(tick(w, e, 5)).toBeCloseTo(5, 5);
+  });
+
+  it('Burning is untouched by another row claiming an unrelated trait', () => {
+    const w = new World(cfg(), loadContent({ damageTypes: bleedImmune }));
+    w.gold = 100000;
+    const e = variant(w, 'slowImmune');
+    applyDamageType(w, e, 'burning', 1, 'test');
+    expect(tick(w, e, 3)).toBeCloseTo(3, 5);
+  });
+
+  it('an unauthored immuneTrait leaves the row immune to nothing', () => {
+    expect(row('poison').immuneTrait).toBeUndefined();
+    const w = world();
+    const e = variant(w, 'slowImmune');
+    applyDamageType(w, e, 'poison', 10, 'test');
+    expect(dotStacks(e, 'poison')).toBe(1);
+  });
+
+  it('a hit row authoring immuneTrait is rejected at load, same as any other dot-only field', () => {
+    const electricWithImmunity = {
+      ...content.damageTypes,
+      types: content.damageTypes.types.map((t) =>
+        t.key === 'electric' ? { ...t, immuneTrait: 'flying' } : t,
+      ),
+    };
+    expect(() => loadContent({ damageTypes: electricWithImmunity })).toThrow(/is a hit but carries dot fields/);
   });
 });
 
