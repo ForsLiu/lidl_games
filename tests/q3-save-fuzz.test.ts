@@ -444,12 +444,14 @@ describe('q3 save fuzz: version migration', () => {
  * purpose: a new hole turns this red, and fixing an old one does not.
  */
 describe('q3 save fuzz: the pinned holes in the repair path', () => {
-  /** Repair path throws; `loadMeta` falls back and the account is lost. */
-  const KNOWN_REJECTED = [
-    'allocated=number', 'allocated=bool', 'allocated=object',
-    'unlockedClasses=number', 'unlockedClasses=bool', 'unlockedClasses=object',
-    'completedQuests=number', 'completedQuests=bool', 'completedQuests=object',
-  ];
+  /**
+   * Repair path throws; `loadMeta` falls back and the account is lost.
+   * p7g: `allocated`/`unlockedClasses`/`completedQuests` used to spread with
+   * `[...x]` and no `Array.isArray` guard, so a number/bool/object value threw
+   * out of `migrate()` (filed as D1 below, now un-skipped). All nine now carry
+   * the same guard `unlockedCores` already had, so nothing is left rejected.
+   */
+  const KNOWN_REJECTED: string[] = [];
   /**
    * Wrong type spread straight through `migrate` into the live meta. p7d
    * (`accountLevel`/`ember`/`nextRelicId` retired) and fb023 (`stash`/
@@ -466,9 +468,6 @@ describe('q3 save fuzz: the pinned holes in the repair path', () => {
    * Shape comparison alone calls these clean, which hid all six.
    */
   const KNOWN_COERCED = [
-    'unlockedClasses=string',
-    'questProgress=string', 'questProgress=array',
-    'completedQuests=string',
     // fb012: not a real repair-path hole — `autoPickLevelUps` is the first
     // boolean-typed MetaState field, and `fieldMatrix`'s coerced heuristic
     // compares `WRONG_TYPES`' own label `'bool'` against `typeof` value
@@ -476,6 +475,11 @@ describe('q3 save fuzz: the pinned holes in the repair path', () => {
     // or not. `migrate` keeps a real boolean (guarded, like `unlockedCores`)
     // rather than converting it, so there is nothing here to fix.
     'autoPickLevelUps=bool',
+    // p7g closed the other four: `unlockedClasses`/`completedQuests` gained
+    // the same `Array.isArray` guard `unlockedCores` already had, and
+    // `questProgress` gained the same object-typeof guard `equipmentStash`
+    // already had — a string or array value is now replaced outright rather
+    // than spread character-by-character/index-by-index into junk keys.
   ];
   /**
    * Laundering with a consequence on screen. The `highestTier` three arrived
@@ -547,7 +551,7 @@ describe('q3 save fuzz: filed /src defects', () => {
   // account with `defaultMeta()`. The defaults for every one of these fields
   // are already in `base` — the repair is a one-line guard per field, and the
   // data loss is total without it.
-  it.skip('D1: an array field of the wrong type falls back to its default, not the whole account', () => {
+  it('D1: an array field of the wrong type falls back to its default, not the whole account', () => {
     const meta = validMeta(new Rng(1));
     const base = defaultMeta() as unknown as Record<string, unknown>;
     for (const key of ['allocated', 'unlockedClasses', 'completedQuests']) {

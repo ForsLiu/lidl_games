@@ -135,6 +135,63 @@ describe('save / load', () => {
     expect(deserializeMeta('{"version":1}').allocated).toEqual([0]);
   });
 
+  it('p7g: a malformed equipmentStash/questProgress coerces to {} instead of losing the whole account', () => {
+    // Filed when `equipmentStash` was still the old array-shaped `stash` field
+    // and `migrate()` had no guard on it at all, so a corrupt value threw out
+    // of `migrateWithNotice`, `loadMeta`'s try/catch caught it, and the entire
+    // account — level, unlocks, quests — was silently replaced with a fresh
+    // one. Re-measured (CLAUDE.md's "a deferral is a measurement with an
+    // expiry date"): p7d's rename to the `Record<string, number>`-shaped
+    // `equipmentStash` and p7f's field-by-field rebuild already added a type
+    // guard on this field. `questProgress` is the same object-shaped class.
+    // Only a string or an array actually exercise the guard (object-spreading
+    // `null`/a number/a boolean is already `{}` with no guard at all).
+    for (const field of ['equipmentStash', 'questProgress'] as const) {
+      for (const bad of ['nope', ['x', null, 1]]) {
+        const json = JSON.stringify({ version: SAVE_VERSION, meta: { ...metaWith(), [field]: bad } });
+        expect(() => deserializeMeta(json), `${field} = ${JSON.stringify(bad)}`).not.toThrow();
+        expect(deserializeMeta(json)[field]).toEqual({});
+      }
+    }
+  });
+
+  it('p7g: a malformed allocated/unlockedClasses/completedQuests coerces to [] instead of throwing out of migrate()', () => {
+    // code-reviewer finding on this item: `[...x]` throws `TypeError: x is not
+    // iterable` for any non-nullish, non-iterable `x` (a number, a boolean, a
+    // plain object) — unlike an object spread, which degrades harmlessly to
+    // `{}`. That throw used to propagate out of `migrate()` and hit `loadMeta`'s
+    // outer catch, discarding the *entire* account — the same failure class as
+    // the `equipmentStash` case above, just reproduced on these three fields
+    // instead. `null` is excluded: `?? base`/`?? []` already covers it.
+    for (const field of ['allocated', 'unlockedClasses', 'completedQuests'] as const) {
+      for (const bad of [42, true, {}]) {
+        const json = JSON.stringify({ version: SAVE_VERSION, meta: { ...metaWith(), [field]: bad } });
+        expect(() => deserializeMeta(json), `${field} = ${JSON.stringify(bad)}`).not.toThrow();
+      }
+    }
+  });
+
+  it('p7g: the rest of the account survives alongside a repaired corrupt field', () => {
+    // Not just "does not throw" but "does not discard everything else" — the
+    // part of the original bug report that mattered most.
+    const json = JSON.stringify({
+      version: 1,
+      meta: {
+        equipmentStash: 'nope',
+        completedQuests: 42,
+        skillPoints: 42,
+        highestTier: 3,
+        unlockedClasses: ['engineer', 'pyromancer'],
+      },
+    });
+    const migrated = deserializeMeta(json);
+    expect(migrated.skillPoints).toBe(42);
+    expect(migrated.highestTier).toBe(3);
+    expect(migrated.unlockedClasses).toEqual(['engineer', 'pyromancer']);
+    expect(migrated.completedQuests).toEqual([]);
+    expect(migrated.equipmentStash).toEqual({});
+  });
+
   it('opens a new account with 0 skill points — the Hub explains itself rather than starting pre-spent', () => {
     const fresh = defaultMeta();
     expect(fresh.skillPoints).toBe(0);

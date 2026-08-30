@@ -356,7 +356,16 @@ function migrateWithNotice(
   // "reloads byte-identically" — `JSON.stringify` key order is insertion
   // order, and there is no `{...base}` here any more to fix it implicitly).
   const out: MetaState = {
-    allocated: [...(meta.allocated ?? base.allocated)],
+    // p7g (re-measured, code-reviewer finding): `[...x]` throws
+    // `TypeError: x is not iterable` for any non-nullish, non-iterable `x`
+    // (a number, boolean, or plain object) — unlike an object spread, which
+    // degrades harmlessly. That throw propagated out of `migrate()` and hit
+    // `loadMeta`'s outer catch, discarding the *entire* account rather than
+    // just this field — the exact failure class p7g was filed against, on
+    // `allocated`/`unlockedClasses`/`completedQuests` rather than the
+    // now-fixed `stash`/`equipmentStash`. Same `Array.isArray` guard as
+    // `unlockedCores` below.
+    allocated: Array.isArray(meta.allocated) ? [...meta.allocated] : [...base.allocated],
     // fb015 (§7): an old save has neither field the same way `equipped` used
     // to before fb015 — an object-typed field guards against the same
     // corrupt-non-object class `unlockedCores`'s `Array.isArray` check
@@ -374,7 +383,8 @@ function migrateWithNotice(
       meta.equippedEquipment && typeof meta.equippedEquipment === 'object' && !Array.isArray(meta.equippedEquipment)
         ? { ...base.equippedEquipment, ...meta.equippedEquipment }
         : { ...base.equippedEquipment },
-    unlockedClasses: [...(meta.unlockedClasses ?? base.unlockedClasses)],
+    // p7g: same not-iterable throw as `allocated` above.
+    unlockedClasses: Array.isArray(meta.unlockedClasses) ? [...meta.unlockedClasses] : [...base.unlockedClasses],
     // `Array.isArray`, not just `?? base`: a corrupt non-array value (e.g. a
     // string) would otherwise spread character-by-character into a
     // same-shaped-but-wrong array, the same class of gap p7g fixes for
@@ -386,8 +396,15 @@ function migrateWithNotice(
     // `{...base, ...meta}` spread's behaviour for this field specifically —
     // present in `meta` (any type) wins, absent falls back to the default.
     highestTier: meta.highestTier !== undefined ? meta.highestTier : base.highestTier,
-    questProgress: { ...(meta.questProgress ?? {}) },
-    completedQuests: [...(meta.completedQuests ?? [])],
+    // p7g: guarded like `equipmentStash` — a corrupt non-object `questProgress`
+    // (a string, an array) would otherwise object-spread character-by-
+    // character/index-by-index into junk numeric keys.
+    questProgress:
+      meta.questProgress && typeof meta.questProgress === 'object' && !Array.isArray(meta.questProgress)
+        ? { ...meta.questProgress }
+        : {},
+    // p7g: same not-iterable throw as `allocated` above.
+    completedQuests: Array.isArray(meta.completedQuests) ? [...meta.completedQuests] : [],
     // fb012: guarded rather than left to the bare `...meta` spread above (the
     // laundering hole q3-save-fuzz pins for `accountLevel`/`ember`/etc.) —
     // cheap to close here since, like `unlockedCores`, the field is new.
