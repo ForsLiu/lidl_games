@@ -1557,7 +1557,7 @@ function attackStructure(w: World, e: Enemy, def: EnemyDef, s: Structure, dt: nu
  * `none`, i.e. exactly x1.
  */
 export function damageStructure(w: World, s: Structure, amount: number): void {
-  if (s.dead) return;
+  if (s.dead || !Number.isFinite(amount)) return;
   amount *= damageTakenMul(structureArmor(w, s));
   s.hp -= amount;
   w.emit('structhit', s.tx + 0.5, s.ty + 0.5, amount, s.id);

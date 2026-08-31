@@ -5,6 +5,36 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-31 session: BACKLOG b043 closed — `damageWarden` (`src/sim/run.ts`)
+  and `damageStructure` (`src/sim/enemies.ts`) had no finite guard at all, the
+  same immortality class BACKLOG b008 closed for `damageEnemy` — a NaN
+  `amount` would pin `wd.hp`/`s.hp` at NaN forever (`hp <= 0` then always
+  false), and `damageWarden` additionally fed the unguarded amount into
+  `storeWrath`. Found by code-reviewer and independently reproduced twice by
+  qa-playtester verifying b008.** Fixed: both functions gained a
+  `Number.isFinite` guard as the first check, mirroring b008's `damageEnemy`
+  precedent — `damageWarden`'s guard sits before the i-frame/invulnerable/
+  godMode checks, the Time Flow DoT branch, `storeWrath`, and the `wardenhit`
+  emit, so a non-finite amount can no longer leak any partial side effect;
+  `damageStructure`'s guard folds into its existing `s.dead` short-circuit.
+  One regression test per function (`tests/c3-armor.test.ts`, `tests/m20a-
+  upgrade-tracks.test.ts`) parameterized over NaN/+Infinity/-Infinity,
+  confirmed via `git stash` to fail on the pre-fix code and pass on the fix.
+  `npx vitest run tests/c3-armor.test.ts tests/m20a-upgrade-tracks.test.ts`:
+  54/54 green. `npm run test:fast` run twice: identical failure set both
+  times — `q15-command-domain-fuzz.test.ts`'s worker-probe hangs and
+  q28/q49/q52's Windows scratch-dir `EPERM` races, the pre-existing host-load
+  flake class already documented for other backlog items, none touching
+  combat code, all four files pass standalone before and after this diff.
+  code-reviewer: APPROVE (no Critical/Major) — confirmed §12 compliance and
+  guard placement; noted one pre-existing, out-of-scope asymmetry (b008's
+  `damageEnemy` guard also rejects `amount <= 0`, which these two don't) as a
+  possible future item, not a regression. qa-playtester: PASS — confirmed the
+  guard is the first statement in both functions, checked non-finite amounts
+  combined with other guard conditions don't throw, confirmed the structure
+  guard holds at partial HP, and grepped every call site confirming nothing
+  relies on `wardenhit`/`structhit` firing unconditionally. No new bugs
+  filed. BACKLOG.md b043 moved to Done.
 - **2026-08-31 session: BACKLOG b064 closed — `readsDataJsonDirectly()`'s
   b063-documented fixture-string false positive only reproduced for a
   mismatched-quote-style fixture; an escaped-same-quote fixture silently

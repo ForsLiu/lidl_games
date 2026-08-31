@@ -271,6 +271,20 @@ describe('m20a — a step buys +10% HP, Attack and Defense (§4)', () => {
     expect(hp0 - s.hp).toBe(50);
   });
 
+  it('BACKLOG b043: non-finite amount (NaN, +Infinity, -Infinity) into damageStructure is dropped, not applied — hp stays untouched', () => {
+    // Mirrors b008's damageEnemy guard: damageStructure had no
+    // `Number.isFinite` check at all, so a NaN amount pinned `s.hp` at NaN
+    // forever (`hp <= 0` then always false, making the structure immortal).
+    const def = content.towerByKey.get('palisade')!;
+    for (const amount of [NaN, Infinity, -Infinity]) {
+      const { w, s } = place(def);
+      const hpBefore = s.hp;
+      damageStructure(w, s, amount);
+      expect(s.hp, `amount=${amount}`).toBe(hpBefore);
+      expect(s.dead, `amount=${amount}`).toBe(false);
+    }
+  });
+
   it('does not scale range — §4 lists HP, Attack and Defense only', () => {
     const def = content.towerByKey.get('ballista')!;
     const { w, tx, ty, s } = place(def);

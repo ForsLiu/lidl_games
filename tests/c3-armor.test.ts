@@ -340,6 +340,18 @@ describe('C3 — degenerate inputs', () => {
       expect(w.damageByWeapon.test, `amount=${amount}`).toBeUndefined();
     }
   });
+
+  it('BACKLOG b043: non-finite amount (NaN, +Infinity, -Infinity) into damageWarden is dropped, not applied — hp stays untouched', () => {
+    // Mirrors b008's damageEnemy guard: damageWarden had no `Number.isFinite`
+    // check at all, so a NaN amount pinned `wd.hp` at NaN forever (`hp <= 0`
+    // then always false) and fed NaN into `storeWrath` unguarded.
+    for (const amount of [NaN, Infinity, -Infinity]) {
+      const w = world();
+      const hpBefore = w.warden.hp;
+      damageWarden(w, amount);
+      expect(w.warden.hp, `amount=${amount}`).toBe(hpBefore);
+    }
+  });
 });
 
 describe('C3 — shred does not outlive the body', () => {

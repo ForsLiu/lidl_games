@@ -2175,18 +2175,9 @@ because the lane worktree retires at this merge.
       made unreachable; `archivist` is repointed at `max_equipment_dupes`
       (own 3 of the same equipment item at once) — refs: p7d, fb015, fb023,
       QUESTIONS Q143.
-- [ ] (b043) [bug] `damageWarden` (`src/sim/run.ts`) and `damageStructure`
-      (`src/sim/enemies.ts`) both write `wd.hp -=`/`s.hp -=` with no finite
-      guard at all — the same immortality class b008 closed for
-      `damageEnemy`, unfixed on its two mirror-image functions. A NaN
-      `amount` (e.g. a corrupted boss-attack or Time Flow DoT stack) pins
-      `wd.hp`/`s.hp` at NaN forever (`hp <= 0` then always false), and
-      `damageWarden` additionally feeds `amount`/`dmg` into `storeWrath`
-      unguarded. Found by code-reviewer and independently reproduced twice
-      by qa-playtester while verifying b008 (2026-08-31) — acceptance: both
-      functions gain a `Number.isFinite` guard (precedent: b008's
-      `damageEnemy` guard, `Stats.add`), with a regression test per
-      function covering NaN/+Infinity/-Infinity — refs: §12 rule 2, b008.
+- [x] (b043) [bug] `damageWarden`/`damageStructure` had no finite guard,
+      the same immortality class b008 closed for `damageEnemy` — **done,
+      see Done section.**
 - [ ] (b044) [bug] `contentHash()` (`src/sim/content.ts`, hashed by `RunConfig`
       per `world.ts:398-404`) is not stable across a code/schema change that
       makes the loader parse more of an *unchanged* `/data/tree.json` — b013's
@@ -2272,6 +2263,50 @@ logged in MIGRATION.md §8 rather than carried as dead items.
 
 ## Done
 
+- [x] (b043) [bug] `damageWarden` (`src/sim/run.ts`) and `damageStructure`
+      (`src/sim/enemies.ts`) both wrote `wd.hp -=`/`s.hp -=` with no finite
+      guard at all — the same immortality class b008 closed for
+      `damageEnemy`, unfixed on its two mirror-image functions. A NaN
+      `amount` (e.g. a corrupted boss-attack or Time Flow DoT stack) would
+      pin `wd.hp`/`s.hp` at NaN forever (`hp <= 0` then always false), and
+      `damageWarden` additionally fed `amount`/`dmg` into `storeWrath`
+      unguarded. Found by code-reviewer and independently reproduced twice
+      by qa-playtester while verifying b008 (2026-08-31). Fixed: both
+      functions gained a `Number.isFinite` guard as the first check in the
+      function (precedent: b008's `damageEnemy` guard) — `damageWarden`'s
+      guard sits before the i-frame/invulnerable/godMode checks, the Time
+      Flow DoT branch, `storeWrath`, and the `wardenhit` emit, so a
+      non-finite amount can no longer leak any partial side effect;
+      `damageStructure`'s guard folds into its existing `s.dead` short-
+      circuit. One regression test per function
+      (`tests/c3-armor.test.ts`'s `describe('C3 — degenerate inputs')`,
+      `tests/m20a-upgrade-tracks.test.ts`) parameterized over
+      NaN/+Infinity/-Infinity, confirmed by `git stash` to fail on the
+      pre-fix code and pass on the fix. `npx vitest run tests/c3-armor.test.ts
+      tests/m20a-upgrade-tracks.test.ts`: 54/54 green. `npm run test:fast`
+      run twice: both times the only failures were
+      `q15-command-domain-fuzz.test.ts`'s worker-probe hangs and
+      q28/q49/q52's Windows scratch-dir `EPERM` races — the identical set
+      both runs, none touching combat code, and all four files pass
+      standalone before and after this diff — the pre-existing host-load
+      flake class already documented for other backlog items, not a
+      regression. code-reviewer: **APPROVE**, no Critical/Major — confirmed
+      §12 compliance (pure numeric guard, no DOM/RNG/clock/trig), confirmed
+      the guard's placement relative to `damageWarden`'s other checks is
+      correct (a strict early return, so ordering relative to the
+      i-frame/invulnerable/godMode checks doesn't change observable
+      behavior), and noted one pre-existing, out-of-scope asymmetry:
+      `damageEnemy`'s b008 guard also rejects `amount <= 0`, which
+      `damageWarden`/`damageStructure` don't — not a regression, a
+      possible future item. qa-playtester: **PASS** — verified the guard
+      is literally the first statement in both functions (no partial side
+      effects leak through), checked non-finite amounts combined with
+      other guard conditions (i-frames, low HP, godMode) don't throw,
+      confirmed `damageStructure`'s guard holds on an already-damaged
+      structure (not just full HP), and grepped every call site of both
+      functions confirming nothing relies on `wardenhit`/`structhit` firing
+      unconditionally (only cosmetic SFX/particle consumers). No new bugs
+      filed — refs: §12 rule 2, b008.
 - [x] (b063) [bug] `readsDataJsonDirectly()` (`tools/cli-crash-coverage.ts`)
       false-positives when a `readFileSync('data/x.json')`-shaped call
       appears only as the *contents* of a single/double-quoted fixture string

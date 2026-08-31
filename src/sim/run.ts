@@ -594,6 +594,7 @@ export function tickWardenDots(w: World, dt: number): void {
  * Flow's re-entrant ticks (`tickWardenDots`) are the first real source.
  */
 export function damageWarden(w: World, amount: number, opts?: WardenDamageOptions): void {
+  if (!Number.isFinite(amount)) return;
   const wd = w.warden;
   if (wd.dashIFrames > 0 || w.invulnerable || w.godMode) return;
   const dmg = opts?.dot ? amount : amount * damageTakenMul(wardenArmor(w));
