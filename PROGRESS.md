@@ -5,6 +5,26 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-31 session: BACKLOG b015 closed — no code change, bookkeeping only.**
+  b015 flagged `{k:'equip', relic}` as a declared `Command` union member with
+  no `applyCommand` handler. It was already resolved by fb015/fb023's real
+  equipment system (§7): the relic-shaped `equip` member was removed from
+  `src/sim/types.ts`'s `Command` union and replaced by `{k:'equip_item',
+  slot, item}`, which has a real handler (`equipItemCommand`, `src/sim/
+  run.ts`) and its own coverage (`tests/fb015-equipment.test.ts`); the doc
+  comment at `types.ts:37` names b015 directly. `tests/g2-determinism.test.ts`'s
+  merged a11 case fires `equip_item` instead of the old documented no-op, and
+  `tests/q15-command-domain-fuzz.test.ts`'s field census explicitly excludes
+  `equip.relic` with a comment pointing here. Verified this session: grepped
+  `src/`, `tests/`, `tools/` for `k: 'equip'` and any `RunConfig.relics`/
+  `relics:` reference — zero hits. `npx vitest run tests/g2-determinism.test.ts
+  tests/q15-command-domain-fuzz.test.ts tests/fb015-equipment.test.ts` —
+  71/71 green. `npm run test:fast`: 1728 passed, 21 skipped; only the 4
+  pre-existing documented Playwright fold flakes (b032/b034/b035/b036, port
+  contention) and the documented Windows EPERM temp-cleanup race (q28/q49)
+  red — both reproduced as pre-existing and unrelated. No commit hash: no
+  files under `/src`, `/data` or `/tests` changed, only BACKLOG.md/
+  PROGRESS.md bookkeeping.
 - **2026-08-31 session: BACKLOG b045 closed — `tools/m20d-run-a4.ts` and
   `tools/m20d-swarm.ts` no longer crash uncaught on a `/data` JSON syntax
   error, in either `towers.json` or `warden.json`.** b045 carried forward 13

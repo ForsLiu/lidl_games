@@ -925,13 +925,35 @@ were not re-filed. Ordering within this section is by severity, not P-band.
       documented Windows EPERM temp-cleanup race (q49) red, both reproduced in
       isolation as passing and confirmed unrelated to this diff. — refs: §12,
       BACKLOG-QUALITY q33/q37/q38/q41/q45/q46/q47/q48/q53/q54.
-- [ ] (b015) [bug] `{k:'equip', relic}` is a declared Command with no case in
+- [x] (b015) [bug] `{k:'equip', relic}` is a declared Command with no case in
       `applyCommand` — a dead twelfth of the player Command surface (relics only
       apply via `RunConfig.relics` at construction). Implement it or retire the
       union member when p7d retires relics; the merged a11 determinism test
       documents the no-op today — acceptance: either `equip` has a handler with a
       test, or the union member is gone and the fuzzers' domain shrinks with it —
-      refs: §12 rule 3, p7d, BACKLOG-QUALITY q15/q22
+      refs: §12 rule 3, p7d, BACKLOG-QUALITY q15/q22.
+      **Already closed, never checked off.** fb023/fb015's equipment work
+      (§7) took the "retire it" branch: `src/sim/types.ts`'s `Command` union
+      has no `equip`/`relic` member any more — the doc comment at line 37
+      names it explicitly ("Supersedes the never-wired relic-id-shaped
+      `equip` member this union used to carry, the same class of dead
+      Command surface BACKLOG b015 named") — and it was replaced by
+      `{k:'equip_item', slot, item}`, which does have a real handler
+      (`equipItemCommand`, `src/sim/run.ts`) and its own test coverage
+      (`tests/fb015-equipment.test.ts`). `tests/g2-determinism.test.ts`'s
+      merged a11 case now fires `equip_item` instead of documenting the old
+      no-op (its own header comment records the swap), and
+      `tests/q15-command-domain-fuzz.test.ts`'s field census explicitly
+      excludes `equip.relic` with a comment pointing at this item. Verified
+      this session with no code change: grepped `src/`, `tests/`, `tools/`
+      for `k: 'equip'` and any `RunConfig.relics`/`relics:` reference — zero
+      hits. `npx vitest run tests/g2-determinism.test.ts
+      tests/q15-command-domain-fuzz.test.ts tests/fb015-equipment.test.ts` —
+      71/71 green. `npm run test:fast`: 1728 passed, 21 skipped; only the 4
+      pre-existing documented Playwright fold flakes (b032/b034/b035/b036,
+      port contention) and the documented Windows EPERM temp-cleanup race
+      (q28/q49) red — both reproduced as pre-existing and unrelated to this
+      diff.
 - [ ] (b017) [bug] `src/meta/meta.ts`'s `completionFraction` hardcodes a
       wave-10 ceiling (`Math.min(1, report.wavesCleared / 10) * 0.4`) for Act I's
       40% share of Ember-reward "completion," stale since `p3e` moved a full run
