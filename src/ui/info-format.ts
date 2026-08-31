@@ -40,7 +40,7 @@ function trimNum(n: number, decimals = 2): string {
  * pre-existing look everywhere that already mattered; below 1%, enough
  * decimals for two significant figures.
  */
-function formatPct(fraction: number): string {
+export function formatPct(fraction: number): string {
   const pctValue = fraction * 100;
   const abs = Math.abs(pctValue);
   // Capped at 6 so an even tinier future magnitude rounds to "0%" (readable)

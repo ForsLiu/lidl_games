@@ -14,6 +14,7 @@ import { loadContent, type TreeNode } from '../sim/content';
 import { canAllocate, pointsAvailable, refundBlocker, TREE_AUTO_MAX } from '../meta/meta';
 import type { MetaState } from '../sim/types';
 import { STAT_KIND, type StatKey } from '../sim/stats';
+import { formatPct } from './info-format';
 
 export const BRANCH_COLORS: Record<string, string> = {
   start: '#e8edf5',
@@ -73,8 +74,7 @@ const PERCENT_STATS = new Set([
 export function describeStat(key: string, value: number): string {
   const label = STAT_LABELS[key] ?? key;
   if (PERCENT_STATS.has(key)) {
-    const pct = Math.round(value * 1000) / 10;
-    return `${pct > 0 ? '+' : ''}${pct}% ${label}`;
+    return `${value > 0 ? '+' : ''}${formatPct(value)} ${label}`;
   }
   if (value === 1 && (key === 'secondWind' || key === 'lastStandSundering')) return label;
   return `${value > 0 ? '+' : ''}${value} ${label}`;

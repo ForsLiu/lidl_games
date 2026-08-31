@@ -1608,7 +1608,7 @@ were not re-filed. Ordering within this section is by severity, not P-band.
       pre-existing Windows EPERM/hang races (q15/q28/q49/q52) noted in every
       sibling entry above — no new failures from this change.
 
-- [ ] (b055) [polish] `describeStat` (`src/ui/tree-view.ts`), used by the Hub
+- [x] (b055) [polish] `describeStat` (`src/ui/tree-view.ts`), used by the Hub
       Constellation summary and per-node tooltips, formats a percent stat via
       its own hand-rolled `Math.round(value * 1000) / 10` — the same flat
       one-decimal-place rounding b054 just fixed in `modLines`/
@@ -1625,7 +1625,62 @@ were not re-filed. Ordering within this section is by severity, not P-band.
       `info-format.ts`) instead of its own rounding, so a sub-1% magnitude
       renders with the same scaled precision; a test asserts
       `describeStat('leech', 0.0001)` does not read `"0% Leech"` — refs: §2,
-      §11, QA on b054.
+      §11, QA on b054. Fixed: exported `formatPct` from `info-format.ts` and
+      routed `describeStat` through it, replacing its own rounding.
+      `tests/fb022-info-surfacing.test.ts` adds a `b055` block: the sub-1%
+      case (`describeStat('leech', 0.0001)` → `"+0.01% Leech"`) plus a
+      control confirming ≥1% magnitudes (3%, -3%, 0%) keep their original
+      1-decimal look. code-reviewer **APPROVE**, no Critical/Major — traced
+      the sign-vs-magnitude split (`value > 0` computed from the raw value,
+      text from `formatPct`) and confirmed it matches the already-accepted
+      `modLines` convention rather than introducing a new defect; noted one
+      Minor, non-blocking edge case (an unreachable sub-5e-9 magnitude could
+      show `"+0%"` instead of `"0%"`, below any real `/data` value) and
+      confirmed no other flat-rounding site remained in `tree-view.ts`.
+      qa-playtester **PASS** — mounted a real `Hub` in jsdom, read live DOM
+      text from both the per-node tooltip (`"+0.3% Leech"` for a real
+      `leech: 0.003` node) and the Combined-totals Constellation summary
+      (`"+1.8% Leech"` for six such nodes), confirming no regression in
+      ordinary ≥1% precision; swept `/data/tree.json` and confirmed no live
+      node sits below the tested 0.3% floor; boundary-probed `describeStat`
+      directly at 1%, 0.99%, negative sub-1%, 0, `NaN`, `Infinity` — all
+      matched or improved on prior behavior, no crashes. It filed one new
+      bug outside this item's scope: `src/ui/hud.ts`'s `formatPercent`
+      (lines 954-957) is a third, un-deduplicated flat-1-decimal percent
+      rounder feeding the in-run character panel's stat summary and
+      per-source breakdown; the Bleeding Ring's `leech: 0.0001` renders as
+      `"Leech 0%"` / `"Equipment: Bleeding Ring: 0%"` there instead of the
+      `+0.01%` `modLines`/`describeStat` now show. Filed as BACKLOG b056.
+      `npm run test:fast`: 1757 passed / 21 skipped / 5 failed (same
+      pre-existing Windows EPERM/hang races noted in every sibling entry
+      above, plus 4 fold-test files that failed on a second full-suite run
+      via a 30s Playwright/Chromium launch timeout under parallel worker
+      contention — confirmed unrelated, none of the 9 failing files import
+      `info-format.ts`, `tree-view.ts`, or `hud.ts`) — no new failures from
+      this change.
+
+- [ ] (b056) [bug] `formatPercent` (`src/ui/hud.ts:954-957`) is a third,
+      un-deduplicated flat-1-decimal percent rounder
+      (`Math.round(fraction * 1000) / 10`) with the same rounding-to-zero
+      defect b054 fixed in `modLines`/`fieldValueText` and b055 just fixed in
+      `describeStat` — neither routed through `formatPct`
+      (`src/ui/info-format.ts`). It feeds `formatStatValue`/
+      `formatSourceValue` (`src/ui/hud.ts:976-983`), which drive the in-run
+      character panel's per-stat `<summary>` line and per-source
+      contribution breakdown (`characterPanelMarkup`, lines 1064/1074/1077).
+      Repro: a `World` with `equipment: ['bleeding_ring']` (real
+      `leech: 0.0001` affix) renders `characterPanelMarkup`'s Leech
+      `<summary>` as `"0%"` and its per-source line as
+      `"Equipment: Bleeding Ring: 0%"` — real, non-zero magnitude displayed
+      as nothing, the same information loss b054/b055 already fixed
+      elsewhere. qa-playtester found this verifying b055 (2026-08-31), while
+      sweeping the codebase for other un-deduplicated instances of the same
+      defect class — acceptance: `formatPercent` (`src/ui/hud.ts`) shares
+      `formatPct` (imported from `info-format.ts`) instead of its own
+      rounding, preserving the existing `- 1` mul-kind offset in
+      `formatStatValue`; a test asserts `characterPanelMarkup` for a
+      `bleeding_ring`-equipped `World` contains the Bleeding Ring's Leech
+      line at scaled precision (not `"0%"`) — refs: §2, §11, QA on b055.
 
 ### Filed at the lane/quality merge (2026-08-28) — from BACKLOG-QUALITY.md's log and open queue
 

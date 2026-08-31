@@ -434,3 +434,23 @@ describe('b054: a sub-1% mod magnitude renders with enough precision to stay non
     expect(modLines({ leech: 0.015 })[0].text).toBe('+1.5% Leech');
   });
 });
+
+/**
+ * b055: `describeStat` (tree-view.ts), used by the Hub Constellation summary
+ * and per-node tooltips, hand-rolled its own flat 1-decimal percent rounding
+ * instead of sharing `formatPct` (info-format.ts) — the same defect b054 just
+ * fixed at the `modLines`/`fieldValueText` call sites. A sub-1% magnitude
+ * (no live tree node yet, but a future/edited one) rounded away to "0%".
+ */
+describe('b055: describeStat shares formatPct instead of its own flat-1-decimal rounding', () => {
+  it('describeStat(\'leech\', 0.0001) does not read "0% Leech"', () => {
+    expect(describeStat('leech', 0.0001)).toBe('+0.01% Leech');
+    expect(describeStat('leech', 0.0001)).not.toBe('0% Leech');
+  });
+
+  it('a magnitude at/above 1% still renders at the original 1-decimal precision', () => {
+    expect(describeStat('leech', 0.03)).toBe('+3% Leech');
+    expect(describeStat('leech', -0.03)).toBe('-3% Leech');
+    expect(describeStat('leech', 0)).toBe('0% Leech');
+  });
+});

@@ -5,6 +5,34 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-31 session: BACKLOG b055 fixed — `describeStat` (`src/ui/tree-view.ts`),
+  used by the Hub Constellation summary and per-node tooltips, hand-rolled its
+  own flat 1-decimal percent rounding (`Math.round(value * 1000) / 10`)
+  instead of sharing `formatPct`, the same defect class b054 had just fixed
+  in `modLines`/`fieldValueText`.** No live `/data/tree.json` node was below
+  0.1% so this was latent, not currently visible. Exported `formatPct` from
+  `src/ui/info-format.ts` and routed `describeStat` through it in place of
+  its own rounding. `tests/fb022-info-surfacing.test.ts` adds a `b055` block:
+  `describeStat('leech', 0.0001)` → `"+0.01% Leech"` (not `"0% Leech"`), plus
+  a control confirming ≥1% magnitudes keep their original 1-decimal look.
+  code-reviewer **APPROVE**, no Critical/Major — confirmed the sign-vs-
+  magnitude split matches the already-accepted `modLines` convention and no
+  other flat-rounding site remained in `tree-view.ts`; one Minor,
+  non-blocking note (an unreachable sub-5e-9 magnitude edge case, below any
+  real `/data` value). qa-playtester **PASS** — mounted a real `Hub` in
+  jsdom, read live DOM text from both the per-node tooltip and the
+  Combined-totals Constellation summary, confirmed no regression in ordinary
+  ≥1% precision, and boundary-probed `describeStat` directly (1%, 0.99%,
+  negative sub-1%, 0, `NaN`, `Infinity`). It filed one new bug outside this
+  item's scope: `src/ui/hud.ts`'s `formatPercent` is a third,
+  un-deduplicated flat-1-decimal percent rounder feeding the in-run
+  character panel's stat summary — the Bleeding Ring's `leech: 0.0001`
+  renders as `"0%"` there too. Filed as BACKLOG b056. `npm run test:fast`:
+  1757 passed / 21 skipped / 5 failed, same pre-existing Windows EPERM/hang
+  races noted in every sibling entry below (a second full run also hit 4
+  fold-test files on a 30s Playwright/Chromium launch timeout under worker
+  contention, confirmed unrelated — none of the 9 failing files import
+  `info-format.ts`, `tree-view.ts`, or `hud.ts`) — no new failures.
 - **2026-08-31 session: BACKLOG b054 fixed — `modLines` rounded a mod's
   percent text to a flat 1 decimal place, so the Bleeding Ring's real
   `leech: 0.0001` affix (0.01% lifesteal) rendered as "+0% Leech" in its
