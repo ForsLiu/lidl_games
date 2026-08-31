@@ -142,7 +142,16 @@ export const GATE_COVERAGE: Record<string, CoverageEntry> = {
       '2 (p9a built the underlying RunConfig.contentHash mechanism; BACKLOG-QUALITY q18\'s repro is separately ' +
       'green in tests/q18-content-hash-replay.test.ts). All three of G2\'s named additions now have a live case.',
   },
-  G4: { files: ['tests/c3-armor.test.ts', 'tests/m19c-damage-types.test.ts'] },
+  G4: {
+    files: ['tests/c3-armor.test.ts', 'tests/m19c-damage-types.test.ts', 'tests/p10g-armor-shred-liveness.test.ts'],
+    note:
+      'p10g: the first two files pinned the shred arithmetic and its wiring by calling shredArmor/applyDot ' +
+      'directly, never through a bot playing a real build — no registered sweep policy either carries ' +
+      'ember_brazier (hybrid) or reliably places it (maxbuild/sealed). p10g-armor-shred-liveness.test.ts closes ' +
+      'that gap: it runs tools/a5probe.ts\'s ember-heavy/ember-mix BuildSpecs (already in the G13 pool) through ' +
+      'runBuild and asserts the new maxArmorShred/maxArmorShredAct2 samples are non-zero, proving the cone\'s ' +
+      'burn actually shreds a live enemy\'s armour in both Act I (tower) and Act II (wielded).',
+  },
   G5: { files: ['tests/c4-stacking.test.ts'] },
   G1: {
     files: ['tests/p10d-run-length.test.ts'],

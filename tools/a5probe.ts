@@ -128,6 +128,10 @@ export interface BuildResult {
   strategy: 'open' | 'sealed' | 'rush';
   /** Peak `World.stackDepth` reached during the run — >0 means multi-summon was actually used. */
   maxStackDepth: number;
+  /** p10g: peak `Enemy.armorShred` seen on any live enemy anywhere in the run — >0 means Burning's armour shred actually fired. */
+  maxArmorShred: number;
+  /** p10g: peak `Enemy.armorShred` seen while `w.phase === 'act2'` — isolates the wielded cone specifically, not just the Act I tower attack. */
+  maxArmorShredAct2: number;
 }
 
 export function runBuild(build: BuildSpec, seed: number): BuildResult {
@@ -158,6 +162,8 @@ export function runBuild(build: BuildSpec, seed: number): BuildResult {
   const vsDamage: Record<string, number> = {};
   let prev: Record<string, number> = {};
   let maxStackDepth = 0;
+  let maxArmorShred = 0;
+  let maxArmorShredAct2 = 0;
   while (!run.done && run.world.tick < 60 * 60 * 45) {
     run.step(policy.act(run.world));
     const w = run.world;
@@ -169,6 +175,10 @@ export function runBuild(build: BuildSpec, seed: number): BuildResult {
       }
     }
     prev = { ...w.damageByWeapon };
+    for (const e of w.enemies) {
+      if (e.armorShred > maxArmorShred) maxArmorShred = e.armorShred;
+      if (w.phase === 'act2' && e.armorShred > maxArmorShredAct2) maxArmorShredAct2 = e.armorShred;
+    }
   }
   const r: RunReport = run.report();
   return {
@@ -180,6 +190,8 @@ export function runBuild(build: BuildSpec, seed: number): BuildResult {
     vsDamage,
     strategy: build.strategy ?? 'open',
     maxStackDepth,
+    maxArmorShred,
+    maxArmorShredAct2,
   };
 }
 
