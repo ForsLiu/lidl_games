@@ -6,7 +6,7 @@
 ## Current state — SPEC-FINAL
 
 - **2026-08-31 session: p10l done — gate G1 closed in full via a TD-side
-  pacing lever p10d/p10k never actually isolated — commit pending.**
+  pacing lever p10d/p10k never actually isolated — commit `1ec7e36`.**
   p10k left G1's mean-band clause `.skip`-ed at 36.63 min / 22/24 wins (92%),
   0.63 min over the 36 min ceiling, having proven the rest of the gap could
   not close from inside the boss fight without pinning win rate at 100%

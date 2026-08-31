@@ -1080,6 +1080,7 @@ logged in MIGRATION.md §8 rather than carried as dead items.
       in isolation and got 5/5 green, confirming the standing host-load flake
       class rather than a regression — refs: §1.1, §17, G1, G14,
       `tests/p10d-run-length.test.ts`, `tests/a4-single-type.test.ts`.
+      Commit `1ec7e36`.
 - [x] (p10k) [feat] Gate **G1**'s mean-band clause is `.skip`-ed red
       (`tests/p10d-run-length.test.ts`): mean victorious run measures 37.15 min
       against the 30-36 min band after p10d's data-only pacing fix — acceptance:
