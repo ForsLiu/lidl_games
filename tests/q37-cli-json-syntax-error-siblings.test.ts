@@ -1,41 +1,27 @@
 /**
  * Sibling of `tests/q33-cli-json-syntax-error.test.ts` (BACKLOG-QUALITY q37):
  * qa-playtester's q33 verification pass found the identical uncaught-crash
- * mechanism q33 pinned for the four lane CLIs also hits three tools q33 never
+ * mechanism q33 pinned for the four lane CLIs also hit three tools q33 never
  * covered — `tools/sim.ts`, `tools/sweep.ts` and `tools/handoff-metrics.ts`,
  * all three CLAUDE.md's own "Stack & commands" section documents as the
- * headline entry points.
+ * headline entry points — plus `tools/p10k-sweep.ts` (q42/p10k, same shape).
  *
- * Same root cause as q33: all three import `Run` from `src/sim/run`, which
- * transitively imports `src/sim/content.ts`, which loads every `/data/*.json`
- * file via a static ES module `import`. `tsx`'s esbuild transform parses that
- * JSON at *module-load* time, before any of these files' own `main()` code
- * ever runs — so a JSON *syntax* error (not a schema violation) crashes with
- * a raw, uncaught `Transform failed with 1 error` stack trace regardless of
- * argv, and none of the three ever had a try/catch to begin with (grepped:
- * no `catch` in any of the three, matching session 31 QA's finding).
+ * **`sim.ts` fixed at BACKLOG b014**: its own `import { Run } from
+ * '../src/sim/run'` and `import { makePolicy, policyNames } from
+ * '../src/bots'` are now a top-level-await dynamic `import()`, wrapped in
+ * its own try/catch (the same shape `tools/content-census.ts` already used
+ * at q38 — `tools/a4probe.ts` only wraps its `loadContent()` *call*, not its
+ * still-static `content.ts` import, so it is not this shape and is still
+ * broken; see b045) — a dynamic `import()` rejects into an ordinary
+ * catchable promise instead of crashing the module graph outright at
+ * transform time. `sim.ts` now exits non-zero with a single clean
+ * `sim: <message>` line on stderr instead of a raw stack trace.
  *
- * Verified live before writing this test (throwaway scratch copy, torn down
- * after, per this lane's own convention): wrote `{ not valid json` to a
- * scratch copy's `data/towers.json` and ran all three CLIs with their
- * CLAUDE.md-documented example args. All three crashed identically to q33's
- * other three: exit non-zero, empty stdout, a multi-frame
- * `Error: Transform failed with 1 error: ...data/towers.json:1:2: ERROR:
- * Expected string in JSON but found "not"` stack on stderr.
- *
- * The fix is the same out-of-Scope `src/sim/content.ts` change q33 already
- * filed for main lane (dynamic `import()` of a pre-validated string read via
- * `readFileSync`/`JSON.parse` inside `loadContent()`) — filed once, covers
- * all seven CLIs at once rather than a bespoke patch per tool. q38 is the one
- * CLI (`content-census.ts`) where a smaller in-Scope workaround was found and
- * applied; that pattern does not extend to these three either, for the same
- * reason q38 itself gives for `phase-coverage.ts`/`soak.ts`: `sim.ts` and
- * `sweep.ts` both call `Run`/`makePolicy` from multiple exported,
- * synchronously-called functions (`runOne`, `summarize`) that existing code
- * calls as plain sync functions, and `handoff-metrics.ts` calls `loadContent()`
- * at module top level, before its own `main()` even starts — making a
- * dynamic-import workaround a materially larger, breaking-signature refactor
- * in all three cases, not a drop-in fix.
+ * `sweep.ts`, `handoff-metrics.ts` and `p10k-sweep.ts` are **not yet fixed**
+ * — b014 scoped itself to `npm run sim` plus q33's own two pinned tools
+ * (`phase-coverage.ts`/`soak.ts`); these three (along with several more q41/
+ * q46 siblings) are carried forward as BACKLOG b045. They still crash
+ * exactly as described below.
  */
 import { execFileSync } from 'node:child_process';
 import { cpSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
@@ -94,66 +80,67 @@ function runCli(dir: string, tool: string, args: string[]): { exitCode: number; 
 const RAW_STACK_FRAME = /\bat \S+ \(/;
 const ESBUILD_TRANSFORM_ERROR = /Transform failed with \d+ error/;
 
-describe.each([
-  ['sim.ts', ['--seed', '1', '--policy', 'hybrid']],
-  ['sweep.ts', ['--seeds', '1']],
-  ['handoff-metrics.ts', [] as string[]],
-  // p10k: same shape as sweep.ts (imports Run/makePolicy, no try/catch,
-  // no CLI args to vary) — the crash happens at module-load, before its
-  // fixed 24-seed loop ever starts, so this is cheap to verify here too.
-  ['p10k-sweep.ts', [] as string[]],
-])('%s crashes uncaught on a /data JSON syntax error (q37)', (tool, args) => {
-  it('exits non-zero with a raw esbuild TransformError stack trace, not a one-line message', () => {
-    const dir = scratchPath(tool.replace('.ts', ''));
+describe('sim.ts no longer crashes uncaught on a /data JSON syntax error (b014)', () => {
+  it('exits non-zero with a clean one-line message, not a raw esbuild stack trace', () => {
+    const dir = scratchPath('sim');
     try {
       populateScratch(dir);
       breakTowersJsonSyntax(dir);
-      const { exitCode, stdout, stderr } = runCli(dir, tool, args);
-      // Today's actual (broken) behaviour, pinned so a future fix to
-      // src/sim/content.ts shows up as this test going red rather than
-      // silently rotting as an unnoticed improvement — the same idiom
-      // q33 pins for content-census.ts/phase-coverage.ts/soak.ts.
+      const { exitCode, stdout, stderr } = runCli(dir, 'sim.ts', ['--seed', '1', '--policy', 'hybrid']);
       expect(exitCode).not.toBe(0);
       expect(stdout).toBe('');
+      expect(stderr).toContain('sim:');
+      expect(stderr.trim().split('\n')).toHaveLength(1);
+      expect(stderr).not.toMatch(RAW_STACK_FRAME);
       expect(stderr).toMatch(ESBUILD_TRANSFORM_ERROR);
-      expect(stderr).toMatch(RAW_STACK_FRAME);
       expect(stderr).toContain('towers.json');
-      // None of the three CLIs has ever had a main()-level error prefix to
-      // print — the crash precedes any of their own code entirely.
-      expect(stderr).not.toContain(`${tool.replace('.ts', '')}:`);
     } finally {
       rmSync(dir, RM_RETRY);
     }
   }, NESTED_TSX_TIMEOUT_MS + 10_000);
 });
 
-/**
- * q42: `sweep.ts` is the one of q37's three siblings with a `--json` mode
- * (`sim.ts`/`handoff-metrics.ts` have no such flag). Session 35's QA pass
- * judged the crash "almost certainly" identical under `--json`, since the
- * esbuild transform runs at module load, before `sweep.ts`'s own `parse()`
- * ever inspects `argv` — the same reasoning q33 already proved live for its
- * own three tools' `--json` cases — but left it unverified for `sweep.ts`
- * itself. Verified live before writing this (scratch copy, torn down after):
- * `npx tsx tools/sweep.ts --seeds 1 --json` against a syntax-broken
- * `data/towers.json` crashes identically to the plain-mode case above — exit
- * 1, empty stdout, the same raw `TransformError` stack on stderr; the flag
- * is never reached.
- */
-describe('sweep.ts --json crashes uncaught on a /data JSON syntax error too (q42)', () => {
-  it('the same corruption under --json still crashes uncaught (the flag is never reached)', () => {
-    const dir = scratchPath('sweep-json');
+describe.each([
+  ['sweep.ts', ['--seeds', '1']],
+  ['handoff-metrics.ts', [] as string[]],
+  // p10k: same shape as sweep.ts (imports Run/makePolicy, no try/catch,
+  // no CLI args to vary) — the crash happens at module-load, before its
+  // fixed 24-seed loop ever starts, so this is cheap to verify here too.
+  ['p10k-sweep.ts', [] as string[]],
+])('%s crashes uncaught on a /data JSON syntax error (q37, not yet fixed — see BACKLOG b045)', (tool, args) => {
+  it('exits non-zero with a raw esbuild TransformError stack trace, not a one-line message', () => {
+    const dir = scratchPath(tool.replace('.ts', ''));
     try {
       populateScratch(dir);
       breakTowersJsonSyntax(dir);
-      const { exitCode, stdout, stderr } = runCli(dir, 'sweep.ts', ['--seeds', '1', '--json']);
+      const { exitCode, stdout, stderr } = runCli(dir, tool, args);
+      // Today's actual (still broken) behaviour, pinned so the b045 fix
+      // shows up as this test going red rather than silently rotting as an
+      // unnoticed improvement — the same idiom q33 pins for its own CLIs.
+      expect(exitCode).not.toBe(0);
+      expect(stdout).toBe('');
+      expect(stderr).toMatch(ESBUILD_TRANSFORM_ERROR);
+      expect(stderr).toMatch(RAW_STACK_FRAME);
+      expect(stderr).toContain('towers.json');
+      // None of the three CLIs' own `main()`-level error prefixes ever get a
+      // chance to print — the crash precedes their try/catch entirely.
+      expect(stderr).not.toContain(`${tool.replace('.ts', '')}:`);
+    } finally {
+      rmSync(dir, RM_RETRY);
+    }
+  }, NESTED_TSX_TIMEOUT_MS + 10_000);
+
+  it('the same corruption under --json still crashes uncaught (the flag is never reached)', () => {
+    const dir = scratchPath(`${tool.replace('.ts', '')}-json`);
+    try {
+      populateScratch(dir);
+      breakTowersJsonSyntax(dir);
+      const { exitCode, stdout, stderr } = runCli(dir, tool, [...args, '--json']);
       expect(exitCode).not.toBe(0);
       // A fixed CLI would emit one parseable `{error}` line under --json
       // (q25/q28/q33's own bar); today it emits nothing on stdout at all.
       expect(stdout).toBe('');
       expect(stderr).toMatch(ESBUILD_TRANSFORM_ERROR);
-      expect(stderr).toMatch(RAW_STACK_FRAME);
-      expect(stderr).toContain('towers.json');
     } finally {
       rmSync(dir, RM_RETRY);
     }

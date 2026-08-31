@@ -21,10 +21,34 @@
  *   npx tsx tools/phase-coverage.ts --seeds 50 --json
  */
 
-import { Run } from '../src/sim/run';
 import type { Phase, RunConfig } from '../src/sim/types';
-import { makePolicy, policyNames } from '../src/bots/policy';
-import '../src/bots';
+
+// b014: `Run`/`makePolicy`/`policyNames`/`../src/bots`'s registration side
+// effect all transitively value-import `src/sim/content.ts`, which statically
+// imports every `/data/*.json` file — `tsx`'s esbuild transform parses that
+// at *module-load* time, before any of this file's own code (including the
+// try/catch already inside `main()` below) ever runs. A static
+// `import { Run } from '../src/sim/run'` here would crash on a `/data` JSON
+// syntax error with a raw, uncaught `Transform failed with 1 error` stack
+// trace nothing below could intercept. A top-level-await dynamic `import()`
+// rejects into an ordinary catchable promise instead — the same shape
+// `tools/content-census.ts` (q38) already uses for its own `src/sim/content`
+// import, and `tools/sim.ts` (b014) now uses for this same import.
+let Run: typeof import('../src/sim/run').Run;
+let makePolicy: typeof import('../src/bots').makePolicy;
+let policyNames: typeof import('../src/bots').policyNames;
+try {
+  ({ Run } = await import('../src/sim/run'));
+  ({ makePolicy, policyNames } = await import('../src/bots'));
+} catch (err) {
+  const message = err instanceof Error ? err.message : String(err);
+  if (process.argv.includes('--json')) {
+    console.log(JSON.stringify({ error: message.replace(/\s+/g, ' ').trim() }));
+  } else {
+    console.error(`phase-coverage: ${message.replace(/\s+/g, ' ').trim()}`);
+  }
+  process.exit(1);
+}
 
 export const ALL_PHASES: readonly Phase[] = [
   'act1_build',

@@ -248,3 +248,49 @@ describe('soak.ts CLI failure path (q28)', () => {
     }
   }, NESTED_TSX_TIMEOUT_MS + 10_000);
 });
+
+/**
+ * `tools/sim.ts` (BACKLOG b014's qa-playtester verification pass): b014 gave
+ * `sim.ts` a top-level-await dynamic import guarding against a JSON *syntax*
+ * error at module load, but `main()` itself had no try/catch around
+ * `runOne()` — so a *schema* violation (a retyped field, still valid JSON,
+ * the same corruption this file's `corruptTowersData` applies) still threw
+ * an uncaught, raw multi-line `ZodError` dump once `new Run(cfg)` reached
+ * `loadContent()`'s zod parse at runtime, unlike `phase-coverage.ts`/
+ * `soak.ts` above, which already caught this. Fixed in the same commit by
+ * wrapping `main()`'s body in a try/catch, matching this file's own
+ * `<tool>: <message>` convention.
+ */
+describe('sim.ts CLI failure path (b014)', () => {
+  it('a clean scratch snapshot exits 0 (harness control)', () => {
+    const dir = scratchPath('sim-control');
+    try {
+      populateScratch(dir);
+      const { exitCode, stdout, stderr } = runCli(dir, 'sim.ts', ['--seed', '1', '--policy', 'hybrid']);
+      expect(stderr, stderr).toBe('');
+      expect(exitCode).toBe(0);
+      const report = JSON.parse(stdout);
+      expect(typeof report.outcome).toBe('string');
+    } finally {
+      rmSync(dir, RM_RETRY);
+    }
+  }, NESTED_TSX_TIMEOUT_MS + 10_000);
+
+  it('a corrupted /data snapshot exits nonzero with a one-line message, not a raw ZodError dump', () => {
+    const dir = scratchPath('sim-corrupt');
+    try {
+      populateScratch(dir);
+      corruptTowersData(dir);
+      const { exitCode, stdout, stderr } = runCli(dir, 'sim.ts', ['--seed', '1', '--policy', 'hybrid']);
+      expect(exitCode).not.toBe(0);
+      expect(stdout).toBe('');
+      expect(stderr).toContain('sim:');
+      expect(stderr).toContain('upgradeStepMul');
+      expect(stderr.trim().split('\n')).toHaveLength(1);
+      expect(stderr).not.toMatch(NO_RAW_CRASH);
+      expect(stderr).not.toContain('ZodError');
+    } finally {
+      rmSync(dir, RM_RETRY);
+    }
+  }, NESTED_TSX_TIMEOUT_MS + 10_000);
+});

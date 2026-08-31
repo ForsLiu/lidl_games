@@ -1,57 +1,45 @@
 /**
- * Pins a gap q25/q28 do not close (BACKLOG-QUALITY q33): a JSON *syntax*
+ * Pins a gap q25/q28 did not close (BACKLOG-QUALITY q33): a JSON *syntax*
  * error in a `/data` file — as opposed to the *schema* violations q25/q28
  * already cover (a value of the wrong type, caught by `loadContent()`'s zod
- * parse at runtime) — crashes with a raw, uncaught esbuild `TransformError`
- * stack trace that no `main()`-level try/catch can intercept.
+ * parse at runtime) — used to crash with a raw, uncaught esbuild
+ * `TransformError` stack trace that no `main()`-level try/catch could
+ * intercept, because a static ES-module `import` (`import { Run } from
+ * '../src/sim/run'`, transitively reaching `src/sim/content.ts`'s own static
+ * `/data/*.json` imports) is parsed by `tsx`'s esbuild transform at
+ * *module-load* time, before any of the importing file's own code —
+ * including every try/catch q25/q28 added — ever runs.
  *
- * Why no try/catch can help: `src/sim/content.ts` imports every `/data/*.json`
- * file via a static ES module `import` (`import towersRaw from
- * '../../data/towers.json'`). `tsx`'s esbuild transform parses that JSON at
- * *module-load* time, before `main()`'s own code — including every try/catch
- * q25/q28 added — ever runs. A schema violation (retyped field, still valid
- * JSON) surfaces *inside* `loadContent()`'s zod parse, which is why q25/q28's
- * fix works for that case; a syntax error (unclosed brace) never reaches
- * `loadContent()` at all.
+ * **Fixed at BACKLOG b014** for `phase-coverage.ts` and `soak.ts`: each now
+ * resolves its `Run`/`makePolicy`/`policyNames` (and, for `soak.ts`, its
+ * `./invariants` import too — that one transitively reaches `content.ts` via
+ * `stats.ts`'s `STAT_KEYS`) through a top-level-await dynamic `import()`
+ * wrapped in its own try/catch, the same shape `tools/content-census.ts`
+ * already used for its whole `src/sim/content` import, at q38 (`tools/
+ * a4probe.ts` only wraps its `loadContent()` *call*, not its still-static
+ * `content.ts` import, so it is not this shape and is still broken — see
+ * b045). A dynamic `import()` rejects into an ordinary catchable promise
+ * instead of crashing the module graph outright, so the failure now surfaces
+ * as this file's own clean, one-line `<tool>: <message>` — verified live
+ * (throwaway scratch copies, torn down after, per this lane's own
+ * convention) against the shipped fix.
  *
- * Verified live before writing this test (throwaway scratch copy, not part of
- * the suite, per this lane's own convention — see q25/q28's doc comments):
- * wrote `{ not valid json` to a scratch copy's `data/towers.json` and ran all
- * four lane CLIs.
+ * `src/sim/content.ts` itself is deliberately **not** touched by b014: its
+ * raw `/data/*.json` imports are exactly what `tests/q7-data-fuzz.test.ts`'s
+ * `vi.mock('../data/towers.json', ...)` intercepts to inject synthetic bad
+ * data for the E1–E7 loader-hardening suite — replacing those static imports
+ * with a lazy `readFileSync`-based loader (the shape this file's history
+ * once assumed the fix would take) was tried and reverted after it silently
+ * broke every one of q7's mutation-based assertions (they went from
+ * `rejected` to `accepted`, because `vi.mock` can no longer intercept a
+ * `node:fs` read). The fix stays scoped to each CLI's own outer import
+ * instead — see the doc comments in `tools/phase-coverage.ts`/`tools/soak.ts`
+ * for the mechanism, and BACKLOG.md's b014 entry for the follow-up item this
+ * left for `sweep.ts`'s/`handoff-metrics.ts`'s/`perf-ratio.ts`'s/etc. own
+ * remaining siblings (q37/q41/q46).
  *
- *   - `phase-coverage.ts`, `soak.ts` — both import `src/sim/content.ts`
- *     transitively (`Run` → `loadContent()`) and both crash identically:
- *     exit 1, empty stdout, a multi-frame `node:internal/modules/run_main` +
- *     `Error: Transform failed with 1 error: ...data/towers.json:1:2: ERROR:
- *     Expected string in JSON but found "not"` stack on stderr. `--json`
- *     mode is unaffected by the flag — the crash happens before `main()`
- *     ever inspects `argv`.
- *   - `gate-audit.ts` is one exception, not a third instance of the bug:
- *     reading its imports shows it has none of `src/sim/content.ts`, `Run`
- *     or `loadContent` anywhere — it works by `readFileSync`-ing
- *     `SPEC-FINAL.md` and grepping test files by name, never touching
- *     `/data` at all. A corrupted `data/towers.json` leaves it at a clean
- *     exit 0, table intact. Worth pinning by name too, since "all four CLIs"
- *     was the assumption this item's own acceptance text carried in from
- *     QA's session-23 finding, and it is one CLI too many.
- *   - `content-census.ts` is a **second** exception, landed later (q38):
- *     it now imports `loadContent` dynamically, inside `main()`'s own try,
- *     instead of statically at module scope — verified live, re-run after
- *     q38's fix, that a syntax-broken `towers.json` now produces the same
- *     one-line `content-census: Transform failed with 1 error: ...` message
- *     (plain) or a single parseable `{"error": "..."}` line (`--json`) that
- *     q25/q28 already established as this lane's bar, rather than the raw
- *     stack trace it produced when this test was first written. Its own
- *     describe block below pins the *fixed* behaviour, the mirror image of
- *     `gate-audit.ts`'s "never affected" block.
- *
- * The general fix (dynamic `import()` of a pre-validated string read via
- * `readFileSync`/`JSON.parse` inside `loadContent()` itself, covering every
- * CLI at once) touches `src/sim/content.ts`, outside this lane's Scope
- * (`/src/**`) — filed as main-lane work in BACKLOG-QUALITY.md's Log, per
- * q18's precedent for an unfixable-from-here gap. `content-census.ts`'s
- * per-file workaround (q38) does not extend to `phase-coverage.ts`/
- * `soak.ts`, which is why those two are still pinned as broken below.
+ * `content-census.ts` (q38) and `gate-audit.ts` are unaffected by b014
+ * either way — already fixed, or never touches `/data` at all.
  */
 import { execFileSync } from 'node:child_process';
 import { cpSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
@@ -82,7 +70,7 @@ function populateScratch(dir: string): void {
   for (const f of COPY_FILES) cpSync(path.join(ROOT, f), path.join(dir, f));
 }
 
-/** A genuine syntax error, not a schema violation — never valid JSON at all, so it fails at the `import` transform, not inside `loadContent()`. */
+/** A genuine syntax error, not a schema violation — never valid JSON at all, so it fails at the `import()` transform, not inside `loadContent()`. */
 function breakTowersJsonSyntax(dir: string): void {
   writeFileSync(path.join(dir, 'data', 'towers.json'), '{ not valid json');
 }
@@ -113,40 +101,40 @@ const ESBUILD_TRANSFORM_ERROR = /Transform failed with \d+ error/;
 describe.each([
   ['phase-coverage.ts', ['--seeds', '1']],
   ['soak.ts', ['--seeds', '1']],
-])('%s crashes uncaught on a /data JSON syntax error (q33)', (tool, args) => {
-  it('exits 1 with a raw esbuild TransformError stack trace, not a one-line message', () => {
+])('%s no longer crashes uncaught on a /data JSON syntax error (b014)', (tool, args) => {
+  it('exits nonzero with a clean one-line message, not a raw esbuild stack trace', () => {
     const dir = scratchPath(tool.replace('.ts', ''));
     try {
       populateScratch(dir);
       breakTowersJsonSyntax(dir);
       const { exitCode, stdout, stderr } = runCli(dir, tool, args);
-      // Today's actual (broken) behaviour, pinned so a future fix to
-      // src/sim/content.ts shows up as this test going red rather than
-      // silently rotting as an unnoticed improvement.
       expect(exitCode).not.toBe(0);
       expect(stdout).toBe('');
+      expect(stderr).toContain(`${tool.replace('.ts', '')}:`);
+      expect(stderr.trim().split('\n')).toHaveLength(1);
+      expect(stderr).not.toMatch(RAW_STACK_FRAME);
+      // The underlying failure is still the esbuild transform (the fix only
+      // moves *when*/*how* it's caught, not what it is) — the message text
+      // still names it, just as a one-liner instead of a raw stack.
       expect(stderr).toMatch(ESBUILD_TRANSFORM_ERROR);
-      expect(stderr).toMatch(RAW_STACK_FRAME);
       expect(stderr).toContain('towers.json');
-      // None of the three CLIs' own `main()`-level error prefixes ever get a
-      // chance to print — the crash precedes their try/catch entirely.
-      expect(stderr).not.toContain(`${tool.replace('.ts', '')}:`);
     } finally {
       rmSync(dir, RM_RETRY);
     }
   }, NESTED_TSX_TIMEOUT_MS + 10_000);
 
-  it('the same corruption under --json still crashes uncaught (the flag is never reached)', () => {
+  it('the same corruption under --json emits a single parseable {error} line', () => {
     const dir = scratchPath(`${tool.replace('.ts', '')}-json`);
     try {
       populateScratch(dir);
       breakTowersJsonSyntax(dir);
       const { exitCode, stdout, stderr } = runCli(dir, tool, [...args, '--json']);
       expect(exitCode).not.toBe(0);
-      // A fixed CLI would emit one parseable `{error}` line under --json
-      // (q25/q28's own bar); today it emits nothing on stdout at all.
-      expect(stdout).toBe('');
-      expect(stderr).toMatch(ESBUILD_TRANSFORM_ERROR);
+      expect(stderr).toBe('');
+      expect(stdout.trim().split('\n')).toHaveLength(1);
+      const parsed = JSON.parse(stdout);
+      expect(typeof parsed.error).toBe('string');
+      expect(parsed.error).toMatch(ESBUILD_TRANSFORM_ERROR);
     } finally {
       rmSync(dir, RM_RETRY);
     }

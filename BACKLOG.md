@@ -803,16 +803,101 @@ were not re-filed. Ordering within this section is by severity, not P-band.
       which will fail a pre-b013 save/replay's content-hash check once — logged
       as **b044** with its own regression test, since it does not fail b013's
       own acceptance criteria and a brand-new save/replay is unaffected.
-- [ ] (b014) [bug] A JSON *syntax* error in any `/data/*.json` crashes every CLI that
+- [x] (b014) [bug] A JSON *syntax* error in any `/data/*.json` crashes every CLI that
       imports `src/sim/content.ts` with a raw esbuild stack trace before any
       try/catch runs (static module-scope JSON imports) — including the three
       commands CLAUDE.md documents (`npm run sim`, `tools/sweep.ts`,
-      `tools/handoff-metrics.ts`). The lane verified a fix shape on a scratch copy
-      (dynamic pre-validated read inside `loadContent()`); `tests/q33-*` currently
-      pins the *broken* behaviour and flips with the fix — acceptance: a corrupted
-      `data/towers.json` yields a one-line message and nonzero exit from `npm run
-      sim`, and q33's pins are rewritten to the fixed contract — refs: §12,
+      `tools/handoff-metrics.ts`). Fixed for `npm run sim` (`tools/sim.ts`) and
+      q33's own two pinned tools (`tools/phase-coverage.ts`, `tools/soak.ts`) —
+      acceptance met: a corrupted `data/towers.json` now yields a one-line message
+      and nonzero exit from `npm run sim` (verified directly, not just through the
+      nested-CLI test harness), and q33's pins are rewritten to the fixed contract.
+      The lane's own filed fix shape — a dynamic pre-validated read inside
+      `loadContent()` itself, in `src/sim/content.ts` — was implemented first and
+      **reverted**: it broke `tests/q7-data-fuzz.test.ts`'s E1–E7 loader-hardening
+      suite outright (23 tests flipped `rejected` → `accepted`), because that suite
+      injects synthetic bad data via `vi.mock('../data/towers.json', ...)` on every
+      `/data` file `content.ts` imports — `vi.mock` intercepts ES-module import
+      specifiers, and a `readFileSync`-based loader doesn't go through one, so the
+      mocked (corrupted) data was silently ignored in favour of the real on-disk
+      file. `loadContent()` is also called synchronously from ~98 call sites across
+      `/src`, `/tools` and `/tests`, ruling out an async `loadContent()` too (the
+      blast-radius check CLAUDE.md's measurement rules ask for). The actual fix
+      stays scoped to each CLI's own outer import instead, which is what the
+      static-JSON-import crash is really about: `tools/sim.ts` (`Run`, `makePolicy`,
+      `policyNames`), `tools/phase-coverage.ts` (same three, via `../src/bots`'s
+      barrel), and `tools/soak.ts` (same three, plus `./invariants`, which
+      transitively reaches `content.ts` through `stats.ts`'s `STAT_KEYS`) each now
+      resolve those imports through a top-level-await dynamic `import()` inside
+      their own try/catch, the exact shape `tools/content-census.ts` (q38)
+      already used (`tools/a4probe.ts` only wraps its `loadContent()` *call*, not
+      its still-static `content.ts` import, so it is not this shape and remains
+      broken — see b045) — a dynamic `import()` rejects into an ordinary
+      catchable promise instead of crashing the module graph outright at transform
+      time, and since it runs once at module load (before any exported function is
+      called), every downstream function stays fully synchronous with no signature
+      changes — confirmed live that this propagates correctly through a *static*
+      importer too (`tests/q9-phase-coverage.test.ts`/`tests/q12-soak.test.ts`
+      import `census`/`soak`/`soakOne` directly and never `await` them; both
+      passed unmodified, along with a from-scratch experiment pinning the
+      mechanism before touching real files). `tests/q47-cli-crash-coverage.test.ts`
+      swapped its "genuinely has no catch clause" exemplar from `sim.ts` (now has
+      one) to `fuzz-data.ts`. Verified live (throwaway scratch copies, torn down
+      after, matching this lane's own convention) for all three fixed tools, both
+      plain and `--json` modes, plus the literal `npm run sim` acceptance line
+      itself. qa-playtester's verification pass found one adjacent bug in the same
+      file: `sim.ts`'s `main()` had no try/catch around `runOne()` at all, so a
+      *schema* violation (a retyped field, still valid JSON — the class q25/q28
+      already caught for every other lane CLI) crashed `sim.ts` with a raw,
+      uncaught multi-line `ZodError` dump, pre-existing and untouched by b014's
+      own import-time fix either way (confirmed via a `git stash` control run) —
+      fixed in this same commit (`main()`'s body now wrapped in a try/catch,
+      matching the file's own `sim: <message>` convention), with a new
+      `tests/q28-cli-error-handling.test.ts` case that fails on the pre-fix code
+      (verified) and passes with it. Deliberately **not** fixed here, filed as
+      **b045**: `tools/sweep.ts`,
+      `tools/handoff-metrics.ts`, `tools/p10k-sweep.ts` (q37's other three) and
+      nine more from q41/q46, plus `warden.json`'s own eager `wardenBase` parse in
+      `content.ts` (never routed through any CLI import at all, so out of scope for
+      a per-CLI fix). `npm run test:fast`: 1727 passed, 21 skipped; only the 4
+      pre-existing documented Playwright fold flakes (b032/b034/b035/b036, all pass
+      in isolation — a port-contention artifact of parallel dev-server spin-up) and
+      the documented Windows EPERM temp-cleanup race (q49) red, both confirmed
+      pre-existing and unrelated to this diff — no new regressions. — refs: §12,
       BACKLOG-QUALITY q33/q37/q38
+- [ ] (b045) [bug] b014 fixed the JSON-syntax-error-crashes-the-CLI bug (BACKLOG
+      §12) for `npm run sim`, `tools/phase-coverage.ts` and `tools/soak.ts` only —
+      via a top-level-await dynamic `import()` of each file's own `Run`/
+      `makePolicy`/`policyNames`(/`./invariants`) reference, wrapped in a try/catch,
+      instead of the `src/sim/content.ts`-level fix that was tried and reverted
+      (see b014's own log entry for why: it broke `tests/q7-data-fuzz.test.ts`'s
+      `vi.mock`-based data-injection suite). The identical crash still reproduces,
+      unfixed, on every other CLI q37/q41/q46 pinned as broken: `tools/sweep.ts`,
+      `tools/handoff-metrics.ts`, `tools/p10k-sweep.ts` (q37); `tools/perf-ratio.ts`,
+      `tools/a4probe.ts`, `tools/a5probe.ts`, `tools/fuzz-input.ts`,
+      `tools/fuzz-save.ts`, `tools/fuzz-weapon-boundary.ts`,
+      `tools/fuzz-command-domain.ts` (q41); `tools/m20d-run-a4.ts`,
+      `tools/m20d-swarm.ts` (q46) — of these, `a4probe.ts`/`a5probe.ts`/
+      `m20d-run-a4.ts`/`m20d-swarm.ts` look like the same small, single-call-site
+      shape b014 already fixed three of; `perf-ratio.ts`/`fuzz-input.ts`/
+      `fuzz-save.ts`/`fuzz-weapon-boundary.ts`/`fuzz-command-domain.ts` have their
+      value imports spread across many functions each and may need a wider
+      top-level dynamic-import block or a different shape entirely. Also: for
+      every CLI still listed above as broken, a JSON syntax error in `warden.json`
+      specifically crashes the same way `towers.json` did — `content.ts`'s
+      `wardenBase` is parsed eagerly at that file's own module scope (`export
+      const wardenBase = WardenFileSchema.parse(wardenRaw)`), never inside any
+      CLI's own import at all, so a per-CLI dynamic-import fix (the b014 shape)
+      closes it for free the moment it's applied to a given CLI — verified this
+      already holds for the three CLIs b014 *did* fix (`sim.ts`/`phase-
+      coverage.ts`/`soak.ts` all cleanly catch a corrupted `warden.json` too, not
+      just `towers.json`). acceptance: each listed CLI's own q37/q41/q46
+      test flips from "crashes uncaught" to "clean one-line message, nonzero exit"
+      (or is explicitly re-scoped with a measured reason, the same way b014
+      excluded the five wide-import-graph tools above as too invasive for a
+      drop-in fix); a decision (fixed or logged-as-still-open) is recorded for the
+      `warden.json` case too — refs: §12, BACKLOG-QUALITY q33/q37/q38/q41/q45/q46/
+      q47/q53/q54.
 - [ ] (b015) [bug] `{k:'equip', relic}` is a declared Command with no case in
       `applyCommand` — a dead twelfth of the player Command surface (relics only
       apply via `RunConfig.relics` at construction). Implement it or retire the

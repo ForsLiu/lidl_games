@@ -18,12 +18,44 @@
  *   npx tsx tools/soak.ts --seeds 200 --json
  */
 
-import { Run } from '../src/sim/run';
+import type { Run as RunType } from '../src/sim/run';
 import type { World } from '../src/sim/world';
 import type { RunConfig } from '../src/sim/types';
-import { makePolicy, policyNames } from '../src/bots';
-import '../src/bots';
-import { scanReport, scanWorld } from './invariants';
+
+// b014: `Run`/`makePolicy`/`policyNames`/`../src/bots`'s registration side
+// effect, and `./invariants` too (it transitively value-imports `stats.ts`'s
+// `STAT_KEYS`, which imports `wardenBase` from `content.ts`) — all
+// transitively value-import `src/sim/content.ts`, which statically imports
+// every `/data/*.json` file. `tsx`'s esbuild transform parses that at
+// *module-load* time, before any of this file's own code ever runs. A static
+// `import { Run } from '../src/sim/run'` here would crash on a `/data` JSON
+// syntax error with a raw, uncaught `Transform failed with 1 error` stack
+// trace — before even reaching `soakOne`'s own try (q28's existing per-seed
+// failure handling only ever sees a *runtime* failure inside that try, e.g.
+// a schema violation; a syntax error here means `Run` itself never loaded,
+// so there is no seed this tool could run at all). A top-level-await dynamic
+// `import()` rejects into an ordinary catchable promise instead — the same
+// shape `tools/content-census.ts` (q38) already uses for its own
+// `src/sim/content` import, and `tools/sim.ts`/`tools/phase-coverage.ts`
+// (b014) now use for this same import.
+let Run: typeof import('../src/sim/run').Run;
+let makePolicy: typeof import('../src/bots').makePolicy;
+let policyNames: typeof import('../src/bots').policyNames;
+let scanReport: typeof import('./invariants').scanReport;
+let scanWorld: typeof import('./invariants').scanWorld;
+try {
+  ({ Run } = await import('../src/sim/run'));
+  ({ makePolicy, policyNames } = await import('../src/bots'));
+  ({ scanReport, scanWorld } = await import('./invariants'));
+} catch (err) {
+  const message = err instanceof Error ? err.message : String(err);
+  if (process.argv.includes('--json')) {
+    console.log(JSON.stringify({ error: message.replace(/\s+/g, ' ').trim() }));
+  } else {
+    console.error(`soak: ${message.replace(/\s+/g, ' ').trim()}`);
+  }
+  process.exit(1);
+}
 
 const DEFAULT_MAX_TICKS = 60 * 60 * 45;
 
@@ -69,7 +101,7 @@ export function soakOne(
   }
 
   const started = performance.now();
-  let run: Run | undefined;
+  let run: RunType | undefined;
   let w: World | undefined;
   const problems: string[] = [];
   let threw = false;

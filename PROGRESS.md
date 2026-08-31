@@ -5,6 +5,71 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-31 session: BACKLOG b014 closed for `npm run sim`, `tools/phase-
+  coverage.ts` and `tools/soak.ts` — a JSON *syntax* error in any `/data`
+  file no longer crashes them with a raw esbuild stack trace.** Root cause:
+  each CLI's own static `import { Run } from '../src/sim/run'` (transitively
+  reaching `content.ts`'s static `/data/*.json` imports) is parsed by
+  `tsx`'s esbuild transform at *module-load* time, before any of that file's
+  own code — including a `main()` try/catch — ever runs; a syntax error
+  there is an uncaught, multi-frame `Transform failed with 1 error` stack,
+  regardless of what try/catch exists further down the file. The filed fix
+  shape — make `content.ts`'s own `/data` reads lazy via `readFileSync`
+  inside `loadContent()` — was built first and **reverted**: it silently
+  broke `tests/q7-data-fuzz.test.ts`'s entire E1–E7 suite (23 tests flipped
+  `rejected` → `accepted`), because that suite injects synthetic bad data via
+  `vi.mock('../data/towers.json', ...)` on every file `content.ts` imports,
+  and `vi.mock` only intercepts ES-module import specifiers — a `fs` read
+  bypasses it entirely, so the mock silently went inert and the loader saw
+  the real, valid on-disk file instead of the deliberately corrupted mock.
+  `loadContent()` is also called synchronously from ~98 sites across
+  `/src`/`/tools`/`/tests`, ruling out making it async instead. The actual
+  fix stays scoped to each CLI's own outer import: `tools/sim.ts`,
+  `tools/phase-coverage.ts` and `tools/soak.ts` (the last also for
+  `./invariants`, which reaches `content.ts` through `stats.ts`'s
+  `STAT_KEYS`) now resolve `Run`/`makePolicy`/`policyNames`(/`scanReport`/
+  `scanWorld`) through a top-level-await dynamic `import()` inside their own
+  try/catch — the same shape `tools/content-census.ts` (q38) already used
+  elsewhere in this codebase (`tools/a4probe.ts` only wraps its
+  `loadContent()` *call*, not its still-static `content.ts` import, so it is
+  not this shape and remains broken — filed under b045). A dynamic `import()`
+  rejects into an ordinary catchable promise instead of crashing the module
+  graph outright, and since it resolves once at module load, every
+  downstream function keeps its existing synchronous signature — confirmed
+  live (a from-scratch experiment, then the real files) that this resolves
+  transparently even through a *static* importer, so `tests/q9-phase-
+  coverage.test.ts`/`tests/q12-soak.test.ts` (which import `census`/`soak`/
+  `soakOne` directly and call them synchronously, including inside
+  `expect(() => fn()).toThrow()`) needed zero changes and both pass
+  unmodified. `tests/q33-cli-json-syntax-error.test.ts` is rewritten to pin
+  the fixed contract for `phase-coverage.ts`/`soak.ts`;
+  `tests/q37-cli-json-syntax-error-siblings.test.ts` now splits `sim.ts`
+  (fixed) from `sweep.ts`/`handoff-metrics.ts`/`p10k-sweep.ts` (still
+  broken, carried forward); `tests/q47-cli-crash-coverage.test.ts` swapped
+  its "has no catch clause" exemplar from `sim.ts` (now has one) to
+  `fuzz-data.ts`. Verified live (throwaway scratch copies, torn down after)
+  for all three fixed tools in both plain and `--json` modes, plus the
+  literal `npm run sim` acceptance line against a corrupted `data/towers.json`
+  directly. qa-playtester's verification pass also found `sim.ts`'s `main()`
+  had no try/catch around `runOne()` at all, so a *schema* violation (still
+  valid JSON, a retyped field — the class q25/q28 already caught for every
+  other lane CLI) crashed it with a raw, uncaught `ZodError` dump — a
+  pre-existing gap untouched by b014's own import-time fix either way
+  (confirmed against a `git stash` control), fixed in this same commit with a
+  new `tests/q28-cli-error-handling.test.ts` case verified to fail pre-fix and
+  pass post-fix. Deliberately left unfixed and filed as **b045**: `tools/sweep.ts`,
+  `tools/handoff-metrics.ts`, `tools/p10k-sweep.ts` (q37) and nine more
+  CLIs from q41/q46 — for each of those still-broken CLIs, a `warden.json`
+  syntax error crashes the same way `towers.json` does today (`content.ts`'s
+  `wardenBase` is parsed eagerly at that file's own module scope, never
+  inside any CLI's own import), but the same per-CLI dynamic-import fix
+  closes it for free once applied — confirmed already true for the three
+  CLIs b014 did fix.
+  `npm run test:fast`: 1727 passed, 21 skipped; the only red was the 4
+  pre-existing documented Playwright fold flakes (b032/b034/b035/b036 — port
+  contention from parallel dev-server spin-up, all four pass in isolation)
+  and the documented Windows EPERM temp-cleanup race (q49) — both reproduced
+  and confirmed unrelated to this diff.
 - **2026-08-31 session: BACKLOG b013 closed — the `/data` loader now refuses
   unpayable data across all six holes E2–E7, plus E1's key-reference census —
   commit `86cac94`.** A shared `num` zod alias in

@@ -297,10 +297,15 @@ describe('q47 — CLI-crash coverage census', () => {
 
   it('hasCatch is true for a file with a real catch clause and false for one with none', () => {
     expect(hasCatch(path.join(REPO_ROOT, 'tools', 'gate-audit.ts'))).toBe(true);
-    expect(hasCatch(path.join(REPO_ROOT, 'tools', 'sim.ts'))).toBe(false);
+    // b014 gave tools/sim.ts (this test's original "no catch" exemplar) a
+    // real try/catch around its dynamic `Run`/bots import — fuzz-data.ts (a
+    // pure-function library module, no CLI entry point at all, see
+    // NOT_INVOCABLE above) is the still-accurate "genuinely no catch"
+    // exemplar today.
+    expect(hasCatch(path.join(REPO_ROOT, 'tools', 'fuzz-data.ts'))).toBe(false);
   });
 
-  it('follows a bare side-effect import (no `from` clause) in the chain to content.ts (QA regression: this shape is real in src/sim/run.ts and tools/sim.ts today)', () => {
+  it('follows a bare side-effect import (no `from` clause) in the chain to content.ts (QA regression: this shape is real in src/sim/run.ts today — tools/sim.ts had it too until b014 folded that import into its own dynamic-import fix)', () => {
     // Repro QA found live: a chain that reaches content.ts only through a
     // bare `import '../module';` (no bound names, no `from` clause) was
     // silently invisible to VALUE_IMPORT_RE, which required a `from` clause

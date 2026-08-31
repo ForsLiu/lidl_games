@@ -8,10 +8,29 @@
 
 import { readFileSync } from 'node:fs';
 
-import { Run } from '../src/sim/run';
 import type { RunConfig, RunReport } from '../src/sim/types';
-import { makePolicy, policyNames } from '../src/bots';
-import '../src/bots';
+
+// b014: `Run`/`makePolicy`/`policyNames` all transitively value-import
+// `src/sim/content.ts`, which statically imports every `/data/*.json` file —
+// `tsx`'s esbuild transform parses that at *module-load* time, before any of
+// this file's own code (including a `main()` try/catch) ever runs. A static
+// `import { Run } from '../src/sim/run'` here would crash on a `/data` JSON
+// syntax error with a raw, uncaught `Transform failed with 1 error` stack
+// trace no try/catch below could intercept. A top-level-await dynamic
+// `import()`, by contrast, rejects into an ordinary catchable promise — the
+// same shape `tools/content-census.ts` (q38) already uses for its own
+// `src/sim/content` import.
+let Run: typeof import('../src/sim/run').Run;
+let makePolicy: typeof import('../src/bots').makePolicy;
+let policyNames: typeof import('../src/bots').policyNames;
+try {
+  ({ Run } = await import('../src/sim/run'));
+  ({ makePolicy, policyNames } = await import('../src/bots'));
+} catch (err) {
+  const message = err instanceof Error ? err.message : String(err);
+  console.error(`sim: ${message.replace(/\s+/g, ' ').trim()}`);
+  process.exit(1);
+}
 
 interface Args {
   seeds: number[];
@@ -173,14 +192,26 @@ function runOne(args: Args, seed: number): RunReport {
 
 function main(): void {
   const args = parseArgs(process.argv.slice(2));
-  const reports: RunReport[] = [];
-  for (const seed of args.seeds) {
-    const r = runOne(args, seed);
-    reports.push(r);
-    if (!args.summary && !args.quiet) console.log(JSON.stringify(r));
-  }
-  if (args.summary || args.seeds.length > 1) {
-    console.log(JSON.stringify(summarize(reports), null, 2));
+  // qa-playtester (b014 verification): `Run`'s own constructor calls
+  // `loadContent()`, whose zod parse throws on a *schema* violation (a
+  // retyped field, still valid JSON) — a different failure than the
+  // syntax-error class the top-level dynamic import above guards against,
+  // and one this file had no try/catch for at all until now, unlike
+  // `tools/phase-coverage.ts`/`tools/soak.ts`, which already caught it.
+  try {
+    const reports: RunReport[] = [];
+    for (const seed of args.seeds) {
+      const r = runOne(args, seed);
+      reports.push(r);
+      if (!args.summary && !args.quiet) console.log(JSON.stringify(r));
+    }
+    if (args.summary || args.seeds.length > 1) {
+      console.log(JSON.stringify(summarize(reports), null, 2));
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`sim: ${message.replace(/\s+/g, ' ').trim()}`);
+    process.exitCode = 1;
   }
 }
 
