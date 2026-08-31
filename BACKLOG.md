@@ -1188,7 +1188,7 @@ logged in MIGRATION.md §8 rather than carried as dead items.
       — 49/49 green. `npm run test:fast`: 1713 passed, 30 skipped; only the 4
       pre-existing documented Playwright fold flakes (b032/b034/b035/b036) and
       the documented Windows EPERM temp-cleanup race (q49) red — no new
-      regressions.
+      regressions. Commit `e5c9c1c`.
 - [x] (b007) [bug] An out-of-grid `tx` in `upgrade`/`sell` aliases onto a real tile
       one row up (`idx = ty*GRID_W + tx` is never bounds-checked before
       `structureAt` indexes `grid.occ`), so the Command silently acts on the wrong

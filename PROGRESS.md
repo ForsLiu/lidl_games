@@ -8,7 +8,7 @@
 - **2026-08-31 session: BACKLOG b010 closed — `Rng.weightedIndex` no longer
   lets a non-finite/non-positive weight silently turn a weighted draw into a
   deterministic constant, and `rerollOffers`'s counter guard is
-  finite-checked.** `weightedIndex`'s (`src/sim/rng.ts`) `total` accumulation
+  finite-checked — commit `e5c9c1c`.** `weightedIndex`'s (`src/sim/rng.ts`) `total` accumulation
   had no filter: a single NaN weight (reachable via `rollOffers`'s `weight *
   (1 + luckBias * o.value)`, `src/sim/progression.ts`) poisoned `total` to
   NaN, and since NaN comparisons are always false, the scan's `r < 0` check
