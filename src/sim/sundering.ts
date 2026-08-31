@@ -36,6 +36,11 @@ export function finishSundering(w: World): void {
   w.riftIndex = 0;
   w.updateNav(true);
   w.emit('sunder', c.x, c.y, 0, 0);
+  // p10h: a presentation-only cue for the renderer's 2s TD->VS screen sweep —
+  // deliberately separate from 'sunder' (which already covers the bass-hit/
+  // shake side of this moment) so the sweep's key names the direction, not
+  // an encoded field on a shared event. Non-positional, like 'waveclear'.
+  w.emit('sweep_to_vs', 0, 0, 0, 0);
 }
 
 /**
@@ -68,6 +73,10 @@ export function advanceToNextBlock(w: World): void {
   w.damageAtWaveStart = { ...w.damageByWeapon };
   w.damageTypeAtWaveStart = { ...w.damageByType };
   w.waveStartTick = w.tick;
+  // p10h: the reverse half of the transition sweep — no TD-side event existed
+  // for this boundary before (unlike 'sunder' on the way into VS), so the
+  // renderer had nothing to key its "returning to Day" visual off of.
+  w.emit('sweep_to_td', 0, 0, 0, 0);
 }
 
 /**

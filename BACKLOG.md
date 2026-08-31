@@ -500,10 +500,10 @@ next in P8's own queue.
       can regress to nothing without a gate moving — acceptance: a policy or probe
       that actually builds a Brazier is in the gate set, and it asserts a non-zero
       shred — refs: §3, G4, QA on m19c — **done, see Done section.**
-- [ ] (p10h) [polish] Feel pass: juice, the 2 s TD↔VS transition sweep, and SFX/art
+- [x] (p10h) [polish] Feel pass: juice, the 2 s TD↔VS transition sweep, and SFX/art
       assets behind the existing AudioSink seam — acceptance: the transition sweep
       runs on every TD↔VS boundary and the asset pass is committed; no sim behaviour
-      changes (G2 hash unmoved) — refs: §11, §15 P10
+      changes (G2 hash unmoved) — refs: §11, §15 P10 — **done, see Done section.**
 - [ ] (p10i) [polish] Regenerate HANDOFF.md's measured sections against SPEC-FINAL
       and re-check QUALITY.md's Alpha bar — acceptance:
       `npx tsx tools/handoff-metrics.ts` runs clean, HANDOFF.md is rewritten against
@@ -995,6 +995,52 @@ logged in MIGRATION.md §8 rather than carried as dead items.
 
 ## Done
 
+- [x] (p10h) [polish] Feel pass: juice, the 2 s TD↔VS transition sweep, and SFX/art
+      assets behind the existing AudioSink seam — acceptance: the transition sweep
+      runs on every TD↔VS boundary and the asset pass is committed; no sim behaviour
+      changes (G2 hash unmoved) — refs: §11, §15 P10. `finishSundering` (TD->VS,
+      `src/sim/sundering.ts`) now emits a direction-keyed `sweep_to_vs` fx event
+      alongside the pre-existing `sunder` shake/bass-hit cue; `advanceToNextBlock`
+      (VS->TD) — which previously had no TD-side event at all — now emits
+      `sweep_to_td`. `Renderer` (`src/render/canvas.ts`) turns either into a 2s
+      translucent gradient wipe (`drawPhaseSweep`), colored toward the phase being
+      *left* since the background fill already flips to the destination color the
+      same tick; `reducedFlash` dims it (0.7->0.3 alpha) rather than dropping it,
+      matching `drawCasts`'s existing treatment. Two new synthesized cues
+      (`sweep_to_vs`/`sweep_to_td`) added to the `WebAudioSink` `CUES` table in
+      `src/render/sfx.ts`, picked up automatically by the existing generic
+      `Sfx.emit` lookup — no extra wiring needed. Logged as Q152 in QUESTIONS.md:
+      the "SFX/art assets" clause is scoped to the existing synthesized
+      `WebAudioSink` seam only — the repo has zero binary audio/art files or asset
+      pipeline anywhere, and authoring binary media is out of scope for a coding
+      agent; a literal asset drop is designer-fill pending an owner verdict.
+      New `tests/p10h-transition-sweep.test.ts` (8 tests) drives both boundaries
+      through the real `Run.step` tick loop (not the bare `sundering.ts` functions
+      directly, so a wiring regression would show up too), covers renderer
+      ingest/replace/countdown/expiry in both directions, `draw()` non-throwing
+      under both flash settings, and re-asserts directly that `w.fx` never reaches
+      `hashWorld` (G2 unaffected) rather than only trusting that from a comment.
+      code-reviewer found no Critical/Major issues (confirmed no `/src/sim`
+      architecture-rule violation, traced both real call sites — `completeWave` and
+      `updateAct2` — and confirmed the one look-alike third exit, the final block's
+      boss-kill victory, correctly goes to `results` and correctly gets no sweep;
+      confirmed no other fx consumer collides with the two new event keys) — two
+      Minor nits noted, not blocking. qa-playtester independently verified live: a
+      30-seed x {1,2,3}-cycle stress script through the real tick loop confirmed
+      `sweep_to_vs` fires exactly once per TD->VS crossing and `sweep_to_td` fires
+      exactly `cycles - 1` times (correctly omitted before the final boss-gated
+      block); confirmed G2 two ways — direct inspection of `hashWorld` (never reads
+      `w.fx`) and a real before/after run of the same seed with the p10h diff
+      stashed out vs. restored, sampling `hashWorld` every 500 ticks, byte-identical
+      throughout; exercised restart/pause/reducedFlash-toggle-mid-sweep with no
+      crash path; ran the full related-system test battery (boss, fb013, m19c,
+      fb010, fb005, fb016, fb008, p3a, b10, fb023, hub-testing, fb015 — 200+ tests)
+      with no regression in other fx-driven visuals. `npm run test:fast`: same
+      pre-existing Windows-flake suites as p10f/p10g (`q15-command-domain-fuzz`,
+      `q28-cli-error-handling`, `q49-price-probe-restore`,
+      `q52-m20d-run-a4-bad-key` — EPERM scratch-dir races / fuzz timing under
+      full-suite parallel load), reproduced identically with the diff stashed out —
+      not a regression. Commit pending.
 - [x] (p10g) [balance] No gate exercises the armour shred: none of the twelve sweep
       seeds ever builds an Ember Brazier and no bot policy ever draws the flame cone
       — acceptance: a policy or probe that actually builds a Brazier is in the gate

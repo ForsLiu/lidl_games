@@ -44,6 +44,11 @@ export const CUES: Record<string, Cue> = {
   bossslam: { freq: 120, duration: 0.3, type: 'triangle', gain: 0.22, sweepTo: 60 },
   rift: { freq: 150, duration: 0.7, type: 'sawtooth', gain: 0.24, sweepTo: 480 },
   secondwind: { freq: 440, duration: 0.5, type: 'sine', gain: 0.24, sweepTo: 1320 },
+  // p10h: whooshes for the 2s TD<->VS screen sweep, layered on top of
+  // 'sunder'/silence rather than replacing them — a rising sweep dropping
+  // into Night, a falling one rising back into Day.
+  sweep_to_vs: { freq: 220, duration: 0.9, type: 'sine', gain: 0.14, sweepTo: 60 },
+  sweep_to_td: { freq: 60, duration: 0.9, type: 'sine', gain: 0.14, sweepTo: 220 },
 };
 
 /**

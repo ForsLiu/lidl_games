@@ -5,6 +5,51 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-30 session: p10h done — the 2 s TD↔VS transition sweep (SPEC-FINAL
+  §11, §15 P10) implemented and measured live; SFX half satisfied through the
+  existing synthesized `WebAudioSink` seam, art-asset half logged as
+  designer-fill (Q152) — commit pending.** `finishSundering` (TD→VS,
+  `src/sim/sundering.ts`) now emits a direction-keyed `sweep_to_vs` fx event
+  alongside the pre-existing `sunder` shake/bass-hit cue; `advanceToNextBlock`
+  (VS→TD), which had no TD-side event at all before this, now emits
+  `sweep_to_td`. `Renderer` (`src/render/canvas.ts`) turns either into a 2s
+  translucent gradient-band wipe (`drawPhaseSweep`), colored toward the phase
+  being *left* since the background fill already flips to the destination
+  color the same tick; `reducedFlash` dims it (0.7→0.3 alpha) rather than
+  dropping it, matching `drawCasts`'s existing treatment. Two new synthesized
+  cues (`sweep_to_vs`/`sweep_to_td`) were added to `src/render/sfx.ts`'s
+  `CUES` table, picked up automatically by the existing generic `Sfx.emit`
+  lookup with no extra wiring. Logged as Q152 in QUESTIONS.md: the repo has
+  zero binary audio/art files or asset pipeline anywhere, and authoring
+  binary media is outside a coding agent's scope, so "SFX/art assets" is
+  scoped to the existing synthesized seam only — a literal asset drop stays
+  designer-fill pending owner-supplied media. New
+  `tests/p10h-transition-sweep.test.ts` (8 tests) drives both boundaries
+  through the real `Run.step` tick loop, covers renderer ingest/replace/
+  countdown/expiry in both directions and `draw()` non-throwing under both
+  flash settings, and re-asserts directly that `w.fx` never reaches
+  `hashWorld` (G2 unaffected) rather than trusting that from a comment.
+  code-reviewer found no Critical/Major issues (confirmed no `/src/sim`
+  architecture-rule violation, traced both real call sites — `completeWave`
+  and `updateAct2` — plus the one look-alike third exit, the final block's
+  boss-kill victory, which correctly goes to `results` and correctly gets no
+  sweep; confirmed no other fx consumer collides with the two new event
+  keys); two Minor nits noted, not blocking. qa-playtester independently
+  verified live: a 30-seed × {1,2,3}-cycle stress script through the real
+  tick loop confirmed `sweep_to_vs` fires exactly once per TD→VS crossing and
+  `sweep_to_td` fires exactly `cycles − 1` times (correctly omitted before
+  the final boss-gated block); confirmed G2 two ways — direct inspection of
+  `hashWorld` (never reads `w.fx`) and a real same-seed run with the diff
+  stashed out vs. restored, sampling `hashWorld` every 500 ticks,
+  byte-identical throughout; exercised restart/pause/reducedFlash-toggle
+  mid-sweep with no crash path; ran the full related-system test battery
+  (boss, fb013, m19c, fb010, fb005, fb016, fb008, p3a, b10, fb023,
+  hub-testing, fb015 — 200+ tests) with no regression in other fx-driven
+  visuals. `npm run test:fast`: only the same pre-existing Windows-flake
+  suites as p10f/p10g (`q15-command-domain-fuzz`, `q28-cli-error-handling`,
+  `q49-price-probe-restore`, `q52-m20d-run-a4-bad-key` — EPERM scratch-dir
+  races / fuzz timing under full-suite parallel load), reproduced identically
+  with the diff stashed out — not a regression.
 - **2026-08-30 session: p10g done — gate G4's armour shred measured live
   through a real Ember Brazier build, closing the last unmeasured §14 gate
   path — commit `9cb42ad`.** None of the sweep's registered bot policies

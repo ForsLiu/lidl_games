@@ -112,6 +112,9 @@ interface CastFx {
 
 const CAST_FX_LIFE = 0.28;
 
+/** p10h: SPEC-FINAL §15 P10 names this "the 2 s TD<->VS transition sweep" literally. */
+const SWEEP_DURATION = 2;
+
 /** fb013 Time Lord *Time*: one marker color per mark stage (1 past, 2 present, 3 future). */
 const TIME_MARK_STAGE_COLORS: readonly string[] = ['#9a7fe6', '#ffb454', '#ff5577'];
 
@@ -161,6 +164,8 @@ export class Renderer {
   private tracers: Tracer[] = [];
   private cones: ConeFlash[] = [];
   private casts: CastFx[] = [];
+  /** p10h: the 2s TD<->VS screen sweep; `dir` 1 = entering VS/Night, -1 = returning to TD/Day. */
+  private sweep: { life: number; dir: 1 | -1 } | null = null;
   private shakeX = 0;
   private shakeY = 0;
   private rngPhase = 0;
@@ -262,6 +267,15 @@ export class Renderer {
           break;
         case 'sunder':
           view.shake = Math.max(view.shake, 14);
+          break;
+        // p10h: the 2s TD<->VS screen sweep, keyed by direction; a fresh
+        // transition overwrites rather than queues, since the two boundaries
+        // this fires from cannot land back to back within 2s of each other.
+        case 'sweep_to_vs':
+          this.sweep = { life: SWEEP_DURATION, dir: 1 };
+          break;
+        case 'sweep_to_td':
+          this.sweep = { life: SWEEP_DURATION, dir: -1 };
           break;
         case 'shot':
           if (this.tracers.length < MAX_TRACERS) {
@@ -393,6 +407,10 @@ export class Renderer {
       if (nv <= 0) this.flashes.delete(k);
       else this.flashes.set(k, nv);
     }
+    if (this.sweep) {
+      this.sweep.life -= dt;
+      if (this.sweep.life <= 0) this.sweep = null;
+    }
     view.shake = Math.max(0, view.shake - dt * 30);
     const shake = view.shake * view.settings.shake;
     if (shake > 0) {
@@ -432,6 +450,7 @@ export class Renderer {
     if (!night) this.drawRangeRings(w, view);
     if (!night) this.drawBuildGhost(w, view);
     this.drawNumbers();
+    this.drawPhaseSweep(view);
     ctx.restore();
   }
 
@@ -944,6 +963,41 @@ export class Renderer {
     ctx.globalAlpha = 1;
     ctx.lineWidth = 1;
     ctx.lineCap = 'butt';
+  }
+
+  /**
+   * p10h (SPEC-FINAL §11, §15 P10): a translucent band sweeps once across the
+   * whole board over the 2s window, peaking in opacity at the midpoint so it
+   * reads as a wipe rather than a flat flash. `draw()`'s background fill
+   * (above) already flips to the *destination* phase's color the same tick
+   * this fires (`w.phase`/`w.huntsWarden` change synchronously in
+   * `finishSundering`/`advanceToNextBlock`), so the band is colored toward
+   * the phase being *left* — painting the destination's own color over
+   * itself would be invisible, alpha or not. `reducedFlash` dims it instead
+   * of dropping it, matching `drawCasts`'s existing treatment of the setting.
+   */
+  private drawPhaseSweep(view: ViewState): void {
+    if (!this.sweep) return;
+    const ctx = this.ctx;
+    const t = 1 - Math.max(0, this.sweep.life) / SWEEP_DURATION;
+    const peak = 1 - Math.abs(t - 0.5) * 2;
+    if (peak <= 0) return;
+    const bandWidth = this.width * 0.4;
+    const travel = this.width + bandWidth * 2;
+    const bandCenter = this.sweep.dir > 0 ? -bandWidth + t * travel : this.width + bandWidth - t * travel;
+    const color = this.sweep.dir > 0 ? PALETTE.bgDay : PALETTE.bgNight;
+    ctx.save();
+    ctx.globalAlpha = peak * (view.settings.reducedFlash ? 0.3 : 0.7);
+    const g = ctx.createLinearGradient(bandCenter - bandWidth / 2, 0, bandCenter + bandWidth / 2, 0);
+    g.addColorStop(0, `${color}00`);
+    g.addColorStop(0.5, color);
+    g.addColorStop(1, `${color}00`);
+    ctx.fillStyle = g;
+    // Matches the background fill's own 20px over-paint margin (draw(), above)
+    // so the band stays opaque under camera shake — 'sunder' sets view.shake
+    // to 14 on the exact tick 'sweep_to_vs' fires.
+    ctx.fillRect(-20, -20, this.width + 40, this.height + 40);
+    ctx.restore();
   }
 
   /**
