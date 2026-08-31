@@ -615,7 +615,26 @@ export class Hud {
       return true;
     }
 
-    const key = `sel:warden:${Math.round(w.warden.hp)}:${w.level}:${w.warden.dashCharges}`;
+    // Every field wardenInfoMarkup renders is in the key, each reduced through
+    // the same formatter the row itself uses (not a separately-chosen
+    // rounding) so the key can never disagree with what's on screen — the
+    // enemy branch above guards the identical staleness class for status
+    // effects/speed.
+    const wd = w.derived;
+    const key = [
+      'sel:warden',
+      Math.round(w.warden.hp),
+      Math.round(wd.maxHp),
+      w.level,
+      w.warden.dashCharges,
+      wd.dashCharges,
+      round1(wd.hpRegen),
+      armourText(wardenArmor(w)),
+      round1(wd.moveSpeed),
+      formatPercent(wd.powerMul - 1),
+      formatPercent(wd.attackSpeedMul - 1),
+      formatPercent(wd.areaMul - 1),
+    ].join(':');
     if (key !== this.lastInfoKey) {
       this.lastInfoKey = key;
       this.towerInfoEl.innerHTML = wardenInfoMarkup(w);

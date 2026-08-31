@@ -1766,7 +1766,7 @@ were not re-filed. Ordering within this section is by severity, not P-band.
       the failing files import `hud.ts`/`info-format.ts`/`tree-view.ts`) —
       no new failures from this change.
 
-- [ ] (b058) [bug] `renderSelectionInfo`'s warden-panel memo key (`src/ui/hud.ts:618`,
+- [x] (b058) [bug] `renderSelectionInfo`'s warden-panel memo key (`src/ui/hud.ts:618`,
       `` `sel:warden:${Math.round(w.warden.hp)}:${w.level}:${w.warden.dashCharges}` ``)
       does not include power/attackSpeed/area/armor/moveSpeed/regen, so
       `wardenInfoMarkup`'s Regen/Armour/Move speed/Power/Attack speed/Area
@@ -1788,6 +1788,24 @@ were not re-filed. Ordering within this section is by severity, not P-band.
       those stats between two `update` calls with hp/level/dashCharges held
       fixed, and asserts the second render reflects the new value — refs:
       §11, QA on b057.
+
+- [ ] (b059) [bug] The warden-panel memo key's Health component
+      (`src/ui/hud.ts:626`, `Math.round(w.warden.hp)`) uses a different
+      rounding function than the Health row it guards
+      (`wardenInfoMarkup`, `src/ui/hud.ts:1285`, `Math.ceil(w.warden.hp)`),
+      so an hp change that stays in the same `Math.round` bucket but crosses
+      a `Math.ceil` bucket boundary (e.g. 9.9 → 10.2: round gives 10 both
+      times, ceil gives 10 then 11) leaves the displayed Health number stale
+      even though it should have ticked up. Found by qa-playtester verifying
+      b058 (2026-08-31): predates b058 (the same `Math.round` was already in
+      the old key) and is outside b058's stated fields (power/attackSpeed/
+      area/armor/moveSpeed/regen/dashCharges/maxHp), so filed as its own item
+      rather than folded into b058 — acceptance: the memo key's Health
+      component uses `Math.ceil(w.warden.hp)` (matching the row), a jsdom
+      `Hud` test selects the warden, sets `hp = 9.9`, renders, then sets
+      `hp = 10.2` (level/dashCharges/maxHp held fixed) and renders again,
+      asserting the second render shows `Health11 / ...` — refs: §11, QA on
+      b058.
 
 ### Filed at the lane/quality merge (2026-08-28) — from BACKLOG-QUALITY.md's log and open queue
 

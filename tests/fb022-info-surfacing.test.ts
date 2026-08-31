@@ -497,3 +497,111 @@ describe('b057: wardenInfoMarkup shares formatPercent instead of its own flat-0-
     expect(html).not.toContain('Power</span><b>+0%');
   });
 });
+
+/**
+ * b058: `renderSelectionInfo`'s warden-panel memo key (hud.ts) omitted
+ * power/attackSpeed/area/armor/moveSpeed/regen, so `wardenInfoMarkup`'s rows
+ * for those stats went stale in the live Character-selection panel whenever
+ * one changed without hp/level/dashCharges also changing on the same frame —
+ * the enemy branch above guards the identical staleness class for status
+ * effects/speed, but the warden branch was not given the same treatment.
+ */
+describe('b058: the warden info panel memo key refreshes on a derived-stat change alone', () => {
+  function hudWarden(w: World): { hud: Hud; text: () => string } {
+    document.body.innerHTML = '<div id="app"></div>';
+    const root = document.getElementById('app') as HTMLElement;
+    const hud = new Hud(root, {
+      onSelectTower: () => {},
+      onCallWave: () => {},
+      onPickOffer: () => {},
+      onReroll: () => {},
+      onRetry: () => {},
+      onNewRun: () => {},
+      onToggleRanges: () => {},
+      onToggleAutoPick: () => {},
+      onToggleCharacterPanel: () => {},
+      onEquipItem: () => {},
+      onToggleDpsPanel: () => {},
+      onResume: () => {},
+      onPause: () => {},
+      onCycleSpeed: () => {},
+      onDev: () => {},
+      onQuitToHub: () => {},
+    });
+    hud.buildTowerBar(w);
+    return {
+      hud,
+      text: () => (root.querySelector('#sw-towerinfo') as HTMLElement).textContent ?? '',
+    };
+  }
+
+  it('a power change alone (hp/level/dashCharges held fixed) refreshes the Power row', () => {
+    const w = new World(cfg({ classKey: 'swordsman' }));
+    const sel: Selection = { kind: 'warden' };
+    const { hud, text } = hudWarden(w);
+
+    hud.update(w, undefined, sel);
+    expect(text()).toContain('Power0%');
+
+    const hp = w.warden.hp;
+    const level = w.level;
+    const dashCharges = w.warden.dashCharges;
+    w.stats.add('src:test', 'power', 0.5);
+    w.recomputeDerived();
+    expect(w.warden.hp).toBe(hp);
+    expect(w.level).toBe(level);
+    expect(w.warden.dashCharges).toBe(dashCharges);
+
+    hud.update(w, undefined, sel);
+    expect(text()).toContain('Power+50%');
+  });
+
+  it('an armor change alone refreshes the Armour row', () => {
+    const w = new World(cfg({ classKey: 'swordsman' }));
+    const sel: Selection = { kind: 'warden' };
+    const { hud, text } = hudWarden(w);
+
+    hud.update(w, undefined, sel);
+    const before = text();
+
+    w.stats.add('src:test', 'armor', 50);
+    w.recomputeDerived();
+    hud.update(w, undefined, sel);
+    const after = text();
+
+    expect(after).not.toBe(before);
+  });
+
+  it('a maxHp change alone refreshes the Health row', () => {
+    const w = new World(cfg({ classKey: 'swordsman' }));
+    const sel: Selection = { kind: 'warden' };
+    const { hud, text } = hudWarden(w);
+
+    hud.update(w, undefined, sel);
+    expect(text()).toContain('Health100 / 100');
+
+    const hp = w.warden.hp;
+    w.stats.add('src:test', 'maxHp', 50);
+    w.recomputeDerived();
+    expect(w.warden.hp).toBe(hp);
+
+    hud.update(w, undefined, sel);
+    expect(text()).toContain('Health100 / 150');
+  });
+
+  it('a dash-charge-cap change alone refreshes the Dash row', () => {
+    const w = new World(cfg({ classKey: 'swordsman' }));
+    const sel: Selection = { kind: 'warden' };
+    const { hud, text } = hudWarden(w);
+
+    hud.update(w, undefined, sel);
+    const dashCharges = w.warden.dashCharges;
+
+    w.stats.add('src:test', 'dashCharges', 1);
+    w.recomputeDerived();
+    expect(w.warden.dashCharges).toBe(dashCharges);
+
+    hud.update(w, undefined, sel);
+    expect(text()).toContain(`Dash${dashCharges} / ${dashCharges + 1}`);
+  });
+});

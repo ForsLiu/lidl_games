@@ -5,6 +5,41 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-31 session: BACKLOG b058 fixed — `renderSelectionInfo`'s warden-panel
+  memo key (`src/ui/hud.ts`) omitted power/attackSpeed/area/armor/moveSpeed/regen,
+  so `wardenInfoMarkup`'s rows for those stats went stale in the live
+  Character-selection panel whenever one changed without hp/level/dashCharges
+  also changing on the same frame — the enemy-info branch a few lines above
+  already guarded the identical staleness class for status effects/speed, but
+  the warden branch had never been given the same treatment. Found by
+  qa-playtester verifying b057. Fix: the memo key now includes rounded maxHp,
+  both dash-charge fields, `round1(hpRegen)`, `armourText(wardenArmor(w))`,
+  `round1(moveSpeed)`, and `formatPercent`-rounded power/attackSpeed/area —
+  each key component reuses the exact formatter its row applies, so key and
+  display can never disagree (mirrors b054–b057's "share the formatter, don't
+  re-derive it" fix pattern). New tests in `tests/fb022-info-surfacing.test.ts`
+  add a `b058` describe block: 4 jsdom `Hud` tests hold hp/level/dashCharges
+  fixed and change one of power/armor/maxHp/dash-charge-cap between two
+  `update()` calls, asserting the second render reflects the new value.
+  `npx vitest run tests/fb022-info-surfacing.test.ts`: 32/32 pass. `npm run
+  test:fast`: 1763 passed / 5 failed / 21 skipped — the 5 failures are q15's
+  worker-probe/fuzz-hang census plus q28/q49/q52's scratch-dir EPERM races,
+  none of which import `hud.ts`; qa-playtester reproduced q49/q52 passing
+  clean on `master` with this fix stashed out, confirming pre-existing
+  Windows-environment flakiness, not a regression. A stray orphaned
+  `node.exe` (PID 34536, started 2026-08-31 02:13, holding port 5173 since
+  before this session) was also killed mid-session — it was making the
+  b032/b034/b035/b036 Playwright fold tests fail with a 30s hook timeout
+  instead of their usual documented port-contention retry; killing it did
+  not change their pass/fail status (still red, consistent with those tests'
+  long-documented pre-existing flake, not this change).
+  qa-playtester also found a new pre-existing bug while verifying b058: the
+  memo key's Health component uses `Math.round(w.warden.hp)` while the row it
+  guards uses `Math.ceil(w.warden.hp)`, so an hp change that stays in the same
+  round-bucket but crosses a ceil-bucket boundary leaves the Health row stale.
+  Predates b058 and is outside its acceptance fields, so filed as its own
+  item, BACKLOG b059, not fixed here.
+
 - **2026-08-31 session: BACKLOG b057 fixed — `wardenInfoMarkup` (`src/ui/hud.ts`),
   the Character-selection info panel's Power/Attack speed/Area rows, was a
   fourth un-deduplicated flat-0-decimal percent rounder with the same
