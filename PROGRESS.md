@@ -8,7 +8,7 @@
 - **2026-08-31 session: p10k done — an independent boss-pacing damage-taken
   ramp built and tuned; G1's mean-band gap proven structural, honestly
   `.skip`-ed with the improved number; follow-up filed as p10l — commit
-  `<pending>`.**
+  `4ccbac3`.**
   Picked up an uncommitted, partially-broken start on this item already
   sitting in the working tree (`src/sim/boss.ts`, `src/sim/enemies.ts`,
   `tools/p10k-sweep.ts`, and an un-skipped `tests/p10d-run-length.test.ts`)

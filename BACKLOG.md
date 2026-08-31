@@ -1050,7 +1050,10 @@ logged in MIGRATION.md §8 rather than carried as dead items.
       Verified: targeted run of `tests/p10d-run-length.test.ts`,
       `tests/boss.test.ts`, `tests/p8d-boss-termination.test.ts` (22 passed, 3
       skipped, 0 failed) plus `npm run test:fast` green. code-reviewer and
-      qa-playtester passes clean (see below). Commit `<pending>`.
+      qa-playtester passes clean (code-reviewer: APPROVE, no Critical/Major;
+      qa-playtester: PASS, independently reproduced the 36.63 min/92% measurement
+      and confirmed no exploit in the `TRAIT.finalBoss` gating across every spawn
+      path). Commit `4ccbac3`.
 - [x] (p10j) [feat] G13's 35%-damage-share clause is `.skip`-ed red
       (`tests/p10c-weapon-share.test.ts`) — acceptance: an engine-side mechanism (in
       `src/sim`, not just `/data`) giving directional wielded attacks some
