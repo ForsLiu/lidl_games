@@ -5,6 +5,54 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-31 session: p10j done — gate G13's 35% VS-damage-share cap
+  closed in full via an engine-side crowd allowance for directional wielded
+  attacks — commit `90405e4`.**
+  Picked up an uncommitted, partially-broken start on this item already
+  sitting in the working tree (`src/sim/vswield.ts`) at session start — its
+  first-pass constants already broke `tests/a4-single-type.test.ts` (T1 4/5
+  on two towers, T3 1/5 on two more) even at their smallest tested
+  magnitudes, so treated it as a from-scratch tuning problem rather than
+  trusting the leftover values. `frost_obelisk`'s `aura` and
+  `ember_brazier`'s `cone` wielded attacks hit every enemy in range each
+  interval; the five directional kinds (`single`/`pierce`/`chain`/`lob`/
+  `poison`) hit only a line/arc/handful of targets, so p10c's two rounds of
+  `/data`-only retuning had already maxed out at `frost_obelisk` 42.7%
+  against the 35% cap. Added a `wieldSplash` helper and five `WIELD_*`
+  constants to `src/sim/vswield.ts`, used only by VS-phase `fireWielded`:
+  `single` cleaves 30% damage to enemies near (excluding) the primary
+  target, `pierce` gets +2 pierce, `lob` gets a 1.6x blast radius, `poison`
+  reaches +2 targets. Found and fixed a real bug mid-session: the first
+  `wieldSplash` routed the primary target back through `applyAoE`'s own
+  `primary` slot, which double-applied `fx.onHit` (e.g. Arrow Spire's
+  Bleeding) to a target that had already taken its full hit from the shot
+  that just fired — rewrote it to explicitly exclude the primary, which
+  alone fixed a T3 regression that persisted at every splash-fraction
+  magnitude including zero. `chain` (tesla_coil) is deliberately left at a
+  zero bonus: swept 0/1/2 and found tesla_coil sits at exactly zero T1
+  margin in `tests/a4-single-type.test.ts` — any nonzero chain-jump bonus
+  flips one of the five fixed seeds through the documented VS-kills-feed-
+  `powerMul` coupling (VS kills → XP → Power boons → `towerDamage()`'s
+  `w.derived.powerMul`, which also scales TD firing, so no VS-only field is
+  ever fully TD-free). Swept every other constant the same way — via
+  `tools/a4probe.ts`'s `runSingleType` called directly rather than the full
+  vitest suite, far cheaper per iteration during search — until every one of
+  the seven attacking towers held 5/5 T1 / 0/5 T3 simultaneously with the
+  VS-share cap. Final measured shares (`tools/a5probe.ts`, seeds 1-5):
+  frost_obelisk 29.9%, ballista 22.4%, ember_brazier 18.5%, mortar 16.0%,
+  arrow_spire 5.7%, venom_spore 3.1%, tesla_coil 2.4%. `tests/p10c-weapon-
+  share.test.ts`'s skip removed (3/3 green); `tests/a4-single-type.test.ts`
+  reconfirmed 16/16 green; `npx tsc --noEmit -p .` clean. `npm run test:fast`
+  showed 7 failing suites on first pass — Windows `EPERM` temp-dir cleanup
+  races and a Playwright hook timeout, all from running several
+  `tools/a4probe.ts`/`tools/a5probe.ts` sweeps in parallel background shells
+  during tuning — all 7 reproduced clean in isolation, confirmed
+  host-contention, not a regression. qa-playtester PASS: independently
+  re-ran both target test files, spot-checked 8 other `vswield.ts`-adjacent
+  tests, flagged two non-blocking notes (recorded in BACKLOG.md's Done entry)
+  — no reproducible bugs. G13 fully green; only G1's mean-band clause
+  (p10k) remains `.skip`-ed among the gates this session's scope touched.
+
 - **2026-08-31 session: p10i done — HANDOFF.md regenerated end to end against
   SPEC-FINAL, and QUALITY.md's Alpha automated bar re-checked against the
   live suite — commit `5e6c03b`.**

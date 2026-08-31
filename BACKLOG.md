@@ -38,7 +38,7 @@ still in test headers.
 | P7 equipment/rewards/VS upgrades | **`p7a`-`p7g` done** — §6.3's VS level-up pool replaces the flat 12-boon list (closing b011 as a side effect); §7's 12-item equipment table is live; §8's reward pipeline is complete and **gate G12 is green in full**; the superseded meta economy (relic affixes, Ember) is retired outright, skill points are the tree's only currency; §8.4's unlock quests are live and correct for all 9 non-free classes (p7e fixed 5 quests whose reward never actually unlocked their class, and repointed Paladin's quest at a new "win with a sealed Core" mechanism matching spec text); `p7f`/`p7g` closed the save-migration holes `migrateWithNotice` had — an unknown key, and a corrupt `allocated`/`unlockedClasses`/`completedQuests`/`equipmentStash`/`questProgress`, can no longer discard or corrupt the account. Remaining: `p7h` (Core unlock quests + Codex page) |
 | P8 enemies/waves/bosses | **done in full (`p8a`-`p8c`)** — all 20 §9 enemies by name; `data/waves.json` authors real TD waves 1-18 on the §1.1 shape (Gatebreaker on 18 only, Warden-Eater on VS 6), the §9 VS-budget curve is live; `p8b` closed the elite/boss-summon spawn paths that bypassed `spendBudget`'s `aliveCap` check; `p8c` formally measured gate G14 on the real shape — **honestly red, 0/20**, `.skip`-ed with the number, re-enable point P10 (no gate in this codebase is force-passed by tuning outside P10) |
 | P9 tooling | **done in full (`p9a`-`p9h`)** — content-hash replay check (`p9a`), the Codex wired into the Hub (`p9b`), the Tuner built and gate **G15 green** (`p9c`), G16's dist-presence-is-inert half explicitly asserted (`p9d`), **gate G18's dead-end clause closed in full** (`p9e`), **gate G2 closed in full** (`p9f`), `hashWorld`'s `w.goldSpent` coverage gap closed (`p9g`), and the enemy/Warden panel's armour row now shows the effective (floored/capped) value instead of the raw shredded number (`p9h`) |
-| P10 balance | **in progress (p10a-p10i done)** — Burning flipped to per-application stacking, DoT immunity is data-driven, G13/G1/G17 re-baselined against the real §1.1 shape (G17 fully green; G13/G1 partly `.skip`-ed with honest numbers, follow-ups p10j/p10k); **G19 measured live and green in full (p10f)**; G4's armour-shred path proven live through a real build (p10g); the TD↔VS transition sweep and asset pass shipped (p10h); HANDOFF.md regenerated end to end against SPEC-FINAL, with the wave-11-to-17 wall (behind G8/G14/most of G23) documented as the dominant open problem (p10i). Remaining: p10j (G13's structural VS-attack gap), p10k (G1×G14's boss-pacing tension) |
+| P10 balance | **in progress (p10a-p10j done)** — Burning flipped to per-application stacking, DoT immunity is data-driven, G13/G1/G17 re-baselined against the real §1.1 shape (G17 fully green; G1 still `.skip`-ed with honest numbers, follow-up p10k); **G19 measured live and green in full (p10f)**; G4's armour-shred path proven live through a real build (p10g); the TD↔VS transition sweep and asset pass shipped (p10h); HANDOFF.md regenerated end to end against SPEC-FINAL, with the wave-11-to-17 wall (behind G8/G14/most of G23) documented as the dominant open problem (p10i); **G13's 35% VS-damage-share cap closed in full (p10j)** — directional wielded attacks (single/pierce/lob/poison) got an engine-side crowd allowance, `tests/p10c-weapon-share.test.ts`'s skip removed. Remaining: p10k (G1×G14's boss-pacing tension) |
 
 ## Queue
 
@@ -506,25 +506,6 @@ next in P8's own queue.
       changes (G2 hash unmoved) — refs: §11, §15 P10 — **done, see Done section.**
 - [x] (p10i) [polish] Regenerate HANDOFF.md's measured sections against SPEC-FINAL
       and re-check QUALITY.md's Alpha bar — **done, see Done section.**
-- [ ] (p10j) [feat] G13's 35%-damage-share clause is `.skip`-ed red
-      (`tests/p10c-weapon-share.test.ts`): `frost_obelisk` still measures 46.0% of
-      the winning-build pool's VS damage after p10c's data-only retune (down from
-      51.1%, but two rounds of bisection on every `data/towers.json` field found its
-      solo-TD economy has only ~9-10% of margin left before `tests/a4-single-type.
-      test.ts`'s T1 5/5 bar breaks — roughly 4-6x short of what the share cap needs).
-      The mechanism is structural: `frost_obelisk`'s `aura` and `ember_brazier`'s
-      `cone` wielded attacks (`src/sim/vswield.ts`) hit every enemy in range each
-      interval; `single`/`pierce`/`chain`/`lob`/`poison` hit only a line/arc/handful
-      of targets, so they can't out-share an omnidirectional attacker by damage
-      tuning alone (confirmed: buffing `tesla_coil`'s `electricWireGrid` special 6x
-      changed nothing — it links board structures, not the Warden) — acceptance: an
-      engine-side mechanism (in `src/sim`, not just `/data`) giving directional
-      wielded attacks some crowd-relevant behaviour in VS (e.g. a scaling secondary
-      target, a small innate splash, or a wielding-specific profile distinct from
-      the TD one), re-measured against `tools/a5probe.ts`'s pool until no tower type
-      exceeds 35% with `tests/a4-single-type.test.ts` still 5/5 T1 / 0/5 T3 for all
-      seven, then the skip in `tests/p10c-weapon-share.test.ts` comes off — refs: §5,
-      §6.1, G13, tests/p10c-weapon-share.test.ts
 - [ ] (p10k) [feat] Gate **G1**'s mean-band clause is `.skip`-ed red
       (`tests/p10d-run-length.test.ts`): mean victorious run measures 37.15 min
       against the 30-36 min band after p10d's data-only pacing fix (down from 44.26
@@ -991,6 +972,45 @@ logged in MIGRATION.md §8 rather than carried as dead items.
   **G19**. The work is `p10d`.
 
 ## Done
+
+- [x] (p10j) [feat] G13's 35%-damage-share clause is `.skip`-ed red
+      (`tests/p10c-weapon-share.test.ts`) — acceptance: an engine-side mechanism (in
+      `src/sim`, not just `/data`) giving directional wielded attacks some
+      crowd-relevant behaviour in VS, re-measured against `tools/a5probe.ts`'s pool
+      until no tower type exceeds 35% with `tests/a4-single-type.test.ts` still 5/5
+      T1 / 0/5 T3 for all seven, then the skip in `tests/p10c-weapon-share.test.ts`
+      comes off — refs: §5, §6.1, G13, tests/p10c-weapon-share.test.ts — **done, see
+      commit `90405e4`.** `src/sim/vswield.ts` gained a `wieldSplash` helper and five
+      `WIELD_*` tuning constants used only by VS-phase `fireWielded`: `single`
+      (arrow_spire) cleaves 30% damage to enemies near (not including) the primary
+      target — excluding the primary was a mid-session fix after the first version
+      routed it back through `applyAoE`'s own `primary` slot and double-applied
+      `fx.onHit` (e.g. Arrow Spire's Bleeding) to a target that had already taken its
+      full hit; `pierce` (ballista) gets +2 pierce; `lob` (mortar) gets a 1.6x blast
+      radius; `poison` (venom_spore) reaches +2 targets. `chain` (tesla_coil) is left
+      at a zero bonus on purpose: `tests/a4-single-type.test.ts` showed tesla_coil
+      sitting at exactly zero T1 margin — even the smallest possible nonzero
+      chain-jump bonus flipped one of the five fixed seeds through the documented
+      VS-kills-feed-`powerMul` coupling (VS kills → XP → Power boons →
+      `towerDamage()`'s `w.derived.powerMul`, which also scales TD firing), and the
+      other four kinds already close the gate without it. Every magnitude was swept
+      against both `tools/a5probe.ts`'s share measurement and
+      `tests/a4-single-type.test.ts`'s 16 cases (via `tools/a4probe.ts`'s
+      `runSingleType` directly, far cheaper per-iteration than the full vitest
+      suite) before landing on final values. Final measured VS shares: frost_obelisk
+      29.9%, ballista 22.4%, ember_brazier 18.5%, mortar 16.0%, arrow_spire 5.7%,
+      venom_spore 3.1%, tesla_coil 2.4% — cap holds, `tests/p10c-weapon-share.
+      test.ts`'s skip removed (3/3 green). `tests/a4-single-type.test.ts` reconfirmed
+      5/5 T1 / 0/5 T3 for all seven towers (16/16 green). `npx tsc --noEmit -p .`
+      clean. `npm run test:fast` showed 7 failing suites on first pass (Windows
+      `EPERM` temp-dir cleanup races and a Playwright hook timeout); all 7
+      reproduced clean in isolation — pre-existing host-contention flakes from
+      running several sim probes in parallel during tuning, not a regression.
+      qa-playtester PASS: confirmed the diff, re-ran both target test files green,
+      spot-checked 8 other `vswield.ts`-adjacent tests clean, flagged two
+      non-blocking notes (single's splash doesn't scale with `prof.projectiles` at
+      high multi-shot tiers — no gate risk at arrow_spire's measured 5.7% share; and
+      the zero `chain` bonus is a real, adequately-documented tradeoff, not a gap).
 
 - [x] (p10i) [polish] Regenerate HANDOFF.md's measured sections against SPEC-FINAL
       and re-check QUALITY.md's Alpha bar — acceptance: `npx tsx
