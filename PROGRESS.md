@@ -5,6 +5,37 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-31 session: BACKLOG b020 fixed — wielded attacks kept firing
+  through the defeat slow-mo window.** `updateWieldedAttacks`
+  (`src/sim/vswield.ts`) had no `w.dying` guard and was called unconditionally
+  every tick from `updateAct2` while `w.phase==='act2'`, which stays true for
+  the whole 1.5s `DEFEAT_SLOWMO` beat (`w.outcome` only flips at the end, in
+  `resolveDefeat`) — a wielded tower fired 3+ full volleys after the Warden
+  was already dead, the same bug class already fixed once for class Actives
+  (`useClassActive`/`useClassActive2`, `src/sim/classes.ts`). Fixed with a
+  one-line `if (w.dying) return;` at the top of `updateWieldedAttacks`,
+  placed before the `speedMul` calculation so Beacon Totem's `shrineHaste`
+  read is covered by the same guard rather than needing a second one.
+  `tests/p2b-wielded-fire.test.ts` gained 3 regression cases (direct-call
+  no-op, shrineHaste-while-dying, and a real `Run`/`damageWarden`-driven
+  defeat stepped through the full slow-mo window via `run.step`); all three
+  confirmed red on pre-fix code (`git stash` of just `vswield.ts`) and green
+  with the fix. code-reviewer **APPROVE**, no findings. qa-playtester
+  **PASS**: independently reproduced red-before/green-after, confirmed the
+  Core-death path shares the same `w.dying` flag so is covered too, confirmed
+  no regression to normal (non-dying) firing across all 9 pre-existing
+  wielded-attack-kind tests, and confirmed a fresh `Run` after a defeat
+  starts clean (`w.dying = null`, no stale-guard lifecycle risk). It also
+  found two sibling instances of the identical bug class, out of this item's
+  exact scope and not fixed here: `updateVsSpecials`
+  (`src/sim/vsspecials.ts` — poison trail/frost aura/electric wire grid) and
+  `updateClassSummons` (`src/sim/classes.ts` — live class summons like
+  Engineer's Pop Turret), both called from the same `updateAct2` and both
+  missing the same guard. Filed as b046 and b047, top of the queue.
+  `npm run test:fast`: only the 4 pre-existing documented Playwright fold
+  flakes (b032/b034/b035/b036, port contention) and the documented Windows
+  EPERM temp-cleanup race on `q49-price-probe-restore` red, both pre-existing
+  and unrelated to this diff.
 - **2026-08-31 session: BACKLOG b019 duplicate entry removed — no code change,
   bookkeeping only.** The queue carried b019 twice: an unchecked entry (the
   original filing) and, immediately below it, an already-`[x]`-checked entry

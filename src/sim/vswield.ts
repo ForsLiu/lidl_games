@@ -138,6 +138,11 @@ function wieldOneType(w: World, def: TowerDef, group: readonly Structure[]): Wie
  * only the next one.
  */
 export function updateWieldedAttacks(w: World, dt: number): void {
+  // b020: same "the defeat slow-mo beat is a frozen moment, not still-live
+  // combat" rule `useClassActive`/`useClassActive2` (classes.ts) already
+  // enforce for Actives — a wielded tower has no Command gate to catch this
+  // at, since it fires every tick from `updateAct2` regardless of input.
+  if (w.dying) return;
   // SPEC-FINAL §5.5 Time: "VS: character attack and movement speed +20%".
   const speedMul =
     w.derived.attackSpeedMul * w.derived.towerAttackSpeedMul * coreAttackSpeedMul(w) * (1 + w.shrineHaste);

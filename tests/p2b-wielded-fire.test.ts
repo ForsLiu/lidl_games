@@ -12,7 +12,7 @@ import { describe, expect, it } from 'vitest';
 
 import { loadContent, type TowerDef } from '../src/sim/content';
 import { spawnEnemy } from '../src/sim/enemies';
-import { hashWorld, updateWarden } from '../src/sim/run';
+import { Run, damageWarden, hashWorld, updateWarden } from '../src/sim/run';
 import { buildTower, upgradeTower } from '../src/sim/towers';
 import { emptyInput } from '../src/sim/types';
 import type { Enemy } from '../src/sim/types';
@@ -403,6 +403,74 @@ describe('p2b — wielded attacks fire as character attacks (§6.1 last clause)'
 
     const solo = w.damageByWeapon['arrow_spire'] - pair;
     expect(solo).toBeCloseTo(ARROW.attack!.damage * 1.1, 6);
+  });
+
+  it('b020: updateWieldedAttacks is a no-op once w.dying is set, mirroring useClassActive/useClassActive2\'s guard', () => {
+    // QA-filed: unlike a Command-driven Active, a wielded attack fires every
+    // tick straight from `updateAct2` with no Command gate to catch it at —
+    // it kept firing for the whole DEFEAT_SLOWMO window after the Warden
+    // died, since `w.outcome` (what a naive guard might check) only flips at
+    // the end of that window, not at its start.
+    const w = new World(cfg(), content);
+    const [t1] = tiles(w, 1);
+    build(w, ARROW, t1.tx, t1.ty);
+    w.phase = 'act2';
+    w.warden.x = t1.tx + 0.5;
+    w.warden.y = t1.ty + 0.5;
+    dummy(w, w.warden.x + 1, w.warden.y);
+    w.rebuildBuckets();
+    w.dying = 'defeat_warden';
+    w.dyingTimer = 1.5;
+
+    updateWieldedAttacks(w, DT);
+
+    expect(w.attacksFired['arrow_spire']).toBeUndefined();
+    expect(w.damageByWeapon['arrow_spire']).toBeUndefined();
+  });
+
+  it('b020: shrineHaste cannot speed up a wielded attack while dying either, since both live in the same guarded function', () => {
+    const w = new World(cfg(), content);
+    const [t1] = tiles(w, 1);
+    build(w, ARROW, t1.tx, t1.ty);
+    w.phase = 'act2';
+    w.warden.x = t1.tx + 0.5;
+    w.warden.y = t1.ty + 0.5;
+    dummy(w, w.warden.x + 1, w.warden.y);
+    w.rebuildBuckets();
+    w.shrineHaste = 0.5;
+    w.dying = 'defeat_warden';
+    w.dyingTimer = 1.5;
+
+    updateWieldedAttacks(w, DT);
+
+    expect(w.wieldedCooldown.get(ARROW.id)).toBeUndefined();
+    expect(w.attacksFired['arrow_spire']).toBeUndefined();
+  });
+
+  it('b020: a real defeat through Run.step fires no wielded volley during the slow-mo window', () => {
+    const run = new Run(cfg());
+    const w = run.world;
+    const [t1] = tiles(w, 1);
+    build(w, ARROW, t1.tx, t1.ty);
+    w.phase = 'act2';
+    w.sundered = true;
+    w.warden.x = t1.tx + 0.5;
+    w.warden.y = t1.ty + 0.5;
+    w.updateNav(true);
+    dummy(w, w.warden.x + 1, w.warden.y);
+    w.rebuildBuckets();
+    // Arm the cooldown at 0 so the very next act2 tick would fire if the
+    // dying guard were missing.
+    w.wieldedCooldown.set(ARROW.id, 0);
+
+    damageWarden(w, 999999);
+    expect(w.dying).toBe('defeat_warden');
+
+    for (let i = 0; i < 95 && !run.done; i++) run.step(emptyInput());
+
+    expect(run.done).toBe(true);
+    expect(run.world.outcome).toBe('defeat_warden');
+    expect(w.attacksFired['arrow_spire']).toBeUndefined();
   });
 
   it('two identical runs of the fire loop replay to the same end-state hash', () => {

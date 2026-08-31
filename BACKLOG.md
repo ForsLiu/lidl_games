@@ -1033,7 +1033,7 @@ were not re-filed. Ordering within this section is by severity, not P-band.
       qa-playtester across 13,004 real Ice Wall casts (both the center
       self-aim case and edge-segment cases) rather than assumed — refs: §10,
       QA on Q120 ORDER 2, Q129.
-- [ ] (b020) [bug] Wielded attacks (and Beacon Totem's `shrineHaste`
+- [x] (b020) [bug] Wielded attacks (and Beacon Totem's `shrineHaste`
       speedup) keep firing through the entire defeat slow-mo window:
       `updateWieldedAttacks` (`src/sim/vswield.ts`) has no `w.dying` guard,
       and `updateAct2` (`src/sim/run.ts`) calls it unconditionally every tick
@@ -1048,7 +1048,60 @@ were not re-filed. Ordering within this section is by severity, not P-band.
       is a no-op (cooldown map untouched, no attack fires) once `w.dying` is
       truthy; a regression test builds a wielded tower, kills the Warden and
       steps through the slow-mo window asserting no attack fires — refs:
-      §12 rule 2, QA on Q102 ORDER
+      §12 rule 2, QA on Q102 ORDER. **Fixed**: a one-line `if (w.dying)
+      return;` at the top of `updateWieldedAttacks`, placed before the
+      `speedMul` calculation so `shrineHaste` is covered by the same guard
+      rather than a second one, mirroring `useClassActive`/
+      `useClassActive2`'s existing precedent exactly.
+      `tests/p2b-wielded-fire.test.ts` gained 3 regression cases: a direct
+      call with `w.dying` set (cooldown map and `attacksFired` both
+      untouched), the same with `w.shrineHaste` set to rule out a
+      speed-calc-only guard, and a real `Run`/`damageWarden`-driven defeat
+      stepped through the full ~90-tick slow-mo window to `run.done` via
+      `run.step`, asserting no volley fires. All three confirmed red on the
+      pre-fix code (`git stash` of just `vswield.ts`) and green with the fix.
+      code-reviewer **APPROVE**, no findings. qa-playtester **PASS**:
+      independently reproduced the red-before/green-after result, confirmed
+      the Core-death path (`defeat_core`) shares the same `w.dying` flag so
+      is covered by the same guard, confirmed no regression to normal
+      (non-dying) firing across all 9 pre-existing wielded-attack-kind
+      tests, and confirmed a fresh `Run` after a defeat starts with
+      `w.dying = null` (no stale-guard lifecycle risk). It also found two
+      **sibling** instances of the identical bug class, out of this item's
+      exact scope (`updateWieldedAttacks` only) and not fixed here — filed
+      as b046 (`updateVsSpecials`) and b047 (`updateClassSummons`) at the
+      top of the queue.
+- [ ] (b046) [bug] `updateVsSpecials` (`src/sim/vsspecials.ts`) — the poison
+      trail, frost aura and electric wire grid VS-terrain specials — has no
+      `w.dying` guard and is called unconditionally from `updateAct2`
+      (`src/sim/run.ts:844`), right next to `updateWieldedAttacks`. Same bug
+      class as b020, same window: it keeps dealing damage and applying CC
+      (frost slow) through the entire `DEFEAT_SLOWMO` beat after the Warden
+      is already dead. QA-filed verifying b020 (2026-08-31), reproduced
+      three times: a `venom_spore` poison trail spawns a new `Area` and
+      deals ~18.6 damage post-death; a `frost_obelisk` aura applies a fresh
+      `frostRemaining` (2.47) post-death; two linked `tesla_coil` towers
+      (electric wire grid, requires `linkSpires`) deal 20 damage post-death
+      — acceptance: `updateVsSpecials` is a no-op once `w.dying` is truthy
+      (mirrors b020's fix exactly: `if (w.dying) return;` at the top); a
+      regression test per special kind (poison trail, frost aura, electric
+      wire grid) builds the relevant tower(s), kills the Warden and steps
+      through the slow-mo window asserting no damage/CC lands — refs: §12
+      rule 2, b020, qa-playtester on b020.
+- [ ] (b047) [bug] `updateClassSummons` (`src/sim/classes.ts`) has no
+      `w.dying` guard, even though the Active2 that spawns a summon
+      (`useClassActive2`) is already guarded against firing while dying —
+      the spawn is blocked but an already-live summon (e.g. Engineer's Pop
+      Turret) is not, and keeps attacking through the `DEFEAT_SLOWMO`
+      window. Same bug class as b020/b046. QA-filed verifying b020
+      (2026-08-31), reproduced twice: an armed live summon dealt 1600
+      damage during the ~1.5s slow-mo window after `damageWarden` triggered
+      a real defeat — acceptance: the damage-dealing branch of
+      `updateClassSummons` is a no-op once `w.dying` is truthy (a cosmetic-
+      only branch, if any, may be left alone — check before guarding the
+      whole function); a regression test arms a live summon near an enemy,
+      kills the Warden and steps through the slow-mo window asserting no
+      damage lands — refs: §12 rule 2, b020, qa-playtester on b020.
 - [ ] (b021) [bug] The character panel (fb004) renders `cdr` and `leech`
       as raw decimals instead of percentages. Both are classified `'flat'`
       in `STAT_KIND` (`src/sim/stats.ts`) for correct §2 stacking-math
