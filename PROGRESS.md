@@ -5,6 +5,47 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-31 session: BACKLOG b052 fixed — the final boss's own script
+  (`bossUpdate`/`updateBossSlam`) kept dealing Warden damage throughout the
+  defeat slow-mo window.** Same bug class as b020/b046-b051, this time in
+  `src/sim/boss.ts` — a separate module from `enemies.ts`'s `updateAbilities`
+  that b051 didn't cover. `bossUpdate` (called unconditionally every tick
+  from `updateEnemies` for the final boss) and `updateBossSlam` (called
+  unconditionally every tick from `updateAct2`, `src/sim/run.ts`) had no
+  `w.dying` guard, so once the killing blow landed, `updateCharge`'s
+  charge-hit, `updateBossSlam`'s ring, and `updateArenaFire`'s phase-3 fire
+  (called from inside `bossUpdate`) kept calling `damageWarden` — and thus
+  banking Paladin's Wrath meter via `storeWrath` — through the whole 1.5s
+  `DEFEAT_SLOWMO` beat. code-reviewer found this sibling while verifying
+  b051; filed as b052, executed this session. Fixed with `if (w.dying)
+  return true;` at the very top of `bossUpdate` (covers the charge and
+  arena-fire paths, since `updateArenaFire` runs from inside `bossUpdate`)
+  and `if (w.dying) return;` at the very top of `updateBossSlam` (guarded
+  separately since it's called directly from `updateAct2`, not through
+  `bossUpdate`) — the same whole-function-guard style as b051, since none of
+  either function's other branches are cosmetic-only. Three regression tests
+  added to `tests/boss.test.ts`, one per damage path, each confirmed red
+  pre-fix via `git stash` (100→72 HP for the charge case, 100→98.8 for the
+  slam ring, 100→88 for arena fire) and green post-fix. code-reviewer
+  **APPROVE**, no Critical/Major — confirmed all three `damageWarden` sites
+  are covered with no missed call site and that `enemies.ts`/`run.ts` needed
+  no changes; flagged three Minor/cosmetic notes accepted as shipped: the
+  boss also stops animating movement and `updateUnreachable`'s Core/structure
+  damage freezes too, and `updateBossSlam`'s guard also freezes its splash
+  damage against nearby non-boss enemies — both outside b052's stated scope
+  and judged harmless since the run resolves within the same 1.5s regardless.
+  qa-playtester **PASS** — independently reproduced the same three red
+  deltas via `git stash`, ran adversarial unit tests (all three damage paths
+  combined in one tick, `w.dying` flipped mid-telegraph, 8 simultaneous slam
+  rings, a phase transition attempted while dying, a `defeat_core`-flavored
+  dying window) with no leak found, and drove the real `Run.step()` dispatch
+  loop with a Paladin at full Warden HP to confirm `wrathStored`/`warden.hp`
+  are byte-identical from the tick `w.dying` first goes truthy through
+  `results`. `npm run test:fast`: 1751 passed / 21 skipped / 3 failed suites,
+  all the same pre-existing Windows EPERM temp-cleanup races (q28/q49/q52)
+  and Playwright fold-test port contention (b032/b034/b035/b036) noted in
+  every sibling entry below. This closes the b020/b046-b052 `DEFEAT_SLOWMO`
+  bug-class series — no further known sibling call sites remain.
 - **2026-08-31 session: BACKLOG b051 fixed — `updateAbilities`'s stomp and
   ranged Warden-attack branches kept banking Wrath throughout the defeat
   slow-mo window.** Same bug class as b020/b046/b047/b048/b049/b050, this

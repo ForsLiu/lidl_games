@@ -1383,7 +1383,7 @@ were not re-filed. Ordering within this section is by severity, not P-band.
       Windows EPERM temp-cleanup races on q28/q49/q52 and Playwright
       fold-test port contention on b032/b034/b035/b036 noted in every
       sibling entry above), 1751 passed.
-- [ ] (b052) [bug] `src/sim/boss.ts`'s final-boss script has no `w.dying`
+- [x] (b052) [bug] `src/sim/boss.ts`'s final-boss script has no `w.dying`
       guard anywhere in its call chain, the same bug class as
       b020/b046-b051: `bossUpdate` is called unconditionally from
       `updateEnemies` (`src/sim/enemies.ts`) and `updateBossSlam` is called
@@ -1407,7 +1407,42 @@ were not re-filed. Ordering within this section is by severity, not P-band.
       are cosmetic either); regression tests alongside b050/b051's in
       `tests/p6d-nine-classes.test.ts` or a new boss-specific file, one per
       damage path, each confirmed red pre-fix — refs: §12 rule 2, b020,
-      b046, b047, b048, b049, b050, b051, code-reviewer on b051.
+      b046, b047, b048, b049, b050, b051, code-reviewer on b051. Fixed with
+      `if (w.dying) return true;` at the very top of `bossUpdate` (covers
+      `updateCharge`'s charge-hit and `updateArenaFire`'s phase-3 fire,
+      since `updateArenaFire` is itself called from inside `bossUpdate`) and
+      `if (w.dying) return;` at the very top of `updateBossSlam` (called
+      independently from `updateAct2`, so needs its own guard). Three
+      regression tests added to `tests/boss.test.ts`
+      (`b052: charge-hit/slam ring/arena fire damage stops once w.dying is
+      set`), each confirmed red pre-fix via `git stash` (100→72 charge,
+      100→98.8 slam, 100→88 fire) and green post-fix. code-reviewer
+      **APPROVE**, no Critical/Major — confirmed all three `damageWarden`
+      sites are covered with no missed call site, confirmed `enemies.ts`/
+      `run.ts` needed no changes (guard is fully internal to `boss.ts`),
+      and flagged three Minor/cosmetic notes accepted as shipped: the
+      whole-function guard also freezes the boss's own movement animation
+      and `updateUnreachable`'s Core/structure damage, and `updateBossSlam`'s
+      guard also freezes its splash damage against nearby non-boss enemies —
+      both out of this item's stated acceptance criteria and judged harmless
+      since the run resolves within the same 1.5s regardless (mirrors
+      b051's "no branch here is cosmetic-only, guard the whole thing"
+      judgment). qa-playtester **PASS** — independently reverted only
+      `boss.ts` and reproduced the same three red deltas, ran adversarial
+      unit tests (all three damage paths combined in one tick, `w.dying`
+      flipped mid-telegraph, 8 simultaneous slam rings, a phase transition
+      attempted while dying, a `defeat_core`-flavored dying window) with no
+      leak found, and drove the real `Run.step()` dispatch loop with a
+      Paladin at full Warden HP to confirm `wrathStored` and `warden.hp` are
+      byte-identical from the tick `w.dying` first goes truthy through
+      `results` (the one tick of damage landing *before* `beginDefeat` sets
+      `w.dying` is the same one-tick lag as the killing blow itself, not a
+      leak). Sanity-checked `updateUnreachable`/slam-splash being frozen too:
+      no scoring input reads Core/structure HP after defeat, so no
+      regression test needed there. `npm run test:fast`: 1751 passed / 21
+      skipped / 3 failed suites, all the same pre-existing Windows EPERM
+      temp-cleanup races (q28/q49/q52) and Playwright fold-test port
+      contention (b032/b034/b035/b036) noted in every sibling entry above.
 - [ ] (b021) [bug] The character panel (fb004) renders `cdr` and `leech`
       as raw decimals instead of percentages. Both are classified `'flat'`
       in `STAT_KIND` (`src/sim/stats.ts`) for correct §2 stacking-math

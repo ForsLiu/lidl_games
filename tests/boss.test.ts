@@ -263,6 +263,73 @@ describe('the Warden-Eater (SPEC 5.5)', () => {
   // defeat_warden/w3 (unchanged from Q123). `.skip`-ed with this honest
   // number; re-enable point **P10** (CLAUDE.md: no balance tuning before
   // P10) — this item (p8c) is the measurement, not the fix.
+  // b052: code-reviewer found this sibling of b020/b046-b051 while verifying
+  // b051 — `bossUpdate` and `updateBossSlam` have no `w.dying` guard anywhere
+  // in their call chain, so a boss that lands the killing blow keeps dealing
+  // (and banking Wrath from) charge, slam and arena-fire damage through the
+  // whole DEFEAT_SLOWMO beat. One test per damage path, each confirmed red
+  // pre-fix.
+  it('b052: charge-hit damage stops once w.dying is set', () => {
+    const w = act2World();
+    const e = boss(w, 1);
+    e.bossAction = 2; // CHARGING (not exported by boss.ts; see IDLE/TELEGRAPH/CHARGING)
+    e.bossTimer = 1;
+    e.chargeVx = 0;
+    e.chargeVy = 0;
+    e.x = w.warden.x;
+    e.y = w.warden.y;
+
+    w.dying = 'defeat_warden';
+    w.dyingTimer = 1.5;
+    const hp = w.warden.hp;
+    for (let i = 0; i < 90; i++) {
+      w.rebuildBuckets();
+      bossUpdate(w, e, 1 / 60);
+    }
+    expect(w.warden.hp).toBe(hp);
+  });
+
+  it('b052: slam ring damage stops once w.dying is set', () => {
+    const w = act2World();
+    w.areas.push({
+      id: w.newId(),
+      x: w.warden.x,
+      y: w.warden.y,
+      radius: 0.5,
+      dps: 12,
+      remaining: 1,
+      type: 'bossSlam',
+      source: 'warden_eater',
+      acc: 0,
+      dead: false,
+    });
+
+    w.dying = 'defeat_warden';
+    w.dyingTimer = 1.5;
+    const hp = w.warden.hp;
+    for (let i = 0; i < 90; i++) updateBossSlam(w, 1 / 60);
+    expect(w.warden.hp).toBe(hp);
+  });
+
+  it('b052: arena fire damage stops once w.dying is set', () => {
+    const w = act2World();
+    const e = boss(w, 0.2); // phase 3
+    e.bossPhase = 2; // already in phase 3, skip the transition that would reset arenaFireRadius
+    w.arenaFireActive = true;
+    w.arenaFireRadius = 4;
+    w.warden.x = 1.5;
+    w.warden.y = 1.5;
+
+    w.dying = 'defeat_warden';
+    w.dyingTimer = 1.5;
+    const hp = w.warden.hp;
+    for (let i = 0; i < 90; i++) {
+      w.rebuildBuckets();
+      bossUpdate(w, e, 1 / 60);
+    }
+    expect(w.warden.hp).toBe(hp);
+  });
+
   it.skip('G14: over 20 seeds, the scripted-build win rate is >=60% and <100%', () => {
     const seeds = Array.from({ length: 20 }, (_, i) => i + 1);
     const results = seeds.map((seed) => {

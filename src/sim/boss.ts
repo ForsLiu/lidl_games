@@ -178,6 +178,13 @@ function updateUnreachable(w: World, e: Enemy, dt: number): void {
 }
 
 export function bossUpdate(w: World, e: Enemy, dt: number): boolean {
+  // b052: the Warden's outcome is already decided once `w.dying` is set (the
+  // 1.5s DEFEAT_SLOWMO beat, run.ts) — none of updateCharge's charge-hit,
+  // updateSummonsAndSlams/updateBossSlam's ring, or updateArenaFire's fire
+  // damage should keep banking Wrath through it. Mirrors updateAbilities's
+  // whole-function guard (b051): no branch here is cosmetic-only.
+  if (w.dying) return true;
+
   // `spawnFinalBoss` (act2.ts) sets this on the run's normal boss-spawn path;
   // a boss placed any other way (the practice panel's generic debug spawn,
   // `src/ui/hud.ts`'s unfiltered enemy picker included) would otherwise never
@@ -328,6 +335,9 @@ function slam(w: World, e: Enemy): void {
 
 /** Grows slam rings and applies their damage. Called from the area update. */
 export function updateBossSlam(w: World, dt: number): void {
+  // b052: called unconditionally from updateAct2 (run.ts), unlike bossUpdate
+  // above — needs its own guard for the same DEFEAT_SLOWMO reason.
+  if (w.dying) return;
   for (const a of w.areas) {
     if (a.dead || a.type !== 'bossSlam') continue;
     a.radius += SLAM_EXPAND * dt;
