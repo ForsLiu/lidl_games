@@ -1044,7 +1044,7 @@ logged in MIGRATION.md §8 rather than carried as dead items.
       a regression-test acceptance criterion rather than fixed inline, since it's a
       test-methodology gap in a check that still (for a different, undocumented
       reason — Act I being cheaper than a full-run average) correctly fails on a
-      vacuous implementation today. Commit `PENDING`.
+      vacuous implementation today. Commit `8eb2536`.
 - [x] (p10d) [balance] Gate **G1**: mean victorious run is 30–36 minutes over 24+
       seeds, reported as means and pass rates, never medians — acceptance: G1 green
       on the §1.1 run shape — refs: §1.1, G1.

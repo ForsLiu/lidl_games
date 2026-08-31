@@ -6,7 +6,7 @@
 ## Current state — SPEC-FINAL
 
 - **2026-08-30 session: p10e done — gate G17's per-simulated-minute perf
-  budget closed in full, all three clauses now live — commit `PENDING`.**
+  budget closed in full, all three clauses now live — commit `8eb2536`.**
   G17's other two clauses (≥60fps worst-case-tick benchmark, 50-run soak) were
   already solidly live; only the first — "sim budget per simulated minute
   (host-independent) ⚖" — was deferred by §16 to P10, undecided. New
