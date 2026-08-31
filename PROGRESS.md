@@ -5,6 +5,61 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-31 session: p10i done — HANDOFF.md regenerated end to end against
+  SPEC-FINAL, and QUALITY.md's Alpha automated bar re-checked against the
+  live suite — commit pending (a follow-up docs commit records the hash).**
+  Doc-only item: no code, data or test files changed. The previous
+  HANDOFF.md was dated 2026-08-25 at `af1de8f` and described the pre-reconcile
+  SPEC-V3 build (Day/Dusk/Night/Dawn cycles, Orbs, a single 10-wave Act I) —
+  none of which exists any more. Ran `tools/handoff-metrics.ts`,
+  `tools/a4probe.ts`, `tools/a5probe.ts`, `tools/content-census.ts` and
+  `tools/gate-audit.ts` fresh, and cross-checked every §14 gate (G1–G23)
+  against its actual current test file rather than trusting `gate-audit.ts`'s
+  own summary — which turned out to be stale itself: its `GATE_COVERAGE`/
+  `KNOWN_HOLES` maps and `tests/q10-gate-audit.test.ts`'s pinned "17
+  covered/2 holes" split both predate `p9c` (ships the Tuner, closes G15) and
+  `p6e` (gives G8 a live measurement, even though its own win-rate/diversity
+  clauses read red) — logged as a known issue in the new HANDOFF.md and left
+  as a candidate follow-up rather than fixed under this item's scope. The
+  rewritten file replaces every SPEC-V3-era system description with the real
+  §1.1 shape (18 TD + 6 VS waves, Cores, 12 classes, equipment, the VS
+  upgrade pool), adds a §13 content-totals table (10/10 categories met —
+  content is complete, everything open is balance), and states the honest
+  per-gate status read off the live suite: **14 of 23 gates fully green**;
+  G1 (mean run 37.15 min vs 30–36 band), G13 (`frost_obelisk` 42.7% VS-damage
+  share vs 35% cap) and G23 (4 of 5 Cores) are measured and `.skip`-ed with
+  real numbers, not guessed ones; G8 and G14 are flatly red (0/12 and 0/20).
+  Named and cross-referenced the three real open problems as their own
+  sections: the **TD-wave-11-to-17 wall** (the shared root cause behind
+  G8/G14/most of G23 — every class, Core and the boss fight itself die to the
+  same TD-economy-vs-HP-curve mismatch in the same six-wave band, independent
+  of which build is driving — `p6e`, `boss.test.ts` and `p-core-f-gates.test.ts`
+  reached this same conclusion independently), G13's structural
+  directional-vs-omnidirectional VS-wielded-attack gap (needs `src/sim` work,
+  filed as `p10j`), and G1×G14's boss-pacing tension (a boss-HP cut low
+  enough to land G1's band also pins the scripted bot's win rate at 100%,
+  contradicting G14; filed as `p10k`). Also flagged two live-issue findings
+  from the fresh sweep table that weren't documented before: `maxbuild`/
+  `kite`/`rush`/`walloff`/`greedless` all now read **0% win rate at T1** (they
+  predate the class/Core/VS-inheritance system and were never retuned against
+  it — `hybrid` alone carries every live gate that needs "a bot that plays
+  and sometimes loses"), and `no-move` wins **75%** of the time without the
+  character ever repositioning, worth a second look at whether it holds past
+  T1. QUALITY.md was not edited (its own header forbids edits by the build
+  agent) — its Alpha automated bar was re-checked instead: the SPEC v0.1
+  A-gate/SPEC-V2 B-gate line is superseded by G1–G23 per MIGRATION.md and
+  covered by the new gate table; the "10,000 random valid Commands" input-fuzz
+  line is still live (`tests/q2-input-fuzz.test.ts`); the soak/determinism/
+  save-migration lines map onto G17/G2/G18, all fully green. `npm run
+  test:fast` run twice: the first pass had 4 failures (a `p10e` perf-ratio
+  variance assertion at 31.5% against its 25% ceiling, a `b036` hook timeout,
+  and two Windows `EPERM` tmp-dir cleanup races in `q28`/`q49`/`q52`); all
+  five reproduced clean in isolation on a second run, and `git status` before
+  and after this item touched only `HANDOFF.md` — pre-existing host-contention
+  flakes, not a regression from this change. No code-reviewer or
+  qa-playtester pass: a documentation regeneration with zero behavioural
+  change is outside what either subagent verifies.
+
 - **2026-08-30 session: p10h done — the 2 s TD↔VS transition sweep (SPEC-FINAL
   §11, §15 P10) implemented and measured live; SFX half satisfied through the
   existing synthesized `WebAudioSink` seam, art-asset half logged as

@@ -38,7 +38,7 @@ still in test headers.
 | P7 equipment/rewards/VS upgrades | **`p7a`-`p7g` done** — §6.3's VS level-up pool replaces the flat 12-boon list (closing b011 as a side effect); §7's 12-item equipment table is live; §8's reward pipeline is complete and **gate G12 is green in full**; the superseded meta economy (relic affixes, Ember) is retired outright, skill points are the tree's only currency; §8.4's unlock quests are live and correct for all 9 non-free classes (p7e fixed 5 quests whose reward never actually unlocked their class, and repointed Paladin's quest at a new "win with a sealed Core" mechanism matching spec text); `p7f`/`p7g` closed the save-migration holes `migrateWithNotice` had — an unknown key, and a corrupt `allocated`/`unlockedClasses`/`completedQuests`/`equipmentStash`/`questProgress`, can no longer discard or corrupt the account. Remaining: `p7h` (Core unlock quests + Codex page) |
 | P8 enemies/waves/bosses | **done in full (`p8a`-`p8c`)** — all 20 §9 enemies by name; `data/waves.json` authors real TD waves 1-18 on the §1.1 shape (Gatebreaker on 18 only, Warden-Eater on VS 6), the §9 VS-budget curve is live; `p8b` closed the elite/boss-summon spawn paths that bypassed `spendBudget`'s `aliveCap` check; `p8c` formally measured gate G14 on the real shape — **honestly red, 0/20**, `.skip`-ed with the number, re-enable point P10 (no gate in this codebase is force-passed by tuning outside P10) |
 | P9 tooling | **done in full (`p9a`-`p9h`)** — content-hash replay check (`p9a`), the Codex wired into the Hub (`p9b`), the Tuner built and gate **G15 green** (`p9c`), G16's dist-presence-is-inert half explicitly asserted (`p9d`), **gate G18's dead-end clause closed in full** (`p9e`), **gate G2 closed in full** (`p9f`), `hashWorld`'s `w.goldSpent` coverage gap closed (`p9g`), and the enemy/Warden panel's armour row now shows the effective (floored/capped) value instead of the raw shredded number (`p9h`) |
-| P10 balance | **in progress (p10a-p10f done)** — Burning flipped to per-application stacking, DoT immunity is data-driven, G13/G1/G17 re-baselined against the real §1.1 shape (G17 fully green; G13/G1 partly `.skip`-ed with honest numbers, follow-ups p10j/p10k); **G19 measured live and green in full (p10f)** |
+| P10 balance | **in progress (p10a-p10i done)** — Burning flipped to per-application stacking, DoT immunity is data-driven, G13/G1/G17 re-baselined against the real §1.1 shape (G17 fully green; G13/G1 partly `.skip`-ed with honest numbers, follow-ups p10j/p10k); **G19 measured live and green in full (p10f)**; G4's armour-shred path proven live through a real build (p10g); the TD↔VS transition sweep and asset pass shipped (p10h); HANDOFF.md regenerated end to end against SPEC-FINAL, with the wave-11-to-17 wall (behind G8/G14/most of G23) documented as the dominant open problem (p10i). Remaining: p10j (G13's structural VS-attack gap), p10k (G1×G14's boss-pacing tension) |
 
 ## Queue
 
@@ -504,11 +504,8 @@ next in P8's own queue.
       assets behind the existing AudioSink seam — acceptance: the transition sweep
       runs on every TD↔VS boundary and the asset pass is committed; no sim behaviour
       changes (G2 hash unmoved) — refs: §11, §15 P10 — **done, see Done section.**
-- [ ] (p10i) [polish] Regenerate HANDOFF.md's measured sections against SPEC-FINAL
-      and re-check QUALITY.md's Alpha bar — acceptance:
-      `npx tsx tools/handoff-metrics.ts` runs clean, HANDOFF.md is rewritten against
-      §14's gate list, and the file is committed at the 1.0 point — refs: §16,
-      CLAUDE.md
+- [x] (p10i) [polish] Regenerate HANDOFF.md's measured sections against SPEC-FINAL
+      and re-check QUALITY.md's Alpha bar — **done, see Done section.**
 - [ ] (p10j) [feat] G13's 35%-damage-share clause is `.skip`-ed red
       (`tests/p10c-weapon-share.test.ts`): `frost_obelisk` still measures 46.0% of
       the winning-build pool's VS damage after p10c's data-only retune (down from
@@ -994,6 +991,48 @@ logged in MIGRATION.md §8 rather than carried as dead items.
   **G19**. The work is `p10d`.
 
 ## Done
+
+- [x] (p10i) [polish] Regenerate HANDOFF.md's measured sections against SPEC-FINAL
+      and re-check QUALITY.md's Alpha bar — acceptance: `npx tsx
+      tools/handoff-metrics.ts` runs clean, HANDOFF.md is rewritten against §14's
+      gate list, and the file is committed at the 1.0 point — refs: §16, CLAUDE.md.
+      commit pending (recorded in a follow-up docs commit). Doc-only item, no code
+      or test changes: ran `handoff-metrics.ts`, `a4probe.ts`, `a5probe.ts`,
+      `content-census.ts` and `gate-audit.ts` fresh, and cross-checked every live
+      gate against its actual test file rather than trusting either the stale
+      2026-08-25/SPEC-V3-era HANDOFF.md or `gate-audit.ts`'s own coverage map
+      (which turned out to be stale too — see below). Rewrote HANDOFF.md end to
+      end against SPEC-FINAL: implemented-systems table now describes the real
+      §1.1 18TD+6VS interleave, Cores, 12 classes, equipment and the VS upgrade
+      pool instead of the retired Day/Dusk/Night/Dawn/Orbs shape; added a §13
+      content-totals table (10/10 categories met — content is complete, all
+      remaining P10 work is balance); replaced the gate table with the honest
+      per-gate state read off the live suite (14/23 fully green; G1/G13/G17/G23
+      partial-and-measured; G8/G14 flatly red) instead of `tools/gate-audit.ts`'s
+      own summary, because that summary is itself stale — its `GATE_COVERAGE`/
+      `KNOWN_HOLES` maps and `tests/q10-gate-audit.test.ts`'s pinned "17
+      covered/2 holes" split both predate `p9c` (closes G15) and `p6e` (gives G8
+      live coverage, even though its own clauses measure red) — flagged as a
+      known issue and a candidate follow-up rather than silently propagated or
+      fixed under this item's own scope. Documented the wave-11-to-17 wall (the
+      shared root cause behind G8/G14/most of G23, per `p6e`/`boss.test.ts`/
+      `p-core-f-gates.test.ts`'s independent measurements converging on the same
+      band), G13's structural directional-vs-omnidirectional VS-attack gap
+      (p10j), and G1×G14's boss-pacing tension (p10k) as the three real open
+      problems, each already filed as its own backlog item. QUALITY.md's Alpha
+      automated bar re-checked against the live suite rather than edited (its
+      own header forbids edits by the build agent): the SPEC v0.1 A-gate/SPEC-V2
+      B-gate line is superseded by G1-G23 per MIGRATION.md and covered by the
+      gate table above; the 10,000-command input-fuzz line is still live
+      (`tests/q2-input-fuzz.test.ts`); soak/determinism/save-migration lines map
+      onto G17/G2/G18, all green. `npm run test:fast` run twice: first pass had
+      4 failures (a `p10e` perf-ratio variance assertion at 31.5% against a 25%
+      ceiling, a `b036` hook timeout, and two Windows `EPERM` tmp-dir cleanup
+      races), all 5 reproduced clean in isolation on a second run — pre-existing
+      host-contention flakes, not a regression from this doc-only change (`git
+      status` before and after: only `HANDOFF.md` touched). No code, data or
+      test files edited; no code-reviewer/qa-playtester pass needed for a
+      documentation regeneration with no behavioural change.
 
 - [x] (p10h) [polish] Feel pass: juice, the 2 s TD↔VS transition sweep, and SFX/art
       assets behind the existing AudioSink seam — acceptance: the transition sweep
