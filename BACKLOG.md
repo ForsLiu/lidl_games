@@ -676,14 +676,6 @@ were not re-filed. Ordering within this section is by severity, not P-band.
       `npm run test:fast`: 1706 passed, 30 skipped; only the 4 pre-existing
       documented Playwright fold flakes (b032/b034/b035/b036) red — no new
       regressions. Commit `0dab0eb`.
-- [ ] (b010) [bug] `Rng.weightedIndex` with any `NaN` weight silently returns the
-      last index every call (NaN total defeats every comparison), turning a weighted
-      draw into a deterministic constant; `rollOffers`' `weight * (1 + luckBias *
-      o.value)` is an untraced potential NaN source, and `rerollOffers`'
-      `rerollsLeft <= 0` guard also passes NaN (unlimited rerolls) — acceptance: a
-      unit test pins `weightedIndex`'s non-finite-weight behaviour (throw or skip),
-      `luckBias`'s range is traced from its writers, and the reroll guard is
-      finite-checked — refs: §12 rule 2, BACKLOG-QUALITY q35 (lane item, still open)
 - [ ] (b012) [bug] Save/meta laundering beyond p7f/p7g: a mis-typed scalar
       (`accountLevel: "seven"`, non-numeric `ember`) walks to level 60 and unlimited
       Constellation points (`NaN <= 0` guards); `highestTier` laundering unlocks all
@@ -853,7 +845,17 @@ because the lane worktree retires at this merge.
       `total()`/`factor()`) so no sequence of finite contributions yields a
       non-finite total, and `AffixSchema` bounds its values; the q35 pins flip
       to the fixed contract — refs: §12 rule 2, BACKLOG-QUALITY q39
-      (sessions 32/41 logs)
+      (sessions 32/41 logs). qa-playtester (verifying b010) found one more
+      wrinkle for whoever picks this up: `weightedIndex`'s own b010 guard
+      (`Number.isFinite(w) && w > 0`) still lets several individually-finite
+      weights sum past `Number.MAX_VALUE` inside `weightedIndex` itself —
+      `total` overflows to `+Infinity`, `total <= 0` is false, and the scan's
+      `r -= w` never goes negative against an `Infinity` `r`, so it falls
+      through to `weights.length - 1` regardless of seed (the same fallback
+      class b010 closed, triggered by overflow instead of NaN). Not reachable
+      through any current `/data` content (weights are small integers), and
+      this item's own fix at the `Stats.total`/`factor()` source is the right
+      place to close it rather than a second patch in `rng.ts`.
 - [ ] (b023) [feat] Re-measure the quality lane's `it.skip`'d bug-pin tests —
       15+ accumulated across `tests/q7-data-fuzz.test.ts` (E1–E7),
       `tests/q18-content-hash-replay.test.ts`,
@@ -1109,6 +1111,84 @@ logged in MIGRATION.md §8 rather than carried as dead items.
 
 ## Done
 
+- [x] (b010) [bug] `Rng.weightedIndex` with any `NaN` weight silently returns the
+      last index every call (NaN total defeats every comparison), turning a weighted
+      draw into a deterministic constant; `rollOffers`' `weight * (1 + luckBias *
+      o.value)` is an untraced potential NaN source, and `rerollOffers`'
+      `rerollsLeft <= 0` guard also passes NaN (unlimited rerolls) — acceptance: a
+      unit test pins `weightedIndex`'s non-finite-weight behaviour (throw or skip),
+      `luckBias`'s range is traced from its writers, and the reroll guard is
+      finite-checked — refs: §12 rule 2, BACKLOG-QUALITY q35 (lane item, still open).
+      Fixed: `Rng.weightedIndex` (`src/sim/rng.ts`) now excludes any weight that
+      is not `Number.isFinite(w) && w > 0` from both the running `total` and the
+      selection scan, instead of letting one poisoned entry corrupt the whole
+      draw — a NaN/+Infinity/-Infinity/negative/zero weight is simply
+      unselectable, and an all-excluded pool correctly takes the existing
+      `total <= 0` -> index 0 fallback (previously it fell through to
+      `weights.length - 1` on every seed, a silent, deterministic "always pick
+      the last option"). `rerollOffers` (`src/sim/progression.ts`) now also
+      rejects a non-finite `rerollsLeft` (`!Number.isFinite(w.rerollsLeft) ||
+      w.rerollsLeft <= 0`), closing the identical `NaN <= 0` hole for the
+      reroll counter. `luckBias` is traced in a code comment at its call site:
+      today's only writer of the `luck` stat is `data/tree.json`'s static
+      integer nodes (finite, summing well under 200), so it cannot go
+      non-finite through any current content; the one real gap — `Stats.total`'s
+      cross-source summation overflowing to +/-Infinity — is deliberately left
+      to its own item (b022) rather than fixed here, since `weightedIndex`'s
+      fix already degrades that case gracefully (every offer's weight goes
+      non-finite and is skipped) instead of crashing or reproducing the old
+      always-same-index bug. `tests/q35-weighted-index-nan.test.ts` (10 tests)
+      was rewritten from a pinned-bug to a pinned-fix test (closed-finding
+      convention, same as b006/b007/b009) covering NaN/+Infinity/-Infinity
+      weights in every array position, an all-zero-plus-NaN pool, an all-NaN
+      pool, fairness among surviving finite weights, and the b022-adjacent
+      overflow-luckBias case degrading to a valid index instead of a fixed
+      one; `tests/b010-reroll-finite-guard.test.ts` (new, 7 tests) covers the
+      sim-level guard for NaN/+Infinity/-Infinity/positive/zero `rerollsLeft`
+      plus the HUD `.sw-reroll` button's `disabled` state (a code-reviewer
+      finding, folded into this commit: the button only checked `<= 0`, so a
+      corrupted `rerollsLeft` rendered it clickable even though the sim guard
+      already no-oped it). The existing `tests/q21-weapon-boundary-fuzz.ts`
+      fuzz harness had already pinned this exact reroll hole
+      (`REROLL_HOLES['rerolls:nan']`); it and `tools/fuzz-weapon-boundary.ts`'s
+      `rerollNanCounterCase` comment are updated to record the closed finding
+      (now zero reroll holes), and `tests/q21-weapon-boundary-fuzz.test.ts`'s
+      named repro test is rewritten from asserting the bug to asserting the
+      fix. Verified every rewritten/new assertion fails against the pre-fix
+      code first (`git stash push -- src/sim/rng.ts src/sim/progression.ts`
+      / `-- src/ui/hud.ts`): 7/15 q35 assertions and 2/5 reroll-guard
+      assertions and 1/2 HUD assertions red pre-fix, all green after.
+      code-reviewer (**APPROVE**): confirmed a zero weight was already
+      unselectable pre-fix (exclusion changes nothing for legitimate zero-
+      weight entries), traced all three `weightedIndex` call sites
+      (`act2.ts` spawn/elite weighting, `progression.ts`'s own `rollOffers`)
+      and confirmed none rely on the old fallback semantics or on negative/
+      non-finite weights being selectable, confirmed no architecture-rule or
+      determinism issue (pure numeric guard, no RNG-stream consumption
+      change), and confirmed the test rewrites are non-vacuous rather than
+      deleted. One Minor (the HUD button gap above) — fixed in the same
+      commit. qa-playtester (**PASS**): fuzzed `weightedIndex` directly with
+      negative/all-negative/mixed-NaN-Inf/zero weights across 200 seeds and a
+      500-element array, an empty array — no crash, no infinite loop, fair
+      draws among surviving entries, poisoned index never selected; confirmed
+      both `act2.ts` call sites already guard `keys.length === 0` before
+      calling, so the fallback is always a valid index; traced every
+      `rerollsLeft` writer (only `content.boons.rerollsPerLevel`, no Command
+      payload or save/load path touches it) and confirmed the guard holds;
+      ran `npm run sim -- --seed 1 --policy hybrid` end-to-end (victory,
+      clean `endHash`) — no bugs filed. One residual noted for whoever picks
+      up b022 (not a b010 regression): `weightedIndex`'s own guard still lets
+      several individually-finite weights sum past `Number.MAX_VALUE` inside
+      the function itself, overflowing `total` to `+Infinity` and
+      reproducing the same last-index fallback by a different route; not
+      reachable through any current `/data` content, and b022's fix at the
+      `Stats.total`/`factor()` source is the right place to close it — noted
+      inline on b022 above. `npx vitest run tests/b010-reroll-finite-guard.test.ts
+      tests/q35-weighted-index-nan.test.ts tests/q21-weapon-boundary-fuzz.test.ts`
+      — 49/49 green. `npm run test:fast`: 1713 passed, 30 skipped; only the 4
+      pre-existing documented Playwright fold flakes (b032/b034/b035/b036) and
+      the documented Windows EPERM temp-cleanup race (q49) red — no new
+      regressions.
 - [x] (b007) [bug] An out-of-grid `tx` in `upgrade`/`sell` aliases onto a real tile
       one row up (`idx = ty*GRID_W + tx` is never bounds-checked before
       `structureAt` indexes `grid.occ`), so the Command silently acts on the wrong

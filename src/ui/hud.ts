@@ -828,7 +828,7 @@ export class Hud {
             )
             .join('')}
         </div>
-        <button class="sw-reroll" ${w.rerollsLeft <= 0 ? 'disabled' : ''}>Reroll (${w.rerollsLeft})</button>
+        <button class="sw-reroll" ${!Number.isFinite(w.rerollsLeft) || w.rerollsLeft <= 0 ? 'disabled' : ''}>Reroll (${w.rerollsLeft})</button>
         <label class="sw-setting autopick sw-offer-autopick">
           <span>Auto-pick (this offer too)</span>
           <input type="checkbox" id="sw-offer-autopick" />

@@ -20,9 +20,10 @@
  * follows the fix.
  *
  * Regenerate by running `npx tsx tools/fuzz-weapon-boundary.ts` and
- * transcribing every non-`ok` line — there are 2 today (p7a closed b011's 7
- * boonRank holes; p9e closed the 1 pool hole), against 37 total (9 boonRank +
- * 4 boonKey + 7 pickIndex + 4 reroll + 1 pool + 6 wieldTier + 6 wieldRoster).
+ * transcribing every non-`ok` line — there is 1 today (p7a closed b011's 7
+ * boonRank holes; p9e closed the 1 pool hole; b010 closed the 1 reroll hole),
+ * against 37 total (9 boonRank + 4 boonKey + 7 pickIndex + 4 reroll + 1 pool +
+ * 6 wieldTier + 6 wieldRoster).
  */
 import type { Verdict } from '../tools/fuzz-weapon-boundary';
 
@@ -51,17 +52,17 @@ export const BOON_KEY_HOLES: Readonly<Record<string, Verdict>> = {};
 export const PICK_INDEX_HOLES: Readonly<Record<string, Verdict>> = {};
 
 /**
- * `rerollOffers`' guard (`w.phase !== 'levelup' || w.rerollsLeft <= 0`,
- * progression.ts:142) holds at both legitimate ends and in the wrong phase,
- * but a corrupted counter slides through: `NaN <= 0` is false, so a NaN
- * `rerollsLeft` grants unlimited rerolls (`NaN - 1` stays NaN forever).
- * Not reachable through the real Command surface — the counter is only ever
- * written from `content.boons.rerollsPerLevel` — the same defense-in-depth
- * caveat as the forged-offer holes above.
+ * CLOSED at BACKLOG b010. `rerollOffers`' guard (`w.phase !== 'levelup' ||
+ * w.rerollsLeft <= 0`, progression.ts) holds at both legitimate ends and in
+ * the wrong phase, but a corrupted counter used to slide through: `NaN <= 0`
+ * is false, so a NaN `rerollsLeft` granted unlimited rerolls (`NaN - 1`
+ * stayed NaN forever). The guard now also checks
+ * `!Number.isFinite(w.rerollsLeft)` — no holes today. Not reachable through
+ * the real Command surface — the counter is only ever written from
+ * `content.boons.rerollsPerLevel` — the same defense-in-depth caveat as the
+ * forged-offer holes above.
  */
-export const REROLL_HOLES: Readonly<Record<string, Verdict>> = {
-  'rerolls:nan': 'ungated',
-};
+export const REROLL_HOLES: Readonly<Record<string, Verdict>> = {};
 
 /**
  * CLOSED at p9e (G18). With every stat boon and every one of the run class's

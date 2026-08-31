@@ -61,14 +61,29 @@ export class Rng {
     return arr[this.int(arr.length)];
   }
 
-  /** Weighted pick. Returns index. Weights must be >= 0 and sum > 0. */
+  /**
+   * Weighted pick. Returns index. Weights must be >= 0 and sum > 0.
+   *
+   * A non-finite or non-positive weight (NaN, +/-Infinity, <= 0) is treated
+   * as excluded from the draw rather than folded into `total`: summing a NaN
+   * poisons every later `r < 0` comparison to `false` (NaN comparisons are
+   * always false), which used to make the function fall through to
+   * `weights.length - 1` on *every* call regardless of the RNG stream — a
+   * silent, deterministic "always pick the last option" instead of the
+   * intended random draw (b010).
+   */
   weightedIndex(weights: readonly number[]): number {
     let total = 0;
-    for (let i = 0; i < weights.length; i++) total += weights[i];
+    for (let i = 0; i < weights.length; i++) {
+      const w = weights[i];
+      if (Number.isFinite(w) && w > 0) total += w;
+    }
     if (total <= 0) return 0;
     let r = this.float() * total;
     for (let i = 0; i < weights.length; i++) {
-      r -= weights[i];
+      const w = weights[i];
+      if (!Number.isFinite(w) || w <= 0) continue;
+      r -= w;
       if (r < 0) return i;
     }
     return weights.length - 1;

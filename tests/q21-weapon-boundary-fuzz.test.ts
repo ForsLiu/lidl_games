@@ -254,17 +254,21 @@ describe('q21 offer/wielding boundary fuzz', () => {
       expect(rerollOffers(w)).toBe(false); // phase is act1_build
     });
 
-    it('rerollsLeft=NaN: NaN <= 0 is false, so the guard passes forever — 10/10 forged rerolls accepted', () => {
+    it('rerollsLeft=NaN: CLOSED at b010 — the guard now finite-checks rerollsLeft, 0/10 forged rerolls accepted', () => {
       // Defense-in-depth: the counter is only ever written from
       // `content.boons.rerollsPerLevel`, so this needs corrupted World
       // state, not a live Command exploit — same caveat as the forged-offer
-      // holes.
+      // holes. Before b010, `NaN <= 0` being `false` let the phase-and-
+      // counter guard pass forever (`NaN - 1` never reaches 0 either), so a
+      // corrupted counter granted unlimited rerolls. `rerollOffers`
+      // (`src/sim/progression.ts`) now also rejects a non-finite
+      // `rerollsLeft` as a clean no-op.
       const w = newWorld();
       w.phase = 'levelup';
       w.offers = rollOffers(w);
       w.rerollsLeft = NaN;
-      for (let i = 0; i < 10; i++) expect(rerollOffers(w)).toBe(true);
-      expect(w.rerollsLeft).toBeNaN(); // NaN - 1 never reaches the guard
+      for (let i = 0; i < 10; i++) expect(rerollOffers(w)).toBe(false);
+      expect(w.rerollsLeft).toBeNaN(); // rejected outright, never decremented
     });
   });
 

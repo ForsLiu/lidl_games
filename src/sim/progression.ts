@@ -258,6 +258,16 @@ export function rollOffers(w: World): Offer[] {
   const picked: Offer[] = [];
   const remaining = pool.slice();
   // Luck nudges the roll toward higher-value (later-rank / higher-level) picks.
+  // Traced (b010): today's only writer of the `luck` stat is `tree.json`'s
+  // static integer nodes (finite, summing well under 200), so `luckBias`
+  // itself cannot go non-finite through any current content. `Stats.add`'s
+  // per-value guard also can't be bypassed by a single poisoned source. The
+  // one real gap — `Stats.total`'s cross-source *summation* can still
+  // overflow to +/-Infinity if two individually-finite extreme values are
+  // both live at once — is left open as b022; `weightedIndex` below now
+  // degrades that gracefully (every offer's weight goes non-finite and is
+  // skipped, landing on a deterministic-but-valid pick) instead of crashing
+  // or silently "always picking last".
   const luckBias = Math.min(0.5, w.derived.luck * 0.004);
   for (let i = 0; i < OFFER_COUNT && remaining.length > 0; i++) {
     const weights = remaining.map((o) => o.weight * (1 + luckBias * o.value));
@@ -376,7 +386,10 @@ export function takeOffer(w: World, index: number): boolean {
 }
 
 export function rerollOffers(w: World): boolean {
-  if (w.phase !== 'levelup' || w.rerollsLeft <= 0) return false;
+  // `NaN <= 0` is false, so a corrupted `rerollsLeft` (e.g. non-finite
+  // `rerollsPerLevel` data) would otherwise read as "rerolls remaining"
+  // forever, granting unlimited rerolls (b010).
+  if (w.phase !== 'levelup' || !Number.isFinite(w.rerollsLeft) || w.rerollsLeft <= 0) return false;
   w.rerollsLeft--;
   w.offers = rollOffers(w);
   // p9e (code-reviewer finding): a reroll is a fresh offer roll exactly like

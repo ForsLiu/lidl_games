@@ -289,11 +289,12 @@ function rerollWrongPhaseCase(content: Content): BoundaryCase {
   };
 }
 
-/** A corrupted counter: `NaN <= 0` is false, so the phase-and-counter guard
- * passes and `NaN - 1` stays NaN — infinite rerolls. Not reachable through
- * the real Command surface (the counter is only ever written from
- * `content.boons.rerollsPerLevel`), the same defense-in-depth caveat as the
- * original file's forged-offer probes. */
+/** A corrupted counter: `NaN <= 0` was `false`, so the phase-and-counter guard
+ * used to pass and `NaN - 1` stayed NaN — infinite rerolls. CLOSED at b010:
+ * `rerollOffers` (`src/sim/progression.ts`) now also rejects a non-finite
+ * `rerollsLeft`. Not reachable through the real Command surface (the counter
+ * is only ever written from `content.boons.rerollsPerLevel`), the same
+ * defense-in-depth caveat as the original file's forged-offer probes. */
 function rerollNanCounterCase(content: Content): BoundaryCase {
   const w = newWorld(content);
   w.phase = 'levelup';

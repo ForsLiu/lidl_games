@@ -5,6 +5,61 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-31 session: BACKLOG b010 closed — `Rng.weightedIndex` no longer
+  lets a non-finite/non-positive weight silently turn a weighted draw into a
+  deterministic constant, and `rerollOffers`'s counter guard is
+  finite-checked.** `weightedIndex`'s (`src/sim/rng.ts`) `total` accumulation
+  had no filter: a single NaN weight (reachable via `rollOffers`'s `weight *
+  (1 + luckBias * o.value)`, `src/sim/progression.ts`) poisoned `total` to
+  NaN, and since NaN comparisons are always false, the scan's `r < 0` check
+  never fired — the function fell through to `return weights.length - 1`,
+  deterministically the last index on every call regardless of the RNG
+  stream. Fixed by excluding any weight that is not `Number.isFinite(w) &&
+  w > 0` from both `total` and the scan, so a poisoned/negative/zero entry is
+  simply unselectable rather than corrupting the whole draw; an all-excluded
+  pool correctly takes the existing `total <= 0` -> index 0 fallback.
+  `rerollOffers` had the identical `NaN <= 0` hole on `w.rerollsLeft` (a
+  corrupted counter read as "has rerolls" forever); now also rejects
+  non-finite. `luckBias` (the field the bug report flagged as an "untraced
+  potential NaN source") is traced in a code comment: `data/tree.json`'s
+  static integer luck nodes are its only current writer, always finite — the
+  one real gap, `Stats.total`'s cross-source summation overflow, is
+  deliberately left to its own item (b022) since `weightedIndex`'s fix
+  already degrades that gracefully instead of reproducing the old bug.
+  `tests/q35-weighted-index-nan.test.ts` (10 tests, rewritten pinned-bug ->
+  pinned-fix per the b006/b007/b009 convention) and
+  `tests/b010-reroll-finite-guard.test.ts` (new, 7 tests, sim guard + the
+  HUD `.sw-reroll` button's matching `disabled`-state gap code-reviewer
+  found and which was fixed in the same commit) cover the fix; the existing
+  `tools/fuzz-weapon-boundary.ts`/`tests/q21-weapon-boundary-fuzz.ts` fuzz
+  harness had already pinned this exact reroll hole and now records it
+  closed. 7/15 q35 assertions, 2/5 reroll-guard assertions and 1/2 HUD
+  assertions confirmed red pre-fix via `git stash` before the fix landed.
+  code-reviewer (**APPROVE**): confirmed a zero weight was already
+  unselectable pre-fix, traced all three `weightedIndex` call sites and
+  confirmed none rely on the old fallback or on non-finite/negative weights
+  being selectable, no architecture-rule or determinism issue; one Minor
+  (the HUD button gap) fixed in the same commit. qa-playtester (**PASS**):
+  fuzzed `weightedIndex` directly (negative, all-negative, mixed NaN/Inf,
+  zero, 200 seeds, a 500-element array, an empty array) — no crash, no
+  infinite loop, fair draws, poisoned index never selected; confirmed both
+  `act2.ts` call sites already guard against an empty weights array;
+  confirmed `rerollsLeft` has no reachable corruption path today (only
+  `content.boons.rerollsPerLevel` writes it); ran `npm run sim -- --seed 1
+  --policy hybrid` end-to-end clean — no bugs filed. One residual noted for
+  b022 (not a b010 regression): `weightedIndex` can still overflow `total`
+  to `+Infinity` from several individually-finite weights and reproduce the
+  same last-index fallback by a different route; unreachable by current
+  `/data` content, and b022's fix at the `Stats.total` source is the right
+  place to close it. `npx vitest run tests/b010-reroll-finite-guard.test.ts
+  tests/q35-weighted-index-nan.test.ts tests/q21-weapon-boundary-fuzz.test.ts`
+  — 49/49 green. `npm run test:fast`: 1713 passed, 30 skipped; only the 4
+  pre-existing documented Playwright fold flakes (b032/b034/b035/b036) and
+  the documented Windows EPERM temp-cleanup race (q49) red — no new
+  regressions. P0–P10 remain otherwise as the prior session left them: gates
+  **G8, G14 and most of G23 still read red** (the wave-11-to-17 content wall
+  p10i documented) — 1.0-complete is not yet reached.
+
 - **2026-08-31 session: BACKLOG b009 closed — a finiteness tag folded into
   `Hasher.int`/`num` stops the determinism hash from aliasing NaN/±Infinity
   corruption onto a legitimate `0` — commit `0dab0eb`.** `Hasher.int`'s
