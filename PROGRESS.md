@@ -5,6 +5,36 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-31 session: BACKLOG b038 closed — re-measured, no longer
+  reproduces, no code change needed.** `tests/q9-phase-coverage.test.ts`'s
+  `rush` bot policy was reported (code-reviewer, p7d review, confirmed at
+  pre-p7d commit `ec83d4f`) to no longer reach `levelup` against its
+  `RECORDED_FLOOR` entry. Per CLAUDE.md's measurement rule ("a deferral is a
+  measurement with an expiry date"), re-ran it fresh before doing anything
+  else: `npx vitest run tests/q9-phase-coverage.test.ts` — 17/17 green,
+  including both `rush`-specific assertions, pinning its reached set to
+  exactly `['act1_build','act1_wave','act2','levelup','results']`. Cross-
+  checked with a second, independent code path (a standalone script calling
+  `censusOne('rush', 8)` directly, bypassing vitest) — identical result, run
+  twice, byte-identical both times, ruling out a flake given the sim's fixed-
+  60Hz/no-`Math.random`/no-`Date.now` determinism guarantee. `npm run
+  test:fast`: 8 files / 5 tests failed, all the standing pre-existing Windows
+  flake classes (q15 worker-probe hang, q28/q49/q52 scratch-dir `EPERM`
+  races) — no new failures. Likely (unproven, not needed for closure) cause:
+  several balance/pacing commits between `ec83d4f` and HEAD — p10l's
+  `buildPhaseSeconds` 20->15, p10a/p10b's Burning/DoT-immunity rework,
+  p10c/p10d's damage-share/run-length repricing — plausibly extended a lean
+  single-tower-type bot's Act I/II survival past the line. qa-playtester:
+  **PASS** — independently re-ran the full file (17/17) and the standalone
+  script twice (byte-identical), checked `git log ec83d4f..HEAD` for the
+  causal candidates, modified nothing. Also reverted, at session start, a
+  stray uncommitted edit to `tests/p6e-class-diversity.test.ts` (two G8
+  diversity tests had been un-skipped locally with no corresponding commit or
+  PROGRESS entry) — the file's own header explicitly defers that ~1h
+  12-class re-measurement to P10, so running it inside an ordinary item would
+  violate CLAUDE.md's ban on heavy background runs there; reverted to the
+  committed `.skip` state rather than continuing or discarding it silently.
+  BACKLOG.md b038 moved to Done.
 - **2026-08-31 session: BACKLOG b043 closed — `damageWarden` (`src/sim/run.ts`)
   and `damageStructure` (`src/sim/enemies.ts`) had no finite guard at all, the
   same immortality class BACKLOG b008 closed for `damageEnemy` — a NaN

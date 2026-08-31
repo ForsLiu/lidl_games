@@ -2035,23 +2035,9 @@ because the lane worktree retires at this merge.
       scratch subdir removing the shared-handle race; ten consecutive q28 runs
       under a concurrent full-suite load pass — refs: fb017, PROGRESS.md
       (q13/q15/q28 EPERM class), CLAUDE.md rule 6.
-- [ ] (b038) [bug] `tests/q9-phase-coverage.test.ts` (excluded from
-      `test:fast`, so not caught by the per-item tier) currently fails on
-      `master`: the `rush` bot policy no longer reaches `levelup` against its
-      `RECORDED_FLOOR` entry (`['act1_build', 'act1_wave', 'act2', 'levelup',
-      'results']`). Found by code-reviewer during p7d's review; confirmed via
-      a disposable `git worktree` at the pre-p7d commit (`ec83d4f`) that the
-      failure is identical on both HEAD and p7d — pre-existing and unrelated
-      to p7d's meta-economy retirement, not a regression it introduced.
-      Genuinely red on `master` right now, so worth closing before the next
-      full-suite/phase-gate checkpoint (`npm test` only runs there, per
-      CLAUDE.md, so a slow-tier-only regression like this can sit unnoticed
-      between checkpoints) — acceptance: either `rush` reaches `levelup`
-      again (a real behavior fix, if `rush`'s policy or the run/leveling
-      shape drifted), or `RECORDED_FLOOR.rush` is deliberately narrowed with
-      a logged reason (if reaching `levelup` is no longer a valid floor for
-      that policy) — a regression test either way per CLAUDE.md rule 3 —
-      refs: `tests/q9-phase-coverage.test.ts`, `src/bots/policies.ts`.
+- [x] (b038) [bug] `tests/q9-phase-coverage.test.ts`'s `rush` policy no
+      longer reaching `levelup` — **closed, re-measured green, see Done
+      section.**
 - [ ] (b030) [bug] `Game.onToggleAutoPick` (`src/ui/main.ts`) computes the
       `set_autopick` Command's `on` value by reading `this.run!.world.cfg.
       autoPickLevelUps` and negating it, but that field only changes when a
@@ -2263,6 +2249,40 @@ logged in MIGRATION.md §8 rather than carried as dead items.
 
 ## Done
 
+- [x] (b038) [bug] `tests/q9-phase-coverage.test.ts`'s `rush` bot policy was
+      reported (by code-reviewer during p7d's review, 2026-08-27-ish, and
+      confirmed at pre-p7d commit `ec83d4f` too) to no longer reach `levelup`
+      against its `RECORDED_FLOOR` entry — genuinely red at filing time, not
+      a p7d regression. Re-measured this session (2026-08-31) per CLAUDE.md's
+      measurement rule ("a deferral is a measurement with an expiry date"):
+      **no longer reproduces.** `npx vitest run tests/q9-phase-coverage.test.ts`
+      — 17/17 green, including `rush reaches at least its recorded floor` and
+      the exact-match `reaches exactly the recorded set` test, both pinning
+      `rush`'s reached set to exactly `['act1_build','act1_wave','act2',
+      'levelup','results']`. Cross-checked with a second, structurally
+      independent code path — a standalone script calling `censusOne('rush',
+      8)` directly from `tools/phase-coverage.ts`, bypassing vitest — which
+      returned the identical set with empty `unreached`, run twice with
+      byte-identical output both times (ruling out a flake, consistent with
+      the sim's fixed-60Hz/no-`Math.random`/no-`Date.now` determinism
+      guarantee: two structurally different invocations landing on the same
+      non-deterministic branch twice would be the coincidence, not this).
+      `npm run test:fast`: 8 files / 5 tests failed, all the standing
+      pre-existing Windows flake classes (q15's worker-probe hang, q28/q49/
+      q52's scratch-dir `EPERM` races) — no new failures. Likely cause (not
+      proven, not needed to close per the item's own acceptance): several
+      balance/pacing commits landed between `ec83d4f` and HEAD that plausibly
+      extended a lean single-tower-type bot's Act I/II survival — p10l's
+      `buildPhaseSeconds` 20->15 retune, p10a/p10b's Burning-stacking and
+      DoT-immunity rework, p10c/p10d's damage-share and run-length repricing
+      — any of which could move a marginal survivor like `rush` across the
+      line. qa-playtester: **PASS** — independently re-ran the full vitest
+      file (17/17, ~10 min) and its own standalone `censusOne('rush', 8)`
+      script twice (byte-identical), confirmed the causal candidates via
+      `git log ec83d4f..HEAD`; modified no files. Acceptance's first arm is
+      satisfied as measured ("`rush` reaches `levelup` again"); the existing
+      `RECORDED_FLOOR.rush` entry already is the regression test CLAUDE.md
+      rule 3 calls for and needed no edit. BACKLOG.md b038 moved to Done.
 - [x] (b043) [bug] `damageWarden` (`src/sim/run.ts`) and `damageStructure`
       (`src/sim/enemies.ts`) both wrote `wd.hp -=`/`s.hp -=` with no finite
       guard at all — the same immortality class b008 closed for
