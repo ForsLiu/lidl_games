@@ -454,3 +454,24 @@ describe('b055: describeStat shares formatPct instead of its own flat-1-decimal 
     expect(describeStat('leech', 0)).toBe('0% Leech');
   });
 });
+
+/**
+ * b056: `formatPercent` (hud.ts), which feeds the in-run character panel's
+ * per-stat summary and per-source breakdown, was a third un-deduplicated
+ * flat-1-decimal percent rounder with the same defect b054/b055 fixed at
+ * their own call sites — the Bleeding Ring's real `leech: 0.0001` rounded
+ * away to "0%" there too.
+ */
+describe('b056: formatPercent (hud.ts) shares formatPct instead of its own flat-1-decimal rounding', () => {
+  it("a bleeding_ring-equipped World's character panel shows the Leech line at scaled precision, not \"0%\"", () => {
+    const w = new World(cfg({ classKey: 'swordsman', equipment: ['bleeding_ring'] }));
+    w.recomputeDerived();
+    const bleedingRing = content.equipmentByKey.get('bleeding_ring')!;
+    expect(bleedingRing.mods.leech).toBeCloseTo(0.0001, 10);
+
+    const html = characterPanelMarkup(characterPanelData(w), w);
+    expect(html).toContain('+0.01%');
+    expect(html).toContain('Equipment: Bleeding Ring: +0.01%');
+    expect(html).not.toContain('Leech</span><b>0%');
+  });
+});

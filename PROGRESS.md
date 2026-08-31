@@ -5,6 +5,38 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-31 session: BACKLOG b056 fixed — `formatPercent` (`src/ui/hud.ts`),
+  which feeds the in-run character panel's per-stat summary and per-source
+  breakdown, was a third un-deduplicated flat-1-decimal percent rounder with
+  the same rounding-to-zero defect b054 fixed in `modLines`/`fieldValueText`
+  and b055 fixed in `describeStat`.** The Bleeding Ring's real `leech: 0.0001`
+  affix (0.01% lifesteal) rendered as "0%" in the character panel's Leech
+  summary and per-source line, the same information loss already fixed
+  elsewhere. `formatPercent` now delegates to the shared `formatPct`
+  (`src/ui/info-format.ts`), replacing its own rounding; the `- 1` mul-kind
+  offset in `formatStatValue` is unaffected since it's computed by the caller
+  before `formatPercent` runs. `tests/fb022-info-surfacing.test.ts` adds a
+  `b056` block asserting a `bleeding_ring`-equipped `World`'s character panel
+  contains `"+0.01%"` / `"Equipment: Bleeding Ring: +0.01%"`, not `"0%"`.
+  code-reviewer **APPROVE**, no Critical/Major — confirmed the offset
+  composition and sign logic (positive/negative/zero) are unaffected; noted
+  a non-blocking, not-yet-filed observation that `tower-info.ts` still has
+  several 0-decimal percent formatters for tower stats, currently safe since
+  no live tower stat is sub-1%. qa-playtester **PASS** — mounted a real
+  `World` + `Hud` in jsdom and read the live `#sw-charpanel` DOM (not just
+  the markup-generator's return string); boundary-probed zero, negative,
+  ≥1%, the mul-kind `-1` offset at exactly 1.0, `NaN`, `Infinity`,
+  `-Infinity`, and near-1e-9 magnitudes — all matched documented behavior,
+  no crashes; grepped all of `/data` and confirmed Bleeding Ring's `0.0001`
+  was the only live magnitude the old bug zeroed. It filed one new item
+  outside this item's scope: `wardenInfoMarkup` (`src/ui/hud.ts`) has a
+  latent, currently-inert 0-decimal percent rounder of the same defect
+  class (no live `/data` `mul`-kind mod is under 0.5% today). Filed as
+  BACKLOG b057. `npm run test:fast`: 1757 passed / 21 skipped / 6 failed
+  (same pre-existing Windows EPERM/hang races noted in every sibling entry
+  below — q15's worker-hang probes, q28/q49/q52's scratch-dir EPERM cleanup
+  races — none of the failing files import `hud.ts`/`info-format.ts`/
+  `tree-view.ts`) — no new failures from this change.
 - **2026-08-31 session: BACKLOG b055 fixed — `describeStat` (`src/ui/tree-view.ts`),
   used by the Hub Constellation summary and per-node tooltips, hand-rolled its
   own flat 1-decimal percent rounding (`Math.round(value * 1000) / 10`)

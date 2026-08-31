@@ -1659,7 +1659,7 @@ were not re-filed. Ordering within this section is by severity, not P-band.
       `info-format.ts`, `tree-view.ts`, or `hud.ts`) — no new failures from
       this change.
 
-- [ ] (b056) [bug] `formatPercent` (`src/ui/hud.ts:954-957`) is a third,
+- [x] (b056) [bug] `formatPercent` (`src/ui/hud.ts:954-957`) is a third,
       un-deduplicated flat-1-decimal percent rounder
       (`Math.round(fraction * 1000) / 10`) with the same rounding-to-zero
       defect b054 fixed in `modLines`/`fieldValueText` and b055 just fixed in
@@ -1681,6 +1681,59 @@ were not re-filed. Ordering within this section is by severity, not P-band.
       `formatStatValue`; a test asserts `characterPanelMarkup` for a
       `bleeding_ring`-equipped `World` contains the Bleeding Ring's Leech
       line at scaled precision (not `"0%"`) — refs: §2, §11, QA on b055.
+      Fixed: `formatPercent` now imports and delegates to `formatPct`
+      (`info-format.ts`), replacing its own rounding, with the sign prefix
+      computed the same way `describeStat` (b055) already does. The `- 1`
+      mul-kind offset in `formatStatValue` is untouched — it's computed by
+      the caller before `formatPercent` runs. `tests/fb022-info-surfacing.test.ts`
+      adds a `b056` block asserting a `bleeding_ring`-equipped `World`'s
+      character panel contains `"+0.01%"` / `"Equipment: Bleeding Ring: +0.01%"`,
+      not `"0%"`. code-reviewer **APPROVE**, no Critical/Major — confirmed the
+      offset composition and sign logic are unaffected and traced the fix
+      against the b055 precedent; noted (non-blocking, not filed) that
+      `tower-info.ts` still has several 0-decimal `Math.round(x*100)}%`
+      formatters for tower stat descriptions, currently safe because no live
+      tower stat is sub-1%. qa-playtester **PASS** — mounted a real `World`
+      + `Hud` in jsdom and read the live `#sw-charpanel` DOM (not just the
+      markup-generator's return string), confirming `"Leech+0.01%"` and
+      `"Equipment: Bleeding Ring: +0.01%"` render; boundary-probed zero,
+      negative, ≥1%, the mul-kind `-1` offset at exactly 1.0 total, `NaN`,
+      `Infinity`, `-Infinity`, very large and near-1e-9 magnitudes — all
+      matched documented behavior, no crashes; grepped all of `/data` for
+      every `leech`/`cdr` value and confirmed Bleeding Ring's `0.0001` was
+      the only live magnitude the old bug zeroed (no other stat or `mul`-kind
+      field in `/data` sits under 1%). It filed two informational,
+      non-blocking notes: an unreachable cosmetic `"+0%"` (leading `+` on a
+      hypothetical sub-display-floor fraction, no live trigger) and a latent
+      un-deduplicated instance of the same defect class in `wardenInfoMarkup`
+      (`src/ui/hud.ts`, `Math.round((d.powerMul - 1) * 100)`, a 0-decimal
+      rounder for the Character-selection info panel's Power/Attack
+      speed/Area rows) — currently inert since no live `/data` `mul`-kind mod
+      is under 0.5%, but the same class b054/b055/b056 fixed elsewhere. Filed
+      as BACKLOG b057. `npm run test:fast`: 1757 passed / 21 skipped / 6
+      failed (same pre-existing Windows EPERM/hang races — q15's worker-hang
+      probes plus q28/q49/q52's scratch-dir EPERM cleanup races — noted in
+      every sibling entry above; none of the 8 failing files import
+      `hud.ts`/`info-format.ts`/`tree-view.ts`) — no new failures from this
+      change.
+
+- [ ] (b057) [polish] `wardenInfoMarkup` (`src/ui/hud.ts`), the Character-
+      selection info panel's Power/Attack speed/Area rows, hand-rolls its own
+      0-decimal percent rounder (`Math.round((d.powerMul - 1) * 100)` and
+      siblings) — the same un-deduplicated flat-rounding-to-zero defect class
+      b054 (`modLines`/`fieldValueText`), b055 (`describeStat`) and b056
+      (`formatPercent`) already fixed at their own call sites, just one
+      decimal place coarser (would zero out any net magnitude under 0.5%
+      instead of under 0.05%). Currently inert: no live `/data` `mul`-kind
+      mod (power, attackSpeed, area, ...) sits under 1%, so no current
+      content is silently zeroed. Found by qa-playtester verifying b056
+      (2026-08-31), sweeping for remaining un-deduplicated instances of the
+      same class — acceptance: `wardenInfoMarkup`'s Power/Attack speed/Area
+      rows share `formatPct`/`formatPercent` (whichever the surrounding code
+      already uses for a `mul`-kind stat's net-percent display) instead of
+      their own rounding; a test asserts a synthetic sub-0.5%-magnitude
+      `mul` mod renders non-zero in the selection panel — refs: §2, §11, QA
+      on b056.
 
 ### Filed at the lane/quality merge (2026-08-28) — from BACKLOG-QUALITY.md's log and open queue
 

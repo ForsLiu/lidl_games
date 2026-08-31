@@ -18,6 +18,7 @@ import { STAT_DISPLAY, type StatDisplay } from '../sim/stats';
 import { classAttackPowerMul } from '../sim/classes';
 import { classAbilitiesMarkup, type ClassLiveContext } from './class-info';
 import { coreLiveMarkup } from './core-info';
+import { formatPct } from './info-format';
 
 export interface HudCallbacks {
   onSelectTower(id: number): void;
@@ -952,8 +953,7 @@ function formatFlat(value: number): string {
 }
 
 function formatPercent(fraction: number): string {
-  const pct = Math.round(fraction * 1000) / 10;
-  return `${pct > 0 ? '+' : ''}${pct}%`;
+  return `${fraction > 0 ? '+' : ''}${formatPct(fraction)}`;
 }
 
 /**
