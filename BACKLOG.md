@@ -1031,7 +1031,7 @@ logged in MIGRATION.md §8 rather than carried as dead items.
       used for HP bisection deleted before finishing, same discipline p10c set).
       Follow-up filed as BACKLOG p10k (a boss-pacing mechanism that decouples fight
       duration from win rate, out of a flat HP/timer tune). Full accounting in
-      PROGRESS.md's p10d entry.
+      PROGRESS.md's p10d entry. Commit `29a22ad`.
 - [x] (p10c) [balance] Gate **G13**: no tower type's VS attack takes more than 35% of
       damage across the winning-build pool, every type is solo-viable at T1 and none
       at T3 — acceptance: G13 measured over the seed set on the §1.1 run shape, with

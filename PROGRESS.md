@@ -7,7 +7,7 @@
 
 - **2026-08-30 session: p10d done — gate G1's mean-run-length clause
   re-baselined against the real §1.1 shape, `.skip`-ed with a measured
-  cross-gate conflict against G14.** New live test
+  cross-gate conflict against G14 — commit `29a22ad`.** New live test
   `tests/p10d-run-length.test.ts` (24 seeds, `hybrid` bot, `cycles: 6`)
   replaces the retired `tests/a1-run-length.test.ts`. First measured: mean
   44.26 min, 13/24 wins (54%) — well over the 30-36 min band. Act-by-act
