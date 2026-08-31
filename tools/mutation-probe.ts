@@ -185,11 +185,15 @@ export interface Mutation {
  * local to its own try (an unknown CLI tower-key argument, `/data`
  * untouched).
  *
- * The twenty-seventh (BACKLOG-QUALITY q54/q56) closes a gap in this file
- * itself, not in a probed tool: q54 added `readsDataJsonDirectly` as a third
- * classifier alongside `importsContentTransitively` and `hasCatch` in
- * `cli-crash-coverage.ts`, but only the first two had ever had a mutation
- * recorded here reverting them. See the inline comment above that entry.
+ * The twenty-seventh (BACKLOG-QUALITY q54/q56) hollows `readsDataJsonDirectly`,
+ * the third classifier `cli-crash-coverage.ts` uses alongside
+ * `importsContentTransitively` and `hasCatch`, added at q54 — the same
+ * hollow-and-assert-red pattern `gate-audit-hasLiveTopLevelDescribe-hollow`
+ * and `command-domain-classify-hollow` already use against classifiers in
+ * *other* files. `importsContentTransitively` and `hasCatch` themselves have
+ * no mutation-probe entry of their own yet, in this file or anywhere else —
+ * this closes q54's specific gap, not that pre-existing one. See the inline
+ * comment above that entry.
  */
 export const MUTATIONS: Mutation[] = [
   {
@@ -587,11 +591,13 @@ export const MUTATIONS: Mutation[] = [
     source:
       'BACKLOG-QUALITY.md q50/q52: reverts `cli-crash-coverage.ts`\'s `stripCommentsAndBacktickStrings` to its pre-q50 shape (a backslash-newline line-continuation inside a quoted string copied through as a real newline), reproducing the false positive q50 fixed: a following physical line starting with `import ... from \'...\'` inside string data false-fires `VALUE_IMPORT_RE`\'s multiline match.',
   },
-  // BACKLOG-QUALITY q54/q56: the two pre-existing cli-crash-coverage.ts
-  // classifiers (importsContentTransitively, hasCatch) each already had a
-  // mutation here before q54 added readsDataJsonDirectly as a third — this
-  // gives the new one the same treatment so a regression in its detection
-  // logic is caught the same way as one in the old two.
+  // BACKLOG-QUALITY q54/q56: readsDataJsonDirectly is the third classifier
+  // cli-crash-coverage.ts uses (alongside importsContentTransitively and
+  // hasCatch, neither of which has its own mutation-probe entry anywhere in
+  // this file), added at q54. This hollows it the same way
+  // gate-audit-hasLiveTopLevelDescribe-hollow and command-domain-classify-hollow
+  // already hollow classifiers in other files, so a regression in its
+  // detection logic is caught the same way.
   {
     name: 'cli-crash-coverage-readsDataJsonDirectly-hollow',
     file: 'tools/cli-crash-coverage.ts',
