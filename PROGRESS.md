@@ -5,6 +5,47 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-31 session: BACKLOG b053 fixed — the Hub class-select detail
+  panel and the in-run class-info panel rendered a class's `leech`/`cdr`
+  passive mods as raw decimals ("+0.03 Leech") instead of percentages ("+3%
+  Leech"), the same conflation b021 (below) had just fixed for the character
+  panel's own formatter.** `modIsPct` (`src/ui/info-format.ts`), the
+  formatter behind `classAbilitiesMarkup`'s `mods` lines (reached from both
+  `hub.ts:175` and `hud.ts`'s `characterAbilitiesMarkup`), still classified
+  percent-vs-point purely off `STAT_KIND` — `'flat'` there conflates a true
+  point total (`armor`) with a fractional rate meant to display as a percent
+  (`leech`, `cdr`). Swapped `modIsPct` to consult `STAT_DISPLAY`
+  (`src/sim/statkeys.ts`, b021's exhaustive `Record<StatKey, 'point' |
+  'percent'>`) instead, preserving the old `0 < |value| < 1` fallback only
+  for non-`StatKey` mod fields (a class's bespoke keys). `STAT_KIND`'s import
+  in `info-format.ts` is now unused and was removed.
+  `tests/fb022-info-surfacing.test.ts` adds a regression block asserting
+  `classAbilitiesMarkup` on Bloodlord's Blood Frenzy passive (`data/
+  classes.json`, `"mods": { "leech": 0.03 }`) renders `"+3% Leech"`, not
+  `"+0.03"`, routed through the real `classAbilitiesMarkup` → `modLinesHtml`
+  → `modLines` → `modIsPct` call chain; confirmed red pre-fix (reverted just
+  the source change, test failed showing `+0.03 Leech`) and green post-fix.
+  code-reviewer **APPROVE**, no Critical/Major — confirmed `STAT_DISPLAY` is
+  exhaustive so the fix covers every `StatKey`, not just `leech`; confirmed
+  the two other `STAT_KIND` call sites in `src/ui/` (`tree-view.ts`/`hub.ts`'s
+  `effectiveEquipmentMods`) are legitimately stacking-mechanism decisions,
+  untouched; flagged a Minor cleanup opportunity for a future item, not
+  fixed here — `tree-view.ts`'s `describeStat` has its own hand-maintained
+  `PERCENT_STATS` set duplicating what `STAT_DISPLAY` centralizes.
+  qa-playtester **PASS** — traced both live surfaces reach the fixed code
+  path with no intervening reformat layer; grepped all of `/data` for
+  `leech`/`cdr` mods (only two exist: Bloodlord's, fixed, and the Bleeding
+  Ring's `leech: 0.0001`, correctly still classified a percent); confirmed
+  Bloodlord's `frenzyTdMul: -0.05` (a sibling field, not inside `mods`) is
+  untouched, still rendering via `fieldValueText`'s `Mul` branch. It filed
+  one bug outside this item's scope: the Bleeding Ring's `leech: 0.0001`
+  renders as `"+0% Leech"` because `modLines`' one-decimal-place rounding
+  collapses any magnitude under 0.05% to zero — pre-existing (rendered `"+0
+  Leech"` before this fix, same information loss), not a b053 regression.
+  Filed as BACKLOG b054. `npm run test:fast`: 1753 passed / 21 skipped / 5
+  failed, all the same pre-existing Windows EPERM temp-cleanup races
+  (q15/q28/q49/q52) noted in every sibling entry below — no new failures
+  from this change.
 - **2026-08-31 session: BACKLOG b021 fixed — the character panel rendered
   `cdr`/`leech` contributions as raw decimals ("+0.06") instead of
   percentages ("+6%").** Both are classified `'flat'` in `STAT_KIND`

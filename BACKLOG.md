@@ -1500,7 +1500,7 @@ were not re-filed. Ordering within this section is by severity, not P-band.
       json`: `"mods": { "leech": 0.03 }`) renders "+0.03 Leech" instead of
       "+3% Leech" in both surfaces. Filed as b053 below.
 
-- [ ] (b053) [bug] `modIsPct` (`src/ui/info-format.ts`) — the class-info
+- [x] (b053) [bug] `modIsPct` (`src/ui/info-format.ts`) — the class-info
       ability-effect formatter used by the Hub's class-select detail panel
       (`hub.ts`) and the in-run class-info panel (`hud.ts`'s
       `characterAbilitiesMarkup`) — still infers a mod's percent-vs-point
@@ -1519,7 +1519,56 @@ were not re-filed. Ordering within this section is by severity, not P-band.
       `STAT_DISPLAY` (`src/sim/statkeys.ts`, b021) instead of/in addition to
       `STAT_KIND`; a test asserts `classAbilitiesMarkup` on Bloodlord's Blood
       Frenzy passive renders "+3% Leech", not "+0.03" — refs: §2, §4,
-      §11, b021, QA on b021.
+      §11, b021, QA on b021. Fixed by swapping `modIsPct`'s lookup from
+      `STAT_KIND` to `STAT_DISPLAY` (percent when `'percent'`, point when
+      `'point'`), preserving the old `0 < |value| < 1` fallback only for
+      non-`StatKey` mod fields (a class's bespoke keys like
+      `towerDamageVsBurning`). `STAT_KIND`'s import is now fully unused in
+      `info-format.ts` and was removed. New regression test in
+      `tests/fb022-info-surfacing.test.ts` (`describe('b053: ...')`) asserts
+      `classAbilitiesMarkup(bloodlord)` contains `'+3% Leech'` and not
+      `'+0.03'`, routed through the real production call chain
+      (`classAbilitiesMarkup` → `modLinesHtml` → `modLines` → `modIsPct`);
+      confirmed red pre-fix (`git apply -R` on just the source change,
+      test failed with `+0.03 Leech` in the output) and green post-fix.
+      code-reviewer **APPROVE**, no Critical/Major — confirmed `STAT_DISPLAY`
+      is exhaustive over every `StatKey` so the fix covers all of them, not
+      just `leech`; confirmed the other `STAT_KIND` call sites in `src/ui/`
+      (`tree-view.ts`'s `effectiveEquipmentMods`, `hub.ts`'s
+      `effectiveEquipmentMods`) are legitimately using it for
+      stacking-mechanism decisions, not display, so untouched; flagged one
+      Minor cleanup opportunity for a future item, not fixed here:
+      `tree-view.ts`'s `describeStat` has its own hand-maintained
+      `PERCENT_STATS` set duplicating what `STAT_DISPLAY` centralizes, a
+      third copy that could drift. qa-playtester **PASS** — traced both live
+      surfaces (`hub.ts:175`, `hud.ts:994-1004`) reach the fixed
+      `modIsPct` with no intervening reformat layer; grepped all of
+      `data/classes.json`/`data/equipment.json` for `leech`/`cdr` mods (only
+      two exist — Bloodlord's, fixed and tested, and the Bleeding Ring's
+      `leech: 0.0001`, correctly still a percent, just tiny); confirmed
+      Bloodlord's `frenzyTdMul: -0.05` (a sibling field, not inside `mods`)
+      is untouched by this change, still rendering via `fieldValueText`'s
+      `Mul` branch. `npm run test:fast`: 1753 passed / 21 skipped / 5 failed,
+      all the same pre-existing Windows EPERM temp-cleanup races
+      (q15/q28/q49/q52) noted in every sibling entry above, none touching
+      `info-format.ts`/`class-info.ts`/`hub.ts`/`hud.ts`. Filed as its own
+      item: b054 (Bleeding Ring's `leech: 0.0001` rounds display to "+0%").
+
+- [ ] (b054) [bug] `modLines` (`src/ui/info-format.ts`) formats a mod's
+      percent text via `trimNum(value * 100, 1)` — one decimal place — so
+      the Bleeding Ring's `leech: 0.0001` mod (`data/equipment.json`, a real
+      1/100th-of-a-percent lifesteal affix) renders as `"+0% Leech"` in its
+      equipment tooltip: real, non-zero magnitude silently displayed as
+      nothing. qa-playtester found this verifying b053 (2026-08-31) — the
+      same rounding already existed pre-b053 (it rendered `"+0 Leech"`
+      before STAT_DISPLAY classified `leech` as a percent), so this is not a
+      b053 regression, just a pre-existing formatting gap b053 made visible
+      as "percent" rather than "point" — acceptance: a mod magnitude under
+      1% renders with enough decimal precision to show as non-zero (e.g.
+      `trimNum`'s decimal count scales with magnitude, or a minimum-2-sig-fig
+      rule for anything under 1%); a test confirms the Bleeding Ring's
+      `leech: 0.0001` mod line does not read `"+0% Leech"` — refs: §7, §11,
+      QA on b053.
 
 ### Filed at the lane/quality merge (2026-08-28) — from BACKLOG-QUALITY.md's log and open queue
 

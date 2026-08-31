@@ -21,7 +21,7 @@
  * from `w.derived`/`w.core` rather than this module reaching for them itself.
  */
 
-import { STAT_KIND, type StatKey, type StatKind } from '../sim/stats';
+import { STAT_DISPLAY, type StatKey, type StatDisplay } from '../sim/stats';
 import { statLabel } from './character-panel';
 
 /* ------------------------------------------------------------- formatting */
@@ -165,10 +165,10 @@ export function modFieldLabel(key: string): string {
   return known !== key ? known : splitCamel(key);
 }
 
-/** Whether a `mods`-shaped value reads as a percent: `STAT_KIND` when the key is a real `StatKey` (mul = percent, flat = points), else the same "fraction under 1" fallback `fieldValueText` uses. */
+/** Whether a `mods`-shaped value reads as a percent: `STAT_DISPLAY` when the key is a real `StatKey` (b021 — the display-intent classification, not `STAT_KIND`'s stacking-mechanism one), else the same "fraction under 1" fallback `fieldValueText` uses. */
 export function modIsPct(key: string, value: number): boolean {
-  const kind = (STAT_KIND as Partial<Record<string, StatKind>>)[key];
-  if (kind) return kind === 'mul';
+  const display = (STAT_DISPLAY as Partial<Record<string, StatDisplay>>)[key];
+  if (display) return display === 'percent';
   return Math.abs(value) > 0 && Math.abs(value) < 1;
 }
 

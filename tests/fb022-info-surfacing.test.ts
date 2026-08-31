@@ -394,3 +394,21 @@ describe('fb022: changing a /data value changes the displayed text with no code 
     expect(after).not.toBe(before);
   });
 });
+
+/**
+ * b053: `modIsPct` (info-format.ts), the formatter behind `classAbilitiesMarkup`'s
+ * passive/tower-passive `mods` lines, classified percent-vs-point purely off
+ * `STAT_KIND` — the same `'flat'` conflation b021 fixed for the character panel's
+ * own formatter by introducing `STAT_DISPLAY`, but this call site was still on
+ * the old classification. Bloodlord's Blood Frenzy passive (`leech: 0.03`,
+ * described as "3% lifesteal") rendered "+0.03 Leech" via both the Hub's class
+ * screen and the in-run character panel's class-info block.
+ */
+describe('b053: class-passive mods render leech/cdr as a percentage, not a raw decimal', () => {
+  it("Bloodlord's Blood Frenzy passive (leech: 0.03) renders \"+3% Leech\", not \"+0.03\"", () => {
+    const bloodlord = content.classes.classes.find((c) => c.key === 'bloodlord')!;
+    const html = classAbilitiesMarkup(bloodlord);
+    expect(html).toContain('+3% Leech');
+    expect(html).not.toContain('+0.03');
+  });
+});
