@@ -749,7 +749,7 @@ were not re-filed. Ordering within this section is by severity, not P-band.
       1716 passed, 28 skipped; only the 4 pre-existing documented Playwright
       fold flakes (b032/b034/b035/b036) and the documented Windows EPERM
       temp-cleanup race (q49) red — no new regressions. Commit `0919a42`.
-- [ ] (b013) [bug] The `/data` loader accepts unpayable data (§12 rule 4 violated
+- [x] (b013) [bug] The `/data` loader accepts unpayable data (§12 rule 4 violated
       six ways): no numeric range guards (negative/zero/infinite `hp`, `cost`,
       `interval` all load), non-finite numbers reach the engine and the report,
       duplicate keys silently collapse into the later row, `tree.json`'s
@@ -765,7 +765,44 @@ were not re-filed. Ordering within this section is by severity, not P-band.
       P6's `classes.json` kit numbers (every active1/active2/passive field) accept
       negative/zero/Infinity — acceptance: the skipped q7 tests unskip and pass;
       `content.ts` gains positive/finite/unique/non-empty/known-stat-key rules
-      covering cores and classes — refs: §12 rule 4, §5.5, BACKLOG-QUALITY q7
+      covering cores and classes — refs: §12 rule 4, §5.5, BACKLOG-QUALITY q7.
+      Fixed: a shared `num` zod alias is now `.finite()` everywhere in
+      `content.ts` (closes E3 in one place instead of a hundred call sites),
+      `.positive()`/`.nonnegative()` land on tower/enemy hp/cost/interval/range,
+      class attack dps/interval/range and `cooldownSeconds` (E2); a new
+      `uniqueArray` helper refuses a duplicate key/id on every top-level roster —
+      towers, enemies, tree nodes, classes, cores, equipment, quests, damage
+      types, boons, modifiers (E4); `waves.waves`/`tree.nodes`/`quests.quests`
+      gain `.min(1)` (E7); `TreeNodeSchema` names `angle`/`ring` and turns
+      `.strict()` (E5); a new `statRecord`/`recordWithKeys` pair closes E6 on
+      every `Stats`-by-name record (tree `stats`, class passive `mods`,
+      equipment `mods`, a boon's `stat`) plus the two fixed-dispatch-table
+      record shapes that aren't `Stats` at all (`cores.json`'s
+      `effects`/`upgrade.steps`, `modifiers.json`'s `effect`); and a small
+      hand-maintained required-key census (`REQUIRED_TOWER_KEYS`,
+      `REQUIRED_DAMAGE_TYPE_KEYS`) closes E1 by throwing if a `/src`
+      string-literal reference (`harvest_sprout`, `palisade`, `burning`,
+      `poison`) goes missing. `STAT_KEYS`/`STAT_KIND` moved to a new
+      `src/sim/statkeys.ts` (byte-identical, re-exported from `stats.ts`
+      unchanged) so `content.ts` can validate against them without an import
+      cycle. `code-reviewer` pass: APPROVE, no Critical/Major findings — two
+      Minors noted (the required-key census is convention-only with no
+      static-analysis backstop, and the positive/nonnegative coverage is
+      deliberately narrow, matching the test file's own updated comments, not
+      every numeric field in `/data`). `qa-playtester` pass: PASS — confirmed
+      all 36 q7-data-fuzz tests green, independently hand-verified 11/11
+      adversarial mutations rejected at `loadContent()` (negative/zero/Infinite
+      tower cost/hp, duplicate tower key, misspelled tree-node stat key, empty
+      `waves`, misspelled `cores.effects` key, non-string `angle`, negative
+      enemy hp, duplicate class key, negative attack interval), and reproduced
+      the four fold-test/q49 `test:fast` failures as pre-existing Windows
+      port-contention/file-lock flakes (green in isolation, unrelated to this
+      diff). QA also found and filed a real, non-blocking side effect —
+      `contentHash()` shifts on unmodified `/data` purely because `tree.json`'s
+      `angle`/`ring` now survive parsing instead of being silently zod-stripped,
+      which will fail a pre-b013 save/replay's content-hash check once — logged
+      as **b044** with its own regression test, since it does not fail b013's
+      own acceptance criteria and a brand-new save/replay is unaffected.
 - [ ] (b014) [bug] A JSON *syntax* error in any `/data/*.json` crashes every CLI that
       imports `src/sim/content.ts` with a raw esbuild stack trace before any
       try/catch runs (static module-scope JSON imports) — including the three
@@ -1143,6 +1180,30 @@ because the lane worktree retires at this merge.
       functions gain a `Number.isFinite` guard (precedent: b008's
       `damageEnemy` guard, `Stats.add`), with a regression test per
       function covering NaN/+Infinity/-Infinity — refs: §12 rule 2, b008.
+- [ ] (b044) [bug] `contentHash()` (`src/sim/content.ts`, hashed by `RunConfig`
+      per `world.ts:398-404`) is not stable across a code/schema change that
+      makes the loader parse more of an *unchanged* `/data/tree.json` — b013's
+      `TreeNodeSchema` naming `angle`/`ring` and turning `.strict()` moves those
+      two fields from silently zod-stripped to present on `content.tree`, which
+      `contentHash()` folds in, so the hash moves (`029275d0` → `ed704fb5`,
+      reproduced twice by qa-playtester with `/data` byte-identical across both
+      runs) with zero `/data` edit. §12 rule 2's contract is "a replay against
+      *edited* `/data` fails loudly" — a schema fix with no data edit tripping
+      the same mismatch is an undocumented side channel into it: any
+      `RunConfig`/replay log/save recorded before this class of fix throws
+      `RunConfig content hash mismatch` (`world.ts:401`) on the next load, same
+      as a real data edit would, with nothing distinguishing the two causes for
+      a player or a bug report. A brand-new save/replay created after the fix
+      is unaffected — acceptance: `tests/g2-determinism.test.ts` gains a case
+      pinning that `contentHash` is a function of `/data`'s own authored fields
+      only, not of which of those fields the current schema happens to parse
+      through (e.g. compare a hash computed via a schema that strips a field
+      still present in the raw JSON against one that doesn't, on identical
+      bytes) — and either that guarantee holds without a code change, or the
+      mismatch-on-schema-fix behaviour is deliberately kept and the resulting
+      one-time save/replay break is documented in MIGRATION.md as an accepted
+      migration cost rather than left silent — refs: §12 rule 2, b013,
+      qa-playtester b013 verification pass (2026-08-31).
 
 ## Retired from the queue by SPEC-FINAL
 

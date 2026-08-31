@@ -6,6 +6,7 @@ import { z } from 'zod';
 
 import { attackProfile } from './upgrades';
 import { Hasher } from './hash';
+import { STAT_KEYS } from './statkeys';
 import towersRaw from '../../data/towers.json';
 import enemiesRaw from '../../data/enemies.json';
 import wavesRaw from '../../data/waves.json';
@@ -21,10 +22,88 @@ import damageTypesRaw from '../../data/damagetypes.json';
 import coresRaw from '../../data/cores.json';
 import equipmentRaw from '../../data/equipment.json';
 
-const num = z.number();
+/**
+ * b013/E3: every `/data` number goes through this one alias, so "refuses a
+ * non-finite number anywhere in /data" is one `.finite()` here rather than a
+ * hundred call sites remembering it individually. `1e999` (a real hand-edit)
+ * and any other route to `Infinity`/`-Infinity` are the only things this adds
+ * over plain `z.number()` — `NaN` has no JSON spelling, so it was already
+ * unreachable from a file on disk.
+ */
+const num = z.number().finite();
 const str = z.string();
 /** fb005: color fields reject `""` so an empty string can't silently bypass the documented white fallback. */
 const hexColor = z.string().min(1);
+
+/**
+ * b013/E6: a `Record<string, number>` authoring path that is read back by
+ * *name* against a fixed, known set of keys — an invented or misspelled key
+ * would otherwise load clean and silently buy nothing. Generic over the
+ * allow-list so the same shape covers both a `Stats.addAll` record
+ * (`statRecord` below) and a record read by a fixed dispatch table that is
+ * not `Stats` at all (`MODIFIER_EFFECT_KEYS`).
+ */
+function recordWithKeys(allowed: readonly string[]) {
+  const allowedSet = new Set<string>(allowed);
+  return z.record(str, num).refine(
+    (rec) => Object.keys(rec).every((k) => allowedSet.has(k)),
+    (rec) => ({
+      message: `unknown key(s): ${Object.keys(rec)
+        .filter((k) => !allowedSet.has(k))
+        .join(', ')}`,
+    }),
+  );
+}
+
+/**
+ * A record fed straight into `Stats.addAll` by key. `extraKeys` widens the
+ * allow-list for the handful of records that share the shape but also carry
+ * a few bespoke, non-`Stats` fields read directly by name elsewhere (see the
+ * `ClassSlotPassiveSchema.mods` call site below).
+ */
+function statRecord(extraKeys: readonly string[] = []) {
+  return recordWithKeys([...STAT_KEYS, ...extraKeys]);
+}
+
+/**
+ * b013/E4: an array whose rows must be unique by one or more fields — a
+ * pushed-duplicate row would otherwise parse clean and then silently
+ * collapse into the later one the instant `loadContent()` builds a `Map`
+ * keyed by that field.
+ */
+function uniqueArray<T extends z.ZodTypeAny>(
+  row: T,
+  keys: (keyof z.infer<T>)[],
+  minLength = 1,
+) {
+  return z
+    .array(row)
+    .min(minLength)
+    .refine(
+      (rows) => {
+        for (const k of keys) {
+          const seen = new Set<unknown>();
+          for (const r of rows as Record<string, unknown>[]) {
+            const v = r[k as string];
+            if (seen.has(v)) return false;
+            seen.add(v);
+          }
+        }
+        return true;
+      },
+      (rows) => {
+        for (const k of keys) {
+          const seen = new Set<unknown>();
+          for (const r of rows as Record<string, unknown>[]) {
+            const v = r[k as string];
+            if (seen.has(v)) return { message: `duplicate ${String(k)} "${String(v)}"` };
+            seen.add(v);
+          }
+        }
+        return { message: 'duplicate row' };
+      },
+    );
+}
 
 /* ------------------------------------------------------------------ towers */
 
@@ -39,9 +118,11 @@ const DamageRatioSchema = z.record(num);
 const TowerAttackSchema = z
   .object({
     kind: z.enum(['single', 'pierce', 'cone', 'aura', 'chain', 'lob', 'poison']),
-    damage: num,
-    interval: num,
-    range: num,
+    damage: num.nonnegative(),
+    /** b013/E2: an interval <= 0 is the unbounded-fire-loop shape a data typo would ship. */
+    interval: num.positive(),
+    /** b013/E2: a range <= 0 can never acquire a target. */
+    range: num.positive(),
     minRange: num.optional(),
     /** Enemies the shot carries on through *beyond* the first (Ballista: 3 → 4 hit). */
     pierce: num.optional(),
@@ -200,7 +281,8 @@ export const TowerSchema = z.object({
   id: num,
   key: str,
   name: str,
-  cost: num,
+  /** b013/E2: a negative cost would pay the player to build. */
+  cost: num.nonnegative(),
   /**
    * SPEC-V3 §4 armour points for the structure itself, read through m19a's
    * curve by `structureArmor` — flat percent off normal damage taken. m20c
@@ -210,7 +292,8 @@ export const TowerSchema = z.object({
    */
   defense: num,
   upgrades: UpgradeTrackSchema,
-  hp: num,
+  /** b013/E2: hp <= 0 is a structure that is already dead on load. */
+  hp: num.positive(),
   blocks: z.boolean(),
   attack: TowerAttackSchema,
   buffAura: z.object({ radius: num, attackSpeed: num }).optional(),
@@ -276,7 +359,8 @@ export const TowersFileSchema = z.object({
    * structures. Both are P10 tuning levers; see QUESTIONS Q92.
    */
   breach: z.object({ base: num.nonnegative(), perEhp: num.nonnegative() }).strict(),
-  towers: z.array(TowerSchema),
+  /** b013/E4: a duplicate `key` or `id` would collapse into the later row the instant `towerByKey`/`towerById` builds its `Map`. */
+  towers: uniqueArray(TowerSchema, ['key', 'id']),
 }).strict();
 
 /* ----------------------------------------------------------------- enemies */
@@ -286,7 +370,8 @@ export const EnemySchema = z.object({
   key: str,
   name: str,
   grade: z.enum(['F', 'S', 'E', 'B']),
-  hp: num,
+  /** b013/E2: hp <= 0 is an enemy that is already dead on load. */
+  hp: num.positive(),
   speed: num,
   coreDamage: num,
   bounty: num,
@@ -324,7 +409,7 @@ export const EnemySchema = z.object({
   structureDamageMul: num.optional(),
 });
 
-const EnemiesFileSchema = z.object({ enemies: z.array(EnemySchema) });
+const EnemiesFileSchema = z.object({ enemies: uniqueArray(EnemySchema, ['key', 'id']) });
 
 /* ------------------------------------------------------------------- waves */
 
@@ -343,7 +428,8 @@ const WavesFileSchema = z.object({
   coreHp: num,
   spawnIntervalSeconds: num,
   enemyStructureDpsFactor: num,
-  waves: z.array(z.object({ wave: num, groups: z.array(WaveGroupSchema) })),
+  /** b013/E7: an empty roster is a Day with nothing to defend against. */
+  waves: z.array(z.object({ wave: num, groups: z.array(WaveGroupSchema) })).min(1),
   /** Elite spawn-count multiplier keyed by cycle number (as a string), e.g. cycle 2's "Elite pressure x2". */
   eliteMulByCycle: z.record(num).optional(),
   /** SPEC-V2 §1: added to a Night's minute-of-warmup per prior cycle, so later Nights start hotter. */
@@ -414,7 +500,8 @@ const BoonSchema = z.object({
   key: str,
   name: str,
   maxRank: num,
-  stat: str,
+  /** b013/E6: a boon's `stat` is read straight into `Stats.add` by key — an invented one would grant nothing. */
+  stat: z.enum(STAT_KEYS),
   perRank: num,
   desc: str,
 });
@@ -439,7 +526,7 @@ const SkillCardSchema = z.object({
 
 const VsUpgradesFileSchema = z.object({
   rerollsPerLevel: num,
-  statBoons: z.array(BoonSchema),
+  statBoons: uniqueArray(BoonSchema, ['key']),
   typeMastery: TypeMasterySchema,
   skillCards: z.record(z.array(SkillCardSchema)),
 });
@@ -453,24 +540,54 @@ const TreeNodeSchema = z.object({
   key: str.optional(),
   name: str,
   desc: str,
-  stats: z.record(num),
+  /** b013/E6: fed straight to `Stats.addAll` by key — an invented stat name would grant nothing. */
+  stats: statRecord(),
   x: num,
   y: num,
+  /** b013/E5: authored on every node but the root — named explicitly rather than left to fall through. */
+  angle: num.optional(),
+  ring: num.optional(),
   links: z.array(num),
-});
+  // b013/E5 (code-reviewer, pre-commit): `.strict()` so a future unschemad
+  // field on a tree node is a load error, the same fate `angle`/`ring` used
+  // to escape, rather than silently dropped again for whatever comes next.
+}).strict();
 
 const TreeFileSchema = z.object({
   /** p7d (§8.3, Q46): skill points are the tree's only currency — 1 point per node. */
   respecCostPerNode: num,
-  nodes: z.array(TreeNodeSchema),
+  /** b013/E4/E7: a duplicate `id` would collapse a node's links onto the wrong target; an empty tree has nothing to spend a point on. */
+  nodes: uniqueArray(TreeNodeSchema, ['id']),
 });
 
 /* --------------------------------------------------------------- modifiers */
 
+/**
+ * b013/E6: `world.ts`'s `ModifierEffects` reads exactly these keys off a
+ * modifier's `effect` bag by name (`this.mods.enemyHp += e.enemyHp`, and so
+ * on) — an invented key would load clean and silently do nothing, the same
+ * shape `statRecord` closes for a `Stats`-routed record.
+ */
+const MODIFIER_EFFECT_KEYS = [
+  'enemyHp',
+  'enemySpeed',
+  'extraGates',
+  'extraWaves',
+  'pickupMul',
+  'residualMul',
+  'eliteMul',
+  'riftMul',
+  'ghostWeightMul',
+  'bossHp',
+  'buildPhase',
+  'coreHp',
+] as const;
+
 const ModifiersFileSchema = z.object({
   tierRewardPerStep: num,
-  modifiers: z.array(
-    z.object({ key: str, name: str, desc: str, effect: z.record(num), rewardBonus: num }),
+  modifiers: uniqueArray(
+    z.object({ key: str, name: str, desc: str, effect: recordWithKeys(MODIFIER_EFFECT_KEYS), rewardBonus: num }),
+    ['key'],
   ),
 });
 
@@ -535,9 +652,11 @@ const ClassEffectSchema = z.object({
     'time_mark',
     'time_lock',
   ]),
-  cooldownSeconds: num,
-  radius: num,
-  damage: num,
+  /** b013/E2: a <= 0 cooldown is the unbounded-recast shape a data typo would ship. */
+  cooldownSeconds: num.positive(),
+  /** Not `.positive()`: `dash_line`'s own precedent authors `radius: 0` as an unused placeholder — see the doc comment above. */
+  radius: num.nonnegative(),
+  damage: num.nonnegative(),
   slow: num.optional(),
   slowDuration: num.optional(),
   burnDps: num.optional(),
@@ -667,10 +786,24 @@ const ClassEffectSchema = z.object({
  * Plant's/Corpse's non-stat Core effects got bespoke `updateX` functions
  * beyond `cores.json`'s own `effects` dict.
  */
+/**
+ * b013/E6: `classes.ts`/`towers.ts` read these four class-passive `mods` keys
+ * directly by name (bespoke, non-`Stats` fields — see `info-format.ts`'s own
+ * comment on `towerDamageVsBurning`), so a passive's `mods` record is
+ * `STAT_KEYS` plus this short, exhaustive extra set rather than `STAT_KEYS`
+ * alone.
+ */
+const CLASS_PASSIVE_BESPOKE_MOD_KEYS = [
+  'towerDamageVsBurning',
+  'towerLowHpDamageBonus',
+  'towerDamageVsChilled',
+  'towerExtraElectricPct',
+] as const;
+
 const ClassSlotPassiveSchema = z.object({
   name: str,
   description: str,
-  mods: z.record(num).default({}),
+  mods: statRecord(CLASS_PASSIVE_BESPOKE_MOD_KEYS).default({}),
   /**
    * Non-stat-shaped passives (Thousand Cuts' on-hit Bleeding, p6b;
    * Spreading Plague's on-death transfer, p6c) get their own bespoke
@@ -734,7 +867,13 @@ const ClassSlotPassiveSchema = z.object({
  * rule that content and numbers live in `/data`, never in code (`aoe: 0`
  * means single-target; `> 0` is a splash radius around the primary target).
  */
-const ClassBasicAttackSchema = z.object({ dps: num, range: num, interval: num, aoe: num });
+const ClassBasicAttackSchema = z.object({
+  dps: num.positive(),
+  range: num.positive(),
+  /** b013/E2: same unbounded-fire-loop shape as a tower's own attack interval. */
+  interval: num.positive(),
+  aoe: num.nonnegative(),
+});
 
 const ClassSchema = z.object({
   key: str,
@@ -751,7 +890,7 @@ const ClassSchema = z.object({
 });
 
 const ClassesFileSchema = z.object({
-  classes: z.array(ClassSchema),
+  classes: uniqueArray(ClassSchema, ['key']),
 });
 
 /**
@@ -777,13 +916,61 @@ const ClassesFileSchema = z.object({
  * a loader gap, since an *absent* key already resolves to a zero-effect
  * default in `computeCoreState`.
  */
+/**
+ * b013/E6: `cores.ts`'s `computeCoreState` reads a Core's per-step delta by
+ * name off a fixed, hand-enumerated set of fields (plus `coreHpBonus`, read
+ * by `coreHpBonus()` the same way) — an invented key here would price a step
+ * that buys nothing, the same silent-no-op class `validateSpecial` already
+ * guards on a tower's own milestone track.
+ */
+const CORE_STEP_KEYS = [
+  'towerOverhealConverts',
+  'overhealGoldRatio',
+  'towerLifestealBonus',
+  'goldPerSecond',
+  'hpRegenPerSecond',
+  'healingReceivedPct',
+  'devourRangeBonus',
+  'devourCooldownReduction',
+  'storeRatio',
+  'executeExplode',
+  'autoFireInterval',
+  'decayRadius',
+  'decayMult',
+  'coreHpBonus',
+] as const;
+
+/** `computeCoreState`'s always-on `effects` row, plus the two keys `world.ts` routes through `Stats` directly (`vsLifestealPct`, `vsXpGainPct`). */
+const CORE_EFFECT_KEYS = [
+  'towerLifestealPct',
+  'missingHpBuffPerPct',
+  'missingHpBuffCap',
+  'vsLifestealPct',
+  'overhealGoldRatio',
+  'tdSlowRadius',
+  'tdSlowPct',
+  'vsSpeedPct',
+  'devourRadius',
+  'devourCooldown',
+  'devourEliteDamage',
+  'devourCoreHeal',
+  'poisonVolleyInterval',
+  'poisonStacksPerBullet',
+  'poisonVolleyCap',
+  'poisonBulletDamage',
+  'corpseStoreRatio',
+  'corpseExecuteInterval',
+  'corpseExplodeRadius',
+  'vsXpGainPct',
+] as const;
+
 const CoreUpgradeSchema = z
   .object({
     count: z.number().int().min(0),
     stepCost: num,
     desc: str,
     /** Per-step numeric deltas, index 0 = step 1. May be shorter than `count`. */
-    steps: z.array(z.record(z.string(), z.number())).optional(),
+    steps: z.array(recordWithKeys(CORE_STEP_KEYS)).optional(),
   })
   .strict();
 
@@ -798,11 +985,11 @@ const CoreSchema = z
     unlockQuest: str.nullable(),
     upgrade: CoreUpgradeSchema,
     /** Always-on base numbers, live the instant the Core is chosen — no step required. */
-    effects: z.record(z.string(), z.number()).optional(),
+    effects: recordWithKeys(CORE_EFFECT_KEYS).optional(),
   })
   .strict();
 
-const CoresFileSchema = z.object({ cores: z.array(CoreSchema) });
+const CoresFileSchema = z.object({ cores: uniqueArray(CoreSchema, ['key']) });
 
 /* --------------------------------------------------------------- equipment */
 
@@ -830,9 +1017,9 @@ const EquipmentItemSchema = z
     key: str,
     slot: str,
     name: str,
-    mods: z.record(num).default({}),
+    mods: statRecord().default({}),
     effectKey: z.enum(['none', 'sleeve_sword', 'swordsman_armor', 'swordsman_shoes']).default('none'),
-    classFallback: z.object({ notClassKey: str, mods: z.record(num) }).optional(),
+    classFallback: z.object({ notClassKey: str, mods: statRecord() }).optional(),
     desc: str,
   })
   .strict();
@@ -840,7 +1027,7 @@ const EquipmentItemSchema = z
 const EquipmentFileSchema = z
   .object({
     slots: z.array(str),
-    items: z.array(EquipmentItemSchema),
+    items: uniqueArray(EquipmentItemSchema, ['key']),
   })
   .strict();
 
@@ -1305,7 +1492,7 @@ const DamageTypesFileSchema = z.object({
    * per-enemy array in the hot loop, and that budget is shared.
    */
   maxStacksPerEnemy: num.int().min(1),
-  types: z.array(DamageTypeSchema),
+  types: uniqueArray(DamageTypeSchema, ['key']),
   statuses: z.object({ frost: DamageStatusSchema, frozen: DamageStatusSchema }),
   /**
    * fb005: Corpse Core's execution kill (§5.5) is the only "instant, larger,
@@ -1321,7 +1508,8 @@ const DamageTypesFileSchema = z.object({
 /* ------------------------------------------------------------------ quests */
 
 const QuestsFileSchema = z.object({
-  quests: z.array(
+  /** b013/E4/E7: a duplicate `key` would collapse a class's own unlock quest onto the wrong reward; an empty log would leave every non-free class permanently unobtainable. */
+  quests: uniqueArray(
     z.object({
       key: str,
       name: str,
@@ -1331,6 +1519,7 @@ const QuestsFileSchema = z.object({
       compare: z.enum(['gte', 'lte']),
       reward: z.object({ kind: str, value: str }),
     }),
+    ['key'],
   ),
 });
 
@@ -1585,6 +1774,15 @@ export const TUNER_FILES: TunerFileEntry[] = [
   { key: 'warden', fileName: 'warden.json', schema: WardenFileSchema },
 ];
 
+/**
+ * See the E1 loop inside `loadContent` below. `palisade` (src/bots/policies.ts,
+ * a non-null-asserted `towerByKey.get`) is pinned directly rather than left to
+ * ride on classes.json's Cryomancer `active2.towerKey` cross-check, which
+ * references the same key today but isn't this census's guarantee to depend on.
+ */
+const REQUIRED_TOWER_KEYS = ['harvest_sprout', 'palisade'] as const;
+const REQUIRED_DAMAGE_TYPE_KEYS = ['burning', 'poison'] as const;
+
 let cached: Content | null = null;
 
 export function loadContent(overrides?: ContentOverrides): Content {
@@ -1607,6 +1805,24 @@ export function loadContent(overrides?: ContentOverrides): Content {
   // Cross-file referential integrity: a typo in /data must fail loudly at load.
   const towerKeys = new Set(towers.towers.map((t) => t.key));
   const enemyKeys = new Set(enemies.enemies.map((e) => e.key));
+
+  // b013/E1: content keys `/src` reads by string literal, with no other
+  // cross-file check to catch a rename — a short, hand-maintained census of
+  // the actual `.get('literal')`/`['literal']` call sites, not a generic
+  // static-analysis pass. `harvest_sprout` (src/bots/policies.ts) is E1's own
+  // probe; `burning`/`poison` (src/sim/combat.ts, src/sim/cores.ts) are the
+  // same shape on `damagetypes.json`.
+  for (const key of REQUIRED_TOWER_KEYS) {
+    if (!towerKeys.has(key)) {
+      throw new Error(`towers.json: "${key}" is renamed or missing, but /src references it by literal`);
+    }
+  }
+  const damageTypeKeys = new Set(damageTypes.types.map((d) => d.key));
+  for (const key of REQUIRED_DAMAGE_TYPE_KEYS) {
+    if (!damageTypeKeys.has(key)) {
+      throw new Error(`damagetypes.json: "${key}" is renamed or missing, but /src references it by literal`);
+    }
+  }
 
   for (const w of waves.waves) {
     for (const g of w.groups) {

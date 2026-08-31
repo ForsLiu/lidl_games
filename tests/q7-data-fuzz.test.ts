@@ -286,12 +286,28 @@ describe('q7 — the /data import seam', () => {
     dirty = true;
     expect(scanContent(good)).toEqual([]);
 
-    // A duplicated tower row: eleven rows, ten keys — the earlier one is gone.
+    // A duplicated tower row (eleven rows, ten keys) is b013/E4's own case —
+    // the loader now refuses it outright, so `scanContent` never sees it via
+    // `loadContent()` any more. `scanContent`'s collision detector is unit
+    // tested directly, on a hand-built fixture, so its own logic stays
+    // covered independent of whether the loader still lets one through.
     const dup = pristine('towers') as { towers: JsonValue[] };
     dup.towers.push(dup.towers[0]);
     const r = await load('towers', dup as unknown as JsonValue);
-    expect(r.outcome).toBe('accepted');
-    expect(scanContent(r.content).join('\n')).toMatch(/rows collapse to/);
+    expect(r.outcome).toBe('rejected');
+
+    const row = { key: 'dup', cost: 10, hp: 100, attack: null };
+    const fixture = {
+      towers: { towers: [row, row] },
+      enemies: { enemies: [] },
+      towerByKey: new Map([['dup', row]]),
+      towerById: new Map([[0, row]]),
+      enemyByKey: new Map(),
+      enemyById: new Map(),
+      tree: { nodes: [] },
+      treeById: new Map(),
+    };
+    expect(scanContent(fixture).join('\n')).toMatch(/rows collapse to/);
   });
 
   it('the effectiveness predicate can be false, so the ineffective count is not decoration', () => {
@@ -357,17 +373,15 @@ describe('q7 — every field, every wrong shape', () => {
     expect([...ineffective].sort()).toEqual([...INEFFECTIVE].sort());
   }, 300_000);
 
-  it('refuses a wrong *type* almost everywhere — the exceptions are two unschemad fields', async () => {
+  it('refuses a wrong *type* everywhere — b013/E5 closed the last two unschemad fields', async () => {
     const { trials } = await runCensusA();
     const TYPE_FAMILIES: Family[] = ['to-null', 'to-number', 'to-bool', 'to-array', 'to-object'];
     const accepted = trials
       .filter((t) => t.outcome === 'accepted' && TYPE_FAMILIES.includes(t.family))
       .map((t) => t.path);
-    // `tree.nodes[].angle` and `.ring` are authored in /data and absent from
-    // `TreeNodeSchema`, which is not `.strict()` — so zod drops them and every
-    // shape is "fine". Filed as E5. Everything else in 1,900-odd wrong-type
-    // trials is refused, which is the half of the loader that works.
-    expect([...new Set(accepted)].sort()).toEqual(['tree.nodes[].angle', 'tree.nodes[].ring']);
+    // `tree.nodes[].angle` and `.ring` are now named on `TreeNodeSchema` (E5),
+    // so every wrong-type trial in the whole census is refused.
+    expect([...new Set(accepted)].sort()).toEqual([]);
   }, 300_000);
 
   it('has no numeric range guard worth the name — this is the headline (E2)', async () => {
@@ -376,24 +390,31 @@ describe('q7 — every field, every wrong shape', () => {
       const rows = trials.filter((t) => t.family === f);
       return rows.filter((t) => t.outcome === 'accepted').length / rows.length;
     };
-    // Measured 2026-08-26: negative 0.93, zero 0.97, infinite 0.95, fractional
-    // 0.95. Pinned as floors, not equalities, so this test *falls* when someone
-    // starts adding guards — at which point the recorded holes above name every
-    // field still missing one.
-    expect(rate('negative')).toBeGreaterThan(0.85);
+    // Measured 2026-08-26 (pre-b013): negative 0.93, zero 0.97, infinite 0.95,
+    // fractional 0.95. b013 (E2/E3) added a shared `.finite()` on every /data
+    // number plus targeted `.positive()`/`.nonnegative()` guards, so the floor
+    // that fell hardest is `infinite` — measured 2026-08-30 at exactly 0, since
+    // every numeric field in every file routes through the one `num` alias.
+    // `negative`/`zero`/`fractional` fell more modestly (0.88/0.93/0.96 —
+    // `positive()`/`nonnegative()` only cover the handful of fields this item's
+    // acceptance named) and stay pinned as floors for the same reason as before:
+    // this test *falls* again the next time someone adds a guard.
+    expect(rate('negative')).toBeGreaterThan(0.8);
     expect(rate('zero')).toBeGreaterThan(0.85);
-    expect(rate('infinite')).toBeGreaterThan(0.85);
-    expect(rate('fractional')).toBeGreaterThan(0.85);
+    expect(rate('infinite')).toBe(0);
+    expect(rate('fractional')).toBeGreaterThan(0.9);
   }, 300_000);
 
   it('builds unpayable worlds from data it accepted', async () => {
     const { trials } = await runCensusA();
     const bad = trials.filter((t) => t.outcome === 'accepted' && t.complaints.length > 0);
-    const kinds = new Set(bad.flatMap((t) => t.complaints.map((c) => c.replace(/^.*?(is not finite|rows collapse to \d+ keys|is not > 0|is negative)$/, '$1'))));
-    expect(bad.length).toBeGreaterThan(250);
-    expect([...kinds].some((k) => k === 'is not finite')).toBe(true);
-    expect([...kinds].some((k) => k.startsWith('rows collapse to'))).toBe(true);
-    expect([...kinds].some((k) => k === 'is not > 0')).toBe(true);
+    // b013 closed every complaint kind `scanContent` knows how to name (finite,
+    // id/key collisions, tower/enemy hp/interval/range/cost) at the loader
+    // itself, so nothing accepted is unpayable by this scan's own definition
+    // any more. Pinned at exactly 0 rather than deleted, on the same "a floor
+    // that falls is the fix working" precedent as the rate test above — a
+    // regression here means one of those guards quietly stopped firing.
+    expect(bad.length).toBe(0);
   }, 300_000);
 
   it('writes nothing to /data', async () => {
@@ -570,16 +591,19 @@ async function probe(p: Probe): Promise<ProbeResult> {
   return out;
 }
 
-describe('q7 — what accepted data does to a running game', () => {
-  it('a renamed tower key loads clean and then crashes the engine (E1)', async () => {
-    // This probe originally renamed `palisade`, which is now *caught*: P6's
-    // classes.json points Cryomancer's Ice Wall at it via `active2.towerKey`,
-    // so the loader rejects the rename ("classes.json: cryomancer.Ice Wall
-    // refs ..."). The hole itself is still open — census B scores
-    // `towers.towers[].key` partial (3/10 rows accepted) — so the probe moves
-    // to `harvest_sprout`: referenced by no other /data file, yet
-    // `src/bots/policies.ts:271` does `towerByKey.get('harvest_sprout')!` and
-    // the greedy policy (openingSprouts: 4) reads `.id` off the undefined.
+describe('q7 — what used-to-be-accepted data now does at load (b013 closed E1/E2/E3/E6)', () => {
+  // Every probe below used to build a running game out of one of these six
+  // mutations and document what broke *downstream*. b013 closes the loader
+  // hole each one rode in on, so the interesting fact changed: the mutation
+  // no longer reaches `new sim.Run(...)` at all. Kept as regressions (not
+  // deleted) so a future loosening of the schema is caught here first,
+  // before it is caught by a bot crashing three minutes into a run.
+
+  it('a renamed tower key is now refused at load (E1)', async () => {
+    // Was: `src/bots/policies.ts:271`'s `towerByKey.get('harvest_sprout')!`
+    // threw `Cannot read properties of undefined` once the greedy policy's
+    // opening build reached it. Now: `REQUIRED_TOWER_KEYS` (content.ts)
+    // refuses the rename before the run is ever constructed.
     const r = await probe({
       name: 'harvest_sprout renamed',
       file: 'towers',
@@ -588,10 +612,13 @@ describe('q7 — what accepted data does to a running game', () => {
         towers.find((t) => t.key === 'harvest_sprout')!.key = 'money_plant';
       },
     });
-    expect(r.threw).toMatch(/Cannot read properties of undefined/);
+    expect(r.threw).toMatch(/harvest_sprout/);
+    expect(r.done).toBe(false);
   }, 120_000);
 
-  it('an Infinity in /data reaches the end report (E3)', async () => {
+  it('an Infinity tower damage is now refused at load (E3)', async () => {
+    // Was: reached `report.damageTotal` (b008 already caught the hit itself,
+    // but not the load). Now: the shared `num` alias is `.finite()`.
     const r = await probe({
       name: 'arrow_spire damage Infinity',
       file: 'towers',
@@ -600,20 +627,12 @@ describe('q7 — what accepted data does to a running game', () => {
         towers.find((t) => t.key === 'arrow_spire')!.attack.damage = INFINITE;
       },
     });
-    expect(r.threw).toBe('');
-    // G18 asks a run to be reproducible from its report; a report carrying
-    // Infinity is one no telemetry sink can hold and no sweep can average.
-    // Before BACKLOG b008, `damageEnemy`'s `amount <= 0` guard let this
-    // Infinity hit through (`Infinity <= 0` is false), poisoning
-    // `report.damageTotal`. b008 added a finiteness check to that guard, so
-    // the Infinity hit is now dropped before it ever reaches the report —
-    // the corruption still surfaces, but earlier and more precisely, as a
-    // world-level violation on the wielded attack itself.
+    expect(r.threw.length).toBeGreaterThan(0);
     expect(r.reportViolations).toEqual([]);
-    expect(r.worldViolations.join('\n')).toMatch(/wielded\.arrow_spire\.damage=Infinity/);
+    expect(r.worldViolations).toEqual([]);
   }, 120_000);
 
-  it('an Infinity enemy sheet makes the wave unkillable and ends the run (E3)', async () => {
+  it('an Infinity enemy sheet is now refused at load (E3)', async () => {
     const r = await probe({
       name: 'husk hp Infinity',
       file: 'enemies',
@@ -622,12 +641,12 @@ describe('q7 — what accepted data does to a running game', () => {
         enemies.find((e) => e.key === 'husk')!.hp = INFINITE;
       },
     });
-    expect(r.threw).toBe('');
-    expect(r.done).toBe(true);
-    expect(r.worldViolations.join('\n')).toMatch(/enemy#\d+\.hp=Infinity/);
+    expect(r.threw.length).toBeGreaterThan(0);
+    expect(r.done).toBe(false);
+    expect(r.worldViolations).toEqual([]);
   }, 120_000);
 
-  it('an Infinity Warden sheet makes the Warden unkillable (E3)', async () => {
+  it('an Infinity Warden sheet is now refused at load (E3)', async () => {
     const r = await probe({
       name: 'warden maxHp Infinity',
       file: 'warden',
@@ -635,11 +654,11 @@ describe('q7 — what accepted data does to a running game', () => {
         (root as unknown as { maxHp: number }).maxHp = INFINITE;
       },
     });
-    expect(r.threw).toBe('');
-    expect(r.worldViolations.join('\n')).toMatch(/derived\.maxHp=Infinity/);
+    expect(r.threw.length).toBeGreaterThan(0);
+    expect(r.worldViolations).toEqual([]);
   }, 120_000);
 
-  it('a zero attack interval is accepted and fires every tick, but breaks no invariant (E2)', async () => {
+  it('a zero attack interval is now refused at load (E2)', async () => {
     const r = await probe({
       name: 'arrow_spire interval 0',
       file: 'towers',
@@ -648,22 +667,12 @@ describe('q7 — what accepted data does to a running game', () => {
         towers.find((t) => t.key === 'arrow_spire')!.attack.interval = 0;
       },
     });
-    // Recorded exactly, because the tempting write-up is wrong: `updateTowers`
-    // has no inner loop, so interval 0 is one shot per tick — a 90x-rate tower,
-    // not a hang and not a NaN. The defect is the missing guard, not a crash.
-    // Post-merge, the §6.1 wielded set (VS attacks derived from the live board)
-    // recomputes from the same authored interval, and `tools/invariants.ts`'s
-    // wielded scan names it — the one trace the zero leaves in a 6-minute run.
-    expect(r.threw).toBe('');
-    expect(r.worldViolations).toEqual(['wielded.arrow_spire.interval=0 is not positive']);
+    expect(r.threw.length).toBeGreaterThan(0);
+    expect(r.worldViolations).toEqual([]);
     expect(r.reportViolations).toEqual([]);
   }, 120_000);
 
-  it('a stat key /data invents loads clean and then buys nothing (E6)', async () => {
-    // The failure `SPECIAL_KEYS` was made an enum to prevent — "a typo is a load
-    // error instead of a step that silently buys nothing, which is the failure
-    // m19a's orphaned shredArmor shipped as" (src/sim/content.ts) — is still
-    // open on every `z.record(num)` whose keys are stat names.
+  it('a stat key /data invents is now refused at load, not silently no-op (E6)', async () => {
     const root = pristine('tree') as { nodes: { id: number; stats: Record<string, number> }[] };
     const node = root.nodes.find((n) => Object.keys(n.stats).length > 0)!;
     const key = Object.keys(node.stats)[0];
@@ -671,21 +680,10 @@ describe('q7 — what accepted data does to a running game', () => {
     delete node.stats[key];
 
     const r = await load('tree', root as unknown as JsonValue);
-    expect(r.outcome).toBe('accepted');
-
-    // It reached the engine — this is not a mutation zod quietly dropped...
-    const loaded = (r.content as { treeById: Map<number, { stats: Record<string, number> }> }).treeById.get(node.id)!;
-    expect(Object.keys(loaded.stats)).toContain(`${key}${GARBAGE}`);
-
-    // ...and `Stats.addAll` skips every key not in `STAT_KEYS`, so the node now
-    // grants nothing. Read from the module rather than restated, so a rename in
-    // `src/sim/stats.ts` cannot leave this assertion true and meaningless.
-    const stats = await import('../src/sim/stats');
-    expect(stats.STAT_KEYS as readonly string[]).toContain(key);
-    expect(stats.STAT_KEYS as readonly string[]).not.toContain(`${key}${GARBAGE}`);
+    expect(r.outcome).toBe('rejected');
   }, 120_000);
 
-  it('a zero-hp enemy sheet is accepted and breaks no invariant either (E2)', async () => {
+  it('a zero-hp enemy sheet is now refused at load (E2)', async () => {
     const r = await probe({
       name: 'husk hp 0',
       file: 'enemies',
@@ -694,7 +692,7 @@ describe('q7 — what accepted data does to a running game', () => {
         enemies.find((e) => e.key === 'husk')!.hp = 0;
       },
     });
-    expect(r.threw).toBe('');
+    expect(r.threw.length).toBeGreaterThan(0);
     expect(r.worldViolations).toEqual([]);
   }, 120_000);
 });
@@ -708,7 +706,7 @@ describe('q7 — what accepted data does to a running game', () => {
  * by unskipping it. Unskip with the fix. Full write-ups: BACKLOG-QUALITY.md Log.
  */
 describe('q7 — filed defects (unskip with the fix)', () => {
-  it.skip('E1 — the loader refuses a content key that /src names by string literal', async () => {
+  it('E1 — the loader refuses a content key that /src names by string literal', async () => {
     // Originally pinned on `palisade`, which classes.json now references and
     // the loader now refuses — so the pin moves to `harvest_sprout`, still
     // accepted today and still read by literal at src/bots/policies.ts:271.
@@ -718,7 +716,7 @@ describe('q7 — filed defects (unskip with the fix)', () => {
     expect(r.outcome).toBe('rejected');
   });
 
-  it.skip('E2 — the loader refuses a non-positive interval, range, hp or cost', async () => {
+  it('E2 — the loader refuses a non-positive interval, range, hp or cost', async () => {
     const cases: [string, (t: Record<string, never>) => void][] = [
       ['interval 0', (t) => void ((t as unknown as { attack: { interval: number } }).attack.interval = 0)],
       ['range 0', (t) => void ((t as unknown as { attack: { range: number } }).attack.range = 0)],
@@ -733,28 +731,28 @@ describe('q7 — filed defects (unskip with the fix)', () => {
     }
   });
 
-  it.skip('E3 — the loader refuses a non-finite number anywhere in /data', async () => {
+  it('E3 — the loader refuses a non-finite number anywhere in /data', async () => {
     const root = pristine('towers') as { towers: { key: string; attack: { damage: number } }[] };
     root.towers.find((t) => t.key === 'arrow_spire')!.attack.damage = INFINITE;
     const r = await load('towers', root as unknown as JsonValue);
     expect(r.outcome).toBe('rejected');
   });
 
-  it.skip('E4 — the loader refuses duplicate ids and keys instead of collapsing them', async () => {
+  it('E4 — the loader refuses duplicate ids and keys instead of collapsing them', async () => {
     const root = pristine('towers') as { towers: JsonValue[] };
     root.towers.push(root.towers[0]);
     const r = await load('towers', root as unknown as JsonValue);
     expect(r.outcome).toBe('rejected');
   });
 
-  it.skip('E5 — tree.json authors angle and ring, so TreeNodeSchema names them', async () => {
+  it('E5 — tree.json authors angle and ring, so TreeNodeSchema names them', async () => {
     const root = pristine('tree') as { nodes: { angle?: unknown; ring?: unknown }[] };
     root.nodes[0].angle = 'not a number';
     const r = await load('tree', root as unknown as JsonValue);
     expect(r.outcome).toBe('rejected');
   });
 
-  it.skip('E6 — a stat key /data invents is a load error, not a silent no-op', async () => {
+  it('E6 — a stat key /data invents is a load error, not a silent no-op', async () => {
     // Several authoring paths write into a `z.record(num)` whose keys are read
     // by name against `STAT_KEYS`. `tree.nodes[].stats` is the one asserted
     // here; `classes[].mods`, `boons[].stat`, `equipment[].mods` and
@@ -769,7 +767,7 @@ describe('q7 — filed defects (unskip with the fix)', () => {
     expect(r.outcome).toBe('rejected');
   });
 
-  it.skip('E7 — the loader refuses an empty roster, wave list, tree or quest log', async () => {
+  it('E7 — the loader refuses an empty roster, wave list, tree or quest log', async () => {
     for (const [file, key] of [['waves', 'waves'], ['tree', 'nodes'], ['quests', 'quests']] as const) {
       const root = pristine(file) as Record<string, JsonValue>;
       root[key] = [];

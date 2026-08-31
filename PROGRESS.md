@@ -5,6 +5,53 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-31 session: BACKLOG b013 closed — the `/data` loader now refuses
+  unpayable data across all six holes E2–E7, plus E1's key-reference census —
+  commit pending in this change.** A shared `num` zod alias in
+  `src/sim/content.ts` is now `.finite()` everywhere (E3), with targeted
+  `.positive()`/`.nonnegative()` added to tower/enemy hp/cost/interval/range
+  and class attack dps/interval/range/`cooldownSeconds` (E2); a new
+  `uniqueArray` helper refuses a duplicate key/id on every top-level roster —
+  towers, enemies, tree nodes, classes, cores, equipment, quests, damage
+  types, boons, modifiers (E4); `waves.waves`/`tree.nodes`/`quests.quests`
+  gain `.min(1)` (E7); `TreeNodeSchema` names `angle`/`ring` and turns
+  `.strict()` (E5); a new `statRecord`/`recordWithKeys` pair refuses an
+  unknown/misspelled key on every record read back by name — tree `stats`,
+  class passive `mods`, equipment `mods`, a boon's `stat`, plus `cores.json`'s
+  `effects`/`upgrade.steps` and `modifiers.json`'s `effect`, which are a fixed
+  dispatch table rather than a `Stats` record (E6); and a small
+  hand-maintained required-key census (`REQUIRED_TOWER_KEYS`,
+  `REQUIRED_DAMAGE_TYPE_KEYS`) throws if a `/src` string-literal reference
+  (`harvest_sprout`, `palisade`, `burning`, `poison`) is renamed out from under
+  it (E1). `STAT_KEYS`/`STAT_KIND` moved out to a new `src/sim/statkeys.ts`
+  (byte-identical, re-exported from `stats.ts` unchanged) so `content.ts` can
+  validate against the stat-key set without an import cycle (`stats.ts`
+  itself imports `wardenBase`/`Content` from `content.ts`). All 36 of
+  `tests/q7-data-fuzz.test.ts`'s E1–E7 cases are unskipped and green, and its
+  generated `tests/q7-loader-holes.ts` artefact is regenerated to match — the
+  headline census number moved from 4,394/2,221 (rejected/accepted) to
+  4,955/1,660. code-reviewer (**APPROVE**, no Critical/Major): independently
+  verified `CORE_STEP_KEYS`/`CORE_EFFECT_KEYS`/`CLASS_PASSIVE_BESPOKE_MOD_KEYS`/
+  `MODIFIER_EFFECT_KEYS` against every actual reader in `src/`, confirmed the
+  `statkeys.ts` extraction is byte-for-byte, and confirmed `radius.nonnegative()`
+  (not `.positive()`) on `ClassEffectSchema` matches 8 real `classes.json` rows
+  that author `radius: 0` — two Minors logged (the required-key census has no
+  static-analysis backstop against a future `/src` literal reference, and the
+  positive/nonnegative coverage is deliberately narrow, not exhaustive over
+  every numeric `/data` field). qa-playtester (**PASS**): independently
+  hand-verified 11/11 adversarial mutations rejected at `loadContent()`
+  (negative/zero/Infinite tower cost/hp, duplicate tower key, misspelled
+  tree-node stat key, empty `waves`, misspelled `cores.effects` key, non-string
+  `angle`, negative enemy hp, duplicate class key, negative attack interval);
+  the four `test:fast` failures seen in the full run (b032/b034/b035/b036 fold
+  tests, q49) reproduced as pre-existing Windows port-contention/file-lock
+  flakes, green in isolation, unrelated to this diff. QA also filed one
+  non-blocking finding: fixing E5 (naming `angle`/`ring`, `.strict()`) makes
+  those two fields survive parsing where they used to be silently zod-stripped,
+  which moves `contentHash()` on unmodified `/data` alone and will fail a
+  pre-existing save/replay's content-hash check once — logged as **b044** with
+  its own regression-test acceptance criteria, since it doesn't fail b013's own
+  acceptance and a fresh save/replay is unaffected.
 - **2026-08-31 session: BACKLOG b012 closed — a damaged save wrapper now
   throws distinguishably from "no save at all," and a duplicated skill-tree
   node id in `allocated` no longer triple-charges — commit `0919a42`.**
