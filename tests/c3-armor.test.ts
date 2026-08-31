@@ -322,6 +322,24 @@ describe('C3 — degenerate inputs', () => {
     expect(damageEnemy(w, e, 0, 'test')).toBe(0);
     expect(damageEnemy(w, e, -5, 'test')).toBe(0);
   });
+
+  it('BACKLOG b008: non-finite amount (NaN, +Infinity, -Infinity) is dropped, not applied — hp, damageTotal and damageByWeapon stay untouched', () => {
+    // Before b008, `e.dead || amount <= 0` did not catch NaN (`NaN <= 0` is
+    // false) or +Infinity (`Infinity <= 0` is false): a NaN hit set `e.hp` to
+    // NaN forever (permanently unkillable, since `hp <= 0` is then also
+    // always false) and poisoned `w.damageTotal`; +Infinity killed cleanly
+    // but left `w.damageTotal` at Infinity. One case per sign, per BACKLOG b008.
+    for (const amount of [NaN, Infinity, -Infinity]) {
+      const w = world();
+      const e = spawnEnemy(w, 'husk', 10, 10)!;
+      const hpBefore = e.hp;
+      expect(damageEnemy(w, e, amount, 'test'), `amount=${amount}`).toBe(0);
+      expect(e.hp, `amount=${amount}`).toBe(hpBefore);
+      expect(e.dead, `amount=${amount}`).toBe(false);
+      expect(w.damageTotal, `amount=${amount}`).toBe(0);
+      expect(w.damageByWeapon.test, `amount=${amount}`).toBeUndefined();
+    }
+  });
 });
 
 describe('C3 — shred does not outlive the body', () => {

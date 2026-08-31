@@ -593,7 +593,7 @@ were not re-filed. Ordering within this section is by severity, not P-band.
       Playwright fold tests b032/b034/b035/b036, and Windows EPERM temp-scratch
       cleanup races in q28/q49, documented flaky elsewhere) — refs: §12 rule 2,
       G17, BACKLOG-QUALITY q15. Commit `73457c2`.
-- [ ] (b008) [bug] `damageEnemy`'s `amount <= 0` guard passes `NaN`, making the enemy
+- [x] (b008) [bug] `damageEnemy`'s `amount <= 0` guard passes `NaN`, making the enemy
       permanently immortal (`e.hp -= NaN`, every later `e.hp <= 0` false) and
       poisoning `damageTotal`/`damageByWeapon` for the rest of the run; `+Infinity`
       kills cleanly but leaves `damageTotal = Infinity`. The old grantWeapon source
@@ -601,7 +601,45 @@ were not re-filed. Ordering within this section is by severity, not P-band.
       wielded-tower path (re-proven by the ported q21 fuzz via a NaN `Structure.tier`)
       — acceptance: non-finite damage is dropped (or clamped) at `damageEnemy`'s
       guard with a regression test per sign — refs: §12, G17's zero-NaN clause,
-      BACKLOG-QUALITY q34
+      BACKLOG-QUALITY q34.
+      Fixed: `damageEnemy`'s (`src/sim/enemies.ts`) guard is now
+      `if (e.dead || !Number.isFinite(amount) || amount <= 0) return 0;` — a
+      non-finite hit is dropped as a clean no-op before it can touch `e.hp`,
+      `w.damageTotal` or `w.damageByWeapon`, mirroring b006's
+      `Number.isFinite` precedent. `tests/c3-armor.test.ts` adds a direct
+      regression covering all three non-finite signs (NaN, +Infinity,
+      -Infinity), asserting `hp`/`dead`/`damageTotal`/`damageByWeapon` all
+      stay untouched. The q21 fuzz's pinned "NaN Structure.tier" finding
+      (a wielded tower with `tier: NaN` producing NaN damage) is rewritten
+      from a pinned-bug assertion to a pinned-fix assertion — hp and
+      damageTotal now stay clean across repeated ticks instead of going NaN
+      forever. q7's data-fuzz "Infinity in /data reaches the end report"
+      case changes what it measures, correctly: the Infinity hit no longer
+      poisons `report.damageTotal` (that assertion is now `reportViolations:
+      []`), and the corruption instead surfaces earlier and more precisely
+      as a `worldViolations` entry on the wielded attack itself
+      (`wielded.arrow_spire.damage=Infinity`) — verified by running the
+      probe directly and reading its actual output before updating the
+      assertion. code-reviewer (**APPROVE**): guard placement is correct —
+      `Number.isFinite` runs before any multiplier is applied, so a finite
+      `amount` cannot become non-finite `dmg` through this function; no
+      other in-sim call site relies on non-finite `amount` passing through;
+      no architecture-rule or determinism issues (sim-only numeric guard).
+      Flagged (non-blocking) that `damageWarden`/`damageStructure` have the
+      identical unfixed bug class — filed as **b043**. qa-playtester
+      (**PASS**): traced every `damageEnemy` call site (DoT ticks, Burning/
+      plague splash, cores.ts, boss slam, class actives) — all route through
+      the one guarded function, so the fix is uniform; confirmed dropping a
+      corrupted hit does not softlock wave clear (an enemy carrying one
+      corrupted hit still dies from any other legitimate hit); confirmed
+      legitimate finite values (0, negative, tiny positive, `1e15`) are
+      unaffected. Independently reproduced the `damageWarden`/
+      `damageStructure` gap twice, matching code-reviewer's finding (folded
+      into b043). `npx vitest run tests/c3-armor.test.ts
+      tests/q21-weapon-boundary-fuzz.test.ts tests/q7-data-fuzz.test.ts` —
+      95 passed, 7 skipped, 0 failed. `npm run test:fast`: 1701 passed, 30
+      skipped; only the 4 pre-existing documented Playwright fold flakes
+      (b032/b034/b035/b036) red — no new regressions.
 - [ ] (b009) [bug] `Hasher.int`'s `v | 0` collapses `NaN`/`±Infinity` to the same
       hash as `0`, so the determinism hash cannot see non-finite corruption — a
       replay of a NaN-poisoned run reads as clean. Fold a finiteness sentinel into
@@ -998,6 +1036,18 @@ because the lane worktree retires at this merge.
       made unreachable; `archivist` is repointed at `max_equipment_dupes`
       (own 3 of the same equipment item at once) — refs: p7d, fb015, fb023,
       QUESTIONS Q143.
+- [ ] (b043) [bug] `damageWarden` (`src/sim/run.ts`) and `damageStructure`
+      (`src/sim/enemies.ts`) both write `wd.hp -=`/`s.hp -=` with no finite
+      guard at all — the same immortality class b008 closed for
+      `damageEnemy`, unfixed on its two mirror-image functions. A NaN
+      `amount` (e.g. a corrupted boss-attack or Time Flow DoT stack) pins
+      `wd.hp`/`s.hp` at NaN forever (`hp <= 0` then always false), and
+      `damageWarden` additionally feeds `amount`/`dmg` into `storeWrath`
+      unguarded. Found by code-reviewer and independently reproduced twice
+      by qa-playtester while verifying b008 (2026-08-31) — acceptance: both
+      functions gain a `Number.isFinite` guard (precedent: b008's
+      `damageEnemy` guard, `Stats.add`), with a regression test per
+      function covering NaN/+Infinity/-Infinity — refs: §12 rule 2, b008.
 
 ## Retired from the queue by SPEC-FINAL
 

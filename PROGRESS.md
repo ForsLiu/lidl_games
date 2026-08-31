@@ -5,6 +5,50 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-31 session: BACKLOG b008 closed — a `Number.isFinite` guard on
+  `damageEnemy` stops non-finite damage from permanently corrupting an
+  enemy or the run's damage telemetry.** `damageEnemy`'s (`src/sim/enemies.ts`)
+  `e.dead || amount <= 0` guard did not catch `NaN` (`NaN <= 0` is false):
+  `e.hp -= NaN` set hp to NaN forever, and since `hp <= 0` is then also
+  always false, the enemy could never die again — permanently immortal;
+  `+Infinity` killed cleanly but left `w.damageTotal`/`w.damageByWeapon`
+  poisoned at `Infinity` for the rest of the run. Reachable in practice
+  through the wielded-tower path (a NaN `Structure.tier` — the deleted
+  soul-weapon `grantWeapon` source is gone, but the sink is unchanged).
+  Fixed with `if (e.dead || !Number.isFinite(amount) || amount <= 0) return
+  0;` — a non-finite hit is now dropped as a clean no-op before touching
+  `e.hp`, `w.damageTotal` or `w.damageByWeapon`, the same
+  `Number.isFinite` precedent b006 used. `tests/c3-armor.test.ts` adds a
+  direct regression covering all three non-finite signs (NaN, +Infinity,
+  -Infinity). Two existing pinned-bug tests were rewritten to pinned-fix
+  assertions rather than deleted: the q21 fuzz's "NaN Structure.tier"
+  finding (hp/damageTotal now stay clean across repeated ticks instead of
+  going NaN forever) and q7's data-fuzz "Infinity in /data reaches the end
+  report" case (the Infinity hit no longer poisons `report.damageTotal` —
+  `reportViolations` is now empty, and the corruption instead surfaces
+  earlier and more precisely as a `worldViolations` entry on the wielded
+  attack itself, verified by running the probe directly and reading its
+  actual output before updating the assertion). code-reviewer
+  (**APPROVE**): guard placement is correct (checked before any multiplier
+  is applied, so a finite `amount` cannot become non-finite `dmg` through
+  this function), no other in-sim call site relies on non-finite `amount`
+  passing through, no architecture-rule/determinism issues; flagged
+  (non-blocking) that `damageWarden`/`damageStructure` have the identical
+  unfixed bug class — filed as **b043**. qa-playtester (**PASS**): traced
+  every `damageEnemy` call site (DoT ticks, Burning/plague splash,
+  cores.ts, boss slam, class actives) — all route through the one guarded
+  function; confirmed dropping a corrupted hit does not softlock wave
+  clear; confirmed legitimate finite values (0, negative, tiny positive,
+  `1e15`) are unaffected; independently reproduced the
+  `damageWarden`/`damageStructure` gap twice, matching code-reviewer's
+  finding (folded into b043). Targeted tests: 95 passed, 7 skipped, 0
+  failed. `npm run test:fast`: 1701 passed, 30 skipped; only the 4
+  pre-existing documented Playwright fold flakes (b032/b034/b035/b036) red
+  — no new regressions. P0–P10 remain otherwise as the prior session left
+  them: gates **G8, G14 and most of G23 still read red** (the
+  wave-11-to-17 content wall p10i documented) — 1.0-complete is not yet
+  reached.
+
 - **2026-08-31 session: BACKLOG b007 closed — bounds/integer guards on
   `Grid.buildable` and `World.structureAt` close a tile-coordinate aliasing
   bug — commit `90355f0`.** `World.structureAt` (`src/sim/world.ts`) indexed `grid.occ` via

@@ -603,7 +603,14 @@ describe('q7 — what accepted data does to a running game', () => {
     expect(r.threw).toBe('');
     // G18 asks a run to be reproducible from its report; a report carrying
     // Infinity is one no telemetry sink can hold and no sweep can average.
-    expect(r.reportViolations.join('\n')).toMatch(/report\.damageTotal=Infinity/);
+    // Before BACKLOG b008, `damageEnemy`'s `amount <= 0` guard let this
+    // Infinity hit through (`Infinity <= 0` is false), poisoning
+    // `report.damageTotal`. b008 added a finiteness check to that guard, so
+    // the Infinity hit is now dropped before it ever reaches the report —
+    // the corruption still surfaces, but earlier and more precisely, as a
+    // world-level violation on the wielded attack itself.
+    expect(r.reportViolations).toEqual([]);
+    expect(r.worldViolations.join('\n')).toMatch(/wielded\.arrow_spire\.damage=Infinity/);
   }, 120_000);
 
   it('an Infinity enemy sheet makes the wave unkillable and ends the run (E3)', async () => {

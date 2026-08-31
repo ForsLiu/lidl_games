@@ -236,7 +236,7 @@ export function damageEnemy(
   source: string,
   opts: DamageOptions = {},
 ): number {
-  if (e.dead || amount <= 0) return 0;
+  if (e.dead || !Number.isFinite(amount) || amount <= 0) return 0;
   const def = e.def as EnemyDef;
   let dmg = amount;
 

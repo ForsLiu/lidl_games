@@ -331,31 +331,35 @@ describe('q21 offer/wielding boundary fuzz', () => {
     });
   });
 
-  describe('finding: a NaN Structure.tier makes the wielded damage NaN, leaving the enemy immortal and damageTotal NaN (ported inheritance + damageBonus findings)', () => {
+  describe('finding CLOSED at b008: a NaN Structure.tier makes the wielded damage NaN, but damageEnemy now drops non-finite damage instead of corrupting hp/damageTotal', () => {
     // §6.1's formula reads tier through upgradeStatMul's
     // `Math.max(0, Math.min(level, maxLevel) - 1)` clamp, which propagates
     // NaN (`Math.pow(mul, NaN)` is NaN) exactly the way the deleted
     // `soulLevelFor` clamp did. The NaN damage never crashes — it is never
-    // an array index — and `damageEnemy`'s `e.dead || amount <= 0` guard
-    // (enemies.ts:219) does not catch NaN (`NaN <= 0` is false), so
-    // `e.hp -= NaN` sets hp to NaN forever: `hp <= 0` is also always false
-    // from then on, the enemy can never die again, and `w.damageTotal` goes
-    // NaN for the rest of the run. Not reachable through the real Command
-    // surface: buildTower/upgradeTower only ever produce integer tiers.
-    it('tier=NaN: wielded damage is NaN, one tick corrupts hp and damageTotal, a second tick cannot recover it', () => {
+    // an array index — but it used to defeat `damageEnemy`'s
+    // `e.dead || amount <= 0` guard (`NaN <= 0` is false), setting `e.hp` to
+    // NaN forever (`hp <= 0` also always false from then on — permanently
+    // immortal) and poisoning `w.damageTotal`/`damageByWeapon` for the rest
+    // of the run. b008 added a `!Number.isFinite(amount)` clause to that
+    // guard (enemies.ts), so the non-finite hit is now dropped at the choke
+    // point instead of ever reaching `e.hp -=`. Not reachable through the
+    // real Command surface: buildTower/upgradeTower only ever produce
+    // integer tiers.
+    it('tier=NaN: wielded damage is NaN, but damageEnemy drops it — hp and damageTotal stay clean across repeated ticks', () => {
       const w = newWorld();
       forcePlace(w, 'arrow_spire', 5, 5, NaN);
       const [arrow] = wieldedAttacks(w);
       expect(arrow.damage).toBeNaN();
       const e = spawnEnemy(w, 'husk', w.warden.x + 1, w.warden.y, { overlay: false })!;
       w.rebuildBuckets();
+      const hpBefore = e.hp;
       updateWieldedAttacks(w, 1 / 60);
-      expect(e.hp).toBeNaN();
-      expect(e.dead).toBe(false); // NaN <= 0 is false: it can never die again
-      expect(w.damageTotal).toBeNaN();
-      updateWieldedAttacks(w, 1 / 60);
-      expect(e.hp).toBeNaN();
+      expect(e.hp).toBe(hpBefore);
       expect(e.dead).toBe(false);
+      expect(w.damageTotal).toBe(0);
+      updateWieldedAttacks(w, 1 / 60);
+      expect(e.hp).toBe(hpBefore);
+      expect(w.damageTotal).toBe(0);
     });
 
     it('every tier the real build/upgrade path could approach clamps cleanly: 0, negative, absurdly high', () => {
