@@ -1266,44 +1266,90 @@ were not re-filed. Ordering within this section is by severity, not P-band.
       confirmed cosmetic/deterministic on its own, with no replay/hash risk;
       its only observable effect is feeding enemies into contact range,
       which is exactly b050's bug.
-- [ ] (b050) [bug] `contactWarden` (`src/sim/enemies.ts`) and the
-      `damageWarden`/`storeWrath` chain it calls into (`src/sim/run.ts`) have
+- [x] (b050) [bug] `contactWarden` (`src/sim/enemies.ts`) and the
+      `damageWarden`/`storeWrath` chain it calls into (`src/sim/run.ts`) had
       no `w.dying` guard, unlike every sibling fix in this bug family
       (b020/b046/b047/b048/b049) — `updateEnemies` runs unconditionally every
       tick through the whole `DEFEAT_SLOWMO` beat, so an enemy still in
-      Warden-contact range keeps landing contact hits after the outcome is
+      Warden-contact range kept landing contact hits after the outcome was
       already decided. qa-playtester-filed verifying b049 (2026-08-31),
       reproduced via direct experimentation (a Paladin build with nonzero
       armor, an enemy glued into contact range, a forced Warden-kill defeat,
-      then stepping through the beat): `wd.hp` itself turns out harmless —
+      then stepping through the beat): `wd.hp` itself turned out harmless —
       `damageWarden` unconditionally clamps it to 0 once it goes `<= 0`, so
-      repeated post-death hits keep resetting it to exactly 0 rather than
-      drifting negative — and Second Wind cannot retrigger mid-beat either
-      (`wd.secondWindUsed` is already true, or `w.derived.secondWind` is
-      false, by the time `beginDefeat` has fired). But `storeWrath(w,
-      blocked, applied)` still runs on every post-death contact hit, and with
-      nonzero Warden armor (the ordinary case in any real run) `blocked > 0`
-      every time, so `wd.wrathStored` — Guardian Stance's ultimate meter —
-      keeps climbing for the full 1.5s beat purely from state the outcome no
-      longer depends on. Repro: `new Run(cfg({classKey: 'paladin'}))`, glue
-      an enemy's position to the Warden's every tick, grant nonzero armor,
-      `damageWarden(w, 999999)` to set `w.dying = 'defeat_warden'`, then step
-      ~90 more ticks (1.5s) — `wd.wrathStored` measured climbing from
-      399999.6 to 400007.6 purely during the frozen beat — acceptance: once
-      `w.dying` is truthy, no further resource/HP state changes from Warden
-      contact damage (guard `contactWarden`, or the per-enemy Warden-contact
-      branch in `updateEnemies`, with `if (w.dying) return;`, matching the
-      sibling fixes' style and placement); a regression test (in
-      `tests/m19c-damage-types.test.ts` or a new defeat-slowmo-focused file)
-      drives a real Warden-kill defeat via `Run.step` for a Guardian Stance
-      (Paladin) build with nonzero armor, forces/glues an enemy into contact
-      range, steps through the `DEFEAT_SLOWMO` window, and asserts
-      `w.warden.wrathStored` does not change once `w.dying` is truthy; while
-      fixing, re-check whether any other Warden-contact side effect
-      (`wd.outOfCombat = 0`, the `wardenhit` emit, `TRAIT.explodes`'s
-      `killEnemy(w, e, 'contact')` branch) also needs the same guard or is
-      already inert/cosmetic — refs: §12 rule 2, b020, b046, b047, b048,
-      b049, qa-playtester on b049.
+      repeated post-death hits kept resetting it to exactly 0 rather than
+      drifting negative — and Second Wind cannot retrigger mid-beat either.
+      But `storeWrath(w, blocked, applied)` still ran on every post-death
+      contact hit, and with nonzero Warden armor (the ordinary case in any
+      real run) `blocked > 0` every time, so `wd.wrathStored` — Guardian
+      Stance's ultimate meter — kept climbing for the full 1.5s beat purely
+      from state the outcome no longer depended on (measured climbing from
+      399999.6 to 400007.6 in the repro). **Fixed** with the same one-line
+      `if (w.dying) return;` at the top of `contactWarden`, mirroring the
+      sibling fixes' style and placement exactly — placed before the
+      `TRAIT.explodes` branch, so it also freezes that branch's `explode`
+      emit and `killEnemy(w, e, 'contact')` call, not just the ordinary
+      contact-damage branch; the backlog item's own follow-up checks
+      (`wd.outOfCombat = 0`, the `wardenhit` emit, the explode branch) are
+      all reached only through `damageWarden`/`contactWarden`, so they are
+      now fully inert during the beat with no separate guard needed. Two
+      regression tests added to `tests/p6d-nine-classes.test.ts` (Paladin/
+      Guardian Stance describe block): a direct `updateEnemies`-driven test
+      and a real Warden-kill defeat driven through `Run.step`, both asserting
+      `w.warden.wrathStored` does not move once `w.dying` is set; both
+      confirmed red on the pre-fix code (`git stash push -- src/sim/enemies.ts`)
+      and green with the fix restored. code-reviewer **APPROVE**, no
+      Critical/Major findings against the diff itself — confirmed the guard
+      placement, confirmed `contactWarden` has exactly one caller with no
+      bypass path, and confirmed `w.dying`'s only clear-to-null path
+      (`resolveDefeat`'s same-tick-victory race) is the same precedent
+      already accepted for b046–b049. qa-playtester **PASS** — independently
+      reverted the guard to confirm both new tests fail without it, restored
+      it, adversarially probed the `TRAIT.explodes` branch and other classes
+      with nonzero armor, and confirmed replay/hash determinism is
+      unaffected (the guard is a pure `World.dying` state check, no RNG/
+      Date.now involved). Both code-reviewer and qa-playtester independently
+      found the same new bug in this family: `updateAbilities`'s
+      `TRAIT.stomp`/`TRAIT.ranged` branches (`src/sim/enemies.ts`) call
+      `damageWarden` directly, bypassing `contactWarden` entirely, with the
+      identical Wrath-overbanking symptom — filed as b051 below. `npm run
+      test:fast`: 1749 passed / 3 failed (session run) — the same
+      pre-existing, unrelated Windows EPERM temp-cleanup races (q28/q49/q52)
+      and Playwright fold-test port contention (b032/b034/b035/b036) noted in
+      every sibling entry above.
+- [ ] (b051) [bug] `updateAbilities` (`src/sim/enemies.ts`), called
+      unconditionally every tick from `updateEnemies` — *before* the
+      `contactWarden` call b050 just fixed — has no `w.dying` guard, so its
+      `TRAIT.stomp` branch (`damageWarden(w, def.stompDamage ?? 25)`, line
+      ~1178) and `TRAIT.ranged` branch (`damageWarden(w, def.attackDamage ??
+      6)`, line ~1216) still reach `storeWrath` through the whole
+      `DEFEAT_SLOWMO` beat — the identical Wrath-overbanking bug b050 just
+      closed for melee contact, reachable instead via a stomper or spitter in
+      range when the Warden dies. Found independently by both code-reviewer
+      and qa-playtester while verifying b050 (2026-08-31). Repro (QA,
+      reproduced twice, deterministic): Paladin build, `w.derived.armor = 50`,
+      `w.phase = 'act2'`, `w.sundered = true`, spawn an enemy at the Warden's
+      position with `e.flags |= TRAIT.stomp` (or `TRAIT.ranged`) and its
+      ability/attack cooldown at 0, `w.dying = 'defeat_warden'`,
+      `w.dyingTimer = 1.5`, then `updateEnemies(w, 1/60)` for 90 ticks:
+      `wd.wrathStored` climbs 0 → 12.5 (stomp) or 0 → 3 (ranged). Also found
+      by code-reviewer (Minor, no observable impact today but inconsistent):
+      `tickWardenDots` (`src/sim/run.ts:575`, Time Lord's Time Flow re-entrant
+      DoT) also lacks a `w.dying` guard and re-enters `damageWarden` — currently
+      harmless since Guardian Stance and Time Flow can never be the same
+      equipped class's passive at once (`storeWrath`'s `cls.passive.kind !==
+      'guardian_stance'` check always short-circuits), but would become
+      load-bearing if a future class ever combined both mechanics — acceptance:
+      once `w.dying` is truthy, no further resource/HP state changes from
+      stomp/ranged Warden-attack damage (guard `updateAbilities` with
+      `if (w.dying) return;` at its top, matching the sibling fixes' style —
+      the smallest fix that covers stomp/heal/buff/fire-trail/ranged/charges
+      in one place); also add the same guard to `tickWardenDots` for
+      consistency with the rest of the series; regression tests in
+      `tests/p6d-nine-classes.test.ts` alongside b050's, mirroring them but
+      setting `e.flags |= TRAIT.stomp` / `TRAIT.ranged` instead of relying on
+      `contactWarden`'s melee path — refs: §12 rule 2, b020, b046, b047, b048,
+      b049, b050, code-reviewer + qa-playtester on b050.
 - [ ] (b021) [bug] The character panel (fb004) renders `cdr` and `leech`
       as raw decimals instead of percentages. Both are classified `'flat'`
       in `STAT_KIND` (`src/sim/stats.ts`) for correct §2 stacking-math

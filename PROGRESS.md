@@ -5,6 +5,48 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-31 session: BACKLOG b050 fixed — Warden-contact damage kept
+  banking Wrath throughout the defeat slow-mo window.** Same bug class as
+  b020/b046/b047/b048/b049, this time via `contactWarden` (`src/sim/enemies.ts`),
+  which had no `w.dying` guard even though `updateEnemies` runs it
+  unconditionally every tick through the whole `DEFEAT_SLOWMO` beat. `wd.hp`
+  itself turned out harmless (unconditionally clamped to 0 by `damageWarden`,
+  and Second Wind cannot retrigger mid-beat), but `storeWrath` kept banking
+  Guardian Stance's `wd.wrathStored` meter from every post-death contact hit
+  whenever the Warden had nonzero armor — the ordinary case in any real run.
+  Fixed with the same one-line `if (w.dying) return;` at the top of
+  `contactWarden`, placed before the `TRAIT.explodes` branch so it freezes
+  that branch's `explode` emit and `killEnemy(w, e, 'contact')` call too, not
+  just the ordinary contact-damage branch — the backlog item's own follow-up
+  checks (`wd.outOfCombat = 0`, the `wardenhit` emit) are only reachable
+  through this same call chain, so no separate guard was needed for them.
+  Two regression tests added to `tests/p6d-nine-classes.test.ts` (Paladin/
+  Guardian Stance describe block): a direct `updateEnemies`-driven test and a
+  real Warden-kill defeat driven through `Run.step`, both asserting
+  `w.warden.wrathStored` stays flat once `w.dying` is set; both confirmed red
+  pre-fix (`git stash push -- src/sim/enemies.ts`) and green with the fix
+  restored. code-reviewer **APPROVE**, no Critical/Major findings against the
+  diff — confirmed `contactWarden` has exactly one caller (no bypass path)
+  and that the guard's only escape hatch (`resolveDefeat`'s same-tick-victory
+  race clearing `w.dying`) mirrors the precedent already accepted for
+  b046–b049. qa-playtester **PASS** — independently reverted the guard to
+  confirm both tests fail without it, adversarially probed the
+  `TRAIT.explodes` branch and other armored classes, and confirmed replay/
+  hash determinism is unaffected (a pure `World.dying` check, no RNG/
+  Date.now). Both code-reviewer and qa-playtester independently found the
+  same new sibling bug verifying this item: `updateAbilities`
+  (`src/sim/enemies.ts`) calls `damageWarden` directly from its
+  `TRAIT.stomp`/`TRAIT.ranged` branches, bypassing `contactWarden` entirely,
+  with the identical Wrath-overbanking symptom (repro: `wd.wrathStored`
+  climbs 0→12.5 via stomp, 0→3 via ranged, during a frozen beat) — filed as
+  b051, top of the queue; code-reviewer also flagged `tickWardenDots`
+  (`src/sim/run.ts`, Time Lord's Time Flow re-entrant DoT) as a Minor
+  same-family gap with no observable impact today (Guardian Stance and Time
+  Flow can never be the same equipped class's passive), folded into b051 for
+  consistency. `npm run test:fast`: 1749 passed / 3 failed + 4 failed suites,
+  all the same pre-existing, unrelated flakes logged in b046/b047/b048/b049's
+  entries below (Windows EPERM temp-cleanup races on q28/q49/q52, Playwright
+  fold-test port contention on b032/b034/b035/b036).
 - **2026-08-31 session: BACKLOG b049 fixed — Burning's neighbor-splash damage
   kept landing throughout the defeat slow-mo window regardless of source.**
   Same bug class as b020/b046/b047/b048, but data-driven off the Burning

@@ -1597,6 +1597,7 @@ function leakIntoCore(w: World, e: Enemy, def: EnemyDef): void {
 }
 
 function contactWarden(w: World, e: Enemy, def: EnemyDef): void {
+  if (w.dying) return;
   if ((e.flags & TRAIT.explodes) !== 0) {
     const r = def.explodeRadius ?? 1.5;
     w.emit('explode', e.x, e.y, r, 0);

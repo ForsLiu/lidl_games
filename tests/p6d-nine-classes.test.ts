@@ -17,7 +17,7 @@ import { describe, expect, it } from 'vitest';
 
 import { loadContent, validateClassEffect, validateClassPassive, type ClassEffect, type ClassDef } from '../src/sim/content';
 import { applyEffects, dealHit } from '../src/sim/combat';
-import { applyFrost, killEnemy, spawnEnemy } from '../src/sim/enemies';
+import { applyFrost, killEnemy, spawnEnemy, updateEnemies } from '../src/sim/enemies';
 import { attackSpeedFor, buildTower, classTowerBonus, towerDamage, updateTowers } from '../src/sim/towers';
 import { structureArmor, structureMaxHp } from '../src/sim/upgrades';
 import { electricInterval } from '../src/sim/vsspecials';
@@ -818,6 +818,57 @@ describe('p6d: Paladin — Guardian Stance, Wrath and Judgement', () => {
     const w = worldWith('swordsman');
     damageWarden(w, 100);
     expect(w.warden.wrathStored).toBe(0);
+  });
+
+  it('b050: Warden-contact damage stops banking Wrath once w.dying is set', () => {
+    // qa-playtester-filed verifying b049: same DEFEAT_SLOWMO bug class as
+    // b020/b046/b047/b048/b049 — contactWarden had no w.dying guard, so an
+    // enemy glued into contact range kept banking Wrath (via storeWrath's
+    // blocked-damage clause) for the whole 1.5s beat even though wd.hp
+    // itself is harmless (clamped to 0).
+    const w = worldWith('paladin');
+    w.derived.armor = 50; // half of every contact hit is blocked, feeding Wrath
+    w.phase = 'act2';
+    w.sundered = true;
+    w.warden.x = 10;
+    w.warden.y = 10;
+    w.updateNav(true);
+    const e = dummy(w, 10, 10);
+    e.attackCooldown = 0;
+    w.rebuildBuckets();
+
+    w.dying = 'defeat_warden';
+    w.dyingTimer = 1.5;
+    const before = w.warden.wrathStored;
+    for (let i = 0; i < 90; i++) updateEnemies(w, DT);
+
+    expect(w.warden.wrathStored).toBe(before);
+  });
+
+  it('b050: a real defeat through Run.step stops banking Wrath during the slow-mo window', () => {
+    const run = new Run(cfg({ classKey: 'paladin' }));
+    const w = run.world;
+    w.gold = 1e6;
+    w.derived.armor = 50;
+    w.warden.attackCooldown = 1e9;
+    w.phase = 'act2';
+    w.sundered = true;
+    w.warden.x = 10;
+    w.warden.y = 10;
+    w.updateNav(true);
+    const e = dummy(w, 10, 10);
+    e.attackCooldown = 0;
+    w.rebuildBuckets();
+
+    damageWarden(w, 999999);
+    expect(w.dying).toBe('defeat_warden');
+    const before = w.warden.wrathStored;
+
+    for (let i = 0; i < 95 && !run.done; i++) run.step(idleInput());
+
+    expect(run.done).toBe(true);
+    expect(run.world.outcome).toBe('defeat_warden');
+    expect(w.warden.wrathStored).toBe(before);
   });
 
   it('Judgement spends the whole store as a nova', () => {
