@@ -7,7 +7,7 @@
 
 - **2026-08-31 session: BACKLOG b013 closed — the `/data` loader now refuses
   unpayable data across all six holes E2–E7, plus E1's key-reference census —
-  commit pending in this change.** A shared `num` zod alias in
+  commit `86cac94`.** A shared `num` zod alias in
   `src/sim/content.ts` is now `.finite()` everywhere (E3), with targeted
   `.positive()`/`.nonnegative()` added to tower/enemy hp/cost/interval/range
   and class attack dps/interval/range/`cooldownSeconds` (E2); a new
