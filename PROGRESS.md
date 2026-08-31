@@ -5,6 +5,43 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-31 session: BACKLOG b047 fixed — live class summons kept firing
+  through the defeat slow-mo window.** `updateClassSummons`
+  (`src/sim/classes.ts`) had no `w.dying` guard, even though the Active2 that
+  spawns a summon (`useClassActive2`) was already guarded against firing
+  while dying — the spawn was blocked but an already-live summon (e.g.
+  Engineer's Pop Turret) was not, and kept attacking through the
+  `DEFEAT_SLOWMO` window; the Recall Totem's taunt re-tag (`isAura`/
+  `animist_totem` branch) is CC with the same problem. Same bug class as
+  b020/b046. Fixed with the same one-line `if (w.dying) return;` at the top
+  of `updateClassSummons`, mirroring b020/b046's fix exactly — guards the
+  whole function (damage branch and totem-taunt CC branch both), since the
+  taunt re-tag is real CC, not cosmetic; the lifecycle decrement
+  (`s.remaining -= dt`) is frozen too but judged harmless since the run ends
+  within the same 1.5s beat. `tests/p6d-nine-classes.test.ts` gained 2
+  regression cases in the Engineer describe block: a direct-call case (arm a
+  turret, set `w.dying`, call `updateClassSummons`, assert no damage lands)
+  and a real `Run.step`-driven defeat stepped through the full slow-mo
+  window via `damageWarden`; both confirmed red on pre-fix code (`git stash`
+  of just `classes.ts`) and green with the fix. code-reviewer **APPROVE**,
+  no findings; independently confirmed the guard placement and that both new
+  tests are non-vacuous, and flagged a new sibling bug outside this item's
+  scope — `updateClassPassives` shares the identical missing-guard bug class
+  via `updateContagiousFlame`/`updateTimeLockZone`/`updatePactedTowers` —
+  filed as b048, top of the queue. qa-playtester **PASS**: independently
+  confirmed red-before/green-after, confirmed all three of
+  `updateClassSummons`'s callers (act1_build, act1_wave, act2) are covered
+  by the one shared guard with no bypass, confirmed the spawn-side gate was
+  already closed, drove adversarial scenarios beyond the shipped tests (a
+  capped-out multi-turret board, the totem taunt branch specifically, the
+  Act I `defeat_core` path, a summon already off-cooldown the instant dying
+  starts stepped through 200 real ticks, `w.dying` clearing mid-window on a
+  boss-kill race), confirmed no regression to normal summon behavior, and
+  confirmed replay determinism — no bugs filed. `npm run test:fast`: 1743
+  passed / 2 failed — the same pre-existing, unrelated flakes noted in
+  b046's entry below (Windows EPERM temp-cleanup races on q28/q49) — plus 4
+  pre-existing Playwright fold-test flakes (b032/b034/b035/b036, port
+  contention), all confirmed pre-existing and unrelated to this diff.
 - **2026-08-31 session: BACKLOG b046 fixed — VS-terrain specials kept dealing
   damage/CC through the defeat slow-mo window.** `updateVsSpecials`
   (`src/sim/vsspecials.ts`) — poison trail, frost aura, electric wire grid —

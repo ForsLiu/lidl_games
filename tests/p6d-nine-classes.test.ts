@@ -649,6 +649,55 @@ describe('p6d: Engineer — Field Kit, Pop Turret, and the summon cap', () => {
     expect(w.classSummons.filter((s) => s.kind === 'engineer_turret')).toHaveLength(0);
   });
 
+  it('b047: a deployed turret deals no damage once w.dying is set, mirroring updateWieldedAttacks/updateVsSpecials\' guard', () => {
+    // QA-filed verifying b020: unlike the Active2 command that spawns it
+    // (already dying-guarded), a live turret attacks every tick straight
+    // from updateAct1*/updateAct2 with no Command gate to catch it at — it
+    // kept dealing damage for the whole DEFEAT_SLOWMO window after the
+    // Warden died.
+    const w = worldWith('engineer');
+    w.warden.x = 10;
+    w.warden.y = 10;
+    const e = dummy(w, 11, 10);
+    w.rebuildBuckets();
+    applyCommand(w, { k: 'class_active2' });
+    w.dying = 'defeat_warden';
+    w.dyingTimer = 1.5;
+
+    updateClassSummons(w, DT);
+
+    expect(e.hp).toBe(1e6);
+    expect(w.classSummons.some((s) => s.kind === 'engineer_turret')).toBe(true);
+  });
+
+  it('b047: a real defeat through Run.step fires no turret attack during the slow-mo window', () => {
+    const run = new Run(cfg({ classKey: 'engineer' }));
+    const w = run.world;
+    w.gold = 1e6;
+    w.warden.attackCooldown = 1e9;
+    w.phase = 'act2';
+    w.sundered = true;
+    w.warden.x = 10;
+    w.warden.y = 10;
+    w.updateNav(true);
+    const e = dummy(w, 11, 10);
+    w.rebuildBuckets();
+    applyCommand(w, { k: 'class_active2' });
+    // Arm the cooldown at 0 so the very next tick would fire if the dying
+    // guard were missing.
+    const turret = w.classSummons.find((s) => s.kind === 'engineer_turret')!;
+    turret.attackCooldown = 0;
+
+    damageWarden(w, 999999);
+    expect(w.dying).toBe('defeat_warden');
+
+    for (let i = 0; i < 95 && !run.done; i++) run.step(idleInput());
+
+    expect(run.done).toBe(true);
+    expect(run.world.outcome).toBe('defeat_warden');
+    expect(e.hp).toBe(1e6);
+  });
+
   it('the tower passive raises every structure\'s max HP', () => {
     const arrow = content.towerByKey.get('arrow_spire')!;
     const eng = worldWith('engineer');

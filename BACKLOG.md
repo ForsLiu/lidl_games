@@ -1101,7 +1101,7 @@ were not re-filed. Ordering within this section is by severity, not P-band.
       passed / 4 failed, all pre-existing and unrelated (Playwright fold-
       test port contention, Windows EPERM temp-cleanup races), confirmed
       still present on a clean stash of this diff.
-- [ ] (b047) [bug] `updateClassSummons` (`src/sim/classes.ts`) has no
+- [x] (b047) [bug] `updateClassSummons` (`src/sim/classes.ts`) has no
       `w.dying` guard, even though the Active2 that spawns a summon
       (`useClassActive2`) is already guarded against firing while dying —
       the spawn is blocked but an already-live summon (e.g. Engineer's Pop
@@ -1115,6 +1115,66 @@ were not re-filed. Ordering within this section is by severity, not P-band.
       whole function); a regression test arms a live summon near an enemy,
       kills the Warden and steps through the slow-mo window asserting no
       damage lands — refs: §12 rule 2, b020, qa-playtester on b020.
+      **Fixed**: a one-line `if (w.dying) return;` at the top of
+      `updateClassSummons`, mirroring b020/b046's fix exactly. Guards the
+      whole function rather than only the damage branch: the Recall Totem's
+      `isAura`/`animist_totem` taunt re-tag is CC with the same "still-live
+      combat during a frozen beat" problem, so it is not exempted as
+      cosmetic; the lifecycle decrement (`s.remaining -= dt`) is frozen too
+      but judged genuinely harmless since the run ends within the same 1.5s
+      beat. `tests/p6d-nine-classes.test.ts` gained 2 regression cases in
+      the Engineer describe block: a direct-call case (arm a turret, set
+      `w.dying`, call `updateClassSummons`, assert no damage) and a real
+      `Run.step`-driven defeat stepped through the full slow-mo window via
+      `damageWarden`; both confirmed red on pre-fix code (`git stash` of
+      just `classes.ts`) and green with the fix. code-reviewer **APPROVE**,
+      no findings; independently confirmed the guard placement, that both
+      new tests are non-vacuous (the pre-existing sibling turret test at
+      the same file proves the identical setup deals damage without the
+      guard), and flagged one **new** sibling bug outside this item's
+      scope: `updateClassPassives` (`src/sim/classes.ts`) is called from
+      the same three `run.ts` sites and shares the same missing-guard bug
+      class via `updateContagiousFlame`, `updateTimeLockZone` and
+      `updatePactedTowers` — filed as b048. qa-playtester **PASS**:
+      independently confirmed red-before/green-after, confirmed
+      `updateClassSummons`'s only three callers (act1_build, act1_wave,
+      act2) are all covered by the one shared guard with no bypass, that
+      the spawn-side gate (`useClassActive2`) was already closed, drove
+      adversarial scenarios beyond the shipped tests (a capped-out
+      multi-turret board, the totem taunt branch specifically — confirmed
+      it does not re-tag/refresh an enemy while dying, the Act I
+      `defeat_core` path in addition to `defeat_warden`, a summon already
+      off-cooldown the exact instant dying starts stepped through 200 real
+      ticks, `w.dying` clearing mid-window on a boss-kill race resuming
+      normal behavior next tick), confirmed no regression to normal
+      (non-dying) summon behavior, and confirmed replay determinism
+      (`npm run sim` twice, identical end hash) — no bugs filed. `npm run
+      test:fast`: 1743 passed / 2 failed (the same pre-existing, unrelated
+      flakes noted in b046's entry: Windows EPERM temp-cleanup races on
+      q28/q49) plus 4 pre-existing Playwright fold-test flakes
+      (b032/b034/b035/b036, port contention) — commit pending in this
+      change.
+- [ ] (b048) [bug] `updateClassPassives` (`src/sim/classes.ts`) has no
+      `w.dying` guard and is called unconditionally from the same three
+      `run.ts` sites as `updateClassSummons` (`act1_build`, `act1_wave`,
+      `updateAct2`) — same bug class as b020/b046/b047. code-reviewer-filed
+      verifying b047 (2026-08-31): at least three sub-routines it drives
+      keep acting through the `DEFEAT_SLOWMO` window — `updateContagiousFlame`
+      (Pyro passive, ongoing DPS to enemies touching a burning enemy),
+      `updateTimeLockZone` (applies a `bleeding` DoT to enemies entering the
+      zone and forcibly repositions enemies trying to leave it — real CC,
+      not cosmetic), and `updatePactedTowers` (drains pacted tower HP every
+      tick and can spawn a Bone Pylon summon / emit `structdeath` on a
+      tower death mid-slowmo) — acceptance: all three damage/CC-dealing
+      sub-routines are no-ops once `w.dying` is truthy; the two Warden
+      timer decrements (`overloadRemaining`/`clarionRemaining`) and any
+      other genuinely cosmetic timer-only branch may be left alone per the
+      same judgment call b047 made for summon-lifecycle decay — check each
+      before guarding the whole function; a regression test per
+      damage/CC-dealing sub-routine kills the Warden (or seals the Core for
+      the Act I path) and steps through the slow-mo window asserting no
+      damage/CC lands — refs: §12 rule 2, b020, b046, b047, code-reviewer
+      on b047.
 - [ ] (b021) [bug] The character panel (fb004) renders `cdr` and `leech`
       as raw decimals instead of percentages. Both are classified `'flat'`
       in `STAT_KIND` (`src/sim/stats.ts`) for correct §2 stacking-math

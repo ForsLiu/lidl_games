@@ -1391,6 +1391,14 @@ const totemTauntScratch: Enemy[] = [];
 /** Ticks every live summon: lifetime, then either its attack cadence or nothing (a totem). */
 export function updateClassSummons(w: World, dt: number): void {
   if (w.classSummons.length === 0) return;
+  // b047: same "the defeat slow-mo beat is a frozen moment, not still-live
+  // combat" rule b020/b046 already apply to `updateWieldedAttacks`/
+  // `updateVsSpecials` — a live summon (e.g. Engineer's Pop Turret) has no
+  // Command gate to catch it at, since it fires every tick from `updateAct1*`/
+  // `updateAct2` regardless of input. The whole function is guarded, not just
+  // the damage branch: the totem taunt re-tag is CC with the same "still-live
+  // combat during a frozen beat" problem, not merely cosmetic.
+  if (w.dying) return;
   let expired = false;
   for (const s of w.classSummons) {
     s.remaining -= dt;
