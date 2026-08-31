@@ -5,6 +5,47 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-31 session: BACKLOG b021 fixed — the character panel rendered
+  `cdr`/`leech` contributions as raw decimals ("+0.06") instead of
+  percentages ("+6%").** Both are classified `'flat'` in `STAT_KIND`
+  (`src/sim/stats.ts`) for correct SPEC-FINAL §2 additive-stacking reasons,
+  but are authored as fractional rates, not point totals like `armor`/
+  `maxHp` — the same `'flat'` kind covered both shapes and `hud.ts`'s
+  `formatStatValue`/`formatSourceValue` formatted every `'flat'` stat
+  identically. Added an exhaustive `STAT_DISPLAY: Record<StatKey, 'point' |
+  'percent'>` (`src/sim/statkeys.ts`, re-exported via `src/sim/stats.ts`) as
+  a second, independent classification alongside `STAT_KIND` — `STAT_KIND`
+  still drives aggregation math everywhere unchanged; `STAT_DISPLAY` now
+  drives only the character panel's formatting, with `cdr`/`leech` marked
+  `'percent'` and every other `'flat'` key (`armor`, `maxHp`, `luck`, the
+  `secondWind`/`lastStandSundering`/`bleedLifesteal` boolean flags, etc.)
+  marked `'point'`; every `'mul'` key is `'percent'` (unchanged prior
+  behaviour). `formatStatValue` gained an `isMul` argument so a `mul` stat's
+  total (`Stats.factor()`, a multiplier like `1.32`) still subtracts 1
+  before formatting while a `flat` percent stat's total (`Stats.total()`,
+  already the raw fraction) does not; `formatSourceValue` never subtracts,
+  correct for both shapes since a per-source contribution is always already
+  the raw fraction/point. `tests/character-panel.test.ts` adds a
+  markup-level regression block driving a real `World` and asserting
+  `characterPanelMarkup` renders `+6%`/`+1%` for live `cdr`/`leech`
+  contributions (not `+0.06`/`+0.01`), plus an `armor` control case guarding
+  the opposite regression. code-reviewer cross-checked all 42 `StatKey`s'
+  new classification against how each is actually authored in `/data` and
+  read in `src/sim`, confirmed `tree-view.ts`'s independent `PERCENT_STATS`
+  set already gets `cdr`/`leech` right on its own (correctly left
+  untouched) — **APPROVE**, no Critical/Major findings. qa-playtester drove
+  a real `World`, adversarially probed negative/zero/large/stacked
+  `cdr`/`leech` values and every other `'flat'` `StatKey` for a display
+  regression (none found) — **PASS**. It also filed a real sibling
+  occurrence of the identical conflation outside b021's scope:
+  `src/ui/info-format.ts`'s `modIsPct` (the Hub class-select and in-run
+  class-info panels' ability-effect formatter) still infers percent-vs-point
+  from `STAT_KIND` alone, so Bloodlord's Blood Frenzy passive (`leech:
+  0.03`) renders "+0.03 Leech" instead of "+3% Leech". Filed as BACKLOG
+  b053. `npm run test:fast`: same pre-existing Windows EPERM temp-cleanup
+  races (q28/q49/q52) and Playwright fold-test port contention
+  (b032/b034/b035/b036) noted in every sibling entry below — no new
+  failures from this change.
 - **2026-08-31 session: BACKLOG b052 fixed — the final boss's own script
   (`bossUpdate`/`updateBossSlam`) kept dealing Warden damage throughout the
   defeat slow-mo window.** Same bug class as b020/b046-b051, this time in

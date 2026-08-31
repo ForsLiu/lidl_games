@@ -14,7 +14,7 @@ import type { DevOp } from '../sim/types';
 import { selectedEnemy, selectedStructure, type Selection } from './selection';
 import { characterPanelData, type CharacterPanelData } from './character-panel';
 import { dpsPanelData, type DpsPanelData, type DpsWindow } from './dps-panel';
-import type { StatKind } from '../sim/stats';
+import { STAT_DISPLAY, type StatDisplay } from '../sim/stats';
 import { classAttackPowerMul } from '../sim/classes';
 import { classAbilitiesMarkup, type ClassLiveContext } from './class-info';
 import { coreLiveMarkup } from './core-info';
@@ -957,19 +957,29 @@ function formatPercent(fraction: number): string {
 }
 
 /**
- * `Stats.factor()` (a `mul` stat's own aggregate) is a multiplier (`1.32`);
- * the panel reads better as the net percent the sim reports elsewhere
- * (`wardenInfoMarkup`'s `+32%`), so `mul` subtracts 1 before formatting.
+ * b021: which stats read as a percent isn't "is this a `mul` stat" — `cdr`
+ * and `leech` are `'flat'` in `STAT_KIND` (correct for §2's additive stacking
+ * math) yet are authored and meant to display as fractions-of-100, same as a
+ * `mul` stat. `STAT_DISPLAY` is the single classification both this and
+ * `formatSourceValue` key off, so the two can never disagree.
+ *
+ * `Stats.total()`/`factor()` (`StatRow.value`, a stat's own final aggregate)
+ * for a `mul` stat is a multiplier (`1.32`); the panel reads better as the
+ * net percent the sim reports elsewhere (`wardenInfoMarkup`'s `+32%`), so
+ * `'percent'` subtracts 1 before formatting *only* when the underlying stat
+ * is `mul` — a `flat` percent stat (`cdr`/`leech`) has no such base to
+ * subtract, it is already the fraction (0.08 = +8%).
  * A per-source contribution (`StatSourceRow.value`/`BoonRow.contribution`) is
- * already the fraction `Stats` stores (0.08 = +8%, per `stats.ts`'s own doc
- * comment) — no base to subtract — so it formats straight through.
+ * always already the raw fraction/point a single source grants, for either
+ * shape — no base to subtract there either.
  */
-function formatStatValue(kind: StatKind, value: number): string {
-  return kind === 'mul' ? formatPercent(value - 1) : formatFlat(value);
+function formatStatValue(display: StatDisplay, isMul: boolean, value: number): string {
+  if (display !== 'percent') return formatFlat(value);
+  return formatPercent(isMul ? value - 1 : value);
 }
 
-function formatSourceValue(kind: StatKind, value: number): string {
-  return kind === 'mul' ? formatPercent(value) : formatFlat(value);
+function formatSourceValue(display: StatDisplay, value: number): string {
+  return display === 'percent' ? formatPercent(value) : formatFlat(value);
 }
 
 /**
@@ -1051,7 +1061,7 @@ export function characterPanelMarkup(data: CharacterPanelData, w?: World): strin
           .map(
             (b) =>
               `<div class="sw-row small"><span>${b.name} <i>rank ${b.rank}/${b.maxRank}</i></span>` +
-              `<b>${formatSourceValue(b.kind, b.contribution)} ${b.statLabel}</b></div>`,
+              `<b>${formatSourceValue(STAT_DISPLAY[b.stat], b.contribution)} ${b.statLabel}</b></div>`,
           )
           .join('');
 
@@ -1061,10 +1071,10 @@ export function characterPanelMarkup(data: CharacterPanelData, w?: World): strin
         s.sources.length === 0
           ? '<p class="sw-note dim">Base only — no contributing source.</p>'
           : `<ul class="sw-statlist">${s.sources
-              .map((src) => `<li>${src.label}: ${formatSourceValue(s.kind, src.value)}</li>`)
+              .map((src) => `<li>${src.label}: ${formatSourceValue(STAT_DISPLAY[s.key], src.value)}</li>`)
               .join('')}</ul>`;
       return `<details class="sw-charstat">
-          <summary><span>${s.label}</span><b>${formatStatValue(s.kind, s.value)}</b></summary>
+          <summary><span>${s.label}</span><b>${formatStatValue(STAT_DISPLAY[s.key], s.kind === 'mul', s.value)}</b></summary>
           ${sources}
         </details>`;
     })

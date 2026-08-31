@@ -124,3 +124,65 @@ export const STAT_KIND: Record<StatKey, StatKind> = {
   // in Q62 as the most arguable row for the M27 re-baseline.
   cdr: 'flat',
 };
+
+/**
+ * b021: `STAT_KIND` alone cannot drive display, because `'flat'` conflates two
+ * different shapes — a true point total (`armor: +12`) and a fractional rate
+ * authored and stacked exactly like one but meant to read as a percent
+ * (`cdr`/`leech`: `perRank: 0.06` means "+6%", not "+0.06"). `'mul'` stats have
+ * no such ambiguity (always a percent-of-base), so this is exhaustive over
+ * every `StatKey` rather than just the `'flat'` ones, for the same
+ * compile-error-not-silent-default reason `STAT_KIND` is.
+ */
+export type StatDisplay = 'point' | 'percent';
+
+export const STAT_DISPLAY: Record<StatKey, StatDisplay> = {
+  // `mul` stats are always a percent-of-base.
+  power: 'percent',
+  attackSpeed: 'percent',
+  area: 'percent',
+  moveSpeedPct: 'percent',
+  maxHpPct: 'percent',
+  pickupPct: 'percent',
+  goldFind: 'percent',
+  ailmentPotency: 'percent',
+  towerCost: 'percent',
+  towerDamage: 'percent',
+  towerRange: 'percent',
+  towerAttackSpeed: 'percent',
+  towerPoisonDamage: 'percent',
+  towerHp: 'percent',
+  wallHp: 'percent',
+  sproutGold: 'percent',
+  residualPotency: 'percent',
+  modRewardBonus: 'percent',
+  burnDamage: 'percent',
+  slowPotency: 'percent',
+  chilledDamageTaken: 'percent',
+  xpGain: 'percent',
+  charRange: 'percent',
+
+  // `flat` point totals.
+  maxHp: 'point',
+  armor: 'point',
+  hpRegen: 'point',
+  coreHp: 'point',
+  towerDefenseBonus: 'point',
+  buildRange: 'point',
+  goldPerKill: 'point',
+  beaconRadius: 'point',
+  teslaLinks: 'point',
+  dashCharges: 'point',
+  burnSpread: 'point',
+  luck: 'point',
+  // Booleans in disguise (see `STAT_KIND`'s comment) — not a percent either.
+  secondWind: 'point',
+  lastStandSundering: 'point',
+  bleedLifesteal: 'point',
+  atkFlat: 'point',
+  towerAtkFlat: 'point',
+
+  // `flat` fractional rates — authored like a point total, read like a percent.
+  leech: 'percent',
+  cdr: 'percent',
+};

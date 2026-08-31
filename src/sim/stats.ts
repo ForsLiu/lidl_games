@@ -19,15 +19,15 @@
 
 import { wardenBase, type Content } from './content';
 import { clamp } from './math';
-import { STAT_KEYS, STAT_KIND, type StatKey, type StatKind } from './statkeys';
+import { STAT_KEYS, STAT_KIND, STAT_DISPLAY, type StatKey, type StatKind, type StatDisplay } from './statkeys';
 import type { RunConfig } from './types';
 
 /** The Warden's base stat sheet (SPEC 2.1). Tuning lives in data/warden.json. */
 export const BASE = wardenBase;
 
 /** Re-exported from `statkeys.ts` — see that file for why the split exists. */
-export { STAT_KEYS, STAT_KIND };
-export type { StatKey, StatKind };
+export { STAT_KEYS, STAT_KIND, STAT_DISPLAY };
+export type { StatKey, StatKind, StatDisplay };
 
 /**
  * Where a contribution came from. Two contributions share a source id exactly

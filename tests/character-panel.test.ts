@@ -17,6 +17,7 @@ import { STAT_KEYS, STAT_KIND } from '../src/sim/stats';
 import { applyOffer } from '../src/sim/progression';
 import type { Offer } from '../src/sim/types';
 import { characterPanelData } from '../src/ui/character-panel';
+import { characterPanelMarkup } from '../src/ui/hud';
 import { cfg } from './helpers';
 
 const content = loadContent();
@@ -183,5 +184,41 @@ describe('character panel data model', () => {
       expect(row.name, b.key).toBe(b.name);
       expect(row.rank, b.key).toBe(b.maxRank);
     }
+  });
+});
+
+/**
+ * b021: `cdr` and `leech` are `'flat'` in `STAT_KIND` (correct for §2's
+ * additive stacking math) but are authored as fractional rates
+ * (`perRank: 0.06` = "+6%"), not point totals like `armor`/`maxHp` — the same
+ * `'flat'` kind covered both shapes and `formatFlat` printed both the same
+ * way, so a rank of a `cdr`/`leech` boon rendered as "+0.06" instead of
+ * "+6%". Asserts the rendered markup directly, not just the underlying
+ * `StatDisplay` classification, so a future formatter change that stops
+ * consulting it would fail this test too.
+ */
+describe('character panel markup: b021 percent-vs-point-total display', () => {
+  it('a cdr boon renders its contribution and stat-row total as a signed percentage, not a raw decimal', () => {
+    const w = new World(cfg());
+    w.stats.add('test', 'cdr', 0.06);
+    const html = characterPanelMarkup(characterPanelData(w));
+    expect(html).toContain('+6%');
+    expect(html).not.toContain('+0.06');
+  });
+
+  it('a leech boon renders its contribution as a signed percentage, not a raw decimal', () => {
+    const w = new World(cfg());
+    w.stats.add('test', 'leech', 0.01);
+    const html = characterPanelMarkup(characterPanelData(w));
+    expect(html).toContain('+1%');
+    expect(html).not.toContain('+0.01');
+  });
+
+  it('a true flat point total (armor) still renders as a plain number, not a percentage', () => {
+    const w = new World(cfg());
+    w.stats.add('test', 'armor', 12);
+    const html = characterPanelMarkup(characterPanelData(w));
+    expect(html).toContain('+12');
+    expect(html).not.toContain('+1200%');
   });
 });

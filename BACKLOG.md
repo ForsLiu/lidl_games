@@ -1443,7 +1443,7 @@ were not re-filed. Ordering within this section is by severity, not P-band.
       skipped / 3 failed suites, all the same pre-existing Windows EPERM
       temp-cleanup races (q28/q49/q52) and Playwright fold-test port
       contention (b032/b034/b035/b036) noted in every sibling entry above.
-- [ ] (b021) [bug] The character panel (fb004) renders `cdr` and `leech`
+- [x] (b021) [bug] The character panel (fb004) renders `cdr` and `leech`
       as raw decimals instead of percentages. Both are classified `'flat'`
       in `STAT_KIND` (`src/sim/stats.ts`) for correct §2 stacking-math
       reasons (a fraction with no base to multiply against, per that file's
@@ -1466,7 +1466,60 @@ were not re-filed. Ordering within this section is by severity, not P-band.
       per-stat display-kind classification (not by guessing from `STAT_KIND`
       alone, which conflates "flat point total" and "flat fraction"); a test
       asserts the rendered string for a `cdr`/`leech` contribution — refs:
-      §2, §11, QA on fb004.
+      §2, §11, QA on fb004. Fixed: added an exhaustive `STAT_DISPLAY:
+      Record<StatKey, 'point' | 'percent'>` (`src/sim/statkeys.ts`,
+      re-exported via `src/sim/stats.ts`) alongside `STAT_KIND` rather than
+      inferring display from it — `cdr`/`leech` are `'percent'`, every other
+      `'flat'` key (`armor`, `maxHp`, `luck`, the `secondWind`/
+      `lastStandSundering`/`bleedLifesteal` boolean flags, etc.) is `'point'`,
+      and every `'mul'` key is `'percent'` (unchanged prior behaviour).
+      `hud.ts`'s `formatStatValue`/`formatSourceValue` now key off
+      `STAT_DISPLAY`; `formatStatValue` gained an `isMul` argument so a `mul`
+      stat's total (`Stats.factor()`, a multiplier like `1.32`) still
+      subtracts 1 before formatting while a `flat` percent stat's total
+      (`Stats.total()`, already the raw fraction) does not.
+      `tests/character-panel.test.ts` adds a markup-level regression block
+      asserting the rendered string for a live `cdr` and `leech` contribution
+      shows `+6%`/`+1%` (not `+0.06`/`+0.01`), plus an `armor` control case
+      guarding the opposite regression. code-reviewer cross-checked all 42
+      `StatKey`s' classification against how each is actually authored in
+      `/data` and read in `src/sim` (not just against the new map's own
+      comments) and confirmed `tree-view.ts`'s independent `PERCENT_STATS`
+      set already gets `cdr`/`leech` right on its own, so was correctly left
+      untouched — **APPROVE**, no Critical/Major findings. qa-playtester
+      drove a real `World`, adversarially probed negative/zero/large/stacked
+      `cdr`/`leech` values and every other `'flat'` `StatKey` for a display
+      regression (none found), and independently confirmed `q15`'s
+      `test:fast` failure was pre-existing host flakiness (reproduced on
+      clean master with the diff stashed) — **PASS**. It also filed a real,
+      currently-visible sibling occurrence of the identical bug outside
+      b021's own scope: `src/ui/info-format.ts`'s `modIsPct` (used by the
+      Hub class-select and in-run class-info panels' ability-effect lines,
+      not the character panel) still infers percent-vs-point from
+      `STAT_KIND` alone, so Bloodlord's Blood Frenzy passive (`data/classes.
+      json`: `"mods": { "leech": 0.03 }`) renders "+0.03 Leech" instead of
+      "+3% Leech" in both surfaces. Filed as b053 below.
+
+- [ ] (b053) [bug] `modIsPct` (`src/ui/info-format.ts`) — the class-info
+      ability-effect formatter used by the Hub's class-select detail panel
+      (`hub.ts`) and the in-run class-info panel (`hud.ts`'s
+      `characterAbilitiesMarkup`) — still infers a mod's percent-vs-point
+      display purely from `STAT_KIND`, the exact conflation b021 (above)
+      just fixed for the character panel's own formatter by introducing
+      `STAT_DISPLAY`. Because `leech` is `'flat'` in `STAT_KIND` (correct for
+      §2's additive stacking, but ambiguous between a point total and a
+      fractional rate), `modIsPct` falls through to its `0 < |value| < 1`
+      heuristic, which happens to work for some values but not all.
+      qa-playtester's repro (verifying b021, 2026-08-31): Bloodlord's Blood
+      Frenzy passive (`data/classes.json:296`, `"mods": { "leech": 0.03 }`,
+      described in the same entry as "3% lifesteal") renders "+0.03 Leech"
+      instead of "+3% Leech" via `classAbilitiesMarkup(content.classByKey.
+      get('bloodlord')!)`, reachable from both live surfaces above —
+      acceptance: `modIsPct` (or its caller, `modLines`) consults
+      `STAT_DISPLAY` (`src/sim/statkeys.ts`, b021) instead of/in addition to
+      `STAT_KIND`; a test asserts `classAbilitiesMarkup` on Bloodlord's Blood
+      Frenzy passive renders "+3% Leech", not "+0.03" — refs: §2, §4,
+      §11, b021, QA on b021.
 
 ### Filed at the lane/quality merge (2026-08-28) — from BACKLOG-QUALITY.md's log and open queue
 
