@@ -5,6 +5,32 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-31 session: BACKLOG b046 fixed — VS-terrain specials kept dealing
+  damage/CC through the defeat slow-mo window.** `updateVsSpecials`
+  (`src/sim/vsspecials.ts`) — poison trail, frost aura, electric wire grid —
+  had no `w.dying` guard and was called unconditionally every tick from
+  `updateAct2`, right next to `updateWieldedAttacks` (b020). Same bug class,
+  same window: a `venom_spore` poison trail spawned a new `Area` and dealt
+  damage post-death, a `frost_obelisk` aura applied fresh `frostRemaining`
+  post-death, and linked `tesla_coil` towers zapped for damage post-death.
+  Fixed with the same one-line `if (w.dying) return;` at the top of
+  `updateVsSpecials`, mirroring b020's fix exactly (placed before all three
+  specials run, so none can fire once dying). `tests/p2c-vs-specials.test.ts`
+  gained 3 regression cases, one per special kind, each building the tower(s),
+  setting `w.dying`, and asserting no damage/CC lands; all 13 tests in the
+  file pass. qa-playtester **PASS**: confirmed guard placement precedes all
+  three specials, confirmed red-before/green-after by temporarily removing
+  the guard and rerunning (all 3 new tests failed as expected, then passed
+  again with the guard restored), confirmed `updateVsSpecials`'s only caller
+  is `updateAct2` and `w.dying` is only ever set during a genuine defeat,
+  confirmed `updatePoisonTrail`/`updateFrostAura`/`updateElectricWireGrid` are
+  module-private with no other call sites (no bypass leak). `npm run
+  test:fast`: 1739 passed / 4 failed — the same pre-existing, unrelated
+  flakes noted in b020's entry below (Playwright fold-test port contention,
+  Windows EPERM temp-cleanup races on q28/q49), confirmed still present on a
+  clean stash of this diff. Sibling instance `updateClassSummons`
+  (`src/sim/classes.ts`, live class summons) remains open as b047, top of
+  the queue.
 - **2026-08-31 session: BACKLOG b020 fixed — wielded attacks kept firing
   through the defeat slow-mo window.** `updateWieldedAttacks`
   (`src/sim/vswield.ts`) had no `w.dying` guard and was called unconditionally

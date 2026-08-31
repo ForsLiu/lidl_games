@@ -1071,7 +1071,7 @@ were not re-filed. Ordering within this section is by severity, not P-band.
       exact scope (`updateWieldedAttacks` only) and not fixed here — filed
       as b046 (`updateVsSpecials`) and b047 (`updateClassSummons`) at the
       top of the queue.
-- [ ] (b046) [bug] `updateVsSpecials` (`src/sim/vsspecials.ts`) — the poison
+- [x] (b046) [bug] `updateVsSpecials` (`src/sim/vsspecials.ts`) — the poison
       trail, frost aura and electric wire grid VS-terrain specials — has no
       `w.dying` guard and is called unconditionally from `updateAct2`
       (`src/sim/run.ts:844`), right next to `updateWieldedAttacks`. Same bug
@@ -1087,7 +1087,20 @@ were not re-filed. Ordering within this section is by severity, not P-band.
       regression test per special kind (poison trail, frost aura, electric
       wire grid) builds the relevant tower(s), kills the Warden and steps
       through the slow-mo window asserting no damage/CC lands — refs: §12
-      rule 2, b020, qa-playtester on b020.
+      rule 2, b020, qa-playtester on b020. **Fixed**: a one-line `if
+      (w.dying) return;` at the top of `updateVsSpecials`, before all three
+      specials run, mirroring b020's fix exactly. `tests/p2c-vs-
+      specials.test.ts` gained 3 regression cases, one per special kind; all
+      13 tests in the file pass. qa-playtester **PASS**: confirmed guard
+      placement precedes all three specials, confirmed red-before/green-
+      after by temporarily removing the guard (all 3 new tests failed as
+      expected) and restoring it, confirmed `updateVsSpecials`'s only caller
+      is `updateAct2` with `w.dying` only ever set during a genuine defeat,
+      confirmed the three special-update functions are module-private with
+      no other call sites (no bypass leak). `npm run test:fast`: 1739
+      passed / 4 failed, all pre-existing and unrelated (Playwright fold-
+      test port contention, Windows EPERM temp-cleanup races), confirmed
+      still present on a clean stash of this diff.
 - [ ] (b047) [bug] `updateClassSummons` (`src/sim/classes.ts`) has no
       `w.dying` guard, even though the Active2 that spawns a summon
       (`useClassActive2`) is already guarded against firing while dying —

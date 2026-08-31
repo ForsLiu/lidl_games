@@ -261,4 +261,63 @@ describe('p2c — towers inert but present in VS waves (§6.2)', () => {
     expect(w.gems.length).toBe(before + 1);
     expect(w.gems[w.gems.length - 1].value).toBe(3);
   });
+
+  // b046: updateVsSpecials had no w.dying guard, unlike updateWieldedAttacks
+  // (b020) — same DEFEAT_SLOWMO window, same "frozen moment" rule.
+  it("b046: poison trail spawns no area once w.dying is set", () => {
+    const w = new World(cfg(), content);
+    const [t1] = tiles(w, 1);
+    build(w, VENOM, t1.tx, t1.ty);
+    w.phase = 'act2';
+    w.warden.x = 10.5;
+    w.warden.y = 10.5;
+    w.dying = 'defeat_warden';
+    w.dyingTimer = 1.5;
+
+    const before = w.areas.length;
+    updateVsSpecials(w, VENOM.vsSpecial.kind === 'poisonTrail' ? VENOM.vsSpecial.interval : 1);
+    expect(w.areas.length).toBe(before);
+  });
+
+  it('b046: frost aura applies no Frost once w.dying is set', () => {
+    const w = new World(cfg(), content);
+    const [t1] = tiles(w, 1);
+    build(w, FROST, t1.tx, t1.ty);
+    w.phase = 'act2';
+    w.warden.x = 12.5;
+    w.warden.y = 12.5;
+    const near = dummy(w, w.warden.x + 1, w.warden.y);
+    w.rebuildBuckets();
+    w.dying = 'defeat_warden';
+    w.dyingTimer = 1.5;
+
+    updateVsSpecials(w, 1);
+
+    expect(near.frostRemaining).toBe(0);
+  });
+
+  it('b046: electric wire grid zaps nothing once w.dying is set', () => {
+    const w = new World(cfg(), content);
+    const [t1, t2] = tiles(w, 2);
+    build(w, TESLA, t1.tx, t1.ty);
+    build(w, TESLA, t2.tx, t2.ty);
+    linkSpires(w);
+    const spires = w.structures.filter((s) => s.towerId === TESLA.id);
+    expect(spires.some((s) => s.links.length > 0)).toBe(true);
+    w.phase = 'act2';
+
+    const midX = (t1.tx + 0.5 + t2.tx + 0.5) / 2;
+    const midY = (t1.ty + 0.5 + t2.ty + 0.5) / 2;
+    const e = dummy(w, midX, midY);
+    w.warden.x = 1.5;
+    w.warden.y = 1.5;
+    w.rebuildBuckets();
+    w.dying = 'defeat_warden';
+    w.dyingTimer = 1.5;
+
+    for (let i = 0; i < 60; i++) updateVsSpecials(w, DT);
+
+    expect(w.damageByWeapon['tesla_coil']).toBeUndefined();
+    expect(e.hp).toBe(1e6);
+  });
 });

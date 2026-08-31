@@ -32,6 +32,11 @@ import type { World } from './world';
 const WIRE_HALF_WIDTH = 0.3;
 
 export function updateVsSpecials(w: World, dt: number): void {
+  // b046: same "the defeat slow-mo beat is a frozen moment, not still-live
+  // combat" rule b020 already applies to `updateWieldedAttacks` — none of
+  // these three specials have a Command gate to catch them at, since they
+  // fire every tick from `updateAct2` regardless of input.
+  if (w.dying) return;
   updatePoisonTrail(w, dt);
   updateFrostAura(w, dt);
   updateElectricWireGrid(w, dt);
