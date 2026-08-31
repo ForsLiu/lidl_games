@@ -5,6 +5,55 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-30 session: p10f done — gate G19 (liveness: sealed, open and
+  multi-summon strategies all appear among winning builds) measured live and
+  green in full — commit `cd8ceb2`.** The only prior citation for G19
+  (`tests/a8-sundering-head-start.test.ts`) was entirely `describe.skip`'d and
+  never actually measured strategy mix even when live — the same "`covered`
+  gate backed by a dead file" trap already caught once for G1. `tools/
+  a5probe.ts` (G13's own damage-share probe) gained a `strategy` dimension on
+  `BuildSpec`/`BuildResult` (`open`/`sealed`/`rush`, plus `maxStackDepth`
+  sampled from the real `World.stackDepth` every tick) and a `collect(seeds,
+  builds = BUILDS)` signature, so a new `G19_BUILDS` array — two `sealed`
+  builds mirroring the already-live `sealed` bot policy (G7/p1b), two `rush`
+  multi-summon builds — can be layered onto the same "top-10-by-survival among
+  builds that banked all 18 TD waves" pool G13 uses, without changing a single
+  byte of G13's own measurement (`tests/p10c-weapon-share.test.ts` diffs
+  empty, re-measured numbers match its pinned header exactly). Found while
+  wiring the rush arm: no registered bot policy had ever actually stacked a
+  wave in play before this item — `applyCommand`'s `'call'` case only
+  increments `World.stackDepth` from `act1_wave` (already fighting), while the
+  pre-existing `rushWaves` option `kite`/`rush` already set only ever fires
+  from the idle `act1_build` build-timer countdown, a branch that structurally
+  can't reach it. New `BuilderOptions.stackWaves`/`stackAfter`
+  (`src/bots/policies.ts`, default off so every other registered policy's own
+  pinned numbers are untouched) merges a real next wave into an in-progress
+  fight once enough structures are up. New `tests/p10f-g19-liveness.test.ts`
+  (5 live assertions, no `.skip`) measures: `sealed-full` survives ~1010s
+  (beats every open build in the pool), `stacked-frost`/`stacked-mix` both
+  reach `stackDepth 2` (the `maxStackedWaves: 3` cap) while clearing all 18 TD
+  waves — sealed, open and multi-summon all genuinely win. `tools/
+  gate-audit.ts` moved G19 from `KNOWN_HOLES` to `GATE_COVERAGE`;
+  `tests/q10-gate-audit.test.ts`'s pinned split moved 16/4 → 17/3 covered/
+  holes. The new test runs ~5 min (16 builds × 5 seeds × full `cycles:6`
+  sims) and was added to `vitest.fast.config.ts`'s exclude list with a
+  comment naming the cost. code-reviewer found no Critical/Major issues
+  (independently verified the rushWaves-dead-end claim against
+  `applyCommand`, confirmed `collect()`'s new parameter is behavior-preserving
+  for its one other caller, confirmed no `/src/sim`/`src/bots`
+  architecture-rule violation) — one Minor (a redundant structure-count
+  recompute in the new bot branch) fixed in the same commit. qa-playtester
+  independently re-ran the full pipeline outside the test's own assertions
+  (matched every measured number), confirmed the stack cap is respected and
+  same-seed runs are deterministic (identical `endHash`), confirmed zero blast
+  radius on any other gate's pinned bot-policy numbers (grepped every
+  `registerPolicy` call), and confirmed `npm run test:fast`'s 9 failures are
+  all pre-existing Windows flake (fold-timeout tests, perf-ratio host
+  variance, `bench/.tmp` `EPERM` on cleanup — the b028/b029/b038 family) with
+  none touching the changed files — verdict PASS. One non-blocking note left
+  as-is per QA's own call: the bot re-issues a no-op `call` every tick once
+  already at the stack cap, harmlessly absorbed by `applyCommand`'s existing
+  guard, with no correctness/determinism/gate impact.
 - **2026-08-30 session: p10e done — gate G17's per-simulated-minute perf
   budget closed in full, all three clauses now live — commit `8eb2536`.**
   G17's other two clauses (≥60fps worst-case-tick benchmark, 50-run soak) were

@@ -38,7 +38,7 @@ still in test headers.
 | P7 equipment/rewards/VS upgrades | **`p7a`-`p7g` done** — §6.3's VS level-up pool replaces the flat 12-boon list (closing b011 as a side effect); §7's 12-item equipment table is live; §8's reward pipeline is complete and **gate G12 is green in full**; the superseded meta economy (relic affixes, Ember) is retired outright, skill points are the tree's only currency; §8.4's unlock quests are live and correct for all 9 non-free classes (p7e fixed 5 quests whose reward never actually unlocked their class, and repointed Paladin's quest at a new "win with a sealed Core" mechanism matching spec text); `p7f`/`p7g` closed the save-migration holes `migrateWithNotice` had — an unknown key, and a corrupt `allocated`/`unlockedClasses`/`completedQuests`/`equipmentStash`/`questProgress`, can no longer discard or corrupt the account. Remaining: `p7h` (Core unlock quests + Codex page) |
 | P8 enemies/waves/bosses | **done in full (`p8a`-`p8c`)** — all 20 §9 enemies by name; `data/waves.json` authors real TD waves 1-18 on the §1.1 shape (Gatebreaker on 18 only, Warden-Eater on VS 6), the §9 VS-budget curve is live; `p8b` closed the elite/boss-summon spawn paths that bypassed `spendBudget`'s `aliveCap` check; `p8c` formally measured gate G14 on the real shape — **honestly red, 0/20**, `.skip`-ed with the number, re-enable point P10 (no gate in this codebase is force-passed by tuning outside P10) |
 | P9 tooling | **done in full (`p9a`-`p9h`)** — content-hash replay check (`p9a`), the Codex wired into the Hub (`p9b`), the Tuner built and gate **G15 green** (`p9c`), G16's dist-presence-is-inert half explicitly asserted (`p9d`), **gate G18's dead-end clause closed in full** (`p9e`), **gate G2 closed in full** (`p9f`), `hashWorld`'s `w.goldSpent` coverage gap closed (`p9g`), and the enemy/Warden panel's armour row now shows the effective (floored/capped) value instead of the raw shredded number (`p9h`) |
-| P10 balance | **in progress (p10a-p10e done)** — Burning flipped to per-application stacking, DoT immunity is data-driven, G13/G1/G17 re-baselined against the real §1.1 shape (G17 fully green; G13/G1 partly `.skip`-ed with honest numbers, follow-ups p10j/p10k) |
+| P10 balance | **in progress (p10a-p10f done)** — Burning flipped to per-application stacking, DoT immunity is data-driven, G13/G1/G17 re-baselined against the real §1.1 shape (G17 fully green; G13/G1 partly `.skip`-ed with honest numbers, follow-ups p10j/p10k); **G19 measured live and green in full (p10f)** |
 
 ## Queue
 
@@ -490,10 +490,10 @@ next in P8's own queue.
       shapes — acceptance: an optional `immuneTrait` on the damage-type schema,
       resolved through the trait table, with Burning authored to use it and a test on
       a second row — refs: §3, §12, code review on m19c — **done, see Done section.**
-- [ ] (p10f) [balance] Gate **G19** liveness: the winning sim builds include both
+- [x] (p10f) [balance] Gate **G19** liveness: the winning sim builds include both
       sealed and open strategies, and multi-summon usage — acceptance: G19 measured
       over the same pool G13 uses, asserting each strategy appears among the winners
-      — refs: G19
+      — refs: G19 — **done, see Done section.**
 - [ ] (p10g) [balance] No gate exercises the armour shred: none of the twelve sweep
       seeds ever builds an Ember Brazier and no bot policy ever draws the flame cone,
       so G4's shred path runs zero times in the sweep that guards balance — the shred
@@ -995,6 +995,61 @@ logged in MIGRATION.md §8 rather than carried as dead items.
 
 ## Done
 
+- [x] (p10f) [balance] Gate **G19** liveness: winning sim builds include both sealed
+      and open strategies, and multi-summon usage — acceptance: measured over the
+      same pool G13 uses, each strategy appearing among the winners — refs: G19.
+      The prior citation for G19 (`tests/a8-sundering-head-start.test.ts`) was
+      entirely `describe.skip`'d and, even live, never measured strategy mix or
+      multi-summon usage — the same "`covered` gate backed by a dead file" failure
+      mode q10/QA already caught for G1 once. `tools/a5probe.ts` (G13's own probe)
+      gained a `strategy`/`allowSeal`/`perimeterRadius`/`rushWaves`/`stackWaves`/
+      `stackAfter` shape on `BuildSpec`, threaded into `BuilderPolicy`; `BuildResult`
+      gained `strategy` and `maxStackDepth` (the real `World.stackDepth`, sampled
+      every tick, not inferred from config); `collect()` took an optional `builds`
+      array defaulting to the original `BUILDS`, so G13's own test
+      (`tests/p10c-weapon-share.test.ts`) is byte-for-byte unaffected — confirmed via
+      `git diff` (zero changes to that file) and a re-derived measurement matching
+      its pinned header numbers exactly. A new `G19_BUILDS` array adds two `sealed`
+      builds (mirroring the already-live `sealed` bot policy, G7/p1b: a completed
+      perimeter ring including the closing tile) and two `rush`/multi-summon builds.
+      Found while wiring the rush arm: no registered bot policy had ever actually
+      stacked a wave before this item. `applyCommand`'s `'call'` case
+      (`src/sim/run.ts`) only increments `World.stackDepth` from `act1_wave`
+      (already fighting); the pre-existing `rushWaves` option the `kite`/`rush`
+      policies set only ever fires from the idle `act1_build` build-timer countdown
+      — a structurally different branch that can never reach the stacking one. New
+      `BuilderOptions.stackWaves`/`stackAfter` (default off, so every *other*
+      registered policy's own pinned numbers are untouched — verified no
+      `registerPolicy` call passes it) merges a real next wave into an in-progress
+      fight once enough structures are standing. `tests/p10f-g19-liveness.test.ts`
+      runs `collect`/`topTen` (G13's own "top-10-by-survival among builds that
+      banked all 18 TD waves" methodology) over `[...BUILDS, ...G19_BUILDS]` across
+      5 seeds and asserts the winning pool contains an open, a sealed, and a
+      real-multi-summon-used (`maxStackDepth > 0`) build — all three live and green,
+      no `.skip`. Measured: `sealed-full` survives ~1010s (beats every open build),
+      `stacked-frost`/`stacked-mix` both reach `stackDepth 2` (the
+      `maxStackedWaves: 3` cap) while clearing all 18 waves. `tools/gate-audit.ts`
+      moved G19 from `KNOWN_HOLES` to `GATE_COVERAGE`; `tests/q10-gate-audit.test.ts`'s
+      pinned split moved from 16 covered / 4 holes to 17 / 3.
+      `vitest.fast.config.ts` gained the new test in its exclude list (16 builds ×
+      5 seeds × full `cycles:6` sims, ~5 min) with a comment naming the cost.
+      code-reviewer found no Critical/Major issues (independently verified the
+      rushWaves-dead-end claim against `applyCommand`, confirmed `collect()`'s new
+      parameter is behavior-preserving for its one other caller, confirmed no
+      `/src/sim` or `src/bots` architecture-rule violation) — one Minor (a redundant
+      structure-count recompute in the new bot branch) fixed in the same commit by
+      reusing the already-computed `live` variable. qa-playtester independently
+      re-ran the full pipeline outside the test's own assertions (matched every
+      measured number), confirmed `stackDepth` never exceeds the data-driven cap in
+      a live run, confirmed same-seed determinism (identical `endHash`/report across
+      two runs), confirmed zero blast radius on any other gate's pinned bot-policy
+      numbers, and confirmed `npm run test:fast`'s 9 failures are all pre-existing
+      Windows flake classes (b028/b029/b038's family — fold-timeout tests, perf-ratio
+      host variance, EPERM on `bench/.tmp` cleanup) with none touching the changed
+      files — verdict PASS. It noted one non-blocking inefficiency (the bot re-issues
+      a no-op `call` every tick once already at the stack cap, harmlessly absorbed by
+      `applyCommand`'s own guard) left as-is per its own recommendation, since it has
+      no correctness, determinism or gate impact. Commit `cd8ceb2`.
 - [x] (p10e) [balance] Gate **G17** perf, re-baselined as §16 asks: a
       host-independent sim budget per simulated minute replacing today's wall-clock
       "full run under 5 seconds"; 350 enemies with every wielded attack live holds a
