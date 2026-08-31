@@ -566,6 +566,31 @@ describe('p6d: Necromancer — corpses, the raise cap, and the pact', () => {
     expect(w.classSummons.filter((c) => c.kind === 'bone_pylon')).toHaveLength(1);
   });
 
+  it('b048: the pact drain (and the Bone Pylon death it can trigger) freezes once w.dying is set', () => {
+    // code-reviewer-filed verifying b047: same DEFEAT_SLOWMO bug class as
+    // b020/b046/b047, but updatePactedTowers is one of three sub-routines
+    // inside updateClassPassives that needed its own guard rather than a
+    // blanket function-level one (the Warden timers/corpse decay in the same
+    // function are cosmetic and must keep running).
+    const w = worldWith('necromancer');
+    w.warden.x = 10;
+    w.warden.y = 10;
+    const arrow = content.towerByKey.get('arrow_spire')!;
+    buildTower(w, arrow.id, 11, 10);
+    const s = w.structureAt(11, 10)!;
+    applyCommand(w, { k: 'class_active2', aimX: 11, aimY: 10 });
+    expect(s.pactActive).toBe(true);
+    const hpBefore = s.hp;
+
+    w.dying = 'defeat_warden';
+    w.dyingTimer = 1.5;
+    for (let t = 0; t < 60 * 60; t++) updateClassPassives(w, DT);
+
+    expect(s.hp).toBe(hpBefore);
+    expect(s.dead).toBe(false);
+    expect(w.classSummons.filter((c) => c.kind === 'bone_pylon')).toHaveLength(0);
+  });
+
   it('the tower passive adds damage only below full HP, and only in Act I', () => {
     const w = worldWith('necromancer');
     w.warden.x = 10;
@@ -926,6 +951,18 @@ describe('p6d: Pyro — Contagious Flame, Flame Road and the Burning tower passi
     const touching = dummy(w, 10.5, 10);
     w.rebuildBuckets();
     applyEffects(w, carrier, { burnDps: 1, burnDuration: 5 });
+    updateClassPassives(w, 1);
+    expect(touching.hp).toBe(1e6);
+  });
+
+  it('b048: deals no touch damage once w.dying is set, mirroring b020/b046/b047\'s guard', () => {
+    const w = worldWith('pyromancer');
+    const carrier = dummy(w, 10, 10);
+    const touching = dummy(w, 10.5, 10);
+    w.rebuildBuckets();
+    applyEffects(w, carrier, { burnDps: 1, burnDuration: 5 });
+    w.dying = 'defeat_warden';
+    w.dyingTimer = 1.5;
     updateClassPassives(w, 1);
     expect(touching.hp).toBe(1e6);
   });

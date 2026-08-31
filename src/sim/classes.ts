@@ -1206,6 +1206,12 @@ function fireTimeLock(w: World, cls: ClassDef, aimX: number | undefined, aimY: n
 function updateTimeLockZone(w: World, dt: number): void {
   const z = w.timeLockZone;
   if (!z) return;
+  // b048: same "the defeat slow-mo beat is a frozen moment" rule b020/b046/
+  // b047 apply — the entry DoT and the forced-reposition clamp are both real
+  // CC, not cosmetic. Guarded here (not by blanket-guarding the whole of
+  // updateClassPassives) so the Warden timer decrements and corpse decay
+  // above this call keep running, matching this item's acceptance.
+  if (w.dying) return;
   z.remaining -= dt;
   if (z.remaining <= 0) {
     releaseTimeLockZone(w, z.id);
@@ -1244,6 +1250,13 @@ const flameScratch: Enemy[] = [];
  * purpose: a timer that only ticks while its own class is selected would never
  * reach zero if the run somehow changed class mid-flight, and a corpse list is
  * cheap to drain whether or not anyone can raise it.
+ *
+ * b048: unlike `updateClassSummons`/`updateVsSpecials`/`updateWieldedAttacks`
+ * (b020/b046/b047), this function is not blanket-guarded on `w.dying` — the
+ * Warden timers and corpse decay above are cosmetic-only and keep running
+ * through the DEFEAT_SLOWMO beat. Only the three damage/CC sub-routines
+ * (`updateContagiousFlame`, `updateTimeLockZone`, `updatePactedTowers`) guard
+ * themselves individually.
  */
 export function updateClassPassives(w: World, dt: number): void {
   const wd = w.warden;
@@ -1285,6 +1298,9 @@ export function updateClassPassives(w: World, dt: number): void {
 
 /** §4.2 Pyro *Contagious Flame*: "Burning enemies deal 2 dmg/s to enemies touching them". */
 function updateContagiousFlame(w: World, cls: ClassDef, dt: number): void {
+  // b048: same DEFEAT_SLOWMO rule as b020/b046/b047 — touch damage to nearby
+  // enemies is real combat, not a cosmetic tick.
+  if (w.dying) return;
   const dps = cls.passive.flameDps ?? 0;
   const radius = cls.passive.flameRadius ?? 0;
   if (dps <= 0 || radius <= 0) return;
@@ -1343,6 +1359,9 @@ function updateGuardianStance(w: World, cls: ClassDef, dt: number): void {
  * would put the tower's own defense between the pact and its price.
  */
 function updatePactedTowers(w: World, cls: ClassDef, dt: number): void {
+  // b048: same DEFEAT_SLOWMO rule as b020/b046/b047 — the HP drain (and the
+  // structdeath/Bone Pylon it can trigger) is real combat, not a cosmetic tick.
+  if (w.dying) return;
   const eff = cls.active2;
   const drain = eff.pactDrainPerSecond ?? 0;
   if (drain <= 0) return;

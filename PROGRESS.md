@@ -5,6 +5,45 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-31 session: BACKLOG b048 fixed — `updateClassPassives`'s three
+  damage/CC sub-routines kept firing through the defeat slow-mo window.**
+  Same bug class as b020/b046/b047, but a narrower fix than any of those
+  three: rather than blanket-guarding the whole function (which would also
+  freeze the two cosmetic Warden timers, corpse decay, Guardian Stance's
+  stand-still timer, and Time Lord's position-history sampling — all
+  harmless to leave running), `if (w.dying) return;` was added as the first
+  statement inside each of the three sub-routines individually —
+  `updateContagiousFlame` (Pyro's touch damage to enemies near a Burning
+  carrier), `updateTimeLockZone` (Time Lord's zone — entry DoT plus a forced
+  reposition clamp on anyone trying to leave, real CC), and
+  `updatePactedTowers` (Necromancer's Death Pact HP drain, which can trigger
+  a tower death, a `structdeath` emit, and a Bone Pylon spawn). Each of the
+  three has exactly one call site, all inside `updateClassPassives`, so
+  there is no bypass path. Regression tests added to
+  `tests/p6d-nine-classes.test.ts` (Contagious Flame no-touch-damage-while-
+  dying; Death Pact drain/Bone-Pylon-on-death frozen while dying) and
+  `tests/fb013-timelord.test.ts` (an in-flight Time Lock zone stops clamping
+  escapees and stops applying entry DoT once dying); all three confirmed red
+  against the pre-fix code (`git stash push -- src/sim/classes.ts`) and
+  green with the fix restored. code-reviewer **APPROVE**, no Critical/Major
+  findings — confirmed by inspection that every left-alone branch
+  (`updateGuardianStance`, `updateTimeLordHistory`, the two Warden timers,
+  corpse decay) touches no damage/HP/position state, so the narrower
+  carve-out is sound, and found no other sibling gap in the b020/b046/b047
+  bug class. qa-playtester **PASS** on b048's own scope — drove real
+  Warden-kill/Core-seal defeats through `Run.step` for all three classes
+  with an ability in flight, confirmed the cosmetic timers keep ticking
+  through the beat, checked a same-tick cast-vs-defeat race and spam-casting
+  during the window (already rejected by `useClassActive2`'s own guard), and
+  confirmed replay determinism. It filed one bug outside b048's scope, in
+  the same bug family: Burning's neighbor-splash damage (`tickDotSplash` in
+  `src/sim/enemies.ts`, data-driven off `data/damagetypes.json` rather than
+  gated to one class) keeps landing throughout the `DEFEAT_SLOWMO` window
+  regardless of source — filed as b049, top of the queue. `npm run
+  test:fast`: 1746 passed / 2 failed + 4 failed suites, all the same
+  pre-existing, unrelated flakes logged in b046/b047's entries below
+  (Windows EPERM temp-cleanup races on q28/q49, Playwright fold-test port
+  contention on b032/b034/b035/b036).
 - **2026-08-31 session: BACKLOG b047 fixed — live class summons kept firing
   through the defeat slow-mo window.** `updateClassSummons`
   (`src/sim/classes.ts`) had no `w.dying` guard, even though the Active2 that

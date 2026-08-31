@@ -1154,7 +1154,7 @@ were not re-filed. Ordering within this section is by severity, not P-band.
       q28/q49) plus 4 pre-existing Playwright fold-test flakes
       (b032/b034/b035/b036, port contention) — commit pending in this
       change.
-- [ ] (b048) [bug] `updateClassPassives` (`src/sim/classes.ts`) has no
+- [x] (b048) [bug] `updateClassPassives` (`src/sim/classes.ts`) has no
       `w.dying` guard and is called unconditionally from the same three
       `run.ts` sites as `updateClassSummons` (`act1_build`, `act1_wave`,
       `updateAct2`) — same bug class as b020/b046/b047. code-reviewer-filed
@@ -1174,7 +1174,64 @@ were not re-filed. Ordering within this section is by severity, not P-band.
       damage/CC-dealing sub-routine kills the Warden (or seals the Core for
       the Act I path) and steps through the slow-mo window asserting no
       damage/CC lands — refs: §12 rule 2, b020, b046, b047, code-reviewer
-      on b047.
+      on b047. commit pending in this change. Fixed by guarding the three
+      named sub-routines individually (`if (w.dying) return;` as their first
+      statement) rather than blanket-guarding `updateClassPassives` itself —
+      the Warden timer decrements, corpse decay, Guardian Stance's
+      stand-still timer, and Time Lord's position-history sampling stay
+      unguarded, matching the acceptance criteria's carve-out. Regression
+      tests added: `tests/p6d-nine-classes.test.ts` (Contagious Flame deals
+      no touch damage while dying, Death Pact drain/Bone-Pylon-on-death
+      frozen while dying) and `tests/fb013-timelord.test.ts` (an existing
+      Time Lock zone stops clamping escapees and stops applying entry DoT
+      once dying) — all three confirmed red against the pre-fix code and
+      green after. code-reviewer **APPROVE**, no Critical/Major findings;
+      confirmed by inspection that the left-alone branches
+      (`updateGuardianStance`, `updateTimeLordHistory`, the two Warden
+      timers, corpse decay) touch no damage/HP/position state, so the
+      carve-out is sound, and that all three guarded functions have exactly
+      one call site each (inside `updateClassPassives`), so there is no
+      bypass path. qa-playtester **PASS** on b048's own scope — drove real
+      Warden-kill/Core-seal defeats through `Run.step` for all three classes
+      with an ability in flight (a live Time Lock zone, an active Death
+      Pact, a touching Burning carrier), confirmed the cosmetic timers still
+      tick through the beat, checked a same-tick cast-vs-defeat race and
+      spam-casting during the window, and confirmed replay determinism. It
+      also filed one bug outside b048's scope, in the same bug family:
+      `tickDotSplash` (`src/sim/enemies.ts`, reached via
+      `tickDots`→`tickTimers`→`updateEnemies`) still lands Burning's
+      neighbor-splash damage throughout the whole `DEFEAT_SLOWMO` window for
+      *any* Burning source (not just Pyro's Contagious Flame, which this
+      item correctly closed) — filed as b049 below.
+- [ ] (b049) [bug] Burning's neighbor-splash damage
+      (`data/damagetypes.json`'s Burning `radius: 1`, applied by
+      `tickDotSplash` in `src/sim/enemies.ts`, reached via
+      `tickDots`→`tickTimers`→`updateEnemies`) keeps landing on enemies
+      throughout the `DEFEAT_SLOWMO` window after a defeat begins — same bug
+      class as b020/b046/b047/b048, but data-driven off the damage type
+      itself rather than gated to one class, so it fires for Burning applied
+      by any source (Ember Brazier tower, VS wielded fire, any class), not
+      just Pyro's already-fixed Contagious Flame passive. qa-playtester-filed
+      verifying b048 (2026-08-31), reproduced twice: build an Act II run,
+      apply a Burning DoT to an enemy standing next to another, force a
+      Warden-kill defeat (`w.warden.hp = 1; damageWarden(w, 1e9)`), then
+      `run.step` repeatedly while `w.dying` is truthy — the neighbor's HP
+      keeps dropping (`damageByWeapon` for the DoT's source keeps
+      accumulating) for the whole 1.5 s beat, since none of
+      `tickDots`/`tickDotSplash`/`tickTimers`/`updateEnemies` check
+      `w.dying` — acceptance: `tickDotSplash` (or its caller) is a no-op
+      once `w.dying` is truthy, verified through a real defeat via
+      `Run.step` (not just a direct function call) for Burning applied by at
+      least two different sources (a class passive and a tower/wielded
+      attack); a regression test in `tests/m19c-damage-types.test.ts`
+      (which already covers Burning-radius/splash around its
+      line-285-385 tests) sets up the splash scenario, drives or forces a
+      defeat, steps through the window, and asserts the neighbor's
+      hp/damageByWeapon don't move; check whether ordinary (non-splash) DoT
+      ticking on a DoT's own carrier and general enemy movement/Warden-
+      contact damage inside the same `updateEnemies` path have the identical
+      gap and need the same guard, or are already covered elsewhere — refs:
+      §12 rule 2, b020, b046, b047, b048, qa-playtester on b048.
 - [ ] (b021) [bug] The character panel (fb004) renders `cdr` and `leech`
       as raw decimals instead of percentages. Both are classified `'flat'`
       in `STAT_KIND` (`src/sim/stats.ts`) for correct §2 stacking-math

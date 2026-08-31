@@ -368,6 +368,40 @@ describe('fb013: Active2 *Time Lock* — 2-charge ammo gate, no-exit zone, rewin
     expect(Math.sqrt(dx * dx + dy * dy)).toBeLessThanOrEqual(timeLord.active2.radius + 1e-6);
   });
 
+  it('b048: stops clamping escapees and applying entry DoT once w.dying is set', () => {
+    // code-reviewer-filed verifying b047: same DEFEAT_SLOWMO bug class as
+    // b020/b046/b047. updateTimeLockZone is one of three sub-routines inside
+    // updateClassPassives that needed its own guard (not a blanket
+    // function-level one — the Warden timers/corpse decay in the same
+    // function are cosmetic and must keep running through the beat).
+    const run = makeRun();
+    const w = run.world;
+    const e = makeTarget(run);
+    const cx = e.x;
+    const cy = e.y;
+
+    applyCommand(w, { k: 'class_active2', aimX: cx, aimY: cy });
+    run.step(idleInput());
+    expect(e.timeLockZoneId).toBeGreaterThan(0);
+    const stacksBefore = dotStacks(e, 'bleeding');
+    expect(stacksBefore).toBe(1);
+
+    // Set directly rather than through damageWarden: Time Lord's own Time
+    // Flow passive converts incoming Warden damage into a DoT rather than an
+    // instant kill, which would not land w.dying on this same tick.
+    w.dying = 'defeat_warden';
+    w.dyingTimer = 1.5;
+
+    // Shove it outside the zone radius; a live zone would snap it back.
+    e.x = cx + 8;
+    e.y = cy;
+    run.step(idleInput());
+
+    expect(e.x).toBeCloseTo(cx + 8, 5);
+    expect(e.y).toBeCloseTo(cy, 5);
+    expect(dotStacks(e, 'bleeding')).toBe(stacksBefore);
+  });
+
   it('a trapped enemy is immune to Time\'s rewind-pull (the teleport half is skipped, the mark still advances)', () => {
     const run = makeRun();
     const w = run.world;
