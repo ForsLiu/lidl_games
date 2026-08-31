@@ -27,7 +27,7 @@ import { applyDamageType } from './damagetypes';
 import { dist2, normalize } from './math';
 import { applySlow } from './enemies';
 import { active1PotencyMul, classLineBonus } from './progression';
-import type { Enemy, Structure, TowerClassBonus } from './types';
+import { tickCooldown, type Enemy, type Structure, type TowerClassBonus } from './types';
 import {
   attackProfile,
   damageShare,
@@ -396,7 +396,7 @@ export function updateTowers(w: World, dt: number): void {
     if (s.atkSpdBuffRemaining > 0) s.atkSpdBuffRemaining = Math.max(0, s.atkSpdBuffRemaining - dt);
     const def = w.content.towerById.get(s.towerId)!;
     if (!def.attack) continue;
-    s.cooldown -= dt * attackSpeedFor(w, s);
+    s.cooldown = tickCooldown(s.cooldown, dt * attackSpeedFor(w, s));
     if (s.cooldown > 0) continue;
     s.cooldown += def.attack.interval;
     if (s.cooldown < 0) s.cooldown = 0;

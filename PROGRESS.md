@@ -5,6 +5,30 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-31 session: BACKLOG b018 fixed — cooldown-gate float-residual bug.**
+  Every `> 0`-gated cooldown decrement in the sim (Warden `dashCooldown`/
+  `attackCooldown`/`activeCooldown`/`active1Cooldown`/`active2Cooldown` in
+  `updateWarden`, `src/sim/run.ts`; tower `s.cooldown` in `updateTowers`,
+  `src/sim/towers.ts`; aura-totem `s.attackCooldown` in `updateClassSummons`,
+  `src/sim/classes.ts`; enemy `e.attackCooldown` in `tickTimers`,
+  `src/sim/enemies.ts`) could land on a tiny positive float residual
+  (QA-observed `2.34e-14`) instead of exactly 0, silently dropping a cast
+  issued exactly `cooldownSeconds` after the last one. Added `tickCooldown`
+  (`COOLDOWN_EPS = 1e-6`, `src/sim/types.ts`) and routed every listed
+  decrement through it — anything below the epsilon floors to 0.
+  `tests/b018-cooldown-epsilon.test.ts` (7 tests) unit-tests the boundary and
+  reproduces the exact QA-observed residual through a real `updateWarden`
+  tick on Pyromancer's Immolation Wave; confirmed red on pre-fix code via
+  `git stash`, green after. qa-playtester adversarially hunted for the
+  opposite regression (an early cast) across all 12 classes' actives and
+  dash charges — none found; confirmed `COOLDOWN_EPS` is 250,000× smaller
+  than the smallest real authored cooldown-shaped `/data` field
+  (`interval: 0.25`); confirmed replay/hash determinism
+  (`g2-determinism`/`q18-content-hash-replay`) is unaffected. No bugs filed.
+  `npm run test:fast`: only the 4 pre-existing documented Playwright fold
+  flakes (b032/b034/b035/b036, port contention) and the documented Windows
+  EPERM temp-cleanup race (q49) red, both pre-existing and unrelated to this
+  diff. Commit pending in this change.
 - **2026-08-31 session: BACKLOG b017 closed — no code change, bookkeeping only.**
   b017 flagged `src/meta/meta.ts`'s `completionFraction` for hardcoding a
   wave-10 ceiling on Act I's 40% share of Ember-reward "completion," stale

@@ -10,7 +10,7 @@ import { clamp, dcos, dist, dist2, dsin, normalize } from './math';
 import { classLineBonus } from './progression';
 import { damageTakenMul } from './stats';
 import { structureArmor } from './upgrades';
-import type { DotStack, Enemy, Structure } from './types';
+import { tickCooldown, type DotStack, type Enemy, type Structure } from './types';
 import { World } from './world';
 
 /**
@@ -983,7 +983,7 @@ function tickTimers(w: World, e: Enemy, dt: number): void {
   // The trait abilities on `abilityTimer` — stomp, heal, buff, fire trail — are
   // deliberately not slowed; §3 says "attack speed" and nothing authors frost
   // yet, so widening it is m20b's call with a number to measure (QUESTIONS Q71).
-  if (e.attackCooldown > 0) e.attackCooldown -= dt * enemyAttackSpeedMul(w, e);
+  if (e.attackCooldown > 0) e.attackCooldown = tickCooldown(e.attackCooldown, dt * enemyAttackSpeedMul(w, e));
   if (e.slowRemaining > 0) {
     e.slowRemaining -= dt;
     if (e.slowRemaining <= 0) e.slowAmount = 0;

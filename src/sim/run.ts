@@ -61,6 +61,7 @@ import './boss';
 import {
   FIXED_DT,
   emptyInput,
+  tickCooldown,
   type Command,
   type DevOp,
   type RunOutcome,
@@ -437,17 +438,17 @@ export function updateWarden(w: World, input: TickInput, dt: number): void {
   const d = w.derived;
 
   if (wd.dashCooldown > 0) {
-    wd.dashCooldown -= dt;
+    wd.dashCooldown = tickCooldown(wd.dashCooldown, dt);
     if (wd.dashCooldown <= 0 && wd.dashCharges < d.dashCharges) {
       wd.dashCharges++;
       if (wd.dashCharges < d.dashCharges) wd.dashCooldown = BASE.dashCooldown * (1 - d.cdr);
     }
   }
   if (wd.dashIFrames > 0) wd.dashIFrames -= dt;
-  if (wd.attackCooldown > 0) wd.attackCooldown -= dt;
-  if (wd.activeCooldown > 0) wd.activeCooldown -= dt;
-  if (wd.active1Cooldown > 0) wd.active1Cooldown -= dt;
-  if (wd.active2Cooldown > 0) wd.active2Cooldown -= dt;
+  if (wd.attackCooldown > 0) wd.attackCooldown = tickCooldown(wd.attackCooldown, dt);
+  if (wd.activeCooldown > 0) wd.activeCooldown = tickCooldown(wd.activeCooldown, dt);
+  if (wd.active1Cooldown > 0) wd.active1Cooldown = tickCooldown(wd.active1Cooldown, dt);
+  if (wd.active2Cooldown > 0) wd.active2Cooldown = tickCooldown(wd.active2Cooldown, dt);
   wd.outOfCombat += dt;
 
   const n = normalize(input.mx, input.my);

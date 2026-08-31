@@ -985,7 +985,7 @@ were not re-filed. Ordering within this section is by severity, not P-band.
       documented Playwright fold flakes (b032/b034/b035/b036, port contention)
       and the documented Windows EPERM temp-cleanup race (q49) red — both
       reproduced as pre-existing and unrelated to this diff.
-- [ ] (b018) [bug] Every cooldown gate in the sim (`wd.active1Cooldown`,
+- [x] (b018) [bug] Every cooldown gate in the sim (`wd.active1Cooldown`,
       `active2Cooldown`, `activeCooldown`, `attackCooldown`, `dashCooldown`,
       tower `s.cooldown`) is a strict `> 0` float compare with no epsilon, so
       a cooldown that decrements to a tiny positive float residual (observed:
@@ -1000,7 +1000,33 @@ were not re-filed. Ordering within this section is by severity, not P-band.
       tick's worth) so a cast issued exactly `cooldownSeconds` after the last
       one is never silently dropped; a regression test drives a cooldown to
       its exact float-residual boundary and asserts the next cast fires —
-      refs: §12 rule 2, QA on Q120 ORDER 1
+      refs: §12 rule 2, QA on Q120 ORDER 1. **Fixed**: a new `tickCooldown`
+      helper (`COOLDOWN_EPS = 1e-6`, `src/sim/types.ts`) floors any
+      post-decrement value below that epsilon to exactly 0, and every `> 0`-gated
+      decrement site in the sim now goes through it — the Warden's
+      `dashCooldown`/`attackCooldown`/`activeCooldown`/`active1Cooldown`/
+      `active2Cooldown` (`updateWarden`, `src/sim/run.ts`), tower `s.cooldown`
+      (`updateTowers`, `src/sim/towers.ts`), aura-totem `s.attackCooldown`
+      (`updateClassSummons`, `src/sim/classes.ts`), and enemy `e.attackCooldown`
+      (`tickTimers`, `src/sim/enemies.ts`). `tests/b018-cooldown-epsilon.test.ts`
+      (7 tests) unit-tests `tickCooldown`'s boundary directly and reproduces the
+      exact QA-observed `2.34e-14` residual through a real `updateWarden` tick on
+      Pyromancer's Immolation Wave, asserting the cooldown lands on exactly 0 and
+      the next `useClassActive` call fires; confirmed red on pre-fix code via
+      `git stash`. qa-playtester pass: adversarially drove all 12 classes'
+      actives (500 fires each) and dash charges (200 cycles × 3 classes) hunting
+      for the opposite regression — an early cast — and found none (no fire
+      landed more than `COOLDOWN_EPS` ahead of its authored cooldown); confirmed
+      the smallest real `/data` cooldown-shaped field (`interval: 0.25`) is
+      250,000× larger than `COOLDOWN_EPS`, so no authored cooldown reads as
+      instantly-ready; confirmed `g2-determinism`/`q18-content-hash-replay`
+      (100-seed end-state hash + auto-pick variant) are unaffected; hand-traced
+      the tower re-arm's pre-existing `if (s.cooldown < 0) s.cooldown = 0`
+      clamp as now-redundant-but-harmless alongside the new floor. No bugs
+      filed. `npm run test:fast`: only the four pre-existing documented
+      Playwright fold flakes (b032/b034/b035/b036, port contention) and the
+      documented Windows EPERM temp-cleanup race (q49) red, both pre-existing
+      and unrelated to this diff. Commit pending in this change.
 - [ ] (b019) [bug] A self-cast Ice Wall can trap the Warden in place for the
       wall's full `wallSeconds`: `walkable()` (`src/sim/run.ts`) checks only
       the destination tile via `grid.passable`, and Ice Wall's 1x3 footprint

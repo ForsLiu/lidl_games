@@ -53,7 +53,7 @@ import { clamp, dist2, lerp, normalize } from './math';
 import { active1PotencyMul, active2CdrBonus, classLineBonus } from './progression';
 import { buildTower, effectiveTowerAoe, LINE_HALF_WIDTH, towerCost } from './towers';
 import { maxLevel, upgradeStatMul } from './upgrades';
-import type { ClassSummon, Enemy, Phase, Structure, TickInput } from './types';
+import { tickCooldown, type ClassSummon, type Enemy, type Phase, type Structure, type TickInput } from './types';
 import { World } from './world';
 
 /** Usable both TD and VS, per SPEC-FINAL §4 — but not in menu/transition phases. */
@@ -1425,7 +1425,7 @@ export function updateClassSummons(w: World, dt: number): void {
       }
       continue;
     }
-    s.attackCooldown -= dt;
+    s.attackCooldown = tickCooldown(s.attackCooldown, dt);
     if (s.attackCooldown > 0) continue;
     const target = w.nearestEnemy(s.x, s.y, s.range);
     if (!target) continue;
