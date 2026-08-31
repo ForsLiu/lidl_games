@@ -22,7 +22,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { loadContent } from '../src/sim/content';
 import { COMMAND_KINDS, PHASES, describeFailure, fuzzPhase, fuzzRun, runInPhase } from '../tools/fuzz-input';
@@ -30,6 +30,7 @@ import { COMMAND_KINDS, PHASES, describeFailure, fuzzPhase, fuzzRun, runInPhase 
 // from there directly rather than through fuzz-input's re-export, since the
 // case below tests the scanner, not the fuzzer.
 import { scanWorld } from '../tools/invariants';
+import { STAT_KEYS } from '../src/sim/stats';
 
 /** The QUALITY.md number, per phase. */
 const N = 10000;
@@ -154,10 +155,27 @@ describe('q2 input fuzz', () => {
     }
 
     // `stats` keeps its numbers behind accessors, which is what the original
-    // bug was; overflowing one has to be visible through `total()`/`factor()`.
-    w.stats.add('__probe_a', 'power', Number.MAX_VALUE);
-    w.stats.add('__probe_b', 'power', Number.MAX_VALUE);
-    expect(scanWorld(w).join(' | '), 'scanWorld does not read stats through its accessors').toContain('stats.');
+    // bug was: enumerating `w.stats` directly finds one private Map and zero
+    // numbers. This used to be proven by overflowing a stat past `total()`/
+    // `factor()` with two `Number.MAX_VALUE` contributions and asserting the
+    // scan named it. b022 closed that overflow at its source — `total()`/
+    // `factor()` now guarantee a finite result by construction, dropping
+    // whichever source's contribution would have pushed the running
+    // sum/product non-finite — so that route can no longer produce a
+    // non-finite stat for the scan to catch, on any input, including one
+    // that reaches past `add()`'s own guards. Prove the accessor path
+    // directly instead: spy on `total`/`factor` and confirm `scanWorld`
+    // actually calls both for every stat key, rather than enumerating the
+    // object.
+    const totalSpy = vi.spyOn(w.stats, 'total');
+    const factorSpy = vi.spyOn(w.stats, 'factor');
+    scanWorld(w);
+    const totalKeys = totalSpy.mock.calls.map((c) => c[0]).sort();
+    const factorKeys = factorSpy.mock.calls.map((c) => c[0]).sort();
+    totalSpy.mockRestore();
+    factorSpy.mockRestore();
+    expect(totalKeys, 'scanWorld does not read stats.total() for every stat key').toEqual([...STAT_KEYS].sort());
+    expect(factorKeys, 'scanWorld does not read stats.factor() for every stat key').toEqual([...STAT_KEYS].sort());
   });
 
   it('survives whole runs with random commands in the tick input', () => {

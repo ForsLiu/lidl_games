@@ -43,9 +43,9 @@ const hexColor = z.string().min(1);
  * (`statRecord` below) and a record read by a fixed dispatch table that is
  * not `Stats` at all (`MODIFIER_EFFECT_KEYS`).
  */
-function recordWithKeys(allowed: readonly string[]) {
+function recordWithKeys(allowed: readonly string[], value: z.ZodTypeAny = num) {
   const allowedSet = new Set<string>(allowed);
-  return z.record(str, num).refine(
+  return z.record(str, value).refine(
     (rec) => Object.keys(rec).every((k) => allowedSet.has(k)),
     (rec) => ({
       message: `unknown key(s): ${Object.keys(rec)
@@ -56,13 +56,23 @@ function recordWithKeys(allowed: readonly string[]) {
 }
 
 /**
+ * b022: a `Stats.add` contribution's value, bounded well clear of the real
+ * content range (the largest authored stat mod today is 150, tree.json's
+ * Core HP node) but tight enough that no plausible number of summed/
+ * multiplied sources can overflow `Stats.total`/`factor` to ±Infinity —
+ * unlike plain `num`, which only rejects non-finite values and would still
+ * accept something like `1.5e308`.
+ */
+const statNum = num.min(-1e6).max(1e6);
+
+/**
  * A record fed straight into `Stats.addAll` by key. `extraKeys` widens the
  * allow-list for the handful of records that share the shape but also carry
  * a few bespoke, non-`Stats` fields read directly by name elsewhere (see the
  * `ClassSlotPassiveSchema.mods` call site below).
  */
 function statRecord(extraKeys: readonly string[] = []) {
-  return recordWithKeys([...STAT_KEYS, ...extraKeys]);
+  return recordWithKeys([...STAT_KEYS, ...extraKeys], statNum);
 }
 
 /**

@@ -683,6 +683,22 @@ describe('q7 — what used-to-be-accepted data now does at load (b013 closed E1/
     expect(r.outcome).toBe('rejected');
   }, 120_000);
 
+  it('a stat value far past real content range is now refused at load (b022)', async () => {
+    // `num` alone (`.finite()`) happily accepts `1.5e308` — legal JSON, no
+    // overflow yet. b022 found that two such values, on unrelated sources,
+    // overflow `Stats.total`'s summation to `Infinity`. `statRecord`'s value
+    // schema now bounds any single stat contribution well clear of real
+    // content's max (150, tree.json's Core HP node) so the /data-authored
+    // route into that overflow is refused before it ever reaches `Stats`.
+    const root = pristine('tree') as { nodes: { id: number; stats: Record<string, number> }[] };
+    const node = root.nodes.find((n) => Object.keys(n.stats).length > 0)!;
+    const key = Object.keys(node.stats)[0];
+    node.stats[key] = 1.5e308;
+
+    const r = await load('tree', root as unknown as JsonValue);
+    expect(r.outcome).toBe('rejected');
+  }, 120_000);
+
   it('a zero-hp enemy sheet is now refused at load (E2)', async () => {
     const r = await probe({
       name: 'husk hp 0',

@@ -74,7 +74,15 @@ export class Stats {
       m = new Map();
       this.bySource.set(stat, m);
     }
-    m.set(source, (m.get(source) ?? 0) + value);
+    // b022: the guard above only checks the incoming value, not the running
+    // sum it lands on — two individually-finite ranks of the same source
+    // (each legal, each well under MAX_VALUE) can still overflow their sum to
+    // ±Infinity. Drop the update rather than store the overflow, same
+    // discipline as an incoming non-finite value: the source keeps whatever
+    // finite total it already had.
+    const next = (m.get(source) ?? 0) + value;
+    if (!Number.isFinite(next)) return;
+    m.set(source, next);
     this._revision++;
   }
 
@@ -118,7 +126,15 @@ export class Stats {
     const m = this.bySource.get(stat);
     if (!m) return 0;
     let sum = 0;
-    for (const k of [...m.keys()].sort()) sum += m.get(k) as number;
+    // b022: each per-source entry is individually finite (guarded by `add`),
+    // but summing across sources can still overflow — skip whichever source
+    // would push the running total non-finite rather than let it poison the
+    // rest of the sum.
+    for (const k of [...m.keys()].sort()) {
+      const next = sum + (m.get(k) as number);
+      if (!Number.isFinite(next)) continue;
+      sum = next;
+    }
     return sum;
   }
 
@@ -135,7 +151,12 @@ export class Stats {
     if (!m || m.size === 0) return 1;
     const keys = [...m.keys()].sort();
     let f = 1;
-    for (const k of keys) f *= 1 + (m.get(k) as number);
+    // b022: same overflow guard as `total()`, on the product instead of the sum.
+    for (const k of keys) {
+      const next = f * (1 + (m.get(k) as number));
+      if (!Number.isFinite(next)) continue;
+      f = next;
+    }
     return f;
   }
 

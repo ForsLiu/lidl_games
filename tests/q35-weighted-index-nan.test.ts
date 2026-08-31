@@ -25,17 +25,17 @@
  * to the already-filed forged-`Offer` vector above. Per single source, no:
  * `Stats.add`'s finite guard (`src/sim/stats.ts`) drops any individually
  * non-finite contribution before it is stored, so one poisoned source can
- * never reach `total('luck')`. But `add`'s guard checks only the incoming
- * value, not the running sum — QA's own verification pass on this item found
- * that two *individually finite* extreme contributions (each a legal double
- * well under `Number.MAX_VALUE`, e.g. two relic affixes at 1.5e308) overflow
- * `total()`'s summation loop to `+/-Infinity`, which `Math.min(0.5, ...)`
- * clamps in the positive direction but not the negative one — filed as its
- * own item (b022) rather than fixed here, since it lives in `Stats.total`,
- * not `weightedIndex`/`rerollOffers`. `weightedIndex`'s b010 fix means that
- * gap can no longer manifest as a silent "always pick the same index" —
- * every offer's weight goes non-finite and is skipped, landing on offer 0
- * (a valid, if not luck-weighted, pick) — pinned in the third block below.
+ * never reach `total('luck')`. QA's own verification pass on this item found
+ * a second gap: `add`'s guard checked only the incoming value, not the
+ * running sum, so two *individually finite* extreme contributions (each a
+ * legal double well under `Number.MAX_VALUE`, e.g. two sources at 1.5e308)
+ * overflowed `total()`'s summation loop to `+/-Infinity` — filed as b022 and
+ * now closed there: `add` drops a same-source update that would overflow its
+ * running sum, and `total()`/`factor()` skip whichever source's contribution
+ * would overflow the cross-source accumulator, so the result stays whatever
+ * finite value it already had. The third block below pins the fixed
+ * contract — `total('luck')` (and therefore `luckBias`) now stays finite
+ * through the same two-extreme-source scenario that used to overflow it.
  */
 import { describe, expect, it } from 'vitest';
 
@@ -140,33 +140,33 @@ describe('q35 — luckBias / derived.luck cannot go non-finite through a single 
   });
 });
 
-describe('b010 — weightedIndex degrades gracefully when luckBias itself is non-finite (b022 gap, unfixed at its source)', () => {
-  it('two individually-finite extreme contributions still overflow total() to Infinity (b022, left open here)', () => {
-    // Neither 1.5e308 fails `Number.isFinite`, so `Stats.add`'s guard lets
-    // both through; the overflow happens later, inside total()'s own
-    // summation loop, which has no guard at all. This block does not fix
-    // that (b022 owns it) — it proves weightedIndex no longer turns the
-    // resulting non-finite luckBias into a silent "always the same index"
-    // bug the way it used to.
+describe('b022 (closed) — Stats.total/factor guard the running sum, not just each incoming value', () => {
+  it('two individually-finite extreme contributions no longer overflow total() to Infinity', () => {
+    // Neither 1.5e308 fails `Number.isFinite`, so `Stats.add`'s per-value
+    // guard lets both through; before b022, the overflow happened inside
+    // total()'s own summation loop, which had no guard at all. `total()` now
+    // skips whichever source's contribution would push the running sum
+    // non-finite, so the second -1.5e308 is dropped and the result is
+    // whatever finite total already existed.
     const s = new Stats();
     s.add('relic:1', 'luck', -1.5e308);
     s.add('relic:2', 'luck', -1.5e308);
     const luck = s.total('luck');
-    expect(luck).toBe(-Infinity);
+    expect(Number.isFinite(luck)).toBe(true);
+    expect(luck).toBe(-1.5e308);
     const luckBias = Math.min(0.5, luck * 0.004);
-    expect(luckBias).toBe(-Infinity);
+    expect(Number.isFinite(luckBias)).toBe(true);
 
-    // rollOffers's `weight * (1 + luckBias * o.value)`: for a rank-0 offer
-    // (o.value === 0), -Infinity * 0 is NaN; for any other offer it's a
-    // non-finite product either way. Every offer's weight goes non-finite.
+    // rollOffers's `weight * (1 + luckBias * o.value)`: with luckBias now a
+    // large-but-finite negative number, every weight is finite too — no
+    // route back into weightedIndex's non-finite-weight fallback at all.
     const weights = [8 * (1 + luckBias * 0), 8 * (1 + luckBias * 0.5), 8 * (1 + luckBias * 1)];
-    expect(weights.every((w) => !Number.isFinite(w))).toBe(true);
+    expect(weights.every((w) => Number.isFinite(w))).toBe(true);
 
-    // Previously this would have fallen through to `weights.length - 1` on
-    // every seed. It now lands on the documented `total <= 0` fallback,
-    // index 0, uniformly — still deterministic (an all-non-finite pool
-    // can't be drawn from at random), but no longer disguised as a fair
-    // luck-weighted draw, and no longer coupled to array length/position.
+    // Only the rank-0 offer's weight (8) survives as positive; the other two
+    // go deeply negative and are excluded by weightedIndex's `w > 0` guard,
+    // so the draw is still deterministic — but now because it is genuinely
+    // the only selectable weight, not because every weight was poisoned.
     for (const seed of [1, 2, 999999]) {
       expect(new Rng(seed).weightedIndex(weights)).toBe(0);
     }

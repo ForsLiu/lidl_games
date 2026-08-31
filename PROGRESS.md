@@ -5,6 +5,58 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-31 session: BACKLOG b022 fixed — `Stats.add`'s finite guard
+  (`src/sim/stats.ts`) only ever checked the *incoming* value, not the
+  running sum it lands on, so two individually-finite contributions (each
+  legal, e.g. 1.5e308) could overflow `total()`/`factor()` to ±Infinity with
+  nothing downstream catching it, poisoning `luckBias`/`rollOffers`'s
+  weighted picks (a second, previously-untraced route into b010's NaN-weight
+  fallback class).** The item's originally-cited `/data` vector, `AffixSchema`,
+  no longer exists — the relic/affix-drop system it belonged to was fully
+  removed at fb023/p7d — so the fix targets its live successor instead:
+  `statRecord()` (`src/sim/content.ts`, shared by `tree.json` node stats,
+  class passive mods, and `equipment.json` item mods) now bounds every value
+  to `±1e6` via a new `statNum` schema (real content's largest authored value
+  is 150; `recordWithKeys`'s other 3 call sites keep the original
+  unbounded-but-finite `num`, unaffected). `Stats.add` now drops a same-source
+  update whose running sum would go non-finite (keeping the prior finite
+  value); `total()`/`factor()` skip whichever source's contribution would
+  push the cross-source accumulator non-finite — same drop-not-store
+  discipline the pre-existing incoming-value guard already used. New
+  `tests/b022-stats-overflow.test.ts` covers `add`/`total`/`factor` directly;
+  `tests/q35-weighted-index-nan.test.ts`'s "left open here" block now pins the
+  fixed contract (two `-1.5e308` sources land on a finite `-1.5e308`, not
+  `-Infinity`); `tests/q7-data-fuzz.test.ts` gained a case confirming a
+  `1.5e308` tree-node stat value is now rejected at load. code-reviewer's
+  first pass found a Major regression the fix caused:
+  `tests/q2-input-fuzz.test.ts`'s "has an invariant scan that actually fires"
+  anti-vacuity probe used to prove `scanWorld` reads `Stats` through its
+  accessors by overflowing `power` past `Infinity`, which the new guard makes
+  permanently unreachable even via direct internal-map corruption — replaced
+  with a `vi.spyOn` check that `scanWorld` calls `total`/`factor` for every
+  `STAT_KEYS` member; re-reviewed and **APPROVE**d (confirmed the spy would
+  catch a reversion to naive `Object.entries` enumeration, confirmed
+  `STAT_KEYS` is the same array both files import, confirmed no cross-talk
+  from other calls inside `scanWorld`). `npx vitest run` on the targeted
+  files plus `npm run test:fast` were green apart from already-logged
+  pre-existing Windows flakiness (b028/b029/b038's EPERM/hang classes,
+  reproduced identically on master by both code-reviewer and qa-playtester
+  with this diff stashed out) and one unrelated pre-existing q2 flake
+  ("survives whole runs with the practice tool live", 441 vs 500, also
+  reproduces on master). qa-playtester **PASS** on the stated acceptance
+  criteria — adversarial multi-source/boundary probing directly on `Stats`
+  stayed finite throughout, and `npx tsx tools/sim.ts --seed 1 --policy
+  hybrid` produced a byte-identical `endHash` before/after, confirming zero
+  effect on real `/data` content's math — but found one real follow-on bug
+  one call frame out: `derive()`'s `maxHp` (`src/sim/stats.ts`) multiplies an
+  already-guarded `total('maxHp')` by an already-guarded `factor('maxHpPct')`
+  with no guard on the product itself, reproducibly overflowing to `Infinity`
+  given ~55 `/data`-authored `maxHpPct` sources near the new 1e6 ceiling (the
+  only `Derived` field that multiplies a `total()` by a `factor()` together —
+  every other field uses one or the other alone). Filed as BACKLOG b062; does
+  not block b022's own acceptance criteria, which are scoped to
+  `Stats.total`/`factor()` and hold under the identical attack.
+
 - **2026-08-31 session: BACKLOG b061 fixed — the Core-panel memo key's Core HP
   component (`src/ui/hud.ts:610`) used `Math.round(w.coreHp)` while the Core
   HP row it guards (`coreLiveMarkup`, `src/ui/core-info.ts:179`) uses

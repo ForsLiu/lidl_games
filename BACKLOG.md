@@ -1888,7 +1888,7 @@ Log-filed defect with no existing item
 (q39) plus the lane's three still-open queue items (q55–q57), carried over
 because the lane worktree retires at this merge.
 
-- [ ] (b022) [bug] `Stats.add`'s finite guard checks only the *incoming* value
+- [x] (b022) [bug] `Stats.add`'s finite guard checks only the *incoming* value
       (`src/sim/stats.ts:172`), not the running sum, so two individually-finite
       contributions (`1.5e308` twice) overflow `total()`/`factor()` to
       `±Infinity` with nothing downstream catching it: `derive()`'s
@@ -1916,6 +1916,41 @@ because the lane worktree retires at this merge.
       through any current `/data` content (weights are small integers), and
       this item's own fix at the `Stats.total`/`factor()` source is the right
       place to close it rather than a second patch in `rng.ts`.
+
+      **Resolved.** `AffixSchema` no longer exists (the relic/affix system it
+      was filed against was fully removed at fb023/p7d) — the equivalent live
+      `/data`-authorable vector is `statRecord()` (`src/sim/content.ts`,
+      shared by `tree.json` node stats, class passive mods, and
+      `equipment.json` item mods), now bounded by a new `statNum = num.min
+      (-1e6).max(1e6)` (real content's largest authored stat value is 150,
+      `recordWithKeys`'s other 3 non-`Stats` call sites keep the original
+      unbounded-but-finite `num`, unaffected). `Stats.add` (`src/sim/stats.ts`)
+      now drops a same-source update whose running sum would go non-finite,
+      keeping whatever finite value the source already held; `total()`/
+      `factor()` skip whichever source's contribution would push the
+      cross-source accumulator non-finite, same discipline. `tests/q35-
+      weighted-index-nan.test.ts`'s "left open here" block now pins the fixed
+      contract (two `-1.5e308` sources land on a finite `-1.5e308` total, not
+      `-Infinity`); new `tests/b022-stats-overflow.test.ts` covers `add`/
+      `total`/`factor` directly; `tests/q7-data-fuzz.test.ts` gained a case
+      confirming a `1.5e308` tree-node stat is now rejected at load.
+      code-reviewer's first pass found a Major regression this fix caused —
+      `tests/q2-input-fuzz.test.ts`'s "has an invariant scan that actually
+      fires" anti-vacuity probe used to prove `scanWorld` reads `Stats`
+      through its accessors by overflowing `power` past `Infinity`, which the
+      new guard makes permanently impossible even via direct internal-map
+      corruption; replaced with a `vi.spyOn` check that `scanWorld` calls
+      `total`/`factor` for every `STAT_KEYS` member — re-reviewed and
+      **APPROVE**d. qa-playtester **PASS** on the stated acceptance criteria
+      (adversarial multi-source/boundary probing on `Stats` directly stayed
+      finite throughout; `npx tsx tools/sim.ts --seed 1 --policy hybrid`
+      byte-identical before/after, confirming zero effect on real content
+      math) but found one real follow-on bug one call frame out — `derive()`'s
+      `maxHp` multiplies an already-guarded `total()` by an already-guarded
+      `factor()` with no guard on the product itself, which can still overflow
+      given ~55 `/data`-authored `maxHpPct` sources near the new 1e6 ceiling.
+      Filed as b062 (not blocking — `Stats.total`/`factor()`, this item's own
+      scope, hold under the identical attack).
 - [ ] (b023) [feat] Re-measure the quality lane's `it.skip`'d bug-pin tests —
       15+ accumulated across `tests/q7-data-fuzz.test.ts` (E1–E7),
       `tests/q18-content-hash-replay.test.ts`,
@@ -2164,6 +2199,36 @@ because the lane worktree retires at this merge.
       one-time save/replay break is documented in MIGRATION.md as an accepted
       migration cost rather than left silent — refs: §12 rule 2, b013,
       qa-playtester b013 verification pass (2026-08-31).
+- [ ] (b062) [bug] `derive()`'s `maxHp` (`src/sim/stats.ts`) multiplies an
+      already-overflow-guarded `s.total('maxHp')` by an already-guarded
+      `s.factor('maxHpPct')` — `Math.max(1, (BASE.maxHp + s.total('maxHp')) *
+      s.factor('maxHpPct'))` — and that multiplication itself has no guard, so
+      it can still land on `Infinity` even though each factor individually
+      cannot. qa-playtester's b022 verification pass reproduced it directly:
+      one `maxHp` source plus 55 different `maxHpPct` sources each at the new
+      `statNum` ceiling (1e6, `src/sim/content.ts`) leaves `s.total('maxHp')`
+      and `s.factor('maxHpPct')` both finite in isolation (confirmed at 50
+      sources: `maxHp` still finite, ~1.1e303) but their product crosses
+      `Number.MAX_VALUE` at 55. `maxHp` is the only `Derived` field
+      (`derive()`, `src/sim/stats.ts:334-378`) that multiplies a `total()`
+      output by a `factor()` output together — every other field uses one or
+      the other alone, so this is a one-field gap, not a pattern repeated
+      elsewhere. Reachable only by authoring (or hand-editing) enough
+      `tree.json`/`equipment.json` rows sharing one `mul`-kind stat key near
+      the 1e6 ceiling to sum ~55 sources on one save's `allocated` tree —
+      `deriveMeta`'s tree-allocation load path (`src/meta/meta.ts:426`)
+      dedupes and connectivity-checks `allocated` but never bounds its length
+      against `pointsAvailable`, and `skillPoints` itself accumulates
+      uncapped from `vsWavesCleared` (`meta.ts:172`), so a long-lived or
+      hand-edited save can plausibly reach a fully-allocated 120-node tree —
+      acceptance: `derive()` stays finite for every field for any combination
+      of individually-bounded, individually-finite `Stats` contributions
+      (either clamp the `maxHp` product itself, matching `Math.max(1, ...)`'s
+      existing floor, or have `derive()` fall back to the pre-multiply value
+      the same way `total()`/`factor()` already do internally), with a
+      regression test asserting `Number.isFinite(derive(content, s).maxHp)`
+      under a many-source `maxHpPct` construction — refs: §12 rule 2, b022,
+      qa-playtester b022 verification pass (2026-08-31).
 
 ## Retired from the queue by SPEC-FINAL
 
