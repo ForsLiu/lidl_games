@@ -6,8 +6,8 @@
 ## Current state — SPEC-FINAL
 
 - **2026-08-31 session: BACKLOG b014 closed for `npm run sim`, `tools/phase-
-  coverage.ts` and `tools/soak.ts` — a JSON *syntax* error in any `/data`
-  file no longer crashes them with a raw esbuild stack trace.** Root cause:
+  coverage.ts` and `tools/soak.ts` — commit `70c77c0`. A JSON *syntax* error in
+  any `/data` file no longer crashes them with a raw esbuild stack trace.** Root cause:
   each CLI's own static `import { Run } from '../src/sim/run'` (transitively
   reaching `content.ts`'s static `/data/*.json` imports) is parsed by
   `tsx`'s esbuild transform at *module-load* time, before any of that file's

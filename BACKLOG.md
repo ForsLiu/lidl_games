@@ -803,7 +803,7 @@ were not re-filed. Ordering within this section is by severity, not P-band.
       which will fail a pre-b013 save/replay's content-hash check once — logged
       as **b044** with its own regression test, since it does not fail b013's
       own acceptance criteria and a brand-new save/replay is unaffected.
-- [x] (b014) [bug] A JSON *syntax* error in any `/data/*.json` crashes every CLI that
+- [x] (b014) [bug] commit `70c77c0`. A JSON *syntax* error in any `/data/*.json` crashes every CLI that
       imports `src/sim/content.ts` with a raw esbuild stack trace before any
       try/catch runs (static module-scope JSON imports) — including the three
       commands CLAUDE.md documents (`npm run sim`, `tools/sweep.ts`,
