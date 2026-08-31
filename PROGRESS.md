@@ -5,6 +5,43 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-31 session: BACKLOG b030 closed — the pause Esc Options/HUD
+  sidebar auto-pick toggle no longer repeats the same value on two clicks
+  while paused.** `Game.onToggleAutoPick` (`src/ui/main.ts`) computed the
+  `set_autopick` Command's `on` value from `this.run!.world.cfg.
+  autoPickLevelUps`, which only updates when a queued Command is applied
+  inside `run.step` — never while `this.paused` (`frame` returns early). Two
+  paused clicks in a row both read the same stale value and pushed the same
+  `on` twice instead of alternating, so the second click was a no-op on the
+  sim/profile side despite the checkbox's native `checked` visually flipping
+  back. Fixed to read `this.meta.autoPickLevelUps` instead — updated
+  synchronously by the same callback regardless of pause state, mirroring the
+  existing `setShowRanges` pattern. `Game` changed to `export class Game` so
+  `tests/b030-autopick-pause-toggle.test.ts` can drive the real Hub/Hud DOM
+  end to end: starts a run, pauses, opens Options, clicks the checkbox twice,
+  confirms both `this.meta.autoPickLevelUps` and the two queued
+  `set_autopick` Commands alternate back to the start value rather than
+  repeating. `npx vitest run tests/b030-autopick-pause-toggle.test.ts`: 1/1
+  green. `npm run test:fast`: 1784/1810 passed; the 5 failures (8 suites)
+  were all pre-existing flake classes unrelated to this change — q15's
+  worker-probe hangs, q28/q49/q52's Windows scratch-dir `EPERM` races (both
+  already documented), plus a new-to-this-session observation:
+  b032/b034/b035/b036 (real headless-Chromium + Vite dev-server tests) fail
+  under `test:fast`'s parallel file execution from dev-server port
+  contention but pass cleanly every time when run alone or in a small batch
+  with `--no-file-parallelism` — confirmed for all four. qa-playtester:
+  **PASS** — reverted just the logic change and confirmed the test fails
+  exactly as the bug describes, restored and reran twice green; independently
+  probed the HUD sidebar `#sw-autopick` button (same callback, alternates
+  correctly while paused), the non-paused path (unaffected), and rapid
+  3-click behavior (correct). Filed one new bug forward, **b065**: the
+  sidebar button's own `aria-pressed` visual state freezes at its pre-pause
+  value across paused clicks — the semantic/persisted value is correct
+  post-fix, but `Hud.syncAutoPickToggle` only runs inside `hud.update`, which
+  `frame` skips entirely while paused, so the button's own display doesn't
+  catch up until resume. Out of scope for b030's acceptance criterion (which
+  covers the persisted/queued value, not the button's own rendered state);
+  added to BACKLOG.md queue. BACKLOG.md b030 moved to Done.
 - **2026-08-31 session: BACKLOG b038 closed — re-measured, no longer
   reproduces, no code change needed.** `tests/q9-phase-coverage.test.ts`'s
   `rush` bot policy was reported (code-reviewer, p7d review, confirmed at

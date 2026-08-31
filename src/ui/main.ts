@@ -23,7 +23,7 @@ import { Sfx } from '../render/sfx';
 import { Pacer } from './pacer';
 import { installAuditHook, type AuditBridge } from './audit-hook';
 
-class Game {
+export class Game {
   private root!: HTMLElement;
   private run: Run | null = null;
   private renderer!: Renderer;
@@ -145,7 +145,14 @@ class Game {
       },
       onToggleRanges: () => this.setShowRanges(!this.view.showRanges),
       onToggleAutoPick: () => {
-        const on = !this.run!.world.cfg.autoPickLevelUps;
+        // b030: `run.world.cfg.autoPickLevelUps` only updates when a queued
+        // Command is actually applied inside `run.step`, which never runs
+        // while paused (`frame` returns early) — reading it here as the
+        // "current" value went stale across two paused clicks in a row, so
+        // both pushed the same `on` instead of alternating. `this.meta.
+        // autoPickLevelUps` is updated synchronously by this same callback
+        // (below) regardless of pause state, so it's the source of truth.
+        const on = !this.meta.autoPickLevelUps;
         this.pending.push({ k: 'set_autopick', on });
         // fb012: the profile remembers the last-chosen value, so the next run
         // (from any of the three doors onto this toggle) starts with it.
