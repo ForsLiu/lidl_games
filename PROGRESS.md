@@ -5,6 +5,22 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-31 session: BACKLOG b019 duplicate entry removed — no code change,
+  bookkeeping only.** The queue carried b019 twice: an unchecked entry (the
+  original filing) and, immediately below it, an already-`[x]`-checked entry
+  noting it was closed as a side effect of b016's Warden-tile-relocation fix
+  (also recorded in the Done section, referenced from b016's own Done entry).
+  Re-verified the closure is real before deleting the stale duplicate:
+  `walkable()` (`src/sim/run.ts`) no longer checks `grid.passable` as the stale
+  entry's text described — it now calls `w.grid.wardenPassable`
+  (`src/sim/grid.ts`), which only the map border fails, ignoring every
+  structure. Ice Wall (`fireIceWall`, `src/sim/classes.ts`) places its 1x3
+  footprint via the ordinary `buildTower` structure path, so a self-cast wall
+  is exempt from Warden collision like any other structure — confirmed by
+  reading `tests/act1.test.ts`'s fb002 coverage (`wardenPassable` returns true
+  on a structure tile immediately after a build lands on the Warden's own
+  tile). No files under `/src`, `/data` or `/tests` changed; removed the
+  redundant unchecked BACKLOG.md paragraph only.
 - **2026-08-31 session: BACKLOG b018 fixed — cooldown-gate float-residual bug.**
   Every `> 0`-gated cooldown decrement in the sim (Warden `dashCooldown`/
   `attackCooldown`/`activeCooldown`/`active1Cooldown`/`active2Cooldown` in

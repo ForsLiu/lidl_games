@@ -1027,26 +1027,6 @@ were not re-filed. Ordering within this section is by severity, not P-band.
       Playwright fold flakes (b032/b034/b035/b036, port contention) and the
       documented Windows EPERM temp-cleanup race (q49) red, both pre-existing
       and unrelated to this diff. Commit pending in this change.
-- [ ] (b019) [bug] A self-cast Ice Wall can trap the Warden in place for the
-      wall's full `wallSeconds`: `walkable()` (`src/sim/run.ts`) checks only
-      the destination tile via `grid.passable`, and Ice Wall's 1x3 footprint
-      centered on the Warden's own tile blocks every candidate destination
-      inside that cell, so `moveWarden` never lets it leave until the wall
-      expires or is destroyed. Repro (deterministic, reproduced twice): cast
-      `class_active2` with the aim on the Warden's own position (a realistic
-      input — cursor hovering the character) and feed movement input every
-      tick; the Warden's `x`/`y` do not change for the wall's full duration.
-      Reproduces identically in Act I and Act II, so it predates Q120 ORDER 2
-      — that item only made it reachable mid-VS-combat, which is why
-      qa-playtester surfaced it there. Two candidate fixes, either is
-      spec-consistent: reject an Ice Wall placement that would cover the
-      Warden's own tile (mirrors b016's proposed treatment of the Warden's
-      own tile as unbuildable), or have `walkable`/`moveWarden` treat the
-      Warden's current occupied cell as passable for itself regardless of
-      `grid.passable` — acceptance: a regression test casts Ice Wall
-      centered on the Warden and asserts it either does not place the
-      covering tile or the Warden can still move off its own tile
-      immediately after; refs: §10, QA on Q120 ORDER 2
 - [x] (b019) [bug] A self-cast Ice Wall can trap the Warden in place for the
       wall's full `wallSeconds` — **done, see Done section**: closed as a
       side effect of (b016)'s Warden-tile-relocation fix, verified by
