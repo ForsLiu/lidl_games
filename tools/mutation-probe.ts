@@ -53,8 +53,8 @@
  * same false-positive shape PROGRESS.md's M18 section warns about ("a
  * positive control rewritten into comparing 0 to 0").
  *
- * Cost, recorded rather than hidden: this now runs 38 nested `npx vitest run`
- * invocations (12 controls, one per distinct `testFile`, + 26 mutations),
+ * Cost, recorded rather than hidden: this now runs 39 nested `npx vitest run`
+ * invocations (12 controls, one per distinct `testFile`, + 27 mutations),
  * up from 23 (BACKLOG-QUALITY q52 added four new distinct `testFile`s —
  * `tests/q45-cli-schema-violation.test.ts`, `tests/q46-cli-json-syntax-error-
  * siblings-3.test.ts`, `tests/q47-cli-crash-coverage.test.ts` and
@@ -184,6 +184,12 @@ export interface Mutation {
  * `tests/q52-m20d-run-a4-bad-key.test.ts`, reaching the one failure mode
  * local to its own try (an unknown CLI tower-key argument, `/data`
  * untouched).
+ *
+ * The twenty-seventh (BACKLOG-QUALITY q54/q56) closes a gap in this file
+ * itself, not in a probed tool: q54 added `readsDataJsonDirectly` as a third
+ * classifier alongside `importsContentTransitively` and `hasCatch` in
+ * `cli-crash-coverage.ts`, but only the first two had ever had a mutation
+ * recorded here reverting them. See the inline comment above that entry.
  */
 export const MUTATIONS: Mutation[] = [
   {
@@ -580,6 +586,24 @@ export const MUTATIONS: Mutation[] = [
     testFile: 'tests/q47-cli-crash-coverage.test.ts',
     source:
       'BACKLOG-QUALITY.md q50/q52: reverts `cli-crash-coverage.ts`\'s `stripCommentsAndBacktickStrings` to its pre-q50 shape (a backslash-newline line-continuation inside a quoted string copied through as a real newline), reproducing the false positive q50 fixed: a following physical line starting with `import ... from \'...\'` inside string data false-fires `VALUE_IMPORT_RE`\'s multiline match.',
+  },
+  // BACKLOG-QUALITY q54/q56: the two pre-existing cli-crash-coverage.ts
+  // classifiers (importsContentTransitively, hasCatch) each already had a
+  // mutation here before q54 added readsDataJsonDirectly as a third — this
+  // gives the new one the same treatment so a regression in its detection
+  // logic is caught the same way as one in the old two.
+  {
+    name: 'cli-crash-coverage-readsDataJsonDirectly-hollow',
+    file: 'tools/cli-crash-coverage.ts',
+    edits: [
+      {
+        find: `export function readsDataJsonDirectly(absPath: string): boolean {\n  if (!existsSync(absPath)) return false;`,
+        replace: `export function readsDataJsonDirectly(absPath: string): boolean {\n  return false;\n  if (!existsSync(absPath)) return false;`,
+      },
+    ],
+    testFile: 'tests/q47-cli-crash-coverage.test.ts',
+    source:
+      'BACKLOG-QUALITY.md q54/q56: hollows `readsDataJsonDirectly` (added at q54 to catch tools/*.ts files that read a /data/*.json file directly via readFileSync + JSON.parse, bypassing loadContent()) to always report false. `tools/m20d-price-probe.ts` classifies purely on this axis (it does not import content.ts), so it drops from `pinned` to `no-content-import` — flips both `tests/q47-cli-crash-coverage.test.ts`\'s hand-derived EXPECTED_STATUS table and its "every PIN_COVERAGE entry actually classifies as pinned" dead-entry check red.',
   },
 ];
 
