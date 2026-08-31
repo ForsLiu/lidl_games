@@ -28,29 +28,52 @@
  *     syntax error (uncatchable here) and a schema violation (catchable,
  *     because that failure happens at runtime inside `loadContent()`, which
  *     a wrapping `try` reaches). `m20d-swarm.ts` imports `loadContent`
- *     directly and has the identical shape. Both still exit non-zero, empty
- *     stdout, the same multi-frame `Error: Transform failed with 1 error:
- *     ...data/towers.json:1:2: ERROR: Expected string in JSON but found
- *     "not"` stack on stderr — the general fix is out of this lane's Scope
- *     (`src/sim/content.ts`), same as q33/q37/q41.
+ *     directly and has the identical shape.
  *   - `probe-boss.ts` needed a `tests/` directory alongside `src`/`tools`/
  *     `data` in the scratch copy to even reach that crash — its own import
  *     chain resolved `../tests/helpers` before Node got far enough to
  *     transform `content.ts`. Without a `tests/` copy it failed earlier, on
  *     an unrelated `ERR_MODULE_NOT_FOUND` for the missing `tests/helpers`
  *     module — still uncaught, but a different failure than the one this
- *     item pinned. **This one is now fixed** (BACKLOG-QUALITY q48): unlike
- *     `m20d-run-a4.ts`/`m20d-swarm.ts`, which reach `content.ts` through
- *     several sync-exported functions other files import directly (the
- *     dynamic-import workaround does not generalize there — see q48's Log
- *     entry), `probe-boss.ts` has exactly one import (`../tests/helpers`)
- *     used only inside its own top-level `try`, with no external caller of
- *     its own — the same one-file, one-caller shape q38 fixed for
- *     `content-census.ts`. Both the with-`tests/` and without-`tests/`
- *     cases are now caught cleanly; see the fixed-behaviour describe block
- *     below.
+ *     item pinned. Fixed at BACKLOG-QUALITY q48: `probe-boss.ts` has exactly
+ *     one import (`../tests/helpers`) used only inside its own top-level
+ *     `try`, with no external caller of its own — the same one-file,
+ *     one-caller shape q38 fixed for `content-census.ts`. Both the
+ *     with-`tests/` and without-`tests/` cases are caught cleanly; see the
+ *     fixed-behaviour describe block below.
  *
- * `m20d-run-a4.ts`/`m20d-swarm.ts` still want the same out-of-Scope
+ * **`m20d-run-a4.ts`/`m20d-swarm.ts` fixed at BACKLOG b045**: q48's own log
+ * originally judged the dynamic-import workaround inapplicable to these two
+ * because — unlike `probe-boss.ts` — they reach `content.ts` through
+ * `Run`/`World`/etc., functions several *other* files also import directly
+ * (the `sim.ts`/`sweep.ts`/`a4probe.ts` shape q48's table calls unfixable).
+ * Re-reading q48's own table entry for these two specifically shows that
+ * reasoning doesn't hold for *them*: `m20d-run-a4.ts`'s only import is
+ * `./a4probe`'s named exports (zero external callers of `m20d-run-a4.ts`
+ * itself), and `m20d-swarm.ts`'s only content-reaching imports (`loadContent`,
+ * `World`, `spawnEnemy`/`updateEnemies`, `buildTower`/`maxLevel`/
+ * `updateTowers`/`upgradeTower`, `updateProjectiles`) are each also used only
+ * inside its own top-level `try`, with zero external callers of its own — the
+ * same one-file, one-caller shape q38/q48 already fixed for
+ * `content-census.ts`/`probe-boss.ts`. Deferring every one of each file's
+ * former static value imports behind a dynamic `import()` (the type-only
+ * `World` import `m20d-swarm.ts` keeps for `freeTile`'s parameter type is
+ * erased by the compiler regardless, so it carries no such risk) closes both
+ * for the same reason `probe-boss.ts` closed: the entire problematic static
+ * chain — including whatever *that* imported module's own static imports
+ * are — is deferred to the dynamic `import()` call itself, which already
+ * runs inside this file's own `try`. Verified live for both, in both the
+ * `towers.json`-broken and `warden.json`-broken cases (the latter per b045's
+ * own acceptance bar); see the fixed-behaviour describe block below.
+ *
+ * The remaining nine q41/q46 CLIs (`perf-ratio.ts`, `a4probe.ts`,
+ * `a5probe.ts`, `fuzz-input.ts`, `fuzz-save.ts`, `fuzz-weapon-boundary.ts`,
+ * `fuzz-command-domain.ts`, plus `sweep.ts`/`handoff-metrics.ts`/
+ * `p10k-sweep.ts` from q37) stay out of Scope for this drop-in fix — each has
+ * multiple *other* files that import its own functions synchronously
+ * (q48's table), so deferring those imports behind a dynamic `import()` would
+ * change those functions' call signature for every external caller too, not
+ * just the CLI entry point. They still want the same out-of-Scope
  * `src/sim/content.ts` change q33/q37/q41 already filed for main lane
  * (dynamic `import()` of a pre-validated string read via
  * `readFileSync`/`JSON.parse` inside `loadContent()`) — filed once, covers
@@ -90,6 +113,11 @@ function breakTowersJsonSyntax(dir: string): void {
   writeFileSync(path.join(dir, 'data', 'towers.json'), '{ not valid json');
 }
 
+/** Same shape as `breakTowersJsonSyntax`, on the file `content.ts` parses eagerly and separately (`wardenBase`) — b045's own acceptance bar wants both recorded. */
+function breakWardenJsonSyntax(dir: string): void {
+  writeFileSync(path.join(dir, 'data', 'warden.json'), '{ not valid json');
+}
+
 function runCli(dir: string, tool: string, args: string[]): { exitCode: number; stdout: string; stderr: string } {
   try {
     const out = execFileSync('npx', ['tsx', `tools/${tool}`, ...args], {
@@ -116,27 +144,48 @@ const ESBUILD_TRANSFORM_ERROR = /Transform failed with \d+ error/;
 describe.each([
   ['m20d-run-a4.ts', ['venom_spore']],
   ['m20d-swarm.ts', [] as string[]],
-])('%s crashes uncaught on a /data JSON syntax error (q46)', (tool, args) => {
-  it('exits non-zero with a raw esbuild TransformError stack trace, not a one-line message', () => {
+])('%s no longer crashes uncaught on a /data JSON syntax error (BACKLOG b045)', (tool, args) => {
+  // b045: each file's former static value imports that reached
+  // `src/sim/content.ts` (directly or via `./a4probe`/`../src/sim/world`/
+  // `../src/sim/combat`) are now dynamic `import()`s made from inside the
+  // file's own top-level `try` — the same workaround q38/q48 applied to
+  // `content-census.ts`/`probe-boss.ts`. A transform failure anywhere in
+  // that dynamically imported subgraph now surfaces as an ordinary rejected
+  // promise the file's own `catch` sees, instead of failing before the
+  // `try` ever starts.
+  it('a towers.json syntax error exits non-zero with a clean one-line message, not a raw stack trace', () => {
     const dir = scratchPath(tool.replace('.ts', ''));
     try {
       populateScratch(dir);
       breakTowersJsonSyntax(dir);
       const { exitCode, stdout, stderr } = runCli(dir, tool, args);
-      // Today's actual (broken) behaviour, pinned so a future fix to
-      // src/sim/content.ts shows up as this test going red rather than
-      // silently rotting as an unnoticed improvement — the same idiom
-      // q33/q37/q41 pin for their own CLIs. Note both tools have their own
-      // local try/catch (m20d-run-a4.ts's own plus a4probe.ts's inner one,
-      // which it imports; m20d-swarm.ts's own directly) — none of it
-      // fires, because the failure is at import-transform time, before any
-      // of that code runs.
       expect(exitCode).not.toBe(0);
       expect(stdout).toBe('');
+      expect(stderr).toContain(`${tool.replace('.ts', '')}:`);
+      expect(stderr.trim().split('\n')).toHaveLength(1);
+      expect(stderr).not.toMatch(RAW_STACK_FRAME);
+      // Still the same underlying esbuild transform failure — the fix only
+      // moves *when* it runs, not what it is (q38/q48's fixes did the same).
       expect(stderr).toMatch(ESBUILD_TRANSFORM_ERROR);
-      expect(stderr).toMatch(RAW_STACK_FRAME);
       expect(stderr).toContain('towers.json');
-      expect(stderr).not.toContain(`${tool.replace('.ts', '')}:`);
+    } finally {
+      rmSync(dir, RM_RETRY);
+    }
+  }, NESTED_TSX_TIMEOUT_MS + 10_000);
+
+  it('a warden.json syntax error (content.ts\'s other eagerly-parsed file, b045\'s own acceptance bar) is caught just as cleanly', () => {
+    const dir = scratchPath(`${tool.replace('.ts', '')}-warden`);
+    try {
+      populateScratch(dir);
+      breakWardenJsonSyntax(dir);
+      const { exitCode, stdout, stderr } = runCli(dir, tool, args);
+      expect(exitCode).not.toBe(0);
+      expect(stdout).toBe('');
+      expect(stderr).toContain(`${tool.replace('.ts', '')}:`);
+      expect(stderr.trim().split('\n')).toHaveLength(1);
+      expect(stderr).not.toMatch(RAW_STACK_FRAME);
+      expect(stderr).toMatch(ESBUILD_TRANSFORM_ERROR);
+      expect(stderr).toContain('warden.json');
     } finally {
       rmSync(dir, RM_RETRY);
     }

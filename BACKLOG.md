@@ -865,39 +865,66 @@ were not re-filed. Ordering within this section is by severity, not P-band.
       the documented Windows EPERM temp-cleanup race (q49) red, both confirmed
       pre-existing and unrelated to this diff — no new regressions. — refs: §12,
       BACKLOG-QUALITY q33/q37/q38
-- [ ] (b045) [bug] b014 fixed the JSON-syntax-error-crashes-the-CLI bug (BACKLOG
-      §12) for `npm run sim`, `tools/phase-coverage.ts` and `tools/soak.ts` only —
-      via a top-level-await dynamic `import()` of each file's own `Run`/
-      `makePolicy`/`policyNames`(/`./invariants`) reference, wrapped in a try/catch,
-      instead of the `src/sim/content.ts`-level fix that was tried and reverted
-      (see b014's own log entry for why: it broke `tests/q7-data-fuzz.test.ts`'s
-      `vi.mock`-based data-injection suite). The identical crash still reproduces,
-      unfixed, on every other CLI q37/q41/q46 pinned as broken: `tools/sweep.ts`,
-      `tools/handoff-metrics.ts`, `tools/p10k-sweep.ts` (q37); `tools/perf-ratio.ts`,
-      `tools/a4probe.ts`, `tools/a5probe.ts`, `tools/fuzz-input.ts`,
-      `tools/fuzz-save.ts`, `tools/fuzz-weapon-boundary.ts`,
-      `tools/fuzz-command-domain.ts` (q41); `tools/m20d-run-a4.ts`,
-      `tools/m20d-swarm.ts` (q46) — of these, `a4probe.ts`/`a5probe.ts`/
-      `m20d-run-a4.ts`/`m20d-swarm.ts` look like the same small, single-call-site
-      shape b014 already fixed three of; `perf-ratio.ts`/`fuzz-input.ts`/
-      `fuzz-save.ts`/`fuzz-weapon-boundary.ts`/`fuzz-command-domain.ts` have their
-      value imports spread across many functions each and may need a wider
-      top-level dynamic-import block or a different shape entirely. Also: for
-      every CLI still listed above as broken, a JSON syntax error in `warden.json`
-      specifically crashes the same way `towers.json` did — `content.ts`'s
-      `wardenBase` is parsed eagerly at that file's own module scope (`export
-      const wardenBase = WardenFileSchema.parse(wardenRaw)`), never inside any
-      CLI's own import at all, so a per-CLI dynamic-import fix (the b014 shape)
-      closes it for free the moment it's applied to a given CLI — verified this
-      already holds for the three CLIs b014 *did* fix (`sim.ts`/`phase-
-      coverage.ts`/`soak.ts` all cleanly catch a corrupted `warden.json` too, not
-      just `towers.json`). acceptance: each listed CLI's own q37/q41/q46
-      test flips from "crashes uncaught" to "clean one-line message, nonzero exit"
-      (or is explicitly re-scoped with a measured reason, the same way b014
-      excluded the five wide-import-graph tools above as too invasive for a
-      drop-in fix); a decision (fixed or logged-as-still-open) is recorded for the
-      `warden.json` case too — refs: §12, BACKLOG-QUALITY q33/q37/q38/q41/q45/q46/
-      q47/q53/q54.
+- [x] (b045) [bug] b014 fixed the JSON-syntax-error-crashes-the-CLI bug (BACKLOG
+      §12) for `npm run sim`, `tools/phase-coverage.ts` and `tools/soak.ts` only;
+      this item's own `a4probe.ts`/`a5probe.ts`/`m20d-run-a4.ts`/`m20d-swarm.ts`
+      "look like the same small shape" guess turned out half right — read
+      BACKLOG-QUALITY q48's own table (built from grepping every `tests/*.ts` for a
+      `from '../tools/<name>'` import) before re-deriving that guess from scratch:
+      `a4probe.ts`/`a5probe.ts` are genuinely **not** viable (both export functions
+      called synchronously by `tests/a4-single-type.test.ts`/
+      `tests/a5-weapon-share.test.ts`; deferring those imports would change a
+      signature real external callers depend on), but `m20d-run-a4.ts`/
+      `m20d-swarm.ts` **are** — q48's table already said so ("yes (not applied)")
+      and this item applied it: `m20d-run-a4.ts`'s only import (`./a4probe`'s named
+      exports, zero external callers of the CLI file itself) is now a top-level-await
+      dynamic `import()` inside its existing try/catch (`export {}` added, since no
+      static import/export was left to mark the file a module); `m20d-swarm.ts`'s
+      five content-reaching static imports (`loadContent`, `spawnEnemy`/
+      `updateEnemies`, `buildTower`/`maxLevel`/`updateTowers`/`upgradeTower`,
+      `updateProjectiles`, `World`) are each now the same dynamic-import shape — its
+      module-scope `freeTile` helper keeps a `World` *type* via a separate
+      `import type { World as WorldType }`, which the compiler erases regardless of
+      usage, so it carries none of the static-value-import crash risk. Verified live
+      (throwaway scratch copies, torn down after) for both tools against a corrupted
+      `towers.json` *and* a corrupted `warden.json` (this item's own acceptance bar
+      for that file) — both now exit nonzero with one clean `<tool>: Transform
+      failed...` line, no raw stack frame, where before both dumped an uncaught
+      multi-frame esbuild trace (confirmed via a `git stash push -u` mutation check:
+      reverting just these two files to their committed pre-fix state made the same
+      scratch-copy repro crash raw again, then `git stash pop` restored the fix).
+      `tests/q46-cli-json-syntax-error-siblings-3.test.ts`'s `describe.each` block
+      for these two tools flipped from "still crashes" to "no longer crashes," each
+      now with both a `towers.json` and a `warden.json` case; its header doc comment
+      rewritten to record why q48's original "no" call doesn't generalize to these
+      two specifically. The other **nine** still-broken CLIs
+      (`tools/sweep.ts`/`tools/handoff-metrics.ts`/`tools/p10k-sweep.ts` from q37;
+      `tools/perf-ratio.ts`/`tools/fuzz-input.ts`/`tools/fuzz-save.ts`/
+      `tools/fuzz-weapon-boundary.ts`/`tools/fuzz-command-domain.ts` from q41, plus
+      `a4probe.ts`/`a5probe.ts` above) are **explicitly re-scoped**, per this item's
+      own escape hatch: q48's table already establishes each has multiple external
+      synchronous callers of its own exported functions, so a drop-in per-CLI
+      dynamic-import fix would change a call signature real test files depend on —
+      they still want the wider out-of-Scope `src/sim/content.ts` change
+      q33/q37/q41 already filed for main lane (a pre-validated `readFileSync` read
+      inside `loadContent()` itself), which was tried once for b014 and reverted
+      (breaks `tests/q7-data-fuzz.test.ts`'s `vi.mock`-based injection suite — see
+      b014's own log for why) and remains unattempted differently. code-reviewer:
+      no Critical/Major/Minor findings — traced every one of `m20d-swarm.ts`'s five
+      dynamic-import targets' own transitive chains into `content.ts`, confirmed the
+      type-only `WorldType` import is genuinely erased, confirmed no `/src/sim` file
+      was touched (rule 1 inapplicable), confirmed the new test assertions invert
+      every one of the old "still broken" checks rather than weakening them.
+      qa-playtester: independently ran both tools clean and adversarially (bad tower
+      key, zero/negative husk counts, no args), independently repro'd the mutation
+      check itself, independently spot-checked two of the nine re-scoped CLIs
+      (`sweep.ts`, `a4probe.ts`) still crash raw today confirming the re-scope
+      description is accurate — no bugs filed. `npm run test:fast`: 1729 passed, 21
+      skipped; only the 4 pre-existing documented Playwright fold flakes
+      (b032/b034/b035/b036, port contention, all pass in isolation) and the
+      documented Windows EPERM temp-cleanup race (q49) red, both reproduced in
+      isolation as passing and confirmed unrelated to this diff. — refs: §12,
+      BACKLOG-QUALITY q33/q37/q38/q41/q45/q46/q47/q48/q53/q54.
 - [ ] (b015) [bug] `{k:'equip', relic}` is a declared Command with no case in
       `applyCommand` — a dead twelfth of the player Command surface (relics only
       apply via `RunConfig.relics` at construction). Implement it or retire the

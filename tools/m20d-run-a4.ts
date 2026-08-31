@@ -1,7 +1,18 @@
 /** One tower, both A4 clauses, in a fresh process (content loads once). */
-import { SOUL_TOWERS, T3_MODS, runSingleType } from './a4probe';
+export {}; // Makes this a module so top-level `await` below is legal (no other import/export remains).
 
 try {
+  // Dynamic, not static: a static `import ... from './a4probe'` pulls in
+  // that file's own static chain (`../src/sim/run` -> `./world` ->
+  // `./content`, which statically imports every `/data/*.json`) at
+  // module-transform time, before this `try` itself starts running — a JSON
+  // *syntax* error in `/data` fails there, invisible to any try/catch in
+  // this file (q46's finding). A dynamic `import()` made from inside this
+  // already-running `try` defers that same transform to here, turning the
+  // failure into an ordinary rejected promise this `catch` can see — the
+  // same workaround q38/q48 applied to `content-census.ts`/`probe-boss.ts`
+  // (BACKLOG-QUALITY q48's table; applied here at b045).
+  const { SOUL_TOWERS, T3_MODS, runSingleType } = await import('./a4probe');
   const key = process.argv[2] ?? 'venom_spore';
   if (!SOUL_TOWERS.includes(key)) throw new Error(`not a soul tower: ${key}`);
   const seeds = [1, 2, 3, 4, 5];

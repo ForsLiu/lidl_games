@@ -5,6 +5,71 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-31 session: BACKLOG b045 closed — `tools/m20d-run-a4.ts` and
+  `tools/m20d-swarm.ts` no longer crash uncaught on a `/data` JSON syntax
+  error, in either `towers.json` or `warden.json`.** b045 carried forward 13
+  still-broken CLIs from b014's own scope cut, with a guess that four of them
+  (`a4probe.ts`/`a5probe.ts`/`m20d-run-a4.ts`/`m20d-swarm.ts`) "look like the
+  same small, single-call-site shape" b014 already fixed three of. That guess
+  was only half right: BACKLOG-QUALITY.md's q48 log (session 45, its own full
+  table built by grepping every `tests/*.ts` for a `from '../tools/<name>'`
+  import) had already settled this — `a4probe.ts`/`a5probe.ts` are genuinely
+  not viable for a drop-in fix (both export functions called synchronously by
+  `tests/a4-single-type.test.ts`/`tests/a5-weapon-share.test.ts`; deferring
+  those imports would change a signature real external callers depend on),
+  but `m20d-run-a4.ts`/`m20d-swarm.ts` were already judged "yes (not
+  applied)" by that same table and simply hadn't been done yet. This session
+  applied it: `m20d-run-a4.ts`'s only import (`./a4probe`'s named exports,
+  zero external callers of the CLI file itself) is now a top-level-await
+  dynamic `import()` inside its existing try/catch; `m20d-swarm.ts`'s five
+  content-reaching static imports (`loadContent`, `spawnEnemy`/
+  `updateEnemies`, tower functions, `updateProjectiles`, `World`) are each
+  now the same shape, since `../src/sim/world` and `../src/sim/combat`
+  themselves statically value-import `content.ts` — making only the direct
+  `loadContent` import dynamic (as an earlier, narrower reading of q48's
+  table entry for this file might suggest) would **not** have been
+  sufficient; every one of the file's former static value imports needed
+  deferring. `freeTile`'s module-scope helper keeps a `World` *type* via a
+  separate `import type { World as WorldType }`, which the compiler erases
+  regardless of usage, so it carries none of the static-value-import crash
+  risk the removed value import did. Verified live (throwaway scratch
+  copies, torn down after) against both a corrupted `towers.json` and a
+  corrupted `warden.json` — b045's own acceptance bar explicitly asked for a
+  decision on the latter — both now exit nonzero with one clean `<tool>:
+  Transform failed...` line instead of a raw multi-frame esbuild stack, and a
+  `git stash push -u` mutation check (revert just these two files to their
+  committed pre-fix state, re-run the same scratch repro, confirm it crashes
+  raw again, then `git stash pop`) confirmed the test discriminates real
+  fixed-vs-broken behavior rather than passing vacuously.
+  `tests/q46-cli-json-syntax-error-siblings-3.test.ts`'s `describe.each`
+  block for these two tools flipped from "still crashes" to "no longer
+  crashes," each now with both a `towers.json` and a `warden.json` case. The
+  other nine still-broken CLIs from q37/q41 (`sweep.ts`/`handoff-metrics.ts`/
+  `p10k-sweep.ts`/`perf-ratio.ts`/`fuzz-input.ts`/`fuzz-save.ts`/
+  `fuzz-weapon-boundary.ts`/`fuzz-command-domain.ts`, plus `a4probe.ts`/
+  `a5probe.ts` above) are explicitly re-scoped per b045's own escape hatch:
+  q48's table already establishes each has multiple external synchronous
+  callers of its own exported functions, so they still want the wider
+  out-of-Scope `src/sim/content.ts` change (a pre-validated `readFileSync`
+  read inside `loadContent()` itself) that b014 tried once and reverted
+  (breaks `tests/q7-data-fuzz.test.ts`'s `vi.mock`-based injection suite).
+  code-reviewer found no Critical/Major/Minor issues — independently traced
+  every one of `m20d-swarm.ts`'s five dynamic-import targets' own transitive
+  chains into `content.ts`, confirmed the type-only `WorldType` import is
+  genuinely erased (no runtime import emitted for it), confirmed no
+  `/src/sim` file was touched (architecture rule 1 inapplicable), and
+  confirmed the rewritten test assertions invert every one of the old
+  "still broken" checks rather than weakening them. qa-playtester
+  independently ran both tools clean and adversarially (bad tower key,
+  zero/negative husk counts, no args — no hangs, no dangling processes),
+  independently reproduced the mutation check, and independently spot-checked
+  two of the nine re-scoped CLIs (`sweep.ts`, `a4probe.ts`) still crash raw
+  today, confirming the re-scope description holds — no bugs filed.
+  `npm run test:fast`: 1729 passed, 21 skipped; the only red was the same 4
+  pre-existing documented Playwright fold flakes (b032/b034/b035/b036 — port
+  contention, all pass in isolation) and the documented Windows EPERM
+  temp-cleanup race (q49) — both reproduced in isolation as passing and
+  confirmed unrelated to this diff.
 - **2026-08-31 session: BACKLOG b014 closed for `npm run sim`, `tools/phase-
   coverage.ts` and `tools/soak.ts` — commit `70c77c0`. A JSON *syntax* error in
   any `/data` file no longer crashes them with a raw esbuild stack trace.** Root cause:

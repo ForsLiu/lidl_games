@@ -9,16 +9,12 @@
  *
  *   npx tsx tools/m20d-swarm.ts [count] [hp...]
  */
-import { loadContent } from '../src/sim/content';
-import { spawnEnemy, updateEnemies } from '../src/sim/enemies';
-import { buildTower, maxLevel, updateTowers, upgradeTower } from '../src/sim/towers';
-import { updateProjectiles } from '../src/sim/combat';
-import { World } from '../src/sim/world';
 import type { RunConfig } from '../src/sim/types';
+import type { World as WorldType } from '../src/sim/world';
 
 const DT = 1 / 60;
 
-function freeTile(w: World): { tx: number; ty: number } {
+function freeTile(w: WorldType): { tx: number; ty: number } {
   for (let ty = 4; ty < 20; ty++)
     for (let tx = 4; tx < 20; tx++)
       if (w.grid.buildable(tx, ty) && !w.grid.wouldBlockPath([[tx, ty]])) return { tx, ty };
@@ -26,6 +22,23 @@ function freeTile(w: World): { tx: number; ty: number } {
 }
 
 try {
+  // Dynamic, not static: `../src/sim/world` and `../src/sim/combat` each
+  // statically value-import `../src/sim/content` themselves (not just this
+  // file's own former `loadContent` import), which statically imports every
+  // `/data/*.json` file — a JSON *syntax* error there fails at
+  // module-transform time, before this `try` itself starts running, invisible
+  // to any try/catch in this file. Deferring every one of this file's former
+  // static value imports behind one dynamic `import()` per module (matching
+  // `tools/soak.ts`'s b014 shape) turns that failure into an ordinary
+  // rejected promise this `catch` can see instead (BACKLOG b045; the type-only
+  // `WorldType` import above is erased by the compiler regardless, so it
+  // carries no such risk).
+  const { loadContent } = await import('../src/sim/content');
+  const { spawnEnemy, updateEnemies } = await import('../src/sim/enemies');
+  const { buildTower, maxLevel, updateTowers, upgradeTower } = await import('../src/sim/towers');
+  const { updateProjectiles } = await import('../src/sim/combat');
+  const { World } = await import('../src/sim/world');
+
   const content = loadContent();
   const VENOM = content.towerByKey.get('venom_spore')!;
 
