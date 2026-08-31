@@ -74,6 +74,8 @@ const EXPECTED_STATUS: Record<string, ToolClassification['status']> = {
   'tools/m20d-run-a4.ts': 'pinned',
   'tools/m20d-swarm.ts': 'pinned',
   'tools/mutation-probe.ts': 'no-content-import',
+  // p10k: same shape as tools/sweep.ts, pinned by the same q37 sibling test.
+  'tools/p10k-sweep.ts': 'pinned',
   'tools/perf-ratio.ts': 'pinned',
   'tools/phase-coverage.ts': 'pinned',
   'tools/probe-boss.ts': 'pinned',
@@ -89,11 +91,11 @@ const EXPECTED_STATUS: Record<string, ToolClassification['status']> = {
 };
 
 describe('q47 — CLI-crash coverage census', () => {
-  it("lists exactly today's 24 tools/*.ts files (the 22 q47 found plus this tool itself plus fb018's tools/ui-audit.ts; gen-tree.mjs excluded, not a .ts file; tools/audit/checks.ts excluded, not a direct child of tools/)", () => {
+  it("lists exactly today's 25 tools/*.ts files (the 22 q47 found plus this tool itself plus fb018's tools/ui-audit.ts plus p10k's tools/p10k-sweep.ts; gen-tree.mjs excluded, not a .ts file; tools/audit/checks.ts excluded, not a direct child of tools/)", () => {
     const files = listToolFiles();
     expect(files).not.toContain('tools/gen-tree.mjs');
     expect(files.every((f) => f.endsWith('.ts'))).toBe(true);
-    expect(files.length).toBe(24);
+    expect(files.length).toBe(25);
   });
 
   it("today's classification matches this session's hand-derived table exactly", () => {

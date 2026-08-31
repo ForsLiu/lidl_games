@@ -16,6 +16,7 @@ import {
   damageStructure,
   damageWarden,
   setBossHandler,
+  setBossVulnerabilityFn,
   spawnEnemy,
 } from './enemies';
 import type { Enemy, Structure } from './types';
@@ -62,6 +63,44 @@ const ESCALATION_INTERVAL = 30;
 const ESCALATION_DAMAGE_PER_STACK = 0.1;
 const ESCALATION_SPEED_PER_STACK = 0.05;
 
+/**
+ * p10k (§9/§14, G1xG14): measured fight lengths against the real §1.1 shape
+ * (`tools/p10k-sweep.ts`) top out under 180s, so reusing `ESCALATION_START`'s
+ * spec-fixed 3:00 clock (Q126/Q127) for a vulnerability ramp is dead code
+ * against real play — the first pass at this item did exactly that and
+ * measured zero change (mean pinned at 37.24 min regardless of the
+ * multiplier, since `escalationStacks` never left 0). This is a separate,
+ * earlier-starting pacing clock: from `PACING_START` of boss-fight time the
+ * Warden-Eater takes increasing damage, on top of (not instead of) the 3:00
+ * stalemate-breaker above. It only ever speeds up the boss's own death — it
+ * never changes what the boss deals back — so it compresses the tail of
+ * fights that run long relative to the pool without rescuing a fight that was
+ * genuinely losing for other reasons.
+ *
+ * Swept a wide range of `(PACING_START, PACING_INTERVAL,
+ * PACING_VULNERABILITY_PER_STACK)` against `tools/p10k-sweep.ts` looking for
+ * a point inside G1's 30-36 min mean band that keeps G14's win rate below
+ * 100%. None exists: mean and win rate move together along this lever, and
+ * every measured point holds one of two shapes —
+ *   - below 100% wins: 37.24/67% (no ramp) -> 37.05/79% -> 36.63/92% -> 36.26/96%
+ *   - at 100% wins (every seed flips): 36.19/100% -> 35.88/100% at the most
+ *     extreme setting tried (an effectively instant boss kill for every seed)
+ * — i.e. mean only crosses under 36 once the fight stops being a real fight
+ * for anyone, which is the exact outcome G14 forbids. This reproduces, via an
+ * independent mechanism, the same wall p10d hit tuning `warden_eater` HP
+ * directly: the remaining ~0.6 min gap is not inside the boss fight's own
+ * budget at all — see PROGRESS.md's p10k entry and BACKLOG p10l (filed here)
+ * for why the rest lives in Act I/VS pacing, which a4's protected TD economy
+ * (`tests/a4-single-type.test.ts`) rules out of scope for a boss-only item.
+ * Landed on 20/10/0.5: real, measured improvement (37.24 -> 36.63 min, and
+ * a still-genuine sometimes-lost fight at 92%, 22/24) over shipping either
+ * nothing or a knife-edge tuning that reads as green today only because it
+ * sits one seed away from 100% (⚖).
+ */
+const PACING_START = 20;
+const PACING_INTERVAL = 10;
+const PACING_VULNERABILITY_PER_STACK = 0.5;
+
 /** Exported for direct assertions (tests/p8d-boss-termination.test.ts) — same reason `updateBossSlam` is public. */
 export function escalationStacks(w: World): number {
   if (w.bossSpawnTime < 0) return 0;
@@ -76,6 +115,19 @@ export function escalationDamageMul(w: World): number {
 
 export function escalationSpeedMul(w: World): number {
   return 1 + ESCALATION_SPEED_PER_STACK * escalationStacks(w);
+}
+
+/** p10k: independent, earlier-starting damage-taken ramp — see the doc comment above `PACING_START`. */
+function pacingStacks(w: World): number {
+  if (w.bossSpawnTime < 0) return 0;
+  const elapsed = w.act2Time - w.bossSpawnTime;
+  if (elapsed < PACING_START) return 0;
+  return 1 + Math.floor((elapsed - PACING_START) / PACING_INTERVAL);
+}
+
+/** p10k: damage-taken ramp on the boss itself, registered onto enemies.ts below. */
+export function escalationVulnerabilityMul(w: World): number {
+  return 1 + PACING_VULNERABILITY_PER_STACK * pacingStacks(w);
 }
 
 /**
@@ -314,3 +366,4 @@ export function clearArenaFire(w: World): void {
 }
 
 setBossHandler(bossUpdate);
+setBossVulnerabilityFn(escalationVulnerabilityMul);

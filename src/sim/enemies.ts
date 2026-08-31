@@ -244,6 +244,17 @@ export function damageEnemy(
   // SPEC-V3 §3 frozen: +30% damage taken. A status, not armor, so unlike the
   // line above it applies to ailment damage as well.
   if (e.frozenRemaining > 0) dmg *= statusDamageTakenMul(w, e);
+  // p10k (§9/§14 G1xG14): the Warden-Eater cracks under sustained pressure the
+  // same way it hits harder — a time-gated ramp on damage *taken*, not just
+  // dealt, so a fight already running long shortens on its own instead of
+  // needing a flat HP/timer cut that also pins the win rate near 100%. Applies
+  // to ailment damage too (unlike the armor line above): a fight that outlasts
+  // the grace period is cracking everywhere, not just against direct hits.
+  // Gated on TRAIT.finalBoss, not the broader `e.boss` (qa-playtester p10k
+  // finding): `gatebreaker` also carries the `boss` trait without being the
+  // Warden-Eater, and a practice-mode spawn of it during Act II would
+  // otherwise pick up a ramp meant only for the one true final boss.
+  if ((e.flags & TRAIT.finalBoss) !== 0) dmg *= bossDamageTakenMul(w);
 
   if (!opts.pure) {
     if (def.flatReduction) dmg *= 1 - def.flatReduction;
@@ -1599,6 +1610,18 @@ function contactWarden(w: World, e: Enemy, def: EnemyDef): void {
 export let bossUpdate: (w: World, e: Enemy, dt: number) => boolean = () => false;
 export function setBossHandler(fn: (w: World, e: Enemy, dt: number) => boolean): void {
   bossUpdate = fn;
+}
+
+/**
+ * Set by boss.ts (p10k, §9/§14 G1×G14): a time-gated damage-taken ramp on the
+ * boss only, keyed off the same "no stalemate" clock as its outgoing
+ * escalation (`escalationStacks`). Read here rather than imported directly to
+ * avoid a cycle back into boss.ts, same reason `bossUpdate` above is a
+ * registered callback rather than a direct import.
+ */
+export let bossDamageTakenMul: (w: World) => number = () => 1;
+export function setBossVulnerabilityFn(fn: (w: World) => number): void {
+  bossDamageTakenMul = fn;
 }
 
 /**

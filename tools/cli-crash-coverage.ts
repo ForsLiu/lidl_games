@@ -438,6 +438,7 @@ export const PIN_COVERAGE: Record<string, string[]> = {
   'tools/soak.ts': ['tests/q33-cli-json-syntax-error.test.ts'],
   'tools/sim.ts': ['tests/q37-cli-json-syntax-error-siblings.test.ts'],
   'tools/sweep.ts': ['tests/q37-cli-json-syntax-error-siblings.test.ts'],
+  'tools/p10k-sweep.ts': ['tests/q37-cli-json-syntax-error-siblings.test.ts'],
   'tools/handoff-metrics.ts': ['tests/q37-cli-json-syntax-error-siblings.test.ts'],
   'tools/perf-ratio.ts': [
     'tests/q41-cli-json-syntax-error-siblings-2.test.ts',

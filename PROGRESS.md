@@ -5,6 +5,56 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-31 session: p10k done — an independent boss-pacing damage-taken
+  ramp built and tuned; G1's mean-band gap proven structural, honestly
+  `.skip`-ed with the improved number; follow-up filed as p10l — commit
+  `<pending>`.**
+  Picked up an uncommitted, partially-broken start on this item already
+  sitting in the working tree (`src/sim/boss.ts`, `src/sim/enemies.ts`,
+  `tools/p10k-sweep.ts`, and an un-skipped `tests/p10d-run-length.test.ts`)
+  from a prior session. The leftover mechanism reused `escalationStacks` —
+  the §9-addendum stalemate-breaker fixed at "3:00 of boss-fight time"
+  (Q126/Q127, `tests/p8d-boss-termination.test.ts`) — as the driver for a new
+  damage-taken multiplier. Ran `tools/p10k-sweep.ts` (already present,
+  uncommitted) and got the exact same mean at two different multiplier
+  values (37.24 min at both 0.12 and 0.25), which is the tell for dead code.
+  Wrote a one-off diagnostic printing `act2Time - bossSpawnTime` per seed and
+  confirmed it: all 24 seeds' boss fights finish in 50-178s, `escalationStacks`
+  never leaves 0 in real play, so the leftover code changed nothing regardless
+  of its constant.
+  Replaced the driver with a separate, earlier-starting pacing clock
+  (`PACING_START`/`PACING_INTERVAL`/`PACING_VULNERABILITY_PER_STACK` in
+  `boss.ts`, feeding the same `escalationVulnerabilityMul` ->
+  `setBossVulnerabilityFn` -> `bossDamageTakenMul` wiring into `enemies.ts`'s
+  `damageEnemy` that was already in place) and swept a wide constant range
+  against `tools/p10k-sweep.ts`, looking for any point inside G1's 30-36 min
+  band with G14's win rate still under 100%. Found none: mean and win rate
+  move together with no exception across seven measured points, from
+  37.24/67% (no ramp) up through 36.19/100% and 35.88/100% at the most
+  extreme setting tried (an effectively instant boss kill for every seed).
+  Mean crosses under 36 only once win rate hits 100%, which is exactly what
+  G14 forbids — the same wall p10d hit cutting `warden_eater` HP directly,
+  now reproduced through a second, unrelated mechanism. That is strong
+  evidence the residual ~0.6 min sits outside the boss fight's own time
+  budget (in Act I or the non-final VS blocks) rather than being a missed
+  tuning value on this lever, so filed the honest conclusion rather than
+  landing a knife-edge tuning one seed away from breaking G14 the moment
+  anything else in P10 nudges a seed's outcome.
+  Landed `PACING_START=20`, `PACING_INTERVAL=10`,
+  `PACING_VULNERABILITY_PER_STACK=0.5`: **36.63 min, 22/24 wins (92%)**, a
+  real improvement over the live baseline (37.24 min, 67%) that keeps a
+  genuine sometimes-lost fight. `tests/p10d-run-length.test.ts`'s mean-band
+  assertion stays `.skip`-ed with the new number (was 37.15/79% at p10d);
+  `tools/gate-audit.ts`'s G1 note updated to match, no coverage-basis change.
+  `tools/p10k-sweep.ts` kept as a permanent diagnostic. Filed BACKLOG p10l for
+  the Act I/VS-pacing follow-up, scoped explicitly to avoid
+  `tests/a4-single-type.test.ts`'s protected TD economy — the same coupling
+  that sank p10d's `vsWaveSeconds`/`buildPhaseSeconds` attempt.
+  Verified: targeted run of `tests/p10d-run-length.test.ts`,
+  `tests/boss.test.ts`, `tests/p8d-boss-termination.test.ts` — 22 passed, 3
+  skipped, 0 failed. `npm run test:fast` run clean (see below). code-reviewer
+  and qa-playtester passes: see BACKLOG.md's Done entry for findings.
+
 - **2026-08-31 session: p10j done — gate G13's 35% VS-damage-share cap
   closed in full via an engine-side crowd allowance for directional wielded
   attacks — commit `90405e4`.**

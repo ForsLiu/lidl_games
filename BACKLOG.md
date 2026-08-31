@@ -38,7 +38,7 @@ still in test headers.
 | P7 equipment/rewards/VS upgrades | **`p7a`-`p7g` done** — §6.3's VS level-up pool replaces the flat 12-boon list (closing b011 as a side effect); §7's 12-item equipment table is live; §8's reward pipeline is complete and **gate G12 is green in full**; the superseded meta economy (relic affixes, Ember) is retired outright, skill points are the tree's only currency; §8.4's unlock quests are live and correct for all 9 non-free classes (p7e fixed 5 quests whose reward never actually unlocked their class, and repointed Paladin's quest at a new "win with a sealed Core" mechanism matching spec text); `p7f`/`p7g` closed the save-migration holes `migrateWithNotice` had — an unknown key, and a corrupt `allocated`/`unlockedClasses`/`completedQuests`/`equipmentStash`/`questProgress`, can no longer discard or corrupt the account. Remaining: `p7h` (Core unlock quests + Codex page) |
 | P8 enemies/waves/bosses | **done in full (`p8a`-`p8c`)** — all 20 §9 enemies by name; `data/waves.json` authors real TD waves 1-18 on the §1.1 shape (Gatebreaker on 18 only, Warden-Eater on VS 6), the §9 VS-budget curve is live; `p8b` closed the elite/boss-summon spawn paths that bypassed `spendBudget`'s `aliveCap` check; `p8c` formally measured gate G14 on the real shape — **honestly red, 0/20**, `.skip`-ed with the number, re-enable point P10 (no gate in this codebase is force-passed by tuning outside P10) |
 | P9 tooling | **done in full (`p9a`-`p9h`)** — content-hash replay check (`p9a`), the Codex wired into the Hub (`p9b`), the Tuner built and gate **G15 green** (`p9c`), G16's dist-presence-is-inert half explicitly asserted (`p9d`), **gate G18's dead-end clause closed in full** (`p9e`), **gate G2 closed in full** (`p9f`), `hashWorld`'s `w.goldSpent` coverage gap closed (`p9g`), and the enemy/Warden panel's armour row now shows the effective (floored/capped) value instead of the raw shredded number (`p9h`) |
-| P10 balance | **in progress (p10a-p10j done)** — Burning flipped to per-application stacking, DoT immunity is data-driven, G13/G1/G17 re-baselined against the real §1.1 shape (G17 fully green; G1 still `.skip`-ed with honest numbers, follow-up p10k); **G19 measured live and green in full (p10f)**; G4's armour-shred path proven live through a real build (p10g); the TD↔VS transition sweep and asset pass shipped (p10h); HANDOFF.md regenerated end to end against SPEC-FINAL, with the wave-11-to-17 wall (behind G8/G14/most of G23) documented as the dominant open problem (p10i); **G13's 35% VS-damage-share cap closed in full (p10j)** — directional wielded attacks (single/pierce/lob/poison) got an engine-side crowd allowance, `tests/p10c-weapon-share.test.ts`'s skip removed. Remaining: p10k (G1×G14's boss-pacing tension) |
+| P10 balance | **in progress (p10a-p10k done)** — Burning flipped to per-application stacking, DoT immunity is data-driven, G13/G1/G17 re-baselined against the real §1.1 shape (G17 fully green; G1 still `.skip`-ed with honest numbers); **G19 measured live and green in full (p10f)**; G4's armour-shred path proven live through a real build (p10g); the TD↔VS transition sweep and asset pass shipped (p10h); HANDOFF.md regenerated end to end against SPEC-FINAL, with the wave-11-to-17 wall (behind G8/G14/most of G23) documented as the dominant open problem (p10i); **G13's 35% VS-damage-share cap closed in full (p10j)** — directional wielded attacks (single/pierce/lob/poison) got an engine-side crowd allowance, `tests/p10c-weapon-share.test.ts`'s skip removed; **p10k** gave the boss fight an independent pacing ramp and proved, via a second mechanism, that G1's remaining ~0.6 min gap is structurally outside the boss fight's time budget — landed a real improvement (37.24->36.63 min, 92% win rate) and left the mean-band assertion honestly `.skip`-ed. Remaining: p10l (an Act I/VS-pacing lever for the rest of G1's gap) |
 
 ## Queue
 
@@ -506,7 +506,7 @@ next in P8's own queue.
       changes (G2 hash unmoved) — refs: §11, §15 P10 — **done, see Done section.**
 - [x] (p10i) [polish] Regenerate HANDOFF.md's measured sections against SPEC-FINAL
       and re-check QUALITY.md's Alpha bar — **done, see Done section.**
-- [ ] (p10k) [feat] Gate **G1**'s mean-band clause is `.skip`-ed red
+- [x] (p10k) [feat] Gate **G1**'s mean-band clause is `.skip`-ed red
       (`tests/p10d-run-length.test.ts`): mean victorious run measures 37.15 min
       against the 30-36 min band after p10d's data-only pacing fix (down from 44.26
       min — `data/spawns.json`'s `bossTimeSeconds` 600->181, the floor above SPEC
@@ -525,7 +525,28 @@ next in P8's own queue.
       so the latter can shrink independent of win rate), re-measured against
       `tests/p10d-run-length.test.ts`'s 24-seed mean until it lands in 30-36 min
       with win rate still a real 50-100% majority, then the skip comes off — refs:
-      §1.1, G1, G14, tests/p10d-run-length.test.ts
+      §1.1, G1, G14, tests/p10d-run-length.test.ts — **done, see Done section
+      (mechanism built and tuned; the mean-band assertion itself stays `.skip`-ed —
+      see the Done entry and BACKLOG p10l for why).**
+- [ ] (p10l) [balance] Gate **G1**'s mean-band clause is still `.skip`-ed red after
+      p10k: mean victorious run measures 36.63 min against the 30-36 min band (down
+      from 37.24 min pre-p10k). p10k proved, via an independent earlier-starting
+      boss damage-taken ramp swept across a wide constant range (`src/sim/boss.ts`'s
+      `PACING_START`/`PACING_INTERVAL`/`PACING_VULNERABILITY_PER_STACK`,
+      `tools/p10k-sweep.ts`), that the remaining ~0.63 min cannot be closed from
+      inside the boss fight's own time budget without pinning G14's win rate at
+      100% (mean only drops under 36 once every one of the 24 seeds wins). The gap
+      must therefore come from Act I or the non-final VS blocks instead — but
+      p10d already found `data/waves.json`'s `vsWaveSeconds`/`buildPhaseSeconds`
+      (the obvious global pacing knobs) coupled to `tests/a4-single-type.test.ts`'s
+      solo-tower TD economy, breaking 3 of 7 towers' 5/5 T1 bar when tried —
+      acceptance: a pacing change that shaves ~0.7+ min off the mean without
+      moving `tests/a4-single-type.test.ts` off its pinned 36/36 (all seven towers
+      5/5 T1, 0/5 T3) or `tests/p10d-run-length.test.ts`'s win-rate assertion
+      outside (0.5, 1) — e.g. a per-block (not global) timer change scoped to
+      blocks after a4's probe already clears T1, or a TD-side lever a4 doesn't
+      traverse at all — then the mean-band skip comes off — refs: §1.1, G1, G14,
+      tests/p10d-run-length.test.ts, tests/a4-single-type.test.ts.
 
 ### Filed at the lane/quality merge (2026-08-27) — out-of-scope findings from BACKLOG-QUALITY.md's log
 
@@ -973,6 +994,63 @@ logged in MIGRATION.md §8 rather than carried as dead items.
 
 ## Done
 
+- [x] (p10k) [feat] Gate **G1**'s mean-band clause is `.skip`-ed red
+      (`tests/p10d-run-length.test.ts`): mean victorious run measures 37.15 min
+      against the 30-36 min band after p10d's data-only pacing fix — acceptance:
+      a boss-pacing mechanism that shortens the fight without also pinning its
+      outcome (e.g. a DPS-race enrage timer, a time-gated damage-taken ramp, or
+      splitting "time to engage" from "time to kill"), re-measured until G1 lands
+      in 30-36 min with win rate still a real 50-100% majority — refs: §1.1, G1,
+      G14, tests/p10d-run-length.test.ts.
+      Live baseline had drifted since p10d to **37.24 min, 16/24 wins (67%)**
+      (p10e-p10j's intervening balance work). A first pass at this item (left
+      uncommitted from a prior session) reused `escalationStacks` — the spec-fixed
+      "3:00 of boss-fight time" stalemate-breaker (§9 addendum, Q126/Q127,
+      `tests/p8d-boss-termination.test.ts`) — for a damage-taken multiplier on the
+      boss. Measured **zero effect on the mean at any multiplier value**:
+      `tools/p10k-sweep.ts` (new diagnostic, computes `act2Time - bossSpawnTime`
+      per seed) showed every one of the 24 seeds' boss fights finishes in 50-178s,
+      never reaching the spec's 180s threshold, so `escalationStacks(w)` was 0
+      throughout and the "mechanism" was dead code end to end.
+      Replaced it with a genuinely independent, earlier-starting pacing clock
+      (`src/sim/boss.ts`'s `PACING_START`/`PACING_INTERVAL`/
+      `PACING_VULNERABILITY_PER_STACK`, wired through `setBossVulnerabilityFn`/
+      `bossDamageTakenMul` in `enemies.ts`'s `damageEnemy`, unchanged from the
+      prior session): it only ever accelerates the boss's own death, never
+      changes what the boss deals back, so a losing fight is never rescued by it.
+      Swept a wide constant range against `tools/p10k-sweep.ts` looking for a
+      point inside G1's 30-36 min band that keeps G14's win rate under 100%.
+      **None exists** — mean and win rate move together along this lever with no
+      exception found: 37.24/67% (no ramp) -> 37.05/79% -> 36.63/92% -> 36.26/96%
+      -> 36.19/100% -> 35.88/100% at the most extreme setting tried (an
+      effectively instant boss kill for every seed, the practical floor of this
+      approach). Mean only crosses under 36 once the win rate hits 100% across
+      every measured configuration, which G14 forbids outright ("win rate >=60%
+      and <100%") — this reproduces, via a second, unrelated mechanism, the exact
+      wall p10d hit tuning `warden_eater` HP directly, which is strong evidence
+      the residual ~0.6 min gap is structurally outside the boss fight's own time
+      budget rather than a missed tuning value on either lever.
+      Landed on `PACING_START=20`, `PACING_INTERVAL=10`,
+      `PACING_VULNERABILITY_PER_STACK=0.5`: **36.63 min, 22/24 wins (92%)** — a
+      real, honest improvement (37.24->36.63 min) that keeps a genuine
+      sometimes-lost fight, over either shipping the inert first-pass code or a
+      knife-edge tuning one seed away from 100%. `tests/p10d-run-length.test.ts`'s
+      mean-band assertion stays `.skip`-ed with the new honest number (was
+      37.15/79% at p10d's session; now 36.63/92%); its header and the inline skip
+      comment rewritten with the full accounting above. `tools/gate-audit.ts`'s
+      G1 note updated to match; no coverage-basis change (still `covered`,
+      partial-but-live-measured, same as G13/G17). `tools/p10k-sweep.ts` (the
+      diagnostic used throughout this item) kept as a permanent tool alongside
+      `tools/sweep.ts` — cheap, seed-general, and the natural place a future
+      re-tune re-measures this exact mean/win-rate pair.
+      Follow-up filed as BACKLOG p10l: the remaining gap needs an Act I/VS-pacing
+      lever instead of a boss-only one, scoped to not disturb
+      `tests/a4-single-type.test.ts`'s protected TD economy the way p10d's
+      `vsWaveSeconds`/`buildPhaseSeconds` attempt did.
+      Verified: targeted run of `tests/p10d-run-length.test.ts`,
+      `tests/boss.test.ts`, `tests/p8d-boss-termination.test.ts` (22 passed, 3
+      skipped, 0 failed) plus `npm run test:fast` green. code-reviewer and
+      qa-playtester passes clean (see below). Commit `<pending>`.
 - [x] (p10j) [feat] G13's 35%-damage-share clause is `.skip`-ed red
       (`tests/p10c-weapon-share.test.ts`) — acceptance: an engine-side mechanism (in
       `src/sim`, not just `/data`) giving directional wielded attacks some

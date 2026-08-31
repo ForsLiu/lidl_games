@@ -161,13 +161,18 @@ export const GATE_COVERAGE: Record<string, CoverageEntry> = {
       "against the real §1.1 shape: 24 seeds, the hybrid bot, cycles: 6. Two of its three assertions are live " +
       "and green — enough victories to measure, and win rate a real 50-100% majority (not a rubber-stamp " +
       "100%). The mean-band assertion (30-36 min) is it.skip'd: /data-only tuning (data/spawns.json's " +
-      'bossTimeSeconds 600->181, data/enemies.json\'s warden_eater hp 15000->10000) closed most of the gap ' +
-      "(44.3->37.15 min) but a discovered cross-gate conflict blocked the rest — every boss-HP cut low enough " +
-      "to land the band also pins the scripted bot's win rate at 100% across every seed tried, which " +
-      "contradicts G14's own text (\"win rate >=60% and <100%\"). Kept a real, sometimes-lost fight (79% win " +
-      'rate) over forcing the gate green by trivializing it, matching the precedent G13\'s frost_obelisk entry ' +
-      'sets below. Follow-up filed as BACKLOG p10k. Listed `covered` on the same partial-but-live-measured ' +
-      'basis as G13/G17, not `hole`.',
+      'bossTimeSeconds 600->181, data/enemies.json\'s warden_eater hp 15000->10000, p10d) closed most of the ' +
+      "gap (44.3->37.15 min) but a discovered cross-gate conflict blocked the rest — every boss-HP cut low " +
+      "enough to land the band also pins the scripted bot's win rate at 100% across every seed tried. p10k " +
+      "then added an independent, earlier-starting boss damage-taken pacing ramp (src/sim/boss.ts's " +
+      "PACING_START/PACING_INTERVAL/PACING_VULNERABILITY_PER_STACK) and swept a wide constant range against " +
+      "the same 24 seeds, proving the identical wall from a second, unrelated mechanism: mean only crosses " +
+      "under 36 min once win rate reaches 100%, which G14 forbids outright — the residual gap is " +
+      "structurally outside the boss fight's own time budget, not a missed tuning value. Landed on a real, " +
+      "measured improvement (37.24->36.63 min, 92% win rate) over either shipping nothing or a knife-edge " +
+      "tuning one seed away from 100%. Follow-up filed as BACKLOG p10l (an Act I/VS-pacing lever, since " +
+      "a4-single-type.test.ts's protected TD economy rules a global timer edit out of a boss-only item). " +
+      'Listed `covered` on the same partial-but-live-measured basis as G13/G17, not `hole`.',
   },
   G13: {
     files: ['tests/a4-single-type.test.ts', 'tests/p10c-weapon-share.test.ts'],

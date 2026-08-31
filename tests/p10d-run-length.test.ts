@@ -33,11 +33,28 @@
  * text ("win rate >=60% and <100%", `tests/boss.test.ts`), not a missed
  * tuning value. Chose hp 15000->10000 instead: a real, sometimes-lost fight
  * (measured 79% win rate over the same 24 seeds) at the cost of leaving G1
- * short. Final measured: **mean 37.15 min, 19/24 wins (79%)** — 1.15 min over
- * the ceiling. `.skip`-ed rather than cut further into the fight's substance;
+ * short. `.skip`-ed rather than cut further into the fight's substance;
  * follow-up filed as BACKLOG p10k (a boss-pacing redesign — e.g. a DPS-race
  * or enrage-timer mechanic — that can shorten the fight without pinning its
  * outcome, out of a flat HP/timer tune). Full accounting in PROGRESS.md.
+ *
+ * **p10k**: added `src/sim/boss.ts`'s `PACING_START`/`PACING_INTERVAL`/
+ * `PACING_VULNERABILITY_PER_STACK` — an independent, earlier-starting
+ * damage-taken ramp on the boss (the spec's own 3:00 escalation clock,
+ * Q126/Q127, never fires within these fight lengths, so it cannot be reused
+ * for this). Live baseline had drifted since p10d (p10e-p10j's balance work):
+ * **37.24 min, 16/24 (67%)** with the ramp inert. Swept a wide constant range
+ * against `tools/p10k-sweep.ts`; every point traces the same curve —
+ * 37.24/67% -> 37.05/79% -> 36.63/92% -> 36.26/96% -> 36.19/100% -> 35.88/100%
+ * at the most extreme setting tried (an effectively instant kill for every
+ * seed). Mean only crosses under 36 once win rate hits 100%, which G14
+ * forbids outright — proof, via a second independent mechanism, of the same
+ * wall p10d hit cutting HP directly: the residual gap is not inside the boss
+ * fight's own time budget. Landed on 20/10/0.5 (**36.63 min, 22/24 (92%)**) as
+ * the real, honest improvement available from a boss-only lever, still short
+ * of the band. Full accounting, and BACKLOG p10l (the Act I/VS-pacing
+ * follow-up this rules in scope, since a4's protected TD economy rules a
+ * global timer edit back out), in PROGRESS.md.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -82,13 +99,16 @@ describe('G1 mean victorious run is 30-36 minutes over 24+ seeds', () => {
     expect(rate, detail).toBeLessThan(1);
   });
 
-  // Measured red (p10d session, final settings): mean 37.15 min, 19/24 wins
-  // (79%) — 1.15 min over the 36 min ceiling. See the file header for why
-  // closing the rest means either breaking a4's protected TD-economy levers
-  // or pinning the boss win rate at 100% (a G14 conflict); .skip'd with the
-  // real number rather than either. Re-enable once BACKLOG p10k gives the
-  // boss fight a pacing mechanism that shortens it without also deciding its
-  // outcome.
+  // Measured red (p10k session, final settings): mean 36.63 min, 22/24 wins
+  // (92%) — 0.63 min over the 36 min ceiling, down from p10d's 37.15/79% (live
+  // baseline had drifted to 37.15->37.24/67% by this session, from p10e-p10j's
+  // intervening balance work). See the file header: p10k proved, via an
+  // independent boss-pacing ramp swept across a wide constant range, that
+  // closing the rest of this gap from inside the boss fight always costs G14
+  // its <100% win rate — the two gates are in genuine tension here, not a
+  // missed tuning value. `.skip`-ed with the honest number; re-enable point
+  // moves to BACKLOG p10l (an Act I/VS-pacing lever, since a4's protected TD
+  // economy rules a global timer edit out of a boss-only item).
   it.skip('has a mean victorious run of 30-36 minutes', () => {
     expect(mean, detail).toBeGreaterThanOrEqual(30);
     expect(mean, detail).toBeLessThanOrEqual(36);

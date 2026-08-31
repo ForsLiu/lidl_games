@@ -98,6 +98,10 @@ describe.each([
   ['sim.ts', ['--seed', '1', '--policy', 'hybrid']],
   ['sweep.ts', ['--seeds', '1']],
   ['handoff-metrics.ts', [] as string[]],
+  // p10k: same shape as sweep.ts (imports Run/makePolicy, no try/catch,
+  // no CLI args to vary) — the crash happens at module-load, before its
+  // fixed 24-seed loop ever starts, so this is cheap to verify here too.
+  ['p10k-sweep.ts', [] as string[]],
 ])('%s crashes uncaught on a /data JSON syntax error (q37)', (tool, args) => {
   it('exits non-zero with a raw esbuild TransformError stack trace, not a one-line message', () => {
     const dir = scratchPath(tool.replace('.ts', ''));

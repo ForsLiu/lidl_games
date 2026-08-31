@@ -22,12 +22,13 @@ import { describe, expect, it } from 'vitest';
 
 import { Run } from '../src/sim/run';
 import { emptyInput } from '../src/sim/types';
-import { spawnEnemy } from '../src/sim/enemies';
+import { damageEnemy, spawnEnemy } from '../src/sim/enemies';
 import {
   bossUpdate,
   escalationDamageMul,
   escalationSpeedMul,
   escalationStacks,
+  escalationVulnerabilityMul,
   UNREACHABLE_THRESHOLD,
 } from '../src/sim/boss';
 import { buildTower } from '../src/sim/towers';
@@ -151,6 +152,73 @@ describe('p8d: boss escalation (§9 addendum)', () => {
     // multiplier past sustain/baseline.
     const stacksAtDeath = escalationStacks(w);
     expect(1 + 0.1 * stacksAtDeath).toBeGreaterThan(SUSTAIN_PER_SECOND / BASELINE_DPS);
+  });
+});
+
+describe('p10k: boss pacing damage-taken ramp (G1×G14)', () => {
+  it('stays at 1x before PACING_START, then steps every PACING_INTERVAL without cap', () => {
+    const w = act2World();
+    expect(escalationVulnerabilityMul(w)).toBe(1); // bossSpawnTime still -1
+    w.bossSpawnTime = 0;
+    w.act2Time = 19.9;
+    expect(escalationVulnerabilityMul(w)).toBe(1);
+    w.act2Time = 20; // PACING_START
+    expect(escalationVulnerabilityMul(w)).toBeCloseTo(1.5, 6); // 1 + 0.5*1
+    w.act2Time = 29.9;
+    expect(escalationVulnerabilityMul(w)).toBeCloseTo(1.5, 6);
+    w.act2Time = 30; // PACING_START + PACING_INTERVAL
+    expect(escalationVulnerabilityMul(w)).toBeCloseTo(2, 6); // 1 + 0.5*2
+    w.act2Time = 20 + 10 * 40;
+    expect(escalationVulnerabilityMul(w)).toBeCloseTo(1 + 0.5 * 41, 6);
+  });
+
+  it('measures elapsed time from the boss spawning, not from Act II starting', () => {
+    const w = act2World();
+    w.act2Time = 100;
+    w.bossSpawnTime = 90; // boss spawned late, only 10s into its own fight
+    expect(escalationVulnerabilityMul(w)).toBe(1);
+  });
+
+  it('multiplies damage taken by a boss enemy once ramped, and leaves a non-boss enemy untouched', () => {
+    const w = act2World();
+    w.bossSpawnTime = 0;
+    w.act2Time = 20; // one pacing stack -> 1.5x damage taken
+    expect(escalationVulnerabilityMul(w)).toBeCloseTo(1.5, 6);
+
+    const bossEnemy = boss(w, 1);
+    bossEnemy.armor = 0;
+    const bossHpBefore = bossEnemy.hp;
+    const bossDealt = damageEnemy(w, bossEnemy, 100, 'test', { pure: true });
+    expect(bossDealt).toBeCloseTo(150, 6);
+    expect(bossHpBefore - bossEnemy.hp).toBeCloseTo(150, 6);
+
+    const husk = spawnEnemy(w, 'husk', w.warden.x + 6, w.warden.y, { overlay: false })!;
+    husk.armor = 0;
+    const huskHpBefore = husk.hp;
+    const huskDealt = damageEnemy(w, husk, 100, 'test', { pure: true });
+    expect(huskDealt).toBeCloseTo(100, 6); // no boss flag, no ramp applied
+    expect(huskHpBefore - husk.hp).toBeCloseTo(100, 6);
+  });
+
+  it('does not apply to gatebreaker: it carries TRAIT.boss but is not the final boss', () => {
+    // qa-playtester repro: gatebreaker (data/enemies.json) carries the same
+    // `boss` trait as warden_eater without being TRAIT.finalBoss. It cannot
+    // co-spawn with the real boss through normal director/spawn logic, but
+    // the practice panel's debug spawn tool can place it in Act II after
+    // `bossSpawnTime` is already set — the ramp must not follow the broad
+    // `e.boss` flag or an unrelated elite would inherit it.
+    const w = act2World();
+    w.bossSpawnTime = 0;
+    w.act2Time = 20; // one pacing stack -> 1.5x damage taken, for the real boss only
+    expect(escalationVulnerabilityMul(w)).toBeCloseTo(1.5, 6);
+
+    const gatebreaker = spawnEnemy(w, 'gatebreaker', w.warden.x + 6, w.warden.y, { overlay: false })!;
+    expect(gatebreaker.boss).toBe(true); // has the boss trait...
+    gatebreaker.armor = 0;
+    const hpBefore = gatebreaker.hp;
+    const dealt = damageEnemy(w, gatebreaker, 100, 'test', { pure: true });
+    expect(dealt).toBeCloseTo(100, 6); // ...but not the finalBoss ramp
+    expect(hpBefore - gatebreaker.hp).toBeCloseTo(100, 6);
   });
 });
 
