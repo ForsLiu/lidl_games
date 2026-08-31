@@ -5,6 +5,33 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-31 session: BACKLOG b063 closed — `readsDataJsonDirectly()`
+  (`tools/cli-crash-coverage.ts`) false-positives on a `readFileSync('data/
+  x.json')`-shaped call sitting only inside a single/double-quoted fixture
+  string, not real code — filed by qa-playtester verifying b025.** Closed
+  via the item's documentation-route acceptance option: extended the
+  function's "Known limitations" doc comment with the root cause (the
+  single/double-quote side twin of the already-documented q47 backtick-
+  fixture gap — `stripCommentsAndBacktickStrings` must leave quoted-string
+  contents untouched for the `const`-binding scan and real import specifiers
+  to survive it) and its blast radius (latent, no live file triggers it);
+  `tests/q54-unguarded-data-read.test.ts` gained one regression test pinning
+  the documented false positive with a synthetic fixture. `npx vitest run
+  tests/q54-unguarded-data-read.test.ts tests/q47-cli-crash-coverage.test.ts`:
+  38/38 green. `npm run test:fast`: 7 files / 3 tests failed, all in the
+  standing pre-existing Windows flake classes (b032/b034/b035/b036 Playwright
+  fold/port-contention, q28/q49/q52 scratch-dir `EPERM` races) — no new
+  failures. code-reviewer: APPROVE (no Critical/Major) — hand-traced the doc
+  comment against the real implementation and confirmed the new test
+  exercises exactly the described code path. qa-playtester: PASS —
+  independently reproduced the false positive twice against the real file,
+  confirmed via a full `classifyAll()` census that the shape stays latent
+  (only the two known legitimate files flag `readsDataJsonDirectly: true`).
+  It found one new bug: the false positive only reproduces for a mismatched-
+  quote-style fixture (the documented/tested shape) — an escaped-same-quote
+  fixture doesn't reproduce it (an undocumented asymmetry, safe direction,
+  under- not over-detection). Filed as BACKLOG b064 (latent, not blocking).
+  BACKLOG.md b063 moved to Done.
 - **2026-08-31 session: BACKLOG b025 closed — `readsDataJsonDirectly()`
   (`tools/cli-crash-coverage.ts`) false-negatives on two path shapes (an
   inline template-literal `readFileSync` argument with no `join()` wrapper,

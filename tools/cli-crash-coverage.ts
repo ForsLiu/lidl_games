@@ -231,6 +231,25 @@ const CONCAT_ARG_RE = /\breadFileSync\s*\(\s*((?:['"][^'"]*['"]\s*\+\s*)+['"][^'
  * to be `join`'s *first* argument — `join(dirname(__dirname), 'data',
  * 'x.json')` is not detected, because the literal sits in a later position.
  * Neither shape exists in `tools/*.ts` today (checked).
+ *
+ * A further false-positive, not a false-negative (qa-playtester verifying
+ * b025, filed as b063): `stripCommentsAndBacktickStrings` deliberately
+ * copies single/double-quoted string *contents* through untouched (a real
+ * import specifier and the `const`-binding literal above both need to
+ * survive it), so a `readFileSync('data/x.json')`-shaped call sitting only
+ * as the *text* of a single/double-quoted fixture string — e.g. `const
+ * fixtureLine = "const d = JSON.parse(readFileSync('data/x.json', 'utf8'));"`
+ * — is scanned as if it were real code and flags the file, the same class of
+ * gap this file already accepts for a backtick-quoted fixture (q47's
+ * `tools/mutation-probe.ts` precedent, `stripCommentsAndBacktickStrings`'s
+ * own doc comment), just on the single/double-quote side instead of the
+ * backtick side. Distinguishing "inside a string literal used as data" from
+ * "real code" would need tracking string-nesting depth this function
+ * deliberately doesn't (see that function's doc comment on why quoted
+ * content is left untouched); latent today — no live `tools/*.ts` file
+ * embeds a `readFileSync('data/...json')`-shaped fixture in a single/
+ * double-quoted string (`tools/mutation-probe.ts`'s own fixtures are
+ * backtick-quoted, already excluded by the existing gap above; checked).
  */
 export function readsDataJsonDirectly(absPath: string): boolean {
   if (!existsSync(absPath)) return false;
