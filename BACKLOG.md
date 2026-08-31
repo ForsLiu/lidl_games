@@ -640,12 +640,42 @@ were not re-filed. Ordering within this section is by severity, not P-band.
       95 passed, 7 skipped, 0 failed. `npm run test:fast`: 1701 passed, 30
       skipped; only the 4 pre-existing documented Playwright fold flakes
       (b032/b034/b035/b036) red — no new regressions. Commit `629fd01`.
-- [ ] (b009) [bug] `Hasher.int`'s `v | 0` collapses `NaN`/`±Infinity` to the same
+- [x] (b009) [bug] `Hasher.int`'s `v | 0` collapses `NaN`/`±Infinity` to the same
       hash as `0`, so the determinism hash cannot see non-finite corruption — a
       replay of a NaN-poisoned run reads as clean. Fold a finiteness sentinel into
       `Hasher.int`/`num` (or hash a canonical non-finite tag) — acceptance:
       `Hasher.int(NaN)`, `(Infinity)`, `(0)` produce three distinct hashes; G2
-      suite stays green — refs: §12, A11/G2, BACKLOG-QUALITY q30 review
+      suite stays green — refs: §12, A11/G2, BACKLOG-QUALITY q30 review.
+      Fixed: `Hasher.int` (`src/sim/hash.ts`) now folds a distinct tag
+      (0=finite, 1=NaN, 2=+Infinity, 3=-Infinity) into the FNV-1a hash state
+      before processing the value's bytes, so a non-finite `v` can no longer
+      alias a legitimate `0`. `Hasher.num` had an independent second copy of
+      the same bug: it quantizes through `q()` (`src/sim/math.ts`), which does
+      its own `... | 0` and so collapsed non-finite input to 0 *before*
+      `int()` ever saw it; `num` now bypasses `q()` for non-finite values,
+      passing the raw value straight to the fixed `int()`. `tests/b009-hasher-
+      finiteness.test.ts` (5 tests) pins `int`/`num` pairwise-distinctness for
+      NaN/+Infinity/-Infinity/0, and two `hashWorld`-level cases (a NaN
+      `World.coreHp` and an Infinity `World.warden.hp`) each diverging from a
+      clean world; 4 of the 5 confirmed red on the pre-fix code via `git
+      stash` before the fix landed. code-reviewer (**APPROVE**): confirmed no
+      other non-finite-collapsing read path remains in `hashWorld` (every
+      field routes through `Hasher.int/num/bool/str`), confirmed no test
+      anywhere asserts a hardcoded hex hash literal (every hash assertion
+      compares two same-code outputs, so the tag-fold changing all hash
+      output, including the finite path, is safe), and flagged one
+      non-blocking nit — `num()`'s finiteness check runs before `q()`, so a
+      *finite* `v` whose `v * 1024` itself overflows to `±Infinity` (roughly
+      `|v| > 1.7e305`) still aliases through `q()`'s own `| 0`; unreachable by
+      any real game-state magnitude, left as-is. qa-playtester (**PASS**): ran
+      its own adversarial scratch tests (NaN deep in `hashWorld`'s per-enemy
+      loop, `-0` vs `0` unchanged, a non-finite value mid-chain not "bricking"
+      later finite bytes, two clean identical worlds still hashing equal) and
+      `npm run sim -- --seed 1 --policy hybrid` end-to-end — no bugs filed.
+      `npx vitest run tests/b009-hasher-finiteness.test.ts` — 5/5 green.
+      `npm run test:fast`: 1706 passed, 30 skipped; only the 4 pre-existing
+      documented Playwright fold flakes (b032/b034/b035/b036) red — no new
+      regressions. Commit `0dab0eb`.
 - [ ] (b010) [bug] `Rng.weightedIndex` with any `NaN` weight silently returns the
       last index every call (NaN total defeats every comparison), turning a weighted
       draw into a deterministic constant; `rollOffers`' `weight * (1 + luckBias *

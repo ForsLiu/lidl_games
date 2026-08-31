@@ -5,6 +5,40 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-31 session: BACKLOG b009 closed — a finiteness tag folded into
+  `Hasher.int`/`num` stops the determinism hash from aliasing NaN/±Infinity
+  corruption onto a legitimate `0` — commit `0dab0eb`.** `Hasher.int`'s
+  (`src/sim/hash.ts`) `v | 0` collapsed `NaN`, `+Infinity` and `-Infinity` all
+  to the same 32-bit value as `0`, so `hashWorld` (SPEC A11/gate G2's
+  determinism check) could not tell a NaN-poisoned replay from a clean one —
+  it would read as "no divergence." `Hasher.num` (used for nearly every world
+  number — hp, gold, positions) had an independent second copy of the same
+  bug: it quantizes through `q()` (`src/sim/math.ts`), which does its own
+  `... | 0` and so collapsed non-finite input to 0 before `int()` ever saw
+  it. Fixed by folding a distinct tag (0=finite, 1=NaN, 2=+Infinity,
+  3=-Infinity) into the hash state ahead of the value's bytes in `int()`, and
+  making `num()` bypass `q()`'s quantization for non-finite input so the tag
+  still catches it. `tests/b009-hasher-finiteness.test.ts` (5 tests) pins
+  `int`/`num` pairwise-distinctness for NaN/+Infinity/-Infinity/0 plus two
+  `hashWorld`-level cases (poisoned `coreHp`, poisoned `warden.hp`); 4/5
+  confirmed red pre-fix via `git stash`. code-reviewer (**APPROVE**):
+  confirmed no other non-finite-collapsing path remains in `hashWorld`, and
+  that no test anywhere pins a hardcoded hex hash literal (every comparison
+  is same-code output vs same-code output, so the tag-fold's global hash-value
+  change is safe); flagged one non-blocking nit — a *finite* `v` whose
+  `v * 1024` itself overflows past `q()`'s `| 0` (roughly `|v| > 1.7e305`)
+  still aliases, unreachable by any real game-state magnitude. qa-playtester
+  (**PASS**): scratch-tested NaN deep in `hashWorld`'s per-enemy loop, `-0`
+  vs `0` unchanged, a non-finite value mid-chain not bricking later finite
+  bytes, two clean identical worlds still hashing equal, and a full
+  `npm run sim -- --seed 1 --policy hybrid` run end-to-end — no bugs filed.
+  Targeted: `npx vitest run tests/b009-hasher-finiteness.test.ts` — 5/5
+  green. `npm run test:fast`: 1706 passed, 30 skipped; only the 4
+  pre-existing documented Playwright fold flakes (b032/b034/b035/b036) red —
+  no new regressions. P0–P10 remain otherwise as the prior session left
+  them: gates **G8, G14 and most of G23 still read red** (the wave-11-to-17
+  content wall p10i documented) — 1.0-complete is not yet reached.
+
 - **2026-08-31 session: BACKLOG b008 closed — a `Number.isFinite` guard on
   `damageEnemy` stops non-finite damage from permanently corrupting an
   enemy or the run's damage telemetry — commit `629fd01`.** `damageEnemy`'s (`src/sim/enemies.ts`)
