@@ -714,3 +714,54 @@ describe('b060: the enemy info panel memo key uses the same rounding as the Heal
     expect(text()).toContain(`Health11 / ${Math.round(maxHp)}`);
   });
 });
+
+/**
+ * b061: the Core-panel memo key's Core HP component (hud.ts) rounds
+ * `w.coreHp` with `Math.round`, but the Core HP row it guards
+ * (`coreLiveMarkup`) renders it with `Math.ceil` — the same round-vs-ceil
+ * mismatch b059/b060 fixed on the warden and enemy panels, on the Core panel
+ * instead.
+ */
+describe('b061: the Core info panel memo key uses the same rounding as the Core HP row', () => {
+  it('a coreHp change from 9.9 to 10.2 (same Math.round bucket) still refreshes the Core HP row', () => {
+    document.body.innerHTML = '<div id="app"></div>';
+    const root = document.getElementById('app') as HTMLElement;
+    const hud = new Hud(root, {
+      onSelectTower: () => {},
+      onCallWave: () => {},
+      onPickOffer: () => {},
+      onReroll: () => {},
+      onRetry: () => {},
+      onNewRun: () => {},
+      onToggleRanges: () => {},
+      onToggleAutoPick: () => {},
+      onToggleCharacterPanel: () => {},
+      onEquipItem: () => {},
+      onToggleDpsPanel: () => {},
+      onResume: () => {},
+      onPause: () => {},
+      onCycleSpeed: () => {},
+      onDev: () => {},
+      onQuitToHub: () => {},
+    });
+    const w = new World(cfg({ classKey: 'swordsman' }));
+    const sel: Selection = { kind: 'core' };
+    hud.buildTowerBar(w);
+    const text = () => (root.querySelector('#sw-towerinfo') as HTMLElement).textContent ?? '';
+
+    const coreKey = w.coreKey;
+    const coreStep = w.coreStep;
+    const maxHp = w.coreMaxHp;
+
+    w.coreHp = 9.9;
+    hud.update(w, undefined, sel);
+    expect(text()).toContain(`${Math.ceil(9.9)} / ${Math.round(maxHp)}`);
+
+    w.coreHp = 10.2;
+    expect(w.coreKey).toBe(coreKey);
+    expect(w.coreStep).toBe(coreStep);
+    expect(w.coreMaxHp).toBe(maxHp);
+    hud.update(w, undefined, sel);
+    expect(text()).toContain(`${Math.ceil(10.2)} / ${Math.round(maxHp)}`);
+  });
+});

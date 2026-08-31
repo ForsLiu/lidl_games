@@ -5,6 +5,36 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-31 session: BACKLOG b061 fixed — the Core-panel memo key's Core HP
+  component (`src/ui/hud.ts:610`) used `Math.round(w.coreHp)` while the Core
+  HP row it guards (`coreLiveMarkup`, `src/ui/core-info.ts:179`) uses
+  `Math.ceil(coreHp)` — the same round-vs-ceil mismatch b059/b060 fixed on the
+  warden and enemy panels, on the Core panel. Flagged by qa-playtester
+  verifying b059 (code inspection only, unconfirmed); confirmed live this
+  session.** Fix: the memo key now reads `Math.ceil(w.coreHp)`, matching the
+  row (same pattern as b057–b060). `tests/fb022-info-surfacing.test.ts` adds a
+  `b061` block: a jsdom `Hud` test selects the core, sets `coreHp = 9.9`,
+  renders (`10 / ...`), sets `coreHp = 10.2` with coreKey/coreStep/coreMaxHp
+  held fixed, renders again, and asserts `11 / ...`.
+  `npx vitest run tests/fb022-info-surfacing.test.ts`: 35/35 pass.
+  `npm run test:fast`: 1765 passed / 6 failed / 21 skipped — the failures are
+  the same pre-existing Windows EPERM/hang races as every prior session in
+  this log (q15's worker-hang probe, q28/q49/q52's scratch-dir EPERM cleanup
+  races), none of which import `hud.ts`. code-reviewer **APPROVE** — confirmed
+  the fix matches the row, confirmed `coreKey`/`coreStep`/`coreMaxHp` don't
+  diverge, confirmed the test is a real (non-vacuous) regression test by
+  local revert/restore. qa-playtester **PASS** — reproduced the stale render
+  against the reverted code, confirmed the fix, and hostile-tested
+  Math.ceil-boundary (10.0→10.0), negative/zero coreHp, simultaneous
+  coreHp+coreStep changes, and rapid core/warden/core selection swaps with no
+  new bugs. It also checked the tower-selection memo key's `Math.round(s.hp)`
+  (`hud.ts:574`) for the same defect class and found it's vestigial dead
+  weight rather than a live mismatch — `towerInfoMarkup` never renders live
+  `s.hp` (only a tier-keyed max-HP value already covered by `s.tier` in the
+  key) — so no new item was filed. This closes out the b058→b061 round-vs-ceil
+  memo-key defect family across all four info panels (warden, enemy, core,
+  and the tower panel confirmed clean).
+
 - **2026-08-31 session: BACKLOG b060 fixed — the enemy-info panel's memo key
   Health component (`src/ui/hud.ts:590`) used `Math.round(e.hp)` while the
   Health row it guards (`enemyInfoMarkup`, `hud.ts:1234`) uses

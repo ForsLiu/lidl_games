@@ -607,7 +607,7 @@ export class Hud {
       // not the Warden's stat sheet — `w.core` is `World`'s already-resolved
       // `CoreState` (kept in sync by `recomputeCore` on every purchase, see
       // cores.ts), so this reads the exact numbers the sim itself uses.
-      const key = `sel:core:${w.coreKey}:${w.coreStep}:${Math.round(w.coreHp)}:${Math.round(w.coreMaxHp)}`;
+      const key = `sel:core:${w.coreKey}:${w.coreStep}:${Math.ceil(w.coreHp)}:${Math.round(w.coreMaxHp)}`;
       if (key !== this.lastInfoKey) {
         this.lastInfoKey = key;
         this.towerInfoEl.innerHTML = coreLiveMarkup(w.content, w.coreKey, w.coreStep, w.core, w.coreHp, w.coreMaxHp);

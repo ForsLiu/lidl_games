@@ -1853,19 +1853,26 @@ were not re-filed. Ordering within this section is by severity, not P-band.
       hp renders as `Health-5 / ...` uninformative but unclamped) as
       informational only, not a b060 regression.
 
-- [ ] (b061) [bug] Suspected same round-vs-ceil mismatch on the Core panel:
-      the core memo key uses `Math.round(w.coreHp)` (`src/ui/hud.ts:610`)
+- [x] (b061) [bug] Confirmed same round-vs-ceil mismatch on the Core panel:
+      the core memo key used `Math.round(w.coreHp)` (`src/ui/hud.ts:610`)
       while the Core HP row it guards (`coreLiveMarkup`,
-      `src/core-info.ts:179`, `` `${Math.ceil(coreHp)} / ${Math.round(coreMaxHp)}` ``)
-      uses `Math.ceil(coreHp)`. Flagged by qa-playtester verifying b059
-      (2026-08-31) via code inspection only — not yet reproduced by a run,
-      unlike b060's confirmed twin — so confirm first (drive `w.coreHp`
-      9.9 → 10.2 across two selected-core `update()` calls with other
-      guarded fields held fixed and check whether the rendered Core HP row
-      actually goes stale) before treating it as a hard bug. If confirmed,
-      same fix shape as b059/b060: switch the memo key's Core HP component
-      to `Math.ceil(w.coreHp)` — acceptance: a jsdom `Hud` test proves the
-      stale-render repro, then proves it fixed — refs: §11, QA on b059.
+      `src/ui/core-info.ts:179`, `` `${Math.ceil(coreHp)} / ${Math.round(coreMaxHp)}` ``)
+      uses `Math.ceil(coreHp)`, so a `coreHp` change from 9.9 to 10.2 (same
+      `Math.round` bucket, different `Math.ceil` bucket) left the panel
+      frozen at the old value. Flagged by qa-playtester verifying b059
+      (2026-08-31). Fixed: `hud.ts:610` now reads `Math.ceil(w.coreHp)`,
+      matching the row (same pattern as b057–b060).
+      `tests/fb022-info-surfacing.test.ts`'s `b061` block covers it (35/35
+      pass). code-reviewer **APPROVE**. qa-playtester **PASS** — reproduced
+      the stale render against the reverted code, confirmed the fix,
+      confirmed `coreKey`/`coreStep`/`coreMaxHp` don't diverge from the row,
+      and hostile-tested boundary/negative/zero hp, simultaneous
+      hp+step changes, and cross-panel selection swaps with no new bugs.
+      It also checked the tower-selection memo key's `Math.round(s.hp)`
+      (`hud.ts:574`) for the same pattern and found it's vestigial dead
+      weight, not a live mismatch — `towerInfoMarkup` never renders live
+      `s.hp`, only a tier-keyed max-HP value already covered by `s.tier` in
+      the key — so no new item filed — refs: §11, QA on b059.
 
 ### Filed at the lane/quality merge (2026-08-28) — from BACKLOG-QUALITY.md's log and open queue
 
