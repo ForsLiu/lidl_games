@@ -96,50 +96,48 @@ describe('q15 command-argument domain fuzz', () => {
 
   /* ---------------------------------------------------- named findings */
 
-  describe('finding: dev gold/xp/fast_forward turn a non-finite amount into permanent non-finite run state', () => {
+  describe('closed finding (BACKLOG b006): dev gold/xp/fast_forward used to turn a non-finite amount into permanent non-finite run state', () => {
     // BACKLOG-QUALITY.md session 1 log found the NaN half of this by hand for
-    // all three ops. This file adds the +Infinity half — worse for `xp`,
-    // which hangs rather than merely corrupting (below).
-    it('dev gold amount=NaN -> gold and goldEarned are permanently NaN', () => {
-      const r = runSingleProbe('dev.gold.amount', 'nan');
-      expect(r.threw).toBe(false);
-      expect(r.problems.join(' | ')).toContain('gold=NaN');
+    // all three ops; this file's +Infinity half was worse for `xp`, which used
+    // to hang rather than merely corrupt (see the closed finding below). Fixed
+    // by a `Number.isFinite(amount)` guard per op in `applyDevCommand`
+    // (`src/sim/run.ts`) — a non-finite amount is now a clean no-op, matching
+    // every other illegal-argument family in this census.
+    it('dev gold amount=NaN/Infinity is a clean no-op', () => {
+      for (const family of ['nan', 'posInf'] as const) {
+        const r = runSingleProbe('dev.gold.amount', family);
+        expect(r.threw).toBe(false);
+        expect(r.problems).toEqual([]);
+      }
     });
 
-    it('dev gold amount=Infinity -> gold and goldEarned are permanently Infinity', () => {
-      const r = runSingleProbe('dev.gold.amount', 'posInf');
-      expect(r.threw).toBe(false);
-      expect(r.problems.join(' | ')).toContain('gold=Infinity');
-    });
-
-    it('dev xp amount=NaN -> xp is permanently NaN', () => {
+    it('dev xp amount=NaN is a clean no-op', () => {
       const r = runSingleProbe('dev.xp.amount', 'nan');
       expect(r.threw).toBe(false);
-      expect(r.problems.join(' | ')).toContain('xp=NaN');
+      expect(r.problems).toEqual([]);
     });
 
-    it('dev fast_forward amount=NaN -> act2Time is permanently NaN', () => {
-      const r = runSingleProbe('dev.fast_forward.amount', 'nan');
-      expect(r.threw).toBe(false);
-      expect(r.problems.join(' | ')).toContain('act2Time=NaN');
-    });
-
-    it('dev fast_forward amount=Infinity -> act2Time is permanently Infinity', () => {
-      const r = runSingleProbe('dev.fast_forward.amount', 'posInf');
-      expect(r.threw).toBe(false);
-      expect(r.problems.join(' | ')).toContain('act2Time=Infinity');
+    it('dev fast_forward amount=NaN/Infinity is a clean no-op', () => {
+      for (const family of ['nan', 'posInf'] as const) {
+        const r = runSingleProbe('dev.fast_forward.amount', family);
+        expect(r.threw).toBe(false);
+        expect(r.problems).toEqual([]);
+      }
     });
   });
 
-  describe('finding: dev xp amount=Infinity hangs the process', () => {
+  describe('closed finding (BACKLOG b006): dev xp amount=Infinity used to hang the process', () => {
     // `addXp` (src/sim/progression.ts) does `w.xp += amount * xpMul; while
     // (w.xp >= xpToReach(w.level + 1)) { ...; w.level++ }`. With `w.xp =
-    // Infinity` the comparison never turns false, so the loop counts `level`
-    // up forever. Run only through the killable worker path — never in-process
-    // — for exactly the reason `tools/fuzz-command-domain.ts`'s header explains.
-    it('does not settle within the probe deadline', async () => {
+    // Infinity` the comparison never turned false, so the loop counted
+    // `level` up forever. `applyDevCommand`'s `Number.isFinite` guard now
+    // keeps `Infinity` from ever reaching `addXp`. Run only through the
+    // killable worker path — never in-process — for exactly the reason
+    // `tools/fuzz-command-domain.ts`'s header explains: if this regresses, it
+    // must time out the probe, not the test runner.
+    it('settles within the probe deadline instead of hanging', async () => {
       const r = await probeInWorker('dev.xp.amount', 'posInf', 4000);
-      expect('hangs' in r && r.hangs).toBe(true);
+      expect('hangs' in r && r.hangs).toBe(false);
     }, 15000);
   });
 

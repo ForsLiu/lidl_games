@@ -14,23 +14,17 @@
  * BACKLOG-QUALITY.md's Log for the write-up.
  *
  * Regenerate by running `npx tsx tools/fuzz-command-domain.ts` and
- * transcribing every non-`rejected` line — there are 7 today, against
- * 75 total (15 fields x 5 families). Re-measured after the SPEC-FINAL merge
- * port (rekindle deleted with its command; the §4 class-active aim fields
- * joined the sweep and every one is cleanly rejected): the seven holes are
- * unchanged.
+ * transcribing every non-`rejected` line — there is 1 today, against
+ * 75 total (15 fields x 5 families). Re-measured after BACKLOG b006
+ * (`Number.isFinite` guards on the three `dev` amount ops, `src/sim/run.ts`):
+ * the six `dev.gold`/`dev.xp`/`dev.fast_forward` holes are closed, leaving
+ * only `build.ty:fractional` (BACKLOG b007's scope, still open).
  */
 import type { Verdict } from '../tools/fuzz-command-domain';
 
 /** `${fieldKey}:${family}` -> the verdict `runCensus` records for it today. */
 export const HOLES: Readonly<Record<string, Verdict>> = {
   'build.ty:fractional': 'accepted',
-  'dev.gold.amount:nan': 'accepted',
-  'dev.gold.amount:posInf': 'accepted',
-  'dev.xp.amount:nan': 'accepted',
-  'dev.xp.amount:posInf': 'hangs',
-  'dev.fast_forward.amount:nan': 'accepted',
-  'dev.fast_forward.amount:posInf': 'accepted',
 };
 
 /** Both dedicated alias-probe targets accept today (see the file header of `tools/fuzz-command-domain.ts`). */

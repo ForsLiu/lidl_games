@@ -156,6 +156,39 @@ describe('practice tool', () => {
     expect(w.enemies.length).toBe(0);
   });
 
+  it('b006: gold/xp/fast_forward reject non-finite amounts instead of laundering them into state', () => {
+    const w = practiceWorld();
+    w.sundered = true;
+    w.phase = 'act2';
+
+    const gold = w.gold;
+    const goldEarned = w.goldEarned;
+    for (const bad of [NaN, Infinity, -Infinity]) dev(w, 'gold', bad);
+    expect(w.gold).toBe(gold);
+    expect(w.goldEarned).toBe(goldEarned);
+    expect(Number.isFinite(w.gold)).toBe(true);
+
+    const xp = w.xp;
+    const level = w.level;
+    for (const bad of [NaN, Infinity, -Infinity]) dev(w, 'xp', bad);
+    expect(w.xp).toBe(xp);
+    expect(w.level).toBe(level);
+    expect(Number.isFinite(w.xp)).toBe(true);
+
+    const act2Time = w.act2Time;
+    for (const bad of [NaN, Infinity, -Infinity]) dev(w, 'fast_forward', bad);
+    expect(w.act2Time).toBe(act2Time);
+    expect(Number.isFinite(w.act2Time)).toBe(true);
+  });
+
+  it('b006: dev xp Infinity does not hang the process (addXp terminates)', () => {
+    const w = practiceWorld();
+    w.sundered = true;
+    w.phase = 'act2';
+    dev(w, 'xp', Infinity);
+    expect(Number.isFinite(w.xp)).toBe(true);
+  });
+
   it('a practice run banks nothing: no skill points, no equipment', () => {
     const run = new Run({ ...cfg(), practice: true, policy: 'none' });
     run.step({

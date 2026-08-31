@@ -365,13 +365,14 @@ export function applyDevCommand(w: World, op: DevOp, amount: number, enemyKey?: 
       break;
     }
     case 'gold': {
+      if (!Number.isFinite(amount)) break;
       const g = Math.max(0, Math.round(amount));
       w.gold += g;
       w.goldEarned += g;
       break;
     }
     case 'xp':
-      if (w.phase === 'act2') addXp(w, Math.max(0, amount));
+      if (w.phase === 'act2' && Number.isFinite(amount)) addXp(w, Math.max(0, amount));
       break;
     case 'heal':
       w.warden.hp = w.derived.maxHp;
@@ -397,7 +398,7 @@ export function applyDevCommand(w: World, op: DevOp, amount: number, enemyKey?: 
     case 'fast_forward':
       // Moves the Act II clock on without spawning the skipped minutes, so the
       // director's schedule can be reached without playing through it.
-      if (w.phase === 'act2') w.act2Time += Math.max(0, amount);
+      if (w.phase === 'act2' && Number.isFinite(amount)) w.act2Time += Math.max(0, amount);
       break;
     case 'spawn': {
       // fb019 Training Grounds: spawns a real enemy of the panel's chosen type
