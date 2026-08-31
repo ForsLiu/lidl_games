@@ -43,6 +43,9 @@ export default mergeConfig(
         // p10c: 12 builds x 5 seeds x cycles:6 full VS-combat runs (not
         // invulnerable, unlike a4-single-type above) — slower than a4.
         'tests/p10c-weapon-share.test.ts',
+        // p10d: 24 seeds x one full cycles:6 hybrid run each (TD + VS + boss
+        // fight, not invulnerable) — G1's run-length gate.
+        'tests/p10d-run-length.test.ts',
       ],
     },
   }),

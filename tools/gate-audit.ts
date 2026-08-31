@@ -144,6 +144,22 @@ export const GATE_COVERAGE: Record<string, CoverageEntry> = {
   },
   G4: { files: ['tests/c3-armor.test.ts', 'tests/m19c-damage-types.test.ts'] },
   G5: { files: ['tests/c4-stacking.test.ts'] },
+  G1: {
+    files: ['tests/p10d-run-length.test.ts'],
+    note:
+      'p10d replaces the retired tests/a1-run-length.test.ts (a median-based measurement under the old V2 ' +
+      'Day/Night cycle, the opposite metric from G1\'s "means/pass-rates, never medians") with a live test ' +
+      "against the real §1.1 shape: 24 seeds, the hybrid bot, cycles: 6. Two of its three assertions are live " +
+      "and green — enough victories to measure, and win rate a real 50-100% majority (not a rubber-stamp " +
+      "100%). The mean-band assertion (30-36 min) is it.skip'd: /data-only tuning (data/spawns.json's " +
+      'bossTimeSeconds 600->181, data/enemies.json\'s warden_eater hp 15000->10000) closed most of the gap ' +
+      "(44.3->37.15 min) but a discovered cross-gate conflict blocked the rest — every boss-HP cut low enough " +
+      "to land the band also pins the scripted bot's win rate at 100% across every seed tried, which " +
+      "contradicts G14's own text (\"win rate >=60% and <100%\"). Kept a real, sometimes-lost fight (79% win " +
+      'rate) over forcing the gate green by trivializing it, matching the precedent G13\'s frost_obelisk entry ' +
+      'sets below. Follow-up filed as BACKLOG p10k. Listed `covered` on the same partial-but-live-measured ' +
+      'basis as G13/G17, not `hole`.',
+  },
   G13: {
     files: ['tests/a4-single-type.test.ts', 'tests/p10c-weapon-share.test.ts'],
     note:
@@ -208,11 +224,6 @@ export const GATE_COVERAGE: Record<string, CoverageEntry> = {
  * measurement with an expiry date"), not a permanent exemption.
  */
 export const KNOWN_HOLES: Record<string, string> = {
-  G1: "tests/a1-run-length.test.ts (the only file naming G1) is entirely describe.skip'd — its own header reads " +
-    "'RETIRED (SPEC-FINAL §1.1 + §14 G1, P3)', and its assertions measured a median under the V2 Day/Night " +
-    'cycle, the opposite metric from G1\'s "means/pass-rates, never medians." P3 has since landed the real run ' +
-    "shape, but p3e's re-baseline measured the balance red past ~wave 10-14 (a p8a content gap, per Q109) and " +
-    'logged its numbers as .skip — so zero live test currently checks a mean 30–36 min victorious run.',
   G8: 'All 12 §4 classes now exist (p6b–p6d), but the scripted-kit-bot win-rate / top-damage-diversity ' +
     "measurement G8 actually asks for is p6e's, which has not landed. p6a-class-framework.test.ts's live " +
     'replay-hash block tests the Active-skill Command plumbing, not a win-rate.',

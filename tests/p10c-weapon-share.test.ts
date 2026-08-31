@@ -37,6 +37,20 @@
  * engine-side look at giving directional wielded attacks crowd-relevant
  * behaviour in VS, which is out of a data-only balance pass — filed as
  * BACKLOG p10j.
+ *
+ * **p10d note (this session): the live numbers moved again, without any
+ * `data/towers.json` edit.** p10d's G1 pacing fix (`data/spawns.json`'s
+ * `bossTimeSeconds` 600->181, `data/enemies.json`'s `warden_eater` hp
+ * 15000->10000 — a deliberate partial cut, not the lower value that would
+ * have zeroed out G1 by pinning the boss win rate at 100%, see
+ * PROGRESS.md's p10d entry) shrank the finalNight boss block's length in
+ * this probe's VS-phase damage window. Since that block's mix of targets
+ * (one boss + its adds) differs from the five regular VS blocks' (pure
+ * crowds), shrinking its share of the total accumulation window shifts the
+ * aggregate even though no tower's own numbers changed: frost_obelisk
+ * 46.0%->42.7%, ember_brazier 27.8%->27.6%, ballista 13.2%->13.7%, mortar
+ * 5.6%->7.7%, arrow_spire 4.4%->5.1%, venom_spore 0.9%->0.7%. Still over the
+ * 35% cap on frost_obelisk, still `.skip`-ed for the same structural reason.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -59,11 +73,15 @@ describe('G13 no tower type dominates VS damage across the winning-build pool', 
     expect(top.length, readable).toBeGreaterThanOrEqual(4);
   });
 
-  // Measured red (this session): frost_obelisk 46.0%, ember_brazier 27.8%,
-  // ballista 13.2%, mortar 5.6%, arrow_spire 4.4%, venom_spore 0.9% — see the
-  // file header for why frost_obelisk's remaining ~11-point overage is a
-  // structural VS-wielding gap, not a further-available data tune. Re-enable
-  // once BACKLOG p10j gives directional wielded attacks a crowd-relevant
+  // Measured red (p10c session): frost_obelisk 46.0%, ember_brazier 27.8%,
+  // ballista 13.2%, mortar 5.6%, arrow_spire 4.4%, venom_spore 0.9%. Re-measured
+  // red (p10d session, final settings, after the G1 pacing fix changed the
+  // finalNight boss block's weight in this probe's window — no
+  // data/towers.json changed): frost_obelisk 42.7%, ember_brazier 27.6%,
+  // ballista 13.7%, mortar 7.7%, arrow_spire 5.1%, venom_spore 0.7% — see the
+  // file header for why frost_obelisk's remaining overage is a structural
+  // VS-wielding gap, not a further-available data tune. Re-enable once
+  // BACKLOG p10j gives directional wielded attacks a crowd-relevant
   // mechanism.
   it.skip('gives no tower type more than 35% of the winning-pool VS damage', () => {
     const worst = shares[0];
