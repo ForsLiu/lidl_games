@@ -5,6 +5,32 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-31 session: BACKLOG b017 closed — no code change, bookkeeping only.**
+  b017 flagged `src/meta/meta.ts`'s `completionFraction` for hardcoding a
+  wave-10 ceiling on Act I's 40% share of Ember-reward "completion," stale
+  since `p3e` moved a full run to 18 TD waves. It was already resolved by
+  `p7d` (commit `09eac64`, "retire the superseded meta economy"), which
+  deleted the entire Ember/relic-stash economy outright — `completionFraction`
+  no longer exists anywhere in `src/meta/meta.ts`, and no wave-10/18 ceiling
+  or fraction of any kind replaced it. §8.2's reward pipeline (also p7d) is a
+  raw additive count instead: `next.skillPoints += report.vsWavesCleared`, with
+  equipment granted 1-per-TD-wave-cleared in `src/sim/run.ts`'s wave-clear
+  loop — neither scales against a wave-total constant, so there is nothing
+  left to go stale. Verified this session: grepped `src/meta/meta.ts` for
+  `completionFraction`/Ember reward math (no hits beyond the one-time
+  `EMBER_TO_SKILL_POINTS` save-migration constant, out of scope), read the
+  current `applyRunResult` reward loop end to end, and ran `npx vitest run
+  tests/meta.test.ts tests/p7c-reward-pipeline.test.ts` — 30/30 green.
+  qa-playtester independently re-derived the same conclusion from
+  `src/sim/run.ts`/`world.ts`/`sundering.ts` and empirically confirmed via
+  `npx tsx tools/sim.ts` that a full victory (wavesCleared 18) and a
+  mid-Act-I defeat (wavesCleared 2) both grant equipment/skill points 1:1
+  with real progress — PASS, no bugs filed. `npm run test:fast`: 1729 passed,
+  21 skipped; only the 4 pre-existing documented Playwright fold flakes
+  (b032/b034/b035/b036, port contention) and the documented Windows EPERM
+  temp-cleanup race (q49) red — both reproduced as pre-existing and unrelated.
+  No commit hash for the fix itself: no files under `/src`, `/data` or
+  `/tests` changed, only BACKLOG.md/PROGRESS.md bookkeeping.
 - **2026-08-31 session: BACKLOG b015 closed — no code change, bookkeeping only.**
   b015 flagged `{k:'equip', relic}` as a declared `Command` union member with
   no `applyCommand` handler. It was already resolved by fb015/fb023's real

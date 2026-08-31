@@ -954,7 +954,7 @@ were not re-filed. Ordering within this section is by severity, not P-band.
       port contention) and the documented Windows EPERM temp-cleanup race
       (q28/q49) red — both reproduced as pre-existing and unrelated to this
       diff.
-- [ ] (b017) [bug] `src/meta/meta.ts`'s `completionFraction` hardcodes a
+- [x] (b017) [bug] `src/meta/meta.ts`'s `completionFraction` hardcodes a
       wave-10 ceiling (`Math.min(1, report.wavesCleared / 10) * 0.4`) for Act I's
       40% share of Ember-reward "completion," stale since `p3e` moved a full run
       to 18 TD waves (independent of how many `data/waves.json` rows existed) —
@@ -965,6 +965,26 @@ were not re-filed. Ordering within this section is by severity, not P-band.
       config (`w.waveCount`, not a literal `10` or `18`) rather than a second
       hardcoded constant; a regression test covers a defeat at wave 15 under the
       real 18-wave shape — refs: §1, QA on p8a
+      **Already closed, never checked off.** `p7d` (commit `09eac64`) retired
+      the entire Ember/relic-stash economy `completionFraction` belonged to —
+      `src/meta/meta.ts` has no `completionFraction` function, no Ember reward
+      calc, and no wave-10/18 ceiling of any kind left. Its replacement (§8.2,
+      also p7d) grants skill points via `next.skillPoints += report.vsWavesCleared`
+      — a raw additive count with no fraction, ceiling, or wave-total constant
+      to go stale. Verified this session with no code change: grepped
+      `src/meta/meta.ts` for `completionFraction`/`Ember` reward math (zero
+      hits beyond the one-time `EMBER_TO_SKILL_POINTS` migration constant, out
+      of scope), read the current `applyRunResult` reward loop end to end, and
+      ran `npx vitest run tests/meta.test.ts tests/p7c-reward-pipeline.test.ts`
+      (30/30 green). qa-playtester independently re-derived the same
+      conclusion from `src/sim/run.ts`/`world.ts`/`sundering.ts` and empirically
+      confirmed via `npx tsx tools/sim.ts` that a full victory (wavesCleared 18)
+      and a mid-Act-I defeat (wavesCleared 2) both grant equipment/skill points
+      1:1 with real progress, no inflation toward 100% — PASS, no bugs filed.
+      `npm run test:fast`: 1729 passed, 21 skipped; only the 4 pre-existing
+      documented Playwright fold flakes (b032/b034/b035/b036, port contention)
+      and the documented Windows EPERM temp-cleanup race (q49) red — both
+      reproduced as pre-existing and unrelated to this diff.
 - [ ] (b018) [bug] Every cooldown gate in the sim (`wd.active1Cooldown`,
       `active2Cooldown`, `activeCooldown`, `attackCooldown`, `dashCooldown`,
       tower `s.cooldown`) is a strict `> 0` float compare with no epsilon, so
