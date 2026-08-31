@@ -1959,14 +1959,8 @@ because the lane worktree retires at this merge.
       filed it, none re-checked against `/src` since ("a deferral is a
       measurement with an expiry date") — **done, no code change needed, see
       Done section.** — refs: CLAUDE.md measurement rules, BACKLOG-QUALITY q55
-- [ ] (b024) [polish] Mutation-probe coverage for q54's `unguarded-data-read`
-      classifier: add a `tools/mutation-probe.ts` `MUTATIONS` entry that
-      hollows `cli-crash-coverage.ts`'s `readsDataJsonDirectly()` and asserts
-      `tests/q47-cli-crash-coverage.test.ts` goes red — the same treatment q43
-      gives the two pre-existing classifiers, so a regression in the new
-      detection logic is caught the same way as one in the old — acceptance:
-      one new `MUTATIONS` entry, green, and q43's pinned doc-comment/
-      array-length parity check still holds — refs: BACKLOG-QUALITY q54/q56
+- [x] (b024) [polish] Mutation-probe coverage for q54's `unguarded-data-read`
+      classifier — **done, see Done section.**
 - [ ] (b025) [polish] `readsDataJsonDirectly()` (`tools/cli-crash-coverage.ts`)
       false-negatives on two path shapes its doc-comment intent covers: an
       inline template-literal path with no `join()` wrapper and a
@@ -2256,6 +2250,41 @@ logged in MIGRATION.md §8 rather than carried as dead items.
 
 ## Done
 
+- [x] (b024) [polish] Mutation-probe coverage for q54's `unguarded-data-read`
+      classifier — `tools/mutation-probe.ts`'s `MUTATIONS` array gains a 27th
+      entry, `cli-crash-coverage-readsDataJsonDirectly-hollow`, hollowing
+      `readsDataJsonDirectly()` (`tools/cli-crash-coverage.ts`) to always
+      return `false`, targeting `tests/q47-cli-crash-coverage.test.ts` — the
+      same "hollow a classifier, assert red" pattern `gate-audit-
+      hasLiveTopLevelDescribe-hollow` and `command-domain-classify-hollow`
+      already use against classifiers in other files. Reachable today through
+      exactly one tool: `tools/m20d-price-probe.ts` classifies `'pinned'`
+      purely off this axis (no `content.ts` import), so hollowing the
+      function drops it to `'no-content-import'`, flipping both
+      `EXPECTED_STATUS`'s hand-derived table and the "every `PIN_COVERAGE`
+      entry actually classifies as pinned" dead-entry check red (`tools/
+      fuzz-data.ts`, the only other file with `readsDataJsonDirectly: true`,
+      is decided earlier by the `NOT_INVOCABLE` short-circuit and unaffected).
+      Doc-comment counts updated to match (26→27 mutations, 38→39 total
+      invocations, 12 controls unchanged since the entry reuses an existing
+      `testFile`) to keep q43's parity pin green. Verified directly against
+      the exported `probeOne`/`probeControl` (bypassing `-t` test-name
+      filtering, which this session found unreliable against this file's
+      `describe.each` titles for reasons not fully diagnosed): control
+      exitCode 0, mutation `testFailed: true`, `realFileUntouched: true`;
+      `tests/q47-cli-crash-coverage.test.ts` 20/20 green unmutated; q43's
+      parity check green. commit `1dcc913`, code-reviewer pass (Major: the
+      first commit's new comments falsely claimed `importsContentTransitively`
+      and `hasCatch` already had their own `MUTATIONS` entries in this file —
+      grep confirmed zero ever did; corrected in fixup commit `7131d60` to
+      cite the real precedent instead), qa-playtester pass (independently
+      reproduced the mutation twice via direct `probeOne` calls, confirmed
+      the blast radius is exactly `m20d-price-probe.ts` via a live
+      `classifyAll()` sweep, confirmed no `MUTATIONS` consumer anywhere
+      indexes positionally, confirmed the 5 pre-existing `npm run test:fast`
+      failures — q15/q28/q49/q52 — are structurally unrelated to this diff by
+      grepping for any import of the touched files; found no bugs) — refs:
+      BACKLOG-QUALITY q54/q56.
 - [x] (b023) [feat] Re-measure the quality lane's `it.skip`'d bug-pin tests
       (15+ accumulated across `tests/q7-data-fuzz.test.ts` E1–E7,
       `tests/q18-content-hash-replay.test.ts`, `tests/q21-weapon-boundary-

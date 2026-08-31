@@ -5,6 +5,54 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-31 session: BACKLOG b024 closed — added a 27th `MUTATIONS` entry
+  to `tools/mutation-probe.ts` (`cli-crash-coverage-readsDataJsonDirectly-
+  hollow`) hollowing `cli-crash-coverage.ts`'s `readsDataJsonDirectly()`
+  (q54's third classifier) to always return `false`, targeting
+  `tests/q47-cli-crash-coverage.test.ts` — the same treatment the file's two
+  pre-existing "hollow a classifier, assert red" mutations
+  (`gate-audit-hasLiveTopLevelDescribe-hollow`, `command-domain-classify-
+  hollow`) already give classifiers in other files.** Reachable today through
+  exactly one live tool: `tools/m20d-price-probe.ts` classifies `'pinned'`
+  purely off this axis (no `content.ts` import), so hollowing the function
+  drops it to `'no-content-import'`, flipping both `EXPECTED_STATUS`'s
+  hand-derived table and the "every `PIN_COVERAGE` entry actually classifies
+  as pinned" dead-entry check red; `tools/fuzz-data.ts`, the only other file
+  with `readsDataJsonDirectly: true`, is decided earlier by the
+  `NOT_INVOCABLE` short-circuit and unaffected — qa-playtester confirmed this
+  blast radius directly with a live `classifyAll()` sweep. Doc-comment counts
+  updated to match (26→27 mutations, 38→39 total invocations, 12 controls
+  unchanged since the entry reuses an existing `testFile`) to keep q43's own
+  parity pin green. Verification note: `npx vitest run ... -t "<mutation
+  name>"` proved unreliable at selecting a single `describe.each(MUTATIONS)`
+  block in this file for reasons not fully diagnosed this session (a known
+  short substring like `"gate-audit"` matched and ran; several full mutation
+  names that should equally match as substrings did not) — verified instead
+  by calling the exported `probeOne`/`probeControl` directly from a
+  `bench/.tmp/`-scoped throwaway script: control exitCode 0, mutation
+  `testFailed: true`, `realFileUntouched: true`; `tests/q47-cli-crash-
+  coverage.test.ts` 20/20 green unmutated; q43's parity check green
+  standalone. `npm run test:fast`: 8 files / 5 tests failed, all in files
+  qa-playtester confirmed by grep are structurally incapable of importing
+  anything this diff touched (`q15-command-domain-fuzz`,
+  `q28-cli-error-handling`, `q49-price-probe-restore`,
+  `q52-m20d-run-a4-bad-key`) — the same pre-existing Windows EPERM/hang flake
+  classes (b028/b029) logged in every prior session here. Also discovered and
+  cleaned up this session (not a code bug): an interrupted broad `-t
+  "mutation"` filter run left ~63 orphaned nested `vitest`/`node` processes
+  holding `bench/.tmp/q14-mutation-scratch` open, reproducing b028's
+  documented failure mode live — killed via `Stop-Process` and the scratch
+  dirs removed before continuing. commit `1dcc913`, code-reviewer pass
+  (Major: the first commit's new comments falsely claimed
+  `importsContentTransitively` and `hasCatch` already had their own
+  `MUTATIONS` entries in this file — a grep confirmed zero ever did, since
+  the real q56 precedent is two mutations against *other* files used only as
+  a pattern; corrected in fixup commit `7131d60`), qa-playtester pass
+  (independently reproduced the mutation twice via direct `probeOne` calls,
+  confirmed the blast radius, confirmed no `MUTATIONS` consumer anywhere
+  indexes positionally rather than by name/`.map`/`.length`, confirmed the
+  test:fast failures are unrelated by grep, found no bugs). BACKLOG.md b024
+  moved to Done.
 - **2026-08-31 session: BACKLOG b023 closed — re-measured the quality lane's
   `it.skip`'d bug-pin tests (15+ across `tests/q7-data-fuzz.test.ts` E1–E7,
   `tests/q18-content-hash-replay.test.ts`, `tests/q21-weapon-boundary-
