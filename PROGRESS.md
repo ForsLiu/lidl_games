@@ -5,6 +5,38 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-31 session: BACKLOG b059 fixed — the warden-panel memo key's
+  Health component (`src/ui/hud.ts:626`) used `Math.round(w.warden.hp)`
+  while the Health row it guards (`wardenInfoMarkup`, `hud.ts:1285`) uses
+  `Math.ceil(w.warden.hp)`, so an hp change that stayed in the same
+  `Math.round` bucket but crossed a `Math.ceil` bucket boundary (9.9 → 10.2:
+  round gives 10 both times, ceil gives 10 then 11) left the displayed
+  Health number stale even though it should have ticked up. Found by
+  qa-playtester verifying b058.** Fix: the memo key now reads
+  `Math.ceil(w.warden.hp)`, matching the row exactly (same "share the
+  formatter/rounding, don't re-derive it" pattern as b054–b058).
+  `tests/fb022-info-surfacing.test.ts` adds a `b059` block: a jsdom `Hud`
+  test selects the warden, sets `hp = 9.9`, renders (`Health10 / ...`), sets
+  `hp = 10.2` with level/dashCharges/maxHp held fixed, renders again, and
+  asserts `Health11 / ...`. `npx vitest run tests/fb022-info-surfacing.test.ts`:
+  33/33 pass. `npm run test:fast`: 1764 passed / 5 failed / 21 skipped — the
+  5 failures are the same pre-existing Windows EPERM/hang races as every
+  prior session in this log (q15's worker-hang probe, q28/q49/q52's
+  scratch-dir EPERM cleanup races), none of which import `hud.ts`; no new
+  failures from this change. qa-playtester **PASS** — confirmed the new test
+  is a real (non-vacuous) regression test by reverting the fix locally and
+  observing it fail deterministically, confirmed the fix doesn't touch the
+  enemy-info branch or any other memo key. It found the identical defect
+  class on two more panels: the enemy-info memo key (`hud.ts:590`,
+  `Math.round(e.hp)`) vs `enemyInfoMarkup`'s Health row (`hud.ts:1234`,
+  `Math.ceil(e.hp)`) — reproduced twice with a scratch jsdom test — filed as
+  BACKLOG b060; and the Core-panel memo key (`hud.ts:610`,
+  `Math.round(w.coreHp)`) vs `coreLiveMarkup`'s row (`core-info.ts:179`,
+  `Math.ceil(coreHp)`) — same structural mismatch, flagged by code
+  inspection only (not executed, time-boxed) — filed as BACKLOG b061,
+  explicitly marked as needing reproduction before being treated as a hard
+  bug.
+
 - **2026-08-31 session: BACKLOG b058 fixed — `renderSelectionInfo`'s warden-panel
   memo key (`src/ui/hud.ts`) omitted power/attackSpeed/area/armor/moveSpeed/regen,
   so `wardenInfoMarkup`'s rows for those stats went stale in the live

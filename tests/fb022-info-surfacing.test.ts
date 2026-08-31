@@ -605,3 +605,56 @@ describe('b058: the warden info panel memo key refreshes on a derived-stat chang
     expect(text()).toContain(`Dash${dashCharges} / ${dashCharges + 1}`);
   });
 });
+
+/**
+ * b059: the warden-panel memo key's Health component (hud.ts) rounds
+ * `w.warden.hp` with `Math.round`, but the Health row it guards
+ * (`wardenInfoMarkup`) renders it with `Math.ceil` — so an hp change that
+ * stays in the same `Math.round` bucket but crosses a `Math.ceil` bucket
+ * boundary (9.9 -> 10.2: round gives 10 both times, ceil gives 10 then 11)
+ * leaves the displayed Health number stale even though it should have
+ * ticked up. Predates b058 and is outside its guarded fields, so it is its
+ * own regression.
+ */
+describe('b059: the warden info panel memo key uses the same rounding as the Health row', () => {
+  it('an hp change from 9.9 to 10.2 (same Math.round bucket) still refreshes the Health row', () => {
+    document.body.innerHTML = '<div id="app"></div>';
+    const root = document.getElementById('app') as HTMLElement;
+    const hud = new Hud(root, {
+      onSelectTower: () => {},
+      onCallWave: () => {},
+      onPickOffer: () => {},
+      onReroll: () => {},
+      onRetry: () => {},
+      onNewRun: () => {},
+      onToggleRanges: () => {},
+      onToggleAutoPick: () => {},
+      onToggleCharacterPanel: () => {},
+      onEquipItem: () => {},
+      onToggleDpsPanel: () => {},
+      onResume: () => {},
+      onPause: () => {},
+      onCycleSpeed: () => {},
+      onDev: () => {},
+      onQuitToHub: () => {},
+    });
+    const w = new World(cfg({ classKey: 'swordsman' }));
+    const sel: Selection = { kind: 'warden' };
+    hud.buildTowerBar(w);
+    const text = () => (root.querySelector('#sw-towerinfo') as HTMLElement).textContent ?? '';
+
+    const level = w.level;
+    const dashCharges = w.warden.dashCharges;
+    const maxHp = w.derived.maxHp;
+
+    w.warden.hp = 9.9;
+    hud.update(w, undefined, sel);
+    expect(text()).toContain(`Health10 / ${Math.round(maxHp)}`);
+
+    w.warden.hp = 10.2;
+    expect(w.level).toBe(level);
+    expect(w.warden.dashCharges).toBe(dashCharges);
+    hud.update(w, undefined, sel);
+    expect(text()).toContain(`Health11 / ${Math.round(maxHp)}`);
+  });
+});

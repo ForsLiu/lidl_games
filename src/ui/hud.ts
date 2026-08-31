@@ -623,7 +623,7 @@ export class Hud {
     const wd = w.derived;
     const key = [
       'sel:warden',
-      Math.round(w.warden.hp),
+      Math.ceil(w.warden.hp),
       Math.round(wd.maxHp),
       w.level,
       w.warden.dashCharges,

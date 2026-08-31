@@ -1789,7 +1789,7 @@ were not re-filed. Ordering within this section is by severity, not P-band.
       fixed, and asserts the second render reflects the new value — refs:
       §11, QA on b057.
 
-- [ ] (b059) [bug] The warden-panel memo key's Health component
+- [x] (b059) [bug] The warden-panel memo key's Health component
       (`src/ui/hud.ts:626`, `Math.round(w.warden.hp)`) uses a different
       rounding function than the Health row it guards
       (`wardenInfoMarkup`, `src/ui/hud.ts:1285`, `Math.ceil(w.warden.hp)`),
@@ -1805,7 +1805,49 @@ were not re-filed. Ordering within this section is by severity, not P-band.
       `Hud` test selects the warden, sets `hp = 9.9`, renders, then sets
       `hp = 10.2` (level/dashCharges/maxHp held fixed) and renders again,
       asserting the second render shows `Health11 / ...` — refs: §11, QA on
-      b058.
+      b058. Fixed: `hud.ts:626` now reads `Math.ceil(w.warden.hp)`.
+      `tests/fb022-info-surfacing.test.ts`'s `b059` block covers it (33/33
+      pass in that file). qa-playtester **PASS** — confirmed the new test is
+      non-vacuous by reverting the fix locally and observing it fail
+      (`Health10` where `Health11` was expected), confirmed the fix doesn't
+      touch the enemy branch or any other memo key. It also found the same
+      defect class on two other panels: the enemy-info memo key
+      (`hud.ts:590`, `Math.round(e.hp)`) vs `enemyInfoMarkup`'s Health row
+      (`hud.ts:1234`, `Math.ceil(e.hp)`) — reproduced twice with a scratch
+      jsdom test — filed as b060; and the core-panel memo key (`hud.ts:610`,
+      `Math.round(w.coreHp)`) vs `coreLiveMarkup`'s row (`core-info.ts:179`,
+      `Math.ceil(coreHp)`) — same structural mismatch, flagged by code
+      inspection only, not yet executed — filed as b061 pending
+      confirmation.
+
+- [ ] (b060) [bug] The enemy-info memo key uses `Math.round(e.hp)`
+      (`src/ui/hud.ts:590`) while the Health row it guards
+      (`enemyInfoMarkup`, `src/ui/hud.ts:1234`) uses `Math.ceil(e.hp)` — the
+      same round-vs-ceil mismatch b059 fixed on the warden panel, on the
+      enemy panel instead. Found and reproduced twice by qa-playtester
+      verifying b059 (2026-08-31): select an enemy, set `e.hp = 9.9`, render,
+      set `e.hp = 10.2` (all other memo-key fields held fixed), render again
+      — the Health row stays stale at the old value instead of ticking up —
+      acceptance: the enemy memo key's Health component uses
+      `Math.ceil(e.hp)` (matching the row); a jsdom `Hud` test spawns an
+      enemy (`spawnEnemy`, `src/sim/enemies.ts`), selects it, drives hp
+      9.9 → 10.2 across two `update()` calls with every other guarded field
+      held fixed, and asserts the second render shows the `Math.ceil`
+      value — refs: §11, QA on b059.
+
+- [ ] (b061) [bug] Suspected same round-vs-ceil mismatch on the Core panel:
+      the core memo key uses `Math.round(w.coreHp)` (`src/ui/hud.ts:610`)
+      while the Core HP row it guards (`coreLiveMarkup`,
+      `src/core-info.ts:179`, `` `${Math.ceil(coreHp)} / ${Math.round(coreMaxHp)}` ``)
+      uses `Math.ceil(coreHp)`. Flagged by qa-playtester verifying b059
+      (2026-08-31) via code inspection only — not yet reproduced by a run,
+      unlike b060's confirmed twin — so confirm first (drive `w.coreHp`
+      9.9 → 10.2 across two selected-core `update()` calls with other
+      guarded fields held fixed and check whether the rendered Core HP row
+      actually goes stale) before treating it as a hard bug. If confirmed,
+      same fix shape as b059/b060: switch the memo key's Core HP component
+      to `Math.ceil(w.coreHp)` — acceptance: a jsdom `Hud` test proves the
+      stale-render repro, then proves it fixed — refs: §11, QA on b059.
 
 ### Filed at the lane/quality merge (2026-08-28) — from BACKLOG-QUALITY.md's log and open queue
 
