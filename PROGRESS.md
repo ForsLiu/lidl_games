@@ -5,6 +5,47 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-30 session: p10e done — gate G17's per-simulated-minute perf
+  budget closed in full, all three clauses now live — commit `PENDING`.**
+  G17's other two clauses (≥60fps worst-case-tick benchmark, 50-run soak) were
+  already solidly live; only the first — "sim budget per simulated minute
+  (host-independent) ⚖" — was deferred by §16 to P10, undecided. New
+  `measureSimMinuteRatio` (`tools/perf-ratio.ts`) extends q13's proven
+  host-independent ratio mechanism (calibration units of pure integer work per
+  unit of measured cost) from a single static worst-case tick to a real
+  `hybrid`-bot run played end to end on the actual §1.1 shape, reusing the
+  same `Run`/`makePolicy` harness p10d's G1 test uses, interleaving
+  calibration samples throughout so the ratio amortizes over the whole run
+  (build-phase idle, TD waves, VS combat, the boss fight) instead of one
+  frame. New `tests/p10e-perf-budget.test.ts` measures three seeds' median
+  `ratioPerMinute` (7.90M/8.79M/9.67M, median 8.79M) against a ⚖ ceiling of
+  35M (~4x the median, same headroom factor q13's own ceiling uses); a second
+  measurement-granularity config on the same seeds reproduced within ~1%,
+  confirming the ratio holds steady across granularity and not just at a
+  single tick. Also `.skip`-ed (not deleted) A10's old wall-clock "runs a full
+  headless game in under 5 seconds" test: it drove SPEC A10's original
+  `--cycles 1` single-pass shape, which P3 superseded with the real
+  18-TD/6-VS/6-cycle run this file measures instead, and pinned an exact
+  `wavesCleared` count the P10 retunes have since moved past (confirmed
+  failing on a stale, unrelated pin — 18 cleared vs a pin of 16 — before this
+  item touched it). `tools/gate-audit.ts`'s G17 note updated: all three
+  clauses covered, no P10-deferred remainder left. code-reviewer found no
+  Critical/Major issues (verified the retirement claim against the actual old
+  test body, not just its comment; confirmed the new measurement code stays
+  in `tools/`, advances the sim only through `Run.step`/policy RNG streams,
+  and the divide-by-zero calibration guard is correct). qa-playtester
+  independently re-derived all three seeds' numbers outside the test's own
+  assertions, confirmed exceptions/premature-truncation fail loudly rather
+  than passing vacuously, re-confirmed the soak test and the `.skip`
+  registration — verdict PASS. It filed one bug against the new test's own
+  anti-vacuity check (not shipped behavior): the "`no-move` scores far lower"
+  assertion caps the light run inside Act I, where `NoMovePolicy` is
+  behaviorally identical to `hybrid`, so it never actually samples the Act II
+  movement/kiting cost its comment credits for the gap — filed as BACKLOG b041
+  with a regression-test acceptance criterion, not fixed inline (it's a
+  test-methodology gap, and the check still correctly fails on a vacuous
+  implementation today for an unrelated, undocumented reason — Act I ticks
+  being cheaper than a full-run average).
 - **2026-08-30 session: p10d done — gate G1's mean-run-length clause
   re-baselined against the real §1.1 shape, `.skip`-ed with a measured
   cross-gate conflict against G14 — commit `29a22ad`.** New live test

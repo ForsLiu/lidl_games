@@ -38,7 +38,7 @@ still in test headers.
 | P7 equipment/rewards/VS upgrades | **`p7a`-`p7g` done** — §6.3's VS level-up pool replaces the flat 12-boon list (closing b011 as a side effect); §7's 12-item equipment table is live; §8's reward pipeline is complete and **gate G12 is green in full**; the superseded meta economy (relic affixes, Ember) is retired outright, skill points are the tree's only currency; §8.4's unlock quests are live and correct for all 9 non-free classes (p7e fixed 5 quests whose reward never actually unlocked their class, and repointed Paladin's quest at a new "win with a sealed Core" mechanism matching spec text); `p7f`/`p7g` closed the save-migration holes `migrateWithNotice` had — an unknown key, and a corrupt `allocated`/`unlockedClasses`/`completedQuests`/`equipmentStash`/`questProgress`, can no longer discard or corrupt the account. Remaining: `p7h` (Core unlock quests + Codex page) |
 | P8 enemies/waves/bosses | **done in full (`p8a`-`p8c`)** — all 20 §9 enemies by name; `data/waves.json` authors real TD waves 1-18 on the §1.1 shape (Gatebreaker on 18 only, Warden-Eater on VS 6), the §9 VS-budget curve is live; `p8b` closed the elite/boss-summon spawn paths that bypassed `spendBudget`'s `aliveCap` check; `p8c` formally measured gate G14 on the real shape — **honestly red, 0/20**, `.skip`-ed with the number, re-enable point P10 (no gate in this codebase is force-passed by tuning outside P10) |
 | P9 tooling | **done in full (`p9a`-`p9h`)** — content-hash replay check (`p9a`), the Codex wired into the Hub (`p9b`), the Tuner built and gate **G15 green** (`p9c`), G16's dist-presence-is-inert half explicitly asserted (`p9d`), **gate G18's dead-end clause closed in full** (`p9e`), **gate G2 closed in full** (`p9f`), `hashWorld`'s `w.goldSpent` coverage gap closed (`p9g`), and the enemy/Warden panel's armour row now shows the effective (floored/capped) value instead of the raw shredded number (`p9h`) |
-| P10 balance | **not started** — Burning still refresh-strongest, perf budget still host-dependent wall-clock |
+| P10 balance | **in progress (p10a-p10e done)** — Burning flipped to per-application stacking, DoT immunity is data-driven, G13/G1/G17 re-baselined against the real §1.1 shape (G17 fully green; G13/G1 partly `.skip`-ed with honest numbers, follow-ups p10j/p10k) |
 
 ## Queue
 
@@ -490,11 +490,6 @@ next in P8's own queue.
       shapes — acceptance: an optional `immuneTrait` on the damage-type schema,
       resolved through the trait table, with Burning authored to use it and a test on
       a second row — refs: §3, §12, code review on m19c — **done, see Done section.**
-- [ ] (p10e) [balance] Gate **G17** perf, re-baselined as §16 asks: a
-      host-independent sim budget per simulated minute replacing today's wall-clock
-      "full run under 5 seconds"; 350 enemies with every wielded attack live holds a
-      ≥60 fps benchmark; a 50-run soak completes with zero exceptions and zero NaN —
-      acceptance: all three clauses green as live tests — refs: §16, G17
 - [ ] (p10f) [balance] Gate **G19** liveness: the winning sim builds include both
       sealed and open strategies, and multi-summon usage — acceptance: G19 measured
       over the same pool G13 uses, asserting each strategy appears among the winners
@@ -940,6 +935,28 @@ because the lane worktree retires at this merge.
       scheduling lets an unrelated file touch remain in flight across it; ten
       consecutive `npm run test:fast` runs under host load pass this case —
       refs: qa-playtester on p10a, `tests/q7-data-fuzz.test.ts`.
+- [ ] (b041) [bug] `tests/p10e-perf-budget.test.ts`'s anti-vacuity check ("a
+      mostly-idle build scores far lower than a real played run") doesn't test
+      what its own comment claims. The comment credits the gap to `no-move`
+      "never mov[ing] or kit[ing] in Act II, so it never grows into the full
+      board/horde `hybrid` reaches" — but the light run is capped at 5 sim
+      minutes, which by the same comment's own admission is "well inside Act
+      I," where `NoMovePolicy` is behaviorally identical to `hybrid` (both are
+      `BuilderPolicy` wrapping `HYBRID_BUILD`; `src/bots/policies.ts` only
+      zeroes movement once `w.phase === 'act2'`). Found by qa-playtester
+      verifying p10e (2026-08-30), reproduced twice: `hybrid` alone, capped to
+      5 sim minutes, already clears the <75%-of-full-run bar with no `no-move`
+      involved (5.69M/4.15M across two runs vs a 6.17M threshold) — the pass is
+      driven by "Act I ticks are cheaper than a full-run average that includes
+      Act II/the boss," not by the claimed light-build-vs-heavy-build
+      distinction, so a regression that stops the metric from pricing Act II
+      movement/kiting/wielded-attack cost correctly would not be caught here —
+      acceptance: the check demonstrably exercises the Act II cost difference
+      it claims to, e.g. by uncapping `no-move` to the same `maxTicks` as the
+      real runs and comparing full-run ratios, or by adding an explicit second
+      control (`hybrid` capped @5min vs `hybrid` full-run) that isolates the
+      phase-mix effect from the policy effect — refs: qa-playtester on p10e,
+      `tests/p10e-perf-budget.test.ts`.
 - [x] (b037) [bug] The relic loot pipeline stayed fully live after fb023
       deleted every UI path that could equip or discard a relic — **closed by
       p7d, see the Done section.** `src/sim/loot.ts` (`dropRelic`,
@@ -978,6 +995,56 @@ logged in MIGRATION.md §8 rather than carried as dead items.
 
 ## Done
 
+- [x] (p10e) [balance] Gate **G17** perf, re-baselined as §16 asks: a
+      host-independent sim budget per simulated minute replacing today's wall-clock
+      "full run under 5 seconds"; 350 enemies with every wielded attack live holds a
+      ≥60 fps benchmark; a 50-run soak completes with zero exceptions and zero NaN —
+      acceptance: all three clauses green as live tests — refs: §16, G17.
+      G17's other two clauses were already solidly live (`tests/a10-performance.test.ts`'s
+      worst-case-tick benchmark, `tests/q12-soak.test.ts`'s 50-run soak); only the
+      first clause — the per-simulated-minute budget itself — was undecided, deferred
+      to P10 by §16. New `measureSimMinuteRatio` (`tools/perf-ratio.ts`) extends
+      q13's proven host-independent ratio mechanism (calibration units of pure integer
+      work per unit of measured cost, stable across measurement granularity) from a
+      single static worst-case tick to a real `hybrid`-bot run played end to end on
+      the actual §1.1 shape (reusing the same `Run`/`makePolicy` harness p10d's G1
+      test uses), interleaving calibration samples throughout so the ratio amortizes
+      over build-phase idle ticks, TD waves, VS combat and the boss fight rather than
+      one frame. New `tests/p10e-perf-budget.test.ts` measures three seeds' median
+      `ratioPerMinute` (7.90M/8.79M/9.67M, median 8.79M this session) against a ⚖
+      ceiling set at ~4x the median (35M) — the same headroom factor q13's own
+      ceiling uses, for the same reason: ordinary host contention should stay quiet
+      while a real multi-x per-minute-cost regression trips it. A second
+      (calibChunk, sampleEvery) config on the same seeds reproduced within ~1%,
+      confirming the ratio holds steady across measurement granularity, not just at
+      a single tick as q13 alone proved. Also retires (not deletes) A10's old
+      wall-clock "runs a full headless game in under 5 seconds" test: `.skip`-ed in
+      place with a comment, since it drove SPEC A10's original `--cycles 1`
+      single-pass shape (superseded by P3's real 18-TD/6-VS/6-cycle run) and pinned
+      an exact `wavesCleared` count the P10 balance retunes (p10c/p10d) have since
+      moved past — confirmed failing on a stale, unrelated pin (18 cleared vs a pin
+      of 16) before this item touched it. `tools/gate-audit.ts`'s G17 note updated:
+      all three clauses now covered, no more P10-deferred remainder.
+      code-reviewer found no Critical/Major issues: the new measurement code stays
+      in `tools/`, not `/src/sim`, advances the sim only through `Run.step`/policy
+      RNG streams exactly like the existing `measureRatioForWorld`, the
+      divide-by-zero calibration guard is correct, and the retirement of the old
+      A10 test was verified against the actual (not just claimed) test body — it
+      really does assert `--cycles 1` and a stale `wavesCleared` pin of 16.
+      qa-playtester independently re-derived all three seeds' numbers outside the
+      test's own assertions (matched the header's claimed figures), confirmed
+      exceptions and premature/truncated runs fail loudly rather than passing
+      vacuously, and re-confirmed `tests/q12-soak.test.ts` (10/10) and the `.skip`
+      registration under `vitest.perf.config.ts` — verdict PASS, acceptance met.
+      It did file one bug against the new test's own anti-vacuity assertion (not a
+      shipped-behavior bug): the "`no-move` scores far lower than `hybrid`" check
+      caps the light run at 5 sim minutes, inside Act I, where `NoMovePolicy` is
+      behaviorally identical to `hybrid` — the comment credits the gap to Act II
+      movement/kiting the check never actually samples. Filed as BACKLOG b041 with
+      a regression-test acceptance criterion rather than fixed inline, since it's a
+      test-methodology gap in a check that still (for a different, undocumented
+      reason — Act I being cheaper than a full-run average) correctly fails on a
+      vacuous implementation today. Commit `PENDING`.
 - [x] (p10d) [balance] Gate **G1**: mean victorious run is 30–36 minutes over 24+
       seeds, reported as means and pass rates, never medians — acceptance: G1 green
       on the §1.1 run shape — refs: §1.1, G1.

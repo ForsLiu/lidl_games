@@ -194,26 +194,27 @@ export const GATE_COVERAGE: Record<string, CoverageEntry> = {
     ],
   },
   G17: {
-    files: ['tests/a10-performance.test.ts', 'tests/q12-soak.test.ts', 'tests/q13-perf-ratio.test.ts'],
+    files: [
+      'tests/a10-performance.test.ts',
+      'tests/q12-soak.test.ts',
+      'tests/q13-perf-ratio.test.ts',
+      'tests/p10e-perf-budget.test.ts',
+    ],
     note:
-      "This entry was a KNOWN_HOLES hole at q10 (session 6); q12 (session 8) and q13 (session 9) shipped the " +
-      "in-Scope substance of two of G17's three clauses afterward and the hole was never re-measured against them " +
-      "until now (BACKLOG-QUALITY q17, session 12) — exactly the 'a deferral is a measurement with an expiry " +
-      "date' trap CLAUDE.md names. G17's second clause, '350 enemies + all weapons ≥60fps benchmark', is a " +
-      "concrete non-⚖ number, and tests/a10-performance.test.ts is what actually backs it — it runs the identical " +
-      "worstCaseWorld (all 8 weapons, filled to the spawn director's alive cap) and asserts perTick against a " +
-      "concrete SIM_BUDGET_MS derived from 16.7ms/60fps, the fps floor itself, on this host. " +
-      "tests/q12-soak.test.ts covers the third clause verbatim (50 seeded full runs, mixed policies, zero " +
-      "exceptions/NaN). The first clause — 'sim budget per simulated minute (host-independent) ⚖' — is only " +
-      "PARTIALLY covered: SPEC-FINAL §16 names 're-baseline perf as G17's per-sim-minute budget' as explicit " +
-      "P10 work ('The pending balance re-baseline (old M27) becomes P10 and additionally: … re-baseline perf as " +
-      "G17's per-sim-minute budget'), so the actual chosen budget number is not yet decided and cannot be tested " +
-      "yet. tests/q13-perf-ratio.test.ts supplies the *measurement mechanism* the eventual P10 re-baseline will " +
-      "need — a host-independent ratio against a calibration loop, proven stable across iteration counts, pinned " +
-      "against a recorded ceiling — not the finished per-sim-minute budget itself, and it measures a static " +
-      "worst-case tick rather than cost amortized over an actual simulated minute of gameplay. This gate is " +
-      "listed `covered` on the strength of clauses two and three being solidly live-tested (same bar as G13's " +
-      'note for a comparably partial gate), with this note as the standing disclosure of the P10-deferred remainder.',
+      "All three clauses are now live. G17's second clause, '350 enemies + all weapons ≥60fps benchmark', is a " +
+      "concrete non-⚖ number, and tests/a10-performance.test.ts backs it — it runs the identical worstCaseWorld " +
+      "(all 8 weapons, filled to the spawn director's alive cap) and asserts perTick against a concrete " +
+      "SIM_BUDGET_MS derived from 16.7ms/60fps, the fps floor itself, on this host. tests/q12-soak.test.ts covers " +
+      "the third clause verbatim (50 seeded full runs, mixed policies, zero exceptions/NaN). The first clause — " +
+      "'sim budget per simulated minute (host-independent) ⚖' — was the P10-deferred remainder " +
+      "(SPEC-FINAL §16: 're-baseline perf as G17's per-sim-minute budget') and is closed at p10e: " +
+      "tests/p10e-perf-budget.test.ts extends tests/q13-perf-ratio.test.ts's proven ratio mechanism (host-" +
+      "independent, stable across measurement granularity) from a single static worst-case tick to a real " +
+      "`hybrid`-bot run played end to end on the actual §1.1 shape, and pins a ⚖ ceiling (~4x the measured " +
+      "median, same headroom factor q13's own ceiling uses) as the chosen per-simulated-minute budget. It also " +
+      "retires tests/a10-performance.test.ts's wall-clock 'full run under 5 seconds' test (`.skip`-ed in place, " +
+      "not deleted), which drove SPEC A10's original `--cycles 1` single-pass shape rather than the real one and " +
+      'was measured failing on an unrelated stale pin (`wavesCleared`) before this item touched it.',
   },
 };
 

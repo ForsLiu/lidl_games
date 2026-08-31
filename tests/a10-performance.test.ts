@@ -57,7 +57,17 @@ describe('A10 performance', () => {
     expect(perTick, detail).toBeLessThan(SIM_BUDGET_MS);
   });
 
-  it('runs a full headless game in under 5 seconds', () => {
+  // RETIRED (p10e, SPEC-FINAL §14 G17, §16 P10 re-baseline). This asserted a
+  // wall-clock budget over `--cycles 1`, SPEC A10's original single-pass run
+  // shape; P3 superseded that with the real 18-TD/6-VS/6-cycle shape (§1.1),
+  // which `--cycles 1` never plays. It also pinned an exact `wavesCleared`
+  // count that the P10 balance retunes (p10c/p10d) have since moved past —
+  // confirmed failing on HEAD before this item touched it (measured 18
+  // cleared against a pin of 16). G17's own text calls for a host-independent
+  // per-simulated-minute budget, not an absolute-ms budget over a shape the
+  // game no longer plays; `tests/p10e-perf-budget.test.ts` replaces this with
+  // exactly that, measured on the real run shape with `hybrid` play.
+  it.skip('runs a full headless game in under 5 seconds', () => {
     // Timed through the shipped path (`npm run sim`) rather than in-process:
     // Vitest's transform adds ~40% that has nothing to do with the sim. The CLI
     // reports `simMs` for the run loop alone, so process startup is excluded.

@@ -34,6 +34,7 @@ import { finishSundering } from '../src/sim/sundering';
 import { wieldedAttacks } from '../src/sim/vswield';
 import { GRID_H, GRID_W } from '../src/sim/grid';
 import { emptyInput } from '../src/sim/types';
+import { makePolicy } from '../src/bots';
 import { cfg } from '../tests/helpers';
 
 /** A worst-case Act II frame: the alive cap, a full wielded attack set, and a field of petrified terrain. */
@@ -189,6 +190,90 @@ export function measureRatioForWorld(
 
 export function measureRatio(calibIters: number, tickSamples: number, warmupTicks = 120): PerfRatio {
   return measureRatioForWorld(worstCaseWorld(), calibIters, tickSamples, warmupTicks);
+}
+
+export interface SimMinuteRatio {
+  seed: number;
+  policy: string;
+  ticks: number;
+  simMinutes: number;
+  outcome: string;
+  tickMs: number;
+  calibMs: number;
+  calibUnits: number;
+  /** Calibration units per simulated minute — the host-independent number G17's first clause wants. */
+  ratioPerMinute: number;
+}
+
+/**
+ * G17's first clause: "sim budget per simulated minute (host-independent)".
+ * Unlike `measureRatioForWorld`'s single static worst-case tick, this plays a
+ * real bot-driven run (the same `Run`/`makePolicy` harness
+ * `tests/p10d-run-length.test.ts` uses for G1) end to end, so it amortizes
+ * over everything an actual run does — build-phase idle ticks, TD waves, VS
+ * combat, the boss fight — rather than only the single most expensive frame
+ * A10's benchmark already covers.
+ *
+ * Calibration work is interleaved every `sampleEvery` ticks (not every tick):
+ * spread thinly across the whole run for the same contention-robustness
+ * reason `measureRatioForWorld`'s doc comment gives for fine-grained
+ * interleaving, while keeping the total calibration cost a small, bounded
+ * fraction of the run instead of scaling 1:1 with tick count.
+ */
+export function measureSimMinuteRatio(
+  seed: number,
+  policyName: string,
+  calibChunk: number,
+  sampleEvery: number,
+  maxTicks: number,
+): SimMinuteRatio {
+  const runCfg = { seed, classKey: 'engineer', tier: 1, modifiers: [], allocated: [], policy: policyName };
+  const run = new Run(runCfg);
+  const policy = makePolicy(policyName);
+
+  let tickMs = 0;
+  let calibMs = 0;
+  let calibUnits = 0;
+  let sampled = 0;
+  while (!run.done && run.world.tick < maxTicks) {
+    const input = policy.act(run.world);
+    const t0 = performance.now();
+    run.step(input);
+    tickMs += performance.now() - t0;
+
+    sampled++;
+    if (sampled % sampleEvery === 0) {
+      const c0 = performance.now();
+      const acc = calibrationWork(calibChunk);
+      calibMs += performance.now() - c0;
+      calibUnits += calibChunk;
+      if (Number.isNaN(acc)) throw new Error('unreachable: calibrationWork is pure integer arithmetic');
+    }
+  }
+  // At least one calibration sample even on a run too short to hit
+  // sampleEvery once, so msPerCalibUnit is never a divide-by-zero.
+  if (calibUnits === 0) {
+    const c0 = performance.now();
+    const acc = calibrationWork(calibChunk);
+    calibMs += performance.now() - c0;
+    calibUnits += calibChunk;
+    if (Number.isNaN(acc)) throw new Error('unreachable: calibrationWork is pure integer arithmetic');
+  }
+
+  const msPerCalibUnit = calibMs / calibUnits;
+  const simMinutes = run.world.tick / (60 * 60);
+  const ratioPerMinute = tickMs / msPerCalibUnit / simMinutes;
+  return {
+    seed,
+    policy: policyName,
+    ticks: run.world.tick,
+    simMinutes,
+    outcome: run.world.outcome,
+    tickMs,
+    calibMs,
+    calibUnits,
+    ratioPerMinute,
+  };
 }
 
 /* ------------------------------------------------------------------- CLI */
