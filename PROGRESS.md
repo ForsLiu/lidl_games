@@ -5,6 +5,35 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-31 session: BACKLOG b057 fixed — `wardenInfoMarkup` (`src/ui/hud.ts`),
+  the Character-selection info panel's Power/Attack speed/Area rows, was a
+  fourth un-deduplicated flat-0-decimal percent rounder with the same
+  rounding-to-zero defect b054/b055/b056 already fixed at their own call
+  sites, one decimal place coarser (zeroed a net magnitude under 0.5% instead
+  of under 0.05%; currently inert — no live `/data` `mul`-kind mod is that
+  small).** The three rows now call the module's existing `formatPercent`
+  (delegating to `formatPct`, `src/ui/info-format.ts`) instead of their own
+  `Math.round((d.powerMul - 1) * 100)`. `tests/fb022-info-surfacing.test.ts`
+  adds a `b057` block: a synthetic 0.1% power stat renders `"+0.1%"`, not
+  `"+0%"`. code-reviewer **APPROVE**, no Critical/Major — confirmed normal
+  (≥1%) magnitudes render unchanged, verified the new test fails pre-fix and
+  passes post-fix, and noted the old unconditional `+` prefix would have
+  double-signed a debuff (`"+-5%"`) — `formatPercent`'s sign guard fixes that
+  too, as a side effect. qa-playtester **PASS** — confirmed via code and by
+  reverting `hud.ts` alone; probed a negative delta (correct single sign),
+  zero delta (`"0%"`, no stray `+`), a large magnitude (no exponential
+  notation), and confirmed Attack speed/Area share the same fix, not just
+  Power. It filed one bug outside this item's scope: `renderSelectionInfo`'s
+  warden-panel memo key (`hud.ts:618`) omits power/attackSpeed/area/armor/
+  moveSpeed/regen, so those `wardenInfoMarkup` rows go stale in the live
+  selection panel until hp/level/dashCharges also change — a player can pick
+  up a Power/Attack speed/Area-only buff mid-run and not see this fix's
+  improved precision until an unrelated field ticks. Filed as BACKLOG b058.
+  `npm run test:fast`: 1759 passed / 21 skipped / 5 failed (same pre-existing
+  Windows EPERM/hang races noted in every sibling entry below — q15's
+  worker-hang probes, q28/q49/q52's scratch-dir EPERM cleanup races — none of
+  the failing files import `hud.ts`/`info-format.ts`/`tree-view.ts`) — no new
+  failures from this change.
 - **2026-08-31 session: BACKLOG b056 fixed — `formatPercent` (`src/ui/hud.ts`),
   which feeds the in-run character panel's per-stat summary and per-source
   breakdown, was a third un-deduplicated flat-1-decimal percent rounder with

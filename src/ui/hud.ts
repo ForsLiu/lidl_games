@@ -1267,9 +1267,9 @@ export function wardenInfoMarkup(w: World): string {
     row('Regen', `${round1(d.hpRegen)} / s`),
     row('Armour', armourText(wardenArmor(w))),
     row('Move speed', `${round1(d.moveSpeed)} tiles/s`),
-    row('Power', `+${Math.round((d.powerMul - 1) * 100)}%`),
-    row('Attack speed', `+${Math.round((d.attackSpeedMul - 1) * 100)}%`),
-    row('Area', `+${Math.round((d.areaMul - 1) * 100)}%`),
+    row('Power', formatPercent(d.powerMul - 1)),
+    row('Attack speed', formatPercent(d.attackSpeedMul - 1)),
+    row('Area', formatPercent(d.areaMul - 1)),
     row('Dash', `${w.warden.dashCharges} / ${d.dashCharges}`),
   ];
   return `<h3 style="color:${PALETTE.warden}">The Warden <small>level ${w.level}</small></h3>${rows.join('')}`;

@@ -1717,7 +1717,7 @@ were not re-filed. Ordering within this section is by severity, not P-band.
       `hud.ts`/`info-format.ts`/`tree-view.ts`) — no new failures from this
       change.
 
-- [ ] (b057) [polish] `wardenInfoMarkup` (`src/ui/hud.ts`), the Character-
+- [x] (b057) [polish] `wardenInfoMarkup` (`src/ui/hud.ts`), the Character-
       selection info panel's Power/Attack speed/Area rows, hand-rolls its own
       0-decimal percent rounder (`Math.round((d.powerMul - 1) * 100)` and
       siblings) — the same un-deduplicated flat-rounding-to-zero defect class
@@ -1734,6 +1734,60 @@ were not re-filed. Ordering within this section is by severity, not P-band.
       their own rounding; a test asserts a synthetic sub-0.5%-magnitude
       `mul` mod renders non-zero in the selection panel — refs: §2, §11, QA
       on b056.
+      Fixed: the three rows now call `formatPercent` (already defined in
+      `hud.ts`, delegating to `formatPct` in `info-format.ts`) instead of
+      their own `Math.round(...)`. `tests/fb022-info-surfacing.test.ts` adds
+      a `b057` block: a synthetic `power += 0.001` (0.1%) stat renders
+      `"+0.1%"`, not `"+0%"`. code-reviewer **APPROVE**, no Critical/Major —
+      confirmed normal (≥1%) magnitudes render unchanged (still `"+32%"`
+      style, no stray decimals), reverted only `hud.ts` and re-ran the new
+      test to confirm it fails pre-fix (`"+0%"`) and passes post-fix, and
+      noted in passing that the old unconditional `+${...}%}` template would
+      have rendered a debuff as `"+-5%"` — `formatPercent`'s sign guard fixes
+      that too, as a side effect, not a regression. One Minor left inert (not
+      filed): `enemyInfoMarkup`'s `flatReduction`/`frontReduction`/
+      `slowAmount` rows and `armourText`'s `pct` still hand-roll 0-decimal
+      rounding, harmless today since no live field there goes sub-1%.
+      qa-playtester **PASS** — confirmed the fix via code and by reverting
+      `hud.ts` alone; adversarially probed a negative delta (`-5%`, no
+      double-sign), zero delta (`"0%"`, no stray `+`), and a large magnitude
+      (+5000%, no exponential notation); confirmed Attack speed and Area rows
+      share the identical fix, not just Power. It filed one bug found in
+      passing, pre-existing and out of scope for this item: `renderSelectionInfo`'s
+      warden-panel memo key (`hud.ts:618`, `` `sel:warden:${hp}:${level}:${dashCharges}` ``)
+      omits power/attackSpeed/area/armor/moveSpeed/regen, so those rows go
+      stale in the live selection panel until hp/level/dashCharges also
+      change — meaning a player can pick up a Power/Attack speed/Area-only
+      buff mid-run and not see this fix's improved precision until an
+      unrelated field ticks. Filed as BACKLOG b058. `npm run test:fast`:
+      1759 passed / 21 skipped / 5 failed (same pre-existing Windows
+      EPERM/hang races as every sibling entry above — `q15`'s worker-hang
+      probes, `q28`/`q49`/`q52`'s scratch-dir EPERM cleanup races — none of
+      the failing files import `hud.ts`/`info-format.ts`/`tree-view.ts`) —
+      no new failures from this change.
+
+- [ ] (b058) [bug] `renderSelectionInfo`'s warden-panel memo key (`src/ui/hud.ts:618`,
+      `` `sel:warden:${Math.round(w.warden.hp)}:${w.level}:${w.warden.dashCharges}` ``)
+      does not include power/attackSpeed/area/armor/moveSpeed/regen, so
+      `wardenInfoMarkup`'s Regen/Armour/Move speed/Power/Attack speed/Area
+      rows go stale in the live Character-selection panel whenever one of
+      those derived stats changes without hp, level or dash charges also
+      changing on the same frame — the enemy-info branch two cases above
+      (`hud.ts:585-587`) explicitly guards against this exact staleness class
+      for status effects/speed ("a frost tower slowing an enemy without
+      changing its rounded HP used to leave the panel lying") but the warden
+      branch was never given the same treatment. Found by qa-playtester
+      verifying b057 (2026-08-31): mounting a `Hud`, selecting
+      `{kind:'warden'}`, then `w.stats.add('src:test','power',0.5);
+      w.recomputeDerived()` and re-rendering without an hp/level/dashCharges
+      change leaves the Power row frozen at its old value — acceptance: the
+      warden memo key includes rounded power/attackSpeed/area/armor/
+      moveSpeed/regen (mirroring the enemy branch's pattern), so any change
+      to `w.derived` visible in `wardenInfoMarkup` refreshes the panel on its
+      next render; a jsdom `Hud` test selects the warden, changes one of
+      those stats between two `update` calls with hp/level/dashCharges held
+      fixed, and asserts the second render reflects the new value — refs:
+      §11, QA on b057.
 
 ### Filed at the lane/quality merge (2026-08-28) — from BACKLOG-QUALITY.md's log and open queue
 

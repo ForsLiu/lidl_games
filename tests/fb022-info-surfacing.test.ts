@@ -33,7 +33,7 @@ import { Hub } from '../src/ui/hub';
 import { Hud } from '../src/ui/hud';
 import type { Selection } from '../src/ui/selection';
 import { characterPanelData } from '../src/ui/character-panel';
-import { characterPanelMarkup } from '../src/ui/hud';
+import { characterPanelMarkup, wardenInfoMarkup } from '../src/ui/hud';
 import { classAbilitiesMarkup } from '../src/ui/class-info';
 import { coreDetailMarkup, coreLiveMarkup } from '../src/ui/core-info';
 import { constellationSummaryMarkup, describeStat } from '../src/ui/tree-view';
@@ -473,5 +473,27 @@ describe('b056: formatPercent (hud.ts) shares formatPct instead of its own flat-
     expect(html).toContain('+0.01%');
     expect(html).toContain('Equipment: Bleeding Ring: +0.01%');
     expect(html).not.toContain('Leech</span><b>0%');
+  });
+});
+
+/**
+ * b057: `wardenInfoMarkup`'s (hud.ts) Character-selection info panel
+ * Power/Attack speed/Area rows hand-rolled a 0-decimal percent rounder
+ * (`Math.round((d.powerMul - 1) * 100)`) instead of sharing `formatPercent` —
+ * the same defect class b054/b055/b056 fixed at their own call sites, just
+ * one decimal place coarser (zeroed a net magnitude under 0.5% instead of
+ * under 0.05%). No live /data mul-kind mod is currently that small, so this
+ * is a synthetic-stat regression test, not a real-content repro.
+ */
+describe('b057: wardenInfoMarkup shares formatPercent instead of its own flat-0-decimal rounding', () => {
+  it('a synthetic 0.1% power mod reads "+0.1%", not "+0%"', () => {
+    const w = new World(cfg({ classKey: 'swordsman' }));
+    w.stats.add('src:test', 'power', 0.001);
+    w.recomputeDerived();
+    expect(w.derived.powerMul - 1).toBeCloseTo(0.001, 10);
+
+    const html = wardenInfoMarkup(w);
+    expect(html).toContain('+0.1%');
+    expect(html).not.toContain('Power</span><b>+0%');
   });
 });
