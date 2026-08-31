@@ -317,6 +317,24 @@ describe('q54 — unguarded-data-read census', () => {
     }
   });
 
+  it("an escaped-same-quote fixture string (embedded readFileSync(...) call reusing the fixture's own delimiter, backslash-escaped) does NOT reproduce the b063 false positive — b064 negative control", () => {
+    const dir = scratchPath('escaped-same-quote-fixture-string');
+    try {
+      mkdirSync(path.join(dir, 'tools'), { recursive: true });
+      writeFileSync(
+        path.join(dir, 'tools', 'new-tool.ts'),
+        [
+          'const fixtureLine = "const d = JSON.parse(readFileSync(\\"data/x.json\\", \\"utf8\\"));";',
+          'console.log(fixtureLine);',
+          '',
+        ].join('\n'),
+      );
+      expect(readsDataJsonDirectly(path.join(dir, 'tools', 'new-tool.ts'))).toBe(false);
+    } finally {
+      rmSync(dir, RM_RETRY);
+    }
+  });
+
   it('a tool that reads a /data/*.json path but never calls JSON.parse is not flagged (reading raw text is not the crash shape)', () => {
     const dir = scratchPath('no-parse');
     try {

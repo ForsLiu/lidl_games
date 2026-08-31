@@ -5,6 +5,31 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-31 session: BACKLOG b064 closed — `readsDataJsonDirectly()`'s
+  b063-documented fixture-string false positive only reproduced for a
+  mismatched-quote-style fixture; an escaped-same-quote fixture silently
+  returned `false` instead, an undocumented asymmetry — filed by
+  qa-playtester verifying b063.** Closed via the item's documentation-route
+  acceptance option: `tools/cli-crash-coverage.ts`'s `readsDataJsonDirectly`
+  doc comment gained a paragraph naming the mismatched- vs escaped-same-quote
+  asymmetry and its root cause (the escaped inner quote leaves a leading
+  backslash in the plain-arg scan's capture, which `unquote()`'s
+  `^(['"])(.*)\1$` regex can't strip, so `DATA_JSON_PATH_RE` never matches),
+  with an explicit hedge that the other three fixture-reachable checks were
+  not verified to share the exact mechanism (code-reviewer caught an
+  overclaiming early draft; narrowed before commit). `tests/q54-unguarded-
+  data-read.test.ts` gained a negative-control test pinning
+  `readsDataJsonDirectly(...) === false` for a double-quote escaped-same-quote
+  fixture. `npx vitest run tests/q54-unguarded-data-read.test.ts tests/q47-
+  cli-crash-coverage.test.ts`: 39/39 green. `npm run test:fast`: 9 files / 6
+  tests failed, all pre-existing documented Windows flake classes (q28/q49/q52
+  scratch-dir `EPERM` races, q15's known intermittent "hangs" case) — none in
+  q54/q47, no new failures. code-reviewer: APPROVE after the overclaim fix.
+  qa-playtester: PASS — independently built its own scratch fixtures
+  confirming both quote-style mirrors return `false`, the original b063 false
+  positive is unaffected, and `CONCAT_ARG_RE` shares the mismatched-quote
+  exposure but not the escaped-same-quote one; no new bugs filed. BACKLOG.md
+  b064 moved to Done.
 - **2026-08-31 session: BACKLOG b063 closed — `readsDataJsonDirectly()`
   (`tools/cli-crash-coverage.ts`) false-positives on a `readFileSync('data/
   x.json')`-shaped call sitting only inside a single/double-quoted fixture

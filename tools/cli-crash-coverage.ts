@@ -250,6 +250,34 @@ const CONCAT_ARG_RE = /\breadFileSync\s*\(\s*((?:['"][^'"]*['"]\s*\+\s*)+['"][^'
  * embeds a `readFileSync('data/...json')`-shaped fixture in a single/
  * double-quoted string (`tools/mutation-probe.ts`'s own fixtures are
  * backtick-quoted, already excluded by the existing gap above; checked).
+ *
+ * That false positive's reach is narrower than it first looks (qa-playtester
+ * verifying b063, filed as b064): it only reproduces for a *mismatched*-
+ * quote-style fixture — the fixture string's own delimiter (here `"`)
+ * differs from the quote style used inside it for the embedded
+ * `readFileSync('...')` call (here `'`), so the embedded quotes survive
+ * `stripCommentsAndBacktickStrings` as plain, unescaped `'` characters and
+ * the plain-literal-arg scan's capture (`\breadFileSync\s*\(\s*([^,)]+)`)
+ * reads them as if they really opened/closed a string. An *escaped-same-
+ * quote* fixture — e.g. `"...readFileSync(\"data/x.json\", \"utf8\")..."`,
+ * where the embedded call reuses the fixture's own `"` delimiter and must
+ * therefore backslash-escape it — does **not** reproduce the false positive
+ * and correctly (if for the wrong reason) returns `false`: the capture
+ * includes the literal backslash from the escaped inner quote (`\"data/
+ * x.json\"`), and `unquote()`'s `^(['"])(.*)\1$` regex requires a bare quote
+ * as the very first character, so it never strips the leading `\"` and
+ * `DATA_JSON_PATH_RE` then fails to match the still-backslash-prefixed text.
+ * This is specific to the plain-literal-arg scan's `unquote()`/
+ * `DATA_JSON_PATH_RE` path above — the other three fixture-reachable checks
+ * (`CONCAT_ARG_RE`, `READFILESYNC_JOIN_DATA_RE`,
+ * `READFILESYNC_TEMPLATE_LITERAL_RE`) have different capture shapes and were
+ * not verified to share this exact asymmetry; not chased further since it is
+ * not this function's core claim. Net effect: the plain-literal-arg scan's
+ * fixture-string false positive is real but quote-style-dependent, not a
+ * blanket "any fixture string containing this shape" behavior — accepted
+ * as-is (safe direction, under- not over-detection) per b064; not chased
+ * further to avoid the same string-nesting-depth tracking ruled out just
+ * above.
  */
 export function readsDataJsonDirectly(absPath: string): boolean {
   if (!existsSync(absPath)) return false;

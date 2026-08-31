@@ -1968,7 +1968,7 @@ because the lane worktree retires at this merge.
       false-positives when a `readFileSync('data/x.json')`-shaped call
       appears only as the *contents* of a single/double-quoted string literal
       — **done, see Done section.**
-- [ ] (b064) [bug] `readsDataJsonDirectly()`'s b063-documented fixture-string
+- [x] (b064) [bug] `readsDataJsonDirectly()`'s b063-documented fixture-string
       false positive only reproduces for a *mismatched*-quote-style fixture
       (outer double quote, inner single-quoted `readFileSync('data/x.json')`
       text, the shape the b063 doc comment/test cover) — an *escaped-same-
@@ -2312,6 +2312,45 @@ logged in MIGRATION.md §8 rather than carried as dead items.
       (the captured arg text retains a leading backslash that defeats
       `unquote()`), an undocumented asymmetry, safe direction (under- not
       over-detection). Filed as BACKLOG b064 (latent, not blocking).
+- [x] (b064) [bug] `readsDataJsonDirectly()`'s b063-documented fixture-string
+      false positive only reproduced for a *mismatched*-quote-style fixture
+      (outer `"`, inner `'`) — an *escaped-same-quote* fixture (outer `"`,
+      inner `\"`, or the single-quote mirror) silently returned `false`
+      instead, an undocumented asymmetry (root cause: the escaped inner
+      quote leaves a leading backslash in the plain-arg scan's capture, which
+      `unquote()`'s `^(['"])(.*)\1$` regex can't strip, so `DATA_JSON_PATH_RE`
+      never matches). Closed via the item's documentation-route acceptance
+      option (scoping the b063 doc comment's claim precisely, rather than
+      extending the scan to make the escaped-same-quote shape reproduce the
+      same false positive): `readsDataJsonDirectly`'s doc comment
+      (`tools/cli-crash-coverage.ts`) gained a paragraph naming the
+      mismatched- vs escaped-same-quote asymmetry, its root cause, and an
+      explicit hedge that the other three fixture-reachable checks
+      (`CONCAT_ARG_RE`, `READFILESYNC_JOIN_DATA_RE`,
+      `READFILESYNC_TEMPLATE_LITERAL_RE`) were not verified to share it
+      (code-reviewer caught an early draft overclaiming they all shared the
+      identical `[^,)]+`-capture mechanism when their capture shapes differ;
+      narrowed before commit). `tests/q54-unguarded-data-read.test.ts` gained
+      a negative-control test pinning `readsDataJsonDirectly(...) === false`
+      for a double-quote escaped-same-quote fixture. `npx vitest run
+      tests/q54-unguarded-data-read.test.ts tests/q47-cli-crash-
+      coverage.test.ts`: 39/39 green. `npm run test:fast`: 9 files / 6 tests
+      failed, all pre-existing documented Windows flake classes (q28/q49/q52
+      scratch-dir `EPERM` races, q15's known intermittent "hangs" case) —
+      none in q54/q47, no new failures. code-reviewer: **APPROVE** after the
+      overclaim fix above — hand-traced `unquote()` and the plain-arg capture
+      against the exact fixture bytes and confirmed the core claim accurate;
+      confirmed doc/test-only, no `/src/sim` or architecture-rule touch.
+      qa-playtester: **PASS** — independently built its own scratch fixtures
+      (not reusing the committed test) confirming both the double- and
+      single-quote escaped-same-quote mirrors return `false`, that the
+      original b063 mismatched-quote false positive still reproduces `true`
+      unaffected, and that `CONCAT_ARG_RE` shares the mismatched-quote
+      exposure but not the escaped-same-quote one (consistent with the doc's
+      hedge, not overclaiming); also independently reconfirmed the pre-
+      existing backtick-fixture gap (q47) is untouched and out of scope. No
+      new bugs filed — refs: b063, qa-playtester b063 verification pass
+      (2026-08-31).
 - [x] (b025) [polish] `readsDataJsonDirectly()` (`tools/cli-crash-coverage.ts`)
       false-negatives on two path shapes (an inline template-literal path
       with no `join()` wrapper, and a string-concatenated path). Closed via
