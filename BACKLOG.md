@@ -494,12 +494,12 @@ next in P8's own queue.
       sealed and open strategies, and multi-summon usage — acceptance: G19 measured
       over the same pool G13 uses, asserting each strategy appears among the winners
       — refs: G19 — **done, see Done section.**
-- [ ] (p10g) [balance] No gate exercises the armour shred: none of the twelve sweep
+- [x] (p10g) [balance] No gate exercises the armour shred: none of the twelve sweep
       seeds ever builds an Ember Brazier and no bot policy ever draws the flame cone,
       so G4's shred path runs zero times in the sweep that guards balance — the shred
       can regress to nothing without a gate moving — acceptance: a policy or probe
       that actually builds a Brazier is in the gate set, and it asserts a non-zero
-      shred — refs: §3, G4, QA on m19c
+      shred — refs: §3, G4, QA on m19c — **done, see Done section.**
 - [ ] (p10h) [polish] Feel pass: juice, the 2 s TD↔VS transition sweep, and SFX/art
       assets behind the existing AudioSink seam — acceptance: the transition sweep
       runs on every TD↔VS boundary and the asset pass is committed; no sim behaviour
@@ -995,6 +995,42 @@ logged in MIGRATION.md §8 rather than carried as dead items.
 
 ## Done
 
+- [x] (p10g) [balance] No gate exercises the armour shred: none of the twelve sweep
+      seeds ever builds an Ember Brazier and no bot policy ever draws the flame cone
+      — acceptance: a policy or probe that actually builds a Brazier is in the gate
+      set, and it asserts a non-zero shred — refs: §3, G4, QA on m19c. Independently
+      confirmed the gap first: ran `hybrid`/`maxbuild`/`sealed` (the registered
+      policies CLAUDE.md's own sweep examples and G7's gate use) through several
+      seeds each — none ever placed `ember_brazier`, even though `maxbuild`/`sealed`
+      list it 7th of 8 tower priorities, so G4's shred path
+      (`armorShredPerSecond` -> `shredArmor`) ran zero times in the sweep before this
+      item. `tools/a5probe.ts`'s `runBuild` now samples peak `Enemy.armorShred` each
+      tick into `BuildResult.maxArmorShred`, plus the same restricted to
+      `w.phase === 'act2'` into `maxArmorShredAct2` to isolate the wielded cone from
+      the Act I tower attack (the same per-tick-sample pattern p10f's `maxStackDepth`
+      and p9g's coverage work used). New `tests/p10g-armor-shred-liveness.test.ts`
+      reuses the existing `ember-heavy`/`ember-mix` `BuildSpec`s already in
+      `tools/a5probe.ts`'s `BUILDS` pool (built for G13's damage-share measurement,
+      never for this) rather than adding a new build, and asserts both are non-zero
+      at seeds 1/2, with at least one non-zero specifically during Act II.
+      `tools/gate-audit.ts`'s G4 entry now cites the new file. code-reviewer found no
+      Critical/Major issues (traced `armorShredPerSecond` through both the direct-hit
+      and splash DoT paths to `shredArmor`, confirmed the Act II wielded cone reuses
+      the same DoT path via `src/sim/vswield.ts`, confirmed the diff never touches
+      `/src/sim` and introduces no non-determinism) — one Minor noted, not blocking
+      (the builds/seeds are computed at `describe()`-eval time rather than
+      `beforeAll`). qa-playtester independently re-derived the actual
+      `maxArmorShred`/`maxArmorShredAct2` numbers via a standalone scratch script
+      (not the test's own assertions) — non-zero, seed-varying, no sentinel — and
+      confirmed the Act-II assertion is a genuine proof rather than residual Act I
+      state: `w.enemies.length === 0` gates the Act I->II transition so no enemy
+      state carries over, and `burning` is the only damage type in
+      `data/damagetypes.json` with `armorShredPerSecond > 0`, so a nonzero
+      `maxArmorShredAct2` can only come from a fresh Act II Burning application —
+      the wielded cone. `npm run test:fast` unaffected: the same pre-existing
+      Windows-flake suites as p10f/p10e (b032/b034/b035/b036 fold tests, q49/q52
+      EPERM cleanup) were re-confirmed flaky by isolating with/without this diff
+      stashed — no new failures. Commit `9cb42ad`.
 - [x] (p10f) [balance] Gate **G19** liveness: winning sim builds include both sealed
       and open strategies, and multi-summon usage — acceptance: measured over the
       same pool G13 uses, each strategy appearing among the winners — refs: G19.

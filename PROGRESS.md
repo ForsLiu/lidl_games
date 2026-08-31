@@ -5,6 +5,49 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-30 session: p10g done — gate G4's armour shred measured live
+  through a real Ember Brazier build, closing the last unmeasured §14 gate
+  path — commit `9cb42ad`.** None of the sweep's registered bot policies
+  (`hybrid`/`maxbuild`/`sealed`) ever place `ember_brazier` — confirmed
+  empirically, not just by reading `towerKeys` priority order, by running all
+  three through several seeds and observing zero shred every time — so G4's
+  shred path (`armorShredPerSecond` → `shredArmor`) had only unit-level
+  coverage (`tests/c3-armor.test.ts`, `tests/m19c-damage-types.test.ts` call
+  `shredArmor`/`applyDot` directly) and could regress to nothing without any
+  gate moving. `tools/a5probe.ts`'s `runBuild` gained a per-tick sample (the
+  same pattern p10f's `maxStackDepth` used) of peak `Enemy.armorShred` across
+  all live enemies into `BuildResult.maxArmorShred`, plus the same restricted
+  to `w.phase === 'act2'` into `maxArmorShredAct2` so the wielded-cone half of
+  the claim is checked independently of the Act I tower-attack half. New
+  `tests/p10g-armor-shred-liveness.test.ts` reuses the `ember-heavy`/
+  `ember-mix` `BuildSpec`s already in `tools/a5probe.ts`'s `BUILDS` pool
+  (added for G13's damage-share measurement, never exercised for shred) rather
+  than adding a new build — asserts both give non-zero `maxArmorShred` at
+  seeds 1/2, and at least one gives non-zero `maxArmorShredAct2`.
+  `tools/gate-audit.ts`'s G4 entry now cites the new file (G4 was already
+  `GATE_COVERAGE`, not `KNOWN_HOLES`, so `tests/q10-gate-audit.test.ts`'s
+  covered/holes split is unchanged — re-run green). code-reviewer found no
+  Critical/Major issues: traced `armorShredPerSecond` through both the
+  direct-hit and splash DoT paths (`src/sim/enemies.ts`) to `shredArmor`,
+  confirmed the Act II wielded cone reuses the same DoT path via
+  `src/sim/vswield.ts` rather than a separate mechanism, confirmed the diff
+  stays entirely in `tools/`/`tests/` with no `/src/sim` touch and no new
+  `Math.random`/`Date.now`/native-trig/DOM use (seeds are the only randomness
+  source). One Minor, not blocking: the builds/seeds are computed at
+  `describe()`-body eval time rather than inside `beforeAll`. qa-playtester
+  independently re-derived the actual numbers via a standalone scratch script
+  bypassing the test's own assertions (non-zero, seed-varying, no sentinel
+  default), and adversarially checked the Act-II assertion's validity: could
+  a nonzero `maxArmorShredAct2` be residual Act I state rather than a fresh
+  wielded-cone hit? No — `w.enemies.length === 0` gates the Act I→II
+  transition (`src/sim/run.ts`) so no enemy state carries over, and `burning`
+  is the only row in `data/damagetypes.json` with `armorShredPerSecond > 0`,
+  so any Act II shred can only come from a fresh Burning application during
+  Act II. `npm run test:fast` re-confirmed unaffected by isolating the known-
+  flaky suites (b032/b034/b035/b036 fold tests, q49/q52 EPERM cleanup — the
+  same family p10e/p10f already logged) with and without this diff stashed —
+  no new failures. QUESTIONS.md/BACKLOG-QUALITY untouched; no design question
+  raised.
 - **2026-08-30 session: p10f done — gate G19 (liveness: sealed, open and
   multi-summon strategies all appear among winning builds) measured live and
   green in full — commit `cd8ceb2`.** The only prior citation for G19
