@@ -5,6 +5,32 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-31 session: BACKLOG b025 closed — `readsDataJsonDirectly()`
+  (`tools/cli-crash-coverage.ts`) false-negatives on two path shapes (an
+  inline template-literal `readFileSync` argument with no `join()` wrapper,
+  and a string-concatenated argument) — filed by session 52 QA.** Closed via
+  detection: new `READFILESYNC_TEMPLATE_LITERAL_RE` (matched on
+  `stripComments`'s backtick-preserving output, `$`-guarded to exclude a
+  genuinely-interpolated template) and `concatLiteralValue()` +
+  `CONCAT_ARG_RE` (reconstructs a `'a' + 'b'` literal-concatenation chain and
+  tests it against the existing `DATA_JSON_PATH_RE`), both wired into
+  `readsDataJsonDirectly()`. `tests/q54-unguarded-data-read.test.ts` gained 4
+  cases (2 positive for the new shapes, 2 negative pinning the deliberately-
+  undetected interpolated-template and non-data-path-concat cases — both
+  suggested by code-reviewer's Minor findings and added before commit).
+  `npx vitest run tests/q54-unguarded-data-read.test.ts tests/q47-cli-crash-
+  coverage.test.ts`: 37/37 green. `npm run test:fast`: 8 files / 4 tests
+  failed, all in the standing pre-existing Windows flake classes (q13
+  host-load perf-ratio ceiling, q28/q49/q52 scratch-dir `EPERM` races) — no
+  new failures. code-reviewer: APPROVE (no Critical/Major). qa-playtester:
+  PASS — confirmed via a before/after diff of the real `cli-crash-
+  coverage.ts --json` census output that nothing else in `tools/*.ts` flips
+  status, probed 13 further adversarial fixtures with no surprises, and
+  found one new (pre-existing, not introduced here) false-positive class —
+  `readsDataJsonDirectly` also matches `readFileSync('data/x.json')`-shaped
+  text sitting inside a fixture string literal rather than real code — filed
+  as BACKLOG b063 (latent, no live file triggers it). BACKLOG.md b025 moved
+  to Done.
 - **2026-08-31 session: BACKLOG b062 fixed — `derive()`'s `maxHp` (`src/sim/
   stats.ts`) multiplied an already-overflow-guarded `s.total('maxHp')` by an
   already-guarded `s.factor('maxHpPct')` with no guard on the product itself,

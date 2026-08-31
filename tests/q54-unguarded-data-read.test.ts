@@ -215,6 +215,90 @@ describe('q54 — unguarded-data-read census', () => {
     }
   });
 
+  it('a synthetic tool that reads an inline data/*.json template literal directly (no join() wrapper, no interpolation) is also detected (b025)', () => {
+    const dir = scratchPath('template-literal-no-join');
+    try {
+      mkdirSync(path.join(dir, 'tools'), { recursive: true });
+      writeFileSync(
+        path.join(dir, 'tools', 'new-tool.ts'),
+        [
+          "import { readFileSync } from 'node:fs';",
+          'const d = JSON.parse(readFileSync(`data/enemies.json`, \'utf8\'));',
+          'console.log(d);',
+          '',
+        ].join('\n'),
+      );
+      const absPath = path.join(dir, 'tools', 'new-tool.ts');
+      expect(readsDataJsonDirectly(absPath)).toBe(true);
+      const row = classifyTool('tools/new-tool.ts', absPath, { notInvocable: {}, pinCoverage: {} });
+      expect(row.status).toBe('unguarded-data-read');
+    } finally {
+      rmSync(dir, RM_RETRY);
+    }
+  });
+
+  it('a synthetic tool that reads a string-concatenated data/*.json path (\'data/\' + \'x.json\') is also detected (b025)', () => {
+    const dir = scratchPath('concat-literal');
+    try {
+      mkdirSync(path.join(dir, 'tools'), { recursive: true });
+      writeFileSync(
+        path.join(dir, 'tools', 'new-tool.ts'),
+        [
+          "import { readFileSync } from 'node:fs';",
+          "const d = JSON.parse(readFileSync('data/' + 'enemies.json', 'utf8'));",
+          'console.log(d);',
+          '',
+        ].join('\n'),
+      );
+      const absPath = path.join(dir, 'tools', 'new-tool.ts');
+      expect(readsDataJsonDirectly(absPath)).toBe(true);
+      const row = classifyTool('tools/new-tool.ts', absPath, { notInvocable: {}, pinCoverage: {} });
+      expect(row.status).toBe('unguarded-data-read');
+    } finally {
+      rmSync(dir, RM_RETRY);
+    }
+  });
+
+  it('a synthetic tool that reads a bare (no join()) *interpolated* template literal is not flagged — the $-guard excludes it since the path is only partially static (b025 known limitation)', () => {
+    const dir = scratchPath('template-literal-interpolated');
+    try {
+      mkdirSync(path.join(dir, 'tools'), { recursive: true });
+      writeFileSync(
+        path.join(dir, 'tools', 'new-tool.ts'),
+        [
+          "import { readFileSync } from 'node:fs';",
+          'function read(file) {',
+          '  return JSON.parse(readFileSync(`data/${file}.json`, \'utf8\'));',
+          '}',
+          'read("enemies");',
+          '',
+        ].join('\n'),
+      );
+      expect(readsDataJsonDirectly(path.join(dir, 'tools', 'new-tool.ts'))).toBe(false);
+    } finally {
+      rmSync(dir, RM_RETRY);
+    }
+  });
+
+  it('a synthetic tool that string-concatenates a non-data path is not flagged (the concat check still anchors to DATA_JSON_PATH_RE, not any concatenation)', () => {
+    const dir = scratchPath('concat-non-data');
+    try {
+      mkdirSync(path.join(dir, 'tools'), { recursive: true });
+      writeFileSync(
+        path.join(dir, 'tools', 'new-tool.ts'),
+        [
+          "import { readFileSync } from 'node:fs';",
+          "const d = JSON.parse(readFileSync('logs/' + 'x.json', 'utf8'));",
+          'console.log(d);',
+          '',
+        ].join('\n'),
+      );
+      expect(readsDataJsonDirectly(path.join(dir, 'tools', 'new-tool.ts'))).toBe(false);
+    } finally {
+      rmSync(dir, RM_RETRY);
+    }
+  });
+
   it('a tool that reads a /data/*.json path but never calls JSON.parse is not flagged (reading raw text is not the crash shape)', () => {
     const dir = scratchPath('no-parse');
     try {

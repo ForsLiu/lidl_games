@@ -1961,16 +1961,36 @@ because the lane worktree retires at this merge.
       Done section.** — refs: CLAUDE.md measurement rules, BACKLOG-QUALITY q55
 - [x] (b024) [polish] Mutation-probe coverage for q54's `unguarded-data-read`
       classifier — **done, see Done section.**
-- [ ] (b025) [polish] `readsDataJsonDirectly()` (`tools/cli-crash-coverage.ts`)
-      false-negatives on two path shapes its doc-comment intent covers: an
-      inline template-literal path with no `join()` wrapper and a
-      string-concatenated path. No live `tools/*.ts` file uses either today
-      (nothing misclassified — latent gap for a future tool author, QA-filed
-      non-blocking) — acceptance: either both shapes are detected (extend the
-      regex, add the two synthetic-fixture tests QA scoped next to the
-      existing cases in `tests/q54-unguarded-data-read.test.ts`) or both are
-      named in the function's "Known limitations" doc comment alongside the
-      existing gaps — refs: BACKLOG-QUALITY q57, session 52 QA
+- [x] (b025) [polish] `readsDataJsonDirectly()` false-negatives on two path
+      shapes (inline template-literal, string-concatenated) — **done, see
+      Done section.**
+- [ ] (b063) [bug] `readsDataJsonDirectly()` (`tools/cli-crash-coverage.ts`)
+      false-positives when a `readFileSync('data/x.json')`-shaped call
+      appears only as the *contents* of a single/double-quoted string literal
+      (e.g. a fixture string embedded in another tool's source, `const
+      fixtureLine = "const d = readFileSync('data/x.json');"`) rather than as
+      real executable code. Root cause: `stripCommentsAndBacktickStrings`
+      deliberately copies single/double-quoted string contents through
+      untouched (needed so a real import specifier survives for
+      `VALUE_IMPORT_RE`), so the plain-literal-arg `readFileSync(...)` scan in
+      `readsDataJsonDirectly` — and, by the same exposure, the new b025
+      `CONCAT_ARG_RE` check — runs over fixture-string text as if it were
+      real code. This is the same class of gap the file already accepts for
+      `stripCommentsAndBacktickStrings`'s backtick-fixture case (q47's
+      `tools/mutation-probe.ts` precedent, the file's own doc comment), just
+      on the single/double-quote side instead. Found by qa-playtester
+      verifying b025 (2026-08-31), reproduced twice with a synthetic fixture;
+      latent today — no live `tools/*.ts` file embeds a `readFileSync('data/
+      ...json')`-shaped fixture in a single/double-quoted string
+      (`tools/mutation-probe.ts`'s fixtures are backtick-quoted, already
+      excluded by the existing backtick-stripping gap) — acceptance: either
+      the scan is made fixture-string-aware (e.g. skip matches whose
+      surrounding text is itself inside a string this function isn't
+      currently tracking as "real code"), or this shape is named in
+      `readsDataJsonDirectly`'s "Known limitations" doc comment alongside the
+      existing gaps, with a regression test either way — refs: b025,
+      qa-playtester b025 verification pass (2026-08-31), q47's
+      `mutation-probe.ts` fixture-string precedent.
 - [ ] (b027) [bug] `tests/p6e-class-diversity.test.ts`'s G8 diversity pin
       (`distinct.size` asserted `toBe(2)`, the audit-summary's documented
       "2/11 not >=8/11") measured `3` on a full unexcluded `npm test` run at
@@ -2250,6 +2270,56 @@ logged in MIGRATION.md §8 rather than carried as dead items.
 
 ## Done
 
+- [x] (b025) [polish] `readsDataJsonDirectly()` (`tools/cli-crash-coverage.ts`)
+      false-negatives on two path shapes (an inline template-literal path
+      with no `join()` wrapper, and a string-concatenated path). Closed via
+      the detection branch of the item's either/or acceptance: added
+      `READFILESYNC_TEMPLATE_LITERAL_RE` (a non-interpolated backtick
+      template literal passed directly as `readFileSync`'s first argument,
+      e.g. `` readFileSync(`data/x.json`) ``, matched on `stripComments`'s
+      output since backticks survive that pass but are dropped entirely by
+      `stripCommentsAndBacktickStrings`) and `concatLiteralValue()` +
+      `CONCAT_ARG_RE` (a `'a' + 'b'`-shaped literal-concatenation chain,
+      e.g. `readFileSync('data/' + 'x.json')`, matched on the existing
+      backtick-stripped `text`, concatenated back into a plain string and
+      tested against the existing `DATA_JSON_PATH_RE`). Both wired into
+      `readsDataJsonDirectly()` alongside the existing checks; a `$`-guard on
+      the template-literal regex deliberately excludes a bare *interpolated*
+      template (`` `data/${file}.json` ``, only partially static at runtime)
+      — documented as a new "Known limitation" in the function's doc comment,
+      for symmetry with `READFILESYNC_JOIN_DATA_RE`'s own first-argument-only
+      gap already documented there (code-reviewer Minor finding, fixed before
+      commit). `tests/q54-unguarded-data-read.test.ts` gained 4 cases: the two
+      QA-scoped positive fixtures (both new shapes now classify as
+      `unguarded-data-read`) plus two negative pins (the interpolated-template
+      known-limitation stays undetected; a string-concat of a non-`data/`
+      path stays undetected) — the negative pair was also a code-reviewer
+      Minor finding, added before commit so a future loosening of either new
+      regex's literal-adjacency requirement can't silently regress into a
+      false positive with nothing to catch it. `npx vitest run
+      tests/q54-unguarded-data-read.test.ts tests/q47-cli-crash-
+      coverage.test.ts`: 37/37 green. `npm run test:fast`: 8 files / 4 tests
+      failed, all four in the standing pre-existing Windows flake classes
+      (q13's host-load perf-ratio ceiling, q28/q49/q52's scratch-dir `EPERM`
+      races) — no new failures, none touching this diff's files. code-
+      reviewer: **APPROVE**, no Critical/Major (two Minors above, both
+      applied before commit). qa-playtester: **PASS** — independently
+      re-derived both regexes' correctness, diffed `npx tsx tools/
+      cli-crash-coverage.ts --json`'s real output before/after the change
+      (byte-identical, zero status flips across all `tools/*.ts` files,
+      confirming no regression to the two live positive cases `tools/
+      m20d-price-probe.ts`/`tools/fuzz-data.ts` depend on), probed 13 of its
+      own adversarial synthetic fixtures beyond the 4 shipped (whitespace,
+      3+-segment concats, mixed quote styles, decoy second-argument
+      placement, const-bound variants, etc.) with no surprise false
+      positive/negative, confirmed `tsc --noEmit` clean. It filed one new bug
+      outside this item's acceptance criteria (a pre-existing false-positive
+      class, not introduced by this change: `readsDataJsonDirectly` also
+      matches `readFileSync('data/x.json')`-shaped text sitting inside a
+      single/double-quoted *string literal* — a fixture string, not real
+      code — because `stripCommentsAndBacktickStrings` intentionally leaves
+      quoted-string contents untouched; latent today, no live file triggers
+      it) — filed as BACKLOG b063.
 - [x] (b024) [polish] Mutation-probe coverage for q54's `unguarded-data-read`
       classifier — `tools/mutation-probe.ts`'s `MUTATIONS` array gains a 27th
       entry, `cli-crash-coverage-readsDataJsonDirectly-hollow`, hollowing

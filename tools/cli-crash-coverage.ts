@@ -161,18 +161,66 @@ const READFILESYNC_JOIN_DATA_RE =
   /\breadFileSync\s*\(\s*(?:path\s*\.\s*)?join\s*\(\s*(['"])data(?:\/[\w.-]+)*\1\s*,([\s\S]*?)\)\s*[,)]/g;
 
 /**
+ * A `readFileSync(\`data/x.json\`)`-shaped call: a *non-interpolated*
+ * (no `${`) template literal passed directly as `readFileSync`'s first
+ * argument, no `join()` wrapper. Runs on `stripComments`'s output for the
+ * same reason `READFILESYNC_JOIN_DATA_RE` does — `stripCommentsAndBacktickStrings`
+ * drops backtick contents entirely, so `text` below has nothing left to
+ * match once this shape's backticks are stripped (b025). Anchored to the
+ * literal sitting immediately after `readFileSync(`'s open paren, so a
+ * `join(\`data/x.json\`)` call (already covered by the regex above) is
+ * never double-matched here.
+ *
+ * Known limitation (code-reviewer, b025): a bare (no `join()`) *interpolated*
+ * template literal, e.g. `` readFileSync(`data/${file}.json`) ``, is not
+ * flagged — deliberately excluded by the `$`-guard, since the segment
+ * matching `${` makes the runtime path only partially static. This is
+ * inconsistent with `READFILESYNC_JOIN_DATA_RE` above, which does flag the
+ * same interpolated shape once it's `join()`-wrapped (it only checks the
+ * remaining arguments for `.json`, interpolation and all) — narrowing that
+ * asymmetry is left for a future session if a live file ever needs it; no
+ * `tools/*.ts` file uses either shape today (checked).
+ */
+const READFILESYNC_TEMPLATE_LITERAL_RE = /\breadFileSync\s*\(\s*`([^`$]*)`/g;
+
+/**
+ * Un-quotes and concatenates a `'a' + "b" + 'c'`-shaped string-concatenation
+ * expression into the literal value it evaluates to at runtime — e.g.
+ * `'data/' + 'x.json'` becomes `data/x.json`. Any non-literal, non-`+`
+ * content between the quoted segments (a variable, a function call) breaks
+ * the pairwise adjacency `CONCAT_ARG_RE` requires, so this only ever runs on
+ * text `CONCAT_ARG_RE` already confirmed is a pure literal chain.
+ */
+function concatLiteralValue(expr: string): string {
+  let out = '';
+  for (const m of expr.matchAll(/(['"])([^'"]*)\1/g)) out += m[2];
+  return out;
+}
+
+/**
+ * A `readFileSync('data/' + 'x.json')`-shaped call: two or more
+ * single/double-quoted literals joined by `+`, passed directly as
+ * `readFileSync`'s first argument (b025). Runs on `text`
+ * (`stripCommentsAndBacktickStrings`'s output) since this shape never
+ * involves a backtick.
+ */
+const CONCAT_ARG_RE = /\breadFileSync\s*\(\s*((?:['"][^'"]*['"]\s*\+\s*)+['"][^'"]*['"])\s*[,)]/g;
+
+/**
  * True when `absPath` reads a hardcoded `/data/*.json` path directly via
  * `readFileSync` — an inline string literal argument, a `const NAME =
- * '...'`-bound one, or a `join('data', ...)`/`path.join('data', ...)` call
+ * '...'`-bound one, a `join('data', ...)`/`path.join('data', ...)` call
  * whose arguments mention `.json` (q54 code review's `tools/fuzz-data.ts`
- * finding) — and calls `JSON.parse` anywhere in the file. The q53 crash
- * shape: this bypasses `loadContent()`'s zod guard entirely, so
- * `importsContentTransitively` alone cannot see it. Reuses
- * `stripCommentsAndBacktickStrings` for the same false-positive reasons
- * `importsContentTransitively` does (q47's `mutation-probe.ts` fixture-
- * string regression), except for the `join(...)` check, which needs
- * `stripComments`'s gentler stripping instead (see that regex's doc
- * comment). Guard-agnostic on purpose — see file doc comment (d).
+ * finding), a bare non-interpolated template literal, or a string-
+ * concatenation chain (b025, both QA-filed) — and calls `JSON.parse`
+ * anywhere in the file. The q53 crash shape: this bypasses
+ * `loadContent()`'s zod guard entirely, so `importsContentTransitively`
+ * alone cannot see it. Reuses `stripCommentsAndBacktickStrings` for the same
+ * false-positive reasons `importsContentTransitively` does (q47's
+ * `mutation-probe.ts` fixture-string regression), except for the checks that
+ * need to see inside a template literal's static text, which need
+ * `stripComments`'s gentler stripping instead (see those regexes' doc
+ * comments). Guard-agnostic on purpose — see file doc comment (d).
  *
  * Known limitations (code review + qa-playtester, q54), same standard as
  * this file's other documented regex gaps: the `const`-binding scan requires
@@ -200,9 +248,16 @@ export function readsDataJsonDirectly(absPath: string): boolean {
     if (boundVars.has(arg) || DATA_JSON_PATH_RE.test(unquote(arg))) return true;
   }
 
+  for (const m of text.matchAll(CONCAT_ARG_RE)) {
+    if (DATA_JSON_PATH_RE.test(concatLiteralValue(m[1]))) return true;
+  }
+
   const commentsStripped = stripComments(raw);
   for (const m of commentsStripped.matchAll(READFILESYNC_JOIN_DATA_RE)) {
     if (/\.json\b/.test(m[2])) return true;
+  }
+  for (const m of commentsStripped.matchAll(READFILESYNC_TEMPLATE_LITERAL_RE)) {
+    if (DATA_JSON_PATH_RE.test(m[1])) return true;
   }
   return false;
 }
