@@ -542,15 +542,26 @@ before filing; findings that died with the soul-weapon/dusk-dawn systems were
 dropped. Items already queued (content hash → p9a, save key-set/stash → p7f/p7g)
 were not re-filed. Ordering within this section is by severity, not P-band.
 
-- [ ] (b005) [bug] The level-up phase can soft-lock permanently once every boon is at
-      `maxRank`: `openLevelUpIfPending` still enters `levelup` with `offers = []`,
-      `takeOffer` fails at every index and `rerollOffers` rerolls into another empty
-      list, so no Command can leave the phase. Found by the ported q21 boundary fuzz
-      (its "exhausted boon pool" describe block pins the current behaviour) —
-      acceptance: an empty `rollOffers` result either skips the pause or the phase
-      auto-resolves; the q21 pin flips to the fixed behaviour; overlaps p9e's
-      unattended-run clause but is reachable *attended* — refs: §6.3, G18,
-      BACKLOG-QUALITY session logs (lane/quality merge)
+- [x] (b005) [bug] The level-up phase can soft-lock permanently once every boon is at
+      `maxRank` — **already closed by `p9e` (commit `a645225`), never checked off.**
+      p9e's REQUEST-CHANGES round fixed this exact attended-softlock as its second,
+      independent finding (BACKLOG.md's p9e Done entry): `openLevelUpIfPending`'s
+      manual branch now calls `rollOffers` and returns before ever setting
+      `w.phase = 'levelup'` when the pool is empty, so the phase never opens with
+      nothing to pick — the idle-timeout mechanism (p9e's primary fix) is not even
+      needed for this path. `tests/q21-weapon-boundary-fuzz.ts`'s `POOL_HOLES` map
+      was already emptied (no `'pool:exhausted'` entry) at that commit. Re-verified
+      this session with no code change: grepped `src/` for every `w.phase =
+      'levelup'` assignment (exactly one, gated on non-empty offers); qa-playtester
+      independently drove an attended max-every-boon/skill-card/Type-Mastery scenario
+      via direct Commands (never approaching `LEVELUP_IDLE_TIMEOUT_TICKS`) and
+      confirmed `phase` stays `'act2'`, `pendingLevelUps` drains to 0, `w.offers`
+      stays `[]`, and hostile `pick`/`reroll` Commands sent from `act2` are no-ops;
+      `npx vitest run tests/q21-weapon-boundary-fuzz.test.ts
+      tests/p9e-levelup-idle.test.ts` — 41/41 green. `npm run test:fast` reran clean
+      (1694 passed; only the 4 pre-existing unrelated Playwright fold-test flakes
+      red — b032/b034/b035/b036, documented flaky elsewhere) — refs: §6.3, G18,
+      BACKLOG-QUALITY session logs (lane/quality merge), p9e
 - [ ] (b006) [bug] Three practice `dev` ops launder a non-finite `amount` into
       permanent run state, and `{k:'dev',op:'xp',amount:Infinity}` hangs the process:
       `Math.max(0, NaN)` is `NaN` for `gold`/`fast_forward`, `xp` forwards unguarded

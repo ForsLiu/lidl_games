@@ -5,6 +5,34 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-31 session: BACKLOG b005 closed — no code change, it was a stale
+  duplicate already fixed by p9e (commit `a645225`) and never checked off.**
+  b005 (filed at the lane/quality merge) and p9e's second, independent
+  REQUEST-CHANGES finding described the identical attended-play softlock:
+  `openLevelUpIfPending`'s manual branch entering `levelup` with an empty
+  offer pool once every boon/skill-card/Type-Mastery hit `maxRank`, with no
+  Command able to leave the phase. p9e's fix (`src/sim/progression.ts:92-118`)
+  already makes that branch call `rollOffers` and return before ever setting
+  `w.phase = 'levelup'` when the pool is empty, and already flipped
+  `tests/q21-weapon-boundary-fuzz.ts`'s `POOL_HOLES` pin to empty — exactly
+  b005's acceptance criteria, just never reflected in BACKLOG.md's checkbox.
+  Verified rather than assumed: grepped `src/` for every `w.phase =
+  'levelup'` assignment (exactly one, gated on non-empty offers, and
+  `rerollOffers`/`takeOffer` cannot regress into an empty array either).
+  qa-playtester independently drove an attended max-everything scenario via
+  direct Commands (well short of `LEVELUP_IDLE_TIMEOUT_TICKS`, so p9e's idle
+  timeout is never even invoked) and confirmed `phase` stays `act2`,
+  `pendingLevelUps` drains to 0, and hostile `pick`/`reroll` from `act2` are
+  no-ops — **PASS**, no bugs found. `npx vitest run
+  tests/q21-weapon-boundary-fuzz.test.ts tests/p9e-levelup-idle.test.ts`:
+  41/41 green. `npm run test:fast`: 1694 passed, only the 4 pre-existing
+  Playwright fold-test flakes (`b032`/`b034`/`b035`/`b036`) red — the same
+  known flakes p10l's session also saw, not a regression.
+  P0–P10 remain otherwise as p10l left them: all queued P10-band items done,
+  but gates **G8, G14 and most of G23 still read red** (the wave-11-to-17
+  content wall p10i documented) — 1.0-complete is not yet reached; closing
+  those gates needs new items, not yet filed.
+
 - **2026-08-31 session: p10l done — gate G1 closed in full via a TD-side
   pacing lever p10d/p10k never actually isolated — commit `1ec7e36`.**
   p10k left G1's mean-band clause `.skip`-ed at 36.63 min / 22/24 wins (92%),
