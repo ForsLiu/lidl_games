@@ -7,7 +7,7 @@
 
 - **2026-08-31 session: p10i done — HANDOFF.md regenerated end to end against
   SPEC-FINAL, and QUALITY.md's Alpha automated bar re-checked against the
-  live suite — commit pending (a follow-up docs commit records the hash).**
+  live suite — commit `5e6c03b`.**
   Doc-only item: no code, data or test files changed. The previous
   HANDOFF.md was dated 2026-08-25 at `af1de8f` and described the pre-reconcile
   SPEC-V3 build (Day/Dusk/Night/Dawn cycles, Orbs, a single 10-wave Act I) —

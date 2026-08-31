@@ -996,7 +996,7 @@ logged in MIGRATION.md §8 rather than carried as dead items.
       and re-check QUALITY.md's Alpha bar — acceptance: `npx tsx
       tools/handoff-metrics.ts` runs clean, HANDOFF.md is rewritten against §14's
       gate list, and the file is committed at the 1.0 point — refs: §16, CLAUDE.md.
-      commit pending (recorded in a follow-up docs commit). Doc-only item, no code
+      Commit `5e6c03b`. Doc-only item, no code
       or test changes: ran `handoff-metrics.ts`, `a4probe.ts`, `a5probe.ts`,
       `content-census.ts` and `gate-audit.ts` fresh, and cross-checked every live
       gate against its actual test file rather than trusting either the stale
