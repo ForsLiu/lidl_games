@@ -10,7 +10,14 @@ export class Hasher {
   private h = 0x811c9dc5;
 
   int(v: number): this {
-    let x = v | 0;
+    // `v | 0` collapses NaN/+Infinity/-Infinity to 0, aliasing non-finite
+    // corruption onto a legitimate zero. Fold a distinct tag byte for each
+    // non-finite case so a replay of a corrupted run cannot hash clean.
+    let tag = 0;
+    if (!Number.isFinite(v)) tag = Number.isNaN(v) ? 1 : v > 0 ? 2 : 3;
+    this.h ^= tag & 0xff;
+    this.h = Math.imul(this.h, 0x01000193) >>> 0;
+    let x = tag === 0 ? v | 0 : 0;
     for (let i = 0; i < 4; i++) {
       this.h ^= x & 0xff;
       this.h = Math.imul(this.h, 0x01000193) >>> 0;
@@ -20,7 +27,10 @@ export class Hasher {
   }
 
   num(v: number): this {
-    return this.int(q(v));
+    // `q()` itself does `... | 0`, which would collapse a non-finite `v` to
+    // 0 before `int()` ever sees it — bypass quantization for non-finite
+    // values so `int()`'s tag can still catch them.
+    return this.int(Number.isFinite(v) ? q(v) : v);
   }
 
   bool(v: boolean): this {
