@@ -33,6 +33,23 @@ function trimNum(n: number, decimals = 2): string {
 }
 
 /**
+ * A fraction (0.03 -> "3%") as percent text, with enough decimal places to
+ * stay non-zero for a sub-1% magnitude instead of the flat 1-decimal
+ * rounding that collapsed a real affix like the Bleeding Ring's `leech:
+ * 0.0001` (0.01%) to "0%" (b054). 1 decimal for anything >=1%, matching the
+ * pre-existing look everywhere that already mattered; below 1%, enough
+ * decimals for two significant figures.
+ */
+function formatPct(fraction: number): string {
+  const pctValue = fraction * 100;
+  const abs = Math.abs(pctValue);
+  // Capped at 6 so an even tinier future magnitude rounds to "0%" (readable)
+  // rather than `trimNum`'s `String()` falling into exponential notation.
+  const decimals = abs === 0 || abs >= 1 ? 1 : Math.min(6, 1 - Math.floor(Math.log10(abs)));
+  return `${trimNum(pctValue, decimals)}%`;
+}
+
+/**
  * A handful of the most player-facing field names get a nicer label than the
  * generic camelCase split below would produce (`aoe` -> "AoE radius" rather
  * than "Aoe"). Anything not listed here still renders — see `fieldLabel`.
@@ -107,8 +124,8 @@ export function fieldValueText(key: string, value: number): string {
   // the bare `interval` key (lowercase i) matches the same way.
   if (/(cooldown|interval)$/i.test(key)) return `${trimNum(value)}s`;
   if (/Mul(t)?$/.test(key)) return `×${trimNum(value)}`;
-  if (/(Pct|Fraction|Potency)$/.test(key)) return `${trimNum(value * 100, 1)}%`;
-  if (Math.abs(value) > 0 && Math.abs(value) < 1) return `${trimNum(value * 100, 1)}%`;
+  if (/(Pct|Fraction|Potency)$/.test(key)) return formatPct(value);
+  if (Math.abs(value) > 0 && Math.abs(value) < 1) return formatPct(value);
   if (key === 'dps') return `${trimNum(value)}/s`;
   return trimNum(value);
 }
@@ -193,7 +210,7 @@ export function modLines(mods: Record<string, number> | null | undefined): ModLi
     if (typeof value !== 'number' || value === 0) continue;
     const pct = modIsPct(key, value);
     const sign = value > 0 ? '+' : '';
-    const text = pct ? `${sign}${trimNum(value * 100, 1)}%` : `${sign}${trimNum(value, 2)}`;
+    const text = pct ? `${sign}${formatPct(value)}` : `${sign}${trimNum(value, 2)}`;
     out.push({ key, label: modFieldLabel(key), value, pct, text: `${text} ${modFieldLabel(key)}` });
   }
   return out;

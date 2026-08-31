@@ -1554,7 +1554,7 @@ were not re-filed. Ordering within this section is by severity, not P-band.
       `info-format.ts`/`class-info.ts`/`hub.ts`/`hud.ts`. Filed as its own
       item: b054 (Bleeding Ring's `leech: 0.0001` rounds display to "+0%").
 
-- [ ] (b054) [bug] `modLines` (`src/ui/info-format.ts`) formats a mod's
+- [x] (b054) [bug] `modLines` (`src/ui/info-format.ts`) formats a mod's
       percent text via `trimNum(value * 100, 1)` — one decimal place — so
       the Bleeding Ring's `leech: 0.0001` mod (`data/equipment.json`, a real
       1/100th-of-a-percent lifesteal affix) renders as `"+0% Leech"` in its
@@ -1568,7 +1568,64 @@ were not re-filed. Ordering within this section is by severity, not P-band.
       `trimNum`'s decimal count scales with magnitude, or a minimum-2-sig-fig
       rule for anything under 1%); a test confirms the Bleeding Ring's
       `leech: 0.0001` mod line does not read `"+0% Leech"` — refs: §7, §11,
-      QA on b053.
+      QA on b053. Fixed: added a `formatPct` helper (`src/ui/info-format.ts`)
+      that scales decimal precision by magnitude — the existing flat 1
+      decimal for anything ≥1% (unchanged look everywhere that already
+      mattered), up to 6 decimals below 1% via
+      `1 - Math.floor(Math.log10(abs))`, capped at 6 so an even tinier
+      future magnitude still rounds cleanly to `"0%"` rather than falling
+      into `trimNum`'s exponential-notation fallback — and routed all three
+      existing percent call sites (`fieldValueText`'s `Pct/Fraction/Potency`
+      branch, its bare-fraction fallback, and `modLines`) through it.
+      `tests/fb022-info-surfacing.test.ts` adds a regression block: the
+      Bleeding Ring's real `leech: 0.0001` renders `"+0.01% Leech"` (not
+      `"+0% Leech"`), plus a control asserting ≥1% magnitudes (`0.03`,
+      `0.015`) keep their original 1-decimal look. code-reviewer
+      **APPROVE**, no Critical/Major — verified the decimal-scaling math
+      against boundary values (exactly 1%, negative, near float-precision
+      limits) with a standalone repro, confirmed no other percent call site
+      was missed, and reverted just the source change to confirm the test
+      fails pre-fix (`"+0% Leech"` vs expected `"+0.01% Leech"`); noted two
+      Minor, non-blocking items: the 1e-6%-and-below cap is a documented,
+      accepted tradeoff (no `/data` value is anywhere near that small), and
+      several `src/ui/hud.ts`/`tower-info.ts`/`tree-view.ts` sites do their
+      own independent flat `Math.round(x * 100)` percent formatting outside
+      `info-format.ts` with the same latent defect — out of scope for this
+      fix, not currently `/data`-triggered. qa-playtester **PASS** — mounted
+      a real `Hub` in jsdom, selected the Bleeding Ring, and read the actual
+      rendered tooltip text end to end (`"+0.01% Leech"`, not a unit-test-
+      only check); adversarially probed boundary values (exactly 1%, 0.99%,
+      negative sub-1%, 0, `NaN`/`Infinity`) and normal magnitudes (6%, 15%)
+      for regressions, none found; swept all of `/data` for other sub-1%
+      percent magnitudes and confirmed `data/cores.json`'s Vampire Heart
+      core and six `data/tree.json` leech nodes render correctly under the
+      same fix. It filed one bug outside this item's scope: `tree-view.ts`'s
+      `describeStat` is a second, un-deduplicated percent formatter
+      (`Math.round(value * 1000) / 10`) with the same rounding-to-zero
+      defect, not routed through `formatPct` — latent only, since no live
+      tree node is currently below 0.1%. Filed as BACKLOG b055.
+      `npm run test:fast`: 1755 passed / 21 skipped / 5 failed, all the same
+      pre-existing Windows EPERM/hang races (q15/q28/q49/q52) noted in every
+      sibling entry above — no new failures from this change.
+
+- [ ] (b055) [polish] `describeStat` (`src/ui/tree-view.ts`), used by the Hub
+      Constellation summary and per-node tooltips, formats a percent stat via
+      its own hand-rolled `Math.round(value * 1000) / 10` — the same flat
+      one-decimal-place rounding b054 just fixed in `modLines`/
+      `fieldValueText`, independently reimplemented rather than sharing
+      `formatPct` (`src/ui/info-format.ts`). `describeStat('leech', 0.0001)`
+      returns `"0% Leech"`; no live `/data/tree.json` node is currently below
+      0.1% (`describeStat('leech', 0.003)` → `"+0.3% Leech"`, correct), so
+      this is latent, not a currently-visible bug — a future/edited tree
+      node or Constellation total under 0.1% would silently render as zero.
+      qa-playtester found this verifying b054 (2026-08-31), noting it was
+      already flagged as a "minor cleanup opportunity, not fixed here" in
+      the b053 QA pass but never promoted to its own tracked item —
+      acceptance: `describeStat` shares `formatPct` (exported from
+      `info-format.ts`) instead of its own rounding, so a sub-1% magnitude
+      renders with the same scaled precision; a test asserts
+      `describeStat('leech', 0.0001)` does not read `"0% Leech"` — refs: §2,
+      §11, QA on b054.
 
 ### Filed at the lane/quality merge (2026-08-28) — from BACKLOG-QUALITY.md's log and open queue
 

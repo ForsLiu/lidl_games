@@ -5,6 +5,40 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-31 session: BACKLOG b054 fixed — `modLines` rounded a mod's
+  percent text to a flat 1 decimal place, so the Bleeding Ring's real
+  `leech: 0.0001` affix (0.01% lifesteal) rendered as "+0% Leech" in its
+  equipment tooltip, indistinguishable from no mod at all.** Added a
+  `formatPct` helper (`src/ui/info-format.ts`) that scales decimal
+  precision by magnitude — unchanged flat 1 decimal for anything ≥1%, up
+  to 6 decimals below 1% via `1 - Math.floor(Math.log10(abs))`, capped at
+  6 so an even tinier future magnitude still rounds cleanly to `"0%"`
+  rather than falling into `trimNum`'s exponential-notation fallback — and
+  routed all three existing percent call sites (`fieldValueText`'s two
+  branches, `modLines`) through it. `tests/fb022-info-surfacing.test.ts`
+  adds a regression block: the Bleeding Ring's `leech: 0.0001` now renders
+  `"+0.01% Leech"`, plus a control confirming ≥1% magnitudes (`0.03`,
+  `0.015`) keep their original 1-decimal look. code-reviewer **APPROVE**,
+  no Critical/Major — verified the decimal-scaling math against boundary
+  values (exactly 1%, negative, near float-precision limits), confirmed no
+  other percent call site was missed, confirmed the test fails pre-fix;
+  flagged two Minor, non-blocking notes: the 1e-6%-and-below cap is a
+  documented, accepted tradeoff (no `/data` value is near that small), and
+  several `hud.ts`/`tower-info.ts`/`tree-view.ts` sites independently
+  hand-roll the same flat-rounding percent formatting outside
+  `info-format.ts` — out of scope here, not currently `/data`-triggered.
+  qa-playtester **PASS** — mounted a real `Hub` in jsdom and read the
+  actual rendered tooltip text end to end (not just the unit test),
+  adversarially probed boundary/normal magnitudes and `NaN`/`Infinity` for
+  regressions (none found), and swept `/data` confirming `cores.json`'s
+  Vampire Heart core and six `tree.json` leech nodes also render correctly
+  under the fix. It filed one bug outside this item's scope:
+  `tree-view.ts`'s `describeStat` is a second, un-deduplicated percent
+  formatter with the identical rounding-to-zero defect, latent only since
+  no live tree node is currently below 0.1%. Filed as BACKLOG b055.
+  `npm run test:fast`: 1755 passed / 21 skipped / 5 failed, all the same
+  pre-existing Windows EPERM/hang races (q15/q28/q49/q52) noted in every
+  sibling entry below — no new failures from this change.
 - **2026-08-31 session: BACKLOG b053 fixed — the Hub class-select detail
   panel and the in-run class-info panel rendered a class's `leech`/`cdr`
   passive mods as raw decimals ("+0.03 Leech") instead of percentages ("+3%

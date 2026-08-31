@@ -37,7 +37,7 @@ import { characterPanelMarkup } from '../src/ui/hud';
 import { classAbilitiesMarkup } from '../src/ui/class-info';
 import { coreDetailMarkup, coreLiveMarkup } from '../src/ui/core-info';
 import { constellationSummaryMarkup, describeStat } from '../src/ui/tree-view';
-import { fieldLabel, fieldValueText } from '../src/ui/info-format';
+import { fieldLabel, fieldValueText, modLines } from '../src/ui/info-format';
 import { emptyStats, STAT_KIND, type StatKey } from '../src/sim/stats';
 import { defaultMeta } from '../src/meta/meta';
 import { defaultSettings } from '../src/ui/settings';
@@ -410,5 +410,27 @@ describe('b053: class-passive mods render leech/cdr as a percentage, not a raw d
     const html = classAbilitiesMarkup(bloodlord);
     expect(html).toContain('+3% Leech');
     expect(html).not.toContain('+0.03');
+  });
+});
+
+/**
+ * b054: `modLines`' percent formatting rounded to a flat 1 decimal place, so
+ * the Bleeding Ring's real, non-zero `leech: 0.0001` (0.01% lifesteal)
+ * rounded away to "+0% Leech" — indistinguishable from no mod at all.
+ */
+describe('b054: a sub-1% mod magnitude renders with enough precision to stay non-zero', () => {
+  it("the Bleeding Ring's leech: 0.0001 mod line reads \"+0.01% Leech\", not \"+0% Leech\"", () => {
+    const bleedingRing = content.equipmentByKey.get('bleeding_ring')!;
+    expect(bleedingRing.mods.leech).toBeCloseTo(0.0001, 10);
+    const lines = modLines(bleedingRing.mods);
+    const leechLine = lines.find((l) => l.key === 'leech')!;
+    expect(leechLine).toBeTruthy();
+    expect(leechLine.text).toBe('+0.01% Leech');
+    expect(leechLine.text).not.toContain('+0%');
+  });
+
+  it('a magnitude at/above 1% still renders at the original 1-decimal precision', () => {
+    expect(modLines({ leech: 0.03 })[0].text).toBe('+3% Leech');
+    expect(modLines({ leech: 0.015 })[0].text).toBe('+1.5% Leech');
   });
 });
