@@ -5,6 +5,37 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-31 session: BACKLOG b062 fixed — `derive()`'s `maxHp` (`src/sim/
+  stats.ts`) multiplied an already-overflow-guarded `s.total('maxHp')` by an
+  already-guarded `s.factor('maxHpPct')` with no guard on the product itself,
+  reproducibly overflowing to `Infinity` given ~55 `/data`-authored `maxHpPct`
+  sources near the `statNum` ceiling even though each factor stayed finite in
+  isolation — filed by qa-playtester's b022 verification pass.** Fix: a new
+  `safeScale(base, factor)` helper computes `base * factor` and falls back to
+  the pre-multiply `base` if the product isn't finite — the same drop-and-
+  keep-prior-finite-value discipline `Stats.total`/`factor()` already use
+  internally. Applied at all four `Derived` fields that multiply a `total()`/
+  base by a `factor()` output: `maxHp`, `moveSpeed`, `pickupRadius`, and
+  `residualMul` (the last against its external `residualScale` parameter,
+  which bypasses `Stats.add`'s own guard) — grepped the rest of `derive()` and
+  confirmed no other field pairs two guarded values this way, matching b062's
+  claim that `maxHp` was the only gap (now closed, plus three more caught for
+  free by the generic helper). `tests/b022-stats-overflow.test.ts` gained a
+  `b062` case: 1 `maxHp` source + 55 `maxHpPct` sources each at the 1e6
+  ceiling leaves `total('maxHp')`/`factor('maxHpPct')` finite in isolation but
+  `derive(content, s).maxHp` finite too (previously `Infinity`). `npx vitest
+  run tests/b022-stats-overflow.test.ts`: 8/8 green. `npm run test:fast`: 1777
+  passed / 3 failed / 21 skipped, all failures in the standing pre-existing
+  Windows flake classes (b032/b034/b035/b036 Playwright fold/port-contention,
+  q28/q49/q52 EPERM scratch-cleanup races) — no new failures. qa-playtester
+  **PASS**: reviewed the fix and test against the bug report, adversarially
+  probed combined `maxHp`+`maxHpPct` overflow, negative factors, all 22
+  `mul`-kind stats stacked at once, and `residualScale` set to `Infinity`/`NaN`
+  directly (bypassing `Stats.add`) — could not produce a non-finite `Derived`
+  field under any combination; confirmed `npx tsx tools/sim.ts --seed 1
+  --policy hybrid` still produces a normal finite run against real `/data`
+  content (`endHash: 308f47c7`), unaffected by the change. BACKLOG.md b062
+  moved to Done.
 - **2026-08-31 session: BACKLOG b024 closed — added a 27th `MUTATIONS` entry
   to `tools/mutation-probe.ts` (`cli-crash-coverage-readsDataJsonDirectly-
   hollow`) hollowing `cli-crash-coverage.ts`'s `readsDataJsonDirectly()`

@@ -331,19 +331,30 @@ export interface Derived {
   bleedLifesteal: boolean;
 }
 
+// b062: `total()` and `factor()` each guard their own accumulation, but the
+// product of two individually-finite results can still overflow even though
+// neither factor alone would — reproducible on any `Derived` field that
+// multiplies a base/total by a `factor()` output, given enough stacked
+// `/data` sources near the `statNum` ceiling. Fall back to the pre-multiply
+// `base` the same way `total()`/`factor()` fall back to their pre-overflow
+// running value internally.
+function safeScale(base: number, factor: number): number {
+  const product = base * factor;
+  return Number.isFinite(product) ? product : base;
+}
+
 export function derive(content: Content, s: Stats, residualScale = 1): Derived {
-  const maxHp = Math.max(1, (BASE.maxHp + s.total('maxHp')) * s.factor('maxHpPct'));
   const armor = BASE.armor + s.total('armor');
   return {
-    maxHp,
+    maxHp: Math.max(1, safeScale(BASE.maxHp + s.total('maxHp'), s.factor('maxHpPct'))),
     hpRegen: BASE.hpRegen + s.total('hpRegen'),
     armor,
-    moveSpeed: BASE.moveSpeed * s.factor('moveSpeedPct'),
+    moveSpeed: safeScale(BASE.moveSpeed, s.factor('moveSpeedPct')),
     powerMul: s.factor('power'),
     attackSpeedMul: s.factor('attackSpeed'),
     areaMul: s.factor('area'),
     cdr: Math.min(BASE.cdrCap, s.total('cdr')),
-    pickupRadius: Math.max(0.25, BASE.pickupRadius * s.factor('pickupPct')),
+    pickupRadius: Math.max(0.25, safeScale(BASE.pickupRadius, s.factor('pickupPct'))),
     luck: s.total('luck'),
     goldFindMul: s.factor('goldFind'),
     ailmentMul: s.factor('ailmentPotency'),
@@ -358,7 +369,7 @@ export function derive(content: Content, s: Stats, residualScale = 1): Derived {
     wallHpMul: s.factor('wallHp'),
     goldPerKill: s.total('goldPerKill'),
     sproutMul: s.factor('sproutGold'),
-    residualMul: Math.max(0, s.factor('residualPotency') * residualScale),
+    residualMul: Math.max(0, safeScale(s.factor('residualPotency'), residualScale)),
     modRewardBonusMul: s.factor('modRewardBonus'),
     beaconRadiusBonus: s.total('beaconRadius'),
     teslaLinkBonus: s.total('teslaLinks'),

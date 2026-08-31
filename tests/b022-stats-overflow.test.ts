@@ -14,7 +14,10 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { Stats } from '../src/sim/stats';
+import { Stats, derive, emptyStats } from '../src/sim/stats';
+import { loadContent } from '../src/sim/content';
+
+const content = loadContent();
 
 describe('b022 — Stats guards the running sum, not just each incoming value', () => {
   it('add() drops a same-source update that would overflow the running sum', () => {
@@ -71,5 +74,20 @@ describe('b022 — Stats guards the running sum, not just each incoming value', 
       s.add('probe', 'luck', bad);
     }
     expect(s.total('luck')).toBe(0);
+  });
+
+  it('b062: derive().maxHp stays finite when total(maxHp)*factor(maxHpPct) individually finite but their product would overflow', () => {
+    const s = emptyStats();
+    s.add('gear:1', 'maxHp', 1e6);
+    // 55 sources at the statNum ceiling: factor(maxHpPct) alone stays finite
+    // (~1.1e303 at 50 sources), but multiplying it by the maxHp total crosses
+    // Number.MAX_VALUE.
+    for (let i = 0; i < 55; i++) {
+      s.add(`tree:${i}`, 'maxHpPct', 1e6);
+    }
+    expect(Number.isFinite(s.total('maxHp'))).toBe(true);
+    expect(Number.isFinite(s.factor('maxHpPct'))).toBe(true);
+    const d = derive(content, s);
+    expect(Number.isFinite(d.maxHp)).toBe(true);
   });
 });

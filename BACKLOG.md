@@ -2189,7 +2189,7 @@ because the lane worktree retires at this merge.
       one-time save/replay break is documented in MIGRATION.md as an accepted
       migration cost rather than left silent — refs: §12 rule 2, b013,
       qa-playtester b013 verification pass (2026-08-31).
-- [ ] (b062) [bug] `derive()`'s `maxHp` (`src/sim/stats.ts`) multiplies an
+- [x] (b062) [bug] `derive()`'s `maxHp` (`src/sim/stats.ts`) multiplies an
       already-overflow-guarded `s.total('maxHp')` by an already-guarded
       `s.factor('maxHpPct')` — `Math.max(1, (BASE.maxHp + s.total('maxHp')) *
       s.factor('maxHpPct'))` — and that multiplication itself has no guard, so
