@@ -13,6 +13,7 @@ import {
   defaultMeta,
   deserializeMeta,
   isConnected,
+  loadMeta,
   metricsFor,
   pointsAvailable,
   refund,
@@ -21,6 +22,7 @@ import {
 import type { RunReport } from '../src/sim/types';
 import { World } from '../src/sim/world';
 import { cfg } from './helpers';
+import { withSavedRaw } from '../tools/fuzz-save';
 
 const content = loadContent();
 
@@ -128,11 +130,25 @@ describe('save / load', () => {
     expect(back).toEqual(meta);
   });
 
-  it('survives a corrupt or empty save without throwing', () => {
-    expect(() => deserializeMeta('{}')).not.toThrow();
-    // A corrupt save falls back to a brand-new account, whatever that is worth.
-    expect(deserializeMeta('{}')).toEqual(defaultMeta());
-    expect(deserializeMeta('{"version":1}').allocated).toEqual([0]);
+  it('survives a corrupt or empty save without throwing, through loadMeta', () => {
+    // b012/D5: `deserializeMeta` itself now throws on a damaged *wrapper*
+    // (missing/wrong-type `meta`) rather than silently returning
+    // `defaultMeta()` — see the dedicated coverage below and in
+    // tests/q3-save-fuzz.test.ts's D5 case. `loadMeta` is the layer whose
+    // contract is "never throws"; it catches and falls back to a brand-new
+    // account, whatever that is worth.
+    expect(() => deserializeMeta('{}')).toThrow();
+    expect(withSavedRaw('{}', loadMeta)).toEqual(defaultMeta());
+    expect(() => deserializeMeta('{"version":1}')).toThrow();
+    expect(withSavedRaw('{"version":1}', loadMeta)).toEqual(defaultMeta());
+  });
+
+  it('D5: a damaged save wrapper throws out of deserializeMeta rather than laundering into defaultMeta()', () => {
+    for (const raw of ['{}', '{"version":1}', '{"meta":0}', '{"meta":"abc"}', '{"meta":[]}']) {
+      expect(() => deserializeMeta(raw), raw).toThrow();
+    }
+    // A genuinely valid, empty-but-present meta object is not wrapper damage.
+    expect(() => deserializeMeta('{"meta":{}}')).not.toThrow();
   });
 
   it('p7g: a malformed equipmentStash/questProgress coerces to {} instead of losing the whole account', () => {
@@ -251,14 +267,18 @@ describe('save / load', () => {
     }
   });
 
-  it('p7f: a non-object meta (e.g. a bare string) migrates to exactly the MetaState key set, not a character-spread', () => {
+  it('p7f/D5: a non-object meta (e.g. a bare string) is rejected as wrapper damage, not a character-spread', () => {
     // `{"meta":"orbs"}` used to string-spread into indexed keys (`{0:'o',1:'r',...}`)
-    // via `...meta`, and those junk keys re-serialised stably. A non-object
-    // `meta` should just fall back to defaults field-by-field.
+    // via `...meta`, and those junk keys re-serialised stably. Since b012/D5, a
+    // non-object `meta` is wrapper damage: `deserializeMeta` throws rather than
+    // silently returning `defaultMeta()` (that silent-return route was itself
+    // the D5 bug — indistinguishable from "no save at all"). `loadMeta` is the
+    // layer that falls back to defaults field-by-field.
     const stringMeta = JSON.stringify({ version: SAVE_VERSION, meta: 'orbs' });
-    const migrated = deserializeMeta(stringMeta) as unknown as Record<string, unknown>;
-    expect(Object.keys(migrated).sort()).toEqual(Object.keys(defaultMeta()).sort());
-    expect(migrated).toEqual(defaultMeta());
+    expect(() => deserializeMeta(stringMeta)).toThrow();
+    const loaded = withSavedRaw(stringMeta, loadMeta) as unknown as Record<string, unknown>;
+    expect(Object.keys(loaded).sort()).toEqual(Object.keys(defaultMeta()).sort());
+    expect(loaded).toEqual(defaultMeta());
   });
 });
 

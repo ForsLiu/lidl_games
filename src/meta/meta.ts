@@ -348,8 +348,21 @@ export function serializeMeta(meta: MetaState): string {
 }
 
 export function deserializeMeta(json: string): MetaState {
-  const parsed = JSON.parse(json) as Partial<SaveFile>;
-  if (!parsed || typeof parsed !== 'object' || !parsed.meta) return defaultMeta();
+  const parsed = JSON.parse(json) as Partial<SaveFile> | null;
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('save is not an object');
+  }
+  // D5: a damaged *wrapper* (missing/renamed/scalar `meta`) throws here rather
+  // than quietly returning `defaultMeta()` — that silent-return route was the
+  // same total loss `loadMeta`'s `catch` produces, but reached by no `catch`,
+  // so nothing could ever tell "this save was damaged" apart from "there was
+  // no save at all". `loadMeta` still lands on a fresh account either way; the
+  // distinction is that this function's contract now makes that reachable to
+  // a caller that wants to know (the fuzzer's `rejected` bucket; a future
+  // telemetry/notice hook).
+  if (parsed.meta === null || typeof parsed.meta !== 'object' || Array.isArray(parsed.meta)) {
+    throw new Error('save has no meta object');
+  }
   return migrate(parsed.meta as MetaState, parsed.version ?? 0);
 }
 
@@ -407,7 +420,10 @@ function migrateWithNotice(
     // `allocated`/`unlockedClasses`/`completedQuests` rather than the
     // now-fixed `stash`/`equipmentStash`. Same `Array.isArray` guard as
     // `unlockedCores` below.
-    allocated: Array.isArray(meta.allocated) ? [...meta.allocated] : [...base.allocated],
+    // D4: deduped (order preserved) — `pointsAvailable` counts every non-zero
+    // entry, so a save holding the same node id three times would otherwise
+    // spend three points on one node.
+    allocated: Array.isArray(meta.allocated) ? [...new Set(meta.allocated)] : [...base.allocated],
     // fb015 (§7): an old save has neither field the same way `equipped` used
     // to before fb015 — an object-typed field guards against the same
     // corrupt-non-object class `unlockedCores`'s `Array.isArray` check
@@ -488,8 +504,16 @@ export function loadMetaWithNotice(): { meta: MetaState; notice: string | null }
   try {
     const raw = globalThis.localStorage?.getItem(SAVE_KEY);
     if (!raw) return { meta: defaultMeta(), notice: null };
-    const parsed = JSON.parse(raw) as Partial<SaveFile>;
-    if (!parsed || typeof parsed !== 'object' || !parsed.meta) return { meta: defaultMeta(), notice: null };
+    const parsed = JSON.parse(raw) as Partial<SaveFile> | null;
+    if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new Error('save is not an object');
+    }
+    // Same wrapper check as `deserializeMeta` (D5) — kept in step so "no save"
+    // (silent, expected) and "a save whose wrapper is damaged" (thrown, caught
+    // below into the same fresh-account result) stay the only two routes here.
+    if (parsed.meta === null || typeof parsed.meta !== 'object' || Array.isArray(parsed.meta)) {
+      throw new Error('save has no meta object');
+    }
     const { meta, relicsDropped, skillPointsFromEmber } = migrateWithNotice(
       parsed.meta as MetaState,
       parsed.version ?? 0,

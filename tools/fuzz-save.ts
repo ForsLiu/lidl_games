@@ -8,13 +8,15 @@
  * Two contracts are deliberately kept apart, because they fail differently:
  *
  *   - `deserializeMeta` is the **repair path**. When it returns something, the
- *     save was repaired and the player's data survived. When it throws,
- *     `loadMeta`'s `catch` hands back `defaultMeta()` — no crash, but the
- *     account is gone. And when it hits `!parsed.meta` it *returns*
- *     `defaultMeta()` without throwing, which is the same total loss reached by
- *     a path no `catch` can observe. Those three are scored `repaired`,
- *     `rejected` and `wiped`; a fuzzer that only checked "never a crash" would
- *     score all three the same.
+ *     save was repaired and the player's data survived. When it throws — since
+ *     b012/D5, this now includes a damaged *wrapper* (missing/wrong-type
+ *     `meta`), not just a broken `meta` body — `loadMeta`'s `catch` hands back
+ *     `defaultMeta()` — no crash, but the account is gone. And when `meta` is
+ *     structurally valid but genuinely empty (a real object with nothing
+ *     salvageable in it), `deserializeMeta` *returns* `defaultMeta()` without
+ *     throwing, which is the same total loss reached by a path no `catch` can
+ *     observe. Those three are scored `repaired`, `rejected` and `wiped`; a
+ *     fuzzer that only checked "never a crash" would score all three the same.
  *   - `loadMeta` is the **crash contract**. It must never throw and must never
  *     return something the Hub cannot use, whatever is in storage. Note that
  *     `loadMeta` catches everything, so this contract cannot be *violated* by

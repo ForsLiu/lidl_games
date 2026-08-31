@@ -283,7 +283,16 @@ describe('q3 save fuzz: the corpus is not degenerate', () => {
     // are meaningful.
     expect(sum('repaired')).toBeGreaterThan(2_000);
     expect(sum('rejected')).toBeGreaterThan(2_000);
-    expect(sum('wiped'), 'the silent-wipe path is reached; see D5').toBeGreaterThan(50);
+    // b012/D5: fixing `deserializeMeta` to throw on a damaged *wrapper*
+    // (rather than silently returning `defaultMeta()`) reclassified most of
+    // what used to land here as `rejected` instead — measured (seed 7) 27,
+    // down from >50 pre-fix. What is left is the genuine article: a *valid*
+    // but entirely-emptied `meta` object (`empty-container`/`retype-to-{}`
+    // landing on the `meta` key itself), which has no wrapper damage to
+    // reject and legitimately repairs to `defaultMeta()`. Floor set at 15,
+    // under every seed measured (23-34), same "still reached, not the exact
+    // ratio" spirit as the other two clauses.
+    expect(sum('wiped'), 'the silent-wipe path is reached; see D5').toBeGreaterThan(15);
   });
 
   it('generates saves that are genuinely valid before they are corrupted', () => {
@@ -575,7 +584,7 @@ describe('q3 save fuzz: filed /src defects', () => {
   // a save holding the same node id three times spends three points on one
   // node. `isConnected` passes it because it works on a Set. Deduping in the
   // repair path is the fix; the assertion is written against that.
-  it.skip('D4: a duplicated node id in `allocated` costs one point, not three', () => {
+  it('D4: a duplicated node id in `allocated` costs one point, not three', () => {
     const loaded = withSavedRaw(
       JSON.stringify({ version: SAVE_VERSION, meta: { ...defaultMeta(), allocated: [0, 1, 1, 1] } }),
       loadMeta,
@@ -590,7 +599,7 @@ describe('q3 save fuzz: filed /src defects', () => {
   // reaches `loadMeta`'s `catch`, so no log, telemetry sink or "your save could
   // not be read" dialogue could ever be hung off it. The fuzzer reaches this on
   // ~1.5% of trials, mostly through `rename-key`.
-  it.skip('D5: a damaged save wrapper is distinguishable from having no save', () => {
+  it('D5: a damaged save wrapper is distinguishable from having no save', () => {
     const meta = validMeta(new Rng(3));
     for (const raw of [
       JSON.stringify({ version: SAVE_VERSION, meta_: meta }),
