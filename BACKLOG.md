@@ -1073,7 +1073,7 @@ logged in MIGRATION.md §8 rather than carried as dead items.
       filed. `npm run test:fast` reran clean (1699-1700 passed; only the
       pre-existing unrelated flakes red — Playwright fold tests b032/b034/
       b035/b036, and a Windows EPERM temp-scratch cleanup race in q49, both
-      documented flaky elsewhere).
+      documented flaky elsewhere). Commit `90355f0`.
 - [x] (p10l) [balance] Gate **G1**'s mean-band clause is still `.skip`-ed red
       after p10k: mean victorious run measures 36.63 min against the 30-36 min
       band (down from 37.24 min pre-p10k) — acceptance: a pacing change that

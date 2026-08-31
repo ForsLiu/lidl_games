@@ -7,7 +7,7 @@
 
 - **2026-08-31 session: BACKLOG b007 closed — bounds/integer guards on
   `Grid.buildable` and `World.structureAt` close a tile-coordinate aliasing
-  bug.** `World.structureAt` (`src/sim/world.ts`) indexed `grid.occ` via
+  bug — commit `90355f0`.** `World.structureAt` (`src/sim/world.ts`) indexed `grid.occ` via
   `Grid.idx(tx,ty) = ty*GRID_W+tx` with no bounds or integer check, unlike
   `Grid.passable`/`passableGhost`/`wardenPassable`, which all check
   `inBounds` first. Two distinct exploits followed: an out-of-grid `tx`
