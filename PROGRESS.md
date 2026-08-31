@@ -7,7 +7,7 @@
 
 - **2026-08-31 session: BACKLOG b008 closed — a `Number.isFinite` guard on
   `damageEnemy` stops non-finite damage from permanently corrupting an
-  enemy or the run's damage telemetry.** `damageEnemy`'s (`src/sim/enemies.ts`)
+  enemy or the run's damage telemetry — commit `629fd01`.** `damageEnemy`'s (`src/sim/enemies.ts`)
   `e.dead || amount <= 0` guard did not catch `NaN` (`NaN <= 0` is false):
   `e.hp -= NaN` set hp to NaN forever, and since `hp <= 0` is then also
   always false, the enemy could never die again — permanently immortal;

@@ -639,7 +639,7 @@ were not re-filed. Ordering within this section is by severity, not P-band.
       tests/q21-weapon-boundary-fuzz.test.ts tests/q7-data-fuzz.test.ts` —
       95 passed, 7 skipped, 0 failed. `npm run test:fast`: 1701 passed, 30
       skipped; only the 4 pre-existing documented Playwright fold flakes
-      (b032/b034/b035/b036) red — no new regressions.
+      (b032/b034/b035/b036) red — no new regressions. Commit `629fd01`.
 - [ ] (b009) [bug] `Hasher.int`'s `v | 0` collapses `NaN`/`±Infinity` to the same
       hash as `0`, so the determinism hash cannot see non-finite corruption — a
       replay of a NaN-poisoned run reads as clean. Fold a finiteness sentinel into
