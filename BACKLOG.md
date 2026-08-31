@@ -1951,18 +1951,14 @@ because the lane worktree retires at this merge.
       given ~55 `/data`-authored `maxHpPct` sources near the new 1e6 ceiling.
       Filed as b062 (not blocking — `Stats.total`/`factor()`, this item's own
       scope, hold under the identical attack).
-- [ ] (b023) [feat] Re-measure the quality lane's `it.skip`'d bug-pin tests —
+- [x] (b023) [feat] Re-measure the quality lane's `it.skip`'d bug-pin tests —
       15+ accumulated across `tests/q7-data-fuzz.test.ts` (E1–E7),
       `tests/q18-content-hash-replay.test.ts`,
       `tests/q21-weapon-boundary-fuzz.test.ts` and `tests/q3-save-fuzz.test.ts`
       (D1–D7, D9), each pinning a live main-lane bug as of the session that
       filed it, none re-checked against `/src` since ("a deferral is a
-      measurement with an expiry date") — acceptance: each skipped case is
-      temporarily un-skipped and run against current `/src`; any that now
-      passes is reported by name so its owning item (b012, b013, p9a, ...) can
-      close or shrink, and gets its skip comment updated; any still red is
-      re-confirmed and left as-is; the count re-verified is recorded — refs:
-      CLAUDE.md measurement rules, BACKLOG-QUALITY q55
+      measurement with an expiry date") — **done, no code change needed, see
+      Done section.** — refs: CLAUDE.md measurement rules, BACKLOG-QUALITY q55
 - [ ] (b024) [polish] Mutation-probe coverage for q54's `unguarded-data-read`
       classifier: add a `tools/mutation-probe.ts` `MUTATIONS` entry that
       hollows `cli-crash-coverage.ts`'s `readsDataJsonDirectly()` and asserts
@@ -2260,6 +2256,30 @@ logged in MIGRATION.md §8 rather than carried as dead items.
 
 ## Done
 
+- [x] (b023) [feat] Re-measure the quality lane's `it.skip`'d bug-pin tests
+      (15+ accumulated across `tests/q7-data-fuzz.test.ts` E1–E7,
+      `tests/q18-content-hash-replay.test.ts`, `tests/q21-weapon-boundary-
+      fuzz.test.ts`, `tests/q3-save-fuzz.test.ts` D1–D7/D9) — **no code
+      change: every pin was already unskipped and green**, re-measured
+      2026-08-31. `grep -rn '\.skip\(' ` across all four files returns zero
+      matches — each was unskipped in the same commit that closed its owning
+      bug, per `git log` on the four files (`86cac94` b013 unskips E1–E7 in
+      `q7-data-fuzz.test.ts`, `0919a42` b012, `e5c9c1c` b010, `629fd01` b008)
+      and per the now-green test titles that name their own closers directly
+      ("CLOSED at p7a", "CLOSED at b008", "now refused at load (b013 closed
+      E1/E2/E3/E6)", q18's single pin closed by p9a's content-hash work).
+      `q3-save-fuzz.test.ts`'s D-series has shrunk to D1/D4/D5 — D2/D3/D6/D7/D9
+      were retired with the code they pinned, not left skipped — and all three
+      survivors are green regression tests, not skips. Ran all four files
+      directly: 4 files / 138 tests, 100% green (39.0s;
+      `npx vitest run tests/q7-data-fuzz.test.ts tests/q18-content-hash-
+      replay.test.ts tests/q21-weapon-boundary-fuzz.test.ts
+      tests/q3-save-fuzz.test.ts`). Nothing to close or shrink on any other
+      item as a result — the pins had already done that work when they were
+      unskipped. Confirms CLAUDE.md's measurement-rules point in practice: this
+      deferral's "expiry date" had already been re-measured by the items that
+      closed it, just never checked off here — refs: CLAUDE.md measurement
+      rules, BACKLOG-QUALITY q55.
 - [x] (b010) [bug] `Rng.weightedIndex` with any `NaN` weight silently returns the
       last index every call (NaN total defeats every comparison), turning a weighted
       draw into a deterministic constant; `rollOffers`' `weight * (1 + luckBias *

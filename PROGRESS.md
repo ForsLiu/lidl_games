@@ -5,6 +5,19 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-31 session: BACKLOG b023 closed — re-measured the quality lane's
+  `it.skip`'d bug-pin tests (15+ across `tests/q7-data-fuzz.test.ts` E1–E7,
+  `tests/q18-content-hash-replay.test.ts`, `tests/q21-weapon-boundary-
+  fuzz.test.ts`, `tests/q3-save-fuzz.test.ts` D1–D7/D9) against current
+  `/src`.** No code change: `grep -rn '\.skip\(' ` on all four files returned
+  zero matches — every pin had already been unskipped, in the same commit
+  that closed its owning bug (`86cac94` b013, `0919a42` b012, `e5c9c1c` b010,
+  `629fd01` b008, plus p7a/p9e named directly in the now-green test titles).
+  `q3-save-fuzz.test.ts`'s D-series has shrunk to D1/D4/D5 (D2/D3/D6/D7/D9
+  retired with the code they pinned). Ran all four files directly: 4 files /
+  138 tests, 100% green (39.0s). Nothing left to close or shrink elsewhere —
+  the closing items had already done that. BACKLOG.md updated; full
+  measurement recorded in its Done section.
 - **2026-08-31 session: BACKLOG b022 fixed — `Stats.add`'s finite guard
   (`src/sim/stats.ts`) only ever checked the *incoming* value, not the
   running sum it lands on, so two individually-finite contributions (each
