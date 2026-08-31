@@ -5,6 +5,64 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-31 session: BACKLOG b012 closed — a damaged save wrapper now
+  throws distinguishably from "no save at all," and a duplicated skill-tree
+  node id in `allocated` no longer triple-charges — commit `0919a42`.**
+  `deserializeMeta` (`src/meta/meta.ts`) used to silently return
+  `defaultMeta()` for `!parsed.meta` (`meta` missing, renamed, or the wrong
+  type), a total-loss route reached by no `catch`, indistinguishable from
+  having no save at all. It now throws (`'save is not an object'` / `'save
+  has no meta object'`); `loadMetaWithNotice` carries the identical wrapper
+  check and is the actual never-throws layer, catching both new throws (and
+  JSON syntax errors, as before) into a fresh account — so a future
+  telemetry/notice hook now has something to hang off. Separately,
+  `migrateWithNotice`'s `allocated` field now dedupes via `[...new
+  Set(meta.allocated)]` instead of a raw spread, so a save holding the same
+  tree-node id three times spends one point rather than three
+  (`pointsAvailable` previously counted every non-zero entry, `isConnected`
+  already worked on a Set and passed it either way). These were the two live
+  sub-bugs (D4/D5) the item's `it.skip`'d q3 regressions covered; the other
+  five (D2/D3/D6/D7/D9 — `accountLevel`, `ember`, `accountLevelFor`,
+  `nextRelicId`, the old `hubNumbers` tier-gate) were already retired
+  outright by p7d (commit `09eac64`), pre-dating this session's work, so
+  those `.skip` cases were deleted rather than unskipped (MIGRATION.md's
+  retirement rule: a `.skip` stays alive only until the code it covers is
+  deleted). The item's acceptance text also named an `RETIRED_KEYS` export
+  that turned out not to exist anywhere in the repo — it was a private,
+  non-exported name-list `const` that p7f (commit `b5cc75a`, also
+  pre-dating this session) deleted when `migrateWithNotice` was rebuilt to
+  construct `MetaState` field-by-field from the known key set, a strictly
+  stronger fix that drops any unknown key regardless of name and makes a
+  maintained retirement list obsolete — documented in BACKLOG.md as
+  superseded rather than reimplemented, same treatment as D2/D3/D6/D7/D9.
+  code-reviewer (**APPROVE**): confirmed the new throw is reachable only
+  through `loadMetaWithNotice` (the sole production caller, `src/ui/main.ts`)
+  with no uncaught path to the UI; grepped every test call site of
+  `deserializeMeta` and confirmed none newly throw; confirmed the dedup
+  preserves insertion order and doesn't affect `isConnected`; ran the save
+  fuzzer directly (20,000 saves, seed 7) and confirmed the `wiped` outcome
+  count the updated test cites; `npx tsc --noEmit -p .` clean. One Minor
+  fixed inline: `tools/fuzz-save.ts`'s header comment described the old
+  `!parsed.meta` mechanism for the `wiped` outcome; reworded to describe the
+  current one (a structurally valid but genuinely empty `meta`).
+  qa-playtester (**PASS**): independently reproduced D4/D5 against the real
+  `src/meta/meta.ts` with throwaway scratch tests rather than trusting the
+  diff; confirmed a genuinely absent save (empty `localStorage`) still
+  returns `defaultMeta()` without throwing and without being treated as
+  wrapper damage; grepped `/src` to confirm D2/D3/D6/D7/D9's subjects are
+  genuinely gone, not just asserted gone in a comment; confirmed no reader
+  of `MetaState.allocated` elsewhere depends on allocation order rather than
+  set membership; filed the `RETIRED_KEYS` discrepancy (resolved by
+  documentation, per the D2/D3/D6/D7/D9 precedent, not by code). `npx
+  vitest run tests/q3-save-fuzz.test.ts tests/meta.test.ts
+  tests/t6c-save-migration.test.ts` — 109/109 green. `npm run test:fast`:
+  1716 passed, 28 skipped; only the 4 pre-existing documented Playwright
+  fold flakes (b032/b034/b035/b036) and the documented Windows EPERM
+  temp-cleanup race (q49) red — no new regressions. P0–P10 remain otherwise
+  as the prior session left them: gates **G8, G14 and most of G23 still read
+  red** (the wave-11-to-17 content wall p10i documented) — 1.0-complete is
+  not yet reached.
+
 - **2026-08-31 session: BACKLOG b010 closed — `Rng.weightedIndex` no longer
   lets a non-finite/non-positive weight silently turn a weighted draw into a
   deterministic constant, and `rerollOffers`'s counter guard is

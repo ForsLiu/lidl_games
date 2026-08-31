@@ -676,7 +676,7 @@ were not re-filed. Ordering within this section is by severity, not P-band.
       `npm run test:fast`: 1706 passed, 30 skipped; only the 4 pre-existing
       documented Playwright fold flakes (b032/b034/b035/b036) red — no new
       regressions. Commit `0dab0eb`.
-- [ ] (b012) [bug] Save/meta laundering beyond p7f/p7g: a mis-typed scalar
+- [x] (b012) [bug] Save/meta laundering beyond p7f/p7g: a mis-typed scalar
       (`accountLevel: "seven"`, non-numeric `ember`) walks to level 60 and unlimited
       Constellation points (`NaN <= 0` guards); `highestTier` laundering unlocks all
       five tiers in the real Hub; non-finite `ember` serialises to `null` on the
@@ -686,6 +686,69 @@ were not re-filed. Ordering within this section is by severity, not P-band.
       (D2/D3/D4/D5/D6/D7/D9) — acceptance: the skipped q3 tests unskip and pass;
       `sanitize` (settings.ts) is the model shape; also export `RETIRED_KEYS` so the
       lane's fixtures track future retirements — refs: §11, G18, BACKLOG-QUALITY q3
+      Fixed: two live sub-bugs remained in scope — D2/D3/D6/D7/D9
+      (`accountLevel`, `ember`, `accountLevelFor`, `nextRelicId`, and the old
+      `hubNumbers` tier-gate derivation) were already retired outright by p7d
+      (commit `09eac64`, pre-dating this item's work), so those five .skip
+      cases were deleted rather than unskipped — nothing in `/src` exercises
+      them any more, confirmed by grep (only historical prose comments
+      mention the names now). D4: `migrateWithNotice`'s `allocated` field
+      (`src/meta/meta.ts`) now dedupes via `[...new Set(meta.allocated)]`
+      instead of a raw spread, so a save holding the same tree-node id three
+      times spends one point, not three (`pointsAvailable` counts
+      `allocated.filter(id => id !== 0).length`). D5: `deserializeMeta` now
+      throws (`'save is not an object'` / `'save has no meta object'`) on a
+      damaged save *wrapper* — `meta` missing, renamed, or the wrong type —
+      instead of silently returning `defaultMeta()`; `loadMetaWithNotice`
+      carries the identical wrapper check and is the layer with the
+      never-throws contract, catching both new throws (and JSON syntax
+      errors, as before) into a fresh account. This makes "damaged save"
+      newly distinguishable from "no save at all" for a future telemetry/
+      notice hook, and reclassifies most of what the fuzzer used to score
+      `wiped` as `rejected` instead (measured, seed 7: 27 `wiped` left, down
+      from 50+, all genuinely-empty-`meta` cases — no wrapper damage left to
+      reject). The acceptance text's `RETIRED_KEYS` export does not apply:
+      grepped the full repo and confirmed no such export exists anywhere —
+      it was a private, non-exported name-list `const` in `src/meta/meta.ts`
+      that p7f (commit `b5cc75a`, also pre-dating this item) deleted outright,
+      because `migrateWithNotice` was rebuilt to construct `MetaState`
+      field-by-field from the known key set, which drops *any* unknown key
+      regardless of name — a strictly stronger fix than a maintained
+      retirement list, making the list itself obsolete. Treated the same way
+      as D2/D3/D6/D7/D9: superseded by an earlier, better fix, not
+      reimplemented. `tests/meta.test.ts`/`tests/q3-save-fuzz.test.ts` D4/D5
+      cases unskipped and extended; `tests/meta.test.ts` gained a dedicated
+      D5 wrapper-damage-vs-valid-empty-meta test. code-reviewer
+      (**APPROVE**): confirmed `deserializeMeta`'s new throw is reachable
+      only through `loadMetaWithNotice` (the sole production caller,
+      `src/ui/main.ts`), which wraps it in try/catch with no uncaught path to
+      the UI; grepped every test call site of `deserializeMeta` and confirmed
+      none pass a save that newly throws; confirmed the `Array.isArray`
+      guards are correctly ordered after the `=== null` checks and don't
+      reject any currently-valid save shape; confirmed `Set`'s
+      first-occurrence insertion order keeps `[0,1,1,1] → [0,1]` and
+      `isConnected` is unaffected (it builds its own internal `Set`); ran the
+      fuzzer directly (20,000 saves, seed 7) and confirmed the cited `wiped`
+      count; `npx tsc --noEmit -p .` clean. One Minor, fixed inline:
+      `tools/fuzz-save.ts`'s header comment described the pre-fix `!parsed.meta`
+      mechanism for the `wiped` outcome, now stale — reworded to describe the
+      current mechanism (a structurally valid but genuinely empty `meta`).
+      qa-playtester (**PASS**): independently reproduced D4 and D5 with
+      throwaway scratch tests against the real `src/meta/meta.ts` rather than
+      trusting the diff; confirmed a genuinely absent save (empty
+      `localStorage`) still returns `defaultMeta()` without throwing and
+      without being treated as wrapper damage; confirmed via grep that
+      D2/D3/D6/D7/D9's subject fields/functions are genuinely gone from
+      `/src`, not just asserted gone in a comment; confirmed no reader of
+      `MetaState.allocated` elsewhere in the codebase depends on allocation
+      order rather than set membership. Filed the `RETIRED_KEYS` finding
+      above (resolved by documenting the supersession here rather than by
+      code changes, per the same precedent as D2/D3/D6/D7/D9). `npx vitest
+      run tests/q3-save-fuzz.test.ts tests/meta.test.ts
+      tests/t6c-save-migration.test.ts` — 109/109 green. `npm run test:fast`:
+      1716 passed, 28 skipped; only the 4 pre-existing documented Playwright
+      fold flakes (b032/b034/b035/b036) and the documented Windows EPERM
+      temp-cleanup race (q49) red — no new regressions. Commit `0919a42`.
 - [ ] (b013) [bug] The `/data` loader accepts unpayable data (§12 rule 4 violated
       six ways): no numeric range guards (negative/zero/infinite `hp`, `cost`,
       `interval` all load), non-finite numbers reach the engine and the report,
