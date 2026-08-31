@@ -171,6 +171,69 @@ function cachedWieldedAttacks(w: World): WieldedAttack[] {
   return w.wieldedCache!;
 }
 
+/**
+ * p10j (G13): `frost_obelisk`'s `aura` and `ember_brazier`'s `cone` hit every
+ * enemy in range each interval; the five directional kinds below
+ * (`single`/`pierce`/`chain`/`lob`/`poison`) hit only a line/arc/handful of
+ * targets, so they cannot out-share an omnidirectional attacker by
+ * `/data` damage tuning alone (confirmed by two rounds of balance-analyst
+ * bisection — see `tests/p10c-weapon-share.test.ts`'s header). This gives
+ * each of them a modest, VS-only crowd allowance — a wielding-specific
+ * profile distinct from their TD one (§6.1 already treats a wielded attack
+ * as character-scaled, not tower-scaled, so a second Act-II-only divergence
+ * here is the same kind of thing, not a new kind).
+ */
+const WIELD_SPLASH_RADIUS = 1.6;
+const WIELD_SPLASH_FRACTION = 0.3;
+const WIELD_PIERCE_BONUS = 2;
+// Tesla Coil's chain sits at zero T1 margin (`tests/a4-single-type.test.ts`):
+// even a single extra chain jump — the smallest possible nonzero bonus,
+// since `chains` is an integer jump count — flips one of the five fixed
+// seeds through the VS-kills-feed-powerMul coupling
+// (`tests/p10c-weapon-share.test.ts`'s file header). Left at 0: `chain`
+// keeps its pre-p10j behaviour rather than trading a hard gate for a bit of
+// extra VS share the other four directional kinds already cover.
+const WIELD_CHAIN_BONUS = 0;
+const WIELD_LOB_AOE_MUL = 1.6;
+const WIELD_POISON_TARGET_BONUS = 2;
+
+/**
+ * A directional wielded hit's crowd allowance: a fraction of its damage
+ * cleaves out to whoever else is near the primary target, damped the same
+ * way every other splash source in the sim already damps (`applyAoE`'s
+ * `aoeFullTargets`/`aoeFalloff`), so it adds crowd relevance without
+ * becoming a second aura.
+ *
+ * Deliberately does not re-strike `primary` itself (unlike `applyAoE`'s own
+ * `opts.primary`, which is for a blast whose *only* target might be the
+ * primary): `primary` already took its full hit — including `fx.onHit` —
+ * from the shot that just fired, so routing it back through `applyAoE`'s
+ * primary slot would double-apply that on-hit effect (e.g. Arrow Spire's
+ * Bleeding stacks twice as fast as the tower's own TD attack) for zero
+ * splash benefit, since a target already fully hit gains nothing more from
+ * this fraction.
+ */
+function wieldSplash(w: World, primary: Enemy, dmg: number, source: string, fx: HitEffects, area: number): void {
+  if (primary.dead) return;
+  const cfg = w.content.towers;
+  const list = w.enemiesInRadius(primary.x, primary.y, WIELD_SPLASH_RADIUS * area).filter(
+    (e) => e !== primary && !e.dead,
+  );
+  if (list.length === 0) return;
+  if (list.length > cfg.aoeFullTargets) {
+    list.sort((a, b) => dist2(primary.x, primary.y, a.x, a.y) - dist2(primary.x, primary.y, b.x, b.y) || a.id - b.id);
+  }
+  const splashDmg = dmg * WIELD_SPLASH_FRACTION;
+  let scale = 1;
+  let hit = 0;
+  for (const e of list) {
+    dealHit(w, e, splashDmg * scale, source, fx, { fromX: primary.x, fromY: primary.y });
+    if (!e.dead) applyEffects(w, e, fx);
+    hit++;
+    if (hit >= cfg.aoeFullTargets) scale = Math.max(cfg.aoeFalloffFloor, scale * cfg.aoeFalloff);
+  }
+}
+
 /** Nearest `n` enemies to a point, best (closest) first — poison's spare spore. */
 function nearestEnemies(w: World, x: number, y: number, range: number, n: number): Enemy[] {
   if (n <= 1) {
@@ -228,6 +291,9 @@ function fireWielded(w: World, wielded: WieldedAttack, def: TowerDef, a: TowerAt
         lineHit(w, x, y, dir.x, dir.y, range, LINE_HALF_WIDTH * area, dmg, source, hits, fx, { primary: t });
         w.emit('shot', x, y, t.x, t.y);
       }
+      // p10j: a single-target wielded shot still cleaves a little into
+      // whoever else is standing on the target.
+      wieldSplash(w, t, dmg, source, fx, area);
       break;
     }
     case 'pierce': {
@@ -242,7 +308,9 @@ function fireWielded(w: World, wielded: WieldedAttack, def: TowerDef, a: TowerAt
           targetY: y + dir.y * range,
           speed: a.projectileSpeed ?? 14,
           damage: dmg,
-          pierce: prof.pierce,
+          // p10j: a wielded pierce line cuts deeper into a crowd than its TD
+          // line does — `prof.pierce` alone is the tower's own authored value.
+          pierce: prof.pierce + WIELD_PIERCE_BONUS,
           source,
           fx,
           // A wielded shot has no owning `Structure` — towers stand inert
@@ -298,7 +366,8 @@ function fireWielded(w: World, wielded: WieldedAttack, def: TowerDef, a: TowerAt
       const t = w.nearestEnemy(x, y, range);
       if (!t) return false;
       const chainRange = (a.chainRange ?? 3) * area;
-      chainHit(w, x, y, t, a.chains ?? 3, chainRange, dmg, source, fx);
+      // p10j: a wielded chain arcs further into a crowd than its TD chain does.
+      chainHit(w, x, y, t, (a.chains ?? 3) + WIELD_CHAIN_BONUS, chainRange, dmg, source, fx);
       if (prof.electricChain) arcElectric(w, t, dmg, prof.ratio, chainRange, source, x, y);
       break;
     }
@@ -317,7 +386,9 @@ function fireWielded(w: World, wielded: WieldedAttack, def: TowerDef, a: TowerAt
         targetY: aim.y,
         speed,
         damage: dmg,
-        aoe: effectiveTowerAoe(w, def),
+        // p10j: a wielded lob's blast is wider than its TD blast — the
+        // Warden has no lane of towers behind it to protect from splash.
+        aoe: effectiveTowerAoe(w, def) * WIELD_LOB_AOE_MUL,
         source,
         fx,
         // §5.2 Mortar @3: "shells leave a burning patch" — mirrors
@@ -331,7 +402,9 @@ function fireWielded(w: World, wielded: WieldedAttack, def: TowerDef, a: TowerAt
       break;
     }
     case 'poison': {
-      const targets = nearestEnemies(w, x, y, range, prof.projectiles);
+      // p10j: a wielded spore volley reaches a couple more targets than its
+      // TD volley does.
+      const targets = nearestEnemies(w, x, y, range, prof.projectiles + WIELD_POISON_TARGET_BONUS);
       if (targets.length === 0) return false;
       const splash = effectiveTowerAoe(w, def);
       for (const t of targets) {

@@ -11,46 +11,39 @@
  * "minute 8" snapshot that shape makes unreachable. See that file's own
  * header for the full accounting.
  *
- * **The 35% cap itself is `.skip`-ed below — measured, not met.** Two rounds
- * of balance-analyst retuning (see PROGRESS.md's p10c entry for the full
- * before/after) moved `frost_obelisk`'s share from 51.1% to 46.0% and
- * `ember_brazier`'s from 31.3% to 27.8% (now under cap) purely through
- * `data/towers.json`, while re-verifying `tests/a4-single-type.test.ts` held
- * 5/5 T1 / 0/5 T3 for all seven towers after every edit. `frost_obelisk`
- * could not be pushed further without breaking that bar: bisection on every
- * field (damage, range, cost, interval, upgrade count) found its solo-TD
- * economy sits only ~9-10% above the T1 failure line, roughly 4-6x short of
- * the ~55% cut its VS share would need. The mechanism is structural, not a
- * missed tuning value — `frost_obelisk`'s `aura` and `ember_brazier`'s `cone`
- * wielded attacks (`src/sim/vswield.ts`) hit every enemy in range each
- * interval, while the other five kinds (`single`/`pierce`/`chain`/`lob`/
- * `poison`) hit only what's in one line/arc/handful of targets — confirmed
- * mechanically (a 6x damage + full-map-range buff to `tesla_coil`'s
- * `electricWireGrid` special produced zero simulation change, since it links
- * board structures, not the Warden's position) and via a coupling trap worth
- * recording: `venom_spore`'s `poisonTrail` VS-only special looked like a free
- * lever (VS-gated in `vsspecials.ts`) but non-monotonically broke `a4`'s T1
- * 5/5 at every tested magnitude, because VS kills feed the character's XP →
- * Power-boon pipeline and `towerDamage()` (`src/sim/towers.ts`) applies
- * `w.derived.powerMul` to TD firing too — no VS-only field is actually
- * TD-free once it changes kill rate. Closing the remaining gap needs an
- * engine-side look at giving directional wielded attacks crowd-relevant
- * behaviour in VS, which is out of a data-only balance pass — filed as
- * BACKLOG p10j.
+ * **p10c/p10d history: the cap was `.skip`-ed, measured not met.** Two
+ * rounds of balance-analyst retuning moved `frost_obelisk`'s share from
+ * 51.1% to 42.7% purely through `data/towers.json`, but bisection on every
+ * field found its solo-TD economy sits only ~9-10% above the T1 failure line
+ * — roughly 4-6x short of the cut its VS share would need. The mechanism was
+ * structural: `frost_obelisk`'s `aura` and `ember_brazier`'s `cone` wielded
+ * attacks (`src/sim/vswield.ts`) hit every enemy in range each interval,
+ * while `single`/`pierce`/`chain`/`lob`/`poison` hit only what's in one
+ * line/arc/handful of targets, so no data-only tune could make them out-share
+ * an omnidirectional attacker. Filed as BACKLOG p10j.
  *
- * **p10d note (this session): the live numbers moved again, without any
- * `data/towers.json` edit.** p10d's G1 pacing fix (`data/spawns.json`'s
- * `bossTimeSeconds` 600->181, `data/enemies.json`'s `warden_eater` hp
- * 15000->10000 — a deliberate partial cut, not the lower value that would
- * have zeroed out G1 by pinning the boss win rate at 100%, see
- * PROGRESS.md's p10d entry) shrank the finalNight boss block's length in
- * this probe's VS-phase damage window. Since that block's mix of targets
- * (one boss + its adds) differs from the five regular VS blocks' (pure
- * crowds), shrinking its share of the total accumulation window shifts the
- * aggregate even though no tower's own numbers changed: frost_obelisk
- * 46.0%->42.7%, ember_brazier 27.8%->27.6%, ballista 13.2%->13.7%, mortar
- * 5.6%->7.7%, arrow_spire 4.4%->5.1%, venom_spore 0.9%->0.7%. Still over the
- * 35% cap on frost_obelisk, still `.skip`-ed for the same structural reason.
+ * **p10j fix (this session): an engine-side crowd allowance for the five
+ * directional kinds** (`src/sim/vswield.ts`'s `WIELD_*` constants) —
+ * `single` cleaves a fraction of its damage to nearby enemies (via the new
+ * `wieldSplash`, which deliberately does *not* re-strike the primary target,
+ * since routing it back through `applyAoE`'s own primary slot double-applied
+ * `fx.onHit` — e.g. Arrow Spire's Bleeding — for a target that already took
+ * its full hit), `pierce` cuts a few bodies deeper, `lob`'s blast radius
+ * widens, and `poison`'s spore volley reaches a couple more targets.
+ * `chain` is deliberately left at 0: `tests/a4-single-type.test.ts` showed
+ * Tesla Coil sitting at exactly zero T1 margin — even the smallest possible
+ * nonzero chain-jump bonus flips one of the five fixed seeds through the
+ * same VS-kills-feed-`powerMul` coupling documented below, and the other
+ * four directional kinds already close the gate without it.
+ *
+ * Every magnitude was re-measured against both this file's pool *and*
+ * `tests/a4-single-type.test.ts`'s 5/5 T1 / 0/5 T3 bar for all seven towers
+ * — the coupling trap is real: VS kills feed the character's XP →
+ * Power-boon pipeline and `towerDamage()` (`src/sim/towers.ts`) applies
+ * `w.derived.powerMul` to TD firing too, so no VS-only field is actually
+ * TD-free once it changes kill rate. Final settings measured frost_obelisk
+ * 29.9%, ballista 22.4%, ember_brazier 18.5%, mortar 16.0%, arrow_spire
+ * 5.7%, venom_spore 3.1%, tesla_coil 2.4% — cap holds, gate un-skipped below.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -73,17 +66,10 @@ describe('G13 no tower type dominates VS damage across the winning-build pool', 
     expect(top.length, readable).toBeGreaterThanOrEqual(4);
   });
 
-  // Measured red (p10c session): frost_obelisk 46.0%, ember_brazier 27.8%,
-  // ballista 13.2%, mortar 5.6%, arrow_spire 4.4%, venom_spore 0.9%. Re-measured
-  // red (p10d session, final settings, after the G1 pacing fix changed the
-  // finalNight boss block's weight in this probe's window — no
-  // data/towers.json changed): frost_obelisk 42.7%, ember_brazier 27.6%,
-  // ballista 13.7%, mortar 7.7%, arrow_spire 5.1%, venom_spore 0.7% — see the
-  // file header for why frost_obelisk's remaining overage is a structural
-  // VS-wielding gap, not a further-available data tune. Re-enable once
-  // BACKLOG p10j gives directional wielded attacks a crowd-relevant
-  // mechanism.
-  it.skip('gives no tower type more than 35% of the winning-pool VS damage', () => {
+  // Measured green (p10j session): frost_obelisk 29.9%, ballista 22.4%,
+  // ember_brazier 18.5%, mortar 16.0%, arrow_spire 5.7%, venom_spore 3.1%,
+  // tesla_coil 2.4% — see the file header for the engine-side mechanism.
+  it('gives no tower type more than 35% of the winning-pool VS damage', () => {
     const worst = shares[0];
     expect(worst, readable).toBeDefined();
     expect(worst.share, readable).toBeLessThanOrEqual(CAP);
