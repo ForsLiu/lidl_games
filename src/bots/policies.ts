@@ -63,6 +63,20 @@ export interface BuilderOptions {
    * `sealed` policy opts in, so every other bot still plays the open maze.
    */
   allowSeal: boolean;
+  /**
+   * Real multi-summon (SPEC-FINAL §1.1, G6/G19): once at least `stackAfter`
+   * structures are standing and there is nothing left in the current plan to
+   * place or upgrade, call the next wave early *while already fighting* one,
+   * merging its spawns into the fight in progress (`World.stackDepth`) rather
+   * than `rushWaves`' skip-the-idle-build-timer behaviour, which never
+   * actually stacks (`applyCommand`'s `call` case only increments
+   * `stackDepth` from `act1_wave`, not `act1_build`). Distinct from
+   * `rushWaves` so the existing `kite`/`rush` policies — whose numbers other
+   * gates already pin — are untouched.
+   */
+  stackWaves: boolean;
+  /** Structures required before `stackWaves` starts calling. */
+  stackAfter: number;
 }
 
 const DEFAULTS: BuilderOptions = {
@@ -76,6 +90,8 @@ const DEFAULTS: BuilderOptions = {
   openingSprouts: 0,
   perimeterRadius: 0,
   allowSeal: false,
+  stackWaves: false,
+  stackAfter: 10,
 };
 
 export class BuilderPolicy implements BotPolicy {
@@ -200,6 +216,9 @@ export class BuilderPolicy implements BotPolicy {
     }
 
     if (this.opts.rushWaves && w.phase === 'act1_build' && w.buildTimer > 0.5) {
+      input.cmds.push({ k: 'call' });
+    }
+    if (this.opts.stackWaves && w.phase === 'act1_wave' && live >= this.opts.stackAfter) {
       input.cmds.push({ k: 'call' });
     }
     // Sit near the Core and plug leaks by hand.

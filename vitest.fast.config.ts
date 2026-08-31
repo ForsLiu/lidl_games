@@ -46,6 +46,9 @@ export default mergeConfig(
         // p10d: 24 seeds x one full cycles:6 hybrid run each (TD + VS + boss
         // fight, not invulnerable) — G1's run-length gate.
         'tests/p10d-run-length.test.ts',
+        // p10f: p10c's pool (12 builds) plus G19_BUILDS (4 more) x 5 seeds x
+        // cycles:6 full VS-combat runs — G19's liveness gate.
+        'tests/p10f-g19-liveness.test.ts',
       ],
     },
   }),

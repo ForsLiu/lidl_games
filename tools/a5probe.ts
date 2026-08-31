@@ -34,6 +34,23 @@ export interface BuildSpec {
   classKey: string;
   towerKeys: string[];
   wallRatio: number;
+  /**
+   * Which G19 liveness strategy this build exercises. Defaults to 'open' —
+   * every entry in `BUILDS` below is an open-maze build, matching the
+   * `BuilderPolicy` options `runBuild` has always passed (unset `allowSeal`/
+   * `rushWaves`), so adding this field changes nothing G13 measures.
+   */
+  strategy?: 'open' | 'sealed' | 'rush';
+  /** Seal the Core's perimeter, closing tile included (SPEC-FINAL §10). */
+  allowSeal?: boolean;
+  /** Ring radius for the perimeter build-out; only meaningful with `allowSeal`. */
+  perimeterRadius?: number;
+  /** Call the next TD wave early once the plan is exhausted (multi-summon, §1.1). */
+  rushWaves?: boolean;
+  /** Real multi-summon: merge the next wave into a fight already in progress. */
+  stackWaves?: boolean;
+  /** Structures required before `stackWaves` starts calling. */
+  stackAfter?: number;
 }
 
 /** A spread of realistic mixes: one per soul weapon, plus broad hybrids. */
@@ -52,6 +69,53 @@ export const BUILDS: BuildSpec[] = [
   { name: 'support', classKey: 'engineer', towerKeys: ['beacon_totem', 'arrow_spire', 'tesla_coil', 'venom_spore'], wallRatio: 0.3 },
 ];
 
+/**
+ * G19's other two strategies (SPEC-FINAL §14), layered onto `BUILDS`' own
+ * pool for `tests/p10f-g19-liveness.test.ts`: `topTen` is otherwise blind to
+ * them, since every `BUILDS` entry defaults to `strategy: 'open'`. Mirrors
+ * the registered `sealed`/`rush` bot policies (`src/bots/policies.ts`) rather
+ * than inventing new tower mixes, so "sealed" and "multi-summon" here mean
+ * the same thing the G7/G6 gates already measured them to mean.
+ */
+export const G19_BUILDS: BuildSpec[] = [
+  {
+    name: 'sealed-full',
+    classKey: 'engineer',
+    towerKeys: ['arrow_spire', 'ballista', 'venom_spore', 'mortar', 'tesla_coil', 'frost_obelisk', 'ember_brazier', 'beacon_totem'],
+    wallRatio: 0,
+    strategy: 'sealed',
+    allowSeal: true,
+    perimeterRadius: 5,
+  },
+  {
+    name: 'sealed-turtle',
+    classKey: 'engineer',
+    towerKeys: ['arrow_spire', 'frost_obelisk'],
+    wallRatio: 0,
+    strategy: 'sealed',
+    allowSeal: true,
+    perimeterRadius: 5,
+  },
+  {
+    name: 'stacked-mix',
+    classKey: 'engineer',
+    towerKeys: ['arrow_spire', 'ballista', 'tesla_coil', 'mortar', 'venom_spore', 'beacon_totem'],
+    wallRatio: 0.25,
+    strategy: 'rush',
+    stackWaves: true,
+    stackAfter: 10,
+  },
+  {
+    name: 'stacked-frost',
+    classKey: 'pyromancer',
+    towerKeys: ['frost_obelisk', 'arrow_spire', 'ballista', 'mortar', 'venom_spore'],
+    wallRatio: 0.25,
+    strategy: 'rush',
+    stackWaves: true,
+    stackAfter: 10,
+  },
+];
+
 export interface BuildResult {
   name: string;
   seed: number;
@@ -60,6 +124,10 @@ export interface BuildResult {
   survival: number;
   /** VS-phase-only damage by source, accumulated across every VS wave in the run. */
   vsDamage: Record<string, number>;
+  /** Echoes `build.strategy` (defaulted to 'open') — carried for G19's liveness probe. */
+  strategy: 'open' | 'sealed' | 'rush';
+  /** Peak `World.stackDepth` reached during the run — >0 means multi-summon was actually used. */
+  maxStackDepth: number;
 }
 
 export function runBuild(build: BuildSpec, seed: number): BuildResult {
@@ -81,13 +149,19 @@ export function runBuild(build: BuildSpec, seed: number): BuildResult {
     maxStructures: 55,
     upgradeAfter: 12,
     act2: 'kite',
-    rushWaves: false,
+    rushWaves: build.rushWaves ?? false,
+    allowSeal: build.allowSeal ?? false,
+    perimeterRadius: build.perimeterRadius ?? 0,
+    stackWaves: build.stackWaves ?? false,
+    stackAfter: build.stackAfter ?? 10,
   });
   const vsDamage: Record<string, number> = {};
   let prev: Record<string, number> = {};
+  let maxStackDepth = 0;
   while (!run.done && run.world.tick < 60 * 60 * 45) {
     run.step(policy.act(run.world));
     const w = run.world;
+    if (w.stackDepth > maxStackDepth) maxStackDepth = w.stackDepth;
     if (w.phase === 'act2') {
       for (const key of Object.keys(w.damageByWeapon)) {
         const delta = w.damageByWeapon[key] - (prev[key] ?? 0);
@@ -104,13 +178,15 @@ export function runBuild(build: BuildSpec, seed: number): BuildResult {
     outcome: r.outcome,
     survival: r.survivalSeconds,
     vsDamage,
+    strategy: build.strategy ?? 'open',
+    maxStackDepth,
   };
 }
 
-/** Runs every build over `seeds`. */
-export function collect(seeds: number[]): BuildResult[] {
+/** Runs every build over `seeds`. Defaults to `BUILDS` (G13's pool); G19 passes a wider set. */
+export function collect(seeds: number[], builds: BuildSpec[] = BUILDS): BuildResult[] {
   const out: BuildResult[] = [];
-  for (const build of BUILDS) {
+  for (const build of builds) {
     for (const seed of seeds) out.push(runBuild(build, seed));
   }
   return out;

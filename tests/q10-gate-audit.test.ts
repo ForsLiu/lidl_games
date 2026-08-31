@@ -63,7 +63,7 @@ describe('q10 — gate-coverage audit', () => {
     expect(untracked.map((r) => `${r.id}: ${r.text}`)).toEqual([]);
   });
 
-  it('the recorded split is exactly sixteen covered and four holes at HEAD', () => {
+  it('the recorded split is exactly seventeen covered and three holes at HEAD', () => {
     // Pinned like q9's RECORDED_FLOOR: a gate moving from hole to covered (or
     // the other way) is real news about the P-phase it names — worth a look,
     // not a silent pass. If this drifts, re-derive it against the live suite
@@ -79,15 +79,17 @@ describe('q10 — gate-coverage audit', () => {
     // `covered` at p10d: tests/p10d-run-length.test.ts lives, with two of
     // its three assertions green and the mean-band clause it.skip'd with a
     // real measured number, the same partial-coverage bar G13/G17 already
-    // set.)
+    // set. G19 moved back to `covered` at p10f: tests/p10f-g19-liveness.test.ts
+    // measures the real thing — sealed/open/multi-summon all appearing in the
+    // winning-build pool — fully live, no it.skip.)
     const gates = parseGates(SPEC_TEXT);
     const rows = auditGates(gates).filter((r) => /^G([1-9]|1[0-9]|20)$/.test(r.id));
     const covered = rows.filter((r) => r.status === 'covered').map((r) => r.id).sort();
     const holes = rows.filter((r) => r.status === 'hole').map((r) => r.id).sort();
     expect(covered).toEqual(
-      ['G1', 'G10', 'G11', 'G12', 'G13', 'G14', 'G16', 'G17', 'G18', 'G2', 'G20', 'G3', 'G4', 'G5', 'G6', 'G7', 'G9'].sort(),
+      ['G1', 'G10', 'G11', 'G12', 'G13', 'G14', 'G16', 'G17', 'G18', 'G19', 'G2', 'G20', 'G3', 'G4', 'G5', 'G6', 'G7', 'G9'].sort(),
     );
-    expect(holes).toEqual(['G15', 'G19', 'G8'].sort());
+    expect(holes).toEqual(['G15', 'G8'].sort());
   });
 
   it('no `covered` gate is backed only by files that are entirely describe.skip\'d', () => {

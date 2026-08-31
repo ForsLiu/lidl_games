@@ -193,6 +193,23 @@ export const GATE_COVERAGE: Record<string, CoverageEntry> = {
       'tests/light-build.test.ts',
     ],
   },
+  G19: {
+    files: ['tests/p10f-g19-liveness.test.ts'],
+    note:
+      "The prior citation (tests/a8-sundering-head-start.test.ts) was entirely describe.skip'd and, even live, " +
+      "never measured strategy mix or multi-summon usage — see the old KNOWN_HOLES entry this replaces. " +
+      "p10f measures G19 over the same winning-build pool G13 uses (tools/a5probe.ts's topTen), widened with a " +
+      "new G19_BUILDS array covering the sealed and multi-summon arms BUILDS alone never exercises: BUILDS is " +
+      "entirely open-maze (every entry defaults to strategy 'open'), so topTen(collect(seeds)) alone can only " +
+      "ever answer 'open'. Found while wiring the rush arm: no registered bot policy actually stacked a wave " +
+      "before this item — rushWaves only fires from act1_build (skip-the-idle-build-timer), while " +
+      "applyCommand's 'call' case only increments World.stackDepth from act1_wave (already fighting) — so " +
+      "kite/rush's rushWaves flag was cover, not coverage. New BuilderOptions.stackWaves (src/bots/policies.ts, " +
+      "default off, so kite/rush's own pinned numbers are untouched) actually calls into an in-progress fight. " +
+      "All three assertions are live and green: the top-10-by-survival pool includes an open build, a sealed " +
+      "build (mirrors the G7/p1b 'sealed' policy), and a rush build whose BuildResult.maxStackDepth — sampled " +
+      "from the real World.stackDepth every tick, not inferred from config — is nonzero.",
+  },
   G17: {
     files: [
       'tests/a10-performance.test.ts',
@@ -229,11 +246,6 @@ export const KNOWN_HOLES: Record<string, string> = {
     "measurement G8 actually asks for is p6e's, which has not landed. p6a-class-framework.test.ts's live " +
     'replay-hash block tests the Active-skill Command plumbing, not a win-rate.',
   G15: 'The Tuner is not built (P9); there is nothing to round-trip yet.',
-  G19: "tests/a8-sundering-head-start.test.ts (the only file naming G19) is entirely describe.skip'd — its own " +
-    "header reads 'RETIRED (SPEC-FINAL §6.1, reconcile §16)'. Even when live, its body only ever measured " +
-    'maxbuild-vs-rush win-rate and gold/tier ratios, never sealed/open strategy mix or multi-summon usage, so ' +
-    "G19's actual content ('winning sim builds include both sealed and open strategies, and multi-summon usage') " +
-    'was never tested by it either. No live test anywhere names multi-summon usage.',
 };
 
 export function auditGates(
