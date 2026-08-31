@@ -5,6 +5,44 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-31 session: BACKLOG b006 closed — `Number.isFinite` guards on the
+  three practice `dev` ops that could launder non-finite state or hang the
+  process — commit `73457c2`.** `{k:'dev',op:'gold'|'xp'|'fast_forward',
+  amount}` fed `NaN`/`±Infinity` straight through `Math.max`/`addXp` with no
+  guard: `gold`/`fast_forward` went permanently `NaN`/`Infinity`, and
+  `dev.xp` with `amount: Infinity` hung the process outright (`addXp`'s
+  catch-up `while (w.xp >= xpToReach(...))` loop never turns false once
+  `w.xp` is `Infinity`). Fixed in `applyDevCommand` (`src/sim/run.ts`): each
+  of the three cases now checks `Number.isFinite(amount)` before touching
+  world state (precedent: `Stats.add`, `src/sim/cores.ts`), rejecting
+  `NaN`/`+Infinity`/`-Infinity` alike as a clean no-op. Verified the bug was
+  real before fixing: reverted the guard in isolation and confirmed
+  `tests/practice.test.ts`'s new `b006:` cases hang the test runner on
+  `dev.xp(Infinity)` (killed by an external timeout, matching the reported
+  hang) before reapplying. `tests/q15-command-domain-fuzz.test.ts`'s pinned
+  census had already recorded all six `dev.gold`/`dev.xp`/`dev.fast_forward`
+  non-finite combinations as holes (`tests/q15-command-domain-holes.ts`); all
+  six now close (only `build.ty:fractional` remains, b007's scope) and the
+  file's two "finding" `describe` blocks were rewritten to "closed finding"
+  assertions rather than deleted, so a regression here goes red again with
+  the original diagnosis intact. qa-playtester ran two independent passes
+  (one per its own `npm run test:fast` background run): re-read the guard
+  placement, confirmed `-Infinity` rejects identically to `+Infinity`/`NaN`,
+  adversarially checked negative zero, large-finite (`1e15`, correctly still
+  applies), `NaN` via `Run.step`'s command queue in both practice and
+  non-practice worlds, `practiceUsed` semantics (unchanged, pre-existing),
+  and every other `dev` op for a similar hazard (`spawn`'s
+  `clamp(Math.round(amount),1,50)` already safe for non-finite input by
+  construction) — **PASS** both times, no bugs filed. `npx vitest run
+  tests/practice.test.ts tests/q15-command-domain-fuzz.test.ts`: 42/42
+  green. `npm run test:fast`: 1692-1693 passed across two runs, only the
+  pre-existing unrelated flakes red (Playwright fold tests
+  b032/b034/b035/b036, and a Windows EPERM temp-scratch cleanup race in
+  q28/q49) — not a regression, both already documented flaky elsewhere.
+  P0–P10 remain otherwise as the prior session left them: gates **G8, G14
+  and most of G23 still read red** (the wave-11-to-17 content wall p10i
+  documented) — 1.0-complete is not yet reached.
+
 - **2026-08-31 session: BACKLOG b005 closed — no code change, it was a stale
   duplicate already fixed by p9e (commit `a645225`) and never checked off.**
   b005 (filed at the lane/quality merge) and p9e's second, independent

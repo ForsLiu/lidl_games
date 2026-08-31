@@ -562,13 +562,37 @@ were not re-filed. Ordering within this section is by severity, not P-band.
       (1694 passed; only the 4 pre-existing unrelated Playwright fold-test flakes
       red — b032/b034/b035/b036, documented flaky elsewhere) — refs: §6.3, G18,
       BACKLOG-QUALITY session logs (lane/quality merge), p9e
-- [ ] (b006) [bug] Three practice `dev` ops launder a non-finite `amount` into
+- [x] (b006) [bug] Three practice `dev` ops launder a non-finite `amount` into
       permanent run state, and `{k:'dev',op:'xp',amount:Infinity}` hangs the process:
       `Math.max(0, NaN)` is `NaN` for `gold`/`fast_forward`, `xp` forwards unguarded
       into `addXp`, whose catch-up `while` loop never terminates on `Infinity` —
       acceptance: one `Number.isFinite` guard per op (precedent: `Stats.add`), a
       regression test fires each op with `NaN`/`±Infinity` and the world stays finite
-      and the process alive — refs: QUESTIONS (practice tool), BACKLOG-QUALITY q15
+      and the process alive — refs: QUESTIONS (practice tool), BACKLOG-QUALITY q15.
+      Fixed: `applyDevCommand` (`src/sim/run.ts`) now guards the `gold`, `xp` and
+      `fast_forward` cases with `Number.isFinite(amount)` before touching world
+      state (precedent: `Stats.add`, `src/sim/cores.ts`), rejecting `NaN`/`+Infinity`/
+      `-Infinity` alike as a clean no-op. `tests/practice.test.ts` adds two direct
+      regression cases (all three ops x three non-finite families stay a no-op;
+      `dev.xp` Infinity no longer hangs). The q15 command-domain fuzzer's six
+      `dev.gold`/`dev.xp`/`dev.fast_forward` holes closed —
+      `tests/q15-command-domain-holes.ts`'s `HOLES` map now carries only
+      `build.ty:fractional` (b007's scope); the two "finding" `describe` blocks in
+      `tests/q15-command-domain-fuzz.test.ts` were rewritten to "closed finding"
+      assertions (clean no-op / no hang) rather than deleted, so a regression here
+      goes red again with the original diagnosis intact. qa-playtester independently
+      re-read the guard placement, confirmed `-Infinity` is rejected identically to
+      `+Infinity`/`NaN`, ran a scratch adversarial pass (negative zero, `1e15`
+      large-finite still applies, `NaN` via `Run.step`'s command queue in both
+      practice and non-practice worlds, `practiceUsed` semantics unchanged) and
+      checked every other `dev` op for a similar hazard (`spawn`'s
+      `clamp(Math.round(amount),1,50)` is already safe for non-finite input by
+      construction) — no bugs filed. `npx vitest run tests/practice.test.ts
+      tests/q15-command-domain-fuzz.test.ts` — 42/42 green. `npm run test:fast`
+      reran clean (1692 passed; only the pre-existing unrelated flakes red —
+      Playwright fold tests b032/b034/b035/b036, and Windows EPERM temp-scratch
+      cleanup races in q28/q49, documented flaky elsewhere) — refs: §12 rule 2,
+      G17, BACKLOG-QUALITY q15. Commit `73457c2`.
 - [ ] (b007) [bug] An out-of-grid `tx` in `upgrade`/`sell` aliases onto a real tile
       one row up (`idx = ty*GRID_W + tx` is never bounds-checked before
       `structureAt` indexes `grid.occ`), so the Command silently acts on the wrong
