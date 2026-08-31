@@ -67,7 +67,7 @@
  *   npx tsx tools/mutation-probe.ts             # runs every recorded mutation, prints a table
  */
 
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, rmSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -780,42 +780,103 @@ function applyEdits(scratchDir: string, file: string, edits: readonly MutationEd
  * A timed-out or killed child is not a "the mutation was caught" result — it
  * is the harness failing to answer the question at all, and coercing it to a
  * plain nonzero exit code would make it indistinguishable from a real catch.
- * Thrown rather than returned, so a probe never silently reports success.
+ * Thrown (as a rejection) rather than returned, so a probe never silently
+ * reports success.
  */
 class NestedVitestTimeout extends Error {}
 
-function runVitest(scratchDir: string, testFile: string): { exitCode: number; stdout: string; stderr: string } {
-  try {
-    const out = execFileSync('npx', ['vitest', 'run', testFile], {
-      cwd: scratchDir,
-      shell: true,
-      stdio: 'pipe',
-      timeout: NESTED_VITEST_TIMEOUT_MS,
-      env: { ...process.env },
-    });
-    return { exitCode: 0, stdout: out.toString(), stderr: '' };
-  } catch (err) {
-    const e = err as { status?: number | null; signal?: string | null; killed?: boolean; stdout?: Buffer | string; stderr?: Buffer | string };
-    if (e.killed || e.signal) {
-      throw new NestedVitestTimeout(
-        `mutation-probe: nested "npx vitest run ${testFile}" in ${scratchDir} was killed (signal ${e.signal ?? 'unknown'}), ` +
-          `most likely the ${NESTED_VITEST_TIMEOUT_MS}ms exec timeout — this is a harness failure, not a caught mutation.`,
-      );
+/**
+ * Kills `pid` and every descendant it has spawned (b028). `execFileSync`'s
+ * own `timeout` option — the previous implementation — only signals the
+ * *immediate* child; with `shell: true` that child is `cmd.exe`/`sh -c`,
+ * which runs `npx`, which runs `node`, which runs vitest's own worker/fork
+ * processes. A signal to the top pid alone leaves every process below it
+ * running, which is exactly how a single killed-on-timeout probe left 191+
+ * orphaned `vitest` processes behind on Windows. `taskkill /T` walks the real
+ * OS-recorded parent-child chain (not a POSIX process group), so it still
+ * reaches a descendant even if its immediate parent already exited by the
+ * time `taskkill` runs. Best-effort: the target may have already exited on
+ * its own between the timeout firing and this call landing, which both
+ * platforms report as an error — swallowed, not a bug here.
+ */
+export function killProcessTree(pid: number): void {
+  if (process.platform === 'win32') {
+    try {
+      execFileSync('taskkill', ['/PID', String(pid), '/T', '/F'], { stdio: 'ignore' });
+    } catch {
+      // Already exited, or never existed — nothing left to kill.
     }
-    return {
-      exitCode: typeof e.status === 'number' ? e.status : 1,
-      stdout: e.stdout?.toString() ?? '',
-      stderr: e.stderr?.toString() ?? '',
-    };
+    return;
+  }
+  try {
+    process.kill(-pid, 'SIGKILL'); // negative pid: the whole process group (requires detached: true at spawn)
+  } catch {
+    // No such group (already exited) — fall through to the direct kill below.
+  }
+  try {
+    process.kill(pid, 'SIGKILL');
+  } catch {
+    // Already exited.
   }
 }
 
-/** Runs `testFile` against an unmutated scratch copy — must pass, or the harness itself is broken. */
-export function probeControl(testFile: string): ProbeResult {
+function runVitest(
+  scratchDir: string,
+  testFile: string,
+  timeoutMs: number = NESTED_VITEST_TIMEOUT_MS,
+): Promise<{ exitCode: number; stdout: string; stderr: string }> {
+  return new Promise((resolve, reject) => {
+    const child = spawn('npx', ['vitest', 'run', testFile], {
+      cwd: scratchDir,
+      shell: true,
+      windowsHide: true,
+      detached: process.platform !== 'win32', // POSIX: own process group, so killProcessTree can target the whole tree
+      env: { ...process.env },
+    });
+    let stdout = '';
+    let stderr = '';
+    let timedOut = false;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      if (child.pid !== undefined) killProcessTree(child.pid);
+    }, timeoutMs);
+    child.stdout?.on('data', (d: Buffer) => {
+      stdout += d.toString();
+    });
+    child.stderr?.on('data', (d: Buffer) => {
+      stderr += d.toString();
+    });
+    child.on('error', (err) => {
+      clearTimeout(timer);
+      reject(err);
+    });
+    child.on('close', (code, signal) => {
+      clearTimeout(timer);
+      if (timedOut) {
+        reject(
+          new NestedVitestTimeout(
+            `mutation-probe: nested "npx vitest run ${testFile}" in ${scratchDir} was killed (signal ${signal ?? 'unknown'}), ` +
+              `most likely the ${timeoutMs}ms exec timeout — this is a harness failure, not a caught mutation.`,
+          ),
+        );
+        return;
+      }
+      resolve({ exitCode: code ?? 1, stdout, stderr });
+    });
+  });
+}
+
+/**
+ * Runs `testFile` against an unmutated scratch copy — must pass, or the
+ * harness itself is broken. `timeoutMs` defaults to the real nested-run
+ * ceiling; a caller (b028's regression test) may pass a much shorter one to
+ * exercise the timeout/kill path without waiting on the real ceiling.
+ */
+export async function probeControl(testFile: string, timeoutMs: number = NESTED_VITEST_TIMEOUT_MS): Promise<ProbeResult> {
   const scratchDir = scratchPath(`control-${testFile}`);
   try {
     populateScratch(scratchDir);
-    const { exitCode, stdout, stderr } = runVitest(scratchDir, testFile);
+    const { exitCode, stdout, stderr } = await runVitest(scratchDir, testFile, timeoutMs);
     return { name: `control:${testFile}`, testFailed: exitCode !== 0, exitCode, stdout, stderr, realFileUntouched: true };
   } finally {
     removeDir(scratchDir);
@@ -823,7 +884,7 @@ export function probeControl(testFile: string): ProbeResult {
 }
 
 /** Applies `m` to a scratch copy only, runs its test file there, and proves the real repo file was never touched. */
-export function probeOne(m: Mutation): ProbeResult {
+export async function probeOne(m: Mutation): Promise<ProbeResult> {
   if (!gitDiffClean(m.file)) {
     throw new Error(
       `mutation-probe: refusing to run "${m.name}" — the real ${m.file} already has uncommitted changes; commit or stash them first.`,
@@ -837,7 +898,7 @@ export function probeOne(m: Mutation): ProbeResult {
   try {
     populateScratch(scratchDir);
     applyEdits(scratchDir, m.file, m.edits);
-    ({ exitCode, stdout, stderr } = runVitest(scratchDir, m.testFile));
+    ({ exitCode, stdout, stderr } = await runVitest(scratchDir, m.testFile));
   } finally {
     removeDir(scratchDir);
   }
@@ -845,13 +906,17 @@ export function probeOne(m: Mutation): ProbeResult {
   return { name: m.name, testFailed: exitCode !== 0, exitCode, stdout, stderr, realFileUntouched };
 }
 
-export function probeAll(mutations: readonly Mutation[] = MUTATIONS): ProbeResult[] {
-  return mutations.map(probeOne);
+export async function probeAll(mutations: readonly Mutation[] = MUTATIONS): Promise<ProbeResult[]> {
+  const results: ProbeResult[] = [];
+  for (const m of mutations) {
+    results.push(await probeOne(m));
+  }
+  return results;
 }
 
 /* --------------------------------------------------------------------- CLI */
 
-function main(): void {
+async function main(): Promise<void> {
   const testFiles = [...new Set(MUTATIONS.map((m) => m.testFile))];
   let failures = 0;
 
@@ -863,14 +928,14 @@ function main(): void {
 
   try {
     for (const tf of testFiles) {
-      const r = probeControl(tf);
+      const r = await probeControl(tf);
       const ok = r.exitCode === 0;
       if (!ok) failures++;
       console.log(`${ok ? 'ok  ' : 'FAIL'} control  ${tf}${ok ? '' : ` (exit ${r.exitCode})`}`);
     }
 
     for (const m of MUTATIONS) {
-      const r = probeOne(m);
+      const r = await probeOne(m);
       const ok = r.testFailed && r.realFileUntouched;
       if (!ok) failures++;
       console.log(
@@ -892,4 +957,9 @@ function main(): void {
 }
 
 const entry = (process.argv[1] ?? '').replace(/\\/g, '/');
-if (entry.endsWith('tools/mutation-probe.ts')) main();
+if (entry.endsWith('tools/mutation-probe.ts')) {
+  main().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+}

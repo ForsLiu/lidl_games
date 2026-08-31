@@ -103,8 +103,8 @@ describe('q14 — mutation smoke', () => {
   describe.each(testFiles)('control (unmutated): %s', (testFile) => {
     it(
       'passes, so a later red result can only mean the mutation caught it',
-      () => {
-        const result = probeControl(testFile);
+      async () => {
+        const result = await probeControl(testFile);
         expect(
           result.exitCode,
           `control run for ${testFile} must be green before any mutation's "red" can be trusted:\n${result.stdout}\n${result.stderr}`,
@@ -130,8 +130,8 @@ describe('q14 — mutation smoke', () => {
   describe.each(MUTATIONS)('$name', (m) => {
     it(
       `makes ${m.testFile} fail, and never touches the real ${m.file}`,
-      () => {
-        const result = probeOne(m);
+      async () => {
+        const result = await probeOne(m);
         expect(
           result.testFailed,
           `expected mutation "${m.name}" to make ${m.testFile} fail, but it passed:\n${result.stdout}\n${result.stderr}`,
