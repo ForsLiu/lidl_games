@@ -55,6 +55,18 @@
  * Re-measured, all seven T3 (with `T3_MODS`): 0/5, unchanged — the curve
  * still bites, a solo tower still can't tank T3 alone. Full before/after
  * table and rationale: PROGRESS.md's p10c entry.
+ *
+ * **Re-checked at p10l** against `data/waves.json`'s `buildPhaseSeconds`
+ * 20->15 (the G1 pacing fix, `tests/p10d-run-length.test.ts`): ran
+ * `npx tsx tools/a4probe.ts` for the full roster and this file's own vitest
+ * suite at the new value — unchanged, all seven towers still 5/5 T1 / 0/5 T3.
+ * Expected: `buildPhaseSeconds` only gates when a wave's enemies start
+ * spawning, not how much gold this file's `BuilderPolicy` bot has banked
+ * (bounty + the fixed wave-clear bonus, neither reads the build timer — true
+ * for the default core this probe always runs; the "Time" core's
+ * `goldPerSecond` step is a real exception, filed as BACKLOG b042, but this
+ * probe never selects a non-default core), so it was never actually coupled
+ * to this probe the way `vsWaveSeconds` is.
  */
 
 import { describe, expect, it } from 'vitest';

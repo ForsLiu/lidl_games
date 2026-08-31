@@ -52,9 +52,34 @@
  * wall p10d hit cutting HP directly: the residual gap is not inside the boss
  * fight's own time budget. Landed on 20/10/0.5 (**36.63 min, 22/24 (92%)**) as
  * the real, honest improvement available from a boss-only lever, still short
- * of the band. Full accounting, and BACKLOG p10l (the Act I/VS-pacing
- * follow-up this rules in scope, since a4's protected TD economy rules a
- * global timer edit back out), in PROGRESS.md.
+ * of the band. Follow-up filed as BACKLOG p10l.
+ *
+ * **p10l (closes the gate): `data/waves.json`'s `buildPhaseSeconds` 20->15.**
+ * p10k's own note assumed any further pacing lever had to live in Act I or
+ * the non-final VS blocks, and that `vsWaveSeconds`/`buildPhaseSeconds` were
+ * both already ruled out by p10d's finding that they're "coupled to a4's
+ * TD-only economy through the VS blocks its solo-tower probe traverses." That
+ * finding was never isolated per-field — p10d changed both at once. Tried
+ * `buildPhaseSeconds` alone this session: `tools/a4probe.ts`'s full roster
+ * still measures 5/5 T1 / 0/5 T3 for all seven towers at 15s, unchanged from
+ * 20s. This makes sense on inspection — the build-phase timer only gates
+ * *when enemies spawn*, not how much gold the bot has to spend: for the
+ * default `stone_heart` core both gated tests use, gold comes solely from
+ * kill bounty and the fixed wave-clear bonus (`run.ts`'s `applyWaveClear`),
+ * neither of which reads the build timer. (One core is a real exception —
+ * "Time"'s `goldPerSecond` step ticks on every phase including the build
+ * one, so it *is* wall-clock-coupled; harmless here since neither gated test
+ * selects it, filed as BACKLOG b042.) So shortening the timer removes dead
+ * waiting time without touching the economy a4 measures. `vsWaveSeconds`
+ * stays untouched — it's
+ * the field p10c's own investigation found genuinely coupled (VS kills feed
+ * XP -> Power boons -> `towerDamage()`'s `powerMul`, which also scales TD
+ * firing) and it's on §17's owner-review list besides. Measured: **mean
+ * 35.29 min, 22/24 wins (92%)** — same win/loss split as the p10k baseline,
+ * confirming the lever changes only pacing, not difficulty. Comfortably
+ * inside the 30-36 min band. `tests/p3a-run-shape.test.ts`'s pinned
+ * `buildPhaseSeconds` literal updated 20->15 to match; no other test pins the
+ * old value. Gate **G1 is green in full.**
  */
 
 import { describe, expect, it } from 'vitest';
@@ -99,17 +124,21 @@ describe('G1 mean victorious run is 30-36 minutes over 24+ seeds', () => {
     expect(rate, detail).toBeLessThan(1);
   });
 
-  // Measured red (p10k session, final settings): mean 36.63 min, 22/24 wins
-  // (92%) — 0.63 min over the 36 min ceiling, down from p10d's 37.15/79% (live
-  // baseline had drifted to 37.15->37.24/67% by this session, from p10e-p10j's
-  // intervening balance work). See the file header: p10k proved, via an
-  // independent boss-pacing ramp swept across a wide constant range, that
-  // closing the rest of this gap from inside the boss fight always costs G14
-  // its <100% win rate — the two gates are in genuine tension here, not a
-  // missed tuning value. `.skip`-ed with the honest number; re-enable point
-  // moves to BACKLOG p10l (an Act I/VS-pacing lever, since a4's protected TD
-  // economy rules a global timer edit out of a boss-only item).
-  it.skip('has a mean victorious run of 30-36 minutes', () => {
+  // Closed at p10l: `data/waves.json`'s `buildPhaseSeconds` 20->15 (a TD-side
+  // lever `tests/a4-single-type.test.ts`'s solo-tower probe never traverses a
+  // build-phase-length dependency on — verified empirically, all seven towers
+  // still 5/5 T1 / 0/5 T3 at 15s) shaves the dead per-wave build-phase wait
+  // out of all 18 TD waves without touching combat difficulty (build phase
+  // only gates when enemies spawn, not how much gold the bot has to spend —
+  // gold comes solely from bounty and the fixed wave-clear bonus). Measured:
+  // mean 35.29 min, 22/24 wins (92%) — same win/loss split as p10k's
+  // pre-change baseline (36.63 min, 22/24), confirming the lever is
+  // orthogonal to outcome, only to pacing. `vsWaveSeconds` (75s) is
+  // deliberately untouched — it is on §17's owner-review list and was also
+  // the lever p10d/p10k found genuinely coupled to a4's economy via the
+  // VS-kills -> XP -> Power-boon -> `towerDamage()` `powerMul` pipeline that
+  // also scales TD firing.
+  it('has a mean victorious run of 30-36 minutes', () => {
     expect(mean, detail).toBeGreaterThanOrEqual(30);
     expect(mean, detail).toBeLessThanOrEqual(36);
   });

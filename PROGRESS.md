@@ -5,6 +5,59 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-31 session: p10l done — gate G1 closed in full via a TD-side
+  pacing lever p10d/p10k never actually isolated — commit pending.**
+  p10k left G1's mean-band clause `.skip`-ed at 36.63 min / 22/24 wins (92%),
+  0.63 min over the 36 min ceiling, having proven the rest of the gap could
+  not close from inside the boss fight without pinning win rate at 100%
+  (forbidden by G14). p10d's own note blamed `data/waves.json`'s
+  `vsWaveSeconds`/`buildPhaseSeconds` as both coupled to `tests/a4-single-
+  type.test.ts`'s solo-tower TD economy — but that finding was never
+  isolated per-field; p10d changed both at once and reverted after 3 of 7
+  towers regressed. Tried `buildPhaseSeconds` alone this session: fresh
+  `npx tsx tools/a4probe.ts` and the live test both still measure 5/5 T1 /
+  0/5 T3 for all seven towers at 15s (was 20s), unchanged. Traced why in
+  `src/sim/run.ts`: the per-wave build timer only gates when a wave's
+  enemies start spawning — every gold source for the default `stone_heart`
+  core (kill bounty, the flat wave-clear bonus, Sprout income) is a flat
+  per-event payout that never reads it, so shortening it removes dead
+  waiting time from all 18 TD waves without touching the TD economy a4
+  measures or any bot's combat difficulty. `vsWaveSeconds` was left
+  deliberately untouched — it's the field p10c actually found coupled (VS
+  kills feed a `powerMul` boon pipeline that also scales TD firing), and
+  it's on SPEC-FINAL §17's owner-review-veto list besides.
+  Measured (24 seeds, `hybrid` bot, `cycles: 6`, same harness as `tests/
+  p10d-run-length.test.ts`): **mean 35.29 min, 22/24 wins (92%)** — the
+  identical win/loss split to the p10k baseline, confirming the lever moves
+  only pacing, never difficulty. Comfortably inside the 30-36 min band.
+  `tests/p10d-run-length.test.ts`'s mean-band assertion is un-skipped: **all
+  three of its assertions are live and green, gate G1 is green in full.**
+  `tests/p3a-run-shape.test.ts`'s pinned `buildPhaseSeconds` literal updated
+  20->15 (the only other place in the suite pinning the old value);
+  `tools/gate-audit.ts`'s G1 note rewritten for the closure.
+  code-reviewer **APPROVE** (no Critical/Major, two Minors fixed: a stale
+  "20s build" literal in a `run.ts` comment, and a request to log the
+  re-check directly in `tests/a4-single-type.test.ts`'s header). qa-playtester
+  **PASS**, independently re-derived the 35.29 min/22-24 measurement, traced
+  every gold-writing call site itself, fuzzed three other scripted policies
+  for crashes/stuck phases (none), and filed one real non-blocking finding:
+  the "Time" Core's `goldPerSecond` step genuinely *is* wall-clock-coupled
+  (ticks every phase including build), so this item's "gold is solely
+  per-event" claim was an approximation true only for the default core —
+  harmless to G1 (neither gated test selects a non-default core) but the doc
+  comments were overstated as written. Precisified all three touched doc
+  comments to scope the claim correctly and filed the exception itself as
+  BACKLOG b042 (a regression test pinning the Time Core's time-coupled
+  income) rather than fixing inline, since it changes no gate and is not a
+  regression — that core's per-second income has always been time-coupled,
+  this item just changed how much wall-clock time there is to accrue it in.
+  Verified: `tests/p10d-run-length.test.ts` (3/3), `tests/a4-single-type.
+  test.ts` (16/16, ~5 min real sim time), `tests/p3a-run-shape.test.ts`
+  (1/1), `npx tsc --noEmit -p .` clean. `npm run test:fast`: the standing
+  `b032`/`b034`/`b035`/`b036` Vite dev-server port-contention flakes showed
+  up on the full parallel run and re-confirmed clean (5/5) in isolation —
+  not a regression.
+
 - **2026-08-31 session: p10k done — an independent boss-pacing damage-taken
   ramp built and tuned; G1's mean-band gap proven structural, honestly
   `.skip`-ed with the improved number; follow-up filed as p10l — commit

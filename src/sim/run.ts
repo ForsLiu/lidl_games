@@ -820,10 +820,11 @@ function completeWave(w: World): void {
   w.emit('waveclear', 0, 0, w.wave, totalBonus);
 
   if (w.wave >= cycleWaveEnd(w, w.cycle)) {
-    // SPEC-FINAL §1.1 states two wall-clock numbers for the interleave — 20s
-    // build, 75s VS — and nothing about a beat between them. p3d deleted V2's
-    // 15s Dusk cinematic outright, so the block's VS wave begins on the very
-    // same tick its last TD wave clears.
+    // SPEC-FINAL §1.1 states two wall-clock numbers for the interleave — a
+    // build phase (`data/waves.json`'s `buildPhaseSeconds`, ⚖, 15 as of
+    // p10l) and a 75s VS wave — and nothing about a beat between them. p3d
+    // deleted V2's 15s Dusk cinematic outright, so the block's VS wave begins
+    // on the very same tick its last TD wave clears.
     finishSundering(w);
   } else {
     w.phase = 'act1_build';

@@ -38,7 +38,7 @@ still in test headers.
 | P7 equipment/rewards/VS upgrades | **`p7a`-`p7g` done** — §6.3's VS level-up pool replaces the flat 12-boon list (closing b011 as a side effect); §7's 12-item equipment table is live; §8's reward pipeline is complete and **gate G12 is green in full**; the superseded meta economy (relic affixes, Ember) is retired outright, skill points are the tree's only currency; §8.4's unlock quests are live and correct for all 9 non-free classes (p7e fixed 5 quests whose reward never actually unlocked their class, and repointed Paladin's quest at a new "win with a sealed Core" mechanism matching spec text); `p7f`/`p7g` closed the save-migration holes `migrateWithNotice` had — an unknown key, and a corrupt `allocated`/`unlockedClasses`/`completedQuests`/`equipmentStash`/`questProgress`, can no longer discard or corrupt the account. Remaining: `p7h` (Core unlock quests + Codex page) |
 | P8 enemies/waves/bosses | **done in full (`p8a`-`p8c`)** — all 20 §9 enemies by name; `data/waves.json` authors real TD waves 1-18 on the §1.1 shape (Gatebreaker on 18 only, Warden-Eater on VS 6), the §9 VS-budget curve is live; `p8b` closed the elite/boss-summon spawn paths that bypassed `spendBudget`'s `aliveCap` check; `p8c` formally measured gate G14 on the real shape — **honestly red, 0/20**, `.skip`-ed with the number, re-enable point P10 (no gate in this codebase is force-passed by tuning outside P10) |
 | P9 tooling | **done in full (`p9a`-`p9h`)** — content-hash replay check (`p9a`), the Codex wired into the Hub (`p9b`), the Tuner built and gate **G15 green** (`p9c`), G16's dist-presence-is-inert half explicitly asserted (`p9d`), **gate G18's dead-end clause closed in full** (`p9e`), **gate G2 closed in full** (`p9f`), `hashWorld`'s `w.goldSpent` coverage gap closed (`p9g`), and the enemy/Warden panel's armour row now shows the effective (floored/capped) value instead of the raw shredded number (`p9h`) |
-| P10 balance | **in progress (p10a-p10k done)** — Burning flipped to per-application stacking, DoT immunity is data-driven, G13/G1/G17 re-baselined against the real §1.1 shape (G17 fully green; G1 still `.skip`-ed with honest numbers); **G19 measured live and green in full (p10f)**; G4's armour-shred path proven live through a real build (p10g); the TD↔VS transition sweep and asset pass shipped (p10h); HANDOFF.md regenerated end to end against SPEC-FINAL, with the wave-11-to-17 wall (behind G8/G14/most of G23) documented as the dominant open problem (p10i); **G13's 35% VS-damage-share cap closed in full (p10j)** — directional wielded attacks (single/pierce/lob/poison) got an engine-side crowd allowance, `tests/p10c-weapon-share.test.ts`'s skip removed; **p10k** gave the boss fight an independent pacing ramp and proved, via a second mechanism, that G1's remaining ~0.6 min gap is structurally outside the boss fight's time budget — landed a real improvement (37.24->36.63 min, 92% win rate) and left the mean-band assertion honestly `.skip`-ed. Remaining: p10l (an Act I/VS-pacing lever for the rest of G1's gap) |
+| P10 balance | **p10a-p10l done; all queued P10 items closed** — Burning flipped to per-application stacking, DoT immunity is data-driven, G13/G1/G17 re-baselined against the real §1.1 shape (G17 fully green); **G19 measured live and green in full (p10f)**; G4's armour-shred path proven live through a real build (p10g); the TD↔VS transition sweep and asset pass shipped (p10h); HANDOFF.md regenerated end to end against SPEC-FINAL, with the wave-11-to-17 wall (behind G8/G14/most of G23) documented as the dominant open problem (p10i); **G13's 35% VS-damage-share cap closed in full (p10j)**; **p10k** gave the boss fight an independent pacing ramp (37.24->36.63 min, 92% win rate); **p10l** closed the rest via `buildPhaseSeconds` 20->15, a TD-side lever neither p10d nor p10k had isolated — **G1 is green in full** (35.29 min, 22/24 wins). No P10-band item remains queued, but **G8, G14 and most of G23 still read red** (the wave-11-to-17 wall p10i named) — the "1.0 complete" bar (CLAUDE.md, all twenty G1-G20 gates green) is not yet met; closing those gates needs new items, not yet filed since the queue below still has other actionable work first |
 
 ## Queue
 
@@ -528,25 +528,11 @@ next in P8's own queue.
       §1.1, G1, G14, tests/p10d-run-length.test.ts — **done, see Done section
       (mechanism built and tuned; the mean-band assertion itself stays `.skip`-ed —
       see the Done entry and BACKLOG p10l for why).**
-- [ ] (p10l) [balance] Gate **G1**'s mean-band clause is still `.skip`-ed red after
-      p10k: mean victorious run measures 36.63 min against the 30-36 min band (down
-      from 37.24 min pre-p10k). p10k proved, via an independent earlier-starting
-      boss damage-taken ramp swept across a wide constant range (`src/sim/boss.ts`'s
-      `PACING_START`/`PACING_INTERVAL`/`PACING_VULNERABILITY_PER_STACK`,
-      `tools/p10k-sweep.ts`), that the remaining ~0.63 min cannot be closed from
-      inside the boss fight's own time budget without pinning G14's win rate at
-      100% (mean only drops under 36 once every one of the 24 seeds wins). The gap
-      must therefore come from Act I or the non-final VS blocks instead — but
-      p10d already found `data/waves.json`'s `vsWaveSeconds`/`buildPhaseSeconds`
-      (the obvious global pacing knobs) coupled to `tests/a4-single-type.test.ts`'s
-      solo-tower TD economy, breaking 3 of 7 towers' 5/5 T1 bar when tried —
-      acceptance: a pacing change that shaves ~0.7+ min off the mean without
-      moving `tests/a4-single-type.test.ts` off its pinned 36/36 (all seven towers
-      5/5 T1, 0/5 T3) or `tests/p10d-run-length.test.ts`'s win-rate assertion
-      outside (0.5, 1) — e.g. a per-block (not global) timer change scoped to
-      blocks after a4's probe already clears T1, or a TD-side lever a4 doesn't
-      traverse at all — then the mean-band skip comes off — refs: §1.1, G1, G14,
-      tests/p10d-run-length.test.ts, tests/a4-single-type.test.ts.
+- [x] (p10l) [balance] Gate **G1**'s mean-band clause is still `.skip`-ed red after
+      p10k — **done, see Done section.** Closed via `data/waves.json`'s
+      `buildPhaseSeconds` 20->15, a TD-side lever a4's probe never traverses a
+      dependency on: mean 35.29 min, 22/24 wins (92%), same win/loss split as
+      the p10k baseline. **Gate G1 is green in full.**
 
 ### Filed at the lane/quality merge (2026-08-27) — out-of-scope findings from BACKLOG-QUALITY.md's log
 
@@ -956,6 +942,29 @@ because the lane worktree retires at this merge.
       control (`hybrid` capped @5min vs `hybrid` full-run) that isolates the
       phase-mix effect from the policy effect — refs: qa-playtester on p10e,
       `tests/p10e-perf-budget.test.ts`.
+- [ ] (b042) [polish] The "Time" Core's step-1 `goldPerSecond` effect
+      (`src/sim/cores.ts`'s `updateCoreEffects`, `data/cores.json`) ticks real
+      wall-clock gold income every phase including `act1_build`, so it is
+      genuinely coupled to `data/waves.json`'s `buildPhaseSeconds` — unlike
+      every other gold source (kill bounty, the fixed wave-clear bonus,
+      Harvest Sprout's per-wave-clear income), which p10l verified are all
+      flat-per-event, not time-based. Not a regression and not caught by any
+      gate: `tests/a4-single-type.test.ts` and `tests/p10d-run-length.test.ts`
+      both run the default `stone_heart` core (no `goldPerSecond`), so
+      p10l's buildPhaseSeconds retune (20->15) never exercised this path.
+      Found by qa-playtester verifying p10l (2026-08-31), reproduced twice: a
+      Time-core run with step 1 bought banks ~85-93 less gold (~0.7% of run
+      total) at buildPhaseSeconds 15 vs 20, tracking the removed build-phase
+      seconds exactly, across seeds 1-3. Harmless today (small magnitude, and
+      if anything helps that Core's own "win under 32 min" unlock condition
+      by not penalizing a faster clear) but the "gold is solely per-event, not
+      per-second" claim p10l's doc comments make is an approximation true only
+      for the default core — acceptance: a small regression test (e.g.
+      extending `tests/p-core-e-time-decay.test.ts` or a new file) that pins
+      the Time Core's `goldPerSecond` income as time-coupled by construction,
+      so a future pacing-timer retune notices this core's income moves with
+      it instead of rediscovering the coupling from scratch — refs:
+      qa-playtester on p10l, `src/sim/cores.ts`, `data/cores.json`.
 - [x] (b037) [bug] The relic loot pipeline stayed fully live after fb023
       deleted every UI path that could equip or discard a relic — **closed by
       p7d, see the Done section.** `src/sim/loot.ts` (`dropRelic`,
@@ -994,6 +1003,83 @@ logged in MIGRATION.md §8 rather than carried as dead items.
 
 ## Done
 
+- [x] (p10l) [balance] Gate **G1**'s mean-band clause is still `.skip`-ed red
+      after p10k: mean victorious run measures 36.63 min against the 30-36 min
+      band (down from 37.24 min pre-p10k) — acceptance: a pacing change that
+      shaves ~0.7+ min off the mean without moving `tests/a4-single-type.
+      test.ts` off its pinned 36/36 (all seven towers 5/5 T1, 0/5 T3) or
+      `tests/p10d-run-length.test.ts`'s win-rate assertion outside (0.5, 1) —
+      e.g. a per-block (not global) timer change scoped to blocks after a4's
+      probe already clears T1, or a TD-side lever a4 doesn't traverse at all
+      — refs: §1.1, G1, G14, tests/p10d-run-length.test.ts, tests/a4-single-
+      type.test.ts.
+      p10d's own note ("`vsWaveSeconds`/`buildPhaseSeconds` are coupled to
+      a4's TD-only economy") turned out to describe a change that was never
+      isolated per-field — p10d edited both at once and reverted the combined
+      attempt after 3 of 7 towers regressed, without ever testing
+      `buildPhaseSeconds` alone. Tried it alone this session: fresh
+      `npx tsx tools/a4probe.ts` (full roster) and `tests/a4-single-type.
+      test.ts` both measure unchanged 5/5 T1 / 0/5 T3 for all seven towers at
+      `buildPhaseSeconds: 15` (was 20). Traced why in `src/sim/run.ts`: the
+      per-wave build timer (`buildTimer`, set from `c.buildPhaseSeconds` in
+      exactly two places, `run.ts`'s `completeWave` and `sundering.ts`'s
+      `finishSundering`) only gates *when a wave's enemies start spawning* —
+      it is never read by any gold-writing path. Every gold source for the
+      default `stone_heart` core (kill bounty in `enemies.ts`'s `killEnemy`,
+      the flat per-wave `waveClearBase + waveClearPerWave*wave` bonus in
+      `run.ts`'s `completeWave`, Harvest Sprout's per-wave-clear income) is a
+      flat per-event payout, not a per-second one, so shortening the timer
+      removes dead waiting time from all 18 TD waves without touching the
+      solo-tower TD economy a4 measures or any bot's combat difficulty.
+      `vsWaveSeconds` (75s) was deliberately left untouched: it's the field
+      p10c actually found coupled (VS kills feed the XP -> Power-boon ->
+      `towerDamage()`'s `powerMul` pipeline, which also scales TD firing),
+      and it's on SPEC-FINAL §17's owner-review-veto list besides — no reason
+      to touch a spec-flagged, genuinely-coupled number when the other ⚖
+      constant in the same sentence turned out to be free.
+      Measured (24 seeds, `hybrid` bot, `cycles: 6`, same harness `tests/
+      p10d-run-length.test.ts` uses): **mean 35.29 min, 22/24 wins (92%)** —
+      identical win/loss split to the p10k baseline (same two seeds lose),
+      confirming the lever moves only pacing, never difficulty. Comfortably
+      inside the 30-36 min band (0.71 min of margin below the ceiling, 5.29
+      above the floor). `tests/p10d-run-length.test.ts`'s mean-band assertion
+      un-skipped — **all three of its assertions are now live and green,
+      gate G1 is green in full.** `tests/p3a-run-shape.test.ts`'s pinned
+      `buildPhaseSeconds` literal updated 20->15 (the only other place in the
+      suite that pinned the old value); `tools/gate-audit.ts`'s G1 note
+      rewritten to describe the closure.
+      code-reviewer **APPROVE**, no Critical/Major — two Minors, both fixed
+      here: a stale comment in `run.ts`'s `completeWave` still citing the old
+      "20s build" literal (reworded to point at the data field instead of a
+      number), and a request to have `tests/a4-single-type.test.ts` itself
+      carry a one-line note that it was re-checked at the new value (added).
+      qa-playtester **PASS** on the acceptance criteria, independently
+      re-derived the 35.29 min / 22/24 measurement, traced every gold-writing
+      call site itself to confirm none reads the build timer, fuzzed three
+      other scripted policies (`maxbuild`/`turtle`/`kite`) for crashes or
+      stuck phases (none), and filed one real non-blocking finding: the
+      "Time" Core's `goldPerSecond` step *is* genuinely wall-clock-coupled
+      (ticks every phase including build), so the "gold is solely per-event"
+      claim is an approximation true only for the default core — neither
+      gated test selects a non-default core, so this never touched G1, but
+      the doc comments' claim was overstated as written. Precisified all
+      three (`tests/p10d-run-length.test.ts`, `tests/a4-single-type.test.ts`,
+      `tools/gate-audit.ts`) to scope the claim to the default core and
+      point at the exception; filed the exception itself as BACKLOG b042
+      (polish: pin the Time Core's time-coupled income with its own
+      regression test) rather than fix inline, since it changes no gate and
+      isn't a regression — the Time core's per-second income has always been
+      time-coupled, `buildPhaseSeconds` just changes how much wall-clock time
+      there is to accrue it in.
+      Verified: `tests/p10d-run-length.test.ts` (3/3), `tests/a4-single-
+      type.test.ts` (16/16, ~5 min real sim time), `tests/p3a-run-shape.
+      test.ts` (1/1), `npx tsc --noEmit -p .` clean. `npm run test:fast`:
+      4 suites failed (`b032`/`b034`/`b035`/`b036` fold tests) on the full
+      parallel run, all with the documented Vite dev-server port-contention
+      signature (`throwClosedServerError`/`Hook timed out`); re-ran all four
+      in isolation and got 5/5 green, confirming the standing host-load flake
+      class rather than a regression — refs: §1.1, §17, G1, G14,
+      `tests/p10d-run-length.test.ts`, `tests/a4-single-type.test.ts`.
 - [x] (p10k) [feat] Gate **G1**'s mean-band clause is `.skip`-ed red
       (`tests/p10d-run-length.test.ts`): mean victorious run measures 37.15 min
       against the 30-36 min band after p10d's data-only pacing fix — acceptance:

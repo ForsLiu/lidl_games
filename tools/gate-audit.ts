@@ -158,21 +158,20 @@ export const GATE_COVERAGE: Record<string, CoverageEntry> = {
     note:
       'p10d replaces the retired tests/a1-run-length.test.ts (a median-based measurement under the old V2 ' +
       'Day/Night cycle, the opposite metric from G1\'s "means/pass-rates, never medians") with a live test ' +
-      "against the real §1.1 shape: 24 seeds, the hybrid bot, cycles: 6. Two of its three assertions are live " +
-      "and green — enough victories to measure, and win rate a real 50-100% majority (not a rubber-stamp " +
-      "100%). The mean-band assertion (30-36 min) is it.skip'd: /data-only tuning (data/spawns.json's " +
-      'bossTimeSeconds 600->181, data/enemies.json\'s warden_eater hp 15000->10000, p10d) closed most of the ' +
-      "gap (44.3->37.15 min) but a discovered cross-gate conflict blocked the rest — every boss-HP cut low " +
-      "enough to land the band also pins the scripted bot's win rate at 100% across every seed tried. p10k " +
-      "then added an independent, earlier-starting boss damage-taken pacing ramp (src/sim/boss.ts's " +
-      "PACING_START/PACING_INTERVAL/PACING_VULNERABILITY_PER_STACK) and swept a wide constant range against " +
-      "the same 24 seeds, proving the identical wall from a second, unrelated mechanism: mean only crosses " +
-      "under 36 min once win rate reaches 100%, which G14 forbids outright — the residual gap is " +
-      "structurally outside the boss fight's own time budget, not a missed tuning value. Landed on a real, " +
-      "measured improvement (37.24->36.63 min, 92% win rate) over either shipping nothing or a knife-edge " +
-      "tuning one seed away from 100%. Follow-up filed as BACKLOG p10l (an Act I/VS-pacing lever, since " +
-      "a4-single-type.test.ts's protected TD economy rules a global timer edit out of a boss-only item). " +
-      'Listed `covered` on the same partial-but-live-measured basis as G13/G17, not `hole`.',
+      "against the real §1.1 shape: 24 seeds, the hybrid bot, cycles: 6. p10d/p10k closed the boss-fight-side " +
+      "budget as far as it would go without pinning the scripted bot's win rate at 100% (G14 conflict), " +
+      "landing 36.63 min / 92% wins and leaving the mean-band assertion honestly it.skip'd. p10l closed the " +
+      "rest with a TD-side lever neither prior session had isolated: data/waves.json's buildPhaseSeconds " +
+      "20->15. The per-wave build timer only gates when enemies spawn, not how much gold the bot has to " +
+      "spend for the default core both gated tests use (gold comes solely from kill bounty and the fixed " +
+      "wave-clear bonus; the Time core's goldPerSecond step is a real exception, BACKLOG b042, but neither " +
+      "gated test selects it), so it was never actually coupled to tests/a4-single-type.test.ts's solo-tower " +
+      "TD economy the way p10d's combined " +
+      "vsWaveSeconds+buildPhaseSeconds attempt suggested — verified empirically (all seven towers still 5/5 " +
+      "T1 / 0/5 T3 at 15s). vsWaveSeconds itself stays untouched (§17 owner-review list; also the field p10c " +
+      "found genuinely coupled via the VS-kills -> XP -> Power-boon -> powerMul pipeline). Measured: mean " +
+      "35.29 min, 22/24 wins (92%, same split as the p10k baseline) — inside the 30-36 min band with margin " +
+      "on both sides. All three assertions are live and green. Gate G1 is green in full.",
   },
   G13: {
     files: ['tests/a4-single-type.test.ts', 'tests/p10c-weapon-share.test.ts'],

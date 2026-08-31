@@ -2,8 +2,9 @@
  * SPEC-FINAL §1.1 (P3, BACKLOG p3a), gate G6's pattern half: "3 TD waves,
  * then 1 VS wave, repeating" — 18 TD + 6 VS waves per run, VS after TD waves
  * 3/6/9/12/15/18, TD wave 18 carries the Gatebreaker, the final VS wave is
- * boss-gated (Warden-Eater) rather than timed, build phases are 20s, VS waves
- * are 75s (final excepted), and building is rejected throughout every VS wave.
+ * boss-gated (Warden-Eater) rather than timed, build phases are 15s (retuned
+ * from 20s at p10l for G1 pacing), VS waves are 75s (final excepted), and
+ * building is rejected throughout every VS wave.
  *
  * Drives a full scripted 18+6 run by forcing each wave boundary the same way
  * the rest of the suite does (`forceWaveClear`-style direct pokes — see
@@ -25,7 +26,7 @@ import { emptyInput } from '../src/sim/types';
 import { cfg } from './helpers';
 
 describe('p3a: SPEC-FINAL §1.1 run shape (gate G6 pattern half)', () => {
-  it('interleaves 3 TD waves -> 1 VS wave x 6 (18 TD + 6 VS), 20s build / 75s VS, Gatebreaker on TD 18, boss-gated final VS, building rejected during every VS wave', () => {
+  it('interleaves 3 TD waves -> 1 VS wave x 6 (18 TD + 6 VS), 15s build / 75s VS, Gatebreaker on TD 18, boss-gated final VS, building rejected during every VS wave', () => {
     const run = new Run(cfg({ cycles: 6, seed: 1 }));
     const w = run.world;
     w.invulnerable = true;
@@ -33,8 +34,9 @@ describe('p3a: SPEC-FINAL §1.1 run shape (gate G6 pattern half)', () => {
 
     const buildPhaseSeconds = w.content.waves.buildPhaseSeconds;
     const vsWaveSeconds = w.content.waves.vsWaveSeconds;
-    // §1.1's own stated ⚖ constants, landed literally as this item's data change.
-    expect(buildPhaseSeconds).toBe(20);
+    // §1.1's own stated ⚖ constants. buildPhaseSeconds was retuned 20->15 at
+    // p10l (G1 pacing); vsWaveSeconds is untouched (§17's owner-review list).
+    expect(buildPhaseSeconds).toBe(15);
     expect(vsWaveSeconds).toBe(75);
 
     const gatebreakerId = w.content.enemyByKey.get('gatebreaker')!.id;
@@ -46,7 +48,7 @@ describe('p3a: SPEC-FINAL §1.1 run shape (gate G6 pattern half)', () => {
 
     for (let block = 1; block <= 6; block++) {
       for (let i = 0; i < 3; i++) {
-        // Build phase: 20s, sourced from data, not a magic number in code.
+        // Build phase: 15s, sourced from data, not a magic number in code.
         expect(w.phase).toBe('act1_build');
         expect(w.buildTimer).toBe(buildPhaseSeconds);
 
