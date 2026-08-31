@@ -29,6 +29,7 @@ import { loadContent, type ClassDef } from '../src/sim/content';
 import { classAttackPowerMul, characterDamage } from '../src/sim/classes';
 import { computeCoreState, upgradeCore } from '../src/sim/cores';
 import { World } from '../src/sim/world';
+import { spawnEnemy } from '../src/sim/enemies';
 import { Hub } from '../src/ui/hub';
 import { Hud } from '../src/ui/hud';
 import type { Selection } from '../src/ui/selection';
@@ -654,6 +655,61 @@ describe('b059: the warden info panel memo key uses the same rounding as the Hea
     w.warden.hp = 10.2;
     expect(w.level).toBe(level);
     expect(w.warden.dashCharges).toBe(dashCharges);
+    hud.update(w, undefined, sel);
+    expect(text()).toContain(`Health11 / ${Math.round(maxHp)}`);
+  });
+});
+
+/**
+ * b060: the enemy-info memo key's Health component (hud.ts) rounds `e.hp`
+ * with `Math.round`, but the Health row it guards (`enemyInfoMarkup`) renders
+ * it with `Math.ceil` — the same round-vs-ceil mismatch b059 fixed on the
+ * warden panel, on the enemy panel instead.
+ */
+describe('b060: the enemy info panel memo key uses the same rounding as the Health row', () => {
+  it('an hp change from 9.9 to 10.2 (same Math.round bucket) still refreshes the Health row', () => {
+    document.body.innerHTML = '<div id="app"></div>';
+    const root = document.getElementById('app') as HTMLElement;
+    const hud = new Hud(root, {
+      onSelectTower: () => {},
+      onCallWave: () => {},
+      onPickOffer: () => {},
+      onReroll: () => {},
+      onRetry: () => {},
+      onNewRun: () => {},
+      onToggleRanges: () => {},
+      onToggleAutoPick: () => {},
+      onToggleCharacterPanel: () => {},
+      onEquipItem: () => {},
+      onToggleDpsPanel: () => {},
+      onResume: () => {},
+      onPause: () => {},
+      onCycleSpeed: () => {},
+      onDev: () => {},
+      onQuitToHub: () => {},
+    });
+    const w = new World(cfg({ classKey: 'swordsman' }));
+    const e = spawnEnemy(w, 'husk', 5, 5, { overlay: false })!;
+    const sel: Selection = { kind: 'enemy', id: e.id };
+    hud.buildTowerBar(w);
+    const text = () => (root.querySelector('#sw-towerinfo') as HTMLElement).textContent ?? '';
+
+    const maxHp = e.maxHp;
+    const slowAmount = e.slowAmount;
+    const frostRemaining = e.frostRemaining;
+    const frozenRemaining = e.frozenRemaining;
+    const buffSpeed = e.buffSpeed;
+
+    e.hp = 9.9;
+    hud.update(w, undefined, sel);
+    expect(text()).toContain(`Health10 / ${Math.round(maxHp)}`);
+
+    e.hp = 10.2;
+    expect(e.slowAmount).toBe(slowAmount);
+    expect(e.frostRemaining).toBe(frostRemaining);
+    expect(e.frozenRemaining).toBe(frozenRemaining);
+    expect(e.buffSpeed).toBe(buffSpeed);
+    expect(e.dots.length).toBe(0);
     hud.update(w, undefined, sel);
     expect(text()).toContain(`Health11 / ${Math.round(maxHp)}`);
   });

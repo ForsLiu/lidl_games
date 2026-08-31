@@ -587,7 +587,7 @@ export class Hud {
       const key = [
         'sel:enemy',
         e.id,
-        Math.round(e.hp),
+        Math.ceil(e.hp),
         Math.round(e.slowAmount * 100),
         Math.round(e.frostRemaining * 10),
         Math.round(e.frozenRemaining * 10),

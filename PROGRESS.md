@@ -5,6 +5,35 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-31 session: BACKLOG b060 fixed — the enemy-info panel's memo key
+  Health component (`src/ui/hud.ts:590`) used `Math.round(e.hp)` while the
+  Health row it guards (`enemyInfoMarkup`, `hud.ts:1234`) uses
+  `Math.ceil(e.hp)` — the same round-vs-ceil mismatch b059 fixed on the
+  warden panel, on the enemy panel instead. Found and reproduced twice by
+  qa-playtester verifying b059.** Fix: the memo key now reads
+  `Math.ceil(e.hp)`, matching the row (same pattern as b057–b059).
+  `tests/fb022-info-surfacing.test.ts` adds a `b060` block: a jsdom `Hud`
+  test spawns an enemy (`spawnEnemy`, `src/sim/enemies.ts`), selects it,
+  sets `hp = 9.9`, renders (`Health10 / ...`), sets `hp = 10.2` with every
+  other guarded field held fixed, renders again, and asserts
+  `Health11 / ...`. `npx vitest run tests/fb022-info-surfacing.test.ts`:
+  34/34 pass. `npm run test:fast`: 8 files / 5 tests failed — the same
+  pre-existing Windows EPERM/hang races as every prior session in this log
+  (q15's worker-hang probe, q28/q49/q52's scratch-dir EPERM cleanup races);
+  code-reviewer independently confirmed this by stashing the diff and
+  reproducing the identical failures on a clean tree. code-reviewer
+  **APPROVE** — no Critical/Major findings, confirmed the fix by local
+  revert/restore, confirmed no other field in the memo key diverges from
+  the row, confirmed b061 (the Core-panel twin) remains correctly untouched
+  and open. qa-playtester **PASS** — independently drove the real `Hud`
+  through 9 hostile probes beyond the shipped test (ceil-bucket boundary at
+  0.9→1.1, same-ceil-bucket no-op, simultaneous hp+status changes, rapid
+  cross-enemy selection swaps, enemy death mid-render, negative/zero hp)
+  and found no bugs; flagged a pre-existing cosmetic-only oddity (negative
+  hp renders unclamped as `Health-5 / ...`) as informational, not a
+  regression. BACKLOG b061 (the suspected Core-panel twin) remains open,
+  still pending reproduction before being treated as a hard bug.
+
 - **2026-08-31 session: BACKLOG b059 fixed — the warden-panel memo key's
   Health component (`src/ui/hud.ts:626`) used `Math.round(w.warden.hp)`
   while the Health row it guards (`wardenInfoMarkup`, `hud.ts:1285`) uses

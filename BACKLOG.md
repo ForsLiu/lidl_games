@@ -1820,7 +1820,7 @@ were not re-filed. Ordering within this section is by severity, not P-band.
       inspection only, not yet executed — filed as b061 pending
       confirmation.
 
-- [ ] (b060) [bug] The enemy-info memo key uses `Math.round(e.hp)`
+- [x] (b060) [bug] The enemy-info memo key uses `Math.round(e.hp)`
       (`src/ui/hud.ts:590`) while the Health row it guards
       (`enemyInfoMarkup`, `src/ui/hud.ts:1234`) uses `Math.ceil(e.hp)` — the
       same round-vs-ceil mismatch b059 fixed on the warden panel, on the
@@ -1833,7 +1833,25 @@ were not re-filed. Ordering within this section is by severity, not P-band.
       enemy (`spawnEnemy`, `src/sim/enemies.ts`), selects it, drives hp
       9.9 → 10.2 across two `update()` calls with every other guarded field
       held fixed, and asserts the second render shows the `Math.ceil`
-      value — refs: §11, QA on b059.
+      value — refs: §11, QA on b059. Fixed: `hud.ts:590` now reads
+      `Math.ceil(e.hp)`. `tests/fb022-info-surfacing.test.ts`'s `b060` block
+      covers it (34/34 pass in that file). code-reviewer **APPROVE** — no
+      Critical/Major findings; independently confirmed the fix by reverting
+      it locally (test fails, stale `Health10 / 28`) and restoring it (test
+      passes, `Health11 / 28`); confirmed no other field in the same memo
+      key diverges from the row; confirmed b061 (the Core-panel twin) is
+      correctly untouched and still open. `npm run test:fast` showed 8 files
+      / 5 tests red, but code-reviewer reproduced the identical failures
+      with this diff stashed out on a clean tree, confirming they're the
+      pre-existing Windows EPERM temp-cleanup races (q28/q49/q52) and q15's
+      worker-hang race, unrelated to this change. qa-playtester **PASS** —
+      independently drove the real `Hud` with 9 hostile probes beyond the
+      shipped test (ceil-bucket boundary at 0.9→1.1, same-ceil-bucket
+      no-op, simultaneous hp+status-field changes, rapid cross-enemy
+      selection swaps, enemy death mid-render, negative and exact-zero hp)
+      and found no bugs; flagged a pre-existing cosmetic oddity (negative
+      hp renders as `Health-5 / ...` uninformative but unclamped) as
+      informational only, not a b060 regression.
 
 - [ ] (b061) [bug] Suspected same round-vs-ceil mismatch on the Core panel:
       the core memo key uses `Math.round(w.coreHp)` (`src/ui/hud.ts:610`)
