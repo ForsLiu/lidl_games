@@ -1203,7 +1203,7 @@ were not re-filed. Ordering within this section is by severity, not P-band.
       neighbor-splash damage throughout the whole `DEFEAT_SLOWMO` window for
       *any* Burning source (not just Pyro's Contagious Flame, which this
       item correctly closed) — filed as b049 below.
-- [ ] (b049) [bug] Burning's neighbor-splash damage
+- [x] (b049) [bug] Burning's neighbor-splash damage
       (`data/damagetypes.json`'s Burning `radius: 1`, applied by
       `tickDotSplash` in `src/sim/enemies.ts`, reached via
       `tickDots`→`tickTimers`→`updateEnemies`) keeps landing on enemies
@@ -1231,7 +1231,79 @@ were not re-filed. Ordering within this section is by severity, not P-band.
       ticking on a DoT's own carrier and general enemy movement/Warden-
       contact damage inside the same `updateEnemies` path have the identical
       gap and need the same guard, or are already covered elsewhere — refs:
-      §12 rule 2, b020, b046, b047, b048, qa-playtester on b048.
+      §12 rule 2, b020, b046, b047, b048, qa-playtester on b048. **Fixed**
+      by guarding the whole `tickDots` function (`if (w.dying) return;` as
+      its first statement) rather than only `tickDotSplash` — both the
+      splash and the DoT's own direct damage to its carrier run inside
+      `tickDots`, so one guard closes both halves of the acceptance
+      criteria's ask in one place, and freezes the expiry-timer bookkeeping
+      (`d.remaining -= dt`, the `e.dots` filter) in lockstep with the damage
+      so nothing can partially tick mid-beat. Two regression tests added to
+      `tests/m19c-damage-types.test.ts`: a direct-manipulation test covering
+      two sources (`'brazier'`, `'pyro-passive'`) asserting carrier hp,
+      neighbor hp, neighbor armor shred and `damageByWeapon` all freeze; and
+      a real-defeat test driving a genuine `ember_brazier` tower attack
+      through `Run.step` to a Warden-kill, reusing the same
+      `w.phase='act2'; w.sundered=true; damageWarden(...)` scaffold b047's
+      "real defeat" test established. Both confirmed red on the pre-fix
+      code, green after. code-reviewer **APPROVE**, no Critical/Major/Minor
+      findings (one non-blocking nit: the guard freezes expiry bookkeeping
+      too, not just damage — noted as the more defensible choice, not a
+      problem); independently traced `w.dying`'s only two clear-to-null
+      paths (`resolveDefeat`) and confirmed neither can resume `Run.step`
+      with a mid-beat-frozen `e.dots` array, so no un-expire/double-fire
+      risk. qa-playtester **PASS** on b049's own scope — reverted the guard
+      to confirm both new tests fail without it, restored it, and
+      independently confirmed via code reading and an empirical throwaway
+      test that ordinary carrier-DoT ticking is covered by the same guard
+      (no gap). It also answered the item's own follow-up question and
+      found a new bug in the same family: `contactWarden`/`damageWarden`
+      (`src/sim/enemies.ts`, `src/sim/run.ts`) have no `w.dying` guard, and
+      while `wd.hp` itself is harmless (unconditionally clamped to 0),
+      `storeWrath` keeps accumulating `wd.wrathStored` (Guardian Stance's
+      ultimate meter) from ordinary post-death contact hits for the whole
+      1.5s beat — filed as b050 below. Enemy movement itself (`moveEnemy`)
+      confirmed cosmetic/deterministic on its own, with no replay/hash risk;
+      its only observable effect is feeding enemies into contact range,
+      which is exactly b050's bug.
+- [ ] (b050) [bug] `contactWarden` (`src/sim/enemies.ts`) and the
+      `damageWarden`/`storeWrath` chain it calls into (`src/sim/run.ts`) have
+      no `w.dying` guard, unlike every sibling fix in this bug family
+      (b020/b046/b047/b048/b049) — `updateEnemies` runs unconditionally every
+      tick through the whole `DEFEAT_SLOWMO` beat, so an enemy still in
+      Warden-contact range keeps landing contact hits after the outcome is
+      already decided. qa-playtester-filed verifying b049 (2026-08-31),
+      reproduced via direct experimentation (a Paladin build with nonzero
+      armor, an enemy glued into contact range, a forced Warden-kill defeat,
+      then stepping through the beat): `wd.hp` itself turns out harmless —
+      `damageWarden` unconditionally clamps it to 0 once it goes `<= 0`, so
+      repeated post-death hits keep resetting it to exactly 0 rather than
+      drifting negative — and Second Wind cannot retrigger mid-beat either
+      (`wd.secondWindUsed` is already true, or `w.derived.secondWind` is
+      false, by the time `beginDefeat` has fired). But `storeWrath(w,
+      blocked, applied)` still runs on every post-death contact hit, and with
+      nonzero Warden armor (the ordinary case in any real run) `blocked > 0`
+      every time, so `wd.wrathStored` — Guardian Stance's ultimate meter —
+      keeps climbing for the full 1.5s beat purely from state the outcome no
+      longer depends on. Repro: `new Run(cfg({classKey: 'paladin'}))`, glue
+      an enemy's position to the Warden's every tick, grant nonzero armor,
+      `damageWarden(w, 999999)` to set `w.dying = 'defeat_warden'`, then step
+      ~90 more ticks (1.5s) — `wd.wrathStored` measured climbing from
+      399999.6 to 400007.6 purely during the frozen beat — acceptance: once
+      `w.dying` is truthy, no further resource/HP state changes from Warden
+      contact damage (guard `contactWarden`, or the per-enemy Warden-contact
+      branch in `updateEnemies`, with `if (w.dying) return;`, matching the
+      sibling fixes' style and placement); a regression test (in
+      `tests/m19c-damage-types.test.ts` or a new defeat-slowmo-focused file)
+      drives a real Warden-kill defeat via `Run.step` for a Guardian Stance
+      (Paladin) build with nonzero armor, forces/glues an enemy into contact
+      range, steps through the `DEFEAT_SLOWMO` window, and asserts
+      `w.warden.wrathStored` does not change once `w.dying` is truthy; while
+      fixing, re-check whether any other Warden-contact side effect
+      (`wd.outOfCombat = 0`, the `wardenhit` emit, `TRAIT.explodes`'s
+      `killEnemy(w, e, 'contact')` branch) also needs the same guard or is
+      already inert/cosmetic — refs: §12 rule 2, b020, b046, b047, b048,
+      b049, qa-playtester on b049.
 - [ ] (b021) [bug] The character panel (fb004) renders `cdr` and `leech`
       as raw decimals instead of percentages. Both are classified `'flat'`
       in `STAT_KIND` (`src/sim/stats.ts`) for correct §2 stacking-math

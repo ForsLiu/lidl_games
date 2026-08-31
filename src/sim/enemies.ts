@@ -932,6 +932,14 @@ function tickDotSplash(w: World, e: Enemy, type: DamageTypeKey, acc: SplashAccum
 const splashScratch = new Map<string, SplashAccum>();
 
 function tickDots(w: World, e: Enemy, dt: number): void {
+  // b049: same "the defeat slow-mo beat is a frozen moment" rule already
+  // enforced for wielded attacks/summons/passives/VS specials
+  // (b020/b046/b047/b048) — DoT ticking is itself a damage-dealing
+  // sub-routine (both the direct hit on the carrier and Burning's
+  // neighbour splash), just data-driven off the damage type rather than
+  // gated to one source, so it must freeze the same way regardless of who
+  // applied the stack.
+  if (w.dying) return;
   if (e.dots.length === 0) return;
   let expired = false;
   // Indexed over a snapshot length, not `for..of`: a tick can kill a neighbour,

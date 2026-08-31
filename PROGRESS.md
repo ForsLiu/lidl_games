@@ -5,6 +5,37 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-31 session: BACKLOG b049 fixed — Burning's neighbor-splash damage
+  kept landing throughout the defeat slow-mo window regardless of source.**
+  Same bug class as b020/b046/b047/b048, but data-driven off the Burning
+  damage-type row rather than gated to one class. Fixed by guarding the
+  whole `tickDots` function (`src/sim/enemies.ts`) with `if (w.dying)
+  return;` as its first statement, rather than only `tickDotSplash` — both
+  the splash and the DoT's own direct damage to its carrier run inside
+  `tickDots`, and freezing the whole function also keeps expiry-timer
+  bookkeeping (`d.remaining -= dt`, the `e.dots` filter) in lockstep with the
+  damage so nothing partially ticks mid-beat. Two regression tests added to
+  `tests/m19c-damage-types.test.ts`: a direct-manipulation test (two
+  sources: a tower-labelled 'brazier' and a passive-labelled 'pyro-passive')
+  and a real-defeat test driving a genuine Ember Brazier tower attack
+  through `Run.step` to a Warden-kill, reusing the `w.phase='act2';
+  w.sundered=true; damageWarden(...)` scaffold b047's "real defeat" test
+  established. Both confirmed red pre-fix, green after. code-reviewer
+  **APPROVE**, no Critical/Major/Minor findings; independently traced
+  `w.dying`'s only two clear-to-null paths (`resolveDefeat`) and confirmed
+  no un-expire/double-fire risk. qa-playtester **PASS** — reverted the guard
+  to confirm both tests fail without it, confirmed ordinary carrier-DoT
+  ticking is covered by the same guard (no gap), and confirmed enemy
+  movement itself is cosmetic/deterministic with no replay/hash risk. It
+  filed one new bug in the same family: `contactWarden`/`damageWarden`
+  (`src/sim/enemies.ts`/`src/sim/run.ts`) have no `w.dying` guard, and while
+  `wd.hp` is harmless (unconditionally clamped to 0), `storeWrath` keeps
+  accumulating `wd.wrathStored` (Guardian Stance's ultimate meter) from
+  ordinary post-death contact hits for the whole 1.5s beat — filed as b050,
+  top of the queue. `npm run test:fast`: 1747 passed / 3 failed + 4 failed
+  suites, all the same pre-existing, unrelated flakes logged in b046/b047's
+  entries below (Windows EPERM temp-cleanup races on q28/q49/q52,
+  Playwright fold-test port contention on b032/b034/b035/b036).
 - **2026-08-31 session: BACKLOG b048 fixed — `updateClassPassives`'s three
   damage/CC sub-routines kept firing through the defeat slow-mo window.**
   Same bug class as b020/b046/b047, but a narrower fix than any of those

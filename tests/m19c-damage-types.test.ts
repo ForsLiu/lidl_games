@@ -33,10 +33,10 @@ import { applyDamageSplit, applyDamageType, DAMAGE_TYPES, dotDpsFor } from '../s
 import { updateProjectiles } from '../src/sim/combat';
 import '../src/sim/boss';
 import { loadContent, validateOnHit } from '../src/sim/content';
-import { hashWorld } from '../src/sim/run';
+import { damageWarden, hashWorld, Run } from '../src/sim/run';
 import { buildTower, updateTowers } from '../src/sim/towers';
 import { World } from '../src/sim/world';
-import type { Enemy } from '../src/sim/types';
+import type { Enemy, TickInput } from '../src/sim/types';
 import { cfg } from './helpers';
 
 const DT = 1 / 60;
@@ -105,6 +105,10 @@ function tickAll(w: World, es: readonly Enemy[], seconds: number): number[] {
 
 const content = loadContent();
 const row = (key: string) => content.damageTypeByKey.get(key)!;
+
+function idleInput(over: Partial<TickInput> = {}): TickInput {
+  return { mx: 0, my: 0, dash: false, attack: false, aimX: 0, aimY: 0, active1Held: false, cmds: [], ...over };
+}
 
 /* --------------------------------------------------------------- the table */
 
@@ -1112,6 +1116,79 @@ describe('§3 — regressions from the m19c review', () => {
     const dealt = tick(w, near, 1);
     expect(dealt).toBeCloseTo(3, 4);
     expect(near.armorShred).toBeCloseTo(2, 4);
+  });
+
+  it('b049: Burning stops ticking — direct and splash both — once w.dying is set', () => {
+    // qa-playtester-filed verifying b048: same DEFEAT_SLOWMO bug class as
+    // b020/b046/b047/b048, but data-driven off the damage type itself rather
+    // than gated to one class, so it must freeze regardless of source —
+    // covered here for a tower-labelled source ('brazier') and a
+    // passive-labelled one ('pyro-passive'), matching the acceptance's "at
+    // least two different sources" ask without over-specifying a mechanism
+    // this suite's own convention already treats as a source string (see the
+    // 'first'/'second'/'brazier' labels a few tests up).
+    const w = world();
+    const e = dummy(w, 10, 10);
+    const near = dummy(w, 10.5, 10);
+    applyDot(w, e, 'burning', 1, 3, 'brazier');
+    applyDot(w, e, 'burning', 2, 3, 'pyro-passive');
+    const carrierBefore = e.hp;
+    const neighbourBefore = near.hp;
+    const shredBefore = near.armorShred;
+
+    w.dying = 'defeat_warden';
+    w.dyingTimer = 1.5;
+    run(w, 1);
+
+    expect(e.hp).toBe(carrierBefore);
+    expect(near.hp).toBe(neighbourBefore);
+    expect(near.armorShred).toBe(shredBefore);
+    expect(w.damageByWeapon['brazier']).toBeUndefined();
+    expect(w.damageByWeapon['pyro-passive']).toBeUndefined();
+  });
+
+  it('b049: a real defeat through Run.step freezes a tower-fired Burning splash mid-beat', () => {
+    // The direct-manipulation test above pins the mechanism; this one drives
+    // the actual defeat path (a real Warden kill through Run.step, matching
+    // b047/b048's own "real defeat" regression tests) with Burning applied by
+    // the genuine Ember Brazier tower attack, not a synthetic applyDot call.
+    const run = new Run(cfg());
+    const w = run.world;
+    w.gold = 1e6;
+    w.warden.x = 10;
+    w.warden.y = 12;
+
+    // Fire the real Ember Brazier attack while still in the default
+    // buildable phase (act1_build) — the Warden/act2 setup below is only for
+    // `beginDefeat`'s `w.huntsWarden` gate, not for the tower itself.
+    const brazier = content.towerByKey.get('ember_brazier')!;
+    expect(buildTower(w, brazier.id, 10, 12).ok).toBe(true);
+    const gap = Math.max((brazier.attack!.minRange ?? 0) + 1, 2);
+    const e = dummy(w, 10, 12 - gap);
+    const near = dummy(w, 10.5, 12 - gap);
+    for (let i = 0; i < 600 && dotStacks(e, 'burning') === 0; i++) {
+      w.rebuildBuckets();
+      updateTowers(w, DT);
+      updateProjectiles(w, DT);
+    }
+    expect(dotStacks(e, 'burning')).toBeGreaterThan(0);
+
+    w.warden.attackCooldown = 1e9;
+    w.phase = 'act2';
+    w.sundered = true;
+    w.warden.x = 30;
+    w.warden.y = 30;
+    w.updateNav(true);
+
+    damageWarden(w, 999999);
+    expect(w.dying).toBe('defeat_warden');
+    const neighbourBefore = near.hp;
+
+    for (let i = 0; i < 95 && !run.done; i++) run.step(idleInput());
+
+    expect(run.done).toBe(true);
+    expect(run.world.outcome).toBe('defeat_warden');
+    expect(near.hp).toBe(neighbourBefore);
   });
 
   it('a strongest-refresh takes the higher dps and the longer timer (QA)', () => {
