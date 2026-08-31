@@ -165,6 +165,12 @@ export class Grid {
 
   /** Tiles a tower may be placed on before the path-guarantee check. */
   buildable(tx: number, ty: number): boolean {
+    // b007: a fractional tx/ty can still multiply out to a legal integer flat
+    // index (GRID_W is even, so ty=<legal>+0.5 cancels the fraction), landing
+    // the build on a real, different tile while storing the raw fraction into
+    // the Structure. Reject non-integer coords outright, matching every other
+    // integer-only tile read.
+    if (!Number.isInteger(tx) || !Number.isInteger(ty)) return false;
     if (!this.inBounds(tx, ty)) return false;
     const i = ty * GRID_W + tx;
     return this.tile[i] === TileType.Open && this.occ[i] === 0;

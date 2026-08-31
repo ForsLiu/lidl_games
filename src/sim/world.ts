@@ -665,6 +665,12 @@ export class World {
   }
 
   structureAt(tx: number, ty: number): Structure | null {
+    // b007: Grid.idx is never bounds-checked, so an out-of-grid tx used to
+    // alias onto a real tile one row up (idx = ty*GRID_W+tx), letting
+    // upgrade/sell silently act on the wrong structure.
+    if (!Number.isInteger(tx) || !Number.isInteger(ty) || !this.grid.inBounds(tx, ty)) {
+      return null;
+    }
     const id = this.grid.occ[this.grid.idx(tx, ty)];
     if (id <= 0) return null;
     return this.structureById.get(id) ?? null;

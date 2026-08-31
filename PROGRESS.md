@@ -5,6 +5,53 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-31 session: BACKLOG b007 closed — bounds/integer guards on
+  `Grid.buildable` and `World.structureAt` close a tile-coordinate aliasing
+  bug.** `World.structureAt` (`src/sim/world.ts`) indexed `grid.occ` via
+  `Grid.idx(tx,ty) = ty*GRID_W+tx` with no bounds or integer check, unlike
+  `Grid.passable`/`passableGhost`/`wardenPassable`, which all check
+  `inBounds` first. Two distinct exploits followed: an out-of-grid `tx`
+  (`realTx + GRID_W`, `realTy - 1`) computed to the *same flat index* as a
+  real structure's tile, so `upgrade`/`sell` aimed at the illegal coordinate
+  silently mutated the real structure instead of failing; and because
+  `GRID_W` (36) is even, a fractional `ty = <legal> + 0.5` still multiplied
+  out to an integer index, so `build` could place — and store — a tower at a
+  fractional tile. Fixed with two small, idiomatic guards rather than a
+  per-Command check: `Grid.buildable` now rejects a non-integer `tx`/`ty` via
+  `Number.isInteger` before anything else, and `structureAt` rejects a
+  non-integer or out-of-bounds `tx`/`ty` (via the existing `grid.inBounds`)
+  before ever indexing `grid.occ`. `tests/b007-tile-bounds.test.ts` (6 tests)
+  reproduces both alias directions (direct function calls and via
+  `applyCommand`) and both fractional-build cases, asserting no state
+  mutation; verified 5/6 red without the two guards before confirming green
+  with them (the widened `buildRange` in the alias tests deliberately removes
+  `inBuildRange`'s distance check as a confound, isolating the real
+  `structureAt` defect — otherwise the far-off illegal coordinate would fail
+  for the wrong, coincidental reason). The existing q15 adversarial fuzz
+  harness (`tools/fuzz-command-domain.ts`) had already recorded this exact
+  bug as an accepted "hole"; `tests/q15-command-domain-holes.ts` now records
+  zero holes (was 1) and zero alias holes (was 2), and the two "finding"
+  `describe` blocks in `tests/q15-command-domain-fuzz.test.ts` were rewritten
+  to "closed finding" (same convention b006 used) rather than deleted.
+  code-reviewer (**APPROVE**): confirmed the guards close both bug halves,
+  that every existing caller of `Grid.buildable`/`World.structureAt` already
+  passes integer coordinates so nothing legitimate regresses, and flagged a
+  bonus — `enemies.ts`/`boss.ts` callers offsetting `tx+dx`/`ty+dy` near map
+  edges were already exposed to the same aliasing risk and are now also
+  correctly bounds-checked; two non-blocking Nits, no code changes needed.
+  qa-playtester (**PASS**): ran `npx tsx tools/fuzz-command-domain.ts`
+  directly (0/75 census holes, both alias probes `rejected`), a full
+  `npm run sim`/`sweep` pass (55 towers built/upgraded across 7 types, no
+  false-positive rejection of legal placements), and scratch adversarial
+  tests for `tx === GRID_W`/`ty === GRID_H` exactly, negative tx, `-0`,
+  `NaN`, `±Infinity` — all correctly rejected; no bugs filed. `npm run
+  test:fast`: 1699-1700 passed, only the pre-existing unrelated flakes red
+  (Playwright fold tests b032/b034/b035/b036, a Windows EPERM temp-scratch
+  cleanup race in q49) — both already documented flaky elsewhere, not a
+  regression. P0–P10 remain otherwise as the prior session left them: gates
+  **G8, G14 and most of G23 still read red** (the wave-11-to-17 content wall
+  p10i documented) — 1.0-complete is not yet reached.
+
 - **2026-08-31 session: BACKLOG b006 closed — `Number.isFinite` guards on the
   three practice `dev` ops that could launder non-finite state or hang the
   process — commit `73457c2`.** `{k:'dev',op:'gold'|'xp'|'fast_forward',

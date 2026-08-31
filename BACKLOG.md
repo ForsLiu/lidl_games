@@ -593,15 +593,6 @@ were not re-filed. Ordering within this section is by severity, not P-band.
       Playwright fold tests b032/b034/b035/b036, and Windows EPERM temp-scratch
       cleanup races in q28/q49, documented flaky elsewhere) — refs: §12 rule 2,
       G17, BACKLOG-QUALITY q15. Commit `73457c2`.
-- [ ] (b007) [bug] An out-of-grid `tx` in `upgrade`/`sell` aliases onto a real tile
-      one row up (`idx = ty*GRID_W + tx` is never bounds-checked before
-      `structureAt` indexes `grid.occ`), so the Command silently acts on the wrong
-      structure; `build` with a fractional `ty` similarly lands on a real different
-      tile and stores the raw fraction into the `Structure` — acceptance:
-      `structureAt` (or the `upgrade`/`sell`/`build` Command paths) rejects
-      out-of-bounds and non-integer tile coords; regression tests cover both
-      aliasing directions and the fractional build — refs: §12 rule 3,
-      BACKLOG-QUALITY q15 session 11 (BUG #2/#3)
 - [ ] (b008) [bug] `damageEnemy`'s `amount <= 0` guard passes `NaN`, making the enemy
       permanently immortal (`e.hp -= NaN`, every later `e.hp <= 0` false) and
       poisoning `damageTotal`/`damageByWeapon` for the rest of the run; `+Infinity`
@@ -1038,6 +1029,51 @@ logged in MIGRATION.md §8 rather than carried as dead items.
 
 ## Done
 
+- [x] (b007) [bug] An out-of-grid `tx` in `upgrade`/`sell` aliases onto a real tile
+      one row up (`idx = ty*GRID_W + tx` is never bounds-checked before
+      `structureAt` indexes `grid.occ`), so the Command silently acts on the wrong
+      structure; `build` with a fractional `ty` similarly lands on a real different
+      tile and stores the raw fraction into the `Structure` — acceptance:
+      `structureAt` (or the `upgrade`/`sell`/`build` Command paths) rejects
+      out-of-bounds and non-integer tile coords; regression tests cover both
+      aliasing directions and the fractional build — refs: §12 rule 3,
+      BACKLOG-QUALITY q15 session 11 (BUG #2/#3).
+      Fixed at the root: `Grid.buildable` (`src/sim/grid.ts`) and
+      `World.structureAt` (`src/sim/world.ts`) both now reject a non-integer
+      `tx`/`ty` (`Number.isInteger`) before touching any tile array, and
+      `structureAt` additionally bounds-checks via the existing `grid.inBounds`
+      — the same `inBounds`-first idiom `Grid.passable`/`passableGhost`/
+      `wardenPassable` already use, so `build` (fractional coords, both
+      directions) and `upgrade`/`sell` (the out-of-grid alias, both directions)
+      are closed by two small, idiomatic guards rather than a new check per
+      Command handler. `tests/b007-tile-bounds.test.ts` (6 tests) reproduces
+      both alias directions via direct function calls and via `applyCommand`,
+      plus the fractional-`ty` and fractional-`tx` build cases, asserting no
+      state mutation; verified failing pre-fix (5/6 red without the two guards)
+      before confirming green with them. The existing q15 adversarial fuzz
+      harness (`tools/fuzz-command-domain.ts`) had independently recorded this
+      exact bug as an accepted "hole" (`build.ty:fractional`, plus both
+      `upgrade`/`sell` alias-probe targets) — `tests/q15-command-domain-holes.ts`
+      now records zero holes (was 1) and zero alias holes (was 2), and
+      `tests/q15-command-domain-fuzz.test.ts`'s two "finding" describe blocks
+      were rewritten to "closed finding" (`structureMutated: false`), the same
+      convention b006 used, rather than deleted. code-reviewer (APPROVE):
+      confirmed the guard closes both bug halves, that every existing caller of
+      `Grid.buildable`/`World.structureAt` already passes integer coordinates so
+      nothing legitimate regresses, and flagged a bonus: `enemies.ts`/`boss.ts`
+      callers that offset `tx+dx`/`ty+dy` near map edges were already exposed to
+      the same aliasing risk and are now also correctly bounds-checked. Two
+      Nits (no code impact), not blocking. qa-playtester: ran
+      `npx tsx tools/fuzz-command-domain.ts` directly — 0/75 census holes, both
+      alias probes `rejected`; ran a full `npm run sim`/`sweep` pass confirming
+      no false-positive rejection of legal integer in-bounds placements (55
+      towers built/upgraded across 7 types in one sim); wrote and discarded
+      scratch adversarial tests for `tx === GRID_W`/`ty === GRID_H` exactly,
+      negative tx, `-0`, `NaN`, `±Infinity` — all correctly rejected; no bugs
+      filed. `npm run test:fast` reran clean (1699-1700 passed; only the
+      pre-existing unrelated flakes red — Playwright fold tests b032/b034/
+      b035/b036, and a Windows EPERM temp-scratch cleanup race in q49, both
+      documented flaky elsewhere).
 - [x] (p10l) [balance] Gate **G1**'s mean-band clause is still `.skip`-ed red
       after p10k: mean victorious run measures 36.63 min against the 30-36 min
       band (down from 37.24 min pre-p10k) — acceptance: a pacing change that

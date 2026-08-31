@@ -141,24 +141,26 @@ describe('q15 command-argument domain fuzz', () => {
     }, 15000);
   });
 
-  describe('finding: an out-of-grid tx aliases onto a real tile one row up, for both upgrade and sell', () => {
-    // `Grid.idx(tx, ty) = ty * GRID_W + tx` is never bounds-checked before
-    // `World.structureAt` uses it, unlike `Grid.buildable` (which checks
+  describe('closed finding (BACKLOG b007): an out-of-grid tx used to alias onto a real tile one row up, for both upgrade and sell', () => {
+    // `Grid.idx(tx, ty) = ty * GRID_W + tx` was never bounds-checked before
+    // `World.structureAt` used it, unlike `Grid.buildable` (which checks
     // `inBounds` first). `illegalTx = realTx + GRID_W`, `illegalTy = realTy -
     // 1` computes to the same flat index as the real tile, so a command aimed
-    // at a coordinate that is unambiguously off the 36x20 grid still resolves
-    // to — and mutates — a real structure.
-    it.each(['upgrade', 'sell'] as const)('%s: idx aliases and the real structure is mutated', (which) => {
+    // at a coordinate that is unambiguously off the 36x20 grid used to
+    // resolve to — and mutate — a real structure. Fixed by making
+    // `World.structureAt` itself reject a non-integer or out-of-bounds
+    // `tx`/`ty` before ever indexing `grid.occ`.
+    it.each(['upgrade', 'sell'] as const)('%s: idx still aliases arithmetically, but the real structure is no longer mutated', (which) => {
       const r = runAliasProbe(which);
       expect(r.idxMatches, 'the aliasing arithmetic itself did not line up as expected').toBe(true);
       expect(r.illegalTx).toBeGreaterThanOrEqual(36); // off-grid by construction (GRID_W)
       expect(r.threw).toBe(false);
       expect(r.problems).toEqual([]);
-      expect(r.structureMutated).toBe(true);
+      expect(r.structureMutated).toBe(false);
     });
 
-    it('both alias targets are recorded as accepted holes', () => {
-      expect([...ALIAS_HOLES].sort()).toEqual(['sell', 'upgrade']);
+    it('neither alias target is recorded as an accepted hole any more', () => {
+      expect([...ALIAS_HOLES].sort()).toEqual([]);
     });
   });
 
