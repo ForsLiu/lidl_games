@@ -573,6 +573,7 @@ const TIME_FLOW_BASE_SECONDS = 4;
  * convert-to-DoT branch below, so a DoT tick cannot recursively spawn another.
  */
 export function tickWardenDots(w: World, dt: number): void {
+  if (w.dying) return;
   const wd = w.warden;
   if (wd.dots.length === 0) return;
   let expired = false;

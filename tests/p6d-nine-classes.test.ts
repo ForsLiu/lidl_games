@@ -17,7 +17,7 @@ import { describe, expect, it } from 'vitest';
 
 import { loadContent, validateClassEffect, validateClassPassive, type ClassEffect, type ClassDef } from '../src/sim/content';
 import { applyEffects, dealHit } from '../src/sim/combat';
-import { applyFrost, killEnemy, spawnEnemy, updateEnemies } from '../src/sim/enemies';
+import { applyFrost, killEnemy, spawnEnemy, TRAIT, updateEnemies } from '../src/sim/enemies';
 import { attackSpeedFor, buildTower, classTowerBonus, towerDamage, updateTowers } from '../src/sim/towers';
 import { structureArmor, structureMaxHp } from '../src/sim/upgrades';
 import { electricInterval } from '../src/sim/vsspecials';
@@ -868,6 +868,52 @@ describe('p6d: Paladin — Guardian Stance, Wrath and Judgement', () => {
 
     expect(run.done).toBe(true);
     expect(run.world.outcome).toBe('defeat_warden');
+    expect(w.warden.wrathStored).toBe(before);
+  });
+
+  it('b051: a stomping enemy in range stops banking Wrath once w.dying is set', () => {
+    // code-reviewer/qa-playtester-filed verifying b050: updateAbilities runs
+    // before contactWarden in updateEnemies and has no w.dying guard of its
+    // own, so its TRAIT.stomp branch kept calling damageWarden (and thus
+    // storeWrath) through the whole DEFEAT_SLOWMO beat.
+    const w = worldWith('paladin');
+    w.derived.armor = 50; // half of every stomp hit is blocked, feeding Wrath
+    w.phase = 'act2';
+    w.sundered = true;
+    w.warden.x = 10;
+    w.warden.y = 10;
+    w.updateNav(true);
+    const e = dummy(w, 10, 10);
+    e.flags |= TRAIT.stomp;
+    e.abilityTimer = 0;
+    w.rebuildBuckets();
+
+    w.dying = 'defeat_warden';
+    w.dyingTimer = 1.5;
+    const before = w.warden.wrathStored;
+    for (let i = 0; i < 90; i++) updateEnemies(w, DT);
+
+    expect(w.warden.wrathStored).toBe(before);
+  });
+
+  it('b051: a ranged enemy in range stops banking Wrath once w.dying is set', () => {
+    const w = worldWith('paladin');
+    w.derived.armor = 50; // half of every ranged hit is blocked, feeding Wrath
+    w.phase = 'act2';
+    w.sundered = true;
+    w.warden.x = 10;
+    w.warden.y = 10;
+    w.updateNav(true);
+    const e = dummy(w, 10, 10);
+    e.flags |= TRAIT.ranged;
+    e.attackCooldown = 0;
+    w.rebuildBuckets();
+
+    w.dying = 'defeat_warden';
+    w.dyingTimer = 1.5;
+    const before = w.warden.wrathStored;
+    for (let i = 0; i < 90; i++) updateEnemies(w, DT);
+
     expect(w.warden.wrathStored).toBe(before);
   });
 

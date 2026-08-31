@@ -1138,6 +1138,7 @@ function unstick(w: World, e: Enemy): void {
 }
 
 function updateAbilities(w: World, e: Enemy, def: EnemyDef, dt: number, act2: boolean): void {
+  if (w.dying) return;
   if ((e.flags & TRAIT.healer) !== 0) {
     e.abilityTimer -= dt;
     if (e.abilityTimer <= 0) {

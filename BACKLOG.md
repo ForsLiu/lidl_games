@@ -1317,7 +1317,7 @@ were not re-filed. Ordering within this section is by severity, not P-band.
       pre-existing, unrelated Windows EPERM temp-cleanup races (q28/q49/q52)
       and Playwright fold-test port contention (b032/b034/b035/b036) noted in
       every sibling entry above.
-- [ ] (b051) [bug] `updateAbilities` (`src/sim/enemies.ts`), called
+- [x] (b051) [bug] `updateAbilities` (`src/sim/enemies.ts`), called
       unconditionally every tick from `updateEnemies` — *before* the
       `contactWarden` call b050 just fixed — has no `w.dying` guard, so its
       `TRAIT.stomp` branch (`damageWarden(w, def.stompDamage ?? 25)`, line
@@ -1349,7 +1349,65 @@ were not re-filed. Ordering within this section is by severity, not P-band.
       `tests/p6d-nine-classes.test.ts` alongside b050's, mirroring them but
       setting `e.flags |= TRAIT.stomp` / `TRAIT.ranged` instead of relying on
       `contactWarden`'s melee path — refs: §12 rule 2, b020, b046, b047, b048,
-      b049, b050, code-reviewer + qa-playtester on b050.
+      b049, b050, code-reviewer + qa-playtester on b050. Fixed with the
+      one-line `if (w.dying) return;` guard at the very top of both
+      `updateAbilities` and `tickWardenDots`, exactly as specced. Two
+      regression tests added to `tests/p6d-nine-classes.test.ts` (the Paladin
+      Guardian Stance describe block), one per trait, both confirmed red via
+      `git stash` on the pre-fix code (climbing to the exact repro deltas —
+      12.5 stomp, 3 ranged — cited in this item) and green with the fix
+      restored. code-reviewer **APPROVE** on the fix itself — confirmed
+      `updateAbilities`'s only call site is `updateEnemies` with no bypass,
+      checked all six trait branches (healer/buffer/empower/stomp/fireTrail/
+      ranged/charges) against b048's cosmetic-branch precedent and found none
+      of them cosmetic-only (every one either deals damage directly or sets
+      up a state machine that will), so the whole-function guard is the
+      right call here unlike b048's per-branch approach, and confirmed
+      `tickWardenDots`'s DoT-countdown freeze during the beat is harmless
+      since the run always resolves to a terminal outcome within the same
+      1.5s window. qa-playtester **PASS** — independently reproduced the
+      exact pre-fix deltas, mutation-tested both new tests by reverting the
+      guard and confirming they fail with the right numbers, adversarially
+      confirmed no partial-guard gap across the other trait branches, and
+      confirmed `hashWorld`'s existing `wrathStored` coverage only changes
+      the hashed *value* (fixing the bug) with no determinism risk (`w.dying`
+      derives purely from tick count, no RNG/`Date.now`). code-reviewer found
+      one more sibling in the same family, out of this item's stated scope:
+      `src/sim/boss.ts`'s `bossUpdate` (charge-hit damage) and
+      `updateBossSlam` (ring + phase-3 arena-fire damage) — both reachable
+      unconditionally from `updateEnemies`/`updateAct2` with no `w.dying`
+      check anywhere in the call chain, and arguably the highest-value place
+      to hit this bug in practice since it is the actual final-boss fight
+      most likely to land the killing blow. Filed as b052, top of the queue.
+      `npm run test:fast`: 3 failed + 4 failed suites (the same pre-existing
+      Windows EPERM temp-cleanup races on q28/q49/q52 and Playwright
+      fold-test port contention on b032/b034/b035/b036 noted in every
+      sibling entry above), 1751 passed.
+- [ ] (b052) [bug] `src/sim/boss.ts`'s final-boss script has no `w.dying`
+      guard anywhere in its call chain, the same bug class as
+      b020/b046-b051: `bossUpdate` is called unconditionally from
+      `updateEnemies` (`src/sim/enemies.ts`) and `updateBossSlam` is called
+      unconditionally from `updateAct2` (`src/sim/run.ts`), so three direct
+      `damageWarden` call sites keep banking Wrath (and any other
+      `storeWrath`-adjacent state) through the whole `DEFEAT_SLOWMO` beat
+      whenever the final boss lands the killing blow: `updateCharge`'s
+      charge-hit damage, `updateBossSlam`'s ring damage, and
+      `updateArenaFire`'s phase-3 fire damage. Found by code-reviewer while
+      verifying b051 (2026-08-31); not covered by b051's fix since
+      `boss.ts` is a separate module from `enemies.ts`'s `updateAbilities`.
+      Since `checkDefeat`/`resolveDefeat` run once per tick after
+      `updateAct2` has already executed that tick, `w.dying` is only visible
+      starting the *next* tick, so a mid-charge/mid-slam/arena-fire boss
+      keeps hitting these three paths unguarded for the full ~90-tick beat —
+      acceptance: once `w.dying` is truthy, none of `updateCharge`'s
+      charge-hit, `updateBossSlam`'s ring, or `updateArenaFire`'s fire
+      damage reach `damageWarden` (a top-of-`bossUpdate` guard plus one in
+      `updateBossSlam`, mirroring `updateAbilities`'s whole-function
+      approach rather than per-branch, since none of the three paths here
+      are cosmetic either); regression tests alongside b050/b051's in
+      `tests/p6d-nine-classes.test.ts` or a new boss-specific file, one per
+      damage path, each confirmed red pre-fix — refs: §12 rule 2, b020,
+      b046, b047, b048, b049, b050, b051, code-reviewer on b051.
 - [ ] (b021) [bug] The character panel (fb004) renders `cdr` and `leech`
       as raw decimals instead of percentages. Both are classified `'flat'`
       in `STAT_KIND` (`src/sim/stats.ts`) for correct §2 stacking-math

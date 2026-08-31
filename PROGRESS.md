@@ -5,6 +5,48 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-31 session: BACKLOG b051 fixed — `updateAbilities`'s stomp and
+  ranged Warden-attack branches kept banking Wrath throughout the defeat
+  slow-mo window.** Same bug class as b020/b046/b047/b048/b049/b050, this
+  time via `updateAbilities` (`src/sim/enemies.ts`), which runs
+  unconditionally every tick from `updateEnemies` — *before* the
+  `contactWarden` call b050 just fixed — and calls `damageWarden` directly
+  from its `TRAIT.stomp` and `TRAIT.ranged` branches with no `w.dying`
+  guard. Fixed with `if (w.dying) return;` at the very top of the whole
+  function (a whole-function guard rather than b048's per-branch style,
+  since none of its six trait branches — healer/buffer/empower/stomp/
+  fireTrail/ranged/charges — are cosmetic-only; every one either deals
+  damage directly or sets up a state machine that will), plus the same
+  one-line guard on `tickWardenDots` (`src/sim/run.ts`, Time Lord's Time
+  Flow re-entrant DoT) for consistency with the rest of the series. Two
+  regression tests added to `tests/p6d-nine-classes.test.ts` (Paladin/
+  Guardian Stance describe block), one per trait, both confirmed red
+  pre-fix (`git stash push -- src/sim/enemies.ts src/sim/run.ts`) at the
+  exact repro deltas the bug report named (`wrathStored` climbing 0→12.5
+  for stomp, 0→3 for ranged) and green with the fix restored. code-reviewer
+  **APPROVE**, no Critical/Major findings against the diff itself —
+  confirmed `updateAbilities` has exactly one caller with no bypass path,
+  checked all six trait branches against b048's cosmetic-branch precedent
+  and found the whole-function guard correct here, and confirmed
+  `tickWardenDots`'s DoT-countdown freeze is harmless since the run always
+  resolves to a terminal outcome within the same 1.5s beat. qa-playtester
+  **PASS** — independently reproduced both pre-fix deltas, mutation-tested
+  both new tests by reverting the guard and confirming they fail with the
+  right numbers, adversarially probed the other four trait branches for any
+  partial-guard gap (none found), and confirmed replay/hash determinism is
+  unaffected (`hashWorld` already covers `wrathStored`; this only fixes the
+  hashed value, and `w.dying` derives purely from tick count with no RNG/
+  `Date.now`). code-reviewer independently found one more sibling in this
+  family, out of b051's scope: `src/sim/boss.ts`'s `bossUpdate`
+  (charge-hit damage) and `updateBossSlam` (ring + phase-3 arena-fire
+  damage) are reachable unconditionally from `updateEnemies`/`updateAct2`
+  with no `w.dying` check anywhere in the call chain — arguably the
+  highest-value place to hit this bug in practice, since it's the actual
+  final-boss fight most likely to land the killing blow. Filed as b052, top
+  of the queue. `npm run test:fast`: 1751 passed / 3 failed + 4 failed
+  suites, all the same pre-existing, unrelated flakes logged in every
+  sibling entry below (Windows EPERM temp-cleanup races on q28/q49/q52,
+  Playwright fold-test port contention on b032/b034/b035/b036).
 - **2026-08-31 session: BACKLOG b050 fixed — Warden-contact damage kept
   banking Wrath throughout the defeat slow-mo window.** Same bug class as
   b020/b046/b047/b048/b049, this time via `contactWarden` (`src/sim/enemies.ts`),
