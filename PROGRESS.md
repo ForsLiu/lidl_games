@@ -8,7 +8,7 @@
 - **2026-08-30 session: p10h done — the 2 s TD↔VS transition sweep (SPEC-FINAL
   §11, §15 P10) implemented and measured live; SFX half satisfied through the
   existing synthesized `WebAudioSink` seam, art-asset half logged as
-  designer-fill (Q152) — commit pending.** `finishSundering` (TD→VS,
+  designer-fill (Q152) — commit `8420cde`.** `finishSundering` (TD→VS,
   `src/sim/sundering.ts`) now emits a direction-keyed `sweep_to_vs` fx event
   alongside the pre-existing `sunder` shake/bass-hit cue; `advanceToNextBlock`
   (VS→TD), which had no TD-side event at all before this, now emits

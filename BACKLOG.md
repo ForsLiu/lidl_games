@@ -1040,7 +1040,7 @@ logged in MIGRATION.md §8 rather than carried as dead items.
       `q28-cli-error-handling`, `q49-price-probe-restore`,
       `q52-m20d-run-a4-bad-key` — EPERM scratch-dir races / fuzz timing under
       full-suite parallel load), reproduced identically with the diff stashed out —
-      not a regression. Commit pending.
+      not a regression. Commit `8420cde`.
 - [x] (p10g) [balance] No gate exercises the armour shred: none of the twelve sweep
       seeds ever builds an Ember Brazier and no bot policy ever draws the flame cone
       — acceptance: a policy or probe that actually builds a Brazier is in the gate
