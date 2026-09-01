@@ -425,6 +425,38 @@ describe('p-core-b — Time (steps 1-2; steps 3-5 are p-core-e)', () => {
     expect(w.gold).toBe(before + 1); // exactly +1, not scaled by goldFindMul
   });
 
+  // b042: unlike kill bounty, the fixed wave-clear bonus and Harvest Sprout's
+  // per-wave-clear income (all flat-per-event, per p10l's qa-playtester
+  // audit), step 1's gold/s is genuinely coupled to real wall-clock time —
+  // including `act1_build`, which is `data/waves.json`'s `buildPhaseSeconds`.
+  // These two tests pin that coupling by construction, reading the expected
+  // amount from the same duration source, so a future pacing-timer retune
+  // (p10l moved `buildPhaseSeconds` 20->15) shows up here instead of being
+  // rediscovered from a live-run gold audit each time.
+  it('step 1: total income over a build phase equals data/waves.json\'s buildPhaseSeconds exactly', () => {
+    const w = new World(cfg({ core: 'time' }), content);
+    w.gold = 1e6;
+    expect(upgradeCore(w)).toBe(true); // step 1
+    const before = w.gold;
+    const seconds = content.waves.buildPhaseSeconds;
+    for (let i = 0; i < Math.round(seconds * 60); i++) updateCoreEffects(w, DT);
+    expect(w.gold).toBe(before + seconds);
+  });
+
+  it('step 1: income scales linearly with elapsed time, unlike a flat per-event gold source', () => {
+    const w = new World(cfg({ core: 'time' }), content);
+    w.gold = 1e6;
+    expect(upgradeCore(w)).toBe(true); // step 1
+    const before = w.gold;
+    for (let i = 0; i < 60 * 10; i++) updateCoreEffects(w, DT); // 10s
+    const after10s = w.gold - before;
+    for (let i = 0; i < 60 * 10; i++) updateCoreEffects(w, DT); // +10s = 20s total
+    const after20s = w.gold - before;
+    expect(after10s).toBe(10);
+    expect(after20s).toBe(20);
+    expect(after20s).toBe(after10s * 2); // doubling elapsed time doubles income
+  });
+
   it('step 2: towers regen +1 HP/s, scaled by the same step\'s +20% healing received', () => {
     const w = new World(cfg({ core: 'time' }), content);
     const { tx, ty } = nearTile(w);
