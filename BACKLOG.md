@@ -2011,20 +2011,48 @@ because the lane worktree retires at this merge.
       re-pin the assertion to the new honestly-measured count with the reason
       recorded, or fix the determinism gap if one is found — refs: SPEC-FINAL
       §14 G8, CLAUDE.md measurement rules, BACKLOG.md audit summary P6 row.
-- [ ] (b028) [bug] `tests/q14-mutation-smoke.test.ts` on Windows can spawn a
-      runaway tree of orphaned nested `vitest` subprocesses and hang. Repro
-      (documented in PROGRESS.md's fb004 entry, 2026-08-28): run the full
-      `npm test` under host load — q14 reproducibly spawned 191+ orphaned
-      nested `vitest` processes (~90% sustained host CPU) and hung on a
-      Windows scratch-dir `EPERM` during cleanup; q14 wraps q9/q12/q15 as
-      literal nested "control" reruns, so it inherits and amplifies their
-      flakiness. Filed per fb017 so it stops polluting unrelated runs (q14 is
-      excluded from `test:fast` regardless) — acceptance: q14's child runs
-      get a hard timeout + process-tree kill on the Windows path (or the
-      nested-rerun design is replaced with something that cannot orphan
-      children); three consecutive full-suite runs complete with no orphaned
-      `vitest` processes left behind — refs: fb017, PROGRESS.md fb004 entry,
-      `tools/mutation-probe.ts`.
+- [x] (b028) [bug] `tests/q14-mutation-smoke.test.ts` on Windows can spawn a
+      runaway tree of orphaned nested `vitest` subprocesses and hang —
+      **done, see Done section.** The "three consecutive full-suite runs"
+      sub-clause is deferred to the next phase-completion/lane-merge boundary
+      (CLAUDE.md working rule 2 forbids starting a full `npm test` inside an
+      ordinary item, which this sub-clause's literal text would otherwise
+      require) — see the Done entry for the evidence actually gathered.
+- [ ] (b066) [bug] `tests/q14-mutation-smoke.test.ts`'s nested-run timeout
+      ceiling (`NESTED_VITEST_TIMEOUT_MS = 150_000`, `tools/mutation-probe.ts`)
+      is now too short for `tests/q9-phase-coverage.test.ts`, which takes
+      ~697s standalone on this host (confirmed directly, 2026-08-31) — up from
+      whatever it measured when the ceiling was tuned. This makes q9's control
+      run and all 3 mutations targeting it (`run-results-phase-never-set`,
+      `progression-levelup-never-opens`, `policies-hybrid-rebound-to-idle`)
+      fail every time with a `NestedVitestTimeout`, not because anything is
+      broken but because the nested run can never finish inside the ceiling —
+      4 of q14's 45 sub-tests are permanently red until this is addressed.
+      Found verifying b028 (the timeout+kill mechanism itself works correctly
+      when this fires — confirmed no orphaned processes remain after — but the
+      ceiling being stale is a separate, real problem) — acceptance: either
+      raise `NESTED_VITEST_TIMEOUT_MS` to comfortably exceed q9's real runtime
+      (with the new number recorded, not guessed), or investigate why
+      `tests/q9-phase-coverage.test.ts` itself got this much slower (a
+      candidate list already exists: p10l's `buildPhaseSeconds` 20->15,
+      p10a/p10b's Burning/DoT-immunity rework, p10c/p10d's damage-share/
+      run-length repricing, per BACKLOG.md's b038 Done entry) and fix the
+      regression if one is found; q14's q9-targeted sub-tests pass again —
+      refs: b028, b038, `tools/mutation-probe.ts`.
+- [ ] (b067) [bug] Two `tools/mutation-probe.ts` `MUTATIONS` entries' `find`
+      anchors no longer match current source, so `applyEdits` throws
+      "expected exactly one occurrence... found 0" instead of ever exercising
+      the mutation: `meta-reverse-migrate-spread-order` (targets
+      `src/meta/meta.ts` around line 412-413, whose `{...base}` spread the
+      anchor names is gone — the file now has an explicit comment noting
+      there's no such spread left to "fix implicitly") and
+      `soak-construction-outside-try` (targets `tools/soak.ts` line 104,
+      whose `let run: Run | undefined;` was renamed to
+      `let run: RunType | undefined;`). Found verifying b028 (pre-existing,
+      confirmed unrelated to that fix — `applyEdits` is untouched by it) —
+      acceptance: both mutations' anchors are updated to match current
+      source and `tests/q14-mutation-smoke.test.ts`'s corresponding two
+      sub-tests pass — refs: b028, `tools/mutation-probe.ts`.
 - [ ] (b029) [bug] `tests/q28-cli-error-handling.test.ts` intermittently fails
       on Windows with an `EPERM` on a scratch-dir temp-file rename (same
       scratch-dir cleanup race class PROGRESS.md documents for q13/q15; q28's
@@ -2240,6 +2268,62 @@ logged in MIGRATION.md §8 rather than carried as dead items.
   **G19**. The work is `p10d`.
 
 ## Done
+
+- [x] (b028) [bug] `tools/mutation-probe.ts`'s nested `npx vitest run` on
+      Windows only signaled its immediate child (`cmd.exe`, since the old
+      `execFileSync(..., { shell: true, timeout })` call never reaches
+      descendants) on a timeout, leaving the real `npx` -> `node` -> vitest
+      worker/fork processes underneath it running — 191+ orphaned `vitest`
+      processes observed under host load (PROGRESS.md's fb004 session).
+      `runVitest` is now `spawn`-based and async; on both a timeout and a
+      spawn `error`, a new exported `killProcessTree(pid)` reaps the whole
+      tree — `taskkill /PID <pid> /T /F` on win32 (walks the OS-recorded
+      parent-child chain, so it still reaches a descendant whose immediate
+      parent already exited), process-group `SIGKILL` (+ a direct-pid
+      fallback) on POSIX. `probeControl`/`probeOne`/`probeAll`/the CLI
+      `main()` are now async to match; `tests/q14-mutation-smoke.test.ts`'s
+      two call sites `await` them. `tests/b028-mutation-probe-tree-kill.
+      test.ts` pins the mechanism two ways: a synthetic parent+detached-
+      grandchild tree where `killProcessTree` must reach the grandchild
+      (proven via a marker file it can only write if it survives — fails on
+      pre-fix code with `killProcessTree is not a function`, confirmed via
+      `git stash`), and a real `probeControl(testFile, 200)` call proving a
+      blown timeout rejects within ~1s instead of hanging the harness.
+      code-reviewer (commit 95e440b): **APPROVE**, no Critical/Major — 5
+      Minor/Nit findings, the two highest-value addressed in a follow-up
+      commit (ca86a7f): `killProcessTree` now `console.warn`s on an
+      unexpected kill failure instead of swallowing every error uniformly
+      (a genuine failure was exactly the class this fix exists to surface),
+      and the spawn-`error` path now also reaps a partially-started child;
+      the test's dead `!parent.killed` cleanup guard (that field is never
+      set — nothing here calls `child.kill()`) was also fixed. qa-playtester:
+      **PASS on the substance** — independently re-read the wiring, designed
+      and ran 5 of its own adversarial `probeControl` calls at different
+      timeout windows (50ms-3000ms) confirming no orphaned node/cmd/vitest
+      processes at any kill timing, and independently confirmed both
+      "pre-existing, unrelated" failure categories found during a full
+      clean-tree `q14` run really are source drift unrelated to this diff
+      (`src/meta/meta.ts`'s spread and `tools/soak.ts`'s `Run`->`RunType`
+      rename), filed as **b067**. It flagged, correctly, that the acceptance
+      criteria's literal "three consecutive full-suite runs" sub-clause is
+      not satisfiable inside an ordinary item under CLAUDE.md's own working
+      rule 2 (full `npm test` reserved for phase completion/lane merges/
+      DONE.md) — left explicitly unverified rather than force-passed; the
+      substantive evidence gathered instead: a full ~36-minute clean-tree run
+      of `tests/q14-mutation-smoke.test.ts` alone (39/45 passing; all 6
+      failures are the two pre-existing drift categories, filed as **b066**
+      and **b067**, not caused by this fix) during which real timeouts fired
+      for real and left zero orphaned processes afterward, plus `npm run
+      test:fast` run twice post-fix with only the standing documented flake
+      classes failing (b032/b034/b035/b036 Playwright port contention, q15
+      worker-probe hangs, q28/q49/q52 Windows scratch-dir `EPERM` races).
+      The "3x full suite" check itself is deferred to the next phase-
+      completion/lane-merge boundary. `npx tsc --noEmit`: clean throughout.
+      Commits `95e440b`, `ca86a7f`. Two findings filed forward as new items
+      rather than fixed here (out of scope, pre-existing): **b066** (q9-
+      phase-coverage's real runtime now exceeds the 150s nested-timeout
+      ceiling) and **b067** (two `MUTATIONS` anchors drifted from current
+      source).
 
 - [x] (b030) [bug] `Game.onToggleAutoPick` (`src/ui/main.ts`) computed the
       `set_autopick` Command's `on` value by reading `this.run!.world.cfg.
