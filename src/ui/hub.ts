@@ -36,6 +36,7 @@ import { sanitize, type Settings } from './settings';
 import { classAbilitiesMarkup } from './class-info';
 import { coreDetailMarkup } from './core-info';
 import { modLines, modLinesHtml } from './info-format';
+import { equipmentFallbackMarkup, equipmentSpecialNoteMarkup } from './equipment-info';
 import { STAT_KIND, type StatKey } from '../sim/stats';
 import { mountCodex } from './codex';
 import { hasUnsavedTunerEdits } from './tuner-state';
@@ -532,7 +533,8 @@ export class Hub {
             ? `<div class="sw-itemdetail">
                  <b>${selectedItem.name}</b>
                  ${modLinesHtml(selectedItem.mods)}
-                 ${equipmentFallbackBlock(content, this.classKey, selectedItem)}
+                 ${equipmentFallbackMarkup(content, { classKey: this.classKey }, selectedItem)}
+                 ${equipmentSpecialNoteMarkup(selectedItem, { classKey: this.classKey })}
                  ${equipmentCompareBlock(content, this.meta, this.classKey, selectedItem)}
                  <div class="sw-craftrow">
                    <button data-equipitem="1">${
@@ -665,23 +667,6 @@ function equipmentCompareBlock(content: Content, meta: MetaState, classKey: stri
   </div>`;
 }
 
-/**
- * fb022: the "if not &lt;class&gt;" line's active/inert indicator for the
- * Hub's currently-selected class — mirrors the exact `notClassKey !==
- * cfg.classKey` gate `baseRunStats` applies at run start (stats.ts). Takes
- * `content` as a param (code-reviewer: consistency with `equipmentCompareBlock`
- * rather than an internal `loadContent()` call of its own).
- */
-function equipmentFallbackBlock(content: Content, classKey: string, item: EquipmentItem): string {
-  if (!item.classFallback) return '';
-  const className = content.classByKey.get(classKey)?.name ?? classKey;
-  const active = item.classFallback.notClassKey !== classKey;
-  const lines = modLines(item.classFallback.mods);
-  const status = active ? '<span class="sw-phase-vs">(active)</span>' : `<span class="dim">(inert for ${className})</span>`;
-  return `<div class="sw-modline">If not ${content.classByKey.get(item.classFallback.notClassKey)?.name ?? item.classFallback.notClassKey}: ${
-    lines.map((l) => l.text).join(', ')
-  } ${status}</div>`;
-}
 
 /**
  * The account counters, each saying what it is for. A number that reads zero

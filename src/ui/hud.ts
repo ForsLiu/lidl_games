@@ -21,6 +21,7 @@ import { activeSkillMarkup, classAbilitiesMarkup, passiveSkillMarkup, type Class
 import { bottomBarData, type SkillIconState } from './bottom-bar';
 import { coreLiveMarkup } from './core-info';
 import { formatPct } from './info-format';
+import { equipmentEffectMarkup, type EquipmentEffectContext } from './equipment-info';
 
 export interface HudCallbacks {
   onSelectTower(id: number): void;
@@ -1379,14 +1380,37 @@ function characterAbilitiesMarkup(w: World): string {
  * Command) rather than `MetaState` — a run cannot reach back into the meta
  * layer once started (CLAUDE.md architecture rule 3).
  */
+/**
+ * fb028: `w`'s live equipment-effect context — the same `EquipmentEffectContext`
+ * shape `equipmentEffectMarkup` (`equipment-info.ts`) needs to resolve
+ * Swordsman Armor's charge-rate note to the real `w.derived.attackSpeedMul`
+ * rather than the plain, number-free text the Hub's pre-run screens show.
+ * `equippedKeys` reads `w.cfg.equipment` — the same field `hasEquipment`
+ * (sim/equipment.ts) gates every `effectKey` mechanic on — rather than the
+ * live-swappable `w.equippedEquipment`, so a cross-item note (Swordsman
+ * Armor + Sleeve Sword) stays truthful to what the sim actually does. Filed
+ * as b076: the two fields can disagree after a mid-run `equip_item` swap,
+ * since `w.cfg.equipment` is fixed at run start while `w.equippedEquipment`
+ * is not — out of scope for this item, not fixed here.
+ */
+function runEquipmentContext(w: World): EquipmentEffectContext {
+  return {
+    classKey: w.cfg.classKey,
+    attackSpeedMul: w.derived.attackSpeedMul,
+    equippedKeys: w.cfg.equipment ?? [],
+  };
+}
+
 function equipmentSectionMarkup(w: World): string {
+  const ctx = runEquipmentContext(w);
   const slots = w.content.equipment.slots
     .map((slot) => {
       const key = w.equippedEquipment[slot] ?? null;
       const item = key ? w.content.equipmentByKey.get(key) : null;
-      return `<div class="sw-slot" data-runeqslot="${slot}"
+      const tip = item ? `<div class="sw-eq-tip">${equipmentEffectMarkup(w.content, item, ctx)}</div>` : '';
+      return `<div class="sw-slot sw-runeq-slot" data-runeqslot="${slot}"
                    title="${item ? `Click to unequip ${item.name}.` : ''}">
-                <span>${slot}</span><b>${item ? item.name : '—'}</b>
+                <span>${slot}</span><b>${item ? item.name : '—'}</b>${tip}
               </div>`;
     })
     .join('');
@@ -1400,8 +1424,9 @@ function equipmentSectionMarkup(w: World): string {
             if (!item) return '';
             const isEq = w.equippedEquipment[item.slot] === key;
             const tip = isEq ? 'Click to unequip.' : `Click to equip to ${item.slot}.`;
-            return `<button class="sw-lootitem ${isEq ? 'equipped' : ''}" data-runitem="${key}" title="${tip}">
-                <b>${item.name}</b><small>${item.slot} · x${count}${isEq ? ' · equipped' : ''}</small>
+            const eqTip = `<div class="sw-eq-tip">${equipmentEffectMarkup(w.content, item, ctx)}</div>`;
+            return `<button class="sw-lootitem sw-runeq-item ${isEq ? 'equipped' : ''}" data-runitem="${key}" title="${tip}">
+                <b>${item.name}</b><small>${item.slot} · x${count}${isEq ? ' · equipped' : ''}</small>${eqTip}
               </button>`;
           })
           .join('');

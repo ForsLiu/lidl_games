@@ -5,6 +5,63 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-01 session: fb028 done — detailed live effect text for classes
+  and class-specific equipment.** Owner 2026-09-01 directive top-priority
+  item, next in queue after fb027. fb022/fb026 already covered class
+  actives/passive/tower-passive text on the Hub Class screen, the in-run
+  character panel and the bottom bar's Q/E/passive tooltips (all with live
+  numbers) — this item's real gap was equipment: a new `src/ui/
+  equipment-info.ts` shares one formatter (mods, the `classFallback`
+  "if not <class>" conditional line, and — for the 3 non-Stats-shaped
+  `effectKey` items, Sleeve Sword/Swordsman Armor/Swordsman Shoes — a note
+  with a live `w.derived.attackSpeedMul` number substituted in) across the
+  Hub's Equipment tab (replacing its local `equipmentFallbackBlock`), the
+  in-run character panel's Equipment section (new `.sw-eq-tip` hover
+  tooltips on every slot/owned item, previously name-only), and a new Codex
+  `renderDetail` hook (`codex.ts`/`codex-collections.ts`) that expands a
+  class's or equipment item's full effect text below its table row on click
+  — the Codex previously `JSON.stringify`'d nested active/passive/mods
+  objects. **code-reviewer** REQUEST-CHANGES on its first pass: an earlier
+  draft hand-authored the 3 `effectKey` sentences directly in TS, duplicating
+  (and having already drifted one word from) prose `data/equipment.json`'s
+  `desc` field already stated — the exact thing fb028's own acceptance text
+  ("no duplicate hand-written strings") and CLAUDE.md's architecture rule 4
+  forbid. Fixed by moving the sentences into new `/data` fields
+  (`effectNote`/`effectNoteWith`, content.ts schema + a new loader
+  cross-check that `effectNoteWith.key` names a real item, mirroring the
+  existing `classFallback.notClassKey` check) with the UI module doing pure
+  `{mul}` template substitution — re-reviewed, approved. Regenerating
+  `tests/q7-loader-holes.ts` for the two new fields (`Q7_RECORD=1`) is where
+  a hand-editing slip briefly truncated the file by ~150 lines mid-session;
+  caught immediately via `git diff --stat`, reverted with `git checkout --`,
+  and redone with a CRLF-aware script instead. **qa-playtester** FAIL on its
+  first pass with two real Major bugs, both fixed: (1) the in-run tooltip's
+  active/inert badge checked only class match, never whether the item was
+  actually in the run's *starting* loadout (`w.cfg.equipment`, what
+  `hasEquipment` — the real sim gate every `effectKey` mechanic reads —
+  checks) — an item equipped mid-run from the stash panel that was absent at
+  run start showed "(active)" even though its special mechanic can never fire
+  that run (`specialActive` in `equipment-info.ts` now also gates on
+  `ctx.equippedKeys`, populated in-run only); (2) the Codex's equipment
+  detail picked one of Swordsman Armor's two conditional notes via the same
+  live `equippedKeys` check, which is always absent in the Codex (no run) —
+  so the cross-item Sleeve Sword branch, the entire reason the item is
+  "multi-conditional," was unreachable there. Fixed by having
+  `equipmentCodexDetailMarkup` show both branches unconditionally, named by
+  class/companion item rather than active/inert-marked. Filed, not fixed
+  (out of scope, real sim bug not a UI bug): **b076** — `hasEquipment` reads
+  `w.cfg.equipment` (frozen at construction), not the live `w.equippedEquipment`
+  `equip_item` actually swaps, so the three `effectKey` mechanics themselves
+  (not just their tooltip) never react to a mid-run equip/unequip; the UI
+  intentionally mirrors this real behavior rather than papering over it.
+  `tests/fb028-effect-text.test.ts` (17 tests) covers the shared formatter,
+  the in-run tooltips (including both QA-filed regressions, driven through a
+  real `World` + `equip_item` Command), and the Codex detail panel for both
+  the classes and equipment collections. `npm run test:fast`: green except
+  the same pre-existing, load-only Playwright-fold/`q15` flakes seen in every
+  session this week (reconfirmed via isolated `--pool=forks --poolOptions.
+  forks.singleFork=true` reruns, all pass standalone).
+
 - **2026-09-01 session: fb027 done (plus b074/b075) — Core and tower
   selection panels.** Owner 2026-09-01 directive top-priority item, next in
   queue after fb026. Most of the panels' *reading* half already existed

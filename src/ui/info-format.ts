@@ -26,7 +26,7 @@ import { statLabel } from './character-panel';
 
 /* ------------------------------------------------------------- formatting */
 
-function trimNum(n: number, decimals = 2): string {
+export function trimNum(n: number, decimals = 2): string {
   const r = Math.round(n * 10 ** decimals) / 10 ** decimals;
   // "-0" reads worse than "0", and a whole number should not carry ".00".
   return Object.is(r, -0) ? '0' : String(r);

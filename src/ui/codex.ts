@@ -120,7 +120,31 @@ export function mountCodex(
     count.textContent = `${collection.rows.length} ${collection.rows.length === 1 ? 'entry' : 'entries'}`;
     content.appendChild(count);
 
-    content.appendChild(renderCodexTable(collection.rows));
+    const table = renderCodexTable(collection.rows);
+    content.appendChild(table);
+
+    // fb028: a collection that opted into `renderDetail` gets its rows made
+    // clickable, showing that row's full live-formatted effect text below
+    // the table — the Codex's other collections are untouched (no
+    // `renderDetail`, no click wiring, table alone as before).
+    if (collection.renderDetail) {
+      const detail = document.createElement('div');
+      detail.className = 'sw-codex-detail';
+      detail.innerHTML = '<p class="sw-note dim">Click a row above for full effect text.</p>';
+      content.appendChild(detail);
+      const bodyRows = table.tBodies[0]?.rows;
+      if (bodyRows) {
+        for (let i = 0; i < bodyRows.length; i++) {
+          const tr = bodyRows[i];
+          tr.classList.add('sw-codex-row-clickable');
+          tr.addEventListener('click', () => {
+            for (const other of bodyRows) other.classList.remove('active');
+            tr.classList.add('active');
+            detail.innerHTML = collection.renderDetail!(collection.rows[i]);
+          });
+        }
+      }
+    }
 
     const tunerRoot = document.createElement('div');
     tunerRoot.className = 'sw-codex-tuner';

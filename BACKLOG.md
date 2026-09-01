@@ -157,7 +157,7 @@ P10" freeze (QUESTIONS Q40), same precedent as fb020.
       alone; the hover tooltip's effect text is the fuller live-numbers
       surface fb028 is meant to extend further (equipment conditional
       lines, etc.), not a placeholder this item left unfinished.
-- [ ] (fb028) [feat] top priority: detailed live effect text for every class
+- [x] (fb028) [feat] top priority: detailed live effect text for every class
       active/passive and every class-specific equipment item, surfaced
       everywhere they appear — class select, character panel, the new
       bottom bar's tooltips (fb026), equipment tooltips, and the Codex —
@@ -172,7 +172,9 @@ P10" freeze (QUESTIONS Q40), same precedent as fb020.
       full live text somewhere reachable; a test asserts displayed numbers
       equal sim-derived values for at least one multi-conditional
       class-specific item — refs: SPEC-FINAL §11, extends fb004/fb022,
-      owner feedback `feature-detailed-effect-text`.
+      owner feedback `feature-detailed-effect-text`. **Done, see Done
+      section.** Filed b076 as a side discovery (real sim gap, not fixed
+      here).
 
 Normal-priority items from the same 2026-09-01 batch follow in the next
 section, in filed order; none is blocked by the five above, so any may be
@@ -2408,6 +2410,28 @@ because the lane worktree retires at this merge.
       written (re-pin the stale 11-class count) is superseded, but no new
       item has replaced it with the correct 12-class ask, so it stays open
       rather than being silently dropped.
+- [ ] (b076) [bug] a mid-run `equip_item` swap of Sleeve Sword/Swordsman
+      Armor/Swordsman Shoes updates the generic `Stats` mods live but not
+      the three items' special `effectKey` mechanics — found (code-reviewer,
+      fb028) while wiring the in-run equipment section's effect-text
+      tooltips: `classes.ts`'s `circleSlashChargeRate`/`tickClassCharge`/
+      `fireDashSlash` all gate their special behavior on `hasEquipment(w,
+      key)` (`sim/equipment.ts`), which reads `w.cfg.equipment` — fixed at
+      `RunConfig` construction — while `run.ts`'s `equipItemCommand` (fb023,
+      §7) only ever writes the live, swappable `w.equippedEquipment`. So
+      unequipping Sleeve Sword mid-run still leaves Circle Slash charge-free
+      (and vice versa for equipping it), even though the item's `Stats`
+      contribution correctly turns on/off the same tick. `equipment-info.ts`'s
+      fb028 tooltips deliberately read `hasEquipment` too, so they stay
+      truthful to this real (if latent-buggy) sim behavior rather than
+      claiming a UI-only fix — acceptance: `circleSlashChargeRate`,
+      `tickClassCharge`'s Sleeve Sword branch and `fireDashSlash`'s
+      `dashRange` doubling all read `w.equippedEquipment` (or an equivalent
+      live-state check) instead of `w.cfg.equipment`, with a regression test
+      driving a real `equip_item` Command mid-run and asserting the special
+      mechanic's behavior flips on the same tick the `Stats` source does —
+      refs: SPEC-FINAL §7, `src/sim/classes.ts`, `src/sim/equipment.ts`,
+      `src/sim/run.ts`'s `equipItemCommand`.
 - [x] (b028) [bug] `tests/q14-mutation-smoke.test.ts` on Windows can spawn a
       runaway tree of orphaned nested `vitest` subprocesses and hang —
       **done, see Done section.** The "three consecutive full-suite runs"
@@ -2546,6 +2570,58 @@ logged in MIGRATION.md §8 rather than carried as dead items.
   **G19**. The work is `p10d`.
 
 ## Done
+
+- [x] (fb028) [feat] Detailed live effect text for classes and class-specific
+      equipment (SPEC-FINAL §11, extends fb004/fb022, owner feedback
+      `feature-detailed-effect-text`). fb022/fb026 already covered class
+      actives/passive/tower-passive text with live numbers everywhere they
+      appear (Hub Class screen, in-run character panel, bottom bar Q/E/
+      passive tooltips) — this item's real gap was equipment. New
+      `src/ui/equipment-info.ts` shares one formatter (mods, the
+      `classFallback` "if not <class>" conditional line, and — for the 3
+      non-Stats-shaped `effectKey` items, Sleeve Sword/Swordsman Armor/
+      Swordsman Shoes — an active/inert-marked note with a live
+      `w.derived.attackSpeedMul` number) across three surfaces: the Hub's
+      Equipment tab (replacing its own local `equipmentFallbackBlock`), the
+      in-run character panel's Equipment section (new `.sw-eq-tip` hover
+      tooltips on every slot/owned item — previously name-only, no mods, no
+      conditional lines at all), and a new Codex `renderDetail` hook
+      (`codex.ts`/`codex-collections.ts`) expanding a class's or equipment
+      item's full effect text below its table row on click (previously
+      `JSON.stringify`'d raw). `tests/fb028-effect-text.test.ts` (17 tests).
+      **code-reviewer REQUEST-CHANGES → fixed**: an earlier draft
+      hand-authored the 3 `effectKey` sentences directly in TS, duplicating
+      (and having already drifted one word from) prose `data/equipment.json`'s
+      `desc` field already stated — violating the item's own "no duplicate
+      hand-written strings" clause and CLAUDE.md architecture rule 4. Fixed
+      by moving the sentences into new `/data` fields (`effectNote`/
+      `effectNoteWith`, `content.ts` schema + a new loader cross-check that
+      `effectNoteWith.key` names a real item, mirroring the existing
+      `classFallback.notClassKey` check), with the UI module doing pure
+      `{mul}` template substitution against them — re-reviewed, approved.
+      **qa-playtester FAIL → both Majors fixed**: (1) the in-run tooltip's
+      active/inert badge checked class match only, never whether the item
+      was actually in the run's *starting* loadout (`w.cfg.equipment`, what
+      `hasEquipment` — the real sim gate every `effectKey` mechanic reads —
+      checks), so an item equipped mid-run from the stash panel that was
+      absent at run start showed "(active)" though its mechanic can never
+      fire that run — fixed via a new `ctx.equippedKeys` check in
+      `specialActive`, in-run only; (2) the Codex's equipment detail picked
+      one of Swordsman Armor's two conditional notes via that same live
+      `equippedKeys` check, always absent in the Codex (no run), so the
+      cross-item Sleeve Sword branch — the entire reason the item is
+      "multi-conditional," the acceptance criterion's own proof case — was
+      unreachable there; fixed by having `equipmentCodexDetailMarkup` show
+      both branches unconditionally, named by class/companion item rather
+      than active/inert-marked. Filed, not fixed here (a real sim gap the UI
+      correctly mirrors rather than papers over): **b076** —
+      `hasEquipment` reads `w.cfg.equipment` (frozen at construction), not
+      the live `w.equippedEquipment` `equip_item` actually swaps, so the
+      three `effectKey` mechanics themselves never react to a mid-run
+      equip/unequip. `npm run test:fast`: green except the same
+      pre-existing, load-only Playwright-fold/`q15` flakes every session
+      this week has hit (reconfirmed pre-existing via isolated
+      `--pool=forks --poolOptions.forks.singleFork=true` reruns).
 
 - [x] (fb027) [feat] Core and tower selection panels (SPEC-FINAL §5, §5.5,
       §11, owner feedback `feature-core-tower-panels`). Most of the *reading*

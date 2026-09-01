@@ -554,11 +554,17 @@ describe('q7 — cross-file references, row by row', () => {
     // Core (§5.5), but only 4 of 5 Core keys are ever any quest's
     // `reward.value` (the default `stone_heart` has no unlock quest to name
     // it), so `cores.cores[].key` is caught on 4 rows and open on the 5th.
+    //
+    // fb028: `equipment.items[].key` joined too — `effectNoteWith.key` (the
+    // content.ts loader check added alongside it) cross-references exactly
+    // one row (`sleeve_sword`, the one companion key `swordsman_armor`
+    // names), leaving the other 11 equipment items' keys open.
     const partial = Object.keys(observed).filter((p) => observed[p] === 'partial');
     expect(partial.sort()).toEqual([
       'cores.cores[].key',
       'damagetypes.types[].key',
       'enemies.enemies[].key',
+      'equipment.items[].key',
       'quests.quests[].key',
       'quests.quests[].reward.kind',
       'quests.quests[].reward.value',

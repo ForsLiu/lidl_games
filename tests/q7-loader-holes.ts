@@ -22,6 +22,18 @@
  *     `open` = no row is, `partial` = some are and some are not, which is the
  *     one-directional-integrity finding (E1).
  *
+ * Regenerated 2026-09-01 (fb028): `data/equipment.json`'s three `effectKey`
+ * items gained `effectNote`/`effectNoteWith` fields (the UI's one authored
+ * copy of what a non-Stats-shaped `effectKey` mechanic does, so
+ * `equipment-info.ts` no longer hand-writes a second, driftable copy of the
+ * same prose `desc` already states) — both are free text (`open` in
+ * REF_VERDICTS, same as `desc`), except `effectNoteWith.key` (the companion
+ * item it names), which content.ts now cross-checks against real equipment
+ * keys the same way `classFallback.notClassKey` already checks class keys —
+ * `checked` in REF_VERDICTS, and it moves `equipment.items[].key` itself
+ * from `open` to `partial` (only `sleeve_sword`'s row is ever named). ACCEPTED
+ * and REF_VERDICTS updated in place, INEFFECTIVE unchanged.
+ *
  * Recorded 2026-08-31 (b013) against 6,615 mutations, 4,955 rejected, 1,660
  * accepted — down from 4,394/2,221: b013 unskipped E1-E7 and closed every hole
  * they named. `src/sim/content.ts`'s shared `num` alias gained `.finite()`
@@ -438,6 +450,9 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'equipment.items[].classFallback.mods.moveSpeedPct': ['negative', 'zero', 'fractional', 'drop-key'],
   'equipment.items[].desc': ['to-string', 'empty-string'],
   'equipment.items[].effectKey': ['drop-key'],
+  'equipment.items[].effectNote': ['to-string', 'empty-string', 'drop-key'],
+  'equipment.items[].effectNoteWith': ['drop-key'],
+  'equipment.items[].effectNoteWith.text': ['to-string', 'empty-string'],
   'equipment.items[].key': ['to-string', 'empty-string'],
   'equipment.items[].mods': ['drop-key'],
   'equipment.items[].mods.area': ['negative', 'zero', 'fractional', 'drop-key'],
@@ -816,7 +831,10 @@ export const REF_VERDICTS: Readonly<Record<string, RefVerdict>> = {
   'equipment.items[].classFallback.notClassKey': 'checked',
   'equipment.items[].desc': 'open',
   'equipment.items[].effectKey': 'checked',
-  'equipment.items[].key': 'open',
+  'equipment.items[].effectNote': 'open',
+  'equipment.items[].effectNoteWith.key': 'checked',
+  'equipment.items[].effectNoteWith.text': 'open',
+  'equipment.items[].key': 'partial',
   'equipment.items[].name': 'open',
   'equipment.items[].slot': 'checked',
   'equipment.slots[]': 'checked',

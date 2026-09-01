@@ -361,6 +361,13 @@ html, body {
 .sw-codex-table { border-collapse: collapse; width: 100%; font-size: 12px; }
 .sw-codex-table th, .sw-codex-table td { border: 1px solid var(--line); padding: 4px 8px; text-align: left; white-space: nowrap; }
 .sw-codex-table th { color: var(--dim); font-weight: 600; }
+.sw-codex-table tr.sw-codex-row-clickable { cursor: pointer; }
+.sw-codex-table tr.sw-codex-row-clickable:hover { background: var(--panel2); }
+.sw-codex-table tr.sw-codex-row-clickable.active { background: #1c2a2a; }
+
+/* fb028: a collection's per-row effect text, opened by clicking a
+   `sw-codex-row-clickable` row (`codex.ts`, `CodexCollection.renderDetail`). */
+.sw-codex-detail { margin-top: 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); }
 
 .sw-codex-tuner { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 10px; }
 .sw-tuner-toolbar { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; }
@@ -380,6 +387,35 @@ html, body {
 .sw-lootitem small { font-size: 12px; color: var(--dim); text-transform: capitalize; }
 .sw-lootitem.on { border-color: var(--accent); border-left-color: var(--accent); }
 .sw-lootitem.equipped { background: #1c2a24; }
+
+/* fb028: the in-run equipment section's hover tooltip (mods + classFallback
+   + effectKey note, `equipment-info.ts`'s `equipmentEffectMarkup`) — same
+   CSS-only hover-reveal technique as the bottom bar's `.sw-bb-tip`, scoped to
+   its own class so the Hub's Equipment tab (`.sw-slot`/`.sw-lootitem` alone,
+   no `sw-runeq-*`) is unaffected; it already has a click-to-select detail
+   panel for the same text. */
+.sw-runeq-slot, .sw-runeq-item { position: relative; }
+.sw-eq-tip {
+  display: none;
+  position: absolute;
+  left: 100%;
+  top: 0;
+  margin-left: 8px;
+  width: 220px;
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 8px 10px;
+  z-index: 6;
+  text-align: left;
+  pointer-events: none;
+}
+.sw-runeq-slot:hover .sw-eq-tip,
+.sw-runeq-item:hover .sw-eq-tip,
+.sw-runeq-slot:focus-within .sw-eq-tip,
+.sw-runeq-item:focus-within .sw-eq-tip {
+  display: block;
+}
 
 /* fb022: full effect-text blocks (class/Core detail, equipment detail) — a
    named header plus whatever generic stat/field list the info-format.ts

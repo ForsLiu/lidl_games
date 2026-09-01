@@ -13,7 +13,9 @@
  * the relic UI, since the Codex is exactly the "tooltips" surface CLAUDE.md's
  * "delete relic UI remnants everywhere" line means.
  */
-import { loadContent, type Content } from '../sim/content';
+import { loadContent, type ClassDef, type Content, type EquipmentItem } from '../sim/content';
+import { classAbilitiesMarkup } from './class-info';
+import { equipmentCodexDetailMarkup } from './equipment-info';
 
 export interface CodexCollection {
   key: string;
@@ -33,6 +35,15 @@ export interface CodexCollection {
    * other view's data.
    */
   raw?: unknown;
+  /**
+   * fb028: an optional per-collection detail renderer — full live-formatted
+   * effect text for one row, shown when the Codex's generic table row is
+   * clicked (`codex.ts`). Undefined (every collection but classes/equipment
+   * today) means the table alone is the whole story, same as before this
+   * item — the Codex's own genericity guarantee is unaffected by a
+   * collection opting in.
+   */
+  renderDetail?: (row: Record<string, unknown>) => string;
 }
 
 function asRows(value: unknown): Record<string, unknown>[] {
@@ -43,7 +54,19 @@ function asRows(value: unknown): Record<string, unknown>[] {
 
 export function buildCodexCollections(content: Content = loadContent()): CodexCollection[] {
   return [
-    { key: 'classes', label: 'Classes', rows: asRows(content.classes.classes), tunerFile: 'classes', raw: content.classes },
+    {
+      key: 'classes',
+      label: 'Classes',
+      rows: asRows(content.classes.classes),
+      tunerFile: 'classes',
+      raw: content.classes,
+      // fb028: full active/passive/tower-passive/basic-attack effect text —
+      // the same generic-only-from-/data formatter the Hub's Class screen and
+      // the in-run character panel already call, with no live context (the
+      // Codex is a pre-run reference), so numbers match the plain-authored
+      // ones those two surfaces show before a run starts.
+      renderDetail: (row) => classAbilitiesMarkup(row as unknown as ClassDef),
+    },
     { key: 'towers', label: 'Towers', rows: asRows(content.towers.towers), tunerFile: 'towers', raw: content.towers },
     {
       key: 'equipment',
@@ -51,6 +74,10 @@ export function buildCodexCollections(content: Content = loadContent()): CodexCo
       rows: asRows(content.equipment.items),
       tunerFile: 'equipment',
       raw: content.equipment,
+      // fb028: mods + both classFallback/effectKey conditional branches,
+      // named by class rather than active/inert (the Codex has no selected
+      // class to mark them against).
+      renderDetail: (row) => equipmentCodexDetailMarkup(content, row as unknown as EquipmentItem),
     },
     {
       key: 'damagetypes',

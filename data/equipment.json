@@ -16,6 +16,7 @@
       "mods": { "atkFlat": 5, "attackSpeed": 0.2 },
       "effectKey": "sleeve_sword",
       "classFallback": { "notClassKey": "swordsman", "mods": { "attackSpeed": 0.2 } },
+      "effectNote": "Circle Slash needs no charge and fires at max-charge effect.",
       "desc": "HP 0 / Atk 5 / Def 0, atk speed x1.2. Circle Slash needs no charge and fires at max-charge effect. If not Swordsman: atk speed x1.2 (so 1.2x1.2)."
     },
     {
@@ -33,6 +34,8 @@
       "mods": { "maxHp": 5, "atkFlat": 5, "armor": 5, "attackSpeed": 0.1 },
       "effectKey": "swordsman_armor",
       "classFallback": { "notClassKey": "swordsman", "mods": { "attackSpeed": 0.5 } },
+      "effectNote": "Circle Slash charging speed scales with attack speed{mul}.",
+      "effectNoteWith": { "key": "sleeve_sword", "text": "With Sleeve Sword also equipped, Circle Slash damage is boosted by attack speed instead of charge rate{mul}." },
       "desc": "HP 5 / Atk 5 / Def 5, atk speed x1.1. Circle Slash charging speed = original x attack speed; if Sleeve Sword is also equipped, Circle Slash damage is boosted by attack speed instead. If not Swordsman: atk speed x1.5 (so 1.1x1.5)."
     },
     {
@@ -50,6 +53,7 @@
       "mods": { "maxHp": 3, "atkFlat": 3, "armor": 3, "attackSpeed": 0.1, "moveSpeedPct": 1 },
       "effectKey": "swordsman_shoes",
       "classFallback": { "notClassKey": "swordsman", "mods": { "moveSpeedPct": 0.1 } },
+      "effectNote": "Doubles Dash Slash distance.",
       "desc": "HP 3 / Atk 3 / Def 3, atk speed x1.1, move x2. Doubles Dash Slash distance. If not Swordsman: x1.1 movement."
     },
     {

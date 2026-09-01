@@ -1021,6 +1021,15 @@ const CoresFileSchema = z.object({ cores: uniqueArray(CoreSchema, ['key']) });
  * data-driven (CLAUDE.md architecture rule 4) rather than a hardcoded class
  * check per item: an extra `Stats` source granted only when the run's class
  * does not match `notClassKey`.
+ *
+ * `effectNote`/`effectNoteWith` (fb028) are the UI's one authored copy of what
+ * an `effectKey !== 'none'` item's non-Stats-shaped mechanic does — the same
+ * sentence `desc` already states in prose, pulled out as its own field so
+ * `equipment-info.ts` can show it with a live number substituted for `{mul}`
+ * without hand-writing a second, driftable copy of the sentence in code.
+ * `effectNoteWith` is the alternate note (and its own `{mul}` slot) for the
+ * one item whose mechanic changes when a second specific item is also
+ * equipped (Swordsman Armor + Sleeve Sword) — absent for every other item.
  */
 const EquipmentItemSchema = z
   .object({
@@ -1030,6 +1039,8 @@ const EquipmentItemSchema = z
     mods: statRecord().default({}),
     effectKey: z.enum(['none', 'sleeve_sword', 'swordsman_armor', 'swordsman_shoes']).default('none'),
     classFallback: z.object({ notClassKey: str, mods: statRecord() }).optional(),
+    effectNote: str.optional(),
+    effectNoteWith: z.object({ key: str, text: str }).optional(),
     desc: str,
   })
   .strict();
@@ -2022,6 +2033,7 @@ export function loadContent(overrides?: ContentOverrides): Content {
   // fb015 (§7): a typo'd slot or `notClassKey` would otherwise silently equip
   // into nowhere or grant a fallback nobody can ever fail to qualify for.
   const equipmentSlots = new Set(equipment.slots);
+  const equipmentKeys = new Set(equipment.items.map((i) => i.key));
   for (const item of equipment.items) {
     if (!equipmentSlots.has(item.slot)) {
       throw new Error(`equipment.json: ${item.key} has unknown slot "${item.slot}"`);
@@ -2029,6 +2041,14 @@ export function loadContent(overrides?: ContentOverrides): Content {
     if (item.classFallback && !classKeys.has(item.classFallback.notClassKey)) {
       throw new Error(
         `equipment.json: ${item.key}.classFallback references unknown class "${item.classFallback.notClassKey}"`,
+      );
+    }
+    // fb028: `effectNoteWith.key` names the companion item whose presence
+    // switches this item's UI note (equipment-info.ts) — a typo'd key would
+    // silently make that cross-item note unreachable forever.
+    if (item.effectNoteWith && !equipmentKeys.has(item.effectNoteWith.key)) {
+      throw new Error(
+        `equipment.json: ${item.key}.effectNoteWith references unknown item "${item.effectNoteWith.key}"`,
       );
     }
   }
