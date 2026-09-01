@@ -2310,7 +2310,7 @@ logged in MIGRATION.md §8 rather than carried as dead items.
 ## Done
 
 - [x] (p10n) [polish] Regenerated HANDOFF.md end to end against SPEC-FINAL —
-      commit pending (see PROGRESS.md's p10n entry for the full write-up).
+      commit `dbb0ec5` (see PROGRESS.md's p10n entry for the full write-up).
       Doc-only item: no `src`/`data`/test file changed except BACKLOG.md
       (this entry, and the new b072 filing) and PROGRESS.md. Ran all five
       source-of-truth tools fresh (`handoff-metrics`, `a4probe`, `a5probe`,

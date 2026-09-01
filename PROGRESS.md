@@ -45,7 +45,7 @@
   change — verification here was independently re-deriving every number from
   live test files/tool output rather than copying a claimed figure. `npm run
   test:fast` not run (nothing it covers changed); the two headline files
-  checked standalone are excluded from that tier regardless. Commit pending.
+  checked standalone are excluded from that tier regardless. Commit `dbb0ec5`.
 
 - **2026-09-01 session: BACKLOG b071 closed** — fixed gate **G13**'s
   `frost_obelisk` VS-damage-share regression to 37.4% (over the 35% cap),
