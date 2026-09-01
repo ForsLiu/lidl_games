@@ -79,6 +79,175 @@ reappear here.
 - [x] (fb014) [feat] Constellation tree counts as fully allocated on every
       run — **done, see Done section.**
 
+### Owner priority queue (2026-09-01 directive) — execute top-down
+
+Filed from the owner's 2026-09-01 feedback batch (14 files, none carrying
+verdict blocks — nothing to apply to QUESTIONS.md). Five items are marked
+`Priority: top`; per CLAUDE.md's "prefer the top item, skip only with a
+logged reason" and working rule 3 ("confirmed bugs... outrank the queue"),
+they are listed here ahead of the nine normal-priority items in the section
+below and ahead of the still-open `p10r`/`b027`. fb024 (a bug) executes
+first of this batch this session; fb025 (`balance-enemies-10x-hp-slower-
+attacks`) is an explicit owner-scoped exception to the "no tuning before
+P10" freeze (QUESTIONS Q40), same precedent as fb020.
+
+- [ ] (fb024) [bug] top priority: DPS panel close button does nothing
+      perceptible to fix (docks instead of closing outright); same docking
+      behavior to extend to the future VS wielded side panel (fb037) —
+      acceptance: clicking the DPS panel's own close button collapses it to
+      a small reopenable tab at the stage edge instead of fully vanishing;
+      clicking the tab reopens the full panel; a forced close (pause, run
+      end, another overlay opening) still fully closes with no tab left
+      behind; a regression test covers both the dock/reopen behavior and the
+      actual defect underneath the report (the panel redrew its entire DOM,
+      including the close button, on every tick while open — a real mouse's
+      mousedown/mouseup straddling an animation frame could land on a
+      just-recreated button and drop the click, which no existing
+      synchronous-`.click()` jsdom test could catch) — refs: SPEC-FINAL §11,
+      owner feedback `bug-dps-panel-close`, fb007's original panel.
+- [ ] (fb025) [balance] top priority, scoped exception to the tuning freeze
+      (QUESTIONS Q40, precedent fb020): enemy HP ×10 globally (per-enemy
+      ratios kept); overall attacker speed ×0.7 (tunable) applied to towers,
+      character basic/wielded attacks, class skill hit cadence, and enemies
+      alike; a new "Enemy HP bars" options-menu toggle (default ON) drawing
+      a small HP bar under every enemy including the pending-DoT segment
+      (reuse fb006's segment sizing); BALANCE.md's TTK bands rewritten to
+      the new intent (fodder 6-12 hits, elite 40-60s focused, bosses
+      3-6min), with P10's eventual re-fit tuning *from* these values, not
+      back toward the old ones (fb020's own precedent) — acceptance:
+      multipliers land in `/data` only; the HP-bar toggle works; BALANCE.md
+      is rewritten; `npm run test:fast` green with every broken assertion
+      re-pinned to a logged reason, never silently loosened; before/after
+      sweep deltas recorded in PROGRESS.md — refs: owner feedback
+      `balance-enemies-10x-hp-slower-attacks`, supersedes fb020's ×1.4 HP /
+      ×0.8 speed multipliers in `data/enemies.json`.
+- [ ] (fb026) [feat] top priority: persistent bottom HUD bar — HP (with
+      numbers), gold, the class passive icon, and Active 1 (Q) / Active 2
+      (E) icons with MOBA-style clockwise cooldown sweeps (remaining
+      seconds), multi-charge badges and a ready flash; hovering any icon
+      shows a tooltip with full live effect text (fb028) and draws the
+      skill's range/area indicator on the map; the passive icon reflects its
+      current live state (Wrath stored, Digestion, marks, etc., per class)
+      — acceptance: the bar is visible in both TD and VS phases; tooltip
+      text and cooldown-sweep timing match sim state exactly for all 12
+      classes (a test asserts the sweep fraction against the sim's own
+      cooldown field); the bar scales with the resolution/DPR setting —
+      refs: SPEC-FINAL §11, owner feedback `feature-bottom-bar-hud`.
+- [ ] (fb027) [feat] top priority: Core and tower selection panels — Core:
+      selecting it opens a panel with HP, TD/VS effect text, stats,
+      stacks/store/digestion state, current upgrade step, next-step preview
+      and an Upgrade button (cost per §5.5), no Sell; towers: selecting one
+      opens a panel with HP/def, attack stats resolved to numbers, the
+      damage-type split, milestone specials (owned/next), any stacks (pact,
+      tithe, veteran counts) and Upgrade/Sell buttons with prices and refund
+      shown; both panels sit beside the new bottom bar (fb026); hotkeys `U`
+      (upgrade) and `X` (sell) — acceptance: both panels functional in TD;
+      Core upgrades are purchasable from its panel; every displayed number
+      equals the sim's own derived value (a test asserts this); a UI flow
+      test covers sell/upgrade end to end — refs: SPEC-FINAL §5, §5.5, §11,
+      owner feedback `feature-core-tower-panels`, extends the existing
+      `tower-info.ts`/`core-info.ts` derivation helpers.
+- [ ] (fb028) [feat] top priority: detailed live effect text for every class
+      active/passive and every class-specific equipment item, surfaced
+      everywhere they appear — class select, character panel, the new
+      bottom bar's tooltips (fb026), equipment tooltips, and the Codex —
+      full effect text with live numbers (cooldown, charges, radius/range,
+      damage bands, durations, stack rules) and, for class-specific
+      equipment, each conditional line marked active/inert for the current
+      class; text generated from `/data` + the stats engine only, no
+      duplicate hand-written strings. Folds into fb022's already-shipped
+      info-surfacing work as its bottom-bar/equipment-conditional-line
+      extension rather than a separate system — acceptance: every class's 2
+      actives + passive + tower passive, and every class-specific item, show
+      full live text somewhere reachable; a test asserts displayed numbers
+      equal sim-derived values for at least one multi-conditional
+      class-specific item — refs: SPEC-FINAL §11, extends fb004/fb022,
+      owner feedback `feature-detailed-effect-text`.
+
+Normal-priority items from the same 2026-09-01 batch follow in the next
+section, in filed order; none is blocked by the five above, so any may be
+picked up independently once the top five are clear.
+
+### Feedback — owner-filed items (2026-09-01), processed from `feedback/`
+
+- [ ] (fb029) [feat] Character selection + attack-range ring — clicking the
+      character selects it (same selection system as towers/enemies) and
+      draws its basic-attack range ring plus its stats panel; in VS the ring
+      also shows a secondary dashed ring for the longest wielded range —
+      acceptance: click character -> ring + panel; ring radius updates with
+      range bonuses (equipment, boons); a test asserts ring radius equals
+      the derived range — refs: SPEC-FINAL §11 (selection/indicators), owner
+      feedback `feature-character-range-on-select`.
+- [ ] (fb030) [feat] Dash becomes a fast move instead of a teleport: the
+      character physically travels the distance over a short duration
+      (collision with structures already ignored per fb002; enemies do not
+      block) rather than blinking. Starting bands (machine-tunable):
+      distance ~2.5 tiles, duration ~0.2s, cooldown ~1.5s, brief i-frames
+      kept. Class dashes built on the base dash (Dash Slash, Quickstep,
+      Flame Road, Crimson Rush) inherit the movement form but keep their own
+      distances — acceptance: dash visibly travels with a trail VFX and
+      stops at the destination; new numbers land in `/data`; every
+      class-dash test is updated for the new shape; replay determinism
+      holds — refs: SPEC-FINAL §10 (character: dash) amendment, owner
+      feedback `feature-dash-fast-move`.
+- [ ] (fb031) [feat] VS XP gems accelerate toward the character once
+      attracted (within pickup radius, or after a wave's auto-collect,
+      fb008): speed increases continuously (e.g. +40%/0.25s, uncapped) so a
+      gem always catches a moving character; gems outside pickup radius keep
+      waiting as today — acceptance: a gem attracted behind a character
+      moving at max speed reaches it within 2s (a test covers this); no gem
+      orbits forever — refs: SPEC-FINAL §2 (pickup) amendment, owner
+      feedback `feature-exp-accelerating-pickup`.
+- [ ] (fb032) [feat] Practice +gold/+XP buttons become amount dropdowns:
+      +500, +1000, +2500, +5000, +100000, same `dev` Command path with
+      amount as a parameter — acceptance: both dropdowns grant the chosen
+      amount; a test covers every amount and replay safety — refs:
+      SPEC-FINAL §11 (practice tools), owner feedback
+      `feature-practice-amount-dropdowns`.
+- [ ] (fb033) [feat] Practice toggles "Infinite TD waves" / "Infinite VS
+      waves": the run stays in the chosen phase indefinitely, spawning waves
+      with continuing scaling (wave index keeps climbing) until toggled off
+      or the character/Core dies; rewards are not banked (practice rule) —
+      acceptance: both toggles work from the practice menu and Training
+      Grounds; scaling continues past wave 18; determinism holds; a test
+      covers 30+ waves headless — refs: SPEC-FINAL §11 (practice tools),
+      owner feedback `feature-practice-infinite-waves`.
+- [ ] (fb034) [feat] Practice tool "Max all towers": instantly raises every
+      placed tower (and the Core) to its final upgrade step, free — a
+      replay-safe Command like the other practice tools, flagging the run
+      as practice — acceptance: the option exists in the practice menu and
+      Training Grounds; all towers/Core sit at max after use; a test covers
+      it — refs: SPEC-FINAL §11 (practice tools), owner feedback
+      `feature-practice-max-towers`.
+- [ ] (fb035) [feat] Game speed control becomes a dropdown spanning 0.25x,
+      0.5x, 1x, 2x, 3x, 10x, 50x (extends fb010's 1/2/3/10/50x set down to
+      quarter/half speed); sub-1x speeds run the sim at fixed 60Hz per
+      sim-second with slower wall-clock only, determinism unchanged —
+      acceptance: all seven speeds are selectable; the same seed produces a
+      hash-identical end state across every speed (a test covers this) —
+      refs: SPEC-FINAL §11 (fast-forward) extension, owner feedback
+      `feature-speed-dropdown`.
+- [ ] (fb036) [feat] TD path indicators from every spawn gate: during TD
+      build phases and waves, draw each gate's current route to the Core
+      (dashed line or arrows, one color per gate), updating live within one
+      tick of a tower/wall placement or sale, including the breach route
+      (dashed red through structures) once the Core is sealed; an options
+      toggle, default ON — acceptance: paths render for every gate and
+      update within one tick of a placement change; the breach route shows
+      once sealed; a test asserts the drawn path equals the pathing
+      system's own route — refs: SPEC-FINAL §10 (pathing), §11 (indicators),
+      owner feedback `feature-td-path-indicators`.
+- [ ] (fb037) [feat] VS side panel: a collapsible panel listing every
+      wielded tower-type attack's derived damage (average × count bonus),
+      attack speed, range, pierce/AoE, damage-type split, active milestone
+      specials and live DPS this wave; hovering a row draws that attack's
+      range ring around the character; the panel collapses to an edge tab
+      (reuse fb024's dock pattern) — acceptance: the panel shows every
+      wielded type with numbers equal to the sim's own derivation (a test
+      covers this); hover-ring and collapse/expand both work — refs:
+      SPEC-FINAL §6.2 (lineage panel) extension, owner feedback
+      `feature-vs-wielded-side-panel`.
+
 ### Feedback — owner-filed items (2026-08-27), processed from `feedback/`
 
 Filed from the owner's 2026-08-27 feedback batch (12 files, `verdicts-q1-121`
