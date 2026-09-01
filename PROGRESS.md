@@ -5,6 +5,54 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-01 session: BACKLOG b071 closed** — fixed gate **G13**'s
+  `frost_obelisk` VS-damage-share regression to 37.4% (over the 35% cap),
+  found by qa-playtester during b070's verification pass (see that entry
+  below). Root-caused by diffing every `/data` file between p10j's last
+  known-green measurement (commit `04a9041`, frost_obelisk 29.9%) and HEAD,
+  then confirming causation directly: temporarily reverting
+  `data/waves.json`'s `buildPhaseSeconds` from 15 back to 20 (nothing else
+  changed) made `tests/p10c-weapon-share.test.ts` pass in full — p10l's G1-
+  closing lever was the sole cause, shifting VS damage share via the same
+  VS-kills → XP → Power-boon → `powerMul` pipeline p10c's own header
+  documents (frost_obelisk's `aura` wielded attack is omnidirectional, so it
+  benefits disproportionately from any kill-rate/pacing shift). Reverting
+  `buildPhaseSeconds` was ruled out — it would reopen gate G1. Fix (delegated
+  to balance-analyst, `/data`-only): `data/towers.json`'s
+  `frost_obelisk.attack.damage` 19→18 (a 5.3% cut) — the smallest tested cut
+  that clears the cap with real margin; `range` was ruled out first (the
+  aura's TD clear leans on that same radius, collapsing T1 to 2/5) and a
+  larger damage cut (19→14) overshot to 24.4% share while still hurting T1.
+  Measured: frost_obelisk 25.9%, mortar 20.8%, ballista 20.4%, ember_brazier
+  19.1%, arrow_spire 7.6%, venom_spore 2.8%, tesla_coil 1.6% — all three
+  `p10c-weapon-share.test.ts` assertions green with a 9.1-point margin. Gate
+  G1 re-verified unaffected: `tests/p10d-run-length.test.ts` now measures
+  35.20 min / 21-24 (88%) wins, still inside the 30-36 min band (was 35.14
+  min / 92% before this fix — a small win-rate shift from the same
+  nonlinearity, not a regression). Non-monotonic side effect:
+  `tests/a4-single-type.test.ts`'s frost_obelisk T1 clause actually improved,
+  4/5→5/5. That file's other four failing rows (ember_brazier T1 3/5,
+  tesla_coil T1 2/5, mortar/venom_spore T3 1/5) were confirmed pre-existing
+  and unrelated via `git stash` (identical with or without this fix) — a
+  separate, already-known drift this item did not chase (it's excluded from
+  `test:fast`, so it went unnoticed since whichever `/data` commit caused it;
+  worth its own backlog item, not filed here since qa-playtester and the
+  balance-analyst both independently confirmed it's untouched by this
+  change). `npm run test:fast` showed the same long-documented pre-existing
+  Windows flakes (`q15` worker-hang, `q49`/`q52` EPERM scratch-dir races,
+  `b035-towerinfo-fold`) with or without this fix (`git stash` control); all
+  four pass cleanly in isolation under `--pool=forks
+  --poolOptions.forks.singleFork`, confirming thread-contention flakiness
+  rather than a real regression. `tools/gate-audit.ts`'s G13 note and this
+  entry supersede the stale p10j/p10l-era 29.9%/`.skip`'d numbers still
+  referenced in BACKLOG's P10 audit-summary row. qa-playtester **PASS**:
+  independently re-ran both target test files from scratch (not just reading
+  claimed numbers), reproduced the exact share/mean numbers via
+  `tools/a5probe.ts` and a standalone aggregation script, and independently
+  confirmed the four `a4-single-type.test.ts` failures are pre-existing via
+  its own `git stash`/pop cycle. code changed: `data/towers.json`,
+  `tools/gate-audit.ts`. Commit pending.
+
 - **2026-09-01 session: BACKLOG b070 closed** — fixed gate **G22**'s `corpse`
   vs Stone Heart, seed-2 regression (fingerprint 0.080, under the 0.10
   floor), a CLAUDE.md-rule-3 confirmed bug that p10m had filed at the top of

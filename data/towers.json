@@ -193,13 +193,13 @@
             "note": "frost from this tower lasts 5s, up from the base 1.2s (p5c, §5.2)"
           }
         ],
-        "note": "m20c: §4 count line says 4. At 4 the A4 T1 clause measures 0/5 at the rule price 35 and at 28, and 4/5 at 14, against the 5/5 the gate wants — V2-equivalent 10 kept (Q80). p10c: at the retuned curve this tower's deep 10-step track let it also clear T3 (+45% HP/+30% speed) on 1/5 seeds — damage 22->19 trims that margin (see a4probe before/after). p10c further cut count 10->9/stepCost 14->16 chasing G13's 35% VS-share cap (frost_obelisk's aura wielded attack still measures 46.0%, the deepest safe cut found on any single field or combination — see tests/p10c-weapon-share.test.ts and BACKLOG p10j)."
+        "note": "m20c: §4 count line says 4. At 4 the A4 T1 clause measures 0/5 at the rule price 35 and at 28, and 4/5 at 14, against the 5/5 the gate wants — V2-equivalent 10 kept (Q80). p10c: at the retuned curve this tower's deep 10-step track let it also clear T3 (+45% HP/+30% speed) on 1/5 seeds — damage 22->19 trims that margin (see a4probe before/after). p10c further cut count 10->9/stepCost 14->16 chasing G13's 35% VS-share cap (frost_obelisk's aura wielded attack still measures 46.0%, the deepest safe cut found on any single field or combination — see tests/p10c-weapon-share.test.ts and BACKLOG p10j). b071: p10l's buildPhaseSeconds 20->15 (G1 fix) pushed this back up to 37.4% with damage unchanged at 19 — re-measured range 3->2.5 alone (T1 collapses to 2/5, the aura's TD clear leans on that same radius) and damage 19->14 (T1 2/5, share overshoots down to 24.4%) before landing on the smallest cut that clears the cap with real margin: damage 19->18 measures 25.9% share (tools/a5probe.ts) and, non-monotonically, restores T1 to 5/5 (18/18 waves) rather than the 4/5 damage:19 already measured at this buildPhaseSeconds — see BACKLOG b071."
       },
       "hp": 130,
       "blocks": true,
       "attack": {
         "kind": "aura",
-        "damage": 19,
+        "damage": 18,
         "interval": 1,
         "range": 3,
         "slow": 0.25,

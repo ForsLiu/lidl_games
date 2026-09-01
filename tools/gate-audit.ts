@@ -180,12 +180,15 @@ export const GATE_COVERAGE: Record<string, CoverageEntry> = {
       "a4-single-type.test.ts's solo-viability clause: all seven towers now measure live at 5/5 T1 / 0/5 T3. " +
       "The '35% damage share' half's own test, the retired a5-weapon-share.test.ts (SPEC-FINAL §6.1 reconcile), " +
       'is replaced by p10c-weapon-share.test.ts against the rebuilt tools/a5probe.ts (real §1.1 run shape, not ' +
-      'the old single-cycle minute-8 snapshot) — its pool-size and spread assertions are live and green, but ' +
-      "its 35%-cap assertion is it.skip'd: two rounds of data-only retuning measured frost_obelisk down to " +
-      '46.0% (from 51.1%) without breaking a4, short of the cap for reasons the test file\'s own header records ' +
-      'as structural (an engine-side gap between omnidirectional and directional VS-wielded attacks), filed as ' +
-      'BACKLOG p10j. Listed `covered` on the same partial-but-live-measured basis as G17 above, not `hole` — ' +
-      'a8-sundering-head-start.test.ts is still entirely retired and contributes nothing.',
+      'the old single-cycle minute-8 snapshot). p10j closed the cap in full via an engine-side crowd allowance ' +
+      "for directional VS-wielded attacks (src/sim/vswield.ts's WIELD_* constants), un-skipping all three " +
+      'assertions at frost_obelisk 29.9%. p10l (data/waves.json buildPhaseSeconds 20->15, closing gate G1) then ' +
+      'regressed frost_obelisk back to 37.4%, over the cap — an unrelated TD-side pacing lever nonetheless ' +
+      "shifting VS damage share via the VS-kills -> XP -> Power-boon -> powerMul pipeline p10c's own header " +
+      'documents. Filed and fixed as BACKLOG b071: data/towers.json frost_obelisk.attack.damage 19->18 (a 5.3% ' +
+      'cut) lands frost_obelisk at 25.9% with real margin, without touching buildPhaseSeconds and without ' +
+      'reopening G1 (re-measured at 35.20 min / 88% wins, still inside band). All three assertions are live and ' +
+      'green. Gate G13 is green in full.',
   },
   G14: { files: ['tests/boss.test.ts'] },
   G16: { files: ['tests/c8-dev-profile.test.ts', 'tests/t4-god-mode.test.ts'] },

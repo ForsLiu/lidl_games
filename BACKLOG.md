@@ -38,7 +38,7 @@ still in test headers.
 | P7 equipment/rewards/VS upgrades | **`p7a`-`p7g` done** — §6.3's VS level-up pool replaces the flat 12-boon list (closing b011 as a side effect); §7's 12-item equipment table is live; §8's reward pipeline is complete and **gate G12 is green in full**; the superseded meta economy (relic affixes, Ember) is retired outright, skill points are the tree's only currency; §8.4's unlock quests are live and correct for all 9 non-free classes (p7e fixed 5 quests whose reward never actually unlocked their class, and repointed Paladin's quest at a new "win with a sealed Core" mechanism matching spec text); `p7f`/`p7g` closed the save-migration holes `migrateWithNotice` had — an unknown key, and a corrupt `allocated`/`unlockedClasses`/`completedQuests`/`equipmentStash`/`questProgress`, can no longer discard or corrupt the account. Remaining: `p7h` (Core unlock quests + Codex page) |
 | P8 enemies/waves/bosses | **done in full (`p8a`-`p8c`)** — all 20 §9 enemies by name; `data/waves.json` authors real TD waves 1-18 on the §1.1 shape (Gatebreaker on 18 only, Warden-Eater on VS 6), the §9 VS-budget curve is live; `p8b` closed the elite/boss-summon spawn paths that bypassed `spendBudget`'s `aliveCap` check; `p8c` formally measured gate G14 on the real shape — **honestly red, 0/20**, `.skip`-ed with the number, re-enable point P10 (no gate in this codebase is force-passed by tuning outside P10) |
 | P9 tooling | **done in full (`p9a`-`p9h`)** — content-hash replay check (`p9a`), the Codex wired into the Hub (`p9b`), the Tuner built and gate **G15 green** (`p9c`), G16's dist-presence-is-inert half explicitly asserted (`p9d`), **gate G18's dead-end clause closed in full** (`p9e`), **gate G2 closed in full** (`p9f`), `hashWorld`'s `w.goldSpent` coverage gap closed (`p9g`), and the enemy/Warden panel's armour row now shows the effective (floored/capped) value instead of the raw shredded number (`p9h`) |
-| P10 balance | **p10a-p10l done; all queued P10 items closed** — Burning flipped to per-application stacking, DoT immunity is data-driven, G13/G1/G17 re-baselined against the real §1.1 shape (G17 fully green); **G19 measured live and green in full (p10f)**; G4's armour-shred path proven live through a real build (p10g); the TD↔VS transition sweep and asset pass shipped (p10h); HANDOFF.md regenerated end to end against SPEC-FINAL, with the wave-11-to-17 wall (behind G8/G14/most of G23) documented as the dominant open problem (p10i); **G13's 35% VS-damage-share cap closed in full at p10j (29.9%)**, but **b071 (filed 2026-09-01) found it silently regressed back to 37.4% by HEAD** — `p10l`'s `buildPhaseSeconds` 20->15 is the suspected but unconfirmed cause, never re-verified against this file since it's excluded from `test:fast`; **p10k** gave the boss fight an independent pacing ramp (37.24->36.63 min, 92% win rate); **p10l** closed the rest via `buildPhaseSeconds` 20->15, a TD-side lever neither p10d nor p10k had isolated — **G1 is green in full** (35.29 min, 22/24 wins, re-confirmed unaffected by b071's discovery). No P10-band item remains queued, but **G8, G13, G14 and most of G23 still read red** (G13 newly so, per b071; the rest the wave-11-to-17 wall p10i named) — the "1.0 complete" bar (CLAUDE.md, all twenty G1-G20 gates green) is not yet met; closing those gates needs new items, most already filed (b071, p10r) |
+| P10 balance | **p10a-p10l done; all queued P10 items closed** — Burning flipped to per-application stacking, DoT immunity is data-driven, G13/G1/G17 re-baselined against the real §1.1 shape (G17 fully green); **G19 measured live and green in full (p10f)**; G4's armour-shred path proven live through a real build (p10g); the TD↔VS transition sweep and asset pass shipped (p10h); HANDOFF.md regenerated end to end against SPEC-FINAL, with the wave-11-to-17 wall (behind G8/G14/most of G23) documented as the dominant open problem (p10i); **G13's 35% VS-damage-share cap closed in full at p10j (29.9%)**, then **p10l's `buildPhaseSeconds` 20->15 (closing G1) silently regressed it back to 37.4%** — found by qa-playtester during b070's verification pass and fixed as **b071** (`data/towers.json` `frost_obelisk.attack.damage` 19->18, now 25.9% with margin, G1 re-confirmed unaffected at 35.20 min / 88% wins) — **G13 is green in full again**; **p10k** gave the boss fight an independent pacing ramp (37.24->36.63 min, 92% win rate); **p10l** closed the rest via `buildPhaseSeconds` 20->15, a TD-side lever neither p10d nor p10k had isolated — **G1 is green in full** (35.20 min, 21/24 wins, re-confirmed unaffected by b071's fix). No P10-band item remains queued, but **G8, G14 and most of G23 still read red** per the wave-11-to-17 wall p10i named — the "1.0 complete" bar (CLAUDE.md, all twenty G1-G20 gates green) is not yet met; closing those gates needs new items, already filed (p10r) |
 
 ## Queue
 
@@ -541,7 +541,7 @@ next in P8's own queue.
 
 ### Filed 2026-09-01 — G13 regression found incidentally during b070's QA pass
 
-- [ ] (b071) [bug] **G13** (`tests/p10c-weapon-share.test.ts`, "gives no tower
+- [x] (b071) [bug] **done, see Done section.** **G13** (`tests/p10c-weapon-share.test.ts`, "gives no tower
       type more than 35% of the winning-pool VS damage") is currently **red
       at HEAD**, independent of b070 — `frost_obelisk` measures **37.4%**
       (`0.373841414642054`) against the 35% cap, while the file's own header
@@ -2287,6 +2287,35 @@ logged in MIGRATION.md §8 rather than carried as dead items.
   **G19**. The work is `p10d`.
 
 ## Done
+
+- [x] (b071) [bug] Fixed **G13**'s `frost_obelisk` VS-damage-share regression
+      to 37.4% (over the 35% cap) — commit pending (see PROGRESS.md's b071
+      entry for the full session write-up). Root cause confirmed (not just
+      suspected): diffed every `/data` file between p10j's last known-green
+      measurement and HEAD, found only `data/waves.json`'s
+      `buildPhaseSeconds` 20→15 (p10l, closing gate G1) touches tower
+      balance, then proved causation directly by temporarily reverting it
+      alone on HEAD — the test passed in full with nothing else changed.
+      Fix (balance-analyst, `/data`-only, does not touch `buildPhaseSeconds`):
+      `data/towers.json`'s `frost_obelisk.attack.damage` 19→18 (a 5.3% cut,
+      the smallest tested cut that clears the cap — `range` was ruled out
+      first, since the aura's TD clear leans on that field, and a bigger
+      damage cut overshot the cap while still hurting T1). Measured:
+      frost_obelisk 25.9%, mortar 20.8%, ballista 20.4%, ember_brazier 19.1%,
+      arrow_spire 7.6%, venom_spore 2.8%, tesla_coil 1.6% — all three
+      `tests/p10c-weapon-share.test.ts` assertions green, 9.1-point margin.
+      Gate G1 re-verified unaffected: `tests/p10d-run-length.test.ts` now
+      35.20 min / 88% wins, still inside the 30-36 min band. Non-monotonic
+      side effect: `tests/a4-single-type.test.ts`'s frost_obelisk T1 clause
+      improved 4/5→5/5; that file's other four pre-existing failures
+      (ember_brazier T1, tesla_coil T1, mortar/venom_spore T3) were confirmed
+      via `git stash` to be identical with or without this fix — untouched,
+      unfiled here, worth their own future item. `tools/gate-audit.ts`'s G13
+      note rewritten to match. qa-playtester PASS: independently re-ran both
+      target test files from scratch, reproduced the exact numbers via
+      `tools/a5probe.ts` and a standalone script, and independently
+      confirmed the four `a4-single-type.test.ts` failures are pre-existing
+      via its own `git stash`/pop cycle.
 
 - [x] (b070) [bug] Fixed **G22**'s `corpse` vs Stone Heart, seed-2 regression
       (fingerprint 0.080, under the 0.10 floor) — commit `ca3e194`. Root
