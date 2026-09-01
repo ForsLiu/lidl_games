@@ -2289,7 +2289,7 @@ logged in MIGRATION.md §8 rather than carried as dead items.
 ## Done
 
 - [x] (b071) [bug] Fixed **G13**'s `frost_obelisk` VS-damage-share regression
-      to 37.4% (over the 35% cap) — commit pending (see PROGRESS.md's b071
+      to 37.4% (over the 35% cap) — commit `8b07c62` (see PROGRESS.md's b071
       entry for the full session write-up). Root cause confirmed (not just
       suspected): diffed every `/data` file between p10j's last known-green
       measurement and HEAD, found only `data/waves.json`'s

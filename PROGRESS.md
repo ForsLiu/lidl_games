@@ -51,7 +51,7 @@
   `tools/a5probe.ts` and a standalone aggregation script, and independently
   confirmed the four `a4-single-type.test.ts` failures are pre-existing via
   its own `git stash`/pop cycle. code changed: `data/towers.json`,
-  `tools/gate-audit.ts`. Commit pending.
+  `tools/gate-audit.ts`. Commit `8b07c62`.
 
 - **2026-09-01 session: BACKLOG b070 closed** — fixed gate **G22**'s `corpse`
   vs Stone Heart, seed-2 regression (fingerprint 0.080, under the 0.10
