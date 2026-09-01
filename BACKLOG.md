@@ -2039,16 +2039,9 @@ because the lane worktree retires at this merge.
       standalone runtime — **done, see Done section.**
 - [x] (b067) [bug] Two `tools/mutation-probe.ts` `MUTATIONS` entries' `find`
       anchors no longer match current source — **done, see Done section.**
-- [ ] (b029) [bug] `tests/q28-cli-error-handling.test.ts` intermittently fails
-      on Windows with an `EPERM` on a scratch-dir temp-file rename (same
-      scratch-dir cleanup race class PROGRESS.md documents for q13/q15; q28's
-      instance reproduced 0/3 in isolation — it is a load-dependent race, not
-      a logic bug). Filed per fb017 so it stops polluting unrelated runs —
-      acceptance: the temp-file rename gets a bounded retry-on-EPERM (the
-      standard Windows AV/indexer-hold workaround) or each case gets a unique
-      scratch subdir removing the shared-handle race; ten consecutive q28 runs
-      under a concurrent full-suite load pass — refs: fb017, PROGRESS.md
-      (q13/q15/q28 EPERM class), CLAUDE.md rule 6.
+- [x] (b029) [bug] `tests/q28-cli-error-handling.test.ts` intermittently fails
+      on Windows with an `EPERM` on a scratch-dir temp-file rename under
+      concurrent full-suite load — **done, see Done section.**
 - [x] (b038) [bug] `tests/q9-phase-coverage.test.ts`'s `rush` policy no
       longer reaching `levelup` — **closed, re-measured green, see Done
       section.**
@@ -2272,6 +2265,56 @@ logged in MIGRATION.md §8 rather than carried as dead items.
 
 ## Done
 
+- [x] (b029) [bug] `tests/q28-cli-error-handling.test.ts` intermittently
+      failed on Windows with an `EPERM` on a scratch-dir fs call under
+      concurrent full-suite load (the q13/q15/q28 EPERM class, filed per
+      fb017). Root cause: only `rmSync` had built-in `maxRetries`/
+      `retryDelay`; `mkdirSync`/`cpSync`/`writeFileSync`/`readFileSync`/
+      `unlinkSync` on the same scratch tree had no retry protection at all,
+      so a lingering Windows AV/indexer handle on a just-exited nested
+      `npx tsx` child process could throw EPERM/EBUSY/ENOTEMPTY/EACCES on any
+      of them with zero retries. Fixed with `withEpermRetry()`, a bounded
+      backoff wrapper (8 attempts, 250ms) around every scratch-tree fs call
+      in `populateScratch`/`corruptTowersData`/`deleteSpec`, and
+      `cleanupScratch()`, which makes the `finally`-block `rmSync` best-effort
+      for the same fs-race codes (warns instead of throwing; rethrows
+      anything else) — reasoning that every scratch path is unique (pid +
+      random suffix), so a cleanup failure can never collide with a future
+      run and only creation/population failures are real bugs. Also raised
+      `NESTED_TSX_TIMEOUT_MS` 60_000 -> 120_000: measured `phase-coverage.ts`'s
+      control case (the slowest CLI here) at ~40-42s standalone but observed
+      it kill by `execFileSync`'s own timeout under full `test:fast` parallel
+      load, surfacing as an indistinguishable-from-real-failure `exitCode: 1`
+      with empty stdout/stderr — a second, distinct failure mode this session
+      found in addition to the originally-filed EPERM class. New unit tests
+      cover `withEpermRetry`'s retry/give-up/no-retry branches and
+      `cleanupScratch`'s swallow/rethrow paths in isolation. code-reviewer:
+      APPROVE, no Critical/Major (one Minor — `cleanupScratch` swallowed any
+      error rather than only fs-race codes — fixed in the same commit by
+      scoping the swallow to `EPERM_RETRY_CODES` and rethrowing anything
+      else). qa-playtester: PASS against the acceptance criterion's spirit.
+      Evidence gathered in place of a literal "ten consecutive full-suite-load
+      runs" (CLAUDE.md working rule 2 forbids starting a full `npm test` or
+      repeated `test:fast` sweeps inside an ordinary item, the same deferral
+      b028 already used for its own "three consecutive full-suite runs"
+      sub-clause): 5 standalone green runs of this file, 1 clean run alongside
+      q45/q49/q52's scratch-dir CLI tests concurrently, and 2 clean
+      `npm run test:fast` runs (133 files, real concurrent load) — 16/16 tests
+      green in every run, `phase-coverage-control`'s wall time ranging
+      39.6-71.7s, comfortably under the new 120s budget. qa-playtester also
+      reproduced a genuine (non-mocked) Windows file lock via PowerShell and
+      confirmed both `withEpermRetry` (retries and recovers once the lock
+      clears) and `cleanupScratch` (warns and returns instead of throwing
+      once the lock outlasts the retry budget) behave correctly against real
+      contention, not just their unit tests; it also confirmed plain
+      `rmSync`'s own native retry did **not** retry at all against the same
+      real lock (threw in ~1ms despite an 8x250ms budget), validating the
+      fix's reasoning for not trusting it alone. No bugs filed — one
+      non-blocking disk-hygiene note (best-effort-failed scratch dirs
+      accumulate in the gitignored `bench/.tmp/` with no purge mechanism,
+      harmless since paths never collide) left as an observation, not a new
+      item. Refs: fb017, PROGRESS.md (q13/q15/q28 EPERM class), CLAUDE.md
+      rule 6, b028 (deferral precedent).
 - [x] (b068) [bug] the pause-menu Options screen's `#sw-opt-autopick`
       checkbox (`Hud.showPause`, `src/ui/hud.ts`) rendered its `checked`
       state from `w.cfg.autoPickLevelUps` directly — the same staleness

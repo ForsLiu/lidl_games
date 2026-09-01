@@ -31,37 +31,89 @@ import { cpSync, mkdirSync, readFileSync, rmSync, unlinkSync, writeFileSync } fr
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const SCRATCH_ROOT = path.join(ROOT, 'bench', '.tmp', 'q28-cli-error-handling-scratch');
 const COPY_DIRS = ['src', 'tools', 'data'];
 const COPY_FILES = ['tsconfig.json', 'SPEC-FINAL.md', 'BACKLOG-QUALITY.md'];
-const NESTED_TSX_TIMEOUT_MS = 60_000;
+// b029: measured ~40-42s standalone/lightly-loaded for phase-coverage.ts's
+// control case (the slowest CLI here); under full `test:fast` parallel load
+// it exceeded the old 60_000ms budget and execFileSync killed it (SIGTERM ->
+// status null -> mapped to exitCode 1 with empty stdout/stderr, indistinguishable
+// from a real CLI failure). 120_000ms gives ~3x the measured baseline instead
+// of ~1.5x.
+const NESTED_TSX_TIMEOUT_MS = 120_000;
 
-const RM_RETRY = { recursive: true, force: true, maxRetries: 5, retryDelay: 200 } as const;
+// b029: fs.rmSync's own maxRetries/retryDelay only cover rmSync/rmdirSync —
+// mkdirSync/cpSync/writeFileSync/unlinkSync on this same scratch tree have no
+// such protection, so a lingering Windows AV/indexer handle from the just-
+// exited nested `npx tsx` process (q49's documented "a few ms" hold, worse
+// under concurrent full-suite load) can throw EPERM/EBUSY on any of them with
+// no retry at all. withEpermRetry gives every scratch-tree fs call the same
+// bounded backoff rmSync already gets.
+const RM_RETRY = { recursive: true, force: true, maxRetries: 8, retryDelay: 250 } as const;
+const EPERM_RETRY_CODES = new Set(['EPERM', 'EBUSY', 'ENOTEMPTY', 'EACCES']);
+
+function sleepMs(ms: number): void {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+function withEpermRetry<T>(fn: () => T, attempts = 8, delayMs = 250): T {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return fn();
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException).code;
+      if (attempt >= attempts || !code || !EPERM_RETRY_CODES.has(code)) throw err;
+      sleepMs(delayMs);
+    }
+  }
+}
 
 function scratchPath(name: string): string {
   return path.join(SCRATCH_ROOT, `${name}-${process.pid}-${Math.random().toString(36).slice(2)}`);
 }
 
+/**
+ * b029: cleanup is best-effort. Every scratch path is unique (pid + random
+ * suffix, `scratchPath` above), so a directory this fails to remove can never
+ * collide with a future run — only a failure to create or populate one is a
+ * real bug. Confirmed live (2026-09-01 `test:fast` run under full concurrent
+ * load) that even a generous bounded `rmSync` retry budget can still lose to
+ * a lingering Windows Defender/indexer handle; letting that fail the whole
+ * test over disk tidiness is the actual bug `withEpermRetry` alone doesn't
+ * fix, since `rmSync`'s own retry already covers this call and still lost.
+ */
+function cleanupScratch(dir: string, remove: (d: string) => void = (d) => rmSync(d, RM_RETRY)): void {
+  try {
+    remove(dir);
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (!code || !EPERM_RETRY_CODES.has(code)) throw err;
+    console.warn(`q28: scratch cleanup failed for ${dir}: ${(err as Error).message}`);
+  }
+}
+
 function populateScratch(dir: string): void {
   rmSync(dir, RM_RETRY);
-  mkdirSync(dir, { recursive: true });
-  for (const d of COPY_DIRS) cpSync(path.join(ROOT, d), path.join(dir, d), { recursive: true });
-  for (const f of COPY_FILES) cpSync(path.join(ROOT, f), path.join(dir, f));
+  withEpermRetry(() => mkdirSync(dir, { recursive: true }));
+  for (const d of COPY_DIRS) {
+    withEpermRetry(() => cpSync(path.join(ROOT, d), path.join(dir, d), { recursive: true }));
+  }
+  for (const f of COPY_FILES) withEpermRetry(() => cpSync(path.join(ROOT, f), path.join(dir, f)));
 }
 
 /** Same corruption q25 uses: a schema violation, not a JSON syntax error, so it surfaces inside `loadContent()` at runtime rather than at static import. */
 function corruptTowersData(dir: string): void {
   const p = path.join(dir, 'data', 'towers.json');
-  const j = JSON.parse(readFileSync(p, 'utf8'));
+  const j = JSON.parse(withEpermRetry(() => readFileSync(p, 'utf8')));
   j.upgradeStepMul = 'broken';
-  writeFileSync(p, JSON.stringify(j, null, 2));
+  withEpermRetry(() => writeFileSync(p, JSON.stringify(j, null, 2)));
 }
 
 function deleteSpec(dir: string): void {
-  unlinkSync(path.join(dir, 'SPEC-FINAL.md'));
+  withEpermRetry(() => unlinkSync(path.join(dir, 'SPEC-FINAL.md')));
 }
 
 function runCli(
@@ -90,6 +142,73 @@ function runCli(
 
 const NO_RAW_CRASH = /\bat \S+ \(/;
 
+describe('withEpermRetry (b029)', () => {
+  it('retries a transient EPERM/EBUSY and returns the eventual success', () => {
+    let calls = 0;
+    const result = withEpermRetry(() => {
+      calls += 1;
+      if (calls < 3) {
+        const err = new Error('busy') as NodeJS.ErrnoException;
+        err.code = calls === 1 ? 'EPERM' : 'EBUSY';
+        throw err;
+      }
+      return 'ok';
+    }, 8, 1);
+    expect(result).toBe('ok');
+    expect(calls).toBe(3);
+  });
+
+  it('gives up and rethrows after exhausting its attempt budget', () => {
+    let calls = 0;
+    expect(() =>
+      withEpermRetry(() => {
+        calls += 1;
+        const err = new Error('always busy') as NodeJS.ErrnoException;
+        err.code = 'EPERM';
+        throw err;
+      }, 3, 1),
+    ).toThrow('always busy');
+    expect(calls).toBe(3);
+  });
+
+  it('does not retry a non-transient error code', () => {
+    let calls = 0;
+    expect(() =>
+      withEpermRetry(() => {
+        calls += 1;
+        const err = new Error('missing') as NodeJS.ErrnoException;
+        err.code = 'ENOENT';
+        throw err;
+      }, 8, 1),
+    ).toThrow('missing');
+    expect(calls).toBe(1);
+  });
+});
+
+describe('cleanupScratch (b029)', () => {
+  it('swallows a removal failure and warns instead of failing the test', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const err = new Error('boom') as NodeJS.ErrnoException;
+    err.code = 'EPERM';
+    expect(() =>
+      cleanupScratch('some/scratch/dir', () => {
+        throw err;
+      }),
+    ).not.toThrow();
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0][0]).toContain('some/scratch/dir');
+    warn.mockRestore();
+  });
+
+  it('still removes the directory on the ordinary success path', () => {
+    let calledWith = '';
+    cleanupScratch('some/scratch/dir', (d) => {
+      calledWith = d;
+    });
+    expect(calledWith).toBe('some/scratch/dir');
+  });
+});
+
 describe('gate-audit.ts CLI failure path (q28)', () => {
   it('a clean scratch snapshot exits 0 (harness control)', () => {
     const dir = scratchPath('gate-audit-control');
@@ -100,7 +219,7 @@ describe('gate-audit.ts CLI failure path (q28)', () => {
       expect(exitCode).toBe(0);
       expect(stdout).toContain('gate audit');
     } finally {
-      rmSync(dir, RM_RETRY);
+      cleanupScratch(dir);
     }
   }, NESTED_TSX_TIMEOUT_MS + 10_000);
 
@@ -116,7 +235,7 @@ describe('gate-audit.ts CLI failure path (q28)', () => {
       expect(stderr.trim().split('\n')).toHaveLength(1);
       expect(stderr).not.toMatch(NO_RAW_CRASH);
     } finally {
-      rmSync(dir, RM_RETRY);
+      cleanupScratch(dir);
     }
   }, NESTED_TSX_TIMEOUT_MS + 10_000);
 
@@ -132,7 +251,7 @@ describe('gate-audit.ts CLI failure path (q28)', () => {
       const parsed = JSON.parse(stdout);
       expect(typeof parsed.error).toBe('string');
     } finally {
-      rmSync(dir, RM_RETRY);
+      cleanupScratch(dir);
     }
   }, NESTED_TSX_TIMEOUT_MS + 10_000);
 });
@@ -147,7 +266,7 @@ describe('phase-coverage.ts CLI failure path (q28)', () => {
       expect(exitCode).toBe(0);
       expect(stdout).toContain('phase coverage');
     } finally {
-      rmSync(dir, RM_RETRY);
+      cleanupScratch(dir);
     }
   }, NESTED_TSX_TIMEOUT_MS + 10_000);
 
@@ -165,7 +284,7 @@ describe('phase-coverage.ts CLI failure path (q28)', () => {
       expect(stderr).not.toMatch(NO_RAW_CRASH);
       expect(stderr).not.toContain('ZodError');
     } finally {
-      rmSync(dir, RM_RETRY);
+      cleanupScratch(dir);
     }
   }, NESTED_TSX_TIMEOUT_MS + 10_000);
 
@@ -182,7 +301,7 @@ describe('phase-coverage.ts CLI failure path (q28)', () => {
       expect(typeof parsed.error).toBe('string');
       expect(parsed.error).toContain('upgradeStepMul');
     } finally {
-      rmSync(dir, RM_RETRY);
+      cleanupScratch(dir);
     }
   }, NESTED_TSX_TIMEOUT_MS + 10_000);
 });
@@ -197,7 +316,7 @@ describe('soak.ts CLI failure path (q28)', () => {
       expect(exitCode).toBe(0);
       expect(stdout).toContain('clean');
     } finally {
-      rmSync(dir, RM_RETRY);
+      cleanupScratch(dir);
     }
   }, NESTED_TSX_TIMEOUT_MS + 10_000);
 
@@ -228,7 +347,7 @@ describe('soak.ts CLI failure path (q28)', () => {
       expect(stdout).toContain('construction threw');
       expect(stdout).toMatch(/\d+\/\d+ clean/);
     } finally {
-      rmSync(dir, RM_RETRY);
+      cleanupScratch(dir);
     }
   }, NESTED_TSX_TIMEOUT_MS + 10_000);
 
@@ -244,7 +363,7 @@ describe('soak.ts CLI failure path (q28)', () => {
       expect(parsed[0].threw).toBe(true);
       expect(parsed[0].problems.join(' ')).toContain('upgradeStepMul');
     } finally {
-      rmSync(dir, RM_RETRY);
+      cleanupScratch(dir);
     }
   }, NESTED_TSX_TIMEOUT_MS + 10_000);
 });
@@ -272,7 +391,7 @@ describe('sim.ts CLI failure path (b014)', () => {
       const report = JSON.parse(stdout);
       expect(typeof report.outcome).toBe('string');
     } finally {
-      rmSync(dir, RM_RETRY);
+      cleanupScratch(dir);
     }
   }, NESTED_TSX_TIMEOUT_MS + 10_000);
 
@@ -290,7 +409,7 @@ describe('sim.ts CLI failure path (b014)', () => {
       expect(stderr).not.toMatch(NO_RAW_CRASH);
       expect(stderr).not.toContain('ZodError');
     } finally {
-      rmSync(dir, RM_RETRY);
+      cleanupScratch(dir);
     }
   }, NESTED_TSX_TIMEOUT_MS + 10_000);
 });

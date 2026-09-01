@@ -5,6 +5,43 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-01 session: BACKLOG b029 closed** — `tests/q28-cli-error-handling.
+  test.ts` intermittently failed on Windows with an `EPERM` on a scratch-dir
+  fs call under concurrent full-suite load (the q13/q15/q28 EPERM class,
+  filed per fb017). Root cause: only `rmSync` had built-in `maxRetries`/
+  `retryDelay`; `mkdirSync`/`cpSync`/`writeFileSync`/`readFileSync`/
+  `unlinkSync` on the same scratch tree had no retry protection, so a
+  lingering Windows AV/indexer handle on a just-exited nested `npx tsx` child
+  process could throw EPERM/EBUSY/ENOTEMPTY/EACCES with zero retries. Fixed
+  with `withEpermRetry()` (bounded backoff, 8 attempts/250ms) wrapping every
+  scratch-tree fs call, and `cleanupScratch()`, which makes the `finally`-
+  block `rmSync` cleanup best-effort for the same fs-race codes (unique
+  pid+random scratch paths mean a cleanup failure can never collide with a
+  future run). Also raised `NESTED_TSX_TIMEOUT_MS` 60_000 -> 120_000 after
+  measuring `phase-coverage.ts`'s control case (~40-42s standalone) get
+  killed by `execFileSync`'s own timeout under full `test:fast` parallel load
+  — a second, distinct failure mode found this session, indistinguishable
+  from a real CLI failure (exitCode 1, empty stdout/stderr) until diagnosed.
+  code-reviewer: APPROVE, one Minor fixed in the same commit (scoped
+  `cleanupScratch`'s swallow to fs-race codes only, rethrowing anything
+  else). qa-playtester: PASS — reproduced a genuine Windows file lock via
+  PowerShell and confirmed both mechanisms behave correctly against real
+  (not mocked) contention; also confirmed plain `rmSync`'s native retry does
+  *not* retry against the same real lock, validating the fix's reasoning.
+  Acceptance's literal "ten consecutive q28 runs under a concurrent
+  full-suite load" clause can't be gathered inside one ordinary item
+  (CLAUDE.md working rule 2 forbids starting a full `npm test` or repeated
+  `test:fast` sweeps there) — same deferral b028 already used for its own
+  three-consecutive-full-suite-runs sub-clause. Evidence gathered instead: 5
+  standalone green runs, 1 concurrent run alongside q45/q49/q52, 2 clean
+  `npm run test:fast` runs (133 files, real load) — 16/16 green every time.
+  No bugs filed; one non-blocking note (best-effort-cleanup-failed scratch
+  dirs accumulate harmlessly in gitignored `bench/.tmp/`) left as an
+  observation. b027 was passed over again at the top of the queue with the
+  same logged reason as the last two sessions (needs its own ~3500-3600s
+  `beforeAll` re-run, and its literal ask — re-pin an 11-class count — is
+  separately stale since fb013 grew the roster to 12).
+
 - **2026-09-01 session: BACKLOG b068 closed** — the pause-menu Options
   screen's `#sw-opt-autopick` checkbox (`Hud.showPause`, `src/ui/hud.ts`)
   rendered its `checked` state from `w.cfg.autoPickLevelUps` directly, the
