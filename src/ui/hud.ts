@@ -59,6 +59,7 @@ export class Hud {
   private practiceEl: HTMLElement;
   private charPanelEl: HTMLElement;
   private dpsPanelEl: HTMLElement;
+  private dpsDockEl: HTMLElement;
   private lastInfoKey = '';
   private cb: HudCallbacks;
   private selected = 0;
@@ -70,6 +71,8 @@ export class Hud {
   private showingOptions = false;
   private charPanelOpen = false;
   private dpsPanelOpen_ = false;
+  /** fb024: the panel's own close button docks to a small tab instead of vanishing. */
+  private dpsPanelDocked_ = false;
   /** b035: the practice tool panel is tall enough to push `#sw-towerinfo` past the fold; collapsed by default. */
   private practiceCollapsed = true;
 
@@ -83,6 +86,7 @@ export class Hud {
           <div class="sw-modal sw-off" id="sw-modal" hidden></div>
           <div class="sw-modal sw-off" id="sw-charpanel" hidden></div>
           <div class="sw-modal sw-off" id="sw-dpspanel" hidden></div>
+          <button class="sw-dpsdock sw-off" id="sw-dpsdock" hidden title="Reopen DPS summary (P)">DPS &#9656;</button>
           <div class="sw-toast" id="sw-toast"></div>
         </div>
         <div class="sw-side">
@@ -126,6 +130,7 @@ export class Hud {
     this.practiceEl = root.querySelector('#sw-practice') as HTMLElement;
     this.charPanelEl = root.querySelector('#sw-charpanel') as HTMLElement;
     this.dpsPanelEl = root.querySelector('#sw-dpspanel') as HTMLElement;
+    this.dpsDockEl = root.querySelector('#sw-dpsdock') as HTMLElement;
     this.wireControls();
   }
 
@@ -137,6 +142,7 @@ export class Hud {
     controls?.querySelector('[data-act="character"]')?.addEventListener('click', () => this.cb.onToggleCharacterPanel());
     controls?.querySelector('[data-act="dps"]')?.addEventListener('click', () => this.cb.onToggleDpsPanel());
     controls?.querySelector('[data-act="pause"]')?.addEventListener('click', () => this.cb.onPause());
+    this.dpsDockEl.addEventListener('click', () => this.cb.onToggleDpsPanel());
   }
 
   /**
@@ -300,8 +306,11 @@ export class Hud {
     // refuses to stack under `this.modal` for — opening on top of it would
     // hide it and eat its clicks the same way (qa-playtester finding: fb007
     // opened over an already-showing Character panel with neither closing
-    // the other).
-    if (this.dpsPanelOpen_) this.closeDpsPanel();
+    // the other). The docked tab (fb024) shares `.sw-stage`'s stacking
+    // context and would otherwise float on top of this panel too — check
+    // `dpsPanelDocked_` as well, not just the fully-open flag (code-reviewer
+    // finding).
+    if (this.dpsPanelOpen_ || this.dpsPanelDocked_) this.closeDpsPanel();
     this.charPanelOpen = true;
     this.renderCharacterPanel(w);
   }
@@ -366,6 +375,11 @@ export class Hud {
     return this.dpsPanelOpen_;
   }
 
+  /** True while the DPS panel's edge tab is showing (docked, not open) — fb024. */
+  get dpsPanelDocked(): boolean {
+    return this.dpsPanelDocked_;
+  }
+
   /**
    * SPEC-FINAL §11, owner feedback `feature-dps-summary` (fb007): damage
    * dealt and DPS over the current wave and the whole run, by source and by
@@ -376,32 +390,70 @@ export class Hud {
    */
   toggleDpsPanel(w: World): void {
     if (this.dpsPanelOpen_) {
-      this.closeDpsPanel();
+      this.dockDpsPanel();
       return;
     }
     if (w.outcome !== 'running' || this.paused || !this.modal.hidden) return;
     // See `toggleCharacterPanel`'s matching comment: without this, the two
     // panels could both render at once (qa-playtester finding).
     if (this.charPanelOpen) this.closeCharacterPanel();
+    this.dpsPanelDocked_ = false;
+    this.dpsDockEl.hidden = true;
+    this.dpsDockEl.classList.add('sw-off');
     this.dpsPanelOpen_ = true;
     this.renderDpsPanel(w);
   }
 
-  closeDpsPanel(): void {
+  /**
+   * User-initiated close from the panel's own button (owner feedback
+   * `bug-dps-panel-close`, fb024): collapses to a small reopenable tab at the
+   * stage edge instead of vanishing outright. A forced close (pause, run end,
+   * another overlay opening) still goes through `closeDpsPanel`, which hides
+   * the tab too — those are system interruptions, not a user "I'm done"
+   * signal, so there is nothing worth re-offering a one-click reopen for.
+   */
+  dockDpsPanel(): void {
     this.dpsPanelOpen_ = false;
     this.dpsPanelEl.hidden = true;
     this.dpsPanelEl.classList.add('sw-off');
-    this.dpsPanelEl.innerHTML = '';
+    this.dpsPanelDocked_ = true;
+    this.dpsDockEl.hidden = false;
+    this.dpsDockEl.classList.remove('sw-off');
+    this.syncDpsPanelToggle();
   }
 
-  /** Damage keeps changing every tick, unlike the character panel's rarely-changing
-   * stats, so this redraws unconditionally on every `update()` call while open rather
-   * than gating on a memoized key. */
+  closeDpsPanel(): void {
+    this.dpsPanelOpen_ = false;
+    this.dpsPanelDocked_ = false;
+    this.dpsPanelEl.hidden = true;
+    this.dpsPanelEl.classList.add('sw-off');
+    this.dpsPanelEl.innerHTML = '';
+    this.dpsDockEl.hidden = true;
+    this.dpsDockEl.classList.add('sw-off');
+  }
+
+  /**
+   * Damage keeps changing every tick, unlike the character panel's
+   * rarely-changing stats, so this redraws unconditionally on every
+   * `update()` call while open. Only `.sw-dps-body` is replaced per tick —
+   * the shell (including the Dock button) is built once per open and its
+   * element identity left untouched afterward. A full `innerHTML` replace at
+   * 60Hz was the actual cause behind owner feedback `bug-dps-panel-close`:
+   * a real mouse's mousedown and mouseup land in different animation
+   * frames, so a button recreated between them can silently drop the click
+   * (jsdom's synchronous `.click()` in tests never straddles a frame, which
+   * is why the bug had no failing test before this fix).
+   */
   private renderDpsPanel(w: World): void {
     this.dpsPanelEl.hidden = false;
     this.dpsPanelEl.classList.remove('sw-off');
-    this.dpsPanelEl.innerHTML = dpsPanelMarkup(dpsPanelData(w));
-    this.dpsPanelEl.querySelector('[data-act="close"]')?.addEventListener('click', () => this.closeDpsPanel());
+    let body = this.dpsPanelEl.querySelector('.sw-dps-body') as HTMLElement | null;
+    if (!body) {
+      this.dpsPanelEl.innerHTML = dpsPanelShellMarkup();
+      this.dpsPanelEl.querySelector('[data-act="dock"]')?.addEventListener('click', () => this.dockDpsPanel());
+      body = this.dpsPanelEl.querySelector('.sw-dps-body') as HTMLElement;
+    }
+    body.innerHTML = dpsPanelBodyMarkup(dpsPanelData(w));
   }
 
   private syncDpsPanelToggle(): void {
@@ -533,7 +585,7 @@ export class Hud {
     if (this.charPanelOpen && w.outcome !== 'running') this.closeCharacterPanel();
     else if (this.charPanelOpen) this.renderCharacterPanel(w);
     this.syncCharacterPanelToggle();
-    if (this.dpsPanelOpen_ && w.outcome !== 'running') this.closeDpsPanel();
+    if ((this.dpsPanelOpen_ || this.dpsPanelDocked_) && w.outcome !== 'running') this.closeDpsPanel();
     else if (this.dpsPanelOpen_) this.renderDpsPanel(w);
     this.syncDpsPanelToggle();
     // A selection describes itself — but never at the cost of the panels the
@@ -841,7 +893,10 @@ export class Hud {
    */
   private openModal(): void {
     if (this.charPanelOpen) this.closeCharacterPanel();
-    if (this.dpsPanelOpen_) this.closeDpsPanel();
+    // The docked tab (fb024) shares `.sw-stage`'s stacking context with
+    // `this.modal` and would otherwise float on top of the pause card or a
+    // level-up offer screen (code-reviewer finding) — not just the fully-open flag.
+    if (this.dpsPanelOpen_ || this.dpsPanelDocked_) this.closeDpsPanel();
     this.modal.hidden = false;
     this.modal.classList.remove('sw-off');
   }
@@ -1178,19 +1233,28 @@ function dpsWindowMarkup(win: DpsWindow): string {
 }
 
 /**
+ * SPEC-FINAL §11 (fb007): the DPS panel's static shell, built once per open —
+ * `.sw-dps-body` is the only part `renderDpsPanel` replaces on later ticks
+ * (fb024: keeps the Dock button's element identity stable across the 60Hz
+ * refresh instead of recreating it, which could swallow a real click).
+ */
+export function dpsPanelShellMarkup(): string {
+  return `
+    <div class="sw-card sw-charcard wide">
+      <h2>DPS Summary</h2>
+      <div class="sw-dps-body"></div>
+      <button class="sw-reroll" data-act="dock">Dock</button>
+    </div>`;
+}
+
+/**
  * SPEC-FINAL §11 (fb007): damage dealt and DPS over the current wave and the
  * whole run, broken down by source and by damage type. See `dps-panel.ts`
  * for why the source rows read correctly in both phases without a separate
  * TD/VS split.
  */
-export function dpsPanelMarkup(data: DpsPanelData): string {
-  return `
-    <div class="sw-card sw-charcard wide">
-      <h2>DPS Summary</h2>
-      ${dpsWindowMarkup(data.wave)}
-      ${dpsWindowMarkup(data.run)}
-      <button class="sw-reroll" data-act="close">Close</button>
-    </div>`;
+export function dpsPanelBodyMarkup(data: DpsPanelData): string {
+  return `${dpsWindowMarkup(data.wave)}${dpsWindowMarkup(data.run)}`;
 }
 
 /**

@@ -310,9 +310,95 @@ describe('in-run control row', () => {
     const w = new World(cfg());
     hud.toggleDpsPanel(w);
     const panel = root.querySelector('#sw-dpspanel') as HTMLElement;
-    (panel.querySelector('[data-act="close"]') as HTMLElement).click();
+    (panel.querySelector('[data-act="dock"]') as HTMLElement).click();
     expect(hud.dpsPanelOpen).toBe(false);
     expect(panel.hidden).toBe(true);
+  });
+
+  it('the close button docks the DPS panel to a reopenable edge tab instead of discarding it (owner feedback bug-dps-panel-close, fb024)', () => {
+    const w = new World(cfg());
+    hud.toggleDpsPanel(w);
+    const panel = root.querySelector('#sw-dpspanel') as HTMLElement;
+    const dock = root.querySelector('#sw-dpsdock') as HTMLElement;
+    expect(dock.hidden, 'tab hidden while the panel is fully open').toBe(true);
+
+    (panel.querySelector('[data-act="dock"]') as HTMLElement).click();
+    expect(hud.dpsPanelOpen).toBe(false);
+    expect(hud.dpsPanelDocked, 'closing from inside the panel docks it').toBe(true);
+    expect(panel.hidden).toBe(true);
+    expect(dock.hidden, 'the edge tab reopens the panel').toBe(false);
+
+    dock.click();
+    expect(log.dps, 'the tab reaches the same callback as the DPS control button').toBe(1);
+  });
+
+  it('a forced close (run end) hides the docked tab too, unlike the panel’s own close button', () => {
+    const w = new World(cfg());
+    hud.toggleDpsPanel(w);
+    const panel = root.querySelector('#sw-dpspanel') as HTMLElement;
+    (panel.querySelector('[data-act="dock"]') as HTMLElement).click();
+    expect(hud.dpsPanelDocked).toBe(true);
+
+    w.outcome = 'victory';
+    hud.update(w);
+    expect(hud.dpsPanelDocked, 'a system-forced close has nothing worth re-offering a reopen for').toBe(false);
+    expect((root.querySelector('#sw-dpsdock') as HTMLElement).hidden).toBe(true);
+  });
+
+  it('pausing or opening a level-up offer also hides a docked DPS tab, not just a fully-open panel (code-reviewer finding, fb024)', () => {
+    const w = new World(cfg());
+    hud.toggleDpsPanel(w);
+    const panel = root.querySelector('#sw-dpspanel') as HTMLElement;
+    (panel.querySelector('[data-act="dock"]') as HTMLElement).click();
+    expect(hud.dpsPanelDocked).toBe(true);
+
+    hud.setPaused(true, w);
+    expect(hud.dpsPanelDocked, 'the docked tab shares the stage stacking context with the pause card').toBe(false);
+    expect((root.querySelector('#sw-dpsdock') as HTMLElement).hidden).toBe(true);
+    hud.setPaused(false, w);
+
+    hud.toggleDpsPanel(w);
+    (panel.querySelector('[data-act="dock"]') as HTMLElement).click();
+    expect(hud.dpsPanelDocked).toBe(true);
+
+    w.phase = 'levelup';
+    w.offers = [{ kind: 'boon', key: 'power', name: 'Power', desc: '', toLevel: 1 }];
+    hud.syncModal(w);
+    expect(hud.dpsPanelDocked, 'a docked tab must not float over the level-up offer screen either').toBe(false);
+    expect((root.querySelector('#sw-dpsdock') as HTMLElement).hidden).toBe(true);
+  });
+
+  it('opening the Character panel also hides an already-docked DPS tab', () => {
+    const w = new World(cfg());
+    hud.toggleDpsPanel(w);
+    const panel = root.querySelector('#sw-dpspanel') as HTMLElement;
+    (panel.querySelector('[data-act="dock"]') as HTMLElement).click();
+    expect(hud.dpsPanelDocked).toBe(true);
+
+    hud.toggleCharacterPanel(w);
+    expect(hud.dpsPanelDocked, 'the docked tab must not survive the Character panel opening').toBe(false);
+    expect((root.querySelector('#sw-dpsdock') as HTMLElement).hidden).toBe(true);
+  });
+
+  it('the DPS panel shell (including its Dock button) survives repeated per-tick redraws — root cause of bug-dps-panel-close', () => {
+    const w = new World(cfg());
+    hud.toggleDpsPanel(w);
+    const panel = root.querySelector('#sw-dpspanel') as HTMLElement;
+    const closeBtn = panel.querySelector('[data-act="dock"]') as HTMLElement;
+
+    // The panel redraws unconditionally on every `update()` call while open
+    // (damage numbers change every tick) — simulate several frames of that.
+    for (let i = 0; i < 5; i++) hud.update(w);
+
+    expect(
+      panel.querySelector('[data-act="dock"]'),
+      'the button element itself must survive per-tick redraws: a real mouse’s mousedown/mouseup straddle a frame, and a button recreated in between can silently drop the click',
+    ).toBe(closeBtn);
+
+    // The originally-captured element reference must still be the live, wired one.
+    closeBtn.click();
+    expect(hud.dpsPanelOpen).toBe(false);
+    expect(hud.dpsPanelDocked).toBe(true);
   });
 
   it('the DPS panel refuses to open over the pause card and the level-up offer screen, and closes itself if either opens while it is showing', () => {
@@ -346,7 +432,7 @@ describe('in-run control row', () => {
     expect((root.querySelector('#sw-charpanel') as HTMLElement).hidden).toBe(true);
     expect((root.querySelector('#sw-dpspanel') as HTMLElement).hidden).toBe(false);
 
-    hud.toggleDpsPanel(w); // close DPS
+    hud.toggleDpsPanel(w); // dock DPS (fb024: the toggle's close branch now docks, not vanishes)
     hud.toggleDpsPanel(w); // reopen DPS
     hud.toggleCharacterPanel(w);
     expect(hud.dpsPanelOpen, 'opening Character must close DPS').toBe(false);

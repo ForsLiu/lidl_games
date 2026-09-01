@@ -142,6 +142,27 @@ html, body {
   background: transparent;
 }
 
+/* fb024: the DPS panel's docked edge tab — reopens the full panel on click. */
+.sw-dpsdock {
+  position: absolute;
+  top: 8px;
+  right: 0;
+  z-index: 5;
+  background: var(--panel2);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-right: 0;
+  border-radius: 4px 0 0 4px;
+  padding: 6px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.sw-dpsdock[hidden],
+.sw-dpsdock.sw-off {
+  display: none !important;
+  pointer-events: none;
+}
+
 .sw-card {
   background: var(--panel);
   border: 1px solid var(--line);
