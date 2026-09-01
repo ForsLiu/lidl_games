@@ -202,19 +202,19 @@ describe('p-core-d — step 2: execution explosion', () => {
     upgradeCore(w); // step 2: executions explode
     w.corpseStore = 10;
 
-    const victim = spawnEnemy(w, 'husk', 10, 10)!; // maxHp 28 (fb020: husk hp 20 -> 28)
-    victim.hp = 10; // wounded, but maxHp stays 28 — the explosion uses maxHp, not current hp
+    const victim = spawnEnemy(w, 'husk', 10, 10)!; // maxHp 200 (fb025: husk hp 20 -> 200, x10)
+    victim.hp = 10; // wounded, but maxHp stays 200 — the explosion uses maxHp, not current hp
     const bystander = spawnEnemy(w, 'colossus', 10.5, 10)!; // within r2, 400 hp so it survives to measure
     bystander.hp = 400;
 
     tickCorpse(w, 1);
 
     expect(victim.dead).toBe(true);
-    expect(bystander.hp).toBeCloseTo(400 - 28, 9); // victim's maxHp (28, fb020: was 20), not its spent hp (10)
+    expect(bystander.hp).toBeCloseTo(400 - 200, 9); // victim's maxHp (200, fb025: was 28), not its spent hp (10)
     // Not paid from the store, but it IS damage dealt to an enemy on the map,
     // so it banks its own 3% too: 10 (start) - 10 (execute spend) + 10*0.03
-    // (execute's own restore) + 28*0.03 (the explosion's own restore, fb020: victim maxHp 20 -> 28).
-    expect(w.corpseStore).toBeCloseTo(10 - 10 + 10 * 0.03 + 28 * 0.03, 9);
+    // (execute's own restore) + 200*0.03 (the explosion's own restore, fb025: victim maxHp 28 -> 200).
+    expect(w.corpseStore).toBeCloseTo(10 - 10 + 10 * 0.03 + 200 * 0.03, 9);
   });
 
   it('does not explode without step 2 bought', () => {

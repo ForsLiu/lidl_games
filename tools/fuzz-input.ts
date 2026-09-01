@@ -27,8 +27,8 @@ import { applyCommand, Run } from '../src/sim/run';
 import { World } from '../src/sim/world';
 import { Rng } from '../src/sim/rng';
 import { GRID_H, GRID_W } from '../src/sim/grid';
-import { openLevelUpIfPending, takeOffer } from '../src/sim/progression';
-import { emptyInput, type Command, type DevOp, type Phase, type RunConfig } from '../src/sim/types';
+import { openLevelUpIfPending, takeOffer, xpToReach } from '../src/sim/progression';
+import { emptyInput, type Command, type DevOp, type Phase, type RunConfig, type TickInput } from '../src/sim/types';
 import { makePolicy } from '../src/bots';
 import '../src/bots';
 import { scanReport, scanWorld } from './invariants';
@@ -100,15 +100,43 @@ function phaseOf(w: World): Phase {
   return w.phase;
 }
 
+/**
+ * fb025 (enemy HP x10 / attacker attack speed x0.7): `hybrid` can no longer
+ * reliably out-build Act I under the new balance (BALANCE.md/PROGRESS.md),
+ * so both the `act2` and `levelup` routes' natural-play assumption no longer
+ * holds — `hybrid` alone often loses in Act I before ever reaching the
+ * Sundering. Rather than lean on organic survival, use the same
+ * practice-mode dev surface this file already fuzzes (`DEV_OPS`) to force
+ * progress through real Commands once a target phase needs Act II:
+ * `skip_wave` clears the current Act I wave outright, and `xp` (act2-only)
+ * grants a level's worth of XP — both are the sim's own sanctioned "skip
+ * forward" doors (`applyDevCommand`, run.ts), not a bypass invented for this
+ * fuzzer.
+ */
+function assistToActTwo(run: Run, needLevelUp: boolean): TickInput {
+  const w = run.world;
+  if (w.phase === 'act1_build' || w.phase === 'act1_wave') {
+    return { ...emptyInput(), cmds: [{ k: 'dev', op: 'skip_wave', amount: 0 }] };
+  }
+  if (needLevelUp && w.phase === 'act2') {
+    const need = xpToReach(w.level + 1) - w.xp + 1;
+    return { ...emptyInput(), cmds: [{ k: 'dev', op: 'xp', amount: Math.max(0, need) }] };
+  }
+  return emptyInput();
+}
+
+const NEEDS_ACT2_ASSIST: Partial<Record<Phase, boolean>> = { act2: true, levelup: true };
+
 /** Drive a bot run until it first stands in `phase`. Throws if unreachable. */
 export function runInPhase(phase: Phase): Run {
   const route = ROUTE[phase];
   const run = new Run(cfgFor(phase));
   const policy = makePolicy(route.policy);
+  const assisted = NEEDS_ACT2_ASSIST[phase] === true;
 
   while (run.world.phase !== phase && run.world.tick < MAX_TICKS) {
     if (run.done) break;
-    run.step(policy.act(run.world));
+    run.step(assisted ? assistToActTwo(run, phase === 'levelup') : policy.act(run.world));
   }
   if (run.world.phase !== phase) throw new Error(`fuzz: never reached phase ${phase}`);
   return run;

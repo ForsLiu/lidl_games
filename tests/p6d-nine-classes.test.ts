@@ -171,7 +171,7 @@ describe('p6d: G10 — Archer, measured off the authored numbers', () => {
     expect(bestT).toBeLessThanOrEqual(6);
   });
 
-  it('a full-charge Deadeye Draw one-shots the toughest non-elite at mid scaling', () => {
+  it('a full-charge Deadeye Draw still drops the toughest non-elite in a small handful of hits at mid scaling', () => {
     const nonElite = content.enemies.enemies.filter(
       (e) => !e.traits.includes('elite') && !e.traits.includes('boss'),
     );
@@ -181,7 +181,12 @@ describe('p6d: G10 — Archer, measured off the authored numbers', () => {
     // stating it here keeps the gate readable when the tree is re-tuned.
     const MID_POWER_MUL = 2.5;
     const full = a.damage * Math.pow(1 + a.compoundPerSecond!, a.chargeCapSeconds!) * MID_POWER_MUL;
-    expect(full).toBeGreaterThan(toughest.hp);
+    // fb025 (enemy HP x10, BALANCE.md's fodder band moved from "2-4 hits" to
+    // "6-12 hits"): a literal one-shot on the toughest non-elite no longer
+    // holds — re-pinned to the weaker, still-meaningful invariant that the
+    // ultimate comfortably beats even the new fodder TTK ceiling.
+    expect(full).toBeLessThan(toughest.hp);
+    expect(Math.ceil(toughest.hp / full)).toBeLessThanOrEqual(3);
   });
 
   it('a released full charge actually pierces, and a longer draw hits harder', () => {

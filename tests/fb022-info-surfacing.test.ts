@@ -143,9 +143,10 @@ describe('fb022 Surface 1: class screen + in-run character panel show live numbe
   });
 
   it('code-reviewer regression: basic-attack DPS folds atkFlat through the per-hit formula (dps*interval), not a flat add to the rate', () => {
-    // Reproduces the reviewer's exact numbers: Swordsman basicAttack dps=26,
-    // interval=0.55, atkFlat=10 -> real live DPS is (26*0.55+10)/0.55 = 44.18,
-    // not the naive (26+10) = 36 an interval-blind override would show.
+    // Reproduces the reviewer's exact numbers, re-pinned for fb025 (attack
+    // speed x0.7 -> Swordsman basicAttack.interval 0.55 -> 0.7857): dps=26,
+    // atkFlat=10 -> real live DPS is (26*0.7857+10)/0.7857 = 38.73, not the
+    // naive (26+10) = 36 an interval-blind override would show.
     const w = new World(cfg({ classKey: 'swordsman' }));
     w.stats.add('test', 'atkFlat', 10);
     w.recomputeDerived();
@@ -155,7 +156,7 @@ describe('fb022 Surface 1: class screen + in-run character panel show live numbe
     const html = characterPanelMarkup(characterPanelData(w), w);
     const expected = (cls.basicAttack.dps * cls.basicAttack.interval + w.derived.atkFlat) / cls.basicAttack.interval;
     const rounded = Math.round(expected * 100) / 100;
-    expect(rounded).toBeCloseTo(44.18, 2);
+    expect(rounded).toBeCloseTo(38.73, 2);
     expect(html).toContain(`DPS: ${rounded}/s`);
     expect(html).not.toContain('DPS: 36/s'); // the interval-blind (dps + atkFlat) miscalculation
   });

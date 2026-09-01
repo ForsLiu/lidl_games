@@ -677,13 +677,20 @@ export class Renderer {
         ctx.fill();
       }
       ctx.globalAlpha = 1;
-      if (e.elite || e.boss || r > 8) {
+      // fb025: the "Enemy HP bars" setting (default ON) shows a bar under
+      // every enemy at all times, including full health; off, this falls
+      // back to the pre-fb025 behavior (elite/boss/large enemies only, and
+      // only while damaged or owed DoT).
+      {
+        const alwaysShow = view.settings.showEnemyHpBars;
         // A DoT-only hit (the poison field ticks before the enemy has taken any
         // direct damage) leaves hp === maxHp for up to one tick, so the bar must
         // stay gated on outstanding DoT too or the segment it's meant to show
         // would have nothing to draw on.
         const outstanding = dotOutstanding(e);
-        if (e.hp < e.maxHp || outstanding > 0) {
+        const eligible = alwaysShow || e.elite || e.boss || r > 8;
+        const damaged = e.hp < e.maxHp || outstanding > 0;
+        if (eligible && (alwaysShow || damaged)) {
           const frac = Math.max(0, e.hp / e.maxHp);
           const barLeft = px - r;
           const barTop = py - r - 6;

@@ -634,6 +634,7 @@ describe('q3 save fuzz: the settings blob', () => {
       damageNumbers: false,
       showRanges: true,
       showGrid: true,
+      showEnemyHpBars: false,
       accessiblePalette: true,
       reducedFlash: true,
       cleanProfile: true,

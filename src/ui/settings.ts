@@ -12,6 +12,13 @@ export interface Settings {
   showRanges: boolean;
   showGrid: boolean;
   /**
+   * fb025: draws a small HP bar under every enemy, always (not just when
+   * damaged, and not just elite/boss/large ones — see drawEnemies in
+   * canvas.ts, which falls back to the pre-fb025 elite/boss/large-and-
+   * damaged-only behavior when this is off).
+   */
+  showEnemyHpBars: boolean;
+  /**
    * fb005: colorblind-safe palette for per-damage-type floating numbers/markers.
    * Named without the literal word "colorblind" (which contains "orb") so it
    * doesn't trip `tests/c7-no-orbs.test.ts`'s "no Hub tab renders the word
@@ -46,6 +53,7 @@ export function defaultSettings(): Settings {
     damageNumbers: true,
     showRanges: false,
     showGrid: false,
+    showEnemyHpBars: true,
     accessiblePalette: false,
     reducedFlash: false,
     cleanProfile: false,
@@ -81,6 +89,7 @@ export function sanitize(s: Settings): Settings {
     damageNumbers: !!s.damageNumbers,
     showRanges: !!s.showRanges,
     showGrid: !!s.showGrid,
+    showEnemyHpBars: !!s.showEnemyHpBars,
     accessiblePalette: !!s.accessiblePalette,
     reducedFlash: !!s.reducedFlash,
     cleanProfile: !!s.cleanProfile,

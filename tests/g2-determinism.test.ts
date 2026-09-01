@@ -14,6 +14,10 @@ import { Rng, RngSet, fnv1a } from '../src/sim/rng';
 import { dcos, dsin, datan2 } from '../src/sim/math';
 import { contentHash, loadContent } from '../src/sim/content';
 import { Run } from '../src/sim/run';
+import { finishSundering } from '../src/sim/sundering';
+import { addXp, xpToReach } from '../src/sim/progression';
+import { makePolicy } from '../src/bots';
+import '../src/bots';
 import type { Command, TickInput } from '../src/sim/types';
 
 /**
@@ -96,7 +100,27 @@ describe('G2 determinism', () => {
 
   it('never leaves the world sitting in the levelup phase when auto-pick is on', () => {
     const config = cfg({ seed: 4, cycles: 2, autoPickLevelUps: true });
-    const { run } = runWithPolicy(config, 'hybrid');
+    const run = new Run({ ...config, policy: 'hybrid' });
+    const policy = makePolicy('hybrid');
+    // fb025 (enemy HP x10 + attacker attack speed x0.7): the natural Act I
+    // wave-clear this test used to reach no longer happens for `hybrid`
+    // (BALANCE.md/PROGRESS.md), so it can no longer rely on organic Act II
+    // XP gain to prove a level-up fires. Level-ups only ever resolve in Act
+    // II (`openLevelUpIfPending`, `phase === 'act2'`), so force the
+    // Sundering directly (same jump `src/ui/audit-hook.ts`'s dev shortcut
+    // uses) and grant real XP through the real `addXp`/`queueLevelUp` path —
+    // this still exercises the actual phase-machine-liveness question the
+    // test is about (does a queued level-up ever leave `phase` stuck on
+    // `'levelup'`?), just without requiring a full Act I clear to get there.
+    while (!run.done && run.world.tick < 2400) {
+      run.step(policy.act(run.world));
+    }
+    expect(run.done, 'setup died before Act II could be forced').toBe(false);
+    finishSundering(run.world);
+    addXp(run.world, xpToReach(run.world.level + 1) + 1);
+    for (let i = 0; i < 60 && !run.done; i++) {
+      run.step(policy.act(run.world));
+    }
     // A run that got through real Act II play (boonRanks non-empty means at
     // least one level-up actually fired and resolved itself) never left the
     // phase machine parked waiting for input.

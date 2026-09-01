@@ -174,7 +174,27 @@ describe('DPS panel data model', () => {
   it('reconciles with RunReport through a Sundering into Act II (cycles: 3)', () => {
     const run = new Run(cfg({ policy: 'hybrid', cycles: 3 }));
     const policy = makePolicy('hybrid');
-    const maxTicks = 60 * 60 * 45;
+    // fb025 (enemy HP x10 + attacker attack speed x0.7): Act I's own wave
+    // clear, which used to reach naturally within this window, no longer
+    // reliably happens for any shipped bot (see BALANCE.md/PROGRESS.md) — so
+    // this test no longer waits on a natural wave-clear to trigger the
+    // Sundering. It instead plays a real, bounded stretch of Act I (towers
+    // built and firing at real enemies, so `damageByWeapon` accrues
+    // genuinely, exactly like before) and then forces the transition via
+    // `finishSundering` directly — the same jump `src/ui/audit-hook.ts`'s
+    // dev shortcut already uses, not a new pattern invented for this test.
+    const buildTicks = 2530; // ~42s: past the 15s build phase, into real tower-vs-enemy combat
+    while (!run.done && run.world.tick < buildTicks) {
+      run.step(policy.act(run.world));
+    }
+    expect(run.done, 'setup died before any Act I combat happened').toBe(false);
+    expect(
+      Object.keys(run.world.damageByWeapon).length,
+      'setup produced no real Act I damage to snapshot at the Sundering',
+    ).toBeGreaterThan(0);
+    finishSundering(run.world);
+
+    const maxTicks = run.world.tick + 60 * 60 * 45;
     let data: ReturnType<typeof dpsPanelData> | undefined;
     let report: ReturnType<typeof run.report> | undefined;
     let sunderTick: number | undefined;

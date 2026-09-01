@@ -78,7 +78,7 @@
       "attack": {
         "kind": "single",
         "damage": 10,
-        "interval": 0.5,
+        "interval": 0.7143,
         "range": 5,
         "pierce": 0,
         "projectiles": 1
@@ -120,7 +120,7 @@
       "attack": {
         "kind": "pierce",
         "damage": 18,
-        "interval": 1,
+        "interval": 1.4286,
         "range": 8,
         "pierce": 8,
         "projectileSpeed": 14
@@ -161,7 +161,7 @@
       "attack": {
         "kind": "cone",
         "damage": 2.8,
-        "interval": 0.25,
+        "interval": 0.3571,
         "range": 3.5,
         "coneHalfAngle": 0.6,
         "burn": {
@@ -200,7 +200,7 @@
       "attack": {
         "kind": "aura",
         "damage": 18,
-        "interval": 1,
+        "interval": 1.4286,
         "range": 3,
         "slow": 0.25,
         "slowDuration": 1.2
@@ -209,7 +209,7 @@
         "kind": "ice_monolith",
         "blocks": true
       },
-      "vsSpecial": { "kind": "frostAura", "radius": 2, "interval": 1 },
+      "vsSpecial": { "kind": "frostAura", "radius": 2, "interval": 1.4286 },
       "desc": "Slow aura and chill pulse. Frost Warden signature."
     },
     {
@@ -235,7 +235,7 @@
       "attack": {
         "kind": "chain",
         "damage": 29,
-        "interval": 0.9,
+        "interval": 1.2857,
         "range": 5,
         "chains": 1,
         "chainRange": 3,
@@ -250,7 +250,7 @@
         "linkRange": 6,
         "maxLinks": 2
       },
-      "vsSpecial": { "kind": "electricWireGrid", "damage": 5, "interval": 0.5 },
+      "vsSpecial": { "kind": "electricWireGrid", "damage": 5, "interval": 0.7143 },
       "desc": "Chain lightning. Engineer signature."
     },
     {
@@ -277,7 +277,7 @@
       "attack": {
         "kind": "lob",
         "damage": 89,
-        "interval": 2.2,
+        "interval": 3.1429,
         "range": 10,
         "minRange": 4,
         "aoe": 1.8,
@@ -322,7 +322,7 @@
       "attack": {
         "kind": "poison",
         "damage": 38,
-        "interval": 1,
+        "interval": 1.4286,
         "range": 4.5,
         "aoe": 0.85,
         "projectiles": 1,
@@ -335,7 +335,7 @@
         "kind": "spore_cloud",
         "blocks": true
       },
-      "vsSpecial": { "kind": "poisonTrail", "ratio": 0.1, "interval": 1, "radius": 1 },
+      "vsSpecial": { "kind": "poisonTrail", "ratio": 0.1, "interval": 1.4286, "radius": 1 },
       "desc": "DoT engine."
     },
     {

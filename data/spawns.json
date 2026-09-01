@@ -216,7 +216,7 @@
     "colossus": 50,
     "herald": 50
   },
-  "contactInterval": 0.4,
+  "contactInterval": 0.5714,
   "contactPadding": 0.45,
   "gemLifetimeSeconds": 18,
   "gemCap": 500,

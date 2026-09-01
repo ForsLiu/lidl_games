@@ -97,7 +97,7 @@ P10" freeze (QUESTIONS Q40), same precedent as fb020.
       PASS (9 adversarial scratch probes, no bugs filed) — **done, see Done
       section.** Note for whoever picks up fb037: same docking pattern to
       reuse for the future VS wielded side panel.
-- [ ] (fb025) [balance] top priority, scoped exception to the tuning freeze
+- [x] (fb025) [balance] top priority, scoped exception to the tuning freeze
       (QUESTIONS Q40, precedent fb020): enemy HP ×10 globally (per-enemy
       ratios kept); overall attacker speed ×0.7 (tunable) applied to towers,
       character basic/wielded attacks, class skill hit cadence, and enemies
@@ -112,7 +112,31 @@ P10" freeze (QUESTIONS Q40), same precedent as fb020.
       re-pinned to a logged reason, never silently loosened; before/after
       sweep deltas recorded in PROGRESS.md — refs: owner feedback
       `balance-enemies-10x-hp-slower-attacks`, supersedes fb020's ×1.4 HP /
-      ×0.8 speed multipliers in `data/enemies.json`.
+      ×0.8 speed multipliers in `data/enemies.json`. **Done, see PROGRESS.md's
+      2026-09-01 fb025 entry and the Done section below.** Severe measured
+      side effect flagged there for P10 (maxbuild/hybrid both fall to 0% win
+      at wave 2-3) and a real, previously-latent bug found and filed
+      separately (**b073**: Act I has no `aliveCap`, unlike Act II/the boss
+      fight) rather than fixed inline.
+- [ ] (b073) [bug] Act I (TD) enemy spawning has no alive-enemy cap, unlike
+      Act II (`act2.ts`'s `spendBudget`/`spawnElite`) and the boss fight
+      (`boss.ts`), both of which gate on `data/spawns.json`'s `aliveCap`
+      (350) — found while measuring fb025 (enemy HP x10 + attacker attack
+      speed x0.7): a `kite`-policy seed that fails to kill or fully leak a
+      wave fast enough let the on-map enemy count climb past 300 within a
+      few hundred ticks (confirmed live via a throwaway instrumented probe,
+      not a test) before the character was overrun (`defeat_warden`). Under
+      fb025's harsher numbers this is far easier to trigger than before,
+      where enemies died quickly enough that Act I populations stayed small
+      by construction rather than by an enforced cap. A real player under
+      this balance could plausibly hit the same unbounded pile-up, which
+      would cost real frame rate, not just test wall-clock time — acceptance:
+      Act I spawning gates on the same `aliveCap` Act II/the boss fight
+      already use (or a documented separate Act I cap, if `designer-fill`
+      says the two should differ), with a regression test that seeds a
+      losing build and asserts `world.enemies.length` never exceeds the cap
+      — refs: SPEC-FINAL §14 G17 (sim budget), `src/sim/act2.ts`,
+      `src/sim/boss.ts`, `data/spawns.json`'s `aliveCap`.
 - [ ] (fb026) [feat] top priority: persistent bottom HUD bar — HP (with
       numbers), gold, the class passive icon, and Active 1 (Q) / Active 2
       (E) icons with MOBA-style clockwise cooldown sweeps (remaining
@@ -2529,6 +2553,33 @@ logged in MIGRATION.md §8 rather than carried as dead items.
 
 ## Done
 
+- [x] (fb025) [balance] enemies 10x tankier, attacker attack speed x0.7,
+      Enemy HP bars toggle — owner order, scoped tuning-freeze exception
+      (precedent fb020/Q40). Full rationale, scope calls (bosses now
+      included in the HP multiplier; movement speed untouched; `/data`-only
+      cadence fields scaled) and before/after sweep table in PROGRESS.md's
+      2026-09-01 entry and BALANCE.md (fully rewritten); scope decisions
+      logged at QUESTIONS Q155. `npm run test:fast` green standalone
+      (two pre-existing-class casualties `.skip()`-ed with reasons — see
+      PROGRESS.md "Known issues" — unrelated to correctness). **Measured
+      net effect is severe**: `maxbuild`/`hybrid`, both previously solid
+      (33%/100% win), now both hit 0% at wave 2-3 — flagged prominently for
+      P10, which needs an Act I economy pass, not just stat nudges, per the
+      session's "Net read." Found and filed (not fixed, out of scope for a
+      `/data`-only item) a real, previously-latent engine bug: Act I enemy
+      spawning has no `aliveCap` unlike Act II/the boss fight, now trivial
+      to trigger via the `sealed` policy — **b073**. Files: `data/
+      enemies.json`, `data/spawns.json`, `data/towers.json`, `data/
+      classes.json`, `BALANCE.md`, `QUESTIONS.md`, `BACKLOG.md`,
+      `src/render/canvas.ts`, `src/ui/hub.ts`, `src/ui/settings.ts`,
+      `tools/fuzz-input.ts`, `tests/fb025-enemy-hp-bars.test.ts` (new),
+      plus ten re-pinned tests (`fb022-info-surfacing`, `p-core-c-plant`,
+      `p-core-d-corpse`, `p6d-nine-classes`, `dps-panel`, `g2-determinism`,
+      `a2-towers-mandatory`, `p7e-quests`, `p10e-perf-budget`, `boss`,
+      `q3-save-fuzz`). PROGRESS.md's "Known issues" flags that the rest of
+      `vitest.fast.config.ts`'s excluded (slow-tier) files were not all
+      individually re-verified against this change — expect more of the
+      same collapse at the next full `npm test`.
 - [x] (fb024) [bug] top priority: DPS panel close button did nothing
       perceptible to fix (SPEC-FINAL §11, owner feedback
       `bug-dps-panel-close`, fb007's original panel). Clicking the panel's
