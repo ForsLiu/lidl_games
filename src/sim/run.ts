@@ -756,7 +756,12 @@ function updateAct1Wave(w: World, dt: number): void {
   const content = w.content;
   if (w.spawnQueue.length > 0) {
     w.spawnTimer -= dt;
-    while (w.spawnTimer <= 0 && w.spawnQueue.length > 0) {
+    // b073: unlike act2.ts's `spendBudget`/`spawnElite` and boss.ts's
+    // `updateSummonsAndSlams`, this loop used to dequeue unconditionally, so
+    // a losing bot's wave could pile enemies past `aliveCap` with no bound.
+    // At the cap, pause rather than drop: leave the timer at/below zero so
+    // the paused entry is retried (and still spawns) as soon as room frees.
+    while (w.spawnTimer <= 0 && w.spawnQueue.length > 0 && w.enemies.length < content.spawns.aliveCap) {
       w.spawnTimer += content.waves.spawnIntervalSeconds;
       // p3b: a stacked fight's queue holds more than one wave's spawns
       // interleaved, so each triple carries its own true origin wave rather

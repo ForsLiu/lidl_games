@@ -232,7 +232,13 @@ describe('p7e: World.everSealed latches on a real sealed board (§10), never on 
   it.skip('the sealed policy latches world.everSealed and carries it into report.sealed, within p1b-seal-winrate.test.ts\'s own proven 15000-tick bound', () => {
     const run = new Run({ ...cfg({ seed: 1 }), policy: 'sealed' });
     const policy = makePolicy('sealed');
-    while (!run.world.everSealed && run.world.tick < 15_000) {
+    // b073 QA finding: this loop used to omit `!run.done`, unlike the sibling
+    // test below — `Run.step` no-ops once `done`, so a sealed bot that dies
+    // via `defeat_core` before ever sealing (still true post-b073, per Q40's
+    // fb025 fallout) freezes `world.tick` and spins this loop forever,
+    // hanging the process past even vitest's own timeout. Guard it the same
+    // way before anyone follows this TODO and un-skips it.
+    while (!run.world.everSealed && run.world.tick < 15_000 && !run.done) {
       run.step(policy.act(run.world));
     }
     expect(run.world.everSealed).toBe(true);

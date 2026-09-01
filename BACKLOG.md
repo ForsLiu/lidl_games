@@ -118,7 +118,7 @@ P10" freeze (QUESTIONS Q40), same precedent as fb020.
       at wave 2-3) and a real, previously-latent bug found and filed
       separately (**b073**: Act I has no `aliveCap`, unlike Act II/the boss
       fight) rather than fixed inline.
-- [ ] (b073) [bug] Act I (TD) enemy spawning has no alive-enemy cap, unlike
+- [x] (b073) [bug] Act I (TD) enemy spawning has no alive-enemy cap, unlike
       Act II (`act2.ts`'s `spendBudget`/`spawnElite`) and the boss fight
       (`boss.ts`), both of which gate on `data/spawns.json`'s `aliveCap`
       (350) — found while measuring fb025 (enemy HP x10 + attacker attack
@@ -136,7 +136,8 @@ P10" freeze (QUESTIONS Q40), same precedent as fb020.
       says the two should differ), with a regression test that seeds a
       losing build and asserts `world.enemies.length` never exceeds the cap
       — refs: SPEC-FINAL §14 G17 (sim budget), `src/sim/act2.ts`,
-      `src/sim/boss.ts`, `data/spawns.json`'s `aliveCap`.
+      `src/sim/boss.ts`, `data/spawns.json`'s `aliveCap`. **Done — see Done
+      section.**
 - [ ] (fb026) [feat] top priority: persistent bottom HUD bar — HP (with
       numbers), gold, the class passive icon, and Active 1 (Q) / Active 2
       (E) icons with MOBA-style clockwise cooldown sweeps (remaining
@@ -2553,6 +2554,47 @@ logged in MIGRATION.md §8 rather than carried as dead items.
 
 ## Done
 
+- [x] (b073) [bug] Act I wave spawning now gates on `data/spawns.json`'s
+      `aliveCap`, the same guard `act2.ts`'s `spendBudget`/`spawnElite` and
+      `boss.ts`'s `updateSummonsAndSlams` already use — `updateAct1Wave`'s
+      spawn loop (`src/sim/run.ts`) added `w.enemies.length < aliveCap` to
+      its `while` condition; a tick at the cap pauses (the queue entry and
+      its origin-wave HP scaling are untouched, `spawnTimer` simply isn't
+      advanced further) rather than dropping the enemy, so it still spawns
+      once room frees up — no wave under-delivers its authored count.
+      `tests/b073-act1-alive-cap.test.ts` (2 tests) proves it: at the cap, a
+      tick must not shrink `w.spawnQueue`, and once room frees the same
+      queued enemies drain with none dropped; both fail on pre-fix code
+      (verified via `git stash`) and pass after. code-reviewer **APPROVE**
+      (no Critical/Major; confirmed no determinism/replay-hash impact since
+      a paused tick draws zero RNG and the jitter draw for a dequeued spawn
+      is unchanged, just later; confirmed `w.spawnedByWave` bookkeeping,
+      only touched at actual spawn time, is unaffected by pause/resume
+      timing). qa-playtester **PASS**: drove a real zero-tower bot and the
+      registered `kite` policy end-to-end through `Run.step` and confirmed
+      the cap holds in practice (kite peaked at 323/350), confirmed no
+      permanent-stall scenario exists (a paused queue always eventually
+      drains or the run ends in defeat), confirmed `call`-command wave
+      stacking doesn't break under a paused cap, and confirmed determinism
+      (identical seed+policy → identical `endHash`) both away from and near
+      the cap. It also filed a real bug in a currently-`.skip`ped test whose
+      own TODO invited un-skipping it "once b073 lands":
+      `tests/p7e-quests.test.ts`'s sealed-policy `everSealed` test looped
+      `while (!run.world.everSealed && run.world.tick < 15_000)` with no
+      `!run.done` check, unlike its very next sibling test — since a sealed
+      bot now (still, per the pre-existing fb025 fallout logged at Q40) dies
+      via `defeat_core` before ever sealing on every seed, `Run.step`'s
+      no-op-once-`done` behaviour freezes `world.tick` and the loop spins
+      forever, an unkillable synchronous hang past even vitest's own
+      timeout. Fixed in the same commit (added `!run.done`, matching the
+      sibling) since it directly guards the exact TODO b073 triggers; the
+      test itself stays `.skip`ped (the sealed strategy still doesn't
+      survive post-fb025, a separate, already-logged balance gap, not this
+      item's scope). `npm run test:fast`: green (the same five pre-existing
+      full-parallel-load flakes as fb025's session — port-contention fold
+      tests and a timeout-sensitive fuzz probe — confirmed standalone-clean
+      by both the reviewer and QA independently). Files: `src/sim/run.ts`,
+      `tests/b073-act1-alive-cap.test.ts` (new), `tests/p7e-quests.test.ts`.
 - [x] (fb025) [balance] enemies 10x tankier, attacker attack speed x0.7,
       Enemy HP bars toggle — owner order, scoped tuning-freeze exception
       (precedent fb020/Q40). Full rationale, scope calls (bosses now

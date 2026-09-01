@@ -5,6 +5,43 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-01 session: b073 done — Act I wave spawning now respects
+  `data/spawns.json`'s `aliveCap`.** `updateAct1Wave`'s spawn loop
+  (`src/sim/run.ts`) used to dequeue every queued enemy unconditionally each
+  tick, unlike `act2.ts`'s `spendBudget`/`spawnElite` and `boss.ts`'s
+  `updateSummonsAndSlams`, which already guard on `w.enemies.length >=
+  aliveCap` — a gap fb025's harsher enemy HP made trivial to trigger via a
+  losing/`kite`-style bot. Fixed by adding the same `w.enemies.length <
+  aliveCap` clause to the spawn loop's `while` condition: a tick at the cap
+  pauses (queue entry and origin-wave HP scaling untouched, `spawnTimer` just
+  doesn't advance) rather than dropping the enemy, so every wave still
+  delivers its full authored count, just later. `tests/b073-act1-alive-cap.
+  test.ts` (2 tests, fails pre-fix/passes post-fix via `git stash`) proves
+  the cap holds and nothing is dropped. code-reviewer **APPROVE** (no
+  Critical/Major; confirmed no determinism impact — a paused tick draws zero
+  RNG, the jitter draw for a delayed spawn is unchanged, just later — and
+  confirmed `w.spawnedByWave` is untouched by pause/resume timing since it's
+  only incremented at actual spawn time). qa-playtester **PASS**: verified
+  end-to-end with a real zero-tower bot and the registered `kite` policy
+  (peaked at 323/350, never over), confirmed no permanent-stall path exists,
+  confirmed `call`-command wave stacking survives a paused cap, and confirmed
+  determinism holds near the cap. It also filed and I fixed in the same
+  commit a real bug its verification surfaced: `tests/p7e-quests.test.ts`'s
+  `.skip`ped sealed-policy `everSealed` test has its own TODO reading
+  "re-measure once b073 lands" — but its loop lacked the `!run.done` guard
+  its sibling test has, so un-skipping it as the TODO invites would hang the
+  process forever (a sealed bot still dies via `defeat_core` before sealing
+  on every seed, a separate pre-existing fb025 balance gap logged at Q40;
+  `Run.step` no-ops once `done`, freezing `world.tick` and spinning the loop
+  past even vitest's own timeout). Added the guard; the test itself stays
+  `.skip`ped since the underlying balance gap is unchanged and out of this
+  item's scope. `npm run test:fast`: green — the same five pre-existing
+  full-parallel-load flakes fb025's session already documented (port-
+  contention Playwright fold tests, one timeout-sensitive fuzz probe),
+  reconfirmed standalone-clean independently by both the reviewer and QA.
+  Files: `src/sim/run.ts`, `tests/b073-act1-alive-cap.test.ts` (new),
+  `tests/p7e-quests.test.ts`.
+
 - **2026-09-01 session: fb025 done — enemies 10x tankier, attacker attack
   speed x0.7, Enemy HP bars toggle, owner order (scoped exception to the
   tuning freeze, precedent fb020/Q40), `/data` + a small UI feature.**
