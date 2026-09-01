@@ -220,6 +220,20 @@ export function replayRecorded(recorded: RecordedRun, cfg: RunConfig): RunReport
   if (replayCore !== recordedCore) {
     throw new Error(`replay core mismatch: recorded '${recordedCore}', replaying '${replayCore}'`);
   }
+  // b039: a `RecordedRun` this function has never seen before must already
+  // carry the hash `World`'s constructor stamps on first use — that stamp is
+  // what "recorded" means. Forwarding an absent hash instead of requiring one
+  // would let `World`'s general stamp-or-check logic treat this replay as a
+  // *fresh* run (stamp the live hash and never check anything), silently
+  // defeating architecture rule 2 for exactly the recorded-but-unstamped case
+  // that rule exists to catch (a hand-built RecordedRun, or one round-tripped
+  // through a path that dropped the field).
+  if (recorded.config.contentHash === undefined) {
+    throw new Error(
+      'replayRecorded: recorded.config.contentHash is missing — this RecordedRun was never ' +
+        'stamped by World and cannot be checked against the current /data (Q153)',
+    );
+  }
   // p9a: forward the recorded content hash (always set once a run has
   // actually been created — `World`'s constructor stamps it in) rather than
   // whatever `cfg.contentHash` itself carries, so `World`'s general

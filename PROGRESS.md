@@ -5,6 +5,45 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-01 session: BACKLOG b039 closed** — p9a's content-hash replay
+  guard (CLAUDE.md architecture rule 2: "a replay against edited `/data`
+  fails loudly") had two dormant gaps qa-playtester found verifying p9a.
+  `replayRecorded` (`src/sim/run.ts`) forwarded `recorded.config.contentHash`
+  straight into `new Run(...)` with no presence check, so a `RecordedRun`
+  whose config never actually passed through `World` (no hash stamped)
+  landed on `World`'s "absent means first use" branch — stamp the live hash,
+  check nothing — silently skipping the guard instead of failing loudly, the
+  one case (a replay of something already recorded) that should never take
+  that branch. Separately, `tests/helpers.ts`'s `runWithPolicy` built its
+  `Run` from a spread copy (`new Run({ ...config, policy })`), so the hash
+  `World`'s constructor stamps in place landed on the throwaway object, never
+  reaching the caller's own config the way `replay()`'s direct pass-through
+  does. Fixed: `replayRecorded` now throws a dedicated error when
+  `recorded.config.contentHash` is `undefined` (placed after the existing
+  Core-existence/mismatch checks so their own messages still fire first);
+  `runWithPolicy` now copies the stamped hash back onto the caller's config
+  after construction. Design choice logged as **Q153**: required the hash to
+  be present rather than the acceptance text's other option (reconstruct
+  "what `/data` looked like when `inputLog` began" from nothing), which isn't
+  actually implementable. `tests/p-core-a-selection.test.ts`'s two synthetic
+  `RecordedRun` tests that execute past the Core checks were given a real
+  stamped hash via a new `recordedCfg()` helper so they don't spuriously
+  break under the stricter guard; new regression coverage in
+  `tests/b039-content-hash-gaps.test.ts`, confirmed via `git stash` to fail
+  2/4 cases pre-fix and pass 4/4 post-fix. code-reviewer: APPROVE, no
+  Critical/Major (a doc-comment nit fixed in the same commit; noted three
+  `tools/` scripts sharing the old spread-copy shape, confirmed dormant since
+  none persist a `RecordedRun`, left as an observation). qa-playtester: PASS
+  — independently reproduced both gaps' fixed behavior via the q18 "mutate
+  the live cached Content object" technique, confirmed the mismatch-vs-
+  missing error messages stay distinct, checked `runWithPolicy` across 4
+  policies/seeds, grepped all of `/src` and `/tools` for any other affected
+  call site (none), adversarially tried a stale-but-present hand-stamped
+  hash and malformed (non-string/empty) hash values against the guard (none
+  bypass it), and ran the full `test:fast` tier (1800 passed / 9 failed / 16
+  skipped — all 9 pre-existing and unrelated, the documented Playwright-fold/
+  EPERM-scratch-dir/q15-fuzz flake classes). No bugs filed.
+
 - **2026-09-01 session: BACKLOG b029 closed** — `tests/q28-cli-error-handling.
   test.ts` intermittently failed on Windows with an `EPERM` on a scratch-dir
   fs call under concurrent full-suite load (the q13/q15/q28 EPERM class,

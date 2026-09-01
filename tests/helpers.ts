@@ -61,7 +61,14 @@ export function runWithPolicy(
   policyName: string,
   maxTicks = 60 * 60 * 45,
 ): { report: RunReport; run: Run } {
-  const run = new Run({ ...config, policy: policyName });
+  const runCfg = { ...config, policy: policyName };
+  const run = new Run(runCfg);
+  // b039: `World`'s constructor stamps the content hash onto whatever config
+  // object it was actually given, which here is `runCfg` — a spread copy, not
+  // the caller's `config`. Unlike `replay()` (which passes its config
+  // straight through and so gets this for free), that stamp needs forwarding
+  // by hand or the caller's config never becomes a valid `RecordedRun.config`.
+  config.contentHash = runCfg.contentHash;
   const policy = makePolicy(policyName);
   while (!run.done && run.world.tick < maxTicks) {
     run.step(policy.act(run.world));

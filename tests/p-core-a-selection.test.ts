@@ -12,6 +12,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  contentHash,
   defaultCoreKey,
   loadContent,
   validateCoreUpgrade,
@@ -19,9 +20,18 @@ import {
 } from '../src/sim/content';
 import { defaultMeta, deserializeMeta, serializeMeta } from '../src/meta/meta';
 import { replayRecorded } from '../src/sim/run';
+import type { RunConfig } from '../src/sim/types';
 import { cfg, makeInputLog, replay } from './helpers';
 
 const content = loadContent();
+
+// b039: `replayRecorded` now requires `recorded.config.contentHash` to be
+// stamped (a real RecordedRun always has one — `World`'s constructor stamps
+// it on first use). These Core-mismatch tests build synthetic RecordedRuns
+// by hand, so they need the same stamp a genuine recording would carry.
+function recordedCfg(over: Partial<RunConfig> = {}): RunConfig {
+  return { ...cfg(over), contentHash: contentHash(content) };
+}
 
 describe('data/cores.json (§5.5)', () => {
   it('authors exactly the five owner rows', () => {
@@ -126,6 +136,12 @@ describe('Core choice in RunConfig and the end-state hash (G21)', () => {
 });
 
 describe('a replay carrying a mismatched core is rejected', () => {
+  // Below, only the two cases that reach past the Core checks (agreeing or
+  // omitted-on-both-sides cores) use `recordedCfg()` — the mismatch/unknown-
+  // core cases throw at the Core checks in `replayRecorded`, before ever
+  // reaching the b039 content-hash check, so a plain `cfg()` is enough for
+  // them and stays that way unless the check order in `replayRecorded` ever
+  // changes (which would make these regexes fail loudly, not silently pass).
   it('throws when the replay config names a different core than recorded', () => {
     const log = makeInputLog(4, 300);
     const recorded = { config: cfg({ core: 'stone_heart' }), inputLog: log };
@@ -134,7 +150,7 @@ describe('a replay carrying a mismatched core is rejected', () => {
 
   it('does not throw, and matches a direct replay, when the core agrees', () => {
     const log = makeInputLog(4, 300);
-    const recorded = { config: cfg({ core: 'carnivorous_plant' }), inputLog: log };
+    const recorded = { config: recordedCfg({ core: 'carnivorous_plant' }), inputLog: log };
     const viaRecorded = replayRecorded(recorded, cfg({ core: 'carnivorous_plant' }));
     const direct = replay(cfg({ core: 'carnivorous_plant' }), log);
     expect(viaRecorded.endHash).toBe(direct.endHash);
@@ -142,7 +158,7 @@ describe('a replay carrying a mismatched core is rejected', () => {
 
   it('treats an omitted core as the default on both sides, not a mismatch', () => {
     const log = makeInputLog(4, 300);
-    const recorded = { config: cfg({ core: undefined }), inputLog: log };
+    const recorded = { config: recordedCfg({ core: undefined }), inputLog: log };
     expect(() => replayRecorded(recorded, cfg({ core: 'stone_heart' }))).not.toThrow();
   });
 

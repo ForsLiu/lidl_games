@@ -2054,27 +2054,8 @@ because the lane worktree retires at this merge.
       **b069** for a QA-found pre-existing gap the fix's own verification
       surfaced (Retry/New Run drops a mid-run autopick toggle), out of this
       item's scope.
-- [ ] (b039) [bug] p9a's content-hash mismatch check only fires when
-      `RunConfig.contentHash` is already set (`World`'s constructor,
-      `src/sim/world.ts`) — a `RecordedRun` whose config never actually passed
-      through `World`/`Run` (e.g. a hand-built replay file, or one round-
-      tripped through a JSON serializer that drops `undefined` fields) carries
-      no hash at all and silently replays against edited `/data` with no
-      error, the exact failure architecture rule 2 exists to prevent.
-      `tests/helpers.ts`'s `runWithPolicy` compounds this: unlike `replay()`
-      and `main.ts`'s `startRun`, it calls `new Run({ ...config, policy })` —
-      a spread, not the same object — so it never stamps the hash back onto
-      the caller's config at all, meaning any `RecordedRun` built from a bot-
-      driven run inherits the same silent gap. Found by qa-playtester
-      verifying p9a (2026-08-30), reproduced twice; dormant today since
-      nothing in `/src` currently builds a `RecordedRun` through either path
-      — acceptance: a `RecordedRun` with `config.contentHash` left `undefined`
-      also rejects a replay against edited `/data` (design choice: either
-      `replayRecorded` requires a hash to be present, or treats "absent" as
-      "must match a freshly-computed hash of what `/data` looked like when
-      `inputLog` began" — log the choice in QUESTIONS.md); `runWithPolicy`
-      stamps the hash back onto its caller's config the same way `replay()`
-      already does — refs: p9a, CLAUDE.md architecture rule 2.
+- [x] (b039) [bug] p9a's content-hash mismatch check only fires when
+      `RunConfig.contentHash` is already set — **done, see Done section.**
 - [ ] (b040) [bug] `tests/q7-data-fuzz.test.ts`'s "writes nothing to /data" case
       intermittently fails only under full-suite parallel load: it compares a
       `DISK_AT_START` hash of every `/data/*.json` file captured once at module
@@ -2264,6 +2245,61 @@ logged in MIGRATION.md §8 rather than carried as dead items.
   **G19**. The work is `p10d`.
 
 ## Done
+
+- [x] (b039) [bug] p9a's content-hash mismatch check only fired when
+      `RunConfig.contentHash` was already set (`World`'s constructor,
+      `src/sim/world.ts`) — a `RecordedRun` whose config never actually passed
+      through `World`/`Run` carried no hash at all and `replayRecorded`
+      forwarded that `undefined` straight into `new Run(...)`, where `World`
+      read "absent" as "first use," stamped the live hash and checked
+      nothing — silently replaying against edited `/data` instead of failing
+      loudly, the exact failure architecture rule 2 exists to prevent.
+      `tests/helpers.ts`'s `runWithPolicy` compounded this: it built its `Run`
+      from `new Run({ ...config, policy })` — a spread, not the caller's own
+      object — so the stamp `World`'s constructor writes in place landed on
+      the throwaway copy and never reached the caller's config, unlike
+      `replay()`. Both gaps found by qa-playtester verifying p9a (2026-08-30).
+      Fixed (commit pending): `replayRecorded` (`src/sim/run.ts`) now throws a
+      dedicated error naming the missing field if `recorded.config.
+      contentHash === undefined`, placed after the existing Core-existence/
+      mismatch checks so their own more specific messages still fire first;
+      `runWithPolicy` now builds `Run` from a separate `runCfg` object and
+      copies its stamped hash back onto the caller's `config` after
+      construction, matching `replay()`. Design choice logged as **Q153**:
+      chose "require the hash to be present" over the acceptance text's other
+      option ("treat absent as must-match a hash of `/data` at input-log-start
+      time"), judged not actually implementable since nothing records that
+      retroactively. `tests/p-core-a-selection.test.ts`'s two synthetic
+      `RecordedRun` tests that execute past the Core checks (the "core
+      agrees" and "omitted core on both sides" cases) were given a real
+      stamped hash via a new `recordedCfg()` helper so they don't spuriously
+      break under the stricter check; the Core-mismatch/unknown-core cases
+      were left on plain `cfg()` since they throw before ever reaching the
+      new check, with a comment noting why. New regression tests in
+      `tests/b039-content-hash-gaps.test.ts`, confirmed (via `git stash`) to
+      fail 2/4 cases on pre-fix code and pass 4/4 with the fix. code-reviewer:
+      **APPROVE**, no Critical/Major (two Minors, both informational rather
+      than fixed in-scope: a doc-comment nit on the asymmetric helper use in
+      `p-core-a-selection.test.ts`, addressed in the same commit; and three
+      `tools/` scripts — `sweep.ts`, `phase-coverage.ts`, `p10k-sweep.ts` —
+      sharing `runWithPolicy`'s old spread-copy shape, confirmed dormant since
+      none of them build or persist a `RecordedRun`, left as a note rather
+      than a fix since nothing exercises the gap today). qa-playtester:
+      **PASS** — independently confirmed both acceptance clauses via a
+      "mutate the live cached `Content` object" repro (missing hash rejects
+      regardless of whether `/data` was edited; a genuinely-stamped hash
+      still throws the pre-existing "content hash mismatch" message, not the
+      new "missing" one, when `/data` is edited after recording), confirmed
+      `runWithPolicy`'s stamp-back across 4 policies/seeds, grepped all of
+      `/src` and `/tools` for other `replayRecorded`/`RecordedRun`/spread-`new
+      Run` call sites (none found beyond the ones already fixed or already
+      correct), adversarially tried a stale-but-present hand-stamped hash, a
+      non-string hash, and an empty-string hash against the guard (all still
+      fail loudly, none bypass it), and ran the full `test:fast` tier
+      (1800 passed / 9 failed / 16 skipped, all 9 failures pre-existing and
+      unrelated — the documented Playwright fold/EPERM-scratch-dir/q15-fuzz
+      flake classes, none touching `replayRecorded`/`runWithPolicy`/
+      `contentHash`). No bugs filed.
 
 - [x] (b029) [bug] `tests/q28-cli-error-handling.test.ts` intermittently
       failed on Windows with an `EPERM` on a scratch-dir fs call under
