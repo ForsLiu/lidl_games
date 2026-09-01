@@ -83,7 +83,7 @@ function hudCoreTooltip(w: World): string {
     onCycleSpeed: () => {},
     onDev: () => {},
     onQuitToHub: () => {},
-    onHoverSkill: () => {},
+    onHoverSkill: () => {}, onUpgradeStructure: () => {}, onSellStructure: () => {}, onUpgradeCore: () => {},
   });
   hud.buildTowerBar(w);
   const sel: Selection = { kind: 'core' };
@@ -221,7 +221,7 @@ describe('fb022 Surface 2: Core screen + in-run Core tooltip show TD/VS effect a
 
   it('coreLiveMarkup diffs against the "nothing bought" baseline, so an inert default (e.g. decayMult) is not shown as an active bonus', () => {
     const w = new World(cfg({ core: 'stone_heart' }));
-    const html = coreLiveMarkup(w.content, w.coreKey, w.coreStep, w.core, w.coreHp, w.coreMaxHp);
+    const html = coreLiveMarkup(w.content, w.coreKey, w.coreStep, w.core, w.coreHp, w.coreMaxHp, w.gold);
     expect(html).not.toMatch(/decay/i);
   });
 
@@ -530,7 +530,7 @@ describe('b058: the warden info panel memo key refreshes on a derived-stat chang
       onCycleSpeed: () => {},
       onDev: () => {},
       onQuitToHub: () => {},
-      onHoverSkill: () => {},
+      onHoverSkill: () => {}, onUpgradeStructure: () => {}, onSellStructure: () => {}, onUpgradeCore: () => {},
     });
     hud.buildTowerBar(w);
     return {
@@ -641,7 +641,7 @@ describe('b059: the warden info panel memo key uses the same rounding as the Hea
       onCycleSpeed: () => {},
       onDev: () => {},
       onQuitToHub: () => {},
-      onHoverSkill: () => {},
+      onHoverSkill: () => {}, onUpgradeStructure: () => {}, onSellStructure: () => {}, onUpgradeCore: () => {},
     });
     const w = new World(cfg({ classKey: 'swordsman' }));
     const sel: Selection = { kind: 'warden' };
@@ -691,7 +691,7 @@ describe('b060: the enemy info panel memo key uses the same rounding as the Heal
       onCycleSpeed: () => {},
       onDev: () => {},
       onQuitToHub: () => {},
-      onHoverSkill: () => {},
+      onHoverSkill: () => {}, onUpgradeStructure: () => {}, onSellStructure: () => {}, onUpgradeCore: () => {},
     });
     const w = new World(cfg({ classKey: 'swordsman' }));
     const e = spawnEnemy(w, 'husk', 5, 5, { overlay: false })!;
@@ -748,7 +748,7 @@ describe('b061: the Core info panel memo key uses the same rounding as the Core 
       onCycleSpeed: () => {},
       onDev: () => {},
       onQuitToHub: () => {},
-      onHoverSkill: () => {},
+      onHoverSkill: () => {}, onUpgradeStructure: () => {}, onSellStructure: () => {}, onUpgradeCore: () => {},
     });
     const w = new World(cfg({ classKey: 'swordsman' }));
     const sel: Selection = { kind: 'core' };

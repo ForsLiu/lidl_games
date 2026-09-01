@@ -1,7 +1,8 @@
 /** DOM chrome around the canvas: HUD, tower bar, and the modal choice screens. */
 
 import type { World } from '../sim/world';
-import { towerCost } from '../sim/towers';
+import { canBuildNow, towerCost } from '../sim/towers';
+import { inCoreBuildRange } from '../sim/cores';
 import type { Offer } from '../sim/types';
 import { ENEMY_COLORS, PALETTE, TOWER_COLORS } from '../render/theme';
 import { dotRemaining, dotStacks, effectiveSpeed, enemyArmor } from '../sim/enemies';
@@ -43,6 +44,12 @@ export interface HudCallbacks {
   onPause(): void;
   /** fb026: hovering an Active icon on the bottom bar; `null` on mouseleave. Drives the map's skill-range ring. */
   onHoverSkill(which: 'active1' | 'active2' | null): void;
+  /** fb027: the selection panel's Upgrade button, or the `U` hotkey on a selected tower. */
+  onUpgradeStructure(tx: number, ty: number): void;
+  /** fb027: the selection panel's Sell button, or the `X` hotkey on a selected tower. */
+  onSellStructure(tx: number, ty: number): void;
+  /** fb027 (SPEC-FINAL §5.5): the Core panel's Upgrade button, or the `U` hotkey with the Core selected. */
+  onUpgradeCore(): void;
   /** Fast-forward: cycles through the declared speeds (`SPEEDS`). */
   onCycleSpeed(): void;
   /** Practice tool; only reachable in a run started with practice on. `enemyKey` is only meaningful for the `'spawn'` op. */
@@ -171,8 +178,8 @@ export class Hud {
           <div class="sw-stats" id="sw-stats"></div>
           <div class="sw-towerinfo" id="sw-towerinfo"></div>
           <div class="sw-help">
-            <b>WASD</b> move &middot; <b>Space</b> dash &middot; <b>LMB</b> build &middot;
-            <b>RMB</b> sell &middot; <b>U</b>+click upgrade &middot; <b>1-9</b> pick tower &middot;
+            <b>WASD</b> move &middot; <b>Space</b> dash &middot; <b>LMB</b> build/select &middot;
+            <b>RMB</b> sell &middot; <b>U</b>/<b>X</b> upgrade/sell &middot; <b>1-9</b> pick tower &middot;
             <b>0</b> clear &middot; <b>Enter</b> call wave &middot; <b>Q</b> class active &middot;
             <b>R</b> ranges &middot; <b>F</b> speed &middot; <b>C</b> character &middot; <b>P</b> DPS &middot; <b>Esc</b> pause
           </div>
@@ -209,6 +216,26 @@ export class Hud {
     };
     this.wireControls();
     this.wireBottomBarHover();
+    this.wireTowerInfoActions();
+  }
+
+  /**
+   * fb027: the selection panel's Upgrade/Sell/Upgrade-Core buttons. Delegated
+   * on the panel's container rather than bound per-button, because
+   * `towerInfoEl.innerHTML` is reassigned wholesale every time its content
+   * key changes (`renderSelectionInfo`) — a listener on the button itself
+   * would be garbage the moment the panel next re-rendered.
+   */
+  private wireTowerInfoActions(): void {
+    this.towerInfoEl.addEventListener('click', (e) => {
+      const btn = (e.target as HTMLElement).closest('[data-act]') as HTMLButtonElement | null;
+      if (!btn || btn.disabled) return;
+      const tx = Number(btn.dataset.tx);
+      const ty = Number(btn.dataset.ty);
+      if (btn.dataset.act === 'upgrade') this.cb.onUpgradeStructure(tx, ty);
+      else if (btn.dataset.act === 'sell') this.cb.onSellStructure(tx, ty);
+      else if (btn.dataset.act === 'upgrade-core') this.cb.onUpgradeCore();
+    });
   }
 
   /**
@@ -814,10 +841,24 @@ export class Hud {
       const s = selectedStructure(w, sel);
       const def = s ? w.content.towerById.get(s.towerId) : undefined;
       if (!s || !def) return false;
-      const key = `sel:tower:${s.id}:${s.tier}:${Math.round(s.hp)}:${w.gold}`;
+      const info = towerInfo(w, def, s);
+      // fb027 (code-reviewer findings, confirmed live by qa-playtester as
+      // b074/b075): `canAct` (the Upgrade/Sell buttons' live phase/build-
+      // range/petrified gate — it moves every tick the Warden does, unlike
+      // everything else in this key) and the pact/tithe badges both have to
+      // ride the key too, or the panel can sit stale — a badge that never
+      // clears once `pactActive` flips back off with `hp`/`tier`/`gold`
+      // unchanged, or a button whose disabled state doesn't track the
+      // Warden walking out of build range. The HP component itself must use
+      // `Math.ceil`, not `Math.round` — `towerInfoMarkup`'s new HP row
+      // (tower-info.ts) renders `Math.ceil(existing.hp)`, and a `Math.round`
+      // key can hold steady across a real `Math.ceil` bucket change (e.g.
+      // hp 10.4 -> 9.9 rounds 10 -> 10 but ceils 11 -> 10), which is exactly
+      // the stale-HP bug b074 reproduced.
+      const key = `sel:tower:${s.id}:${s.tier}:${Math.ceil(s.hp)}:${w.gold}:${info.canAct}:${s.pactActive}:${s.tithed}`;
       if (key !== this.lastInfoKey) {
         this.lastInfoKey = key;
-        this.towerInfoEl.innerHTML = towerInfoMarkup(towerInfo(w, def, s), w.gold, true);
+        this.towerInfoEl.innerHTML = towerInfoMarkup(info, w.gold, true);
       }
       return true;
     }
@@ -850,10 +891,27 @@ export class Hud {
       // not the Warden's stat sheet — `w.core` is `World`'s already-resolved
       // `CoreState` (kept in sync by `recomputeCore` on every purchase, see
       // cores.ts), so this reads the exact numbers the sim itself uses.
-      const key = `sel:core:${w.coreKey}:${w.coreStep}:${Math.ceil(w.coreHp)}:${Math.round(w.coreMaxHp)}`;
+      // fb027: the affordability boolean and `canAct` (the same phase/
+      // build-range gate `upgradeCore` enforces itself, cores.ts) both ride
+      // the key, so the Upgrade button's disabled state repaints the instant
+      // gold crosses the step's price, or the Warden walks in or out of
+      // range, either way (code-reviewer finding, fb027).
+      const coreDef = w.content.coreByKey.get(w.coreKey);
+      const coreAfford = coreDef && w.coreStep < coreDef.upgrade.count ? w.gold >= coreDef.upgrade.stepCost : true;
+      const coreCanAct = canBuildNow(w) && inCoreBuildRange(w);
+      const key = `sel:core:${w.coreKey}:${w.coreStep}:${Math.ceil(w.coreHp)}:${Math.round(w.coreMaxHp)}:${coreAfford}:${coreCanAct}`;
       if (key !== this.lastInfoKey) {
         this.lastInfoKey = key;
-        this.towerInfoEl.innerHTML = coreLiveMarkup(w.content, w.coreKey, w.coreStep, w.core, w.coreHp, w.coreMaxHp);
+        this.towerInfoEl.innerHTML = coreLiveMarkup(
+          w.content,
+          w.coreKey,
+          w.coreStep,
+          w.core,
+          w.coreHp,
+          w.coreMaxHp,
+          w.gold,
+          coreCanAct,
+        );
       }
       return true;
     }
@@ -915,12 +973,23 @@ export class Hud {
     }
 
     const info = towerInfo(w, def, hovered ?? undefined);
+    // fb027: same live gate as the selection-panel branch above — a hovered
+    // built tower renders the same live HP row, Upgrade/Sell buttons and
+    // pact/tithe badges, so it needs the same key fields (`w.phase` already
+    // covered the phase half of `canAct`, but not build-range, live HP, or
+    // the pact/tithe flags — before fb027 this branch's only HP-shaped text
+    // was the "Blocks path" line's *static* per-tier max HP, never the
+    // structure's real live `hp`, so the key never needed to track it).
     const key = [
       def.key,
       hovered ? `built${hovered.id}` : 'plan',
       info.tier,
       w.gold >= (info.buildCost ?? info.upgrade?.cost ?? 0),
       w.phase,
+      info.canAct,
+      hovered?.pactActive ?? false,
+      hovered?.tithed ?? false,
+      hovered ? Math.ceil(hovered.hp) : 0,
     ].join(':');
     if (key === this.lastInfoKey) return;
     this.lastInfoKey = key;
@@ -1178,6 +1247,22 @@ export function towerInfoMarkup(info: TowerInfo, gold: number, placed: boolean):
     )
     .join('');
 
+  // fb027: §4.2's per-structure class effects, the panel's own "any stacks"
+  // clause — both are booleans (see `Structure.pactActive`/`tithed`), so a
+  // badge each is all there is to show.
+  const badges: string[] = [];
+  if (info.pactActive) badges.push('<span class="sw-badge">Death Pact</span>');
+  if (info.tithed) badges.push('<span class="sw-badge">Blood Tithe</span>');
+  const badgesHtml = badges.length > 0 ? `<p class="sw-note">${badges.join('')}</p>` : '';
+
+  const milestonesHtml =
+    info.milestonesOwned.length > 0
+      ? `<p class="sw-note dim">Milestones: ${info.milestonesOwned.map((m) => m.text).join(' · ')}</p>`
+      : '';
+
+  // Real buttons only for a placed structure with a real tile to target
+  // (`info.tx`/`ty`) — an unbuilt bar preview has neither, and keeps the
+  // build-cost line as plain text the way it always has.
   const money: string[] = [];
   if (info.buildCost !== null) {
     money.push(
@@ -1186,29 +1271,44 @@ export function towerInfoMarkup(info: TowerInfo, gold: number, placed: boolean):
       }g</b></div>`,
     );
   }
-  if (info.upgrade) {
+  // fb027 (code-reviewer finding): `disabled` must fold in `info.canAct` —
+  // the same phase/build-range/petrified gate `upgradeTower`/`sellTower`
+  // enforce themselves — not just affordability, or a tower selected from
+  // clear across the map (or mid-Sundering) shows a live, clickable button
+  // that silently no-ops when pressed.
+  if (info.upgrade && info.tx !== null && info.ty !== null) {
+    const afford = gold >= info.upgrade.cost;
+    const enabled = afford && info.canAct;
     money.push(
-      `<div class="sw-row"><span>Upgrade to Lv ${info.upgrade.toTier}</span><b class="${
-        gold >= info.upgrade.cost ? 'gold' : 'poor'
-      }">${info.upgrade.cost}g</b></div>`,
+      `<button class="sw-actbtn" data-act="upgrade" data-tx="${info.tx}" data-ty="${info.ty}" ${
+        enabled ? '' : 'disabled'
+      }><span>Upgrade to Lv ${info.upgrade.toTier}</span><b class="${afford ? 'gold' : 'poor'}">${
+        info.upgrade.cost
+      }g</b></button>`,
     );
   } else if (placed) {
     money.push('<div class="sw-row"><span>Upgrade</span><b>fully upgraded</b></div>');
   }
-  if (info.sellValue !== null) {
-    money.push(`<div class="sw-row"><span>Sell (RMB)</span><b>${info.sellValue}g</b></div>`);
+  if (info.sellValue !== null && info.tx !== null && info.ty !== null) {
+    money.push(
+      `<button class="sw-actbtn sw-sell" data-act="sell" data-tx="${info.tx}" data-ty="${info.ty}" ${
+        info.canAct ? '' : 'disabled'
+      }><span>Sell</span><b>${info.sellValue}g</b></button>`,
+    );
   }
 
+  // fb027: the top-level legend (`.sw-help`) already documents `U`/`X`, and
+  // the buttons above are self-labeled — the extra reminder line this used to
+  // print for `info.upgrade` alone (b036: `.sw-side` has no scroll of its own,
+  // so every avoidable line here is a line closer to pushing that legend past
+  // the 1080px fold) is gone rather than growing to also cover Sell.
   return `
     <h3 style="color:${colour}">${info.name} <small>${tierText}</small></h3>
     <p class="sw-note">${info.attackText}</p>
+    ${badgesHtml}
     ${stats}
+    ${milestonesHtml}
     ${money.join('')}
-    ${
-      info.upgrade
-        ? '<p class="sw-hint">Hold <b>U</b> (or Shift) and click the tower to upgrade it.</p>'
-        : ''
-    }
     ${info.terrainText ? `<p class="sw-note dim">${info.terrainText}</p>` : ''}`;
 }
 

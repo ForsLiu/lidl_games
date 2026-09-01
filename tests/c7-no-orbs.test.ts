@@ -173,7 +173,7 @@ describe('C7: Orbs are gone from what a player sees', () => {
       onCycleSpeed: () => {},
       onDev: () => {},
       onQuitToHub: () => {},
-      onHoverSkill: () => {},
+      onHoverSkill: () => {}, onUpgradeStructure: () => {}, onSellStructure: () => {}, onUpgradeCore: () => {},
     });
     const w = new World(cfg());
     w.outcome = 'victory';

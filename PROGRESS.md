@@ -5,6 +5,113 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-01 session: fb027 done (plus b074/b075) — Core and tower
+  selection panels.** Owner 2026-09-01 directive top-priority item, next in
+  queue after fb026. Most of the panels' *reading* half already existed
+  (`renderSelectionInfo`/`towerInfoMarkup` in `src/ui/hud.ts`, `towerInfo`
+  in `src/ui/tower-info.ts`, `coreLiveMarkup` in `src/ui/core-info.ts`) —
+  this item added the *acting* half. Real `data-act="upgrade"|"sell"|
+  "upgrade-core"` `<button>` elements replace the old text-only cost rows,
+  event-delegated on `#sw-towerinfo` (new `Hud.wireTowerInfoActions`, bound
+  once in the constructor) since the panel's `innerHTML` is reassigned
+  wholesale on every re-render, which would otherwise garbage any
+  per-button listener the instant the panel next repainted. New `U`/`X`
+  hotkeys (`src/ui/input.ts`'s `KeyBinding.upgradeSelection`/
+  `sellSelection`, resolved in `src/ui/main.ts`'s `Game.
+  hotkeyUpgradeSelection`/`hotkeySellSelection` against `ViewState.
+  selection`) act on whatever tower/Core is currently selected — distinct
+  from the pre-existing held-`U`-plus-click and RMB build-menu paths, which
+  are untouched. The single most important fix here is not UI polish: before
+  this item there was **no reachable path in real play to ever send the
+  sim's `upgrade_core` Command at all** — only tests and fuzzers ever
+  constructed one (`grep upgrade_core` across the repo turned up zero call
+  sites outside `src/sim/run.ts`'s own switch, `tools/fuzz-*.ts`, and test
+  files). The Core panel's new Upgrade button and the `U` hotkey are the
+  first real callers. The tower panel also gained: a generic HP/Defense
+  stat pair shown for *every* placed tower (not only the ones that block a
+  path — m20c gave eight of the ten towers a non-zero defense band, and the
+  old "Blocks path" line only surfaced HP/defense for a wall), with
+  `w.derived.towerDefenseBonus` (Paladin's flat passive) folded into the
+  Defense number so it can never under-quote what `structureArmor`
+  (upgrades.ts) actually reduces incoming damage by; an owned-milestones
+  list (`def.upgrades.specials` already-bought, separate from the existing
+  "next milestone" preview line); and Death Pact/Blood Tithe stack badges
+  off `Structure.pactActive`/`tithed`.
+  `tests/fb027-selection-panels.test.ts` (26 tests) covers the `towerInfo`
+  data model, markup button/disabled-attribute rendering, real Hud DOM
+  click wiring end to end (including a disabled-button-does-not-fire case
+  and a fully-upgraded Core losing its button), and the `U`/`X` hotkeys
+  driven through a real `Game` instance (`window.dispatchEvent(new
+  KeyboardEvent(...))`, reading the private `pending` Command queue —
+  mirrors `tests/b030-autopick-pause-toggle.test.ts`'s established pattern
+  for exercising `main.ts` end to end).
+  **code-reviewer REQUEST-CHANGES → all three Majors taken.** (1) The
+  owned-milestones filter read `sp.at <= tier`, off by one against
+  `attackProfile`'s own activation rule (`upgrades.ts`: a milestone is live
+  once `tier > sp.at`, not `>=`) — the same convention the pre-existing
+  "Upgrade N" preview line already encoded. Verified with a concrete
+  repro: a tesla_coil built to tier 3 (its `at: 3` Electric Chain milestone)
+  had `attackProfile(def, 3).electricChain === false` while the buggy
+  filter already listed the milestone as owned, so the panel told the
+  player "already have it" and "still buy it" in the same breath. Fixed to
+  `sp.at < tier`; the regression test now builds past the milestone tier
+  and cross-checks both `attackProfile` and the "Upgrade N" line's
+  presence/absence at each tier. (2) The Upgrade/Sell/Upgrade-Core buttons
+  and the `U`/`X` hotkeys only ever checked affordability, never the same
+  build-range/phase/petrified gate `upgradeTower`/`sellTower`/`upgradeCore`
+  (towers.ts/cores.ts) enforce themselves internally — a tower selected
+  from clear across the map, or with the Warden mid-Sundering, showed a
+  live green button that silently no-op'd on click. Fixed with a new
+  `TowerInfo.canAct` field (`canBuildNow(w) && inBuildRange(w, tx, ty) &&
+  !petrified`) and a matching `coreLiveMarkup` `canAct` parameter
+  (`canBuildNow(w) && inCoreBuildRange(w)`), both folded into the
+  `disabled` attribute and the memo-cache keys. (3) The tower-selection
+  memo key (`renderSelectionInfo`'s `sel:tower:...` string) omitted
+  `pactActive`/`tithed` entirely, so the new badges could go stale — fixed
+  by appending both flags to the key.
+  **qa-playtester FAIL → both filed bugs fixed in this same commit.**
+  Independently reproduced (twice each) and filed **b074** — the same
+  memo key's HP component used `Math.round(s.hp)` while the new HP row
+  renders `Math.ceil(existing.hp)`; `hp` 10.4 -> 9.9 both round to 10 but
+  ceil 11 -> 10, so the panel held at the stale "11" — and **b075**, an
+  independent rediscovery of code-reviewer's finding (3) via its own live
+  repro (`structure.pactActive = true` with every other keyed field held
+  fixed left the Death Pact badge unrendered). Both closed here: the key's
+  HP component now uses `Math.ceil` (matching the row exactly, same fix
+  shape as b059-b061 on the warden/enemy/Core panels), and the hover-preview
+  branch (`renderTowerInfo`, a separate code path that also gained a live
+  HP row via this item and had never needed to key on `hp` before — its old
+  "Blocks path" text quoted a *static* per-tier max HP, never the
+  structure's real live wound) got the identical HP/pact/tithe/`canAct` key
+  fields. Each fix's regression test was verified red-then-green by
+  reverting the fix in isolation and re-running just that test. A real,
+  measured layout regression also surfaced mid-session, independent of
+  either review: `tests/b036-help-fold.test.ts` (`.sw-side` has no scroll of
+  its own, per its own comment) went from ~1096px to 1150px past the
+  1080px viewport fold once the new HP/Defense/button rows landed on a
+  selected tower. Fixed by dropping a now-redundant hint paragraph (the
+  keybind legend and the buttons' own labels already say the same thing),
+  shrinking `.sw-actbtn`'s padding/font to match the plain text row it
+  replaced, and folding the "Blocks path: yes" fact into the new HP line
+  for a *placed* wall rather than keeping it as a second line (the
+  unbuilt bar-preview text, which still needs the fact since it has no HP
+  line to attach to, is unchanged) — confirmed back under the fold (1080 ->
+  1082 -> under budget after the final trim) via three isolated re-runs.
+  `npm run test:fast`: green — the same handful of full-parallel-load-only
+  flakes seen in fb025/b073/fb026's sessions (`b032`/`b034`/`b035`/`b036`
+  Playwright fold audits racing on dev-server port allocation; `q15`'s
+  worker-process command-fuzz timing probe; `q13`'s host-normalized
+  perf-ratio ceiling), every one reconfirmed pre-existing and load-only by
+  isolated `--pool=forks --poolOptions.forks.singleFork=true` re-runs, both
+  with this diff applied and (for the ones qa-playtester checked
+  independently) with it `git stash`-ed out. Files: `src/ui/tower-info.ts`,
+  `src/ui/hud.ts`, `src/ui/core-info.ts`, `src/ui/input.ts`,
+  `src/ui/main.ts`, `src/ui/style.css`, `tests/fb027-selection-panels.test.ts`
+  (new), `tests/tower-info.test.ts`, `tests/b031-font-size-floor.test.ts`,
+  plus mechanical `onUpgradeStructure`/`onSellStructure`/`onUpgradeCore`
+  `HudCallbacks` stub additions across ~17 other test files that construct
+  a `Hud` directly.
+
 - **2026-09-01 session: fb026 done — persistent bottom HUD bar.** Owner
   2026-09-01 directive top-priority item, next in queue after fb024/fb025/
   b073. New `#sw-bottombar` (`src/ui/hud.ts`): HP/gold with live numbers, the

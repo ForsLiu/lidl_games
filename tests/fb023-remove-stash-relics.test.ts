@@ -182,7 +182,7 @@ describe('fb023: no relic text mid-run either', () => {
       onCycleSpeed: () => {},
       onDev: () => {},
       onQuitToHub: () => {},
-      onHoverSkill: () => {},
+      onHoverSkill: () => {}, onUpgradeStructure: () => {}, onSellStructure: () => {}, onUpgradeCore: () => {},
     });
     const w = new World(cfg({ allocated: allNodeIds() }));
     hud.buildTowerBar(w);

@@ -54,7 +54,7 @@ function noopHudCallbacks(pending: Command[]) {
     onCycleSpeed: () => {},
     onDev: () => {},
     onQuitToHub: () => {},
-    onHoverSkill: () => {},
+    onHoverSkill: () => {}, onUpgradeStructure: () => {}, onSellStructure: () => {}, onUpgradeCore: () => {},
   };
 }
 

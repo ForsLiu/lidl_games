@@ -157,20 +157,6 @@ P10" freeze (QUESTIONS Q40), same precedent as fb020.
       alone; the hover tooltip's effect text is the fuller live-numbers
       surface fb028 is meant to extend further (equipment conditional
       lines, etc.), not a placeholder this item left unfinished.
-- [ ] (fb027) [feat] top priority: Core and tower selection panels — Core:
-      selecting it opens a panel with HP, TD/VS effect text, stats,
-      stacks/store/digestion state, current upgrade step, next-step preview
-      and an Upgrade button (cost per §5.5), no Sell; towers: selecting one
-      opens a panel with HP/def, attack stats resolved to numbers, the
-      damage-type split, milestone specials (owned/next), any stacks (pact,
-      tithe, veteran counts) and Upgrade/Sell buttons with prices and refund
-      shown; both panels sit beside the new bottom bar (fb026); hotkeys `U`
-      (upgrade) and `X` (sell) — acceptance: both panels functional in TD;
-      Core upgrades are purchasable from its panel; every displayed number
-      equals the sim's own derived value (a test asserts this); a UI flow
-      test covers sell/upgrade end to end — refs: SPEC-FINAL §5, §5.5, §11,
-      owner feedback `feature-core-tower-panels`, extends the existing
-      `tower-info.ts`/`core-info.ts` derivation helpers.
 - [ ] (fb028) [feat] top priority: detailed live effect text for every class
       active/passive and every class-specific equipment item, surfaced
       everywhere they appear — class select, character panel, the new
@@ -2560,6 +2546,77 @@ logged in MIGRATION.md §8 rather than carried as dead items.
   **G19**. The work is `p10d`.
 
 ## Done
+
+- [x] (fb027) [feat] Core and tower selection panels (SPEC-FINAL §5, §5.5,
+      §11, owner feedback `feature-core-tower-panels`). Most of the *reading*
+      half already existed (`renderSelectionInfo`/`towerInfoMarkup`,
+      `towerInfo`, `coreLiveMarkup`); this item added the *acting* half. Real
+      `data-act="upgrade"|"sell"|"upgrade-core"` buttons replace the old
+      text-only rows, event-delegated on `#sw-towerinfo` (`Hud.
+      wireTowerInfoActions`) since its `innerHTML` gets wholesale-replaced on
+      every re-render. New `U`/`X` hotkeys act on whatever is selected
+      (`Game.hotkeyUpgradeSelection`/`hotkeySellSelection`, `src/ui/main.ts`),
+      distinct from the pre-existing held-`U`-plus-click/RMB build-menu
+      paths. Most importantly this closes a real gap: before this item there
+      was **no reachable UI path at all** to ever send the sim's
+      `upgrade_core` Command — only tests/fuzzers ever constructed one; the
+      Core panel's Upgrade button and the `U` hotkey are the first real
+      callers. The tower panel gained a generic HP/Defense pair (every
+      placed tower, not just walls — `towerDefenseBonus` folded in so it
+      can't under-quote what `structureArmor` actually reduces damage by),
+      an owned-milestones list, and Death Pact/Blood Tithe stack badges.
+      `tests/fb027-selection-panels.test.ts` (26 tests) covers the data model,
+      markup button/disabled rendering, Hud DOM click wiring end to end
+      (including a disabled-button-does-not-fire case), and the `U`/`X`
+      hotkeys through a real `Game` instance reading `pending` Commands.
+      code-reviewer **REQUEST-CHANGES → all three Majors taken**: (1) the
+      owned-milestones filter was `sp.at <= tier`, off by one against
+      `attackProfile`'s own `tier > sp.at` activation rule, so a milestone
+      read as "already owned" in the same breath the stats above still
+      called it purchasable — fixed to `sp.at < tier`, verified against
+      tesla_coil's Electric Chain milestone. (2) the Upgrade/Sell/
+      Upgrade-Core buttons and the `U`/`X` hotkeys only checked affordability,
+      not the same build-range/phase/petrified gate `upgradeTower`/
+      `sellTower`/`upgradeCore` enforce themselves, so a tower selected from
+      clear across the map (or off-phase) showed a live, clickable button
+      that silently no-op'd — fixed via a new `TowerInfo.canAct` field (and
+      a `coreLiveMarkup` `canAct` param) folded into both the `disabled`
+      attribute and the memo-key. (3) the tower-selection memo key omitted
+      `pactActive`/`tithed` entirely, so the new badges could go stale.
+      qa-playtester **FAIL → both bugs fixed before commit**: found and
+      filed **b074** (the memo key's HP component used `Math.round` while
+      the new HP row renders `Math.ceil` — reviving the exact staleness
+      class b059-b061 fixed elsewhere, since pre-fb027 the tower panel never
+      rendered live `hp` at all) and **b075** (the same key's total omission
+      of `pactActive`/`tithed`, independently rediscovering the same gap
+      code-reviewer's finding (3) named) — both closed in this same commit
+      per their own filed acceptance criteria, each with a regression test
+      verified red-then-green by reverting the fix and re-running. The
+      `.sw-side` fold budget (b036: no scroll of its own) also caught a real
+      layout regression mid-session — the new HP/Defense/button rows pushed
+      `.sw-help` ~70px past the 1080px fold; fixed by dropping a now-redundant
+      hint paragraph (the legend and self-labeled buttons already say the
+      same thing), tightening `.sw-actbtn`'s padding, and folding the
+      "Blocks path" fact into the new HP line for a *placed* wall (the
+      unbuilt-preview text is unchanged). `npm run test:fast`: green — the
+      same handful of full-parallel-load-only flakes seen in fb025/b073/
+      fb026's sessions (Playwright fold tests racing on port allocation;
+      q15's worker-process timing probe; q13's perf-ratio ceiling), each
+      reconfirmed pre-existing and load-only by isolated re-runs both with
+      and without this diff. Files: `src/ui/tower-info.ts`, `src/ui/hud.ts`,
+      `src/ui/core-info.ts`, `src/ui/input.ts`, `src/ui/main.ts`,
+      `src/ui/style.css`, `tests/fb027-selection-panels.test.ts` (new),
+      `tests/tower-info.test.ts`, `tests/b031-font-size-floor.test.ts`, plus
+      mechanical `HudCallbacks` stub additions across ~17 other test files.
+- [x] (b074) [bug] fb027's tower-selection panel memo key used
+      `Math.round(s.hp)` while the new HP row renders `Math.ceil` — fixed to
+      `Math.ceil(s.hp)` in both the selection and hover-preview branches
+      (`src/ui/hud.ts`), closed in the same commit as fb027. See fb027's Done
+      entry above.
+- [x] (b075) [bug] fb027's tower-selection panel memo key had no
+      `pactActive`/`tithed` component, so the Death Pact/Blood Tithe badges
+      could go stale — both flags now ride the key (`src/ui/hud.ts`), closed
+      in the same commit as fb027. See fb027's Done entry above.
 
 - [x] (fb026) [feat] persistent bottom HUD bar (`#sw-bottombar`, `src/ui/hud.ts`)
       — HP/gold with live numbers, the class passive icon (live state text

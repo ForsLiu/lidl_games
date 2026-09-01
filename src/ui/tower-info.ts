@@ -18,9 +18,11 @@ import {
   attackProfile,
   type AttackProfile,
   attackSpeedFor,
+  canBuildNow,
   damageShare,
   effectiveTowerAoe,
   effectiveTowerRange,
+  inBuildRange,
   maxLevel,
   sellValue,
   towerCost,
@@ -53,6 +55,29 @@ export interface TowerInfo {
   /** Gold back if sold now, or null for an unbuilt tower. */
   sellValue: number | null;
   terrainText: string | null;
+  /** fb027: the structure's own tile, so the panel's Upgrade/Sell buttons can target it. Null for an unbuilt preview. */
+  tx: number | null;
+  ty: number | null;
+  /** fb027: current/max HP, for a placed structure only. */
+  hp: { current: number; max: number } | null;
+  /** fb027 (§4): flat armour points at this tier — omitted from display when 0 (the `none` band). */
+  defense: number;
+  /** fb027: milestone specials already bought (`at <= tier`), oldest first. */
+  milestonesOwned: { at: number; text: string }[];
+  /** fb027: §4.2 Necromancer Death Pact — this tower is under the pact right now. */
+  pactActive: boolean;
+  /** fb027: §4.2 Bloodlord Blood Tithe — this tower paid its HP and carries the permanent bonus. */
+  tithed: boolean;
+  /**
+   * fb027: whether `upgradeTower`/`sellTower` (towers.ts) would actually do
+   * anything right now — same phase/build-range/petrified gate they enforce
+   * themselves. `upgrade`/`sellValue` above are priced off the tower's own
+   * state and say nothing about whether the Warden is close enough or the
+   * phase allows it at all; a button/hotkey that only checked affordability
+   * would show live and green from clear across the map and silently no-op
+   * (code-reviewer finding, fb027).
+   */
+  canAct: boolean;
 }
 
 /**
@@ -222,6 +247,21 @@ export function towerInfo(w: World, def: TowerDef, existing?: Structure): TowerI
   const a = def.attack;
   const stats: StatLine[] = [];
 
+  // fb027: HP/def for every placed tower, not only the ones that block a path
+  // — m20c gave eight of the ten towers a non-zero defense band, and §5.5's
+  // Core panel shows its own HP the same way, so a tower panel with none read
+  // as a hole. `towerDefenseBonus` (Paladin's flat passive) is included so
+  // this cannot under-quote what `structureArmor`/`damageEnemy`'s own combat
+  // math actually reduces incoming damage by — the pre-p27 "Blocks path" line
+  // omitted it (harmless only because no test built one with the passive up).
+  const defenseValue = def.defense * upgradeStatMul(w, def, tier) + w.derived.towerDefenseBonus;
+  if (existing) {
+    stats.push({ label: 'HP', value: `${Math.ceil(existing.hp)} / ${Math.round(existing.maxHp)}` });
+  }
+  if (defenseValue !== 0) {
+    stats.push({ label: 'Defense', value: fmt(defenseValue) });
+  }
+
   if (a) {
     const interval = shotInterval(a, speedMul);
     const range = rangeOf(w, def, tier);
@@ -336,14 +376,40 @@ export function towerInfo(w: World, def: TowerDef, existing?: Structure): TowerI
       )}%`,
     });
   }
-  if (def.blocks) {
-    const hp = Math.round(def.hp * upgradeStatMul(w, def, tier));
-    // SPEC-V3 §4 made HP and Defense upgradeable, so the wall line has to quote
-    // the structure standing there rather than the def's level-1 sheet.
-    const armour = def.defense * upgradeStatMul(w, def, tier);
-    const armourText = armour !== 0 ? `, ${fmt(armour)} defense` : '';
-    stats.push({ label: 'Blocks path', value: `yes — ${hp} HP${armourText}` });
+  // fb027 moved the HP/Defense numbers themselves onto their own generic
+  // lines above (shown for every tower, not just a wall). Once a wall is
+  // actually standing, its own HP line already says so; the fact is only
+  // worth a line of its own on the *unbuilt* preview, where fb027's new HP
+  // line has nothing to attach to yet (b036: `.sw-side` has no scroll of its
+  // own, so a line this reads-obvious once placed is a line worth dropping).
+  if (def.blocks && !existing) {
+    stats.push({ label: 'Blocks path', value: 'yes' });
   }
+
+  // fb027: milestones already bought, oldest first — the panel already shows
+  // the *next* one (the "Upgrade N" line below), but said nothing about which
+  // of a lower-tier tower's specials are already live.
+  //
+  // `sp.at < tier`, not `<=`: `attackProfile` (upgrades.ts) only activates a
+  // milestone once the tower has upgraded *past* the step it sits at (`steps
+  // = tier - 1; if (sp.at > steps) continue`, i.e. live once `tier > sp.at`),
+  // the same convention the "Upgrade N" preview line above already encodes
+  // (`specials.find(sp => sp.at === tier)` — still-to-buy at the tower's
+  // current tier). A `<=` here listed a milestone as owned in the same
+  // breath the stats above still called it purchasable (code-reviewer
+  // finding, fb027) — verified against a tesla_coil at tier 3 (its `at: 3`
+  // Electric Chain milestone): `attackProfile(def, 3).electricChain` is
+  // `false`, only flipping to `true` at tier 4.
+  const milestonesOwned = def.upgrades.specials
+    .filter((sp) => sp.at < tier)
+    .sort((x, y) => x.at - y.at)
+    .map((sp) => ({ at: sp.at, text: sp.note ?? sp.key }));
+
+  // fb027: the same phase/range/petrified gate `upgradeTower`/`sellTower`
+  // enforce themselves — a button/hotkey that only checked affordability
+  // would read live and green from clear across the map (code-reviewer
+  // finding, fb027).
+  const canAct = existing !== undefined && !existing.petrified && canBuildNow(w) && inBuildRange(w, existing.tx, existing.ty);
 
   return {
     key: def.key,
@@ -361,6 +427,14 @@ export function towerInfo(w: World, def: TowerDef, existing?: Structure): TowerI
     upgrade: existing && hasNext && !existing.petrified ? { toTier: tier + 1, cost: upgradeCost(w, def) } : null,
     sellValue: existing && !existing.petrified ? sellValue(w, existing) : null,
     terrainText: describeTerrain(def),
+    tx: existing?.tx ?? null,
+    ty: existing?.ty ?? null,
+    hp: existing ? { current: existing.hp, max: existing.maxHp } : null,
+    defense: defenseValue,
+    milestonesOwned,
+    pactActive: existing?.pactActive ?? false,
+    tithed: existing?.tithed ?? false,
+    canAct,
   };
 }
 

@@ -155,7 +155,24 @@ export function coreDetailMarkup(def: CoreDef): string {
  * it were an active bonus — the same zero-is-unobservable convention
  * `Stats.add` already uses, generalised to a non-zero identity value.
  */
-export function coreLiveMarkup(content: Content, coreKey: string, coreStep: number, state: CoreState, coreHp: number, coreMaxHp: number): string {
+export function coreLiveMarkup(
+  content: Content,
+  coreKey: string,
+  coreStep: number,
+  state: CoreState,
+  coreHp: number,
+  coreMaxHp: number,
+  /** fb027 (§5.5): the account's current gold, so the panel's own Upgrade button can price and gray itself — no Sell, per the item's own spec. */
+  gold: number,
+  /**
+   * fb027 (code-reviewer finding): the same phase/build-range gate
+   * `upgradeCore` (cores.ts) enforces itself — `gold` alone isn't enough, or
+   * the button reads live and green with the Warden clear across the map
+   * and silently no-ops when pressed. Defaults `true` for
+   * `coreLiveMarkupFromContent`'s existing (no-World) callers.
+   */
+  canAct = true,
+): string {
   const def = content.coreByKey.get(coreKey);
   if (!def) return '';
   const baseline = emptyCoreState();
@@ -168,10 +185,17 @@ export function coreLiveMarkup(content: Content, coreKey: string, coreStep: numb
   const stepCount = def.upgrade.count;
   const next = coreStep < stepCount ? def.upgrade.steps?.[coreStep] : undefined;
   const nextHtml = next
-    ? `<div class="sw-effectblock">
-        <b>Next step (${coreStep + 1} of ${stepCount}, ${def.upgrade.stepCost} gold)</b>
+    ? (() => {
+        const afford = gold >= def.upgrade.stepCost;
+        const enabled = afford && canAct;
+        return `<div class="sw-effectblock">
+        <b>Next step (${coreStep + 1} of ${stepCount})</b>
         ${phaseListsHtml(rowsFor(next, {}))}
-      </div>`
+        <button class="sw-actbtn" data-act="upgrade-core" ${enabled ? '' : 'disabled'}><span>Upgrade</span><b class="${
+          afford ? 'gold' : 'poor'
+        }">${def.upgrade.stepCost}g</b></button>
+      </div>`;
+      })()
     : `<p class="sw-note dim">Fully upgraded (${stepCount}/${stepCount}).</p>`;
   return `<h3>${def.name} <small>step ${coreStep}/${stepCount}</small></h3>
     <div class="sw-effectblock">
@@ -186,6 +210,13 @@ export function coreLiveMarkup(content: Content, coreKey: string, coreStep: numb
 }
 
 /** Recomputes what `coreLiveMarkup` needs from just (content, key, step) — used where no live `World.core` is at hand (tests, or a future non-run preview). */
-export function coreLiveMarkupFromContent(content: Content, coreKey: string, coreStep: number, coreHp: number, coreMaxHp: number): string {
-  return coreLiveMarkup(content, coreKey, coreStep, computeCoreState(content, coreKey, coreStep), coreHp, coreMaxHp);
+export function coreLiveMarkupFromContent(
+  content: Content,
+  coreKey: string,
+  coreStep: number,
+  coreHp: number,
+  coreMaxHp: number,
+  gold: number,
+): string {
+  return coreLiveMarkup(content, coreKey, coreStep, computeCoreState(content, coreKey, coreStep), coreHp, coreMaxHp, gold);
 }

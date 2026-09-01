@@ -124,7 +124,7 @@ describe('fb026 bottom bar — DOM', () => {
       onCycleSpeed: () => {},
       onDev: () => {},
       onQuitToHub: () => {},
-      onHoverSkill: () => {},
+      onHoverSkill: () => {}, onUpgradeStructure: () => {}, onSellStructure: () => {}, onUpgradeCore: () => {},
     });
     return { root, hud };
   }

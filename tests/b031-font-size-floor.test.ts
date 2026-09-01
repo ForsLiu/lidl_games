@@ -50,7 +50,7 @@ function makeHud(root: HTMLElement): Hud {
     onCycleSpeed: () => {},
     onDev: () => {},
     onQuitToHub: () => {},
-    onHoverSkill: () => {},
+    onHoverSkill: () => {}, onUpgradeStructure: () => {}, onSellStructure: () => {}, onUpgradeCore: () => {},
   });
 }
 
@@ -80,7 +80,7 @@ describe('b031: HUD text stays at or above the 12px accessibility floor', () => 
     for (const sub of subs) expect(fontPx(sub)).toBeGreaterThanOrEqual(12);
   });
 
-  it('the tower-info panel\'s tier line and upgrade hint (seen on nearly every tower click) are >= 12px', () => {
+  it('the tower-info panel\'s tier line and Upgrade button (seen on nearly every tower click) are >= 12px', () => {
     mount();
     const w = new World(cfg());
     w.gold = 99999;
@@ -105,9 +105,11 @@ describe('b031: HUD text stays at or above the 12px accessibility floor', () => 
     expect(tierSmall).not.toBeNull();
     expect(fontPx(tierSmall)).toBeGreaterThanOrEqual(12);
 
-    const hint = container.querySelector('.sw-hint') as HTMLElement;
-    expect(hint).not.toBeNull();
-    expect(fontPx(hint)).toBeGreaterThanOrEqual(12);
+    // fb027: the old text-only "Hold U and click to upgrade" hint became a
+    // real, self-labeled `data-act="upgrade"` button — same readability floor.
+    const upgradeBtn = container.querySelector('[data-act="upgrade"]') as HTMLElement;
+    expect(upgradeBtn).not.toBeNull();
+    expect(fontPx(upgradeBtn)).toBeGreaterThanOrEqual(12);
   });
 
   it('a .sw-panel h2\'s <small> count badge (Constellation "120/120 allocated", Stash "3/20") is >= 12px', () => {

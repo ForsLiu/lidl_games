@@ -12,7 +12,7 @@ import './style.css';
 import { Run } from '../sim/run';
 import type { Command, MetaState, RunConfig, TickInput } from '../sim/types';
 import { bindCanvasInput, clearKeysForPause, gatherInput, makeKeyDownHandler } from './input';
-import { makeSelectHandler, sweepSelection } from './selection';
+import { makeSelectHandler, selectedStructure, sweepSelection } from './selection';
 import { Renderer, type ViewState } from '../render/canvas';
 import { Hud } from './hud';
 import { Hub } from './hub';
@@ -181,6 +181,9 @@ export class Game {
       onDev: (op, amount, enemyKey) => this.pending.push({ k: 'dev', op, amount, enemyKey }),
       onQuitToHub: () => this.showHub(),
       onHoverSkill: (which) => (this.view.hoveredSkill = which),
+      onUpgradeStructure: (tx, ty) => this.pending.push({ k: 'upgrade', tx, ty }),
+      onSellStructure: (tx, ty) => this.pending.push({ k: 'sell', tx, ty }),
+      onUpgradeCore: () => this.pending.push({ k: 'upgrade_core' }),
     });
     this.renderer = new Renderer(this.hud.canvas);
     if (!this.inputBound) {
@@ -268,6 +271,8 @@ export class Game {
       selectTowerByIndex: (i) => {
         if (this.run) this.hud.selectByIndex(this.run.world, i);
       },
+      upgradeSelection: () => this.hotkeyUpgradeSelection(),
+      sellSelection: () => this.hotkeySellSelection(),
     });
     window.addEventListener('keydown', (e) => {
       if (!this.run) return;
@@ -276,6 +281,28 @@ export class Game {
     });
     window.addEventListener('keyup', (e) => this.keys.delete(e.key.toLowerCase()));
     window.addEventListener('blur', () => this.keys.clear());
+  }
+
+  /** fb027: `U` upgrades whatever the panel is currently showing (tower or Core) — a no-op with nothing selected. */
+  private hotkeyUpgradeSelection(): void {
+    const w = this.run?.world;
+    const sel = this.view.selection;
+    if (!w || !sel) return;
+    if (sel.kind === 'tower') {
+      const s = selectedStructure(w, sel);
+      if (s) this.pending.push({ k: 'upgrade', tx: s.tx, ty: s.ty });
+    } else if (sel.kind === 'core') {
+      this.pending.push({ k: 'upgrade_core' });
+    }
+  }
+
+  /** fb027: `X` sells the selected tower. The Core has no sell command (§5.5). */
+  private hotkeySellSelection(): void {
+    const w = this.run?.world;
+    const sel = this.view.selection;
+    if (!w || !sel || sel.kind !== 'tower') return;
+    const s = selectedStructure(w, sel);
+    if (s) this.pending.push({ k: 'sell', tx: s.tx, ty: s.ty });
   }
 
   private bindCanvasInput(): void {

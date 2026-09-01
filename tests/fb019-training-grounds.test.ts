@@ -109,7 +109,7 @@ describe('fb019 Training Grounds: the HUD spawn panel', () => {
       onCycleSpeed: () => {},
       onDev: (op, amount, enemyKey) => log.push({ op, amount, enemyKey }),
       onQuitToHub: () => {},
-      onHoverSkill: () => {},
+      onHoverSkill: () => {}, onUpgradeStructure: () => {}, onSellStructure: () => {}, onUpgradeCore: () => {},
     });
     const world = new World({ ...cfg(), practice: true });
     hud.showPracticeTools(true, world);
@@ -147,7 +147,7 @@ describe('fb019 Training Grounds: the HUD spawn panel', () => {
       onCycleSpeed: () => {},
       onDev: () => {},
       onQuitToHub: () => {},
-      onHoverSkill: () => {},
+      onHoverSkill: () => {}, onUpgradeStructure: () => {}, onSellStructure: () => {}, onUpgradeCore: () => {},
     });
     hud.showPracticeTools(true);
     const panel = root.querySelector('#sw-practice') as HTMLElement;
@@ -177,7 +177,7 @@ describe('fb019 Training Grounds: leaving back to the Hub', () => {
       onCycleSpeed: () => {},
       onDev: () => {},
       onQuitToHub: () => quit++,
-      onHoverSkill: () => {},
+      onHoverSkill: () => {}, onUpgradeStructure: () => {}, onSellStructure: () => {}, onUpgradeCore: () => {},
     });
     const world = new World({ ...cfg(), practice: true });
     hud.buildTowerBar(world);

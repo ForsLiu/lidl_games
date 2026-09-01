@@ -116,6 +116,10 @@ export interface KeyBinding {
   onAnyKey?: () => void;
   /** Current mouse-aim point in tile coords, for a `dash_line`-kind Active2 (p6b). */
   aim?: () => { x: number; y: number };
+  /** fb027: `U` — upgrades whatever tower/Core is currently selected, in place of a build-menu click. */
+  upgradeSelection?: () => void;
+  /** fb027: `X` — sells whatever tower is currently selected. */
+  sellSelection?: () => void;
 }
 
 /** Returns the keydown handler, so callers can attach and detach it. */
@@ -147,6 +151,11 @@ export function makeKeyDownHandler(b: KeyBinding): (e: KeyboardEvent) => void {
     if (k === 'c') b.toggleCharacterPanel?.();
     if (k === 'p') b.toggleDpsPanel?.();
     if (k === '0') b.clearSelection?.();
+    // fb027: distinct from `bindCanvasInput`'s held-`u`-plus-click build-menu
+    // upgrade below — this fires once per press, against whatever is selected,
+    // with no build-menu tower needed.
+    if (k === 'u') b.upgradeSelection?.();
+    if (k === 'x') b.sellSelection?.();
 
     if (k >= '1' && k <= '9') {
       if (b.isChoosing?.() && k <= '3') b.pickOffer?.(Number(k) - 1);

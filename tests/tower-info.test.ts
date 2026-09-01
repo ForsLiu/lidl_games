@@ -113,18 +113,22 @@ describe('tower info model', () => {
   // m20c gave eight of the ten towers a non-zero defense band, which turned on
   // a branch of the "Blocks path" line that had been dead since it was written
   // (every tower was defense 0 before). QA filed it as shipping untested.
+  // fb027 moved the number itself onto its own generic "Defense" line (shown
+  // for every tower, not only a wall) and "Blocks path" became a plain yes,
+  // so this test now reads that line — the defense-band substance it pins is
+  // unchanged.
   it('quotes the defense a banded tower actually has, and nothing for a `none` one', () => {
     const w = world();
     const bands = w.content.towers.defenseBands;
     const armour = (key: string, s?: Structure) =>
-      towerInfo(w, w.content.towerByKey.get(key)!, s).stats.find((x) => x.label === 'Blocks path')!.value;
+      towerInfo(w, w.content.towerByKey.get(key)!, s).stats.find((x) => x.label === 'Defense')?.value ?? '';
 
-    expect(armour('ballista'), 'a medium tower at level 1').toContain(`${bands.medium} defense`);
-    expect(armour('mortar'), 'a low tower at level 1').toContain(`${bands.low} defense`);
-    // The Palisade and the Sprout are `none`: no defense clause at all, rather
+    expect(armour('ballista'), 'a medium tower at level 1').toBe(`${bands.medium}`);
+    expect(armour('mortar'), 'a low tower at level 1').toBe(`${bands.low}`);
+    // The Palisade and the Sprout are `none`: no Defense line at all, rather
     // than a "0 defense" the player has to read past.
-    expect(armour('palisade')).not.toContain('defense');
-    expect(armour('harvest_sprout')).not.toContain('defense');
+    expect(armour('palisade')).toBe('');
+    expect(armour('harvest_sprout')).toBe('');
 
     // And it follows the track, like the HP beside it — the panel must quote
     // the structure standing there, not the def's level-1 sheet.
@@ -135,8 +139,24 @@ describe('tower info model', () => {
     w.gold = 9999;
     expect(upgradeTower(w, tx, ty)).toBe(true);
     const s = w.structureAt(tx, ty)!;
-    expect(armour('ballista', s)).toContain(`${Math.round(structureArmor(w, s) * 10) / 10} defense`);
+    expect(armour('ballista', s)).toBe(`${Math.round(structureArmor(w, s) * 10) / 10}`);
     expect(structureArmor(w, s)).toBeGreaterThan(def.defense);
+  });
+
+  // fb027: HP is shown for every placed tower, not just the ones that block a
+  // path, and follows the wound/tier the same way `structureArmor` does.
+  it('shows a placed tower\'s live HP, and none at all before it is built', () => {
+    const w = world();
+    const def = content.towerByKey.get('ballista')!;
+    expect(towerInfo(w, def).stats.find((x) => x.label === 'HP')).toBeUndefined();
+
+    const { tx, ty } = freeTileNear(w);
+    w.gold = 9999;
+    expect(buildTower(w, def.id, tx, ty).ok).toBe(true);
+    const s = w.structureAt(tx, ty)!;
+    s.hp = s.maxHp - 3;
+    const hp = towerInfo(w, def, s).stats.find((x) => x.label === 'HP')!;
+    expect(hp.value).toBe(`${Math.ceil(s.hp)} / ${Math.round(s.maxHp)}`);
   });
 
   // SPEC-V3 §4: an upgrade step buys HP, Attack and Defense — **not** range,
