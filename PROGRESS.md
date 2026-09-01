@@ -5,6 +5,40 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-01 session: owner feedback batch processed, BACKLOG fb024 closed**
+  — applied every verdict in `feedback/verdicts-q134-154.md` to QUESTIONS.md
+  (Q134-Q154, all resolved) and filed 10 new items from the OVERRIDEs/ORDERs
+  and the `feature-status-report` feedback file: **fb038** (a `npm run
+  status` tool, top priority per its own text), **fb039** (point balance
+  tooling's default Constellation allocation at `TREE_AUTO_MAX`, blocks
+  `p10r`), **fb040** (Constellation cdr/leech formatting), **fb041/fb043/
+  fb045/fb047** (spec contradictions and an owner-ordered `--tier` bug
+  check, filed as bugs ahead of the queue per working rule 3), **fb042/
+  fb044/fb046** (P10-band/normal priority). Both feedback files moved to
+  `feedback/processed/`. Commit `a19d1db`.
+  Then executed **fb024** (top of the priority queue, already in-flight
+  from a prior interrupted session as an uncommitted working-tree diff):
+  the DPS panel's own close button now docks it to a small reopenable edge
+  tab instead of vanishing, while every forced close (pause, run end,
+  Character panel, level-up offer) still fully closes it with no tab left
+  behind. The actual root cause behind the owner's "close button does
+  nothing" report was that the panel rebuilt its entire DOM, including the
+  close button, on every tick while open — a real mouse's mousedown/mouseup
+  landing in two different animation frames could hit a just-recreated
+  button and drop the click, a class of bug no synchronous jsdom `.click()`
+  test could catch. Fixed by splitting the markup into a once-built shell
+  (holds the Dock button) and a per-tick body. Verified the diff was
+  untouched (100/21/90 insertion counts) both before and after the review
+  passes below. `npx vitest run tests/hud-controls.test.ts`: 34/34 green.
+  `npm run test:fast`: only the same pre-existing Windows scratch-dir/hang
+  flakes already documented at `p10p` (`q15`/`q49`/`q52`), unrelated to
+  `hud.ts`/`dps-panel.ts`. code-reviewer **APPROVE** (no Critical/Major).
+  qa-playtester **PASS** with 9 adversarial scratch probes (rapid dock/
+  reopen spam, 60-tick data-refresh check, forced closes from every
+  overlay, a Sundering-flag flip while docked correctly *not* force-
+  closing since it isn't a forced-close trigger) — no bugs filed. Commit
+  `a274219`. Left for fb037 (future VS wielded side panel): reuse this
+  dock pattern.
 - **2026-09-01 session: BACKLOG p10p closed** — bot roster refresh: `kite`,
   `rush` and `walloff` had been flat at 0% T1 win rate across every seed
   since HANDOFF's last regeneration. Root-caused with a tick-by-tick probe

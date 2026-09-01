@@ -91,20 +91,12 @@ first of this batch this session; fb025 (`balance-enemies-10x-hp-slower-
 attacks`) is an explicit owner-scoped exception to the "no tuning before
 P10" freeze (QUESTIONS Q40), same precedent as fb020.
 
-- [ ] (fb024) [bug] top priority: DPS panel close button does nothing
-      perceptible to fix (docks instead of closing outright); same docking
-      behavior to extend to the future VS wielded side panel (fb037) —
-      acceptance: clicking the DPS panel's own close button collapses it to
-      a small reopenable tab at the stage edge instead of fully vanishing;
-      clicking the tab reopens the full panel; a forced close (pause, run
-      end, another overlay opening) still fully closes with no tab left
-      behind; a regression test covers both the dock/reopen behavior and the
-      actual defect underneath the report (the panel redrew its entire DOM,
-      including the close button, on every tick while open — a real mouse's
-      mousedown/mouseup straddling an animation frame could land on a
-      just-recreated button and drop the click, which no existing
-      synchronous-`.click()` jsdom test could catch) — refs: SPEC-FINAL §11,
-      owner feedback `bug-dps-panel-close`, fb007's original panel.
+- [x] (fb024) [bug] top priority: DPS panel close button does nothing
+      perceptible to fix (docks instead of closing outright) — commit
+      `a274219`, code-reviewer APPROVE (no Critical/Major), qa-playtester
+      PASS (9 adversarial scratch probes, no bugs filed) — **done, see Done
+      section.** Note for whoever picks up fb037: same docking pattern to
+      reuse for the future VS wielded side panel.
 - [ ] (fb025) [balance] top priority, scoped exception to the tuning freeze
       (QUESTIONS Q40, precedent fb020): enemy HP ×10 globally (per-enemy
       ratios kept); overall attacker speed ×0.7 (tunable) applied to towers,
@@ -2537,6 +2529,48 @@ logged in MIGRATION.md §8 rather than carried as dead items.
 
 ## Done
 
+- [x] (fb024) [bug] top priority: DPS panel close button did nothing
+      perceptible to fix (SPEC-FINAL §11, owner feedback
+      `bug-dps-panel-close`, fb007's original panel). Clicking the panel's
+      own close button now docks it to a small reopenable tab at the stage
+      edge (`#sw-dpsdock`) instead of vanishing outright; clicking the tab
+      reopens the full panel with live data; every forced-close path (pause,
+      run outcome change, the Character panel opening, a level-up offer
+      opening) still fully closes the panel and hides the tab, nothing left
+      behind. Root cause of the original report: `renderDpsPanel` rebuilt
+      the panel's entire `innerHTML` — including the close button — on
+      every tick while open (damage numbers change every tick), so a real
+      mouse's mousedown and mouseup landing in two different animation
+      frames could hit a just-recreated button and silently drop the click;
+      jsdom's synchronous `.click()` could never straddle a frame, which is
+      why no existing test caught it. Fixed by splitting the markup into a
+      shell (`dpsPanelShellMarkup`, built once per open, holds the Dock
+      button) and a body (`dpsPanelBodyMarkup`, the only part redrawn per
+      tick), keeping the Dock button's DOM element identity stable across
+      the 60Hz refresh. `tests/hud-controls.test.ts` gained 5 tests: dock/
+      reopen, a forced-close-hides-the-tab-too case, pause and level-up-modal
+      forced closes specifically checking the docked (not just fully-open)
+      flag, the Character-panel-open forced close, and a test that
+      simulates 5 ticks of `hud.update()` while open and asserts the Dock
+      button's element reference survives — reverting just the shell/body
+      split (code-reviewer's verification step) makes this last test fail
+      exactly as expected, confirming it isolates the real defect rather
+      than a rewritten symptom. code-reviewer **APPROVE** (no Critical/
+      Major; one Nit on a JSDoc rationale, not blocking). qa-playtester
+      **PASS**: reran the 34-test file green, then 9 adversarial scratch
+      probes (rapid dock/reopen spam via both the panel's own button and the
+      bottom-bar DPS control, 60 successive `update()` calls with changing
+      damage data, dock-then-immediately-open-Character in one synchronous
+      chain, pause-while-docked then resume, a do-nothing 30-update run, an
+      outcome flip while docked, a Sundering-flag flip while docked which
+      correctly does *not* force-close since it isn't a forced-close
+      trigger) — no bugs filed. `npm run test:fast`: only the same 4
+      pre-existing Windows scratch-dir/hang flakes already documented at
+      `p10p` (`q15`/`q49`/`q52`), none touching `hud.ts`/`dps-panel.ts`/
+      `character-panel.ts`. Files changed: `src/ui/hud.ts`,
+      `src/ui/style.css`, `tests/hud-controls.test.ts`. Commit `a274219`.
+      Left for whoever picks up fb037 (the future VS wielded side panel):
+      reuse this same dock pattern rather than inventing a second one.
 - [x] (p10p) [chore] Bot roster refresh: `kite`, `rush` and `walloff` were
       flat at 0% T1 across every seed. Root cause: all three built
       single-target-only towers (`kite`/`rush`: `arrow_spire` alone;
