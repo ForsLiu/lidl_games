@@ -235,11 +235,16 @@ export class Hud {
    * not from click count, the same reasoning `syncPracticeToggles` uses: the
    * flag can change via a `set_autopick` Command from any source (this
    * button, a bot, a replay), and the button must agree with the World.
+   * Public (and takes the resolved boolean, not `World`) so `main.ts` can
+   * call it straight from the click handler: `hud.update` — the only other
+   * caller — never runs while paused (`Game.frame` returns early), so
+   * relying on it alone left the button's `aria-pressed`/`.on` state frozen
+   * across paused clicks even though the queued Command and `this.meta`
+   * were already alternating correctly (b065).
    */
-  private syncAutoPickToggle(w: World): void {
+  syncAutoPickToggle(on: boolean): void {
     const el = this.root.querySelector('#sw-autopick');
     if (!el) return;
-    const on = w.cfg.autoPickLevelUps === true;
     el.setAttribute('aria-pressed', String(on));
     el.classList.toggle('on', on);
   }
@@ -508,7 +513,7 @@ export class Hud {
     this.bar.classList.toggle('hidden', w.huntsWarden);
     this.progressEl.innerHTML = progressMarkup(runProgress(w));
     this.syncPracticeToggles(w);
-    this.syncAutoPickToggle(w);
+    this.syncAutoPickToggle(w.cfg.autoPickLevelUps === true);
     if (this.charPanelOpen && w.outcome !== 'running') this.closeCharacterPanel();
     else if (this.charPanelOpen) this.renderCharacterPanel(w);
     this.syncCharacterPanelToggle();

@@ -2055,25 +2055,29 @@ because the lane worktree retires at this merge.
 - [x] (b030) [bug] `Game.onToggleAutoPick` (`src/ui/main.ts`) read stale
       paused sim state for the `set_autopick` Command's `on` value —
       **done, see Done section.**
-- [ ] (b065) [bug] the HUD sidebar `#sw-autopick` button's own `aria-pressed`/
-      `.on` visual state freezes at its pre-pause value across paused clicks —
-      the semantic value (`pending` Commands, `this.meta.autoPickLevelUps`,
-      what actually applies on resume) is correct and alternates fine post-
-      b030, but the button's on-screen display doesn't, because
-      `Hud.syncAutoPickToggle` only runs inside `hud.update(w, ...)`, which
-      `Game.frame` skips entirely while `this.paused` (`src/ui/main.ts:296-
-      301`). Repro: pause a run (Esc), click `#sw-autopick` twice — semantic
-      state alternates, `aria-pressed` does not move off its frozen value
-      until the sim resumes and the next `hud.update` call catches it up.
-      Filed by qa-playtester verifying b030 (2026-08-31), visual-only, not
-      in b030's scope. Acceptance: a test drives the real Hud DOM, pauses,
-      clicks `#sw-autopick` twice, and asserts `aria-pressed` (or whichever
-      attribute reflects the toggle) tracks each click immediately rather
-      than only catching up on resume — likely fix calls the sync/update step
-      directly from the click handler (or `setPaused`) instead of relying on
-      the next ticked `hud.update` — refs: b030, `src/ui/main.ts`
-      `onToggleAutoPick`/`frame`, `src/ui/hud.ts` `syncAutoPickToggle`,
-      qa-playtester finding on b030 (2026-08-31).
+- [ ] (b068) [bug] the pause-menu Options screen's `#sw-opt-autopick`
+      checkbox (`Hud.showPause`, `src/ui/hud.ts`) renders its `checked` state
+      from `w.cfg.autoPickLevelUps` directly — the same staleness class b030
+      fixed for `onToggleAutoPick`'s read and b065 fixed for the sidebar
+      `#sw-autopick` button's visual sync, except this third call site was
+      never touched by either fix. `w.cfg.autoPickLevelUps` only updates when
+      the queued `set_autopick` Command is applied inside `run.step`, which
+      never runs while paused, so re-opening Options without resuming in
+      between shows a stale checkbox. Repro (qa-playtester, verifying b065,
+      2026-09-01, reproduced): start a run, pause (Esc), click `#sw-autopick`
+      once (sidebar flips correctly per b065), open the pause card's Options
+      submenu — `#sw-opt-autopick`'s `checked` shows the pre-toggle value,
+      visibly disagreeing with the sidebar button for the same underlying
+      setting within the same paused session. Acceptance: `showPause`'s
+      `const on = w.cfg.autoPickLevelUps === true;` reads `this.meta.
+      autoPickLevelUps` instead (the same synchronously-updated source
+      `onToggleAutoPick` already writes and `syncAutoPickToggle` now
+      consumes), or `onToggleAutoPick` re-renders the open Options card
+      directly when `showingOptions` is true; a test drives the real Hud DOM,
+      pauses, clicks `#sw-autopick`, opens Options, and asserts
+      `#sw-opt-autopick`'s `checked` matches the sidebar button's
+      `aria-pressed` — refs: b030, b065, `src/ui/hud.ts` `showPause`,
+      qa-playtester finding on b065 (2026-09-01).
 - [ ] (b039) [bug] p9a's content-hash mismatch check only fires when
       `RunConfig.contentHash` is already set (`World`'s constructor,
       `src/sim/world.ts`) — a `RecordedRun` whose config never actually passed
@@ -2255,6 +2259,35 @@ logged in MIGRATION.md §8 rather than carried as dead items.
 
 ## Done
 
+- [x] (b065) [bug] the HUD sidebar `#sw-autopick` button's own `aria-pressed`/
+      `.on` visual state froze at its pre-pause value across paused clicks —
+      **done.** `Hud.syncAutoPickToggle` only ran inside `hud.update(w, ...)`,
+      which `Game.frame` skips entirely while `this.paused`. Fixed by making
+      `syncAutoPickToggle` public and taking the resolved `on: boolean`
+      directly (`src/ui/hud.ts`, the one existing `hud.update` call site now
+      passes `w.cfg.autoPickLevelUps === true` explicitly), and calling it
+      straight from `Game.onToggleAutoPick` (`src/ui/main.ts`) right after
+      computing `on` and pushing the `set_autopick` Command, so the button
+      updates immediately regardless of pause state.
+      `tests/b065-autopick-sidebar-paused.test.ts` drives the real `Game` DOM
+      (mount, start, Escape to pause, click `#sw-autopick` twice) and asserts
+      `aria-pressed`/`.on` flips on each click instead of only catching up on
+      resume. code-reviewer: APPROVE, no Critical/Major (one Minor: the
+      pause-menu Options checkbox `#sw-opt-autopick` has the same staleness
+      class, out of this item's scope). qa-playtester: PASS — acceptance
+      criterion holds, verified with a 7-rapid-click-while-paused variant
+      (odd/even click counts land on the correct final state), non-paused
+      path and bot/replay-driven `set_autopick` unaffected, `tests/b030-
+      autopick-pause-toggle.test.ts`/`hud-controls.test.ts`/`fb012-autopick-
+      options.test.ts` all still pass. It also concretely reproduced and
+      confirmed the Options-checkbox desync code-reviewer flagged (pause →
+      toggle sidebar button → open Options → checkbox shows the stale
+      pre-toggle value, now visibly disagreeing with the sidebar button since
+      this item fixed only the sidebar side) — filed as b068. `npm run
+      test:fast`: 8 files / 10 tests red, all pre-existing documented flakes
+      (q15 worker-probe hangs, q28/q49/q52 Windows EPERM scratch-dir races,
+      b032/b034/b035/b036 Playwright fold/port-contention) — none touch
+      `hud.ts`, `main.ts`, or autopick.
 - [x] (b066) [bug] `tests/q14-mutation-smoke.test.ts`'s nested-run timeout
       ceiling (`NESTED_VITEST_TIMEOUT_MS`, `tools/mutation-probe.ts`) was
       150_000ms while `tests/q9-phase-coverage.test.ts` now takes ~697s

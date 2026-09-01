@@ -158,6 +158,12 @@ export class Game {
         // (from any of the three doors onto this toggle) starts with it.
         this.meta = { ...this.meta, autoPickLevelUps: on };
         saveMeta(this.meta);
+        // b065: `hud.update` (the only other caller of `syncAutoPickToggle`)
+        // is skipped entirely by `frame` while paused, so the sidebar
+        // button's own aria-pressed/.on state would otherwise freeze at its
+        // pre-pause value across paused clicks even though `on` here is
+        // already alternating correctly.
+        this.hud.syncAutoPickToggle(on);
       },
       onEquipItem: (slot, item) => this.pending.push({ k: 'equip_item', slot, item }),
       onToggleCharacterPanel: () => this.hud.toggleCharacterPanel(this.run!.world),

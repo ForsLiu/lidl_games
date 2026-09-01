@@ -5,6 +5,38 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-01 session: BACKLOG b065 closed** — the HUD sidebar `#sw-autopick`
+  button's `aria-pressed`/`.on` visual state froze at its pre-pause value
+  across paused clicks (`Hud.syncAutoPickToggle` only ran inside
+  `hud.update(w, ...)`, which `Game.frame` skips entirely while paused).
+  Fixed by making `syncAutoPickToggle` public and taking the resolved
+  `on: boolean` directly instead of reading `w.cfg.autoPickLevelUps`
+  internally (`src/ui/hud.ts`), and calling it straight from `Game.
+  onToggleAutoPick` (`src/ui/main.ts`) right after computing `on`, so the
+  button updates immediately regardless of pause state.
+  `tests/b065-autopick-sidebar-paused.test.ts` (new) drives the real `Game`
+  DOM — mount, start, Escape to pause, click `#sw-autopick` twice — and
+  asserts the visual state flips on each click rather than only catching up
+  on resume. code-reviewer: APPROVE, no Critical/Major (one Minor, filed
+  below as b068). qa-playtester: PASS, plus an adversarial 7-rapid-click-
+  while-paused variant held (odd/even click counts land on the correct final
+  state), non-paused and bot/replay-driven `set_autopick` paths unaffected.
+  It also concretely reproduced the Minor code-reviewer flagged — the
+  pause-menu Options checkbox (`#sw-opt-autopick`, `Hud.showPause`) has the
+  same staleness class (reads `w.cfg.autoPickLevelUps` directly) and is now
+  visibly out of sync with the sidebar button's newly-fixed state within the
+  same paused session — filed as **b068**, out of b065's scope, not fixed
+  this session. `npm run test:fast`: 8 files / 10 tests red, all pre-existing
+  documented flakes (q15 worker-probe hangs, q28/q49/q52 Windows EPERM
+  scratch-dir races, b032/b034/b035/b036 Playwright fold/port-contention) —
+  none touch `hud.ts`, `main.ts`, or autopick. b027 and b029 were passed over
+  at the top of the queue before reaching b065, both with logged reasons (see
+  BACKLOG.md's b027 entry for its own prior-session reasoning, still valid;
+  b029's acceptance criterion — ten consecutive runs under full-suite
+  parallel load — cannot be honestly verified without starting a full
+  `npm test`-scale run inside an ordinary item, which CLAUDE.md's working
+  rule 2 forbids, and its root cause has never reproduced in isolation).
+
 - **2026-08-31 session: BACKLOG b066 closed — the code fix had already
   landed at commit `ba126fc` (prior session, end of session) but the
   BACKLOG checkbox and this file were never updated to match.**
