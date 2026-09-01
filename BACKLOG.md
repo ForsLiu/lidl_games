@@ -2033,36 +2033,10 @@ because the lane worktree retires at this merge.
       (CLAUDE.md working rule 2 forbids starting a full `npm test` inside an
       ordinary item, which this sub-clause's literal text would otherwise
       require) — see the Done entry for the evidence actually gathered.
-- [ ] (b066) [bug] `tests/q14-mutation-smoke.test.ts`'s nested-run timeout
-      ceiling (`NESTED_VITEST_TIMEOUT_MS = 150_000`, `tools/mutation-probe.ts`)
-      is now too short for `tests/q9-phase-coverage.test.ts`, which takes
-      ~697s standalone on this host (confirmed directly, 2026-08-31) — up from
-      whatever it measured when the ceiling was tuned. This makes q9's control
-      run and all 3 mutations targeting it (`run-results-phase-never-set`,
-      `progression-levelup-never-opens`, `policies-hybrid-rebound-to-idle`)
-      fail every time with a `NestedVitestTimeout`, not because anything is
-      broken but because the nested run can never finish inside the ceiling —
-      4 of q14's 45 sub-tests are permanently red until this is addressed.
-      Found verifying b028 (the timeout+kill mechanism itself works correctly
-      when this fires — confirmed no orphaned processes remain after — but the
-      ceiling being stale is a separate, real problem) — acceptance: either
-      raise `NESTED_VITEST_TIMEOUT_MS` to comfortably exceed q9's real runtime
-      (with the new number recorded, not guessed), or investigate why
-      `tests/q9-phase-coverage.test.ts` itself got this much slower (a
-      candidate list already exists: p10l's `buildPhaseSeconds` 20->15,
-      p10a/p10b's Burning/DoT-immunity rework, p10c/p10d's damage-share/
-      run-length repricing, per BACKLOG.md's b038 Done entry) and fix the
-      regression if one is found; q14's q9-targeted sub-tests pass again —
-      **passed over this session (2026-08-31), not executed**: b067 (a
-      cheaper, mechanically-scoped fix a few items down the same queue) was
-      picked up instead so one item could land end-to-end this session;
-      confirmed via background execution that a run past the tool's normal
-      foreground window does complete and notify rather than being killed,
-      so this item's own verification (raising the ceiling, then confirming
-      q9's 4 sub-tests go green) is not actually blocked by tooling the way
-      it first looked — just genuinely slower than b067, and one item per
-      session is the contract. Good candidate for the next iteration —
-      refs: b028, b038, `tools/mutation-probe.ts`.
+- [x] (b066) [bug] `tests/q14-mutation-smoke.test.ts`'s nested-run timeout
+      ceiling (`NESTED_VITEST_TIMEOUT_MS`, `tools/mutation-probe.ts`) was
+      150_000ms, too short for `tests/q9-phase-coverage.test.ts`'s ~697s
+      standalone runtime — **done, see Done section.**
 - [x] (b067) [bug] Two `tools/mutation-probe.ts` `MUTATIONS` entries' `find`
       anchors no longer match current source — **done, see Done section.**
 - [ ] (b029) [bug] `tests/q28-cli-error-handling.test.ts` intermittently fails
@@ -2281,6 +2255,34 @@ logged in MIGRATION.md §8 rather than carried as dead items.
 
 ## Done
 
+- [x] (b066) [bug] `tests/q14-mutation-smoke.test.ts`'s nested-run timeout
+      ceiling (`NESTED_VITEST_TIMEOUT_MS`, `tools/mutation-probe.ts`) was
+      150_000ms while `tests/q9-phase-coverage.test.ts` now takes ~697s
+      standalone, so q9's control run and all 3 mutations targeting it
+      (`run-results-phase-never-set`, `progression-levelup-never-opens`,
+      `policies-hybrid-rebound-to-idle`) always failed with a
+      `NestedVitestTimeout`. Code fix landed at `ba126fc` (prior session, end
+      of session, before this item's BACKLOG checkbox was updated to match):
+      raised to 900_000ms (~29% headroom over the measurement) and exported
+      so `tests/q14-mutation-smoke.test.ts` derives its own outer `it()`
+      timeout from the same constant instead of a separate hardcoded number.
+      This session verified the fix: the four q9-targeted sub-tests
+      (`-t "q9-phase-coverage|run-results-phase-never-set|progression-levelup-
+      never-opens|policies-hybrid-rebound-to-idle"`, backgrounded — each
+      spawns its own nested `vitest run` of ~350-530s) all pass (`4 passed |
+      41 skipped`, exit 0). First verification attempt hit a leftover
+      orphaned nested-vitest process from the prior session's own interrupted
+      verification run, still holding a lock on `bench/.tmp/q14-mutation-
+      scratch` — waited for it to exit naturally, removed the stale scratch
+      dir, then reran clean; not a new bug, the exact orphan class b028
+      already documents, just this time from a run that was never killed
+      because it was still legitimately inside its own (now-correct) ceiling
+      when the prior session ended. `npm run test:fast` afterward: 8 files /
+      10 tests red, all pre-existing documented flakes unrelated to this
+      change (`b032`/`b034`/`b035`/`b036` Playwright fold/port-contention,
+      `q15`/`q28`/`q49`/`q52` Windows EPERM scratch-dir races) — this item
+      only touches `tools/mutation-probe.ts` and `tests/q14-mutation-smoke.
+      test.ts`, and the latter is excluded from the fast tier entirely.
 - [x] (b067) [bug] Two `tools/mutation-probe.ts` `MUTATIONS` entries' `find`
       anchors no longer matched current source, so `applyEdits` threw
       "expected exactly one occurrence... found 0" instead of ever exercising

@@ -5,6 +5,37 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-31 session: BACKLOG b066 closed — the code fix had already
+  landed at commit `ba126fc` (prior session, end of session) but the
+  BACKLOG checkbox and this file were never updated to match.**
+  `NESTED_VITEST_TIMEOUT_MS` (`tools/mutation-probe.ts`) was raised from
+  150_000ms to 900_000ms (~29% headroom over `tests/q9-phase-coverage.
+  test.ts`'s measured ~697s standalone runtime) and exported so `tests/
+  q14-mutation-smoke.test.ts` derives its own outer `it()` timeout from the
+  same constant instead of a separate hardcoded number, so the two can't
+  drift apart again. This session verified the fix rather than trusting the
+  prior commit message: ran the four q9-targeted sub-tests in isolation
+  (`-t "q9-phase-coverage|run-results-phase-never-set|progression-levelup-
+  never-opens|policies-hybrid-rebound-to-idle"`, backgrounded since each
+  spawns its own nested `vitest run` taking 350-530s) — all four green (`4
+  passed | 41 skipped`, exit 0), confirming q9's control run and all 3
+  mutations targeting it no longer hit `NestedVitestTimeout`. First attempt
+  hit an EPERM removing `bench/.tmp/q14-mutation-scratch`, caused by a
+  leftover orphaned nested-vitest process from the prior session's own
+  interrupted verification attempt still holding a lock on it — not a new
+  bug, the same orphan class b028 already documents, just one that
+  `killProcessTree` never had a reason to fire on since the process was
+  still legitimately inside its own (now-correct, 900s) ceiling when the
+  prior session ended without cleanup. Waited for it to exit naturally
+  (~700s from its own spawn time), removed the stale scratch dir, reran
+  clean. `npm run test:fast` afterward: 8 files / 10 tests red, all
+  pre-existing documented flakes unrelated to this change
+  (`b032`/`b034`/`b035`/`b036` Playwright fold/port-contention,
+  `q15`/`q28`/`q49`/`q52` Windows EPERM scratch-dir races) — this item only
+  touches `tools/mutation-probe.ts` and `tests/q14-mutation-smoke.test.ts`,
+  and the latter is excluded from the fast tier entirely. No code changed
+  this session. BACKLOG.md b066 moved to Done.
+
 - **2026-08-31 session: BACKLOG b067 closed as bookkeeping-only — the code fix
   had already landed at commit `3291dbd` (end of the prior session) but the
   BACKLOG checkbox and this file were never updated to match.** Verified
