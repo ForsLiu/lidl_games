@@ -116,20 +116,22 @@ describe('G22: each Core shifts the run fingerprint by >=0.10 vs Stone Heart', (
   for (const seed of [1, 2]) {
     const baseline = runCoreScripted('stone_heart', seed);
     for (const key of NON_DEFAULT_CORES) {
-      // p10m (this session, incidental discovery while re-measuring G8/G14/
-      // G23 — not this item's scope, filed as its own top-of-queue item):
-      // `corpse` vs Stone Heart, seed 2 now measures fingerprint 0.080
-      // (damageL1 0.080, economy 0.030) — under the 0.10 floor, a regression
-      // from the "P5.5 done in full, G21/G22/G23 all green" state PROGRESS.md
-      // recorded at p-core-f. `data/waves.json`/`data/spawns.json` moved under
-      // it since (p10c/p10d/p10l's G1/G13 balance pass), most likely narrowing
-      // the two Cores' economy/damage-share gap; root cause not chased here,
-      // that is the filed item's job. `.skip`-ed with the honest number rather
-      // than left silently red (this file is excluded from `test:fast` so a
-      // regression here has no other tripwire) — see BACKLOG.md's new bug
-      // item.
-      const knownRegression = key === 'corpse' && seed === 2;
-      (knownRegression ? it.skip : it)(`${key} vs Stone Heart, seed ${seed}`, () => {
+      // b070 (fixed this session): p10m found `corpse` vs Stone Heart, seed 2
+      // measuring fingerprint 0.080 (damageL1 0.080, economy 0.030) — under
+      // the 0.10 floor. Root cause: `p10l`'s `data/waves.json`
+      // `buildPhaseSeconds` 20->15 (closing G1) shortened every TD wave's prep
+      // window across the board, pushing the `stone_heart` baseline run at
+      // this seed from a win into a `defeat_warden` loss — its late-game
+      // damage-share distribution then happened to converge with corpse's own
+      // execute-reshaped distribution instead of diverging from it. Rather
+      // than touch the G1-closing wave data (out of scope, would reopen G1),
+      // the fix widens Corpse's own step-1 upgrade (`data/cores.json`
+      // `storeRatio` 0.02 -> 0.03, `corpseStoreRatio` is otherwise untouched)
+      // so the execute mechanic reshapes enough damage share to clear the
+      // floor on both seeds again (seed 1: 0.272, seed 2: 0.266) — a
+      // Corpse-only /data row, so G1/G13 (measured off the default
+      // `stone_heart` core, untouched here) cannot regress from this change.
+      it(`${key} vs Stone Heart, seed ${seed}`, () => {
         const report = runCoreScripted(key, seed);
         const fp = fingerprint(report, baseline);
         expect(

@@ -84,9 +84,9 @@
       "upgrade": {
         "count": 3,
         "stepCost": 100,
-        "desc": "step 1: store ratio 2%; step 2: executions also explode (victim max HP, AoE r2); step 3: auto-fire every 5s spending the store non-lethally",
+        "desc": "step 1: store ratio 3%; step 2: executions also explode (victim max HP, AoE r2); step 3: auto-fire every 5s spending the store non-lethally",
         "steps": [
-          { "storeRatio": 0.02 },
+          { "storeRatio": 0.03 },
           { "executeExplode": 1 },
           { "autoFireInterval": 5 }
         ]

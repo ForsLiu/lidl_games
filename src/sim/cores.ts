@@ -70,7 +70,7 @@ export interface CoreState {
   poisonVolleyCap: number;
   /** Carnivorous Plant VS: each bullet's flat normal-damage component (also the poison DoT's triggering amount). */
   poisonBulletDamage: number;
-  /** Corpse TD: fraction of all map damage stored (0.01 base, 0.02 at step 1). 0 = no Corpse effect. */
+  /** Corpse TD: fraction of all map damage stored (0.01 base, 0.03 at step 1 — b070 bumped 0.02->0.03 to restore G22's fingerprint margin after p10l's buildPhaseSeconds cut narrowed it). 0 = no Corpse effect. */
   corpseStoreRatio: number;
   /** Corpse TD: seconds between execute checks (1, not upgraded). 0 = no Corpse effect. */
   corpseExecuteInterval: number;

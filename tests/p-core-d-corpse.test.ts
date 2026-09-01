@@ -2,7 +2,9 @@
  * p-core-d — SPEC-FINAL §5.5's Corpse, in full (gate G21). `p-core-b` gave
  * Stone Heart, Vampire Heart and Time's steps 1-2 real numbers; `p-core-c`
  * gave Carnivorous Plant real numbers. This is the first item to give Corpse
- * real gameplay: a TD-only damage store credited by 1% (2% at step 1) of
+ * real gameplay: a TD-only damage store credited by 1% (3% at step 1 — b070
+ * bumped the step from 2% to restore gate G22's fingerprint margin after
+ * `p10l`'s TD build-phase pacing cut narrowed it) of
  * *all* damage dealt to any enemy on the map — not just this Core's own
  * attacks, unlike every other Core effect in this file — spent every 1 s on
  * an instant-kill "execution" of the highest-HP enemy the store can afford.
@@ -54,7 +56,7 @@ describe('p-core-d — Corpse base effects and upgrade steps', () => {
 
   it('steps fold fresh each time (no double-counting): ratio overrides, explode/autofire are one-shot flips', () => {
     expect(computeCoreState(content, 'corpse', 0).corpseStoreRatio).toBeCloseTo(0.01, 9);
-    expect(computeCoreState(content, 'corpse', 1).corpseStoreRatio).toBeCloseTo(0.02, 9);
+    expect(computeCoreState(content, 'corpse', 1).corpseStoreRatio).toBeCloseTo(0.03, 9);
     expect(computeCoreState(content, 'corpse', 1).corpseExecuteExplode).toBe(false);
     expect(computeCoreState(content, 'corpse', 2).corpseExecuteExplode).toBe(true);
     expect(computeCoreState(content, 'corpse', 2).corpseAutoFireInterval).toBe(0);
@@ -67,7 +69,7 @@ describe('p-core-d — Corpse base effects and upgrade steps', () => {
     const w = corpseWorld();
     w.gold = 1e6;
     expect(upgradeCore(w)).toBe(true);
-    expect(w.core.corpseStoreRatio).toBeCloseTo(0.02, 9);
+    expect(w.core.corpseStoreRatio).toBeCloseTo(0.03, 9);
   });
 });
 
@@ -88,14 +90,14 @@ describe('p-core-d — TD store accrual', () => {
     expect(w.corpseStore).toBeCloseTo(10, 9); // 1% of the full 1000 dealt, not the 20 that landed
   });
 
-  it('step 1 raises the ratio to 2%, not an additive +1%', () => {
+  it('step 1 raises the ratio to 3%, not an additive +1% (which would give 2%)', () => {
     const w = corpseWorld();
     w.gold = 1e6;
     upgradeCore(w);
     const decoy = spawnEnemy(w, 'colossus', 5, 5)!;
     decoy.hp = 2000;
     damageEnemy(w, decoy, 1000, 'test_tower');
-    expect(w.corpseStore).toBeCloseTo(20, 9);
+    expect(w.corpseStore).toBeCloseTo(30, 9);
   });
 
   it('does not accrue during a VS wave', () => {
@@ -196,7 +198,7 @@ describe('p-core-d — step 2: execution explosion', () => {
   it('an execution deals the victim\'s max HP as ordinary AoE r2 splash to nearby enemies, on top of the store spend', () => {
     const w = corpseWorld();
     w.gold = 1e6;
-    upgradeCore(w); // step 1: ratio 2%
+    upgradeCore(w); // step 1: ratio 3%
     upgradeCore(w); // step 2: executions explode
     w.corpseStore = 10;
 
@@ -210,9 +212,9 @@ describe('p-core-d — step 2: execution explosion', () => {
     expect(victim.dead).toBe(true);
     expect(bystander.hp).toBeCloseTo(400 - 28, 9); // victim's maxHp (28, fb020: was 20), not its spent hp (10)
     // Not paid from the store, but it IS damage dealt to an enemy on the map,
-    // so it banks its own 2% too: 10 (start) - 10 (execute spend) + 10*0.02
-    // (execute's own restore) + 28*0.02 (the explosion's own restore, fb020: victim maxHp 20 -> 28).
-    expect(w.corpseStore).toBeCloseTo(10 - 10 + 10 * 0.02 + 28 * 0.02, 9);
+    // so it banks its own 3% too: 10 (start) - 10 (execute spend) + 10*0.03
+    // (execute's own restore) + 28*0.03 (the explosion's own restore, fb020: victim maxHp 20 -> 28).
+    expect(w.corpseStore).toBeCloseTo(10 - 10 + 10 * 0.03 + 28 * 0.03, 9);
   });
 
   it('does not explode without step 2 bought', () => {
@@ -257,10 +259,10 @@ describe('p-core-d — step 3: auto-fire', () => {
     tickCorpse(w, 1); // one tick: both the 1s execute check and the (also-due) 5s auto-fire check fire
     expect(e.dead).toBe(false);
     expect(e.hp).toBeCloseTo(300 - 50, 9);
-    // The dump itself is real map damage, so its own 2% flows straight back —
+    // The dump itself is real map damage, so its own 3% flows straight back —
     // "spending [the store]" empties it synchronously, this is the same
     // restore the execute branch's own worked example above shows.
-    expect(w.corpseStore).toBeCloseTo(50 * 0.02, 9);
+    expect(w.corpseStore).toBeCloseTo(50 * 0.03, 9);
   });
 
   it("Q114: a lethal auto-fire hit does not trigger step 2's explosion — only the 1s execute branch can", () => {
@@ -290,7 +292,7 @@ describe('p-core-d — step 3: auto-fire', () => {
 
     expect(victim.dead).toBe(true);
     expect(bystander.hp).toBe(19); // no explosion — this kill came from auto-fire, not execute
-    expect(w.corpseStore).toBeCloseTo(20 * 0.02, 9); // the dump's own restore, same rule as every other Corpse hit
+    expect(w.corpseStore).toBeCloseTo(20 * 0.03, 9); // the dump's own restore, same rule as every other Corpse hit
   });
 
   it('a same-tick execute-then-auto-fire double kill, reachable under real play with no timer desync, still never explodes the auto-fire victim', () => {
@@ -303,7 +305,7 @@ describe('p-core-d — step 3: auto-fire', () => {
     // kill's r2 splash — no artificial timer desync required.
     const w = corpseWorld();
     w.gold = 1e6;
-    upgradeCore(w); // step 1: ratio 2%
+    upgradeCore(w); // step 1: ratio 3%
     upgradeCore(w); // step 2: explode
     upgradeCore(w); // step 3: autofire 5s
     // Both timers are 0 (fresh Core), so this first tick is simultaneously
@@ -319,11 +321,11 @@ describe('p-core-d — step 3: auto-fire', () => {
 
     expect(expensive.dead).toBe(true); // killed by execute (spent 90 of the store)
     expect(cheap.dead).toBe(true); // killed by the same-tick auto-fire dump of the remaining store
-    // Execute leaves 100 - 90 + 90*0.02 = 11.8 in the store; auto-fire then
+    // Execute leaves 100 - 90 + 90*0.03 = 12.7 in the store; auto-fire then
     // dumps that whole remainder on `cheap` (well above its 5 hp), crediting
-    // back its own 2% of the dump.
-    const afterExecute = 100 - 90 + 90 * 0.02;
-    expect(w.corpseStore).toBeCloseTo(afterExecute * 0.02, 9);
+    // back its own 3% of the dump.
+    const afterExecute = 100 - 90 + 90 * 0.03;
+    expect(w.corpseStore).toBeCloseTo(afterExecute * 0.03, 9);
   });
 });
 
