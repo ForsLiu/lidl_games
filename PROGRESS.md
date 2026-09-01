@@ -29,7 +29,7 @@
   bugs filed. b027 (G8 diversity re-pin) remains open, passed over again
   this session for the same reason logged last time: its own assertions are
   `.skip`-ed pending the P10 12-class re-measurement, so the item as written
-  (re-pin an 11-class count) is currently unactionable. Commit pending.
+  (re-pin an 11-class count) is currently unactionable. Commit `8b92137`.
 
 - **2026-09-01 session: BACKLOG b042 closed** — pinned the "Time" Core's step-1
   `goldPerSecond` income (`src/sim/cores.ts`'s `updateCoreEffects`) as

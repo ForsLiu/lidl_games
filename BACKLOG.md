@@ -2165,7 +2165,8 @@ logged in MIGRATION.md §8 rather than carried as dead items.
 ## Done
 
 - [x] (b069) [bug] Retry / New Run silently reverted a mid-run auto-pick
-      toggle to the run's original starting value — `Game.lastCfg`
+      toggle to the run's original starting value — commit `8b92137`.
+      `Game.lastCfg`
       (`src/ui/main.ts`) was captured once at Hub-start time and replayed
       verbatim by `onRetry`/`onNewRun`, but `onToggleAutoPick` only updated
       `this.meta.autoPickLevelUps` and the live sim's `set_autopick`
