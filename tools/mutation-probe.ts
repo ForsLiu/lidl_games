@@ -87,8 +87,18 @@ const COPY_DIRS = ['src', 'tests', 'tools', 'data'];
 // instead of exercising the real assertion. Found by actually running the
 // expanded suite, not reasoned out in advance.
 const COPY_FILES = ['vitest.config.ts', 'tsconfig.json', 'BACKLOG-QUALITY.md', 'SPEC-FINAL.md'];
-/** Exec timeout for the nested vitest run, kept well under the outer `it()` timeout (see the test file) so a genuine hang reports as a timeout, not a false "caught". */
-const NESTED_VITEST_TIMEOUT_MS = 150_000;
+/**
+ * Exec timeout for the nested vitest run, kept well under the outer `it()`
+ * timeout (tests/q14-mutation-smoke.test.ts imports this constant and derives
+ * its own timeout from it, so the two can't drift out of sync the way they
+ * did before BACKLOG b066: `tests/q9-phase-coverage.test.ts` — the heaviest
+ * `testFile` any mutation targets — measured ~697s standalone on 2026-08-31,
+ * comfortably past the old 150s ceiling, which made its control run and all
+ * 3 mutations targeting it fail every time with a false `NestedVitestTimeout`
+ * rather than a real result. 900s leaves ~200s (~29%) of headroom over that
+ * measurement for host-load variance.
+ */
+export const NESTED_VITEST_TIMEOUT_MS = 900_000;
 
 export interface MutationEdit {
   readonly find: string;

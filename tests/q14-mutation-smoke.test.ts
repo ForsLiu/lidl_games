@@ -24,6 +24,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 
 import {
   MUTATIONS,
+  NESTED_VITEST_TIMEOUT_MS,
   cleanupAllScratch,
   gitDiffClean,
   hasNewUntrackedFiles,
@@ -36,6 +37,13 @@ import {
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const FIXTURE = path.join(ROOT, 'tools', 'mutation-probe-fixture.txt');
 const MUTATION_PROBE_SOURCE = path.join(ROOT, 'tools', 'mutation-probe.ts');
+// Derived from the harness's own nested-run ceiling (BACKLOG b066) rather
+// than a separate hardcoded number, so this outer `it()` timeout can't go
+// stale relative to `NESTED_VITEST_TIMEOUT_MS` again the way it did before:
+// the nested exec timeout alone isn't enough headroom, vitest's own outer
+// test timeout has to exceed it too or a slow-but-legitimate nested run gets
+// killed by the outer harness before `runVitest`'s own timer ever fires.
+const OUTER_IT_TIMEOUT_MS = NESTED_VITEST_TIMEOUT_MS + 30_000;
 
 describe('q14 — mutation smoke', () => {
   beforeAll(() => {
@@ -123,7 +131,7 @@ describe('q14 — mutation smoke', () => {
           `control run for ${testFile} stdout doesn't look like real vitest output:\n${result.stdout}`,
         ).toMatch(/passed/i);
       },
-      180_000,
+      OUTER_IT_TIMEOUT_MS,
     );
   });
 
@@ -141,7 +149,7 @@ describe('q14 — mutation smoke', () => {
           `the real ${m.file} must be untouched after probing "${m.name}" — mutation-probe.ts only ever edits a scratch copy`,
         ).toBe(true);
       },
-      180_000,
+      OUTER_IT_TIMEOUT_MS,
     );
   });
 
