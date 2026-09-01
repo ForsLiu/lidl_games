@@ -52,7 +52,7 @@
   sections still describe the old stale-tool caveat, now itself stale;
   regenerating it is p10n-shaped work for a future item. Files changed:
   `tools/gate-audit.ts`, `tools/mutation-probe.ts`, `tests/q10-gate-audit.test.ts`.
-  Commit pending in this session.
+  Commit `b66e5d3`.
 
 - **2026-09-01 session: BACKLOG p10q closed** — investigated `no-move`'s win
   rate at T3/T5, not just the T1 number HANDOFF §6 item 5 flagged as worth a

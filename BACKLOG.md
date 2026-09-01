@@ -2307,7 +2307,7 @@ logged in MIGRATION.md §8 rather than carried as dead items.
       five affected files. Noted, not actioned here: HANDOFF.md still
       describes G8/G15's old stale-tool caveat — regenerating it is real
       follow-up work now that the tool is fixed, not part of this item's
-      scope.
+      scope. Commit `b66e5d3`.
 
 - [x] (p10q) [balance] Investigated `no-move`'s win rate at T3/T5, not just
       T1 (HANDOFF §6 item 5) — see QUESTIONS.md Q154 and PROGRESS.md's p10q
