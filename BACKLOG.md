@@ -248,6 +248,116 @@ picked up independently once the top five are clear.
       SPEC-FINAL §6.2 (lineage panel) extension, owner feedback
       `feature-vs-wielded-side-panel`.
 
+### Owner verdict batch (2026-09-01, QUESTIONS Q134–Q154 + `feature-status-report`)
+
+Filed from applying `feedback/20260901-120444-verdicts-q134-154.md`'s verdicts
+to QUESTIONS.md and from `feedback/20260901-120444-feature-status-report.md`.
+Four items (fb041, fb043, fb045, fb047) are corrections — an OVERRIDE verdict
+means the shipped code now asserts something SPEC-FINAL/the owner's standing
+instruction contradicts, which working rule 3 puts ahead of the queue; each
+gets a failing regression test before its fix. fb038 is marked top priority by
+its own text. fb039 blocks `p10r`'s retune. fb040/fb042/fb044/fb046 are normal-
+or P10-band priority and block nothing below.
+
+- [ ] (fb038) [feat] top priority (per the feedback item's own text): a tool
+      `npm run status` that writes STATUS.md at the repo root with a gate
+      table (every G1-G20 pass/fail/skipped, measured number, re-enable
+      pointer), a balance snapshot (per-class and per-Core T1/T3 win rates
+      from the latest sweep, wielded-type damage shares, boon pick rates,
+      mean run length, timeout count), a content census vs SPEC-FINAL §13
+      (built/missing), a feedback ledger (every owner inbox file with its
+      item id and status: done/queued/superseded), and the still-pending
+      QUESTIONS entries — acceptance: `npm run status` produces the file from
+      live data (gate table sourced from `tools/gate-audit.ts`, sweep numbers
+      from a real `tools/sweep.ts` run, census from `tools/content-census.ts`);
+      the file is committed and current as of the latest gate measurements;
+      wired to run at every phase completion and every 20 iterations per the
+      feedback item's own instruction — refs: SPEC-FINAL §13/§14, owner
+      feedback `feature-status-report`.
+- [ ] (fb039) [balance] top priority, blocks `p10r`: QUESTIONS Q138 OVERRIDE —
+      point `tools/sim.ts`, `tools/sweep.ts` and `tools/handoff-metrics.ts`'s
+      defaults, and every gate measurement, at the same Constellation
+      allocation real Hub-started runs use (`TREE_AUTO_MAX` = full tree),
+      keeping an explicit `--tree none` / partial option for deliberate
+      scenarios — acceptance: the three tools default to a fully-allocated
+      tree; G8, G23, G14 and G1 are re-measured against the new default and
+      the deltas are recorded in PROGRESS.md before `p10r`'s retune continues
+      — refs: SPEC-FINAL §14 G1/G8/G14/G23, QUESTIONS Q138, fb014.
+- [ ] (fb040) [polish] normal priority: QUESTIONS Q142 ORDER — make the
+      Constellation screen (`tree-view.ts`'s `describeStat`) format `cdr`/
+      `leech` via `stats.ts`'s `STAT_KIND` (or `info-format.ts`'s
+      `modIsPct`) instead of its own separate `PERCENT_STATS` set, one
+      deliberate change so the Constellation summary/per-node card and the
+      in-run character panel agree — acceptance: a Constellation node
+      granting `cdr` or `leech` reads identically (both flat or both
+      percent) on the tree screen and the character panel; a regression test
+      covers both stats — refs: SPEC-FINAL §11, QUESTIONS Q142.
+- [ ] (fb041) [bug] top priority (SPEC-FINAL contradiction, rule 3 outranks
+      queue): QUESTIONS Q144(1) OVERRIDE — the owner's standing instruction
+      is no rank caps on VS stat boons and Type Mastery cards (skill cards
+      keep their listed caps); amend SPEC-FINAL §6.3 to say so and re-apply
+      fb011's uncapped-rank behavior to the §6.3 pool that replaced the
+      system fb011 originally targeted — acceptance: a failing regression
+      test first pins today's capped behavior as wrong, then a stat boon or
+      Type Mastery card can be taken 10+ times with its effect matching the
+      §2 stacking rule; the offer pool never exhausts on rank alone for
+      those two families; skill card caps are unaffected; SPEC-FINAL §6.3
+      text is updated — refs: SPEC-FINAL §6.3, QUESTIONS Q144, fb011.
+- [ ] (fb042) [balance] P10 content/balance pass: QUESTIONS Q146 ORDER — give
+      the 13 emptied Constellation small nodes (ex-Emberkeeper/Scavenger)
+      flat additive effects only (e.g. +5 starting gold each ⚖) and the
+      Tinkerer/Gilded Path notables flat additive effects (e.g. +25 starting
+      gold; one free tower upgrade step at run start ⚖), never
+      multiplicative — acceptance: all 15 nodes have live, additive-only
+      effects; balance-analyst re-checks G1/G6/G14 after and records the
+      deltas — refs: SPEC-FINAL §6.3/§14 G1/G6/G14, QUESTIONS Q146.
+- [ ] (fb043) [bug] top priority (SPEC-FINAL contradiction, rule 3 outranks
+      queue): QUESTIONS Q149 OVERRIDE — Vampire Heart's "Scrape By" unlock
+      ("finish a run" with Core ≤25% HP) means the run ends with the Core
+      still standing at ≤25% HP (`victory` or `defeat_warden`); a
+      `defeat_core` loss (Core at 0 HP) does not unlock it — acceptance: a
+      failing regression test first pins today's any-Core-death-unlocks
+      behavior as wrong, then only `victory`/`defeat_warden` outcomes with
+      Core HP in (0%, 25%] unlock Vampire Heart; `tests/p7h-core-quests.test.ts`
+      updated — refs: SPEC-FINAL §5.5, QUESTIONS Q149.
+- [ ] (fb044) [feat] normal priority, after the current owner batch:
+      QUESTIONS Q150 ORDER — per-field editors in the Tuner for the
+      collections the owner tunes most (towers, classes, cores, waves), on
+      top of the existing whole-document JSON-text editor — acceptance: each
+      of the four collections has typed per-field widgets for its
+      numeric/enum fields that round-trip through the same zod schema
+      validation as the JSON editor; the JSON editor remains available for
+      everything else — refs: SPEC-FINAL §11, QUESTIONS Q150, extends p9c.
+- [ ] (fb045) [bug] top priority (SPEC-FINAL contradiction, rule 3 outranks
+      queue): QUESTIONS Q151 OVERRIDE — the G18 20s idle auto-resolve on
+      `levelup` applies only to unattended runs (a `RunConfig` with a bot
+      policy, or a headless/sim run); a human-driven UI run never
+      auto-resolves a pending level-up unless auto-pick is on, and otherwise
+      waits indefinitely — acceptance: a failing regression test first pins
+      today's always-applies-after-20s behavior as wrong, then a real
+      (non-bot, non-headless) UI run with auto-pick off never auto-resolves
+      `levelup` no matter how long it idles, while a bot-driven or headless
+      run still resolves at 20s exactly as before — refs: SPEC-FINAL §14
+      G18, QUESTIONS Q151, p9e.
+- [ ] (fb046) [balance] P10 re-tune: QUESTIONS Q154 ORDER — add a "play
+      matters" band to BALANCE.md: a never-moving character's (`no-move`
+      bot) T1 win rate ≤60% ⚖, to be met by the P10 re-tune after the
+      owner's enemy-HP/attack-speed order (fb025) lands — acceptance:
+      BALANCE.md states the band; the P10 re-tune measures and records
+      `no-move`'s T1 win rate against it (met or not, the number is logged)
+      — refs: BALANCE.md, QUESTIONS Q154, fb025.
+- [ ] (fb047) [bug] top priority (owner-ordered bug check): verify
+      `tools/sweep.ts`'s `--tier` flag applies the tier scalars to every bot
+      policy path, not just the ones already measured — `kite`/`rush`/
+      `walloff`'s T3 win rates (p10p) measured suspiciously close to their
+      T1 numbers rather than clearly lower — acceptance: if `--tier` is
+      confirmed not reaching one or more of these policies' build/spend
+      logic, fix it with a regression test proving T3 measures harder than
+      T1 for all three; if `--tier` is confirmed already correct, record the
+      measurement and the mechanism that makes T3 legitimately close to T1
+      for these three bots specifically — refs: QUESTIONS additional ORDER
+      (2026-09-01 verdict batch), p10p.
+
 ### Feedback — owner-filed items (2026-08-27), processed from `feedback/`
 
 Filed from the owner's 2026-08-27 feedback batch (12 files, `verdicts-q1-121`
