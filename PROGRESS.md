@@ -5,6 +5,40 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-01 session: BACKLOG b041 closed** — `tests/p10e-perf-budget.test.ts`'s
+  G17 anti-vacuity check ("a mostly-idle build scores far lower than a real
+  played run") compared `no-move` capped to 5 sim minutes — "well inside Act
+  I" by its own old comment — against `hybrid`'s full run, so it passed on the
+  cheap Act I/full-run phase-mix gap alone, not the claimed no-move-vs-hybrid
+  policy difference (qa-playtester finding on p10e, 2026-08-30). Tried the
+  acceptance text's first option — uncapping `no-move` to the real `maxTicks`
+  and comparing full-run ratios directly — and found it rests on a false
+  premise: code-reviewer's first pass flagged the resulting `no-move < hybrid`
+  assertion as order-dependent (whichever policy's code paths the process
+  JIT-warmed first scored artificially cheaper, only ~3% margin in the
+  favorable order); re-measuring with matched warmup (a throwaway scratch
+  probe, not committed) confirmed `no-move`'s full-run `ratioPerMinute` lands
+  within ~96-102% of `hybrid`'s regardless of warmup order — Act II
+  movement/kiting alone is not a reliable cost differentiator once both
+  policies reach a real outcome, so that comparison would have traded one
+  vacuous pass for a flaky one. Took the acceptance text's second option
+  instead (its "or" permits either alone): replaced the check with a
+  same-policy control, `hybrid` capped to 5 sim minutes vs `hybrid` played to
+  a real outcome — no cross-policy JIT confound, since both sides run
+  identical code and only duration/phase-mix differs. `tools/perf-ratio.ts`
+  ends with zero diff (a `measureSimMinuteRatio` warmup-parameter experiment
+  tried while investigating the false premise was reverted once it confirmed
+  the no-move comparison itself was the wrong fix, not just under-warmed).
+  code-reviewer: APPROVE after two passes (REQUEST-CHANGES on the flagged
+  flakiness, then APPROVE on the same-policy redesign), no Critical/Major.
+  qa-playtester: PASS — ran the file 5x (all green, ~20-21s test time each),
+  mutation-tested the new assertion by flipping its direction (short=5.34M vs
+  real=12.41M, a genuine ~2.3x gap, confirming it isn't vacuous), restored the
+  file exactly and re-verified, and ran `npm run test:fast` (1804 passed / 6
+  failed / 18 skipped, all 6 the documented pre-existing Playwright-fold/
+  q15-worker-hang/q49-q52-EPERM flake classes, none touching this file).
+  Commit `d6036c0`.
+
 - **2026-09-01 session: BACKLOG b040 closed** — `tests/q7-data-fuzz.test.ts`'s
   "writes nothing to /data" case intermittently failed only under full-suite
   parallel load: it compares a `DISK_AT_START` sha256 snapshot of every

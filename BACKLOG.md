@@ -2059,28 +2059,9 @@ because the lane worktree retires at this merge.
 - [x] (b040) [bug] `tests/q7-data-fuzz.test.ts`'s "writes nothing to /data" case
       intermittently failed only under full-suite parallel load — **done, see
       Done section.**
-- [ ] (b041) [bug] `tests/p10e-perf-budget.test.ts`'s anti-vacuity check ("a
+- [x] (b041) [bug] `tests/p10e-perf-budget.test.ts`'s anti-vacuity check ("a
       mostly-idle build scores far lower than a real played run") doesn't test
-      what its own comment claims. The comment credits the gap to `no-move`
-      "never mov[ing] or kit[ing] in Act II, so it never grows into the full
-      board/horde `hybrid` reaches" — but the light run is capped at 5 sim
-      minutes, which by the same comment's own admission is "well inside Act
-      I," where `NoMovePolicy` is behaviorally identical to `hybrid` (both are
-      `BuilderPolicy` wrapping `HYBRID_BUILD`; `src/bots/policies.ts` only
-      zeroes movement once `w.phase === 'act2'`). Found by qa-playtester
-      verifying p10e (2026-08-30), reproduced twice: `hybrid` alone, capped to
-      5 sim minutes, already clears the <75%-of-full-run bar with no `no-move`
-      involved (5.69M/4.15M across two runs vs a 6.17M threshold) — the pass is
-      driven by "Act I ticks are cheaper than a full-run average that includes
-      Act II/the boss," not by the claimed light-build-vs-heavy-build
-      distinction, so a regression that stops the metric from pricing Act II
-      movement/kiting/wielded-attack cost correctly would not be caught here —
-      acceptance: the check demonstrably exercises the Act II cost difference
-      it claims to, e.g. by uncapping `no-move` to the same `maxTicks` as the
-      real runs and comparing full-run ratios, or by adding an explicit second
-      control (`hybrid` capped @5min vs `hybrid` full-run) that isolates the
-      phase-mix effect from the policy effect — refs: qa-playtester on p10e,
-      `tests/p10e-perf-budget.test.ts`.
+      what its own comment claims — **done, see Done section.**
 - [ ] (b042) [polish] The "Time" Core's step-1 `goldPerSecond` effect
       (`src/sim/cores.ts`'s `updateCoreEffects`, `data/cores.json`) ticks real
       wall-clock gold income every phase including `act1_build`, so it is
@@ -2229,6 +2210,39 @@ logged in MIGRATION.md §8 rather than carried as dead items.
 
 ## Done
 
+- [x] (b041) [bug] `tests/p10e-perf-budget.test.ts`'s anti-vacuity check compared
+      `no-move` (capped @5min, never leaving cheap Act I) against `hybrid`'s
+      full run, so it passed on the Act I/full-run phase-mix cost gap alone,
+      not on the claimed no-move-vs-hybrid policy difference (qa-playtester
+      finding on p10e, 2026-08-30). Investigated the acceptance text's first
+      option — uncapping `no-move` to the real `maxTicks` and comparing
+      full-run ratios directly — and found it rests on a false premise:
+      code-reviewer flagged the resulting `no-move < hybrid` assertion as
+      order-dependent (whichever policy's code paths the process JIT-warmed
+      first scored artificially cheaper, only ~3% margin in the favorable
+      order); re-measuring with matched warmup (a throwaway scratch probe,
+      not committed) confirmed `no-move`'s full-run `ratioPerMinute` lands
+      within ~96-102% of `hybrid`'s regardless of warmup order — Act II
+      movement/kiting alone is not a reliable cost differentiator once both
+      policies reach a real outcome, so that comparison would have traded one
+      vacuous pass for a flaky one. Took the acceptance text's second option
+      instead (its "or" permits either alone): replaced the check with a
+      same-policy control, `hybrid` capped to 5 sim minutes vs `hybrid` played
+      to a real outcome — no cross-policy JIT confound, since both sides run
+      identical code, only duration/phase-mix differs. code-reviewer: APPROVE
+      after two passes (first REQUEST-CHANGES on the flagged flakiness, second
+      APPROVE on the same-policy redesign), no Critical/Major. qa-playtester:
+      PASS — ran the file 5x (all green, ~20-21s test time each), mutation-
+      tested the new assertion by flipping its direction (short=5.34M vs
+      real=12.41M, a genuine ~2.3x gap, confirming it isn't vacuous), restored
+      the file exactly and re-verified, and ran `npm run test:fast` (1804
+      passed / 6 failed / 18 skipped, all 6 the documented pre-existing
+      Playwright-fold/q15-worker-hang/q49-q52-EPERM flake classes, none
+      touching this file). `tools/perf-ratio.ts` ends with zero diff — a
+      `measureSimMinuteRatio` warmup-parameter experiment was tried while
+      investigating the false premise and reverted once it confirmed the
+      no-move comparison itself was the wrong fix, not just under-warmed.
+      Commit `d6036c0`.
 - [x] (b040) [bug] `tests/q7-data-fuzz.test.ts`'s "writes nothing to /data" case
       intermittently failed only under full-suite parallel load: it compares a
       `DISK_AT_START` sha256 snapshot of every `/data/*.json` file, captured
