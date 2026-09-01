@@ -534,6 +534,85 @@ next in P8's own queue.
       dependency on: mean 35.29 min, 22/24 wins (92%), same win/loss split as
       the p10k baseline. **Gate G1 is green in full.**
 
+### Generated 2026-09-01 — G8/G14/G23 re-measurement and HANDOFF accuracy
+
+Filed per CLAUDE.md's BACKLOG generation rule: fewer than 3 actionable items
+remained (only b027, b044), so `npx tsx tools/handoff-metrics.ts` and
+`npx tsx tools/gate-audit.ts` were re-run and diffed against SPEC-FINAL §14.
+The fresh sweep (8 seeds, `cycles: 6`, this session, superseding HANDOFF.md's
+`cc4ee58` numbers) found the T1 bot-policy win-rate landscape has moved a
+great deal since HANDOFF was last regenerated at p10i — `~70` commits of P10
+bug fixes (the `b0xx` series, `p10j`-`p10l`) landed after that snapshot:
+`hybrid` T1 88%→75%, `no-move` T1 75%→**100%**, `maxbuild` T1 **0%→50%**,
+`greedy` T1 0%→38%, `greedless` T1 0%→25%, while `kite`/`rush`/`walloff`
+stayed flat at 0%. Every victorious-run median across the pool now sits close
+to G1's 30-36 min band. This is new evidence, not yet reconciled with the
+audit summary's "G8/G14/most-of-G23 still red" claim (itself dated to
+measurements taken *before* most of these fixes landed) — p10m below is the
+highest-value item in this batch because it turns that stale claim into a
+fresh number.
+
+- [ ] (p10m) [balance] Re-measure gates **G8** (class win-rate/diversity),
+      **G14** (boss win-rate) and **G23** (Core win-rate) against HEAD. All
+      three were last formally measured red (0/12, 0/20, 4-of-5) before the
+      `b0xx` bug-fix series and `p10j`-`p10l` landed; this session's fresh
+      `handoff-metrics` sweep (see above) shows several bot policies' T1 win
+      rates have moved by 25-50 points since then, so the "wave-11-to-17
+      wall" HANDOFF §4/§6 named as the dominant blocker may already be
+      partly or fully closed — unmeasured, not ruled out. Acceptance: run
+      `tests/p6e-class-diversity.test.ts` (G8), `tests/boss.test.ts` (G14)
+      and `tests/p-core-f-gates.test.ts` (G23) standalone (each is excluded
+      from `test:fast` for runtime, per CLAUDE.md's fast-tier rule); for each
+      `.skip`-ed clause, either un-skip it if it now clears its band (with
+      the fresh number recorded in a comment) or re-pin the `.skip` with the
+      newly measured number and reason, matching CLAUDE.md rule 6 — refs:
+      SPEC-FINAL §14 G8/G14/G23, HANDOFF.md §4/§6.1, BACKLOG audit summary
+      P10 row.
+- [ ] (p10n) [polish] Regenerate HANDOFF.md end to end — stale since `p10i`
+      (commit `cc4ee58`), ~70 commits behind HEAD, and its own gate table
+      (§4) predates `p10j` (closed G13 in full) and `p10k`/`p10l` (closed G1
+      in full) as well as this session's substantially different sweep
+      numbers (see above) — acceptance: re-run all five tools CLAUDE.md's
+      source-of-truth entry for HANDOFF.md lists
+      (`handoff-metrics`/`a4probe`/`a5probe`/`content-census`/`gate-audit`),
+      rewrite HANDOFF's measured sections (§1-§6) to match, and fold in
+      p10m's fresh G8/G14/G23 numbers if that item has landed first — refs:
+      CLAUDE.md source-of-truth list item 4.
+- [ ] (p10q) [balance] Investigate `no-move`'s T1 win rate — HANDOFF §6 item 5
+      already flagged 75% as worth a second look; this session's fresh sweep
+      measures it at **100%** (never repositioning, still winning every
+      seed), which bears directly on the "placement is destiny, play
+      matters" design pillar. Acceptance: measure `no-move` at T3 and T5 (not
+      just T1) via `tools/handoff-metrics.ts` or an equivalent probe; record
+      whether the finding holds (VS combat is trivially survivable on
+      tower-wielded damage alone regardless of character play) or narrows at
+      higher tiers; log the finding and any design implication in
+      QUESTIONS.md — no code change unless a specific exploit (e.g. a status
+      or aggro rule that only fires on movement) is found — refs: HANDOFF §6
+      item 5.
+- [ ] (p10o) [chore] `tools/gate-audit.ts`'s coverage map is stale for **G8**
+      and **G15** — both gained live test coverage (`p6e`, `p9c`) but the
+      tool still prints them as `hole`, and `tests/q10-gate-audit.test.ts`
+      pins the resulting stale "17 covered / 2 holes" split — acceptance:
+      `GATE_COVERAGE`/`KNOWN_HOLES` updated so the tool reports G8 and G15 as
+      `covered` (their test files, not their pass/fail state — a covered gate
+      can still be honestly `.skip`-ed red, that's p10m's job, not this
+      tool's); `tests/q10-gate-audit.test.ts`'s pin updated to match; a
+      regression test asserts the tool never again silently drifts stale for
+      a gate that gains coverage — refs: HANDOFF §6 item 6.
+- [ ] (p10p) [chore] Bot roster refresh: `maxbuild`, `kite`, `rush` and
+      `walloff` were tuned for an earlier, simpler content shape and never
+      re-scripted against the current 18-wave/12-class/5-Core system. This
+      session's fresh sweep shows `maxbuild` has since recovered to 50% T1
+      (was 0% at HANDOFF's last snapshot) with no code change — a content/
+      balance shift, not a bot fix — while `kite`, `rush` and `walloff` are
+      still flat at 0% across every seed. Acceptance: for each of `kite`,
+      `rush` and `walloff`, either retune its policy logic so it wins at
+      least one seed at T1, or record a specific logged reason it stays a
+      0%-baseline control (e.g. "tests a specific failure mode on purpose")
+      in `src/bots/policies.ts`'s own doc comment and HANDOFF §6 — refs:
+      HANDOFF §6 item 4.
+
 ### Filed at the lane/quality merge (2026-08-27) — out-of-scope findings from BACKLOG-QUALITY.md's log
 
 The quality lane's session logs recorded main-lane defects it could not fix
@@ -2079,7 +2158,7 @@ because the lane worktree retires at this merge.
 - [x] (b043) [bug] `damageWarden`/`damageStructure` had no finite guard,
       the same immortality class b008 closed for `damageEnemy` — **done,
       see Done section.**
-- [ ] (b044) [bug] `contentHash()` (`src/sim/content.ts`, hashed by `RunConfig`
+- [x] (b044) [bug] `contentHash()` (`src/sim/content.ts`, hashed by `RunConfig`
       per `world.ts:398-404`) is not stable across a code/schema change that
       makes the loader parse more of an *unchanged* `/data/tree.json` — b013's
       `TreeNodeSchema` naming `angle`/`ring` and turning `.strict()` moves those
@@ -2102,7 +2181,8 @@ because the lane worktree retires at this merge.
       mismatch-on-schema-fix behaviour is deliberately kept and the resulting
       one-time save/replay break is documented in MIGRATION.md as an accepted
       migration cost rather than left silent — refs: §12 rule 2, b013,
-      qa-playtester b013 verification pass (2026-08-31).
+      qa-playtester b013 verification pass (2026-08-31). **done, see Done
+      section.**
 - [x] (b062) [bug] `derive()`'s `maxHp` (`src/sim/stats.ts`) multiplies an
       already-overflow-guarded `s.total('maxHp')` by an already-guarded
       `s.factor('maxHpPct')` — `Math.max(1, (BASE.maxHp + s.total('maxHp')) *
@@ -2164,6 +2244,42 @@ logged in MIGRATION.md §8 rather than carried as dead items.
 
 ## Done
 
+- [x] (b044) [bug] `contentHash()` was a function of the schema-*parsed*
+      `Content` fields, not of `/data`'s own authored bytes — commit
+      `49c3ad8`. b013's `TreeNodeSchema` naming `angle`/`ring` and turning
+      `.strict()` moved the hash (`029275d0` → `ed704fb5`) with zero `/data`
+      edit, because those two fields went from silently zod-stripped to
+      present on `content.tree`, which the old `contentHash()` hashed
+      directly — any save/replay recorded before a fix of that *shape* would
+      throw `RunConfig content hash mismatch` on its next load, identical to
+      what a real edit produces, with nothing to tell the two apart. Fixed by
+      giving `loadContent()` a new `Content.raw` bundle — the literal
+      pre-`.parse()` document for every `/data` file, honoring `overrides` —
+      and pointing `contentHash()` at `JSON.stringify(content.raw)` instead
+      of the parsed fields. `tests/g2-determinism.test.ts` gains a case
+      pinning the guarantee directly (two `Content` objects sharing one
+      `raw` but differing in a parsed field hash identically; a real
+      `loadContent({towers: edited})` still changes the hash), verified to
+      fail against the pre-fix hashing and pass against the fix.
+      `tests/q18-content-hash-replay.test.ts`'s in-memory edit simulation
+      moved from mutating the parsed `enemyByKey` map (which the fix made
+      inert, by design — mutating the parsed shape alone is no longer "an
+      edit") to mutating `content.raw.enemies` directly, the same object
+      `enemies.json`'s own import populates. code-reviewer **APPROVE** (no
+      Critical/Major; confirmed all 14 previously-hashed fields survive in
+      `raw`, every `ContentOverrides` field is threaded through a `*Doc`
+      local visible to both `.parse()` and `raw`, and grepped for any other
+      in-place mutation of a parsed `Content` field relying on the old
+      hashing — found none beyond the one already fixed). qa-playtester
+      **PASS**: independently confirmed real edits (including a Tuner
+      round-trip through `saveTunerFile` + reload-as-override) still move
+      the hash, could not construct a same-hash collision for two
+      genuinely different `/data` documents, reproduced the closed bug
+      independently, and reran the Tuner save-path tests (`p9c-tuner-save`)
+      green — no bugs filed. `npm test:fast` and full targeted runs green
+      aside from the pre-existing Windows `EPERM`/host-load flake class
+      (`q15`/`q49`/`q52`, confirmed unrelated by isolated re-runs) — refs:
+      §12 rule 2, b013, qa-playtester b013 verification pass (2026-08-31).
 - [x] (b069) [bug] Retry / New Run silently reverted a mid-run auto-pick
       toggle to the run's original starting value — commit `8b92137`.
       `Game.lastCfg`

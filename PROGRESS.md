@@ -5,6 +5,54 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-01 session: BACKLOG b044 closed** — `contentHash()`
+  (`src/sim/content.ts`) was a function of the schema-*parsed* `Content`
+  fields rather than `/data`'s own authored bytes, so a loader/schema change
+  that starts keeping (or stops silently stripping) a field on
+  byte-identical `/data` could move the hash with zero data edit — exactly
+  what b013's `TreeNodeSchema` did by naming `angle`/`ring` and turning
+  `.strict()` (`029275d0` → `ed704fb5`, reproduced by qa-playtester's b013
+  verification pass). Any save/replay recorded before that class of fix
+  would throw `RunConfig content hash mismatch` on its next load, identical
+  to a real edit, with nothing to tell the two causes apart — a violation of
+  §12 rule 2's "a replay against *edited* /data fails loudly" contract.
+  Fixed by giving `loadContent()` a new `Content.raw` bundle (the literal
+  pre-`.parse()` document for every `/data` file, honoring `overrides`) and
+  pointing `contentHash()` at `JSON.stringify(content.raw)` instead of the
+  parsed fields. `tests/g2-determinism.test.ts` gains a regression case
+  pinning the guarantee directly, confirmed to fail against the pre-fix
+  hashing and pass against the fix; `tests/q18-content-hash-replay.test.ts`'s
+  in-memory edit simulation moved from mutating the parsed `enemyByKey` map
+  (now inert by design) to mutating `content.raw.enemies` — the same
+  in-place-mutation simulation, updated to match the new architecture; this
+  was the one real regression the fix introduced, caught by a `test:fast`
+  run and fixed in the same commit. code-reviewer APPROVE (no
+  Critical/Major); qa-playtester PASS, independently confirmed real edits
+  and the Tuner round-trip still move the hash, could not construct a
+  same-hash collision for two different `/data` documents, and reran the
+  Tuner save-path tests green. `npm run test:fast`'s only failures were the
+  pre-existing Windows `EPERM`/host-load flake class (`q15`/`q49`/`q52`),
+  confirmed unrelated via isolated re-runs. Commit `49c3ad8`.
+
+  Per CLAUDE.md's BACKLOG generation rule (fewer than 3 actionable items
+  remained — only b027 and b044), re-ran `npx tsx tools/handoff-metrics.ts`
+  and `npx tsx tools/gate-audit.ts` and diffed against SPEC-FINAL §14 before
+  picking b044 as the top item. The fresh 8-seed sweep found the T1
+  bot-policy win-rate landscape has moved substantially since HANDOFF.md was
+  last regenerated at `p10i`/`cc4ee58` (~70 commits behind): `maxbuild` T1
+  0%→50%, `no-move` T1 75%→100%, `greedy`/`greedless` 0%→38%/25%, while
+  `kite`/`rush`/`walloff` stayed flat at 0%. This means HANDOFF's "G8/G14
+  flatly red, most of G23 red" claim may now be stale — five new items filed
+  in BACKLOG.md under "Generated 2026-09-01" to re-measure and reconcile:
+  **p10m** (re-measure G8/G14/G23 against HEAD — the highest-value item,
+  since the wave-11-to-17 wall these gates trace to may be partly closed),
+  **p10n** (regenerate HANDOFF.md end to end), **p10q** (no-move's T1 win
+  rate is now 100%, worth checking at T3/T5 against the "placement is
+  destiny" pillar), **p10o** (fix `tools/gate-audit.ts`'s stale G8/G15
+  coverage map), **p10p** (bot roster refresh for the still-flatlined
+  `kite`/`rush`/`walloff`). b027 (G8 diversity re-pin) remains open,
+  unactionable until p10m's 12-class re-measurement lands.
+
 - **2026-09-01 session: BACKLOG b069 closed** — Retry/New Run silently
   reverted a mid-run auto-pick toggle to the run's starting value.
   `Game.startRun` (`src/ui/main.ts`) captures `this.lastCfg` once at
