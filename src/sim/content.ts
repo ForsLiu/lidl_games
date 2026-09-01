@@ -1649,7 +1649,33 @@ const DevFileSchema = z
 
 export type DevConfig = z.infer<typeof DevFileSchema>;
 
+/**
+ * b044: the authored /data documents `loadContent()` actually parsed,
+ * captured before any schema `.parse()` call. `contentHash()` hashes this
+ * bundle instead of the parsed `Content` fields, so a loader/schema change
+ * that starts keeping (or stops stripping) a field on byte-identical /data
+ * cannot move the hash on its own — only an actual edit to /data (or a
+ * Tuner/test override) can.
+ */
+export interface ContentRaw {
+  warden: unknown;
+  towers: unknown;
+  enemies: unknown;
+  waves: unknown;
+  spawns: unknown;
+  boons: unknown;
+  tree: unknown;
+  modifiers: unknown;
+  classes: unknown;
+  quests: unknown;
+  damageTypes: unknown;
+  dev: unknown;
+  cores: unknown;
+  equipment: unknown;
+}
+
 export interface Content {
+  raw: ContentRaw;
   warden: WardenBase;
   towers: z.infer<typeof TowersFileSchema>;
   enemies: z.infer<typeof EnemiesFileSchema>;
@@ -1692,34 +1718,21 @@ export function defaultCoreKey(content: Content): string {
 /**
  * `p9a` (CLAUDE.md architecture rule 2, Q45): a run is `RunConfig` + input
  * log, and `RunConfig` carries a content hash so a replay against edited
- * `/data` fails loudly. Computed from the live field values of every
- * `/data`-sourced file on `content` — not cached at load time — so an
- * in-place edit to the loaded content (a re-authored JSON file picked up by a
- * fresh `loadContent()`, or a dev-mode Tuner write) changes the hash exactly
- * when it changes what a run would actually play out as. The derived
- * `*ByKey`/`*ById` maps are excluded: they share object references with the
- * arrays already included, so they carry no information the arrays don't.
+ * `/data` fails loudly. Computed from `content.raw` — the authored documents
+ * as `loadContent()` read them, before any schema `.parse()` — not the
+ * parsed `Content` fields and not cached at load time, so an in-place edit to
+ * the loaded content (a re-authored JSON file picked up by a fresh
+ * `loadContent()`, or a dev-mode Tuner write) changes the hash exactly when
+ * it changes what a run would actually play out as. b044: hashing the parsed
+ * fields instead let a loader/schema change that starts keeping (or stops
+ * silently stripping) a field move the hash with zero /data edit — the same
+ * "recorded run now fails to replay" failure a real edit produces, with
+ * nothing to tell the two causes apart. Hashing the pre-parse documents makes
+ * `contentHash` a function of /data's own authored bytes only.
  */
 export function contentHash(content: Content): string {
   const h = new Hasher();
-  h.str(
-    JSON.stringify({
-      warden: content.warden,
-      towers: content.towers,
-      enemies: content.enemies,
-      waves: content.waves,
-      spawns: content.spawns,
-      boons: content.boons,
-      tree: content.tree,
-      modifiers: content.modifiers,
-      classes: content.classes,
-      quests: content.quests,
-      damageTypes: content.damageTypes,
-      dev: content.dev,
-      cores: content.cores,
-      equipment: content.equipment,
-    }),
-  );
+  h.str(JSON.stringify(content.raw));
   return h.hex();
 }
 
@@ -1798,19 +1811,38 @@ let cached: Content | null = null;
 export function loadContent(overrides?: ContentOverrides): Content {
   if (!overrides && cached) return cached;
 
-  const towers = TowersFileSchema.parse(overrides?.towers ?? towersRaw);
-  const enemies = EnemiesFileSchema.parse(overrides?.enemies ?? enemiesRaw);
-  const waves = WavesFileSchema.parse(overrides?.waves ?? wavesRaw);
-  const spawns = SpawnsFileSchema.parse(overrides?.spawns ?? spawnsRaw);
-  const boons = VsUpgradesFileSchema.parse(overrides?.boons ?? vsupgradesRaw);
-  const tree = TreeFileSchema.parse(overrides?.tree ?? treeRaw);
-  const modifiers = ModifiersFileSchema.parse(overrides?.modifiers ?? modifiersRaw);
-  const classes = ClassesFileSchema.parse(overrides?.classes ?? classesRaw);
+  // b044: kept separate from each `.parse()` call and carried through onto
+  // `Content.raw` below so `contentHash()` can hash the *authored* documents
+  // rather than their schema-parsed shape — a schema change that starts
+  // declaring (or stops stripping) a field on unchanged /data bytes must not
+  // move the hash, per §12 rule 2's "fails loudly [only] against edited
+  // /data" contract.
+  const towersDoc = overrides?.towers ?? towersRaw;
+  const enemiesDoc = overrides?.enemies ?? enemiesRaw;
+  const wavesDoc = overrides?.waves ?? wavesRaw;
+  const spawnsDoc = overrides?.spawns ?? spawnsRaw;
+  const boonsDoc = overrides?.boons ?? vsupgradesRaw;
+  const treeDoc = overrides?.tree ?? treeRaw;
+  const modifiersDoc = overrides?.modifiers ?? modifiersRaw;
+  const classesDoc = overrides?.classes ?? classesRaw;
+  const questsDoc = overrides?.quests ?? questsRaw;
+  const damageTypesDoc = overrides?.damageTypes ?? damageTypesRaw;
+  const coresDoc = overrides?.cores ?? coresRaw;
+  const equipmentDoc = overrides?.equipment ?? equipmentRaw;
+
+  const towers = TowersFileSchema.parse(towersDoc);
+  const enemies = EnemiesFileSchema.parse(enemiesDoc);
+  const waves = WavesFileSchema.parse(wavesDoc);
+  const spawns = SpawnsFileSchema.parse(spawnsDoc);
+  const boons = VsUpgradesFileSchema.parse(boonsDoc);
+  const tree = TreeFileSchema.parse(treeDoc);
+  const modifiers = ModifiersFileSchema.parse(modifiersDoc);
+  const classes = ClassesFileSchema.parse(classesDoc);
   const dev = DevFileSchema.parse(devRaw);
-  const quests = QuestsFileSchema.parse(overrides?.quests ?? questsRaw);
-  const damageTypes = DamageTypesFileSchema.parse(overrides?.damageTypes ?? damageTypesRaw);
-  const cores = CoresFileSchema.parse(overrides?.cores ?? coresRaw);
-  const equipment = EquipmentFileSchema.parse(overrides?.equipment ?? equipmentRaw);
+  const quests = QuestsFileSchema.parse(questsDoc);
+  const damageTypes = DamageTypesFileSchema.parse(damageTypesDoc);
+  const cores = CoresFileSchema.parse(coresDoc);
+  const equipment = EquipmentFileSchema.parse(equipmentDoc);
 
   // Cross-file referential integrity: a typo in /data must fail loudly at load.
   const towerKeys = new Set(towers.towers.map((t) => t.key));
@@ -2002,6 +2034,22 @@ export function loadContent(overrides?: ContentOverrides): Content {
   }
 
   const result: Content = {
+    raw: {
+      warden: wardenRaw,
+      towers: towersDoc,
+      enemies: enemiesDoc,
+      waves: wavesDoc,
+      spawns: spawnsDoc,
+      boons: boonsDoc,
+      tree: treeDoc,
+      modifiers: modifiersDoc,
+      classes: classesDoc,
+      quests: questsDoc,
+      damageTypes: damageTypesDoc,
+      dev: devRaw,
+      cores: coresDoc,
+      equipment: equipmentDoc,
+    },
     warden: wardenBase,
     towers,
     enemies,

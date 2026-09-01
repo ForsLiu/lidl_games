@@ -144,6 +144,45 @@ describe('G2 determinism', () => {
     // *not* recorded against — fails loudly rather than silently diverging.
     expect(() => new Run({ ...config }, base)).toThrow(/content hash mismatch/);
   });
+
+  /**
+   * b044: §12 rule 2's contract is "a replay against *edited* /data fails
+   * loudly" — not "a replay against a code/schema change with byte-identical
+   * /data fails loudly." Before this fix, `contentHash()` hashed the
+   * schema-*parsed* `Content` fields, so a loader change that starts keeping
+   * (or stops silently stripping) a field on unchanged /data — exactly what
+   * b013's `TreeNodeSchema` did by naming `angle`/`ring` and turning
+   * `.strict()` — moved the hash with zero /data edit, indistinguishable from
+   * a real edit to any save/replay recorded before the change. Reproduced
+   * here without touching a real schema: two `Content` objects share the
+   * identical pre-parse `raw` document (so a byte-for-byte /data read is
+   * unchanged) but differ in how a field is *parsed* out of it, standing in
+   * for "yesterday's schema stripped a field, today's declares it."
+   */
+  it("contentHash is a function of /data's authored bytes, not of which fields the current schema parses out of them", () => {
+    const base = loadContent();
+
+    // Same raw tree.json bytes as `base` (the spread below never touches
+    // `raw`), but a parsed `tree` field standing in for "today's schema
+    // declares a field yesterday's silently stripped" (b013's own shape).
+    // If `contentHash` reads `raw` (the fix), this hashes the same as
+    // `base`; if it reads the parsed `tree` field (the bug), it diverges
+    // with zero /data edit.
+    const keepingParse = {
+      ...base,
+      tree: { ...base.tree, nodes: base.tree.nodes.map((n) => ({ ...n, mysteryField: 42 })) },
+    };
+    expect(contentHash(keepingParse)).toBe(contentHash(base));
+
+    // contentHash must still be sensitive to a *real* /data edit — the raw
+    // bundle, not just the parsed shape, has to move for that to hold.
+    const editedTowersDoc = {
+      ...base.towers,
+      towers: base.towers.towers.map((t, i) => (i === 0 ? { ...t, cost: t.cost + 1 } : t)),
+    };
+    const edited = loadContent({ towers: editedTowersDoc });
+    expect(contentHash(edited)).not.toBe(contentHash(base));
+  });
 });
 
 describe('rng streams', () => {

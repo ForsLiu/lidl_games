@@ -41,12 +41,18 @@ describe('q18 — filed defect (unskip with the fix)', () => {
     // and replay: loadContent()'s cache means every World in this process
     // shares this one object, so mutating it is exactly what a re-authored
     // enemies.json would look like to a replay running against the same
-    // cached content a fresh process would load fresh.
+    // cached content a fresh process would load fresh. b044: `contentHash`
+    // now reads `content.raw` (the pre-parse document) rather than the
+    // parsed `enemyByKey`/`enemies` fields, so the edit has to land on
+    // `content.raw.enemies` — the same object `enemies.json`'s own import
+    // populates — to actually move the hash; mutating the parsed structure
+    // alone (as this test used to) no longer does, on purpose (b044).
     const content = loadContent();
-    const husk = content.enemyByKey.get('husk');
-    if (!husk) throw new Error('fixture assumption: enemies.json still has a "husk" entry');
-    const originalHp = husk.hp;
-    husk.hp = originalHp * 50;
+    const rawEnemies = content.raw.enemies as { enemies: { key: string; hp: number }[] };
+    const rawHusk = rawEnemies.enemies.find((e) => e.key === 'husk');
+    if (!rawHusk) throw new Error('fixture assumption: enemies.json still has a "husk" entry');
+    const originalHp = rawHusk.hp;
+    rawHusk.hp = originalHp * 50;
 
     let threw = false;
     try {
@@ -55,7 +61,7 @@ describe('q18 — filed defect (unskip with the fix)', () => {
     } catch {
       threw = true;
     } finally {
-      husk.hp = originalHp;
+      rawHusk.hp = originalHp;
     }
 
     // Desired (architecture rule 2): a replay whose content no longer
