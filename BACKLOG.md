@@ -2306,7 +2306,7 @@ logged in MIGRATION.md §8 rather than carried as dead items.
       documented pre-existing Windows flakes (`b032`/`b034`/`b035`/`b036`
       Playwright fold tests, `q15` hang, `q49`/`q52` EPERM scratch-dir
       races) — none touch `src/bots/`, confirmed unrelated. Files changed:
-      `src/bots/policies.ts`, `HANDOFF.md`. Commit `<pending>`.
+      `src/bots/policies.ts`, `HANDOFF.md`. Commit `d5ab343`.
 - [x] (p10o) [chore] Fixed `tools/gate-audit.ts`'s stale coverage map for
       **G8** and **G15**: both gained live test coverage at `p6e`/`p9c` but
       the tool kept printing them as `hole`, drifting silently for several
