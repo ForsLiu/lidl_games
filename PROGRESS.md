@@ -58,7 +58,7 @@
   timeout, two port-contention cases — `b032`/`b034` — that only appeared
   under parallel full-suite load and passed in isolation), confirmed
   unrelated via `git stash` A/B. code changed: `data/towers.json`,
-  `tools/gate-audit.ts`. Commit pending.
+  `tools/gate-audit.ts`. Commit `9facd67`.
 
 - **2026-09-01 session: BACKLOG p10n closed** — regenerated HANDOFF.md end to
   end against SPEC-FINAL, and filed BACKLOG **b072** for a real, previously
