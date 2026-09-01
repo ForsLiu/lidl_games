@@ -2274,7 +2274,7 @@ logged in MIGRATION.md §8 rather than carried as dead items.
 
 - [x] (p10m) [balance] Re-measured gates **G8**, **G14** and **G23** against
       HEAD, past the `p10j`-`p10l` wave/spawn-pacing balance pass — commit
-      pending (see PROGRESS.md's p10m entry for the session write-up).
+      `c224cb5` (see PROGRESS.md's p10m entry for the session write-up).
       **G14** (`tests/boss.test.ts`): un-skipped both clauses. The scripted
       run wins seed 1 (`bossKillSeconds` 238.05s, 57.05s of real fight past
       the boss's 181s spawn time — the old `> 600` literal dated from before

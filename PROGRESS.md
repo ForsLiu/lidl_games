@@ -46,7 +46,7 @@
   fast-enough files standalone, cross-checked every recorded band comparison
   and the b070 fingerprint number against `fingerprint()`'s real
   implementation, and confirmed the diff touched only the three test files
-  plus BACKLOG.md. Commit pending.
+  plus BACKLOG.md. Commit `c224cb5`.
 
 - **2026-09-01 session: BACKLOG b044 closed** — `contentHash()`
   (`src/sim/content.ts`) was a function of the schema-*parsed* `Content`
