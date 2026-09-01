@@ -158,6 +158,12 @@ export class Game {
         // (from any of the three doors onto this toggle) starts with it.
         this.meta = { ...this.meta, autoPickLevelUps: on };
         saveMeta(this.meta);
+        // b069: `lastCfg` is the config Retry/New Run replay verbatim (New Run
+        // only spreads a fresh seed over it) — without this, a mid-run toggle
+        // updated `meta` and the live sim but left `lastCfg` pinned to
+        // whatever the run started with, so Retry/New Run silently reverted
+        // the setting a player had just changed.
+        if (this.lastCfg) this.lastCfg = { ...this.lastCfg, autoPickLevelUps: on };
         // b065: `hud.update` (the only other caller of `syncAutoPickToggle`)
         // is skipped entirely by `frame` while paused, so the sidebar
         // button's own aria-pressed/.on state would otherwise freeze at its

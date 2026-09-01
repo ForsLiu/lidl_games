@@ -5,6 +5,32 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-01 session: BACKLOG b069 closed** — Retry/New Run silently
+  reverted a mid-run auto-pick toggle to the run's starting value.
+  `Game.startRun` (`src/ui/main.ts`) captures `this.lastCfg` once at
+  Hub-start time and `onRetry`/`onNewRun` replay it verbatim, but
+  `onToggleAutoPick` only updated `this.meta.autoPickLevelUps` and the live
+  sim's `set_autopick` Command, never `lastCfg` — a three-way split
+  (`meta`, the live sim, `lastCfg`) that qa-playtester found while verifying
+  b068 (2026-09-01). Fixed by also writing `lastCfg`'s `autoPickLevelUps` in
+  the same callback, using the same `on` value already written to `meta`.
+  New regression test `tests/b069-retry-autopick-lastcfg.test.ts` drives the
+  real `Game` DOM through toggle → forced defeat → Retry (and the inverse:
+  auto-pick-on profile → toggle off → New Run), asserting the new run's sim
+  config, sidebar button, and Options checkbox all agree with
+  `meta.autoPickLevelUps`; both cases confirmed to fail pre-fix and pass
+  post-fix. code-reviewer APPROVE (two nits, no Critical/Major); also
+  independently reran `npm run test:fast` (124/131 files green, the 3 named
+  failures — q15-command-domain-fuzz, q49-price-probe-restore,
+  q52-m20d-run-a4-bad-key — reproduced as the pre-existing Windows
+  EPERM/host-load flake class even with this diff reverted). qa-playtester
+  PASS: reproduced the original repro against the fix, plus adversarial
+  double-toggle, chained Retry→New-Run, and already-on→toggle-off cases; no
+  bugs filed. b027 (G8 diversity re-pin) remains open, passed over again
+  this session for the same reason logged last time: its own assertions are
+  `.skip`-ed pending the P10 12-class re-measurement, so the item as written
+  (re-pin an 11-class count) is currently unactionable. Commit pending.
+
 - **2026-09-01 session: BACKLOG b042 closed** — pinned the "Time" Core's step-1
   `goldPerSecond` income (`src/sim/cores.ts`'s `updateCoreEffects`) as
   time-coupled by construction, not a regression (qa-playtester finding on

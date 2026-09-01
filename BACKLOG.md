@@ -2066,36 +2066,9 @@ because the lane worktree retires at this merge.
       wall-clock gold income every phase, genuinely coupled to
       `data/waves.json`'s `buildPhaseSeconds` unlike every other gold source —
       **done, see Done section.**
-- [ ] (b069) [bug] Retry / New Run silently reverts a mid-run auto-pick
-      toggle to the run's original starting value, three-way splitting
-      `Game`'s own state. `Game.startRun` (`src/ui/main.ts`) captures
-      `this.lastCfg = cfg` once, at Hub-start time; `onToggleAutoPick`
-      updates `this.meta.autoPickLevelUps` and queues the sim's
-      `set_autopick` Command but never touches `this.lastCfg`; `onRetry`/
-      `onNewRun` both call `this.startRun(this.lastCfg!)` (New Run spreads
-      only a fresh `seed` over it) — reusing the stale captured value.
-      Pre-existing gap (a Minor code-reviewer finding already on file at
-      BACKLOG.md's p9a entry, about `lastCfg` staleness generally, for a
-      different concern — Tuner-edited content hashes across Retry), not
-      introduced by b068 and not a violation of b068's own acceptance
-      criterion (the sidebar and Options checkbox still agree with each
-      other post-Retry, just not with `meta` or the player's last action).
-      Found by qa-playtester verifying b068 (2026-09-01), reproduced twice:
-      start a run with `autoPickLevelUps` false, pause, toggle the sidebar
-      button on (`meta.autoPickLevelUps` and the sim's `world.cfg.
-      autoPickLevelUps` both become true), die, Retry — the new run's
-      `world.cfg.autoPickLevelUps`, sidebar `aria-pressed`, and Options
-      `checked` are all back to false, while `game.meta.autoPickLevelUps` is
-      still true. Acceptance: `onToggleAutoPick` also updates
-      `this.lastCfg` when non-null (`this.lastCfg = { ...this.lastCfg,
-      autoPickLevelUps: on }`), or `onRetry`/`onNewRun` spread
-      `this.meta.autoPickLevelUps` over `lastCfg` the way `onNewRun` already
-      spreads a fresh `seed`; a regression test drives the real `Game` DOM
-      through toggle-while-paused → death → Retry and asserts the new run's
-      sim config, sidebar button, and Options checkbox all match
-      `meta.autoPickLevelUps` — refs: b068, b030, b065, `src/ui/main.ts`
-      `startRun`/`onToggleAutoPick`/`onRetry`/`onNewRun`, qa-playtester
-      finding on b068 (2026-09-01).
+- [x] (b069) [bug] Retry / New Run silently reverts a mid-run auto-pick
+      toggle to the run's original starting value — **done, see Done
+      section.**
 - [x] (b037) [bug] The relic loot pipeline stayed fully live after fb023
       deleted every UI path that could equip or discard a relic — **closed by
       p7d, see the Done section.** `src/sim/loot.ts` (`dropRelic`,
@@ -2191,6 +2164,37 @@ logged in MIGRATION.md §8 rather than carried as dead items.
 
 ## Done
 
+- [x] (b069) [bug] Retry / New Run silently reverted a mid-run auto-pick
+      toggle to the run's original starting value — `Game.lastCfg`
+      (`src/ui/main.ts`) was captured once at Hub-start time and replayed
+      verbatim by `onRetry`/`onNewRun`, but `onToggleAutoPick` only updated
+      `this.meta.autoPickLevelUps` and the live sim's `set_autopick`
+      Command, never `lastCfg`, so `meta`, the live sim, and `lastCfg` could
+      three-way split. Fixed with the acceptance text's first option:
+      `onToggleAutoPick` now also writes `this.lastCfg = { ...this.lastCfg,
+      autoPickLevelUps: on }` (guarded on `lastCfg` being non-null, matching
+      the file's general defensiveness even though no reachable call order
+      lets it be null there — code-reviewer nit, left as documentation of
+      intent rather than a real gap). `tests/b069-retry-autopick-lastcfg.test.ts`
+      drives the real `Game` DOM through toggle → forced defeat → Retry (and
+      a second case, starting auto-pick-on and toggling off → New Run),
+      asserting the new run's `world.cfg.autoPickLevelUps`, sidebar
+      `aria-pressed`, and (Retry case) the Options checkbox all agree with
+      `meta.autoPickLevelUps`; both cases verified to fail on the pre-fix
+      code and pass on the fix. code-reviewer **APPROVE** (two nits, no
+      Critical/Major: the non-null guard is unreachably-false but harmless,
+      and the New Run test case could also assert the Options checkbox for
+      symmetry) — it also grepped every other `w.cfg.<field> =` mid-run
+      write and confirmed `autoPickLevelUps` was the only `RunConfig` field
+      going stale this way, and independently reran `npm run test:fast`
+      (124/131 files green; the 3 named failures — q15, q49, q52 — are the
+      already-documented pre-existing Windows `EPERM`/host-load flake class,
+      confirmed unrelated by reverting this diff and reproducing them
+      anyway). qa-playtester **PASS**: reproduced the original repro
+      verbatim against the fix (all three surfaces agree), plus adversarial
+      double-toggle-before-death, chained Retry-then-New-Run sequences, and
+      the already-on-profile toggle-off case — no bugs filed — refs: b068,
+      b030, b065, qa-playtester finding on b068 (2026-09-01).
 - [x] (b042) [polish] Time Core step-1 `goldPerSecond` income pinned as
       time-coupled by construction — commit `79e2fc0`. The income ticks real
       wall-clock gold every phase including `act1_build`, genuinely coupled to
