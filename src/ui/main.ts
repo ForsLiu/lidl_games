@@ -194,6 +194,14 @@ export class Game {
     this.pacer.reset();
     this.hud.setSpeed(this.pacer.speed);
     this.hud.setShowRanges(this.view.showRanges);
+    // b068 (code-reviewer finding): a fresh `Hud` defaults its cached
+    // `autoPickOn` to false until the first `syncAutoPickToggle` call, which
+    // otherwise only happens on an unpaused frame or a click — so a returning
+    // player whose carried-over `cfg.autoPickLevelUps` is true and who pauses
+    // before the first tick would see the Options checkbox disagree with the
+    // setting that actually applies on resume. Seed it here the same way
+    // `setSpeed`/`setShowRanges` above seed their own presentation state.
+    this.hud.syncAutoPickToggle(cfg.autoPickLevelUps === true);
   }
 
   /**

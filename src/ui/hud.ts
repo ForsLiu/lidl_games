@@ -241,8 +241,24 @@ export class Hud {
    * relying on it alone left the button's `aria-pressed`/`.on` state frozen
    * across paused clicks even though the queued Command and `this.meta`
    * were already alternating correctly (b065).
+   *
+   * Also the source `showPause`'s Options screen reads for its own checkbox
+   * (`this.autoPickOn`, b068): that screen used to read `w.cfg.
+   * autoPickLevelUps` directly at render time, which is exactly the stale
+   * paused-sim-state class b030 and b065 already fixed for the other two
+   * call sites — a paused sidebar toggle followed by opening Options showed
+   * the pre-toggle value. `update`'s per-frame call and `onToggleAutoPick`'s
+   * per-click call keep it current from then on, but neither fires before
+   * the first tick or the first click, so `main.ts`'s `startRun` seeds it
+   * from `cfg.autoPickLevelUps` explicitly the same way it seeds
+   * `setSpeed`/`setShowRanges` — a fresh `Hud` otherwise briefly disagrees
+   * with a returning player's carried-over `true` setting if Options is
+   * opened before either fires (code-reviewer finding on this item).
    */
+  private autoPickOn = false;
+
   syncAutoPickToggle(on: boolean): void {
+    this.autoPickOn = on;
     const el = this.root.querySelector('#sw-autopick');
     if (!el) return;
     el.setAttribute('aria-pressed', String(on));
@@ -714,7 +730,7 @@ export class Hud {
   private showPause(w: World): void {
     this.openModal();
     if (this.showingOptions) {
-      const on = w.cfg.autoPickLevelUps === true;
+      const on = this.autoPickOn;
       this.modal.innerHTML = `
       <div class="sw-card">
         <h2>Options</h2>

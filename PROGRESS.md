@@ -5,6 +5,57 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-01 session: BACKLOG b068 closed** — the pause-menu Options
+  screen's `#sw-opt-autopick` checkbox (`Hud.showPause`, `src/ui/hud.ts`)
+  rendered its `checked` state from `w.cfg.autoPickLevelUps` directly, the
+  same paused-stale-sim-state class b030 fixed for `onToggleAutoPick`'s read
+  and b065 fixed for the sidebar button's visual sync — this third call site
+  was never touched by either fix, so pausing, toggling the sidebar button,
+  then opening Options showed the pre-toggle value. Fixed by caching the
+  resolved boolean on `Hud` itself (`private autoPickOn`, written inside
+  `syncAutoPickToggle`, which both `update()` and `onToggleAutoPick` already
+  call with the correct current value including while paused); `showPause`
+  now reads `this.autoPickOn` instead of the sim's config directly.
+  `tests/b068-autopick-options-paused.test.ts` (new) drives the real `Game`
+  DOM and was confirmed to fail on pre-fix code. code-reviewer's first pass
+  caught a real gap this fix would otherwise have shipped with: a freshly
+  constructed `Hud` defaults `autoPickOn` to `false` until the first unpaused
+  tick or click, so a returning player whose carried-over
+  `meta.autoPickLevelUps` was already `true` would briefly see a wrong
+  Options checkbox if they paused before either fired — fixed in the same
+  commit by having `Game.startRun` (`src/ui/main.ts`) seed it explicitly
+  right after constructing the `Hud`, matching the existing
+  `setSpeed`/`setShowRanges` seeding pattern there; verified by reverting
+  just that seed line and re-running the added pre-first-tick test case,
+  which failed as expected. qa-playtester: PASS on the acceptance criterion,
+  independently verified past the shipped test (double-toggle variant,
+  pre-first-tick path with both carried-over `true`/`false`, multi-cycle
+  pause/unpause/toggle/re-pause, an Abandon-mid-toggle path, confirmed the
+  level-up screen's separate `#sw-offer-autopick` checkbox is unaffected, and
+  that the diff touches only `src/ui/hud.ts`/`src/ui/main.ts` with no
+  `/src/sim` file, so no replay/determinism impact). It also found one real
+  bug out of this item's scope: Retry/New Run reuses `Game`'s once-captured
+  `lastCfg` verbatim, so a mid-run auto-pick toggle is silently lost on
+  Retry even though `meta.autoPickLevelUps` itself still holds the new
+  value — a pre-existing gap (already flagged generally, for a different
+  reason, in the p9a Done entry's `lastCfg` note) that this item's fix
+  neither introduces nor violates its own acceptance line against (the
+  sidebar and Options checkbox still agree with each other post-Retry, just
+  not with `meta`). Filed as **b069**, not fixed this session. `npm run
+  test:fast` (run twice, before and after the reviewer follow-up): 8 files /
+  10 tests red both times, all pre-existing documented flakes (q15
+  worker-probe hangs, q28/q49/q52 Windows EPERM scratch-dir races,
+  b032/b034/b035/b036 Playwright fold/port-contention) — none touch
+  `hud.ts`, `main.ts`, or autopick. b027 and b029 were passed over at the
+  top of the queue before reaching b068, both with logged reasons matching
+  prior sessions (see BACKLOG.md's b027/b029 entries) — b027 needs its
+  ~3500-3600s `beforeAll` genuinely re-run to honestly re-measure, which is
+  a bigger undertaking than fits alongside this item, and its literal ask
+  (re-pin an 11-class count) is separately stale since fb013 grew the roster
+  to 12; b029's acceptance criterion needs ten consecutive runs under a
+  full-suite parallel load, which CLAUDE.md's working rule 2 forbids
+  starting inside an ordinary item.
+
 - **2026-09-01 session: BACKLOG b065 closed** — the HUD sidebar `#sw-autopick`
   button's `aria-pressed`/`.on` visual state froze at its pre-pause value
   across paused clicks (`Hud.syncAutoPickToggle` only ran inside
