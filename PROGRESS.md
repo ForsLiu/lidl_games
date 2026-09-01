@@ -5,6 +5,61 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-01 session: BACKLOG b072 closed** — fixed gate **G13**'s
+  solo-viability clause (`tests/a4-single-type.test.ts`), the top-of-queue
+  regression `p10n`'s HANDOFF regeneration surfaced (and `b071` had already
+  found and named but never filed). 4 of the file's 16 live assertions were
+  red at HEAD: `ember_brazier` (3/5) and `tesla_coil` (2/5) under-cleared the
+  T1 wave curve solo (need 5/5); `mortar` and `venom_spore` (1/5 each)
+  over-cleared T3 solo (need 0/5 — a solo tower must never be self-sufficient
+  at T3, that's the gate's whole point). Root cause consistent with `b071`'s
+  finding: `p10l`'s `data/waves.json` `buildPhaseSeconds` 20→15 (the G1-closing
+  pacing change) rippled into these four towers' solo-clear outcomes, same
+  mechanism as the `frost_obelisk` share-cap regression `b071` fixed
+  separately. Delegated to balance-analyst (`/data`-only, per CLAUDE.md's
+  subagent protocol) rather than touch `buildPhaseSeconds` itself (would
+  reopen G1) or `frost_obelisk` (would reopen G13's share-cap clause). Fix,
+  all in `data/towers.json`: `ember_brazier.attack.damage` 2.7→2.8 (a plain
+  buff; a smaller 2.71 flipped the gate but was rejected as knife-edge);
+  `tesla_coil.attack.interval` 1→0.9, a 10% faster fire rate — a first attempt
+  raising `attack.damage` instead (29→33) also cleared T1 but pushed T3 from
+  0/5 to 2/5, an unwanted gate-coupling side effect, so the lever was switched
+  to `interval`, which cleared T1 with T3 untouched; `mortar.attack.damage`
+  95→89 (T1 had large margin, so no side effect); `venom_spore.attack.aoe`
+  1→0.85 — a first attempt cutting `attack.damage` instead (38→37) was
+  rejected as too fragile (even a 2.6% cut flipped T1 from 5/5 to 4/5),
+  so the lever was switched to splash radius, which costs T3's longer fights
+  more than T1's shorter ones. Measured: all 16 `a4-single-type.test.ts`
+  assertions green (T1 min/med waves 18/18 for all seven towers; T3 min/med
+  12-16/9-17, none reaching the 18-wave clear). Guarded gates re-confirmed:
+  G1 (`tests/p10d-run-length.test.ts`) 35.24 min / 22-24 (92%) wins, still
+  inside the 30-36 min band (was 35.20 min / 88% before — a small further
+  improvement, not a regression); G13's share cap
+  (`tests/p10c-weapon-share.test.ts`) worst case moved from frost_obelisk
+  25.9% to mortar 24.1%, still 10.9 points under the 35% cap.
+  `tools/gate-audit.ts`'s G13 note corrected — it had claimed "green in full"
+  since `p10c` without qualification, which was wrong for the whole period
+  after `p10l` introduced this drift; the note now names `b072` and the real
+  history. code-reviewer **APPROVE**: no Critical/Major; noted (informational,
+  not a defect) that the four tuned fields are also read generically by VS
+  summon-clone abilities (`towerSummonProfile`, `src/sim/classes.ts`) — an
+  expected, non-special-cased reuse, not overlooked. qa-playtester **PASS**:
+  independently reran `a4-single-type`, `p10d-run-length` and
+  `p10c-weapon-share` from scratch; traced `tesla_coil`'s interval change
+  through the real chain-attack cooldown path (`src/sim/towers.ts`) and
+  confirmed attack frequency and chain-lightning trigger frequency scale
+  together with no separate, silently-affected timer; flagged (not filed —
+  doesn't reproduce a failure today) that `tesla_coil`, `mortar` and
+  `venom_spore` each now have one T3 seed landing at 17/18 waves, one wave
+  from a clear — a watch item for any future buff to those towers or another
+  `waves.json` HP-curve nudge, not a regression against this item's
+  acceptance criteria. `npm run test:fast`: same pre-existing Windows flake
+  class as at HEAD (EPERM temp-dir races on `q49`/`q52`, a `q15` hook
+  timeout, two port-contention cases — `b032`/`b034` — that only appeared
+  under parallel full-suite load and passed in isolation), confirmed
+  unrelated via `git stash` A/B. code changed: `data/towers.json`,
+  `tools/gate-audit.ts`. Commit pending.
+
 - **2026-09-01 session: BACKLOG p10n closed** — regenerated HANDOFF.md end to
   end against SPEC-FINAL, and filed BACKLOG **b072** for a real, previously
   undisclosed gate regression found while doing it. Doc-only item: no

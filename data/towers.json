@@ -160,7 +160,7 @@
       "blocks": true,
       "attack": {
         "kind": "cone",
-        "damage": 2.7,
+        "damage": 2.8,
         "interval": 0.25,
         "range": 3.5,
         "coneHalfAngle": 0.6,
@@ -235,7 +235,7 @@
       "attack": {
         "kind": "chain",
         "damage": 29,
-        "interval": 1,
+        "interval": 0.9,
         "range": 5,
         "chains": 1,
         "chainRange": 3,
@@ -276,7 +276,7 @@
       "blocks": true,
       "attack": {
         "kind": "lob",
-        "damage": 95,
+        "damage": 89,
         "interval": 2.2,
         "range": 10,
         "minRange": 4,
@@ -324,7 +324,7 @@
         "damage": 38,
         "interval": 1,
         "range": 4.5,
-        "aoe": 1,
+        "aoe": 0.85,
         "projectiles": 1,
         "damageRatio": {
           "normal": 1,

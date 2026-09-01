@@ -187,8 +187,16 @@ export const GATE_COVERAGE: Record<string, CoverageEntry> = {
       "shifting VS damage share via the VS-kills -> XP -> Power-boon -> powerMul pipeline p10c's own header " +
       'documents. Filed and fixed as BACKLOG b071: data/towers.json frost_obelisk.attack.damage 19->18 (a 5.3% ' +
       'cut) lands frost_obelisk at 25.9% with real margin, without touching buildPhaseSeconds and without ' +
-      'reopening G1 (re-measured at 35.20 min / 88% wins, still inside band). All three assertions are live and ' +
-      'green. Gate G13 is green in full.',
+      'reopening G1 (re-measured at 35.20 min / 88% wins, still inside band). b071 also confirmed, via git ' +
+      "stash, that a4-single-type.test.ts had a separate, unrelated drift live at the same commit: " +
+      "ember_brazier/tesla_coil under-cleared T1 (3/5, 2/5) and mortar/venom_spore over-cleared T3 (1/5 each) " +
+      "— this prior note's \"green in full\" claim was therefore wrong from p10l onward; p10n's HANDOFF " +
+      'regeneration caught the discrepancy and filed BACKLOG b072. Fixed by b072 (data/towers.json: ' +
+      'ember_brazier.attack.damage 2.7->2.8, tesla_coil.attack.interval 1->0.9, mortar.attack.damage 95->89, ' +
+      'venom_spore.attack.aoe 1->0.85) without touching buildPhaseSeconds or frost_obelisk, re-verified not to ' +
+      'reopen G1 (35.24 min / 92% wins) or the share cap (worst case now mortar 24.1%, still 10.9 points under ' +
+      '35%). All 16 a4-single-type assertions plus all three weapon-share assertions are live and green. Gate ' +
+      'G13 is green in full.',
   },
   G14: { files: ['tests/boss.test.ts'] },
   G16: { files: ['tests/c8-dev-profile.test.ts', 'tests/t4-god-mode.test.ts'] },

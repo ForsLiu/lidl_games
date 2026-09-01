@@ -593,31 +593,8 @@ fresh number.
 
 ### Filed 2026-09-01 — G13 solo-viability regression, found while regenerating HANDOFF at p10n
 
-- [ ] (b072) [bug] top priority: **G13**'s solo-viability clause
-      (`tests/a4-single-type.test.ts`, "every tower type solo-viable at T1,
-      none at T3") is currently **red at HEAD** — 4 of its 16 live
-      (non-`.skip`) assertions fail: `ember_brazier` (3/5, not 5/5) and
-      `tesla_coil` (2/5, not 5/5) at T1; `mortar` and `venom_spore` (1/5
-      each, not 0/5) at T3 (confirmed by a standalone `npx vitest run
-      tests/a4-single-type.test.ts` at commit `31fb74e`). `b071`'s own
-      PROGRESS entry (2026-09-01) already found and named this exact drift
-      while fixing the unrelated 35%-share cap in the same file's sibling
-      gate clause — confirmed pre-existing and unrelated to that fix via
-      `git stash` (identical failures with or without it) — and explicitly
-      flagged it as "worth its own backlog item, not filed here," but no
-      such item was ever created. Root cause not yet chased (CLAUDE.md rule
-      3: the regression tests already exist and are already red, chase the
-      cause as part of the fix, not before it) — candidates are the same
-      `p10c`/`p10j`/`p10l` tuning passes that moved `frost_obelisk`'s damage
-      and `buildPhaseSeconds`, per this file's own header history. This is
-      independent of **p10r** (G8/G23's over-ceiling win-rate retune) —
-      fix it without reopening G1 or G13's 35%-share cap (re-run
-      `tests/p10d-run-length.test.ts` and `tests/p10c-weapon-share.test.ts`
-      after). Acceptance: all 16 of `tests/a4-single-type.test.ts`'s live
-      assertions pass (5/5 T1, 0/5 T3 for every one of the 7 attacking
-      towers); G1/G13's cap clause re-confirmed unaffected — refs: SPEC-FINAL
-      §14 G13, `tests/a4-single-type.test.ts`, PROGRESS.md's b071 entry,
-      HANDOFF.md §4.
+- [x] (b072) [bug] top priority: **G13**'s solo-viability clause — **done, see
+      Done section.**
 
 - [x] (p10n) [polish] Regenerate HANDOFF.md end to end — **done, see Done
       section.**
@@ -2308,6 +2285,32 @@ logged in MIGRATION.md §8 rather than carried as dead items.
   **G19**. The work is `p10d`.
 
 ## Done
+
+- [x] (b072) [bug] Fixed gate **G13**'s solo-viability clause
+      (`tests/a4-single-type.test.ts`): `ember_brazier`/`tesla_coil`
+      under-cleared T1 (3/5, 2/5) and `mortar`/`venom_spore` over-cleared T3
+      (1/5 each) — see PROGRESS.md's b072 entry for the full write-up. Fixed
+      via `data/towers.json` only (delegated to balance-analyst):
+      `ember_brazier.attack.damage` 2.7→2.8, `tesla_coil.attack.interval`
+      1→0.9 (a damage buff was rejected — it pushed T3 to 2/5), `mortar.
+      attack.damage` 95→89, `venom_spore.attack.aoe` 1→0.85 (a damage cut was
+      rejected — it was fragile enough to flip T1 from 5/5 to 4/5). All 16
+      `a4-single-type.test.ts` assertions now green; gate G1
+      (`tests/p10d-run-length.test.ts`) and G13's own 35%-share cap
+      (`tests/p10c-weapon-share.test.ts`) re-confirmed unaffected. `tools/
+      gate-audit.ts`'s G13 note corrected to stop claiming "green in full"
+      through the period it wasn't. code-reviewer **APPROVE** (no
+      Critical/Major; one informational note that the four tuned fields are
+      also read generically by VS summon-clone abilities, expected reuse not
+      a defect). qa-playtester **PASS**: independently reran all three
+      guarded test files, traced `tesla_coil`'s interval change through the
+      chain-attack cooldown path to confirm no silent secondary effect, and
+      flagged (not filed, doesn't reproduce today) that three of the four
+      retuned towers now have one T3 seed landing at 17/18 waves — a future
+      buff or wave-curve nudge could re-open G13 there. `npm run test:fast`:
+      only the pre-existing Windows flake classes (EPERM temp-dir races, a
+      q15 hook timeout, two port-contention cases under parallel load),
+      confirmed via `git stash` A/B unrelated to this change.
 
 - [x] (p10n) [polish] Regenerated HANDOFF.md end to end against SPEC-FINAL —
       commit `dbb0ec5` (see PROGRESS.md's p10n entry for the full write-up).
