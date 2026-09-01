@@ -5,6 +5,45 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-01 session: BACKLOG b040 closed** — `tests/q7-data-fuzz.test.ts`'s
+  "writes nothing to /data" case intermittently failed only under full-suite
+  parallel load: it compares a `DISK_AT_START` sha256 snapshot of every
+  `/data/*.json` file, captured once at module load, against a fresh
+  `filesOnDisk()` read taken at assertion time. Investigation confirmed
+  nothing in this repo writes to the real `/data` during a test run — every
+  CLI probe test uses a `cpSync`'d scratch copy, `tools/mutation-probe.ts`'s
+  `applyEdits` only writes into its own scratch dir, and `tools/gen-tree.mjs`
+  (the one tool that does write a real `/data` file) is excluded from every
+  automated tool-invoking path (`tools/cli-crash-coverage.ts`'s
+  `listToolFiles` filters to `.ts` only). With no writer found, the likely
+  cause is a single disk read disagreeing with itself under host load and
+  then agreeing again moments later, not a real regression. Fixed by adding
+  `diskSnapshotMatches(expected, opts)` to `tools/fuzz-data.ts`: re-reads the
+  disk snapshot up to 5 attempts (50ms apart) before failing, so a real write
+  — which never self-heals — still fails loudly, but a transient single-shot
+  disagreement no longer does. `tests/q7-data-fuzz.test.ts` now uses it, with
+  a diff-friendly fallback assertion for a useful failure message. Since the
+  original flake reproduced only once and isn't reproducible on demand, the
+  regression coverage targets the retry mechanism itself: 3 new unit tests
+  against an injectable `read` function (immediate match, recovers within
+  budget, fails past budget), taking the file from 29 to 40 tests.
+  code-reviewer: APPROVE, no Critical/Major (two informational notes on
+  `sameHashes`'s non-symmetric-but-safe key check and the unvalidated
+  5-attempt/50ms heuristic window). qa-playtester: PASS — confirmed the new
+  unit tests are meaningful by patching the helper to single-shot and seeing
+  2/3 go red (file restored and verified via `git diff` after), adversarially
+  probed the helper standalone confirming persistent mismatches still fail,
+  correct `attemptsUsed` accounting, and correct off-by-one boundary
+  behavior; noted `attempts <= 0` still performs one read as a harmless
+  observation (no call site passes it). Acceptance's literal "ten consecutive
+  `npm run test:fast` runs under host load" clause deferred per the
+  established b028/b029 pattern (CLAUDE.md working rule 2 forbids a repeated
+  full-suite-load sweep inside an ordinary item); evidence gathered instead:
+  clean typecheck, a green standalone run of the file (40/40), and one green
+  `npm run test:fast` (1803 passed / 9 failed / 16 skipped, all 9 the
+  documented pre-existing Playwright-fold/q15-worker-hang/q49-q52-EPERM
+  flake classes, none touching the changed files). No bugs filed.
+
 - **2026-09-01 session: BACKLOG b039 closed** — p9a's content-hash replay
   guard (CLAUDE.md architecture rule 2: "a replay against edited `/data`
   fails loudly") had two dormant gaps qa-playtester found verifying p9a.

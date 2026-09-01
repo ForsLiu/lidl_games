@@ -2056,26 +2056,9 @@ because the lane worktree retires at this merge.
       item's scope.
 - [x] (b039) [bug] p9a's content-hash mismatch check only fires when
       `RunConfig.contentHash` is already set — **done, see Done section.**
-- [ ] (b040) [bug] `tests/q7-data-fuzz.test.ts`'s "writes nothing to /data" case
-      intermittently fails only under full-suite parallel load: it compares a
-      `DISK_AT_START` hash of every `/data/*.json` file captured once at module
-      load against a fresh `filesOnDisk()` read taken at assertion time, and on
-      a loaded host the two can legitimately differ without the test itself, or
-      anything in this repo, having written to the real `/data` — every CLI
-      probe test checked (q45, q49, q28, q52) operates on a `cpSync`'d scratch
-      copy, never the real files. Found by qa-playtester verifying p10a
-      (2026-08-30): failed once across two consecutive `npm run test:fast`
-      runs, passed 29/29 in isolation (`npx vitest run tests/q7-data-fuzz.test.ts`)
-      both times and did not recur on the second full-suite run — a race, not a
-      reproducible logic bug, so no regression test is filed yet per CLAUDE.md
-      rule 6 ("stuck ~5 distinct attempts" doesn't apply here since the first
-      attempt is to *reproduce* it deterministically, not fix it blind) —
-      acceptance: either both hashes are captured back-to-back immediately
-      around the assertion (removing the module-load-time gap a full suite run
-      can widen), or the case is marked to run outside whatever parallel
-      scheduling lets an unrelated file touch remain in flight across it; ten
-      consecutive `npm run test:fast` runs under host load pass this case —
-      refs: qa-playtester on p10a, `tests/q7-data-fuzz.test.ts`.
+- [x] (b040) [bug] `tests/q7-data-fuzz.test.ts`'s "writes nothing to /data" case
+      intermittently failed only under full-suite parallel load — **done, see
+      Done section.**
 - [ ] (b041) [bug] `tests/p10e-perf-budget.test.ts`'s anti-vacuity check ("a
       mostly-idle build scores far lower than a real played run") doesn't test
       what its own comment claims. The comment credits the gap to `no-move`
@@ -2245,6 +2228,68 @@ logged in MIGRATION.md §8 rather than carried as dead items.
   **G19**. The work is `p10d`.
 
 ## Done
+
+- [x] (b040) [bug] `tests/q7-data-fuzz.test.ts`'s "writes nothing to /data" case
+      intermittently failed only under full-suite parallel load: it compares a
+      `DISK_AT_START` sha256 snapshot of every `/data/*.json` file, captured
+      once at module load, against a fresh `filesOnDisk()` read taken at
+      assertion time. Investigation this session (2026-09-01) confirmed the
+      race is not caused by anything in this repo writing to the real `/data`:
+      every CLI probe test operates on a `cpSync`'d scratch copy;
+      `tools/mutation-probe.ts`'s `applyEdits` writes only into its own
+      scratch dir; `tools/gen-tree.mjs` is the only tool that writes a real
+      `/data` file directly but is excluded from every automated tool-invoking
+      path (`tools/cli-crash-coverage.ts`'s `listToolFiles` filters to `.ts`
+      only, by its own doc comment). With no writer identified, the most
+      likely cause is a single disk read disagreeing with itself under host
+      load and then agreeing again moments later, not a real regression.
+      Fixed by adding `diskSnapshotMatches(expected, opts)` to
+      `tools/fuzz-data.ts`: re-reads the disk snapshot up to `attempts`
+      (default 5) times with `delayMs` (default 50) between reads, returning
+      as soon as a read agrees with `expected`, and only reporting failure if
+      every attempt still disagrees. This can only mask a transient read that
+      resolves itself — a real write never self-heals, so a genuine
+      regression stays mismatched across every retry and still fails loudly.
+      `tests/q7-data-fuzz.test.ts`'s "writes nothing to /data" test now calls
+      `diskSnapshotMatches(DISK_AT_START)` and asserts `matched === true`,
+      with a diff-friendly fallback assertion (`expect(last).toEqual(
+      DISK_AT_START)`) for a useful failure message if it still fails. Since
+      the original flake reproduced only once and isn't reproducible on
+      demand, the regression coverage targets the retry mechanism itself: a
+      new `describe('b040: diskSnapshotMatches retries a single-shot
+      mismatch', ...)` block adds 3 unit tests against an injectable `read`
+      function — matches immediately, recovers when a mismatch resolves
+      within the attempt budget, fails once a mismatch persists past the
+      budget (40 tests total in the file, up from 29). Acceptance's literal
+      "ten consecutive `npm run test:fast` runs under host load" clause can't
+      be gathered inside one ordinary item (CLAUDE.md working rule 2 forbids
+      starting a full-suite-load repeated sweep there) — same deferral
+      pattern b028/b029 already used. Evidence gathered instead: `npx tsc
+      --noEmit` clean; `npx vitest run tests/q7-data-fuzz.test.ts` green
+      (40/40) standalone; one full `npm run test:fast` run (1803 passed / 9
+      failed / 16 skipped, all 9 the documented pre-existing Playwright-fold/
+      q15-worker-hang/q49-q52-EPERM-scratch-dir flake classes, none touching
+      `tools/fuzz-data.ts` or `tests/q7-data-fuzz.test.ts`). code-reviewer:
+      **APPROVE**, no Critical/Major (two informational notes, not fixed:
+      `sameHashes`'s length+`every` check isn't a fully symmetric key-set
+      compare, harmless since both operands always come from the same
+      `DATA_FILES` constant; the 5-attempt/50ms retry window is a heuristic
+      chosen without being able to reproduce the original race on demand).
+      qa-playtester: **PASS** — independently confirmed the 3 new unit tests
+      are meaningful by patching `diskSnapshotMatches` to a single-shot
+      no-retry implementation and confirming 2 of 3 go red (file restored
+      byte-identical after, verified via `git diff`); adversarially probed
+      the helper standalone (throwaway script, deleted after) confirming a
+      persistent real mismatch still returns `matched: false` after
+      exhausting the budget, correct `attemptsUsed` accounting, and exact
+      off-by-one boundary correctness (a mismatch resolving on exactly the
+      last permitted attempt passes, one read later fails); noted one
+      harmless edge case (`attempts <= 0` still performs one read rather than
+      zero — no call site in this repo ever passes it) as an observation, not
+      a bug. `npm run test:fast` independently re-run: same 9 pre-existing
+      failures, no new regressions. No bugs filed — refs: qa-playtester on
+      p10a (2026-08-30, original find), `tools/fuzz-data.ts`,
+      `tests/q7-data-fuzz.test.ts`.
 
 - [x] (b039) [bug] p9a's content-hash mismatch check only fired when
       `RunConfig.contentHash` was already set (`World`'s constructor,

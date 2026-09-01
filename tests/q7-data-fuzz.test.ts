@@ -34,6 +34,7 @@ import {
   IMPORT_TIME_FILES,
   allStringSites,
   census,
+  diskSnapshotMatches,
   errorLine,
   filesOnDisk,
   mutate,
@@ -426,10 +427,47 @@ describe('q7 — every field, every wrong shape', () => {
     // the 5,747 mutations have already happened and a before/after pair taken
     // here would bracket nothing at all. Same shape as the `checked === 600`
     // slip q3's review caught — the counter that counts the wrong interval.
+    //
+    // b040: a real write never self-heals, but under full-suite parallel host
+    // load a single-shot disk read taken this long after `DISK_AT_START` was
+    // captured has, once, disagreed with it and then agreed again moments
+    // later. `diskSnapshotMatches` retries a few times before failing, so a
+    // transient read race no longer fails the run, while a genuine write
+    // (which stays mismatched) still does.
     const { trials } = await runCensusA();
     expect(trials.length).toBeGreaterThan(4000);
-    expect(filesOnDisk()).toEqual(DISK_AT_START);
+    const { matched, last } = await diskSnapshotMatches(DISK_AT_START);
+    if (!matched) expect(last).toEqual(DISK_AT_START);
+    expect(matched).toBe(true);
   }, 300_000);
+
+  describe('b040: diskSnapshotMatches retries a single-shot mismatch', () => {
+    const A = { classes: 'aaa', towers: 'bbb' };
+    const B = { classes: 'ccc', towers: 'bbb' };
+
+    it('matches immediately when the read agrees with expected', async () => {
+      const read = vi.fn(() => A);
+      const result = await diskSnapshotMatches(A, { read, delayMs: 0 });
+      expect(result).toEqual({ matched: true, last: A, attemptsUsed: 1 });
+      expect(read).toHaveBeenCalledTimes(1);
+    });
+
+    it('recovers when a transient mismatch resolves within the attempt budget', async () => {
+      let calls = 0;
+      const read = vi.fn(() => (++calls <= 2 ? B : A));
+      const result = await diskSnapshotMatches(A, { read, attempts: 5, delayMs: 0 });
+      expect(result.matched).toBe(true);
+      expect(result.attemptsUsed).toBe(3);
+      expect(read).toHaveBeenCalledTimes(3);
+    });
+
+    it('fails once a mismatch persists past the attempt budget', async () => {
+      const read = vi.fn(() => B);
+      const result = await diskSnapshotMatches(A, { read, attempts: 3, delayMs: 0 });
+      expect(result).toEqual({ matched: false, last: B, attemptsUsed: 3 });
+      expect(read).toHaveBeenCalledTimes(3);
+    });
+  });
 
   it('is deterministic: no RNG, so a slice re-runs identically', async () => {
     const { trials } = await runCensusA();

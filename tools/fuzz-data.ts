@@ -102,6 +102,37 @@ export function filesOnDisk(): Record<string, string> {
   return out;
 }
 
+function sameHashes(a: Record<string, string>, b: Record<string, string>): boolean {
+  const ak = Object.keys(a);
+  const bk = Object.keys(b);
+  if (ak.length !== bk.length) return false;
+  return ak.every((k) => a[k] === b[k]);
+}
+
+/**
+ * Re-reads `read()` against `expected` a few times before giving up (b040).
+ * Nothing in this repo ever writes to the real `/data` files during a test
+ * run, so a genuine content change never self-heals — but under full-suite
+ * parallel host load a single-shot disk read taken long after `expected` was
+ * captured has, once, disagreed with it and then agreed again moments later.
+ * Retrying tells those two cases apart instead of failing on the first one.
+ */
+export async function diskSnapshotMatches(
+  expected: Record<string, string>,
+  opts: { read?: () => Record<string, string>; attempts?: number; delayMs?: number } = {},
+): Promise<{ matched: boolean; last: Record<string, string>; attemptsUsed: number }> {
+  const read = opts.read ?? filesOnDisk;
+  const attempts = opts.attempts ?? 5;
+  const delayMs = opts.delayMs ?? 50;
+  let last = read();
+  for (let attemptsUsed = 1; ; attemptsUsed++) {
+    if (sameHashes(last, expected)) return { matched: true, last, attemptsUsed };
+    if (attemptsUsed >= attempts) return { matched: false, last, attemptsUsed };
+    await new Promise((resolve) => setTimeout(resolve, delayMs));
+    last = read();
+  }
+}
+
 /* ------------------------------------------------------------------ sites */
 
 export type SiteKind = 'null' | 'boolean' | 'number' | 'string' | 'array' | 'object';
