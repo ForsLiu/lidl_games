@@ -38,6 +38,7 @@ export class Game {
     showRanges: false,
     selection: null,
     settings: this.settings,
+    hoveredSkill: null,
   };
   private keys = new Set<string>();
   private pending: Command[] = [];
@@ -179,6 +180,7 @@ export class Game {
       onCycleSpeed: () => this.hud.setSpeed(this.pacer.cycle()),
       onDev: (op, amount, enemyKey) => this.pending.push({ k: 'dev', op, amount, enemyKey }),
       onQuitToHub: () => this.showHub(),
+      onHoverSkill: (which) => (this.view.hoveredSkill = which),
     });
     this.renderer = new Renderer(this.hud.canvas);
     if (!this.inputBound) {

@@ -627,3 +627,115 @@ html, body {
   background: #e0c07a;
   border-radius: 4px;
 }
+
+/* ------------------------------------------------------- fb026 bottom bar */
+
+/*
+ * A DOM overlay inside `.sw-stage`, sized in the same logical CSS pixels the
+ * canvas's own `style.width` uses (canvas.ts's `resize`) — the stage's box is
+ * already device-pixel-ratio-correct without any extra scaling code here, the
+ * browser rasterizes ordinary DOM text/borders crisply at any DPR on its own.
+ */
+.sw-bottombar {
+  position: absolute;
+  left: 50%;
+  bottom: 10px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 12px;
+  z-index: 4;
+  box-shadow: 0 4px 14px #00000066;
+}
+.sw-bottombar.sw-off { display: none !important; }
+
+.sw-bb-vital { display: flex; flex-direction: column; align-items: flex-start; min-width: 62px; }
+.sw-bb-vlabel { font-size: 10px; text-transform: uppercase; letter-spacing: .08em; color: var(--dim); }
+.sw-bb-vnum { font-variant-numeric: tabular-nums; font-size: 14px; }
+.sw-bb-vnum.gold { color: var(--gold); }
+.sw-bb-vmeter { width: 62px; margin: 3px 0 0; }
+
+.sw-bb-skill {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  cursor: default;
+  outline: none;
+}
+.sw-bb-icon {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  display: grid;
+  place-items: center;
+}
+.sw-bb-passive .sw-bb-icon { border-color: var(--accent); }
+.sw-bb-icontext, .sw-bb-key {
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--text);
+  z-index: 1;
+}
+/* The clockwise cooldown sweep: a conic-gradient mask that shrinks from a
+   full dark cover (just used) to nothing (ready), driven by one custom
+   property so `renderSkillIcon` only ever touches a single value per frame. */
+.sw-bb-sweep {
+  --sw-bb-frac: 0;
+  position: absolute;
+  inset: 0;
+  border-radius: 8px;
+  background: conic-gradient(#05070ccc calc(var(--sw-bb-frac) * 360deg), transparent 0);
+  pointer-events: none;
+}
+.sw-bb-charge {
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  min-width: 15px;
+  padding: 0 3px;
+  font-size: 10px;
+  font-weight: 700;
+  text-align: center;
+  background: var(--gold);
+  color: #10141c;
+  border-radius: 8px;
+  line-height: 15px;
+}
+.sw-bb-under { margin-top: 3px; font-size: 10px; color: var(--dim); font-variant-numeric: tabular-nums; min-height: 12px; }
+.sw-bb-skill.ready .sw-bb-under { color: var(--accent); }
+
+@keyframes sw-bb-ready-flash {
+  0% { box-shadow: 0 0 0 0 #7ae2c3aa; }
+  100% { box-shadow: 0 0 0 8px #7ae2c300; }
+}
+.sw-bb-flash .sw-bb-icon { animation: sw-bb-ready-flash 0.5s ease-out; }
+
+/* Hover/focus tooltip: reuses `.sw-effectblock`'s own formatting (class-info.ts). */
+.sw-bb-tip {
+  display: none;
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: 240px;
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 8px 10px;
+  z-index: 6;
+  text-align: left;
+  pointer-events: none;
+}
+.sw-bb-skill:hover .sw-bb-tip,
+.sw-bb-skill:focus .sw-bb-tip,
+.sw-bb-skill:focus-within .sw-bb-tip {
+  display: block;
+}

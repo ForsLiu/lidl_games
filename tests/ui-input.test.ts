@@ -54,6 +54,7 @@ function noopHudCallbacks(pending: Command[]) {
     onCycleSpeed: () => {},
     onDev: () => {},
     onQuitToHub: () => {},
+    onHoverSkill: () => {},
   };
 }
 
@@ -479,6 +480,7 @@ describe('pause (playtest request)', () => {
       onCycleSpeed: () => {},
       onDev: () => {},
       onQuitToHub: () => quit++,
+      onHoverSkill: () => {},
     });
     const world = new World(cfg());
     hud.buildTowerBar(world);
@@ -509,6 +511,7 @@ describe('pause (playtest request)', () => {
       onCycleSpeed: () => {},
       onDev: () => {},
       onQuitToHub: () => quit++,
+      onHoverSkill: () => {},
     });
     const world = new World(cfg());
     hud.buildTowerBar(world);

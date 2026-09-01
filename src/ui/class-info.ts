@@ -20,13 +20,32 @@ export interface ClassLiveContext {
   atkFlat: number;
   /** `classAttackPowerMul(w, cls)` (classes.ts) — Power plus Blood Frenzy's phase-dependent swing. */
   damageMul: number;
+  /**
+   * `active2CdrFactor(w)` (classes.ts) — Active2's real cooldown/recharge
+   * reduction: the general `cdr` stat *and* the §6.3 "Active2 cooldown" skill
+   * card every one of the 12 classes has, which `cdr` alone does not cover
+   * (qa-playtester finding, fb026: Active2's tooltip showed the unreduced
+   * number once a run had any rank in that card). Optional because Active1's
+   * and the basic attack's blocks never read it — only `activeSkillMarkup`'s
+   * `'active2'` branch does, falling back to plain `1 - cdr` if a caller ever
+   * omits it.
+   */
+  active2CdrFactor?: number;
 }
 
-function liveOverrides(fields: Record<string, unknown>, live?: ClassLiveContext): Record<string, number> {
+function liveOverrides(fields: Record<string, unknown>, live?: ClassLiveContext, cooldownFactor?: number): Record<string, number> {
   if (!live) return {};
+  const factor = cooldownFactor ?? 1 - live.cdr;
   const overrides: Record<string, number> = {};
   if (typeof fields.cooldownSeconds === 'number') {
-    overrides.cooldownSeconds = fields.cooldownSeconds * (1 - live.cdr);
+    overrides.cooldownSeconds = fields.cooldownSeconds * factor;
+  }
+  // A `maxCharges > 1` Active (fb013 Time Lord, both Actives) is gated by
+  // `rechargeSeconds`, not `cooldownSeconds`, once it has spent a charge
+  // (`tickAmmoRecharge`, classes.ts) — the same CDR factor applies to
+  // whichever field is the real gate for this effect.
+  if (typeof fields.rechargeSeconds === 'number') {
+    overrides.rechargeSeconds = fields.rechargeSeconds * factor;
   }
   if (typeof fields.damage === 'number') {
     overrides.damage = (fields.damage + live.atkFlat) * live.damageMul;
@@ -45,11 +64,35 @@ function liveOverrides(fields: Record<string, unknown>, live?: ClassLiveContext)
   return overrides;
 }
 
-function effectBlock(title: string, fields: Record<string, unknown>, live?: ClassLiveContext): string {
+function effectBlock(title: string, fields: Record<string, unknown>, live?: ClassLiveContext, cooldownFactor?: number): string {
   return `<div class="sw-effectblock">
     <b>${title}</b>
-    ${numericFieldListHtml(fields, liveOverrides(fields, live))}
+    ${numericFieldListHtml(fields, liveOverrides(fields, live, cooldownFactor))}
   </div>`;
+}
+
+/**
+ * fb026: the single-skill slice of `classAbilitiesMarkup`, for the bottom
+ * bar's per-icon hover tooltip — the same live-resolved numbers, scoped to
+ * just the Active being hovered rather than the whole class. Active2 reads
+ * `live.active2CdrFactor` rather than the plain `1 - live.cdr` Active1 uses
+ * (see `ClassLiveContext`'s own doc comment).
+ */
+export function activeSkillMarkup(cls: ClassDef, which: 'active1' | 'active2', live?: ClassLiveContext): string {
+  const eff = which === 'active1' ? cls.active1 : cls.active2;
+  const label = which === 'active1' ? 'Q, Active 1' : 'E, Active 2';
+  const cooldownFactor = live ? (which === 'active1' ? 1 - live.cdr : live.active2CdrFactor ?? 1 - live.cdr) : undefined;
+  return effectBlock(`${eff.name} (${label})`, eff, live, cooldownFactor);
+}
+
+/** fb026: the passive's own block, standalone for the bottom bar's passive-icon tooltip. */
+export function passiveSkillMarkup(cls: ClassDef): string {
+  return `<div class="sw-effectblock">
+      <b>${cls.passive.name} (Passive)</b>
+      <p class="sw-note">${cls.passive.description}</p>
+      ${numericFieldListHtml(cls.passive)}
+      ${modLinesHtml(cls.passive.mods)}
+    </div>`;
 }
 
 /**
@@ -72,14 +115,9 @@ export function classAbilitiesMarkup(cls: ClassDef, opts: { live?: ClassLiveCont
       <b>Basic attack</b>
       ${numericFieldListHtml(cls.basicAttack, liveOverrides(cls.basicAttack, live))}
     </div>`,
-    effectBlock(`${cls.active1.name} (Q, Active 1)`, cls.active1, live),
-    effectBlock(`${cls.active2.name} (E, Active 2)`, cls.active2, live),
-    `<div class="sw-effectblock">
-      <b>${cls.passive.name} (Passive)</b>
-      <p class="sw-note">${cls.passive.description}</p>
-      ${numericFieldListHtml(cls.passive)}
-      ${modLinesHtml(cls.passive.mods)}
-    </div>`,
+    activeSkillMarkup(cls, 'active1', live),
+    activeSkillMarkup(cls, 'active2', live),
+    passiveSkillMarkup(cls),
     `<div class="sw-effectblock">
       <b>${cls.towerPassive.name} (Tower Passive)</b>
       <p class="sw-note">${cls.towerPassive.description}</p>

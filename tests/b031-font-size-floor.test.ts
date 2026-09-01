@@ -50,6 +50,7 @@ function makeHud(root: HTMLElement): Hud {
     onCycleSpeed: () => {},
     onDev: () => {},
     onQuitToHub: () => {},
+    onHoverSkill: () => {},
   });
 }
 

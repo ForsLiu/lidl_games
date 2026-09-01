@@ -151,7 +151,7 @@ export function characterDamage(w: World, cls: ClassDef, base: number): number {
  * way `cdr` alone already implicitly is (a `cooldownSeconds * (1 - x)` factor
  * cannot legally go negative without an active2Cooldown that counts up).
  */
-function active2CdrFactor(w: World): number {
+export function active2CdrFactor(w: World): number {
   return Math.max(0.05, 1 - w.derived.cdr - active2CdrBonus(w));
 }
 

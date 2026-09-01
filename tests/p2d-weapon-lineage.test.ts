@@ -146,6 +146,7 @@ describe('p2d — Hud panel reflects the live wielded roster, not a stale cache'
       onCycleSpeed: () => {},
       onDev: () => {},
       onQuitToHub: () => {},
+      onHoverSkill: () => {},
     });
   }
 

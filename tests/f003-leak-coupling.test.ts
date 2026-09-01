@@ -296,6 +296,7 @@ describe('BACKLOG f003/p3c: TD HUD shows the "Loose in the dark" counter', () =>
       onCycleSpeed: () => {},
       onDev: () => {},
       onQuitToHub: () => {},
+      onHoverSkill: () => {},
     });
     return { root, hud };
   }

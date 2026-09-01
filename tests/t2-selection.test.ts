@@ -478,6 +478,7 @@ describe('T2: the selection gets a stats panel', () => {
       onCycleSpeed: () => {},
       onDev: () => {},
       onQuitToHub: () => {},
+      onHoverSkill: () => {},
     });
     hud.buildTowerBar(w);
     if (pick !== undefined) hud.select(pick);
@@ -548,7 +549,7 @@ describe('T2: the selection gets a stats panel', () => {
       onSelectTower: () => {}, onCallWave: () => {}, onPickOffer: () => {},
       onReroll: () => {}, onRetry: () => {},
       onNewRun: () => {}, onToggleRanges: () => {}, onToggleAutoPick: () => {}, onToggleCharacterPanel: () => {}, onEquipItem: () => {}, onToggleDpsPanel: () => {}, onResume: () => {}, onPause: () => {},
-      onCycleSpeed: () => {}, onDev: () => {}, onQuitToHub: () => {},
+      onCycleSpeed: () => {}, onDev: () => {}, onQuitToHub: () => {}, onHoverSkill: () => {},
     });
     hud.buildTowerBar(w);
     const sel: Selection = { kind: 'enemy', id: e.id };
@@ -576,7 +577,7 @@ describe('T2: the selection gets a stats panel', () => {
       onSelectTower: () => {}, onCallWave: () => {}, onPickOffer: () => {},
       onReroll: () => {}, onRetry: () => {},
       onNewRun: () => {}, onToggleRanges: () => {}, onToggleAutoPick: () => {}, onToggleCharacterPanel: () => {}, onEquipItem: () => {}, onToggleDpsPanel: () => {}, onResume: () => {}, onPause: () => {},
-      onCycleSpeed: () => {}, onDev: () => {}, onQuitToHub: () => {},
+      onCycleSpeed: () => {}, onDev: () => {}, onQuitToHub: () => {}, onHoverSkill: () => {},
     });
     hud.buildTowerBar(w);
     hud.update(w, undefined, { kind: 'enemy', id: e.id } as Selection);

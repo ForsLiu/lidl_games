@@ -57,6 +57,12 @@ export interface ViewState {
   selection: Selection;
   /** Presentation settings; never read by the sim. */
   settings: Settings;
+  /**
+   * fb026: the bottom bar's Active1/Active2 icon currently under the mouse —
+   * draws that skill's range/area indicator around the Warden. `null` while
+   * neither icon is hovered.
+   */
+  hoveredSkill?: 'active1' | 'active2' | null;
 }
 
 /** A one-shot line effect for an attack that lands instantly (SPEC 3.3). */
@@ -445,6 +451,7 @@ export class Renderer {
     this.drawCasts(view);
     this.drawWarden(w);
     this.drawChargeIndicator(w, view);
+    this.drawSkillHoverRing(w, view);
     this.drawHover(w, view);
     this.drawSelection(w, view);
     if (!night) this.drawRangeRings(w, view);
@@ -1217,6 +1224,30 @@ export class Renderer {
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.arc(x, y, r + 3, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+
+  /**
+   * fb026: the bottom bar's Active1/Active2 icon draws that skill's own
+   * radius around the Warden while hovered — the same authored `radius`
+   * `circleSlashValues`/the class effect handlers in classes.ts resolve
+   * their hit area from, not a live-scaled preview (a charge-scaled nova's
+   * live radius is already shown in-combat by `drawChargeIndicator`).
+   */
+  private drawSkillHoverRing(w: World, view: ViewState): void {
+    if (!view.hoveredSkill) return;
+    const cls = w.content.classByKey.get(w.cfg.classKey);
+    if (!cls) return;
+    const eff = view.hoveredSkill === 'active1' ? cls.active1 : cls.active2;
+    const radius = eff.radius ?? 0;
+    if (radius <= 0) return;
+    const ctx = this.ctx;
+    ctx.strokeStyle = PALETTE.heartstone;
+    ctx.lineWidth = 2;
+    ctx.globalAlpha = 0.55;
+    ctx.beginPath();
+    ctx.arc(w.warden.x * TILE, w.warden.y * TILE, radius * TILE, 0, Math.PI * 2);
     ctx.stroke();
     ctx.globalAlpha = 1;
   }

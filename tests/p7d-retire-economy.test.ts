@@ -165,6 +165,7 @@ describe('p7d: Ember is gone from what a player sees', () => {
       onCycleSpeed: () => {},
       onDev: () => {},
       onQuitToHub: () => {},
+      onHoverSkill: () => {},
     });
     const w = new World(cfg());
     w.outcome = 'victory';
@@ -200,6 +201,7 @@ describe('p7d: Ember is gone from what a player sees', () => {
       onCycleSpeed: () => {},
       onDev: () => {},
       onQuitToHub: () => {},
+      onHoverSkill: () => {},
     });
     const w = new World(cfg({ allocated: allNodeIds() }));
     hud.buildTowerBar(w);

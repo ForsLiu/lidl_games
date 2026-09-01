@@ -129,6 +129,7 @@ describe('fb023: the in-run character panel Equipment section', () => {
       onCycleSpeed: () => {},
       onDev: () => {},
       onQuitToHub: () => {},
+      onHoverSkill: () => {},
     });
   }
 

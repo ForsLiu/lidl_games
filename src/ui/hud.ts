@@ -15,8 +15,9 @@ import { selectedEnemy, selectedStructure, type Selection } from './selection';
 import { characterPanelData, type CharacterPanelData } from './character-panel';
 import { dpsPanelData, type DpsPanelData, type DpsWindow } from './dps-panel';
 import { STAT_DISPLAY, type StatDisplay } from '../sim/stats';
-import { classAttackPowerMul } from '../sim/classes';
-import { classAbilitiesMarkup, type ClassLiveContext } from './class-info';
+import { active2CdrFactor, classAttackPowerMul } from '../sim/classes';
+import { activeSkillMarkup, classAbilitiesMarkup, passiveSkillMarkup, type ClassLiveContext } from './class-info';
+import { bottomBarData, type SkillIconState } from './bottom-bar';
 import { coreLiveMarkup } from './core-info';
 import { formatPct } from './info-format';
 
@@ -40,6 +41,8 @@ export interface HudCallbacks {
   onToggleDpsPanel(): void;
   onResume(): void;
   onPause(): void;
+  /** fb026: hovering an Active icon on the bottom bar; `null` on mouseleave. Drives the map's skill-range ring. */
+  onHoverSkill(which: 'active1' | 'active2' | null): void;
   /** Fast-forward: cycles through the declared speeds (`SPEEDS`). */
   onCycleSpeed(): void;
   /** Practice tool; only reachable in a run started with practice on. `enemyKey` is only meaningful for the `'spawn'` op. */
@@ -75,6 +78,27 @@ export class Hud {
   private dpsPanelDocked_ = false;
   /** b035: the practice tool panel is tall enough to push `#sw-towerinfo` past the fold; collapsed by default. */
   private practiceCollapsed = true;
+  /** fb026: the bottom HUD bar's element refs, cached once at construction — see `renderBottomBar`. */
+  private bb!: {
+    root: HTMLElement;
+    hpNum: HTMLElement;
+    hpFill: HTMLElement;
+    goldNum: HTMLElement;
+    passiveState: HTMLElement;
+    passiveTip: HTMLElement;
+    a1Sweep: HTMLElement;
+    a1Charge: HTMLElement;
+    a1Cd: HTMLElement;
+    a1Tip: HTMLElement;
+    a1Icon: HTMLElement;
+    a2Sweep: HTMLElement;
+    a2Charge: HTMLElement;
+    a2Cd: HTMLElement;
+    a2Tip: HTMLElement;
+    a2Icon: HTMLElement;
+  };
+  /** fb026: previous frame's ready state per Active, so a false->true edge gets a one-shot "ready" flash. */
+  private prevSkillReady: { active1: boolean; active2: boolean } = { active1: true, active2: true };
 
   constructor(root: HTMLElement, cb: HudCallbacks) {
     this.root = root;
@@ -88,6 +112,40 @@ export class Hud {
           <div class="sw-modal sw-off" id="sw-dpspanel" hidden></div>
           <button class="sw-dpsdock sw-off" id="sw-dpsdock" hidden title="Reopen DPS summary (P)">DPS &#9656;</button>
           <div class="sw-toast" id="sw-toast"></div>
+          <div class="sw-bottombar" id="sw-bottombar">
+            <div class="sw-bb-vital sw-bb-hp">
+              <span class="sw-bb-vlabel">HP</span>
+              <b class="sw-bb-vnum" id="sw-bb-hp-num"></b>
+              <div class="sw-meter sw-bb-vmeter"><i id="sw-bb-hp-fill"></i></div>
+            </div>
+            <div class="sw-bb-vital sw-bb-gold">
+              <span class="sw-bb-vlabel">Gold</span>
+              <b class="sw-bb-vnum gold" id="sw-bb-gold-num"></b>
+            </div>
+            <div class="sw-bb-skill sw-bb-passive" id="sw-bb-passive" data-skill="passive" tabindex="0">
+              <div class="sw-bb-icon"><span class="sw-bb-icontext">P</span></div>
+              <div class="sw-bb-under" id="sw-bb-passive-state"></div>
+              <div class="sw-bb-tip" id="sw-bb-passive-tip"></div>
+            </div>
+            <div class="sw-bb-skill" id="sw-bb-active1" data-skill="active1" tabindex="0">
+              <div class="sw-bb-icon">
+                <span class="sw-bb-key">Q</span>
+                <div class="sw-bb-sweep" id="sw-bb-a1-sweep"></div>
+                <span class="sw-bb-charge" id="sw-bb-a1-charge"></span>
+              </div>
+              <div class="sw-bb-under" id="sw-bb-a1-cd"></div>
+              <div class="sw-bb-tip" id="sw-bb-a1-tip"></div>
+            </div>
+            <div class="sw-bb-skill" id="sw-bb-active2" data-skill="active2" tabindex="0">
+              <div class="sw-bb-icon">
+                <span class="sw-bb-key">E</span>
+                <div class="sw-bb-sweep" id="sw-bb-a2-sweep"></div>
+                <span class="sw-bb-charge" id="sw-bb-a2-charge"></span>
+              </div>
+              <div class="sw-bb-under" id="sw-bb-a2-cd"></div>
+              <div class="sw-bb-tip" id="sw-bb-a2-tip"></div>
+            </div>
+          </div>
         </div>
         <div class="sw-side">
           <div class="sw-controls" id="sw-controls">
@@ -131,7 +189,43 @@ export class Hud {
     this.charPanelEl = root.querySelector('#sw-charpanel') as HTMLElement;
     this.dpsPanelEl = root.querySelector('#sw-dpspanel') as HTMLElement;
     this.dpsDockEl = root.querySelector('#sw-dpsdock') as HTMLElement;
+    this.bb = {
+      root: root.querySelector('#sw-bottombar') as HTMLElement,
+      hpNum: root.querySelector('#sw-bb-hp-num') as HTMLElement,
+      hpFill: root.querySelector('#sw-bb-hp-fill') as HTMLElement,
+      goldNum: root.querySelector('#sw-bb-gold-num') as HTMLElement,
+      passiveState: root.querySelector('#sw-bb-passive-state') as HTMLElement,
+      passiveTip: root.querySelector('#sw-bb-passive-tip') as HTMLElement,
+      a1Sweep: root.querySelector('#sw-bb-a1-sweep') as HTMLElement,
+      a1Charge: root.querySelector('#sw-bb-a1-charge') as HTMLElement,
+      a1Cd: root.querySelector('#sw-bb-a1-cd') as HTMLElement,
+      a1Tip: root.querySelector('#sw-bb-a1-tip') as HTMLElement,
+      a1Icon: root.querySelector('#sw-bb-active1') as HTMLElement,
+      a2Sweep: root.querySelector('#sw-bb-a2-sweep') as HTMLElement,
+      a2Charge: root.querySelector('#sw-bb-a2-charge') as HTMLElement,
+      a2Cd: root.querySelector('#sw-bb-a2-cd') as HTMLElement,
+      a2Tip: root.querySelector('#sw-bb-a2-tip') as HTMLElement,
+      a2Icon: root.querySelector('#sw-bb-active2') as HTMLElement,
+    };
     this.wireControls();
+    this.wireBottomBarHover();
+  }
+
+  /**
+   * fb026: hover/focus (keyboard-reachable, `tabindex="0"`) on Active1/Active2
+   * both shows that skill's tooltip and tells the renderer to draw its range
+   * ring around the Warden; the passive icon only gets the tooltip (it has no
+   * targeted range to preview). Leaving clears both.
+   */
+  private wireBottomBarHover(): void {
+    const bind = (el: HTMLElement, which: 'active1' | 'active2' | null) => {
+      el.addEventListener('mouseenter', () => this.cb.onHoverSkill(which));
+      el.addEventListener('focus', () => this.cb.onHoverSkill(which));
+      el.addEventListener('mouseleave', () => this.cb.onHoverSkill(null));
+      el.addEventListener('blur', () => this.cb.onHoverSkill(null));
+    };
+    bind(this.bb.a1Icon, 'active1');
+    bind(this.bb.a2Icon, 'active2');
   }
 
   private wireControls(): void {
@@ -588,12 +682,88 @@ export class Hud {
     if ((this.dpsPanelOpen_ || this.dpsPanelDocked_) && w.outcome !== 'running') this.closeDpsPanel();
     else if (this.dpsPanelOpen_) this.renderDpsPanel(w);
     this.syncDpsPanelToggle();
+    this.renderBottomBar(w);
     // A selection describes itself — but never at the cost of the panels the
     // player needs to act: a tower queued on the build bar has to show its own
     // stats, and in Act II the weapon panel carries the only weapon switcher.
     const blocking = this.selected > 0 || w.sundered;
     if (!blocking && this.renderSelectionInfo(w, selection)) return;
     this.renderTowerInfo(w, cursor);
+  }
+
+  /**
+   * fb026: the persistent bottom bar — HP/gold with numbers, the passive
+   * icon's live state, and Active1(Q)/Active2(E) with a MOBA-style clockwise
+   * cooldown sweep, a multi-charge badge and a one-shot ready flash. Visible
+   * in both TD and VS phases (unlike the tower bar/build panels, this reads
+   * only Warden-side state, none of it TD-specific), so it is never hidden
+   * on `w.huntsWarden` the way `this.bar` is.
+   *
+   * The sweep is a `conic-gradient` mask driven by an inline CSS custom
+   * property rather than canvas/SVG math — `data-fraction` carries the same
+   * number for tests, so the fraction asserted there is exactly what paints.
+   */
+  private renderBottomBar(w: World): void {
+    // Every overlay this class owns (pause/level-up/results, the character
+    // panel, the DPS panel) is a full-stage sheet, same reasoning as
+    // `openModal`'s own panel-closing calls — painting the bar on top would
+    // float readable HP/gold numbers over what should be an opaque cover.
+    const wasHidden = this.bb.root.classList.contains('sw-off');
+    this.bb.root.classList.toggle('sw-off', this.modalOpen);
+    if (this.modalOpen) {
+      // A browser never fires `mouseleave` on an element hidden out from
+      // under the pointer (`display: none` via `.sw-off`) — pausing mid-hover
+      // would otherwise leave `view.hoveredSkill` stuck, still drawing that
+      // skill's range ring on the map after Resume (code-reviewer finding).
+      if (!wasHidden) this.cb.onHoverSkill(null);
+      return;
+    }
+    const data = bottomBarData(w);
+    this.bb.hpNum.textContent = `${Math.ceil(data.hp.current)} / ${Math.round(data.hp.max)}`;
+    this.bb.hpFill.style.width = `${data.hp.max > 0 ? Math.max(0, (data.hp.current / data.hp.max) * 100) : 0}%`;
+    this.bb.goldNum.textContent = `${data.gold}`;
+
+    this.bb.passiveState.textContent = data.passive.stateText;
+    const cls = w.content.classByKey.get(w.cfg.classKey);
+    if (cls) {
+      this.bb.passiveTip.innerHTML = passiveSkillMarkup(cls);
+      const live: ClassLiveContext = {
+        cdr: w.derived.cdr,
+        atkFlat: w.derived.atkFlat,
+        damageMul: classAttackPowerMul(w, cls),
+        active2CdrFactor: active2CdrFactor(w),
+      };
+      this.bb.a1Tip.innerHTML = activeSkillMarkup(cls, 'active1', live);
+      this.bb.a2Tip.innerHTML = activeSkillMarkup(cls, 'active2', live);
+    }
+
+    this.renderSkillIcon(data.active1, this.bb.a1Sweep, this.bb.a1Charge, this.bb.a1Cd, this.bb.a1Icon, 'active1');
+    this.renderSkillIcon(data.active2, this.bb.a2Sweep, this.bb.a2Charge, this.bb.a2Cd, this.bb.a2Icon, 'active2');
+  }
+
+  private renderSkillIcon(
+    s: SkillIconState,
+    sweepEl: HTMLElement,
+    chargeEl: HTMLElement,
+    cdEl: HTMLElement,
+    iconEl: HTMLElement,
+    which: 'active1' | 'active2',
+  ): void {
+    sweepEl.style.setProperty('--sw-bb-frac', String(s.sweepFraction));
+    sweepEl.dataset.fraction = s.sweepFraction.toFixed(4);
+    cdEl.textContent = s.ready ? 'Ready' : s.cooldownRemaining.toFixed(1) + 's';
+    chargeEl.textContent = s.charges ? `${s.charges.current}/${s.charges.max}` : '';
+    chargeEl.hidden = !s.charges;
+    iconEl.classList.toggle('ready', s.ready);
+    if (s.ready && !this.prevSkillReady[which]) {
+      iconEl.classList.remove('sw-bb-flash');
+      // Forces a reflow so re-adding the class restarts the CSS animation on
+      // a rapid re-ready (multi-charge Actives can flash again within a
+      // second) instead of the browser coalescing it into a no-op.
+      void iconEl.offsetWidth;
+      iconEl.classList.add('sw-bb-flash');
+    }
+    this.prevSkillReady[which] = s.ready;
   }
 
   /** One Active's HUD row: name, key binding, and live cooldown state. */
@@ -1095,6 +1265,7 @@ function characterAbilitiesMarkup(w: World): string {
     // `classAttackPowerMul` only differs from plain `powerMul` for Blood
     // Frenzy's phase-dependent swing.
     damageMul: classAttackPowerMul(w, cls),
+    active2CdrFactor: active2CdrFactor(w),
   };
   return classAbilitiesMarkup(cls, { live });
 }

@@ -58,6 +58,7 @@ function makeHud(root: HTMLElement, log: Log, pacer: Pacer): Hud {
     },
     onDev: (op: DevOp) => log.dev.push(op),
     onQuitToHub: () => {},
+    onHoverSkill: () => {},
   });
   return hud;
 }

@@ -135,6 +135,7 @@ function mountHud(): { root: HTMLElement; hud: Hud; log: Record<string, number> 
     onCycleSpeed: () => {},
     onDev: () => {},
     onQuitToHub: () => log.hub++,
+    onHoverSkill: () => {},
   });
   return { root, hud, log };
 }
