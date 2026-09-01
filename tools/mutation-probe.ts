@@ -217,13 +217,22 @@ export const MUTATIONS: Mutation[] = [
     file: 'src/meta/meta.ts',
     edits: [
       {
-        find: `  const out: MetaState = {\n    ...base,\n    ...meta,\n`,
-        replace: `  const out: MetaState = {\n    ...meta,\n    ...base,\n`,
+        // b067: p7f rebuilt `migrateWithNotice`'s `out` field-by-field, so the
+        // original `{...base, ...meta}` this mutation named no longer exists
+        // anywhere in the file (a comment at the top of `out` says so
+        // explicitly). `highestTier` is the one field that comment calls out
+        // as a deliberate holdout of the old spread's precedence semantics
+        // ("present in `meta` (any type) wins, absent falls back to the
+        // default") — reversing its ternary is the same bug class (migrate
+        // lets `base`'s default clobber a real loaded value) on the last
+        // surviving line that still has it.
+        find: `    highestTier: meta.highestTier !== undefined ? meta.highestTier : base.highestTier,`,
+        replace: `    highestTier: base.highestTier !== undefined ? base.highestTier : meta.highestTier,`,
       },
     ],
     testFile: 'tests/q8-save-roundtrip.test.ts',
     source:
-      'BACKLOG-QUALITY.md session 4 log (q8): "reversing `migrate`\'s spread order (`{...meta, ...base}`)" — QA confirmed red on the first generated meta.',
+      'BACKLOG-QUALITY.md session 4 log (q8): "reversing `migrate`\'s spread order (`{...meta, ...base}`)" — QA confirmed red on the first generated meta. Retargeted at b067 (anchor went stale after p7f\'s field-by-field rebuild); see the edit comment above.',
   },
   {
     name: 'meta-drop-unlocked-classes-after-merge',
@@ -429,13 +438,19 @@ export const MUTATIONS: Mutation[] = [
     file: 'tools/soak.ts',
     edits: [
       {
-        find: `  const started = performance.now();\n  let run: Run | undefined;\n  let w: World | undefined;\n  const problems: string[] = [];\n  let threw = false;\n\n  try {\n    const cfg: RunConfig = {\n      seed,\n      classKey: 'engineer',\n      tier: 1,\n      modifiers: [],\n      allocated: [],\n      policy: policyName,\n      cycles: 3,\n    };\n    // \`new Run(cfg)\` lives inside this try (not before it) so a \`/data\` load\n    // failure at construction — e.g. a corrupted content file — comes back\n    // through \`SoakResult.threw\` like any other in-run exception, rather\n    // than propagating straight out of \`soakOne\` uncaught (q28).\n    run = new Run(cfg);\n    w = run.world;\n    const policy = makePolicy(policyName);`,
-        replace: `  const started = performance.now();\n  const cfg: RunConfig = {\n    seed,\n    classKey: 'engineer',\n    tier: 1,\n    modifiers: [],\n    allocated: [],\n    policy: policyName,\n    cycles: 3,\n  };\n  const run: Run = new Run(cfg);\n  const w: World = run.world;\n  const problems: string[] = [];\n  let threw = false;\n\n  try {\n    const policy = makePolicy(policyName);`,
+        // b067: `let run: Run | undefined` was renamed to `let run: RunType |
+        // undefined` (the file's `Run` identifier is now a lazily-bound
+        // constructor value, not a type — only `RunType` is imported as a
+        // type), so this anchor's old text no longer matches. Retargeted to
+        // the current spelling; the mutated replacement uses `RunType` too,
+        // since a bare `Run` type annotation would no longer compile.
+        find: `  const started = performance.now();\n  let run: RunType | undefined;\n  let w: World | undefined;\n  const problems: string[] = [];\n  let threw = false;\n\n  try {\n    const cfg: RunConfig = {\n      seed,\n      classKey: 'engineer',\n      tier: 1,\n      modifiers: [],\n      allocated: [],\n      policy: policyName,\n      cycles: 3,\n    };\n    // \`new Run(cfg)\` lives inside this try (not before it) so a \`/data\` load\n    // failure at construction — e.g. a corrupted content file — comes back\n    // through \`SoakResult.threw\` like any other in-run exception, rather\n    // than propagating straight out of \`soakOne\` uncaught (q28).\n    run = new Run(cfg);\n    w = run.world;\n    const policy = makePolicy(policyName);`,
+        replace: `  const started = performance.now();\n  const cfg: RunConfig = {\n    seed,\n    classKey: 'engineer',\n    tier: 1,\n    modifiers: [],\n    allocated: [],\n    policy: policyName,\n    cycles: 3,\n  };\n  const run: RunType = new Run(cfg);\n  const w: World = run.world;\n  const problems: string[] = [];\n  let threw = false;\n\n  try {\n    const policy = makePolicy(policyName);`,
       },
     ],
     testFile: 'tests/q28-cli-error-handling.test.ts',
     source:
-      'BACKLOG-QUALITY.md q28/q40: reverts `soak.ts`\'s `soakOne` to its pre-q28 shape (`new Run(cfg)` constructed one line before its own `try`, not inside it), so a `/data` corruption at construction propagates straight out of `soakOne` uncaught instead of coming back as `SoakResult.threw` — q23\'s `maxTicks`/`scanEvery` guards do not cover this path. Targets the "soak.ts CLI failure path" describe block\'s corrupted-data cases (distinguishing signal is `main()` never reaching its own output, not exit code — see that test\'s own doc comment).',
+      'BACKLOG-QUALITY.md q28/q40: reverts `soak.ts`\'s `soakOne` to its pre-q28 shape (`new Run(cfg)` constructed one line before its own `try`, not inside it), so a `/data` corruption at construction propagates straight out of `soakOne` uncaught instead of coming back as `SoakResult.threw` — q23\'s `maxTicks`/`scanEvery` guards do not cover this path. Targets the "soak.ts CLI failure path" describe block\'s corrupted-data cases (distinguishing signal is `main()` never reaching its own output, not exit code — see that test\'s own doc comment). Retargeted at b067 (anchor went stale after `Run` was renamed to `RunType` as a type import); see the edit comment above.',
   },
   // The final eleven (BACKLOG-QUALITY q52) close the identical recurring gap
   // a third time: q45's nine try/catch/.catch() guards, q48's probe-boss.ts
