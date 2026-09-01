@@ -2062,29 +2062,10 @@ because the lane worktree retires at this merge.
 - [x] (b041) [bug] `tests/p10e-perf-budget.test.ts`'s anti-vacuity check ("a
       mostly-idle build scores far lower than a real played run") doesn't test
       what its own comment claims — **done, see Done section.**
-- [ ] (b042) [polish] The "Time" Core's step-1 `goldPerSecond` effect
-      (`src/sim/cores.ts`'s `updateCoreEffects`, `data/cores.json`) ticks real
-      wall-clock gold income every phase including `act1_build`, so it is
-      genuinely coupled to `data/waves.json`'s `buildPhaseSeconds` — unlike
-      every other gold source (kill bounty, the fixed wave-clear bonus,
-      Harvest Sprout's per-wave-clear income), which p10l verified are all
-      flat-per-event, not time-based. Not a regression and not caught by any
-      gate: `tests/a4-single-type.test.ts` and `tests/p10d-run-length.test.ts`
-      both run the default `stone_heart` core (no `goldPerSecond`), so
-      p10l's buildPhaseSeconds retune (20->15) never exercised this path.
-      Found by qa-playtester verifying p10l (2026-08-31), reproduced twice: a
-      Time-core run with step 1 bought banks ~85-93 less gold (~0.7% of run
-      total) at buildPhaseSeconds 15 vs 20, tracking the removed build-phase
-      seconds exactly, across seeds 1-3. Harmless today (small magnitude, and
-      if anything helps that Core's own "win under 32 min" unlock condition
-      by not penalizing a faster clear) but the "gold is solely per-event, not
-      per-second" claim p10l's doc comments make is an approximation true only
-      for the default core — acceptance: a small regression test (e.g.
-      extending `tests/p-core-e-time-decay.test.ts` or a new file) that pins
-      the Time Core's `goldPerSecond` income as time-coupled by construction,
-      so a future pacing-timer retune notices this core's income moves with
-      it instead of rediscovering the coupling from scratch — refs:
-      qa-playtester on p10l, `src/sim/cores.ts`, `data/cores.json`.
+- [x] (b042) [polish] The "Time" Core's step-1 `goldPerSecond` effect ticks real
+      wall-clock gold income every phase, genuinely coupled to
+      `data/waves.json`'s `buildPhaseSeconds` unlike every other gold source —
+      **done, see Done section.**
 - [ ] (b069) [bug] Retry / New Run silently reverts a mid-run auto-pick
       toggle to the run's original starting value, three-way splitting
       `Game`'s own state. `Game.startRun` (`src/ui/main.ts`) captures
@@ -2210,6 +2191,37 @@ logged in MIGRATION.md §8 rather than carried as dead items.
 
 ## Done
 
+- [x] (b042) [polish] Time Core step-1 `goldPerSecond` income pinned as
+      time-coupled by construction — commit `79e2fc0`. The income ticks real
+      wall-clock gold every phase including `act1_build`, genuinely coupled to
+      `data/waves.json`'s `buildPhaseSeconds` — unlike every other gold source
+      (kill bounty, the fixed wave-clear bonus, Harvest Sprout's per-wave-clear
+      income), which are flat-per-event. Not a regression: qa-playtester found
+      it verifying p10l (2026-08-31) — a Time-core run's step-1 income shrank
+      ~85-93 gold (~0.7% of run total) when `buildPhaseSeconds` moved 20->15,
+      tracking the removed build-phase seconds exactly, across seeds 1-3.
+      Two regression tests added to `tests/p-core-b-effects.test.ts` right
+      after the existing step-1 gold test: one reads
+      `content.waves.buildPhaseSeconds` from live `/data` (not a hardcoded
+      literal) and asserts a full build-phase tick of `updateCoreEffects` banks
+      exactly that many gold, so a future pacing-timer retune moves this
+      test's expectation in lockstep instead of being rediscovered from a
+      live-run gold audit; the other pins income scaling linearly with
+      elapsed time generically (10s -> 20s doubles the gold), independent of
+      the currently-authored duration. Both verified (by me and independently
+      by qa-playtester) to catch a dt-decoupling mutation
+      (`addCoreGold(w, core.goldPerSecond)` dropping the `* dt`) and, on
+      qa-playtester's own mutation, a hardcoded lump-sum cap that
+      coincidentally numerically matched today's `buildPhaseSeconds` value —
+      exactly the false-pass class this item exists to prevent. qa-playtester
+      also confirmed no higher-level `act1_build` phase-transition test was
+      needed: `Run.step` (`src/sim/run.ts:120`) calls `updateCoreEffects(w,
+      dt)` directly with no intervening logic, so the unit-level direct-tick
+      tests already exercise the exact real call path. Test-only change, no
+      `/src` behavior or `/data` edit. code-reviewer not delegated (no new
+      production code path, test-only addition); qa-playtester **PASS**, no
+      bugs filed — refs: qa-playtester on p10l, `src/sim/cores.ts`,
+      `data/cores.json`.
 - [x] (b041) [bug] `tests/p10e-perf-budget.test.ts`'s anti-vacuity check compared
       `no-move` (capped @5min, never leaving cheap Act I) against `hybrid`'s
       full run, so it passed on the Act I/full-run phase-mix cost gap alone,

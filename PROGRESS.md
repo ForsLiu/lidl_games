@@ -5,6 +5,35 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-01 session: BACKLOG b042 closed** — pinned the "Time" Core's step-1
+  `goldPerSecond` income (`src/sim/cores.ts`'s `updateCoreEffects`) as
+  time-coupled by construction, not a regression (qa-playtester finding on
+  p10l, 2026-08-31: a Time-core run's step-1 gold shrank ~85-93 gold when
+  `buildPhaseSeconds` moved 20->15, tracking the removed build-phase seconds
+  exactly — every other gold source, kill bounty/wave-clear bonus/Harvest
+  Sprout, is flat-per-event). Two regression tests added to
+  `tests/p-core-b-effects.test.ts` right after the existing step-1 gold test:
+  one reads `content.waves.buildPhaseSeconds` from live `/data` and asserts a
+  full build-phase tick banks exactly that many gold, so a future
+  pacing-timer retune moves this test's expectation in lockstep instead of
+  being rediscovered from a live-run gold audit; the other pins income
+  scaling linearly with elapsed time generically (10s -> 20s doubles the
+  gold), independent of the currently-authored duration. Both verified to
+  catch a dt-decoupling mutation and, on qa-playtester's own mutation, a
+  hardcoded lump-sum cap that coincidentally numerically matched today's
+  `buildPhaseSeconds` — exactly the false-pass class this item exists to
+  prevent. qa-playtester also confirmed no higher-level `act1_build`
+  phase-transition test was needed: `Run.step` (`src/sim/run.ts:120`) calls
+  `updateCoreEffects(w, dt)` directly with no intervening logic, so the
+  unit-level direct-tick tests already exercise the real call path. Test-only
+  change, no `/src` behavior or `/data` edit. `npm run test:fast`: 1806/1830
+  passed, 8 failed across 6 files, all the documented pre-existing Windows
+  EPERM/q15-worker-hang flake classes (q15-command-domain-fuzz,
+  q49-price-probe-restore, q52-m20d-run-a4-bad-key), none touching
+  `cores.ts` or this test file. code-reviewer not delegated (test-only
+  addition, no new production code path); qa-playtester PASS, no bugs filed.
+  Commit `79e2fc0`.
+
 - **2026-09-01 session: BACKLOG b041 closed** — `tests/p10e-perf-budget.test.ts`'s
   G17 anti-vacuity check ("a mostly-idle build scores far lower than a real
   played run") compared `no-move` capped to 5 sim minutes — "well inside Act
