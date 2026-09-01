@@ -81,18 +81,36 @@ describe('G17 sim budget per simulated minute (host-independent)', () => {
     expect(rel, `a=${a.toFixed(0)} b=${b.toFixed(0)} rel=${(rel * 100).toFixed(1)}%`).toBeLessThan(0.25);
   });
 
-  it('is actually sensitive to sim cost — a mostly-idle build scores far lower than a real played run', () => {
+  it('is actually sensitive to sim cost — a run capped inside Act I scores lower than the same policy played to a real outcome', () => {
     // Anti-vacuity, the same shape q13 uses: if the ratio were dominated by
-    // fixed per-tick overhead rather than real per-minute sim cost, a light
-    // build would score close to a real played one instead of well below it.
-    // `no-move` never moves or kites in Act II, so it never grows into the
-    // full board/horde `hybrid` reaches; capped short (5 sim minutes, well
-    // inside Act I) so this stays cheap regardless of its own outcome.
-    const light = measureSimMinuteRatio(1, 'no-move', 40_000, 50, 60 * 60 * 5);
+    // fixed per-tick overhead rather than real per-minute sim cost, a run
+    // capped short would score close to a full run instead of below it.
+    //
+    // b041: an earlier version of this check compared `no-move` (never
+    // moves/kites in Act II) against `hybrid`, capping `no-move` to 5 sim
+    // minutes — "well inside Act I" by its own comment — so the pass was
+    // actually driven by the cheap Act I phase mix, not the claimed policy
+    // difference. The seemingly obvious fix — uncap `no-move` to the real
+    // `MAX_TICKS` and let it reach Act II — turned out to rest on a false
+    // premise: code-reviewer flagged the resulting `no-move < hybrid`
+    // assertion as order-dependent (whichever policy's code paths the
+    // process JIT-warmed first scored artificially cheaper), and measuring
+    // it with matched warmup confirmed why — `no-move`'s full-run
+    // `ratioPerMinute` lands within ~2-4% of `hybrid`'s in either direction
+    // (96-102% across four warmup depths, seed 1, both reaching `victory` at
+    // comparable sim-minutes). Act II movement/kiting alone is not a
+    // reliable cost differentiator, so asserting a direction here would just
+    // trade one order-dependent false pass for another.
+    //
+    // The comparison that *is* real and robust — same policy, only the phase
+    // mix changes, so there is no cross-policy JIT-warmup confound — is this
+    // one: `hybrid` capped to 5 sim minutes (Act I only) against `hybrid`
+    // played to a real outcome (Act I + Act II + the boss fight).
+    const shortHybrid = measureSimMinuteRatio(1, 'hybrid', 40_000, 50, 60 * 60 * 5);
     const real = runs.find((r) => r.seed === 1)!;
     expect(
-      light.ratioPerMinute,
-      `light=${light.ratioPerMinute.toFixed(0)} real=${real.ratioPerMinute.toFixed(0)}`,
-    ).toBeLessThan(real.ratioPerMinute * 0.75);
+      shortHybrid.ratioPerMinute,
+      `short=${shortHybrid.ratioPerMinute.toFixed(0)} real=${real.ratioPerMinute.toFixed(0)}`,
+    ).toBeLessThan(real.ratioPerMinute);
   });
 });
