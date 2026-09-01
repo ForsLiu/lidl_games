@@ -138,7 +138,7 @@ P10" freeze (QUESTIONS Q40), same precedent as fb020.
       — refs: SPEC-FINAL §14 G17 (sim budget), `src/sim/act2.ts`,
       `src/sim/boss.ts`, `data/spawns.json`'s `aliveCap`. **Done — see Done
       section.**
-- [ ] (fb026) [feat] top priority: persistent bottom HUD bar — HP (with
+- [x] (fb026) [feat] top priority: persistent bottom HUD bar — HP (with
       numbers), gold, the class passive icon, and Active 1 (Q) / Active 2
       (E) icons with MOBA-style clockwise cooldown sweeps (remaining
       seconds), multi-charge badges and a ready flash; hovering any icon
@@ -149,7 +149,14 @@ P10" freeze (QUESTIONS Q40), same precedent as fb020.
       text and cooldown-sweep timing match sim state exactly for all 12
       classes (a test asserts the sweep fraction against the sim's own
       cooldown field); the bar scales with the resolution/DPR setting —
-      refs: SPEC-FINAL §11, owner feedback `feature-bottom-bar-hud`.
+      refs: SPEC-FINAL §11, owner feedback `feature-bottom-bar-hud`. **Done,
+      see Done section.** Note for fb028: the passive icon's live state is
+      currently wired for only 3 classes (Paladin's Wrath, Time Lord's
+      stored DoTs, Necromancer's corpse count) — every other class's passive
+      has no single Warden-side field worth a badge yet and shows the name
+      alone; the hover tooltip's effect text is the fuller live-numbers
+      surface fb028 is meant to extend further (equipment conditional
+      lines, etc.), not a placeholder this item left unfinished.
 - [ ] (fb027) [feat] top priority: Core and tower selection panels — Core:
       selecting it opens a panel with HP, TD/VS effect text, stats,
       stacks/store/digestion state, current upgrade step, next-step preview
@@ -2554,6 +2561,46 @@ logged in MIGRATION.md §8 rather than carried as dead items.
 
 ## Done
 
+- [x] (fb026) [feat] persistent bottom HUD bar (`#sw-bottombar`, `src/ui/hud.ts`)
+      — HP/gold with live numbers, the class passive icon (live state text
+      for Paladin's Wrath/Time Lord's stored DoTs/Necromancer's corpse
+      count; every other class shows the passive name alone, no single
+      Warden-side field to badge), and Active1(Q)/Active2(E) icons with a
+      `conic-gradient`-driven clockwise cooldown sweep, a multi-charge badge
+      (Time Lord only today) and a one-shot ready flash. The sweep fraction
+      is a pure function of `World` (`src/ui/bottom-bar.ts`'s
+      `bottomBarData`), so it's asserted directly against the sim's own
+      cooldown/ammo-cooldown fields for all 12 classes with no DOM involved.
+      Hovering/keyboard-focusing an icon shows a live-effect-text tooltip
+      (`class-info.ts`'s `activeSkillMarkup`/`passiveSkillMarkup`, factored
+      out of the existing `classAbilitiesMarkup`) and, for the two Actives,
+      draws the skill's radius as a ring around the Warden
+      (`canvas.ts`'s `drawSkillHoverRing` via a new `ViewState.hoveredSkill`).
+      The bar hides under every full-stage overlay `Hud` owns (pause/
+      level-up/results, character panel, DPS panel) and explicitly clears
+      hover state on that transition, since a browser never fires
+      `mouseleave` on an element hidden out from under the pointer.
+      code-reviewer found two real desyncs before commit: Active2's sweep
+      was using Active1's plain `1 - cdr` factor instead of
+      `active2CdrFactor` (general cdr *and* the §6.3 Active2-cooldown skill
+      card every class has), and Time Lord's ammo-style Active2 was
+      mislabeled as "Active1-only" in a comment. qa-playtester then found the
+      same missing factor had leaked into the *tooltip* text too (both
+      Active2's cooldown line and, separately, a multi-charge Active's
+      `rechargeSeconds` line, neither of which `class-info.ts`'s
+      `liveOverrides` had special-cased) — fixed by exporting
+      `classes.ts`'s `active2CdrFactor` and threading it through both the
+      sweep math and the tooltip resolver, with regression tests for both.
+      `tests/fb026-bottom-bar.test.ts` (21 tests): all-12-classes sweep
+      fraction, the Active2-skill-card and multi-charge-recharge tooltip
+      regressions, and DOM visibility/hiding/tooltip-content coverage.
+      ~16 pre-existing HUD tests got a mechanical `onHoverSkill` stub added
+      to their `HudCallbacks` literals (the interface gained a required
+      method). `npm run test:fast`: green (the same handful of
+      full-parallel-load-only flakes seen in every recent session — fold
+      tests that spin up a real dev server and the `q15` command-fuzz
+      worker-process timing test — confirmed pre-existing via `git stash`
+      and confirmed passing in isolation). Commit `62459fe`.
 - [x] (b073) [bug] Act I wave spawning now gates on `data/spawns.json`'s
       `aliveCap`, the same guard `act2.ts`'s `spendBudget`/`spawnElite` and
       `boss.ts`'s `updateSummonsAndSlams` already use — `updateAct1Wave`'s

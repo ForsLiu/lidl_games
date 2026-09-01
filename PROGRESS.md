@@ -5,6 +5,73 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-01 session: fb026 done — persistent bottom HUD bar.** Owner
+  2026-09-01 directive top-priority item, next in queue after fb024/fb025/
+  b073. New `#sw-bottombar` (`src/ui/hud.ts`): HP/gold with live numbers, the
+  class passive icon (live-state text for the 3 classes with an obvious
+  single Warden-side field — Paladin's Wrath, Time Lord's stored DoTs,
+  Necromancer's corpse count; every other class shows just the passive name,
+  same as the icon's minimum for any class), and Active1(Q)/Active2(E) icons
+  with a `conic-gradient`-driven clockwise cooldown sweep, a multi-charge
+  badge (Time Lord's `maxCharges` Actives are the only ones today) and a
+  one-shot "ready" flash. The sweep fraction is computed by a new pure
+  function, `src/ui/bottom-bar.ts`'s `bottomBarData(w)` — no DOM — so
+  `tests/fb026-bottom-bar.test.ts` asserts it directly against `Warden`'s own
+  cooldown/ammo-cooldown fields for all 12 classes (the item's own explicit
+  acceptance clause), plus a fully-recharged/ready case per class. Hovering
+  or keyboard-focusing (`tabindex="0"`) an icon shows a live-effect-text
+  tooltip — `class-info.ts`'s existing `classAbilitiesMarkup` was split into
+  reusable `activeSkillMarkup`/`passiveSkillMarkup` blocks rather than
+  duplicated — and, for the two Actives, draws that skill's authored radius
+  as a ring around the Warden on the canvas (`canvas.ts`'s new
+  `drawSkillHoverRing`, gated by a new optional `ViewState.hoveredSkill`).
+  The bar hides under every full-stage overlay `Hud` already owns (pause/
+  level-up/results, the character panel, the DPS panel — `this.modalOpen`)
+  and now explicitly clears hover state on that transition, since a browser
+  never fires `mouseleave` on an element hidden out from under the pointer
+  mid-hover. The DPR/"scales with resolution" clause needed no new code: the
+  bar is an ordinary DOM element inside `.sw-stage`, sized in the same
+  logical CSS px the canvas's own `resize()` already uses for its `style.
+  width` — only the canvas backing store is DPR-scaled, so the bar inherits
+  crisp scaling the same way the rest of the HUD chrome does.
+  **code-reviewer** found two real desyncs pre-commit: Active2's sweep
+  (`bottom-bar.ts`'s `skillState`) was computing its `maxCooldown` with
+  Active1's plain `1 - cdr` factor rather than `classes.ts`'s
+  `active2CdrFactor` (general `cdr` *and* the §6.3 "Active2 cooldown" skill
+  card every one of the 12 classes has), which would have visibly desynced
+  the sweep from the real cooldown gate the moment a run had any rank in
+  that card; and a stale hover ring could survive a pause-mid-hover (fixed
+  by clearing `onHoverSkill(null)` on the modal-open transition, confirmed
+  above). Fixed by exporting `active2CdrFactor` and threading it into the
+  ammo and plain branches alike. **qa-playtester** then found the same
+  missing-factor class of bug had leaked into the *tooltip* text on top of
+  the (already-fixed) sweep: `class-info.ts`'s `liveOverrides` only ever
+  applied the plain `1 - cdr` factor to `cooldownSeconds`, so Active2's
+  tooltip disagreed with its own sweep once a card rank was set, and
+  separately a `maxCharges > 1` Active's (Time Lord) tooltip showed a
+  correct `cooldownSeconds` line next to a stale, un-CDR'd `rechargeSeconds`
+  line for the same real wait. Verified live-ticking sweep-vs-sim-field
+  correctness by driving a real `Run.step` loop with `class_active`/
+  `class_active2` Commands across three classes, adversarial hover/pause/
+  panel-switch sequences, and the Time Lord charge-drain/recharge cycle end
+  to end — all held. Fixed by threading `active2CdrFactor` through
+  `liveOverrides` too (a new `ClassLiveContext.active2CdrFactor` field) and
+  adding a `rechargeSeconds` override case alongside the existing
+  `cooldownSeconds` one; both fixes got dedicated regression tests
+  (`tests/fb026-bottom-bar.test.ts`, 21 tests total after the fixes).
+  `npm run test:fast`: green — the same handful of full-parallel-load-only
+  flakes seen in fb025's and b073's sessions (Playwright fold tests that spin
+  up a real dev server and race on port allocation; `q15`'s worker-process
+  command-fuzz timing probe), reconfirmed as pre-existing and load-only by
+  `git stash`-ing this change and by re-running the same files in isolation
+  (`--pool=forks --poolOptions.forks.singleFork=true`), both clean. Files:
+  `src/ui/bottom-bar.ts` (new), `src/ui/hud.ts`, `src/ui/class-info.ts`,
+  `src/ui/main.ts`, `src/render/canvas.ts`, `src/ui/style.css`,
+  `src/sim/classes.ts` (exported `active2CdrFactor`),
+  `tests/fb026-bottom-bar.test.ts` (new), ~16 pre-existing HUD test files
+  (mechanical `onHoverSkill` stub for the new `HudCallbacks` method). Commit
+  `62459fe`.
+
 - **2026-09-01 session: b073 done — Act I wave spawning now respects
   `data/spawns.json`'s `aliveCap`.** `updateAct1Wave`'s spawn loop
   (`src/sim/run.ts`) used to dequeue every queued enemy unconditionally each
