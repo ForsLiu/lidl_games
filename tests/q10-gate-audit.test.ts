@@ -9,14 +9,16 @@
  * SPEC-FINAL adds tomorrow shows up here as a new row on the next run,
  * because the parse walks the live document rather than a copied list.
  */
-import { existsSync, readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   auditGates,
   backlogCheckboxes,
   BACKLOG_PATH,
   entirelyRetiredCoverage,
+  gateIdsWithLiveTestCitation,
   GATE_COVERAGE,
   hasLiveTopLevelDescribe,
   KNOWN_HOLES,
@@ -25,6 +27,7 @@ import {
   REPO_ROOT,
   SPEC_PATH,
   staleHoleRefs,
+  staleKnownHoles,
   type Gate,
 } from '../tools/gate-audit';
 
@@ -63,7 +66,7 @@ describe('q10 — gate-coverage audit', () => {
     expect(untracked.map((r) => `${r.id}: ${r.text}`)).toEqual([]);
   });
 
-  it('the recorded split is exactly seventeen covered and three holes at HEAD', () => {
+  it('the recorded split is all twenty covered and zero holes at HEAD', () => {
     // Pinned like q9's RECORDED_FLOOR: a gate moving from hole to covered (or
     // the other way) is real news about the P-phase it names — worth a look,
     // not a silent pass. If this drifts, re-derive it against the live suite
@@ -81,15 +84,24 @@ describe('q10 — gate-coverage audit', () => {
     // real measured number, the same partial-coverage bar G13/G17 already
     // set. G19 moved back to `covered` at p10f: tests/p10f-g19-liveness.test.ts
     // measures the real thing — sealed/open/multi-summon all appearing in the
-    // winning-build pool — fully live, no it.skip.)
+    // winning-build pool — fully live, no it.skip. Was seventeen/three at
+    // p10n: G8 and G15 both gained live coverage (p6e, p9c) sessions earlier
+    // without this map or pin ever being updated to match — p10o closed the
+    // drift and added `staleKnownHoles` below so it cannot recur unnoticed.
+    // `covered` names the test file, not the pass/fail state of what it
+    // measures — a covered gate can still be honestly `.skip`-ed red, which
+    // is p10m/p10r's job to fix, not this map's.)
     const gates = parseGates(SPEC_TEXT);
     const rows = auditGates(gates).filter((r) => /^G([1-9]|1[0-9]|20)$/.test(r.id));
     const covered = rows.filter((r) => r.status === 'covered').map((r) => r.id).sort();
     const holes = rows.filter((r) => r.status === 'hole').map((r) => r.id).sort();
     expect(covered).toEqual(
-      ['G1', 'G10', 'G11', 'G12', 'G13', 'G14', 'G16', 'G17', 'G18', 'G19', 'G2', 'G20', 'G3', 'G4', 'G5', 'G6', 'G7', 'G9'].sort(),
+      [
+        'G1', 'G10', 'G11', 'G12', 'G13', 'G14', 'G15', 'G16', 'G17', 'G18', 'G19', 'G2', 'G20', 'G3', 'G4', 'G5',
+        'G6', 'G7', 'G8', 'G9',
+      ].sort(),
     );
-    expect(holes).toEqual(['G15', 'G8'].sort());
+    expect(holes).toEqual([]);
   });
 
   it('no `covered` gate is backed only by files that are entirely describe.skip\'d', () => {
@@ -209,6 +221,56 @@ describe('q10 — gate-coverage audit', () => {
       expect(staleHoleRefs({ G1: 'blocked on q99 landing (see q99-widget.test.ts)' }, backlogText)).toEqual([
         'G1: cites q99, which BACKLOG-QUALITY.md now marks done ([x])',
       ]);
+    });
+  });
+
+  describe('p10o — KNOWN_HOLES stays honest as test files land', () => {
+    // The actual bug this guards: G8 (p6e-class-diversity.test.ts) and G15
+    // (the six p9c-tuner-*.test.ts files) both landed live coverage without
+    // KNOWN_HOLES or GATE_COVERAGE ever being updated to match, and neither
+    // gained the wording staleHoleRefs' qNN-citation tripwire above would
+    // have caught — it took a HANDOFF regeneration (p10n) to notice by hand.
+    // gateIdsWithLiveTestCitation/staleKnownHoles close that gap generically,
+    // off the test suite's own self-labeling convention rather than a hole
+    // note's wording.
+
+    it('gateIdsWithLiveTestCitation finds G8 and G15 among the real suite\'s live citations', () => {
+      const cited = gateIdsWithLiveTestCitation();
+      expect(cited.has('G8')).toBe(true);
+      expect(cited.has('G15')).toBe(true);
+    });
+
+    it('staleKnownHoles reports nothing today (KNOWN_HOLES is empty at HEAD)', () => {
+      expect(staleKnownHoles()).toEqual([]);
+    });
+
+    it('staleKnownHoles actually flags a hole whose gate a live test already cites, and clears once it does not', () => {
+      // Anti-vacuity, same shape as staleHoleRefs' own fixture tests: a
+      // hand-built `cited` set, not the real scan, proves the filter fires.
+      expect(staleKnownHoles({ G1: 'not built yet' }, new Set(['G1']))).toEqual(['G1']);
+      expect(staleKnownHoles({ G1: 'not built yet' }, new Set(['G2']))).toEqual([]);
+    });
+
+    it('gateIdsWithLiveTestCitation counts a live describe\'s cited gate but not a describe.skip\'d one', () => {
+      const dir = mkdtempSync(join(tmpdir(), 'stonewake-gate-audit-'));
+      writeFileSync(
+        join(dir, 'fixture-live.test.ts'),
+        "describe('fixture (G997)', () => { it('x', () => {}); });\n",
+      );
+      writeFileSync(
+        join(dir, 'fixture-skip.test.ts'),
+        "describe.skip('fixture (G998)', () => { it('x', () => {}); });\n",
+      );
+      const cited = gateIdsWithLiveTestCitation(dir);
+      expect(cited.has('G997')).toBe(true);
+      expect(cited.has('G998')).toBe(false);
+    });
+
+    it('gateIdsWithLiveTestCitation returns empty rather than throwing when tests/ does not exist (q28\'s no-tests-dir scratch snapshot)', () => {
+      const dir = mkdtempSync(join(tmpdir(), 'stonewake-gate-audit-missing-'));
+      const missing = join(dir, 'no-such-tests-dir');
+      expect(() => gateIdsWithLiveTestCitation(missing)).not.toThrow();
+      expect(gateIdsWithLiveTestCitation(missing)).toEqual(new Set());
     });
   });
 });

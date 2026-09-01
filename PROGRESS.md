@@ -5,6 +5,55 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-01 session: BACKLOG p10o closed** — fixed `tools/gate-audit.ts`'s
+  coverage map, stale for gates **G8** and **G15**: both gained live test
+  coverage at `p6e`/`p9c` sessions earlier, but `GATE_COVERAGE`/`KNOWN_HOLES`
+  were never updated to match, so the tool kept printing them as `hole` and
+  `tests/q10-gate-audit.test.ts` pinned the resulting stale "17 covered / 2
+  holes" split — the drift `p10n`'s HANDOFF regeneration noticed by hand but
+  didn't itself fix. Picked up mid-flight: the implementation (uncommitted in
+  the working tree at session start, no PROGRESS/BACKLOG entry, no commit)
+  already added G8's entry (`tests/p6e-class-diversity.test.ts`) and G15's
+  (the six `tests/p9c-tuner-*.test.ts` files) to `GATE_COVERAGE`, emptied
+  `KNOWN_HOLES`, moved the q10 pin to all-20-covered/zero-holes, and added the
+  regression-worthy tripwire the acceptance text calls for:
+  `gateIdsWithLiveTestCitation` (scans `tests/*.test.ts` for gate ids named in
+  live, non-`.skip`, top-level `describe(...)` strings — the suite's own
+  self-labeling convention) and `staleKnownHoles` (flags any `KNOWN_HOLES`
+  entry a live test already cites), wired into `main()`'s output and exit
+  code. This session verified and completed it rather than trusting it was
+  finished: ran the targeted tests, found and fixed one real bug the prior
+  work introduced — `gateIdsWithLiveTestCitation` threw `ENOENT` when
+  `testsDir` doesn't exist, which crashed `tests/q28-cli-error-handling.test.ts`'s
+  "clean scratch snapshot exits 0" control (a scratch copy of `src/`/`tools/`/
+  `data/` with no `tests/` dir, simulating the CLI run standalone outside a
+  full checkout — a legitimate case per the sim's own reproducible-build
+  rules, not a hypothetical) — fixed with an `existsSync(testsDir)` early
+  return and a regression test. Delegated the acceptance check to
+  qa-playtester rather than take the fix at face value: **PASS** —
+  independently confirmed the cited G8/G15 test files really carry live,
+  non-`.skip` top-level `describe` blocks naming those gates; adversarially
+  fuzzed the new scanner (gate id inside a comment, a nested describe, a
+  whitespace-disguised `.skip`, `G800` vs `BIG800` word-boundary) with no new
+  escapes beyond one pre-existing, non-regressing limitation — a multi-line
+  `describe(\n  '...G600...'` call is invisible to the scanner (no file in
+  `tests/` is written that way today, so nothing is currently mistracked;
+  logged as a latent gap rather than fixed, since CLAUDE.md's rule against
+  designing for hypotheticals applies); verified the `tools/mutation-probe.ts`
+  edit matches the real CRLF source via the tool's own `applyEdits`
+  translation logic, not a naive string read. `npx vitest run
+  tests/q10-gate-audit.test.ts` (24/24) and `tests/q28-cli-error-handling.test.ts`
+  (16/16) both green. `npm run test:fast` green apart from 6 pre-existing
+  failures across `b034`/`b036`/`q15`/`q49`/`q52` — the same Windows flake
+  class already documented at `b072` (EPERM temp-dir races, a `q15` hook
+  timeout, port-contention under parallel load) — reconfirmed unrelated to
+  this change via `git stash` A/B (all 5 files pass standalone at HEAD).
+  Left as real follow-up, not this item's scope: HANDOFF.md's G8/G15
+  sections still describe the old stale-tool caveat, now itself stale;
+  regenerating it is p10n-shaped work for a future item. Files changed:
+  `tools/gate-audit.ts`, `tools/mutation-probe.ts`, `tests/q10-gate-audit.test.ts`.
+  Commit pending in this session.
+
 - **2026-09-01 session: BACKLOG p10q closed** — investigated `no-move`'s win
   rate at T3/T5, not just the T1 number HANDOFF §6 item 5 flagged as worth a
   second look (it had read 75%→100%→75% across three prior measurements, all

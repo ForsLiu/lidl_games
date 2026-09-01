@@ -600,16 +600,8 @@ fresh number.
       section.**
 - [x] (p10q) [balance] Investigate `no-move`'s T1 win rate — **done, see Done
       section.**
-- [ ] (p10o) [chore] `tools/gate-audit.ts`'s coverage map is stale for **G8**
-      and **G15** — both gained live test coverage (`p6e`, `p9c`) but the
-      tool still prints them as `hole`, and `tests/q10-gate-audit.test.ts`
-      pins the resulting stale "17 covered / 2 holes" split — acceptance:
-      `GATE_COVERAGE`/`KNOWN_HOLES` updated so the tool reports G8 and G15 as
-      `covered` (their test files, not their pass/fail state — a covered gate
-      can still be honestly `.skip`-ed red, that's p10m's job, not this
-      tool's); `tests/q10-gate-audit.test.ts`'s pin updated to match; a
-      regression test asserts the tool never again silently drifts stale for
-      a gate that gains coverage — refs: HANDOFF §6 item 6.
+- [x] (p10o) [chore] `tools/gate-audit.ts`'s coverage map is stale for **G8**
+      and **G15** — **done, see Done section.**
 - [ ] (p10p) [chore] Bot roster refresh: `maxbuild`, `kite`, `rush` and
       `walloff` were tuned for an earlier, simpler content shape and never
       re-scripted against the current 18-wave/12-class/5-Core system. This
@@ -2275,6 +2267,47 @@ logged in MIGRATION.md §8 rather than carried as dead items.
   **G19**. The work is `p10d`.
 
 ## Done
+
+- [x] (p10o) [chore] Fixed `tools/gate-audit.ts`'s stale coverage map for
+      **G8** and **G15**: both gained live test coverage at `p6e`/`p9c` but
+      the tool kept printing them as `hole`, drifting silently for several
+      sessions until `p10n`'s HANDOFF regeneration noticed by hand — see
+      PROGRESS.md's p10o entry for the full write-up. `GATE_COVERAGE` gained
+      G8 (`tests/p6e-class-diversity.test.ts`) and G15 (the six
+      `tests/p9c-tuner-*.test.ts` files); `KNOWN_HOLES` is now empty;
+      `tests/q10-gate-audit.test.ts`'s pin moved to all-20-covered/zero-holes.
+      Added the generic tripwire this needed: `gateIdsWithLiveTestCitation`
+      scans `tests/*.test.ts` for gate ids named in live (non-`.skip`)
+      top-level `describe(...)` strings, and `staleKnownHoles` flags any
+      `KNOWN_HOLES` entry a live test already cites — `main()` now prints and
+      exits nonzero on either kind of drift. `tools/mutation-probe.ts`'s
+      matching mutation updated to the new `main()` shape. Found and fixed one
+      real bug of its own during verification: `gateIdsWithLiveTestCitation`
+      threw `ENOENT` when `testsDir` doesn't exist, which crashed
+      `tests/q28-cli-error-handling.test.ts`'s "clean scratch snapshot exits
+      0" control (a scratch copy with `src/`/`tools/`/`data/` but no `tests/`
+      dir, simulating the CLI run standalone outside a full checkout) — fixed
+      with an `existsSync` early return, regression test added. qa-playtester
+      **PASS**: independently confirmed the cited G8/G15 test files really do
+      carry live, non-`.skip` top-level `describe` blocks naming those gates
+      (not trusting the new code's own comments); adversarially fuzzed
+      `gateIdsWithLiveTestCitation` (gate id in a comment, nested describe,
+      whitespace-disguised `.skip`, `G800` vs `BIG800` word-boundary) with no
+      new escapes found beyond one pre-existing, non-regressing limitation —
+      a multi-line `describe(\n  '...G600...'` call is invisible to the
+      scanner (no file in `tests/` uses that style today; logged as a latent
+      gap, not fixed, since nothing currently depends on it); verified the
+      updated `mutation-probe.ts` edit matches real (CRLF) source via the
+      tool's own `applyEdits` translation, not a naive diff read. `npx
+      vitest run tests/q10-gate-audit.test.ts` (24/24) and
+      `tests/q28-cli-error-handling.test.ts` (16/16) both green; `npm run
+      test:fast` green apart from the pre-existing Windows flake class (`b072`
+      precedent — EPERM temp-dir races, a `q15` hook timeout, two
+      port-contention cases), reconfirmed unrelated via `git stash` A/B on the
+      five affected files. Noted, not actioned here: HANDOFF.md still
+      describes G8/G15's old stale-tool caveat — regenerating it is real
+      follow-up work now that the tool is fixed, not part of this item's
+      scope.
 
 - [x] (p10q) [balance] Investigated `no-move`'s win rate at T3/T5, not just
       T1 (HANDOFF §6 item 5) — see QUESTIONS.md Q154 and PROGRESS.md's p10q

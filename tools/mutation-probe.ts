@@ -422,8 +422,8 @@ export const MUTATIONS: Mutation[] = [
     file: 'tools/gate-audit.ts',
     edits: [
       {
-        find: `function main(argv: string[]): void {\n  const json = argv.includes('--json');\n\n  let rows: GateAuditRow[];\n  let stale: string[];\n  try {\n    const specText = readFileSync(SPEC_PATH, 'utf8');\n    const gates = parseGates(specText);\n    rows = auditGates(gates);\n    stale = staleHoleRefs();\n  } catch (err) {\n    const message = err instanceof Error ? err.message : String(err);\n    if (json) {\n      console.log(JSON.stringify({ error: message }));\n    } else {\n      console.error(\`gate-audit: \${message.replace(/\\s+/g, ' ').trim()}\`);\n    }\n    process.exitCode = 1;\n    return;\n  }\n\n  if (json) {`,
-        replace: `function main(argv: string[]): void {\n  const json = argv.includes('--json');\n  const specText = readFileSync(SPEC_PATH, 'utf8');\n  const gates = parseGates(specText);\n  const rows = auditGates(gates);\n  const stale = staleHoleRefs();\n\n  if (json) {`,
+        find: `function main(argv: string[]): void {\n  const json = argv.includes('--json');\n\n  let rows: GateAuditRow[];\n  let stale: string[];\n  let staleHoles: string[];\n  try {\n    const specText = readFileSync(SPEC_PATH, 'utf8');\n    const gates = parseGates(specText);\n    rows = auditGates(gates);\n    stale = staleHoleRefs();\n    staleHoles = staleKnownHoles();\n  } catch (err) {\n    const message = err instanceof Error ? err.message : String(err);\n    if (json) {\n      console.log(JSON.stringify({ error: message }));\n    } else {\n      console.error(\`gate-audit: \${message.replace(/\\s+/g, ' ').trim()}\`);\n    }\n    process.exitCode = 1;\n    return;\n  }\n\n  if (json) {`,
+        replace: `function main(argv: string[]): void {\n  const json = argv.includes('--json');\n  const specText = readFileSync(SPEC_PATH, 'utf8');\n  const gates = parseGates(specText);\n  const rows = auditGates(gates);\n  const stale = staleHoleRefs();\n  const staleHoles = staleKnownHoles();\n\n  if (json) {`,
       },
     ],
     testFile: 'tests/q28-cli-error-handling.test.ts',

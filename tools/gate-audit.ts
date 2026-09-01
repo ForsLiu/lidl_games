@@ -26,12 +26,13 @@
  *   npx tsx tools/gate-audit.ts --json
  */
 
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url));
 export const SPEC_PATH = resolve(REPO_ROOT, 'SPEC-FINAL.md');
+export const TESTS_DIR = resolve(REPO_ROOT, 'tests');
 
 export interface Gate {
   id: string;
@@ -199,7 +200,35 @@ export const GATE_COVERAGE: Record<string, CoverageEntry> = {
       'G13 is green in full.',
   },
   G14: { files: ['tests/boss.test.ts'] },
+  G8: {
+    files: ['tests/p6e-class-diversity.test.ts'],
+    note:
+      "p10o: this gate gained live test coverage at p6e (2026-08-30-ish) but was never moved out of KNOWN_HOLES " +
+      "— the tool kept reporting it as a hole for several sessions after it stopped being one (found while " +
+      "regenerating HANDOFF at p10n/p10o). `covered` here names the test file, not its pass/fail state: p6e's " +
+      "per-class win-rate and top-damage-diversity assertions were honestly `.skip`-ed red against the real " +
+      "content shape and re-measured live by p10m (0/12 at that snapshot, since retuned toward the band by " +
+      "p10r) — that pass/fail history is p10m/p10r's to carry, not this coverage map's.",
+  },
   G16: { files: ['tests/c8-dev-profile.test.ts', 'tests/t4-god-mode.test.ts'] },
+  G15: {
+    files: [
+      'tests/p9c-tuner-save.test.ts',
+      'tests/p9c-tuner-plugin.test.ts',
+      'tests/p9c-tuner-ui.test.ts',
+      'tests/p9c-tuner-prod-ui.test.ts',
+      'tests/p9c-tuner-prod-build.test.ts',
+      'tests/p9c-tuner-hub-flag.test.ts',
+    ],
+    note:
+      "p10o: the Tuner landed at p9c and covers all four of G15's clauses across its six files — " +
+      "p9c-tuner-save covers the edit->save->reload round-trip and invalid-edit rejection (saveTunerFile's " +
+      "own validation), p9c-tuner-plugin covers the dev-server middleware that fronts it and (with " +
+      "p9c-tuner-prod-build) that a production build carries no write endpoint, p9c-tuner-ui/prod-ui cover the " +
+      "dev-edit-panel-vs-prod-read-only-Codex split, and p9c-tuner-hub-flag covers a run started after unsaved " +
+      "live edits flagging like practice — but KNOWN_HOLES was never updated once p9c shipped (same drift as " +
+      "G8, found while regenerating HANDOFF at p10n/p10o).",
+  },
   G18: {
     files: [
       'tests/b10-death-flow.test.ts',
@@ -266,10 +295,10 @@ export const GATE_COVERAGE: Record<string, CoverageEntry> = {
  * measurement with an expiry date"), not a permanent exemption.
  */
 export const KNOWN_HOLES: Record<string, string> = {
-  G8: 'All 12 §4 classes now exist (p6b–p6d), but the scripted-kit-bot win-rate / top-damage-diversity ' +
-    "measurement G8 actually asks for is p6e's, which has not landed. p6a-class-framework.test.ts's live " +
-    'replay-hash block tests the Active-skill Command plumbing, not a win-rate.',
-  G15: 'The Tuner is not built (P9); there is nothing to round-trip yet.',
+  // Empty at p10o: G8 and G15 (this map's only two entries since q10) both
+  // gained live coverage (p6e, p9c) without this file being updated to
+  // match — see GATE_COVERAGE's G8/G15 notes and `staleKnownHoles` below,
+  // added the same item so a future hole cannot drift this way unnoticed.
 };
 
 export function auditGates(
@@ -321,6 +350,49 @@ export function entirelyRetiredCoverage(coverage: Record<string, CoverageEntry> 
     if (!live) flagged.push(`${id}: none of [${entry.files.join(', ')}] has a live top-level describe block`);
   }
   return flagged;
+}
+
+/**
+ * Every gate id cited by name in some *live* (non-`.skip`) top-level
+ * `describe(...)` string across the whole `tests/` directory — the
+ * self-labeling convention this suite already follows (p6e-class-
+ * diversity.test.ts's `"p6e: G8 measured as a live test..."`,
+ * p9c-tuner-save.test.ts's `"saveTunerFile (p9c, G15)"`, 30+ other files).
+ * Deliberately re-scans the real file text rather than trusting
+ * `GATE_COVERAGE` — the whole point is to notice a gate that already has a
+ * live test naming it, independent of whether anyone remembered to update
+ * the curated map.
+ */
+export function gateIdsWithLiveTestCitation(testsDir: string = TESTS_DIR): Set<string> {
+  const cited = new Set<string>();
+  if (!existsSync(testsDir)) return cited;
+  for (const f of readdirSync(testsDir)) {
+    if (!f.endsWith('.test.ts')) continue;
+    const text = readFileSync(resolve(testsDir, f), 'utf8');
+    for (const line of text.split('\n')) {
+      if (!/^describe\(/.test(line)) continue;
+      for (const gm of line.matchAll(/\bG(\d+)\b/g)) cited.add(`G${gm[1]}`);
+    }
+  }
+  return cited;
+}
+
+/**
+ * `KNOWN_HOLES` entries that are stale because a live test file somewhere in
+ * `tests/` already self-labels itself as covering that gate — exactly how
+ * G8 and G15 went stale for several sessions after p6e/p9c landed (found
+ * while regenerating HANDOFF at p10n/p10o, filed as p10o). This is the
+ * generic tripwire `staleHoleRefs` below cannot be: that one only fires when
+ * a hole note happens to *cite a BACKLOG-QUALITY.md lane item by id*, which
+ * neither G8's nor G15's note did (they named P-band work and prose, not a
+ * `qNN` id) — this one fires off the test suite itself, so it does not
+ * depend on a hole note's wording at all.
+ */
+export function staleKnownHoles(
+  holes: Record<string, string> = KNOWN_HOLES,
+  cited: Set<string> = gateIdsWithLiveTestCitation(),
+): string[] {
+  return Object.keys(holes).filter((id) => cited.has(id)).sort();
 }
 
 export const BACKLOG_PATH = resolve(REPO_ROOT, 'BACKLOG-QUALITY.md');
@@ -377,11 +449,13 @@ function main(argv: string[]): void {
 
   let rows: GateAuditRow[];
   let stale: string[];
+  let staleHoles: string[];
   try {
     const specText = readFileSync(SPEC_PATH, 'utf8');
     const gates = parseGates(specText);
     rows = auditGates(gates);
     stale = staleHoleRefs();
+    staleHoles = staleKnownHoles();
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     if (json) {
@@ -416,6 +490,12 @@ function main(argv: string[]): void {
   if (stale.length > 0) {
     console.log(`\nSTALE hole notes (cite a lane item BACKLOG-QUALITY.md now marks done):`);
     for (const s of stale) console.log(`  ${s}`);
+    process.exitCode = 1;
+  }
+
+  if (staleHoles.length > 0) {
+    console.log(`\nSTALE KNOWN_HOLES (a live test file already self-labels itself as covering the gate):`);
+    for (const s of staleHoles) console.log(`  ${s}`);
     process.exitCode = 1;
   }
 }
