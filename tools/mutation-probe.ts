@@ -803,20 +803,29 @@ export function killProcessTree(pid: number): void {
   if (process.platform === 'win32') {
     try {
       execFileSync('taskkill', ['/PID', String(pid), '/T', '/F'], { stdio: 'ignore' });
-    } catch {
-      // Already exited, or never existed — nothing left to kill.
+    } catch (err) {
+      // The common case is "already exited" (taskkill's own race with a
+      // process that finished a moment before). Also covers "never
+      // existed". Logged rather than thrown so a genuine failure (e.g.
+      // access-denied) is at least visible instead of silently leaving a
+      // tree behind — the exact failure mode this function exists to fix.
+      console.warn(`mutation-probe: killProcessTree(${pid}) taskkill failed (likely already exited): ${(err as Error).message}`);
     }
     return;
   }
+  let groupKillFailed = false;
   try {
     process.kill(-pid, 'SIGKILL'); // negative pid: the whole process group (requires detached: true at spawn)
   } catch {
     // No such group (already exited) — fall through to the direct kill below.
+    groupKillFailed = true;
   }
   try {
     process.kill(pid, 'SIGKILL');
-  } catch {
-    // Already exited.
+  } catch (err) {
+    if (groupKillFailed) {
+      console.warn(`mutation-probe: killProcessTree(${pid}) failed on both the process group and the pid itself (likely already exited): ${(err as Error).message}`);
+    }
   }
 }
 
@@ -848,6 +857,10 @@ function runVitest(
     });
     child.on('error', (err) => {
       clearTimeout(timer);
+      // A child can partially start (fork succeeds, exec fails) before
+      // erroring — reap it the same way a timeout would rather than leaving
+      // it to become the same class of orphan this function exists to fix.
+      if (child.pid !== undefined) killProcessTree(child.pid);
       reject(err);
     });
     child.on('close', (code, signal) => {

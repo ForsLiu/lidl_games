@@ -54,13 +54,12 @@ setInterval(() => {}, 1000);`;
         'the grandchild survived killProcessTree and wrote its marker — orphaned, the exact b028 bug',
       ).toBe(false);
     } finally {
-      if (parent && !parent.killed) {
-        try {
-          killProcessTree(parent.pid!);
-        } catch {
-          // best-effort cleanup
-        }
-      }
+      // Best-effort: killProcessTree already ran on the success path above,
+      // but if an assertion threw before that line, the parent (and its
+      // grandchild) could still be alive — `.killed` only reflects a call to
+      // `child.kill()`, which this code never makes, so it can't be used to
+      // skip this.
+      if (parent?.pid !== undefined) killProcessTree(parent.pid);
       rmSync(dir, { recursive: true, force: true });
     }
   }, 15_000);
