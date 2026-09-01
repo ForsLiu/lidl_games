@@ -5,6 +5,47 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-01 session: BACKLOG b070 closed** — fixed gate **G22**'s `corpse`
+  vs Stone Heart, seed-2 regression (fingerprint 0.080, under the 0.10
+  floor), a CLAUDE.md-rule-3 confirmed bug that p10m had filed at the top of
+  the queue rather than fixing in scope. Root cause: `p10l`'s
+  `data/waves.json` `buildPhaseSeconds` 20→15 (which closed gate G1)
+  shortened every TD wave's prep window across the board, pushing the
+  `stone_heart` baseline run at this seed from a win into a `defeat_warden`
+  loss whose late-game damage-share distribution happened to converge with
+  corpse's own execute-reshaped one instead of diverging from it. Rather than
+  touch the G1-closing wave data (would risk reopening G1), the fix widens
+  Corpse's own step-1 upgrade instead — `data/cores.json`'s `storeRatio`
+  0.02→0.03 (`corpseStoreRatio`'s base 0.01 untouched), a Corpse-Core-only
+  knob SPEC-FINAL §5.5 explicitly marks tunable (⚖); `corpseStoreRatio`'s
+  only non-UI reader is TD-only and gated on `w.core`, so G1/G13 (both
+  measured off the default `stone_heart` core) structurally cannot regress
+  from a Corpse-only data row. Fingerprint now measures 0.272 (seed 1) and
+  0.266 (seed 2); both G22 seed-2 cases un-skipped, all 8 G22 cases green.
+  `data/cores.json`'s `desc` string, `src/sim/cores.ts`'s doc comment, and
+  gate G21's worked-example unit tests (`tests/p-core-d-corpse.test.ts`, all
+  22 hand-recomputed for 0.03) updated to match. code-reviewer APPROVE (no
+  Critical/Major). qa-playtester **PASS**: G22 8/8 green with 0 skips, G21
+  22/22 green, gate G1 (`tests/p10d-run-length.test.ts`) empirically
+  re-verified unaffected (3/3 pass, still inside the 30-36 min band). While
+  isolating that claim, qa-playtester also found gate **G13**
+  (`tests/p10c-weapon-share.test.ts`) red at HEAD — `frost_obelisk` measures
+  37.4% against the 35% cap, versus the 29.9% BACKLOG's P10 audit row and
+  `tools/gate-audit.ts` both still claim — and used `git stash` to prove it
+  predates b070 entirely (identical failure with or without this fix's diff;
+  `tools/a5probe.ts`, which that test drives, never references `core` at
+  all). **Not caused or worsened by this fix** — filed separately as
+  top-of-queue bug **b071** (suspected but unconfirmed cause: `p10l`'s same
+  `buildPhaseSeconds` change, never re-verified against this file since it's
+  excluded from `test:fast`) rather than fixed here, matching CLAUDE.md rule
+  3's regression-test-first, fix-separate discipline. `npm run test:fast`
+  (124/135 files green) showed only the long-documented pre-existing Windows
+  flake class (`b032`/`b034`/`b035`/`b036` Playwright port-contention, `q15`
+  worker-hang, `q49`/`q52` EPERM scratch-dir races), confirmed unrelated.
+  code changed: `data/cores.json`, `src/sim/cores.ts`,
+  `tests/p-core-d-corpse.test.ts`, `tests/p-core-f-gates.test.ts`. Commit
+  `ca3e194`.
+
 - **2026-09-01 session: BACKLOG p10m closed** — re-measured gates **G8**
   (class win-rate/diversity), **G14** (boss win-rate) and **G23** (Core
   win-rate) against HEAD, standalone (`tests/p6e-class-diversity.test.ts`,
