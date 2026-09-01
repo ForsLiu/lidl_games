@@ -598,18 +598,8 @@ fresh number.
 
 - [x] (p10n) [polish] Regenerate HANDOFF.md end to end — **done, see Done
       section.**
-- [ ] (p10q) [balance] Investigate `no-move`'s T1 win rate — HANDOFF §6 item 5
-      already flagged 75% as worth a second look; this session's fresh sweep
-      measures it at **100%** (never repositioning, still winning every
-      seed), which bears directly on the "placement is destiny, play
-      matters" design pillar. Acceptance: measure `no-move` at T3 and T5 (not
-      just T1) via `tools/handoff-metrics.ts` or an equivalent probe; record
-      whether the finding holds (VS combat is trivially survivable on
-      tower-wielded damage alone regardless of character play) or narrows at
-      higher tiers; log the finding and any design implication in
-      QUESTIONS.md — no code change unless a specific exploit (e.g. a status
-      or aggro rule that only fires on movement) is found — refs: HANDOFF §6
-      item 5.
+- [x] (p10q) [balance] Investigate `no-move`'s T1 win rate — **done, see Done
+      section.**
 - [ ] (p10o) [chore] `tools/gate-audit.ts`'s coverage map is stale for **G8**
       and **G15** — both gained live test coverage (`p6e`, `p9c`) but the
       tool still prints them as `hole`, and `tests/q10-gate-audit.test.ts`
@@ -2285,6 +2275,28 @@ logged in MIGRATION.md §8 rather than carried as dead items.
   **G19**. The work is `p10d`.
 
 ## Done
+
+- [x] (p10q) [balance] Investigated `no-move`'s win rate at T3/T5, not just
+      T1 (HANDOFF §6 item 5) — see QUESTIONS.md Q154 and PROGRESS.md's p10q
+      entry for the full write-up. Measured with `handoff-metrics.ts`'s own
+      `runOne`/seeded-`autoDraft` methodology (seeds 1-8, engineer), matching
+      how the maxbuild/hybrid tier ladder is already measured: **T1 100%
+      (8/8), T3 88% (7/8), T5 25% (2/8)** — Act I clears all 18 waves in
+      every run at every tier, so every loss is in Act II, and at T5 5 of 6
+      losses are `defeat_warden` (the VS-side boss fight) with 1
+      `defeat_core`. Finding: the win rate narrows sharply rather than
+      holding, so the T1-only number was never evidence VS combat is
+      trivially survivable in general — it's evidence T1's VS difficulty is
+      low relative to a T1-appropriate tower build specifically, and the
+      pillar ("placement is destiny, play matters") holds exactly where the
+      tier ladder means it to: play matters more, not less, as tier rises.
+      No exploit found (nothing lets `no-move` win at T5's intended
+      difficulty through a bug — it mostly loses, as intended), so per this
+      item's own acceptance text, no code change follows. Logged as Q154
+      rather than asked (CLAUDE.md rule 5). Doc/measurement-only item — no
+      `src`/`data`/test file touched, so no code-reviewer or qa-playtester
+      pass, matching the `p10n`/`p10i` precedent for zero-behavioural-change
+      items.
 
 - [x] (b072) [bug] Fixed gate **G13**'s solo-viability clause
       (`tests/a4-single-type.test.ts`): `ember_brazier`/`tesla_coil`

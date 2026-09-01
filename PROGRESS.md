@@ -5,6 +5,39 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-01 session: BACKLOG p10q closed** — investigated `no-move`'s win
+  rate at T3/T5, not just the T1 number HANDOFF §6 item 5 flagged as worth a
+  second look (it had read 75%→100%→75% across three prior measurements, all
+  at T1 only). Measured with `handoff-metrics.ts`'s own `runOne`/seeded-
+  `autoDraft` methodology — the same one already used for the maxbuild/hybrid
+  tier ladder — at seeds 1-8, engineer class: **T1 100% (8/8), T3 88% (7/8),
+  T5 25% (2/8)**. Act I clears all 18 waves in every single run at every
+  tier (median waves 18 across the board), so every loss happens in Act II;
+  at T5, 5 of the 6 losses are `defeat_warden` (the VS-side boss fight) and 1
+  is `defeat_core` (an Act I leak carried into Act II per the §9 addendum);
+  at T3 the lone loss is also `defeat_warden`. Finding: the number narrows
+  sharply rather than holding, so it was never evidence that VS combat in
+  general is trivially survivable on tower damage alone regardless of
+  character play — it's evidence that T1's VS-side difficulty specifically
+  is low relative to a T1-appropriate tower build. By T5 a character that
+  never repositions or acts loses 3 times in 4, almost entirely to the one
+  fight that most directly punishes standing still (an undodging character
+  eating full boss damage), which is consistent with the "placement is
+  destiny, play matters" pillar holding exactly where the tier ladder means
+  it to — play matters more, not less, as tier rises — rather than a design
+  smell. This also explains HANDOFF's own observed instability
+  (75%→100%→75%): T1 is the tier where `no-move` sits closest to a knife-edge,
+  so any unrelated tower `/data` nudge (this session's own re-measurement
+  landed at 100%, up from HANDOFF's 75%, with no `no-move`-related change in
+  between) can flip it, while T3/T5's real margin (12-75 points off 50%)
+  would not plausibly flip on the same class of noise. No specific exploit
+  was found — nothing lets `no-move` win at T5's intended difficulty through
+  a bug, it mostly loses as designed — so per the item's own acceptance
+  text, no code change follows; logged as **QUESTIONS.md Q154** rather than
+  asked, per CLAUDE.md rule 5. Pure measurement/logging: no `src`, `data` or
+  test file changed, so (matching the `p10n`/`p10i` precedent for a
+  zero-behavioural-change item) no code-reviewer or qa-playtester pass was
+  run.
 - **2026-09-01 session: BACKLOG b072 closed** — fixed gate **G13**'s
   solo-viability clause (`tests/a4-single-type.test.ts`), the top-of-queue
   regression `p10n`'s HANDOFF regeneration surfaced (and `b071` had already
