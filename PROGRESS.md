@@ -5,6 +5,49 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-01 session: BACKLOG p10m closed** — re-measured gates **G8**
+  (class win-rate/diversity), **G14** (boss win-rate) and **G23** (Core
+  win-rate) against HEAD, standalone (`tests/p6e-class-diversity.test.ts`,
+  `tests/boss.test.ts`, `tests/p-core-f-gates.test.ts`; all three excluded
+  from `test:fast` for runtime). All three were last formally measured red
+  before the `b0xx` bug-fix series and the `p10j`-`p10l` wave/spawn-pacing
+  balance pass landed; this session's fresh `handoff-metrics` sweep (see the
+  b044 entry below) had already shown several bot policies' T1 win rates
+  moving 25-50 points, so the old "wave-11-to-17 wall" story was stale.
+  **G14 is now genuinely green**: un-skipped both clauses — the scripted run
+  wins seed 1 (also fixed a stale `bossKillSeconds > 600` literal, dated
+  from before `p10d` retuned `bossTimeSeconds` 600→181, into a
+  fight-duration floor read live off the run's own content), and the
+  20-seed win rate measures 18/20 (90%), inside `[60%, 100%)`. **G23 and G8
+  did not close green — they inverted.** The old under-the-35%-floor
+  failures are gone, replaced by an over-the-70%-ceiling one: G23's Cores
+  now run 9-12/12 (only `stone_heart` at 9/12 stays close to the band), and
+  G8's classes run 11-12/12 for 9 of 12 (only `necromancer` stays under-floor
+  at 4/12, now via an early-death/late-clear split rather than a uniform
+  wall). G8's diversity clause stays flatly red — still only 2 of 12 classes
+  (`ballista`/`spreading_plague`) top out on a distinct source, unmoved by a
+  pacing pass that never touched weapon/kit damage ratios; its `beforeAll`
+  sweep timeout was raised 900s→6000s to let it finish against the real
+  12-class roster for the first time, and the "pinned red" assertion was
+  un-skipped as a confirmed re-measured regression pin. Every `.skip` left in
+  place was re-pinned with its fresh number and reason rather than left
+  stale, per CLAUDE.md rule 6. One regression was found incidental to this
+  re-measurement, out of scope for a measurement-only item: G22's `corpse`
+  vs Stone Heart, seed 2 now measures fingerprint 0.080, under the 0.10
+  floor — filed as **b070** with its own `.skip`-ed regression test rather
+  than fixed here (CLAUDE.md rule 3: regression test first, fix separate).
+  The over-ceiling inversion itself was filed as **p10r**, a balance item to
+  retune the `p10j`-`p10l` pass's overshoot back into G8/G23's bands without
+  reopening G1/G13. code changed: none (test files and BACKLOG.md only).
+  `npm run test:fast` (124/135 files green) showed only the long-documented
+  pre-existing Windows flake classes (`b032`/`b034`/`b035`/`b036` Playwright
+  port-contention, `q15` worker-hang, `q49`/`q52` EPERM scratch-dir races),
+  confirmed unrelated. qa-playtester **PASS**: independently reran the two
+  fast-enough files standalone, cross-checked every recorded band comparison
+  and the b070 fingerprint number against `fingerprint()`'s real
+  implementation, and confirmed the diff touched only the three test files
+  plus BACKLOG.md. Commit pending.
+
 - **2026-09-01 session: BACKLOG b044 closed** — `contentHash()`
   (`src/sim/content.ts`) was a function of the schema-*parsed* `Content`
   fields rather than `/data`'s own authored bytes, so a loader/schema change

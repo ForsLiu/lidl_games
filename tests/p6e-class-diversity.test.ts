@@ -419,7 +419,7 @@ beforeAll(() => {
       ownShare >= MATERIALITY_SHARE ? describeSource(cls, argmaxKey(ownDamage)) : argmaxKey(allDamage);
     measurements.set(key, { key, cls, wins, outcomes, ownDamage, allDamage, ownShare, topLabel });
   }
-}, 900_000);
+}, 6_000_000);
 
 describe('p6e: G8 measured as a live test over the seed set (SPEC-FINAL §4, §14)', () => {
   function detail(key: string): string {
@@ -450,7 +450,14 @@ describe('p6e: G8 measured as a live test over the seed set (SPEC-FINAL §4, §1
   // Reconfirmed in full this session (PRIORITY DIRECTIVE follow-up, Q123):
   // identical to the p8a-era number above — 2/12 (seeds 9, 10 victory/w18),
   // no timeouts. Unchanged.
-  it.skip('cryomancer', () => assertBand('cryomancer')); // 2/12 — 9:victory/w18, 10:victory/w18, other ten defeat_core/defeat_warden wave 15-18
+  //
+  // p10m re-measurement (this session): re-run against HEAD, after the
+  // `p10j`-`p10l` G1/G13 balance pass. Same over-correction story as G14/G23's
+  // p10m passes — the floor problem is gone, replaced by a ceiling one:
+  // **12/12 (100%)**, every seed victory/w18, up from 2/12. Still `.skip`-ed
+  // with the new honest number; re-enable point stays **P10** (measurement
+  // only, fix is separate balance work — PROGRESS.md's p10m entry).
+  it.skip('cryomancer', () => assertBand('cryomancer')); // 12/12 — every seed victory/w18 (p10m re-measurement)
 
   // Every one of the ten below converges on the same wave-11-to-17
   // `defeat_core`/`defeat_warden` wall (this file's header; G23's own
@@ -462,24 +469,52 @@ describe('p6e: G8 measured as a live test over the seed set (SPEC-FINAL §4, §1
   // pre-p8a pass. `timeout` means the seed hit the 120-minute cap without
   // resolving (Q127); it counts as a non-win, matching every other
   // non-`victory` outcome.
-  it.skip('swordsman', () => assertBand('swordsman')); // 2/12 — 4:victory/w18, 6:victory/w18, 4 timeouts (seeds 1,2,5,9), rest defeat_core/defeat_warden wave16-18
-  it.skip('plaguebringer', () => assertBand('plaguebringer')); // 0/12 — all defeat_core wave13-17 except seed4 defeat_warden/w18
-  it.skip('engineer', () => assertBand('engineer')); // 3/12 — seeds 7,9,10 victory/w18, rest defeat_core/defeat_warden wave14-17
-  it.skip('pyromancer', () => assertBand('pyromancer')); // 1/12 — seed6 victory/w18, seed3 early defeat_warden/w3, rest defeat_core/defeat_warden wave16-18
-  it.skip('archer', () => assertBand('archer')); // 2/12 — seeds 4,6 victory/w18, 2 timeouts (seeds 2,11), seeds 3,5 early defeat_warden/w3, rest defeat_core/defeat_warden wave16-18
+  //
+  // p10m re-measurement (this session, all ten below): re-run against HEAD,
+  // after the `p10j`-`p10l` G1/G13 balance pass that also flipped G14/G23
+  // from under-the-floor to over-the-ceiling. Every timeout and every
+  // wave-11-to-17 wall death this file's header names is gone — the wall is
+  // fully closed — but nine of the ten now clear 11-12/12 (91.7-100%),
+  // past the 70% ceiling (`floor(12*0.70) = 8`), not inside [5, 8]. Only
+  // necromancer stays under the 35% floor (`ceil(12*0.35) = 5`), now for a
+  // different reason than before (see its own comment). Still `.skip`-ed
+  // with the fresh honest numbers; re-enable point stays **P10** for all ten
+  // (measurement only, fix is separate balance work — PROGRESS.md's p10m
+  // entry).
+  it.skip('swordsman', () => assertBand('swordsman')); // 11/12 — only seed6 defeat_warden/w18, rest victory/w18 (p10m re-measurement)
+  it.skip('plaguebringer', () => assertBand('plaguebringer')); // 12/12 — every seed victory/w18 (p10m re-measurement)
+  it.skip('engineer', () => assertBand('engineer')); // 11/12 — only seed10 defeat_warden/w18, rest victory/w18 (p10m re-measurement)
+  it.skip('pyromancer', () => assertBand('pyromancer')); // 11/12 — only seed3 defeat_warden/w18, rest victory/w18 (p10m re-measurement)
+  it.skip('archer', () => assertBand('archer')); // 11/12 — only seed8 defeat_warden/w18, rest victory/w18 (p10m re-measurement)
   // Tuned (header, corrected this session — Q123): Raise's
   // cooldown/potency/duration/radius all buffed. Early defeat_warden is now
   // the minority (3/12: waves 3/6/15) against a defeat_core majority (9/12:
   // waves 13-17) — real progress, still 0/12, no timeouts, no victories.
-  it.skip('necromancer', () => assertBand('necromancer'));
-  it.skip('stormcaller', () => assertBand('stormcaller')); // 2/12 — seeds 7,10 victory/w18, 1 timeout (seed6), seed2 early defeat_warden/w6, rest defeat_core wave10-17/defeat_warden w18
-  it.skip('bloodlord', () => assertBand('bloodlord')); // 4/12 — seeds 6,7,9,10 victory/w18, 2 timeouts (seeds 1,12), rest defeat_core/defeat_warden wave16-18
-  it.skip('animist', () => assertBand('animist')); // 3/12 — seeds 2,6,10 victory/w18, rest defeat_core wave13-17, no timeouts
+  //
+  // p10m re-measurement (this session): re-run against HEAD, after the
+  // `p10j`-`p10l` balance pass. The wave-11-to-17 wall is gone for the other
+  // nine classes but not this one — necromancer stays under the 35% floor,
+  // **4/12** (seeds 2, 5, 6, 8 victory/w18; seed 11 defeat_core/w17; the
+  // other seven early defeat_warden at wave 3 or 6). The failure shape moved
+  // (from a uniform mid-run wall to an early-death/late-clear split) but the
+  // gate direction did not — still under-floor, not over-ceiling like the
+  // other nine. Still `.skip`-ed with the fresh number; re-enable point stays
+  // **P10**.
+  it.skip('necromancer', () => assertBand('necromancer')); // 4/12 — seeds 2,5,6,8 victory/w18, seed11 defeat_core/w17, rest early defeat_warden wave3-6 (p10m re-measurement)
+  it.skip('stormcaller', () => assertBand('stormcaller')); // 11/12 — only seed11 defeat_warden/w18, rest victory/w18 (p10m re-measurement)
+  it.skip('bloodlord', () => assertBand('bloodlord')); // 11/12 — only seed1 defeat_warden/w18, rest victory/w18 (p10m re-measurement)
+  it.skip('animist', () => assertBand('animist')); // 12/12 — every seed victory/w18 (p10m re-measurement)
   // Tuned (header, corrected this session — Q123): Guardian
   // Stance/Clarion Taunt/Judgement all buffed. Early defeat_warden is 4/12
   // (three at wave 3, one at wave 6) against a defeat_core majority (8/12:
   // waves 8/15/16) — still 0/12, no timeouts, no victories.
-  it.skip('paladin', () => assertBand('paladin'));
+  //
+  // p10m re-measurement (this session): re-run against HEAD, after the
+  // `p10j`-`p10l` balance pass. Same over-ceiling story as the other nine —
+  // **11/12** (only seed8 early defeat_warden/w3, every other seed
+  // victory/w18). Still `.skip`-ed with the fresh number; re-enable point
+  // stays **P10**.
+  it.skip('paladin', () => assertBand('paladin')); // 11/12 — only seed8 defeat_warden/w3, rest victory/w18 (p10m re-measurement)
 
   it('every one of the eleven §4 classes was actually measured (no key silently skipped)', () => {
     expect([...measurements.keys()].sort()).toEqual([...CLASS_KEYS].sort());
@@ -520,6 +555,19 @@ describe('p6e: G8 top-damage-source diversity (>=8 of 11 distinct)', () => {
   // (done) to **P10**, the same as every other clause this pass re-measured.
   // fb013: SPEC-FINAL's own G8 text now reads ">=9 of 12" (Time Lord folded
   // in at the original ~73% ratio) — threshold updated to match, unmeasured.
+  //
+  // p10m re-measurement (this session, re-enable point reached): the file's
+  // ~1h `beforeAll` sweep finally ran against the full 12-class roster
+  // (timeout raised 900s->6000s to let it finish). **Distinct count is still
+  // 2** (`ballista`/`spreading_plague`) — eleven of twelve classes top out on
+  // `ballista` (the shared hybrid build the scripted bot always assembles,
+  // per this file's own header), only plaguebringer's own kit clears
+  // `MATERIALITY_SHARE`. The `p10j`-`p10l` balance pass changed every win-rate
+  // number above but did not touch this one at all — win rate and top-damage
+  // source are independent axes here, unsurprising since the pass tuned
+  // wave/spawn pacing, not weapon/kit damage ratios. Still `.skip`-ed; only a
+  // kit-damage-ratio change (out of scope here) could move this, so the
+  // re-enable point stays **P10**.
   it.skip('at least 9 of the 12 classes top out on a different source', () => {
     const labels = CLASS_KEYS.map((k) => measurements.get(k)!.topLabel);
     const distinct = new Set(labels);
@@ -542,7 +590,11 @@ describe('p6e: G8 top-damage-source diversity (>=8 of 11 distinct)', () => {
   // Asserting the stale pre-fb013 number here would be an unearned pin, not a
   // measured one, so this is `.skip`-ed too until P10 re-measures all of G8
   // (win rate and diversity, all twelve classes) together.
-  it.skip('the current (red) distinct-source count is pinned, not silently drifting', () => {
+  //
+  // p10m re-measurement (this session, re-enable point reached): the 12-class
+  // sweep is now real (see the assertion above) and confirms the pre-fb013
+  // number still holds at 2 — un-skipped as a real regression pin.
+  it('the current (red) distinct-source count is pinned, not silently drifting', () => {
     const labels = CLASS_KEYS.map((k) => measurements.get(k)!.topLabel);
     const distinct = new Set(labels);
     expect(distinct.size).toBe(2);

@@ -207,11 +207,25 @@ describe('the Warden-Eater (SPEC 5.5)', () => {
   // `tests/p6e-class-diversity.test.ts` (G8) independently reached. Still
   // `.skip`-ed with the real number; re-enable point moves from `p8a` (done)
   // to **P10**. See QUESTIONS.md Q123.
-  it.skip('a scripted run reaches it, kills it and wins', () => {
-    const { report } = runWithPolicy(cfg({ seed: 1, cycles: 6 }), 'hybrid');
+  //
+  // p10m re-measurement (this session): re-run against HEAD, past `p10j`-
+  // `p10l`'s G1/G13 balance pass. Seed 1 now reads `victory`/`bossKilled:
+  // true`/`equipmentFound: 18` — the outcome half clears. The
+  // `bossKillSeconds > 600` literal does not: it dates from before `p10d`
+  // retuned `data/spawns.json`'s `bossTimeSeconds` 600->181 (this file's own
+  // top-of-describe comment), so it was asserting a spawn-time floor that no
+  // longer matches content already changed several sessions ago. Seed 1's
+  // real `bossKillSeconds` is 238.05 — 57.05s of actual fight after the boss
+  // spawns at 181s (read live below, not re-hardcoded). Replaced the stale
+  // spawn-time-shaped literal with a fight-duration floor (still `victory` at
+  // an instant kill would be a red flag, not a pass) with headroom under the
+  // measured 57s, rather than a bare `> bossTimeSeconds` check, which would
+  // hold trivially since a kill can't be recorded before the boss spawns.
+  it('a scripted run reaches it, kills it and wins', () => {
+    const { report, run } = runWithPolicy(cfg({ seed: 1, cycles: 6 }), 'hybrid');
     expect(report.outcome).toBe('victory');
     expect(report.bossKilled).toBe(true);
-    expect(report.bossKillSeconds).toBeGreaterThan(600);
+    expect(report.bossKillSeconds - run.world.content.spawns.bossTimeSeconds).toBeGreaterThan(20);
     expect(report.equipmentFound).toBeGreaterThan(0);
   });
 
@@ -263,6 +277,16 @@ describe('the Warden-Eater (SPEC 5.5)', () => {
   // defeat_warden/w3 (unchanged from Q123). `.skip`-ed with this honest
   // number; re-enable point **P10** (CLAUDE.md: no balance tuning before
   // P10) — this item (p8c) is the measurement, not the fix.
+  //
+  // p10m re-measurement (this session, re-enable point reached): re-run
+  // against HEAD, after the `p10j`-`p10l` G1/G13 balance pass (35-wave-
+  // pacing retune, boss pacing ramp, `buildPhaseSeconds` 20->15) that landed
+  // since p8c's 0/20 measurement above. **18/20 (90%)** — seeds 5 and 6
+  // `defeat_warden` (wavesCleared 18, survivalSeconds 693.28s/630.03s), every
+  // other seed `victory`/`bossKilled: true`/wavesCleared 18. 90% clears
+  // G14's literal ">=60% and <100%" band with real headroom on both sides —
+  // un-skipped. Full 20-seed dump captured in the diagnostic pass this item
+  // added and removed (`tmp_p10m/boss-dump.json`, not committed).
   // b052: code-reviewer found this sibling of b020/b046-b051 while verifying
   // b051 — `bossUpdate` and `updateBossSlam` have no `w.dying` guard anywhere
   // in their call chain, so a boss that lands the killing blow keeps dealing
@@ -330,7 +354,7 @@ describe('the Warden-Eater (SPEC 5.5)', () => {
     expect(w.warden.hp).toBe(hp);
   });
 
-  it.skip('G14: over 20 seeds, the scripted-build win rate is >=60% and <100%', () => {
+  it('G14: over 20 seeds, the scripted-build win rate is >=60% and <100%', () => {
     const seeds = Array.from({ length: 20 }, (_, i) => i + 1);
     const results = seeds.map((seed) => {
       const { report } = runWithPolicy(cfg({ seed, cycles: 6 }), 'hybrid');
