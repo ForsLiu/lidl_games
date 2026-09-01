@@ -602,18 +602,8 @@ fresh number.
       section.**
 - [x] (p10o) [chore] `tools/gate-audit.ts`'s coverage map is stale for **G8**
       and **G15** — **done, see Done section.**
-- [ ] (p10p) [chore] Bot roster refresh: `maxbuild`, `kite`, `rush` and
-      `walloff` were tuned for an earlier, simpler content shape and never
-      re-scripted against the current 18-wave/12-class/5-Core system. This
-      session's fresh sweep shows `maxbuild` has since recovered to 50% T1
-      (was 0% at HANDOFF's last snapshot) with no code change — a content/
-      balance shift, not a bot fix — while `kite`, `rush` and `walloff` are
-      still flat at 0% across every seed. Acceptance: for each of `kite`,
-      `rush` and `walloff`, either retune its policy logic so it wins at
-      least one seed at T1, or record a specific logged reason it stays a
-      0%-baseline control (e.g. "tests a specific failure mode on purpose")
-      in `src/bots/policies.ts`'s own doc comment and HANDOFF §6 — refs:
-      HANDOFF §6 item 4.
+- [x] (p10p) [chore] Bot roster refresh: `kite`, `rush` and `walloff` were
+      flat at 0% T1 — **done, see Done section.**
 
 ### Filed 2026-09-01 — G8/G23 over-ceiling after p10m's re-measurement
 
@@ -2268,6 +2258,55 @@ logged in MIGRATION.md §8 rather than carried as dead items.
 
 ## Done
 
+- [x] (p10p) [chore] Bot roster refresh: `kite`, `rush` and `walloff` were
+      flat at 0% T1 across every seed. Root cause: all three built
+      single-target-only towers (`kite`/`rush`: `arrow_spire` alone;
+      `walloff`: `arrow_spire`+`ballista`), with no crowd control, so each
+      was swarmed and killed by the enemy horde in the very first VS combat
+      block (TD wave 3, right after the opening 3-wave TD block) on every
+      single T1 seed — before the run ever reached far enough for the "does
+      this Act I strategy matter" comparison these bots exist for to mean
+      anything; not a case of playing worse than the field, but of never
+      getting a turn. `maxbuild`/`greedy`/`greedless` had already recovered
+      from the same `p10j`-`p10l` pacing pass with no bot-code change (their
+      builds include an AoE tower already), which is what exposed `kite`/
+      `rush`/`walloff` as the roster's real outliers. Fix, `src/bots/
+      policies.ts` only: added `frost_obelisk` (an omnidirectional "aura"
+      attack — confirmed the same lever that already keeps the unrelated
+      `turtle` policy alive with a static, never-dodging Act II Warden) to
+      all three bots' `towerKeys`, plus modest capacity/spend tweaks so gold
+      actually reaches the second tower type (`kite`: `maxStructures` 10->30,
+      `upgradeAfter` 4->10; `rush`: `wallRatio` 0.28->0.2, `upgradeAfter`
+      26->20; `walloff`: `towerKeys` only, every other option byte-identical
+      to before). Measured (`npx tsx tools/sweep.ts --seeds 8 --tier 1
+      --class engineer`): `kite` 0%->25% (2/8), `rush` 0%->63% (5/8),
+      `walloff` 0%->63% (5/8) — all three now clear the acceptance bar of
+      winning at least one T1 seed, so no bot needed the "logged 0%-baseline
+      reason" fallback branch. `HANDOFF.md` updated to match: the §4 sweep
+      table's three rows, the §5 "known issues" bullet (removed, resolved),
+      and §6 item 5. code-reviewer **APPROVE** (no Critical/Major; one Minor
+      — `kite`'s doc comment didn't originally name its `upgradeAfter` change
+      the way `rush`'s comment named its own, fixed in the same commit — and
+      one Nit about stale-sounding but functionally inert prose in
+      `tools/gate-audit.ts`'s G19 note, left as-is since nothing automated
+      reads it). qa-playtester **PASS**: independently reproduced the exact
+      2/8, 5/8, 5/8 numbers from a clean run of the same sweep command;
+      reran `tests/a2-towers-mandatory.test.ts` and
+      `tests/p10f-g19-liveness.test.ts` green (the latter confirms G19/G13's
+      probes use `tools/a5probe.ts`'s own independent build roster, never the
+      registered `kite`/`rush`/`walloff` policies, so they're structurally
+      unaffected); adversarially widened to seeds 1-16 at both T1 and T3
+      looking for a crash/hang/NaN/garbage report — found none. Flagged (not
+      filed — outside this item's diff and scope) an observation for a
+      future item: `kite`/`rush`/`walloff`'s T3 win rates measured
+      surprisingly close to their T1 numbers rather than clearly lower,
+      which may be worth an independent look at `tools/sweep.ts`'s
+      `--tier` handling for this policy set if a later item wants to trust
+      their tier-scaled numbers. `npm run test:fast`: only the 7 already-
+      documented pre-existing Windows flakes (`b032`/`b034`/`b035`/`b036`
+      Playwright fold tests, `q15` hang, `q49`/`q52` EPERM scratch-dir
+      races) — none touch `src/bots/`, confirmed unrelated. Files changed:
+      `src/bots/policies.ts`, `HANDOFF.md`. Commit `<pending>`.
 - [x] (p10o) [chore] Fixed `tools/gate-audit.ts`'s stale coverage map for
       **G8** and **G15**: both gained live test coverage at `p6e`/`p9c` but
       the tool kept printing them as `hole`, drifting silently for several

@@ -603,14 +603,28 @@ registerPolicy(
     }),
 );
 
+/**
+ * p10p: at 10 Arrow Spires (single-target only, no crowd control), this bot
+ * used to be swarmed to death in the very first VS block (18-TD/6-VS
+ * interleave, real waves 11-18 landing at p8a) before the 0%-baseline
+ * measurement it exists for ever had a chance to mean anything — 0/8 T1 wins
+ * by being overrun on turn one, not by playing worse than the field. Widened
+ * to a second, AoE-capable tower (`frost_obelisk`'s omnidirectional aura,
+ * the same lever that keeps `turtle` alive on an equally static Act II);
+ * `maxStructures` 10->30 and `upgradeAfter` 4->10 so it can actually afford
+ * both towers and still has budget left to tier them up, rather than capping
+ * out on a half-built two-type maze. Still the roster's lightest live build.
+ * Measured (seeds 1-8, T1, engineer): 2/8 wins, up from 0/8 dying at wave 3
+ * every time.
+ */
 registerPolicy(
   'kite',
   () =>
     new BuilderPolicy('kite', {
-      towerKeys: ['arrow_spire'],
+      towerKeys: ['arrow_spire', 'frost_obelisk'],
       wallRatio: 0,
-      maxStructures: 10,
-      upgradeAfter: 4,
+      maxStructures: 30,
+      upgradeAfter: 10,
       act2: 'kite',
       rushWaves: true,
     }),
@@ -654,8 +668,16 @@ registerPolicy(
  */
 export class WallOffPolicy implements BotPolicy {
   readonly name = 'walloff';
+  // p10p: `arrow_spire`+`ballista` are both single-target, and this bot's
+  // `act2: 'hold'` Warden never dodges — the pair died to the VS-wave swarm
+  // on every T1 seed despite a 90-structure Act I budget. `turtle` proves
+  // `act2: 'hold'` itself isn't the problem: it survives fine because
+  // `frost_obelisk`'s aura is omnidirectional, so it still hits everything
+  // around a stationary Warden. Adding it here (same lever, nothing else
+  // changed) took this bot 0/8 -> 5/8 T1 wins without touching the
+  // hold-still strategy the A7 comparison depends on.
   private inner = new BuilderPolicy('walloff', {
-    towerKeys: ['arrow_spire', 'ballista'],
+    towerKeys: ['arrow_spire', 'ballista', 'frost_obelisk'],
     wallRatio: 0.35,
     maxStructures: 90,
     upgradeAfter: 24,
@@ -734,14 +756,23 @@ registerPolicy(
     }),
 );
 
+/**
+ * p10p: same single-target-only trap as `kite` (see its comment) — arrow
+ * spires alone can't answer a VS wave's crowd, so this bot died at wave 3 on
+ * every seed regardless of its 44-structure budget. Widened to `frost_obelisk`
+ * for the same reason; `upgradeAfter` lowered 26->20 and `wallRatio` 0.28->0.2
+ * so gold reaches the second tower type sooner instead of banking into
+ * Palisades/tier-ups on a build that was still dying to the swarm. Measured
+ * (seeds 1-8, T1, engineer): 5/8 wins, up from 0/8.
+ */
 registerPolicy(
   'rush',
   () =>
     new BuilderPolicy('rush', {
-      towerKeys: ['arrow_spire'],
-      wallRatio: 0.28,
+      towerKeys: ['arrow_spire', 'frost_obelisk'],
+      wallRatio: 0.2,
       maxStructures: 44,
-      upgradeAfter: 26,
+      upgradeAfter: 20,
       act2: 'kite',
       rushWaves: true,
     }),

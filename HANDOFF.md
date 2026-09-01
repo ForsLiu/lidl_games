@@ -239,18 +239,23 @@ into its own backlog item until this regeneration. See BACKLOG b072.
 | no-move | 1 | 75% | 35.85 min | 630 s | 18 | 14 |
 | greedy | 1 | 38% | 36.23 min | 644 s | 18 | 30 |
 | greedless | 1 | 25% | 35.76 min | 638 s | 18 | 30 |
-| kite | 1 | 0% | 2.81 min | 30 s | 3 | 3 |
-| rush | 1 | 0% | 2.83 min | 33 s | 3 | 2 |
-| walloff | 1 | 0% | 3.43 min | 23 s | 3 | 3 |
+| kite | 1 | 25% | 25.4 min | 375 s | 16 | 25 |
+| rush | 1 | 63% | 33.2 min | 621 s | 18 | 33 |
+| walloff | 1 | 63% | 35.8 min | 632 s | 18 | 14 |
 
 Median victorious run across the pool: **35.92 min** (29 wins).
 
-**Live issue, unresolved (BACKLOG p10p)**: `maxbuild` has recovered
-substantially since the prior regeneration (0%→50% T1, purely from the
-`p10j`-`p10l` balance pass, no bot-code change) and `greedy`/`greedless` now
-win 38%/25% (were both 0%), but `kite`, `rush` and `walloff` are still flat
-at 0% across every seed — they predate the class/Core/VS-inheritance system
-and were never retuned against it. `hybrid` and `turtle` remain the two most
+**Closed (BACKLOG p10p)**: `maxbuild` had already recovered on its own since
+the prior regeneration (0%→50% T1, purely from the `p10j`-`p10l` balance
+pass, no bot-code change) and `greedy`/`greedless` now win 38%/25% (were both
+0%). `kite`, `rush` and `walloff` did not move on their own — all three built
+single-target-only (`arrow_spire`, plus `ballista` for `walloff`) with no
+crowd control, so each was swarmed to death in the very first VS block (wave
+3) on every T1 seed regardless of Act I investment, a fight none of them ever
+reached in a form the 0%-baseline measurement meant to test. `src/bots/
+policies.ts` widened each to include `frost_obelisk` (the same omnidirectional
+aura that keeps `turtle` alive on an equally static Act II) — `kite` 0%→25%,
+`rush` 0%→63%, `walloff` 0%→63%. `hybrid` and `turtle` remain the two most
 reliable "plays and sometimes loses" arms.
 
 **Live issue, unresolved (BACKLOG p10q)**: `no-move` (never repositioning)
@@ -322,9 +327,6 @@ the P10 item that last touched it.
   moving, and that number has shifted with unrelated balance tuning across
   three separate measurements (75%→100%→75%) — worth checking at T3/T5.
   Filed as **p10q**.
-- **`kite`/`rush`/`walloff` still read 0% at T1** — filed as **p10p**;
-  `maxbuild`/`greedy`/`greedless` have since recovered on their own from the
-  same content-side pacing pass, no bot-code change needed for those three.
 - **G8's diversity clause (2/12 distinct top-damage sources) has no item
   scoped to it** — `p10r` is explicitly win-rate-only; the diversity gap
   needs a kit/weapon-damage-ratio change, not a pacing retune, and nothing in
@@ -367,10 +369,13 @@ question, not a scope gap).
    still open) — it still lists G8 and G15 as `hole` after both gained live
    coverage.
 
-5. **The registered bot roster is half-refreshed.** `maxbuild`, `greedy`
-   and `greedless` recovered on their own from the `p10j`-`p10l` pacing
-   pass; `kite`, `rush` and `walloff` did not move at all and still read 0%
-   — filed as **p10p**, unexecuted.
+5. **The registered bot roster refresh is done (`p10p`).** `maxbuild`,
+   `greedy` and `greedless` recovered on their own from the `p10j`-`p10l`
+   pacing pass; `kite`, `rush` and `walloff` did not — all three were
+   single-target-only builds swarmed to death in the first VS block
+   regardless of Act I investment, so `src/bots/policies.ts` widened each to
+   include `frost_obelisk` (`kite` 0%→25%, `rush` 0%→63%, `walloff` 0%→63%
+   at T1).
 
 6. **`no-move`'s win rate is sensitive to balance tuning that has nothing to
    do with character movement** (75%→100%→75% across three measurements,

@@ -5,6 +5,70 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-01 session: BACKLOG p10p closed** — bot roster refresh: `kite`,
+  `rush` and `walloff` had been flat at 0% T1 win rate across every seed
+  since HANDOFF's last regeneration. Root-caused with a tick-by-tick probe
+  rather than guessed at: all three build single-target-only towers (`kite`/
+  `rush`: `arrow_spire` alone; `walloff`: `arrow_spire`+`ballista`), which
+  have zero crowd control, so every seed's enemy count around the Warden
+  climbed unchecked once Act II started (measured 26→52→99→131→173→220
+  enemies within an 8-tile radius on one `rush` seed) and killed the Warden
+  in the very first VS combat block — TD wave 3, right after the opening
+  3-wave TD block — regardless of Act I structure count or Act II movement
+  style (`kite`/`rush` still `act2:'kite'`, `walloff` still `act2:'hold'`).
+  These three never got far enough into a run for the "does this Act I
+  strategy matter" comparison they exist for to mean anything; `maxbuild`/
+  `greedy`/`greedless` had already recovered from the same `p10j`-`p10l`
+  pacing pass with zero code change because their builds already include an
+  AoE tower, which is what made `kite`/`rush`/`walloff` stand out as the
+  roster's real outliers rather than more of the same drift. Diagnosed by
+  writing throwaway instrumented probes (deleted before commit, not left in
+  `tools/`) that logged phase transitions, gold, structure counts and
+  nearby-enemy counts tick-by-tick, then A/B-tested several `towerKeys`/
+  capacity combinations via `tools/sweep.ts` before picking the smallest fix
+  that worked. Fix, `src/bots/policies.ts` only: added `frost_obelisk` (an
+  omnidirectional "aura" attack, confirmed the same lever that already keeps
+  the unrelated `turtle` policy alive with a static, never-dodging Act II
+  Warden) to all three bots' `towerKeys`; `kite` also got `maxStructures`
+  10->30 and `upgradeAfter` 4->10, `rush` got `wallRatio` 0.28->0.2 and
+  `upgradeAfter` 26->20 (both so gold actually reaches the second tower type
+  instead of banking into Palisades/tier-ups on a build that was still dying
+  to the swarm), and `walloff` changed `towerKeys` only — every other option
+  byte-identical to before, preserving its A7 turtle-strategy comparison.
+  Measured (`npx tsx tools/sweep.ts --seeds 8 --tier 1 --class engineer`):
+  `kite` 0%→25% (2/8), `rush` 0%→63% (5/8), `walloff` 0%→63% (5/8) — all
+  three clear the acceptance bar of winning at least one T1 seed, so none
+  needed the item's fallback "logged 0%-baseline reason" branch.
+  `HANDOFF.md`'s §4 sweep table, §5 known issues and §6 item 5 all rewritten
+  to match. code-reviewer **APPROVE**: confirmed the diff matches its own
+  description exactly field-by-field, confirmed `frost_obelisk` really is
+  `attack.kind: "aura"` in `data/towers.json` (not just claimed), and
+  independently re-verified (not just trusted) that `tools/a5probe.ts`'s
+  `BuildSpec`/`G19_BUILDS` arrays behind `tests/p10f-g19-liveness.test.ts`
+  build their own inline `BuilderPolicy` instances entirely decoupled from
+  the registered `kite`/`rush`/`walloff` policies, so G13/G19 are
+  structurally unaffected; one Minor (kite's doc comment didn't originally
+  name its `upgradeAfter` change the way rush's did — fixed same commit) and
+  one Nit (stale-sounding but functionally inert prose in
+  `tools/gate-audit.ts`'s G19 note — left as-is, nothing automated reads it).
+  qa-playtester **PASS**: independently reproduced the exact 2/8, 5/8, 5/8
+  numbers from a clean sweep run; reran `tests/a2-towers-mandatory.test.ts`
+  and `tests/p10f-g19-liveness.test.ts` green; adversarially widened to
+  seeds 1-16 at both T1 and T3 hunting for a crash/hang/NaN/garbage report
+  and found none. Flagged, not filed (outside this item's diff/scope): T3
+  win rates for all three measured surprisingly close to their T1 numbers
+  rather than clearly lower — worth an independent look at `tools/
+  sweep.ts`'s `--tier` handling for this policy set if a future item wants
+  to trust their tier-scaled numbers, logged here rather than as a new
+  BACKLOG item since it's an open question, not a confirmed defect.
+  `npm run test:fast`: 124/135 files green, the 7 failures were the same
+  already-documented pre-existing Windows flake class (`b032`/`b034`/`b035`/
+  `b036` Playwright fold tests losing their page context, a `q15` fuzz hang,
+  `q49`/`q52` EPERM scratch-dir races under parallel load) — none touch
+  `src/bots/`, confirmed unrelated by inspection of the failing files'
+  content. Files changed: `src/bots/policies.ts`, `HANDOFF.md`. Commit
+  `<pending>`.
+
 - **2026-09-01 session: BACKLOG p10o closed** — fixed `tools/gate-audit.ts`'s
   coverage map, stale for gates **G8** and **G15**: both gained live test
   coverage at `p6e`/`p9c` sessions earlier, but `GATE_COVERAGE`/`KNOWN_HOLES`
