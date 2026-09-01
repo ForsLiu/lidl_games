@@ -5,6 +5,48 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-01 session: BACKLOG p10n closed** — regenerated HANDOFF.md end to
+  end against SPEC-FINAL, and filed BACKLOG **b072** for a real, previously
+  undisclosed gate regression found while doing it. Doc-only item: no
+  `src`/`data`/test file changed. Ran all five source-of-truth tools fresh
+  (`handoff-metrics`, `a4probe`, `a5probe`, `content-census`, `gate-audit`)
+  and, rather than trust any prior write-up, cross-checked every §14 gate
+  (G1-G23) against its actual current test file, running
+  `tests/a4-single-type.test.ts` and `tests/p10c-weapon-share.test.ts`
+  standalone via `npx vitest run` to get exact pass/fail counts. The gate
+  count improved substantially since the stale `cc4ee58` regeneration:
+  **19 of 23 gates now fully green** (was 14/23) — G1 (35.20 min, 21/24
+  wins), G13's 35%-share cap (frost_obelisk 25.9%), G14 (18/20, 90%), G19 and
+  G22 all closed since then, per `p10j`-`p10l`'s balance pass and `b070`/
+  `b071`'s fixes. But the audit also surfaced a discrepancy: the prior
+  HANDOFF described G13 as "green in full," inherited from `p10j`'s
+  measurement, when `tests/a4-single-type.test.ts` actually has **4 live,
+  non-`.skip`, currently-failing assertions** at HEAD —
+  `ember_brazier`/`tesla_coil` no longer clear all 5 T1 seeds (3/5, 2/5) and
+  `mortar`/`venom_spore` now clear one T3 seed each instead of zero. This is
+  not new — `b071`'s own entry (below) already found and named this exact
+  drift while fixing G13's unrelated share-cap regression, confirmed via
+  `git stash` that it's pre-existing and unrelated to that fix, and
+  explicitly flagged it as "worth its own backlog item, not filed here" — but
+  no such item was ever created, so it sat as a real red (not even
+  `.skip`-ed) test with no queue entry, invisible to anything that doesn't
+  run the full suite (the file is excluded from `test:fast`). Filed it this
+  session as **b072**, top of the queue per CLAUDE.md rule 3 (a confirmed bug
+  outranks the queue), rather than let the regeneration silently re-describe
+  G13 as green again. HANDOFF.md's §1 (system descriptions), §3 (`/data`
+  tuning tables — `frost_obelisk` damage 19→18, `buildPhaseSeconds` 20→15, a
+  new Core-tuning subsection for `corpse.storeRatio`), §4 (full gate table
+  and every measured-metric subsection rewritten with fresh numbers — G8/G23
+  corrected from `p10m`'s already-landed re-measurement, over-ceiling not
+  under-floor), §5 (known issues) and §6 (engineer's list) were all rewritten
+  to match the live state; §2's content-totals table was unchanged (still
+  10/10). No code-reviewer or qa-playtester pass, matching the `p10i`
+  precedent for a documentation-only regeneration with zero behavioural
+  change — verification here was independently re-deriving every number from
+  live test files/tool output rather than copying a claimed figure. `npm run
+  test:fast` not run (nothing it covers changed); the two headline files
+  checked standalone are excluded from that tier regardless. Commit pending.
+
 - **2026-09-01 session: BACKLOG b071 closed** — fixed gate **G13**'s
   `frost_obelisk` VS-damage-share regression to 37.4% (over the 35% cap),
   found by qa-playtester during b070's verification pass (see that entry

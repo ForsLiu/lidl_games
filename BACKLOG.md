@@ -590,16 +590,37 @@ fresh number.
 - [x] (p10m) [balance] Re-measure gates **G8** (class win-rate/diversity),
       **G14** (boss win-rate) and **G23** (Core win-rate) against HEAD —
       **done, see Done section.**
-- [ ] (p10n) [polish] Regenerate HANDOFF.md end to end — stale since `p10i`
-      (commit `cc4ee58`), ~70 commits behind HEAD, and its own gate table
-      (§4) predates `p10j` (closed G13 in full) and `p10k`/`p10l` (closed G1
-      in full) as well as this session's substantially different sweep
-      numbers (see above) — acceptance: re-run all five tools CLAUDE.md's
-      source-of-truth entry for HANDOFF.md lists
-      (`handoff-metrics`/`a4probe`/`a5probe`/`content-census`/`gate-audit`),
-      rewrite HANDOFF's measured sections (§1-§6) to match, and fold in
-      p10m's fresh G8/G14/G23 numbers if that item has landed first — refs:
-      CLAUDE.md source-of-truth list item 4.
+
+### Filed 2026-09-01 — G13 solo-viability regression, found while regenerating HANDOFF at p10n
+
+- [ ] (b072) [bug] top priority: **G13**'s solo-viability clause
+      (`tests/a4-single-type.test.ts`, "every tower type solo-viable at T1,
+      none at T3") is currently **red at HEAD** — 4 of its 16 live
+      (non-`.skip`) assertions fail: `ember_brazier` (3/5, not 5/5) and
+      `tesla_coil` (2/5, not 5/5) at T1; `mortar` and `venom_spore` (1/5
+      each, not 0/5) at T3 (confirmed by a standalone `npx vitest run
+      tests/a4-single-type.test.ts` at commit `31fb74e`). `b071`'s own
+      PROGRESS entry (2026-09-01) already found and named this exact drift
+      while fixing the unrelated 35%-share cap in the same file's sibling
+      gate clause — confirmed pre-existing and unrelated to that fix via
+      `git stash` (identical failures with or without it) — and explicitly
+      flagged it as "worth its own backlog item, not filed here," but no
+      such item was ever created. Root cause not yet chased (CLAUDE.md rule
+      3: the regression tests already exist and are already red, chase the
+      cause as part of the fix, not before it) — candidates are the same
+      `p10c`/`p10j`/`p10l` tuning passes that moved `frost_obelisk`'s damage
+      and `buildPhaseSeconds`, per this file's own header history. This is
+      independent of **p10r** (G8/G23's over-ceiling win-rate retune) —
+      fix it without reopening G1 or G13's 35%-share cap (re-run
+      `tests/p10d-run-length.test.ts` and `tests/p10c-weapon-share.test.ts`
+      after). Acceptance: all 16 of `tests/a4-single-type.test.ts`'s live
+      assertions pass (5/5 T1, 0/5 T3 for every one of the 7 attacking
+      towers); G1/G13's cap clause re-confirmed unaffected — refs: SPEC-FINAL
+      §14 G13, `tests/a4-single-type.test.ts`, PROGRESS.md's b071 entry,
+      HANDOFF.md §4.
+
+- [x] (p10n) [polish] Regenerate HANDOFF.md end to end — **done, see Done
+      section.**
 - [ ] (p10q) [balance] Investigate `no-move`'s T1 win rate — HANDOFF §6 item 5
       already flagged 75% as worth a second look; this session's fresh sweep
       measures it at **100%** (never repositioning, still winning every
@@ -2287,6 +2308,46 @@ logged in MIGRATION.md §8 rather than carried as dead items.
   **G19**. The work is `p10d`.
 
 ## Done
+
+- [x] (p10n) [polish] Regenerated HANDOFF.md end to end against SPEC-FINAL —
+      commit pending (see PROGRESS.md's p10n entry for the full write-up).
+      Doc-only item: no `src`/`data`/test file changed except BACKLOG.md
+      (this entry, and the new b072 filing) and PROGRESS.md. Ran all five
+      source-of-truth tools fresh (`handoff-metrics`, `a4probe`, `a5probe`,
+      `content-census`, `gate-audit`) and cross-checked every §14 gate
+      (G1-G23) against its actual current test file rather than trusting any
+      prior write-up, folding in `p10m`'s already-landed G8/G14/G23
+      re-measurement per this item's own acceptance clause. Found the gate
+      count improved substantially since the `cc4ee58` regeneration — **19 of
+      23 gates now fully green** (was 14/23) — but also found the prior
+      HANDOFF's G13 status was wrong: it claimed "green in full" off a stale
+      `p10j`-era measurement, when `tests/a4-single-type.test.ts` actually has
+      4 live, non-`.skip`, failing assertions at HEAD (`ember_brazier`/
+      `tesla_coil` T1, `mortar`/`venom_spore` T3) — a real regression `b071`
+      had already found and named as "worth its own backlog item, not filed
+      here," but never actually filed. Filed it this session as **b072**,
+      top of the queue per CLAUDE.md rule 3 (confirmed bugs outrank the
+      queue), rather than silently re-describing G13 as green again. Rewrote
+      HANDOFF.md's §1 (updated `frost_obelisk` damage 19→18 and
+      `buildPhaseSeconds` 20→15 in the systems table), §3 (`/data` tuning,
+      added Core section for `corpse.storeRatio`), §4 (full gate table
+      rewrite — G1/G13's cap clause/G14/G19/G22 moved to green, G8/G23
+      corrected from under-floor-red to over-ceiling-red per `p10m`, G13
+      corrected from a false green to an honest partial per `b072`'s
+      finding), §5 (known issues rewritten against the live open-item list:
+      p10o/p10p/p10q/p10r/b072), and §6 (engineer's list reprioritized, G8/
+      G23's over-ceiling inversion and the b072 regression now lead). No
+      code-reviewer or qa-playtester pass, matching the `p10i` precedent for
+      a documentation-only regeneration with zero behavioural change — the
+      per-gate numbers were instead independently re-derived from the live
+      test files/tool output rather than copied from any single source, and
+      the two headline test files (`tests/a4-single-type.test.ts`,
+      `tests/p10c-weapon-share.test.ts`) were run standalone via
+      `npx vitest run` to confirm the exact pass/fail counts rather than
+      inferred from `tools/a4probe.ts`/`a5probe.ts` alone. `npm run
+      test:fast` not run (no code/data/test changed, only docs) —
+      `tests/a4-single-type.test.ts`/`tests/p10c-weapon-share.test.ts` are
+      excluded from the fast tier regardless.
 
 - [x] (b071) [bug] Fixed **G13**'s `frost_obelisk` VS-damage-share regression
       to 37.4% (over the 35% cap) — commit `8b07c62` (see PROGRESS.md's b071
