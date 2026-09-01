@@ -5,6 +5,33 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-08-31 session: BACKLOG b067 closed as bookkeeping-only — the code fix
+  had already landed at commit `3291dbd` (end of the prior session) but the
+  BACKLOG checkbox and this file were never updated to match.** Verified
+  rather than trusted: `grep`-confirmed both `tools/mutation-probe.ts`
+  `MUTATIONS` entries' `find` anchors (`meta-reverse-migrate-spread-order`'s
+  `highestTier` ternary, `soak-construction-outside-try`'s `let run: RunType
+  | undefined;` block) match `src/meta/meta.ts`/`tools/soak.ts` byte-for-byte,
+  then ran `tests/q14-mutation-smoke.test.ts` filtered to just those two
+  sub-tests (`-t "meta-reverse-migrate-spread-order|soak-construction-
+  outside-try"`, backgrounded since each spawns its own nested `vitest run`):
+  both green (`tests/q8-save-roundtrip.test.ts` and `tests/q28-cli-error-
+  handling.test.ts` each now genuinely fail under the mutation instead of
+  `applyEdits` throwing "expected exactly one occurrence... found 0" before
+  the mutation ever ran). No code changed this session. **b027 and b066 were
+  passed over, not executed** — both need a full run of a >600s test file
+  (`tests/p6e-class-diversity.test.ts`'s ~3500-3600s `beforeAll`, `tests/
+  q9-phase-coverage.test.ts`'s ~697s standalone) to genuinely verify, and
+  b067 was cheaper to land in full this session; b027's specific ask (re-pin
+  an 11-class `toBe(2)`) is additionally now stale in its own right since
+  fb013 grew the roster to 12 classes and the file's own header already
+  defers the honest re-measurement to P10 — see the BACKLOG.md entries for
+  both for the reasoning recorded this session. One thing worth noting for
+  the next session: a Bash command that outruns its foreground window
+  auto-backgrounds and still notifies on completion rather than being killed
+  outright, which reopens b027/b066 as executable-in-one-item despite their
+  runtime, just not both alongside a third item in the same session.
+
 - **2026-08-31 session: BACKLOG b028 closed — a nested `npx vitest run`
   killed on timeout by `tools/mutation-probe.ts` (which `tests/q14-mutation-
   smoke.test.ts` drives) only signaled its immediate child on Windows,

@@ -2011,6 +2011,21 @@ because the lane worktree retires at this merge.
       re-pin the assertion to the new honestly-measured count with the reason
       recorded, or fix the determinism gap if one is found — refs: SPEC-FINAL
       §14 G8, CLAUDE.md measurement rules, BACKLOG.md audit summary P6 row.
+      **Passed over this session (2026-08-31), not executed**: re-running
+      this file's ~3500-3600s `beforeAll` is this item's only path to an
+      honestly-measured re-pin, and the file's own header (updated at fb013)
+      already documents that the specific `toBe(2)` pin this item names is
+      now stale for an unrelated, later reason — fb013 added a 12th class
+      (Time Lord) to `CLASS_KEYS`, so the pin's 11-class band no longer
+      describes the measured roster at all and both diversity assertions are
+      already `.skip`-ed pending a full 12-class re-measurement explicitly
+      deferred to **P10**, not left as a live false pin. Re-deriving a fresh
+      11-class number to re-pin would document a roster this file no longer
+      measures; the honest fix is the already-deferred 12-class run, out of
+      this item's original scope. Left queued, not closed — the item as
+      written (re-pin the stale 11-class count) is superseded, but no new
+      item has replaced it with the correct 12-class ask, so it stays open
+      rather than being silently dropped.
 - [x] (b028) [bug] `tests/q14-mutation-smoke.test.ts` on Windows can spawn a
       runaway tree of orphaned nested `vitest` subprocesses and hang —
       **done, see Done section.** The "three consecutive full-suite runs"
@@ -2038,21 +2053,18 @@ because the lane worktree retires at this merge.
       p10a/p10b's Burning/DoT-immunity rework, p10c/p10d's damage-share/
       run-length repricing, per BACKLOG.md's b038 Done entry) and fix the
       regression if one is found; q14's q9-targeted sub-tests pass again —
+      **passed over this session (2026-08-31), not executed**: b067 (a
+      cheaper, mechanically-scoped fix a few items down the same queue) was
+      picked up instead so one item could land end-to-end this session;
+      confirmed via background execution that a run past the tool's normal
+      foreground window does complete and notify rather than being killed,
+      so this item's own verification (raising the ceiling, then confirming
+      q9's 4 sub-tests go green) is not actually blocked by tooling the way
+      it first looked — just genuinely slower than b067, and one item per
+      session is the contract. Good candidate for the next iteration —
       refs: b028, b038, `tools/mutation-probe.ts`.
-- [ ] (b067) [bug] Two `tools/mutation-probe.ts` `MUTATIONS` entries' `find`
-      anchors no longer match current source, so `applyEdits` throws
-      "expected exactly one occurrence... found 0" instead of ever exercising
-      the mutation: `meta-reverse-migrate-spread-order` (targets
-      `src/meta/meta.ts` around line 412-413, whose `{...base}` spread the
-      anchor names is gone — the file now has an explicit comment noting
-      there's no such spread left to "fix implicitly") and
-      `soak-construction-outside-try` (targets `tools/soak.ts` line 104,
-      whose `let run: Run | undefined;` was renamed to
-      `let run: RunType | undefined;`). Found verifying b028 (pre-existing,
-      confirmed unrelated to that fix — `applyEdits` is untouched by it) —
-      acceptance: both mutations' anchors are updated to match current
-      source and `tests/q14-mutation-smoke.test.ts`'s corresponding two
-      sub-tests pass — refs: b028, `tools/mutation-probe.ts`.
+- [x] (b067) [bug] Two `tools/mutation-probe.ts` `MUTATIONS` entries' `find`
+      anchors no longer match current source — **done, see Done section.**
 - [ ] (b029) [bug] `tests/q28-cli-error-handling.test.ts` intermittently fails
       on Windows with an `EPERM` on a scratch-dir temp-file rename (same
       scratch-dir cleanup race class PROGRESS.md documents for q13/q15; q28's
@@ -2269,6 +2281,30 @@ logged in MIGRATION.md §8 rather than carried as dead items.
 
 ## Done
 
+- [x] (b067) [bug] Two `tools/mutation-probe.ts` `MUTATIONS` entries' `find`
+      anchors no longer matched current source, so `applyEdits` threw
+      "expected exactly one occurrence... found 0" instead of ever exercising
+      the mutation — commit `3291dbd` (landed at the very end of the prior
+      session, before this item's BACKLOG checkbox was updated to match):
+      `meta-reverse-migrate-spread-order` retargeted from the now-deleted
+      `{...base, ...meta}` spread (p7f rebuilt `migrateWithNotice`'s `out`
+      field-by-field) onto `highestTier`'s ternary, the one field the
+      function's own comment calls out as a deliberate holdout of the old
+      spread's precedence semantics; `soak-construction-outside-try`
+      retargeted onto `soak.ts`'s current `let run: RunType | undefined;`
+      shape (`Run` was renamed from a type import to a lazily-bound
+      constructor value, so the mutation's replacement text also switched to
+      annotate with `RunType`). This session verified both anchors actually
+      match live source (`grep` confirmed `src/meta/meta.ts`'s exact
+      `highestTier` line and `tools/soak.ts`'s exact `let run: RunType |
+      undefined;` block byte-for-byte against the `find` strings) and ran the
+      two corresponding `tests/q14-mutation-smoke.test.ts` sub-tests in
+      isolation (`-t "meta-reverse-migrate-spread-order|soak-construction-
+      outside-try"`, backgrounded — each spawns its own nested `vitest run`):
+      both pass, i.e. both mutations now genuinely fail their target test
+      file (`tests/q8-save-roundtrip.test.ts`, `tests/q28-cli-error-handling.
+      test.ts`) instead of throwing before ever exercising it. No code change
+      needed this session — bookkeeping only, same precedent as f002.
 - [x] (b028) [bug] `tools/mutation-probe.ts`'s nested `npx vitest run` on
       Windows only signaled its immediate child (`cmd.exe`, since the old
       `execFileSync(..., { shell: true, timeout })` call never reaches
