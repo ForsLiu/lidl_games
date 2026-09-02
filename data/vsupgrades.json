@@ -1,15 +1,15 @@
 {
   "rerollsPerLevel": 1,
   "statBoons": [
-    { "key": "power",    "name": "Attack",       "maxRank": 5, "stat": "power",        "perRank": 0.10, "desc": "+10% Attack" },
-    { "key": "haste",    "name": "Attack Speed", "maxRank": 5, "stat": "attackSpeed",  "perRank": 0.10, "desc": "+10% Attack Speed" },
-    { "key": "swift",    "name": "Move",         "maxRank": 5, "stat": "moveSpeedPct", "perRank": 0.10, "desc": "+10% Move Speed" },
-    { "key": "vitality", "name": "Max HP",       "maxRank": 5, "stat": "maxHp",        "perRank": 15,   "desc": "+15 Max HP" },
-    { "key": "plating",  "name": "Defense",      "maxRank": 5, "stat": "armor",        "perRank": 5,    "desc": "+5 Defense" },
-    { "key": "reach",    "name": "Area",         "maxRank": 5, "stat": "area",         "perRank": 0.10, "desc": "+10% Area" },
-    { "key": "range",    "name": "Range",        "maxRank": 5, "stat": "charRange",    "perRank": 0.10, "desc": "+10% Range" }
+    { "key": "power",    "name": "Attack",       "maxRank": 5, "stat": "power",        "perRank": 0.10, "desc": "+10% Attack", "uncapped": true },
+    { "key": "haste",    "name": "Attack Speed", "maxRank": 5, "stat": "attackSpeed",  "perRank": 0.10, "desc": "+10% Attack Speed", "uncapped": true },
+    { "key": "swift",    "name": "Move",         "maxRank": 5, "stat": "moveSpeedPct", "perRank": 0.10, "desc": "+10% Move Speed", "uncapped": true },
+    { "key": "vitality", "name": "Max HP",       "maxRank": 5, "stat": "maxHp",        "perRank": 15,   "desc": "+15 Max HP", "uncapped": true },
+    { "key": "plating",  "name": "Defense",      "maxRank": 5, "stat": "armor",        "perRank": 5,    "desc": "+5 Defense", "uncapped": true },
+    { "key": "reach",    "name": "Area",         "maxRank": 5, "stat": "area",         "perRank": 0.10, "desc": "+10% Area", "uncapped": true },
+    { "key": "range",    "name": "Range",        "maxRank": 5, "stat": "charRange",    "perRank": 0.10, "desc": "+10% Range", "uncapped": true }
   ],
-  "typeMastery": { "maxRank": 3, "perRank": 0.20 },
+  "typeMastery": { "maxRank": 3, "perRank": 0.20, "uncapped": true },
   "skillCards": {
     "swordsman": [
       { "key": "swordsman_active1_potency", "name": "Circle Slash Potency", "effect": "active1_potency", "maxRank": 2, "perRank": 0.25, "desc": "Circle Slash damage +25%" },

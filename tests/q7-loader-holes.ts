@@ -727,8 +727,13 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'vsupgrades.statBoons[].maxRank': ['negative', 'zero', 'fractional'],
   'vsupgrades.statBoons[].name': ['to-string', 'empty-string'],
   'vsupgrades.statBoons[].perRank': ['negative', 'zero', 'fractional'],
+  // fb041: `uncapped` is an optional boolean (same shape fb011 gave
+  // `boons.boons[].uncapped`) — flipping/dropping/renaming it still loads,
+  // it just changes whether the boon keeps appearing past `maxRank`.
+  'vsupgrades.statBoons[].uncapped': ['flip-bool', 'drop-key', 'rename-key'],
   'vsupgrades.typeMastery.maxRank': ['negative', 'zero', 'fractional'],
   'vsupgrades.typeMastery.perRank': ['negative', 'zero', 'fractional'],
+  'vsupgrades.typeMastery.uncapped': ['flip-bool', 'drop-key', 'rename-key'],
   'warden.armor': ['negative', 'fractional'],
   'warden.armorCap': ['zero', 'fractional'],
   'warden.armorFloor': ['negative', 'zero', 'fractional'],

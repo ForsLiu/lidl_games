@@ -84,15 +84,44 @@ describe('XP and levelling (SPEC 5.2)', () => {
     expect(w.derived.powerMul).toBeCloseTo(before + boon.perRank * 5, 10);
   });
 
-  it('never offers a stat boon past its rank x5 cap', () => {
+  // fb041 (QUESTIONS Q144(1) OVERRIDE): the owner's standing instruction is
+  // no rank caps on VS stat boons or Type Mastery — a stat boon and a Type
+  // Mastery card both keep appearing (and stacking) in offers past their
+  // authored `maxRank`, which now serves only as the historical/display
+  // reference rank. Skill cards are unaffected by this override and keep
+  // their listed caps (see the skill-card test below).
+  it('keeps offering a stat boon past its rank x5 reference rank (fb041: uncapped)', () => {
     const w = act2World();
     for (const b of w.content.boons.statBoons) w.boonRanks[b.key] = b.maxRank;
+    let sawBoonPastMax = false;
     for (let i = 0; i < 50; i++) {
-      for (const o of rollOffers(w)) expect(o.kind).not.toBe('boon');
+      for (const o of rollOffers(w)) {
+        if (o.kind === 'boon') sawBoonPastMax = true;
+      }
     }
+    expect(sawBoonPastMax).toBe(true);
   });
 
-  it('offers Type Mastery only for tower types actually built, and only up to rank x3', () => {
+  it('a stat boon can be taken 10+ times, stacking additively within itself per §2', () => {
+    const w = act2World();
+    const boon = w.content.boons.statBoons.find((b) => b.key === 'power')!;
+    for (let r = 1; r <= 10; r++) {
+      applyOffer(w, { kind: 'boon', key: 'power', name: '', desc: '', toLevel: r });
+    }
+    expect(w.boonRanks.power).toBe(10);
+    expect(w.derived.powerMul).toBeCloseTo(1 + boon.perRank * 10, 10);
+    // The pool still offers rank 11 — never exhausts on rank alone.
+    let offeredRank11 = false;
+    for (let i = 0; i < 50; i++) {
+      if (rollOffers(w).some((o) => o.kind === 'boon' && o.key === 'power' && o.toLevel === 11)) {
+        offeredRank11 = true;
+        break;
+      }
+    }
+    expect(offeredRank11).toBe(true);
+  });
+
+  it('offers Type Mastery only for tower types actually built, and keeps offering it past rank x3 (fb041: uncapped)', () => {
     const w = act2World();
     w.gold = 9999;
     const built = buildTower(w, w.content.towerByKey.get('arrow_spire')!.id, 18, 9, { ignorePhase: true });
@@ -104,9 +133,30 @@ describe('XP and levelling (SPEC 5.2)', () => {
       }
     }
     w.typeMasteryRanks.arrow_spire = w.content.boons.typeMastery.maxRank;
+    let sawMasteryPastMax = false;
     for (let i = 0; i < 50; i++) {
-      expect(rollOffers(w).some((o) => o.kind === 'type_mastery')).toBe(false);
+      if (rollOffers(w).some((o) => o.kind === 'type_mastery')) sawMasteryPastMax = true;
     }
+    expect(sawMasteryPastMax).toBe(true);
+  });
+
+  it('a Type Mastery card can be taken 10+ times', () => {
+    const w = act2World();
+    w.gold = 9999;
+    const built = buildTower(w, w.content.towerByKey.get('arrow_spire')!.id, 18, 9, { ignorePhase: true });
+    expect(built.ok).toBe(true);
+    for (let r = 1; r <= 10; r++) {
+      applyOffer(w, {
+        kind: 'type_mastery',
+        key: 'arrow_spire',
+        name: '',
+        desc: '',
+        toLevel: r,
+        towerKey: 'arrow_spire',
+      });
+    }
+    expect(w.typeMasteryRanks.arrow_spire).toBe(10);
+    expect(typeMasteryMul(w, 'arrow_spire')).toBeCloseTo(1 + w.content.boons.typeMastery.perRank * 10, 10);
   });
 
   it('applies a Type Mastery offer as a VS-damage multiplier for that type only', () => {

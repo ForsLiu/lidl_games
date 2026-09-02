@@ -1451,7 +1451,7 @@ export function characterPanelMarkup(data: CharacterPanelData, w?: World): strin
       : data.boons
           .map(
             (b) =>
-              `<div class="sw-row small"><span>${b.name} <i>rank ${b.rank}/${b.maxRank}</i></span>` +
+              `<div class="sw-row small"><span>${b.name} <i>rank ${b.rank}${b.uncapped ? '' : '/' + b.maxRank}</i></span>` +
               `<b>${formatSourceValue(STAT_DISPLAY[b.stat], b.contribution)} ${b.statLabel}</b></div>`,
           )
           .join('');

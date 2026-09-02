@@ -195,24 +195,57 @@ describe('levelup idle auto-resolve (p9e, G18)', () => {
     expect(w.offers).toEqual([]);
   });
 
-  it('an exhausted offer pool (everything already at max rank) never opens a dead-end levelup phase (code-reviewer finding)', () => {
+  // fb041 (Q144(1) OVERRIDE): stat boons and Type Mastery no longer exhaust
+  // on rank alone, so driving every family to its authored `maxRank` no
+  // longer empties the pool — it only empties the skill-card third. This is
+  // exactly fb041's "never exhausts on rank alone" acceptance criterion,
+  // asserted here in the same G18 context this test used to pin the opposite
+  // in.
+  it('driving every family to its authored max rank no longer exhausts the pool (fb041: stat boons/Type Mastery are uncapped)', () => {
     const run = newAct2Run();
     const w = run.world;
     for (const b of w.content.boons.statBoons) w.boonRanks[b.key] = b.maxRank;
     for (const c of w.content.boons.skillCards[w.cfg.classKey] ?? []) {
       w.skillCardRanks[c.key] = c.maxRank;
     }
-    // No tower is built in this world, so Type Mastery is already naturally
-    // empty (`buildOfferPool` only offers it for a built type) — the pool as
-    // a whole is now genuinely exhausted.
     addXp(w, xpToReach(2));
     openLevelUpIfPending(w);
-    expect(w.phase).toBe('act2');
-    expect(w.pendingLevelUps).toBe(0);
-    // Stepping well past the idle timeout confirms nothing is silently
-    // parked waiting for a resolve that can never come.
-    for (let i = 0; i < LEVELUP_IDLE_TIMEOUT_TICKS + 10; i++) run.step(emptyInput());
-    expect(w.phase).not.toBe('levelup');
+    // The pool still has stat boons to offer (rank 6+), so this is a normal
+    // level-up, not the dead-end resolve path.
+    expect(w.phase).toBe('levelup');
+    expect(w.offers.length).toBeGreaterThan(0);
+    expect(w.offers.every((o) => o.kind === 'boon')).toBe(true);
+  });
+
+  it('a genuinely exhausted offer pool (no boon/mastery/skill-card family left to offer) never opens a dead-end levelup phase (code-reviewer finding)', () => {
+    const run = newAct2Run();
+    const w = run.world;
+    // fb041 made real-content exhaustion unreachable (stat boons never run
+    // out), so the only way left to construct the genuine G18 dead-end this
+    // guard exists for is to empty the pool's content directly rather than
+    // via rank — `w.content` is `loadContent()`'s memoised object, shared by
+    // every World in this process, so it is restored in `finally` rather
+    // than left mutated for tests that run after this one.
+    const realStatBoons = w.content.boons.statBoons;
+    w.content.boons.statBoons = [];
+    try {
+      for (const c of w.content.boons.skillCards[w.cfg.classKey] ?? []) {
+        w.skillCardRanks[c.key] = c.maxRank;
+      }
+      // No tower is built in this world, so Type Mastery is already naturally
+      // empty (`buildOfferPool` only offers it for a built type) — the pool
+      // as a whole is now genuinely exhausted.
+      addXp(w, xpToReach(2));
+      openLevelUpIfPending(w);
+      expect(w.phase).toBe('act2');
+      expect(w.pendingLevelUps).toBe(0);
+      // Stepping well past the idle timeout confirms nothing is silently
+      // parked waiting for a resolve that can never come.
+      for (let i = 0; i < LEVELUP_IDLE_TIMEOUT_TICKS + 10; i++) run.step(emptyInput());
+      expect(w.phase).not.toBe('levelup');
+    } finally {
+      w.content.boons.statBoons = realStatBoons;
+    }
   });
 
   it('hashWorld distinguishes worlds that differ only in levelupIdleTicks (G2 hash coverage)', () => {

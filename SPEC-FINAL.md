@@ -250,10 +250,13 @@ contribute their VS special (§5 last column). Weapon panel shows lineage:
 ### 6.3 VS level-up upgrades **[designer-fill — fills the empty workbook sheet]**
 Each VS level: pick **1 of 3** cards; 1 free reroll per level. Pool
 (`data/vsupgrades.json`):
-- **Stat boons** (rank ×5 each ⚖): Attack +10% · Attack Speed +10% ·
+- **Stat boons** (⚖ starting rate; no rank cap per owner standing
+  instruction, QUESTIONS Q144(1) OVERRIDE, fb041 — the listed rank ×5 is the
+  historical/display reference rank only): Attack +10% · Attack Speed +10% ·
   Move +10% · Max HP +15 · Defense +5 · Area +10% · Range +10%.
-- **Type Mastery** (one card per built tower type, rank ×3): that type's VS
-  attack +20% damage.
+- **Type Mastery** (one card per built tower type; no rank cap, same
+  override — the listed rank ×3 is the historical/display reference rank
+  only): that type's VS attack +20% damage.
 - **Skill cards** (3 per class, rank ×2, defined per class in `/data`):
   Active1 potency +25% · Active2 cooldown −25% · a class line (e.g.
   Swordsman: Thousand Cuts applies 2 Bleeding; Plaguebringer: Spreading

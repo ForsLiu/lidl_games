@@ -222,3 +222,43 @@ describe('character panel markup: b021 percent-vs-point-total display', () => {
     expect(html).not.toContain('+1200%');
   });
 });
+
+/**
+ * fb041 (Q144(1) OVERRIDE): a stat boon past its authored `maxRank` renders a
+ * bare rank instead of `rank/maxRank` (the same display rule fb011 gave the
+ * now-deleted old boon pool). Every stat boon in real `/data` is uncapped
+ * today (fb041), so the "still capped" branch is exercised directly against
+ * synthetic `BoonRow`s rather than real content — `characterPanelMarkup`
+ * takes plain data, not a `World`, so this needs no content mutation.
+ */
+describe('character panel markup: fb041 uncapped rank display', () => {
+  it('an uncapped boon past its authored max rank shows a bare rank, no "/maxRank"', () => {
+    const w = new World(cfg());
+    takeBoonToRank(w, 'power', 47); // power is uncapped; authored maxRank is 5
+    const html = characterPanelMarkup(characterPanelData(w));
+    expect(html).toContain('rank 47');
+    expect(html).not.toContain('rank 47/5');
+    expect(html).not.toContain('/5<');
+  });
+
+  it('a hypothetical capped boon row still shows rank/maxRank', () => {
+    const html = characterPanelMarkup({
+      stats: [],
+      boons: [
+        {
+          key: 'fake_capped',
+          name: 'Fake Capped',
+          rank: 3,
+          maxRank: 5,
+          uncapped: false,
+          stat: 'power',
+          statLabel: 'Power',
+          kind: 'mul',
+          perRank: 0.1,
+          contribution: 0.3,
+        },
+      ],
+    });
+    expect(html).toContain('rank 3/5');
+  });
+});

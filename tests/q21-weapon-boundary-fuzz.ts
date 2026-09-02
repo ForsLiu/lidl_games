@@ -39,8 +39,25 @@ import type { Verdict } from '../tools/fuzz-weapon-boundary';
  * stat-stacking from a forged `-5`, the NaN-poisoned draw, the `Infinity`/hash
  * collision) is preserved as history in `tests/q21-weapon-boundary-fuzz.test.ts`'s
  * "b011 closed" describe block, which now asserts the *fixed* behavior instead.
+ *
+ * fb041 (Q144(1) OVERRIDE) re-opened two of these, deliberately: `PROBE_BOON`
+ * (`haste`) is now one of the uncapped stat boons, so `inDomain`'s `stored <=
+ * maxRank` check (against the boon's authored `maxRank: 5`, still the
+ * historical/display reference rank) is the wrong question for it — storing
+ * rank 6, or `Infinity` clamped to `UNCAPPED_RANK_CEILING` (9999,
+ * progression.ts), is the *intended* fb041 behavior, not contamination. Both
+ * are `'ungated'` rather than `'contaminated'` because `haste` legitimately
+ * keeps re-offering past 5, exactly per fb041's "never exhausts on rank
+ * alone" acceptance line. Regenerated via `npx tsx
+ * tools/fuzz-weapon-boundary.ts` after the fix landed for the code-reviewer
+ * finding that `clampRank(toLevel, Infinity)` was a no-op clamp — an
+ * unclamped `Infinity` rank OOM-crashed the process the first time
+ * `romanRank` tried to render it as a display numeral.
  */
-export const BOON_RANK_HOLES: Readonly<Record<string, Verdict>> = {};
+export const BOON_RANK_HOLES: Readonly<Record<string, Verdict>> = {
+  '6': 'ungated',
+  posInf: 'ungated',
+};
 
 /** A forged key `boonByKey` cannot resolve is a clean no-op in every probed
  * shape — no holes today. */

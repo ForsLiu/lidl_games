@@ -501,10 +501,14 @@ const SpawnsFileSchema = z.object({
 /**
  * SPEC-FINAL §6.3: the VS level-up pool has three card families — stat
  * boons (this shape), Type Mastery (one entry, applied per built tower
- * type) and per-class skill cards (`SkillCardSchema` below). Superseded by
- * this rewrite: fb011's "uncapped" boons (`feature-remove-boon-rank-caps`)
- * — §6.3 states a fixed `rank x5` for stat boons with no uncapped clause,
- * so that verdict does not carry forward to the new pool (logged Q144).
+ * type) and per-class skill cards (`SkillCardSchema` below). p7a judged that
+ * fb011's "uncapped" boons (`feature-remove-boon-rank-caps`) did not carry
+ * forward to this rewrite, since §6.3's text names a fixed `rank x5`/`x3`
+ * with no uncapped clause (Q144). fb041 (Q144(1) OVERRIDE) reversed that: the
+ * owner's standing instruction is no rank caps on stat boons or Type
+ * Mastery, so both stay in the offer pool and keep stacking past `maxRank`,
+ * which now serves only as the historical/display reference rank. Skill
+ * cards keep their listed caps.
  */
 const BoonSchema = z.object({
   key: str,
@@ -514,9 +518,14 @@ const BoonSchema = z.object({
   stat: z.enum(STAT_KEYS),
   perRank: num,
   desc: str,
+  /** fb041 (Q144 OVERRIDE): a stat boon with this set keeps appearing in
+   * offers past `maxRank`, which then serves only as the historical/display
+   * reference rank used to saturate Luck-weighting. Skill cards stay capped
+   * and omit it. */
+  uncapped: z.boolean().optional(),
 });
 
-const TypeMasterySchema = z.object({ maxRank: num, perRank: num });
+const TypeMasterySchema = z.object({ maxRank: num, perRank: num, uncapped: z.boolean().optional() });
 
 /**
  * `effect` dispatches how `applyOffer`/`classes.ts` read the card:

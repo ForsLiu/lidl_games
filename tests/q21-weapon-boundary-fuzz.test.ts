@@ -126,16 +126,26 @@ describe('q21 offer/wielding boundary fuzz', () => {
     // through `[1, maxRank]` (non-finite collapses to rank 1) before it is
     // stored — these cases pin the fixed behavior for exactly the forged
     // inputs the old exploit chain used.
-    it('toLevel=Infinity clamps to maxRank, not stored illegally', () => {
+    // fb041 (Q144(1) OVERRIDE) made `haste` (`PROBE_BOON`) one of the
+    // uncapped stat boons, so `Infinity` no longer clamps to its authored
+    // `maxRank: 5` — it clamps to `UNCAPPED_RANK_CEILING` (progression.ts),
+    // and keeps being re-offered rather than stopping, exactly as fb041
+    // intends. What still must hold, and is the point of this test post-
+    // code-reviewer-finding: the store stays a *finite* integer (not
+    // `Infinity` itself), so nothing downstream (`romanRank`'s numeral
+    // string-building loop, most notably) ever sees an unbounded rank.
+    it('toLevel=Infinity clamps to a finite ceiling, not stored as Infinity, and keeps being re-offered (uncapped)', () => {
       const w = newWorld();
-      const haste = w.content.boonByKey.get(PROBE_BOON)!;
       applyOffer(w, { kind: 'boon', key: PROBE_BOON, name: 'x', desc: 'x', toLevel: Infinity });
-      expect(w.boonRanks[PROBE_BOON]).toBe(haste.maxRank);
+      expect(w.boonRanks[PROBE_BOON]).toBeGreaterThan(0);
+      expect(Number.isFinite(w.boonRanks[PROBE_BOON])).toBe(true);
       w.phase = 'levelup';
-      for (let i = 0; i < 25; i++) {
+      let reoffered = false;
+      for (let i = 0; i < 25 && !reoffered; i++) {
         const offers = rollOffers(w);
-        expect(offers.some((o) => o.kind === 'boon' && o.key === PROBE_BOON)).toBe(false);
+        if (offers.some((o) => o.kind === 'boon' && o.key === PROBE_BOON)) reoffered = true;
       }
+      expect(reoffered).toBe(true);
     });
 
     it('toLevel=NaN clamps to rank 1 (the non-finite fallback), and a normal weighted draw still varies', () => {
@@ -275,13 +285,26 @@ describe('q21 offer/wielding boundary fuzz', () => {
   describe('finding: an exhausted level-up pool used to softlock the levelup phase — CLOSED at p9e (G18)', () => {
     // With every stat boon and every one of the run class's 3 skill cards at
     // maxRank (Type Mastery never contributes here — no tower is ever built
-    // in this probe), buildOfferPool is empty. openLevelUpIfPending's manual
-    // branch used to still enter 'levelup' with offers = [] regardless — a
-    // permanent softlock, since takeOffer finds no offer at any index and
+    // in this probe), buildOfferPool used to be empty. openLevelUpIfPending's
+    // manual branch used to still enter 'levelup' with offers = [] regardless
+    // — a permanent softlock, since takeOffer finds no offer at any index and
     // rerollOffers "succeeds" into another empty list. p9e made the manual
     // branch mirror the autopick branch's own pre-existing empty-pool guard:
     // an exhausted pool now just consumes the pending level-up in place,
     // same as "b011 closed" below documents for the boon-rank holes.
+    //
+    // fb041 (Q144(1) OVERRIDE) made "every stat boon at maxRank" no longer
+    // mean "no stat boon is offered" — they're uncapped now, so real content
+    // can never actually exhaust `buildOfferPool` on its own (a class always
+    // has 7 stat boons to keep offering). The guard this describe block
+    // exists for is still real — it is just no longer reachable through real
+    // `/data`, only through a deliberately emptied pool — so the two
+    // dead-end tests below force that directly by emptying
+    // `w.content.boons.statBoons` (restored in `finally`, since `w.content`
+    // is `loadContent()`'s process-wide memoised object — see
+    // `tests/p9e-levelup-idle.test.ts` for the same pattern), and a new first
+    // test pins the fb041 behavior itself: real-content maxing no longer
+    // triggers the guard at all.
     function maxAllBoons(w: ReturnType<typeof newWorld>): void {
       for (const b of w.content.boons.statBoons) {
         for (let rank = 1; rank <= b.maxRank; rank++) {
@@ -295,41 +318,73 @@ describe('q21 offer/wielding boundary fuzz', () => {
       }
     }
 
-    it('openLevelUpIfPending no longer enters levelup with zero offers — it consumes the pending level-up and stays in act2', () => {
-      const w = newWorld();
-      maxAllBoons(w);
-      w.phase = 'act2';
-      w.pendingLevelUps = 1;
-      openLevelUpIfPending(w);
-      expect(w.phase).toBe('act2');
-      expect(w.pendingLevelUps).toBe(0);
-      expect(w.offers).toEqual([]);
-    });
+    /** Empties the real stat-boon pool and restores it after `fn`, the only
+     * way left (fb041) to construct a genuinely exhausted offer pool. */
+    function withEmptyStatBoons(w: ReturnType<typeof newWorld>, fn: () => void): void {
+      const real = w.content.boons.statBoons;
+      w.content.boons.statBoons = [];
+      try {
+        fn();
+      } finally {
+        w.content.boons.statBoons = real;
+      }
+    }
 
-    it('never sits in the phase in the first place, so pick/reroll have nothing to escape', () => {
+    it('fb041: maxing every family via real content no longer exhausts the pool — stat boons stay uncapped', () => {
       const w = newWorld();
       maxAllBoons(w);
-      w.phase = 'act2';
-      w.pendingLevelUps = 1;
-      openLevelUpIfPending(w);
-      expect(w.phase).toBe('act2');
-      for (const index of [0, 1, 2]) applyCommand(w, { k: 'pick', index });
-      expect(w.phase).toBe('act2');
-      applyCommand(w, { k: 'reroll' });
-      expect(w.phase).toBe('act2');
-    });
-
-    it('negative control: one boon short of the cap still offers it, so the lock needs the full cap', () => {
-      const w = newWorld();
-      maxAllBoons(w);
-      const power = w.content.boonByKey.get('power')!;
-      w.boonRanks.power = power.maxRank - 1;
       w.phase = 'act2';
       w.pendingLevelUps = 1;
       openLevelUpIfPending(w);
       expect(w.phase).toBe('levelup');
       expect(w.offers.length).toBeGreaterThan(0);
-      expect(w.offers.every((o) => o.key === 'power')).toBe(true);
+      expect(w.offers.every((o) => o.kind === 'boon')).toBe(true);
+    });
+
+    it('openLevelUpIfPending no longer enters levelup with zero offers — it consumes the pending level-up and stays in act2', () => {
+      const w = newWorld();
+      withEmptyStatBoons(w, () => {
+        maxAllBoons(w);
+        w.phase = 'act2';
+        w.pendingLevelUps = 1;
+        openLevelUpIfPending(w);
+        expect(w.phase).toBe('act2');
+        expect(w.pendingLevelUps).toBe(0);
+        expect(w.offers).toEqual([]);
+      });
+    });
+
+    it('never sits in the phase in the first place, so pick/reroll have nothing to escape', () => {
+      const w = newWorld();
+      withEmptyStatBoons(w, () => {
+        maxAllBoons(w);
+        w.phase = 'act2';
+        w.pendingLevelUps = 1;
+        openLevelUpIfPending(w);
+        expect(w.phase).toBe('act2');
+        for (const index of [0, 1, 2]) applyCommand(w, { k: 'pick', index });
+        expect(w.phase).toBe('act2');
+        applyCommand(w, { k: 'reroll' });
+        expect(w.phase).toBe('act2');
+      });
+    });
+
+    it('negative control: stat boons alone (not emptied) are enough to keep the pool open, so the guard needs every family gone', () => {
+      const w = newWorld();
+      // Only the stat-boon family is emptied by maxAllBoons/withEmptyStatBoons
+      // in the tests above; here nothing is emptied at all, so even with
+      // every skill card at max the 7 stat boons alone still offer.
+      for (const card of w.content.boons.skillCards[w.cfg.classKey] ?? []) {
+        for (let rank = 1; rank <= card.maxRank; rank++) {
+          applyOffer(w, { kind: 'skill_card', key: card.key, name: 'x', desc: 'x', toLevel: rank });
+        }
+      }
+      w.phase = 'act2';
+      w.pendingLevelUps = 1;
+      openLevelUpIfPending(w);
+      expect(w.phase).toBe('levelup');
+      expect(w.offers.length).toBeGreaterThan(0);
+      expect(w.offers.every((o) => o.kind === 'boon')).toBe(true);
       applyCommand(w, { k: 'pick', index: 0 });
       expect(w.phase).toBe('act2'); // escape works while any offer exists
     });

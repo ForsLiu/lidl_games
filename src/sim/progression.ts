@@ -15,11 +15,23 @@ import { dist2, normalize } from './math';
 import type { Offer } from './types';
 import { World } from './world';
 
+/** fb041's uncapped families (stat boons, Type Mastery) still need a *finite*
+ * ceiling passed to `clampRank` — code-reviewer finding: `clampRank(toLevel,
+ * Infinity)` is a no-op clamp, so a forged `Offer.toLevel` of `Infinity`
+ * landed verbatim in `boonRanks`/`typeMasteryRanks`, and `romanRank` below
+ * then looped forever building an ever-growing string off it, OOM-crashing
+ * the process on the very next `buildOfferPool` call — unrecoverable, not
+ * something a `try`/`catch` at the call site can defend against. Far above
+ * any rank a real run reaches (fb041's own acceptance is "10+"). */
+const UNCAPPED_RANK_CEILING = 9999;
+
 /** An integer rank in `[1, maxRank]` — `applyOffer`'s guard against a forged
  * `Offer.toLevel` (BACKLOG b011: `NaN`/`Infinity`/negative all landed in
  * `boonRanks` unclamped before this rewrite). Only `NaN` needs a special
- * case: `Math.round`/`Math.max`/`Math.min` already saturate `+Infinity` to
- * `maxRank` and `-Infinity` to `1` correctly on their own. */
+ * case: `Math.round`/`Math.max`/`Math.min` already saturate `-Infinity` to
+ * `1` correctly on their own; `+Infinity` does **not** saturate correctly —
+ * callers must never pass `Infinity` as `maxRank` (see
+ * `UNCAPPED_RANK_CEILING`), or this becomes a no-op clamp. */
 function clampRank(toLevel: number, maxRank: number): number {
   if (Number.isNaN(toLevel)) return 1;
   return Math.min(maxRank, Math.max(1, Math.round(toLevel)));
@@ -295,7 +307,7 @@ function buildOfferPool(w: World): WeightedOffer[] {
 
   for (const b of w.content.boons.statBoons) {
     const rank = w.boonRanks[b.key] ?? 0;
-    if (rank >= b.maxRank) continue;
+    if (!b.uncapped && rank >= b.maxRank) continue;
     out.push({
       offer: {
         kind: 'boon',
@@ -305,7 +317,10 @@ function buildOfferPool(w: World): WeightedOffer[] {
         toLevel: rank + 1,
       },
       weight: 8,
-      value: rank / b.maxRank,
+      // fb041: an uncapped boon keeps stacking past `maxRank`, so the Luck
+      // value saturates at 1 there instead of climbing past it forever
+      // (same approach fb011 used for the old boon pool).
+      value: b.uncapped ? Math.min(1, rank / b.maxRank) : rank / b.maxRank,
     });
   }
 
@@ -318,7 +333,7 @@ function buildOfferPool(w: World): WeightedOffer[] {
     const def = w.content.towerByKey.get(towerKey);
     if (!def || !def.attack) continue;
     const rank = w.typeMasteryRanks[towerKey] ?? 0;
-    if (rank >= mastery.maxRank) continue;
+    if (!mastery.uncapped && rank >= mastery.maxRank) continue;
     out.push({
       offer: {
         kind: 'type_mastery',
@@ -329,7 +344,7 @@ function buildOfferPool(w: World): WeightedOffer[] {
         towerKey,
       },
       weight: 8,
-      value: rank / mastery.maxRank,
+      value: mastery.uncapped ? Math.min(1, rank / mastery.maxRank) : rank / mastery.maxRank,
     });
   }
 
@@ -407,7 +422,7 @@ export function applyOffer(w: World, offer: Offer): void {
       const b = w.content.boonByKey.get(offer.key);
       if (!b) return;
       const before = w.boonRanks[b.key] ?? 0;
-      const toLevel = clampRank(offer.toLevel, b.maxRank);
+      const toLevel = clampRank(offer.toLevel, b.uncapped ? UNCAPPED_RANK_CEILING : b.maxRank);
       w.boonRanks[b.key] = toLevel;
       // One boon is one source: its ranks add within it, then multiply out
       // (V3 §2) — `Stats.addAll` sums onto the same source key across
@@ -428,7 +443,8 @@ export function applyOffer(w: World, offer: Offer): void {
     }
     case 'type_mastery': {
       if (!offer.towerKey) return;
-      const toLevel = clampRank(offer.toLevel, w.content.boons.typeMastery.maxRank);
+      const mastery = w.content.boons.typeMastery;
+      const toLevel = clampRank(offer.toLevel, mastery.uncapped ? UNCAPPED_RANK_CEILING : mastery.maxRank);
       w.typeMasteryRanks[offer.towerKey] = toLevel;
       break;
     }
