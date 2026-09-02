@@ -224,23 +224,40 @@ in live play today, a pre-existing gap fb029 exposed rather than introduced.
       isolation (all green) and by a control run on unmodified `master`
       showing the identical flake class — refs: SPEC-FINAL §11,
       `src/ui/hud.ts`, `src/sim/sundering.ts`, fb029 QA pass.
-- [ ] (b078) [bug] normal priority: `pointerToTile` (`src/ui/input.ts:41-55`)
-      maps a click through `canvas.clientWidth`/`clientHeight` (the canvas's
-      CSS layout size) instead of `canvas.width`/`canvas.height` (its
-      backing/logical grid resolution, `GRID_W`/`GRID_H` × `TILE`) when
-      converting to tile coordinates — correct only when the two happen to be
-      equal (the canvas's CSS box matches its backing resolution 1:1). Once
-      the CSS layout box is smaller than the backing resolution (e.g. a
-      narrower browser window; found live, qa-playtester, fb029's QA pass,
-      reproduced twice identically: 1152×640 backing vs. an ~872×484 CSS box
-      after a viewport resize), every click-to-tile conversion silently
-      mistargets — click-to-select, build, sell and upgrade all resolve to
-      the wrong tile with no error — acceptance: `pointerToTile` returns the
-      correct tile under a `getBoundingClientRect()` width/height scaled down
-      from `canvas.width`/`canvas.height` (a new test — none currently exists
-      for this function — using a mocked canvas/rect the way
-      `tests/t2-selection.test.ts` already does for its own click math) —
-      refs: `src/ui/input.ts:41-55`, fb029 QA pass.
+- [x] (b078) [bug] normal priority: `pointerToTile` (`src/ui/input.ts`)
+      rescaled a click by `canvas.clientWidth`/`clientHeight` (the canvas's own
+      rendered CSS size) instead of the fixed logical grid `GRID_W`/`GRID_H`
+      × `TILE` (1152×640) — correct only when the rendered CSS box happens to
+      equal that logical size. Once a narrower viewport shrinks the canvas's
+      actual rendered box below it (found live, qa-playtester, fb029's QA
+      pass, reproduced with an ~872×484 CSS box against the 1152×640 logical
+      grid after a resize), every click-to-tile conversion — select, build,
+      sell, upgrade — silently mistargeted with no error. Fixed to scale the
+      click's fraction across whatever box `getBoundingClientRect()` reports
+      directly onto `GRID_W`/`GRID_H`, independent of both CSS-box shrink and
+      HiDPI backing-store scale: `((clientX - r.left) / width) * GRID_W`
+      (and the `Y`/`GRID_H` equivalent). `tests/ui-input.test.ts` gained
+      "still hits the right tile when a narrower viewport shrinks the
+      rendered CSS box (b078)"; code-reviewer's first pass caught that the
+      test's `fakeCanvas()` mock hard-codes `clientWidth`/`clientHeight` to
+      the *logical* size, so overriding only `getBoundingClientRect()` let
+      the old buggy formula's `canvas.clientWidth` term cancel against the
+      rect denominator and pass anyway (a real browser moves the two
+      together, `src/ui/style.css`'s `aspect-ratio` on `#sw-canvas`, so the
+      mock didn't model the bug) — fixed by shrinking `clientWidth`/
+      `clientHeight` to match the rect, and verified by hand: `git stash`-ing
+      just the `input.ts` fix made the new test fail (`expected 7 to be 10`)
+      before restoring it green. qa-playtester PASS: confirmed the same
+      revert-and-reproduce live through a real dev server + headless
+      Playwright at a shrunk viewport (a real `page.mouse.click()` missed its
+      tile pre-fix, landed correctly post-fix), adversarially probed
+      edges/corners/rapid-resize/HiDPI-plus-shrink combinations and a normal
+      unshrunk window (no regression), no bugs filed. `npx tsc --noEmit`
+      clean; `npm run test:fast`: only the same pre-existing Windows
+      port-contention flake class already documented (fb047/fb049:
+      `q15-command-domain-fuzz`, `b032`/`b034`/`b035`/`b036`), confirmed by
+      re-running each in isolation (all green) — refs: `src/ui/input.ts`,
+      fb029 QA pass.
 
 ### Feedback — owner-filed items (2026-09-01), processed from `feedback/`
 

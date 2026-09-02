@@ -5,6 +5,45 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-02 session: b078 done — click-to-tile targeting (`pointerToTile`,
+  `src/ui/input.ts`) no longer mistargets once the canvas renders smaller than
+  its logical grid size (bug filed by fb029's QA pass).** The function
+  rescaled a click by `canvas.clientWidth`/`clientHeight` (the canvas's own
+  rendered CSS size) instead of the fixed logical grid `GRID_W`×`TILE` /
+  `GRID_H`×`TILE` (1152×640) — correct only when those happen to be equal. A
+  narrower viewport (or any responsive shrink of `#sw-canvas`, per
+  `src/ui/style.css`'s `aspect-ratio`/`max-width`) breaks that equality, so
+  every select/build/sell/upgrade click silently mistargeted the wrong tile.
+  Fixed to scale the click's fraction across whatever box
+  `getBoundingClientRect()` reports directly onto `GRID_W`/`GRID_H`,
+  independent of both CSS-box shrink and HiDPI backing-store scale.
+
+  code-reviewer's pass caught that the first version of the new regression
+  test (`tests/ui-input.test.ts`) was tautological: `fakeCanvas()`'s mock
+  hard-codes `clientWidth`/`clientHeight` to the *logical* size via a
+  non-configurable `Object.defineProperty`, so overriding only
+  `getBoundingClientRect()` to a shrunk box left the old buggy formula's
+  `canvas.clientWidth` term at the unshrunk logical size — which cancels
+  against the rect denominator and coincidentally produces the same fraction
+  as the fix, passing either way. A real browser moves `clientWidth`/
+  `clientHeight` and the rect together, so the mock wasn't modeling the bug
+  at all. Fixed by making the properties configurable and shrinking both
+  together in the new test, then verified by hand: `git stash`-ing just the
+  `input.ts` fix made the corrected test fail (`expected 7 to be 10`, matching
+  hand-computed math) before restoring it green.
+
+  qa-playtester PASS: reproduced the same revert-and-reproduce live through a
+  real dev server + headless Playwright at a viewport below the 1180px
+  responsive breakpoint (canvas rendered at 672×373 against its 1152×640
+  logical grid) — a real `page.mouse.click()` missed its intended tile
+  pre-fix and landed correctly post-fix; adversarially probed edges/corners,
+  rapid clicks during a live resize, HiDPI + shrunk-box combined, and a
+  normal unshrunk window (no regression) — no bugs filed. `npx tsc --noEmit`
+  clean; `npm run test:fast`: only the same pre-existing Windows
+  port-contention flake class already documented (`q15-command-domain-fuzz`,
+  `b032`/`b034`/`b035`/`b036`), confirmed by re-running each in isolation
+  (all green).
+
 - **2026-09-02 session: b077 done — the click-selection info panel (Warden/
   tower/enemy/Core) no longer dies forever after a run's first Sundering
   (SPEC-FINAL §11, top-priority bug filed by fb029's QA pass).**

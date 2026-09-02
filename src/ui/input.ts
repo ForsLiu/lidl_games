@@ -6,7 +6,7 @@
  * that the loop hands to `Run.step` as one TickInput.
  */
 
-import { TILE } from '../sim/grid';
+import { GRID_H, GRID_W, TILE } from '../sim/grid';
 import type { Command, TickInput } from '../sim/types';
 import { emptyInput } from '../sim/types';
 
@@ -44,13 +44,16 @@ export function pointerToTile(
   clientY: number,
 ): { x: number; y: number } {
   const r = canvas.getBoundingClientRect();
-  // The canvas backing store may be larger than its CSS box on a HiDPI screen,
-  // so map through the CSS box and the logical tile size, never the backing size.
-  const width = r.width || canvas.clientWidth || TILE;
-  const height = r.height || canvas.clientHeight || TILE;
+  // The canvas is always GRID_W*TILE x GRID_H*TILE logical pixels regardless of
+  // its backing-store resolution (HiDPI) or its actual rendered CSS box (which
+  // can be scaled down by a narrower viewport, per b078) — so map the click's
+  // *fraction* across the rendered box onto the fixed logical grid, never the
+  // rendered box's own pixel size and never the backing size.
+  const width = r.width || canvas.clientWidth || GRID_W * TILE;
+  const height = r.height || canvas.clientHeight || GRID_H * TILE;
   return {
-    x: ((clientX - r.left) / width) * (canvas.clientWidth || width) / TILE,
-    y: ((clientY - r.top) / height) * (canvas.clientHeight || height) / TILE,
+    x: ((clientX - r.left) / width) * GRID_W,
+    y: ((clientY - r.top) / height) * GRID_H,
   };
 }
 

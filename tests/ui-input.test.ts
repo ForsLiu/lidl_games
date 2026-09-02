@@ -321,8 +321,8 @@ describe('canvas clicks reach the game', () => {
   /** A canvas with a known CSS box, since jsdom does no layout. */
   function fakeCanvas(): HTMLCanvasElement {
     const canvas = document.createElement('canvas');
-    Object.defineProperty(canvas, 'clientWidth', { value: 1152 });
-    Object.defineProperty(canvas, 'clientHeight', { value: 640 });
+    Object.defineProperty(canvas, 'clientWidth', { value: 1152, configurable: true });
+    Object.defineProperty(canvas, 'clientHeight', { value: 640, configurable: true });
     canvas.getBoundingClientRect = () =>
       ({ left: 0, top: 0, width: 1152, height: 640, right: 1152, bottom: 640, x: 0, y: 0 }) as DOMRect;
     document.body.appendChild(canvas);
@@ -417,6 +417,35 @@ describe('canvas clicks reach the game', () => {
     canvas.width = 2304;
     canvas.height = 1280;
     const p = pointerToTile(canvas, 32 * 10, 32 * 5);
+    expect(Math.floor(p.x)).toBe(10);
+    expect(Math.floor(p.y)).toBe(5);
+  });
+
+  it('still hits the right tile when a narrower viewport shrinks the rendered CSS box (b078)', () => {
+    const canvas = fakeCanvas();
+    // The logical grid stays GRID_W*TILE x GRID_H*TILE (1152x640), but the
+    // element's actual rendered box is smaller than that — reproduces
+    // qa-playtester's repro of an ~872x484 CSS box against the 1152x640
+    // logical grid after a viewport resize. A real browser moves
+    // `clientWidth`/`clientHeight` and `getBoundingClientRect()` together
+    // (src/ui/style.css pins #sw-canvas to a fixed aspect-ratio), so both are
+    // shrunk here — overriding only the rect would leave the old buggy
+    // formula's `canvas.clientWidth` term at the unshrunk logical size, which
+    // cancels against the rect denominator and passes even without the fix.
+    Object.defineProperty(canvas, 'clientWidth', { value: 872, configurable: true });
+    Object.defineProperty(canvas, 'clientHeight', { value: 484, configurable: true });
+    canvas.getBoundingClientRect = () =>
+      ({ left: 10, top: 20, width: 872, height: 484, right: 882, bottom: 504, x: 10, y: 20 }) as DOMRect;
+    // Backing store resolution is independent of the CSS box (e.g. left at the
+    // logical size, or DPR-scaled) and must not affect the tile mapping.
+    canvas.width = 1152;
+    canvas.height = 640;
+
+    // Tile (10, 5)'s center in logical pixels is (336, 176); scale that down
+    // by the CSS box's 872/1152 and 484/640 ratios, then offset by the rect.
+    const clientX = 10 + 336 * (872 / 1152);
+    const clientY = 20 + 176 * (484 / 640);
+    const p = pointerToTile(canvas, clientX, clientY);
     expect(Math.floor(p.x)).toBe(10);
     expect(Math.floor(p.y)).toBe(5);
   });
