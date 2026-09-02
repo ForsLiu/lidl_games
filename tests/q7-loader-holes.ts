@@ -22,6 +22,16 @@
  *     `open` = no row is, `partial` = some are and some are not, which is the
  *     one-directional-integrity finding (E1).
  *
+ * Regenerated 2026-09-02 (fb031): `data/spawns.json` gained `gemAttractGrowth`/
+ * `gemAttractPeriodSeconds` (the uncapped pull-speed ramp a gem gets once
+ * attracted, per code-reviewer's finding that the original diff hardcoded
+ * these as sim-code constants — CLAUDE.md architecture rule 4) — two bare
+ * `num` fields, the same unguarded shape every other plain `spawns.json`
+ * number already has, so they accept the same `negative`/`zero`/`fractional`
+ * family. Not a new class of hole, just two fields joining the pre-existing
+ * one. ACCEPTED updated in place; INEFFECTIVE and REF_VERDICTS unchanged (two
+ * numeric fields, not cross-checked).
+ *
  * Regenerated 2026-09-02 (fb030): `data/warden.json` gained `dashDuration`
  * (the base dash's travel time, now a fast move rather than a teleport) —
  * a bare `num`, the same unguarded shape its three siblings
@@ -534,6 +544,8 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'spawns.eliteWeights.colossus': ['negative', 'zero', 'fractional', 'drop-key', 'rename-key'],
   'spawns.eliteWeights.herald': ['negative', 'zero', 'fractional', 'drop-key', 'rename-key'],
   'spawns.expToGoldRatio': ['negative', 'zero', 'fractional'],
+  'spawns.gemAttractGrowth': ['negative', 'zero', 'fractional'],
+  'spawns.gemAttractPeriodSeconds': ['negative', 'zero', 'fractional'],
   'spawns.gemCap': ['negative', 'zero', 'fractional'],
   'spawns.gemLifetimeSeconds': ['negative', 'zero', 'fractional'],
   'spawns.hpOverlay': ['negative', 'zero', 'fractional'],

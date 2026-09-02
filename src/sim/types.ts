@@ -400,6 +400,13 @@ export interface Gem {
   /** Seconds before an uncollected gem fades. */
   life: number;
   dead: boolean;
+  /**
+   * fb031: seconds this gem has spent continuously inside pickup radius,
+   * driving its uncapped speed ramp so it always catches a moving character.
+   * Optional so every pre-existing literal `Gem` push (src and tests) still
+   * type-checks; `updateGems` treats a missing value as 0.
+   */
+  attractedT?: number;
 }
 
 export interface GroundArea {

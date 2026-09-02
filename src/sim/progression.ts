@@ -194,16 +194,41 @@ export function updateGems(w: World, dt: number): void {
   const wd = w.warden;
   const radius = w.derived.pickupRadius;
   const r2 = radius * radius;
+  // fb031: once a gem is attracted its pull speed ramps by `gemAttractGrowth`
+  // every `gemAttractPeriodSeconds`, uncapped, so it always eventually
+  // catches a character however far movement speed is stacked (fb041 removed
+  // the VS "swift" boon's rank cap, so a build's real move speed has no
+  // ceiling).
+  const growth = w.content.spawns.gemAttractGrowth;
+  const period = w.content.spawns.gemAttractPeriodSeconds;
   for (const g of w.gems) {
     if (g.dead) continue;
     const d2 = dist2(g.x, g.y, wd.x, wd.y);
-    if (d2 <= r2) {
+    // A gem that has never entered pickup radius keeps waiting exactly as
+    // before. One that has is attracted for good: the chase is sticky, so a
+    // character fleeing fast enough to briefly reopen the gap cannot strand
+    // it outside radius with the ramp frozen — the ramp is uncapped, so it
+    // always closes the gap eventually instead of stalling the moment the
+    // gap reopens.
+    const attracted = d2 <= r2 || (g.attractedT ?? 0) > 0;
+    if (attracted) {
+      g.attractedT = (g.attractedT ?? 0) + dt;
+      const mul = Math.pow(growth, g.attractedT / period);
       const n = normalize(wd.x - g.x, wd.y - g.y);
-      const pull = 7 + radius;
-      g.x += n.x * pull * dt;
-      g.y += n.y * pull * dt;
+      const pull = (7 + radius) * mul;
+      // Clamp the step to the actual remaining gap: an uncapped exponential
+      // ramp otherwise flings the gem straight past the Warden and out the
+      // far side once `pull * dt` exceeds the gap, diverging tick over tick
+      // instead of closing it (qa-playtester found this live on fb031's
+      // first submission — a gem could fly off and never be caught).
+      const step = Math.min(pull * dt, Math.sqrt(d2));
+      g.x += n.x * step;
+      g.y += n.y * step;
     }
-    if (d2 <= 0.25) {
+    // Re-measured after this tick's own move so a gem that just closed the
+    // gap is collected the same tick, not one tick late.
+    const d2After = attracted ? dist2(g.x, g.y, wd.x, wd.y) : d2;
+    if (d2After <= 0.25) {
       g.dead = true;
       addXp(w, g.value);
       w.emit('gem', g.x, g.y, g.value, 0);

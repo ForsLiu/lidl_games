@@ -489,6 +489,9 @@ const SpawnsFileSchema = z.object({
   contactPadding: num,
   gemLifetimeSeconds: num,
   gemCap: num,
+  /** fb031: once attracted, a gem's pull speed multiplies by this factor every `gemAttractPeriodSeconds`, uncapped. */
+  gemAttractGrowth: num,
+  gemAttractPeriodSeconds: num,
   /** fb008: gold per point of gem EXP that overflows past the current level-up need. */
   expToGoldRatio: num,
   costs: z.record(num),

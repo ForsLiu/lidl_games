@@ -1148,7 +1148,10 @@ export function hashWorld(w: World): string {
   h.int(w.projectiles.length);
   for (const p of w.projectiles) h.int(p.id).num(p.x).num(p.y).num(p.damage);
   h.int(w.gems.length);
-  for (const g of w.gems) h.int(g.id).num(g.x).num(g.y).num(g.value);
+  // fb031: attractedT drives the pull-speed ramp and so is real writable sim
+  // state (m19a's lesson: an unhashed writable field is a coverage gap, not
+  // just redundant with the x/y it feeds).
+  for (const g of w.gems) h.int(g.id).num(g.x).num(g.y).num(g.value).num(g.attractedT ?? 0);
   h.int(w.areas.length);
   for (const a of w.areas) h.int(a.id).num(a.x).num(a.y).num(a.remaining);
   // p2b's wielded-attack cooldowns are sim state exactly like a weapon's own

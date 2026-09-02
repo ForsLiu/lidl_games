@@ -5,6 +5,75 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-02 session: fb031 done — VS XP gems accelerate toward the
+  character once attracted, uncapped (SPEC-FINAL §2 pickup amendment, owner
+  feedback `feature-exp-accelerating-pickup`).** `src/sim/progression.ts`'s
+  `updateGems`: a gem is "attracted" once it has ever been within
+  `w.derived.pickupRadius` of the Warden — sticky, so a character fleeing
+  fast enough to briefly reopen the gap cannot strand it outside radius with
+  its ramp frozen. While attracted, `Gem.attractedT` (new field, optional so
+  every pre-existing literal `Gem` push still type-checks) accumulates every
+  tick, and pull speed is `(7 + radius) * gemAttractGrowth ^ (attractedT /
+  gemAttractPeriodSeconds)` — an uncapped exponential ramp, so it always
+  eventually exceeds any finite character speed (motivated directly by
+  fb041, which removed the VS "swift" boon's rank cap, so real move speed
+  lost its ceiling and the old fixed `7 + radius` pull could be permanently
+  outrun). `hashWorld` now also hashes `attractedT` (m19a's lesson: writable
+  sim state that drives future ticks needs hash coverage, not just the x/y
+  it feeds).
+
+  code-reviewer **REQUEST-CHANGES** then green: one Major — the ramp's two
+  new constants (`1.4`/`0.25`) were originally hardcoded in sim code,
+  violating CLAUDE.md architecture rule 4 ("all content and numbers live in
+  `/data/*.json`") and this session's own immediate precedent (fb030 moved
+  `dashDuration` into `data/warden.json` for exactly this reason) — fixed by
+  moving them into `data/spawns.json` as `gemAttractGrowth`/
+  `gemAttractPeriodSeconds`, threaded through `content.ts`'s schema, and
+  `tests/q7-loader-holes.ts` (the generated data-fuzz census) regenerated via
+  `Q7_RECORD=1 npx vitest run tests/q7-data-fuzz.test.ts` to record the two
+  new fields' accepted mutation families.
+
+  qa-playtester **FAIL** on first submission with one Critical and two
+  Major, all fixed: the per-tick pull step was **unclamped**, so once
+  `pull * dt` exceeded the remaining gap to the Warden (which the uncapped
+  exponential guarantees will eventually happen), the gem shot straight past
+  the Warden and out the far side instead of landing inside the 0.5-tile
+  collect radius — QA's repro diverged from ~1.45 tiles away to ~101,430
+  tiles away in a single tick, then further every tick after, with no
+  self-correction (the "no gem orbits forever" acceptance clause was in
+  practice "the gem is lost," the worst version of that failure). Downstream
+  of the same bug, a gem could expire via its real 18s `gemLifetimeSeconds`
+  and vanish uncollected — silent XP loss — before ever being caught. Fixed
+  by clamping the step to `Math.min(pull * dt, distance)` so a gem can never
+  overshoot past the Warden's current position in one tick, and moving the
+  collect check to the post-move distance for an attracted gem (so a gem
+  landing exactly on the Warden is collected the same tick, not one tick
+  late). QA's third finding — under a reversing/kiting Warden trajectory
+  (not just a monotonic flee), catch time measured from world-start exceeded
+  the 2s acceptance bound — traced to a pre-existing same-tick boundary race
+  (the gem was placed exactly at the pickup-radius edge and the Warden began
+  fleeing in the very same tick the attraction check runs, so it was never
+  actually attracted during that stretch, just correctly waiting outside
+  radius exactly as pre-fb031/pre-fb008 gems always have); confirmed via a
+  second qa-playtester pass that this exact race pre-dates fb031 (reproduced
+  against `git show HEAD:src/sim/progression.ts`'s old fixed-pull logic,
+  where the same scenario never attracts at all) and that catch time
+  measured from genuine attraction is reliably under 2s across a battery of
+  speeds (10-500 tiles/s), kiting periods (single-tick reversal to 3s
+  half-cycles), a circular/diagonal path, and 5 simultaneous gems at
+  different attraction ages. Re-verified determinism via two `npm run sim
+  -- --seed 7 --policy hybrid` runs producing identical `endHash`.
+  `tests/fb031-gem-accelerate.test.ts` (5 tests): catch-within-2s with a
+  sticky mid-chase radius exit, the ramp-strictly-increases isolation case,
+  the never-attracted-gem no-op case, the overshoot/divergence regression
+  (`attractedT: 8` preloaded against a stationary Warden), and the kiting
+  case (reversing every 3s at 40 tiles/s, real `gemLifetimeSeconds`, caught
+  via genuine XP grant not life expiry). `npx tsc --noEmit` clean; `npm run
+  test:fast`: only the same pre-existing Windows port-contention/host-load
+  flake class already documented across prior sessions (`q13-perf-ratio`,
+  `q15-command-domain-fuzz`, `b032`/`b034`/`b035`/`b036`), confirmed
+  unrelated by re-running each in isolation (all green).
+
 - **2026-09-02 session: fb030 done — the character's dash is a fast move,
   not a teleport (SPEC-FINAL §10 amendment, owner feedback
   `feature-dash-fast-move`).** The base movement dodge-dash and all four

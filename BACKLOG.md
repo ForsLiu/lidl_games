@@ -343,14 +343,32 @@ in live play today, a pre-existing gap fb029 exposed rather than introduced.
       `b032`/`b034`/`b035`/`b036`), confirmed by re-running each in isolation
       (all green) — refs: SPEC-FINAL §10 (character: dash) amendment, owner
       feedback `feature-dash-fast-move`.
-- [ ] (fb031) [feat] VS XP gems accelerate toward the character once
+- [x] (fb031) [feat] VS XP gems accelerate toward the character once
       attracted (within pickup radius, or after a wave's auto-collect,
       fb008): speed increases continuously (e.g. +40%/0.25s, uncapped) so a
       gem always catches a moving character; gems outside pickup radius keep
       waiting as today — acceptance: a gem attracted behind a character
       moving at max speed reaches it within 2s (a test covers this); no gem
       orbits forever — refs: SPEC-FINAL §2 (pickup) amendment, owner
-      feedback `feature-exp-accelerating-pickup`.
+      feedback `feature-exp-accelerating-pickup`. **Done — see PROGRESS.md's
+      2026-09-02 fb031 entry for the full write-up.** `updateGems`
+      (`src/sim/progression.ts`) makes attraction sticky (once a gem enters
+      pickup radius it stays attracted, ramp and all, even if the gap
+      reopens) with an uncapped exponential pull-speed ramp,
+      `gemAttractGrowth`/`gemAttractPeriodSeconds` (`data/spawns.json`, moved
+      there after code-reviewer flagged an initial hardcoded-in-sim-code
+      version against CLAUDE.md architecture rule 4). qa-playtester **FAIL**
+      on first submission (one Critical: an unclamped per-tick step let a
+      heavily-ramped gem overshoot the Warden and diverge to ~1e5 tiles
+      instead of being caught, with a downstream Major of the gem then
+      expiring via its real life timer uncollected) — fixed by clamping the
+      step to the actual remaining gap; second qa-playtester pass **PASS**,
+      independently reproduced the fix holding across 5+ adversarial kiting
+      patterns and confirmed the one remaining slow-catch repro was a
+      pre-existing (not fb031-introduced) same-tick attraction-boundary race,
+      identical against `HEAD`'s old fixed-pull code. `tests/fb031-gem-
+      accelerate.test.ts` (5 tests). `tests/q7-loader-holes.ts` regenerated
+      for the two new `spawns.json` fields.
 - [ ] (fb032) [feat] Practice +gold/+XP buttons become amount dropdowns:
       +500, +1000, +2500, +5000, +100000, same `dev` Command path with
       amount as a parameter — acceptance: both dropdowns grant the chosen
