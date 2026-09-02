@@ -81,6 +81,10 @@ const EXPECTED_STATUS: Record<string, ToolClassification['status']> = {
   'tools/probe-boss.ts': 'pinned',
   'tools/sim.ts': 'pinned',
   'tools/soak.ts': 'pinned',
+  // fb038: the STATUS.md generator. Imports tools/sweep.ts's `runOne`
+  // statically, inheriting sweep.ts's own unfixed static route into
+  // content.ts (BACKLOG b045) — pinned by tests/fb038-status.test.ts.
+  'tools/status.ts': 'pinned',
   'tools/sweep.ts': 'pinned',
   // fb018: the ui-audit orchestrator. It only `import type`s from
   // src/ui/audit-hook.ts (erased before this classifier's BFS ever runs) and
@@ -91,11 +95,11 @@ const EXPECTED_STATUS: Record<string, ToolClassification['status']> = {
 };
 
 describe('q47 — CLI-crash coverage census', () => {
-  it("lists exactly today's 25 tools/*.ts files (the 22 q47 found plus this tool itself plus fb018's tools/ui-audit.ts plus p10k's tools/p10k-sweep.ts; gen-tree.mjs excluded, not a .ts file; tools/audit/checks.ts excluded, not a direct child of tools/)", () => {
+  it("lists exactly today's 26 tools/*.ts files (the 22 q47 found plus this tool itself plus fb018's tools/ui-audit.ts plus p10k's tools/p10k-sweep.ts plus fb038's tools/status.ts; gen-tree.mjs excluded, not a .ts file; tools/audit/checks.ts excluded, not a direct child of tools/)", () => {
     const files = listToolFiles();
     expect(files).not.toContain('tools/gen-tree.mjs');
     expect(files.every((f) => f.endsWith('.ts'))).toBe(true);
-    expect(files.length).toBe(25);
+    expect(files.length).toBe(26);
   });
 
   it("today's classification matches this session's hand-derived table exactly", () => {

@@ -32,6 +32,9 @@ TypeScript + Vite + canvas, Vitest, zod, all tuning in `/data/*.json`, Node 22+.
 - `npm run sim -- --seed 1 --policy hybrid` — headless run report
 - `npx tsx tools/sweep.ts --seeds 12 --policies maxbuild,hybrid` — balance sweep
 - `npx tsx tools/handoff-metrics.ts` — regenerate HANDOFF measured sections
+- `npm run status` — regenerate STATUS.md (gate table, balance snapshot,
+  content census, feedback ledger, pending QUESTIONS); run it at every phase
+  completion and every ~20 backlog items, per BACKLOG fb038
 
 The FULL `npm test` takes 40+ minutes on this host; `npm run test:fast` is the
 per-item tier. A suite that grows past ~60 s moves to the fast config's exclude

@@ -115,4 +115,9 @@ function main(): void {
   }
 }
 
-main();
+// Guarded like gate-audit.ts/content-census.ts: status.ts imports `runOne`
+// from this module for its own balance snapshot, and an unguarded top-level
+// `main()` call would re-run a default CLI sweep (parsing status.ts's own
+// argv) as a side effect of that import.
+const invokedDirectly = process.argv[1]?.replace(/\\/g, '/').endsWith('tools/sweep.ts');
+if (invokedDirectly) main();

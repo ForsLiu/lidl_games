@@ -13,7 +13,8 @@
     "typecheck": "tsc --noEmit",
     "sim": "tsx tools/sim.ts",
     "test:perf": "vitest run --config vitest.perf.config.ts",
-    "ui-audit": "tsx tools/ui-audit.ts"
+    "ui-audit": "tsx tools/ui-audit.ts",
+    "status": "tsx tools/status.ts"
   },
   "devDependencies": {
     "@types/jsdom": "^30.0.0",

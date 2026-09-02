@@ -542,6 +542,10 @@ export const PIN_COVERAGE: Record<string, string[]> = {
   'tools/sweep.ts': ['tests/q37-cli-json-syntax-error-siblings.test.ts'],
   'tools/p10k-sweep.ts': ['tests/q37-cli-json-syntax-error-siblings.test.ts'],
   'tools/handoff-metrics.ts': ['tests/q37-cli-json-syntax-error-siblings.test.ts'],
+  // fb038: same unfixed shape as sweep.ts above (status.ts imports its
+  // `runOne` statically, inheriting sweep.ts's own static route into
+  // content.ts) — BACKLOG b045 already tracks the underlying gap.
+  'tools/status.ts': ['tests/fb038-status.test.ts'],
   'tools/perf-ratio.ts': [
     'tests/q41-cli-json-syntax-error-siblings-2.test.ts',
     'tests/q45-cli-schema-violation.test.ts',
