@@ -405,7 +405,7 @@ or P10-band priority and block nothing below.
       a documented, bounded time (state the new number); `tests/fb038-
       status.test.ts`'s CLI test still passes without a runaway timeout — refs:
       QUESTIONS Q156, fb039, fb038.
-- [ ] (fb049) [balance] top priority, ahead of `p10r`: `fb039`'s re-measurement
+- [x] (fb049) [balance] top priority, ahead of `p10r`: `fb039`'s re-measurement
       found `tests/p10d-run-length.test.ts` (G1) silently red at HEAD (0/24
       wins, no `.skip`/note — it's fast-tier-excluded so nothing else catches
       this) and a bounded spot-check under the real `TREE_AUTO_MAX` full-tree
@@ -433,7 +433,31 @@ or P10-band priority and block nothing below.
       6; amend or supersede `p10r`'s own retune target based on what the
       real numbers show, rather than the empty-tree numbers it was filed
       against — refs: SPEC-FINAL §14 G1/G8/G14/G23, QUESTIONS Q138, fb039,
-      p10r, p10m.
+      p10r, p10m. **Done — see PROGRESS.md's fb049 entry and QUESTIONS Q157
+      for the full write-up and every measured number.** Chose the
+      lower-blast-radius path (pointed each of the four gate tests' own
+      configs at `allTreeNodeIds(loadContent())` directly rather than moving
+      `tests/helpers.ts`'s shared `cfg()` default, which 633 other call
+      sites across 97 files lean on for an intentionally-empty tree).
+      Measured: **G1** 23/24 wins, mean 36.36 min (`.skip`-ed, 0.36 min over
+      the 36-min ceiling — up from the stale 0/24); **G14** 19/20 (95%,
+      un-skipped, inside band — up from the stale 0/20); **G8** all twelve
+      classes 12/12 or 10/12 (bloodlord, two real stalemate timeouts),
+      diversity 2->3 distinct (both clauses re-`.skip`-ed, now over-ceiling
+      rather than under-floor); **G23** all five Cores 10-12/12 (`corpse`/
+      `stone_heart` each reproduce a one-two-seed 120-minute stalemate,
+      G22 unaffected and green) — every `.skip`-ed assertion carries its
+      fresh number in-line. Confirms fb039's own prediction: `p10r`'s
+      retune premise (measured against the stale empty-tree numbers) is
+      superseded — the real problem across all four gates is now a ceiling
+      overshoot, not the under-floor story `p10r` was filed against.
+      `npx tsc --noEmit` clean; `npm run test:fast`: ~1930+/1956 green, the
+      only failures are the standing pre-existing Windows port-contention/
+      worker-hang flake class fb047 already documented
+      (`q15-command-domain-fuzz`, `b032`/`b034`/`b035`/`b036` fold-timing
+      tests) — the exact failure count/file mix varies run to run (this
+      class's known variance, confirmed by code-reviewer's own reruns),
+      not a new regression; unrelated to this diff in every rerun.
 
 ### Feedback — owner-filed items (2026-08-27), processed from `feedback/`
 
@@ -983,17 +1007,29 @@ fresh number.
       G8/G23, `p10m`'s Done-section writeup for the per-class/per-Core
       numbers this item retunes against.
 
-      **Blocked on `fb049` (filed at fb039):** `p10m`'s numbers above were
-      measured with `tests/helpers.ts`'s `cfg()` default (`allocated: []`),
-      the same empty-tree default fb039 found and fixed in the balance
-      tooling. A quick full-tree spot-check at fb039 (different, lighter
-      methodology — generic `hybrid` bot, 3 seeds, not this gate's own
-      scripted-kit-bot harness) moved necromancer from 0% to 100%, suggesting
-      the real over-ceiling numbers this item retunes against may be even
-      further from the band than `p10m` measured, not closer. Do not spend
-      this item's retune budget until `fb049` re-measures G8/G23 against the
-      real `TREE_AUTO_MAX` allocation and confirms or corrects `p10m`'s
-      numbers.
+      **UNBLOCKED by `fb049` (done) — retune target corrected, widened to
+      G1/G14 too.** `p10m`'s numbers above were measured with
+      `tests/helpers.ts`'s `cfg()` default (`allocated: []`); fb049
+      re-measured all four gates against the real `TREE_AUTO_MAX` full-tree
+      allocation (QUESTIONS Q157, PROGRESS.md's fb049 entry) and confirmed
+      the over-ceiling story is real and, for G8/G23, worse than `p10m`
+      measured: **G8** all twelve classes now clear 12/12 or 10/12 (only
+      `bloodlord` under 12, on two real stalemate timeouts, not a genuine
+      loss) — `necromancer` no longer sits under-floor as `p10m` found, it
+      flipped to 12/12 with the rest. **G23** all five Cores clear 10-12/12
+      (`corpse`/`stone_heart` each lose 1-2 seeds only to the same stalemate
+      pattern) — `stone_heart` is no longer closest-to-band, every Core is
+      now equally over-ceiling. This item's own retune target (9 of 11
+      classes, 3 of 4 Cores back inside [35,70]) still holds as a shape, just
+      against these corrected numbers — widen the class/Core count in the
+      acceptance text to the full twelve/five since none is exempt anymore.
+      **Also fold in G1** (`tests/p10d-run-length.test.ts`, `.skip`-ed by
+      fb049 at 23/24 wins, mean 36.36 min — 0.36 min over the 36-min
+      ceiling): a small further pacing cut in the same family as p10l's
+      `buildPhaseSeconds` lever would likely close it alongside this item's
+      other work, though it is a much smaller miss than G8/G23 and could be
+      split out if the two turn out to trade against each other. **G14**
+      needs no further work (fb049 re-confirmed 19/20, 95%, inside band).
 
 ### Filed at the lane/quality merge (2026-08-27) — out-of-scope findings from BACKLOG-QUALITY.md's log
 

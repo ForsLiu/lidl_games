@@ -34,10 +34,16 @@ import { Run } from '../src/sim/run';
 import { makePolicy } from '../src/bots';
 import '../src/bots';
 import { coreCenter } from '../src/sim/grid';
+import { loadContent } from '../src/sim/content';
+import { allTreeNodeIds } from '../src/meta/meta';
 import type { RunConfig, RunReport } from '../src/sim/types';
 import { cfg } from './helpers';
 
 const NON_DEFAULT_CORES = ['carnivorous_plant', 'vampire_heart', 'corpse', 'time'];
+// fb049 (Q138 re-measurement): real Hub-started runs feed the full
+// Constellation tree into `allocated` (`TREE_AUTO_MAX`) — `cfg()`'s own
+// default (`[]`) does not match that, so it is overridden explicitly below.
+const FULL_TREE = allTreeNodeIds(loadContent());
 
 function runCoreScripted(
   coreKey: string,
@@ -45,7 +51,13 @@ function runCoreScripted(
   opts: { cycles?: number; maxTicks?: number; policy?: string } = {},
 ): RunReport {
   const policyName = opts.policy ?? 'hybrid';
-  const config: RunConfig = cfg({ seed, core: coreKey, cycles: opts.cycles ?? 6, policy: policyName });
+  const config: RunConfig = cfg({
+    seed,
+    core: coreKey,
+    allocated: FULL_TREE,
+    cycles: opts.cycles ?? 6,
+    policy: policyName,
+  });
   const run = new Run(config);
   const policy = makePolicy(policyName);
   const w = run.world;
@@ -228,6 +240,13 @@ describe('G23: every Core clears T1 at a 35-70% win rate with the scripted bot',
   // "wins almost every time." Still `.skip`-ed, new honest number and
   // failure direction; re-enable point stays **P10** (this item measures,
   // the fix is separate balance work — see PROGRESS.md's p10m entry).
+  //
+  // fb049 re-measurement (Q138): p10m's 11/12 reading above was measured with
+  // `allocated: []` — no real Hub-started run plays with an empty tree
+  // (`TREE_AUTO_MAX`). Re-measured against the real full-tree allocation:
+  // **12/12 (100%)** — every seed `victory`/w18, the same over-ceiling
+  // direction p10m already found, now total. Still `.skip`-ed; re-enable
+  // point stays **P10**.
   it.skip('carnivorous_plant', () => {
     const { wins, outcomes } = winRate('carnivorous_plant');
     expect(wins, `${wins}/${SEEDS.length} — ${outcomes.join(' ')}`).toBeGreaterThanOrEqual(
@@ -274,6 +293,13 @@ describe('G23: every Core clears T1 at a 35-70% win rate with the scripted bot',
   // here since this Core dies to nothing at all now. Still `.skip`-ed with
   // the new honest number; re-enable point stays **P10** (measurement only,
   // fix is separate balance work — PROGRESS.md's p10m entry).
+  //
+  // fb049 re-measurement (Q138): the 12/12 reading above was measured with
+  // `allocated: []`, not the real full-tree allocation. Re-measured against
+  // `allTreeNodeIds(loadContent())`: still **12/12 (100%)**, unchanged — this
+  // Core was already at the ceiling under the stale measurement, so the
+  // correction doesn't move it further. Still `.skip`-ed; re-enable point
+  // stays **P10**.
   it.skip('vampire_heart', () => {
     const { wins, outcomes } = winRate('vampire_heart');
     expect(wins, `${wins}/${SEEDS.length} — ${outcomes.join(' ')}`).toBeGreaterThanOrEqual(
@@ -308,6 +334,17 @@ describe('G23: every Core clears T1 at a 35-70% win rate with the scripted bot',
   // `vampire_heart` above, same magnitude. Still `.skip`-ed with the new
   // honest number; re-enable point stays **P10** (measurement only, fix is
   // separate balance work — PROGRESS.md's p10m entry).
+  //
+  // fb049 re-measurement (Q138): the 12/12 reading above was measured with
+  // `allocated: []`. Re-measured against the real full-tree allocation, a new
+  // stalemate reappears at the file's own 120-minute cap: seed 10 does not
+  // resolve (`running`, all 18 TD waves cleared). Not chased to a longer cap
+  // (CLAUDE.md rule 6 — this exact mechanism already had two real cap-raise
+  // attempts spent on it pre-p10m, per the comments above). Of the other 11
+  // seeds (non-throwing probe, same disclosure as the methodology note
+  // below): **10/12** wins — seed 6 `defeat_warden`/w3, seed 10 `running`,
+  // every other seed `victory`/w18 — still over the 70% ceiling even reading
+  // the stalemate as a loss. Still `.skip`-ed; re-enable point stays **P10**.
   it.skip('corpse', () => {
     const { wins, outcomes } = winRate('corpse');
     expect(wins, `${wins}/${SEEDS.length} — ${outcomes.join(' ')}`).toBeGreaterThanOrEqual(
@@ -338,6 +375,11 @@ describe('G23: every Core clears T1 at a 35-70% win rate with the scripted bot',
   // pattern as `vampire_heart`/`corpse` above. Still `.skip`-ed with the new
   // honest number; re-enable point stays **P10** (measurement only, fix is
   // separate balance work — PROGRESS.md's p10m entry).
+  //
+  // fb049 re-measurement (Q138): the 12/12 reading above was measured with
+  // `allocated: []`. Re-measured against the real full-tree allocation:
+  // still **12/12 (100%)**, unchanged. Still `.skip`-ed; re-enable point
+  // stays **P10**.
   it.skip('time', () => {
     const { wins, outcomes } = winRate('time');
     expect(wins, `${wins}/${SEEDS.length} — ${outcomes.join(' ')}`).toBeGreaterThanOrEqual(
@@ -389,6 +431,15 @@ describe('G23: every Core clears T1 at a 35-70% win rate with the scripted bot',
   // past the other four Cores. Still `.skip`-ed with the new honest number;
   // re-enable point stays **P10** (measurement only, fix is separate balance
   // work — PROGRESS.md's p10m entry).
+  //
+  // fb049 re-measurement (Q138): the 9/12 reading above was measured with
+  // `allocated: []`. Re-measured against the real full-tree allocation, a
+  // stalemate reappears (parallel to `corpse` above) at the file's own
+  // 120-minute cap: seeds 2 and 8 do not resolve (`running`, both cleared all
+  // 18 TD waves). Not chased to a longer cap (CLAUDE.md rule 6, same
+  // precedent as `corpse`). Of the other 10 seeds (non-throwing probe): all
+  // 10 `victory`/w18 — **10/12** even reading both stalemate seeds as losses,
+  // over the 70% ceiling. Still `.skip`-ed; re-enable point stays **P10**.
   it.skip('stone_heart (the default Core)', () => {
     const { wins, outcomes } = winRate('stone_heart');
     expect(wins, `${wins}/${SEEDS.length} — ${outcomes.join(' ')}`).toBeGreaterThanOrEqual(

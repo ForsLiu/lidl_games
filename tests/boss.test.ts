@@ -9,8 +9,16 @@ import { bossUpdate, updateBossSlam } from '../src/sim/boss';
 import { expandedRiftTimes, spawnFinalBoss, shouldSpawnBoss } from '../src/sim/act2';
 import { buildTower } from '../src/sim/towers';
 import { GRID_H, GRID_W } from '../src/sim/grid';
+import { loadContent } from '../src/sim/content';
+import { allTreeNodeIds } from '../src/meta/meta';
 import type { Enemy } from '../src/sim/types';
 import { cfg, runWithPolicy } from './helpers';
+
+// fb049 (Q138 re-measurement): real Hub-started runs feed the full
+// Constellation tree into `allocated` (`TREE_AUTO_MAX`) — `cfg()`'s own
+// default (`[]`) does not match that; used below for the two G14 win-rate
+// gates only, not the unit-level boss-mechanic tests in this file.
+const FULL_TREE = allTreeNodeIds(loadContent());
 
 function act2World(tier = 1): World {
   const w = new World(cfg({ tier }));
@@ -223,15 +231,15 @@ describe('the Warden-Eater (SPEC 5.5)', () => {
   // an instant kill would be a red flag, not a pass) with headroom under the
   // measured 57s, rather than a bare `> bossTimeSeconds` check, which would
   // hold trivially since a kill can't be recorded before the boss spawns.
-  // TODO(fb025): enemy HP x10 / attacker attack speed x0.7 (BALANCE.md/
-  // PROGRESS.md's "Net read") took `hybrid` from a reliable Act I clear to
-  // dying at wave 2 on every one of these seeds — measured, not a fluke (see
-  // the sibling G14 test below, 0/20 wins). Not this item's regression to
-  // absorb (an Act I economy pass is P10's job, not a `/data`-only tuning
-  // item's); `.skip()`-ed with the finding stated rather than silently
-  // loosened to a wave-2 bound that would misrepresent SPEC 5.5's own gate.
-  it.skip('a scripted run reaches it, kills it and wins', () => {
-    const { report, run } = runWithPolicy(cfg({ seed: 1, cycles: 6 }), 'hybrid');
+  // TODO(fb025) RESOLVED by fb049: the wave-2 collapse this note used to
+  // describe was measured with `allocated: []`, which no real Hub-started run
+  // plays with (`TREE_AUTO_MAX`). Re-measured against the real full-tree
+  // allocation (`allTreeNodeIds(loadContent())`): seed 1 clears cleanly,
+  // `victory`/`bossKilled: true` — fb025's enemy HP x10 / attacker speed x0.7
+  // pass does not reproduce a wave-2 death once the character carries the
+  // stat bonuses a real run has. Un-skipped.
+  it('a scripted run reaches it, kills it and wins', () => {
+    const { report, run } = runWithPolicy(cfg({ seed: 1, cycles: 6, allocated: FULL_TREE }), 'hybrid');
     expect(report.outcome).toBe('victory');
     expect(report.bossKilled).toBe(true);
     expect(report.bossKillSeconds - run.world.content.spawns.bossTimeSeconds).toBeGreaterThan(20);
@@ -363,18 +371,18 @@ describe('the Warden-Eater (SPEC 5.5)', () => {
     expect(w.warden.hp).toBe(hp);
   });
 
-  // TODO(fb025): G14 itself is the casualty here, not a stale literal — see
-  // the TODO on the sibling test above. Measured 0/20 wins, every seed
-  // defeat_core at wave 2, 0s (i.e. before any real fight): this is the
-  // same Act I collapse BALANCE.md/PROGRESS.md's "Net read" flags for P10,
-  // now visible on a real §14 gate rather than just the bot-policy sweep.
-  // `.skip()`-ed with the measured breakdown named, not re-pinned to "0/20"
-  // (which would read as the new intended target rather than a known-red
-  // gate awaiting P10's Act I economy pass).
-  it.skip('G14: over 20 seeds, the scripted-build win rate is >=60% and <100%', () => {
+  // TODO(fb025) RESOLVED by fb049 (Q138 re-measurement): the 0/20-wins
+  // Act I collapse this note described was measured with `allocated: []` —
+  // no real Hub-started run plays with an empty tree (`TREE_AUTO_MAX`).
+  // Re-measured against the real full-tree allocation
+  // (`allTreeNodeIds(loadContent())`): **19/20 (95%)** — seed 2 is the only
+  // non-terminal (`running`) outcome at the 45-simulated-minute cap after
+  // clearing all 18 TD waves, every other seed `victory`/`bossKilled: true`.
+  // Comfortably inside G14's own [60%, 100%) band. Un-skipped.
+  it('G14: over 20 seeds, the scripted-build win rate is >=60% and <100%', () => {
     const seeds = Array.from({ length: 20 }, (_, i) => i + 1);
     const results = seeds.map((seed) => {
-      const { report } = runWithPolicy(cfg({ seed, cycles: 6 }), 'hybrid');
+      const { report } = runWithPolicy(cfg({ seed, cycles: 6, allocated: FULL_TREE }), 'hybrid');
       return { seed, outcome: report.outcome, wavesCleared: report.wavesCleared, survivalSeconds: report.survivalSeconds };
     });
     const wins = results.filter((r) => r.outcome === 'victory').length;

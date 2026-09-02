@@ -173,6 +173,31 @@
  * corroborating evidence, not a new question. The existing `'timeout'`
  * handling (excluded from `wins`, excluded from `ownDamage`/`allDamage`)
  * already treats these correctly.
+ *
+ * **fb049 re-measurement (Q138), this session — every number and `.skip`
+ * reason above was measured with `allocated: []`, which no real Hub-started
+ * run plays with (`TREE_AUTO_MAX`, `src/meta/meta.ts`).** Re-ran the full
+ * `beforeAll` against `allTreeNodeIds(loadContent())`, the same fix
+ * `tools/sim.ts`/`tools/sweep.ts` already got at fb039. The wave-11-17 wall
+ * and every timeout it produced are both gone: **all twelve classes now
+ * resolve cleanly (no `'timeout'` outcome anywhere), and eleven of twelve
+ * clear 12/12 (100%) — only `bloodlord` sits at 10/12 (seeds 4 and 12 hit the
+ * 120-minute cap as a genuine `'timeout'`, not chased further per CLAUDE.md
+ * rule 6, the same precedent already spent on this exact mechanism).** Every
+ * class is now far over G8's 70% ceiling (`floor(12*0.7) = 8`) rather than
+ * under its 35% floor — the same floor-to-ceiling flip fb039/p10m already
+ * found on G1/G14/G23. Diversity also moved, though not enough to close the
+ * clause: **3 of 12 distinct top sources** (`ballista`, `frost_obelisk`,
+ * `spreading_plague`), up from 2 — full-tree stat bonuses shift enough damage
+ * share around that `necromancer`/`animist` now top out on `frost_obelisk`
+ * (previously `ballista` like the rest of the pack) instead of collapsing
+ * onto exactly two keys, but the >=9/12 target is not remotely in reach on
+ * this axis. Every `it.skip` below carries its fresh full-tree number in its
+ * trailing comment; the fuller per-class prose above is superseded by this
+ * paragraph, not deleted, since it's still the record of how the wave-11-17
+ * wall was originally found and closed. Re-enable point for both clauses
+ * stays **P10** — this item (fb049) is the re-measurement, `p10r` inherits
+ * the corrected (over-ceiling, not under-floor) retune target.
  */
 import { beforeAll, describe, expect, it } from 'vitest';
 
@@ -181,12 +206,17 @@ import { makePolicy } from '../src/bots';
 import '../src/bots';
 import { coreCenter } from '../src/sim/grid';
 import { loadContent, type ClassDef } from '../src/sim/content';
+import { allTreeNodeIds } from '../src/meta/meta';
 import type { RunConfig, RunReport, TickInput } from '../src/sim/types';
 import type { World } from '../src/sim/world';
 import { cfg } from './helpers';
 
 const content = loadContent();
 const SEEDS = Array.from({ length: 12 }, (_, i) => i + 1);
+// fb049 (Q138 re-measurement): real Hub-started runs feed the full
+// Constellation tree into `allocated` (`TREE_AUTO_MAX`) — `cfg()`'s own
+// default (`[]`) does not match that, so it is overridden explicitly below.
+const FULL_TREE = allTreeNodeIds(content);
 /** §14 gate G8's own band. */
 const BAND_LO = 0.35;
 const BAND_HI = 0.70;
@@ -254,7 +284,15 @@ function scriptClassKit(w: World, input: TickInput): void {
 /** T1, one class, one seed — hybrid economy/kiting, this file's kit script layered on top, Core upgrades bought on the same precedent as G23's `runCoreScripted`. */
 function runClassScripted(classKey: string, seed: number): RunReport {
   const policyName = 'hybrid';
-  const config: RunConfig = cfg({ seed, classKey, tier: 1, modifiers: [], cycles: 6, policy: policyName });
+  const config: RunConfig = cfg({
+    seed,
+    classKey,
+    tier: 1,
+    modifiers: [],
+    allocated: FULL_TREE,
+    cycles: 6,
+    policy: policyName,
+  });
   const run = new Run(config);
   const policy = makePolicy(policyName);
   const w = run.world;
@@ -457,7 +495,7 @@ describe('p6e: G8 measured as a live test over the seed set (SPEC-FINAL §4, §1
   // **12/12 (100%)**, every seed victory/w18, up from 2/12. Still `.skip`-ed
   // with the new honest number; re-enable point stays **P10** (measurement
   // only, fix is separate balance work — PROGRESS.md's p10m entry).
-  it.skip('cryomancer', () => assertBand('cryomancer')); // 12/12 — every seed victory/w18 (p10m re-measurement)
+  it.skip('cryomancer', () => assertBand('cryomancer')); // fb049 full-tree re-measurement: 12/12 — every seed victory/w18
 
   // Every one of the ten below converges on the same wave-11-to-17
   // `defeat_core`/`defeat_warden` wall (this file's header; G23's own
@@ -481,11 +519,11 @@ describe('p6e: G8 measured as a live test over the seed set (SPEC-FINAL §4, §1
   // with the fresh honest numbers; re-enable point stays **P10** for all ten
   // (measurement only, fix is separate balance work — PROGRESS.md's p10m
   // entry).
-  it.skip('swordsman', () => assertBand('swordsman')); // 11/12 — only seed6 defeat_warden/w18, rest victory/w18 (p10m re-measurement)
-  it.skip('plaguebringer', () => assertBand('plaguebringer')); // 12/12 — every seed victory/w18 (p10m re-measurement)
-  it.skip('engineer', () => assertBand('engineer')); // 11/12 — only seed10 defeat_warden/w18, rest victory/w18 (p10m re-measurement)
-  it.skip('pyromancer', () => assertBand('pyromancer')); // 11/12 — only seed3 defeat_warden/w18, rest victory/w18 (p10m re-measurement)
-  it.skip('archer', () => assertBand('archer')); // 11/12 — only seed8 defeat_warden/w18, rest victory/w18 (p10m re-measurement)
+  it.skip('swordsman', () => assertBand('swordsman')); // fb049 full-tree re-measurement: 12/12 — every seed victory/w18, no timeouts
+  it.skip('plaguebringer', () => assertBand('plaguebringer')); // fb049 full-tree re-measurement: 12/12 — every seed victory/w18
+  it.skip('engineer', () => assertBand('engineer')); // fb049 full-tree re-measurement: 12/12 — every seed victory/w18
+  it.skip('pyromancer', () => assertBand('pyromancer')); // fb049 full-tree re-measurement: 12/12 — every seed victory/w18
+  it.skip('archer', () => assertBand('archer')); // fb049 full-tree re-measurement: 12/12 — every seed victory/w18, no timeouts
   // Tuned (header, corrected this session — Q123): Raise's
   // cooldown/potency/duration/radius all buffed. Early defeat_warden is now
   // the minority (3/12: waves 3/6/15) against a defeat_core majority (9/12:
@@ -500,10 +538,10 @@ describe('p6e: G8 measured as a live test over the seed set (SPEC-FINAL §4, §1
   // gate direction did not — still under-floor, not over-ceiling like the
   // other nine. Still `.skip`-ed with the fresh number; re-enable point stays
   // **P10**.
-  it.skip('necromancer', () => assertBand('necromancer')); // 4/12 — seeds 2,5,6,8 victory/w18, seed11 defeat_core/w17, rest early defeat_warden wave3-6 (p10m re-measurement)
-  it.skip('stormcaller', () => assertBand('stormcaller')); // 11/12 — only seed11 defeat_warden/w18, rest victory/w18 (p10m re-measurement)
-  it.skip('bloodlord', () => assertBand('bloodlord')); // 11/12 — only seed1 defeat_warden/w18, rest victory/w18 (p10m re-measurement)
-  it.skip('animist', () => assertBand('animist')); // 12/12 — every seed victory/w18 (p10m re-measurement)
+  it.skip('necromancer', () => assertBand('necromancer')); // fb049 full-tree re-measurement: 12/12 — every seed victory/w18, up from 4/12
+  it.skip('stormcaller', () => assertBand('stormcaller')); // fb049 full-tree re-measurement: 12/12 — every seed victory/w18, no timeouts
+  it.skip('bloodlord', () => assertBand('bloodlord')); // fb049 full-tree re-measurement: 10/12 — seeds 4,12 timeout/w18, rest victory/w18
+  it.skip('animist', () => assertBand('animist')); // fb049 full-tree re-measurement: 12/12 — every seed victory/w18
   // Tuned (header, corrected this session — Q123): Guardian
   // Stance/Clarion Taunt/Judgement all buffed. Early defeat_warden is 4/12
   // (three at wave 3, one at wave 6) against a defeat_core majority (8/12:
@@ -514,7 +552,7 @@ describe('p6e: G8 measured as a live test over the seed set (SPEC-FINAL §4, §1
   // **11/12** (only seed8 early defeat_warden/w3, every other seed
   // victory/w18). Still `.skip`-ed with the fresh number; re-enable point
   // stays **P10**.
-  it.skip('paladin', () => assertBand('paladin')); // 11/12 — only seed8 defeat_warden/w3, rest victory/w18 (p10m re-measurement)
+  it.skip('paladin', () => assertBand('paladin')); // fb049 full-tree re-measurement: 12/12 — every seed victory/w18, up from 11/12
 
   it('every one of the eleven §4 classes was actually measured (no key silently skipped)', () => {
     expect([...measurements.keys()].sort()).toEqual([...CLASS_KEYS].sort());
@@ -568,6 +606,14 @@ describe('p6e: G8 top-damage-source diversity (>=8 of 11 distinct)', () => {
   // wave/spawn pacing, not weapon/kit damage ratios. Still `.skip`-ed; only a
   // kit-damage-ratio change (out of scope here) could move this, so the
   // re-enable point stays **P10**.
+  //
+  // fb049 re-measurement (Q138): the 2-distinct reading above was measured
+  // with `allocated: []`. Re-measured against the real full-tree allocation
+  // (this file's header): **distinct count is now 3** (`ballista`,
+  // `frost_obelisk`, `spreading_plague`) — full-tree stat bonuses shift
+  // `necromancer`/`animist` off `ballista` onto `frost_obelisk`, but nine of
+  // twelve still collapse onto one of those three tower keys. Still nowhere
+  // near >=9/12; still `.skip`-ed; re-enable point stays **P10**.
   it.skip('at least 9 of the 12 classes top out on a different source', () => {
     const labels = CLASS_KEYS.map((k) => measurements.get(k)!.topLabel);
     const distinct = new Set(labels);
@@ -594,9 +640,14 @@ describe('p6e: G8 top-damage-source diversity (>=8 of 11 distinct)', () => {
   // p10m re-measurement (this session, re-enable point reached): the 12-class
   // sweep is now real (see the assertion above) and confirms the pre-fb013
   // number still holds at 2 — un-skipped as a real regression pin.
+  //
+  // fb049 re-measurement (Q138): re-pinned 2->3 — the real full-tree
+  // allocation (this file's header) moves the distinct count to 3
+  // (`ballista`/`frost_obelisk`/`spreading_plague`); the `[]`-allocated
+  // reading of 2 above is stale, not a live regression to preserve.
   it('the current (red) distinct-source count is pinned, not silently drifting', () => {
     const labels = CLASS_KEYS.map((k) => measurements.get(k)!.topLabel);
     const distinct = new Set(labels);
-    expect(distinct.size).toBe(2);
+    expect(distinct.size).toBe(3);
   });
 });

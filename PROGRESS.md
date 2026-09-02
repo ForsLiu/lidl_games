@@ -5,6 +5,80 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-02 session: fb049 done — G1/G8/G14/G23 re-measured against the
+  real `TREE_AUTO_MAX` full Constellation tree (QUESTIONS Q138/Q157), the same
+  correction fb039 gave the balance tooling now applied to the gate tests
+  themselves.** `tests/p10d-run-length.test.ts` (G1), `tests/
+  p6e-class-diversity.test.ts` (G8), `tests/p-core-f-gates.test.ts` (G23) and
+  `tests/boss.test.ts` (G14) all built their `RunConfig`s with an empty
+  `allocated: []` — either hard-coded or via `tests/helpers.ts`'s `cfg()`
+  default — which no real Hub-started run plays with (every real run feeds
+  `allTreeNodeIds(content)` in, per `src/meta/meta.ts`'s `TREE_AUTO_MAX`).
+  Chose the lower-blast-radius fix fb039's own acceptance text offered as an
+  option: pointed each of the four gate tests' own configs at
+  `allTreeNodeIds(loadContent())` directly, rather than moving `cfg()`'s
+  shared default — 633 call sites across 97 test files lean on `cfg()`
+  without an `allocated` override, most deliberately measuring a
+  tree-independent baseline, so a global default flip would have been a much
+  larger and mostly-unwanted blast radius for a fix this file-scoped fixes
+  just as well.
+
+  fb025 (this session's own enemy HP x10 / attacker speed x0.7 pass) had
+  driven every one of these four gates' `allocated: []` measurement to a
+  false floor-side collapse — G1/G14 both silently or explicitly read 0% win
+  by wave 2-3, and G8/G23 (which had already flipped ceiling-side under
+  `p10j`-`p10l`'s pacing pass per `p10m`) had not been re-checked against
+  fb025 at all. Re-measuring all four against the real full-tree allocation
+  reverses that story entirely — the stat bonuses a real character actually
+  carries comfortably absorb fb025's nerf, and every gate reads at or past
+  its *ceiling* instead:
+
+  - **G1** (`tests/p10d-run-length.test.ts`, 24 seeds, `hybrid`, T1): **23/24
+    wins, mean 36.36 min** — up from a silent 0/24 at `allocated: []`, and
+    only 0.36 min over the 36-min ceiling. `.skip`-ed with the honest number
+    (not tuned further — this item measures, `p10r` retunes).
+  - **G14** (`tests/boss.test.ts`, 20 seeds, `hybrid`, T1): **19/20 (95%)** —
+    up from 0/20, comfortably inside `[60%, 100%)`. Both of the file's
+    fb025-`.skip`-ed tests (the single-seed "reaches it, kills it, wins" case
+    and the 20-seed win-rate gate) are un-skipped; their stale TODO(fb025)
+    comments are marked resolved in place, not deleted.
+  - **G8** (`tests/p6e-class-diversity.test.ts`, 12 seeds x 12 classes,
+    scripted kit bot, T1): **all twelve classes now clear 12/12 or 10/12**
+    (only `bloodlord` under 12, on two genuine 120-minute-cap stalemates, not
+    a real loss) — every class is now well past the 70% ceiling, including
+    `necromancer`, the one class `p10m` had still measured under-floor.
+    Zero `'timeout'` outcomes elsewhere (the wave-11-17 wall's old timeout
+    cluster on `swordsman`/`archer`/`stormcaller`/`bloodlord` is gone).
+    Top-damage-source diversity moved from 2 to 3 distinct
+    (`ballista`/`frost_obelisk`/`spreading_plague`) — still nowhere near the
+    >=9/12 target. All twelve win-rate cases and both diversity assertions
+    re-`.skip`-ed (the "pinned" regression test re-pinned 2->3) with their
+    fresh numbers; re-enable point stays P10.
+  - **G23** (`tests/p-core-f-gates.test.ts`, 12 seeds x 5 Cores, scripted kit
+    bot, T1): **all five Cores now read 10-12/12** — `carnivorous_plant`/
+    `vampire_heart`/`time` 12/12; `corpse` and `stone_heart` each reproduce a
+    new 120-minute-cap stalemate on 1-2 seeds (`corpse` seed 10;
+    `stone_heart` seeds 2 and 8) with every other seed a win, still over
+    ceiling even counting the stalemate as a loss (10/12 either way). Neither
+    stalemate was chased past the existing cap, per CLAUDE.md rule 6 and this
+    exact file's own precedent (two real cap-raise attempts already spent on
+    this mechanism pre-fb049). G22 (fingerprint) is untouched and green — all
+    8 cases pass. All five win-rate cases re-`.skip`-ed with fresh numbers.
+
+  `p10r` (the item G8/G23's over-ceiling flip had already queued) is
+  unblocked and its retune target corrected in place: the class/Core count
+  widens from "9 of 11 / 3 of 4" to all twelve/five (none is exempt under the
+  real allocation), and G1's 0.36-min miss is folded in as a likely-related
+  small pacing cut. G14 needs no further tuning. Verification: `npx tsc
+  --noEmit` clean; `npm run test:fast` ~1930+/1956 green — the only failures
+  are the standing pre-existing Windows port-contention/worker-hang flake
+  class (`q15-command-domain-fuzz`, `b032`/`b034`/`b035`/`b036` fold-timing
+  tests) fb047 already documented; code-reviewer's own reruns during this
+  item's review measured a slightly different failure count/file mix run to
+  run (this class's known variance, not a new regression) — confirmed
+  unrelated to this diff in every rerun (none of these files touch tree
+  allocation, the sim gate files, or anything this item edited).
+
 - **2026-09-01 session: fb039 done — balance tooling now measures the same
   Constellation allocation real play uses (QUESTIONS Q138 OVERRIDE).**
   `tools/sim.ts`, `tools/sweep.ts` and `tools/handoff-metrics.ts` all used to
