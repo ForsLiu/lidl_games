@@ -304,17 +304,16 @@ or P10-band priority and block nothing below.
       granting `cdr` or `leech` reads identically (both flat or both
       percent) on the tree screen and the character panel; a regression test
       covers both stats — refs: SPEC-FINAL §11, QUESTIONS Q142.
-- [ ] (fb041) [bug] top priority (SPEC-FINAL contradiction, rule 3 outranks
-      queue): QUESTIONS Q144(1) OVERRIDE — the owner's standing instruction
-      is no rank caps on VS stat boons and Type Mastery cards (skill cards
-      keep their listed caps); amend SPEC-FINAL §6.3 to say so and re-apply
-      fb011's uncapped-rank behavior to the §6.3 pool that replaced the
-      system fb011 originally targeted — acceptance: a failing regression
-      test first pins today's capped behavior as wrong, then a stat boon or
-      Type Mastery card can be taken 10+ times with its effect matching the
-      §2 stacking rule; the offer pool never exhausts on rank alone for
-      those two families; skill card caps are unaffected; SPEC-FINAL §6.3
-      text is updated — refs: SPEC-FINAL §6.3, QUESTIONS Q144, fb011.
+- [x] (fb041) [bug] QUESTIONS Q144(1) OVERRIDE — no rank caps on VS stat
+      boons and Type Mastery cards — commit `776f58f`, code-reviewer
+      REQUEST-CHANGES then re-verified green (Critical: `clampRank(toLevel,
+      Infinity)` was a no-op, letting a forged `Infinity` rank OOM-crash the
+      process via `romanRank`'s numeral loop — fixed with a finite
+      `UNCAPPED_RANK_CEILING`, 9999), qa-playtester PASS (rank 47-50
+      stacking math, pool never exhausts, skill cards still cap at rank 2,
+      hashWorld determinism, Infinity-forged-offer OOM does not reproduce
+      post-fix; filed no bugs, one coverage-gap note closed in the same
+      commit) — **done, see Done section.**
 - [ ] (fb042) [balance] P10 content/balance pass: QUESTIONS Q146 ORDER — give
       the 13 emptied Constellation small nodes (ex-Emberkeeper/Scavenger)
       flat additive effects only (e.g. +5 starting gold each ⚖) and the
@@ -2570,6 +2569,52 @@ logged in MIGRATION.md §8 rather than carried as dead items.
   **G19**. The work is `p10d`.
 
 ## Done
+
+- [x] (fb041) [bug] no rank caps on VS stat boons and Type Mastery cards —
+      commit `776f58f`. QUESTIONS Q144(1) OVERRIDE reversed p7a's own earlier
+      call (Q144's logged default) that fb011's "boons never cap" verdict did
+      not carry forward to the §6.3 pool rewrite — it does, per the owner's
+      standing instruction. `data/vsupgrades.json`'s 7 `statBoons` and the
+      `typeMastery` entry gain `"uncapped": true` (schema: `content.ts`);
+      `progression.ts`'s `buildOfferPool` stops excluding an uncapped family
+      at `maxRank` (Luck value saturates via `min(1, rank/maxRank)`); the
+      character panel shows a bare rank instead of `rank/maxRank` for one.
+      SPEC-FINAL §6.3 text amended (rank ×5/×3 now "historical/display
+      reference" only). CLAUDE.md rule 3: a failing regression test landed
+      first — `tests/act2.test.ts`'s two tests pinning the old capped
+      behavior were rewritten to assert the opposite, confirmed (via `git
+      stash`) to fail against the pre-fix code, then the fix landed.
+      **code-reviewer REQUEST-CHANGES → fixed**: a Critical follow-on —
+      `clampRank(toLevel, Infinity)` is a no-op clamp, so a forged
+      `Offer.toLevel: Infinity` stored `Infinity` verbatim into
+      `boonRanks`/`typeMasteryRanks`, and the next `buildOfferPool` call's
+      `romanRank(Infinity)` looped forever building an ever-growing display
+      string, OOM-crashing the process — unrecoverable, not something a
+      `try`/`catch` at the call site can defend against. Fixed with a finite
+      `UNCAPPED_RANK_CEILING` (9999) in place of `Infinity` at both clamp
+      sites; reproduced the crash pre-fix and confirmed it gone post-fix via
+      a throwaway script. `tests/q21-weapon-boundary-fuzz.ts`'s
+      `BOON_RANK_HOLES` and `tests/q7-loader-holes.ts` regenerated via their
+      own recording tools to cover the new `uncapped` field/behavior (two new
+      deliberate holes: `haste` rank 6 and `Infinity`-forged now legitimately
+      `'ungated'`, not bugs). `tests/p9e-levelup-idle.test.ts`'s and
+      `tests/q21-weapon-boundary-fuzz.test.ts`'s "exhausted offer pool"
+      scenarios no longer reach through real content (stat boons never
+      exhaust now) — each split into a real-content test proving that, plus a
+      forced-exhaustion test (temporarily emptying `w.content.boons.
+      statBoons`, restored in `finally`) still exercising the real G18
+      dead-end guard. **qa-playtester PASS**: drove `applyOffer`/
+      `rollOffers`/`typeMasteryMul` directly to rank 47-50 for a stat boon and
+      a Type Mastery card, confirmed additive-within-source/multiplicative-
+      across-sources stacking (§2) held exactly; confirmed skill cards still
+      hard-cap at rank 2 through the same path; confirmed `hashWorld`
+      determinism holds for a run past the old cap; re-attempted the
+      Infinity/forged-offer OOM post-fix (does not reproduce, settles in 0ms,
+      finite rank stored); confirmed the `pick` Command surface can't forge a
+      `toLevel` (sim-generated only); filed no bugs. One coverage-gap note
+      (no test covered the new bare-rank UI markup) closed in the same commit
+      (`tests/character-panel.test.ts`'s new "fb041 uncapped rank display"
+      block) rather than filed separately.
 
 - [x] (fb028) [feat] Detailed live effect text for classes and class-specific
       equipment (SPEC-FINAL §11, extends fb004/fb022, owner feedback

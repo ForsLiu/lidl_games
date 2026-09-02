@@ -5,6 +5,38 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-01 session: fb041 done — no rank caps on VS stat boons and Type
+  Mastery cards (QUESTIONS Q144(1) OVERRIDE, commit `776f58f`).** CLAUDE.md
+  rule 3 (SPEC-FINAL-contradiction bugs outrank the queue): p7a's §6.3 pool
+  rewrite had judged fb011's "boons never cap" verdict did not carry forward
+  to the new pool; the owner's 2026-09-01 verdict batch overrode that —
+  stat boons and Type Mastery stay uncapped (skill cards keep rank ×2).
+  `data/vsupgrades.json`'s 7 `statBoons` and the `typeMastery` entry gain
+  `"uncapped": true`; `progression.ts`'s `buildOfferPool` stops excluding an
+  uncapped family at `maxRank`; SPEC-FINAL §6.3 amended. A failing regression
+  test landed first (`tests/act2.test.ts`, confirmed failing pre-fix via
+  `git stash`), then the fix. **code-reviewer REQUEST-CHANGES → fixed**: a
+  Critical OOM — `clampRank(toLevel, Infinity)` is a no-op clamp, so a forged
+  `Offer.toLevel: Infinity` stored `Infinity` verbatim, and the next
+  `buildOfferPool`'s `romanRank(Infinity)` looped forever building an
+  unbounded display string, crashing the process; fixed with a finite
+  `UNCAPPED_RANK_CEILING` (9999), reproduced pre-fix and confirmed gone
+  post-fix. `tests/q21-weapon-boundary-fuzz.ts`/`tests/q7-loader-holes.ts`
+  regenerated via their own recording tools for the new field/behavior;
+  `tests/p9e-levelup-idle.test.ts` and `q21`'s "exhausted pool" scenarios
+  split into a real-content test (no longer exhausts) plus a forced-
+  exhaustion test (temporarily empties `w.content.boons.statBoons`,
+  restored in `finally`) still exercising the real G18 dead-end guard.
+  **qa-playtester PASS**: rank 47-50 stacking math correct (§2), skill cards
+  still cap at rank 2, `hashWorld` determinism holds past the old cap, the
+  Infinity/forged-offer OOM does not reproduce post-fix, `pick` can't forge a
+  `toLevel`; no bugs filed. One coverage-gap note (bare-rank UI markup
+  untested) closed in the same commit. Full `npm run test:fast` green except
+  a pre-existing flaky set (`b032`/`b034`/`b035`/`b036` pixel-fold layout
+  tests under port contention, `q15-command-domain-fuzz`'s probe-timing
+  under parallel-suite CPU load) confirmed to fail identically on unmodified
+  `master` — unrelated to this change.
+
 - **2026-09-01 session: fb028 done — detailed live effect text for classes
   and class-specific equipment.** Owner 2026-09-01 directive top-priority
   item, next in queue after fb027. fb022/fb026 already covered class
