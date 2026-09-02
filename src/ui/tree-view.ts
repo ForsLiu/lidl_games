@@ -14,7 +14,7 @@ import { loadContent, type TreeNode } from '../sim/content';
 import { canAllocate, pointsAvailable, refundBlocker, TREE_AUTO_MAX } from '../meta/meta';
 import type { MetaState } from '../sim/types';
 import { STAT_KIND, type StatKey } from '../sim/stats';
-import { formatPct } from './info-format';
+import { formatPct, modIsPct } from './info-format';
 
 export const BRANCH_COLORS: Record<string, string> = {
   start: '#e8edf5',
@@ -64,16 +64,18 @@ const STAT_LABELS: Record<string, string> = {
   xpGain: 'XP Gain',
 };
 
-/** Stats stored as fractions read as percentages; the rest are flat. */
-const PERCENT_STATS = new Set([
-  'power', 'attackSpeed', 'area', 'moveSpeedPct', 'maxHpPct', 'cdr', 'pickupPct',
-  'goldFind', 'ailmentPotency', 'towerCost', 'towerDamage',
-  'towerRange', 'wallHp', 'sproutGold', 'residualPotency', 'leech', 'modRewardBonus', 'xpGain',
-]);
-
+/**
+ * fb040 (QUESTIONS Q142): which stats read as a percent used to be this
+ * file's own hand-maintained `PERCENT_STATS` set, which could (and did, for
+ * unauthored-yet keys like `towerAttackSpeed`/`charRange`) drift from
+ * `STAT_DISPLAY` — the canonical display-intent classification `modIsPct`
+ * (info-format.ts) already keys `formatStatValue`/the character panel off,
+ * per b021. Sharing it here means the Constellation summary/per-node card
+ * and the in-run character panel can no longer disagree on a stat.
+ */
 export function describeStat(key: string, value: number): string {
   const label = STAT_LABELS[key] ?? key;
-  if (PERCENT_STATS.has(key)) {
+  if (modIsPct(key, value)) {
     return `${value > 0 ? '+' : ''}${formatPct(value)} ${label}`;
   }
   if (value === 1 && (key === 'secondWind' || key === 'lastStandSundering')) return label;
