@@ -583,15 +583,33 @@ or P10-band priority and block nothing below.
       actually re-pin all four gate tests against `TREE_AUTO_MAX` before
       `p10r` spends effort retuning against numbers this item shows are
       stale.
-- [ ] (fb040) [polish] normal priority: QUESTIONS Q142 ORDER — make the
+- [x] (fb040) [polish] normal priority: QUESTIONS Q142 ORDER — make the
       Constellation screen (`tree-view.ts`'s `describeStat`) format `cdr`/
       `leech` via `stats.ts`'s `STAT_KIND` (or `info-format.ts`'s
       `modIsPct`) instead of its own separate `PERCENT_STATS` set, one
       deliberate change so the Constellation summary/per-node card and the
-      in-run character panel agree — acceptance: a Constellation node
-      granting `cdr` or `leech` reads identically (both flat or both
-      percent) on the tree screen and the character panel; a regression test
-      covers both stats — refs: SPEC-FINAL §11, QUESTIONS Q142.
+      in-run character panel agree — commit `1ab677c`. `describeStat` now
+      calls `modIsPct` (which reads `STAT_DISPLAY`, the same table
+      `hud.ts`'s `formatStatValue`/`characterPanelMarkup` already key off
+      per b021), and the local `PERCENT_STATS` Set is deleted outright.
+      code-reviewer first pass **REQUEST-CHANGES** (Major: the initial
+      `tests/fb040-percent-display-parity.test.ts` only covered `cdr`/
+      `leech`, both of which were already correctly classified in the old
+      `PERCENT_STATS` Set, so the test passed unchanged on the pre-fix code
+      and didn't actually falsify it) — fixed by adding `towerAttackSpeed`/
+      `charRange` cases, two real `StatKey`s the old Set never listed;
+      verified red on pre-fix code via `git stash` (rendered `+0.1
+      charRange` instead of `+10%`) and green post-fix. qa-playtester PASS:
+      confirmed no other file imported the deleted `PERCENT_STATS`, that
+      every key `describeStat` receives from real tree data is
+      zod-validated against `STAT_KEYS` (so `modIsPct`'s numeric-guess
+      fallback is unreachable with authored content), and that `STAT_KIND`'s
+      unrelated mul/flat stacking-math use in `constellationSummaryMarkup`
+      is untouched — no bugs filed. `npx tsc --noEmit` clean; targeted
+      tests green — acceptance: a Constellation node granting `cdr` or
+      `leech` reads identically (both flat or both percent) on the tree
+      screen and the character panel; a regression test covers both stats
+      — refs: SPEC-FINAL §11, QUESTIONS Q142.
 - [x] (fb041) [bug] QUESTIONS Q144(1) OVERRIDE — no rank caps on VS stat
       boons and Type Mastery cards — commit `776f58f`, code-reviewer
       REQUEST-CHANGES then re-verified green (Critical: `clampRank(toLevel,

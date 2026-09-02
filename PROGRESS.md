@@ -5,6 +5,40 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-02 session: fb040 done — Constellation stat display shares
+  `STAT_DISPLAY` instead of its own `PERCENT_STATS` set (QUESTIONS Q142).**
+  `tree-view.ts`'s `describeStat` classified percent-vs-flat display via a
+  hand-maintained `PERCENT_STATS` Set that was a second source of truth free
+  to drift from `STAT_DISPLAY` (`statkeys.ts`), the classification `hud.ts`'s
+  `formatStatValue`/`characterPanelMarkup` already key off per b021 — for
+  currently authored `data/tree.json` content the two sets happened to agree
+  (a no-op for live content), but any future node granting an unauthored
+  percent `StatKey` (`towerAttackSpeed`, `towerPoisonDamage`, `towerHp`,
+  `burnDamage`, `slowPotency`, `chilledDamageTaken`, `charRange` — all real
+  `StatKey`s `PERCENT_STATS` never listed) would have silently rendered flat
+  on the Constellation screen while reading percent on the character panel.
+  Fixed by pointing `describeStat` at `modIsPct` (`info-format.ts`) directly
+  and deleting `PERCENT_STATS` outright; `STAT_KIND`'s unrelated mul/flat
+  stacking-math use in `constellationSummaryMarkup` is untouched. commit
+  `1ab677c`. code-reviewer first pass **REQUEST-CHANGES** (Major: the
+  regression test only covered `cdr`/`leech`, both already correctly
+  classified under the old Set, so it passed unchanged on pre-fix code and
+  proved nothing) — fixed by adding `towerAttackSpeed`/`charRange` cases,
+  verified red on pre-fix code via `git stash` (rendered `+0.1 charRange`
+  instead of `+10%`) before landing green. qa-playtester PASS: confirmed no
+  other file imported the deleted `PERCENT_STATS`, that every key
+  `describeStat` receives from real tree data is zod-validated against
+  `STAT_KEYS` (`content.ts`'s `statRecord`) so `modIsPct`'s numeric-guess
+  fallback is unreachable with authored content, and that `STAT_KIND`'s
+  stacking-math use is undisturbed — no bugs filed. `npx tsc --noEmit`
+  clean; `npm run test:fast`: 143/152 files, 2024/2050 tests green — the
+  only failures are the standing pre-existing Windows flake class already
+  documented across prior sessions (`tests/b032-tower-panel-fold`,
+  `b035-towerinfo-fold`, `b036-help-fold`, `q13-perf-ratio`,
+  `q15-command-domain-fuzz`), confirmed unrelated to this diff (none of
+  those files touch `tree-view.ts`/`info-format.ts`/`hud.ts`'s display
+  formatting).
+
 - **2026-09-02 session: b079 done — VS/weapon-panel lineage discloses
   `single`-kind wieldSplash cleave (SPEC-FINAL §6.2, qa-playtester finding on
   fb037).** `vs-panel.ts`'s `vsLineageSpecial` and the sibling pre-existing
