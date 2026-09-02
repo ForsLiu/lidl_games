@@ -16,7 +16,14 @@
 
 import type { World } from './world';
 
-/** Whether the run's loadout includes `key` (a `data/equipment.json` item). */
+/**
+ * Whether `key` (a `data/equipment.json` item) is equipped *right now* —
+ * reads the live, swappable `w.equippedEquipment` map, not the frozen
+ * starting loadout `w.cfg.equipment`. b076: this used to read `w.cfg.equipment`,
+ * so a mid-run `equip_item` swap (`run.ts`'s `equipItemCommand`) correctly
+ * flipped an item's `Stats` mods on/off but left every `effectKey` mechanic
+ * gated here stuck on whatever was equipped at run start.
+ */
 export function hasEquipment(w: World, key: string): boolean {
-  return (w.cfg.equipment ?? []).includes(key);
+  return Object.values(w.equippedEquipment).includes(key);
 }

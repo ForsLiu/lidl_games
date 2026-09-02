@@ -30,8 +30,8 @@ export interface EquipmentEffectContext {
    */
   attackSpeedMul?: number;
   /**
-   * The run's actually-equipped item keys (`w.cfg.equipment` — the same
-   * field `hasEquipment`, sim/equipment.ts, gates every `effectKey`
+   * The run's actually-equipped item keys (`w.equippedEquipment`, live — the
+   * same state `hasEquipment`, sim/equipment.ts, gates every `effectKey`
    * mechanic on) — resolves an item's `effectNoteWith` cross-item text.
    * Omitted pre-run (Hub, Codex), where a cross-item note never applies.
    */
@@ -67,17 +67,12 @@ function resolvedNote(item: EquipmentItem, ctx: EquipmentEffectContext): string 
  *
  * qa-playtester (fb028): the class check alone is not the real sim gate —
  * `hasEquipment` (sim/equipment.ts) additionally requires `item.key` to be
- * in the run's *starting* loadout (`w.cfg.equipment`, frozen at run start),
- * not merely equipped right now. An item equipped mid-run from the in-run
- * stash panel (`hud.ts`'s `equipmentSectionMarkup`) that was absent from
- * that starting loadout has its `Stats` mods apply immediately but its
- * `effectKey` mechanic never fires this run — the repro was Swordsman Armor
- * equipped mid-run showing "(active)" while `hasEquipment` already read
- * `false`. `ctx.equippedKeys` (`w.cfg.equipment` — the same field
- * `hasEquipment` reads) closes this: when present (in-run only; the Hub and
- * Codex omit it, since neither has a frozen starting loadout to check
- * against), `item.key` must appear in it or the mechanic reads inert
- * regardless of class.
+ * equipped right now (`w.equippedEquipment`, live — b076 fixed this to track
+ * mid-run swaps instead of the frozen starting loadout). `ctx.equippedKeys`
+ * (the same live state `hasEquipment` reads) mirrors that: when present
+ * (in-run only; the Hub and Codex omit it, since neither has a live loadout
+ * to check against), `item.key` must appear in it or the mechanic reads
+ * inert regardless of class.
  *
  * This mirrors content.ts's own note that every `effectKey` "reads straight
  * off `cls.active1`/`active2`'s *kind*, not off a name" — today exactly one

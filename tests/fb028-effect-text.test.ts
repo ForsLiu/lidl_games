@@ -122,35 +122,36 @@ describe('fb028: equipmentEffectMarkup — Swordsman Armor, the multi-conditiona
   });
 });
 
-describe('qa-playtester (fb028): the real sim gate — an item equipped mid-run from outside the starting loadout never actually enables its effectKey mechanic', () => {
-  it('hasEquipment reads false for an item equipped mid-run that was absent from RunConfig.equipment, even though its Stats mods and slot are live', () => {
+describe('b076: the real sim gate tracks the live loadout, not the frozen starting one', () => {
+  it('hasEquipment reads true for an item equipped mid-run that was absent from RunConfig.equipment, once its Stats mods and slot are live', () => {
     const w = new World(cfg({ classKey: 'swordsman', equipment: ['sleeve_sword'], ownedEquipment: { swordsman_armor: 1, sleeve_sword: 1 } }));
     applyCommand(w, { k: 'equip_item', slot: 'armor', item: 'swordsman_armor' });
     expect(w.equippedEquipment.armor).toBe('swordsman_armor');
     expect(w.stats.contributions('attackSpeed')).toContainEqual(['equipment:swordsman_armor', 0.1]);
-    // The real sim gate every effectKey mechanic reads (classes.ts) — false, because
-    // swordsman_armor was never in the run's starting w.cfg.equipment.
-    expect(hasEquipment(w, 'swordsman_armor')).toBe(false);
+    // The real sim gate every effectKey mechanic reads (classes.ts) — true, because
+    // b076 fixed hasEquipment to read the live w.equippedEquipment, not the frozen
+    // starting w.cfg.equipment swordsman_armor was absent from.
+    expect(hasEquipment(w, 'swordsman_armor')).toBe(true);
   });
 
-  it('the in-run tooltip agrees with hasEquipment — (inert), not (active), for that same mid-run-equipped item', () => {
+  it('the in-run tooltip agrees with hasEquipment — (active), not (inert), for that same mid-run-equipped item', () => {
     // A starting loadout with neither swordsman_armor nor sleeve_sword, so resolvedNote picks the
     // base (not cross-item) note text and the only question under test is active-vs-inert.
     const w = new World(cfg({ classKey: 'swordsman', equipment: ['greatsword'], ownedEquipment: { swordsman_armor: 1 } }));
     applyCommand(w, { k: 'equip_item', slot: 'armor', item: 'swordsman_armor' });
     const html = characterPanelMarkup(characterPanelData(w), w);
-    // The slot tooltip must show the item's real effectKey state — inert, matching hasEquipment.
+    // The slot tooltip must show the item's real effectKey state — active, matching hasEquipment.
     expect(html).toContain('Circle Slash charging speed scales with attack speed');
-    expect(html).toContain('(inert)');
+    expect(html).toContain('(active)');
   });
 
-  it('the reverse case still reads (active): an item in the starting loadout keeps its mechanic live all run, even after being unequipped from its slot mid-run', () => {
+  it('the reverse case now reads (inert): unequipping an item from its slot mid-run turns its mechanic off too, even though it was in the starting loadout', () => {
     const w = new World(cfg({ classKey: 'swordsman', equipment: ['swordsman_armor'] }));
     expect(w.equippedEquipment.armor).toBe('swordsman_armor'); // World seeds the slot map from cfg.equipment at construction
     applyCommand(w, { k: 'equip_item', slot: 'armor', item: null }); // unequip it from its slot mid-run
     expect(w.equippedEquipment.armor).toBeNull();
-    // hasEquipment reads w.cfg.equipment (frozen at run start), not the now-empty slot.
-    expect(hasEquipment(w, 'swordsman_armor')).toBe(true);
+    // hasEquipment reads the live w.equippedEquipment, so the now-empty slot reads false.
+    expect(hasEquipment(w, 'swordsman_armor')).toBe(false);
   });
 });
 

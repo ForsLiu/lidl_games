@@ -1571,19 +1571,16 @@ function characterAbilitiesMarkup(w: World): string {
  * shape `equipmentEffectMarkup` (`equipment-info.ts`) needs to resolve
  * Swordsman Armor's charge-rate note to the real `w.derived.attackSpeedMul`
  * rather than the plain, number-free text the Hub's pre-run screens show.
- * `equippedKeys` reads `w.cfg.equipment` — the same field `hasEquipment`
- * (sim/equipment.ts) gates every `effectKey` mechanic on — rather than the
- * live-swappable `w.equippedEquipment`, so a cross-item note (Swordsman
- * Armor + Sleeve Sword) stays truthful to what the sim actually does. Filed
- * as b076: the two fields can disagree after a mid-run `equip_item` swap,
- * since `w.cfg.equipment` is fixed at run start while `w.equippedEquipment`
- * is not — out of scope for this item, not fixed here.
+ * `equippedKeys` reads the live, swappable `w.equippedEquipment` — the same
+ * state `hasEquipment` (sim/equipment.ts, b076) now gates every `effectKey`
+ * mechanic on — so a cross-item note (Swordsman Armor + Sleeve Sword) stays
+ * truthful after a mid-run `equip_item` swap, not just at run start.
  */
 function runEquipmentContext(w: World): EquipmentEffectContext {
   return {
     classKey: w.cfg.classKey,
     attackSpeedMul: w.derived.attackSpeedMul,
-    equippedKeys: w.cfg.equipment ?? [],
+    equippedKeys: Object.values(w.equippedEquipment).filter((k): k is string => k !== null),
   };
 }
 
