@@ -57,6 +57,7 @@ function mountHud(): { root: HTMLElement; hud: Hud } {
     onResume: () => {},
     onPause: () => {},
     onCycleSpeed: () => {},
+    onSetSpeed: () => {},
     onDev: () => {},
     onQuitToHub: () => {},
     onHoverSkill: () => {},

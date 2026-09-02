@@ -429,14 +429,61 @@ in live play today, a pre-existing gap fb029 exposed rather than introduced.
       `q15-command-domain-fuzz`, `b032`/`b035`/`b036`), reconfirmed
       independently by both agents (isolation reruns, and a `git stash`
       control showing the identical flakes on unmodified `master`).
-- [ ] (fb035) [feat] Game speed control becomes a dropdown spanning 0.25x,
+- [x] (fb035) [feat] Game speed control becomes a dropdown spanning 0.25x,
       0.5x, 1x, 2x, 3x, 10x, 50x (extends fb010's 1/2/3/10/50x set down to
       quarter/half speed); sub-1x speeds run the sim at fixed 60Hz per
       sim-second with slower wall-clock only, determinism unchanged —
       acceptance: all seven speeds are selectable; the same seed produces a
       hash-identical end state across every speed (a test covers this) —
       refs: SPEC-FINAL §11 (fast-forward) extension, owner feedback
-      `feature-speed-dropdown`.
+      `feature-speed-dropdown`. **Done — see PROGRESS.md's 2026-09-02 fb035
+      entry for the full write-up.** `src/ui/pacer.ts`'s `SPEEDS` extended to
+      `[0.25, 0.5, 1, 2, 3, 10, 50]`; a new `Pacer.setSpeed(speed)` jumps
+      directly to a declared value, and the default/`reset()` index now looks
+      up wherever `1` lives in the array (`DEFAULT_SPEED_INDEX`) since 1x is
+      no longer index 0. `src/ui/hud.ts`'s `#sw-speed` control is now a
+      `<select>` listing all seven speeds instead of a click-to-cycle button;
+      a new `HudCallbacks.onSetSpeed(speed)` fires on `change`. The `F` hotkey
+      keeps cycling through `onCycleSpeed`/`Pacer.cycle()` unchanged, and the
+      dropdown stays in sync either way since both paths read back through
+      the same `Pacer`. code-reviewer REQUEST-CHANGES → fixed → clean: one
+      Major — a focused native `<select>` intercepts digit keys via browser
+      type-ahead, so a player who just picked a speed and then pressed a
+      tower/level-up hotkey (1-9) would silently retarget the dropdown
+      instead, a real risk specific to this control living in the
+      always-visible in-run row rather than the lower-traffic practice panel
+      — fixed by calling `.blur()` on the select right after its `change`
+      fires, with a regression test (`hud-controls.test.ts`) pinning that
+      `document.activeElement` leaves the select once a pick commits. Two
+      Minors also fixed in the same commit: the BACKLOG/STATUS/PROGRESS
+      bookkeeping this entry itself closes, and confirmed (not changed) that
+      `.sw-ctl` renders sanely applied to a `<select>` with no functional
+      regression, just an unstyled OS-native chevron — left as a cosmetic
+      nit. qa-playtester **PASS**: live in a headless Chromium against the
+      real dev server, confirmed all seven options present/selectable with
+      visibly different pacing (0.25x: zero wave/HP change over 1s
+      wall-clock; 50x: a full wave transition in the same window), `F`
+      cycling stays in sync with the dropdown across a full lap including
+      both new sub-1x stops, 20 rapid switches (including sub-1x<->50x
+      jumps) and switching mid-pause/mid-dev-command/mid-VS-transition
+      caused no crash or stuck state, and Retry/New Run/Hub-then-new-run all
+      correctly reset the dropdown to 1x via `startRun`'s existing
+      `pacer.reset()`. No bugs filed. Determinism: the pre-existing
+      generalized `tests/pacer.test.ts` hash-identity test (parametrized over
+      `SPEEDS`, 5 seeds) already covers the acceptance line's
+      "hash-identical across every speed" requirement without a new test,
+      now automatically extended to the two new sub-1x values; a dedicated
+      sub-1x-aware rewrite of the catch-up "carryover" test and new
+      `Pacer.setSpeed`/`reset`-default/dropdown-option-list/`.on`-class tests
+      were added alongside it. `npx tsc --noEmit` clean; `npm run test:fast`:
+      only the same pre-existing Windows port-contention/dev-server-reload
+      flake class already documented across many prior sessions
+      (`q15-command-domain-fuzz`, the `b032`/`b034`/`b035`/`b036` fold-timing
+      suite, and this run also `q13-perf-ratio`'s host-load-sensitive
+      ceiling), reconfirmed unrelated by both agents independently re-running
+      every failing file in isolation (all green) and, for the fold suite,
+      by stashing the diff and reproducing the identical failures on
+      unmodified `master`.
 - [ ] (fb036) [feat] TD path indicators from every spawn gate: during TD
       build phases and waves, draw each gate's current route to the Core
       (dashed line or arrows, one color per gate), updating live within one

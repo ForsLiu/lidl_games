@@ -171,6 +171,7 @@ describe('C7: Orbs are gone from what a player sees', () => {
       onResume: () => {},
       onPause: () => {},
       onCycleSpeed: () => {},
+      onSetSpeed: () => {},
       onDev: () => {},
       onQuitToHub: () => {},
       onHoverSkill: () => {}, onUpgradeStructure: () => {}, onSellStructure: () => {}, onUpgradeCore: () => {},

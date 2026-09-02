@@ -33,6 +33,7 @@ function mountHud(onDev: (op: DevOp, amount: number, enemyKey?: string) => void)
     onResume: () => {},
     onPause: () => {},
     onCycleSpeed: () => {},
+    onSetSpeed: () => {},
     onDev,
     onQuitToHub: () => {},
     onHoverSkill: () => {},

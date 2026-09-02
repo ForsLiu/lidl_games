@@ -33,6 +33,7 @@ function noopHudCallbacks() {
     onResume: () => {},
     onPause: () => {},
     onCycleSpeed: () => {},
+    onSetSpeed: () => {},
     onDev: () => {},
     onQuitToHub: () => {},
     onHoverSkill: () => {}, onUpgradeStructure: () => {}, onSellStructure: () => {}, onUpgradeCore: () => {},

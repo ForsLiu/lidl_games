@@ -56,6 +56,10 @@ function makeHud(root: HTMLElement, log: Log, pacer: Pacer): Hud {
       log.speed++;
       hud.setSpeed(pacer.cycle());
     },
+    onSetSpeed: (speed: number) => {
+      log.speed++;
+      hud.setSpeed(pacer.setSpeed(speed));
+    },
     onDev: (op: DevOp) => log.dev.push(op),
     onQuitToHub: () => {},
     onHoverSkill: () => {}, onUpgradeStructure: () => {}, onSellStructure: () => {}, onUpgradeCore: () => {},
@@ -476,38 +480,57 @@ describe('in-run control row', () => {
   });
 
   it('starts at 1x', () => {
-    expect((root.querySelector('#sw-speed') as HTMLElement).textContent).toBe('1x');
+    expect((root.querySelector('#sw-speed') as HTMLSelectElement).value).toBe('1');
   });
 
-  it('the speed button cycles the label through every declared speed', () => {
-    const btn = root.querySelector('#sw-speed') as HTMLButtonElement;
-    const seen = [btn.textContent];
-    for (let i = 1; i < SPEEDS.length; i++) {
-      btn.click();
-      seen.push(btn.textContent);
+  it('offers every declared speed as a dropdown option, in order — fb035', () => {
+    const sel = root.querySelector('#sw-speed') as HTMLSelectElement;
+    expect([...sel.options].map((o) => o.value)).toEqual(SPEEDS.map((s) => String(s)));
+    expect([...sel.options].map((o) => o.textContent)).toEqual(SPEEDS.map((s) => `${s}x`));
+  });
+
+  it('picking a speed from the dropdown jumps straight to it, including sub-1x — fb035', () => {
+    const sel = root.querySelector('#sw-speed') as HTMLSelectElement;
+    for (const speed of SPEEDS) {
+      sel.value = String(speed);
+      sel.dispatchEvent(new Event('change'));
+      expect(sel.value, `${speed}x`).toBe(String(speed));
+      expect(pacer.speed, `${speed}x`).toBe(speed);
     }
-    expect(seen).toEqual(SPEEDS.map((s) => `${s}x`));
-    // And wraps, so the player can always get back to normal speed.
-    btn.click();
-    expect(btn.textContent).toBe('1x');
     expect(log.speed).toBe(SPEEDS.length);
   });
 
-  it('marks the button as active only while fast-forwarding', () => {
-    const btn = root.querySelector('#sw-speed') as HTMLButtonElement;
-    expect(btn.classList.contains('on')).toBe(false);
-    btn.click();
-    expect(btn.classList.contains('on')).toBe(true);
+  it('blurs itself on pick, so a following digit hotkey cannot type-ahead-hijack the dropdown — fb035', () => {
+    const sel = root.querySelector('#sw-speed') as HTMLSelectElement;
+    sel.focus();
+    expect(document.activeElement).toBe(sel);
+    sel.value = '2';
+    sel.dispatchEvent(new Event('change'));
+    expect(document.activeElement).not.toBe(sel);
   });
 
-  it('F cycles the speed from the keyboard too', () => {
+  it('marks the control as active whenever the speed is off the 1x default, fast or slow — fb035', () => {
+    const sel = root.querySelector('#sw-speed') as HTMLSelectElement;
+    expect(sel.classList.contains('on')).toBe(false);
+    sel.value = '2';
+    sel.dispatchEvent(new Event('change'));
+    expect(sel.classList.contains('on')).toBe(true);
+    sel.value = '0.5';
+    sel.dispatchEvent(new Event('change'));
+    expect(sel.classList.contains('on')).toBe(true);
+    sel.value = '1';
+    sel.dispatchEvent(new Event('change'));
+    expect(sel.classList.contains('on')).toBe(false);
+  });
+
+  it('F cycles the speed from the keyboard too, and the dropdown reflects it', () => {
     const onKeyDown = makeKeyDownHandler({
       keys: new Set<string>(),
       queue: { push: () => {} },
       cycleSpeed: () => hud.setSpeed(pacer.cycle()),
     });
     onKeyDown(new KeyboardEvent('keydown', { key: 'f' }));
-    expect((root.querySelector('#sw-speed') as HTMLElement).textContent).toBe('2x');
+    expect((root.querySelector('#sw-speed') as HTMLSelectElement).value).toBe('2');
   });
 
   it('the tower panel starts as a prompt and fills in once a tower is picked', () => {

@@ -178,6 +178,7 @@ export class Game {
       onResume: () => this.setPaused(false),
       onPause: () => this.setPaused(true),
       onCycleSpeed: () => this.hud.setSpeed(this.pacer.cycle()),
+      onSetSpeed: (speed) => this.hud.setSpeed(this.pacer.setSpeed(speed)),
       onDev: (op, amount, enemyKey) => this.pending.push({ k: 'dev', op, amount, enemyKey }),
       onQuitToHub: () => this.showHub(),
       onHoverSkill: (which) => (this.view.hoveredSkill = which),

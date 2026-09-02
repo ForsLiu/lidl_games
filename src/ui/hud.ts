@@ -18,6 +18,7 @@ import { dpsPanelData, type DpsPanelData, type DpsWindow } from './dps-panel';
 import { STAT_DISPLAY, type StatDisplay } from '../sim/stats';
 import { active2CdrFactor, characterBasicRange, classAttackPowerMul } from '../sim/classes';
 import { longestWieldedRange } from '../sim/vswield';
+import { SPEEDS } from './pacer';
 import { activeSkillMarkup, classAbilitiesMarkup, passiveSkillMarkup, type ClassLiveContext } from './class-info';
 import { bottomBarData, type SkillIconState } from './bottom-bar';
 import { coreLiveMarkup } from './core-info';
@@ -54,6 +55,8 @@ export interface HudCallbacks {
   onUpgradeCore(): void;
   /** Fast-forward: cycles through the declared speeds (`SPEEDS`). */
   onCycleSpeed(): void;
+  /** fb035: the speed dropdown — jumps directly to a declared speed (`SPEEDS`). */
+  onSetSpeed(speed: number): void;
   /** Practice tool; only reachable in a run started with practice on. `enemyKey` is only meaningful for the `'spawn'` op. */
   onDev(op: DevOp, amount: number, enemyKey?: string): void;
   onQuitToHub(): void;
@@ -65,7 +68,7 @@ export class Hud {
   private stats: HTMLElement;
   private modal: HTMLElement;
   private toast: HTMLElement;
-  private speedBtn: HTMLButtonElement;
+  private speedSel: HTMLSelectElement;
   private towerInfoEl: HTMLElement;
   private progressEl: HTMLElement;
   private practiceEl: HTMLElement;
@@ -158,7 +161,9 @@ export class Hud {
         </div>
         <div class="sw-side">
           <div class="sw-controls" id="sw-controls">
-            <button class="sw-ctl" data-act="speed" id="sw-speed" title="Fast-forward (F)">1x</button>
+            <select class="sw-ctl" data-act="speed" id="sw-speed" title="Game speed (F cycles)">
+              ${SPEEDS.map((s) => `<option value="${s}">${s}x</option>`).join('')}
+            </select>
             <button class="sw-ctl" data-act="ranges" id="sw-ranges" aria-pressed="false" title="Show tower ranges (R)">Ranges</button>
             <button class="sw-ctl" data-act="autopick" id="sw-autopick" aria-pressed="false" title="Resolve level-ups automatically">Auto-pick</button>
             <button class="sw-ctl" data-act="character" id="sw-character" aria-pressed="false" title="Character stats (C)">Character</button>
@@ -191,7 +196,7 @@ export class Hud {
     this.stats = root.querySelector('#sw-stats') as HTMLElement;
     this.modal = root.querySelector('#sw-modal') as HTMLElement;
     this.toast = root.querySelector('#sw-toast') as HTMLElement;
-    this.speedBtn = root.querySelector('#sw-speed') as HTMLButtonElement;
+    this.speedSel = root.querySelector('#sw-speed') as HTMLSelectElement;
     this.towerInfoEl = root.querySelector('#sw-towerinfo') as HTMLElement;
     this.progressEl = root.querySelector('#sw-progress') as HTMLElement;
     this.practiceEl = root.querySelector('#sw-practice') as HTMLElement;
@@ -259,7 +264,17 @@ export class Hud {
 
   private wireControls(): void {
     const controls = this.root.querySelector('#sw-controls');
-    controls?.querySelector('[data-act="speed"]')?.addEventListener('click', () => this.cb.onCycleSpeed());
+    controls?.querySelector('[data-act="speed"]')?.addEventListener('change', (e) => {
+      const sel = e.target as HTMLSelectElement;
+      this.cb.onSetSpeed(Number(sel.value));
+      // A focused native <select> intercepts the very digit keys (1-9) this
+      // always-visible row sits beside — build/level-up hotkeys, not just
+      // speed's own — via browser type-ahead, so a player who picks a speed
+      // and immediately presses a tower hotkey would silently retarget the
+      // dropdown instead. Blurring the moment a choice commits closes that
+      // window (code-reviewer finding, fb035).
+      sel.blur();
+    });
     controls?.querySelector('[data-act="ranges"]')?.addEventListener('click', () => this.cb.onToggleRanges());
     controls?.querySelector('[data-act="autopick"]')?.addEventListener('click', () => this.cb.onToggleAutoPick());
     controls?.querySelector('[data-act="character"]')?.addEventListener('click', () => this.cb.onToggleCharacterPanel());
@@ -601,10 +616,10 @@ export class Hud {
     el.classList.toggle('on', this.dpsPanelOpen_);
   }
 
-  /** Reflects the pacer's speed; the pacer itself owns the cycling. */
+  /** Reflects the pacer's speed; the pacer itself owns cycling/direct-set. */
   setSpeed(speed: number): void {
-    this.speedBtn.textContent = `${speed}x`;
-    this.speedBtn.classList.toggle('on', speed > 1);
+    this.speedSel.value = String(speed);
+    this.speedSel.classList.toggle('on', speed !== 1);
   }
 
   /** True while any overlay owns input, so clicks must not reach the canvas. */

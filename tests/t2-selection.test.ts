@@ -475,7 +475,7 @@ describe('T2: the selection gets a stats panel', () => {
       onToggleDpsPanel: () => {},
       onResume: () => {},
       onPause: () => {},
-      onCycleSpeed: () => {},
+      onCycleSpeed: () => {}, onSetSpeed: () => {},
       onDev: () => {},
       onQuitToHub: () => {},
       onHoverSkill: () => {}, onUpgradeStructure: () => {}, onSellStructure: () => {}, onUpgradeCore: () => {},
@@ -549,7 +549,7 @@ describe('T2: the selection gets a stats panel', () => {
       onSelectTower: () => {}, onCallWave: () => {}, onPickOffer: () => {},
       onReroll: () => {}, onRetry: () => {},
       onNewRun: () => {}, onToggleRanges: () => {}, onToggleAutoPick: () => {}, onToggleCharacterPanel: () => {}, onEquipItem: () => {}, onToggleDpsPanel: () => {}, onResume: () => {}, onPause: () => {},
-      onCycleSpeed: () => {}, onDev: () => {}, onQuitToHub: () => {}, onHoverSkill: () => {}, onUpgradeStructure: () => {}, onSellStructure: () => {}, onUpgradeCore: () => {},
+      onCycleSpeed: () => {}, onSetSpeed: () => {}, onDev: () => {}, onQuitToHub: () => {}, onHoverSkill: () => {}, onUpgradeStructure: () => {}, onSellStructure: () => {}, onUpgradeCore: () => {},
     });
     hud.buildTowerBar(w);
     const sel: Selection = { kind: 'enemy', id: e.id };
@@ -577,7 +577,7 @@ describe('T2: the selection gets a stats panel', () => {
       onSelectTower: () => {}, onCallWave: () => {}, onPickOffer: () => {},
       onReroll: () => {}, onRetry: () => {},
       onNewRun: () => {}, onToggleRanges: () => {}, onToggleAutoPick: () => {}, onToggleCharacterPanel: () => {}, onEquipItem: () => {}, onToggleDpsPanel: () => {}, onResume: () => {}, onPause: () => {},
-      onCycleSpeed: () => {}, onDev: () => {}, onQuitToHub: () => {}, onHoverSkill: () => {}, onUpgradeStructure: () => {}, onSellStructure: () => {}, onUpgradeCore: () => {},
+      onCycleSpeed: () => {}, onSetSpeed: () => {}, onDev: () => {}, onQuitToHub: () => {}, onHoverSkill: () => {}, onUpgradeStructure: () => {}, onSellStructure: () => {}, onUpgradeCore: () => {},
     });
     hud.buildTowerBar(w);
     hud.update(w, undefined, { kind: 'enemy', id: e.id } as Selection);

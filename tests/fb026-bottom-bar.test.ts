@@ -122,6 +122,7 @@ describe('fb026 bottom bar — DOM', () => {
       onResume: () => {},
       onPause: () => {},
       onCycleSpeed: () => {},
+      onSetSpeed: () => {},
       onDev: () => {},
       onQuitToHub: () => {},
       onHoverSkill: () => {}, onUpgradeStructure: () => {}, onSellStructure: () => {}, onUpgradeCore: () => {},

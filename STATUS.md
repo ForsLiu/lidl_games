@@ -157,7 +157,7 @@ Measured this run: 220 sim runs (5 seeds/cell), `hybrid` bot for per-class/per-C
 | 20260901-114409-feature-exp-accelerating-pickup.md | fb031 — done |
 | 20260901-114409-feature-practice-amount-dropdowns.md | fb032 — done |
 | 20260901-114409-feature-practice-infinite-waves.md | fb033 — done |
-| 20260901-114409-feature-practice-max-towers.md | fb034 — queued |
+| 20260901-114409-feature-practice-max-towers.md | fb034 — done |
 | 20260901-114409-feature-speed-dropdown.md | fb035 — queued |
 | 20260901-114409-feature-td-path-indicators.md | fb036 — queued |
 | 20260901-114409-feature-vs-wielded-side-panel.md | fb037 — queued |

@@ -46,6 +46,7 @@ function noopHudCallbacks(pending: Command[], onToggleAutoPick: () => void = () 
     onResume: () => {},
     onPause: () => {},
     onCycleSpeed: () => {},
+    onSetSpeed: () => {},
     onDev: () => {},
     onQuitToHub: () => {},
     onHoverSkill: () => {}, onUpgradeStructure: () => {}, onSellStructure: () => {}, onUpgradeCore: () => {},

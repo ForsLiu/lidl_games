@@ -11,8 +11,8 @@
 
 import { FIXED_DT } from '../sim/types';
 
-/** Speeds the fast-forward button cycles through. */
-export const SPEEDS = [1, 2, 3, 10, 50] as const;
+/** Speeds the fast-forward control offers, cycled by F or picked directly from the dropdown (fb035). */
+export const SPEEDS = [0.25, 0.5, 1, 2, 3, 10, 50] as const;
 
 /** Ticks a single frame may run at 1x before the loop gives up catching up. */
 export const MAX_CATCHUP_TICKS = 8;
@@ -20,9 +20,12 @@ export const MAX_CATCHUP_TICKS = 8;
 /** Longest real frame the pacer will believe; anything more is a stall. */
 export const MAX_FRAME_SECONDS = 0.25;
 
+/** `SPEEDS` no longer starts at 1x (fb035 added slower options below it), so this is looked up rather than assumed to be index 0. */
+const DEFAULT_SPEED_INDEX = SPEEDS.indexOf(1);
+
 export class Pacer {
   private acc = 0;
-  private speedIndex = 0;
+  private speedIndex = DEFAULT_SPEED_INDEX;
 
   get speed(): number {
     return SPEEDS[this.speedIndex];
@@ -38,9 +41,16 @@ export class Pacer {
     return this.speed;
   }
 
+  /** Jumps directly to a declared speed (the fb035 dropdown); unknown values are ignored. */
+  setSpeed(speed: number): number {
+    const idx = SPEEDS.indexOf(speed as (typeof SPEEDS)[number]);
+    if (idx >= 0) this.speedIndex = idx;
+    return this.speed;
+  }
+
   reset(): void {
     this.acc = 0;
-    this.speedIndex = 0;
+    this.speedIndex = DEFAULT_SPEED_INDEX;
   }
 
   /** Drops any banked time; used when resuming from pause. */

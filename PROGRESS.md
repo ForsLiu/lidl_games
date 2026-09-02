@@ -5,6 +5,93 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-02 session: fb035 done — game speed control becomes a dropdown
+  spanning 0.25x-50x (SPEC-FINAL §11 fast-forward extension, owner feedback
+  `feature-speed-dropdown`).** `src/ui/pacer.ts`'s `SPEEDS` extended from
+  fb010's `[1, 2, 3, 10, 50]` to `[0.25, 0.5, 1, 2, 3, 10, 50]`; a new
+  `Pacer.setSpeed(speed)` jumps directly to any declared value (unknown
+  values are ignored rather than corrupting the current speed), and since 1x
+  is no longer index 0, the constructor default and `reset()` now look up
+  `DEFAULT_SPEED_INDEX = SPEEDS.indexOf(1)` instead of hardcoding 0.
+  `src/ui/hud.ts`'s `#sw-speed` control changed from a click-to-cycle button
+  to a `<select>` listing all seven speeds; picking one fires a new
+  `HudCallbacks.onSetSpeed(speed)`, wired in `main.ts` to
+  `this.pacer.setSpeed(speed)`. The `F` hotkey keeps cycling via the
+  pre-existing `onCycleSpeed`/`Pacer.cycle()` path unchanged — both routes
+  always read back through the same `Pacer`, so the dropdown and F-key stay
+  in sync by construction. `Pacer.plan()`'s tick math needed no changes:
+  `MAX_CATCHUP_TICKS * speed` and `FIXED_DT`-based tick counts stay exact
+  integers for both new sub-1x values, so the sim still only ever advances by
+  whole 60Hz ticks — sub-1x is purely slower wall-clock pacing, not a
+  different tick shape.
+
+  code-reviewer **REQUEST-CHANGES → fixed → clean**: one Major — a focused
+  native `<select>` intercepts digit keypresses via the browser's built-in
+  type-ahead search, and nothing blurred it after a pick, so a player who
+  chose a speed from this now always-visible in-run control row and then
+  immediately pressed a tower-build or level-up hotkey (1-9) would silently
+  retarget the speed dropdown instead of (or in addition to) the intended
+  game action — a real regression specific to this control's new home in the
+  persistent row, not the lower-traffic practice panel where the same latent
+  native-`<select>` behavior already existed at much lower risk. Fixed with
+  `select.blur()` right after `onSetSpeed` fires on `change`, pinned by a new
+  `hud-controls.test.ts` case asserting `document.activeElement` leaves the
+  select the moment a pick commits. Two Minors: this item's own
+  BACKLOG/PROGRESS bookkeeping (closed in this same commit) and a
+  visual-only note that `.sw-ctl` (styled for buttons) renders sanely on a
+  `<select>` but leaves the OS-native dropdown chevron unstyled — left as
+  cosmetic, not fixed.
+
+  qa-playtester **PASS**, no bugs filed: drove a real headless Chromium
+  against the actual Vite dev server (via the existing `window.__stonewakeAudit`
+  bridge) rather than trusting the unit tests alone. Confirmed all seven
+  options present and independently selectable with visibly different
+  pacing — sampling `#sw-progress` over a fixed 1000ms wall-clock window
+  showed zero wave/HP change at 0.25x versus a full wave transition
+  (wave 1->2, Core 100%->76%) at 50x; confirmed `F` stays in sync with the
+  dropdown across a full cycling lap including both new sub-1x stops
+  (`2, 3, 10, 50, 0.25, 0.5, 1, 2`); adversarially probed 20 rapid
+  back-to-back speed switches including sub-1x<->50x jumps, switching
+  mid-pause, mid-`dev`-command, and mid-VS-phase-transition — no crash, no
+  stuck sim, no NaN/negative ticks; confirmed Retry, New Run and
+  Hub-then-new-run all reset the dropdown to 1x via `startRun`'s existing
+  `pacer.reset()` call, including immediately after a defeat reached at
+  0.25x (the death slow-mo's own 0.5x `dtReal` multiplier compounds with a
+  0.25x pacer, so the beat visibly took ~4x longer wall-clock than normal —
+  expected, not a bug). One documented non-applicability: a generic
+  "Dawn Rekindle both choices" probe in QA's own checklist doesn't apply to
+  this codebase — the Dusk/Dawn wait and Rekindle ledger were deleted at
+  `p3d` (SPEC-FINAL's cycle machine has no such player choice), confirmed by
+  reading `src/sim/sundering.ts` rather than run live.
+
+  Determinism (the acceptance line's "same seed -> hash-identical end state
+  across every speed"): the pre-existing generalized hash-identity test in
+  `tests/pacer.test.ts` ("the batching invariant holds... — BACKLOG-QUALITY
+  q19") already parametrizes over the full `SPEEDS` array across 5 seeds, so
+  extending the array automatically extended the proof to both new sub-1x
+  values with no new test needed — confirmed still green. New/rewritten
+  tests instead cover what actually changed: the sub-1x-aware version of the
+  catch-up "carryover" test (a sub-1x speed cannot produce a fractional tick
+  from one frame, so it now asserts the correct frames-until-one-tick
+  accumulation instead of the old per-frame equality that only held for
+  speed >= 1), `Pacer.setSpeed`, `reset()`-returns-to-1x-not-index-0, the
+  cycling-visits-every-speed-then-wraps test (rewritten since 1x, the
+  starting point, no longer sits at array index 0), the dropdown's option
+  list/order, direct-select-jumps-to-any-speed, the blur-on-change
+  regression above, and the `.on` class now firing for slow speeds too, not
+  just fast (`speed !== 1` replacing the old `speed > 1`). Roughly 20
+  unrelated test files that build a `HudCallbacks` object literal needed a
+  mechanical `onSetSpeed: () => {}` stub alongside their existing
+  `onCycleSpeed` one to keep satisfying the now-larger interface — no
+  behavior in those files changed. `npx tsc --noEmit` clean; `npm run
+  test:fast`: only the same pre-existing Windows port-contention/dev-server-
+  reload flake class already documented across many prior sessions
+  (`q15-command-domain-fuzz`, the `b032`/`b034`/`b035`/`b036` fold-timing
+  suite, and this run also `q13-perf-ratio`'s host-load-sensitive ceiling),
+  reconfirmed unrelated by both agents independently re-running every
+  failing file in isolation (all green) and, for the fold suite, by stashing
+  the diff and reproducing the identical failures on unmodified `master`.
+
 - **2026-09-02 session: fb034 done — practice tool "Max all towers" (SPEC-FINAL
   §11 practice tools, owner feedback `feature-practice-max-towers`).** A new
   practice-only `DevOp` (`max_towers`, `src/sim/types.ts`) instantly raises

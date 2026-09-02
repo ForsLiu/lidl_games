@@ -144,6 +144,7 @@ describe('p2d — Hud panel reflects the live wielded roster, not a stale cache'
       onResume: () => {},
       onPause: () => {},
       onCycleSpeed: () => {},
+      onSetSpeed: () => {},
       onDev: () => {},
       onQuitToHub: () => {},
       onHoverSkill: () => {}, onUpgradeStructure: () => {}, onSellStructure: () => {}, onUpgradeCore: () => {},

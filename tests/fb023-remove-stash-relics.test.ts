@@ -180,6 +180,7 @@ describe('fb023: no relic text mid-run either', () => {
       onResume: () => {},
       onPause: () => {},
       onCycleSpeed: () => {},
+      onSetSpeed: () => {},
       onDev: () => {},
       onQuitToHub: () => {},
       onHoverSkill: () => {}, onUpgradeStructure: () => {}, onSellStructure: () => {}, onUpgradeCore: () => {},

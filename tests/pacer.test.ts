@@ -11,13 +11,17 @@ import { Run } from '../src/sim/run';
 import { cfg, makeInputLog } from './helpers';
 
 describe('Pacer', () => {
-  it('starts at 1x and cycles through the declared speeds', () => {
+  it('starts at 1x and cycles through every declared speed before wrapping', () => {
     const p = new Pacer();
     expect(p.speed).toBe(1);
     expect(p.label).toBe('1x');
     const seen = [p.speed];
     for (let i = 1; i < SPEEDS.length; i++) seen.push(p.cycle());
-    expect(seen).toEqual([...SPEEDS]);
+    // fb035 added slower speeds below 1x, so 1x (the default) sits mid-array —
+    // cycling visits every speed exactly once, in array order starting from
+    // 1x and wrapping around, not `[...SPEEDS]` itself.
+    const startIdx = SPEEDS.indexOf(1);
+    expect(seen).toEqual([...SPEEDS.slice(startIdx), ...SPEEDS.slice(0, startIdx)]);
     // And wraps back round.
     expect(p.cycle()).toBe(1);
   });
@@ -57,16 +61,45 @@ describe('Pacer', () => {
     expect(p.plan(10)).toBe(MAX_CATCHUP_TICKS * 3);
   });
 
-  it('scales the cap with the speed at every shipped speed, including 10x/50x — fb010', () => {
+  it('scales the cap with the speed at every shipped speed, including sub-1x, 10x and 50x — fb010/fb035', () => {
     for (const speed of SPEEDS) {
       const p = new Pacer();
       while (p.speed !== speed) p.cycle();
       expect(p.plan(10), `${speed}x`).toBe(MAX_CATCHUP_TICKS * speed);
-      // The dropped backlog must not reappear on the next frame, same as the
-      // 1x/3x case above — a plain frame at this speed runs its usual tick
-      // count, not an inflated one.
-      expect(p.plan(FIXED_DT), `${speed}x carryover`).toBe(speed);
+      // The dropped backlog must not reappear afterward, same as the 1x/3x
+      // case above. At >=1x a single plain frame runs its usual whole-tick
+      // count immediately; a sub-1x speed (fb035) cannot produce a fractional
+      // tick from one frame, so it banks real time across `1 / speed` plain
+      // frames and lands exactly one tick on the last of them, none before.
+      if (speed >= 1) {
+        expect(p.plan(FIXED_DT), `${speed}x carryover`).toBe(speed);
+      } else {
+        const framesPerTick = 1 / speed;
+        for (let i = 1; i < framesPerTick; i++) {
+          expect(p.plan(FIXED_DT), `${speed}x carryover frame ${i}`).toBe(0);
+        }
+        expect(p.plan(FIXED_DT), `${speed}x carryover final frame`).toBe(1);
+      }
     }
+  });
+
+  it('a dropdown pick jumps straight to a declared speed — fb035', () => {
+    const p = new Pacer();
+    expect(p.setSpeed(0.25)).toBe(0.25);
+    expect(p.speed).toBe(0.25);
+    expect(p.setSpeed(50)).toBe(50);
+    expect(p.speed).toBe(50);
+    // An unknown value is ignored rather than corrupting the current speed.
+    expect(p.setSpeed(7)).toBe(50);
+    expect(p.speed).toBe(50);
+  });
+
+  it('reset returns to the 1x default, not index 0 — fb035 (SPEEDS no longer starts at 1)', () => {
+    const p = new Pacer();
+    p.setSpeed(50);
+    p.plan(FIXED_DT);
+    p.reset();
+    expect(p.speed).toBe(1);
   });
 
   it('clearBacklog drops banked time, so resuming from pause does not surge', () => {

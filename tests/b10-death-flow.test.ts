@@ -133,6 +133,7 @@ function mountHud(): { root: HTMLElement; hud: Hud; log: Record<string, number> 
     onResume: () => {},
     onPause: () => {},
     onCycleSpeed: () => {},
+    onSetSpeed: () => {},
     onDev: () => {},
     onQuitToHub: () => log.hub++,
     onHoverSkill: () => {}, onUpgradeStructure: () => {}, onSellStructure: () => {}, onUpgradeCore: () => {},

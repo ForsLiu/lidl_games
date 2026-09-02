@@ -275,6 +275,7 @@ describe('fb027 Hud: clicking the panel buttons calls the right HudCallbacks', (
       onResume: () => {},
       onPause: () => {},
       onCycleSpeed: () => {},
+      onSetSpeed: () => {},
       onDev: () => {},
       onQuitToHub: () => {},
       onHoverSkill: () => {},
