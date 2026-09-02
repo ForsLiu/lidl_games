@@ -727,13 +727,30 @@ or P10-band priority and block nothing below.
       notes, no live bug), qa-playtester PASS (non-vacuous regression test,
       exact boundary pinned, full `cfg.policy` blast-radius check, no G2
       determinism concern; no bugs filed) — **done, see Done section.**
-- [ ] (fb046) [balance] P10 re-tune: QUESTIONS Q154 ORDER — add a "play
+- [x] (fb046) [balance] P10 re-tune: QUESTIONS Q154 ORDER — add a "play
       matters" band to BALANCE.md: a never-moving character's (`no-move`
       bot) T1 win rate ≤60% ⚖, to be met by the P10 re-tune after the
       owner's enemy-HP/attack-speed order (fb025) lands — acceptance:
       BALANCE.md states the band; the P10 re-tune measures and records
       `no-move`'s T1 win rate against it (met or not, the number is logged)
-      — refs: BALANCE.md, QUESTIONS Q154, fb025.
+      — refs: BALANCE.md, QUESTIONS Q154, fb025. **Done**: BALANCE.md
+      gained a `## "Play matters" band (fb046)` section stating the ≤60% ⚖
+      band and recording a fresh measurement (`npx tsx tools/sweep.ts
+      --seeds 12 --policies no-move --tier 1`, full-`TREE_AUTO_MAX` tree
+      per fb049's corrected default) — **100% (12/12), band not met**,
+      logged honestly per this item's own "met or not" acceptance text
+      rather than silently dropped. Consistent with Q154's own three prior
+      T1 readings (75/100/75%) and its fresh 8-seed check (100%); T1's
+      `no-move` win rate has never sat near a 60% ceiling — the real "play
+      matters" signal lives at T3/T5 (Q154: 88%→25%, losses concentrated on
+      the Warden fight). No `/data` or code change lands here — this item's
+      acceptance text is measurement-only, closing the band itself is a
+      distinct future item (a T1-specific VS-side difficulty lever, not the
+      shared fb025 multiplier already spent). Doc-only diff (`BALANCE.md`,
+      25 insertions); qa-playtester **PASS** — reproduced the measurement
+      exactly (12/12), confirmed `src/bots/policies.ts`'s `NoMovePolicy`
+      matches the description, confirmed no other file touched, confirmed
+      consistency with QUESTIONS Q154's ORDER text.
 - [x] (fb047) [bug] top priority (owner-ordered bug check): verify
       `tools/sweep.ts`'s `--tier` flag applies the tier scalars to every bot
       policy path — commit `3e8873d`. **Confirmed not reaching it**:

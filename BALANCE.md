@@ -87,6 +87,31 @@ explicit targets. Not hard guarantees measured per-enemy yet:
   construction (HP roughly 1.5-2x fodder up to elite scale) — no separate
   band is called out by the owner feedback, so none is asserted here.
 
+## "Play matters" band (fb046)
+
+Owner verdict on QUESTIONS Q154 (ORDER): a never-moving character (bot
+`no-move`, `src/bots/policies.ts` — hybrid tower build, zero Act II
+movement/action) should not be able to coast T1 on tower damage alone.
+Target band:
+
+- **T1 win rate, `no-move` policy** — **≤60%** ⚖, measured after fb025's
+  enemy-HP/attack-speed order landed. Not a lettered §14 gate (SPEC-FINAL
+  §14 has no `no-move`/"play matters" entry) — this band lives only here,
+  per the owner's ORDER text.
+
+**Measured 2026-09-02** (`npx tsx tools/sweep.ts --seeds 12 --policies
+no-move --tier 1`, full-Constellation-tree allocation per fb049's
+`TREE_AUTO_MAX` default): **100% (12/12)** — **band not met.** Consistent
+with Q154's own prior readings (75%/100%/75% across three earlier
+measurements, then 100% (8/8) in Q154's fresh 8-seed check) — T1's
+`no-move` win rate has never sat near the 60% ceiling; T3/T5 already carry
+the real "play matters" signal (Q154: 88%→25% at T3/T5, almost all losses
+to the Warden fight specifically). Logged per this item's acceptance
+("met or not, the number is logged"); closing this band to ≤60% would need
+a T1-specific VS-side difficulty lever (Warden/rift pacing at T1, not the
+shared HP/attack-speed multiplier already spent by fb025) — no such change
+lands in this item, which is measurement-only per its acceptance text.
+
 ## Sweep deltas (before -> after, 12 seeds, maxbuild/hybrid policies)
 
 See PROGRESS.md's fb025 entry for the full before/after sweep table

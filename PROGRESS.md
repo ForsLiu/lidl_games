@@ -5,6 +5,35 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-02 session: fb046 done — BALANCE.md now states the owner's
+  "play matters" band (QUESTIONS Q154 ORDER) and logs a real measurement
+  against it.** Band: `no-move` bot's T1 win rate ≤60% ⚖. Measured via
+  `npx tsx tools/sweep.ts --seeds 12 --policies no-move --tier 1` (full
+  `TREE_AUTO_MAX` Constellation allocation, fb049's now-default
+  methodology): **100% (12/12) — band not met**, logged honestly per this
+  item's own "met or not" acceptance text. This matches Q154's own three
+  prior T1 readings (75/100/75%) and its fresh 8-seed check (100%) — T1's
+  `no-move` win rate has never come close to a 60% ceiling; the real
+  "play matters" signal lives at T3/T5 (Q154: 88%→25%, almost all losses
+  to the Warden fight specifically, not a coasting-on-towers failure mode).
+  Doc-only change (`BALANCE.md`, new `## "Play matters" band (fb046)`
+  section between "TTK intent" and "Sweep deltas"); no `/data` or code
+  edit, so nothing else needed regression-testing — `git diff --stat`
+  confirmed a single-file diff. `npm run test:fast` reran (2054/2079
+  passed, 23 skipped; the only failures are the already-documented
+  Windows host-load flake class — `b032`/`b034`/`b035`/`b036` fold-timing
+  and `q15-command-domain-fuzz`'s worker-hang detection, identical to
+  fb044's session, unrelated to this diff). qa-playtester **PASS**:
+  independently re-ran the measurement and reproduced 12/12, confirmed
+  `src/bots/policies.ts`'s `NoMovePolicy` matches BALANCE.md's
+  description, confirmed no other file touched, confirmed consistency
+  with QUESTIONS Q154's ORDER text. Closing the band itself (getting T1
+  down to ≤60%) is out of scope here — it needs a T1-specific VS-side
+  difficulty lever (Warden/rift pacing), not the shared fb025 HP/attack-
+  speed multiplier already spent; left as a future item, not filed new
+  since BACKLOG.md already carries the open `p10r`/`p10s` P10 re-tune
+  thread this would naturally join.
+
 - **2026-09-02 session: fb048 done — `tools/status.ts`'s balance snapshot now
   measures against the real full Constellation tree instead of an empty one
   (QUESTIONS Q156).** `cfgFor` was the one tool `fb039` deliberately left on
