@@ -602,7 +602,13 @@ export interface RunConfig {
    * sim/meta boundary CLAUDE.md's architecture rules draw).
    */
   ownedEquipment?: Record<string, number>;
-  /** Bot policy name, headless only. */
+  /**
+   * Bot policy name, headless only — never set by the real UI (`src/ui/
+   * hub.ts`'s `beginRun`, `src/ui/main.ts`'s `startRun`). Also a genuine sim
+   * behavior switch since fb045 (QUESTIONS Q151 OVERRIDE): `progression.ts`'s
+   * `tickLevelupIdle` only auto-resolves an idle `levelup` offer when this is
+   * defined, so an undefined `policy` means "wait indefinitely" there.
+   */
   policy?: string;
   /**
    * SPEC-FINAL §1.1: number of TD-block/VS-wave pairs the run plays before

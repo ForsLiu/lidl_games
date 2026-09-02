@@ -248,6 +248,46 @@ describe('levelup idle auto-resolve (p9e, G18)', () => {
     }
   });
 
+  // fb045 (QUESTIONS Q151 OVERRIDE): the 20s idle auto-resolve is meant only
+  // to bound an *unattended* run (a bot policy, or a headless/sim run) — a
+  // real human-driven UI run (no `RunConfig.policy` at all, since the UI
+  // never sets one; see `src/ui/main.ts`'s `startRun`) must wait indefinitely
+  // unless auto-pick is on. Before this fix `tickLevelupIdle` applied
+  // unconditionally regardless of `cfg.policy`.
+  it('a run with no bot policy (the real UI shape) never auto-resolves a pending level-up, no matter how long it idles (fb045)', () => {
+    const run = new Run(cfg({ policy: undefined }));
+    const w = run.world;
+    w.phase = 'act2';
+    w.sundered = true;
+    w.warden.x = 18;
+    w.warden.y = 10;
+    w.updateNav(true);
+    addXp(w, xpToReach(2));
+    openLevelUpIfPending(w);
+    expect(w.phase).toBe('levelup');
+
+    for (let i = 0; i < LEVELUP_IDLE_TIMEOUT_TICKS + 10; i++) run.step(emptyInput());
+    expect(w.phase).toBe('levelup');
+    expect(w.offers.length).toBeGreaterThan(0);
+  });
+
+  it('a bot-driven run (RunConfig.policy set) still auto-resolves at the idle timeout exactly as before (fb045)', () => {
+    const run = new Run(cfg({ policy: 'none' }));
+    const w = run.world;
+    w.phase = 'act2';
+    w.sundered = true;
+    w.warden.x = 18;
+    w.warden.y = 10;
+    w.updateNav(true);
+    addXp(w, xpToReach(2));
+    openLevelUpIfPending(w);
+    expect(w.phase).toBe('levelup');
+
+    for (let i = 0; i < LEVELUP_IDLE_TIMEOUT_TICKS; i++) run.step(emptyInput());
+    expect(w.phase).toBe('act2');
+    expect(w.offers).toEqual([]);
+  });
+
   it('hashWorld distinguishes worlds that differ only in levelupIdleTicks (G2 hash coverage)', () => {
     const w1 = act2World();
     addXp(w1, xpToReach(2));

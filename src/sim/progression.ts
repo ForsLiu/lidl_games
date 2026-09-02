@@ -142,11 +142,19 @@ export function openLevelUpIfPending(w: World): void {
  * decision phase must not stall forever") — this never fires for a player
  * actually driving the level-up screen inside that window; it only bounds
  * the worst case for a run nobody is deciding for.
+ *
+ * fb045 (Q151 OVERRIDE): "unattended" means a `RunConfig` with a bot policy,
+ * or a headless/sim run — both always set `cfg.policy` (see `tests/
+ * helpers.ts`'s `cfg()` default and every `tools/*.ts` runner). A real
+ * human-driven UI run never sets `policy` at all (`src/ui/main.ts`'s
+ * `startRun`), so it is exempt and waits indefinitely with auto-pick off,
+ * exactly as it always has for every other decision the player drives.
  */
 export const LEVELUP_IDLE_TIMEOUT_TICKS = 20 * 60;
 
 export function tickLevelupIdle(w: World): void {
   if (w.phase !== 'levelup') return;
+  if (w.cfg.policy === undefined) return;
   w.levelupIdleTicks++;
   if (w.levelupIdleTicks < LEVELUP_IDLE_TIMEOUT_TICKS) return;
   // `openLevelUpIfPending` no longer opens this phase with an empty offer
