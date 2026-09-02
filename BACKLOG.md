@@ -341,16 +341,47 @@ or P10-band priority and block nothing below.
       BALANCE.md states the band; the P10 re-tune measures and records
       `no-move`'s T1 win rate against it (met or not, the number is logged)
       — refs: BALANCE.md, QUESTIONS Q154, fb025.
-- [ ] (fb047) [bug] top priority (owner-ordered bug check): verify
+- [x] (fb047) [bug] top priority (owner-ordered bug check): verify
       `tools/sweep.ts`'s `--tier` flag applies the tier scalars to every bot
-      policy path, not just the ones already measured — `kite`/`rush`/
-      `walloff`'s T3 win rates (p10p) measured suspiciously close to their
-      T1 numbers rather than clearly lower — acceptance: if `--tier` is
-      confirmed not reaching one or more of these policies' build/spend
-      logic, fix it with a regression test proving T3 measures harder than
-      T1 for all three; if `--tier` is confirmed already correct, record the
-      measurement and the mechanism that makes T3 legitimately close to T1
-      for these three bots specifically — refs: QUESTIONS additional ORDER
+      policy path — commit `3e8873d`. **Confirmed not reaching it**:
+      `RunConfig.tier` only ever fed `src/sim/tiers.ts`'s `rewardMultiplier`
+      and reporting; every real difficulty knob (enemy HP/speed, elite/rift/
+      boss multipliers, extra gates/waves, Core HP) lives in
+      `RunConfig.modifiers`, which the real Hub UI drafts per tier via
+      `modifierDraft` — `sweep.ts`'s `--tier N` set `cfg.tier` but left
+      `cfg.modifiers` at `[]` unless `--mods` was passed by hand, so
+      `--tier 3` was mechanically identical to `--tier 1` for every bot,
+      confirming p10p's observation. `tools/handoff-metrics.ts` already drew
+      this line correctly (`autoDraft` when `tier > 1`); mirrored via new
+      exported `resolveModifiers`/`buildRunConfig` in `sweep.ts`, reused by
+      `tools/status.ts`'s `cfgFor`, which had the **identical latent defect**
+      in its own T1-vs-T3 per-class/per-Core balance snapshot shipped this
+      same session at fb038 — fixed in the same commit rather than left for
+      a future session to rediscover. A failing regression test landed first
+      (`tests/fb047-sweep-tier-modifiers.test.ts`, confirmed red pre-fix via
+      `git stash`). Also recorded, not fixed here (out of scope, already
+      open): fb025's enemy-HP-×10 pass floors every bot's T1 win rate to 0%
+      by wave 2-3, so a win-rate T1-vs-T3 comparison for kite/rush/walloff
+      structurally can't show a delta right now regardless of this fix — the
+      test pins that fact plainly, plus a seed-3 case (`autoDraft` draws
+      `cracked`, Core -150 HP) proving T3 measurably shortens all three bots'
+      runs via `totalSeconds`, satisfying the "prove T3 harder" branch of the
+      acceptance criteria without a dishonest win-rate claim. **code-reviewer
+      not separately delegated** (self-reviewed: `npx tsc --noEmit` clean,
+      grepped every `from './sweep'`/`from '../tools/sweep'` caller repo-wide
+      to confirm no other regression); **qa-playtester-equivalent PASS**
+      (independent agent re-verified the fix is real by tracing call sites,
+      re-ran the pre-fix-red/post-fix-green stash check itself, confirmed no
+      other callers broke, independently reproduced the T1-floor claim live,
+      ran `tools/status.ts` end-to-end with no crash and a sane snapshot; no
+      bugs filed). `npm run test:fast`: 133/142 files green, the only
+      failures are the same pre-existing Windows host-load flake class
+      already documented across multiple prior sessions (`q15-command-
+      domain-fuzz`, `b032`/`b034`/`b035`/`b036` fold-timing tests),
+      reproducing identically and unrelated to this diff. `STATUS.md`
+      regenerated in the same commit (`npm run status`): fb038's ledger entry
+      flips queued -> done, plus small numeric drift from fb043/fb045 landing
+      since it was last generated — refs: QUESTIONS additional ORDER
       (2026-09-01 verdict batch), p10p.
 
 ### Feedback — owner-filed items (2026-08-27), processed from `feedback/`

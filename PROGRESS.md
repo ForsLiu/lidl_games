@@ -5,6 +5,73 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-01 session: fb047 done — `tools/sweep.ts`'s `--tier` flag now
+  actually reaches difficulty (QUESTIONS additional ORDER, 2026-09-01 verdict
+  batch, commit `3e8873d`).** CLAUDE.md rule 3 (confirmed bugs outrank the
+  queue) plus the batch's own stated priority: this was the last remaining
+  correction, and should have been picked before fb038 (logged in that
+  entry's own note below). Root cause, confirmed by reading rather than
+  guessing: `RunConfig.tier` only ever fed `src/sim/tiers.ts`'s
+  `rewardMultiplier` and `run.ts`'s reporting — every real difficulty knob
+  (enemy HP/speed, elite/rift/boss multipliers, extra gates/waves, Core HP)
+  lives entirely in `RunConfig.modifiers`, which the real Hub UI drafts per
+  tier via `modifierDraft` before a human ever plays. `sweep.ts`'s `--tier N`
+  set `cfg.tier` but left `cfg.modifiers` at `[]` unless `--mods` was passed
+  by hand, so `--tier 3` was mechanically identical to `--tier 1` for every
+  bot policy, not just kite/rush/walloff — confirming, not just explaining,
+  p10p's flagged-not-filed observation. `tools/handoff-metrics.ts` already
+  drew this line correctly (`tier > 1 ? autoDraft(...) : []`); mirrored here
+  as newly-exported `resolveModifiers`/`buildRunConfig` in `sweep.ts`, which
+  `main()` now calls. Grepped the blast radius rather than assuming it was
+  narrow (CLAUDE.md's measurement rules): `tools/status.ts`'s `cfgFor` had
+  the **identical latent defect** in its own T1-vs-T3 per-class/per-Core
+  balance snapshot — shipped this same session, one item earlier, at fb038 —
+  fixed in this same commit by having `cfgFor` (now exported) call the same
+  `resolveModifiers`, with `reportsFor` threading `content` through. A
+  failing regression test landed first (`tests/fb047-sweep-tier-modifiers.
+  test.ts`), confirmed red pre-fix by `git stash`-ing both tool files and
+  rerunning (every assertion failed with "is not a function" — the exports
+  didn't exist yet), green after. Also recorded rather than fixed here
+  (already an open, separately-flagged P10 problem, out of this item's
+  scope): fb025's enemy-HP-×10 pass floors *every* bot's T1 win rate to 0% by
+  wave 2-3 of Act I, so a win-rate-based T1-vs-T3 comparison for
+  kite/rush/walloff is currently structurally unable to show a delta
+  regardless of this fix (both sides already at the floor) — confirmed live
+  (`npx tsx tools/sweep.ts --seeds 8 --tier 1 --policies kite,rush,walloff
+  --json` → 0% for all three) rather than assumed. The regression test proves
+  the "T3 measures harder" acceptance branch honestly instead: seed 3's real
+  `autoDraft` output (seeded by seed+tier only, identical across policies)
+  includes `cracked` (Core -150 HP), which *does* reach Act I combat unlike
+  several other modifiers in the pool (`hurried`/`shortarm`/`longwatch`, which
+  measured byte-identical to T1 for these three bots' specific failure mode
+  at other seeds, since they die to raw Act I attrition before pickup radius,
+  extra waves or build-phase length ever matter) — pinned as a deterministic,
+  non-flaky per-seed case where T3 measurably shortens all three bots' runs
+  via `totalSeconds`, with explicit non-victory assertions on both sides
+  ruling out a vacuous early-exit pass. **qa-playtester-equivalent PASS**: an
+  independent agent re-verified the fix was real (traced every call site
+  itself rather than trusting the diff), independently reproduced both the
+  pre-fix-red/post-fix-green stash check and the T1-floor claim live, grepped
+  the whole repo for other `tools/sweep` importers and confirmed none broke,
+  and ran `tools/status.ts` end-to-end confirming no crash and a sane
+  snapshot; no bugs filed. `npm run test:fast`: 133/142 files green, the 6
+  failures were the same already-documented pre-existing Windows host-load
+  flake class multiple prior sessions have logged (`q15-command-domain-
+  fuzz`, `b032`/`b034`/`b035`/`b036` fold-timing tests) — reproduced
+  identically with this diff, confirmed unrelated. `STATUS.md` regenerated in
+  the same commit (`npm run status`, per CLAUDE.md's own cadence rule):
+  fb038's feedback-ledger row flips `queued` -> `done` (a real correction —
+  fb038 finished last session), plus small numeric drift in the T1
+  policy-comparison and damage-share tables from fb043/fb045 landing since it
+  was last generated (both are T1-only measurements, untouched by this fix).
+  Files changed: `tools/sweep.ts`, `tools/status.ts`,
+  `tests/fb047-sweep-tier-modifiers.test.ts`, `STATUS.md`. **Next up**: no
+  remaining top-priority corrections from the 2026-09-01 verdict batch — the
+  next item per that batch's own order is **fb039** (top priority, blocks
+  `p10r`'s retune: point the sweep/handoff-metrics tools' Constellation
+  default at a fully-allocated tree), ahead of the normal-priority
+  fb029-037/fb040/fb042/fb044/fb046 batch.
+
 - **2026-09-01 session: fb038 done — `npm run status` writes STATUS.md from
   live data (owner feedback `feature-status-report`, commit `fb192a2`).**
   New `tools/status.ts`: a gate table (SPEC-FINAL §14's G1-G23) built from
