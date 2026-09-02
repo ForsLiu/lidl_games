@@ -11,8 +11,10 @@ import { Run } from '../src/sim/run';
 import type { RunConfig, RunReport } from '../src/sim/types';
 import { makePolicy } from '../src/bots';
 import '../src/bots';
+import { loadContent, type Content } from '../src/sim/content';
+import { autoDraft } from '../src/sim/tiers';
 
-interface Options {
+export interface Options {
   seeds: number;
   seedStart: number;
   policies: string[];
@@ -62,6 +64,35 @@ export function runOne(cfg: RunConfig, policyName: string, maxTicks: number): Ru
   return run.report();
 }
 
+/**
+ * fb047: `RunConfig.tier` alone feeds only reward-multiplier math
+ * (`src/sim/tiers.ts`'s `rewardMultiplier`) and reporting — every actual
+ * difficulty knob (enemy HP/speed, elite/rift/boss multipliers, extra
+ * gates/waves, Core HP) lives in `RunConfig.modifiers`, which the real Hub UI
+ * drafts per tier (`modifierDraft`) before a human ever plays. A bare
+ * `--tier N` here used to leave `modifiers` at `[]`, so `--tier 3` was
+ * mechanically identical to `--tier 1` for every bot — confirming p10p's
+ * flagged-not-filed observation that kite/rush/walloff's T3 win rates
+ * measured suspiciously close to T1. `tools/handoff-metrics.ts` already
+ * drew this line correctly (`tier > 1 ? autoDraft(...) : []`); this mirrors
+ * it so an explicit `--mods` list still wins outright (unchanged), while an
+ * unset one is auto-drafted per seed+tier, deterministic and replayable.
+ */
+export function resolveModifiers(content: Content, seed: number, tier: number, explicit: string[]): string[] {
+  if (explicit.length > 0) return explicit;
+  return tier > 1 ? autoDraft(content, seed, tier) : [];
+}
+
+export function buildRunConfig(o: Options, content: Content, seed: number): RunConfig {
+  return {
+    seed,
+    classKey: o.classKey,
+    tier: o.tier,
+    modifiers: resolveModifiers(content, seed, o.tier, o.modifiers),
+    allocated: o.allocated,
+  };
+}
+
 function median(arr: number[]): number {
   if (arr.length === 0) return 0;
   const s = arr.slice().sort((a, b) => a - b);
@@ -70,18 +101,13 @@ function median(arr: number[]): number {
 
 function main(): void {
   const o = parse(process.argv.slice(2));
+  const content = loadContent();
   const rows: Record<string, unknown>[] = [];
   for (const policy of o.policies) {
     const reports: RunReport[] = [];
     const started = Date.now();
     for (let i = 0; i < o.seeds; i++) {
-      const cfg: RunConfig = {
-        seed: o.seedStart + i,
-        classKey: o.classKey,
-        tier: o.tier,
-        modifiers: o.modifiers,
-        allocated: o.allocated,
-      };
+      const cfg = buildRunConfig(o, content, o.seedStart + i);
       reports.push(runOne(cfg, policy, o.maxTicks));
     }
     const elapsed = Date.now() - started;

@@ -32,7 +32,7 @@ import { resolve } from 'node:path';
 
 import { REPO_ROOT, SPEC_PATH, parseGates, auditGates, type GateAuditRow } from './gate-audit';
 import { census, type CensusRow } from './content-census';
-import { runOne } from './sweep';
+import { resolveModifiers, runOne } from './sweep';
 import type { Content } from '../src/sim/content';
 import type { RunConfig, RunReport } from '../src/sim/types';
 import { policyNames } from '../src/bots/policy';
@@ -98,12 +98,19 @@ export function buildGateTable(): GateRow[] {
 
 /* --------------------------------------------------------- balance sweep */
 
-function cfgFor(overrides: Partial<RunConfig>, seed: number): RunConfig {
-  return { seed, classKey: 'engineer', tier: 1, modifiers: [], allocated: [], ...overrides };
+// fb047: a `tier` override with no explicit `modifiers` must draft real ones
+// (the same line `tools/sweep.ts`'s `resolveModifiers` draws) — otherwise a
+// T3 comparison here is mechanically identical to T1, the exact bug p10p
+// flagged for `sweep.ts`'s own `--tier` flag, reproduced independently in
+// this tool's per-class/per-Core snapshot.
+export function cfgFor(overrides: Partial<RunConfig>, seed: number, content: Content): RunConfig {
+  const base: RunConfig = { seed, classKey: 'engineer', tier: 1, modifiers: [], allocated: [], ...overrides };
+  base.modifiers = resolveModifiers(content, seed, base.tier, base.modifiers);
+  return base;
 }
 
-function reportsFor(overrides: Partial<RunConfig>, policy: string, seeds: number[]): RunReport[] {
-  return seeds.map((seed) => runOne(cfgFor(overrides, seed), policy, MAX_TICKS));
+function reportsFor(overrides: Partial<RunConfig>, policy: string, seeds: number[], content: Content): RunReport[] {
+  return seeds.map((seed) => runOne(cfgFor(overrides, seed, content), policy, MAX_TICKS));
 }
 
 function winRate(reports: RunReport[]): number {
@@ -138,21 +145,21 @@ async function measureBalance(): Promise<BalanceSnapshot> {
   const policyComparison = policyNames()
     .filter((p) => p !== 'idle')
     .map((policy) => {
-      const reports = reportsFor({ tier: 1 }, policy, SEEDS);
+      const reports = reportsFor({ tier: 1 }, policy, SEEDS, content);
       pool.push(...reports);
       return { policy, winRate: round(winRate(reports)), meanMinutes: round(mean(reports.map((r) => r.totalSeconds / 60)), 1) };
     });
 
   const perClass = content.classes.classes.map((c) => {
-    const t1 = reportsFor({ classKey: c.key, tier: 1 }, 'hybrid', SEEDS);
-    const t3 = reportsFor({ classKey: c.key, tier: 3 }, 'hybrid', SEEDS);
+    const t1 = reportsFor({ classKey: c.key, tier: 1 }, 'hybrid', SEEDS, content);
+    const t3 = reportsFor({ classKey: c.key, tier: 3 }, 'hybrid', SEEDS, content);
     pool.push(...t1, ...t3);
     return { classKey: c.key, t1: round(winRate(t1)), t3: round(winRate(t3)) };
   });
 
   const perCore = content.cores.cores.map((c) => {
-    const t1 = reportsFor({ core: c.key, tier: 1 }, 'hybrid', SEEDS);
-    const t3 = reportsFor({ core: c.key, tier: 3 }, 'hybrid', SEEDS);
+    const t1 = reportsFor({ core: c.key, tier: 1 }, 'hybrid', SEEDS, content);
+    const t3 = reportsFor({ core: c.key, tier: 3 }, 'hybrid', SEEDS, content);
     pool.push(...t1, ...t3);
     return { coreKey: c.key, t1: round(winRate(t1)), t3: round(winRate(t3)) };
   });

@@ -38,7 +38,7 @@ This run's fresh balance snapshot measured **zero wins** across every policy/cla
 
 ## Balance snapshot
 
-Measured this run: 220 sim runs (5 seeds/cell), `hybrid` bot for per-class/per-Core cells. Mean run length 3.1 min; 0 of 220 runs hit the 45-min cap without resolving (timeouts).
+Measured this run: 220 sim runs (5 seeds/cell), `hybrid` bot for per-class/per-Core cells. Mean run length 3.01 min; 0 of 220 runs hit the 45-min cap without resolving (timeouts).
 
 ### Policy comparison (T1, engineer, default core)
 
@@ -86,13 +86,13 @@ Measured this run: 220 sim runs (5 seeds/cell), `hybrid` bot for per-class/per-C
 
 | Source | Share |
 |---|---|
-| arrow_spire | 0.3243 |
-| frost_obelisk | 0.299 |
-| ballista | 0.1815 |
-| class_basic | 0.1518 |
-| venom_spore | 0.0378 |
+| arrow_spire | 0.3278 |
+| frost_obelisk | 0.2947 |
+| ballista | 0.1786 |
+| class_basic | 0.1536 |
+| venom_spore | 0.04 |
 | carnivorous_plant | 0.0042 |
-| bleeding | 0.0009 |
+| bleeding | 0.0008 |
 | class_passive | 0.0002 |
 | corpse | 0.0002 |
 
@@ -159,7 +159,7 @@ No run in this pool reached a boon offer (Act II).
 | 20260901-114409-feature-speed-dropdown.md | fb035 — queued |
 | 20260901-114409-feature-td-path-indicators.md | fb036 — queued |
 | 20260901-114409-feature-vs-wielded-side-panel.md | fb037 — queued |
-| 20260901-120444-feature-status-report.md | fb038 — queued |
+| 20260901-120444-feature-status-report.md | fb038 — done |
 | 20260901-120444-verdicts-q134-154.md | QUESTIONS verdict batch — applied to QUESTIONS.md, archived |
 
 ## Pending QUESTIONS.md entries (no `(owner verdict:` yet)
