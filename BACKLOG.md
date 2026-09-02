@@ -336,17 +336,12 @@ or P10-band priority and block nothing below.
       numeric/enum fields that round-trip through the same zod schema
       validation as the JSON editor; the JSON editor remains available for
       everything else — refs: SPEC-FINAL §11, QUESTIONS Q150, extends p9c.
-- [ ] (fb045) [bug] top priority (SPEC-FINAL contradiction, rule 3 outranks
-      queue): QUESTIONS Q151 OVERRIDE — the G18 20s idle auto-resolve on
-      `levelup` applies only to unattended runs (a `RunConfig` with a bot
-      policy, or a headless/sim run); a human-driven UI run never
-      auto-resolves a pending level-up unless auto-pick is on, and otherwise
-      waits indefinitely — acceptance: a failing regression test first pins
-      today's always-applies-after-20s behavior as wrong, then a real
-      (non-bot, non-headless) UI run with auto-pick off never auto-resolves
-      `levelup` no matter how long it idles, while a bot-driven or headless
-      run still resolves at 20s exactly as before — refs: SPEC-FINAL §14
-      G18, QUESTIONS Q151, p9e.
+- [x] (fb045) [bug] QUESTIONS Q151 OVERRIDE — the G18 20s idle auto-resolve
+      on `levelup` applies only to unattended runs — commit `df1a6a5`,
+      code-reviewer APPROVE (no Critical/Major; two Minor forward-looking
+      notes, no live bug), qa-playtester PASS (non-vacuous regression test,
+      exact boundary pinned, full `cfg.policy` blast-radius check, no G2
+      determinism concern; no bugs filed) — **done, see Done section.**
 - [ ] (fb046) [balance] P10 re-tune: QUESTIONS Q154 ORDER — add a "play
       matters" band to BALANCE.md: a never-moving character's (`no-move`
       bot) T1 win rate ≤60% ⚖, to be met by the P10 re-tune after the
@@ -2649,6 +2644,43 @@ logged in MIGRATION.md §8 rather than carried as dead items.
       (`q15-command-domain-fuzz`, the b032/b034/b035/b036 fold-timing tests)
       reproduced identically with the fb043 diff stashed out, confirmed
       unrelated.
+
+- [x] (fb045) [bug] G18's 20s levelup idle auto-resolve applies only to
+      unattended runs — commit `df1a6a5`. QUESTIONS Q151 OVERRIDE:
+      `tickLevelupIdle` (`src/sim/progression.ts`, p9e) auto-resolved a
+      pending `levelup` offer after `LEVELUP_IDLE_TIMEOUT_TICKS` (20s)
+      unconditionally, including for a real human-driven UI run with
+      auto-pick off, which should instead wait indefinitely for a player
+      decision. The owner's OVERRIDE draws the unattended/attended line at
+      `RunConfig.policy`: every headless tool (`tools/*.ts`) and the test
+      helper `cfg()` always set a policy string (including the `'none'`
+      sentinel for a headless run driven by nobody), while the real UI
+      (`src/ui/hub.ts`'s `beginRun`, `src/ui/main.ts`'s `startRun`) never
+      sets one — so `w.cfg.policy === undefined` is exactly "a real UI run."
+      CLAUDE.md rule 3: a failing regression test landed first in
+      `tests/p9e-levelup-idle.test.ts` (confirmed red against pre-fix code),
+      then the one-line fix (an early return in `tickLevelupIdle` ahead of
+      its existing phase guard), plus a paired test confirming a bot/headless
+      run (`policy: 'none'`) still resolves at the timeout exactly as before.
+      `RunConfig.policy`'s JSDoc (`src/sim/types.ts`) updated to document it
+      as a genuine sim-behavior switch now, not just a bot/reporting label.
+      **code-reviewer APPROVE** (no Critical/Major; two Minor forward-looking
+      notes — `replayRecorded` doesn't yet guard `policy` definedness
+      mismatches the way it guards `core`/`contentHash`, and
+      `audit-hook.ts`'s `startPracticeRun` inherits the same no-timeout
+      exemption as real play, both speculative with no live bug found — plus
+      the JSDoc staleness, fixed in the same commit). **qa-playtester PASS**:
+      independently confirmed the regression test is non-vacuous (fails
+      against a stashed pre-fix diff), pinned the exact boundary (resolves at
+      tick 1200, not 1199/1201, for a headless run), confirmed a
+      `policy: undefined` run never resolves after 10x the timeout while
+      manual `pick`/`reroll` and the `set_autopick` Command still work
+      normally on it, checked `cfg.policy`'s full blast radius (3 readers in
+      `/src`, none else assume it's always defined), and found no G2
+      determinism divergence; no bugs filed. The pre-existing Windows
+      host-load flake class (`q15-command-domain-fuzz`, `b032`/`b035`/`b036`
+      fold-timing tests) reproduced identically with the fb045 diff stashed
+      out, confirmed unrelated.
 
 - [x] (fb028) [feat] Detailed live effect text for classes and class-specific
       equipment (SPEC-FINAL §11, extends fb004/fb022, owner feedback

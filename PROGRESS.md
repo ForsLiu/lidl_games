@@ -5,6 +5,46 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-01 session: fb045 done — G18's 20s levelup idle auto-resolve
+  applies only to unattended runs (QUESTIONS Q151 OVERRIDE, commit
+  `df1a6a5`).** CLAUDE.md rule 3 (SPEC-FINAL-contradiction bugs outrank the
+  queue): `tickLevelupIdle` (`src/sim/progression.ts`, p9e) auto-resolved a
+  pending `levelup` offer after `LEVELUP_IDLE_TIMEOUT_TICKS` (20s)
+  unconditionally, for any World sitting in that phase — including a real
+  human-driven UI run with auto-pick off, which should instead wait
+  indefinitely for a player decision. The owner's Q151 OVERRIDE draws the
+  line at `RunConfig.policy`: every headless tool (`tools/*.ts`) and the test
+  helper `cfg()` (`tests/helpers.ts`) always set a policy string (including
+  the `'none'` sentinel for a headless run driven by nobody), while the real
+  UI (`src/ui/hub.ts`'s `beginRun`, `src/ui/main.ts`'s `startRun`) never sets
+  one at all — so `w.cfg.policy === undefined` is exactly "a real UI run," no
+  new signal needed. Fixed with a one-line early return in `tickLevelupIdle`
+  ahead of the existing phase guard; `RunConfig.policy`'s JSDoc
+  (`src/sim/types.ts`) updated to document this as a genuine sim-behavior
+  switch now, not just a bot/reporting label. A failing regression test
+  landed first (`tests/p9e-levelup-idle.test.ts`, confirmed red against
+  pre-fix code), plus a paired test confirming a bot/headless run
+  (`policy: 'none'`) still resolves at the timeout exactly as before.
+  **code-reviewer APPROVE** (no Critical/Major; two Minor forward-looking
+  notes — `replayRecorded` doesn't yet guard `policy` definedness mismatches
+  the way it guards `core`/`contentHash`, and `audit-hook.ts`'s
+  `startPracticeRun` inherits the same no-timeout exemption as real play,
+  both speculative with no live bug found — plus the JSDoc staleness, fixed
+  in the same commit). **qa-playtester PASS**: independently confirmed the
+  regression test is non-vacuous (fails against a stashed pre-fix diff),
+  pinned the exact boundary (resolves at tick 1200, not 1199/1201 for a
+  headless run), confirmed a `policy: undefined` run never resolves after 10x
+  the timeout while manual `pick`/`reroll` and the `set_autopick` Command
+  still work normally on it, checked `cfg.policy`'s full blast radius (3
+  readers in `/src`, none else assume it's always defined), and found no G2
+  determinism divergence; no bugs filed. The pre-existing Windows
+  host-load flake class (`q15-command-domain-fuzz`, `b032`/`b035`/`b036`
+  fold-timing tests) reproduced identically with the fb045 diff stashed out,
+  confirmed unrelated. Next up per the owner's 2026-09-01 verdict batch:
+  **fb047** (verify `tools/sweep.ts`'s `--tier` flag reaches every bot
+  policy's build/spend logic) is the next top-priority bug-check item; the
+  normal-priority fb029-037/fb038-042/fb044/fb046 batch remains below it.
+
 - **2026-09-01 session: fb043 done — Vampire Heart's "Scrape By" unlock only
   counts a run the Core survived (QUESTIONS Q149 OVERRIDE, commit
   `d3454c3`).** CLAUDE.md rule 3 (SPEC-FINAL-contradiction bugs outrank the
