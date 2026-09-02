@@ -620,14 +620,16 @@ or P10-band priority and block nothing below.
       hashWorld determinism, Infinity-forged-offer OOM does not reproduce
       post-fix; filed no bugs, one coverage-gap note closed in the same
       commit) — **done, see Done section.**
-- [ ] (fb042) [balance] P10 content/balance pass: QUESTIONS Q146 ORDER — give
+- [x] (fb042) [balance] P10 content/balance pass: QUESTIONS Q146 ORDER — give
       the 13 emptied Constellation small nodes (ex-Emberkeeper/Scavenger)
       flat additive effects only (e.g. +5 starting gold each ⚖) and the
       Tinkerer/Gilded Path notables flat additive effects (e.g. +25 starting
       gold; one free tower upgrade step at run start ⚖), never
       multiplicative — acceptance: all 15 nodes have live, additive-only
       effects; balance-analyst re-checks G1/G6/G14 after and records the
-      deltas — refs: SPEC-FINAL §6.3/§14 G1/G6/G14, QUESTIONS Q146.
+      deltas — refs: SPEC-FINAL §6.3/§14 G1/G6/G14, QUESTIONS Q146 — commit
+      `44eb1dc`, code-reviewer APPROVE, qa-playtester PASS — **done, see Done
+      section.**
 - [x] (fb043) [bug] QUESTIONS Q149 OVERRIDE — Vampire Heart's "Scrape By"
       unlock only counts a run the Core survived — commit `d3454c3`,
       code-reviewer APPROVE (no Critical/Major/Minor), qa-playtester PASS
@@ -2988,6 +2990,61 @@ logged in MIGRATION.md §8 rather than carried as dead items.
 
 ## Done
 
+- [x] (fb042) [balance] P10 content/balance pass (QUESTIONS Q146 ORDER,
+      commit `44eb1dc`). The 13 emptied ex-Emberkeeper/Scavenger
+      Constellation small nodes and the Tinkerer/Gilded Path notables
+      (`data/tree.json`, source in `tools/gen-tree.mjs`) each now grant a
+      flat, additive `startingGold` bonus — +5 per small node, +25 per
+      notable — instead of sitting inert (`p7d`'s "retired, not repointed"
+      deferral) or, for Gilded Path, keeping its old multiplicative
+      `goldFind: 0.2`, which the acceptance text explicitly bars ("never
+      multiplicative"). New `startingGold` StatKey (`src/sim/statkeys.ts`,
+      kind `flat`, display `point`), read once into `World.gold` at
+      construction (`src/sim/world.ts`: `content.waves.startGold +
+      this.stats.total('startingGold')`) — the same "read once, doesn't
+      re-derive" contract as `coreHp`, added to `tests/c4-stacking.test.ts`'s
+      `notDerived` exemption list alongside it. UI labels added in
+      `src/ui/character-panel.ts` and `src/ui/tree-view.ts`;
+      `tests/q7-loader-holes.ts`'s fuzz matrix covers the new stat key.
+      `tests/fb042-starting-gold.test.ts` (4 tests): all 15 target node ids
+      have live flat-only stats, Gilded Path's old `goldFind` is gone, an
+      allocated small+notable combo raises `World.gold` by exactly the sum
+      once, and granting the stat post-construction does not re-apply it.
+      Fully allocated that's +115 gold on top of `waves.json`'s 250 base.
+      **balance-analyst re-check** (recorded in `BALANCE.md`, isolating the
+      lever via `git stash push -- data/tree.json` against the real gate
+      test files plus a `tools/sweep.ts` cross-check, all T1): found G1's
+      live win-rate clause and G14 already both failing outright at HEAD
+      with `tree.json` reverted (100% win, over each gate's `<1`/`<100%`
+      ceiling) — unrelated drift from the same session's earlier fb029-040
+      batch, discovered while isolating this change, not caused by it. With
+      fb042 applied, both move from failing to passing (G1 79.2% win, G14
+      80% win) — a fortunate side effect of the specific spend-order
+      sensitivity of the `maxbuild`/`hybrid` greedy bot policies, not the
+      change's intended mechanism. G6 (interleave pattern, fixed clear
+      reward, multi-summon cap, VS-unstackable) is structurally unaffected
+      either state, since none of those mechanics read gold. No `/data`
+      retune was needed or performed beyond fb042's own `tree.json` change.
+      Flagged for whoever picks up `p10r`: re-measure G8/G23 against current
+      HEAD (goalposts moved twice since `fb049`), and use G1's drifted
+      36.70 min mean (not the stale 36.36 min) as the retune's starting
+      point — the `.skip`-ed mean-run-length clause moved further over its
+      36-min ceiling even as the paired win-rate clause improved, the same
+      A4/A7 gate-coupling lesson recurring. code-reviewer **APPROVE** (one
+      non-blocking Nit: `startingGold`'s display label is duplicated across
+      two separate UI label maps, a pre-existing pattern not introduced
+      here). qa-playtester **PASS**: independently re-derived the 15 node
+      ids and their flat-kind stats from `data/tree.json`, confirmed the
+      diff touches exactly those 15 nodes and no others, traced
+      `World`/`Run` construction to confirm no double-application or
+      mid-run respec path exists, live-ran zero/full-tree/target-only
+      allocations (gold 250/365/365, matching the expected math), confirmed
+      `hashWorld` already captures `w.gold` generically with no new hashing
+      code needed, and checked UI formatting takes the `point`-not-`percent`
+      path — no bugs filed. `npm run test:fast`: only the pre-existing
+      Windows host-load flake class (`q15-command-domain-fuzz`,
+      `b032`/`b034`/`b035`/`b036` fold-timing tests) failed, each confirmed
+      green in isolation; nothing new or fb042-related.
 - [x] (b079) [bug] `vs-panel.ts`'s `vsLineageSpecial` and the sibling
       `tower-info.ts`'s `lineageSpecial` (the pre-existing §6.2 weapon-panel
       lineage line fb037 extends) both used to print "single target"/
