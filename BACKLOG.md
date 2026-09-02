@@ -271,21 +271,13 @@ gets a failing regression test before its fix. fb038 is marked top priority by
 its own text. fb039 blocks `p10r`'s retune. fb040/fb042/fb044/fb046 are normal-
 or P10-band priority and block nothing below.
 
-- [ ] (fb038) [feat] top priority (per the feedback item's own text): a tool
-      `npm run status` that writes STATUS.md at the repo root with a gate
-      table (every G1-G20 pass/fail/skipped, measured number, re-enable
-      pointer), a balance snapshot (per-class and per-Core T1/T3 win rates
-      from the latest sweep, wielded-type damage shares, boon pick rates,
-      mean run length, timeout count), a content census vs SPEC-FINAL §13
-      (built/missing), a feedback ledger (every owner inbox file with its
-      item id and status: done/queued/superseded), and the still-pending
-      QUESTIONS entries — acceptance: `npm run status` produces the file from
-      live data (gate table sourced from `tools/gate-audit.ts`, sweep numbers
-      from a real `tools/sweep.ts` run, census from `tools/content-census.ts`);
-      the file is committed and current as of the latest gate measurements;
-      wired to run at every phase completion and every 20 iterations per the
-      feedback item's own instruction — refs: SPEC-FINAL §13/§14, owner
-      feedback `feature-status-report`.
+- [x] (fb038) [feat] top priority (per the feedback item's own text): a tool
+      `npm run status` that writes STATUS.md at the repo root — **done, see
+      Done section.** Note: per this batch's own stated order, `fb047` (the
+      last remaining CLAUDE.md-rule-3 correction) outranks fb038 and should
+      have been picked first — this session re-derived the priority note too
+      late. `fb047` is the next item, ahead of the normal-priority
+      fb029-037/fb040/fb042/fb044/fb046 batch below.
 - [ ] (fb039) [balance] top priority, blocks `p10r`: QUESTIONS Q138 OVERRIDE —
       point `tools/sim.ts`, `tools/sweep.ts` and `tools/handoff-metrics.ts`'s
       defaults, and every gate measurement, at the same Constellation
@@ -2681,6 +2673,56 @@ logged in MIGRATION.md §8 rather than carried as dead items.
       host-load flake class (`q15-command-domain-fuzz`, `b032`/`b035`/`b036`
       fold-timing tests) reproduced identically with the fb045 diff stashed
       out, confirmed unrelated.
+
+- [x] (fb038) [feat] `npm run status` writes STATUS.md at the repo root from
+      live data — commit `fb192a2`, owner feedback `feature-status-report`.
+      New `tools/status.ts`: gate table (SPEC-FINAL §14's G1-G23) from
+      `tools/gate-audit.ts`'s coverage classification cross-referenced with
+      HANDOFF.md's own hand-measured health table for real green/red/partial
+      state (re-running the gate tests themselves would take over an hour —
+      several are excluded from the fast tier for exactly that reason);
+      balance snapshot via a real, bounded (5 seeds/cell) `tools/sweep.ts`
+      run (`runOne`, imported directly) — policy comparison, per-class and
+      per-Core T1/T3 win rates, wielded-damage share, boon pick rates, mean
+      run length, timeout count; content census via
+      `tools/content-census.ts`; a feedback ledger matching every
+      `feedback/processed/*.md` file to the BACKLOG item citing it; every
+      QUESTIONS.md entry with no `(owner verdict:` yet. `tools/sweep.ts`'s
+      unconditional top-level `main()` call is now guarded like
+      `gate-audit.ts`/`content-census.ts` so the import doesn't fire a stray
+      default sweep. `tools/cli-crash-coverage.ts`/
+      `tests/q47-cli-crash-coverage.test.ts` updated for the new tool (25→26
+      count). **code-reviewer REQUEST-CHANGES → taken**: the one Major was
+      structural — the gate table (HANDOFF-sourced, GREEN for G1/G7/G14/G19)
+      and the same run's freshly-measured balance snapshot (0% wins
+      everywhere, per fb025's still-unreconciled enemy-HP/attack-speed pass)
+      flatly contradicted each other with nothing pointing it out. Fixed
+      with `staleGateWarnings`: derives the affected gate ids from their own
+      live SPEC-FINAL §14 text (win rate/victorious run/liveness), not a
+      hand-copied list, and renders a `## ⚠ Staleness warning` banner plus
+      an inline `⚠ STALE` marker when this run's fresh sweep shows zero wins
+      anywhere — correctly leaves G8/G23 alone (already RED in HANDOFF).
+      **qa-playtester PASS**: verified determinism (two runs, byte-identical
+      STATUS.md), verified the sweep is real by tampering `SEEDS` and
+      observing the numbers move (reverted after), adversarially probed the
+      feedback-ledger/pending-questions parsers, confirmed
+      `npm run test:fast`'s only failures are the pre-existing host-load
+      flake class fb045 already documented above (`q15-command-domain-fuzz`,
+      `b032`/`b034`/`b035`/`b036`), and filed one real bug fixed in the same
+      commit: `pendingQuestions` did a whole-block substring search for
+      `(owner verdict:`, so a Q whose own bold title merely *discussed* that
+      literal marker as prose would be silently dropped from the pending
+      list — latent on the real QUESTIONS.md today, fixed to only check text
+      after the title's closing `**`, with a regression test. "Wired to run
+      at every phase completion and every 20 iterations" has no CI in this
+      repo to enforce it against; documented as a standing command in
+      CLAUDE.md's "Stack & commands" list instead (same treatment as
+      HANDOFF.md's own regeneration rule) — future sessions must actually
+      run it on that cadence, nothing enforces it mechanically. Priority
+      note: `fb047` (the last remaining CLAUDE.md-rule-3 correction from the
+      owner's 2026-09-01 batch) outranks fb038 per that batch's own stated
+      order; this session picked fb038 first and only caught the ordering
+      note afterward — `fb047` is the next item.
 
 - [x] (fb028) [feat] Detailed live effect text for classes and class-specific
       equipment (SPEC-FINAL §11, extends fb004/fb022, owner feedback

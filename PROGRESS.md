@@ -5,6 +5,73 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-01 session: fb038 done — `npm run status` writes STATUS.md from
+  live data (owner feedback `feature-status-report`, commit `fb192a2`).**
+  New `tools/status.ts`: a gate table (SPEC-FINAL §14's G1-G23) built from
+  `tools/gate-audit.ts`'s coverage/hole/UNTRACKED classification cross-
+  referenced with HANDOFF.md's own hand-measured "### Gate coverage" table
+  for real green/red/partial health (gate-audit alone only knows which test
+  *file* covers a gate, never whether it currently passes — several of those
+  files are 20+ minutes each, excluded from the fast tier for exactly that
+  reason, so re-running them on every `npm run status` invocation would
+  defeat the "every 20 iterations" cadence the feedback item asks for); a
+  real, bounded balance snapshot (5 seeds/cell) via `tools/sweep.ts`'s
+  exported `runOne` — policy comparison, per-class and per-Core T1/T3 win
+  rates, wielded-damage share, boon pick rates, mean run length, timeout
+  count; a content census via `tools/content-census.ts`'s `census()`; a
+  feedback ledger matching every `feedback/processed/*.md` file to the
+  BACKLOG item that closed it; and every QUESTIONS.md entry with no
+  `(owner verdict:` yet. `tools/sweep.ts`'s previously-unconditional
+  top-level `main();` is now guarded the same way `gate-audit.ts`/
+  `content-census.ts` already are, so `status.ts` can import its `runOne`
+  without a stray default sweep firing as an import side effect.
+  `tools/cli-crash-coverage.ts`/`tests/q47-cli-crash-coverage.test.ts`
+  updated (new `PIN_COVERAGE` entry, 25→26 tool count) so the new tool
+  doesn't trip that census's own gap check. **code-reviewer REQUEST-CHANGES
+  → taken**: the only Major finding was real and structural, not cosmetic —
+  `buildGateTable` trusts HANDOFF.md's hand-written health verbatim (by
+  design), but HANDOFF.md was last regenerated *before* fb025's enemy-HP/
+  attack-speed pass, which its own commit message already reports drops
+  every bot policy to 0% win at wave 2-3; the result was a committed
+  STATUS.md whose gate table claimed "20 green" (including G1/G7/G14/G19,
+  all win-rate/liveness gates) while its own freshly-measured balance
+  section in the very same run showed zero wins anywhere — a silent self-
+  contradiction with no reconciliation. Fixed with `staleGateWarnings`: any
+  currently-GREEN gate whose SPEC-FINAL §14 text mentions "win rate",
+  "victorious run" or "liveness" is flagged (derived from the gate's own
+  live spec text, not a hand-copied id list) when this run's fresh sweep
+  shows zero wins across every policy/class/Core cell, rendered as a
+  `## ⚠ Staleness warning` banner plus an inline `⚠ STALE` marker on the
+  affected gate rows — which fires for real against this repo's current
+  state (G1/G7/G14/G19), correctly leaving G8/G23 alone since HANDOFF
+  already marks those RED. **qa-playtester PASS** on the acceptance
+  criteria (ran the real CLI twice for byte-identical determinism, tampered
+  `SEEDS` to confirm the sweep numbers genuinely move and reverted it,
+  adversarially probed the feedback-ledger/pending-questions parsers with
+  regex-special filenames and punctuation-heavy ids, confirmed
+  `npm run test:fast`'s only failures are the pre-existing host-load flake
+  class this session's own fb045 entry already documented — `q15-command-
+  domain-fuzz`, `b032`/`b034`/`b035`/`b036` fold-timing tests — reproducing
+  identically whether this diff is present or not) and filed one real bug,
+  fixed in the same commit: `pendingQuestions` did a whole-block substring
+  search for `(owner verdict:`, so a Q whose own bold *title* merely
+  discussed that literal marker as prose (not a real verdict annotation)
+  would be silently dropped from the pending list — latent on the real
+  QUESTIONS.md today (no such title exists yet) but a real, reproducible
+  logic bug; fixed to only check the text after the bold title's closing
+  `**`, with a regression test. The "wired to run at every phase completion
+  and every 20 iterations" clause has no code-enforceable mechanism (no CI
+  in this repo); documented as a standing command in CLAUDE.md's "Stack &
+  commands" list instead, the same way HANDOFF.md's own regeneration rule
+  is recorded there — future sessions are expected to actually run it on
+  that cadence, not have it enforced. **Next up**: `fb047` (verify
+  `tools/sweep.ts --tier` reaches every bot policy) is the one remaining
+  CLAUDE.md-rule-3 correction from the owner's 2026-09-01 verdict batch,
+  and per that batch's own stated order it outranks fb038 — this session
+  picked fb038 first by misreading the batch's priority note before
+  re-deriving it carefully; fb047 should be the very next item picked up,
+  ahead of the normal-priority fb029-037/fb040/fb042/fb044/fb046 batch.
+
 - **2026-09-01 session: fb045 done — G18's 20s levelup idle auto-resolve
   applies only to unattended runs (QUESTIONS Q151 OVERRIDE, commit
   `df1a6a5`).** CLAUDE.md rule 3 (SPEC-FINAL-contradiction bugs outrank the
