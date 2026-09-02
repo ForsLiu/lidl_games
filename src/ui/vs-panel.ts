@@ -26,10 +26,11 @@ import {
   wieldedPierceFor,
   wieldedPoisonTargetsFor,
   wieldedRangeFor,
+  wieldedSplashFor,
 } from '../sim/vswield';
 import type { World } from '../sim/world';
 import { dpsPanelData } from './dps-panel';
-import { trimNum } from './info-format';
+import { formatWieldSplash, trimNum } from './info-format';
 
 export interface VsPanelRow {
   key: string;
@@ -80,19 +81,20 @@ export function damageTypeText(w: World, ratio: Readonly<Record<string, number>>
  * already-computed `pierce`/`aoe` rather than re-deriving them, so the two
  * can never drift apart.
  *
- * Known gap (qa-playtester finding, inherited from `lineageSpecial` and not
- * closed here — out of scope for this item): a `single`-kind wielded shot
- * also cleaves `WIELD_SPLASH_FRACTION` damage into nearby enemies via
- * `wieldSplash` (`sim/vswield.ts`), which neither this text nor `aoe`
- * (0 for `single`) discloses — "single target"/"pierce N" reads as no
- * splash at all. Filed as BACKLOG b079 rather than fixed here, since closing
- * it properly means adding a field, not a one-line swap, and the identical
- * gap already exists unfixed in the sibling TD lineage line.
+ * b079: a `single`-kind wielded shot also cleaves `WIELD_SPLASH_FRACTION`
+ * damage into nearby enemies via `wieldSplash` (`sim/vswield.ts`), which
+ * neither this text nor `aoe` (0 for `single`) used to disclose —
+ * "single target"/"pierce N" read as no splash at all. Now appends the
+ * splash fraction/radius (via `wieldedSplashFor`, the same helper
+ * `vsPanelRows` could use to double-check this text) whenever it applies.
  */
-function vsLineageSpecial(a: TowerAttack, p: AttackProfile, pierce: number, aoe: number): string {
+function vsLineageSpecial(w: World, a: TowerAttack, p: AttackProfile, pierce: number, aoe: number): string {
   switch (a.kind) {
-    case 'single':
-      return pierce > 0 ? `pierce ${pierce}` : p.projectiles > 1 ? `${p.projectiles} shots` : 'single target';
+    case 'single': {
+      const base = pierce > 0 ? `pierce ${pierce}` : p.projectiles > 1 ? `${p.projectiles} shots` : 'single target';
+      const splash = wieldedSplashFor(w, a);
+      return splash ? `${base} ${formatWieldSplash(splash)}` : base;
+    }
     case 'pierce':
       return `pierce ${pierce}`;
     case 'cone':
@@ -139,7 +141,7 @@ export function vsPanelRows(w: World): VsPanelRow[] {
         pierce,
         aoe,
         damageTypeText: damageTypeText(w, wl.profile.ratio),
-        special: vsLineageSpecial(a, wl.profile, pierce, aoe),
+        special: vsLineageSpecial(w, a, wl.profile, pierce, aoe),
         waveDamage: wave?.damage ?? 0,
         waveDps: wave?.dps ?? 0,
       };

@@ -21,7 +21,7 @@ import { loadContent, type TowerDef } from '../src/sim/content';
 import { Hud } from '../src/ui/hud';
 import { buildTower, upgradeTower } from '../src/sim/towers';
 import { World } from '../src/sim/world';
-import { wieldedAttacks } from '../src/sim/vswield';
+import { wieldedAttacks, wieldedSplashFor } from '../src/sim/vswield';
 import { wieldedLineageText } from '../src/ui/tower-info';
 import { cfg } from './helpers';
 
@@ -77,12 +77,20 @@ describe('p2d — §6.2 weapon panel lineage', () => {
     // not a second copy of §6.1's bonus fraction.
     expect(Number(avg)).toBeCloseTo(wielded.perTowerAverage, 1);
     expect(Number(bonus)).toBe(Math.round((wielded.damage / wielded.perTowerAverage - 1) * 100));
-    expect(special).toBe(`pierce ${wielded.profile.pierce}`);
+    // b079: a `single`-kind special (Arrow, even with a milestone pierce
+    // rank) also discloses its `wieldSplash` cleave into nearby enemies.
+    const splash = wieldedSplashFor(w, ARROW.attack!)!;
+    expect(special).toBe(
+      `pierce ${wielded.profile.pierce} + ${Math.round(splash.fraction * 100)}% splash r${Math.round(splash.radius * 10) / 10}`,
+    );
   });
 
   it('every attack-bearing tower type produces one well-formed line with a kind-specific special', () => {
     const EXPECTED_SPECIAL: Record<string, RegExp> = {
-      arrow_spire: /^(single target|pierce \d+|\d+ shots)$/,
+      // b079: a `single`-kind special always discloses its `wieldSplash`
+      // cleave too (arrow_spire's attack kind is always 'single', so this
+      // suffix is never optional — dropping it should fail this assertion).
+      arrow_spire: /^(single target|pierce \d+|\d+ shots) \+ \d+% splash r[\d.]+$/,
       ballista: /^pierce \d+$/,
       ember_brazier: /^(cone|burn)$/,
       frost_obelisk: /^aura$/,

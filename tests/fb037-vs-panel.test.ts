@@ -12,7 +12,14 @@ import { loadContent, type TowerDef } from '../src/sim/content';
 import { damageEnemy, spawnEnemy } from '../src/sim/enemies';
 import { buildTower, upgradeTower } from '../src/sim/towers';
 import { typeMasteryMul } from '../src/sim/progression';
-import { wieldedAoeFor, wieldedAttacks, wieldedPierceFor, wieldedRangeFor } from '../src/sim/vswield';
+import {
+  updateWieldedAttacks,
+  wieldedAoeFor,
+  wieldedAttacks,
+  wieldedPierceFor,
+  wieldedRangeFor,
+  wieldedSplashFor,
+} from '../src/sim/vswield';
 import { World } from '../src/sim/world';
 import { damageTypeText, vsPanelRows } from '../src/ui/vs-panel';
 import { cfg } from './helpers';
@@ -147,6 +154,42 @@ describe('fb037 — VS panel data model', () => {
     const rows = vsPanelRows(w);
     expect(rows.map((r) => r.name)).toEqual([...rows.map((r) => r.name)].sort((a, b) => a.localeCompare(b)));
     for (const r of rows) expect(r.special.length).toBeGreaterThan(0);
+  });
+
+  it('a single-kind tower (Arrow)\'s special text discloses the real wieldSplash cleave (b079)', () => {
+    const w = new World(cfg(), content);
+    const [t1] = tiles(w, 1);
+    build(w, ARROW, t1.tx, t1.ty);
+
+    const row = vsPanelRows(w).find((r) => r.key === 'arrow_spire')!;
+    const splash = wieldedSplashFor(w, ARROW.attack!)!;
+    expect(splash).not.toBeNull();
+    expect(row.special).toBe(
+      `single target + ${Math.round(splash.fraction * 100)}% splash r${Math.round(splash.radius * 10) / 10}`,
+    );
+
+    // Verify the disclosed numbers match what `wieldSplash` really deals, not
+    // just what the text claims: a primary target plus one enemy standing
+    // just inside the disclosed splash radius.
+    w.phase = 'act2';
+    w.warden.x = t1.tx + 0.5;
+    w.warden.y = t1.ty + 0.5;
+    const primary = spawnEnemy(w, 'husk', w.warden.x + 1, w.warden.y)!;
+    primary.hp = 1e6;
+    primary.maxHp = 1e6;
+    primary.speed = 0;
+    const splashed = spawnEnemy(w, 'husk', primary.x + splash.radius * 0.5, primary.y)!;
+    splashed.hp = 1e6;
+    splashed.maxHp = 1e6;
+    splashed.speed = 0;
+    w.rebuildBuckets();
+
+    updateWieldedAttacks(w, 1 / 60);
+
+    const primaryDamage = 1e6 - primary.hp;
+    const splashDamage = 1e6 - splashed.hp;
+    expect(primaryDamage).toBeGreaterThan(0);
+    expect(splashDamage).toBeCloseTo(primaryDamage * splash.fraction, 6);
   });
 
   it('"this wave" damage/DPS reconciles with the DPS panel\'s own wave window', () => {

@@ -5,6 +5,55 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-02 session: b079 done — VS/weapon-panel lineage discloses
+  `single`-kind wieldSplash cleave (SPEC-FINAL §6.2, qa-playtester finding on
+  fb037).** `vs-panel.ts`'s `vsLineageSpecial` and the sibling pre-existing
+  `tower-info.ts`'s `lineageSpecial` (fb037's own weapon-panel lineage line)
+  both used to print "single target"/"pierce N" for a `single`-kind wielded
+  attack (e.g. Arrow Spire) with no hint it also cleaves
+  `WIELD_SPLASH_FRACTION` (30%) damage into nearby enemies via `wieldSplash`
+  (`sim/vswield.ts`) — filed as b079 rather than fixed inline at fb037 since
+  closing it meant adding a field shared by two independent-but-parallel
+  functions, not a one-line swap. New exported `wieldedSplashFor(w, a)`
+  (`sim/vswield.ts`) mirrors `wieldSplash`'s own radius derivation
+  (`WIELD_SPLASH_RADIUS * w.derived.areaMul`) — `null` for every kind but
+  `single` — so a display surface can never quote a number the real hit
+  disagrees with; a new shared `formatWieldSplash` (`ui/info-format.ts`)
+  renders it as `"+ N% splash rX"`, used by both `vsLineageSpecial` and
+  `lineageSpecial` so the wording can't drift between the two now that both
+  disclose it.
+  code-reviewer **APPROVE** with two Minors, both fixed in the same commit:
+  (1) the first draft had each file format the suffix inline, duplicating
+  the exact wording — factored into the shared `formatWieldSplash`; (2)
+  `tests/p2d-weapon-lineage.test.ts`'s regex made the splash suffix optional
+  even though Arrow Spire (the only `single`-kind tower in `/data`) always
+  carries it, weakening its ability to catch a future regression that drops
+  the disclosure — tightened to a mandatory match.
+  qa-playtester **PASS**, no bugs filed: verified live via a real dev server
+  + headless Chromium (not just the unit tests) — the VS panel (`V` hotkey)
+  and the weapon-panel lineage line both show "single target + 30% splash
+  r1.6" for a base Arrow Spire and "pierce 1 + 30% splash r1.6" once maxed
+  into its pierce milestone; built one of every other attack-bearing kind
+  (Ballista/pierce, Frost Obelisk/aura, Mortar/lob, Tesla Coil/chain, Venom
+  Spore/poison) simultaneously and confirmed none show spurious splash text;
+  two Arrow Spires built together show the `×2` count with the suffix
+  appearing exactly once, not duplicated; the panel/line show nothing in TD
+  phase. Independently verified the disclosed numbers are not just
+  internally consistent but match live combat — a second enemy standing
+  near the primary actually takes ~30% of the primary's damage, matching
+  `wieldedSplashFor`'s disclosed fraction exactly — and forced a mid-VS-wave
+  defeat with the panel open with no thrown errors.
+  `tests/fb037-vs-panel.test.ts` gained a live two-enemy scene (build a
+  single-kind tower, spawn a primary + a splash-range enemy, fire
+  `updateWieldedAttacks`, assert the splash damage equals
+  `primaryDamage * splash.fraction` to 6 decimals) — the exact regression
+  test b079's acceptance criterion calls for, proving the panel's text
+  reflects real combat math rather than merely restating the same constant
+  it reads from. `npx tsc --noEmit` clean; `npm run test:fast`: the same
+  5-file pre-existing Windows fold/Playwright-port-contention flake class
+  prior sessions have repeatedly documented (`b032`/`b034`/`b035`/`b036`,
+  `q15-command-domain-fuzz`), confirmed unrelated to this diff.
+
 - **2026-09-02 session: fb037 done — VS side panel for wielded tower-type
   attacks (SPEC-FINAL §6.2 lineage-panel extension, owner feedback
   `feature-vs-wielded-side-panel`).** New `src/ui/vs-panel.ts`'s

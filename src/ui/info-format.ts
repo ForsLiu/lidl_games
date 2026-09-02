@@ -33,6 +33,17 @@ export function trimNum(n: number, decimals = 2): string {
 }
 
 /**
+ * b079: the "+ N% splash rX" suffix a `single`-kind wielded lineage line
+ * appends to disclose its `wieldSplash` cleave (`sim/vswield.ts`) — shared by
+ * `vs-panel.ts`'s `vsLineageSpecial` and `tower-info.ts`'s `lineageSpecial`
+ * (fb037's new panel and the pre-existing §6.2 weapon-panel line respectively)
+ * so the wording can't drift between the two now that both disclose it.
+ */
+export function formatWieldSplash(splash: { fraction: number; radius: number }): string {
+  return `+ ${Math.round(splash.fraction * 100)}% splash r${trimNum(splash.radius, 1)}`;
+}
+
+/**
  * A fraction (0.03 -> "3%") as percent text, with enough decimal places to
  * stay non-zero for a sub-1% magnitude instead of the flat 1-decimal
  * rounding that collapsed a real affix like the Bleeding Ring's `leech:

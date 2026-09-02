@@ -13,7 +13,8 @@
 import type { TowerDef, TowerAttack } from '../sim/content';
 import type { Structure } from '../sim/types';
 import type { World } from '../sim/world';
-import { wieldedAttacks, type WieldedAttack } from '../sim/vswield';
+import { wieldedAttacks, wieldedSplashFor, type WieldedAttack } from '../sim/vswield';
+import { formatWieldSplash } from './info-format';
 import {
   attackProfile,
   type AttackProfile,
@@ -485,11 +486,16 @@ export function describeTerrain(def: TowerDef): string | null {
 
 /** One phrase per attack shape naming the milestone that actually changed it —
  * the compact counterpart of `KIND_TEXT` above, sized for a lineage line
- * rather than a sentence. */
-function lineageSpecial(a: TowerAttack, p: AttackProfile): string {
+ * rather than a sentence. b079: appends the `single`-kind wielded splash
+ * cleave (`wieldedSplashFor`) so this line doesn't read as "no splash at
+ * all" the way it used to. */
+function lineageSpecial(w: World, a: TowerAttack, p: AttackProfile): string {
   switch (a.kind) {
-    case 'single':
-      return p.pierce > 0 ? `pierce ${p.pierce}` : p.projectiles > 1 ? `${p.projectiles} shots` : 'single target';
+    case 'single': {
+      const base = p.pierce > 0 ? `pierce ${p.pierce}` : p.projectiles > 1 ? `${p.projectiles} shots` : 'single target';
+      const splash = wieldedSplashFor(w, a);
+      return splash ? `${base} ${formatWieldSplash(splash)}` : base;
+    }
     case 'pierce':
       return `pierce ${1 + p.pierce}`;
     case 'cone':
@@ -514,7 +520,7 @@ function lineageLine(w: World, wl: WieldedAttack): string {
   // Guards a future zero-damage utility tower (perTowerAverage === 0) from
   // printing "+NaN%" — code review on this item flagged the bare division.
   const bonus = avg === 0 ? 0 : Math.round((wl.damage / avg - 1) * 100);
-  return `${def.name} ×${wl.count} (avg ${fmt(avg)}, +${bonus}%) — ${lineageSpecial(def.attack!, wl.profile)}`;
+  return `${def.name} ×${wl.count} (avg ${fmt(avg)}, +${bonus}%) — ${lineageSpecial(w, def.attack!, wl.profile)}`;
 }
 
 /**

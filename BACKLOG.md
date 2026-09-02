@@ -541,18 +541,10 @@ in live play today, a pre-existing gap fb029 exposed rather than introduced.
       covers this); hover-ring and collapse/expand both work — refs:
       SPEC-FINAL §6.2 (lineage panel) extension, owner feedback
       `feature-vs-wielded-side-panel`. **done, see Done section.**
-- [ ] (b079) [bug] normal priority: fb037's VS panel (and the pre-existing TD
-      lineage line it extends, `tower-info.ts`'s `lineageSpecial`) both print
-      "single target"/"pierce N" for a `single`-kind wielded attack with no
-      hint that it also cleaves `WIELD_SPLASH_FRACTION` damage into nearby
-      enemies via `wieldSplash` (`sim/vswield.ts`) — a qa-playtester finding
-      on fb037, deliberately not fixed inline (closing it means adding a
-      field, not a one-line swap, and the identical gap is shared with the
-      TD line) — acceptance: the VS panel's special text (or a new field)
-      discloses the splash fraction/radius for a `single`-kind attack; a
-      regression test builds a two-enemy scene and asserts the panel's text
-      reflects the real non-primary damage `wieldSplash` deals — refs:
-      SPEC-FINAL §6.2, `src/ui/vs-panel.ts`'s `vsLineageSpecial`.
+- [x] (b079) [bug] fb037's VS panel (and the pre-existing weapon-panel lineage
+      line it extends, `tower-info.ts`'s `lineageSpecial`) now both disclose a
+      `single`-kind wielded attack's `wieldSplash` cleave — **done, see Done
+      section.**
 
 ### Owner verdict batch (2026-09-01, QUESTIONS Q134–Q154 + `feature-status-report`)
 
@@ -2978,6 +2970,44 @@ logged in MIGRATION.md §8 rather than carried as dead items.
 
 ## Done
 
+- [x] (b079) [bug] `vs-panel.ts`'s `vsLineageSpecial` and the sibling
+      `tower-info.ts`'s `lineageSpecial` (the pre-existing §6.2 weapon-panel
+      lineage line fb037 extends) both used to print "single target"/
+      "pierce N" for a `single`-kind wielded attack with no hint that it also
+      cleaves `WIELD_SPLASH_FRACTION` (30%) damage into nearby enemies via
+      `wieldSplash` (`sim/vswield.ts`) — a qa-playtester finding on fb037,
+      deliberately left unfixed there since closing it meant adding a field,
+      not a one-line swap, and the identical gap existed unfixed in both
+      surfaces at once — refs: SPEC-FINAL §6.2. New exported
+      `wieldedSplashFor(w, a)` (`sim/vswield.ts`) mirrors `wieldSplash`'s own
+      radius derivation (`WIELD_SPLASH_RADIUS * w.derived.areaMul`) — `null`
+      for every kind but `single`, so a display surface can never quote a
+      number the real hit disagrees with. Both `vsLineageSpecial` and
+      `lineageSpecial` now append a `"+ N% splash rX"` suffix via a new
+      shared `formatWieldSplash` (`ui/info-format.ts`) when it applies.
+      code-reviewer **APPROVE** with two Minors, both fixed in the same
+      commit: (1) the two files' splash-suffix text was duplicated verbatim
+      with no shared formatter — factored into `formatWieldSplash`; (2) a
+      test's regex made the splash suffix optional even though Arrow Spire's
+      `single`-kind attack always carries it — tightened to a mandatory
+      match. qa-playtester **PASS**: live via a real dev server + headless
+      Chromium, confirmed both the VS panel (`V` hotkey) and the
+      weapon-panel lineage line show "single target + 30% splash r1.6" for
+      Arrow Spire, "pierce 1 + 30% splash r1.6" once maxed into its pierce
+      milestone, no spurious splash text on any other attack kind (pierce/
+      cone/aura/chain/lob/poison towers built simultaneously), correct ×2
+      count aggregation with the suffix appearing exactly once, and no
+      splash text or panel access outside VS phase. Also verified live that
+      a second enemy standing near the primary actually takes ~30% of the
+      primary's damage, matching the disclosed fraction exactly.
+      `tests/fb037-vs-panel.test.ts` gained a live two-enemy scene proving
+      the disclosed numbers match `updateWieldedAttacks`'s real damage, not
+      just internal self-consistency; `tests/p2d-weapon-lineage.test.ts`'s
+      two pre-existing assertions that hard-coded the old undisclosed shape
+      were updated. `npx tsc --noEmit` clean; `npm run test:fast`: the same
+      5-file pre-existing Windows fold/Playwright-port-contention flake
+      class prior sessions have repeatedly documented (`b032`/`b034`/
+      `b035`/`b036`, `q15-command-domain-fuzz`), unrelated to this diff.
 - [x] (fb037) [feat] VS side panel (SPEC-FINAL §6.2 lineage-panel extension,
       owner feedback `feature-vs-wielded-side-panel`) — commit pending. One
       row per wielded tower type: name/count, `perTowerAverage` vs. the real

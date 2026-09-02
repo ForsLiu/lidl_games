@@ -298,6 +298,18 @@ export function wieldedAoeFor(w: World, def: TowerDef, a: TowerAttack): number {
 }
 
 /**
+ * b079: the crowd-splash a wielded `single`-kind shot actually cleaves into
+ * nearby enemies via `wieldSplash` above — `null` for every other kind, which
+ * `wieldSplash` is never called for. Mirrors `wieldSplash`'s own radius
+ * derivation (`WIELD_SPLASH_RADIUS * area`) so a display surface cannot quote
+ * a radius the real hit disagrees with.
+ */
+export function wieldedSplashFor(w: World, a: TowerAttack): { fraction: number; radius: number } | null {
+  if (a.kind !== 'single') return null;
+  return { fraction: WIELD_SPLASH_FRACTION, radius: WIELD_SPLASH_RADIUS * w.derived.areaMul };
+}
+
+/**
  * fb037: the chain jump count a wielded `chain` attack actually strikes with,
  * mirroring `fireWielded`'s own `chainHit` call (`(a.chains ?? 3) +
  * WIELD_CHAIN_BONUS`) so a display surface cannot quote the tower's plain TD
