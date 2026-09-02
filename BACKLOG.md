@@ -2829,28 +2829,34 @@ because the lane worktree retires at this merge.
       written (re-pin the stale 11-class count) is superseded, but no new
       item has replaced it with the correct 12-class ask, so it stays open
       rather than being silently dropped.
-- [ ] (b076) [bug] a mid-run `equip_item` swap of Sleeve Sword/Swordsman
+- [x] (b076) [bug] a mid-run `equip_item` swap of Sleeve Sword/Swordsman
       Armor/Swordsman Shoes updates the generic `Stats` mods live but not
-      the three items' special `effectKey` mechanics — found (code-reviewer,
-      fb028) while wiring the in-run equipment section's effect-text
-      tooltips: `classes.ts`'s `circleSlashChargeRate`/`tickClassCharge`/
-      `fireDashSlash` all gate their special behavior on `hasEquipment(w,
-      key)` (`sim/equipment.ts`), which reads `w.cfg.equipment` — fixed at
-      `RunConfig` construction — while `run.ts`'s `equipItemCommand` (fb023,
-      §7) only ever writes the live, swappable `w.equippedEquipment`. So
-      unequipping Sleeve Sword mid-run still leaves Circle Slash charge-free
-      (and vice versa for equipping it), even though the item's `Stats`
-      contribution correctly turns on/off the same tick. `equipment-info.ts`'s
-      fb028 tooltips deliberately read `hasEquipment` too, so they stay
-      truthful to this real (if latent-buggy) sim behavior rather than
-      claiming a UI-only fix — acceptance: `circleSlashChargeRate`,
-      `tickClassCharge`'s Sleeve Sword branch and `fireDashSlash`'s
-      `dashRange` doubling all read `w.equippedEquipment` (or an equivalent
-      live-state check) instead of `w.cfg.equipment`, with a regression test
-      driving a real `equip_item` Command mid-run and asserting the special
-      mechanic's behavior flips on the same tick the `Stats` source does —
-      refs: SPEC-FINAL §7, `src/sim/classes.ts`, `src/sim/equipment.ts`,
-      `src/sim/run.ts`'s `equipItemCommand`.
+      the three items' special `effectKey` mechanics — commit `bb69f37`.
+      `hasEquipment` (`sim/equipment.ts`) now reads the live, swappable
+      `w.equippedEquipment` instead of the frozen `w.cfg.equipment`, so all
+      four call sites in `classes.ts` (`circleSlashChargeRate`,
+      `tickClassCharge`'s Sleeve Sword branch, `fireDashSlash`'s `dashRange`
+      doubling, and `fireCircleSlash`'s cross-item `atkSpdDamageBoost`) pick
+      it up automatically; the in-run equipment tooltip (`hud.ts`'s
+      `runEquipmentContext`, `equipment-info.ts`) now reads the same live
+      state so its (active)/(inert) text stays truthful. `tests/fb028-
+      effect-text.test.ts`'s block that had pinned the buggy frozen-loadout
+      behavior as correct is flipped to pin the fix; new
+      `tests/b076-midrun-equip-effect.test.ts` (5 tests) drives real
+      `equip_item` Commands mid-run and confirmed red pre-fix via `git
+      stash` (3 of 5 failed, the 2 unaffected-by-this-bug controls still
+      passed). code-reviewer **APPROVE** (no Critical/Major; confirmed no
+      other `w.cfg.equipment`/`hasEquipment` reader exists repo-wide, the
+      sites that correctly stayed frozen — `stats.ts`'s `baseRunStats`,
+      `world.ts`'s initial `equippedEquipment` seed — are intentional, and
+      `hashWorld` already covers `w.equippedEquipment` so this is no new
+      determinism hazard). qa-playtester **PASS**: adversarially drove the
+      reverse direction (unequip mid-run turns the mechanic off), both
+      orderings of the Sleeve Sword + Swordsman Armor cross-item boost, a
+      real jsdom-mounted `Hud` proving the tooltip DOM text flips live, the
+      unaffected run-start (non-swap) case, and replay-hash determinism
+      across two independent runs sharing an `equip_item`-bearing input log
+      — no bugs filed.
 - [x] (b028) [bug] `tests/q14-mutation-smoke.test.ts` on Windows can spawn a
       runaway tree of orphaned nested `vitest` subprocesses and hang —
       **done, see Done section.** The "three consecutive full-suite runs"

@@ -5,6 +5,44 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-02 session: b076 done — mid-run `equip_item` swap now flips
+  Sleeve Sword/Swordsman Armor/Swordsman Shoes' special mechanics live, not
+  just their generic `Stats` mods (commit `bb69f37`).** `hasEquipment`
+  (`src/sim/equipment.ts`) read the frozen starting loadout `w.cfg.equipment`
+  instead of the live, swappable `w.equippedEquipment` — a confirmed bug
+  (working rule 3), picked ahead of the queue's normal-priority `fb044`/
+  `fb046`/`fb048` and the larger `p10r` balance retune, all of which were the
+  only other unchecked items in BACKLOG.md this session. Fixed by pointing
+  `hasEquipment` at `Object.values(w.equippedEquipment).includes(key)`; the
+  four call sites this feeds in `src/sim/classes.ts`
+  (`circleSlashChargeRate`, `tickClassCharge`'s Sleeve Sword branch,
+  `fireDashSlash`'s `dashRange` doubling, `fireCircleSlash`'s cross-item
+  `atkSpdDamageBoost`) all pick up the fix automatically. The in-run
+  equipment tooltip (`hud.ts`'s `runEquipmentContext`, `equipment-info.ts`)
+  now reads the same live state so its (active)/(inert) text stays truthful
+  — previously it had deliberately mirrored the buggy frozen-loadout read to
+  "stay truthful to what the sim actually does," which is exactly the
+  documentation this fix retired. A failing regression test landed first:
+  new `tests/b076-midrun-equip-effect.test.ts` (5 tests, confirmed 3 of 5 red
+  pre-fix via `git stash`, the other 2 being unaffected controls) plus a
+  flipped block in `tests/fb028-effect-text.test.ts` that had previously
+  pinned the buggy behavior as correct. code-reviewer **APPROVE** (no
+  Critical/Major; confirmed no other repo-wide reader of `w.cfg.equipment`/
+  `hasEquipment` exists, that the sites correctly left reading the frozen
+  loadout — `stats.ts`'s `baseRunStats`, `world.ts`'s initial
+  `equippedEquipment` seed — are intentional, and that `hashWorld` already
+  hashes `w.equippedEquipment` so this closes a live-behavior bug rather than
+  opening a new determinism hazard). qa-playtester **PASS**: adversarially
+  drove the reverse direction (unequip mid-run turns the mechanic off
+  immediately), both equip orderings of the Sleeve Sword + Swordsman Armor
+  cross-item boost, a real jsdom-mounted `Hud` proving the tooltip DOM text
+  flips live on the same `equip_item` Command, the unaffected run-start
+  (non-swap) case, and replay-hash determinism across two independent runs
+  sharing an `equip_item`-bearing input log — no bugs filed. `npm run
+  test:fast`: only the pre-existing Windows host-load flake class
+  (`q15-command-domain-fuzz`, `b032`/`b034`/`b035`/`b036`) failed, each
+  green in isolation and reproducing identically on a clean pre-fix stash;
+  nothing new. `npx tsc --noEmit` clean.
 - **2026-09-02 session: fb042 done — Constellation dead/mul nodes get flat
   `startingGold` (QUESTIONS Q146 ORDER, commit `44eb1dc`).** The 13 emptied
   ex-Emberkeeper/Scavenger small nodes and the Tinkerer/Gilded Path notables
