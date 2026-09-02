@@ -1414,6 +1414,73 @@ fresh number.
       split out if the two turn out to trade against each other. **G14**
       needs no further work (fb049 re-confirmed 19/20, 95%, inside band).
 
+      **PASSED OVER this session (2026-09-02), not closed — genuine `/data`-only
+      wall found and logged, QUESTIONS Q158.** balance-analyst ran six
+      independent, measured tuning probes (wave HP-curve, late-wave spawn
+      density, `stone_heart` Core-upgrade cost/HP, three `cores.json` effect
+      cuts across the other four Cores, a ~50% swordsman-kit potency cut) and
+      found no `/data`-only lever that makes net progress: a shared
+      difficulty lever (e.g. wave HP-curve) crushes **G14** to 33% win at the
+      same delta that leaves G8's ceiling classes fully unmoved, because G14
+      is the only one of the four gates run against the stock `hybrid` policy
+      with no scripted class-active firing or forced Core-upgrade purchases
+      (G8/G23's own harnesses add both on top of `hybrid`) — it breaks first,
+      long before the boosted harnesses move at all. `data/cores.json`'s
+      Core-effect/upgrade-step fields are comprehensively pinned to exact
+      SPEC-FINAL §5.5 worked-example literals by live **G21** tests (no field
+      on any of the five Cores survived a real value change, including
+      `stone_heart.upgrade` which looked G1/G14-decoupled since `hybrid`
+      never buys Core upgrades at all). `data/classes.json` kit potency
+      turned out to be the wrong lever regardless of pinning: a 50%
+      swordsman-kit cut left G8 completely unmoved (still 12/12), matching
+      `tests/p6e-class-diversity.test.ts`'s own materiality finding that
+      own-kit damage share stays under ~20% per class. All three probed
+      `/data` files were left at a clean `git diff` (no change landed) —
+      forcing a partial tune would either regress G14 out of band or move
+      nothing, neither of which is progress. Per CLAUDE.md rule 6 (~5 genuine
+      attempts, then log and move on) and the `p10k`/`b027` precedent for an
+      honestly-reported wall, this item stays **open and blocked** rather
+      than closed or silently dropped. Unblocking it needs a change outside
+      balance-analyst's `/data`-only mandate — filed as **p10s**: either
+      loosen G21's exact-literal Core pins to formula/range assertions (the
+      way `tests/p6d-nine-classes.test.ts` already reads live data instead of
+      hardcoding), which would legalize Core-effect tuning as a G23 lever; or
+      give G14/G1 a scripted-kit-and-Core-purchase harness matching G8/G23's
+      so one shared difficulty lever moves all four gates proportionally
+      instead of hitting G14 first. Re-measured (not changed) at HEAD during
+      this probe: **G14** 16/20 (80%, still inside `[60,100)`, drifted from
+      the stale 18/20 comment via unrelated commits landed since `fb049` —
+      `fb028`/`fb030`/`fb031`/`fb036`/`fb042`/`b076`/`fb044`); **G1** mean
+      36.70 min, 19/24 wins (79%, 0.70 min over the 36-min ceiling, also
+      drifted from the stale 36.36 comment for the same reason) — both
+      re-measurements, not regressions caused by this session, and both
+      already `.skip`-ed pre-session so no test file needed touching.
+      — refs: QUESTIONS Q158, p10s.
+
+- [ ] (p10s) [feat] Unblock `p10r`'s G8/G23 retune, filed from Q158's wall:
+      the `/data`-only retune is structurally blocked by (a) G14/G1 running
+      the stock `hybrid` bot with no scripted class-active firing or forced
+      Core-upgrade purchases while G8/G23's own harnesses add both on top of
+      `hybrid`, so a shared T1 difficulty lever always breaks G14 before it
+      dents G8/G23, and (b) `data/cores.json`'s Core-effect/upgrade-step
+      fields being pinned to exact SPEC-FINAL §5.5 worked-example literals by
+      live G21 tests, closing off Core-effect tuning as a G23 lever entirely.
+      Pick one and implement it: (1) loosen G21's exact-literal pins in
+      `tests/p-core-b-effects.test.ts` through `p-core-e-time-decay.test.ts`
+      to formula/range assertions derived from `/data` (precedent:
+      `tests/p6d-nine-classes.test.ts` already reads live data instead of
+      hardcoding), which legalizes Core-effect `/data` tuning as a G23 lever
+      without losing G21's real intent (numbers still traceable to §5.5); or
+      (2) give the `hybrid` bot policy (or a new policy) the same
+      scripted-kit-and-Core-purchase behavior G8/G23's harnesses already
+      script on top of it, so G1/G14 measure the same "real player" shape
+      G8/G23 do and a shared difficulty lever moves all four proportionally.
+      Once landed, re-run `p10r`'s retune against the unblocked lever —
+      acceptance: G21 stays green (reformulated or untouched), then a
+      `/data`-only retune pass closes at least 9 of 12 G8 classes and 3 of 5
+      G23 Cores into `[35%,70%]` without moving G1 or G14 out of their bands
+      — refs: SPEC-FINAL §14 G8/G21/G23, QUESTIONS Q158, p10r.
+
 ### Filed at the lane/quality merge (2026-08-27) — out-of-scope findings from BACKLOG-QUALITY.md's log
 
 The quality lane's session logs recorded main-lane defects it could not fix

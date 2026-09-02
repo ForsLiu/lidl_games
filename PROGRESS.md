@@ -5,6 +5,46 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-02 session: p10r passed over, not closed — genuine `/data`-only
+  wall found on the G8/G23 retune and logged (QUESTIONS Q158), unblock filed
+  as p10s.** Delegated to balance-analyst: retune T1 pacing to bring G8's
+  12 classes and G23's 5 Cores back inside `[35%,70%]` (both over-ceiling
+  since `p10j`-`p10l`'s pacing pass) without moving G1 (mean run length) or
+  G14 (boss) out of band. Six independent, measured probes across every
+  plausible `/data` lever found no net-positive move: a shared T1
+  difficulty lever (wave HP-curve) crushes G14 to 33% win at the same delta
+  that leaves G8's ceiling classes (swordsman/plaguebringer/engineer/
+  pyromancer/archer/cryomancer/stormcaller) fully unmoved at 12/12, because
+  G14 is the only one of the four gates measured against the stock `hybrid`
+  bot with no scripted class-active firing or forced Core-upgrade purchases
+  — G8/G23's own test harnesses add both on top of `hybrid`, so a shared
+  lever always breaks G14 first. `data/cores.json`'s Core-effect/
+  upgrade-step fields are comprehensively pinned to exact SPEC-FINAL §5.5
+  worked-example literals by live G21 tests, closing off Core-effect tuning
+  as a G23 lever (even `stone_heart.upgrade`, which looked G1/G14-decoupled
+  since `hybrid` never buys Core upgrades at all, is G21-pinned). A ~50%
+  swordsman-kit potency cut in `data/classes.json` left G8 completely
+  unmoved (still 12/12), confirming class-kit tuning isn't the right lever
+  either — own-kit damage share stays under ~20% of total per class. All
+  probed `/data` files were reverted to a clean `git diff` (no net change).
+  Per CLAUDE.md rule 6 (~5 genuine attempts, then log and move on) and the
+  `p10k`/`b027` precedent for an honestly-reported wall, `p10r` stays open
+  and blocked rather than forced closed with a partial/bad tune. Filed
+  **p10s** to unblock it: either loosen G21's exact-literal pins to
+  formula/range assertions (precedent: `tests/p6d-nine-classes.test.ts`
+  already reads live data instead of hardcoding), legalizing Core-effect
+  `/data` tuning as a G23 lever; or give a bot policy the same
+  scripted-kit-and-Core-purchase behavior G8/G23 already script on top of
+  `hybrid`, so G1/G14 measure the same "real player" shape and one shared
+  lever moves all four gates proportionally. Also re-measured (not changed)
+  while probing: **G14** now 16/20 (80%, still inside band, drifted from
+  the stale 18/20 comment via unrelated commits since `fb049`); **G1** now
+  mean 36.70 min, 19/24 wins (0.70 min over the 36-min ceiling, drifted from
+  the stale 36.36 comment for the same reason) — both re-measurements only,
+  both test files were already `.skip`-ed pre-session so nothing needed
+  touching. No code or `/data` change landed this session; no commit beyond
+  this doc/QUESTIONS update. fb046 (which explicitly needs `p10r`'s retune
+  to land first) stays blocked behind `p10r`/`p10s` too.
 - **2026-09-02 session: fb044 done — typed per-field Tuner widgets for
   towers/classes/cores/waves (QUESTIONS Q150 ORDER, commit `5174e3f`).** New
   `src/ui/tuner-fields.ts` walks each collection's own zod schema (the
