@@ -92,7 +92,9 @@ export type DevOp =
   /** fb033: toggles `World.infiniteTdWaves` — TD waves never hand off to the VS wave. */
   | 'toggle_infinite_td'
   /** fb033: toggles `World.infiniteVsWaves` — the VS wave never hands off back to TD. */
-  | 'toggle_infinite_vs';
+  | 'toggle_infinite_vs'
+  /** fb034: raises every live structure and the Core to their final upgrade step, free. */
+  | 'max_towers';
 
 export interface TickInput {
   /** Movement axis, quantized to -1 | 0 | 1 so replays are exact. */

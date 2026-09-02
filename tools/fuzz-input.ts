@@ -51,6 +51,7 @@ const DEV_OPS: DevOp[] = [
   'fast_forward',
   'toggle_infinite_td',
   'toggle_infinite_vs',
+  'max_towers',
 ];
 
 /**

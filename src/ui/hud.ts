@@ -1646,6 +1646,12 @@ export const PRACTICE_BUTTONS: { op: DevOp; amount: number; label: string; title
     label: 'Infinite VS waves',
     title: 'The VS wave never hands back to TD or ends by boss kill; scaling keeps climbing until toggled off',
   },
+  {
+    op: 'max_towers',
+    amount: 0,
+    label: 'Max towers',
+    title: 'Raises every placed tower and the Core to their final upgrade step, free',
+  },
 ];
 
 /** SPEC-FINAL §6.2: every wielded tower type's lineage — the only Act II panel. */

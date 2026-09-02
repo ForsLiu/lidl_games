@@ -32,6 +32,7 @@ const OP_COVERAGE: Record<DevOp, true> = {
   spawn: true,
   toggle_infinite_td: true,
   toggle_infinite_vs: true,
+  max_towers: true,
 };
 
 const ALL_OPS = Object.keys(OP_COVERAGE) as DevOp[];

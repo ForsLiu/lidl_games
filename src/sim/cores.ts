@@ -201,6 +201,28 @@ export function inCoreBuildRange(w: World): boolean {
 }
 
 /**
+ * Applies the effects of Core upgrade step `stepIndex` (already reserved by
+ * the caller via `w.coreStep++`) — shared by `upgradeCore`'s paid single step
+ * and `maxCore`'s free walk to the top so the two can never apply a step's
+ * `coreHpBonus`/`hpRegenPerSecond` differently.
+ */
+function applyCoreStep(w: World, def: CoreDef, stepIndex: number): void {
+  const stepData = def.upgrade.steps?.[stepIndex] ?? {};
+  if (stepData.coreHpBonus) {
+    // Damage taken carries across the upgrade, the same rule `upgradeTower`
+    // applies to a Structure's HP — a wound is preserved, not healed away.
+    const ratio = w.coreMaxHp > 0 ? w.coreHp / w.coreMaxHp : 1;
+    w.coreMaxHp += stepData.coreHpBonus;
+    w.coreHp = w.coreMaxHp * ratio;
+  }
+  if (stepData.hpRegenPerSecond) {
+    // Character regen is generic `Stats`, not `CoreState` — see file header.
+    w.stats.add(`core:${w.coreKey}:step${stepIndex}`, 'hpRegen', stepData.hpRegenPerSecond);
+    w.recomputeDerived();
+  }
+}
+
+/**
  * Buys the next Core upgrade step, mirroring `upgradeTower` (`towers.ts`):
  * same TD-only phase gate and build-range rule, flat cost (§5.5 — no
  * `costMul`), never sellable so there is no reverse of this function.
@@ -218,22 +240,27 @@ export function upgradeCore(w: World): boolean {
 
   const stepIndex = w.coreStep;
   w.coreStep++;
-  const stepData = def.upgrade.steps?.[stepIndex] ?? {};
-
-  if (stepData.coreHpBonus) {
-    // Damage taken carries across the upgrade, the same rule `upgradeTower`
-    // applies to a Structure's HP — a wound is preserved, not healed away.
-    const ratio = w.coreMaxHp > 0 ? w.coreHp / w.coreMaxHp : 1;
-    w.coreMaxHp += stepData.coreHpBonus;
-    w.coreHp = w.coreMaxHp * ratio;
-  }
-  if (stepData.hpRegenPerSecond) {
-    // Character regen is generic `Stats`, not `CoreState` — see file header.
-    w.stats.add(`core:${w.coreKey}:step${stepIndex}`, 'hpRegen', stepData.hpRegenPerSecond);
-    w.recomputeDerived();
-  }
+  applyCoreStep(w, def, stepIndex);
   w.recomputeCore();
   return true;
+}
+
+/**
+ * fb034 practice tool: walks the Core free to its final upgrade step, reusing
+ * `applyCoreStep` for every remaining step so the HP-ratio-preserving and
+ * regen-stat effects are identical to buying them one at a time — the only
+ * difference is no gold is spent and no phase/build-range gate applies (this
+ * is a dev Command, already gated on `w.cfg.practice` by `applyDevCommand`).
+ */
+export function maxCore(w: World): void {
+  const def = w.content.coreByKey.get(w.coreKey);
+  if (!def) return;
+  while (w.coreStep < def.upgrade.count) {
+    const stepIndex = w.coreStep;
+    w.coreStep++;
+    applyCoreStep(w, def, stepIndex);
+  }
+  w.recomputeCore();
 }
 
 /**

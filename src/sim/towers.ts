@@ -183,6 +183,29 @@ export function upgradeTower(w: World, tx: number, ty: number): boolean {
   return true;
 }
 
+/**
+ * fb034 practice tool: raises every live structure to its final upgrade step,
+ * free — reuses `upgradeTower`'s HP-ratio-preserving math and breach refresh,
+ * but skips the cost/phase/build-range gates since this is a dev Command
+ * already gated on `w.cfg.practice` by `applyDevCommand`. A petrified or
+ * already-dead structure is left alone, matching `upgradeTower`'s own refusal.
+ */
+export function maxAllTowers(w: World): void {
+  for (const s of w.structures) {
+    if (s.dead || s.petrified) continue;
+    const def = w.content.towerById.get(s.towerId)!;
+    const top = maxLevel(def);
+    if (s.tier >= top) continue;
+    s.tier = top;
+    const ratio = s.maxHp > 0 ? s.hp / s.maxHp : 1;
+    s.maxHp = structureMaxHp(w, def, s.tier);
+    s.hp = s.maxHp * ratio;
+    w.refreshBreach(s);
+    w.emit('upgrade', s.tx + 0.5, s.ty + 0.5, def.id, s.tier);
+  }
+  markAuraDirty(w);
+}
+
 export function sellTower(w: World, tx: number, ty: number): boolean {
   if (!canBuildNow(w)) return false;
   const s = w.structureAt(tx, ty);

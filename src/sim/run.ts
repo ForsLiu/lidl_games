@@ -18,10 +18,11 @@ import {
   type WardenDamageOptions,
 } from './enemies';
 import { setAreaDamageHandler, updateAreas, updateProjectiles } from './combat';
-import { buildTower, collectSproutGold, sellTower, updateTowers, upgradeTower } from './towers';
+import { buildTower, collectSproutGold, maxAllTowers, sellTower, updateTowers, upgradeTower } from './towers';
 import {
   applyHealingToWarden,
   coreMoveSpeedMul,
+  maxCore,
   updateCarnivorousPlant,
   updateCoreEffects,
   updateCorpse,
@@ -436,6 +437,10 @@ export function applyDevCommand(w: World, op: DevOp, amount: number, enemyKey?: 
       break;
     case 'toggle_infinite_vs':
       w.infiniteVsWaves = !w.infiniteVsWaves;
+      break;
+    case 'max_towers':
+      maxAllTowers(w);
+      maxCore(w);
       break;
     default:
       break;
