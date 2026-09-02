@@ -30,7 +30,19 @@ export const PALETTE = {
   ghost: '#ffffff55',
   ghostBad: '#ff5f5f88',
   ghostGood: '#5fff8f88',
+  /** fb036: a sealed gate's breach route through structures. */
+  pathBreach: '#ff5f5f',
 };
+
+/**
+ * fb036: one distinct dashed-line color per spawn gate, indexed against
+ * `World.gates` order (world.ts: `GATES.slice(0, 3)` — west, north, east —
+ * plus a 4th `south` entry when the Fourth Gate modifier is active), so each
+ * gate's path indicator reads apart from the others on screen. A run with
+ * more gates than colors wraps via `% GATE_PATH_COLORS.length` rather than
+ * going undefined.
+ */
+export const GATE_PATH_COLORS: readonly string[] = ['#7ecbff', '#ffd166', '#a78bfa', '#7ee08a'];
 
 export const TOWER_COLORS: Record<string, string> = {
   palisade: '#6d6f78',

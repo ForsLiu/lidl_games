@@ -371,6 +371,34 @@ export class Grid {
   static tileCenter(tx: number, ty: number): { x: number; y: number } {
     return { x: tx + 0.5, y: ty + 0.5 };
   }
+
+  /**
+   * fb036: the tile-by-tile route a walker entering at this gate currently
+   * takes to the Core, per the live `ground` field — the same `stepFrom`
+   * chain a real enemy follows, so a drawn indicator can never show a route
+   * the sim itself does not walk. Includes the gate tile; `breach` flags a
+   * tile occupied by a structure (the field is routing an orthogonal step
+   * through it — SPEC-FINAL §10 — which only happens once no cheaper open
+   * path exists, i.e. that approach is sealed). Capped at the tile count so
+   * a corrupted field can never loop forever instead of just stopping short.
+   */
+  gatePath(gate: GateDef): Array<{ tx: number; ty: number; breach: boolean }> {
+    const out: Array<{ tx: number; ty: number; breach: boolean }> = [];
+    const seen = new Set<number>();
+    let tx = gate.tx;
+    let ty = gate.ty;
+    for (let i = 0; i < GRID_W * GRID_H; i++) {
+      const idx = this.idx(tx, ty);
+      if (seen.has(idx)) break;
+      seen.add(idx);
+      out.push({ tx, ty, breach: this.occ[idx] !== 0 });
+      if (this.tile[idx] === TileType.Core) break;
+      const next = this.stepFrom(tx, ty);
+      if (!next) break;
+      [tx, ty] = next;
+    }
+    return out;
+  }
 }
 
 export function coreCenter(): { x: number; y: number } {

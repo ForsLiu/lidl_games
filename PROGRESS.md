@@ -5,6 +5,44 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-02 session: fb036 done — TD path indicators from every spawn
+  gate (SPEC-FINAL §10 pathing, §11 indicators, owner feedback
+  `feature-td-path-indicators`).** New `Grid.gatePath(gate)` (`src/sim/grid.ts`)
+  walks the same `stepFrom`/`ground` flow-field chain a real enemy follows
+  from a gate tile to the Core, returning the tile-by-tile route with a
+  `breach` flag per tile (occupied by a structure — only possible once no
+  cheaper open path exists, SPEC-FINAL §10). `Renderer.drawPathIndicators`
+  (`canvas.ts`) strokes it dashed, one color per gate (new `GATE_PATH_COLORS`
+  in `theme.ts`), switching to a new `PALETTE.pathBreach` red for breached
+  spans; gated `!night` (TD only, same pattern as `drawRangeRings`) and a new
+  `showPathIndicators` Settings toggle (default ON). Since `drawPathIndicators`
+  reads `gatePath` fresh every frame off a field `run.ts` already refreshes
+  every tick right after commands apply, the "updates within one tick of a
+  placement change" acceptance clause is structural rather than
+  timing-lucky. code-reviewer **REQUEST-CHANGES → fixed → clean**: one
+  Major — the first draft iterated the static 3-entry `GATES` constant
+  instead of `World.gates` (the run's real per-run gate list), so the Fourth
+  Gate modifier's 4th (`south`) gate silently drew nothing, contradicting
+  "every gate" — fixed to iterate `w.gates`, `GATE_PATH_COLORS` extended to
+  4 entries, and a regression test added (`modifiers: ['gate']`, asserts all
+  4 gate colors draw). qa-playtester **PASS**: live via a real dev server +
+  headless Playwright — toggle defaults ON, all 3 gate colors draw in both
+  build phase and mid-wave, a built/sold tower bends/reverts the drawn route
+  on the very next frame, walling off a gate turns the relevant span
+  `pathBreach` red with no crash, VS phase draws nothing, and reaching the
+  Fourth Gate modifier through the real Hub UI (not just the unit test)
+  confirmed all 4 gate colors including south draw live. Adversarial:
+  200-iteration build/sell spam, mass-wall spam across most of the board,
+  window-resize spam, simulated alt-tab, abrupt Hub-return mid-wave, and a
+  full defeat→results→Hub cycle all produced no errors; settings persistence
+  through a real reload confirmed. `npm run test:fast`: the same 5-file
+  pre-existing Windows fold/Playwright-port-contention flake class prior
+  sessions have repeatedly documented (`b032`/`b034`/`b035`/`b036`,
+  `q15-command-domain-fuzz`), confirmed unrelated via a `git stash` control
+  run on unmodified `master` reproducing the identical 5. `npx tsc --noEmit`
+  clean. `tests/grid.test.ts` (+2), `tests/fb036-path-indicators.test.ts`
+  (new, 6 tests), `tests/q3-save-fuzz.test.ts` (+1 field).
+
 - **2026-09-02 session: fb035 done — game speed control becomes a dropdown
   spanning 0.25x-50x (SPEC-FINAL §11 fast-forward extension, owner feedback
   `feature-speed-dropdown`).** `src/ui/pacer.ts`'s `SPEEDS` extended from

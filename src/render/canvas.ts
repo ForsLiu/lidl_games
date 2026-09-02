@@ -29,6 +29,7 @@ import {
 } from '../sim/towers';
 import {
   ENEMY_COLORS,
+  GATE_PATH_COLORS,
   PALETTE,
   TERRAIN_COLORS,
   TOWER_COLORS,
@@ -456,6 +457,7 @@ export class Renderer {
     this.drawHover(w, view);
     this.drawSelection(w, view);
     if (!night) this.drawRangeRings(w, view);
+    if (!night && view.settings.showPathIndicators) this.drawPathIndicators(w);
     this.drawCharacterRangeRing(w, view);
     if (!night) this.drawBuildGhost(w, view);
     this.drawNumbers();
@@ -1196,6 +1198,42 @@ export class Renderer {
         }
       }
     }
+    ctx.globalAlpha = 1;
+    ctx.lineWidth = 1;
+  }
+
+  /**
+   * fb036 (SPEC-FINAL §10 pathing, §11 indicators): each gate's live route to
+   * the Core, dashed and colored per gate (`GATE_PATH_COLORS`, `w.gates`
+   * order), reusing the exact tile chain `Grid.gatePath` walks off the same
+   * `ground` field a real enemy follows — so the drawn line can never show a
+   * route the sim itself does not, and it turns dashed red for whichever
+   * span currently breaches a structure (only possible once no cheaper open
+   * path exists — §10 — i.e. that approach is sealed). Iterates `w.gates`
+   * (this run's real spawn list, 3 or 4 with the Fourth Gate modifier's
+   * `south` entry — `run.ts` spawns from this list, not the static `GATES`),
+   * so a modifier-opened gate gets its own route drawn too.
+   */
+  private drawPathIndicators(w: World): void {
+    const ctx = this.ctx;
+    ctx.lineWidth = 2;
+    for (let gi = 0; gi < w.gates.length; gi++) {
+      const path = w.grid.gatePath(w.gates[gi]);
+      if (path.length < 2) continue;
+      const color = GATE_PATH_COLORS[gi % GATE_PATH_COLORS.length];
+      ctx.setLineDash([6, 5]);
+      for (let i = 1; i < path.length; i++) {
+        const a = path[i - 1];
+        const b = path[i];
+        ctx.strokeStyle = b.breach ? PALETTE.pathBreach : color;
+        ctx.globalAlpha = b.breach ? 0.85 : 0.55;
+        ctx.beginPath();
+        ctx.moveTo((a.tx + 0.5) * TILE, (a.ty + 0.5) * TILE);
+        ctx.lineTo((b.tx + 0.5) * TILE, (b.ty + 0.5) * TILE);
+        ctx.stroke();
+      }
+    }
+    ctx.setLineDash([]);
     ctx.globalAlpha = 1;
     ctx.lineWidth = 1;
   }

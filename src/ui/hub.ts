@@ -593,6 +593,7 @@ const TOGGLES: { key: keyof Settings; label: string }[] = [
   { key: 'showRanges', label: 'Show tower ranges' },
   { key: 'showGrid', label: 'Show grid' },
   { key: 'showEnemyHpBars', label: 'Enemy HP bars' },
+  { key: 'showPathIndicators', label: 'TD path indicators' },
   // SPEC-V3 T3. Presentation-adjacent rather than presentation-only: it decides
   // whether the dev profile is applied at startup, so it takes effect on reload.
   { key: 'cleanProfile', label: 'Clean profile (ignore dev unlocks, needs reload)' },

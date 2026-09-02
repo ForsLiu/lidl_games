@@ -484,7 +484,7 @@ in live play today, a pre-existing gap fb029 exposed rather than introduced.
       every failing file in isolation (all green) and, for the fold suite,
       by stashing the diff and reproducing the identical failures on
       unmodified `master`.
-- [ ] (fb036) [feat] TD path indicators from every spawn gate: during TD
+- [x] (fb036) [feat] TD path indicators from every spawn gate: during TD
       build phases and waves, draw each gate's current route to the Core
       (dashed line or arrows, one color per gate), updating live within one
       tick of a tower/wall placement or sale, including the breach route
@@ -493,7 +493,44 @@ in live play today, a pre-existing gap fb029 exposed rather than introduced.
       update within one tick of a placement change; the breach route shows
       once sealed; a test asserts the drawn path equals the pathing
       system's own route — refs: SPEC-FINAL §10 (pathing), §11 (indicators),
-      owner feedback `feature-td-path-indicators`.
+      owner feedback `feature-td-path-indicators`. **Done — see PROGRESS.md's
+      2026-09-02 fb036 entry.** New `Grid.gatePath(gate)` (`src/sim/grid.ts`)
+      walks the existing `stepFrom`/`ground` flow-field chain from a gate
+      tile to the Core, returning the tile-by-tile route with a `breach`
+      flag per tile (occupied by a structure — SPEC-FINAL §10's "no cheaper
+      open path exists" case); `Renderer.drawPathIndicators` (`canvas.ts`)
+      strokes it dashed, one color per gate (`GATE_PATH_COLORS`, `theme.ts`),
+      switching to `PALETTE.pathBreach` red for breached spans, gated `!night`
+      (TD only, same pattern as `drawRangeRings`) and the new `showPathIndicators`
+      Settings toggle (default ON, `settings.ts`/`hub.ts`). Because
+      `drawPathIndicators` reads `w.grid.gatePath` fresh every frame off a
+      field `run.ts` already refreshes every tick right after commands apply,
+      the "updates within one tick" clause is structural, not timing-lucky.
+      code-reviewer **REQUEST-CHANGES → fixed → clean**: one Major —
+      the first draft iterated the static 3-entry `GATES` constant
+      (`grid.ts`) instead of `World.gates`, the run's real per-run gate list,
+      so the Fourth Gate modifier's 4th (`south`) gate silently drew no path
+      at all, contradicting the acceptance line's "every gate" — fixed to
+      iterate `w.gates`, `GATE_PATH_COLORS` extended to 4 entries, and a
+      regression test added building a `World` with `modifiers: ['gate']`
+      and asserting all 4 gates' colors appear. qa-playtester **PASS**:
+      live via a real dev server + headless Playwright, confirmed the toggle
+      defaults ON, all 3 gate colors draw in both build phase and mid-wave,
+      a built/sold tower bends/reverts the drawn route on the very next
+      frame, walling off a gate turns the relevant span `PALETTE.pathBreach`
+      red without a crash, VS phase draws nothing, and — reaching the
+      Fourth Gate modifier through the real Hub UI (tier 5, modifier draft)
+      rather than only the unit test — all 4 gate colors including south
+      drew live, the exact scenario the code-reviewer's fix targeted.
+      Adversarial: 200-iteration build/sell spam, mass-wall spam across most
+      of the board, window-resize spam, simulated alt-tab, abrupt Hub-return
+      mid-wave, and a full defeat→results→Hub cycle all produced no errors;
+      settings persistence through a real reload confirmed. `npm run
+      test:fast`: 5 files failed, but a `git stash` control run on unmodified
+      `master` reproduces the identical 5 (`b032`/`b034`/`b035`/`b036` fold/
+      Playwright-port-contention and `q15-command-domain-fuzz`), the same
+      pre-existing flake class prior sessions have repeatedly documented —
+      confirmed unrelated to this diff. `npx tsc --noEmit` clean.
 - [ ] (fb037) [feat] VS side panel: a collapsible panel listing every
       wielded tower-type attack's derived damage (average × count bonus),
       attack speed, range, pierce/AoE, damage-type split, active milestone

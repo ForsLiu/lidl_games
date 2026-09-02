@@ -19,6 +19,12 @@ export interface Settings {
    */
   showEnemyHpBars: boolean;
   /**
+   * fb036: draws each spawn gate's current route to the Core (dashed, one
+   * color per gate) during TD build phases and waves, switching to dashed
+   * red through any structure tile the route currently breaches.
+   */
+  showPathIndicators: boolean;
+  /**
    * fb005: colorblind-safe palette for per-damage-type floating numbers/markers.
    * Named without the literal word "colorblind" (which contains "orb") so it
    * doesn't trip `tests/c7-no-orbs.test.ts`'s "no Hub tab renders the word
@@ -54,6 +60,7 @@ export function defaultSettings(): Settings {
     showRanges: false,
     showGrid: false,
     showEnemyHpBars: true,
+    showPathIndicators: true,
     accessiblePalette: false,
     reducedFlash: false,
     cleanProfile: false,
@@ -90,6 +97,7 @@ export function sanitize(s: Settings): Settings {
     showRanges: !!s.showRanges,
     showGrid: !!s.showGrid,
     showEnemyHpBars: !!s.showEnemyHpBars,
+    showPathIndicators: !!s.showPathIndicators,
     accessiblePalette: !!s.accessiblePalette,
     reducedFlash: !!s.reducedFlash,
     cleanProfile: !!s.cleanProfile,

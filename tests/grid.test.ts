@@ -82,6 +82,39 @@ describe('grid', () => {
     expect(ghost).toBeGreaterThan(0);
     expect(ghost).toBeLessThan(breach);
   });
+
+  it('gatePath (fb036) walks the exact same stepFrom chain as a real enemy on an open map', () => {
+    const g = new Grid();
+    for (const gate of GATES) {
+      const path = g.gatePath(gate);
+      expect(path.length).toBeGreaterThan(1);
+      expect(path[0]).toEqual({ tx: gate.tx, ty: gate.ty, breach: false });
+      // Re-walk stepFrom independently and compare tile-for-tile.
+      let tx = gate.tx;
+      let ty = gate.ty;
+      for (let i = 1; i < path.length; i++) {
+        const step = g.stepFrom(tx, ty);
+        expect(step).not.toBeNull();
+        [tx, ty] = step!;
+        expect(path[i].tx).toBe(tx);
+        expect(path[i].ty).toBe(ty);
+        expect(path[i].breach).toBe(false); // no structures on an empty map
+      }
+      expect(g.tile[g.idx(tx, ty)]).toBe(TileType.Core);
+    }
+  });
+
+  it('gatePath (fb036) flags the breached structure tiles once a gate is sealed', () => {
+    const g = new Grid();
+    for (let y = 1; y < GRID_H - 1; y++) g.setOcc(10, y, 999);
+    g.refresh();
+    const path = g.gatePath(GATES[0]);
+    const breachedTiles = path.filter((p) => p.breach);
+    expect(breachedTiles.length).toBeGreaterThan(0);
+    for (const p of breachedTiles) expect(g.occ[g.idx(p.tx, p.ty)]).not.toBe(0);
+    // The route still ends at the Core rather than dead-ending mid-wall.
+    expect(g.tile[g.idx(path[path.length - 1].tx, path[path.length - 1].ty)]).toBe(TileType.Core);
+  });
 });
 
 describe('content', () => {
