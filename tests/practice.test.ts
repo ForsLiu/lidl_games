@@ -30,6 +30,8 @@ const OP_COVERAGE: Record<DevOp, true> = {
   summon_boss: true,
   fast_forward: true,
   spawn: true,
+  toggle_infinite_td: true,
+  toggle_infinite_vs: true,
 };
 
 const ALL_OPS = Object.keys(OP_COVERAGE) as DevOp[];

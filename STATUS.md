@@ -48,11 +48,11 @@ Measured this run: 220 sim runs (5 seeds/cell), `hybrid` bot for per-class/per-C
 | turtle | 0 | 3.4 |
 | kite | 0 | 2.8 |
 | hybrid | 0 | 3.2 |
-| maxbuild | 0 | 3.4 |
+| maxbuild | 0 | 3.5 |
 | walloff | 0 | 3.3 |
 | sealed | 0 | 3.6 |
 | greedy | 0 | 3.2 |
-| greedless | 0 | 3.4 |
+| greedless | 0 | 3.5 |
 | rush | 0 | 2.4 |
 
 ### Per-class win rate (`hybrid` bot, default core)
@@ -86,19 +86,21 @@ Measured this run: 220 sim runs (5 seeds/cell), `hybrid` bot for per-class/per-C
 
 | Source | Share |
 |---|---|
-| arrow_spire | 0.3278 |
-| frost_obelisk | 0.2947 |
-| ballista | 0.1786 |
-| class_basic | 0.1536 |
-| venom_spore | 0.04 |
-| carnivorous_plant | 0.0042 |
+| arrow_spire | 0.3235 |
+| frost_obelisk | 0.2913 |
+| ballista | 0.1798 |
+| class_basic | 0.1508 |
+| venom_spore | 0.0492 |
+| carnivorous_plant | 0.0041 |
 | bleeding | 0.0008 |
 | class_passive | 0.0002 |
 | corpse | 0.0002 |
 
 ### Boon pick rates (total ranks taken, whole pool)
 
-No run in this pool reached a boon offer (Act II).
+| Boon | Total ranks |
+|---|---|
+| plating | 1 |
 
 ## Content census (SPEC-FINAL §13)
 
@@ -150,11 +152,11 @@ No run in this pool reached a boon offer (Act II).
 | 20260901-114409-feature-bottom-bar-hud.md | fb026 — done |
 | 20260901-114409-feature-character-range-on-select.md | fb029 — done |
 | 20260901-114409-feature-core-tower-panels.md | fb027 — done |
-| 20260901-114409-feature-dash-fast-move.md | fb030 — queued |
+| 20260901-114409-feature-dash-fast-move.md | fb030 — done |
 | 20260901-114409-feature-detailed-effect-text.md | fb028 — done |
-| 20260901-114409-feature-exp-accelerating-pickup.md | fb031 — queued |
-| 20260901-114409-feature-practice-amount-dropdowns.md | fb032 — queued |
-| 20260901-114409-feature-practice-infinite-waves.md | fb033 — queued |
+| 20260901-114409-feature-exp-accelerating-pickup.md | fb031 — done |
+| 20260901-114409-feature-practice-amount-dropdowns.md | fb032 — done |
+| 20260901-114409-feature-practice-infinite-waves.md | fb033 — done |
 | 20260901-114409-feature-practice-max-towers.md | fb034 — queued |
 | 20260901-114409-feature-speed-dropdown.md | fb035 — queued |
 | 20260901-114409-feature-td-path-indicators.md | fb036 — queued |

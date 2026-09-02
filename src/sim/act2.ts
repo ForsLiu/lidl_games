@@ -9,12 +9,25 @@ import { spawnEnemy } from './enemies';
 import { cycleEliteMul, World } from './world';
 
 /**
+ * fb033: `restartVsBlock`'s Infinite-VS-waves practice toggle lets `w.cycle`
+ * climb without the `totalCycles` bound every ordinary run has, which QA
+ * measured overflowing `Math.pow` to `Infinity` (unkillable enemies) a few
+ * thousand blocks in. `w.cycle` itself keeps climbing uncapped for
+ * display/telemetry (`vsWavesCleared`, the hash, etc.) — only its
+ * contribution to the two exponential scaling curves below is capped, well
+ * past anything a bounded run (`totalCycles` is single digits) or a sane
+ * amount of practice fast-forwarding could ever reach, but comfortably
+ * inside `Number.MAX_VALUE` for both curves' bases.
+ */
+const SCALE_CYCLE_CAP = 1000;
+
+/**
  * SPEC-V2 §1: minute-of-warmup within the current Night, offset by
  * `2.5 x (cycle - 1)` so cycle 2/3's Night starts hotter than cycle 1's did.
  */
 function nightMinutes(w: World): number {
   const offsetPerCycle = w.content.waves.nightMinuteOffsetPerCycle ?? 0;
-  return w.act2Time / 60 + offsetPerCycle * (w.cycle - 1);
+  return w.act2Time / 60 + offsetPerCycle * (Math.min(w.cycle, SCALE_CYCLE_CAP) - 1);
 }
 
 /** Minute index used by the weight table and the HP ramp. */
@@ -144,7 +157,9 @@ export function updateDirector(w: World, dt: number): void {
  */
 export function vsBudgetBaseline(w: World, cycle: number): number {
   const sp = w.content.spawns;
-  return sp.budgetBase * Math.pow(sp.budgetGrowthPerVsWave ?? 1, cycle - 1);
+  // fb033: see `SCALE_CYCLE_CAP`'s comment above `nightMinutes` — the same
+  // overflow risk applies here once `cycle` is Infinite-VS-uncapped.
+  return sp.budgetBase * Math.pow(sp.budgetGrowthPerVsWave ?? 1, Math.min(cycle, SCALE_CYCLE_CAP) - 1);
 }
 
 /**

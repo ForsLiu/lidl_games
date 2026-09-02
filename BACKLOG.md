@@ -385,14 +385,25 @@ in live play today, a pre-existing gap fb029 exposed rather than introduced.
       live, including rapid-click, collapse/expand, non-Act-II XP no-op and
       keyboard-only probes). `tests/fb032-practice-amount-dropdowns.test.ts`
       (23 tests) covers every amount for both ops plus replay-hash safety.
-- [ ] (fb033) [feat] Practice toggles "Infinite TD waves" / "Infinite VS
+- [x] (fb033) [feat] Practice toggles "Infinite TD waves" / "Infinite VS
       waves": the run stays in the chosen phase indefinitely, spawning waves
       with continuing scaling (wave index keeps climbing) until toggled off
       or the character/Core dies; rewards are not banked (practice rule) —
       acceptance: both toggles work from the practice menu and Training
       Grounds; scaling continues past wave 18; determinism holds; a test
       covers 30+ waves headless — refs: SPEC-FINAL §11 (practice tools),
-      owner feedback `feature-practice-infinite-waves`.
+      owner feedback `feature-practice-infinite-waves`. **Done — see
+      PROGRESS.md's 2026-09-02 fb033 entry for the full write-up.** Two new
+      `DevOp`s (`toggle_infinite_td`/`toggle_infinite_vs`) flip two new
+      practice-gated `World` booleans; Infinite TD lets `w.wave` climb past
+      `completeWave`'s cycle-end check (reusing the existing past-the-table
+      HP-scaling repeat path); Infinite VS keeps `updateAct2` in `'act2'`
+      forever via a new `restartVsBlock` instead of handing back to TD or
+      ending on the Warden-Eater. code-reviewer and qa-playtester each found
+      one real bug (a freeze once `cycle` reached `totalCycles`, and an
+      `Infinity`-HP overflow reachable only via scripted dev-tool spam on
+      both the TD and VS sides), both fixed with regression tests and
+      re-verified clean. `tests/fb033-infinite-waves.test.ts` (9 tests).
 - [ ] (fb034) [feat] Practice tool "Max all towers": instantly raises every
       placed tower (and the Core) to its final upgrade step, free — a
       replay-safe Command like the other practice tools, flagging the run

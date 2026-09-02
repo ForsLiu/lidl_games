@@ -5,6 +5,88 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-02 session: fb033 done — practice toggles "Infinite TD waves" /
+  "Infinite VS waves" (SPEC-FINAL §11 practice tools, owner feedback
+  `feature-practice-infinite-waves`).** Two new practice-only `DevOp` values
+  (`toggle_infinite_td`/`toggle_infinite_vs`, `src/sim/types.ts`) flip two new
+  `World` booleans (`infiniteTdWaves`/`infiniteVsWaves`), gated by the same
+  `if (!w.cfg.practice) return` choke point every other practice op already
+  uses. **Infinite TD**: `completeWave` (`src/sim/run.ts`) no longer hands a
+  block off to its VS wave while the toggle is on — `w.wave` just keeps
+  climbing, reusing the pre-existing "past the authored 18-wave table" repeat-
+  with-HP-scaling path in `buildSpawnQueue` (originally built for the Long
+  Watch `extraWaves` modifier). **Infinite VS**: `updateAct2` forces
+  `finalNight` false while the toggle is on (so the Warden-Eater never spawns/
+  ends the run), and its periodic block-timeout branch calls a new
+  `restartVsBlock` (`src/sim/sundering.ts`) instead of `advanceToNextBlock` —
+  it stays in `'act2'` (no hand-back to TD, towers stay petrified), sweeps
+  enemies, and bumps `cycle`/`vsWavesCleared`, resetting `act2Time`/
+  `directorTimer`/`eliteTimer`/`riftIndex` so the difficulty ramp keeps
+  restarting rather than idling flat. Both booleans are hashed in `hashWorld`
+  (same class of future-behavior-gating state as `invulnerable`/`godMode`).
+  The practice panel (`src/ui/hud.ts`) gained two buttons via the existing
+  `PRACTICE_BUTTONS`/`TOGGLE_STATE` pattern — Training Grounds reaches them
+  through the same panel, no separate wiring needed. `tools/fuzz-input.ts`'s
+  `DEV_OPS` list gained both ops too.
+
+  code-reviewer **REQUEST-CHANGES → fixed → APPROVE** on the first pass: one
+  Critical — `restartVsBlock` silently stopped firing the instant `w.cycle`
+  reached `w.totalCycles`, because the block-timeout check compared
+  `w.act2Time` against `nightLengthSeconds(w, w.cycle)`, which (correctly,
+  independent of this item) returns `Infinity` once `cycle >= totalCycles` —
+  exactly the cycle `restartVsBlock`'s own `cycle++` keeps climbing past, and
+  the single most likely moment a tester would flip the toggle on (a run's
+  final block). Fixed by substituting the ordinary `vsWaveSeconds` for that
+  comparison whenever `infiniteVsWaves` is on, with a new regression test
+  pinned at exactly that boundary (`cycles: 1`, so `cycle === totalCycles` the
+  instant Act II starts).
+
+  qa-playtester **PASS** overall (gate airtightness, toggle-off hand-back,
+  combo stress of both toggles together, the practice-banks-nothing
+  invariant, death still ending the run, determinism) but filed one bug: a
+  scripted `fast_forward`-spam session (~3,000-3,700 block restarts) overflows
+  `Math.pow` to `Infinity` in `timeHpScale`/`vsBudgetBaseline`
+  (`src/sim/act2.ts`) once `w.cycle` climbs into the low thousands —
+  unreachable before this item (a real run's `cycle` was always bounded by
+  `totalCycles`), producing unkillable (`hp = Infinity`) enemies. Fixed with a
+  `SCALE_CYCLE_CAP = 1000` clamp on the two formulas' cycle *input* only —
+  `w.cycle` itself stays uncapped for display/telemetry/hashing, exactly the
+  "raw counters keep climbing, only the scaling math is bounded" split QA's
+  own suggested fix called for. A second, targeted qa-playtester pass
+  confirmed the overflow is gone (5000-block stress test, both functions stay
+  finite) and, on its own initiative, found the identical bug class on the TD
+  side: `waveHpScale` (1.22^(wave-1)) overflows past wave ~3600 once Infinite
+  TD waves lets `w.wave` climb unboundedly the same way. Fixed symmetrically
+  with `WAVE_SCALE_CAP = 1000` in `src/sim/run.ts`. A final code-reviewer pass
+  confirmed both caps have zero blast radius on any real run (`totalCycles`
+  defaults to 6 and is never player-exposed above single digits; the only
+  `/data` `extraWaves` source, Long Watch, is `+2`), confirmed the raw
+  counters stay uncapped where hashed, confirmed no other `Math.pow` site in
+  `/src/sim` is reachable via unbounded `wave`/`cycle` growth, and mechanically
+  reverted each clamp in turn to confirm both new regression tests are
+  non-vacuous (fail without the fix) — **APPROVE**, two Minor/Nit notes not
+  acted on (the two caps could share one named constant; a one-line comment
+  could sit closer to the `nightLengthSeconds` substitution).
+
+  `tests/fb033-infinite-waves.test.ts` (9 tests): toggle flip + practice
+  gating, baseline (toggle off) wave-18 hand-off unchanged, Infinite TD past
+  wave 18 with continuing HP scale then normal hand-off after toggling back
+  off, the `waveHpScale` finite-past-wave-4000 regression, Infinite VS
+  restarting in place across 5+ blocks with `cycle`/`vsWavesCleared`
+  climbing, the `cycle === totalCycles` boundary-crossing regression, the
+  `vsBudgetBaseline`/`timeHpScale`/`budgetFor` finite-past-cycle-4000
+  regression, Warden-Eater spawn suppression (asserts `bossSpawned`/no live
+  boss entity directly, not just the run's outcome), and a replay-hash
+  determinism case exercising both toggles mid-log. `tests/practice.test.ts`
+  and `tests/hud-controls.test.ts` updated for the two new `DevOp` values
+  (an exhaustive coverage map, and a toggle-lit-state test that previously
+  only set `invulnerable`/`godMode` true). `npx tsc --noEmit` clean; `npm run
+  test:fast`: only the same pre-existing Windows host-load flake class
+  already documented across many prior sessions (`q15-command-domain-fuzz`,
+  `b032`/`b034`/`b035`/`b036` fold-timing tests), reconfirmed unrelated by
+  running all five files in isolation (clean) both before and after the
+  overflow fix.
+
 - **2026-09-02 session: fb032 done — the practice tool's +Gold/+XP buttons
   become amount dropdowns (SPEC-FINAL §11 practice tools, owner feedback
   `feature-practice-amount-dropdowns`).** `src/ui/hud.ts`'s `showPracticeTools`

@@ -1607,6 +1607,8 @@ export function progressMarkup(p: RunProgress): string {
 export const TOGGLE_STATE = (w: World): [DevOp, boolean][] => [
   ['invuln', w.invulnerable],
   ['god', w.godMode],
+  ['toggle_infinite_td', w.infiniteTdWaves],
+  ['toggle_infinite_vs', w.infiniteVsWaves],
 ];
 
 /**
@@ -1632,6 +1634,18 @@ export const PRACTICE_BUTTONS: { op: DevOp; amount: number; label: string; title
   { op: 'skip_wave', amount: 0, label: 'Skip wave', title: 'Ends the build phase, or clears the running wave' },
   { op: 'fast_forward', amount: 60, label: '+1 min', title: 'Advances the Nightfall clock by a minute' },
   { op: 'summon_boss', amount: 0, label: 'Summon boss', title: 'Jumps the clock to the Warden-Eater' },
+  {
+    op: 'toggle_infinite_td',
+    amount: 0,
+    label: 'Infinite TD waves',
+    title: 'TD waves never hand off to the VS wave; scaling keeps climbing until toggled off',
+  },
+  {
+    op: 'toggle_infinite_vs',
+    amount: 0,
+    label: 'Infinite VS waves',
+    title: 'The VS wave never hands back to TD or ends by boss kill; scaling keeps climbing until toggled off',
+  },
 ];
 
 /** SPEC-FINAL §6.2: every wielded tower type's lineage — the only Act II panel. */

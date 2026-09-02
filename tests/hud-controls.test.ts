@@ -601,6 +601,8 @@ describe('in-run control row', () => {
     }
     w.invulnerable = true;
     w.godMode = true;
+    w.infiniteTdWaves = true;
+    w.infiniteVsWaves = true;
     hud.update(w);
     for (const [op] of TOGGLE_STATE(w)) {
       const button = root.querySelector<HTMLButtonElement>(`[data-dev="${op}"]`);

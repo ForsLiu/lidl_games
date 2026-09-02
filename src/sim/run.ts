@@ -39,7 +39,7 @@ import {
   tickLevelupIdle,
   updateGems,
 } from './progression';
-import { advanceToNextBlock, finishSundering } from './sundering';
+import { advanceToNextBlock, finishSundering, restartVsBlock } from './sundering';
 import {
   classArmorBonus,
   classBasicAttack,
@@ -431,6 +431,12 @@ export function applyDevCommand(w: World, op: DevOp, amount: number, enemyKey?: 
       }
       break;
     }
+    case 'toggle_infinite_td':
+      w.infiniteTdWaves = !w.infiniteTdWaves;
+      break;
+    case 'toggle_infinite_vs':
+      w.infiniteVsWaves = !w.infiniteVsWaves;
+      break;
     default:
       break;
   }
@@ -735,8 +741,19 @@ function buildSpawnQueue(w: World, wave: number): number[][] {
   return w.rng.waves.shuffle(queue);
 }
 
+/**
+ * fb033: Infinite TD waves lets `w.wave` climb past any real run's
+ * `waveCount` bound (`buildSpawnQueue`'s past-the-authored-table repeat
+ * path). QA measured `waveHpScale` overflowing `Math.pow` to Infinity around
+ * wave ~3600 (unkillable enemies) — the identical overflow class
+ * `SCALE_CYCLE_CAP` (act2.ts) fixed on the Infinite VS waves side. `w.wave`
+ * itself stays uncapped for display/telemetry; only this formula's exponent
+ * input is capped, comfortably inside `Number.MAX_VALUE` for base 1.22.
+ */
+const WAVE_SCALE_CAP = 1000;
+
 export function waveHpScale(w: World, wave: number): number {
-  return Math.pow(w.content.waves.hpScalePerWave, wave - 1);
+  return Math.pow(w.content.waves.hpScalePerWave, Math.min(wave, WAVE_SCALE_CAP) - 1);
 }
 
 function updateAct1Wave(w: World, dt: number): void {
@@ -829,7 +846,12 @@ function completeWave(w: World): void {
   w.stackDepth = 0;
   w.emit('waveclear', 0, 0, w.wave, totalBonus);
 
-  if (w.wave >= cycleWaveEnd(w, w.cycle)) {
+  // fb033 Practice tool: with the toggle on, a TD block never hands off to
+  // its VS wave — `w.wave` just keeps climbing past `cycleWaveEnd`, reusing
+  // `buildSpawnQueue`'s existing past-the-authored-table repeat-with-scaling
+  // path (already built for the Long Watch `extraWaves` modifier) for as
+  // many waves as the toggle stays on.
+  if (w.wave >= cycleWaveEnd(w, w.cycle) && !w.infiniteTdWaves) {
     // SPEC-FINAL §1.1 states two wall-clock numbers for the interleave — a
     // build phase (`data/waves.json`'s `buildPhaseSeconds`, ⚖, 15 as of
     // p10l) and a 75s VS wave — and nothing about a beat between them. p3d
@@ -863,7 +885,10 @@ function updateAct2(w: World, input: TickInput, dt: number): void {
   updateBossSlam(w, dt);
   updateGems(w, dt);
   updateDirector(w, dt);
-  const finalNight = w.cycle >= w.totalCycles;
+  // fb033 Practice tool: with the toggle on, the run never reaches the "this
+  // is the last block" branch below — the Warden-Eater must not spawn (and
+  // end the run on its kill) while the tester wants an indefinite VS wave.
+  const finalNight = w.cycle >= w.totalCycles && !w.infiniteVsWaves;
   if (finalNight && shouldSpawnBoss(w)) spawnFinalBoss(w);
   w.act2Time += dt;
   w.act2Ticks++;
@@ -883,12 +908,26 @@ function updateAct2(w: World, input: TickInput, dt: number): void {
       w.phase = 'results';
       return;
     }
-  } else if (!w.dying && w.act2Time >= nightLengthSeconds(w, w.cycle)) {
+  } else if (
+    !w.dying &&
+    // fb033: `nightLengthSeconds` returns Infinity once `cycle >=
+    // totalCycles` (SPEC-FINAL §1.1's "only the last block has no timer"
+    // rule) — exactly the cycle `restartVsBlock` keeps advancing past while
+    // this toggle is on, so the ordinary length must be used here instead or
+    // the block-restart (and the scaling ramp it resets) would silently
+    // freeze the moment a tester reaches the run's real final cycle (code
+    // review finding: verified empirically with `cycles: 1`).
+    w.act2Time >= (w.infiniteVsWaves ? w.content.waves.vsWaveSeconds : nightLengthSeconds(w, w.cycle))
+  ) {
     // SPEC-FINAL §1.1: only the final block's VS wave ends by boss kill;
     // every other VS wave simply runs its length, then the next TD block
     // begins immediately — no Dawn ledger (deleted at p3d).
     // fb008: auto-collect every gem still on the ground before the block turns over.
     collectRemainingGems(w);
+    if (w.infiniteVsWaves) {
+      restartVsBlock(w);
+      return;
+    }
     advanceToNextBlock(w);
     return;
   }
@@ -1069,6 +1108,11 @@ export function hashWorld(w: World): string {
   // belong in the hash. `invulnerable` was already unhashed before god mode
   // existed - the same class of hashing gap the f001 review found elsewhere.
   h.bool(w.invulnerable).bool(w.godMode);
+  // fb033: the two Infinite-waves toggles gate whether `completeWave`/
+  // `updateAct2` hand off to the other phase at all — the same
+  // future-behavior-branching class of state `invulnerable`/`godMode` above
+  // are hashed for.
+  h.bool(w.infiniteTdWaves).bool(w.infiniteVsWaves);
   // The whole of `Derived`, not a hand-picked few: QA measured 25 of 39 stats as
   // invisible to this hash 20 s into a run, so a stacking regression could pass
   // A11's replay comparison. Same gap class m19a found with `enemyArmor`. Sorted

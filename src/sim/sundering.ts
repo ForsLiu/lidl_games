@@ -80,6 +80,26 @@ export function advanceToNextBlock(w: World): void {
 }
 
 /**
+ * fb033 Practice tool: the "Infinite VS waves" toggle's per-block boundary —
+ * the same accounting `advanceToNextBlock` does at a block's natural end
+ * (cleared credit, a clean board, `cycle++` so elite/time scaling keeps
+ * ramping) but staying in the VS wave instead of handing back to a TD block,
+ * since the tester wants an indefinite VS wave, not the ordinary interleave.
+ * Towers stay petrified (there is no TD block to return to) and `w.phase`
+ * is left untouched by design.
+ */
+export function restartVsBlock(w: World): void {
+  w.vsWavesCleared++;
+  for (const e of w.enemies) e.dead = true;
+  w.deadEnemies = true;
+  w.cycle++;
+  w.act2Time = 0;
+  w.directorTimer = 0;
+  w.eliteTimer = w.content.spawns.eliteIntervalSeconds;
+  w.riftIndex = 0;
+}
+
+/**
  * SPEC-FINAL §6.2: every tower petrifies in place for the VS wave — inert but
  * present, a standing obstacle rather than cleared terrain (Q108; V2's
  * Heartstone-pocket/approach-lane detonation is deleted along with the rest

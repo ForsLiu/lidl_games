@@ -49,6 +49,8 @@ const DEV_OPS: DevOp[] = [
   'skip_wave',
   'summon_boss',
   'fast_forward',
+  'toggle_infinite_td',
+  'toggle_infinite_vs',
 ];
 
 /**

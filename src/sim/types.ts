@@ -88,7 +88,11 @@ export type DevOp =
   | 'summon_boss'
   | 'fast_forward'
   /** fb019: Training Grounds' spawn-on-demand panel. `amount` is the count, capped and floored in `applyDevCommand`. */
-  | 'spawn';
+  | 'spawn'
+  /** fb033: toggles `World.infiniteTdWaves` — TD waves never hand off to the VS wave. */
+  | 'toggle_infinite_td'
+  /** fb033: toggles `World.infiniteVsWaves` — the VS wave never hands off back to TD. */
+  | 'toggle_infinite_vs';
 
 export interface TickInput {
   /** Movement axis, quantized to -1 | 0 | 1 so replays are exact. */

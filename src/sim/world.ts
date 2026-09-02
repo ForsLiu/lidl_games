@@ -184,6 +184,10 @@ export class World {
    * exercised in god mode; only the Core HP loss is suppressed.
    */
   godMode = false;
+  /** fb033 Practice tool: TD waves never hand off to the VS wave — `completeWave` keeps looping act1_build/act1_wave, wave index climbing with continued HP scaling, until toggled off. */
+  infiniteTdWaves = false;
+  /** fb033 Practice tool: the VS wave never hands off back to TD (or ends by boss kill) — `updateAct2` keeps resetting the block in place, `cycle` climbing so elite/time scaling keeps ramping, until toggled off. */
+  infiniteVsWaves = false;
   bossKilled = false;
   bossKillTime = -1;
   bossSpawnTime = -1;
