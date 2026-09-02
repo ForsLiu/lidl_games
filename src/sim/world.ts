@@ -493,7 +493,10 @@ export class World {
         ? content.waves.waves.length + this.mods.extraWaves
         : content.waves.tdWavesPerVsWave * this.totalCycles + this.mods.extraWaves;
     this.buildTimer = this.mods.buildPhase || content.waves.buildPhaseSeconds;
-    this.gold = content.waves.startGold;
+    // fb042 (Q146): the retired Ember/relic Constellation nodes' replacement
+    // effect — a one-time, non-compounding addition, unlike every `mul` gold
+    // stat already live on the tree (`goldFind`).
+    this.gold = content.waves.startGold + this.stats.total('startingGold');
     // `p-core-a` left this reading `content.waves.coreHp` unconditionally,
     // which happens to equal Stone Heart's own `baseHp` (500) but silently
     // gave every other Core the wrong base HP the instant one was chosen —

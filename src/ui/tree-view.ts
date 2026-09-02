@@ -62,6 +62,7 @@ const STAT_LABELS: Record<string, string> = {
   modRewardBonus: 'Reward per Modifier',
   lastStandSundering: 'Last Stand Sundering',
   xpGain: 'XP Gain',
+  startingGold: 'Starting Gold',
 };
 
 /**

@@ -53,6 +53,8 @@ export const STAT_KEYS = [
   'charRange',
   /** fb015: Bleeding Ring's "lifesteal now also applies to Bleeding damage" — a boolean flag in stat form, the same `secondWind` precedent. */
   'bleedLifesteal',
+  /** fb042 (§6.3, Q146): a one-time addition to `content.waves.startGold` at World construction — the additive, non-compounding replacement for the retired Ember/relic Constellation nodes' dead stats. */
+  'startingGold',
 ] as const;
 
 export type StatKey = (typeof STAT_KEYS)[number];
@@ -113,6 +115,7 @@ export const STAT_KIND: Record<StatKey, StatKind> = {
   atkFlat: 'flat',
   towerAtkFlat: 'flat',
   bleedLifesteal: 'flat',
+  startingGold: 'flat',
   // A reduction with its own cap (`cdrCap`), not a multiplier on a base. V3 §2's
   // rule is about boosts; see QUESTIONS Q62.
   //
@@ -181,6 +184,7 @@ export const STAT_DISPLAY: Record<StatKey, StatDisplay> = {
   bleedLifesteal: 'point',
   atkFlat: 'point',
   towerAtkFlat: 'point',
+  startingGold: 'point',
 
   // `flat` fractional rates — authored like a point total, read like a percent.
   leech: 'percent',

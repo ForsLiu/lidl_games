@@ -496,7 +496,10 @@ describe('C4 — origins that are not the boon/tree/equipment stack (QA bugs 1, 
     // `burnSpread` left this list at m19c, when SPEC-V3 §3 gave Burning the AoE
     // spread the stat was always named for. Listed explicitly so the exemption
     // cannot silently grow.
-    const notDerived = ['coreHp', 'lastStandSundering'];
+    // `startingGold` (fb042) joins `coreHp` in the same exemption for the same
+    // reason: read straight off `Stats` once, into `w.gold`, in the World
+    // constructor.
+    const notDerived = ['coreHp', 'lastStandSundering', 'startingGold'];
     const missed: string[] = [];
     for (const k of STAT_KEYS) {
       const run = new Run(cfg());

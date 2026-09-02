@@ -73,6 +73,7 @@ const STAT_LABELS: Partial<Record<StatKey, string>> = {
   towerAtkFlat: 'Tower Attack (flat)',
   charRange: 'Range',
   bleedLifesteal: 'Lifesteal from Bleeding',
+  startingGold: 'Starting Gold',
 };
 
 export function statLabel(key: StatKey): string {

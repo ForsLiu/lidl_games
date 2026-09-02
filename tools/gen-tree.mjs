@@ -67,24 +67,25 @@ const BRANCHES = [
       { name: 'Long Reach', stats: { pickupPct: 0.08 } },
       { name: 'Lucky Find', stats: { luck: 4 } },
       { name: 'Coinsense', stats: { goldFind: 0.04 } },
-      // p7d (§8): retired with the Ember economy — SPEC-FINAL has no
-      // replacement mechanism for a Constellation node to boost, and every
-      // still-live `mul` stat is already relied on by a balance gate (G1/
-      // G14/G6), so inventing a target here risks moving one without a
-      // sweep. Left inert and flagged at QUESTIONS Q146 for a content/
-      // balance pass rather than guessed at. `key: undefined` (a `small`
-      // node), so no id/name of its own to carry the old wording either.
-      { name: 'Keen Eye', stats: {} },
-      { name: 'Scavenger', stats: {} },
+      // fb042 (QUESTIONS Q146 ORDER): the P10 content/balance pass gave
+      // these 13 ex-Emberkeeper/Scavenger smalls a flat, additive-only
+      // effect instead of sitting inert — starting gold, never a `mul`
+      // stat, so the G1/G6/G14 compounding concern Q146 raised doesn't
+      // apply.
+      { name: 'Keen Eye', desc: 'Start each run with +5 gold.', stats: { startingGold: 5 } },
+      { name: 'Scavenger', desc: 'Start each run with +5 gold.', stats: { startingGold: 5 } },
       { name: 'Swift Step', stats: { moveSpeedPct: 0.02 } },
     ],
     notables: [
       { key: 'prospector', name: 'Prospector', desc: 'Harvest Sprouts +50% output', stats: { sproutGold: 0.5 } },
       { key: 'cartographer', name: 'Cartographer', desc: 'Each map modifier grants +10% more reward', stats: { modRewardBonus: 0.1 } },
-      // p7d: same "retired, not repointed" reasoning as Keen Eye/Scavenger above.
-      { key: 'tinkerer', name: 'Tinkerer', desc: 'Currently inert (formerly loot find) — see QUESTIONS Q146', stats: {} },
+      // fb042: same "flat, additive-only" reasoning as Keen Eye/Scavenger above.
+      { key: 'tinkerer', name: 'Tinkerer', desc: 'Start each run with +25 gold.', stats: { startingGold: 25 } },
       { key: 'lodestone', name: 'Lodestone', desc: 'Pickup radius +50%', stats: { pickupPct: 0.5 } },
-      { key: 'gilded_path', name: 'Gilded Path', desc: 'Gold find +20%', stats: { goldFind: 0.2 } },
+      // fb042: Gilded Path's old `goldFind` mul was dropped in favour of the
+      // same additive-only replacement, so it can't compound with the tree's
+      // other live `goldFind` sources (Q146's own rejected alternative).
+      { key: 'gilded_path', name: 'Gilded Path', desc: 'Start each run with +25 gold.', stats: { startingGold: 25 } },
       { key: 'star_reader', name: 'Star Reader', desc: '+25 Luck', stats: { luck: 25 } },
     ],
     keystone: {
@@ -166,7 +167,7 @@ for (const b of BRANCHES) {
         node = { id, branch: b.key, kind: 'notable', key: n.key, name: n.name, desc: n.desc, stats: n.stats };
       } else {
         const s = b.smalls[(r * 3 + k) % b.smalls.length];
-        node = { id, branch: b.key, kind: 'small', name: s.name, desc: '', stats: s.stats };
+        node = { id, branch: b.key, kind: 'small', name: s.name, desc: s.desc || '', stats: s.stats };
       }
       node.x = Math.round(Math.cos(ang) * rad * 100) / 100;
       node.y = Math.round(Math.sin(ang) * rad * 100) / 100;

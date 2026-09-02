@@ -100,3 +100,93 @@ HP / ×0.7 attack speed) and the TTK bands above are tunable going forward —
 the memo calls both "tunable." The real balance re-fit happens at P10
 (SPEC-FINAL §15) using the full sweep/gate machinery, tuning **from** these
 values per the owner's standing order.
+
+## fb042 gate re-check (2026-09-02): Constellation `startingGold` vs G1/G6/G14
+
+Balance-analyst check requested by fb042's own acceptance text (BACKLOG.md,
+Q146 ORDER): 15 previously-dead/multiplicative Constellation nodes
+(`data/tree.json`) now grant a flat, additive-only `startingGold` — 13 smalls
+("Keen Eye"/"Scavenger") at +5 each, Tinkerer and Gilded Path at +25 each
+(Gilded Path's old `goldFind: 0.2` mul stat retired outright, not stacked).
+Fully allocated (every real Hub run and every gate test now feeds
+`allTreeNodeIds(content)`/`TREE_AUTO_MAX` into `RunConfig.allocated`, per
+fb039/fb049) that's **+115 gold on top of `content.waves.startGold` (250,
+`data/waves.json`)** — a one-time, non-compounding addition at `World`
+construction (`src/sim/world.ts`: `this.gold = content.waves.startGold +
+this.stats.total('startingGold')`).
+
+**Gate definitions** (SPEC-FINAL §14): **G1** — mean victorious run 30–36 min
+over 24+ seeds, means/pass-rates never medians. **G6** — interleave
+mechanics: TD×3→VS pattern, multi-summon ≤3, no early-call gold bonus
+(fb009), fixed `20 + 10×wave` clear reward, VS unstackable. **G14** — boss,
+20 seeds, scripted-build win rate ≥60% and <100%.
+
+**Method**: isolated the single lever with `git stash push -- data/tree.json`
+(control = the 15 nodes' dead/mul stats exactly as committed at HEAD, the
+`startingGold` engine mechanism itself — already implemented, not part of
+this check — held constant in both states) against the real gate test files
+(`tests/p10d-run-length.test.ts` for G1, `tests/boss.test.ts` for G14,
+`tests/p3a-run-shape.test.ts`/`tests/p3b-multi-summon.test.ts`/
+`tests/f003-leak-coupling.test.ts` for G6) plus `npx tsx tools/sweep.ts
+--seeds 12 --policies maxbuild,hybrid` as a cross-check, all at T1.
+
+**Important finding, not caused by fb042 but discovered while isolating it**:
+PROGRESS.md's last recorded G1/G14 baseline (fb049, same day: mean 36.36 min
+/ 23-24 wins for G1, 19/20 for G14) is now stale — enough further
+balance-relevant work landed later in the same 2026-09-02 session (the
+fb029-040 batch: dash-as-fast-move, VS XP gem acceleration, etc.) that **by
+the time fb042 was written, G1's live win-rate clause and G14 were already
+both failing outright at HEAD with fb042's tree.json reverted** (100% win
+rate on both — over each gate's own `<1`/`<100%` ceiling), independent of
+this change. This was confirmed by running the actual vitest files, not a
+probe script.
+
+| Lever | Before (HEAD content, fb042's `tree.json` reverted to its committed dead/mul stats) | After (fb042 applied, current working tree) | Gate delta |
+|---|---|---|---|
+| **G1** win-rate clause (`tests/p10d-run-length.test.ts`, 24 seeds, hybrid, engineer, T1, full tree) | **24/24 wins = 100%** — test **FAILS** (`rate < 1`) | **19/24 wins = 79.2%** — test **PASSES** | **RED → GREEN** |
+| G1 mean-run-length clause (same file, `.skip`-ed, band 30–36 min, owned by BACKLOG p10r) | mean 36.45 min / 24 wins — already over the 36 min ceiling (pre-existing, unrelated to fb042) | mean 36.70 min / 19 wins — over ceiling by +0.25 min more | still red-but-skipped either way; drifted ~0.25 min further from band |
+| **G14** (`tests/boss.test.ts`, 20 seeds, hybrid, T1, cycles 6, full tree) | **20/20 wins = 100%** — test **FAILS** (`wins < 20`) | **16/20 wins = 80%** — test **PASSES** | **RED → GREEN** |
+| **G6** (`p3a-run-shape`, `p3b-multi-summon`, `f003-leak-coupling` — interleave pattern, fixed clear reward, multi-summon cap, VS-unstackable) | all pass (none of these mechanics read gold or `allocated`) | all pass, unchanged | unaffected, **GREEN** both states |
+| Cross-check: `tools/sweep.ts --seeds 12 --policies maxbuild,hybrid`, T1 | maxbuild **100%** win / hybrid **100%** win | maxbuild **25%** win / hybrid **75%** win | large drop, same direction as G1/G14 |
+
+**Why the direction is counter-intuitive**: more starting gold is not a pure
+buff to bot win rate here. `maxbuild`/`hybrid` are greedy, threshold-ordered
+spenders, not optimal planners — an extra ~115 gold available at wave 1
+changes *what* they buy first (a different early build order), not just *how
+much*. On the current `/data` this shifts several seeds from clearing the
+boss cleanly to still-`running`-at-the-tick-cap instead of an outright loss
+(no seed newly dies from more gold — see the per-seed breakdown captured
+during this check), which is a real, reproducible, seed-deterministic effect
+of the specific spend-order sensitivity of these bot policies, not sim noise.
+
+**Net result: G1's live clause and G14 both move from failing to passing.**
+This is a fortunate side effect, not fb042's intended mechanism — the actual
+cause of the "before" over-ceiling failure is unrelated balance drift from
+later fb029-040 items, and fb042's added gold happens to counteract it on
+these two gates. G6 is structurally untouched either way (pure wave/reward
+mechanics, no gold dependency).
+
+**`/data` changes made by this check: none.** Both live gates already pass
+with fb042's shipped values (13×+5 small nodes, 2×+25 notables). No retune
+was required or performed; `data/tree.json` is unchanged from what fb042
+committed. `npm run test:fast` re-run against the final state: 2029 passed /
+4 failed / 23 skipped — the 4 failures are all in
+`tests/q15-command-domain-fuzz.test.ts`, the pre-existing Windows
+worker-hang flake class PROGRESS.md's fb049 entry and BACKLOG fb047 already
+document as unrelated to `/data` content; no new failures.
+
+**Flagged for whoever picks up BACKLOG p10r (not fixed here, out of this
+check's scope)**:
+1. p10r's retune target (G8/G23's over-ceiling classes/Cores) should
+   re-measure against the *current* HEAD — including fb042's gold — before
+   spending its budget; the goalposts have moved twice since fb049 (once
+   from the fb029-040 batch, again from fb042), and G8/G23's tests read the
+   same `allTreeNodeIds`/full-tree allocation this fb042 gold feeds into, so
+   they're plausibly under the same coupling documented above.
+2. G1's `.skip`-ed mean-run-length clause drifted **further** over its 36-min
+   ceiling under fb042 (36.45→36.70 min) even while its paired win-rate
+   clause improved — a small instance of the A4/A7 gate-coupling lesson: the
+   same lever moved the two clauses of the same gate in opposite directions.
+   Neither is CI-blocking today (the mean clause is `.skip`-ed), but a future
+   pacing retune (p10r or later) should use 36.70 min, not the stale 36.36
+   min, as its starting point.

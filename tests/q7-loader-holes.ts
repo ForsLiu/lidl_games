@@ -673,6 +673,7 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'tree.nodes[].stats.power': ['negative', 'zero', 'fractional', 'drop-key'],
   'tree.nodes[].stats.residualPotency': ['negative', 'zero', 'fractional', 'drop-key'],
   'tree.nodes[].stats.sproutGold': ['negative', 'zero', 'fractional', 'drop-key'],
+  'tree.nodes[].stats.startingGold': ['negative', 'zero', 'fractional', 'drop-key'],
   'tree.nodes[].stats.teslaLinks': ['negative', 'zero', 'fractional', 'drop-key'],
   'tree.nodes[].stats.towerCost': ['negative', 'zero', 'fractional', 'drop-key'],
   'tree.nodes[].stats.towerDamage': ['negative', 'zero', 'fractional', 'drop-key'],
