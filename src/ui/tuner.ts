@@ -23,10 +23,27 @@
  * `if (!isDevBuild()) return` shape — gate C8's own production-bundle test
  * confirms a bundler can and does eliminate a guarded branch shaped exactly
  * like this one.
+ *
+ * fb044 (QUESTIONS Q150 ORDER): the owner's follow-up on top of the above —
+ * typed per-field widgets for the four collections tuned most (towers,
+ * classes, cores, waves), generated from each collection's own zod schema
+ * (`tuner-fields.ts`) rather than the whole-document textarea alone. Editing
+ * a typed widget writes into the *same* textarea (`JSON.stringify`s the
+ * updated document back into it) so Save keeps posting through the one path
+ * `postTunerSave` already validates server-side — there is no second save
+ * button, no second source of truth, and every field a widget can't
+ * describe (a dynamic-key record, a raw-string array, an unmatched
+ * discriminated-union variant) still falls through to the textarea exactly
+ * as before this item.
  */
 import { isDevBuild } from '../meta/devprofile';
+import { TUNER_FILES } from '../sim/content';
 import type { CodexCollection } from './codex-collections';
 import { clearTunerDraft, getTunerDraft, setTunerDirty, setTunerDraft } from './tuner-state';
+import { applyFieldChange, renderDocumentFields } from './tuner-fields';
+
+/** fb044: only these four get the typed-field panel — the owner's own scoping in Q150's ORDER verdict. */
+const FIELD_EDITOR_KEYS = new Set(['towers', 'classes', 'cores', 'waves']);
 
 export interface TunerSaveResponse {
   ok: boolean;
@@ -73,6 +90,10 @@ function installEditableEditor(container: HTMLElement, collection: CodexCollecti
   // one for a textarea that no longer shows it.
   const draft = getTunerDraft(tunerFile);
 
+  const fieldsHost = document.createElement('div');
+  fieldsHost.className = 'sw-tuner-fields';
+  container.appendChild(fieldsHost);
+
   const textarea = document.createElement('textarea');
   textarea.className = 'sw-tuner-editor';
   textarea.rows = 14;
@@ -92,12 +113,47 @@ function installEditableEditor(container: HTMLElement, collection: CodexCollecti
   status.className = 'sw-tuner-status';
   container.appendChild(status);
 
-  textarea.addEventListener('input', () => {
+  function updateDirty(): void {
     const isDirty = textarea.value !== baseline;
     setTunerDirty(tunerFile, isDirty);
     if (isDirty) setTunerDraft(tunerFile, textarea.value);
     else clearTunerDraft(tunerFile);
+  }
+
+  const fieldEditorEntry = FIELD_EDITOR_KEYS.has(tunerFile)
+    ? TUNER_FILES.find((f) => f.key === tunerFile)
+    : undefined;
+
+  // code-reviewer's Major #1 (fb044): a widget's own onChange used to call
+  // renderFieldsPanel() synchronously, tearing down and rebuilding every
+  // widget on every keystroke — jsdom-confirmed to drop DOM focus after one
+  // character. It also captured `parsed.value` once per render, so two edits
+  // fired before the next rebuild (impossible while it always rebuilt, but a
+  // real risk once that rebuild is removed) would have applied the second
+  // edit on top of a document missing the first. Fixed by having onChange
+  // re-parse the *current* textarea text fresh on every call and never
+  // rebuild the DOM itself — only a genuine external edit (typing directly
+  // into the textarea) rebuilds the panel now.
+  function renderFieldsPanel(): void {
+    fieldsHost.innerHTML = '';
+    if (!fieldEditorEntry) return;
+    const parsed = parseTunerJson(textarea.value);
+    if (!parsed.ok) return; // mid-edit invalid JSON: leave the panel as-is rather than crash on it
+    const panel = renderDocumentFields(fieldEditorEntry.schema, parsed.value, (path, value) => {
+      const latest = parseTunerJson(textarea.value);
+      const base = latest.ok ? latest.value : parsed.value;
+      textarea.value = JSON.stringify(applyFieldChange(base, path, value), null, 2);
+      updateDirty();
+    });
+    if (panel) fieldsHost.appendChild(panel);
+  }
+
+  textarea.addEventListener('input', () => {
+    updateDirty();
+    renderFieldsPanel();
   });
+
+  renderFieldsPanel();
 
   saveBtn.addEventListener('click', () => {
     const parsed = parseTunerJson(textarea.value);
