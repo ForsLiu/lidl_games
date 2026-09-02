@@ -5,6 +5,45 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-01 session: fb043 done — Vampire Heart's "Scrape By" unlock only
+  counts a run the Core survived (QUESTIONS Q149 OVERRIDE, commit
+  `d3454c3`).** CLAUDE.md rule 3 (SPEC-FINAL-contradiction bugs outrank the
+  queue): shipped code let `metricsFor`'s `core_finish_low_hp`
+  (`src/meta/meta.ts`) fire on any Core HP ≤25% of max regardless of outcome,
+  so a `defeat_core` loss — `checkDefeat` (`src/sim/run.ts`) always forces
+  `coreHp` to exactly 0 before the terminal outcome lands — trivially
+  satisfied it, since 0 is arithmetically ≤25% of any positive max. That made
+  *every* Core-death loss unlock Vampire Heart, not just a genuine near-death
+  scrape (flagged by code-reviewer during p7h and logged as QUESTIONS Q149
+  rather than force-resolved, per rule 5). The owner's OVERRIDE reads "finish
+  a run" as the run ending with the Core still standing: `victory` or
+  `defeat_warden` (Warden/character death in Act II, which leaves `coreHp`
+  untouched per `run.ts`'s `damageWarden`) — `defeat_core` must not unlock it
+  even though the raw HP number would pass. A failing regression test landed
+  first in `tests/p7h-core-quests.test.ts` (confirmed red against pre-fix code
+  by isolating the `meta.ts` diff out via `git stash`), then the one-line fix
+  (`core_finish_low_hp` gains an `outcome === 'victory' || outcome ===
+  'defeat_warden'` guard ahead of the existing HP-threshold check), then the
+  two pre-existing tests asserting the old any-loss-counts behavior were
+  corrected to the new semantics. **code-reviewer APPROVE** (no
+  Critical/Major/Minor): confirmed `RunOutcome`'s four-value union makes the
+  guard an exhaustive match for "Core still standing," not partial; grepped
+  for other readers of `core_finish_low_hp`/`scrape_by` and found exactly one
+  producer/consumer pair, so no sibling bug needed the same fix; confirmed the
+  regression tests fail pre-fix and pass post-fix. **qa-playtester PASS**:
+  verified victory/defeat_warden with Core HP in (0%,25%] unlock,
+  `defeat_core` never unlocks regardless of `coreMaxHp` (stress-tested down to
+  `coreMaxHp: 4`), and above-25% runs still don't unlock — against both
+  synthetic reports and real bot-driven `World`/`Run` playthroughs (an
+  `idle`-policy run organically reaching `defeat_core`, and a scripted run
+  driven to a genuine `defeat_warden` through the real slow-mo state machine);
+  no bugs filed. The pre-existing Windows host-load flake class
+  (`q15-command-domain-fuzz`, `b032`/`b034`/`b035`/`b036` fold-timing tests)
+  reproduced identically with the fb043 diff stashed out, confirmed unrelated.
+  Next up per the owner's 2026-09-01 verdict batch's remaining corrections:
+  **fb045** (G18's 20s idle auto-resolve on `levelup` should not apply to a
+  human-driven UI run with auto-pick off, QUESTIONS Q151 OVERRIDE).
+
 - **2026-09-01 session: fb041 done — no rank caps on VS stat boons and Type
   Mastery cards (QUESTIONS Q144(1) OVERRIDE, commit `776f58f`).** CLAUDE.md
   rule 3 (SPEC-FINAL-contradiction bugs outrank the queue): p7a's §6.3 pool

@@ -322,15 +322,12 @@ or P10-band priority and block nothing below.
       multiplicative — acceptance: all 15 nodes have live, additive-only
       effects; balance-analyst re-checks G1/G6/G14 after and records the
       deltas — refs: SPEC-FINAL §6.3/§14 G1/G6/G14, QUESTIONS Q146.
-- [ ] (fb043) [bug] top priority (SPEC-FINAL contradiction, rule 3 outranks
-      queue): QUESTIONS Q149 OVERRIDE — Vampire Heart's "Scrape By" unlock
-      ("finish a run" with Core ≤25% HP) means the run ends with the Core
-      still standing at ≤25% HP (`victory` or `defeat_warden`); a
-      `defeat_core` loss (Core at 0 HP) does not unlock it — acceptance: a
-      failing regression test first pins today's any-Core-death-unlocks
-      behavior as wrong, then only `victory`/`defeat_warden` outcomes with
-      Core HP in (0%, 25%] unlock Vampire Heart; `tests/p7h-core-quests.test.ts`
-      updated — refs: SPEC-FINAL §5.5, QUESTIONS Q149.
+- [x] (fb043) [bug] QUESTIONS Q149 OVERRIDE — Vampire Heart's "Scrape By"
+      unlock only counts a run the Core survived — commit `d3454c3`,
+      code-reviewer APPROVE (no Critical/Major/Minor), qa-playtester PASS
+      (bot-driven World runs through both `defeat_core` and `defeat_warden`
+      endings, not just synthetic reports; no bugs filed) — **done, see Done
+      section.**
 - [ ] (fb044) [feat] normal priority, after the current owner batch:
       QUESTIONS Q150 ORDER — per-field editors in the Tuner for the
       collections the owner tunes most (towers, classes, cores, waves), on
@@ -2615,6 +2612,43 @@ logged in MIGRATION.md §8 rather than carried as dead items.
       (no test covered the new bare-rank UI markup) closed in the same commit
       (`tests/character-panel.test.ts`'s new "fb041 uncapped rank display"
       block) rather than filed separately.
+
+- [x] (fb043) [bug] Vampire Heart's "Scrape By" unlock only counts a run the
+      Core survived — commit `d3454c3`. QUESTIONS Q149 OVERRIDE: shipped code
+      let `core_finish_low_hp` (`src/meta/meta.ts`'s `metricsFor`) fire on any
+      Core HP ≤25% of max regardless of outcome, so a `defeat_core` loss
+      (`checkDefeat`, `src/sim/run.ts`, always forces `coreHp` to exactly 0
+      before the terminal outcome lands) trivially satisfied it — 0 is
+      arithmetically ≤25% of any positive max, so *every* Core-death loss
+      unlocked Vampire Heart, not just a genuine near-death scrape. The owner's
+      OVERRIDE reads "finish a run" as the run ending with the Core still
+      standing — `victory` or `defeat_warden` (Warden/character death in Act
+      II, which per `run.ts`'s `damageWarden` leaves `coreHp` untouched) — so
+      `defeat_core` must not unlock it even though the raw HP number would
+      pass. CLAUDE.md rule 3: a failing regression test landed first in
+      `tests/p7h-core-quests.test.ts` (confirmed red against pre-fix code by
+      isolating the `meta.ts` diff out), then the one-line fix (`metricsFor`'s
+      `core_finish_low_hp` gains an `outcome === 'victory' || outcome ===
+      'defeat_warden'` guard ahead of the existing HP-threshold check), then
+      the two pre-existing tests that asserted the old (wrong) any-loss-counts
+      behavior were corrected to the new semantics. **code-reviewer APPROVE**
+      (no Critical/Major/Minor): confirmed `RunOutcome`'s four-value union
+      makes the victory/defeat_warden guard an exhaustive match for "Core
+      still standing," not a partial one; grepped for other readers of
+      `core_finish_low_hp`/`scrape_by` and found exactly one producer/consumer
+      pair, so no sibling bug elsewhere needed the same treatment; confirmed
+      the regression tests fail pre-fix and pass post-fix (not tautological).
+      **qa-playtester PASS**: verified all five acceptance clauses (victory
+      and defeat_warden with Core HP in (0%,25%] unlock; defeat_core never
+      unlocks regardless of `coreMaxHp`, stress-tested down to `coreMaxHp: 4`;
+      above-25% runs still don't unlock) against both synthetic reports and
+      real bot-driven `World`/`Run` playthroughs (an `idle`-policy run that
+      organically reaches `defeat_core`, and a scripted run driven to a
+      genuine `defeat_warden` via `damageWarden` + the real slow-mo state
+      machine) — no bugs filed; the pre-existing Windows host-load flake class
+      (`q15-command-domain-fuzz`, the b032/b034/b035/b036 fold-timing tests)
+      reproduced identically with the fb043 diff stashed out, confirmed
+      unrelated.
 
 - [x] (fb028) [feat] Detailed live effect text for classes and class-specific
       equipment (SPEC-FINAL §11, extends fb004/fb022, owner feedback
