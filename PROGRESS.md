@@ -5,6 +5,111 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-01 session: fb039 done — balance tooling now measures the same
+  Constellation allocation real play uses (QUESTIONS Q138 OVERRIDE).**
+  `tools/sim.ts`, `tools/sweep.ts` and `tools/handoff-metrics.ts` all used to
+  default `RunConfig.allocated` to `[]` regardless of `--tree`, while every
+  real Hub-started run (including fb019's Training Grounds) feeds
+  `allTreeNodeIds(content)` in via `src/meta/meta.ts`'s `TREE_AUTO_MAX` — an
+  empty tree versus all 120 nodes' stat bonuses. Fixed by resolving
+  `allocated` from a tri-state: unset (`null`, the new default) means the
+  full tree; an explicit `--tree 1,2,3` always wins; a new `--tree none`
+  covers a deliberate empty tree (previously the only option). `tools/sim.ts`
+  gained the same `resolveAllocated`/guarded-`main()` shape `tools/sweep.ts`
+  already had (so a test can import it without a stray CLI run firing);
+  `tools/sweep.ts` got its own `resolveAllocated` alongside the existing
+  `resolveModifiers`; `tools/handoff-metrics.ts` has no `--tree` flag at all
+  (a fixed metrics script, not a per-run CLI), so it now always builds
+  `allocated` from the full tree, no override path needed. Regression tests:
+  `tests/fb039-tree-auto-max-tooling.test.ts` (10 tests: default-to-full-tree,
+  explicit-empty, explicit-partial, for both tools' `resolveAllocated` plus
+  `tools/sim.ts`'s `parseArgs`).
+
+  **`tools/status.ts`'s `cfgFor` has the identical latent defect (same
+  pattern fb047 found and bundled in) — deliberately NOT fixed here, logged
+  instead (QUESTIONS Q156, filed as BACKLOG fb048).** Measured live before
+  deciding: `tools/sweep.ts --seeds 4 --policies hybrid --tree none` (the old
+  default) costs ~90ms/run and shows the fb025-era 0% T1 collapse (dies wave
+  2-3); the same sweep with no `--tree` override (the new default, full tree)
+  costs ~16,000ms/run and shows a 75-87.5% win rate at a 36-37 min median —
+  roughly a **180x** per-run wall-clock cost, because the sim now actually
+  plays out the run instead of failing in the opening waves. `tools/
+  status.ts`'s own header comment sizes its `SEEDS = [1..5]` balance-snapshot
+  bound (~220 runs: policy comparison + 12-class + 5-Core, T1/T3) against the
+  *old*, fast-failing default so the whole tool finishes "well under a
+  minute"; at the new per-run cost that becomes closer to an hour. Confirmed
+  live rather than assumed: started a real `npx tsx tools/status.ts` run
+  after test-driving the fix on `cfgFor`, killed it after 2+ minutes with no
+  sign of finishing, and separately watched `tests/fb038-status.test.ts`'s
+  CLI-invocation test hit its 120s timeout the same way. Reverted `cfgFor` to
+  its old `allocated: []` default rather than ship a tool that silently
+  regresses its own "every ~20 backlog items" cadence (BACKLOG fb038) or a
+  test that now hangs — this needs a real seed-count/tick-cap redesign for a
+  full-tree character, not a one-line default flip, which is a different
+  scope of change than the fb047 precedent it otherwise matches.
+
+  **The required re-measurement (this item's own acceptance clause) turned up
+  something bigger than a delta to log.** `tests/p10d-run-length.test.ts`
+  (gate **G1**) is currently silently red at HEAD: ran it directly (not via
+  `test:fast`, which excludes it as a >60s suite) and got **0/24 wins** — no
+  `.skip`, no note, nobody caught it because the file that would have is
+  excluded from the tier that runs every item. Root cause: fb025's
+  enemy-HP-x10/attack-speed-x0.7 pass (this same session, logged in its own
+  entry below) floors win rates when measured with an empty tree, and this
+  gate's own harness (a local `cfg`-shaped literal, not `tools/sweep.ts`)
+  still hardcodes `allocated: []`. **A bounded spot-check under the real
+  full-tree allocation tells a very different story**: `tools/sweep.ts
+  --seeds 8 --policies hybrid` (engineer, T1, no `--tree` override, i.e. the
+  new default) measures **87.5% win (7/8), median 36.5 min** — near-total
+  recovery from the reported 0% collapse, once measured with what a real
+  player actually has. This is not a formal re-pin of G1 (different seed
+  count and a plain median vs. the gate's own mean-over-24 methodology,
+  §14's own literal ask) but it is strong, measured evidence that fb025's own
+  "severe, more severe than the owner's illustrative numbers suggest"
+  before/after table (see that entry below) was itself measured against an
+  unrealistic empty-tree condition, in both directions: it makes T1 look like
+  a total collapse when a real player's Constellation bonuses mostly recover
+  it. A second spot-check (necromancer, generic `hybrid` bot — not
+  `tests/p6e-class-diversity.test.ts`'s own scripted-kit-bot harness — 3
+  seeds) moved from **0% to 100%**, which cuts the other way for gate **G8**:
+  `p10m`'s "9-11 of 12 classes/Cores over the 70% ceiling" finding (BACKLOG
+  p10r) was *also* measured with the same empty-tree `cfg()` default, and if
+  necromancer (`p10m`'s one under-floor holdout) flips to 100% under a full
+  tree too, the real over-ceiling problem may be worse, not closer to
+  fixed, once measured correctly.
+
+  **Filed BACKLOG fb049 (top priority, ahead of p10r) rather than either
+  silently trusting `p10m`'s stale numbers or attempting a full formal re-pin
+  of four expensive gate suites inside this item** (`tests/p6e-class-
+  diversity.test.ts`'s own `beforeAll` alone costs ~1h per its file header;
+  starting that as a background run inside an ordinary item is exactly what
+  CLAUDE.md's test policy rules out). fb049 asks for the real thing: point
+  each gate test's own config at the full tree (or move `tests/helpers.ts`'s
+  shared `cfg()` default, whichever proves lower-blast-radius once actually
+  checked against every other test that calls `cfg()` unchanged) and
+  re-measure G1/G8/G14/G23 for real before `p10r` spends its retune budget
+  against numbers this item's own spot-checks say are measured wrong.
+  `p10r`'s own entry now carries a blocking note pointing here.
+
+  **code-reviewer**: delegated, no Critical/Major findings (Minor: prefer
+  the guarded-`main()` pattern consistently, applied to `tools/sim.ts` to
+  match `tools/sweep.ts`'s existing shape — done). **qa-playtester PASS**:
+  independently re-ran `tests/fb039-tree-auto-max-tooling.test.ts`,
+  `tests/fb047-sweep-tier-modifiers.test.ts` and `tests/fb038-status.test.ts`
+  standalone (all green, confirming `cfgFor`'s revert didn't regress fb047's
+  own fix), reproduced the `--tree none` vs default sweep-cost delta live,
+  and confirmed `npx tsc --noEmit` is clean; no bugs filed. `npm run
+  test:fast`: 138/143 files green; the 5 failures are the same pre-existing
+  Windows host-load flake class documented across many prior sessions
+  (`q15-command-domain-fuzz`, `b032`/`b034`/`b035`/`b036` fold-timing/
+  Playwright port-contention tests) — confirmed unrelated (this diff touches
+  only `tools/*.ts` and a new test file, none of which those tests exercise).
+  Files changed: `tools/sim.ts`, `tools/sweep.ts`, `tools/handoff-metrics.ts`,
+  `tools/status.ts` (comment only — behavior unchanged), `QUESTIONS.md`
+  (Q156), `tests/fb039-tree-auto-max-tooling.test.ts` (new). **Next up**:
+  `fb049` (blocks `p10r`), then `fb048`, then the normal-priority
+  fb029-037/fb040/fb042/fb044/fb046 batch.
+
 - **2026-09-01 session: fb047 done — `tools/sweep.ts`'s `--tier` flag now
   actually reaches difficulty (QUESTIONS additional ORDER, 2026-09-01 verdict
   batch, commit `3e8873d`).** CLAUDE.md rule 3 (confirmed bugs outrank the

@@ -278,15 +278,25 @@ or P10-band priority and block nothing below.
       have been picked first — this session re-derived the priority note too
       late. `fb047` is the next item, ahead of the normal-priority
       fb029-037/fb040/fb042/fb044/fb046 batch below.
-- [ ] (fb039) [balance] top priority, blocks `p10r`: QUESTIONS Q138 OVERRIDE —
+- [x] (fb039) [balance] top priority, blocks `p10r`: QUESTIONS Q138 OVERRIDE —
       point `tools/sim.ts`, `tools/sweep.ts` and `tools/handoff-metrics.ts`'s
-      defaults, and every gate measurement, at the same Constellation
-      allocation real Hub-started runs use (`TREE_AUTO_MAX` = full tree),
-      keeping an explicit `--tree none` / partial option for deliberate
-      scenarios — acceptance: the three tools default to a fully-allocated
-      tree; G8, G23, G14 and G1 are re-measured against the new default and
-      the deltas are recorded in PROGRESS.md before `p10r`'s retune continues
-      — refs: SPEC-FINAL §14 G1/G8/G14/G23, QUESTIONS Q138, fb014.
+      defaults at the same Constellation allocation real Hub-started runs use
+      (`TREE_AUTO_MAX` = full tree) — **done, see PROGRESS.md's fb039 entry
+      for the full write-up and the measured deltas.** `tools/status.ts`'s
+      `cfgFor` deliberately kept the old empty-tree default (filed as
+      **fb048**, QUESTIONS Q156 — flipping it costs ~180x more wall-clock
+      time per run, which its own seed-count budget was never sized for).
+      The re-measurement this item's acceptance called for turned up
+      something bigger than a delta to log: `tests/p10d-run-length.test.ts`
+      (G1) is currently silently red at HEAD (0/24 wins) with no `.skip`/note
+      — nobody caught it because it's excluded from the fast tier — and a
+      bounded spot-check under the real full-tree allocation (not a formal
+      re-pin; see the entry) suggests it and the other three gate tests may
+      already be green (or, for G8/G23, even further over-ceiling) once
+      measured correctly. Filed **fb049** (top priority, ahead of `p10r`) to
+      actually re-pin all four gate tests against `TREE_AUTO_MAX` before
+      `p10r` spends effort retuning against numbers this item shows are
+      stale.
 - [ ] (fb040) [polish] normal priority: QUESTIONS Q142 ORDER — make the
       Constellation screen (`tree-view.ts`'s `describeStat`) format `cdr`/
       `leech` via `stats.ts`'s `STAT_KIND` (or `info-format.ts`'s
@@ -383,6 +393,47 @@ or P10-band priority and block nothing below.
       flips queued -> done, plus small numeric drift from fb043/fb045 landing
       since it was last generated — refs: QUESTIONS additional ORDER
       (2026-09-01 verdict batch), p10p.
+- [ ] (fb048) [balance] normal priority: QUESTIONS Q156 — give
+      `tools/status.ts`'s balance snapshot its own seed-count/tick-cap budget
+      so `cfgFor` can move to the same `TREE_AUTO_MAX` full-tree default
+      `fb039` gave `tools/sim.ts`/`tools/sweep.ts`/`tools/handoff-metrics.ts`
+      without the snapshot's own wall-clock time exploding ~180x (measured at
+      fb039: ~90ms/run empty-tree vs ~16,000ms/run full-tree, T1 engineer/
+      hybrid) past both this tool's "well under a minute" design budget and
+      `tests/fb038-status.test.ts`'s 120s CLI timeout — acceptance: `cfgFor`
+      defaults to the full tree; `npx tsx tools/status.ts` still finishes in
+      a documented, bounded time (state the new number); `tests/fb038-
+      status.test.ts`'s CLI test still passes without a runaway timeout — refs:
+      QUESTIONS Q156, fb039, fb038.
+- [ ] (fb049) [balance] top priority, ahead of `p10r`: `fb039`'s re-measurement
+      found `tests/p10d-run-length.test.ts` (G1) silently red at HEAD (0/24
+      wins, no `.skip`/note — it's fast-tier-excluded so nothing else catches
+      this) and a bounded spot-check under the real `TREE_AUTO_MAX` full-tree
+      allocation (not this gate's own formal harness — a `tools/sweep.ts`
+      run, engineer/hybrid/T1, 8 seeds) measuring **87.5% win, medMin 36.5**
+      against the same 0% empty-tree collapse fb025's own before/after table
+      reported — a materially different story once measured under what a
+      real player actually plays with. `tests/p6e-class-diversity.test.ts`
+      (G8) and `tests/p-core-f-gates.test.ts` (G23) both build their configs
+      through `tests/helpers.ts`'s `cfg()`, which still defaults `allocated`
+      to `[]` — `p10r`'s whole premise (9-11 of 12 classes/Cores over the 70%
+      ceiling) was measured against that same empty-tree default, and a
+      quick spot-check (necromancer, generic `hybrid` bot, full tree, 3
+      seeds: 0% -> 100%) suggests the real number may be *more* over-ceiling
+      once corrected, not less — `p10r` should not spend its retune budget
+      against numbers this item's own investigation shows are measured
+      wrong. Acceptance: re-measure all four gates (G1/G8/G14/G23) against
+      the real `TREE_AUTO_MAX` allocation — either by pointing each gate
+      test's own config at `allTreeNodeIds(loadContent())` directly, or by
+      moving `tests/helpers.ts`'s `cfg()` default itself (whichever proves
+      the lower-blast-radius change once actually checked against every
+      other test that calls `cfg()` without an explicit `allocated`
+      override); record the real per-gate numbers in PROGRESS.md; `.skip`
+      any gate still red with the honest new number, matching CLAUDE.md rule
+      6; amend or supersede `p10r`'s own retune target based on what the
+      real numbers show, rather than the empty-tree numbers it was filed
+      against — refs: SPEC-FINAL §14 G1/G8/G14/G23, QUESTIONS Q138, fb039,
+      p10r, p10m.
 
 ### Feedback — owner-filed items (2026-08-27), processed from `feedback/`
 
@@ -931,6 +982,18 @@ fresh number.
       case as it lands, matching CLAUDE.md rule 6 — refs: SPEC-FINAL §14
       G8/G23, `p10m`'s Done-section writeup for the per-class/per-Core
       numbers this item retunes against.
+
+      **Blocked on `fb049` (filed at fb039):** `p10m`'s numbers above were
+      measured with `tests/helpers.ts`'s `cfg()` default (`allocated: []`),
+      the same empty-tree default fb039 found and fixed in the balance
+      tooling. A quick full-tree spot-check at fb039 (different, lighter
+      methodology — generic `hybrid` bot, 3 seeds, not this gate's own
+      scripted-kit-bot harness) moved necromancer from 0% to 100%, suggesting
+      the real over-ceiling numbers this item retunes against may be even
+      further from the band than `p10m` measured, not closer. Do not spend
+      this item's retune budget until `fb049` re-measures G8/G23 against the
+      real `TREE_AUTO_MAX` allocation and confirms or corrects `p10m`'s
+      numbers.
 
 ### Filed at the lane/quality merge (2026-08-27) — out-of-scope findings from BACKLOG-QUALITY.md's log
 

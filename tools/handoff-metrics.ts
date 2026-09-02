@@ -11,9 +11,14 @@ import { autoDraft } from '../src/sim/tiers';
 import type { RunConfig, RunReport } from '../src/sim/types';
 import { makePolicy } from '../src/bots';
 import '../src/bots';
+import { allTreeNodeIds } from '../src/meta/meta';
 
 const content = loadContent();
 const MAX_TICKS = 60 * 60 * 45;
+// fb039 (QUESTIONS Q138 OVERRIDE): measure the same Constellation allocation
+// every real Hub-started run uses (`src/meta/meta.ts`'s `TREE_AUTO_MAX`)
+// rather than an empty tree no live run is ever actually played with.
+const FULL_TREE = allTreeNodeIds(content);
 
 function runOne(policy: string, seed: number, tier: number, classKey = 'engineer'): RunReport {
   const modifiers = tier > 1 ? autoDraft(content, seed, tier) : [];
@@ -22,7 +27,7 @@ function runOne(policy: string, seed: number, tier: number, classKey = 'engineer
     classKey,
     tier,
     modifiers,
-    allocated: [],
+    allocated: FULL_TREE,
     policy,
   };
   const run = new Run(cfg);

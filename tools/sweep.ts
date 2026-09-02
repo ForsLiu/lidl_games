@@ -13,6 +13,7 @@ import { makePolicy } from '../src/bots';
 import '../src/bots';
 import { loadContent, type Content } from '../src/sim/content';
 import { autoDraft } from '../src/sim/tiers';
+import { allTreeNodeIds } from '../src/meta/meta';
 
 export interface Options {
   seeds: number;
@@ -21,7 +22,11 @@ export interface Options {
   classKey: string;
   tier: number;
   modifiers: string[];
-  allocated: number[];
+  // fb039 (QUESTIONS Q138 OVERRIDE): `null` means "not passed" — resolved to
+  // the full Constellation tree by `resolveAllocated`, matching every real
+  // Hub-started run (`src/meta/meta.ts`'s `TREE_AUTO_MAX`). An explicit
+  // `--tree` (including `--tree none` for deliberately empty) always wins.
+  allocated: number[] | null;
   json: boolean;
   maxTicks: number;
 }
@@ -34,7 +39,7 @@ function parse(argv: string[]): Options {
     classKey: 'engineer',
     tier: 1,
     modifiers: [],
-    allocated: [],
+    allocated: null,
     json: false,
     maxTicks: 60 * 60 * 45,
   };
@@ -47,7 +52,7 @@ function parse(argv: string[]): Options {
       case '--class': o.classKey = v; i++; break;
       case '--tier': o.tier = Number(v); i++; break;
       case '--mods': o.modifiers = v ? v.split(',').filter(Boolean) : []; i++; break;
-      case '--tree': o.allocated = v ? v.split(',').map(Number) : []; i++; break;
+      case '--tree': o.allocated = v === 'none' ? [] : v ? v.split(',').map(Number) : []; i++; break;
       case '--json': o.json = true; break;
       default: break;
     }
@@ -83,13 +88,24 @@ export function resolveModifiers(content: Content, seed: number, tier: number, e
   return tier > 1 ? autoDraft(content, seed, tier) : [];
 }
 
+/**
+ * fb039 (QUESTIONS Q138 OVERRIDE): balance tooling must measure what players
+ * play. Real Hub-started runs feed `allTreeNodeIds(content)` into `allocated`
+ * (`src/meta/meta.ts`'s `TREE_AUTO_MAX`); this tool used to default to `[]`
+ * regardless of `--tree`, measuring a materially weaker character than a real
+ * Hub run — an empty tree versus all 120 nodes' stats.
+ */
+export function resolveAllocated(content: Content, explicit: number[] | null): number[] {
+  return explicit ?? allTreeNodeIds(content);
+}
+
 export function buildRunConfig(o: Options, content: Content, seed: number): RunConfig {
   return {
     seed,
     classKey: o.classKey,
     tier: o.tier,
     modifiers: resolveModifiers(content, seed, o.tier, o.modifiers),
-    allocated: o.allocated,
+    allocated: resolveAllocated(content, o.allocated),
   };
 }
 

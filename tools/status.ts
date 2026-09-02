@@ -103,6 +103,25 @@ export function buildGateTable(): GateRow[] {
 // T3 comparison here is mechanically identical to T1, the exact bug p10p
 // flagged for `sweep.ts`'s own `--tier` flag, reproduced independently in
 // this tool's per-class/per-Core snapshot.
+//
+// fb039 (QUESTIONS Q138 OVERRIDE) — deliberately NOT applied here, logged
+// rather than silently bundled in: this tool has the identical `allocated:
+// []` defect `tools/sweep.ts`/`tools/sim.ts`/`tools/handoff-metrics.ts` had,
+// but flipping it costs far more here than it did for those three. Measured
+// live this session: a full-tree run's Constellation stat bonuses turn most
+// T1 runs from an instant wave-2-3 death (~90ms/run under the pre-fb039
+// empty-tree default) into a full ~35-min clear attempt (~16,000ms/run,
+// ~180x) — this tool's own `SEEDS`-per-cell bound (5) was sized against the
+// old, fast-failing default so the whole ~220-run snapshot finishes "well
+// under a minute" (this file's own header comment); at the new per-run cost
+// that becomes closer to an hour, blowing both that budget and
+// `tests/fb038-status.test.ts`'s 120s CLI timeout (confirmed: killed a live
+// `npx tsx tools/status.ts` run after 2+ minutes with no sign of finishing).
+// Closing this honestly needs a real redesign of the snapshot's own seed
+// count / per-cell tick cap for a full-tree character, not a one-line
+// default flip — out of this item's scope (fb039 names only `tools/sim.ts`,
+// `tools/sweep.ts` and `tools/handoff-metrics.ts`). Filed as **fb048**
+// (QUESTIONS.md) rather than left silently unfixed or silently regressed.
 export function cfgFor(overrides: Partial<RunConfig>, seed: number, content: Content): RunConfig {
   const base: RunConfig = { seed, classKey: 'engineer', tier: 1, modifiers: [], allocated: [], ...overrides };
   base.modifiers = resolveModifiers(content, seed, base.tier, base.modifiers);

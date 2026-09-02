@@ -23,22 +23,30 @@ import type { RunConfig, RunReport } from '../src/sim/types';
 let Run: typeof import('../src/sim/run').Run;
 let makePolicy: typeof import('../src/bots').makePolicy;
 let policyNames: typeof import('../src/bots').policyNames;
+let loadContent: typeof import('../src/sim/content').loadContent;
+let allTreeNodeIds: typeof import('../src/meta/meta').allTreeNodeIds;
 try {
   ({ Run } = await import('../src/sim/run'));
   ({ makePolicy, policyNames } = await import('../src/bots'));
+  ({ loadContent } = await import('../src/sim/content'));
+  ({ allTreeNodeIds } = await import('../src/meta/meta'));
 } catch (err) {
   const message = err instanceof Error ? err.message : String(err);
   console.error(`sim: ${message.replace(/\s+/g, ' ').trim()}`);
   process.exit(1);
 }
 
-interface Args {
+export interface Args {
   seeds: number[];
   policy: string;
   classKey: string;
   tier: number;
   modifiers: string[];
-  allocated: number[];
+  // fb039 (QUESTIONS Q138 OVERRIDE): `null` means "not passed" — resolved to
+  // the full Constellation tree at run time, the same allocation `TREE_AUTO_MAX`
+  // gives every real Hub-started run (`src/meta/meta.ts`). An explicit `--tree`
+  // (including `--tree none` for deliberately empty) always wins.
+  allocated: number[] | null;
   build: string | null;
   until: string;
   maxTicks: number;
@@ -47,14 +55,14 @@ interface Args {
   cycles: number | undefined;
 }
 
-function parseArgs(argv: string[]): Args {
+export function parseArgs(argv: string[]): Args {
   const a: Args = {
     seeds: [1],
     policy: 'hybrid',
     classKey: 'engineer',
     tier: 1,
     modifiers: [],
-    allocated: [],
+    allocated: null,
     build: null,
     until: 'end',
     maxTicks: 60 * 60 * 45,
@@ -100,7 +108,7 @@ function parseArgs(argv: string[]): Args {
         i++;
         break;
       case '--tree':
-        a.allocated = v ? v.split(',').filter(Boolean).map(Number) : [];
+        a.allocated = v === 'none' ? [] : v ? v.split(',').filter(Boolean).map(Number) : [];
         i++;
         break;
       case '--build':
@@ -152,6 +160,7 @@ function printHelp(): void {
       '  --tier N              map tier 1-5',
       '  --mods a,b            map modifier keys',
       '  --tree 1,2,3          allocated Constellation node ids',
+      '  --tree none           explicit empty tree (default: full tree, matching real play)',
       '  --build FILE.json     scripted build order for the bot',
       '  --until end           run to resolution (default)',
       '  --max-ticks N         safety cap (default 162000 = 45 min)',
@@ -162,13 +171,23 @@ function printHelp(): void {
   );
 }
 
+/**
+ * fb039 (QUESTIONS Q138 OVERRIDE): balance tooling must measure what players
+ * play. Real Hub-started runs feed `allTreeNodeIds(content)` into `allocated`
+ * (`src/meta/meta.ts`'s `TREE_AUTO_MAX`); this tool used to default to `[]`
+ * regardless, measuring a materially weaker character than live play.
+ */
+export function resolveAllocated(content: ReturnType<typeof loadContent>, explicit: number[] | null): number[] {
+  return explicit ?? allTreeNodeIds(content);
+}
+
 function runOne(args: Args, seed: number): RunReport {
   const cfg: RunConfig = {
     seed,
     classKey: args.classKey,
     tier: args.tier,
     modifiers: args.modifiers,
-    allocated: args.allocated,
+    allocated: resolveAllocated(loadContent(), args.allocated),
     policy: args.policy,
     cycles: args.cycles,
   };
@@ -236,4 +255,7 @@ export function summarize(reports: RunReport[]): Record<string, unknown> {
   };
 }
 
-main();
+// fb039: guarded like tools/sweep.ts's own `main()`, so a test can import
+// `resolveAllocated` without a stray default CLI run firing as a side effect.
+const invokedDirectly = process.argv[1]?.replace(/\\/g, '/').endsWith('tools/sim.ts');
+if (invokedDirectly) main();
