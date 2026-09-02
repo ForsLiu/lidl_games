@@ -101,10 +101,17 @@ export function metricsFor(report: RunReport, w: World): Record<string, number> 
     // report/world, banked lifetime or per-run" families the class quests
     // above already use.
     poison_kills: w.poisonKills,
-    // "finish a run with the Core at or below 25% HP" (§5.5) — win or lose,
-    // since §5.5 says "finish", not "win" (Time's quest below says "win"
-    // explicitly, so the distinction is deliberate, not an oversight).
-    core_finish_low_hp: report.coreMaxHp > 0 && report.coreHp <= report.coreMaxHp * 0.25 ? 1 : 0,
+    // "finish a run with the Core at or below 25% HP" (§5.5) — Q149 OVERRIDE:
+    // "finish" means the run ends with the Core still standing, so this is
+    // victory or a Warden-death loss (Core survives either), never
+    // defeat_core (the Core itself hit 0, so the run did not "finish" with it
+    // standing — it isn't a genuine near-death scrape).
+    core_finish_low_hp:
+      (report.outcome === 'victory' || report.outcome === 'defeat_warden') &&
+      report.coreMaxHp > 0 &&
+      report.coreHp <= report.coreMaxHp * 0.25
+        ? 1
+        : 0,
     lifetime_damage: report.damageTotal,
     fastest_win_seconds: won ? report.totalSeconds : Number.POSITIVE_INFINITY,
   };

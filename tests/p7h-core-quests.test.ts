@@ -147,13 +147,27 @@ describe('p7h: metricsFor derives the four Core-unlock metrics', () => {
     expect(metricsFor(reportWith(), w).poison_kills).toBe(42);
   });
 
-  it('core_finish_low_hp is 1 at or below 25% of max, win or lose; 0 above it', () => {
+  it('core_finish_low_hp is 1 at or below 25% of max on a run the Core survived (win or a Warden-death loss); 0 above it', () => {
     const w = new World(cfg());
-    expect(metricsFor(reportWith({ coreHp: 125, coreMaxHp: 500 }), w).core_finish_low_hp).toBe(1);
-    expect(metricsFor(reportWith({ coreHp: 0, coreMaxHp: 500, outcome: 'defeat_core' }), w).core_finish_low_hp).toBe(
+    expect(metricsFor(reportWith({ outcome: 'victory', coreHp: 125, coreMaxHp: 500 }), w).core_finish_low_hp).toBe(
       1,
     );
-    expect(metricsFor(reportWith({ coreHp: 126, coreMaxHp: 500 }), w).core_finish_low_hp).toBe(0);
+    expect(
+      metricsFor(reportWith({ outcome: 'defeat_warden', coreHp: 125, coreMaxHp: 500 }), w).core_finish_low_hp,
+    ).toBe(1);
+    expect(metricsFor(reportWith({ outcome: 'victory', coreHp: 126, coreMaxHp: 500 }), w).core_finish_low_hp).toBe(
+      0,
+    );
+  });
+
+  // Q149 OVERRIDE: "finish a run" means the run ends with the Core still
+  // standing — a defeat_core loss (Core hit 0) is not a "finish," so it must
+  // not unlock Vampire Heart even though 0 is arithmetically <= 25% of max.
+  it('core_finish_low_hp is 0 on a defeat_core loss (the Core itself was destroyed, not merely low)', () => {
+    const w = new World(cfg());
+    expect(
+      metricsFor(reportWith({ outcome: 'defeat_core', coreHp: 0, coreMaxHp: 500 }), w).core_finish_low_hp,
+    ).toBe(0);
   });
 
   it('lifetime_damage passes report.damageTotal through', () => {
@@ -184,12 +198,16 @@ describe('p7h: each Core-unlock quest drives unlockedCores end to end via applyR
     expect(meta.completedQuests).toContain('poison_purge');
   });
 
-  it('per-run boolean (scrape_by, finish at or below 25% Core HP) unlocks vampire_heart, win or lose', () => {
+  it('per-run boolean (scrape_by, finish at or below 25% Core HP with the Core still standing) unlocks vampire_heart', () => {
     let meta = defaultMeta();
     const w = new World(cfg());
     meta = applyRunResult(meta, reportWith({ outcome: 'victory', coreHp: 400, coreMaxHp: 500 }), w);
     expect(meta.unlockedCores).not.toContain('vampire_heart');
+    // A defeat_core loss (the Core itself hit 0) is not a "finish" — must not unlock (Q149 OVERRIDE).
     meta = applyRunResult(meta, reportWith({ outcome: 'defeat_core', coreHp: 0, coreMaxHp: 500 }), w);
+    expect(meta.unlockedCores).not.toContain('vampire_heart');
+    // A Warden-death loss with the Core still standing low is a genuine "scrape by."
+    meta = applyRunResult(meta, reportWith({ outcome: 'defeat_warden', coreHp: 100, coreMaxHp: 500 }), w);
     expect(meta.unlockedCores).toContain('vampire_heart');
     expect(meta.completedQuests).toContain('scrape_by');
   });
