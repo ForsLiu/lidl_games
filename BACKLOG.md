@@ -404,13 +404,31 @@ in live play today, a pre-existing gap fb029 exposed rather than introduced.
       `Infinity`-HP overflow reachable only via scripted dev-tool spam on
       both the TD and VS sides), both fixed with regression tests and
       re-verified clean. `tests/fb033-infinite-waves.test.ts` (9 tests).
-- [ ] (fb034) [feat] Practice tool "Max all towers": instantly raises every
+- [x] (fb034) [feat] Practice tool "Max all towers": instantly raises every
       placed tower (and the Core) to its final upgrade step, free — a
       replay-safe Command like the other practice tools, flagging the run
       as practice — acceptance: the option exists in the practice menu and
       Training Grounds; all towers/Core sit at max after use; a test covers
       it — refs: SPEC-FINAL §11 (practice tools), owner feedback
-      `feature-practice-max-towers`.
+      `feature-practice-max-towers`. **Done — see PROGRESS.md's 2026-09-02
+      fb034 entry for the full write-up.** New `max_towers` `DevOp`
+      (`applyDevCommand`, practice-gated like fb033's infinite waves);
+      `maxAllTowers` (towers.ts) mirrors `upgradeTower`'s HP-ratio-preserving
+      math, `maxCore` (cores.ts) shares `upgradeCore`'s per-step effect logic
+      via a new `applyCoreStep` helper so a free walk to the top is identical
+      to buying every step one at a time. Surfaces through the existing
+      `PRACTICE_BUTTONS` array, reaching both the practice panel and Training
+      Grounds with no new UI wiring. code-reviewer APPROVE (fixed inline: a
+      missing per-tower VFX emit, a missing dead-structure test case, a
+      missing `tools/fuzz-input.ts` DevOp entry); qa-playtester PASS, no bugs
+      filed (drove the sim entry points directly — no browser tool in that
+      environment — plus the existing headless-browser fold tests that render
+      the real Training Grounds practice panel). `tests/fb034-max-towers.test.ts`
+      (7 tests). `npm run test:fast`: only the same pre-existing Windows
+      port-contention flake class already documented (fb047/fb049:
+      `q15-command-domain-fuzz`, `b032`/`b035`/`b036`), reconfirmed
+      independently by both agents (isolation reruns, and a `git stash`
+      control showing the identical flakes on unmodified `master`).
 - [ ] (fb035) [feat] Game speed control becomes a dropdown spanning 0.25x,
       0.5x, 1x, 2x, 3x, 10x, 50x (extends fb010's 1/2/3/10/50x set down to
       quarter/half speed); sub-1x speeds run the sim at fixed 60Hz per

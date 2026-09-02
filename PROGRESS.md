@@ -5,6 +5,63 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-02 session: fb034 done — practice tool "Max all towers" (SPEC-FINAL
+  §11 practice tools, owner feedback `feature-practice-max-towers`).** A new
+  practice-only `DevOp` (`max_towers`, `src/sim/types.ts`) instantly raises
+  every live structure and the Core to their final upgrade step, free, gated
+  by the same `if (!w.cfg.practice) return` choke point every other practice
+  op uses. `maxAllTowers` (`src/sim/towers.ts`) mirrors `upgradeTower`'s own
+  math exactly — jump `s.tier` to `maxLevel(def)`, recompute `s.maxHp` via
+  `structureMaxHp`, preserve the current `hp/maxHp` wound ratio rather than
+  healing it, call `w.refreshBreach(s)` and emit the same `'upgrade'` VFX cue
+  a paid upgrade fires — skipping `petrified` structures (matching
+  `upgradeTower`'s own refusal) and `dead` ones (genuinely reachable: a
+  structure removed mid-batch via `removeStructure` stays in `w.structures`,
+  `dead: true`, until `World.compact()` runs, unlike `structureAt`, which
+  filters via `grid.occ`). `upgradeCore`'s per-step effect application (the
+  `coreHpBonus` ratio-preserving bump, the `hpRegenPerSecond` stats.add) was
+  factored out of that function into a shared private `applyCoreStep`
+  (`src/sim/cores.ts`), reused by both the existing paid single-step path and
+  a new `maxCore`, which walks free from the current `w.coreStep` to
+  `def.upgrade.count` — a refactor with no behavior change on the paid path,
+  confirmed by code review against the pre-refactor source. Surfaces via the
+  existing `PRACTICE_BUTTONS` array (fb032/fb033's own pattern), so it reaches
+  both the in-run practice panel and Training Grounds with zero new UI
+  wiring. `tools/fuzz-input.ts`'s `DEV_OPS` list gained the op too.
+
+  code-reviewer **APPROVE**, no Critical/Major; three Minors fixed inline in
+  the same commit: `maxAllTowers` never emitted the `'upgrade'` VFX cue a paid
+  upgrade does (added); the new test file exercised the petrified-skip branch
+  but not the dead-skip one despite calling the latter out as load-bearing in
+  its own docstring (added a dedicated test that calls `removeStructure`
+  directly and asserts the still-in-array pre-compact entry is left alone);
+  `tools/fuzz-input.ts`'s `DEV_OPS` list (used by the "10k random Commands"
+  fuzz gate) hadn't picked up the new op (added). A fourth Minor — a
+  force-maxed tower's `spent` field stays at its pre-jump value, so selling it
+  in the same practice run refunds only 50% of the *original* lower-tier cost
+  rather than the freebie's implied value — was left as-is: it is a smaller
+  refund than a player might expect, not an exploit or a crash, and practice
+  runs bank nothing regardless. qa-playtester **PASS**, no bugs filed: drove
+  `applyDevCommand`/`maxAllTowers`/`maxCore`/`sellTower` directly (no browser
+  tool in that environment) plus the existing headless-browser fold tests that
+  already render the real Training Grounds practice panel — confirmed 6 built
+  tower types plus the Core all jump to max on one call with gold unchanged, a
+  zero-tower board no-ops cleanly, a second call is idempotent, a tower built
+  *after* the call still starts at tier 1 (not retroactively maxed), a
+  non-practice run's `applyDevCommand` returns before touching anything, and
+  selling a maxed tower produces the expected smaller-than-intuitive-but-
+  still-correct refund with no crash or negative gold. `npx tsc --noEmit`
+  clean. `tests/fb034-max-towers.test.ts` (7 tests: free/no-op-outside-
+  practice, wound-ratio preservation, petrified-skip, dead-skip, idempotence,
+  Core parity against a real step-by-step purchase, full input-log replay
+  determinism) plus `tests/practice.test.ts`'s `OP_COVERAGE` exhaustiveness
+  map. `npm run test:fast`: only the same pre-existing Windows
+  port-contention flake class already documented (fb047/fb049:
+  `q15-command-domain-fuzz`, `b032`/`b035`/`b036` fold tests) — reconfirmed
+  independently by both agents (isolation reruns all green; qa-playtester also
+  ran a `git stash` control and reproduced the identical flakes on unmodified
+  `master`). Commit `3376b1f`.
+
 - **2026-09-02 session: fb033 done — practice toggles "Infinite TD waves" /
   "Infinite VS waves" (SPEC-FINAL §11 practice tools, owner feedback
   `feature-practice-infinite-waves`).** Two new practice-only `DevOp` values
