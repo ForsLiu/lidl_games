@@ -192,33 +192,38 @@ of any real run after the very first VS wave, which is every real playthrough
 — it also means fb029's own "plus its stats panel" VS clause is not reachable
 in live play today, a pre-existing gap fb029 exposed rather than introduced.
 
-- [ ] (b077) [bug] top priority: `hud.ts`'s selection-panel routing gate
-      (`const blocking = this.selected > 0 || w.sundered;`, `renderInfo`,
-      ~line 718) reads `w.sundered` — a permanent one-way flag set once at
-      the very first TD→VS transition (`finishSundering`, `sundering.ts:24`)
-      and never reset back to false, not even by `advanceToNextBlock`'s own
-      symmetric "back again" half (`sundering.ts`) — instead of the
-      current-phase `w.huntsWarden` getter the surrounding comment ("in Act
-      II the weapon panel carries the only weapon switcher") actually
-      describes. Result: `renderSelectionInfo` (the Warden/tower/enemy/core
-      click-selection info panel, including fb029's new range/wielded-range
-      rows) silently and permanently stops rendering the instant any real run
-      passes its first VS wave — not just during that VS wave, but in every
-      subsequent Act I build/wave phase for the rest of the run too — falling
-      back to the generic `renderTowerInfo` panel ("Pick a tower below..." or
-      the wielded-weapon-lineage panel) regardless of what is actually
-      selected. Found live (qa-playtester, fb029's QA pass) via a real
-      dev-server session that fast-forwarded past one Sundering: the
-      click-to-select system itself still worked (correct tile picked,
-      `Selection` state updated correctly) while its info panel never updated
-      again for the rest of the run — acceptance: after any Sundering,
-      selecting the Warden/a tower/an enemy/the Core in a later Act I phase,
-      and in the live VS phase itself, shows its own `renderSelectionInfo`
-      panel again, not the fallback; a regression test drives a real `Hud`
-      through one full TD→VS→TD cycle and asserts `#sw-towerinfo`'s content
-      changes with each selection in the post-Sundering TD phase, plus a
-      VS-phase case — refs: SPEC-FINAL §11, `src/ui/hud.ts` ~line 718,
-      `src/sim/sundering.ts`, fb029 QA pass.
+- [x] (b077) [bug] `hud.ts`'s selection-panel routing gate now reads the
+      current-phase `w.huntsWarden` getter instead of the permanent
+      `w.sundered` flag: `const blocking = this.selected > 0 ||
+      (w.huntsWarden && selection?.kind !== 'warden');`. The `w.sundered`
+      flag (set once at the first `finishSundering` and never reset by
+      `advanceToNextBlock`'s return trip) permanently blackholed
+      `renderSelectionInfo` after any run's first VS wave, TD and VS alike.
+      The Warden-selection carve-out is new: a pre-existing, deliberately
+      locked test (`t2-selection.test.ts`, "Act II keeps the weapon panel")
+      requires tower/enemy/Core selections to still yield to the
+      weapon/wielded-lineage panel during live VS, but fb029's VS-phase
+      character range/stats panel needs to win when the Warden itself is
+      selected — otherwise it stays unreachable in live play exactly as
+      fb029's own QA pass found. `tests/b077-selection-panel-routing.test.ts`
+      (2 tests) drives the real `finishSundering`/`advanceToNextBlock` sim
+      functions through a full TD→VS→TD cycle: a VS-phase Warden selection
+      shows its own panel, and a post-Sundering TD-phase tower/enemy/Core/
+      Warden selection all show their own panel again. code-reviewer found
+      no Critical/Major issues (confirmed the carve-out's scope is exactly
+      right against the `Selection` type's four kinds, no `lastInfoKey`
+      staleness risk, no CLAUDE.md architecture violations). qa-playtester
+      verified live via a real dev server + headless Playwright (two full
+      TD→VS→TD cycles, rapid select/clear races across the Sundering
+      instant, a bulk-kill mid-selection, pause mid-transition, a full
+      practice-run→defeat→retry cycle) — PASS, acceptance criteria met, no
+      new bugs filed. `npx tsc --noEmit` clean; `npm run test:fast`: the
+      same pre-existing Windows port-contention flake class already
+      documented (fb047/fb049: `q15-command-domain-fuzz`,
+      `b032`/`b034`/`b035`/`b036`), confirmed by re-running each in
+      isolation (all green) and by a control run on unmodified `master`
+      showing the identical flake class — refs: SPEC-FINAL §11,
+      `src/ui/hud.ts`, `src/sim/sundering.ts`, fb029 QA pass.
 - [ ] (b078) [bug] normal priority: `pointerToTile` (`src/ui/input.ts:41-55`)
       maps a click through `canvas.clientWidth`/`clientHeight` (the canvas's
       CSS layout size) instead of `canvas.width`/`canvas.height` (its

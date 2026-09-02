@@ -714,8 +714,14 @@ export class Hud {
     this.renderBottomBar(w);
     // A selection describes itself — but never at the cost of the panels the
     // player needs to act: a tower queued on the build bar has to show its own
-    // stats, and in Act II the weapon panel carries the only weapon switcher.
-    const blocking = this.selected > 0 || w.sundered;
+    // stats, and in Act II the weapon panel carries the only weapon switcher
+    // (b077: gated on the current-phase `w.huntsWarden`, not the permanent
+    // `w.sundered` flag, or every selection panel died forever after the
+    // first Sundering, TD and VS alike). The Warden itself is exempted: its
+    // own panel (fb029's range/wielded-range rows) is exactly what a VS-phase
+    // click on the character is for, and does not compete with the weapon
+    // panel the way a tower/enemy/Core selection would.
+    const blocking = this.selected > 0 || (w.huntsWarden && selection?.kind !== 'warden');
     if (!blocking && this.renderSelectionInfo(w, selection)) return;
     this.renderTowerInfo(w, cursor);
   }

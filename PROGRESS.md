@@ -5,6 +5,35 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-02 session: b077 done — the click-selection info panel (Warden/
+  tower/enemy/Core) no longer dies forever after a run's first Sundering
+  (SPEC-FINAL §11, top-priority bug filed by fb029's QA pass).**
+  `Hud.update()`'s `blocking` gate read `w.sundered` — a permanent one-way
+  flag `finishSundering` sets once and `advanceToNextBlock`'s return trip
+  never resets — instead of the current-phase `w.huntsWarden` getter, so once
+  any real run passed its first VS wave, `renderSelectionInfo` silently and
+  permanently fell back to the generic tower/weapon panel for the rest of the
+  run, TD and VS alike. Fixed to `const blocking = this.selected > 0 ||
+  (w.huntsWarden && selection?.kind !== 'warden')`: keyed off the live phase,
+  with a Warden-selection carve-out so fb029's VS-phase character range/stats
+  panel — unreachable in live play until now — actually wins there, while a
+  pre-existing, deliberately locked test (`t2-selection.test.ts`'s "Act II
+  keeps the weapon panel") keeps tower/enemy/Core selections yielding to the
+  weapon/wielded-lineage panel during live VS, unchanged.
+  `tests/b077-selection-panel-routing.test.ts` (2 tests) drives the real
+  `finishSundering`/`advanceToNextBlock` sim functions through a full
+  TD→VS→TD cycle. code-reviewer found no Critical/Major issues (confirmed the
+  carve-out's scope against `Selection`'s four kinds, no `lastInfoKey`
+  staleness, no architecture-rule violations). qa-playtester verified live via
+  a real dev server + headless Playwright — two full TD→VS→TD cycles, rapid
+  select/clear races across the Sundering instant, a bulk-kill mid-selection,
+  pause mid-transition, a full practice-run→defeat→retry cycle — PASS, no new
+  bugs filed. `npx tsc --noEmit` clean; `npm run test:fast` showed only the
+  same pre-existing Windows port-contention flake class already documented in
+  fb047/fb049 (`q15-command-domain-fuzz`, `b032`/`b034`/`b035`/`b036`),
+  confirmed both by re-running each in isolation (all green) and by qa's
+  control run on unmodified `master` reproducing the identical flake class.
+
 - **2026-09-02 session: fb029 done — clicking the character now draws its own
   attack-range ring, not just its pre-existing stats panel (SPEC-FINAL §11,
   owner feedback `feature-character-range-on-select`).** Selecting the

@@ -148,7 +148,7 @@ No run in this pool reached a boon offer (Act II).
 | 20260901-114409-balance-enemies-10x-hp-slower-attacks.md | fb025 — done |
 | 20260901-114409-bug-dps-panel-close.md | fb024 — done |
 | 20260901-114409-feature-bottom-bar-hud.md | fb026 — done |
-| 20260901-114409-feature-character-range-on-select.md | fb029 — queued |
+| 20260901-114409-feature-character-range-on-select.md | fb029 — done |
 | 20260901-114409-feature-core-tower-panels.md | fb027 — done |
 | 20260901-114409-feature-dash-fast-move.md | fb030 — queued |
 | 20260901-114409-feature-detailed-effect-text.md | fb028 — done |
