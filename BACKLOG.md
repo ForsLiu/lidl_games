@@ -636,14 +636,91 @@ or P10-band priority and block nothing below.
       (bot-driven World runs through both `defeat_core` and `defeat_warden`
       endings, not just synthetic reports; no bugs filed) — **done, see Done
       section.**
-- [ ] (fb044) [feat] normal priority, after the current owner batch:
-      QUESTIONS Q150 ORDER — per-field editors in the Tuner for the
-      collections the owner tunes most (towers, classes, cores, waves), on
-      top of the existing whole-document JSON-text editor — acceptance: each
-      of the four collections has typed per-field widgets for its
-      numeric/enum fields that round-trip through the same zod schema
-      validation as the JSON editor; the JSON editor remains available for
-      everything else — refs: SPEC-FINAL §11, QUESTIONS Q150, extends p9c.
+- [x] (fb044) [feat] QUESTIONS Q150 ORDER — per-field editors in the Tuner
+      for the collections the owner tunes most (towers, classes, cores,
+      waves), on top of the existing whole-document JSON-text editor —
+      commit `5174e3f`. New `src/ui/tuner-fields.ts` walks each collection's
+      own zod schema (via the exported `TUNER_FILES` registry,
+      `src/sim/content.ts`) generically rather than hand-authoring one form
+      per collection: `z.ZodNumber`→number input, `z.ZodBoolean`→checkbox,
+      `z.ZodEnum`→`<select>`, `z.ZodString`→text input (writing back `null`
+      for a `z.ZodNullable` string cleared to empty, not `''`), `z.ZodObject`
+      →a nested `<details>` group, `z.ZodArray` of objects/discriminated
+      unions→one repeated `<details>` per row (recursing arbitrarily deep —
+      confirmed on `waves[].groups[].perGate`, two levels down), and
+      `z.ZodDiscriminatedUnion` (the one real case among these four,
+      `TowerSchema.vsSpecial`)→ the active `kind` shown read-only plus the
+      matching variant's own fields typed (switching `kind` itself stays
+      JSON-editor-only, since a different variant needs different required
+      fields no widget can safely default). Anything with no fixed field
+      list a widget can describe — a dynamic-key record (`defenseBands`, a
+      Core's `effects`/`upgrade.steps`), an array of raw scalars
+      (`onHit: string[]`) — returns `null` and is left to the JSON editor
+      untouched, satisfying the acceptance's "remains available for
+      everything else" without a second document format. A widget edit
+      writes `JSON.stringify` back into the *same* textarea Save already
+      posts from (`tuner.ts`'s `installEditableEditor`), so it round-trips
+      through the identical `postTunerSave`/server-side-schema path, not a
+      parallel one; the panel only gated to `towers`/`classes`/`cores`/
+      `waves` (`FIELD_EDITOR_KEYS`) per this item's own four-collection
+      scope, every other collection keeping the p9c JSON-only editor
+      unchanged. code-reviewer found two real bugs pre-commit, both fixed
+      with regression coverage (each confirmed red pre-fix / green post-fix
+      via a targeted revert-and-rerun, not just the whole-feature stash
+      check): **Critical** — most towers ship with no `buffAura`/`economy`/
+      `passive` at all, but the widget for e.g. `economy.goldPerWavePerTier`
+      still rendered unconditionally; writing to it threw inside
+      `applyFieldChange` (`cursor[key]` was `undefined`) and silently
+      dropped the keystroke — fixed by having `applyFieldChange` create the
+      missing intermediate container(s) as it walks the path, so filling in
+      an absent optional group's field now populates the group instead of
+      throwing. **Major** — a widget's own `onChange` called
+      `renderFieldsPanel()` synchronously, tearing down and rebuilding every
+      widget's DOM on every single keystroke (jsdom-confirmed:
+      `document.activeElement` fell back to `document.body` after one
+      character) and closing over a stale parsed-document snapshot, so a
+      second field edited before the next rebuild would have silently
+      overwritten the first — fixed by having `onChange` re-parse the
+      *live* textarea text fresh on every call and never rebuild the DOM
+      itself; only typing directly into the raw JSON textarea still
+      triggers a full panel rebuild now. `tests/fb044-tuner-per-field.
+      test.ts` (15 tests): all four collections get typed widgets; a
+      collection outside the four (`enemies`) gets none; top-level and
+      nested/two-levels-deep numeric fields round-trip; a boolean checkbox;
+      an enum `<select>` (classes' `active1.kind`) with the schema's own
+      options; a nullable string round-trips both a value and back to
+      `null`; a Core's scalar `baseHp` is typed while its dynamic-key
+      `effects`/`steps` records are confirmed absent from the widget list;
+      a typed edit reaches `/__tuner/save` with the edited value in the POST
+      body; a non-numeric string typed into a number input is ignored
+      rather than writing `NaN`; the discriminated-union `vsSpecial` case;
+      plus the Critical/Major regressions above. code-reviewer **REQUEST-
+      CHANGES → APPROVE** after both fixes (Minor: the ~40 flat, kind-
+      ungated optional fields on a class's `active1`/`active2` all render
+      regardless of the row's actual `kind`, noisy but harmless since an
+      unused field is inert — accepted as-is, not in scope to fix without a
+      kind→visible-fields map SPEC-FINAL doesn't specify). qa-playtester
+      **PASS**: adversarially drove a `chain_lightning`-only field on a
+      `burst_damage` row (writes fine, Save accepts it — schema allows every
+      field regardless of `kind`, no rejection surprise), confirmed Core
+      `upgrade.steps` stays fully JSON-only, fired rapid edits across four
+      different tower rows with no rebuild between them (all four land,
+      others untouched), drove a tower's `hp` negative and confirmed Save's
+      existing field-level-error UI (`formatErrors`) and dirty-state behave
+      identically to the pre-existing whole-document path, and confirmed
+      the remount/draft-restore path (Codex tab switch away and back)
+      restores a typed-field-originated edit exactly like a raw-textarea
+      one already did; separately confirmed the Tuner's Export button reads
+      the stale `collection.raw` rather than the live edited document is a
+      **pre-existing p9c behavior** (reproduced identically via a raw-
+      textarea edit on a collection with no field-editor panel at all), not
+      an fb044 regression — no bugs filed. `npx tsc --noEmit` clean;
+      `npm run test:fast` reran clean (2050/2076 passed, 23 skipped; the
+      only 6 failing files are the same pre-existing Windows host-load
+      flake class documented across multiple prior sessions — b032/b034/
+      b035/b036 fold-timing and q15-command-domain-fuzz's worker-hang
+      detection — reproducing identically and unrelated to this diff) —
+      refs: SPEC-FINAL §11, QUESTIONS Q150, extends p9c.
 - [x] (fb045) [bug] QUESTIONS Q151 OVERRIDE — the G18 20s idle auto-resolve
       on `levelup` applies only to unattended runs — commit `df1a6a5`,
       code-reviewer APPROVE (no Critical/Major; two Minor forward-looking

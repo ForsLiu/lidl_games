@@ -5,6 +5,62 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-02 session: fb044 done — typed per-field Tuner widgets for
+  towers/classes/cores/waves (QUESTIONS Q150 ORDER, commit `5174e3f`).** New
+  `src/ui/tuner-fields.ts` walks each collection's own zod schema (the
+  exported `TUNER_FILES` registry, `src/sim/content.ts`) generically to
+  build typed DOM widgets — number/checkbox/`<select>`/text inputs, nested
+  `<details>` groups for objects, one repeated `<details>` per row for
+  arrays of objects (recursing arbitrarily deep, confirmed on
+  `waves[].groups[].perGate`), and the one real `z.ZodDiscriminatedUnion`
+  among these four (`TowerSchema.vsSpecial`) shown as a read-only active
+  `kind` plus the matching variant's own typed fields — layered above the
+  p9c whole-document JSON textarea rather than replacing it. A dynamic-key
+  record (`defenseBands`, a Core's `effects`/`upgrade.steps`) or a raw-
+  scalar array (`onHit: string[]`) has no fixed field list a widget can
+  describe, so it's left to the JSON editor untouched, satisfying the
+  acceptance's "remains available for everything else." A widget edit
+  writes back into the *same* textarea Save already posts from
+  (`tuner.ts`), so every edit round-trips through the identical
+  `postTunerSave`/server-side-schema path, not a second one; the panel is
+  gated to exactly `towers`/`classes`/`cores`/`waves`
+  (`FIELD_EDITOR_KEYS`), this item's own four-collection scope. code-
+  reviewer's first pass found two real bugs, both fixed with regression
+  coverage before commit (each independently confirmed red pre-fix / green
+  post-fix by reverting just that hunk, not only the whole-feature stash
+  check): a **Critical** where the widget for an optional nested object
+  absent from the row (most towers ship with no `buffAura`/`economy`/
+  `passive`) threw inside `applyFieldChange` and silently dropped the
+  keystroke — fixed by creating the missing intermediate container(s) as
+  the path is walked; and a **Major** where a widget's own edit handler
+  tore down and rebuilt the entire panel synchronously on every keystroke
+  (jsdom-confirmed DOM-focus loss after one character) while closing over a
+  stale document snapshot that could silently drop an earlier edit — fixed
+  by having the handler re-read the live textarea text fresh and never
+  rebuild the DOM itself. `tests/fb044-tuner-per-field.test.ts` (15 tests)
+  covers all four collections, nested/two-level-deep arrays, booleans,
+  enums, the discriminated union, nullable-string round-trips (including
+  back to `null`), the dynamic-key-record exclusion, the Save round-trip,
+  and both bug fixes above. code-reviewer **REQUEST-CHANGES → APPROVE**
+  after the fixes (one accepted Minor: a class's `active1`/`active2` renders
+  all ~40 flatly-optional fields regardless of the row's actual `kind` —
+  noisy but harmless, no kind→visible-fields map exists in SPEC-FINAL to
+  build against). qa-playtester **PASS**: adversarially drove a
+  kind-irrelevant class field (writes fine, Save accepts it — the schema
+  allows every field regardless of `kind`), confirmed Core `upgrade.steps`
+  stays fully JSON-only, fired rapid edits across four tower rows with no
+  rebuild between them (all land independently), drove a tower's `hp`
+  negative and confirmed the existing field-level-error Save UI behaves
+  identically to the pre-existing whole-document path, confirmed remount/
+  draft-restore works for a typed-field-originated edit, and separately
+  confirmed the Tuner's Export-reads-stale-`raw` behavior is pre-existing
+  p9c behavior (reproduced identically via a raw-textarea edit on a
+  collection with no field-editor panel), not an fb044 regression — no bugs
+  filed. `npx tsc --noEmit` clean; `npm run test:fast` reran clean
+  (2050/2076 passed, 23 skipped; the only failures are the same
+  pre-existing Windows host-load flake class — b032/b034/b035/b036
+  fold-timing, q15-command-domain-fuzz's worker-hang detection —
+  reproducing identically and unrelated to this diff).
 - **2026-09-02 session: b076 done — mid-run `equip_item` swap now flips
   Sleeve Sword/Swordsman Armor/Swordsman Shoes' special mechanics live, not
   just their generic `Stats` mods (commit `bb69f37`).** `hasEquipment`
