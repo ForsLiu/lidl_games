@@ -369,12 +369,22 @@ in live play today, a pre-existing gap fb029 exposed rather than introduced.
       identical against `HEAD`'s old fixed-pull code. `tests/fb031-gem-
       accelerate.test.ts` (5 tests). `tests/q7-loader-holes.ts` regenerated
       for the two new `spawns.json` fields.
-- [ ] (fb032) [feat] Practice +gold/+XP buttons become amount dropdowns:
+- [x] (fb032) [feat] Practice +gold/+XP buttons become amount dropdowns:
       +500, +1000, +2500, +5000, +100000, same `dev` Command path with
       amount as a parameter — acceptance: both dropdowns grant the chosen
       amount; a test covers every amount and replay safety — refs:
       SPEC-FINAL §11 (practice tools), owner feedback
-      `feature-practice-amount-dropdowns`.
+      `feature-practice-amount-dropdowns`. **Done — see PROGRESS.md's
+      2026-09-02 fb032 entry for the full write-up.** `src/ui/hud.ts`'s
+      `showPracticeTools` pairs the `gold`/`xp` practice buttons with a
+      `<select id="sw-dev-amount-${op}">` (new `PRACTICE_AMOUNTS` export:
+      500/1000/2500/5000/100000, default 500) read live at click time; the
+      sim's `applyDevCommand` already took `amount` as a parameter, so this
+      was UI-only. code-reviewer APPROVE (no Critical/Major); qa-playtester
+      PASS via a real dev server (gold +100000 and XP +5000 both confirmed
+      live, including rapid-click, collapse/expand, non-Act-II XP no-op and
+      keyboard-only probes). `tests/fb032-practice-amount-dropdowns.test.ts`
+      (23 tests) covers every amount for both ops plus replay-hash safety.
 - [ ] (fb033) [feat] Practice toggles "Infinite TD waves" / "Infinite VS
       waves": the run stays in the chosen phase indefinitely, spawning waves
       with continuing scaling (wave index keeps climbing) until toggled off

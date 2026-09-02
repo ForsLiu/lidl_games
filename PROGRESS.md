@@ -5,6 +5,56 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-02 session: fb032 done — the practice tool's +Gold/+XP buttons
+  become amount dropdowns (SPEC-FINAL §11 practice tools, owner feedback
+  `feature-practice-amount-dropdowns`).** `src/ui/hud.ts`'s `showPracticeTools`
+  pairs each of the `gold`/`xp` practice ops with a `<select id="sw-dev-amount-
+  ${op}">` offering 500/1000/2500/5000/100000 (new `PRACTICE_AMOUNTS` export,
+  default-selected at 500 to match the old fixed behavior) instead of a single
+  fixed-`+500` button; clicking `[data-dev="gold"|"xp"]` now reads the amount
+  from its sibling select at click time rather than a baked-in `data-amount`,
+  and dispatches the same `dev` Command the sim already accepted (`src/sim/
+  run.ts`'s `applyDevCommand` took an `amount` parameter for both ops before
+  this change — the item was UI-only, no sim-side edit). Other practice-tool
+  ops keep their plain `data-amount` button unchanged (`PRACTICE_AMOUNT_OPS`
+  gates the two that grew a dropdown). New `.sw-devamount`/`.sw-devamount-
+  select` CSS rules lay the select+button pair out inside the existing
+  2-column `.sw-devgrid`.
+
+  code-reviewer **APPROVE**, no Critical/Major findings: confirmed the select
+  is read live at click time (no stale-value risk across re-selection or
+  panel collapse/expand, since `showPracticeTools` renders once per run start
+  and collapse only toggles a CSS class), confirmed hardcoding the five preset
+  amounts in `hud.ts` does not violate CLAUDE.md's "numbers live in /data"
+  rule (precedent: `pacer.ts`'s `SPEEDS` array is the same shape of UI-only
+  dev-tool preset, not gameplay tuning), and confirmed the existing
+  `hud-controls.test.ts` "every op reaches the callback" test still exercises
+  real behavior (its default-selected value still matches the old fixed +500).
+
+  qa-playtester **PASS**: verified through the real dev server via headless
+  Playwright, not just the unit suite — set the gold dropdown to 100000 and
+  clicked the real button, confirmed the HUD's gold readout moved by exactly
+  +100000; forced Act II and did the same for XP at 5000, confirming a real
+  level-up modal opened (proof `addXp` actually consumed the grant, not just
+  that a callback fired). Adversarially probed rapid double-clicks (each is a
+  distinct real grant, no dedupe expected or found), panel collapse/expand
+  (selection survives), an XP click outside Act II (correctly a no-op via the
+  pre-existing `w.phase === 'act2'` guard), and keyboard-only operation (tab +
+  arrow-key selection + Enter-to-grant all work, no focus trap) — no bugs
+  found. Confirmed structurally, at both the DOM layer (`#sw-practice` never
+  renders outside a practice run) and the sim layer (`applyDevCommand`'s
+  `if (!w.cfg.practice) return`), that a normal run cannot reach the dev path.
+
+  `tests/fb032-practice-amount-dropdowns.test.ts` (23 tests): dropdown option
+  set/order for both ops, all 5 amounts × 2 ops reaching the callback and
+  actually mutating `w.gold`/`w.xp` via `applyDevCommand`, a re-click-after-
+  reselect case (proves the read is live, not cached), and a replay-safety
+  case (two independent `Run`s from the same seed + input log, one `dev`
+  command per amount, hash-identical). `npx tsc --noEmit` clean; `npm run
+  test:fast`: the same pre-existing Windows port-contention/host-load flake
+  class already documented across prior sessions (`q15-command-domain-fuzz`,
+  `b034`), confirmed unrelated by re-running both in isolation (all green).
+
 - **2026-09-02 session: fb031 done — VS XP gems accelerate toward the
   character once attracted, uncapped (SPEC-FINAL §2 pickup amendment, owner
   feedback `feature-exp-accelerating-pickup`).** `src/sim/progression.ts`'s

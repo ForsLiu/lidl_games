@@ -295,8 +295,17 @@ export class Hud {
       `<div class="sw-practice-body${this.practiceCollapsed ? ' collapsed' : ''}" id="sw-practice-body">` +
       '<p class="sw-note">This run banks nothing.</p>' +
       '<div class="sw-devgrid">' +
-      PRACTICE_BUTTONS.map(
-        (b) => `<button class="sw-ctl" data-dev="${b.op}" data-amount="${b.amount}" title="${b.title}">${b.label}</button>`,
+      PRACTICE_BUTTONS.map((b) =>
+        PRACTICE_AMOUNT_OPS.has(b.op)
+          ? `<span class="sw-devamount">` +
+            `<select class="sw-devamount-select" id="sw-dev-amount-${b.op}">` +
+            PRACTICE_AMOUNTS.map(
+              (v) => `<option value="${v}"${v === b.amount ? ' selected' : ''}>${v.toLocaleString()}</option>`,
+            ).join('') +
+            `</select>` +
+            `<button class="sw-ctl" data-dev="${b.op}" title="${b.title}">${b.label}</button>` +
+            `</span>`
+          : `<button class="sw-ctl" data-dev="${b.op}" data-amount="${b.amount}" title="${b.title}">${b.label}</button>`,
       ).join('') +
       '</div>' +
       (enemies.length > 0
@@ -328,7 +337,13 @@ export class Hud {
     });
     for (const el of this.practiceEl.querySelectorAll<HTMLElement>('[data-dev]')) {
       el.addEventListener('click', () => {
-        this.cb.onDev(el.dataset.dev as DevOp, Number(el.dataset.amount));
+        const op = el.dataset.dev as DevOp;
+        // fb032: gold/xp read their amount from the adjacent dropdown at
+        // click time, so a tester can change the selection and re-click
+        // without the amount ever being baked into the button itself.
+        const amountSelect = this.practiceEl.querySelector<HTMLSelectElement>(`#sw-dev-amount-${op}`);
+        const amount = amountSelect ? Number(amountSelect.value) : Number(el.dataset.amount);
+        this.cb.onDev(op, amount);
       });
     }
     this.practiceEl.querySelector('#sw-spawn-go')?.addEventListener('click', () => {
@@ -1594,11 +1609,23 @@ export const TOGGLE_STATE = (w: World): [DevOp, boolean][] => [
   ['god', w.godMode],
 ];
 
+/**
+ * fb032: the amount granted by the `gold`/`xp` practice buttons, chosen from
+ * an adjacent dropdown at click time rather than fixed at +500.
+ */
+export const PRACTICE_AMOUNTS = [500, 1000, 2500, 5000, 100000] as const;
+
+/**
+ * ops whose practice button is paired with an amount dropdown (fb032)
+ * instead of firing its `amount` field directly.
+ */
+const PRACTICE_AMOUNT_OPS = new Set<DevOp>(['gold', 'xp']);
+
 /** The practice tool's buttons, in the order a tester reaches for them. */
 export const PRACTICE_BUTTONS: { op: DevOp; amount: number; label: string; title: string }[] = [
   { op: 'kill_all', amount: 0, label: 'Kill all', title: 'Kills every enemy except the boss; bounty and gems still drop' },
-  { op: 'gold', amount: 500, label: '+500 gold', title: 'Adds gold' },
-  { op: 'xp', amount: 500, label: '+500 XP', title: 'Act II only' },
+  { op: 'gold', amount: 500, label: '+Gold', title: 'Adds the selected amount of gold' },
+  { op: 'xp', amount: 500, label: '+XP', title: 'Adds the selected amount of XP (Act II only)' },
   { op: 'heal', amount: 0, label: 'Full heal', title: 'Warden and Core to full' },
   { op: 'invuln', amount: 0, label: 'Invulnerable', title: 'Toggles Warden damage off' },
   { op: 'god', amount: 0, label: 'God mode', title: 'Warden and Core both take no damage; leaks still count' },

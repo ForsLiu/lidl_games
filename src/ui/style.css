@@ -670,6 +670,25 @@ html, body {
   gap: 5px;
 }
 
+/* fb032: the gold/xp practice buttons pair with an amount dropdown. */
+.sw-devamount {
+  display: flex;
+  gap: 4px;
+  min-width: 0;
+}
+.sw-devamount-select {
+  flex: 1 1 0;
+  min-width: 0;
+  font: inherit;
+  font-size: 12px;
+  background: var(--panel2);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 0 2px;
+}
+.sw-devamount .sw-ctl { flex: 0 0 auto; }
+
 .sw-spawnrow {
   display: grid;
   grid-template-columns: 1fr 56px auto;
