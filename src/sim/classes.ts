@@ -1751,8 +1751,11 @@ export function classBasicAttack(w: World, cls: ClassDef): void {
   const wd = w.warden;
   if (wd.attackCooldown > 0) return;
   const a = cls.basicAttack;
-  // fb015 (§7): Sniper Bracelet's "character ... range +10%".
-  const target = w.nearestEnemy(wd.x, wd.y, a.range * w.derived.charRangeMul);
+  // fb015 (§7): Sniper Bracelet's "character ... range +10%". Routed through
+  // `characterBasicRange` (fb029) so the fire path and the on-select range
+  // ring can never drift apart from a formula change to one and not the
+  // other.
+  const target = w.nearestEnemy(wd.x, wd.y, characterBasicRange(w));
   if (!target) return;
   wd.attackCooldown = a.interval / (w.derived.attackSpeedMul * auraSpeedMul(w, wd.x, wd.y));
   const dmg = characterDamage(w, cls, a.dps * a.interval);
@@ -1771,4 +1774,16 @@ export function classBasicAttack(w: World, cls: ClassDef): void {
     if (!target.dead) applyEffects(w, target, { onHit });
   }
   w.emit('class_basic', wd.x, wd.y, target.x, target.y);
+}
+
+/**
+ * fb029: the character's live basic-attack range in tiles, range bonuses
+ * (Sniper Bracelet, tree, boons) included — the exact formula
+ * `classBasicAttack` fires at above, exposed for the on-select attack-range
+ * ring. 0 if the run has no resolvable class (should not happen live).
+ */
+export function characterBasicRange(w: World): number {
+  const cls = w.content.classByKey.get(w.cfg.classKey);
+  if (!cls) return 0;
+  return cls.basicAttack.range * w.derived.charRangeMul;
 }

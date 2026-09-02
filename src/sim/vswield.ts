@@ -80,6 +80,34 @@ export function wieldedAttacks(w: World): WieldedAttack[] {
   return out;
 }
 
+/**
+ * A wielded attack's live range in tiles — "treated as character attacks"
+ * (§6.1), so it rides the character's Area and range stats, never the Act I
+ * `towerRangeMul` (this file's header). The one formula `fireWielded` fires
+ * at and `longestWieldedRange` (fb029) quotes for the on-select ring, so the
+ * two can never drift apart.
+ */
+function wieldedRangeFor(w: World, a: TowerAttack): number {
+  return a.range * w.derived.areaMul * w.derived.charRangeMul;
+}
+
+/**
+ * fb029: the longest range among every wielded attack, for the character's
+ * on-select secondary ring in VS — resolves each type's tower def to reach
+ * `def.attack` (not carried on `WieldedAttack` itself) and scores it through
+ * `wieldedRangeFor`. 0 with nothing built.
+ */
+export function longestWieldedRange(w: World): number {
+  let max = 0;
+  for (const wielded of wieldedAttacks(w)) {
+    const def = w.content.towerById.get(wielded.towerId);
+    if (!def?.attack) continue;
+    const range = wieldedRangeFor(w, def.attack);
+    if (range > max) max = range;
+  }
+  return max;
+}
+
 function wieldOneType(w: World, def: TowerDef, group: readonly Structure[]): WieldedAttack {
   const count = group.length;
   let sum = 0;
@@ -276,8 +304,10 @@ function fireWielded(w: World, wielded: WieldedAttack, def: TowerDef, a: TowerAt
   // are explicitly "treated as character attacks" (§6.1), so the character
   // half of the bracelet's bonus rides along here; the tower half
   // (`towerRange`) deliberately does not — see this file's header comment on
-  // why `towerRangeMul` stays Act I's.
-  const range = a.range * area * w.derived.charRangeMul;
+  // why `towerRangeMul` stays Act I's. Routed through `wieldedRangeFor`
+  // (fb029) so this fire path and `longestWieldedRange`'s on-select ring
+  // can never drift apart.
+  const range = wieldedRangeFor(w, a);
   // SPEC-FINAL §6.3 Type Mastery: "+20% that type's VS attack damage" per
   // rank, one card per built tower type — applied here, the single choke
   // point every wielded-attack kind already funnels its damage through.

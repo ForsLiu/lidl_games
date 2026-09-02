@@ -16,7 +16,8 @@ import { selectedEnemy, selectedStructure, type Selection } from './selection';
 import { characterPanelData, type CharacterPanelData } from './character-panel';
 import { dpsPanelData, type DpsPanelData, type DpsWindow } from './dps-panel';
 import { STAT_DISPLAY, type StatDisplay } from '../sim/stats';
-import { active2CdrFactor, classAttackPowerMul } from '../sim/classes';
+import { active2CdrFactor, characterBasicRange, classAttackPowerMul } from '../sim/classes';
+import { longestWieldedRange } from '../sim/vswield';
 import { activeSkillMarkup, classAbilitiesMarkup, passiveSkillMarkup, type ClassLiveContext } from './class-info';
 import { bottomBarData, type SkillIconState } from './bottom-bar';
 import { coreLiveMarkup } from './core-info';
@@ -936,6 +937,7 @@ export class Hud {
       formatPercent(wd.powerMul - 1),
       formatPercent(wd.attackSpeedMul - 1),
       formatPercent(wd.areaMul - 1),
+      w.huntsWarden ? round1(longestWieldedRange(w)) : round1(characterBasicRange(w)),
     ].join(':');
     if (key !== this.lastInfoKey) {
       this.lastInfoKey = key;
@@ -1671,6 +1673,11 @@ export function wardenInfoMarkup(w: World): string {
     row('Attack speed', formatPercent(d.attackSpeedMul - 1)),
     row('Area', formatPercent(d.areaMul - 1)),
     row('Dash', `${w.warden.dashCharges} / ${d.dashCharges}`),
+    // fb029: the same numbers the on-select range ring draws, so the ring
+    // and the panel can never disagree about what "range" means here.
+    w.huntsWarden
+      ? row('Wielded range', `${round1(longestWieldedRange(w))} tiles`)
+      : row('Range', `${round1(characterBasicRange(w))} tiles`),
   ];
   return `<h3 style="color:${PALETTE.warden}">The Warden <small>level ${w.level}</small></h3>${rows.join('')}`;
 }

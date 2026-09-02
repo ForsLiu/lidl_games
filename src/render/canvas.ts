@@ -16,7 +16,8 @@ import {
 import { dotOutstanding, dotRemaining } from '../sim/enemies';
 import { damageStyleColor, executeStyle } from '../sim/damagetypes';
 import { BASE } from '../sim/stats';
-import { circleSlashValues, classArmorBonus } from '../sim/classes';
+import { characterBasicRange, circleSlashValues, classArmorBonus } from '../sim/classes';
+import { longestWieldedRange } from '../sim/vswield';
 import { normalize } from '../sim/math';
 import type { World } from '../sim/world';
 import {
@@ -455,6 +456,7 @@ export class Renderer {
     this.drawHover(w, view);
     this.drawSelection(w, view);
     if (!night) this.drawRangeRings(w, view);
+    this.drawCharacterRangeRing(w, view);
     if (!night) this.drawBuildGhost(w, view);
     this.drawNumbers();
     this.drawPhaseSweep(view);
@@ -1176,6 +1178,54 @@ export class Renderer {
           ctx.arc((hx + 0.5) * TILE, (hy + 0.5) * TILE, aoe * TILE, 0, Math.PI * 2);
           ctx.stroke();
         }
+      }
+    }
+    ctx.globalAlpha = 1;
+    ctx.lineWidth = 1;
+  }
+
+  /**
+   * fb029: the character's own on-select range ring. Kept as its own method
+   * (called every frame, day or night) rather than folded into
+   * `drawRangeRings` above, which the draw loop skips outright at Night
+   * since every *tower* ring it would draw belongs to a petrified structure
+   * — a rule specific to towers, not the character, who keeps fighting
+   * (via wielded attacks) all through VS. The solid ring is the basic
+   * attack's live range (`characterBasicRange`, the same formula
+   * `classBasicAttack` fires at); in VS the basic attack no longer fires at
+   * all (Q117), so ringing it there would be the exact "false advertising"
+   * `drawRangeRings` already refuses for a petrified tower — the solid ring
+   * is swapped for a dashed one at the longest wielded range
+   * (`longestWieldedRange`) instead, matching `wardenInfoMarkup`'s own
+   * Range/Wielded-range swap in `hud.ts` rather than showing both at once.
+   */
+  private drawCharacterRangeRing(w: World, view: ViewState): void {
+    if (view.selection?.kind !== 'warden') return;
+    const ctx = this.ctx;
+    const wd = w.warden;
+    const cx = wd.x * TILE;
+    const cy = wd.y * TILE;
+    if (w.huntsWarden) {
+      const wieldedRange = longestWieldedRange(w);
+      if (wieldedRange > 0) {
+        ctx.strokeStyle = PALETTE.warden;
+        ctx.lineWidth = 2;
+        ctx.globalAlpha = 0.6;
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.arc(cx, cy, wieldedRange * TILE, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+    } else {
+      const basicRange = characterBasicRange(w);
+      if (basicRange > 0) {
+        ctx.strokeStyle = PALETTE.warden;
+        ctx.lineWidth = 2;
+        ctx.globalAlpha = 0.7;
+        ctx.beginPath();
+        ctx.arc(cx, cy, basicRange * TILE, 0, Math.PI * 2);
+        ctx.stroke();
       }
     }
     ctx.globalAlpha = 1;
