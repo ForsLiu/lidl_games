@@ -3,6 +3,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { Run, applyCommand } from '../src/sim/run';
+import { BASE } from '../src/sim/stats';
 import { World } from '../src/sim/world';
 import { buildTower, checkBuild, collectSproutGold, sellTower, towerCost, updateTowers, upgradeTower } from '../src/sim/towers';
 import { damageEnemy, spawnEnemy } from '../src/sim/enemies';
@@ -284,10 +285,14 @@ describe('fb002: the Warden (and dash) ignore collision with the Core and friend
     const w = run.world;
     warp(w, 9, 5); // within build range of the dash's landing tile
     expect(buildTower(w, 1, 10, 5).ok).toBe(true);
-    warp(w, 6, 5); // exactly BASE.dashDistance (4 tiles) west of the structure
+    warp(w, 10 - BASE.dashDistance, 5); // exactly BASE.dashDistance west of the structure
     run.step({ ...emptyInput(), mx: 1, my: 0, dash: true });
-    // Pre-fb002, `blinkWarden` would have backed off along the dash line until
-    // it found a passable tile short of (10,5); now it lands on it directly.
+    // fb030: the dash now travels over BASE.dashDuration seconds rather than
+    // teleporting on the triggering tick — advance past it before checking
+    // where it landed.
+    for (let i = 0; i < Math.ceil(BASE.dashDuration * 60) + 1; i++) run.step({ ...emptyInput() });
+    // Pre-fb002, the dash would have backed off along the dash line until it
+    // found a passable tile short of (10,5); now it lands on it directly.
     expect(Math.floor(w.warden.x)).toBe(10);
     expect(w.grid.passable(10, 5)).toBe(false); // the structure is still there and still blocks others
   });

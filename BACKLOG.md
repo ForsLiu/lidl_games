@@ -302,17 +302,46 @@ in live play today, a pre-existing gap fb029 exposed rather than introduced.
       `b032`/`b034`/`b035`/`b036` — confirmed by re-running each in
       isolation, all pass) — refs: SPEC-FINAL §11 (selection/indicators),
       owner feedback `feature-character-range-on-select`.
-- [ ] (fb030) [feat] Dash becomes a fast move instead of a teleport: the
-      character physically travels the distance over a short duration
-      (collision with structures already ignored per fb002; enemies do not
-      block) rather than blinking. Starting bands (machine-tunable):
-      distance ~2.5 tiles, duration ~0.2s, cooldown ~1.5s, brief i-frames
-      kept. Class dashes built on the base dash (Dash Slash, Quickstep,
-      Flame Road, Crimson Rush) inherit the movement form but keep their own
-      distances — acceptance: dash visibly travels with a trail VFX and
-      stops at the destination; new numbers land in `/data`; every
-      class-dash test is updated for the new shape; replay determinism
-      holds — refs: SPEC-FINAL §10 (character: dash) amendment, owner
+- [x] (fb030) [feat] Dash becomes a fast move instead of a teleport. The base
+      movement dodge-dash and all four class-active dashes (Dash Slash,
+      Quickstep, Flame Road, Crimson Rush) now travel their line over
+      `BASE.dashDuration` (`data/warden.json`, new field, 0.2s) instead of
+      teleporting; `dashDistance` 4→2.5, `dashCooldown` 3→1.5. A new shared
+      module, `src/sim/wardenmove.ts` (`resolveDashTarget`/`startDashTravel`/
+      `tickDashTravel`), replaces the two near-identical `blinkWarden`
+      (run.ts) / `dashWarden` (classes.ts) teleport implementations.
+      `warden.dashTravel` is real sim state, ticked once per frame in
+      `updateWarden` (suppressing ordinary movement while a travel is live)
+      and hashed in `hashWorld` for replay determinism. Gameplay effects that
+      need the dash's endpoint at cast time (Dash Slash's hit line,
+      Quickstep's arrow origin, Flame Road's trail placement, Crimson Rush's
+      heal count) resolve synchronously against the immediately-known target
+      — only the Warden's own glide is deferred. `canvas.ts`'s `drawWarden`
+      adds a fading trail line while `dashTravel` is set, driven by sim
+      state per the renderer-reads-sim-state-only rule. code-reviewer found
+      one Moderate issue — `dashIFrames` (0.15) was shorter than the new
+      `dashDuration` (0.2), leaving a ~0.05s unprotected tail on every dash —
+      fixed by bumping `dashIFrames` to 0.2; its note that only the base dash
+      guards against retriggering mid-flight (`!wd.dashTravel`) was confirmed
+      to mirror pre-existing behavior, not a regression, and left as-is.
+      qa-playtester **PASS**: confirmed via headless `Run` probes the base
+      dash interpolates over exactly 12 ticks (0.2s @ 60Hz) rather than
+      jumping; adversarially probed dash-spam (charges do not phantom-drain),
+      repeated wall/border dashing, a dash attempted mid-`w.dying` (already
+      blocked, pre-existing), a class-active dash fired mid-flight of a base
+      dash (retargets cleanly), and full-log replay determinism (two
+      independent `Run`s from the same seed + a 1000-tick dash-laden input
+      log hash-match). Filed one real gap — the diff's test updates covered
+      Dash Slash and Flame Road's glide but not Quickstep's or Crimson
+      Rush's — fixed in the same commit by adding the same
+      dashTravel-not-null → tick-forward → null → moved pattern to both
+      (`tests/p6d-nine-classes.test.ts`). `tests/q7-loader-holes.ts` gained
+      the `warden.dashDuration` census entry (bare `num`, same unguarded
+      shape as its three dash siblings). `npx tsc --noEmit` clean; `npm run
+      test:fast`: only the same pre-existing Windows port-contention flake
+      class already documented (fb047/fb049: `q15-command-domain-fuzz`,
+      `b032`/`b034`/`b035`/`b036`), confirmed by re-running each in isolation
+      (all green) — refs: SPEC-FINAL §10 (character: dash) amendment, owner
       feedback `feature-dash-fast-move`.
 - [ ] (fb031) [feat] VS XP gems accelerate toward the character once
       attracted (within pickup radius, or after a wave's auto-collect,

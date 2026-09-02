@@ -21,7 +21,7 @@ import { applyFrost, killEnemy, spawnEnemy, TRAIT, updateEnemies } from '../src/
 import { attackSpeedFor, buildTower, classTowerBonus, towerDamage, updateTowers } from '../src/sim/towers';
 import { structureArmor, structureMaxHp } from '../src/sim/upgrades';
 import { electricInterval } from '../src/sim/vsspecials';
-import { applyCommand, damageWarden, hashWorld, Run, wardenArmor } from '../src/sim/run';
+import { applyCommand, damageWarden, hashWorld, Run, updateWarden, wardenArmor } from '../src/sim/run';
 import {
   classAttackPowerMul,
   classBasicAttack,
@@ -31,7 +31,7 @@ import {
   updateClassSummons,
   updateTempWalls,
 } from '../src/sim/classes';
-import type { Command, Enemy, Structure, TickInput } from '../src/sim/types';
+import { emptyInput, type Command, type Enemy, type Structure, type TickInput } from '../src/sim/types';
 import { World } from '../src/sim/world';
 import { cfg } from './helpers';
 
@@ -1014,6 +1014,18 @@ describe('p6d: Bloodlord — phase-dependent attack, the tithe, and the rush', (
     for (const e of line) expect(e.hp).toBe(1e6);
   });
 
+  it('fb030: Crimson Rush travels the dash rather than teleporting', () => {
+    const w = worldWith('bloodlord');
+    w.warden.x = 4;
+    w.warden.y = 10;
+    const startX = w.warden.x;
+    applyCommand(w, { k: 'class_active2', aimX: 12, aimY: 10 });
+    expect(w.warden.dashTravel).not.toBeNull();
+    for (let t = 0; t < 20; t++) updateWarden(w, emptyInput(), 1 / 60);
+    expect(w.warden.dashTravel).toBeNull();
+    expect(w.warden.x).toBeGreaterThan(startX);
+  });
+
   it('Blood Frenzy shifts the character\'s own attack by phase, and nothing else\'s', () => {
     const cls = newClass('bloodlord');
     const td = worldWith('bloodlord');
@@ -1076,6 +1088,12 @@ describe('p6d: Pyro — Contagious Flame, Flame Road and the Burning tower passi
     applyCommand(w, { k: 'class_active2', aimX: 20, aimY: 10 });
     const patches = w.areas.filter((a) => a.type === 'burn' && !a.dead);
     expect(patches).toHaveLength(newClass('pyromancer').active2.trailSegments!);
+    // fb030: the trail is spaced along the resolved dash line immediately
+    // (unaffected by animation), but the Warden's own position now travels
+    // there over BASE.dashDuration seconds rather than teleporting.
+    expect(w.warden.dashTravel).not.toBeNull();
+    for (let t = 0; t < 20; t++) updateWarden(w, emptyInput(), 1 / 60);
+    expect(w.warden.dashTravel).toBeNull();
     expect(w.warden.x).toBeGreaterThan(8);
   });
 
@@ -1141,6 +1159,18 @@ describe('p6d: Archer Quickstep does not eat a Deadeye charge', () => {
     const struck = targets.filter((e) => e.hp < 1e6);
     expect(struck).toHaveLength(newClass('archer').active2.volleyShots!);
     expect(targets[3].hp).toBe(1e6); // out of the volley's own radius
+  });
+
+  it('fb030: Quickstep travels the dash rather than teleporting', () => {
+    const w = worldWith('archer');
+    w.warden.x = 6;
+    w.warden.y = 10;
+    const startX = w.warden.x;
+    applyCommand(w, { k: 'class_active2', aimX: 8, aimY: 10 });
+    expect(w.warden.dashTravel).not.toBeNull();
+    for (let t = 0; t < 20; t++) updateWarden(w, emptyInput(), 1 / 60);
+    expect(w.warden.dashTravel).toBeNull();
+    expect(w.warden.x).toBeGreaterThan(startX);
   });
 
   it('drawing slows the Warden down, releasing restores full speed', () => {

@@ -518,6 +518,7 @@ export class World {
       dashCooldown: 0,
       dashCharges: this.derived.dashCharges,
       dashIFrames: 0,
+      dashTravel: null,
       attackCooldown: 0,
       activeCooldown: 0,
       active1Cooldown: 0,

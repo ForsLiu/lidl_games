@@ -417,6 +417,23 @@ export interface GroundArea {
   dead: boolean;
 }
 
+/**
+ * fb030: a dash (base movement dash or a class-active dash effect) travels
+ * this line over `duration` seconds instead of teleporting. Gameplay effects
+ * (hits, heals, trail placement) resolve against the already-known endpoint
+ * at cast time (`resolveDashTarget`, wardenmove.ts) — only `Warden.x/y`,
+ * which drives movement/collision/render, glides along this record tick by
+ * tick (`tickDashTravel`).
+ */
+export interface DashTravel {
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+  t: number;
+  duration: number;
+}
+
 export interface Warden {
   x: number;
   y: number;
@@ -424,6 +441,7 @@ export interface Warden {
   dashCooldown: number;
   dashCharges: number;
   dashIFrames: number;
+  dashTravel: DashTravel | null;
   attackCooldown: number;
   /** SPEC-V2 §2 class Active skill (`legacy: true` classes only); ticks down in `updateWarden`. */
   activeCooldown: number;

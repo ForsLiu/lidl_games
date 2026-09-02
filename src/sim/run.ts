@@ -56,6 +56,7 @@ import { updateTerrainEffects } from './weapons';
 import { updateWieldedAttacks } from './vswield';
 import { updateVsSpecials } from './vsspecials';
 import { updateBossSlam } from './boss';
+import { resolveDashTarget, startDashTravel, tickDashTravel } from './wardenmove';
 // Registers the Warden-Eater script with enemies.ts.
 import './boss';
 import {
@@ -471,21 +472,29 @@ export function updateWarden(w: World, input: TickInput, dt: number): void {
     wd.fy = n.y;
   }
 
-  if (input.dash && wd.dashCharges > 0 && (n.x !== 0 || n.y !== 0)) {
+  if (input.dash && wd.dashCharges > 0 && !wd.dashTravel && (n.x !== 0 || n.y !== 0)) {
     wd.dashCharges--;
     if (wd.dashCooldown <= 0) wd.dashCooldown = BASE.dashCooldown * (1 - d.cdr);
+    // fb030: dashIFrames must be >= dashDuration or the last stretch of the
+    // now-visible travel is unprotected (code review caught this at 0.15 vs
+    // 0.2 — `data/warden.json` keeps them equal).
     wd.dashIFrames = BASE.dashIFrames;
-    blinkWarden(w, n.x * BASE.dashDistance, n.y * BASE.dashDistance);
-    w.emit('dash', wd.x, wd.y, n.x, n.y);
+    const target = resolveDashTarget(w, n.x * BASE.dashDistance, n.y * BASE.dashDistance);
+    startDashTravel(w, target, BASE.dashDuration);
+    w.emit('dash', target.x, target.y, n.x, n.y);
   }
 
-  // SPEC-FINAL §5.5 Time: "VS: character attack and movement speed +20%" —
-  // VS-only (`coreMoveSpeedMul` reads `w.huntsWarden`), so it cannot touch
-  // Act I movement the way adding it to `Stats` would. §4.2 Archer's "move
-  // −40% while drawing" is the same shape from the other direction (p6d), and
-  // for the same reason it is applied here rather than written into `derived`.
-  const speed = d.moveSpeed * coreMoveSpeedMul(w) * classMoveSpeedMul(w);
-  moveWarden(w, n.x * speed * dt, n.y * speed * dt);
+  // fb030: a dash in progress is the sole driver of position for its
+  // duration — ordinary movement input is suppressed until it lands.
+  if (!tickDashTravel(w, dt)) {
+    // SPEC-FINAL §5.5 Time: "VS: character attack and movement speed +20%" —
+    // VS-only (`coreMoveSpeedMul` reads `w.huntsWarden`), so it cannot touch
+    // Act I movement the way adding it to `Stats` would. §4.2 Archer's "move
+    // −40% while drawing" is the same shape from the other direction (p6d), and
+    // for the same reason it is applied here rather than written into `derived`.
+    const speed = d.moveSpeed * coreMoveSpeedMul(w) * classMoveSpeedMul(w);
+    moveWarden(w, n.x * speed * dt, n.y * speed * dt);
+  }
 
   // Regen: out of combat only during Act I, always in Act II (SPEC 2.1).
   const regenOk = w.huntsWarden || wd.outOfCombat >= BASE.outOfCombatSeconds;
@@ -531,28 +540,6 @@ function moveWarden(w: World, dx: number, dy: number): void {
   if (nx !== wd.x && ny !== wd.y && !walkable(w, nx, ny)) ny = wd.y;
   wd.x = clamp(nx, 0.4, GRID_W - 0.4);
   wd.y = clamp(ny, 0.4, GRID_H - 0.4);
-}
-
-/** Dash is a blink-step: it ignores terrain, but must land somewhere legal. */
-function blinkWarden(w: World, dx: number, dy: number): void {
-  const wd = w.warden;
-  const tx = clamp(wd.x + dx, 0.4, GRID_W - 0.4);
-  const ty = clamp(wd.y + dy, 0.4, GRID_H - 0.4);
-  if (walkable(w, tx, ty)) {
-    wd.x = tx;
-    wd.y = ty;
-    return;
-  }
-  // Walk the dash line backwards until a legal tile appears.
-  for (let s = 0.9; s > 0; s -= 0.1) {
-    const px = clamp(wd.x + dx * s, 0.4, GRID_W - 0.4);
-    const py = clamp(wd.y + dy * s, 0.4, GRID_H - 0.4);
-    if (walkable(w, px, py)) {
-      wd.x = px;
-      wd.y = py;
-      return;
-    }
-  }
 }
 
 function walkable(w: World, x: number, y: number): boolean {
@@ -1025,6 +1012,14 @@ export function hashWorld(w: World): string {
   // drains it *before* the damage systems refill it each tick (x002 review).
   h.num(w.warden.x).num(w.warden.y).num(w.warden.hp).num(w.warden.armorShred);
   h.num(w.warden.leechAccumulator);
+  // fb030: an in-progress dash travel gates every future tick's position —
+  // the same class of future-behavior-gating state the cooldowns below are
+  // hashed for.
+  h.bool(w.warden.dashTravel != null);
+  if (w.warden.dashTravel) {
+    const tr = w.warden.dashTravel;
+    h.num(tr.x0).num(tr.y0).num(tr.x1).num(tr.y1).num(tr.t).num(tr.duration);
+  }
   // p6a: attack/Active cooldowns gate exactly the same class of future damage
   // `wieldedCooldown` is hashed for below — a pre-existing gap (none of these
   // four were hashed before this item) fixed while the framework that needs

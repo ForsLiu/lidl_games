@@ -51,9 +51,11 @@ import { hasEquipment } from './equipment';
 import { GRID_H, GRID_W } from './grid';
 import { clamp, dist2, lerp, normalize } from './math';
 import { active1PotencyMul, active2CdrBonus, classLineBonus } from './progression';
+import { BASE } from './stats';
 import { buildTower, effectiveTowerAoe, LINE_HALF_WIDTH, towerCost } from './towers';
 import { maxLevel, upgradeStatMul } from './upgrades';
 import { tickCooldown, type ClassSummon, type Enemy, type Phase, type Structure, type TickInput } from './types';
+import { resolveDashTarget, startDashTravel } from './wardenmove';
 import { World } from './world';
 
 /** Usable both TD and VS, per SPEC-FINAL §4 — but not in menu/transition phases. */
@@ -219,7 +221,7 @@ function fireEffect(
 
 /**
  * Instant reposition away from `(fromX, fromY)`, clamped to a walkable tile
- * the same way `run.ts`'s `blinkWarden` clamps the Warden's own dash.
+ * the same way `wardenmove.ts`'s `resolveDashTarget` clamps the Warden's own dash.
  * SPEC-FINAL names no velocity/impulse mechanism anywhere in the sim, so
  * Circle Slash's "knockback" (§4.1) is read as this instant shove, not a
  * physics body (Q118) — a defensible reading since nothing downstream of an
@@ -369,38 +371,9 @@ function fireDashSlash(w: World, cls: ClassDef, aimX: number | undefined, aimY: 
   lineHit(w, wd.x, wd.y, dir.x, dir.y, hitRange, eff.dashWidth ?? 0, damage, 'class_active2', 9999, { onHit });
 
   const before = { x: wd.x, y: wd.y };
-  dashWarden(w, dir.x * dashRange, dir.y * dashRange);
-  w.emit('class_active2', before.x, before.y, wd.x, wd.y);
-}
-
-/**
- * Blink-step for Dash Slash — ignores terrain but must land somewhere
- * legal, the same rule `run.ts`'s `blinkWarden` applies to the movement
- * dodge-dash. Reimplemented locally rather than imported to avoid a
- * `classes.ts` <-> `run.ts` cycle (`run.ts` already imports this file's
- * Command handlers), the same reasoning `cores.ts`'s `corpseExplode` gives
- * for hand-rolling its own AoE instead of importing `combat.ts`'s.
- */
-function dashWarden(w: World, dx: number, dy: number): void {
-  const wd = w.warden;
-  const tx = clamp(wd.x + dx, 0.4, GRID_W - 0.4);
-  const ty = clamp(wd.y + dy, 0.4, GRID_H - 0.4);
-  // fb002: dash ignores collision with the Core and friendly structures the
-  // same as ordinary movement — `wardenPassable` only fails on the border.
-  if (w.grid.wardenPassable(Math.floor(tx), Math.floor(ty))) {
-    wd.x = tx;
-    wd.y = ty;
-    return;
-  }
-  for (let s = 0.9; s > 0; s -= 0.1) {
-    const px = clamp(wd.x + dx * s, 0.4, GRID_W - 0.4);
-    const py = clamp(wd.y + dy * s, 0.4, GRID_H - 0.4);
-    if (w.grid.wardenPassable(Math.floor(px), Math.floor(py))) {
-      wd.x = px;
-      wd.y = py;
-      return;
-    }
-  }
+  const target = resolveDashTarget(w, dir.x * dashRange, dir.y * dashRange);
+  startDashTravel(w, target, BASE.dashDuration);
+  w.emit('class_active2', before.x, before.y, target.x, target.y);
 }
 
 /**
@@ -577,20 +550,21 @@ function fireQuickstep(w: World, cls: ClassDef, aimX: number | undefined, aimY: 
   const eff = cls.active2;
   const dir = aimDirection(w, aimX, aimY);
   const from = { x: wd.x, y: wd.y };
-  dashWarden(w, dir.x * (eff.dashRange ?? 0), dir.y * (eff.dashRange ?? 0));
+  const target = resolveDashTarget(w, dir.x * (eff.dashRange ?? 0), dir.y * (eff.dashRange ?? 0));
+  startDashTravel(w, target, BASE.dashDuration);
 
   const onHit = passiveOnHit(w, cls);
   const shots = Math.max(0, Math.round(eff.volleyShots ?? 0));
   const struck = new Set<number>();
   const damage = characterDamage(w, cls, eff.damage);
   for (let i = 0; i < shots; i++) {
-    const t = w.nearestEnemy(wd.x, wd.y, eff.radius, (e) => !struck.has(e.id));
+    const t = w.nearestEnemy(target.x, target.y, eff.radius, (e) => !struck.has(e.id));
     if (!t) break;
     struck.add(t.id);
-    damageEnemy(w, t, damage, 'class_active2', { fromX: wd.x, fromY: wd.y });
+    damageEnemy(w, t, damage, 'class_active2', { fromX: target.x, fromY: target.y });
     if (!t.dead) applyEffects(w, t, { onHit });
   }
-  w.emit('class_active2', from.x, from.y, wd.x, wd.y);
+  w.emit('class_active2', from.x, from.y, target.x, target.y);
 }
 
 /** §4.2 Engineer *Field Kit*: "repair target structure 40% max HP + overclock +50% atk spd 6 s". */
@@ -642,7 +616,8 @@ function fireFlameRoad(w: World, cls: ClassDef, aimX: number | undefined, aimY: 
   const eff = cls.active2;
   const dir = aimDirection(w, aimX, aimY);
   const from = { x: wd.x, y: wd.y };
-  dashWarden(w, dir.x * (eff.dashRange ?? 0), dir.y * (eff.dashRange ?? 0));
+  const target = resolveDashTarget(w, dir.x * (eff.dashRange ?? 0), dir.y * (eff.dashRange ?? 0));
+  startDashTravel(w, target, BASE.dashDuration);
 
   const segments = Math.max(1, Math.round(eff.trailSegments ?? 1));
   const dps = characterDamage(w, cls, eff.damage);
@@ -650,8 +625,8 @@ function fireFlameRoad(w: World, cls: ClassDef, aimX: number | undefined, aimY: 
     const t = segments === 1 ? 0 : i / (segments - 1);
     w.areas.push({
       id: w.newId(),
-      x: lerp(from.x, wd.x, t),
-      y: lerp(from.y, wd.y, t),
+      x: lerp(from.x, target.x, t),
+      y: lerp(from.y, target.y, t),
       radius: eff.dashWidth ?? 1,
       dps,
       remaining: eff.groundDurationSeconds ?? 3,
@@ -661,7 +636,7 @@ function fireFlameRoad(w: World, cls: ClassDef, aimX: number | undefined, aimY: 
       dead: false,
     });
   }
-  w.emit('class_active2', from.x, from.y, wd.x, wd.y);
+  w.emit('class_active2', from.x, from.y, target.x, target.y);
 }
 
 /** §4.2 Cryomancer *Glaciate*: "r4 nova applying frost; already-frosted enemies freeze". */
@@ -884,10 +859,11 @@ function fireCrimsonRush(w: World, cls: ClassDef, aimX: number | undefined, aimY
     if (Math.abs(rx * -dir.y + ry * dir.x) > half + e.radius) continue;
     passed++;
   }
-  dashWarden(w, dir.x * range, dir.y * range);
+  const target = resolveDashTarget(w, dir.x * range, dir.y * range);
+  startDashTravel(w, target, BASE.dashDuration);
   const heal = passed * (eff.healPerEnemy ?? 0);
   if (heal > 0) applyHealingToWarden(w, heal);
-  w.emit('class_active2', from.x, from.y, wd.x, wd.y);
+  w.emit('class_active2', from.x, from.y, target.x, target.y);
 }
 
 /**

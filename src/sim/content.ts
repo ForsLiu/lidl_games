@@ -1563,6 +1563,8 @@ const WardenFileSchema = z.object({
   pickupRadius: num,
   dashDistance: num,
   dashCooldown: num,
+  /** fb030: seconds a dash (base or class-active) takes to travel its line, rather than teleporting. */
+  dashDuration: num,
   dashIFrames: num,
   /** Percent, so 0..100. Above 100 every hit would heal (V3 T5 edits this file). */
   armorCap: num.min(0).max(100),

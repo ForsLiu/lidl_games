@@ -202,6 +202,11 @@ describe('p6b: Dash Slash — mouse-aimed line, own cooldown, moves the Warden',
     const w = worldWith();
     const startX = w.warden.x;
     applyCommand(w, { k: 'class_active2', aimX: startX + 5, aimY: w.warden.y });
+    // fb030: Dash Slash now travels the distance over BASE.dashDuration
+    // seconds instead of teleporting on the firing tick.
+    expect(w.warden.dashTravel).not.toBeNull();
+    for (let t = 0; t < 20; t++) updateWarden(w, held(false), 1 / 60);
+    expect(w.warden.dashTravel).toBeNull();
     expect(w.warden.x).toBeGreaterThan(startX);
   });
 

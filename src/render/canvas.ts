@@ -897,6 +897,22 @@ export class Renderer {
     const wd = w.warden;
     const px = wd.x * TILE;
     const py = wd.y * TILE;
+    // fb030: a fading trail behind the Warden while a dash travel is in
+    // progress — driven by sim state (`dashTravel`), not a client-side
+    // tween, per the renderer-reads-sim-state-only rule (CLAUDE.md §12.3).
+    if (wd.dashTravel) {
+      const tr = wd.dashTravel;
+      ctx.save();
+      ctx.globalAlpha = 0.5;
+      ctx.strokeStyle = PALETTE.warden;
+      ctx.lineWidth = 5;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(tr.x0 * TILE, tr.y0 * TILE);
+      ctx.lineTo(px, py);
+      ctx.stroke();
+      ctx.restore();
+    }
     if (wd.dashIFrames > 0) {
       ctx.strokeStyle = '#ffffffaa';
       ctx.beginPath();

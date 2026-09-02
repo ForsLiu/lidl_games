@@ -22,6 +22,15 @@
  *     `open` = no row is, `partial` = some are and some are not, which is the
  *     one-directional-integrity finding (E1).
  *
+ * Regenerated 2026-09-02 (fb030): `data/warden.json` gained `dashDuration`
+ * (the base dash's travel time, now a fast move rather than a teleport) —
+ * a bare `num`, the same unguarded shape its three siblings
+ * (`dashCooldown`/`dashDistance`/`dashIFrames`) already have, so it accepts
+ * the same `negative`/`zero`/`fractional` mutation family they do. Not a new
+ * class of hole, just this field joining the pre-existing one. ACCEPTED
+ * updated in place; INEFFECTIVE and REF_VERDICTS unchanged (a numeric field,
+ * not cross-checked).
+ *
  * Regenerated 2026-09-01 (fb028): `data/equipment.json`'s three `effectKey`
  * items gained `effectNote`/`effectNoteWith` fields (the UI's one authored
  * copy of what a non-Stats-shaped `effectKey` mechanic does, so
@@ -740,6 +749,7 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'warden.cdrCap': ['negative', 'zero', 'fractional'],
   'warden.dashCooldown': ['negative', 'zero', 'fractional'],
   'warden.dashDistance': ['negative', 'zero', 'fractional'],
+  'warden.dashDuration': ['negative', 'zero', 'fractional'],
   'warden.dashIFrames': ['negative', 'zero', 'fractional'],
   'warden.heartstoneHeal': ['negative', 'zero', 'fractional'],
   'warden.heartstoneRadius': ['negative', 'zero', 'fractional'],

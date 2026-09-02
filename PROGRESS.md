@@ -5,6 +5,57 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-02 session: fb030 done — the character's dash is a fast move,
+  not a teleport (SPEC-FINAL §10 amendment, owner feedback
+  `feature-dash-fast-move`).** The base movement dodge-dash and all four
+  class-active dash effects (Dash Slash/Swordsman, Quickstep/Archer, Flame
+  Road/Pyromancer, Crimson Rush/Bloodlord) now travel their line over
+  `BASE.dashDuration` seconds instead of instantly teleporting.
+  `data/warden.json`: `dashDistance` 4→2.5, `dashCooldown` 3→1.5, new
+  `dashDuration: 0.2`. A new shared module, `src/sim/wardenmove.ts`
+  (`resolveDashTarget`/`startDashTravel`/`tickDashTravel`), replaces the two
+  near-identical `blinkWarden` (run.ts) / `dashWarden` (classes.ts)
+  reimplementations the old teleport had — `warden.dashTravel` is real sim
+  state (`{x0,y0,x1,y1,t,duration}`), ticked once per frame in `updateWarden`
+  (which suppresses ordinary WASD movement while a travel is in progress) and
+  hashed in `hashWorld` for replay determinism. Gameplay effects that need the
+  dash's endpoint at cast time — Dash Slash's hit line, Quickstep's arrow
+  origin, Flame Road's trail placement, Crimson Rush's heal count — resolve
+  synchronously against the immediately-known target via `resolveDashTarget`,
+  a deliberate design choice so only the Warden's own glide is deferred, not
+  combat timing. `src/render/canvas.ts`'s `drawWarden` adds a fading trail
+  line while `dashTravel` is set — sim state, not a client-side tween, per the
+  renderer-reads-sim-state-only rule.
+
+  code-reviewer found one Moderate issue: `dashIFrames` (0.15) was shorter
+  than the new `dashDuration` (0.2), leaving a ~0.05s window where the Warden
+  is visibly still gliding but no longer invulnerable — a gap that didn't
+  exist when dashes were instant. Fixed by bumping `dashIFrames` to 0.2 so
+  i-frames cover the whole travel. Its other note (only the base dash checks
+  `!wd.dashTravel` before retriggering; a class-active dash can still fire and
+  cleanly retarget mid-flight) was confirmed to mirror pre-existing behavior,
+  not a regression, and left as-is.
+
+  qa-playtester **PASS**: confirmed via headless `Run` probes that the base
+  dash interpolates smoothly over exactly 12 ticks (0.2s @ 60Hz) rather than
+  jumping in one tick; adversarially probed dash-spam (the `!wd.dashTravel`
+  guard holds, no phantom charge loss), repeated wall/border dashing, a dash
+  attempted mid-`w.dying` (already blocked pre-existing), a class-active dash
+  fired mid-flight of a base dash (retargets cleanly, no duplicate hits), and
+  full-log replay determinism (two independent `Run`s from the same seed +
+  1000-tick input log containing dashes produced identical `hashWorld`). It
+  filed one real gap: the diff's test updates covered Dash Slash and Flame
+  Road's glide but not Quickstep's or Crimson Rush's, so a future regression
+  reverting either to a teleport would go uncaught — fixed in the same
+  commit by adding the same `dashTravel`-not-null → tick-forward → null →
+  position-moved pattern to both (`tests/p6d-nine-classes.test.ts`).
+  `tests/q7-loader-holes.ts` gained the new `warden.dashDuration` census entry
+  (a bare `num`, same unguarded shape as its three dash siblings). `npx tsc
+  --noEmit` clean; `npm run test:fast` showed only the same pre-existing
+  Windows port-contention flake class already documented in fb047/fb049
+  (`q15-command-domain-fuzz`, `b032`/`b034`/`b035`/`b036`), confirmed by
+  re-running each in isolation (all green).
+
 - **2026-09-02 session: b078 done — click-to-tile targeting (`pointerToTile`,
   `src/ui/input.ts`) no longer mistargets once the canvas renders smaller than
   its logical grid size (bug filed by fb029's QA pass).** The function
