@@ -26,6 +26,13 @@ import { cfg } from './helpers';
 
 const DT = 1 / 60;
 const content = loadContent();
+const CORPSE = content.coreByKey.get('corpse')!;
+const CORPSE_EFFECTS = CORPSE.effects!;
+/** Corpse's storeRatio after `n` steps — step 1 overrides it, later steps don't touch it. */
+const storeRatioAfter = (n: number): number =>
+  CORPSE.upgrade.steps!.slice(0, n).reduce((r, st) => (st.storeRatio !== undefined ? st.storeRatio : r), CORPSE_EFFECTS.corpseStoreRatio);
+const STEP1_RATIO = storeRatioAfter(1);
+const STEP3_AUTOFIRE = CORPSE.upgrade.steps![2].autoFireInterval;
 
 function corpseWorld(): World {
   return new World(cfg({ core: 'corpse' }), content);
@@ -43,24 +50,24 @@ function tickCorpse(w: World, seconds: number): void {
 describe('p-core-d — Corpse base effects and upgrade steps', () => {
   it('base effects load exactly as authored', () => {
     const w = corpseWorld();
-    expect(w.core.corpseStoreRatio).toBeCloseTo(0.01, 9);
-    expect(w.core.corpseExecuteInterval).toBe(1);
-    expect(w.core.corpseExecuteExplode).toBe(false);
+    expect(w.core.corpseStoreRatio).toBeCloseTo(CORPSE_EFFECTS.corpseStoreRatio, 9);
+    expect(w.core.corpseExecuteInterval).toBe(CORPSE_EFFECTS.corpseExecuteInterval);
+    expect(w.core.corpseExecuteExplode).toBe(false); // no step bought yet — structural, not a data magnitude
     expect(w.core.corpseAutoFireInterval).toBe(0);
     // §5.5's "AoE r2" is data-authored (`data/cores.json`'s `corpseExplodeRadius`),
     // not a code literal — code-reviewer/QA precedent from p-core-a onward is
     // that every Core radius lives in `/data`, matching Plant's `devourRadius`
     // and Time's `tdSlowRadius` in the same file.
-    expect(w.core.corpseExplodeRadius).toBe(2);
+    expect(w.core.corpseExplodeRadius).toBe(CORPSE_EFFECTS.corpseExplodeRadius);
   });
 
   it('steps fold fresh each time (no double-counting): ratio overrides, explode/autofire are one-shot flips', () => {
-    expect(computeCoreState(content, 'corpse', 0).corpseStoreRatio).toBeCloseTo(0.01, 9);
-    expect(computeCoreState(content, 'corpse', 1).corpseStoreRatio).toBeCloseTo(0.03, 9);
+    expect(computeCoreState(content, 'corpse', 0).corpseStoreRatio).toBeCloseTo(CORPSE_EFFECTS.corpseStoreRatio, 9);
+    expect(computeCoreState(content, 'corpse', 1).corpseStoreRatio).toBeCloseTo(STEP1_RATIO, 9);
     expect(computeCoreState(content, 'corpse', 1).corpseExecuteExplode).toBe(false);
     expect(computeCoreState(content, 'corpse', 2).corpseExecuteExplode).toBe(true);
     expect(computeCoreState(content, 'corpse', 2).corpseAutoFireInterval).toBe(0);
-    expect(computeCoreState(content, 'corpse', 3).corpseAutoFireInterval).toBe(5);
+    expect(computeCoreState(content, 'corpse', 3).corpseAutoFireInterval).toBe(STEP3_AUTOFIRE);
     // Re-querying step 1 after having computed step 3 above must not leak state.
     expect(computeCoreState(content, 'corpse', 1).corpseAutoFireInterval).toBe(0);
   });
@@ -69,7 +76,7 @@ describe('p-core-d — Corpse base effects and upgrade steps', () => {
     const w = corpseWorld();
     w.gold = 1e6;
     expect(upgradeCore(w)).toBe(true);
-    expect(w.core.corpseStoreRatio).toBeCloseTo(0.03, 9);
+    expect(w.core.corpseStoreRatio).toBeCloseTo(STEP1_RATIO, 9);
   });
 });
 
@@ -79,7 +86,7 @@ describe('p-core-d — TD store accrual', () => {
     const decoy = spawnEnemy(w, 'colossus', 5, 5)!;
     decoy.hp = 2000; // headroom so the hit below does not kill it
     damageEnemy(w, decoy, 1000, 'test_tower');
-    expect(w.corpseStore).toBeCloseTo(10, 9); // 1% of 1000
+    expect(w.corpseStore).toBeCloseTo(1000 * CORPSE_EFFECTS.corpseStoreRatio, 9);
   });
 
   it('a killing blow still credits the store (the hook fires before the death check)', () => {
@@ -87,17 +94,19 @@ describe('p-core-d — TD store accrual', () => {
     const e = spawnEnemy(w, 'husk', 5, 5)!; // 20 hp
     damageEnemy(w, e, 1000, 'test_tower'); // massive overkill
     expect(e.dead).toBe(true);
-    expect(w.corpseStore).toBeCloseTo(10, 9); // 1% of the full 1000 dealt, not the 20 that landed
+    // The full 1000 dealt, not the 20 that actually landed.
+    expect(w.corpseStore).toBeCloseTo(1000 * CORPSE_EFFECTS.corpseStoreRatio, 9);
   });
 
-  it('step 1 raises the ratio to 3%, not an additive +1% (which would give 2%)', () => {
+  it('step 1 raises the ratio (an override, not an additive bonus on top of the base rate)', () => {
     const w = corpseWorld();
     w.gold = 1e6;
     upgradeCore(w);
     const decoy = spawnEnemy(w, 'colossus', 5, 5)!;
     decoy.hp = 2000;
     damageEnemy(w, decoy, 1000, 'test_tower');
-    expect(w.corpseStore).toBeCloseTo(30, 9);
+    expect(w.corpseStore).toBeCloseTo(1000 * STEP1_RATIO, 9);
+    expect(w.corpseStore).not.toBeCloseTo(1000 * (CORPSE_EFFECTS.corpseStoreRatio + 0.01), 9);
   });
 
   it('does not accrue during a VS wave', () => {
@@ -110,25 +119,27 @@ describe('p-core-d — TD store accrual', () => {
   });
 });
 
-describe('p-core-d — G21 worked example: execute spends the store, the kill restores 1% of itself', () => {
-  it('a 1000-damage hit banks 10 store; a 10-hp victim is executed for exactly 10, crediting 0.1 back', () => {
+describe('p-core-d — G21 worked example: execute spends the store, the kill restores corpseStoreRatio of itself', () => {
+  it('a 1000-damage hit banks corpseStoreRatio of itself; the affordable victim is executed for exactly that, crediting corpseStoreRatio back', () => {
     const w = corpseWorld();
+    const ratio = CORPSE_EFFECTS.corpseStoreRatio;
     const decoy = spawnEnemy(w, 'colossus', 5, 5)!;
     decoy.hp = 2000;
-    damageEnemy(w, decoy, 1000, 'test_tower'); // banks 10 store
-    expect(w.corpseStore).toBeCloseTo(10, 9);
+    damageEnemy(w, decoy, 1000, 'test_tower'); // banks ratio of 1000
+    const banked = 1000 * ratio;
+    expect(w.corpseStore).toBeCloseTo(banked, 9);
 
     const victim = spawnEnemy(w, 'husk', 10, 10)!;
-    victim.hp = 10; // exactly what the store affords
+    victim.hp = banked; // exactly what the store affords
     tickCorpse(w, 1); // one execute check
 
     expect(victim.dead).toBe(true);
-    // Spent 10, but the execution itself is real map damage, so
-    // corpseStoreRatio (1%) of that 10 flowed straight back in: 10 - 10 + 0.1.
-    expect(w.corpseStore).toBeCloseTo(0.1, 9);
-    expect(w.damageByWeapon['corpse']).toBeCloseTo(10, 9);
+    // Spent `banked`, but the execution itself is real map damage, so ratio of
+    // that spend flowed straight back in: banked - banked + banked*ratio.
+    expect(w.corpseStore).toBeCloseTo(banked * ratio, 9);
+    expect(w.damageByWeapon['corpse']).toBeCloseTo(banked, 9);
     expect(w.damageByWeapon['test_tower']).toBeCloseTo(1000, 9);
-    expect(w.damageTotal).toBeCloseTo(1010, 9);
+    expect(w.damageTotal).toBeCloseTo(1000 + banked, 9);
   });
 
   it('instant kill ignores armor: a heavily armored affordable victim still dies to the exact one hit', () => {
@@ -198,7 +209,7 @@ describe('p-core-d — step 2: execution explosion', () => {
   it('an execution deals the victim\'s max HP as ordinary AoE r2 splash to nearby enemies, on top of the store spend', () => {
     const w = corpseWorld();
     w.gold = 1e6;
-    upgradeCore(w); // step 1: ratio 3%
+    upgradeCore(w); // step 1: ratio override
     upgradeCore(w); // step 2: executions explode
     w.corpseStore = 10;
 
@@ -212,9 +223,10 @@ describe('p-core-d — step 2: execution explosion', () => {
     expect(victim.dead).toBe(true);
     expect(bystander.hp).toBeCloseTo(400 - 200, 9); // victim's maxHp (200, fb025: was 28), not its spent hp (10)
     // Not paid from the store, but it IS damage dealt to an enemy on the map,
-    // so it banks its own 3% too: 10 (start) - 10 (execute spend) + 10*0.03
-    // (execute's own restore) + 200*0.03 (the explosion's own restore, fb025: victim maxHp 28 -> 200).
-    expect(w.corpseStore).toBeCloseTo(10 - 10 + 10 * 0.03 + 200 * 0.03, 9);
+    // so it banks the step-1 ratio too: 10 (start) - 10 (execute spend) +
+    // 10*ratio (execute's own restore) + 200*ratio (the explosion's own
+    // restore, fb025: victim maxHp 28 -> 200).
+    expect(w.corpseStore).toBeCloseTo(10 - 10 + 10 * STEP1_RATIO + 200 * STEP1_RATIO, 9);
   });
 
   it('does not explode without step 2 bought', () => {
@@ -259,10 +271,10 @@ describe('p-core-d — step 3: auto-fire', () => {
     tickCorpse(w, 1); // one tick: both the 1s execute check and the (also-due) 5s auto-fire check fire
     expect(e.dead).toBe(false);
     expect(e.hp).toBeCloseTo(300 - 50, 9);
-    // The dump itself is real map damage, so its own 3% flows straight back —
-    // "spending [the store]" empties it synchronously, this is the same
+    // The dump itself is real map damage, so the step-1 ratio flows straight
+    // back — "spending [the store]" empties it synchronously, this is the same
     // restore the execute branch's own worked example above shows.
-    expect(w.corpseStore).toBeCloseTo(50 * 0.03, 9);
+    expect(w.corpseStore).toBeCloseTo(50 * STEP1_RATIO, 9);
   });
 
   it("Q114: a lethal auto-fire hit does not trigger step 2's explosion — only the 1s execute branch can", () => {
@@ -292,7 +304,7 @@ describe('p-core-d — step 3: auto-fire', () => {
 
     expect(victim.dead).toBe(true);
     expect(bystander.hp).toBe(19); // no explosion — this kill came from auto-fire, not execute
-    expect(w.corpseStore).toBeCloseTo(20 * 0.03, 9); // the dump's own restore, same rule as every other Corpse hit
+    expect(w.corpseStore).toBeCloseTo(20 * STEP1_RATIO, 9); // the dump's own restore, same rule as every other Corpse hit
   });
 
   it('a same-tick execute-then-auto-fire double kill, reachable under real play with no timer desync, still never explodes the auto-fire victim', () => {
@@ -305,11 +317,11 @@ describe('p-core-d — step 3: auto-fire', () => {
     // kill's r2 splash — no artificial timer desync required.
     const w = corpseWorld();
     w.gold = 1e6;
-    upgradeCore(w); // step 1: ratio 3%
+    upgradeCore(w); // step 1: ratio override
     upgradeCore(w); // step 2: explode
-    upgradeCore(w); // step 3: autofire 5s
+    upgradeCore(w); // step 3: autofire
     // Both timers are 0 (fresh Core), so this first tick is simultaneously
-    // the 1s execute check and the 5s auto-fire check firing together.
+    // the 1s execute check and the auto-fire check firing together.
     w.corpseStore = 100;
 
     const expensive = spawnEnemy(w, 'husk', 10, 10)!;
@@ -321,19 +333,19 @@ describe('p-core-d — step 3: auto-fire', () => {
 
     expect(expensive.dead).toBe(true); // killed by execute (spent 90 of the store)
     expect(cheap.dead).toBe(true); // killed by the same-tick auto-fire dump of the remaining store
-    // Execute leaves 100 - 90 + 90*0.03 = 12.7 in the store; auto-fire then
-    // dumps that whole remainder on `cheap` (well above its 5 hp), crediting
-    // back its own 3% of the dump.
-    const afterExecute = 100 - 90 + 90 * 0.03;
-    expect(w.corpseStore).toBeCloseTo(afterExecute * 0.03, 9);
+    // Execute leaves 100 - 90 + 90*ratio in the store; auto-fire then dumps
+    // that whole remainder on `cheap` (well above its 5 hp), crediting back
+    // its own ratio share of the dump.
+    const afterExecute = 100 - 90 + 90 * STEP1_RATIO;
+    expect(w.corpseStore).toBeCloseTo(afterExecute * STEP1_RATIO, 9);
   });
 });
 
-describe('p-core-d — VS: +10% EXP', () => {
-  it('raises xpGain by exactly 10% the instant the Core is chosen, no step required', () => {
+describe('p-core-d — VS: vsXpGainPct bonus', () => {
+  it('raises xpGain by exactly vsXpGainPct the instant the Core is chosen, no step required', () => {
     const withCorpse = corpseWorld();
     const withoutCorpse = new World(cfg({}), content);
-    expect(withCorpse.derived.xpMul).toBeCloseTo(withoutCorpse.derived.xpMul * 1.1, 9);
+    expect(withCorpse.derived.xpMul).toBeCloseTo(withoutCorpse.derived.xpMul * (1 + CORPSE_EFFECTS.vsXpGainPct), 9);
   });
 });
 

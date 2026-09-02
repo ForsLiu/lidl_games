@@ -24,6 +24,17 @@ import { cfg } from './helpers';
 
 const DT = 1 / 60;
 const content = loadContent();
+const TIME = content.coreByKey.get('time')!;
+const TIME_R3 = TIME.upgrade.steps![2].decayRadius; // step 3: aura radius
+const TIME_MULT3 = TIME.upgrade.steps![2].decayMult; // step 3: aura multiplier
+const TIME_R4 = TIME.upgrade.steps![3].decayRadius; // step 4: extended radius
+const TIME_MULT5 = TIME.upgrade.steps![4].decayMult; // step 5: raised multiplier
+/**
+ * §5.5's fixed decay-ring shape — `1 x mult^(5-ring)` — is code, not data (the
+ * literal 5 is baked into `cores.ts`'s own formula, not a `/data/cores.json`
+ * field), so it stays hand-written here; only `mult` is sourced from content.
+ */
+const rateAtRing = (mult: number, ring: number): number => Math.pow(mult, 5 - ring);
 
 function timeWorld(): World {
   return new World(cfg({ core: 'time' }), content);
@@ -54,27 +65,27 @@ describe('p-core-e — Time decay steps fold correctly (no double-counting)', ()
     expect(computeCoreState(content, 'time', 2).decayRadius).toBe(0);
   });
 
-  it('step 3 buys the aura at r5, mult 1.2', () => {
+  it('step 3 buys the aura at its authored radius/multiplier', () => {
     const st = computeCoreState(content, 'time', 3);
-    expect(st.decayRadius).toBe(5);
-    expect(st.decayMult).toBeCloseTo(1.2, 9);
+    expect(st.decayRadius).toBe(TIME_R3);
+    expect(st.decayMult).toBeCloseTo(TIME_MULT3, 9);
   });
 
-  it('step 4 extends the cutoff to r10, mult unchanged at 1.2', () => {
+  it('step 4 extends the cutoff to the authored r10, mult unchanged', () => {
     const st = computeCoreState(content, 'time', 4);
-    expect(st.decayRadius).toBe(10);
-    expect(st.decayMult).toBeCloseTo(1.2, 9);
+    expect(st.decayRadius).toBe(TIME_R4);
+    expect(st.decayMult).toBeCloseTo(TIME_MULT3, 9);
   });
 
-  it('step 5 raises the multiplier to 1.5, radius unchanged at 10', () => {
+  it('step 5 raises the multiplier to its authored value, radius unchanged', () => {
     const st = computeCoreState(content, 'time', 5);
-    expect(st.decayRadius).toBe(10);
-    expect(st.decayMult).toBeCloseTo(1.5, 9);
+    expect(st.decayRadius).toBe(TIME_R4);
+    expect(st.decayMult).toBeCloseTo(TIME_MULT5, 9);
   });
 
   it('re-querying an earlier step after a later one must not leak state', () => {
-    expect(computeCoreState(content, 'time', 5).decayRadius).toBe(10);
-    expect(computeCoreState(content, 'time', 3).decayRadius).toBe(5);
+    expect(computeCoreState(content, 'time', 5).decayRadius).toBe(TIME_R4);
+    expect(computeCoreState(content, 'time', 3).decayRadius).toBe(TIME_R3);
     expect(computeCoreState(content, 'time', 2).decayRadius).toBe(0);
   });
 
@@ -84,19 +95,19 @@ describe('p-core-e — Time decay steps fold correctly (no double-counting)', ()
     expect(upgradeCore(w)).toBe(true); // step 1
     expect(upgradeCore(w)).toBe(true); // step 2
     expect(upgradeCore(w)).toBe(true); // step 3
-    expect(w.core.decayRadius).toBe(5);
-    expect(w.core.decayMult).toBeCloseTo(1.2, 9);
+    expect(w.core.decayRadius).toBe(TIME_R3);
+    expect(w.core.decayMult).toBeCloseTo(TIME_MULT3, 9);
   });
 });
 
-describe('p-core-e — the r5 ring table, verbatim (G21 worked example)', () => {
-  it('r5->r4: 1/s, r4->r3: 1.2/s, r3->r2: 1.44/s, r2->r1: 1.728/s, r1->r0: 2.0736/s', () => {
+describe('p-core-e — the ring table, verbatim (G21 worked example)', () => {
+  it('rings 5 through 1 decay at mult^(5-ring), verbatim per the §5.5 formula', () => {
     const w = timeWorld();
     w.gold = 1e6;
     upgradeCore(w); // step 1
     upgradeCore(w); // step 2
-    upgradeCore(w); // step 3: r5, mult 1.2
-    expect(w.core.decayRadius).toBe(5);
+    upgradeCore(w); // step 3: aura live
+    expect(w.core.decayRadius).toBe(TIME_R3);
 
     const ring5 = spawnAtEdgeDist(w, 4.5); // (4,5] band
     const ring4 = spawnAtEdgeDist(w, 3.5); // (3,4] band
@@ -106,11 +117,11 @@ describe('p-core-e — the r5 ring table, verbatim (G21 worked example)', () => 
 
     tickDecay(w, 1);
 
-    expect(100000 - ring5!.hp).toBeCloseTo(1, 2);
-    expect(100000 - ring4!.hp).toBeCloseTo(1.2, 2);
-    expect(100000 - ring3!.hp).toBeCloseTo(1.44, 2);
-    expect(100000 - ring2!.hp).toBeCloseTo(1.728, 2);
-    expect(100000 - ring1!.hp).toBeCloseTo(2.0736, 2);
+    expect(100000 - ring5!.hp).toBeCloseTo(rateAtRing(TIME_MULT3, 5), 2);
+    expect(100000 - ring4!.hp).toBeCloseTo(rateAtRing(TIME_MULT3, 4), 2);
+    expect(100000 - ring3!.hp).toBeCloseTo(rateAtRing(TIME_MULT3, 3), 2);
+    expect(100000 - ring2!.hp).toBeCloseTo(rateAtRing(TIME_MULT3, 2), 2);
+    expect(100000 - ring1!.hp).toBeCloseTo(rateAtRing(TIME_MULT3, 1), 2);
   });
 
   it('standing exactly on the Core footprint (edge distance 0) is still ring 1, not an undefined ring 0', () => {
@@ -121,16 +132,16 @@ describe('p-core-e — the r5 ring table, verbatim (G21 worked example)', () => 
     upgradeCore(w);
     const onEdge = spawnAtEdgeDist(w, 0);
     tickDecay(w, 1);
-    expect(100000 - onEdge!.hp).toBeCloseTo(2.0736, 2);
+    expect(100000 - onEdge!.hp).toBeCloseTo(rateAtRing(TIME_MULT3, 1), 2);
   });
 
-  it('beyond decayRadius (5 pre-step4) takes nothing', () => {
+  it('beyond decayRadius (pre-step4) takes nothing', () => {
     const w = timeWorld();
     w.gold = 1e6;
     upgradeCore(w);
     upgradeCore(w);
     upgradeCore(w);
-    const outside = spawnAtEdgeDist(w, 5.5);
+    const outside = spawnAtEdgeDist(w, TIME_R3 + 0.5);
     tickDecay(w, 1);
     expect(outside!.hp).toBe(100000);
   });
@@ -143,14 +154,14 @@ describe('p-core-e — step 4 extends the fixed formula to rings 6-10, not a re-
     upgradeCore(w);
     upgradeCore(w);
     upgradeCore(w);
-    upgradeCore(w); // step 4: r10
-    expect(w.core.decayRadius).toBe(10);
+    upgradeCore(w); // step 4: extended radius
+    expect(w.core.decayRadius).toBe(TIME_R4);
 
     const ring5 = spawnAtEdgeDist(w, 4.5);
     const ring1 = spawnAtEdgeDist(w, 0.5);
     tickDecay(w, 1);
-    expect(100000 - ring5!.hp).toBeCloseTo(1, 2); // unchanged from the r5-only case
-    expect(100000 - ring1!.hp).toBeCloseTo(2.0736, 2); // unchanged from the r5-only case
+    expect(100000 - ring5!.hp).toBeCloseTo(rateAtRing(TIME_MULT3, 5), 2); // unchanged from the step-3-only case
+    expect(100000 - ring1!.hp).toBeCloseTo(rateAtRing(TIME_MULT3, 1), 2); // unchanged from the step-3-only case
   });
 
   it('rings 6-10 (newly reached) get a fractional, sub-1/s rate via the negative exponent', () => {
@@ -159,36 +170,36 @@ describe('p-core-e — step 4 extends the fixed formula to rings 6-10, not a re-
     upgradeCore(w);
     upgradeCore(w);
     upgradeCore(w);
-    upgradeCore(w); // step 4: r10
-    const ring6 = spawnAtEdgeDist(w, 5.5); // (5,6] -> 1.2^(5-6)
-    const ring10 = spawnAtEdgeDist(w, 9.5); // (9,10] -> 1.2^(5-10)
+    upgradeCore(w); // step 4: extended radius
+    const ring6 = spawnAtEdgeDist(w, TIME_R3 + 0.5); // (5,6] -> mult^(5-6)
+    const ring10 = spawnAtEdgeDist(w, TIME_R4 - 0.5); // (9,10] -> mult^(5-10)
     tickDecay(w, 1);
-    expect(100000 - ring6!.hp).toBeCloseTo(Math.pow(1.2, -1), 2);
-    expect(100000 - ring10!.hp).toBeCloseTo(Math.pow(1.2, -5), 2);
+    expect(100000 - ring6!.hp).toBeCloseTo(rateAtRing(TIME_MULT3, 6), 2);
+    expect(100000 - ring10!.hp).toBeCloseTo(rateAtRing(TIME_MULT3, 10), 2);
   });
 
-  it('beyond decayRadius (10 post-step4) takes nothing', () => {
+  it('beyond decayRadius (post-step4) takes nothing', () => {
     const w = timeWorld();
     w.gold = 1e6;
     upgradeCore(w);
     upgradeCore(w);
     upgradeCore(w);
     upgradeCore(w);
-    const outside = spawnAtEdgeDist(w, 10.5);
+    const outside = spawnAtEdgeDist(w, TIME_R4 + 0.5);
     tickDecay(w, 1);
     expect(outside!.hp).toBe(100000);
   });
 });
 
 describe('p-core-e — step 5 raises the multiplier, radius unaffected', () => {
-  it('ring 1 rate rises from 1.2^4 to 1.5^4 once step 5 is bought', () => {
+  it('ring 1 rate rises from mult3^4 to mult5^4 once step 5 is bought', () => {
     const w = timeWorld();
     w.gold = 1e6;
     for (let i = 0; i < 5; i++) upgradeCore(w);
-    expect(w.core.decayMult).toBeCloseTo(1.5, 9);
+    expect(w.core.decayMult).toBeCloseTo(TIME_MULT5, 9);
     const ring1 = spawnAtEdgeDist(w, 0.5);
     tickDecay(w, 1);
-    expect(100000 - ring1!.hp).toBeCloseTo(Math.pow(1.5, 4), 2);
+    expect(100000 - ring1!.hp).toBeCloseTo(rateAtRing(TIME_MULT5, 1), 2);
   });
 });
 
@@ -202,8 +213,8 @@ describe('p-core-e — the shared §5.5 Core-attack rule and TD-only gating', ()
     const armored = spawnAtEdgeDist(w, 0.5, 100000, 90); // heavy armor
     tickDecay(w, 1);
     // If armor were applied, damageTakenMul(90) would shrink this well below
-    // the raw 2.0736 rate; it must land exactly the un-mitigated amount.
-    expect(100000 - armored!.hp).toBeCloseTo(2.0736, 2);
+    // the raw ring-1 rate; it must land exactly the un-mitigated amount.
+    expect(100000 - armored!.hp).toBeCloseTo(rateAtRing(TIME_MULT3, 1), 2);
   });
 
   it('not bought at all (decayRadius 0): no damage regardless of proximity', () => {

@@ -39,6 +39,19 @@ import { cfg } from './helpers';
 const DT = 1 / 60;
 const content = loadContent();
 const ARROW = content.towerByKey.get('arrow_spire')!;
+const STONE = content.coreByKey.get('stone_heart')!;
+const VAMPIRE = content.coreByKey.get('vampire_heart')!;
+const TIME = content.coreByKey.get('time')!;
+/** Sum of `stone_heart`'s first `n` step `coreHpBonus` deltas, straight off `/data/cores.json` — not a hardcoded per-step amount, since the three steps need not stay uniform. */
+const stoneStepSum = (n: number): number =>
+  STONE.upgrade.steps!.slice(0, n).reduce((sum, step) => sum + (step.coreHpBonus ?? 0), 0);
+const VAMP_BASE_OVERHEAL_RATIO = VAMPIRE.effects!.overhealGoldRatio;
+const VAMP_STEP2_OVERHEAL_RATIO = VAMPIRE.upgrade.steps![1].overhealGoldRatio;
+const TIME_TD_SLOW_MUL = 1 - TIME.effects!.tdSlowPct;
+const TIME_VS_SPEED_MUL = 1 + TIME.effects!.vsSpeedPct;
+const TIME_STEP1_GOLD = TIME.upgrade.steps![0].goldPerSecond;
+const TIME_STEP2_REGEN = TIME.upgrade.steps![1].hpRegenPerSecond;
+const TIME_STEP2_HEAL_MUL = 1 + TIME.upgrade.steps![1].healingReceivedPct;
 
 /** A free, buildable tile close to the Warden's default start (near the Core). */
 function nearTile(w: World): { tx: number; ty: number } {
@@ -102,9 +115,9 @@ describe('p-core-b — shared Core-upgrade rule', () => {
     const base = w.coreMaxHp;
     w.gold = 1e6;
     expect(upgradeCore(w)).toBe(true);
-    // Exactly +100, not +100 and also +10% of the base (550) or any other
-    // compounding — §5.5: "steps grant ONLY the listed effect".
-    expect(w.coreMaxHp).toBe(base + 100);
+    // Exactly +step1's coreHpBonus, not that and also +10% of the base or any
+    // other compounding — §5.5: "steps grant ONLY the listed effect".
+    expect(w.coreMaxHp).toBe(base + stoneStepSum(1));
     expect(w.coreMaxHp).not.toBeCloseTo(base * 1.1, 0);
   });
 
@@ -136,28 +149,28 @@ describe('p-core-b — shared Core-upgrade rule', () => {
 describe('p-core-b — Stone Heart: +100 Core HP per step', () => {
   it('base HP is read from cores.json, not the old waves.json fallback', () => {
     const w = new World(cfg({ core: 'stone_heart' }), content);
-    expect(w.coreMaxHp).toBe(500);
-    expect(w.coreHp).toBe(500);
+    expect(w.coreMaxHp).toBe(STONE.baseHp);
+    expect(w.coreHp).toBe(STONE.baseHp);
   });
 
   it('every non-Stone-Heart Core now uses its own baseHp (the p-core-a bug this item fixes)', () => {
     const vamp = new World(cfg({ core: 'vampire_heart' }), content);
-    expect(vamp.coreMaxHp).toBe(350); // cores.json's own baseHp, not waves.json's 500
+    expect(vamp.coreMaxHp).toBe(VAMPIRE.baseHp); // cores.json's own baseHp, not waves.json's stone_heart baseHp
     const time = new World(cfg({ core: 'time' }), content);
-    expect(time.coreMaxHp).toBe(300);
+    expect(time.coreMaxHp).toBe(TIME.baseHp);
   });
 
-  it('three steps take it from 500 to 800, preserving the current wound ratio', () => {
+  it('three steps take it from base to base+3 steps, preserving the current wound ratio', () => {
     const w = new World(cfg({ core: 'stone_heart' }), content);
-    w.coreHp = 250; // half-damaged
+    w.coreHp = STONE.baseHp / 2; // half-damaged
     w.gold = 1e6;
     expect(upgradeCore(w)).toBe(true);
-    expect(w.coreMaxHp).toBe(600);
-    expect(w.coreHp).toBe(300); // still exactly half, not healed to full
+    expect(w.coreMaxHp).toBeCloseTo(STONE.baseHp + stoneStepSum(1), 9);
+    expect(w.coreHp).toBeCloseTo((STONE.baseHp + stoneStepSum(1)) / 2, 9); // still exactly half, not healed to full
     expect(upgradeCore(w)).toBe(true);
     expect(upgradeCore(w)).toBe(true);
-    expect(w.coreMaxHp).toBe(800);
-    expect(coreHpBonus(content, 'stone_heart', 3)).toBe(300);
+    expect(w.coreMaxHp).toBeCloseTo(STONE.baseHp + stoneStepSum(3), 9);
+    expect(coreHpBonus(content, 'stone_heart', 3)).toBeCloseTo(stoneStepSum(3), 9);
   });
 
   it('is hashed: two replays differing only by a bought Stone Heart step diverge', () => {
@@ -172,12 +185,12 @@ describe('p-core-b — Stone Heart: +100 Core HP per step', () => {
 describe('p-core-b — Vampire Heart', () => {
   it('base effects load exactly as authored', () => {
     const w = new World(cfg({ core: 'vampire_heart' }), content);
-    expect(w.core.towerLifestealPct).toBeCloseTo(0.001, 9);
-    expect(w.core.missingHpBuffPerPct).toBeCloseTo(0.005, 9);
-    expect(w.core.missingHpBuffCap).toBeCloseTo(0.3, 9);
-    expect(w.core.vsLifestealPct).toBeCloseTo(0.01, 9);
-    expect(w.core.overhealGoldRatio).toBe(20);
-    expect(w.core.towerOverhealConverts).toBe(false);
+    expect(w.core.towerLifestealPct).toBeCloseTo(VAMPIRE.effects!.towerLifestealPct, 9);
+    expect(w.core.missingHpBuffPerPct).toBeCloseTo(VAMPIRE.effects!.missingHpBuffPerPct, 9);
+    expect(w.core.missingHpBuffCap).toBeCloseTo(VAMPIRE.effects!.missingHpBuffCap, 9);
+    expect(w.core.vsLifestealPct).toBeCloseTo(VAMPIRE.effects!.vsLifestealPct, 9);
+    expect(w.core.overhealGoldRatio).toBe(VAMP_BASE_OVERHEAL_RATIO);
+    expect(w.core.towerOverhealConverts).toBe(false); // no step bought yet — structural, not a data magnitude
   });
 
   it('TD: a tower heals for exactly 0.1% of the damage it just dealt', () => {
@@ -197,7 +210,7 @@ describe('p-core-b — Vampire Heart', () => {
 
     const dealt = w.damageByWeapon['arrow_spire'];
     expect(dealt).toBeGreaterThan(0);
-    expect(s.hp).toBeCloseTo(1 + dealt * 0.001, 9);
+    expect(s.hp).toBeCloseTo(1 + dealt * VAMPIRE.effects!.towerLifestealPct, 9);
   });
 
   // Regression: `pierce`/`lob`-kind towers (Ballista, Mortar) credit
@@ -231,7 +244,7 @@ describe('p-core-b — Vampire Heart', () => {
     }
 
     expect(s.damageDealt).toBeGreaterThan(0);
-    expect(s.hp).toBeCloseTo(1 + s.damageDealt * 0.001, 6);
+    expect(s.hp).toBeCloseTo(1 + s.damageDealt * VAMPIRE.effects!.towerLifestealPct, 6);
   });
 
   it('TD: a tower below full HP deals more damage and fires faster, capped at +30%', () => {
@@ -239,15 +252,20 @@ describe('p-core-b — Vampire Heart', () => {
     const { tx, ty } = nearTile(w);
     const s = buildAt(w, tx, ty);
     s.maxHp = 100;
+    const perPct = VAMPIRE.effects!.missingHpBuffPerPct;
+    const cap = VAMPIRE.effects!.missingHpBuffCap;
+    // Shape is hand-written (missing% * perPct, capped) — perPct/cap themselves
+    // are data magnitudes, sourced from cores.json rather than restated here.
+    const buffMul = (missingPct: number) => 1 + Math.min(cap, missingPct * perPct);
 
     s.hp = 100; // full HP: no buff
-    expect(towerDamage(w, s, 10)).toBeCloseTo(10, 9);
+    expect(towerDamage(w, s, 10)).toBeCloseTo(10 * buffMul(0), 9);
 
-    s.hp = 50; // 50% missing -> +25% (min(30%, 50*0.5%))
-    expect(towerDamage(w, s, 10)).toBeCloseTo(12.5, 9);
+    s.hp = 50; // 50% missing
+    expect(towerDamage(w, s, 10)).toBeCloseTo(10 * buffMul(50), 9);
 
-    s.hp = 1; // 99% missing -> capped at +30%, not +49.5%
-    expect(towerDamage(w, s, 10)).toBeCloseTo(13, 9);
+    s.hp = 1; // 99% missing -> capped, not the uncapped rate
+    expect(towerDamage(w, s, 10)).toBeCloseTo(10 * buffMul(99), 9);
   });
 
   it('VS: character lifesteal is 1% from the base effect alone, no step required', () => {
@@ -265,7 +283,7 @@ describe('p-core-b — Vampire Heart', () => {
 
     const dealt = w.damageByWeapon['arrow_spire'];
     expect(dealt).toBeGreaterThan(0);
-    expect(w.warden.leechAccumulator).toBeCloseTo(dealt * 0.01, 9);
+    expect(w.warden.leechAccumulator).toBeCloseTo(dealt * VAMPIRE.effects!.vsLifestealPct, 9);
   });
 
   it('VS: overhealing converts to gold at 20:1 before any step is bought', () => {
@@ -273,9 +291,9 @@ describe('p-core-b — Vampire Heart', () => {
     w.phase = 'act2';
     w.warden.hp = w.derived.maxHp - 5;
     const goldBefore = w.gold;
-    applyHealingToWarden(w, 25); // 5 tops off maxHp, 20 is overheal -> 1 gold @ 20:1
+    applyHealingToWarden(w, 25); // 5 tops off maxHp, 20 is overheal
     expect(w.warden.hp).toBe(w.derived.maxHp);
-    expect(w.gold).toBe(goldBefore + 1);
+    expect(w.gold).toBe(goldBefore + Math.floor(20 / VAMP_BASE_OVERHEAL_RATIO));
   });
 
   it('outside VS, the same overheal is simply discarded (no gold, TD lifesteal never overheals a Warden)', () => {
@@ -302,8 +320,8 @@ describe('p-core-b — Vampire Heart', () => {
 
     w.warden.hp = w.derived.maxHp;
     const before = w.gold;
-    for (let i = 0; i < 100; i++) applyHealingToWarden(w, 20); // 2000 hp overheal @ 20:1 -> 100 gold
-    expect(w.gold).toBe(before + 100);
+    for (let i = 0; i < 100; i++) applyHealingToWarden(w, 20); // 2000 hp overheal
+    expect(w.gold).toBe(before + Math.floor(2000 / VAMP_BASE_OVERHEAL_RATIO));
   });
 
   it('a different Core never converts overheal, even in VS (overhealGoldRatio is 0)', () => {
@@ -333,33 +351,34 @@ describe('p-core-b — Vampire Heart', () => {
     expect(upgradeCore(w)).toBe(true); // step 1
     s.hp = 95;
     const goldAfterStep = w.gold;
-    applyHealingToStructure(w, s, 25); // 5 tops off, 20 overheal -> 1 gold @ 20:1
+    applyHealingToStructure(w, s, 25); // 5 tops off, 20 overheal
     expect(s.hp).toBe(100);
-    expect(w.gold).toBe(goldAfterStep + 1);
+    expect(w.gold).toBe(goldAfterStep + Math.floor(20 / VAMP_BASE_OVERHEAL_RATIO));
   });
 
-  it('step 2: both conversions become 10:1', () => {
+  it('step 2: both conversions become the step-2 ratio', () => {
     const w = new World(cfg({ core: 'vampire_heart' }), content);
     w.gold = 1e6;
     expect(upgradeCore(w)).toBe(true); // step 1
     expect(upgradeCore(w)).toBe(true); // step 2
-    expect(w.core.overhealGoldRatio).toBe(10);
+    expect(w.core.overhealGoldRatio).toBe(VAMP_STEP2_OVERHEAL_RATIO);
 
     w.phase = 'act2';
     w.warden.hp = w.derived.maxHp - 5;
     const goldBefore = w.gold;
-    applyHealingToWarden(w, 25); // 20 overheal @ 10:1 -> 2 gold
-    expect(w.gold).toBe(goldBefore + 2);
+    applyHealingToWarden(w, 25); // 20 overheal
+    expect(w.gold).toBe(goldBefore + Math.floor(20 / VAMP_STEP2_OVERHEAL_RATIO));
   });
 
-  it('step 3: tower lifesteal becomes 0.3% total (0.1% base + 0.2% bonus)', () => {
+  it('step 3: tower lifesteal gains the step-3 bonus on top of the base rate', () => {
     const w = new World(cfg({ core: 'vampire_heart' }), content);
     w.gold = 1e6;
     expect(upgradeCore(w)).toBe(true);
     expect(upgradeCore(w)).toBe(true);
     expect(upgradeCore(w)).toBe(true);
     expect(w.coreStep).toBe(3);
-    expect(w.core.towerLifestealPct).toBeCloseTo(0.003, 9);
+    const bonus = VAMPIRE.upgrade.steps![2].towerLifestealBonus;
+    expect(w.core.towerLifestealPct).toBeCloseTo(VAMPIRE.effects!.towerLifestealPct + bonus, 9);
   });
 
   it('is hashed: a bought Vampire Heart step changes the end-state hash', () => {
@@ -374,21 +393,21 @@ describe('p-core-b — Vampire Heart', () => {
 describe('p-core-b — Time (steps 1-2; steps 3-5 are p-core-e)', () => {
   it('base effects load exactly as authored', () => {
     const w = new World(cfg({ core: 'time' }), content);
-    expect(w.core.tdSlowRadius).toBe(3);
-    expect(w.core.tdSlowPct).toBeCloseTo(0.2, 9);
-    expect(w.core.vsSpeedPct).toBeCloseTo(0.2, 9);
-    expect(w.core.goldPerSecond).toBe(0);
+    expect(w.core.tdSlowRadius).toBe(TIME.effects!.tdSlowRadius);
+    expect(w.core.tdSlowPct).toBeCloseTo(TIME.effects!.tdSlowPct, 9);
+    expect(w.core.vsSpeedPct).toBeCloseTo(TIME.effects!.vsSpeedPct, 9);
+    expect(w.core.goldPerSecond).toBe(0); // no step bought yet — structural, not a data magnitude
     expect(w.core.hpRegenPerSecond).toBe(0);
     expect(w.core.healingReceivedMul).toBe(1);
   });
 
-  it('TD: an enemy within r3 of the Core has -20% move and attack speed', () => {
+  it('TD: an enemy within the slow radius of the Core has reduced move and attack speed', () => {
     const w = new World(cfg({ core: 'time' }), content);
     const near = spawnEnemy(w, 'husk', CORE_X - 1, CORE_Y)!; // 1 tile off the footprint
     const far = spawnEnemy(w, 'husk', CORE_X - 10, CORE_Y)!;
-    expect(effectiveSpeed(w, near)).toBeCloseTo(near.speed * 0.8, 9);
+    expect(effectiveSpeed(w, near)).toBeCloseTo(near.speed * TIME_TD_SLOW_MUL, 9);
     expect(effectiveSpeed(w, far)).toBeCloseTo(far.speed, 9);
-    expect(enemyAttackSpeedMul(w, near)).toBeCloseTo(0.8, 9);
+    expect(enemyAttackSpeedMul(w, near)).toBeCloseTo(TIME_TD_SLOW_MUL, 9);
     expect(enemyAttackSpeedMul(w, far)).toBeCloseTo(1, 9);
   });
 
@@ -410,11 +429,11 @@ describe('p-core-b — Time (steps 1-2; steps 3-5 are p-core-e)', () => {
     expect(coreMoveSpeedMul(w)).toBe(1); // TD
     expect(coreAttackSpeedMul(w)).toBe(1);
     w.phase = 'act2';
-    expect(coreMoveSpeedMul(w)).toBeCloseTo(1.2, 9);
-    expect(coreAttackSpeedMul(w)).toBeCloseTo(1.2, 9);
+    expect(coreMoveSpeedMul(w)).toBeCloseTo(TIME_VS_SPEED_MUL, 9);
+    expect(coreAttackSpeedMul(w)).toBeCloseTo(TIME_VS_SPEED_MUL, 9);
   });
 
-  it('step 1: +1 flat gold/s, unaffected by gold-gain bonuses', () => {
+  it('step 1: flat gold/s, unaffected by gold-gain bonuses', () => {
     const w = new World(cfg({ core: 'time' }), content);
     w.stats.add('boon:greed', 'goldFind', 5); // +500% gold find
     w.recomputeDerived();
@@ -422,7 +441,7 @@ describe('p-core-b — Time (steps 1-2; steps 3-5 are p-core-e)', () => {
     expect(upgradeCore(w)).toBe(true); // step 1
     const before = w.gold;
     for (let i = 0; i < 60; i++) updateCoreEffects(w, DT); // 1 simulated second
-    expect(w.gold).toBe(before + 1); // exactly +1, not scaled by goldFindMul
+    expect(w.gold).toBe(before + TIME_STEP1_GOLD); // exactly the step's flat rate, not scaled by goldFindMul
   });
 
   // b042: unlike kill bounty, the fixed wave-clear bonus and Harvest Sprout's
@@ -440,7 +459,7 @@ describe('p-core-b — Time (steps 1-2; steps 3-5 are p-core-e)', () => {
     const before = w.gold;
     const seconds = content.waves.buildPhaseSeconds;
     for (let i = 0; i < Math.round(seconds * 60); i++) updateCoreEffects(w, DT);
-    expect(w.gold).toBe(before + seconds);
+    expect(w.gold).toBe(before + seconds * TIME_STEP1_GOLD);
   });
 
   it('step 1: income scales linearly with elapsed time, unlike a flat per-event gold source', () => {
@@ -452,12 +471,12 @@ describe('p-core-b — Time (steps 1-2; steps 3-5 are p-core-e)', () => {
     const after10s = w.gold - before;
     for (let i = 0; i < 60 * 10; i++) updateCoreEffects(w, DT); // +10s = 20s total
     const after20s = w.gold - before;
-    expect(after10s).toBe(10);
-    expect(after20s).toBe(20);
+    expect(after10s).toBe(10 * TIME_STEP1_GOLD);
+    expect(after20s).toBe(20 * TIME_STEP1_GOLD);
     expect(after20s).toBe(after10s * 2); // doubling elapsed time doubles income
   });
 
-  it('step 2: towers regen +1 HP/s, scaled by the same step\'s +20% healing received', () => {
+  it('step 2: towers regen HP/s, scaled by the same step\'s healing-received bonus', () => {
     const w = new World(cfg({ core: 'time' }), content);
     const { tx, ty } = nearTile(w);
     const s = buildAt(w, tx, ty);
@@ -468,25 +487,25 @@ describe('p-core-b — Time (steps 1-2; steps 3-5 are p-core-e)', () => {
     w.warden.y = CORE_Y;
     expect(upgradeCore(w)).toBe(true); // step 1
     expect(upgradeCore(w)).toBe(true); // step 2
-    expect(w.core.healingReceivedMul).toBeCloseTo(1.2, 9);
+    expect(w.core.healingReceivedMul).toBeCloseTo(TIME_STEP2_HEAL_MUL, 9);
 
     for (let i = 0; i < 60; i++) updateCoreEffects(w, DT); // 1 simulated second
-    expect(s.hp).toBeCloseTo(1 + 1 * 1.2, 6); // +1 HP/s * 1.2 healing-received
+    expect(s.hp).toBeCloseTo(1 + TIME_STEP2_REGEN * TIME_STEP2_HEAL_MUL, 6);
   });
 
-  it('step 2: character also gains +1 HP regen/s via the generic Stats pipeline, VS-scaled the same as any other regen', () => {
+  it('step 2: character also gains HP regen/s via the generic Stats pipeline, VS-scaled the same as any other regen', () => {
     const w = new World(cfg({ core: 'time' }), content);
     const before = w.derived.hpRegen;
     w.gold = 1e6;
     expect(upgradeCore(w)).toBe(true);
     expect(upgradeCore(w)).toBe(true);
-    expect(w.derived.hpRegen).toBeCloseTo(before + 1, 9);
+    expect(w.derived.hpRegen).toBeCloseTo(before + TIME_STEP2_REGEN, 9);
 
     w.phase = 'act2';
     w.warden.hp = 1;
     updateWarden(w, emptyInput(), DT);
-    // Healing received +20% applies to every heal the Warden gets, regen included.
-    expect(w.warden.hp).toBeCloseTo(1 + w.derived.hpRegen * DT * 1.2, 6);
+    // Healing received bonus applies to every heal the Warden gets, regen included.
+    expect(w.warden.hp).toBeCloseTo(1 + w.derived.hpRegen * DT * TIME_STEP2_HEAL_MUL, 6);
   });
 
   it('steps 3-5 are not yet authored: buying up to the full 5 leaves the decay aura fields at their base zero', () => {
@@ -494,8 +513,8 @@ describe('p-core-b — Time (steps 1-2; steps 3-5 are p-core-e)', () => {
     w.gold = 1e6;
     for (let i = 0; i < 5; i++) expect(upgradeCore(w)).toBe(true);
     expect(w.coreStep).toBe(5);
-    expect(w.core.goldPerSecond).toBe(1); // only step 1 authored
-    expect(w.core.hpRegenPerSecond).toBe(1); // only step 2 authored
+    expect(w.core.goldPerSecond).toBe(TIME_STEP1_GOLD); // only step 1 authored
+    expect(w.core.hpRegenPerSecond).toBe(TIME_STEP2_REGEN); // only step 2 authored
   });
 
   it('is hashed: a bought Time step changes the end-state hash', () => {
@@ -512,8 +531,8 @@ describe('p-core-b — computeCoreState is a pure fold (no double-counting acros
     const a = computeCoreState(content, 'vampire_heart', 2);
     const b = computeCoreState(content, 'vampire_heart', 2);
     expect(b).toEqual(a);
-    expect(a.overhealGoldRatio).toBe(10);
-    expect(a.towerOverhealConverts).toBe(true);
+    expect(a.overhealGoldRatio).toBe(VAMP_STEP2_OVERHEAL_RATIO);
+    expect(a.towerOverhealConverts).toBe(true); // step 1 already bought at coreStep 2 — structural, not a data magnitude
   });
 
   it('an unknown core key resolves to an all-zero, inert state rather than throwing', () => {

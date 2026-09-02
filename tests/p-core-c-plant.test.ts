@@ -24,10 +24,21 @@ import { cfg } from './helpers';
 
 const DT = 1 / 60;
 const content = loadContent();
+const PLANT = content.coreByKey.get('carnivorous_plant')!;
+const PLANT_EFFECTS = PLANT.effects!;
+/** Sum of `carnivorous_plant`'s first `n` step `devourRangeBonus` deltas, straight off `/data/cores.json`. */
+const devourRangeAfter = (n: number): number =>
+  PLANT_EFFECTS.devourRadius + PLANT.upgrade.steps!.slice(0, n).reduce((s, st) => s + (st.devourRangeBonus ?? 0), 0);
+/** `carnivorous_plant`'s devourCooldown after `n` steps, floored at 1s the same way `computeCoreState` folds it. */
+const devourCooldownAfter = (n: number): number =>
+  PLANT.upgrade.steps!.slice(0, n).reduce(
+    (cd, st) => (st.devourCooldownReduction ? Math.max(1, cd - st.devourCooldownReduction) : cd),
+    PLANT_EFFECTS.devourCooldown,
+  );
 
-/** One tile off the Core's own 2x2 footprint edge — well within the base r2 devour range. */
+/** One tile off the Core's own 2x2 footprint edge — well within the base devour range. */
 const NEAR_X = CORE_X - 1;
-/** Three tiles off the footprint edge — outside the base r2 devour range, inside r4 (post 2 steps). */
+/** Three tiles off the footprint edge — outside the base devour range, inside range after 2 steps. */
 const FAR_X = CORE_X - 3;
 
 function plantWorld(): World {
@@ -46,43 +57,43 @@ function tickPlant(w: World, seconds: number): void {
 describe('p-core-c — Carnivorous Plant base effects and upgrade steps', () => {
   it('base effects load exactly as authored', () => {
     const w = plantWorld();
-    expect(w.core.devourRadius).toBe(2);
-    expect(w.core.devourCooldown).toBe(8);
-    expect(w.core.devourEliteDamage).toBe(200);
-    expect(w.core.devourCoreHeal).toBe(5);
-    expect(w.core.poisonVolleyInterval).toBeCloseTo(1.5, 9);
-    expect(w.core.poisonStacksPerBullet).toBe(5);
-    expect(w.core.poisonVolleyCap).toBe(10);
-    expect(w.core.poisonBulletDamage).toBe(10);
+    expect(w.core.devourRadius).toBe(PLANT_EFFECTS.devourRadius);
+    expect(w.core.devourCooldown).toBe(PLANT_EFFECTS.devourCooldown);
+    expect(w.core.devourEliteDamage).toBe(PLANT_EFFECTS.devourEliteDamage);
+    expect(w.core.devourCoreHeal).toBe(PLANT_EFFECTS.devourCoreHeal);
+    expect(w.core.poisonVolleyInterval).toBeCloseTo(PLANT_EFFECTS.poisonVolleyInterval, 9);
+    expect(w.core.poisonStacksPerBullet).toBe(PLANT_EFFECTS.poisonStacksPerBullet);
+    expect(w.core.poisonVolleyCap).toBe(PLANT_EFFECTS.poisonVolleyCap);
+    expect(w.core.poisonBulletDamage).toBe(PLANT_EFFECTS.poisonBulletDamage);
   });
 
-  it('each of the 4 steps adds +1 devour range and -1s cooldown, folded fresh each time (no double-counting)', () => {
-    expect(computeCoreState(content, 'carnivorous_plant', 0).devourRadius).toBe(2);
-    expect(computeCoreState(content, 'carnivorous_plant', 0).devourCooldown).toBe(8);
-    expect(computeCoreState(content, 'carnivorous_plant', 1).devourRadius).toBe(3);
-    expect(computeCoreState(content, 'carnivorous_plant', 1).devourCooldown).toBe(7);
-    expect(computeCoreState(content, 'carnivorous_plant', 4).devourRadius).toBe(6);
-    expect(computeCoreState(content, 'carnivorous_plant', 4).devourCooldown).toBe(4);
+  it('each of the 4 steps adds its devour range/cooldown deltas, folded fresh each time (no double-counting)', () => {
+    expect(computeCoreState(content, 'carnivorous_plant', 0).devourRadius).toBe(devourRangeAfter(0));
+    expect(computeCoreState(content, 'carnivorous_plant', 0).devourCooldown).toBe(devourCooldownAfter(0));
+    expect(computeCoreState(content, 'carnivorous_plant', 1).devourRadius).toBe(devourRangeAfter(1));
+    expect(computeCoreState(content, 'carnivorous_plant', 1).devourCooldown).toBe(devourCooldownAfter(1));
+    expect(computeCoreState(content, 'carnivorous_plant', 4).devourRadius).toBe(devourRangeAfter(4));
+    expect(computeCoreState(content, 'carnivorous_plant', 4).devourCooldown).toBe(devourCooldownAfter(4));
   });
 
   it('a bought step is live immediately through the shared upgradeCore rule', () => {
     const w = plantWorld();
     w.gold = 1e6;
     expect(upgradeCore(w)).toBe(true);
-    expect(w.core.devourRadius).toBe(3);
-    expect(w.core.devourCooldown).toBe(7);
+    expect(w.core.devourRadius).toBe(devourRangeAfter(1));
+    expect(w.core.devourCooldown).toBe(devourCooldownAfter(1));
   });
 });
 
 describe('p-core-c — TD devour', () => {
   it('devours a non-elite outright: instant kill, +5 Core HP, +1 Digestion, credits real damage', () => {
     const w = plantWorld();
-    w.coreHp = 100; // well under max (200) so the heal has room
+    w.coreHp = 100; // well under max (baseHp 200) so the heal has room
     const e = spawnEnemy(w, 'husk', NEAR_X, CORE_Y)!;
     expect(e.hp).toBe(200); // fb025: husk hp 20 -> 200 (x10, supersedes fb020's x1.4 -> 28)
     tickPlant(w, 8);
     expect(e.dead).toBe(true);
-    expect(w.coreHp).toBe(105);
+    expect(w.coreHp).toBe(100 + PLANT_EFFECTS.devourCoreHeal);
     expect(w.digestionStacks).toBe(1);
     // "feeds on-map damage effects": the kill lands through damageEnemy, so it
     // counts as real damage dealt, not a bare killEnemy with no attribution.
@@ -106,18 +117,18 @@ describe('p-core-c — TD devour', () => {
     expect(e.elite).toBe(true);
     tickPlant(w, 8);
     expect(e.dead).toBe(false);
-    expect(e.hp).toBe(3800); // exactly 4000 - 200, no armor (colossus has none) (fb025: was 400 - 200 = 200)
-    expect(w.coreHp).toBe(105);
+    expect(e.hp).toBe(4000 - PLANT_EFFECTS.devourEliteDamage); // no armor (colossus has none) (fb025: was 400 hp)
+    expect(w.coreHp).toBe(100 + PLANT_EFFECTS.devourCoreHeal);
     expect(w.digestionStacks).toBe(1);
   });
 
-  it('does not scale with character stats: boosting power leaves the elite hit at exactly 200 off', () => {
+  it('does not scale with character stats: boosting power leaves the elite hit off by exactly devourEliteDamage', () => {
     const w = plantWorld();
     w.stats.add('test', 'power', 5); // +500% power, would matter if this scaled
     w.recomputeDerived();
     const e = spawnEnemy(w, 'colossus', NEAR_X, CORE_Y)!;
     tickPlant(w, 8);
-    expect(e.hp).toBe(3800); // fb025: colossus hp 400 -> 4000 (x10), so 4000 - 200 = 3800
+    expect(e.hp).toBe(4000 - PLANT_EFFECTS.devourEliteDamage); // fb025: colossus hp 400 -> 4000 (x10)
   });
 
   // Q113 addendum: unlike the non-elite kill (which explicitly bypasses armor
@@ -187,10 +198,10 @@ describe('p-core-c — VS poison volley', () => {
   // bare 20 in VS — every assertion below reads the enemy's own post-spawn HP
   // as its baseline instead of hardcoding 20.
 
-  it('fires no bullet below 5 Digestion stacks', () => {
+  it('fires no bullet below poisonStacksPerBullet Digestion stacks', () => {
     const w = plantWorld();
     w.phase = 'act2';
-    w.digestionStacks = 4;
+    w.digestionStacks = PLANT_EFFECTS.poisonStacksPerBullet - 1;
     const e = spawnEnemy(w, 'husk', NEAR_X, CORE_Y)!;
     const baseHp = e.hp;
     tickPlant(w, 1.5);
@@ -198,50 +209,51 @@ describe('p-core-c — VS poison volley', () => {
     expect(e.dots.length).toBe(0);
   });
 
-  it('one bullet per 5 stacks: exactly 1 bullet at 5-9 stacks, each 10 normal + a poison DoT off that same 10', () => {
+  it('one bullet per poisonStacksPerBullet stacks: exactly 1 bullet, each poisonBulletDamage normal + a poison DoT off that same amount', () => {
     const w = plantWorld();
     w.phase = 'act2';
-    w.digestionStacks = 7;
+    w.digestionStacks = PLANT_EFFECTS.poisonStacksPerBullet + 2;
     const e = spawnEnemy(w, 'husk', NEAR_X, CORE_Y)!;
     const baseHp = e.hp;
+    const bulletDmg = PLANT_EFFECTS.poisonBulletDamage;
     tickPlant(w, 1.5);
-    expect(e.hp).toBe(baseHp - 10); // 10 normal, poison hasn't ticked yet
+    expect(e.hp).toBe(baseHp - bulletDmg); // normal component; poison hasn't ticked yet
     expect(e.dots.length).toBe(1);
     expect(e.dots[0].type).toBe('poison');
-    // poison.json: ratio 1.2, duration 3 -> dps = 1.2*10/3 = 4 (the bullet's
-    // own flat 10 is the trigger, independent of the target's own HP/overlay)
-    expect(e.dots[0].dps).toBeCloseTo(4, 9);
+    // poison.json's own ratio/duration (out of cores.json's scope) trigger off
+    // the bullet's own flat damage, independent of the target's own HP/overlay.
+    expect(e.dots[0].dps).toBeCloseTo((1.2 * bulletDmg) / 3, 9);
     expect(e.dots[0].remaining).toBeCloseTo(3, 1);
   });
 
   it('is perf-capped at poisonVolleyCap bullets even with far more Digestion than that needs', () => {
     const w = plantWorld();
     w.phase = 'act2';
-    w.digestionStacks = 1000; // floor(1000/5) = 200, far past the cap of 10
+    w.digestionStacks = 1000; // far past the cap regardless of poisonStacksPerBullet
     const enemies = Array.from({ length: 15 }, (_, i) => spawnEnemy(w, 'husk', NEAR_X - i * 0.1, CORE_Y + i * 0.1)!);
     const baseHp = enemies.map((e) => e.hp);
     tickPlant(w, 1.5);
     const hitCount = enemies.filter((e, i) => e.hp < baseHp[i]).length;
-    expect(hitCount).toBe(10);
+    expect(hitCount).toBe(PLANT_EFFECTS.poisonVolleyCap);
   });
 
   it('targets the nearest enemies to the Core first', () => {
     const w = plantWorld();
     w.phase = 'act2';
-    w.digestionStacks = 5; // exactly 1 bullet
+    w.digestionStacks = PLANT_EFFECTS.poisonStacksPerBullet; // exactly 1 bullet
     const near = spawnEnemy(w, 'husk', NEAR_X, CORE_Y)!;
     const far = spawnEnemy(w, 'husk', CORE_X - 20, CORE_Y)!;
     const nearBase = near.hp;
     const farBase = far.hp;
     tickPlant(w, 1.5);
-    expect(near.hp).toBe(nearBase - 10);
+    expect(near.hp).toBe(nearBase - PLANT_EFFECTS.poisonBulletDamage);
     expect(far.hp).toBe(farBase);
   });
 
   it('does not scale with character stats and grants no lifesteal even while huntsWarden leech is live', () => {
     const w = plantWorld();
     w.phase = 'act2';
-    w.digestionStacks = 5;
+    w.digestionStacks = PLANT_EFFECTS.poisonStacksPerBullet;
     w.stats.add('test', 'power', 5); // would matter if bullet damage scaled
     w.stats.add('test', 'leech', 0.5); // would matter if the hit leeched
     w.recomputeDerived();
@@ -249,18 +261,18 @@ describe('p-core-c — VS poison volley', () => {
     const e = spawnEnemy(w, 'husk', NEAR_X, CORE_Y)!;
     const baseHp = e.hp;
     tickPlant(w, 1.5);
-    expect(e.hp).toBe(baseHp - 10); // flat 10, not power-scaled
+    expect(e.hp).toBe(baseHp - PLANT_EFFECTS.poisonBulletDamage); // flat, not power-scaled
     expect(w.warden.leechAccumulator).toBe(0);
   });
 
   it('feeds on-map damage totals: the normal component is credited to damageByWeapon/damageTotal', () => {
     const w = plantWorld();
     w.phase = 'act2';
-    w.digestionStacks = 5;
+    w.digestionStacks = PLANT_EFFECTS.poisonStacksPerBullet;
     spawnEnemy(w, 'husk', NEAR_X, CORE_Y);
     tickPlant(w, 1.5);
-    expect(w.damageByWeapon['carnivorous_plant']).toBe(10);
-    expect(w.damageTotal).toBe(10);
+    expect(w.damageByWeapon['carnivorous_plant']).toBe(PLANT_EFFECTS.poisonBulletDamage);
+    expect(w.damageTotal).toBe(PLANT_EFFECTS.poisonBulletDamage);
   });
 
   it('is VS-only: no volley fires during a TD block regardless of Digestion', () => {
