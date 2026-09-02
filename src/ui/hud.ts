@@ -15,6 +15,7 @@ import type { DevOp } from '../sim/types';
 import { selectedEnemy, selectedStructure, type Selection } from './selection';
 import { characterPanelData, type CharacterPanelData } from './character-panel';
 import { dpsPanelData, type DpsPanelData, type DpsWindow } from './dps-panel';
+import { vsPanelRows, type VsPanelRow } from './vs-panel';
 import { STAT_DISPLAY, type StatDisplay } from '../sim/stats';
 import { active2CdrFactor, characterBasicRange, classAttackPowerMul } from '../sim/classes';
 import { longestWieldedRange } from '../sim/vswield';
@@ -22,7 +23,7 @@ import { SPEEDS } from './pacer';
 import { activeSkillMarkup, classAbilitiesMarkup, passiveSkillMarkup, type ClassLiveContext } from './class-info';
 import { bottomBarData, type SkillIconState } from './bottom-bar';
 import { coreLiveMarkup } from './core-info';
-import { formatPct } from './info-format';
+import { formatPct, trimNum } from './info-format';
 import { equipmentEffectMarkup, type EquipmentEffectContext } from './equipment-info';
 
 export interface HudCallbacks {
@@ -43,10 +44,21 @@ export interface HudCallbacks {
   onEquipItem(slot: string, item: string | null): void;
   /** SPEC-FINAL §11, owner feedback `feature-dps-summary`: opens/closes the DPS summary panel. */
   onToggleDpsPanel(): void;
+  /**
+   * SPEC-FINAL §6.2, owner feedback `feature-vs-wielded-side-panel` (fb037):
+   * opens/closes the wielded-attacks side panel. Optional (unlike its DPS/
+   * Character panel siblings) so the many existing `Hud` test constructors
+   * that predate this panel do not all need updating for a presentation-only
+   * addition — a missing callback simply means the panel's own control is
+   * wired to nothing, exactly as harmless in a test as an unclicked button.
+   */
+  onToggleVsPanel?(): void;
   onResume(): void;
   onPause(): void;
   /** fb026: hovering an Active icon on the bottom bar; `null` on mouseleave. Drives the map's skill-range ring. */
   onHoverSkill(which: 'active1' | 'active2' | null): void;
+  /** fb037: hovering a wielded-attack row in the VS side panel; `null` on mouseleave. Drives that attack's range ring. */
+  onHoverWieldedTower?(towerKey: string | null): void;
   /** fb027: the selection panel's Upgrade button, or the `U` hotkey on a selected tower. */
   onUpgradeStructure(tx: number, ty: number): void;
   /** fb027: the selection panel's Sell button, or the `X` hotkey on a selected tower. */
@@ -75,6 +87,8 @@ export class Hud {
   private charPanelEl: HTMLElement;
   private dpsPanelEl: HTMLElement;
   private dpsDockEl: HTMLElement;
+  private vsPanelEl: HTMLElement;
+  private vsDockEl: HTMLElement;
   private lastInfoKey = '';
   private cb: HudCallbacks;
   private selected = 0;
@@ -88,6 +102,9 @@ export class Hud {
   private dpsPanelOpen_ = false;
   /** fb024: the panel's own close button docks to a small tab instead of vanishing. */
   private dpsPanelDocked_ = false;
+  private vsPanelOpen_ = false;
+  /** fb037: reuses fb024's dock pattern — the panel's own close button docks rather than vanishing. */
+  private vsPanelDocked_ = false;
   /** b035: the practice tool panel is tall enough to push `#sw-towerinfo` past the fold; collapsed by default. */
   private practiceCollapsed = true;
   /** fb026: the bottom HUD bar's element refs, cached once at construction — see `renderBottomBar`. */
@@ -123,6 +140,8 @@ export class Hud {
           <div class="sw-modal sw-off" id="sw-charpanel" hidden></div>
           <div class="sw-modal sw-off" id="sw-dpspanel" hidden></div>
           <button class="sw-dpsdock sw-off" id="sw-dpsdock" hidden title="Reopen DPS summary (P)">DPS &#9656;</button>
+          <div class="sw-modal sw-off" id="sw-vspanel" hidden></div>
+          <button class="sw-vsdock sw-off" id="sw-vsdock" hidden title="Reopen wielded attacks (V)">VS &#9656;</button>
           <div class="sw-toast" id="sw-toast"></div>
           <div class="sw-bottombar" id="sw-bottombar">
             <div class="sw-bb-vital sw-bb-hp">
@@ -168,6 +187,7 @@ export class Hud {
             <button class="sw-ctl" data-act="autopick" id="sw-autopick" aria-pressed="false" title="Resolve level-ups automatically">Auto-pick</button>
             <button class="sw-ctl" data-act="character" id="sw-character" aria-pressed="false" title="Character stats (C)">Character</button>
             <button class="sw-ctl" data-act="dps" id="sw-dps" aria-pressed="false" title="Damage/DPS summary (P)">DPS</button>
+            <button class="sw-ctl" data-act="vs" id="sw-vs" aria-pressed="false" title="Wielded attacks (V)">VS</button>
             <button class="sw-ctl" data-act="pause" title="Pause (Esc)">Pause</button>
           </div>
           <div class="sw-practice" id="sw-practice" hidden></div>
@@ -188,7 +208,8 @@ export class Hud {
             <b>WASD</b> move &middot; <b>Space</b> dash &middot; <b>LMB</b> build/select &middot;
             <b>RMB</b> sell &middot; <b>U</b>/<b>X</b> upgrade/sell &middot; <b>1-9</b> pick tower &middot;
             <b>0</b> clear &middot; <b>Enter</b> call wave &middot; <b>Q</b> class active &middot;
-            <b>R</b> ranges &middot; <b>F</b> speed &middot; <b>C</b> character &middot; <b>P</b> DPS &middot; <b>Esc</b> pause
+            <b>R</b> ranges &middot; <b>F</b> speed &middot; <b>C</b> character &middot; <b>P</b> DPS &middot;
+            <b>V</b> wielded attacks &middot; <b>Esc</b> pause
           </div>
         </div>
       </div>`;
@@ -203,6 +224,8 @@ export class Hud {
     this.charPanelEl = root.querySelector('#sw-charpanel') as HTMLElement;
     this.dpsPanelEl = root.querySelector('#sw-dpspanel') as HTMLElement;
     this.dpsDockEl = root.querySelector('#sw-dpsdock') as HTMLElement;
+    this.vsPanelEl = root.querySelector('#sw-vspanel') as HTMLElement;
+    this.vsDockEl = root.querySelector('#sw-vsdock') as HTMLElement;
     this.bb = {
       root: root.querySelector('#sw-bottombar') as HTMLElement,
       hpNum: root.querySelector('#sw-bb-hp-num') as HTMLElement,
@@ -279,8 +302,10 @@ export class Hud {
     controls?.querySelector('[data-act="autopick"]')?.addEventListener('click', () => this.cb.onToggleAutoPick());
     controls?.querySelector('[data-act="character"]')?.addEventListener('click', () => this.cb.onToggleCharacterPanel());
     controls?.querySelector('[data-act="dps"]')?.addEventListener('click', () => this.cb.onToggleDpsPanel());
+    controls?.querySelector('[data-act="vs"]')?.addEventListener('click', () => this.cb.onToggleVsPanel?.());
     controls?.querySelector('[data-act="pause"]')?.addEventListener('click', () => this.cb.onPause());
     this.dpsDockEl.addEventListener('click', () => this.cb.onToggleDpsPanel());
+    this.vsDockEl.addEventListener('click', () => this.cb.onToggleVsPanel?.());
   }
 
   /**
@@ -464,6 +489,8 @@ export class Hud {
     // `dpsPanelDocked_` as well, not just the fully-open flag (code-reviewer
     // finding).
     if (this.dpsPanelOpen_ || this.dpsPanelDocked_) this.closeDpsPanel();
+    // fb037: the VS panel is the same kind of sibling overlay.
+    if (this.vsPanelOpen_ || this.vsPanelDocked_) this.closeVsPanel();
     this.charPanelOpen = true;
     this.renderCharacterPanel(w);
   }
@@ -550,6 +577,7 @@ export class Hud {
     // See `toggleCharacterPanel`'s matching comment: without this, the two
     // panels could both render at once (qa-playtester finding).
     if (this.charPanelOpen) this.closeCharacterPanel();
+    if (this.vsPanelOpen_ || this.vsPanelDocked_) this.closeVsPanel();
     this.dpsPanelDocked_ = false;
     this.dpsDockEl.hidden = true;
     this.dpsDockEl.classList.add('sw-off');
@@ -616,6 +644,119 @@ export class Hud {
     el.classList.toggle('on', this.dpsPanelOpen_);
   }
 
+  /** True while the VS wielded-attacks panel is open — presentation state, read by tests and `main.ts`. */
+  get vsPanelOpen(): boolean {
+    return this.vsPanelOpen_;
+  }
+
+  /** True while the VS panel's edge tab is showing (docked, not open) — fb037, reusing fb024's pattern. */
+  get vsPanelDocked(): boolean {
+    return this.vsPanelDocked_;
+  }
+
+  /**
+   * SPEC-FINAL §6.2, owner feedback `feature-vs-wielded-side-panel` (fb037):
+   * one row per wielded tower type — derived damage, attack speed, range,
+   * pierce/AoE, damage-type split, active milestone special, and live DPS
+   * this wave. Same refusal rule as `toggleCharacterPanel`/`toggleDpsPanel`
+   * and the same reason: independently-driven full-stage overlays would hide
+   * one another and eat each other's clicks.
+   *
+   * Also refuses outside `w.huntsWarden` (qa-playtester finding): a tower
+   * wields nothing until the Sundering — `updateWieldedAttacks` is only ever
+   * called from `updateAct2` (`sim/run.ts`) — so opening this pre-Sundering
+   * would show a built TD tower's row with the §6.1 wielded formula's numbers
+   * (Power/Type Mastery-scaled, +10%-per-tower bonus) and a hover-ring drawn
+   * at the Warden, neither of which is what that tower is actually doing
+   * right now. The sibling lineage panel this item extends already gates the
+   * same way (`renderWeaponInfo`'s own `if (w.huntsWarden)` call site).
+   */
+  toggleVsPanel(w: World): void {
+    if (this.vsPanelOpen_) {
+      this.dockVsPanel();
+      return;
+    }
+    if (w.outcome !== 'running' || this.paused || !this.modal.hidden || !w.huntsWarden) return;
+    if (this.charPanelOpen) this.closeCharacterPanel();
+    if (this.dpsPanelOpen_ || this.dpsPanelDocked_) this.closeDpsPanel();
+    this.vsPanelDocked_ = false;
+    this.vsDockEl.hidden = true;
+    this.vsDockEl.classList.add('sw-off');
+    this.vsPanelOpen_ = true;
+    this.renderVsPanel(w);
+  }
+
+  /** fb024's dock pattern, reused verbatim: the panel's own close button collapses to a reopenable edge tab. */
+  dockVsPanel(): void {
+    this.vsPanelOpen_ = false;
+    this.vsPanelEl.hidden = true;
+    this.vsPanelEl.classList.add('sw-off');
+    this.vsPanelDocked_ = true;
+    this.vsDockEl.hidden = false;
+    this.vsDockEl.classList.remove('sw-off');
+    // Clears whatever row was hovered when the panel closed — otherwise the
+    // range ring it drew would keep drawing with no panel left to explain it
+    // (the same reasoning `renderBottomBar` clears `hoveredSkill` for on pause).
+    this.cb.onHoverWieldedTower?.(null);
+    this.syncVsPanelToggle();
+  }
+
+  closeVsPanel(): void {
+    this.vsPanelOpen_ = false;
+    this.vsPanelDocked_ = false;
+    this.vsPanelEl.hidden = true;
+    this.vsPanelEl.classList.add('sw-off');
+    this.vsPanelEl.innerHTML = '';
+    this.vsDockEl.hidden = true;
+    this.vsDockEl.classList.add('sw-off');
+    this.cb.onHoverWieldedTower?.(null);
+  }
+
+  /**
+   * Damage/roster numbers keep changing, so this redraws unconditionally on
+   * every `update()` call while open — same reasoning as `renderDpsPanel`.
+   * Only `.sw-vs-body` is replaced per tick; the shell (Dock button plus the
+   * row-hover delegation) is wired once per open and its element identity
+   * left untouched afterward (fb024's click-drop lesson).
+   */
+  private renderVsPanel(w: World): void {
+    this.vsPanelEl.hidden = false;
+    this.vsPanelEl.classList.remove('sw-off');
+    let body = this.vsPanelEl.querySelector('.sw-vs-body') as HTMLElement | null;
+    if (!body) {
+      this.vsPanelEl.innerHTML = vsPanelShellMarkup();
+      this.vsPanelEl.querySelector('[data-act="dock"]')?.addEventListener('click', () => this.dockVsPanel());
+      body = this.vsPanelEl.querySelector('.sw-vs-body') as HTMLElement;
+      // fb037: hovering (or, since each row carries `tabindex="0"`,
+      // keyboard-focusing) a row draws that attack's range ring around the
+      // Warden. Delegated on the body container (whose element identity
+      // survives every per-tick `innerHTML` replace below), not on the rows
+      // themselves, which do not. `focusin`/`focusout` are `focus`/`blur`'s
+      // bubbling equivalents — required for delegation, since plain
+      // `focus`/`blur` never bubble.
+      const enter = (e: Event) => {
+        const row = (e.target as HTMLElement).closest<HTMLElement>('[data-vs-key]');
+        if (row) this.cb.onHoverWieldedTower?.(row.dataset.vsKey!);
+      };
+      const leave = (e: FocusEvent | MouseEvent) => {
+        const related = (e as MouseEvent).relatedTarget as HTMLElement | null;
+        if (!related || !related.closest('[data-vs-key]')) this.cb.onHoverWieldedTower?.(null);
+      };
+      body.addEventListener('mouseover', enter);
+      body.addEventListener('mouseout', leave);
+      body.addEventListener('focusin', enter);
+      body.addEventListener('focusout', leave);
+    }
+    body.innerHTML = vsPanelBodyMarkup(vsPanelRows(w));
+  }
+
+  private syncVsPanelToggle(): void {
+    const el = this.root.querySelector('#sw-vs');
+    if (!el) return;
+    el.setAttribute('aria-pressed', String(this.vsPanelOpen_));
+    el.classList.toggle('on', this.vsPanelOpen_);
+  }
+
   /** Reflects the pacer's speed; the pacer itself owns cycling/direct-set. */
   setSpeed(speed: number): void {
     this.speedSel.value = String(speed);
@@ -624,7 +765,7 @@ export class Hud {
 
   /** True while any overlay owns input, so clicks must not reach the canvas. */
   get modalOpen(): boolean {
-    return !this.modal.hidden || !this.charPanelEl.hidden || !this.dpsPanelEl.hidden;
+    return !this.modal.hidden || !this.charPanelEl.hidden || !this.dpsPanelEl.hidden || !this.vsPanelEl.hidden;
   }
 
   get canvas(): HTMLCanvasElement {
@@ -741,6 +882,12 @@ export class Hud {
     if ((this.dpsPanelOpen_ || this.dpsPanelDocked_) && w.outcome !== 'running') this.closeDpsPanel();
     else if (this.dpsPanelOpen_) this.renderDpsPanel(w);
     this.syncDpsPanelToggle();
+    // §6.1's cycle machine can walk `w.huntsWarden` back to false (the next
+    // cycle's Day) while the panel sits open from the previous VS wave — a
+    // system interruption exactly like the run ending, not a user "I'm done".
+    if ((this.vsPanelOpen_ || this.vsPanelDocked_) && (w.outcome !== 'running' || !w.huntsWarden)) this.closeVsPanel();
+    else if (this.vsPanelOpen_) this.renderVsPanel(w);
+    this.syncVsPanelToggle();
     this.renderBottomBar(w);
     // A selection describes itself — but never at the cost of the panels the
     // player needs to act: a tower queued on the build bar has to show its own
@@ -1175,6 +1322,7 @@ export class Hud {
     // `this.modal` and would otherwise float on top of the pause card or a
     // level-up offer screen (code-reviewer finding) — not just the fully-open flag.
     if (this.dpsPanelOpen_ || this.dpsPanelDocked_) this.closeDpsPanel();
+    if (this.vsPanelOpen_ || this.vsPanelDocked_) this.closeVsPanel();
     this.modal.hidden = false;
     this.modal.classList.remove('sw-off');
   }
@@ -1589,6 +1737,49 @@ export function dpsPanelShellMarkup(): string {
  */
 export function dpsPanelBodyMarkup(data: DpsPanelData): string {
   return `${dpsWindowMarkup(data.wave)}${dpsWindowMarkup(data.run)}`;
+}
+
+/**
+ * SPEC-FINAL §6.2, owner feedback `feature-vs-wielded-side-panel` (fb037):
+ * the VS panel's static shell, built once per open — `.sw-vs-body` is the
+ * only part `renderVsPanel` replaces on later ticks (fb024's click-drop
+ * lesson: the Dock button and the row-hover delegation both need a stable
+ * element to stay wired to).
+ */
+export function vsPanelShellMarkup(): string {
+  return `
+    <div class="sw-card sw-charcard wide">
+      <h2>Wielded Attacks</h2>
+      <div class="sw-vs-body"></div>
+      <button class="sw-reroll" data-act="dock">Dock</button>
+    </div>`;
+}
+
+function vsRowMarkup(r: VsPanelRow): string {
+  const aoeText = r.aoe > 0 ? `, AoE r${trimNum(r.aoe, 1)}` : '';
+  const pierceText = r.pierce > 0 ? `, pierce ${r.pierce}` : '';
+  return `
+    <li class="sw-vs-row" data-vs-key="${r.key}" tabindex="0">
+      <div class="sw-row"><span>${r.name} &times;${r.count}</span><b>${formatDamage(r.damage)} dmg</b></div>
+      <div class="sw-note dim">
+        avg ${trimNum(r.perTowerAverage, 1)} &middot; every ${trimNum(r.interval, 2)}s &middot;
+        range ${trimNum(r.range, 1)}${pierceText}${aoeText}
+      </div>
+      <div class="sw-note dim">${r.damageTypeText} &mdash; ${r.special}</div>
+      <div class="sw-row small"><span>This wave</span><b>${formatDamage(r.waveDamage)} (${formatDps(r.waveDps)}/s)</b></div>
+    </li>`;
+}
+
+/**
+ * SPEC-FINAL §6.2 (fb037): one row per wielded tower type. Hovering a row
+ * (wired in `renderVsPanel`) draws that attack's live range ring around the
+ * Warden — `data-vs-key` is the hook the delegated listener reads.
+ */
+export function vsPanelBodyMarkup(rows: VsPanelRow[]): string {
+  if (rows.length === 0) {
+    return '<p class="sw-note dim">Nothing wielded yet — towers wield their attacks once the Sundering hits.</p>';
+  }
+  return `<ul class="sw-statlist sw-vs-list">${rows.map(vsRowMarkup).join('')}</ul>`;
 }
 
 /**

@@ -115,6 +115,8 @@ export interface KeyBinding {
   toggleCharacterPanel?: () => void;
   /** SPEC-FINAL §11, owner feedback `feature-dps-summary`: opens/closes the DPS summary panel. */
   toggleDpsPanel?: () => void;
+  /** SPEC-FINAL §6.2, owner feedback `feature-vs-wielded-side-panel`: opens/closes the VS wielded-attacks panel. */
+  toggleVsPanel?: () => void;
   isChoosing?: () => boolean;
   onAnyKey?: () => void;
   /** Current mouse-aim point in tile coords, for a `dash_line`-kind Active2 (p6b). */
@@ -153,6 +155,7 @@ export function makeKeyDownHandler(b: KeyBinding): (e: KeyboardEvent) => void {
     if (k === 'f') b.cycleSpeed?.();
     if (k === 'c') b.toggleCharacterPanel?.();
     if (k === 'p') b.toggleDpsPanel?.();
+    if (k === 'v') b.toggleVsPanel?.();
     if (k === '0') b.clearSelection?.();
     // fb027: distinct from `bindCanvasInput`'s held-`u`-plus-click build-menu
     // upgrade below — this fires once per press, against whatever is selected,

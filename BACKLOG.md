@@ -531,7 +531,7 @@ in live play today, a pre-existing gap fb029 exposed rather than introduced.
       Playwright-port-contention and `q15-command-domain-fuzz`), the same
       pre-existing flake class prior sessions have repeatedly documented —
       confirmed unrelated to this diff. `npx tsc --noEmit` clean.
-- [ ] (fb037) [feat] VS side panel: a collapsible panel listing every
+- [x] (fb037) [feat] VS side panel: a collapsible panel listing every
       wielded tower-type attack's derived damage (average × count bonus),
       attack speed, range, pierce/AoE, damage-type split, active milestone
       specials and live DPS this wave; hovering a row draws that attack's
@@ -540,7 +540,19 @@ in live play today, a pre-existing gap fb029 exposed rather than introduced.
       wielded type with numbers equal to the sim's own derivation (a test
       covers this); hover-ring and collapse/expand both work — refs:
       SPEC-FINAL §6.2 (lineage panel) extension, owner feedback
-      `feature-vs-wielded-side-panel`.
+      `feature-vs-wielded-side-panel`. **done, see Done section.**
+- [ ] (b079) [bug] normal priority: fb037's VS panel (and the pre-existing TD
+      lineage line it extends, `tower-info.ts`'s `lineageSpecial`) both print
+      "single target"/"pierce N" for a `single`-kind wielded attack with no
+      hint that it also cleaves `WIELD_SPLASH_FRACTION` damage into nearby
+      enemies via `wieldSplash` (`sim/vswield.ts`) — a qa-playtester finding
+      on fb037, deliberately not fixed inline (closing it means adding a
+      field, not a one-line swap, and the identical gap is shared with the
+      TD line) — acceptance: the VS panel's special text (or a new field)
+      discloses the splash fraction/radius for a `single`-kind attack; a
+      regression test builds a two-enemy scene and asserts the panel's text
+      reflects the real non-primary damage `wieldSplash` deals — refs:
+      SPEC-FINAL §6.2, `src/ui/vs-panel.ts`'s `vsLineageSpecial`.
 
 ### Owner verdict batch (2026-09-01, QUESTIONS Q134–Q154 + `feature-status-report`)
 
@@ -2965,6 +2977,97 @@ logged in MIGRATION.md §8 rather than carried as dead items.
   **G19**. The work is `p10d`.
 
 ## Done
+
+- [x] (fb037) [feat] VS side panel (SPEC-FINAL §6.2 lineage-panel extension,
+      owner feedback `feature-vs-wielded-side-panel`) — commit pending. One
+      row per wielded tower type: name/count, `perTowerAverage` vs. the real
+      per-shot `damage` (§6.1's average + 10%/tower bonus, with Power and
+      §6.3 Type Mastery folded in at fire-time exactly like `fireWielded`
+      itself), interval, range, pierce/AoE, a damage-type-split text, an
+      active-milestone-special phrase, and "this wave" damage/DPS (reusing
+      fb007's own wave-window logic, keyed by `towerKey`). New
+      `src/ui/vs-panel.ts` (`vsPanelRows`); new exported `sim/vswield.ts`
+      helpers (`wieldedRangeFor` un-privated, plus `wieldedPierceFor`/
+      `wieldedAoeFor`/`wieldedChainsFor`/`wieldedPoisonTargetsFor`) mirror
+      `fireWielded`'s own per-kind wield-only bonuses so the panel can never
+      quote a number the live attack disagrees with. `hud.ts` gained a whole
+      second panel (`#sw-vspanel`/`#sw-vsdock`, `V` hotkey) structurally
+      copying the existing DPS panel: same shell/body split, same
+      dock-instead-of-close pattern (fb024), wired into every forced-close
+      site the Character/DPS panels already share (pause, level-up/results,
+      run end, mutual exclusion with each other). Row hover (mouse or Tab
+      focus, via delegated `mouseover`/`mouseout`/`focusin`/`focusout` on the
+      stable body container) sets a new `ViewState.hoveredWieldedTower`,
+      which `canvas.ts`'s new `drawWieldedHoverRing` reads to ring the
+      Warden at that type's live range.
+      **code-reviewer REQUEST-CHANGES → fixed**: a Major finding — the
+      special-effect phrase reused `tower-info.ts`'s `lineageSpecial`
+      verbatim, which hard-codes the *raw, unwielded* pierce/splash/chain/
+      target numbers, so a Ballista's row showed `pierce 10` in one field and
+      "pierce 9" in the special text two lines below it (same self-
+      contradiction for Mortar's AoE) — fixed with a dedicated
+      `vsLineageSpecial` that takes the row's own already-wielded-scaled
+      `pierce`/`aoe` instead of re-deriving them, so the two can't drift
+      apart; `lineageSpecial` reverted back to private since nothing outside
+      `tower-info.ts` needs it anymore. Two Minors from the same pass fixed
+      alongside: the "special text" test was strengthened to assert the
+      embedded number, not just non-emptiness; the row's `tabindex="0"`/
+      `:focus` styling was a half-wired affordance (hover-only listeners) —
+      completed via `focusin`/`focusout` on the same delegated handler.
+      **qa-playtester FAIL on first submission with one Major, two Minors,
+      all fixed**: (1) **Major** — neither `toggleVsPanel` nor
+      `drawWieldedHoverRing` gated on `w.huntsWarden`, so opening the panel
+      (or the `V` hotkey) during Act I on a tower built during the normal
+      build phase showed that tower's §6.1 *wielded* numbers — Power/Type-
+      Mastery-scaled, +10%-per-tower-bonused — while the tower was actually
+      dealing its plain TD damage, and hovering the row drew a range ring at
+      the Warden for an attack that was not being fired from the Warden at
+      all (`updateWieldedAttacks` only ever runs from `updateAct2`); worse,
+      the panel's own empty-state copy ("Nothing wielded yet — towers wield
+      their attacks once the Sundering hits") directly contradicted what the
+      populated row was doing right next to it. Fixed by gating
+      `toggleVsPanel` on `w.huntsWarden` (matching the sibling lineage
+      panel's own `renderWeaponInfo` gate), force-closing the panel in
+      `update()` when a multi-cycle run's Dawn/Day walks the phase back out
+      of `huntsWarden` while it sits open, and a defensive `huntsWarden`
+      check inside `drawWieldedHoverRing` itself; (2) **Minor** —
+      `damageTypeText` rounded each damage-type share independently, which
+      can undershoot 100 on an unevenly-authored ratio (a synthetic 1/1/1
+      split rounds to 33+33+33 = 99) — currently dormant since every
+      `/data` ratio today is a clean 50/50, flagged per CLAUDE.md's "check a
+      `/data` row's blast radius" rule; fixed by having the last entry absorb
+      the rounding remainder, with a synthetic-ratio regression test that
+      doesn't depend on `/data` staying two-way forever; (3) **Minor** — a
+      `single`-kind wielded attack's `wieldSplash` cleave (30% damage to
+      nearby enemies) is undisclosed by the special text ("single target"/
+      "pierce N" reads as no splash) — inherited from the pre-existing TD
+      `lineageSpecial` and not closed here; filed as **b079** rather than
+      fixed inline, with a doc comment on `vsLineageSpecial` recording why.
+      QA otherwise independently verified (not just re-reading the diff):
+      wielded math for single/pierce/lob/chain/poison/aura kinds matches
+      `fireWielded`'s real fire-time expressions byte-for-byte; a roster
+      change mid-VS-wave (a tower dying) updates `count`/`damage`
+      immediately; mixed-tier towers of the same type correctly diverge
+      `perTowerAverage` from `damage`; 0/1/N wielded types all read
+      correctly; `npx tsc --noEmit` clean; `npm run test:fast` green save
+      for the documented pre-existing Windows-host-load flake class
+      (`b032`/`b034`/`b035`/`b036` Playwright fold/port-contention,
+      `q15-command-domain-fuzz`), confirmed via `git stash` control run to
+      reproduce identically on unmodified `master`. `tests/fb037-vs-
+      panel.test.ts` (new, 9 tests: empty/wall/single/pierce/lob/poison
+      cases, sort order, wave-window reconciliation, the damage-type-split
+      rounding fix) and additions to `tests/hud-controls.test.ts` (toggle/
+      dock/reopen, row hover fires the callback and survives per-tick
+      redraws, mutual exclusion with the DPS/Character panels, the
+      `huntsWarden` gate itself, and the mid-run phase-flip force-close).
+      Deliberate scope calls, logged rather than silently made: the two new
+      `HudCallbacks` fields (`onToggleVsPanel`, `onHoverWieldedTower`) are
+      optional — unlike the DPS panel's originally-required fields — so the
+      ~19 pre-existing test files constructing `HudCallbacks` object literals
+      did not all need touching for a presentation-only addition;
+      `audit-hook.ts`'s dev-only UI self-audit bridge was not extended with a
+      `toggleVsPanel` hook. b079 filed for the disclosed-but-deferred splash
+      gap above.
 
 - [x] (fb041) [bug] no rank caps on VS stat boons and Type Mastery cards —
       commit `776f58f`. QUESTIONS Q144(1) OVERRIDE reversed p7a's own earlier

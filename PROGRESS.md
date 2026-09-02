@@ -5,6 +5,67 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-02 session: fb037 done — VS side panel for wielded tower-type
+  attacks (SPEC-FINAL §6.2 lineage-panel extension, owner feedback
+  `feature-vs-wielded-side-panel`).** New `src/ui/vs-panel.ts`'s
+  `vsPanelRows(w)`: one row per wielded tower type — name/count,
+  `perTowerAverage` vs. the real per-shot `damage` (§6.1's average+10%/tower
+  bonus with Power and §6.3 Type Mastery folded in exactly as `fireWielded`
+  itself does), interval, range, pierce/AoE, a damage-type-split text, an
+  active-milestone-special phrase, and "this wave" damage/DPS reusing fb007's
+  wave-window logic. New exported `sim/vswield.ts` helpers
+  (`wieldedRangeFor` un-privated, plus `wieldedPierceFor`/`wieldedAoeFor`/
+  `wieldedChainsFor`/`wieldedPoisonTargetsFor`) mirror `fireWielded`'s own
+  per-kind wield-only bonuses so the panel can't quote a number the live
+  attack disagrees with. `hud.ts` gained a second panel
+  (`#sw-vspanel`/`#sw-vsdock`, `V` hotkey) structurally copying the DPS
+  panel: shell/body split, fb024's dock-instead-of-close pattern, and every
+  forced-close site the Character/DPS panels share. Row hover (mouse or Tab
+  focus) sets a new `ViewState.hoveredWieldedTower`, read by `canvas.ts`'s
+  new `drawWieldedHoverRing` to ring the Warden at that type's live range.
+  code-reviewer **REQUEST-CHANGES → fixed**: a Major — the special-effect
+  text reused `tower-info.ts`'s `lineageSpecial` verbatim, which hard-codes
+  the *raw, unwielded* pierce/splash/chain/target numbers, so a Ballista's
+  row showed `pierce 10` in one field and "pierce 9" in the special text two
+  lines below — fixed with a dedicated `vsLineageSpecial` taking the row's
+  own already-wielded-scaled numbers so the two can't drift; two Minors
+  (a weak test assertion, a half-wired keyboard-focus affordance) fixed
+  alongside. qa-playtester **FAIL on first submission with one Major, two
+  Minors, all fixed**: (1) **Major** — neither `toggleVsPanel` nor
+  `drawWieldedHoverRing` gated on `w.huntsWarden`, so opening the panel (or
+  pressing `V`) during Act I on an already-built tower showed that tower's
+  §6.1 *wielded* numbers while it was actually dealing plain TD damage, and
+  hovering drew a ring at the Warden for an attack not firing from the
+  Warden at all — contradicting the panel's own empty-state copy right next
+  to it. Fixed by gating `toggleVsPanel` on `w.huntsWarden` (matching the
+  sibling lineage panel's own gate), force-closing on a multi-cycle run's
+  Dawn/Day phase flip while open, and a defensive check inside
+  `drawWieldedHoverRing`; (2) **Minor** — `damageTypeText` rounded each
+  damage-type share independently, undershooting 100 on an unevenly-
+  authored ratio (dormant today: every `/data` ratio is a clean 50/50,
+  flagged per CLAUDE.md's "check a `/data` row's blast radius" rule) — fixed
+  by having the last entry absorb the rounding remainder; (3) **Minor** — a
+  `single`-kind wielded attack's `wieldSplash` cleave (30% to nearby
+  enemies) is undisclosed by the special text, inherited from the
+  pre-existing TD `lineageSpecial` — filed as **b079** rather than fixed
+  inline. QA otherwise independently verified the wielded math for all six
+  attack kinds byte-for-byte against `fireWielded`'s real expressions, a
+  roster change mid-VS-wave updates rows immediately, mixed-tier towers
+  correctly diverge `perTowerAverage` from `damage`, and 0/1/N wielded types
+  all read correctly. `npx tsc --noEmit` clean; `npm run test:fast` green
+  save for the same pre-existing Windows-host-load flake class prior
+  sessions have repeatedly documented (`b032`/`b034`/`b035`/`b036`
+  fold/port-contention, `q15-command-domain-fuzz`), confirmed via `git
+  stash` control run to reproduce identically on unmodified `master`. New
+  `tests/fb037-vs-panel.test.ts` (9 tests) plus additions to
+  `tests/hud-controls.test.ts` (toggle/dock/reopen, row hover, mutual
+  panel exclusion, the `huntsWarden` gate, the mid-run phase-flip
+  force-close). Deliberate scope calls: the two new `HudCallbacks` fields
+  are optional (unlike the DPS panel's required ones) so the ~19 pre-existing
+  test files constructing `HudCallbacks` literals didn't need touching for a
+  presentation-only addition; `audit-hook.ts`'s dev-only UI self-audit
+  bridge was not extended with a `toggleVsPanel` hook.
+
 - **2026-09-02 session: fb036 done — TD path indicators from every spawn
   gate (SPEC-FINAL §10 pathing, §11 indicators, owner feedback
   `feature-td-path-indicators`).** New `Grid.gatePath(gate)` (`src/sim/grid.ts`)

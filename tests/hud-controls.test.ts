@@ -33,8 +33,10 @@ interface Log {
   autopick: number;
   character: number;
   dps: number;
+  vs: number;
   pause: number;
   dev: DevOp[];
+  hoveredWieldedTower: (string | null)[];
 }
 
 function makeHud(root: HTMLElement, log: Log, pacer: Pacer): Hud {
@@ -50,6 +52,7 @@ function makeHud(root: HTMLElement, log: Log, pacer: Pacer): Hud {
     onToggleCharacterPanel: () => log.character++,
     onEquipItem: () => {},
     onToggleDpsPanel: () => log.dps++,
+    onToggleVsPanel: () => log.vs++,
     onResume: () => {},
     onPause: () => log.pause++,
     onCycleSpeed: () => {
@@ -63,6 +66,7 @@ function makeHud(root: HTMLElement, log: Log, pacer: Pacer): Hud {
     onDev: (op: DevOp) => log.dev.push(op),
     onQuitToHub: () => {},
     onHoverSkill: () => {}, onUpgradeStructure: () => {}, onSellStructure: () => {}, onUpgradeCore: () => {},
+    onHoverWieldedTower: (key) => log.hoveredWieldedTower.push(key),
   });
   return hud;
 }
@@ -75,7 +79,7 @@ describe('in-run control row', () => {
 
   beforeEach(() => {
     root = mount();
-    log = { speed: 0, ranges: 0, autopick: 0, character: 0, dps: 0, pause: 0, dev: [] };
+    log = { speed: 0, ranges: 0, autopick: 0, character: 0, dps: 0, vs: 0, pause: 0, dev: [], hoveredWieldedTower: [] };
     pacer = new Pacer();
     hud = makeHud(root, log, pacer);
     hud.buildTowerBar(new World(cfg()));
@@ -83,7 +87,7 @@ describe('in-run control row', () => {
   });
 
   it('shows every control the help line promises', () => {
-    for (const act of ['speed', 'ranges', 'autopick', 'character', 'dps', 'pause']) {
+    for (const act of ['speed', 'ranges', 'autopick', 'character', 'dps', 'vs', 'pause']) {
       expect(root.querySelector(`[data-act="${act}"]`), act).not.toBeNull();
     }
   });
@@ -459,6 +463,181 @@ describe('in-run control row', () => {
     expect(panel.textContent).toContain(arrow.name);
     expect(panel.textContent).toContain('Normal');
     expect(panel.textContent).toContain('120');
+  });
+
+  /** Builds one buildable, unblocking tower under the Warden — enough for `wieldedAttacks` to see it. */
+  function buildOne(w: World, key: string): void {
+    const def = w.content.towerByKey.get(key)!;
+    for (let ty = 4; ty < 20; ty++) {
+      for (let tx = 4; tx < 20; tx++) {
+        if (!w.grid.buildable(tx, ty) || w.grid.wouldBlockPath([[tx, ty]])) continue;
+        w.warden.x = tx + 0.5;
+        w.warden.y = ty + 0.5;
+        w.gold = 1e6;
+        expect(buildTower(w, def.id, tx, ty).ok).toBe(true);
+        return;
+      }
+    }
+    throw new Error('no buildable tile found');
+  }
+
+  it('the VS button reaches the callback and toggling shows and hides the panel', () => {
+    const btn = root.querySelector('#sw-vs') as HTMLButtonElement;
+    expect(btn.classList.contains('on')).toBe(false);
+    btn.click();
+    expect(log.vs).toBe(1);
+
+    const w = new World(cfg());
+    w.phase = 'act2';
+    expect(hud.vsPanelOpen).toBe(false);
+    hud.toggleVsPanel(w);
+    expect(hud.vsPanelOpen).toBe(true);
+    hud.update(w);
+    expect(btn.classList.contains('on')).toBe(true);
+    const panel = root.querySelector('#sw-vspanel') as HTMLElement;
+    expect(panel.hidden).toBe(false);
+    expect(panel.textContent).toContain('Wielded Attacks');
+
+    hud.toggleVsPanel(w); // toggle's close branch docks, not vanishes (reuses fb024's pattern)
+    expect(hud.vsPanelOpen).toBe(false);
+    hud.update(w);
+    expect(btn.classList.contains('on')).toBe(false);
+    expect(panel.hidden).toBe(true);
+  });
+
+  it('the VS panel only opens once wielding is real (Act II/level-up), not during Act I (qa-playtester finding)', () => {
+    // Before the Sundering a tower wields nothing (`updateWieldedAttacks` is
+    // only ever called from `updateAct2`) — opening the panel there would
+    // show a built TD tower's row under the §6.1 wielded formula, numbers
+    // that tower is not actually dealing right now.
+    for (const phase of ['act1_build', 'act1_wave'] as const) {
+      const w = new World(cfg());
+      w.phase = phase;
+      const h = makeHud(mount(), { ...log, hoveredWieldedTower: [] }, pacer);
+      h.toggleVsPanel(w);
+      expect(h.vsPanelOpen, phase).toBe(false);
+    }
+    for (const phase of ['act2', 'levelup'] as const) {
+      const w = new World(cfg());
+      w.phase = phase;
+      const h = makeHud(mount(), { ...log, hoveredWieldedTower: [] }, pacer);
+      h.toggleVsPanel(w);
+      expect(h.vsPanelOpen, phase).toBe(true);
+    }
+  });
+
+  it('shows an empty-state note once opened in Act II with nothing built', () => {
+    const w = new World(cfg());
+    w.phase = 'act2';
+    hud.toggleVsPanel(w);
+    hud.update(w);
+    expect(root.querySelector('#sw-vspanel')!.textContent).toContain('Nothing wielded yet');
+  });
+
+  it('force-closes (not just docks) when the cycle machine walks the phase back out of huntsWarden mid-open', () => {
+    const w = new World(cfg());
+    w.phase = 'act2';
+    hud.toggleVsPanel(w);
+    expect(hud.vsPanelOpen).toBe(true);
+    w.phase = 'act1_build'; // e.g. the next cycle's Day, per SPEC-FINAL §6.1's cycle machine
+    hud.update(w);
+    expect(hud.vsPanelOpen, 'a phase flip out of huntsWarden is a system interruption, not a user close').toBe(false);
+    expect((root.querySelector('#sw-vsdock') as HTMLElement).hidden, 'nothing worth re-offering a reopen for').toBe(
+      true,
+    );
+  });
+
+  it('lists a real built tower type with its damage/range/wave numbers, and docks/reopens via the edge tab', () => {
+    const w = new World(cfg());
+    buildOne(w, 'arrow_spire'); // built during the default act1_build phase
+    w.phase = 'act2'; // the Sundering: the built tower now wields its attack
+    hud.toggleVsPanel(w);
+    hud.update(w);
+    const panel = root.querySelector('#sw-vspanel') as HTMLElement;
+    const arrow = w.content.towerByKey.get('arrow_spire')!;
+    expect(panel.textContent).toContain(arrow.name);
+    expect(panel.textContent).toContain('This wave');
+
+    const dock = root.querySelector('#sw-vsdock') as HTMLElement;
+    expect(dock.hidden, 'tab hidden while the panel is fully open').toBe(true);
+    (panel.querySelector('[data-act="dock"]') as HTMLElement).click();
+    expect(hud.vsPanelOpen).toBe(false);
+    expect(hud.vsPanelDocked, 'closing from inside the panel docks it').toBe(true);
+    expect(dock.hidden, 'the edge tab reopens the panel').toBe(false);
+    dock.click();
+    expect(log.vs, 'the tab reaches the same callback as the VS control button').toBe(1);
+  });
+
+  it('hovering a wielded-attack row reports that row\'s tower key, and leaving clears it', () => {
+    const w = new World(cfg());
+    buildOne(w, 'arrow_spire');
+    w.phase = 'act2';
+    hud.toggleVsPanel(w);
+    hud.update(w);
+    const row = root.querySelector('[data-vs-key="arrow_spire"]') as HTMLElement;
+    expect(row).not.toBeNull();
+
+    row.dispatchEvent(new window.MouseEvent('mouseover', { bubbles: true }));
+    expect(log.hoveredWieldedTower.at(-1)).toBe('arrow_spire');
+
+    const outside = document.createElement('div');
+    document.body.appendChild(outside);
+    row.dispatchEvent(new window.MouseEvent('mouseout', { bubbles: true, relatedTarget: outside }));
+    expect(log.hoveredWieldedTower.at(-1)).toBeNull();
+  });
+
+  it('the row-hover delegation survives repeated per-tick redraws, like the Dock button (fb024\'s lesson)', () => {
+    const w = new World(cfg());
+    buildOne(w, 'arrow_spire');
+    w.phase = 'act2';
+    hud.toggleVsPanel(w);
+    for (let i = 0; i < 5; i++) hud.update(w);
+    const row = root.querySelector('[data-vs-key="arrow_spire"]') as HTMLElement;
+    row.dispatchEvent(new window.MouseEvent('mouseover', { bubbles: true }));
+    expect(log.hoveredWieldedTower.at(-1)).toBe('arrow_spire');
+  });
+
+  it('does not open the VS panel once the run has ended, and force-closes if it ends while open', () => {
+    const w = new World(cfg());
+    w.phase = 'act2';
+    hud.toggleVsPanel(w);
+    expect(hud.vsPanelOpen).toBe(true);
+    w.outcome = 'victory';
+    hud.update(w);
+    expect(hud.vsPanelOpen).toBe(false);
+  });
+
+  it('the VS panel refuses to open over the pause card and force-closes a docked tab on pause/level-up', () => {
+    const w = new World(cfg());
+    w.phase = 'act2';
+    hud.setPaused(true, w);
+    hud.toggleVsPanel(w);
+    expect(hud.vsPanelOpen, 'must not open while paused').toBe(false);
+    hud.setPaused(false, w);
+
+    hud.toggleVsPanel(w);
+    const panel = root.querySelector('#sw-vspanel') as HTMLElement;
+    (panel.querySelector('[data-act="dock"]') as HTMLElement).click();
+    expect(hud.vsPanelDocked).toBe(true);
+    hud.setPaused(true, w);
+    expect(hud.vsPanelDocked, 'a docked tab shares the stage stacking context with the pause card').toBe(false);
+  });
+
+  it('the VS panel, the DPS panel and the Character panel never more than one shows at once', () => {
+    const w = new World(cfg());
+    w.phase = 'act2';
+    hud.toggleCharacterPanel(w);
+    hud.toggleVsPanel(w);
+    expect(hud.characterPanelOpen, 'opening VS must close Character').toBe(false);
+    expect(hud.vsPanelOpen).toBe(true);
+
+    hud.toggleDpsPanel(w);
+    expect(hud.vsPanelOpen, 'opening DPS must close VS').toBe(false);
+    expect(hud.dpsPanelOpen).toBe(true);
+
+    hud.toggleVsPanel(w);
+    expect(hud.dpsPanelOpen, 'opening VS must close DPS').toBe(false);
+    expect(hud.vsPanelOpen).toBe(true);
   });
 
   it('the auto-pick button reaches the callback and lights from sim state, not click count', () => {

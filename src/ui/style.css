@@ -163,6 +163,37 @@ html, body {
   pointer-events: none;
 }
 
+/* fb037: the VS wielded-attacks panel's docked edge tab, reusing fb024's pattern. */
+.sw-vsdock {
+  position: absolute;
+  top: 40px;
+  right: 0;
+  z-index: 5;
+  background: var(--panel2);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-right: 0;
+  border-radius: 4px 0 0 4px;
+  padding: 6px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.sw-vsdock[hidden],
+.sw-vsdock.sw-off {
+  display: none !important;
+  pointer-events: none;
+}
+
+/* fb037: one row per wielded tower type, hoverable to preview its range ring. */
+.sw-vs-list { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.sw-vs-row {
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 6px 8px;
+  cursor: default;
+}
+.sw-vs-row:hover, .sw-vs-row:focus { border-color: var(--dim); background: var(--panel2); }
+
 .sw-card {
   background: var(--panel);
   border: 1px solid var(--line);

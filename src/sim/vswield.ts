@@ -87,7 +87,7 @@ export function wieldedAttacks(w: World): WieldedAttack[] {
  * at and `longestWieldedRange` (fb029) quotes for the on-select ring, so the
  * two can never drift apart.
  */
-function wieldedRangeFor(w: World, a: TowerAttack): number {
+export function wieldedRangeFor(w: World, a: TowerAttack): number {
   return a.range * w.derived.areaMul * w.derived.charRangeMul;
 }
 
@@ -265,6 +265,55 @@ function wieldSplash(w: World, primary: Enemy, dmg: number, source: string, fx: 
     hit++;
     if (hit >= cfg.aoeFullTargets) scale = Math.max(cfg.aoeFalloffFloor, scale * cfg.aoeFalloff);
   }
+}
+
+/**
+ * fb037 (VS side panel): the pierce count a wielded attack of this kind
+ * actually lands with, mirroring `fireWielded`'s own per-kind bonus so the
+ * panel's number can never drift from what a shot really does — `single`
+ * carries `prof.pierce` as-is, `pierce` adds `WIELD_PIERCE_BONUS` the same
+ * way its case above does, and every other kind pierces nothing.
+ */
+export function wieldedPierceFor(a: TowerAttack, prof: AttackProfile): number {
+  switch (a.kind) {
+    case 'single':
+      return prof.pierce;
+    case 'pierce':
+      return prof.pierce + WIELD_PIERCE_BONUS;
+    default:
+      return 0;
+  }
+}
+
+/**
+ * fb037: the blast radius a wielded `lob`/`poison` attack actually detonates
+ * with, mirroring `fireWielded`'s own two cases (`WIELD_LOB_AOE_MUL` for lob,
+ * no multiplier for poison) rather than re-deriving the sim's private
+ * splash-tuning constants a second time. 0 for every other kind.
+ */
+export function wieldedAoeFor(w: World, def: TowerDef, a: TowerAttack): number {
+  if (a.kind === 'lob') return effectiveTowerAoe(w, def) * WIELD_LOB_AOE_MUL;
+  if (a.kind === 'poison') return effectiveTowerAoe(w, def);
+  return 0;
+}
+
+/**
+ * fb037: the chain jump count a wielded `chain` attack actually strikes with,
+ * mirroring `fireWielded`'s own `chainHit` call (`(a.chains ?? 3) +
+ * WIELD_CHAIN_BONUS`) so a display surface cannot quote the tower's plain TD
+ * chain count once `WIELD_CHAIN_BONUS` moves off its current 0.
+ */
+export function wieldedChainsFor(a: TowerAttack): number {
+  return (a.chains ?? 3) + WIELD_CHAIN_BONUS;
+}
+
+/**
+ * fb037: how many targets a wielded `poison` volley actually reaches,
+ * mirroring `fireWielded`'s own `nearestEnemies` call
+ * (`prof.projectiles + WIELD_POISON_TARGET_BONUS`).
+ */
+export function wieldedPoisonTargetsFor(prof: AttackProfile): number {
+  return prof.projectiles + WIELD_POISON_TARGET_BONUS;
 }
 
 /** Nearest `n` enemies to a point, best (closest) first — poison's spare spore. */

@@ -39,6 +39,7 @@ export class Game {
     selection: null,
     settings: this.settings,
     hoveredSkill: null,
+    hoveredWieldedTower: null,
   };
   private keys = new Set<string>();
   private pending: Command[] = [];
@@ -175,6 +176,7 @@ export class Game {
       onEquipItem: (slot, item) => this.pending.push({ k: 'equip_item', slot, item }),
       onToggleCharacterPanel: () => this.hud.toggleCharacterPanel(this.run!.world),
       onToggleDpsPanel: () => this.hud.toggleDpsPanel(this.run!.world),
+      onToggleVsPanel: () => this.hud.toggleVsPanel(this.run!.world),
       onResume: () => this.setPaused(false),
       onPause: () => this.setPaused(true),
       onCycleSpeed: () => this.hud.setSpeed(this.pacer.cycle()),
@@ -182,6 +184,7 @@ export class Game {
       onDev: (op, amount, enemyKey) => this.pending.push({ k: 'dev', op, amount, enemyKey }),
       onQuitToHub: () => this.showHub(),
       onHoverSkill: (which) => (this.view.hoveredSkill = which),
+      onHoverWieldedTower: (key) => (this.view.hoveredWieldedTower = key),
       onUpgradeStructure: (tx, ty) => this.pending.push({ k: 'upgrade', tx, ty }),
       onSellStructure: (tx, ty) => this.pending.push({ k: 'sell', tx, ty }),
       onUpgradeCore: () => this.pending.push({ k: 'upgrade_core' }),
@@ -200,6 +203,7 @@ export class Game {
     this.hud.resetModalKey();
     this.hud.closeCharacterPanel();
     this.hud.closeDpsPanel();
+    this.hud.closeVsPanel();
     this.view.selectedTower = 0;
     this.view.selection = null;
     this.pending = [];
@@ -260,6 +264,9 @@ export class Game {
       },
       toggleDpsPanel: () => {
         if (this.run) this.hud.toggleDpsPanel(this.run.world);
+      },
+      toggleVsPanel: () => {
+        if (this.run) this.hud.toggleVsPanel(this.run.world);
       },
       clearSelection: () => {
         this.hud.clearSelection();

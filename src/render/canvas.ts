@@ -17,7 +17,7 @@ import { dotOutstanding, dotRemaining } from '../sim/enemies';
 import { damageStyleColor, executeStyle } from '../sim/damagetypes';
 import { BASE } from '../sim/stats';
 import { characterBasicRange, circleSlashValues, classArmorBonus } from '../sim/classes';
-import { longestWieldedRange } from '../sim/vswield';
+import { longestWieldedRange, wieldedAttacks, wieldedRangeFor } from '../sim/vswield';
 import { normalize } from '../sim/math';
 import type { World } from '../sim/world';
 import {
@@ -65,6 +65,13 @@ export interface ViewState {
    * neither icon is hovered.
    */
   hoveredSkill?: 'active1' | 'active2' | null;
+  /**
+   * fb037: the VS side panel's currently-hovered wielded-tower row (its
+   * `towerKey`), or `null` while none is hovered — draws that type's live
+   * range ring around the Warden the same way `hoveredSkill` draws an
+   * Active's.
+   */
+  hoveredWieldedTower?: string | null;
 }
 
 /** A one-shot line effect for an attack that lands instantly (SPEC 3.3). */
@@ -454,6 +461,7 @@ export class Renderer {
     this.drawWarden(w);
     this.drawChargeIndicator(w, view);
     this.drawSkillHoverRing(w, view);
+    this.drawWieldedHoverRing(w, view);
     this.drawHover(w, view);
     this.drawSelection(w, view);
     if (!night) this.drawRangeRings(w, view);
@@ -1352,6 +1360,35 @@ export class Renderer {
     ctx.globalAlpha = 0.55;
     ctx.beginPath();
     ctx.arc(w.warden.x * TILE, w.warden.y * TILE, radius * TILE, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+
+  /**
+   * fb037: hovering a row in the VS side panel draws that wielded type's live
+   * range ring around the Warden — resolved through the same
+   * `wieldedRangeFor` `fireWielded` fires at, so the preview cannot drift
+   * from what the attack actually reaches.
+   */
+  private drawWieldedHoverRing(w: World, view: ViewState): void {
+    const key = view.hoveredWieldedTower;
+    // Nothing wields anything before the Sundering (`hud.ts`'s
+    // `toggleVsPanel` refuses to open the panel that sets this outside
+    // `huntsWarden` in the first place) — defends against a stale hover
+    // surviving a same-tick phase flip the HUD's own force-close hasn't
+    // reached yet.
+    if (!key || !w.huntsWarden) return;
+    const wielded = wieldedAttacks(w).find((wl) => wl.towerKey === key);
+    const def = wielded ? w.content.towerById.get(wielded.towerId) : undefined;
+    if (!wielded || !def?.attack) return;
+    const range = wieldedRangeFor(w, def.attack);
+    if (range <= 0) return;
+    const ctx = this.ctx;
+    ctx.strokeStyle = PALETTE.heartstone;
+    ctx.lineWidth = 2;
+    ctx.globalAlpha = 0.55;
+    ctx.beginPath();
+    ctx.arc(w.warden.x * TILE, w.warden.y * TILE, range * TILE, 0, Math.PI * 2);
     ctx.stroke();
     ctx.globalAlpha = 1;
   }
