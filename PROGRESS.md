@@ -5,6 +5,49 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-02 session: fb048 done — `tools/status.ts`'s balance snapshot now
+  measures against the real full Constellation tree instead of an empty one
+  (QUESTIONS Q156).** `cfgFor` was the one tool `fb039` deliberately left on
+  the old `allocated: []` default, because flipping it costs ~180x more
+  wall-clock per run (~90ms -> ~16,500ms, runs actually play out instead of
+  dying at wave 2-3) and would blow both the tool's own budget and its CLI
+  test's timeout — filed then as this item. Fixed by routing `cfgFor` through
+  the same `resolveAllocated(content, overrides.allocated ?? null)` the other
+  three tools use, and cutting the balance snapshot's own per-cell seed count
+  from 5 to 2 (`BALANCE_SEEDS`, exported) — not 1: an earlier pass tried 1,
+  and code review correctly flagged that a single seed makes every cell's
+  win rate a pure 0-or-1 coin flip that folds a 45-min timeout in identically
+  to a real loss with no way to tell them apart, which CLAUDE.md's own
+  measurement rules single out as non-evidence. **Measured live, real
+  `npx tsx tools/status.ts` end-to-end runs at 2 seeds/cell: ~856s-1194s
+  (~14-20 min) across three independent runs on this host** (code-reviewer
+  and qa-playtester each ran it live and independently, plus one more run
+  this session) — not the ~504s (8.4 min) an earlier 1-seed measurement had
+  suggested; cost isn't linear in seed count because more of the 44 cells
+  (10 policies + 12 classes x2 tiers + 5 Cores x2 tiers) land on the 45-min
+  timeout cap at 2 seeds than at 1. The real CLI test was split out of
+  `tests/fb038-status.test.ts` into its own `tests/fb038-status-cli.test.ts`
+  (excluded from `vitest.fast.config.ts`'s fast tier, same as the other
+  multi-minute suites) since it no longer fits the fast tier's ~60s ceiling.
+  code-reviewer's first pass (REQUEST-CHANGES) caught two real defects, both
+  fixed in this commit: (1) **Critical** — the CLI test's timeout was shipped
+  at 900s/910s against a real worst case the reviewer measured at ~1194s, so
+  it would have reliably failed whenever actually run; raised to 1800s/1810s
+  for real margin against the demonstrated ~20 min worst case; (2) **Major**
+  — the acceptance criterion's "state the new number" was never actually
+  written down (this entry is that). qa-playtester independently re-ran the
+  CLI twice more (856s isolated via vitest, ~1061-1081s standalone), verified
+  all five STATUS.md sections render with sane non-zero/non-NaN numbers (88
+  runs, mean 38.57 min, 30/88 timeouts), confirmed the fast-tier exclusion,
+  adversarially checked that 2-seed noise can't false-positive
+  `staleGateWarnings` (all-or-nothing across all 44 cells), and confirmed the
+  6 `npm run test:fast` failures seen this session (`b036` plus 5 more) are
+  pre-existing Windows host-load flake by reproducing the same split on clean
+  `master` under the same noisy host — unrelated to this diff; no bugs filed
+  on the second pass. `npx tsc --noEmit` clean. Files changed: `tools/
+  status.ts`, `tests/fb038-status.test.ts`, `tests/fb038-status-cli.test.ts`
+  (new), `tests/fb039-tree-auto-max-tooling.test.ts` (comment only),
+  `vitest.fast.config.ts`, `STATUS.md` (regenerated), `BACKLOG.md`.
 - **2026-09-02 session: p10r passed over, not closed — genuine `/data`-only
   wall found on the G8/G23 retune and logged (QUESTIONS Q158), unblock filed
   as p10s.** Delegated to balance-analyst: retune T1 pacing to bring G8's

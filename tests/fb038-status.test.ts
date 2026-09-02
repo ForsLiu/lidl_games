@@ -2,8 +2,10 @@
  * fb038 — `npm run status` writes STATUS.md from live data (gate table via
  * tools/gate-audit.ts, a real tools/sweep.ts-driven balance snapshot, and
  * tools/content-census.ts), plus a feedback ledger and a pending-QUESTIONS
- * list. This file covers the pure/parsing pieces directly and the real CLI
- * end to end.
+ * list. This file covers the pure/parsing pieces directly, plus the crash
+ * behaviour on a broken /data file. The real CLI end-to-end run lives in
+ * tests/fb038-status-cli.test.ts (fb048 split it out — see that file's
+ * header for why).
  */
 import { execFileSync } from 'node:child_process';
 import { cpSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -12,19 +14,22 @@ import path, { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import {
+  BALANCE_SEEDS,
   buildGateTable,
+  cfgFor,
   classifyHealth,
   feedbackLedger,
   parseHandoffGateTable,
   pendingQuestions,
   renderStatus,
   staleGateWarnings,
-  STATUS_PATH,
   type BalanceSnapshot,
   type GateRow,
 } from '../tools/status';
 import { REPO_ROOT } from '../tools/gate-audit';
 import type { CensusRow } from '../tools/content-census';
+import { loadContent } from '../src/sim/content';
+import { allTreeNodeIds } from '../src/meta/meta';
 
 function emptyBalance(overrides: Partial<BalanceSnapshot> = {}): BalanceSnapshot {
   return {
@@ -253,6 +258,28 @@ describe('fb038: renderStatus (smoke)', () => {
   });
 });
 
+describe('fb048: BALANCE_SEEDS sizing and its rendered wording', () => {
+  it('is more than one seed/cell (a single seed folds a 45-min timeout into a real loss with no way to tell them apart)', () => {
+    expect(BALANCE_SEEDS.length).toBeGreaterThan(1);
+  });
+
+  it('pluralizes "seed(s)/cell" to match BALANCE_SEEDS.length', () => {
+    const balance: BalanceSnapshot = {
+      policyComparison: [],
+      perClass: [],
+      perCore: [],
+      damageShare: [],
+      boonPicks: [],
+      meanRunMinutes: 0,
+      timeoutCount: 0,
+      totalRuns: 0,
+    };
+    const out = renderStatus([], balance, [], [], []);
+    const expected = BALANCE_SEEDS.length === 1 ? '1 seed/cell' : `${BALANCE_SEEDS.length} seeds/cell`;
+    expect(out).toContain(expected);
+  });
+});
+
 describe('fb038: staleGateWarnings (code-review finding: gate table vs. balance snapshot can contradict)', () => {
   const winRateGate: GateRow = {
     id: 'G8',
@@ -312,22 +339,19 @@ describe('fb038: staleGateWarnings (code-review finding: gate table vs. balance 
   });
 });
 
-describe('fb038: `npm run status` CLI end to end', () => {
-  it('writes a real STATUS.md with every top-level section', () => {
-    execFileSync('npx', ['tsx', 'tools/status.ts'], {
-      cwd: REPO_ROOT,
-      shell: true,
-      stdio: 'pipe',
-      timeout: 120_000,
-    });
-    const out = readFileSync(STATUS_PATH, 'utf8');
-    expect(out).toContain('# STATUS.md');
-    expect(out).toContain('## Gate table (SPEC-FINAL §14)');
-    expect(out).toContain('## Balance snapshot');
-    expect(out).toContain('## Content census (SPEC-FINAL §13)');
-    expect(out).toContain('## Feedback ledger');
-    expect(out).toContain('## Pending QUESTIONS.md entries');
-  }, 130_000);
+describe('fb048: cfgFor defaults allocated to the full Constellation tree', () => {
+  it('defaults to allTreeNodeIds when no override is given', () => {
+    const content = loadContent();
+    const cfg = cfgFor({}, 1, content);
+    expect(cfg.allocated).toEqual(allTreeNodeIds(content));
+    expect(cfg.allocated.length).toBeGreaterThan(0);
+  });
+
+  it('still honors an explicit override (e.g. an empty tree)', () => {
+    const content = loadContent();
+    const cfg = cfgFor({ allocated: [] }, 1, content);
+    expect(cfg.allocated).toEqual([]);
+  });
 });
 
 describe('fb038: status.ts crash behaviour on a broken /data file (q47 PIN_COVERAGE)', () => {

@@ -49,6 +49,11 @@ export default mergeConfig(
         // p10f: p10c's pool (12 builds) plus G19_BUILDS (4 more) x 5 seeds x
         // cycles:6 full VS-combat runs — G19's liveness gate.
         'tests/p10f-g19-liveness.test.ts',
+        // fb048: the real `npm run status` CLI run, now measuring 44 cells
+        // against the full Constellation tree (fb039's `TREE_AUTO_MAX`
+        // shape) instead of an empty one — measured ~14-20 min at
+        // BALANCE_SEEDS = [1, 2], see the file's own header comment.
+        'tests/fb038-status-cli.test.ts',
       ],
     },
   }),

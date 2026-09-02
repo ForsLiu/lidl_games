@@ -21,8 +21,9 @@
  * covered/hole/UNTRACKED status when a gate has no HANDOFF row yet.
  *
  * The balance snapshot *is* measured fresh every run, via `tools/sweep.ts`'s
- * own `runOne` (real sim, no shortcuts) — bounded to 5 seeds per cell so the
- * whole tool finishes in well under a minute.
+ * own `runOne` (real sim, no shortcuts). `cfgFor` defaults `allocated` to the
+ * full Constellation tree (fb048, QUESTIONS Q156 — see the comment above
+ * `cfgFor` for the seed-count tradeoff this forced).
  *
  *   npx tsx tools/status.ts
  */
@@ -32,7 +33,7 @@ import { resolve } from 'node:path';
 
 import { REPO_ROOT, SPEC_PATH, parseGates, auditGates, type GateAuditRow } from './gate-audit';
 import { census, type CensusRow } from './content-census';
-import { resolveModifiers, runOne } from './sweep';
+import { resolveAllocated, resolveModifiers, runOne } from './sweep';
 import type { Content } from '../src/sim/content';
 import type { RunConfig, RunReport } from '../src/sim/types';
 import { policyNames } from '../src/bots/policy';
@@ -45,7 +46,27 @@ export const FEEDBACK_PROCESSED_DIR = resolve(REPO_ROOT, 'feedback', 'processed'
 export const STATUS_PATH = resolve(REPO_ROOT, 'STATUS.md');
 
 const MAX_TICKS = 60 * 60 * 45; // 45 sim-minutes, same cap tools/handoff-metrics.ts uses.
-const SEEDS = [1, 2, 3, 4, 5];
+
+// fb048 (QUESTIONS Q156): a full-tree run costs ~16.5s wall-clock (measured
+// live via `tools/sweep.ts --seeds 3 --policies hybrid`), ~180x the ~90ms an
+// empty-tree run cost — 5 seeds/cell across this snapshot's 44 cells (10
+// policies + 12 classes x2 tiers + 5 Cores x2 tiers) at the old default would
+// run ~60 minutes, blowing both this tool's own budget and
+// tests/fb038-status-cli.test.ts's CLI timeout. Cut from 5 to 2 seeds/cell
+// (not 1: code review of this item's first pass correctly flagged that a
+// single seed makes every cell's "win rate" a pure 0-or-1 coin flip, and
+// folds a 45-min timeout in identically to a real loss with no way to tell
+// the two apart — CLAUDE.md's own measurement rules single out exactly this
+// kind of single-sample non-evidence. 2 still isn't gate-grade evidence, but
+// it at least distinguishes "won", "lost", "split" and stops silently
+// reporting a coin flip as a rate). Measured live, real end-to-end
+// `npx tsx tools/status.ts` runs at 2 seeds/cell: ~856s-1194s (~14-20 min)
+// across three independent runs on this host, not the ~504s (8.4 min) an
+// earlier 1-seed measurement suggested — timeout-cell runs (45-min cap) cost
+// far more wall-clock than a typical ~35-38 min win, and 2 seeds/cell means
+// more of the 44 cells land on the cap than at 1 seed. See PROGRESS.md's
+// fb048 entry.
+export const BALANCE_SEEDS = [1, 2];
 
 /* ------------------------------------------------------------- gate table */
 
@@ -104,26 +125,20 @@ export function buildGateTable(): GateRow[] {
 // flagged for `sweep.ts`'s own `--tier` flag, reproduced independently in
 // this tool's per-class/per-Core snapshot.
 //
-// fb039 (QUESTIONS Q138 OVERRIDE) — deliberately NOT applied here, logged
-// rather than silently bundled in: this tool has the identical `allocated:
-// []` defect `tools/sweep.ts`/`tools/sim.ts`/`tools/handoff-metrics.ts` had,
-// but flipping it costs far more here than it did for those three. Measured
-// live this session: a full-tree run's Constellation stat bonuses turn most
-// T1 runs from an instant wave-2-3 death (~90ms/run under the pre-fb039
-// empty-tree default) into a full ~35-min clear attempt (~16,000ms/run,
-// ~180x) — this tool's own `SEEDS`-per-cell bound (5) was sized against the
-// old, fast-failing default so the whole ~220-run snapshot finishes "well
-// under a minute" (this file's own header comment); at the new per-run cost
-// that becomes closer to an hour, blowing both that budget and
-// `tests/fb038-status.test.ts`'s 120s CLI timeout (confirmed: killed a live
-// `npx tsx tools/status.ts` run after 2+ minutes with no sign of finishing).
-// Closing this honestly needs a real redesign of the snapshot's own seed
-// count / per-cell tick cap for a full-tree character, not a one-line
-// default flip — out of this item's scope (fb039 names only `tools/sim.ts`,
-// `tools/sweep.ts` and `tools/handoff-metrics.ts`). Filed as **fb048**
-// (QUESTIONS.md) rather than left silently unfixed or silently regressed.
+// fb048 (QUESTIONS Q156): `allocated` now defaults to the full Constellation
+// tree via the same `resolveAllocated` fb039 gave `tools/sim.ts`/
+// `tools/sweep.ts`/`tools/handoff-metrics.ts` (`src/meta/meta.ts`'s
+// `TREE_AUTO_MAX`, what every real Hub-started run feeds in) instead of the
+// stale `allocated: []` this tool alone kept — fb039 measured that flip alone
+// costs ~180x per run here (~90ms -> ~16,500ms) because runs actually play
+// out instead of dying at wave 2-3, which is why fb039 deliberately left this
+// file out of its own scope pending this item's seed-count redesign (see
+// `BALANCE_SEEDS` above). No cell here takes an explicit `allocated`
+// override today, so every cell now measures against the real full-tree
+// shape a player actually plays with.
 export function cfgFor(overrides: Partial<RunConfig>, seed: number, content: Content): RunConfig {
-  const base: RunConfig = { seed, classKey: 'engineer', tier: 1, modifiers: [], allocated: [], ...overrides };
+  const allocated = resolveAllocated(content, overrides.allocated ?? null);
+  const base: RunConfig = { seed, classKey: 'engineer', tier: 1, modifiers: [], ...overrides, allocated };
   base.modifiers = resolveModifiers(content, seed, base.tier, base.modifiers);
   return base;
 }
@@ -164,21 +179,21 @@ async function measureBalance(): Promise<BalanceSnapshot> {
   const policyComparison = policyNames()
     .filter((p) => p !== 'idle')
     .map((policy) => {
-      const reports = reportsFor({ tier: 1 }, policy, SEEDS, content);
+      const reports = reportsFor({ tier: 1 }, policy, BALANCE_SEEDS, content);
       pool.push(...reports);
       return { policy, winRate: round(winRate(reports)), meanMinutes: round(mean(reports.map((r) => r.totalSeconds / 60)), 1) };
     });
 
   const perClass = content.classes.classes.map((c) => {
-    const t1 = reportsFor({ classKey: c.key, tier: 1 }, 'hybrid', SEEDS, content);
-    const t3 = reportsFor({ classKey: c.key, tier: 3 }, 'hybrid', SEEDS, content);
+    const t1 = reportsFor({ classKey: c.key, tier: 1 }, 'hybrid', BALANCE_SEEDS, content);
+    const t3 = reportsFor({ classKey: c.key, tier: 3 }, 'hybrid', BALANCE_SEEDS, content);
     pool.push(...t1, ...t3);
     return { classKey: c.key, t1: round(winRate(t1)), t3: round(winRate(t3)) };
   });
 
   const perCore = content.cores.cores.map((c) => {
-    const t1 = reportsFor({ core: c.key, tier: 1 }, 'hybrid', SEEDS, content);
-    const t3 = reportsFor({ core: c.key, tier: 3 }, 'hybrid', SEEDS, content);
+    const t1 = reportsFor({ core: c.key, tier: 1 }, 'hybrid', BALANCE_SEEDS, content);
+    const t3 = reportsFor({ core: c.key, tier: 3 }, 'hybrid', BALANCE_SEEDS, content);
     pool.push(...t1, ...t3);
     return { coreKey: c.key, t1: round(winRate(t1)), t3: round(winRate(t3)) };
   });
@@ -358,7 +373,7 @@ export function renderStatus(
   lines.push('## Balance snapshot');
   lines.push('');
   lines.push(
-    `Measured this run: ${balance.totalRuns} sim runs (${SEEDS.length} seeds/cell), \`hybrid\` bot for ` +
+    `Measured this run: ${balance.totalRuns} sim runs (${BALANCE_SEEDS.length} seed${BALANCE_SEEDS.length === 1 ? '' : 's'}/cell), \`hybrid\` bot for ` +
       `per-class/per-Core cells. Mean run length ${balance.meanRunMinutes} min; ${balance.timeoutCount} of ` +
       `${balance.totalRuns} runs hit the 45-min cap without resolving (timeouts).`,
   );

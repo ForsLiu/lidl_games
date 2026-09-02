@@ -2,35 +2,31 @@
 
 Regenerate before relying on this file — it is a snapshot, not a live view. Gate health is HANDOFF.md's own measured text; the balance numbers below are measured fresh on every run via `tools/sweep.ts`.
 
-## ⚠ Staleness warning
-
-This run's fresh balance snapshot measured **zero wins** across every policy/class/Core cell (see Balance snapshot below), which directly contradicts HANDOFF.md's currently-GREEN health for: G1, G7, G14, G19. HANDOFF.md was likely last regenerated before a balance change landed that has not been re-measured against these gates. Treat their GREEN status in the table below as stale until HANDOFF.md is regenerated and these gates are re-run for real.
-
 ## Gate table (SPEC-FINAL §14)
 
 20 green, 2 red, 1 partial, 0 unknown, of 23 gates parsed live from SPEC-FINAL.md.
 
 | Gate | Health | Detail |
 |---|---|---|
-| G1: Mean victorious run 30–36 min (24+ seeds; means/pass-rates, never medians). | GREEN ⚠ STALE | **Green in full.** `tests/p10d-run-length.test.ts`: mean victorious run **35.20 min**, 21/24 wins (88%) — comfortably inside the band. Closed via `buildPhaseSeconds` 20→15 (`p10l`, pure dead-time removal) plus an independent boss-pacing ramp (`p10k`); re-verified unaffected by `b071`'s G13 fix. |
+| G1: Mean victorious run 30–36 min (24+ seeds; means/pass-rates, never medians). | GREEN | **Green in full.** `tests/p10d-run-length.test.ts`: mean victorious run **35.20 min**, 21/24 wins (88%) — comfortably inside the band. Closed via `buildPhaseSeconds` 20→15 (`p10l`, pure dead-time removal) plus an independent boss-pacing ramp (`p10k`); re-verified unaffected by `b071`'s G13 fix. |
 | G2: Determinism: 100/100 replay hash match, incl. actives, tuner-edited content (per content hash), fast-forward. | GREEN | **Green in full**, including tuner-edited content and fast-forward (p9f), and `contentHash`'s authored-bytes fix (b044). |
 | G3: VS inheritance unit tests incl. §6.1's worked example verbatim. | GREEN | **Green**, incl. §6.1's worked example verbatim. |
 | G4: Armor edges: +99→99%, clamp above, −90→×1.9, floor −100; DoTs ignore armor; Burning shred lowers it. | GREEN | **Green**, proven live through a real Ember Brazier build (p10g). |
 | G5: Stacking: two different-source 10%/20% boosts = exactly ×1.32; same-source ranks add. | GREEN | **Green.** |
 | G6: Interleave: TD×3→VS pattern; multi-summon ≤3, no early-call gold bonus (fb009), fixed `20 + 10 × wave` clear reward; VS unstackable. | GREEN | **Green in full**, incl. fb009's fixed wave reward. |
-| G7: Sealing: sealed Core → structures damaged en route; open path → no structure-chewing by pathing; sealed-build win rate ≤ open-build +10 pts at T2. | GREEN ⚠ STALE | **Green in full.** |
+| G7: Sealing: sealed Core → structures damaged en route; open path → no structure-chewing by pathing; sealed-build win rate ≤ open-build +10 pts at T2. | GREEN | **Green in full.** |
 | G8: Every class clears T1 at 35–70% win rate (scripted kit bot); top damage source differs across ≥9 of 12 classes (fb013's Time Lord folded in at the same ~73% ratio as the original ≥8 of 11). | RED | **Red, measured, `.skip`-ed — an over-ceiling failure, not the old under-floor one.** `tests/p6e-class-diversity.test.ts`, re-run against HEAD at `p10m`: of 11 individually-tested classes (Time Lord, the 12th class added at `fb013`, is folded into the diversity roster but has never had its own win-rate case written), 9 clear 91.7–100% (past the 70% ceiling) and only `necromancer` stays under the 35% floor at 4/12 (33%) — none land inside the band. Diversity is unmoved: top damage source is still only 2 distinct keys (`ballista`/`spreading_plague`) across all 12 classes, far under the ≥9/12 the gate asks for. Win-rate retune filed as **p10r**; diversity has no item scoped to it yet. |
 | G9: Swordsman combo: Dash during charge = one merged attack, widened range, exactly 1 Bleeding per enemy struck. Plaguebringer: unfinished DoT transfers once to nearest. | GREEN | **Green.** |
 | G10: Archer: dps-optimal charge finite (2–6 s); full charge one-shots any non-elite at mid scaling. | GREEN | **Green.** |
 | G11: Stormcaller: max chain multiplier ≤ ×3.6. | GREEN | **Green.** |
 | G12: Rewards: N TD waves → N equipment; M VS waves → M skill points; orbs nowhere. | GREEN | **Green in full.** |
 | G13: No tower type's VS attack >35% of damage across the winning-build pool; every type solo-viable at T1, none at T3. | PARTIAL | **Partial — corrected downward this regeneration.** The 35%-share cap is **green in full**: `tests/p10c-weapon-share.test.ts` measures `frost_obelisk` at **25.9%** (`tools/a5probe.ts`), 9.1 points of margin (`b071`). The solo-viability clause is **not** green as the prior HANDOFF claimed: `tests/a4-single-type.test.ts` currently fails **4 of its 16 live (non-`.skip`) assertions** — `ember_brazier` (3/5, not 5/5) and `tesla_coil` (2/5, not 5/5) at T1, `mortar` and `venom_spore` (1/5 each, not 0/5) at T3. `b071`'s own PROGRESS entry found and named this drift while fixing the share cap, confirmed it pre-existing and unrelated to that fix via `git stash`, and flagged it as "worth its own backlog item, not filed here" — but no such item existed until this regeneration filed **b072**. |
-| G14: Boss: 20 seeds, scripted-build win rate ≥60% and <100%. | GREEN ⚠ STALE | **Green in full.** `tests/boss.test.ts`, re-run at `p10m`: **18/20 (90%)**, inside `[60%, 100%)` with real headroom on both sides. Closed by the same `p10j`-`p10l` pacing pass that closed G1/G13. |
+| G14: Boss: 20 seeds, scripted-build win rate ≥60% and <100%. | GREEN | **Green in full.** `tests/boss.test.ts`, re-run at `p10m`: **18/20 (90%)**, inside `[60%, 100%)` with real headroom on both sides. Closed by the same `p10j`-`p10l` pacing pass that closed G1/G13. |
 | G15: Tuner: edit→save→reload round-trip; invalid rejected; edited runs flagged; prod has no endpoint. | GREEN | **Green** (`p9c`; the gate-audit tool's own map is stale here, see caveat above). |
 | G16: Dev profile fully unlocked in dev; `npm run build` has dev mode off, god mode unreachable. | GREEN | **Green.** |
 | G17: Perf: sim budget per simulated minute (host-independent) ⚖; 350 enemies + all weapons ≥60 fps benchmark; 50-run soak, zero exceptions/NaN. | GREEN | **Green in full** (all three clauses; `p10e` closed the per-simulated-minute budget). |
 | G18: UI flows: defeat→Results→Hub from every phase; stash swap never dead-ends; save round-trip + corrupt-save repair + version migration. | GREEN | **Green.** |
-| G19: Liveness: winning sim builds include both sealed and open strategies, and multi-summon usage. | GREEN ⚠ STALE | **Green in full** (`p10f`). |
+| G19: Liveness: winning sim builds include both sealed and open strategies, and multi-summon usage. | GREEN | **Green in full** (`p10f`). |
 | G20: Every §5 milestone special measurably changes the attack it names (loader-validated). | GREEN | **Green.** |
 | G21: Core choice is in RunConfig and hashed; each Core's TD and VS effects have unit tests with §5.5's numbers (incl. the Time decay ring table and a Corpse execute-and-restore worked example). | GREEN | **Green in full.** |
 | G22: Each Core shifts the run fingerprint (damage-source or economy vector) by ≥0.10 vs Stone Heart on the same seed/build. | GREEN | **Green in full.** `corpse` vs Stone Heart seed-2 regression (fingerprint 0.080, found by `p10m`'s re-measurement) fixed at `b071` — now 0.272 (seed 1) / 0.266 (seed 2); all 8 cases green, 0 skips. |
@@ -38,69 +34,80 @@ This run's fresh balance snapshot measured **zero wins** across every policy/cla
 
 ## Balance snapshot
 
-Measured this run: 220 sim runs (5 seeds/cell), `hybrid` bot for per-class/per-Core cells. Mean run length 3.01 min; 0 of 220 runs hit the 45-min cap without resolving (timeouts).
+Measured this run: 88 sim runs (2 seeds/cell), `hybrid` bot for per-class/per-Core cells. Mean run length 38.57 min; 30 of 88 runs hit the 45-min cap without resolving (timeouts).
 
 ### Policy comparison (T1, engineer, default core)
 
 | Policy | Win rate | Mean minutes |
 |---|---|---|
-| no-move | 0 | 3.2 |
-| turtle | 0 | 3.4 |
-| kite | 0 | 2.8 |
-| hybrid | 0 | 3.2 |
-| maxbuild | 0 | 3.5 |
-| walloff | 0 | 3.3 |
-| sealed | 0 | 3.6 |
-| greedy | 0 | 3.2 |
-| greedless | 0 | 3.5 |
-| rush | 0 | 2.4 |
+| no-move | 1 | 36.5 |
+| turtle | 1 | 38.1 |
+| kite | 0 | 26.7 |
+| hybrid | 0.5 | 40.7 |
+| maxbuild | 0.5 | 40.4 |
+| walloff | 1 | 37.3 |
+| sealed | 0 | 45 |
+| greedy | 0 | 31.2 |
+| greedless | 0 | 31.3 |
+| rush | 0 | 28 |
 
 ### Per-class win rate (`hybrid` bot, default core)
 
 | Class | T1 | T3 |
 |---|---|---|
 | swordsman | 0 | 0 |
-| plaguebringer | 0 | 0 |
-| engineer | 0 | 0 |
-| pyromancer | 0 | 0 |
-| archer | 0 | 0 |
-| necromancer | 0 | 0 |
+| plaguebringer | 0.5 | 1 |
+| engineer | 0.5 | 0.5 |
+| pyromancer | 1 | 0.5 |
+| archer | 0 | 0.5 |
+| necromancer | 1 | 0 |
 | cryomancer | 0 | 0 |
-| stormcaller | 0 | 0 |
-| bloodlord | 0 | 0 |
-| animist | 0 | 0 |
-| paladin | 0 | 0 |
-| time_lord | 0 | 0 |
+| stormcaller | 0.5 | 0.5 |
+| bloodlord | 0 | 0.5 |
+| animist | 0.5 | 0.5 |
+| paladin | 1 | 0 |
+| time_lord | 1 | 0.5 |
 
 ### Per-Core win rate (`hybrid` bot, engineer)
 
 | Core | T1 | T3 |
 |---|---|---|
-| stone_heart | 0 | 0 |
-| carnivorous_plant | 0 | 0 |
-| vampire_heart | 0 | 0 |
-| corpse | 0 | 0 |
-| time | 0 | 0 |
+| stone_heart | 0.5 | 0.5 |
+| carnivorous_plant | 0.5 | 0.5 |
+| vampire_heart | 1 | 1 |
+| corpse | 0.5 | 0.5 |
+| time | 0.5 | 0.5 |
 
 ### Wielded-type damage share (whole pool, `damageByWeapon`)
 
 | Source | Share |
 |---|---|
-| arrow_spire | 0.3235 |
-| frost_obelisk | 0.2913 |
-| ballista | 0.1798 |
-| class_basic | 0.1508 |
-| venom_spore | 0.0492 |
-| carnivorous_plant | 0.0041 |
-| bleeding | 0.0008 |
-| class_passive | 0.0002 |
-| corpse | 0.0002 |
+| ballista | 0.3163 |
+| frost_obelisk | 0.2562 |
+| mortar | 0.1787 |
+| arrow_spire | 0.1257 |
+| venom_spore | 0.1032 |
+| spreading_plague | 0.012 |
+| ember_brazier | 0.002 |
+| warden_eater | 0.0017 |
+| carnivorous_plant | 0.0017 |
+| tesla_coil | 0.0014 |
+| class_basic | 0.0009 |
+| corpse | 0.0001 |
+| bleeding | 0 |
+| class_passive | 0 |
 
 ### Boon pick rates (total ranks taken, whole pool)
 
 | Boon | Total ranks |
 |---|---|
-| plating | 1 |
+| plating | 348 |
+| power | 223 |
+| haste | 162 |
+| range | 160 |
+| swift | 112 |
+| vitality | 108 |
+| reach | 81 |
 
 ## Content census (SPEC-FINAL §13)
 
@@ -170,3 +177,4 @@ Measured this run: 220 sim runs (5 seeds/cell), `hybrid` bot for per-class/per-C
 - **Q155.** [fb025] The owner's `balance-enemies-10x-hp-slower-attacks` memo says "Enemy HP x10 globally" and separately "apply x0.7 to all attackers — towers, character basic and wielded attacks, class skills' hit cadence, and enem…
 - **Q156.** [fb039] Flipping `tools/status.ts`'s `cfgFor` to the same `TREE_AUTO_MAX` full-tree default as `tools/sim.ts`/`tools/sweep.ts`/`tools/handoff-metrics.ts` (fb039's own scope) is a real, measured 1-line change — but the co…
 - **Q157.** [fb049] Re-measuring G1/G8/G14/G23 against the real full-Constellation-tree allocation (TREE_AUTO_MAX, per fb039's Q138) does not land near the pre-fb025 baselines this codebase had been treating as the recovery target f…
+- **Q158.** [p10r] Six independent, measured `/data`-only tuning probes (wave HP-curve, late-wave spawn density, `stone_heart` Core-upgrade cost/HP, three separate `cores.json` effect cuts across the other four Cores, and a drastic …

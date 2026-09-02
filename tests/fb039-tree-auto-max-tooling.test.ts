@@ -85,9 +85,7 @@ describe('fb039: tools/sweep.ts defaults to the full Constellation tree', () => 
   });
 });
 
-// `tools/status.ts`'s `cfgFor` deliberately keeps its old `allocated: []`
-// default — see the comment on `cfgFor` itself (fb039, filed as fb048): a
-// full-tree character's runs cost ~180x more wall-clock time each (measured
-// live this session), which this tool's own seed count/budget was never
-// sized for. Not covered by this file; `tests/fb038-status.test.ts` already
-// covers `cfgFor`'s real behavior.
+// `tools/status.ts`'s `cfgFor` now defaults to the same full-tree allocation
+// via `resolveAllocated` (fb048, QUESTIONS Q156) — see the comment on
+// `cfgFor` itself. Not covered by this file; `tests/fb038-status.test.ts`
+// already covers `cfgFor`'s real behavior.
