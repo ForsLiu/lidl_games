@@ -5,6 +5,70 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-02 session: fb029 done — clicking the character now draws its own
+  attack-range ring, not just its pre-existing stats panel (SPEC-FINAL §11,
+  owner feedback `feature-character-range-on-select`).** Selecting the
+  character (kind `'warden'` in the already-shipped `pickAt`/`Selection`
+  system) already showed a small live stats panel (`wardenInfoMarkup`); the
+  actual gap this item closed was that no range ring was ever drawn for that
+  selection. Added `characterBasicRange` (`src/sim/classes.ts`) and
+  `longestWieldedRange`/`wieldedRangeFor` (`src/sim/vswield.ts`), each routed
+  through the same single call site their live-fire counterparts
+  (`classBasicAttack`/`fireWielded`) now also use, so the ring can never drift
+  from what actually hits; a new `Renderer.drawCharacterRangeRing` draws a
+  solid ring at the basic-attack range outside VS, swapped for a dashed ring
+  at the longest wielded range in VS — the basic attack never fires there
+  (Q117), so ringing it live would be the same "false advertising"
+  `drawRangeRings` already refuses for a petrified tower. `wardenInfoMarkup`
+  gained a matching Range/Wielded-range row, its cache key updated to match.
+
+  code-reviewer went REQUEST-CHANGES on the first version: a **Major** (the
+  ring drew both the solid basic-range ring and the dashed wielded-range ring
+  at once in VS, contradicting the method's own false-advertising rule and
+  the HUD panel's own Range/Wielded-range swap landing in the same diff) and
+  a **Minor** (the new ring helpers re-derived their formulas instead of
+  sharing a call site with `classBasicAttack`/`fireWielded`, a silent-drift
+  risk CLAUDE.md's measurement rules flag by name). Both fixed; the test that
+  had locked in the old both-rings-at-once behavior was corrected to assert
+  the swap instead.
+
+  qa-playtester verified the ring/panel numbers live against a real dev
+  server with Playwright-driven clicks and real canvas pixel diffing (exact
+  ring radii in both TD and VS confirmed pixel-for-pixel against
+  `characterBasicRange`/`longestWieldedRange`; no ring leakage onto a tower
+  selection; 21 rapid clicks and a pause-mid-selection didn't corrupt state)
+  — but returned an overall **FAIL**, for two bugs it found live that are
+  neither caused by nor specific to this diff:
+  - **b077** (filed top priority): `hud.ts`'s selection-panel routing gate
+    checks `w.sundered` — a permanent one-way flag, never reset once the
+    first VS wave sets it — instead of the current-phase `w.huntsWarden`
+    getter its own surrounding comment describes. Once any real run passes
+    its first Sundering, `renderSelectionInfo` (the Warden/tower/enemy/core
+    click panel, including this item's own new rows) silently stops
+    rendering for the rest of the run, TD and VS alike — which is why this
+    item's "plus its stats panel" clause is not actually reachable live
+    during VS today, even though the panel code itself is correct in
+    isolation (confirmed by this item's own unit tests, which call
+    `wardenInfoMarkup` directly and never exercised `Hud`'s routing).
+  - **b078** (filed normal priority): `pointerToTile` maps a click through
+    `canvas.clientWidth` (CSS layout size) instead of `canvas.width` (backing
+    grid resolution) — correct only when the two happen to match. Once the
+    canvas's CSS box is smaller than its backing resolution (e.g. a resized
+    browser window), every click-to-tile conversion silently mistargets,
+    including the very "click character -> ring" acceptance path this item
+    added.
+
+  Neither was fixed inline — both are pre-existing, unrelated code with a
+  blast radius well beyond this item's own scope (b077 in particular likely
+  also silently broke several already-`done` selection-panel items, e.g.
+  fb027, in any real post-Sundering session) — filed as their own items with
+  acceptance criteria per CLAUDE.md rule 3 instead. `npx tsc --noEmit` clean;
+  `npm run test:fast`: 135/144 files green, the only failures the same
+  standing pre-existing Windows port-contention flake class fb047/fb049
+  already documented (`q15-command-domain-fuzz`,
+  `b032`/`b034`/`b035`/`b036`) — confirmed by re-running each in isolation,
+  all pass; unrelated to this diff.
+
 - **2026-09-02 session: fb049 done — G1/G8/G14/G23 re-measured against the
   real `TREE_AUTO_MAX` full Constellation tree (QUESTIONS Q138/Q157), the same
   correction fb039 gave the balance tooling now applied to the gate tests

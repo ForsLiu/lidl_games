@@ -180,16 +180,106 @@ Normal-priority items from the same 2026-09-01 batch follow in the next
 section, in filed order; none is blocked by the five above, so any may be
 picked up independently once the top five are clear.
 
+### QA-filed bugs (2026-09-02, found live during fb029's qa-playtester pass)
+
+Neither bug is caused by fb029's own diff (both are in pre-existing, unrelated
+code — `hud.ts`'s panel routing and `input.ts`'s click-to-tile math), but
+qa-playtester found both while running the real dev server end to end rather
+than trusting fb029's unit tests alone, and CLAUDE.md rule 3 puts a confirmed
+bug ahead of the queue. b077 is filed top priority: it silently defeats
+`renderSelectionInfo` (the Warden/tower/enemy/core click panel) for the rest
+of any real run after the very first VS wave, which is every real playthrough
+— it also means fb029's own "plus its stats panel" VS clause is not reachable
+in live play today, a pre-existing gap fb029 exposed rather than introduced.
+
+- [ ] (b077) [bug] top priority: `hud.ts`'s selection-panel routing gate
+      (`const blocking = this.selected > 0 || w.sundered;`, `renderInfo`,
+      ~line 718) reads `w.sundered` — a permanent one-way flag set once at
+      the very first TD→VS transition (`finishSundering`, `sundering.ts:24`)
+      and never reset back to false, not even by `advanceToNextBlock`'s own
+      symmetric "back again" half (`sundering.ts`) — instead of the
+      current-phase `w.huntsWarden` getter the surrounding comment ("in Act
+      II the weapon panel carries the only weapon switcher") actually
+      describes. Result: `renderSelectionInfo` (the Warden/tower/enemy/core
+      click-selection info panel, including fb029's new range/wielded-range
+      rows) silently and permanently stops rendering the instant any real run
+      passes its first VS wave — not just during that VS wave, but in every
+      subsequent Act I build/wave phase for the rest of the run too — falling
+      back to the generic `renderTowerInfo` panel ("Pick a tower below..." or
+      the wielded-weapon-lineage panel) regardless of what is actually
+      selected. Found live (qa-playtester, fb029's QA pass) via a real
+      dev-server session that fast-forwarded past one Sundering: the
+      click-to-select system itself still worked (correct tile picked,
+      `Selection` state updated correctly) while its info panel never updated
+      again for the rest of the run — acceptance: after any Sundering,
+      selecting the Warden/a tower/an enemy/the Core in a later Act I phase,
+      and in the live VS phase itself, shows its own `renderSelectionInfo`
+      panel again, not the fallback; a regression test drives a real `Hud`
+      through one full TD→VS→TD cycle and asserts `#sw-towerinfo`'s content
+      changes with each selection in the post-Sundering TD phase, plus a
+      VS-phase case — refs: SPEC-FINAL §11, `src/ui/hud.ts` ~line 718,
+      `src/sim/sundering.ts`, fb029 QA pass.
+- [ ] (b078) [bug] normal priority: `pointerToTile` (`src/ui/input.ts:41-55`)
+      maps a click through `canvas.clientWidth`/`clientHeight` (the canvas's
+      CSS layout size) instead of `canvas.width`/`canvas.height` (its
+      backing/logical grid resolution, `GRID_W`/`GRID_H` × `TILE`) when
+      converting to tile coordinates — correct only when the two happen to be
+      equal (the canvas's CSS box matches its backing resolution 1:1). Once
+      the CSS layout box is smaller than the backing resolution (e.g. a
+      narrower browser window; found live, qa-playtester, fb029's QA pass,
+      reproduced twice identically: 1152×640 backing vs. an ~872×484 CSS box
+      after a viewport resize), every click-to-tile conversion silently
+      mistargets — click-to-select, build, sell and upgrade all resolve to
+      the wrong tile with no error — acceptance: `pointerToTile` returns the
+      correct tile under a `getBoundingClientRect()` width/height scaled down
+      from `canvas.width`/`canvas.height` (a new test — none currently exists
+      for this function — using a mocked canvas/rect the way
+      `tests/t2-selection.test.ts` already does for its own click math) —
+      refs: `src/ui/input.ts:41-55`, fb029 QA pass.
+
 ### Feedback — owner-filed items (2026-09-01), processed from `feedback/`
 
-- [ ] (fb029) [feat] Character selection + attack-range ring — clicking the
-      character selects it (same selection system as towers/enemies) and
-      draws its basic-attack range ring plus its stats panel; in VS the ring
-      also shows a secondary dashed ring for the longest wielded range —
-      acceptance: click character -> ring + panel; ring radius updates with
-      range bonuses (equipment, boons); a test asserts ring radius equals
-      the derived range — refs: SPEC-FINAL §11 (selection/indicators), owner
-      feedback `feature-character-range-on-select`.
+- [x] (fb029) [feat] Character selection + attack-range ring — commit
+      `86334b6`. Selecting the character (kind `'warden'` in the pre-existing
+      `pickAt`/`Selection` system) already showed a small stats panel
+      (`wardenInfoMarkup`); the actual gap was that no range ring was ever
+      drawn for it. Added `characterBasicRange` (classes.ts) and
+      `longestWieldedRange`/`wieldedRangeFor` (vswield.ts), both sharing their
+      one live-fire call site (`classBasicAttack`/`fireWielded`) so the ring
+      can never drift from what actually hits, plus
+      `Renderer.drawCharacterRangeRing`: a solid ring at the basic-attack
+      range outside VS, swapped for a dashed ring at the longest wielded
+      range in VS (the basic attack never fires there, Q117 — ringing it
+      would be the exact "false advertising" `drawRangeRings` already refuses
+      for a petrified tower). `wardenInfoMarkup` gained a matching
+      Range/Wielded-range row. code-reviewer REQUEST-CHANGES then green: a
+      Major (the first version drew both rings at once in VS, contradicting
+      its own false-advertising rule and the HUD panel's own Range/Wielded
+      swap in the same diff — fixed, and the test that had locked in the old
+      behavior corrected) and a Minor (formula duplication risk between the
+      new ring helpers and their live-fire counterparts — closed by routing
+      `classBasicAttack`/`fireWielded` through the same helpers the ring
+      uses). qa-playtester verified the ring/panel numbers live via a real
+      dev server and canvas pixel diffing (exact-pixel ring radii in both TD
+      and VS, no leakage onto tower/enemy selections, 21 rapid clicks and a
+      pause-mid-selection did not corrupt state) — **FAIL verdict overall**,
+      but for two bugs neither caused by nor specific to this diff: **b077**
+      (a pre-existing `hud.ts` routing bug silently kills the whole
+      `renderSelectionInfo` panel system, including this item's own new
+      rows, for the rest of any run after the first Sundering — the VS half
+      of this item's "plus its stats panel" clause is not reachable in live
+      play today because of it) and **b078** (a pre-existing `pointerToTile`
+      CSS/backing-resolution mismatch mistargets every click once the canvas
+      is laid out smaller than its backing resolution). Both filed as their
+      own top/normal-priority items rather than fixed here (out of scope,
+      pre-existing, high enough blast radius to need their own regression
+      tests) — see the QA-filed-bugs section above. `npx tsc --noEmit`
+      clean; `npm run test:fast`: 135/144 files green (post-fix), the only
+      failures the same standing pre-existing Windows port-contention flake
+      class fb047/fb049 already documented (`q15-command-domain-fuzz`,
+      `b032`/`b034`/`b035`/`b036` — confirmed by re-running each in
+      isolation, all pass) — refs: SPEC-FINAL §11 (selection/indicators),
+      owner feedback `feature-character-range-on-select`.
 - [ ] (fb030) [feat] Dash becomes a fast move instead of a teleport: the
       character physically travels the distance over a short duration
       (collision with structures already ignored per fb002; enemies do not
