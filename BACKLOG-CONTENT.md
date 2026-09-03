@@ -35,7 +35,7 @@ scoped to this lane and appended `c001`-`c005` below them.
 
 ### Actionable in this lane
 
-- [ ] (c001) [bug] class Actives ignore the `area` stat. SPEC-FINAL §2's stat
+- [x] (c001) [bug] **DONE 2026-09-03.** class Actives ignore the `area` stat. SPEC-FINAL §2's stat
       table says Area "applies to every attack, active, and effect", and
       `towers.ts`, `vswield.ts`, `damagetypes.ts` and `enemies.ts` all scale
       their radii by `w.derived.areaMul` - but `src/sim/classes.ts` never
@@ -284,3 +284,115 @@ scoped to this lane and appended `c001`-`c005` below them.
   findings became `c001`/`c004`; a third — every field authored in
   `data/classes.json` is read somewhere in `src/` (checked mechanically, zero
   dead fields) — is clean and needs no item.
+
+- (2026-09-03, session 1) **c001 done** — SPEC-FINAL §2's Area row now reaches
+  the class kits. `classArea(w, radius)` in `src/sim/classes.ts` routes 16
+  effects (18 call sites): the `burst_damage`/`charge_nova`/`ground_poison`/
+  `frost_nova`/`clarion_taunt`/`judgement`/`time_mark`/`time_lock`/
+  `recall_totem`/`dash_trail` radii, the `dash_line`/`dash_heal`/
+  `charge_pierce` perpendicular half-widths, Contagious Flame's touch radius,
+  the character basic attack's splash, and the Necromancer skeleton's cloned
+  `aoe`. Every site scales the emitted event radius too, so a cast flash
+  matches what landed. `tests/class-area-stat.test.ts` (27 tests) is
+  failing-first — 12 of its 21 original assertions were red pre-fix, and the
+  9 that passed are exactly the ones that should have (the harness-honesty
+  check, the "length is not scaled" check, and the un-boosted baselines).
+
+  **Deliberate exclusions**, pinned by tests rather than left to prose: dash
+  travel distances, line *lengths* (Deadeye Draw's reach is Range, §2's other
+  stat), and target-search/cast-reach radii (Chain Surge's jump, Field Kit's
+  and Blood Tithe's structure search, Raise Skeletons' corpse sweep).
+
+  **The one exception**, now pinned as a decision rather than an accident:
+  `fireDashSlash`'s `hitRange = dashRange + mergedRadius` does let Area extend
+  a hit line, because G9 reads a mid-charge merge as the nova's would-be
+  radius widening the dash's line. The dash's own travel stays unscaled.
+
+  Verification: `tests/class-area-stat.test.ts` 27/27, the five class suites
+  + `g2-determinism` 247/247, `npm run test:fast` 2087 passed / 8 failed —
+  all 8 in the pre-declared set (`q15` x3, `q49`, `q52` confirmed
+  pre-existing by a control run at the parent commit; `b032`/`b034`/`b036`/
+  `q45` the documented Playwright/EPERM-under-load flakes, green standalone).
+
+  **Balance blast radius, measured as a control-run pair** (qa-playtester;
+  note that *no stock bot in `src/bots/` ever issues a class Active*, so
+  `tools/sweep.ts` is structurally blind to this change — the p6e/G8 scripted
+  kit harness was used instead, 6 classes x 3 seeds, `cycles: 6`, full tree,
+  areaMul 1.2984):
+
+  | metric | before | after |
+  |---|---|---|
+  | win rate | 18/18 | 18/18 |
+  | waves cleared | 18 every seed | 18 every seed |
+  | mean kills | 25,941 | 26,095 (+0.6%) |
+  | mean run length | 2001.6 s | 1995.4 s (-0.3%) |
+  | mean own-kit damage | 462,649 | 665,134 (+43.8%) |
+  | mean own-kit damage share | 0.971% | 1.479% |
+
+  No gate moved: G8's one un-skipped pin (`distinct.size === 2`,
+  `tests/p6e-class-diversity.test.ts`, 1860 s) is still green, and G1/G14/G23
+  are `classKey: 'engineer'`-locked with engineer bit-identical on 4/4 seeds.
+  Determinism holds (100-seed replay-hash suite green); 3 of 32 before/after
+  seed hashes diverge, all via the basic-attack splash and the Pyro/Cryomancer
+  passives, which fire without a Command — the intended behaviour change.
+
+  Two acceptance-clause caveats worth stating plainly rather than burying:
+  (1) the item said "the un-boosted (`areaMul === 1`) radius unchanged so no
+  gate baseline moves" — radius identity holds exactly, but the *Animist* is
+  never un-boosted (see the next entry), so its baseline did move by +10%;
+  (2) "asserted per kind across the 12 kits" is now met for all 16 scaled
+  sites after code review and QA both found four unasserted.
+
+- (2026-09-03, session 1) **c001 follow-ups that are out of this lane's
+  Scope.** All found by code-reviewer/qa-playtester on c001; none block it.
+
+  **UI lane** (`BACKLOG-UI.md`) — three renderer/UI paths read the authored
+  `/data` radius directly and now preview a footprint the sim no longer uses.
+  The first is a real regression this item introduced and has a written repro:
+  - `src/render/canvas.ts` `drawChargeIndicator` draws
+    `circleSlashValues(cls.active1, wd.active1Charge).radius` unscaled, so
+    Circle Slash's charge ring under-draws the real nova. Measured
+    `drawn=4 fired=4.4` with just a Normal Bracelet equipped (areaMul 1.1);
+    the gap reaches ~2.6x at a real end-of-run areaMul. This is the one
+    preview fb016 specifically built to be backed by live sim state.
+    Regression test belongs beside fb016-vfx-registry's existing
+    "charge indicator brightens with hold" case.
+  - `src/render/canvas.ts` `drawSkillHoverRing` draws `eff.radius` unscaled.
+  - `src/ui/hud.ts` `characterAbilitiesMarkup`'s comment "everything else
+    (radius, ...) has no live sim equivalent to resolve through" is no longer
+    true — `w.derived.areaMul` is exactly that equivalent.
+
+  **Main lane** (`BACKLOG.md`) —
+  - `src/sim/combat.ts`'s `lineHit` broadphase uses a constant
+    `range * 0.5 + 2` margin, so once a scaled `halfWidth` exceeds ~2 the
+    footprint saturates into a lens and the outermost enemies stop being hit.
+    Measured first-miss thresholds: `dash_line` at areaMul 4, `dash_heal` at
+    5, `charge_pierce` at 21. `boon:reach` is `"uncapped": true` in
+    `data/vsupgrades.json`, so a long VS run reaches this; organic peak over
+    standard T1 `cycles: 6` runs is 1.30-3.95 today, so it is latent but
+    live. Fix is `range * 0.5 + halfWidth + 2`. **The identical hand-rolled
+    copy inside `fireCrimsonRush` (classes.ts) was in Scope and is fixed and
+    tested here**; only the `combat.ts` one remains.
+  - `src/sim/towers.ts` passes `LINE_HALF_WIDTH` to `lineHit` raw while
+    `src/sim/vswield.ts` passes it `* areaMul`. c001 aligned the class side
+    with `vswield`, leaving tower beam widths the lone outlier. Also worth
+    correcting c001's own premise: "towers.ts scales its radii by areaMul" is
+    true for `aura`/`lob`/`poison` attacks, not for line towers.
+
+  **Needs a QUESTIONS.md entry** (main lane; lane sessions leave that file
+  alone) — two tower-scoped passives are authored with the *global* `area`
+  stat key, because there is no tower-only Area key today (`towerRange`,
+  `towerDamage`, `towerHp` etc. all exist; `towerArea` does not). Before
+  c001 that over-grant was invisible to the kits; now it widens the caster's
+  own Actives:
+  - `animist.towerPassive` "All towers +10% area" (`data/classes.json`) —
+    the Animist therefore has no `areaMul === 1` baseline at all. This one is
+    deliberate and documented in `tests/class-area-stat.test.ts`.
+  - `time_lord.towerPassive` Chronal Surge, "+10% AoE area" every 2 TD waves,
+    applied as `w.stats.add(source, 'area', 0.1)` in `run.ts` and
+    **uncapped**. Measured at the end of a standard seed-2 `cycles: 6` run:
+    areaMul 3.203, of which +90% is Chronal Surge alone — turning Time's
+    authored r7 mark into a 22.4-tile pulse on a 36x20 board. Unpinned by any
+    assertion today. The owner should decide whether a "all towers" passive
+    may widen the character's kit; the spec-consistent fix is a `towerArea`
+    stat key (`statkeys.ts` + `towers.ts`, both out of Scope).
