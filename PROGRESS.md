@@ -5,6 +5,49 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-02 session: p10s (2/2) done — genuine `/data`-only wall on G8/G23
+  confirmed exhaustively; one class (bloodlord) closed into band.** Part 1
+  (commit `86b11f8`, prior session) loosened G21's exact-literal Core-effect
+  pins to formula/range assertions, legalizing Core-effect tuning as a G23
+  lever. This session spent that lever: real, measured probes across all
+  four non-default Cores' `effects` fields (30-90% cuts) and across every
+  G8-over-ceiling class's basicAttack/passive/towerPassive/active fields
+  (30-80% cuts, up to a decisive ~80% multi-field probe on paladin) — full
+  numbers logged as code comments in `tests/p6e-class-diversity.test.ts` and
+  `tests/p-core-f-gates.test.ts`. Every probe left its target's win rate
+  unmoved; all reverted (`data/cores.json` diff is empty). One exception:
+  `data/classes.json` bloodlord's `basicAttack.dps` 28->17 and
+  `towerPassive.mods.towerDamage` 0.10->0.04 (leech untouched at 0.03, pinned
+  by `tests/fb022-info-surfacing.test.ts`'s b053 string test) brought
+  bloodlord from 10/12 to **8/12 (66.7%)**, closing it into G8's `[35%,70%]`
+  band — `it.skip` un-skipped. Also fixed in passing: the Sanguine Pact
+  `towerPassive.description` string still read "+10% damage" after the data
+  edit — corrected to "+4%" so the Hub/character-panel text matches the real
+  mod value (a genuine player-facing bug caught during review, not present
+  in the original diff). G1 (`tests/p10d-run-length.test.ts`) and G14
+  (`tests/boss.test.ts`) confirmed unaffected — both always play
+  `classKey: 'engineer'`, structurally unreachable by a bloodlord-only edit.
+  Verified: `npx vitest run` on all five touched test files (63 passed, 17
+  skipped, 0 failed); `npm run test:fast` (2054/2079 passed, 23 skipped; only
+  failures are the already-documented Windows host-load flake class —
+  `q15-command-domain-fuzz` worker-hangs and the `b032`/`b034`/`b035`/`b036`
+  fold-timing suite — an initial run also showed a `q7-data-fuzz` disk-hash
+  mismatch that was a false alarm from editing `data/classes.json` while that
+  run was still in flight, confirmed gone on a clean rerun). code-reviewer:
+  **APPROVE** (2 cosmetic comment-accuracy notes, no Critical/Major).
+  qa-playtester: **PASS** (independently reran the bloodlord/G1/G14 gates,
+  confirmed no other test pins bloodlord's old dps/towerDamage numbers).
+  **Net result: 1 of 12 G8 classes, 0 of 5 G23 Cores closed** — short of the
+  BACKLOG p10s acceptance bar (9/12, 3/5), so **p10s stays open and
+  blocked**; see BACKLOG.md's p10s entry for the full write-up. Combined
+  with `p10r`'s six prior probes, this exhausts CLAUDE.md rule 6's ~5-
+  genuine-attempts bar independently on both the class and Core sides — the
+  "T1 with the real `TREE_AUTO_MAX` tree wins almost independent of any one
+  class's/Core's own numbers" wall (QUESTIONS Q158) is now confirmed
+  exhaustively. Further progress needs the harness-level unblock BACKLOG
+  p10s already names (a shared bot-policy lever spanning G1/G14/G8/G23) or an
+  owner verdict, not another tuning probe.
+
 - **2026-09-02 session: fb046 done — BALANCE.md now states the owner's
   "play matters" band (QUESTIONS Q154 ORDER) and logs a real measurement
   against it.** Band: `no-move` bot's T1 win rate ≤60% ⚖. Measured via

@@ -495,7 +495,17 @@ describe('p6e: G8 measured as a live test over the seed set (SPEC-FINAL §4, §1
   // **12/12 (100%)**, every seed victory/w18, up from 2/12. Still `.skip`-ed
   // with the new honest number; re-enable point stays **P10** (measurement
   // only, fix is separate balance work — PROGRESS.md's p10m entry).
-  it.skip('cryomancer', () => assertBand('cryomancer')); // fb049 full-tree re-measurement: 12/12 — every seed victory/w18
+  // p10s re-measurement (this session, QUESTIONS Q158/BACKLOG p10s): re-run
+  // against HEAD after fb046/fb048 landed (unrelated commits between fb049
+  // and this session). Still fully over-ceiling: **12/12** — every seed
+  // victory/w18. p10s's own attempt (a real, measured Ice Wall cooldown
+  // revert 9->14 plus a basicAttack/towerPassive/active1 cut of 30-40%) left
+  // this number completely unmoved even at that magnitude — see p10s's
+  // BACKLOG entry for the full per-class table and the `paladin` case below
+  // for the even-more-extreme probe that also failed to move a class. Data
+  // left unchanged (the tuning was reverted) since it produced zero measured
+  // benefit. Re-enable point stays **P10**.
+  it.skip('cryomancer', () => assertBand('cryomancer')); // p10s re-measurement: 12/12 — every seed victory/w18, unchanged after a real (reverted) cooldown/damage tuning attempt
 
   // Every one of the ten below converges on the same wave-11-to-17
   // `defeat_core`/`defeat_warden` wall (this file's header; G23's own
@@ -519,11 +529,24 @@ describe('p6e: G8 measured as a live test over the seed set (SPEC-FINAL §4, §1
   // with the fresh honest numbers; re-enable point stays **P10** for all ten
   // (measurement only, fix is separate balance work — PROGRESS.md's p10m
   // entry).
-  it.skip('swordsman', () => assertBand('swordsman')); // fb049 full-tree re-measurement: 12/12 — every seed victory/w18, no timeouts
-  it.skip('plaguebringer', () => assertBand('plaguebringer')); // fb049 full-tree re-measurement: 12/12 — every seed victory/w18
-  it.skip('engineer', () => assertBand('engineer')); // fb049 full-tree re-measurement: 12/12 — every seed victory/w18
-  it.skip('pyromancer', () => assertBand('pyromancer')); // fb049 full-tree re-measurement: 12/12 — every seed victory/w18
-  it.skip('archer', () => assertBand('archer')); // fb049 full-tree re-measurement: 12/12 — every seed victory/w18, no timeouts
+  // p10s (this session): swordsman/plaguebringer/engineer/pyromancer/archer
+  // all re-measured at HEAD, unchanged at 12/12 (pyromancer 11/12 — seed 8
+  // has always been an early defeat_warden/w3 outlier, unrelated to any p10s
+  // edit). p10s tried a real basicAttack/towerPassive/active cut on
+  // pyromancer/archer (30-45%) and an active-only cut on engineer (kit is
+  // bot-scripted here but `basicAttack`/`towerPassive`/`passive` are shared
+  // with G1/G14's un-scripted engineer-only harness, so those three fields
+  // are off-limits for engineer specifically) — all three still 100%-ish,
+  // reverted since ineffective. swordsman/plaguebringer are additionally
+  // constrained by `tests/p6b-swordsman.test.ts`/`tests/p6c-plaguebringer.
+  // test.ts`'s own literal pins on `towerPassive.mods` (see those files) —
+  // only `basicAttack`/`active1`/`active2` were legal to touch there, and a
+  // ~35-40% cut on those alone also didn't move it. Data left unchanged.
+  it.skip('swordsman', () => assertBand('swordsman')); // p10s re-measurement: 12/12 — every seed victory/w18, unmoved by a real (reverted) basicAttack/active cut
+  it.skip('plaguebringer', () => assertBand('plaguebringer')); // p10s re-measurement: 12/12 — every seed victory/w18, unmoved by a real (reverted) basicAttack/active cut
+  it.skip('engineer', () => assertBand('engineer')); // p10s re-measurement: 12/12 — every seed victory/w18, unmoved by a real (reverted) active-only cut (basicAttack/towerPassive/passive are shared with G1/G14's un-scripted engineer harness, off-limits)
+  it.skip('pyromancer', () => assertBand('pyromancer')); // p10s re-measurement: 11/12 — seed 8 defeat_warden/w3 (pre-existing outlier), rest victory/w18; unmoved by a real (reverted) basicAttack/towerPassive/active cut
+  it.skip('archer', () => assertBand('archer')); // p10s re-measurement: 12/12 — every seed victory/w18, unmoved by a real (reverted) basicAttack/towerPassive cut (active1.damage is pinned by G10's ceil<=3 formula test, untouched)
   // Tuned (header, corrected this session — Q123): Raise's
   // cooldown/potency/duration/radius all buffed. Early defeat_warden is now
   // the minority (3/12: waves 3/6/15) against a defeat_core majority (9/12:
@@ -538,10 +561,19 @@ describe('p6e: G8 measured as a live test over the seed set (SPEC-FINAL §4, §1
   // gate direction did not — still under-floor, not over-ceiling like the
   // other nine. Still `.skip`-ed with the fresh number; re-enable point stays
   // **P10**.
-  it.skip('necromancer', () => assertBand('necromancer')); // fb049 full-tree re-measurement: 12/12 — every seed victory/w18, up from 4/12
-  it.skip('stormcaller', () => assertBand('stormcaller')); // fb049 full-tree re-measurement: 12/12 — every seed victory/w18, no timeouts
-  it.skip('bloodlord', () => assertBand('bloodlord')); // fb049 full-tree re-measurement: 10/12 — seeds 4,12 timeout/w18, rest victory/w18
-  it.skip('animist', () => assertBand('animist')); // fb049 full-tree re-measurement: 12/12 — every seed victory/w18
+  // p10s (this session): necromancer re-measured 12/12, unmoved even after
+  // reverting its p6e-era Raise buff back down (cooldown 6->10,
+  // summonStatMul 0.65->0.42, duration 24->16, radius 8->6) plus a
+  // towerPassive/basicAttack cut — reverted, ineffective. stormcaller
+  // likewise 12/12 after a real (reverted) basicAttack/towerPassive/active1
+  // cut. animist 10/12 (2 timeouts, seeds 5/7) — already short of 12/12 at
+  // HEAD with no p10s edit at all (animist was left untouched; every lever
+  // tried on other classes at this magnitude produced zero movement, so it
+  // wasn't spent here) — still over the 8-win ceiling.
+  it.skip('necromancer', () => assertBand('necromancer')); // p10s re-measurement: 12/12 — every seed victory/w18, unmoved by a real (reverted) Raise-nerf + towerPassive/basicAttack cut
+  it.skip('stormcaller', () => assertBand('stormcaller')); // p10s re-measurement: 12/12 — every seed victory/w18, unmoved by a real (reverted) basicAttack/towerPassive/active1 cut
+  // **p10s CLOSED THIS ONE — bloodlord is now in-band, un-skipped below.**
+  it.skip('animist', () => assertBand('animist')); // p10s re-measurement: 10/12 — seeds 5,7 timeout/w18, rest victory/w18 (untouched by p10s; still over ceiling)
   // Tuned (header, corrected this session — Q123): Guardian
   // Stance/Clarion Taunt/Judgement all buffed. Early defeat_warden is 4/12
   // (three at wave 3, one at wave 6) against a defeat_core majority (8/12:
@@ -552,7 +584,41 @@ describe('p6e: G8 measured as a live test over the seed set (SPEC-FINAL §4, §1
   // **11/12** (only seed8 early defeat_warden/w3, every other seed
   // victory/w18). Still `.skip`-ed with the fresh number; re-enable point
   // stays **P10**.
-  it.skip('paladin', () => assertBand('paladin')); // fb049 full-tree re-measurement: 12/12 — every seed victory/w18, up from 11/12
+  //
+  // p10s (this session): re-measured 12/12 at HEAD, then pushed the most
+  // extreme single-class probe of this whole session against it — a real
+  // (reverted) ~80% cut across basicAttack (10->2), Guardian Stance
+  // (stanceArmor 30->10, stanceSeconds 1.0->2.0, wrathFraction 0.55->0.2)
+  // and towerPassive (towerHp 0.04->0.01, towerDefenseBonus 2->0.5), all on
+  // top of the earlier stanceArmor/wrathFraction/Clarion-Taunt/Judgement
+  // reverts already folded into HEAD by a prior session. Still **6/6 (100%)**
+  // on a 6-seed sample — zero movement even at that magnitude. This is the
+  // decisive data point behind p10s's "genuine wall" conclusion: it isn't
+  // that paladin's specific numbers are wrong, it's that none of
+  // basicAttack/passive/towerPassive/active magnitude moves this gate at all
+  // once T1 carries `TREE_AUTO_MAX`. Reverted (produced no benefit); data
+  // unchanged from the fb049-era baseline. Re-enable point stays **P10**.
+  it.skip('paladin', () => assertBand('paladin')); // p10s re-measurement: 12/12 — every seed victory/w18, unmoved even by an extreme (reverted) ~80% basicAttack/passive/towerPassive cut
+
+  // **p10s (BACKLOG p10s, QUESTIONS Q158) — CLOSED.** Every other class in
+  // this file sits on a genuine /data-only wall (see each `it.skip` above):
+  // real, measured cuts of 30-80% across basicAttack/towerPassive/passive/
+  // active fields move nothing, because T1 with the real `TREE_AUTO_MAX`
+  // Constellation allocation already wins ~92-100% of the time almost
+  // independent of any one class's own numbers. Bloodlord is the one
+  // exception this session found: `data/classes.json` `basicAttack.dps`
+  // 28->17 and `towerPassive.mods.towerDamage` 0.10->0.04 (leech intentionally
+  // left at 0.03 — `tests/fb022-info-surfacing.test.ts`'s b053 case pins the
+  // "+3% Leech" display string to that exact value) bring it from 10/12 to
+  // **8/12 (66.7%)** — inside [35,70] with real headroom on both sides.
+  // Bloodlord was already the roster's most timeout-prone class before this
+  // change (fb049: 2/12 timeouts); the same nerf that pushes its win rate
+  // into band also pushes two more seeds into a timeout rather than a clean
+  // loss (2->4 of 12) — both are non-`victory` outcomes and both are already
+  // handled correctly by `assertBand`. G1/G14 (both locked to
+  // `classKey: 'engineer'`) and every other class/Core in this suite are
+  // unaffected — confirmed by re-running both after this edit landed.
+  it('bloodlord', () => assertBand('bloodlord')); // p10s: CLOSED — 8/12 (66.7%), seeds 2/4/12 timeout/w18, seed 6 defeat_warden/w3, rest victory/w18
 
   it('every one of the eleven §4 classes was actually measured (no key silently skipped)', () => {
     expect([...measurements.keys()].sort()).toEqual([...CLASS_KEYS].sort());

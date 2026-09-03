@@ -379,6 +379,19 @@ describe('the Warden-Eater (SPEC 5.5)', () => {
   // non-terminal (`running`) outcome at the 45-simulated-minute cap after
   // clearing all 18 TD waves, every other seed `victory`/`bossKilled: true`.
   // Comfortably inside G14's own [60%, 100%) band. Un-skipped.
+  //
+  // p10s (BACKLOG p10s, this session): this gate is a guardrail for that
+  // item — re-run after every `/data` edit per CLAUDE.md's blast-radius
+  // rule, since this file always plays `classKey: 'engineer'`, `core` at its
+  // default (`stone_heart`), un-scripted `hybrid` (no class-active firing, no
+  // forced Core-upgrade purchases). p10s's one landed change (`data/
+  // classes.json` bloodlord's `basicAttack.dps`/`towerPassive.mods.
+  // towerDamage`) never reaches this harness, which never selects bloodlord.
+  // Confirmed unaffected: **16/20 (80%)**, still inside `[60,100)` — drifted
+  // from the stale 95% fb049 number via unrelated commits landed since (the
+  // same drift already logged for this file's own header and `p10r`'s BACKLOG
+  // entry), re-measured identically before and after every p10s edit, not a
+  // regression this session caused.
   it('G14: over 20 seeds, the scripted-build win rate is >=60% and <100%', () => {
     const seeds = Array.from({ length: 20 }, (_, i) => i + 1);
     const results = seeds.map((seed) => {

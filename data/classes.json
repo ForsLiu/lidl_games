@@ -289,7 +289,7 @@
     {
       "key": "bloodlord", "name": "Bloodlord", "unlockedByDefault": false, "unlockQuest": "fast_boss",
       "moveSpeedBonus": 0.30,
-      "basicAttack": { "dps": 28, "range": 2.5, "interval": 0.8571, "aoe": 1.0 },
+      "basicAttack": { "dps": 17, "range": 2.5, "interval": 0.8571, "aoe": 1.0 },
       "passive": {
         "name": "Blood Frenzy",
         "description": "3% lifesteal on normal damage; +10% attack in VS waves, -5% in TD waves.",
@@ -319,8 +319,8 @@
       },
       "towerPassive": {
         "name": "Sanguine Pact",
-        "description": "All towers +10% damage, -10% max HP.",
-        "mods": { "towerDamage": 0.10, "towerHp": -0.10 }
+        "description": "All towers +4% damage, -10% max HP.",
+        "mods": { "towerDamage": 0.04, "towerHp": -0.10 }
       }
     },
     {

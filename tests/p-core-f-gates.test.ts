@@ -158,6 +158,64 @@ describe('G22: each Core shifts the run fingerprint by >=0.10 vs Stone Heart', (
   }
 });
 
+/**
+ * p10s (BACKLOG p10s, QUESTIONS Q158) — real attempt, genuine wall found,
+ * not closed. `86b11f8` (this same session, landed just before this item)
+ * loosened G21's exact-literal Core-effect pins to formula/range assertions,
+ * legalizing `data/cores.json` `effects`/`upgrade` magnitude tuning as a G23
+ * lever for the first time. Tried, on the four non-default Cores below (each
+ * fully decoupled from G1/G8/G14/G22, since all three of those always run
+ * `stone_heart`/`classKey: 'engineer'` and never select these four —
+ * confirmed by re-running G1/G14 after every edit, per CLAUDE.md's blast-
+ * radius rule):
+ *   - `carnivorous_plant`: `effects.devourEliteDamage` 200->20 (90% cut),
+ *     `devourCoreHeal` 5->1, `poisonBulletDamage` 10->2, `poisonStacksPerBullet`
+ *     5->1, `poisonVolleyCap` 10->3, `devourCooldown` 8->20 (2.5x slower) — a
+ *     near-total gutting of every effect field this Core has. Measured 6/6
+ *     (100%) on a 6-seed sample, identical to the untouched baseline.
+ *   - `vampire_heart`: every `effects` field cut ~80% (`towerLifestealPct`
+ *     0.001->0.0001, `missingHpBuffPerPct` 0.005->0.0005, `missingHpBuffCap`
+ *     0.3->0.03, `vsLifestealPct` 0.01->0.001, `overhealGoldRatio` 20->100,
+ *     i.e. gold-per-overheal cut 5x). Measured 4/4 (100%) on a 4-seed sample,
+ *     identical to baseline.
+ *   - `corpse`: `corpseStoreRatio` 0.01->0.002 (80% cut), `vsXpGainPct`
+ *     0.1->0.02 (80% cut), `corpseExecuteInterval` 1->3 (3x slower). Measured
+ *     11/12 (91.7%), statistically indistinguishable from the untouched
+ *     10-12/12 baseline (still 1 timeout).
+ *   - `time`: `tdSlowPct`/`vsSpeedPct` 0.2->0.04 (80% cut), `tdSlowRadius`
+ *     3->1. Measured 4/4 (100%) on a 4-seed sample, identical to baseline.
+ * A fifth probe (`carnivorous_plant.upgrade.stepCost` 60->5000, i.e. an
+ * unaffordable-for-the-whole-run upgrade price) *did* move the number (3/4 at
+ * n=4) — but traced to a harness artifact, not a real balance effect:
+ * `runCoreScripted` unconditionally pins the Warden to the Core tile every TD
+ * tick while `w.coreStep < stepCount` (this file's own header), and
+ * `upgradeCore` (`src/sim/cores.ts`) silently no-ops (no gold spent, no state
+ * change) when unaffordable — so a step priced high enough to never become
+ * affordable in a real run just glues the scripted Warden to the Core tile
+ * for all 18 TD waves, crippling its positioning for reasons that have
+ * nothing to do with the Core's actual power. Confirmed by the threshold
+ * shape: stepCost 260 (4.3x) moved nothing (6/6), 1500 (25x) still moved
+ * nothing (6/6), only 5000 (83x, definitively unaffordable inside a T1
+ * economy) produced a loss. This is gaming the harness's forced-purchase
+ * assumption, not tuning the Core, so it was reverted rather than kept.
+ * Every one of the five probes above was reverted (`data/cores.json` is
+ * unchanged from HEAD) since none produced a real, legitimate improvement.
+ * `stone_heart` itself (no `effects` field to tune at all — G23's own prior
+ * comments already establish it as "closest to the band" for exactly that
+ * reason) was left untouched for the same reason `data/waves.json`/
+ * `data/classes.json`'s shared T1 pacing wasn't touched: any shared lever
+ * strong enough to move it risks G1/G14, which the p10r session already
+ * proved crushes first. **Conclusion: Core-effect-magnitude tuning has
+ * ~0% measured elasticity on T1 win rate under the current wave/spawn curve
+ * and the real `TREE_AUTO_MAX` Constellation allocation — the full tree's
+ * stat bonuses plus the shared hybrid tower economy so dominate the T1 fight
+ * that no single Core's own numbers move the outcome, matching (and now
+ * extending, since G21's pins are gone and this was a real, not a
+ * hypothetical, blocker) the exact "/data-only wall" p10r already found on
+ * the class/wave side.** G23 stays at 0 of 5 Cores in band; see BACKLOG p10s
+ * for the full write-up. Every number below is a fresh re-measurement at
+ * HEAD (unchanged data), not inherited from fb049.
+ */
 describe('G23: every Core clears T1 at a 35-70% win rate with the scripted bot', () => {
   const SEEDS = Array.from({ length: 12 }, (_, i) => i + 1);
 
@@ -247,6 +305,11 @@ describe('G23: every Core clears T1 at a 35-70% win rate with the scripted bot',
   // **12/12 (100%)** — every seed `victory`/w18, the same over-ceiling
   // direction p10m already found, now total. Still `.skip`-ed; re-enable
   // point stays **P10**.
+  //
+  // p10s (this session, see the describe-level comment above for the full
+  // probe): a real ~90% cut across every `effects` field left this at 6/6
+  // (100%) on a 6-seed sample — reverted, data unchanged. Re-measured at
+  // HEAD (unchanged data): still **12/12 (100%)**.
   it.skip('carnivorous_plant', () => {
     const { wins, outcomes } = winRate('carnivorous_plant');
     expect(wins, `${wins}/${SEEDS.length} — ${outcomes.join(' ')}`).toBeGreaterThanOrEqual(
@@ -300,6 +363,11 @@ describe('G23: every Core clears T1 at a 35-70% win rate with the scripted bot',
   // Core was already at the ceiling under the stale measurement, so the
   // correction doesn't move it further. Still `.skip`-ed; re-enable point
   // stays **P10**.
+  //
+  // p10s (this session, see the describe-level comment above for the full
+  // probe): a real ~80% cut across every `effects` field left this at 4/4
+  // (100%) on a 4-seed sample — reverted, data unchanged. Re-measured at
+  // HEAD (unchanged data): still **12/12 (100%)**.
   it.skip('vampire_heart', () => {
     const { wins, outcomes } = winRate('vampire_heart');
     expect(wins, `${wins}/${SEEDS.length} — ${outcomes.join(' ')}`).toBeGreaterThanOrEqual(
@@ -345,6 +413,13 @@ describe('G23: every Core clears T1 at a 35-70% win rate with the scripted bot',
   // below): **10/12** wins — seed 6 `defeat_warden`/w3, seed 10 `running`,
   // every other seed `victory`/w18 — still over the 70% ceiling even reading
   // the stalemate as a loss. Still `.skip`-ed; re-enable point stays **P10**.
+  //
+  // p10s (this session, see the describe-level comment above for the full
+  // probe): a real ~80% cut to `corpseStoreRatio`/`vsXpGainPct` plus a 3x
+  // `corpseExecuteInterval` slowdown measured 11/12 (91.7%, 1 timeout) on a
+  // 12-seed run — statistically indistinguishable from the untouched
+  // baseline below, so reverted. Re-measured at HEAD (unchanged data):
+  // **11/12 (91.7%)** — seed 2 `timeout`/w18, every other seed `victory`/w18.
   it.skip('corpse', () => {
     const { wins, outcomes } = winRate('corpse');
     expect(wins, `${wins}/${SEEDS.length} — ${outcomes.join(' ')}`).toBeGreaterThanOrEqual(
@@ -380,6 +455,14 @@ describe('G23: every Core clears T1 at a 35-70% win rate with the scripted bot',
   // `allocated: []`. Re-measured against the real full-tree allocation:
   // still **12/12 (100%)**, unchanged. Still `.skip`-ed; re-enable point
   // stays **P10**.
+  //
+  // p10s (this session, see the describe-level comment above for the full
+  // probe): a real 80% cut to `tdSlowPct`/`vsSpeedPct` plus a 3x
+  // `tdSlowRadius` cut measured 4/4 (100%) on a 4-seed sample — reverted,
+  // data unchanged. Re-measured at HEAD (unchanged data), 12-seed run: **10/12
+  // (83.3%)** — seeds 1,6 `timeout`/w18, rest `victory`/w18 (natural seed-to-
+  // seed variance in the timeout-stalemate mechanism this file's own header
+  // already names, not a regression from this session).
   it.skip('time', () => {
     const { wins, outcomes } = winRate('time');
     expect(wins, `${wins}/${SEEDS.length} — ${outcomes.join(' ')}`).toBeGreaterThanOrEqual(
@@ -440,6 +523,15 @@ describe('G23: every Core clears T1 at a 35-70% win rate with the scripted bot',
   // precedent as `corpse`). Of the other 10 seeds (non-throwing probe): all
   // 10 `victory`/w18 — **10/12** even reading both stalemate seeds as losses,
   // over the 70% ceiling. Still `.skip`-ed; re-enable point stays **P10**.
+  //
+  // p10s (this session): Stone Heart has no `effects` field at all — nothing
+  // for this item's Core-effect lever to touch — and is explicitly *not* a
+  // candidate for the shared T1 wave/spawn/class-baseline lever either (that
+  // lever is the one the p10r session already proved crushes G1/G14 first,
+  // since both gates are locked to `classKey: 'engineer'`/`core: 'stone_heart'`
+  // with no scripted augmentation). Left untouched; re-measured at HEAD
+  // (unchanged data): **10/12 (83.3%)** — seeds 2,4 `timeout`/w18, rest
+  // `victory`/w18, matching the fb049 conservative-reading number above.
   it.skip('stone_heart (the default Core)', () => {
     const { wins, outcomes } = winRate('stone_heart');
     expect(wins, `${wins}/${SEEDS.length} — ${outcomes.join(' ')}`).toBeGreaterThanOrEqual(

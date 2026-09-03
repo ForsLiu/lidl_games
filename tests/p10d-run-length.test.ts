@@ -164,8 +164,20 @@ describe('G1 mean victorious run is 30-36 minutes over 24+ seeds', () => {
   // exception aside, this item is a re-measurement per fb049's own acceptance
   // criteria, not a retune; `p10r` inherits the real target (shave ~0.4 min,
   // not the ~30% cut its stale under-25% premise implied).
+  //
+  // p10s (BACKLOG p10s, this session): this gate is a guardrail for that
+  // item, not its target — re-run after every `/data` edit per CLAUDE.md's
+  // blast-radius rule, since this file always plays `classKey: 'engineer'`,
+  // `core` at its default (`stone_heart`), un-scripted `hybrid`. p10s's one
+  // landed change (`data/classes.json` bloodlord's `basicAttack.dps`/
+  // `towerPassive.mods.towerDamage`) cannot reach this harness at all — this
+  // file never selects bloodlord. Confirmed unaffected: **mean 36.70 min,
+  // 19/24 wins (79.2%)** — identical to the pre-p10s baseline this same
+  // session measured at HEAD before any edit landed (drifted from the stale
+  // 36.36/23-24 fb049 number via unrelated commits landed since, same as
+  // `tests/boss.test.ts`'s G14 case below — not a regression from p10s).
   it.skip('has a mean victorious run of 30-36 minutes', () => {
     expect(mean, detail).toBeGreaterThanOrEqual(30);
     expect(mean, detail).toBeLessThanOrEqual(36);
-  }); // fb049: mean 36.36 min, 23/24 (95.8%) under TREE_AUTO_MAX — 0.36 min over ceiling
+  }); // p10s re-confirmation: mean 36.70 min, 19/24 (79.2%) under TREE_AUTO_MAX — 0.70 min over ceiling, unaffected by p10s's bloodlord-only edit
 });

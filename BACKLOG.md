@@ -1501,6 +1501,39 @@ fresh number.
       G23 Cores into `[35%,70%]` without moving G1 or G14 out of their bands
       — refs: SPEC-FINAL §14 G8/G21/G23, QUESTIONS Q158, p10r.
 
+      **Session update (2026-09-02), part 2/2 — still open, acceptance not
+      met.** Part 1 (commit `86b11f8`) loosened G21's exact-literal Core pins
+      to formula/range assertions, legalizing Core-effect `/data` tuning as a
+      G23 lever for the first time. This session spent that unblocked lever:
+      four real, measured probes across every non-default Core's `effects`
+      fields (`carnivorous_plant` ~90% cut, `vampire_heart`/`time` ~80% cuts,
+      `corpse` ~80% cut + 3x cooldown) plus real basicAttack/passive/
+      towerPassive/active cuts (30-80%, up to a decisive ~80% multi-field
+      probe on paladin) across every G8-over-ceiling class
+      (cryomancer/swordsman/plaguebringer/engineer/pyromancer/archer/
+      necromancer/stormcaller/paladin/animist) — full per-class and per-Core
+      numbers are in the code comments at `tests/p6e-class-diversity.test.ts`
+      and `tests/p-core-f-gates.test.ts`. Every probe left its target
+      unmoved (all reverted, `data/cores.json` diff is empty) with one
+      exception: bloodlord's `basicAttack.dps` 28->17 and
+      `towerPassive.mods.towerDamage` 0.10->0.04 (leech left at 0.03, pinned
+      by `tests/fb022-info-surfacing.test.ts`'s b053 case) brought it from
+      10/12 to **8/12 (66.7%)**, closing it into band — un-skipped, code-
+      reviewer- and qa-playtester-verified green, G1/G14 confirmed unaffected
+      (both always play `classKey: 'engineer'`, structurally unreachable by a
+      bloodlord-only edit). **Net: 1 of 12 G8 classes, 0 of 5 G23 Cores** —
+      short of the 9-of-12/3-of-5 acceptance bar, so **p10s stays open and
+      blocked**, same disposition as `p10r`. Combined with `p10r`'s six prior
+      probes, this closes CLAUDE.md rule 6's ~5-genuine-attempts bar
+      comfortably for both the class and Core sides independently; the "T1
+      with the real `TREE_AUTO_MAX` tree already wins almost independent of
+      any one class's/Core's own numbers" wall Q158 found is now confirmed
+      exhaustively, not just plausibly. No further `/data`-only attempt on
+      this item is likely to be productive — a real unblock needs the harness
+      change filed above (a shared bot-policy lever spanning G1/G14/G8/G23
+      alike) or an owner verdict on lowering G8/G23's own ceiling, not another
+      tuning probe.
+
 ### Filed at the lane/quality merge (2026-08-27) — out-of-scope findings from BACKLOG-QUALITY.md's log
 
 The quality lane's session logs recorded main-lane defects it could not fix
