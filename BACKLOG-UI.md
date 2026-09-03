@@ -97,23 +97,11 @@ not already expose it) logs that need below instead of reaching into
       flake classes documented across prior sessions, none in `src/ui/**`/
       `src/render/**`.
 
-- [ ] (fb066) [polish] low priority: the Hub's `[data-class]` buttons attach a
-      click listener unconditionally (only the `disabled` attribute blocks a
-      real click); the sibling `[data-core]` loop explicitly skips attaching
-      a listener to locked cores for exactly this reason (hub.ts ~296-313).
-      Downgraded from [bug] after fb058's QA pass: `beginRun()` now
-      reconciles `classKey` against `meta.unlockedClasses` the same way it
-      already did for `coreKey` (fb058 fix, same session), so a locked class
-      reaching this listener can no longer reach `RunConfig` — the remaining
-      gap is display-only (a locked card can be driven "on" by a
-      synthetic/non-standard client, same as it already legitimately can be
-      by a real click for preview purposes; see fb058's DONE note). Not
-      exploitable via a real mouse click in a real browser (a `disabled`
-      button never receives one). Acceptance: `[data-class]` mirrors
-      `[data-core]`'s pattern (skip attaching the listener to locked buttons
-      entirely) purely for display consistency between the two pickers — no
-      RunConfig-safety test needed, that's already covered by fb058's
-      regression test — refs: code-reviewer finding on fb058.
+- [x] (fb066) [polish] low priority: WON'T-FIX, resolved 2026-09-03 — see Log.
+      The literal acceptance ("mirror `[data-core]`: skip attaching the
+      listener to locked buttons entirely") directly undoes fb058's
+      intentional locked-class-preview feature and breaks an existing green
+      fb058 regression test that depends on it.
 
 - [ ] (fb060) [feat] normal priority: OWNER OVERRIDE of QUESTIONS Q133(3)
       — DoT damage (Bleeding, Poison, Toxic, Burning) must show as
@@ -184,3 +172,32 @@ not already expose it) logs that need below instead of reaching into
   before commit. Recorded here for main-lane awareness of a possible merge
   overlap, per the Scope section's own instruction to log out-of-scope
   touches.
+
+- 2026-09-03, fb066: attempted the literal acceptance criteria (skip
+  attaching a click listener to locked `[data-class]` buttons, mirroring the
+  `[data-core]` loop) and it broke on contact with fb058's own design. Two
+  concrete classes make this observable without any dev toggle: `plaguebringer`
+  and `time_lord` — the two normal-profile classes that are *not*
+  `unlockedByDefault` in `data/classes.json` — render `disabled`/`locked` on a
+  fresh `defaultMeta()` profile. `tests/ui-fb058-class-select.test.ts`'s
+  "switching the selected card updates the band panel to the new class" test
+  clicks the locked `plaguebringer` card specifically to exercise that
+  preview path, and fails immediately once the listener is skipped. This is
+  not an incidental collision: fb058's own DONE note says outright that
+  "previewing a locked class's band stats by clicking its (still-visible,
+  still-'on') card is intentional and an existing test relies on it." Cores
+  have no analogous preview feature (a locked Core's detail panel is never
+  reachable by click at all), so `[data-core]`'s "skip locked entirely"
+  pattern was never actually the same shape as `[data-class]`'s — fb066 was
+  filed on the assumption they should match without noticing fb058 had
+  already built them asymmetric on purpose. The actual security-relevant
+  concern the original report raised (a locked class reaching `RunConfig`
+  unguarded) is already closed by fb058's `beginRun()` reconciliation, and a
+  real `disabled` HTML button never receives a real mouse click regardless of
+  whether a JS listener is attached underneath it — so skipping attachment
+  here would trade away a real, tested, owner-visible feature for a purely
+  cosmetic parity with Core that isn't actually warranted. Reverted the
+  hub.ts change and the attempted regression test; closing WON'T-FIX rather
+  than leaving it open against acceptance criteria that can't be met without
+  a regression. `npm run test:fast` re-confirmed clean of any `src/ui/**`/
+  `src/render/**`-touching failures after the revert.
