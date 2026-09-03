@@ -36,7 +36,7 @@ import {
   projectileStyle,
   type ProjectileStyle,
 } from './theme';
-import { ACTIVE_KIND_SHAPE, CLASS_VFX, CORE_VFX, type VfxShape } from './vfx-registry';
+import { ACTIVE_KIND_SHAPE, CLASS_VFX, CORE_VFX, type BasicImpactShape, type VfxShape } from './vfx-registry';
 import type { Settings } from '../ui/settings';
 import {
   pickAt,
@@ -127,6 +127,27 @@ interface CastFx {
 
 const CAST_FX_LIFE = 0.28;
 
+/**
+ * fb055: the impact moment of a basic attack, distinct per class (`slash` /
+ * `splash` / `ripple`, `vfx-registry.ts`'s `BasicImpactShape`) so the three
+ * visible classes' weapons read as landing differently, not just travelling
+ * differently. Separate from `CastFx`: this always renders at the target,
+ * never has a `line`/`nova` shape of its own, and a class with no
+ * `basic.impact` registered never gets one (the plain `hit:` white flash
+ * every class always had stays as-is).
+ */
+interface BasicImpactFx {
+  x: number;
+  y: number;
+  shape: BasicImpactShape;
+  color: string;
+  life: number;
+  maxLife: number;
+}
+
+const BASIC_IMPACT_LIFE = 0.22;
+const MAX_BASIC_IMPACTS = 150;
+
 /** p10h: SPEC-FINAL §15 P10 names this "the 2 s TD<->VS transition sweep" literally. */
 const SWEEP_DURATION = 2;
 
@@ -179,6 +200,7 @@ export class Renderer {
   private tracers: Tracer[] = [];
   private cones: ConeFlash[] = [];
   private casts: CastFx[] = [];
+  private basicImpacts: BasicImpactFx[] = [];
   /** p10h: the 2s TD<->VS screen sweep; `dir` 1 = entering VS/Night, -1 = returning to TD/Day. */
   private sweep: { life: number; dir: 1 | -1 } | null = null;
   private shakeX = 0;
@@ -359,9 +381,23 @@ export class Renderer {
           if (!entry) break;
           if (entry.basic.shape === 'swing') {
             this.pushCast('line', e.x, e.y, e.a, e.b, entry.basic.color);
+            // fb055: Swordsman's sword-swing-arc sweep, layered over the
+            // straight slash line above (kept as-is so it still reads as a
+            // weapon reaching the target, not replaced) so the swing itself
+            // has a distinct curved silhouette, not a recolored dash line.
+            if (w.cfg.classKey === 'swordsman') this.pushCast('arc', e.x, e.y, e.a, e.b, entry.basic.color);
           } else if (this.tracers.length < MAX_TRACERS) {
             this.tracers.push(tracer(e, w.cfg.classKey, false));
+            // fb055: Time Lord's temporal bolt trails a distortion ripple —
+            // a second, jagged tracer riding the same line reuses chain
+            // lightning's existing kinked-segment draw (drawTracers) so the
+            // bolt itself reads apart from every other 'orb' projectile
+            // class's clean travel line.
+            if (w.cfg.classKey === 'time_lord' && this.tracers.length < MAX_TRACERS) {
+              this.tracers.push(tracer(e, w.cfg.classKey, true));
+            }
           }
+          this.pushBasicImpact(entry.basic.impact, e.a, e.b, entry.basic.color);
           break;
         }
         case 'core_plant':
@@ -399,17 +435,24 @@ export class Renderer {
 
   private pushCast(shape: VfxShape, x: number, y: number, a: number, b: number, color: string): void {
     if (this.casts.length >= MAX_CASTS) return;
+    const directed = shape === 'line' || shape === 'arc';
     this.casts.push({
       x,
       y,
       r: shape === 'nova' ? a : 0,
-      x2: shape === 'line' ? a : x,
-      y2: shape === 'line' ? b : y,
+      x2: directed ? a : x,
+      y2: directed ? b : y,
       shape,
       color,
       life: CAST_FX_LIFE,
       maxLife: CAST_FX_LIFE,
     });
+  }
+
+  /** fb055: queues a basic attack's impact-moment fx (see `BasicImpactFx`). No-op for a class with no registered `impact` shape. */
+  private pushBasicImpact(shape: BasicImpactShape | undefined, x: number, y: number, color: string): void {
+    if (!shape || this.basicImpacts.length >= MAX_BASIC_IMPACTS) return;
+    this.basicImpacts.push({ x, y, shape, color, life: BASIC_IMPACT_LIFE, maxLife: BASIC_IMPACT_LIFE });
   }
 
   update(dt: number, view: ViewState): void {
@@ -425,6 +468,8 @@ export class Renderer {
     this.cones = this.cones.filter((c) => c.life > 0);
     for (const c of this.casts) c.life -= dt;
     this.casts = this.casts.filter((c) => c.life > 0);
+    for (const b of this.basicImpacts) b.life -= dt;
+    this.basicImpacts = this.basicImpacts.filter((b) => b.life > 0);
     for (const [k, v] of [...this.flashes]) {
       const nv = v - dt;
       if (nv <= 0) this.flashes.delete(k);
@@ -464,8 +509,9 @@ export class Renderer {
     this.drawGems(w);
     this.drawEnemies(w, view);
     this.drawProjectiles(w);
-    this.drawTracers();
+    this.drawTracers(view);
     this.drawCasts(view);
+    this.drawBasicImpacts(view);
     this.drawWarden(w);
     this.drawChargeIndicator(w, view);
     this.drawSkillHoverRing(w, view);
@@ -857,11 +903,16 @@ export class Renderer {
   /**
    * Single-target shots, chain arcs and cones hit instantly, so there is no
    * projectile to follow. Without these the busiest towers looked inert.
+   * fb055: `reducedFlash` dims tracers (including the Time Lord distortion
+   * tracer) the same way `drawCasts`/`drawBasicImpacts` do, rather than
+   * leaving this draw path at full brightness while every other fx path
+   * respects the setting.
    */
-  private drawTracers(): void {
+  private drawTracers(view: ViewState): void {
     const ctx = this.ctx;
+    const reduced = view.settings.reducedFlash;
     for (const t of this.tracers) {
-      ctx.globalAlpha = Math.min(1, t.life * 10);
+      ctx.globalAlpha = Math.min(1, t.life * 10) * (reduced ? 0.5 : 1);
       ctx.strokeStyle = t.style.color;
       ctx.lineWidth = t.jagged ? 2 : 1.5;
       ctx.beginPath();
@@ -890,7 +941,7 @@ export class Renderer {
       const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
       g.addColorStop(0, c.style.color);
       g.addColorStop(1, 'transparent');
-      ctx.globalAlpha = Math.min(0.6, c.life * 6);
+      ctx.globalAlpha = Math.min(0.6, c.life * 6) * (reduced ? 0.5 : 1);
       ctx.fillStyle = g;
       ctx.beginPath();
       ctx.moveTo(cx, cy);
@@ -1005,10 +1056,79 @@ export class Renderer {
         ctx.moveTo(c.x * TILE, c.y * TILE);
         ctx.lineTo(c.x2 * TILE, c.y2 * TILE);
         ctx.stroke();
+      } else if (c.shape === 'arc') {
+        // fb055: a wedge swept from the Warden toward the target, drawn
+        // curved (not the straight `line` shape above) so a melee swing
+        // reads as a sweep rather than a poke.
+        const cx = c.x * TILE;
+        const cy = c.y * TILE;
+        const ang = Math.atan2(c.y2 - c.y, c.x2 - c.x);
+        const dist = Math.hypot(c.x2 - c.x, c.y2 - c.y) * TILE;
+        const radius = Math.min(dist, TILE * 1.3);
+        const half = 0.8;
+        ctx.lineWidth = 3;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.arc(cx, cy, radius, ang - half, ang + half);
+        ctx.stroke();
+        if (!reduced) {
+          ctx.globalAlpha *= 0.25;
+          ctx.beginPath();
+          ctx.moveTo(cx, cy);
+          ctx.arc(cx, cy, radius, ang - half, ang + half);
+          ctx.closePath();
+          ctx.fill();
+        }
       } else {
         ctx.beginPath();
         ctx.arc(c.x * TILE, c.y * TILE, 6, 0, Math.PI * 2);
         ctx.fill();
+      }
+    }
+    ctx.globalAlpha = 1;
+    ctx.lineWidth = 1;
+    ctx.lineCap = 'butt';
+  }
+
+  /**
+   * fb055: the impact-moment fx queued by `pushBasicImpact` — distinct from
+   * `drawCasts`'s fire-moment shapes and from the generic `hit:` white flash
+   * (`drawEnemies`), so a basic attack's *landing* reads apart per class too.
+   * `slash` crosses two short blade marks, `splash` is a filled spreading
+   * ring, `ripple` is a stroked expanding ring — three different primitive
+   * combinations, not one shape recolored.
+   */
+  private drawBasicImpacts(view: ViewState): void {
+    if (this.basicImpacts.length === 0) return;
+    const ctx = this.ctx;
+    const reduced = view.settings.reducedFlash;
+    for (const b of this.basicImpacts) {
+      const t = Math.max(0, b.life / b.maxLife);
+      const px = b.x * TILE;
+      const py = b.y * TILE;
+      ctx.globalAlpha = t * (reduced ? 0.5 : 1);
+      ctx.strokeStyle = b.color;
+      ctx.fillStyle = b.color;
+      if (b.shape === 'slash') {
+        const s = 6;
+        ctx.lineWidth = 2.5;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(px - s, py - s);
+        ctx.lineTo(px + s, py + s);
+        ctx.moveTo(px + s, py - s);
+        ctx.lineTo(px - s, py + s);
+        ctx.stroke();
+      } else if (b.shape === 'splash') {
+        ctx.globalAlpha *= 0.6;
+        ctx.beginPath();
+        ctx.arc(px, py, 4 + (1 - t) * 5, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (b.shape === 'ripple') {
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(px, py, 3 + (1 - t) * 9, 0, Math.PI * 2);
+        ctx.stroke();
       }
     }
     ctx.globalAlpha = 1;
