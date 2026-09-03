@@ -1593,7 +1593,7 @@ fresh number.
       retune re-run is a distinct, separately-verifiable body of work — filed
       as **p10t** immediately below rather than left implicit.
 
-- [ ] (p10t) [balance] Re-run the G1/G8/G14/G23 retune now that p10s's shared
+- [x] (p10t) [balance] Re-run the G1/G8/G14/G23 retune now that p10s's shared
       scripted-kit-and-Core-purchase harness makes all four gates measurable
       against one lever: with G1/G14 now over-ceiling under the same "real
       player" shape G8/G23 already use (this session's numbers: G14 20/20,
@@ -1623,6 +1623,75 @@ fresh number.
       having the two source files import from `tests/helpers.ts` instead,
       once this item's retune work is done and the ~1h-per-file source tests
       don't need re-verifying twice in the same session.
+
+      **Closed 2026-09-03, acceptance not met — genuine wall confirmed, not a
+      harness artifact this time.** balance-analyst ran 5 more genuinely
+      distinct `/data`-only probes against `p10s`'s now-shared harness
+      (baseline confirmed live: G1 36.39min/21-24, G14 20/20, G8 all twelve
+      classes 8-12/12 — `bloodlord` the sole in-band closure from `p10s` —,
+      G23 all five Cores 10-12/12): (1) `data/spawns.json`
+      `hpScalePerMinute` 1.10→1.25 crashed G1 to 6/24 (25%) via tick-cap
+      timeouts rather than real losses, G8 fully unmoved — killed early;
+      (2) `data/warden.json` `maxHp` 100→75 and (3) `data/waves.json`
+      `coreHp` 500→300 each measured **zero elasticity** — (3) confirmed via
+      a full sweep, all 144 G8 seeds and 60 G23 seeds identical to baseline,
+      proving leaks/sustained Warden damage essentially never occur in these
+      scripted T1 runs at any threshold tried; (4) `data/spawns.json`
+      `budgetGrowthPerMinute` 1.21→1.5 and (5) `data/waves.json`
+      `startGold` 250→100 both showed real elasticity for the first time but
+      **non-monotonic** — each closed some classes/Cores while regressing
+      others, including regressing `bloodlord` (p10s's one closure) or
+      pushing G1 further over its ceiling. Every probe reverted; `git diff`
+      confirmed empty (no `/data` file touched, no scratch tooling left).
+      Full per-probe numbers logged as **QUESTIONS Q159**. The finding: this
+      is not the harness asymmetry `p10s` fixed (that fix holds — all four
+      gates now genuinely sit on the same over-ceiling side) but a deeper
+      property of the `TREE_AUTO_MAX` full-tree T1 build — it is dominant
+      enough that outcomes are governed by tick-cap exhaustion or one-off
+      early RNG, not by a gradient any shared `/data` axis moves smoothly, so
+      no `/data`-only lever turns a "win" into a "close loss" without also
+      moving unrelated seeds the wrong way. Per this item's own stop
+      condition and CLAUDE.md rule 6, closed as an honestly-reported wall
+      (`p10r`/`p10k`/`b027` precedent) rather than forcing a partial or
+      regressive tune. Of the two escalation paths this item's own
+      acceptance text named, lowering G8/G23's ceiling band is **not**
+      chosen here — SPEC-FINAL §14's numeric bands aren't marked ⚖ or
+      `[designer-fill]`, and §17's owner-veto list does not include gate
+      bands, so that stays a genuine owner-verdict escalation (Q159) rather
+      than a default I can pick myself. The in-scope path — a harness/engine
+      change that can discriminate close-call seeds from dominant-or-
+      already-lost ones, instead of the current all-or-nothing dynamic — is
+      filed as its direct successor, **p10z**, same disposition `p10r` used
+      when it filed `p10s`.
+
+- [ ] (p10z) [feat] Give the G1/G8/G14/G23 scripted-kit-and-Core-purchase
+      harness (or a new bot policy layered on it) a way to discriminate
+      "close-call" seeds from seeds that are either untouchable wins (the
+      `TREE_AUTO_MAX` full-tree build overwhelms the board regardless of the
+      `/data` axis tried) or losses for reasons unrelated to whichever lever
+      is being tuned (an early one-off alpha strike, a stalemate timeout) —
+      `p10t`'s 5-probe sweep (QUESTIONS Q159) found real elasticity only in
+      throughput/economy levers, and even those moved different classes/Cores
+      in opposite directions in the same pass, because the harness currently
+      has no way to see *why* a given seed won or lost, only whether it did.
+      Candidate directions (pick the one the investigation actually
+      supports, don't assume): (a) instrument `runScripted`'s report with a
+      loss/win-margin signal (e.g. Core HP remaining at wave 18, or ticks
+      spent below some Warden-HP threshold) so a probe can target "seeds
+      that won by a landslide" specifically instead of every seed uniformly;
+      (b) a weaker/less-optimal scripted-kit variant (imperfect play) that
+      creates genuine mid-band outcomes the current near-perfect scripted
+      bot doesn't produce; (c) confirm via a fresh measurement whether
+      `TREE_AUTO_MAX` itself (full Constellation allocation, `fb039`/Q156)
+      is the dominant variable, and if so whether a partial/realistic
+      allocation profile is a more representative G8/G23 harness than "every
+      node maxed" — a design question of what a "scripted kit bot" should
+      represent, log the chosen default in QUESTIONS.md rather than picking
+      silently. Acceptance: a harness change (not a `/data` tune) plus a
+      fresh `/data`-only retune pass under it closes at least 9 of 12 G8
+      classes and 3 of 5 G23 Cores into `[35%,70%]` without moving G1 or G14
+      out of band — refs: SPEC-FINAL §14 G1/G8/G14/G23, QUESTIONS Q158/Q159,
+      BACKLOG p10r/p10s/p10t.
 
 ### Generated 2026-09-02 (fewer than 3 actionable items remained — CLAUDE.md/BACKLOG generation rule)
 

@@ -5,6 +5,52 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-03 session: `p10t` closed — genuine `/data`-only wall confirmed
+  under p10s's fixed harness, not just the harness asymmetry; 5 new items
+  filed, `p10z` filed as the successor.** Completion check: BACKLOG.md was
+  not all-done (only `p10t` unchecked) and no unprocessed `feedback/` files
+  existed, so no DONE.md. Generation rule triggered (fewer than 3 actionable
+  items) before executing: `npx tsx tools/gate-audit.ts` showed all 23 gates
+  `covered` (no stale map), content census stayed 10/10 (no SPEC-FINAL
+  coverage gap), so filed `p10u` (G8's diversity clause, 3/12 distinct top
+  sources vs the ≥9/12 the gate asks for — `p10t`'s win-rate retune doesn't
+  touch this axis per `p10m`'s finding), `p10v` (Time Lord has no individual
+  G8 win-rate case, unlike the other 11 classes), `p10w` (de-dup the three
+  scripted-kit-harness copies, per code-reviewer's `p10s` note), `p10x`/
+  `p10y` (two test deferrals whose blocking bugs — `b073`'s Act I aliveCap,
+  the P10 pacing passes — already landed but were never re-measured).
+  Regenerated STATUS.md (`npm run status`) in the same commit.
+  Then executed `p10t`, delegated to balance-analyst per CLAUDE.md's
+  tuning-item protocol: 5 more genuinely distinct `/data`-only probes against
+  `p10s`'s now-shared harness (enemy-toughness ramp, Warden-HP cut, Core-HP
+  cut, spawn-throughput ramp, starting-gold cut), each measured on all four
+  gates and reverted. Two (Warden HP, Core HP) measured **zero elasticity**
+  — Core HP confirmed via a full sweep, all 144 G8 seeds and 60 G23 seeds
+  bit-identical to baseline, proving leaks/sustained Warden damage
+  essentially never happen in these scripted T1 runs. The two throughput/
+  economy levers showed real elasticity for the first time but
+  **non-monotonic** movement — closing some classes/Cores while regressing
+  others, including `bloodlord` (`p10s`'s one prior closure) or pushing G1
+  further over ceiling. `git diff` confirmed empty at the end (no `/data`
+  file touched, no scratch tooling left behind). Full numbers logged as
+  **QUESTIONS Q159**: the wall is not the harness asymmetry `p10s` fixed
+  (confirmed working — all four gates now genuinely sit on the same
+  over-ceiling side) but the `TREE_AUTO_MAX` full-tree T1 build being
+  dominant enough that outcomes are governed by tick-cap exhaustion or
+  one-off early RNG, not a gradient any shared `/data` axis moves smoothly.
+  Per CLAUDE.md rule 6, closed as an honestly-reported wall rather than a
+  forced partial/regressive tune (`p10r`/`p10k`/`b027` precedent).
+  **Lowering G8/G23's ceiling band was explicitly not chosen** as the
+  default — SPEC-FINAL §14's numeric bands aren't marked ⚖ or
+  `[designer-fill]`, and §17's owner-veto list doesn't cover gate bands, so
+  that stays a real owner-verdict escalation (Q159), not something I can
+  pick myself. Filed the in-scope path — a harness/engine change letting a
+  shared lever discriminate close-call seeds from dominant-or-lost ones —
+  as **p10z**, same disposition `p10r` used when it filed `p10s`. No code
+  or `/data` changed by this item, so no code-reviewer/qa-playtester pass
+  was run (nothing to review or verify — same precedent as `p10r`'s
+  wall-finding closure).
+
 - **2026-09-02 session: `b027` closed by cross-reference; `p10s` part 3/3
   lands the harness-level unblock its own text named; `p10r` closed,
   successor `p10t` filed with the corrected four-gate retune target.**
