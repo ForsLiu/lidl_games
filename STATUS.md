@@ -34,7 +34,7 @@ Regenerate before relying on this file — it is a snapshot, not a live view. Ga
 
 ## Balance snapshot
 
-Measured this run: 88 sim runs (2 seeds/cell), `hybrid` bot for per-class/per-Core cells. Mean run length 38.57 min; 30 of 88 runs hit the 45-min cap without resolving (timeouts).
+Measured this run: 88 sim runs (2 seeds/cell), `hybrid` bot for per-class/per-Core cells. Mean run length 38.68 min; 31 of 88 runs hit the 45-min cap without resolving (timeouts).
 
 ### Policy comparison (T1, engineer, default core)
 
@@ -63,7 +63,7 @@ Measured this run: 88 sim runs (2 seeds/cell), `hybrid` bot for per-class/per-Co
 | necromancer | 1 | 0 |
 | cryomancer | 0 | 0 |
 | stormcaller | 0.5 | 0.5 |
-| bloodlord | 0 | 0.5 |
+| bloodlord | 0 | 0 |
 | animist | 0.5 | 0.5 |
 | paladin | 1 | 0 |
 | time_lord | 1 | 0.5 |
@@ -82,14 +82,14 @@ Measured this run: 88 sim runs (2 seeds/cell), `hybrid` bot for per-class/per-Co
 
 | Source | Share |
 |---|---|
-| ballista | 0.3163 |
-| frost_obelisk | 0.2562 |
-| mortar | 0.1787 |
-| arrow_spire | 0.1257 |
-| venom_spore | 0.1032 |
+| ballista | 0.3173 |
+| frost_obelisk | 0.2541 |
+| mortar | 0.1788 |
+| arrow_spire | 0.1259 |
+| venom_spore | 0.104 |
 | spreading_plague | 0.012 |
 | ember_brazier | 0.002 |
-| warden_eater | 0.0017 |
+| warden_eater | 0.0018 |
 | carnivorous_plant | 0.0017 |
 | tesla_coil | 0.0014 |
 | class_basic | 0.0009 |
@@ -101,7 +101,7 @@ Measured this run: 88 sim runs (2 seeds/cell), `hybrid` bot for per-class/per-Co
 
 | Boon | Total ranks |
 |---|---|
-| plating | 348 |
+| plating | 347 |
 | power | 223 |
 | haste | 162 |
 | range | 160 |

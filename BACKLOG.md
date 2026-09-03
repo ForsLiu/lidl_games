@@ -1624,6 +1624,86 @@ fresh number.
       once this item's retune work is done and the ~1h-per-file source tests
       don't need re-verifying twice in the same session.
 
+### Generated 2026-09-02 (fewer than 3 actionable items remained — CLAUDE.md/BACKLOG generation rule)
+
+Ran `npx tsx tools/gate-audit.ts` fresh (all 23 gates show `covered`, no stale
+map — `p10o` holds) and re-read HANDOFF §4-§6/STATUS.md/MIGRATION §8 against
+every §14 gate. Content is complete (10/10 §13 categories, unchanged since
+`p10i`) so nothing comes from a SPEC-FINAL coverage gap (rule (b)) — every
+item below closes a currently-red gate clause `p10t` doesn't already own, a
+concrete stale-deferral re-measurement (CLAUDE.md's "a deferral is a
+measurement with an expiry date"), or the one engineer's-judgment depth item
+in the spirit of HANDOFF §6 (`p10s`'s own code-reviewer flagged the harness
+duplication as a drift risk worth a future de-dup).
+
+- [ ] (p10u) [balance] Close G8's diversity clause: top damage source is
+      distinct across only **3 of 12 classes** (`tests/p6e-class-diversity.test.ts`
+      line ~717, re-measured honest at `b027` — `ballista`/`spreading_plague`
+      plus one more once the full-tree allocation is used), far under the
+      **≥9/12** SPEC-FINAL §14 G8 asks for. `p10m`'s own finding: win rate and
+      top-damage-source are independent axes here, so `p10t`'s win-rate retune
+      will not move this at all — it needs a kit-damage-ratio or
+      weapon-balance change (e.g. capping how much of a class's own kit
+      damage a shared tower like `ballista` can eat, or buffing each class's
+      own Active/Tower-passive damage share), not a pacing lever. Acceptance:
+      a `/data`-only (`data/classes.json`/`data/towers.json`) change brings at
+      least 9 of the 12 classes' `topLabel` (per `tests/p6e-class-diversity.test.ts`'s
+      own measurement helper) to a distinct source, without moving any of the
+      12 classes' win rate out of `p10t`'s closed `[35%,70%]` band (re-run
+      both together) — refs: SPEC-FINAL §14 G8, `b027`, HANDOFF §6 item 3.
+
+- [ ] (p10v) [chore] Time Lord (the 12th class, added at `fb013`) has never
+      had its own individual G8 win-rate band assertion — it rides along in
+      `tests/p6e-class-diversity.test.ts`'s 12-class `measurements` sweep and
+      the diversity/coverage checks, but unlike the other 11 classes there is
+      no `it.skip('time_lord', () => assertBand('time_lord'))` (or live,
+      un-skipped, if it happens to already sit in-band) pinning its own
+      win-rate number. Acceptance: add that case following the existing 11's
+      pattern exactly (same `assertBand` helper, same comment convention
+      recording the measured win rate and reason), so all 12 classes have a
+      named, individually-inspectable G8 win-rate pin once `p10t`/`p10u` land
+      — refs: SPEC-FINAL §14 G8, HANDOFF §6 item 7, `fb013`.
+
+- [ ] (p10w) [chore] De-dup the three near-identical scripted-kit-and-
+      Core-purchase harness copies flagged by code-reviewer at `p10s` and
+      named again in `p10t`'s own text: `tests/helpers.ts`'s shared version
+      (built at `p10s`) plus the original two in
+      `tests/p6e-class-diversity.test.ts` and `tests/p-core-f-gates.test.ts`
+      are still separate implementations of `scriptClassKit`/`aimPoint`/the
+      Core-upgrade injection. A future fix to the aim-omission or
+      class/Core-sequencing logic landing on only one copy would silently
+      reintroduce the G1/G14-vs-G8/G23 measurement asymmetry `p10s` closed.
+      Acceptance: `p6e-class-diversity.test.ts` and `p-core-f-gates.test.ts`
+      import the shared implementation from `tests/helpers.ts` instead of
+      defining their own; every currently-`.skip`-ed/live case in both files
+      keeps its exact same measured number (no behavior change, pure
+      de-dup) — refs: `p10s` code-reviewer note, `p10t`.
+
+- [ ] (p10x) [chore] `tests/p7e-quests.test.ts`'s `it.skip('the sealed policy
+      latches world.everSealed...')` (line ~232) was explicitly deferred
+      "re-measure once b073 lands an Act I aliveCap" — **b073 landed**
+      (commit logged in BACKLOG's Done section) and this case was never
+      re-measured, an expired deferral per CLAUDE.md's measurement rules.
+      Acceptance: re-run the case standalone now that Act I has an aliveCap;
+      if it passes, un-skip it (keeping the b073 QA `!run.done` guard in
+      place); if it still fails, record the honest current number/reason in
+      its place rather than leaving a stale TODO pointing at an already-shipped
+      fix — refs: CLAUDE.md measurement rules, `b073`.
+
+- [ ] (p10y) [chore] `tests/p10e-perf-budget.test.ts`'s `it.skip('is stable
+      across a different (calibChunk, sampleEvery) measurement
+      granularity...')` (line ~87) was deferred "once the Act I economy pass
+      this session's PROGRESS.md flags for P10 lands and real runs are long
+      enough again" — multiple P10 balance passes (`p10j`-`p10l`, `p10r`,
+      `p10s`) have since landed and G1's own live measurement shows real
+      full-length runs again (mean ~35-37 min, not a wave-2/3 collapse).
+      Acceptance: re-run the case standalone; if the granularity comparison
+      now holds under the 25% bar, un-skip it with the fresh numbers in a
+      comment; if not, record the honest current `rel=` figure in place of
+      the stale fb025-era one — refs: CLAUDE.md measurement rules, G17
+      (already green in full; this is a robustness sub-check, not a gate
+      blocker).
+
 ### Filed at the lane/quality merge (2026-08-27) — out-of-scope findings from BACKLOG-QUALITY.md's log
 
 The quality lane's session logs recorded main-lane defects it could not fix
