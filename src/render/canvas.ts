@@ -180,6 +180,8 @@ const DOT_NUMBER_TYPES: readonly string[] = ['burning', 'bleeding', 'poison', 't
 const DOT_NUMBER_DENSITY_CUTOFF = 150;
 /** "near the cursor/character" radius (tiles) once the density cutoff is live. */
 const DOT_NUMBER_NEAR_RADIUS = 8;
+/** fb068: extra distance an already-"near" enemy is allowed to drift before it's dropped, to avoid boundary flicker. */
+const DOT_NUMBER_NEAR_HYSTERESIS = 2;
 /** Smaller than a direct hit's default 1 (`FloatingNumber.fontScale`). */
 const DOT_NUMBER_FONT_SCALE = 0.7;
 
@@ -229,6 +231,14 @@ export class Renderer {
    * drops the last reference, with no manual pruning needed here.
    */
   private dotAccum = new WeakMap<Enemy, Map<string, number>>();
+  /**
+   * fb068: tracks which enemies were "near" the cursor/Warden as of the last
+   * frame, so the density-cutoff visibility check can apply hysteresis
+   * (shrink the required distance once already-near, rather than one fixed
+   * radius) instead of flip-flopping — and resetting `dotAccum` — every tick
+   * for an enemy hovering right at the boundary.
+   */
+  private dotNearLast = new WeakSet<Enemy>();
   /** p10h: the 2s TD<->VS screen sweep; `dir` 1 = entering VS/Night, -1 = returning to TD/Day. */
   private sweep: { life: number; dir: 1 | -1 } | null = null;
   private shakeX = 0;
@@ -471,9 +481,11 @@ export class Renderer {
    * once every accumulated second, rather than reacting to an event.
    */
   private updateDotNumbers(w: World, view: ViewState): void {
-    if (!view.settings.dotNumbers) return;
+    const enabled = view.settings.dotNumbers;
     let carriers = 0;
-    for (const e of w.enemies) if (!e.dead && e.dots.length > 0) carriers++;
+    if (enabled) {
+      for (const e of w.enemies) if (!e.dead && e.dots.length > 0) carriers++;
+    }
     const dense = carriers > DOT_NUMBER_DENSITY_CUTOFF;
     const cx = view.cursorX;
     const cy = view.cursorY;
@@ -485,16 +497,36 @@ export class Renderer {
         // possibly-inflated (fb067 lets a starved accumulator exceed 1s)
         // per-type entry sitting in `dotAccum` — a later re-application of
         // the same type would otherwise flush it mixed into the new stack's
-        // first tick.
+        // first tick. fb070: this cleanup runs even while the `dotNumbers`
+        // toggle is off, so a stack that expires and gets re-afflicted
+        // entirely during an off period can't leave stale carryover for
+        // when the toggle is switched back on.
         this.dotAccum.delete(e);
+        this.dotNearLast.delete(e);
         continue;
       }
-      const visible =
-        !dense ||
-        e.elite ||
-        e.boss ||
-        Math.hypot(e.x - cx, e.y - cy) <= DOT_NUMBER_NEAR_RADIUS ||
-        Math.hypot(e.x - wx, e.y - wy) <= DOT_NUMBER_NEAR_RADIUS;
+      if (!enabled) continue;
+      // fb068: hysteresis — an enemy already flagged "near" last frame keeps
+      // showing until it drifts past the wider exit radius, so one hovering
+      // right at the boundary doesn't reset `dotAccum` every other tick. Only
+      // computed under the density cutoff for a non-elite/boss enemy
+      // (matching the old short-circuit's cost profile) since it's
+      // irrelevant otherwise — the enemy is already visible regardless.
+      // `dotNearLast` membership only updates on frames this block actually
+      // runs, so an enemy that drifts far away during a non-dense stretch
+      // (skipped entirely, visible anyway) can carry a stale "near" flag
+      // into the next dense stretch — one extra frame at the wider exit
+      // radius before it's correctly dropped. Cosmetic-only, same spirit as
+      // this file's other narrow fb067/fb069 tradeoffs.
+      let isNear = false;
+      if (dense && !e.elite && !e.boss) {
+        const wasNear = this.dotNearLast.has(e);
+        const radius = wasNear ? DOT_NUMBER_NEAR_RADIUS + DOT_NUMBER_NEAR_HYSTERESIS : DOT_NUMBER_NEAR_RADIUS;
+        isNear = Math.hypot(e.x - cx, e.y - cy) <= radius || Math.hypot(e.x - wx, e.y - wy) <= radius;
+        if (isNear) this.dotNearLast.add(e);
+        else this.dotNearLast.delete(e);
+      }
+      const visible = !dense || e.elite || e.boss || isNear;
       if (!visible) {
         // fb067: same narrow, cosmetic-only tradeoff as the `dps <= 0` branch
         // below — a budget-starved accumulator with several seconds pending

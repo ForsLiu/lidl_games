@@ -230,7 +230,7 @@ not already expose it) logs that need below instead of reaching into
       across dozens of prior PROGRESS.md sessions, none touching
       `src/render/**`/`src/ui/**` or this item's own files.
 
-- [ ] (fb070) [bug] low priority: the `dotNumbers` Settings toggle
+- [x] (fb070) [bug] low priority: the `dotNumbers` Settings toggle
       (`view.settings.dotNumbers`) gates `updateDotNumbers`'s (`canvas.ts`)
       *entire* body with an early `if (!view.settings.dotNumbers) return;`
       before the enemy loop, so fb069's expiry cleanup (`this.dotAccum.delete(e)`
@@ -249,9 +249,40 @@ not already expose it) logs that need below instead of reaching into
       expiry/cleanup pass unconditionally and only skip the `this.numbers`
       push when the setting is off, or clear the whole `dotAccum` WeakMap on
       an off-to-on transition — refs: fb069, fb067, fb060, owner feedback
-      `feature-dot-tick-numbers`.
+      `feature-dot-tick-numbers`. DONE 2026-09-03: `updateDotNumbers`
+      (`canvas.ts`) now computes `const enabled = view.settings.dotNumbers;`
+      instead of an early `return`, and moved the enable-gating to
+      `if (!enabled) continue;` placed *after* the per-enemy
+      `e.dead || e.dots.length === 0` fast-path cleanup, so that cleanup (and
+      fb068's `dotNearLast` cleanup alongside it) always runs regardless of
+      toggle state; the `carriers` density-count loop is gated `if (enabled)`
+      since it's meaningless work otherwise. Targeted
+      `tests/render-fb070-dot-toggle-off-stale-cleanup.test.ts` (1/1):
+      saturates the budget, flips the toggle off across a stack's
+      expire+reapply window, flips it back on, confirms no inflated flush.
+      Sets `e.speed = 0` after spawn — without it the enemy walks onto the
+      core tile and "leaks" (marked dead) within the ~4s window the test
+      ticks through, which would trivially and irrelevantly clear
+      `dotAccum` via the unrelated `e.dead` branch and mask the real fix;
+      confirmed via git-stash A/B that this fails pre-fix (flushes a stray
+      "50") and passes post-fix. code-reviewer REQUEST-CHANGES →
+      code-reviewer's one Major (an unused `Enemy` type import in the new
+      test breaking `tsc --noEmit`/`npm run build` despite `vitest run`
+      passing) fixed same session (import removed); its two Minors (see
+      fb068's DONE note below, same session) also addressed. qa-playtester
+      PASS against the stated acceptance criteria, plus hostile testing of
+      the fb070×fb068 interaction (an enemy flagged near, expiring
+      budget-starved while inside the widened-but-outside-the-narrow
+      hysteresis radius, correctly has to re-cross the narrow radius from
+      scratch on reapplication — no inflation), rapid toggle-spam across a
+      stack refresh (exact flushed amounts, no drift), and budget contention
+      under hysteresis (no crash, no unbounded growth); filed no new bugs.
+      `npm run test:fast`: 11 failures, all in the pre-existing
+      q15/q25/q28/q33/q45/q46/q49/q52 worker-hang/Windows-scratch-dir-EPERM
+      flake classes documented across dozens of prior PROGRESS.md sessions,
+      none touching `src/render/**`/`src/ui/**` or this item's own files.
 
-- [ ] (fb068) [polish] low priority: fb060's near-cursor/near-character
+- [x] (fb068) [polish] low priority: fb060's near-cursor/near-character
       density-cutoff visibility check hard-resets an enemy's DoT-number
       accumulator (`this.dotAccum.delete(e)`) on every single tick it
       reads as outside the 8-tile radius, instead of decaying or
@@ -269,7 +300,40 @@ not already expose it) logs that need below instead of reaching into
       (matching the existing dot-expiry comment's precedent) or give the
       visibility check a small hysteresis/grace window so a boundary-
       hugging enemy still eventually flushes — refs: fb060, owner feedback
-      `feature-dot-tick-numbers`.
+      `feature-dot-tick-numbers`. DONE 2026-09-03: chose the hysteresis
+      direction. New `dotNearLast: WeakSet<Enemy>` field (`canvas.ts`)
+      tracks which enemies read as "near" last frame; an already-near enemy
+      is checked against a widened exit radius
+      (`DOT_NUMBER_NEAR_RADIUS + DOT_NUMBER_NEAR_HYSTERESIS` = 8+2 = 10
+      tiles) instead of the fixed 8-tile radius, so a boundary-hugging
+      enemy stops flip-flopping and eventually accumulates a full second.
+      Only computed when `dense && !e.elite && !e.boss` (elites/bosses are
+      unconditionally visible already; tightened during code review from an
+      earlier draft that ran the hypot calls for them too). No leak risk:
+      `dotNearLast` entries are removed on the same `e.dead`/
+      `dots.length===0` fast path fb070 made unconditional, and whenever an
+      enemy reads as not-near under the dense branch; WeakSet semantics
+      handle the rest on GC. Documented (code review Minor, addressed same
+      session) that `dotNearLast` membership only updates on frames the
+      hysteresis block actually runs, so an enemy can carry a stale "near"
+      flag across a non-dense stretch into the next dense one — one extra
+      frame at the wider radius, cosmetic-only, same tradeoff class as
+      fb067/fb069's documented ones. Targeted
+      `tests/render-fb068-dot-density-hysteresis.test.ts` (1/1): a swarm
+      pushes the carrier count past the density cutoff while one enemy
+      oscillates every tick between 7.9 and 8.1 tiles from the Warden for
+      400 ticks; confirms a number eventually flushes. Confirmed via
+      git-stash A/B that this fails pre-fix and passes post-fix.
+      code-reviewer REQUEST-CHANGES (Major on fb070's test file, see above;
+      two Minors on this item — elite/boss short-circuit not preserved, and
+      the cross-`dense`-transition staleness undocumented — both fixed same
+      session) → re-verified green. qa-playtester PASS against the stated
+      acceptance criteria (independently confirmed the chosen fix matches
+      the acceptance text's second option) plus the fb070×fb068 interaction
+      hostile test described in fb070's DONE note above; filed no new bugs.
+      `npm run test:fast`: same 11 pre-existing-flake-class failures as
+      fb070's note (single combined run covered both items), none touching
+      `src/render/**`/`src/ui/**` or either item's own files.
 
 - [ ] (fb063) [feat] normal priority: bottom-bar passive/Active1/Active2
       icons become hover-only (no click, no sticky panel); tooltip shows a
