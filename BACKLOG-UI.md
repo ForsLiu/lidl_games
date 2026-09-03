@@ -54,7 +54,7 @@ not already expose it) logs that need below instead of reaching into
       scratch-dir EPERM flake class documented across dozens of prior
       PROGRESS.md sessions, none touching `src/render/**`.
 
-- [ ] (fb058) [feat] normal priority: class select redesign — a horizontal
+- [x] (fb058) [feat] normal priority: class select redesign — a horizontal
       row of tall class sprites; selecting one fills a bottom panel with
       band/number stats, and hovering the passive/tower-passive/Active1/
       Active2 entries shows written descriptions with live numbers. Only
@@ -66,7 +66,54 @@ not already expose it) logs that need below instead of reaching into
       exactly 3 classes are selectable in a normal profile; the dev toggle
       reveals the rest; no gate test changes — refs: SPEC-FINAL §4, §11
       (UI + roster-visibility rule), owner feedback
-      `feature-class-select-redesign`.
+      `feature-class-select-redesign`. DONE 2026-09-03: `class-select.ts`
+      adds `NORMAL_PROFILE_CLASS_KEYS`, the SPEC-FINAL §4 `CLASS_BANDS`
+      table, `classBandStatsMarkup`/`classSelectSkillsMarkup`; `hub.ts`'s
+      Class tab renders a `.sw-classcard` row filtered to the 3-class roster
+      unless `settings.showHiddenClasses` (new, dev-profile-gated toggle,
+      `TOGGLES`' new `devOnly` flag) is on, with a selected-class fallback
+      when the filter drops the current selection; `class-info.ts` gains a
+      standalone `towerPassiveSkillMarkup` (was inlined only in
+      `classAbilitiesMarkup`) reused for the new 4th hover entry.
+      code-reviewer pass (one Major scope-boundary question, resolved, see
+      Log; one Minor pre-existing-gap-exposure, filed as fb066 below; nits
+      not blocking). qa-playtester found one new Major: the render-time
+      "current selection fell outside the filtered roster" fallback picked
+      `visibleClasses[0]` with no unlock check, so a save whose
+      `unlockedClasses` omits all of Swordsman/Plaguebringer/Time Lord (an
+      `Array.isArray`-only-guarded shape `migrate()` doesn't intercept) could
+      highlight a locked class as the active selection and hand it to
+      `beginRun()` uncontested — no click needed. Fixed by giving `beginRun()`
+      the same belt-and-suspenders reconciliation `core` already had
+      (`this.meta.unlockedClasses.includes(this.classKey) ? this.classKey :
+      …`), *not* by gating the render-time fallback itself — previewing a
+      locked class's band stats by clicking its (still-visible, still-"on")
+      card is intentional and an existing test relies on it; only an actual
+      run start needed the guard. Targeted `tests/ui-fb058-class-select.test.ts`
+      (9/9, incl. the hidden-class-toggle-off fallback case from code review
+      and the locked-class-can't-reach-RunConfig regression from QA), qa
+      re-verified PASS. `npm run test:fast`: 13 failures, all four
+      pre-existing q15/q28/q45/q49/q52 worker-hang/Windows-scratch-EPERM
+      flake classes documented across prior sessions, none in `src/ui/**`/
+      `src/render/**`.
+
+- [ ] (fb066) [polish] low priority: the Hub's `[data-class]` buttons attach a
+      click listener unconditionally (only the `disabled` attribute blocks a
+      real click); the sibling `[data-core]` loop explicitly skips attaching
+      a listener to locked cores for exactly this reason (hub.ts ~296-313).
+      Downgraded from [bug] after fb058's QA pass: `beginRun()` now
+      reconciles `classKey` against `meta.unlockedClasses` the same way it
+      already did for `coreKey` (fb058 fix, same session), so a locked class
+      reaching this listener can no longer reach `RunConfig` — the remaining
+      gap is display-only (a locked card can be driven "on" by a
+      synthetic/non-standard client, same as it already legitimately can be
+      by a real click for preview purposes; see fb058's DONE note). Not
+      exploitable via a real mouse click in a real browser (a `disabled`
+      button never receives one). Acceptance: `[data-class]` mirrors
+      `[data-core]`'s pattern (skip attaching the listener to locked buttons
+      entirely) purely for display consistency between the two pickers — no
+      RunConfig-safety test needed, that's already covered by fb058's
+      regression test — refs: code-reviewer finding on fb058.
 
 - [ ] (fb060) [feat] normal priority: OWNER OVERRIDE of QUESTIONS Q133(3)
       — DoT damage (Bleeding, Poison, Toxic, Burning) must show as
@@ -105,3 +152,35 @@ not already expose it) logs that need below instead of reaching into
       `feature-ui-inside-playfield`.
 
 ## Log
+
+- 2026-09-03, fb058: two files outside the literal Scope glob
+  (`tests/fb022-info-surfacing.test.ts`, `tests/q3-save-fuzz.test.ts`) were
+  edited from this lane; code-reviewer flagged this as a Major scope-boundary
+  violation and it deserves a paper trail rather than a silent judgment call.
+  Kept both edits rather than reverting, for different reasons:
+  - `tests/q3-save-fuzz.test.ts`: its settings fixture is typed
+    `ReturnType<typeof defaultSettings>` (a full `Settings` literal), so
+    adding the required `showHiddenClasses: boolean` field to the `Settings`
+    interface (`src/ui/settings.ts`, squarely in-scope) makes the fixture fail
+    `tsc --noEmit` project-wide unless it's updated in the same change —
+    this isn't a "could defer to main lane" edit, it's a compile error for
+    everyone until fixed. Precedented: commit `023b181` (fb036, a pre-lane-
+    split BACKLOG.md item) made the identical one-line addition
+    (`showPathIndicators`) to this same fixture for the same reason.
+  - `tests/fb022-info-surfacing.test.ts`: two tests clicked
+    `[data-class="engineer"]` on the Hub's default (non-dev) Class row;
+    fb058's acceptance criteria ("exactly 3 classes are selectable in a
+    normal profile") makes Engineer's card simply not exist there any more,
+    so the old assertions fail on contact with any correct fb058
+    implementation, not because of an incidental extra edit. The file's own
+    docstring scopes it to Hub/class-panel/tooltip rendering (`fb022 Surface
+    1: class screen + in-run character panel show live numbers`) — it is a
+    Hub UI-behavior test that predates the 2026-09-03 lane split's
+    `tests/ui*` naming convention, not a shared-sim-core file the Scope
+    section is actually guarding.
+  Both edits are minimal (one fixture field; two test-fixture class keys
+  swapped from `engineer` to `plaguebringer`, the third normal-profile class)
+  and were re-verified as still green together with the full targeted set
+  before commit. Recorded here for main-lane awareness of a possible merge
+  overlap, per the Scope section's own instruction to log out-of-scope
+  touches.
