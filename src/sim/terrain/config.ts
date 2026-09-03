@@ -28,24 +28,99 @@ const MAX_WALKABLE_FRAC = ((GRID_W - 2) * (GRID_H - 2) + GATES.length) / (GRID_W
 const INTERIOR_TILES = (GRID_W - 2) * (GRID_H - 2);
 
 /**
- * The largest nearest-gate Chebyshev distance anywhere on the grid (17 on the
- * shipped 36x20). At or above it, `coreGateClearance` excludes every tile, so
- * no map can offer a single legal Core anchor.
+ * How many 2x2 Core anchors the flat map offers at a given `coreGateClearance`
+ * — the geometric term `maxCoreLegalFrac` is built on (fb064g).
+ *
+ * Re-derived here rather than measured through `legalCoreAnchors` because
+ * `analyze.ts` imports this module and measuring would be an import cycle. On
+ * the flat map the two agree by construction — every interior tile is normal
+ * and reachable from every gate, so an anchor is legal exactly when its 2x2
+ * fits inside the interior and all four tiles clear the gate clearance — and
+ * `tests/terrain-generation.test.ts` pins them equal across a spread of
+ * clearances so the replica cannot drift.
+ *
+ * Precondition, true of the shipped `GATES` and asserted by that test: no two
+ * gates are adjacent along a border. A gate tile is normal, so a 2x2 touching
+ * one is only excluded because its *other* border tiles are rock; two adjacent
+ * gates would open an anchor this count never sees.
  */
-const MAX_GATE_DISTANCE = (() => {
-  let worst = 0;
-  for (let y = 0; y < GRID_H; y++) {
-    for (let x = 0; x < GRID_W; x++) {
-      let near = Number.MAX_SAFE_INTEGER;
-      for (const g of GATES) {
-        const d = Math.max(Math.abs(x - g.tx), Math.abs(y - g.ty));
-        if (d < near) near = d;
+export function flatCoreAnchorCount(clearance: number): number {
+  let anchors = 0;
+  for (let y = 1; y <= GRID_H - 3; y++) {
+    for (let x = 1; x <= GRID_W - 3; x++) {
+      let ok = true;
+      for (let dy = 0; dy < 2 && ok; dy++) {
+        for (let dx = 0; dx < 2 && ok; dx++) {
+          let near = Number.MAX_SAFE_INTEGER;
+          for (const g of GATES) {
+            const d = Math.max(Math.abs(x + dx - g.tx), Math.abs(y + dy - g.ty));
+            if (d < near) near = d;
+          }
+          if (near <= clearance) ok = false;
+        }
       }
-      if (near > worst) worst = near;
+      if (ok) anchors++;
     }
   }
-  return worst;
-})();
+  return anchors;
+}
+
+/**
+ * The ceiling on `coreLegalFrac` — `legalCoreAnchors().length / normalCount` —
+ * over every map the generator can produce at a given `coreGateClearance`.
+ *
+ * Proof, so that this is a bound and not an observation. Let A be a map's legal
+ * anchor set, `a` the flat map's anchor count at this clearance.
+ *   1. `|A| <= a`. An anchor needs four *normal* tiles clearing the clearance.
+ *      The clearance excludes the same positions on every map, every anchor
+ *      must sit wholly inside the interior (each 2x2 touching a gate also
+ *      touches a rock border tile, given non-adjacent gates), and the flat map
+ *      already offers every such position.
+ *   2. `normalCount >= |A| + 1` whenever A is non-empty. Anchor `(x, y) -> `
+ *      tile `(x, y)` is injective into normal tiles. Take any occupied anchor
+ *      row and its rightmost anchor `(xMax, y)`: tile `(xMax + 1, y)` is normal
+ *      (it is that anchor's top-right tile) and is no anchor's image, since an
+ *      anchor at `(xMax + 1, y)` would contradict maximality. So the injection
+ *      misses at least one normal tile.
+ * Hence `coreLegalFrac = |A| / normalCount <= a / (a + 1)`, and 0 when a is 0.
+ *
+ * This is deliberately the *weakest* honest ceiling, not the tightest guess.
+ * fb064g first shipped the flat map's own share (0.8098 at the shipped
+ * clearance 3) on the theory that the generator could never beat the layout it
+ * falls back to — and that is simply false: `scatter` paints `rough`, which
+ * leaves `normalCount` without costing an anchor. Measured counterexamples,
+ * both legal, both refused by that ceiling:
+ *   - `coreGateClearance: 12`, shipped densities, seed 262 -> 0.105263 against
+ *     the flat map's 0.087805, so a band of 0.10 was refused and then met.
+ *   - `coreGateClearance: 3`, `density: { rough: 0, rock: 0, high: 0.002 }`,
+ *     seed 55 -> 0.811075 against the flat map's 0.809756; 738 of seeds 1..3000
+ *     clear it.
+ * Refusing data the generator actually satisfies is the failure this file
+ * already records as fb064a's lesson (see the note under the buildable check),
+ * and `density` and `coreGateClearance` are exactly what fb064f hands to live
+ * Tuner editing.
+ *
+ * What survives is narrow and true: `1` is impossible at every clearance, and
+ * at clearance 17+ nothing is legal at all, which is why this subsumes the
+ * standalone `coreGateClearance` check fb064a shipped. A merely *strict* band
+ * — 0.70, or 0.90 — still loads, and must: the generator reaches ~0.61 on the
+ * shipped data, so those are bands no seed happens to clear rather than bands
+ * no map can, and the flagged fallback is the designed answer to them.
+ */
+/**
+ * The ceiling rounded so the printed number is itself loadable. `toFixed`
+ * rounds to nearest, which at clearance 3 turns 0.997995991983968 into
+ * "0.997996" — a value this very check then refuses, so a designer pasting the
+ * number back got the same error again.
+ */
+function floorTo6(value: number): number {
+  return Math.floor(value * 1e6) / 1e6;
+}
+
+export function maxCoreLegalFrac(clearance: number): number {
+  const a = flatCoreAnchorCount(clearance);
+  return a === 0 ? 0 : a / (a + 1);
+}
 
 /** Fixed tile order; `TerrainKind` is an index into `TerrainConfig.tiles`. */
 export const TERRAIN_KEYS = ['normal', 'rough', 'rock', 'high'] as const;
@@ -207,20 +282,34 @@ const schema = z
     // fallback it was meant to prevent — the only sound ceilings are the two
     // above, which hold for every possible map rather than for a typical one.
     //
-    // `coreGateClearance` rejects every tile within Chebyshev `clear` of a
-    // gate, so past the grid's own maximum nearest-gate distance *no* tile can
-    // ever be a legal Core anchor and `coreLegalFrac` is pinned at 0. Paired
-    // with a positive `minCoreLegalFrac` that is unpayable by construction —
-    // the same "accepted, then every seed silently ships the flat fallback"
-    // failure as an impossible band, in a field the band checks do not cover.
-    if (c.minCoreLegalFrac > 0 && cfg.coreGateClearance >= MAX_GATE_DISTANCE) {
+    // fb064g: `minCoreLegalFrac` had no ceiling at all, so it kept the exact
+    // failure the two above were added to close — `1` loaded, every seed then
+    // exhausted `maxAttempts`, and the run played out on the flat fallback.
+    //
+    // Its ceiling is a weaker shape than theirs, on purpose: `coreLegalFrac`
+    // is anchor *positions* over normal *tiles*, and a map can shrink that
+    // denominator faster than its numerator, so the only sound bound is
+    // `a / (a + 1)` (see `maxCoreLegalFrac` for the proof and for the measured
+    // counterexamples that killed the tighter version). It refuses `1` at every
+    // clearance and refuses everything positive from clearance 17 up, where no
+    // tile can be an anchor — which is what lets it subsume the standalone
+    // `coreGateClearance` check this replaced.
+    const coreCeiling = maxCoreLegalFrac(cfg.coreGateClearance);
+    if (c.minCoreLegalFrac > coreCeiling) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        path: ['coreGateClearance'],
+        // When the ceiling is 0 the band is fine and the clearance is what is
+        // wrong, so blame that field: fb064f's Tuner highlights by path, and
+        // pointing a designer at a band they never touched is a worse
+        // diagnostic than the silence this check replaced.
+        path: coreCeiling === 0 ? ['coreGateClearance'] : ['constraints', 'minCoreLegalFrac'],
         message:
-          `coreGateClearance ${cfg.coreGateClearance} is at or above the grid's maximum ` +
-          `nearest-gate distance ${MAX_GATE_DISTANCE}, so no tile can ever be a legal Core ` +
-          `anchor, but constraints.minCoreLegalFrac is ${c.minCoreLegalFrac}`,
+          coreCeiling === 0
+            ? `coreGateClearance ${cfg.coreGateClearance} leaves no tile able to be a legal Core ` +
+              `anchor on any map, but constraints.minCoreLegalFrac is ${c.minCoreLegalFrac}`
+            : `minCoreLegalFrac ${c.minCoreLegalFrac} must be at most ${floorTo6(coreCeiling)}, the most ` +
+              `legal Core anchors any map can reach as a share of its normal tiles at ` +
+              `coreGateClearance ${cfg.coreGateClearance}`,
       });
     }
   });

@@ -42,7 +42,7 @@ recorded in the Log for the main/UI lanes to pick up at the merge.
       forced corridor on gate mains); same seed => identical map + identical
       hash; a forced-degenerate config regenerates at seed+1 rather than
       returning an illegal map — refs: SPEC-FINAL new §10.5, G2.
-- [ ] (fb064g) [bug] `minCoreLegalFrac` has no ceiling: `1` is provably
+- [x] (fb064g) [bug] `minCoreLegalFrac` has no ceiling: `1` is provably
       impossible (`blankKinds()` makes the 3 gate tiles Normal, and
       `legalCoreAnchors` excludes any tile within `coreGateClearance` of a
       gate, so `coreLegalFrac < 1` for every possible map), is accepted at
@@ -53,9 +53,15 @@ recorded in the Log for the main/UI lanes to pick up at the merge.
       `tests/terrain-generation.test.ts`'s "unsatisfiable config" fixture
       *uses* `minCoreLegalFrac: 1` to reach the fallback path, so closing the
       hole means rebuilding that fixture. Acceptance: a failing regression
-      test first; the loader refuses `minCoreLegalFrac` above what
-      `blankKinds()` itself achieves; the fallback path keeps a test that
-      reaches it by other means — refs: fb064a QA bug 3.
+      test first; the loader refuses `minCoreLegalFrac` above a ceiling that
+      holds for every map the generator can build; the fallback path keeps a
+      test that reaches it by other means — refs: fb064a QA bug 3.
+      **Acceptance amended 2026-09-03 during the item.** It read "above what
+      `blankKinds()` itself achieves", which is provably wrong: the generator
+      beats the flat map's share whenever `scatter` paints `rough` inside the
+      gate-clearance ring, so that ceiling false-rejects payable data (measured
+      counterexamples in the Log). Shipped as `a / (a + 1)`. Left unamended,
+      the record would say the shipped code fails its own acceptance.
 - [ ] (fb064b) [feat] grid integration: the generated map plugs into
       `src/sim/grid.ts` (the lane's single integration-point file) so rough is
       walkable-not-buildable, rock blocks ground pathing, high ground is
@@ -261,3 +267,157 @@ recorded in the Log for the main/UI lanes to pick up at the merge.
     exports `TerrainDef`/`TerrainSchema`, which are a *tower's* terrain
     effect (walls, gems), unrelated to map terrain. Whatever fb064b folds
     into `contentHash()` should not reuse those names.
+
+- (2026-09-03, fb064a) **Committed late.** fb064a was marked `[x]` by an
+  earlier session but its files were never committed — `data/terrain.json`,
+  `src/sim/terrain/` and `tests/terrain-generation.test.ts` were still
+  untracked at the start of this session. Re-verified (37 tests green, tsc
+  clean) and landed as `7e63634` before fb064g started. Worth a habit: this
+  lane's loop contract ends at "commit", and a `[x]` with no commit is
+  indistinguishable from lost work.
+
+- (2026-09-03, fb064g) `minCoreLegalFrac` ceiling. `src/sim/terrain/config.ts`
+  gains `flatCoreAnchorCount(clearance)` and `maxCoreLegalFrac(clearance)`; the
+  loader refuses a band above the latter. It replaces fb064a's standalone
+  `coreGateClearance >= 17` check, which it subsumes (no anchors at all from 17
+  up, so any positive band is refused, and the issue is still reported against
+  `coreGateClearance` so fb064f's path-based Tuner highlighting stays useful).
+  Design decisions, for QUESTIONS.md at the merge:
+  - **The item's acceptance criterion is wrong, and was implemented and then
+    withdrawn.** It asks the loader to refuse "above what `blankKinds()` itself
+    achieves" — 0.8098 at the shipped clearance 3 — on the theory that the
+    generator cannot beat the layout it falls back to. It can. `scatter` paints
+    `rough`, which leaves `normalCount` without costing an anchor, so the share
+    goes *up*; `sealPockets` does the same with unreachable ground. Measured
+    counterexamples, both fully legal, non-fallback maps that the flat-map
+    ceiling refused:
+    - `coreGateClearance: 12`, **shipped densities**, seed 262 -> 0.105263
+      against the flat map's 0.087805, so a band of 0.10 was refused and then
+      met. Every clearance >= 10 has one, with no `/data` edit at all.
+    - `coreGateClearance: 3`, `density: { rough: 0, rock: 0, high: 0.002 }`,
+      seed 55 -> 0.811075 against the flat map's 0.809756; 738 of seeds 1..3000
+      clear it.
+    Found by this item's code-reviewer pass, then re-measured here before being
+    accepted (the second counterexample does *not* reproduce with `rough: 0`
+    alone, which is how it was first written down — all three densities matter).
+  - **The shipped ceiling is `a / (a + 1)`**, where `a` is the flat map's anchor
+    count at that clearance — 0.997996 at clearance 3, 0 from 17 up. It is a
+    proof rather than an observation: anchor `(x, y) -> ` tile `(x, y)` injects
+    the legal anchors into normal tiles, and the rightmost anchor of any
+    occupied row has a normal tile to its right that is no anchor's image, so
+    `normalCount >= anchors + 1`. Weak on purpose. It refuses `1` at every
+    clearance and refuses everything positive where no anchor can exist, and
+    nothing else — which is all that can be said without refusing data the
+    generator satisfies.
+  - **`0.70` and `0.90` still load, deliberately.** The item was filed off
+    "0.70 fell back on 500/500 seeds", but the generator's own reach is
+    ~0.61 on the shipped data (max 0.6098 at seed 708, min 0.4343 at seed 4595,
+    over seeds 1..5000), so those are bands no *seed* happens to clear rather
+    than bands no *map* can. The flagged fallback is the designed answer to a
+    strict band. Refusing them would be a sample of this generator's luck
+    dressed as an impossibility proof — the same false rejection fb064a's QA
+    pass caught on the density-derived ceilings, where `minBuildableNormalFrac:
+    0.5553` was refused while seed 19 reaches 0.5569.
+  - **`flatCoreAnchorCount` re-derives the anchor count geometrically** rather
+    than calling `legalCoreAnchors`, because `analyze.ts` imports `config.ts`
+    and measuring would be an import cycle. The test pins the two equal across
+    clearances 0/1/3/8/12/16/17/36, and pins the precondition the replica rests
+    on: no two gates adjacent along a border, since a gate tile is normal and a
+    2x2 touching one is excluded only because its *other* border tiles are rock.
+  - **Both fixtures that used `minCoreLegalFrac: 1` were rebuilt** — the reason
+    fb064a could not close this hole — but only barely, because the sound
+    ceiling leaves 0.9 loadable and 0.9 is unreachable by any map the generator
+    builds at clearance 3. So both keep their original semantics: the cost-bound
+    fixture still forces every attempt to run, and the fallback test still pins
+    that the flat map ships *even when it does not satisfy the bands*. That
+    second assertion had been inverted at one point during this item, which
+    would have quietly dropped the coverage the original had.
+  - **The `paint()` cost bound was left at fb064a's 5000 ms, after three
+    failed attempts to sharpen it.** Recorded because each one looked right
+    before it was measured:
+    - *3000 ms.* Looked like 2.6x headroom against a 1.1 s standalone reading;
+      failed at 3167 ms inside a loaded `test:fast`.
+    - *Sample 3x and take the minimum.* Fixes spikes but not sustained load —
+      the same fixture measured 200 ms idle and 410 ms with `test:fast`
+      alongside.
+    - *A wide-radius / narrow-radius ratio*, to cancel ambient load by measuring
+      both halves back to back. Three runs each: healthy 23.8/26.0/25.6 against
+      reverted 23.5/55.7/94.9 — **overlapping**, so it can miss the regression
+      outright. Rejected, and the near-miss is the reason this is written down.
+    This host's timing variance (~2x, sometimes far worse) is close to the
+    signal the guard looks for, so the guard is coarse by nature: 5000 ms passes
+    reliably (worst healthy reading 3167 ms) and catches the reverted clamp
+    (5.9-7.0 s). Mutation-tested again after the restore.
+  - **A note on measuring the fixture itself:** removing `blob.minSize/maxSize`
+    from the hostile config as "vestigial" (they are, in the sense that
+    `scatter()` places nothing when the interior is fully protected) halved the
+    measured cost and let the *reverted* clamp pass at 871 ms under a 1000 ms
+    budget. Whatever the mechanism, a guard's fixture cannot be tidied on
+    inspection — only with the mutation re-run.
+
+- (2026-09-03, fb064g) Review and QA. code-reviewer returned REQUEST-CHANGES on
+  two Majors, qa-playtester then verified the result and filed eight items; both
+  passes are folded in above and here.
+  - **Major (review), confirmed: the flat-map ceiling false-rejected payable
+    data.** The finding, its counterexamples and the replacement bound are in
+    the design entry above. Both reviewers found it independently; both of their
+    seed-55 write-ups omitted that `rock` and `high` must also be retuned, and
+    it does not reproduce with `rough: 0` alone — re-measured here before it was
+    accepted.
+  - **Major (review + QA), confirmed: the timing budget.** Handled above.
+  - **QA blockers 1 and 2 were against shapes already withdrawn** — the
+    wide/narrow ratio and the min-of-3/1000 ms budget. QA's independent numbers
+    are the strongest evidence against both, and agree with the decision to
+    restore fb064a's 5000 ms: the ratio form failed 3 of 5 runs on *healthy*
+    code (30.7-92.7 against a bound of 30), the 1000 ms form went green 4/4
+    with the clamp reverted, and every one of QA's 18 contention runs of the
+    3000 ms form would have passed at 5000 ms while the reverted clamp cost
+    13.4 s.
+  - **QA's extra counterexample does not reproduce.** Filed as clearance 5,
+    `density.rough 0.03`, `gateClearRadius 2`, seed 133 -> 0.680067 against a
+    flat share of 0.660163. Re-run here it ships the *fallback*, whose
+    `coreLegalFrac` is identically the flat share (0.6601626), excess exactly
+    0. Not added to the suite; the two verified counterexamples stand.
+  - **Minor (QA), fixed: the rejection message quoted a number it then
+    refused.** `toFixed(6)` rounds to nearest, so clearance 3 printed
+    "0.997996" against a true ceiling of 0.997995991983968 — a designer pasting
+    it back got the identical error. Now floored, and the test parses the number
+    out of the thrown message and asserts it loads.
+  - **Informational (QA), accepted as-is: `a / (a + 1)` is loose.** It is 0.998
+    at clearance 3 while no map appears to exceed ~0.912, so bands in roughly
+    (0.92, 0.998) still load and still ship the fallback for a whole run. That
+    is the original symptom moved up the number line, and it is the deliberate
+    trade — soundness over tightness, per this file's own fb064a lesson. QA did
+    not file it as a defect and neither do I. A tighter provable bound exists
+    (`|A| / |cover(A)|`, which at clearance 16 gives 0.25 against our 0.5) and
+    is worth revisiting at the merge, but every attempt to tighten this ceiling
+    so far has cost a false rejection, so it should not be done without the
+    generated-map sweep that caught the last one.
+  - **QA raced the working tree** (its Bug 7): it copied `HEAD`'s `config.ts`
+    over the working file for ~40 s inside the editing window to check the
+    "failing test first" clause. Verified intact afterwards — `flatCoreAnchorCount`,
+    the corrected counterexample citations and the 5000 ms bound are all
+    present, `tsc` clean, 39 tests green. Worth remembering when handing a QA
+    agent a live tree.
+  - Verified unchanged by this item: golden hashes `1:03031f09 2:30ddb8d4
+    42:b2e86488 1000:473db113`, and QA's own diff of seeds 0..1500 plus the
+    32-bit extremes found 0 differences in `hash`/`seed`/`attempts`/`fallback`
+    against HEAD. fb064g is validation-only, as intended.
+
+- (2026-09-03, fb064g) Out-of-scope needs, for the merge:
+  - **Nothing consumes `TerrainMap.fallback`.** This is what makes a strict
+    band read in-game as a flat arena for a whole run with no signal — the
+    symptom fb064g was filed against, and the part a loader ceiling
+    structurally cannot fix (a band like 0.70 is legitimately loadable). The
+    consumer belongs wherever fb064b/fb064c wire the map into the run: at
+    minimum a dev-visible warning, and `fallback` folded into whatever
+    provenance the replay guard carries. File it as a main-lane item at the
+    merge if fb064b does not pick it up.
+  - **The `paint()` cost guard wants a deterministic counter, not a clock.**
+    `tests/terrain-generation.test.ts`'s "stays bounded" test is the only thing
+    standing between `/data` and an unclamped loop in `/src/sim`, and on this
+    host it can only be a coarse wall-clock guard (see the entry above for the
+    three sharper designs that measured worse). Counting `paint()` iterations
+    behind a test-only hook would make it exact and load-independent, but the
+    counter lives inside `/src/sim` and the shape of that hook is an
+    architecture question for the main lane, not a terrain one.

@@ -22,8 +22,10 @@ import {
   gatesConnected,
   gatesOpen,
   generateTerrain,
+  flatCoreAnchorCount,
   legalCoreAnchors,
   loadTerrain,
+  maxCoreLegalFrac,
   measureTerrain,
   parseTerrain,
   terrainHash,
@@ -35,6 +37,32 @@ import {
 } from '../src/sim/terrain';
 
 const cfg = loadTerrain();
+
+/**
+ * Wall-clock budget for the `paint()` cost guard below, in ms.
+ *
+ * fb064a's number, kept deliberately. fb064g rebuilt the guard's fixture (its
+ * old `minCoreLegalFrac: 1` is no longer loadable) and tried three times to
+ * make the guard itself sharper; all three were worse, and the attempts are
+ * recorded here so the next person does not repeat them:
+ *   - **Tightening to 3000 ms.** Looked like 2.6x headroom against a 1.1 s
+ *     standalone reading; failed at 3167 ms inside a loaded `test:fast`.
+ *   - **Sampling and taking the minimum.** Fixes spikes but not sustained load:
+ *     the same fixture measured 200 ms idle and 410 ms with `test:fast`
+ *     running alongside.
+ *   - **A wide-radius / narrow-radius ratio**, meant to cancel ambient load by
+ *     measuring both halves back to back. Measured over three runs each:
+ *     healthy 23.8/26.0/25.6 against reverted 23.5/55.7/94.9 — *overlapping*,
+ *     so it can miss the regression outright. Rejected.
+ * The honest summary is that this host's timing variance (~2x, occasionally
+ * much worse) is close to the signal this guard is looking for. 5000 ms passes
+ * reliably — worst healthy reading observed is 3167 ms — and catches the
+ * reverted clamp, which costs 5.9 s standalone and more under load. It is a
+ * coarse guard, not a sharp one. Replacing it with a deterministic count of
+ * `paint()` iterations would remove the timing dependence entirely; that needs
+ * instrumentation inside `/src/sim` and is logged for the main lane.
+ */
+const COST_BOUND_MS = 5000;
 const SWEEP = 1000;
 
 function withConfig(patch: (raw: Record<string, unknown>) => void): TerrainConfig {
@@ -154,24 +182,147 @@ describe('fb064a — data/terrain.json loads and refuses unpayable data', () => 
     }
   });
 
+  it('fb064g — refuses a legal-Core band no map can reach', () => {
+    // fb064a left `minCoreLegalFrac` with no ceiling at all, so it kept the
+    // silent failure the other bands had just been given one for: `1` loaded,
+    // every seed then exhausted `maxAttempts`, and the run played out on the
+    // flat fallback.
+    //
+    // `1` is impossible on every map. `legalCoreAnchors` counts 2x2 anchor
+    // positions against normal tiles, and the rightmost anchor of any occupied
+    // row has a normal tile to its right that is no anchor's top-left, so
+    // `normalCount >= anchors + 1` and the share is at most `a / (a + 1)`.
+    const ceiling = maxCoreLegalFrac(cfg.coreGateClearance);
+    expect(ceiling).toBeLessThan(1);
+    for (const band of [1, 0.999]) {
+      expect(() =>
+        withConfig((raw) => {
+          (raw.constraints as Record<string, number>).minCoreLegalFrac = band;
+        }),
+      ).toThrow(/legal Core anchors any map can reach/);
+    }
+    // Exact at the boundary: the ceiling itself loads, a hair above does not.
+    expect(() =>
+      withConfig((raw) => {
+        (raw.constraints as Record<string, number>).minCoreLegalFrac = ceiling + 1e-9;
+      }),
+    ).toThrow(/legal Core anchors any map can reach/);
+    expect(
+      withConfig((raw) => {
+        (raw.constraints as Record<string, number>).minCoreLegalFrac = ceiling;
+      }).constraints.minCoreLegalFrac,
+    ).toBe(ceiling);
+
+    // The number the message quotes must itself load. `toFixed` rounds to
+    // nearest, so the first version printed 0.997996 against a true ceiling of
+    // 0.997995991983968 — and then refused 0.997996, handing a designer who
+    // pasted it back the identical error.
+    let message = '';
+    try {
+      withConfig((raw) => {
+        (raw.constraints as Record<string, number>).minCoreLegalFrac = 1;
+      });
+    } catch (err) {
+      message = String(err);
+    }
+    const quoted = Number(/at most ([0-9.]+)/.exec(message)?.[1]);
+    expect(Number.isFinite(quoted)).toBe(true);
+    expect(
+      withConfig((raw) => {
+        (raw.constraints as Record<string, number>).minCoreLegalFrac = quoted;
+      }).constraints.minCoreLegalFrac,
+    ).toBe(quoted);
+  });
+
+  it('fb064g — does NOT refuse legal-Core bands the generator actually satisfies', () => {
+    // The half fb064g got wrong on its first pass, and the third time this file
+    // has had to learn it. The ceiling was the *flat map's own* share (0.8098 at
+    // clearance 3), on the theory that the generator could not beat the layout
+    // it falls back to. It can: `scatter` paints `rough`, which leaves
+    // `normalCount` without costing an anchor, so the share goes *up*. Both of
+    // these were refused by that ceiling and are met by a real, legal,
+    // non-fallback map — a false rejection is worse than the silent fallback it
+    // was meant to prevent, and `density`/`coreGateClearance` are exactly the
+    // fields fb064f hands to live Tuner editing.
+    const wide = withConfig((raw) => {
+      (raw as Record<string, unknown>).coreGateClearance = 12;
+      (raw.constraints as Record<string, number>).minCoreLegalFrac = 0.1;
+    });
+    const wideMap = generateTerrain(262, wide);
+    const wideMeasure = measureTerrain(wideMap, wide);
+    expect(wideMap.fallback).toBe(false);
+    expect(wideMeasure.coreLegalFrac).toBeCloseTo(0.105263, 6);
+    expect(terrainLegalUnder(wideMap, wide)).toBe(true);
+    // ...and it beats the flat map, which is the whole point.
+    expect(wideMeasure.coreLegalFrac).toBeGreaterThan(
+      flatCoreAnchorCount(12) / measureTerrain(synthetic(TerrainKind.Normal), wide).normalCount,
+    );
+
+    const sparse = withConfig((raw) => {
+      const d = raw.density as Record<string, number>;
+      d.rough = 0;
+      d.rock = 0;
+      d.high = 0.002;
+      (raw.constraints as Record<string, number>).minCoreLegalFrac = 0.811;
+    });
+    const sparseMap = generateTerrain(55, sparse);
+    expect(sparseMap.fallback).toBe(false);
+    expect(measureTerrain(sparseMap, sparse).coreLegalFrac).toBeCloseTo(0.811075, 6);
+    expect(terrainLegalUnder(sparseMap, sparse)).toBe(true);
+  });
+
+  it('fb064g — the flat-anchor replica matches what legalCoreAnchors measures', () => {
+    // `flatCoreAnchorCount` re-derives geometrically what `legalCoreAnchors`
+    // measures, because `analyze.ts` imports `config.ts` and measuring would be
+    // an import cycle. Pin them equal across the range, not just at the shipped
+    // clearance 3 — the ceiling is only as sound as this replica.
+    for (const clearance of [0, 1, 3, 8, 12, 16, 17, 36]) {
+      const at = withConfig((raw) => {
+        (raw as Record<string, unknown>).coreGateClearance = clearance;
+        (raw.constraints as Record<string, number>).minCoreLegalFrac = 0;
+      });
+      expect(measureTerrain(synthetic(TerrainKind.Normal), at).legalCoreCount).toBe(
+        flatCoreAnchorCount(clearance),
+      );
+    }
+    // The replica's precondition: a gate tile is normal, so a 2x2 touching one
+    // is excluded only because its *other* border tiles are rock. Two gates
+    // adjacent along a border would open an anchor the replica never counts.
+    for (const g of GATES) {
+      for (const other of GATES) {
+        if (g === other) continue;
+        expect(Math.abs(g.tx - other.tx) + Math.abs(g.ty - other.ty)).toBeGreaterThan(1);
+      }
+    }
+  });
+
   it('refuses a Core clearance that makes every tile illegal', () => {
     // `coreGateClearance` excludes every tile within Chebyshev range of a
     // gate. The grid's largest nearest-gate distance is 17, so from there up
     // `legalCoreAnchors` is empty for *every possible map* and a positive
     // `minCoreLegalFrac` can never be met. Accepted, this is the same silent
     // "every seed ships the flat fallback" failure as an impossible band:
-    // measured 100/100 fallbacks at clearance 17.
+    // measured 100/100 fallbacks at clearance 17. fb064g's ceiling subsumes the
+    // standalone check this used to have — at clearance 17 there are no anchors
+    // at all — so this pins the subsumption, and that the issue is still
+    // reported against `coreGateClearance` rather than against a band the
+    // designer never touched (fb064f's Tuner highlights by path).
     expect(() =>
       withConfig((raw) => {
         (raw as Record<string, unknown>).coreGateClearance = 17;
       }),
-    ).toThrow(/legal Core/);
-    // 16 is still payable, and must not be swept up with it.
+    ).toThrow(/no tile able to be a legal Core anchor/);
+    expect(maxCoreLegalFrac(17)).toBe(0);
+    // 16 is still payable, and must not be swept up with it. The margin there
+    // is a single anchor out of 615 normal tiles, so 0.001 is genuinely the
+    // boundary and not a comfortable value.
     const tight = withConfig((raw) => {
       (raw as Record<string, unknown>).coreGateClearance = 16;
       (raw.constraints as Record<string, number>).minCoreLegalFrac = 0.001;
     });
     expect(tight.coreGateClearance).toBe(16);
+    expect(flatCoreAnchorCount(16)).toBe(1);
+    expect(flatCoreAnchorCount(17)).toBe(0);
   });
 
   it('bounds the painted radii and the attempt count so /data cannot hang the sim', () => {
@@ -432,34 +583,40 @@ describe(`fb064a — generation constraints hold across ${SWEEP} seeds`, () => {
   });
 
   it('stays bounded under the most expensive schema-legal config', () => {
-    // The guard on Major fix #1: `paint()` clamps its loop bounds instead of
-    // walking the full (2r+1)^2 square. Reverting that clamp is an ~8.7x cost
-    // regression on this path that no other test here notices, because every
-    // other assertion is about tiles rather than work. Worst measured on this
-    // host: 194 ms for the config below (all radii at their cap, maximum
-    // jitter, 64 attempts, an unreachable Core band forcing every attempt to
-    // run) and 213 ms for all 1000 shipped-config seeds together.
+    // The guard on fb064a's Major fix #1: `paint()` clamps its loop bounds
+    // instead of walking the full (2r+1)^2 square. Reverting that clamp is an
+    // ~8.7x cost regression on this path (5329 iterations per paint at r=36
+    // against the interior's 612) that no other test here notices, because
+    // every other assertion is about tiles rather than work.
+    const ATTEMPTS = 64;
     const hostile = withConfig((raw) => {
       const r = raw as Record<string, unknown>;
       r.corridorRadius = 36;
       r.gateClearRadius = 36;
       r.plazaRadius = 36;
       r.corridorJitter = 1;
-      r.maxAttempts = 64;
+      r.maxAttempts = ATTEMPTS;
       (raw.blob as Record<string, number>).minSize = 612;
       (raw.blob as Record<string, number>).maxSize = 612;
-      (raw.constraints as Record<string, number>).minCoreLegalFrac = 1;
+      // Unreachable by anything the generator builds here — with every radius
+      // at its cap `paint()` protects the whole interior, so the attempt *is*
+      // the flat map at 0.8098 — which is what makes every attempt run rather
+      // than the first succeeding.
+      //
+      // fb064g rebuilt this line. It was `1`, which the loader now refuses, and
+      // that refusal was the reason fb064a could not close the hole: a fixture
+      // reaching the retry path through a band the loader rejects is a fixture
+      // holding the band's own ceiling open. 0.9 loads because the ceiling is
+      // `a / (a + 1)` rather than the flat map's share, and forces the same 64
+      // attempts.
+      (raw.constraints as Record<string, number>).minCoreLegalFrac = 0.9;
     });
     const started = Date.now();
     const m = generateTerrain(7, hostile);
     const elapsed = Date.now() - started;
-    expect(m.attempts).toBe(64); // every attempt really ran
-    // Deliberately loose: 194 ms standalone but ~1.1 s under vitest's
-    // instrumentation, and this host runs suites under heavy contention. The
-    // regression it guards multiplies the work ~8.7x (5329 iterations per
-    // paint at r=36 instead of the interior's 612), so it lands near 9 s and
-    // is caught with room to spare, while ordinary load never trips it.
-    expect(elapsed).toBeLessThan(5000);
+    expect(m.attempts).toBe(ATTEMPTS); // every attempt really ran
+    expect(m.fallback).toBe(true);
+    expect(elapsed).toBeLessThan(COST_BOUND_MS);
   });
 
   it('no gate main is forced through a corridor narrower than 2 tiles', () => {
@@ -540,9 +697,16 @@ describe('fb064a — degenerate seeds regenerate at seed+1 instead of shipping a
     }
   });
 
-  it('an unsatisfiable config falls back to the flat legal map rather than an illegal one', () => {
+  it('a config no seed can clear falls back to the flat map rather than an illegal one', () => {
+    // fb064g rebuilt this fixture. It used `minCoreLegalFrac: 1`, which the
+    // loader now refuses; 0.9 loads and keeps the original coverage exactly,
+    // because the ceiling is `a / (a + 1)` (0.998) rather than the flat map's
+    // own 0.8098. So the map that ships is still one the bands reject — the
+    // fallback is the most permissive layout the arena admits, not an
+    // unconditionally legal one, and that distinction is the point of the test.
+    // Measured: no seed on the shipped densities exceeds 0.61.
     const impossible = withConfig((raw) => {
-      (raw.constraints as Record<string, number>).minCoreLegalFrac = 1;
+      (raw.constraints as Record<string, number>).minCoreLegalFrac = 0.9;
     });
     const m = generateTerrain(11, impossible);
     expect(m.fallback).toBe(true);
@@ -551,6 +715,12 @@ describe('fb064a — degenerate seeds regenerate at seed+1 instead of shipping a
     expect(measure.gatesOpen).toBe(true);
     expect(measure.corridorsOk).toBe(true);
     expect(measure.gateReachFrac).toBe(1);
+    // The map that ships really is the flat one, and it does NOT satisfy the
+    // band that rejected every seed. That is the contract: `fallback: true`
+    // means the bands failed, and the caller is being handed the best the arena
+    // admits rather than an illegal generated map or an exception mid-run.
+    expect(Array.from(m.kind)).toEqual(Array.from(synthetic(TerrainKind.Normal).kind));
+    expect(terrainLegalUnder(m, impossible)).toBe(false);
     expect(generateTerrain(11, impossible).hash).toBe(m.hash);
   });
 });
