@@ -1821,6 +1821,39 @@ duplication as a drift risk worth a future de-dup).
       12 classes' win rate out of `p10t`'s closed `[35%,70%]` band (re-run
       both together) — refs: SPEC-FINAL §14 G8, `b027`, HANDOFF §6 item 3.
 
+      **Session update (2026-09-03) — genuine wall confirmed, same family as
+      `p10z`/Q160, acceptance not met, escalated as Q161.** Delegated to
+      balance-analyst: measured every class's own-kit damage share (Active1/
+      Active2/passive/basic-attack vs. `MATERIALITY_SHARE` 20%) under the real
+      `scriptClassKit`/`TREE_AUTO_MAX` harness — baseline **0.2%-8.2%** across
+      the 9 failing classes, because the two shared towers every hybrid build
+      fields (`ballista`/`frost_obelisk`) alone total ~50-70M raw damage over
+      an 18-wave T1 run. Closing the 20% floor needed per-class kit-damage
+      multipliers of **9x-200x** authored values (full table in QUESTIONS
+      Q161), and two probes broke gates that are currently green for
+      unrelated reasons: archer's `active1.damage` past ~2.6x fails G10's
+      `tests/p6d-nine-classes.test.ts` one-shot-under-toughest-HP pin
+      (confirmed live); swordsman's Active `damage` past ~1000 fails two
+      `tests/p6b-swordsman.test.ts` 1000-HP-dummy-survives-one-hit pins
+      (confirmed live, both). Stitching around both to still reach exactly
+      9/12 needed even more extreme compensating multipliers elsewhere —
+      technically clears the numeric bar but produces data 9x-200x its
+      spec-authored magnitude (a swordsman basic attack outdamaging entire
+      tower arrays), the same "obviously wrong data value" pattern Q158-Q160
+      already rejected for the sibling win-rate axis. `animist`'s own probe
+      (Manifest `summonStatMul` 133x) was strictly worse than doing nothing —
+      4.4% own-share (still short of 20%) plus 4/12 seeds newly timing out —
+      reverted. All edits reverted (`git diff --stat -- data/` empty, no
+      scratch files left). Filed **QUESTIONS Q161** rather than landing any
+      of the above or lowering the band myself, same reasoning `p10z`/Q160
+      already used (G8's band isn't marked ⚖ or `[designer-fill]`, §17's
+      owner-veto list doesn't name it). This item stays open, blocked on that
+      verdict — not a fifth `/data`-only session per CLAUDE.md rule 6, since
+      the evidence (own-kit share pinned 1-2 orders of magnitude below the
+      shared-tower floor, with two independently-broken gates along the way)
+      is already as decisive as Q160's four-session finding on its first
+      attempt.
+
 - [ ] (p10v) [chore] Time Lord (the 12th class, added at `fb013`) has never
       had its own individual G8 win-rate band assertion — it rides along in
       `tests/p6e-class-diversity.test.ts`'s 12-class `measurements` sweep and
