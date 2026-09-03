@@ -209,7 +209,7 @@ import { loadContent, type ClassDef } from '../src/sim/content';
 import { allTreeNodeIds } from '../src/meta/meta';
 import type { RunConfig, RunReport, TickInput } from '../src/sim/types';
 import type { World } from '../src/sim/world';
-import { cfg } from './helpers';
+import { cfg, classifyMargin, summarizeMargins } from './helpers';
 
 const content = loadContent();
 const SEEDS = Array.from({ length: 12 }, (_, i) => i + 1);
@@ -380,6 +380,8 @@ interface ClassMeasurement {
   /** ownDamage total / allDamage total. */
   ownShare: number;
   topLabel: string;
+  /** p10z: every seed's raw report, kept so a retune probe can classify margin (`classifyMargin`/`summarizeMargins`, `tests/helpers.ts`) without a second sweep. */
+  reports: RunReport[];
 }
 
 function sumValues(rec: Record<string, number>): number {
@@ -434,12 +436,23 @@ beforeAll(() => {
     if (!cls) throw new Error(`${key}: expected a §4 class`);
     let wins = 0;
     const outcomes: string[] = [];
+    const reports: RunReport[] = [];
     const ownDamage: Record<string, number> = {};
     const allDamage: Record<string, number> = {};
     for (const seed of SEEDS) {
       const report = runClassScripted(key, seed);
+      reports.push(report);
       if (report.outcome === 'victory') wins++;
-      outcomes.push(`${seed}:${report.outcome === 'running' ? 'timeout' : report.outcome}/w${report.wavesCleared}`);
+      // p10z: margin, not just outcome — a "landslide" win (Core HP still
+      // high) reads very differently from a "close" one, and an early loss
+      // (before the roster's own wave-11-to-17 contested band) reads
+      // differently from a loss inside it. See `classifyMargin`'s own doc
+      // comment (`tests/helpers.ts`) for why bare win/loss couldn't
+      // discriminate these (BACKLOG p10z, QUESTIONS Q158/Q159).
+      const margin = classifyMargin(report);
+      outcomes.push(
+        `${seed}:${report.outcome === 'running' ? 'timeout' : report.outcome}/w${report.wavesCleared}/${margin.kind}`,
+      );
       // A `'running'` (tick-cap timeout) seed never reached a real end state,
       // so its damage tally covers a much longer, incomparable window than a
       // terminating seed's — excluded from both records rather than folded
@@ -455,14 +468,17 @@ beforeAll(() => {
     const ownShare = allTotal > 0 ? ownTotal / allTotal : 0;
     const topLabel =
       ownShare >= MATERIALITY_SHARE ? describeSource(cls, argmaxKey(ownDamage)) : argmaxKey(allDamage);
-    measurements.set(key, { key, cls, wins, outcomes, ownDamage, allDamage, ownShare, topLabel });
+    measurements.set(key, { key, cls, wins, outcomes, ownDamage, allDamage, ownShare, topLabel, reports });
   }
 }, 6_000_000);
 
 describe('p6e: G8 measured as a live test over the seed set (SPEC-FINAL §4, §14)', () => {
   function detail(key: string): string {
     const m = measurements.get(key)!;
-    return `${m.wins}/${SEEDS.length} — ${m.outcomes.join(' ')} — top: ${m.topLabel}`;
+    return (
+      `${m.wins}/${SEEDS.length} — ${m.outcomes.join(' ')} — top: ${m.topLabel}` +
+      ` — margins: ${summarizeMargins(m.reports)}`
+    );
   }
 
   function assertBand(key: string): void {

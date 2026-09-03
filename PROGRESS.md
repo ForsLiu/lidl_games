@@ -5,6 +5,62 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-03 session: `p10z` — margin-classification harness landed
+  (`classifyMargin`/`summarizeMargins`, `tests/helpers.ts`), a fresh
+  `/data`-only retune pass run against it, acceptance not met — a deeper,
+  mechanistically-evidenced wall than `p10t`'s, plus a new G23 harness bug
+  found along the way.** `classifyMargin` classifies an already-finished
+  `RunReport` (no engine change — `outcome`/`coreHp`/`coreMaxHp`/
+  `wavesCleared` already existed) into `'landslide-win'` (victory, Core HP
+  >=50% of max — the lever never seriously contested this seed), `'close-win'`
+  (victory, Core HP scraped under 50%), `'contested-loss'` (a defeat at/past
+  the roster's own established wave-11-to-17 wall — a real fight),
+  `'early-loss'` (a defeat before it — an unrelated one-off), or `'timeout'`.
+  Wired into `tests/p6e-class-diversity.test.ts` (G8) and `tests/
+  p-core-f-gates.test.ts` (G23)'s diagnostic strings, no assertion logic
+  touched. Direction (c) from `p10z`'s own acceptance text (swap
+  `TREE_AUTO_MAX`'s full-tree allocation for a partial/realistic profile) was
+  checked, not assumed away, and rejected: `TREE_AUTO_MAX` is real production
+  behavior (`src/meta/meta.ts`), every Hub-started run plays with it, so a
+  partial-tree harness would measure a shape no real player has — logged in
+  BACKLOG p10z's own entry per the item's instruction to record the pick.
+  code-reviewer **APPROVE** (3 Minor/Nit, none blocking). qa-playtester
+  **PASS** (diff scoped to exactly the three claimed files, `/data` diff
+  empty, `npm run test:fast` shows only pre-existing environment flakes,
+  `classifyMargin` live-verified against real engine `RunReport`s).
+  balance-analyst then spent the instrumented harness on the retune itself.
+  Fresh baseline: **G1** 21/24 (87.5%), every win `landslide-win` (54-86%
+  Core HP), zero `close-win`/`contested-loss`. **G14** 20/20 (100%), all
+  `landslide-win`. **G8** net **1/12** in band (`bloodlord` only); every other
+  class on a 57-100%+ landslide floor except `necromancer` (31.4% floor, the
+  roster's one real 7-landslide/5-close-win split). **G23** net **0/5**;
+  floors from 10.2% (`time`, closest to a real contest) to 73.4%
+  (`carnivorous_plant`, deep landslide). Four more distinct probes (full
+  numbers in BACKLOG p10z/QUESTIONS Q160): a smaller repeat of `p10t`'s dead
+  `hpScalePerMinute` lever (still dead); a brand-new lever, `enemies.json`
+  `coreDamage` (untried by `p10r`/`p10s`/`p10t`), which showed real
+  elasticity on a previously-untouchable cell for the first time in four
+  sessions (`animist` moved into band at x1.3) but regressed G1 at that
+  magnitude, and escalating to x1.6 to fix G1 pushed `animist` back out while
+  regressing two Cores — net zero gate-pass change at either magnitude; and a
+  `time`-Core aura-decay cut with zero measured elasticity. All four reverted,
+  `git diff -- data/` confirmed empty. **New structural finding**: G23's
+  `winRate()` hard-throws on the first timeout seed instead of counting it as
+  a non-win like G8's loop already does — `stone_heart`/`corpse`/`time` all
+  carry a baseline timeout, so G23 can never measure 3 of its 5 Cores as
+  currently written, independent of tuning. Filed as its own small item,
+  **p11a**. Fifteen independent `/data`-only probes across four sessions
+  (`p10r`/`p10s`/`p10t`/`p10z`) now point at the same mechanism: most of the
+  roster wins by a margin no single shared axis reaches without an
+  equal-and-opposite cost elsewhere. Logged the owner escalation as
+  **QUESTIONS Q160** rather than lowering G8/G23's band myself (same
+  SPEC-FINAL §14/§17 reasoning `p10t`'s Q159 already used). `p10z` stays open
+  in BACKLOG — its 9/12+3/5 acceptance bar wasn't met — but its actual scope
+  (the harness discrimination signal) is done; committed as
+  `tests/helpers.ts`/`tests/p6e-class-diversity.test.ts`/
+  `tests/p-core-f-gates.test.ts` plus this session's BACKLOG/QUESTIONS
+  updates.
+
 - **2026-09-03 session: `p10t` closed — genuine `/data`-only wall confirmed
   under p10s's fixed harness, not just the harness asymmetry; 5 new items
   filed, `p10z` filed as the successor.** Completion check: BACKLOG.md was

@@ -1693,6 +1693,127 @@ fresh number.
       out of band — refs: SPEC-FINAL §14 G1/G8/G14/G23, QUESTIONS Q158/Q159,
       BACKLOG p10r/p10s/p10t.
 
+      **Session update (2026-09-03) — harness landed (direction (a) from this
+      item's own text, confirmed by a fresh measurement that direction (c)
+      doesn't apply), retune pass run against it, acceptance not met — a
+      deeper wall than `p10t`'s, now with mechanistic evidence why.**
+      `classifyMargin`/`summarizeMargins` (`tests/helpers.ts`) classify an
+      already-finished `RunReport` (no engine change — `outcome`/`coreHp`/
+      `coreMaxHp`/`wavesCleared` already existed) into `'landslide-win'`
+      (victory, Core HP >=50% of max — the lever never seriously contested
+      this seed), `'close-win'` (victory, Core HP scraped under 50%),
+      `'contested-loss'` (a defeat at/past TD wave 10, inside the roster's
+      own established wave-11-to-17 wall — a real fight), `'early-loss'` (a
+      defeat before wave 10 — an unrelated one-off), or `'timeout'`. Wired
+      into `tests/p6e-class-diversity.test.ts` (G8) and `tests/
+      p-core-f-gates.test.ts` (G23)'s per-seed diagnostic strings, no
+      assertion logic changed. code-reviewer **APPROVE** (3 Minor/Nit, none
+      blocking: G23's `winRate()` throws before reaching `classifyMargin` on
+      a timeout so that branch is dead code at that one call site;
+      `coreHpFrac` is unused on the loss/timeout branches; storing the full
+      per-seed `RunReport[]` for the rollup is a slightly heavier hold than
+      strictly needed). qa-playtester **PASS** (diff is exactly the three
+      claimed files, additive-only exports, `/data` diff empty, `npm run
+      test:fast` shows only the same pre-existing environment flakes this
+      session's own history already knows about — `b032`/`b034` port
+      contention, `b036` reproduces identically on unmodified HEAD, `q15`'s
+      known worker-hang category — live-verified `classifyMargin` against
+      real engine `RunReport`s).
+      Direction (c) was also checked, not just assumed away: `TREE_AUTO_MAX`
+      is real production behavior (`src/meta/meta.ts`, every Hub-started run
+      plays with it, not a test artifact), so a "partial/realistic
+      allocation" harness would measure a shape no real player has — logged
+      as the reason (c) wasn't chosen, per this item's own instruction to
+      record the pick rather than choose silently.
+      balance-analyst then spent the freshly-instrumented harness on the
+      retune itself. Fresh baseline, margins included: **G1** (24 seeds)
+      mean 36.39 min, 21/24 (87.5%) — all 21 wins `landslide-win` (Core HP
+      54-86%), zero `close-win`, zero `contested-loss`, 3 `timeout`. **G14**
+      (20 seeds) 20/20 (100%), all `landslide-win` (62-86% Core HP).
+      **G8** (12 classes x 12 seeds): only `bloodlord` in band (8/12 —
+      landslide:8 early-loss:1 timeout:3, floor 73.9% Core HP); every other
+      class 10-12/12, mostly deep landslide floors (57-100%+), except
+      `necromancer` (31.4% floor, 7 landslide + 5 `close-win` — the closest
+      any class came to a real contest) and `animist` (10/12, 2 timeouts).
+      Net **1/12**. **G23** (5 Cores x 12 seeds): `stone_heart` 10/12 (floor
+      59.1%, 2 timeouts), `carnivorous_plant` 12/12 (floor 73.4%),
+      `vampire_heart` 12/12 (deep landslide), `corpse` 11/12 (1 timeout),
+      `time` 10/12 (floor 10.2%, 4 `close-win` + 2 timeout — the Core
+      closest to a real contest). Net **0/5**.
+      **New structural finding the margin instrumentation surfaced**: G23's
+      `winRate()` (`tests/p-core-f-gates.test.ts`) calls
+      `expect(report.outcome).not.toBe('running')` *inside* the per-seed
+      loop — a hard-throw, not a non-win count the way G8's own loop already
+      treats a `'running'` outcome. `stone_heart`/`corpse`/`time` all carry
+      baseline timeouts, so those three can **never** pass G23 as the test is
+      currently written, independent of any `/data` tuning — invisible
+      without classifying *why* a seed didn't win, only that it didn't. G23's
+      real achievable ceiling under the current test shape is at most 2 of 5
+      Cores (`carnivorous_plant`/`vampire_heart`), and both of those already
+      sit on near-zero-elasticity landslide floors too. Filed as its own
+      small follow-up, **p11a**, rather than folded into this item's own
+      record (a harness *bug*, distinct from this item's harness *feature*).
+      Four genuinely distinct `/data`-only probes were then run against the
+      instrumented baseline (CLAUDE.md rule 6), all reverted
+      (`git diff -- data/` empty):
+      1. `data/spawns.json` `hpScalePerMinute` 1.10->1.13 — killed
+         immediately: net harm to G1 (mean worse, timeouts 3->7), no gain
+         anywhere.
+      2. `data/enemies.json` `coreDamage` x1.3 (a lever untried by
+         `p10r`/`p10s`/`p10t`) — real movement for the first time on a
+         previously-untouchable cell: `animist` 10/12->8/12, into band. But
+         it also pushed G1's win-rate sub-test to 100% (was 87.5%, itself
+         already over-ceiling-adjacent) — a new regression.
+      3. Same lever, escalated to x1.6 to try to fix (2)'s G1 regression —
+         G1 came back to 91.7%, but `animist`'s gain reverted to 10/12 (the
+         same lever moved it back out of band at a different magnitude,
+         non-monotonic within a *single* class) and two new regressions
+         appeared elsewhere (`vampire_heart` 12/12->11/12, `corpse`
+         11/12->12/12). Net gate-pass count unchanged (1/12, 0/5) at every
+         magnitude tried on this lever — real, reproducible elasticity, but
+         pure trade-offs, never net gain.
+      4. `data/cores.json` `time`'s `decayMult` 1.2/1.5->1.05/1.15 (a 75%
+         cut, hypothesis: its aura sustains the two `time` stalemates) —
+         Core-HP% readings were byte-identical before/after. Zero
+         elasticity; hypothesis disproved.
+      Stopped at 4 per CLAUDE.md rule 6 — probes 2/3 were the most surgical,
+      margin-guided lever tried across four sessions (`p10r`/`p10s`/`p10t`
+      plus this one) and still only traded cells against each other rather
+      than growing the passing set, which is now strong evidence (not just a
+      plausible story) that most of the roster sits on landslide floors no
+      single shared `/data` axis reaches without an equal-and-opposite cost
+      elsewhere. Filed the owner escalation as **QUESTIONS Q160** rather than
+      lowering G8/G23's band myself, same reasoning `p10t` already used
+      (SPEC-FINAL §14's numeric bands aren't marked ⚖ or `[designer-fill]`,
+      and §17's owner-veto list doesn't include gate bands). This item
+      (p10z) stays open — its own acceptance bar (9/12 + 3/5) was not met —
+      but its actual scope (give the harness a discrimination signal) is
+      done; re-opening the retune itself needs an owner verdict per Q160, not
+      another `/data`-only session per CLAUDE.md rule 6 (this is the fourth
+      exhausted attempt across `p10r`/`p10s`/`p10t`/`p10z`).
+
+- [ ] (p11a) [bug] `tests/p-core-f-gates.test.ts`'s G23 `winRate()` hard-throws
+      (`expect(report.outcome).not.toBe('running')`) the instant any seed in
+      its 12-seed loop times out, instead of counting a timeout as a non-win
+      the way `tests/p6e-class-diversity.test.ts`'s G8 loop already does (a
+      `'running'` outcome excluded from `wins` but not thrown). Found by
+      `p10z`'s margin instrumentation (BACKLOG p10z, QUESTIONS Q160): three of
+      the five Cores (`stone_heart`, `corpse`, `time`) carry a baseline
+      timeout at HEAD, so G23 can **never** measure a real win rate for any of
+      them as currently written — the assertion fails on the first timeout
+      seed before the loop ever finishes, regardless of how any Core's own
+      numbers are tuned. This caps G23's achievable ceiling at 2 of 5 Cores
+      independent of balance work, which Q160's own retune session had to
+      discover by hand rather than read off a red gate. Acceptance: change
+      `winRate()` to count a `'running'` outcome as a non-win diagnostic entry
+      (matching G8's own `outcome === 'running' ? 'timeout' : ...` handling)
+      instead of throwing, re-run G23 to confirm it now produces a real
+      (if still red) win-rate number for all five Cores instead of aborting
+      on three of them, and note whether any of the three previously-unmeasurable
+      Cores' *actual* win rate (once timeouts count as non-wins rather than a
+      crash) changes this item's or Q160's read of the G23 ceiling — refs:
+      SPEC-FINAL §14 G23, BACKLOG p10z, QUESTIONS Q160.
+
 ### Generated 2026-09-02 (fewer than 3 actionable items remained — CLAUDE.md/BACKLOG generation rule)
 
 Ran `npx tsx tools/gate-audit.ts` fresh (all 23 gates show `covered`, no stale

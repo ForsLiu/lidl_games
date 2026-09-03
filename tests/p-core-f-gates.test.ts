@@ -37,7 +37,7 @@ import { coreCenter } from '../src/sim/grid';
 import { loadContent } from '../src/sim/content';
 import { allTreeNodeIds } from '../src/meta/meta';
 import type { RunConfig, RunReport } from '../src/sim/types';
-import { cfg } from './helpers';
+import { cfg, classifyMargin } from './helpers';
 
 const NON_DEFAULT_CORES = ['carnivorous_plant', 'vampire_heart', 'corpse', 'time'];
 // fb049 (Q138 re-measurement): real Hub-started runs feed the full
@@ -219,11 +219,13 @@ describe('G22: each Core shifts the run fingerprint by >=0.10 vs Stone Heart', (
 describe('G23: every Core clears T1 at a 35-70% win rate with the scripted bot', () => {
   const SEEDS = Array.from({ length: 12 }, (_, i) => i + 1);
 
-  function winRate(coreKey: string): { wins: number; outcomes: string[] } {
+  function winRate(coreKey: string): { wins: number; outcomes: string[]; reports: RunReport[] } {
     let wins = 0;
     const outcomes: string[] = [];
+    const reports: RunReport[] = [];
     for (const seed of SEEDS) {
       const report = runCoreScripted(coreKey, seed);
+      reports.push(report);
       // A non-terminal outcome at the tick cap is a timeout, not a measured
       // loss — assert loudly rather than let it silently count as "not a
       // win" (code-reviewer finding: a `carnivorous_plant` seed hit exactly
@@ -232,9 +234,14 @@ describe('G23: every Core clears T1 at a 35-70% win rate with the scripted bot',
       // the cap needs raising again, not that this seed lost).
       expect(report.outcome, `${coreKey} seed ${seed} did not resolve within the tick cap`).not.toBe('running');
       if (report.outcome === 'victory') wins++;
-      outcomes.push(`${seed}:${report.outcome}/w${report.wavesCleared}`);
+      // p10z (BACKLOG p10z, QUESTIONS Q158/Q159): margin, not just outcome —
+      // see `classifyMargin`'s doc comment (`tests/helpers.ts`) for why bare
+      // win/loss couldn't discriminate a landslide win or an early one-off
+      // loss from a genuine close-call seed.
+      const margin = classifyMargin(report);
+      outcomes.push(`${seed}:${report.outcome}/w${report.wavesCleared}/${margin.kind}`);
     }
-    return { wins, outcomes };
+    return { wins, outcomes, reports };
   }
 
   // Measured (Q116): 5/12 (41.7%) — the passing floor exactly

@@ -171,3 +171,68 @@ export function runScripted(
   }
   return { report: run.report(), run };
 }
+
+/**
+ * p10z (BACKLOG, QUESTIONS Q158/Q159): classifies one already-finished
+ * `RunReport` by *margin*, not just win/loss. `p10r`/`p10s`/`p10t` spent
+ * ~11 real `/data`-only probes across G1/G8/G14/G23 and found the roster's
+ * outcomes are close to bimodal under `TREE_AUTO_MAX` — a run either wins by
+ * an overwhelming margin (the full-tree build overwhelms the T1 board
+ * regardless of the axis tried) or loses for a reason structurally unrelated
+ * to whichever shared lever is being tuned (an early one-off alpha strike
+ * well before the wave-11-to-17 wall those items independently pinned as the
+ * roster's real contested band, or a tick-cap stalemate). A probe that only
+ * reads `report.outcome` cannot tell "this lever nudged the real fight" from
+ * "this lever pushed some unrelated early-death seeds into timeouts and left
+ * the landslide wins fully unmoved" (exactly what happened to `p10t`'s
+ * `hpScalePerMinute` probe, Q159(1)) — that is the missing signal this
+ * function gives a probe.
+ *
+ * The two thresholds below are read from the roster's own already-measured
+ * shape, not invented: `CONTESTED_WAVE_FLOOR` sits just under the wave-11
+ * start of the wall `p10r`'s G8/G23 write-ups and this repo's `a4-single-
+ * type.test.ts` all independently name; `LANDSLIDE_HP_FRAC` treats a `victory`
+ * that still has at least half the Core's HP bar left as a win the lever
+ * never seriously contested, versus one that scraped through near 0.
+ */
+export type SeedMargin =
+  /** `victory`, Core HP still at/above `LANDSLIDE_HP_FRAC` — the lever never seriously contested this seed. */
+  | 'landslide-win'
+  /** `victory`, Core HP scraped through under `LANDSLIDE_HP_FRAC` — a real, close contest. */
+  | 'close-win'
+  /** `defeat_core`/`defeat_warden` at or past `CONTESTED_WAVE_FLOOR` — a loss inside the roster's own contested band, the kind of seed a shared lever should be judged against. */
+  | 'contested-loss'
+  /** `defeat_core`/`defeat_warden` before `CONTESTED_WAVE_FLOOR` — an early one-off (e.g. an alpha strike) unrelated to the lever under test. */
+  | 'early-loss'
+  /** Hit the tick cap without resolving — neither a win nor a real loss. */
+  | 'timeout';
+
+/** TD wave just under the wave-11-to-17 wall `p10r`/G23/G8's own write-ups pinned (BACKLOG p10r, this file's own header history). */
+const CONTESTED_WAVE_FLOOR = 10;
+/** A `victory` at or above half the Core's max HP reads as untouched by whatever lever is under test. */
+const LANDSLIDE_HP_FRAC = 0.5;
+
+export function classifyMargin(report: RunReport): { kind: SeedMargin; coreHpFrac: number } {
+  const coreHpFrac = report.coreMaxHp > 0 ? report.coreHp / report.coreMaxHp : 0;
+  if (report.outcome === 'running') return { kind: 'timeout', coreHpFrac };
+  if (report.outcome === 'victory') {
+    return { kind: coreHpFrac >= LANDSLIDE_HP_FRAC ? 'landslide-win' : 'close-win', coreHpFrac };
+  }
+  return { kind: report.wavesCleared >= CONTESTED_WAVE_FLOOR ? 'contested-loss' : 'early-loss', coreHpFrac };
+}
+
+/** One-line margin-classification summary over a batch of reports, e.g. `"landslide-win:9 contested-loss:2 early-loss:1"` — the shape a probe's failure message quotes so a retune pass can see *why* the roster's win rate sits where it does, not just the rate itself. */
+export function summarizeMargins(reports: RunReport[]): string {
+  const counts: Record<SeedMargin, number> = {
+    'landslide-win': 0,
+    'close-win': 0,
+    'contested-loss': 0,
+    'early-loss': 0,
+    timeout: 0,
+  };
+  for (const r of reports) counts[classifyMargin(r).kind]++;
+  return (Object.entries(counts) as [SeedMargin, number][])
+    .filter(([, n]) => n > 0)
+    .map(([k, n]) => `${k}:${n}`)
+    .join(' ');
+}
