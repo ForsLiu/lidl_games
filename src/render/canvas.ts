@@ -480,7 +480,15 @@ export class Renderer {
     const wx = w.warden.x;
     const wy = w.warden.y;
     for (const e of w.enemies) {
-      if (e.dead || e.dots.length === 0) continue;
+      if (e.dead || e.dots.length === 0) {
+        // fb069: an enemy whose stacks all expired must not leave a stale,
+        // possibly-inflated (fb067 lets a starved accumulator exceed 1s)
+        // per-type entry sitting in `dotAccum` — a later re-application of
+        // the same type would otherwise flush it mixed into the new stack's
+        // first tick.
+        this.dotAccum.delete(e);
+        continue;
+      }
       const visible =
         !dense ||
         e.elite ||

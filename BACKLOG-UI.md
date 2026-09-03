@@ -181,7 +181,7 @@ not already expose it) logs that need below instead of reaching into
       PROGRESS.md sessions, none touching `src/render/**`/`src/ui/**` or
       this item's own files.
 
-- [ ] (fb069) [bug] low priority: fb067's budget-full retry can leave a
+- [x] (fb069) [bug] low priority: fb067's budget-full retry can leave a
       stale, inflated per-type accumulator sitting in `dotAccum` past a DoT
       stack's own full expiry, if that type was the enemy's *only* active
       DoT — `updateDotNumbers`'s (`canvas.ts`) enemy-level fast path
@@ -205,7 +205,51 @@ not already expose it) logs that need below instead of reaching into
       by stale carryover; suggested fix direction: also clear the enemy's
       full `dotAccum` entry (or run the per-type cleanup) on the
       `e.dots.length === 0` fast path before its `continue` — refs: fb067,
-      fb060, owner feedback `feature-dot-tick-numbers`.
+      fb060, owner feedback `feature-dot-tick-numbers`. DONE 2026-09-03:
+      `updateDotNumbers`'s (`canvas.ts`) enemy-level fast path now calls
+      `this.dotAccum.delete(e)` before its `continue` whenever
+      `e.dead || e.dots.length === 0`, matching the same pattern already used
+      one block below by the density-cutoff `!visible` branch. Safe by
+      construction: the fast path only fires when the enemy has *zero* live
+      dots of *any* type, so there is never a still-active type whose
+      accumulator gets wiped alongside an unrelated expired one. Targeted
+      `tests/render-fb069-dot-accum-stale-cleanup.test.ts` (1/1): saturates the
+      budget for a 3.5s bleeding stack's full duration, confirms the stack
+      fully expires, confirms no stale pending seconds survive, then frees the
+      budget, re-applies bleeding, ticks once, and confirms no inflated number
+      flushes immediately. code-reviewer APPROVE (no Critical/Major/Minor).
+      qa-playtester PASS against the stated acceptance criteria (independently
+      re-derived the tick-ordering reason the enemy-level fast path can only
+      ever fire on a genuine all-stacks-expired frame, confirmed via git-stash
+      A/B that the test fails pre-fix with the predicted ~3.5s stale magnitude
+      and passes post-fix, reran the full `render-fb06{0,7,9}` suite plus all
+      `render-*` tests clean) and filed one new low-severity bug in the same
+      family via a different trigger — see fb070 below. `npm run test:fast`:
+      7-10 failures across runs this session, all in the pre-existing
+      q15/q49/q52 worker-hang/Windows-scratch-EPERM flake classes documented
+      across dozens of prior PROGRESS.md sessions, none touching
+      `src/render/**`/`src/ui/**` or this item's own files.
+
+- [ ] (fb070) [bug] low priority: the `dotNumbers` Settings toggle
+      (`view.settings.dotNumbers`) gates `updateDotNumbers`'s (`canvas.ts`)
+      *entire* body with an early `if (!view.settings.dotNumbers) return;`
+      before the enemy loop, so fb069's expiry cleanup (`this.dotAccum.delete(e)`
+      on `e.dots.length === 0`) never runs while the toggle is off — the same
+      inflated-stale-carryover bug fb069 just fixed reappears via a different
+      trigger: turn the toggle off, let a saturated-budget DoT stack expire and
+      a same-type stack get re-applied while it stays off, then turn the toggle
+      back on and tick once. Found by qa-playtester (fb069 verification),
+      reproduced deterministically: a bleeding stack's ~3s stale accumulator
+      survives an off/on toggle flip and flushes "60" mixed into the new
+      stack's first tick instead of a bounded amount. Acceptance: a regression
+      test — same shape as fb069's but toggling `settings.dotNumbers` off
+      across the expire+reapply window instead of relying on the enemy-level
+      fast path alone — confirms no inflated number flushes once the toggle is
+      re-enabled; suggested fix direction: run the per-enemy accumulator
+      expiry/cleanup pass unconditionally and only skip the `this.numbers`
+      push when the setting is off, or clear the whole `dotAccum` WeakMap on
+      an off-to-on transition — refs: fb069, fb067, fb060, owner feedback
+      `feature-dot-tick-numbers`.
 
 - [ ] (fb068) [polish] low priority: fb060's near-cursor/near-character
       density-cutoff visibility check hard-resets an enemy's DoT-number
