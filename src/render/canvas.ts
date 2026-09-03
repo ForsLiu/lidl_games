@@ -488,6 +488,10 @@ export class Renderer {
         Math.hypot(e.x - cx, e.y - cy) <= DOT_NUMBER_NEAR_RADIUS ||
         Math.hypot(e.x - wx, e.y - wy) <= DOT_NUMBER_NEAR_RADIUS;
       if (!visible) {
+        // fb067: same narrow, cosmetic-only tradeoff as the `dps <= 0` branch
+        // below — a budget-starved accumulator with several seconds pending
+        // is dropped here too rather than flushed, if the enemy leaves the
+        // near-radius before budget frees up.
         this.dotAccum.delete(e);
         continue;
       }
@@ -497,8 +501,15 @@ export class Renderer {
         if (dps <= 0) {
           // A stack expiring with under a second accumulated drops that
           // partial second's damage rather than flushing a truncated number —
-          // deliberate: every damagetypes.json row runs >=3s, so this only
-          // ever discards a fraction of one tick's worth at the tail end.
+          // deliberate: every damagetypes.json row runs >=3s, so this
+          // ordinarily only discards a fraction of one tick's worth at the
+          // tail end. fb067: if the shared budget stayed full for multiple
+          // seconds first, `perType.get(type)` can be several seconds' worth
+          // instead of under one — still dropped here rather than flushed,
+          // since the budget-full retry above already made a best effort;
+          // narrow (budget saturated for 1s+ *and* the stack expires or the
+          // enemy leaves the near-radius in that exact window) and
+          // cosmetic-only (the sim damage was already applied).
           perType?.delete(type);
           continue;
         }
@@ -514,7 +525,16 @@ export class Renderer {
           // Cosmetic and deliberate: exact per-tick summation costs an extra
           // accumulator per stack for no player-visible benefit here.
           const amount = Math.round(dps * next);
-          if (amount >= 1 && this.numbers.length < MAX_OTHER_NUMBERS) {
+          if (amount >= 1 && this.numbers.length >= MAX_OTHER_NUMBERS) {
+            // fb067: the shared floating-number budget is full. Do NOT reset
+            // the accumulator — leave it at `next` (still >=1) so this same
+            // type keeps accumulating instead of silently dropping the
+            // second's damage; once budget frees up a later frame flushes the
+            // (now larger, still-correct) accumulated amount.
+            perType.set(type, next);
+            continue;
+          }
+          if (amount >= 1) {
             this.numbers.push({
               x: e.x,
               y: e.y,

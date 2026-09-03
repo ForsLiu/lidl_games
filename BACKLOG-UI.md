@@ -140,7 +140,7 @@ not already expose it) logs that need below instead of reaching into
       1095.4>1080 assertion value with and without this change) — none touch
       `src/ui/**`/`src/render/**` or this item's own files.
 
-- [ ] (fb067) [bug] low priority: fb060's DoT tick numbers silently and
+- [x] (fb067) [bug] low priority: fb060's DoT tick numbers silently and
       permanently drop a second's damage when the shared floating-number
       budget (`MAX_OTHER_NUMBERS`, 150 slots shared with every other
       floating-number source) is full at the moment a DoT accumulator
@@ -156,7 +156,56 @@ not already expose it) logs that need below instead of reaching into
       fills `numbers` to `MAX_OTHER_NUMBERS` before ticking a DoT carrier
       confirms the flush either retries once budget frees up or the
       accumulator is not silently advanced past the missed threshold —
-      refs: fb060, owner feedback `feature-dot-tick-numbers`.
+      refs: fb060, owner feedback `feature-dot-tick-numbers`. DONE
+      2026-09-03: `updateDotNumbers` (`canvas.ts`) now leaves the per-type
+      accumulator at `next` (unreset, still >=1) instead of `next - 1`
+      whenever the threshold-crossing push is skipped for a full budget, so
+      the same type keeps accumulating and retries on a later frame once
+      budget frees up, flushing the (now larger, still-correct) amount
+      instead of dropping it. Targeted
+      `tests/render-fb067-dot-number-budget.test.ts` (1/1: pre-fills
+      `numbers` to `MAX_OTHER_NUMBERS`, confirms no flush + accumulator
+      still pending, frees the budget, confirms the pending damage flushes).
+      code-reviewer APPROVE (no Critical/Major; one Minor — the `dps<=0`-
+      expiry and density-cutoff-visibility-loss comments still described the
+      old <1s-only invariant once a starved accumulator could exceed one
+      tick's worth — fixed same session by updating both comments to
+      acknowledge the new possibility, cosmetic-impact-only, both re-verified
+      green). qa-playtester PASS against the stated acceptance criteria
+      (re-ran the regression test twice deterministically, traced the dead-
+      enemy/density-cutoff/multi-type-expiry/unbounded-growth edge cases and
+      confirmed each was already handled or an accepted tradeoff) and filed
+      one new low-severity bug — see fb069 below. `npm run test:fast`: 10
+      failures, all in the pre-existing q15/q49/q52 worker-hang/Windows-
+      scratch-EPERM flake classes documented across dozens of prior
+      PROGRESS.md sessions, none touching `src/render/**`/`src/ui/**` or
+      this item's own files.
+
+- [ ] (fb069) [bug] low priority: fb067's budget-full retry can leave a
+      stale, inflated per-type accumulator sitting in `dotAccum` past a DoT
+      stack's own full expiry, if that type was the enemy's *only* active
+      DoT — `updateDotNumbers`'s (`canvas.ts`) enemy-level fast path
+      (`if (e.dead || e.dots.length === 0) continue;`) runs before the
+      per-type loop's `dps <= 0` → `perType?.delete(type)` cleanup, so once
+      `e.dots.length` drops to 0 the cleanup for that type never runs and
+      the leftover pending seconds (potentially several, if fb067's retry
+      had been accumulating through a saturated budget) survive indefinitely
+      in the WeakMap. If the same enemy is later re-afflicted by the same
+      DoT type, the first tick of the new stack reads and flushes the stale
+      leftover mixed with the new one, showing an inflated, incorrect
+      number. Found by qa-playtester (fb067 verification), reproduced
+      deterministically: a bleeding stack saturating the budget for its
+      full 3.5s duration leaves ~3.5s pending after it expires; re-applying
+      bleeding and ticking once flushes "70" instead of the correct ~20 for
+      one real tick. Acceptance: a regression test — one enemy, a single
+      DoT type, budget saturated for the stack's full duration so it
+      expires while pending, budget freed, the same type re-applied, one
+      tick — confirms either no number appears immediately or the flushed
+      amount is bounded to the new stack's own elapsed time, not inflated
+      by stale carryover; suggested fix direction: also clear the enemy's
+      full `dotAccum` entry (or run the per-type cleanup) on the
+      `e.dots.length === 0` fast path before its `continue` — refs: fb067,
+      fb060, owner feedback `feature-dot-tick-numbers`.
 
 - [ ] (fb068) [polish] low priority: fb060's near-cursor/near-character
       density-cutoff visibility check hard-resets an enemy's DoT-number
