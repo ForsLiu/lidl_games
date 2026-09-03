@@ -116,20 +116,38 @@ function recordingCanvas(): {
   // without it, two lines to the same endpoint are indistinguishable, so a
   // swing/projectile shape swap in `vfx-registry.ts` would pass silently.
   lines: { x: number; y: number; color: string }[];
+  // fb050: `seq` is a shared, monotonically increasing call-order index
+  // stamped on every recorded call (rects/texts included) so a test can
+  // assert relative paint order across categories — e.g. "the Core label's
+  // fillText happened after the tower's fillRect" — not just "both happened."
+  rects: { x: number; y: number; w: number; h: number; seq: number }[];
+  texts: { text: string; x: number; y: number; seq: number }[];
 } {
   const arcs: { x: number; y: number; r: number; alpha: number }[] = [];
   const lines: { x: number; y: number; color: string }[] = [];
+  const rects: { x: number; y: number; w: number; h: number; seq: number }[] = [];
+  const texts: { text: string; x: number; y: number; seq: number }[] = [];
   const state = { globalAlpha: 1, strokeStyle: '' };
+  let seq = 0;
   const ctx = new Proxy(
     {
       arc(x: number, y: number, r: number) {
         arcs.push({ x, y, r, alpha: state.globalAlpha });
+        seq++;
       },
       moveTo(x: number, y: number) {
         lines.push({ x, y, color: state.strokeStyle });
+        seq++;
       },
       lineTo(x: number, y: number) {
         lines.push({ x, y, color: state.strokeStyle });
+        seq++;
+      },
+      fillRect(x: number, y: number, w: number, h: number) {
+        rects.push({ x, y, w, h, seq: seq++ });
+      },
+      fillText(text: string, x: number, y: number) {
+        texts.push({ text, x, y, seq: seq++ });
       },
       createLinearGradient: () => ({ addColorStop() {} }),
       createRadialGradient: () => ({ addColorStop() {} }),
@@ -151,7 +169,7 @@ function recordingCanvas(): {
   );
   const canvas = document.createElement('canvas');
   canvas.getContext = (() => ctx) as never;
-  return { canvas, arcs, lines };
+  return { canvas, arcs, lines, rects, texts };
 }
 
 function view(over: Partial<ViewState> = {}): ViewState {
@@ -270,6 +288,19 @@ describe('fb016: firing a skill or Core effect actually draws something', () => 
     expect(closeTo(lines, 10 * TILE, 12 * TILE), 'the beam must end at the target').toBe(true);
   });
 
+  it('fb050: the Corpse Core auto-fire beam draws from the Core to the target', () => {
+    const w = new World(cfg({ core: 'corpse' }));
+    const { canvas, lines } = recordingCanvas();
+    const renderer = new Renderer(canvas);
+    const cx = (CORE_X + CORE_W / 2) * TILE;
+    const cy = (CORE_Y + CORE_H / 2) * TILE;
+    w.fx.push({ k: 'core_autofire', x: CORE_X + CORE_W / 2, y: CORE_Y + CORE_H / 2, a: 10, b: 12 });
+    renderer.ingest(w, view());
+    renderer.draw(w, view());
+    expect(closeTo(lines, cx, cy), 'the auto-fire beam must start at the Core').toBe(true);
+    expect(closeTo(lines, 10 * TILE, 12 * TILE), 'the auto-fire beam must end at the target').toBe(true);
+  });
+
   it('reducedFlash dims the cast layer instead of removing it', () => {
     const w = new World(cfg({ classKey: 'paladin' }));
     const normal = recordingCanvas();
@@ -365,6 +396,28 @@ describe('fb016: the emit sites this item added/fixed actually fire through the 
     expect(w.fx.some((e) => e.k === 'core_beam')).toBe(true);
     expect(w.fx.some((e) => e.k === 'core_explode')).toBe(true);
   });
+
+  it('fb050: Corpse step-3 auto-fire (previously emitted no fx at all) now emits core_autofire', () => {
+    const w = new World(cfg({ core: 'corpse' }));
+    w.gold = 1e6;
+    expect(upgradeCore(w)).toBe(true); // step 1
+    expect(upgradeCore(w)).toBe(true); // step 2
+    expect(upgradeCore(w)).toBe(true); // step 3: corpseAutoFireInterval unlocked
+    expect(w.core.corpseAutoFireInterval).toBeGreaterThan(0);
+    // A victim far too costly for the 1s execute branch to ever afford (it
+    // only fires against `highestAffordableEnemy(w, w.corpseStore)`), so only
+    // step 3's independent auto-fire timer is exercised.
+    w.corpseStore = 5;
+    const victim = spawnEnemy(w, 'husk', 10, 10)!;
+    victim.hp = 1e6;
+    victim.maxHp = 1e6;
+    for (let i = 0; i < Math.round(w.core.corpseAutoFireInterval / DT) + 1; i++) {
+      w.rebuildBuckets();
+      updateCorpse(w, DT);
+    }
+    expect(w.fx.some((e) => e.k === 'core_autofire')).toBe(true);
+    expect(w.corpseStore).toBeLessThan(5); // the store was spent (a small credit may flow back in, per corpseStoreRatio)
+  });
 });
 
 /**
@@ -425,5 +478,48 @@ describe('fb016: QA-found overclaims, now real (or corrected)', () => {
     expect(lowArc, 'a charge preview arc must exist at zero charge too').toBeDefined();
     expect(highArc, 'a charge preview arc must exist at full charge').toBeDefined();
     expect(highArc!.alpha).toBeGreaterThan(lowArc!.alpha);
+  });
+});
+
+describe('fb050: Core status text draws above structures, with a backdrop', () => {
+  it('the Store label paints after a tower built directly beside the Core, not under it', () => {
+    const w = new World(cfg({ core: 'corpse' }));
+    // corpseExecuteInterval is a base effect (data/cores.json), not gated by
+    // any upgrade step, so the label renders on a fresh corpse-core world.
+    expect(w.core.corpseExecuteInterval).toBeGreaterThan(0);
+    w.corpseStore = 42;
+
+    // A buildable ground tile directly above the Core's 2x2 footprint —
+    // nothing marks it non-buildable (only the Core's own tiles are), so
+    // this reproduces the exact real-play placement the bug report names.
+    const tx = CORE_X;
+    const ty = CORE_Y - 1;
+    expect(w.grid.buildable(tx, ty)).toBe(true);
+    const ARROW = w.content.towerByKey.get('arrow_spire')!;
+    expect(buildTower(w, ARROW.id, tx, ty).ok).toBe(true);
+
+    const { canvas, rects, texts } = recordingCanvas();
+    const renderer = new Renderer(canvas);
+    renderer.ingest(w, view());
+    renderer.draw(w, view());
+
+    const label = texts.find((t) => t.text.startsWith('Store'));
+    expect(label, 'the Store label must still draw').toBeDefined();
+    // The tower's own body fill: `fillRect(x + 2, y + 2, TILE - 4, TILE - 4)`
+    // at this tile's pixel origin (drawStructures, canvas.ts).
+    const towerFill = rects.find(
+      (r) => Math.abs(r.x - (tx * TILE + 2)) < 0.01 && Math.abs(r.y - (ty * TILE + 2)) < 0.01,
+    );
+    expect(towerFill, 'the tower body must draw').toBeDefined();
+    expect(label!.seq, 'the label must paint after the tower body, not before it').toBeGreaterThan(towerFill!.seq);
+
+    // The backdrop behind the label (a fillRect immediately preceding it,
+    // fb050) must also land after the tower, or the tower would still cover
+    // the backdrop while the text drew "above" it.
+    const backdrop = rects
+      .filter((r) => r.seq < label!.seq)
+      .reduce((best, r) => (best === undefined || r.seq > best.seq ? r : best), undefined as typeof rects[number] | undefined);
+    expect(backdrop, 'a backdrop rect must precede the label').toBeDefined();
+    expect(backdrop!.seq).toBeGreaterThan(towerFill!.seq);
   });
 });

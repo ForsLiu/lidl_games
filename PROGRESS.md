@@ -5,6 +5,42 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-03 session: processed a 16-file owner feedback batch into BACKLOG
+  (`fb050`-`fb065`), then closed `fb050`** (Core VFX/occlusion bug, top of
+  queue). The batch carried no formal verdict blocks except
+  `feature-dot-tick-numbers`, which explicitly overrides QUESTIONS Q133 call
+  (3) (DoT ticks now must show floating numbers after all) — applied as an
+  appended override clause on that entry. Per CLAUDE.md rule 3, the three bug
+  reports (`fb050`-`fb052`) were pinned above every other open item,
+  including the still-open `p11b`-`p11e` and the verdict-blocked `p10z`/
+  `p10u`; the four owner-tagged top-priority balance/feature items
+  (`fb053`-`fb056`) and nine normal-priority feature items (`fb057`-`fb065`,
+  including two new classes and a terrain-generation epic) follow. All 16
+  files moved to `feedback/processed/`.
+  `fb050` (Core attack effects render little/no visual on activation; Core
+  overlay text hidden behind nearby towers): audited every Core's
+  periodic/active function in `cores.ts` — only `updateCorpseAutoFire` (step
+  3) emitted no fx at all (its `damageEnemy` call already produced the
+  ordinary impact flash, but no beam showed the shot came from the Core);
+  fixed with a new `core_autofire` emit + render case + VFX registry entry.
+  The occlusion bug's real cause: the Core's overlay text drew in the same
+  early call-order slot as its range rings, before `drawStructures` — any
+  tower built on the ordinary buildable tile directly above the Core's 2x2
+  footprint painted over the label. Split `drawCoreStatus` (rings, unchanged
+  slot) from a new `drawCoreLabels` (text + backdrop rect), now called last
+  in `draw()`, after every structure/enemy/projectile. code-reviewer
+  **APPROVE** (one Minor, a stale test comment, fixed in the same commit).
+  qa-playtester **PASS**, independently re-derived every check (the
+  auto-fire emit, the registry color actually being read rather than falling
+  back, the Plant Core's Digestion label sharing the same fix, the no-text
+  Cores rendering nothing stray, the other Cores' rings surviving the
+  split). `npx tsc --noEmit` clean; targeted suite 66/66; `npm run
+  test:fast` 2060 passed/5 failed/24 skipped, all 5 failures independently
+  reproduced against a clean `git stash`-ed HEAD (Windows scratch-dir
+  `EPERM` and a timing-sensitive hang-detector — the same standing
+  `b032`/`b034`/`b035`/`b036`/`q15`/`q49`/`q52` flake family every session
+  this queue documents, none touching the changed files).
+
 - **2026-09-03 session: `b080` closed — re-tuned 7 towers in `data/towers.json`
   to fix `tests/a4-single-type.test.ts`'s G13 solo-viability collapse (7 of 16
   assertions at a hard 0/5 T1, an unnoticed side effect of `fb025`'s enemy

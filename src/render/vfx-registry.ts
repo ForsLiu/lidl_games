@@ -186,6 +186,7 @@ export const CORE_VFX: Record<string, CoreVfxEntry> = {
     effects: [
       { key: 'execute', vfx: 'execution beam from the Core to the target (plus the existing larger execute number)', color: '#ffd166' },
       { key: 'explode', vfx: 'explosion nova at the execution site (step 2)', color: '#ff8844' },
+      { key: 'autofire', vfx: 'auto-fire beam from the Core to the highest-HP target (step 3, spends the store)', color: '#ff6b35' },
     ],
   },
   time: {

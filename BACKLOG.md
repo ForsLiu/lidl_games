@@ -2227,7 +2227,7 @@ None of the sixteen is a new invented game system — each cites its own
 SPEC-FINAL section (amending or appending one), per CLAUDE.md's
 generation-rule boundary.
 
-- [ ] (fb050) [bug] top priority: Core attack effects (Corpse Core
+- [x] (fb050) [bug] top priority: Core attack effects (Corpse Core
       execution/auto-fire, Plant Core devour/spit, and any other Core with
       an active function) render little or no visual on activation, and
       Core overlay text (store meter, digestion count, stacks) is hidden
@@ -2241,6 +2241,54 @@ generation-rule boundary.
       and that an execution emits a registered fx event — refs: SPEC-FINAL
       §5.5 (Cores), §11 (VFX registry), owner feedback
       `bug-core-vfx-and-occlusion`.
+
+      **Closed (2026-09-03).** Audited every Core's periodic/active function
+      in `cores.ts`: `updatePlantDevour`/`updatePlantVolley` and
+      `updateCorpseExecute` (+its explosion) already emitted `core_plant`/
+      `execute`+`core_beam`/`core_explode`; only `updateCorpseAutoFire`
+      (step 3, "spend the whole store on the highest-HP enemy") emitted
+      *nothing* — its `damageEnemy` call already produced the ordinary
+      `hit:normal` impact flash (not `dot:true`), but no Core-to-target beam
+      showed the shot came from the Core. Fixed by adding
+      `w.emit('core_autofire', cc.x, cc.y, target.x, target.y)`, a new
+      `case 'core_autofire'` in `canvas.ts`'s `ingest()` (a line cast styled
+      via `coreEffectColor(w.coreKey, 'autofire', '#ff6b35')`, distinct from
+      execute's amber), and a matching `CoreEffectVfxEntry` in
+      `vfx-registry.ts`. The occlusion half's actual root cause: the Core's
+      overlay text (`drawCoreStatus`) drew in the same early call-order slot
+      as its range rings, *before* `drawStructures` — any tower on the
+      ordinary buildable tile directly above the Core's 2x2 footprint (only
+      the Core's own tiles are non-buildable) painted its opaque body over
+      the label. Split into `drawCoreStatus` (rings, unchanged slot) and a
+      new `drawCoreLabels` (the text, now with a translucent backdrop rect),
+      called last in `draw()` — after every structure/enemy/projectile.
+      `tests/fb016-vfx-registry.test.ts` gained: an auto-fire-beam draw
+      test, a sim-level test that runs a corpse Core through all 3 upgrade
+      steps and confirms `core_autofire` fires on a genuinely-unaffordable
+      target (isolating step 3 from the 1s execute branch), and a z-order
+      regression test (extends the shared `recordingCanvas()` helper with a
+      shared monotonic `seq` counter across `fillRect`/`fillText`/`arc`/
+      `moveTo`/`lineTo`) that builds a tower on `(CORE_X, CORE_Y-1)` and
+      asserts the Store label's paint call — and its backdrop rect — land
+      after the tower's own fill, proven falsifiable by hand-tracing it
+      against the pre-fix call order. code-reviewer **APPROVE** (no
+      Critical/Major; one Minor — a stale test comment implying
+      `corpseExecuteInterval` needed an upgrade step when it's actually a
+      base effect — fixed in the same commit). qa-playtester **PASS**:
+      independently reproduced the auto-fire emit from scratch (not just
+      re-running the shipped test), confirmed the registry color is
+      genuinely read (mutated it at runtime, saw the stroke color follow;
+      a negative-control bypass of `coreEffectColor` correctly failed the
+      same check), confirmed the Plant Core's Digestion label shares the
+      same fix and isn't occluded either, confirmed `stone_heart`/`time`/
+      `vampire_heart` (no overlay text) render nothing stray and don't
+      crash, and confirmed Time/Vampire Heart/Plant's rings still draw
+      after the `drawCoreStatus` split. `npx tsc --noEmit` clean; targeted
+      suite 66/66, money-path suite 34/34; `npm run test:fast` 2060/5
+      failed/24 skipped, all 5 failures independently proven pre-existing
+      (q15/q49/q52 — reproduced identically against `git stash`-ed clean
+      HEAD, Windows scratch-dir `EPERM`/timing-sensitive hang-detector
+      flakes, none touching the changed files).
 - [ ] (fb051) [bug] top priority: the DPS summary panel (and the VS
       wielded side panel, same styling rule) covers and blurs the whole
       screen instead of docking as a compact side panel. Acceptance: both

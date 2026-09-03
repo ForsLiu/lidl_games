@@ -620,6 +620,11 @@ function updateCorpseAutoFire(w: World, dt: number): void {
   const spend = w.corpseStore;
   w.corpseStore = 0;
   damageEnemy(w, target, spend, 'corpse', { type: 'normal', noLifesteal: true });
+  // fb050: the hit itself already flashes via `damageEnemy`'s own `hit:normal`
+  // event (not `dot`, so it isn't suppressed) — this beam is the missing
+  // piece, showing the shot came from the Core rather than nothing at all.
+  const cc = coreCenter();
+  w.emit('core_autofire', cc.x, cc.y, target.x, target.y);
 }
 
 /**

@@ -380,6 +380,14 @@ export class Renderer {
         case 'core_beam':
           this.pushCast('line', e.x, e.y, e.a, e.b, coreEffectColor(w.coreKey, 'execute', '#ffd166'));
           break;
+        // fb050: step-3 auto-fire (`updateCorpseAutoFire`) spends the whole
+        // store on the highest-HP enemy but previously emitted no fx of its
+        // own at all — the hit itself still flashed via the ordinary
+        // `hit:normal` event `damageEnemy` always fires, but nothing showed
+        // it came from the Core.
+        case 'core_autofire':
+          this.pushCast('line', e.x, e.y, e.a, e.b, coreEffectColor(w.coreKey, 'autofire', '#ff6b35'));
+          break;
         case 'core_explode':
           this.pushCast('nova', e.x, e.y, e.a, 0, coreEffectColor(w.coreKey, 'explode', '#ff8844'));
           break;
@@ -468,6 +476,7 @@ export class Renderer {
     if (!night && view.settings.showPathIndicators) this.drawPathIndicators(w);
     this.drawCharacterRangeRing(w, view);
     if (!night) this.drawBuildGhost(w, view);
+    this.drawCoreLabels(w);
     this.drawNumbers();
     this.drawPhaseSweep(view);
     ctx.restore();
@@ -1101,9 +1110,6 @@ export class Renderer {
     const cx = (CORE_X + CORE_W / 2) * TILE;
     const cy = (CORE_Y + CORE_H / 2) * TILE;
     const core = w.core;
-    const labelY = CORE_Y * TILE - 10;
-    ctx.font = '11px system-ui, sans-serif';
-    ctx.textAlign = 'center';
     if (w.coreKey === 'carnivorous_plant' && !w.huntsWarden && core.devourRadius > 0) {
       ctx.strokeStyle = '#7ac74f55';
       ctx.lineWidth = 1.5;
@@ -1112,8 +1118,6 @@ export class Renderer {
       ctx.arc(cx, cy, core.devourRadius * TILE, 0, Math.PI * 2);
       ctx.stroke();
       ctx.setLineDash([]);
-      ctx.fillStyle = '#c8f7b0';
-      ctx.fillText(`Digestion ${w.digestionStacks}`, cx, labelY);
     }
     if (w.coreKey === 'time') {
       if (!w.huntsWarden && core.tdSlowRadius > 0) {
@@ -1133,10 +1137,6 @@ export class Renderer {
         ctx.setLineDash([]);
       }
     }
-    if (w.coreKey === 'corpse' && !w.huntsWarden && core.corpseExecuteInterval > 0) {
-      ctx.fillStyle = '#ffd166';
-      ctx.fillText(`Store ${Math.round(w.corpseStore)}`, cx, labelY);
-    }
     if (w.coreKey === 'vampire_heart' && core.towerLifestealPct > 0) {
       ctx.strokeStyle = '#ff557755';
       ctx.lineWidth = 1.5;
@@ -1144,8 +1144,44 @@ export class Renderer {
       ctx.arc(cx, cy, Math.max(CORE_W, CORE_H) * TILE * 0.9, 0, Math.PI * 2);
       ctx.stroke();
     }
-    ctx.textAlign = 'left';
     ctx.lineWidth = 1;
+  }
+
+  /**
+   * fb050: the Core's own status text (store meter, digestion count) used to
+   * draw inside `drawCoreStatus`, before `drawStructures`/`drawEnemies` — a
+   * tower built on the buildable ground tile directly above the Core's 2x2
+   * footprint (nothing prevents that; only the Core's own tiles are
+   * non-buildable) painted its opaque body straight over the label. Drawn
+   * last instead (call site in `draw()`, after every structure/enemy), with
+   * a translucent backdrop behind the text so it stays legible over any
+   * background.
+   */
+  private drawCoreLabels(w: World): void {
+    const ctx = this.ctx;
+    const cx = (CORE_X + CORE_W / 2) * TILE;
+    const labelY = CORE_Y * TILE - 10;
+    const core = w.core;
+    let text: string | undefined;
+    let color = '#ffffff';
+    if (w.coreKey === 'carnivorous_plant' && !w.huntsWarden && core.devourRadius > 0) {
+      text = `Digestion ${w.digestionStacks}`;
+      color = '#c8f7b0';
+    } else if (w.coreKey === 'corpse' && !w.huntsWarden && core.corpseExecuteInterval > 0) {
+      text = `Store ${Math.round(w.corpseStore)}`;
+      color = '#ffd166';
+    }
+    if (!text) return;
+    ctx.font = '11px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    const padX = 5;
+    const padY = 3;
+    const metrics = ctx.measureText(text);
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+    ctx.fillRect(cx - metrics.width / 2 - padX, labelY - 11 - padY, metrics.width + padX * 2, 14 + padY * 2);
+    ctx.fillStyle = color;
+    ctx.fillText(text, cx, labelY);
+    ctx.textAlign = 'left';
   }
 
   /**
