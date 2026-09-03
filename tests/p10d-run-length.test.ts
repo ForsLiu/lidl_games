@@ -79,17 +79,32 @@
  * confirming the lever changes only pacing, not difficulty. Comfortably
  * inside the 30-36 min band. `tests/p3a-run-shape.test.ts`'s pinned
  * `buildPhaseSeconds` literal updated 20->15 to match; no other test pins the
- * old value. Gate **G1 is green in full.**
+ * old value. Gate **G1 is green in full**, at that commit — later balance
+ * work and, this session, a harness change (below) have both moved the
+ * number since; see the `it.skip` at the bottom of this file for the current
+ * honest measurement, not this paragraph.
+ *
+ * **p10s (BACKLOG p10s, Q158), this session — harness change, not a tune.**
+ * This file always plays `classKey: 'engineer'` through the bare `hybrid`
+ * policy, which never fires a class Active or buys a Core upgrade on its
+ * own — unlike G8/G23's own harnesses (`tests/p6e-class-diversity.test.ts`,
+ * `tests/p-core-f-gates.test.ts`), which script both on top of `hybrid`.
+ * That mismatch was Q158's own finding: a shared T1 difficulty lever always
+ * broke this gate (and G14's) before it dented G8/G23's much larger
+ * over-ceiling numbers, so the four gates could never be judged against one
+ * shared lever. `runScripted` (`tests/helpers.ts`, factored out of the same
+ * two functions G8/G23 already use) replaces the local `runOne` above,
+ * giving this gate the identical scripted shape. Re-measured: **mean 36.39
+ * min, 21/24 wins (87.5%)**, up from the un-scripted 36.70 min/19-24
+ * (79.2%) — closer to the 30-36 band, not further, unlike G14/G8/G23's much
+ * larger jumps under the same change. `/data` untouched by this commit.
  */
 
 import { describe, expect, it } from 'vitest';
 
-import { Run } from '../src/sim/run';
-import { makePolicy } from '../src/bots';
-import '../src/bots';
 import { loadContent } from '../src/sim/content';
 import { allTreeNodeIds } from '../src/meta/meta';
-import type { RunConfig, RunReport } from '../src/sim/types';
+import { runScripted } from './helpers';
 
 const SEEDS = Array.from({ length: 24 }, (_, i) => i + 1);
 // fb049 (Q138 re-measurement): every real Hub-started run feeds the full
@@ -99,18 +114,17 @@ const SEEDS = Array.from({ length: 24 }, (_, i) => i + 1);
 // `tools/sweep.ts`'s post-fb039 behavior.
 const FULL_TREE = allTreeNodeIds(loadContent());
 
-function runOne(cfg: RunConfig, policyName: string, maxTicks: number): RunReport {
-  const run = new Run({ ...cfg, policy: policyName });
-  const policy = makePolicy(policyName);
-  while (!run.done && run.world.tick < maxTicks) {
-    run.step(policy.act(run.world));
-  }
-  return run.report();
-}
-
 describe('G1 mean victorious run is 30-36 minutes over 24+ seeds', () => {
-  const reports = SEEDS.map((seed) =>
-    runOne({ seed, classKey: 'engineer', tier: 1, modifiers: [], allocated: FULL_TREE }, 'hybrid', 60 * 60 * 45),
+  // p10s (BACKLOG p10s): `runScripted` (`tests/helpers.ts`) replaces the
+  // former local `runOne`, which drove a bare unscripted `hybrid` policy —
+  // Engineer's Field Kit/Pop Turret now fire on cooldown and every affordable
+  // Core upgrade step is bought, the same "scripted kit bot" shape G8/G23
+  // already measure T1 against, so a shared difficulty lever moves all four
+  // gates (G1/G8/G14/G23) proportionally instead of G1/G14 breaking first.
+  const reports = SEEDS.map(
+    (seed) =>
+      runScripted({ seed, classKey: 'engineer', tier: 1, modifiers: [], allocated: FULL_TREE }, 'hybrid', 60 * 60 * 45)
+        .report,
   );
   const wins = reports.filter((r) => r.outcome === 'victory');
   const minutes = wins.map((r) => r.totalSeconds / 60);
@@ -176,8 +190,20 @@ describe('G1 mean victorious run is 30-36 minutes over 24+ seeds', () => {
   // session measured at HEAD before any edit landed (drifted from the stale
   // 36.36/23-24 fb049 number via unrelated commits landed since, same as
   // `tests/boss.test.ts`'s G14 case below — not a regression from p10s).
+  // p10s (BACKLOG p10s, this session, part 3): re-measured under the new
+  // `runScripted` harness (Engineer's kit firing on cooldown, every
+  // affordable Core-upgrade step bought — see this file's own header and
+  // `tests/boss.test.ts`'s matching G14 comment for the full rationale).
+  // **mean 36.39 min, 21/24 wins (87.5%)** — up from the un-scripted 36.70
+  // min/19-24 (79.2%), and now only 0.39 min over the 36-min ceiling versus
+  // 0.70 before: closer to band, not further, unlike G14/G8/G23's much
+  // larger over-ceiling jumps under the same harness change. `/data` is
+  // untouched by this commit — this is a re-measurement, not a tune.
+  // `.skip`-ed with the honest number; re-enable point is the retune this
+  // item's harness change makes possible (tracked as a BACKLOG follow-up,
+  // not attempted in this same item per CLAUDE.md's scope discipline).
   it.skip('has a mean victorious run of 30-36 minutes', () => {
     expect(mean, detail).toBeGreaterThanOrEqual(30);
     expect(mean, detail).toBeLessThanOrEqual(36);
-  }); // p10s re-confirmation: mean 36.70 min, 19/24 (79.2%) under TREE_AUTO_MAX — 0.70 min over ceiling, unaffected by p10s's bloodlord-only edit
+  }); // p10s re-measurement (scripted harness): mean 36.39 min, 21/24 (87.5%) — 0.39 min over ceiling
 });

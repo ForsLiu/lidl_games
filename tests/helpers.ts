@@ -5,6 +5,8 @@ import { Rng } from '../src/sim/rng';
 import { emptyInput, type Command, type RunConfig, type RunReport, type TickInput } from '../src/sim/types';
 import { makePolicy } from '../src/bots';
 import '../src/bots';
+import { coreCenter } from '../src/sim/grid';
+import type { World } from '../src/sim/world';
 
 export function cfg(over: Partial<RunConfig> = {}): RunConfig {
   return {
@@ -72,6 +74,100 @@ export function runWithPolicy(
   const policy = makePolicy(policyName);
   while (!run.done && run.world.tick < maxTicks) {
     run.step(policy.act(run.world));
+  }
+  return { report: run.report(), run };
+}
+
+const CHARGE_KINDS = new Set(['charge_nova', 'charge_pierce']);
+/** Structure-targeting kinds (Field Kit, Blood Tithe, Death Pact) default an omitted aim to the Warden's own tile, not the enemy's — see `tests/p6e-class-diversity.test.ts`'s header for why an aim override is skipped for these. */
+const STRUCTURE_TARGET_KINDS = new Set(['repair_heal', 'blood_tithe', 'death_pact']);
+
+function aimPoint(w: World): { x: number; y: number } {
+  const wd = w.warden;
+  const t = w.nearestEnemy(wd.x, wd.y, 40);
+  if (t) return { x: t.x, y: t.y };
+  const c = coreCenter();
+  return { x: c.x, y: c.y };
+}
+
+/**
+ * Fires a class's kit onto a stock policy's own `TickInput` — the same
+ * "scripted kit bot" shape G8/G23 already use (`tests/p6e-class-diversity.
+ * test.ts`'s `scriptClassKit`, reused verbatim here per BACKLOG p10s so
+ * G1/G14 can measure under the identical "real player" shape instead of the
+ * stock `hybrid` bot, which never fires a class Active on its own).
+ */
+export function scriptClassKit(w: World, input: TickInput): void {
+  const cls = w.content.classByKey.get(w.cfg.classKey);
+  if (!cls) return;
+  const wd = w.warden;
+  const aim = aimPoint(w);
+
+  if (CHARGE_KINDS.has(cls.active1.kind)) {
+    const cap = cls.active1.chargeCapSeconds ?? 3;
+    const holdWindow = Math.min(cap, 2);
+    input.active1Held = wd.active1Charging ? wd.active1Charge < holdWindow : wd.active1Cooldown <= 0;
+    input.aimX = aim.x;
+    input.aimY = aim.y;
+  } else if (wd.active1Cooldown <= 0) {
+    input.cmds.push(
+      STRUCTURE_TARGET_KINDS.has(cls.active1.kind)
+        ? { k: 'class_active' }
+        : { k: 'class_active', aimX: aim.x, aimY: aim.y },
+    );
+  }
+
+  const judgementReady = cls.active2.kind !== 'judgement' || (wd.clarionRemaining <= 0 && wd.wrathStored > 0);
+  if (wd.active2Cooldown <= 0 && judgementReady) {
+    input.cmds.push(
+      STRUCTURE_TARGET_KINDS.has(cls.active2.kind)
+        ? { k: 'class_active2' }
+        : { k: 'class_active2', aimX: aim.x, aimY: aim.y },
+    );
+  }
+}
+
+/** Buys every Core upgrade step going, parking the Warden on the Core's tile to guarantee range — same injection G23's `runCoreScripted` (`tests/p-core-f-gates.test.ts`) already uses, reused verbatim per BACKLOG p10s. */
+export function buyCoreUpgrades(w: World, input: TickInput): void {
+  const stepCount = w.content.coreByKey.get(w.coreKey)?.upgrade.count ?? 0;
+  if ((w.phase === 'act1_build' || w.phase === 'act1_wave') && w.coreStep < stepCount) {
+    const center = coreCenter();
+    w.warden.x = center.x;
+    w.warden.y = center.y;
+    input.cmds.push({ k: 'upgrade_core' });
+  }
+}
+
+/**
+ * `runWithPolicy`, but layers `scriptClassKit`/`buyCoreUpgrades` onto every
+ * tick — the "scripted kit bot" shape BACKLOG p10s gives G1/G14 so a shared
+ * T1 difficulty lever moves all four gates (G1/G8/G14/G23) proportionally
+ * instead of G1/G14's un-scripted `hybrid` breaking first.
+ *
+ * `maxTicks` defaults to G23's 120-simulated-minute headroom
+ * (`tests/p-core-f-gates.test.ts`'s own measured-slowest-resolution
+ * rationale), wider than `runWithPolicy`'s 45-minute default — a scripted
+ * kit bot can run long via Core-upgrade purchases eating build-phase time,
+ * so callers that need a tighter window (e.g. G1's own 45-minute cap) pass
+ * it explicitly, as `tests/p10d-run-length.test.ts` does.
+ */
+export function runScripted(
+  config: RunConfig,
+  policyName: string,
+  maxTicks = 60 * 60 * 120,
+): { report: RunReport; run: Run } {
+  const runCfg = { ...config, policy: policyName };
+  const run = new Run(runCfg);
+  config.contentHash = runCfg.contentHash;
+  const policy = makePolicy(policyName);
+  const w = run.world;
+  while (!run.done && w.tick < maxTicks) {
+    const input = policy.act(w);
+    if (w.phase === 'act1_build' || w.phase === 'act1_wave' || w.phase === 'act2') {
+      scriptClassKit(w, input);
+    }
+    buyCoreUpgrades(w, input);
+    run.step(input);
   }
   return { report: run.report(), run };
 }

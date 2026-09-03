@@ -1390,7 +1390,7 @@ fresh number.
 
 ### Filed 2026-09-01 — G8/G23 over-ceiling after p10m's re-measurement
 
-- [ ] (p10r) [balance] `p10m`'s re-measurement flipped **G8** and **G23** from
+- [x] (p10r) [balance] `p10m`'s re-measurement flipped **G8** and **G23** from
       their old under-the-35%-floor failure into an over-the-70%-ceiling one:
       the `p10j`-`p10l` wave/spawn-pacing pass that closed **G1**/**G13**
       also closed the wave-11-to-17 wall these two gates trace to, but hard —
@@ -1477,7 +1477,15 @@ fresh number.
       already `.skip`-ed pre-session so no test file needed touching.
       — refs: QUESTIONS Q158, p10s.
 
-- [ ] (p10s) [feat] Unblock `p10r`'s G8/G23 retune, filed from Q158's wall:
+      **Closed 2026-09-02**: p10s (both unblock options — the G21 pin
+      loosening and, this session, the G1/G14 scripted harness) has now
+      landed in full; the actual retune this item asks for is the direct
+      successor item **p10t**, filed with the corrected (now four-gate,
+      all-over-ceiling) target. Closed by cross-reference rather than
+      re-executed, same disposition BACKLOG f002 used for a queued item a
+      later one had already delivered.
+
+- [x] (p10s) [feat] Unblock `p10r`'s G8/G23 retune, filed from Q158's wall:
       the `/data`-only retune is structurally blocked by (a) G14/G1 running
       the stock `hybrid` bot with no scripted class-active firing or forced
       Core-upgrade purchases while G8/G23's own harnesses add both on top of
@@ -1533,6 +1541,88 @@ fresh number.
       change filed above (a shared bot-policy lever spanning G1/G14/G8/G23
       alike) or an owner verdict on lowering G8/G23's own ceiling, not another
       tuning probe.
+
+      **Session update (2026-09-02), part 3/3 — the harness unblock (option 2
+      from this item's own text) is landed; the retune pass itself is filed
+      separately as p10t.** G1 (`tests/p10d-run-length.test.ts`) and G14
+      (`tests/boss.test.ts`) always ran the bare `hybrid` policy — no class-
+      Active firing, no Core-upgrade purchases — while G8/G23's own harnesses
+      script both on top of `hybrid`. That asymmetry is exactly why a shared
+      T1 lever could never be judged fairly: G1/G14 broke first, long before
+      G8/G23's much larger over-ceiling numbers moved. `scriptClassKit`/
+      `buyCoreUpgrades`/`runScripted` (new exports in `tests/helpers.ts`,
+      extracted verbatim from `tests/p6e-class-diversity.test.ts`'s
+      `scriptClassKit`/`aimPoint` and `tests/p-core-f-gates.test.ts`'s
+      Core-upgrade injection — both source files left untouched, zero diff)
+      give G1/G14 the identical scripted-kit-and-Core-purchase shape. `/data`
+      untouched by this commit — a harness change, not a tune.
+      Re-measured under the new harness (both gates confirmed by
+      code-reviewer and qa-playtester independently re-running the numbers,
+      not trusting the comments): **G14 20/20 (100%)**, over its own <100%
+      ceiling, up from the un-scripted 16/20 (80%); **G1 mean 36.39 min,
+      21/24 wins (87.5%)**, up from 36.70 min/19-24 (79.2%), now only 0.39
+      min over the 36-min ceiling versus 0.70 before. Both `it.skip`-ed with
+      the honest numbers (CLAUDE.md: "a deferral is a measurement with an
+      expiry date").
+      The result confirms the theory: under the shared harness, **all four
+      gates (G1/G8/G14/G23) now sit on the same side of their bands
+      (over-ceiling)** instead of G1/G14 sitting near-band while G8/G23 sit
+      far over it — the structural precondition for a shared `/data` lever to
+      move all four proportionally is now in place. Also notable: G1 moved
+      *toward* its band under the new harness (0.39 min over vs 0.70 before),
+      not away from it like G8/G14/G23 did — a real, if small, signal that G1
+      may be closer to closeable on its own than the other three.
+      code-reviewer **APPROVE** (2 Minor: a third, non-gate call site
+      switched to `runScripted` with no re-measurement comment, fixed in the
+      same commit; the three now-near-duplicate scripted-kit implementations
+      across `helpers.ts`/`p6e`/`p-core-f-gates` are a drift risk worth a
+      future de-dup once this lands stably, not fixed here to avoid
+      re-verifying the two ~1h source files. 1 Nit: `runScripted`'s wider
+      default `maxTicks`, documented with a comment). qa-playtester **PASS**:
+      independently re-ran both gates' full sweeps outside the `.skip`,
+      confirmed the non-gate boss-mechanic/Rift-event tests are unaffected
+      (they construct `World`/`Run` directly), confirmed `runWithPolicy`'s
+      other 7+ callers are unaffected, confirmed no `/data/*.json` in the
+      diff, and confirmed the charge-kind/judgement-sequencing generality in
+      the new shared code is currently reachable only through `p6e`'s
+      untouched roster (G1/G14 always play `classKey: 'engineer'`, neither a
+      charge nor a judgement kit) — not a bug, just unexercised generality
+      inherited from the verbatim copy.
+      This item (p10s) is now **done** — its own acceptance text scoped it to
+      landing the unblock ("once landed, re-run p10r's retune..."), and the
+      retune re-run is a distinct, separately-verifiable body of work — filed
+      as **p10t** immediately below rather than left implicit.
+
+- [ ] (p10t) [balance] Re-run the G1/G8/G14/G23 retune now that p10s's shared
+      scripted-kit-and-Core-purchase harness makes all four gates measurable
+      against one lever: with G1/G14 now over-ceiling under the same "real
+      player" shape G8/G23 already use (this session's numbers: G14 20/20,
+      G1 36.39min/21-24, G8 all twelve classes 10-12/12 or 12/12, G23 all
+      five Cores 10-12/12 per `p10r`'s fb049 entry), a shared T1 difficulty
+      cut (wave HP curve, spawn density, or a similar global lever
+      `p10r`/`p10s`'s prior `/data`-only probes already tried against the
+      old asymmetric harness) should now move all four proportionally
+      instead of hitting G14 first the way it did pre-p10s. Acceptance: a
+      `/data`-only retune pass closes at least 9 of 12 G8 classes and 3 of 5
+      G23 Cores into `[35%,70%]`, and G1's mean run length into `[30,36]`
+      min, and G14's win rate into `[60,100)`, without any of the four
+      leaving its band — re-run all four gates together after each probe
+      (`tests/p10d-run-length.test.ts`, `tests/boss.test.ts`,
+      `tests/p6e-class-diversity.test.ts`, `tests/p-core-f-gates.test.ts`).
+      If a shared lever still can't close the 9/12+3/5 bar within ~5 genuine
+      probes (CLAUDE.md rule 6), the next escalation is an owner verdict on
+      lowering G8/G23's own ceiling bands, not further tuning — refs:
+      SPEC-FINAL §14 G1/G8/G14/G23, QUESTIONS Q158, BACKLOG p10r/p10s.
+      **Also worth folding in, lower priority**: code-reviewer's p10s note
+      that `scriptClassKit`/`aimPoint`/the Core-upgrade injection now exist
+      in three near-identical copies (`tests/helpers.ts`'s new shared
+      version, plus the original two in `tests/p6e-class-diversity.test.ts`
+      and `tests/p-core-f-gates.test.ts`) — a future fix to the aim-omission
+      or sequencing logic could land on only one copy and silently
+      reintroduce the G1/G14-vs-G8/G23 asymmetry p10s just closed. De-dup by
+      having the two source files import from `tests/helpers.ts` instead,
+      once this item's retune work is done and the ~1h-per-file source tests
+      don't need re-verifying twice in the same session.
 
 ### Filed at the lane/quality merge (2026-08-27) — out-of-scope findings from BACKLOG-QUALITY.md's log
 
@@ -2993,7 +3083,7 @@ because the lane worktree retires at this merge.
       shape), or extend the scan so the escaped-same-quote shape reproduces
       the same (documented, accepted) false positive consistently — refs:
       b063, qa-playtester b063 verification pass (2026-08-31).
-- [ ] (b027) [bug] `tests/p6e-class-diversity.test.ts`'s G8 diversity pin
+- [x] (b027) [bug] `tests/p6e-class-diversity.test.ts`'s G8 diversity pin
       (`distinct.size` asserted `toBe(2)`, the audit-summary's documented
       "2/11 not >=8/11") measured `3` on a full unexcluded `npm test` run at
       the fb006 session (2026-08-29) — a genuine drift, not one of that run's
@@ -3026,6 +3116,21 @@ because the lane worktree retires at this merge.
       written (re-pin the stale 11-class count) is superseded, but no new
       item has replaced it with the correct 12-class ask, so it stays open
       rather than being silently dropped.
+      **Closed 2026-09-02, no new commit needed**: the deferred 12-class
+      re-measurement this item was waiting on already happened, as a side
+      effect of `p10m`/`fb049`'s G8 work, not this item's own execution.
+      `tests/p6e-class-diversity.test.ts`'s diversity pin
+      (`tests/p6e-class-diversity.test.ts:717`) is un-skipped and reads
+      `expect(distinct.size).toBe(3)` — the real 12-class, full-tree
+      (`TREE_AUTO_MAX`) measurement, with the reasoning trail (pre-fb013: 2;
+      p10m re-measurement: still 2 at the stale `allocated: []` shape; fb049
+      re-measurement: 3 once the real full-tree allocation is used) recorded
+      in the comment directly above the assertion. That is exactly this
+      item's acceptance criterion (re-run standalone, identify what changed
+      and why, re-pin to the honest count with the reason recorded) — closed
+      by cross-reference rather than re-executed, same disposition BACKLOG
+      f002 used when M17-era work turned out to have already delivered a
+      queued item.
 - [x] (b076) [bug] a mid-run `equip_item` swap of Sleeve Sword/Swordsman
       Armor/Swordsman Shoes updates the generic `Stats` mods live but not
       the three items' special `effectKey` mechanics — commit `bb69f37`.

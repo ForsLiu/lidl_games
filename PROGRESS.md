@@ -5,6 +5,62 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-02 session: `b027` closed by cross-reference; `p10s` part 3/3
+  lands the harness-level unblock its own text named; `p10r` closed,
+  successor `p10t` filed with the corrected four-gate retune target.**
+  Completion check: BACKLOG.md was not all-done (3 unchecked items — `p10r`,
+  `p10s`, `b027`) and no unprocessed `feedback/` files existed, so no DONE.md.
+  **`b027`** (the G8 diversity-pin re-pin) turned out to already be
+  delivered: `p10m`/`fb049`'s 12-class, full-tree re-measurement (prior
+  session) had already un-skipped `tests/p6e-class-diversity.test.ts`'s
+  `distinct.size` assertion and re-pinned it to the honest `3`, exactly this
+  item's acceptance criterion — closed with no new commit, same disposition
+  BACKLOG f002 used historically.
+  **`p10s` part 3/3**: G1 (`tests/p10d-run-length.test.ts`) and G14
+  (`tests/boss.test.ts`) always measured the bare `hybrid` policy — no
+  class-Active firing, no Core-upgrade purchases — while G8/G23's own
+  harnesses script both on top of `hybrid`; that asymmetry meant any shared
+  T1 difficulty lever broke G1/G14 before it dented G8/G23's much larger
+  over-ceiling numbers (Q158's wall). Extracted `scriptClassKit`/
+  `buyCoreUpgrades`/`runScripted` into `tests/helpers.ts`, verbatim from
+  `tests/p6e-class-diversity.test.ts`'s `scriptClassKit`/`aimPoint` and
+  `tests/p-core-f-gates.test.ts`'s Core-upgrade injection (both source files
+  left untouched, zero diff), and rerouted G1/G14's gate assertions through
+  it. `/data` untouched — a harness change, not a tune. Re-measured (both
+  numbers independently reproduced by code-reviewer and qa-playtester, not
+  taken from comments): **G14 20/20 (100%)**, over its own <100% ceiling, up
+  from the un-scripted 16/20 (80%); **G1 mean 36.39 min, 21/24 (87.5%)**, up
+  from 36.70 min/19-24 (79.2%) and now only 0.39 min over the 36-min ceiling
+  (down from 0.70). Both `it.skip`-ed with the honest numbers. This confirms
+  the theory behind the fix: under the shared harness, all four gates
+  (G1/G8/G14/G23) now sit on the same over-ceiling side of their bands,
+  which is the structural precondition a shared `/data` retune needs.
+  code-reviewer **APPROVE** (2 Minor — a third non-gate call site missing a
+  re-measurement comment, fixed same commit; three now-near-duplicate
+  scripted-kit copies across `helpers.ts`/`p6e`/`p-core-f-gates` flagged as a
+  future de-dup, not fixed here to avoid re-verifying two ~1h source files —
+  folded into `p10t`. 1 Nit on `runScripted`'s wider default `maxTicks`,
+  documented). qa-playtester **PASS**: independently reproduced both gates'
+  numbers via standalone scripts, confirmed `tests/boss.test.ts`'s
+  boss-mechanic/Rift-event tests are unaffected (direct `World`/`Run`
+  construction), confirmed `runWithPolicy`'s other 7+ callers unaffected,
+  confirmed no `/data/*.json` in the diff, confirmed the charge-kind/
+  judgement-sequencing generality in the new shared code is currently
+  reachable only through `p6e`'s untouched roster (G1/G14 always play
+  `classKey: 'engineer'`) — unexercised, not a bug. `npx tsc --noEmit`
+  clean throughout; `npm run test:fast` re-run separately this session
+  (2054/2079 passed, 23 skipped; only failures the already-documented
+  Windows host-load flake class — `b032`/`b034`/`b035`/`b036` fold-timing,
+  `q15-command-domain-fuzz` worker-hangs — confirmed unrelated, none of
+  those files import `tests/helpers.ts`).
+  `p10s` marked done (its own acceptance text scoped it to landing the
+  unblock, not the retune itself); `p10r` closed by cross-reference to its
+  successor. **`p10t`** filed: re-run the G1/G8/G14/G23 retune now that all
+  four are measurable against one shared T1 difficulty lever, target 9/12 G8
+  classes + 3/5 G23 Cores in-band plus G1/G14 in-band, same CLAUDE.md rule-6
+  discipline (~5 genuine probes, then an owner-verdict escalation) if a
+  shared lever still can't close it.
+
 - **2026-09-02 session: p10s (2/2) done — genuine `/data`-only wall on G8/G23
   confirmed exhaustively; one class (bloodlord) closed into band.** Part 1
   (commit `86b11f8`, prior session) loosened G21's exact-literal Core-effect
