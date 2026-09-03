@@ -358,6 +358,87 @@ not already expose it) logs that need below instead of reaching into
       overlap checks — refs: SPEC-FINAL §11 (layout rule), owner feedback
       `feature-ui-inside-playfield`.
 
+- [ ] (fb071) [feat] normal priority: window unfocus auto-pause —
+      QUALITY.md BETA's "window unfocus auto-pauses" bar is unmet:
+      `main.ts`'s existing `window.addEventListener('blur', ...)` only
+      clears held keys, it never pauses. The game should auto-pause (same
+      state transition as Esc) the instant the browser window/tab loses
+      focus during a running phase, so a player who alt-tabs away doesn't
+      come back to a dead Core. Acceptance: a unit test dispatches a
+      `blur` event during `act1_wave`/`act2` and confirms the same pause
+      state Esc reaches (phase/outcome untouched, Warden/wave progress
+      frozen); a `focus` event afterward does NOT auto-resume (matches
+      Esc's manual-resume convention, and avoids a resume racing back into
+      combat before the player has looked at the screen) — refs:
+      QUALITY.md BETA ("Pause works everywhere; window unfocus
+      auto-pauses"), SPEC-FINAL §11 (Esc pause parity).
+
+- [ ] (fb072) [feat] normal priority: boss health bar — the two boss
+      enemies (`gatebreaker` 30,000 HP, `warden_eater` 100,000 HP,
+      `data/enemies.json`) have no HUD element beyond the tiny per-enemy
+      HP bar fb025 draws under every sprite, which is illegible at these
+      HP scales and gives the player no legible read on boss-fight
+      progress despite G14/G23's boss-clear gates existing specifically to
+      measure that fight. Add a dedicated HUD banner (name + a proportional
+      HP-fraction bar) that appears at a fixed screen position while any
+      boss-flagged enemy (`traits` includes `"boss"`) is alive and
+      disappears when none is. Acceptance: a unit/render test spawns a
+      boss enemy, confirms the banner shows its name and a fraction
+      matching `hp / maxHp`, updates as `hp` drops, and disappears on
+      death or when no boss is present; if two bosses are ever alive at
+      once the banner shows the lower-current-HP one without crashing —
+      refs: SPEC-FINAL §11, engineer's-judgment item (content totals name
+      2 bosses with no matching HUD depth).
+
+- [ ] (fb073) [feat] normal priority: key remapping — QUALITY.md BETA's
+      Settings checklist line ("master/SFX volume, screenshake toggle,
+      reduced-flash mode, damage number toggle, key remapping,
+      resolution/DPR handling, colorblind-safe palette") is met on every
+      clause except key remapping: every binding in `src/ui/input.ts`
+      (movement WASD/arrows, Space dash, Q/E actives, R/F/C/P/V/U/X,
+      1-9/0) is a hardcoded literal with no way to change it. Settings
+      gains a "Controls" section listing every rebindable action with a
+      click-to-rebind control, conflict detection (rejects binding a key
+      already assigned to a different action, existing binding untouched),
+      and a way to restore defaults; `input.ts`'s handlers read the
+      configured key instead of the hardcoded letter. Acceptance: a unit
+      test rebinds an action, confirms the old key no longer triggers it
+      and the new key does; binding an already-used key is rejected and
+      leaves the existing assignment intact; defaults restore every
+      binding — refs: QUALITY.md BETA (Settings checklist), SPEC-FINAL
+      §11.
+
+- [ ] (fb074) [feat] low priority: resume run after a page refresh —
+      QUALITY.md BETA's "no progress loss on refresh" bar. Nothing today
+      persists an in-progress run; reloading the page always drops to the
+      Hub. Periodically persist the running phase's `RunConfig` (seed +
+      content hash, already the unit architecture rule 2 requires) and its
+      recorded input log to `localStorage` (throttled, e.g. once per
+      simulated second), clearing the entry on a normal
+      defeat/victory/abandon; on load, a persisted in-progress log whose
+      content hash matches the current `/data` is replayed forward through
+      the same seed+input-log replay path G2's determinism tests already
+      exercise and the run resumes live from that point instead of
+      dropping to the Hub; a content-hash mismatch (edited `/data` since
+      the last session) discards the stale log rather than replaying
+      against changed content. Acceptance: a unit test persists a short
+      input log mid-run, constructs a fresh harness from only the
+      persisted data, and confirms the replayed world state matches an
+      uninterrupted run at the same tick; a mismatched-content-hash case
+      confirms the stale log is discarded, not replayed — refs:
+      QUALITY.md BETA, SPEC-FINAL §12 (seed+input-log reproducibility,
+      already required for G2).
+
+- [ ] (fb075) [polish] low priority: Settings "reset to defaults" — the
+      Settings tab has no way to restore every slider/toggle to
+      `defaultSettings()`'s values short of clearing `localStorage`
+      manually. Add a single reset button with a confirm step (destructive
+      to any tuned volume/accessibility preferences). Acceptance: a unit
+      test opens Settings, changes several values, clicks reset (confirms
+      the destructive step), and asserts every field reads back as
+      `defaultSettings()` — refs: SPEC-FINAL §11, standard Settings-UX
+      convention.
+
 ## Log
 
 - 2026-09-03, fb058: two files outside the literal Scope glob
