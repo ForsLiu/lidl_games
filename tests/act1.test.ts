@@ -285,7 +285,13 @@ describe('fb002: the Warden (and dash) ignore collision with the Core and friend
     const w = run.world;
     warp(w, 9, 5); // within build range of the dash's landing tile
     expect(buildTower(w, 1, 10, 5).ok).toBe(true);
-    warp(w, 10 - BASE.dashDistance, 5); // exactly BASE.dashDistance west of the structure
+    // fb053: distance falls out of dashSpeedMul x current move speed x
+    // dashDuration — no fixed dashDistance field anymore. `w.derived.moveSpeed`
+    // already includes the default test class's own moveSpeedBonus (engineer,
+    // +15%); coreMoveSpeedMul/classMoveSpeedMul are both 1 here (Act I, no
+    // charging effect in progress).
+    const dashDist = BASE.dashSpeedMul * w.derived.moveSpeed * BASE.dashDuration;
+    warp(w, 10 - dashDist, 5); // exactly dashDist west of the structure
     run.step({ ...emptyInput(), mx: 1, my: 0, dash: true });
     // fb030: the dash now travels over BASE.dashDuration seconds rather than
     // teleporting on the triggering tick — advance past it before checking

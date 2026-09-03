@@ -1564,7 +1564,8 @@ const WardenFileSchema = z.object({
   armor: num,
   moveSpeed: num,
   pickupRadius: num,
-  dashDistance: num,
+  /** fb053: dash speed = dashSpeedMul x the Warden's current movement speed; travel distance falls out of speed x duration. */
+  dashSpeedMul: num,
   dashCooldown: num,
   /** fb030: seconds a dash (base or class-active) takes to travel its line, rather than teleporting. */
   dashDuration: num,

@@ -5,6 +5,22 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-03 session: `fb053` closed — dash speed now scales with the
+  Warden's current movement speed instead of a fixed distance (owner
+  feedback `balance-dash-speed`, top priority).** `data/warden.json`'s
+  `dashDistance` became `dashSpeedMul` (5) with `dashDuration` 0.2→0.18;
+  `src/sim/wardenmove.ts`'s new `dashDistance`/`classDashDuration` give the
+  base dash and all four class-active dashes (Dash Slash, Quickstep, Flame
+  Road, Crimson Rush) the same `dashSpeedMul x currentSpeed x duration`
+  formula, each class-active dash's duration back-calibrated so its
+  authored `dashRange` still reproduces exactly at that class's own
+  baseline speed. code-reviewer's first pass caught a real 15-30% baseline
+  overshoot bug in that calibration (it used the global `BASE.moveSpeed`
+  instead of each class's own, and every class with a dash active has a
+  nonzero permanent `moveSpeedBonus`); fixed via `classBaseMoveSpeed` and
+  re-verified with a new exact regression test. qa-playtester independently
+  confirmed the fix and found no further bugs. See BACKLOG.md's fb053 Done
+  entry for full detail.
 - **2026-09-03 session: `fb052` closed — Sleeve Sword's Circle Slash now
   stays a real charge-then-release ability (instant-max charge, not an
   instant-fire shortcut), fixing a silent Dash-Slash-combo break, and

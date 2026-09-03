@@ -2411,7 +2411,7 @@ generation-rule boundary.
       port-contention, `q15` worker-hang, `q49`/`q52` Windows scratch-dir
       `EPERM` flake family this queue documents every session — none touch
       any file this item changed.
-- [ ] (fb053) [balance] top priority: dash is too slow — amend fb030's
+- [x] (fb053) [balance] top priority: dash is too slow — amend fb030's
       numbers so dash speed = k x the character's CURRENT movement speed
       (k = 5 ⚖), duration ~0.18s ⚖ (distance falls out of speed x
       duration, so it scales with movement-speed gear/boons), cooldown
@@ -2422,6 +2422,51 @@ generation-rule boundary.
       dash distance grows proportionally; full-log replay determinism
       holds — refs: SPEC-FINAL §10 (dash), amends `fb030`, owner feedback
       `balance-dash-speed`.
+      **Done 2026-09-03.** `data/warden.json`'s fixed `dashDistance` field
+      was replaced by `dashSpeedMul` (5) and `dashDuration` moved
+      0.2→0.18; `src/sim/wardenmove.ts` gained `dashDistance(currentSpeed,
+      duration) = dashSpeedMul x currentSpeed x duration` and
+      `classDashDuration(dashRange, baseMoveSpeed)`, which back-calibrates
+      each of the four class-active dashes' (Dash Slash/Quickstep/Flame
+      Road/Crimson Rush) own duration so their authored `dashRange`
+      reproduces exactly at that owning class's *own* baseline move speed
+      — not the global `BASE.moveSpeed` (`classBaseMoveSpeed`,
+      `src/sim/classes.ts`). `src/sim/run.ts`'s base dash and all four
+      `classes.ts` dash-active call sites route through these; the zod
+      schema (`content.ts`) and two fixtures (`tests/act1.test.ts`,
+      `tests/q7-loader-holes.ts`) were updated for the field rename.
+      code-reviewer **REQUEST-CHANGES** on the first pass: `classDashDuration`
+      calibrated against the unmodified global `BASE.moveSpeed` rather than
+      each class's own baseline, but every class shipping a dash active has
+      a nonzero permanent `moveSpeedBonus` (Swordsman/Bloodlord +30%,
+      Archer/Pyromancer +15%) baked into `w.derived.moveSpeed` even with
+      nothing equipped — so at baseline (no gear/boons) the four
+      class-active dashes silently overshot their originally-tuned
+      `dashRange` by 15-30%, contradicting the diff's own stated intent and
+      uncaught by the existing kit tests' loose
+      `toBeGreaterThan`/`toBeLessThan` assertions. Fixed by calibrating
+      against `classBaseMoveSpeed(cls) = BASE.moveSpeed x (1 +
+      cls.moveSpeedBonus)` instead, re-verified by hand-reverting the fix
+      and confirming a new exact regression test (Swordsman Dash Slash at
+      true baseline) failed at 6.5 vs expected 5 before the fix and passes
+      after. code-reviewer re-verified **APPROVE**. qa-playtester **PASS**:
+      independently reproduced the calibration-bug fix's correctness,
+      wrote and discarded scratch probes confirming Quickstep/Flame
+      Road/Crimson Rush also reproduce their authored `dashRange` exactly
+      at baseline (only Dash Slash got a shipped exact regression test),
+      confirmed i-frames (0.2s, unchanged) cover the full 0.18s dash
+      travel window, cooldown (1.5s) is unaffected, a move-speed debuff
+      (Archer's Deadeye Draw) never produces a negative/zero/NaN dash
+      distance, and that `resolveDashTarget`'s border-only passability
+      check means a faster/longer dash still cannot clip through terrain
+      (fb002, pre-existing, unrelated). No bugs filed — the standing
+      `q15`/`q45`/`q49`/`q52` Windows worker/scratch-dir flake family
+      reproduces identically with fb053's changes stashed, confirmed
+      pre-existing and out of scope. `npx tsc --noEmit` clean; targeted
+      suite (`fb053-dash-speed`, `act1`, `q7-data-fuzz`, `p6b-swordsman`,
+      `p6d-nine-classes`) 227/227; `npm run test:fast` 2063 passed/5
+      failed/24 skipped, every failure the same standing flake family,
+      none touching any file this item changed.
 - [ ] (fb054) [balance] top priority: fights should read as massed
       warfare — denser and tankier. (1) Spawn density: TD wave counts/pack
       sizes up roughly x2-3 ⚖; VS director budget up to match; alive cap

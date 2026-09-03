@@ -34,7 +34,7 @@
  */
 import { applyAoE, applyEffects, lineHit } from './combat';
 import type { ClassDef, ClassEffect, TowerDef } from './content';
-import { applyHealingToWarden } from './cores';
+import { applyHealingToWarden, coreMoveSpeedMul } from './cores';
 import { applyDamageType } from './damagetypes';
 import {
   applyAtkSlow,
@@ -51,15 +51,37 @@ import { hasEquipment } from './equipment';
 import { GRID_H, GRID_W } from './grid';
 import { clamp, dist2, lerp, normalize } from './math';
 import { active1PotencyMul, active2CdrBonus, classLineBonus } from './progression';
-import { BASE } from './stats';
 import { buildTower, effectiveTowerAoe, LINE_HALF_WIDTH, towerCost } from './towers';
 import { maxLevel, upgradeStatMul } from './upgrades';
+import { BASE } from './stats';
 import { tickCooldown, type ClassSummon, type Enemy, type Phase, type Structure, type TickInput } from './types';
-import { resolveDashTarget, startDashTravel } from './wardenmove';
+import { classDashDuration, dashDistance, resolveDashTarget, startDashTravel } from './wardenmove';
 import { World } from './world';
 
 /** Usable both TD and VS, per SPEC-FINAL §4 — but not in menu/transition phases. */
 const ACTIVE_PHASES: ReadonlySet<Phase> = new Set(['act1_build', 'act1_wave', 'act2']);
+
+/**
+ * fb053: the Warden's current movement speed — the same composition
+ * `run.ts`'s own base-dash/ordinary-move code uses — fed into
+ * `wardenmove.ts`'s `dashDistance` so every class-active dash scales with a
+ * move-speed buff/boon exactly like the base dash does.
+ */
+function currentMoveSpeed(w: World): number {
+  return w.derived.moveSpeed * coreMoveSpeedMul(w) * classMoveSpeedMul(w);
+}
+
+/**
+ * fb053: the calibration input for `classDashDuration` — the owning class's
+ * own baseline move speed (its permanent `moveSpeedBonus` applied, no
+ * gear/boons/temporary multipliers), not the global `BASE.moveSpeed`. Every
+ * class that ships a dash active has a nonzero `moveSpeedBonus`, so
+ * calibrating against the unmodified base would overshoot each one's
+ * originally-tuned `dashRange` at baseline (code review, fb053).
+ */
+function classBaseMoveSpeed(cls: ClassDef): number {
+  return BASE.moveSpeed * (1 + cls.moveSpeedBonus);
+}
 
 /**
  * The fields the one shared `kind` (`burst_damage`) reads — deliberately
@@ -370,15 +392,19 @@ function fireDashSlash(w: World, cls: ClassDef, aimX: number | undefined, aimY: 
   // only ever reached for `dash_line` (the switch in `useClassActive2`), which
   // no class but Swordsman's authors, so no separate class check is needed —
   // the item is inert on every other kit for the structural reason it names
-  // ("if not Swordsman") rather than a hardcoded one.
-  const dashRange = (eff.dashRange ?? 0) * (hasEquipment(w, 'swordsman_shoes') ? 2 : 1);
+  // ("if not Swordsman") rather than a hardcoded one. fb053: the distance
+  // itself now scales with the Warden's current move speed — Swordsman
+  // Shoes doubles the resolved distance rather than the calibration input,
+  // same as it doubled the old fixed `dashRange` value.
+  const duration = classDashDuration(eff.dashRange ?? 0, classBaseMoveSpeed(cls));
+  const dashRange = dashDistance(currentMoveSpeed(w), duration) * (hasEquipment(w, 'swordsman_shoes') ? 2 : 1);
   const hitRange = dashRange + mergedRadius;
   const damage = characterDamage(w, cls, eff.damage + mergedDamage);
   lineHit(w, wd.x, wd.y, dir.x, dir.y, hitRange, eff.dashWidth ?? 0, damage, 'class_active2', 9999, { onHit });
 
   const before = { x: wd.x, y: wd.y };
   const target = resolveDashTarget(w, dir.x * dashRange, dir.y * dashRange);
-  startDashTravel(w, target, BASE.dashDuration);
+  startDashTravel(w, target, duration);
   w.emit('class_active2', before.x, before.y, target.x, target.y);
 }
 
@@ -556,8 +582,12 @@ function fireQuickstep(w: World, cls: ClassDef, aimX: number | undefined, aimY: 
   const eff = cls.active2;
   const dir = aimDirection(w, aimX, aimY);
   const from = { x: wd.x, y: wd.y };
-  const target = resolveDashTarget(w, dir.x * (eff.dashRange ?? 0), dir.y * (eff.dashRange ?? 0));
-  startDashTravel(w, target, BASE.dashDuration);
+  // fb053: same speed-scaling formula as the base dash, calibrated so this
+  // dash's reach at base move speed matches its originally-tuned `dashRange`.
+  const duration = classDashDuration(eff.dashRange ?? 0, classBaseMoveSpeed(cls));
+  const dist = dashDistance(currentMoveSpeed(w), duration);
+  const target = resolveDashTarget(w, dir.x * dist, dir.y * dist);
+  startDashTravel(w, target, duration);
 
   const onHit = passiveOnHit(w, cls);
   const shots = Math.max(0, Math.round(eff.volleyShots ?? 0));
@@ -622,8 +652,12 @@ function fireFlameRoad(w: World, cls: ClassDef, aimX: number | undefined, aimY: 
   const eff = cls.active2;
   const dir = aimDirection(w, aimX, aimY);
   const from = { x: wd.x, y: wd.y };
-  const target = resolveDashTarget(w, dir.x * (eff.dashRange ?? 0), dir.y * (eff.dashRange ?? 0));
-  startDashTravel(w, target, BASE.dashDuration);
+  // fb053: same speed-scaling formula as the base dash, calibrated so this
+  // dash's reach at base move speed matches its originally-tuned `dashRange`.
+  const duration = classDashDuration(eff.dashRange ?? 0, classBaseMoveSpeed(cls));
+  const dist = dashDistance(currentMoveSpeed(w), duration);
+  const target = resolveDashTarget(w, dir.x * dist, dir.y * dist);
+  startDashTravel(w, target, duration);
 
   const segments = Math.max(1, Math.round(eff.trailSegments ?? 1));
   const dps = characterDamage(w, cls, eff.damage);
@@ -850,7 +884,10 @@ function fireCrimsonRush(w: World, cls: ClassDef, aimX: number | undefined, aimY
   const eff = cls.active2;
   const dir = aimDirection(w, aimX, aimY);
   const from = { x: wd.x, y: wd.y };
-  const range = eff.dashRange ?? 0;
+  // fb053: same speed-scaling formula as the base dash, calibrated so this
+  // dash's reach at base move speed matches its originally-tuned `dashRange`.
+  const duration = classDashDuration(eff.dashRange ?? 0, classBaseMoveSpeed(cls));
+  const range = dashDistance(currentMoveSpeed(w), duration);
   const half = eff.dashWidth ?? 0;
 
   // Same line test `lineHit` uses, run for its count rather than its damage:
@@ -866,7 +903,7 @@ function fireCrimsonRush(w: World, cls: ClassDef, aimX: number | undefined, aimY
     passed++;
   }
   const target = resolveDashTarget(w, dir.x * range, dir.y * range);
-  startDashTravel(w, target, BASE.dashDuration);
+  startDashTravel(w, target, duration);
   const heal = passed * (eff.healPerEnemy ?? 0);
   if (heal > 0) applyHealingToWarden(w, heal);
   w.emit('class_active2', from.x, from.y, target.x, target.y);

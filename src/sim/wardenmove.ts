@@ -11,7 +11,41 @@
 
 import { GRID_H, GRID_W } from './grid';
 import { clamp, lerp } from './math';
+import { BASE } from './stats';
 import type { World } from './world';
+
+/**
+ * fb053 (SPEC-FINAL §10 amendment, amends fb030): a dash's speed is
+ * `dashSpeedMul` x the Warden's *current* movement speed — the caller passes
+ * in the already-fully-multiplied value (`coreMoveSpeedMul`/
+ * `classMoveSpeedMul` live in `cores.ts`/`classes.ts`; this module stays
+ * dependency-free of either, the same reverse-import-cycle reason fb030's own
+ * header gives for being a third module) — so distance falls out of speed x
+ * duration and a move-speed buff/boon lengthens every dash's reach along with
+ * ordinary movement.
+ */
+export function dashDistance(currentMoveSpeed: number, duration: number): number {
+  return BASE.dashSpeedMul * currentMoveSpeed * duration;
+}
+
+/**
+ * The four class-active dashes (Dash Slash, Quickstep, Flame Road, Crimson
+ * Rush) keep their own authored `dashRange` (`data/classes.json`) as a
+ * calibration input rather than a literal distance: this derives the travel
+ * duration that reproduces that exact distance at `baseMoveSpeed`, so each
+ * dash's tuned reach is unchanged at baseline while still inheriting
+ * `dashDistance`'s scale-with-current-speed formula once a buff is active —
+ * the same "same formula, own duration" split fb053's own acceptance text
+ * asks for. `baseMoveSpeed` must be the *owning class's own* baseline move
+ * speed (its permanent `moveSpeedBonus` applied, no gear/boons/temporary
+ * multipliers) — every class that ships a dash active has a nonzero
+ * `moveSpeedBonus`, and calibrating against the global `BASE.moveSpeed`
+ * instead would silently overshoot each one's originally-tuned `dashRange`
+ * at baseline (code review, fb053).
+ */
+export function classDashDuration(dashRange: number, baseMoveSpeed: number): number {
+  return dashRange / (BASE.dashSpeedMul * baseMoveSpeed);
+}
 
 /**
  * Resolves where a dash of (dx, dy) actually lands: it ignores terrain and
