@@ -28,7 +28,7 @@ not already expose it) logs that need below instead of reaching into
 
 ## Queue
 
-- [ ] (fb055) [feat] top priority: the three visible classes' basic
+- [x] (fb055) [feat] top priority: the three visible classes' basic
       attacks currently look like recolors of each other rather than
       distinct weapons. Give Swordsman a sword-swing-arc melee sweep,
       Plaguebringer a lobbed spore/vial with a small splash, and Time Lord
@@ -39,7 +39,20 @@ not already expose it) logs that need below instead of reaching into
       motion (silhouette test or equivalent registry assertion); each is
       registered in the VFX registry (extends fb021) with its own kind
       string; reduced-flash setting respected — refs: SPEC-FINAL §11 (VFX
-      registry), owner feedback `feature-class-attack-sprites`.
+      registry), owner feedback `feature-class-attack-sprites`. DONE
+      2026-09-03: `vfx-registry.ts` adds `BasicImpactShape`
+      ('slash'/'splash'/'ripple') per class; `canvas.ts` adds a `arc`
+      CastFx shape (Swordsman's sweep, layered over the existing straight
+      swing line), a `BasicImpactFx`/`drawBasicImpacts` layer for the
+      three impact marks, and a second jagged tracer for Time Lord's
+      distortion trail; also fixed `drawTracers`, which had no
+      `reducedFlash` handling at all before this. Targeted test
+      `tests/render-fb055-basic-attack-vfx.test.ts` (8/8), code-reviewer
+      APPROVE (no Critical/Major), qa-playtester PASS (no bugs filed).
+      `npm run test:fast`: 10 failures, all in the pre-existing
+      `q15-command-domain-fuzz` worker-hang / `q49`/`q52` Windows
+      scratch-dir EPERM flake class documented across dozens of prior
+      PROGRESS.md sessions, none touching `src/render/**`.
 
 - [ ] (fb058) [feat] normal priority: class select redesign — a horizontal
       row of tall class sprites; selecting one fills a bottom panel with
