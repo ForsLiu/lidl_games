@@ -17,6 +17,7 @@ import { loadContent } from '../src/sim/content';
 import { World } from '../src/sim/world';
 import { applyCommand } from '../src/sim/run';
 import { hasEquipment } from '../src/sim/equipment';
+import { defaultMeta, seedTestEquipment } from '../src/meta/meta';
 import { characterPanelData } from '../src/ui/character-panel';
 import { characterPanelMarkup } from '../src/ui/hud';
 import { classAbilitiesMarkup } from '../src/ui/class-info';
@@ -28,6 +29,8 @@ import {
 } from '../src/ui/equipment-info';
 import { mountCodex } from '../src/ui/codex';
 import { buildCodexCollections } from '../src/ui/codex-collections';
+import { Hub } from '../src/ui/hub';
+import { defaultSettings } from '../src/ui/settings';
 import { cfg } from './helpers';
 
 const content = loadContent();
@@ -41,8 +44,8 @@ function worldWith(equipment: string[], classKey = 'swordsman'): World {
   return w;
 }
 
-describe('fb028: equipmentEffectMarkup — Swordsman Armor, the multi-conditional item', () => {
-  it('shows the real w.derived.attackSpeedMul, marked active, for a Swordsman with no Sleeve Sword', () => {
+describe('fb028/fb052: equipmentEffectMarkup — Swordsman Armor, the multi-conditional item', () => {
+  it('shows the real w.derived.attackSpeedMul on BOTH lines, base line active, for a Swordsman with no Sleeve Sword', () => {
     const w = worldWith(['swordsman_armor']);
     const mul = w.derived.attackSpeedMul;
     expect(mul).not.toBe(1); // the item's own +10% attack speed already moves it — a stale/guessed number would not track this
@@ -51,13 +54,16 @@ describe('fb028: equipmentEffectMarkup — Swordsman Armor, the multi-conditiona
       attackSpeedMul: mul,
       equippedKeys: ['swordsman_armor'],
     });
+    // fb052: both lines always render, each independently marked — the cross-item
+    // line is no longer hidden just because its companion isn't equipped.
     expect(html).toContain('Circle Slash charging speed scales with attack speed');
-    expect(html).toContain(`×${Math.round(mul * 100) / 100}`);
+    expect(html).toContain('boosted by attack speed instead of charge rate');
+    expect(html.match(new RegExp(`×${Math.round(mul * 100) / 100}`, 'g'))).toHaveLength(2);
     expect(html).toContain('(active)');
-    expect(html).not.toContain('boosted by attack speed instead');
+    expect(html).toContain('(inert)');
   });
 
-  it('switches to the cross-item damage-boost note, with the same live number, once Sleeve Sword is also equipped', () => {
+  it('flips which line is (active) — the cross-item damage-boost note, not the charge-rate one — once Sleeve Sword is also equipped', () => {
     const w = worldWith(['swordsman_armor', 'sleeve_sword']);
     const mul = w.derived.attackSpeedMul;
     const html = equipmentEffectMarkup(content, swordsmanArmor, {
@@ -66,8 +72,12 @@ describe('fb028: equipmentEffectMarkup — Swordsman Armor, the multi-conditiona
       equippedKeys: w.cfg.equipment,
     });
     expect(html).toContain('boosted by attack speed instead of charge rate');
+    expect(html).toContain('charging speed scales with attack speed');
     expect(html).toContain(`×${Math.round(mul * 100) / 100}`);
-    expect(html).not.toContain('charging speed scales with attack speed');
+    const crossIdx = html.indexOf('boosted by attack speed instead of charge rate');
+    const baseIdx = html.indexOf('charging speed scales with attack speed');
+    expect(html.slice(baseIdx, baseIdx + 200)).toContain('(inert)');
+    expect(html.slice(crossIdx, crossIdx + 200)).toContain('(active)');
   });
 
   it('marks the special note inert, and the classFallback line active, for a non-Swordsman', () => {
@@ -95,7 +105,7 @@ describe('fb028: equipmentEffectMarkup — Swordsman Armor, the multi-conditiona
   });
 
   it('Sleeve Sword and Swordsman Shoes each surface their own note text', () => {
-    expect(equipmentSpecialNoteMarkup(sleeveSword, { classKey: 'swordsman' })).toContain('needs no charge');
+    expect(equipmentSpecialNoteMarkup(sleeveSword, { classKey: 'swordsman' })).toContain('instantly at max');
     expect(equipmentSpecialNoteMarkup(swordsmanShoes, { classKey: 'swordsman' })).toContain('Doubles Dash Slash distance');
   });
 
@@ -232,5 +242,45 @@ describe('fb028: the Codex — classes and equipment rows expand to full live-fo
     expect(root.querySelector('.sw-codex-detail')).toBeNull();
     const rows = root.querySelectorAll('.sw-codex-content tbody tr');
     for (const tr of Array.from(rows)) expect(tr.classList.contains('sw-codex-row-clickable')).toBe(false);
+  });
+});
+
+/**
+ * fb052 (qa-playtester finding): before this regression test, `hub.ts`'s
+ * Equipment/Stash tab built its `EquipmentEffectContext` with no
+ * `equippedKeys` at all, unlike `hud.ts`'s `runEquipmentContext` — so
+ * `equipmentSpecialNoteMarkup`'s cross-item line could never read (active)
+ * there, no matter what the player's real Hub loadout had equipped. Drives
+ * the real Hub DOM (same `openHub` pattern as `tests/hub-testing.test.ts`)
+ * rather than calling `equipmentSpecialNoteMarkup` directly, since the bug
+ * was specifically in how `hub.ts` builds its call-site context.
+ */
+describe('fb052: the Hub Stash tab reads the real equipped-item state, not just class', () => {
+  it('marks the cross-item damage-boost line (active) once both items are actually equipped in the Hub loadout', () => {
+    const meta = seedTestEquipment({ ...defaultMeta(), unlockedClasses: ['swordsman'] });
+    document.body.innerHTML = '<div id="app"></div>';
+    const root = document.getElementById('app') as HTMLElement;
+    const hub = new Hub(root, meta, 1, {
+      settings: defaultSettings(),
+      onSettingsChanged: () => {},
+      onStart: () => {},
+      onMetaChanged: () => {},
+    });
+    hub.show();
+    hub.openTab('equipment');
+
+    (root.querySelector('[data-item="swordsman_armor"]') as HTMLButtonElement).click(); // equips it (armor slot)
+    (root.querySelector('[data-item="sleeve_sword"]') as HTMLButtonElement).click(); // equips it too (weapon slot)
+    // Right-click re-selects Swordsman Armor for the detail panel without unequipping it
+    // (a plain left-click on an already-equipped item unequips it instead).
+    root.querySelector('[data-item="swordsman_armor"]')!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+
+    const detail = root.querySelector('.sw-itemdetail')!;
+    expect(detail.innerHTML).toContain('charging speed scales with attack speed');
+    expect(detail.innerHTML).toContain('boosted by attack speed instead of charge rate');
+    const baseIdx = detail.innerHTML.indexOf('charging speed scales with attack speed');
+    const crossIdx = detail.innerHTML.indexOf('boosted by attack speed instead of charge rate');
+    expect(detail.innerHTML.slice(baseIdx, baseIdx + 200)).toContain('(inert)');
+    expect(detail.innerHTML.slice(crossIdx, crossIdx + 200)).toContain('(active)');
   });
 });

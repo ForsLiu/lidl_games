@@ -5,6 +5,44 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-03 session: `fb052` closed — Sleeve Sword's Circle Slash now
+  stays a real charge-then-release ability (instant-max charge, not an
+  instant-fire shortcut), fixing a silent Dash-Slash-combo break, and
+  Swordsman Armor's tooltip now shows both conditional lines with correct
+  active/inert markers (owner feedback `bug-sleeve-sword-and-armor`, top
+  priority).** `tickClassCharge` (`src/sim/classes.ts`) no longer fires
+  instantly and returns on the first held tick with Sleeve Sword equipped
+  (the old fb015 shortcut) — it now enters the real charging state
+  (`wd.active1Charging = true`) with `wd.active1Charge` seeded straight to
+  the cap, then fires on release like any other charge. The old shortcut's
+  real bug: never entering the charging state meant `fireDashSlash`'s
+  `wd.active1Charging` read was always false with Sleeve Sword equipped,
+  so G9's "Dash Slash combos mid-charge" was silently unreachable for that
+  item. Swordsman Armor's cross-item damage boost moved to the release call
+  site; `equipmentSpecialNoteMarkup` (`src/ui/equipment-info.ts`) now always
+  renders both of the item's conditional lines, independently marked,
+  instead of picking one to show. code-reviewer **REQUEST-CHANGES** on the
+  first pass: the Dash-Slash merge path computes its own damage rather than
+  calling `fireCircleSlash`, so it needed the same cross-item boost — a gap
+  that was unreachable before this fix and became live, silently-wrong
+  behavior the moment the fix made the merge reachable again with Sleeve
+  Sword equipped. Fixed and re-verified **APPROVE**, with a new merge-path
+  regression test. qa-playtester **FAIL** on the first pass: `hub.ts`'s
+  Stash tab never passed `equippedKeys` into its `EquipmentEffectContext`
+  (unlike `hud.ts`'s in-run `runEquipmentContext`), so the new dual-line
+  tooltip's cross-item marker could never read `(active)` there regardless
+  of the player's real Hub loadout — invisible under the old
+  show-only-one-line behavior, visibly wrong once both lines render marked.
+  Fixed by threading the Hub's real `meta.equippedEquipment` into the Stash
+  tab's context, with a new DOM-level regression test driving the real Hub.
+  `npx tsc --noEmit` clean; targeted suite (`fb015-equipment`,
+  `fb028-effect-text`, `p6b-swordsman`, `b076-midrun-equip-effect`,
+  `hub-testing`) 107/107; `npm run test:fast` 2061 passed/4 failed/24
+  skipped, every failure the same standing `b032`/`b034`/`b035`/`b036`
+  port-contention, `q15` worker-hang, `q49`/`q52` Windows scratch-dir
+  `EPERM` flake family this queue documents every session, none touching
+  any file this item changed.
+
 - **2026-09-03 session: `fb051` closed — the DPS summary panel and the VS
   wielded side panel now dock to the stage's right edge instead of covering
   and blurring the whole screen (owner feedback `bug-dps-panel-style`, top

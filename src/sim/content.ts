@@ -1024,9 +1024,9 @@ const CoresFileSchema = z.object({ cores: uniqueArray(CoreSchema, ['key']) });
  * precedent a Constellation node's stats and a class's passive already set.
  *
  * `effectKey` is the escape hatch for the three lines that cannot be a stat —
- * Sleeve Sword's no-charge Circle Slash, Swordsman Armor's charge-speed/
- * cross-item damage rule, Swordsman Shoes' doubled Dash Slash distance — all
- * three read straight off `cls.active1`/`active2`'s *kind*, not off a name, so
+ * Sleeve Sword's instant-max Circle Slash charge, Swordsman Armor's
+ * charge-speed/cross-item damage rule, Swordsman Shoes' doubled Dash Slash
+ * distance — all three read straight off `cls.active1`/`active2`'s *kind*, not off a name, so
  * they are inert (not merely unauthored) on every class without that kind.
  *
  * `classFallback` is the owner table's own "if not <class>: ..." lines, kept

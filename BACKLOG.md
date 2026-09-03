@@ -2344,7 +2344,7 @@ generation-rule boundary.
       timing, `q15` worker-hang, `q49`/`q52` Windows scratch-dir `EPERM`
       flake family this queue documents every session — `b032` re-run alone
       passed clean, confirming contention not regression.
-- [ ] (fb052) [bug] top priority: Sleeve Sword's Circle Slash charge
+- [x] (fb052) [bug] top priority: Sleeve Sword's Circle Slash charge
       behavior needs to change (charge reaches MAX the instant the key is
       pressed; release at any time applies the max-charge effect; Dash
       Slash still combos mid-charge), and Swordsman Armor's second
@@ -2361,6 +2361,56 @@ generation-rule boundary.
       for whichever one doesn't apply — refs: SPEC-FINAL §4.1 (Swordsman),
       §7 (equipment tooltips), owner feedback
       `bug-sleeve-sword-and-armor`.
+
+      **Closed (2026-09-03).** `tickClassCharge` (`src/sim/classes.ts`) no
+      longer special-cases Sleeve Sword as an instant fire-and-return that
+      skipped the charging state outright (the old fb015 shortcut) — it now
+      sets `wd.active1Charging = true` and seeds `wd.active1Charge` straight
+      to `chargeCapSeconds` on the first held tick, then fires on release
+      exactly like a normal charge. This was the real bug behind "Dash Slash
+      still combos mid-charge": the old shortcut never entered the charging
+      state at all, so `fireDashSlash`'s `wd.active1Charging` read was always
+      false with Sleeve Sword equipped, silently breaking the G9 merge.
+      Swordsman Armor's cross-item damage-boost clause moved to the actual
+      release call site (`hasEquipment(w, 'swordsman_armor') &&
+      hasEquipment(w, 'sleeve_sword')`, unchanged gate, new location).
+      `equipmentSpecialNoteMarkup` (`src/ui/equipment-info.ts`) now always
+      renders both of Swordsman Armor's conditional lines, each
+      independently marked `(active)`/`(inert)`, instead of the old
+      fb028 behavior of picking one line to show; `resolvedNote` (the helper
+      that used to pick) was removed as dead code.
+      code-reviewer **REQUEST-CHANGES** on the first pass: `fireDashSlash`'s
+      merge path computes its own `mergedDamage` rather than calling
+      `fireCircleSlash`, so the cross-item attack-speed boost had to be
+      applied there too — a gap that was unreachable before this fix (Sleeve
+      Sword equipped meant `active1Charging` was never true, so the merge
+      branch could never run) and became live, silently-wrong behavior the
+      moment this fix made the merge reachable again. Fixed (`fireDashSlash`
+      now applies the same boost to `mergedDamage`) and re-verified
+      **APPROVE**, with a new regression test isolating the merge-path boost
+      the same way the existing solo-release boost test does.
+      qa-playtester **FAIL** on the first pass: acceptance (1) and (2) held,
+      but acceptance (3) did not — `hub.ts`'s Stash tab built its
+      `EquipmentEffectContext` with no `equippedKeys` at all (unlike
+      `hud.ts`'s `runEquipmentContext`), so the new dual-line tooltip's
+      cross-item marker could never read `(active)` there regardless of the
+      player's real Hub loadout, a defect this item's "always show both
+      lines, marked" change made visibly wrong where the old
+      show-only-one-line behavior had merely hidden it. Fixed by threading
+      `Object.values(this.meta.equippedEquipment)` into a real
+      `EquipmentEffectContext` at the Stash tab's two call sites (mirroring
+      `runEquipmentContext`'s pattern), with a new DOM-level regression test
+      driving the real Hub (equip both items via the Stash tab, then assert
+      the cross-item line reads `(active)`) in `tests/fb028-effect-text.test.ts`.
+      Re-verified independently: both markers now flip correctly for the
+      Stash tab's actual equipped state.
+      `npx tsc --noEmit` clean; targeted suite (`fb015-equipment`,
+      `fb028-effect-text`, `p6b-swordsman`, `b076-midrun-equip-effect`,
+      `hub-testing`) 107/107; `npm run test:fast` 2061 passed/4 failed/24
+      skipped, every failure the same standing `b032`/`b034`/`b035`/`b036`
+      port-contention, `q15` worker-hang, `q49`/`q52` Windows scratch-dir
+      `EPERM` flake family this queue documents every session — none touch
+      any file this item changed.
 - [ ] (fb053) [balance] top priority: dash is too slow — amend fb030's
       numbers so dash speed = k x the character's CURRENT movement speed
       (k = 5 ⚖), duration ~0.18s ⚖ (distance falls out of speed x

@@ -16,8 +16,8 @@
       "mods": { "atkFlat": 5, "attackSpeed": 0.2 },
       "effectKey": "sleeve_sword",
       "classFallback": { "notClassKey": "swordsman", "mods": { "attackSpeed": 0.2 } },
-      "effectNote": "Circle Slash needs no charge and fires at max-charge effect.",
-      "desc": "HP 0 / Atk 5 / Def 0, atk speed x1.2. Circle Slash needs no charge and fires at max-charge effect. If not Swordsman: atk speed x1.2 (so 1.2x1.2)."
+      "effectNote": "Circle Slash's charge is instantly at max the moment it's held; release any time for the max-charge effect.",
+      "desc": "HP 0 / Atk 5 / Def 0, atk speed x1.2. Circle Slash's charge is instantly at max the moment it's held (release any time for the max-charge effect; Dash Slash still combos mid-hold). If not Swordsman: atk speed x1.2 (so 1.2x1.2)."
     },
     {
       "key": "normal_armor",

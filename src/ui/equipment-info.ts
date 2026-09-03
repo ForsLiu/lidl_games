@@ -44,19 +44,6 @@ function withMul(text: string, ctx: EquipmentEffectContext): string {
 }
 
 /**
- * `item`'s `effectNote`, or its `effectNoteWith` text when the companion key
- * it names is also in `ctx.equippedKeys` — `{mul}` resolved either way.
- * `undefined` for an item with no `effectNote` at all (`effectKey: 'none'`).
- */
-function resolvedNote(item: EquipmentItem, ctx: EquipmentEffectContext): string | undefined {
-  if (item.effectNoteWith && ctx.equippedKeys?.includes(item.effectNoteWith.key)) {
-    return withMul(item.effectNoteWith.text, ctx);
-  }
-  if (item.effectNote) return withMul(item.effectNote, ctx);
-  return undefined;
-}
-
-/**
  * Whether `item`'s primary `effectKey` mechanic is live for `ctx` — the same
  * condition `classFallback.notClassKey !== classKey` gates the *fallback*
  * mods on (stats.ts's `baseRunStats`, run.ts's `equipItemCommand`), inverted:
@@ -104,13 +91,37 @@ export function equipmentFallbackMarkup(content: Content, ctx: EquipmentEffectCo
   }: ${lines.map((l) => l.text).join(', ')} ${status}</div>`;
 }
 
-/** The item's `effectNote`/`effectNoteWith` text, marked active/inert for `ctx.classKey`; empty for an item with neither field. */
+/**
+ * The item's `effectNote` text, marked active/inert for `ctx.classKey`; empty
+ * for an item with neither field (`effectKey: 'none'`).
+ *
+ * fb052: an item with an `effectNoteWith` (only Swordsman Armor today) shows
+ * BOTH its base line and its cross-item line always — never picks one to
+ * hide, per the owner's "active/inert marker for whichever one doesn't
+ * apply" — rather than the old fb028 behavior of switching which single line
+ * rendered. The cross-item line supersedes (not stacks with) the base one
+ * once its companion (`item.effectNoteWith.key`) is also in
+ * `ctx.equippedKeys`, so at most one of the two ever reads (active); with no
+ * `ctx.equippedKeys` at all (Hub/Codex-adjacent calls with no live loadout),
+ * the cross-item line reads (inert) since there is no live state to confirm
+ * the companion is equipped.
+ */
 export function equipmentSpecialNoteMarkup(item: EquipmentItem, ctx: EquipmentEffectContext): string {
-  const note = resolvedNote(item, ctx);
-  if (!note) return '';
-  const active = specialActive(item, ctx);
-  const status = active ? '<span class="sw-phase-vs">(active)</span>' : '<span class="dim">(inert)</span>';
-  return `<div class="sw-modline">${note} ${status}</div>`;
+  if (!item.effectNote) return '';
+  const gateActive = specialActive(item, ctx);
+  const baseLine = `<div class="sw-modline">${withMul(item.effectNote, ctx)} ${
+    gateActive && !crossEquipped(item, ctx) ? '<span class="sw-phase-vs">(active)</span>' : '<span class="dim">(inert)</span>'
+  }</div>`;
+  if (!item.effectNoteWith) return baseLine;
+  const crossLine = `<div class="sw-modline">${withMul(item.effectNoteWith.text, ctx)} ${
+    gateActive && crossEquipped(item, ctx) ? '<span class="sw-phase-vs">(active)</span>' : '<span class="dim">(inert)</span>'
+  }</div>`;
+  return baseLine + crossLine;
+}
+
+/** Whether `item.effectNoteWith`'s companion item is equipped right now, per `ctx.equippedKeys`. False for an item with no `effectNoteWith`. */
+function crossEquipped(item: EquipmentItem, ctx: EquipmentEffectContext): boolean {
+  return !!item.effectNoteWith && !!ctx.equippedKeys?.includes(item.effectNoteWith.key);
 }
 
 /** The full effect text for one item against a real class/run context: mods, the fallback conditional line, and the effectKey note. */
@@ -124,11 +135,10 @@ export function equipmentEffectMarkup(content: Content, item: EquipmentItem, ctx
  * The Codex has no run and no selected class or loadout, so there is no
  * "current class"/"currently equipped" to mark active/inert against — every
  * conditional branch is shown plainly, named by class (and, for
- * `effectNoteWith`, by companion item), rather than picking one via
- * `resolvedNote`'s live `ctx.equippedKeys` check (which would always read
- * `undefined` here and silently hide the cross-item branch — qa-playtester
- * fb028: the Codex's Swordsman Armor detail never mentioned Sleeve Sword at
- * all before this).
+ * `effectNoteWith`, by companion item), with no active/inert marker at all
+ * (unlike `equipmentSpecialNoteMarkup`'s always-both-lines-marked shape,
+ * which still needs a real `ctx` to judge — qa-playtester fb028: the Codex's
+ * Swordsman Armor detail never mentioned Sleeve Sword at all before this).
  */
 export function equipmentCodexDetailMarkup(content: Content, item: EquipmentItem): string {
   const parts = [modLinesHtml(item.mods)];

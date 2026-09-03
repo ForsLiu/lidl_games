@@ -49,7 +49,7 @@ describe('b076: circleSlashChargeRate reads the live loadout, not the frozen sta
 });
 
 describe('b076: tickClassCharge\'s Sleeve Sword branch reads the live loadout', () => {
-  it('a mid-run equip makes the very next Active1 press fire instantly at max charge, no charging state', () => {
+  it('a mid-run equip makes the very next Active1 press start already charging at max, and fire on release', () => {
     const w = swordsmanWorld({ sleeve_sword: 1 });
     const e = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 1.2, w.warden.y)!;
     e.hp = 1e6;
@@ -58,10 +58,15 @@ describe('b076: tickClassCharge\'s Sleeve Sword branch reads the live loadout', 
 
     applyCommand(w, { k: 'equip_item', slot: 'weapon', item: 'sleeve_sword' });
 
-    const hpBefore = e.hp;
+    // fb052: the charge state is real (so a Dash Slash mid-hold can still
+    // merge), just instantly at the cap — the fire itself still waits for
+    // release, unlike the old fb015 instant-fire-on-press shortcut.
     updateWarden(w, held(true), 1 / 60);
-    // Instant max-charge fire: never enters the charging state, damage lands
-    // on the very first held tick, and the cooldown starts immediately.
+    expect(w.warden.active1Charging).toBe(true);
+    expect(w.warden.active1Cooldown).toBe(0);
+
+    const hpBefore = e.hp;
+    updateWarden(w, held(false), 1 / 60);
     expect(w.warden.active1Charging).toBe(false);
     expect(w.warden.active1Cooldown).toBeGreaterThan(0);
     expect(e.hp).toBeLessThan(hpBefore);

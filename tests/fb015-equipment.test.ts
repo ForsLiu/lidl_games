@@ -244,17 +244,37 @@ function minimalReport(): import('../src/sim/types').RunReport {
   };
 }
 
-describe('fb015 (§7) Sleeve Sword: Circle Slash needs no charge, fires at max-charge effect', () => {
-  it('a single held tick with Sleeve Sword equipped deals full-charge damage, never entering the charging state', () => {
+describe('fb052 (§7) Sleeve Sword: Circle Slash charge is instantly at max, but the hold/release flow stays real', () => {
+  it('the very first held tick already reads full charge fraction — active1Charging true, active1Charge at the cap', () => {
     const w = worldWith({ equipment: ['sleeve_sword'] });
-    const e = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 3.9, w.warden.y)!; // within full radius 4, outside minRadius 1.5
-    e.hp = 1e6;
-    e.maxHp = 1e6;
-    w.rebuildBuckets();
     updateWarden(w, held(true), 1 / 60);
-    expect(w.warden.active1Charging).toBe(false); // never entered the hold state
-    expect(e.hp).toBeLessThan(1e6); // reached at full (4-tile) radius on the very first tick
-    expect(w.warden.active1Cooldown).toBeGreaterThan(0);
+    const cap = w.content.classByKey.get('swordsman')!.active1.chargeCapSeconds ?? 3;
+    expect(w.warden.active1Charging).toBe(true); // real charging state now, unlike the old fb015 instant-fire shortcut
+    expect(w.warden.active1Charge).toBe(cap);
+  });
+
+  it('releasing at an arbitrary early tick still fires at max-charge damage/radius, not a partial charge', () => {
+    const near = worldWith({ equipment: ['sleeve_sword'] });
+    const nearE = spawnEnemy(near, near.content.enemies.enemies[0].key, near.warden.x + 3.9, near.warden.y)!; // within full radius 4, outside minRadius 1.5
+    nearE.hp = 1e6;
+    nearE.maxHp = 1e6;
+    near.rebuildBuckets();
+    updateWarden(near, held(true), 1 / 60); // press
+    updateWarden(near, held(false), 1 / 60); // release on the very next tick — an "arbitrary early tick"
+    expect(nearE.hp).toBeLessThan(1e6); // reached at the full (4-tile) radius despite the near-instant release
+    expect(near.warden.active1Cooldown).toBeGreaterThan(0);
+  });
+
+  it('Dash Slash still combos mid-hold: active1Charging reads true while Sleeve Sword Circle Slash is held', () => {
+    const w = worldWith({ equipment: ['sleeve_sword'] });
+    updateWarden(w, held(true), 1 / 60);
+    expect(w.warden.active1Charging).toBe(true);
+    const e = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 7, w.warden.y)!; // dashRange 5 + full charge radius 4 -> reachable at 7
+    w.rebuildBuckets();
+    const hpBefore = e.hp;
+    applyCommand(w, { k: 'class_active2', aimX: e.x, aimY: e.y });
+    expect(e.hp).toBeLessThan(hpBefore); // the merge (fireDashSlash reading active1Charging) actually fired
+    expect(w.warden.active1Charging).toBe(false); // consumed by the merge, same as any other charge_nova hold
   });
 
   it('deals the same damage as a fully-held (capped) Circle Slash without the item', () => {
@@ -264,6 +284,7 @@ describe('fb015 (§7) Sleeve Sword: Circle Slash needs no charge, fires at max-c
     eSleeve.maxHp = 1e6;
     wSleeve.rebuildBuckets();
     updateWarden(wSleeve, held(true), 1 / 60);
+    updateWarden(wSleeve, held(false), 1 / 60);
     const sleeveLoss = 1e6 - eSleeve.hp;
 
     const wFull = worldWith();
@@ -305,14 +326,15 @@ describe('fb015 (§7) Swordsman Armor: charging speed = original x attack speed'
     expect(wArmor.warden.active1Charge).toBeCloseTo(wBase.warden.active1Charge * wArmor.derived.attackSpeedMul, 3);
   });
 
-  it('cross-item: with Sleeve Sword also equipped, charging is bypassed and damage is boosted by attack speed instead', () => {
+  it('cross-item: with Sleeve Sword also equipped, charge rate is moot (already instant-max) and damage is boosted by attack speed instead', () => {
     const wBoth = worldWith({ equipment: ['sleeve_sword', 'swordsman_armor'] });
     const eBoth = spawnEnemy(wBoth, wBoth.content.enemies.enemies[0].key, wBoth.warden.x + 1.2, wBoth.warden.y)!;
     eBoth.hp = 1e6;
     eBoth.maxHp = 1e6;
     wBoth.rebuildBuckets();
     updateWarden(wBoth, held(true), 1 / 60);
-    expect(wBoth.warden.active1Charging).toBe(false); // still instant, per Sleeve Sword
+    expect(wBoth.warden.active1Charging).toBe(true); // fb052: still a real charging state, just pre-maxed
+    updateWarden(wBoth, held(false), 1 / 60);
     const bothLoss = 1e6 - eBoth.hp;
 
     const wSleeveOnly = worldWith({ equipment: ['sleeve_sword'] });
@@ -321,6 +343,7 @@ describe('fb015 (§7) Swordsman Armor: charging speed = original x attack speed'
     eSleeveOnly.maxHp = 1e6;
     wSleeveOnly.rebuildBuckets();
     updateWarden(wSleeveOnly, held(true), 1 / 60);
+    updateWarden(wSleeveOnly, held(false), 1 / 60);
     const sleeveOnlyLoss = 1e6 - eSleeveOnly.hp;
 
     // Both items also carry their own flat/mult stat rows (Swordsman Armor's
@@ -329,6 +352,40 @@ describe('fb015 (§7) Swordsman Armor: charging speed = original x attack speed'
     // means more damage": Swordsman Armor equipped ALONE (no Sleeve Sword)
     // never fires instantly, so the only way its damage-boost clause can
     // ever be observed is through this exact combination.
+    expect(bothLoss).toBeGreaterThan(sleeveOnlyLoss);
+  });
+
+  /**
+   * fb052 code-reviewer finding: `fireDashSlash`'s merge path (G9 — Dash
+   * Slash used mid-Circle-Slash-charge) computes its own `mergedDamage`
+   * rather than calling `fireCircleSlash`, so the cross-item attack-speed
+   * boost above must be applied there too — otherwise a solo Circle Slash
+   * release is boosted but the exact same charge, merged into Dash Slash, is
+   * silently not. This merge path was unreachable with Sleeve Sword equipped
+   * before fb052 (charging never started), so the gap was invisible until
+   * this fix made it real again.
+   */
+  it('the Dash Slash merge also carries the cross-item damage boost when both items are equipped', () => {
+    const wBoth = worldWith({ equipment: ['sleeve_sword', 'swordsman_armor'] });
+    const eBoth = spawnEnemy(wBoth, wBoth.content.enemies.enemies[0].key, wBoth.warden.x + 3, wBoth.warden.y)!; // dashRange 5 + full charge radius 4
+    eBoth.hp = 1e6;
+    eBoth.maxHp = 1e6;
+    wBoth.rebuildBuckets();
+    updateWarden(wBoth, held(true), 1 / 60); // start the Sleeve Sword instant-max charge
+    applyCommand(wBoth, { k: 'class_active2', aimX: eBoth.x, aimY: eBoth.y }); // merge into Dash Slash
+    const bothLoss = 1e6 - eBoth.hp;
+
+    const wSleeveOnly = worldWith({ equipment: ['sleeve_sword'] });
+    const eSleeveOnly = spawnEnemy(wSleeveOnly, wSleeveOnly.content.enemies.enemies[0].key, wSleeveOnly.warden.x + 3, wSleeveOnly.warden.y)!;
+    eSleeveOnly.hp = 1e6;
+    eSleeveOnly.maxHp = 1e6;
+    wSleeveOnly.rebuildBuckets();
+    updateWarden(wSleeveOnly, held(true), 1 / 60);
+    applyCommand(wSleeveOnly, { k: 'class_active2', aimX: eSleeveOnly.x, aimY: eSleeveOnly.y });
+    const sleeveOnlyLoss = 1e6 - eSleeveOnly.hp;
+
+    // Same "isolate the damage-boost clause, not just more equipment" reasoning
+    // as the solo-release test above.
     expect(bothLoss).toBeGreaterThan(sleeveOnlyLoss);
   });
 });

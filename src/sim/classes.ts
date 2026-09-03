@@ -268,12 +268,12 @@ export function circleSlashValues(
  * Fires a (possibly zero-charge) Circle Slash: a self-centered nova, scaled by
  * how long it was held.
  *
- * fb015 (§7) Swordsman Armor's cross-item clause: "if Sleeve Sword is also
- * equipped, Circle Slash damage is boosted by attack speed instead" — of the
- * charge-speed bonus it otherwise gives (`circleSlashChargeRate` below), since
- * Sleeve Sword already skips charging outright. `atkSpdDamageBoost` is that
- * "instead": an extra `attackSpeedMul` factor on top of the ordinary
- * power/flat-Atk scaling every other Active already gets.
+ * fb015/fb052 (§7) Swordsman Armor's cross-item clause: "if Sleeve Sword is
+ * also equipped, Circle Slash damage is boosted by attack speed instead" — of
+ * the charge-speed bonus it otherwise gives (`circleSlashChargeRate` below),
+ * since Sleeve Sword's charge is already instant-max (charge *rate* is moot).
+ * `atkSpdDamageBoost` is that "instead": an extra `attackSpeedMul` factor on
+ * top of the ordinary power/flat-Atk scaling every other Active already gets.
  */
 function fireCircleSlash(w: World, cls: ClassDef, chargeSeconds: number, atkSpdDamageBoost = false): void {
   const wd = w.warden;
@@ -299,8 +299,8 @@ function fireCircleSlash(w: World, cls: ClassDef, chargeSeconds: number, atkSpdD
 /**
  * fb015 (§7) Swordsman Armor: "Circle Slash charging speed = original x
  * attack speed" — the hold accumulates by `dt * attackSpeedMul` instead of a
- * flat `dt`. Inert without the item, and superseded (not stacked) by Sleeve
- * Sword's no-charge-needed rule when both are equipped — see
+ * flat `dt`. Inert without the item; also a no-op once Sleeve Sword is also
+ * equipped, since the charge already starts clamped at the cap — see
  * `fireCircleSlash`'s cross-item damage boost for what replaces it then.
  */
 function circleSlashChargeRate(w: World, cls: ClassDef): number {
@@ -353,7 +353,13 @@ function fireDashSlash(w: World, cls: ClassDef, aimX: number | undefined, aimY: 
     // p7a (§6.3): the merged charge is still Circle Slash's own damage, so
     // it earns "Active1 potency" exactly like a normal release does
     // (`fireCircleSlash`) — code review found this path skipping it.
-    mergedDamage = v.damage * active1PotencyMul(w);
+    // fb052 (§7): the Swordsman Armor + Sleeve Sword cross-item damage boost
+    // applies here too, for the same reason — this merge still fires Circle
+    // Slash's own charge, just folded into Dash Slash's hit instead of a
+    // solo release (code review found this path skipping it too, once fb052
+    // made the merge reachable again with Sleeve Sword equipped).
+    const boost = hasEquipment(w, 'swordsman_armor') && hasEquipment(w, 'sleeve_sword') ? w.derived.attackSpeedMul : 1;
+    mergedDamage = v.damage * active1PotencyMul(w) * boost;
     wd.active1Charging = false;
     wd.active1Charge = 0;
     wd.active1Cooldown = cls.active1.cooldownSeconds * (1 - w.derived.cdr);
@@ -1669,32 +1675,33 @@ export function tickAmmoRecharge(w: World, cls: ClassDef, dt: number): void {
 export function tickClassCharge(w: World, cls: ClassDef, input: TickInput, dt: number): void {
   if (!isChargeKind(cls.active1.kind)) return;
   const wd = w.warden;
+  const cap = cls.active1.chargeCapSeconds ?? 3;
 
   if (input.active1Held) {
     if (!wd.active1Charging) {
       if (wd.active1Cooldown > 0) return;
-      // fb015 (§7) Sleeve Sword: "Circle Slash needs no charge and fires at
-      // max-charge effect" — fires on the very first held tick, at full
-      // charge, and never enters the held/charging state at all, which is
-      // also why `circleSlashChargeRate` never has to consider this case
-      // (charging with Sleeve Sword equipped is unreachable).
-      if (cls.active1.kind === 'charge_nova' && hasEquipment(w, 'sleeve_sword')) {
-        const cap = cls.active1.chargeCapSeconds ?? 3;
-        fireCircleSlash(w, cls, cap, hasEquipment(w, 'swordsman_armor'));
-        wd.active1Cooldown = cls.active1.cooldownSeconds * (1 - w.derived.cdr);
-        return;
-      }
       wd.active1Charging = true;
-      wd.active1Charge = 0;
+      // fb052 (§7) Sleeve Sword: "Circle Slash's charge is at MAX from the
+      // moment the key is pressed; release at any time applies the
+      // max-charge effect" — the hold/release flow (and Dash Slash's
+      // mid-charge merge, which reads `active1Charging`) stays real, unlike
+      // the old fb015 shortcut that fired immediately and never entered the
+      // charging state at all, silently breaking that merge.
+      wd.active1Charge = cls.active1.kind === 'charge_nova' && hasEquipment(w, 'sleeve_sword') ? cap : 0;
     }
-    const cap = cls.active1.chargeCapSeconds ?? 3;
     wd.active1Charge = Math.min(wd.active1Charge + dt * circleSlashChargeRate(w, cls), cap);
     return;
   }
 
   if (wd.active1Charging) {
-    if (cls.active1.kind === 'charge_nova') fireCircleSlash(w, cls, wd.active1Charge);
-    else fireDeadeyeDraw(w, cls, wd.active1Charge, input.aimX, input.aimY);
+    if (cls.active1.kind === 'charge_nova') {
+      // fb052 (§7) Swordsman Armor's cross-item clause: with Sleeve Sword
+      // also equipped, charge rate is moot (already instant-max), so the
+      // armor's bonus becomes a damage multiplier instead.
+      fireCircleSlash(w, cls, wd.active1Charge, hasEquipment(w, 'swordsman_armor') && hasEquipment(w, 'sleeve_sword'));
+    } else {
+      fireDeadeyeDraw(w, cls, wd.active1Charge, input.aimX, input.aimY);
+    }
     wd.active1Charging = false;
     wd.active1Charge = 0;
     wd.active1Cooldown = cls.active1.cooldownSeconds * (1 - w.derived.cdr);

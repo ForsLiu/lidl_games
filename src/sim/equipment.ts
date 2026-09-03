@@ -3,8 +3,8 @@
  * sites whose behavior cannot be expressed as a generic `Stats` contribution
  * (`baseRunStats`, stats.ts, folds every item's `mods`/`classFallback` — this
  * file is only for the three `effectKey`s that are not stat-shaped: Sleeve
- * Sword's no-charge Circle Slash, Swordsman Armor's charge-speed/cross-item
- * rule and Swordsman Shoes' doubled Dash Slash distance, all in classes.ts,
+ * Sword's instant-max Circle Slash charge, Swordsman Armor's charge-speed/
+ * cross-item rule and Swordsman Shoes' doubled Dash Slash distance, all in classes.ts,
  * the only importer today). The other three effect-adjacent sites
  * (enemies.ts, towers.ts, vswield.ts) need no per-item dispatch at all — they
  * read the generic `w.derived.bleedLifesteal`/`towerAtkFlat`/`charRangeMul`

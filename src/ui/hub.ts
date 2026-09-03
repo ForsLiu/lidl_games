@@ -479,6 +479,14 @@ export class Hub {
   private renderEquipment(body: HTMLElement): void {
     const content = loadContent();
     const selectedItem = this.selectedEquipment ? content.equipmentByKey.get(this.selectedEquipment) ?? null : null;
+    // fb052 (qa-playtester finding): mirrors `hud.ts`'s `runEquipmentContext` —
+    // without a real `equippedKeys`, `equipmentSpecialNoteMarkup`'s cross-item
+    // line (Swordsman Armor + Sleeve Sword) can never read (active) here, no
+    // matter what the Hub's own loadout actually has equipped.
+    const eqCtx = {
+      classKey: this.classKey,
+      equippedKeys: Object.values(this.meta.equippedEquipment).filter((k): k is string => k !== null),
+    };
 
     body.innerHTML = `
       <div class="sw-panel">
@@ -533,8 +541,8 @@ export class Hub {
             ? `<div class="sw-itemdetail">
                  <b>${selectedItem.name}</b>
                  ${modLinesHtml(selectedItem.mods)}
-                 ${equipmentFallbackMarkup(content, { classKey: this.classKey }, selectedItem)}
-                 ${equipmentSpecialNoteMarkup(selectedItem, { classKey: this.classKey })}
+                 ${equipmentFallbackMarkup(content, eqCtx, selectedItem)}
+                 ${equipmentSpecialNoteMarkup(selectedItem, eqCtx)}
                  ${equipmentCompareBlock(content, this.meta, this.classKey, selectedItem)}
                  <div class="sw-craftrow">
                    <button data-equipitem="1">${
