@@ -227,8 +227,15 @@ describe('p7e: World.everSealed latches on a real sealed board (§10), never on 
   // `sealed` is the one policy that can structurally never leak an enemy off
   // the map, so it now piles up enemies faster than fb025-weakened towers
   // can clear them and stops making practical progress well inside its own
-  // 15000-tick bound. See PROGRESS.md's "Known issues" entry for this
-  // session. Re-measure once b073 lands an Act I aliveCap.
+  // 15000-tick bound. b073 landed the aliveCap fix, but re-measured at p10x
+  // (2026-09-03) the case still fails the same way: seed 1 dies via
+  // `defeat_core` at tick 13159 with `everSealed` still false — the aliveCap
+  // stopped the enemy pile-up from hanging the process (that's what b073
+  // actually fixed) but didn't give `sealed` a way to survive fb025's x10 HP
+  // scaling long enough to finish sealing the board. That's the still-open
+  // Act I economy gap p10j-p10l/p10r/p10s/p10t/p10u/p10z are already tracking
+  // (SPEC-FINAL §14 G1/G8), not a new bug — stays `.skip`ped until one of
+  // those closes it or lands a fresh deferral expiry.
   it.skip('the sealed policy latches world.everSealed and carries it into report.sealed, within p1b-seal-winrate.test.ts\'s own proven 15000-tick bound', () => {
     const run = new Run({ ...cfg({ seed: 1 }), policy: 'sealed' });
     const policy = makePolicy('sealed');

@@ -1920,7 +1920,7 @@ duplication as a drift risk worth a future de-dup).
       `q15-command-domain-fuzz`), none touching these files. No `/data` or
       gate numbers changed — pure code motion.
 
-- [ ] (p10x) [chore] `tests/p7e-quests.test.ts`'s `it.skip('the sealed policy
+- [x] (p10x) [chore] `tests/p7e-quests.test.ts`'s `it.skip('the sealed policy
       latches world.everSealed...')` (line ~232) was explicitly deferred
       "re-measure once b073 lands an Act I aliveCap" — **b073 landed**
       (commit logged in BACKLOG's Done section) and this case was never
@@ -1930,6 +1930,31 @@ duplication as a drift risk worth a future de-dup).
       place); if it still fails, record the honest current number/reason in
       its place rather than leaving a stale TODO pointing at an already-shipped
       fix — refs: CLAUDE.md measurement rules, `b073`.
+
+      **Closed (2026-09-03) — re-measured, still fails, stale TODO replaced
+      with the honest current reading.** Temporarily un-skipped and ran the
+      case standalone: `everSealed` stays `false`, seed 1 dies via
+      `defeat_core` at tick 13159 (well inside the 15000-tick bound, so no
+      hang — b073's aliveCap fix holds). The remaining failure is fb025's x10
+      enemy-HP/x0.7 attack-speed tuning outlasting the `sealed` policy before
+      it finishes sealing the board — the same open Act I economy gap
+      `p10j`-`p10l`/`p10r`/`p10s`/`p10t`/`p10u`/`p10z` already track (SPEC-FINAL
+      §14 G1/G8), not a fresh bug. Rewrote the skip-comment with this
+      measurement (tick/outcome numbers, causal read, which items own the real
+      fix) in place of the stale "re-measure once b073 lands" TODO; case stays
+      `.skip`ped, loop body/assertions/`!run.done` guard untouched. Diff is
+      comment-only in one file (+9/-2). code-reviewer **APPROVE** (confirmed
+      diff scope, cross-checked the cited backlog IDs are real and tracking the
+      right gap, ran the file standalone: 16 passed/1 skipped). qa-playtester
+      **PASS**: independently re-ran the scratch-unskipped case and got an
+      exact match (tick 13159, `defeat_core`, `everSealed` false — seed 1 is
+      deterministic), confirmed the committed diff is comment-only with the
+      guard intact, confirmed the file runs clean (16/1 skipped) with the real
+      change in place. `npm run test:fast`: 5 failed files, all the same
+      pre-existing documented environment flakes this session's own history
+      already knows (`b032`/`b034`/`b035`/`b036` fold-port contention,
+      `q15-command-domain-fuzz` worker-hangs) — none touch this file or
+      `/data`. No `/data` or engine code changed.
 
 - [ ] (p10y) [chore] `tests/p10e-perf-budget.test.ts`'s `it.skip('is stable
       across a different (calibChunk, sampleEvery) measurement

@@ -5,6 +5,30 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-03 session: `p10x` closed — re-measured the expired
+  `tests/p7e-quests.test.ts` sealed-policy deferral, stale TODO replaced with
+  the honest current reading.** The case's skip-comment said "re-measure once
+  b073 lands an Act I aliveCap"; b073 landed a prior session and this was
+  never re-checked (an expired deferral per CLAUDE.md's measurement rules).
+  Temporarily un-skipped and ran it standalone: still fails — `everSealed`
+  stays `false`, seed 1 dies via `defeat_core` at tick 13159, well inside the
+  15000-tick bound (so b073's aliveCap fix genuinely holds; no hang). The
+  remaining failure is fb025's x10 enemy-HP/x0.7 attack-speed tuning
+  outlasting the `sealed` policy before it can finish sealing the board — the
+  same open Act I economy gap `p10j`-`p10l`/`p10r`/`p10s`/`p10t`/`p10u`/`p10z`
+  already track (SPEC-FINAL §14 G1/G8), not a fresh bug. Rewrote the
+  skip-comment with this measurement in place of the stale TODO; the case
+  stays `.skip`ped, its loop/assertions/`!run.done` guard untouched — diff is
+  comment-only, one file (+9/-2). code-reviewer **APPROVE** (diff-scope and
+  cited-ID checks, file runs 16 passed/1 skipped standalone). qa-playtester
+  **PASS**: independently reproduced the exact tick/outcome (deterministic
+  seed), confirmed the diff is comment-only with the guard intact.
+  `npm run test:fast`: 5 failed files, all the same pre-existing documented
+  environment flakes this session's own history already knows (`b032`/
+  `b034`/`b035`/`b036` fold-port contention, `q15-command-domain-fuzz`
+  worker-hangs) — none touch this file or `/data`. No `/data` or engine code
+  changed.
+
 - **2026-09-03 session: `p10w` closed — de-duped the three near-identical
   scripted-kit-and-Core-purchase harness copies code-reviewer flagged at
   `p10s`/`p10t` down to `tests/helpers.ts`'s single shared implementation.**
