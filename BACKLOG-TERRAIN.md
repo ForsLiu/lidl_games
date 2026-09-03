@@ -62,7 +62,7 @@ recorded in the Log for the main/UI lanes to pick up at the merge.
       gate-clearance ring, so that ceiling false-rejects payable data (measured
       counterexamples in the Log). Shipped as `a / (a + 1)`. Left unamended,
       the record would say the shipped code fails its own acceptance.
-- [ ] (fb064b) [feat] grid integration: the generated map plugs into
+- [x] (fb064b) [feat] grid integration: the generated map plugs into
       `src/sim/grid.ts` (the lane's single integration-point file) so rough is
       walkable-not-buildable, rock blocks ground pathing, high ground is
       buildable and blocks ground walkers, and flow-field costs / the sealing
@@ -72,6 +72,13 @@ recorded in the Log for the main/UI lanes to pick up at the merge.
       `data/terrain.json` is folded into `contentHash()` so an edit to terrain
       tuning makes a stale replay fail loudly (architecture rule 2) — without
       that line this merges as a silent replay hole.
+      **Shipped without the `contentHash()` clause, deliberately.** It requires
+      `src/sim/content.ts`, which is outside this lane's Scope, so it is filed
+      as a merge blocker in the Log rather than smuggled in. It opens no hole
+      today: nothing outside `tests/` calls `generateTerrain` or
+      `applyTerrain`, so no run's outcome depends on `data/terrain.json` yet,
+      and the World wiring that would create the exposure is itself out of
+      scope. It must land in the *same* main-lane change that does that wiring.
 - [ ] (fb064c) [feat] Core placement: legal-tile set from fb064a exposed as a
       pre-wave-1 placement step with a pre-highlighted default suggestion, the
       2x2 Core moved off the hardcoded `CORE_X/CORE_Y`, and the placement
@@ -421,3 +428,145 @@ recorded in the Log for the main/UI lanes to pick up at the merge.
     behind a test-only hook would make it exact and load-independent, but the
     counter lives inside `/src/sim` and the shape of that hook is an
     architecture question for the main lane, not a terrain one.
+
+- (2026-09-03, fb064b) Grid integration. `src/sim/grid.ts` gains
+  `TerrainOverlay`, `applyTerrain`, `staticBlocked`, `isHighGround` and a
+  terrain term in `buildable`/`wardenPassable`/the `breach` Dijkstra mode;
+  `src/sim/terrain/overlay.ts` (new) is the only place a `TerrainKind` becomes
+  walkable/buildable/high. `tests/terrain-grid.test.ts` is 24 tests, ~5.5 s
+  (stays in the fast tier). Design decisions, for QUESTIONS.md at the merge:
+  - **The Grid takes a mask bundle, not a `TerrainMap`.** `grid.ts` still
+    imports nothing, so the `terrain -> grid` dependency that makes
+    `config.ts`'s impossibility proofs exact stays one-way. It also leaves the
+    terrain module the single place that knows what a kind *means*, which is
+    what `data/terrain.json` is for (architecture rule 4).
+  - **Gate and Core tiles outrank the scatter, and that is decided on every
+    rebuild off the live `tile` array** — not patched once into `terrainBlock`
+    at apply time off the `GATES`/`CORE_X` constants. The constants are not the
+    run's truth: `world.ts`'s Fourth Gate modifier writes a south gate at
+    (12,19) into `grid.tile` at run construction, and fb064c moves the Core.
+    A constants-keyed override misses both, silently, on a map that still
+    measures perfectly legal. Found by code-reviewer.
+  - **The breach guard asks `staticBlocked`, not `terrainBlock`.** Written the
+    direct way first, and it disagreed with `passable()` within one test: a
+    gate opened after `applyTerrain` was walkable and simultaneously unroutable.
+    Going through the one predicate makes them agree by construction, and keeps
+    a tower on high ground unreachable (its `occ` would otherwise buy it a
+    breach route into terrain no walker can enter).
+  - **The Warden stops at terrain.** fb002 legalised walking through the *Core
+    and friendly structures* — a rule about what the player built, not about
+    the map. Left terrain-blind, the Warden dashes through mountains, and one
+    parked on high ground is unreachable by every ground melee enemy at once:
+    an Act I safe spot no gate band measures. code-reviewer found this
+    undecided and untested; it is now both.
+  - **The ghost field stays terrain-blind, on purpose.** Burrowers and
+    mid-phase Wraiths tunnel *under* stone — that is the mechanic. Where they
+    may surface is fb064d's rule, not this mask's. Pinned by a test so the
+    asymmetry with `wardenPassable` reads as a decision rather than an
+    oversight.
+  - **`applyTerrain` refuses to run over live occupancy.** Terrain under a
+    standing tower makes it unbreachable scenery: the breach guard refuses the
+    tile before it ever reaches the `occ` check, so nothing can path to it and
+    nothing can destroy it. Terrain goes down before build.
+  - **The hardcoded Core can be stranded, and the grid says so.** No generated
+    map knows where the Core is; `allGatesReachable()` reports it honestly
+    rather than the map being patched. Measured over seeds 1..5000: **97, 2055,
+    2845, 3098** (~1 run in 1250); QA measured 11 of 21000 (0.05%). On those
+    seeds every gate has `distAt == -1` — terrain is not chewable, so there is
+    no breach route either, and a run would never clear a wave. **A reachable
+    Core is a hard precondition of fb064c's wiring**, not a nice-to-have.
+  - **The stranded count is asserted as a bound, not a golden.** The first
+    draft said `toBe(1)` off a 1000-seed window; seeds 1..5000 make it 4. That
+    is the lane's own recorded mistake for the third time (`walkableFrac`
+    headroom, the `paint()` timing bound) — a count over an arbitrary seed
+    window moves on any density or `blob` retune, which fb064f puts under live
+    Tuner editing, with no bug behind it. The seed-97 pin is the part that
+    earns its keep.
+
+- (2026-09-03, fb064b) Review and QA. code-reviewer returned REQUEST-CHANGES on
+  three Majors, qa-playtester returned PASS on all four acceptance criteria and
+  filed seven items. Every one is fixed or recorded; the two agreed
+  independently on the same two coverage holes.
+  - **Major (review), confirmed and fixed: the structural override was keyed on
+    constants the run mutates.** Verified here before acting: `world.ts:441-448`
+    does open a south gate at (12,19). Re-measured the consequence over 500
+    seeds — with the override in place but the *generator* still blind to the
+    fourth gate, **138 of 500 seeds bury the tile immediately inside the south
+    gate, and in all 138 that gate cannot reach the Core at all.** Filed below
+    as a merge blocker; the grid-side half is fixed here.
+  - **Major (review), confirmed and fixed: `wardenPassable` was terrain-blind
+    with no decision, test or log entry.** Decided above.
+  - **Major (review) + Bugs 1-2 (QA), confirmed and fixed: the two
+    `blocked`-rebuild sites that can punch a hole were the two with no test.**
+    Both reverted cleanly with all 18 tests green. They are not benign: selling
+    a high-ground tower (`world.ts` `setOcc(.., 0)`) opened a walkable hole into
+    the mountain, and `src/bots/policies.ts`'s
+    `buildable(..) && !wouldBlockPath([[..]])` probe means a *query* did the
+    same. Both now pinned.
+  - **Bug 3 (QA), fixed: `isHighGround` accepted fractional coordinates** and
+    answered about a tile 18 columns away — b007's exact class, in the file
+    whose `buildable()` documents that fix 40 lines above. fb064d calls this
+    from targeting code, where coordinates are floats.
+  - **Bug 4 (QA), fixed: the "copies the masks" test asserted nothing.** Its
+    second `refresh()` was a no-op (`dirty` was already false), so it held for
+    any implementation — QA killed it with an aliasing mutant that wrote the
+    structural override back into the *caller's* overlay. Now mutates `o.kind`
+    too and forces the rebuild.
+  - **Bugs 5-6 (QA), fixed: shape was validated, content was not.** A
+    self-contradictory overlay (walkable high ground) and an out-of-range
+    `kind` were both accepted; the latter silently produced a fully sealed
+    arena of exactly the right shape, because `cfg.tiles[250]?.walkable` is
+    `undefined` and `undefined` reads as "not walkable". Refused now, at the
+    seam, which is the loader-refuses-unpayable-data rule one layer in.
+  - **Bug 7 (QA), fixed:** the stranded-count golden, above.
+  - Re-mutation-tested after the fixes: **11 mutants, 11 killed** (breach
+    guard, `staticBlocked`'s terrain term, its gate/Core term, `buildable`'s
+    terrain term, `setOcc`, the `wouldBlockPath` restore, `wardenPassable`, the
+    aliased-kind buffer, `isHighGround`'s integer guard, the occupancy guard,
+    the walkable-cliff guard). The first pass had only four; five of the seven
+    new ones exist because a reviewer found the gap.
+  - Verified behaviour-neutral for a Grid that never calls `applyTerrain`: QA
+    ran HEAD's `Grid` and this one side by side over 300 seeds x 60 randomised
+    ops, diffing `tile`/`occ`/`blocked`/`breach` and both fields after every op
+    — bit-identical, 0 divergences. `npm run sim -- --seed 1 --policy hybrid`
+    gives `endHash 2729a000` before and after. `tests/grid.test.ts` and
+    `tests/fb036-path-indicators.test.ts` are untouched and green.
+  - `npm run test:fast`: the documented pre-existing set only (b032/b034/b035
+    and q15 load-sensitive — all pass in isolation; b036 fails deterministically
+    at the same 1095.4 already recorded as UI-lane work; q45/q49/q52 are the
+    Windows EPERM scratch-dir cleanups).
+
+- (2026-09-03, fb064b) Out-of-scope needs, for the merge:
+  - **`data/terrain.json` is still outside `contentHash()`** (`src/sim/content.ts`,
+    out of Scope). **Merge blocker: it must land in the same change that wires
+    terrain into `World`.** Until something reads a generated map in a real run
+    there is no hole — verified by grep that `generateTerrain`/`applyTerrain`
+    have no callers in `src/` or `tools/` — but the moment the World calls it,
+    an edit to terrain tuning stops making a stale replay fail loudly.
+    fb064a's naming warning still applies: `content.ts` already exports
+    `TerrainDef`/`TerrainSchema` for a *tower's* terrain effect.
+  - **The generator does not know the run's gate list.** `GATES` is hardcoded in
+    `analyze.ts`, `generate.ts` and `config.ts`, so the Fourth Gate modifier's
+    south gate gets no protected main, no clearance and no place in any band.
+    Measured above: 138/500 seeds bury the tile inside it and leave it unable to
+    reach the Core. The grid no longer buries the gate *tile*, which is all this
+    lane can do from `grid.ts`; threading the run's gate list into generation
+    touches `world.ts` and is main-lane work. **Terrain + Fourth Gate must not
+    ship together until this is done.**
+  - **`src/sim/towers.ts:104` reports `'occupied'` for terrain.** `checkBuild`
+    maps every `!grid.buildable()` to `'occupied'`, which the renderer shows on
+    the build ghost — so the player is told a rough or rock tile is occupied
+    when it is empty ground. Needs a `'terrain'` `BuildRejection`; main lane
+    (or UI lane for the string).
+  - **Nothing binds an overlay to the config that generated its map.**
+    `terrainOverlay(map, cfg)` takes the config as a free parameter, so a
+    mismatched `cfg` repaints the flags while `TerrainMap.hash` still describes
+    the old one. Not closed here: the honest guard is the `contentHash` fold
+    above, not a second hash inside the terrain module.
+  - **`Grid.terrainKind` is public for fb064e** (the renderer needs kinds, not
+    masks). Note the near-collision at the merge: `Grid.applyTerrain` vs
+    `applyTerrainPassives` in `src/sim/weapons.ts`, the same class of name clash
+    fb064a flagged for `TerrainDef`.
+  - Carried forward, unchanged: **nothing consumes `TerrainMap.fallback`**
+    (fb064g). fb064b does not wire the map into a run, so it still cannot be
+    closed here — it belongs with fb064c's placement step or the World wiring.

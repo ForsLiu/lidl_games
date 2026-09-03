@@ -29,4 +29,5 @@ export {
   walkableFlood,
 } from './analyze';
 export { generateTerrain, terrainHash } from './generate';
+export { terrainOverlay } from './overlay';
 export type { TerrainGrid, TerrainMap, TerrainMeasure } from './types';
