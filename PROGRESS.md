@@ -5,6 +5,35 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-03 session: `p10u` — G8's diversity clause hits the same
+  `/data`-only wall as `p10z`, escalated as QUESTIONS Q161.** Delegated to
+  balance-analyst: measured every class's own-kit damage share (Active1/
+  Active2/passive/basic-attack vs. `tests/p6e-class-diversity.test.ts`'s
+  `MATERIALITY_SHARE` 20% floor) under the real `scriptClassKit`/
+  `TREE_AUTO_MAX` harness — baseline **0.2%-8.2%** across the 9 currently-
+  failing classes, because the two shared towers every hybrid build fields
+  (`ballista`/`frost_obelisk`) alone total ~50-70M raw damage over an 18-wave
+  T1 run. Closing the 20% floor needed per-class kit-damage multipliers of
+  **9x-200x** authored values, and two probes broke gates that are currently
+  green for unrelated reasons: archer's `active1.damage` past ~2.6x fails
+  G10's `tests/p6d-nine-classes.test.ts` one-shot-under-toughest-HP pin
+  (confirmed live); swordsman's Active `damage` past ~1000 fails two
+  `tests/p6b-swordsman.test.ts` 1000-HP-dummy-survives-one-hit pins
+  (confirmed live, both). Compensating around both to still reach exactly
+  9/12 needed even more extreme multipliers elsewhere — technically clears
+  the numeric bar but at magnitudes 9x-200x spec-authored values (a swordsman
+  basic attack outdamaging entire tower arrays), the same "obviously wrong
+  data value" pattern Q158-Q160 already rejected for the sibling win-rate
+  axis. All probes reverted (`git diff --stat -- data/` empty, no scratch
+  files left); `npm run test:fast` afterward shows only the same
+  pre-existing environment flakes this session's own history already knows
+  (`b032`/`b034`/`b035`/`b036` UI-fold port contention, `q15` command-fuzz
+  worker-hangs) — none touch `/data` or classes/towers code. Filed
+  **QUESTIONS Q161** rather than landing any of it or lowering the band
+  myself, same reasoning `p10z`/Q160 already used. `p10u` stays open,
+  blocked on that verdict rather than a further `/data`-only session per
+  CLAUDE.md rule 6.
+
 - **2026-09-03 session: `p11a` closed — G23's `winRate()` hard-throw fixed,
   the harness bug `p10z` found.** `tests/p-core-f-gates.test.ts`'s G23
   `winRate()` used to `expect(report.outcome).not.toBe('running')` inside its
