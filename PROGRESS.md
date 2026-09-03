@@ -5,6 +5,37 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-03 session: `p11a` closed — G23's `winRate()` hard-throw fixed,
+  the harness bug `p10z` found.** `tests/p-core-f-gates.test.ts`'s G23
+  `winRate()` used to `expect(report.outcome).not.toBe('running')` inside its
+  per-seed loop — a hard-throw, not a non-win count the way G8's own loop
+  (`tests/p6e-class-diversity.test.ts`) already treats a `'running'` outcome.
+  `stone_heart`/`corpse`/`time` each carry a baseline timeout seed, so those
+  three could never produce a real win-rate number as the test was written,
+  independent of any `/data` tuning. Fixed to match G8's own
+  `outcome === 'running' ? 'timeout' : ...` handling exactly — a `'running'`
+  outcome now counts as a non-win diagnostic entry instead of aborting the
+  loop; no assertion bounds, `/data`, or engine code touched. Re-ran G23
+  through the shipped (non-throwing) function for all five Cores: `corpse`
+  11/12 (91.7%), `time`/`stone_heart` 10/12 (83.3%) each — byte-identical to
+  the numbers `p10z`'s hand-modified probe copy had already found by hand, so
+  the fix changes no Core's actual read, only that the number is now
+  reproducible by calling the real harness. All three, like
+  `carnivorous_plant`/`vampire_heart` before them, sit over the 70% ceiling,
+  so all five Cores stay `.skip`-ed — G23 stays 0/5 in band and Q160's read
+  of the wall is unchanged. A first pass at this fix also (mistakenly)
+  un-skipped `corpse`/`time`/`stone_heart`; caught before commit by actually
+  running the three live — they failed exactly as their own comments
+  predicted (11/12, 10/12, 10/12, all over the ceiling) — and reverted to
+  `.skip` with the confirming numbers recorded in place, rather than shipping
+  a newly-red suite for a measurement-only item. code-reviewer **APPROVE**
+  (no Critical/Major findings — `winRate()` change faithfully mirrors G8's
+  pattern, `.skip` reversion and comments consistent with the file's own
+  convention). `tests/p-core-f-gates.test.ts` standalone: 8 passed / 5
+  skipped, 0 failed. `npm run test:fast` shows only pre-existing,
+  cross-session-documented environment flakes (`b035`/`b036` UI-fold,
+  `q15` command-fuzz worker-hangs) in files with no relation to this change.
+
 - **2026-09-03 session: `p10z` — margin-classification harness landed
   (`classifyMargin`/`summarizeMargins`, `tests/helpers.ts`), a fresh
   `/data`-only retune pass run against it, acceptance not met — a deeper,

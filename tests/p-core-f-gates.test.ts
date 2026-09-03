@@ -226,20 +226,28 @@ describe('G23: every Core clears T1 at a 35-70% win rate with the scripted bot',
     for (const seed of SEEDS) {
       const report = runCoreScripted(coreKey, seed);
       reports.push(report);
-      // A non-terminal outcome at the tick cap is a timeout, not a measured
-      // loss — assert loudly rather than let it silently count as "not a
-      // win" (code-reviewer finding: a `carnivorous_plant` seed hit exactly
-      // this at a smaller cap; 90 simulated minutes now covers the slowest
-      // observed resolution with headroom, so a `running` outcome here means
-      // the cap needs raising again, not that this seed lost).
-      expect(report.outcome, `${coreKey} seed ${seed} did not resolve within the tick cap`).not.toBe('running');
+      // p11a (BACKLOG p11a, QUESTIONS Q160): a non-terminal outcome at the
+      // tick cap is a timeout, not a measured win — count it as a non-win
+      // diagnostic entry instead of hard-throwing, matching `tests/
+      // p6e-class-diversity.test.ts`'s own `outcome === 'running' ? 'timeout'
+      // : ...` handling for G8. The old `expect(...).not.toBe('running')`
+      // aborted the whole 12-seed loop on the first timeout, which meant
+      // `stone_heart`/`corpse`/`time` — all three of which carry a baseline
+      // timeout seed — could never produce a real win-rate number here at
+      // all, capping G23's measurable ceiling at 2 of 5 Cores independent of
+      // any `/data` tuning (found by `p10z`'s margin instrumentation; every
+      // per-Core number in this file's `.skip` comments up to and including
+      // `p10z` was gathered by a hand-modified, non-throwing copy of this
+      // function for exactly that reason, not by calling the shipped one).
       if (report.outcome === 'victory') wins++;
       // p10z (BACKLOG p10z, QUESTIONS Q158/Q159): margin, not just outcome —
       // see `classifyMargin`'s doc comment (`tests/helpers.ts`) for why bare
       // win/loss couldn't discriminate a landslide win or an early one-off
       // loss from a genuine close-call seed.
       const margin = classifyMargin(report);
-      outcomes.push(`${seed}:${report.outcome}/w${report.wavesCleared}/${margin.kind}`);
+      outcomes.push(
+        `${seed}:${report.outcome === 'running' ? 'timeout' : report.outcome}/w${report.wavesCleared}/${margin.kind}`,
+      );
     }
     return { wins, outcomes, reports };
   }
@@ -427,6 +435,14 @@ describe('G23: every Core clears T1 at a 35-70% win rate with the scripted bot',
   // 12-seed run — statistically indistinguishable from the untouched
   // baseline below, so reverted. Re-measured at HEAD (unchanged data):
   // **11/12 (91.7%)** — seed 2 `timeout`/w18, every other seed `victory`/w18.
+  //
+  // p11a (BACKLOG p11a, QUESTIONS Q160): `winRate()` above no longer hard-
+  // throws on a timeout seed — re-measured through the shipped, non-throwing
+  // function itself rather than a hand-modified copy: still **11/12
+  // (91.7%)**, byte-identical to the number above. The fix changes nothing
+  // about this Core's read, only that the number is now reproducible by
+  // calling the real function. Still over the 70% ceiling
+  // (`floor(12*0.7) = 8`), so still `.skip`-ed; G23's ceiling stays 0/5.
   it.skip('corpse', () => {
     const { wins, outcomes } = winRate('corpse');
     expect(wins, `${wins}/${SEEDS.length} — ${outcomes.join(' ')}`).toBeGreaterThanOrEqual(
@@ -470,6 +486,11 @@ describe('G23: every Core clears T1 at a 35-70% win rate with the scripted bot',
   // (83.3%)** — seeds 1,6 `timeout`/w18, rest `victory`/w18 (natural seed-to-
   // seed variance in the timeout-stalemate mechanism this file's own header
   // already names, not a regression from this session).
+  //
+  // p11a (BACKLOG p11a, QUESTIONS Q160): re-measured through the shipped,
+  // non-throwing `winRate()` itself: still **10/12 (83.3%)**, byte-identical
+  // to the number above. Still over the 70% ceiling, so still `.skip`-ed;
+  // G23's ceiling stays 0/5.
   it.skip('time', () => {
     const { wins, outcomes } = winRate('time');
     expect(wins, `${wins}/${SEEDS.length} — ${outcomes.join(' ')}`).toBeGreaterThanOrEqual(
@@ -539,6 +560,13 @@ describe('G23: every Core clears T1 at a 35-70% win rate with the scripted bot',
   // with no scripted augmentation). Left untouched; re-measured at HEAD
   // (unchanged data): **10/12 (83.3%)** — seeds 2,4 `timeout`/w18, rest
   // `victory`/w18, matching the fb049 conservative-reading number above.
+  //
+  // p11a (BACKLOG p11a, QUESTIONS Q160): re-measured through the shipped,
+  // non-throwing `winRate()` itself: still **10/12 (83.3%)**, byte-identical
+  // to the number above. Still over the 70% ceiling, so still `.skip`-ed;
+  // G23's ceiling stays 0/5 — the fix only makes all five Cores' numbers
+  // reproducible by calling the real function; it doesn't move any of them
+  // into band. Confirms Q160's read of the wall is unchanged by this item.
   it.skip('stone_heart (the default Core)', () => {
     const { wins, outcomes } = winRate('stone_heart');
     expect(wins, `${wins}/${SEEDS.length} — ${outcomes.join(' ')}`).toBeGreaterThanOrEqual(

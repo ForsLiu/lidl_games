@@ -1792,27 +1792,6 @@ fresh number.
       another `/data`-only session per CLAUDE.md rule 6 (this is the fourth
       exhausted attempt across `p10r`/`p10s`/`p10t`/`p10z`).
 
-- [ ] (p11a) [bug] `tests/p-core-f-gates.test.ts`'s G23 `winRate()` hard-throws
-      (`expect(report.outcome).not.toBe('running')`) the instant any seed in
-      its 12-seed loop times out, instead of counting a timeout as a non-win
-      the way `tests/p6e-class-diversity.test.ts`'s G8 loop already does (a
-      `'running'` outcome excluded from `wins` but not thrown). Found by
-      `p10z`'s margin instrumentation (BACKLOG p10z, QUESTIONS Q160): three of
-      the five Cores (`stone_heart`, `corpse`, `time`) carry a baseline
-      timeout at HEAD, so G23 can **never** measure a real win rate for any of
-      them as currently written — the assertion fails on the first timeout
-      seed before the loop ever finishes, regardless of how any Core's own
-      numbers are tuned. This caps G23's achievable ceiling at 2 of 5 Cores
-      independent of balance work, which Q160's own retune session had to
-      discover by hand rather than read off a red gate. Acceptance: change
-      `winRate()` to count a `'running'` outcome as a non-win diagnostic entry
-      (matching G8's own `outcome === 'running' ? 'timeout' : ...` handling)
-      instead of throwing, re-run G23 to confirm it now produces a real
-      (if still red) win-rate number for all five Cores instead of aborting
-      on three of them, and note whether any of the three previously-unmeasurable
-      Cores' *actual* win rate (once timeouts count as non-wins rather than a
-      crash) changes this item's or Q160's read of the G23 ceiling — refs:
-      SPEC-FINAL §14 G23, BACKLOG p10z, QUESTIONS Q160.
 
 ### Generated 2026-09-02 (fewer than 3 actionable items remained — CLAUDE.md/BACKLOG generation rule)
 
@@ -3567,6 +3546,40 @@ logged in MIGRATION.md §8 rather than carried as dead items.
   **G19**. The work is `p10d`.
 
 ## Done
+
+- [x] (p11a) [bug] `tests/p-core-f-gates.test.ts`'s G23 `winRate()` hard-threw
+      (`expect(report.outcome).not.toBe('running')`) the instant any seed in
+      its 12-seed loop timed out, instead of counting a timeout as a non-win
+      the way `tests/p6e-class-diversity.test.ts`'s G8 loop already does —
+      found by `p10z`'s margin instrumentation (BACKLOG p10z, QUESTIONS Q160):
+      `stone_heart`/`corpse`/`time` all carry a baseline timeout seed, so G23
+      could never measure a real win rate for any of them as written. Fixed
+      by matching G8's own `outcome === 'running' ? 'timeout' : ...` handling:
+      count a `'running'` outcome as a non-win diagnostic entry instead of
+      throwing (`tests/p-core-f-gates.test.ts`'s `winRate()`), same one-line
+      shape G8 already used, no other logic changed. Re-ran G23 with the fix
+      through the shipped (non-throwing) function itself for all five Cores:
+      `stone_heart` 10/12 (83.3%), `corpse` 11/12 (91.7%), `time` 10/12
+      (83.3%) — every number byte-identical to what `p10z`'s hand-modified
+      probe copy had already found by hand, confirming the fix changes
+      nothing about any Core's actual read, only that the number is now
+      reproducible by calling the real harness. All three, like
+      `carnivorous_plant`/`vampire_heart` before them, sit over the 70%
+      ceiling (`floor(12*0.7) = 8`), so all five stay `.skip`-ed — this item
+      does not move G23 into band and does not change Q160's read of the
+      wall (net still 0/5); it only removes the harness bug that hid three of
+      the five Cores' numbers behind a hard-throw. A first uncommitted draft
+      of this fix also un-skipped `corpse`/`time`/`stone_heart` (`it(...)`
+      instead of `it.skip(...)`), which would have made `npm test` newly red
+      for a measurement-only item with no gate closed — caught before commit
+      by actually running the three live (`11/12`, `10/12`, `10/12`, all
+      failing the ceiling assertion exactly as their own comments predicted),
+      reverted to `.skip` with the confirming numbers recorded in place.
+      `tests/p-core-f-gates.test.ts` re-run standalone: 8 passed / 5 skipped,
+      0 failed. Acceptance met: harness change (not a `/data` tune), real
+      win-rate numbers for all five Cores instead of three, and the "does
+      this change the ceiling read" question answered (no) — refs:
+      SPEC-FINAL §14 G23, BACKLOG p10z, QUESTIONS Q160.
 
 - [x] (fb042) [balance] P10 content/balance pass (QUESTIONS Q146 ORDER,
       commit `44eb1dc`). The 13 emptied ex-Emberkeeper/Scavenger
