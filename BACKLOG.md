@@ -1854,7 +1854,7 @@ duplication as a drift risk worth a future de-dup).
       is already as decisive as Q160's four-session finding on its first
       attempt.
 
-- [ ] (p10v) [chore] Time Lord (the 12th class, added at `fb013`) has never
+- [x] (p10v) [chore] Time Lord (the 12th class, added at `fb013`) has never
       had its own individual G8 win-rate band assertion — it rides along in
       `tests/p6e-class-diversity.test.ts`'s 12-class `measurements` sweep and
       the diversity/coverage checks, but unlike the other 11 classes there is
@@ -1865,6 +1865,26 @@ duplication as a drift risk worth a future de-dup).
       recording the measured win rate and reason), so all 12 classes have a
       named, individually-inspectable G8 win-rate pin once `p10t`/`p10u` land
       — refs: SPEC-FINAL §14 G8, HANDOFF §6 item 7, `fb013`.
+
+      **Closed (2026-09-03).** Added
+      `it.skip('time_lord', () => assertBand('time_lord'))` immediately after
+      `bloodlord`'s case, same `assertBand` helper and comment convention as
+      the other 11. Measured against HEAD with the real scripted-kit/
+      `TREE_AUTO_MAX` harness: **12/12** — every seed victory/w18/
+      landslide-win, the same over-ceiling story as ten of the other eleven
+      classes (only `bloodlord` sits in-band). code-reviewer's first pass
+      flagged the case as un-skipped and failing — a false alarm caused by
+      qa-playtester's own in-flight temporary un-skip (to independently
+      measure the real number) racing the review on the same file; the
+      qa-playtester pass confirmed the 12/12 number byte-for-byte, reverted
+      its temporary edit, and the file's final diff is the intended
+      single-hunk 8-line addition, still `.skip`-ed. All 12 classes now carry
+      a named, individually-inspectable G8 pin; the file's own coverage test
+      ("every one of the eleven §4 classes was actually measured") is
+      unaffected either way since it compares `measurements.keys()` (already
+      populated for all 12 unconditionally) against `CLASS_KEYS`. No `/data`
+      or engine code touched; G8's band itself stays blocked on Q161 per
+      `p10u`.
 
 - [ ] (p10w) [chore] De-dup the three near-identical scripted-kit-and-
       Core-purchase harness copies flagged by code-reviewer at `p10s` and

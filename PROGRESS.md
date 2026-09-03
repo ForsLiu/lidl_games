@@ -5,6 +5,29 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-03 session: `p10v` closed — Time Lord's individual G8 win-rate
+  pin filled the last gap in `tests/p6e-class-diversity.test.ts`'s per-class
+  coverage.** Time Lord (the 12th class, added at `fb013`) rode along in the
+  file's shared `measurements` sweep and diversity/coverage checks but had no
+  `it.skip('time_lord', ...)` of its own, unlike the other 11 classes. Added
+  one following the existing pattern exactly:
+  `it.skip('time_lord', () => assertBand('time_lord'))` right after
+  `bloodlord`'s case. Measured against HEAD with the real scripted-kit/
+  `TREE_AUTO_MAX` harness: **12/12** — every seed victory/w18/landslide-win,
+  the same over-ceiling story as ten of the other eleven classes. Standalone
+  file run: 3 passed / 12 skipped, 0 failed (2011s). code-reviewer's first
+  pass reported a Critical (case un-skipped and would fail full `npm test`)
+  that turned out to be a false alarm from racing qa-playtester's own
+  in-flight temporary un-skip (done to independently re-measure the real
+  number); qa-playtester's pass confirmed the 12/12 figure byte-for-byte,
+  reverted its temporary edit, and left the final diff as the intended
+  single-hunk 8-line addition, still `.skip`-ed (git diff --stat: 1 file, 8
+  insertions). `npm run test:fast` afterward: 5 failed test files, all
+  pre-existing documented environment flakes (`b032`/`b034`/`b035`/`b036`
+  UI-fold port contention, `q15` command-fuzz worker-hangs) — none touch this
+  file, `/data`, or classes/towers code. No `/data` or engine code changed;
+  G8's actual band remains blocked on Q161 (`p10u`), unaffected by this item.
+
 - **2026-09-03 session: `p10u` — G8's diversity clause hits the same
   `/data`-only wall as `p10z`, escalated as QUESTIONS Q161.** Delegated to
   balance-analyst: measured every class's own-kit damage share (Active1/
