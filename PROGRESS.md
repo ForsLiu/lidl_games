@@ -5,6 +5,39 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-03 session: `fb051` closed — the DPS summary panel and the VS
+  wielded side panel now dock to the stage's right edge instead of covering
+  and blurring the whole screen (owner feedback `bug-dps-panel-style`, top
+  priority).** `#sw-dpspanel`/`#sw-vspanel` (`src/ui/hud.ts`) moved off the
+  full-screen `.sw-modal` class onto a new `.sw-dock` (docked right, 340px/max
+  42% wide, no `backdrop-filter`); `Hud.modalOpen` — the same getter
+  `main.ts`'s `bindCanvasInput({ isBlocked })` reads for canvas clicks —
+  dropped these two elements, so it now only reflects the pause/level-up/
+  results modal and the Character panel, and the bottom HUD bar stopped
+  auto-hiding for these two as well. `style.css` gained `.sw-dock`/`.sw-dock
+  .sw-card` (~85% opacity via `var(--panel)` + `d9` alpha). code-reviewer's
+  first pass was **REQUEST-CHANGES**: a CSS-specificity tie let the shell
+  markup's leftover `.sw-card.wide` (620px min-width, shared with the
+  Character panel) beat the new override on source order, so the *inner*
+  card stayed 620px wide inside the 340px dock in a real browser even though
+  the outer div measured correctly — fixed by dropping `wide` from
+  `dpsPanelShellMarkup`/`vsPanelShellMarkup`, re-verified **APPROVE**
+  (confirmed the fix by watching the new inner-card assertion fail with
+  `wide` re-added, then pass again with it removed). qa-playtester **PASS**:
+  independently confirmed `modalOpen` stays correctly split (false for
+  DPS/VS, still true for pause/results/level-up/Character), the VS panel
+  gets identical treatment in Act II, the fb024 dock/reopen edge-tab flow
+  survived the class rename, and adversarial throwaway probes (pause
+  mid-open, panel mutual exclusion, 50x rapid toggle, death force-close) all
+  held; flagged one non-blocking cosmetic note (the panel and the
+  now-always-visible bottom bar share a z-index and could visually approach
+  at narrow widths) for a future pass, not a defect here. `npx tsc --noEmit`
+  clean; targeted suite 96/96 (2 pre-existing skips); `npm run test:fast`
+  2053 passed/8 failed/24 skipped, every failure the same standing
+  `b032`/`b034`/`b035`/`b036` port-contention, `q13` host-perf-timing, `q15`
+  worker-hang, `q49`/`q52` Windows scratch-dir `EPERM` flake family this
+  queue documents every session (`b032` re-run alone passed clean).
+
 - **2026-09-03 session: processed a 16-file owner feedback batch into BACKLOG
   (`fb050`-`fb065`), then closed `fb050`** (Core VFX/occlusion bug, top of
   queue). The batch carried no formal verdict blocks except

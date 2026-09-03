@@ -138,9 +138,9 @@ export class Hud {
           <canvas id="sw-canvas"></canvas>
           <div class="sw-modal sw-off" id="sw-modal" hidden></div>
           <div class="sw-modal sw-off" id="sw-charpanel" hidden></div>
-          <div class="sw-modal sw-off" id="sw-dpspanel" hidden></div>
+          <div class="sw-dock sw-off" id="sw-dpspanel" hidden></div>
           <button class="sw-dpsdock sw-off" id="sw-dpsdock" hidden title="Reopen DPS summary (P)">DPS &#9656;</button>
-          <div class="sw-modal sw-off" id="sw-vspanel" hidden></div>
+          <div class="sw-dock sw-off" id="sw-vspanel" hidden></div>
           <button class="sw-vsdock sw-off" id="sw-vsdock" hidden title="Reopen wielded attacks (V)">VS &#9656;</button>
           <div class="sw-toast" id="sw-toast"></div>
           <div class="sw-bottombar" id="sw-bottombar">
@@ -563,10 +563,11 @@ export class Hud {
   /**
    * SPEC-FINAL §11, owner feedback `feature-dps-summary` (fb007): damage
    * dealt and DPS over the current wave and the whole run, by source and by
-   * damage type. Same refusal rule as `toggleCharacterPanel` (fb004) and the
-   * same reason: two independently-driven overlays painted in the same
-   * `position: absolute; inset: 0` stack would hide one another and eat its
-   * clicks.
+   * damage type. Same refusal rule as `toggleCharacterPanel` (fb004): kept
+   * mutually exclusive with the Character/VS panels so at most one of these
+   * independently-driven overlays ever shows at once, even though the panel
+   * itself docks to the stage edge (`.sw-dock`, fb051) rather than covering
+   * it full-screen.
    */
   toggleDpsPanel(w: World): void {
     if (this.dpsPanelOpen_) {
@@ -658,9 +659,10 @@ export class Hud {
    * SPEC-FINAL §6.2, owner feedback `feature-vs-wielded-side-panel` (fb037):
    * one row per wielded tower type — derived damage, attack speed, range,
    * pierce/AoE, damage-type split, active milestone special, and live DPS
-   * this wave. Same refusal rule as `toggleCharacterPanel`/`toggleDpsPanel`
-   * and the same reason: independently-driven full-stage overlays would hide
-   * one another and eat each other's clicks.
+   * this wave. Same refusal rule as `toggleCharacterPanel`/`toggleDpsPanel`:
+   * kept mutually exclusive so at most one of these panels ever shows at
+   * once (see `toggleDpsPanel`'s matching comment on why that no longer
+   * means "full-stage").
    *
    * Also refuses outside `w.huntsWarden` (qa-playtester finding): a tower
    * wields nothing until the Sundering — `updateWieldedAttacks` is only ever
@@ -763,9 +765,14 @@ export class Hud {
     this.speedSel.classList.toggle('on', speed !== 1);
   }
 
-  /** True while any overlay owns input, so clicks must not reach the canvas. */
+  /**
+   * True while a full-stage overlay owns input, so clicks must not reach the
+   * canvas. fb051 (bug-dps-panel-style): the DPS and VS panels dock to the
+   * stage's edge (`.sw-dock`) rather than covering it, so they no longer
+   * count here — gameplay stays visible and clickable while either is open.
+   */
   get modalOpen(): boolean {
-    return !this.modal.hidden || !this.charPanelEl.hidden || !this.dpsPanelEl.hidden || !this.vsPanelEl.hidden;
+    return !this.modal.hidden || !this.charPanelEl.hidden;
   }
 
   get canvas(): HTMLCanvasElement {
@@ -916,10 +923,12 @@ export class Hud {
    * number for tests, so the fraction asserted there is exactly what paints.
    */
   private renderBottomBar(w: World): void {
-    // Every overlay this class owns (pause/level-up/results, the character
-    // panel, the DPS panel) is a full-stage sheet, same reasoning as
-    // `openModal`'s own panel-closing calls — painting the bar on top would
-    // float readable HP/gold numbers over what should be an opaque cover.
+    // The overlays that are still full-stage sheets (pause/level-up/results,
+    // the character panel) hide the bar the same way `openModal`'s own
+    // panel-closing calls avoid stacking under them — painting the bar on top
+    // would float readable HP/gold numbers over what should be an opaque
+    // cover. The docked DPS/VS panels (fb051) are not full-stage, so they
+    // leave the bar showing.
     const wasHidden = this.bb.root.classList.contains('sw-off');
     this.bb.root.classList.toggle('sw-off', this.modalOpen);
     if (this.modalOpen) {
@@ -1719,7 +1728,7 @@ function dpsWindowMarkup(win: DpsWindow): string {
  */
 export function dpsPanelShellMarkup(): string {
   return `
-    <div class="sw-card sw-charcard wide">
+    <div class="sw-card sw-charcard">
       <h2>DPS Summary</h2>
       <div class="sw-dps-body"></div>
       <button class="sw-reroll" data-act="dock">Dock</button>
@@ -1745,7 +1754,7 @@ export function dpsPanelBodyMarkup(data: DpsPanelData): string {
  */
 export function vsPanelShellMarkup(): string {
   return `
-    <div class="sw-card sw-charcard wide">
+    <div class="sw-card sw-charcard">
       <h2>Wielded Attacks</h2>
       <div class="sw-vs-body"></div>
       <button class="sw-reroll" data-act="dock">Dock</button>

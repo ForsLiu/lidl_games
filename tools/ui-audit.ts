@@ -140,10 +140,12 @@ function collectDomSnapshot(): DomSnapshot {
   for (const sel of ['#sw-bar', '#sw-stats', '#sw-progress', '#sw-toast', '#sw-controls', '#sw-practice', '#sw-towerinfo']) {
     const el = document.querySelector(sel);
     if (!el) continue;
-    // A modal-class overlay (`#sw-modal`, `#sw-charpanel`, `#sw-dpspanel`) is
-    // deliberately full-screen (`position:absolute; inset:0`, style.css) —
-    // excluded here per the acceptance's own instruction, not compared
-    // against the always-present side-panel chrome it is meant to cover.
+    // A modal-class overlay (`#sw-modal`, `#sw-charpanel`) is deliberately
+    // full-screen (`position:absolute; inset:0`, style.css) — excluded here
+    // per the acceptance's own instruction, not compared against the
+    // always-present side-panel chrome it is meant to cover. (fb051: the DPS/
+    // VS panels moved off `.sw-modal` onto the docked `.sw-dock` and are not
+    // in this selector list at all, so they need no exclusion.)
     if (el.classList.contains('sw-modal')) continue;
     const { ok, rect } = visible(el);
     if (!ok) continue;

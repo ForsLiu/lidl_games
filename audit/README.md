@@ -10,11 +10,13 @@ generated output (gitignored); this file is checked in.
 
 Every check runs against the actual composited screenshot pixels (via
 `pngjs`) and real DOM geometry (via Playwright's `page.evaluate`), never just
-declared CSS colors — several panels (the pause/level-up/results modal, the
-character and DPS panels) sit over the canvas behind a semi-transparent,
-blurred background, so the color a player actually sees is a composite, not
-any single declared value. See `tools/audit/checks.ts` for the check math and
-`tools/ui-audit.ts` for the orchestration.
+declared CSS colors — some panels (the pause/level-up/results modal, the
+character panel) sit over the canvas behind a semi-transparent, blurred
+background, so the color a player actually sees is a composite, not any
+single declared value. (The DPS and VS wielded-attacks panels dock to the
+stage's edge instead, fb051 — no blur, nothing composited underneath.) See
+`tools/audit/checks.ts` for the check math and `tools/ui-audit.ts` for the
+orchestration.
 
 ## The seven scenes
 

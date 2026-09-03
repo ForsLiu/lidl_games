@@ -2289,7 +2289,7 @@ generation-rule boundary.
       (q15/q49/q52 — reproduced identically against `git stash`-ed clean
       HEAD, Windows scratch-dir `EPERM`/timing-sensitive hang-detector
       flakes, none touching the changed files).
-- [ ] (fb051) [bug] top priority: the DPS summary panel (and the VS
+- [x] (fb051) [bug] top priority: the DPS summary panel (and the VS
       wielded side panel, same styling rule) covers and blurs the whole
       screen instead of docking as a compact side panel. Acceptance: both
       panels render as a docked-right, ~85% opacity ⚖ side panel with no
@@ -2299,6 +2299,51 @@ generation-rule boundary.
       canvas remains interactive (dispatches a click through to a tower) —
       refs: SPEC-FINAL §11, owner feedback `bug-dps-panel-style`, prior
       docking precedent `fb024`.
+
+      **Closed (2026-09-03).** `#sw-dpspanel`/`#sw-vspanel` (`hud.ts`) switched
+      from the full-screen `.sw-modal` class to a new `.sw-dock` (docked to
+      the stage's right edge, 340px/max 42% wide, no `backdrop-filter`), and
+      `Hud.modalOpen` — the same getter `main.ts`'s `bindCanvasInput({
+      isBlocked })` reads for canvas clicks — dropped these two elements, so
+      it now only reflects the pause/level-up/results modal and the
+      Character panel; the bottom HUD bar also stopped auto-hiding for these
+      two. `style.css` gained `.sw-dock`/`.sw-dock .sw-card` (~85% opacity via
+      `var(--panel)` + `d9` alpha, min-width/max-width overridden to fill the
+      dock instead of the old centered-modal sizing). `tools/ui-audit.ts` and
+      `audit/README.md` had their now-stale `.sw-modal`-example comments
+      fixed. code-reviewer's first pass was **REQUEST-CHANGES**: a CSS-
+      specificity tie meant the shell markup's leftover `.sw-card.wide` class
+      (still 620px min-width, shared with the Character panel) beat the new
+      `.sw-dock .sw-card` override on source order alone, so the *inner* card
+      stayed 620px wide inside the 340px dock in a real browser even though
+      the outer div measured correctly — fixed by dropping `wide` from
+      `dpsPanelShellMarkup`/`vsPanelShellMarkup` (the Character panel kept
+      it), which also resolves the specificity conflict outright (1 class vs.
+      2). Re-verified **APPROVE** after the fix, confirmed by re-adding `wide`
+      and watching the new inner-card assertion fail, then re-removing it and
+      watching it pass. `tests/ui-input.test.ts` gained a 3-test block: no
+      `.sw-modal` class on either panel; the outer dock div's and inner
+      card's computed style (position/right/width/min-width/backdrop-filter);
+      and a real `bindCanvasInput` + `hud.canvas` mousedown (with `isBlocked:
+      () => hud.modalOpen`, mirroring `main.ts` exactly) still reaching the
+      queue as a `build` Command while the DPS panel is open. qa-playtester
+      **PASS**: independently confirmed `modalOpen` stays `false` for
+      DPS/VS but still `true` for pause/results/level-up/Character panel
+      (none of those accidentally stopped blocking), the VS panel gets
+      identical treatment during Act II, the fb024 dock/reopen edge-tab flow
+      survived the class rename, and adversarial throwaway tests (pause
+      mid-open, DPS/Character mutual exclusion, 50x rapid toggle, death
+      force-close) all held; noted one non-blocking cosmetic point (the
+      docked panel and the now-always-visible bottom bar share a z-index and
+      could visually approach each other at narrow canvas widths) for a
+      future visual pass, not a defect against this item's acceptance text.
+      `npx tsc --noEmit` clean; targeted suite (`ui-input`/`hud-controls`/
+      `dps-panel`/`fb037-vs-panel`) 96/96 (2 pre-existing skips); `npm run
+      test:fast` 2053 passed/8 failed/24 skipped, every failure the same
+      standing `b032`/`b034`/`b035`/`b036` port-contention, `q13` host-perf-
+      timing, `q15` worker-hang, `q49`/`q52` Windows scratch-dir `EPERM`
+      flake family this queue documents every session — `b032` re-run alone
+      passed clean, confirming contention not regression.
 - [ ] (fb052) [bug] top priority: Sleeve Sword's Circle Slash charge
       behavior needs to change (charge reaches MAX the instant the key is
       pressed; release at any time applies the max-charge effect; Dash

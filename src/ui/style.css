@@ -142,6 +142,39 @@ html, body {
   background: transparent;
 }
 
+/*
+ * fb051 (bug-dps-panel-style): the DPS and VS wielded-attacks panels dock to
+ * the stage's right edge as a translucent side panel instead of a
+ * `.sw-modal`-style full-screen backdrop — gameplay stays visible and
+ * clickable underneath (canvas keeps receiving input) while either is open.
+ */
+.sw-dock {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  bottom: 8px;
+  width: 340px;
+  max-width: 42%;
+  overflow-y: auto;
+  z-index: 4;
+}
+.sw-dock[hidden],
+.sw-dock.sw-off {
+  display: none !important;
+  pointer-events: none;
+}
+/* Overrides `.sw-card`'s centered-modal sizing (min-width/text-align) so the
+   same shell markup (`dpsPanelShellMarkup`/`vsPanelShellMarkup`) fills the
+   docked strip instead of the middle of a full-screen grid. ~85% opacity
+   background (`var(--panel)` + `d9` alpha), no blur. */
+.sw-dock .sw-card {
+  min-width: 0;
+  max-width: none;
+  width: 100%;
+  text-align: left;
+  background: #161b24d9;
+}
+
 /* fb024: the DPS panel's docked edge tab — reopens the full panel on click. */
 .sw-dpsdock {
   position: absolute;

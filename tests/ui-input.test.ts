@@ -209,6 +209,92 @@ describe('the overlay stylesheet cannot lose the cascade', () => {
   });
 });
 
+/**
+ * fb051 (owner feedback `bug-dps-panel-style`): the DPS summary panel and the
+ * VS wielded side panel used to reuse `.sw-modal` — the same full-screen,
+ * blurred-backdrop overlay class as the pause/level-up/results modal — so
+ * opening either one covered and blurred the whole game and (via
+ * `Hud.modalOpen`, which `main.ts`'s `isBlocked` reads) stopped canvas clicks
+ * from reaching the sim. Both now dock to the stage's right edge as a
+ * translucent `.sw-dock` panel instead (fb024's prior docking precedent).
+ */
+describe('the DPS/VS panels dock instead of covering the whole screen (fb051)', () => {
+  function mountHudWithCanvas(): { root: HTMLElement; hud: Hud; world: World; queue: Command[] } {
+    const root = mount();
+    const queue: Command[] = [];
+    const hud = new Hud(root, noopHudCallbacks(queue));
+    const world = new World(cfg());
+    hud.buildTowerBar(world);
+    // jsdom does no layout — give the real canvas a known CSS box, same as `fakeCanvas` above.
+    Object.defineProperty(hud.canvas, 'clientWidth', { value: 1152, configurable: true });
+    Object.defineProperty(hud.canvas, 'clientHeight', { value: 640, configurable: true });
+    hud.canvas.getBoundingClientRect = () =>
+      ({ left: 0, top: 0, width: 1152, height: 640, right: 1152, bottom: 640, x: 0, y: 0 }) as DOMRect;
+    return { root, hud, world, queue };
+  }
+
+  it('neither panel renders as a full-screen `.sw-modal` overlay', () => {
+    const { root, hud, world } = mountHudWithCanvas();
+    hud.toggleDpsPanel(world);
+    hud.update(world);
+    const dps = root.querySelector('#sw-dpspanel') as HTMLElement;
+    expect(dps.classList.contains('sw-modal'), 'no full-screen overlay element').toBe(false);
+    expect(dps.classList.contains('sw-dock')).toBe(true);
+    hud.toggleDpsPanel(world); // docks to the edge tab, out of the way of the VS panel below
+
+    world.phase = 'act2';
+    hud.toggleVsPanel(world);
+    hud.update(world);
+    const vs = root.querySelector('#sw-vspanel') as HTMLElement;
+    expect(vs.classList.contains('sw-modal'), 'no full-screen overlay element').toBe(false);
+    expect(vs.classList.contains('sw-dock')).toBe(true);
+  });
+
+  it('docks to the stage edge with no backdrop blur, instead of covering it', () => {
+    const { root, hud, world } = mountHudWithCanvas();
+    hud.toggleDpsPanel(world);
+    hud.update(world);
+    const style = getComputedStyle(root.querySelector('#sw-dpspanel') as HTMLElement);
+    expect(style.position).toBe('absolute');
+    expect(style.right).toBe('8px');
+    expect(style.width).toBe('340px'); // bounded, not `inset: 0` full-stage coverage
+    expect(style.backdropFilter === '' || style.backdropFilter === 'none', 'no blur').toBe(true);
+
+    // code-reviewer finding: the visible box is the *inner* `.sw-card` the
+    // shell markup renders, not the `.sw-dock` container itself — the old
+    // centered-modal `.sw-card.wide { min-width: 620px }` rule tied in CSS
+    // specificity with `.sw-dock .sw-card`'s override and won on source
+    // order, so the card stayed 620px wide inside a 340px dock (clipped/
+    // scrolling) even though the outer div measured correctly above.
+    const card = root.querySelector('#sw-dpspanel .sw-card') as HTMLElement;
+    const cardStyle = getComputedStyle(card);
+    expect(cardStyle.minWidth).toBe('0px');
+    expect(cardStyle.width).toBe('100%');
+  });
+
+  it('leaves the canvas interactive while open — a build click still reaches a tower', () => {
+    const { hud, world, queue } = mountHudWithCanvas();
+    hud.toggleDpsPanel(world);
+    hud.update(world);
+    // The same `modalOpen` flag `main.ts` wires into `bindCanvasInput`'s `isBlocked`.
+    expect(hud.modalOpen, 'a docked panel must not be treated as a full-screen modal').toBe(false);
+
+    const arrow = world.content.towerByKey.get('arrow_spire')!;
+    const view = { selectedTower: arrow.id, cursorX: 0, cursorY: 0 };
+    bindCanvasInput({
+      canvas: hud.canvas,
+      view,
+      keys: new Set(),
+      queue: { push: (c) => queue.push(c) },
+      isBlocked: () => hud.modalOpen,
+    });
+    hud.canvas.dispatchEvent(
+      new window.MouseEvent('mousedown', { button: 0, clientX: 32 * 5 + 4, clientY: 32 * 7 + 4, bubbles: true }),
+    );
+    expect(queue).toEqual([{ k: 'build', tower: arrow.id, tx: 5, ty: 7 }]);
+  });
+});
+
 describe('Constellation refund (SPEC 8.1)', () => {
   const content = loadContent();
 
