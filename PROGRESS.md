@@ -5,6 +5,39 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-03 session: `p10w` closed — de-duped the three near-identical
+  scripted-kit-and-Core-purchase harness copies code-reviewer flagged at
+  `p10s`/`p10t` down to `tests/helpers.ts`'s single shared implementation.**
+  `tests/p6e-class-diversity.test.ts` had its own local `aimPoint`/
+  `scriptClassKit`/`CHARGE_KINDS`/`STRUCTURE_TARGET_KINDS` plus an inline
+  Core-upgrade-purchase loop inside `runClassScripted`; replaced with a
+  four-line `runClassScripted` that calls `runScripted(config, 'hybrid',
+  60*60*120)` from `tests/helpers.ts` (90 lines removed, now-unused `Run`/
+  `makePolicy`/`coreCenter`/`TickInput`/`World` imports dropped).
+  `tests/p-core-f-gates.test.ts`'s `runCoreScripted` never scripted a class
+  kit (G23 never did), so only its inline Core-upgrade-purchase loop was
+  swapped for the shared `buyCoreUpgrades(w, input)` (22 lines changed,
+  `coreCenter`/`center`/`stepCount` dropped) — confirmed `w.coreKey` (which
+  `buyCoreUpgrades` reads off `World`) always equals the removed `coreKey`
+  closure param, since `World.coreKey = cfg.core ?? defaultCoreKey(...)` and
+  every call site sets `config.core = coreKey`. `npx tsc --noEmit` clean;
+  `npm run test:fast` showed only the same pre-existing environment flakes
+  this session's own history already knows about (`b032`/`b034`/`b035`/
+  `b036` fold-port contention, `q13-perf-ratio` host-load ceiling,
+  `q15-command-domain-fuzz` worker-hangs — none touch these files or
+  `/data`). code-reviewer **APPROVE** (no findings; a follow-up live-test
+  pass it ran itself independently reproduced G22 seed-1's 4/4 and G8
+  `bloodlord`'s 8/12 exactly). qa-playtester **PASS**: ran both files' full
+  ~31-min/~22-min `beforeAll` sweeps, temporarily un-skipped every case in
+  both to check the live numbers against each `it.skip`'s recorded comment,
+  found byte-identical results everywhere (G8: cryomancer/swordsman/
+  plaguebringer/engineer/archer/necromancer/stormcaller/paladin/time_lord
+  12/12, pyromancer 11/12, animist 10/12, bloodlord 8/12, 3/12 distinct top
+  damage sources; G23: carnivorous_plant/vampire_heart 12/12, corpse/
+  stone_heart 10-11/12, time 10/12), then reverted every temporary un-skip —
+  final diff matches the intended two-file, 90+22-line change exactly. No
+  `/data` or gate numbers changed; this was pure code motion.
+
 - **2026-09-03 session: `p10v` closed — Time Lord's individual G8 win-rate
   pin filled the last gap in `tests/p6e-class-diversity.test.ts`'s per-class
   coverage.** Time Lord (the 12th class, added at `fb013`) rode along in the

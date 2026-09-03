@@ -1886,7 +1886,7 @@ duplication as a drift risk worth a future de-dup).
       or engine code touched; G8's band itself stays blocked on Q161 per
       `p10u`.
 
-- [ ] (p10w) [chore] De-dup the three near-identical scripted-kit-and-
+- [x] (p10w) [chore] De-dup the three near-identical scripted-kit-and-
       Core-purchase harness copies flagged by code-reviewer at `p10s` and
       named again in `p10t`'s own text: `tests/helpers.ts`'s shared version
       (built at `p10s`) plus the original two in
@@ -1900,6 +1900,25 @@ duplication as a drift risk worth a future de-dup).
       defining their own; every currently-`.skip`-ed/live case in both files
       keeps its exact same measured number (no behavior change, pure
       de-dup) — refs: `p10s` code-reviewer note, `p10t`.
+
+      **Closed (2026-09-03).** `p6e-class-diversity.test.ts`'s local
+      `aimPoint`/`scriptClassKit`/`CHARGE_KINDS`/`STRUCTURE_TARGET_KINDS` and
+      inline Core-upgrade loop replaced with a call to the shared
+      `runScripted` from `tests/helpers.ts` (90 lines removed).
+      `p-core-f-gates.test.ts`'s `runCoreScripted` never scripted a class kit
+      (out of scope for G23), so only its inline Core-upgrade loop was
+      swapped for the shared `buyCoreUpgrades` (22 lines changed) — the
+      `w.coreKey`-vs-closured-`coreKey` substitution was verified exact
+      (`World.coreKey = cfg.core ?? defaultCoreKey(...)`, every call site
+      sets `config.core = coreKey`). code-reviewer **APPROVE** (no findings,
+      independently reproduced G22 seed-1 4/4 and G8 `bloodlord` 8/12 live).
+      qa-playtester **PASS**: full un-skip-and-compare pass on both files'
+      complete `beforeAll` sweeps found every recorded number byte-identical
+      post-refactor, then reverted all temporary edits. `npx tsc --noEmit`
+      clean; `npm run test:fast` shows only the pre-existing documented
+      environment flakes (`b032`/`b034`/`b035`/`b036`, `q13-perf-ratio`,
+      `q15-command-domain-fuzz`), none touching these files. No `/data` or
+      gate numbers changed — pure code motion.
 
 - [ ] (p10x) [chore] `tests/p7e-quests.test.ts`'s `it.skip('the sealed policy
       latches world.everSealed...')` (line ~232) was explicitly deferred

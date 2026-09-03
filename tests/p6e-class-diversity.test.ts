@@ -201,15 +201,11 @@
  */
 import { beforeAll, describe, expect, it } from 'vitest';
 
-import { Run } from '../src/sim/run';
-import { makePolicy } from '../src/bots';
 import '../src/bots';
-import { coreCenter } from '../src/sim/grid';
 import { loadContent, type ClassDef } from '../src/sim/content';
 import { allTreeNodeIds } from '../src/meta/meta';
-import type { RunConfig, RunReport, TickInput } from '../src/sim/types';
-import type { World } from '../src/sim/world';
-import { cfg, classifyMargin, summarizeMargins } from './helpers';
+import type { RunConfig, RunReport } from '../src/sim/types';
+import { cfg, classifyMargin, runScripted, summarizeMargins } from './helpers';
 
 const content = loadContent();
 const SEEDS = Array.from({ length: 12 }, (_, i) => i + 1);
@@ -224,66 +220,8 @@ const BAND_HI = 0.70;
 /** The twelve §4-shaped classes, fb013. */
 const CLASS_KEYS = content.classes.classes.map((c) => c.key);
 
-const CHARGE_KINDS = new Set(['charge_nova', 'charge_pierce']);
-
-/**
- * Structure-targeting kinds (Engineer's Field Kit, Bloodlord's Blood Tithe,
- * Necromancer's Death Pact) read `nearestStructure(w, aimX ?? wd.x, aimY ??
- * wd.y, ...)` (classes.ts) — an aim override at the nearest *enemy* points
- * that search at the enemy's tile instead of the Warden's own, which can
- * legitimately miss every structure the Warden is actually standing near.
- * code-reviewer (p6e round 2) caught that the header claimed these three omit
- * the override but the code unconditionally set one; fixed by actually
- * skipping the override for exactly this set, so the search falls through to
- * `nearestStructure`'s own `?? wd.x`/`?? wd.y` default.
- */
-const STRUCTURE_TARGET_KINDS = new Set(['repair_heal', 'blood_tithe', 'death_pact']);
-
-/** Nearest enemy, falling back to the Core when the board is empty — the aim point for every Active except the three `STRUCTURE_TARGET_KINDS` above. */
-function aimPoint(w: World): { x: number; y: number } {
-  const wd = w.warden;
-  const t = w.nearestEnemy(wd.x, wd.y, 40);
-  if (t) return { x: t.x, y: t.y };
-  const c = coreCenter();
-  return { x: c.x, y: c.y };
-}
-
-/** Drives one class's kit onto a stock policy's own TickInput, every tick Act I or Act II runs. See this file's header for the cadence/aim/sequencing rules. */
-function scriptClassKit(w: World, input: TickInput): void {
-  const cls = w.content.classByKey.get(w.cfg.classKey);
-  if (!cls) return;
-  const wd = w.warden;
-  const aim = aimPoint(w);
-
-  if (CHARGE_KINDS.has(cls.active1.kind)) {
-    const cap = cls.active1.chargeCapSeconds ?? 3;
-    const holdWindow = Math.min(cap, 2);
-    input.active1Held = wd.active1Charging ? wd.active1Charge < holdWindow : wd.active1Cooldown <= 0;
-    input.aimX = aim.x;
-    input.aimY = aim.y;
-  } else if (wd.active1Cooldown <= 0) {
-    input.cmds.push(
-      STRUCTURE_TARGET_KINDS.has(cls.active1.kind)
-        ? { k: 'class_active' }
-        : { k: 'class_active', aimX: aim.x, aimY: aim.y },
-    );
-  }
-
-  // Paladin-only sequencing (header comment): don't detonate Judgement on
-  // whatever scraps of Wrath a just-opened taunt window has banked so far.
-  const judgementReady = cls.active2.kind !== 'judgement' || (wd.clarionRemaining <= 0 && wd.wrathStored > 0);
-  if (wd.active2Cooldown <= 0 && judgementReady) {
-    input.cmds.push(
-      STRUCTURE_TARGET_KINDS.has(cls.active2.kind)
-        ? { k: 'class_active2' }
-        : { k: 'class_active2', aimX: aim.x, aimY: aim.y },
-    );
-  }
-}
-
-/** T1, one class, one seed — hybrid economy/kiting, this file's kit script layered on top, Core upgrades bought on the same precedent as G23's `runCoreScripted`. */
+/** T1, one class, one seed — hybrid economy/kiting, `tests/helpers.ts`'s shared kit script (`scriptClassKit`/`buyCoreUpgrades`, via `runScripted`) layered on top per BACKLOG p10w's de-dup — was a local copy of the same logic, now the shared implementation (p10s precedent). */
 function runClassScripted(classKey: string, seed: number): RunReport {
-  const policyName = 'hybrid';
   const config: RunConfig = cfg({
     seed,
     classKey,
@@ -291,28 +229,10 @@ function runClassScripted(classKey: string, seed: number): RunReport {
     modifiers: [],
     allocated: FULL_TREE,
     cycles: 6,
-    policy: policyName,
+    policy: 'hybrid',
   });
-  const run = new Run(config);
-  const policy = makePolicy(policyName);
-  const w = run.world;
-  const center = coreCenter();
-  const stepCount = w.content.coreByKey.get(w.coreKey)?.upgrade.count ?? 0;
   // Same headroom G23 measured its slowest resolution against (Q120).
-  const maxTicks = 60 * 60 * 120;
-  while (!run.done && w.tick < maxTicks) {
-    const input = policy.act(w);
-    if (w.phase === 'act1_build' || w.phase === 'act1_wave' || w.phase === 'act2') {
-      scriptClassKit(w, input);
-    }
-    if ((w.phase === 'act1_build' || w.phase === 'act1_wave') && w.coreStep < stepCount) {
-      w.warden.x = center.x;
-      w.warden.y = center.y;
-      input.cmds.push({ k: 'upgrade_core' });
-    }
-    run.step(input);
-  }
-  return run.report();
+  return runScripted(config, 'hybrid', 60 * 60 * 120).report;
 }
 
 /** A summon-producing kind's own Active — whichever of a class's two Actives actually spawns the `class_summon` bucket's damage. */

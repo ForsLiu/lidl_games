@@ -33,11 +33,10 @@ import { describe, expect, it } from 'vitest';
 import { Run } from '../src/sim/run';
 import { makePolicy } from '../src/bots';
 import '../src/bots';
-import { coreCenter } from '../src/sim/grid';
 import { loadContent } from '../src/sim/content';
 import { allTreeNodeIds } from '../src/meta/meta';
 import type { RunConfig, RunReport } from '../src/sim/types';
-import { cfg, classifyMargin } from './helpers';
+import { buyCoreUpgrades, cfg, classifyMargin } from './helpers';
 
 const NON_DEFAULT_CORES = ['carnivorous_plant', 'vampire_heart', 'corpse', 'time'];
 // fb049 (Q138 re-measurement): real Hub-started runs feed the full
@@ -61,7 +60,6 @@ function runCoreScripted(
   const run = new Run(config);
   const policy = makePolicy(policyName);
   const w = run.world;
-  const center = coreCenter();
   // Headroom over the slowest observed resolution, re-measured whenever a
   // change makes runs longer. Q116 set 90 minutes against a
   // `carnivorous_plant` boss-gated final wave that ran ~70 simulated minutes
@@ -77,19 +75,15 @@ function runCoreScripted(
   // waves cleared) — a real loss that the old 90-minute cap was cutting off
   // mid-run, not a stall. 120 minutes is that plus headroom.
   const maxTicks = opts.maxTicks ?? 60 * 60 * 120;
-  const stepCount = w.content.coreByKey.get(coreKey)?.upgrade.count ?? 0;
   while (!run.done && w.tick < maxTicks) {
     const input = policy.act(w);
-    if ((w.phase === 'act1_build' || w.phase === 'act1_wave') && w.coreStep < stepCount) {
-      // Build-range-gated (Q116): parking the Warden on the Core's own tile
-      // guarantees `inCoreBuildRange` regardless of where the policy's own
-      // movement would otherwise send it this tick — commands process before
-      // `updateWarden` moves the character (`Run.step`), so this is in effect
-      // for the command this same tick applies.
-      w.warden.x = center.x;
-      w.warden.y = center.y;
-      input.cmds.push({ k: 'upgrade_core' });
-    }
+    // Build-range-gated (Q116): `buyCoreUpgrades` (`tests/helpers.ts`, shared
+    // per BACKLOG p10w) parks the Warden on the Core's own tile, guaranteeing
+    // `inCoreBuildRange` regardless of where the policy's own movement would
+    // otherwise send it this tick — commands process before `updateWarden`
+    // moves the character (`Run.step`), so this is in effect for the command
+    // this same tick applies.
+    buyCoreUpgrades(w, input);
     run.step(input);
   }
   return run.report();
