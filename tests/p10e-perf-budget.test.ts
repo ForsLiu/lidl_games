@@ -74,17 +74,26 @@ describe('G17 sim budget per simulated minute (host-independent)', () => {
     expect(m, detail).toBeLessThan(CEILING_PER_MINUTE);
   });
 
-  // TODO(fb025): enemy HP x10 / attacker attack speed x0.7 (BALANCE.md/
-  // PROGRESS.md) means `hybrid`/seed 1 now dies in Act I in a few real
-  // simulated minutes instead of playing a full run — this check's own
-  // premise (amortize calibration-sample noise over a real run's worth of
-  // ticks) needs enough simulated-minutes to hold, and a wave-2/3 defeat no
-  // longer provides it. Deterministically reproduces (not host-load flake:
-  // same seed/policy, only calibChunk/sampleEvery differ) at rel=47.7%,
-  // comfortably past the 25% bar. Re-measure once the Act I economy pass
-  // this session's PROGRESS.md flags for P10 lands and real runs are long
-  // enough again for this comparison to be well-conditioned.
-  it.skip('is stable across a different (calibChunk, sampleEvery) measurement granularity', () => {
+  // Re-measured 2026-09-03 (BACKLOG p10y): un-skipped and re-run standalone
+  // several times. `measureSimMinuteRatio` here still uses `allocated: []`
+  // (this file never picked up the `TREE_AUTO_MAX` full-tree default other
+  // gate harnesses moved to at fb039/Q156-Q157), so `hybrid`/seed 1 still
+  // dies via `defeat_core` at ~3.1 simulated minutes, not a full run — the
+  // original fb025 TODO's literal premise ("real runs are long enough
+  // again") is still false, so this was not simply superseded the way
+  // p10x's sealed-policy deferral was. What actually changed: this test's
+  // own describe body already computes three full `measureSimMinuteRatio`
+  // warmup calls (the `runs` array, for the two tests above) before this
+  // one runs, and under that real in-file execution order the comparison is
+  // well-conditioned even at ~3 sim-minutes — four fresh standalone runs of
+  // the whole file measured rel=0.6%/14.0%/11.5%/1.5%, all comfortably under
+  // the 25% bar (was rel=47.7% at the fb025-era measurement, presumably
+  // taken cold/unwarmed). Un-skipped with this honest reading; if a future
+  // session gives this harness the same full-tree default as G1/G14/G8/G23
+  // (closing the `allocated: []` gap directly, not just working around it
+  // via warmup order), re-verify this still holds under a real ~35-minute
+  // run rather than assuming it.
+  it('is stable across a different (calibChunk, sampleEvery) measurement granularity', () => {
     const a = measureSimMinuteRatio(1, 'hybrid', 40_000, 50, MAX_TICKS).ratioPerMinute;
     const b = measureSimMinuteRatio(1, 'hybrid', 80_000, 100, MAX_TICKS).ratioPerMinute;
     const rel = Math.abs(a - b) / Math.max(a, b);

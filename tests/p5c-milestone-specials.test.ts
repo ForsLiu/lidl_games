@@ -202,7 +202,7 @@ describe('p5c — Fire Brazier: +1 Burning per hit @2, cone width +50% @4', () =
 });
 
 describe('p5c — Ice Obelisk: frost from this tower lasts 5s @3', () => {
-  it('the applied slow lasts 1.2s unmilestoned, 5s once the level-4 milestone is live', () => {
+  it('the applied slow lasts the base duration unmilestoned, 5s once the level-4 milestone is live', () => {
     const unmilestoned = tower(FROST, 0);
     const e1 = dummy(unmilestoned.w, unmilestoned.x, unmilestoned.y - 1);
     for (let i = 0; i < 120 && e1.slowRemaining <= 0; i++) {
@@ -308,7 +308,7 @@ describe('p5c — the same milestones apply to the VS-wielded attack (§6.1)', (
     expect(w2.hp, 'widened cone hits both').toBeLessThan(1e9);
   });
 
-  it('Ice Obelisk: the wielded slow lasts 1.2s unmilestoned, 5s once the level-4 milestone is live', () => {
+  it('Ice Obelisk: the wielded slow lasts the base duration unmilestoned, 5s once the level-4 milestone is live', () => {
     const unmilestoned = wieldedTower(FROST, 0);
     const e1 = dummy(unmilestoned.w, unmilestoned.x, unmilestoned.y - 1);
     unmilestoned.w.rebuildBuckets();

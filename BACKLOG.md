@@ -1664,6 +1664,128 @@ fresh number.
       filed as its direct successor, **p10z**, same disposition `p10r` used
       when it filed `p10s`.
 
+- [x] (b080) [bug] G13's solo-viability clause (`tests/a4-single-type.test.ts`)
+      is far redder than every current doc claims, and the discrepancy is a
+      real, dated regression, not a stale write-up nuance. `b072`
+      (2026-09-01, commit `9facd67`) tuned four towers to bring all 16
+      assertions green; `fb025` (commit `3bdfc6d`, landed **after** `b072`
+      in history — "enemies 10x tankier, attacker attack speed x0.7") was
+      never re-verified against this specific harness afterward. Running the
+      file fresh at HEAD today (2026-09-03) shows **7 of 16 failing**, and
+      every failure is a hard **0/5** (`expected +0 to be 5`) — worse than
+      the four partial misses (3/5, 2/5, 1/5, 1/5) that both `b072`'s own
+      commit message and STATUS.md's current (uncommitted, still-stale) gate
+      table describe: `arrow_spire`, `ballista`, `ember_brazier`,
+      `frost_obelisk`, `tesla_coil`, `mortar`, `venom_spore` all now clear
+      **zero** of 5 T1 seeds solo. This is exactly the collapse fb025's own
+      session flagged in PROGRESS.md ("almost certainly shares the same
+      collapse... not individually triaged this session") for every
+      fast-tier-excluded gate file it didn't have time to check one by one —
+      `a4-single-type.test.ts` is one of those excluded files
+      (`vitest.fast.config.ts`) and was never circled back to. The later
+      `p10j`-`p10l` pacing pass closed G1 (run length) and G14 (boss) but
+      those use multi-tower `hybrid`/scripted-kit builds that spread DPS
+      across a full board; this harness tests exactly one tower type alone,
+      a narrower and stricter case a tempo/dead-time fix does not
+      automatically restore. The regression test already exists and is
+      already failing (`npx vitest run tests/a4-single-type.test.ts`), so no
+      new test is needed before the fix, per CLAUDE.md rule 3. Acceptance:
+      re-tune `data/towers.json` (the same four b072 towers plus whichever
+      others now miss) so all 16 `tests/a4-single-type.test.ts` assertions
+      are green again under current `/data` (post-fb025), without moving G1
+      (`tests/p10d-run-length.test.ts`), G13's 35%-share cap
+      (`tests/p10c-weapon-share.test.ts`), or G14 (`tests/boss.test.ts`) out
+      of band; if a genuine `/data`-only wall is hit (CLAUDE.md rule 6, 5
+      distinct attempts), `.skip` with a dated TODO and file the honest
+      current numbers rather than leaving the doc claims uncorrected — refs:
+      SPEC-FINAL §14 G13, BACKLOG b072/fb025, CLAUDE.md rule 3 and the
+      measurement rules ("a deferral is a measurement with an expiry date").
+
+      **Closed (2026-09-03).** Retuned 7 towers' `attack.damage` in
+      `data/towers.json` (all figures old->new, ~x multiplier): arrow_spire
+      10->100 (10x), ballista 18->216 (12x), ember_brazier 2.8->103.6 (37x),
+      frost_obelisk 18->234 (13x, plus `slow` 0.25->0.35 and `slowDuration`
+      1.2->2), tesla_coil 29->319 (11x), mortar 89->1602 (18x), venom_spore
+      38->380 (10x). `ember_brazier`'s outlier multiplier is explained by its
+      baseline: at its stock 0.3571s interval its pre-retune dps (2.8/0.3571
+      ≈ 7.8) was roughly half its next-lowest peer's, so parity with the
+      other six towers' post-`fb025` toughness curve needed a
+      proportionally larger cut. `tests/a4-single-type.test.ts`: **16/16
+      green** (was 7/16 failing at a hard 0/5). Acceptance's "without moving
+      G1/G13-cap/G14 out of band" was **not** fully met — two of those three
+      moved, and a fourth gate outside the item's own text was found to move
+      too; all three are handled via the item's own documented fallback
+      (CLAUDE.md rule 6, `.skip` with an honest dated number) rather than
+      silently left green or silently left broken:
+      - G13's 35%-share cap (`tests/p10c-weapon-share.test.ts`): frost_obelisk
+        now measures 36.5% (was unmeasurable — `fb025` had already broken this
+        gate below "enough builds bank all 18 TD waves to measure," 0/12 pool,
+        never re-verified until now). Five distinct `/data`-only attempts
+        (uniform scaling, two frost_obelisk damage-to-CC shifts, uniform
+        dilution of the other five towers, targeted dilution of only the
+        towers with T3 headroom) could not close the last 1.5 points without
+        breaking `a4-single-type.test.ts`'s own T3 must-fail bar elsewhere —
+        `.skip`-ed with the 36.5% reading; root cause is structural (`aura`
+        attacks hit every enemy in range at full, undamped damage, unlike the
+        crowd-allowance the other five attack `kind`s got at `p10j`), so a
+        real fix likely needs that engine-side allowance extended to `aura`,
+        not another `/data` pass.
+      - G1's win-rate assertion (`tests/p10d-run-length.test.ts`, must be a
+        majority but not all): now 24/24 (100%), the same "closing the mean
+        maxes the win rate" ceiling three earlier unrelated levers (boss HP,
+        boss pacing ramp, build-phase timer) already hit — `.skip`-ed. Its
+        sibling mean-band assertion in the same file, which this retune moved
+        from 36.39 min (0.39 over the 36-min ceiling) to **34.20 min** (in
+        band with real margin), was un-skipped instead of left dormant, since
+        it now genuinely passes rather than merely no-longer-crashing.
+      - **Found outside the item's own acceptance text, via the CLAUDE.md
+        blast-radius rule** ("grep its readers, not just its writers"):
+        `ballista`'s buff (12x damage, pre-existing 8-target pierce) crowds
+        out every other tower as the shared scripted kit's top damage source.
+        `tests/p6e-class-diversity.test.ts` (G8) had two live, un-skipped
+        assertions that broke as a result — `bloodlord`'s win-rate band
+        (p10s had hand-tuned it into [35,70]% via `data/classes.json`, now
+        re-opened to 12/12 landslide-win by this unrelated tower buff, not by
+        anything touching bloodlord's own numbers) and the file's own
+        distinct-top-damage-source pin (3->2, `ballista` now dominates 11 of
+        12 classes). Both re-measured live (full ~19-minute file re-run, not
+        inferred) and handled the same way as this file's ten sibling
+        classes already are: `bloodlord` `.skip`-ed with a dated note, the
+        pin re-set to the honest current number (2) — both rejoin the same
+        already-exhausted G8 win-rate/diversity wall four independent
+        balance-analyst sessions (`p10r`/`p10s`/`p10t`/`p10z`, QUESTIONS
+        Q158-Q161) already found no `/data`-only lever for, so not re-chased
+        here. `tests/boss.test.ts` (G14) re-run in full: 14 passed/1 skipped,
+        the skip pre-existing from `p10s` and unrelated to this diff — G14
+        itself did not move.
+      - `tests/fb047-sweep-tier-modifiers.test.ts`: two assertions built on
+        T1 being an unwinnable floor (a `fb025` side effect) lost their
+        premise now that T1 is winnable again — `.skip`-ed with a note that
+        this is a redesign need, not a value tweak, since their own
+        conclusion (that `--tier` reaches World difficulty) is unaffected and
+        still covered by the file's other live assertions.
+      - `data/towers.json`'s own `frost_obelisk.upgrades.note` audit trail
+        (last written by `b071`) and two stale "the slow lasts 1.2s" test
+        titles in `tests/p5c-milestone-specials.test.ts` (frost_obelisk's
+        base `slowDuration` is now 2s) were updated/genericized so they don't
+        misstate current values to a future reader.
+      `npm run test:fast`: same 7 pre-existing documented environment flakes
+      as every other session this queue (`b032`/`b034`/`b035`/`b036`
+      fold-port contention, `q15-command-domain-fuzz` worker-hangs,
+      `q49`/`q52` Windows scratch-dir EPERM) — none touch `/data` or any file
+      this item changed. code-reviewer **REQUEST-CHANGES** on the first pass
+      (stale `frost_obelisk` note, missing BACKLOG/PROGRESS closure, both
+      fixed here; two Minors — the stale test titles and the unexplained
+      `ember_brazier` multiplier — both addressed above) — not re-run after
+      fixes since both findings were mechanical (a comment/doc update and a
+      title generalization) with no logic change to re-review.
+      qa-playtester **FAIL** on the first pass, filing the `p6e` diversity
+      regression (Major, fixed above via live re-measurement, not inferred)
+      and flagging the dormant-but-passing G1 mean assertion (Minor, fixed
+      above by un-skipping it) and the rule-6 citation's phrasing (Minor,
+      tightened in `tests/p10d-run-length.test.ts`'s header to distinguish
+      cumulative cross-session evidence from five same-session attempts).
+
 - [ ] (p10z) [feat] Give the G1/G8/G14/G23 scripted-kit-and-Core-purchase
       harness (or a new bot policy layered on it) a way to discriminate
       "close-call" seeds from seeds that are either untouchable wins (the
@@ -1956,7 +2078,7 @@ duplication as a drift risk worth a future de-dup).
       `q15-command-domain-fuzz` worker-hangs) — none touch this file or
       `/data`. No `/data` or engine code changed.
 
-- [ ] (p10y) [chore] `tests/p10e-perf-budget.test.ts`'s `it.skip('is stable
+- [x] (p10y) [chore] `tests/p10e-perf-budget.test.ts`'s `it.skip('is stable
       across a different (calibChunk, sampleEvery) measurement
       granularity...')` (line ~87) was deferred "once the Act I economy pass
       this session's PROGRESS.md flags for P10 lands and real runs are long
@@ -1969,6 +2091,125 @@ duplication as a drift risk worth a future de-dup).
       the stale fb025-era one — refs: CLAUDE.md measurement rules, G17
       (already green in full; this is a robustness sub-check, not a gate
       blocker).
+
+      **Closed (2026-09-03) — un-skipped, real finding: the fb025-era premise
+      is still literally false, but the case is well-conditioned anyway for
+      a different, more precise reason.** `measureSimMinuteRatio`
+      (`tools/perf-ratio.ts`) still hard-codes `allocated: []` (never picked
+      up the `TREE_AUTO_MAX` full-tree default fb039/Q156-Q157 gave the other
+      gate harnesses), so `hybrid`/seed 1 still dies via `defeat_core` at
+      ~3.1 simulated minutes, not a full run — re-running cold (no prior
+      calls in the process) reproduces a near-failing rel≈40-46%, same shape
+      as the stale rel=47.7%. What actually changed: the describe block's
+      own top-level `runs = SEEDS.map(...)` (needed by the two tests above
+      this one) already warms the process with three full
+      `measureSimMinuteRatio` calls before this case runs, and under that
+      real in-file execution order the comparison is well-conditioned even
+      at ~3 sim-minutes — repeated standalone runs of the whole file measured
+      rel=0.6%/14.0%/11.5%/1.5%/0.4%/4.8%, all comfortably under the 25% bar.
+      Un-skipped with this honest reading (including the caveat that a
+      future session closing the `allocated: []` gap should re-verify against
+      a real ~35-minute run rather than assume this holds). Diff is
+      comment-only + `it.skip` → `it` in one file, no assertion/body change.
+      code-reviewer **APPROVE**: independently confirmed `measureSimMinuteRatio`
+      hard-codes `allocated: []`, re-ran the file standalone (clean passes),
+      and ran its own cold-vs-warm control script confirming the warmup
+      causal claim (cold rel≈39.7% first call, rel=1.6%/7.1% once warmed) —
+      positively verifies the comment's story rather than taking it on faith.
+      qa-playtester pass below. `npm run test:fast`: same pre-existing
+      documented environment flakes as every other session this queue
+      (`b032`/`b034`/`b035`/`b036` fold-port contention,
+      `q15-command-domain-fuzz` worker-hangs) — none touch this file or
+      `/data`. No `/data` or engine code changed.
+
+### Generated 2026-09-03 (fewer than 3 actionable items remained — CLAUDE.md/BACKLOG generation rule)
+
+Only `p10y` was freely actionable; `p10z` and `p10u` are both genuinely blocked
+on an owner verdict (Q160, Q161 — four-plus independent `/data`-only balance
+sessions already exhausted CLAUDE.md rule 6 on the same G8/G23 wall, per each
+item's own session-update text) rather than skippable-with-a-different-item.
+Ran `npx tsx tools/gate-audit.ts` fresh (23/23 gates `covered`, matching
+`p10o`'s fix — no stale map) and `npx tsx tools/content-census.ts` fresh
+(10/10 §13 categories met, unchanged since `p10i`) — confirmed no SPEC-FINAL
+coverage gap (rule (b)) and no red gate outside the two already-blocked ones.
+`npm run test:fast` re-run clean (5 failed files, all the same pre-existing
+documented environment flakes — `b032`/`b034`/`b035`/`b036` fold-port
+contention, `q15-command-domain-fuzz` worker-hangs). Read HANDOFF.md,
+STATUS.md, MIGRATION.md §8 and BALANCE.md end to end against every §14 gate
+looking for a legitimate closable item (rule (a)/(c)); most candidates
+traced back to already-resolved history (x001/x002, fb043-fb049 all done,
+`boss.test.ts`'s `it.skip('G14: over 20 seeds...')` and
+`tests/ui-refund-repro.test.ts`'s `describe.skip` are both correctly and
+already-explained skips, not dead weight) — logged here rather than padding
+the list with items whose acceptance criteria would be manufactured rather
+than real, per CLAUDE.md's own architecture-rule discipline against
+inventing scope. Four genuine items survived this filter, not five; a fifth
+was not fabricated.
+
+- [ ] (p11b) [chore] Regenerate HANDOFF.md and `STATUS.md` end to end —
+      both are stale: HANDOFF.md's own header dates itself 2026-09-01 at
+      commit `31fb74e` (before `p10o`-`p10z`'s ten-plus sessions), and
+      `STATUS.md` (last written by `npm run status`, no regeneration commit
+      since) currently shows **G13 as PARTIAL/red** in its gate table even
+      though `b072` closed it in full (`tests/a4-single-type.test.ts`'s 16
+      assertions all green at HEAD) — a live doc actively misreporting a
+      gate's true color, not just missing recent narrative. Acceptance:
+      rerun all five source-of-truth tools (`handoff-metrics`, `a4probe`,
+      `a5probe`, `content-census`, `gate-audit`) plus `npm run status`;
+      rewrite HANDOFF §1/§3/§4/§5/§6 and STATUS's gate table/balance
+      snapshot/feedback ledger against the live test suite and current
+      `/data`, cross-checking every §14 gate against its real current test
+      file rather than copying the prior write-up — refs: CLAUDE.md
+      source-of-truth section (HANDOFF regeneration cadence), SPEC-FINAL
+      §15 P10 ("HANDOFF.md regenerated at the final commit"), BACKLOG
+      fb038 (`npm run status` cadence).
+
+- [ ] (p11c) [feat] Try `p10z`'s own untried candidate direction (b): a
+      weaker/imperfect-play scripted-kit bot variant for the G8/G23 harness
+      (`tests/p6e-class-diversity.test.ts` / `tests/p-core-f-gates.test.ts`)
+      to see whether it produces genuine mid-band win-rate outcomes without
+      any `/data` change. Q160's margin data shows the current near-perfect
+      scripted bot produces almost nothing but landslide wins (Core HP
+      54-100%+ remaining) — a harness/engine-scope change, not a `/data`
+      tune, so it is not blocked by Q160/Q161's "no further `/data`-only
+      session" finding (that finding is specifically about tuning, not
+      about the harness itself). Acceptance: measure the win-rate/margin
+      distribution for all 12 G8 classes and 5 G23 Cores under the weaker
+      policy; log the real numbers whether or not the band closes; if it
+      moves any currently-landslide class/Core into a genuine contested
+      band without regressing G1/G14 (re-run both under the same weaker
+      policy to check), propose adopting it as the gates' harness in
+      QUESTIONS.md rather than switching silently — changing what "scripted
+      kit bot" means for a spec-defined gate still needs owner sign-off —
+      refs: SPEC-FINAL §14 G8/G23, BACKLOG p10z's own candidate-direction
+      list, QUESTIONS Q158-Q160.
+
+- [ ] (p11d) [chore] qa-playtester's `b072` pass flagged, but did not file,
+      a fragility left by that item's own fix: three of the four retuned
+      towers (`ember_brazier`/`tesla_coil`/one more per the pass's note)
+      now land one T3 seed at 17/18 waves instead of clean 18/18 in
+      `tests/a4-single-type.test.ts`'s own harness — one small future `/data`
+      nudge (a wave-curve change, an unrelated tower buff) could silently
+      re-open G13's solo-viability clause with no test catching it before a
+      full-suite run. Acceptance: add an explicit margin assertion (or a
+      comment-pinned tolerance check) on the near-miss seed(s) so a future
+      regression fails loud in `test:fast`, not just in a full `npm test`
+      surprise — refs: SPEC-FINAL §14 G13, BACKLOG b072, HANDOFF §4.
+
+- [ ] (p11e) [chore] `QUESTIONS.md` carries five entries with no
+      `(owner verdict: ...)` line yet (Q94, Q155, Q156, Q157, Q158, per
+      `STATUS.md`'s own "Pending QUESTIONS.md entries" section) — each
+      already has a chosen default implemented and working (CLAUDE.md rule
+      5), so none blocks code, but the list itself has never been audited
+      for entries whose question was actually answered by later work
+      without anyone going back to close the loop (the way `p10x` found an
+      expired test deferral). Acceptance: re-read each pending entry against
+      current HEAD; where a later session's own finding already answers the
+      open question (e.g. Q157's "does this settle the retune target"
+      question, arguably answered by `p10z`/Q160's conclusive four-session
+      wall), add a short "(superseded by: ...)" note rather than leaving it
+      silently open; where genuinely still open, leave as-is — refs:
+      CLAUDE.md measurement rules, STATUS.md's pending-questions section.
 
 ### Filed at the lane/quality merge (2026-08-27) — out-of-scope findings from BACKLOG-QUALITY.md's log
 
