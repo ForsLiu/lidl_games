@@ -105,6 +105,26 @@ tests + `test:fast` — the FULL `npm test` is reserved for phase (P) completion
 lane merges, and before DONE.md, and is never started as a background run
 inside an ordinary item.
 
+**Lanes (parallel work split, 2026-09-03):** BACKLOG.md is the main lane and
+keeps everything touching shared sim core (balance orders, dash, density,
+pathing, damage rules). Three lane files carry items that fit entirely inside
+a hard Scope, ids unchanged:
+- **BACKLOG-CONTENT.md** — branch `lane/content`: new classes (Madness King,
+  Voltbolt, any class kits/tuning), class equipment sets, Codex/data entries
+  for them.
+- **BACKLOG-TERRAIN.md** — branch `lane/terrain`: the terrain-generation epic
+  and Core placement.
+- **BACKLOG-UI.md** — branch `lane/ui`: class-select redesign, HUD/bottom-bar
+  changes, panels, sprites/VFX, overlay layout, DoT numbers display.
+
+Each lane file's Scope section is a hard boundary: create/edit only its
+allowed paths, read-only everywhere else; an out-of-scope need goes into that
+lane file's Log and becomes main-lane (or other-lane) work at the merge. Lane
+loops may execute up to TWO items per iteration when both are small ([bug]/
+[polish] or data-only); otherwise the one-item loop contract applies
+unchanged. New items generated inside a lane must fit its Scope or be filed
+in its Log for BACKLOG.md.
+
 **Generation rule:** if fewer than 3 actionable items remain, generate before
 executing: (a) run the sweep + handoff-metrics and diff against every §14 gate
 G1–G20 and the current QUALITY.md stage; (b) diff SPEC-FINAL coverage against
