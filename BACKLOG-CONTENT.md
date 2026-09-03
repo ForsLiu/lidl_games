@@ -31,7 +31,8 @@ lane's Scope** (verified 2026-09-03, see the Log for the exact file and
 assertion in each case). They stay here, in the owner's order, and must be
 executed from the main lane or after the merge widens this Scope. The
 generation rule (CLAUDE.md, "fewer than 3 actionable items remain") was run
-scoped to this lane and appended `c001`-`c005` below them.
+scoped to this lane and appended `c001`-`c005` below them. Run again in
+session 2 (c005 was the last actionable one left), appending `c006`-`c010`.
 
 ### Actionable in this lane
 
@@ -53,7 +54,7 @@ scoped to this lane and appended `c001`-`c005` below them.
       gate baseline moves; `npm run test:fast` green - refs: SPEC-FINAL §2
       (Area row), §4.1, §4.2.
 
-- [ ] (c004) [bug] Animist's passive is missing half its SPEC-FINAL §4.2
+- [ ] (c004) [bug] **BLOCKED out of Scope 2026-09-03 — see the Log.** Animist's passive is missing half its SPEC-FINAL §4.2
       clause. §4.2's Animist row reads "aura effects also affect summons;
       **summon cap +1**"; `data/classes.json`'s Kinship row authors only the
       aura half (`"description": "Aura effects also affect summons."`,
@@ -64,7 +65,10 @@ scoped to this lane and appended `c001`-`c005` below them.
       the +1 is expressed on the passive in `/data` rather than a class-key
       check in code - refs: SPEC-FINAL §4.2 (Animist).
 
-- [ ] (c002) [balance] G8's diversity clause has no item scoped to it.
+- [ ] (c002) [balance] **SKIPPED 2026-09-03, blocked on the Q161 owner
+      verdict. Control half measured in session 2 (see the Log); the tune
+      half is not started, and this item's own premise needs revisiting
+      first.** G8's diversity clause has no item scoped to it.
       STATUS.md: "top damage source is still only 2 distinct keys
       (`ballista`/`spreading_plague`) across all 12 classes, far under the
       >=9/12 the gate asks for", and win-rate retunes (p10s) moved nothing
@@ -75,7 +79,7 @@ scoped to this lane and appended `c001`-`c005` below them.
       a control-run pair per CLAUDE.md's measurement rules; the count rises
       and no class leaves the 35-70% band it is already in - refs: §14 G8, §4.
 
-- [ ] (c003) [bug] Time Lord has never been run through G8's per-class
+- [x] (c003) [bug] **DONE 2026-09-03.** Time Lord has never been run through G8's per-class
       win-rate case. `tests/p6e-class-diversity.test.ts`'s own header: "Time
       Lord has not been run through it"; STATUS.md counts 11 of 12 classes
       measured. Acceptance: a lane-owned `tests/class-time-lord-band.test.ts`
@@ -84,7 +88,7 @@ scoped to this lane and appended `c001`-`c005` below them.
       measurement, exactly as p6e's other eleven do, rather than forcing a
       tune) - refs: §14 G8, fb013.
 
-- [ ] (c005) [polish] no test proves a class Active is not a silent no-op.
+- [x] (c005) [polish] **DONE 2026-09-03.** no test proves a class Active is not a silent no-op.
       The loader refuses *unpayable* kit data (`REQUIRED_EFFECT_FIELDS`), but
       nothing proves the 24 authored Actives each produce an observable
       effect at runtime - the exact failure `useClassActive`'s own comments
@@ -95,6 +99,86 @@ scoped to this lane and appended `c001`-`c005` below them.
       `w.classSummons`, `w.structures`, Warden position/hp) and that a kind
       removed from the dispatch switch fails the test - refs: SPEC-FINAL §4,
       HANDOFF §7.
+
+- [ ] (c006) [bug] no test proves a class *Passive* is not a silent no-op —
+      c005's twin for the other §4 slot. Three of the twelve passive rows in
+      `data/classes.json` author `mods: {}` with **no `kind`** (Archer *Long
+      Draw*, Stormcaller *Conduction*, Animist *Kinship*), so nothing binds
+      them to code at all: two are in fact implemented off their `active1`
+      fields (`classes.ts` L592 `pierceCap`, `chainGrowth`/`chainCap`), and
+      *Kinship*'s aura half works only incidentally, because the Recall Totem
+      is the game's only aura and `updateClassSummons` happens to apply
+      `auraSpeedMul` to summons (`classes.ts:1515`). Acceptance:
+      `tests/class-passive-liveness.test.ts` proves each of the 12 passives
+      changes an observable in a real `World`, or — for the three prose-only
+      rows — pins the exact `active1`/`active2` field its clause really lives
+      on with a named reason; *Kinship*'s aura half gets its own assertion
+      (a totem's `auraAtkSpdMul` reaching a `ClassSummon`'s `attackCooldown`
+      at `classes.ts:1515`, not only the Warden's at :1817), and its missing
+      summon-cap half is cross-referenced to `c004` rather than re-filed
+      - refs: SPEC-FINAL §4.1/§4.2, c005.
+
+- [ ] (c007) [polish] the *whiff policy* for the 24 Actives is unpinned. Six
+      kinds (`repair_heal`, `blood_tithe`, `death_pact`, `manifest_spirit`,
+      `chain_lightning`, `ice_wall`) return `true` from `useClassActive`/
+      `useClassActive2` even when their fire function early-returns with
+      nothing to act on, so they pay a full cooldown for nothing; c005's
+      report loop proves the dispatch matched but says nothing about the
+      payment. Exactly one of the six is pinned today
+      (`tests/p6d-nine-classes.test.ts`: Ice Wall "still pays its cooldown
+      when no tile could be placed"), so a refactor can flip the other five
+      silently, in either direction, and no test would notice. Acceptance:
+      `tests/class-kit-whiff.test.ts` fires all 24 in a deliberately empty
+      `World` (no enemies, no structures, no corpses, no banked Wrath) and
+      records per Active whether it pays its cooldown/charge; every row is an
+      explicit expectation carrying a one-line rationale, and the Ice Wall row
+      agrees with p6d's existing assertion - refs: SPEC-FINAL §4, c005.
+
+- [ ] (c008) [bug] `data/classes.json` has drifted from SPEC-FINAL §4.2's
+      *stated* numbers in at least four places, and nothing distinguishes a
+      logged tune from drift. Paladin *Guardian Stance* is authored
+      `stanceArmor 50` / `stanceSeconds 0.5` / `wrathFraction 0.80` against
+      §4.2's "+30 defense after standing still 1 s ... 60% of damage taken
+      stores into Wrath"; *Judgement* `wrathDamageMul 2.20` against "stored
+      x1.5"; Bloodlord *Sanguine Pact* `towerDamage 0.04` against "all towers
+      +10% damage, -10% max HP"; Necromancer *Raise* `summonDurationSeconds
+      24` / `summonStatMul 0.65` against "cap 8, 15 s, 40% of char attack".
+      §4's header marks only the band->number mapping ⚖, not these explicit
+      figures. Acceptance: `tests/class-spec-numbers.test.ts` carries every
+      §4.1/§4.2 figure as a table with, per row, either a match against
+      `data/classes.json` or a named deviation carrying the item/Q-number that
+      authorised it; a figure with neither fails. **This item changes no
+      number** — it makes the drift visible so a later balance pass (p10r,
+      main lane) can decide - refs: SPEC-FINAL §4.1/§4.2, CLAUDE.md rule 3.
+
+- [ ] (c009) [polish] the **tower-passive** slot is the one §4 slot with no
+      liveness test. c005 covers Active1/Active2 and c006 the passive; the 12
+      `towerPassive` rows have nothing. Three are target-conditional
+      (`towerExtraElectricPct`, `towerDamageVsBurning`, `towerDamageVsChilled`
+      — resolved once per volley in `towers.ts`' `classTowerBonus`), one is
+      `kind`-driven (`chronal_surge`), one is authored with the *global*
+      `area` key for want of a `towerArea` (Animist *Wide Grove*, logged
+      below), and Bloodlord's is the only one carrying a negative term.
+      Acceptance: `tests/class-tower-passive-liveness.test.ts` proves each of
+      the 12 measurably changes a built tower's behaviour (damage / range /
+      attack speed / max HP / armor) against the same tower under a class that
+      authors none, and that the three conditional rows apply only under their
+      condition - refs: SPEC-FINAL §4.1/§4.2, §14 G8, c005.
+
+- [ ] (c010) [balance] Stormcaller *Conduction* is authored on the wrong row.
+      The passive names a rule about electric damage *generally* ("+20% per
+      jump, compounding, cap 8 jumps"), but its two numbers live only on
+      `active1` (`chainGrowth`/`chainCap`), leaving the passive row prose with
+      `mods: {}` and no `kind` — so Chain Surge is the only electric thing
+      that compounds, and *Live Wire*'s "+10% of their damage as extra
+      Electric" and the VS electric wire grid get none of it. Acceptance: the
+      two numbers move onto the passive row in `data/classes.json` and
+      `fireChainSurge` reads them from there (architecture rule 4: content
+      shapes live in `/data`); G11's x3.6 ceiling
+      (`tests/p6d-nine-classes.test.ts`) is re-measured unchanged as a
+      control-run pair; whether *tower* electric should also compound is
+      **logged for the main lane**, not implemented from here (`towers.ts`/
+      `vsspecials.ts` are out of Scope) - refs: SPEC-FINAL §4.2, §14 G11.
 
 ### Blocked out of Scope (owner items, unchanged order)
 
@@ -396,3 +480,226 @@ scoped to this lane and appended `c001`-`c005` below them.
     assertion today. The owner should decide whether a "all towers" passive
     may widen the character's kit; the spec-consistent fix is a `towerArea`
     stat key (`statkeys.ts` + `towers.ts`, both out of Scope).
+
+- (2026-09-03, session 2) **c003 done** — the other entry session 1 marked
+  "see the Log" and never wrote, reconstructed from the file it left behind
+  (`tests/class-time-lord-band.test.ts`, 12 seeds under `TIME_LORD_MEASURE=1`).
+  **c003's premise was stale.** It was written against
+  `tests/p6e-class-diversity.test.ts`'s header ("Time Lord has not been run
+  through it") and STATUS.md's "11 of 12 classes measured"; main-lane **p10v**
+  (commit `17f852d`, an ancestor of this lane) had already added
+  `it.skip('time_lord', ...)` at p6e L580 and recorded 12/12. p6e's header,
+  560 lines above that case, was simply never updated — and STATUS.md
+  inherited it.
+
+  What still earned the file: **p10v's measurement predates c001**, which
+  changed the effective footprint of all 24 Actives, Time's r7 mark and Time
+  Lock's zone included. c001 measured its blast radius on six classes and on
+  G8's diversity pin, but on no class's win-rate band. This is that
+  re-measurement, under byte-for-byte p10v's harness, and the answer is that
+  **the number did not move**: 12/12 (100%), every seed `victory` at wave 18,
+  every one `landslide-win`, identical to p10v seed for seed. Over G8's 70%
+  ceiling, not under its 35% floor. The band assertion ships `.skip`-ed with
+  its measurement, exactly as p6e's other eleven do — c003's acceptance says
+  so in as many words, and per Q160/Q161 no `/data`-only lever has been found
+  that moves any class into the band; `p10r` (main lane) owns that.
+
+  The sweep is env-gated (`TIME_LORD_MEASURE=1`) because twelve full T1 runs
+  are well past the fast tier's ~60 s per-file budget, and
+  `vitest.fast.config.ts`'s exclude list is out of Scope. **At the merge:
+  add `tests/class-time-lord-band.test.ts` and
+  `tests/class-kit-damage-share.test.ts` to that exclude list and drop both
+  env gates.** Ungated, the two cheap invariant cases in each file run in
+  ~1 s and are what the fast tier sees today.
+
+- (2026-09-03, session 2) **c004 blocked out of Scope** — the entry session 1
+  marked "see the Log" but never wrote. c004's own acceptance requires the
+  Animist's `summon cap +1` to be "expressed on the passive in `/data` rather
+  than a class-key check in code", and a `ClassPassive.mods` record is a
+  **validated `Stats` record**: every key has to be a member of `STAT_KEYS`
+  (`src/sim/statkeys.ts`). There is no summon-cap stat key — the list carries
+  `towerRange`/`towerDamage`/`towerHp`/`buildRange`/`dashCharges` and 40-odd
+  others, and nothing about summons. Adding one is a `statkeys.ts` edit (plus
+  its `STAT_KIND`/`Derived` rows in `stats.ts` and the three `summonCap` read
+  sites in `classes.ts` at L656/L844/L964), and `statkeys.ts`/`stats.ts` are
+  out of Scope. Verified by grep against the live `STAT_KEYS` array, not
+  inherited. Main-lane work, or the merge widens this Scope.
+
+- (2026-09-03, session 2) **c005 done** — nothing in the 24 §4 Actives is a
+  silent no-op. `tests/class-kit-liveness.test.ts` (50 tests, 0.3 s, fast
+  tier) fires every class's Active1 and Active2 once in a real `World` primed
+  with whatever that Active needs to act on (an enemy, a built tower, a
+  corpse, a poison stack, banked Wrath) and diffs a hand-picked observable
+  set — enemy hp/status/dots, `w.areas`, `w.classSummons`, `w.structures`,
+  `w.corpses`, `w.timeLockZone`, Warden position/hp/`overloadRemaining`/
+  `clarionRemaining`. **All 24 came out live; the item found no bug.** That
+  is the result, and it is worth stating plainly rather than dressing up: the
+  value delivered is the regression barrier, not a fix.
+
+  Deliberately excluded from the observable set, because each would let the
+  exact bug through: `w.fx` (a cast flash is emitted before `fireEffect`
+  knows whether anything was in radius), the cooldown/ammo/charge fields
+  (paying the cost *is* the p6b symptom), and `w.rng`/`w.gold` (Ice Wall's
+  placement loop burns both on a whiff).
+
+  **Two Major strictness holes, both found by code-reviewer and both real.**
+  `wd.dashTravel` carried four rows: `startDashTravel` (`wardenmove.ts`) is
+  shared by all four dash kinds and does not move `x`/`y` at cast (fb030 made
+  a dash a travel), so the flag flipped whether or not the payload ran — a
+  Flame Road with its trail loop deleted would have passed. `wd.wrathStored`
+  carried Judgement: `fireJudgement` zeroes it *before* its own
+  `rawWrath > 0` guard, so it is spent input, not product. Both are out;
+  `wd.clarionRemaining` went in (Minor: Clarion Taunt's second product).
+  All five affected rows stay green on their real product.
+
+  Verified by mutation rather than argument: with the fix in,
+  `if (false && heal > 0) applyHealingToWarden(...)` in `fireCrimsonRush` —
+  the exact case review said used to pass — now fails the Bloodlord row, and
+  `src/sim/classes.ts` was restored clean (`git diff` empty).
+
+  The last `describe` is c005's harness-honesty clause ("a kind removed from
+  the dispatch switch fails the test"). It edits no code: it rebuilds
+  `Content` from a copy of `data/classes.json` with one Active's `kind`
+  swapped for a kind the *other* slot's switch owns, which is the state a
+  deleted `case` leaves behind — the `default` branch. Worth recording for
+  whoever writes c007: most such swaps **cannot** get that far, because
+  `REQUIRED_EFFECT_FIELDS` refuses the new kind's fields against the old row.
+  Only `burst_damage`, `ground_poison`, `frost_nova` and `poison_boost` have
+  no required-field row, so the control has to be built from those. That is
+  the loader half of c005 working, and it is the reason the switch, not the
+  schema, is what this file puts on trial.
+
+- (2026-09-03, session 2) **c005: what QA found, and why the file is stricter
+  than it was.** qa-playtester's verdict was PASS on the acceptance criteria —
+  it gutted **all 24 Active bodies outright and every one came out red**,
+  deleted four real `case`s from the dispatch switch (all caught by *both*
+  loops), confirmed the negative control is non-vacuous (mutating the
+  `default` branch to pay the cooldown is caught, so the
+  `expect(active1Cooldown).toBe(0)` asserts are doing real work), and proved
+  no `Content` cache pollution and order-independence under
+  `--sequence.shuffle`. It also filed three more holes, two of them the *same
+  cost-vs-product confusion* code review had already caught twice. All three
+  are fixed and the fixes are verified by re-running QA's own repros:
+
+  - **Raise passed on `w.corpses`.** Consuming corpses is what Raise pays;
+    the skeletons are what it produces. With `if (1) continue;` before
+    `spawnClassSummon` — corpses spliced, nothing spawned — the row stayed
+    green. `corpses` is out of `observe()`; Raise now proves itself on
+    `w.classSummons`, and the repro fails as it should.
+  - **Blood Tithe passed on the tower's HP payment.** `s.tithed` is the whole
+    product (the permanent +25%); `s.hp` shrinking is the cost. Deleting
+    `s.tithed = true` left the row green — a tower paying 30% of its HP for
+    nothing, strictly worse than a no-op. `hp` stays in `observe()` because
+    Field Kit genuinely needs it; instead the Bloodlord row now tithes a
+    target already at 1 hp, which `fireBloodTithe`'s `Math.max(1, ...)` floor
+    pins immovable, leaving only `tithed` to pass on. Repro now fails.
+  - **Ten of the 24 rows fired into a world with no live enemy**, against
+    c005's own "with enemies present" wording. `kitWorld` now seeds a
+    bystander at distance 10 — outside the largest authored footprint in the
+    game (Time's r7), so no row can pass *on* it — and a 51st test makes the
+    clause self-enforcing per row.
+
+  Two QA notes taken as documentation rather than fixed, both now in the
+  file's header: this is a **liveness gate, not a completeness gate** (an
+  Active with two clauses passes on either half; `p6d-nine-classes.test.ts`
+  owns the per-clause case, and QA confirmed it catches all four such
+  half-guts), and the control block's "three kinds" was a miscount —
+  `REQUIRED_EFFECT_FIELDS` covers 18 of 23 kinds, so six are uncovered, of
+  which three are usable per slot.
+
+  One risk QA raised that belongs on the **merge checklist**, not in an item:
+  the harness hardcodes tile coordinates (`WX=10, WY=10`, tower at `(11,10)`)
+  against `cfg()`'s fixed seed. Probed green on 48 seed x class combinations
+  today, but when `BACKLOG-TERRAIN.md`'s terrain epic lands this will fail as
+  a *harness* error (`'harness could not place a tower'`) rather than a
+  product regression.
+
+- (2026-09-03, session 2) Generation rule run scoped to this lane a second
+  time (c005 was the last actionable item, so 1 < 3). Grounded in STATUS.md's
+  live gate table, SPEC-FINAL §4.1/§4.2 read line by line against
+  `data/classes.json` and `src/sim/classes.ts`, and c005's own review
+  findings. Appended `c006`-`c010`.
+
+- (2026-09-03, session 2) **New out-of-Scope findings, for the main lane.**
+  - **SPEC-FINAL §4.2 Bloodlord *Blood Tithe* is missing a clause.** The row
+    reads "tower pays 30% current HP once -> permanently +25% dmg; **its share
+    of VS attacks lifesteals +1%**". Only the first half exists: `s.tithed`
+    feeds `classTowerDamageMul` (`towers.ts:259`) and nothing else reads it.
+    `leech` is a single run-wide Warden stat (`statkeys.ts`, applied in
+    `enemies.ts:309`); there is no per-structure VS-share lifesteal anywhere,
+    and `vswield.ts` never mentions `tithed`. Same shape as `c004`: the fix
+    needs an engine concept this lane cannot add (`vswield.ts` +
+    `statkeys.ts`). Not filed as a `c0xx` item for that reason.
+  - Two §4.2 clauses that *are* implemented, checked while scoping the above
+    so nobody re-opens them: Stormcaller *Overload*'s "electric-tower wires
+    pulse at double rate" (`vsspecials.ts` `electricInterval`, and p6d asserts
+    it), and Animist *Kinship*'s aura half (`updateClassSummons` applies
+    `auraSpeedMul` to summons, `classes.ts:1515`) — though only incidentally,
+    which is what `c006` is for.
+
+- (2026-09-03, session 2) **c005 verification, measured not inherited.**
+  `tests/class-kit-liveness.test.ts` 50/50; `npx tsc --noEmit` clean;
+  `npm run test:fast` **2142 passed / 8 failed**, and every one of the 8 was
+  run again standalone rather than waved through as "the usual flakes":
+
+  | file | fast tier | standalone | reading |
+  |---|---|---|---|
+  | `b032-tower-panel-fold` (2) | red | **green** | load flake (Playwright, port 5173 contention) |
+  | `q15-command-domain-fuzz` (3) | red | **green** | load flake |
+  | `q49-price-probe-restore` (1) | red | **green** | load flake (EPERM under load) |
+  | `q52-m20d-run-a4-bad-key` (1) | red | **green** | load flake (EPERM under load) |
+  | `b036-help-fold` (1) | red | **red** | **real, deterministic, pre-existing** |
+
+  Two corrections to c001's own failure ledger fall out of that, both in the
+  direction of less hand-waving: `q15`/`q49`/`q52` were recorded there as
+  *pre-existing failures* confirmed by a control run, but all three are green
+  standalone today — they are load flakes, same family as `b032`. And
+  `b036-help-fold` was recorded as a "documented Playwright/EPERM-under-load
+  flake, green standalone"; it is **not**. It fails alone, deterministically,
+  with `expected 1095.40625 to be less than or equal to 1080` — the
+  `.sw-help` hint sits 15 px below the fold with a tower selected and the
+  practice panel showing. Nothing in this lane can reach it (it is browser
+  layout of `src/ui`), and nothing in this session touched it: session 2's
+  entire diff is three new `tests/class-*` files plus this document, none of
+  which `b036` imports. **Filed below for the UI lane.**
+
+- (2026-09-03, session 2) **For the UI lane** (`BACKLOG-UI.md`), on top of
+  c001's three: `tests/b036-help-fold.test.ts` is red at this lane's HEAD and
+  red standalone — `.sw-help`'s bottom edge measures 1095.4 against the
+  1080 fold b036 exists to defend, in Training Grounds with a tower selected
+  and the practice panel open. Deterministic, reproducible in 4 s with
+  `npx vitest run tests/b036-help-fold.test.ts`, and misfiled as a load flake
+  in this file's c001 entry. It is a live b036 regression, not a flake.
+
+- (2026-09-03, session 2) **c002's control half is now actually measured and
+  recorded** — session 1 flipped the queue entry to "control half measured and
+  committed" and left `tests/class-kit-damage-share.test.ts` uncommitted with
+  its header pointing at a `-- RECORDED --` block that did not exist. The
+  sweep has now been run (`KIT_SHARE_MEASURE=1`, 12 classes x seeds 1-12 =
+  144 full T1 runs, 36 min) and the numbers are in that block. Headline:
+  **distinct top damage sources 2/12**, against G8's >=9/12.
+
+  Two findings that change how the tune half should be approached, both
+  recorded in the test header in full:
+
+  - **The pair is `ballista`/`mortar`, not STATUS.md's
+    `ballista`/`spreading_plague`.** Plaguebringer's kit is still its own top
+    source, but at 6.40% own-kit share it is under `MATERIALITY_SHARE` (20%,
+    Q121) and the metric falls through to the tower key. The *count* is 2
+    either way, so no gate reading moved — but anyone diffing against
+    STATUS.md's wording will otherwise think something did.
+
+  - **c002's own acceptance clause is written against a premise that is
+    false.** It asks that "no class leaves the 35-70% band it is already
+    in"; the measurement says **no class is in that band** — win rate is
+    12/12 for eleven classes and 11/12 for the Animist, the same
+    over-ceiling G8 failure STATUS.md describes. And the diversity gap is
+    far wider than "raise kit damage share" implies: the best class puts
+    6.40% of its damage through its kit and eight of twelve are under 0.2%,
+    so clearing the 20% materiality bar for 9 classes is a 3x-100x per-class
+    move from `data/classes.json` alone. The item should be re-scoped when
+    the Q161 verdict lands rather than executed as written.
+
+  It doubles as a post-c001 diversity control: `distinct.size === 2` matches
+  G8's one un-skipped pin in `tests/p6e-class-diversity.test.ts`, so c001 did
+  not move the diversity clause either way.
