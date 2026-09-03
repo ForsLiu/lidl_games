@@ -626,6 +626,7 @@ const SLIDERS: { key: keyof Settings; label: string }[] = [
 
 const TOGGLES: { key: keyof Settings; label: string; devOnly?: boolean }[] = [
   { key: 'damageNumbers', label: 'Damage numbers' },
+  { key: 'dotNumbers', label: 'DoT numbers' },
   { key: 'accessiblePalette', label: 'Color-blind-safe damage colors' },
   { key: 'reducedFlash', label: 'Reduced flash (dims skill & Core effect flashes)' },
   { key: 'showRanges', label: 'Show tower ranges' },

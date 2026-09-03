@@ -56,6 +56,12 @@ export interface Settings {
   showHiddenClasses: boolean;
   /** Cap floating combat text so a 350-strong fight stays readable. */
   maxDamageNumbers: number;
+  /**
+   * fb060 (owner OVERRIDE of QUESTIONS Q133(3)): once-per-second aggregated
+   * floating numbers for Bleeding/Poison/Toxic/Burning ticks, on top of the
+   * existing marker dots. Default ON per the owner feedback.
+   */
+  dotNumbers: boolean;
 }
 
 export const SETTINGS_KEY = 'stonewake.settings.v1';
@@ -75,6 +81,7 @@ export function defaultSettings(): Settings {
     cleanProfile: false,
     showHiddenClasses: false,
     maxDamageNumbers: 60,
+    dotNumbers: true,
   };
 }
 
@@ -115,5 +122,6 @@ export function sanitize(s: Settings): Settings {
     maxDamageNumbers: Number.isFinite(s.maxDamageNumbers)
       ? Math.min(400, Math.max(0, Math.round(s.maxDamageNumbers)))
       : 60,
+    dotNumbers: !!s.dotNumbers,
   };
 }

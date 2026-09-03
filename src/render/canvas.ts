@@ -19,6 +19,7 @@ import { BASE } from '../sim/stats';
 import { characterBasicRange, circleSlashValues, classArmorBonus } from '../sim/classes';
 import { longestWieldedRange, wieldedAttacks, wieldedRangeFor } from '../sim/vswield';
 import { normalize } from '../sim/math';
+import { FIXED_DT, type Enemy } from '../sim/types';
 import type { World } from '../sim/world';
 import {
   checkBuild,
@@ -102,7 +103,7 @@ export interface FloatingNumber {
   text: string;
   life: number;
   color: string;
-  /** fb005: Corpse Core execution kills render larger; every other number is 1. */
+  /** fb005: Corpse Core execution kills render larger (>1); fb060's DoT ticks render smaller (<1); every other number is 1. */
   fontScale: number;
 }
 
@@ -169,6 +170,26 @@ const MAX_TELEGRAPHS = 150;
 const MAX_CASTS = 150;
 const MAX_OTHER_NUMBERS = 150;
 
+/**
+ * fb060 (owner OVERRIDE of QUESTIONS Q133(3)): the four DoT types that get a
+ * once-per-second aggregated floating number, on top of the existing corner
+ * marker dots (`drawEnemies` below) which stay as-is.
+ */
+const DOT_NUMBER_TYPES: readonly string[] = ['burning', 'bleeding', 'poison', 'toxic'];
+/** More carriers than this on screen and the density cutoff kicks in. */
+const DOT_NUMBER_DENSITY_CUTOFF = 150;
+/** "near the cursor/character" radius (tiles) once the density cutoff is live. */
+const DOT_NUMBER_NEAR_RADIUS = 8;
+/** Smaller than a direct hit's default 1 (`FloatingNumber.fontScale`). */
+const DOT_NUMBER_FONT_SCALE = 0.7;
+
+/** Sum of every live stack's dps for one damage type on this enemy (`e.dots`, sim state). */
+function dotTypeDps(e: Enemy, type: string): number {
+  let total = 0;
+  for (const d of e.dots) if (d.type === type && d.remaining > 0) total += d.dps;
+  return total;
+}
+
 /** The registered color for one of a Core's listed effects, falling back for a key the registry does not name. */
 function coreEffectColor(coreKey: string, effectKey: string, fallback: string): string {
   return CORE_VFX[coreKey]?.effects.find((e) => e.key === effectKey)?.color ?? fallback;
@@ -201,6 +222,13 @@ export class Renderer {
   private cones: ConeFlash[] = [];
   private casts: CastFx[] = [];
   private basicImpacts: BasicImpactFx[] = [];
+  /**
+   * fb060: per-enemy, per-DoT-type accumulated seconds toward the next
+   * floating number. Keyed by the live `Enemy` object rather than `e.id` so a
+   * dead enemy's entry is simply garbage-collected once `World.compact()`
+   * drops the last reference, with no manual pruning needed here.
+   */
+  private dotAccum = new WeakMap<Enemy, Map<string, number>>();
   /** p10h: the 2s TD<->VS screen sweep; `dir` 1 = entering VS/Night, -1 = returning to TD/Day. */
   private sweep: { life: number; dir: 1 | -1 } | null = null;
   private shakeX = 0;
@@ -429,6 +457,77 @@ export class Renderer {
           break;
         default:
           break;
+      }
+    }
+    this.updateDotNumbers(w, view);
+  }
+
+  /**
+   * fb060 (OWNER OVERRIDE of Q133(3)): DoT ticks deliberately fire no `hit:`
+   * fx (see `damageEnemy`'s comment in `sim/enemies.ts` — a 350-strong
+   * burning horde would otherwise starve the 512-event `World.fx` buffer), so
+   * this reads `e.dots` (already-exposed sim state, not a new sim surface)
+   * directly and aggregates each enemy's per-type dps into a floating number
+   * once every accumulated second, rather than reacting to an event.
+   */
+  private updateDotNumbers(w: World, view: ViewState): void {
+    if (!view.settings.dotNumbers) return;
+    let carriers = 0;
+    for (const e of w.enemies) if (!e.dead && e.dots.length > 0) carriers++;
+    const dense = carriers > DOT_NUMBER_DENSITY_CUTOFF;
+    const cx = view.cursorX;
+    const cy = view.cursorY;
+    const wx = w.warden.x;
+    const wy = w.warden.y;
+    for (const e of w.enemies) {
+      if (e.dead || e.dots.length === 0) continue;
+      const visible =
+        !dense ||
+        e.elite ||
+        e.boss ||
+        Math.hypot(e.x - cx, e.y - cy) <= DOT_NUMBER_NEAR_RADIUS ||
+        Math.hypot(e.x - wx, e.y - wy) <= DOT_NUMBER_NEAR_RADIUS;
+      if (!visible) {
+        this.dotAccum.delete(e);
+        continue;
+      }
+      let perType = this.dotAccum.get(e);
+      for (const type of DOT_NUMBER_TYPES) {
+        const dps = dotTypeDps(e, type);
+        if (dps <= 0) {
+          // A stack expiring with under a second accumulated drops that
+          // partial second's damage rather than flushing a truncated number —
+          // deliberate: every damagetypes.json row runs >=3s, so this only
+          // ever discards a fraction of one tick's worth at the tail end.
+          perType?.delete(type);
+          continue;
+        }
+        if (!perType) {
+          perType = new Map();
+          this.dotAccum.set(e, perType);
+        }
+        const next = (perType.get(type) ?? 0) + FIXED_DT;
+        if (next >= 1) {
+          // `dps` is the type's rate at the flush tick, not a running sum of
+          // every tick's actual damage — a stack that refreshes or expires
+          // mid-window can make this diverge slightly from the true total.
+          // Cosmetic and deliberate: exact per-tick summation costs an extra
+          // accumulator per stack for no player-visible benefit here.
+          const amount = Math.round(dps * next);
+          if (amount >= 1 && this.numbers.length < MAX_OTHER_NUMBERS) {
+            this.numbers.push({
+              x: e.x,
+              y: e.y,
+              text: String(amount),
+              life: 0.6,
+              color: damageStyleColor(w, type, view.settings.accessiblePalette),
+              fontScale: DOT_NUMBER_FONT_SCALE,
+            });
+          }
+          perType.set(type, next - 1);
+        } else {
+          perType.set(type, next);
+        }
       }
     }
   }

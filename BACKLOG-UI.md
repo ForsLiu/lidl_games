@@ -103,7 +103,7 @@ not already expose it) logs that need below instead of reaching into
       intentional locked-class-preview feature and breaks an existing green
       fb058 regression test that depends on it.
 
-- [ ] (fb060) [feat] normal priority: OWNER OVERRIDE of QUESTIONS Q133(3)
+- [x] (fb060) [feat] normal priority: OWNER OVERRIDE of QUESTIONS Q133(3)
       — DoT damage (Bleeding, Poison, Toxic, Burning) must show as
       floating numbers after all: aggregate per enemy per damage type once
       per second (one number = that second's total for that type), typed
@@ -114,7 +114,69 @@ not already expose it) logs that need below instead of reaching into
       ticking numbers in a unit/UI test; a 300-enemy burning-horde perf
       bench holds 60fps with the density cutoff active; the toggle works
       — refs: SPEC-FINAL §3 (status), §11 (UI), overrides QUESTIONS Q133
-      call (3), owner feedback `feature-dot-tick-numbers`.
+      call (3), owner feedback `feature-dot-tick-numbers`. DONE 2026-09-03:
+      `canvas.ts`'s `Renderer` gains `updateDotNumbers` (called from
+      `ingest()`), reading `Enemy.dots` (already-public sim state — `damageEnemy`
+      deliberately fires no `hit:` fx for a DoT tick, so this cannot react to an
+      event) directly and aggregating each enemy's per-type dps into a floating
+      number once every accumulated second via a `WeakMap<Enemy, Map<string,
+      number>>` (`dotAccum`) that self-prunes on enemy GC, no manual cleanup
+      needed. Density cutoff (150 carriers) shows only enemies within 8 tiles of
+      the cursor or Warden, plus elite/boss, once tripped. New `dotNumbers`
+      Settings toggle (default ON, `hub.ts` TOGGLES). Targeted
+      `tests/render-fb060-dot-tick-numbers.test.ts` (5/5): aggregation+font-size,
+      toggle gating, default-on, density-cutoff boundary, 300-enemy perf bench.
+      code-reviewer APPROVE (no Critical/Major; two Minor doc-comment gaps and a
+      missing Log entry, all fixed same session). qa-playtester PASS against all
+      four stated acceptance criteria (re-derived the density-cutoff boundary at
+      exactly 150→151 carriers, confirmed the toggle survives a save predating
+      the field, measured the perf bench's real ~3.5ms/frame cost delta so it
+      isn't vacuous) and filed two low-severity, non-blocking edge-case bugs —
+      see fb067/fb068 below. `npm run test:fast`: 10-11 failures across two runs
+      this session, all in the pre-existing q15/q45/q49/q52 worker-hang/Windows-
+      scratch-EPERM flake classes plus b032/b034/b035 (confirmed via git-stash
+      A/B: pass individually both with and without this change, fail only under
+      full-suite parallel contention) and a pre-existing b036 failure (identical
+      1095.4>1080 assertion value with and without this change) — none touch
+      `src/ui/**`/`src/render/**` or this item's own files.
+
+- [ ] (fb067) [bug] low priority: fb060's DoT tick numbers silently and
+      permanently drop a second's damage when the shared floating-number
+      budget (`MAX_OTHER_NUMBERS`, 150 slots shared with every other
+      floating-number source) is full at the moment a DoT accumulator
+      crosses its 1-second threshold — `updateDotNumbers`
+      (`canvas.ts`) advances the per-type accumulator (`perType.set(type,
+      next - 1)`) unconditionally even when the `this.numbers.push(...)`
+      it guards on `this.numbers.length < MAX_OTHER_NUMBERS` was skipped,
+      so the flush is not retried or requeued — it just vanishes. Found by
+      qa-playtester (fb060 verification): pre-filling the shared numbers
+      array to 150 before ticking a bleeding enemy suppresses its number
+      indefinitely, independent of (and possible even below) fb060's own
+      150-*carrier* density cutoff. Acceptance: a regression test that
+      fills `numbers` to `MAX_OTHER_NUMBERS` before ticking a DoT carrier
+      confirms the flush either retries once budget frees up or the
+      accumulator is not silently advanced past the missed threshold —
+      refs: fb060, owner feedback `feature-dot-tick-numbers`.
+
+- [ ] (fb068) [polish] low priority: fb060's near-cursor/near-character
+      density-cutoff visibility check hard-resets an enemy's DoT-number
+      accumulator (`this.dotAccum.delete(e)`) on every single tick it
+      reads as outside the 8-tile radius, instead of decaying or
+      tolerating brief boundary crossings — an enemy whose distance from
+      the cursor/Warden oscillates around exactly 8 tiles can go
+      indefinitely without ever surfacing a number even though it is
+      "near" roughly half the time. Found by qa-playtester (fb060
+      verification), reproduced over 400 ticks of an enemy alternating
+      between 7.9 and 8.1 tiles from the Warden under the density cutoff.
+      Low severity (the realistic trigger — an enemy or cursor drifting
+      across the boundary occasionally, not oscillating every 1/60s tick —
+      only loses one in-flight partial second, same as the already-
+      documented dot-expiry tradeoff at that file's `dps <= 0` branch).
+      Acceptance: either document this as a deliberate simplification
+      (matching the existing dot-expiry comment's precedent) or give the
+      visibility check a small hysteresis/grace window so a boundary-
+      hugging enemy still eventually flushes — refs: fb060, owner feedback
+      `feature-dot-tick-numbers`.
 
 - [ ] (fb063) [feat] normal priority: bottom-bar passive/Active1/Active2
       icons become hover-only (no click, no sticky panel); tooltip shows a
@@ -172,6 +234,14 @@ not already expose it) logs that need below instead of reaching into
   before commit. Recorded here for main-lane awareness of a possible merge
   overlap, per the Scope section's own instruction to log out-of-scope
   touches.
+
+- 2026-09-03, fb060: `tests/q3-save-fuzz.test.ts` needed the same one-line
+  touch fb058 already logged above for the identical reason — its
+  `customSettings()` fixture is typed `ReturnType<typeof defaultSettings>` (a
+  full `Settings` literal), so `settings.ts`'s new `dotNumbers` field (in
+  scope) fails `tsc --noEmit` project-wide unless the fixture grows the same
+  field in the same change. One line (`dotNumbers: false`), re-verified green
+  together with the rest of that file (68/68) before commit.
 
 - 2026-09-03, fb066: attempted the literal acceptance criteria (skip
   attaching a click listener to locked `[data-class]` buttons, mirroring the

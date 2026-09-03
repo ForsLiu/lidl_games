@@ -641,6 +641,7 @@ describe('q3 save fuzz: the settings blob', () => {
       cleanProfile: true,
       showHiddenClasses: true,
       maxDamageNumbers: 137,
+      dotNumbers: false,
     };
   }
 
