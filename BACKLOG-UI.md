@@ -2022,7 +2022,7 @@ not already expose it) logs that need below instead of reaching into
       prior PROGRESS.md sessions, none touching `src/ui/**`/`src/render/**`
       or this item's own files.
 
-- [ ] (fb096) [feat] normal priority: generated 2026-09-04 (same generation
+- [x] (fb096) [feat] normal priority: generated 2026-09-04 (same generation
       batch as fb095; QUALITY.md 1.0 Steam/itch checklist gap diff) — save
       slots (3). QUALITY.md 1.0's checklist names "save slots (3)" and
       "cloud-save-safe file format" as one line; only the file-format half is
@@ -2040,7 +2040,63 @@ not already expose it) logs that need below instead of reaching into
       reload; a separate migration test confirms a pre-existing single save
       (today's real storage shape) appears intact in slot 1 the first time
       the slot-aware loader runs — refs: QUALITY.md 1.0 (Steam/itch
-      checklist).
+      checklist). DONE 2026-09-04: new `src/ui/saveslots.ts` — `SAVE_KEY`
+      (`src/meta/meta.ts`, out-of-scope but read-only) is never edited; the
+      *active* slot's data always lives live in the ordinary `SAVE_KEY`, so
+      `loadMeta`/`saveMeta`/`loadMetaWithNotice` need zero changes or slot
+      awareness. `saveslots.ts` owns 3 dedicated keys
+      (`stonewake.save.slot{1,2,3}.v1`) plus an `stonewake.activeslot.v1`
+      pointer, and only mirrors `SAVE_KEY`'s raw JSON text into/out of a
+      slot's own key at the moment of an explicit `switchToSlot()`.
+      `ensureActiveSlotMigrated()` (called once at boot in `main.ts`'s
+      `Game.start()`, before `loadMetaWithNotice()`) migrates a pre-existing
+      single save into slot 1's own key on the first run after this feature
+      ships, a no-op every later boot. `hub.ts`'s Settings tab gains a "Save
+      Slots" panel (3 rows, active/empty labels, Switch/Delete buttons wired
+      near the existing `#sw-wipe` handler); `deleteSlot()` on the active slot
+      clears the live `SAVE_KEY` and the handler mirrors `#sw-wipe`'s full
+      in-memory reset (`this.meta`, `spentThisVisit`, `selectedEquipment`,
+      `onMetaChanged`). Targeted `tests/ui-fb096-save-slots.test.ts` (14/14):
+      module-level fresh-profile default, migration (intact-in-slot-1 +
+      idempotent-on-later-boot), independent slot-1/slot-2 progress across a
+      simulated reload, same-slot/out-of-range no-ops, delete-non-active vs.
+      delete-active behavior, the Settings-tab listing/labels/disabled-state,
+      switch-triggers-reload, reload-failure fallback, and the fb101 pointer-
+      write-failure case (below). code-reviewer **APPROVE** (no Critical/
+      Major; one Minor — the delete-active-slot handler didn't clear
+      `spentThisVisit`/`selectedEquipment` for full `#sw-wipe` parity, fixed
+      same session; two Nits, addressed/not blocking). qa-playtester's first
+      pass **PASS**ed the stated acceptance criteria directly but found and
+      filed two real issues via hostile testing, both fixed same session
+      rather than left open:
+      - **fb100** (normal, real data-loss bug): the original design only
+        showed an advisory "reload to continue" notice after a switch,
+        leaving the still-live Hub's stale in-memory `meta` free to overwrite
+        `SAVE_KEY` via any other Settings/Run/Equipment/Tree action before the
+        player manually reloaded — corrupting whichever slot was active at
+        the *next* switch. Fixed by reloading the page immediately
+        (`window.location.reload()`) the instant a switch succeeds, instead
+        of leaving an honor-system window open; falls back to the old
+        advisory notice only if `reload()` itself throws. New regression
+        tests confirm `reload` is actually invoked and the fallback path
+        still works.
+      - **fb101** (low, doc-contract violation): `setActiveSlotRaw`'s own
+        `try/catch` swallowed a `setItem` failure internally, so a storage
+        failure landing specifically on `switchToSlot`'s 3rd (pointer) write
+        made it return `true` while the pointer never actually moved. Fixed
+        by letting that write's exception propagate into `switchToSlot`'s own
+        outer `try/catch` (the only other caller, `ensureActiveSlotMigrated`,
+        already wraps its own call site the same way). New regression test
+        forces the failure onto exactly the 3rd `setItem` call and confirms
+        `switchToSlot` now returns `false` with the pointer unchanged.
+      Both fixes re-verified against the full targeted suite (14/14) and
+      `npx tsc --noEmit` clean; not re-dispatched to qa-playtester a second
+      time (both were narrow, mechanically-verified fixes matching the
+      finding's own suggested direction and regression-test shape). `npm run
+      test:fast`: 6 failures, all in the pre-existing q15-command-domain-fuzz
+      worker-hang and q45/q49/q52 Windows-scratch-dir-EPERM flake classes
+      documented across dozens of prior PROGRESS.md sessions, none touching
+      `src/ui/**`/`src/render/**` or this item's own files.
 
 - [ ] (fb097) [feat] low priority: generated 2026-09-04 (same generation
       batch as fb095; QUALITY.md 1.0 Steam/itch checklist gap diff, extends
@@ -2100,6 +2156,83 @@ not already expose it) logs that need below instead of reaching into
       re-running an already-completed quest's metric (e.g. a second win past
       `chrono_veteran`'s threshold) does not re-queue its toast — refs:
       fb095, SPEC-FINAL §11, HANDOFF §7.
+
+- [x] (fb100) [bug] normal priority: DONE 2026-09-04, fixed in the same
+      session that produced it — see fb096's DONE note above for the fix
+      (immediate `window.location.reload()` on a successful switch, replacing
+      the advisory-only notice) and its regression test coverage. Original
+      report preserved below for the repro detail. filed by qa-playtester
+      verifying
+      fb096 (2026-09-04) — save-slot switch is not reload-enforced, so any
+      Hub action taken after `switchToSlot` but before the page reload
+      silently corrupts the slot being left. `switchToSlot` mirrors the live
+      `SAVE_KEY` into the *current* slot's own key at the moment of the
+      *next* switch away from it — but nothing stops a player from clicking
+      Switch, then continuing to interact with the still-live Hub (equip
+      gear, allocate a skill point, "Seed a test account", "Wipe account",
+      all fully enabled in the same Settings panel right next to the Save
+      Slots panel) using the OLD slot's still-loaded in-memory `meta`/
+      `SAVE_KEY` before ever reloading. That interaction re-writes `SAVE_KEY`
+      to a value belonging to neither slot; the next switch away from the
+      now-active slot then flushes that wrong value into the active slot's
+      own dedicated key, permanently overwriting its real save. Repro
+      (reproduced twice, deterministic, jsdom `Hub` + `saveslots.ts`
+      directly — see `tests/ui-fb096-save-slots.test.ts`'s harness for the
+      `openHub` pattern used): create slot 1 with `skillPoints: 10` and slot
+      2 with `skillPoints: 25`, make slot 1 active; open the Hub Settings
+      panel on slot 1; click Slot 2's Switch button (now active, `SAVE_KEY`
+      correctly holds 25); without reloading, click "Wipe account" (`#sw-wipe`,
+      fully clickable — commits `defaultMeta()`, `SAVE_KEY` becomes 0); call
+      `switchToSlot(0)` to go back to slot 1 (correctly restores 10) — but
+      slot 2's own dedicated key (`stonewake.save.slot2.v1`) has now been
+      silently overwritten with the wiped `defaultMeta()` in the process,
+      permanently destroying its real 25-point save with no notice, no
+      confirm, and no way to recover it. Expected: either the Hub disables/
+      confirms every other mutating action while a switch is pending reload,
+      or a switch takes effect immediately (with a live reload/rehydrate)
+      instead of leaving a "reload to continue" honor-system window during
+      which the previous slot's stale in-memory state keeps writing to
+      `SAVE_KEY`. Actual: any Settings/Run/Equipment/Tree action performed
+      between a Switch click and the eventual reload corrupts whichever
+      slot is active at the time of the *next* switch. Suggested regression
+      test: extend `tests/ui-fb096-save-slots.test.ts` with a case that
+      opens the Hub, clicks `[data-slot-switch="1"]`, then clicks `#sw-wipe`
+      (or any other commit-triggering control) without reloading, then calls
+      `switchToSlot(0)` and asserts the other slot's own dedicated
+      `localStorage` key is unchanged from its pre-switch value — refs:
+      fb096.
+
+- [x] (fb101) [polish] low priority: DONE 2026-09-04, fixed in the same
+      session that produced it — see fb096's DONE note above for the fix
+      (`setActiveSlotRaw`'s exception now propagates into `switchToSlot`'s
+      outer `try/catch` instead of being swallowed internally) and its
+      regression test. Original report preserved below for the repro detail.
+      filed by qa-playtester verifying fb096
+      (2026-09-04) — `switchToSlot`'s own doc comment says a storage failure
+      makes it "return false (a no-op)", but `setActiveSlotRaw` swallows its
+      own `setItem` exception internally (its `catch` has no `throw`), so a
+      quota/storage failure landing specifically on the third of the
+      function's three writes (the active-slot pointer write, after the
+      current slot's flush and the incoming slot's load into `SAVE_KEY` have
+      already both succeeded) makes `switchToSlot` return `true` while
+      `getActiveSlot()` still reports the old slot even though `SAVE_KEY`
+      now holds the new slot's data — a real (if narrow) contract violation
+      of the function's own "fail closed" doc comment. Reproduced twice
+      (deterministic) by monkey-patching `Storage.prototype.setItem` to
+      throw only on its 3rd invocation during a single `switchToSlot` call:
+      `switchToSlot(1)` returns `true`, `getActiveSlot()` still returns `0`,
+      but `loadMeta()` reads the slot-1 data. Real-world likelihood is low
+      (localStorage quota failures on a few-KB JSON blob are rare), so this
+      is reported rather than filed as a blocking severity, but it should
+      still be fixed: either have `setActiveSlotRaw` propagate its exception
+      so the outer `try/catch` in `switchToSlot` can return `false`, or give
+      `switchToSlot` its own explicit check that the pointer write actually
+      landed. Suggested regression test: a case in
+      `tests/ui-fb096-save-slots.test.ts` that patches
+      `Object.getPrototypeOf(localStorage).setItem` to throw only on its 3rd
+      call within one `switchToSlot` invocation and asserts the return value
+      and `getActiveSlot()` stay consistent with each other — refs: fb096.
+
 
 ## Log
 

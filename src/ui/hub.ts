@@ -53,6 +53,7 @@ import { hasUnsavedTunerEdits } from './tuner-state';
 import { crashLogEntries, formatCrashReport } from './crashlog';
 import { creditsMarkup } from './credits';
 import { questsMarkup } from './quests';
+import { SAVE_SLOT_COUNT, deleteSlot, getActiveSlot, slotHasData, switchToSlot } from './saveslots';
 
 type Tab = 'run' | 'tree' | 'equipment' | 'quests' | 'codex' | 'settings' | 'credits';
 
@@ -600,6 +601,22 @@ export class Hub {
       </div>
 
       <div class="sw-panel">
+        <h2>Save Slots</h2>
+        <p class="sw-note">Switching slots reloads the page.</p>
+        <div class="sw-slotlist">
+          ${Array.from({ length: SAVE_SLOT_COUNT }, (_, slot) => {
+            const active = slot === getActiveSlot();
+            const hasData = slotHasData(slot);
+            return `<div class="sw-setting sw-slotrow ${active ? 'on' : ''}">
+              <span>Slot ${slot + 1}${active ? ' (active)' : ''}${hasData ? '' : ' — empty'}</span>
+              <button class="sw-reroll" data-slot-switch="${slot}" ${active ? 'disabled' : ''}>Switch</button>
+              <button class="sw-reroll danger" data-slot-delete="${slot}" ${hasData ? '' : 'disabled'}>Delete</button>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>
+
+      <div class="sw-panel">
         <h2>Crash reports</h2>
         <p class="sw-note">
           The last ${crashLog.length} uncaught error${crashLog.length === 1 ? '' : 's'} this browser
@@ -659,6 +676,50 @@ export class Hub {
       this.notice = 'Account wiped.';
       this.show();
     });
+
+    for (const el of body.querySelectorAll<HTMLElement>('[data-slot-switch]')) {
+      el.addEventListener('click', () => {
+        this.settingsResetArmed = false; // fb075: see #sw-seed's comment above.
+        const slot = Number(el.dataset.slotSwitch);
+        if (!switchToSlot(slot)) return;
+        // fb096 (qa-playtester finding, fb100): reload immediately rather than
+        // only showing a "please reload" notice — this already-constructed
+        // `Hub`'s `this.meta` is still the *old* slot's in-memory copy, and
+        // every other mutating control here (`#sw-wipe`, equip, allocate…)
+        // stays clickable and would silently re-save that stale copy over the
+        // slot just switched into if the player acted again before manually
+        // reloading. A real reload tears down this instance and rebuilds from
+        // the new active slot's `SAVE_KEY` via the ordinary boot path.
+        try {
+          window.location.reload();
+        } catch {
+          this.notice = `Switched to Slot ${slot + 1}. Reload the page to continue on it.`;
+          this.show();
+        }
+      });
+    }
+    for (const el of body.querySelectorAll<HTMLElement>('[data-slot-delete]')) {
+      el.addEventListener('click', () => {
+        this.settingsResetArmed = false; // fb075: see #sw-seed's comment above.
+        const slot = Number(el.dataset.slotDelete);
+        const wasActive = slot === getActiveSlot();
+        if (deleteSlot(slot)) {
+          // fb096: `deleteSlot` clears the live `SAVE_KEY` too when `slot` was
+          // active — reflect that in already-loaded in-memory state exactly
+          // like `#sw-wipe` does (including its Hub-visit-local state, not
+          // just `this.meta`), rather than leaving `this.meta` pointing at an
+          // account that no longer exists in storage.
+          if (wasActive) {
+            this.spentThisVisit.clear();
+            this.selectedEquipment = null;
+            this.meta = defaultMeta();
+            this.cb.onMetaChanged(this.meta);
+          }
+          this.notice = `Slot ${slot + 1} deleted.`;
+        }
+        this.show();
+      });
+    }
 
     const count = body.querySelector<HTMLInputElement>('[data-count]');
     count?.addEventListener('input', () => {

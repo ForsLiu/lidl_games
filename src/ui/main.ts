@@ -19,6 +19,7 @@ import { Renderer, type ViewState } from '../render/canvas';
 import { Hud } from './hud';
 import { Hub } from './hub';
 import { applyRunResult, defaultMeta, loadMetaWithNotice, saveMeta } from '../meta/meta';
+import { ensureActiveSlotMigrated } from './saveslots';
 import { devProfileActive, startupProfile } from '../meta/devprofile';
 import { loadSettings, saveSettings, type Settings } from './settings';
 import { loadKeyBindings, saveKeyBindings, type KeyBindings } from './keybindings';
@@ -107,6 +108,11 @@ export class Game {
 
   start(rootEl: HTMLElement): void {
     this.root = rootEl;
+    // fb096: migrates a pre-existing single save into slot 1 the first time
+    // the slot-aware loader runs; a no-op on every later boot. Must precede
+    // `loadMetaWithNotice()` since a slot switch (Settings tab, previous
+    // session) rewrites which save `SAVE_KEY` itself points at.
+    ensureActiveSlotMigrated();
     const loaded = loadMetaWithNotice();
     this.meta = loaded.meta;
     this.pendingHubNotice = loaded.notice;
