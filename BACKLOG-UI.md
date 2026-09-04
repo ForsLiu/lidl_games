@@ -2624,7 +2624,7 @@ not already expose it) logs that need below instead of reaching into
       `src/ui/**`/`src/render/**`, Codex/Hub test files, or this item's own
       files.
 
-- [ ] (fb106) [polish] low priority: generated 2026-09-04 (same generation
+- [x] (fb106) [polish] low priority: generated 2026-09-04 (same generation
       batch as fb102) — ultrawide/narrow safe-area unit-geometry regression
       coverage, an in-scope alternative to fb093. fb093 (left open, logged
       out-of-scope this session and in its own prior session because its
@@ -2644,7 +2644,51 @@ not already expose it) logs that need below instead of reaching into
       against current code and demonstrably fails against a deliberately
       broken letterboxing calculation (a temporary fixture mutation, reverted
       before commit) — refs: fb093, fb065, fb082, QUALITY.md 1.0 (Steam/itch
-      checklist).
+      checklist). DONE 2026-09-04: new
+      `tests/ui-fb106-extreme-aspect-geometry.test.ts` (no source files
+      changed) mounts a `Hud`, stubs `.sw-stage`'s `clientWidth`/
+      `clientHeight` to 2560x1080 (height-bound) and separately to 1024x1280
+      (width-bound), calls `hud.update(w)`, and asserts on the resulting
+      `--cv-left`/`--cv-right`/`--cv-top`/`--cv-bottom`/`--cv-cx` properties:
+      every offset >= 0, the derived canvas rect (`availW/H` minus the
+      offsets) never exceeds the container and stays positive, its aspect
+      ratio stays close to the grid's 36:20 (guards against a degenerate
+      all-zero-offset broken calc trivially passing the bounds checks), and
+      `--cv-cx` sits inside the derived rect. Manually verified (temporarily
+      flipping the `cssW` calculation's `Math.min` to `Math.max`, confirming
+      both new cases fail, then reverting) that the test is not vacuous
+      before committing, per the item's own acceptance text. Same jsdom
+      `clientWidth`/`clientHeight`-stubbing idiom and `mount()`/`makeHud()`
+      helpers as `tests/ui-fb082-overlay-geometry.test.ts`/
+      `tests/ui-fb102-bossbar-rail-overlap.test.ts`. code-reviewer
+      **APPROVE** (no Critical/Major; two Nits — the `cssW <= availW`/
+      `cssH <= availH` checks are logically implied by the already-passing
+      offset->=0 checks and add no independent bug-catching power on their
+      own (the aspect-ratio and `cx`-in-bounds checks do the real work,
+      confirmed by hand-tracing the reviewer's own `Math.max` mutation); the
+      test hardcodes `36/20` instead of importing `GRID_W`/`GRID_H` from
+      `src/sim/grid`, matching existing sibling-file precedent
+      (`tests/ui-fb082-overlay-geometry.test.ts` also hardcodes `1.8` in a
+      comment) rather than a new regression — both left as-is, non-blocking).
+      qa-playtester **PASS**: independently reproduced the git-stash-style
+      A/B (flipped `Math.min`->`Math.max`, confirmed both new cases fail;
+      separately zeroed `--cv-top`, confirmed the narrow/portrait case alone
+      catches it since the ultrawide case's natural top offset is already
+      ~0; reverted both edits exactly, confirmed zero diff on `src/ui/hud.ts`
+      afterward) plus hostile edge cases via a scratch test file (deleted
+      after use): a square 1000x1000 container, jsdom's zero-size default
+      (no stub call), extremely tiny 3x2/1x1 containers, and an
+      awkward-rounding 999x555 container — no crashes, no negative offsets
+      in any case. All sibling geometry tests
+      (`tests/ui-fb082-overlay-geometry.test.ts`,
+      `tests/ui-fb102-bossbar-rail-overlap.test.ts`,
+      `tests/render-fb065-stage-fill.test.ts`) still pass alongside the new
+      one (17/17 combined). Filed no new bugs. `npx tsc --noEmit` clean.
+      `npm run test:fast`: 14 failed files / 37 failed tests, all in the
+      pre-existing q46/q49/q52 CLI-subprocess Windows-scratch-dir EPERM flake
+      class documented across dozens of prior PROGRESS.md sessions, none
+      touching `src/ui/**`/`src/render/**` or this item's own file (no source
+      file was changed by this item at all).
 
 - [x] (fb107) [bug] high priority: generated 2026-09-04 (fewer than 3
       actionable items remained — fb085/fb093/fb097 stay open but logged
