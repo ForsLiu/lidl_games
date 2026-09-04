@@ -122,13 +122,35 @@ export function defaultKeyBindings(): KeyBindings {
 export const KEYBINDINGS_KEY = 'stonewake.keybindings.v1';
 
 /**
+ * Single-character fallback pool for `sanitizeKeyBindings` when an action's
+ * stored key AND its own default are both already claimed/invalid (a chained
+ * collision, e.g. one action's override lands on another action's default) —
+ * comfortably more candidates than `ACTION_ORDER` has entries, so a free,
+ * valid key always exists.
+ */
+const FALLBACK_KEY_POOL = 'abcdefghijklmnopqrstuvwxyz0123456789'.split('');
+
+/**
+ * True if `key` cannot validly belong to `action` in the output of
+ * `sanitizeKeyBindings`: already claimed by an earlier action (`used`),
+ * always-live movement (`UNBINDABLE_KEYS`), or reserved by a hardcoded
+ * literal for a different action (`reservedKeyLabel`).
+ */
+function keyUnavailable(id: ActionId, key: string, used: Set<string>): boolean {
+  return used.has(key) || UNBINDABLE_KEYS.has(key) || reservedKeyLabel(id, key) !== null;
+}
+
+/**
  * Fills in any action a stale/hand-edited save is missing with its default,
  * lower-cases every key, and de-duplicates: a hand-edited or corrupted save
- * can assign the same key to two actions (`rebindKey` only prevents this
- * going forward, at write time). Keeps the first assignment in
- * `ACTION_ORDER` and resets any later action holding the same key back to
- * its own default — same policy `makeKeyDownHandler`'s independent `if`
- * checks would otherwise both silently fire for one keypress.
+ * can assign an action a key that collides with another action, an
+ * always-live movement key, or a reserved literal (`rebindKey`/the Hub's
+ * conflict check only prevent these going forward, at write time). Keeps the
+ * first assignment in `ACTION_ORDER`; a later action holding an unavailable
+ * key resets to its own default, or — if that default is ALSO unavailable —
+ * the first free, valid key in `FALLBACK_KEY_POOL`. Same policy
+ * `makeKeyDownHandler`'s independent `if` checks would otherwise both
+ * silently fire for one keypress.
  */
 export function sanitizeKeyBindings(b: Partial<KeyBindings> | null | undefined): KeyBindings {
   const defaults = defaultKeyBindings();
@@ -137,10 +159,17 @@ export function sanitizeKeyBindings(b: Partial<KeyBindings> | null | undefined):
     const v = b?.[id];
     if (typeof v === 'string' && v.length > 0) out[id] = v.toLowerCase();
   }
-  const seen = new Set<string>();
+  const used = new Set<string>();
   for (const { id } of ACTION_ORDER) {
-    if (seen.has(out[id])) out[id] = defaults[id];
-    seen.add(out[id]);
+    let candidate = out[id];
+    if (keyUnavailable(id, candidate, used)) {
+      candidate = defaults[id];
+      if (keyUnavailable(id, candidate, used)) {
+        candidate = FALLBACK_KEY_POOL.find((k) => !keyUnavailable(id, k, used)) ?? defaults[id];
+      }
+    }
+    out[id] = candidate;
+    used.add(candidate);
   }
   return out;
 }

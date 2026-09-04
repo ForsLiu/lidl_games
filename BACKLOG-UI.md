@@ -946,7 +946,7 @@ not already expose it) logs that need below instead of reaching into
       sessions, none touching `src/ui/**`/`src/render/**` or this item's own
       files.
 
-- [ ] (fb081) [bug] low priority: `sanitizeKeyBindings`'s (`keybindings.ts`)
+- [x] (fb081) [bug] low priority: `sanitizeKeyBindings`'s (`keybindings.ts`)
       general duplicate-key dedup is a no-op whenever a corrupted/hand-edited
       save's override on an earlier `ACTION_ORDER` action collides with a
       *later* action's own default key — two different actions can end up
@@ -973,7 +973,67 @@ not already expose it) logs that need below instead of reaching into
       same pass so a corrupted save can't load `enter` or a mismatched
       `1`/`2`/`3` either, closing fb079's own logged Minor in the same
       change — refs: fb079, fb073, `sanitizeKeyBindings`'s own doc-comment
-      guarantee.
+      guarantee. DONE 2026-09-04: `sanitizeKeyBindings` (`keybindings.ts`)
+      now does a single forward pass over `ACTION_ORDER` tracking a `used:
+      Set<string>`; a new `keyUnavailable(id, key, used)` helper folds three
+      checks into one (`used.has(key)`, `UNBINDABLE_KEYS.has(key)`,
+      `reservedKeyLabel(id, key) !== null`). For each action: if its current
+      key is unavailable, fall back to its own default; if that default is
+      ALSO unavailable (the chained-collision case this bug report is about),
+      fall back further to the first free/available key in a new
+      `FALLBACK_KEY_POOL` (`'abcdefghijklmnopqrstuvwxyz0123456789'` — 36
+      candidates, comfortably more than `ACTION_ORDER`'s 24 entries), or the
+      default as a should-be-unreachable last resort. Targeted
+      `tests/ui-fb081-sanitize-dedup.test.ts` (originally 7/7, grew to 8/8 —
+      see code-review note below): the exact `moveUp: 's'` repro, a
+      reserved-key variant (`sellSelection` stealing `towerSlot1`'s default
+      `'1'`), a 3-way collision chain, an arbitrary multi-collision case,
+      `reservedKeyLabel` threading (Enter, mismatched picker digits, the
+      matching-towerSlot exemption). Confirmed via git-stash A/B that the
+      suite fails 6-7/7 pre-fix with the exact predicted symptoms and passes
+      post-fix. code-reviewer **REQUEST-CHANGES** → one Major: the fix's own
+      `used`/`reservedKeyLabel` checks never consulted `UNBINDABLE_KEYS`
+      (arrow keys), the same class of gap `reservedKeyLabel` exists to close
+      for `enter`/`1`/`2`/`3` — a corrupted save binding e.g. `active1:
+      "arrowup"` passed through untouched, reproducing the exact
+      always-fires-alongside-movement double-fire bug this same fix was
+      meant to prevent for the other two reserved-literal classes. Fixed by
+      folding `UNBINDABLE_KEYS.has(candidate)` into `keyUnavailable`; added
+      an 8th regression test (`active1: 'ArrowUp'` in a corrupted save
+      resets off it), confirmed via a second git-stash A/B that 7/8 tests
+      fail pre-this-fix and pass post-fix. Also addressed a Minor (the
+      `FALLBACK_KEY_POOL.find(...) ?? defaults[id]` ultimate fallback could
+      silently reintroduce a duplicate if `ACTION_ORDER` ever grows past the
+      pool's capacity — left as-is, judged not worth defensive code for an
+      unreachable case at the current 24-action roster, consistent with
+      CLAUDE.md's "don't validate what can't happen") and a Nit (a stale
+      hardcoded "36 candidates for 23 actions" count in the doc comment —
+      fixed, `ACTION_ORDER` actually has 24 entries; reworded to avoid a
+      number that can drift again). code-reviewer re-verified **APPROVE**.
+      qa-playtester **PASS**: independently re-derived both acceptance
+      criteria, then hostile-tested via temporary probe suites (not
+      committed) covering null/undefined/empty-object input, all 24 actions
+      colliding onto one single key, multiple simultaneous reserved-literal
+      violations in one blob (Enter + arrows + mismatched 1/2/3 together),
+      mixed/uppercase-case keys, an already-valid input as a no-op/identity
+      check, unknown extra properties, non-string junk values, multi-char
+      string values, and a real `localStorage`-backed `loadKeyBindings()`
+      round-trip of both a corrupted-but-parseable and a malformed JSON
+      blob — plus a 2000-trial randomized fuzz over a pool mixing plain
+      keys/arrows/Enter/1-2-3, zero collisions or reserved-key leaks in any
+      trial; filed no new bugs, flagged one pre-existing out-of-scope
+      observation (the fill loop accepts a multi-character key string like
+      `"shift"` verbatim — `v.length > 0`, not `=== 1` — inconsistent with
+      the single-character-key contract but not a collision risk and not a
+      fb081 regression; not filed as a new item, low value). `npx tsc
+      --noEmit` clean. `npm run test:fast`: 5-9 failures across runs this
+      session (variance run to run), all in the pre-existing
+      q13/q15/q28/q45/q49/q52 worker-hang/Windows-scratch-dir-EPERM flake
+      classes and the b032/b034/b035/b036 dev-server port-contention
+      fold-test class (each re-ran clean in isolation, confirmed via
+      git-stash A/B identical without this diff), documented across dozens
+      of prior PROGRESS.md sessions, none touching `src/ui/**`/
+      `src/render/**` or this item's own files.
 
 - [ ] (fb074) [feat] low priority: resume run after a page refresh —
       QUALITY.md BETA's "no progress loss on refresh" bar. Nothing today
