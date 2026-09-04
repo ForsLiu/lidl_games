@@ -818,7 +818,7 @@ not already expose it) logs that need below instead of reaching into
       sessions, none touching `src/ui/**`/`src/render/**` or this item's own
       files.
 
-- [ ] (fb079) [bug] low priority: two of `input.ts`'s hardcoded, unrebindable
+- [x] (fb079) [bug] low priority: two of `input.ts`'s hardcoded, unrebindable
       literals — `Enter` (unconditional `{k:'call'}` call-wave trigger,
       `makeKeyDownHandler`) and the level-up offer picker's literal 1/2/3
       (fb073's own documented exception, decoupled from the
@@ -844,7 +844,55 @@ not already expose it) logs that need below instead of reaching into
       also cover `enter` and, at minimum while `isChoosing`-gated, `1`/`2`/`3`
       — refs: fb073, `input.ts`'s module-doc "deliberately not rebindable"
       list, which already names both but which the conflict-detection code
-      never actually enforced against other actions claiming them.
+      never actually enforced against other actions claiming them. DONE
+      2026-09-04: added `reservedKeyLabel(action, key)` (`keybindings.ts`) —
+      `enter` is reserved against every action; `1`/`2`/`3` are reserved
+      against every action except the matching `towerSlot1`/`towerSlot2`/
+      `towerSlot3`, which keeps legitimately sharing the picker's key by
+      fb073's original design (`TOWER_SLOT_ACTIONS[pickerIndex] !== action`,
+      confirmed no off-by-one, exactly one action exempted per key). Also
+      added an `'enter' -> 'Enter'` case to `keyLabel()`'s display formatting
+      (previously fell through to the generic multi-char branch and showed
+      lowercase `'enter'`). `hub.ts`'s `onRebindKeyDown` calls
+      `reservedKeyLabel` immediately after the pre-existing `UNBINDABLE_KEYS`
+      check, same early-return-before-`rebindKey` pattern as the arrow-key
+      rejection, so a rejected attempt never mutates `this.keyBindings`.
+      Targeted `tests/ui-fb079-reserved-keys.test.ts` (7/7): `reservedKeyLabel`
+      unit coverage (Enter always reserved; 1/2/3 reserved against unrelated
+      actions including an unrelated towerSlot action; not reserved against
+      the matching towerSlot1-3; ordinary keys unreserved) plus two
+      Hub-integration tests (rebinding `sellSelection` onto Enter rejected
+      with the binding untouched; vacating `towerSlot1` off `'1'` then
+      attempting to rebind `sellSelection` onto the now-free `'1'` still
+      rejected). code-reviewer **APPROVE** (no Critical/Major; one Minor —
+      `sanitizeKeyBindings` (the `loadKeyBindings()` localStorage boot path)
+      doesn't run `reservedKeyLabel`, so a hand-edited/corrupted save could
+      still load an action bound to `enter`/a mismatched `1`/`2`/`3` and
+      reproduce the double-fire via a path that never reaches
+      `onRebindKeyDown` — legitimate but out of this item's stated Hub-UI-flow
+      acceptance criteria, logged as fb081 below rather than blocking; one
+      Nit — the towerSlot exemption is stricter than the underlying hazard
+      strictly requires (tracing `input.ts` shows the `isChoosing` picker
+      path and the tower-slot-select path are mutually exclusive per
+      keypress, so in principle *any* towerSlot action bound to `1`/`2`/`3`
+      is already safe, not just the matching one) but this matches fb073's
+      pre-existing documented design intent and is non-breaking, not required
+      to fix). qa-playtester **PASS** against the stated acceptance criteria:
+      independently reproduced both original repro scenarios through a real
+      `Hub` instance (real DOM click + keydown dispatch, not just the unit
+      test) — Enter rejection, vacate-then-claim-`1` rejection, and confirmed
+      the matching-slot exemption still works normally; hostile-tested rapid
+      repeated rejected attempts, Escape-cancel leaving no stale conflict
+      message, mid-rebind Hub tab switches, and "Restore default controls"
+      post-custom-rebind — all clean. Confirmed the already-logged
+      `sanitizeKeyBindings` gap directly and found a broader, pre-existing
+      variant of it (not introduced by this item) — see fb081 below.
+      `npx tsc --noEmit` clean. `npm run test:fast`: 2156 passed / 8 failed
+      (all in the pre-existing q15/q49/q52 worker-hang/Windows-scratch-dir-
+      EPERM flake classes documented across dozens of prior PROGRESS.md
+      sessions; confirmed via git-stash A/B that the q49/q52 `EPERM`
+      failures reproduce identically without this diff) / 22 skipped, none
+      touching `src/ui/**`/`src/render/**` or this item's own files.
 
 - [ ] (fb080) [bug] low priority: `makeKeyDownHandler`'s
       `if (k === bindings.dash) e.preventDefault();` (`input.ts`) suppresses
@@ -864,6 +912,35 @@ not already expose it) logs that need below instead of reaching into
       currently owns the `dash` binding; suggested fix direction: check
       `k === ' '` directly for the `preventDefault` call rather than
       `k === bindings.dash` — refs: fb073.
+
+- [ ] (fb081) [bug] low priority: `sanitizeKeyBindings`'s (`keybindings.ts`)
+      general duplicate-key dedup is a no-op whenever a corrupted/hand-edited
+      save's override on an earlier `ACTION_ORDER` action collides with a
+      *later* action's own default key — two different actions can end up
+      bound to the identical key after sanitize, silently, defeating the
+      exact invariant the function's own doc comment claims to guarantee
+      ("resets any later action holding the same key back to its own
+      default"). Found by qa-playtester (fb079 verification), reproduced
+      deterministically and repeatedly: `sanitizeKeyBindings({
+      ...defaultKeyBindings(), moveUp: 's' })` (`'s'` is `moveDown`'s own
+      default) returns `moveUp === 's'` AND `moveDown === 's'` — the dedup
+      loop's "reset to own default" is a no-op here because `moveDown`'s
+      `out` value was already its own default, so nothing changes and the
+      collision survives; also reproduced with `sellSelection: '1'` (a
+      picker digit, not just a movement key) surviving alongside
+      `towerSlot1 === '1'`. Broader than fb079's own already-logged
+      Minor (`sanitizeKeyBindings` not calling `reservedKeyLabel`): this is
+      not limited to `enter`/`1`/`2`/`3`, applies to any pair of actions in
+      `ACTION_ORDER`, and is reachable purely through `loadKeyBindings()` at
+      boot — no rebind UI involved at all. Acceptance: a regression test
+      confirms `sanitizeKeyBindings({ ...defaultKeyBindings(), moveUp: 's'
+      })` produces `moveUp !== moveDown`, and more generally that no two
+      values in any `sanitizeKeyBindings` output are equal across all of
+      `ACTION_ORDER`; while fixing, also thread `reservedKeyLabel` into the
+      same pass so a corrupted save can't load `enter` or a mismatched
+      `1`/`2`/`3` either, closing fb079's own logged Minor in the same
+      change — refs: fb079, fb073, `sanitizeKeyBindings`'s own doc-comment
+      guarantee.
 
 - [ ] (fb074) [feat] low priority: resume run after a page refresh —
       QUALITY.md BETA's "no progress loss on refresh" bar. Nothing today

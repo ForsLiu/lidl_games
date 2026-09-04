@@ -173,6 +173,29 @@ export function saveKeyBindings(b: KeyBindings): void {
  */
 export const UNBINDABLE_KEYS = new Set(['arrowup', 'arrowdown', 'arrowleft', 'arrowright']);
 
+/**
+ * fb079: keys reserved by a hardcoded, never-rebindable literal elsewhere in
+ * `input.ts`'s `makeKeyDownHandler`, distinct from `UNBINDABLE_KEYS` (a flat
+ * per-key bar with no notion of which action is being rebound). These two
+ * need per-action awareness instead of a flat set:
+ *  - `enter` unconditionally triggers the call-wave Command, for every
+ *    action — rebinding anything onto it would double-fire alongside it.
+ *  - `1`/`2`/`3` unconditionally trigger the level-up offer picker while
+ *    `isChoosing`, for every action EXCEPT the matching towerSlot1/2/3 —
+ *    that pair already legitimately shares the same physical key by design
+ *    (see `input.ts`'s module doc and its `isChoosing`-gated block), so
+ *    only a *different* action claiming '1'/'2'/'3' is the double-fire bug.
+ * Returns a user-facing label for the reserved-key message, or null if
+ * `key` is not reserved against `action`.
+ */
+export function reservedKeyLabel(action: ActionId, key: string): string | null {
+  const k = key.toLowerCase();
+  if (k === 'enter') return keyLabel(k);
+  const pickerIndex = k === '1' ? 0 : k === '2' ? 1 : k === '3' ? 2 : -1;
+  if (pickerIndex >= 0 && TOWER_SLOT_ACTIONS[pickerIndex] !== action) return keyLabel(k);
+  return null;
+}
+
 export type RebindResult =
   | { ok: true; bindings: KeyBindings }
   | { ok: false; conflictWith: ActionId };
@@ -197,5 +220,6 @@ export function keyLabel(key: string): string {
   if (key === 'arrowleft') return '←';
   if (key === 'arrowright') return '→';
   if (key === 'escape') return 'Esc';
+  if (key === 'enter') return 'Enter';
   return key.length === 1 ? key.toUpperCase() : key;
 }

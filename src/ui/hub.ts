@@ -38,6 +38,7 @@ import {
   defaultKeyBindings,
   keyLabel,
   rebindKey,
+  reservedKeyLabel,
   UNBINDABLE_KEYS,
   type ActionId,
   type KeyBindings,
@@ -590,6 +591,12 @@ export class Hub {
     }
     if (UNBINDABLE_KEYS.has(k)) {
       this.rebindConflict = `"${keyLabel(k)}" is reserved for movement and cannot be reassigned.`;
+      this.show();
+      return;
+    }
+    const reserved = reservedKeyLabel(action, k);
+    if (reserved) {
+      this.rebindConflict = `"${reserved}" is reserved and cannot be reassigned.`;
       this.show();
       return;
     }
