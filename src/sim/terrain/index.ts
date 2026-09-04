@@ -9,6 +9,7 @@ export {
   parseTerrain,
   TERRAIN_KEYS,
   TerrainKind,
+  type HighGroundFamily,
   type TerrainConfig,
   type TerrainKey,
   type TerrainTileDef,
@@ -35,5 +36,14 @@ export {
   type CoreRejectReason,
 } from './core-placement';
 export { generateTerrain, terrainHash } from './generate';
+export {
+  canAttackHighGround,
+  canAttackStructureAt,
+  canSurfaceAt,
+  canSurfaceOnHighGround,
+  familyForDef,
+  highGroundFamily,
+  type HighGroundQuery,
+} from './high-ground';
 export { terrainOverlay } from './overlay';
 export type { TerrainGrid, TerrainMap, TerrainMeasure } from './types';

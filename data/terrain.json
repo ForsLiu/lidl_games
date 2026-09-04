@@ -51,5 +51,33 @@
     "minGateReachFrac": 0.8,
     "minCoreLegalFrac": 0.15,
     "minCorridorWidth": 2
+  },
+  "highGround": {
+    "families": [
+      {
+        "key": "flier",
+        "traits": ["flying"],
+        "attacksHigh": true,
+        "surfacesHigh": true
+      },
+      {
+        "key": "ranged",
+        "traits": ["ranged"],
+        "attacksHigh": true,
+        "surfacesHigh": false
+      },
+      {
+        "key": "burrower",
+        "traits": ["burrows"],
+        "attacksHigh": false,
+        "surfacesHigh": false
+      },
+      {
+        "key": "ground",
+        "traits": [],
+        "attacksHigh": false,
+        "surfacesHigh": false
+      }
+    ]
   }
 }

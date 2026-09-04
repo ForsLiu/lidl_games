@@ -162,6 +162,28 @@ const tileSchema = z
   })
   .strict();
 
+/**
+ * One high-ground family (fb064i). `traits` is matched against
+ * `EnemyDef.traits`; the first family in file order carrying any of an enemy's
+ * traits wins, and the last family — which must name no traits — is the
+ * catch-all every unlisted enemy lands in.
+ */
+const highGroundFamilySchema = z
+  .object({
+    key: z.string().min(1),
+    // Capped for the same reason the radii are (fb064a's unbounded-loop
+    // finding): classification is a linear scan over families x traits, and
+    // the merge runs it from `moveEnemy`'s collision branch. There is no design
+    // that needs hundreds of either — 20 enemies carry 21 distinct traits
+    // between them — so an oversized table is a mistake, not a tuning choice.
+    traits: z.array(z.string().min(1)).max(64),
+    /** May target/damage a structure standing on a high tile. */
+    attacksHigh: z.boolean(),
+    /** May emerge from underground onto a high tile. */
+    surfacesHigh: z.boolean(),
+  })
+  .strict();
+
 const schema = z
   .object({
     tiles: z.array(tileSchema).length(TERRAIN_KEYS.length),
@@ -200,6 +222,15 @@ const schema = z
         // silence.
         minCorridorWidth: z.union([z.literal(1), z.literal(2)]),
       })
+      .strict(),
+    // fb064i: who the high-ground protection rules exempt, as data. The owner's
+    // designer note names families, not enemies ("ranged enemies (Spitter),
+    // fliers, and the bosses' special attacks still can; Burrowers cannot
+    // surface"), so the table is keyed by trait name and a new enemy inherits
+    // its family from the traits it is authored with — no code edit, no list of
+    // enemy keys to keep in sync (architecture rule 4).
+    highGround: z
+      .object({ families: z.array(highGroundFamilySchema).min(1).max(64) })
       .strict(),
   })
   .strict()
@@ -312,10 +343,89 @@ const schema = z
               `coreGateClearance ${cfg.coreGateClearance}`,
       });
     }
+    checkHighGround(cfg.highGround.families, ctx);
   });
+
+/**
+ * The unpayable-data rule for the high-ground family table (fb064i).
+ *
+ * Every rule here refuses a table that is *silently* wrong — one that loads,
+ * classifies every enemy without complaint, and applies a rule nobody wrote.
+ * None of them is a taste check: a duplicate key or a shadowed trait changes no
+ * behaviour a designer can see until an enemy lands in the wrong family.
+ *
+ * Deliberately NOT checked here: that each trait is carried by some enemy in
+ * `data/enemies.json`. It was, and it was wrong twice over. It is a false
+ * rejection in this lane's recorded sense — a family naming a trait nothing
+ * currently carries is inert, not unpayable, so a content pass that renames one
+ * trait would stop `data/terrain.json` loading at all and blame the wrong file
+ * (three of the shipped table's traits have exactly one carrier). And it cannot
+ * be sound anyway: `loadContent({ enemies })` swaps the roster the classifier
+ * actually runs against (`src/devserver/tunerSave.ts` does exactly that), so
+ * the file this would validate need not be the roster in play. The typo it was
+ * aimed at is caught where it costs nothing — `tests/terrain-high-ground.test`
+ * asserts the shipped table against the shipped roster.
+ */
+function checkHighGround(
+  families: ReadonlyArray<{ key: string; traits: readonly string[] }>,
+  ctx: z.RefinementCtx,
+): void {
+  const seenKeys = new Set<string>();
+  const seenTraits = new Map<string, number>();
+  for (let i = 0; i < families.length; i++) {
+    const f = families[i];
+    if (seenKeys.has(f.key)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['highGround', 'families', i, 'key'],
+        message: `duplicate family key "${f.key}" — keys name the rule in a log and a Tuner row`,
+      });
+    }
+    seenKeys.add(f.key);
+
+    // Classification is first-match-wins, so a trait named twice means the
+    // later family is dead for every enemy carrying it — and dead exactly for
+    // the enemies its author was thinking of. Ordering already expresses every
+    // precedence a duplicate could, so refusing it costs no expressiveness.
+    for (const t of f.traits) {
+      const first = seenTraits.get(t);
+      if (first === undefined) {
+        seenTraits.set(t, i);
+      } else {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['highGround', 'families', i, 'traits'],
+          message:
+            first === i
+              ? `family "${f.key}" lists trait "${t}" twice`
+              : `trait "${t}" is already claimed by family "${families[first].key}" — first match ` +
+                `wins, so this entry could never apply to any enemy`,
+        });
+      }
+    }
+
+    // The catch-all must be last and must be the only one. Anywhere else it
+    // swallows every family below it; absent, an enemy carrying none of the
+    // listed traits has no family at all and the rules cannot be total.
+    const isCatchAll = f.traits.length === 0;
+    const isLast = i === families.length - 1;
+    if (isCatchAll !== isLast) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['highGround', 'families', i, 'traits'],
+        message: isCatchAll
+          ? `family "${f.key}" names no traits, so it matches every enemy and hides the ` +
+            `${families.length - 1 - i} families after it — only the last family may be the catch-all`
+          : `the last family ("${f.key}") must name no traits: it is the catch-all every enemy ` +
+            `carrying none of the listed traits falls into`,
+      });
+    }
+  }
+}
 
 export type TerrainConfig = z.infer<typeof schema>;
 export type TerrainTileDef = TerrainConfig['tiles'][number];
+export type HighGroundFamily = TerrainConfig['highGround']['families'][number];
 
 let cached: TerrainConfig | null = null;
 

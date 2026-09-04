@@ -127,7 +127,7 @@ is what §10.5 will be written from.
       **`Grid.placeCore` must not be called from a run until fb064c migrates
       the `CORE_X/CORE_Y` readers** — merge blocker in the Log below; the grid
       alone cannot make it safe, and a test asserts it has no caller yet.
-- [ ] (fb064i) [feat] high-ground rules, the terrain-side half of fb064d:
+- [x] (fb064i) [feat] high-ground rules, the terrain-side half of fb064d:
       pure predicates in `src/sim/terrain/` for the owner's four rules
       (ground melee cannot target or reach a tower on high ground;
       Burrowers cannot surface on it; Spitters, fliers and boss specials
@@ -136,6 +136,10 @@ is what §10.5 will be written from.
       Acceptance: table-driven tests per enemy family on a generated map;
       the exact out-of-scope call sites listed in the Log for the main lane
       — refs: owner feedback "high ground", fb064d.
+      **Shipped with no `boss` family, deliberately.** The owner exempts "the
+      bosses' *special attacks*", not bosses, and a family flag cannot tell a
+      boss's special from its melee; the specials are exempt by call site
+      instead (`boss.ts` is not guarded at the merge). See the Log.
 - [ ] (fb064j) [test] generator seed-domain hardening: `generateTerrain` is
       pinned only over seeds 1..20000, which is not the domain a run seed
       draws from. Acceptance: determinism and full band legality over
@@ -156,6 +160,27 @@ is what §10.5 will be written from.
       the test, and the rock/rough/high counts spread across a band rather
       than sitting on the authored density — refs: owner feedback
       "Done when: seeds produce varied legal maps".
+
+- [ ] (fb064m) [feat] a buildable high-ground plot no enemy can reach is a
+      permanently invulnerable tower site — fb064a deferred this ("worth a
+      decision line when fb064d writes the high-ground rules") and fb064i's
+      rules make it live rather than theoretical. Measured by fb064i's QA over
+      seeds 1..500: at the base `towers.json` `buildRange: 4` the exposure is
+      **0/500 seeds**, but at buildRange 5 it is **27/500 seeds (55 plots)** and
+      at 6-7 about 29/500 — and buildRange 5+ is the normal case, not an edge
+      one, because `data/classes.json`'s Engineer passive adds +2 and
+      `data/tree.json` node 22 `watchtowers` adds +1. On such a plot melee is
+      denied by the new rule, the Spitter's `attackRange: 4` cannot reach
+      (nearest enemy-standable tile is 4.12-5.00 away), the flier never attacks
+      structures at all (`enemies.ts:1422`), and both boss paths need 2.5 / 1
+      tiles. Acceptance: a generator constraint (or an explicit measured
+      decision to accept it) such that every *buildable* high tile has an
+      enemy-standable tile within the shortest authored enemy attack range, held
+      over 500 seeds without moving fb064a's bands out of their measured
+      headroom — or, if accepted, a recorded band showing what share of seeds
+      carry such a plot and why that is intended — refs: fb064a Log
+      ("`sealPockets` leaves unreachable `high` tiles as high ground"), fb064i
+      QA bug 4, G2.
 
 ## Log
 
@@ -785,3 +810,237 @@ is what §10.5 will be written from.
     from fb064b, still a merge blocker for whatever wires terrain into `World`.
   - **`ROOM_RADIUS` and architecture rule 4** — the exemption above should be
     re-decided once terrain data is inside `contentHash()`.
+
+- (2026-09-03, fb064i) High-ground rules, terrain side. New
+  `src/sim/terrain/high-ground.ts` (`highGroundFamily`, `familyForDef`,
+  `canAttackHighGround`, `canSurfaceOnHighGround`, `canAttackStructureAt`,
+  `canSurfaceAt`); `data/terrain.json` gains `highGround.families`;
+  `src/sim/terrain/config.ts` gains the schema and `checkHighGround`.
+  `tests/terrain-high-ground.test.ts` is 50 tests, ~0.6 s (fast tier).
+  20 mutants, 20 killed.
+
+  **THE MERGE LIST — every site that must call a predicate, and every site that
+  deliberately must not.** This is fb064i's second acceptance clause; the rules
+  are inert until the main lane wires them, and a rule wired at four of five
+  sites is worse than one wired nowhere, because the fifth then reads as a bug
+  in the mask rather than as a missing call.
+  - **`src/sim/enemies.ts:1459`** (melee breach) —
+    `if (s && breaching && canAttackStructureAt(w.grid, fam, s.tx, s.ty))`. The
+    existing `else e.attackingStructure = 0;` already handles the denied case,
+    so no stale attack id. This is *the* rule; everything below is a leak path.
+  - **`src/sim/enemies.ts:1185`** (Colossus `stomp` AoE) — a **ground** family
+    (`stomp`+`elite`, no `boss`) calling `damageStructure` in a radius from the
+    low tile beside the cliff. Missing from this item's original four-site
+    brief and found by code-reviewer: wire only the breach and the surfacing,
+    and the whole rule leaks through the Colossus.
+  - **`src/sim/enemies.ts:1086`** (Burrower surfacing, `updatePhasing`) —
+    `&& canSurfaceAt(w.grid, fam, e.x, e.y)`. Verified it cannot stall: the
+    test re-runs every tick while the burrower keeps ghosting toward the
+    objective, and both terminal paths (`leakIntoCore` at `enemies.ts:1073`,
+    `contactWarden`) ignore `submerged`. It *does* extend the window in which
+    the burrower is untargetable (`world.ts:760` skips submerged enemies) — a
+    balance side effect of the owner's rule, worth a sweep at the merge.
+  - **`src/sim/enemies.ts:1223`** (Spitter ranged) — the `ranged` family is
+    exempt, so the call is a no-op today. Wire it anyway, or a designer
+    flipping `ranged.attacksHigh` in the Tuner gets silence. Note the shape is
+    *post-selection*: if a non-exempt family ever uses `nearestStructureWithin`
+    (`enemies.ts:1258`) it would pick the high tower and then idle rather than
+    fall through to the next-nearest, so filter inside the selection if that
+    changes.
+  - **`src/sim/enemies.ts:1103`** (the Wraith's phase end, the *second*
+    surfacing site in `updatePhasing`) — guard it exactly like 1086. It is the
+    only live subject `ground.surfacesHigh: false` has, since fliers and ranged
+    enemies never submerge. Not a leak today — `unstick` already routes through
+    `passable`, so a Wraith is normally nudged off the cliff — but a rule whose
+    one call site is unclassified is a rule nobody will wire. Found by QA.
+  - **`src/sim/boss.ts:293`** (`shatterAlong`, a true boss special) —
+    **deliberately not guarded.** That is how "the bosses' special attacks
+    still can" is implemented; see the boss decision below.
+  - **`src/sim/boss.ts:174`** (`updateUnreachable`) — **must not be guarded**,
+    and not for the reason it was first written down. It is the anti-stall
+    failsafe, not a special: it damages the nearest structure *or else* the
+    Core (`else if (!w.godMode)`), so a guard there would let a boss stalled
+    beside a high-ground tower deal nothing at all and the failsafe would stop
+    failing safe. Corrected after QA read the function.
+  - Where the family comes from: resolve once per def beside `traitFlags(def)`
+    at spawn and hold it on the `Enemy` (`src/sim/types.ts`, out of scope), or
+    call `familyForDef(cfg, def.id, def.traits)`, which memoises in the shape
+    `flagCache` already uses. Not `highGroundFamily` inline — 1459 sits inside
+    `moveEnemy`'s collision branch, which runs for every walker on every tick
+    it touches something.
+
+  Design decisions, for QUESTIONS.md at the merge:
+  - **There is no `boss` family, and that absence is the whole boss rule.**
+    Shipped first with `boss: attacksHigh: true`, which is a misreading of the
+    owner's note: it exempts "the bosses' *special attacks*", not bosses. A
+    family flag cannot distinguish a boss's special from its melee, so the
+    blanket row let the Gatebreaker — whose `structureBreaker` trait forces
+    `breaching === true` unconditionally at `enemies.ts:1459` — chew a
+    high-ground tower from the low tile beside it. High ground would have
+    protected nothing on the one wave built to break structures. Bosses now
+    classify as `ground`; the specials are exempt because `boss.ts` is not a
+    call site. Found by code-reviewer.
+  - **The typo guard is a test, not a loader rule** — and it was a loader rule
+    first. `AUTHORED_TRAITS` refused a family naming a trait no enemy in
+    `data/enemies.json` carries, on the theory that such a family is a dead
+    rule. It is this lane's own false-rejection shape, for two independent
+    reasons. (1) Such a family is *inert*, not unpayable: nothing crashes,
+    nothing reads `undefined`. Three of the shipped table's traits have exactly
+    one carrier (`flying`/`gale_imp`, `ranged`/`spitter`, `burrows`/`burrower`),
+    so a content-lane rename would stop `data/terrain.json` loading and blame
+    the wrong file — today reddening four terrain suites, after fb064c's wiring
+    failing run start. (2) It cannot be sound anyway: `loadContent({ enemies })`
+    swaps the roster the classifier actually runs against
+    (`src/devserver/tunerSave.ts:55` does exactly that), so the file it
+    validated need not be the roster in play. The check now lives in the test,
+    where it costs a red CI line instead of a dead game. Found by
+    code-reviewer; both halves verified here before acting.
+  - **The table is keyed by trait name, not by enemy key**, matching
+    `damagetypes.json`'s `immuneTrait` precedent, so a new enemy inherits its
+    family from the traits it is authored with and the content lane never
+    touches terrain data to add one. First match in file order wins; the last
+    family must name no traits and is the catch-all. Both are loader-enforced,
+    which is what makes `highGroundFamily` total.
+  - **What the loader refuses is exactly the silently-wrong table**: a
+    duplicate key, a trait claimed by two families (first-match-wins makes the
+    second dead precisely for the enemies its author had in mind), a trait
+    listed twice inside one family, and a catch-all anywhere but last
+    (mid-table it swallows every family below it; absent, classification is not
+    total). All two-sided — a re-tuned table and an added family must still
+    load, and a test builds both.
+  - **The `flier` row is inert today.** `enemies.ts:1422` puts the whole
+    bump/breach branch behind `!e.flying`, and the one authored flier carries
+    no `ranged` trait, so no flier reaches a structure-damage site at all. The
+    row states the owner's rule for the day one does; it is not exercising a
+    live path, and a later reader should not assume it is.
+  - **Junk coordinates read as not-high**, the convention `Grid.isHighGround`
+    already set (b007's class). That direction is the safe one: these rules can
+    then only ever remove an attack terrain really blocks, never invent a block
+    out of a stray float. Coordinates are floored, so an entity position works
+    as a tile.
+  - **Three of the owner's four clauses needed no code.** "Ground enemies
+    cannot step onto high tiles" is `high.walkable: false` from fb064a/fb064b,
+    pinned in `tests/terrain-grid.test.ts`. Only the two a walkability mask
+    cannot express are here: meleeing *across* the cliff edge, and surfacing
+    under a tower from below.
+
+- (2026-09-03, fb064i) Out-of-scope needs, for the merge:
+  - **The six call sites above are this item's deliverable to the main lane.**
+    `src/sim/enemies.ts`, `src/sim/boss.ts` and `src/sim/types.ts` are all
+    read-only here.
+  - **`data/terrain.json` now decides combat outcomes, not just map shape**, so
+    the standing `contentHash()` merge blocker (fb064b, carried by fb064g and
+    fb064h) is now correctness-critical rather than cosmetic: after the World
+    wiring, editing `highGround.families[].attacksHigh` changes who can damage
+    what while a stale replay still validates. Same one-line
+    `src/sim/content.ts` fold, higher stakes. Found by code-reviewer.
+  - **`nearestStructureWithin` (`enemies.ts:1258`) selects before the rule
+    applies.** Harmless while only the exempt `ranged` family uses it; a
+    non-exempt caller would target a protected tower and idle. Filed so the
+    next caller notices.
+  - **The Burrower's untargetable window widens** (see the surfacing site
+    above). A balance question, so a main-lane sweep question, not a terrain
+    one.
+  - Carried forward unchanged: **nothing consumes `TerrainMap.fallback`**
+    (fb064g/b/h), and **`Grid.placeCore` still has no safe caller** until
+    fb064c migrates the `CORE_X/CORE_Y` readers (fb064h).
+
+- (2026-09-03, fb064i) Review and QA. code-reviewer returned REQUEST-CHANGES on
+  three Majors; qa-playtester returned **PASS on both acceptance clauses** and
+  filed six items. All are fixed or recorded. The two agents independently
+  reached opposite conclusions about nothing, and code-reviewer's first Major
+  (the boss family) was a rule error no test would ever have caught, because
+  the tests agreed with it.
+  - **Major (review), confirmed and fixed: the `boss` family was a misreading**
+    of the owner's note. Verified before acting rather than taken on the
+    report's word: `enemies.ts:1453-1459` does force `breaching` unconditionally
+    for `structureBreaker`, high ground *is* in `blocked` so a walker beside a
+    cliff sets `hitX/hitY` to the high tile, and `structureAt` does return the
+    tower on it — so the row really did hand the Gatebreaker a high-ground
+    tower. QA re-verified the same chain independently. Row deleted; the four
+    test goldens that had pinned the wrong reading flipped with it.
+  - **Major (review), confirmed and fixed: `AUTHORED_TRAITS` was a false
+    rejection.** Both halves of the argument re-verified here before acting —
+    `src/devserver/tunerSave.ts:55` really does call `loadContent({ enemies })`,
+    and the three single-carrier traits really are single-carrier. Moved to the
+    test.
+  - **Major (review), fixed: the merge list did not exist**, and the item's
+    four-site brief was missing `enemies.ts:1185` (the Colossus stomp). QA
+    independently re-derived the list and found no seventh damage site, which
+    is the evidence the list is complete rather than merely long.
+  - **Major (QA bug 3), fixed: three of the eight authored booleans survived
+    the whole 50-test suite.** `flier.surfacesHigh`, `ranged.surfacesHigh` and
+    `ground.surfacesHigh` could each be flipped green: `surfacesHigh` was
+    asserted for the Burrower alone. This lane mutation-tests its *code* by
+    habit and had not thought to mutate its *data*, which is the deliverable.
+    Now a golden over every row, and all three mutants die.
+  - **Major (QA bug 1), fixed: `familyForDef` went stale on a def id reused
+    with different traits** — the same shape `traitFlags` has, but reachable
+    through the exact `loadContent({ enemies })` override this item cites
+    elsewhere as a reason not to trust the roster. The entry now carries the
+    `traits` array it was resolved from and re-resolves unless the caller
+    brings the identical one back; a parsed document gives each def a fresh
+    array, so the check costs one comparison. Mutant added and killed.
+  - **Minor (QA bug 2), fixed in the list above: `enemies.ts:1103` is a second
+    surfacing site** — the Wraith's phase end. It matters because the shipped
+    `ground.surfacesHigh: false` has the Wraith as its *only* possible live
+    subject (fliers and ranged enemies never submerge), so the table shipped a
+    rule whose sole call site was unclassified. Now listed, and a test pins the
+    Wraith as its subject. QA measured the consequence as non-severe: `unstick`
+    already goes through `passable`, and over seeds 1..500 the 88 high tiles
+    with no passable tile in its Chebyshev-3 box are covered by the `1459`
+    guard anyway.
+  - **Minor (QA bug 5), fixed: `boss.ts:174` was mislabelled a "special".** It
+    is `updateUnreachable`, the anti-stall failsafe. Leaving it unguarded is
+    still right, but for a stronger reason than "it is a special": it damages
+    the nearest structure *or else* the Core, so a guard there would let a boss
+    stalled beside a high tower deal nothing at all — the failsafe would stop
+    failing safe. Corrected in the merge list and in `high-ground.ts`.
+  - **Informational (QA bug 6), fixed: the family table had no size cap** while
+    fb064a's unbounded-loop finding put caps on every other array in this file.
+    QA measured it linear rather than quadratic (50 000 families = 164 ms parse,
+    2.7 ms per uncached classification), so it was never fb064a's severity — but
+    a merge that calls `highGroundFamily` inline at `enemies.ts:1459` would make
+    it fatal, and that is exactly the call the doc warns against. Capped at 64
+    families and 64 traits, with a two-sided test.
+  - **QA's hostile probes that found nothing**, recorded because each is a hole
+    this lane has actually shipped before: every junk coordinate shape (`NaN`,
+    `±Infinity`, `1e21`, `2**31`, `-0`, `null`, `undefined`, both axes) reads as
+    not-high in the safe direction; gates and the Core footprint marked `high`
+    by hand are double-guarded (`syncTerrain` clears the mask *and*
+    `isHighGround` requires `TileType.Open`) — and **seed 13 paints high ground
+    under Core tile (26,9) naturally**, so that guard is load-bearing, not
+    theoretical; a tower built then sold on high ground keeps the rule;
+    `applyTerrain` after a build is still refused; an all-high map denies
+    608/720 tiles and reports `allGatesReachable()` honestly false; no seed in
+    1..3000 lacks high ground (minimum 43 tiles, seed 1), so the rule always
+    has a subject.
+  - Verified behaviour-neutral: `npm run sim -- --seed 1 --policy hybrid` gives
+    `endHash 2729a000`, matching the baseline recorded in fb064b and fb064h; QA
+    additionally ran seeds 2/7 hybrid and seed 1 maxbuild to victory, and
+    grepped `src/` and `tools/` for any caller of the new module — zero, so the
+    change cannot reach a run at all. The generator's golden hashes are
+    untouched (no generation code changed).
+  - **24 mutants, 24 killed** across both passes: 8 on the predicates
+    (`Math.floor` on each, always-true on each, last-match-wins, catch-all never
+    matches, both family accessors inverted), 5 on the loader (each refusal
+    removed, the catch-all rule weakened in both directions), 7 on the data
+    (each authored boolean, plus the blanket boss row restored and the boss
+    family removed), and 4 on `familyForDef` (config key, def key, the
+    traits-identity check, cross-config bleed).
+  - `npm run test:fast` on the final tree: 2203 passed / 6 failed, the
+    documented pre-existing set only — `b032`/`b034`/`b035` and `q15` are the
+    load-sensitive UI-fold and 4000 ms-settle suites, `b036` is the
+    deterministic 1095.4-vs-1080 UI-lane failure, `q45`/`q49`/`q52` are the
+    Windows EPERM scratch-dir cleanups. Nothing in terrain, grid, enemies or
+    pathing failed. **Honest caveat:** re-running the four load-sensitive
+    suites as a group of four did *not* clear them this time, so "green in
+    isolation" is not a claim this item verified. The basis for calling them
+    unrelated is the import graph (nothing outside `src/sim/terrain/**` and
+    `tests/terrain*` imports any of this; the only edge is one-way,
+    `terrain -> grid`) plus their being the same set fb064b and fb064h recorded
+    as failing on trees that did not contain this item — not a control run
+    against HEAD, which would have meant disturbing a tree QA was reading.
+  - QA respected the working tree this time (the fb064h incident): scratch under
+    `bench/.tmp/qa1..11.ts`, no tracked file touched, `git status` identical
+    before and after. The instruction that bought it is worth reusing verbatim.
