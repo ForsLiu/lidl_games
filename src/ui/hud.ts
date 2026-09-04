@@ -86,6 +86,9 @@ export class Hud {
   private stats: HTMLElement;
   private modal: HTMLElement;
   private toast: HTMLElement;
+  private toastPriority = -Infinity;
+  private toastTimer: number | null = null;
+  private toastQueue: Array<{ text: string; priority: number }> = [];
   private speedSel: HTMLSelectElement;
   private towerInfoEl: HTMLElement;
   private progressEl: HTMLElement;
@@ -1534,10 +1537,40 @@ export class Hud {
     this.modal.querySelector('[data-act="hub"]')?.addEventListener('click', () => this.cb.onQuitToHub());
   }
 
-  say(text: string): void {
+  /**
+   * fb089: a toast already showing holds its full window rather than being
+   * silently clobbered — a same-or-lower-priority call queues behind it
+   * (FIFO), a strictly-higher-priority call preempts it immediately. Default
+   * priority 0; fb087's storage-full warning uses a higher priority so a
+   * routine `xp_overflow_gold` toast landing in its window can't erase it.
+   * A preempting call discards whatever was showing rather than requeuing
+   * it — deliberate: today's only preemptor is fb087's one-shot warning,
+   * and dropping an in-flight routine gold toast for it is an acceptable
+   * trade, not a bug.
+   */
+  say(text: string, priority = 0): void {
+    if (this.toastTimer !== null && priority <= this.toastPriority) {
+      this.toastQueue.push({ text, priority });
+      return;
+    }
+    this.showToast(text, priority);
+  }
+
+  private showToast(text: string, priority: number): void {
     this.toast.textContent = text;
     this.toast.classList.add('show');
-    window.setTimeout(() => this.toast.classList.remove('show'), 1400);
+    this.toastPriority = priority;
+    if (this.toastTimer !== null) window.clearTimeout(this.toastTimer);
+    this.toastTimer = window.setTimeout(() => {
+      this.toastTimer = null;
+      const next = this.toastQueue.shift();
+      if (next) {
+        this.showToast(next.text, next.priority);
+      } else {
+        this.toast.classList.remove('show');
+        this.toastPriority = -Infinity;
+      }
+    }, 1400);
   }
 
   /**

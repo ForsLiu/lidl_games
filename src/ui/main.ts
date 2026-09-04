@@ -547,7 +547,7 @@ export class Game {
         'fb074: failed to persist the in-progress run (localStorage full or unavailable) — ' +
           'resume-on-refresh is disabled for the rest of this run.',
       );
-      this.hud.say('Resume protection off for this run (storage full)');
+      this.hud.say('Resume protection off for this run (storage full)', 1);
       return;
     }
     this.lastWrittenSessionId = this.runSessionId;

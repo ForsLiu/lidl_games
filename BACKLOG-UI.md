@@ -1190,7 +1190,7 @@ not already expose it) logs that need below instead of reaching into
       documented across dozens of prior PROGRESS.md sessions, none touching
       `src/ui/**`/`src/render/**` or this item's own files.
 
-- [ ] (fb089) [polish] low priority: found by qa-playtester (fb087
+- [x] (fb089) [polish] low priority: found by qa-playtester (fb087
       verification) — `Hud.say()` (`src/ui/hud.ts`) is a single-slot toast
       with no queue or priority between callers: it unconditionally
       overwrites `this.toast.textContent` and resets the ~1.4s auto-hide
@@ -1216,7 +1216,54 @@ not already expose it) logs that need below instead of reaching into
       fires an unrelated `xp_overflow_gold` fx event, and confirms the
       storage-full text is still visible (or reappears before its window
       would otherwise have expired), not overwritten — refs: fb087,
-      `Hud.say()`/`Hud.ingestFx()` (`src/ui/hud.ts`).
+      `Hud.say()`/`Hud.ingestFx()` (`src/ui/hud.ts`). DONE 2026-09-04:
+      `Hud.say(text, priority = 0)` (`src/ui/hud.ts`) gains an optional
+      priority; new `toastPriority` (default `-Infinity`), `toastTimer`,
+      `toastQueue` fields. A toast already showing holds its window against
+      any same-or-lower-priority call (pushed onto `toastQueue`, FIFO,
+      instead of clobbering); a strictly-higher-priority call preempts
+      immediately via a new private `showToast`, discarding whatever was
+      showing rather than requeuing it (documented as deliberate — today's
+      only preemptor is the one-shot storage-full warning, so dropping an
+      in-flight routine gold toast for it is an acceptable trade). The
+      showing toast's `setTimeout` callback dequeues and displays the next
+      queued message if any, else hides and resets `toastPriority` to
+      `-Infinity` so a later default-priority call is never wrongly blocked
+      by a stale value. `main.ts`'s storage-full call site now passes
+      priority 1, strictly above the default-priority-0 `xp_overflow_gold`
+      toast. Targeted `tests/ui-fb089-toast-priority.test.ts` (6/6): the
+      literal acceptance scenario (storage-full survives an immediate
+      `xp_overflow_gold` call, which queues instead of clobbering);
+      same-priority queues rather than clobbers; strictly-higher-priority
+      preempts; a call with nothing showing displays immediately; two
+      fake-timer (`vi.useFakeTimers`) tests confirming a queued message
+      actually surfaces once the showing toast's 1400ms window elapses and
+      that `toastPriority` resets after the queue fully drains.
+      code-reviewer **APPROVE** (no Critical/Major; three Minors, all
+      addressed same session — a code comment documenting discard-on-preempt
+      as deliberate; the two fake-timer dequeue-path tests above, since the
+      original submission only asserted enqueue-time state and never proved
+      a queued message actually surfaces later; `toastQueue` left uncapped/
+      unbounded as acceptable given today's single low-frequency caller,
+      noted not fixed, judged premature per CLAUDE.md's don't-build-for-
+      hypotheticals rule). qa-playtester **PASS** against the stated
+      acceptance criteria (targeted suite, `tsc --noEmit` clean, the
+      `tests/ui-fb087-persist-disabled-toast.test.ts` + `tests/fb026-bottom-
+      bar.test.ts` regression slice, 23/23, including the real end-to-end
+      Game-driven path), plus hostile testing via temporary (not committed)
+      probe suites: 50 rapid-fire same-priority calls drain in exact FIFO
+      order with no loss/duplication/crash; a priority-1-vs-priority-1 tie
+      correctly queues rather than preempting (confirms `<=`, not `<`,
+      governs preemption); a negative priority queues behind a default-
+      priority toast rather than clobbering it; the `-Infinity` sentinel is
+      safe both as the very first call and as a queued call while something
+      is showing; a multi-round preempt→queue→drain→fresh-call sequence
+      confirms `toastPriority` correctly resets after a full drain. Filed no
+      new bugs. `npx tsc --noEmit` clean. `npm run test:fast`: 4 failed
+      tests across 7 failed files, all in the pre-existing q15/q49/q52
+      worker-hang/Windows-scratch-dir-EPERM flake classes documented across
+      dozens of prior PROGRESS.md sessions, none touching `src/ui/**`/
+      `src/render/**` or this item's own files.
 
 - [ ] (fb088) [polish] low priority: found by qa-playtester (fb074
       verification) — fb074's resume-time replay blocks the main thread
