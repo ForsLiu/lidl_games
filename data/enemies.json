@@ -19,6 +19,6 @@
     { "id": 17, "key": "colossus",   "name": "Colossus",        "grade": "E", "hp": 4000,  "speed": 0.96, "coreDamage": 40,  "bounty": 40,  "gem": 25, "radius": 0.7,  "traits": ["stomp", "elite"], "stompRadius": 2.0, "stompDamage": 25, "stompInterval": 5.7143 },
     { "id": 18, "key": "herald",     "name": "Herald",          "grade": "E", "hp": 3000,  "speed": 1.6,  "coreDamage": 0,   "bounty": 40,  "gem": 25, "radius": 0.6,  "traits": ["empower", "elite"], "buffRadius": 5, "buffPower": 0.25 },
     { "id": 19, "key": "gatebreaker","name": "Gatebreaker",     "grade": "B", "hp": 30000, "speed": 1.0, "coreDamage": 100, "bounty": 150, "gem": 0,  "radius": 0.9,  "traits": ["structureBreaker", "boss"], "structureDamageMul": 2.0 },
-    { "id": 20, "key": "warden_eater","name": "The Warden-Eater","grade": "B","hp": 100000, "speed": 1.6, "coreDamage": 0,   "bounty": 0,   "gem": 0,  "radius": 1.2,  "traits": ["boss", "finalBoss"] }
+    { "id": 20, "key": "warden_eater","name": "The Warden-Eater","grade": "B","hp": 365000, "speed": 1.6, "coreDamage": 0,   "bounty": 0,   "gem": 0,  "radius": 1.2,  "traits": ["boss", "finalBoss"] }
   ]
 }

@@ -5,6 +5,34 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-04 session: BACKLOG fb099 closed — the Warden-Eater fight
+  collapsing to ~12-16s (under G14's 20s floor) was fb076's tower-damage
+  retune bleeding into the boss fight, not a stale assertion.** fb076 (G13
+  closure) raised several towers 1.06x-2.6x and those towers keep firing on
+  the boss through Act II, cutting the fight from the `tests/boss.test.ts`
+  header's own 57.05s figure to a measured 15.68s/11.65s (probe vs.
+  qa-playtester, two seed windows). Measured the tower DPS increase against
+  the boss directly at ~3.6x and retuned `data/enemies.json`'s
+  `warden_eater.hp` 100000 -> 365000 to match (same lever-choice precedent as
+  fb093: don't revert fb076's tower values, that's G13's own closed gate),
+  restoring the fight to a measured 51.55s. `tests/boss.test.ts`'s hardcoded
+  HP expectation/title updated to match. Checked the one gate with a
+  documented history of trading off against this exact field — G1
+  (`tests/p10d-run-length.test.ts`, per its own p10d/p10k/p10l/b080 header
+  history) — both pre-fix (HP 100000) and post-fix (365000) via `git stash`:
+  both pass, unaffected by the ~36s fight-length increase. code-reviewer
+  **APPROVE** (2 Minor, both addressed: the comment's tower-multiplier range
+  tightened from 1.3x-2.6x to the accurate 1.06x-2.6x; the G1 cross-check
+  recorded inline rather than left unrecorded). qa-playtester **PASS**:
+  independently re-ran the fight across seeds 1-10 (all win, margins
+  24.67s-51.55s, no seed near the floor) and `tools/probe-boss.ts` maxbuild
+  seeds 1-8 (1/8 wins — the fight isn't trivialized elsewhere, still a real
+  fight per G14's <100%-win-rate intent), confirmed no other file in the repo
+  depends on the old 100000 HP literal or the old fight timing. `npm run
+  test:fast`: 60 failed (17 files), all the pre-registered EPERM scratch-dir
+  flake family (q46/q49/q52/q53, tracked at fb087) — no new failures.
+  `data/enemies.json` (1 line) + `tests/boss.test.ts` only; no `/src` code
+  touched.
 - **2026-09-04 session: BACKLOG fb077 closed — real generated terrain wired
   into every non-practice `World`, the main-lane half of the terrain epic
   (SPEC-FINAL §10.5).** `World`'s constructor now generates from `cfg.seed`

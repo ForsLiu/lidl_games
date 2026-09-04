@@ -65,14 +65,33 @@ describe('the Warden-Eater (SPEC 5.5)', () => {
   // were hardcoded to the old numbers.
   // fb025 (enemy HP x10, including bosses this time — QUESTIONS Q155(a)):
   // warden_eater 10000 -> 100000.
-  it('spawns at 3:01 with 100,000 HP scaled by tier', () => {
+  // fb099 (root-caused this session): fb076's tower-damage retune (closing
+  // G13's solo-TD-tower gate) raised several towers 1.06x-2.6x — `lob`
+  // (mortar-family) alone went 1602->4200 — and those same towers keep
+  // firing on the Warden-Eater through Act II, so the "real fight" this
+  // file's own header comment measured at 57.05s (pre-fb076) collapsed to
+  // 15.68s (measured live via `tools/probe-boss.ts` on this seed/policy,
+  // matching qa-playtester's independent 11.65s on a different seed window)
+  // — under the test's own 20s floor. Re-measured tower DPS increase against
+  // the boss directly (not inferred): ~3.6x. `data/enemies.json`
+  // `warden_eater` hp retuned 100000 -> 365000 (same ~3.6x, restoring the
+  // pre-fb076 fight length) rather than lowering the towers back down, since
+  // those numbers are G13's own closed gate, not this bug's cause to reverse
+  // (BACKLOG fb093 already establishes this precedent for the same towers).
+  // Re-measured post-retune: 51.55s fight, real headroom over the 20s floor
+  // and back in the original ~57s neighborhood. Blast radius checked against
+  // G1 (`tests/p10d-run-length.test.ts`, the one other gate with a documented
+  // history of trading off against this exact field): re-ran it both at HP
+  // 100000 (pre-fix, via `git stash`) and 365000 (post-fix) — both pass, G1
+  // unaffected by this ~36s fight-length increase.
+  it('spawns at 3:01 with 365,000 HP scaled by tier', () => {
     const w = act2World();
     expect(shouldSpawnBoss(w)).toBe(false);
     w.act2Time = w.content.spawns.bossTimeSeconds;
     expect(shouldSpawnBoss(w)).toBe(true);
     spawnFinalBoss(w);
     const e = w.enemies.find((x) => x.boss)!;
-    expect(e.maxHp).toBeCloseTo(100000, 0);
+    expect(e.maxHp).toBeCloseTo(365000, 0);
 
     const w3 = act2World(3);
     const e3 = boss(w3);
@@ -253,6 +272,11 @@ describe('the Warden-Eater (SPEC 5.5)', () => {
   // the >20s-over-spawn floor, `equipmentFound > 0` — none of this test's
   // thresholds are gate bands the scripted bot could push out of range the
   // way the two below can.
+  //
+  // fb099: fb076's tower retune (see the header comment above) pushed this
+  // below the 20s floor (measured 15.68s on this seed). Fixed at the cause —
+  // `warden_eater` hp retuned, not this assertion — re-measured 51.55s post-
+  // fix. See the header comment for the full root-cause and measurement.
   it('a scripted run reaches it, kills it and wins', () => {
     const { report, run } = runScripted(cfg({ seed: 1, cycles: 6, allocated: FULL_TREE }), 'hybrid');
     expect(report.outcome).toBe('victory');

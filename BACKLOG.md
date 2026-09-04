@@ -3248,7 +3248,7 @@ generation-rule boundary.
       itself needs its own investigation, not a one-line tweak. This item's
       claim above is left uncorrected in place (history), superseded by this
       note.
-- [ ] (fb099) [bug] `tests/boss.test.ts`'s "a scripted run reaches it, kills
+- [x] (fb099) [bug] `tests/boss.test.ts`'s "a scripted run reaches it, kills
       it and wins" assertion (`report.bossKillSeconds -
       run.world.content.spawns.bossTimeSeconds > 20`, i.e. the fight itself
       should last past 20s) fails at HEAD — measured **11.65s** via `git
@@ -3266,6 +3266,47 @@ generation-rule boundary.
       relevant `/data` numbers or correct the assertion with a measured,
       logged reason — not just raise the threshold to match whatever the
       current number happens to be — refs: SPEC-FINAL §9, §14 G14.
+
+      **Closed (2026-09-04).** Root cause: BACKLOG fb076's tower-damage
+      retune (closing G13's solo-TD-tower gate) raised several towers
+      1.06x-2.6x — `lob` (mortar-family) alone 1602->4200 — and those same
+      towers keep firing on the Warden-Eater through Act II, collapsing the
+      fight from the header comment's 57.05s (pre-fb076) to 15.68s (measured
+      live via `tools/probe-boss.ts` on this seed/policy, matching
+      qa-playtester's independent 11.65s on a different seed window).
+      Measured the tower DPS increase against the boss directly (not
+      inferred): ~3.6x. Same lever-choice precedent as fb093 (do not revert
+      fb076's tower values — that's G13's own closed gate, not this bug's
+      cause): `data/enemies.json`'s `warden_eater.hp` retuned 100000 ->
+      365000 (same ~3.6x), restoring the fight to a measured **51.55s** —
+      real headroom over the 20s floor and back in the original ~57s
+      neighborhood. `tests/boss.test.ts`'s hardcoded HP expectation and title
+      updated to match (100,000 -> 365,000), with the root-cause/measurement
+      recorded inline. Blast radius: grepped the whole repo for the old
+      100000 literal and for `warden_eater`/`bossKillSeconds` — no other file
+      depends on the old boss HP or the old ~11-15s fight timing; the
+      `bossKillSeconds` hits elsewhere (`p7h-core-quests`, `meta.test.ts`,
+      `p7c-reward-pipeline`, `p7e-quests`) are synthetic mocked report
+      objects for quest-threshold tests, independent of simulated boss
+      HP/DPS. G1 (`tests/p10d-run-length.test.ts`) has a documented history
+      of trading off against this exact field (p10d/p10k/p10l/b080) — re-ran
+      it both at HP 100000 (pre-fix, via `git stash`) and 365000 (post-fix):
+      both pass, G1 unaffected by this ~36s fight-length increase.
+      code-reviewer **APPROVE** (2 Minor: the comment's tower-multiplier
+      range was 1.3x-2.6x, tightened to the accurate 1.06x-2.6x after
+      recomputing from `data/towers.json`'s live before/after values;
+      suggested recording the G1 cross-check inline, done above).
+      qa-playtester **PASS**: independently re-ran `tests/boss.test.ts` fresh
+      (14 passed/1 skipped), recomputed the fight margin live (51.55s,
+      matching exactly), ran seeds 1-10 hybrid/FULL_TREE (all win, margins
+      24.67s-51.55s, no seed near the floor — not a lucky-seed artifact), ran
+      `tools/probe-boss.ts` maxbuild seeds 1-8 (1/8 wins — confirms the fight
+      isn't trivialized elsewhere), and re-ran G1 and G14's live assertions
+      green. No new bugs filed. `npm run test:fast`: 60 failed (17 files),
+      all the pre-registered EPERM scratch-dir flake family (q46/q49/q52/q53,
+      tracked at fb087) — no new failures. `data/enemies.json` (1 line) +
+      `tests/boss.test.ts` (title/assertion/comments) only; no `/src` code
+      touched.
 - [ ] (fb078) [bug] `src/sim/towers.ts` `checkBuild` maps every
       `!grid.buildable()` to `'occupied'`, so on a generated map the build
       ghost tells the player a rough/rock tile is occupied when it is empty
