@@ -85,6 +85,16 @@ export interface TerrainOverlay {
   readonly buildable: Uint8Array;
   /** 1 on high ground (buildable, and no ground walker reaches it). */
   readonly high: Uint8Array;
+  /**
+   * fb064q: 1 where terrain stops the *character*, per each kind's
+   * `blocksCharacter` in `data/terrain.json`.
+   *
+   * Independent of `walkable` on purpose: that mask is about ground walkers,
+   * this one about the Warden, and the owner's open veto on the rock clause is
+   * exactly the case where they differ ("character flies over; veto if rocks
+   * should block the character"). `wardenPassable` is its only reader.
+   */
+  readonly charBlock: Uint8Array;
 }
 
 export interface Field {
@@ -144,6 +154,8 @@ export class Grid {
   private readonly terrainBlock: Uint8Array;
   /** 1 where terrain alone forbids building (rough, rock). */
   private readonly terrainNoBuild: Uint8Array;
+  /** fb064q: 1 where terrain alone stops the character (`blocksCharacter`). */
+  private readonly terrainCharBlock: Uint8Array;
   /** 1 on high ground — read by fb064d's targeting rules. */
   private readonly terrainHigh: Uint8Array;
   /**
@@ -162,6 +174,7 @@ export class Grid {
   private readonly terrainRawBlock: Uint8Array;
   private readonly terrainRawNoBuild: Uint8Array;
   private readonly terrainRawHigh: Uint8Array;
+  private readonly terrainRawCharBlock: Uint8Array;
 
   /**
    * fb064h: where the 2x2 Core actually is. `CORE_X/CORE_Y` are now only its
@@ -196,10 +209,12 @@ export class Grid {
     this.terrainBlock = new Uint8Array(GRID_W * GRID_H);
     this.terrainNoBuild = new Uint8Array(GRID_W * GRID_H);
     this.terrainHigh = new Uint8Array(GRID_W * GRID_H);
+    this.terrainCharBlock = new Uint8Array(GRID_W * GRID_H);
     this.terrainRawKind = new Uint8Array(GRID_W * GRID_H);
     this.terrainRawBlock = new Uint8Array(GRID_W * GRID_H);
     this.terrainRawNoBuild = new Uint8Array(GRID_W * GRID_H);
     this.terrainRawHigh = new Uint8Array(GRID_W * GRID_H);
+    this.terrainRawCharBlock = new Uint8Array(GRID_W * GRID_H);
     for (let y = 0; y < GRID_H; y++) {
       for (let x = 0; x < GRID_W; x++) {
         const i = y * GRID_W + x;
@@ -266,8 +281,27 @@ export class Grid {
       );
     }
     const n = GRID_W * GRID_H;
-    for (const a of [overlay.kind, overlay.walkable, overlay.buildable, overlay.high]) {
-      if (a.length !== n) throw new Error(`applyTerrain: mask length ${a.length}, expected ${n}`);
+    // Named, so the message says *which* mask. fb064q added a fifth one, and an
+    // overlay built before it — a `tools/` script, a JS caller, a `JSON.parse`d
+    // save — has `charBlock: undefined`, which the old anonymous list turned
+    // into `TypeError: Cannot read properties of undefined (reading 'length')`
+    // with nothing pointing at terrain at all. Loud refusal at the boundary is
+    // this method's whole design (`overlay is 4x4`, `both walkable and high`);
+    // one mask silently exempt from it is the hole.
+    const masks: ReadonlyArray<readonly [string, Uint8Array | undefined]> = [
+      ['kind', overlay.kind],
+      ['walkable', overlay.walkable],
+      ['buildable', overlay.buildable],
+      ['high', overlay.high],
+      ['charBlock', overlay.charBlock],
+    ];
+    for (const [name, a] of masks) {
+      if (!a) {
+        throw new Error(`applyTerrain: overlay has no ${name} mask (build it with terrainOverlay())`);
+      }
+      if (a.length !== n) {
+        throw new Error(`applyTerrain: ${name} mask length ${a.length}, expected ${n}`);
+      }
     }
     // Content, not just shape. `terrainOverlay()` cannot build a walkable cliff
     // — `data/terrain.json`'s schema pins high ground as unwalkable — so this
@@ -296,6 +330,7 @@ export class Grid {
       this.terrainRawBlock[i] = overlay.walkable[i] ? 0 : 1;
       this.terrainRawNoBuild[i] = overlay.buildable[i] ? 0 : 1;
       this.terrainRawHigh[i] = overlay.high[i] ? 1 : 0;
+      this.terrainRawCharBlock[i] = overlay.charBlock[i] ? 1 : 0;
     }
     this.syncTerrain();
   }
@@ -315,6 +350,7 @@ export class Grid {
       this.terrainBlock[i] = this.terrainRawBlock[i];
       this.terrainNoBuild[i] = this.terrainRawNoBuild[i];
       this.terrainHigh[i] = this.terrainRawHigh[i];
+      this.terrainCharBlock[i] = this.terrainRawCharBlock[i];
     }
     for (let i = 0; i < n; i++) {
       if (this.tile[i] === TileType.Open || this.tile[i] === TileType.Border) continue;
@@ -322,6 +358,7 @@ export class Grid {
       this.terrainBlock[i] = 0;
       this.terrainNoBuild[i] = 0;
       this.terrainHigh[i] = 0;
+      this.terrainCharBlock[i] = 0;
     }
     this.markDirty();
   }
@@ -475,8 +512,31 @@ export class Grid {
     // ground is unreachable by every ground melee enemy at once — an Act I safe
     // spot no gate band measures. `passableGhost` stays terrain-blind on
     // purpose (Burrowers tunnel *under* stone); this does not.
+    //
+    // fb064q: that reasoning is sound and it is also the *vetoed* reading of
+    // the owner's rock clause, whose default is pass-through ("the character
+    // still passes per fb002's pass-through rule [designer note: character
+    // flies over; veto if rocks should block the character]"). So the term is
+    // no longer `staticBlocked`, which conflates the character with the ground
+    // walkers, but `terrainCharBlock` — each kind's own `blocksCharacter` from
+    // `data/terrain.json`. Authored `true` on rock and high, so this line
+    // behaves exactly as it did; settling the veto is now one data line and not
+    // an edit to this file.
+    //
+    // The structural decision stays *live*, exactly as `staticBlocked` made it,
+    // and that is not decoration: `terrainCharBlock` is a snapshot taken by
+    // `syncTerrain`, while `world.ts`'s Fourth Gate modifier writes
+    // `tile[idx(12, 19)] = Gate` after the Grid exists and calls only
+    // `markDirty()`/`refresh()` — which rebuild `blocked` and never the terrain
+    // arrays. Reading the snapshot alone left the Warden walled out of a gate
+    // the map had buried in border rock while every enemy walked through it.
     const i = ty * GRID_W + tx;
-    return this.tile[i] !== TileType.Border && this.staticBlocked(i) === 0;
+    const t = this.tile[i];
+    if (t === TileType.Border) return false;
+    // Gates and the Core outrank the scatter: they are ground the run carved,
+    // not terrain the generator painted.
+    if (t !== TileType.Open) return true;
+    return this.terrainCharBlock[i] === 0;
   }
 
   /** Tiles a tower may be placed on before the path-guarantee check. */

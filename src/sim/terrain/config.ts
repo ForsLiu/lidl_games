@@ -158,6 +158,25 @@ const tileSchema = z
     walkable: z.boolean(),
     buildable: z.boolean(),
     highGround: z.boolean(),
+    /**
+     * fb064q: does this kind stop the *character* (the Warden), as opposed to
+     * the ground walkers `walkable` speaks for?
+     *
+     * Deliberately **not** in `REQUIRED_FLAGS`. The other three are structural —
+     * the generator scatters over `normal` and seals with `rock`, so a flipped
+     * flag breaks the algorithm rather than retuning the map. This one is a
+     * *design* answer with an open owner veto ("character flies over; veto if
+     * rocks should block the character"), it feeds no generator decision and no
+     * band, and the whole point of the item is that settling the veto is one
+     * data line rather than a code hunt. So the loader validates only what is
+     * provably unpayable (see the `normal` check below) and leaves the rest
+     * free.
+     *
+     * It is required rather than defaulted: a rule with an open veto must never
+     * be implicit, and `.strict()` plus a required boolean means a `/data` edit
+     * that drops it fails loudly instead of silently picking a side.
+     */
+    blocksCharacter: z.boolean(),
     color: z.string().min(1),
   })
   .strict();
@@ -330,6 +349,24 @@ const schema = z
           });
         }
       }
+    }
+    // fb064q, the unpayable-data rule for the character flag. Exactly one
+    // setting is provably unplayable rather than merely odd: `normal` blocking
+    // the character. Normal is the kind the Core's own 2x2 stands on, the kind
+    // the Warden spawns and reforms onto, and — by `minBuildableNormalFrac` —
+    // at least 45% of the board; blocking it leaves the character nowhere legal
+    // to be, and `resolveDashTarget`'s backwards walk would fail on every tile
+    // and pin it in place forever. Every other combination is a design choice
+    // the owner may make, including `rough` (walkable ground the character
+    // cannot cross) and `rock` in either direction — that one *is* the veto.
+    if (cfg.tiles[TerrainKind.Normal].blocksCharacter) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['tiles', TerrainKind.Normal, 'blocksCharacter'],
+        message:
+          'tile "normal" must have blocksCharacter: false — it is the Core\'s own ground and the ' +
+          'character would have nowhere legal to stand',
+      });
     }
     if (cfg.blob.maxSize < cfg.blob.minSize) {
       ctx.addIssue({
@@ -532,4 +569,19 @@ export function isBuildable(cfg: TerrainConfig, kind: number): boolean {
 
 export function isHighGround(cfg: TerrainConfig, kind: number): boolean {
   return cfg.tiles[kind]?.highGround === true;
+}
+
+/**
+ * fb064q: does this kind stop the character? The data lookup; the *rule* built
+ * on it lives in `character.ts`.
+ *
+ * An unknown kind reads as passable, which is the same direction
+ * `canAttackStructureAt` picks and for the same reason: these predicates may
+ * only ever take away movement terrain really denies, never invent a wall out
+ * of a junk index. `isWalkable`'s `undefined` reads as "not walkable" because
+ * *there* the safe answer is the restrictive one — a walker must not stroll
+ * onto a tile nobody described.
+ */
+export function blocksCharacter(cfg: TerrainConfig, kind: number): boolean {
+  return cfg.tiles[kind]?.blocksCharacter === true;
 }

@@ -64,6 +64,15 @@ function handMap(patch: Array<[number, number, TerrainKind]>): TerrainGrid {
   return { w: GRID_W, h: GRID_H, kind };
 }
 
+/** fb064q: every tile's `wardenPassable`, as a comparable snapshot. */
+function wardenAll(g: Grid): number[] {
+  const out: number[] = [];
+  for (let ty = 0; ty < GRID_H; ty++) {
+    for (let tx = 0; tx < GRID_W; tx++) out.push(g.wardenPassable(tx, ty) ? 1 : 0);
+  }
+  return out;
+}
+
 function applied(map: TerrainGrid, c: TerrainConfig = cfg): Grid {
   const g = new Grid();
   g.applyTerrain(terrainOverlay(map, c));
@@ -123,6 +132,7 @@ describe('Grid.applyTerrain (fb064b)', () => {
       walkable: new Uint8Array(16),
       buildable: new Uint8Array(16),
       high: new Uint8Array(16),
+      charBlock: new Uint8Array(16),
     };
     expect(() => g.applyTerrain(small)).toThrow(/overlay is 4x4/);
     const ragged: TerrainOverlay = {
@@ -132,8 +142,18 @@ describe('Grid.applyTerrain (fb064b)', () => {
       walkable: new Uint8Array(3),
       buildable: new Uint8Array(GRID_W * GRID_H),
       high: new Uint8Array(GRID_W * GRID_H),
+      charBlock: new Uint8Array(GRID_W * GRID_H),
     };
-    expect(() => g.applyTerrain(ragged)).toThrow(/mask length 3/);
+    expect(() => g.applyTerrain(ragged)).toThrow(/walkable mask length 3/);
+    // fb064q: a fifth mask arrived, so an overlay built before it — a `tools/`
+    // script, a JS caller, a JSON-parsed save — reaches here with
+    // `charBlock: undefined`. It must be refused by name, not by a `TypeError`
+    // from reading `.length` of undefined that names neither the mask nor
+    // `applyTerrain`.
+    const { charBlock: _dropped, ...missing } = terrainOverlay(handMap([]), cfg);
+    expect(() => g.applyTerrain(missing as unknown as TerrainOverlay)).toThrow(
+      /overlay has no charBlock mask/,
+    );
   });
 
   it('refuses an overlay whose content contradicts itself', () => {
@@ -255,10 +275,14 @@ describe('Grid.applyTerrain (fb064b)', () => {
     g.refresh();
     const before = Array.from(g.blocked);
     const kindBefore = Array.from(g.terrainKind);
+    const wardenBefore = wardenAll(g);
     const overlayKindBefore = Array.from(o.kind);
     o.walkable.fill(0);
     o.buildable.fill(0);
     o.kind.fill(TerrainKind.Rock);
+    // fb064q: the character mask is copied too, or a caller mutating its
+    // overlay moves the Warden's rule out from under a live Grid.
+    o.charBlock.fill(1);
     // A bare `refresh()` would prove nothing: `dirty` is already false after the
     // first one, so it re-reads the same arrays whatever the implementation
     // does. Force the rebuild that a real caller's next `setOcc` would.
@@ -266,6 +290,7 @@ describe('Grid.applyTerrain (fb064b)', () => {
     g.refresh();
     expect(Array.from(g.blocked)).toEqual(before);
     expect(Array.from(g.terrainKind)).toEqual(kindBefore);
+    expect(wardenAll(g)).toEqual(wardenBefore);
     // And the traffic runs the other way too: the structural override must land
     // in the Grid's copy, never back in the caller's overlay.
     expect(overlayKindBefore[GATES[0].ty * GRID_W + GATES[0].tx]).toBe(map.kind[GATES[0].ty * GRID_W + GATES[0].tx]);
@@ -278,11 +303,18 @@ describe('Grid.applyTerrain (fb064b)', () => {
     // inside a wall — with nothing breachable, so the wave never clears.
     const g = applied(handMap([[12, 19, TerrainKind.Rock]]));
     expect(g.passable(12, 19)).toBe(false); // still border rock: no gate yet
+    expect(g.wardenPassable(12, 19)).toBe(false);
     g.tile[g.idx(12, 19)] = TileType.Gate;
     g.markDirty();
     g.refresh();
     expect(g.passable(12, 19)).toBe(true);
     expect(g.distAt(12, 19)).toBeGreaterThan(0);
+    // fb064q: and the character too. `terrainCharBlock` is a snapshot
+    // `syncTerrain` takes, while this gate is opened afterwards with only a
+    // `markDirty()`/`refresh()` — so `wardenPassable` must re-decide the
+    // structural term live, exactly as `staticBlocked` did. Reading the
+    // snapshot alone walls the Warden out of a gate every enemy walks through.
+    expect(g.wardenPassable(12, 19)).toBe(true);
   });
 });
 

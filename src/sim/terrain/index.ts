@@ -1,5 +1,6 @@
 /** SPEC-FINAL §10.5 (fb064a): terrain generation, public surface. */
 export {
+  blocksCharacter,
   isBuildable,
   isHighGround,
   isWalkable,
@@ -57,6 +58,10 @@ export {
   highGroundFamily,
   type HighGroundQuery,
 } from './high-ground';
+export {
+  canCharacterEnter,
+  canCharacterEnterKind,
+} from './character';
 export { terrainOverlay } from './overlay';
 export {
   approachField,

@@ -306,7 +306,7 @@ fb064o.
       test flips one tile of a generated map and sees it caught; verify
       passes for 100 generated seeds and for the fallback map — refs:
       `types.ts` `kind` doc, architecture rule 2.
-- [ ] (fb064q) [feat] the owner's rock clause carries an open veto — "the
+- [x] (fb064q) [feat] the owner's rock clause carries an open veto — "the
       character still passes per fb002's pass-through rule [designer note:
       character flies over; veto if rocks should block the character]" — and
       the lane has shipped no artifact for it: no predicate states it and no
@@ -317,6 +317,23 @@ fb064o.
       high-ground table, table-driven tests per kind, and the exact
       out-of-scope call sites listed in the Log — so the veto becomes a
       one-line data edit — refs: owner feedback "rock/wall", fb002.
+      **Acceptance amended 2026-09-04 during the item, on the fb064g/fb064n
+      precedent: the flag ships `rock: true, high: true`, not "false on every
+      authored kind".** That parenthetical rests on a premise that is false —
+      fb064b had already routed `Grid.wardenPassable` through `terrainBlock`,
+      so rock and high ground stop the Warden in the grid's rule, and the lane
+      had shipped the *vetoed* reading of the owner's clause with the reasoning
+      held in a comment on a predicate about something else. The premise is
+      true only of a live run (nothing calls `applyTerrain` yet, so every Grid
+      is born flat), which is precisely the invisibility this item exists to
+      end. Shipping `false` would have made `data/terrain.json` describe
+      behaviour the game does not have, and flipping the movement rule inside a
+      documentation item would have smuggled a gameplay change (dash into
+      mountains, park on high ground) past the owner. So the flag matches the
+      code that runs and `wardenPassable` reads it, which is what the
+      acceptance actually asks for: the veto is one data line, in either
+      direction. Left unamended, the record would say the shipped data fails
+      its own acceptance. See the Log for the call sites and the measurements.
 - [ ] (fb064r) [test] band headroom is pinned by one hand-found seed (7957,
       `walkableFrac` exactly 0.6000) over the 1..20000 window, which is not
       the domain fb064j established a run seed draws from. Acceptance: a
@@ -348,6 +365,32 @@ fb064o.
       unambiguous to a human, and a dump that claims the mark without the flat
       arena's tiles is refused; the existing `attempts=0` cross-check keeps
       working and its tests stay green — refs: fb064k, fb064n Log.
+- [ ] (fb064t) [bug] `parseTerrain` crashes with a raw `TypeError` on a
+      truncated `tiles` array instead of a zod issue: the key-order refinement
+      reads `cfg.tiles[i].key` unguarded for `i` in `0..3`, so
+      `parseTerrain({ ...doc, tiles: [] })` throws `Cannot read properties of
+      undefined (reading 'key')` — a message naming neither the field nor the
+      file, from a loader whose whole job is refusing bad data legibly.
+      Pre-existing (confirmed at `HEAD` before fb064q), and fb064q added a
+      second unguarded index read in the same refinement
+      (`cfg.tiles[TerrainKind.Normal].blocksCharacter`), harmless only because
+      the `key` read crashes first. Acceptance: a failing regression test
+      first; `tiles` is length-pinned at the schema level (or the refinement
+      guards), so a short, long or empty array reports a zod issue naming
+      `tiles`; every existing refusal message is unchanged — refs: fb064q QA
+      observation 1.
+- [ ] (fb064u) [polish] `Grid.wardenPassable` accepts fractional coordinates
+      and answers about a tile that does not exist: `wardenPassable(3.5, 1)`
+      returns `true` with rock at `(3, 1)`, because `tile[39.5]` is `undefined`
+      and so is neither `Border` nor `Open`. `Grid.buildable` and
+      `Grid.isHighGround` both reject non-integers explicitly for exactly this
+      reason (b007: `GRID_W` is even, so a `.5` cancels its own fraction and
+      lands on a real, different tile). Latent today — both live callers floor
+      first — and unchanged by fb064q, which measured it rather than
+      introducing it. Acceptance: a failing regression test first; a
+      non-integer coordinate is rejected the way the two sibling predicates
+      reject it, with `tests/act1.test.ts` and the dash paths unchanged and
+      green — refs: fb064q QA observation 3, b007.
 
 ## Log
 
@@ -2190,3 +2233,128 @@ fb064o.
     1095.4-vs-1080 UI-lane failure, `q45`/`q49`/`q52` the Windows EPERM
     scratch-dir cleanups. Nothing in terrain, and no file in that set imports
     anything this item touched.
+
+- (2026-09-04, fb064q) The character/terrain passage rule, and the veto that
+  was already decided in code.
+  - **What shipped.** `tiles[].blocksCharacter` in `data/terrain.json`
+    (`normal` false, `rough` false, `rock` true, `high` true), required under
+    `.strict()` so a dropped field fails loudly rather than silently picking a
+    side; `blocksCharacter(cfg, kind)` beside `isWalkable`/`isBuildable`/
+    `isHighGround`; `src/sim/terrain/character.ts` with `canCharacterEnterKind`
+    / `canCharacterEnter`, pure and total, beside the high-ground table; a
+    `charBlock` mask through `terrainOverlay` into `Grid`; and `wardenPassable`
+    reading it and nothing else.
+  - **The finding this item was actually about.** It was filed as "no artifact
+    exists for the rock clause". The stronger truth is that **the answer
+    already existed and was invisible**: fb064b routed `wardenPassable` through
+    `terrainBlock` (`!walkable`), so rock and high ground stop the Warden, with
+    the reasoning — a Warden dashing through a mountain is a hole, one parked
+    on high ground is unreachable by every ground melee enemy at once — in a
+    code comment. That is the *vetoed* reading of a clause whose authored
+    default is pass-through. The flag is now the record, and it is live rather
+    than decorative.
+  - **`high: true` is an extension the owner's clause never spoke to.** The
+    rock clause is about rock. fb064b also blocks the Warden on high ground and
+    the flag preserves that; flagged here so the owner can veto it separately,
+    and it is a second one-line edit if so.
+  - **Out-of-scope call sites for the merge** (acceptance clause 5). Every
+    *tile test* already routes through `Grid.wardenPassable`, so the flag
+    reaches them for free: `src/sim/run.ts:563` (`walkable`, used by
+    `moveWarden`) and `src/sim/wardenmove.ts:28,32` (`resolveDashTarget`'s
+    endpoint and its backwards walk). What does **not** route through it, and
+    is what the merge must look at:
+    - **`src/sim/run.ts:666`** — the Act I reform writes `wd.x = c.x - 2;
+      wd.y = c.y` with no legality check. Two tiles west of the Core centre is
+      ordinary scatter ground, so a reformed Warden can land inside rock.
+      Should consult `wardenPassable` (or a nearest-legal walk) once terrain is
+      wired.
+    - **`src/sim/sundering.ts:21`** — `w.warden.x = c.x; w.warden.y = c.y`.
+      Safe by construction today (Core tiles are structural, and both
+      `syncTerrain` and `wardenPassable`'s live structural term keep them
+      passable), but it is an unchecked placement and fb064c moves the Core.
+    - **`src/sim/wardenmove.ts:56-61`** — `tickDashTravel` lerps the Warden
+      along the dash line and only the *endpoint* was ever checked, so a dash
+      passes through a mountain even when it cannot end in one. Pre-existing
+      and unchanged by this item; a main-lane decision (sample the line, or
+      accept it as the dash's character) once terrain is live.
+    - **`src/render/canvas.ts`** and the fb064f Tuner page — a cursor or
+      preview that wants "may the character go here" should use
+      `canCharacterEnter`, whose two documented divergences from
+      `wardenPassable` (structural tiles, off-board) are pinned by test.
+    - **QUESTIONS.md** — this amendment and the `high: true` extension fold in
+      at the merge, with the rest of the lane's decisions.
+  - **Three defects found in review/QA and fixed red-first**, all in the
+    integration file:
+    - *(Major) the refactor was not behaviour-preserving.* Swapping
+      `staticBlocked(i) === 0` for `terrainCharBlock[i] === 0` looks equivalent
+      and is not: `staticBlocked` re-decided the structural term off the
+      **live** `tile` array on every call, while `terrainCharBlock` is a
+      snapshot `syncTerrain` takes once — and `syncTerrain` `continue`s on
+      `Border`, so a border tile keeps its raw value.
+      `src/sim/world.ts:441-447`'s Fourth Gate modifier writes
+      `tile[idx(12, 19)] = Gate` *after* the Grid exists and calls only
+      `markDirty()`/`refresh()`, which rebuild `blocked` and never the terrain
+      arrays. The generator paints the whole border rock and protects only the
+      three `GATES` tiles, so the Warden was walled out of a gate every enemy
+      walked through (`blocked=0, passable=true, wardenPassable=false`;
+      reproduced on seeds 1, 2, 3, 7, 11, 4242). Fixed by keeping the
+      structural decision live (`if (t !== TileType.Open) return true`) and
+      pinned in the test slot that already existed for this exact scenario —
+      verified red without the fix, green with it.
+    - *(Major) `canCharacterEnter` silently disagreed with `wardenPassable`.*
+      QA measured **17 interior tiles over 60 seeds** where the map-side
+      predicate says "blocked" and the Grid says "passable" — every one the
+      Core's 2x2 standing on rock or high ground (seed 2 at (26,9)/(26,10),
+      seed 9 at (25,9)/(26,9)/(25,10)/(26,10)). The doc advertised the
+      predicate for "the renderer's cursor, a Tuner preview" with no warning,
+      so a mover adopting it would have drawn a wall across the Core. Both
+      divergences (structural tiles; off-board, where the two are opposite by
+      design) are now named in the module doc and a test asserts every
+      divergence is one of the two — re-measured after the fix: still 17, all
+      structural, all classified.
+    - *(Minor, QA bug 2)* an overlay built before the fifth mask reached
+      `applyTerrain` with `charBlock: undefined` and died on `TypeError:
+      Cannot read properties of undefined (reading 'length')`, naming neither
+      the mask nor `applyTerrain` — the one mask exempt from a method whose
+      whole design is loud refusal at the boundary. The guard now names each
+      mask (`overlay has no charBlock mask`, `walkable mask length 3`).
+  - **"Behaviour is unchanged" was proved, not asserted.** QA reconstructed the
+    pre-change rule exactly and diffed it against the new `wardenPassable` over
+    every tile plus the out-of-bounds ring, on **60 generated seeds in five
+    grid states** — plain applied, after the Fourth Gate opens post-hoc, after
+    `placeCore` relocates the Core, after `setOcc` places 12 structures
+    (including on high ground), and on a never-terrained Grid. **Zero
+    divergences.** Occupancy never mattered: `staticBlocked` ignored `occ` and
+    the new expression still does.
+  - **The flag leaks into nothing measured.** Under a hostile config with
+    `rough`+`rock`+`high` all blocking, `generateTerrain(...).hash`,
+    `terrainHash`, the full `kind` buffer, `measureTerrain` and
+    `describeTerrain` are byte-identical to the shipped config on seeds
+    `1, 55, 262, 1326, 7957, -12345, 2005486180`. `data/terrain.json` is not in
+    `ContentRaw`, so `contentHash` cannot move either.
+  - **Deliberately not guarded, so the merge does not read "the loader
+    validated it" as "balance approved it"** (QA observation 4):
+    `rough: true, rock: false, high: false` loads happily and hands the Warden
+    a permanent perch on high ground no ground melee enemy can reach — the
+    exact Act I safe spot the `wardenPassable` comment warns about. That is the
+    owner's call, and the loader refuses only what is provably unpayable
+    (`normal` blocking the character leaves it nowhere to stand). Relatedly
+    (QA observation 2): under the shipped config the character-legal region is
+    a **single connected component on all 500 seeds tested** and always holds
+    the default Core tile, but with `rough`+`rock`+`high` all blocking it
+    splits into up to **18 components** (worst: seed 225, 91 tiles outside the
+    largest). If the veto is ever exercised in the blocking direction, a
+    `characterRegionConnected` band belongs next to `corridorsOk`.
+    `resolveDashTarget`'s backwards walk terminates in every case (bounded
+    9-step loop, then returns the Warden's own position) — QA found no hang.
+  - **Verification.** Targeted: `tests/terrain-character.test.ts` **12 tests**
+    (red first — the loader, predicate and grid clauses all failed before the
+    implementation); all 15 `tests/terrain*` files plus `grid`, `act1` and
+    `architecture` **313 tests green**. `npx tsc --noEmit` clean.
+    `npm run build` ok. `npm run sim -- --seed 1 --policy hybrid` still
+    `endHash 2729a000` with 0 leaks; `tools/sweep.ts --seeds 6` unchanged
+    (win 1 / win 1); QA's money paths 89/89. `npm run test:fast`: the
+    documented pre-existing set only — `b032`/`b034`/`q15`/`q45`/`q49`/`q52`
+    load-sensitive or Windows `EPERM` scratch-dir, and `b036` the deterministic
+    1095.40625-vs-1080 UI-lane failure, **which I confirmed fails identically
+    at baseline HEAD** rather than inheriting the claim.
