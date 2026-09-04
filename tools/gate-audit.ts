@@ -260,8 +260,11 @@ export const GATE_COVERAGE: Record<string, CoverageEntry> = {
       "kite/rush's rushWaves flag was cover, not coverage. New BuilderOptions.stackWaves (src/bots/policies.ts, " +
       "default off, so kite/rush's own pinned numbers are untouched) actually calls into an in-progress fight. " +
       "All three assertions are live and green: the top-10-by-survival pool includes an open build, a sealed " +
-      "build (mirrors the G7/p1b 'sealed' policy), and a rush build whose BuildResult.maxStackDepth — sampled " +
-      "from the real World.stackDepth every tick, not inferred from config — is nonzero.",
+      "build (mirrors the G7/p1b 'sealed' policy's sealing mechanism — tower mix, allowSeal, perimeter ring — " +
+      "though fb094 moved its classKey/perimeterRadius off p1b's own engineer/radius-5 numbers to actually win " +
+      "Act II under this harness; see a5probe.ts's G19_BUILDS comment), and a rush build whose " +
+      "BuildResult.maxStackDepth — sampled from the real World.stackDepth every tick, not inferred from " +
+      "config — is nonzero.",
   },
   G17: {
     files: [

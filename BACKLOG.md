@@ -2887,7 +2887,7 @@ generation-rule boundary.
       logged as an addendum to QUESTIONS.md rather than silently left (§5.5
       already marks all Core numbers ⚖, so this is a documentation gap, not
       a design conflict).
-- [ ] (fb094) [bug] G19 liveness clause is red and untracked; STATUS.md says
+- [x] (fb094) [bug] G19 liveness clause is red and untracked; STATUS.md says
       green — qa-playtester found this during fb076's QA pass (2026-09-04),
       confirmed unrelated to fb076 itself via a `git stash` control run at
       HEAD (`24d1c62`): fails identically before and after. Repro: `npx
@@ -2906,6 +2906,78 @@ generation-rule boundary.
       unreachable at the current curve, `.skip` per CLAUDE.md rule 6 with
       the honest measured pool composition and correct `STATUS.md`'s G19 row
       to red — refs: SPEC-FINAL §14 G19, BACKLOG fb054, fb092.
+
+      **Closed 2026-09-04 — root cause was the wrong `classKey`, not the
+      density pass itself.** Investigated first: `G19_BUILDS`'s `sealed-full`/
+      `sealed-turtle` both play `classKey: 'engineer'` at `perimeterRadius: 5`
+      (mirroring the registered `sealed` policy, `src/bots/policies.ts`) and
+      lost Act II's first VS wave on all 5 seeds regardless of maze shape —
+      but so does *every* `engineer`-classed entry already in the untouched
+      `BUILDS` pool (arrow/ballista/tesla/mortar/venom/engineer-mix/economy/
+      support, all `defeat_warden` at wave 3); only `pyromancer`-classed
+      entries clear (`frost-mix`/`ember-mix`/`ember-heavy`). This is the same
+      "kite"-policy Act II wall `p10z`/Q160 already found for the scripted-
+      kit harness, seen here in a5probe's simpler `kite`-only harness — not a
+      fresh symptom of fb054's density pass. Confirmed `maxStructures` (the
+      harness's shared 55, vs the registered `sealed` policy's own 70) is not
+      the lever: measured identical 0/5 at both budgets. Swept `classKey` x
+      `perimeterRadius` (1-3) instead, 5 seeds each (ad-hoc `tsx` scratch
+      script, not committed): `pyromancer` + radius 2 clears **3/5** seeds
+      (survival 582-616s, competitive with the pool's existing 616-825s
+      entries) — every other combination tried (`engineer` r1/r2/r3,
+      `pyromancer` r1/r3) manages 0-1/5. Landed: both `G19_BUILDS` sealed
+      entries' `classKey` `engineer`->`pyromancer`, `perimeterRadius` 5->2
+      (`tools/a5probe.ts`), with an inline comment recording the sweep.
+      `tools/gate-audit.ts`'s G19 note and `a5probe.ts`'s own `G19_BUILDS`
+      block comment both still claimed class parity with the G7/p1b `sealed`
+      policy (which plays `engineer`, `tests/helpers.ts`'s `cfg()` default) —
+      corrected to say the fix mirrors the *sealing mechanism* only, not the
+      class, per code-reviewer's two Minor findings. `data/*.json` and
+      `/src/sim` untouched — `tools/a5probe.ts`/`tools/gate-audit.ts` only;
+      `BUILDS` (G13's own pool) untouched, confirmed via
+      `grep -rln "a5probe|G19_BUILDS" tests/ tools/ src/` that `G19_BUILDS`
+      has exactly one consumer (`tests/p10f-g19-liveness.test.ts`).
+      code-reviewer **APPROVE** (2 Minor, both the stale-comment items above,
+      fixed before commit). qa-playtester **PASS**, with one real fragility
+      finding filed as **fb095**: reverting either changed field alone
+      reproduces the original failure exactly (proves the fix is load-
+      bearing, not a coincidence), and `tests/p10c-weapon-share.test.ts`'s
+      pre-existing fb092 failure is confirmed byte-identical before/after via
+      `git stash` — but sweeping seeds 6-20 (outside the test's pinned
+      `SEEDS=[1,2,3,4,5]`) found the sealed clear rate drops to 1/10 (seeds
+      6-15) and 0/5 (seeds 16-20), i.e. this fix passes the literal,
+      deterministic acceptance test (same fixed-seed-set convention as every
+      other gate measurement in this codebase) but does not generalize into a
+      robustly-viable strategy — logged honestly rather than oversold.
+      `npx tsc --noEmit` clean; `tests/q10-gate-audit.test.ts` (24/24, covers
+      the edited `gate-audit.ts` text) green; `npm run test:fast`: 7 failed
+      files, the same standing Windows flake family every session this week
+      reports (`q15-command-domain-fuzz` worker-hang, `q49`/`q52` EPERM
+      scratch-dir races, `b032`/`b034`/`b035`/`b036` port contention) — no new
+      failures. `STATUS.md`'s G19 row ("Green in full (p10f)") is accurate
+      again as written and was not edited further.
+- [ ] (fb095) [bug] fb094's G19 sealed-build fix (`tools/a5probe.ts`
+      `G19_BUILDS`, `classKey: 'pyromancer'`, `perimeterRadius: 2`) passes
+      `tests/p10f-g19-liveness.test.ts`'s pinned `SEEDS=[1,2,3,4,5]`
+      deterministically (3/5 clear) but does not generalize: qa-playtester's
+      verification swept seeds 6-20 through the same `collect`/`topTen`
+      harness and found the sealed clear rate falls to 1/10 (seeds 6-15) and
+      0/5 (seeds 16-20) — the top-10 pool loses its only sealed entry
+      entirely outside the pinned set, reproducing fb094's original failure.
+      Not a regression risk to the committed test (seeds are hardcoded, not
+      re-rolled), but it means the "sealed strategy can win" liveness claim
+      rests on an unusually favorable 5-seed sample rather than a
+      structurally sound strategy — the same "landslide floor / thin margin"
+      pattern already documented at Q160/Q161 for the scripted-kit harness,
+      here in a5probe's simpler `kite`-only harness instead. Acceptance:
+      either (a) find a `classKey`/`perimeterRadius`/tower-mix combination for
+      the sealed arm that clears at a materially higher rate across a wider
+      seed sample (measure 20+ seeds, not just the pinned 5, before declaring
+      success), or (b) if genuinely unreachable per CLAUDE.md rule 6, widen
+      `tests/p10f-g19-liveness.test.ts`'s own `SEEDS` (or add a second,
+      wider-seed assertion) so the gate can't be silently re-broken by a
+      future re-pin, with the honest measured clear-rate-vs-seed-count curve
+      recorded here — refs: SPEC-FINAL §14 G19, BACKLOG fb094, Q160/Q161.
 - [ ] (fb077) [feat] wire the generated terrain into a real run — the
       main-lane half of the terrain epic (BACKLOG-TERRAIN.md fb064b/fb064c/
       fb064f Logs). Today nothing outside `tests/` calls `generateTerrain` or

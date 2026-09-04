@@ -73,28 +73,46 @@ export const BUILDS: BuildSpec[] = [
  * G19's other two strategies (SPEC-FINAL §14), layered onto `BUILDS`' own
  * pool for `tests/p10f-g19-liveness.test.ts`: `topTen` is otherwise blind to
  * them, since every `BUILDS` entry defaults to `strategy: 'open'`. Mirrors
- * the registered `sealed`/`rush` bot policies (`src/bots/policies.ts`) rather
- * than inventing new tower mixes, so "sealed" and "multi-summon" here mean
- * the same thing the G7/G6 gates already measured them to mean.
+ * the registered `sealed`/`rush` bot policies' (`src/bots/policies.ts`)
+ * sealing/stacking mechanism — tower mix, `allowSeal`, `stackWaves` — rather
+ * than inventing new ones, so "sealed" and "multi-summon" here mean the same
+ * mechanism the G7/G6 gates already measured. The sealed arm's `classKey`
+ * (fb094) differs from G7/p1b's `sealed` policy run (which plays `engineer`,
+ * `tests/helpers.ts`'s `cfg()` default) — see the `sealed-full` comment below.
  */
 export const G19_BUILDS: BuildSpec[] = [
   {
+    // classKey/perimeterRadius: an `engineer` sealed ring at the registered
+    // `sealed` policy's own radius (5) loses Act II wave 1 on all 5 seeds
+    // regardless of maxStructures/upgradeAfter (measured: even the policy's
+    // real 70/14 budget, not this harness's shared 55/12, dies identically) —
+    // the same "kite" Act II wall every non-pyromancer BUILDS entry already
+    // hits (arrow/ballista/tesla/mortar/venom/engineer-mix/economy/support
+    // all lose wave 1 too; only frost-mix/ember-mix/ember-heavy, all
+    // `pyromancer`, clear). A tighter ring (radius 2) leaves enough of the
+    // 55-structure budget on guns to matter: `pyromancer` + radius 2 clears
+    // 3/5 seeds (survival 582-616, competitive with the pool's existing
+    // entries) where every radius/class combination at 3-5 does not (measured
+    // via an ad-hoc classKey x perimeterRadius sweep of this same runBuild
+    // harness, not committed as a test: engineer r1-r3 0-1/5, pyromancer r1
+    // 0/5, r3 1/5) — a build-diversity lever (class + ring size), not a
+    // towers.json damage change.
     name: 'sealed-full',
-    classKey: 'engineer',
+    classKey: 'pyromancer',
     towerKeys: ['arrow_spire', 'ballista', 'venom_spore', 'mortar', 'tesla_coil', 'frost_obelisk', 'ember_brazier', 'beacon_totem'],
     wallRatio: 0,
     strategy: 'sealed',
     allowSeal: true,
-    perimeterRadius: 5,
+    perimeterRadius: 2,
   },
   {
     name: 'sealed-turtle',
-    classKey: 'engineer',
+    classKey: 'pyromancer',
     towerKeys: ['arrow_spire', 'frost_obelisk'],
     wallRatio: 0,
     strategy: 'sealed',
     allowSeal: true,
-    perimeterRadius: 5,
+    perimeterRadius: 2,
   },
   {
     name: 'stacked-mix',

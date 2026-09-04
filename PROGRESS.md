@@ -5,6 +5,30 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-04 session: BACKLOG fb094 closed — G19's liveness clause (a
+  sealed-strategy build must reach the winning-build pool) was genuinely red
+  while `STATUS.md` still claimed green; fixed by correcting `G19_BUILDS`'s
+  `classKey`/`perimeterRadius` in `tools/a5probe.ts`, a test-fixture-only
+  change.** Root cause: `sealed-full`/`sealed-turtle` played `classKey:
+  'engineer'` at `perimeterRadius: 5` (mirroring the registered `sealed`
+  policy) and lost Act II's first VS wave on all 5 seeds regardless of maze
+  shape — but every `engineer`-classed entry in the untouched `BUILDS` pool
+  already loses the same way; only `pyromancer`-classed entries clear. Ruled
+  out `maxStructures` (55 vs the registered policy's own 70 made no
+  difference) before sweeping `classKey` x `perimeterRadius`: `pyromancer` +
+  radius 2 clears 3/5 pinned seeds (survival 582-616s, competitive with the
+  pool's existing entries), landed as the fix. code-reviewer **APPROVE** (2
+  Minor stale-comment findings, both fixed — `gate-audit.ts`'s and
+  `a5probe.ts`'s own text overclaimed class parity with the G7/p1b `sealed`
+  policy). qa-playtester **PASS**, and filed a real, honestly-logged
+  fragility finding as **fb095**: the fix passes deterministically on the
+  test's pinned `SEEDS=[1,2,3,4,5]` (same fixed-seed convention every gate in
+  this codebase uses) but the sealed clear rate falls to 1/10 and 0/5 on
+  seeds 6-15/16-20 — logged rather than oversold as a robust mechanism fix.
+  `npx tsc --noEmit` clean; `tests/q10-gate-audit.test.ts` 24/24; `npm run
+  test:fast`: same 7-file standing Windows flake family as every session this
+  week, no new failures. `data/*.json` and `/src/sim` untouched.
+
 - **2026-09-04 session: BACKLOG fb093 closed** — fixed gate **G22**'s `time`
   Core vs Stone Heart, seed-1 regression (fingerprint 0.065, under the 0.10
   floor), introduced by the same-day `fb076` tower-damage retune. Same lever
