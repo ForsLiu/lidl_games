@@ -2459,7 +2459,7 @@ not already expose it) logs that need below instead of reaching into
       PROGRESS.md sessions, none touching `src/ui/**`/`src/render/**` or this
       item's own files.
 
-- [ ] (fb103) [feat] normal priority: generated 2026-09-04 (same generation
+- [x] (fb103) [feat] normal priority: generated 2026-09-04 (same generation
       batch as fb102) — Results screen shows the class and Core the run was
       played with. `Hud.showResults(w: World)` (`src/ui/hud.ts`) renders
       waves/survived/level/kills/towers/equipment/skill-points but never
@@ -2475,7 +2475,45 @@ not already expose it) logs that need below instead of reaching into
       real display names (not raw data keys) appear in `.sw-results`; a
       second case with a `classKey`/`coreKey` absent from `content` (a
       corrupted-save-shape edge) confirms a raw-key fallback renders instead
-      of a crash — refs: SPEC-FINAL §5.5 (Core choice), §11, fb092.
+      of a crash — refs: SPEC-FINAL §5.5 (Core choice), §11, fb092. DONE
+      2026-09-04: `showResults` (`src/ui/hud.ts`) adds two rows ("Class"/
+      "Core") at the top of the `.sw-results` grid, resolving
+      `w.cfg.classKey`/`w.coreKey` via `w.content.classByKey`/`coreByKey`
+      to their `.name`, falling back to the raw key string (`?? w.cfg.classKey`
+      / `?? w.coreKey`) when the lookup misses. Both maps are non-optional and
+      built unconditionally at content-load time, so the only real miss case
+      is a corrupted-save classKey/coreKey no longer present in `/data` — the
+      same `?.`-guarded tolerance `World`'s own constructor already applies to
+      an unresolvable `classKey` (`world.ts:518`). Targeted
+      `tests/ui-fb103-results-class-core.test.ts` (2/2): known-key display
+      names render (not raw keys) for a 'swordsman'/'vampire_heart' run; an
+      unresolvable classKey/coreKey doesn't throw and falls back to the raw
+      key text. code-reviewer **APPROVE** (no Critical/Major; one Minor —
+      backlog checkbox not yet ticked in the reviewed diff, closed by this
+      update; one Nit — unescaped innerHTML interpolation, confirmed
+      consistent with every other field in the same template, not a new
+      surface). qa-playtester **PASS**: independently confirmed all 12
+      classes/5 cores in `/data` resolve to distinct display names (not just
+      the two combos in the shipped test), Class/Core rows render
+      unconditionally across all three outcomes (victory/defeat_core/
+      defeat_warden), empty-string keys degrade without throwing, no CSS
+      layout break in `.sw-results` from the 7->9 row count, the raw-key
+      fallback path is genuinely unreachable via the real `hub.ts` run-start
+      flow (only hand-built fixtures/corrupted saves reach it), and confirmed
+      the `<img onerror>`-style unescaped-innerHTML XSS surface pre-exists
+      identically across every other field in the same template (boons,
+      towers, skill cards, damage types, enemy names) — not a regression.
+      Traced but did not file (harness artifact, not a product bug): reusing
+      one `Hud` instance across fresh `World` fixtures without calling
+      `resetModalKey()` can show a stale Class/Core display, since
+      `syncModal`'s memo key doesn't include classKey/coreKey — unreachable in
+      real play since `startRun` (`main.ts`) always calls `resetModalKey()`
+      before every fresh/Retry/New-run start; flagged as a latent fragility
+      for whoever next touches `syncModal`'s memo key. Filed no new bugs.
+      `npx tsc --noEmit` clean. `npm run test:fast`: 9 failed files / 6 failed
+      tests, all in the pre-existing q49/q52 Windows-scratch-dir-EPERM flake
+      class documented across dozens of prior PROGRESS.md sessions, none
+      touching `src/ui/**`/`src/render/**` or this item's own files.
 
 - [ ] (fb104) [polish] normal priority: generated 2026-09-04 (same generation
       batch as fb102) — bottom-bar "skill ready" ripple respects

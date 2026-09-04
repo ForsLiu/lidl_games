@@ -1696,10 +1696,17 @@ export class Hud {
     this.openModal();
     const won = w.outcome === 'victory';
     const mm = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+    // fb103: falls back to the raw data key for a corrupted-save shape whose
+    // classKey/coreKey no longer resolves against loaded content, rather than
+    // crashing the results screen a player needs to see regardless.
+    const className = w.content.classByKey.get(w.cfg.classKey)?.name ?? w.cfg.classKey;
+    const coreName = w.content.coreByKey.get(w.coreKey)?.name ?? w.coreKey;
     this.modal.innerHTML = `
       <div class="sw-card">
         <h2>${won ? 'The Vale holds' : w.outcome === 'defeat_core' ? 'The Core fell' : 'The Warden fell'}</h2>
         <div class="sw-results">
+          <div><span>Class</span><b>${className}</b></div>
+          <div><span>Core</span><b>${coreName}</b></div>
           <div><span>Waves cleared</span><b>${w.wavesCleared}</b></div>
           <div><span>Survived</span><b>${mm(w.act2Ticks / 60)}</b></div>
           <div><span>Level</span><b>${w.level}</b></div>
