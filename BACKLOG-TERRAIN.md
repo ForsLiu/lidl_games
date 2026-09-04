@@ -297,7 +297,7 @@ fb064o.
       out of its measured headroom either way. Balance *orders* stay
       main-lane — this constrains generation, it does not retune waves —
       refs: HANDOFF §7 (depth), G2, fb064a Log ("gate mains are structural").
-- [ ] (fb064p) [polish] `TerrainMap.hash` is computed once at construction
+- [x] (fb064p) [polish] `TerrainMap.hash` is computed once at construction
       over a `Uint8Array` the caller can write into: `types.ts` documents
       "treat a generated map as immutable" and nothing enforces or detects
       it, so a consumer that patches a tile silently invalidates the G2
@@ -2113,3 +2113,80 @@ fb064o.
   independently reproduced it at HEAD `67ffc6f` in a detached worktree, so it
   predates this lane entirely — **UI-lane work, still unfiled against
   BACKLOG-UI.md**.
+
+- (2026-09-04, fb064p) `verifyTerrainMap` — the immutability ask has a
+  detector. `types.ts` had asked callers to treat a generated map as immutable
+  and nothing enforced *or detected* it, so `map.kind[i] = k` (which
+  type-checks, because `readonly` freezes the binding and not the buffer) left
+  the map advertising the hash of tiles it no longer had — and that hash is the
+  G2 handle. Cannot be enforced (a typed array cannot be frozen and stay
+  useful, and copying per read costs 720 bytes in the sim's hot path), so the
+  corruption is made *findable* instead: 7.7 us per call, 0.3% of one
+  `generateTerrain`, cheap enough to assert at a run boundary.
+  - **Four checks, cause-first**, because `terrainHash` folds values the map
+    also stores separately, so a field can be corrupted into a lie that still
+    hashes clean: `dimensions` (the hash folds `GRID_W`/`GRID_H`, not the map's
+    `w`/`h`), `kind-length`, `seed-range` (the hash folds `seed | 0`), then
+    `hash`. Deliberately *not* checked, and now named in the doc block:
+    `requestedSeed`, the `attempts`/`fallback` provenance pair, tile kinds
+    against `/data` (`terrainOverlay` is the config-aware gate), and legality.
+  - **Two bugs found by review and QA independently, both fixed here**, each
+    with its failing regression test written first:
+    - *seed corruption invisible to `| 0`.* `terrainHash` folds `h.int(seed |
+      0)`, so `seed + 2 ** 32`, `7.9`, `NaN`, `Infinity` and `2 ** 53` all
+      verified clean while naming a key `generateTerrain` refuses outright
+      (fb064j). The `| 0` also pre-empts `Hasher.int`'s non-finite tagging,
+      which `src/sim/hash.ts` added so a corrupted run cannot hash clean. QA's
+      60,000-iteration ground-truth fuzz put the scale at **4,126 misses of
+      48,392 corruptions, 100% of them this one class** — and 0 false alarms on
+      11,608 intact maps. Fixed verifier-side as a `seed-range` fault; dropping
+      the `| 0` from `terrainHash` would have moved every recorded hash golden.
+    - *test gap on the dimensions check.* QA's mutant weakening
+      `w !== GRID_W || h !== GRID_H` to `w * h !== GRID_W * GRID_H` **survived
+      the whole file** — both dimension cases (703 and 9 tiles) differ from 720,
+      so neither distinguished shape from area. Now pinned by a transposed
+      (`20x36`) and a stretched (`72x10`) map: exactly 720 tiles, correct hash,
+      still not this arena.
+  - **Mutation coverage re-measured after the fixes:** M7 (product-not-shape),
+    M10 (drop the seed guard), M11 (seed guard integer-only) and M1 (always-ok)
+    are all killed; QA's earlier M2-M6 were already killed. `generate.ts`
+    restored byte-identical after every mutation.
+  - **Also folded in from review:** the `expected`/`actual` field docs were
+    written for the `hash` fault and read backwards for the structural ones
+    (the map's claim lands in `actual` there, not `expected`); the 100-seed
+    sweep now proves itself non-degenerate (0 fallbacks, 99 distinct hashes —
+    99 not 100 because `-1` and `MAX_TERRAIN_SEED` are one uint32 key by
+    design), since a generation regression to the flat arena would otherwise
+    keep it green on 100 identical maps; `DOMAIN_SEEDS` got an iteration cap so
+    a degenerate stride fails red instead of hanging; `flip` became
+    `flipInPlace` returning `void`, since it read functional while mutating.
+  - **Known limits, accepted rather than missed** (QA bugs 3 and 4): a
+    relabelled `attempts`/`fallback` verifies clean and then `isDegradedMap`
+    lies — documented in the not-checked list and pinned by a stated-limit test
+    rather than fixed, because verification is a question about the *tiles*;
+    and `kind: null`/`undefined` throws a `TypeError` rather than returning a
+    fault, which is unreachable through the `TerrainMap` type (the shape a JSON
+    save/replay actually produces — `kind` as a plain object — is handled, and
+    reports `kind-length`). Won't-fix unless a caller arrives that needs it.
+  - **Out-of-scope need for the merge:** `verifyTerrainMap` has no production
+    caller yet — nothing outside `src/sim/terrain/**` imports the module at all
+    (QA confirmed by grep). Its intended call sites are **fb064c's Core-placement
+    replay guard** and the `RunConfig` content-hash check in `src/sim/content.ts`
+    (architecture rule 2), both outside this lane. Whoever wires terrain into
+    `World` should assert it at the run boundary; until then it is an exported
+    detector with test callers only. `describe.ts` re-derives the same hash rule
+    for dump parsing — different input, not worth unifying, but the two must
+    stay in step.
+  - **Verification.** Targeted: `tests/terrain-verify.test.ts` **18 tests**;
+    all 11 `tests/terrain*` files **251 tests green**. `npx tsc --noEmit` clean
+    (the repo has no linter configured). `git diff --stat` on the three source
+    files is **+134 / -0**, purely additive, so no generation behaviour or hash
+    golden can have moved — QA independently confirmed `npm run sim -- --seed 1
+    --policy hybrid` still gives `endHash 2729a000` and the money paths
+    (`meta`, `b10-death-flow`, `b003-stash-ux`, `hub-testing`,
+    `p3d-cycle-machine`, `q8-save-roundtrip`, `t6c-save-migration`) are 77/77.
+    `npm run test:fast`: **2313 passed, 8 failed**, the documented pre-existing
+    set only — `b032`/`b034` and `q15` load-sensitive, `b036` the deterministic
+    1095.4-vs-1080 UI-lane failure, `q45`/`q49`/`q52` the Windows EPERM
+    scratch-dir cleanups. Nothing in terrain, and no file in that set imports
+    anything this item touched.

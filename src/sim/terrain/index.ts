@@ -42,8 +42,11 @@ export {
   generateTerrain,
   isDegradedMap,
   terrainHash,
+  verifyTerrainMap,
   MAX_TERRAIN_SEED,
   MIN_TERRAIN_SEED,
+  type TerrainVerifyFault,
+  type TerrainVerifyResult,
 } from './generate';
 export {
   canAttackHighGround,

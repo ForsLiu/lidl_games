@@ -275,6 +275,131 @@ export function terrainHash(seed: number, kind: Uint8Array): string {
   return h.hex();
 }
 
+/**
+ * Why `verifyTerrainMap` refused a map, in the order the checks run.
+ *
+ * Ordered so the reported fault is the *cause* rather than a downstream
+ * symptom: a map whose buffer is the wrong length would also fail the hash
+ * check, and "these tiles no longer hash to their handle" is the wrong bug
+ * report for a buffer that was never the arena's size.
+ */
+export type TerrainVerifyFault =
+  /** `w`/`h` are not the arena's, so `map.hash` describes a different shape. */
+  | 'dimensions'
+  /** `kind` is not `w * h` long — a truncated or overlong tile buffer. */
+  | 'kind-length'
+  /**
+   * `seed` is not a uint32, so it is not a key any generation could have used
+   * — and `terrainHash` would fold it to one that looks honest.
+   */
+  | 'seed-range'
+  /** The tiles (or `seed`) no longer hash to `map.hash`. */
+  | 'hash';
+
+export type TerrainVerifyResult =
+  | { readonly ok: true }
+  | {
+      readonly ok: false;
+      readonly fault: TerrainVerifyFault;
+      /**
+       * The invariant or handle that should have held — the arena's `WxH`, the
+       * expected tile count, `a uint32`, or the hash the map advertises.
+       */
+      readonly expected: string;
+      /**
+       * What this map's fields or bytes actually say, in the same units, so the
+       * pair reads as a paste-in diff. Note which side the map's own claim
+       * lands on: for `hash` it is `expected` (the stale handle it still
+       * carries); for the other three it is `actual`.
+       */
+      readonly actual: string;
+    };
+
+/**
+ * fb064p: does this map still hash to the handle it was built with?
+ *
+ * `TerrainMap.hash` is computed once at construction over a `Uint8Array` the
+ * caller holds a live reference to. `readonly kind` freezes the binding and not
+ * the buffer, so `map.kind[i] = k` type-checks, runs, and leaves the map
+ * carrying a hash of tiles it no longer has — and that hash is the G2
+ * determinism handle every replay guard downstream compares. `types.ts` asks
+ * callers to treat a generated map as immutable; before this function nothing
+ * enforced or even *detected* the ask, so a consumer that patched a tile in
+ * place broke determinism silently and at a distance.
+ *
+ * This is the detector, not an enforcer: it cannot stop the write (a
+ * `Uint8Array` cannot be frozen and stay a typed array worth using, and copying
+ * the buffer on every read would cost 720 bytes per query in the sim's hot
+ * path). It makes the corruption *findable* — cheap enough to assert at a run
+ * boundary, in a replay guard, or in a test.
+ *
+ * Pure and non-mutating: it reads `map`, allocates a `Hasher`, and returns.
+ *
+ * The three guards before the hash all exist for one reason: `terrainHash`
+ * folds values the map also stores *separately*, so a field can be corrupted
+ * into a lie that still hashes clean. Each guard closes one such hole, and each
+ * was a measured miss rather than a hypothetical:
+ *   - **dimensions.** The hash folds `GRID_W`/`GRID_H`, not the map's own
+ *     `w`/`h` (`describe.ts` documents the same hole from the parser's side).
+ *     A map claiming a different shape — a *transposed* one especially, since
+ *     it even keeps the tile count — recomputes to its stored hash while
+ *     describing an arena that is not this one.
+ *   - **`kind` length.** A truncated buffer whose hash was recomputed over the
+ *     truncation is self-consistent and still not a map.
+ *   - **`seed` range.** The hash folds `seed | 0`, so every value congruent
+ *     modulo `2 ** 32`, and every non-finite or fractional value truncating to
+ *     the stored int32, hashes identically: `seed + 2 ** 32`, `7.9`, `NaN` and
+ *     `Infinity` all passed before this guard. `generateTerrain` refuses every
+ *     one of them as a seed (fb064j), and `Hasher.int`'s own non-finite tagging
+ *     — added so a corrupted run cannot hash clean — is pre-empted by the
+ *     `| 0`. Guarded here rather than by dropping the `| 0`, which would move
+ *     every recorded hash golden in the suite.
+ * Ordered cause-first, so the reported fault is the malformed field and not the
+ * hash mismatch it would go on to produce.
+ *
+ * What it deliberately does **not** check, so a green result is not read as
+ * more than it is:
+ *   - **`requestedSeed`.** It is provenance and is outside the hash on purpose
+ *     (`types.ts`): `-1` and `4294967295` produce byte-identical tiles and one
+ *     hash. A guard that must compare a seed compares *that* field itself.
+ *   - **`attempts` and `fallback`.** Also outside the hash, and forgeable
+ *     without moving it — a relabelled map verifies clean and then
+ *     `isDegradedMap` reports it wrongly. This function is about the *tiles*;
+ *     whether the provenance pair is coherent is a separate question nobody
+ *     should read a green result as having answered.
+ *   - **Tile kinds against `/data`.** Verification takes no config, so an
+ *     out-of-range kind byte is caught here only because it moves the hash, not
+ *     because it is unknown. `terrainOverlay` is the config-aware gate.
+ *   - **Legality.** A hand-built map can verify and still fail every band;
+ *     `terrainLegal(measureTerrain(map, cfg), cfg)` is that question.
+ */
+export function verifyTerrainMap(map: TerrainMap): TerrainVerifyResult {
+  if (map.w !== GRID_W || map.h !== GRID_H) {
+    return {
+      ok: false,
+      fault: 'dimensions',
+      expected: `${GRID_W}x${GRID_H}`,
+      actual: `${map.w}x${map.h}`,
+    };
+  }
+  if (map.kind.length !== map.w * map.h) {
+    return {
+      ok: false,
+      fault: 'kind-length',
+      expected: String(map.w * map.h),
+      actual: String(map.kind.length),
+    };
+  }
+  // Before hashing, not after: `terrainHash` would fold this to a uint32 and
+  // report a clean hash for a key no generation could have produced.
+  if (!Number.isInteger(map.seed) || map.seed < 0 || map.seed > 0xffffffff) {
+    return { ok: false, fault: 'seed-range', expected: 'a uint32', actual: String(map.seed) };
+  }
+  const actual = terrainHash(map.seed, map.kind);
+  if (actual !== map.hash) return { ok: false, fault: 'hash', expected: map.hash, actual };
+  return { ok: true };
+}
+
 function toMap(
   requestedSeed: number,
   seed: number,

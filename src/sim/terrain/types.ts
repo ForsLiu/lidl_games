@@ -17,6 +17,12 @@ export interface TerrainGrid {
    * determinism handle. Treat a generated map as immutable; if fb064b/fb064c
    * need an edited map, rebuild it through `terrainHash` rather than patching
    * tiles in place.
+   *
+   * Nothing can *enforce* that (a typed array cannot be frozen and stay
+   * useful), but since fb064p something can detect it: `verifyTerrainMap(map)`
+   * recomputes the hash and names the mismatch. It is the assertion to reach
+   * for at a run boundary or in a replay guard, and the reason a patched tile
+   * is now a findable bug rather than a silent one.
    */
   readonly kind: Uint8Array;
 }
