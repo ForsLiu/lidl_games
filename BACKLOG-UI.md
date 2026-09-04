@@ -616,7 +616,7 @@ not already expose it) logs that need below instead of reaching into
       sessions, none touching `src/ui/**`/`src/render/**` or this item's own
       files.
 
-- [ ] (fb078) [bug] low priority: the outer Space `keydown` listener that
+- [x] (fb078) [bug] low priority: the outer Space `keydown` listener that
       arms `Game.dashQueued` (`src/ui/main.ts`, ~line 293:
       `if (e.key === ' ' && !this.paused) this.dashQueued = true;`) has no
       `e.repeat` guard, unlike `makeKeyDownHandler`'s own handling of every
@@ -643,6 +643,35 @@ not already expose it) logs that need below instead of reaching into
       re-arming is intentional "hold to dash" behavior and is out of scope for
       fb077's pause-parity fix — refs: fb077, `clearKeysForPause`
       (`src/ui/input.ts`) precedent, `makeKeyDownHandler`'s `e.repeat` guard.
+      DONE 2026-09-04: took the first option. `bindGlobalInput`'s
+      (`src/ui/main.ts`) outer Space `keydown` listener now reads
+      `if (e.key === ' ' && !this.paused && !e.repeat) this.dashQueued = true;`,
+      symmetric with `makeKeyDownHandler`'s (`src/ui/input.ts`) existing
+      `if (e.repeat) return;` guard for every other key. No "hold to keep
+      dashing" mechanic exists to regress — `dashQueued` is a one-shot flag
+      consumed and reset every `gatherInput()` call, so a continuously held
+      Space only ever arms one dash on the original non-repeat press regardless
+      of this fix. Targeted `tests/ui-fb078-dash-repeat-guard.test.ts` (2/2): a
+      held-through-pause Space's post-resume repeat event no longer re-arms
+      `dashQueued` (confirmed via git-stash A/B that this fails pre-fix and
+      passes post-fix); a fresh non-repeat press still arms a dash normally.
+      code-reviewer APPROVE (no Critical/Major/Minor/Nit — confirmed no
+      downstream "hold to dash" behavior exists to regress and the
+      `clearKeysForPause`/`dashQueued`-clear interaction from fb077 is
+      unaffected, since that function only touches `this.keys`). qa-playtester
+      PASS against the stated acceptance criteria, independently reproduced the
+      scenario with a temporary probe suite (also covering: an ordinary
+      continuous hold outside any pause stays inert past the first arm; 25
+      repeat events in a row post-resume stay inert; a keyup+fresh-keydown
+      after a repeat storm still arms correctly; the fb071 blur-pause path
+      composes correctly with this fix since both route through the same
+      `setPaused`) and filed no new bugs, flagging the pre-existing q15/q49/q52
+      `test:fast` flake classes (unrelated to this diff) for whoever owns them.
+      `npx tsc --noEmit` clean. `npm run test:fast`: 6-7 failures across runs
+      this session, all in the pre-existing q15/q49/q52 worker-hang/Windows-
+      scratch-dir-EPERM flake classes documented across dozens of prior
+      PROGRESS.md sessions, none touching `src/ui/**`/`src/render/**` or this
+      item's own files.
 
 - [ ] (fb072) [feat] normal priority: boss health bar — the two boss
       enemies (`gatebreaker` 30,000 HP, `warden_eater` 100,000 HP,

@@ -290,7 +290,11 @@ export class Game {
     });
     window.addEventListener('keydown', (e) => {
       if (!this.run) return;
-      if (e.key === ' ' && !this.paused) this.dashQueued = true;
+      // fb078: mirrors `makeKeyDownHandler`'s own `if (e.repeat) return;` —
+      // without it, a browser key-repeat event for a Space the player never
+      // released (including one held through an Esc/blur pause) re-arms
+      // `dashQueued` with no fresh physical press behind it.
+      if (e.key === ' ' && !this.paused && !e.repeat) this.dashQueued = true;
       onKeyDown(e);
     });
     window.addEventListener('keyup', (e) => this.keys.delete(e.key.toLowerCase()));
