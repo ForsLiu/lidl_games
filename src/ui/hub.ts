@@ -32,7 +32,7 @@ const DEV_BADGE =
   '<span class="sw-devbadge" title="data/dev.json devMode is on. Production builds always run with this off.">DEV PROFILE</span>';
 import { equipItem } from '../meta/stash';
 import { renderTreeView } from './tree-view';
-import { sanitize, type Settings } from './settings';
+import { defaultSettings, sanitize, type Settings } from './settings';
 import {
   ACTION_ORDER,
   defaultKeyBindings,
@@ -83,6 +83,8 @@ export class Hub {
   /** fb073: which action's button is waiting for the next keydown, if any. */
   private listeningAction: ActionId | null = null;
   private rebindConflict = '';
+  /** fb075: first click arms the destructive "reset settings" confirm step; second click commits it. */
+  private settingsResetArmed = false;
   /** Transient one-line feedback under the tab bar. */
   private notice = '';
   /**
@@ -118,6 +120,9 @@ export class Hub {
     // document-level keydown listener armed against a control no longer on
     // screen.
     if (this.tab !== 'settings' && this.listeningAction) this.stopListeningForRebind();
+    // fb075: leaving the Settings tab mid-confirm must not leave the reset
+    // button armed for a stray second click on return.
+    if (this.tab !== 'settings') this.settingsResetArmed = false;
     this.root.innerHTML = '';
     const el = document.createElement('div');
     el.className = 'sw-hub';
@@ -470,6 +475,9 @@ export class Hub {
           <input type="range" min="0" max="200" value="${s.maxDamageNumbers}" data-count="1" />
           <b data-out="maxDamageNumbers">${s.maxDamageNumbers}</b>
         </label>
+        <button class="sw-reroll danger" id="sw-settings-reset">
+          ${this.settingsResetArmed ? 'Click again to confirm reset' : 'Reset settings to defaults'}
+        </button>
       </div>
 
       <div class="sw-panel">
@@ -526,12 +534,19 @@ export class Hub {
       });
     }
     body.querySelector('#sw-seed')?.addEventListener('click', () => {
+      // fb075: any other Settings-tab action that re-renders the panel must
+      // disarm a pending reset-confirm — otherwise the button's redrawn
+      // "Reset settings to defaults" text silently lies about the armed
+      // state, and the very next click executes the reset with no second
+      // confirm ever shown.
+      this.settingsResetArmed = false;
       const next = seedTestEquipment(seedTestAccount(this.meta));
       this.commit(next);
       this.notice = 'Seeded equipment and 20 skill points.';
       this.show();
     });
     body.querySelector('#sw-wipe')?.addEventListener('click', () => {
+      this.settingsResetArmed = false; // fb075: see #sw-seed's comment above.
       this.spentThisVisit.clear();
       this.selectedEquipment = null;
       this.commit(defaultMeta());
@@ -547,10 +562,23 @@ export class Hub {
       commit();
     });
 
+    body.querySelector('#sw-settings-reset')?.addEventListener('click', () => {
+      if (!this.settingsResetArmed) {
+        this.settingsResetArmed = true;
+        this.show();
+        return;
+      }
+      this.settingsResetArmed = false;
+      this.settings = sanitize(defaultSettings());
+      this.cb.onSettingsChanged(this.settings);
+      this.show();
+    });
+
     for (const el of body.querySelectorAll<HTMLElement>('[data-rebind]')) {
       el.addEventListener('click', () => this.startListeningForRebind(el.dataset.rebind as ActionId));
     }
     body.querySelector('#sw-keybind-reset')?.addEventListener('click', () => {
+      this.settingsResetArmed = false; // fb075: see #sw-seed's comment above.
       this.stopListeningForRebind();
       this.keyBindings = defaultKeyBindings();
       this.rebindConflict = '';
@@ -563,6 +591,7 @@ export class Hub {
 
   /** fb073: a rebind button was clicked — arm the next keydown to capture it. */
   private startListeningForRebind(action: ActionId): void {
+    this.settingsResetArmed = false; // fb075: see #sw-seed's comment in renderSettings.
     this.listeningAction = action;
     this.rebindConflict = '';
     document.addEventListener('keydown', this.onRebindKeyDown, true);

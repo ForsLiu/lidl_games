@@ -1347,7 +1347,7 @@ not already expose it) logs that need below instead of reaching into
       prior PROGRESS.md sessions, none touching `src/ui/**`/`src/render/**`
       or this item's own files.
 
-- [ ] (fb075) [polish] low priority: Settings "reset to defaults" — the
+- [x] (fb075) [polish] low priority: Settings "reset to defaults" — the
       Settings tab has no way to restore every slider/toggle to
       `defaultSettings()`'s values short of clearing `localStorage`
       manually. Add a single reset button with a confirm step (destructive
@@ -1355,7 +1355,50 @@ not already expose it) logs that need below instead of reaching into
       test opens Settings, changes several values, clicks reset (confirms
       the destructive step), and asserts every field reads back as
       `defaultSettings()` — refs: SPEC-FINAL §11, standard Settings-UX
-      convention.
+      convention. DONE 2026-09-04: no `window.confirm` precedent exists
+      anywhere in this codebase, so `hub.ts` gets a two-click in-panel
+      confirm instead — a new `private settingsResetArmed` field on `Hub`,
+      and a `#sw-settings-reset` button in `renderSettings` whose label
+      toggles between "Reset settings to defaults" and "Click again to
+      confirm reset"; the first click only arms the flag and re-renders,
+      the second sets `this.settings = sanitize(defaultSettings())`, calls
+      `this.cb.onSettingsChanged(this.settings)`, and clears the flag.
+      Targeted `tests/ui-fb075-settings-reset.test.ts` (5/5). code-reviewer
+      **REQUEST-CHANGES** → one Major: `settingsResetArmed` was only
+      disarmed on tab-away (`show()`), so any *other* Settings-tab button
+      that re-renders the panel while staying on the tab (`#sw-seed`,
+      `#sw-wipe`, `#sw-keybind-reset`, starting a key rebind) redrew the
+      button back to its unarmed label while the internal flag stayed
+      silently armed — the very next click on Reset would then execute the
+      destructive reset with no second confirm ever actually shown to the
+      player. Fixed by clearing `settingsResetArmed` at the top of all four
+      of those handlers/`startListeningForRebind` (the `onRebindKeyDown`
+      keydown continuation needs no separate clear, since arming already
+      happened before any keydown can fire); confirmed the slider/toggle/
+      count `input`/`change` handlers need no clear either, since their
+      `commit()` closure never calls `this.show()` so the button's label
+      can never desync from the flag along that path. One Major: missing
+      regression test for the leak, closed by adding two cases (`#sw-
+      keybind-reset` and starting a rebind each disarm; a third click after
+      either only re-arms, doesn't double-execute). One Minor: reset used
+      raw `defaultSettings()` instead of routing through `sanitize()` like
+      every other Settings control's `commit()` closure does — changed to
+      `sanitize(defaultSettings())` for defense in depth (confirmed the two
+      are field-for-field identical today, so this was cosmetic, not a live
+      bug). code-reviewer re-verified via re-review of the fix.
+      qa-playtester **PASS**: independently confirmed the fix covers every
+      `show()`-calling path in the Settings tab and that `sanitize
+      (defaultSettings())` really does equal `defaultSettings()`
+      field-for-field; hostile-tested rapid double-clicks, reset-then-
+      `#sw-wipe` (confirmed `MetaState` and `Settings` resets stay
+      independent), a rebind-then-Escape settle still requiring a fresh
+      two-click reset, and a stray third click after a successful confirm
+      only re-arming rather than double-executing; filed no new bugs.
+      `npx tsc --noEmit` clean. `npm run test:fast`: 10 failed / 2187
+      passed / 24 skipped, all in the pre-existing q15/q28/q45/q49/q52
+      worker-hang/Windows-scratch-dir-EPERM flake classes documented across
+      dozens of prior PROGRESS.md sessions, none touching `src/ui/**`/
+      `src/render/**` or this item's own files.
 
 - [ ] (fb082) [bug] low priority: generated 2026-09-04 (fewer than 3
       actionable items remained) — the floating rail/boss-banner overlays
