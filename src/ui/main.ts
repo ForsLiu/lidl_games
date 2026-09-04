@@ -96,7 +96,11 @@ export class Game {
    * run; reset on the next `beginRun`. A known, accepted limitation for a
    * session long/eventful enough to fill the quota: resume-on-refresh simply
    * stops holding past that point, same tradeoff class as fb067/fb068/fb069's
-   * own documented ones.
+   * own documented ones. fb087: this lapses well within a *normal* run's
+   * length, not just an unusually long one (measured: a full T1 victory run
+   * crosses the quota ~38% in), so `persistRun()` now fires a one-time
+   * `hud.say()` toast the moment this first flips true, rather than lapsing
+   * with zero in-game signal.
    */
   private persistDisabled = false;
 
@@ -521,7 +525,13 @@ export class Game {
    * throttle window. Also backs off (once, permanently for this run) the
    * first time a write actually fails — e.g. localStorage quota exceeded by
    * an unusually long session's ever-growing input log — logging once via
-   * `console.warn` rather than silently going stale with no signal at all.
+   * `console.warn` and, since fb087 measured a normal T1 victory run crossing
+   * the quota well before finishing (not just an "unusually long" one), also
+   * surfacing a one-time `hud.say()` toast so the player has some in-game
+   * signal resume protection just lapsed, instead of nothing at all. The
+   * cross-tab backoff above stays silent: that is a different, working-as-
+   * intended handoff (a second tab is actively keeping *a* checkpoint alive),
+   * not this instance's own persistence failing outright.
    */
   private persistRun(): void {
     if (!this.lastCfg || !this.runSessionId || this.persistDisabled) return;
@@ -537,6 +547,7 @@ export class Game {
         'fb074: failed to persist the in-progress run (localStorage full or unavailable) — ' +
           'resume-on-refresh is disabled for the rest of this run.',
       );
+      this.hud.say('Resume protection off for this run (storage full)');
       return;
     }
     this.lastWrittenSessionId = this.runSessionId;

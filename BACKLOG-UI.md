@@ -1130,7 +1130,7 @@ not already expose it) logs that need below instead of reaching into
       PROGRESS.md sessions, none touching `src/ui/**`/`src/render/**` or
       this item's own files.
 
-- [ ] (fb087) [bug] normal priority: found by qa-playtester (fb074
+- [x] (fb087) [bug] normal priority: found by qa-playtester (fb074
       verification) — fb074's persisted-run localStorage entry silently
       stops advancing at the browser's ~5MB quota, which a *normal* run
       (not just an "unusually long" one, as fb074's own accepted-tradeoff
@@ -1150,7 +1150,73 @@ not already expose it) logs that need below instead of reaching into
       a typical full-length run stays resumable to its actual end; a
       regression test drives a persisted log past the measured quota
       ceiling and asserts on the chosen player-visible/bounded-growth
-      behavior — refs: fb074, QUALITY.md BETA.
+      behavior — refs: fb074, QUALITY.md BETA. DONE 2026-09-04: took
+      direction (a), the smaller fix. `persistRun()` (`src/ui/main.ts`) now
+      calls the existing `Hud.say()` toast (`this.hud.say('Resume protection
+      off for this run (storage full)')`) in the same branch that already
+      sets `persistDisabled = true` and logs a `console.warn` once
+      `savePersistedRun` returns false — guarded by the same
+      `persistDisabled` early-return at the top of `persistRun()`, so it can
+      only ever fire once per run. The separate cross-tab-backoff branch (a
+      different, working-as-intended handoff when a foreign `sessionId`
+      claims the slot, not a failure) deliberately does not toast. Targeted
+      `tests/ui-fb087-persist-disabled-toast.test.ts` (2/2, using the same
+      driven-`Game` idiom as `tests/ui-fb074-resume-on-refresh.test.ts`):
+      mocks `Storage.prototype.setItem` to throw for the run-persist key
+      specifically (cheaper and just as faithful a repro of "the write
+      fails" as growing a log to the real ~49k-tick ceiling) and confirms the
+      toast text and `persistDisabled`; a second test confirms no toast and a
+      real persisted entry under normal conditions (strengthened post-review
+      to assert the entry actually exists, not just "no toast"). code-reviewer
+      **APPROVE** (no Critical/Major; two Minors — the shared single-slot
+      `Hud.say()` toast has no queue/priority, so an unrelated later toast
+      (e.g. `xp_overflow_gold`) could stomp this one before the player reads
+      it, flagged as a pre-existing design limitation rather than a fb087
+      regression, see fb089 below where qa-playtester's own hostile testing
+      confirmed and filed it; and the test's literal wording deviates from
+      the acceptance text's "past the measured quota ceiling" phrasing by
+      mocking the failure directly instead, judged an acceptable, documented
+      substitution — both non-blocking). qa-playtester **PASS** against the
+      stated acceptance criteria (`tests/ui-fb087-persist-disabled-toast.test.ts`
+      + `tests/ui-fb074-resume-on-refresh.test.ts`, 10/10, the latter's
+      cross-tab-backoff cases confirmed not regressed), hostile-tested the
+      toast firing more than once, a fresh run after a forced failure
+      correctly resetting `persistDisabled` and re-enabling persistence, and
+      first-attempt-vs-later-attempt failures — all clean; independently
+      reproduced and filed the single-slot toast-stomping gap noted above —
+      see fb089 below. `npx tsc --noEmit` clean. `npm run test:fast`: 4-5
+      failed tests across runs this session, all in the pre-existing
+      q15/q49/q52 worker-hang/Windows-scratch-dir-EPERM flake classes
+      documented across dozens of prior PROGRESS.md sessions, none touching
+      `src/ui/**`/`src/render/**` or this item's own files.
+
+- [ ] (fb089) [polish] low priority: found by qa-playtester (fb087
+      verification) — `Hud.say()` (`src/ui/hud.ts`) is a single-slot toast
+      with no queue or priority between callers: it unconditionally
+      overwrites `this.toast.textContent` and resets the ~1.4s auto-hide
+      timeout on every call, so a second `say()` landing inside a first
+      call's still-visible window silently erases it rather than queuing
+      behind it. Reproduced deterministically: trigger fb087's one-time
+      "Resume protection off for this run (storage full)" toast, then call
+      `Hud.ingestFx([{ k: 'xp_overflow_gold', a: 1 }])` (the existing
+      `say()` caller, fired whenever a VS wave's bulk gem pickup levels the
+      character up with overflow XP, `src/sim/progression.ts`'s
+      `collectRemainingGems`) within that ~1.4s window — the storage-full
+      warning is immediately replaced by "+1 gold (EXP overflow)" with no
+      trace it was ever shown. Because fb087's warning is measured to land
+      roughly 38% into a normal run and stays relevant for the rest of it,
+      any VS-wave-end (or any future second `say()` caller) landing within
+      ~1.4s of the failure can quietly defeat fb087's entire "player-visible"
+      intent for that run. Acceptance: give `Hud`'s toast a minimal
+      priority/queue (e.g. a higher-priority message holds its full window
+      before a lower-priority one can replace it, or same-priority messages
+      queue rather than clobber) so two independent `say()` calls landing
+      close together are both eventually seen, not silently reduced to one;
+      a regression test triggers fb087's storage-full toast, immediately
+      fires an unrelated `xp_overflow_gold` fx event, and confirms the
+      storage-full text is still visible (or reappears before its window
+      would otherwise have expired), not overwritten — refs: fb087,
+      `Hud.say()`/`Hud.ingestFx()` (`src/ui/hud.ts`).
 
 - [ ] (fb088) [polish] low priority: found by qa-playtester (fb074
       verification) — fb074's resume-time replay blocks the main thread
