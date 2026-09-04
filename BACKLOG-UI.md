@@ -2114,7 +2114,7 @@ not already expose it) logs that need below instead of reaching into
       inert outside dev profile, matching fb094's own gating pattern — refs:
       QUALITY.md 1.0 (Steam/itch checklist), fb094.
 
-- [ ] (fb098) [polish] low priority: generated 2026-09-04 (same generation
+- [x] (fb098) [polish] low priority: generated 2026-09-04 (same generation
       batch as fb095; QUALITY.md 1.0 Steam/itch checklist gap diff) —
       colorblind palette real-content audit. QUALITY.md 1.0's Accessibility
       re-check names "colorblind palettes on real content" as its own line,
@@ -2132,7 +2132,64 @@ not already expose it) logs that need below instead of reaching into
       would fail if two damage-type colors were changed to be
       indistinguishable under a simulated colorblind transform (proven via a
       deliberately-broken fixture in the test, reverted before commit) —
-      refs: QUALITY.md 1.0 (Accessibility re-check), fb005.
+      refs: QUALITY.md 1.0 (Accessibility re-check), fb005. DONE 2026-09-04:
+      took the "equivalent render test" branch rather than editing
+      `tools/ui-audit.ts` (out of this lane's Scope). New
+      `src/render/colorblind-sim.ts` — a standalone, dependency-free
+      simulation of protanopia/deuteranopia/tritanopia via the standard
+      Vienot/Brettel-derived linear-RGB matrices (sRGB<->linear conversion via
+      the correct piecewise formula, not a flat gamma), plus `colorDistance`
+      (Euclidean, 0-255 sRGB space) and `auditDistinguishability` (flags any
+      pair under a distance threshold). New
+      `tests/render-fb098-colorblind-audit.test.ts` renders a real "mixed
+      fight" (all six §3 damage types' floating numbers + a Corpse Core
+      execute, one frame) through the actual `Renderer` with
+      `accessiblePalette: true`, captures the real on-screen `fillStyle`
+      values (same recording-canvas harness fb005 uses, extended to confirm
+      each matches `damageStyleColor`/`executeStyle`'s live output), adds
+      frost/frozen (read directly via `damageStyleColor` — documented, not
+      silently assumed, as a compromise: no test in this repo including
+      fb005's actually renders those two through `drawEnemies`'s real
+      marker-drawing path with a live frozen/slowed enemy, though the function
+      has no enemy-specific branching to diverge from), then for each of the 3
+      CVD modes plus unsimulated asserts every pairwise distance among the 9
+      colors clears `MIN_DISTANCE = 20` — chosen with headroom below the real
+      content's tightest simulated pairs (poison/frost ~25.8 under tritanopia;
+      frozen/execute ~35.3-37.4 under proto/deuteranopia) and well above the
+      deliberately-broken fixture (a magenta/green pair, ~345 apart
+      unsimulated vs. ~13.4 under simulated protanopia — chosen by an
+      offline, uncommitted random search, not hand-tuned). Targeted
+      `tests/render-fb098-colorblind-audit.test.ts` (3/3). code-reviewer
+      **APPROVE** (no Critical/Major; three Minor — the `MIN_DISTANCE`
+      threshold's justifying numbers lived nowhere in the repo, unlike
+      `tools/audit/checks.ts`'s precedented `COLOR_DISTANCE_MIN`, and would
+      normally get a `QUESTIONS.md` entry, but `QUESTIONS.md` is outside this
+      lane's Scope — fixed by moving the real-content/broken-fixture numbers
+      into `colorblind-sim.ts`'s own file-level doc comment instead, in-scope
+      and same effect; a comment overstated fb005's existing coverage of the
+      frost/frozen marker path as "pixel-for-pixel pinned" when it isn't
+      (fb005 only asserts `damageStyleColor`'s return values are pairwise
+      distinct, never through a real `drawEnemies` pass) — reworded to state
+      the compromise honestly; a dangling forward-reference to numbers "in the
+      file-level comment" that weren't actually there yet — fixed alongside
+      the first). qa-playtester **PASS**: independently mutated the real
+      `data/damagetypes.json` (not just the test's own baked-in fixture) to
+      collapse poison/frost under tritanopia specifically (~14.2 simulated,
+      restored after, `git diff data/damagetypes.json` clean) and confirmed
+      the audit approach catches it; sanity-checked the CVD math against
+      textbook red/green-under-protanopia collapse and black/white staying
+      maximally distinct under every mode; confirmed the frost/frozen
+      shortcut is byte-identical to what `drawEnemies` would paint (the
+      function is pure, no enemy-specific branching); confirmed scope (only
+      the two new files, `STATUS.md`'s dirty state pre-dated this session).
+      `npx tsc --noEmit` clean. `npm run test:fast`: 6-10 failures across
+      two runs this session, all in the pre-existing q15/q49/q52
+      worker-hang/Windows-scratch-dir-EPERM flake classes (plus
+      b032/b034/b035/b036/q13 contention-class failures that didn't
+      reproduce in the same shape twice) documented across dozens of prior
+      PROGRESS.md sessions, none touching `src/ui/**`/`src/render/**` or this
+      item's own files — confirmed `colorblind-sim.ts` has zero import
+      coupling to any failing suite.
 
 - [ ] (fb099) [feat] normal priority: generated 2026-09-04 (same generation
       batch as fb095; engineer's-judgment item, depth not scope creep per
@@ -2235,6 +2292,27 @@ not already expose it) logs that need below instead of reaching into
 
 
 ## Log
+
+- 2026-09-04, fb097: skipped for this session — its acceptance criteria's
+  primary path ("gif capture mode") needs either a new npm dependency (a GIF
+  encoder) or, for the fallback path it names ("a downloadable frame-sequence
+  archive"), a zip/archive library — either way an out-of-scope `package.json`
+  edit (Scope allows only `src/ui/**`/`src/render/**`/`tests/ui*`/
+  `tests/render*`/this file). The fallback path also names a `QUESTIONS.md`
+  note on the substitution, itself out-of-scope. A dependency-free
+  N-separate-PNG-downloads substitute was considered but rejected as not
+  actually meeting "produces a downloadable file" (singular) or "archive" in
+  the item's own text without a compromise big enough to need the same
+  QUESTIONS.md sign-off the item already anticipates — better logged for
+  main-lane awareness than shipped as a silent reinterpretation. Executed
+  fb098 instead, the next actionable item, which is fully in-scope. Note for
+  main-lane awareness: fb098 (see its own DONE note) hit an analogous
+  smaller gap — a new `MIN_DISTANCE` tunable that would normally get a
+  `QUESTIONS.md` entry per the `COLOR_DISTANCE_MIN` precedent in
+  `tools/audit/checks.ts` — resolved in-scope by documenting the numbers in
+  `src/render/colorblind-sim.ts`'s own file header instead; still worth a
+  `QUESTIONS.md` entry at the next main-lane pass for cross-referencing
+  symmetry with `COLOR_DISTANCE_MIN`'s own entry, just not blocking.
 
 - 2026-09-04, fb093: skipped for this session — its literal acceptance
   criteria require editing `tools/ui-audit.ts` (adding an ultrawide and a
