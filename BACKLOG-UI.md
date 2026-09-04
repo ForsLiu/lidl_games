@@ -2564,7 +2564,7 @@ not already expose it) logs that need below instead of reaching into
       prior PROGRESS.md sessions, none touching `src/ui/**`/`src/render/**`
       or this item's own files.
 
-- [ ] (fb105) [feat] low priority: generated 2026-09-04 (same generation
+- [x] (fb105) [feat] low priority: generated 2026-09-04 (same generation
       batch as fb102) — Codex search/filter box. The Codex
       (`src/ui/codex.ts`/`codex-collections.ts`) renders every collection as
       a plain, unfiltered table — fine at a handful of rows, but §13's content
@@ -2579,7 +2579,50 @@ not already expose it) logs that need below instead of reaching into
       the DOM (or visible), confirms clearing the input restores every row,
       and confirms switching to a different collection resets the filter —
       refs: SPEC-FINAL §11 (Codex, in-game wiki of every entity), §13
-      (content totals).
+      (content totals). DONE 2026-09-04: `codex.ts`'s `show()` (called on
+      mount and every collection switch) now creates a
+      `<input class="sw-codex-search">` above the table and wires an `input`
+      listener that toggles a `sw-codex-row-hidden` CSS class (`display:
+      none`, `style.css`) on non-matching `<tr>`s using a plain
+      case-insensitive `String.includes()` substring match against each row's
+      `textContent` — never regex, so a literal `.`/`(`/`[` in a query can't
+      misbehave. Rows are hidden, never removed from the DOM, preserving the
+      index correspondence `renderDetail`'s row-click handler
+      (`collection.rows[i]` ↔ `table.tBodies[0].rows[i]`) depends on. Since
+      `show()` fully rebuilds `content` from scratch on every call, both
+      `CodexHandle.select()` and a nav-button click get a fresh, empty search
+      input for free — no separate reset code path to diverge. `.sw-codex-count`
+      updates to "N of M entries" while filtered, and a `.sw-codex-no-matches`
+      message (reusing the existing `.sw-note.dim` style) appears when a query
+      matches nothing, both added after code-reviewer Minor findings on an
+      earlier draft that left the stale total count and a silently-empty table
+      with no explanation. Targeted `tests/ui-fb105-codex-search.test.ts`
+      (8/8): input presence, filters the real "towers" collection to a
+      unique-substring match and restores on clear, filters a synthetic small
+      collection and restores, case-insensitivity, no-matches message + count
+      text, empty-collection search doesn't throw, filters the largest real
+      collection (well past a "handful") down to a proper non-empty subset,
+      and `select()` clears the filter across a collection switch.
+      code-reviewer **APPROVE** (no Critical/Major; two Minor — the stale
+      count/no "no results" affordance, both addressed same session — and two
+      Nits, not blocking). qa-playtester **PASS**: reran the targeted set
+      (31/31 across `ui-fb105-codex-search`/`codex`/`p9b-codex-hub`) plus 9
+      hostile scratch-test probes (regex-meaningful characters confirmed
+      literal-not-regex, unbalanced brackets, whitespace-only query, a
+      100,000-char query, rapid type/backspace/clear, click-detail
+      row-index-mapping correctness after a filter-then-clear cycle using
+      `classAbilitiesMarkup` as an oracle, nav-button vs `select()` mid-search
+      switching, Tuner-panel coexistence, and formatted-cell array/boolean
+      substring matching) and filed no bugs. `npx tsc --noEmit` clean.
+      `npm run test:fast`: 15-16 failed files across two runs this session
+      (one run's extra hook-timeouts attributed to CPU contention from the QA
+      agent's own leftover background processes, not a regression), all in
+      the pre-existing q15/q25/q28/q33/q37/q41/q45/q46/q49/q52/q53/
+      fb038-status Windows-scratch-dir-EPERM flake class and the b032/b034/
+      b035/b036 Training-Grounds fold-test hook-timeout class documented
+      across dozens of prior PROGRESS.md sessions, none touching
+      `src/ui/**`/`src/render/**`, Codex/Hub test files, or this item's own
+      files.
 
 - [ ] (fb106) [polish] low priority: generated 2026-09-04 (same generation
       batch as fb102) — ultrawide/narrow safe-area unit-geometry regression
