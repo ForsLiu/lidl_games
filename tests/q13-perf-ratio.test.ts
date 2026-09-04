@@ -72,7 +72,7 @@ function medianWorstCaseRatio(calibIters: number, tickSamples: number, warmupTic
  * Recorded ceiling. Re-measured for the SPEC-FINAL sim (merge port): the
  * lane-era recording (~14,000-27,000 quiet, ~29,000-30,000 contended, ceiling
  * 65,000) described a sim whose worst-case tick has since been reworked —
- * measured now, the living worst-case fixture reads a median of ~1,420-1,560
+ * measured then, the living worst-case fixture read a median of ~1,420-1,560
  * at the "A" config below on this host *while contended* (three rounds of 5,
  * samples 1,416-2,063, concurrent with the merge's other test runs). This
  * test still runs inside `npm test`'s own parallel file execution and has to
@@ -80,11 +80,27 @@ function medianWorstCaseRatio(calibIters: number, tickSamples: number, warmupTic
  * move it into `vitest.perf.config.ts`'s single-threaded run the way A10 is
  * isolated) — see `tools/perf-ratio.ts`'s `measureRatioForWorld` doc comment
  * for the interleaved-measurement design that keeps the ratio steady under
- * exactly that load. The ceiling sits at roughly 4x the contended median, so
- * ordinary contention stays quiet while an actual multi-x regression in the
- * worst-case tick's relative cost still trips it.
+ * exactly that load. That gave the prior ceiling of 6,000 (~4x the contended
+ * median).
+ *
+ * **Re-measured this session (fb054 close-out)**: `worstCaseWorld()` fills to
+ * `aliveCap`, and fb054 (BALANCE.md's "Density targets" section) raised
+ * `aliveCap` 350->500 — a heavier worst-case tick is the intended, measured
+ * effect of that change, not a regression, but it moves this ratio's own
+ * baseline, and the old 6,000 ceiling no longer holds under contention (it
+ * tripped at ratio=7,901 inside a full `npm run test:fast` run this session).
+ * Re-measured the same way as the prior recording — three rounds of 5,
+ * concurrent with other test files running (`act1`, `p6d-nine-classes`,
+ * `p6b-swordsman`) — at the new `aliveCap` 500: contended medians 3,979 /
+ * 4,637 / 5,118 (median-of-medians 4,637, individual samples 2,737-6,566),
+ * plus the single heavier-contention sample of 7,901 observed inside the
+ * full suite run above. Ceiling re-set to roughly 4x the moderate-contention
+ * median-of-medians (4,637 x 4 ~= 18,548, rounded down), comfortably above
+ * the heaviest contention sample seen (7,901) so ordinary contention stays
+ * quiet while an actual multi-x regression in the worst-case tick's relative
+ * cost still trips it.
  */
-const RECORDED_CEILING = 6_000;
+const RECORDED_CEILING = 18_000;
 
 /** Two configurations differing in both calibration and tick sample size, not just one. */
 const CONFIG_A = { calibIters: 20_000_000, tickSamples: 500, warmupTicks: 200 };

@@ -2467,7 +2467,7 @@ generation-rule boundary.
       `p6d-nine-classes`) 227/227; `npm run test:fast` 2063 passed/5
       failed/24 skipped, every failure the same standing flake family,
       none touching any file this item changed.
-- [ ] (fb054) [balance] top priority: fights should read as massed
+- [x] (fb054) [balance] top priority: fights should read as massed
       warfare — denser and tankier. (1) Spawn density: TD wave counts/pack
       sizes up roughly x2-3 ⚖; VS director budget up to match; alive cap
       raised 350->500 ⚖ only as far as the G17 60fps perf bench holds
@@ -2483,6 +2483,57 @@ generation-rule boundary.
       assertion re-pinned with a logged reason, never silently loosened —
       refs: SPEC-FINAL §9 (waves/spawns), §14 (G1/G8/G13/G14/G17/G23), owner
       feedback `balance-siege-density`.
+      **Done (lead close-out session, following a balance-analyst pass):**
+      `aliveCap` 350->500, `budgetBase` 150->375, waves 3-18's `perGate`
+      ×2.5 (rounded), `spawnIntervalSeconds` 1.02->0.41 to keep arrival rate
+      matched to the raised queue length (see BALANCE.md's "Density targets
+      (fb054)" section for the full method and the counter-intuitive
+      `spawnIntervalSeconds` finding). Waves 1-2 were deliberately left
+      unscaled — the balance-analyst pass's own scope only checked
+      G1/G8/G13/G14/G17/G23 and missed that scaling them broke a real
+      onboarding invariant (`tests/a2-towers-mandatory.test.ts`: idle play
+      must survive to wave 3-4, not die on wave 2) that none of those six
+      gates exercise. Running `npm run test:fast` (the step the
+      balance-analyst pass deferred to "the lead") surfaced that plus two
+      more blast-radius misses with no gate letter at all
+      (`tests/act1.test.ts`'s hardcoded wave-1 spawn count,
+      `tests/p8a-wave-content.test.ts`'s hardcoded `budgetBase` literal) and
+      one real G17 instrument regression (`tests/q13-perf-ratio.test.ts`'s
+      ceiling, calibrated for the old `aliveCap`, re-measured and re-set to
+      18,000) — see BALANCE.md's "fb054 close-out" section for all four,
+      each fixed or re-pinned with a logged reason rather than silently
+      loosened. Final state re-verified: `tests/a4-single-type.test.ts`
+      16/16 live (G13, unaffected by the waves 1-2 revert since two waves of
+      eighteen are a negligible HP share), `npm run test:fast` 2060
+      passed/9 failed/24 skipped with every failure the pre-existing
+      `q15`/`q45`/`q49`/`q52` Windows scratch-dir flake family (confirmed
+      against HEAD via fb053's own commit note), qa-playtester pass
+      confirmed the mechanism and flagged the waves-1-2/doc-drift issue
+      that this close-out then fixed.
+- [ ] (fb076) [balance] `data/towers.json`-only retune of the seven solo TD
+      towers against fb054's denser wave curve (`perGate` ×2.5 on waves 3-18,
+      `spawnIntervalSeconds` ÷2.5; waves 1-2 stay unscaled per fb054's
+      close-out) — the same shape p10c did against the old
+      curve (PROGRESS.md's 2026-08-30 p10c entry). Ground truth measured this
+      session (`npx tsx tools/a4probe.ts`, seeds 1-5, cross-checked against a
+      live `npx vitest run tests/a4-single-type.test.ts` run — both agree
+      exactly): six of seven towers now fail the T1 solo-clear clause —
+      arrow_spire 0/5 (min/med wave 16/16), mortar 0/5 (5/8, the worst —
+      barely a quarter of the curve), ember_brazier 4/5 (17/18), frost_obelisk
+      2/5 (17/17), tesla_coil 3/5 (17/18), venom_spore 1/5 (16/17); only
+      ballista holds 5/5 (18/18). Acceptance: re-run
+      `tests/a4-single-type.test.ts`'s T1 clause and confirm all seven towers
+      (including mortar, which BALANCE.md's fb054 pass under-reported as
+      unaffected — re-verify it explicitly) reach 5/5 against the current
+      `data/waves.json` curve; T3 clause stays 0/5 (still fails alone); the
+      towers.json-only diff re-verified against G1 (`p10d-run-length`, mean
+      run length / win rate unchanged), G8/G23 spot-checks (still at their
+      standing 100% ceiling, not silently pushed further — not the goal),
+      G14 (`boss.test.ts`, 20/20 unchanged), and G17 (`a10-performance.test.ts`,
+      still within the perf budget) — a tower buff plausibly touches all of
+      these, per CLAUDE.md's "check the blast radius" rule, not just G13 —
+      refs: BALANCE.md's "Density targets (fb054)" section (G13 sub-section),
+      SPEC-FINAL §14 G13.
 **Lane split (2026-09-03):** the remaining eleven items of this batch,
 fb055–fb065, moved out of this file into the parallel lane files, ids and
 text unchanged (see CLAUDE.md "Lanes"): fb056/fb057/fb059/fb061/fb062 →
