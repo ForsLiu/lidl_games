@@ -412,7 +412,7 @@ session 2 (c005 was the last actionable one left), appending `c006`-`c010`.
       Turret*, Animist *Kindred Spirits*) — cards that are live in code and
       inert in a real run.**
 
-- [ ] (c012) [polish] `data/equipment.json` has **no §7 ledger** — `c008`'s
+- [x] (c012) [polish] **DONE 2026-09-04.** `data/equipment.json` has **no §7 ledger** — `c008`'s
       shape for the other content file this lane owns. `tests/fb015-equipment.
       test.ts:84` asserts "each item, equipped alone, contributes every mods key
       at its owner-table value", but that owner table is *hardcoded in the test*,
@@ -494,6 +494,43 @@ session 2 (c005 was the last actionable one left), appending `c006`-`c010`.
       (`fireRaiseSkeletons`' cap, `fireJudgement`'s banked Wrath), and any such
       row is a named deviation, never silence - refs: SPEC-FINAL §6.3, c016,
       c019.
+
+- [ ] (c022) [bug] the §7 ledger pins **which stat key each numeric column uses
+      and no Effect row's**. `c012` added `NUMERIC_STAT` after code review found
+      that a `0`/`×1` cell reads 0 through *any* `StatKey`, so a numeric row
+      could audit a stat §7 never mentions; the same hole is still open on the
+      13 Effect rows, which choose their key freely. Measured by QA on c012:
+      moving `normal_necklace`'s `"towerCost": -0.2` to `"goldFind": -0.2` in
+      `/data` **and** the row's `stat` with it leaves
+      `tests/equip-spec-numbers.test.ts` fully green — §7's "tower upgrade cost
+      −20%" would then be authored on gold find. It is caught today only by
+      `tests/fb015-equipment.test.ts`'s hardcoded `EXPECTED_ITEM_MODS`, which is
+      the very table c012 exists to stop relying on, and `fb056` is the item
+      most likely to rewrite it. Acceptance: each Effect row carries a
+      behavioural pointer — the `describe`/`it` in `tests/fb015-equipment.
+      test.ts` that proves *that stat* moves *that* observable — anchored by
+      regex the way `RULES.anchor` and the `in_code` row's `anchors` already
+      are, so deleting the covering block reddens the row; red under the
+      `towerCost`->`goldFind` mutation above with the ledger row edited to
+      match - refs: SPEC-FINAL §7, c012, QA on c012, fb056.
+
+- [ ] (c023) [polish] `equipment.items[].effectKey` is a **dead field**. Found
+      by QA on c012: setting `sleeve_sword`'s to `"none"` changes no behaviour
+      and no UI text, and `equip-spec-numbers`, `fb015`, `fb028`, `fb022`,
+      `codex`, `character-panel` and `b003-stash-ux` all stay green. The sim
+      gates every one of the three non-stat mechanics on
+      `hasEquipment(w, '<key>')` (`classes.ts`) rather than on the item's
+      `effectKey`, and `equipment-info.ts` renders `effectNote`/`effectNoteWith`,
+      never `effectKey` — so a zod enum in `src/sim/content.ts:1052` validates a
+      field nothing reads. Not a §7 disagreement, but it is a `/data` shape that
+      looks load-bearing and is not, which `fb056` will copy 15 more times.
+      Acceptance: `tests/equip-effectkey-reach.test.ts` enumerates every reader
+      of the field and asserts, per item, that flipping it changes nothing
+      observable — the same red/green measurement shape `c013` uses, which the
+      main-lane removal (or the wiring-up, if that is the call) then flips. The
+      field's fate is a main-lane decision because deleting it touches
+      `src/sim/content.ts`; this item is the measurement only - refs:
+      SPEC-FINAL §7, c012, c013, QA on c012.
 
 ### Blocked out of Scope (owner items, unchanged order)
 
@@ -1981,3 +2018,208 @@ the merge; c017 neither caused nor cleared it.
   - **For the main lane / `c014`**: this file adds a fifth `WX/WY = 10,10` +
     `WX+1,WY` build-tile harness to the four `c014` already names, and c014's
     item text has been updated to say five.
+
+### c012 (2026-09-04) — the owner table that was only ever compared to itself
+
+- **Shape**: one new file, `tests/equip-spec-numbers.test.ts` (114 tests,
+  ~120 ms). **No `/data` and no `/src` byte moved** — `git diff` against
+  tracked files empty at the commit, which the item required and which nothing
+  needed to break: every one of §7's figures is authored correctly today. The
+  deliverable is the barrier, not a fix.
+- **73 ledger rows**: 60 numeric (12 items x §7's HP/Atk/Def/AtkSpd/Move), 13
+  Effect (9 effect stats, the 3 `classFallback` compensation lines as rows of
+  their own per the item's wording, 1 `in_code`). Census pinned at
+  **72 match · 0 retuned · 1 in code**. Plus 3 `NO_FIGURE` cells (the three
+  `none` effects) and 7 `RULES` clauses (4 in cells, 3 in §7's preamble).
+- **c008's device does not port, and pretending it did would have been the
+  whole item wasted.** c008 pins its `spec` column by requiring the figure to
+  appear *verbatim in the spec*. §7 is a **table**: the verbatim text of
+  greatsword's HP cell is `0`. So §7's table is **parsed**, and every numeric
+  row's `spec` is checked against the parsed cell — strictly stronger than
+  c008's quote, because there is nothing to word around. The Effect column is
+  prose and keeps c008's quote, plus a `fromQuote` that extracts the numeral
+  back out of the quote so `spec` cannot drift from the sentence it cites.
+- **Absence is 22 of the assertions.** §7 states `0`/`×1` cells and
+  `equipment.json` authors those by *omitting* the key (0 is the identity for a
+  flat stat and for `stats.ts`'s `1 + v` multipliers alike). The mutation check
+  *creates* the key it bumps, which is what makes those rows real rather than
+  decorative — authoring `maxHp: 1` on the greatsword reddens its HP row.
+- **18 mutations, all red; control green.** Drift a column · launder it by
+  editing `/data` **and** SPEC-FINAL's cell together (3 failed) · spurious key
+  on a `0` column · a stat no row audits · `leech` mis-scaled 100x (the
+  plausible percent slip) · drop a `classFallback` (4 failed) · delete the
+  `x2` in `classes.ts` · swap a `notClassKey` · reorder §7's slot list ·
+  rename an anchored `it()` in `fb015-equipment.test.ts` · six desc edits ·
+  a fabricated authorisation id · and the five QA repros below.
+- **Code review (REQUEST-CHANGES) and QA (PASS, 5 findings) both found the
+  ledger asserting less than its own header claimed.** Every finding was fixed
+  in this item rather than deferred; the two Major ones were live holes of
+  exactly the kind c012 exists to close:
+  - *Review, Major*: the three fallback rows quoted §7's whole condition
+    ("if not Swordsman: ×1.1 movement") but read only the magnitude, so
+    `notClassKey` was **unaudited repo-wide** — changing `swordsman_shoes`'
+    to any class but `engineer` left the entire suite green. `fb015`'s own
+    withholding test derives the class from the data it is checking.
+  - *QA, Major*: §7 could **gain** a figure inside an already-covered cell and
+    the file stayed green — coverage was per cell, so one row satisfied a cell
+    forever, and the only tripwire was the hash, whose failure message tells
+    you to regenerate it. QA did exactly that and shipped two unaudited §7
+    figures. Closed by a **residue check**: strike every claimed quote/clause
+    out of a cell and the leftover must contain no numeral; also split on `;`
+    and require every clause to be claimed. That closed the review's separate
+    "`RULES` is pure opt-in" finding for free — emptying `RULES` to `[]` used
+    to be green at the same test count, and is now red.
+  - *QA, Major*: the desc audit bound HP/Atk/Def and the two multipliers and
+    stopped, leaving every Effect numeral in `desc` unbound. QA changed six
+    descs — including two that **invert** a §7 rule ("lifesteal does not apply
+    to Bleeding damage", "Character range -40%") — with `mods` untouched and
+    everything green. Now every Effect row asserts its own figure in the desc.
+  - Also fixed: `NO_FIGURE` could excuse a *numeric* cell (the `'none'` guard
+    read the item's Effect cell whatever column the excuse named); the
+    `in_code` row's `spec: 2` was asserted against nothing (now captured out of
+    `classes.ts`); the numeric column -> stat-key mapping was unpinned for
+    every `0`/`×1` cell; the authorisation guard was a shape regex under an
+    assertion titled "that can be looked up" (QA authorised a real drift with
+    `Q9999 / c999`) and now looks the id up in `BACKLOG*.md`/`QUESTIONS.md`;
+    the slot list was hardcoded next to a `toContain` that proved nothing.
+- **Two bugs this file found in itself, both while being written**, and both
+  worth naming because they are the failure mode a ledger is most exposed to —
+  an assertion that cannot fail:
+  - a greedy `[\d.]+` swallowed the descs' sentence period, so `Number("0.9.")`
+    was `NaN` and four rows compared `NaN` to a spec figure;
+  - Sleeve Sword states `atk speed x1.2` **twice** in its desc, once as its
+    column and once in its "If not Swordsman" sentence, so deleting the column
+    outright was green until the search was narrowed to the stats clause.
+- **The header was corrected, not just the code.** An earlier draft claimed
+  that moving a number requires "a status row that names who authorised it".
+  It does not: a coordinated `/data` + §7 + hash edit leaves the row a `match`.
+  No test can tell an owner retune from a laundered drift — the real guarantee
+  is that the retune is *visible*, as a spec diff and a hash line in the same
+  commit. The header now says that and nothing more.
+- **Two reach divergences named, not one.** `c013` already tracks Normal
+  Bracelet's `+10%` being right on the global `area` key. QA/review surfaced
+  the exact twin: §7 says "tower **upgrade** cost" while `towerCost` also
+  discounts the build price. That one is *settled* — **Q136(1)**, owner verdict
+  "approved, all four calls" — and `charRange`'s scope is **Q136(3)**. Both now
+  carry a `note`, because a reach that was checked and found authorised reads
+  identically to one nobody looked at unless it says so.
+- **Filed, not fixed** (both from QA, both new): `c022` — Effect rows pin no
+  stat key, so `towerCost` -> `goldFind` with the row edited to match is green
+  here and caught only by `fb015`'s hardcoded table, the one c012 exists to
+  stop leaning on. `c023` — `equipment.items[].effectKey` is a dead field:
+  validated by a zod enum, read by nothing (the sim gates on `hasEquipment`,
+  the UI on `effectNote`), and `fb056` would copy the shape 15 more times. Its
+  removal touches `src/sim/content.ts` and so is main-lane; `c023` is the
+  measurement only.
+- **Verification**: `npx tsc --noEmit` clean; targeted file 114/114;
+  `npm run test:fast` 2635+ passed / 8 failed files — every failure the
+  standing `b032`/`b034`/`b035`/`b036` port-contention, `q15` worker-hang and
+  `q45`/`q49`/`q52` Windows scratch-dir `EPERM` family this queue documents
+  every session. **Established as pre-existing by control, not assumed**: with
+  this file moved out of the tree entirely, the same suites fail identically,
+  and the pre-change baseline run had the same 8 failing files. QA
+  independently re-ran the money paths (`npm run sim --seed 1 --policy hybrid`
+  -> victory, 18 waves + 6 VS, boss killed, `endHash f776bd7a`; a 4-seed
+  hybrid sweep; 67 stash/equip tests; 41 cycle/reward/practice/determinism
+  tests) — c012 moves no `/data` or `/src` byte, so nothing could regress, and
+  that was verified rather than argued.
+
+### c012 (2026-09-04, session 2) — the ledger that minted its own fake ids
+
+The commit above finishes `c012`, which the previous session left **uncommitted
+and red at 113/114**. Everything below is that session's deliverable plus this
+one's repairs; the item's own acceptance was re-verified from scratch, not
+inherited.
+
+- **The bug that stopped it committing is the one worth remembering.** The
+  ledger's authorisation guard checked that a `retuned` row names a real
+  backlog/Q id by searching `BACKLOG*.md`/`QUESTIONS.md`/`PROGRESS.md` for the
+  bare token **anywhere**. The same session's Log entry then wrote the sentence
+  "QA authorised a real drift with `Q9999 / c999`" into `BACKLOG-CONTENT.md` —
+  and *minted both fabricated ids*, turning the file's own negative control
+  red. A test whose corpus includes the prose that documents it cannot use a
+  bare mention as evidence: **writing about an id is not filing it.**
+- **Fix: an id resolves only at its definition site** — `- [ ] (c012)` /
+  `- [x] (p10s)` for backlog ids, `- **Q136.` for QUESTIONS ids, both anchored
+  at column 0, where all 263 real item lines and all 160 real Q entries live.
+  Strictly stronger than the mention search as well as immune to the file's own
+  paper trail: an id appearing only in a `refs:` tail or a Log paragraph no
+  longer authorises a moved number, because nothing there decided anything.
+- **code-reviewer returned REQUEST-CHANGES; qa-playtester returned PASS on
+  acceptance with 6 bugs against the ledger. All were fixed in this item**, in
+  the c012 tradition of not deferring the findings a barrier item exists to
+  produce. Every one was a live hole:
+  - *Review Major / QA Bug 5*: the first version of the fix was still bound to
+    live prose — three assertions asked the corpus whether `Q9999` was
+    mentioned-but-undefined, so **rewording that one Log sentence reddened the
+    ledger with no message saying why**, and `definedAt('c012')` was pinned to
+    `['BACKLOG-CONTENT.md']`, which is already false on `master` and which
+    CLAUDE.md's lane rule is *scheduled* to break at the merge. The
+    mention-vs-definition rule is now a pure `definesIn(text, token)` tested on
+    literal strings, and the file pin is a non-empty check.
+  - *QA Bug 3*: the id shape regex listed the four families this lane happens
+    to use and so **rejected 131 of the repo's 263 real ids** — every `b###`
+    (including `b032`/`b076`, which the docs cite as authorities), every
+    lowercase `q##`, the `m##`/`t#`/`f00#`/`x00#` families. A retune authorised
+    by `b076` could not have been stated at all, and the only ways green were
+    to relabel a real authorisation or to edit the guard. A check whose first
+    real use trains you to widen it is worse than no check. The shape now takes
+    any letters-then-digits token and lets the definition lookup decide.
+  - *QA Bug 4 / review m3*: the definition patterns were unanchored, which is
+    the same bug one indent in — an **indented quotation** of an item line
+    inside a Log bullet, or an inline `**Q9999:**` in a QUESTIONS sentence,
+    still minted the id. Both anchored; both shapes asserted as non-definitions.
+  - *QA Bug 1*: the clause check split cells on `;` and checked the preamble
+    for **numerals only**, so three of the seven `RULES` entries were
+    individually inert and a normative sentence without a number went in green
+    (QA shipped "Equipment is lost on the Warden's death and must be
+    re-bought."). Cells now use a **residue over words** — strike every claim,
+    and surviving prose is unclaimed whatever punctuation delivered it — and
+    every preamble sentence must be a `RULES` clause or a declared
+    `PROSE_EXEMPT` entry. Splitting on `,` was the obvious fix and the wrong
+    one: §7 writes "if sleeve sword equipped, Circle Slash damage is boosted
+    ..." as one clause, and splitting it would have broken the entry that
+    claims it.
+  - *QA Bug 2*: a §7 table row that does not parse was **silently skipped** —
+    a 13th row one pipe short was invisible while a well-formed one was caught.
+    Now a throw naming the row. `fb056` hand-adds 15 rows to that table.
+  - *QA Bug 6*: `descQuote`, the file's one hand-typed expectation, was
+    unconstrained — widening it from `doubles dash slash distance` to
+    `dash slash distance` left the file green with the player-facing desc free
+    to state the *opposite* of §7. That is the `EXPECTED_ITEM_MODS` shape c012
+    exists to delete, reappearing inside the file that deletes it. An override
+    must now keep §7's numerals, still name §7's noun, and inflect rather than
+    drop §7's head word.
+  - *Review m2/m4*: the definition-file roster is derived by `readdirSync`
+    instead of hardcoded — it had named four of the repo's **six** `BACKLOG*.md`
+    files, missing `BACKLOG-QUALITY.md` (`q1`-`q57`) and `BACKLOG-TUNER.md` —
+    and `authorisationResolves` no longer duplicates `definedAt`'s body.
+- **One defeat path found by mutating this file rather than the spec, and it is
+  named rather than claimed shut.** The clause rule decides "is there prose
+  left?" by subtracting `CONNECTIVES`, so adding a clause's own words to that
+  set makes the clause vanish — and the `;` split cannot help, because the
+  builder's-necklace parenthetical rides inside the same fragment as the claim
+  covering it. No assertion can prevent that edit, exactly as none can tell an
+  owner retune from a laundered drift. The set is therefore **pinned**, so
+  growing it is a diff on one line with the explanation attached, and the rule
+  itself is exercised on synthetic text so it is not tested only through the §7
+  the repo ships today.
+- **Verification**: targeted file **116/116**; `npx tsc --noEmit` clean.
+  Mutations, all red with the control green: descQuote widened · resolver back
+  to the mention search · `CONNECTIVES` widened to swallow a clause · a
+  `PROSE_EXEMPT` entry deleted · a preamble sentence added **and the hash
+  regenerated the way QA did** (the clause check is a different assertion from
+  the hash, so regenerating cannot clear it) · an unclaimed parenthetical in a
+  covered cell · each of the three previously-inert `RULES` entries deleted ·
+  a 7-cell 13th §7 row. `SPEC-FINAL.md` was mutated only inside these repros
+  and restored — `git diff -- src data SPEC-FINAL.md QUESTIONS.md` is empty at
+  the commit, so c012 still moves no `/data` and no `/src` byte.
+
+**For the main lane (out of this lane's Scope, filed here rather than edited):**
+`p6e` is a real, completed backlog id — it is the run that measured G8 honestly
+red, cited at `BACKLOG.md:37`, `:871`, `:1087`, `:1099`, with
+`tests/p6e-class-diversity.test.ts` named for it — but it is the one member of
+`p6a`-`p6f` with **no `- [x] (p6e)` item line anywhere**, so the definition-site
+lookup would reject `authorised: 'p6e'`. Found by code-reviewer. The fix is a
+one-line entry in `BACKLOG.md`; the failure is loud and its message is
+actionable, so nothing is blocked meanwhile.
