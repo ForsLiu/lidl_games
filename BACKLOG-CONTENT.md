@@ -203,7 +203,7 @@ session 2 (c005 was the last actionable one left), appending `c006`-`c010`.
       §14 G10/G11, c006.
 
 
-- [ ] (c015) [bug] the twelve class rows' **player-facing sentences contradict
+- [x] (c015) [bug] **DONE 2026-09-04.** the twelve class rows' **player-facing sentences contradict
       their own numbers**, and nothing checks it. `data/classes.json` carries a
       `description` on every passive/Active/tower-passive row and those strings
       are what the Codex and tooltips show, but every number in them is a
@@ -213,7 +213,14 @@ session 2 (c005 was the last actionable one left), appending `c006`-`c010`.
       `towerDamageVsChilled 0.10` — and Bloodlord *Sanguine Pact* already says
       "all towers +10% damage" beside `towerDamage 0.04`, which `c008` proved is
       drift, so at least one of the twelve is lying to the player today. A
-      retune moves the field and leaves the sentence behind. Acceptance:
+      retune moves the field and leaves the sentence behind.
+      **Two premises were stale when executed, both corrected in the Log and in
+      the test's header: there are 24 description strings, not 36 (the Actives
+      carry none — `ClassEffectSchema` has no `description` field, and the test
+      asserts that rather than assuming it), and Bloodlord's sentence had
+      already been corrected to "+4%" by `p10s` (commit 3ce8cb8), so no class
+      was lying about a magnitude on the day this ran.** The barrier was still
+      missing, which is what the item delivered. Acceptance:
       `tests/class-descriptions.test.ts` extracts every numeric literal (and its
       `%`/`s`/`x` unit) from all 36 description strings and requires each to
       match the field on that row it names, or to appear in a named-deviation
@@ -1339,3 +1346,71 @@ session 2 (c005 was the last actionable one left), appending `c006`-`c010`.
   `tests/class-passive-magnitudes.test.ts` physically moved out of `tests/`, the
   four UI-fold files fail identically. No `class-*` suite fails, and
   `git diff --stat -- src data` is empty for this item.
+
+- (2026-09-04, session 8) **c015 done** — every numeral in a class description
+  is now bound to the number the sim runs on, in
+  `tests/class-descriptions.test.ts` (62 tests). **No `/data` byte changed**;
+  `git diff --stat -- src data` is empty for this item.
+
+  - **Two of the item's own premises were stale.** There are **24** description
+    strings, not 36: `ClassSlotPassiveSchema` (content.ts:825) gives one to
+    `passive` and `towerPassive` only, and `ClassEffectSchema` gives the
+    Actives none. The test *asserts* the Actives carry none rather than
+    assuming it, so the day one gains a sentence its numerals must be entered
+    in the ledger. And Bloodlord *Sanguine Pact* already read "+4%" beside
+    `towerDamage 0.04` — `p10s` (3ce8cb8) corrected the sentence in the same
+    commit that cut the field, which c008's `retuned` row records. **No class
+    was lying about a magnitude on the day c015 ran.** The item was filed off
+    the pre-p10s text; the barrier was the real deliverable.
+  - **Shape**: 32 claims over 22 sentences, each resolving to `field` (26,
+    matches a field on its own slot), `sibling` (2, authored on `active1` —
+    Conduction, tracked by `c010`), `in_code` (3, a `/src` literal — rule-4
+    debt) or `prose` (1, "counts as 1 attack"). Two sentences state no number
+    and sit in `NO_NUMBER`. Census-pinned, so a new deviation cannot be
+    absorbed into an existing status.
+  - **Ten holes were found by review/QA against drafts of this file and closed;
+    every one has a re-run repro that is now red.** The mechanism each closed
+    is worth keeping: (1) `in_code` anchors that matched a whole line but never
+    read the number in it — QA moved a sentence to "6 s", moved the ledger's
+    `value` to 6, and `/^const TIME_FLOW_BASE_SECONDS = 4;$/` still matched, so
+    anchors now carry a **capture group** and the source is the authority;
+    (2) an ASCII-only sign class — SPEC-FINAL writes `−` (U+2212) on 16 lines,
+    so a spec-pasted "−5%" extracted as "5%" and a sign flip was invisible;
+    (3) an arbitrary `(v: number) => number` converter, which QA used to
+    certify the *original* c015 bug as correct — `as` is now a closed enum;
+    (4) **the noun was never checked at all** — QA got eleven lying sentences
+    past a draft without touching a numeral (Paladin's "+10% defense and +5
+    max HP", Bloodlord's VS/TD halves swapped, Engineer's discount reworded
+    "cost 10% more", Necromancer's "below full HP" → "at full HP", and whole
+    descriptions permuted between classes, since six tower passives all read
+    "+10%" over a `0.10` field). Claims now carry `keywords` checked against
+    the numeral's own window; (5) that window then had to be **intersected with
+    the `;`/`:`/`,` clause**, because a re-review restored the Engineer lie by
+    moving "less" backwards across its own numeral into a span both neighbours
+    shared; (6) non-ASCII and spelled-out numerals were invisible, including
+    inside the two `NO_NUMBER` rows whose whole job is to assert their sentence
+    states no quantity — now refused outright, with word-numbers allowed only
+    via a declared `WORD_NUMBERS` table (4 entries today, all counts of an
+    event); (7) `absentKey`/`sibling` absence checks that read `loadContent()`
+    and were **vacuous because zod strips unknown keys** — both now read the
+    raw document, which is the only view in which a newly-authored field is
+    visible; plus an unbounded authorisation string (now must carry an item
+    id), `keyPaths` skipping arrays, and a group-less-anchor message.
+  - **For the main lane — a rule-4 literal the player is shown.** Time Flow's
+    "4 s" is `TIME_FLOW_BASE_SECONDS` in `src/sim/run.ts:578`, not a `/data`
+    field. A `charDotSeconds` row would need `content.ts`'s schema and
+    `run.ts`'s reader, both out of Scope. Pinned by capture group here so it
+    cannot drift silently; the fix is main-lane. The other two rule-4 literals
+    the player is shown are Thousand Cuts' bleed stack and Long Draw's
+    per-second pierce, both in `classes.ts`.
+  - **Harness lesson, cost an extra 5-minute run to learn.** Do **not** run
+    `npm run test:fast` while a subagent is mutating `/data`:
+    `tests/q7-data-fuzz.test.ts` hashes `/data` at start and asserts nothing
+    wrote to it, so it failed on a `classes.json` hash mismatch during a run
+    that overlapped the QA agent's probes. Green in isolation (38 s) and in the
+    quiet re-run. A QA/balance agent and a fast-tier run must not overlap.
+  - **Fast tier on this host, quiet run**: 8 files / 5 tests failing —
+    `b032`/`b034`/`b035`/`b036` (lane/ui folds), `q15-command-domain-fuzz`
+    (hook timeout), and the `EPERM`-on-`rmSync` family `q45`/`q49`/`q52`.
+    Exactly the logged baseline; no `class-*` suite fails. All 10 `class-*`
+    suites plus `q7` green together: 445 passed / 3 skipped.
