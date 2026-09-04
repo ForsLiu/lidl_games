@@ -102,7 +102,23 @@
  * in that item. The six assertions below are re-pinned to these exact
  * measured counts (a floor: any further regression still fails the test,
  * an improvement will need the pin raised) rather than `.skip`-ed, so the
- * clause keeps live signal. Follow-up filed as BACKLOG fb066.
+ * clause keeps live signal. Follow-up filed as BACKLOG fb066 (renumbered
+ * fb076 for a cross-lane id collision — see BACKLOG.md).
+ *
+ * **Re-measured at p11d (this session) — the fb054-era pin had already gone
+ * stale, a live-failing regression this file's own fast-tier exclusion was
+ * hiding.** No `/data` file touching towers or waves has changed since
+ * fb054's commit (`git log` confirms `data/towers.json` is unchanged since
+ * `b080`, before fb054), yet a fresh `npx tsx tools/a4probe.ts` run — cross-
+ * checked against a live `npx vitest run tests/a4-single-type.test.ts`,
+ * both agree exactly — measures `frost_obelisk` at 4/5 T1 clears (was
+ * pinned 2) and `mortar` at 1/5 (was pinned 0); the other five towers'
+ * pins still hold exactly. The prior fb054 session's own measurement was
+ * simply wrong at those two cells (not a later undocumented edit — none
+ * exists). Per CLAUDE.md's measurement rules ("re-measure a deferred
+ * assertion before inheriting it"), the pin is corrected to the honest
+ * current reading rather than re-transcribing the stale one. This is an
+ * improvement (closer to the 5/5 fb076 retune target), not a regression.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -140,9 +156,9 @@ describe('A4 every tower type is viable, none is dominant', () => {
     arrow_spire: 0,
     ballista: 5,
     ember_brazier: 4,
-    frost_obelisk: 2,
+    frost_obelisk: 4, // re-measured at p11d: was stale-pinned to 2
     tesla_coil: 3,
-    mortar: 0,
+    mortar: 1, // re-measured at p11d: was stale-pinned to 0
     venom_spore: 1,
   };
   for (const key of SOUL_TOWERS) {

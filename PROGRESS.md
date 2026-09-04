@@ -5,6 +5,39 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-04 session: BACKLOG p11d closed — a fast-tier margin test now
+  pins G13's one genuine T3 near-miss (`frost_obelisk` seed 4, 17/18 waves),
+  and a stale, live-failing `tests/a4-single-type.test.ts` pin found along
+  the way was corrected rather than inherited.** b072's old flag ("three of
+  four retuned towers near-miss T3 at 17/18") no longer reproduces under
+  current `/data` (fb025/b080/fb054 have all landed since) — re-measured
+  fresh per CLAUDE.md's re-measure-before-inheriting rule rather than
+  trusting the old note, and found the only remaining near-miss is
+  `frost_obelisk` seed 4. New `tests/p11d-g13-t3-margin.test.ts` (not
+  excluded from `vitest.fast.config.ts`, ~10-20s) pins `waves < 18` /
+  `cleared === false` for that seed — a tolerance bound, not an exact-value
+  pin (code-reviewer's suggestion, avoids forcing a pin bump on a benign
+  future improvement). Establishing an honest baseline surfaced a real,
+  already-live bug: `a4-single-type.test.ts`'s `T1_EXPECTED_CLEARS` pin for
+  `frost_obelisk` (pinned 2, measures 4) and `mortar` (pinned 0, measures 1)
+  was wrong at the moment the fb054 session wrote it — confirmed by
+  re-running the probe in an isolated worktree checked out at that exact
+  commit and getting the same corrected numbers there too, ruling out later
+  data drift. Corrected the pin; added a pointer from still-open `fb076` to
+  the corrected baseline so its future retune doesn't re-derive from the
+  stale figures. code-reviewer **APPROVE** (2 Minor: the `fb076` pointer and
+  the tolerance-vs-exact-pin choice, both addressed). qa-playtester **PASS**:
+  proved the new test is a real regression guard, not a tautology, by
+  live-mutating `frost_obelisk`'s damage (+20% still passed, +71% failed
+  loud) and `waves.json`'s `hpScalePerWave` (also tripped it), reverting
+  both and hash-verifying byte-identical to HEAD. `npx tsc --noEmit` clean;
+  `tests/a4-single-type.test.ts` 16/16 (~770s, stays excluded from the fast
+  tier); `npm run test:fast`: only the standing `b032`/`b034`/`b035`/`b036`/
+  `q15`/`q45`/`q49`/`q52` Windows flake family, `q45`/`q49`/`q52` confirmed
+  identical on unmodified HEAD via `git stash` A/B. No engine or `/src/sim`
+  code touched — test files and `/data`-adjacent docs only. See BACKLOG.md's
+  p11d entry for full detail.
+
 - **2026-09-04 session: BACKLOG p11c closed — `p10z`'s candidate direction (b)
   (a weaker/imperfect-play scripted-kit-and-Core-purchase bot for G8/G23) tried
   and found to close off, not open, the wall — after a real bug in the harness

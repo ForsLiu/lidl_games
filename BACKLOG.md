@@ -2317,7 +2317,7 @@ was not fabricated.
       p10z itself; b: this item; c: checked and rejected at p10z). G8/G23
       stay blocked on Q160/Q161's owner verdict — refs: QUESTIONS Q166.
 
-- [ ] (p11d) [chore] qa-playtester's `b072` pass flagged, but did not file,
+- [x] (p11d) [chore] qa-playtester's `b072` pass flagged, but did not file,
       a fragility left by that item's own fix: three of the four retuned
       towers (`ember_brazier`/`tesla_coil`/one more per the pass's note)
       now land one T3 seed at 17/18 waves instead of clean 18/18 in
@@ -2328,6 +2328,50 @@ was not fabricated.
       comment-pinned tolerance check) on the near-miss seed(s) so a future
       regression fails loud in `test:fast`, not just in a full `npm test`
       surprise — refs: SPEC-FINAL §14 G13, BACKLOG b072, HANDOFF §4.
+
+      **Closed (2026-09-04).** Re-measured fresh rather than trusting b072's
+      old flag (CLAUDE.md's "re-measure a deferred assertion before
+      inheriting it"): under current `/data` (several balance passes have
+      landed since b072 — fb025, b080, fb054), the "three of four towers"
+      finding no longer reproduces. The one genuine near-miss today is
+      `frost_obelisk` seed 4, T3, 17/18 waves; every other tower's worst T3
+      seed sits at <=16 (2+ waves of headroom). Added
+      `tests/p11d-g13-t3-margin.test.ts`, a new, cheap (~10-20s), fast-tier
+      test (not in `vitest.fast.config.ts`'s exclude list, unlike the slow
+      `a4-single-type.test.ts` it complements) that pins `waves < 18` /
+      `cleared === false` for that exact seed — a tolerance check, not an
+      exact-value pin, per code-reviewer's Minor note (avoids forcing a pin
+      bump on a benign future improvement that only widens the margin).
+      While re-measuring the whole file to establish an honest baseline,
+      found `tests/a4-single-type.test.ts`'s existing `T1_EXPECTED_CLEARS`
+      pin was itself already stale and live-failing at HEAD for two towers
+      (`frost_obelisk` pinned 2, measured 4; `mortar` pinned 0, measured 1) —
+      no `/data` commit touches towers or waves since the fb054 session that
+      set that pin, so this was a plain measurement error in that session's
+      own write-up, not later drift (confirmed by re-running the probe in an
+      isolated worktree checked out at that exact commit: identical 4/5 and
+      1/5 there too). Corrected the pin to the honest reading; this is a
+      hidden-test-failure fix, not a design change (the file is excluded
+      from the fast tier, so a full `npm test`/lane-merge run would have hit
+      it eventually). Added a short addendum to `fb076` (still open) pointing
+      its own now-stale baseline numbers at the corrected ones, so its future
+      retune doesn't re-derive from wrong figures. code-reviewer **APPROVE**
+      (2 Minor, both addressed: the `fb076` pointer, and the tolerance-vs-
+      exact-pin bound). qa-playtester **PASS**: proved the new test is a real
+      regression guard, not a tautology, by live-mutating `frost_obelisk`'s
+      damage (+20% still passed, +71% failed loud) and `waves.json`'s
+      `hpScalePerWave` (also tripped it), reverting both and hash-verifying
+      byte-identical to HEAD; independently re-measured all seven towers'
+      T1 pins and the full T3 per-seed matrix and found no other unpinned
+      near-miss; re-confirmed the stale-pin story at the historical fb054
+      commit directly rather than by reasoning alone. `npx tsc --noEmit`
+      clean; `tests/a4-single-type.test.ts` 16/16 (~770s, full file,
+      excluded from fast tier); `npm run test:fast`: only the standing
+      Windows flake family (`b032`/`b034`/`b035`/`b036` fold/port-contention,
+      `q15` worker-hang, `q45`/`q49`/`q52` EPERM scratch-dir races),
+      `q45`/`q49`/`q52` confirmed identical on unmodified HEAD via `git
+      stash` A/B; none touch any file this item changed. No engine or
+      `/src/sim` code touched.
 
 - [ ] (p11e) [chore] `QUESTIONS.md` carries five entries with no
       `(owner verdict: ...)` line yet (Q94, Q155, Q156, Q157, Q158, per
@@ -2667,6 +2711,17 @@ generation-rule boundary.
       these, per CLAUDE.md's "check the blast radius" rule, not just G13 —
       refs: BALANCE.md's "Density targets (fb054)" section (G13 sub-section),
       SPEC-FINAL §14 G13.
+
+      **Baseline correction (p11d, 2026-09-04):** this entry's "ground truth
+      measured this session" numbers for `frost_obelisk` (2/5, 17/17) and
+      `mortar` (0/5, 5/8) were themselves wrong — re-measured at p11d
+      (cross-checked in an isolated worktree at this entry's own commit,
+      `7b57f49`, ruling out later drift) and confirmed the correct baseline is
+      `frost_obelisk` **4/5** and `mortar` **1/5**; `tests/a4-single-type.test.ts`'s
+      `T1_EXPECTED_CLEARS` pin is corrected to match. The other five towers'
+      numbers in this entry are unaffected. Whoever picks up this retune should
+      target 5/5 from that corrected baseline, not re-derive it from the stale
+      figures above.
 - [ ] (fb077) [feat] wire the generated terrain into a real run — the
       main-lane half of the terrain epic (BACKLOG-TERRAIN.md fb064b/fb064c/
       fb064f Logs). Today nothing outside `tests/` calls `generateTerrain` or
