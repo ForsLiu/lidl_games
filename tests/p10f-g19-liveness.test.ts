@@ -33,6 +33,26 @@ import { BUILDS, G19_BUILDS, collect, topTen } from '../tools/a5probe';
 
 const SEEDS = [1, 2, 3, 4, 5];
 
+/**
+ * fb095: the pinned `SEEDS` above happens to land on a favorable window for
+ * the sealed arm — `sealed-full` (pyromancer, radius 2) clears 3/5 there, but
+ * a wider sweep (qa-playtester at fb094, re-confirmed here) found the honest
+ * curve is 3/5 (seeds 1-5), 1/10 (seeds 6-15), 0/5 (seeds 16-20): **4/20**
+ * overall, seeds {2, 3, 4, 14}. Five distinct `/data`-free levers were tried
+ * against this same "landslide floor" (CLAUDE.md rule 6, same pattern as
+ * Q160/Q161) and none generalized better: radius 1 (0/10, seeds 1-10),
+ * radius 3 (3/10), `sealed-turtle`'s 2-tower mix at radius 2 (1/20, seed 1
+ * only — worse than `sealed-full`), and an `engineer`-classKey radius-2 full
+ * mix (1/10). Every sealed build tested is a hard binary per seed — it either
+ * completely clears the first Night or dies to the Warden by TD wave 3 — not
+ * a thin-margin case a small retune could shift, so per rule 6 this stays a
+ * SEEDS-pin robustness fix (this item's own acceptance option (b)) rather
+ * than a sixth `/data`-only attempt. `WIDE_SEEDS` below is fixed (not
+ * re-rolled) so a future re-pin of the primary `SEEDS` to an unlucky window
+ * can no longer silently make G19's sealed-liveness claim vacuous.
+ */
+const WIDE_SEEDS = Array.from({ length: 20 }, (_, i) => i + 1);
+
 describe('G19 liveness: sealed, open and multi-summon strategies all win', () => {
   const pool = [...BUILDS, ...G19_BUILDS];
   const results = collect(SEEDS, pool);
@@ -60,5 +80,13 @@ describe('G19 liveness: sealed, open and multi-summon strategies all win', () =>
   it('the winning-build pool includes a build that actually used multi-summon (World.stackDepth > 0 during play)', () => {
     const stacked = top.filter((r) => r.strategy === 'rush' && r.maxStackDepth > 0);
     expect(stacked.length, readable).toBeGreaterThanOrEqual(1);
+  });
+
+  it('fb095: the sealed strategy clears at least once across a wide, fixed seed sample (not just the pinned SEEDS window)', () => {
+    const sealedBuilds = G19_BUILDS.filter((b) => b.strategy === 'sealed');
+    const wideResults = collect(WIDE_SEEDS, sealedBuilds);
+    const cleared = wideResults.filter((r) => r.wavesCleared >= 18);
+    const curve = cleared.map((r) => `${r.name}@seed${r.seed}`).join(', ') || '(none)';
+    expect(cleared.length, `cleared: ${curve} — measured ${cleared.length}/${wideResults.length} over seeds 1-20`).toBeGreaterThanOrEqual(1);
   });
 });

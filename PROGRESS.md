@@ -5,6 +5,35 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-04 session: BACKLOG fb095 closed — fb094's G19 sealed-build fix
+  doesn't generalize past its pinned 5-seed window, and no `/data`-free lever
+  closes the gap, so the fix is a test-robustness one, not a retune.**
+  Measured the honest curve across seeds 1-20: `sealed-full` (pyromancer, 8
+  towers, radius 2 — fb094's pick) clears **4/20** (seeds 2, 3, 4, 14 — 3/5 in
+  1-5, 1/10 in 6-15, 0/5 in 16-20). Tried 4 more distinct variants
+  (perimeterRadius 1 and 3, the 2-tower `sealed-turtle` mix, an
+  `engineer`-classKey mix), all ad-hoc and reverted: none generalized better,
+  each a hard per-seed binary (clears the first Night cleanly or dies to the
+  Warden by TD wave 3 — never a near-miss), consistent with `runBuild`'s Act
+  II policy always being `'kite'` regardless of TD-phase strategy. Same
+  "landslide floor" pattern as Q160/Q161; stopped at 5 attempts per CLAUDE.md
+  rule 6 rather than pushing a sixth. Took the item's own option (b): added a
+  fixed `WIDE_SEEDS` (1-20) assertion to `tests/p10f-g19-liveness.test.ts`
+  that runs only `G19_BUILDS`'s sealed entries across all 20 seeds and checks
+  at least one clears, so a future re-pin of the primary `SEEDS` to an
+  unlucky window can no longer silently make the sealed-liveness claim
+  vacuous — without pretending the underlying rate is anything but 4/20.
+  code-reviewer **APPROVE** (2 Minor/Nit, neither blocking: an initial timing
+  claim was optimistic by ~20-30% against re-run, corrected; the docstring
+  frames the curve around `sealed-full` alone though the assertion pools both
+  sealed entries — cosmetic). qa-playtester **PASS**: independently re-ran the
+  file twice fresh (deterministic, 6/6 both times), confirmed `data/`/`src/`
+  untouched, and reproduced every claimed cell exactly via its own throwaway
+  `runBuild` spot-check. Test-only change; no `/data` or engine code touched.
+  `npm run test:fast`: same pre-existing Windows flake family (EPERM
+  scratch-dir races in q45/q49/q52, q15 worker-hang — tracked separately at
+  fb087), no new failures.
+
 - **2026-09-04 session: BACKLOG fb094 closed — G19's liveness clause (a
   sealed-strategy build must reach the winning-build pool) was genuinely red
   while `STATUS.md` still claimed green; fixed by correcting `G19_BUILDS`'s

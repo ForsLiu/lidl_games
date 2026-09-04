@@ -2956,7 +2956,7 @@ generation-rule boundary.
       scratch-dir races, `b032`/`b034`/`b035`/`b036` port contention) — no new
       failures. `STATUS.md`'s G19 row ("Green in full (p10f)") is accurate
       again as written and was not edited further.
-- [ ] (fb095) [bug] fb094's G19 sealed-build fix (`tools/a5probe.ts`
+- [x] (fb095) [bug] fb094's G19 sealed-build fix (`tools/a5probe.ts`
       `G19_BUILDS`, `classKey: 'pyromancer'`, `perimeterRadius: 2`) passes
       `tests/p10f-g19-liveness.test.ts`'s pinned `SEEDS=[1,2,3,4,5]`
       deterministically (3/5 clear) but does not generalize: qa-playtester's
@@ -2978,6 +2978,56 @@ generation-rule boundary.
       wider-seed assertion) so the gate can't be silently re-broken by a
       future re-pin, with the honest measured clear-rate-vs-seed-count curve
       recorded here — refs: SPEC-FINAL §14 G19, BACKLOG fb094, Q160/Q161.
+
+      **Closed (2026-09-04) — option (b), genuine wall confirmed.** Five
+      distinct `/data`-free levers tried against `runBuild`'s sealed arm over
+      seeds 1-20 (CLAUDE.md rule 6), each a single-shot ad-hoc measurement,
+      none committed: `sealed-full` (pyromancer, 8 towers, radius 2 —
+      fb094's own pick) clears **4/20** (seeds 2, 3, 4, 14 — 3/5 in 1-5, 1/10
+      in 6-15, 0/5 in 16-20, matching qa-playtester's fb094 finding exactly);
+      radius 1 same class/towers 0/10 (seeds 1-10); radius 3 same class/towers
+      3/10 (seeds 1-10, different seeds than radius 2's own 3/5); `sealed-
+      turtle`'s 2-tower mix at radius 2 1/20 (seed 1 only — worse than
+      `sealed-full`); an `engineer`-classKey radius-2 full mix 1/10 (seeds
+      1-10). Every variant is a hard per-seed binary — a sealed build either
+      clears the first Night cleanly or dies to the Warden by TD wave 3, never
+      a near-miss — because `runBuild`'s Act II policy is always `'kite'`
+      regardless of `strategy`; the sealed/open axis only shapes the Act I
+      TD-phase build-out, so which seeds survive the first Warden fight
+      appears to hinge on Act I economy/RNG interaction the tried levers don't
+      reach. This is the same "landslide floor" pattern Q160/Q161 already
+      hit on the scripted-kit harness, so per rule 6 this was not pushed to a
+      sixth attempt. Took option (b): added a `WIDE_SEEDS` (1-20, fixed, not
+      re-rolled) assertion to `tests/p10f-g19-liveness.test.ts` that runs only
+      `G19_BUILDS`'s sealed entries (not the full 16-build pool) across all 20
+      seeds and asserts at least one clears — cheap enough to add to the
+      already-fast-tier-excluded file (measured +58-70s across repeated runs,
+      file total 310-404s depending on host load) without widening the
+      primary pinned `SEEDS` used by every other assertion. This closes the
+      actual risk fb094 exposed (a future re-pin of the primary `SEEDS` to an
+      unlucky window silently making the sealed-liveness claim vacuous)
+      without pretending the underlying win rate is anything but 4/20.
+      code-reviewer **APPROVE** (2 Minor/Nit, neither blocking: this entry's
+      first-drafted timing number was optimistic by ~20-30% against its own
+      re-run, corrected above rather than cited exactly elsewhere; the
+      in-file docstring frames the curve around `sealed-full` alone though
+      the assertion pools both sealed entries — cosmetic, the failure message
+      already prints the true denominator). qa-playtester **PASS**:
+      independently re-ran the file twice fresh (both 6/6 green,
+      deterministic), confirmed `git diff --stat -- data/ src/` empty
+      (test-only) and no stray scratch files, and wrote its own throwaway
+      `runBuild` spot-check (deleted after use) that reproduced every claimed
+      cell exactly — `sealed-full` seeds {2,3,4,14} victory/18-waves, seeds
+      {1,5,16} defeat_warden/3-waves, `sealed-turtle` seed 1 victory / seed 2
+      defeat_warden — including the "dies by TD wave 3" characterization.
+      Confirmed no `Math.random`/`Date.now` violation (only comments in
+      `src/sim`). Flagged one non-bug observation: the new assertion's margin
+      is thin (5/40 sampled pairs clear), so a future `BuilderPolicy` default
+      or content retune elsewhere could plausibly flip it red — an
+      acknowledged, documented risk (the same "landslide floor" already
+      logged above), not a defect in this change. No bugs filed — refs:
+      SPEC-FINAL §14 G19, BACKLOG fb094, Q160/Q161.
+
 - [ ] (fb077) [feat] wire the generated terrain into a real run — the
       main-lane half of the terrain epic (BACKLOG-TERRAIN.md fb064b/fb064c/
       fb064f Logs). Today nothing outside `tests/` calls `generateTerrain` or
