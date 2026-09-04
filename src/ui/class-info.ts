@@ -139,17 +139,148 @@ function timeLockSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFac
   );
 }
 
+/** `summon_turret`/`ice_wall`: turns a `/data` tower key like `arrow_spire` into "Arrow Spire" — no tower-lookup table is threaded into this file, so this is a display-name approximation, not a `content.towerByKey` name. */
+function humanizeKey(key: string): string {
+  return key
+    .split('_')
+    .map((w) => (w ? w[0].toUpperCase() + w.slice(1) : w))
+    .join(' ');
+}
+
 /**
- * fb063: a hand-authored sentence per Active `kind`, covering the 3
- * normal-profile classes' 6 Actives (SPEC-FINAL §4, fb058's roster) —
- * every kind not listed here (including `burst_damage`, the framework's
- * original single-target/AoE hit kind several hidden classes still use)
- * keeps `effectBlock`'s bare numeric-field fallback (`activeSkillMarkup`
- * below) rather than a wrong or absent tooltip; the fallback earns its own
- * backlog item once a hidden class becomes normal-profile-visible (fb057/
- * fb059), the same "kept honest, not blocked on total coverage" precedent
- * the file header's `atkFlat`/`damageMul`-only live-field scope already
- * sets for numeric fields with no live equivalent.
+ * `burst_damage`'s own `fireEffect` (classes.ts) deals `eff.damage *
+ * w.derived.powerMul`, never `characterDamage`'s `(+ atkFlat) * damageMul`
+ * formula `liveDamageValue` models — and `burnDps` is passed straight to
+ * `applyBurn` with no live scaling of any kind. Both stay plain authored
+ * numbers here rather than a fabricated live-resolved one (code-review
+ * finding, fb108).
+ */
+function burstDamageSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFactor?: number): string {
+  const cd = liveCooldownValue(eff.cooldownSeconds, live, cooldownFactor);
+  return `Deals ${trimNum(eff.damage)} damage to everything within ${trimNum(eff.radius)} tiles, burning them for ${trimNum(eff.burnDps ?? 0)} damage/s for ${trimNum(eff.burnDuration ?? 0)}s. Cooldown ${trimNum(cd)}s.`;
+}
+
+function repairHealSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFactor?: number): string {
+  const cd = liveCooldownValue(eff.cooldownSeconds, live, cooldownFactor);
+  return `Repairs the nearest structure within ${trimNum(eff.radius)} tiles for ${formatPct(eff.repairFraction ?? 0)} of its max HP and grants it ${formatPct(eff.overclockAtkSpdMul ?? 0)} bonus attack speed for ${trimNum(eff.overclockSeconds ?? 0)}s. Cooldown ${trimNum(cd)}s.`;
+}
+
+function summonTurretSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFactor?: number): string {
+  const cd = liveCooldownValue(eff.cooldownSeconds, live, cooldownFactor);
+  const towerName = eff.towerKey ? humanizeKey(eff.towerKey) : 'a copied tower';
+  return `Deploys a turret cloned from ${towerName} at ${formatPct(eff.summonStatMul ?? 0)} of its damage (full range and attack speed) at your position for ${trimNum(eff.summonDurationSeconds ?? 0)}s, up to ${trimNum(eff.summonCap ?? 0, 0)} standing at once. Cooldown ${trimNum(cd)}s.`;
+}
+
+/**
+ * `fireFlameRoad` (classes.ts) pushes each trail patch as a `GroundArea`
+ * with `radius: eff.dashWidth` — `dashWidth` is a radius, not a full width,
+ * so the patch's true diameter ("how wide it is") is `2 * dashWidth`
+ * (code-reviewer finding, fb108).
+ */
+function dashTrailSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFactor?: number): string {
+  const dps = liveDamageValue(eff.damage, live);
+  const cd = liveCooldownValue(eff.cooldownSeconds, live, cooldownFactor);
+  return `Dash ${trimNum(eff.dashRange ?? 0)} tiles toward the cursor, leaving ${trimNum(eff.trailSegments ?? 0, 0)} fire patches (${trimNum(2 * (eff.dashWidth ?? 0))} tiles wide) along the path, each dealing ${trimNum(dps)} damage/s for ${trimNum(eff.groundDurationSeconds ?? 0)}s. Cooldown ${trimNum(cd)}s.`;
+}
+
+/**
+ * `fireDeadeyeDraw` (classes.ts) computes `characterDamage(w, cls, eff.damage
+ * * (1+compoundPerSecond)^held)` — the compounding multiplies the raw /data
+ * base *before* `atkFlat`/`damageMul` are folded in, not after. Displaying a
+ * live (atkFlat-inclusive) damage number next to the compounding rate would
+ * read as "this number grows by that rate," which overstates the real total
+ * once `atkFlat > 0` (qa-playtester finding, fb108) — so this only shows the
+ * live number for the release-now (0s-held) case, where the two formulas
+ * coincide exactly, and calls the growth out as applying before bonuses.
+ */
+function chargePierceSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFactor?: number): string {
+  const damage = liveDamageValue(eff.damage, live);
+  const cd = liveCooldownValue(eff.cooldownSeconds, live, cooldownFactor);
+  return `Hold to draw a piercing shot, up to ${trimNum(eff.chargeCapSeconds ?? 0)}s: damage compounds ${formatPct(eff.compoundPerSecond ?? 0)}/s of charge before your own bonuses are added, dealing ${trimNum(damage)} damage if released immediately. Gains +1 enemy pierced (cap ${trimNum(eff.pierceCap ?? 0, 0)}) per full second charged, while moving at ${formatPct(eff.moveMulWhileCharging ?? 0)} speed. Cooldown ${trimNum(cd)}s between shots.`;
+}
+
+function dashVolleySentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFactor?: number): string {
+  const damage = liveDamageValue(eff.damage, live);
+  const cd = liveCooldownValue(eff.cooldownSeconds, live, cooldownFactor);
+  return `Dash ${trimNum(eff.dashRange ?? 0)} tiles toward the cursor, firing ${trimNum(eff.volleyShots ?? 0, 0)} arrows at the nearest enemies within ${trimNum(eff.radius)} tiles for ${trimNum(damage)} damage each. Usable while charging a piercing shot without losing the charge. Cooldown ${trimNum(cd)}s.`;
+}
+
+function raiseSkeletonsSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFactor?: number): string {
+  const cd = liveCooldownValue(eff.cooldownSeconds, live, cooldownFactor);
+  return `Raises corpses within ${trimNum(eff.summonRadius ?? 0)} tiles into skeletons (${formatPct(eff.summonStatMul ?? 0)} of your basic attack) for ${trimNum(eff.summonDurationSeconds ?? 0)}s, up to ${trimNum(eff.summonCap ?? 0, 0)} standing at once. Cooldown ${trimNum(cd)}s.`;
+}
+
+function deathPactSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFactor?: number): string {
+  const cd = liveCooldownValue(eff.cooldownSeconds, live, cooldownFactor);
+  return `Toggles a pact on the nearest tower within ${trimNum(eff.radius)} tiles: while active it deals ${formatPct(eff.pactDamageMul ?? 0)} more damage and attacks ${formatPct(eff.pactAtkSpdMul ?? 0)} faster, but loses ${formatPct(eff.pactDrainPerSecond ?? 0)} of its max HP per second. If the drain kills it, a Bone Pylon (${trimNum(eff.pylonDps ?? 0)} damage/s within ${trimNum(eff.pylonRange ?? 0)} tiles) rises in its place. Cooldown ${trimNum(cd)}s.`;
+}
+
+function frostNovaSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFactor?: number): string {
+  const damage = liveDamageValue(eff.damage, live);
+  const cd = liveCooldownValue(eff.cooldownSeconds, live, cooldownFactor);
+  return `Deals ${trimNum(damage)} damage to everything within ${trimNum(eff.radius)} tiles, applying Frost — an already-Frosted enemy freezes solid instead. Cooldown ${trimNum(cd)}s.`;
+}
+
+function iceWallSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFactor?: number): string {
+  const cd = liveCooldownValue(eff.cooldownSeconds, live, cooldownFactor);
+  const towerName = eff.towerKey ? humanizeKey(eff.towerKey) : 'a temporary wall';
+  return `Raises a temporary 1×3 wall of ${towerName}s facing your aim for ${trimNum(eff.wallSeconds ?? 0)}s, blocking enemy paths. Cooldown ${trimNum(cd)}s.`;
+}
+
+function chainLightningSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFactor?: number): string {
+  const damage = liveDamageValue(eff.damage, live);
+  const cd = liveCooldownValue(eff.cooldownSeconds, live, cooldownFactor);
+  return `Bolts the nearest enemy within ${trimNum(eff.radius)} tiles for ${trimNum(damage)} damage, chaining to up to ${trimNum(eff.chainCount ?? 0, 0)} enemies total, each jump dealing ${formatPct(eff.chainGrowth ?? 0)} more (compounding, capped at jump ${trimNum(eff.chainCap ?? 0, 0)}). Cooldown ${trimNum(cd)}s.`;
+}
+
+function overloadSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFactor?: number): string {
+  const cd = liveCooldownValue(eff.cooldownSeconds, live, cooldownFactor);
+  return `For ${trimNum(eff.overloadSeconds ?? 0)}s, Chain Surge gains ${trimNum(eff.overloadExtraChains ?? 0, 0)} extra jumps and electric towers' wire pulses fire twice as fast. Cooldown ${trimNum(cd)}s.`;
+}
+
+function bloodTitheSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFactor?: number): string {
+  const cd = liveCooldownValue(eff.cooldownSeconds, live, cooldownFactor);
+  return `Pays ${formatPct(eff.titheHpFraction ?? 0)} of the nearest untithed tower's current HP (within ${trimNum(eff.radius)} tiles) for a permanent ${formatPct(eff.titheDamageMul ?? 0)} damage bonus. Cooldown ${trimNum(cd)}s.`;
+}
+
+/**
+ * `fireCrimsonRush` (classes.ts) names its own local copy of `eff.dashWidth`
+ * `half` and tests `Math.abs(cross) > half + e.radius` — a half-width, so the
+ * corridor's true full width is `2 * dashWidth` (code-reviewer finding,
+ * fb108, same bug class as `dashTrailSentence` above).
+ */
+function dashHealSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFactor?: number): string {
+  const cd = liveCooldownValue(eff.cooldownSeconds, live, cooldownFactor);
+  return `Dash ${trimNum(eff.dashRange ?? 0)} tiles toward the cursor, healing ${trimNum(eff.healPerEnemy ?? 0)} HP for each enemy passed through (${trimNum(2 * (eff.dashWidth ?? 0))} tiles wide). Cooldown ${trimNum(cd)}s.`;
+}
+
+function manifestSpiritSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFactor?: number): string {
+  const cd = liveCooldownValue(eff.cooldownSeconds, live, cooldownFactor);
+  return `Summons a spirit of the nearest built attack tower within ${trimNum(eff.summonRadius ?? 0)} tiles at ${formatPct(eff.summonStatMul ?? 0)} of its damage at max upgrade (full range and attack speed) for ${trimNum(eff.summonDurationSeconds ?? 0)}s, up to ${trimNum(eff.summonCap ?? 0, 0)} standing at once. Cooldown ${trimNum(cd)}s.`;
+}
+
+function recallTotemSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFactor?: number): string {
+  const cd = liveCooldownValue(eff.cooldownSeconds, live, cooldownFactor);
+  return `Places a totem for ${trimNum(eff.totemDurationSeconds ?? 0)}s: you and your summons within ${trimNum(eff.radius)} tiles attack ${formatPct(eff.auraAtkSpdMul ?? 0)} faster. In Tower Defense it also taunts nearby enemies toward it. Cooldown ${trimNum(cd)}s.`;
+}
+
+function clarionTauntSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFactor?: number): string {
+  const cd = liveCooldownValue(eff.cooldownSeconds, live, cooldownFactor);
+  return `Forces every enemy within ${trimNum(eff.radius)} tiles to target you for ${trimNum(eff.tauntDurationSeconds ?? 0)}s; damage you take during it banks more strongly into Wrath. Cooldown ${trimNum(cd)}s.`;
+}
+
+function judgementSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFactor?: number): string {
+  const cd = liveCooldownValue(eff.cooldownSeconds, live, cooldownFactor);
+  return `Releases all stored Wrath as a holy nova within ${trimNum(eff.radius)} tiles, dealing ${trimNum(eff.wrathDamageMul ?? 0)}× the stored amount as damage. Cooldown ${trimNum(cd)}s.`;
+}
+
+/**
+ * fb063 (extended fb108): a hand-authored sentence per Active `kind` — every
+ * one of the 24 kinds `data/classes.json` actually authors an Active with,
+ * not just the 3 normal-profile classes' 6 fb063 originally covered. A kind
+ * with no entry here would fall through to `effectBlock`'s bare numeric-field
+ * list (`activeSkillMarkup` below); fb108's own regression test asserts that
+ * fallback is now unreachable for every real `kind`.
  */
 const ACTIVE_SENTENCES: Partial<
   Record<ClassEffect['kind'], (eff: ClassEffect, live?: ClassLiveContext, cooldownFactor?: number) => string>
@@ -160,6 +291,24 @@ const ACTIVE_SENTENCES: Partial<
   poison_boost: poisonBoostSentence,
   time_mark: timeMarkSentence,
   time_lock: timeLockSentence,
+  burst_damage: burstDamageSentence,
+  repair_heal: repairHealSentence,
+  summon_turret: summonTurretSentence,
+  dash_trail: dashTrailSentence,
+  charge_pierce: chargePierceSentence,
+  dash_volley: dashVolleySentence,
+  raise_skeletons: raiseSkeletonsSentence,
+  death_pact: deathPactSentence,
+  frost_nova: frostNovaSentence,
+  ice_wall: iceWallSentence,
+  chain_lightning: chainLightningSentence,
+  overload: overloadSentence,
+  blood_tithe: bloodTitheSentence,
+  dash_heal: dashHealSentence,
+  manifest_spirit: manifestSpiritSentence,
+  recall_totem: recallTotemSentence,
+  clarion_taunt: clarionTauntSentence,
+  judgement: judgementSentence,
 };
 
 /**

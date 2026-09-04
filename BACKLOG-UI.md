@@ -2765,7 +2765,7 @@ not already expose it) logs that need below instead of reaching into
       documented across dozens of prior PROGRESS.md sessions, none touching
       `src/ui/**`/`src/render/**` or this item's own files.
 
-- [ ] (fb108) [feat] normal priority: generated 2026-09-04 (same generation
+- [x] (fb108) [feat] normal priority: generated 2026-09-04 (same generation
       batch as fb107) — extend fb063's sentence-form Active tooltips
       (`ACTIVE_SENTENCES`, `class-info.ts`) past the 6 kinds the 3
       normal-profile classes use to the remaining 18 kinds the other 9
@@ -2786,7 +2786,70 @@ not already expose it) logs that need below instead of reaching into
       same way the existing 6 do; a test asserts all 24 kinds now resolve to
       a sentence (none fall through to the bare-field-list fallback) — refs:
       fb063, fb058, QUALITY.md ALPHA ("every class's kit is usable and
-      legible without reading any docs").
+      legible without reading any docs"). DONE 2026-09-04: `class-info.ts`
+      adds 18 new sentence functions (one per kind above) plus a
+      `humanizeKey` helper (turns a `/data` tower key like `arrow_spire`
+      into "Arrow Spire" for `summon_turret`/`ice_wall`'s tower-name
+      mentions — a display approximation, not a `content.towerByKey` lookup,
+      since none is threaded into this file), all registered in
+      `ACTIVE_SENTENCES`, each embedding live-resolved numbers via the
+      existing `liveDamageValue`/`liveCooldownValue` helpers the same way
+      fb063's original 6 do. Two kinds intentionally show a raw (non-live)
+      number with a code comment explaining why: `burst_damage`'s damage and
+      `burnDps` (the sim's `fireEffect` scales by `w.derived.powerMul`, not
+      `characterDamage`'s `atkFlat`/`damageMul` formula `liveDamageValue`
+      models) and `charge_pierce`'s compounding rate (the sim's
+      `fireDeadeyeDraw` compounds the raw `/data` base *before* atkFlat is
+      added, so pairing a live/atkFlat-inclusive number directly against the
+      compounding-rate text would read as "this number grows by that rate,"
+      which overstates the real total — the sentence instead only shows the
+      live number for the release-now/0s-held case, where the two formulas
+      coincide exactly, and calls the growth-before-bonuses order out in
+      words). Targeted
+      `tests/ui-fb108-active-sentences-all-classes.test.ts` (31/31): all 12
+      classes load, all 24 kinds resolve to a sentence
+      (`<p class="sw-note">`) not the bare fallback, the engineer
+      summon_turret/stormcaller chain_lightning/archer charge_pierce
+      live-number-accuracy spot checks, the chain_lightning "up to N total,
+      not N+1" count-matches-`fireChainSurge` check, and (added after
+      qa-playtester's finding below) the summon_turret/manifest_spirit
+      wording check. code-reviewer **REQUEST-CHANGES** → one Major: two of
+      the new sentences (`dashTrailSentence`, `dashHealSentence`) displayed
+      `eff.dashWidth` directly as "X tiles wide," but `fireFlameRoad`
+      (dash_trail) uses it as a `GroundArea` circle *radius* and
+      `fireCrimsonRush` (dash_heal) explicitly names its own copy `half` —
+      both are half-widths, so the true full width is `2 * dashWidth`, not
+      `dashWidth`; fixed by doubling the displayed value in both sentences
+      (with a code comment on each pointing at the sim line that treats it
+      as a radius/half-width). Also flagged, not blocking and not fixed in
+      this diff: `dashSlashSentence` (fb063's original `dash_line` sentence,
+      untouched by this item) has the identical bug — logged as fb112 below
+      for a follow-up. Two Minors left as-is (a `burst_damage` static-number
+      staleness argument weaker than a factual error, and a missing "up to"
+      qualifier on `dash_volley`'s arrow count matching every other
+      probabilistic-count sentence's phrasing) — both cosmetic, not
+      required by the acceptance text. qa-playtester **PASS** against the
+      stated acceptance criteria (re-ran the 30-test suite clean, confirmed
+      `tsc --noEmit` clean, confirmed the diff touches only in-scope files)
+      plus independently re-derived `chainCount`/`chainCap`,
+      `wallSeconds`/orientation, `titheHpFraction` current-vs-max-HP, and
+      `pactDrainPerSecond` timing straight from each `fireX` handler in
+      `src/sim/classes.ts` rather than trusting the sentences, and hostile-
+      fuzzed all 24 kinds through both an absent and an extreme/negative
+      `live` context (no crash, no `undefined`/`NaN`); filed one new
+      low-severity bug: `summonTurretSentence`/`manifestSpiritSentence`'s "X%
+      of its stats" wording implied a uniformly-scaled-down clone, but
+      `fireSummonTurret`/`fireManifestSpirit` only scale the summon's dps by
+      `summonStatMul` — range and attack interval carry over at the source
+      tower's full value, so the summon has full-strength range/cadence at
+      a fraction of the damage, a materially better unit than "stats"
+      implies. Fixed same session: both sentences now read "at N% of its
+      damage (full range and attack speed)"; new regression case added to
+      the same test file confirming the wording. `npx tsc --noEmit` clean.
+      `npm run test:fast`: 16 failed files / 52 failed tests, all in the
+      pre-existing q46/q49/q52/q53 Windows-scratch-dir EPERM flake class
+      documented across dozens of prior PROGRESS.md sessions, none touching
+      `src/ui/**`/`src/render/**` or this item's own files.
 
 - [ ] (fb109) [polish] low priority: generated 2026-09-04 (same generation
       batch as fb107) — fb102's own code-reviewer Minor, never promoted to
@@ -2835,7 +2898,57 @@ not already expose it) logs that need below instead of reaching into
       item's DONE note (a real, if boring, outcome per CLAUDE.md's honesty
       rule) — refs: QUALITY.md 1.0 (Steam/itch checklist).
 
+- [ ] (fb112) [bug] low priority: generated 2026-09-04 (code-reviewer finding
+      during fb108, not fixed there since it's a pre-existing bug outside
+      that diff) — `dashSlashSentence` (fb063's original `dash_line`
+      sentence, `class-info.ts`) displays `eff.dashWidth` directly as "X
+      tiles wide," the same bug fb108 fixed in `dashTrailSentence`/
+      `dashHealSentence`: `lineHit` (`src/sim/combat.ts`) takes this value as
+      a parameter literally named `halfWidth`, so the real hit corridor is
+      `2 * dashWidth` wide, not `dashWidth`. Swordsman's Circle Slash (the
+      only normal-profile class using `dash_line`) currently shows half the
+      true corridor width to every player. Acceptance: `dashSlashSentence`
+      shows `2 * (eff.dashWidth ?? 0)` (matching fb108's fix pattern), with a
+      regression test asserting the doubled value appears — refs: fb108,
+      fb063, `lineHit` (`src/sim/combat.ts`).
+
 ## Log
+
+- 2026-09-04, fb108: implemented fully in-scope. code-reviewer
+  (REQUEST-CHANGES → APPROVE after fix) caught a Major: `dashTrailSentence`/
+  `dashHealSentence` displayed `eff.dashWidth` as a full width when the sim
+  treats it as a half-width/radius (`2 * dashWidth` is the true corridor/
+  patch width) — fixed by doubling the displayed value in both, with a code
+  comment pointing at the sim line proving it. Also flagged the identical
+  pre-existing bug in fb063's untouched `dashSlashSentence`, out of scope for
+  this diff — filed as fb112 above rather than folded in, since it's a
+  distinct pre-existing defect with its own regression test, not part of this
+  item's acceptance text. qa-playtester (PASS) independently re-derived
+  several other kinds' semantics straight from `src/sim/classes.ts` rather
+  than trusting the new sentences, and filed one Minor: `summonTurretSentence`/
+  `manifestSpiritSentence`'s "X% of its stats" wording implied a uniformly
+  scaled-down clone, but only dps is scaled — range/attack interval carry
+  over at full strength. Fixed same session (both now read "at N% of its
+  damage (full range and attack speed)"), regression case added.
+
+- 2026-09-04, fb085: re-confirmed still permanently out-of-scope for this
+  lane (see the 2026-09-04 fb085 entry below and the fb095/fb102/fb107 Log
+  notes) — this session started building it anyway (`data/strings.json`,
+  `src/ui/strings.ts`, `src/ui/strings-lint.ts`, a `hud.ts` conversion of the
+  pause/results modal text) before code-reviewer caught the Scope violation
+  on `data/strings.json` per this file's own prior Log entry. Reverted in
+  full (all four new/changed files) rather than trying to salvage an
+  in-scope partial, for the same reason the original skip decision gave:
+  the item's acceptance text names the data file explicitly, so a partial
+  without it doesn't meet the item. code-reviewer's review also independently
+  found the lint heuristic itself had a real false-negative gap (a hardcoded
+  literal reintroduced inside a `${...}` ternary/interpolation, rather than
+  as a bare HTML text node or `title="..."` attribute, went undetected) —
+  worth a note for whoever eventually implements this from main-lane: the
+  "flag text nodes and title attributes, strip `${...}` first" approach this
+  session tried needs to also scan *inside* `${...}` for quoted string
+  literals, not just discard them. Executed fb108 instead, the next
+  actionable item, which is fully in-scope.
 
 - 2026-09-04, fb107: code-reviewer (APPROVE) flagged that the Codex's Class
   detail view (`codex-collections.ts` → `classAbilitiesMarkup(row)`) still
