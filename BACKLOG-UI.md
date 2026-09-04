@@ -1731,7 +1731,7 @@ not already expose it) logs that need below instead of reaching into
       dozens of prior PROGRESS.md sessions, none touching `src/ui/**`/
       `src/render/**` or this item's own files.
 
-- [ ] (fb091) [feat] normal priority: generated 2026-09-04 (fewer than 3
+- [x] (fb091) [feat] normal priority: generated 2026-09-04 (fewer than 3
       actionable items remained; QUALITY.md 1.0 Steam/itch checklist gap
       diff) — crash capture + "copy report" button. QUALITY.md 1.0's
       checklist ("error capture to a local log with a 'copy report' button")
@@ -1749,6 +1749,72 @@ not already expose it) logs that need below instead of reaching into
       captured too; clicking "Copy report" with mocked
       `navigator.clipboard.writeText` confirms the written text contains
       every buffered entry — refs: QUALITY.md 1.0 (Steam/itch checklist).
+      DONE 2026-09-04: new `src/ui/crashlog.ts` — a module-scoped, session-
+      only ring buffer (`recordCrash`/`crashLogEntries`, bounded to
+      `MAX_ENTRIES = 20`), `formatCrashReport()` (plain-text serialization,
+      an empty-state string when nothing recorded), and
+      `installGlobalErrorHandlers()` (idempotent; wires `window`'s `error`
+      and `unhandledrejection` listeners once). `main.ts`'s `Game.start()`
+      calls it once alongside the existing `installAuditHook()` call.
+      `hub.ts`'s Settings tab gains a "Crash reports" panel (empty-state
+      message or an `<li>` per entry) and a `#sw-crashlog-copy` button that
+      calls `navigator.clipboard.writeText(formatCrashReport())` and shows a
+      transient confirm/failure notice, cleared on leaving the tab (same
+      pattern as `settingsResetArmed`). A new `escapeHtml` helper guards the
+      one place this file renders genuinely arbitrary runtime text (a thrown
+      error's own `message`) into `innerHTML`. Targeted
+      `tests/ui-fb091-crash-log.test.ts` (15/15): ring-buffer bounding,
+      `error`-event capture (message+stack), `unhandledrejection` capture
+      (both `Error` and non-`Error` reasons), the boot-time `Game.start()`
+      wiring (not just a direct `installGlobalErrorHandlers()` call),
+      idempotent double-install, the empty-state message, per-entry
+      rendering, XSS-escaping, the Copy-report happy/denied/no-Clipboard-API
+      paths, and the stale-Hub regression below. code-reviewer
+      **REQUEST-CHANGES** → one Major: `#sw-crashlog-copy`'s
+      `navigator.clipboard.writeText(...).then()` callback closed over the
+      specific `Hub` instance live at click time and unconditionally called
+      `this.show()` on settle with no check that instance was still current
+      — `main.ts`'s `showHub()` builds a fresh `Hub` on the same shared root
+      on every return to the Hub screen without disposing the previous one
+      (the exact fb073/fb090 "stale instance keeps acting on a shared root"
+      bug class), so a write still pending when the player left/returned to
+      the Hub could clobber whatever replaced it. Fixed by renaming fb090's
+      `activeFullscreenHub` module-scoped "most recently constructed Hub"
+      pointer to the more general `activeHub` and gating both the success
+      and failure clipboard callbacks on `activeHub === this` before
+      touching state or re-rendering; also fixed a related Minor (missing
+      `navigator.clipboard` entirely — older/insecure-context browsers —
+      silently no-opped instead of surfacing a notice, now shows "Clipboard
+      not available in this browser.") and a second Minor (no test drove
+      `Game.start()` itself to confirm the boot-time wiring, only the
+      exported function directly — added). Re-verified: `npx tsc --noEmit`
+      clean, targeted suite grew to 15/15. qa-playtester **PASS** against
+      all three literal acceptance criteria (independently re-derived each
+      via throwaway probes rather than trusting the shipped tests alone),
+      plus hostile testing: rapid triple-click on Copy report (one
+      `writeText` call per click, no duplicate-stacking), a 50,000-char
+      message + 5,000-line stack (no throw, fully included), XSS vectors in
+      a recorded message (no element materializes, no global pollution,
+      `escapeHtml` holds), a crash recorded mid-flight after Copy report was
+      clicked but before the promise settled (correctly excluded — a
+      snapshot-at-click-time property, not a bug), `Game.start()` invoked
+      twice (no double-registration), and — specifically targeting the
+      code-reviewer's fix — two Hubs on the same root with clipboard writes
+      pending simultaneously, resolved in both orderings (older-then-newer
+      and newer-then-older): the `activeHub !== this` guard correctly
+      suppresses the stale instance's callback either way. Noted but not
+      filed as a bug: `activeHub` is never explicitly nulled and old `Hub`
+      instances are never disposed, so a `Hub` whose clipboard promise never
+      settles keeps that instance alive via closure — identical, pre-existing
+      pattern to fb090's own `activeFullscreenHub`, bounded by tab-close/
+      reload wiping all JS state, and this feature is documented session-only
+      by design. Filed no new bugs. `npx tsc --noEmit` clean. `npm run
+      test:fast`: 4-5 failed tests across 7 failed files across two runs this
+      session, all in the pre-existing q15/q49/q52 worker-hang/Windows-
+      scratch-dir-EPERM flake classes plus the b032/b034/b035/b036 dev-
+      server port-contention class, documented across dozens of prior
+      PROGRESS.md sessions, none touching `src/ui/**`/`src/render/**` or this
+      item's own files.
 
 - [ ] (fb092) [polish] low priority: generated 2026-09-04 (fewer than 3
       actionable items remained; QUALITY.md 1.0 Steam/itch checklist gap

@@ -25,6 +25,7 @@ import { loadKeyBindings, saveKeyBindings, type KeyBindings } from './keybinding
 import { Sfx } from '../render/sfx';
 import { Pacer } from './pacer';
 import { installAuditHook, type AuditBridge } from './audit-hook';
+import { installGlobalErrorHandlers } from './crashlog';
 
 export class Game {
   private root!: HTMLElement;
@@ -127,6 +128,10 @@ export class Game {
     // no-op in a production build — `installAuditHook` re-checks
     // `isDevBuild()` itself, the same gate `devProfileActive()` above uses.
     this.installAuditHook();
+    // fb091: a global, session-only capture of uncaught errors/unhandled
+    // rejections, surfaced via the Settings tab's "Crash reports" panel.
+    // Module-scoped and idempotent — see crashlog.ts's own doc comment.
+    installGlobalErrorHandlers();
     if (!this.tryResumePersistedRun()) this.showHub();
     this.last = performance.now();
     requestAnimationFrame(this.frame);

@@ -50,6 +50,7 @@ import { equipmentFallbackMarkup, equipmentSpecialNoteMarkup } from './equipment
 import { STAT_KIND, type StatKey } from '../sim/stats';
 import { mountCodex } from './codex';
 import { hasUnsavedTunerEdits } from './tuner-state';
+import { crashLogEntries, formatCrashReport } from './crashlog';
 
 type Tab = 'run' | 'tree' | 'equipment' | 'codex' | 'settings';
 
@@ -64,16 +65,38 @@ type Tab = 'run' | 'tree' | 'equipment' | 'codex' | 'settings';
  * module-scoped listener, installed once, that always re-renders whichever
  * `Hub` was constructed *most recently* (never a stale one) sidesteps this
  * regardless of how many `Hub` instances have ever existed.
+ *
+ * fb091 (code-reviewer finding) reuses this same "most recently constructed
+ * Hub bound to the shared root" pointer for its own async clipboard-write
+ * callback, which has the identical staleness hazard: `showHub()`'s
+ * unconditional fresh `Hub` means a `navigator.clipboard.writeText()` promise
+ * still pending when the player returns to (or leaves) the Hub must not let
+ * the stale instance's callback `show()` over whatever replaced it.
  */
-let activeFullscreenHub: Hub | null = null;
+let activeHub: Hub | null = null;
 let fullscreenListenerInstalled = false;
 
 function ensureFullscreenListenerInstalled(): void {
   if (fullscreenListenerInstalled) return;
   fullscreenListenerInstalled = true;
   document.addEventListener('fullscreenchange', () => {
-    activeFullscreenHub?.refreshFullscreenLabel();
+    activeHub?.refreshFullscreenLabel();
   });
+}
+
+/**
+ * fb091: crash-log entries are the one place this file renders genuinely
+ * arbitrary runtime strings (a thrown error's own `message`) into `innerHTML`
+ * rather than fixed labels or numbers — escaped defensively so a hostile or
+ * unusual error message can't inject markup into the Settings tab.
+ */
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 export interface HubCallbacks {
@@ -110,6 +133,8 @@ export class Hub {
   private settingsResetArmed = false;
   /** Transient one-line feedback under the tab bar. */
   private notice = '';
+  /** fb091: transient feedback under the Crash reports panel's Copy report button. */
+  private crashLogCopyNotice = '';
   /**
    * Points spent in this Hub visit. They have not been taken into a run yet, so
    * taking one back is an undo rather than a respec, and costs no skill points.
@@ -131,8 +156,10 @@ export class Hub {
     // the next Constellation spend or Equipment swap.
     if (initialNotice) this.notice = initialNotice;
     // fb090: this instance becomes the one a document-level fullscreenchange
-    // event should re-render — see the module-scoped listener comment above.
-    activeFullscreenHub = this;
+    // event should re-render, and (fb091) the one any of *this* instance's
+    // still-pending async callbacks are allowed to act through — see the
+    // module-scoped pointer's comment above.
+    activeHub = this;
     ensureFullscreenListenerInstalled();
   }
 
@@ -150,6 +177,9 @@ export class Hub {
     // fb075: leaving the Settings tab mid-confirm must not leave the reset
     // button armed for a stray second click on return.
     if (this.tab !== 'settings') this.settingsResetArmed = false;
+    // fb091: leaving the Settings tab must not leave a stale Copy report
+    // notice waiting to reappear on a later visit.
+    if (this.tab !== 'settings') this.crashLogCopyNotice = '';
     this.root.innerHTML = '';
     const el = document.createElement('div');
     el.className = 'sw-hub';
@@ -477,6 +507,7 @@ export class Hub {
 
   private renderSettings(body: HTMLElement): void {
     const s = this.settings;
+    const crashLog = crashLogEntries();
     body.innerHTML = `
       <div class="sw-panel">
         <h2>Settings</h2>
@@ -542,6 +573,26 @@ export class Hub {
         </p>
         <button class="sw-reroll" id="sw-seed">Seed a test account</button>
         <button class="sw-reroll danger" id="sw-wipe">Wipe account</button>
+      </div>
+
+      <div class="sw-panel">
+        <h2>Crash reports</h2>
+        <p class="sw-note">
+          The last ${crashLog.length} uncaught error${crashLog.length === 1 ? '' : 's'} this browser
+          session, kept in memory only — nothing here is saved to your account.
+        </p>
+        ${
+          crashLog.length === 0
+            ? '<p class="sw-note">No errors recorded this session.</p>'
+            : `<ul class="sw-crashlist">${crashLog
+                .map(
+                  (e) =>
+                    `<li><b>${new Date(e.time).toLocaleTimeString()}</b> ${escapeHtml(e.message)}</li>`,
+                )
+                .join('')}</ul>`
+        }
+        <button class="sw-reroll" id="sw-crashlog-copy">Copy report</button>
+        ${this.crashLogCopyNotice ? `<p class="sw-note">${escapeHtml(this.crashLogCopyNotice)}</p>` : ''}
       </div>`;
 
     const commit = () => {
@@ -627,6 +678,33 @@ export class Hub {
       }
     });
 
+    body.querySelector('#sw-crashlog-copy')?.addEventListener('click', () => {
+      this.settingsResetArmed = false; // fb075: see #sw-seed's comment above.
+      if (!navigator.clipboard) {
+        this.crashLogCopyNotice = 'Clipboard not available in this browser.';
+        this.show();
+        return;
+      }
+      navigator.clipboard.writeText(formatCrashReport()).then(
+        () => {
+          // fb091 (code-reviewer finding): `showHub()` builds a fresh `Hub` on
+          // every return to the Hub screen without disposing the previous
+          // one, so this async callback must not act once a *different*
+          // instance has become `activeHub` — the same staleness hazard
+          // `activeHub`'s own doc comment (above) already covers for
+          // `refreshFullscreenLabel`.
+          if (activeHub !== this) return;
+          this.crashLogCopyNotice = 'Copied to clipboard.';
+          this.show();
+        },
+        () => {
+          if (activeHub !== this) return;
+          this.crashLogCopyNotice = 'Could not copy — clipboard access was denied.';
+          this.show();
+        },
+      );
+    });
+
     for (const el of body.querySelectorAll<HTMLElement>('[data-rebind]')) {
       el.addEventListener('click', () => this.startListeningForRebind(el.dataset.rebind as ActionId));
     }
@@ -646,8 +724,8 @@ export class Hub {
    * `fullscreenchange` event without our own toggle button ever being
    * clicked, so the displayed label must react to the event rather than only
    * to a click. Called only on whichever `Hub` instance is currently
-   * `activeFullscreenHub` (see the module-scoped listener above), so a stale
-   * instance discarded mid-Settings-tab never fires this.
+   * `activeHub` (see the module-scoped pointer above), so a stale instance
+   * discarded mid-Settings-tab never fires this.
    */
   refreshFullscreenLabel(): void {
     if (this.tab === 'settings') this.show();

@@ -745,6 +745,13 @@ input.sw-tuner-field-input[type="text"] { width: 220px; }
 .sw-keybind.listening { border-color: var(--accent); color: var(--accent); }
 .sw-note.sw-error { color: #ff9a9a; }
 
+.sw-crashlist {
+  max-height: 200px; overflow-y: auto; margin: 8px 0; padding: 0 0 0 18px;
+  font-size: 12px; color: var(--text-dim, #aaa);
+}
+.sw-crashlist li { margin: 2px 0; }
+.sw-crashlist b { color: var(--text); margin-right: 6px; }
+
 .sw-notice {
   margin: 0 0 12px;
   padding: 7px 12px;
