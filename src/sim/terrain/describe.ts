@@ -184,6 +184,7 @@ export function describeTerrain(map: TerrainGrid, cfg: TerrainConfig = loadTerra
   lines.push(
     `bands walkable=${frac(m.walkableFrac)} buildableNormal=${frac(m.buildableNormalFrac)} ` +
       `gateReach=${frac(m.gateReachFrac)} coreLegal=${frac(m.coreLegalFrac)} ` +
+      `gateDetour=${frac(m.maxGateDetour)} ` +
       `corridors=${m.corridorsOk} gatesOpen=${m.gatesOpen} gatesConnected=${m.gatesConnected}`,
   );
   lines.push(
@@ -380,6 +381,12 @@ export function parseTerrainDump(text: string): TerrainDump {
     buildableNormalFrac: num(bandLine, 'bands', 'buildableNormal'),
     gateReachFrac: num(bandLine, 'bands', 'gateReach'),
     coreLegalFrac: num(bandLine, 'bands', 'coreLegal'),
+    // fb064o. Not a fraction: it is a ratio `>= 1`, or the `-1` sentinel for a
+    // map with no measurable approach. `num` accepts both spellings, and
+    // `frac`'s six digits are as exact here as they are for the fracs — the
+    // dump carries the rounded value and `TerrainDump` already documents that
+    // the bands are read back as printed rather than re-measured.
+    maxGateDetour: num(bandLine, 'bands', 'gateDetour'),
     corridorsOk: bool(bandLine, 'bands', 'corridors'),
     gatesOpen: bool(bandLine, 'bands', 'gatesOpen'),
     gatesConnected: bool(bandLine, 'bands', 'gatesConnected'),

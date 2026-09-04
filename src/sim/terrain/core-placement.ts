@@ -15,11 +15,22 @@
  * tile (pinned by a test over 100 seeds) rather than to re-derive legality.
  * Enumerating and validating from two different rules is exactly how a click
  * comes to be refused on a tile the generator counted as legal.
+ *
+ * `suggestCoreAnchor`'s *body* moved to `analyze.ts` in fb064o and is
+ * re-exported from here unchanged, so this module stays its home for every
+ * caller and for `index.ts`. The move is a layering fix, not a redesign:
+ * fb064o's approach band is measured to the suggested anchor, so
+ * `measureTerrain` has to call it, and `core-placement.ts` imports `analyze.ts`
+ * — the other direction would be a cycle. It sits beside `legalCoreAnchors`,
+ * the set it picks from, which is where the no-drift rule above wanted it
+ * anyway.
  */
-import { CORE_H, CORE_W, CORE_X, CORE_Y } from '../grid';
-import { gateComponent, gateDistance, legalCoreAnchors } from './analyze';
+import { CORE_H, CORE_W } from '../grid';
+import { gateComponent, gateDistance } from './analyze';
 import { TerrainKind, type TerrainConfig } from './config';
 import type { TerrainGrid } from './types';
+
+export { suggestCoreAnchor } from './analyze';
 
 /**
  * Why a placement was refused, in the order the checks run. A click can break
@@ -41,22 +52,6 @@ export type CoreRejectReason =
 export type CorePlacementResult =
   | { readonly ok: true; readonly anchor: number }
   | { readonly ok: false; readonly reason: CoreRejectReason };
-
-/**
- * How far around the footprint `suggestCoreAnchor` looks for build room. Two
- * tiles is the first ring a tower can actually occupy plus one, i.e. enough to
- * tell a Core in an alcove from a Core in the open.
- *
- * Deliberately *not* in `data/terrain.json`, against architecture rule 4, and
- * the exemption is logged in BACKLOG-TERRAIN.md: this is a tie-break weight,
- * not a tuning band — it cannot make a map legal or illegal, since every value
- * of it picks some member of a set `legalCoreAnchors` already validated — while
- * putting it in `/data` would hand fb064f's live Tuner a knob that silently
- * relocates the Core, and `data/terrain.json` is still outside `contentHash()`
- * (fb064b's merge blocker), so a replay would not notice. It is pinned by the
- * golden table in `tests/terrain-core-placement.test.ts` instead.
- */
-const ROOM_RADIUS = 2;
 
 /**
  * Is `(tx, ty)` a legal top-left anchor for the 2x2 Core?
@@ -116,88 +111,4 @@ export function validateCorePlacement(
     }
   }
   return { ok: true, anchor: ty * map.w + tx };
-}
-
-/**
- * The pre-highlighted default: the legal anchor closest to `CORE_X/CORE_Y`,
- * tie-broken by build room and then by tile order. `null` only when the map has
- * no legal anchor at all — which the `minCoreLegalFrac` band makes impossible
- * for a non-fallback map, but the fallback map is a map too.
- *
- * Closest-to-the-old-spot is chosen over anything cleverer on purpose. The
- * suggestion is the position most runs will actually play, so it is a balance
- * decision — Core distance from each gate is what every wave's travel time is
- * tuned against — and balance orders are not this lane's to take. Reproducing
- * the tuned spot as nearly as the terrain allows is the choice that changes
- * nothing; a "maximise the distance to the nearest gate" rule would quietly
- * relocate the Core to a corner on every seed.
- *
- * A caller-supplied `anchors` list is not trusted to be one. Handed `[0]` — the
- * rock border's first tile — the unguarded version returned it, and `[-5]`,
- * `[999999]` and `[NaN]` came straight back out into a placement Command. Every
- * candidate is re-checked against the cheap half of `validateCorePlacement`
- * (in range, 2x2 normal); reachability is not re-flooded, since re-deriving it
- * per candidate is the cost the parameter exists to avoid, and it is the caller
- * who narrowed a legal set.
- */
-export function suggestCoreAnchor(
-  map: TerrainGrid,
-  cfg: TerrainConfig,
-  anchors: readonly number[] = legalCoreAnchors(map, cfg),
-): number | null {
-  let best: number | null = null;
-  let bestDist = 0;
-  let bestRoom = 0;
-  for (const anchor of anchors) {
-    if (!isNormalFootprint(map, anchor)) continue;
-    const x = anchor % map.w;
-    const y = (anchor / map.w) | 0;
-    const dx = x - CORE_X;
-    const dy = y - CORE_Y;
-    const dist = dx * dx + dy * dy;
-    if (best !== null && dist > bestDist) continue;
-    const room = buildRoom(map, x, y);
-    // Both comparisons are strict, and both matter. `anchors` is ascending, so
-    // strictness leaves the lowest index winning a full tie — a stable answer
-    // that does not depend on the enumeration order of a set the generator
-    // happens to produce. The room key is not decoration either: over seeds
-    // 1..500 the nearest-anchor set is tied on 25 seeds and this line moves the
-    // pick on 17 of them, i.e. on ~3% of runs it chooses the Core's tile.
-    if (best === null || dist < bestDist || room > bestRoom) {
-      best = anchor;
-      bestDist = dist;
-      bestRoom = room;
-    }
-  }
-  return best;
-}
-
-/**
- * Is `anchor` an in-range flat index whose whole footprint is normal ground?
- * The cheap half of `validateCorePlacement` — no flood, so it is safe to run
- * per candidate.
- */
-function isNormalFootprint(map: TerrainGrid, anchor: number): boolean {
-  if (!Number.isInteger(anchor) || anchor < 0 || anchor >= map.w * map.h) return false;
-  const tx = anchor % map.w;
-  const ty = (anchor / map.w) | 0;
-  if (tx + CORE_W > map.w || ty + CORE_H > map.h) return false;
-  for (let dy = 0; dy < CORE_H; dy++) {
-    for (let dx = 0; dx < CORE_W; dx++) {
-      if (map.kind[(ty + dy) * map.w + (tx + dx)] !== TerrainKind.Normal) return false;
-    }
-  }
-  return true;
-}
-
-/** Normal tiles in the ring `ROOM_RADIUS` out from the 2x2 footprint. */
-function buildRoom(map: TerrainGrid, tx: number, ty: number): number {
-  let room = 0;
-  for (let y = ty - ROOM_RADIUS; y < ty + CORE_H + ROOM_RADIUS; y++) {
-    for (let x = tx - ROOM_RADIUS; x < tx + CORE_W + ROOM_RADIUS; x++) {
-      if (x < 0 || y < 0 || x >= map.w || y >= map.h) continue;
-      if (map.kind[y * map.w + x] === TerrainKind.Normal) room++;
-    }
-  }
-  return room;
 }

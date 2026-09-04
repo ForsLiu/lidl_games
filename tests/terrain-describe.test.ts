@@ -113,7 +113,7 @@ const GOLDEN_SEED_1 = [
   'terrain 36x20',
   'seed requested=1 effective=1 attempts=1 fallback=false hash=54fad3db',
   'gates west=0,10 north=18,0 east=35,17',
-  'bands walkable=0.669444 buildableNormal=0.515278 gateReach=1.000000 coreLegal=0.576819 corridors=true gatesOpen=true gatesConnected=true',
+  'bands walkable=0.669444 buildableNormal=0.515278 gateReach=1.000000 coreLegal=0.576819 gateDetour=1.152542 corridors=true gatesOpen=true gatesConnected=true',
   'counts walkable=482 normal=371 coreAnchors=214',
   'tiles normal=371 rough=111 rock=194 high=44',
   'legend normal=. rough=, rock=# high=^',

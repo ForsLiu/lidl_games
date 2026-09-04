@@ -52,7 +52,8 @@
     "minBuildableNormalFrac": 0.45,
     "minGateReachFrac": 0.8,
     "minCoreLegalFrac": 0.15,
-    "minCorridorWidth": 2
+    "minCorridorWidth": 2,
+    "maxGateDetour": 1.5
   },
   "highGround": {
     "families": [

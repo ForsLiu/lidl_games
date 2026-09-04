@@ -277,6 +277,20 @@ const schema = z
         // nothing. Refuse it rather than answer a designer's retune with
         // silence.
         minCorridorWidth: z.union([z.literal(1), z.literal(2)]),
+        // fb064o: the worst gate's path cost to the suggested Core anchor over
+        // the obstacle-free cost of that same walk. The floor of 1 is an
+        // impossibility proof, not a taste: the divisor is the shortest walk an
+        // empty board admits, so no map anywhere can measure below it and any
+        // value under 1 makes *every* seed degenerate and ships the fallback
+        // forever — the exact failure fb064g closed on `minCoreLegalFrac`.
+        //
+        // There is deliberately no ceiling. Unlike the frac bands there is no
+        // arena-wide maximum to prove one against (the longest detour a map can
+        // force is a property of the blob scatter, not of the grid), and a large
+        // value is a legitimate "band off", the same reading `minCorridorWidth:
+        // 1` has. `SPAN` is a cap on a *radius* and would be a made-up number
+        // here.
+        maxGateDetour: z.number().finite().min(1),
       })
       .strict(),
     // fb064i: who the high-ground protection rules exempt, as data. The owner's

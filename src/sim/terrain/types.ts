@@ -83,6 +83,19 @@ export interface TerrainMeasure {
   gateReachFrac: number;
   /** Legal 2x2 Core anchors as a share of normal tiles. */
   coreLegalFrac: number;
+  /**
+   * fb064o: the worst gate's *detour factor* to the suggested Core anchor — its
+   * real 8-connected path cost over the obstacle-free cost of the same walk.
+   *
+   * `1` is a straight walk in and is exactly what the flat arena measures on
+   * every gate, so it is the baseline the waves were tuned against; `1.5` means
+   * terrain adds half the approach again. `-1` means "not a detour": no legal
+   * Core anchor, or a gate with no walk to it. `terrainLegal` refuses `-1`
+   * rather than reading it as a short approach — a real detour is never below
+   * `1`, so the two cannot collide. See `path.ts` for why the ratio, and not
+   * the raw path cost, is the quantity a generation band can hold.
+   */
+  maxGateDetour: number;
   /** Every gate reaches the open area through a >= 2-tile-wide corridor. */
   corridorsOk: boolean;
   /** Every gate has at least one walkable neighbour (never enclosed). */

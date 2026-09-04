@@ -7,9 +7,20 @@
  * rule), so a 4-connected path is always a real path: a measurement that
  * passes under 4-connectivity cannot be optimistic about what the sim will
  * actually walk.
+ *
+ * The one exception is fb064o's approach band, which measures a *length* rather
+ * than reachability and so has to use the sim's own 8-connected metric — see
+ * `path.ts`, which this file imports and which therefore may not import back.
+ * `suggestCoreAnchor` lives here for the same reason: the band is measured to
+ * the anchor the run will actually be played on, `measureTerrain` cannot import
+ * upward into `core-placement.ts`, and enumerating the legal set in one file
+ * while choosing from it in another is exactly the drift both files are written
+ * to make impossible. `core-placement.ts` re-exports it, and stays its home in
+ * the public surface.
  */
-import { CORE_H, CORE_W, GATES } from '../grid';
+import { CORE_H, CORE_W, CORE_X, CORE_Y, GATES } from '../grid';
 import { isWalkable, TerrainKind, type TerrainConfig } from './config';
+import { maxGateDetour } from './path';
 import type { TerrainGrid, TerrainMeasure } from './types';
 
 const ORTHO: ReadonlyArray<readonly [number, number]> = [
@@ -402,11 +413,28 @@ export function measureTerrain(map: TerrainGrid, cfg: TerrainConfig): TerrainMea
   }
   const shared = gateComponent(map, cfg, perGate);
   const anchors = legalCoreAnchors(map, cfg, shared);
+  // fb064o: the approach band is measured to the anchor the run will actually
+  // be played on, so it reuses the pre-highlighted default rather than picking
+  // its own tile.
+  //
+  // A map with no legal anchor has no approach to measure and reports `-1`,
+  // which `terrainLegal` refuses. Under the shipped `minCoreLegalFrac: 0.15`
+  // that is redundant — such a map was already refused — but it is **not** a
+  // no-op across the schema, and the difference is measured rather than
+  // assumed. At `minCoreLegalFrac: 0` (schema-legal, and a field fb064f hands
+  // to a live Tuner) an anchor-less map used to ship: at `coreGateClearance:
+  // 14`, 67 of 300 seeds shipped a map with zero legal Core positions. Now the
+  // generator retries instead, and at clearance 14 it always finds one (0/300
+  // fallbacks); at clearance 16 it cannot, and 36 of 300 seeds ship the flagged
+  // flat arena. That is the price, and it buys refusing a map no Core can be
+  // placed on — which is a map the run cannot play.
+  const suggested = suggestCoreAnchor(map, cfg, anchors);
   return {
     walkableFrac: walkableCount / total,
     buildableNormalFrac: normalCount / total,
     gateReachFrac: perGate.length === 0 ? 0 : worstShare,
     coreLegalFrac: normalCount === 0 ? 0 : anchors.length / normalCount,
+    maxGateDetour: suggested === null ? -1 : maxGateDetour(map, cfg, suggested, CORE_W, CORE_H),
     corridorsOk: corridorsOk(map, cfg),
     gatesOpen: gatesOpen(map, cfg),
     gatesConnected: gatesConnected(map, cfg, perGate),
@@ -423,6 +451,12 @@ export function measureTerrain(map: TerrainGrid, cfg: TerrainConfig): TerrainMea
  * being folded into a tunable band: `minCorridorWidth: 1` is a schema-legal
  * `/data` value that switches `corridorsOk` off, and without these two an
  * otherwise-passing map could ship with a gate walled into its own pocket.
+ *
+ * fb064o's `maxGateDetour` is checked from *both* sides, and the lower one is
+ * not decoration: a detour below `1` is arithmetically impossible (the divisor
+ * is the shortest walk an empty board admits), so `>= 1` is a self-check on the
+ * measurement, and it is also what turns the `-1` "not measurable" sentinel
+ * into a refusal instead of a pass.
  */
 export function terrainLegal(measure: TerrainMeasure, cfg: TerrainConfig): boolean {
   const c = cfg.constraints;
@@ -433,6 +467,123 @@ export function terrainLegal(measure: TerrainMeasure, cfg: TerrainConfig): boole
     measure.walkableFrac >= c.minWalkableFrac &&
     measure.buildableNormalFrac >= c.minBuildableNormalFrac &&
     measure.gateReachFrac >= c.minGateReachFrac &&
-    measure.coreLegalFrac >= c.minCoreLegalFrac
+    measure.coreLegalFrac >= c.minCoreLegalFrac &&
+    measure.maxGateDetour >= 1 &&
+    measure.maxGateDetour <= c.maxGateDetour
   );
+}
+
+/**
+ * How far around the footprint `suggestCoreAnchor` looks for build room. Two
+ * tiles is the first ring a tower can actually occupy plus one, i.e. enough to
+ * tell a Core in an alcove from a Core in the open.
+ *
+ * **fb064o changed what this constant is.** Until then it was a pure tie-break
+ * weight that "cannot make a map legal or illegal, since every value of it
+ * picks some member of a set `legalCoreAnchors` already validated", and that
+ * clause was the whole justification for keeping it out of `data/terrain.json`
+ * against architecture rule 4. It is now false: `terrainLegal` reads
+ * `maxGateDetour`, `measureTerrain` measures that *to the anchor this constant
+ * helps pick*, so the value decides whether a map is refused.
+ *
+ * Measured, not argued. Re-running `suggestCoreAnchor` at radius 1 over seeds
+ * 1..3000 moves the anchor on 95 of them and flips `terrainLegal` on one:
+ * **seed 1326**, where anchors 421 and 277 are the same distance from
+ * `CORE_X/CORE_Y` (both `dist^2 = 4`) so this constant alone separates them —
+ * 421 measures a 1.1304 detour and ships, 277 measures 1.6508 and is refused,
+ * and the generator would hand that run a different map. Pinned by
+ * `tests/terrain-approach.test.ts`, which goes red at radius 1; the golden
+ * table in `tests/terrain-core-placement.test.ts` does not cover it (its own
+ * comment records that radius 1 moves *zero* rows there).
+ *
+ * The `/data` exemption is therefore **re-opened, not re-argued**: this is now
+ * exactly the "tuning band" the exemption said it was not, and fb064f's live
+ * Tuner would be editing map legality through it. Deciding that needs
+ * `data/terrain.json` inside `contentHash()` (fb064b's merge blocker), so it is
+ * logged in BACKLOG-TERRAIN.md for the merge rather than taken here.
+ */
+const ROOM_RADIUS = 2;
+
+/**
+ * The pre-highlighted default: the legal anchor closest to `CORE_X/CORE_Y`,
+ * tie-broken by build room and then by tile order. `null` only when the map has
+ * no legal anchor at all — which the `minCoreLegalFrac` band makes impossible
+ * for a non-fallback map, but the fallback map is a map too.
+ *
+ * Closest-to-the-old-spot is chosen over anything cleverer on purpose. The
+ * suggestion is the position most runs will actually play, so it is a balance
+ * decision — Core distance from each gate is what every wave's travel time is
+ * tuned against — and balance orders are not this lane's to take. Reproducing
+ * the tuned spot as nearly as the terrain allows is the choice that changes
+ * nothing; a "maximise the distance to the nearest gate" rule would quietly
+ * relocate the Core to a corner on every seed.
+ *
+ * A caller-supplied `anchors` list is not trusted to be one. Handed `[0]` — the
+ * rock border's first tile — the unguarded version returned it, and `[-5]`,
+ * `[999999]` and `[NaN]` came straight back out into a placement Command. Every
+ * candidate is re-checked against the cheap half of `validateCorePlacement`
+ * (in range, 2x2 normal); reachability is not re-flooded, since re-deriving it
+ * per candidate is the cost the parameter exists to avoid, and it is the caller
+ * who narrowed a legal set.
+ */
+export function suggestCoreAnchor(
+  map: TerrainGrid,
+  cfg: TerrainConfig,
+  anchors: readonly number[] = legalCoreAnchors(map, cfg),
+): number | null {
+  let best: number | null = null;
+  let bestDist = 0;
+  let bestRoom = 0;
+  for (const anchor of anchors) {
+    if (!isNormalFootprint(map, anchor)) continue;
+    const x = anchor % map.w;
+    const y = (anchor / map.w) | 0;
+    const dx = x - CORE_X;
+    const dy = y - CORE_Y;
+    const dist = dx * dx + dy * dy;
+    if (best !== null && dist > bestDist) continue;
+    const room = buildRoom(map, x, y);
+    // Both comparisons are strict, and both matter. `anchors` is ascending, so
+    // strictness leaves the lowest index winning a full tie — a stable answer
+    // that does not depend on the enumeration order of a set the generator
+    // happens to produce. The room key is not decoration either: over seeds
+    // 1..500 the nearest-anchor set is tied on 25 seeds and this line moves the
+    // pick on 17 of them, i.e. on ~3% of runs it chooses the Core's tile.
+    if (best === null || dist < bestDist || room > bestRoom) {
+      best = anchor;
+      bestDist = dist;
+      bestRoom = room;
+    }
+  }
+  return best;
+}
+
+/**
+ * Is `anchor` an in-range flat index whose whole footprint is normal ground?
+ * The cheap half of `validateCorePlacement` — no flood, so it is safe to run
+ * per candidate.
+ */
+function isNormalFootprint(map: TerrainGrid, anchor: number): boolean {
+  if (!Number.isInteger(anchor) || anchor < 0 || anchor >= map.w * map.h) return false;
+  const tx = anchor % map.w;
+  const ty = (anchor / map.w) | 0;
+  if (tx + CORE_W > map.w || ty + CORE_H > map.h) return false;
+  for (let dy = 0; dy < CORE_H; dy++) {
+    for (let dx = 0; dx < CORE_W; dx++) {
+      if (map.kind[(ty + dy) * map.w + (tx + dx)] !== TerrainKind.Normal) return false;
+    }
+  }
+  return true;
+}
+
+/** Normal tiles in the ring `ROOM_RADIUS` out from the 2x2 footprint. */
+function buildRoom(map: TerrainGrid, tx: number, ty: number): number {
+  let room = 0;
+  for (let y = ty - ROOM_RADIUS; y < ty + CORE_H + ROOM_RADIUS; y++) {
+    for (let x = tx - ROOM_RADIUS; x < tx + CORE_W + ROOM_RADIUS; x++) {
+      if (x < 0 || y < 0 || x >= map.w || y >= map.h) continue;
+      if (map.kind[y * map.w + x] === TerrainKind.Normal) room++;
+    }
+  }
+  return room;
 }

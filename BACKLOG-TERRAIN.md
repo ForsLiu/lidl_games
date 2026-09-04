@@ -284,7 +284,7 @@ fb064o.
       record does not say the shipped code fails its own acceptance.
       The `config.ts` replica is **pinned**, not deleted: `analyze.ts` imports
       `config.ts`, so measuring there is an import cycle.
-- [ ] (fb064o) [feat] gate-to-Core path length is the terrain property every
+- [x] (fb064o) [feat] gate-to-Core path length is the terrain property every
       wave is balanced against, and it is unmeasured: `walkableFrac` and
       friends bound *area*, nothing bounds *travel time*, so a seed whose
       rock blobs happen to lie off the mains can hand a run a materially
@@ -1962,3 +1962,154 @@ fb064o.
   across the three runs of this session (`b034`, `b035`, `q45`) passes in
   isolation and has no import path to terrain. That the set is not identical
   run-to-run is the load sensitivity fb064m already recorded, not a new signal.
+
+- (2026-09-04, fb064o) **The premise was right, and the 500-seed window hid
+  it.** `walkableFrac` and friends bound area; nothing bounded travel. Over
+  seeds 1..500 the spread looks benign (worst gate detour 1.59) — but that is
+  not the domain fb064j established a run draws from. Sampled across the whole
+  int32/uint32 range including negatives, terrain could hand one gate a
+  **4.36x** walk: seed `3220035238`, 410 path units against the flat arena's
+  118 for that same gate, i.e. an east-gate wave arriving in its own time zone
+  (second witness `-616759904` at 3.45). So the item took its "add a
+  generation constraint" branch rather than its "accept the spread" branch.
+  Same lesson as fb064a's QA pass and fb064r's item text, found the same way —
+  this time applied *before* the ledger was written rather than after.
+  - **The banded quantity is a ratio, not a cost.** `maxGateDetour` is the
+    worst gate's real path cost over the *obstacle-free* octile cost of the
+    same walk. A raw gate-to-Core cost is decided jointly by terrain and by
+    where the Core ends up, and the Core is the player's to place (fb064c), so
+    banding it would refuse seeds for a choice the generator does not make.
+    Dividing the Core's contribution out leaves a pure terrain property — and
+    it gives the flat arena, the map every wave was actually tuned on, a
+    baseline of exactly `1.000000` on every gate.
+  - **The metric is `Grid`'s, not `analyze.ts`'s.** `analyze.ts` is
+    4-connected because that can never be optimistic about *reachability*; the
+    same conservatism is wrong for a *length*, since it pays two orthogonal
+    steps per real diagonal — and by a different factor on the almost-all-
+    diagonal flat baseline than on a rocky seed, which would corrupt the ratio
+    itself. `src/sim/terrain/path.ts` mirrors `Grid.dijkstra` instead
+    (8-connected, 10/14, no corner cutting), and "mirrors" is checked
+    tile-for-tile against a real `Grid` over generated maps rather than
+    asserted in a comment.
+  - **Shipped `maxGateDetour: 1.5`, and its price is recorded.** Over 20000
+    domain-spread seeds it rejects 0.225% of attempts; in 1..500 exactly one
+    seed (463) is newly sent to a retry; no seed anywhere ships the flat
+    fallback. Golden hashes for 1/2/42/1000 unchanged; `npm run sim -- --seed 1
+    --policy hybrid` still `endHash 2729a000`. QA proved the no-fallback claim
+    structurally rather than by sampling: over 140,001 *contiguous* keys the
+    band's longest run of consecutive rejections is 2, and a fallback needs 8.
+  - **Headroom is provably untouched, not just measured untouched.** Band-on
+    legality implies band-off legality, so the shipped-map set only shrinks and
+    every other band's minimum can only rise. Measured identical old-vs-new
+    over 3000 seeds, and fb064r's two witnesses are byte-identical to HEAD
+    (seed 2005486180 hash `7c0d939c`, walkable 0.600000; seed 2454233399 hash
+    `b88a82e4`, buildableNormal 0.450000) — both still legal, attempts 1, not
+    fallback.
+  - **Layering.** `suggestCoreAnchor` (+ `ROOM_RADIUS`, `isNormalFootprint`,
+    `buildRoom`) moved from `core-placement.ts` into `analyze.ts` byte for
+    byte, and is re-exported so every caller and `index.ts` are unchanged. The
+    band is measured to the suggested anchor, so `measureTerrain` has to call
+    it, and `core-placement.ts` imports `analyze.ts` — the other direction is a
+    cycle. `path.ts` re-derives its own gate indices for the same reason.
+
+- (2026-09-04, fb064o) Review and QA. code-reviewer returned REQUEST-CHANGES
+  on one Major; qa-playtester returned PASS with two Majors and three Minors.
+  Every finding was reproduced before being acted on, and all are fixed here.
+  - **Major (review): `ROOM_RADIUS` silently became load-bearing.** Its
+    architecture-rule-4 exemption rested entirely on the clause "it cannot make
+    a map legal or illegal — every value picks some member of a set
+    `legalCoreAnchors` already validated". This item falsified that clause:
+    `terrainLegal` now reads a detour measured *to the anchor that tie-break
+    picks*. Witness, reproduced: **seed 1326**, whose two front-runners 421 and
+    277 are equidistant from `CORE_X/CORE_Y` (both `dist^2 = 4`), so the room
+    key alone separates them — 421 measures 1.1304 and ships, 277 measures
+    1.6508 and is refused. At radius 1 that seed plays a different map. Over
+    seeds 1..3000, radius 1 moves the anchor on 95 seeds and flips legality on
+    that one. The doc now states what the constant is, the witness is pinned in
+    `tests/terrain-approach.test.ts` (red at radius 1 — the golden table in
+    `terrain-core-placement.test.ts` does not cover it, per its own comment
+    that radius 1 moves *zero* rows there), and the `/data` exemption is
+    **re-opened for the merge**: the constant is now exactly the tuning band
+    the exemption said it was not. This is CLAUDE.md's "when a field's range
+    changes, grep its readers, not just its writers", and the item had missed
+    it.
+  - **Major (QA): the ledger recorded only the treated numbers.** The test
+    file's own header promised a pre-band control that was not in it, so a
+    reader saw "the worst approach 500 seeds hand you is 1.339" when the
+    untreated answer is 1.590, with a `gateMean` ceiling 18 units (10%) low.
+    `LEDGER_500_PRE` now records the same 500 seeds against `NO_BAND` and the
+    diff is asserted. CLAUDE.md's control-run rule, broken by this item and now
+    kept.
+  - **Major (QA) / Minor (review): "exactly 1 is payable" rested on one
+    cherry-picked seed** — seed 7, the ledger's own minimum. Measured: at
+    `maxGateDetour: 1`, 19/200 seeds ship the flat fallback (QA over 1500
+    seeds: 9.80%); at 1.1, 1/200; at the shipped 1.5, zero. `1` is still
+    accepted — fb064g's precedent is that a false rejection is worse than a
+    flagged fallback, and 1 is genuinely reachable — but the cost is asserted
+    rather than implied away, and it shows the shipped 1.5 sitting clear of a
+    cliff at ~1.1.
+  - **Minor (both): the band bounds the suggested anchor only.** That is what
+    the acceptance asked for, but fb064c makes the Core player-placed. Over
+    seeds 1..120 of shipped, band-passing maps, **104 of 120 admit a legal Core
+    position above 1.5**; the worst-over-all-anchors detour averages 2.196
+    against 1.099 at the suggested anchor, worst 4.969 (seed 115, anchor tile
+    24,1). Inert today — nothing places a Core — but recorded in
+    `maxGateDetour`'s doc and pinned by a test, so fb064c/fb064h inherit the
+    number rather than the surprise.
+  - **Minor (QA): the `-1` sentinel is not the no-op the comment claimed.** At
+    `minCoreLegalFrac: 0` — schema-legal, and a field fb064f hands to a live
+    Tuner — an anchor-less map used to ship (67/300 seeds at
+    `coreGateClearance: 14`). It is now refused: at clearance 14 the generator
+    retries and always finds an anchor (0/300 fallbacks); at clearance 16 it
+    cannot, and 36/300 ship the flagged flat arena. Better behaviour — a map no
+    Core can be placed on is a map the run cannot play — but the price is in
+    the comment now instead of a claim that it changes nothing.
+  - **Minor (review): the partial-reachability case defeated its own
+    sentinel.** With two of three gates walled off, `min`/`max` were real
+    numbers over the surviving subset and `spread` was `0`, which reads as
+    "perfectly even gates". All four summaries are now `-1` unless every gate
+    reached; the per-gate row keeps the detail.
+  - Also fixed: `freeApproachCost` could return `Infinity` (empty footprint),
+    which `maxGateDetour`'s `free > 0` guard waved through into a ratio of 0 —
+    below the `>= 1` invariant `types.ts` states; the guard is now
+    `!Number.isFinite(free) || free <= 0`. `approachField` throws rather than
+    returning a silently truncated field if its cost bound is ever exceeded
+    (`grid.ts` abandoned this exact counting loop when breach pricing broke the
+    same bound). The corner-cutting test asserts exact costs — 14 open, 60
+    pinched — instead of "more than 14", which a 4-connected implementation
+    also passes. The `-1` sentinel is round-tripped through
+    `describeTerrain`/`parseTerrainDump`. QA's free witness is pinned: seed
+    `4254486667` measures exactly 1.500000 and ships, so the band's inclusive
+    `<=` is tested on real generator output and not only on a hand-mutated
+    `TerrainMeasure`.
+  - **Not fixed, by decision:** `measureTerrain` is ~2x slower (0.30 -> 0.56 ms
+    per map; `generateTerrain` +37%), because it now runs a flood and an anchor
+    pick per attempt. Generation runs once per run and terrain has no
+    production caller yet, so the only real cost is ~2 s of test wall-clock.
+    Recorded rather than optimised.
+
+- (2026-09-04, fb064o) Out-of-scope needs, for the merge:
+  - **`ROOM_RADIUS`'s `/data` exemption is re-opened** (see above). Resolving
+    it means either moving the constant into `data/terrain.json` *after*
+    `contentHash()` covers that file, or writing down why a legality-affecting
+    constant stays in code. Main-lane, gated on fb064b's blocker.
+  - **The approach band does not survive the Core becoming player-placed.**
+    fb064c should either validate a placement's detour or accept the 4.969
+    worst case knowingly; the number is above.
+  - **SPEC-FINAL §10.5** must describe the approach band when it is written at
+    the merge, alongside the bands fb064a listed.
+
+- (2026-09-04, fb064o) Verification. `npx tsc --noEmit` clean. All ten
+  `tests/terrain*` suites green (**233 tests**, ~20 s; `terrain-approach` is 13
+  tests / ~9 s and stays in the fast tier). `npm run sim -- --seed 1 --policy
+  hybrid` gives `endHash 2729a000`, unchanged since fb064b. Nothing outside
+  `src/sim/terrain/` imports the module, so no run can reach this change.
+  `npm run test:fast`: 8 failed across 6 files, and a **control run with this
+  item's work stashed failed the same families** (7 across 5 files) — the
+  documented pre-existing set: `b032`/`b034`/`b035` load-sensitive UI-fold,
+  `q13` load-sensitive, `q15`'s 4000 ms settle deadline, `q49`/`q52` Windows
+  `EPERM` under `bench/.tmp`. `b036-help-fold` is the one that is deterministic
+  in isolation (`.sw-help` bottom 1095.4 against the 1080 fold); QA
+  independently reproduced it at HEAD `67ffc6f` in a detached worktree, so it
+  predates this lane entirely — **UI-lane work, still unfiled against
+  BACKLOG-UI.md**.

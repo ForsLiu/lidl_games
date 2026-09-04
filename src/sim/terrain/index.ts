@@ -55,4 +55,13 @@ export {
   type HighGroundQuery,
 } from './high-ground';
 export { terrainOverlay } from './overlay';
+export {
+  approachField,
+  freeApproachCost,
+  maxGateDetour,
+  measureApproach,
+  PATH_DIAG_COST,
+  PATH_ORTHO_COST,
+  type ApproachMeasure,
+} from './path';
 export type { TerrainGrid, TerrainMap, TerrainMeasure } from './types';
