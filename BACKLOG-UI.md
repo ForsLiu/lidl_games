@@ -2191,7 +2191,7 @@ not already expose it) logs that need below instead of reaching into
       item's own files — confirmed `colorblind-sim.ts` has zero import
       coupling to any failing suite.
 
-- [ ] (fb099) [feat] normal priority: generated 2026-09-04 (same generation
+- [x] (fb099) [feat] normal priority: generated 2026-09-04 (same generation
       batch as fb095; engineer's-judgment item, depth not scope creep per
       HANDOFF §7, complements fb095) — results-screen quest-completion
       toast. A quest can complete at run end (`applyRunResult`,
@@ -2212,7 +2212,84 @@ not already expose it) logs that need below instead of reaching into
       quest name and reward text is queued exactly once, and confirms
       re-running an already-completed quest's metric (e.g. a second win past
       `chrono_veteran`'s threshold) does not re-queue its toast — refs:
-      fb095, SPEC-FINAL §11, HANDOFF §7.
+      fb095, SPEC-FINAL §11, HANDOFF §7. DONE 2026-09-04: new pure
+      `questCompletionToasts(content, prevCompleted, nextCompleted)` in
+      `src/ui/quests.ts` diffs two `MetaState.completedQuests` string arrays
+      (the actual method is `Hud.say(text, priority)`, not
+      `queueToast`/`showToast` as this item's text guessed — same priority-
+      queue mechanism, different real name) and returns one toast string per
+      newly-completed quest, in `content.quests.quests`' authored order (not
+      push order, so simultaneous completions toast in a stable order
+      regardless of which metric's threshold happened to cross first inside
+      `applyRunResult`) — `Quest complete: ${name} — ${rewardLabel(...)}`.
+      `rewardLabel` (previously private to `quests.ts`, fb095) is now
+      exported so this reuses the exact same reward text the Quests panel
+      itself shows rather than a second copy that could drift. `main.ts`'s
+      `frame` loop captures `this.meta.completedQuests` as `prevCompleted`
+      immediately before the existing `applyRunResult` call in the
+      `resultBanked` block, then after `this.meta`/`saveMeta` update, loops
+      `questCompletionToasts(w.content, prevCompleted, this.meta.completedQuests)`
+      and calls `this.hud.say(msg)` per entry — no `src/meta` edit, pure
+      before/after comparison of an already-returned value per architecture
+      rule 3. Also bumped `.sw-toast`'s `z-index` to `11` (`src/ui/
+      style.css`, was implicit/auto) — without it a toast queued in the same
+      tick `.sw-modal` (z-index 10, the Results screen) opens, exactly this
+      item's own scenario, would paint underneath the modal's opaque
+      backdrop and never be seen, contradicting "shown on the Results
+      screen." Targeted `tests/ui-fb099-quest-toast.test.ts` (5/5): exactly
+      one toast naming quest + reward on first completion (`win_a_run` ->
+      "First Dawn" -> Pyro), no re-toast for an already-completed quest on a
+      later run, no toast when nothing completes, two simultaneous
+      completions toast in `content.quests.quests`' authored order via a
+      real `applyRunResult` call, and (added after code-reviewer's finding
+      below) a case that calls `questCompletionToasts` directly with
+      `nextCompleted` listing the two quest keys in the *reverse* of their
+      authored order, proving the function sorts by its own authored-order
+      pass rather than trusting whatever order the caller hands it. All
+      driven through the real `applyRunResult` against real
+      `data/quests.json` content (modeled on `tests/p7e-quests.test.ts`'s
+      `reportWith()` pattern), not a hand-rolled quest fixture; the
+      fixture's `totalSeconds: 2000`/`coreHp: coreMaxHp: 500` defaults are
+      deliberately above `speedrunner`'s `<=1920s` and above `scrape_by`'s
+      `<=25%`-Core-HP targets so an isolated single-quest test doesn't
+      coincidentally trip either Core-unlock quest, and `towersByKey` uses 5
+      distinct real attacking tower keys so `wins_max4towertypes`'s
+      `<=4`-types check doesn't coincidentally fire on the same win test
+      cases isolating `win_a_run` are built around (all discovered and fixed
+      via a scratch debug test before the real suite was written, not
+      guessed). code-reviewer **APPROVE** (no Critical/Major); two Minor
+      findings both addressed same session: the original "authored order,
+      not push order" test only proved `applyRunResult` itself pushes in
+      authored order, not that `questCompletionToasts` does its own
+      sorting — closed by the added reverse-order direct-call test above;
+      and a reminder that `STATUS.md` (dirty in the working tree,
+      pre-existing per this session's opening `git status`, unrelated to
+      fb099) must not be swept into this lane's commit — confirmed excluded.
+      One Nit (the backlog entry itself wasn't checked off yet) closed by
+      this update. qa-playtester **PASS**: independently drove a real
+      `Game` instance end-to-end (mount, `new Game()`, `start()`, `#sw-start`
+      click, ticked `frame()`) rather than trusting only the shipped unit
+      tests, confirmed the toast text and `.show` class land correctly at
+      run end, confirmed the z-index fix actually resolves the
+      toast-hidden-under-the-Results-modal scenario it was written for,
+      confirmed a practice run (`practiceUsed: true`) completes and toasts
+      no quest (the `prevCompleted === this.meta.completedQuests` same-
+      reference edge case from `applyRunResult`'s practice early-return
+      resolves correctly through `questCompletionToasts`), confirmed
+      multiple same-run-end quest completions queue and show in FIFO order
+      through the existing toast queue without dropping any, and confirmed
+      a stale/unknown quest key in `completedQuests` (corrupted-save shape)
+      neither crashes nor produces a spurious toast (the function iterates
+      `content.quests.quests`, never `completedQuests`, so an unknown key is
+      structurally unreachable). Filed no new bugs; one non-blocking
+      observation (unbounded same-tick toast queueing could delay a later
+      routine toast behind several quest-completion ones — not a bug, no
+      action taken). `npx tsc --noEmit` clean. `npm run test:fast`: 6 failed
+      tests across 7 failed files (2272 passed / 24 skipped), all in the
+      pre-existing q15-command-domain-fuzz worker-hang and q49/q52 Windows-
+      scratch-dir-EPERM flake classes documented across dozens of prior
+      PROGRESS.md sessions, none touching `src/ui/**`/`src/render/**` or
+      this item's own files.
 
 - [x] (fb100) [bug] normal priority: DONE 2026-09-04, fixed in the same
       session that produced it — see fb096's DONE note above for the fix
@@ -2290,6 +2367,108 @@ not already expose it) logs that need below instead of reaching into
       call within one `switchToSlot` invocation and asserts the return value
       and `getActiveSlot()` stay consistent with each other — refs: fb096.
 
+- [ ] (fb102) [bug] normal priority: generated 2026-09-04 (fewer than 3
+      actionable items remained — fb085/fb093/fb097 stay open but are logged
+      out-of-scope for this lane; generation rule (b)/existing-note diff) —
+      boss bar overlaps the floating info rail at narrow stage widths.
+      fb072's own DONE note flagged this on delivery and left it as "a
+      theoretical CSS overlap with the right info rail at very narrow stage
+      widths, left as a known limitation, same class as fb065's own logged
+      follow-up" — it was never promoted to its own item. `.sw-bossbar`
+      (`src/ui/style.css`) is centered (`left: var(--cv-cx, 50%)`) with
+      `width: 360px; max-width: 60%` of the stage, while `.sw-rail-left`/
+      `.sw-rail-right` each take `max-width: 32%` (widening to `55%` under
+      the existing `@media (max-width: 1180px)` rule) anchored to the same
+      top edge (`top: calc(var(--cv-top, 0px) + 8px)` vs. the boss bar's
+      `top: calc(var(--cv-top, 0px) + 10px)`) — at any stage narrow enough to
+      trigger that media query with a rail expanded and a boss alive, the
+      three boxes' widths (55% + 55% + 60%) can no longer fit side by side
+      without the boss bar's centered box overlapping one or both rails.
+      Acceptance: a render/layout test computes (or directly asserts against)
+      `.sw-bossbar`'s and an expanded `.sw-rail-right`'s effective
+      left/right/width bounds at a narrow stage width (e.g. 900px, under the
+      1180px breakpoint) with both visible, and confirms they do not overlap;
+      the same assertion must fail against the current, unfixed CSS values
+      (proven via a temporary revert, restored before commit) so the test
+      actually catches the bug rather than passing vacuously — refs: fb072,
+      fb065, fb082.
+
+- [ ] (fb103) [feat] normal priority: generated 2026-09-04 (same generation
+      batch as fb102) — Results screen shows the class and Core the run was
+      played with. `Hud.showResults(w: World)` (`src/ui/hud.ts`) renders
+      waves/survived/level/kills/towers/equipment/skill-points but never
+      names which class or Core produced them, even though both are already
+      on hand with no sim/meta edit needed: `w.cfg.classKey` and `w.coreKey`
+      (`src/sim/world.ts`) resolve to real display names via
+      `w.content.classByKey`/`w.content.coreByKey` (`src/sim/content.ts`,
+      the same maps `quests.ts`/`codex.ts` already read). With 12 classes, 5
+      Cores and now 3 save slots (fb096) all live at once, a player finishing
+      a run has no on-screen confirmation of which build just played short of
+      remembering it themselves. Acceptance: a unit test opens Results with a
+      `World`/fixture carrying a known `classKey`/`coreKey` and asserts both
+      real display names (not raw data keys) appear in `.sw-results`; a
+      second case with a `classKey`/`coreKey` absent from `content` (a
+      corrupted-save-shape edge) confirms a raw-key fallback renders instead
+      of a crash — refs: SPEC-FINAL §5.5 (Core choice), §11, fb092.
+
+- [ ] (fb104) [polish] normal priority: generated 2026-09-04 (same generation
+      batch as fb102) — bottom-bar "skill ready" ripple respects
+      reducedMotion/reducedFlash. fb086's own qa-playtester pass found and
+      explicitly flagged this "for the backlog generator" rather than filing
+      it against fb086 itself (judged outside that item's own acceptance,
+      which named only continuous/repeated cues): the bottom bar's CSS-only
+      skill-ready cue (`@keyframes sw-bb-ready-flash`, `.sw-bb-flash
+      .sw-bb-icon`, `src/ui/style.css`) is a brief (0.5s), event-triggered
+      box-shadow ripple that neither `reducedMotion` nor `reducedFlash`
+      (`src/ui/settings.ts`) currently touches, unlike every other ambient-
+      motion/flash cue in the renderer (tracer jitter, phase-sweep travel,
+      damage flashes). Acceptance: a unit test enables `reducedFlash` (or
+      `reducedMotion`, whichever the implementation targets — pick the one
+      that best matches "a brief flash effect" per the existing Settings
+      label text) and confirms the ripple is suppressed or visibly reduced
+      (e.g. the `sw-bb-flash` class/animation is withheld or its duration
+      drops to 0) when a skill becomes ready, with an off-by-default control
+      case proving the ripple still plays normally otherwise — refs: fb086
+      (qa-playtester's logged observation), fb055's reducedFlash precedent.
+
+- [ ] (fb105) [feat] low priority: generated 2026-09-04 (same generation
+      batch as fb102) — Codex search/filter box. The Codex
+      (`src/ui/codex.ts`/`codex-collections.ts`) renders every collection as
+      a plain, unfiltered table — fine at a handful of rows, but §13's content
+      totals put some collections well past that (120 Constellation Nodes,
+      20 enemies, 14 authored quests, 24 waves): finding one entry today means
+      scrolling and reading every row. Add a search input above the table that
+      filters visible rows by substring match (case-insensitive) against any
+      cell's rendered text; switching collections (`CodexHandle.select`)
+      clears the filter. Acceptance: a unit test opens the Codex on a
+      many-row collection (e.g. "Constellation Nodes"), types a substring
+      matching a small subset of rows, confirms only matching rows remain in
+      the DOM (or visible), confirms clearing the input restores every row,
+      and confirms switching to a different collection resets the filter —
+      refs: SPEC-FINAL §11 (Codex, in-game wiki of every entity), §13
+      (content totals).
+
+- [ ] (fb106) [polish] low priority: generated 2026-09-04 (same generation
+      batch as fb102) — ultrawide/narrow safe-area unit-geometry regression
+      coverage, an in-scope alternative to fb093. fb093 (left open, logged
+      out-of-scope this session and in its own prior session because its
+      literal acceptance names `tools/ui-audit.ts` scenes, outside this
+      lane's Scope) leaves QUALITY.md 1.0's "16:9/16:10/ultrawide safe" line
+      with no committed regression coverage at extreme aspect ratios at all —
+      taking fb098's precedent of an "equivalent render test" branch instead
+      of touching `tools/ui-audit.ts`, this item covers the same ground at
+      the unit level. `Hud.syncStageOverlayGeometry()` (`src/ui/hud.ts`)
+      computes the letterboxed canvas rect's `--cv-left`/`--cv-right`/
+      `--cv-top`/`--cv-bottom`/`--cv-cx` custom properties that `.sw-rail`/
+      `.sw-bossbar` (and fb102's fix, once landed) key off of — add a test
+      that drives it at an ultrawide (2560x1080) and a narrow/portrait
+      (1024x1280) container size and asserts the computed letterbox rect
+      stays fully within the container with no negative offsets and no
+      dimension exceeding the container. Acceptance: the new test passes
+      against current code and demonstrably fails against a deliberately
+      broken letterboxing calculation (a temporary fixture mutation, reverted
+      before commit) — refs: fb093, fb065, fb082, QUALITY.md 1.0 (Steam/itch
+      checklist).
 
 ## Log
 

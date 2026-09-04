@@ -19,6 +19,7 @@ import { Renderer, type ViewState } from '../render/canvas';
 import { Hud } from './hud';
 import { Hub } from './hub';
 import { applyRunResult, defaultMeta, loadMetaWithNotice, saveMeta } from '../meta/meta';
+import { questCompletionToasts } from './quests';
 import { ensureActiveSlotMigrated } from './saveslots';
 import { devProfileActive, startupProfile } from '../meta/devprofile';
 import { loadSettings, saveSettings, type Settings } from './settings';
@@ -735,8 +736,17 @@ export class Game {
 
     if (w.outcome !== 'running' && !this.resultBanked) {
       this.resultBanked = true;
+      // fb099: a quest can complete right here with zero player-facing
+      // feedback otherwise — diff completedQuests before/after the call
+      // (pure before/after comparison of an already-returned value, no new
+      // sim/meta read) and toast each newly-completed one on the Results
+      // screen that's about to show.
+      const prevCompleted = this.meta.completedQuests;
       this.meta = applyRunResult(this.meta, run.report(), w);
       saveMeta(this.meta);
+      for (const msg of questCompletionToasts(w.content, prevCompleted, this.meta.completedQuests)) {
+        this.hud.say(msg);
+      }
       // fb074: a finished run has nothing left to resume into; leaving the
       // last-persisted mid-run snapshot on disk would let a refresh on the
       // Results screen replay it right back into a dead Core/Warden.
