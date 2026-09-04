@@ -33,6 +33,7 @@ import { coreLiveMarkup } from './core-info';
 import { formatPct, trimNum } from './info-format';
 import { equipmentEffectMarkup, type EquipmentEffectContext } from './equipment-info';
 import { defaultSettings, type Settings } from './settings';
+import { devProfileActive, isDevBuild } from '../meta/devprofile';
 
 /** fb084: which one-time first-run tutorial prompt is showing. */
 export type OnboardingKey = 'build' | 'dusk' | 'dawn';
@@ -192,6 +193,11 @@ export class Hud {
     this.root = root;
     this.cb = cb;
     this.settings = settings;
+    // fb094: dev-profile-only, same gate hub.ts's `DEV_BADGE` uses
+    // (`DEV_BUILD && devProfileActive()`) — computed once here since the
+    // control markup below is built into the constructor's one-shot
+    // `innerHTML` template, not re-rendered per tick.
+    const devMode = isDevBuild() && devProfileActive();
     root.innerHTML = `
       <div class="sw-shell">
         <div class="sw-stage">
@@ -271,6 +277,7 @@ export class Hud {
                 <button class="sw-ctl" data-act="character" id="sw-character" aria-pressed="false" title="Character stats (C)">Character</button>
                 <button class="sw-ctl" data-act="dps" id="sw-dps" aria-pressed="false" title="Damage/DPS summary (P)">DPS</button>
                 <button class="sw-ctl" data-act="vs" id="sw-vs" aria-pressed="false" title="Wielded attacks (V)">VS</button>
+                ${devMode ? '<button class="sw-ctl" data-act="screenshot" id="sw-screenshot" title="Export the current canvas frame as a PNG (dev)">Screenshot</button>' : ''}
                 <button class="sw-ctl" data-act="pause" title="Pause (Esc)">Pause</button>
               </div>
               <div class="sw-practice" id="sw-practice" hidden></div>
@@ -447,6 +454,7 @@ export class Hud {
     controls?.querySelector('[data-act="character"]')?.addEventListener('click', () => this.cb.onToggleCharacterPanel());
     controls?.querySelector('[data-act="dps"]')?.addEventListener('click', () => this.cb.onToggleDpsPanel());
     controls?.querySelector('[data-act="vs"]')?.addEventListener('click', () => this.cb.onToggleVsPanel?.());
+    controls?.querySelector('[data-act="screenshot"]')?.addEventListener('click', () => this.exportScreenshot());
     controls?.querySelector('[data-act="pause"]')?.addEventListener('click', () => this.cb.onPause());
     this.dpsDockEl.addEventListener('click', () => this.cb.onToggleDpsPanel());
     this.vsDockEl.addEventListener('click', () => this.cb.onToggleVsPanel?.());
@@ -923,6 +931,29 @@ export class Hud {
 
   get canvas(): HTMLCanvasElement {
     return this.root.querySelector('#sw-canvas') as HTMLCanvasElement;
+  }
+
+  /**
+   * fb094: dev-profile-only canvas capture, reachable without leaving the run
+   * (the button is only ever in the markup at all under `devMode`, see the
+   * constructor). Same Blob + `URL.createObjectURL` + anchor-click download
+   * idiom `tuner.ts`'s "Export JSON" button already uses, guarded the same
+   * way against a `URL`-less environment (`typeof URL === 'undefined'`, e.g.
+   * a stripped-down test runner) so a missing browser API is a silent no-op,
+   * not a thrown error.
+   */
+  private exportScreenshot(): void {
+    const canvas = this.canvas;
+    if (typeof canvas.toBlob !== 'function') return;
+    canvas.toBlob((blob) => {
+      if (!blob || typeof URL === 'undefined' || typeof URL.createObjectURL !== 'function') return;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `stonewake-screenshot-${Date.now()}.png`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }, 'image/png');
   }
 
   buildTowerBar(w: World): void {

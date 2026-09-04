@@ -1872,7 +1872,7 @@ not already expose it) logs that need below instead of reaching into
       (bottom bar, rail handles) rendered fully offscreen at either — refs:
       fb065, fb082, QUALITY.md 1.0 (Steam/itch checklist).
 
-- [ ] (fb094) [feat] low priority: generated 2026-09-04 (fewer than 3
+- [x] (fb094) [feat] low priority: generated 2026-09-04 (fewer than 3
       actionable items remained; engineer's-judgment item, depth not scope
       creep per HANDOFF §7) — dev-mode screenshot export. QUALITY.md 1.0's
       checklist names "store-page asset export (screenshots at fixed seeds,
@@ -1885,7 +1885,54 @@ not already expose it) logs that need below instead of reaching into
       API and produces a download (mocked `HTMLCanvasElement.prototype
       .toBlob`/anchor-click idiom); the control is absent/inert outside dev
       profile, matching every other dev-only control's existing gating
-      pattern — refs: QUALITY.md 1.0 (Steam/itch checklist).
+      pattern — refs: QUALITY.md 1.0 (Steam/itch checklist). DONE 2026-09-04:
+      `hud.ts` imports `devProfileActive`/`isDevBuild` from `../meta/
+      devprofile` (both already exported, gate-tested elsewhere via C8); the
+      `Hud` constructor computes `const devMode = isDevBuild() &&
+      devProfileActive();` once, before building its one-shot `innerHTML`
+      template — the same two-part predicate hub.ts's `DEV_BADGE`/
+      `showHiddenClasses` already use — and only injects a
+      `<button id="sw-screenshot" data-act="screenshot">Screenshot</button>`
+      into the `.sw-controls` row (between VS and Pause) when `devMode` is
+      true, so the control is genuinely absent from the DOM (not just
+      CSS-hidden) outside dev profile. `wireControls()` wires
+      `[data-act="screenshot"]` to a new private `exportScreenshot()`:
+      `this.canvas.toBlob(cb, 'image/png')`, and inside the callback (blob +
+      `URL.createObjectURL` both present) creates an object URL, a temporary
+      `<a>` with `.download = 'stonewake-screenshot-${Date.now()}.png'`,
+      calls `.click()`, then `URL.revokeObjectURL(url)` — the same Blob +
+      `createObjectURL` + anchor-click + revoke idiom `tuner.ts`'s "Export
+      JSON" button already uses, guarded the same way against a missing
+      `canvas.toBlob`/`URL` API as a silent no-op. Targeted
+      `tests/ui-fb094-screenshot-export.test.ts` (3/3, dev-build env: button
+      renders, click drives `toBlob`→`createObjectURL`→real-anchor
+      `.click()`→`revokeObjectURL` with the right args, null-blob resolution
+      is a no-throw no-op) and `tests/ui-fb094-screenshot-export-prod.test.ts`
+      (1/1: `vi.mock`'s `isDevBuild` to false, same split-file pattern as the
+      existing `p9c-tuner-ui.test.ts`/`p9c-tuner-prod-ui.test.ts` precedent,
+      confirms `#sw-screenshot` never mounts). code-reviewer APPROVE (no
+      Critical/Major; one Minor — unrelated pre-existing dirty `STATUS.md` in
+      the working tree, not staged; one Nit — a comment cited the wrong
+      existing-pattern precedent, fixed same session). qa-playtester PASS:
+      independently constructed a live `Hud` and drove the button directly
+      rather than trusting the shipped tests, confirmed the same call
+      sequence; hostile-tested a rapid double-click (two independent
+      `toBlob` calls, two distinct object URLs each individually revoked, no
+      leak), confirmed the click never touches `onPause`/`this.modal`/
+      `this.paused` (no interaction with the pause/modal overlay stack), and
+      confirmed no keybinding collision and no click-delegation interference
+      with sibling `.sw-controls` buttons (each wired via its own
+      `addEventListener`, not container-level delegation); noted as a known,
+      accepted (non-regression) limitation that `devMode` is baked in at
+      construction time same as every other dev-only control in this
+      codebase (`Hud`/`Hub` are reconstructed fresh per screen/run, never
+      reactively re-rendered). Filed no new bugs. `npx tsc --noEmit` clean.
+      `npm run test:fast`: 5 failed / 2252 passed / 24 skipped (2281 total)
+      across 7 failed files, all in the pre-existing q15-command-domain-fuzz
+      worker-hang and q49/q52 Windows-scratch-dir-EPERM flake classes plus
+      the b032/b034/b035/b036 dev-server-port-contention/fold-test class,
+      documented across dozens of prior PROGRESS.md sessions, none touching
+      `src/ui/**`/`src/render/**` or this item's own files.
 
 - [x] (fb095) [feat] normal priority: generated 2026-09-04 (fewer than 3
       actionable items remained — fb085 stays open but is permanently
@@ -2055,6 +2102,21 @@ not already expose it) logs that need below instead of reaching into
       fb095, SPEC-FINAL §11, HANDOFF §7.
 
 ## Log
+
+- 2026-09-04, fb093: skipped for this session — its literal acceptance
+  criteria require editing `tools/ui-audit.ts` (adding an ultrawide and a
+  narrow/portrait scene), which falls outside this lane's Scope
+  (`src/ui/**`/`src/render/**`/`tests/ui*`/`tests/render*` only). Note for
+  main-lane awareness: `fb065`'s own DONE note already touched
+  `tools/ui-audit.ts` (adding `#sw-dpsdock`/`#sw-vsdock` to its overlap-check
+  selector list) from this lane without a matching Log entry — that precedent
+  wasn't followed here since fb093's edit is additive-scene-authoring, a much
+  larger out-of-scope surface than a one-line selector-list addition, and
+  logging rather than repeating an unlogged shortcut is the safer default.
+  Left open rather than substituting an in-scope-only partial (e.g. unit-level
+  geometry math alone would not meet the item's own acceptance text, which
+  names real `tools/ui-audit.ts` scenes and `npm run ui-audit` explicitly).
+  Executed fb094 instead, the next actionable item, which is fully in-scope.
 
 - 2026-09-04, fb085: skipped for this session — its literal acceptance
   criteria require creating `data/strings.json`, which falls outside this
