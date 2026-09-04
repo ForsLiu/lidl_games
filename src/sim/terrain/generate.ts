@@ -8,7 +8,10 @@
  *      enclosed", "gates all connect", and "no sub-2-tile forced corridor on a
  *      gate main" structural rather than lucky;
  *   3. scatter rock/rough/high as organic blobs (random-walk growth) over the
- *      unprotected interior, to the authored densities;
+ *      unprotected interior, to a per-seed budget drawn around each authored
+ *      density (fb064l — the density is the centre of a band, not a quota, so
+ *      two seeds differ in how much rock they carry and not only in where it
+ *      sits);
  *   4. repair: any walkable tile the gates cannot reach becomes rock, so a
  *      sealed pocket can never be mistaken for playable ground;
  *   5. measure against every authored band. A failing attempt is *degenerate*
@@ -119,8 +122,8 @@ function attempt(seed: number, cfg: TerrainConfig): Uint8Array {
   };
 
   const interior = (GRID_W - 2) * (GRID_H - 2);
-  const scatter = (value: TerrainKind, density: number): void => {
-    const target = Math.round(density * interior);
+  const scatter = (value: TerrainKind, density: number, budget: number): void => {
+    const target = Math.round(density * budget * interior);
     let placed = 0;
     // Bounded retries: a map with no free tiles left must not spin forever.
     for (let tries = 0; tries < target * 20 + 64 && placed < target; tries++) {
@@ -146,9 +149,48 @@ function attempt(seed: number, cfg: TerrainConfig): Uint8Array {
     }
   };
 
-  scatter(TerrainKind.Rock, cfg.density.rock);
-  scatter(TerrainKind.Rough, cfg.density.rough);
-  scatter(TerrainKind.High, cfg.density.high);
+  // fb064l: each seed gets its own budget per kind, uniform on
+  // `1 +- density.jitter`. Without this the scatter targets are a constant of
+  // the config rather than of the seed, and they are met exactly whenever
+  // there is room — measured over seeds 1..500, every single map carried
+  // exactly 43 `high` tiles and 92% carried exactly the authored 104 `rough`.
+  // Maps differed in where the obstacles were and not in how many, which is
+  // half of the owner's "seeds produce varied legal maps".
+  //
+  // All three draws happen here, before any placing, so the RNG order does not
+  // depend on how much room a kind found — a budget drawn inside `scatter()`
+  // would make each kind's stream position a function of the previous kind's
+  // luck, and `high`'s map would move whenever `rock`'s blob walk changed
+  // length. Same reason the calls below stay in a fixed order.
+  //
+  // At `jitter: 0` the draws are skipped rather than made and multiplied by
+  // zero. Consuming the stream conditionally is worth one sentence of
+  // explanation: it makes the field a true no-op, so `jitter: 0` reproduces
+  // fb064a's generator tile for tile instead of merely reproducing its
+  // *densities* on a shifted stream. That is what let this change be measured
+  // against a control (the stranded-Core count in `tests/terrain-grid.test.ts`
+  // was read at both settings on otherwise identical config), and it is what
+  // fb064f's Tuner needs for "turn the variety off" to mean something. The
+  // config is part of the map's provenance either way — it selects the map, and
+  // a seed alone was never enough to reproduce one.
+  //
+  // The cost, stated because it is invisible otherwise: `cfg -> map` is
+  // *discontinuous* at 0. `jitter: 0` and `jitter: 1e-9` give completely
+  // different arenas for the same seed, since three draws either are or are
+  // not in the stream. Determinism is untouched (same cfg + seed, same map),
+  // but a Tuner slider nudged off 0 regenerates the world rather than nudging
+  // it. Kept anyway: the historical witness it buys — fb064a's goldens still
+  // verifiable from this build, in `tests/terrain-seed-domain.test.ts` — is
+  // worth more than smoothness on a field whose whole point is 0-or-not.
+  const budget = (): number =>
+    cfg.density.jitter === 0 ? 1 : 1 + cfg.density.jitter * (rng.float() * 2 - 1);
+  const rockBudget = budget();
+  const roughBudget = budget();
+  const highBudget = budget();
+
+  scatter(TerrainKind.Rock, cfg.density.rock, rockBudget);
+  scatter(TerrainKind.Rough, cfg.density.rough, roughBudget);
+  scatter(TerrainKind.High, cfg.density.high, highBudget);
 
   sealPockets(kind, cfg);
   return kind;

@@ -102,32 +102,32 @@ function field(text: string, head: string, key: string): string {
  */
 const GOLDEN_SEED_1 = [
   'terrain 36x20',
-  'seed requested=1 effective=1 attempts=1 fallback=false hash=03031f09',
+  'seed requested=1 effective=1 attempts=1 fallback=false hash=c4dde717',
   'gates west=0,10 north=18,0 east=35,17',
-  'bands walkable=0.670833 buildableNormal=0.526389 gateReach=1.000000 coreLegal=0.501319 corridors=true gatesOpen=true gatesConnected=true',
-  'counts walkable=483 normal=379 coreAnchors=190',
-  'tiles normal=379 rough=104 rock=194 high=43',
+  'bands walkable=0.669444 buildableNormal=0.515278 gateReach=1.000000 coreLegal=0.576819 corridors=true gatesOpen=true gatesConnected=true',
+  'counts walkable=482 normal=371 coreAnchors=214',
+  'tiles normal=371 rough=111 rock=190 high=48',
   'legend normal=. rough=, rock=# high=^',
   'map',
   '##################.#################',
-  '#^###^^####..............,^...,^^###',
-  '#^####^####..............,,..,,^####',
-  '#^^###^^####............,,,,.,.#####',
-  '#,^^#^^^^#.##...........,,,,,,.#####',
-  '#,,..^^###.##.#........##.,,,,.#####',
-  '#.,......,,##^^.......######...###.#',
-  '#.........,.#^........###,^^...##^.#',
-  '#........................,,^^^^#^^.#',
-  '#..............................^^^.#',
-  '.................................^.#',
+  '#..^^^...#####^^......,,,,,,..,,,..#',
+  '#..^^...#.####^^.....,,,,,#,,,,,,..#',
+  '#..,...##..,#.^^......,#.##,.^^,,.,#',
+  '#.,,,.,,,..,,........,,##,,.##^,.,,#',
+  '#,,,,.,,,,...........,,###..##^,.,,#',
+  '#..,,^^.,,...........,,###,,###,,.,#',
+  '#....^^,,.............###,,,,##,..,#',
+  '#.......#................,,,,##,,.,#',
+  '#.............................,,..,#',
+  '..................................,#',
   '#..................................#',
-  '#............,,.......,,.#.........#',
-  '#.,,,,,,,,.,,,,.......,,,###.......#',
-  '#.,,,,,,,,.,.,,^^^^..,,,####.......#',
-  '#.,,,,,.,..,,,,^.^...,,,#,,##......#',
-  '#......,,.,,.,,,.......,,,,........#',
-  '#....,,,......,,.......,,,####......',
-  '#....,,.,,..............,,#####....#',
+  '#..................................#',
+  '#.,,,^^#.....#.....................#',
+  '#..,^^####...##.......^^...........#',
+  '#..^^^##########......^^^..........#',
+  '#^^^^^##########......^^,,,..,,....#',
+  '##^^^##^^^######......,,.,,,,,,,....',
+  '######^^^#^##........,,...,,,,,,...#',
   '####################################',
 ].join('\n')
   .concat('\n');
@@ -405,7 +405,7 @@ describe('fb064k — a malformed dump is refused, never half-read', () => {
       ['no map marker', good.replace('\nmap\n', '\nmapp\n'), /expected a "map" line/],
       ['no gates line', good.replace(/^gates .*\n/m, ''), /expected "gates" line/],
       ['gate not a pair', good.replace('west=0,10', 'west=0'), /gate "west" is not "tx,ty"/],
-      ['non-numeric band', good.replace('walkable=0.670833', 'walkable=lots'), /non-numeric/],
+      ['non-numeric band', good.replace('walkable=0.669444', 'walkable=lots'), /non-numeric/],
       ['non-boolean band', good.replace('corridors=true', 'corridors=yes'), /non-boolean/],
       ['field with no value', good.replace('attempts=1', 'attempts'), /malformed field/],
       ['field with no key', good.replace('attempts=1', '=1'), /malformed field/],
@@ -417,7 +417,7 @@ describe('fb064k — a malformed dump is refused, never half-read', () => {
       ['duplicate field', good.replace(/^(seed .*)$/m, '$1 hash=-'), /duplicate "hash"/],
       [
         'duplicate band',
-        good.replace('walkable=0.670833', 'walkable=0.670833 walkable=9'),
+        good.replace('walkable=0.669444', 'walkable=0.669444 walkable=9'),
         /duplicate "walkable"/,
       ],
       // Provenance is all-or-nothing; a half-dashed seed line silently dropped
@@ -473,8 +473,8 @@ describe('fb064k — a malformed dump is refused, never half-read', () => {
 
     // And the `counts normal=` field is cross-checked too, independently of the
     // `tiles` line, since `normal` is a kind count wearing another name.
-    expect(() => parseTerrainDump(good.replace('normal=379 coreAnchors', 'normal=378 coreAnchors')))
-      .toThrow(/"counts" line says normal=378/);
+    expect(() => parseTerrainDump(good.replace('normal=371 coreAnchors', 'normal=370 coreAnchors')))
+      .toThrow(/"counts" line says normal=370/);
   });
 
   it('normalises a "-0" seed the way generateTerrain does', () => {

@@ -169,7 +169,7 @@ is what §10.5 will be written from.
       printed counts. The glyph histogram is now recounted from the decoded
       rows and cross-checked, which is config-free and dimension-free and so
       covers every dump. See the Log.
-- [ ] (fb064l) [test] "seeds produce varied legal maps" is currently pinned
+- [x] (fb064l) [test] "seeds produce varied legal maps" is currently pinned
       by ">= 95% distinct over 200 seeds", which a one-tile difference
       satisfies — the owner's Done-when clause is effectively unmeasured.
       Acceptance: over 500 seeds, mean pairwise tile-difference share and
@@ -177,6 +177,18 @@ is what §10.5 will be written from.
       the test, and the rock/rough/high counts spread across a band rather
       than sitting on the authored density — refs: owner feedback
       "Done when: seeds produce varied legal maps".
+      **Filed as `[test]`; shipped with a generator change, because the
+      measurement the acceptance asked for came back false.** Over seeds
+      1..500 the composition clause did not hold and could not: `scatter()`
+      placed exactly `round(density * interior)` tiles and only fell short when
+      it ran out of room, so every single seed carried exactly 43 `high` tiles
+      (sd 0.0000, ONE distinct value in 500) and 92% carried exactly the
+      authored 104 `rough`. Terrain varied in *where* the obstacles were and
+      not in *how many* — which the old ">= 95% distinct hashes" pin could not
+      see, since a one-tile difference scores 100% distinct there. Fixed
+      red-first with `density.jitter` in `data/terrain.json` (a per-seed budget
+      per kind, uniform on 1 +- 0.22). See the Log for the measurements, the
+      control run and the golden churn.
 
 - [ ] (fb064m) [feat] a buildable high-ground plot no enemy can reach is a
       permanently invulnerable tower site — fb064a deferred this ("worth a
@@ -198,6 +210,89 @@ is what §10.5 will be written from.
       carry such a plot and why that is intended — refs: fb064a Log
       ("`sealPockets` leaves unreachable `high` tiles as high ground"), fb064i
       QA bug 4, G2.
+      **Numbers above are stale as of 2026-09-04 — re-measure before
+      implementing.** They were read against the pre-fb064l generator, which
+      fb064l replaced; a deferral is a measurement with an expiry date and this
+      one expired. fb064l's QA took a like-for-like reading (`high` tiles with
+      no walkable tile within Euclidean range r, seeds 1..500): at r=4.0 the
+      *seed share* barely moved (29/500 -> 27/500) but the plot count rose
+      31% (65 -> 85 tiles) and the worst single seed doubled (6 -> 12 plots).
+      So the exposure moved in the direction that matters to this item's
+      acceptance, and the "55 plots" figure must not be inherited.
+
+### Generated 2026-09-04 (lane generation rule)
+
+Two actionable items were left (fb064l, fb064m), so the rule ran again.
+**Leg (a), the sweep, was skipped for the second time with the same
+reason, re-verified rather than inherited** (measurement rule: a deferral
+is a measurement with an expiry date): `grep -rn "generateTerrain\|applyTerrain"
+src/ tools/` outside `src/sim/terrain/` still returns only `grid.ts`
+comments and the unrelated `applyTerrainPassives` in `weapons.ts`, so no
+run's outcome depends on `data/terrain.json` and a sweep would measure
+zero terrain. Leg (b) was run as a clause-by-clause diff of the owner
+feedback file against the shipped modules; the only *unbuilt* in-scope
+clause it found is the Training Grounds flat arena's terrain half
+(fb064n) and the rock/character veto point (fb064q) — everything else
+left in the feedback (rendering, Tuner page, Core-placement wiring) needs
+files this lane may not touch and is already in the Log. Leg (c) is
+fb064o.
+
+- [ ] (fb064n) [feat] the flat arena is a concept with no name: it exists
+      only as `blankKinds()` inside `generate.ts`'s fallback and as
+      `flatCoreAnchorCount`'s independent replica of it in `config.ts`, and
+      fb064f's announced Training Grounds override needs it as a map. Give
+      it one export — `flatTerrain(cfg)` returning a real `TerrainMap`
+      (honest provenance: it is no seed's output) — and route the
+      `maxAttempts` fallback through the same builder so there is one flat
+      map, not three. Acceptance: `flatTerrain` is legal under
+      `terrainLegal` at the shipped config; its tiles are byte-identical to
+      today's fallback map (golden pin, so the refactor is provably
+      behaviour-preserving); its `kind` buffer is not shared between calls;
+      `describeTerrain` round-trips it and `terrainOverlay` + `applyTerrain`
+      leave every interior tile buildable with all gates reachable; the
+      `config.ts` replica is either deleted or pinned equal to it — refs:
+      owner feedback "Training Grounds keeps a flat arena", fb064f.
+- [ ] (fb064o) [feat] gate-to-Core path length is the terrain property every
+      wave is balanced against, and it is unmeasured: `walkableFrac` and
+      friends bound *area*, nothing bounds *travel time*, so a seed whose
+      rock blobs happen to lie off the mains can hand a run a materially
+      shorter or longer approach than the tuned flat map without failing a
+      single band. Acceptance: measure each gate's shortest path length to
+      the suggested Core anchor over 500 seeds, record min/mean/max against
+      the flat map's baseline, and either add a generation constraint
+      holding the worst seed inside a band or record the measured decision
+      to accept the spread with the numbers that justify it; no band moves
+      out of its measured headroom either way. Balance *orders* stay
+      main-lane — this constrains generation, it does not retune waves —
+      refs: HANDOFF §7 (depth), G2, fb064a Log ("gate mains are structural").
+- [ ] (fb064p) [polish] `TerrainMap.hash` is computed once at construction
+      over a `Uint8Array` the caller can write into: `types.ts` documents
+      "treat a generated map as immutable" and nothing enforces or detects
+      it, so a consumer that patches a tile silently invalidates the G2
+      determinism handle. Acceptance: `verifyTerrainMap(map)` recomputes
+      `terrainHash(map.seed, map.kind)` and reports a mismatch; a regression
+      test flips one tile of a generated map and sees it caught; verify
+      passes for 100 generated seeds and for the fallback map — refs:
+      `types.ts` `kind` doc, architecture rule 2.
+- [ ] (fb064q) [feat] the owner's rock clause carries an open veto — "the
+      character still passes per fb002's pass-through rule [designer note:
+      character flies over; veto if rocks should block the character]" — and
+      the lane has shipped no artifact for it: no predicate states it and no
+      test pins it, so at the merge each mover re-derives the rule and a veto
+      is a code hunt. Acceptance: a per-tile `blocksCharacter` flag in
+      `data/terrain.json` (false on every authored kind, matching today's
+      pass-through) with loader validation, a pure predicate beside the
+      high-ground table, table-driven tests per kind, and the exact
+      out-of-scope call sites listed in the Log — so the veto becomes a
+      one-line data edit — refs: owner feedback "rock/wall", fb002.
+- [ ] (fb064r) [test] band headroom is pinned by one hand-found seed (7957,
+      `walkableFrac` exactly 0.6000) over the 1..20000 window, which is not
+      the domain fb064j established a run seed draws from. Acceptance: a
+      recorded per-band min/mean/max ledger over a sample spanning the full
+      `MIN_TERRAIN_SEED..MAX_TERRAIN_SEED` domain including negatives, with
+      the worst seed per band named in the test so a retune's cost is a diff
+      rather than a hunt; the retry-taking seed set pinned the same way —
+      refs: fb064j, fb064a Log ("band headroom is ZERO").
 
 ## Log
 
@@ -1369,3 +1464,127 @@ is what §10.5 will be written from.
     `config.ts` all hardcode `GATES` the same way. When the main lane threads
     the run's gate list into generation, that item should extend fb064k's
     "carries the gates" test to a 4-gate map.
+
+- (2026-09-04, fb064l) Variety measured, and the generator changed to pass
+  the measurement. Everything here is a reading, not a story.
+
+  **The defect.** Over seeds 1..500 with the pre-fb064l generator, per-seed
+  interior shares were:
+
+  | kind  | authored | mean   | sd     | min    | max    | distinct |
+  |-------|----------|--------|--------|--------|--------|----------|
+  | rough | 0.17     | 0.1679 | 0.0053 | 0.1340 | 0.1699 | 19       |
+  | rock  | 0.11     | 0.1200 | 0.0130 | 0.1095 | 0.1879 | 39       |
+  | high  | 0.07     | 0.0703 | 0.0000 | 0.0703 | 0.0703 | **1**    |
+
+  `high` was the *same 43 tiles* on all 500 seeds and `rough` sat on its
+  authored target on 92% of them, because `scatter()` places exactly
+  `round(density * interior)` and only falls short when it runs out of free
+  ground. Layout varied; composition did not. After `density.jitter: 0.22`:
+  rough sd 0.0222 / 53 distinct, rock sd 0.0215 / 57, high sd 0.0089 / 20.
+
+  **The control run.** `jitter: 0` skips the budget draws rather than
+  multiplying them by zero, so it is fb064a's generator on fb064a's RNG
+  stream — verified by seeds 1/2/42/1000 still hashing to fb064a's recorded
+  `03031f09 / 30ddb8d4 / b2e86488 / 473db113`. Every "before" number below
+  was read at `jitter: 0` in this session rather than remembered.
+
+  **What the change cost, measured over seeds 1..20000.** Retries (seed+1
+  regeneration) went 5 -> 18, i.e. 0.09% of seeds; fallbacks stayed 0; every
+  band still holds on every seed. The worst `walkableFrac` is still *exactly*
+  0.600000 (seed 16236, was 7957) and that is structural, not luck: a map
+  under the band is regenerated rather than shipped, so the band itself is the
+  minimum any returned map can measure. Worst `buildableNormalFrac` 0.4528
+  against a 0.45 band — about 2 tiles of headroom, the tightest band on the
+  shipped data.
+
+  **A wrong reading, kept as a warning.** A first pass measured the
+  stranded-legacy-Core rate on the raw generated map and read 434/5000,
+  a 100x jump. That is a different question: `Grid` keeps the Core's own 2x2
+  unblocked whatever the terrain says, so the map-level count is dominated by
+  seeds that merely scatter rock onto the footprint. Measured the way the game
+  sees it (through `Grid`), the rate went 4/5000 -> **2/5000** — the change
+  *reduced* it. The obvious story ("wider rock budgets seal the Core off more
+  often") was the opposite of the measurement.
+
+  **Golden churn, deliberate and paid in full.** Every generated map moved, so
+  these were re-derived rather than re-recorded: the fb064a hash goldens and
+  the fb064j per-region goldens; `describeTerrain`'s seed-1 dump; the
+  `suggestCoreAnchor` table (seeds 24/40 kept both role and anchor; 13 replaces
+  127, and 97/112/189 replace 58/173, because those seeds no longer produce a
+  distance tie and an entry with no tie tests neither tie-break key); the
+  fb064g `wide`/`sparse` fixtures (seeds 262 -> 190, 55 -> 18, both still
+  demonstrating a legal non-fallback map that beats the flat map's anchor
+  share); the cliff and retry seeds; the fb064j int32-walk fixture (no
+  `minCoreLegalFrac` can make that walk two steps any more — key 2**31 now
+  measures 0.487047, *below* key 2**31-1's 0.504043 — so it is pinned as a
+  three-step walk that crosses the boundary, which tests the same arithmetic
+  harder); and the stranded-Core fixture seed 97 -> 4426. This was free
+  exactly now: no run calls `generateTerrain` yet, so no stored replay
+  depends on a terrain map.
+
+  **Design decision for QUESTIONS.md at the merge.** `density.jitter` is
+  bounded only by `frac` (0..1) with no cleverer ceiling, on the same reasoning
+  fb064g's own comment records for the buildable band: `scatter()` is
+  best-effort, so a maximum *budget* is not a maximum *placement* and a ceiling
+  derived from one would refuse configs the generator satisfies. A jitter that
+  does make seeds degenerate is not silent — it shows up as retries and, at the
+  limit, as `fallback`, both of which the sweep tests assert against.
+
+- (2026-09-04, fb064l review + QA) Both subagents ran against the finished
+  change; the item shipped with six fixes on top of it. Recorded because four
+  of the six are the *same* failure mode this lane keeps producing — an
+  assertion that looks like a property and is really a function of the
+  authored numbers.
+
+  - **The `distinct >= 20` variety floor was the attainable ceiling, not a
+    floor.** `distinct` counts reachable integer tile counts, which scale with
+    `density x jitter x interior`; for `high` that band spans exactly 20
+    values, so floor == ceiling. It went red on seeds 501..1000 (19), on
+    `jitter: 0.215` (19), and on a plain `density.high: 0.05` retune (14) —
+    every one of them with the relative sd unchanged at ~2x its own floor.
+    Replaced with a span-relative floor (`attainableSpan / 2`), which passes
+    all four cases and still scores fb064a's generator at 1 against 10.
+    Review and QA found this independently.
+  - **The re-derived `suggestCoreAnchor` table silently lost a mutant.**
+    Measured kills over the new table: `ROOM_RADIUS = 1` **zero**, where the
+    old table killed it on seeds 127 and 173. `ROOM_RADIUS` is the constant
+    exempted from architecture rule 4 *because* the golden table pins it, so
+    the re-derivation had quietly voided its own justification. Seeds 177 and
+    381 restore it; verified by mutating the real constant to 1 and to 3 and
+    watching both go red.
+  - **`sameKey <= 5` was an undeclared ceiling on `density.jitter`.**
+    Duplicate-effective-seed pairs come from the retry walk: 0 pairs at
+    jitter 0, 1 at 0.22, 8 at 0.4, 20 at 0.5, 166 at 1. A legal Tuner setting
+    of 0.4 would have failed it with a message about pair accounting. Replaced
+    with the invariant that holds at every jitter: a duplicate is always
+    explained by one of the two seeds having been regenerated.
+  - **`config.ts` claimed a guard that did not exist.** Its argument for
+    having no `jitter` ceiling ends "which the sweep tests assert against" —
+    but no test measured any jitter but the shipped one. Now one does:
+    at `jitter: 1` (the loader's ceiling) 26.7% of seeds retry, `maxAttempts`
+    is reached, and 3 seeds in 1..50000 ship the flat fallback (41300, 41301,
+    41391, pinned). No illegal map, no hang, ~0.43 ms/seed against 0.32. The
+    non-ceiling stands, but the cost is now recorded where a future decision
+    to cap the field would be taken.
+  - **`buildableNormalFrac` is now the tightest band and had no named seed.**
+    Worst is 0.452778 at seed 621 against a 0.45 band — two tiles — down from
+    0.470833 at the jitter-0 control, and a random-uint32 sweep finds a seed
+    sitting exactly on 0.450000. Pinned by name beside the `walkableFrac`
+    cliff seed.
+  - **fb064m's recorded band expired** and is annotated at the item above.
+
+  Two smaller ones: `stats()` used `Math.min(...values)`, which throws on the
+  day someone raises `SWEEP` past ~100k, and the `jitter: 0` skip makes
+  `cfg -> map` discontinuous at 0 (a Tuner slider nudged off 0 regenerates the
+  world). The first is fixed; the second is kept and now stated in
+  `generate.ts`, since the historical witness it buys — fb064a's goldens still
+  verifiable from this build — is worth more than smoothness on a field whose
+  point is 0-or-not.
+
+  QA also re-verified the money paths: `generateTerrain`/`applyTerrain` still
+  have no caller outside `src/sim/terrain/`, `data/terrain.json` is still
+  outside `contentHash()`, save/replay/content-hash suites 88/88 green, and
+  `npm run sim` and `tools/sweep.ts` unchanged (win 1.0/1.0). Nothing in this
+  change can move a stored run — which is exactly why the golden churn was
+  affordable now and will not be later.

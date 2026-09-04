@@ -365,13 +365,28 @@ describe('Grid on a generated map (fb064b, 100 seeds)', () => {
     // fb064c can *place* it. Until then a seed may legally strand it, and the
     // grid must say so rather than paper over it.
     //
-    // Measured over seeds 1..5000: four seeds strand it — 97, 2055, 2845, 3098,
-    // about 1 run in 1250. Seed 97 is pinned by name below as fb064c's fixture.
+    // Measured over seeds 1..5000: two seeds strand it — 4426 and 4515, about
+    // 1 run in 2500. Seed 4426 is pinned by name below as fb064c's fixture.
     // The *count* over this window is deliberately a bound, not a golden: it
     // moves on any density or `blob` retune (fb064f puts both under live Tuner
     // editing) with no bug behind it, which is the trap this lane already fell
     // into twice — see BACKLOG-TERRAIN.md on `walkableFrac` headroom and the
     // `paint()` timing bound.
+    //
+    // fb064l re-measured it against a control instead of inheriting it, and
+    // the control is worth recording: at `density.jitter: 0` — fb064a's
+    // generator exactly — the same sweep still reports 4 seeds (97, 2055,
+    // 2845, 3098), so the per-seed density budgets *lowered* the stranding
+    // rate rather than raising it. Worth checking rather than assuming: a
+    // wider rock budget was the obvious way to seal the legacy Core off, and
+    // the number went the other way.
+    //
+    // A first pass measured this on the raw generated map instead of on the
+    // Grid and read 434/5000. That is a different question with a different
+    // answer: `Grid` keeps the Core's own 2x2 unblocked whatever the terrain
+    // says (see `legalCoreAnchors`), so the map-level count is dominated by
+    // seeds that merely scatter rock *onto* the Core footprint. What strands
+    // the Core in the game is the ring around it, which is what this measures.
     let stranded = 0;
     for (const seed of SEEDS) {
       const g = applied(generateTerrain(seed, cfg));
@@ -385,10 +400,15 @@ describe('Grid on a generated map (fb064b, 100 seeds)', () => {
       expect(g.allGatesReachable()).toBe(coreInComponent);
       if (!coreInComponent) stranded++;
     }
+    // Slack since fb064l: measured 0 over seeds 1..100 (it was 1 when the
+    // bound was chosen), so this line no longer discriminates and the seed
+    // pinned by name below is what carries the test. Left as a bound rather
+    // than tightened to 0, per this lane's own logged lesson that a count over
+    // a seed window is not a golden. (Review.)
     expect(stranded).toBeLessThanOrEqual(3);
-    const s97 = applied(generateTerrain(97, cfg));
-    expect(s97.allGatesReachable()).toBe(false);
-    for (const gate of GATES) expect(s97.distAt(gate.tx, gate.ty)).toBe(-1);
+    const stranding = applied(generateTerrain(4426, cfg));
+    expect(stranding.allGatesReachable()).toBe(false);
+    for (const gate of GATES) expect(stranding.distAt(gate.tx, gate.ty)).toBe(-1);
   });
 
   it('walks gatePath over real ground only, and reaches the Core when it can', () => {

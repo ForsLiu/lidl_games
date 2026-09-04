@@ -187,7 +187,29 @@ const highGroundFamilySchema = z
 const schema = z
   .object({
     tiles: z.array(tileSchema).length(TERRAIN_KEYS.length),
-    density: z.object({ rough: frac, rock: frac, high: frac }).strict(),
+    // fb064l: `jitter` is the half-width of the per-seed band each density is
+    // drawn from, as a share of the density itself — 0.22 means a seed's rough
+    // budget is uniform on [0.78, 1.22] x 0.17. At 0 the generator is fb064a's:
+    // every seed gets exactly `round(density * interior)` tiles of each kind,
+    // which measured as *one* distinct `high` count over 500 seeds.
+    //
+    // Bounded only by `frac` (0..1), and deliberately with no cleverer ceiling.
+    // The tempting one — refuse a jitter whose maximum obstruction cannot leave
+    // `minBuildableNormalFrac` of normal ground — is the same unsound shape
+    // fb064g rejected for the buildable band below: `scatter()` is best-effort,
+    // so the maximum *budget* is not the maximum *placement*, and the ceiling
+    // would refuse configs the generator satisfies. A jitter that does make
+    // seeds degenerate is not silent either: it shows up as retries and, at the
+    // limit, as `fallback`.
+    //
+    // That last sentence was a claim about a guard that did not exist until QA
+    // checked it, so here is the guard and here is the cost it records:
+    // `tests/terrain-generation.test.ts`'s "the loader accepts jitter up to 1,
+    // and this is what that costs" measures `jitter: 1` at 26.7% retries
+    // (0.09% shipped) and 3 fallback seeds in 50000 — degradation, never an
+    // illegal map and never a hang. A future decision to cap this field
+    // belongs there, with those numbers in view.
+    density: z.object({ rough: frac, rock: frac, high: frac, jitter: frac }).strict(),
     // A blob cannot be larger than the ground it grows on, so the interior is
     // its natural cap — the same "the arena's own limits" treatment the radii
     // get. `scatter()`'s `placed < target` bound already stops an oversized

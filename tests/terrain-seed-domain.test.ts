@@ -350,11 +350,26 @@ describe('fb064j — the retry walk stays inside the domain', () => {
     // `(requested + n) | 0` used to report this map's seed as -2147483648.
     // The tiles were always right — `attempt` reduces to uint32 either way —
     // but the reported seed left the domain it claims to be in.
-    const m = generateTerrain(2 ** 31 - 1, strict);
-    expect(m.attempts).toBe(2);
-    expect(m.seed).toBe(2 ** 31);
+    //
+    // The band is local rather than `strict` since fb064l: at
+    // `minCoreLegalFrac: 0.5` the key 2 ** 31 - 1 now measures 0.504043 and
+    // is accepted, so there is no walk left to test. 0.505 rejects it. The
+    // walk is three steps rather than two and that is not a weaker test but a
+    // stronger one — key 2 ** 31 (0.487047) is rejected too, so the walk
+    // *crosses* the int32 boundary and keeps counting instead of stopping on
+    // it, which is exactly the arithmetic the fb064j fix was about. No
+    // `minCoreLegalFrac` can make it a two-step walk: any band that rejects
+    // 0.504043 also rejects 0.487047.
+    const crossing = withConfig((raw) => {
+      (raw.constraints as Record<string, number>).minCoreLegalFrac = 0.505;
+    });
+    const m = generateTerrain(2 ** 31 - 1, crossing);
+    expect(m.attempts).toBe(3);
+    expect(m.seed).toBe(2 ** 31 + 1);
+    expect(m.seed).toBeGreaterThan(0); // never the signed spelling
     expect(m.requestedSeed).toBe(2 ** 31 - 1);
-    const direct = generateTerrain(2 ** 31, strict);
+    expect(m.fallback).toBe(false);
+    const direct = generateTerrain(2 ** 31 + 1, crossing);
     expect(Array.from(m.kind)).toEqual(Array.from(direct.kind));
     expect(m.hash).toBe(direct.hash);
   });
@@ -412,7 +427,13 @@ describe('fb064j — the band cliff is a property of the whole domain', () => {
     // 0.600000 in *every* window of the domain. This pins the far-domain twin
     // so a density retune that pushes the floor down goes red here too, not
     // only in the near window fb064a happened to sample.
-    for (const s of [4294881754, -85542]) {
+    //
+    // fb064l moved every map and so moved this pair (4294881754 / -85542
+    // before). The floor itself did not move and structurally cannot: a map
+    // below the band is regenerated at seed+1, so 0.600000 is the smallest
+    // walkable share `generateTerrain` can *return*, and finding a seed that
+    // sits exactly on it stayed a search rather than a surprise.
+    for (const s of [4294805928, -161368]) {
       const m = generateTerrain(s, cfg);
       const q = measureTerrain(m, cfg);
       expect(m.fallback).toBe(false);
@@ -420,7 +441,7 @@ describe('fb064j — the band cliff is a property of the whole domain', () => {
       expect(q.walkableFrac).toBe(cfg.constraints.minWalkableFrac);
       expect(legalUnder(m, cfg)).toBe(true);
       // The two spellings are one key, so they are one map.
-      expect(m.hash).toBe('c653ad51');
+      expect(m.hash).toBe('471ef79e');
     }
   });
 });
@@ -450,30 +471,40 @@ describe('fb064j — golden hash per region', () => {
       '4294967294': golden(2 ** 32 - 2),
       '4294967295': golden(MAX_TERRAIN_SEED),
     }).toEqual({
-      '-2147483648': 'c6044210',
-      '-12345': '8062751e',
-      '-1': '28f574d4',
-      '0': '78b54a2a',
-      '2147483646': 'b018e8f1',
-      '2147483647': '555a32e3',
-      '2147483648': 'c6044210',
-      '3000000000': '615b25b8',
-      '4294967294': 'a84e8147',
-      '4294967295': '28f574d4',
+      '-2147483648': 'd8573b44',
+      '-12345': 'cb3ee3a6',
+      '-1': '077808d2',
+      '0': '58fa46d9',
+      '2147483646': '3956f8e2',
+      '2147483647': '2563a26b',
+      '2147483648': 'd8573b44',
+      '3000000000': '12a572e3',
+      '4294967294': 'd27c038b',
+      '4294967295': '077808d2',
     });
   });
 
   it("fb064a's goldens are untouched by the domain change", () => {
-    // The fix moves `| 0` to `>>> 0` in the retry walk. Those agree modulo
-    // 2 ** 32 and `attempt` reduces to uint32 anyway, so no map's tiles may
-    // move — restate fb064a's four here so a "harmless" widening that does
+    // The fb064j fix moves `| 0` to `>>> 0` in the retry walk. Those agree
+    // modulo 2 ** 32 and `attempt` reduces to uint32 anyway, so no map's tiles
+    // may move — restate fb064a's four here so a "harmless" widening that does
     // move them fails in this file too, not only in a file the change did not
     // appear to touch.
+    //
+    // **Read at `density.jitter: 0` since fb064l**, and that is the point
+    // rather than a workaround: jitter 0 skips the budget draws, so it *is*
+    // fb064a's generator, and these four are still fb064a's recorded values
+    // byte for byte. The shipped-config goldens moved at fb064l (recorded in
+    // `terrain-generation.test.ts`); this assertion is deliberately the one
+    // that did not, so the domain fix keeps a witness that predates it.
+    const asFb064a = withConfig((raw) => {
+      (raw.density as Record<string, number>).jitter = 0;
+    });
     expect({
-      1: generateTerrain(1, cfg).hash,
-      2: generateTerrain(2, cfg).hash,
-      42: generateTerrain(42, cfg).hash,
-      1000: generateTerrain(1000, cfg).hash,
+      1: generateTerrain(1, asFb064a).hash,
+      2: generateTerrain(2, asFb064a).hash,
+      42: generateTerrain(42, asFb064a).hash,
+      1000: generateTerrain(1000, asFb064a).hash,
     }).toEqual({ 1: '03031f09', 2: '30ddb8d4', 42: 'b2e86488', 1000: '473db113' });
   });
 });

@@ -248,10 +248,13 @@ describe('fb064a — data/terrain.json loads and refuses unpayable data', () => 
       (raw as Record<string, unknown>).coreGateClearance = 12;
       (raw.constraints as Record<string, number>).minCoreLegalFrac = 0.1;
     });
-    const wideMap = generateTerrain(262, wide);
+    // Seed 262 until fb064l, which moved every map; re-found rather than
+    // re-derived, and the *claim* is unchanged — a real non-fallback map whose
+    // legal-anchor share beats the flat map's at clearance 12.
+    const wideMap = generateTerrain(190, wide);
     const wideMeasure = measureTerrain(wideMap, wide);
     expect(wideMap.fallback).toBe(false);
-    expect(wideMeasure.coreLegalFrac).toBeCloseTo(0.105263, 6);
+    expect(wideMeasure.coreLegalFrac).toBeCloseTo(0.103352, 6);
     expect(terrainLegalUnder(wideMap, wide)).toBe(true);
     // ...and it beats the flat map, which is the whole point.
     expect(wideMeasure.coreLegalFrac).toBeGreaterThan(
@@ -265,7 +268,11 @@ describe('fb064a — data/terrain.json loads and refuses unpayable data', () => 
       d.high = 0.002;
       (raw.constraints as Record<string, number>).minCoreLegalFrac = 0.811;
     });
-    const sparseMap = generateTerrain(55, sparse);
+    // Seed 55 until fb064l. Seed 18 is the same *map* the old fixture was
+    // reaching: 55 was chosen as a seed whose first attempt cleared 0.811, and
+    // after fb064l the seeds that clear it walk to key 18, which measures the
+    // identical 0.8110749185667753 the old fixture recorded.
+    const sparseMap = generateTerrain(18, sparse);
     expect(sparseMap.fallback).toBe(false);
     expect(measureTerrain(sparseMap, sparse).coreLegalFrac).toBeCloseTo(0.811075, 6);
     expect(terrainLegalUnder(sparseMap, sparse)).toBe(true);
@@ -429,6 +436,11 @@ describe('fb064a — determinism (G2 scope: generation)', () => {
   });
 
   it('different seeds produce varied maps (>= 95% distinct over 200 seeds)', () => {
+    // Kept as a *hash-sensitivity* check, not as the variety measurement it
+    // was once read as: two maps one tile apart are 100% distinct here.
+    // fb064l measures variety as a quantity in `tests/terrain-variety.test.ts`
+    // (pairwise tile-difference share, distance from the flat arena, and the
+    // per-seed composition spread this assertion could not see).
     const hashes = new Set<string>();
     for (let s = 1; s <= 200; s++) hashes.add(generateTerrain(s, cfg).hash);
     expect(hashes.size).toBeGreaterThanOrEqual(190);
@@ -439,13 +451,47 @@ describe('fb064a — determinism (G2 scope: generation)', () => {
     // `Rng`, to the scatter order, or to the corridor walk would keep every
     // other test here green while silently forking every stored replay, which
     // is exactly what G2 exists to catch. These are the shipped-config maps as
-    // of fb064a; changing them is a deliberate act that must be paired with
+    // of fb064l; changing them is a deliberate act that must be paired with
     // invalidating replays, not a diff nobody notices.
+    //
+    // **These four moved once, at fb064l**, when `density.jitter` gave each
+    // seed its own per-kind budget. Deliberate, and cheap exactly here: no run
+    // calls `generateTerrain` yet (fb064b shipped without World wiring), so no
+    // stored replay depends on a terrain map and this is the last moment the
+    // move is free. The control below is what makes it a *move* rather than a
+    // hope — see the next test.
     expect({
       1: generateTerrain(1, cfg).hash,
       2: generateTerrain(2, cfg).hash,
       42: generateTerrain(42, cfg).hash,
       1000: generateTerrain(1000, cfg).hash,
+    }).toEqual({
+      1: 'c4dde717',
+      2: '883dd254',
+      42: '045e59fd',
+      1000: '27a71f4e',
+    });
+  });
+
+  it('fb064l — at jitter 0 the generator is fb064a, tile for tile', () => {
+    // The control run for fb064l, and the reason the goldens above could be
+    // moved with confidence rather than adopted. `density.jitter: 0` skips the
+    // budget draws instead of multiplying them by zero, so the RNG stream is
+    // fb064a's stream and every map must be fb064a's map — restated here as
+    // fb064a's own four goldens, which is the strongest available statement
+    // that fb064l changed the *budgets* and nothing else about generation.
+    //
+    // It is also what let the stranded-Core count in `terrain-grid.test.ts`
+    // and the cliff seeds below be re-measured against a like-for-like before,
+    // instead of against a remembered number.
+    const noJitter = withConfig((raw) => {
+      (raw.density as Record<string, number>).jitter = 0;
+    });
+    expect({
+      1: generateTerrain(1, noJitter).hash,
+      2: generateTerrain(2, noJitter).hash,
+      42: generateTerrain(42, noJitter).hash,
+      1000: generateTerrain(1000, noJitter).hash,
     }).toEqual({
       1: '03031f09',
       2: '30ddb8d4',
@@ -562,17 +608,37 @@ describe(`fb064a — generation constraints hold across ${SWEEP} seeds`, () => {
     // The 1..1000 sweep above is not the interesting range, and treating it as
     // one produced a wrong entry in this lane's Log ("worst 0.6139, about 10
     // tiles of headroom; no seed is degenerate at all"). Over seeds 1..20000
-    // the truth is that `walkableFrac` headroom is *zero* — seed 7957 measures
+    // the truth is that `walkableFrac` headroom is *zero* — seed 16236 measures
     // exactly 0.6000, 432/720 tiles, passing only because the band is `>=` —
-    // and the shipped data does take the seed+1 retry path, at seeds 1227,
-    // 3219, 4596, 7010 and 8102. Pin both, so a density or `blob` retune
-    // (fb064f edits these live) goes red here rather than in a playtest.
-    const onTheLine = generateTerrain(7957, cfg);
+    // and the shipped data does take the seed+1 retry path, at seeds 379, 1247,
+    // 1253, 2560 and 3337. Pin both, so a density or `blob` retune (fb064f
+    // edits these live) goes red here rather than in a playtest.
+    //
+    // fb064l re-measured this window rather than inheriting it (the seeds were
+    // 7957 and 1227/3219/4596/7010/8102 before). Two numbers moved and one
+    // did not, and the one that did not is the finding: the floor is *still*
+    // exactly 0.600000, because a seed under the band is regenerated rather
+    // than shipped, so the minimum observable walkable share is the band
+    // itself. The retry count over 1..20000 went 5 -> 18 (0.09% of seeds) and
+    // no seed in that window reaches the flat fallback.
+    const onTheLine = generateTerrain(16236, cfg);
     expect(onTheLine.fallback).toBe(false);
     expect(measureTerrain(onTheLine, cfg).walkableFrac).toBeCloseTo(0.6, 10);
     expect(terrainLegalUnder(onTheLine, cfg)).toBe(true);
 
-    for (const s of [1227, 3219, 4596, 7010, 8102]) {
+    // `buildableNormalFrac` is now the *tightest* band on the shipped data and
+    // had no named seed at all: seed 621 measures 0.452778 (326 normal tiles)
+    // against the 0.45 band, about two tiles of headroom, down from 0.470833
+    // at the jitter-0 control. A random-uint32 sweep finds a seed sitting
+    // exactly on 0.450000, so like `walkableFrac` above this floor is the band
+    // itself. Pinned by name so the next `density` retune fails here rather
+    // than in a playtest. (Review.)
+    const tightest = generateTerrain(621, cfg);
+    expect(tightest.fallback).toBe(false);
+    expect(measureTerrain(tightest, cfg).buildableNormalFrac).toBeCloseTo(0.452778, 6);
+    expect(terrainLegalUnder(tightest, cfg)).toBe(true);
+
+    for (const s of [379, 1247, 1253, 2560, 3337]) {
       const m = generateTerrain(s, cfg);
       // Each is degenerate at its own seed and legal one seed forward.
       expect(m.fallback).toBe(false);
@@ -617,6 +683,46 @@ describe(`fb064a — generation constraints hold across ${SWEEP} seeds`, () => {
     expect(m.attempts).toBe(ATTEMPTS); // every attempt really ran
     expect(m.fallback).toBe(true);
     expect(elapsed).toBeLessThan(COST_BOUND_MS);
+  });
+
+  it('fb064l — the loader accepts jitter up to 1, and this is what that costs', () => {
+    // `density.jitter` is bounded only by `frac` (0..1) and `config.ts` argues
+    // that is safe because a jitter which makes seeds degenerate "shows up as
+    // retries and, at the limit, as `fallback`, which the sweep tests assert
+    // against". That was not true when it was written — no test measured any
+    // jitter but the shipped one — so the comment was a claim about a guard
+    // that did not exist. This is the guard. (QA bug 3.)
+    //
+    // Measured at `jitter: 1`, the loader's ceiling: 26.7% of seeds retry
+    // (against 0.09% shipped and 0.025% at jitter 0), the `maxAttempts: 8` cap
+    // is reached, and 3 seeds in 1..50000 ship the flat fallback — 0.006%.
+    // That is the designed degradation, not a hang: no illegal map is ever
+    // returned and cost stays ~0.43 ms/seed against 0.32 at jitter 0. Recorded
+    // rather than refused, on the reasoning `config.ts` gives for having no
+    // ceiling; if this rate is ever judged unacceptable, this test is where
+    // the decision changes.
+    const wild = withConfig((raw) => {
+      (raw.density as Record<string, number>).jitter = 1;
+    });
+    let retries = 0;
+    for (let s = 1; s <= 1000; s++) {
+      const m = generateTerrain(s, wild);
+      if (m.attempts > 1) retries++;
+      // Whatever the budgets do, a *returned* map is legal or flagged.
+      expect(m.fallback || terrainLegalUnder(m, wild), `seed ${s}`).toBe(true);
+    }
+    expect(retries).toBeGreaterThan(100); // measured 260 over 1..1000
+    expect(retries).toBeLessThan(500);
+    // The fallback really is reachable at this setting, and deterministically
+    // so — the three seeds QA found in 1..50000.
+    for (const s of [41300, 41301, 41391]) {
+      const m = generateTerrain(s, wild);
+      expect(m.fallback, `seed ${s}`).toBe(true);
+      expect(m.attempts).toBe(wild.maxAttempts);
+    }
+    // ...and is not reachable at the shipped setting, which is the contrast
+    // that makes the number above mean something.
+    expect(generateTerrain(41300, cfg).fallback).toBe(false);
   });
 
   it('no gate main is forced through a corridor narrower than 2 tiles', () => {
