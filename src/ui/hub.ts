@@ -53,6 +53,29 @@ import { hasUnsavedTunerEdits } from './tuner-state';
 
 type Tab = 'run' | 'tree' | 'equipment' | 'codex' | 'settings';
 
+/**
+ * fb090: `main.ts`'s `showHub()` constructs a fresh `Hub` on every return to
+ * the Hub screen without disposing the previous instance, so a per-instance
+ * `document.addEventListener('fullscreenchange', ...)` (the same shape as
+ * the pre-existing fb073 rebind-keydown listener) would leak: a stale
+ * instance discarded while still on the Settings tab keeps its listener
+ * alive forever and can `show()` — clobbering the *current* Hub/Hud's DOM —
+ * on a later `fullscreenchange` it has no business reacting to. A single
+ * module-scoped listener, installed once, that always re-renders whichever
+ * `Hub` was constructed *most recently* (never a stale one) sidesteps this
+ * regardless of how many `Hub` instances have ever existed.
+ */
+let activeFullscreenHub: Hub | null = null;
+let fullscreenListenerInstalled = false;
+
+function ensureFullscreenListenerInstalled(): void {
+  if (fullscreenListenerInstalled) return;
+  fullscreenListenerInstalled = true;
+  document.addEventListener('fullscreenchange', () => {
+    activeFullscreenHub?.refreshFullscreenLabel();
+  });
+}
+
 export interface HubCallbacks {
   settings: Settings;
   onStart(cfg: RunConfig): void;
@@ -107,6 +130,10 @@ export class Hub {
     // exactly like every other transient notice, so it cannot resurface after
     // the next Constellation spend or Equipment swap.
     if (initialNotice) this.notice = initialNotice;
+    // fb090: this instance becomes the one a document-level fullscreenchange
+    // event should re-render — see the module-scoped listener comment above.
+    activeFullscreenHub = this;
+    ensureFullscreenListenerInstalled();
   }
 
   /** Switches tab and re-renders. Also the seam tests use to reach a tab. */
@@ -479,6 +506,9 @@ export class Hub {
           ${this.settingsResetArmed ? 'Click again to confirm reset' : 'Reset settings to defaults'}
         </button>
         <button class="sw-reroll" id="sw-onboarding-replay">Replay tutorial prompts</button>
+        <button class="sw-reroll" id="sw-fullscreen-toggle">
+          ${document.fullscreenElement ? 'Exit fullscreen' : 'Enter fullscreen'}
+        </button>
       </div>
 
       <div class="sw-panel">
@@ -588,6 +618,15 @@ export class Hub {
       this.show();
     });
 
+    body.querySelector('#sw-fullscreen-toggle')?.addEventListener('click', () => {
+      this.settingsResetArmed = false; // fb075: see #sw-seed's comment above.
+      if (document.fullscreenElement) {
+        document.exitFullscreen?.()?.catch(() => {});
+      } else {
+        this.root.requestFullscreen?.()?.catch(() => {});
+      }
+    });
+
     for (const el of body.querySelectorAll<HTMLElement>('[data-rebind]')) {
       el.addEventListener('click', () => this.startListeningForRebind(el.dataset.rebind as ActionId));
     }
@@ -599,6 +638,19 @@ export class Hub {
       this.cb.onKeyBindingsChanged?.(this.keyBindings);
       this.show();
     });
+  }
+
+  /**
+   * fb090: the browser's own fullscreen exit (Esc, or an OS-level control) —
+   * and any other agent that changes `document.fullscreenElement` — fires a
+   * `fullscreenchange` event without our own toggle button ever being
+   * clicked, so the displayed label must react to the event rather than only
+   * to a click. Called only on whichever `Hub` instance is currently
+   * `activeFullscreenHub` (see the module-scoped listener above), so a stale
+   * instance discarded mid-Settings-tab never fires this.
+   */
+  refreshFullscreenLabel(): void {
+    if (this.tab === 'settings') this.show();
   }
 
   /* -------------------------------------------------------- key remapping */

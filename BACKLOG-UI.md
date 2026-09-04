@@ -1657,7 +1657,7 @@ not already expose it) logs that need below instead of reaching into
       of prior PROGRESS.md sessions, none touching `src/ui/**`/
       `src/render/**` or this item's own files.
 
-- [ ] (fb090) [feat] normal priority: generated 2026-09-04 (fewer than 3
+- [x] (fb090) [feat] normal priority: generated 2026-09-04 (fewer than 3
       actionable items remained; QUALITY.md 1.0 Steam/itch checklist gap
       diff) — fullscreen toggle. QUALITY.md 1.0's checklist ("fullscreen +
       windowed") is entirely unbuilt: no `requestFullscreen`/
@@ -1673,7 +1673,63 @@ not already expose it) logs that need below instead of reaching into
       a separate test dispatches a `fullscreenchange` event with
       `document.fullscreenElement` cleared externally and confirms the
       control's displayed state updates to "not fullscreen" without a click
-      — refs: QUALITY.md 1.0 (Steam/itch checklist), SPEC-FINAL §11.
+      — refs: QUALITY.md 1.0 (Steam/itch checklist), SPEC-FINAL §11. DONE
+      2026-09-04: `hub.ts`'s Settings tab gains a `#sw-fullscreen-toggle`
+      button ("Enter fullscreen"/"Exit fullscreen") that calls
+      `document.exitFullscreen()` when `document.fullscreenElement` is
+      truthy, else `this.root.requestFullscreen()` on the Hub's own root
+      element (the same `#app` node `main.ts` mounts the whole game into).
+      Label state is driven entirely by a `fullscreenchange` listener, not
+      click history, so the browser's own Esc-to-exit-fullscreen (or any
+      other external trigger) is reflected correctly. Targeted
+      `tests/ui-fb090-fullscreen.test.ts` (6/6): both click-driven
+      directions with label flip, an externally-fired `fullscreenchange`
+      updating the label with no click, off-tab event delivery (no throw,
+      no stray render), no double-render across repeat Settings visits, and
+      a repeated-Hub-re-instantiation-onto-the-same-root case (below).
+      code-reviewer **REQUEST-CHANGES** on the first draft (a per-instance
+      `document.addEventListener('fullscreenchange', ...)`, bound/unbound
+      only on that instance's own tab transitions, mirroring fb073's rebind
+      listener): Major — `main.ts`'s `showHub()` constructs a fresh `Hub` on
+      every return to the Hub screen without disposing the previous
+      instance, so a stale instance discarded while still on the Settings
+      tab would keep its listener alive forever and could `show()` — wiping
+      the *current* Hub/Hud's DOM — on a later `fullscreenchange` it had no
+      business reacting to; not reachable through today's production
+      `showHub()` call sites (all only fire when entering the Hub from a
+      non-Hub state) but a real latent bug and the same shape as the
+      pre-existing fb073 exposure, so worth closing rather than repeating.
+      Fixed by replacing the per-instance listener with a single
+      module-scoped one (`ensureFullscreenListenerInstalled`, installed
+      once) that always re-renders whichever `Hub` was constructed most
+      recently (`activeFullscreenHub`, reassigned in the constructor) via a
+      new `refreshFullscreenLabel()` method — the number of live document
+      listeners is now independent of how many `Hub` instances have ever
+      existed. Also fixed the Nit both code-reviewer and qa-playtester
+      independently raised: `requestFullscreen()`/`exitFullscreen()`'s
+      returned promises get a `.catch(() => {})` so a permissions-policy
+      denial or a rapid-repeat-click rejection doesn't surface as an
+      unhandled rejection. code-reviewer's Minor (missing test coverage for
+      the leak) and qa-playtester's bug #1 (same leak, independently
+      reproduced via an ad-hoc 5-stale-Hub-instances probe, deleted after
+      confirming) are the same finding — both re-verified fixed against the
+      new 5th test in `tests/ui-fb090-fullscreen.test.ts`, which builds 5
+      `Hub` instances onto one root (each left on the Settings tab, mirroring
+      the vulnerable state) and confirms only the most recent instance's
+      `show()` fires on one `fullscreenchange` dispatch. qa-playtester's bug
+      #2 (no click-guard against rapid repeat clicks queuing multiple
+      concurrent `requestFullscreen()` calls) left as-is, not fixed: real
+      browsers already reject a redundant/stale-activation
+      `requestFullscreen()` call on their own, the `.catch()` fix above
+      already prevents that rejection from going unhandled, and a
+      click-debounce guard isn't named anywhere in this item's acceptance
+      text — logged here rather than silently dropped, may be worth a future
+      polish item if it proves to matter in practice. `npx tsc --noEmit`
+      clean throughout. `npm run test:fast`: 8 failed files / 5 failed tests
+      (both pre- and post-fix runs), all in the pre-existing q15/q49/q52
+      worker-hang/Windows-scratch-dir-EPERM flake classes documented across
+      dozens of prior PROGRESS.md sessions, none touching `src/ui/**`/
+      `src/render/**` or this item's own files.
 
 - [ ] (fb091) [feat] normal priority: generated 2026-09-04 (fewer than 3
       actionable items remained; QUALITY.md 1.0 Steam/itch checklist gap
