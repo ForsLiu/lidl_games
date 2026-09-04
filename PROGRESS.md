@@ -5,6 +5,38 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-04 session: BACKLOG p11e closed — audited QUESTIONS.md's five
+  verdict-less entries (Q94, Q155, Q156, Q157, Q158) against current HEAD,
+  per CLAUDE.md's "a deferral is a measurement with an expiry date" rule.**
+  Two (Q94, Q155) are confirmed genuinely still open with nothing to append:
+  Q94's own forward-looking caveat (a p3e re-measure of G7's sealed-vs-open
+  band) was checked directly against `tests/p1b-seal-winrate.test.ts` (still
+  on `cfg()`'s legacy `cycles: 1`) and against p3e/Q109's own text, which
+  never mentions that file — the promised re-measure genuinely never
+  happened and stays unresolved under any id, so Q94 got a note recording
+  that confirmation rather than a "superseded" claim; Q155's three chosen
+  defaults (boss HP inclusion, a distinct attack-speed stat, hardcoded-effect
+  scope) are uncontradicted by anything since, so nothing was appended.
+  Three (Q156, Q157, Q158) had their loose threads actually closed by later
+  work and got a "(superseded by: ...)" note each: Q156 by `fb048` (done —
+  the slow/fast `tools/status.ts` tradeoff was resolved in code, not left for
+  a verdict); Q157 by Q158 (`p10r` inherited exactly the corrected retune
+  target this entry filed); Q158 by Q159 (both unblock paths it named were
+  taken up as `p10s`, continuing through `p10t`/Q159 to `p10z`/Q160's same
+  still-open owner escalation). Every claim in all four appended notes was
+  cross-checked against the cited entries' and items' actual current text
+  before writing, not inferred. Diff is `QUESTIONS.md` (four appended notes)
+  and `BACKLOG.md` (this closure) only — no `/src` or `/data` touched.
+  qa-playtester **PASS**: independently re-verified every factual claim in
+  the four notes against `BACKLOG.md`'s p10r/p10s/p10t/p10z/fb048 entries and
+  against `tests/p1b-seal-winrate.test.ts`/`tests/helpers.ts`'s actual
+  `cycles: 1` default, confirmed the git diff touches only the two doc files,
+  no inaccuracies found. `npx tsc --noEmit` not needed (no code touched);
+  `npm run test:fast`: 157 passed/9 failed test files (2233/2266 tests),
+  every failure the same standing Windows flake family already documented
+  this session's history (`q15-command-domain-fuzz` worker-hang,
+  `q45`/`q49`/`q52` EPERM scratch-dir races) — unrelated to a docs-only diff.
+
 - **2026-09-04 session: BACKLOG p11d closed — a fast-tier margin test now
   pins G13's one genuine T3 near-miss (`frost_obelisk` seed 4, 17/18 waves),
   and a stale, live-failing `tests/a4-single-type.test.ts` pin found along

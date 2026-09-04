@@ -2373,7 +2373,7 @@ was not fabricated.
       stash` A/B; none touch any file this item changed. No engine or
       `/src/sim` code touched.
 
-- [ ] (p11e) [chore] `QUESTIONS.md` carries five entries with no
+- [x] (p11e) [chore] `QUESTIONS.md` carries five entries with no
       `(owner verdict: ...)` line yet (Q94, Q155, Q156, Q157, Q158, per
       `STATUS.md`'s own "Pending QUESTIONS.md entries" section) — each
       already has a chosen default implemented and working (CLAUDE.md rule
@@ -2387,6 +2387,28 @@ was not fabricated.
       wall), add a short "(superseded by: ...)" note rather than leaving it
       silently open; where genuinely still open, leave as-is — refs:
       CLAUDE.md measurement rules, STATUS.md's pending-questions section.
+
+      **Done (2026-09-04).** Re-read all five against current HEAD and
+      against every later item that cites them. **Q94** stays genuinely
+      open — appended a note confirming p3e (Q109) explicitly did *not* do
+      the re-measure Q94's own text expected, leaving it "left open, not yet
+      re-queued under a new id" per Q109's own commit note; no id closes
+      this loop yet. **Q155** stays genuinely open — no later session
+      revisits or contradicts any of its three chosen defaults (boss HP
+      inclusion, the distinct attack-speed stat, hardcoded-effect scope), so
+      nothing to append. **Q156** superseded by `fb048` (done): the tradeoff
+      it logged (accept a slower `npm run status` or keep a proxy) was
+      resolved in code, not left for a verdict — `cfgFor` defaults to the
+      full tree at a measured ~14-20 min bounded runtime. **Q157**
+      superseded by Q158: `p10r` inherited exactly the corrected retune
+      target this entry filed, per its own chosen default. **Q158**
+      superseded by Q159: both unblock paths it named were taken up as
+      `p10s` (harness fix, landed), continuing through `p10t`/Q159 and
+      `p10z`/Q160 to the same still-open owner verdict. Diff is
+      `QUESTIONS.md` only (four appended notes, no existing text removed or
+      reworded) plus this entry's own closure — no `/src` or `/data` touched,
+      so no test surface is affected; `npm run test:fast` run anyway per
+      CLAUDE.md's per-item verification rule.
 
 ### Feedback — owner-filed items (2026-09-03), processed from `feedback/`
 
