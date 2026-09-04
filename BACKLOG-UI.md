@@ -511,7 +511,7 @@ not already expose it) logs that need below instead of reaching into
       across dozens of prior PROGRESS.md sessions, none touching
       `src/ui/**`/`src/render/**` or this item's own files.
 
-- [ ] (fb071) [feat] normal priority: window unfocus auto-pause —
+- [x] (fb071) [feat] normal priority: window unfocus auto-pause —
       QUALITY.md BETA's "window unfocus auto-pauses" bar is unmet:
       `main.ts`'s existing `window.addEventListener('blur', ...)` only
       clears held keys, it never pauses. The game should auto-pause (same
@@ -524,7 +524,71 @@ not already expose it) logs that need below instead of reaching into
       Esc's manual-resume convention, and avoids a resume racing back into
       combat before the player has looked at the screen) — refs:
       QUALITY.md BETA ("Pause works everywhere; window unfocus
-      auto-pauses"), SPEC-FINAL §11 (Esc pause parity).
+      auto-pauses"), SPEC-FINAL §11 (Esc pause parity). DONE 2026-09-04:
+      `bindGlobalInput`'s (`src/ui/main.ts`) `blur` listener now calls
+      `this.setPaused(true)` whenever a run exists, `outcome === 'running'`,
+      and it isn't already paused — the same guard `togglePause` uses, minus
+      the toggle itself (a plain one-way pause, deliberately not
+      `togglePause()`, since a toggle would *resume* a run the player had
+      already paused manually via Esc before losing focus). No `focus`
+      listener was added — nothing auto-resumes, matching Esc's
+      manual-resume-only convention. Targeted
+      `tests/ui-fb071-blur-autopause.test.ts` (10/10): blur during
+      act1_wave/act2/levelup reaches the same pause state as Esc
+      (phase/outcome/tick untouched, pause modal with Resume shown); focus
+      doesn't auto-resume; blur while already Esc-paused doesn't un-pause;
+      blur before a run exists or after outcome leaves 'running'
+      (victory/defeat_core/defeat_warden) is a no-op, mirroring
+      `togglePause`'s own guard; a held charge key (`q`) survives a
+      blur-triggered pause. code-reviewer APPROVE (no Critical/Major; two
+      Minor — missing `levelup`-phase and outcome-no-op test coverage, both
+      added same session — and two Nits, not blocking). qa-playtester's
+      first pass **FAILED** it: the blur listener's original unconditional
+      `this.keys.clear()` ran *before* `setPaused`'s own
+      `clearKeysForPause(this.keys)` call, stripping a held charge key
+      (`q`) before that call could preserve it — reintroducing, via the
+      alt-tab path, the exact "silently fires an accumulated charge with no
+      player intent" bug `clearKeysForPause`'s own doc comment
+      (`src/ui/input.ts`) already documents was fixed for Esc. Fixed by
+      calling `clearKeysForPause(this.keys)` in the blur listener instead of
+      a blanket `.clear()`, confirmed via git-stash A/B that the new
+      q-survives-blur test fails pre-fix and passes post-fix. qa-playtester
+      re-verified the fix **PASS** (also independently confirmed a genuine
+      `keyup` for `q` mid-pause still works, and that `q` can't leak into a
+      fresh run via a Hub-screen blur since `keydown`'s `if (!this.run)
+      return` guard already excludes it) and filed one new low-severity,
+      out-of-scope bug — not introduced by or specific to this item, also
+      reproducible via Esc — see fb077 below. `npx tsc --noEmit` clean.
+      `npm run test:fast`: 9-10 failed files across runs this session, all
+      in the pre-existing q15/q28/q45/q49/q52 worker-hang/Windows-scratch-
+      dir-EPERM flake classes documented across dozens of prior PROGRESS.md
+      sessions, none touching `src/ui/**`/`src/render/**` or this item's own
+      files.
+
+- [ ] (fb077) [bug] low priority: `Game.dashQueued` (`src/ui/main.ts`,
+      Space) is not reset by any pause transition — Esc or fb071's new
+      blur auto-pause alike — so a queued dash fires stale on the very
+      first tick after resume, with an unbounded real-time gap and even
+      after the player releases Space entirely during the pause. Unlike
+      the held-`q`-charge case `clearKeysForPause` already protects,
+      `dashQueued` isn't a member of `this.keys` at all, so
+      `clearKeysForPause` can't reach it. Found by qa-playtester
+      (fb071 charge-key-fix re-verification), reproduced deterministically:
+      keydown Space (`dashQueued = true`), blur (or Escape) to pause,
+      keyup Space (simulating the player letting go mid-pause), resume —
+      the first post-resume `gatherInput()` still reports a queued dash and
+      it fires, despite the key no longer being held and arbitrary time
+      having passed. Same bug class as the one `clearKeysForPause`'s doc
+      comment already documents fixing for `q` — a one-shot "intent" flag
+      armed before a pause must not survive the pause transition
+      unconditionally. Acceptance: a regression test — queue a dash via
+      Space, pause (Esc and/or blur), release Space during the pause,
+      resume — confirms no dash fires that the player didn't re-arm after
+      resuming; suggested fix direction: clear `dashQueued` in `setPaused`
+      alongside `clearKeysForPause`'s existing key-clearing, the same place
+      the analogous `q`-preservation logic already lives — refs: fb071,
+      SPEC-FINAL §11 (Esc pause parity), `clearKeysForPause`
+      (`src/ui/input.ts`) precedent.
 
 - [ ] (fb072) [feat] normal priority: boss health bar — the two boss
       enemies (`gatebreaker` 30,000 HP, `warden_eater` 100,000 HP,

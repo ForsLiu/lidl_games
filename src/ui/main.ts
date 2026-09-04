@@ -288,7 +288,23 @@ export class Game {
       onKeyDown(e);
     });
     window.addEventListener('keyup', (e) => this.keys.delete(e.key.toLowerCase()));
-    window.addEventListener('blur', () => this.keys.clear());
+    // fb071: losing window/tab focus mid-run (alt-tab, switching apps) used to
+    // only drop held keys, leaving the sim running unattended against a dead
+    // Core. Auto-pause on blur, same state transition as Esc; deliberately not
+    // a `togglePause()` call, which would *resume* if the player had already
+    // paused manually before tabbing away. A later `focus` does not
+    // auto-resume — matches Esc's manual-resume convention and avoids racing
+    // the player back into combat before they've looked at the screen.
+    window.addEventListener('blur', () => {
+      // `clearKeysForPause`, not a blanket `.clear()`: a blur mid-charge (`q`
+      // held for a Circle-Slash-style Active1) must preserve `q` exactly like
+      // an Esc-pause does, or the very next `gatherInput()` reads a release
+      // with no player intent — the same bug `clearKeysForPause`'s own doc
+      // comment already documents for Esc, reachable here too since this ran
+      // an unconditional `.clear()` before `setPaused`'s own call could help.
+      clearKeysForPause(this.keys);
+      if (this.run && this.run.world.outcome === 'running' && !this.paused) this.setPaused(true);
+    });
     // fb065: `Renderer.resize()` now sizes the backing store off `.sw-stage`'s
     // actual laid-out box (canvas.ts), not a fixed constant, so a live window
     // resize has to re-run it or the canvas would stay pinned at whatever
