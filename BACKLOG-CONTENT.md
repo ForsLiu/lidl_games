@@ -100,7 +100,7 @@ session 2 (c005 was the last actionable one left), appending `c006`-`c010`.
       removed from the dispatch switch fails the test - refs: SPEC-FINAL §4,
       HANDOFF §7.
 
-- [ ] (c006) [bug] no test proves a class *Passive* is not a silent no-op —
+- [x] (c006) [bug] **DONE 2026-09-03.** no test proves a class *Passive* is not a silent no-op —
       c005's twin for the other §4 slot. Three of the twelve passive rows in
       `data/classes.json` author `mods: {}` with **no `kind`** (Archer *Long
       Draw*, Stormcaller *Conduction*, Animist *Kinship*), so nothing binds
@@ -179,6 +179,27 @@ session 2 (c005 was the last actionable one left), appending `c006`-`c010`.
       control-run pair; whether *tower* electric should also compound is
       **logged for the main lane**, not implemented from here (`towers.ts`/
       `vsspecials.ts` are out of Scope) - refs: SPEC-FINAL §4.2, §14 G11.
+
+- [ ] (c011) [polish] passive **magnitudes and lifetimes** are unpinned —
+      `c006`'s completeness half, deliberately left out of it. c006 proved
+      all 12 passives fire; it asserts direction and presence only, so a
+      passive can keep firing with its numbers meaningless and c006 stays
+      green. Nine such holes are known and each has a verified one-line
+      repro (QA on c006, recorded in the Log): Grave Harvest's
+      `corpseSeconds` (a corpse that expires the same tick still counts),
+      Conduction's `chainCap` (G11's ceiling — `Math.min(i, capIndex)` can
+      be dropped), Long Draw's `chargeCapSeconds` (G10's finite dps-optimal
+      charge), Kinship's aura `remaining` (an expired totem buffs forever)
+      and its multi-totem stacking (`mul *=` -> `mul =`), Frost Touch's two
+      counter resets (re-freeze every hit; stacks surviving frost lapsing),
+      Spreading Plague's transferred amount (`total` -> `1`), and Time
+      Flow's stack-cap merge. Acceptance: each of the nine gets an
+      assertion — in `tests/class-passive-liveness.test.ts` or a sibling —
+      that is red under its recorded repro and green on shipped data;
+      every one stays a *relative* comparison so c006's no-authored-
+      magnitude convention survives (a retune must not turn it red, which
+      `c008` is separately making auditable) - refs: SPEC-FINAL §4.1/§4.2,
+      §14 G10/G11, c006.
 
 ### Blocked out of Scope (owner items, unchanged order)
 
@@ -703,3 +724,81 @@ session 2 (c005 was the last actionable one left), appending `c006`-`c010`.
   It doubles as a post-c001 diversity control: `distinct.size === 2` matches
   G8's one un-skipped pin in `tests/p6e-class-diversity.test.ts`, so c001 did
   not move the diversity clause either way.
+
+- (2026-09-03, session 3) **c006 done** — all 12 §4 passives are live, and
+  none of the twelve was found broken. As with c005 the value delivered is
+  the regression barrier, not a fix. `tests/class-passive-liveness.test.ts`
+  (36 tests, ~0.9 s, fast tier — no exclude entry needed, unlike c003's
+  env-gated sweep).
+
+  **Session 3 inherited an interrupted session 2.** The working tree held an
+  uncommitted 782-line draft of the file *plus* a live mutation hack in
+  `src/sim/enemies.ts` (`if (false && cls.passive.kind === 'spreading_plague')`)
+  — a file outside this lane's Scope. The hack was reverted before any work
+  began; it was a leftover mutation probe, and re-running it confirmed both
+  the Spreading Plague row and its kill row go red, which is presumably what
+  session 2 was checking when it stopped.
+
+  **The structure.** A passive reaches the sim by four unrelated routes, only
+  one of which is a switch — a `passive.kind` hook, `updateClassPassives`'
+  per-tick switch, the `passive.mods` fold at `stats.ts:193`, and (for three
+  rows) *nothing at all*. Each of the 12 gets a control-class comparison per
+  clause; the three prose-only rows (Archer, Stormcaller, Animist) additionally
+  **pin the `active1`/`active2` field their clause really lives on**, which is
+  what c006 asked for in place of a binding that does not exist.
+
+  **Verified by mutation, not by argument.** 13 code-level mutations across
+  all four routes each turn the file red (`classes.ts` L114/L118/L136/L217/
+  L1344/L592/L816/L1515, `run.ts` L619/L692, `enemies.ts` L381/L394,
+  `stats.ts` L193). The file's own KILLS table mutates `/data` only, so this
+  code-level sweep is what proves it survives a *refactor* rather than only a
+  data edit. Kinship is pinned to `classes.ts:1515` specifically: mutating
+  that site is red while `:1817` is a genuinely different call site (the
+  Warden's own basic-attack cadence, verified by reading it).
+
+  **Eight Major findings from code review + QA were fixed before commit**, all
+  test-side; no `/src` byte changed. Every one is a verified repro that was
+  green before the fix and is red after:
+  - *Contagious Flame's trigger was unproven repo-wide* — deleting
+    `if (!burning) continue;` turned every enemy into a damage aura with the
+    whole suite green. Now `contagiousFlame(..., burning=false)` must read 0.
+  - *`freezeHits` was read as harness input* (`?? 5` on both sides), so an
+    unbound `/data` field would pass. Now varied via `contentWithout`.
+  - *Four rows asserted an intermediate, not the product* — the same
+    cost-vs-product confusion that hit c005 five times. Blood Frenzy's
+    lifesteal read `leechAccumulator` (deleting the actual
+    `applyHealingToWarden` left it green); Guardian Stance's Wrath read
+    `wrathStored` (Judgement ignoring it left it green). Both now assert the
+    spend, and the Clarion `wrathFraction` banking clause got its own row.
+  - *Two two-clause passives had one comparison for two clauses* — Blood
+    Frenzy's TD penalty and Guardian Stance's move-reset were both
+    undefended. The Blood Frenzy control is the **same class with one number
+    neutralised**, not another class: the kits author different
+    `basicAttack.dps`, so a cross-class damage comparison measures the
+    profile, not the passive (the Bloodlord out-hits the Engineer even while
+    penalised — this was tried and rejected on measurement, not taste).
+  - *The "including Active attacks" clause* `data/classes.json` spells out was
+    untested; Circle Slash and Dash Slash now both have to apply Bleeding.
+  - *"and upgrades cost less"* had no row at all (`upgradeCost` is a separate
+    reader of `towerCostMul`).
+  - *A legal retune turned the file red* — billing one 50-gold spire made
+    `towerCost -0.01` round to a 0 saving, breaking the file's own
+    no-authored-magnitude convention. The bill now sums every tower in
+    `/data`. Re-checked with five legal retunes (`flameDps`, `stanceArmor`,
+    `leech`, `freezeHits`, `towerCost`), all green.
+
+  **One QA finding was a false positive and is recorded as such rather than
+  chased.** QA reported `passiveOnHit` gutted at `classes.ts:1588`/`:1661`
+  leaves the file green and called it a strictness hole. It is not: those two
+  sites are the *generic* `fireEffect` arms for `burst_damage`, and
+  `passiveOnHit` returns non-empty only for `thousand_cuts`/`frost_touch`.
+  `burst_damage` active1 belongs solely to the Pyromancer (`contagious_flame`)
+  and **no class has `burst_damage` as active2**, so the argument is already
+  empty and the mutation is a semantic no-op — nothing to catch. The
+  *reachable* half of that finding was real and is fixed (L333/L397).
+
+  **Deferred to `c011` (filed above), not silently dropped.** c006 is a
+  liveness gate, not a completeness gate — c005's convention. Nine
+  magnitude/lifetime holes have verified repros and are listed in c011 with
+  them; the file's header now states the exclusion explicitly instead of
+  leaving it to be discovered.
