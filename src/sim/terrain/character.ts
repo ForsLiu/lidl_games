@@ -49,8 +49,9 @@ export function canCharacterEnterKind(cfg: TerrainConfig, kind: number): boolean
  *
  * **This reads the generated map, and `Grid.wardenPassable` reads the Grid.**
  * They agree on every tile terrain decides, which is what a mover should rely
- * on, and they differ in exactly two places — both because the Grid knows
- * things a `TerrainMap` does not:
+ * on, and they differ in exactly three places — the first two because the Grid
+ * knows things a `TerrainMap` does not, the third because it answers a
+ * different question about the coordinate itself:
  *   - *structural tiles.* `syncTerrain` forces gate and Core tiles back to
  *     passable whatever the scatter painted there, and `wardenPassable` re-reads
  *     `tile` live so a gate the run opens later (`world.ts`'s Fourth Gate) is
@@ -59,16 +60,23 @@ export function canCharacterEnterKind(cfg: TerrainConfig, kind: number): boolean
  *     "blocked" where the Grid says "passable". Ask the Grid when one exists.
  *   - *off the board.* `wardenPassable` answers `false` (out of bounds is not a
  *     place); this answers `true`, per the convention below.
+ *   - *a non-integer coordinate.* This one floors it; `wardenPassable` refuses
+ *     it outright (fb064u), so `(5.5, 4.5)` reads as tile `(5, 4)` here and as
+ *     `false` there. See the flooring note below for why the two are both
+ *     right.
  * `tests/terrain-character.test.ts` pins the agreement on every other tile, so
  * the two cannot drift apart on the rule itself.
  *
  * Coordinates are floored, so an entity's float position works directly: the
  * character moves in continuous space and every call site holds an `x`/`y`, not
  * a `tx`/`ty`. Flooring rather than rejecting non-integers is the difference
- * from `Grid.buildable` — b007's bug is that a *fraction* can multiply out to a
- * legal index for a different tile, which only bites a caller that indexes with
- * the raw value; here the floor happens before the multiply, so `(5.5, 4.5)`
- * can only ever be tile `(5, 4)`.
+ * from `Grid.buildable` and `Grid.isHighGround` and — since fb064u —
+ * `Grid.wardenPassable` too — b007's bug is that a *fraction* can multiply out
+ * to a legal index for a different tile, which only bites a caller that indexes
+ * with the raw value; here the floor happens before the multiply, so `(5.5,
+ * 4.5)` can only ever be tile `(5, 4)`. A Grid predicate cannot take that
+ * shortcut: it indexes `tile`/`occ` with the raw value, and refusing is the
+ * only answer that cannot be silently wrong.
  *
  * Off the board — and `NaN` — reads as enterable, matching `blocksCharacter`'s
  * unknown-kind convention. Bounds are not this predicate's job: every caller

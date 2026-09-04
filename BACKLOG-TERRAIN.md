@@ -413,7 +413,7 @@ fb064o.
       there — `z.array(tileSchema).length(4)` — which is exactly why the bug
       was invisible. It is not sufficient on its own, and neither is a bare
       guard: see the Log for the input where the two disagree.
-- [ ] (fb064u) [polish] `Grid.wardenPassable` accepts fractional coordinates
+- [x] (fb064u) [polish] `Grid.wardenPassable` accepts fractional coordinates
       and answers about a tile that does not exist: `wardenPassable(3.5, 1)`
       returns `true` with rock at `(3, 1)`, because `tile[39.5]` is `undefined`
       and so is neither `Border` nor `Open`. `Grid.buildable` and
@@ -425,6 +425,12 @@ fb064o.
       non-integer coordinate is rejected the way the two sibling predicates
       reject it, with `tests/act1.test.ts` and the dash paths unchanged and
       green — refs: fb064q QA observation 3, b007.
+      **Shipped to the acceptance as written, no amendment.** The one thing the
+      acceptance did not anticipate: the guard is a *refusal*, not a floor, and
+      the sibling it is now unlike is `canCharacterEnter`, which floors on
+      purpose. That divergence is now stated in `character.ts`'s contract and
+      pinned by a test, because the doc block there claimed the two predicates
+      "differ in exactly two places" and this makes it three.
 - [ ] (fb064v) [polish] three hand-copies of `terrainLegal` live in
       `tests/` (`terrain-generation.test.ts`'s `terrainLegalUnder`,
       `terrain-seed-domain.test.ts`'s and `terrain-band-ledger.test.ts`'s
@@ -460,8 +466,106 @@ fb064o.
       kept deliberately, it is pinned as an accepted case in the refusal table
       with the reason, so it is a decision rather than an oversight — refs:
       fb064s QA bug 2, fb064k.
+- [ ] (fb064x) [polish] `Grid.passable` and `Grid.passableGhost` still carry the
+      exact hole fb064u closed: both index `blocked`/`tile` with the raw
+      coordinate behind a bounds check alone, so on a grid with rock at (3, 1)
+      `passable(3, 1.5)` answers `true` about a mountain (index 57 = tile
+      (21, 1)) and `passableGhost(3.5, 1)` answers `true` off an `undefined`
+      read. Measured at HEAD by fb064u's QA, reproduced twice. Latent for the
+      same reason fb064u was — every live caller floors (`act2.ts:106`,
+      `enemies.ts:1116`, `classes.ts:237`, `policies.ts:479`, `world.ts:613`) —
+      but unlike fb064u these two are the Dijkstra inner loop, where two
+      `Number.isInteger` calls per neighbour is a real per-tick cost against
+      G12's budget, so this is genuinely a decision and not a copy of fb064u's
+      fix. Acceptance: a failing regression test first; then either the guard on
+      both (with a before/after `simMs` on `npm run sim -- --seed 1 --policy
+      hybrid` showing the cost, and `tests/g2-determinism` + `q13-perf-ratio`
+      green) or a recorded measured decision to leave them unguarded, pinned as
+      an accepted case with the numbers; either way one test enumerates every
+      Grid tile predicate so a sixth cannot be added un-guarded — refs: fb064u
+      QA bug 1, fb064u review finding 5, b007.
 
 ## Log
+
+- (2026-09-04, fb064u) **A predicate that answers about a tile that does not
+  exist is worse than one that refuses.** `Grid.wardenPassable` was the only
+  *mover-facing* tile predicate still indexing with the raw coordinate; it now
+  rejects non-integers exactly as `buildable` and `isHighGround` do.
+  - **The two shapes, both reproduced before the fix.** On a rock-bordered
+    `handMap` with rock at (3, 1) and high at (4, 1): `wardenPassable(3.5, 1)`
+    returned **true** over rock, because `tile[39.5]` is `undefined`, which is
+    neither `Border` nor `Open`, so the terrain term was never reached. And
+    `wardenPassable(3, 1.5)` returned **true**, because `GRID_W` (36) is even,
+    so the `.5` cancels its own fraction: index `1.5 * 36 + 3 = 57` is tile
+    **(21, 1)**, a real, open, *different* tile. That second shape is b007's
+    original bug verbatim, on the one predicate b007 did not reach.
+  - **Latent, and proved latent rather than assumed.** Both live callers floor
+    first (`run.ts`'s `walkable`, `wardenmove.ts`'s `resolveDashTarget`, which
+    is also the only route from `classes.ts`'s four dash actives). QA
+    instrumented the predicate over 10 full runs (hybrid, seeds 1-4, five
+    classes): **2,704,367 calls, 0 non-integer arguments, 0 old-vs-new
+    divergences**, and a 23,716-case hostile differential on
+    `resolveDashTarget` (clamped edges 0.4 / `GRID_W - 0.4`, NaN, +-Infinity,
+    -0, 1e21, backwards-walking paths) found **0 divergences, 0 arena escapes,
+    0 wall landings, no frozen Warden**. `Math.floor` yields an integer or
+    NaN/+-Infinity, and `inBounds` already answered `false` for the latter, so
+    the guard is provably inert on every live path — not merely untriggered.
+  - **Determinism.** `npm run sim -- --seed 1 --policy hybrid` is `endHash
+    2729a000` before and after; QA re-measured **20/20 seed x policy
+    combinations byte-identical** (hybrid 1..8, maxbuild/turtle/no-move 1..4).
+    Nothing in `/data` changed, so no replay is invalidated.
+  - **The third divergence.** `canCharacterEnter` floors on purpose (its callers
+    hold float positions and the floor happens *before* the multiply, so it
+    cannot alias). Its doc block claimed it and `wardenPassable` "differ in
+    exactly two places"; that is now three, and the count is stated in the
+    contract and pinned by an assertion pair, since the existing agreement
+    sweep is integer-only and could never have seen it.
+  - **Verification.** Targeted: the new `tests/terrain-grid.test.ts` case is red
+    first — QA re-derived that independently in a scratch worktree, deleting
+    only the guard line and watching both this file's and
+    `terrain-character.test.ts`'s new assertions fail. `terrain-grid`,
+    `terrain-character`, `grid`, `act1`, `b007-tile-bounds`, the p6 class suites
+    and ~40 further suites green; `npx tsc --noEmit` clean; `npm run build` ok.
+  - **`npm run test:fast` was run three times, and the control run is why the
+    numbers below can be trusted.** With the change, quiet host: 15 files / 42
+    tests red. At **baseline `HEAD~1`, same host, nothing else running: 16 files
+    / 52 tests red** — a strict superset. The failing set is entirely the
+    documented families (Windows `EPERM` on `bench/.tmp` scratch cleanup in
+    q25/q28/q33/q37/q41/q45/q46/q49/q52, hook timeouts in the b032-b036 UI-fold
+    suites and q15) and it moves in *both* directions between runs:
+    `fb038-status` and `q53` were red at baseline and green with the change.
+    Nothing in terrain, grid, act1, enemies or classes failed in any run.
+    `q13-perf-ratio` failed in the loaded run only (`worst=2860 empty=780`,
+    needs `worst > 4 * empty`) and **passes twice in isolation with the change**
+    — its own comment records that the empty-world leg sits near timer
+    resolution on a contended host.
+  - **Two reviewers, five findings, four folded in before the commit.** The
+    grid comment claimed this was "the one tile predicate that still had it",
+    which QA disproved on the spot (see fb064x); the bounds-check assertion
+    probed `3 + GRID_W`, which aliases onto the rock this very test plants, so
+    it read `false` for the wrong reason and survived deleting `inBounds` — it
+    now probes `2 + GRID_W`, whose alias is open, and I re-ran the mutation to
+    confirm the assertion is load-bearing; and `character.ts` credited fb064u
+    with `isHighGround`'s guard, which fb064b shipped.
+
+- (2026-09-04, fb064u) Out-of-scope needs surfaced by fb064u's QA, for the
+  merge / other lanes. **Both reproduced at the lane branch point `f924ec3`,
+  so neither is this lane's doing:**
+  - **`tests/q15-command-domain-fuzz.test.ts` is red in the fast tier** — its
+    `beforeAll` (`runCensus()`) times out at the 120 s `hookTimeout`, skipping
+    all 24 tests, isolated and unloaded, three times. It is deliberately *kept*
+    in `vitest.fast.config.ts`, so `npm run test:fast` cannot be green on any
+    branch until this is settled. Both candidate fixes (`tests/q15*`, or
+    `vitest.fast.config.ts`'s exclude list plus the measurement its own comment
+    demands) are outside this lane's Scope. Main lane, and it blocks the
+    "test:fast green" clause of every item in the repo, not just this one.
+  - **`tests/a3-movement-mandatory.test.ts` fails on seed 1**: expected
+    `defeat_core`, got `defeat_warden`, three times, at HEAD and at `f924ec3`.
+    The file's header records the opposite as reconfirmed at Q124, so that
+    measurement has expired. It sits in the fast tier's exclude list, so it is
+    invisible to the loop and will surface at the full `npm test` run at P10
+    completion or at the lane merge. Main lane; a QUESTIONS.md entry goes with
+    it (this lane leaves QUESTIONS.md alone).
 
 - (2026-09-03, lane split) Integration-point file for the merge:
   `src/sim/grid.ts` — the grid/pathing hook where generated tile types

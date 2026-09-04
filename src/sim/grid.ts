@@ -504,6 +504,22 @@ export class Grid {
    * `passable`/`blocked` unchanged, so this predicate is Warden-only.
    */
   wardenPassable(tx: number, ty: number): boolean {
+    // fb064u: b007's class of bug, on the tile predicate a *mover* asks.
+    // `passable` and `passableGhost` still index with the raw coordinate behind
+    // a bounds check alone and so still have the hole (fb064x); they are the
+    // Dijkstra inner loop, where the guard has a real per-tick cost, so that is
+    // a separate decision and not an omission this line may claim to have made.
+    // `inBounds` alone passes `3.5`, and the flat index below then reads either
+    // `undefined` (neither Border nor Open, so the old code answered "passable"
+    // over rock) or — since `GRID_W` is even, so a `.5` in `ty` cancels its own
+    // fraction — a real tile in another column. `buildable` and `isHighGround`
+    // both reject non-integers outright; this now matches them. It is a
+    // *refusal*, not a floor: `false` here means "the Warden cannot move
+    // there", so a caller holding a float position must still floor first (both
+    // live ones do — `run.ts`'s `walkable` and `wardenmove.ts`). What the three
+    // predicates now share is that they refuse identically rather than one of
+    // them aliasing onto a different tile.
+    if (!Number.isInteger(tx) || !Number.isInteger(ty)) return false;
     if (!this.inBounds(tx, ty)) return false;
     // fb064b: terrain stops the Warden as it stops any other ground walker.
     // fb002 legalised walking through the *Core and friendly structures*, which

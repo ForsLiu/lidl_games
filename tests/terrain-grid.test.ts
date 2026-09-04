@@ -555,6 +555,63 @@ describe('high ground and structures (fb064b)', () => {
     expect(g.wardenPassable(0, 0)).toBe(false);
   });
 
+  it('rejects a non-integer coordinate the way buildable and isHighGround do', () => {
+    // fb064u. `wardenPassable` indexed with the raw coordinate, so a fraction
+    // could answer about a tile that does not exist — or, worse, about a real
+    // *different* one. Both sibling predicates reject non-integers outright for
+    // b007's reason, and this one is the odd man out; latent only because both
+    // live callers (`run.ts`'s `walkable`, `wardenmove.ts`) floor first.
+    const g = applied(
+      handMap([
+        [3, 1, TerrainKind.Rock],
+        [4, 1, TerrainKind.High],
+      ]),
+    );
+    expect(g.wardenPassable(3, 1)).toBe(false);
+    expect(g.wardenPassable(4, 1)).toBe(false);
+
+    // The undefined-index shape: `tile[ty * GRID_W + 3.5]` is `undefined`,
+    // which is neither Border nor Open, so the old code fell through to
+    // "passable" on a tile made of rock.
+    expect(g.wardenPassable(3.5, 1)).toBe(false);
+    expect(g.wardenPassable(4.5, 1)).toBe(false);
+
+    // The aliasing shape b007 named: GRID_W is even, so a `.5` in `ty` cancels
+    // its own fraction and lands on a real tile in another column — here an
+    // open one, so rock at (3, 1) would have read back as passable.
+    expect(((1 + 0.5) * GRID_W) % 1).toBe(0);
+    const alias = 1.5 * GRID_W + 3;
+    expect(Number.isInteger(alias)).toBe(true);
+    expect(g.tile[alias]).toBe(TileType.Open);
+    expect(g.terrainKind[alias]).toBe(TerrainKind.Normal);
+    expect(g.wardenPassable(3, 1.5)).toBe(false);
+
+    // Same answer as the two siblings, on every non-integer shape.
+    for (const [tx, ty] of [
+      [3.5, 1],
+      [3, 1.5],
+      [-0.5, 5],
+      [NaN, 5],
+      [5, NaN],
+      [Infinity, 5],
+      [5, -Infinity],
+    ] as Array<[number, number]>) {
+      expect(g.wardenPassable(tx, ty)).toBe(false);
+      expect(g.buildable(tx, ty)).toBe(false);
+      expect(g.isHighGround(tx, ty)).toBe(false);
+    }
+
+    // The guard did not displace the bounds check: b007's other alias shape is
+    // an out-of-grid *integer* tx that multiplies onto a real tile one row up.
+    // The probe must land on an *open* alias — `3 + GRID_W` aliases onto the
+    // rock this test planted at (3, 1) and would read `false` for the wrong
+    // reason, staying green with `inBounds` deleted (QA bug 2).
+    const oob = 2 + GRID_W;
+    expect(Number.isInteger(oob)).toBe(true);
+    expect(g.tile[oob]).toBe(TileType.Open);
+    expect(g.wardenPassable(oob, 0)).toBe(false);
+  });
+
   it('still prices a structure on ordinary ground as a breach', () => {
     const g = applied(handMap([]));
     const open = g.distAt(GATES[0].tx, GATES[0].ty);

@@ -52,6 +52,18 @@ const AUTHORED: ReadonlyArray<{ kind: TerrainKind; key: string; blocks: boolean 
   { kind: TerrainKind.High, key: 'high', blocks: true },
 ];
 
+/** Any interior tile the character and the Warden both agree is open. */
+function openInterior(g: Grid): { tx: number; ty: number } {
+  for (let ty = 1; ty < GRID_H - 1; ty++) {
+    for (let tx = 1; tx < GRID_W - 1; tx++) {
+      if (g.wardenPassable(tx, ty) && g.terrainKind[ty * GRID_W + tx] === TerrainKind.Normal) {
+        return { tx, ty };
+      }
+    }
+  }
+  throw new Error('no open interior tile');
+}
+
 function clone(): Record<string, unknown> {
   return JSON.parse(JSON.stringify(terrainRaw)) as Record<string, unknown>;
 }
@@ -185,9 +197,17 @@ describe('fb064q character passage: the grid honours the flag', () => {
       const structural = g.terrainKind[ty * GRID_W + tx] !== map.kind[ty * GRID_W + tx];
       expect(border || structural).toBe(true);
     }
-    // Off the board the two are opposite by design, and that is the whole list.
+    // Off the board the two are opposite by design, and so is a non-integer
+    // coordinate (fb064u): this predicate floors it, the Grid one refuses it,
+    // because the Grid indexes `tile` with the raw value and this does not.
+    // The sweep above is integer-only, so without these the third divergence
+    // the doc block names would be unpinned.
     expect(canCharacterEnter(cfg, map, -1, -1)).toBe(true);
     expect(g.wardenPassable(-1, -1)).toBe(false);
+    const openTile = openInterior(g);
+    expect(canCharacterEnter(cfg, map, openTile.tx + 0.5, openTile.ty + 0.5)).toBe(true);
+    expect(g.wardenPassable(openTile.tx, openTile.ty)).toBe(true);
+    expect(g.wardenPassable(openTile.tx + 0.5, openTile.ty + 0.5)).toBe(false);
   });
 
   it('flipping rock to passable lets the Warden stand on rock and nothing else moves', () => {
