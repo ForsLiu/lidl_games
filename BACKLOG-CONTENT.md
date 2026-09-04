@@ -426,7 +426,7 @@ session 2 (c005 was the last actionable one left), appending `c006`-`c010`.
       the drift visible before `fb056` appends 15 more rows to the same file
       - refs: SPEC-FINAL §7, c008.
 
-- [ ] (c013) [bug] Animist *Wide Grove* is authored on the **global `area`
+- [x] (c013) [bug] **DONE 2026-09-04.** Animist *Wide Grove* is authored on the **global `area`
       key**, so "All towers +10% area" silently widens things that are not
       towers. Found by `c009`, logged there, not filed until now: there is no
       `towerArea` stat key, so the row uses `area`, which `stats.ts` folds into
@@ -456,8 +456,12 @@ session 2 (c005 was the last actionable one left), appending `c006`-`c010`.
       literal tile coordinate; every one stays green unchanged today, and a
       deliberately shifted probe origin moves all four together. **Now five
       files: `c016`'s `tests/class-line-bonus.test.ts` pins the same `10,10`
-      spot and the same `11,10` build tile, and joins this item's list** - refs:
-      BACKLOG-TERRAIN.md, c005, c006, c009, c016.
+      spot and the same `11,10` build tile, and joins this item's list.** And a
+      sixth to fold in rather than convert: `c013`'s
+      `tests/class-wide-grove-reach.test.ts` already probes for its tile with
+      `grid.buildable`/`wouldBlockPath` instead of pinning one, so it is
+      terrain-proof today but carries a *private* copy of the probe this item
+      exists to share - refs: BACKLOG-TERRAIN.md, c005, c006, c009, c013, c016.
 - [ ] (c020) [bug] `active2CdrFactor`'s **general `cdr` stat term is unpinned
       anywhere in the suite.** Found by QA on `c019`: mutating
       `src/sim/classes.ts:206` from
@@ -531,6 +535,29 @@ session 2 (c005 was the last actionable one left), appending `c006`-`c010`.
       field's fate is a main-lane decision because deleting it touches
       `src/sim/content.ts`; this item is the measurement only - refs:
       SPEC-FINAL §7, c012, c013, QA on c012.
+
+- [ ] (c024) [bug] the **Time Lord twin of `c013`'s finding is unmeasured, and
+      it is the larger of the two.** Filed by QA on `c013`. `applyChronalSurge`
+      (`src/sim/run.ts:816-817`) applies the Time Lord tower passive as
+      `w.stats.add(source, 'towerRange', ...)` **and**
+      `w.stats.add(source, 'area', ...)` on two adjacent lines — a tower-scoped
+      key for the range half and the *global* key for the area half, the same
+      §4.2 "all towers" wording, uncapped and re-added every `waveInterval` TD
+      waves. This lane's own Log already measures it at `areaMul 3.203` by
+      end of run (+90% from Chronal Surge alone) against the Animist's flat
+      +10%, so the character-side over-application `c013` sizes for one class
+      is up to nine times larger for the other — and a main-lane `towerArea`
+      swap that moves `data/classes.json` but misses `run.ts:817` would land
+      with `tests/class-wide-grove-reach.test.ts` **fully green**, because that
+      file builds Animist worlds only. Acceptance: a `time_lord` control pair in
+      that same file — Chronal Surge fired `n` times against a rebuilt `Content`
+      with `bonusAoeMul` deleted — asserting per consumer that the *same twenty
+      footprints* widen, so the two classes' rows flip together or the
+      difference is a named deviation; plus the asymmetry of those two adjacent
+      `stats.add` lines asserted directly, since it is the cleanest evidence the
+      main-lane key needs. In-lane (`tests/class-*` only); `run.ts` itself is
+      not edited from here - refs: SPEC-FINAL §4.2 (Time Lord), §2 (Area row),
+      QUESTIONS Q120(5), c009, c013, QA on c013.
 
 ### Blocked out of Scope (owner items, unchanged order)
 
@@ -2223,3 +2250,97 @@ red, cited at `BACKLOG.md:37`, `:871`, `:1087`, `:1099`, with
 lookup would reject `authorised: 'p6e'`. Found by code-reviewer. The fix is a
 one-line entry in `BACKLOG.md`; the failure is loud and its message is
 actionable, so nothing is blocked meanwhile.
+
+### c013 (2026-09-04) — the row that says "towers" and means "everything"
+
+`data/classes.json`'s Animist row promises *"All towers +10% area"* and is
+authored on §2's **global** `area` key, because `src/sim/statkeys.ts` has no
+`towerArea`. `tests/class-wide-grove-reach.test.ts` sizes what that buys.
+**Moves no `/data` and no `/src` byte** — `git diff -- src data SPEC-FINAL.md
+QUESTIONS.md` is empty at the commit. 67 assertions.
+
+- **The measurement.** Ten `w.derived.areaMul` reads in `src/sim` produce
+  **twenty footprints**; every one of them is widened by Wide Grove today, and
+  **twelve are not towers** — the Animist's own *Manifest* spirit and *Recall
+  Totem*, six VS wielded footprints, and Electric's/Burning's splash off any
+  class source. Each is measured against a rebuilt `Content` with the row's one
+  `mods.area` key deleted, so the cause is pinned rather than inferred; radii
+  where the sim computes one, and an enemy parked in the ring between the
+  un-widened and widened footprint where it does not.
+- **It is an owner-approved deviation, and the file says so.** QUESTIONS Q120
+  item 5 chose the global key deliberately — "over-applying rather than
+  inventing a `towerArea` nothing else reads, and flagged for the P10 pass" —
+  with an owner verdict of *approved*. What that bought was a deferral, and
+  CLAUDE.md's first measurement rule is that a deferral is a measurement with
+  an expiry date. Q120 named the expiry and never sized the over-application;
+  this file sizes it. Filed by QA on this item, and it changed the header:
+  without it a green run reads as an unreported bug.
+- **Reads are not consumers, and that distinction is the whole item.** `c001`
+  widened this row's blast radius by adding a *caller* (`classArea`), not a
+  read, and nobody re-measured. So `CARRIERS` pins the call-site count of the
+  six helpers that carry a read out of its own function, counted on the **bare
+  name** so a one-line alias is a diff too; a new caller of any of them reddens
+  with a message asking for a `CONSUMERS` row.
+- **Four of the ten reads serve both routes, which is the finding a
+  `towerArea` key alone does not close.** `effectiveTowerAoe`'s two branches
+  plus the Electric and Burning sites cannot see who called them, so the key
+  swap needs a source check at those four lines. `shared` is **derived** from
+  the consumer table (a read is shared exactly when both routes flow through
+  it) and compared against a declared set, so it cannot be asserted into
+  existence.
+- **code-reviewer REQUEST-CHANGES, two Majors, both fixed here.** (1) The two
+  `effectiveTowerAoe` rows were filed as `route: 'tower'` — but that helper is
+  called by `towerSummonProfile` (`classes.ts:523`) and by four sites in
+  `vswield.ts`, so **the Animist's own Active1 was leaking through a read this
+  file had marked authorised**, and `LEAKING_TODAY` baked the under-report into
+  the red/green target. (2) The completeness guard was read-complete but not
+  reach-complete — precisely c001's failure mode, reproduced inside the file
+  written to catch it.
+- **qa-playtester PASS on acceptance with ten findings; the five that were
+  defects are fixed here**, in the c012 tradition of not deferring what a
+  barrier item exists to produce. Every one was live:
+  - *Bug 1*: **six real `* area` uses were named by the read table and measured
+    by nothing** — deleting all six left the file green. `fireTower`'s and
+    `fireWielded`'s `area` locals are each read by three to five footprints and
+    only one each had a probe. Now covered: TD cone half-angle, TD lob shell
+    aoe, the wielded line half-width, the wielded cone half-angle and the
+    wielded chain jump range. Two of those are live only behind a §5.2
+    milestone, and the tier is asked of `attackProfile` rather than pinned —
+    the first attempt hardcoded the special's `at: 3` as tier 3, and a
+    milestone's `at: N` lands at **tier N+1**. The file's own sensitivity
+    control caught that (both probes measured 0 in *both* worlds) before any
+    conclusion was drawn from them, which is exactly what it is for.
+  - *Bug 2*: the row named "a Mortar's own shell splash" **did not measure a
+    Mortar's shell splash** — `fireTower`'s lob case computes its radius from
+    its own inline `(a.aoe ?? 1.5) * area`, never from `effectiveTowerAoe`, so
+    the row was measuring the panel's mirror. Renamed to say so, and a real
+    behavioural lob probe (build, fire, fly the shell to detonation) added
+    beside it, so a fix that moves one number and not the other is caught.
+  - *Bugs 3-5*: the guard was a per-line text scan, so `const { areaMul } =
+    w.derived`, `w.derived['areaMul']` and a member expression split over two
+    lines all walked past it, a one-line alias walked past `CARRIERS`, and a
+    **trailing comment quoting the expression turned the file red**. Replaced
+    with a string-aware `stripComments` that drops comments and keeps string
+    literals — which is the combination that catches the bracket spelling *and*
+    tolerates the repo's habit of quoting code in prose. All four mutations
+    verified red, the comment one verified green.
+  - *Bug 6*: a test named "clears every ring" asserted only `CONTROL_AREA >
+    WIDE_GROVE`; it now asserts `1 + CONTROL_AREA > RING`, the property that
+    actually matters.
+- **Verification**: targeted file **67/67**; `npx tsc --noEmit` clean.
+  Mutations, all red with the control green: each of the six `* area` uses
+  deleted one at a time · a new caller of `classArea` · a new caller of
+  `effectiveTowerAoe` · the three unscanned read spellings · a `classArea`
+  alias · `mods.area` moved to another key (26 red) · the aura read unscaled ·
+  the lob branch unscaled. Green under the two mutations that must not redden:
+  a retune of the row 0.10 -> 0.18, and a trailing comment quoting the
+  expression. `git diff --stat src data` empty after every one.
+
+**For the main lane (out of this lane's Scope, filed rather than edited):**
+the `towerArea` key itself is already logged above. What this item adds is that
+the key is **not sufficient on its own**: four of the ten reads serve both
+routes from a line that cannot see its caller, so those need a source check
+too, and `tests/class-wide-grove-reach.test.ts`'s `SHARED_READS` names exactly
+which four. QA's Time Lord twin (`run.ts:817` adds the same global `area` key,
+uncapped, and is the larger over-application of the two) is filed in-lane as
+`c024`.

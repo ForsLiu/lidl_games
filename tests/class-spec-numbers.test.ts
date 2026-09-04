@@ -985,8 +985,11 @@ const LEDGER: readonly Figure[] = [
     path: ['towerPassive', 'mods', 'area'],
     status: { kind: 'match' },
     note:
-      'The value matches. The *key* is the global `area` stat for want of a `towerArea` one, ' +
-      'which is c009 — again a location question, not a drift question.',
+      'The value matches. The *key* is the global `area` stat for want of a `towerArea` one — a ' +
+      'location question, not a drift question, and an owner-approved deviation (QUESTIONS Q120 ' +
+      'item 5, flagged for the P10 pass) rather than an open bug. Restated by c009 and sized by ' +
+      'c013, whose `tests/class-wide-grove-reach.test.ts` measures all twenty footprints the ' +
+      'global key reaches.',
   },
 
   /* ------------------------------------------------------ §4.2 Paladin */
