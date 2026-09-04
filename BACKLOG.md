@@ -2709,7 +2709,7 @@ generation-rule boundary.
       against HEAD via fb053's own commit note), qa-playtester pass
       confirmed the mechanism and flagged the waves-1-2/doc-drift issue
       that this close-out then fixed.
-- [ ] (fb076) [balance] `data/towers.json`-only retune of the seven solo TD
+- [x] (fb076) [balance] `data/towers.json`-only retune of the seven solo TD
       towers against fb054's denser wave curve (`perGate` ×2.5 on waves 3-18,
       `spawnIntervalSeconds` ÷2.5; waves 1-2 stay unscaled per fb054's
       close-out) — the same shape p10c did against the old
@@ -2744,6 +2744,128 @@ generation-rule boundary.
       numbers in this entry are unaffected. Whoever picks up this retune should
       target 5/5 from that corrected baseline, not re-derive it from the stale
       figures above.
+
+      **Retune landed (2026-09-04, this session):** `data/towers.json`'s
+      `attack.damage` raised for all six under-clearing towers against the
+      p11d-corrected baseline: arrow_spire 100->210, ember_brazier 103.6->150,
+      frost_obelisk 234->248, tesla_coil 319->401, mortar 1602->4200,
+      venom_spore 380->588 (ballista untouched — already 5/5). Re-measured with
+      both `tools/a4probe.ts` and a live `tests/a4-single-type.test.ts` run
+      (16/16, ~1156s): **five of seven reach the full 5/5** T1 target
+      (arrow_spire, ballista, ember_brazier, frost_obelisk, mortar).
+      `tesla_coil` and `venom_spore` hit a genuine T1/T3 coupling wall — every
+      damage value tried that pushed T1 past 4/5 also broke the T3 "fails
+      alone" invariant (0/5), and non-damage levers tried alongside damage
+      (chains/aoe/range/hp) made T3 worse rather than decoupling the two axes
+      — pinned at 4/5, their highest T1-improving value that still holds T3 at
+      a clean 0/5, per CLAUDE.md rule 5 (choose, log, continue) rather than
+      leaving the item open on an unreachable literal 7/7. T3 clause itself
+      re-confirmed live and unchanged: 0/5 for all seven towers, comfortably
+      so (`tools/a4probe.ts`'s T3 column, worst case ballista 12/16 waves,
+      nowhere near 18). `tests/f003-leak-coupling.test.ts`'s forced-Day-1-leak
+      probe needed `hpMul` 1 -> 1e9: the higher tower damage now one-shots a
+      1x-hp husk landing on the Core tile before the leak check runs in the
+      same tick (`updateTowers` runs first) — traced `leakIntoCore`
+      (`src/sim/enemies.ts`) to confirm leak accounting uses only
+      `coreDamage`/spawn cost, never hp, so this is a safe test-harness fix,
+      not a masked bug (12/12 live). Mortar's outsized +162% jump (the
+      worst-affected tower, 1/5 baseline) briefly got its own
+      `data/towers.json` `upgrades.note` field recording the rationale on the
+      mistaken belief that `frost_obelisk`/`ballista`'s notes were a
+      "large swing" convention — `npm run test:fast` caught this directly:
+      `tests/m20c-roster-tracks.test.ts` reserves `upgrades.note` exclusively
+      for towers *off* the count-line formula (`ballista`, `frost_obelisk`),
+      and asserts every on-line tower (`mortar` included) carries no note at
+      all, "or the field decays into commentary and stops meaning 'this one
+      is deliberate'" (the test file's own comment). Mortar is on-line, so
+      the note was removed; the rationale lives here instead, which is where
+      m20c's own convention says it belongs.
+
+      **Blast-radius re-verification, this session — done.** Ran the five
+      named gate files directly (`npx vitest run <file>`, `a10-performance`
+      needs `--config vitest.perf.config.ts` per `package.json`'s own `test`
+      script — none of the five live in `test:fast`'s tier, all >60s) both at
+      this diff and, via `git stash`, at HEAD, to separate real regressions
+      from pre-existing red: **G1** (`p10d-run-length.test.ts`) green,
+      unaffected. **G17** (`a10-performance.test.ts`) green, unaffected.
+      **G23** (`p-core-f-gates.test.ts`'s own describe block) fully
+      `.skip`-ed already (ceiling 0/5, untouched); the informal scripted-
+      Core-bot spot check (`runCore`, same shape as the retired
+      `_scratch-fb076-spotcheck.ts`) still lands all 5 Cores × seeds 1-2 at
+      `landslide-win`, its pre-existing 100% ceiling, not pushed further.
+      **G8** (`p6e-class-diversity.test.ts`) FAILs identically before and
+      after this diff — `expected 1 to be 2`, byte-identical failure message
+      at HEAD and at this diff — a pre-existing stale pin, not something this
+      retune touched; already tracked as a known-red gate (p10m and others,
+      grep BACKLOG for "G8.*flatly red"). **G14** (`tests/boss.test.ts`,
+      "a scripted run reaches it, kills it and wins") FAILs both before and
+      after (also pre-existing red, same as `p8c`'s honest 0/20 measurement)
+      but the margin moved: `bossKillSeconds - bossTimeSeconds` was 15.7s at
+      HEAD, now 11.65s under this diff, both short of the required >20s. Not
+      a new failure, but a real narrowing of an already-broken clause's
+      margin, worth a line for whoever re-opens G14.
+
+      **New regression found, NOT pre-existing: G22.** Same file as G23
+      (`tests/p-core-f-gates.test.ts`), not named in this item's own
+      acceptance text but directly in the diff's blast radius per CLAUDE.md's
+      "check before calling it narrow" rule. `time vs Stone Heart, seed 1`
+      passed at HEAD and now fails under this diff: fingerprint 0.065
+      (damageL1 0.065, economy 0.064) against the required >=0.10 — the
+      higher tower damage plausibly converges `time`'s late-game
+      damage-share/economy distribution toward `stone_heart`'s own,
+      shrinking the Core-distinctiveness margin the same way `b070` found and
+      fixed for `corpse` (its comment right above this describe block).
+      Filed as its own top-of-queue item, **fb093**, rather than reopening
+      this one, since fb076's own acceptance text is otherwise fully met and
+      a `data/cores.json`-only fix (b070's precedent) is a different lever
+      than anything this item touches.
+
+      **`npm run test:fast`, this session:** 8 files failed / 2235 passed /
+      25 skipped. One was this diff's own real defect — `m20c-roster-tracks`,
+      fixed above by dropping mortar's stray `upgrades.note`. Re-ran it alone
+      after the fix: green. The other seven are the pre-existing Windows
+      scratch-dir/port flake family this repo already tracks (`q15`, `q49`,
+      `q52` — byte-identical failure text to fb054's own close-out entry
+      above; `b032`/`b034`/`b035`/`b036` — dev-server port contention,
+      "Port 5173 is in use", all assertions skipped, file-level failure
+      only), unrelated to `/data` content and not reproducible in isolation.
+- [ ] (fb093) [bug] G22 regression: `time` Core vs Stone Heart, seed 1
+      (`tests/p-core-f-gates.test.ts`) now fails, introduced by fb076's
+      `data/towers.json` damage retune — confirmed via a `git stash` control
+      run at HEAD (passes there) vs. this diff (fails): fingerprint 0.065
+      (damageL1 0.065, economy 0.064), under the required >=0.10 floor.
+      Likely mechanism: the higher across-the-board tower damage (mortar's
+      +162% especially) converges `time`'s late-game damage-share/economy
+      distribution toward `stone_heart`'s own, the same shrinking-margin
+      pattern `b070` found and fixed for `corpse` (see the comment above the
+      `G22` describe block in that test file). Acceptance: `time vs Stone
+      Heart` back to >=0.10 on both seeds 1 and 2, fixed via a
+      `data/cores.json`-only change to `time`'s own effects/upgrade
+      magnitudes (b070's precedent — do not revert fb076's tower damage
+      values, that is the wrong lever and would reopen fb076's own T1
+      clauses); re-verify the other three non-default Cores' G22 clauses and
+      G21 (`tests/p-core-b-effects.test.ts` through
+      `tests/p-core-e-time-decay.test.ts`) stay green — refs: SPEC-FINAL §14
+      G22, BACKLOG fb076, b070.
+- [ ] (fb094) [bug] G19 liveness clause is red and untracked; STATUS.md says
+      green — qa-playtester found this during fb076's QA pass (2026-09-04),
+      confirmed unrelated to fb076 itself via a `git stash` control run at
+      HEAD (`24d1c62`): fails identically before and after. Repro: `npx
+      vitest run tests/p10f-g19-liveness.test.ts` fails "the winning-build
+      pool includes a sealed-strategy build" — the top-10 pool is
+      `frost-mix(open), ember-heavy(open), ember-mix(open), stacked-frost
+      (rush)`, zero sealed-strategy entries. `STATUS.md` (regenerated at
+      `24d1c62`, this same day) still lists G19 GREEN ("Green in full
+      (p10f)"), so the gate table itself is stale, not just the mechanism.
+      Likely shares fb054's density-pass root cause with `fb092`'s already-
+      tracked G13 pool-size collapse (same "open-strategy builds crowd out
+      sealed/rush" symptom), but is its own gate/clause and has no `fb`-
+      numbered item covering it yet. Acceptance: either restore a sealed-
+      strategy build to the top-10 pool (build-diversity/economy lever, not
+      a tower damage revert — that would reopen fb076) or, if genuinely
+      unreachable at the current curve, `.skip` per CLAUDE.md rule 6 with
+      the honest measured pool composition and correct `STATUS.md`'s G19 row
+      to red — refs: SPEC-FINAL §14 G19, BACKLOG fb054, fb092.
 - [ ] (fb077) [feat] wire the generated terrain into a real run — the
       main-lane half of the terrain epic (BACKLOG-TERRAIN.md fb064b/fb064c/
       fb064f Logs). Today nothing outside `tests/` calls `generateTerrain` or

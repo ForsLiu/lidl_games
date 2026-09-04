@@ -146,20 +146,24 @@ describe('A4 every tower type is viable, none is dominant', () => {
   });
 
   // p10c re-tune had every tower's T1 clause at 5/5. fb054's density pass
-  // (perGate x2.5, spawnIntervalSeconds /2.5) broke six of seven — re-pinned
-  // to the exact measured counts, not silently loosened to a blanket pass.
-  // See the file header's fb054 entry for the measurement and BALANCE.md's
-  // "Density targets (fb054)" section for the lever rationale. Follow-up
-  // (a data/towers.json-only retune to restore 5/5 against the new curve):
-  // BACKLOG fb066.
+  // (perGate x2.5, spawnIntervalSeconds /2.5) broke six of seven. fb076
+  // (2026-09-04) retuned data/towers.json's attack.damage (arrow_spire,
+  // ember_brazier, frost_obelisk, tesla_coil, mortar, venom_spore; ballista
+  // untouched) to restore 5/5 against the new curve. Five of seven reached
+  // 5/5; tesla_coil and venom_spore hit a measured, multi-lever-confirmed
+  // T1/T3 coupling wall (bisected: the T1-clearing damage value for both is
+  // exactly 1 point above the value that keeps T3 at a clean 0/5, and
+  // chains/aoe/range/hp levers all made T3 worse instead of decoupling the
+  // two) — pinned at their highest T1-improving value that still holds T3.
+  // See BACKLOG fb076 for the full lever history.
   const T1_EXPECTED_CLEARS: Record<string, number> = {
-    arrow_spire: 0,
+    arrow_spire: 5,
     ballista: 5,
-    ember_brazier: 4,
-    frost_obelisk: 4, // re-measured at p11d: was stale-pinned to 2
-    tesla_coil: 3,
-    mortar: 1, // re-measured at p11d: was stale-pinned to 0
-    venom_spore: 1,
+    ember_brazier: 5,
+    frost_obelisk: 5,
+    tesla_coil: 4, // coupling wall vs. T3 — see comment above
+    mortar: 5,
+    venom_spore: 4, // coupling wall vs. T3 — see comment above
   };
   for (const key of SOUL_TOWERS) {
     it(`${key} alone clears the TD wave curve at T1`, () => {

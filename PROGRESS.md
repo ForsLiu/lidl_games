@@ -5,6 +5,52 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-04 session: BACKLOG fb076 closed — `data/towers.json`-only
+  damage retune for the six under-clearing solo TD towers against fb054's
+  denser wave curve, landed by a prior session this same day and finished
+  here with the full blast-radius re-verification its own acceptance text
+  required.** Five of seven towers (arrow_spire, ballista, ember_brazier,
+  frost_obelisk, mortar) reach the full 5/5 T1 solo-clear target;
+  tesla_coil/venom_spore are pinned at 4/5, a measured T1/T3 coupling wall
+  (every damage value that clears T1 5/5 also breaks the T3 "fails alone"
+  invariant at 0/5) — logged per CLAUDE.md rule 5 rather than left open on
+  an unreachable 7/7. Ran the five named gate files (G1/G8/G14/G17/G23) both
+  at this diff and, via `git stash`, at HEAD, to separate real regressions
+  from pre-existing red: **G1, G17 green and unaffected; G23 already fully
+  `.skip`-ed (0/5 ceiling unaffected, spot-checked at its own informal 100%
+  win ceiling too); G8 and G14 fail identically before and after (pre-
+  existing red, not new)** — G14's margin did narrow (`bossKillSeconds -
+  bossTimeSeconds` 15.7s at HEAD -> 11.65s now, both short of the required
+  >20s), logged for whoever reopens it. **One real, new regression found:
+  G22** (`tests/p-core-f-gates.test.ts`, `time` Core vs Stone Heart seed 1,
+  fingerprint 0.065 under the 0.10 floor, passed at HEAD) — not named in
+  fb076's own acceptance text but caught by the blast-radius check anyway;
+  filed as its own top-of-queue item **fb093** rather than reopened here,
+  since the fix is a `data/cores.json`-only lever (b070's precedent for the
+  same class of issue on `corpse`), a different file than this item touches.
+  `npm run test:fast` caught one real defect of this diff directly: mortar's
+  `data/towers.json` briefly carried an `upgrades.note` explaining the
+  retune, which `tests/m20c-roster-tracks.test.ts` reserves exclusively for
+  towers *off* the tower-count-line formula — mortar is on-line, so the note
+  was removed (the rationale lives in BACKLOG.md's prose instead); re-ran
+  m20c alone after the fix, green. The other 7 of 8 `test:fast` file
+  failures are the pre-existing Windows scratch-dir/port flake family this
+  repo already tracks (`q15`/`q49`/`q52` EPERM races, `b032`/`b034`/`b035`/
+  `b036` dev-server port contention) — confirmed non-reproducing in relation
+  to this diff by isolated re-runs. qa-playtester **PASS**: independently
+  re-verified `data/towers.json`'s exact values and `upgrades.note`
+  placement, live-ran `a4-single-type`/`f003-leak-coupling`/`m20c-roster-
+  tracks` to green, confirmed `fb093` is a real filed item, and grepped
+  `tests/` for the six old damage literals (100, 103.6, 234, 319, 1602, 380)
+  finding zero stale pins — plus an adversarial sweep of ~35 more tower-
+  adjacent test files, all pass or fail in already-documented pre-existing
+  ways. It also surfaced one more pre-existing (confirmed via the same
+  `git stash`-at-HEAD control, not fb076-caused) issue outside this item's
+  scope: G19's liveness clause (`tests/p10f-g19-liveness.test.ts`) is red —
+  the winning-build top-10 pool has zero sealed-strategy entries — while
+  `STATUS.md` still marks G19 green, a stale gate-table row. Filed as
+  **fb094**.
+
 - **2026-09-04 session: BACKLOG p11e closed — audited QUESTIONS.md's five
   verdict-less entries (Q94, Q155, Q156, Q157, Q158) against current HEAD,
   per CLAUDE.md's "a deferral is a measurement with an expiry date" rule.**
