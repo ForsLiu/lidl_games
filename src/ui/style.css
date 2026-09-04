@@ -1056,6 +1056,42 @@ input.sw-tuner-field-input[type="text"] { width: 220px; }
 }
 .sw-bossbar-meter i { background: #ff3355; }
 
+/* fb084: one-time, dismissible, non-blocking first-run tutorial prompt — sits
+   below where the boss banner would be so the two never overlap, but unlike
+   it never covers the canvas or blocks input; the player can keep playing
+   with it open. */
+.sw-onboarding {
+  position: absolute;
+  left: var(--cv-cx, 50%);
+  top: calc(var(--cv-top, 0px) + 56px);
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 460px;
+  max-width: 80%;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px 8px 14px;
+  z-index: 4;
+  box-shadow: 0 4px 14px #00000066;
+  pointer-events: auto;
+}
+.sw-onboarding.sw-off { display: none !important; }
+.sw-onboarding-text { font-size: 13px; line-height: 1.35; flex: 1; }
+.sw-onboarding-close {
+  flex: none;
+  background: transparent;
+  border: none;
+  color: var(--dim);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 6px;
+}
+.sw-onboarding-close:hover { color: var(--fg); }
+
 .sw-bottombar {
   position: absolute;
   left: 50%;

@@ -32,6 +32,25 @@ import { bottomBarData, type SkillIconState } from './bottom-bar';
 import { coreLiveMarkup } from './core-info';
 import { formatPct, trimNum } from './info-format';
 import { equipmentEffectMarkup, type EquipmentEffectContext } from './equipment-info';
+import { defaultSettings, type Settings } from './settings';
+
+/** fb084: which one-time first-run tutorial prompt is showing. */
+export type OnboardingKey = 'build' | 'dusk' | 'dawn';
+
+/**
+ * fb084 (QUALITY.md BETA first-run onboarding): the three contextual prompts
+ * named by the checklist — first TD build phase, first Dusk->Night VS wave,
+ * first Dawn return-to-build.
+ */
+const ONBOARDING_TEXT: Record<OnboardingKey, string> = {
+  build:
+    "Build phase: pick a tower from the panel on the left and place it along the enemies' path, " +
+    'then call the wave (Enter) when your defenses are ready.',
+  dusk:
+    'Night falls — you now control the Warden directly. WASD to move, Space to dash, and Q/E for ' +
+    'your class actives while the horde closes in.',
+  dawn: 'Dawn breaks. Spend your gold on new towers and upgrades before the next wave begins.',
+};
 
 export interface HudCallbacks {
   onSelectTower(id: number): void;
@@ -79,6 +98,12 @@ export interface HudCallbacks {
   /** Practice tool; only reachable in a run started with practice on. `enemyKey` is only meaningful for the `'spawn'` op. */
   onDev(op: DevOp, amount: number, enemyKey?: string): void;
   onQuitToHub(): void;
+  /**
+   * fb084: a first-run onboarding prompt was dismissed — persist that it's
+   * seen so it never shows again. Optional so the many pre-existing `Hud`
+   * test constructors that predate this feature don't all need updating.
+   */
+  onOnboardingSeen?(key: OnboardingKey): void;
 }
 
 export class Hud {
@@ -98,6 +123,14 @@ export class Hud {
   private bossBarEl: HTMLElement;
   private bossBarNameEl: HTMLElement;
   private bossBarFillEl: HTMLElement;
+  private onboardingEl: HTMLElement;
+  private onboardingTextEl: HTMLElement;
+  /** fb084: the prompt currently armed to show (post-modal-close), or `null` once dismissed/never triggered. */
+  private onboardingActive: { key: OnboardingKey; text: string } | null = null;
+  /** fb084: a prompt that fired while another was still showing — see `triggerOnboarding`'s doc comment. */
+  private onboardingQueue: OnboardingKey[] = [];
+  /** fb084: `update()` only ever checks for the first-build-phase prompt once per `Hud` instance (i.e. once per run). */
+  private onboardingBuildChecked = false;
   private stageEl: HTMLElement | null;
   private dpsPanelEl: HTMLElement;
   private dpsDockEl: HTMLElement;
@@ -105,6 +138,8 @@ export class Hud {
   private vsDockEl: HTMLElement;
   private lastInfoKey = '';
   private cb: HudCallbacks;
+  /** fb084: only read for the three onboarding-seen flags; nothing else in `Hud` is settings-driven. */
+  private settings: Settings;
   private selected = 0;
   private lastModalKey = '';
   private lastCharPanelKey = '';
@@ -153,9 +188,10 @@ export class Hud {
   /** fb026: previous frame's ready state per Active, so a false->true edge gets a one-shot "ready" flash. */
   private prevSkillReady: { active1: boolean; active2: boolean } = { active1: true, active2: true };
 
-  constructor(root: HTMLElement, cb: HudCallbacks) {
+  constructor(root: HTMLElement, cb: HudCallbacks, settings: Settings = defaultSettings()) {
     this.root = root;
     this.cb = cb;
+    this.settings = settings;
     root.innerHTML = `
       <div class="sw-shell">
         <div class="sw-stage">
@@ -165,6 +201,10 @@ export class Hud {
           <div class="sw-bossbar sw-off" id="sw-bossbar" hidden>
             <div class="sw-bossbar-name" id="sw-bossbar-name"></div>
             <div class="sw-meter sw-bossbar-meter"><i id="sw-bossbar-fill"></i></div>
+          </div>
+          <div class="sw-onboarding sw-off" id="sw-onboarding" hidden>
+            <span class="sw-onboarding-text" id="sw-onboarding-text"></span>
+            <button class="sw-onboarding-close" id="sw-onboarding-close" title="Dismiss" aria-label="Dismiss">&times;</button>
           </div>
           <div class="sw-dock sw-off" id="sw-dpspanel" hidden></div>
           <button class="sw-dpsdock sw-off" id="sw-dpsdock" hidden title="Reopen DPS summary (P)">DPS &#9656;</button>
@@ -273,6 +313,8 @@ export class Hud {
     this.bossBarEl = root.querySelector('#sw-bossbar') as HTMLElement;
     this.bossBarNameEl = root.querySelector('#sw-bossbar-name') as HTMLElement;
     this.bossBarFillEl = root.querySelector('#sw-bossbar-fill') as HTMLElement;
+    this.onboardingEl = root.querySelector('#sw-onboarding') as HTMLElement;
+    this.onboardingTextEl = root.querySelector('#sw-onboarding-text') as HTMLElement;
     this.dpsPanelEl = root.querySelector('#sw-dpspanel') as HTMLElement;
     this.dpsDockEl = root.querySelector('#sw-dpsdock') as HTMLElement;
     this.vsPanelEl = root.querySelector('#sw-vspanel') as HTMLElement;
@@ -300,6 +342,7 @@ export class Hud {
     this.wireBottomBarHover();
     this.wireTowerInfoActions();
     this.wireRails();
+    this.onboardingEl.querySelector('#sw-onboarding-close')?.addEventListener('click', () => this.dismissOnboarding());
   }
 
   /**
@@ -923,6 +966,14 @@ export class Hud {
   }
 
   update(w: World, cursor?: { x: number; y: number }, selection: Selection = null): void {
+    // fb084: checked at most once per `Hud` instance — a fresh `Hud` is
+    // constructed every `beginRun`, so this fires once per run, catching a
+    // genuinely fresh run's starting phase without re-triggering across the
+    // TD<->VS cycle machine's later returns to 'act1_build'.
+    if (!this.onboardingBuildChecked) {
+      this.onboardingBuildChecked = true;
+      if (w.phase === 'act1_build') this.triggerOnboarding('build');
+    }
     const d = w.derived;
     const hpPct = Math.max(0, (w.warden.hp / d.maxHp) * 100);
 
@@ -1002,6 +1053,7 @@ export class Hud {
     this.syncStageOverlayGeometry();
     this.renderBottomBar(w);
     this.renderBossBar(w);
+    this.renderOnboarding();
     // A selection describes itself — but never at the cost of the panels the
     // player needs to act: a tower queued on the build bar has to show its own
     // stats, and in Act II the weapon panel carries the only weapon switcher
@@ -1641,7 +1693,76 @@ export class Hud {
   ingestFx(fx: readonly { k: string; a: number }[]): void {
     for (const e of fx) {
       if (e.k === 'xp_overflow_gold') this.say(`+${e.a} gold (EXP overflow)`);
+      // fb084: 'sweep_to_vs'/'sweep_to_td' (sundering.ts) are the sim's own
+      // markers for the Dusk->Night and Dawn transitions the onboarding
+      // checklist names — no separate detection logic needed here.
+      else if (e.k === 'sweep_to_vs') this.triggerOnboarding('dusk');
+      else if (e.k === 'sweep_to_td') this.triggerOnboarding('dawn');
     }
+  }
+
+  /**
+   * fb084: a later prompt arriving while an earlier one is still showing
+   * (realistic — the banner is deliberately non-blocking, so a player who
+   * ignores it and keeps playing can easily reach the Dusk transition before
+   * ever dismissing the Build one) queues rather than drops — qa-playtester
+   * (fb084 verification) found the first draft's "if already showing, just
+   * skip it" swallowed the later prompt *permanently*, since nothing but the
+   * close button ever cleared `onboardingActive` and the "seen" flag was
+   * never set for what got skipped. `dismissOnboarding` pops the queue.
+   */
+  private triggerOnboarding(key: OnboardingKey): void {
+    if (this.onboardingSeen(key)) return;
+    if (!this.onboardingActive) {
+      this.onboardingActive = { key, text: ONBOARDING_TEXT[key] };
+    } else if (this.onboardingActive.key !== key && !this.onboardingQueue.includes(key)) {
+      this.onboardingQueue.push(key);
+    }
+  }
+
+  private onboardingSeen(key: OnboardingKey): boolean {
+    if (key === 'build') return this.settings.onboardingSeenBuild;
+    if (key === 'dusk') return this.settings.onboardingSeenDusk;
+    return this.settings.onboardingSeenDawn;
+  }
+
+  /**
+   * fb084: the close button — marks the active prompt seen (persisted via
+   * `onOnboardingSeen`) so it never shows again, then immediately shows the
+   * next queued prompt (if any) rather than waiting for that prompt's own
+   * transition to recur.
+   */
+  private dismissOnboarding(): void {
+    if (!this.onboardingActive) return;
+    const key = this.onboardingActive.key;
+    const field =
+      key === 'build' ? 'onboardingSeenBuild' : key === 'dusk' ? 'onboardingSeenDusk' : 'onboardingSeenDawn';
+    // Spread rather than mutate in place: `main.ts` may have moved on to a
+    // different `Settings` object since construction (it does this for every
+    // other setting), and mutating the stale one here would be silently lost.
+    this.settings = { ...this.settings, [field]: true };
+    const next = this.onboardingQueue.shift();
+    this.onboardingActive = next ? { key: next, text: ONBOARDING_TEXT[next] } : null;
+    this.renderOnboarding();
+    this.cb.onOnboardingSeen?.(key);
+  }
+
+  /**
+   * fb084: non-blocking — unlike `openModal`'s full-stage overlays, this
+   * never covers the canvas or bottom bar, so gameplay stays visible and
+   * clickable while it shows. Still hidden behind an actual modal (pause/
+   * level-up/results/character panel) the same way `renderBossBar` is, so it
+   * doesn't bleed through their semi-transparent cover.
+   */
+  private renderOnboarding(): void {
+    if (!this.onboardingActive || this.modalOpen) {
+      this.onboardingEl.hidden = true;
+      this.onboardingEl.classList.add('sw-off');
+      return;
+    }
+    this.onboardingEl.hidden = false;
+    this.onboardingEl.classList.remove('sw-off');
+    this.onboardingTextEl.textContent = this.onboardingActive.text;
   }
 
   resetModalKey(): void {

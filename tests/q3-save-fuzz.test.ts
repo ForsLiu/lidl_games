@@ -642,6 +642,9 @@ describe('q3 save fuzz: the settings blob', () => {
       showHiddenClasses: true,
       maxDamageNumbers: 137,
       dotNumbers: false,
+      onboardingSeenBuild: true,
+      onboardingSeenDusk: true,
+      onboardingSeenDawn: true,
     };
   }
 

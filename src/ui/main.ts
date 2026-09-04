@@ -404,7 +404,14 @@ export class Game {
       onUpgradeStructure: (tx, ty) => this.pending.push({ k: 'upgrade', tx, ty }),
       onSellStructure: (tx, ty) => this.pending.push({ k: 'sell', tx, ty }),
       onUpgradeCore: () => this.pending.push({ k: 'upgrade_core' }),
-    });
+      onOnboardingSeen: (key) => {
+        const field =
+          key === 'build' ? 'onboardingSeenBuild' : key === 'dusk' ? 'onboardingSeenDusk' : 'onboardingSeenDawn';
+        this.settings = { ...this.settings, [field]: true };
+        this.view.settings = this.settings;
+        saveSettings(this.settings);
+      },
+    }, this.settings);
     this.renderer = new Renderer(this.hud.canvas);
     if (!this.inputBound) {
       this.bindGlobalInput();

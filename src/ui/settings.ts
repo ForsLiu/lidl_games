@@ -62,6 +62,15 @@ export interface Settings {
    * existing marker dots. Default ON per the owner feedback.
    */
   dotNumbers: boolean;
+  /**
+   * fb084 (QUALITY.md BETA first-run onboarding): each flips true the first
+   * time its contextual tutorial prompt (first TD build phase / first
+   * Dusk->Night VS wave / first Dawn return-to-build) is dismissed, so it
+   * never shows again. A Settings control can reset all three to replay them.
+   */
+  onboardingSeenBuild: boolean;
+  onboardingSeenDusk: boolean;
+  onboardingSeenDawn: boolean;
 }
 
 export const SETTINGS_KEY = 'stonewake.settings.v1';
@@ -82,6 +91,9 @@ export function defaultSettings(): Settings {
     showHiddenClasses: false,
     maxDamageNumbers: 60,
     dotNumbers: true,
+    onboardingSeenBuild: false,
+    onboardingSeenDusk: false,
+    onboardingSeenDawn: false,
   };
 }
 
@@ -123,5 +135,8 @@ export function sanitize(s: Settings): Settings {
       ? Math.min(400, Math.max(0, Math.round(s.maxDamageNumbers)))
       : 60,
     dotNumbers: !!s.dotNumbers,
+    onboardingSeenBuild: !!s.onboardingSeenBuild,
+    onboardingSeenDusk: !!s.onboardingSeenDusk,
+    onboardingSeenDawn: !!s.onboardingSeenDawn,
   };
 }

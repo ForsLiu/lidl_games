@@ -1506,7 +1506,7 @@ not already expose it) logs that need below instead of reaching into
       dozens of prior PROGRESS.md sessions, none touching `src/ui/**`/
       `src/render/**` or this item's own files.
 
-- [ ] (fb084) [feat] normal priority: generated 2026-09-04 — first-run
+- [x] (fb084) [feat] normal priority: generated 2026-09-04 — first-run
       onboarding. QUALITY.md BETA's manual bar ("contextual tutorial
       prompts for build → Dusk → Night → Dawn; a new player reaches Night 1
       without external help") is entirely unbuilt — no tutorial/onboarding
@@ -1520,7 +1520,64 @@ not already expose it) logs that need below instead of reaching into
       control can replay them; a unit test drives a fresh save through the
       first build phase and first VS wave and confirms each prompt appears
       exactly once, never again on a later run — refs: QUALITY.md BETA,
-      SPEC-FINAL §1.1, §11.
+      SPEC-FINAL §1.1, §11. DONE 2026-09-04: `settings.ts` adds
+      `onboardingSeenBuild`/`onboardingSeenDusk`/`onboardingSeenDawn`
+      (default false, `sanitize()`-coerced). `hud.ts` adds a dismissible,
+      non-blocking banner (`#sw-onboarding`, close button
+      `#sw-onboarding-close`) driven by three triggers: `update()` checks
+      once per `Hud` instance (i.e. once per run) whether `w.phase ===
+      'act1_build'` for the build prompt; `ingestFx()` listens for the sim's
+      own `'sweep_to_vs'`/`'sweep_to_td'` fx events (`sundering.ts`'s
+      `finishSundering`/`advanceToNextBlock` — already emitted for p10h's
+      TD<->VS sweep visual, no new sim state needed) for the dusk/dawn
+      prompts. Hidden behind an actual modal (pause/level-up/results/
+      character panel) via the same `modalOpen` check `renderBossBar` uses,
+      but never itself covers the canvas or blocks input. `Hud`'s
+      constructor takes an optional third `settings: Settings =
+      defaultSettings()` param (backward-compatible with every pre-existing
+      test call site); `main.ts` passes its live `Settings` in and persists
+      `onOnboardingSeen` via `saveSettings`. `hub.ts`'s Settings tab gains a
+      "Replay tutorial prompts" button resetting all three flags. Targeted
+      `tests/ui-fb084-onboarding.test.ts` (10/10). code-reviewer APPROVE (no
+      Critical/Major; two Minor — `dismissOnboarding` mutated the injected
+      `Settings` object in place instead of spreading, fixed same session to
+      match the rest of the codebase's immutable-update convention; the
+      original swallow-not-queue design's doc comment claimed a dropped
+      later trigger "reappears at its next occurrence," which qa-playtester's
+      first pass proved false — see below). qa-playtester's first pass
+      **FAILED** it with a Major: the original design dropped (not delayed)
+      a later prompt if an earlier one was left un-dismissed — since the
+      banner is deliberately non-blocking specifically so a player can keep
+      playing through it, "leave the build prompt open and never click the
+      X" is the realistic path, not an edge case, and it permanently
+      starved the dusk/dawn prompts (`onOnboardingSeen` never fired for
+      them, no matter how many TD/VS cycles ran). Fixed by giving
+      `triggerOnboarding` a small dedup'd `onboardingQueue: OnboardingKey[]`
+      (bounded to 2 — only 3 keys exist total) instead of a bare early
+      return; `dismissOnboarding` now pops the queue into `onboardingActive`
+      immediately after marking the dismissed key seen, so a queued prompt
+      surfaces the instant the one in front of it is dismissed rather than
+      waiting for its own transition to recur. New regression case in the
+      same test file reproduces the exact hostile scenario (build left open
+      across two full TD/VS cycles' worth of duplicate dusk/dawn triggers)
+      and confirms no drop, no duplicate queue entries, and
+      `onOnboardingSeen` firing exactly once each in order `['build',
+      'dusk', 'dawn']`. qa-playtester re-verified **PASS**, independently
+      re-read the fixed methods (not just the test result) and confirmed the
+      queue is bounded, always drains via the close button, and can't
+      interleave with the Hub's settings-reset path since the onboarding
+      queue only exists inside a live `Hud`, never reachable from the
+      run-free Hub screen. `npx tsc --noEmit` clean. `npm run test:fast`: 7
+      failed files / 4 failed tests, all in the pre-existing q15/q49/q52
+      worker-hang/Windows-scratch-dir-EPERM flake classes plus the
+      b032/b034/b035/b036 dev-server port-contention class (each re-ran
+      clean in isolation, confirmed not caused by this change), documented
+      across dozens of prior PROGRESS.md sessions, none touching
+      `src/ui/**`/`src/render/**` or this item's own files. One file outside
+      the literal Scope glob (`tests/q3-save-fuzz.test.ts`) needed its
+      `customSettings()` fixture (typed `ReturnType<typeof defaultSettings>`)
+      grown the three new required fields — the same precedented
+      compile-error-otherwise touch fb058/fb060 already logged below.
 
 - [ ] (fb085) [feat] low priority: generated 2026-09-04 — localization-
       readiness groundwork for QUALITY.md BETA's "zero user-facing string

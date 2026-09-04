@@ -478,6 +478,7 @@ export class Hub {
         <button class="sw-reroll danger" id="sw-settings-reset">
           ${this.settingsResetArmed ? 'Click again to confirm reset' : 'Reset settings to defaults'}
         </button>
+        <button class="sw-reroll" id="sw-onboarding-replay">Replay tutorial prompts</button>
       </div>
 
       <div class="sw-panel">
@@ -571,6 +572,19 @@ export class Hub {
       this.settingsResetArmed = false;
       this.settings = sanitize(defaultSettings());
       this.cb.onSettingsChanged(this.settings);
+      this.show();
+    });
+
+    body.querySelector('#sw-onboarding-replay')?.addEventListener('click', () => {
+      this.settingsResetArmed = false; // fb075: see #sw-seed's comment above.
+      this.settings = {
+        ...this.settings,
+        onboardingSeenBuild: false,
+        onboardingSeenDusk: false,
+        onboardingSeenDawn: false,
+      };
+      commit();
+      this.notice = 'Tutorial prompts will show again on your next run.';
       this.show();
     });
 
