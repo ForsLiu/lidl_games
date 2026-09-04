@@ -10,8 +10,10 @@
 import './style.css';
 
 import { Run } from '../sim/run';
-import type { Command, MetaState, RunConfig, TickInput } from '../sim/types';
+import { contentHash, loadContent } from '../sim/content';
+import { emptyInput, type Command, type MetaState, type RunConfig, type TickInput } from '../sim/types';
 import { bindCanvasInput, clearKeysForPause, gatherInput, makeKeyDownHandler } from './input';
+import { clearPersistedRun, loadPersistedRun, savePersistedRun } from './runpersist';
 import { makeSelectHandler, selectedStructure, sweepSelection } from './selection';
 import { Renderer, type ViewState } from '../render/canvas';
 import { Hud } from './hud';
@@ -63,6 +65,40 @@ export class Game {
   private lastCfg: RunConfig | null = null;
   /** fb023: a one-time save-migration notice, consumed by the first `showHub()` call after `start()`. */
   private pendingHubNotice: string | null = null;
+  /**
+   * fb074: every `TickInput` this run has stepped with, in order — the "input
+   * log" half of the seed+input-log reproducibility architecture rule 2
+   * already requires, kept live so a refresh mid-run can persist and later
+   * replay it. Reset to empty on a fresh `startRun`; pre-seeded from a
+   * successful resume.
+   */
+  private inputLog: TickInput[] = [];
+  /** fb074: `inputLog.length` as of the last `persistRun()` call, so the throttle survives a multi-tick fast-forward frame jumping past an exact multiple of 60. */
+  private lastPersistedLen = 0;
+  /**
+   * fb074 (code-reviewer finding): a random id generated once per `beginRun`
+   * call (fresh or resumed alike), stamped onto every `savePersistedRun`
+   * write for this run. Two tabs/windows sharing the one browser-profile-wide
+   * `runpersist.ts` localStorage key otherwise either fight over it forever
+   * (each blindly overwriting the other's progress every throttle window) or
+   * a tab that never started a run of its own wipes another tab's active
+   * checkpoint the moment it reaches its own Hub. `null` whenever this
+   * instance owns no run-in-progress slot.
+   */
+  private runSessionId: string | null = null;
+  /** fb074: the `sessionId` this instance itself last *successfully* wrote — not necessarily `runSessionId` if a write ever failed. `null` until the first successful persist of the current run. */
+  private lastWrittenSessionId: string | null = null;
+  /**
+   * fb074 (code-reviewer finding): once a persist attempt fails (localStorage
+   * quota exceeded or unavailable), the input log this session would keep
+   * trying to write only ever grows — retrying every throttle window would
+   * just re-fail forever at rising cost. Stops retrying for the rest of this
+   * run; reset on the next `beginRun`. A known, accepted limitation for a
+   * session long/eventful enough to fill the quota: resume-on-refresh simply
+   * stops holding past that point, same tradeoff class as fb067/fb068/fb069's
+   * own documented ones.
+   */
+  private persistDisabled = false;
 
   start(rootEl: HTMLElement): void {
     this.root = rootEl;
@@ -87,9 +123,57 @@ export class Game {
     // no-op in a production build — `installAuditHook` re-checks
     // `isDevBuild()` itself, the same gate `devProfileActive()` above uses.
     this.installAuditHook();
-    this.showHub();
+    if (!this.tryResumePersistedRun()) this.showHub();
     this.last = performance.now();
     requestAnimationFrame(this.frame);
+  }
+
+  /**
+   * fb074: QUALITY.md BETA's "no progress loss on refresh" bar. A persisted
+   * in-progress run (`runpersist.ts`) whose content hash no longer matches the
+   * live `/data` is discarded rather than replayed — the `/data` it was
+   * recorded against is gone, and `World`'s constructor would otherwise throw
+   * on the mismatch instead of failing softly back to the Hub. Returns
+   * whether a run was actually resumed, so `start()` knows whether it still
+   * owes the player a Hub.
+   *
+   * The replay loop itself is wrapped in try/catch (code-reviewer finding):
+   * `loadPersistedRun` only checks that `config`/`inputLog`/`sessionId` exist
+   * with the right *outer* shape, not that every individual `TickInput`/
+   * `Command` inside the log is well-formed — a hand-edited or corrupted
+   * localStorage entry with a malformed entry (e.g. a `cmds` array missing
+   * from one recorded input) would otherwise throw straight out of `start()`
+   * with nothing above it to catch it, leaving the very refresh this feature
+   * exists to protect against a blank page instead of the pre-fb074 Hub
+   * fallback.
+   */
+  private tryResumePersistedRun(): boolean {
+    const persisted = loadPersistedRun();
+    if (!persisted) return false;
+    const content = loadContent();
+    if (contentHash(content) !== persisted.config.contentHash) {
+      clearPersistedRun();
+      return false;
+    }
+    let run: Run;
+    try {
+      run = new Run(persisted.config, content);
+      for (let t = 0; t < persisted.inputLog.length && !run.done; t++) {
+        run.step(persisted.inputLog[t] ?? emptyInput());
+      }
+    } catch {
+      clearPersistedRun();
+      return false;
+    }
+    // A persisted log that already ran its recorded run to completion (e.g. a
+    // tab closed right on the victory/defeat tick, before the outcome-change
+    // handler's own clear could fire) has nothing live left to resume into.
+    if (run.done) {
+      clearPersistedRun();
+      return false;
+    }
+    this.beginRun(persisted.config, run, persisted.inputLog.slice(0, run.world.tick));
+    return true;
   }
 
   /** fb018: wires `src/ui/audit-hook.ts` to this instance's private state. */
@@ -113,6 +197,14 @@ export class Game {
   }
 
   private showHub(): void {
+    // fb074: every path back to the Hub — abandon, defeat/victory's own Retry/
+    // New Run/Hub buttons, boot with nothing to resume — means "this instance
+    // has no run in progress," so whatever it itself persisted (if anything)
+    // must not outlive it. Ownership-gated (code-reviewer finding): an
+    // instance that never started/resumed a run of its own (this boots to the
+    // Hub the first time too) must not blindly wipe a *different* tab's still-
+    // active checkpoint just because this tab happened to reach its Hub.
+    this.clearOwnPersistedRun();
     this.run = null;
     this.paused = false;
     const seed = (Math.random() * 0xffffffff) >>> 0;
@@ -150,8 +242,34 @@ export class Game {
   }
 
   private startRun(cfg: RunConfig): void {
+    // fb074: no explicit clear of whatever a *previous* run left persisted —
+    // every path that reaches `startRun` (Retry/New Run/Hub "Start") already
+    // passed through `showHub()` or the outcome-finished block first, both of
+    // which clear this instance's own persisted slot via
+    // `clearOwnPersistedRun()`. Leaving it implicit rather than clearing
+    // again here means a *different* tab/window's still-active checkpoint —
+    // which this instance never owned in the first place — isn't wiped just
+    // because this tab started a run of its own (code-reviewer finding);
+    // this run's own first `persistRun()` write ~1s in claims the slot for
+    // itself regardless, same as it would for a brand-new key.
+    this.beginRun(cfg, new Run(cfg), []);
+  }
+
+  /**
+   * fb074: the shared tail of both a fresh `startRun` and a boot-time resume
+   * (`tryResumePersistedRun`) — everything that wires up the Hud/renderer/
+   * input bindings and the world-dependent UI sync calls, parameterized over
+   * how `run` and its `inputLog` history came to exist rather than always
+   * constructing a brand-new `Run`.
+   */
+  private beginRun(cfg: RunConfig, run: Run, priorInputLog: TickInput[]): void {
     this.root.innerHTML = '';
     this.lastCfg = cfg;
+    // fb074: a fresh id per run (fresh *or* resumed alike) — see the
+    // `runSessionId` field doc for why this exists.
+    this.runSessionId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+    this.lastWrittenSessionId = null;
+    this.persistDisabled = false;
     this.hud = new Hud(this.root, {
       onSelectTower: (id) => (this.view.selectedTower = id),
       onCallWave: () => this.pending.push({ k: 'call' }),
@@ -212,7 +330,9 @@ export class Game {
       this.inputBound = true;
     }
     this.bindCanvasInput();
-    this.run = new Run(cfg);
+    this.run = run;
+    this.inputLog = priorInputLog;
+    this.lastPersistedLen = priorInputLog.length;
     this.resultBanked = false;
     this.paused = false;
     this.hud.buildTowerBar(this.run.world);
@@ -391,6 +511,56 @@ export class Game {
     });
   }
 
+  /**
+   * fb074 (code-reviewer finding): writes the current run's persisted
+   * checkpoint, but backs off rather than fighting forever once a *different*
+   * `runSessionId` shows up in the slot this instance itself last wrote to —
+   * a second tab/window that resumed the same on-disk checkpoint independently
+   * claimed it since. That instance keeps playing fine in memory either way;
+   * this just stops it from clobbering a session it no longer owns every
+   * throttle window. Also backs off (once, permanently for this run) the
+   * first time a write actually fails — e.g. localStorage quota exceeded by
+   * an unusually long session's ever-growing input log — logging once via
+   * `console.warn` rather than silently going stale with no signal at all.
+   */
+  private persistRun(): void {
+    if (!this.lastCfg || !this.runSessionId || this.persistDisabled) return;
+    const current = loadPersistedRun();
+    if (this.lastWrittenSessionId && current && current.sessionId !== this.lastWrittenSessionId) {
+      this.persistDisabled = true;
+      return;
+    }
+    const ok = savePersistedRun({ config: this.lastCfg, inputLog: this.inputLog, sessionId: this.runSessionId });
+    if (!ok) {
+      this.persistDisabled = true;
+      console.warn(
+        'fb074: failed to persist the in-progress run (localStorage full or unavailable) — ' +
+          'resume-on-refresh is disabled for the rest of this run.',
+      );
+      return;
+    }
+    this.lastWrittenSessionId = this.runSessionId;
+  }
+
+  /**
+   * fb074 (code-reviewer finding): only clears the persisted slot when this
+   * instance is the one that last wrote to it (or never persisted anything
+   * at all, in which case there is nothing of this instance's own to clear).
+   * A plain `clearPersistedRun()` here would let a tab/window that never
+   * started a run of its own — this fires on every `showHub()`, including
+   * the very first boot — silently erase a *different* tab's active
+   * checkpoint just by being open.
+   */
+  private clearOwnPersistedRun(): void {
+    if (this.runSessionId) {
+      const current = loadPersistedRun();
+      if (!current || current.sessionId === this.lastWrittenSessionId) clearPersistedRun();
+    }
+    this.runSessionId = null;
+    this.lastWrittenSessionId = null;
+    this.persistDisabled = false;
+  }
+
   private gatherInput(): TickInput {
     const input = gatherInput(
       this.keys,
@@ -428,10 +598,21 @@ export class Game {
     // not a longer one, so it never touches determinism.
     const ticks = this.pacer.plan(run.world.dying ? dtReal * 0.5 : dtReal);
     for (let i = 0; i < ticks; i++) {
-      run.step(this.gatherInput());
+      const input = this.gatherInput();
+      run.step(input);
+      this.inputLog.push(input);
       this.renderer.ingest(run.world, this.view);
       this.sfx.emit(run.world.fx, this.settings);
       this.hud.ingestFx(run.world.fx);
+    }
+    // fb074: throttled to roughly once per simulated second (not per frame —
+    // fast-forward can run dozens of ticks in one frame) so a refresh never
+    // loses more than ~1s of otherwise-unrecoverable progress. Skipped once
+    // the run has already finished: the outcome-change block below clears the
+    // persisted entry outright rather than freezing it at a finished state.
+    if (run.world.outcome === 'running' && this.inputLog.length - this.lastPersistedLen >= 60) {
+      this.lastPersistedLen = this.inputLog.length;
+      this.persistRun();
     }
 
     const w = run.world;
@@ -446,6 +627,11 @@ export class Game {
       this.resultBanked = true;
       this.meta = applyRunResult(this.meta, run.report(), w);
       saveMeta(this.meta);
+      // fb074: a finished run has nothing left to resume into; leaving the
+      // last-persisted mid-run snapshot on disk would let a refresh on the
+      // Results screen replay it right back into a dead Core/Warden.
+      // Ownership-gated the same way `showHub()` is (code-reviewer finding).
+      this.clearOwnPersistedRun();
     }
     this.hud.syncModal(w);
 

@@ -1035,7 +1035,7 @@ not already expose it) logs that need below instead of reaching into
       of prior PROGRESS.md sessions, none touching `src/ui/**`/
       `src/render/**` or this item's own files.
 
-- [ ] (fb074) [feat] low priority: resume run after a page refresh —
+- [x] (fb074) [feat] low priority: resume run after a page refresh —
       QUALITY.md BETA's "no progress loss on refresh" bar. Nothing today
       persists an in-progress run; reloading the page always drops to the
       Hub. Periodically persist the running phase's `RunConfig` (seed +
@@ -1054,7 +1054,121 @@ not already expose it) logs that need below instead of reaching into
       uninterrupted run at the same tick; a mismatched-content-hash case
       confirms the stale log is discarded, not replayed — refs:
       QUALITY.md BETA, SPEC-FINAL §12 (seed+input-log reproducibility,
-      already required for G2).
+      already required for G2). DONE 2026-09-04: new `src/ui/runpersist.ts`
+      (`savePersistedRun`/`loadPersistedRun`/`clearPersistedRun`, own
+      localStorage key `stonewake.runinprogress.v1`) stores a `RecordedRun`
+      (`sim/run.ts`) plus a per-`Game`-instance `sessionId`. `main.ts`'s
+      `startRun` splits into `startRun` (fresh `new Run(cfg)`) +
+      `beginRun(cfg, run, priorInputLog)` (the shared Hud/renderer/bindings
+      tail, parameterized over how the live `Run` came to exist); the tick
+      loop pushes every stepped `TickInput` into `this.inputLog` and
+      throttle-persists once `inputLog.length` has grown ≥60 since the last
+      write (robust to fast-forward frames jumping past an exact multiple of
+      60). `start()` calls a new `tryResumePersistedRun()` before falling
+      back to `showHub()`: loads any persisted entry, discards it (and falls
+      through to the Hub) on a `contentHash` mismatch against live `/data`,
+      otherwise replays the recorded log through a fresh `Run` via
+      `run.step()` and hands the resulting live `Run` to `beginRun`. Cleared
+      on a finished outcome (victory/defeat) and on abandon-to-Hub.
+      code-reviewer **REQUEST-CHANGES** → three Majors, all fixed same
+      session: (1) a malformed-but-shape-valid persisted entry (e.g. one
+      recorded `TickInput` missing `cmds`) threw straight out of `start()`
+      with nothing to catch it — the replay loop is now wrapped in
+      try/catch, discarding and falling through to the Hub on any exception
+      instead of leaving a blank page; (2) unbounded input-log growth risks
+      silently defeating the whole feature via a full localStorage quota —
+      `savePersistedRun` now returns whether the write actually succeeded,
+      and `Game` sets a `persistDisabled` flag (plus one `console.warn`) the
+      first time it doesn't, rather than retrying forever against
+      already-failing, ever-growing data; documented as a known, accepted
+      tradeoff (same class as fb067/fb068/fb069's own) rather than solved
+      outright — see fb087 below, filed by qa-playtester, for how much
+      earlier this actually bites than that framing suggested; (3) a
+      cross-tab race on the single shared localStorage key — two tabs could
+      either fight over the slot forever or an idle tab's own `showHub()`
+      could wipe a *different* tab's active checkpoint just by existing.
+      Fixed via the `sessionId` stamp: `persistRun()` backs off
+      (`persistDisabled = true`) the moment a foreign `sessionId` appears in
+      the slot this instance itself last wrote, instead of clobbering it
+      every throttle window; `clearOwnPersistedRun()` (now used by
+      `showHub()` and the outcome-finished block in place of a blanket
+      `clearPersistedRun()`) only clears an entry this instance actually
+      owns. `startRun`'s own former unconditional clear was removed
+      entirely rather than made ownership-aware, since every path reaching
+      it already passed through one of those two ownership-gated clears
+      first — ownerless by construction, so an explicit clear there could
+      only ever wipe a slot this instance never owned; this run's own first
+      `persistRun()` write (~1s in) claims the slot regardless, same as it
+      would for a key with nothing in it. code-reviewer re-verified
+      **APPROVE**. Targeted `tests/ui-fb074-resume-on-refresh.test.ts`
+      (8/8): happy-path persist-then-resume (including a `Run.hash()`
+      end-state-hash comparison against an independent reference replay —
+      G2's own determinism mechanism, added after a code-review Minor on the
+      original field-by-field-only comparison), content-hash-mismatch
+      discard, a malformed-input-log graceful-fallback case (the Major #1
+      regression test), outcome-finished cleanup, abandon-to-Hub cleanup,
+      two cross-tab-guard cases (backs off on a foreign `sessionId` instead
+      of clobbering; doesn't wipe a foreign session's entry on abandon), and
+      a nothing-persisted boot-to-Hub baseline. qa-playtester **PASS**
+      against both literal acceptance criteria (independently re-derived the
+      resume-matches-uninterrupted-run check via `hashWorld()`, and the
+      content-hash-discard case), plus extensive hostile probing: a
+      full-length (128,191-tick, ~35.6 min) `hybrid`-bot run to victory
+      replayed and measured directly against `runpersist.ts`; the
+      already-fixed Major #1 crash independently reproduced against a
+      pre-fix snapshot and confirmed closed against the final one; a
+      "closed right on the defeat/victory tick" race (an 11,067-tick log
+      already at a terminal outcome) confirmed discarded, not resumed;
+      rapid Retry-after-resume cycles and pause state across a resume
+      confirmed safe. Filed two new bugs against the accepted-tradeoff
+      framing in Major #2/#3's fix rather than the acceptance criteria
+      themselves — see fb087/fb088 below. `npx tsc --noEmit` clean.
+      `npm run test:fast`: 7-8 failed files across two runs this session
+      (this item's own run and qa-playtester's independent one), all in the
+      pre-existing q15/q45/q49/q52 worker-hang/Windows-scratch-dir-EPERM/
+      timing-fuzz flake classes documented across dozens of prior
+      PROGRESS.md sessions, none touching `src/ui/**`/`src/render/**` or
+      this item's own files.
+
+- [ ] (fb087) [bug] normal priority: found by qa-playtester (fb074
+      verification) — fb074's persisted-run localStorage entry silently
+      stops advancing at the browser's ~5MB quota, which a *normal* run
+      (not just an "unusually long" one, as fb074's own accepted-tradeoff
+      comment framed it) crosses well before finishing. Measured: a full T1
+      engineer run to victory (`hybrid` bot) is 128,191 ticks (~35.6 min);
+      the persisted JSON payload crosses the quota at tick ~49,320 (~13.7
+      min, ~38% in). Every persist after that silently no-ops
+      (`persistDisabled = true`, one `console.warn`, nothing surfaced to the
+      player) — a refresh late in a long run silently discards everything
+      since the quota was hit, with zero in-game indication anything went
+      wrong, directly against QUALITY.md BETA's "no progress loss on
+      refresh" bar. Acceptance: either (a) a one-time player-visible
+      toast/notice the moment `persistDisabled` first fires, so the player
+      knows resume protection lapsed for the rest of that run, or (b) bound
+      the persisted payload's growth (e.g. a periodic full-state snapshot +
+      trimmed tail log instead of an ever-growing from-start replay log) so
+      a typical full-length run stays resumable to its actual end; a
+      regression test drives a persisted log past the measured quota
+      ceiling and asserts on the chosen player-visible/bounded-growth
+      behavior — refs: fb074, QUALITY.md BETA.
+
+- [ ] (fb088) [polish] low priority: found by qa-playtester (fb074
+      verification) — fb074's resume-time replay blocks the main thread
+      synchronously before first paint. Measured: replaying a 128,191-tick
+      log (a full run) through `run.step()` with no rendering took ~7.5s
+      wall-clock on the dev machine, extrapolating to roughly 2.5-3s at the
+      practical quota-limited ceiling (fb087) — `tryResumePersistedRun()`
+      runs before the first `requestAnimationFrame`, so nothing paints
+      during it. Not a crash, but a real "why is the page frozen" gap for
+      exactly the long-session refresh case fb074 exists to help most, and
+      plausibly worse on slower/mobile hardware. Acceptance: budget and cap
+      this cost (e.g. yield/chunk the replay across frames with a loading
+      indicator, or adopt fb087's periodic-snapshot direction, which would
+      also bound replay length) so `tryResumePersistedRun` never blocks the
+      main thread past a documented budget; fold the measurement into
+      fb083's (already-queued) Hub/run cold-start perf-budget item if that
+      turns out to be the cleaner fit once fb083 is implemented — refs:
+      fb074, fb087, fb083.
 
 - [ ] (fb075) [polish] low priority: Settings "reset to defaults" — the
       Settings tab has no way to restore every slider/toggle to
@@ -1065,6 +1179,84 @@ not already expose it) logs that need below instead of reaching into
       the destructive step), and asserts every field reads back as
       `defaultSettings()` — refs: SPEC-FINAL §11, standard Settings-UX
       convention.
+
+- [ ] (fb082) [bug] low priority: generated 2026-09-04 (fewer than 3
+      actionable items remained) — the floating rail/boss-banner overlays
+      (fb065, fb072) anchor to `.sw-stage`'s full box instead of the
+      canvas's own letterboxed rect, so at any window aspect ratio other
+      than the grid's 36:20 they sit disconnected from (or, at the opposite
+      extreme, could overlap) the actual visible game content. Both fb065's
+      and fb072's own DONE notes already found and logged this without
+      filing it: fb065 — "the rails anchor to `.sw-stage`'s box rather than
+      the canvas's own letterboxed/centered rect, invisible at the audit's
+      1920x1080 viewport (≈36:20) but a real gap at an extreme aspect
+      ratio"; fb072 — "a theoretical CSS overlap with the right info rail at
+      very narrow stage widths." Acceptance: the overlays reposition/resize
+      to track the canvas's actual laid-out rect rather than `.sw-stage`'s
+      full box, verified by a render/UI test that mocks an extreme-aspect-
+      ratio container (same `clientWidth`/`clientHeight`-mocking idiom
+      `tests/render-fb065-stage-fill.test.ts` already uses) and asserts the
+      overlay anchor geometry derives from the letterboxed canvas size, not
+      the raw stage size; the existing fb065/fb072 regression tests and the
+      1920x1080 `ui-audit` scenes stay green — refs: fb065, fb072,
+      SPEC-FINAL §11.
+
+- [ ] (fb083) [feat] low priority: generated 2026-09-04 — automated perf
+      regression coverage for QUALITY.md BETA's "Load to Hub < 3s cold;
+      Hub → run < 1.5s" bar, currently unmeasured by any test (unlike G17's
+      350-enemy benchmark, which is). Acceptance: a test constructs a fresh
+      `Hub`/`Game` from a cold start and asserts wall-clock time to a
+      rendered Hub stays under a generous, documented CI-safe budget, and
+      separately measures Hub-"Start"-click to first rendered run frame
+      under its own budget; both recorded the same host-independent-margin
+      (⚖) way G17's benchmark already documents its own variance — refs:
+      QUALITY.md BETA, SPEC-FINAL §11.
+
+- [ ] (fb084) [feat] normal priority: generated 2026-09-04 — first-run
+      onboarding. QUALITY.md BETA's manual bar ("contextual tutorial
+      prompts for build → Dusk → Night → Dawn; a new player reaches Night 1
+      without external help") is entirely unbuilt — no tutorial/onboarding
+      code exists anywhere in `src/ui`. Acceptance: a first TD build phase,
+      first VS wave ("Dusk"→"Night"), and first "Dawn" (return-to-build)
+      transition each show a one-time, dismissible, non-blocking contextual
+      prompt explaining what the player should do next; shown-state is
+      tracked in `Settings` (`src/ui/settings.ts`, in this lane's Scope —
+      not `MetaState`/`src/meta/**`, which is out of it) via a new field so
+      each prompt never repeats after being dismissed once; a dev/Settings
+      control can replay them; a unit test drives a fresh save through the
+      first build phase and first VS wave and confirms each prompt appears
+      exactly once, never again on a later run — refs: QUALITY.md BETA,
+      SPEC-FINAL §1.1, §11.
+
+- [ ] (fb085) [feat] low priority: generated 2026-09-04 — localization-
+      readiness groundwork for QUALITY.md BETA's "zero user-facing string
+      literals outside `data/strings.json` (lint rule)" bar, currently
+      entirely unmet (no `data/strings.json` exists; every UI string is a
+      literal in `src/ui/*.ts`). Scoped to standing up the mechanism rather
+      than a single-pass full-repo extraction, which is far larger than one
+      backlog item: acceptance is a new `data/strings.json` (seeded, not
+      necessarily exhaustive), a small typed loader (`src/ui/strings.ts`),
+      and a lint/test rule that fails when a hardcoded user-facing string
+      literal appears in a designated "already converted" file list;
+      convert one representative, self-contained surface (e.g. the pause/
+      results modal text in `hud.ts`) as the first migrated file and the
+      rule's own proof case; a test confirms the rule actually catches a
+      reintroduced literal in that converted file — refs: QUALITY.md BETA,
+      SPEC-FINAL §11.
+
+- [ ] (fb086) [polish] low priority: generated 2026-09-04 — reduced-motion
+      accessibility setting. QUALITY.md 1.0's accessibility re-check names
+      "reduced-motion mode" as its own checklist line, distinct from what
+      already exists: `reducedFlash` (fb016) only dims/thins strobing
+      fills, and `shake` only scales screen shake — neither disables
+      ambient motion (tracer jitter/distortion trails, the p10h TD↔VS sweep
+      transition's pan) a vestibular-sensitive player would want off.
+      Acceptance: a new Settings toggle "Reduced motion" that suppresses or
+      simplifies at least the ambient-motion effects `reducedFlash`/`shake`
+      don't already cover; a render test confirms at least one such effect
+      is suppressed with the toggle on and present with it off; default off
+      (opt-in, matching `reducedFlash`'s own default) — refs: QUALITY.md
+      1.0 checklist, SPEC-FINAL §11.
 
 ## Log
 
