@@ -565,7 +565,7 @@ not already expose it) logs that need below instead of reaching into
       sessions, none touching `src/ui/**`/`src/render/**` or this item's own
       files.
 
-- [ ] (fb077) [bug] low priority: `Game.dashQueued` (`src/ui/main.ts`,
+- [x] (fb077) [bug] low priority: `Game.dashQueued` (`src/ui/main.ts`,
       Space) is not reset by any pause transition — Esc or fb071's new
       blur auto-pause alike — so a queued dash fires stale on the very
       first tick after resume, with an unbounded real-time gap and even
@@ -588,7 +588,61 @@ not already expose it) logs that need below instead of reaching into
       alongside `clearKeysForPause`'s existing key-clearing, the same place
       the analogous `q`-preservation logic already lives — refs: fb071,
       SPEC-FINAL §11 (Esc pause parity), `clearKeysForPause`
-      (`src/ui/input.ts`) precedent.
+      (`src/ui/input.ts`) precedent. DONE 2026-09-04: took the suggested fix
+      direction verbatim. `setPaused` (`src/ui/main.ts`) now sets
+      `this.dashQueued = false` in the same `if (paused)` branch that already
+      calls `clearKeysForPause(this.keys)` — the flag can never be armed while
+      already paused (the keydown handler's own `!this.paused` guard prevents
+      it), so clearing it only on the transition *into* pause is sufficient
+      for both the Esc and blur pause paths. Targeted
+      `tests/ui-fb077-dash-queued-pause.test.ts` (3/3): Esc-pause clears a
+      queued dash and a Space release mid-pause plus resume fires none; the
+      same via blur auto-pause; re-pressing Space after resume still arms a
+      fresh dash (no over-correction). Confirmed via git-stash A/B that 2 of 3
+      fail pre-fix with the predicted stale-dash symptom and pass post-fix.
+      code-reviewer APPROVE (no Critical/Major; traced and closed out the
+      dash-queued-while-already-paused, levelup-phase, and blur-calls-
+      clearKeysForPause-directly edge cases as already safe by construction;
+      one Minor — a test comment nit, not blocking). qa-playtester PASS
+      against the stated acceptance criteria, additionally verified end-to-end
+      through the real sim (`run.step()` after the sequence leaves
+      `warden.dashTravel` null and position unchanged, not just the
+      `dashQueued`/`gatherInput()` flags), multiple pause/resume cycles
+      without re-arming, and mixed Esc+blur pause paths in sequence; filed one
+      new low-severity, non-blocking bug — see fb078 below. `npx tsc --noEmit`
+      clean. `npm run test:fast`: 10-11 failures across runs this session, all
+      in the pre-existing q15/q28/q33/q45/q49/q52 worker-hang/Windows-scratch-
+      dir-EPERM flake classes documented across dozens of prior PROGRESS.md
+      sessions, none touching `src/ui/**`/`src/render/**` or this item's own
+      files.
+
+- [ ] (fb078) [bug] low priority: the outer Space `keydown` listener that
+      arms `Game.dashQueued` (`src/ui/main.ts`, ~line 293:
+      `if (e.key === ' ' && !this.paused) this.dashQueued = true;`) has no
+      `e.repeat` guard, unlike `makeKeyDownHandler`'s own handling of every
+      other key (`src/ui/input.ts`, `if (e.repeat) return;`) — so a browser
+      hardware key-repeat event for a Space the player never released can
+      re-arm `dashQueued` on its own, including right after an fb077-fixed
+      pause/resume. Found by qa-playtester (fb077 verification), reproduced
+      deterministically: hold Space (no keyup), Esc-pause, resume, a
+      `repeat:true` keydown for Space (simulating the OS's continuing
+      key-repeat for the still-held key, no fresh physical press) sets
+      `dashQueued = true` again — the narrow case fb077's guarantee ("no dash
+      fires that the player didn't re-arm after resuming") doesn't cover,
+      since this isn't a fresh press. Low severity and possibly overlapping
+      with intended "hold Space to keep dashing" behavior during ordinary
+      (non-paused) play — the same missing guard already lets a continuously
+      held Space re-arm repeatedly outside any pause, so this may be a
+      pre-existing, accepted design rather than a defect; flagged because
+      fb077 changed the pause-adjacent risk profile around it. Acceptance:
+      either add `if (e.repeat) return;` to the outer Space handler,
+      symmetric with `makeKeyDownHandler`'s existing pattern for every other
+      key, and confirm a held-through-pause Space no longer re-arms
+      `dashQueued` on resume via a repeat event; or document (matching the
+      precedent of fb068/fb069's accepted-tradeoff comments) that key-repeat
+      re-arming is intentional "hold to dash" behavior and is out of scope for
+      fb077's pause-parity fix — refs: fb077, `clearKeysForPause`
+      (`src/ui/input.ts`) precedent, `makeKeyDownHandler`'s `e.repeat` guard.
 
 - [ ] (fb072) [feat] normal priority: boss health bar — the two boss
       enemies (`gatebreaker` 30,000 HP, `warden_eater` 100,000 HP,

@@ -246,8 +246,14 @@ export class Game {
     // Movement keys held when pausing must not carry through to the resume, and
     // the time banked while frozen must not surge the sim on the first frame.
     // `q` is the one exception `clearKeysForPause` preserves — see its own doc.
-    if (paused) clearKeysForPause(this.keys);
-    else this.pacer.clearBacklog();
+    // `dashQueued` (fb077) is a one-shot "intent" flag armed by a Space keydown,
+    // not a member of `this.keys`, so `clearKeysForPause` can't reach it — left
+    // alone it would fire a stale dash on the first post-resume tick regardless
+    // of how long the pause lasted or whether Space was released mid-pause.
+    if (paused) {
+      clearKeysForPause(this.keys);
+      this.dashQueued = false;
+    } else this.pacer.clearBacklog();
     this.hud.setPaused(paused, this.run.world);
   }
 
