@@ -73,7 +73,12 @@ function legalUnder(m: TerrainMap, c: TerrainConfig): boolean {
     q.walkableFrac >= c.constraints.minWalkableFrac &&
     q.buildableNormalFrac >= c.constraints.minBuildableNormalFrac &&
     q.gateReachFrac >= c.constraints.minGateReachFrac &&
-    q.coreLegalFrac >= c.constraints.minCoreLegalFrac
+    q.coreLegalFrac >= c.constraints.minCoreLegalFrac &&
+    // fb064o's approach band, added at fb064r: this copy had drifted from
+    // `terrainLegal` in precisely the way the comment above says it must not,
+    // and so had `terrain-generation.test.ts`'s. Found by fb064r's review.
+    q.maxGateDetour >= 1 &&
+    q.maxGateDetour <= c.constraints.maxGateDetour
   );
 }
 
@@ -179,7 +184,14 @@ describe('fb064j — the accepted seed domain', () => {
  * measured twice under two names.
  */
 const REGION_N = 400;
-/** Largest odd stride whose `REGION_N`-th step still lands inside the domain. */
+/**
+ * Largest odd stride not exceeding `2 ** 32 / REGION_N`.
+ *
+ * Corrected at fb064r (review): this said "largest odd stride whose
+ * `REGION_N`-th step still lands inside the domain", which is a different and
+ * larger number — at `REGION_N: 400` that would be 10764329, not 10737419.
+ * Both span the domain, which is all this needs; the claim was just wrong.
+ */
 const COMB_STEP = 2 * Math.floor(2 ** 32 / REGION_N / 2) + 1;
 const REGIONS: ReadonlyArray<{ name: string; start: number; step?: number }> = [
   { name: 'int32 min (0x80000000)', start: MIN_TERRAIN_SEED },

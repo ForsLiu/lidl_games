@@ -619,6 +619,12 @@ describe(`fb064a — generation constraints hold across ${SWEEP} seeds`, () => {
   });
 
   it('holds every band on the seeds that sit closest to the cliff', () => {
+    // **This is the near-window record; the domain-wide one is
+    // `tests/terrain-band-ledger.test.ts` (fb064r).** Every seed named below
+    // was found over 1..20000, which is 0.0005% of the seed space a run draws
+    // from, so after a retune read that file first: it names the worst seed per
+    // band over the whole domain and records the distribution around it.
+    //
     // The 1..1000 sweep above is not the interesting range, and treating it as
     // one produced a wrong entry in this lane's Log ("worst 0.6139, about 10
     // tiles of headroom; no seed is degenerate at all"). Over seeds 1..20000
@@ -858,7 +864,16 @@ function terrainLegalUnder(map: TerrainMap, c: TerrainConfig): boolean {
     m.walkableFrac >= c.constraints.minWalkableFrac &&
     m.buildableNormalFrac >= c.constraints.minBuildableNormalFrac &&
     m.gateReachFrac >= c.constraints.minGateReachFrac &&
-    m.coreLegalFrac >= c.constraints.minCoreLegalFrac
+    m.coreLegalFrac >= c.constraints.minCoreLegalFrac &&
+    // fb064o's approach band, added at fb064r. It was missing here from the
+    // moment fb064o shipped, so "mirror `terrainLegal` term for term" — the
+    // rule the comment above states — had quietly stopped being true, and
+    // every `terrainLegalUnder` assertion in this file was weaker than the
+    // generator's accept test in exactly the way that comment warns about.
+    // Found by fb064r's review; `tests/terrain-seed-domain.test.ts` had drifted
+    // identically. Three hand-copies is the reason; fb064v extracts one.
+    m.maxGateDetour >= 1 &&
+    m.maxGateDetour <= c.constraints.maxGateDetour
   );
 }
 

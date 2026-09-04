@@ -334,7 +334,7 @@ fb064o.
       acceptance actually asks for: the veto is one data line, in either
       direction. Left unamended, the record would say the shipped data fails
       its own acceptance. See the Log for the call sites and the measurements.
-- [ ] (fb064r) [test] band headroom is pinned by one hand-found seed (7957,
+- [x] (fb064r) [test] band headroom is pinned by one hand-found seed (7957,
       `walkableFrac` exactly 0.6000) over the 1..20000 window, which is not
       the domain fb064j established a run seed draws from. Acceptance: a
       recorded per-band min/mean/max ledger over a sample spanning the full
@@ -352,6 +352,24 @@ fb064o.
       of their measured headroom", the phrase fb064m's acceptance uses, is
       vacuous for these two: there is none to move out of. Verify both before
       inheriting them — a deferral is a measurement with an expiry date.
+      **Both witnesses verified at HEAD, and a third zero-headroom band found.**
+      They still sit exactly on their floors (hashes `7c0d939c` / `b88a82e4`),
+      so the hand-over was good — but the item's "the two tightest bands" is
+      itself now one band short: seeds 301216586 and 816758607 measure
+      `maxGateDetour` at exactly **1.500000**, sitting on fb064o's *ceiling* the
+      way the other two sit on their floors. Three of the five numeric bands
+      have literally zero headroom, and each of the five witnesses that sit on
+      a band edge is proved to have none — one representable step tighter and
+      the seed is regenerated instead. The sixth row, `coreLegalFrac`, is the
+      only one whose extreme is a *search result* rather than a provable edge,
+      and it says so: QA beat the first seed pinned there, which is exactly
+      what a search result can always do. Shipped in
+      `tests/terrain-band-ledger.test.ts` as two layers,
+      deliberately kept apart: named witnesses from wide offline scans (the
+      domain's extremes, a millisecond each) and a fixed 12,000-seed sample
+      ledger (the distribution, which no witness gives). The sample's own
+      argmin is *not* the domain worst and the file says so rather than
+      implying it. See the Log for the scan parameters and the retry finding.
 - [ ] (fb064s) [polish] `flatTerrain()`'s dump is a repro string that cannot
       be reproduced (fb064n QA, observation 4). The format exists so that "a
       terrain repro is one string" (fb064k), but the flat arena prints
@@ -397,6 +415,23 @@ fb064o.
       non-integer coordinate is rejected the way the two sibling predicates
       reject it, with `tests/act1.test.ts` and the dash paths unchanged and
       green — refs: fb064q QA observation 3, b007.
+- [ ] (fb064v) [polish] three hand-copies of `terrainLegal` live in
+      `tests/` (`terrain-generation.test.ts`'s `terrainLegalUnder`,
+      `terrain-seed-domain.test.ts`'s and `terrain-band-ledger.test.ts`'s
+      `legalMeasure`), and the drift they exist to prevent has already
+      happened once: both older copies were missing fb064o's two
+      `maxGateDetour` terms from the moment fb064o shipped, so every
+      assertion built on them was strictly weaker than the generator's own
+      accept test — the exact failure their own comments warn about. fb064r
+      corrected both in place and their suites stayed green, so nothing was
+      hiding behind the gap; the structural cause is untouched. Acceptance:
+      one exported helper (say `tests/terrain-legality.ts`) that mirrors
+      `terrainLegal` term for term, imported by all three files with the
+      per-file copies deleted; a test that fails if the helper and
+      `terrainLegal` disagree on a hand-built map for any single band (a
+      table over the bands, not one map), so the next band added to
+      `terrainLegal` cannot land without the helper; all `tests/terrain*`
+      green and unchanged in count — refs: fb064r review, fb064o.
 
 ## Log
 
@@ -2449,3 +2484,217 @@ fb064o.
     `cfg.tiles[i].key` typechecked as safe and this shipped in the first place.
     Enabling it is repo-wide and outside this lane's Scope; it is main-lane
     work and would make this whole bug class a compile error.
+
+- (2026-09-04, fb064r) The band ledger over the whole seed domain.
+  `tests/terrain-band-ledger.test.ts`, 10 tests, **~14 s on an idle host**
+  (13.9-25.6 s measured across runs and hosts loads, 20.5 s inside
+  `test:fast`; collect 0.45 s since the review moved both sweeps out of the
+  `describe` bodies) — well inside the fast tier's ~60 s rule.
+  **Four files changed, not one** (this bullet said "one new test file;
+  nothing else in the repo changed" until QA caught it contradicting the same
+  entry two bullets down): the new test file, this lane file, and
+  `tests/terrain-generation.test.ts` + `tests/terrain-seed-domain.test.ts`,
+  whose `terrainLegal` copies the review found had drifted. All four are
+  inside the lane's Scope; no `/src`, no `/data`.
+  - **The two inherited witnesses are good, re-measured rather than trusted.**
+    Seed 2005486180 still measures `walkableFrac` 0.600000 (432/720, hash
+    `7c0d939c`) and seed 2454233399 `buildableNormalFrac` 0.450000 (324/720,
+    hash `b88a82e4`), both `attempts: 1`, non-fallback, legal. Same hashes
+    fb064m's Log recorded, so nothing between fb064m and here moved them.
+  - **The item was one band short: the detour *ceiling* has zero headroom too.**
+    Seeds **301216586** and **816758607** measure `maxGateDetour` at exactly
+    **1.500000** against fb064o's `maxGateDetour: 1.5`, shipping only because
+    `terrainLegal` compares with `<=` — the mirror of the two floors passing on
+    `>=`. Three of the five numeric bands, not two. Both seeds are pinned.
+  - **Zero headroom is proved, not asserted.** For each of the five witnesses
+    the smallest meaningful tightening (one tile out of 720 —
+    `minWalkableFrac: 433/720`, `minBuildableNormalFrac: 325/720` — and
+    `maxGateDetour: 1.4999`) turns `attempts` from 1 into 2: the seed stops
+    playing its own map and plays seed+1's, with a different hash and still
+    legal. A witness that quietly gained headroom would survive that and go red.
+  - **Why the floors are reachable exactly** (the thing to check first when a
+    retune moves them): both measures are `k / 720`, so a floor is attainable
+    iff `floor * 720` is an integer — 0.6 -> 432 and 0.45 -> 324 both are. A
+    floor of 0.601 would be unreachable, the smallest returnable value would be
+    433/720 = 0.601389, and the ledger would show ~0.0004 of headroom the band
+    never meant to grant. Below the band nothing can ship at all: a map under it
+    is regenerated at seed+1, so finding a seed *on* it stays a search.
+  - **The retry path is driven by `maxGateDetour`, not by density.** fb064a's
+    Log frames it as a density problem ("any density or `blob` retune pushes
+    seeds into that path"), which was true before fb064o added the approach
+    band. Of the 43 retry-taking seeds in the sample, the skipped key was
+    rejected for `maxGateDetour` **34** times and `walkableFrac` **9**, and by
+    no other band — measured by re-running each skipped key under a bands-off
+    config (fb064j's `alwaysAccepts` trick: it carries the same generation
+    parameters, so the map returned *is* `attempt(k)`) and measuring that map
+    against shipped bands. Every retry **in the sample** is exactly one attempt
+    long — a two-step walk exists domain-wide and is pinned separately
+    (QA observation 6, seeds 1866707728 and 1976547752). For the
+    merge and for fb064f's Tuner page: the retry rate is now mostly a fact
+    about `maxGateDetour: 1.5` and `ROOM_RADIUS`, and a Tuner user dragging
+    densities will not see that.
+  - **The retry rate is 4x what the near window says.** 43/12,000 = 0.36%
+    domain-wide, against 0.09% over 1..20000 (fb064l) and 0.025% (fb064a).
+    A retried map is also not a marginal map: its worst detour is 1.203 against
+    the sample's 1.500 and its worst `walkableFrac` 0.619 against 0.601 — the
+    band that rejected the first attempt is the one being redrawn.
+  - **`coreLegalFrac` is the loosest band by a distance.** Best found is
+    0.376694 (seed 1513721174, 139 anchors / 369 normal tiles) against a 0.15
+    floor: 22.7 pp of headroom, where the other three have none. It is the one
+    row that is a *search result* rather than a band edge, and it is labelled
+    that way — this bullet claimed "domain worst is 0.388102 (seed
+    2696707883)" until QA beat that seed ten times over (below).
+    `gateReachFrac` gets no witness at all and the file says why — it is
+    identically 1 on generated output by construction (`measureTerrain`'s own
+    comment), so there is no worst seed to name.
+  - **Scan parameters, so the witnesses can be re-derived rather than hunted.**
+    Layer 1's edge witnesses came from a 250,006-seed comb across uint32
+    (stride 17179 = the largest odd stride not exceeding `2 ** 32 / N` at
+    N=250000, plus the six candidate seeds), ~150 s under `npx tsx`; its
+    `coreLegalFrac` row was later replaced from QA's 12,000,000-seed scan in
+    three disjoint families (odd-stride combs 2147 × 2M and 701 × 6M, plus 16
+    contiguous 250k blocks at `w × 2 ** 28`). 839 of the comb's seeds retried
+    (0.336%, agreeing with the sample). Layer 2 — the in-test sample — is
+    12,000 seeds: a 6,000-step comb at stride 715827 plus three contiguous
+    windows of 2,000 (`-2000..-1`, `3000000000..`, `2 ** 31 - 1000..`). The
+    negative window is the signed spelling of the uint32 top, not an
+    independent sample (`attempt()` keys on `seed >>> 0`); it is there because
+    the acceptance asks for negatives and because seeds are reported back in
+    the spelling the caller used.
+  - **The ledger was checked for the thing it exists to do.** With
+    `density.rough` moved 0.17 -> 0.18 (copy-aside + restore, never `git
+    stash`), 9 of the 10 tests go red as a readable table: the retry set 43 ->
+    50, the retry driver flips to `walkableFrac`-dominated, and the witness
+    rows print their new values and hashes side by side with the old. That is
+    the "a retune's cost is a diff rather than a hunt" clause, exercised.
+  - **The sample's argmin is not the domain worst, and the file refuses to
+    imply otherwise.** 12,000 seeds is 0.0003% of the domain; its worst
+    `walkableFrac` is 0.601389 while the domain's is 0.600000. The two layers
+    are asserted separately for exactly that reason — this lane's Log already
+    records three properties measured on the wrong seed window, and a ledger
+    that blurred the two would be the fourth.
+  - **code-reviewer: APPROVE, no Critical or Major, six Minors and four nits —
+    all folded in before commit.** The two that were substantive:
+    - **Two comment claims were simply false.** "The largest odd stride whose
+      last step still lands inside the domain" describes a different number
+      (715947, not 715827, at N=6000; 10764329, not 10737419, at fb064j's
+      N=400) — the sentence is inherited from `terrain-seed-domain.test.ts`
+      and is wrong in both files; corrected in both. And "every witness is
+      worse than the corresponding sample row" is false for one band:
+      816758607 is comb index 1141 (`1141 × 715827`), so it *is* in the
+      sample, and the detour ceiling is the one row where the two layers are
+      not independent. Now stated instead of glossed.
+    - **The sweep ran in the `describe` body.** Cost measured by the reviewer:
+      `vitest -t "lattice"` — one test that generates two maps — still paid
+      24.8 s, and any throw inside the loop would surface as a *file collection
+      error* that deletes all ten tests, including the witness tests that would
+      have named the cause, with no test timeout applying. Both loops are now
+      memoized lazies called from the `it`s (collect 0.5 s).
+    Also fixed: `legalUnder` measured each map a second time (~30% of runtime,
+    now `legalMeasure(q, cfg)` on the measure already in hand); "each witness
+    plays seed+1's map" was a comment with only `attempts === 2` behind it and
+    is now asserted (`seed` advanced by one, tiles identical to that key's);
+    the `1e-4` detour step was justified as "the smallest that means anything"
+    when the detour lattice near 1.5 is ~0.005 (rewritten); `36 * 20` is now
+    `GRID_W * GRID_H`; the design-pin assertions say they are design pins;
+    `terrain-generation.test.ts`'s near-window cliff test now points forward to
+    the domain-wide ledger.
+  - **The review's best find is a real defect in two *other* files, fixed
+    here.** `terrainLegalUnder` (`terrain-generation.test.ts`) and `legalUnder`
+    (`terrain-seed-domain.test.ts`) were both missing fb064o's
+    `maxGateDetour >= 1 && <= maxGateDetour` terms — from the moment fb064o
+    shipped, so both had quietly stopped "mirroring `terrainLegal` term for
+    term", which is the one rule their own comments state and the exact failure
+    those comments were written about. Added to both; **62 tests green with no
+    count change**, so nothing was hiding behind the gap — but the structural
+    cause (three hand-copies) is untouched and is filed as **fb064v**.
+  - **The reviewer independently re-derived the whole 12,000-seed sample** in a
+    standalone `tsx` script with its own accumulator and reproduced all five
+    ledger rows and the retry count character-identically, which is the
+    determinism claim checked rather than asserted.
+  - **qa-playtester: FAIL on the first pass — one Major, fixed; everything
+    else in the acceptance verified independently.**
+    - **Major: the named worst seed for `coreLegalFrac` was beatable.** Over
+      12,000,000 seeds in three disjoint families QA found **ten** seeds below
+      the pinned 0.388102, the best **1513721174 at 0.376694** (139 anchors /
+      369 normal tiles, `attempts: 1`, non-fallback, legal, hash `f17168ab`) —
+      1.14 pp lower. Verified here before re-pinning rather than taken on
+      trust, along with four of the runner-ups.
+      **The defect was a category error, not a weak scan, and the fix is the
+      category.** Four witnesses sit on a band *edge*, and an edge is provable:
+      a map outside its band is regenerated at seed+1, so the band value is the
+      extreme and no seed can beat it — the search only had to reach it.
+      `coreLegalFrac`'s floor sits 22.7 pp below anything the generator makes,
+      so its extreme is a search result that no scan of 4.3 billion seeds can
+      promote to a property. The first draft printed "the worst seed per band
+      over the whole domain" over both kinds of row, off a 250,006-seed comb
+      covering 0.006% of the domain — this lane's *fourth* recorded instance of
+      a property read off the wrong sample, in the file written to end the
+      practice. `Witness.kind` (`'edge' | 'best-found'`) now carries the
+      distinction, **drives the assertions** (the bit-exact `=== limit` check
+      is keyed on `kind`, not on a band name, so a future `best-found` row
+      cannot inherit an edge's claim), and the row records the size of the
+      search behind it plus its four nearest runner-ups, so the next engineer
+      to beat it knows immediately that a dense tail is expected and not a
+      regression.
+    - **QA's contrast is the part worth keeping**: it found **zero** fallback
+      maps in 12,000,000 seeds, which is what makes the three edge witnesses
+      unimprovable rather than merely unbeaten.
+    - **Minor (QA bug 2): the file's most retune-sensitive assertion printed a
+      count, not a diff.** `expect(retryTaking.length).toBe(43)` ran before the
+      set comparison, so a real retune failed with `expected 50 to be 43` and
+      never named which seeds entered or left the retry path — a hunt, from the
+      assertion whose stated purpose is to be a diff. Order swapped.
+    - **Minor (bug 3): two more tests failed as bare numbers** (`expected 1 to
+      be 2`, `expected 452 to be 432`, naming neither seed nor band). Both now
+      assert row arrays like the ledger tests do.
+    - **Minor (bug 4): a tautology.** `expect(under.hash).not.toBe(shipped.hash)`
+      read as "it plays a different map" but proves only "it reports a different
+      key" — `terrainHash` folds the seed in, so the hashes differ whether or
+      not a tile moved. Now compares `kind` buffers against seed+1's map, which
+      is what the sentence claimed.
+    - **Minor (bug 5): this Log contradicted itself** ("one new test file;
+      nothing else changed", two bullets above an entry describing fixes to two
+      other files) and quoted a stale runtime. Both corrected above.
+    - **Observation (bug 6), taken further than reported.** `attempts: 3` exists
+      domain-wide (QA: 73 in 6,000,000), so "every retry is exactly one attempt
+      long" was a sample fact worded as a property. Rather than only qualifying
+      it, a 300,000-seed comb of my own (stride 14317: 958 `attempts: 2`, two
+      `attempts: 3`, zero fallbacks) named **1866707728** and **1976547752**,
+      and both are now pinned with the band each skipped key failed. That test
+      also captures what the 43-seed tally structurally cannot: 1866707728's
+      second key fails *two* bands at once, while every skipped key in the
+      sample fails exactly one — which is why that tally sums to 43. The walk
+      depth is now watched at all, with `maxAttempts: 8` as the distance to the
+      flat arena.
+    - **Bug 7 (pre-existing, not this item): `npm run test:fast` is red on
+      `b036-help-fold`** — the deterministic 1095.40625-vs-1080 UI-lane
+      failure, reproduced twice in isolation, on the lane's documented
+      known-failure list since fb064t. It touches no file this item changed.
+      QA also could not reproduce a stable red set across two `test:fast` runs
+      (11 files, then 6, then 4 on a re-run of those six): `q49`/`q52` are
+      Windows `EPERM` on the `bench/.tmp` teardown, `q15`/`b032`/`b034` are
+      load-sensitive. Both of this session's earlier `test:fast` runs were
+      additionally contaminated by QA itself — it corrupts and restores `/data`
+      snapshots to test the ledger's failure output, which is exactly what the
+      `q25`/`q33`/`q45`/`q49`/`q52`/`q53` CLI suites do concurrently. The clean
+      run is recorded in the Verification bullet below.
+    - **What QA verified rather than assumed**: it re-derived the whole
+      12,000-seed sample with its own accumulator and reproduced all five
+      ledger rows, the 43-seed retry set *and its order*, and the retried-map
+      ledger character-identically; it re-derived the 34/9 retry-cause tally by
+      a second, independent method (relaxing exactly one band under the real
+      generator, rather than the bands-off probe); it re-measured every witness
+      value and hash; it hand-checked every stated provenance multiplication
+      (228583774 = 13306 × 17179, 816758607 = 1141 × 715827, and three more);
+      it re-ran under `--sequence.shuffle` at three seeds and alongside the
+      sibling terrain suites; and it confirmed `npm run sim -- --seed 1 --policy
+      hybrid` still ends `2729a000` with 0 leaks.
+  - **Verification.** `npx vitest run tests/terrain-band-ledger.test.ts` 11/11
+    green (the eleventh is the two-step-walk test QA's observation 6 earned);
+    `tests/terrain-generation.test.ts` + `tests/terrain-seed-domain.test.ts`
+    62/62 green *after* their `terrainLegal` copies were strengthened, so the
+    drift was hiding nothing; all 14 `tests/terrain-*` suites green together;
+    `npx tsc --noEmit` clean. No `/src` or `/data` file changed, so no golden
+    hash, sim end-state or sweep number could move — QA confirmed that from
+    the other side by re-running `npm run sim` (`endHash 2729a000`).
