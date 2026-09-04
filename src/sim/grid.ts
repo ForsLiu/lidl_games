@@ -56,6 +56,37 @@ const NEIGHBORS: ReadonlyArray<readonly [number, number, number]> = [
   [-1, -1, DIAG_COST],
 ];
 
+/**
+ * fb064b: the generated map as `Grid` consumes it — three decided masks plus
+ * the raw tile kinds for the renderer.
+ *
+ * Deliberately *not* a `TerrainMap`: `grid.ts` imports nothing, and
+ * `src/sim/terrain/config.ts` imports `GATES`/`GRID_W`/`GRID_H` from here to
+ * make its impossibility proofs exact. Handing the Grid a plain mask bundle
+ * keeps that one-way and leaves the terrain module the only place that knows
+ * how a `TerrainKind` maps onto walkable/buildable/high — one decision point,
+ * as `data/terrain.json` intends. Build one with `terrainOverlay()`.
+ */
+/**
+ * `TerrainKind.Normal`. The enum lives in `src/sim/terrain/config.ts`, which
+ * imports *from* this file, so the value cannot be imported back without a
+ * cycle; naming it here keeps the invariant next to the reader.
+ */
+const TERRAIN_NORMAL = 0;
+
+export interface TerrainOverlay {
+  readonly w: number;
+  readonly h: number;
+  /** `TerrainKind` per tile. The sim reads the masks; this is for fb064e. */
+  readonly kind: Uint8Array;
+  /** 1 where a ground walker may stand. */
+  readonly walkable: Uint8Array;
+  /** 1 where a tower may be built. */
+  readonly buildable: Uint8Array;
+  /** 1 on high ground (buildable, and no ground walker reaches it). */
+  readonly high: Uint8Array;
+}
+
 export interface Field {
   /** Cost to reach the core, -1 = unreachable. */
   dist: Int32Array;
@@ -98,6 +129,24 @@ export class Grid {
    */
   breachBase = 8000;
 
+  /**
+   * fb064b, SPEC-FINAL §10.5: the generated terrain, or an all-`normal` map
+   * until `applyTerrain` is called. Every `Grid` is born flat, so a run that
+   * never applies terrain behaves exactly as it did before this item.
+   *
+   * `terrainKind` is the Grid's own copy, not the `TerrainMap`'s buffer: the
+   * map's hash is computed once at construction and must stay a description of
+   * what the generator produced, while these arrays carry the Grid's structural
+   * overrides (see `applyTerrain`).
+   */
+  readonly terrainKind: Uint8Array;
+  /** 1 where terrain alone stops a ground walker (rock, high ground). */
+  private readonly terrainBlock: Uint8Array;
+  /** 1 where terrain alone forbids building (rough, rock). */
+  private readonly terrainNoBuild: Uint8Array;
+  /** 1 on high ground — read by fb064d's targeting rules. */
+  private readonly terrainHigh: Uint8Array;
+
   readonly ground: Field;
   readonly ghost: Field;
   /** Scratch for the physical-reachability diagnostic; never read by the sim. */
@@ -110,6 +159,10 @@ export class Grid {
     this.occ = new Int32Array(GRID_W * GRID_H);
     this.blocked = new Uint8Array(GRID_W * GRID_H);
     this.breach = new Int32Array(GRID_W * GRID_H);
+    this.terrainKind = new Uint8Array(GRID_W * GRID_H);
+    this.terrainBlock = new Uint8Array(GRID_W * GRID_H);
+    this.terrainNoBuild = new Uint8Array(GRID_W * GRID_H);
+    this.terrainHigh = new Uint8Array(GRID_W * GRID_H);
     for (let y = 0; y < GRID_H; y++) {
       for (let x = 0; x < GRID_W; x++) {
         const i = y * GRID_W + x;
@@ -123,13 +176,118 @@ export class Grid {
         this.tile[(CORE_Y + dy) * GRID_W + (CORE_X + dx)] = TileType.Core;
       }
     }
-    for (let i = 0; i < this.tile.length; i++) {
-      this.blocked[i] = this.tile[i] === TileType.Border ? 1 : 0;
-    }
+    for (let i = 0; i < this.tile.length; i++) this.blocked[i] = this.staticBlocked(i);
     this.ground = { dist: new Int32Array(GRID_W * GRID_H), next: new Int32Array(GRID_W * GRID_H) };
     this.ghost = { dist: new Int32Array(GRID_W * GRID_H), next: new Int32Array(GRID_W * GRID_H) };
     this.scratch = { dist: new Int32Array(GRID_W * GRID_H), next: new Int32Array(GRID_W * GRID_H) };
     this.rebuild();
+  }
+
+  /**
+   * 1 where the *map* stops a ground walker, before occupancy: the border, and
+   * (fb064b) rock or high ground. The one place the four sites that rebuild
+   * `blocked` — the constructor, `setOcc`, `markDirty` and `wouldBlockPath`'s
+   * restore — agree on what a bare tile means; they drifted apart the moment
+   * terrain added a second reason a tile can be unwalkable.
+   *
+   * Gate and Core tiles outrank the scatter: a gate buried in rock spawns its
+   * wave inside a wall with no route and nothing breachable to chew, and a
+   * buried Core cannot be attacked at all. That is decided *here*, off the live
+   * `tile` array, rather than by patching `terrainBlock` once in `applyTerrain`
+   * — because the run rewrites `tile` afterwards. `world.ts`'s Fourth Gate
+   * modifier opens a south gate at (12,19) at run construction, and fb064c
+   * moves the Core off `CORE_X/CORE_Y`; a constants-keyed override misses both,
+   * silently, on a map that still measures perfectly legal.
+   */
+  private staticBlocked(i: number): number {
+    if (this.tile[i] === TileType.Border) return 1;
+    if (this.tile[i] !== TileType.Open) return 0;
+    return this.terrainBlock[i] === 1 ? 1 : 0;
+  }
+
+  /**
+   * fb064b, SPEC-FINAL §10.5: adopt a generated map.
+   *
+   * Rough is walkable-not-buildable, rock stops ground pathing, high ground is
+   * buildable and stops ground walkers. The flow fields, the sealing rule,
+   * `allGatesReachable` and `gatePath` all read the same `blocked` mask they
+   * always did, so none of them needed a terrain branch — except the breach
+   * field, which had to learn that terrain is not something a walker can chew
+   * through (see `dijkstra`).
+   *
+   * Structural tiles — every `Gate` and `Core` tile the grid currently holds —
+   * are forced back to normal ground in the Grid's copy, never in the
+   * `TerrainMap`. `staticBlocked` re-decides that on every rebuild, so a gate
+   * opened *after* this call is covered too; the pass here keeps `terrainKind`
+   * (which fb064e renders) telling the same story as the walkability mask.
+   * **This does not make the Core *reachable*.** The Core
+   * is still at the hardcoded `CORE_X/CORE_Y`, which no generated map knows
+   * about, so a map can legally strand it behind rock; `allGatesReachable()`
+   * reports that honestly and fb064c fixes it for real by placing the Core on
+   * one of `legalCoreAnchors`' tiles.
+   */
+  applyTerrain(overlay: TerrainOverlay): void {
+    if (overlay.w !== GRID_W || overlay.h !== GRID_H) {
+      throw new Error(
+        `applyTerrain: overlay is ${overlay.w}x${overlay.h}, grid is ${GRID_W}x${GRID_H}`,
+      );
+    }
+    const n = GRID_W * GRID_H;
+    for (const a of [overlay.kind, overlay.walkable, overlay.buildable, overlay.high]) {
+      if (a.length !== n) throw new Error(`applyTerrain: mask length ${a.length}, expected ${n}`);
+    }
+    // Content, not just shape. `terrainOverlay()` cannot build a walkable cliff
+    // — `data/terrain.json`'s schema pins high ground as unwalkable — so this
+    // only ever fires on the hand-built overlay the doc above contemplates,
+    // which is exactly the case that would otherwise reach the sim as a tile
+    // that is simultaneously unreachable and stood on.
+    for (let i = 0; i < n; i++) {
+      if (overlay.walkable[i] && overlay.high[i]) {
+        throw new Error(`applyTerrain: tile ${i} is both walkable and high ground`);
+      }
+    }
+    // Terrain is placed before a run builds anything. Applying it over live
+    // occupancy would bury a standing tower in rock: `dijkstra`'s terrain guard
+    // refuses the tile before it ever reaches the `occ` check, so the structure
+    // becomes unbreachable scenery that no walker can path to or destroy.
+    for (let i = 0; i < n; i++) {
+      if (this.occ[i] !== 0) {
+        throw new Error('applyTerrain: structures are already placed; apply terrain before build');
+      }
+    }
+    // Copied, not aliased: the fields are rebuilt from these masks, so a caller
+    // that later wrote into its own overlay would silently desync the walkable
+    // mask from the flow field with nothing dirty to trigger a rebuild.
+    for (let i = 0; i < n; i++) {
+      this.terrainKind[i] = overlay.kind[i];
+      this.terrainBlock[i] = overlay.walkable[i] ? 0 : 1;
+      this.terrainNoBuild[i] = overlay.buildable[i] ? 0 : 1;
+      this.terrainHigh[i] = overlay.high[i] ? 1 : 0;
+    }
+    for (let i = 0; i < n; i++) {
+      if (this.tile[i] === TileType.Open || this.tile[i] === TileType.Border) continue;
+      this.terrainKind[i] = TERRAIN_NORMAL;
+      this.terrainBlock[i] = 0;
+      this.terrainNoBuild[i] = 0;
+      this.terrainHigh[i] = 0;
+    }
+    this.markDirty();
+  }
+
+  /**
+   * fb064b: is this tile high ground? The flag fb064d's targeting rules read —
+   * a tower here cannot be reached by a ground melee walker, because no ground
+   * walker can stand on it in the first place.
+   */
+  isHighGround(tx: number, ty: number): boolean {
+    // b007's class of bug: `GRID_W` is even, so `ty = k + 0.5` cancels its own
+    // fraction and lands on a real, different tile. `buildable()` rejects
+    // non-integers for the same reason; fb064d will call this one from
+    // targeting code, where coordinates are floats.
+    if (!Number.isInteger(tx) || !Number.isInteger(ty)) return false;
+    if (!this.inBounds(tx, ty)) return false;
+    const i = ty * GRID_W + tx;
+    return this.tile[i] === TileType.Open && this.terrainHigh[i] === 1;
   }
 
   idx(tx: number, ty: number): number {
@@ -160,7 +318,15 @@ export class Grid {
    */
   wardenPassable(tx: number, ty: number): boolean {
     if (!this.inBounds(tx, ty)) return false;
-    return this.tile[ty * GRID_W + tx] !== TileType.Border;
+    // fb064b: terrain stops the Warden as it stops any other ground walker.
+    // fb002 legalised walking through the *Core and friendly structures*, which
+    // is a rule about what the player built, not about the map: a Warden that
+    // walks or dashes through a mountain is a hole, and one parked on high
+    // ground is unreachable by every ground melee enemy at once — an Act I safe
+    // spot no gate band measures. `passableGhost` stays terrain-blind on
+    // purpose (Burrowers tunnel *under* stone); this does not.
+    const i = ty * GRID_W + tx;
+    return this.tile[i] !== TileType.Border && this.staticBlocked(i) === 0;
   }
 
   /** Tiles a tower may be placed on before the path-guarantee check. */
@@ -173,13 +339,16 @@ export class Grid {
     if (!Number.isInteger(tx) || !Number.isInteger(ty)) return false;
     if (!this.inBounds(tx, ty)) return false;
     const i = ty * GRID_W + tx;
-    return this.tile[i] === TileType.Open && this.occ[i] === 0;
+    // fb064b: high ground is buildable while `blocked`, and rough is walkable
+    // while unbuildable, so the terrain term is genuinely independent of the
+    // walkability one and cannot be folded into `passable`.
+    return this.tile[i] === TileType.Open && this.occ[i] === 0 && this.terrainNoBuild[i] === 0;
   }
 
   setOcc(tx: number, ty: number, id: number): void {
     const i = ty * GRID_W + tx;
     this.occ[i] = id;
-    this.blocked[i] = this.tile[i] === TileType.Border || id !== 0 ? 1 : 0;
+    this.blocked[i] = this.staticBlocked(i) === 1 || id !== 0 ? 1 : 0;
     // Any occupancy transition invalidates the old price: a vacated tile is
     // free again, and a new occupant starts at surcharge 0 until the World
     // prices it (`breachBase` alone still guards it meanwhile).
@@ -197,7 +366,7 @@ export class Grid {
 
   markDirty(): void {
     for (let i = 0; i < this.tile.length; i++) {
-      this.blocked[i] = this.tile[i] === TileType.Border || this.occ[i] !== 0 ? 1 : 0;
+      this.blocked[i] = this.staticBlocked(i) === 1 || this.occ[i] !== 0 ? 1 : 0;
     }
     this.dirty = true;
   }
@@ -304,6 +473,19 @@ export class Grid {
               // tile includes chewing that tile itself, so do not read `dist`
               // as "cost ahead of me" from inside a structure.
               const ni2 = ny * GRID_W + nx;
+              // fb064b: terrain is not breachable. `passableGhost` only refuses
+              // the border, so without this line rock and high ground would be
+              // enterable at plain walking cost — every generated map would
+              // route its walkers straight through the scenery, and every band
+              // the generator measures would be meaningless to the sim.
+              //
+              // Asked via `staticBlocked` rather than off `terrainBlock`
+              // directly, so this agrees with `passable()` by construction: a
+              // gate the run opens later is walkable there and must be routable
+              // here, and a tower standing on high ground stays unreachable
+              // (its `occ` would otherwise buy it a breach route into terrain
+              // no walker can enter).
+              if (this.staticBlocked(ni2) === 1) continue;
               if (this.occ[ni2] !== 0) extra = this.breachBase + this.breach[ni2];
             }
           }
@@ -363,7 +545,7 @@ export class Grid {
       const [tx, ty] = tiles[k];
       const i = ty * GRID_W + tx;
       this.occ[i] = saved[k];
-      this.blocked[i] = this.tile[i] === TileType.Border || saved[k] !== 0 ? 1 : 0;
+      this.blocked[i] = this.staticBlocked(i) === 1 || saved[k] !== 0 ? 1 : 0;
     }
     return !ok;
   }

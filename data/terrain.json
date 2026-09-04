@@ -1,0 +1,55 @@
+{
+  "tiles": [
+    {
+      "key": "normal",
+      "walkable": true,
+      "buildable": true,
+      "highGround": false,
+      "color": "#3b4a35"
+    },
+    {
+      "key": "rough",
+      "walkable": true,
+      "buildable": false,
+      "highGround": false,
+      "color": "#4a4535"
+    },
+    {
+      "key": "rock",
+      "walkable": false,
+      "buildable": false,
+      "highGround": false,
+      "color": "#3a3a40"
+    },
+    {
+      "key": "high",
+      "walkable": false,
+      "buildable": true,
+      "highGround": true,
+      "color": "#55503f"
+    }
+  ],
+  "density": {
+    "rough": 0.17,
+    "rock": 0.11,
+    "high": 0.07
+  },
+  "blob": {
+    "minSize": 3,
+    "maxSize": 12,
+    "spread": 0.62
+  },
+  "corridorRadius": 1,
+  "corridorJitter": 0.25,
+  "gateClearRadius": 2,
+  "plazaRadius": 3,
+  "coreGateClearance": 3,
+  "maxAttempts": 8,
+  "constraints": {
+    "minWalkableFrac": 0.6,
+    "minBuildableNormalFrac": 0.45,
+    "minGateReachFrac": 0.8,
+    "minCoreLegalFrac": 0.15,
+    "minCorridorWidth": 2
+  }
+}
