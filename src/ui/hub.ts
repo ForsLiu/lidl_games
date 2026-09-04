@@ -33,6 +33,15 @@ const DEV_BADGE =
 import { equipItem } from '../meta/stash';
 import { renderTreeView } from './tree-view';
 import { sanitize, type Settings } from './settings';
+import {
+  ACTION_ORDER,
+  defaultKeyBindings,
+  keyLabel,
+  rebindKey,
+  UNBINDABLE_KEYS,
+  type ActionId,
+  type KeyBindings,
+} from './keybindings';
 import { NORMAL_PROFILE_CLASS_KEYS, classBandStatsMarkup, classSelectSkillsMarkup } from './class-select';
 import { coreDetailMarkup } from './core-info';
 import { modLines, modLinesHtml } from './info-format';
@@ -48,6 +57,9 @@ export interface HubCallbacks {
   onStart(cfg: RunConfig): void;
   onMetaChanged(meta: MetaState): void;
   onSettingsChanged(settings: Settings): void;
+  /** fb073: key remapping. Optional so a caller not yet wired to it still gets working defaults. */
+  keyBindings?: KeyBindings;
+  onKeyBindingsChanged?(bindings: KeyBindings): void;
 }
 
 export class Hub {
@@ -66,6 +78,10 @@ export class Hub {
   /** fb022: right-click selects an owned item for the Equipment detail panel without equipping it. */
   private selectedEquipment: string | null = null;
   private settings: Settings;
+  private keyBindings: KeyBindings;
+  /** fb073: which action's button is waiting for the next keydown, if any. */
+  private listeningAction: ActionId | null = null;
+  private rebindConflict = '';
   /** Transient one-line feedback under the tab bar. */
   private notice = '';
   /**
@@ -82,6 +98,7 @@ export class Hub {
     this.classKey = meta.unlockedClasses[0] ?? 'engineer';
     this.coreKey = meta.unlockedCores[0] ?? 'stone_heart';
     this.settings = cb.settings;
+    this.keyBindings = cb.keyBindings ?? defaultKeyBindings();
     // fb023: a one-time "your relics were dropped" notice from a save
     // migration, shown on this first Hub screen only — `commit()` clears it
     // exactly like every other transient notice, so it cannot resurface after
@@ -96,6 +113,10 @@ export class Hub {
   }
 
   show(): void {
+    // fb073: leaving the Settings tab mid-rebind must not leave a stray
+    // document-level keydown listener armed against a control no longer on
+    // screen.
+    if (this.tab !== 'settings' && this.listeningAction) this.stopListeningForRebind();
     this.root.innerHTML = '';
     const el = document.createElement('div');
     el.className = 'sw-hub';
@@ -451,6 +472,28 @@ export class Hub {
       </div>
 
       <div class="sw-panel">
+        <h2>Controls</h2>
+        <p class="sw-note">Click a binding, then press the key to use instead.</p>
+        ${
+          this.rebindConflict
+            ? `<p class="sw-note sw-error" id="sw-keybind-conflict">${this.rebindConflict}</p>`
+            : ''
+        }
+        <div class="sw-keybindlist">
+          ${ACTION_ORDER.map(
+            (a) => `<label class="sw-setting">
+              <span>${a.label}</span>
+              <button type="button" class="sw-keybind ${this.listeningAction === a.id ? 'listening' : ''}"
+                      data-rebind="${a.id}">
+                ${this.listeningAction === a.id ? 'Press a key…' : keyLabel(this.keyBindings[a.id])}
+              </button>
+            </label>`,
+          ).join('')}
+        </div>
+        <button class="sw-reroll" id="sw-keybind-reset">Restore default controls</button>
+      </div>
+
+      <div class="sw-panel">
         <h2>Testing</h2>
         <p class="sw-note">
           Fills the account so Equipment and the Constellation can be tried without
@@ -502,7 +545,65 @@ export class Hub {
       if (out) out.textContent = count.value;
       commit();
     });
+
+    for (const el of body.querySelectorAll<HTMLElement>('[data-rebind]')) {
+      el.addEventListener('click', () => this.startListeningForRebind(el.dataset.rebind as ActionId));
+    }
+    body.querySelector('#sw-keybind-reset')?.addEventListener('click', () => {
+      this.stopListeningForRebind();
+      this.keyBindings = defaultKeyBindings();
+      this.rebindConflict = '';
+      this.cb.onKeyBindingsChanged?.(this.keyBindings);
+      this.show();
+    });
   }
+
+  /* -------------------------------------------------------- key remapping */
+
+  /** fb073: a rebind button was clicked — arm the next keydown to capture it. */
+  private startListeningForRebind(action: ActionId): void {
+    this.listeningAction = action;
+    this.rebindConflict = '';
+    document.addEventListener('keydown', this.onRebindKeyDown, true);
+    this.show();
+  }
+
+  private stopListeningForRebind(): void {
+    document.removeEventListener('keydown', this.onRebindKeyDown, true);
+    this.listeningAction = null;
+  }
+
+  /**
+   * Bound once (arrow-function class field) so add/removeEventListener target
+   * the same function reference across renders — `show()` rebuilds the DOM
+   * every call, but this listener lives on `document`, outside that subtree.
+   */
+  private onRebindKeyDown = (e: KeyboardEvent): void => {
+    const action = this.listeningAction;
+    if (!action) return;
+    e.preventDefault();
+    this.stopListeningForRebind();
+    const k = e.key.toLowerCase();
+    if (k === 'escape') {
+      this.show();
+      return;
+    }
+    if (UNBINDABLE_KEYS.has(k)) {
+      this.rebindConflict = `"${keyLabel(k)}" is reserved for movement and cannot be reassigned.`;
+      this.show();
+      return;
+    }
+    const result = rebindKey(this.keyBindings, action, e.key);
+    if (result.ok) {
+      this.keyBindings = result.bindings;
+      this.rebindConflict = '';
+      this.cb.onKeyBindingsChanged?.(this.keyBindings);
+    } else {
+      const label = ACTION_ORDER.find((a) => a.id === result.conflictWith)?.label ?? result.conflictWith;
+      this.rebindConflict = `"${keyLabel(e.key.toLowerCase())}" is already bound to ${label}.`;
+    }
+    this.show();
+  };
 
   /* --------------------------------------------------------- equipment tab */
 

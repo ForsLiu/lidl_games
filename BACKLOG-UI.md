@@ -730,7 +730,7 @@ not already expose it) logs that need below instead of reaching into
       across dozens of prior PROGRESS.md sessions, none touching
       `src/ui/**`/`src/render/**` or this item's own files.
 
-- [ ] (fb073) [feat] normal priority: key remapping — QUALITY.md BETA's
+- [x] (fb073) [feat] normal priority: key remapping — QUALITY.md BETA's
       Settings checklist line ("master/SFX volume, screenshake toggle,
       reduced-flash mode, damage number toggle, key remapping,
       resolution/DPR handling, colorblind-safe palette") is met on every
@@ -746,7 +746,124 @@ not already expose it) logs that need below instead of reaching into
       and the new key does; binding an already-used key is rejected and
       leaves the existing assignment intact; defaults restore every
       binding — refs: QUALITY.md BETA (Settings checklist), SPEC-FINAL
-      §11.
+      §11. DONE 2026-09-04: new `src/ui/keybindings.ts` module — `ActionId`
+      union (movement WASD, dash, active1/active2, toggleRanges/cycleSpeed/
+      toggleCharacterPanel/toggleDpsPanel/toggleVsPanel, upgradeSelection/
+      sellSelection/clearSelection, towerSlot1-9), `defaultKeyBindings()`,
+      `sanitizeKeyBindings()` (fills missing fields, lower-cases, de-dupes a
+      corrupted/hand-edited save), `loadKeyBindings()`/`saveKeyBindings()`
+      (own localStorage key `stonewake.keybindings.v1`, separate from
+      `Settings`), `rebindKey()` (conflict-checked setter), `keyLabel()`
+      (display formatting), `UNBINDABLE_KEYS` (the 4 arrow keys — always-live
+      movement alternate, rejected as a rebind target). `input.ts`'s
+      `bindCanvasInput`/`makeKeyDownHandler`/`clearKeysForPause`/
+      `movementFromKeys`/`gatherInput` all take an optional `bindings` param
+      defaulting to `defaultKeyBindings()`, so every existing caller/test is
+      unaffected. Deliberately left hardcoded/unrebindable: Escape (pause —
+      a near-universal convention), the arrow keys (movement alternate,
+      always live), and the level-up offer picker's literal 1/2/3 (a
+      different physical-key concept from the now-independently-rebindable
+      towerSlot1-9, decoupled at the `makeKeyDownHandler` dispatch site).
+      `main.ts`'s `Game` gains a `keyBindings` field threaded through every
+      input call site; `showHub()`'s `onKeyBindingsChanged` callback mutates
+      it in place (`Object.assign`) rather than replacing the reference — see
+      the code-reviewer finding below for why that distinction mattered.
+      `hub.ts`'s Settings tab gains a "Controls" panel: one row per action
+      with a `[data-rebind]` button, click arms listening mode, the next
+      `document`-level capture-phase keydown either rebinds (calling
+      `cb.onKeyBindingsChanged`) or shows a conflict/reserved-key message
+      leaving the binding untouched, Escape cancels, `#sw-keybind-reset`
+      restores every binding to default, and switching Hub tabs mid-listen
+      detaches the capture listener. Targeted
+      `tests/ui-fb073-key-remapping.test.ts` (17/17): `rebindKey`
+      conflict/no-op-self-rebind, `sanitizeKeyBindings` dedupe/fill/lowercase,
+      `input.ts` handlers reading rebound keys (with a no-bindings-arg
+      backward-compat case), the Controls panel's listing/rebind/conflict/
+      Escape-cancel/restore-defaults/arrow-key-rejection/tab-switch-detach
+      behavior, and a `Game`-level end-to-end regression test (see below).
+      code-reviewer's first pass **REQUEST-CHANGES**: one Major —
+      `bindGlobalInput` runs at most once (`inputBound`) and hands
+      `makeKeyDownHandler` a `bindings` object it closes over for the rest of
+      the session; the original `onKeyBindingsChanged` reassigned
+      `this.keyBindings` to a *new* object on every rebind, leaving that
+      already-bound closure aliasing the stale one — a rebind made from the
+      Hub between runs silently stopped taking effect for every
+      keydown-dispatched action (Q/E, R/F/C/P/V/U/X, tower-slot digits) the
+      moment a second run started, while movement/mouse bindings stayed live
+      only because `gatherInput`/`bindCanvasInput` re-read the field fresh
+      each tick/run. Fixed by mutating `this.keyBindings` in place
+      (`Object.assign`) instead of reassigning it, confirmed via git-stash-
+      style A/B (temporarily reverted the one line) that the new
+      `Game`-level regression test fails pre-fix with the exact predicted
+      symptom (old key still fires after a second run) and passes post-fix.
+      Two Minors, also fixed same session: arrow keys were reachable as a
+      rebind target with no conflict warning despite `movementFromKeys`
+      always treating them as movement regardless of bindings (added
+      `UNBINDABLE_KEYS`, checked in `Hub.onRebindKeyDown` before calling
+      `rebindKey`); `sanitizeKeyBindings` didn't dedupe a corrupted save that
+      assigns the same key to two actions (added a second pass over
+      `ACTION_ORDER` resetting a later duplicate to its own default).
+      code-reviewer re-verified **APPROVE**. qa-playtester **PASS** against
+      all three literal acceptance criteria (re-derived independently
+      end-to-end through the real `Hub`+`Game`, plus hostile testing: rapid
+      same-button clicks, cross-button clicks mid-listen, chained
+      vacate-then-claim rebinds, corrupted-`localStorage` round trips — no
+      stuck-listener, eaten-keydown, or crash found) and filed three new
+      low-severity bugs, all variants of the same root cause (a hardcoded
+      literal outside `ActionId`/`UNBINDABLE_KEYS` can be silently claimed by
+      a rebound action, double-firing both on one keypress) — see fb079/fb080
+      below. `npx tsc --noEmit` clean. `npm run test:fast`: 7 failed files,
+      all in the pre-existing q15/q49/q52 worker-hang/Windows-scratch-dir-
+      EPERM flake classes documented across dozens of prior PROGRESS.md
+      sessions, none touching `src/ui/**`/`src/render/**` or this item's own
+      files.
+
+- [ ] (fb079) [bug] low priority: two of `input.ts`'s hardcoded, unrebindable
+      literals — `Enter` (unconditional `{k:'call'}` call-wave trigger,
+      `makeKeyDownHandler`) and the level-up offer picker's literal 1/2/3
+      (fb073's own documented exception, decoupled from the
+      independently-rebindable `towerSlot1-3`) — are not in
+      `keybindings.ts`'s `UNBINDABLE_KEYS`, so the Hub's rebind-conflict
+      check never protects them: a player can freely rebind any other action
+      onto `Enter` or onto a tower-slot digit's now-vacated `1`/`2`/`3`, and
+      both the hardcoded behavior and the rebound action silently fire off
+      the same keypress. Found by qa-playtester (fb073 verification),
+      reproduced deterministically both ways: (1) rebind `sellSelection` to
+      `Enter` — starting a run and pressing Enter now calls the wave *and*
+      sells the selection; (2) rebind `towerSlot1` off `1` (e.g. to `j`),
+      then rebind `sellSelection` onto the now-free `1` — no conflict warning
+      at either step, and during a level-up offer screen pressing `1` both
+      sells the selection and picks the first offer card, confirmed via a
+      direct `makeKeyDownHandler` unit test receiving both effects from one
+      `keydown`. Acceptance: a regression test — attempting to rebind an
+      action onto `Enter` (or onto `1`/`2`/`3` given the picker's documented
+      exception) shows the same "reserved" conflict message `UNBINDABLE_KEYS`
+      already produces for an arrow key, and the existing binding is left
+      untouched; suggested fix direction: extend `UNBINDABLE_KEYS` (or an
+      equivalent "reserved literal" set `Hub.onRebindKeyDown` consults) to
+      also cover `enter` and, at minimum while `isChoosing`-gated, `1`/`2`/`3`
+      — refs: fb073, `input.ts`'s module-doc "deliberately not rebindable"
+      list, which already names both but which the conflict-detection code
+      never actually enforced against other actions claiming them.
+
+- [ ] (fb080) [bug] low priority: `makeKeyDownHandler`'s
+      `if (k === bindings.dash) e.preventDefault();` (`input.ts`) suppresses
+      the browser's default Space behavior (page scroll) for whichever
+      action currently owns the `dash` binding, not for the physical Space
+      key itself — so rebinding `dash` off Space (or rebinding a different
+      action onto the now-free Space) leaves Space's default browser
+      behavior unsuppressed during a run, regardless of what action now
+      fires on it. Found by qa-playtester (fb073 verification), reproduced
+      both directions (Space freed entirely, and Space reassigned to
+      `active1`) via `vi.spyOn(evt, 'preventDefault')` — never called either
+      way once `dash` no longer owns Space. Low severity (cosmetic/quality-
+      of-life: the page could scroll under a keypress mid-run if the player
+      has rebound `dash` off Space), no crash or determinism impact.
+      Acceptance: a regression test confirms `preventDefault` fires whenever
+      the pressed key is literally Space, independent of which action
+      currently owns the `dash` binding; suggested fix direction: check
+      `k === ' '` directly for the `preventDefault` call rather than
+      `k === bindings.dash` — refs: fb073.
 
 - [ ] (fb074) [feat] low priority: resume run after a page refresh —
       QUALITY.md BETA's "no progress loss on refresh" bar. Nothing today

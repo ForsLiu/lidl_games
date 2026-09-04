@@ -19,6 +19,7 @@ import { Hub } from './hub';
 import { applyRunResult, defaultMeta, loadMetaWithNotice, saveMeta } from '../meta/meta';
 import { devProfileActive, startupProfile } from '../meta/devprofile';
 import { loadSettings, saveSettings, type Settings } from './settings';
+import { loadKeyBindings, saveKeyBindings, type KeyBindings } from './keybindings';
 import { Sfx } from '../render/sfx';
 import { Pacer } from './pacer';
 import { installAuditHook, type AuditBridge } from './audit-hook';
@@ -29,6 +30,7 @@ export class Game {
   private renderer!: Renderer;
   private hud!: Hud;
   private settings: Settings = loadSettings();
+  private keyBindings: KeyBindings = loadKeyBindings();
   private sfx = new Sfx();
   private view: ViewState = {
     selectedTower: 0,
@@ -121,6 +123,21 @@ export class Game {
         this.view.settings = s;
         this.view.showRanges = s.showRanges;
         saveSettings(s);
+      },
+      keyBindings: this.keyBindings,
+      // `bindGlobalInput` runs at most once (`inputBound`) and hands
+      // `makeKeyDownHandler` this exact `this.keyBindings` object, which it
+      // closes over for the rest of the session — reassigning the field to a
+      // *new* object here would leave that already-bound `onKeyDown` closure
+      // aliasing the stale one, so a rebind made from the Hub between runs
+      // would stop taking effect for every keydown-dispatched action (Q/E,
+      // R/F/C/P/V/U/X, digits) the moment a second run started. Mutating the
+      // same object in place keeps every existing alias (this callback,
+      // `bindCanvasInput`'s per-run rebuild, the per-tick `gatherInput` call)
+      // pointed at current values instead.
+      onKeyBindingsChanged: (kb) => {
+        Object.assign(this.keyBindings, kb);
+        saveKeyBindings(this.keyBindings);
       },
       onStart: (cfg) => this.startRun(cfg),
       onMetaChanged: (meta) => {
@@ -251,7 +268,7 @@ export class Game {
     // alone it would fire a stale dash on the first post-resume tick regardless
     // of how long the pause lasted or whether Space was released mid-pause.
     if (paused) {
-      clearKeysForPause(this.keys);
+      clearKeysForPause(this.keys, this.keyBindings);
       this.dashQueued = false;
     } else this.pacer.clearBacklog();
     this.hud.setPaused(paused, this.run.world);
@@ -260,6 +277,7 @@ export class Game {
   private bindGlobalInput(): void {
     const onKeyDown = makeKeyDownHandler({
       keys: this.keys,
+      bindings: this.keyBindings,
       queue: { push: (cmd) => this.pending.push(cmd) },
       onAnyKey: () => this.sfx.resume(),
       togglePause: () => this.togglePause(),
@@ -294,7 +312,7 @@ export class Game {
       // without it, a browser key-repeat event for a Space the player never
       // released (including one held through an Esc/blur pause) re-arms
       // `dashQueued` with no fresh physical press behind it.
-      if (e.key === ' ' && !this.paused && !e.repeat) this.dashQueued = true;
+      if (e.key.toLowerCase() === this.keyBindings.dash && !this.paused && !e.repeat) this.dashQueued = true;
       onKeyDown(e);
     });
     window.addEventListener('keyup', (e) => this.keys.delete(e.key.toLowerCase()));
@@ -312,7 +330,7 @@ export class Game {
       // with no player intent — the same bug `clearKeysForPause`'s own doc
       // comment already documents for Esc, reachable here too since this ran
       // an unconditional `.clear()` before `setPaused`'s own call could help.
-      clearKeysForPause(this.keys);
+      clearKeysForPause(this.keys, this.keyBindings);
       if (this.run && this.run.world.outcome === 'running' && !this.paused) this.setPaused(true);
     });
     // fb065: `Renderer.resize()` now sizes the backing store off `.sw-stage`'s
@@ -364,6 +382,7 @@ export class Game {
       canvas: this.hud.canvas,
       view: this.view,
       keys: this.keys,
+      bindings: this.keyBindings,
       queue: { push: (cmd) => this.pending.push(cmd) },
       isBlocked: () => this.paused || this.hud.modalOpen,
       // The handler lives in `selection.ts` so the tests drive the shipped
@@ -379,6 +398,7 @@ export class Game {
       this.view.cursorX,
       this.view.cursorY,
       this.dashQueued,
+      this.keyBindings,
     );
     this.dashQueued = false;
     this.pending = [];
