@@ -190,7 +190,7 @@ is what §10.5 will be written from.
       per kind, uniform on 1 +- 0.22). See the Log for the measurements, the
       control run and the golden churn.
 
-- [ ] (fb064m) [feat] a buildable high-ground plot no enemy can reach is a
+- [x] (fb064m) [feat] a buildable high-ground plot no enemy can reach is a
       permanently invulnerable tower site — fb064a deferred this ("worth a
       decision line when fb064d writes the high-ground rules") and fb064i's
       rules make it live rather than theoretical. Measured by fb064i's QA over
@@ -219,6 +219,22 @@ is what §10.5 will be written from.
       31% (65 -> 85 tiles) and the worst single seed doubled (6 -> 12 plots).
       So the exposure moved in the direction that matters to this item's
       acceptance, and the "55 plots" figure must not be inherited.
+      **Re-measured 2026-09-04 inside the item, and fb064l's QA reading
+      reproduces exactly:** with the constraint off, seeds 1..500 give 27 seeds
+      (5.40%) carrying 85 plots, worst seed 409 with 12. Shipped as a generator
+      constraint (`highContestRadius`), not as an accepted band.
+      **Acceptance amended during the item, on the fb064g precedent.** It reads
+      "within the shortest authored enemy attack range", and the literal
+      shortest reach among everything that may touch a high-ground tower is
+      `boss.ts`'s `shatterAlong` at ~1 tile — a radius of 1 would demote every
+      interior tile of every high blob (blobs are 3-12 tiles), i.e. delete the
+      feature. The shipped reading is "the shortest range among enemies that
+      can attack a structure on high ground in an ordinary Act I wave", which is
+      the Spitter's 4 and is also the *only* `attackRange` authored anywhere in
+      `data/enemies.json`. A test pins `highContestRadius <= min(attackRange
+      over families with attacksHigh)` so the number cannot drift from the
+      roster. Left unamended, the record would say the shipped code fails its
+      own acceptance.
 
 ### Generated 2026-09-04 (lane generation rule)
 
@@ -293,6 +309,16 @@ fb064o.
       the worst seed per band named in the test so a retune's cost is a diff
       rather than a hunt; the retry-taking seed set pinned the same way —
       refs: fb064j, fb064a Log ("band headroom is ZERO").
+      **Two domain-wide witnesses handed over by fb064m's QA (2026-09-04),
+      to start from rather than re-derive:** over a 120701-seed sample the
+      worst `walkableFrac` is seed **2005486180** at exactly **0.600000** and
+      the worst `buildableNormalFrac` is seed **2454233399** at exactly
+      **0.450000** — both sitting *on* their band floors, so headroom on the
+      two tightest bands is literally zero and only `terrainLegal`'s `>=`
+      keeps those seeds legal. That also means "without moving the bands out
+      of their measured headroom", the phrase fb064m's acceptance uses, is
+      vacuous for these two: there is none to move out of. Verify both before
+      inheriting them — a deferral is a measurement with an expiry date.
 
 ## Log
 
@@ -1588,3 +1614,268 @@ fb064o.
   `npm run sim` and `tools/sweep.ts` unchanged (win 1.0/1.0). Nothing in this
   change can move a stored run — which is exactly why the golden churn was
   affordable now and will not be later.
+
+- (2026-09-04, fb064m) Uncontestable high-ground plots, closed by construction.
+  `data/terrain.json` gains `highContestRadius: 4`; `src/sim/terrain/analyze.ts`
+  gains `uncontestedHigh`; `src/sim/terrain/generate.ts` gains
+  `demoteUncontestedHigh`, which runs after `sealPockets` in every attempt and
+  turns any `high` tile with no walkable tile inside that radius into `rock`.
+  `tests/terrain-high-contest.test.ts` is 6 tests, ~1.0 s (fast tier).
+  13 mutants, 13 killed.
+
+  **The measurement, re-taken rather than inherited** (the item's own expiry
+  note). With the constraint off, seeds 1..500: **27 seeds (5.40%), 85 plots,
+  worst seed 409 with 12** — fb064l's QA reading reproduced exactly. Of the 85,
+  55 sit at a nearest-walkable distance in (4, 5], 17 in (5, 6], 9 in (6, 7] and
+  4 beyond 7 — so at `towers.json`'s base `buildRange: 4` none of them is even
+  buildable, and at the 5-7 a real run reaches (Engineer +2, `tree.json` node 22
+  +1) 81 of the 85 are. That is why this is a normal case rather than an edge
+  one. Over a 7500-seed comb spanning the whole `MIN_TERRAIN_SEED..
+  MAX_TERRAIN_SEED` domain (negatives, uint32, near-2³¹, near-2³²) the control
+  rate is 5.17% / 938 plots, and after the repair **0 exposed, 0 illegal,
+  0 fallback**.
+
+  Design decisions, for QUESTIONS.md at the merge:
+  - **A repair, not a rejection band.** `sealPockets` is the same shape one
+    tile-kind over, and it is the right one: rejecting the seed would cost a
+    retry on 5% of seeds and still guarantee nothing, while a *band* on the
+    count would be a construction invariant that can never fail (the
+    `gateReachFrac` trap this lane already documented). So `TerrainMeasure` is
+    unchanged and `describeTerrain`'s format is unchanged with it; the invariant
+    is pinned by a test that re-derives it from the tiles.
+  - **It costs no band, exactly, and that is a proof rather than a sample.**
+    `measureTerrain` reads tiles only through `isWalkable(cfg, kind)` and
+    `kind === TerrainKind.Normal`, and the loader's `REQUIRED_FLAGS` *pins*
+    `rock` and `high` to `walkable: false` and refuses a file that flips either.
+    So high -> rock moves no numerator and no denominator of any band, for every
+    config the loader accepts and not merely for the shipped one. Measured over
+    seeds 1..500 and again over the 7500-seed comb: every `TerrainMeasure` field
+    identical to the control, and identical `seed`/`attempts`/`fallback` — no
+    seed takes an extra retry. This is what made the constraint affordable at
+    all: the two tightest bands (`walkableFrac` exactly 0.600000 at seed 16236,
+    `buildableNormalFrac` 0.452778 at seed 621) do not move a tile.
+  - **Rock, not rough or normal.** `rough` and `normal` are walkable, so
+    demoting to either would punch a walkable hole into a mountain and move
+    every band; `normal` would then be sealed back to rock by the next
+    generation anyway. Rock is also the honest kind for a plateau buried inside
+    a massif.
+  - **After sealing, and no second pass.** Sealing converts walkable ground to
+    rock, which can leave a high tile newly uncontested, so the order matters —
+    the mutant that swaps the two lines dies. The reverse cannot happen:
+    demoting high to rock changes no tile's walkability, so it can never create
+    a new uncontested plot. Verified as a fixed point over both sweeps.
+  - **Centre-to-centre Euclidean, deliberately conservative.** An enemy is a
+    continuous position inside a walkable tile, so a tile whose centre is in
+    range certainly holds a standable point in range while one whose centre is
+    outside might still hold one near its edge. Erring that way can only call a
+    contested plot uncontested, never the reverse — the same "a measurement can
+    never be optimistic" rule `analyze.ts` records for 4-connectivity. The
+    Spitter's own check is a plain Euclidean `dist2` with no line-of-sight term
+    (`enemies.ts:1258`), so no visibility term is being ignored.
+  - **The radius lives in `/data` and is cross-checked in a test, not in the
+    loader.** It is only correct relative to `data/enemies.json`, but a loader
+    rule reading another content file is this lane's recorded false-rejection
+    shape and cannot be sound anyway, since `loadContent({ enemies })` swaps the
+    roster in play (`tunerSave.ts:55`) — the identical argument `checkHighGround`
+    records for `AUTHORED_TRAITS`. The test asserts `highContestRadius <=
+    min(attackRange over families with attacksHigh)`, so a content-lane range
+    cut costs a red CI line rather than a silent hole.
+  - **`0` is the designer's veto, and it is a true no-op.** The item's
+    acceptance allowed "an explicit measured decision to accept it"; shipping
+    the constraint *with* an off switch gives the owner that option as a
+    one-line `/data` edit rather than a code revert, and it is what every
+    control run in the suite is measured against.
+  - **The fb064a witness now needs both switches off.** `jitter: 0` alone no
+    longer reproduces fb064a — seed 1 hashes `ac3b2bc7`, fb064a's map with
+    fb064m's four tiles demoted. The two control tests
+    (`terrain-generation.test.ts`, `terrain-seed-domain.test.ts`) now set
+    `jitter: 0` *and* `highContestRadius: 0` and recover `03031f09 / 30ddb8d4 /
+    b2e86488 / 473db113` byte for byte, and both say in a comment that every
+    later generator change shipping as an off-able field belongs in that list.
+    Left half-updated, the strongest control in the suite would have quietly
+    become a restatement of the current build.
+
+  **Golden churn, small and paid in full.** Only seeds carrying an exposed plot
+  move, which is 5% of them: the shipped-config hash golden moved for **seed 1
+  only** (`c4dde717` -> `54fad3db`; 2/42/1000 are byte-identical and were left
+  standing, which is itself evidence of the change's shape), and
+  `describeTerrain`'s seed-1 dump moved with it — four glyphs and the `tiles`
+  counts, while its `bands` and `counts` lines are unchanged, which is the
+  clearest single statement of what this costs. `terrain-variety.test.ts`'s
+  recorded distinct-count windows were **re-read, not inherited** (rough 51-56,
+  rock 55-60, high 20-22, against floors of 24/15/10), because
+  `interiorShare(high)` is now the drawn budget minus the demoted tiles. The
+  `suggestCoreAnchor` table, the stranded-Core fixture and every band seed did
+  not move at all, because anchors and bands depend only on the walkable and
+  normal sets. Free exactly now, as fb064l's entry says: no run calls
+  `generateTerrain`, so no stored replay depends on a terrain map.
+
+  **What the repair costs the player.** 0.30% of high ground: over seeds
+  1..2000, 85431 high tiles against the control's 85690, mean 42.85 -> 42.72
+  per map, worst-case single seed 12 plots. **No seed loses all its high
+  ground** — the minimum on a repaired map is 29 tiles — so fb064i's rules
+  always have a subject. Generation cost is unchanged within measurement noise
+  (~0.27 ms/seed either way); the scan is a clamped box per high tile with an
+  early exit, and it was brute-forced equal to a whole-grid scan for every
+  radius 0..36 across 40 unrepaired maps (1480 pairs, 0 differences).
+
+- (2026-09-04, fb064m) Out-of-scope needs, for the merge:
+  - **The Act II residual: during the VS phase every high-ground tower is
+    uncontestable, at any radius.** `enemies.ts:1219` guards the Spitter's
+    structure branch with `else if (!act2)` (`act2 = w.huntsWarden`), so in Act
+    II Spitters harass the Warden and attack no structure at all. Since melee is
+    denied the cliff edge by fb064i and the flier never attacks structures, that
+    leaves nothing. This item bounds what *generation* can do — the geometry
+    never denies the contest — but the residual is a wave/enemy question and is
+    main-lane work: either the VS phase gets a structure-capable high-ground
+    attacker, or the decision to leave Act II high ground safe is recorded as
+    intended. Found by code-reviewer; the premise is now stated as Act-I-only in
+    `config.ts`, `analyze.ts` and the test header rather than unconditionally.
+  - **fb064i's predicates still have no call site**, so the melee denial this
+    constraint is built against is not yet a behaviour a run shows. Carried
+    forward from fb064i's merge list unchanged; fb064m's comments now say
+    "once wired" rather than asserting it in the present tense.
+  - **`data/terrain.json` now carries a third combat-relevant number.**
+    `highContestRadius` joins `highGround.families` in deciding what an enemy
+    can damage, so the standing `contentHash()` merge blocker (fb064b, carried
+    by g/h/i) applies to it too — after the World wiring, editing this field
+    changes which map a seed produces while a stale replay still validates.
+  - **The cross-check test reads `attackRange` only.** A future high-capable AoE
+    authored the Colossus way (`stompRadius`, `enemies.ts:1178`) would be
+    invisible to it. Harmless in the safe direction — a missed longer reach only
+    leaves the radius stricter than it needs to be — but the content lane should
+    widen it the day such an enemy lands in a family with `attacksHigh: true`.
+  - Carried forward unchanged: **nothing consumes `TerrainMap.fallback`**
+    (fb064g/b/h/i), **`Grid.placeCore` still has no safe caller** until fb064c
+    migrates the `CORE_X/CORE_Y` readers (fb064h), **the generator does not know
+    the run's gate list** (fb064b), and **`.gitattributes` does not exist**
+    (fb064k).
+
+- (2026-09-04, fb064m) Review and QA. code-reviewer returned **APPROVE with no
+  Critical or Major**; qa-playtester returned **PASS on both acceptance
+  clauses** and filed four bugs. Everything is fixed or recorded. Both agents
+  independently reproduced the recorded band exactly (27 / 85 / worst 409 with
+  12), which is the strongest evidence in this entry that it is a measurement
+  and not a story.
+  - **Major (QA bug 1), confirmed and fixed: `uncontestedHigh` went into the
+    public barrel with zero direct coverage.** The sweeps re-derive on purpose —
+    that is what makes them test the *repair* — but it left the *function*
+    unpinned, and QA demonstrated three contract-breaking mutants surviving all
+    eight terrain suites *and* `tsc`: returning `rock` indices as well, ignoring
+    the explicit `radius` argument, and deleting the export outright. Fixed with
+    a `describe('uncontestedHigh — the exported analyzer')` block on hand-built
+    non-arena grids (11x9, so a scan reaching for `GRID_W`/`GRID_H` is caught
+    too). All three now die.
+  - **A fourth mutant the fix did not kill, found here and then closed.**
+    Re-running the sweep against the new block left one survivor:
+    `Math.min(map.w - 1, x + radius)` -> `Math.min(35, ...)`. On the 36-wide
+    arena the two are identical, so every generator-driven assertion in the file
+    is structurally blind to it, and the first hand-built grid happened to have
+    no walkable tile in the wrapped position. It is the exact hazard
+    `gateIndices` already documents for fb064f's non-arena Training Grounds map.
+    Now pinned by a high tile in the rightmost column whose only walkable tile
+    sits at the start of the *next row*: at `nx === w` the unclamped index is
+    precisely that tile, so an overrunning bound calls the plot contested from
+    10.05 tiles away. **Final tally: 18 mutants, 18 killed.**
+  - **A mutation harness that scored 17 false negatives, disclosed**, because it
+    is fb064k's lesson repeating one session later. An escaped newline inside a
+    nested heredoc became a real newline, the generated Python failed to parse,
+    and the shell loop kept going — so every one of 17 mutants "passed" against a
+    completely unmutated tree (205/205 each time, which is what gave it away).
+    The harness had an "assert the file changed" guard; it never ran, because
+    the script died before reaching it. The rebuilt loop verifies with
+    `git diff --quiet` *outside* the mutation script and aborts on the first
+    anomaly. **A mutation result is only evidence if the mutation is verified to
+    have applied, and the verification must live outside the thing being
+    verified.**
+  - **Minor (QA bug 4), confirmed and fixed — and QA's suggested fix would have
+    gone red on the shipped roster.** It proposed asserting that every
+    `attacksHigh` family member carries an explicit `attackRange`; `gale_imp` is
+    `attacksHigh` (family `flier`) and authors none, so that assertion fails
+    today. The real defect is the one behind it: the cross-check *dropped* defs
+    without an `attackRange` while `enemies.ts:1211` *defaults* them to 4, so a
+    future `ranged` enemy authored with no range would attack structures at 4
+    and be invisible to the check. Now gated on the `ranged` trait — which is
+    what `enemies.ts` gates its own structure branch on — with the sim's `?? 4`
+    default mirrored, plus a pin that the `flier` row contributes no reach
+    *because* `enemies.ts:1422` denies fliers structures entirely, so its
+    absence reads as a decision.
+  - **Minor (QA bug 2), confirmed and fixed: the recorded band was a 1..500
+    statistic offered as the basis of a designer decision.** The rate barely
+    moves domain-wide (5.13% against 5.40%) but the tail does: seed
+    **-1399976589** carries **17** plots against this window's worst of 12,
+    reproduced here. Added a second recorded window (seeds -500..-1: 27 seeds,
+    50 plots, worst -323 with 6) and that named seed, rather than widening the
+    500-seed sweep, which would cost minutes for a number that is a statistic
+    either way. This lane's third recorded instance of a property measured on
+    the wrong seed window.
+  - **Minor (QA bug 3), recorded not fixed, and handed to fb064r:** headroom on
+    the two tightest bands is *exactly zero* domain-wide — seed 2005486180 sits
+    on `walkableFrac` 0.600000 and seed 2454233399 on `buildableNormalFrac`
+    0.450000 — so fb064m's own acceptance phrase "without moving the bands out
+    of their measured headroom" cannot discriminate for those two. fb064m moves
+    neither by a tile (proved, not sampled), so clause 2 still passes; the
+    ledger that should carry these witnesses is fb064r's whole job, and both
+    seeds are now written into that item.
+  - **Six review Minors/Nits, all fixed:** the melee-denial premise was asserted
+    in the present tense in two of three places while fb064i's predicates still
+    have no call site (now uniformly "once wired at the merge"); the "only the
+    Spitter" premise is Act-I-only, since `enemies.ts:1219` gates the structure
+    branch on `!act2`, so during the VS phase every high tower is uncontestable
+    at any radius (now stated in `config.ts`, `analyze.ts` and the test header,
+    and filed above for the main lane); the sweep measured at
+    `cfg.highContestRadius` rather than at the roster minimum the acceptance
+    names (now the latter, derived at module scope so no assertion depends on
+    another having run first); the `attackRange`-only blind spot is commented;
+    and `terrain-variety.test.ts`'s distinct-count windows were re-read rather
+    than inherited.
+  - **QA's independent verification, none of which found a defect:** clause 1
+    re-derived by brute force over **120701 seeds** spanning the whole domain
+    (0 offenders) and then deepened to **726514 kept plots** across 17003 maps —
+    0 without a walkable tile within 4, 0 whose in-range walkable tiles were
+    reachable from only some gates, and a worst-case *continuous* approach of
+    exactly 3.500000 against `nearestStructureWithin`'s strict
+    `d < range * range` (so the strict inequality never bites, which a
+    centre-to-centre 4.0 would have made load-bearing). Clause 2 exact over the
+    same 120701 seeds and again across 9 extreme configs x radii {0,1,4,36},
+    including configs at 100% fallback and `maxAttempts: 64`: identical attempts
+    and fallback counts at every radius. 28 hostile `/data` values (including a
+    *missing* key) all correctly accepted or refused, worst accepted setting
+    47 ms per 200 seeds. Determinism across fresh processes, no buffer aliasing,
+    no cross-config bleed. Every number in the shipped comments re-derived and
+    correct.
+  - **Two things QA checked and deliberately did not file.** A player can wall
+    the contesting tiles with their own towers and re-create an uncontestable
+    plot — out of scope, since `towers.ts:104` already records that SPEC-FINAL
+    §10 allows sealing the Core outright. And the `SPAN` cap is loose in the
+    harmless direction (max interior-to-gate distance is 18.028, so radii 19-36
+    demote nothing) while the *dangerous* direction is small and unbounded:
+    `highContestRadius: 1` demotes ~20% of all high ground. Defensible as
+    designer intent — the field's whole point is the shortest attack range — so
+    recorded here rather than capped.
+  - **Tree discipline held this time.** QA confined scratch to `.qa-fb064m/`
+    (matched by the `.qa-*/` ignore rule), restored each mutated source inside
+    the same command that mutated it, and verified byte-identical afterwards.
+    The one anomaly it reported was this session writing `BACKLOG-TERRAIN.md`
+    mid-pass, which is expected. The explicit brief that bought this is worth
+    reusing verbatim, as is fb064i's.
+
+- (2026-09-04, fb064m) Verification. `tests/terrain-high-contest.test.ts` is
+  13 tests, ~2.3 s; the nine `tests/terrain*` files are 206 tests (fast tier).
+  `npx tsc --noEmit` clean. `npm run sim -- --seed 1 --policy hybrid` gives
+  `endHash 2729a000`, matching the baseline recorded by fb064b/h/i/k, and QA
+  additionally ran seeds 2/7/42 x maxbuild/hybrid to victory and 102
+  save/replay/content-hash/death-flow tests green. `generateTerrain` and
+  `applyTerrain` still have no caller outside `src/sim/terrain/`, and
+  `data/terrain.json` is still absent from `TUNER_FILES` and from
+  `contentHash()`, so nothing in this change can reach or move a stored run.
+  `npm run test:fast` on the final tree: **2266 passed, 10 failed across 7
+  files**, the documented pre-existing set only — `b032`/`b034`/`b035`/`b036`
+  are the load-sensitive UI-fold suites (`b036` is the deterministic
+  1095.4-vs-1080 UI-lane failure), `q15` is the 4000 ms-settle command fuzz, and
+  `q49`/`q52` are the Windows EPERM cleanups under `bench/.tmp`. All nine
+  `tests/terrain*` suites are green in that run. The set is not identical
+  run-to-run — `b035` failed here and not in this session's earlier run, `q45`
+  the other way about — which is the load sensitivity already recorded, not a
+  new signal; the invariant across all three runs of this session is that
+  nothing in terrain, grid, enemies or pathing fails.

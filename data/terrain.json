@@ -45,6 +45,7 @@
   "gateClearRadius": 2,
   "plazaRadius": 3,
   "coreGateClearance": 3,
+  "highContestRadius": 4,
   "maxAttempts": 8,
   "constraints": {
     "minWalkableFrac": 0.6,

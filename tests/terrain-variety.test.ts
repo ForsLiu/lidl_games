@@ -244,9 +244,18 @@ describe(`fb064l — seeds produce varied maps, measured over ${SWEEP} seeds`, (
       //
       // `attainableSpan` is how many distinct tile counts the band spans, so
       // the floor scales with the authored numbers instead of being pinned to
-      // one of them. Measured over four disjoint 500-seed windows: rough
-      // 51-56 against a floor of 24, rock 56-59 against 15, high 19-20
-      // against 10. fb064a scores 1 for `high` against the same floor.
+      // one of them. **Re-read after fb064m** rather than inherited, over the
+      // same four disjoint 500-seed windows: rough 51-56 against a floor of 24,
+      // rock 55-60 against 15, high 20-22 against 10. fb064a scores 1 for
+      // `high` against the same floor.
+      //
+      // What fb064m changed here: `interiorShare(high)` is no longer the drawn
+      // budget, it is the budget minus the tiles the generator demoted to rock
+      // for being uncontestable, so `high` and `rock` both pick up a second,
+      // smaller source of per-seed spread (measured: mean 42.85 -> 42.72 high
+      // tiles over 2000 seeds, min 33 -> 29, and no seed loses all of it). That
+      // is why this comment's numbers moved and why the control below switches
+      // `highContestRadius` off as well as `jitter`.
       const span = attainableSpan(authored);
       expect(s.distinct, `${label} span=${span}`).toBeGreaterThanOrEqual(Math.ceil(span / 2));
 
@@ -268,14 +277,22 @@ describe(`fb064l — seeds produce varied maps, measured over ${SWEEP} seeds`, (
 
   it('the composition floors can fail: at jitter 0 the generator flunks its own test', () => {
     // A band test that cannot fail measures nothing (fb064a's rule for this
-    // lane). `density.jitter: 0` is fb064a's generator exactly — the draws are
-    // skipped, not multiplied by zero, so the maps are byte-identical to the
-    // pre-fb064l ones (pinned by the golden-hash control in
-    // `terrain-generation.test.ts`). It is therefore both the negative case
-    // *and* the control run for the change: same code, same seeds, one field.
+    // lane). `density.jitter: 0` plus `highContestRadius: 0` is fb064a's
+    // generator exactly — both fields are true no-ops at their off value, so
+    // the maps are byte-identical to the pre-fb064l ones (pinned by the
+    // golden-hash control in `terrain-generation.test.ts`). It is therefore
+    // both the negative case *and* the control run for the change: same code,
+    // same seeds, two fields.
+    //
+    // `highContestRadius: 0` is load-bearing here and not tidiness. fb064m
+    // demotes a per-seed number of `high` tiles to rock, which is itself a
+    // source of composition variety: left on, this control measures 4 distinct
+    // `high` shares rather than 1, and the negative case stops being fb064a's
+    // measured defect.
     const flatComposition = parseTerrain({
       ...(JSON.parse(JSON.stringify(cfg)) as Record<string, unknown>),
       density: { ...cfg.density, jitter: 0 },
+      highContestRadius: 0,
     });
     const control: TerrainMap[] = [];
     for (let s = 1; s <= 120; s++) control.push(generateTerrain(s, flatComposition));

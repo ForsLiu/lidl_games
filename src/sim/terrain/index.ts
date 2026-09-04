@@ -27,6 +27,7 @@ export {
   measureTerrain,
   terrainLegal,
   thickMask,
+  uncontestedHigh,
   walkableFlood,
 } from './analyze';
 export { describeTerrain, parseTerrainDump, type TerrainDump } from './describe';

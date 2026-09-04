@@ -491,14 +491,18 @@ describe('fb064j — golden hash per region', () => {
     // move them fails in this file too, not only in a file the change did not
     // appear to touch.
     //
-    // **Read at `density.jitter: 0` since fb064l**, and that is the point
-    // rather than a workaround: jitter 0 skips the budget draws, so it *is*
-    // fb064a's generator, and these four are still fb064a's recorded values
-    // byte for byte. The shipped-config goldens moved at fb064l (recorded in
-    // `terrain-generation.test.ts`); this assertion is deliberately the one
-    // that did not, so the domain fix keeps a witness that predates it.
+    // **Read with every since-fb064a switch at its off value** — `jitter: 0`
+    // (fb064l) and `highContestRadius: 0` (fb064m) — and that is the point
+    // rather than a workaround: both fields are true no-ops when off, so this
+    // *is* fb064a's generator and these four are still fb064a's recorded values
+    // byte for byte. The shipped-config goldens moved at fb064l and again (seed
+    // 1 only) at fb064m, both recorded in `terrain-generation.test.ts`; this
+    // assertion is deliberately the one that did not, so the domain fix keeps a
+    // witness that predates all of them. Every later generator change that
+    // ships as an off-able field belongs in this list.
     const asFb064a = withConfig((raw) => {
       (raw.density as Record<string, number>).jitter = 0;
+      (raw as Record<string, unknown>).highContestRadius = 0;
     });
     expect({
       1: generateTerrain(1, asFb064a).hash,

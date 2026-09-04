@@ -99,14 +99,23 @@ function field(text: string, head: string, key: string): string {
  *
  * A `.gitattributes` with `* text=auto eol=lf` would fix this repo-wide and is
  * outside this lane's Scope; it is filed in the Log for the merge.
+ *
+ * **Moved once, at fb064m**, which demotes a `high` tile with no walkable tile
+ * inside `highContestRadius` to rock — seed 1 carries four, all in the
+ * bottom-left massif. Only the hash, the `tiles` counts and those four glyphs
+ * move: the `bands` and `counts` lines are byte-identical, because `high` and
+ * `rock` are both non-walkable and both non-normal, so the demotion is
+ * invisible to every measured band. That is the clearest statement of what
+ * fb064m costs, and it is why this golden was re-derived rather than the item
+ * being talked out of moving it.
  */
 const GOLDEN_SEED_1 = [
   'terrain 36x20',
-  'seed requested=1 effective=1 attempts=1 fallback=false hash=c4dde717',
+  'seed requested=1 effective=1 attempts=1 fallback=false hash=54fad3db',
   'gates west=0,10 north=18,0 east=35,17',
   'bands walkable=0.669444 buildableNormal=0.515278 gateReach=1.000000 coreLegal=0.576819 corridors=true gatesOpen=true gatesConnected=true',
   'counts walkable=482 normal=371 coreAnchors=214',
-  'tiles normal=371 rough=111 rock=190 high=48',
+  'tiles normal=371 rough=111 rock=194 high=44',
   'legend normal=. rough=, rock=# high=^',
   'map',
   '##################.#################',
@@ -126,8 +135,8 @@ const GOLDEN_SEED_1 = [
   '#..,^^####...##.......^^...........#',
   '#..^^^##########......^^^..........#',
   '#^^^^^##########......^^,,,..,,....#',
-  '##^^^##^^^######......,,.,,,,,,,....',
-  '######^^^#^##........,,...,,,,,,...#',
+  '##^^^###^^######......,,.,,,,,,,....',
+  '##########^##........,,...,,,,,,...#',
   '####################################',
 ].join('\n')
   .concat('\n');

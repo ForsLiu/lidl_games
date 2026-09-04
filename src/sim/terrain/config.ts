@@ -229,6 +229,40 @@ const schema = z
     // Clearance is a rejection radius, not a painted one, so it is bounded by
     // the grid rather than by cost: past the span nothing is ever legal.
     coreGateClearance: nonNegInt.max(SPAN),
+    // fb064m: how far an enemy has to be able to *stand* from a high tile for a
+    // tower on it to be contestable. High ground is not walkable and — once
+    // fb064i's predicates are wired at the merge — ground melee cannot attack
+    // across the cliff edge, so the only enemy that damages a structure on high
+    // ground during an Act I wave is the Spitter, by plain Euclidean distance
+    // with no line-of-sight term. A high tile with no walkable tile inside this
+    // radius is a plot the player can build on and no wave can answer, so the
+    // generator demotes it to rock.
+    //
+    // Two limits on that claim, both recorded rather than fixed here. fb064i's
+    // rules are inert until the main lane wires them (the merge list is in
+    // BACKLOG-TERRAIN.md's Log), so today melee still reaches a cliff-edge
+    // tower. And the Spitter's structure branch is `else if (!act2)`
+    // (`enemies.ts:1219`), so in the Act II VS phase it hunts the Warden and
+    // attacks no structure at all — during Act II *every* high-ground tower is
+    // uncontestable, at any radius. This field bounds what generation can do
+    // about the geometry; the Act II residual is a wave/enemy question and
+    // belongs to the main lane.
+    //
+    // The number mirrors `data/enemies.json`'s shortest `attackRange` among the
+    // families `highGround` exempts. It is *not* validated against that file
+    // here: a loader rule reading another content file is this lane's recorded
+    // false-rejection shape, and it cannot be sound anyway because
+    // `loadContent({ enemies })` swaps the roster in play (the same argument
+    // `checkHighGround` records for `AUTHORED_TRAITS`). The cross-check is a
+    // test — `tests/terrain-high-contest.test.ts`.
+    //
+    // `0` switches the demotion off, which is the designer's way to accept the
+    // exposure without a code edit; the cost of accepting it is measured in
+    // that file (27 of 500 seeds, 85 plots). Capped at the span like the other
+    // radii: past it every high tile is contested by construction, and the
+    // scan is a loop inside `/src/sim` fed by a field fb064f puts under live
+    // Tuner editing.
+    highContestRadius: nonNegInt.max(SPAN),
     // Every attempt regenerates and re-measures the whole map. A bounded cap
     // keeps the worst-case degenerate config a slow frame, not a hang.
     maxAttempts: posInt.max(64),

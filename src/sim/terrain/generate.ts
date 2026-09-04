@@ -13,7 +13,10 @@
  *      two seeds differ in how much rock they carry and not only in where it
  *      sits);
  *   4. repair: any walkable tile the gates cannot reach becomes rock, so a
- *      sealed pocket can never be mistaken for playable ground;
+ *      sealed pocket can never be mistaken for playable ground, and any `high`
+ *      tile with no walkable tile inside `highContestRadius` becomes rock too
+ *      (fb064m — building is a click rather than a walk, so a stranded high
+ *      plot is a buildable tower site no wave can ever damage);
  *   5. measure against every authored band. A failing attempt is *degenerate*
  *      and the whole generation re-runs at `seed + 1` — deterministic, never
  *      a partially-patched illegal map.
@@ -30,7 +33,13 @@
 import { GATES, GRID_H, GRID_W } from '../grid';
 import { Hasher } from '../hash';
 import { fnv1a, Rng } from '../rng';
-import { gateIndices, measureTerrain, terrainLegal, walkableFlood } from './analyze';
+import {
+  gateIndices,
+  measureTerrain,
+  terrainLegal,
+  uncontestedHigh,
+  walkableFlood,
+} from './analyze';
 import { loadTerrain, TerrainKind, type TerrainConfig } from './config';
 import type { TerrainGrid, TerrainMap } from './types';
 
@@ -193,7 +202,37 @@ function attempt(seed: number, cfg: TerrainConfig): Uint8Array {
   scatter(TerrainKind.High, cfg.density.high, highBudget);
 
   sealPockets(kind, cfg);
+  demoteUncontestedHigh(kind, cfg);
   return kind;
+}
+
+/**
+ * fb064m: any `high` tile no enemy can shoot a tower off becomes rock.
+ *
+ * `sealPockets` above is the same repair for walkable ground and records the
+ * hole it leaves: building is a click rather than a walk, so a high plot walled
+ * off from every walker is still *usable* — and, once fb064i's rules deny ground
+ * melee the cliff edge, it is a tower site nothing in an ordinary wave can
+ * damage. Rock is the honest kind for a plateau buried inside a mountain.
+ *
+ * This runs *after* sealing, not before: sealing turns walkable ground into
+ * rock, which can leave a high tile newly uncontested. It needs no second pass
+ * of its own — demoting high to rock changes no tile's walkability, so it can
+ * never create a new uncontested plot.
+ *
+ * It costs no band, which is what makes it affordable at all: `high` and `rock`
+ * are both non-walkable and both non-`Normal`, so every term `measureTerrain`
+ * computes — all of them functions of the walkable set and the normal set — is
+ * identical either way, and no seed takes an extra retry because of it. Pinned
+ * over 500 seeds in `tests/terrain-high-contest.test.ts`.
+ */
+function demoteUncontestedHigh(kind: Uint8Array, cfg: TerrainConfig): void {
+  // No `highContestRadius <= 0` fast path here on purpose: `uncontestedHigh`
+  // already answers nothing at radius 0, and a second copy of that rule would
+  // be a branch no test could ever kill — whichever guard a mutation removed,
+  // the other would keep the suite green.
+  const view: TerrainGrid = { w: GRID_W, h: GRID_H, kind };
+  for (const i of uncontestedHigh(view, cfg)) kind[i] = TerrainKind.Rock;
 }
 
 /**

@@ -454,38 +454,52 @@ describe('fb064a — determinism (G2 scope: generation)', () => {
     // of fb064l; changing them is a deliberate act that must be paired with
     // invalidating replays, not a diff nobody notices.
     //
-    // **These four moved once, at fb064l**, when `density.jitter` gave each
-    // seed its own per-kind budget. Deliberate, and cheap exactly here: no run
-    // calls `generateTerrain` yet (fb064b shipped without World wiring), so no
-    // stored replay depends on a terrain map and this is the last moment the
-    // move is free. The control below is what makes it a *move* rather than a
-    // hope — see the next test.
+    // **Seed 1 moved twice and the other three once.** fb064l moved all four
+    // when `density.jitter` gave each seed its own per-kind budget; fb064m
+    // moved seed 1 alone, because it is one of the 27 seeds in 1..500 that
+    // carried an uncontestable high plot (4 of them) and the generator now
+    // demotes those to rock. Seeds 2/42/1000 carry none and are byte-identical
+    // across fb064m — which is itself the shape of the change, and is why they
+    // are left standing rather than re-recorded. Deliberate, and cheap exactly
+    // here: no run calls `generateTerrain` yet (fb064b shipped without World
+    // wiring), so no stored replay depends on a terrain map and this is the
+    // last moment the move is free. The control below is what makes it a
+    // *move* rather than a hope — see the next test.
     expect({
       1: generateTerrain(1, cfg).hash,
       2: generateTerrain(2, cfg).hash,
       42: generateTerrain(42, cfg).hash,
       1000: generateTerrain(1000, cfg).hash,
     }).toEqual({
-      1: 'c4dde717',
+      1: '54fad3db',
       2: '883dd254',
       42: '045e59fd',
       1000: '27a71f4e',
     });
   });
 
-  it('fb064l — at jitter 0 the generator is fb064a, tile for tile', () => {
-    // The control run for fb064l, and the reason the goldens above could be
-    // moved with confidence rather than adopted. `density.jitter: 0` skips the
-    // budget draws instead of multiplying them by zero, so the RNG stream is
-    // fb064a's stream and every map must be fb064a's map — restated here as
-    // fb064a's own four goldens, which is the strongest available statement
-    // that fb064l changed the *budgets* and nothing else about generation.
+  it('with both switches off the generator is fb064a, tile for tile', () => {
+    // The control run for fb064l *and* fb064m, and the reason the goldens above
+    // could be moved with confidence rather than adopted. Both changes ship as
+    // a field that is a true no-op at its off value: `density.jitter: 0` skips
+    // the budget draws instead of multiplying them by zero, and
+    // `highContestRadius: 0` returns before the demotion scan. With both off
+    // the RNG stream is fb064a's stream and every tile is fb064a's tile —
+    // restated here as fb064a's own four goldens, which is the strongest
+    // available statement that the two changes moved the *budgets* and the
+    // *uncontestable plots* and nothing else about generation.
     //
     // It is also what let the stranded-Core count in `terrain-grid.test.ts`
     // and the cliff seeds below be re-measured against a like-for-like before,
     // instead of against a remembered number.
+    //
+    // Keep both fields here. Dropping either turns the strongest control in the
+    // suite into a restatement of the current build: at `jitter: 0` alone seed
+    // 1 hashes `ac3b2bc7`, which is fb064a's map with fb064m's four tiles
+    // demoted, and no assertion would then witness fb064a at all.
     const noJitter = withConfig((raw) => {
       (raw.density as Record<string, number>).jitter = 0;
+      (raw as Record<string, unknown>).highContestRadius = 0;
     });
     expect({
       1: generateTerrain(1, noJitter).hash,

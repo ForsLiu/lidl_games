@@ -294,6 +294,67 @@ export function legalCoreAnchors(
   return out;
 }
 
+/**
+ * fb064m: flat indices of every `high` tile that no enemy can shoot a tower
+ * off — no walkable tile within `cfg.highContestRadius`.
+ *
+ * High ground is not walkable, and *once fb064i's predicates are wired at the
+ * merge* ground melee cannot attack across the cliff edge either — the rules
+ * exist and are tested, but `canAttackStructureAt` has no call site in `src/`
+ * yet, so the denial is a rule this generator is built against rather than a
+ * behaviour a run shows today. Under it, the only enemy that damages a
+ * structure standing on high ground during an Act I wave is the Spitter, at a
+ * plain Euclidean `attackRange` with no line-of-sight term. A high tile with no
+ * walkable tile inside that radius is therefore a buildable plot no wave can
+ * ever answer — `sealPockets`' recorded blind spot, since it only seals
+ * unreachable *walkable* ground.
+ *
+ * Distance is centre-to-centre, the conservative reading: an enemy is a
+ * continuous position inside a walkable tile, so a tile whose centre is in
+ * range certainly holds a standable point in range, while one whose centre is
+ * outside might still hold one near its edge. Erring that way can only call a
+ * contested plot uncontested — it can never miss a real one.
+ *
+ * `radius: 0` returns nothing: the field is off, and the caller has accepted
+ * the exposure rather than asked for every high tile to be demoted.
+ *
+ * The scan is a clamped box per high tile with an early exit, so its cost is
+ * the area actually looked at and never the `(2r+1)^2` the config asked for —
+ * `highContestRadius` comes from `/data`, which fb064f puts under live Tuner
+ * editing (fb064a's `paint()` finding, same rule).
+ */
+export function uncontestedHigh(
+  map: TerrainGrid,
+  cfg: TerrainConfig,
+  radius = cfg.highContestRadius,
+): number[] {
+  const out: number[] = [];
+  if (radius <= 0) return out;
+  const r2 = radius * radius;
+  for (let i = 0; i < map.kind.length; i++) {
+    if (map.kind[i] !== TerrainKind.High) continue;
+    const x = i % map.w;
+    const y = (i / map.w) | 0;
+    const x0 = Math.max(0, x - radius);
+    const x1 = Math.min(map.w - 1, x + radius);
+    const y0 = Math.max(0, y - radius);
+    const y1 = Math.min(map.h - 1, y + radius);
+    let contested = false;
+    for (let ny = y0; ny <= y1 && !contested; ny++) {
+      const dy2 = (ny - y) * (ny - y);
+      for (let nx = x0; nx <= x1; nx++) {
+        if (dy2 + (nx - x) * (nx - x) > r2) continue;
+        if (isWalkable(cfg, map.kind[ny * map.w + nx])) {
+          contested = true;
+          break;
+        }
+      }
+    }
+    if (!contested) out.push(i);
+  }
+  return out;
+}
+
 /** Is every gate open — at least one walkable neighbour, never enclosed? */
 export function gatesOpen(map: TerrainGrid, cfg: TerrainConfig): boolean {
   for (const g of GATES) {
