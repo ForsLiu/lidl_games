@@ -203,6 +203,24 @@ function toMap(
 }
 
 /**
+ * The accepted seed domain (fb064j), inclusive.
+ *
+ * The upper end is `0xffffffff` because that is the domain a *run* seed
+ * actually draws from — `src/ui/main.ts` starts a run with
+ * `(Math.random() * 0xffffffff) >>> 0`, so roughly half of all real seeds are
+ * at or above `2 ** 31`. The lower end keeps the int32 negatives, which tools
+ * and tests use freely and which the RNG has always accepted.
+ *
+ * Anything outside is refused rather than folded in: `2 ** 32`, `2 ** 40` and
+ * `Number.MAX_SAFE_INTEGER` are all integers, so the `Number.isInteger` guard
+ * waves them through, and they used to land on seeds 0, 0 and -1 respectively
+ * — the identical aliasing hole that guard exists to close, still open one
+ * bit further out.
+ */
+export const MIN_TERRAIN_SEED = -0x80000000;
+export const MAX_TERRAIN_SEED = 0xffffffff;
+
+/**
  * The run's terrain. Pure in `(seed, cfg)`: the same pair always returns the
  * same tiles and the same hash.
  *
@@ -211,17 +229,46 @@ function toMap(
  * writes that 0 into `requestedSeed`, destroying the provenance the replay
  * guard (architecture rule 2) needs. There is no caller yet, so this is the
  * cheap moment to make it loud instead of at fb064b/fb064c.
+ *
+ * An out-of-domain integer is refused for the same reason (fb064j), and
+ * `requestedSeed` now records what the caller *passed*, not `seed | 0`. Under
+ * `| 0` a run seed of `3000000000` reported `requestedSeed: -1294967296`, so
+ * the field could not be compared against `RunConfig.seed` at all on half the
+ * seed space — provenance destroyed exactly as above, in the normal case
+ * rather than the corrupt one.
+ *
+ * `seed` (the effective one) is the uint32 RNG key, which is what `attempt`
+ * has always reduced to. The retry walk therefore wraps modulo `2 ** 32`
+ * rather than escaping the domain: the successor of `0xffffffff` is `0`.
+ * Tiles and `hash` are unchanged by this — `attempt` already keyed on
+ * `seed >>> 0`, and `Hasher.int` folds the same four bytes for the signed and
+ * unsigned views of one key.
  */
 export function generateTerrain(seed: number, cfg: TerrainConfig = loadTerrain()): TerrainMap {
   if (!Number.isInteger(seed)) {
-    throw new Error(`generateTerrain: seed must be an integer, got ${seed}`);
+    throw new Error(`generateTerrain: seed must be an integer, got ${String(seed)}`);
   }
-  const requested = seed | 0;
+  if (seed < MIN_TERRAIN_SEED || seed > MAX_TERRAIN_SEED) {
+    throw new Error(
+      `generateTerrain: seed must be in [${MIN_TERRAIN_SEED}, ${MAX_TERRAIN_SEED}], got ${String(seed)}`,
+    );
+  }
+  // `-0` passes both guards (`Number.isInteger(-0)` is true, `-0 < MIN` is
+  // false) and would be stored verbatim as `-0`. It compares equal to `0`
+  // under `===` but not under `Object.is`, which is what vitest's `toBe`, a
+  // deep-equal on the map, and a JSON round-trip of a saved run all use — so
+  // the one value where "compare `requestedSeed` to `RunConfig.seed`" breaks
+  // would be the one that looks most like a legitimate seed. Normalise it.
+  const requested = seed === 0 ? 0 : seed;
+  const key = seed >>> 0;
   for (let n = 0; n < cfg.maxAttempts; n++) {
-    const trySeed = (requested + n) | 0;
+    const trySeed = (key + n) >>> 0;
     const kind = attempt(trySeed, cfg);
     const map = toMap(requested, trySeed, kind, n + 1, false);
     if (terrainLegal(measureTerrain(map, cfg), cfg)) return map;
   }
-  return toMap(requested, requested, blankKinds(), cfg.maxAttempts, true);
+  // The fallback map came from no RNG key at all, so `seed` stays the
+  // unadvanced key rather than `key + maxAttempts - 1`: reporting an advanced
+  // seed would name a key that did not produce these tiles.
+  return toMap(requested, key, blankKinds(), cfg.maxAttempts, true);
 }

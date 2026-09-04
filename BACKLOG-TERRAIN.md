@@ -140,12 +140,20 @@ is what §10.5 will be written from.
       bosses' *special attacks*", not bosses, and a family flag cannot tell a
       boss's special from its melee; the specials are exempt by call site
       instead (`boss.ts` is not guarded at the merge). See the Log.
-- [ ] (fb064j) [test] generator seed-domain hardening: `generateTerrain` is
+- [x] (fb064j) [test] generator seed-domain hardening: `generateTerrain` is
       pinned only over seeds 1..20000, which is not the domain a run seed
       draws from. Acceptance: determinism and full band legality over
       negative seeds, 0, `2**31 - 1` and seeds near the `(requested + n) | 0`
       wrap; the retry path exercised in the negative range; a golden hash
       per region — refs: fb064a Log ("band headroom is ZERO"), G2.
+      **Filed as `[test]`; shipped with two code fixes.** Measuring the real
+      domain found two defects in `generateTerrain`, both fixed red-first:
+      `requestedSeed` was `seed | 0`, so a real run seed (drawn as
+      `(Math.random() * 0xffffffff) >>> 0`) of 3000000000 reported
+      -1294967296 — provenance unusable on half the seed space; and
+      out-of-domain integers (`2 ** 32`, `2 ** 40`, `MAX_SAFE_INTEGER`) passed
+      the `Number.isInteger` guard and aliased onto seeds 0, 0 and 0xffffffff.
+      See the Log for the full record.
 - [ ] (fb064k) [polish] `describeTerrain` diagnostic: a deterministic ASCII
       dump plus measured-band summary in `src/sim/terrain/`, so a terrain
       repro is one string rather than a seed and a screenshot. Acceptance:
@@ -1044,3 +1052,149 @@ is what §10.5 will be written from.
   - QA respected the working tree this time (the fb064h incident): scratch under
     `bench/.tmp/qa1..11.ts`, no tracked file touched, `git status` identical
     before and after. The instruction that bought it is worth reusing verbatim.
+
+- (2026-09-04, fb064j) Seed-domain hardening. `src/sim/terrain/generate.ts` gains
+  `MIN_TERRAIN_SEED`/`MAX_TERRAIN_SEED` and a domain guard;
+  `tests/terrain-seed-domain.test.ts` is 21 tests, ~8.9 s (stays in the fast
+  tier). Design decisions, for QUESTIONS.md at the merge:
+  - **The domain is `[-2**31, 2**32-1]`, not int32.** The item was filed as a
+    coverage gap, but the gap had a defect behind it: a run seed is drawn as
+    `(Math.random() * 0xffffffff) >>> 0`, so roughly half of every real seed is
+    at or above `2**31`, and `requestedSeed = seed | 0` reported 3000000000 as
+    -1294967296. That is the same provenance destruction fb064a's
+    `Number.isInteger` guard exists to prevent, happening in the *normal* case
+    rather than the corrupt one. The upper end is the uint32 a run draws; the
+    lower end keeps the int32 negatives, which tools and tests use freely and
+    which the RNG has always accepted. Refusing negatives would buy nothing and
+    would delete the negative-range retry coverage the item asks for.
+  - **`requestedSeed` is provenance, not identity, and is stored verbatim.**
+    `-1` and `4294967295` are distinguishable here but produce byte-identical
+    tiles and an identical `hash`, because `attempt()` keys the RNG on
+    `seed >>> 0`. Canonicalising to uint32 was considered and rejected: it
+    reintroduces the same defect one bit-pattern class over, since a tool
+    seeding with `-1` could no longer recognise its own run. `types.ts` now says
+    so, and says that a guard checking a seed must check `requestedSeed` and not
+    `seed` — `seed` is the tempting name and the wrong one.
+  - **Out-of-domain integers are refused rather than folded in.** `2**32`,
+    `2**40` and `MAX_SAFE_INTEGER` are integers, so `isInteger` waved them
+    through and `| 0` dropped them onto seeds 0, 0 and 0xffffffff. QA found a
+    sharper one: `-(2**31) - 1`, one *below* the floor, became the domain's
+    *ceiling* (2147483647). All are now refused.
+  - **`| 0` -> `>>> 0` in the retry walk moves no tile and no hash.** Proved
+    algebraically (both are views of one residue mod `2**32`; `attempt` consumes
+    `seed >>> 0` and `Hasher.int` folds `seed | 0`, so both are invariant) and
+    measured: QA diffed 800000 seeds spanning both wraps against HEAD's
+    generator — 0 tile diffs, 0 hash diffs, the only deltas being the
+    `seed`/`requestedSeed` fix itself. fb064a's goldens 1/2/42/1000 are unchanged
+    and are restated in the new file so a future widening that does move them
+    fails here too.
+  - **`seed` on a fallback map is the *unadvanced* key**, and the doc now says
+    so. The first draft's wording ("advanced by one per degenerate attempt") was
+    unfalsifiable at HEAD and false once tightened: the flat map is not any key's
+    output, so naming an advanced key would name a key that did not produce those
+    tiles. Caught by QA against the doc, not the code.
+  - **`-0` is normalised to `0`.** It passes both guards (`isInteger(-0)` is
+    true, `-0 < MIN` is false) and would be stored verbatim. It compares equal to
+    `0` under `===` but not under `Object.is` — which is what vitest's `toBe`, a
+    deep-equal on the map, and the JSON round-trip of a saved run all use.
+    Reachable from any `Number(argv)` seed path, since `Number('-0')` is `-0`.
+    The one value where "compare `requestedSeed` to `RunConfig.seed`" breaks
+    would have been the one that looks most like a legitimate seed.
+  - **The band cliff is a property of the whole domain, not of seeds 1..20000.**
+    fb064a's Log records seed 7957 at `walkableFrac` exactly 0.6000 against a
+    `>= 0.60` band and read it as a fact about that window. QA re-measured
+    **8,822,700 seeds across ten windows: every single one bottoms out at exactly
+    0.600000**, and 7 of the 200000 seeds below `0xFFFFFFFF` sit on the floor.
+    The far-domain twin (`4294881754` = `-85542`, 432/720 walkable, hash
+    `c653ad51`) is now pinned alongside, so a density retune goes red in the far
+    window too. Second-tightest band is `buildableNormalFrac` at 4 tiles of
+    headroom. **0 illegal and 0 fallback across all 8.82M**, max attempts 2,
+    first-attempt-degenerate rate 1.77e-4 — but that is 0.205% of the domain and
+    is support, not proof; nobody enumerated 4.295e9 seeds (~21 CPU-days).
+
+- (2026-09-04, fb064j) Review and QA. code-reviewer returned REQUEST-CHANGES on
+  two Majors; qa-playtester returned PASS on every acceptance criterion and filed
+  seven items. Both Majors were in the new *test* file, not the `/src/sim`
+  change, and both are the mistake this file keeps recording.
+  - **Major (review), confirmed and fixed: the "whole uint32 domain" comb covered
+    0.0996% of it.** `step: 10726` should have been ~10737418 — a dropped-digit
+    slip. Its largest seed was 4279674, entirely below `2**31` and inside
+    territory fb064a's sweep already covers, so the one region whose stated job
+    is "not a contiguous window" was a fifth contiguous window: a sample dressed
+    as a property. Now `2 * floor(2**32 / REGION_N / 2) + 1`, odd so the low bits
+    vary too (an even stride from 0 only visits even seeds, and
+    `fnv1a`/`mulberry32` are bit-mixing functions). Honest note: this is a
+    coverage widening, so no mutant demonstrates it — the corrected comb is still
+    0 illegal / 0 fallback.
+  - **Major (review), confirmed and fixed: `legalUnder` was the generator's own
+    accept predicate.** `generateTerrain` returns a non-fallback map only when
+    `terrainLegal(measureTerrain(map, cfg), cfg)` passes under the same cfg, so
+    `illegal: []` was implied by `fellBack: []` and the item's "full band
+    legality" clause was unmeasured. fb064a hit this exact problem and wrote
+    `terrainLegalUnder` to re-derive legality term by term, with a comment
+    recording that dropping one term made the assertion strictly weaker than the
+    generator's accept test — and the first draft of this file reintroduced the
+    weak form anyway. Now re-derived term by term, plus a `disagreed` check that
+    the re-derivation and the flag agree. Mutation-tested: deleting the
+    `walkableFrac` term from `terrainLegal` now goes red and previously did not.
+  - **Minor (review + QA), confirmed and fixed: `badProvenance` asserted
+    `attempts === 1`.** `a.seed === s >>> 0` only holds without a retry, and it
+    passed only because zero of the 2000 region seeds retry under shipped data.
+    Any density retune — which fb064f hands to *live Tuner edits* — would have
+    turned a correct retried map red under the label "badProvenance", pointing
+    the next engineer at the fix this item shipped. Now `(key + attempts - 1)
+    >>> 0`, and a new test exercises it on a band measured at 76 retries / 0
+    fallbacks over 300 seeds so the corrected form is load-bearing
+    (mutation-tested). **`minWalkableFrac: 0.62` was tried first — QA's own repro
+    band — and measured 0 retries on those three windows.** Recorded because it
+    looked like the obvious choice and would have shipped a test asserting
+    nothing.
+  - **QA bug 4, confirmed and fixed: "every skipped seed was degenerate" could
+    not fail for the reason it claimed.** Asserting `generateTerrain(s + n).seed
+    !== s + n` only restates the walk the generator just performed. `attempt()`
+    is not exported, so the fix reaches it through an `alwaysAccepts` config
+    carrying `strict`'s generation parameters with every band switched off —
+    which returns `attempt(k)` on the first try — and measures *that* map against
+    `strict`'s bands. Inherited verbatim from
+    `tests/terrain-generation.test.ts:678-687`, so **the same weakness is still
+    in fb064a's file**: noted below.
+  - **QA bug 5, fixed: a `Symbol` seed threw from the guard's own message.**
+    `${seed}` raises "Cannot convert a Symbol value to a string" while *building*
+    the rejection, so the caller saw a TypeError from inside the validator
+    instead of its verdict. Out of contract for a `number` parameter, but a guard
+    should not fail while explaining itself; now `String(seed)`.
+  - **QA bug 7, fixed:** a duplicated `not.toThrow()` pair; replaced with the
+    `-(2**31) - 1`-became-the-ceiling assertion rather than deleted.
+  - **Verified by QA and unchanged:** all 10 region goldens reproduce in fresh
+    processes, order-independent, under `--jitless`, and match HEAD's committed
+    generator exactly — they were not recorded from a mutated tree. 41 hostile
+    guard inputs (BigInt, boxed `Number`, `Object(-0)`, `Symbol`, strings,
+    `1e21`, `0.1+0.2`, `4294967295.0000000001`) all correctly accepted or refused
+    with no silent aliasing. Purity holds under a 3-config interleave, 20000
+    repeat calls, and 50 stomps of the returned `kind` buffer.
+  - **QA disclosed a process incident:** one parallel-launch command dropped two
+    `ERR_MODULE_NOT_FOUND` dumps into the repo root; it removed exactly those two
+    untracked paths and `git status` returned to the session-start state.
+    Verified here. Better than the fb064g precedent, and worth keeping the
+    warning in the QA brief.
+
+- (2026-09-04, fb064j) Out-of-scope needs, for the merge:
+  - **Nothing domain-checks `RunConfig.seed`.** It is a bare `number`
+    (`src/sim/types.ts:608`) and `tools/sim.ts:78` builds it with `Number(v)`, so
+    `npm run sim -- --seed 1e18` and `--seed abc` are both accepted today —
+    `RngSet` swallows them via `seed >>> 0`. The moment **fb064c** wires
+    `generateTerrain(cfg.seed)` into run start, they become a throw from inside
+    `/src/sim` mid-run instead of a CLI rejection. The guard is right but sits
+    one layer below where the bad value enters. **fb064c must domain-check the
+    seed at ingestion**, or `--seed 1e18` throws mid-run; both files are outside
+    this lane's Scope.
+  - **`tests/terrain-generation.test.ts:678-687` carries the weakness QA filed as
+    bug 4** — the skipped-seed loop re-reads the generator's own report rather
+    than measuring degeneracy. Fixed in the new file only; fb064a's file is in
+    this lane's Scope but was left alone deliberately, since rewriting a green
+    suite's assertions is not this item's job. Small follow-up item.
+  - **`bench/.tmp/` holds ~33 gitignored full copies of the working tree**,
+    several already containing this item's uncommitted test file. Noticed by
+    code-reviewer; that copy-the-tree mechanism (q45/q49/q52) is plausibly what
+    is behind this lane's "QA raced the working tree" entry and the recurring
+    EPERM flakes. Main-lane work, and relevant to whoever fixes those suites.

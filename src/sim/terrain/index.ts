@@ -35,7 +35,12 @@ export {
   type CorePlacementResult,
   type CoreRejectReason,
 } from './core-placement';
-export { generateTerrain, terrainHash } from './generate';
+export {
+  generateTerrain,
+  terrainHash,
+  MAX_TERRAIN_SEED,
+  MIN_TERRAIN_SEED,
+} from './generate';
 export {
   canAttackHighGround,
   canAttackStructureAt,

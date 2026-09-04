@@ -22,9 +22,26 @@ export interface TerrainGrid {
 }
 
 export interface TerrainMap extends TerrainGrid {
-  /** The seed the caller asked for. */
+  /**
+   * The seed the caller asked for, verbatim — not coerced (fb064j), except
+   * that `-0` is normalised to `0`. It is the value to compare against
+   * `RunConfig.seed`, and it may be negative even though `seed` never is.
+   *
+   * It is *provenance, not identity*: a negative seed and its uint32 twin
+   * (`-1` and `4294967295`) are distinguishable here but produce byte-identical
+   * tiles and an identical `hash`. A replay guard that only checks `hash` will
+   * therefore not notice a `requestedSeed` mismatch, and one that checks a
+   * seed must check *this* field — `seed` below is the tempting name and the
+   * wrong one.
+   */
   readonly requestedSeed: number;
-  /** The seed that actually produced this map (`requestedSeed + n` retries). */
+  /**
+   * The uint32 RNG key that actually produced this map: `requestedSeed >>> 0`
+   * advanced by one per degenerate attempt, wrapping modulo `2 ** 32`.
+   *
+   * On a `fallback: true` map it is instead the *unadvanced* key, because no
+   * key produced those tiles — the flat map is not any seed's output.
+   */
   readonly seed: number;
   /** How many generation attempts ran, including the one that succeeded. */
   readonly attempts: number;
