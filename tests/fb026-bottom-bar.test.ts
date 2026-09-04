@@ -210,6 +210,11 @@ describe('fb026 bottom bar — DOM', () => {
     // spent, but `liveOverrides` only special-cased `cooldownSeconds` — the
     // tooltip showed the true, CDR-reduced number under "Cooldown" and the
     // raw, unreduced one under "Recharge seconds" for the same real wait.
+    //
+    // fb063: Time's tooltip is sentence-form now (`timeMarkSentence`,
+    // class-info.ts) rather than a bare field list, but the same live-vs-raw
+    // distinction still has to hold for its "N charges, Ns to recharge each"
+    // clause.
     const w = new World(cfg({ classKey: 'time_lord' }));
     w.derived.cdr = 0.5;
     const cls = w.content.classByKey.get('time_lord')!;
@@ -222,8 +227,8 @@ describe('fb026 bottom bar — DOM', () => {
     expect(real).not.toBe(raw);
     // The class's other numeric fields (several unrelated "N seconds" DoT
     // durations) can coincidentally share the same bare text as the raw,
-    // un-CDR'd recharge value — the field label disambiguates.
-    expect(tip.innerHTML).toContain(`Recharge seconds: ${fieldValueText('rechargeSeconds', real)}`);
-    expect(tip.innerHTML).not.toContain(`Recharge seconds: ${fieldValueText('rechargeSeconds', raw)}`);
+    // un-CDR'd recharge value — the "to recharge each" phrase disambiguates.
+    expect(tip.innerHTML).toContain(`${fieldValueText('rechargeSeconds', real)} to recharge each`);
+    expect(tip.innerHTML).not.toContain(`${fieldValueText('rechargeSeconds', raw)} to recharge each`);
   });
 });

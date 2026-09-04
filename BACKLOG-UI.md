@@ -335,7 +335,7 @@ not already expose it) logs that need below instead of reaching into
       fb070's note (single combined run covered both items), none touching
       `src/render/**`/`src/ui/**` or either item's own files.
 
-- [ ] (fb063) [feat] normal priority: bottom-bar passive/Active1/Active2
+- [x] (fb063) [feat] normal priority: bottom-bar passive/Active1/Active2
       icons become hover-only (no click, no sticky panel); tooltip shows a
       written sentence-form effect description with embedded live numbers
       (e.g. "Slash all enemies within 2.5 tiles for 34 damage, knocking
@@ -346,7 +346,43 @@ not already expose it) logs that need below instead of reaching into
       passive) on every visible class shows sentence-form text; a test
       asserts the numbers embedded in the text equal live sim values —
       refs: SPEC-FINAL §11 (amends the bottom-bar HUD item, `fb026`/
-      `fb028`), owner feedback `feature-skill-icons-hover-only`.
+      `fb028`), owner feedback `feature-skill-icons-hover-only`. DONE
+      2026-09-03: `class-info.ts` adds a `ACTIVE_SENTENCES` table mapping
+      each Active `kind` the 3 normal-profile classes use (`charge_nova`,
+      `dash_line`, `ground_poison`, `poison_boost`, `time_mark`, `time_lock`)
+      to a hand-authored sentence function (`circleSlashSentence`,
+      `dashSlashSentence`, `poisonBarrelSentence`, `poisonBoostSentence`,
+      `timeMarkSentence`, `timeLockSentence`), each reusing the existing
+      `liveOverrides`-style live-number resolution
+      (`liveDamageValue`/`liveCooldownValue`) so embedded numbers match live
+      sim values, not raw `/data` ones; `activeSkillMarkup` uses the sentence
+      when a `kind` has one, else falls back to the pre-existing bare
+      field-list block (documented as intentional: covers only the 3
+      normal-profile classes' 6 Actives today, extends when fb057/fb059 make
+      a hidden class normal-profile-visible). `hud.ts` adds a 4th bottom-bar
+      icon (`#sw-bb-towerpassive`) wired to the already-existing
+      `towerPassiveSkillMarkup` (fb058), same CSS-only hover-reveal as the
+      other 3 (no new click handler, none ever existed on any of the 4 —
+      the bar has been hover-only since fb026). Targeted
+      `tests/ui-fb063-bottombar-hover-sentences.test.ts` (9/9: no-click
+      regression across all 4 icons, exactly-4-icons count, passive/tower
+      description text-inclusion for all 3 normal-profile classes, and
+      live-number-embedded assertions for Circle Slash/Poison Barrel/Time's
+      per-stage DoTs + CDR-scaled recharge). code-reviewer REQUEST-CHANGES →
+      one Major (a stray, content-unrelated `STATUS.md` working-tree edit
+      left over from an unrelated prior session — dropped from this commit
+      entirely, never touched by this item) and one Nit (Time Lock's
+      sentence omitted the "immune to Time's rewind-pull" interaction
+      `classes.ts`'s `timeLockZoneId` gate already implements — added the
+      clause) both addressed same session, re-verified green
+      (`tests/ui-fb063-bottombar-hover-sentences.test.ts` +
+      `tests/fb026-bottom-bar.test.ts` + `tests/fb022-info-surfacing.test.ts`
+      + `tests/ui-fb058-class-select.test.ts`, 74/74). qa-playtester PASS
+      (see below). `npx tsc --noEmit` clean. `npm run test:fast`: 9 failed
+      files / 6
+      failed tests, all in the pre-existing q15/q45/q49/q52 worker-hang/
+      Windows-scratch-dir-EPERM flake classes documented across dozens of
+      prior PROGRESS.md sessions, none touching `src/ui/**`/`src/render/**`.
 
 - [ ] (fb065) [feat] normal priority: every UI overlay (bottom bar, side
       panels, DPS panel, counters, wave info) floats over the playfield as
@@ -472,6 +508,14 @@ not already expose it) logs that need below instead of reaching into
   before commit. Recorded here for main-lane awareness of a possible merge
   overlap, per the Scope section's own instruction to log out-of-scope
   touches.
+
+- 2026-09-03, fb063: `tests/fb026-bottom-bar.test.ts` (predates the
+  `tests/ui*` naming convention, same precedent class as fb058's
+  `tests/fb022-info-surfacing.test.ts` touch above) needed its Time Lord
+  "Recharge seconds: N" assertion updated to "N ... to recharge each" —
+  the old bare-field-list phrasing fb063's sentence-form tooltip replaces
+  for that Active. Two lines changed, re-verified green (21/21) together
+  with the rest of the targeted set before commit.
 
 - 2026-09-03, fb060: `tests/q3-save-fuzz.test.ts` needed the same one-line
   touch fb058 already logged above for the identical reason — its

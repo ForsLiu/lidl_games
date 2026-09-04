@@ -20,7 +20,13 @@ import { STAT_DISPLAY, type StatDisplay } from '../sim/stats';
 import { active2CdrFactor, characterBasicRange, classAttackPowerMul } from '../sim/classes';
 import { longestWieldedRange } from '../sim/vswield';
 import { SPEEDS } from './pacer';
-import { activeSkillMarkup, classAbilitiesMarkup, passiveSkillMarkup, type ClassLiveContext } from './class-info';
+import {
+  activeSkillMarkup,
+  classAbilitiesMarkup,
+  passiveSkillMarkup,
+  towerPassiveSkillMarkup,
+  type ClassLiveContext,
+} from './class-info';
 import { bottomBarData, type SkillIconState } from './bottom-bar';
 import { coreLiveMarkup } from './core-info';
 import { formatPct, trimNum } from './info-format';
@@ -115,6 +121,7 @@ export class Hud {
     goldNum: HTMLElement;
     passiveState: HTMLElement;
     passiveTip: HTMLElement;
+    towerPassiveTip: HTMLElement;
     a1Sweep: HTMLElement;
     a1Charge: HTMLElement;
     a1Cd: HTMLElement;
@@ -157,6 +164,10 @@ export class Hud {
               <div class="sw-bb-icon"><span class="sw-bb-icontext">P</span></div>
               <div class="sw-bb-under" id="sw-bb-passive-state"></div>
               <div class="sw-bb-tip" id="sw-bb-passive-tip"></div>
+            </div>
+            <div class="sw-bb-skill sw-bb-passive" id="sw-bb-towerpassive" data-skill="towerpassive" tabindex="0">
+              <div class="sw-bb-icon"><span class="sw-bb-icontext">T</span></div>
+              <div class="sw-bb-tip" id="sw-bb-towerpassive-tip"></div>
             </div>
             <div class="sw-bb-skill" id="sw-bb-active1" data-skill="active1" tabindex="0">
               <div class="sw-bb-icon">
@@ -233,6 +244,7 @@ export class Hud {
       goldNum: root.querySelector('#sw-bb-gold-num') as HTMLElement,
       passiveState: root.querySelector('#sw-bb-passive-state') as HTMLElement,
       passiveTip: root.querySelector('#sw-bb-passive-tip') as HTMLElement,
+      towerPassiveTip: root.querySelector('#sw-bb-towerpassive-tip') as HTMLElement,
       a1Sweep: root.querySelector('#sw-bb-a1-sweep') as HTMLElement,
       a1Charge: root.querySelector('#sw-bb-a1-charge') as HTMLElement,
       a1Cd: root.querySelector('#sw-bb-a1-cd') as HTMLElement,
@@ -948,6 +960,7 @@ export class Hud {
     const cls = w.content.classByKey.get(w.cfg.classKey);
     if (cls) {
       this.bb.passiveTip.innerHTML = passiveSkillMarkup(cls);
+      this.bb.towerPassiveTip.innerHTML = towerPassiveSkillMarkup(cls);
       const live: ClassLiveContext = {
         cdr: w.derived.cdr,
         atkFlat: w.derived.atkFlat,
