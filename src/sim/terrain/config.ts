@@ -324,12 +324,42 @@ const schema = z
   })
   .strict()
   .superRefine((cfg, ctx) => {
+    // fb064t, QA bug 1: this refinement states the length rule itself rather
+    // than trusting that zod's `.length()` above already did. The two do not
+    // always agree — zod checks `exactLength` against the *input*'s `.length`
+    // and then builds the parsed array by spreading its iterator, so an array
+    // whose `length` says 4 while its iterator yields nothing passes the schema
+    // check and arrives here as `[]`. Without this, that document was accepted
+    // outright and the crash resurfaced in `sealPockets`, naming neither the
+    // field nor the file. An ordinary short array is reported twice (once by
+    // each rule), which is the honest cost of not depending on the other.
+    if (cfg.tiles.length !== TERRAIN_KEYS.length) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['tiles'],
+        message:
+          `tiles must define all ${TERRAIN_KEYS.length} kinds in order ` +
+          `(${TERRAIN_KEYS.join(', ')}), got ${cfg.tiles.length}`,
+      });
+    }
     for (let i = 0; i < TERRAIN_KEYS.length; i++) {
-      if (cfg.tiles[i].key !== TERRAIN_KEYS[i]) {
+      // fb064t: `tiles` is length-pinned on the schema above, but zod reports a
+      // wrong array length as a *dirty* parse rather than an aborted one, so
+      // this refinement still runs on a short array — and every read here is
+      // positional (`TerrainKind` indexes `tiles`). Unguarded, `tiles: []` left
+      // the loader throwing a raw `TypeError` naming neither the field nor the
+      // file, out of the one function whose whole job is refusing bad data
+      // legibly. Skipping the missing slots rather than returning early keeps
+      // the refusal complete: a document with a short `tiles` array *and* a bad
+      // blob still reports both, and the tiles it does carry are still checked
+      // for order and flags. The length itself is already zod's issue to raise.
+      const tile = cfg.tiles[i];
+      if (tile === undefined) continue;
+      if (tile.key !== TERRAIN_KEYS[i]) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           path: ['tiles', i, 'key'],
-          message: `tile ${i} must be "${TERRAIN_KEYS[i]}" (order is load-bearing), got "${cfg.tiles[i].key}"`,
+          message: `tile ${i} must be "${TERRAIN_KEYS[i]}" (order is load-bearing), got "${tile.key}"`,
         });
       }
       // The three flags are structural, not tuning: the generator hard-codes
@@ -341,7 +371,7 @@ const schema = z
       // densities and bands stay freely editable.
       const want = REQUIRED_FLAGS[i];
       for (const flag of ['walkable', 'buildable', 'highGround'] as const) {
-        if (cfg.tiles[i][flag] !== want[flag]) {
+        if (tile[flag] !== want[flag]) {
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
             path: ['tiles', i, flag],
@@ -359,7 +389,10 @@ const schema = z
     // and pin it in place forever. Every other combination is a design choice
     // the owner may make, including `rough` (walkable ground the character
     // cannot cross) and `rock` in either direction — that one *is* the veto.
-    if (cfg.tiles[TerrainKind.Normal].blocksCharacter) {
+    // Optional-chained for the same fb064t reason as the loop above: a short
+    // `tiles` array has no Normal tile to ask about, and the length issue on
+    // `tiles` is the only honest thing to say about that document.
+    if (cfg.tiles[TerrainKind.Normal]?.blocksCharacter) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['tiles', TerrainKind.Normal, 'blocksCharacter'],

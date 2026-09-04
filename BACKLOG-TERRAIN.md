@@ -365,7 +365,7 @@ fb064o.
       unambiguous to a human, and a dump that claims the mark without the flat
       arena's tiles is refused; the existing `attempts=0` cross-check keeps
       working and its tests stay green — refs: fb064k, fb064n Log.
-- [ ] (fb064t) [bug] `parseTerrain` crashes with a raw `TypeError` on a
+- [x] (fb064t) [bug] `parseTerrain` crashes with a raw `TypeError` on a
       truncated `tiles` array instead of a zod issue: the key-order refinement
       reads `cfg.tiles[i].key` unguarded for `i` in `0..3`, so
       `parseTerrain({ ...doc, tiles: [] })` throws `Cannot read properties of
@@ -379,6 +379,12 @@ fb064o.
       guards), so a short, long or empty array reports a zod issue naming
       `tiles`; every existing refusal message is unchanged — refs: fb064q QA
       observation 1.
+      **Shipped with the refinement stating the length rule itself, not just
+      guarding.** The acceptance offers "length-pinned at the schema level (or
+      the refinement guards)" as alternatives, and the schema pin was already
+      there — `z.array(tileSchema).length(4)` — which is exactly why the bug
+      was invisible. It is not sufficient on its own, and neither is a bare
+      guard: see the Log for the input where the two disagree.
 - [ ] (fb064u) [polish] `Grid.wardenPassable` accepts fractional coordinates
       and answers about a tile that does not exist: `wardenPassable(3.5, 1)`
       returns `true` with rock at `(3, 1)`, because `tile[39.5]` is `undefined`
@@ -2358,3 +2364,88 @@ fb064o.
     load-sensitive or Windows `EPERM` scratch-dir, and `b036` the deterministic
     1095.40625-vs-1080 UI-lane failure, **which I confirmed fails identically
     at baseline HEAD** rather than inheriting the claim.
+
+- (2026-09-04, fb064t) **A length-pinned array is not a guarded one, and a
+  guard that trusts the pin is not either.** The item was taken ahead of the
+  queue's top entry (fb064r) on CLAUDE.md working rule 3 — confirmed bugs
+  outrank the queue — and because it is the loader's own contract: everything
+  else in this lane is downstream of `parseTerrain` refusing bad data legibly.
+  - **The bug, reproduced first.** `data/terrain.json`'s `tiles` is positional
+    (`TerrainKind` indexes it) and *was* already length-pinned with
+    `z.array(tileSchema).length(TERRAIN_KEYS.length)`. That pin is why nobody
+    saw this: zod v3 reports a wrong array length as a **dirty** parse, not an
+    aborted one, so the top-level `.superRefine` still ran on the short array
+    and read `cfg.tiles[i].key` into a hole. Measured at `HEAD`:
+    `tiles: []` and `tiles: doc.tiles.slice(0, 2)` both threw
+    `TypeError: Cannot read properties of undefined (reading 'key')`;
+    `tiles.length` 5 was already a clean `ZodError`, because indices 0..3 exist.
+  - **Why the first fix was wrong, and how QA found it.** The first cut hoisted
+    `const tile = cfg.tiles[i]` and `continue`d past missing slots, resting on
+    an unstated invariant: *a missing slot means zod already raised the length
+    issue*. QA produced the input where that is false. zod checks `exactLength`
+    against the **input**'s `.length` and then builds the parsed array by
+    spreading its **iterator**; an array whose `length` says 4 while its
+    iterator yields nothing passes the schema check and reaches the refinement
+    as `[]`. The bare guard then reported nothing at all, so `parseTerrain`
+    **accepted** a config with `tiles: []` — trading the loud loader crash for
+    a quiet acceptance, with the `TypeError` resurfacing further downstream in
+    `sealPockets` (`generate.ts:265`, `reading 'walkable'`), naming neither the
+    field nor the file. Strictly worse than the bug being fixed. My own
+    second attempt was also wrong in the same family and the test caught it:
+    it gated the new issue on `cfg.tiles.length === TERRAIN_KEYS.length`, which
+    is backwards, because the refinement sees the *parsed* value (length 0)
+    while zod's check ran against the *input* (length 4).
+  - **Shipped.** The refinement now states the length rule itself — one custom
+    issue on `tiles` whenever `cfg.tiles.length !== TERRAIN_KEYS.length` —
+    plus the per-slot guard. It no longer depends on what zod said first. An
+    ordinary short array is now reported twice (once by each rule); that
+    duplication is the deliberate price of independence and is pinned by a
+    test rather than left to be rediscovered as noise.
+  - **Not the same class of bug elsewhere in the file, checked rather than
+    assumed.** `families[i]` / `families[first].key` are bounded by the array's
+    own length (`first` is only ever written from a real loop index), and
+    `cfg.blob.*` / `constraints.*` / `density.*` are object reads that *abort*
+    the parse on a wrong type, so the refinement never runs on them. Only a
+    dirty-then-positionally-indexed field was ever exposed, and `tiles` was the
+    only one. QA's 40 000-document mutation fuzz agrees: 9 non-`ZodError`
+    throws at `HEAD`, all of them `trunc tiles to 0|1|2|3`; **0** after.
+  - **"Every existing refusal message is unchanged" was machine-diffed, not
+    eyeballed.** Over an 89-case corpus that was already `ZodError` at `HEAD`,
+    the sorted `path::message` strings are byte-identical after the change
+    (`comm -23` produced zero lines); the only cases whose behaviour moved are
+    the 12 that used to crash. `got "${tile.key}"` is the same value as
+    `got "${cfg.tiles[i].key}"`.
+  - **Nothing downstream moved.** Terrain output is bit-identical to `HEAD`
+    across 200 consecutive seeds plus an 852-seed sweep spanning
+    `MIN_TERRAIN_SEED..MAX_TERRAIN_SEED`, 0, ±1, int32 min/max and a comb
+    across the uint32 domain — same hash, attempts, fallback, `describeTerrain`
+    dump and `JSON.stringify` of the parsed config.
+    `npm run sim -- --seed 1 --policy hybrid` still `endHash 2729a000`; the
+    idle/no-move controls at seed 7 still `90da032c` / `898c3cf9`;
+    `tools/sweep.ts --seeds 12` win 1.0 / 1.0. This is expected and bounded:
+    nothing outside `src/sim/terrain/` imports the module yet, and the devserver
+    has no terrain write path, so the only live route to a mis-sized `tiles`
+    array is a hand-edited JSON file — which can produce every short, long and
+    empty case this now covers.
+  - **Verification.** `tests/terrain-config-tiles.test.ts`, 13 tests, red first
+    (**8 failed / 5 passed** against `HEAD`'s loader, restored by copy-aside +
+    `git checkout --`, never `git stash`). Green after. Alongside the instance,
+    the file pins the *class*: a table-driven sweep of every top-level field ×
+    12 hostile values, and the same sweep combined with a mis-sized `tiles`
+    array, asserting nothing ever escapes as a non-`ZodError` — that net would
+    have caught fb064t generically and will catch the next positional array
+    added to this schema. All 13 `tests/terrain*` files plus `grid`, `act1` and
+    `architecture`: **326 green**. `npx tsc --noEmit` clean.
+  - **Known-failure list corrected (QA, and I verified the classification).**
+    `npm run test:fast`: 10 failures, all environmental and none attributable
+    to this change — `b036` fails identically at baseline `HEAD` (the
+    deterministic 1095.40625-vs-1080 UI-lane failure), `q49`/`q52` are Windows
+    `EPERM` in the `rmSync` scratch-dir teardown *after* their assertions pass,
+    and `q15`/`b032`/`b034`/`b035` are load-sensitive timeouts that pass in
+    isolation. The last four were **not** on the lane's previously declared
+    list; they belong on it, so a future run does not misattribute them.
+  - **Out-of-scope need, for the merge:** `tsconfig.json` has `strict: true`
+    but not `noUncheckedIndexedAccess`, which is precisely why
+    `cfg.tiles[i].key` typechecked as safe and this shipped in the first place.
+    Enabling it is repo-wide and outside this lane's Scope; it is main-lane
+    work and would make this whole bug class a compile error.
