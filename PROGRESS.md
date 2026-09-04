@@ -5,6 +5,53 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-04 session: BACKLOG p11b closed — HANDOFF.md and STATUS.md
+  regenerated end to end, correcting a stale "green" on gate G14 and a
+  never-filed regression on G13's share-cap clause.** Both docs were dated
+  2026-09-01 (commit `31fb74e`), before roughly a dozen sessions'
+  worth of work (`p10o`-`p10z`, `p10u`, `p10v`, the three-lane merge,
+  `fb053`/`fb054`). All five source-of-truth tools re-run
+  (`handoff-metrics`, `a4probe`, `a5probe`, `content-census`, `gate-audit`)
+  plus `npm run status`. Headline finding: **G14 (boss win rate) has
+  quietly flipped from green (18/20, 90%) to red (20/20, 100% — fails the
+  gate's own `<100%` clause)** since `p10s` rewrote its test harness to
+  match G8/G23's scripted-kit/full-tree shape — the prior HANDOFF never
+  caught this, so it kept reporting a gate that had already gone red as
+  fully green. Gate count corrected from the last regeneration's claimed
+  19/23 to an honest **18/23 green, 4 red (G1/G8/G14/G23), 1 partial
+  (G13)** — G1's "green" reading is itself fragile (87.5% win rate, but
+  every win is `landslide-win`, no real contest). Favored same-day
+  `p10z`/`p10u` margin-classified numbers (`classifyMargin`, already
+  code-reviewer/qa-playtester-verified) over re-running multi-hour sweeps
+  from scratch. **New regression found and filed, not previously
+  documented anywhere**: `tests/p10c-weapon-share.test.ts` (G13's share-cap
+  clause) now fails its own live "enough builds to measure" assertion (3 of
+  10 `BUILDS` reach the pool, need >=4) — `fb054`'s density pass broke the
+  clause's measurability itself, not just solo-viability's numbers, and the
+  test's own docstring still claimed that assertion was "live and green."
+  Filed as **fb092** rather than fixed (a `/data` retune is out of scope
+  for a doc-regeneration item; `fb076`, already queued for solo-viability,
+  should take both in the same pass since they share a root cause). Also
+  caught: `tools/a5probe.ts` run with no arguments reads a
+  misleadingly-healthy 28.8%/frost_obelisk using its own default build/seed
+  set, not the gate's real `SEEDS=[1,2,3,4,5]`/`BUILDS` — HANDOFF now flags
+  this explicitly. `tools/gate-audit.ts`'s stale-coverage-map caveat (G8/G15
+  listed as `hole`) was itself stale — `p10o` had already fixed it;
+  re-confirmed live and the caveat removed. Doc-only change; `npm run
+  test:fast` shows only the same pre-existing Windows `EPERM`/timeout flake
+  family (`fb087`) already known this week, none of it touching a file this
+  item edited. No code-reviewer/qa-playtester pass (zero-behavioural-change
+  documentation item, `p10n`/`p10i`/`p10q` precedent).
+
+- **2026-09-03 session: post lane-merge integration commit** — folded
+  `data/terrain.json` into `contentHash()` (`tests/terrain-content-
+  hash.test.ts`), named `'terrain'`/`draft`/`draftpick` as one-shot RNG
+  streams (`ONE_SHOT_STREAM_NAMES`, `src/sim/rng.ts`), widened the
+  architecture renderer-import guard to nested directories, moved
+  `class-time-lord-band`'s 12-seed sweep to the fast tier's exclude list.
+  Filed fb077-fb088/fb089-fb091 for each lane's out-of-scope Log entries and
+  Q162-Q165 for the design decisions taken. Commit `0c67363`.
+
 - **2026-09-03 session: lane merge — `lane/content`, `lane/terrain` and
   `lane/ui` merged into master, after committing the uncommitted `fb054`
   close-out (denser waves: `aliveCap` 500, `perGate` x2.5, spawn interval

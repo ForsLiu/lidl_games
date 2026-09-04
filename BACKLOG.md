@@ -2146,7 +2146,7 @@ than real, per CLAUDE.md's own architecture-rule discipline against
 inventing scope. Four genuine items survived this filter, not five; a fifth
 was not fabricated.
 
-- [ ] (p11b) [chore] Regenerate HANDOFF.md and `STATUS.md` end to end —
+- [x] (p11b) [chore] Regenerate HANDOFF.md and `STATUS.md` end to end —
       both are stale: HANDOFF.md's own header dates itself 2026-09-01 at
       commit `31fb74e` (before `p10o`-`p10z`'s ten-plus sessions), and
       `STATUS.md` (last written by `npm run status`, no regeneration commit
@@ -2163,6 +2163,52 @@ was not fabricated.
       source-of-truth section (HANDOFF regeneration cadence), SPEC-FINAL
       §15 P10 ("HANDOFF.md regenerated at the final commit"), BACKLOG
       fb038 (`npm run status` cadence).
+
+      **Closed (2026-09-04).** This item's own premise ("`b072` closed G13
+      in full") was itself already stale — `b072`'s fix was real but
+      `fb054` (density pass) broke it again the same week, so the correct
+      finding is not "G13 is actually green," it's "G13 is red for a
+      different, more current reason." All five tools re-run plus `npm run
+      status`; HANDOFF §1 (added the terrain generator as a built-but-inert
+      system, the `ONE_SHOT_STREAM_NAMES` RNG addition), §3 (Act I/II/Warden
+      numbers re-synced to `data/waves.json`/`spawns.json`/`warden.json` —
+      `fb054`'s spawn-interval/alive-cap change and `fb053`'s dash-speed
+      change had never been reflected) and §4-§6 fully rewritten. Headline
+      corrections, favoring same-day `p10z`/`p10u` margin-classified numbers
+      over a from-scratch re-run of multi-hour sweeps (both already
+      code-reviewer/qa-playtester-verified this week): **G14 has quietly
+      flipped from green (18/20, 90%) to red (20/20, 100% — fails the
+      `<100%` clause)** since `p10s` rewrote its harness to match G8/G23,
+      and the prior HANDOFF never caught it; **G1's "green" reading is
+      fragile** (87.5% win rate, but *every* win is `landslide-win`, not a
+      real contest); **G8/G23 now have a mechanistic explanation** via
+      `classifyMargin` rather than a plausible story, both blocked on owner
+      verdicts Q160/Q161 after 4-5 exhausted `/data`-only sessions. Gate
+      count moved from the last regeneration's claimed 19/23 to an honest
+      **18/23** — not a regression this session caused, but a correction
+      (G14's row was already stale at the last regeneration's own date).
+      Also found and fixed in the same pass, not assumed from a stale note:
+      `tools/gate-audit.ts`'s coverage-map caveat (§4) was itself stale —
+      `p10o` already fixed it, re-confirmed live, caveat removed. **New
+      regression found while re-measuring G13 that no prior session had
+      documented**: `tests/p10c-weapon-share.test.ts`'s live "enough builds"
+      assertion now fails outright (3 of 10 `BUILDS` reach the pool against
+      a `>=4` floor) — `fb054` broke the share-cap clause's measurability,
+      not just solo-viability's numbers, and the file's own docstring still
+      claimed that assertion was "live and green." Filed as **fb092** rather
+      than fixed here (a `/data` retune is out of scope for a doc-regen
+      item). Also caught: `tools/a5probe.ts` run with no arguments (the
+      command HANDOFF's own header has told every prior regeneration to run)
+      uses a different build/seed set than the gate's real test and reads a
+      misleadingly-healthy number — HANDOFF now flags this explicitly so the
+      next regeneration doesn't repeat it. Doc-only change (no `src`/`data`/
+      test file touched by this item itself, though `fb092` was filed as a
+      side effect of the investigation) — `npm run test:fast` shows the same
+      pre-existing Windows `EPERM`/timeout flake family (`fb087`) this
+      session's own history already knows about, unrelated to anything
+      edited here (none of the failing files are touched by this diff).
+      No code-reviewer/qa-playtester pass, matching the `p10n`/`p10i`/`p10q`
+      precedent for zero-behavioural-change documentation items.
 
 - [ ] (p11c) [feat] Try `p10z`'s own untried candidate direction (b): a
       weaker/imperfect-play scripted-kit bot variant for the G8/G23 harness
@@ -2698,6 +2744,26 @@ generation-rule boundary.
       generated-map sweep that caught the last false rejection — refs:
       SPEC-FINAL §12 rule 4 (loader refuses unpayable data), BACKLOG-TERRAIN
       fb064g Log.
+- [ ] (fb092) [bug] `fb054`'s density pass (owner feedback
+      `balance-siege-density`) broke G13's share-cap measurement, not just
+      its solo-viability clause (`fb076`) — found at **p11b**'s HANDOFF/
+      STATUS regeneration, undocumented until now. `tests/p10c-weapon-
+      share.test.ts`'s live, non-`.skip` "has enough builds banking all 18
+      TD waves to measure" assertion currently fails: only **3 of 10**
+      `BUILDS` reach the pool against a `>=4` floor (measured this session,
+      `npx vitest run tests/p10c-weapon-share.test.ts`), so the already-
+      `.skip`-ed cap clause (pinned 36.5% at `b080`, 1.5 points over the 35%
+      cap) hasn't been re-measurable since. Note for whoever picks this up:
+      `tools/a5probe.ts` run with no arguments uses its own small default
+      seed/build set, not the test's `SEEDS=[1,2,3,4,5]`/`BUILDS`, and reads
+      a misleadingly-healthy 28.8%/frost_obelisk when run standalone — do
+      not use the bare CLI to judge this gate, only the test file's own
+      `collect`/`topTen`/`aggregateShares` call. Acceptance: a `data/
+      waves.json`- or `data/towers.json`-only change (ideally the same pass
+      as `fb076`, since both trace to `fb054`'s density change) restores
+      `top.length>=4`, then re-measures and re-pins (or un-skips, if it
+      closes) the 35% cap clause with the real number — refs: SPEC-FINAL
+      §14 G13, BACKLOG fb054/fb076/b080.
 **Lane merge (2026-09-03):** `lane/content` (c001/c003/c005), `lane/terrain`
 (fb064a/fb064g/fb064b) and `lane/ui` (fb055/fb058/fb060/fb067-fb070) merged
 into master. Main wins on shared sim core (one conflict: `fireCrimsonRush`
