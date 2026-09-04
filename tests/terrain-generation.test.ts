@@ -35,6 +35,12 @@ import {
   type TerrainConfig,
   type TerrainMap,
 } from '../src/sim/terrain';
+// The re-derivation these assertions run through, shared since fb064v. Its
+// header explains why this file must not call `terrainLegal` directly: the
+// generator returns a non-fallback map only when `terrainLegal` passed under
+// the same config, so `terrainLegal(measure(map))` is implied by
+// `fallback === false` and would never fail here.
+import { legalUnder } from './terrain-legality';
 
 const cfg = loadTerrain();
 
@@ -178,7 +184,7 @@ describe('fb064a — data/terrain.json loads and refuses unpayable data', () => 
       });
       const m = generateTerrain(seed, loose);
       expect(m.fallback).toBe(false);
-      expect(terrainLegalUnder(m, loose)).toBe(true);
+      expect(legalUnder(m, loose)).toBe(true);
     }
   });
 
@@ -255,7 +261,7 @@ describe('fb064a — data/terrain.json loads and refuses unpayable data', () => 
     const wideMeasure = measureTerrain(wideMap, wide);
     expect(wideMap.fallback).toBe(false);
     expect(wideMeasure.coreLegalFrac).toBeCloseTo(0.103352, 6);
-    expect(terrainLegalUnder(wideMap, wide)).toBe(true);
+    expect(legalUnder(wideMap, wide)).toBe(true);
     // ...and it beats the flat map, which is the whole point.
     expect(wideMeasure.coreLegalFrac).toBeGreaterThan(
       flatCoreAnchorCount(12) / measureTerrain(synthetic(TerrainKind.Normal), wide).normalCount,
@@ -275,7 +281,7 @@ describe('fb064a — data/terrain.json loads and refuses unpayable data', () => 
     const sparseMap = generateTerrain(18, sparse);
     expect(sparseMap.fallback).toBe(false);
     expect(measureTerrain(sparseMap, sparse).coreLegalFrac).toBeCloseTo(0.811075, 6);
-    expect(terrainLegalUnder(sparseMap, sparse)).toBe(true);
+    expect(legalUnder(sparseMap, sparse)).toBe(true);
   });
 
   it('fb064g — the flat-anchor replica matches what legalCoreAnchors measures', () => {
@@ -644,7 +650,7 @@ describe(`fb064a — generation constraints hold across ${SWEEP} seeds`, () => {
     const onTheLine = generateTerrain(16236, cfg);
     expect(onTheLine.fallback).toBe(false);
     expect(measureTerrain(onTheLine, cfg).walkableFrac).toBeCloseTo(0.6, 10);
-    expect(terrainLegalUnder(onTheLine, cfg)).toBe(true);
+    expect(legalUnder(onTheLine, cfg)).toBe(true);
 
     // `buildableNormalFrac` is now the *tightest* band on the shipped data and
     // had no named seed at all: seed 621 measures 0.452778 (326 normal tiles)
@@ -656,7 +662,7 @@ describe(`fb064a — generation constraints hold across ${SWEEP} seeds`, () => {
     const tightest = generateTerrain(621, cfg);
     expect(tightest.fallback).toBe(false);
     expect(measureTerrain(tightest, cfg).buildableNormalFrac).toBeCloseTo(0.452778, 6);
-    expect(terrainLegalUnder(tightest, cfg)).toBe(true);
+    expect(legalUnder(tightest, cfg)).toBe(true);
 
     for (const s of [379, 1247, 1253, 2560, 3337]) {
       const m = generateTerrain(s, cfg);
@@ -664,7 +670,7 @@ describe(`fb064a — generation constraints hold across ${SWEEP} seeds`, () => {
       expect(m.fallback).toBe(false);
       expect(m.attempts).toBeGreaterThan(1);
       expect(m.seed).toBe(s + m.attempts - 1);
-      expect(terrainLegalUnder(m, cfg)).toBe(true);
+      expect(legalUnder(m, cfg)).toBe(true);
     }
   });
 
@@ -729,7 +735,7 @@ describe(`fb064a — generation constraints hold across ${SWEEP} seeds`, () => {
       const m = generateTerrain(s, wild);
       if (m.attempts > 1) retries++;
       // Whatever the budgets do, a *returned* map is legal or flagged.
-      expect(m.fallback || terrainLegalUnder(m, wild), `seed ${s}`).toBe(true);
+      expect(m.fallback || legalUnder(m, wild), `seed ${s}`).toBe(true);
     }
     expect(retries).toBeGreaterThan(100); // measured 260 over 1..1000
     expect(retries).toBeLessThan(500);
@@ -803,7 +809,7 @@ describe('fb064a — degenerate seeds regenerate at seed+1 instead of shipping a
       // seed forward, one per degenerate attempt.
       if (m.fallback) continue;
       expect(m.seed).toBe(s + m.attempts - 1);
-      expect(terrainLegalUnder(m, strict)).toBe(true);
+      expect(legalUnder(m, strict)).toBe(true);
       // Every seed it stepped over must genuinely have been degenerate.
       for (let n = 0; n < m.attempts - 1; n++) {
         const skipped = generateTerrain(s + n, strict);
@@ -846,36 +852,10 @@ describe('fb064a — degenerate seeds regenerate at seed+1 instead of shipping a
     // means the bands failed, and the caller is being handed the best the arena
     // admits rather than an illegal generated map or an exception mid-run.
     expect(Array.from(m.kind)).toEqual(Array.from(synthetic(TerrainKind.Normal).kind));
-    expect(terrainLegalUnder(m, impossible)).toBe(false);
+    expect(legalUnder(m, impossible)).toBe(false);
     expect(generateTerrain(11, impossible).hash).toBe(m.hash);
   });
 });
-
-/** Re-derives legality from the measurements, so the test never trusts a flag. */
-function terrainLegalUnder(map: TerrainMap, c: TerrainConfig): boolean {
-  const m = measureTerrain(map, c);
-  return (
-    m.gatesOpen &&
-    // Must mirror `terrainLegal` term for term: dropping this one made the
-    // assertion strictly weaker than the generator's own accept test, so a
-    // regression that let gate connectivity fall out would have slipped past.
-    m.gatesConnected &&
-    m.corridorsOk &&
-    m.walkableFrac >= c.constraints.minWalkableFrac &&
-    m.buildableNormalFrac >= c.constraints.minBuildableNormalFrac &&
-    m.gateReachFrac >= c.constraints.minGateReachFrac &&
-    m.coreLegalFrac >= c.constraints.minCoreLegalFrac &&
-    // fb064o's approach band, added at fb064r. It was missing here from the
-    // moment fb064o shipped, so "mirror `terrainLegal` term for term" — the
-    // rule the comment above states — had quietly stopped being true, and
-    // every `terrainLegalUnder` assertion in this file was weaker than the
-    // generator's accept test in exactly the way that comment warns about.
-    // Found by fb064r's review; `tests/terrain-seed-domain.test.ts` had drifted
-    // identically. Three hand-copies is the reason; fb064v extracts one.
-    m.maxGateDetour >= 1 &&
-    m.maxGateDetour <= c.constraints.maxGateDetour
-  );
-}
 
 describe('fb064a — the measurements can fail (negative cases)', () => {
   it('gatesOpen is false when a gate is walled in', () => {

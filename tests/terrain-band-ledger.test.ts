@@ -45,61 +45,28 @@ import {
   MIN_TERRAIN_SEED,
   parseTerrain,
   type TerrainConfig,
-  type TerrainMap,
   type TerrainMeasure,
 } from '../src/sim/terrain';
+import {
+  failedBands,
+  legalMeasure,
+  legalUnder,
+  LEGALITY_BANDS as BANDS,
+  type LegalityBand as Band,
+} from './terrain-legality';
 
 const cfg = loadTerrain();
 
-/** The five numeric bands `terrainLegal` reads, in its own order. */
-const BANDS = [
-  'walkableFrac',
-  'buildableNormalFrac',
-  'gateReachFrac',
-  'coreLegalFrac',
-  'maxGateDetour',
-] as const;
-type Band = (typeof BANDS)[number];
-
-/**
- * Re-derives legality band by band rather than calling `terrainLegal`.
- *
- * Same reason `tests/terrain-seed-domain.test.ts` carries its own copy: the
+/*
+ * The bands, and the mirror of `terrainLegal` this file measures through, both
+ * come from `tests/terrain-legality.ts` (fb064v). That file's header explains
+ * why these suites re-derive legality instead of calling `terrainLegal`: the
  * generator returns a non-fallback map only when `terrainLegal` passed under
  * the same config, so `terrainLegal(measure(map))` is implied by
- * `fallback === false` and could never fail here. A dropped term would be
- * invisible.
- *
- * Takes the measure rather than the map, because the callers below already
- * have one: measuring twice per seed cost about a third of this file's runtime
- * (0.31 ms of measure against 0.44 ms of generation, 12,000 times). `legalMap`
- * is the wrapper for the places that only have a map.
- *
- * **This is the third hand-copy of `terrainLegal` in `tests/`, and the drift
- * these copies exist to prevent has already happened** — the copies in
- * `terrain-generation.test.ts` and `terrain-seed-domain.test.ts` stop at
- * `coreLegalFrac` and are missing fb064o's two `maxGateDetour` terms. Found in
- * this item's review; both are corrected in place, and extracting one shared
- * helper is filed as fb064v.
+ * `fallback === false` and a dropped term would be invisible. `legalMeasure`
+ * takes a measure rather than a map because the callers below already hold
+ * one — measuring twice per seed cost about a third of this file's runtime.
  */
-function legalMeasure(q: TerrainMeasure, c: TerrainConfig): boolean {
-  return (
-    q.gatesOpen &&
-    q.gatesConnected &&
-    q.corridorsOk &&
-    q.walkableFrac >= c.constraints.minWalkableFrac &&
-    q.buildableNormalFrac >= c.constraints.minBuildableNormalFrac &&
-    q.gateReachFrac >= c.constraints.minGateReachFrac &&
-    q.coreLegalFrac >= c.constraints.minCoreLegalFrac &&
-    q.maxGateDetour >= 1 &&
-    q.maxGateDetour <= c.constraints.maxGateDetour
-  );
-}
-
-/** `legalMeasure` for a caller holding a map rather than a measure. */
-function legalUnder(m: TerrainMap, c: TerrainConfig): boolean {
-  return legalMeasure(measureTerrain(m, c), c);
-}
 
 /** Six decimals: finer than any band's granularity, coarser than FP noise. */
 const fmt = (v: number): string => v.toFixed(6);
@@ -601,22 +568,6 @@ const alwaysAccepts: TerrainConfig = (() => {
   });
   return parseTerrain(raw);
 })();
-
-/** Which bands a measure fails, named — `terrainLegal`'s verdict, itemised. */
-function failedBands(q: TerrainMeasure, c: TerrainConfig): string[] {
-  const k = c.constraints;
-  const out: string[] = [];
-  if (!q.gatesOpen) out.push('gatesOpen');
-  if (!q.gatesConnected) out.push('gatesConnected');
-  if (!q.corridorsOk) out.push('corridorsOk');
-  if (q.walkableFrac < k.minWalkableFrac) out.push('walkableFrac');
-  if (q.buildableNormalFrac < k.minBuildableNormalFrac) out.push('buildableNormalFrac');
-  if (q.gateReachFrac < k.minGateReachFrac) out.push('gateReachFrac');
-  if (q.coreLegalFrac < k.minCoreLegalFrac) out.push('coreLegalFrac');
-  if (q.maxGateDetour < 1) out.push('maxGateDetour<1');
-  if (q.maxGateDetour > k.maxGateDetour) out.push('maxGateDetour');
-  return out;
-}
 
 interface RetryRun {
   stats: Record<Band, BandStat>;

@@ -431,7 +431,7 @@ fb064o.
       purpose. That divergence is now stated in `character.ts`'s contract and
       pinned by a test, because the doc block there claimed the two predicates
       "differ in exactly two places" and this makes it three.
-- [ ] (fb064v) [polish] three hand-copies of `terrainLegal` live in
+- [x] (fb064v) [polish] three hand-copies of `terrainLegal` live in
       `tests/` (`terrain-generation.test.ts`'s `terrainLegalUnder`,
       `terrain-seed-domain.test.ts`'s and `terrain-band-ledger.test.ts`'s
       `legalMeasure`), and the drift they exist to prevent has already
@@ -448,6 +448,21 @@ fb064o.
       table over the bands, not one map), so the next band added to
       `terrainLegal` cannot land without the helper; all `tests/terrain*`
       green and unchanged in count — refs: fb064r review, fb064o.
+      **Shipped to the acceptance, and it found a fourth copy on the way in.**
+      `failedBands` in the ledger was a fourth hand-enumeration of the same
+      nine terms — the review named it — so it moved into the shared file too
+      and is now pinned against the mirror. Doing that immediately surfaced a
+      latent disagreement between them: the itemiser used `<`/`>` where the
+      predicate used `>=`/`<=`, which are not complements on `NaN`, so a `NaN`
+      measure would have been refused by `legalMeasure` while `failedBands`
+      reported it failing nothing. Unreachable today (no measurement produces
+      `NaN`) and fixed in the negated form. The guard the acceptance asked for
+      was also weaker than it read on the first pass: with `cfg` held fixed,
+      the table derives its values from the same config the mirror reads, so a
+      mirror that *froze* a threshold at today's `/data` value never disagreed
+      — QA reproduced three such freezes green. The sweep now runs over a
+      config matrix, which is what makes "the next band cannot land without
+      the helper" true for a retune as well as for a new term.
 - [ ] (fb064w) [polish] `parseTerrainDump` accepts unknown and reordered fields
       on every header line, which contradicts the rule the rest of the file is
       written to — "refuse what the writer never emits rather than reinterpret
@@ -486,6 +501,68 @@ fb064o.
       QA bug 1, fb064u review finding 5, b007.
 
 ## Log
+
+- (2026-09-04, fb064v) **A copy you cannot detect drifting is worse than three
+  copies you can.** The three hand-copies of `terrainLegal` are now one shared
+  mirror, `tests/terrain-legality.ts`, imported by `terrain-generation`,
+  `terrain-seed-domain` and `terrain-band-ledger`; the guard is
+  `tests/terrain-legality.test.ts` (38 tests, 33 ms).
+  - **Why not just call `terrainLegal`.** Unchanged from what the three copies
+    each worked out separately, and now stated once: the generator returns a
+    non-fallback map only when `terrainLegal` passed under the same config, so
+    `terrainLegal(measure(map))` is implied by `fallback === false` and could
+    never fail independently. The re-derivation is the whole point; sharing it
+    is only safe because the guard pins it.
+  - **There were four copies, not three.** The review found `failedBands` in
+    the ledger — the itemised "which bands did this map fail" the retry-cause
+    tally is built on — repeating all nine terms. It moved into the shared file
+    and is now pinned as the exact complement of `legalMeasure` over the same
+    sweep. That pin went red on its first run: the itemiser used `<`/`>` where
+    the predicate uses `>=`/`<=`, and those are not complements on `NaN` (every
+    comparison against `NaN` is false, so `q.walkableFrac < min` says "did not
+    fail" about a measure `legalMeasure` refuses). No measurement produces
+    `NaN` today, so it was latent; fixed by writing the itemiser as the negated
+    form of the predicate's own comparisons.
+  - **The acceptance's guard, as literally specified, was weaker than it
+    reads.** A table over the bands with `cfg` fixed derives its values from the
+    same config the mirror reads, so both sides move together and a mirror that
+    *hardcoded* a threshold at today's `/data` number never disagrees. QA
+    reproduced exactly that: freezing `maxGateDetour`, `minGateReachFrac` or
+    `minBuildableNormalFrac` at the shipped value left all 330 terrain tests
+    green. The sweep now runs over a four-config matrix (shipped, all bands
+    off, tight, `minCorridorWidth: 1`), all built through `parseTerrain` so only
+    loadable data is exercised, plus a band-by-band config-independence test.
+    All three freezes now go red. This matters beyond neatness because fb064f
+    hands these fields to a live Tuner.
+  - **What the guard is derived from, and what it still cannot see.** The sweep
+    iterates `Object.keys(measure)`, not a written list, so a band added to
+    `terrainLegal` over any field — including the three diagnostics
+    (`walkableCount`, `normalCount`, `legalCoreCount`) no band reads today — is
+    covered the day it lands. Values: a 0.05 ramp over [0, 2], both sentinels,
+    every constraint ±1e-9, the baseline ±{0.01, 0.1}, `NaN` and both
+    infinities. It cannot see a band whose refused region is an interior hole
+    containing no swept point; that limit is written in the file rather than
+    left implied.
+  - **Measured, not argued: 27 mutations, 27 red.** Mine (dropped
+    `maxGateDetour` terms, dropped `gatesConnected`, a term `terrainLegal`
+    lacks), QA's 22 against both the mirror and `terrainLegal` itself
+    (including four different new bands added to `terrainLegal` only), and the
+    five re-run after hardening — the three threshold freezes and the
+    `LEGALITY_BANDS` omission that had been green, plus a dropped `failedBands`
+    term. `tests/terrain*`: 15 files, 336 passed; the three edited files' test
+    counts are unchanged at 41 / 21 / 11 against HEAD, and `git diff src/` is
+    empty — this item is test-only, so no gameplay path can regress by
+    construction.
+  - **Out of lane, for BACKLOG.md at the merge.** QA measured
+    `tests/q15-command-domain-fuzz.test.ts` failing with a 120 s `beforeAll`
+    hook timeout **at HEAD (6b9da0f), on a clean worktree, unrelated to this
+    item** — reproduced twice, ~130 s. `vitest.fast.config.ts`'s comment still
+    records q15 as "measured under 60 s the same session and stays IN the fast
+    tier", so that comment is stale and the fast tier is red for a reason no
+    lane item caused. The fix (raise the hook timeout, or move q15 to the
+    exclude list with the measured time) touches `vitest.fast.config.ts` /
+    `tests/q15-*`, both outside this lane's Scope. Main lane, with the measured
+    numbers above.
 
 - (2026-09-04, fb064u) **A predicate that answers about a tile that does not
   exist is worse than one that refuses.** `Grid.wardenPassable` was the only

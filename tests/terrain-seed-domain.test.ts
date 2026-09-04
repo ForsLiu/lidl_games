@@ -42,6 +42,17 @@ import {
   type TerrainConfig,
   type TerrainMap,
 } from '../src/sim/terrain';
+import { legalUnder } from './terrain-legality';
+
+/*
+ * The re-derivation this file asserts through lives in `tests/terrain-legality.ts`
+ * (fb064v), which also explains why these suites must not call `terrainLegal`
+ * directly: the generator returns a non-fallback map only when `terrainLegal`
+ * passed under the same config, so `terrainLegal(measure(map))` is implied by
+ * `fallback === false` and could never fail independently here. This file used
+ * to carry its own copy; it had drifted from `terrainLegal` by fb064o's two
+ * `maxGateDetour` terms, in precisely the way that comment warned about.
+ */
 
 const cfg = loadTerrain();
 
@@ -49,37 +60,6 @@ function withConfig(patch: (raw: Record<string, unknown>) => void): TerrainConfi
   const raw = JSON.parse(JSON.stringify(cfg)) as Record<string, unknown>;
   patch(raw);
   return parseTerrain(raw);
-}
-
-/**
- * Re-derives legality band by band, mirroring `terrainLegal` term for term.
- *
- * It must NOT call `terrainLegal`: that is the generator's own accept test
- * (`generate.ts` returns a non-fallback map only when it passes, under the
- * same `cfg` a test would hand it), so `legal(map)` would be implied by
- * `fallback === false` and could never fail independently. Dropping a term
- * from `terrainLegal` — say `gatesConnected` — would then be invisible to
- * every assertion in this file. fb064a hit exactly this and wrote the same
- * helper for the same reason (`terrain-generation.test.ts`'s
- * `terrainLegalUnder`); the first draft of this file reintroduced the weak
- * form and its code review caught it.
- */
-function legalUnder(m: TerrainMap, c: TerrainConfig): boolean {
-  const q = measureTerrain(m, c);
-  return (
-    q.gatesOpen &&
-    q.gatesConnected &&
-    q.corridorsOk &&
-    q.walkableFrac >= c.constraints.minWalkableFrac &&
-    q.buildableNormalFrac >= c.constraints.minBuildableNormalFrac &&
-    q.gateReachFrac >= c.constraints.minGateReachFrac &&
-    q.coreLegalFrac >= c.constraints.minCoreLegalFrac &&
-    // fb064o's approach band, added at fb064r: this copy had drifted from
-    // `terrainLegal` in precisely the way the comment above says it must not,
-    // and so had `terrain-generation.test.ts`'s. Found by fb064r's review.
-    q.maxGateDetour >= 1 &&
-    q.maxGateDetour <= c.constraints.maxGateDetour
-  );
 }
 
 /** Sanity: the re-derivation agrees with `terrainLegal` on a real map. */
