@@ -384,7 +384,7 @@ not already expose it) logs that need below instead of reaching into
       Windows-scratch-dir-EPERM flake classes documented across dozens of
       prior PROGRESS.md sessions, none touching `src/ui/**`/`src/render/**`.
 
-- [ ] (fb065) [feat] normal priority: every UI overlay (bottom bar, side
+- [x] (fb065) [feat] normal priority: every UI overlay (bottom bar, side
       panels, DPS panel, counters, wave info) floats over the playfield as
       semi-transparent edge overlays instead of reserving opaque gutter/
       sidebar space; the canvas fills the window; panels auto-collapse to
@@ -392,6 +392,90 @@ not already expose it) logs that need below instead of reaching into
       reserves horizontal space outside the canvas; the existing UI-audit
       scenes (fb-era self-audit tooling) are re-captured and still pass
       overlap checks — refs: SPEC-FINAL §11 (layout rule), owner feedback
+      `feature-ui-inside-playfield`. DONE 2026-09-03: `Renderer.resize()`
+      (`canvas.ts`) now sizes the backing store off the canvas's own parent
+      (`.sw-stage`) instead of a fixed 1152x640 constant, letterboxed to the
+      36:20 grid aspect ratio (width-bound or height-bound, whichever fits),
+      with a new `scale` field replacing the old dpr-only transform factor
+      everywhere `draw()` resets its transform; a jsdom fallback (`||` on
+      `clientWidth`/`clientHeight`, always 0 without real layout) reproduces
+      the exact old fixed-size behavior so every pre-existing `resize()` test
+      kept passing unchanged. `main.ts` adds a rAF-coalesced `window resize`
+      listener that always reads the live `this.renderer` (never a captured
+      stale instance across Retry/New Run). `hud.ts` splits the old single
+      `.sw-side` column into two floating rails (`#sw-rail-left` build
+      controls, `#sw-rail-right` progress/stats/towerinfo/help), each with a
+      collapse/expand handle (`wireRails`); the right rail additionally
+      auto-collapses whenever the DPS or VS panel is open *or merely docked*
+      (`syncRailRightVisibility` — both share the same top-right corner as the
+      rail's own handle, a code-review finding on an earlier draft that only
+      collapsed for "open"). `style.css`'s `.sw-shell`/`.sw-stage` no longer
+      reserve a flex sidebar column; the two rails are `position: absolute`
+      ~85%-opaque overlays (`var(--panel)` + `d9` alpha, matching
+      `.sw-dock`'s existing pattern) anchored to the stage's own edges,
+      scrolling internally rather than pushing content toward a viewport
+      fold. `tools/ui-audit.ts`'s overlap-check selector list adds
+      `#sw-dpsdock`/`#sw-vsdock` (share the right rail's corner) — not the
+      rails themselves, since every existing selector in that list is now a
+      *descendant* of one of the two rails and would false-positive as
+      "overlapping" its own container. New
+      `tests/render-fb065-stage-fill.test.ts` (6/6: width-bound/height-bound
+      letterboxing, DPR-on-top-of-stage-size, no-inline-height, no-parent
+      fallback, live-resize re-derivation) and
+      `tests/ui-fb065-floating-rails.test.ts` (7/7: no `.sw-side` remains,
+      every old child id still reachable inside a rail, independent
+      collapse/expand per rail, DPS/VS open-or-docked auto-collapse and
+      restore, manual collapse survives an `update()` tick). code-reviewer
+      **APPROVE** (no Critical/Major; three Minor/Nit — no test for the new
+      resize listener, addressed same session with
+      `tests/ui-fb065-resize-listener.test.ts` (2/2: a burst of native
+      `resize` events coalesces to one `Renderer.resize()` call per paint, a
+      post-Retry resize targets the new renderer instance not the old one);
+      the rails anchor to `.sw-stage`'s box rather than the canvas's own
+      letterboxed/centered rect, invisible at the audit's 1920x1080 viewport
+      (≈36:20) but a real gap at an extreme aspect ratio — logged as a
+      follow-up, not blocking, acceptance text is met literally; the two old
+      `b035`/`b036` fold tests still pass but now guard a narrower, largely
+      vacuous case since the practice/build and towerinfo/help panels moved
+      into separate rails — no action needed, flagged for future awareness
+      only). qa-playtester **PASS** against all three stated acceptance
+      criteria, independently re-verified in a real headless-Chromium session
+      at three viewport sizes (1920x1080, 900x700, an extreme 300x900) and
+      confirmed `npm run ui-audit` shows zero `hud-overlap` failures across
+      all 7 scenes (the remaining font-size/text-contrast/offscreen-tuner-
+      field failures are pre-existing, confirmed via git-stash A/B against
+      the pre-fb065 baseline, unrelated to layout/overlap); filed one new
+      low-severity bug — see fb076 below. `npx tsc --noEmit` clean.
+      `npm run test:fast`: 9 failed files / 7 failed tests, all in the
+      pre-existing q15/q49/q52 worker-hang/Windows-scratch-dir-EPERM flake
+      classes documented across dozens of prior PROGRESS.md sessions, none
+      touching `src/ui/**`/`src/render/**` or this item's own files.
+
+- [ ] (fb076) [bug] low priority: fb065's right info rail
+      (`#sw-rail-right`) can get stuck collapsed after its own handle is
+      clicked while the rail is already auto-collapsed for an unrelated
+      reason (DPS or VS panel open/docked) — `wireRails`'s handle click
+      (`hud.ts`) unconditionally flips `railRightUserOpen` with no awareness
+      the rail is already hidden, so a click that has zero visible effect
+      (the rail was already collapsed) silently sets `railRightUserOpen =
+      false`; `syncRailRightVisibility`'s OR-of-conditions then keeps the
+      rail collapsed even after the DPS/VS panel later closes, since nothing
+      else was holding it open. Found by qa-playtester (fb065 verification),
+      reproduced deterministically: open the DPS panel (auto-collapses the
+      right rail), click the still-visible `#sw-rail-right-handle` tab (a
+      natural thing to try — it's the only visible affordance at that point),
+      close the DPS panel — the rail should reopen with nothing left holding
+      it collapsed, but stays collapsed until a second handle click. Low
+      severity: fully recoverable with one extra click on a still-visible,
+      still-discoverable control; no data loss, no crash. Acceptance: a
+      regression test — auto-collapse the right rail via the DPS panel,
+      click its handle once while collapsed, close the DPS panel — confirms
+      the rail is open again, not stuck; suggested fix direction: only let
+      the handle toggle `railRightUserOpen` when the rail's current collapsed
+      state already matches `railRightUserOpen` (i.e. ignore the click while
+      an auto-collapse reason is independently forcing it shut), or reset
+      `railRightUserOpen = true` whenever an auto-collapse condition's OR
+      transitions back toward "should be open" — refs: fb065, owner feedback
       `feature-ui-inside-playfield`.
 
 - [ ] (fb071) [feat] normal priority: window unfocus auto-pause —

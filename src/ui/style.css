@@ -21,15 +21,31 @@ html, body {
 
 #app { height: 100%; }
 
+/*
+ * fb065 (owner feedback `feature-ui-inside-playfield`): the shell is the
+ * playfield stage alone now — no opaque gutter/sidebar column reserving
+ * horizontal space beside it. `.sw-stage` fills the window; every panel that
+ * used to live in the old `.sw-side` column (`.sw-rail-*` below) is an
+ * absolutely-positioned, semi-transparent overlay anchored to the stage's own
+ * edges instead, the same pattern `.sw-bottombar`/`.sw-dock` already used.
+ */
 .sw-shell {
-  display: flex;
-  gap: 14px;
+  position: relative;
+  height: 100vh;
+  width: 100vw;
   padding: 14px;
-  height: 100%;
-  align-items: flex-start;
+  display: flex;
 }
 
-.sw-stage { position: relative; flex: 0 0 auto; }
+.sw-stage {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
 
 #sw-canvas {
   display: block;
@@ -37,23 +53,118 @@ html, body {
   border-radius: 6px;
   background: #0b0d14;
   /*
-   * The renderer sets an inline width in logical pixels and backs the canvas at
-   * the device pixel ratio, so it is crisp rather than upscaled. Height follows
-   * the aspect ratio, which keeps the arena square-tiled when a narrow window
-   * shrinks it - fixing both dimensions inline would distort it instead.
+   * `Renderer.resize` (src/render/canvas.ts) reads `.sw-stage`'s own laid-out
+   * box and sets this inline width to the largest size that both fits inside
+   * it and keeps the 36:20 grid aspect ratio, then backs the canvas at that
+   * size times the device pixel ratio so it stays crisp rather than upscaled.
+   * Height follows the aspect ratio here in CSS, never pinned inline — fixing
+   * both dimensions inline would distort a window whose ratio doesn't match
+   * the grid's. `max-width`/`max-height` are a pre-JS/no-JS safety net only;
+   * the inline width from `resize()` is what actually drives sizing.
    */
   aspect-ratio: 36 / 20;
   height: auto;
   max-width: 100%;
+  max-height: 100%;
 }
 
-.sw-side {
-  flex: 1 1 260px;
-  min-width: 240px;
-  max-width: 360px;
+/*
+ * fb065: the floating rails that replaced `.sw-side`. Each anchors to one
+ * edge of `.sw-stage` (so it floats over the canvas, not beside it) with a
+ * ~85% opaque background — same `var(--panel)` + `d9` alpha `.sw-dock`
+ * already established for the DPS/VS side panels — and scrolls internally
+ * rather than ever pushing anything off past a viewport "fold": there is no
+ * sibling column left for a fold to be relative to.
+ */
+.sw-rail {
+  position: absolute;
+  top: 8px;
+  bottom: 8px;
+  z-index: 3;
   display: flex;
   flex-direction: column;
   gap: 8px;
+  width: 300px;
+  max-width: 32%;
+  overflow-y: auto;
+  /*
+   * Explicit, not left to default `visible`: per the CSS overflow spec, an
+   * axis left `visible` while its sibling axis is anything else (the
+   * `overflow-y: auto` above) computes to `auto` too, not `visible` — so
+   * without this line the rail would *also* silently become horizontally
+   * scrollable the moment any child (`.sw-controls`' row of buttons, at this
+   * width) overflowed sideways. That scrolled content's `getBoundingClientRect()`
+   * still reports its real (off-the-visible-edge) position, which sits over
+   * the canvas rather than over this panel's own opaque background — fb018's
+   * ui-audit caught exactly that for the Pause button (`text-contrast`
+   * sampled a red enemy sprite behind it instead of `.sw-ctl`'s own
+   * background) before `.sw-controls` below got `flex-wrap` to fix the
+   * overflow at its source; this stays as a second line of defense.
+   */
+  overflow-x: hidden;
+  background: #161b24d9;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 10px 12px;
+}
+.sw-rail-left { left: 8px; }
+.sw-rail-right { right: 8px; }
+
+/*
+ * Collapsed: only the handle tab remains, so the rest of the canvas underneath
+ * is fully clickable/visible. `bottom: auto` is load-bearing, not cosmetic:
+ * `.sw-rail`'s `top`+`bottom` (both set) stretch the box to the stage's full
+ * height regardless of `display:flex`, so without clearing `bottom` here the
+ * collapsed box would still span edge-to-edge — invisible, but still an
+ * absolutely-positioned box sitting above the canvas in the stacking order,
+ * silently swallowing clicks on every tile under that strip. `pointer-events:
+ * none` (+ `auto` on the handle alone) is a second line of defense, the same
+ * belt-and-suspenders pattern `.sw-dock`/`.sw-dpsdock`/`.sw-vsdock`'s
+ * `[hidden]`/`.sw-off` rules already use in this file.
+ */
+.sw-rail.collapsed {
+  width: auto;
+  max-width: none;
+  bottom: auto;
+  overflow: visible;
+  background: transparent;
+  border: none;
+  padding: 0;
+  pointer-events: none;
+}
+.sw-rail.collapsed .sw-railbody { display: none; }
+.sw-rail.collapsed .sw-railhandle { pointer-events: auto; }
+
+.sw-railhandle {
+  flex: 0 0 auto;
+  align-self: flex-start;
+  background: var(--panel2);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 6px 10px;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.sw-rail-right .sw-railhandle { align-self: flex-end; }
+
+.sw-railbody {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+}
+
+/* The rail itself already carries one shared translucent background — its
+   children's own opaque panel chrome would otherwise double up as a second,
+   redundant box inside it. */
+.sw-rail .sw-stats,
+.sw-rail .sw-towerinfo,
+.sw-rail .sw-progress {
+  background: transparent;
+  border: none;
+  padding: 0;
 }
 
 .sw-stats {
@@ -112,14 +223,22 @@ html, body {
 .sw-tcost { grid-area: cost; color: var(--gold); font-variant-numeric: tabular-nums; }
 .sw-tcost.poor { color: #7c5c5c; }
 
-/* b036: kept tight — `.sw-side` has no scroll of its own (b035), so every px
-   this panel adds pushes it closer to the 1080px fold below the towerinfo panel. */
+/* b036: kept tight even though fb065's `.sw-rail-right` now scrolls internally
+   (unlike the old fixed `.sw-side` this panel used to sit in) — a scrolled-out
+   `.sw-help` would still be reachable by scrolling, but not glanceable
+   mid-fight the way it's meant to be. */
 .sw-help { font-size: 12px; color: var(--dim); line-height: 1.45; }
 .sw-help b { color: var(--text); font-weight: 600; }
 
 .sw-modal {
   position: absolute;
   inset: 0;
+  /* fb065: explicit, higher than `.sw-rail`'s 3 (and `.sw-dock`'s 4/`.sw-dpsdock`'s
+     5, though `openModal()` (hud.ts) already closes those before this ever
+     shows) — the rails are new positioned descendants of `.sw-stage` that this
+     full-stage cover has to paint over, not beside, the way the old `.sw-side`
+     column never needed it to. */
+  z-index: 10;
   display: grid;
   place-items: center;
   background: #05070ccc;
@@ -322,8 +441,10 @@ html, body {
 .sw-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
 @media (max-width: 1180px) {
-  .sw-shell { flex-direction: column; align-items: stretch; }
-  .sw-side { max-width: none; }
+  /* fb065: the rails float over the canvas at every width now, so a narrow
+     window just gets narrower rails rather than the old stacked-column
+     fallback (there is no column left to stack). */
+  .sw-rail { max-width: 55%; font-size: 13px; }
 }
 
 /* ---------------------------------------------------------------- the hub */
@@ -654,6 +775,7 @@ input.sw-tuner-field-input[type="text"] { width: 220px; }
 
 .sw-controls {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
 }
 
@@ -707,9 +829,9 @@ input.sw-tuner-field-input[type="text"] { width: 220px; }
 .sw-hint { font-size: 12px; color: var(--dim); margin: 6px 0 0; }
 
 /* fb027: clickable Upgrade/Sell rows in the selection panel. Kept as tight as
-   the plain `.sw-row` text line it replaced — b036: `.sw-side` has no scroll
-   of its own, so any extra chrome here pushes the legend below it toward the
-   1080px fold. */
+   the plain `.sw-row` text line it replaced — see b036/fb065's `.sw-help`
+   comment above: `.sw-rail-right` scrolls now, but the panels near the top
+   should still fit without needing to. */
 .sw-actbtn {
   display: flex;
   justify-content: space-between;

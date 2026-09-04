@@ -113,6 +113,15 @@ export class Hud {
   private vsPanelDocked_ = false;
   /** b035: the practice tool panel is tall enough to push `#sw-towerinfo` past the fold; collapsed by default. */
   private practiceCollapsed = true;
+  /**
+   * fb065: the player's own open/closed preference for the right info rail,
+   * set only by its handle button. `syncRailVisibility` combines this with
+   * `dpsPanelOpen_`/`vsPanelOpen_` — both dock to the same right edge
+   * (`.sw-dock`, style.css) the rail does, so the two would otherwise paint
+   * on top of each other exactly like the character/DPS/VS panels already
+   * refuse to stack on top of one another elsewhere in this file.
+   */
+  private railRightUserOpen = true;
   /** fb026: the bottom HUD bar's element refs, cached once at construction — see `renderBottomBar`. */
   private bb!: {
     root: HTMLElement;
@@ -188,39 +197,54 @@ export class Hud {
               <div class="sw-bb-tip" id="sw-bb-a2-tip"></div>
             </div>
           </div>
-        </div>
-        <div class="sw-side">
-          <div class="sw-controls" id="sw-controls">
-            <select class="sw-ctl" data-act="speed" id="sw-speed" title="Game speed (F cycles)">
-              ${SPEEDS.map((s) => `<option value="${s}">${s}x</option>`).join('')}
-            </select>
-            <button class="sw-ctl" data-act="ranges" id="sw-ranges" aria-pressed="false" title="Show tower ranges (R)">Ranges</button>
-            <button class="sw-ctl" data-act="autopick" id="sw-autopick" aria-pressed="false" title="Resolve level-ups automatically">Auto-pick</button>
-            <button class="sw-ctl" data-act="character" id="sw-character" aria-pressed="false" title="Character stats (C)">Character</button>
-            <button class="sw-ctl" data-act="dps" id="sw-dps" aria-pressed="false" title="Damage/DPS summary (P)">DPS</button>
-            <button class="sw-ctl" data-act="vs" id="sw-vs" aria-pressed="false" title="Wielded attacks (V)">VS</button>
-            <button class="sw-ctl" data-act="pause" title="Pause (Esc)">Pause</button>
-          </div>
-          <div class="sw-practice" id="sw-practice" hidden></div>
           <!--
-            b032: the build bar sits right after the controls/practice tools
-            (not after progress/stats/towerinfo, its pre-fix position) so its
-            own row count never depends on how tall the info panels above it
-            get — at a 1080-tall viewport with Training Grounds' practice tool
-            open, the panels below (progress/stats/towerinfo/help) are the
-            ones that may run past the fold, and none of them carry an
-            interactive control the way the tower buttons do.
+            fb065: the two old .sw-side columns are now floating rails
+            anchored to .sw-stage's own left/right edges (.sw-rail,
+            style.css) - semi-transparent overlays over the canvas rather than
+            an opaque gutter reserving layout space beside it. Ids/classes on
+            every child are unchanged from .sw-side's markup, so every
+            existing querySelector/test selector below and elsewhere in this
+            file keeps working untouched; only the two wrapping containers and
+            their handle buttons are new.
           -->
-          <div class="sw-bar" id="sw-bar"></div>
-          <div class="sw-progress" id="sw-progress"></div>
-          <div class="sw-stats" id="sw-stats"></div>
-          <div class="sw-towerinfo" id="sw-towerinfo"></div>
-          <div class="sw-help">
-            <b>WASD</b> move &middot; <b>Space</b> dash &middot; <b>LMB</b> build/select &middot;
-            <b>RMB</b> sell &middot; <b>U</b>/<b>X</b> upgrade/sell &middot; <b>1-9</b> pick tower &middot;
-            <b>0</b> clear &middot; <b>Enter</b> call wave &middot; <b>Q</b> class active &middot;
-            <b>R</b> ranges &middot; <b>F</b> speed &middot; <b>C</b> character &middot; <b>P</b> DPS &middot;
-            <b>V</b> wielded attacks &middot; <b>Esc</b> pause
+          <div class="sw-rail sw-rail-left" id="sw-rail-left">
+            <button class="sw-railhandle" id="sw-rail-left-handle" title="Toggle build panel">&#9776; Build</button>
+            <div class="sw-railbody">
+              <div class="sw-controls" id="sw-controls">
+                <select class="sw-ctl" data-act="speed" id="sw-speed" title="Game speed (F cycles)">
+                  ${SPEEDS.map((s) => `<option value="${s}">${s}x</option>`).join('')}
+                </select>
+                <button class="sw-ctl" data-act="ranges" id="sw-ranges" aria-pressed="false" title="Show tower ranges (R)">Ranges</button>
+                <button class="sw-ctl" data-act="autopick" id="sw-autopick" aria-pressed="false" title="Resolve level-ups automatically">Auto-pick</button>
+                <button class="sw-ctl" data-act="character" id="sw-character" aria-pressed="false" title="Character stats (C)">Character</button>
+                <button class="sw-ctl" data-act="dps" id="sw-dps" aria-pressed="false" title="Damage/DPS summary (P)">DPS</button>
+                <button class="sw-ctl" data-act="vs" id="sw-vs" aria-pressed="false" title="Wielded attacks (V)">VS</button>
+                <button class="sw-ctl" data-act="pause" title="Pause (Esc)">Pause</button>
+              </div>
+              <div class="sw-practice" id="sw-practice" hidden></div>
+              <!--
+                b032: the build bar sits right after the controls/practice
+                tools, in its own rail separate from progress/stats/towerinfo/
+                help (fb065 split them into two rails) so its own row count
+                never depends on how tall the info panels get.
+              -->
+              <div class="sw-bar" id="sw-bar"></div>
+            </div>
+          </div>
+          <div class="sw-rail sw-rail-right" id="sw-rail-right">
+            <button class="sw-railhandle" id="sw-rail-right-handle" title="Toggle info panel">&#9432; Info</button>
+            <div class="sw-railbody">
+              <div class="sw-progress" id="sw-progress"></div>
+              <div class="sw-stats" id="sw-stats"></div>
+              <div class="sw-towerinfo" id="sw-towerinfo"></div>
+              <div class="sw-help">
+                <b>WASD</b> move &middot; <b>Space</b> dash &middot; <b>LMB</b> build/select &middot;
+                <b>RMB</b> sell &middot; <b>U</b>/<b>X</b> upgrade/sell &middot; <b>1-9</b> pick tower &middot;
+                <b>0</b> clear &middot; <b>Enter</b> call wave &middot; <b>Q</b> class active &middot;
+                <b>R</b> ranges &middot; <b>F</b> speed &middot; <b>C</b> character &middot; <b>P</b> DPS &middot;
+                <b>V</b> wielded attacks &middot; <b>Esc</b> pause
+              </div>
+            </div>
           </div>
         </div>
       </div>`;
@@ -259,6 +283,52 @@ export class Hud {
     this.wireControls();
     this.wireBottomBarHover();
     this.wireTowerInfoActions();
+    this.wireRails();
+  }
+
+  /**
+   * fb065: each floating rail's handle toggles its own `.collapsed` class —
+   * independent per rail (collapsing the build rail doesn't touch the info
+   * rail), and both default open so every pre-existing test/interaction that
+   * clicks a tower button or reads `#sw-stats` without first expanding
+   * anything keeps working unchanged.
+   */
+  private wireRails(): void {
+    const leftHandle = this.root.querySelector('#sw-rail-left-handle') as HTMLElement | null;
+    const leftRail = this.root.querySelector('#sw-rail-left') as HTMLElement | null;
+    leftHandle?.addEventListener('click', () => leftRail?.classList.toggle('collapsed'));
+
+    const rightHandle = this.root.querySelector('#sw-rail-right-handle') as HTMLElement | null;
+    rightHandle?.addEventListener('click', () => {
+      this.railRightUserOpen = !this.railRightUserOpen;
+      this.syncRailRightVisibility();
+    });
+  }
+
+  /**
+   * fb065: the right info rail (`#sw-stats`/`#sw-towerinfo`/etc.) and the DPS/
+   * VS panels (`toggleDpsPanel`/`toggleVsPanel`) both dock to `.sw-stage`'s
+   * right edge — collapses the rail whenever either panel is open *or docked*
+   * (code review: the small reopen tab, `.sw-dpsdock`/`.sw-vsdock`, top:8/
+   * top:40 right:0, sits in the same top-right corner as this rail's own
+   * flex-end-aligned handle, so "docked" is not actually clear of it the way
+   * an earlier draft of this comment assumed) so the rail's handle and a
+   * dock's reopen tab never compete for the same click. Called every
+   * `update()` tick, the same "re-derive presentation state from the live
+   * flags every frame" pattern `syncDpsPanelToggle`/`syncVsPanelToggle`
+   * already use just above its call site.
+   */
+  private syncRailRightVisibility(): void {
+    const rail = this.root.querySelector('#sw-rail-right') as HTMLElement | null;
+    if (!rail) return;
+    rail.classList.toggle(
+      'collapsed',
+      !this.railRightUserOpen ||
+        this.dpsPanelOpen_ ||
+        this.vsPanelOpen_ ||
+        this.dpsPanelDocked_ ||
+        this.vsPanelDocked_,
+    );
   }
 
   /**
@@ -328,10 +398,12 @@ export class Hud {
    * omitted only by tests that don't care about the spawn row.
    *
    * b035: the full panel (9 dev buttons + the spawn row) is tall enough that,
-   * stacked above `#sw-towerinfo` in `.sw-side`, it pushed a populated tower
-   * info panel ~230px past the 1080px fold with no way to reach it. Collapsed
-   * by default behind a `sw-sub` toggle — the tools are optional, the tower
-   * info panel below them is not.
+   * stacked above `#sw-towerinfo` in the old single-column `.sw-side` (fb065
+   * split practice/build into their own rail, separate from towerinfo's), it
+   * pushed a populated tower info panel ~230px past the 1080px fold with no
+   * way to reach it. Collapsed by default behind a `sw-sub` toggle — the
+   * tools are optional, the tower info panel that used to sit below them
+   * was not.
    */
   showPracticeTools(on: boolean, w?: World): void {
     this.practiceEl.hidden = !on;
@@ -907,6 +979,7 @@ export class Hud {
     if ((this.vsPanelOpen_ || this.vsPanelDocked_) && (w.outcome !== 'running' || !w.huntsWarden)) this.closeVsPanel();
     else if (this.vsPanelOpen_) this.renderVsPanel(w);
     this.syncVsPanelToggle();
+    this.syncRailRightVisibility();
     this.renderBottomBar(w);
     // A selection describes itself — but never at the cost of the panels the
     // player needs to act: a tower queued on the build bar has to show its own

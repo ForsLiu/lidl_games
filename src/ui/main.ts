@@ -289,6 +289,26 @@ export class Game {
     });
     window.addEventListener('keyup', (e) => this.keys.delete(e.key.toLowerCase()));
     window.addEventListener('blur', () => this.keys.clear());
+    // fb065: `Renderer.resize()` now sizes the backing store off `.sw-stage`'s
+    // actual laid-out box (canvas.ts), not a fixed constant, so a live window
+    // resize has to re-run it or the canvas would stay pinned at whatever
+    // size the window happened to be at the last run start/dpr change.
+    // `bindGlobalInput` runs once, after the first `this.renderer` assignment
+    // (`startRun`, guarded by `inputBound`), and every later Retry/New Run
+    // reassigns `this.renderer` before this closure fires again — so
+    // `this.renderer` here is always the live instance, never the original.
+    // rAF-coalesced: a mouse-drag resize fires the native event dozens of
+    // times/sec, and each call reassigns `canvas.width`/`height` (clearing the
+    // backing store) — collapsing bursts to one resize per painted frame.
+    let resizeQueued = false;
+    window.addEventListener('resize', () => {
+      if (resizeQueued) return;
+      resizeQueued = true;
+      requestAnimationFrame(() => {
+        resizeQueued = false;
+        this.renderer.resize();
+      });
+    });
   }
 
   /** fb027: `U` upgrades whatever the panel is currently showing (tower or Core) — a no-op with nothing selected. */

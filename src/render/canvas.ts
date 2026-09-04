@@ -245,6 +245,10 @@ export class Renderer {
   private shakeY = 0;
   private rngPhase = 0;
   private dpr = 0;
+  /** fb065: the CSS width `resize()` last computed, so a same-dpr call with an unchanged container size can still early-return. */
+  private cssW = 0;
+  /** fb065: `cssW / (GRID_W * TILE) * dpr` — the single factor `draw()`'s per-frame transform reset uses, replacing the old dpr-only one now that the canvas can display larger than its native grid size. */
+  private scale = 1;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -255,21 +259,44 @@ export class Renderer {
   }
 
   /**
-   * Sizes the backing store to the device pixel ratio. Without this the canvas
-   * is authored at 1152x640 and then upscaled by the display, which is what
-   * made the game look soft on a HiDPI screen. The CSS box stays in logical
-   * pixels, so every draw call keeps working in tile space.
+   * Sizes the backing store to the device pixel ratio *and* (fb065, owner
+   * feedback `feature-ui-inside-playfield`) to however large `.sw-stage` — the
+   * canvas's own parent, now the whole playfield window rather than a column
+   * squeezed beside an opaque sidebar — actually laid it out, so "the canvas
+   * fills the window" is real pixels, not just a bigger empty CSS box around a
+   * still-1152x640 image. Letterboxed to the grid's 36:20 aspect ratio: sized
+   * by the parent's width unless that would overflow its height, in which
+   * case the height bound wins instead — the same "fit both, no distortion"
+   * rule the old fixed-size CSS `aspect-ratio` implemented passively, done
+   * here in JS because the width is no longer a fixed number to defer to CSS.
+   * Never sets an inline height (`canvas.style.height` stays unset): the CSS
+   * `aspect-ratio` rule (style.css) derives it from the width set below, the
+   * same "only ever pin width" contract this method already had.
+   *
+   * In a test environment (jsdom) the parent's `clientWidth`/`clientHeight`
+   * are always 0 (jsdom never runs real layout), so the `||` fallbacks below
+   * reproduce this method's old fixed-1152x640 behavior exactly — every
+   * existing `resize()` unit test keeps passing unchanged.
    */
   resize(dpr = globalThis.devicePixelRatio || 1): void {
     const ratio = Math.max(1, Math.min(3, dpr));
-    if (this.dpr === ratio && this.canvas.width > 0) return;
+    const parent = this.canvas.parentElement;
+    const availW = parent?.clientWidth || GRID_W * TILE;
+    const availH = parent?.clientHeight || GRID_H * TILE;
+    const aspect = GRID_W / GRID_H;
+    // Rounded once and reused for both the inline CSS width and the backing-store
+    // math below, so the two can never drift a sub-pixel apart from each other.
+    const cssW = Math.round(Math.min(availW, availH * aspect));
+    if (this.dpr === ratio && this.cssW === cssW && this.canvas.width > 0) return;
     this.dpr = ratio;
-    this.canvas.width = Math.round(GRID_W * TILE * ratio);
-    this.canvas.height = Math.round(GRID_H * TILE * ratio);
+    this.cssW = cssW;
+    this.scale = (cssW / (GRID_W * TILE)) * ratio;
+    this.canvas.width = Math.round(GRID_W * TILE * this.scale);
+    this.canvas.height = Math.round(GRID_H * TILE * this.scale);
     // Width only: CSS carries the aspect ratio, so a narrow window shrinks
     // the canvas without stretching it.
-    this.canvas.style.width = `${GRID_W * TILE}px`;
-    this.ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    this.canvas.style.width = `${cssW}px`;
+    this.ctx.setTransform(this.scale, 0, 0, this.scale, 0, 0);
   }
 
   get width(): number {
@@ -654,7 +681,7 @@ export class Renderer {
     const ctx = this.ctx;
     const night = w.huntsWarden;
     ctx.save();
-    ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    ctx.setTransform(this.scale, 0, 0, this.scale, 0, 0);
     ctx.translate(this.shakeX, this.shakeY);
     ctx.fillStyle = night ? PALETTE.bgNight : PALETTE.bgDay;
     ctx.fillRect(-20, -20, this.width + 40, this.height + 40);
