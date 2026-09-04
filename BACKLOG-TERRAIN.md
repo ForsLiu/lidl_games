@@ -370,7 +370,7 @@ fb064o.
       ledger (the distribution, which no witness gives). The sample's own
       argmin is *not* the domain worst and the file says so rather than
       implying it. See the Log for the scan parameters and the retry finding.
-- [ ] (fb064s) [polish] `flatTerrain()`'s dump is a repro string that cannot
+- [x] (fb064s) [polish] `flatTerrain()`'s dump is a repro string that cannot
       be reproduced (fb064n QA, observation 4). The format exists so that "a
       terrain repro is one string" (fb064k), but the flat arena prints
       `requested=0 effective=0 attempts=0 fallback=true hash=bb4e18dd`, and a
@@ -383,6 +383,16 @@ fb064o.
       unambiguous to a human, and a dump that claims the mark without the flat
       arena's tiles is refused; the existing `attempts=0` cross-check keeps
       working and its tests stay green — refs: fb064k, fb064n Log.
+      **Shipped as `source`, a field that answers a slightly wider question than
+      the acceptance asked.** The item asks for a mark on the flat arena; a mark
+      that appears on one map and is absent on every other is read as noise, so
+      the field is present on all three shapes `describeTerrain` emits
+      (`flat-arena` / `generator` / `-`) and says what the rest of the seed line
+      is *for*: whether `requested` is a seed a reader can paste. That framing
+      is what makes the degraded map come out right — flat tiles, but a seed
+      that genuinely reproduces them, so `generator`. The tile cross-check the
+      acceptance asks for turned out to close a live forgery hole rather than a
+      theoretical one. See the Log.
 - [x] (fb064t) [bug] `parseTerrain` crashes with a raw `TypeError` on a
       truncated `tiles` array instead of a zod issue: the key-order refinement
       reads `cfg.tiles[i].key` unguarded for `i` in `0..3`, so
@@ -432,6 +442,24 @@ fb064o.
       table over the bands, not one map), so the next band added to
       `terrainLegal` cannot land without the helper; all `tests/terrain*`
       green and unchanged in count — refs: fb064r review, fb064o.
+- [ ] (fb064w) [polish] `parseTerrainDump` accepts unknown and reordered fields
+      on every header line, which contradicts the rule the rest of the file is
+      written to — "refuse what the writer never emits rather than reinterpret
+      it", already applied to duplicate keys, mixed dashes, a moved gate and a
+      changed legend. `fields()` collects any `key=value` into a `Map` and no
+      caller looks for extras, so `hash=54fad3db bogus=1` parses clean and so
+      does a seed line with its fields in any order. Pre-existing and harmless
+      until fb064s, which made the seed line's *layout* a contract: the whole
+      value of `source` is that a reader's eye reaches it before `requested=0`,
+      and today that is a guarantee about what `describeTerrain` writes and not
+      about what `parseTerrainDump` accepts. Acceptance: a failing regression
+      test first; each header line declares its key set once, an unknown key is
+      refused with a message naming the key and the line, and field order is
+      pinned for the `seed` line at least; every existing refusal message is
+      unchanged and all `tests/terrain*` stay green — or, if the leniency is
+      kept deliberately, it is pinned as an accepted case in the refusal table
+      with the reason, so it is a decision rather than an oversight — refs:
+      fb064s QA bug 2, fb064k.
 
 ## Log
 
@@ -2698,3 +2726,131 @@ fb064o.
     `npx tsc --noEmit` clean. No `/src` or `/data` file changed, so no golden
     hash, sim end-state or sweep number could move — QA confirmed that from
     the other side by re-running `npm run sim` (`endHash 2729a000`).
+
+- (2026-09-04, fb064s) The flat arena's dump now says it is the flat arena.
+  Three files, all inside Scope: `src/sim/terrain/describe.ts`, and the two
+  suites `tests/terrain-flat.test.ts` + `tests/terrain-describe.test.ts`.
+  **No `/src` file outside `terrain/`, no `/data`, no golden hash, no sim
+  end-state** — QA confirmed from the other side (`npm run sim -- --seed 1
+  --policy hybrid` still ends `2729a000` with 0 leaks; the 6-seed sweep is
+  unmoved).
+  - **What the bug actually was.** `flatTerrain()` has no seed;
+    `requestedSeed`/`seed` are `0` only because `TerrainMap` has nowhere to
+    write "none". So its dump read `requested=0 effective=0`, and seed 0 is a
+    perfectly good seed naming a different map — re-measured here rather than
+    taken from the item: flat is `hash=bb4e18dd attempts=0`, seed 0 is
+    `hash=58fa46d9 attempts=1`. The only tell was `attempts=0`, which fb064n
+    made unforgeable in the parser and left unreadable to a human.
+  - **The mark is on every dump, not only the flat one.** A field that appears
+    on one map in a thousand is read as noise by the person it is written for.
+    `source` is `flat-arena`, `generator` or `-` (provenance-free), printed as
+    the *first* field of the seed line so a reader reaches it before
+    `requested=0`, and it names what the rest of the line is for: whether
+    `requested` is a seed you can paste. The two lines that used to be
+    confusable now differ six characters in:
+    `seed source=flat-arena requested=0 effective=0 attempts=0 fallback=true`
+    against
+    `seed source=generator requested=0 effective=0 attempts=1 fallback=false`.
+  - **Derived from `attempts`, never stored on `TerrainMap`.** A sixth
+    provenance field would be a second home for one fact and therefore a place
+    for the two to disagree; as a derivation it cannot. The parser asserts the
+    equivalence in *both* directions rather than assuming it, which is what
+    keeps a hand-edited `source=flat-arena attempts=2` out.
+  - **Framing it as "is `requested` a repro" is what makes the degraded map come
+    out right.** `generateTerrain`'s give-up map has the flat arena's exact
+    tiles, and marking it `flat-arena` would be wrong twice — it contradicts
+    `attempts=8`, and it tells a reader the seed is a placeholder when it is the
+    entire repro. It prints `source=generator`, and the test asserts
+    `generateTerrain(requested)` really does reproduce it.
+  - **The tile cross-check closed a live hole, not a theoretical one.** The
+    acceptance's "a dump that claims the mark without the flat arena's tiles is
+    refused" turned out to name a forgery that parsed *clean at HEAD*: seed 1's
+    tiles wearing the flat arena's whole provenance and
+    `hash = terrainHash(0, seed1Kind)` satisfies the histogram (right kinds) and
+    the hash (re-derived from the seed the dump *claims*). Integrity check 3 is
+    now a byte compare against `flatTerrain()`, which takes no config and is a
+    function of arena geometry alone — so it is as config-free as the histogram
+    check, and QA verified that by parsing a flat dump written under a wild
+    config with the default one.
+  - **`SOURCE_FLAT`/`SOURCE_GENERATOR` live in code, not `/data`** — the same
+    deliberate exception to architecture rule 4 that `GLYPHS` and
+    `core-placement.ts`'s `ROOM_RADIUS` take, recorded here as they are. A
+    Tuner-editable mark would fork every golden and break the round trip for
+    every dump written before the edit. The format is a diagnostic contract,
+    not tuning.
+  - **Pre-fb064s dumps are refused, deliberately, and the refusal says so.**
+    Build-lockstep is the rule the legend and gate checks already follow: a dump
+    whose seed line this build cannot fully read is one it cannot vouch for. No
+    artefact in the repo carries an old seed line (QA grepped for one), so the
+    cost is human-only, and the message names the version break and the fix.
+  - **code-reviewer: APPROVE, no Critical or Major; five Minors and three nits,
+    all folded in before commit.** The two substantive ones:
+    - **Every pre-fb064s dump died with a bare `"seed" line has no "source"`**,
+      which reads as a corrupted paste rather than a version skew. Now a message
+      naming both the break and the fix.
+    - **The degraded map was the one path where check 3 could later be broken
+      with the whole suite still green** — tightening it from "the mark claims
+      flat" to "these tiles are flat" would have passed everything. Pinned.
+    Also folded in: the bare flat dump is now asserted to *parse* (which is what
+    pins check 3 to the mark rather than to the tiles); the `missing source`
+    case was an alternation that passed under either compatibility decision and
+    now pins the message; `describeTerrain`'s doc concedes that it validates
+    shape and not provenance, and says why (a diagnostic that refuses to
+    describe a broken map withholds the evidence exactly when it is needed);
+    and the check-3 comment now says what `source=generator` does *not* buy —
+    a dump can still lie about its seed, because the hash is re-derived from the
+    seed the dump claims, and catching that would need the config a dump does
+    not carry.
+  - **qa-playtester: PASS, four Minor/Trivial bugs, three fixed here and one
+    filed.**
+    - **Bug 1 (fixed): the remedy did not match the dump.** The refusal offered
+      `source=generator` / `source=flat-arena` to the reader of a
+      *provenance-free* dump, whose fix is `source=-` — so following the advice
+      produced a second, unrelated refusal (`provenance is all-or-nothing`). The
+      branch already knows `dashes === PROV_KEYS.length`; the message now
+      branches with it, and the test applies each named remedy and asserts it
+      reconstructs the original text.
+    - **Bug 3 (fixed): check 3 blamed the tiles for a dimension mismatch.** A
+      3x3 dump claiming the mark — fb064f's announced non-arena Training
+      Grounds shape is the realistic case — reported "these are not the flat
+      arena's tiles" with no tile ever compared, sending its reader to diff 720
+      correct glyphs. Dimensions are checked first now, with their own message.
+    - **Bug 4 (fixed): an fb064n assertion stopped discriminating.** `['zero
+      attempts on a generated map', ..., /flat arena/]` also matches fb064s's
+      tile-check message, so it would pass if fb064n's check were deleted
+      outright. Tightened to fb064n's own wording. Behaviour is unchanged — QA
+      confirmed fb064n's check still fires first, with its original string.
+    - **Bug 2 (filed as fb064w): unknown and reordered seed-line fields are
+      accepted**, so "the mark is first" is a guarantee about the writer only.
+      Pre-existing and file-wide (it applies to all five header lines), so it is
+      a separate item rather than a widening of this one; the docstring now
+      states the limit instead of implying the stronger claim.
+    - **What QA verified rather than assumed**: 663 seeds round-tripped
+      byte-identical (0..399, both domain ends, the signed wrap, 250 random
+      uint32/negative), with the describe/parse fixpoint held over 5 iterations;
+      80,000 single-character mutations of the flat dump's seed line, **0
+      accepted**; 120,000 across whole dumps, 2,477 accepted and **0 decoding to
+      different tiles**; ~30 hand-built forgeries including a
+      histogram-preserving two-tile swap, Cyrillic and U+2010 lookalikes inside
+      the mark, duplicate marks, and the mark on a 3x3 dump; the false-positive
+      side too (CRLF, BOM, missing trailing newline, 1x1/3x5/40x25/20x36 bare
+      grids, a grid whose gate tiles are rock/high/rough, cross-config parsing);
+      `terrain 4294967295x1` still refused in 0.21 ms with no allocation. Check
+      3 costs ~25% of a 40 microsecond parse, on a path that is not per-tick
+      code.
+  - **Verification.** `npx vitest run tests/terrain-*.test.ts` 297/297 green
+    across all 14 suites (295 before the QA fixes added two); `npx tsc --noEmit`
+    clean; `npm run test:fast` red only on the documented pre-existing set, and
+    **no terrain, sim or describe test failed in any of the five `test:fast`
+    runs this item produced.** The set is wildly unstable between runs and the
+    numbers are recorded rather than smoothed: 6 files red on the clean run
+    before the QA fixes (`b032`/`b035`/`b036` UI-lane 1080px fold, `q15`
+    load-sensitive, `q49`/`q52` Windows `EPERM`), 13 on the run after them,
+    against QA's 12 and 14. Every one of the extra files aborts in a
+    `finally { rmSync(dir, RM_RETRY) }` with Windows `EPERM` under
+    `bench/.tmp`: the `q25`/`q28`/`q33`/`q37`/`q41`/`q45`/`q46`/`q49`/`q52`
+    CLI suites each corrupt and restore a `/data` snapshot and contend for that
+    directory. Disambiguated rather than assumed —
+    `q25` + `q28` + `q33` re-run together in isolation are **26/26 green**, and
+    nothing this item touched is reachable from a CLI, from `/data` or from
+    `bench/`.

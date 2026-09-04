@@ -45,6 +45,7 @@ import {
   terrainOverlay,
   TerrainKind,
   type TerrainConfig,
+  type TerrainMap,
 } from '../src/sim/terrain';
 
 const cfg = loadTerrain();
@@ -326,6 +327,222 @@ describe('fb064n — the config.ts replica stays pinned to it', () => {
       });
       expect(legalCoreAnchors(flat, at).length, `clearance ${clearance}`).toBe(
         flatCoreAnchorCount(clearance),
+      );
+    }
+  });
+});
+
+describe('fb064s — the flat arena says so on its own seed line', () => {
+  /**
+   * The dump exists so that "a terrain repro is one string" (fb064k). For every
+   * map the generator makes, that string works: paste its `requested` into
+   * `npm run sim -- --seed <n>` and the same tiles come back. For the flat
+   * arena it did not. `flatTerrain()` has no seed — `requestedSeed`/`seed` are
+   * `0` only because `TerrainMap` has nowhere to write "none" — so its dump
+   * read `requested=0 effective=0 attempts=0 fallback=true`, and seed `0` is a
+   * perfectly good seed that produces a completely different map. The one tell
+   * was `attempts=0`, which fb064n made unforgeable in the parser and left
+   * unreadable to a human skimming a bug report.
+   *
+   * `source` is that tell, spelled out. It is derived from `attempts` rather
+   * than added to `TerrainMap`, so it cannot disagree with the field it names.
+   */
+  const flat = flatTerrain();
+  const flatText = describeTerrain(flat, cfg);
+  const genText = describeTerrain(generateTerrain(1, cfg), cfg);
+
+  /** Replace the whole `seed` line of a dump. */
+  function withSeedLine(text: string, line: string): string {
+    return text.replace(/^seed .*$/m, line);
+  }
+
+  function seedFields(text: string): string[] {
+    const line = text.split('\n').find((l) => l.startsWith('seed '));
+    expect(line, 'dump has no seed line').toBeDefined();
+    return (line as string).split(' ').slice(1);
+  }
+
+  it('the confusion the mark exists to end is real', () => {
+    // Not a hypothetical: the number printed on the flat arena's seed line is a
+    // valid seed, and it names a different map. This is the observation
+    // (fb064n QA 4) restated as an assertion, so the mark cannot be dropped as
+    // decoration later.
+    const zero = generateTerrain(0, cfg);
+    expect(zero.hash).not.toBe(flat.hash);
+    expect(Array.from(zero.kind)).not.toEqual(Array.from(flat.kind));
+    expect(zero.attempts).toBeGreaterThan(0);
+  });
+
+  it('marks the flat arena, and the mark is the first thing on the line', () => {
+    // First field, not last: the point is that a reader's eye reaches it before
+    // it reaches `requested=0`.
+    expect(seedFields(flatText)[0]).toBe('source=flat-arena');
+    expect(seedFields(genText)[0]).toBe('source=generator');
+    // The rest of the line is untouched, so every existing reader still works.
+    expect(flatText).toContain('requested=0 effective=0 attempts=0 fallback=true');
+  });
+
+  it('a provenance-free grid dashes the mark like every other seed field', () => {
+    const bare = describeTerrain({ w: GRID_W, h: GRID_H, kind: expectedFlatKinds() }, cfg);
+    expect(seedFields(bare)[0]).toBe('source=-');
+    // All-or-nothing covers the new field too: a dump with a real `source` and
+    // dashes elsewhere is the shape that used to drop the hash check silently.
+    expect(() => parseTerrainDump(bare.replace('source=-', 'source=flat-arena'))).toThrow(
+      /all-or-nothing/,
+    );
+    // And it parses. These are the flat arena's exact tiles with no provenance,
+    // which is what pins the tile check to the *mark* rather than to the tiles:
+    // an unmarked grid is never compared against `flatTerrain()`, marked or not.
+    const back = parseTerrainDump(bare);
+    expect(back.provenance).toBe(null);
+    expect(Array.from(back.kind)).toEqual(Array.from(expectedFlatKinds()));
+  });
+
+  it('tells a pre-fb064s dump how to be fixed, differently for each shape it can be', () => {
+    // QA bug 1. The field is new, so every dump written before it is refused —
+    // a defensible build-lockstep call, and the same one the legend and gate
+    // checks make. What is not defensible is a remedy that does not apply: a
+    // message offering `source=generator`/`source=flat-arena` to the reader of a
+    // provenance-free dump walked them straight into a second, unrelated
+    // refusal (`provenance is all-or-nothing`) for doing exactly as it said.
+    const shapes: ReadonlyArray<readonly [string, string, RegExp, string]> = [
+      ['generated', genText, /add source=generator/, 'source=generator '],
+      ['flat', flatText, /add source=generator/, 'source=flat-arena '],
+      [
+        'provenance-free',
+        describeTerrain({ w: GRID_W, h: GRID_H, kind: expectedFlatKinds() }, cfg),
+        /carries no provenance, so add source=-/,
+        'source=- ',
+      ],
+    ];
+    for (const [name, text, want, remedy] of shapes) {
+      const legacy = text.replace(/^seed source=[^ ]+ /m, 'seed ');
+      expect(legacy, name).not.toBe(text);
+      expect(() => parseTerrainDump(legacy), name).toThrow(/predates the field/);
+      expect(() => parseTerrainDump(legacy), name).toThrow(want);
+      // The remedy the message names is a remedy: applying it parses, and gets
+      // back the same tiles. This is the half QA found missing.
+      const fixed = legacy.replace('seed ', `seed ${remedy}`);
+      expect(fixed, name).toBe(text);
+      expect(Array.from(parseTerrainDump(fixed).kind), name).toEqual(
+        Array.from(parseTerrainDump(text).kind),
+      );
+    }
+  });
+
+  it('blames the dimensions when it is the dimensions', () => {
+    // QA bug 3. A non-arena dump claiming the mark — fb064f's announced Training
+    // Grounds shape is the realistic one — used to be refused with "these are
+    // not the flat arena's tiles", though no tile had been compared. The reader
+    // would go looking for a wrong glyph among 720 that are all correct.
+    const k = new Uint8Array(3 * 3);
+    const small: TerrainMap = {
+      w: 3,
+      h: 3,
+      kind: k,
+      requestedSeed: 0,
+      seed: 0,
+      attempts: 0,
+      fallback: true,
+      hash: terrainHash(0, k),
+    };
+    expect(() => parseTerrainDump(describeTerrain(small, cfg))).toThrow(
+      /always 36x20; this dump is 3x3/,
+    );
+  });
+
+  it('leaves the degraded map alone: flat tiles, but a seed that reproduces them', () => {
+    // The case the mark must NOT claim. `generateTerrain` ships the flat arena
+    // when `maxAttempts` seeds all fail the bands, so this map's tiles are byte
+    // for byte the flat arena's — and yet its `requested` is a working repro,
+    // which is the question `source` answers. Marking it `flat-arena` would be
+    // wrong twice: it would contradict `attempts=8`, and it would tell a reader
+    // the seed on the line is a placeholder when it is the whole repro.
+    //
+    // Without this test, tightening check 3 from "the mark claims flat" to
+    // "these tiles are flat" would pass everything else in the suite.
+    const degraded = generateTerrain(11, impossible);
+    expect(isDegradedMap(degraded)).toBe(true);
+    expect(Array.from(degraded.kind)).toEqual(Array.from(expectedFlatKinds()));
+    const text = describeTerrain(degraded, impossible);
+    expect(seedFields(text)[0]).toBe('source=generator');
+    expect(text).toContain(`attempts=${degraded.attempts} fallback=true`);
+    const back = parseTerrainDump(text);
+    expect(Array.from(back.kind)).toEqual(Array.from(degraded.kind));
+    expect(back.provenance?.hash).toBe(degraded.hash);
+    // And the seed really is the repro, which is the claim the mark makes.
+    expect(generateTerrain(back.provenance!.requestedSeed, impossible).hash).toBe(degraded.hash);
+  });
+
+  it('round-trips, byte for byte, with the mark on it', () => {
+    const back = parseTerrainDump(flatText);
+    expect(Array.from(back.kind)).toEqual(Array.from(flat.kind));
+    // `source` is derived from `attempts`, so it is not a sixth provenance
+    // field to be carried around and kept in sync — re-describing the reloaded
+    // map re-derives it and lands on the same byte.
+    expect(back.provenance).toEqual({
+      requestedSeed: 0,
+      seed: 0,
+      attempts: 0,
+      fallback: true,
+      hash: flat.hash,
+    });
+    expect(
+      describeTerrain({ ...back.provenance!, w: GRID_W, h: GRID_H, kind: back.kind }, cfg),
+    ).toBe(flatText);
+  });
+
+  it('refuses a dump that claims the mark without the flat arena tiles', () => {
+    // The hole the mark opens if it is only printed. Seed 1's tiles, wearing
+    // the flat arena's entire provenance including a correctly re-derived hash
+    // — `terrainHash` folds the seed the dump claims, so it agrees with the
+    // forgery. Before this item the same forgery *minus the mark* parsed
+    // clean, which is why the tile check is a check and not a comment.
+    const forged = withSeedLine(
+      genText,
+      'seed source=flat-arena requested=0 effective=0 attempts=0 fallback=true ' +
+        `hash=${terrainHash(0, generateTerrain(1, cfg).kind)}`,
+    );
+    expect(() => parseTerrainDump(forged)).toThrow(/flat arena/);
+    // One tile is enough: the mark means these exact bytes, not "roughly flat".
+    const oneOff = Uint8Array.from(flat.kind);
+    const at = 2 * GRID_W + 2;
+    expect(oneOff[at]).toBe(TerrainKind.Normal);
+    oneOff[at] = TerrainKind.Rock;
+    const nearlyMap: TerrainMap = {
+      w: GRID_W,
+      h: GRID_H,
+      kind: oneOff,
+      requestedSeed: 0,
+      seed: 0,
+      attempts: 0,
+      fallback: true,
+      hash: terrainHash(0, oneOff),
+    };
+    const nearly = describeTerrain(nearlyMap, cfg);
+    expect(() => parseTerrainDump(nearly)).toThrow(/flat arena/);
+  });
+
+  it('refuses a mark that disagrees with the attempt count, in both directions', () => {
+    // The mark and `attempts` are two spellings of one fact, so a dump where
+    // they disagree describes nothing. `attempts=0` with `source=generator` is
+    // caught by fb064n's existing cross-check (its message and its tests are
+    // unchanged); the other direction is new.
+    expect(() => parseTerrainDump(genText.replace('attempts=1', 'attempts=0'))).toThrow(
+      /attempts=0 is only the flat arena/,
+    );
+    const flatAsGen = flatText.replace('source=flat-arena', 'source=generator');
+    expect(() => parseTerrainDump(flatAsGen)).toThrow(/source=generator/);
+    const genAsFlat = genText.replace('source=generator', 'source=flat-arena');
+    expect(() => parseTerrainDump(genAsFlat)).toThrow(/source=flat-arena/);
+  });
+
+  it('refuses a source it does not know', () => {
+    // Same rule as the legend check: a dump written by a future version with a
+    // third source is refused, not decoded as one of today's two.
+    for (const bad of ['source=training-grounds', 'source=', 'source=Flat-Arena']) {
+      expect(() => parseTerrainDump(flatText.replace('source=flat-arena', bad)), bad).toThrow(
+        /source/,
       );
     }
   });

@@ -100,6 +100,11 @@ function field(text: string, head: string, key: string): string {
  * A `.gitattributes` with `* text=auto eol=lf` would fix this repo-wide and is
  * outside this lane's Scope; it is filed in the Log for the merge.
  *
+ * **Moved a second time, at fb064s**, which added the `source` field to the
+ * seed line. Nothing about seed 1's map changed — the hash, the bands, the
+ * counts and all twenty rows are byte-identical; only the one header line grew
+ * the mark that tells a reader whether `requested` is a seed they can paste.
+ *
  * **Moved once, at fb064m**, which demotes a `high` tile with no walkable tile
  * inside `highContestRadius` to rock — seed 1 carries four, all in the
  * bottom-left massif. Only the hash, the `tiles` counts and those four glyphs
@@ -111,7 +116,7 @@ function field(text: string, head: string, key: string): string {
  */
 const GOLDEN_SEED_1 = [
   'terrain 36x20',
-  'seed requested=1 effective=1 attempts=1 fallback=false hash=54fad3db',
+  'seed source=generator requested=1 effective=1 attempts=1 fallback=false hash=54fad3db',
   'gates west=0,10 north=18,0 east=35,17',
   'bands walkable=0.669444 buildableNormal=0.515278 gateReach=1.000000 coreLegal=0.576819 gateDetour=1.152542 corridors=true gatesOpen=true gatesConnected=true',
   'counts walkable=482 normal=371 coreAnchors=214',
@@ -452,12 +457,28 @@ describe('fb064k — a malformed dump is refused, never half-read', () => {
       // arena and nothing else, so it cannot be pasted onto a generated map's
       // provenance. `good` is seed 1, `fallback=false`. Full coverage of the
       // shape lives in `tests/terrain-flat.test.ts`.
-      ['zero attempts on a generated map', good.replace('attempts=1', 'attempts=0'), /flat arena/],
+      // Pinned to fb064n's own wording, not to `/flat arena/` (fb064s QA bug 4):
+      // fb064s's tile check says "the flat arena" too, so the loose pattern
+      // would pass even if this check were deleted and the other one caught it.
+      [
+        'zero attempts on a generated map',
+        good.replace('attempts=1', 'attempts=0'),
+        /attempts=0 is only the flat arena/,
+      ],
       // `-0` used to be normalised to `0`, which cost text-stability: this dump
       // reloaded and re-dumped with a different string than it went in with.
       ['minus zero', good.replace('attempts=1', 'attempts=-0'), /-0 and 0 are one value/],
       ['leading zero', good.replace('attempts=1', 'attempts=01'), /non-numeric/],
       ['gate moved', good.replace('west=0,10', 'west=9,9'), /gate "west" is at 9,9/],
+      // fb064s. Same rule as the legend check one line of reasoning above: a
+      // dump written by a future version with a third source is refused rather
+      // than decoded as one of today's two.
+      ['unknown source', good.replace('source=generator', 'source=magic'), /source="magic"/],
+      // Pinned to the exact message, not to an alternation: this is the one
+      // assertion recording that a pre-fb064s dump is *refused* rather than
+      // read as provenance-free, and an alternation would pass under either
+      // decision.
+      ['missing source', good.replace('source=generator ', ''), /predates the field/],
     ];
     for (const [name, text, want] of cases) {
       expect(() => parseTerrainDump(text), name).toThrow(want);

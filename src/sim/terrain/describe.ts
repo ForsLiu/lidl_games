@@ -19,7 +19,8 @@
  *    buffer would hand the caller a map that is not the one in the report, and
  *    the whole point of the format is that it is the same map, so a row mangled
  *    by a chat client is caught at the boundary rather than debugged as a
- *    generator defect. Two independent checks enforce it, and the split matters:
+ *    generator defect. Three independent checks enforce it, and the split
+ *    matters — each covers what the ones above it structurally cannot:
  *      - the **glyph histogram** printed on the `tiles` line is recounted from
  *        the decoded rows and must agree. This is config-free and dimension-free,
  *        so it covers *every* dump.
@@ -28,6 +29,12 @@
  *        it only runs on an arena-sized dump that carries provenance, because
  *        `terrainHash` folds `GRID_W`/`GRID_H` rather than the map's own
  *        dimensions.
+ *      - the **flat-arena mark** (`source=flat-arena`, fb064s) is compared
+ *        against `flatTerrain()`'s actual bytes. The histogram counts kinds and
+ *        not positions, and the hash is re-derived from the seed the *dump*
+ *        claims, so a generated map wearing the flat arena's whole provenance
+ *        agreed with both and parsed clean until this check existed.
+ *
  *    The histogram check exists precisely because the hash's coverage has those
  *    two holes. Review and QA both found that with the hash alone, a
  *    provenance-free dump (or fb064f's announced non-arena Training Grounds
@@ -50,7 +57,7 @@ import {
   type TerrainConfig,
   type TerrainKey,
 } from './config';
-import { MAX_TERRAIN_SEED, MIN_TERRAIN_SEED, terrainHash } from './generate';
+import { flatTerrain, MAX_TERRAIN_SEED, MIN_TERRAIN_SEED, terrainHash } from './generate';
 import type { TerrainGrid, TerrainMap, TerrainMeasure } from './types';
 
 /**
@@ -101,6 +108,43 @@ if (KIND_BY_GLYPH.size !== GLYPH_BY_KIND.length) {
  */
 const FRAC_DIGITS = 6;
 
+/**
+ * What produced the tiles, printed as the first field of the `seed` line
+ * (fb064s).
+ *
+ * The rest of that line answers "which seed?", and for every map
+ * `generateTerrain` returns the answer is usable: paste `requested` into
+ * `npm run sim -- --seed <n>` and the same tiles come back. `flatTerrain()` is
+ * the one map where it is not. It has no seed at all — `requestedSeed` and
+ * `seed` are `0` only because `TerrainMap` has nowhere to write "none"
+ * (`generate.ts`) — so its dump used to read `requested=0 effective=0` and a
+ * reader who took that at face value got seed 0's map, which is a scattered
+ * map with a different hash. The only tell was `attempts=0`: unforgeable in the
+ * parser since fb064n, and invisible to a human skimming a bug report, which is
+ * the audience the format is for.
+ *
+ * Derived from `attempts`, never stored on `TerrainMap`. A sixth provenance
+ * field would be a second place for the same fact to live and so a place for
+ * the two to disagree; as a derivation the mark cannot contradict the count,
+ * and the parser asserts the equivalence in both directions rather than
+ * assuming it.
+ *
+ * **Printed first, but only by the writer.** The parser reads the `seed` line
+ * as unordered `key=value` pairs and accepts unknown ones, as it does for every
+ * header line, so a hand-edited dump can put the mark last and still parse. The
+ * mark's value to a human is a property of what `describeTerrain` emits; making
+ * it a property of what `parseTerrainDump` accepts means refusing unknown and
+ * reordered fields on all five header lines, which is a wider change than this
+ * item and is filed as fb064w (QA bug 2).
+ *
+ * `generator` covers the degraded map too (`isDegradedMap`: `maxAttempts`
+ * seeds all failed the bands, so the flat arena shipped under a real seed).
+ * Its tiles are flat, but its `requested` *does* reproduce it, which is the
+ * question this field answers.
+ */
+const SOURCE_FLAT = 'flat-arena';
+const SOURCE_GENERATOR = 'generator';
+
 /** The provenance fields a `TerrainMap` carries and a bare `TerrainGrid` does not. */
 type Provenance = Pick<TerrainMap, 'requestedSeed' | 'seed' | 'attempts' | 'fallback' | 'hash'>;
 
@@ -137,6 +181,18 @@ function frac(v: number): string {
 /**
  * The deterministic dump. `cfg` decides which tiles are walkable, so it decides
  * every band — pass the same config the map was generated under.
+ *
+ * **It validates shape, not provenance, and the two are not the same rule.**
+ * The guards below refuse a map whose dimensions or tile kinds would produce
+ * literally unreadable text (`undefined` in a row, a histogram of zeroes) —
+ * text no reader could act on. They do not refuse a map whose *provenance* is
+ * impossible: `attempts: 0` on tiles that are not the flat arena is written
+ * happily here and refused on the way back in (fb064s), as `attempts: 0` with
+ * `fallback: false` already was (fb064n). That asymmetry is deliberate. This is
+ * a diagnostic, and the moment a caller most needs a dump is the moment its map
+ * is wrong; a writer that refused to describe a malformed map would withhold
+ * the evidence exactly when it matters. Refusing on the read side loses
+ * nothing, because a dump is only ever *acted on* after a parse.
  */
 export function describeTerrain(map: TerrainGrid, cfg: TerrainConfig = loadTerrain()): string {
   // Dimensions first, and stricter than "the buffer is the right size": a
@@ -174,10 +230,13 @@ export function describeTerrain(map: TerrainGrid, cfg: TerrainConfig = loadTerra
   const p = hasProvenance(map) ? map : null;
   const lines: string[] = [];
   lines.push(`terrain ${map.w}x${map.h}`);
+  // `source` leads the line rather than trailing it: the whole point is that a
+  // reader's eye reaches the mark before it reaches `requested=0`.
   lines.push(
     p === null
-      ? 'seed requested=- effective=- attempts=- fallback=- hash=-'
-      : `seed requested=${p.requestedSeed} effective=${p.seed} attempts=${p.attempts} ` +
+      ? 'seed source=- requested=- effective=- attempts=- fallback=- hash=-'
+      : `seed source=${p.attempts === 0 ? SOURCE_FLAT : SOURCE_GENERATOR} ` +
+          `requested=${p.requestedSeed} effective=${p.seed} attempts=${p.attempts} ` +
           `fallback=${p.fallback} hash=${p.hash}`,
   );
   lines.push(`gates ${GATES.map((g) => `${g.key}=${g.tx},${g.ty}`).join(' ')}`);
@@ -315,6 +374,36 @@ export function parseTerrainDump(text: string): TerrainDump {
   if (dashes !== 0 && dashes !== PROV_KEYS.length) {
     fail(`"seed" line mixes "-" with real values; provenance is all-or-nothing`);
   }
+
+  // fb064s. Read separately from `PROV_KEYS` above rather than appended to it,
+  // for the message: a dump written before this item has the other five fields
+  // and not this one, and `req`'s bare `"seed" line has no "source"` would send
+  // its reader hunting for a corrupted paste. It is refused — the same
+  // build-lockstep rule the legend and gate checks are written to, since a dump
+  // whose seed line this build cannot fully read is a dump this build cannot
+  // vouch for — but the refusal says what happened and how to fix the text by
+  // hand.
+  const source = seedLine.get('source');
+  if (source === undefined) {
+    // The remedy is named for *this* dump, not for dumps in general (QA bug 1).
+    // `describeTerrain` emits two shapes and the fix differs between them, so a
+    // message offering both sent the reader of a provenance-free dump straight
+    // into `provenance is all-or-nothing` — a second, unrelated refusal from
+    // following the first one's advice. `dashes` is already known here.
+    const remedy =
+      dashes === PROV_KEYS.length
+        ? 'this dump carries no provenance, so add source=-'
+        : 'add source=generator, or source=flat-arena when attempts=0';
+    fail(
+      `"seed" line has no "source"; a dump written before fb064s predates the field — ${remedy}`,
+    );
+  }
+  // The mark dashes with the rest: a real `source` beside five dashes is the
+  // same half-provenance shape the check above refuses, one field wider.
+  if ((source === '-') !== (dashes === PROV_KEYS.length)) {
+    fail(`"seed" line mixes "-" with real values; provenance is all-or-nothing`);
+  }
+
   let provenance: Provenance | null = null;
   if (dashes === 0) {
     provenance = {
@@ -355,6 +444,23 @@ export function parseTerrainDump(text: string): TerrainDump {
       fail(
         'attempts=0 is only the flat arena, which is always ' +
           'requested=0 effective=0 fallback=true',
+      );
+    }
+
+    // fb064s. The mark and `attempts` are two spellings of one fact, and the
+    // mark is the readable one, so it is checked against the count in both
+    // directions rather than believed. An unknown value is refused for the
+    // reason the legend is: a dump written by a future version with a third
+    // source must be refused, not silently read as one of today's two.
+    if (source !== SOURCE_FLAT && source !== SOURCE_GENERATOR) {
+      fail(
+        `"seed" line has source="${source}", expected "${SOURCE_FLAT}" or "${SOURCE_GENERATOR}"`,
+      );
+    }
+    if ((source === SOURCE_FLAT) !== (provenance.attempts === 0)) {
+      fail(
+        `"seed" line says source=${source} with attempts=${provenance.attempts}; ` +
+          `source=${SOURCE_FLAT} is exactly attempts=0`,
       );
     }
   }
@@ -456,6 +562,44 @@ export function parseTerrainDump(text: string): TerrainDump {
     const want = terrainHash(provenance.seed, kind);
     if (want !== provenance.hash) {
       fail(`hash mismatch: dump says ${provenance.hash}, these tiles hash to ${want}`);
+    }
+  }
+
+  // Integrity check 3 (fb064s): the flat-arena mark means these exact bytes.
+  //
+  // Neither check above can stand in for it. The histogram counts kinds and not
+  // positions, and the hash is re-derived from the seed the *dump* claims — so
+  // seed 1's tiles wearing `requested=0 effective=0 attempts=0 fallback=true`
+  // and a hash of `terrainHash(0, thoseTiles)` agreed with both, and parsed
+  // clean before this item. `flatTerrain()` takes no config and is a function
+  // of the arena's geometry alone, so this comparison is as config-free as the
+  // histogram is.
+  //
+  // Note what the *other* mark does not buy, so it is not over-trusted:
+  // `source=generator` is not proof that `requested` reproduces these tiles. The
+  // hash is re-derived from the seed the dump claims, so a dump saying
+  // `requested=999999` over seed 1's tiles passes every check here. Catching
+  // that would mean regenerating under the config the dump was written against,
+  // which a dump does not carry (`TerrainDump`). The mark answers "is
+  // `requested` meant to be a seed at all", which is the question fb064s found
+  // unanswerable, and not "is it the right one".
+  if (source === SOURCE_FLAT) {
+    const flat = flatTerrain();
+    // Dimensions first, and with their own message (QA bug 3). Folding them
+    // into the byte compare made a 3x3 dump — fb064f's announced non-arena
+    // Training Grounds shape is the realistic case — report "these are not the
+    // flat arena's tiles" without a tile ever having been compared, sending its
+    // reader to diff 720 glyphs over a fault that is in the header.
+    if (w !== flat.w || h !== flat.h) {
+      fail(
+        `"seed" line says source=${SOURCE_FLAT}, which is always ${flat.w}x${flat.h}; ` +
+          `this dump is ${w}x${h}`,
+      );
+    }
+    let same = true;
+    for (let i = 0; same && i < kind.length; i++) same = kind[i] === flat.kind[i];
+    if (!same) {
+      fail(`"seed" line says source=${SOURCE_FLAT}, but these are not the flat arena's tiles`);
     }
   }
 
