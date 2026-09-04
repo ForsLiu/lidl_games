@@ -380,13 +380,16 @@ const LEDGER: readonly Figure[] = [
     slot: 'passive',
     status: {
       kind: 'in_code',
-      site: 'fireChargePierce — `Math.min(pierceCap + line, 1 + Math.floor(held))`',
+      site: 'fireDeadeyeDraw — `Math.min(pierceCap, 1 + Math.floor(held)) + classLineBonus(w)`',
       file: CLASSES_TS,
-      anchors: [/const hits = Math\.min\(\(eff\.pierceCap \?\? 1\) \+ classLineBonus\(w\), 1 \+ Math\.floor\(held\)\);/],
+      anchors: [/const hits = Math\.min\(eff\.pierceCap \?\? 1, 1 \+ Math\.floor\(held\)\) \+ classLineBonus\(w\);/],
       why:
         'The *rate* (1 per second) and the base (1) are both literals; only the ceiling ' +
         "(`pierceCap`) is authored. This is one of c006's three prose-only passive rows — " +
-        'c006 pins that the clause lives on `active1`; this row pins its number.',
+        'c006 pins that the clause lives on `active1`; this row pins its number. ' +
+        "c017 moved the §6.3 card's bonus out of the `min` and onto the resolved count " +
+        '(it was inert inside it, `pierceCap 6` sitting at exactly `1 + chargeCapSeconds`); ' +
+        "the passive's own rate and base are untouched by that, and this pointer follows the fix.",
       in: 'active1',
       absentKey: /pierce(?!Cap)/i,
     },

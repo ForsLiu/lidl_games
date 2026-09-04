@@ -402,7 +402,7 @@ const LEDGER: readonly Claim[] = [
       value: 1,
       file: CLASSES_TS,
       valueAnchor:
-        /^const hits = Math\.min\(\(eff\.pierceCap \?\? 1\) \+ classLineBonus\(w\), (\d+) \+ Math\.floor\(held\)\);$/,
+        /^const hits = Math\.min\(eff\.pierceCap \?\? 1, (\d+) \+ Math\.floor\(held\)\) \+ classLineBonus\(w\);$/,
       absentKey: /pierce/i,
       knownKeys: ['active1.pierceCap'],
       authorised: RULE4,
@@ -411,7 +411,9 @@ const LEDGER: readonly Claim[] = [
         'second held. The capture takes the base term; the per-second step is the implicit ' +
         "coefficient on `Math.floor(held)`, which the whole-line match is what pins. `active1`'s " +
         '`pierceCap` is the ceiling this counts up to, not this number, and is the one key the ' +
-        'absence search is allowed to find.',
+        'absence search is allowed to find. c017 moved the §6.3 card term out of the `min` and ' +
+        "onto the resolved count (it was inert inside it); the passive's own base and per-second " +
+        'step are untouched by that, and this anchor follows the fix.',
     },
   },
   {

@@ -700,7 +700,8 @@ describe('c006 — the three prose-only passive rows', () => {
   it('archer Long Draw lives on `active1.pierceCap` + the absence of a damage clamp', () => {
     const a1 = content.classByKey.get('archer')!.active1;
     // The pin. "+1 pierce per full second charged" is `fireDeadeyeDraw`'s
-    // `Math.min(pierceCap + classLineBonus, 1 + Math.floor(held))`; "Deadeye
+    // `Math.min(pierceCap, 1 + Math.floor(held))` (c017 moved the §6.3 card's
+    // `classLineBonus` term out of that `min` and onto its result); "Deadeye
     // damage has no cap" is that function never clamping `damage`, with
     // `compoundPerSecond` the growth it declines to bound. `chargeCapSeconds`
     // bounds the *hold*, not the damage, which is what keeps G10's

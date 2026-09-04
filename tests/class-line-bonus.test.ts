@@ -74,25 +74,25 @@
  * rows. QA confirmed both: an index drop fails 23 tests, a leak that spares
  * the ladder fails exactly these 12.)
  *
- * **One named deviation, and it is a filed bug this file pins rather than
- * hides.** A card can be live in code and still inert in a real run:
+ * **This file shipped with two named deviations, and both are now fixed** —
+ * a card can be live in code and still inert in a real run, and each of these
+ * was.
  *
- *   1. **`c017` — Archer *Deeper Draw*.** `fireDeadeyeDraw` computes
- *      `Math.min(pierceCap + classLineBonus(w), 1 + floor(held))` with `held`
- *      clamped to `chargeCapSeconds`. Shipped data authors `pierceCap 6` and
- *      `chargeCapSeconds 5`, so the right-hand term is 6 at *any* hold and the
- *      +2/rank can never bind. QA confirmed no equipment, tree node, boon or
- *      modifier touches either field.
+ * **`c017` — Archer *Deeper Draw*, fixed.** `fireDeadeyeDraw` computed
+ * `Math.min(pierceCap + classLineBonus(w), 1 + floor(held))` with `held`
+ * clamped to `chargeCapSeconds`; shipped data authors `pierceCap 6` beside
+ * `chargeCapSeconds 5`, so the right-hand term was 6 at *any* hold and the
+ * +2/rank could never bind (QA confirmed no equipment, tree node, boon or
+ * modifier touches either field). The tripwire that pinned the flat 6/6/6
+ * reading, and the Archer's rebuilt-`/data` ladder beside it, are both gone:
+ * the bonus is now added on top of the resolved count
+ * (`min(pierceCap, 1 + floor(held)) + classLineBonus(w)`), which binds on
+ * shipped numbers and moves nothing at rank 0. `tests/class-deeper-draw.test
+ * .ts` is that fix's own regression, and its header carries the reasoning —
+ * including why c017's *proposed* fix (unclamping the hold) could not work.
  *
- * That deviation gets a two-part shape: a **tripwire** asserting the flat
- * reading on shipped `/data` (red the day the fix lands, which is when that
- * block should be deleted), and a **companion** proving the branch itself is
- * live once the binding constraint is lifted on a `/data` copy. The Archer's
- * ladder is the one row that measures against the lifted copy; every other row
- * measures shipped `/data` untouched.
- *
- * **There was a second deviation, `c018`, and it is fixed** — Engineer *Extra
- * Turret* and Animist *Kindred Spirits* each raised a summon **cap** the
+ * **`c018` — fixed too** — Engineer *Extra Turret* and Animist *Kindred
+ * Spirits* each raised a summon **cap** the
  * Active's own cast cadence could never reach (Pop Turret 12 s cooldown /
  * 10 s duration, ceiling 1 live turret against a base cap of 2; Manifest
  * 16 s / 20 s, ceiling 2 against a base cap of *3*, so one point of the
@@ -317,9 +317,13 @@ function contentWith(classKey: string, mutate: (row: RawClassRow) => void): Cont
  * One class's card: the key it is authored under, which way its observable
  * moves per rank, and how to read that observable out of a real world.
  *
- * `Content` is a parameter of `measure` rather than a closure capture so the
- * three deviation rows can re-run the identical measurement against an edited
- * `/data` — cheaper than a second measurement function that could drift.
+ * `Content` is a parameter of `measure` rather than a closure capture, and
+ * since `c017` **no call site passes it** — the deviation rows that re-ran the
+ * identical measurement against an edited `/data` are gone, so every row
+ * measures shipped `/data` through the default. The seam is kept rather than
+ * inlined because it is what let the Archer's ladder be measured at all while
+ * its bug was open, and it is cheaper than the second measurement function the
+ * next deviation would otherwise grow (and which could drift from this one).
  */
 type Row = {
   classKey: string;
@@ -405,8 +409,8 @@ const ROWS: Row[] = [
       // 0.7 spacing keeps the whole budget inside the shot's own `radius`
       // reach; Deadeye deals `normal`, which carries no inherent splash.
       const line = lineOfDummies(w, budget, 0.7);
-      // Held past `chargeCapSeconds`, whatever `/data` (or a deviation
-      // rebuild) authors it as, so the hold never separates two readings.
+      // Held past `chargeCapSeconds`, whatever `/data` authors it as, so the
+      // hold never separates two readings.
       chargeFor(w, (eff.chargeCapSeconds ?? 0) + 1, WX + 8, WY);
       return withinBudget(struckCount(line), budget, 'Deadeye Draw pierce line');
     },
@@ -599,49 +603,27 @@ function moved(dir: 'up' | 'down', lo: number, hi: number): boolean {
 }
 
 /**
- * `/data` for one row's ladder. Only the Archer needs an override: `c017`'s
- * binding term is the charge clamp, so its ladder cannot be measured on
- * shipped numbers at all. (`c018`'s two rows need none — those ladders measure
- * a *cap*, and `cast1`/`cast2` bypass the cadence that `c018` is about. That
- * bug is measured on its own terms at the bottom of this file.)
- *
- * **Self-expiring**: the override is gated on the predicate that makes the bug
- * true today, so the day `c017` lands it stops applying on its own rather than
- * silently substituting edited `/data` forever.
+ * **Every row below now measures shipped `/data`, untouched.** The Archer used
+ * to need a rebuilt `Content` — `c017`'s binding term was the charge clamp, so
+ * its ladder could not be read on shipped numbers at all — and that override
+ * was written to expire the day the bug was fixed. `c017` landed, so it is
+ * gone. (`c018`'s two rows never needed one: those ladders measure a *cap*, and
+ * `cast1`/`cast2` bypass the cadence `c018` is about; that bug is measured on
+ * its own terms at the bottom of this file.)
  */
-const rebuilt = new Map<string, Content>();
-
-function contentFor(classKey: string): Content {
-  const hit = rebuilt.get(classKey);
-  if (hit) return hit;
-
-  const a = content.classByKey.get(classKey)!;
-  const clampBinds = 1 + (a.active1.chargeCapSeconds ?? 0) <= (a.active1.pierceCap ?? 0);
-  const c =
-    classKey === 'archer' && clampBinds
-      ? contentWith(
-          'archer',
-          (r) => void (r.active1.chargeCapSeconds = (a.active1.pierceCap ?? 0) + maxBonus('archer')),
-        )
-      : content;
-  rebuilt.set(classKey, c);
-  return c;
-}
 
 describe('c016 — a rank moves the branch it names, and nothing else', () => {
   for (const row of ROWS) {
     it(`${row.classKey} ${row.card}: ${row.observable} moves ${row.dir} at rank 1 and again at rank 2`, () => {
-      const c = contentFor(row.classKey);
-      const r0 = row.measure({}, c);
-      const r1 = row.measure({ [row.card]: 1 }, c);
-      const r2 = row.measure({ [row.card]: 2 }, c);
+      const r0 = row.measure({});
+      const r1 = row.measure({ [row.card]: 1 });
+      const r2 = row.measure({ [row.card]: 2 });
       expect(moved(row.dir, r0, r1), `rank 0 -> 1 did not move ${row.observable} (${r0} -> ${r1})`).toBe(true);
       expect(moved(row.dir, r1, r2), `rank 1 -> 2 did not move ${row.observable} (${r1} -> ${r2})`).toBe(true);
     });
 
     it(`${row.classKey} ${row.card}: every other class's card at max rank changes nothing`, () => {
-      const c = contentFor(row.classKey);
-      expect(row.measure(foreignRanks(row.classKey), c)).toBe(row.measure({}, c));
+      expect(row.measure(foreignRanks(row.classKey))).toBe(row.measure({}));
     });
   }
 
@@ -664,28 +646,6 @@ describe('c016 — a rank moves the branch it names, and nothing else', () => {
 });
 
 /* ----------------------------------------------------- the filed deviations */
-
-describe('c016 — named deviation: Deeper Draw is inert on shipped data (c017)', () => {
-  const archer = ROWS.find((r) => r.classKey === 'archer')!;
-
-  it('all three ranks pierce the same number of enemies, and that number is the charge clamp', () => {
-    const a1 = content.classByKey.get('archer')!.active1;
-    const shipped = [0, 1, 2].map((n) => archer.measure(n === 0 ? {} : { [archer.card]: n }));
-    // Not merely "flat": flat *at the clamp*. `[0,0,0]` or `[3,3,3]` would be a
-    // broken shot reported as expected inertness (code review). Both sides come
-    // out of `/data`, so this is a mechanism pin, not an authored magnitude.
-    expect(shipped, `Deeper Draw's shipped reading moved or missed the clamp: ${shipped.join(' -> ')}`).toEqual(
-      [0, 1, 2].map(() => Math.min(a1.pierceCap ?? 1, 1 + Math.floor(a1.chargeCapSeconds ?? 0))),
-    );
-  });
-
-  it('the cause is the charge clamp, not a dead branch: lifting chargeCapSeconds makes the same card bind', () => {
-    const a1 = content.classByKey.get('archer')!.active1;
-    expect(1 + (a1.chargeCapSeconds ?? 0)).toBeLessThanOrEqual(a1.pierceCap ?? 0);
-    const loose = contentFor('archer');
-    expect(archer.measure({ [archer.card]: 1 }, loose)).toBeGreaterThan(archer.measure({}, loose));
-  });
-});
 
 /**
  * `c018`, filed by QA on c016 and fixed here. Both cards raise a summon

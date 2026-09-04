@@ -343,7 +343,8 @@ session 2 (c005 was the last actionable one left), appending `c006`-`c010`.
       twelve now have a cast-rate ladder, a `/data` cost tie and a class-scope
       probe, plus one slot-scope case for the whole set.
 
-- [ ] (c017) [bug] **filed by `c016` 2026-09-04, and proven by its own tripwire.**
+- [x] (c017) [bug] **DONE 2026-09-04, but not by the fix this item proposed —
+      see the Log.** **filed by `c016` 2026-09-04, and proven by its own tripwire.**
       Archer *Deeper Draw* (`archer_pierce_cap`, §6.3's third card) is **inert on
       shipped data**: `fireDeadeyeDraw` (`classes.ts:592`) computes
       `Math.min((eff.pierceCap ?? 1) + classLineBonus(w), 1 + Math.floor(held))`
@@ -370,6 +371,22 @@ session 2 (c005 was the last actionable one left), appending `c006`-`c010`.
       dps-optimal-charge assertion (`tests/p6d-nine-classes.test.ts`) unmoved,
       since no rank-0 run can reach a different pierce count - refs:
       SPEC-FINAL §4.2 (Archer, *Long Draw*), §6.3, c016, CLAUDE.md rule 3.
+      **The proposed fix was measured and rejected: it is inert.** `held` is
+      not the binding clamp — `tickClassCharge` already
+      clamps `wd.active1Charge` to `chargeCapSeconds` before the sole call
+      site passes it in, so `1 + Math.floor(chargeSeconds)` is the same 6.
+      Unclamping the *accumulator* instead is out of Scope twice over (it
+      widens `warden.active1Charge`'s range in `src/sim/types.ts`, and two
+      out-of-Scope tests assert it equals the cap). What landed instead is
+      `Math.min(pierceCap, 1 + Math.floor(held)) + classLineBonus(w)` — the
+      same `min`, with the card's term moved onto its result, which is
+      identically `min(pierceCap + b, 1 + floor(held) + b)` and so still
+      raises the cap the card names. Rank 0 is unmoved and the ladder reads
+      6 -> 8 -> 10 on shipped `/data`. Two acceptance clauses could not hold
+      as written and are recorded in the Log: `class-spec-numbers` and
+      `class-descriptions` each anchor the *literal text* of the changed line
+      and were re-pointed, and the 12-seed control pair is identical because
+      no bot ever charges.
 
 - [x] (c016) [polish] **DONE 2026-09-04.** the **p7a skill-card (`classLineBonus`) branches inside
       the class kits are untested** — named as excluded by `c006`'s own header
@@ -577,6 +594,133 @@ session 2 (c005 was the last actionable one left), appending `c006`-`c010`.
       §3 (Poison), owner feedback `feature-poison-barrel-mechanic`.
 
 ## Log
+
+### c017 (2026-09-04) — the pierce cap that could not be raised
+
+- **Fix shape**: one expression in `src/sim/classes.ts` `fireDeadeyeDraw`,
+  `Math.min(pierceCap + classLineBonus(w), 1 + floor(held))` ->
+  `Math.min(pierceCap, 1 + floor(held)) + classLineBonus(w)`. No `/data` byte
+  moved (`git diff -- data` empty). New `tests/class-deeper-draw.test.ts`
+  (6 cases, ~40 ms), written failing-first: red at `6 -> 6 -> 6` against an
+  expected `[6, 8, 10]`.
+- **The item's own proposed fix is inert, and that is measured, not argued.**
+  c017 proposed reading the pierce count off the *unclamped* hold. There is no
+  unclamped hold: `tickClassCharge` clamps `wd.active1Charge` to
+  `chargeCapSeconds` before the sole call site passes it in, so the local
+  `held` clamp is redundant rather than binding. QA applied the proposed fix on
+  top of the old formula and measured `6 -> 6 -> 6` — identical to the bug — and
+  found a pre-existing test that already said so
+  (`tests/class-passive-magnitudes.test.ts:435`: "unreachable by holding").
+  Unclamping the *accumulator* is the fix that proposal really needs, and it is
+  out of Scope twice over: it widens `warden.active1Charge`'s range
+  (`src/sim/types.ts`) and two out-of-Scope tests assert that field equals the
+  cap exactly (`tests/fb015-equipment.test.ts:253`,
+  `tests/p6b-swordsman.test.ts:452`).
+- **Why the additive shape is the fix and not a reinterpretation.**
+  `min(a, c) + b` is identically `min(a + b, c + b)`, so the card still raises
+  the cap its own sentence names — it raises the charge-derived term *as well*,
+  which is the only way to raise a cap that something else already holds you
+  below. §2 authorises it outright ("base-less stats (armor points, +1 pierce,
+  charges) add"). The visible cost is that the bonus also lands on a partial
+  charge, pinned deliberately as its own case rather than left to be
+  discovered.
+- **Two acceptance clauses could not hold as written.**
+  - *"`tests/class-spec-numbers.test.ts` stays green unchanged"*: that file (and
+    `tests/class-descriptions.test.ts`, which the item did not name) anchor the
+    **literal text** of the changed line with whole-line regexes, so any edit to
+    it breaks them by construction. Both were re-pointed, both still pin the
+    same figure — QA mutated `1 + Math.floor(held)` to confirm the re-pointed
+    anchors still go red on the number they exist for. The clause was
+    mis-written at filing time; no `/data`-only fix exists that would have
+    honoured it (raising `pierceCap` does not bind, raising `chargeCapSeconds`
+    moves rank-0 damage compounding).
+  - *"a 12-seed control-run pair"*: run as
+    `npx tsx tools/sweep.ts --seeds 12 --policies maxbuild,hybrid --class archer`
+    either side of the change, **byte-identical** (win 1 · medSurv 594.35 /
+    586.15 · medWaves 18 · medLevel 33 / 28 · medKills 25729 / 24125). That is a
+    **null instrument, not a control**: `src/bots/policy.ts` never sets
+    `TickInput.active1Held`, so no bot run fires Deadeye Draw at all. QA
+    confirmed it by replacing the changed line with a `throw` and re-running the
+    same sweep — it completed and printed the same table. The real rank-0
+    evidence is the unit ladder plus QA's end-state hashes: seeds 1/2/7 driven
+    through the real `Run` loop with an input log that actually fires Deadeye
+    hash identically either side of the change (`6bb35f43`, `be573ca4`,
+    `f33d8931`), while rank>0 runs move in the expected direction. G10's
+    dps-optimal-charge assertion is closed-form over `chargeCapSeconds` /
+    `compoundPerSecond` / `cooldownSeconds` and never reads `pierceCap`, so it
+    could not have moved either way.
+- **QA verdict PASS, five bugs filed; the three in Scope are fixed in this
+  commit.**
+  - *Major, fixed*: the card could have been fat-fingered onto Deadeye's
+    **damage** and shipped green through all twelve archer-touching test files —
+    every archer observable in the repo counts bodies, never per-hit damage.
+    `class-deeper-draw` gained a sixth case reading the first dummy's hp loss
+    (falloff scale 1) across ranks 0/1/2; verified red under QA's exact mutant.
+  - *Minor, fixed*: the harness budget guard blamed itself for a scope leak. It
+    now names both of its causes, because sizing past every cause is not
+    available — absorbing a leak that summed all twelve `class_line` cards at
+    max rank needs 37 bodies, and 37 run past Deadeye's own 9-tile reach.
+  - *Nit, fixed*: `fireDeadeyeDraw`'s docstring called `pierceCap` the rail on
+    bodies swept; since c017 it rails the charge-derived count only and the true
+    ceiling is `pierceCap + perRank * maxRank` (10, not 6). Also fixed a comment
+    in `class-line-bonus` that stated the inverse of its own code after the
+    `contentFor` removal, and dropped two rotting `classes.ts:1766` line
+    pointers (the clamp is at :1778).
+
+**For the main lane, at the merge** — four things this lane may not touch:
+
+1. **`src/sim/content.ts:705`'s `pierceCap` schema comment is now false.** It
+   reads "most enemies one released shot may pass through (a perf rail on '+1
+   pierce per full second')"; the real maximum is `pierceCap + perRank *
+   maxRank` = 10. It is loader-facing and the Tuner surfaces the field
+   (`src/ui/tuner-fields.ts` walks the zod schema generically), so a designer is
+   shown a number 40% low.
+2. **No automated harness in the repo ever executes a charge-kind Active1**
+   (QA's Major, out of Scope: `src/bots/`, `tools/`). `src/bots/policy.ts` never
+   sets `active1Held`, so `fireDeadeyeDraw` and `fireCircleSlash` have zero
+   integration coverage — every sweep-derived balance claim about Archer or
+   Swordsman is a null instrument. `tools/fuzz-input.ts` *does* fuzz the flag at
+   0.3, but every config in it hardcodes `classKey: 'engineer'`, whose Active1
+   is `repair_heal`, so `tickClassCharge` returns at its `isChargeKind` guard on
+   all 10 000 ticks. Cheap first move: `fuzzRun` already takes `classKey` as its
+   third parameter — QA ran 24 clean archer/swordsman runs through it by hand.
+   Suggested acceptance: a bot run per policy for an archer asserts
+   `report.damageByWeapon['class_active'] > 0`.
+3. **A QUESTIONS.md entry is owed** (same blocker as c018/c019 — QUESTIONS.md is
+   outside this Scope). **Ready to paste**:
+
+   > **A skill card that raises a cap must raise whatever else holds the value
+   > below that cap, or it buys nothing.** `min(cap, natural) + bonus` is
+   > identically `min(cap + bonus, natural + bonus)`, so adding a `class_line`
+   > bonus to a resolved value is not a reinterpretation of "cap +N" — it is
+   > the only reading of it that binds when the cap is not the binding term.
+   > Authoring rule that follows: a `class_line` card naming a cap is only
+   > payable if `/data` puts that cap **below** every other ceiling on the same
+   > value. Shipped Archer data put `pierceCap 6` at exactly
+   > `1 + chargeCapSeconds`, which is the boundary case, and it was dead.
+4. **A `[balance]` follow-up, measured by QA, that no gate catches.** Damage per
+   committed second (hold + cooldown) against a 10-wide line: the ratio of the
+   best hold to a one-tick tap falls from **4.36x** at rank 0 / no CDR to
+   **1.10x** at card rank 2 plus the 0.40 `cdrCap` (`data/warden.json:13`). The
+   dps-optimal hold stays 5.00 s in every case so **G10 is not violated** — and
+   cannot be, its assertion being closed-form over `/data` — but at max rank
+   plus max CDR the incentive to charge at all is a 9% margin. A
+   full-charge-only variant of the bonus would keep the 6 -> 8 -> 10 ladder and
+   leave partial charges alone; that is a design call, not a defect, which is
+   why it is filed rather than taken.
+
+**Fast tier: a pre-existing red set, unrelated to this item and proven so.**
+`npm run test:fast` reports `8 failed | 156 passed | 4 skipped` on this tree.
+Control pair run in this directory (working files copied aside, `git checkout`
+to HEAD, same seven suites, then restored): HEAD fails
+`tests/b036-help-fold.test.ts`, `tests/q15-command-domain-fuzz.test.ts` (3
+cases) and `tests/q49-price-probe-restore.test.ts` **identically**, with
+`tests/b032`/`b034`/`b035` (DOM `Hook timed out in 30000ms`) and `tests/q52`
+(Windows `EPERM` on a nested-process scratch dir) flipping between runs on both
+trees. None of the seven touch archer pierce. Every `tests/class-*` and
+`tests/equip-*` file is green (18 files, 740 tests), as are `p6d`, `act2`,
+`fb015`, `fb026` and `p6b-swordsman`. The red set is main-lane/UI-lane work at
+the merge; c017 neither caused nor cleared it.
 
 ### c019 (2026-09-04) — the cooldown card that cannot buy a summon
 
