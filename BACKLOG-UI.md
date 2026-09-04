@@ -2367,7 +2367,7 @@ not already expose it) logs that need below instead of reaching into
       call within one `switchToSlot` invocation and asserts the return value
       and `getActiveSlot()` stay consistent with each other — refs: fb096.
 
-- [ ] (fb102) [bug] normal priority: generated 2026-09-04 (fewer than 3
+- [x] (fb102) [bug] normal priority: generated 2026-09-04 (fewer than 3
       actionable items remained — fb085/fb093/fb097 stay open but are logged
       out-of-scope for this lane; generation rule (b)/existing-note diff) —
       boss bar overlaps the floating info rail at narrow stage widths.
@@ -2391,7 +2391,73 @@ not already expose it) logs that need below instead of reaching into
       the same assertion must fail against the current, unfixed CSS values
       (proven via a temporary revert, restored before commit) so the test
       actually catches the bug rather than passing vacuously — refs: fb072,
-      fb065, fb082.
+      fb065, fb082. DONE 2026-09-04: `Hud.syncStageOverlayGeometry()`
+      (`src/ui/hud.ts`) — the same fb082 method that already re-derives the
+      canvas's letterboxing math and publishes it as `--cv-*` CSS custom
+      properties — now also computes and publishes `--bossbar-maxw`: the
+      widest `.sw-bossbar` can render without reaching into either rail's own
+      worst-case (fully expanded) footprint, using new module-level constants
+      (`RAIL_WIDTH_PX`, `RAIL_WIDE_MAX_FRACTION`/`RAIL_NARROW_MAX_FRACTION`,
+      `RAIL_NARROW_BREAKPOINT_PX`, `RAIL_EDGE_GAP_PX`, `BOSSBAR_WIDTH_PX`,
+      `BOSSBAR_MIN_GAP_PX`) that mirror `.sw-rail`'s real box-model numbers,
+      each commented with the exact CSS rule it mirrors — same duplication
+      tradeoff `syncStageOverlayGeometry`'s own fb082 doc comment already
+      accepts for the letterboxing math, for the same jsdom-can't-run-real-
+      layout reason. Deliberately computed against each rail's fully-expanded
+      width regardless of its live collapsed/open state, so the boss bar
+      never has to react to a rail toggling. `style.css`'s `.sw-bossbar`
+      `max-width: 60%` becomes `max-width: var(--bossbar-maxw, 60%)`.
+      Targeted `tests/ui-fb102-bossbar-rail-overlap.test.ts` (4/4, same
+      jsdom `clientWidth`/`clientHeight`-stubbing idiom
+      `tests/ui-fb082-overlay-geometry.test.ts` already uses): a 900px
+      (narrow, under the 1180px breakpoint) stage confirms the boss bar and
+      both rails' computed bounds stay clear of one another (with an inline
+      check that the old flat-60% formula would *not* have, proving the test
+      isn't vacuous); a 1920px (wide) stage confirms the boss bar keeps its
+      full 360px; the no-real-layout jsdom-default fallback confirms no
+      property is published; a CSS-wiring check confirms `.sw-bossbar`'s
+      `max-width` declaration actually references `var(--bossbar-maxw`.
+      code-reviewer **REQUEST-CHANGES** → one Major: the original 3-test
+      suite only asserted on the JS-published `--bossbar-maxw` property, never
+      that `style.css` actually consumes it — a lone revert of the CSS half
+      (leaving `hud.ts` untouched) would have silently reintroduced this exact
+      bug with nothing in the suite noticing; fixed by adding the CSS-wiring
+      test above. Two Minors, also addressed same session: the narrow-
+      breakpoint substitution (`availW <= 1180`) checks the stage's own width
+      where the real CSS media query checks the *viewport's* — safe in the
+      narrow-only direction that matters (`.sw-stage` is `flex: 1 1 auto` with
+      no sibling that could widen it past the viewport, so it can only guess
+      "narrow" at least as readily as the real rule, never less), but the
+      safety argument was undocumented — added a comment explaining it; a
+      third Minor (no floor on `bossMaxW` at extreme-narrow widths — degrades
+      toward the CSS border-box padding/border minimum rather than 0, same
+      class of narrow-viewport degrade the rails already accept) and a Nit
+      (the rail constants are re-hardcoded a third time in the test file
+      rather than imported from `hud.ts`, matching this codebase's existing
+      `tests/ui-fb082-overlay-geometry.test.ts` precedent of inlining rather
+      than importing `GRID_W`/`GRID_H`) were both left as-is, judged
+      non-blocking and consistent with CLAUDE.md's don't-build-for-
+      hypotheticals rule. code-reviewer re-verified (Major fix confirmed).
+      qa-playtester **PASS**: independently re-proved the CSS-wiring test's
+      non-vacuousness by manually reverting `style.css`'s `max-width` line and
+      confirming exactly that test (and only that test) fails, restoring
+      before finishing; adversarially probed 100px/1px stage widths (clamps
+      to `0px`, never negative, no throw), an odd 901px width (bounds still
+      respect both rails' edges within floating-point tolerance), confirmed
+      true `--cv-left != --cv-right` divergence can't occur given the
+      symmetric letterboxing formula (not a gap, just how the geometry is
+      built), read `.sw-rail.collapsed`'s CSS directly to confirm "fully
+      expanded" genuinely is each rail's largest possible footprint (the
+      fix's documented worst-case assumption holds), and confirmed
+      `--bossbar-maxw` computes unconditionally regardless of boss-alive
+      state with no interaction when `.sw-bossbar` is hidden; filed no new
+      bugs. `npx tsc --noEmit` clean. `npm run test:fast`: 17 failed / 2242
+      passed / 48 skipped (qa-playtester's independent run) and, separately,
+      7 failed files / 5 failed tests / 2277 passed / 24 skipped (this item's
+      own run) — both entirely pre-existing q15/q49/q52 worker-hang/Windows-
+      scratch-dir-EPERM flake classes documented across dozens of prior
+      PROGRESS.md sessions, none touching `src/ui/**`/`src/render/**` or this
+      item's own files.
 
 - [ ] (fb103) [feat] normal priority: generated 2026-09-04 (same generation
       batch as fb102) — Results screen shows the class and Core the run was

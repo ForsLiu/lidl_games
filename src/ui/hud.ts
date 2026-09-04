@@ -35,6 +35,22 @@ import { equipmentEffectMarkup, type EquipmentEffectContext } from './equipment-
 import { defaultSettings, type Settings } from './settings';
 import { devProfileActive, isDevBuild } from '../meta/devprofile';
 
+/**
+ * fb102: mirrors of `style.css`'s `.sw-rail`/`.sw-bossbar` box-model numbers,
+ * duplicated here (same tradeoff `syncStageOverlayGeometry`'s own doc comment
+ * already accepts for the letterboxing math) so the boss banner's max-width
+ * can be computed against the rails' actual worst-case (fully expanded)
+ * footprint instead of drifting out of sync with a plain CSS percentage that
+ * can't see the rails at all.
+ */
+const RAIL_WIDTH_PX = 300; // `.sw-rail`'s `width: 300px`
+const RAIL_WIDE_MAX_FRACTION = 0.32; // `.sw-rail`'s base `max-width: 32%`
+const RAIL_NARROW_MAX_FRACTION = 0.55; // `.sw-rail`'s `@media (max-width: 1180px)` `max-width: 55%`
+const RAIL_NARROW_BREAKPOINT_PX = 1180; // the same media query's breakpoint
+const RAIL_EDGE_GAP_PX = 8; // `.sw-rail-left`/`.sw-rail-right`'s `calc(var(--cv-left/right, 0px) + 8px)`
+const BOSSBAR_WIDTH_PX = 360; // `.sw-bossbar`'s `width: 360px`
+const BOSSBAR_MIN_GAP_PX = 10; // minimum breathing room kept between the boss bar and a rail
+
 /** fb084: which one-time first-run tutorial prompt is showing. */
 export type OnboardingKey = 'build' | 'dusk' | 'dawn';
 
@@ -1134,6 +1150,7 @@ export class Hud {
       stage.style.removeProperty('--cv-top');
       stage.style.removeProperty('--cv-bottom');
       stage.style.removeProperty('--cv-cx');
+      stage.style.removeProperty('--bossbar-maxw');
       return;
     }
     const aspect = GRID_W / GRID_H;
@@ -1145,12 +1162,37 @@ export class Hud {
     // surface here as a tiny negative offset — clamped to 0, since a rail/boss-bar
     // sitting a fraction of a pixel outside the canvas's own box is never intended.
     const left = Math.max(0, (availW - cssW) / 2);
+    const right = Math.max(0, availW - cssW - left);
     const top = Math.max(0, (availH - cssH) / 2);
     stage.style.setProperty('--cv-left', `${left}px`);
-    stage.style.setProperty('--cv-right', `${Math.max(0, availW - cssW - left)}px`);
+    stage.style.setProperty('--cv-right', `${right}px`);
     stage.style.setProperty('--cv-top', `${top}px`);
     stage.style.setProperty('--cv-bottom', `${Math.max(0, availH - cssH - top)}px`);
-    stage.style.setProperty('--cv-cx', `${left + cssW / 2}px`);
+    const cx = left + cssW / 2;
+    stage.style.setProperty('--cv-cx', `${cx}px`);
+    // fb102: `.sw-bossbar` is centered (`left: var(--cv-cx)`) at a fixed
+    // 360px, and each `.sw-rail` at a fixed 300px, with no relationship
+    // between the two — at any stage narrow enough that those fixed boxes
+    // (plus their edge gaps) don't fit side by side, the centered boss bar
+    // overlaps whichever rail is expanded. Computed against each rail's own
+    // worst-case (fully expanded) footprint rather than its live collapsed/
+    // open state, so the boss bar never has to react to a rail toggling.
+    // code-reviewer (fb102): style.css's own breakpoint is a *viewport*-width
+    // media query, not a container query on `.sw-stage`, so this substitutes
+    // `availW` (the stage's width) as a proxy. Safe in the narrow-only
+    // direction that matters here — `.sw-stage` is `flex: 1 1 auto` with no
+    // sibling that could widen it past the viewport, so `availW` can never
+    // exceed the real viewport width the CSS breakpoint keys off, meaning
+    // this can only guess "narrow" (and shrink the boss bar) at least as
+    // readily as the real CSS rule, never less.
+    const railFraction = availW <= RAIL_NARROW_BREAKPOINT_PX ? RAIL_NARROW_MAX_FRACTION : RAIL_WIDE_MAX_FRACTION;
+    const railW = Math.min(RAIL_WIDTH_PX, railFraction * availW);
+    const leftRailRightEdge = left + RAIL_EDGE_GAP_PX + railW;
+    const rightRailLeftEdge = availW - right - RAIL_EDGE_GAP_PX - railW;
+    const maxFromLeft = 2 * (cx - leftRailRightEdge - BOSSBAR_MIN_GAP_PX);
+    const maxFromRight = 2 * (rightRailLeftEdge - BOSSBAR_MIN_GAP_PX - cx);
+    const bossMaxW = Math.max(0, Math.min(BOSSBAR_WIDTH_PX, maxFromLeft, maxFromRight));
+    stage.style.setProperty('--bossbar-maxw', `${bossMaxW}px`);
   }
 
   /**

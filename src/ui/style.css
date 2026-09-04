@@ -1063,7 +1063,13 @@ input.sw-tuner-field-input[type="text"] { width: 220px; }
   top: calc(var(--cv-top, 0px) + 10px);
   transform: translateX(-50%);
   width: 360px;
-  max-width: 60%;
+  /* fb102: `--bossbar-maxw` (set by `Hud.syncStageOverlayGeometry`, hud.ts) is
+   * the widest this banner can be without overlapping an expanded
+   * `.sw-rail-left`/`.sw-rail-right` at the current stage width — falls back
+   * to the old plain `60%` whenever the stage isn't laid out (jsdom) or is
+   * wide enough that 360px was never going to reach either rail anyway.
+   */
+  max-width: var(--bossbar-maxw, 60%);
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 8px;
