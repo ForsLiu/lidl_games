@@ -134,7 +134,7 @@ session 2 (c005 was the last actionable one left), appending `c006`-`c010`.
       explicit expectation carrying a one-line rationale, and the Ice Wall row
       agrees with p6d's existing assertion - refs: SPEC-FINAL §4, c005.
 
-- [ ] (c008) [bug] `data/classes.json` has drifted from SPEC-FINAL §4.2's
+- [x] (c008) [bug] **DONE 2026-09-04.** `data/classes.json` has drifted from SPEC-FINAL §4.2's
       *stated* numbers in at least four places, and nothing distinguishes a
       logged tune from drift. Paladin *Guardian Stance* is authored
       `stanceArmor 50` / `stanceSeconds 0.5` / `wrathFraction 0.80` against
@@ -888,3 +888,122 @@ session 2 (c005 was the last actionable one left), appending `c006`-`c010`.
   but passed in isolation and could not be reproduced twice — load-dependent
   flakes, stated as unconfirmed rather than diagnosed. All of these are outside
   this lane's Scope; they belong to BACKLOG.md or lane/ui.
+
+- (2026-09-04, session 5) **c008 done** — every number SPEC-FINAL §4 states out
+  loud is now a row in `tests/class-spec-numbers.test.ts` (102 tests, ~0.1 s,
+  fast tier). **No `/src` or `/data` byte moved**, exactly as the item required:
+  c008 asked for the drift to be made visible, not fixed.
+
+  **89 figures, six statuses: 70 match · 7 retuned · 1 elsewhere · 8 in code ·
+  2 unimplemented · 1 defect.** The seven `retuned` rows are the drift c008
+  named, and all seven turned out to be *legitimate, logged tunes* — traced to
+  their commits rather than to the backlog's summary of them: Paladin's four
+  (`stanceArmor` 30->50, `stanceSeconds` 1->0.5, `wrathFraction` 0.60->0.80,
+  `wrathDamageMul` 1.50->2.20) and Necromancer's two (`summonDurationSeconds`
+  15->24, `summonStatMul` 0.40->0.65) to **p6e** (`0d399cd`), Bloodlord's
+  `towerDamage` 0.10->0.04 to **p10s** (`3ce8cb8`). Each row pins *both* the
+  spec figure and the shipped value, so a further move is red until it is
+  re-authorised here by name — and if a figure is ever restored to spec the
+  row must become a `match`, which is what **b026** (`432518d`) already did
+  once, putting Clarion Taunt's duration back to 4 s while its four siblings
+  were kept.
+
+  **c008's item text named four drifted figures; there are seven.** It missed
+  `stanceSeconds` and counted the Paladin package as three. The count is now
+  asserted rather than described.
+
+  **Four findings the audit turned up that were not in the item.** None is
+  filed as a bug — all four are pre-existing, none is a regression, and each
+  is now visible and counted instead of waiting to be rediscovered:
+  - **Eight §4 figures live as `/src` literals**, against architecture rule 4
+    ("all content and numbers live in `/data`"): Thousand Cuts' 1 Bleeding,
+    Spreading Plague's 1 target, Poison Boost's x2, Long Draw's +1 pierce/s,
+    Ice Wall's 1x3 footprint, Overload's double wire rate (whose own comment
+    calls it "the one clause that is not the authored number"), Time Flow's
+    4 s, and Time's four-stage machine. Each is pinned by its source site.
+  - **One live defect**: §4.1 says Poison Barrel applies "poison damage every
+    second"; `updateAreas` re-applies it every tick at 60 Hz. Already logged
+    for the main lane in session 1's fb062 scoping; now it has a test that
+    reddens *when the defect is fixed*, so the ledger cannot go on claiming it.
+  - **Two clauses the sim has no number for at all**: Animist's summon cap +1
+    (`c004`) and Blood Tithe's "+1% lifesteal on its share of VS attacks"
+    (session 2's main-lane finding). Both rows redden the day the clause
+    lands, in `/data` **or** in `/src`.
+  - **Three figures are stated on one §4 slot and authored on another** —
+    Conduction's two (`c010`) and Clarion's Wrath fraction, which is on
+    Paladin's *passive* row, not `active1`. Values all match; only the
+    location is in question, and each row says so and cross-references.
+
+  **The barrier is verified by mutation, never by argument.** Drifting a
+  matched value, drifting an authorised value further, *restoring* an
+  authorised value to spec, deleting a pinned field, editing §4's own text,
+  and changing any of the eleven pinned source literals each turn the file red
+  on exactly the right row; a legal retune of a non-§4 field does not.
+
+  **Three rounds of review found eleven real problems in my own file, and the
+  three worst were all the same shape — an assertion that could not fail.**
+  Recorded because the lesson generalises past this item:
+  - *Two figures had no row at all.* Swordsman's "applies 1 Bleeding" and
+    Overload's "double rate" were missed on the first pass, and a coverage
+    check written per *class* could not see it — Swordsman had three other
+    rows. Coverage is now per **slot** (12x4), against a declared `NO_FIGURE`
+    table naming the one slot §4 gives no number to (Dash Slash). Three more
+    figures were added in the same pass.
+  - *The two `unimplemented` rows asserted nothing.* Their only check was
+    "not authored in `data/classes.json`", which is true by construction for
+    a row that declares no path — so they would have stayed green on the very
+    day the clause shipped. Worse, the check read `loadContent()`, and zod
+    **strips unknown keys**, so a newly authored field was invisible in
+    principle. Now: the raw document, the whole class row, dotted key paths, a
+    pinned set of the keys that legitimately match today, *and* a pin on the
+    `/src` lines the clause would have to change — because a clause can land
+    in code as easily as in data, which the eight `in_code` rows prove.
+  - *The `spec` column had nothing holding it to the spec.* Hashing §4's text
+    does not stop a drift being laundered by editing `spec` to match it — QA
+    demonstrated exactly that. Every row's figure must now appear **verbatim
+    in its own class's §4 text**, so laundering means quoting a sentence the
+    spec does not contain. (The hash slice also started at §4.1, missing §4's
+    framework preamble; it starts at §4 now.)
+  - Plus: four source anchors were substring-matchable and survived the number
+    being changed (`1 + Math.floor(held)` still matches after `* 2` is
+    appended); the key search read one slot when three shipped figures already
+    sit on a slot other than the one §4 states them on; and my own path for
+    `wrathFraction` was simply wrong — caught by the file's own path-liveness
+    check, which is the argument for having it.
+
+  **One claim of mine was false and is corrected in the file**: an earlier
+  draft's header said the hash "means a drift cannot be laundered by editing
+  `spec`". It does not, on its own; the verbatim-quote check is what does, and
+  the header now says so.
+
+  **Known bounds, stated rather than assumed.** The verbatim check slices §4
+  per *class*, not per clause, so a short quote could in principle be swapped
+  for another clause's in the same class row ("10 s recharge" -> "6 s
+  recharge"); sub-slicing table rows by column is more machinery than that
+  residual buys. Pyro's "3 Burning" is a `match` on damage and *not* on §3's
+  per-application armour shred (one stack shreds 1/s where three would shred
+  3) — disclosed on the row, and left alone because §17 keeps Burning stack
+  timing open for owner veto.
+
+- (2026-09-04, session 5) **For the main lane / whoever adds class #13.** The
+  ledger hard-codes the roster at 12 (`expect(shipped.size).toBe(12)` plus a
+  per-class x slot coverage loop), so **fb057 (Madness King) and fb059
+  (Voltbolt) will each redden `tests/class-spec-numbers.test.ts`** until their
+  §4 figures are added as rows — intended behaviour, but work those items must
+  budget for, alongside the `tools/content-census.ts` readers session 1 already
+  flagged. QA could not build a 13th class to prove it end to end: the loader
+  rejects one earlier, at `vsupgrades.json: class "voltbolt" has no skillCards
+  entry` (`content.ts`), so the roster change is genuinely multi-file.
+
+- (2026-09-04, session 5) **`npm run test:fast` is not green on this host, and
+  it is not this lane's doing.** Measured four times this session at
+  2326-2332 passed / 8-9 failed, with the same failing set every time:
+  `b032`/`b034`/`b035`/`b036` (fold-timing, lane/ui Scope) and
+  `q15`/`q28`/`q45`/`q49`/`q52` (all `EPERM` on `rmSync` under `bench/.tmp`,
+  thrown from the `finally` teardown of nested-`tsx` CLI tests — the tests'
+  own assertions pass). The set was measured **before** this session's file
+  existed and did not change after it landed, and QA reproduced it with the
+  new file physically removed. Consequence for the loop: CLAUDE.md's per-item
+  "`test:fast` green" gate cannot currently be met on this machine for reasons
+  unrelated to any content item. Worth a main-lane item — retry-with-backoff
+  or a handle-release on `RM_RETRY` in the shared test helper.
