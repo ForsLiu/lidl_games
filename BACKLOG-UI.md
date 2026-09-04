@@ -673,7 +673,7 @@ not already expose it) logs that need below instead of reaching into
       PROGRESS.md sessions, none touching `src/ui/**`/`src/render/**` or this
       item's own files.
 
-- [ ] (fb072) [feat] normal priority: boss health bar — the two boss
+- [x] (fb072) [feat] normal priority: boss health bar — the two boss
       enemies (`gatebreaker` 30,000 HP, `warden_eater` 100,000 HP,
       `data/enemies.json`) have no HUD element beyond the tiny per-enemy
       HP bar fb025 draws under every sprite, which is illegible at these
@@ -688,7 +688,47 @@ not already expose it) logs that need below instead of reaching into
       death or when no boss is present; if two bosses are ever alive at
       once the banner shows the lower-current-HP one without crashing —
       refs: SPEC-FINAL §11, engineer's-judgment item (content totals name
-      2 bosses with no matching HUD depth).
+      2 bosses with no matching HUD depth). DONE 2026-09-04: `hud.ts` adds
+      `#sw-bossbar`/`#sw-bossbar-name`/`#sw-bossbar-fill` (fixed
+      top-center overlay, `style.css`'s new `.sw-bossbar*` rules reusing
+      the existing `.sw-meter` fill pattern) and a `renderBossBar(w)`
+      private method, called every `update()` tick, that scans `w.enemies`
+      for live `e.boss` enemies, tracks the lowest-current-hp one when more
+      than one is alive, and sets the name (`w.content.enemyById.get(boss.defId)?.name`)
+      and a `hp/maxHp` fill width. code-reviewer **APPROVE** (no
+      Critical/Major; two Minor notes — the banner didn't hide once
+      `w.outcome !== 'running'`, fixed same session by gating the scan on
+      it; a theoretical CSS overlap with the right info rail at very
+      narrow stage widths, left as a known limitation, same class as
+      fb065's own logged follow-up — and two Nits confirmed non-issues:
+      the `frac` clamp is dead code since `hp` never exceeds `maxHp` and a
+      boss's `maxHp` can never be 0 per the zod loader's `positive()`
+      guard). qa-playtester's first pass filed one new Minor bug: the
+      banner sits over a semi-transparent/blurred `.sw-modal`
+      (pause/level-up/results/character panel) instead of hiding behind
+      it, the exact bleed-through class `renderBottomBar` was already
+      written to avoid for `#sw-bottombar` — fixed by adding
+      `!this.modalOpen` to `renderBossBar`'s gate, confirmed via git-stash
+      A/B that the new regression test fails pre-fix and passes post-fix.
+      Also confirmed (qa-playtester adversarial probes, temporary/
+      not committed): a tie in current HP between two live bosses resolves
+      deterministically (iteration-order winner, no crash); a custom/dev-
+      spawned boss-trait enemy with a defId outside `gatebreaker`/
+      `warden_eater` still renders correctly (`e.boss` is a generic
+      trait-derived boolean, not hardcoded to either); `hp` reaching 0
+      without `dead` set the same tick (a synthetic-only state — real
+      combat sets both synchronously) renders 0% without hiding or
+      crashing; 50x repeated no-boss `update()` calls and 20x rapid spawn/
+      kill cycling never leave the banner stuck. Targeted
+      `tests/ui-fb072-boss-banner.test.ts` (5/5: hidden-with-no-boss,
+      name+fraction-tracks-hp, disappears-on-death, hides-behind-pause,
+      two-boss lower-current-hp tiebreak-without-crashing). qa-playtester
+      re-verified **PASS** against every stated acceptance criterion.
+      `npx tsc --noEmit` clean. `npm run test:fast`: 6-9 failed files
+      across runs this session, all in the pre-existing q15/q49/q52
+      worker-hang/Windows-scratch-dir-EPERM flake classes documented
+      across dozens of prior PROGRESS.md sessions, none touching
+      `src/ui/**`/`src/render/**` or this item's own files.
 
 - [ ] (fb073) [feat] normal priority: key remapping — QUALITY.md BETA's
       Settings checklist line ("master/SFX volume, screenshake toggle,

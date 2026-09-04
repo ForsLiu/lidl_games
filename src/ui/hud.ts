@@ -91,6 +91,9 @@ export class Hud {
   private progressEl: HTMLElement;
   private practiceEl: HTMLElement;
   private charPanelEl: HTMLElement;
+  private bossBarEl: HTMLElement;
+  private bossBarNameEl: HTMLElement;
+  private bossBarFillEl: HTMLElement;
   private dpsPanelEl: HTMLElement;
   private dpsDockEl: HTMLElement;
   private vsPanelEl: HTMLElement;
@@ -154,6 +157,10 @@ export class Hud {
           <canvas id="sw-canvas"></canvas>
           <div class="sw-modal sw-off" id="sw-modal" hidden></div>
           <div class="sw-modal sw-off" id="sw-charpanel" hidden></div>
+          <div class="sw-bossbar sw-off" id="sw-bossbar" hidden>
+            <div class="sw-bossbar-name" id="sw-bossbar-name"></div>
+            <div class="sw-meter sw-bossbar-meter"><i id="sw-bossbar-fill"></i></div>
+          </div>
           <div class="sw-dock sw-off" id="sw-dpspanel" hidden></div>
           <button class="sw-dpsdock sw-off" id="sw-dpsdock" hidden title="Reopen DPS summary (P)">DPS &#9656;</button>
           <div class="sw-dock sw-off" id="sw-vspanel" hidden></div>
@@ -257,6 +264,9 @@ export class Hud {
     this.progressEl = root.querySelector('#sw-progress') as HTMLElement;
     this.practiceEl = root.querySelector('#sw-practice') as HTMLElement;
     this.charPanelEl = root.querySelector('#sw-charpanel') as HTMLElement;
+    this.bossBarEl = root.querySelector('#sw-bossbar') as HTMLElement;
+    this.bossBarNameEl = root.querySelector('#sw-bossbar-name') as HTMLElement;
+    this.bossBarFillEl = root.querySelector('#sw-bossbar-fill') as HTMLElement;
     this.dpsPanelEl = root.querySelector('#sw-dpspanel') as HTMLElement;
     this.dpsDockEl = root.querySelector('#sw-dpsdock') as HTMLElement;
     this.vsPanelEl = root.querySelector('#sw-vspanel') as HTMLElement;
@@ -984,6 +994,7 @@ export class Hud {
     this.syncVsPanelToggle();
     this.syncRailRightVisibility();
     this.renderBottomBar(w);
+    this.renderBossBar(w);
     // A selection describes itself — but never at the cost of the panels the
     // player needs to act: a tower queued on the build bar has to show its own
     // stats, and in Act II the weapon panel carries the only weapon switcher
@@ -996,6 +1007,40 @@ export class Hud {
     const blocking = this.selected > 0 || (w.huntsWarden && selection?.kind !== 'warden');
     if (!blocking && this.renderSelectionInfo(w, selection)) return;
     this.renderTowerInfo(w, cursor);
+  }
+
+  /**
+   * fb072: a fixed-position banner (name + proportional HP-fraction bar) for
+   * any live `boss`-trait enemy — the per-enemy HP bar under its sprite
+   * (fb025) is illegible at boss HP scales (30k-100k), and G14/G23's
+   * boss-clear gates otherwise have no legible HUD read on fight progress.
+   * If more than one boss is alive at once, shows the lower-current-HP one
+   * (the fight closer to resolving), per acceptance. Hidden behind
+   * `this.modalOpen` (pause/level-up/results/character panel) the same way
+   * `renderBottomBar` hides `#sw-bottombar` — those overlays are
+   * semi-transparent/blurred, not opaque, so without this the name and HP
+   * fraction would still read through underneath (qa-playtester, fb072
+   * verification).
+   */
+  private renderBossBar(w: World): void {
+    let boss: (typeof w.enemies)[number] | null = null;
+    if (w.outcome === 'running' && !this.modalOpen) {
+      for (const e of w.enemies) {
+        if (e.dead || !e.boss) continue;
+        if (!boss || e.hp < boss.hp) boss = e;
+      }
+    }
+    if (!boss) {
+      this.bossBarEl.hidden = true;
+      this.bossBarEl.classList.add('sw-off');
+      return;
+    }
+    this.bossBarEl.hidden = false;
+    this.bossBarEl.classList.remove('sw-off');
+    const def = w.content.enemyById.get(boss.defId);
+    this.bossBarNameEl.textContent = def?.name ?? String(boss.defId);
+    const frac = Math.max(0, Math.min(1, boss.hp / boss.maxHp));
+    this.bossBarFillEl.style.width = `${frac * 100}%`;
   }
 
   /**

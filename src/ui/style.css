@@ -993,6 +993,34 @@ input.sw-tuner-field-input[type="text"] { width: 220px; }
  * already device-pixel-ratio-correct without any extra scaling code here, the
  * browser rasterizes ordinary DOM text/borders crisply at any DPR on its own.
  */
+/* fb072: fixed-position boss HP banner — top-center of the stage, above the
+   playfield, distinct from the per-enemy sprite HP bar (illegible at 30k-100k
+   boss HP scales). Shown only while a `boss`-trait enemy is alive. */
+.sw-bossbar {
+  position: absolute;
+  left: 50%;
+  top: 10px;
+  transform: translateX(-50%);
+  width: 360px;
+  max-width: 60%;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 6px 12px;
+  z-index: 4;
+  box-shadow: 0 4px 14px #00000066;
+}
+.sw-bossbar.sw-off { display: none !important; }
+.sw-bossbar-name {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  text-align: center;
+  color: #ff3355;
+  margin-bottom: 4px;
+}
+.sw-bossbar-meter i { background: #ff3355; }
+
 .sw-bottombar {
   position: absolute;
   left: 50%;
