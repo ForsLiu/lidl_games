@@ -1093,17 +1093,23 @@ export class Renderer {
    * tracer) the same way `drawCasts`/`drawBasicImpacts` do, rather than
    * leaving this draw path at full brightness while every other fx path
    * respects the setting.
+   * fb086: `reducedMotion` suppresses the jagged tracers' kinked-segment
+   * jitter (chain lightning / tesla coil / Time Lord's distortion trail),
+   * falling back to the same straight line a non-jagged tracer draws —
+   * distinct from `reducedFlash`, which only dims brightness and does
+   * nothing about the jitter itself.
    */
   private drawTracers(view: ViewState): void {
     const ctx = this.ctx;
     const reduced = view.settings.reducedFlash;
+    const calmMotion = view.settings.reducedMotion;
     for (const t of this.tracers) {
       ctx.globalAlpha = Math.min(1, t.life * 10) * (reduced ? 0.5 : 1);
       ctx.strokeStyle = t.style.color;
-      ctx.lineWidth = t.jagged ? 2 : 1.5;
+      ctx.lineWidth = t.jagged && !calmMotion ? 2 : 1.5;
       ctx.beginPath();
       ctx.moveTo(t.x1 * TILE, t.y1 * TILE);
-      if (t.jagged) {
+      if (t.jagged && !calmMotion) {
         // Three kinked segments read as an arc rather than a beam.
         const steps = 3;
         for (let i = 1; i <= steps; i++) {
@@ -1332,6 +1338,10 @@ export class Renderer {
    * the phase being *left* — painting the destination's own color over
    * itself would be invisible, alpha or not. `reducedFlash` dims it instead
    * of dropping it, matching `drawCasts`'s existing treatment of the setting.
+   * fb086: `reducedMotion` drops the band's horizontal travel across the
+   * board (the ambient-motion cue, distinct from `reducedFlash`'s brightness
+   * dimming) — the transition still reads via the same opacity envelope, as
+   * a stationary full-bleed fade instead of a moving wipe.
    */
   private drawPhaseSweep(view: ViewState): void {
     if (!this.sweep) return;
@@ -1339,17 +1349,22 @@ export class Renderer {
     const t = 1 - Math.max(0, this.sweep.life) / SWEEP_DURATION;
     const peak = 1 - Math.abs(t - 0.5) * 2;
     if (peak <= 0) return;
-    const bandWidth = this.width * 0.4;
-    const travel = this.width + bandWidth * 2;
-    const bandCenter = this.sweep.dir > 0 ? -bandWidth + t * travel : this.width + bandWidth - t * travel;
+    const calmMotion = view.settings.reducedMotion;
     const color = this.sweep.dir > 0 ? PALETTE.bgDay : PALETTE.bgNight;
     ctx.save();
     ctx.globalAlpha = peak * (view.settings.reducedFlash ? 0.3 : 0.7);
-    const g = ctx.createLinearGradient(bandCenter - bandWidth / 2, 0, bandCenter + bandWidth / 2, 0);
-    g.addColorStop(0, `${color}00`);
-    g.addColorStop(0.5, color);
-    g.addColorStop(1, `${color}00`);
-    ctx.fillStyle = g;
+    if (calmMotion) {
+      ctx.fillStyle = color;
+    } else {
+      const bandWidth = this.width * 0.4;
+      const travel = this.width + bandWidth * 2;
+      const bandCenter = this.sweep.dir > 0 ? -bandWidth + t * travel : this.width + bandWidth - t * travel;
+      const g = ctx.createLinearGradient(bandCenter - bandWidth / 2, 0, bandCenter + bandWidth / 2, 0);
+      g.addColorStop(0, `${color}00`);
+      g.addColorStop(0.5, color);
+      g.addColorStop(1, `${color}00`);
+      ctx.fillStyle = g;
+    }
     // Matches the background fill's own 20px over-paint margin (draw(), above)
     // so the band stays opaque under camera shake — 'sunder' sets view.shake
     // to 14 on the exact tick 'sweep_to_vs' fires.

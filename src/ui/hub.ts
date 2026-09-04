@@ -780,6 +780,7 @@ const TOGGLES: { key: keyof Settings; label: string; devOnly?: boolean }[] = [
   { key: 'dotNumbers', label: 'DoT numbers' },
   { key: 'accessiblePalette', label: 'Color-blind-safe damage colors' },
   { key: 'reducedFlash', label: 'Reduced flash (dims skill & Core effect flashes)' },
+  { key: 'reducedMotion', label: 'Reduced motion (suppresses tracer jitter & phase-sweep travel)' },
   { key: 'showRanges', label: 'Show tower ranges' },
   { key: 'showGrid', label: 'Show grid' },
   { key: 'showEnemyHpBars', label: 'Enemy HP bars' },

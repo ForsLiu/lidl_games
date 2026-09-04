@@ -638,6 +638,7 @@ describe('q3 save fuzz: the settings blob', () => {
       showPathIndicators: false,
       accessiblePalette: true,
       reducedFlash: true,
+      reducedMotion: true,
       cleanProfile: true,
       showHiddenClasses: true,
       maxDamageNumbers: 137,

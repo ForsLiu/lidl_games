@@ -1595,7 +1595,7 @@ not already expose it) logs that need below instead of reaching into
       reintroduced literal in that converted file — refs: QUALITY.md BETA,
       SPEC-FINAL §11.
 
-- [ ] (fb086) [polish] low priority: generated 2026-09-04 — reduced-motion
+- [x] (fb086) [polish] low priority: generated 2026-09-04 — reduced-motion
       accessibility setting. QUALITY.md 1.0's accessibility re-check names
       "reduced-motion mode" as its own checklist line, distinct from what
       already exists: `reducedFlash` (fb016) only dims/thins strobing
@@ -1607,9 +1607,149 @@ not already expose it) logs that need below instead of reaching into
       don't already cover; a render test confirms at least one such effect
       is suppressed with the toggle on and present with it off; default off
       (opt-in, matching `reducedFlash`'s own default) — refs: QUALITY.md
-      1.0 checklist, SPEC-FINAL §11.
+      1.0 checklist, SPEC-FINAL §11. DONE 2026-09-04: `settings.ts` adds
+      `reducedMotion: boolean` (default false, `sanitize()`-coerced);
+      `hub.ts`'s Settings-tab `TOGGLES` table gets a "Reduced motion" row
+      using the same generic hover-toggle plumbing every other checkbox
+      already uses. `canvas.ts` gates two ambient-motion effects on it: (1)
+      `drawTracers`' jagged tracers (chain lightning/tesla coil/Time Lord's
+      basic-attack distortion trail) normally draw 3 kinked line segments
+      with an alternating ±4px zigzag; under `reducedMotion` they fall back
+      to the same straight line a non-jagged tracer already draws; (2)
+      `drawPhaseSweep` (the 2s TD↔VS transition band) normally travels a
+      linear-gradient wipe horizontally across the whole screen; under
+      `reducedMotion` it fills the screen with a flat, stationary color
+      instead, using the same opacity envelope (so the transition still
+      visually reads) with no horizontal travel. Both remain fully
+      orthogonal to `reducedFlash`'s own alpha-dimming, which still applies
+      on top of either. Targeted `tests/render-fb086-reduced-motion.test.ts`
+      (4/4): default-off, jagged-tracer-suppressed-under-reducedMotion (with
+      an unaffected-non-jagged-tracer control case), and the phase-sweep
+      gradient-vs-flat-fill distinction. code-reviewer **APPROVE** (no
+      Critical/Major; one Minor — this backlog checkbox wasn't ticked yet in
+      the reviewed diff, closed by this update; one Nit — the jagged
+      tracer's thicker 2px line width survived the reducedMotion straight-
+      line fallback instead of converging on a genuine straight tracer's
+      1.5px, fixed same session: `ctx.lineWidth = t.jagged ? 2 : 1.5` ->
+      `t.jagged && !calmMotion ? 2 : 1.5`, re-verified green). qa-playtester
+      **PASS**: independently re-derived all four acceptance-criteria checks
+      against the live renderer with its own standalone probe (not just the
+      shipped test file), confirmed the Settings toggle reaches
+      `onSettingsChanged` end-to-end through a real `Hub` DOM click, found
+      no double-suppression/dead-zone/dangling-gradient bug with
+      `reducedFlash` and `reducedMotion` both on simultaneously, confirmed
+      expiry/cleanup timers for both effects are untouched by the new
+      branch, and confirmed old localStorage saves predating the field
+      sanitize to `false`. Independently found and reported the same
+      line-width nit code-reviewer flagged (fixed above) and one
+      informational, non-blocking observation for the backlog generator: the
+      bottom bar's CSS-only "skill ready" box-shadow ripple
+      (`.sw-bb-flash`/`.sw-bb-ready-flash`, `style.css`) is a brief
+      (0.5s), event-triggered ambient-motion cue neither `reducedFlash` nor
+      `reducedMotion` touches, judged not to clear this item's own
+      acceptance bar (which named continuous/repeated cues — tracer jitter,
+      phase-sweep pan) so not filed as a bug against fb086 itself. Filed no
+      new bugs. `npx tsc --noEmit` clean. `npm run test:fast`: 5-6 failed
+      tests across 4-7 failed files this session (q15-command-domain-fuzz
+      worker-hang/timing-fuzz plus q45/q49/q52 Windows-scratch-dir EPERM,
+      and the b032/b034/b035/b036 dev-server-port-contention fold-test
+      class), all in the pre-existing flake classes documented across dozens
+      of prior PROGRESS.md sessions, none touching `src/ui/**`/
+      `src/render/**` or this item's own files.
+
+- [ ] (fb090) [feat] normal priority: generated 2026-09-04 (fewer than 3
+      actionable items remained; QUALITY.md 1.0 Steam/itch checklist gap
+      diff) — fullscreen toggle. QUALITY.md 1.0's checklist ("fullscreen +
+      windowed") is entirely unbuilt: no `requestFullscreen`/
+      `exitFullscreen` call exists anywhere in `src/ui`. Add a Settings
+      control (and/or a bottom-corner button) that requests fullscreen on
+      the app's root element and can exit it again, reflecting the live
+      `document.fullscreenElement` state (including a state change driven
+      externally, e.g. the browser's own Esc-to-exit-fullscreen, via the
+      `fullscreenchange` event) rather than only its own click history.
+      Acceptance: a unit test mocks `Element.prototype.requestFullscreen`/
+      `document.exitFullscreen` and confirms clicking the control calls the
+      right one for the current state and the displayed label/state flips;
+      a separate test dispatches a `fullscreenchange` event with
+      `document.fullscreenElement` cleared externally and confirms the
+      control's displayed state updates to "not fullscreen" without a click
+      — refs: QUALITY.md 1.0 (Steam/itch checklist), SPEC-FINAL §11.
+
+- [ ] (fb091) [feat] normal priority: generated 2026-09-04 (fewer than 3
+      actionable items remained; QUALITY.md 1.0 Steam/itch checklist gap
+      diff) — crash capture + "copy report" button. QUALITY.md 1.0's
+      checklist ("error capture to a local log with a 'copy report' button")
+      is entirely unbuilt: no `window.onerror`/`unhandledrejection` handler
+      exists anywhere in `src/ui`. Add a global handler (wired once from
+      `main.ts`, in this lane's Scope) that appends a bounded (e.g. last 20)
+      in-memory ring buffer of `{time, message, stack}` entries for both
+      uncaught errors and unhandled promise rejections, surfaced via a new
+      Settings-tab panel listing recent entries (empty-state message when
+      none) with a "Copy report" button that serializes the buffer to a
+      plain-text report and writes it to `navigator.clipboard`. Acceptance:
+      a unit test throws inside a wrapped/dispatched error path and confirms
+      the buffer captures the expected fields and is bounded; a separate
+      test dispatches an `unhandledrejection` event and confirms it's
+      captured too; clicking "Copy report" with mocked
+      `navigator.clipboard.writeText` confirms the written text contains
+      every buffered entry — refs: QUALITY.md 1.0 (Steam/itch checklist).
+
+- [ ] (fb092) [polish] low priority: generated 2026-09-04 (fewer than 3
+      actionable items remained; QUALITY.md 1.0 Steam/itch checklist gap
+      diff) — credits + license screen. QUALITY.md 1.0's checklist
+      ("credits + license screen") is entirely unbuilt: no credits/license
+      surface exists in the Hub. Add a reachable Hub panel (e.g. a new tab
+      or a link from Settings) listing project credits and license text; can
+      be a seeded placeholder list rather than exhaustive (the real asset
+      credits don't exist until QUALITY.md BETA's "Art pass 1" lands and
+      populates ASSETS.md) as long as the surface and its render path exist
+      and are covered by a test. Acceptance: a unit test opens the new
+      panel/tab and confirms credits and license text render; the panel is
+      reachable from the Hub without a dev-only gate — refs: QUALITY.md 1.0
+      (Steam/itch checklist).
+
+- [ ] (fb093) [polish] low priority: generated 2026-09-04 (fewer than 3
+      actionable items remained; QUALITY.md 1.0 Steam/itch checklist gap
+      diff, extends fb065/fb082) — ultrawide/narrow HUD safe-area audit
+      coverage. QUALITY.md 1.0's checklist names "16:9/16:10/ultrawide safe"
+      as its own line, distinct from what fb065/fb082 already built
+      (floating rails anchored to the letterboxed canvas rect at arbitrary
+      aspect ratios) — neither item's own test coverage includes a real
+      `tools/ui-audit.ts` scene at an ultrawide (e.g. 2560x1080, ~21:9) or
+      narrow/portrait (e.g. 1024x1280) viewport, only unit-level geometry
+      math. Acceptance: `tools/ui-audit.ts` gains at least one ultrawide and
+      one narrow/portrait scene alongside its existing set; `npm run
+      ui-audit` shows zero `hud-overlap` failures and no critical control
+      (bottom bar, rail handles) rendered fully offscreen at either — refs:
+      fb065, fb082, QUALITY.md 1.0 (Steam/itch checklist).
+
+- [ ] (fb094) [feat] low priority: generated 2026-09-04 (fewer than 3
+      actionable items remained; engineer's-judgment item, depth not scope
+      creep per HANDOFF §7) — dev-mode screenshot export. QUALITY.md 1.0's
+      checklist names "store-page asset export (screenshots at fixed seeds,
+      gif capture mode)" and no such tooling exists. Scoped to the
+      screenshot half (gif capture is a materially larger scope, left for a
+      future item): a dev-profile-only Hub/HUD control that exports the
+      current canvas frame to a downloadable PNG (`canvas.toDataURL` or
+      `toBlob`), reachable without leaving the run. Acceptance: a unit test
+      triggers the export control and confirms it calls the canvas's export
+      API and produces a download (mocked `HTMLCanvasElement.prototype
+      .toBlob`/anchor-click idiom); the control is absent/inert outside dev
+      profile, matching every other dev-only control's existing gating
+      pattern — refs: QUALITY.md 1.0 (Steam/itch checklist).
 
 ## Log
+
+- 2026-09-04, fb085: skipped for this session — its literal acceptance
+  criteria require creating `data/strings.json`, which falls outside this
+  lane's Scope (`src/ui/**`/`src/render/**`/`tests/ui*`/`tests/render*`
+  only). Per the Scope section's own instruction ("an out-of-scope need is
+  written into the Log below and becomes main-lane... work at the merge"),
+  left open rather than attempted partially (e.g. skipping the
+  `data/strings.json` half and only building `src/ui/strings.ts` would not
+  meet the item's own acceptance text, which names the data file
+  explicitly). Executed fb086 instead, the next actionable item, which is
+  fully in-scope.
 
 - 2026-09-03, fb058: two files outside the literal Scope glob
   (`tests/fb022-info-surfacing.test.ts`, `tests/q3-save-fuzz.test.ts`) were
