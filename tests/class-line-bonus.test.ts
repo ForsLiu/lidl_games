@@ -74,7 +74,7 @@
  * rows. QA confirmed both: an index drop fails 23 tests, a leak that spares
  * the ladder fails exactly these 12.)
  *
- * **Two named deviations, and both are filed bugs this file pins rather than
+ * **One named deviation, and it is a filed bug this file pins rather than
  * hides.** A card can be live in code and still inert in a real run:
  *
  *   1. **`c017` — Archer *Deeper Draw*.** `fireDeadeyeDraw` computes
@@ -83,20 +83,24 @@
  *      `chargeCapSeconds 5`, so the right-hand term is 6 at *any* hold and the
  *      +2/rank can never bind. QA confirmed no equipment, tree node, boon or
  *      modifier touches either field.
- *   2. **`c018` — Engineer *Extra Turret* and Animist *Kindred Spirits*.** Both
- *      raise a summon **cap** that the Active's own cast cadence cannot reach:
- *      Pop Turret is 12 s cooldown / 10 s duration (ceiling 1 live turret, 2
- *      with the CDR card maxed, against a base cap of 2), Manifest 16 s / 20 s
- *      (ceiling 2, against a base cap of *3* — one point of the authored cap is
- *      dead before the card is). Found by QA, whose repro is the deviation
- *      `describe` at the bottom of this file.
  *
- * Each deviation gets the same two-part shape: a **tripwire** asserting the
- * flat reading on shipped `/data` (red the day the fix lands, which is when
- * that block should be deleted), and a **companion** proving the branch itself
- * is live once the binding constraint is lifted on a `/data` copy. The ladders
- * for those three rows measure against the lifted copy; every other row
+ * That deviation gets a two-part shape: a **tripwire** asserting the flat
+ * reading on shipped `/data` (red the day the fix lands, which is when that
+ * block should be deleted), and a **companion** proving the branch itself is
+ * live once the binding constraint is lifted on a `/data` copy. The Archer's
+ * ladder is the one row that measures against the lifted copy; every other row
  * measures shipped `/data` untouched.
+ *
+ * **There was a second deviation, `c018`, and it is fixed** — Engineer *Extra
+ * Turret* and Animist *Kindred Spirits* each raised a summon **cap** the
+ * Active's own cast cadence could never reach (Pop Turret 12 s cooldown /
+ * 10 s duration, ceiling 1 live turret against a base cap of 2; Manifest
+ * 16 s / 20 s, ceiling 2 against a base cap of *3*, so one point of the
+ * authored cap was dead before the card was). Filed by QA on c016, fixed in
+ * `c018` by `/data` cooldowns alone — 12 -> 3 and 16 -> 4 — since §4.2 authors
+ * both durations and both caps but no clause anywhere authors an Active's
+ * cooldown. Its tripwire is now a positive regression `describe` at the bottom
+ * of this file, and the two rows sit in the ordinary ladder above.
  *
  * **What this file is not.** Liveness, not balance: whether +2 pierce or +30%
  * Wrath is the *right* number is p10r's. It also says nothing about the other
@@ -617,21 +621,6 @@ function contentFor(classKey: string): Content {
   return c;
 }
 
-/**
- * Can a player spamming this Active ever hold `cap + maxBonus` summons at once?
- * A summon lives `duration`, one arrives every `cooldown`, so the ceiling is
- * `floor(duration / cooldown) + 1` — the whole of `c018` in one line.
- */
-function capIsReachable(
-  cooldown: number | undefined,
-  duration: number | undefined,
-  cap: number | undefined,
-  classKey: string,
-): boolean {
-  if (!cooldown || !duration) return true;
-  return Math.floor(duration / cooldown) + 1 >= (cap ?? 0) + maxBonus(classKey);
-}
-
 describe('c016 — a rank moves the branch it names, and nothing else', () => {
   for (const row of ROWS) {
     it(`${row.classKey} ${row.card}: ${row.observable} moves ${row.dir} at rank 1 and again at rank 2`, () => {
@@ -692,17 +681,50 @@ describe('c016 — named deviation: Deeper Draw is inert on shipped data (c017)'
 });
 
 /**
- * `c018`, filed by QA on c016. Both cards raise a summon **cap** the Active's
- * own cast cadence cannot reach, so buying either changes nothing in a real
- * run — the rows above measure the cap with cooldowns bypassed, which is the
- * right way to measure a cap and the wrong way to measure a run.
+ * `c018`, filed by QA on c016 and fixed here. Both cards raise a summon
+ * **cap**, and the rows above measure that cap with the cooldown bypassed —
+ * the right way to measure a cap and the wrong way to measure a run. A summon
+ * lives `summonDurationSeconds` and one arrives every `cooldownSeconds`, so
+ * the most a player spamming the key can ever hold is
+ * `floor(duration / cooldown) + 1`. On the data c016 shipped against, that
+ * ceiling was **1** live turret (Pop Turret, 12 s / 10 s) against an authored
+ * cap of 2, and **2** spirits (Manifest, 16 s / 20 s) against an authored cap
+ * of *3* — one point of the authored cap was already dead before the card
+ * was, and both cards bought a player nothing at all.
  *
- * The observable here is the peak number of live summons a player who presses
- * the Active every single tick ever holds, with the cooldown ticked by the
- * real `updateWarden` and expiry by the real `updateClassSummons` — no forced
- * resets anywhere.
+ * The fix is `/data` only and cooldown only: §4.2 authors both durations
+ * ("10 s, cap 2", "20 s, cap 3") and `tests/class-spec-numbers.test.ts` pins
+ * them, while no §-clause anywhere authors an Active's cooldown — it is the
+ * one free ⚖ lever of the three, so it is the one that moved.
+ *
+ * The observable is the peak number of live summons a player who presses the
+ * Active every single tick ever holds, with the cooldown ticked by the real
+ * `updateWarden` and expiry by the real `updateClassSummons` — no forced
+ * resets anywhere, which is exactly what `cast1`/`cast2` do and why they
+ * cannot see this bug. It is asserted as an **equality against `/data`**
+ * (`summonCap + rank * perRank`), not merely as movement: the authored cap
+ * being reachable is half of what was broken, and a ladder that only moved
+ * would still pass with the Animist stuck one spirit short of its own 3.
  */
-describe('c016 — named deviation: two summon caps are unreachable at the real cast cadence (c018)', () => {
+/**
+ * The most live summons an Active can ever hold: one arrives every `cooldown`,
+ * each lives `duration`, so the ceiling is `floor(duration / cooldown) + 1` —
+ * **minus a tick at exact multiples**. `Run.step` casts before
+ * `updateClassSummons` expires, and expiry is `remaining -= dt` reaching 0 at
+ * the end of the previous tick, so when `duration / cooldown` is an integer
+ * the n-th summon is cast on the very tick the first one dies and the two
+ * never coexist at a sample point. Measured, not reasoned: at cooldown 5.0 s
+ * against Manifest's 20 s the naive formula says 5 and a real run peaks at 4
+ * (QA, on this item). Shipped values are non-integer ratios so this bites
+ * nothing today — it is the trap the next ⚖ cooldown pass would fall into,
+ * and 5.0 s is exactly the round number that pass would reach for.
+ */
+function cadenceCeiling(duration: number | undefined, cooldown: number | undefined): number {
+  if (!cooldown || !duration) return 0;
+  return Math.floor((duration - DT) / cooldown) + 1;
+}
+
+describe('c018 — both summon caps are reachable at the real cast cadence', () => {
   function peakLiveSummons(
     classKey: string,
     ranks: Ranks,
@@ -736,27 +758,53 @@ describe('c016 — named deviation: two summon caps are unreachable at the real 
     const row = content.classByKey.get(k.classKey)!;
     const slot: 1 | 2 = row.active1.summonCap !== undefined ? 1 : 2;
     const eff = slot === 1 ? row.active1 : row.active2;
+    // Long enough for the slowest ladder to fill: every rank needs
+    // `cap + maxBonus` casts at one cooldown apiece, plus two cooldowns of
+    // slack so the last summon is measured while the first is still alive.
+    // Derived, never a literal — a cooldown retune lengthens the window too.
+    const windowSeconds = ((eff.summonCap ?? 0) + maxBonus(k.classKey) + 1) * (eff.cooldownSeconds ?? 1);
+    const target = (eff.summonCap ?? 0) + maxBonus(k.classKey);
 
-    it(`${k.classKey} ${k.name}: the cadence ceiling is flat across all three ranks`, () => {
+    it(`${k.classKey} ${k.name}: the cadence itself reaches the card's full ceiling`, () => {
       expect(
-        capIsReachable(eff.cooldownSeconds, eff.summonDurationSeconds, eff.summonCap, k.classKey),
-        `${k.name}'s cap is reachable now — c018 has landed, delete this deviation`,
-      ).toBe(false);
-      const peaks = [0, 1, 2].map((n) => peakLiveSummons(k.classKey, n === 0 ? {} : { [k.card]: n }, slot, k.kind, 120));
-      expect(new Set(peaks).size, `${k.name} moved after all: ${peaks.join(' -> ')}`).toBe(1);
-      // ...and the flat value is the cadence ceiling, not zero: a card that
-      // summoned nothing at all would otherwise read as "expected inertness".
-      expect(peaks[0]).toBe(Math.floor((eff.summonDurationSeconds ?? 0) / (eff.cooldownSeconds ?? 1)) + 1);
+        cadenceCeiling(eff.summonDurationSeconds, eff.cooldownSeconds),
+        `${k.name}'s cast cadence cannot reach ${target} live ${k.kind}s — ` +
+          `cooldown ${eff.cooldownSeconds}s against duration ${eff.summonDurationSeconds}s is c018 all over again`,
+      ).toBeGreaterThanOrEqual(target);
     });
 
-    it(`${k.classKey} ${k.name}: the branch is live — shortening the cooldown makes the same card bind`, () => {
-      // One second between casts: `floor(duration / 1) + 1` clears
-      // `summonCap + maxBonus` for both kits, so the cap is the binding term
-      // again and the card has something to raise.
-      const fast = contentWith(k.classKey, (r) => void ((slot === 1 ? r.active1 : r.active2).cooldownSeconds = 1));
-      const at0 = peakLiveSummons(k.classKey, {}, slot, k.kind, 120, fast);
-      const at1 = peakLiveSummons(k.classKey, { [k.card]: 1 }, slot, k.kind, 120, fast);
-      expect(at1).toBeGreaterThan(at0);
+    it(`${k.classKey} ${k.name}: each rank holds one more live summon in a real run`, () => {
+      const card = lineCard(k.classKey);
+      const peaks = [0, 1, 2].map((n) => peakLiveSummons(k.classKey, n === 0 ? {} : { [k.card]: n }, slot, k.kind, windowSeconds));
+      // Both sides come out of `/data`, so a retune of either the cap or the
+      // card's `perRank` moves them together — this pins the mechanism, not a
+      // magnitude (c005's convention, kept).
+      expect(peaks, `${k.name}'s live count did not follow the card: ${peaks.join(' -> ')}`).toEqual(
+        [0, 1, 2].map((n) => (eff.summonCap ?? 0) + n * card.perRank),
+      );
+    });
+
+    it(`${k.classKey} ${k.name}: the cadence, not the cap, is what changed — lengthening the cooldown puts the ceiling back`, () => {
+      // The mirror of the old deviation's companion case: the branch was
+      // always live, the cadence was not. Stretch the cooldown past the
+      // duration on a `/data` copy and the flat ceiling c018 filed returns,
+      // which is what proves the shipped ladder above is the cooldown's doing
+      // and not some other edit that happened to land at the same time.
+      const slow = contentWith(
+        k.classKey,
+        (r) => void ((slot === 1 ? r.active1 : r.active2).cooldownSeconds = (eff.summonDurationSeconds ?? 0) + 1),
+      );
+      const slowCooldown = (eff.summonDurationSeconds ?? 0) + 1;
+      const at0 = peakLiveSummons(k.classKey, {}, slot, k.kind, windowSeconds, slow);
+      const at2 = peakLiveSummons(k.classKey, { [k.card]: 2 }, slot, k.kind, windowSeconds, slow);
+      // Tied to `cadenceCeiling`, not to the literal 1, so the formula the
+      // guard above trusts is itself measured against a real run at least once
+      // — the one thing the deleted c018 tripwire covered that nothing else
+      // did (QA, on this item).
+      const ceiling = cadenceCeiling(eff.summonDurationSeconds, slowCooldown);
+      expect(ceiling).toBe(1);
+      expect(at0).toBe(ceiling);
+      expect(at2).toBe(ceiling);
     });
   }
 });

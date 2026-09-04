@@ -229,40 +229,103 @@ session 2 (c005 was the last actionable one left), appending `c006`-`c010`.
       itself where the fix is the sentence - refs: SPEC-FINAL §4.1/§4.2, c008,
       architecture rule 4.
 
-- [ ] (c018) [bug] **filed by QA on `c016` 2026-09-04, twice-reproduced, and
-      pinned by a tripwire in `tests/class-line-bonus.test.ts`.** Two §6.3 cards
-      raise a summon **cap that the Active's own cast cadence can never reach**,
-      so buying either changes nothing in a real run. A summon lives
-      `summonDurationSeconds` and one arrives every `cooldownSeconds`, so the
-      most a player spamming the key can ever hold is
-      `floor(duration / cooldown) + 1`:
-      - **Engineer *Extra Turret*** (`engineer_turret_cap`, Pop Turret): 12 s
-        cooldown / 10 s duration -> ceiling **1** live turret, or 2 with the
-        `active2_cdr` card maxed, against a base `summonCap` of 2. (No `/data`
-        file grants the `cdr` stat at all — `grep -rn "cdr" data/` returns only
-        the twelve `active2_cdr` keys — so `derived.cdr` is 0 in every run and
-        6 s is the floor.) `npm run sim -- --seed 1 --policy hybrid` shows a
-        real bot spending a level-up on `engineer_turret_cap`.
-      - **Animist *Kindred Spirits*** (`animist_spirit_cap`, Manifest): 16 s /
-        20 s -> ceiling **2**, against a base `summonCap` of **3** — one point
-        of the authored cap is already dead before the card is, and Active1's
-        cooldown reads only `1 - derived.cdr`, which `active2_cdr` does not
-        touch.
-      The regression test is already in place and red-on-fix: the `c018`
-      `describe` asserts the flat cadence ceiling across ranks 0/1/2 (driven by
-      the real `updateWarden` cooldown tick and `updateClassSummons` expiry, no
-      forced resets) and separately proves the branch is live once the cooldown
-      is shortened on a `/data` copy. Acceptance: the cadence ceiling reaches
-      `summonCap + maxRank * perRank` for both kits — the in-Scope levers are
-      `data/classes.json`'s `cooldownSeconds`/`summonDurationSeconds` (Animist
-      needs `cooldownSeconds` <= 6.6 s **or** `summonDurationSeconds` >= 33 s
-      merely to make the authored cap 3 reachable); the `c018` deviation
-      `describe` is deleted and its two rows fold into the ordinary ladder;
-      **G8/G11 re-measured as a control-run pair** (`tests/p6d-nine-classes.
-      test.ts`, `tests/p6e-class-diversity.test.ts` — the latter is main-lane
-      read-only, so a threshold move there is logged, not edited) since this
-      one *does* change live summon counts, unlike `c017` - refs: SPEC-FINAL
-      §4.2 (Engineer, Animist), §6.3, c016, CLAUDE.md rule 3.
+- [x] (c018) [bug] **DONE 2026-09-04.** Two §6.3 cards raised a summon **cap that the
+      Active's own cast cadence could never reach**, so buying either changed
+      nothing in a real run. A summon lives `summonDurationSeconds` and one
+      arrives every `cooldownSeconds`, so the ceiling is
+      `floor(duration / cooldown) + 1`: Engineer *Extra Turret* 12 s / 10 s ->
+      **1** live turret against a base `summonCap` of 2, Animist *Kindred
+      Spirits* 16 s / 20 s -> **2** against a base cap of **3** (one point of
+      the authored cap was dead before the card was).
+      **Fixed in `/data` only, and cooldown only** — `data/classes.json`
+      engineer `active2.cooldownSeconds` **12 -> 3**, animist
+      `active1.cooldownSeconds` **16 -> 4**. SPEC-FINAL §4.2 authors both
+      durations and both caps ("10 s, cap 2" / "20 s, cap 3") and
+      `tests/class-spec-numbers.test.ts` pins them, but **no §-clause anywhere
+      authors an Active's cooldown** — it is the one free ⚖ lever of the three,
+      so it is the one that moved. No engine code touched.
+      **Regression first**, then the fix: the `c018` deviation `describe` (which
+      pinned the *bug*) is replaced by a positive `c018 — both summon caps are
+      reachable at the real cast cadence`, red before the `/data` edit
+      (engineer flat at 1, animist `2 -> 2 -> 2`) and green after. It asserts an
+      **equality against `/data`** (`summonCap + rank * perRank`), not mere
+      movement — a ladder that only moved would still pass with the Animist one
+      spirit short of its own authored 3. QA re-derived the same ladder on three
+      independent arms: shipped data `2->3->4` / `3->4->5`; cooldowns put back
+      `1->1->1` / `2->2->2`; and with `+ classLineBonus(w)` **deleted from
+      `classes.ts`** `2->2->2` / `3->3->3` — so the test is not vacuous.
+      **Margin is measured, not assumed**: engineer rank 2 holds its peak 59
+      ticks before the first expiry, animist 119; the cooldown cliff sits at
+      3.35 s / 5.00 s against shipped 3 / 4 (~11% and 20% headroom).
+      Cooldowns are reassigned to the authored constant per cast, never
+      accumulated, and `tickCooldown` floors at `COOLDOWN_EPS` — no float drift.
+      **G8/G11 control-run pair** (12 seeds, p6e's own scripted-kit harness —
+      p6e itself prints nothing, every one of its G8 assertions is `.skip`-ed):
+
+      | class | wins before -> after | `class_summon` share before -> after | `argmax(allDamage)` |
+      | engineer | 12/12 -> 12/12 | 0.059% (333,802) -> **0.126%** (717,762) | ballista -> ballista |
+      | animist | 11/12 -> 12/12 | 0.012% (61,369) -> **0.087%** (486,665) | ballista -> ballista |
+
+      The cards now do something in a real run (2.1x and 7.1x the summon
+      damage). **p6e's one LIVE pin, `expect(distinct.size).toBe(2)`
+      (`p6e:687`), cannot move**: both classes stay far under
+      `MATERIALITY_SHARE = 0.20`, so each `topLabel` falls back to
+      `argmax(allDamage)` — measured `ballista` on both arms — and only these
+      two classes' data changed. G11 (Stormcaller chain <= x3.6) is derived from
+      `chainGrowth`/`chainCap`/`chainCount` and is unreachable from these
+      fields. **Honest note:** animist moved 11/12 -> 12/12 (seed 2 flipped from
+      a tick-cap timeout to a victory), i.e. *further* outside G8's 35-70% band.
+      Both classes were already over that ceiling before this change and every
+      G8 band assertion is `.skip`-ed roster-wide at 12/12, so no gate changed
+      colour — but this nudges an already-broken gate the wrong way, and that is
+      P10 balance work, not this item's.
+      QA additionally control-paired the fast-tier-excluded suites the item
+      under-scoped (`cfg()` defaults `classKey: 'engineer'`, so every
+      `runScripted` suite now casts Pop Turret 4x as often): **G1** run length
+      34.20 -> 34.13 min, 24/24 in band [30,36], real suite green; **G14**
+      `boss.test.ts` green; **G22/G23** fingerprints byte-identical; a3 no-move
+      byte-identical (stock policies never emit `class_active2`).
+      **Engineer stayed at 3 s rather than the 2.5 s review suggested**, on a
+      measured trade-off: at 3 s `engineer_active2_cdr` rank 1 still moves mean
+      live turrets 3.33 -> 4.00 at cap rank 2, and 2.5 s saturates that to 4.00
+      at rank 0 and kills it outright. Animist took 4 s (from 4.5) at no such
+      cost — its cdr card is authored on *Recall Totem* (Active2), not Manifest
+      — which makes its top rank continuous, moves it off the 5.0 s cliff, and
+      leaves headroom for §4.2's not-yet-built "summon cap +1" Animist passive
+      (Q120(5)), which would otherwise re-open c018 the day it lands.
+      The residual `engineer_active2_cdr` finding is filed as **`c019`** below
+      - refs: SPEC-FINAL §4.2 (Engineer, Animist), §6.3, c016, CLAUDE.md rule 3.
+
+- [ ] (c019) [bug] **filed by QA on `c018` 2026-09-04, twice-reproduced with identical
+      numbers.** `engineer_active2_cdr` ("Pop Turret cooldown −25%/rank",
+      `data/vsupgrades.json:26`) is now **inert on live turret count at
+      `engineer_turret_cap` rank 0** — the state every Engineer starts a run in
+      — and its **rank 2 buys nothing at any cap rank**. This is `c018`'s own bug
+      class, created by `c018`'s fix, and it is partly *inherent*: once the cap
+      is reachable at every rank (which is exactly what c018's acceptance
+      demands), the cap binds and no cooldown reduction can add a summon.
+      Measured, spamming Active2 every tick through the real
+      `useClassActive2` -> `updateWarden` -> `updateClassSummons` loop, varying
+      only the cdr rank:
+      | arm | cap rank | peak by cdr rank 0/1/2 | mean by cdr rank 0/1/2 |
+      | before (cd 12) | 0 | 1 -> 2 -> 2 | 0.83 -> 1.11 -> 1.66 |
+      | after (cd 3) | 0 | **2 -> 2 -> 2** | **2.00 -> 2.00 -> 2.00** |
+      | after (cd 3) | 2 | 4 -> 4 -> 4 | 3.33 -> **4.00** -> 4.00 |
+      A real bot spends on it: `npm run sim -- --seed 1 --policy hybrid` reports
+      `"skillCards":{"engineer_turret_cap":1,"engineer_active2_cdr":2,...}`.
+      Note the card is **not** wholly dead — rank 1 at cap rank 2 is worth
+      +0.67 mean turrets — and turrets have no HP, so the card's remaining
+      honest value is refill latency, not count. Acceptance: decide and *pin*
+      the disposition rather than leave it implicit — either (a) a
+      `tests/class-line-bonus.test.ts` `describe` asserting the **mean**
+      live-summon ladder across `engineer_active2_cdr` ranks 0/1/2 at cap rank
+      0, sized off `/data`, red before whatever `/data` change makes it live;
+      or (b) if the disposition is "cooldown cards are refill-latency cards
+      once a cap is reachable", a named-deviation row in that file plus a
+      QUESTIONS.md entry, never silence. The same question applies to the other
+      eleven `active2_cdr` cards, whose only behavioural coverage anywhere is a
+      HUD readout in `tests/fb026-bottom-bar.test.ts` (logged as an open gap by
+      c016's own header) - refs: SPEC-FINAL §6.3, c016, c018, CLAUDE.md rule 3.
 
 - [ ] (c017) [bug] **filed by `c016` 2026-09-04, and proven by its own tripwire.**
       Archer *Deeper Draw* (`archer_pierce_cap`, §6.3's third card) is **inert on
@@ -461,6 +524,65 @@ session 2 (c005 was the last actionable one left), appending `c006`-`c010`.
       §3 (Poison), owner feedback `feature-poison-barrel-mechanic`.
 
 ## Log
+
+### c018 (2026-09-04) — the two unreachable summon caps
+
+- **Fix shape**: `/data` only, cooldown only — engineer `active2.cooldownSeconds`
+  12 -> 3, animist `active1.cooldownSeconds` 16 -> 4. §4.2 authors both
+  durations and both caps and `class-spec-numbers` pins them; nothing anywhere
+  authors an Active's cooldown, so it was the only free lever. Full measurement
+  table in the item entry above.
+- **For the main lane — a QUESTIONS.md entry is owed and could not be written
+  here.** CLAUDE.md working rule 4 says a design decision like "retune two ⚖
+  cooldowns 12->3 and 16->4 because §4.2 authors durations and caps but never
+  cooldowns" goes in QUESTIONS.md; `QUESTIONS.md` is outside this lane's Scope
+  and the lane protocol says lane sessions leave it alone. Raised by
+  code-reviewer on this item. **The decision, ready to paste**: the cadence
+  ceiling `floor(duration/cooldown)+1` must reach `summonCap + maxRank*perRank`
+  or the §6.3 cap card is dead data; of the three fields that set it, two are
+  spec-authored, so the cooldown moves.
+- **For the main lane / `c014`**: unchanged — this file still pins `WX/WY =
+  10,10` and the `WX+1,WY` build tile, so it stays on c014's list of five.
+- **Latent trap now guarded**: the ceiling formula is off by one **at exact
+  multiples**. `Run.step` casts before `updateClassSummons` expires, so when
+  `duration / cooldown` is an integer the n-th summon is cast on the very tick
+  the first dies and they never coexist at a sample point — QA measured
+  cooldown 5.0 s against Manifest's 20 s reading 4, not the formula's 5. The
+  test now uses `floor((duration - DT) / cooldown) + 1` (`cadenceCeiling`), so
+  the guard fires *first* and names the cooldown instead of the ladder failing
+  with "live count did not follow the card". **`c018`'s own acceptance text in
+  this file carried the same off-by-one** — worth remembering the next time a ⚖
+  cooldown pass reaches for a round 5.0 s.
+- **New item filed**: `c019` (above), QA's finding that `engineer_active2_cdr`
+  is now inert on turret *count*. Partly inherent — a reachable cap and a live
+  cooldown card are in direct tension at rank 0 — which is why it is a decision
+  to pin rather than a number to nudge.
+- **Pre-existing reds the lane merge should know about, each proven unrelated
+  to c018 by QA with a byte-identical BEFORE/AFTER control pair, not argued.**
+  The full `npm test` is red at this commit for four reasons that predate this
+  item:
+  - `tests/a3-movement-mandatory.test.ts` — seed 1 expects `defeat_core`, gets
+    `defeat_warden` (all 12 seeds `defeat_warden`; 0 class-active casts, since
+    stock policies never emit one).
+  - `tests/p-core-f-gates.test.ts` G22 — `carnivorous_plant` seed 2 fingerprint
+    0.070 and `corpse` seed 2 0.040, both under 0.10. `runCoreScripted` never
+    calls `scriptClassKit`, so no Active is ever cast there.
+  - `tests/b036-help-fold.test.ts` — **a genuine UI-lane bug, not a flake**:
+    `.sw-help` bottom measures 1095.40625 > 1080, identical across
+    engineer/swordsman/animist/archer, and `.sw-side` contains no `Cooldown`
+    text at all. b036's own header records the original overflow at ~1096.9, so
+    its fix has eroded back to ~15 px over. **Belongs to BACKLOG-UI.md.**
+  - `b032`/`b034`/`b035` (`beforeAll` hook timeout at 30 s — all three pass with
+    `--hookTimeout=120000`), `q15` (a 4000 ms wall-clock probe deadline at
+    concurrency 6; passes alone), and `q28`/`q45`/`q49`/`q52` (EPERM on
+    `bench/.tmp` scratch dirs from nested-tsx runs; all pass alone) are host
+    contention artifacts. The failing set is **non-deterministic across
+    identical runs and reproduces on clean `/data`**.
+- **Not claimed**: `tests/p6e-class-diversity.test.ts` was not re-run (~1 h, and
+  every one of its G8 assertions is `.skip`-ed so it prints nothing). The
+  12-seed control pair above, built on p6e's own `runClassScripted` shape, is
+  the only G8 measurement — and it covers p6e's one live pin directly by
+  measuring `argmax(allDamage)` on both arms.
 
 - (2026-09-03, lane split) Known cross-lane touchpoints to expect here
   rather than edit: class registration in shared sim files
