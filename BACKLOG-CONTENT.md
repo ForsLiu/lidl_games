@@ -118,7 +118,7 @@ session 2 (c005 was the last actionable one left), appending `c006`-`c010`.
       summon-cap half is cross-referenced to `c004` rather than re-filed
       - refs: SPEC-FINAL §4.1/§4.2, c005.
 
-- [ ] (c007) [polish] the *whiff policy* for the 24 Actives is unpinned. Six
+- [x] (c007) [polish] **DONE 2026-09-03.** the *whiff policy* for the 24 Actives is unpinned. Six
       kinds (`repair_heal`, `blood_tithe`, `death_pact`, `manifest_spirit`,
       `chain_lightning`, `ice_wall`) return `true` from `useClassActive`/
       `useClassActive2` even when their fire function early-returns with
@@ -802,3 +802,89 @@ session 2 (c005 was the last actionable one left), appending `c006`-`c010`.
   magnitude/lifetime holes have verified repros and are listed in c011 with
   them; the file's header now states the exclusion explicitly instead of
   leaving it to be discovered.
+
+- (2026-09-03, session 4) **c007 done** — the whiff policy of all 24 Actives is
+  pinned, and it turned out to be uniform: **casting always costs.** Every one
+  of the 24 pays its full authored cooldown/charge in an empty world, with no
+  exception and no partial refund. Thirteen of them change nothing at all while
+  doing so; the other eleven still act, because what they do needs no target (a
+  dash, a ground cloud, a self-buff window, a totem, a turret, a wall, a time
+  zone). `tests/class-kit-whiff.test.ts` (58 tests, ~0.1 s, fast tier).
+  **No `/src` or `/data` byte moved** — c007 asked for the policy to be made
+  visible, not changed.
+
+  **c007 named six kinds; there are seven.** `raise_skeletons` reaches the same
+  place by a different route: its early return is on the summon cap being full,
+  not on having no target, so in an empty world it runs to the end and its
+  corpse loop simply iterates zero times. The row is in the table with the
+  other six and shares their control run.
+
+  **Ice Wall is the one Active an empty world cannot make whiff** — free tiles
+  are exactly what it wants, so it reads `acts: true` in the main table and
+  gets a second, documented case reproducing p6d's occupied-tiles setup. That
+  case fires through `applyCommand`, as p6d does: architecture rule 3 makes the
+  Command the player-facing path, and an "agreement" test that called
+  `useClassActive2` directly could stay green while a break in the Command's
+  aim plumbing reddened p6d — the opposite of agreeing.
+
+  **Verified by mutation, not by argument.** 17 mutations each turn the file
+  red: each of the seven kinds ceasing to pay on a whiff, a half-refunded
+  cooldown, a half-armed ammo recharge, an empty Ice Wall, an unpaid charge
+  release, a degenerate dash, a gutted Raise/Judgement, a whiffed wall that
+  keeps the gold it pre-funded, cross-slot over-billing, and a charge kind
+  whose Command fires instead of declining. A legal `/data` retune (cooldowns,
+  recharges, charge caps and radii x1.3, `maxCharges` +1) stays green, so the
+  file pins a policy and not a balance point.
+
+  **Eight findings from code review + QA were fixed before commit**, all
+  test-side. Four were Major and three of those were the same mistake in three
+  places — an observable that is a *cost* rather than a product, which is
+  c005's twice-learned lesson walking back in:
+  - *`w.corpses` let a gutted Raise pass.* `fireRaiseSkeletons` splices the
+    corpse **before** spawning the skeleton, so `spawnClassSummon` deleted left
+    the control green. Removed from the observable set (verified free: no
+    empty-world cast touches corpses).
+  - *`wd.wrathStored` let a gutted Judgement pass*, for c005's exact reason —
+    `fireJudgement` zeroes the bank before its own `rawWrath > 0` guard.
+    Removed.
+  - *The dash rows claimed movement they never observed.* `startDashTravel`
+    only **arms** a travel; `wd.x/y` do not move until `tickDashTravel` runs, so
+    a dash clamped to zero distance still read `acts: true`. Rather than
+    re-admit `dashTravel`, every row now `settle()`s its cast and the four dash
+    rows prove themselves on the Warden actually being elsewhere. That removed
+    the file's documented disagreement with c005 entirely: the observable set
+    is now c005's exactly, plus `w.tempWalls`.
+  - *A per-field price check could not see over-billing.* QA made
+    `useClassActive` also set `active2Cooldown` and every row stayed green. The
+    bill is now asserted as a whole vector against the untouched one, so
+    anything charged beyond the authored price fails whichever slot it lands
+    on.
+  Plus four smaller ones: the Ice Wall case now pins `gold`/`goldSpent`/
+  `towersBuilt`/`towersByKey` (a whiffed wall that kept its pre-funded gold
+  passed both this file and p6d); the ammo rows assert the cooldown field stays
+  0; the emptiness invariants loop over all 12 classes; and the two charge rows
+  no longer assert a literal — they pin p6b's real rule, that a charge kind's
+  *Command* declines and bills nothing.
+
+  **One measurement of mine was simply wrong and is corrected here**: an
+  earlier draft's header said 15 pure whiffs / 9 acting, carried over from a
+  probe taken before dashes were counted. The true split is 13/11, and the file
+  now asserts it rather than only stating it.
+
+  **Not filed as bugs, deliberately.** Nothing in the 24 is broken; the item's
+  value is the barrier, as with c005 and c006. Whether a whiffed cast *should*
+  refund is a design question SPEC-FINAL does not answer — the table is now the
+  place that decision would be made, deliberately and with a reason, instead of
+  drifting in a refactor.
+
+- (2026-09-03, session 4) **Fast-tier baseline is red without c007**, recorded
+  so it is not attributed to this item. QA re-ran the failing set with
+  `tests/class-kit-whiff.test.ts` physically removed and four still failed:
+  `tests/b032-tower-panel-fold.test.ts` (deterministic, `1095.40625 <= 1080`,
+  lane/ui Scope) and `tests/q49-price-probe-restore.test.ts` /
+  `tests/q52-m20d-run-a4-bad-key.test.ts` (`EPERM` on `rmSync` under
+  `bench/.tmp`, the Windows nested-subprocess file-lock class, b028 family).
+  A further five (`b034`, `b035`, `b036`, `q28`, `q45`) failed in the full run
+  but passed in isolation and could not be reproduced twice — load-dependent
+  flakes, stated as unconfirmed rather than diagnosed. All of these are outside
+  this lane's Scope; they belong to BACKLOG.md or lane/ui.
