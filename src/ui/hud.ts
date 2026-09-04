@@ -1652,7 +1652,12 @@ export class Hud {
     // `World` fixtures without a `resetModalKey()` call (real play always
     // calls it via `startRun`) can't show a stale Results-screen Class/Core
     // from the previous world.
-    const key = `${w.phase}:${w.offers.length}:${w.outcome}:${w.level}:${w.cfg.classKey}:${w.coreKey}`;
+    // fb113: rerollsLeft is folded in too — `rerollOffers` replaces
+    // `w.offers` with a fresh array of the same length and decrements this
+    // field, so it's the one memo-key-visible signal that a reroll actually
+    // happened; without it a reroll was a memo hit and the Level-Up modal
+    // kept showing the pre-reroll offer cards.
+    const key = `${w.phase}:${w.offers.length}:${w.outcome}:${w.level}:${w.cfg.classKey}:${w.coreKey}:${w.rerollsLeft}`;
     if (key === this.lastModalKey) return;
     this.lastModalKey = key;
 

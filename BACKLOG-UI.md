@@ -2940,7 +2940,7 @@ not already expose it) logs that need below instead of reaching into
       PROGRESS.md sessions, none touching `src/ui/**`/`src/render/**` or this
       item's own files.
 
-- [ ] (fb113) [bug] normal priority: fb110's own qa-playtester finding — the
+- [x] (fb113) [bug] normal priority: fb110's own qa-playtester finding — the
       Level-Up modal's own memo key (the same `syncModal` key fb110 touched)
       goes stale on offer reroll, showing the pre-reroll offer cards while
       `w.offers` has already been replaced: `onReroll` → `rerollOffers`
@@ -2965,7 +2965,35 @@ not already expose it) logs that need below instead of reaching into
       `w.rerollsLeft` (already decrements each reroll) or a new roll-sequence
       counter incremented by both `openLevelUpIfPending` and `rerollOffers`
       — refs: fb110, `rerollOffers` (`src/sim/progression.ts`), owner
-      feedback (fb103/fb107/fb110 generation lineage).
+      feedback (fb103/fb107/fb110 generation lineage). DONE 2026-09-04: took
+      the suggested `w.rerollsLeft` direction. `syncModal`'s (`src/ui/hud.ts`)
+      memo key grew from `${w.phase}:${w.offers.length}:${w.outcome}:${w.level}:
+      ${w.cfg.classKey}:${w.coreKey}` to append `:${w.rerollsLeft}` — the only
+      other writer of `w.offers` besides `rerollOffers` is
+      `openLevelUpIfPending` (already covered independently by the
+      phase/level/rerollsLeft-reset fields it also changes) and `takeOffer`
+      (already covered by the `phase` flip back to `act2`), so this closes the
+      one real gap without leaving a sibling staleness path. Targeted
+      `tests/ui-fb113-modal-key-reroll.test.ts` (1/1): rolls offers, syncs,
+      captures pre-reroll `.sw-offer b` labels, calls `rerollOffers(w)`,
+      confirms the new offers differ from the old (code-reviewer's Minor,
+      guards against a degenerate identical-reroll false pass), syncs again,
+      confirms the rendered labels now match the post-reroll `w.offers`
+      names. code-reviewer APPROVE (no Critical/Major; the one Minor above
+      fixed same session). qa-playtester PASS: confirmed via git-stash A/B
+      that the test fails pre-fix with the exact stale-name symptom and
+      passes post-fix; hostile-tested multiple sequential rerolls (each
+      re-renders correctly as `rerollsLeft` counts down), a reroll attempted
+      at `rerollsLeft === 0` (correctly a no-op, no spurious re-render since
+      the memo key is unchanged), and traced the real `onPickOffer` →
+      `pick`-command path (`main.ts`/`run.ts`) end-to-end to confirm picking
+      after a reroll now applies the same offer the modal displays; also
+      re-ran fb110's own test green. Filed no new bugs. `npx tsc --noEmit`
+      clean. `npm run test:fast`: 14-16 failed files across runs this
+      session, all in the pre-existing q46/q49/q52/q53 Windows-scratch-dir
+      EPERM flake class documented across dozens of prior PROGRESS.md
+      sessions, none touching `src/ui/**`/`src/render/**` or this item's own
+      files.
 
 - [ ] (fb111) [polish] low priority: generated 2026-09-04 (same generation
       batch as fb107; QUALITY.md 1.0 checklist diff, engineer's-judgment
@@ -3000,6 +3028,13 @@ not already expose it) logs that need below instead of reaching into
       fb063, `lineHit` (`src/sim/combat.ts`).
 
 ## Log
+
+- 2026-09-04, fb113: implemented fully in-scope (a prior session had already
+  written the `src/ui/hud.ts` memo-key fix and
+  `tests/ui-fb113-modal-key-reroll.test.ts` uncommitted in the working tree;
+  this session strengthened the test per code-reviewer's Minor note, verified
+  everything, ran code-reviewer/qa-playtester, and committed). See the item's
+  own DONE note above for detail. No new bugs filed against this item.
 
 - 2026-09-04, fb110: implemented fully in-scope (a prior session had already
   written the `src/ui/hud.ts` memo-key fix and
