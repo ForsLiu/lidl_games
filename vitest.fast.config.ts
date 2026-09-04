@@ -59,6 +59,10 @@ export default mergeConfig(
         // cheap invariant cases ride along. (`class-kit-damage-share` stays IN
         // the fast tier: its sweep is still opt-in, so the file costs ~10 ms.)
         'tests/class-time-lord-band.test.ts',
+        // p11c: 3 full T1 archer runs (perfect/jitter-only/heavy-miss) at
+        // ~15-20s each to pin the reaction-delay harness's own effect size —
+        // measured standalone ~65s.
+        'tests/p11c-imperfect-play.test.ts',
       ],
     },
   }),

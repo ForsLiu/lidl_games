@@ -5,6 +5,46 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-04 session: BACKLOG p11c closed — `p10z`'s candidate direction (b)
+  (a weaker/imperfect-play scripted-kit-and-Core-purchase bot for G8/G23) tried
+  and found to close off, not open, the wall — after a real bug in the harness
+  itself was caught and fixed first.** New `tests/helpers.ts` infrastructure
+  (`scriptClassKitImperfect`/`buyCoreUpgradesImperfect`/`runScriptedImperfect`)
+  jitters a fired Active's aim and, via `reactionReady`, rolls once per
+  readiness window (a cooldown reaching 0, a Core step becoming affordable)
+  whether to act immediately or only after a 1-5s reaction delay. **The first
+  version instead re-rolled the miss chance every tick a decision stayed
+  ready** — code-reviewer caught, before any conclusion was drawn, that this
+  leaves the expected retry wait under 0.2s even at `missChance=0.9`, making
+  the "miss" nearly unobservable against multi-minute runs. Fixed with the
+  window-scoped `reactionReady`, and the fix's real effect was verified before
+  re-measuring (one fixed seed's `class_active` damage: perfect play 16945,
+  jitter-only 9339, `missChance=0.9` 4806.5 — large, monotonic; now a
+  committed regression test, `tests/p11c-imperfect-play.test.ts`, fast-tier
+  excluded at ~65s). A second code-reviewer pass on the fixed diff (APPROVE)
+  found two further Minor issues, both fixed: `buyCoreUpgradesImperfect` now
+  folds gold affordability into its own readiness check (an unaffordable step
+  was reopening a fresh window every tick, compressing the one-roll guarantee
+  — this measurably changed the archer check's own number, 3257 pre-fix vs
+  4806.5 post-fix on the same seed, so every number below is against the
+  fully-fixed harness); and the missing test above. Re-measured against the
+  final harness (ad-hoc scratch script, not committed): **G8** 0/12 classes
+  moved out of `landslide-win` at `missChance=0.9` (4 seeds each), including
+  `bloodlord`/`necromancer` — the two classes closest to a real contest under
+  perfect play. **G23** 0/5 Cores moved, including the three that carry
+  baseline timeouts under perfect play. **G1**/**G14** controls held (8/8
+  each, no regression out of band). This directly confirms
+  Q161's mechanism (own-kit damage share is 0.2%-8.2% of a run's total — the
+  shared towers `ballista`/`frost_obelisk` decide the outcome regardless of
+  kit play quality, now genuinely degraded and still immaterial), rather than
+  adding a fourth "we tried and it didn't work." No adoption proposed
+  (acceptance text: only propose if something moved); harness kept as
+  documented reusable infrastructure, no gate test file's policy changed.
+  `p10z`'s full three-direction candidate list is now exhausted (a: landed at
+  p10z; b: this item; c: checked and rejected at p10z) — G8/G23 stay blocked
+  on the Q160/Q161 owner verdict. Filed **QUESTIONS Q166**. code-reviewer pass
+  on the corrected diff clean. No `/data` changed.
+
 - **2026-09-04 session: BACKLOG p11b closed — HANDOFF.md and STATUS.md
   regenerated end to end, correcting a stale "green" on gate G14 and a
   never-filed regression on G13's share-cap clause.** Both docs were dated

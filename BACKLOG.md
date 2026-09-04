@@ -2210,7 +2210,7 @@ was not fabricated.
       No code-reviewer/qa-playtester pass, matching the `p10n`/`p10i`/`p10q`
       precedent for zero-behavioural-change documentation items.
 
-- [ ] (p11c) [feat] Try `p10z`'s own untried candidate direction (b): a
+- [x] (p11c) [feat] Try `p10z`'s own untried candidate direction (b): a
       weaker/imperfect-play scripted-kit bot variant for the G8/G23 harness
       (`tests/p6e-class-diversity.test.ts` / `tests/p-core-f-gates.test.ts`)
       to see whether it produces genuine mid-band win-rate outcomes without
@@ -2229,6 +2229,93 @@ was not fabricated.
       kit bot" means for a spec-defined gate still needs owner sign-off —
       refs: SPEC-FINAL §14 G8/G23, BACKLOG p10z's own candidate-direction
       list, QUESTIONS Q158-Q160.
+
+      **Closed (2026-09-04) — direction (b) tried, closes off rather than
+      opens a path; full evidence at QUESTIONS Q166.** Built
+      `scriptClassKitImperfect`/`buyCoreUpgradesImperfect`/
+      `runScriptedImperfect` (`tests/helpers.ts`) — the same
+      scripted-kit-and-Core-purchase shape as the existing perfect-play
+      `scriptClassKit`/`buyCoreUpgrades`/`runScripted`, except every
+      readiness window (an Active's cooldown reaching 0, a Core-upgrade step
+      becoming affordable) rolls once, via a seeded `Rng`, whether to act
+      immediately or only after a 1-5s reaction delay, and a fired Active's
+      aim is jittered (random angle, 0-4 tile radius) instead of locked onto
+      the perfect `aimPoint` target — deterministic per-seed, no change to
+      any sim RNG stream. **code-reviewer's pass on the first version of
+      this diff found a Major bug before any conclusion was drawn**: that
+      version rolled the miss chance fresh every *tick* a decision stayed
+      ready rather than once per window, which leaves the underlying
+      readiness condition untouched on a miss — at 60 ticks/sec the expected
+      wait before a retry finally lands is `1/(1-missChance)` ticks, under
+      0.2s even at `missChance=0.9`, so the "miss" was nearly unobservable
+      against multi-minute runs and the harness wasn't actually testing
+      what its own doc comment claimed. Fixed with `reactionReady`
+      (`tests/helpers.ts`): rolls once per readiness window and holds that
+      decision (act now, or wait out a 1-5s delay) until the window resets;
+      verified the fix has a real effect before re-measuring anything, by
+      comparing one fixed seed's `class_active` damage (archer): perfect
+      play 16945, jitter-only (`missChance=0`) 9339, `missChance=0.9`
+      4806.5 (~48.5% of the jitter-only baseline) — large and monotonic,
+      not a no-op. This three-way comparison, plus a synthetic bound check
+      (a decision under `missChance=1` fires within the documented 1-5s
+      window, never instantly), is now a committed regression test
+      (`tests/p11c-imperfect-play.test.ts`, ~65s standalone — added to
+      `vitest.fast.config.ts`'s exclude list with a comment, per CLAUDE.md's
+      60s rule). **A second code-reviewer pass on this fixed diff
+      (APPROVE) found two further Minor issues, both fixed in the same
+      session**: `buyCoreUpgradesImperfect`'s readiness check didn't fold in
+      gold affordability, so an unaffordable Core step could close and
+      reopen a fresh window every tick during a "saving up" stretch,
+      compressing the one-roll-per-window guarantee (fixed: `nowReady` now
+      requires `w.gold >= stepCost` too); and the harness had no committed
+      test (now the file above). The affordability fix is a real behavior
+      change, not just a stronger gate — it measurably shifted the archer
+      check's own `missChance=0.9` number (3257 pre-fix, 4806.5 post-fix,
+      same seed) — so every G8/G23/G1/G14 number below was re-measured
+      against the fully-fixed harness rather than carried over from the
+      pre-affordability-fix run. Re-measured via an ad-hoc `tools/tsx`
+      scratch script (not committed — the finding is negative, so no new
+      always-running gate-sweep test was warranted): **G8** at
+      `missChance=0.9` (kit/Core decisions delayed roughly 9 times in 10), 4
+      seeds x 12 classes (48 runs): **0/12 moved out of `landslide-win`**,
+      zero exceptions, including `bloodlord`/`necromancer` — the two classes
+      closest to a real contest under perfect play (Q160). **G23** at
+      `missChance=0.9`, 4 seeds x 5 Cores: **0/5 moved**, including the
+      three Cores (`stone_heart`/`corpse`/`time`) that carry baseline
+      timeouts under perfect play. **G1**/**G14** controls (`missChance=0.9`,
+      8 seeds each): both 8/8 landslide-win — no regression out of band.
+      Sample sizes are
+      deliberately small (4-8 seeds vs. the gates' own 12) — CLAUDE.md's
+      measurement rules flag a small sample as a sample, not evidence,
+      *unless* the mechanism is what varies — but here it is: Q161 already
+      measured own-kit damage share at 0.2%-8.2% of a run's total damage
+      (the two shared towers every hybrid build fields, `ballista`/
+      `frost_obelisk`, carry the rest), so degrading how well or badly the
+      kit fires — now genuinely degraded, confirmed by the archer
+      damage-share check above, not just nominally — still cannot move an
+      outcome the kit was never deciding. The unanimous 0/12, 0/5 result is
+      that mechanism confirmed directly, not a coincidence of a small draw.
+      Per this item's own acceptance text, no adoption is proposed (nothing
+      moved into band); the harness functions stay in `tests/helpers.ts` as
+      reusable, documented infrastructure (so a future session doesn't
+      reinvent them, and doesn't repeat the per-tick-reroll mistake — the
+      header comment now explains why a window-scoped roll is required) but
+      no gate test file's policy or `.skip` comment changed — this is a
+      measurement item, not a tuning or harness-swap item. code-reviewer
+      pass on the corrected diff: no Critical/Major findings (two Minor,
+      both fixed — see above). qa-playtester **PASS**: independently
+      re-verified `reactionReady`'s reset/no-stuck-state behavior by
+      inspection, confirmed the diff is a pure addition (222 lines added, 0
+      removed) that never touches the perfect-play functions the live
+      G1/G8/G14/G23 gate tests actually import, and ran its own throwaway
+      probe at `missChance` 0.95-0.99 against classes/Cores/seeds outside
+      the original sample (`animist`/`time_lord`/`stone_heart`/`time`,
+      seeds 101/202/303) — 24/24 stayed `landslide-win` (coreHpFrac
+      0.898-1.000), corroborating rather than breaking the negative
+      conclusion; no bugs filed. `p10z`'s own
+      three-direction candidate list is now fully exhausted (a: landed at
+      p10z itself; b: this item; c: checked and rejected at p10z). G8/G23
+      stay blocked on Q160/Q161's owner verdict — refs: QUESTIONS Q166.
 
 - [ ] (p11d) [chore] qa-playtester's `b072` pass flagged, but did not file,
       a fragility left by that item's own fix: three of the four retuned
