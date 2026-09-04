@@ -1466,7 +1466,7 @@ not already expose it) logs that need below instead of reaching into
       documented across dozens of prior PROGRESS.md sessions, none touching
       `src/ui/**`/`src/render/**` or this item's own files.
 
-- [ ] (fb083) [feat] low priority: generated 2026-09-04 — automated perf
+- [x] (fb083) [feat] low priority: generated 2026-09-04 — automated perf
       regression coverage for QUALITY.md BETA's "Load to Hub < 3s cold;
       Hub → run < 1.5s" bar, currently unmeasured by any test (unlike G17's
       350-enemy benchmark, which is). Acceptance: a test constructs a fresh
@@ -1475,7 +1475,36 @@ not already expose it) logs that need below instead of reaching into
       separately measures Hub-"Start"-click to first rendered run frame
       under its own budget; both recorded the same host-independent-margin
       (⚖) way G17's benchmark already documents its own variance — refs:
-      QUALITY.md BETA, SPEC-FINAL §11.
+      QUALITY.md BETA, SPEC-FINAL §11. DONE 2026-09-04: new
+      `tests/ui-fb083-perf-budget.test.ts`, same `mount()`/canvas-context-
+      proxy idiom as `tests/ui-fb074-resume-on-refresh.test.ts`. Test 1 times
+      `new Game(); game.start(root)` and asserts `#sw-start` (the Hub) is
+      rendered under a 3000ms budget. Test 2 times a real click on
+      `#sw-start` plus the first `frame()` call that reaches
+      `Renderer.draw()` for the new run, and asserts `#sw-canvas` exists
+      under a 1500ms budget. Ceilings are the literal QUALITY.md numbers
+      themselves rather than a measured-median multiple (p10e's style) —
+      documented in the file header why: this is a synchronous jsdom
+      environment, not a real browser paint pipeline, so the measured
+      baseline (~5-15ms / ~1-5ms) is two-plus orders of magnitude below any
+      real cold-load number: comparing against it would just be measuring
+      jsdom's own speed, not a meaningful multiple of a real load cost. The
+      point is catching an accidental synchronous multi-second block, which
+      it does (qa-playtester fault-injected a 3.5s sleep into `Game.start`
+      and confirmed the test fails with the predicted elapsed value, reverted
+      cleanly). code-reviewer **APPROVE** (no Critical/Major; one Minor noting
+      the ceiling methodology differs in style from p10e's measured-multiple
+      approach, though the header already documents and justifies the
+      deviation — not blocking). qa-playtester **PASS** against both literal
+      acceptance criteria, confirmed no collision with
+      `tests/a10-performance.test.ts`/`tests/p10e-perf-budget.test.ts` (both
+      measure sim tick cost, not UI/Hub wall-clock load time), confirmed
+      `Game.start()` has no async/Promise/fetch path a synchronous wall-clock
+      wrap could miss. `npx tsc --noEmit` clean. `npm run test:fast`: 7 failed
+      files / 6 failed tests, all in the pre-existing q15/q49/q52
+      worker-hang/Windows-scratch-dir-EPERM flake classes documented across
+      dozens of prior PROGRESS.md sessions, none touching `src/ui/**`/
+      `src/render/**` or this item's own files.
 
 - [ ] (fb084) [feat] normal priority: generated 2026-09-04 — first-run
       onboarding. QUALITY.md BETA's manual bar ("contextual tutorial
