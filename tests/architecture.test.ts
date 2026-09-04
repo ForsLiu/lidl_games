@@ -65,7 +65,9 @@ describe('sim purity (SPEC 9.1)', () => {
     const offenders: string[] = [];
     for (const f of files) {
       const src = readFileSync(f, 'utf8');
-      if (/from\s+'\.\.\/(render|ui|meta|bots)\//.test(src)) offenders.push(f);
+      // `(\.\.\/)+`: `src/sim/terrain/` is nested one level deeper, so its
+      // imports read `'../../render/...'` — a single `../` missed them (fb064a).
+      if (/from\s+'(\.\.\/)+(render|ui|meta|bots)\//.test(src)) offenders.push(f);
     }
     expect(offenders).toEqual([]);
   });

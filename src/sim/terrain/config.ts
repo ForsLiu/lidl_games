@@ -317,6 +317,14 @@ const schema = z
 export type TerrainConfig = z.infer<typeof schema>;
 export type TerrainTileDef = TerrainConfig['tiles'][number];
 
+/**
+ * The authored document, pre-parse, for `contentHash()` (`src/sim/content.ts`
+ * reaches it through this module rather than importing the JSON itself, so
+ * `tests/q7-data-fuzz.test.ts`'s import-seam pin keeps meaning "every file
+ * content.ts imports directly is fuzzed"; fuzzing this file is BACKLOG fb080).
+ */
+export const TERRAIN_RAW: unknown = raw;
+
 let cached: TerrainConfig | null = null;
 
 /**

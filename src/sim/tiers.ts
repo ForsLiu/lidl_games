@@ -6,7 +6,7 @@
  */
 
 import type { Content, ModifierDef } from './content';
-import { Rng, fnv1a } from './rng';
+import { Rng, fnv1a, DRAFT_STREAM, DRAFT_PICK_STREAM } from './rng';
 
 export const MAX_TIER = 5;
 
@@ -17,7 +17,7 @@ export interface DraftOffer {
 
 /** The 1-of-2 choices a player would be shown for a tier. */
 export function modifierDraft(content: Content, seed: number, tier: number): DraftOffer[] {
-  const rng = new Rng(fnv1a(`draft:${tier}`, seed >>> 0));
+  const rng = new Rng(fnv1a(`${DRAFT_STREAM}:${tier}`, seed >>> 0));
   const pool = content.modifiers.modifiers.slice();
   const offers: DraftOffer[] = [];
   const slots = Math.max(0, Math.min(MAX_TIER, tier) - 1);
@@ -31,7 +31,7 @@ export function modifierDraft(content: Content, seed: number, tier: number): Dra
 
 /** What an unattended bot takes: one option per slot, chosen on the same stream. */
 export function autoDraft(content: Content, seed: number, tier: number): string[] {
-  const rng = new Rng(fnv1a(`draftpick:${tier}`, seed >>> 0));
+  const rng = new Rng(fnv1a(`${DRAFT_PICK_STREAM}:${tier}`, seed >>> 0));
   return modifierDraft(content, seed, tier).map((o) => o.options[rng.int(o.options.length)].key);
 }
 

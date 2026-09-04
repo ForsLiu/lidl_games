@@ -280,6 +280,23 @@ session 2 (c005 was the last actionable one left), appending `c006`-`c010`.
 
 ## Log
 
+- (2026-09-03, lane merge) Merged into master. One conflict,
+  `fireCrimsonRush`: main wins on the travel (fb053's speed-scaled range),
+  c001's Area-scaled half-width kept. Done at the merge: `class-time-lord-band` is in
+  `vitest.fast.config.ts`'s exclude list and its
+  env gate is dropped (runs under the FULL `npm test`, `TIME_LORD_MEASURE=0`
+  opts out); `class-kit-damage-share`'s **stays opt-in**, deliberately —
+  its sweep is 12 classes x 12 seeds of full runs (hours) and asserts only
+  that rows were recorded, for an item (c002) skipped on Q161 (QUESTIONS
+  Q165) — and so it stays in the fast tier, where it costs ~10 ms. p6e's stale "Time Lord has not been run" header corrected. Filed
+  from this Log: `lineHit` broadphase + `LINE_HALF_WIDTH` = BACKLOG.md
+  **fb081**; Poison Barrel tick cadence (fb062's sim half) = **fb082**;
+  `towerArea` key for the two tower passives = **fb083** (QUESTIONS Q163);
+  `summonCap` key for c004 = **fb084**; the `content.ts`/shared-file
+  enablers for fb056/fb057/fb059/fb061 = **fb085**; Blood Tithe's missing
+  lifesteal clause = **fb086**; the three unscaled previews = BACKLOG-UI.md
+  **fb090**; b036's fold regression = **fb089**.
+
 - (2026-09-03, lane split) Known cross-lane touchpoints to expect here
   rather than edit: class registration in shared sim files
   (`src/sim/content.ts` et al.), loot-table wiring outside

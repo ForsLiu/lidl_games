@@ -5,6 +5,27 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-03 session: lane merge — `lane/content`, `lane/terrain` and
+  `lane/ui` merged into master, after committing the uncommitted `fb054`
+  close-out (denser waves: `aliveCap` 500, `perGate` x2.5, spawn interval
+  /2.5; G13's six solo-tower pins re-set to measured counts, retune filed as
+  fb076).** Main wins on shared sim core: the one conflict
+  (`fireCrimsonRush`) keeps fb053's speed-scaled dash travel and c001's
+  Area-scaled half-width. Wired at the merge: `data/terrain.json` in
+  `contentHash()` (new `tests/terrain-content-hash.test.ts`), `'terrain'`
+  as a named one-shot RNG stream, the `/src/sim` renderer-import guard
+  widened to nested dirs, the Time Lord band sweep excluded from the fast
+  tier with its env gate dropped. All three lane Logs read; every out-of-scope need filed
+  as BACKLOG fb077-fb088 (main) / BACKLOG-UI fb089-fb091, decisions logged
+  as QUESTIONS Q162-Q165. The generator is **not** wired into a run yet
+  (Q164 — Fourth Gate, stranded Core and `fallback` consumer first; fb077).
+  Landed from the lanes: c001 Area reaches all 24 Actives, c003 Time Lord
+  band re-measured (12/12, unchanged), c005 kit liveness suite; fb064a/g/b
+  terrain generator + data contract + Grid integration; fb055 impact VFX,
+  fb058 class-select redesign, fb060/fb067-fb070 DoT tick numbers.
+  Verification: see the merge-integration commit message for the
+  `test:fast` and FULL `npm test` results.
+
 - **2026-09-03 session: `fb053` closed — dash speed now scales with the
   Warden's current movement speed instead of a fixed distance (owner
   feedback `balance-dash-speed`, top priority).** `data/warden.json`'s

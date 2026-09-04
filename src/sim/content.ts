@@ -21,6 +21,11 @@ import wardenRaw from '../../data/warden.json';
 import damageTypesRaw from '../../data/damagetypes.json';
 import coresRaw from '../../data/cores.json';
 import equipmentRaw from '../../data/equipment.json';
+// fb064b merge: map terrain. `src/sim/terrain/config.ts` owns and validates
+// `data/terrain.json`; it is reached here so `contentHash()` covers it
+// (architecture rule 2) and so an unpayable file fails at `loadContent()`.
+// Not `TerrainDef`/`TerrainSchema` below, which are a *tower's* terrain effect.
+import { TERRAIN_RAW as mapTerrainRaw, loadTerrain } from './terrain/config';
 
 /**
  * b013/E3: every `/data` number goes through this one alias, so "refuses a
@@ -1698,6 +1703,8 @@ export interface ContentRaw {
   dev: unknown;
   cores: unknown;
   equipment: unknown;
+  /** `data/terrain.json` (map generation), folded in at the lane merge. */
+  mapTerrain: unknown;
 }
 
 export interface Content {
@@ -2068,6 +2075,9 @@ export function loadContent(overrides?: ContentOverrides): Content {
     }
   }
 
+  // Map terrain: validate at load (rule 4) even though no run consumes it yet.
+  loadTerrain();
+
   const result: Content = {
     raw: {
       warden: wardenRaw,
@@ -2084,6 +2094,7 @@ export function loadContent(overrides?: ContentOverrides): Content {
       dev: devRaw,
       cores: coresDoc,
       equipment: equipmentDoc,
+      mapTerrain: mapTerrainRaw,
     },
     warden: wardenBase,
     towers,

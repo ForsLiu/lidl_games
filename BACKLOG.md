@@ -2534,6 +2534,185 @@ generation-rule boundary.
       these, per CLAUDE.md's "check the blast radius" rule, not just G13 —
       refs: BALANCE.md's "Density targets (fb054)" section (G13 sub-section),
       SPEC-FINAL §14 G13.
+- [ ] (fb077) [feat] wire the generated terrain into a real run — the
+      main-lane half of the terrain epic (BACKLOG-TERRAIN.md fb064b/fb064c/
+      fb064f Logs). Today nothing outside `tests/` calls `generateTerrain` or
+      `Grid.applyTerrain`; `data/terrain.json` is already inside
+      `contentHash()` (folded at the lane merge, `tests/terrain-content-hash
+      .test.ts`) so wiring it cannot open a replay hole. Acceptance, all in
+      one change: (1) `World` builds the map from `RunConfig.seed` and applies
+      it before any structure exists (`applyTerrain` refuses live occupancy);
+      (2) the run's real gate list is threaded into generation — the Fourth
+      Gate modifier's south gate at (12,19) gets a protected main, clearance
+      and a place in every band (measured: 138/500 seeds bury the tile inside
+      it and that gate cannot reach the Core; **terrain + Fourth Gate must not
+      ship together before this**); (3) a reachable Core is a hard
+      precondition — seeds 97/2055/2845/3098 strand the hardcoded Core with
+      every gate at `distAt == -1` and no breach route, so either regenerate
+      at seed+1 or make fb064c's placement step the answer; (4) something
+      consumes `TerrainMap.fallback` — at minimum a dev-visible warning and
+      the flag in replay provenance, so a strict band no longer reads as a
+      silent flat arena for a whole run; (5) Training Grounds keeps a flat
+      arena (`gateIndices()` already takes the grid); (6) `g2-determinism`'s
+      end-state hashes are re-pinned with a logged reason (every replay forks
+      by design) and `npm run sim -- --seed 1 --policy hybrid` is recorded
+      before/after; (7) G1/G14/G17 re-measured — terrain changes path
+      lengths, so run length and boss timing move. The Core-placement
+      Command (fb064c) is a sim Command per §12 rule 3 and may land in the
+      same change or right after — refs: SPEC-FINAL §10.5 (fb079), §12 rules
+      2-3, §14 G1/G2/G14/G17, BACKLOG-TERRAIN.md Log "fb064b Out-of-scope
+      needs", QUESTIONS Q164.
+- [ ] (fb078) [bug] `src/sim/towers.ts` `checkBuild` maps every
+      `!grid.buildable()` to `'occupied'`, so on a generated map the build
+      ghost tells the player a rough/rock tile is occupied when it is empty
+      ground (BACKLOG-TERRAIN.md fb064b Log). Acceptance: a `'terrain'`
+      `BuildRejection` returned when the tile is unbuildable for a terrain
+      reason and unoccupied; failing test first on an `applyTerrain`-ed grid;
+      the renderer string for it is UI-lane fb091 — refs: SPEC-FINAL §10.5,
+      §5 build rules.
+- [ ] (fb079) [docs] SPEC-FINAL has no §10.5 for terrain generation, yet
+      the generator, its bands and its data contract are built and merged
+      (BACKLOG-TERRAIN.md fb064a Log). Acceptance: append §10.5 written from
+      `feedback/processed/20260903-121255-feature-terrain-generation.md`
+      verbatim plus the lane's design decisions now in QUESTIONS Q162 (tile
+      kinds, the six bands, structural gate mains, sealing, fallback
+      semantics, `a/(a+1)` Core-band ceiling); extend §14 G2's wording to
+      cover generation determinism (same seed => identical map + hash, and
+      the seed+1 regeneration rule); §13's content totals gain the terrain
+      file; MIGRATION.md §8 notes the addition. Log the append in
+      QUESTIONS.md as an owner-vetoable `[designer-fill]` — refs: SPEC-FINAL
+      §10, §14 G2, §17.
+- [ ] (fb080) [polish] `data/terrain.json` is unknown to every data tool:
+      `tools/fuzz-data.ts`, `tools/mutation-probe.ts`, `tests/q7-data-fuzz`'s
+      `DATA_FILES` (content.ts reaches the file through `terrain/config.ts`'s
+      `TERRAIN_RAW` precisely so q7's import-seam pin stays honest until this
+      lands), the Tuner plugin's file list and `content.ts`'s Tuner file
+      registry (BACKLOG-TERRAIN.md fb064a Log). Acceptance: q7 fuzzes it
+      (holes regenerated per `tests/q7-loader-holes.ts`'s procedure), the
+      fuzzer and mutation probe cover the file
+      (a mutated density must be caught by `tests/terrain-generation.test.ts`
+      — the lane's mutation runs killed 11/11, keep that bar); the Tuner's
+      save endpoint validates it through `parseTerrain`; then BACKLOG-TERRAIN
+      fb064f's terrain page (density/ratios live-editable, path-based
+      highlighting of a refused field) builds on it — refs: SPEC-FINAL §11,
+      §14 G15, BACKLOG-TERRAIN.md fb064f.
+- [ ] (fb081) [bug] `src/sim/combat.ts`'s `lineHit` broadphase uses a
+      constant `range * 0.5 + 2` margin, so once an Area-scaled `halfWidth`
+      exceeds ~2 the footprint saturates into a lens and the outermost enemies
+      stop being hit (BACKLOG-CONTENT.md c001 Log; measured first-miss
+      thresholds `dash_line` areaMul 4, `dash_heal` 5, `charge_pierce` 21 —
+      `boon:reach` is uncapped, so a long VS run reaches this; the hand-rolled
+      copy in `fireCrimsonRush` is already fixed). Acceptance: failing test at
+      areaMul 4 for `dash_line` first; margin becomes `range * 0.5 + halfWidth
+      + 2`; and decide the sibling inconsistency in the same change —
+      `towers.ts` passes `LINE_HALF_WIDTH` raw while `vswield.ts` passes it
+      `* areaMul` (align tower beams with vswield/classes or pin the
+      exception with a reason) — refs: SPEC-FINAL §2 Area, §6.
+- [ ] (fb082) [bug] Poison Barrel's ground area applies poison **every
+      tick**: `updateAreas` (`src/sim/combat.ts`) calls `applyPoison(w, e,
+      a.dps * scale, 1.0, 3, a.source)` at 60 Hz where SPEC-FINAL §4.1 says
+      "applying poison damage every second" — the stack cap bounds the damage
+      but the refresh cadence and the `refresh: "shortest"` interaction are
+      both wrong (BACKLOG-CONTENT.md fb062 Log; this is fb062's sim half, the
+      lane could not reach `combat.ts`). Acceptance: failing test counting
+      `applyPoison` calls per second on a standing enemy first; cadence
+      authored in `/data` (per-area `tickSeconds`), 1 s for the barrel; TTK
+      re-measured so the barrel's DPS is unchanged at the new cadence —
+      refs: SPEC-FINAL §4.1, §8 statuses.
+- [ ] (fb083) [feat] there is no tower-only Area stat key, so two tower
+      passives are authored with the *global* `area` key and — since c001
+      routed Area into the kits — widen the caster's own Actives: the
+      Animist's "All towers +10% area" (so the Animist has no `areaMul === 1`
+      baseline at all) and Time Lord's Chronal Surge (+10% every 2 TD waves,
+      **uncapped**: areaMul 3.203 at the end of a seed-2 `cycles: 6` run, of
+      which +90% is Chronal Surge — Time's r7 mark becomes a 22-tile pulse on
+      a 36x20 board). Acceptance: `towerArea` in `statkeys.ts`/`stats.ts`
+      read by `towers.ts`'s aura/lob/poison radii; both passives re-authored
+      onto it in `data/classes.json`; `tests/class-area-stat.test.ts`'s
+      Animist exception retired; a cap or a pin for Chronal Surge's total
+      recorded in BALANCE.md. Owner-vetoable (a "towers" passive that also
+      buffs the kit may be intended) — refs: SPEC-FINAL §2, §4.2, QUESTIONS
+      Q163.
+- [ ] (fb084) [feat] no summon-cap stat key exists, so BACKLOG-CONTENT c004
+      (Animist's §4.2 `summon cap +1`, "expressed on the passive in `/data`
+      rather than a class-key check") cannot be built from the content lane.
+      Acceptance: `summonCap` added to `STAT_KEYS` with its `STAT_KIND`/
+      `Derived` rows (`statkeys.ts`, `stats.ts`) and read at the three
+      `summonCap` sites in `classes.ts`; c004 then closes in its own lane
+      with the number in `data/classes.json` — refs: SPEC-FINAL §2, §4.2,
+      BACKLOG-CONTENT.md c004.
+- [ ] (fb085) [feat] unblock the five owner items the content lane could
+      not reach (BACKLOG-CONTENT.md session-1 Log: fb056/fb057/fb059/fb061/
+      fb062 all need `src/sim/content.ts` or other shared files). Acceptance,
+      each as a `content.ts`/shared-file enabler with its own test, so the
+      lane can then execute the items inside its Scope: (a) `EquipmentItem.
+      effectKey` opened from the closed 4-member enum to a validated string
+      registry plus an `effectNums: Record<string, number>` field, so fb056's
+      fifteen sets of numbers live in `/data` (rule 4 — today `swordsman_shoes`'
+      x2 is a literal in `fireDashSlash`); `tests/fb015-equipment.test.ts`'s
+      hard census pin (`toHaveLength(12)`, per-slot 2, two `toEqual` tables)
+      rewritten as invariants over the authored rows; (b) `passive.kind`/
+      `active.kind` enums and `REQUIRED_*_FIELDS` rows for Madness King and
+      Voltbolt, plus a `madness` status on `Enemy` (`types.ts`) with its
+      targeting/movement in `enemies.ts`, and `tools/content-census.ts`'s
+      class readers checked for roster pins; (c) a zero-charge duration
+      floor beside `groundDurationSeconds` on `ClassEffectSchema` for fb061's
+      8 s -> 14 s; (d) hooks for the three fb056 effects with no `classes.ts`
+      seam: Ring of Contagion (`drainPlagueTransfers` fan-out count,
+      `enemies.ts`), Chronomail (Time Flow's window, `run.ts`), Bracer of
+      Overlap (`w.timeLockZone` becomes a small array, `world.ts`) — refs:
+      SPEC-FINAL §4.2, §7 equipment, §13 totals, §12 rule 4.
+- [ ] (fb086) [bug] SPEC-FINAL §4.2 Bloodlord *Blood Tithe* is missing a
+      clause: "tower pays 30% current HP once -> permanently +25% dmg; **its
+      share of VS attacks lifesteals +1%**". Only the first half exists —
+      `s.tithed` feeds `classTowerDamageMul` (`towers.ts`) and nothing else
+      reads it; `leech` is one run-wide Warden stat and there is no
+      per-structure VS-share lifesteal anywhere (BACKLOG-CONTENT.md session-2
+      Log). Acceptance: failing test first (a tithed tower's VS-share hits
+      heal the Warden 1%; an untithed one does not); numbers in
+      `data/classes.json`; `tests/class-kit-liveness.test.ts`'s Bloodlord row
+      gains the second product — refs: SPEC-FINAL §4.2.
+- [ ] (fb087) [polish] the standing Windows flake family every lane
+      re-reported this week: `q45`/`q49`/`q52` fail on `EPERM` removing
+      `bench/.tmp` scratch dirs under load, `q15-command-domain-fuzz` reports
+      commands as hanging against its 4000 ms settle deadline under load,
+      `q13-perf-ratio` is load-sensitive, `b032`/`b034`/`b035` Playwright
+      under load — all green in isolation, and the failing set varied 13 ->
+      10 -> 6 across three runs of one tree (BACKLOG-TERRAIN.md fb064a Log).
+      Acceptance: scratch cleanup is retry-tolerant (bounded retries with
+      backoff on `EPERM`/`EBUSY`) and the settle deadline scales with a
+      measured load factor, or the files move to the excluded tier with a
+      comment naming why; five consecutive `npm run test:fast` runs on the
+      reference host report zero failures from this set — refs: CLAUDE.md
+      "Stack & commands" (fast tier contract), QUALITY.md.
+- [ ] (fb088) [polish] `tests/terrain-generation.test.ts`'s "stays bounded"
+      case is the only thing standing between `/data` and an unclamped
+      `paint()` loop in `/src/sim`, and on this host it can only be a coarse
+      5000 ms wall-clock guard (three sharper designs measured worse — the
+      Log's fb064g entry records each). Acceptance: a deterministic
+      iteration counter behind a test-only hook (shape decided here, since
+      the counter lives inside `/src/sim`) makes the bound exact and
+      load-independent; mutation re-run confirms the reverted clamp still
+      fails. Same change may revisit the loose `a/(a+1)` Core-band ceiling
+      against the tighter `|A| / |cover(A)|` bound — **only** with the
+      generated-map sweep that caught the last false rejection — refs:
+      SPEC-FINAL §12 rule 4 (loader refuses unpayable data), BACKLOG-TERRAIN
+      fb064g Log.
+**Lane merge (2026-09-03):** `lane/content` (c001/c003/c005), `lane/terrain`
+(fb064a/fb064g/fb064b) and `lane/ui` (fb055/fb058/fb060/fb067-fb070) merged
+into master. Main wins on shared sim core (one conflict: `fireCrimsonRush`
+keeps fb053's speed-scaled travel and c001's Area-scaled half-width); every
+lane addition kept. Integration wired at the merge: `data/terrain.json`
+folded into `contentHash()` (`tests/terrain-content-hash.test.ts`),
+`'terrain'` named as a one-shot RNG stream (`ONE_SHOT_STREAM_NAMES`, which
+also now names `tiers.ts`'s `draft`/`draftpick` prefixes), the `/src/sim`
+renderer-import guard widened to nested directories, the Time Lord band
+sweep moved to the fast tier's exclude list with its env gate dropped. Every
+out-of-scope need in the three lane Logs is filed above as fb077-fb088
+(main lane) or in BACKLOG-UI.md as fb089-fb091; the main-lane fb066 written
+during fb054's close-out was renumbered to fb076 because BACKLOG-UI.md had
+already used fb066 — **ids are global across all four backlog files; take
+the next free number, never a lane-local one.**
 **Lane split (2026-09-03):** the remaining eleven items of this batch,
 fb055–fb065, moved out of this file into the parallel lane files, ids and
 text unchanged (see CLAUDE.md "Lanes"): fb056/fb057/fb059/fb061/fb062 →

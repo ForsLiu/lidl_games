@@ -34,80 +34,78 @@ Regenerate before relying on this file — it is a snapshot, not a live view. Ga
 
 ## Balance snapshot
 
-Measured this run: 88 sim runs (2 seeds/cell), `hybrid` bot for per-class/per-Core cells. Mean run length 38.68 min; 31 of 88 runs hit the 45-min cap without resolving (timeouts).
+Measured this run: 88 sim runs (2 seeds/cell), `hybrid` bot for per-class/per-Core cells. Mean run length 33.69 min; 0 of 88 runs hit the 45-min cap without resolving (timeouts).
 
 ### Policy comparison (T1, engineer, default core)
 
 | Policy | Win rate | Mean minutes |
 |---|---|---|
-| no-move | 1 | 36.5 |
-| turtle | 1 | 38.1 |
-| kite | 0 | 26.7 |
-| hybrid | 0.5 | 40.7 |
-| maxbuild | 0.5 | 40.4 |
-| walloff | 1 | 37.3 |
-| sealed | 0 | 45 |
-| greedy | 0 | 31.2 |
-| greedless | 0 | 31.3 |
-| rush | 0 | 28 |
+| no-move | 1 | 33.7 |
+| turtle | 1 | 35.3 |
+| kite | 1 | 30 |
+| hybrid | 1 | 33.5 |
+| maxbuild | 1 | 34 |
+| walloff | 1 | 34.1 |
+| sealed | 1 | 33.4 |
+| greedy | 1 | 34.3 |
+| greedless | 1 | 33.7 |
+| rush | 1 | 33 |
 
 ### Per-class win rate (`hybrid` bot, default core)
 
 | Class | T1 | T3 |
 |---|---|---|
-| swordsman | 0 | 0 |
-| plaguebringer | 0.5 | 1 |
-| engineer | 0.5 | 0.5 |
-| pyromancer | 1 | 0.5 |
-| archer | 0 | 0.5 |
-| necromancer | 1 | 0 |
-| cryomancer | 0 | 0 |
-| stormcaller | 0.5 | 0.5 |
-| bloodlord | 0 | 0 |
-| animist | 0.5 | 0.5 |
-| paladin | 1 | 0 |
-| time_lord | 1 | 0.5 |
+| swordsman | 1 | 1 |
+| plaguebringer | 1 | 1 |
+| engineer | 1 | 1 |
+| pyromancer | 1 | 1 |
+| archer | 1 | 1 |
+| necromancer | 1 | 1 |
+| cryomancer | 1 | 1 |
+| stormcaller | 1 | 1 |
+| bloodlord | 1 | 1 |
+| animist | 1 | 1 |
+| paladin | 1 | 1 |
+| time_lord | 1 | 1 |
 
 ### Per-Core win rate (`hybrid` bot, engineer)
 
 | Core | T1 | T3 |
 |---|---|---|
-| stone_heart | 0.5 | 0.5 |
-| carnivorous_plant | 0.5 | 0.5 |
+| stone_heart | 1 | 1 |
+| carnivorous_plant | 1 | 1 |
 | vampire_heart | 1 | 1 |
-| corpse | 0.5 | 0.5 |
-| time | 0.5 | 0.5 |
+| corpse | 1 | 1 |
+| time | 1 | 1 |
 
 ### Wielded-type damage share (whole pool, `damageByWeapon`)
 
 | Source | Share |
 |---|---|
-| ballista | 0.3173 |
-| frost_obelisk | 0.2541 |
-| mortar | 0.1788 |
-| arrow_spire | 0.1259 |
-| venom_spore | 0.104 |
-| spreading_plague | 0.012 |
-| ember_brazier | 0.002 |
-| warden_eater | 0.0018 |
-| carnivorous_plant | 0.0017 |
-| tesla_coil | 0.0014 |
-| class_basic | 0.0009 |
+| mortar | 0.4172 |
+| ballista | 0.3585 |
+| frost_obelisk | 0.106 |
+| arrow_spire | 0.0658 |
+| venom_spore | 0.047 |
+| spreading_plague | 0.0022 |
+| tesla_coil | 0.0019 |
+| ember_brazier | 0.0014 |
 | corpse | 0.0001 |
+| class_basic | 0 |
+| warden_eater | 0 |
 | bleeding | 0 |
-| class_passive | 0 |
 
 ### Boon pick rates (total ranks taken, whole pool)
 
 | Boon | Total ranks |
 |---|---|
-| plating | 347 |
-| power | 223 |
-| haste | 162 |
-| range | 160 |
-| swift | 112 |
-| vitality | 108 |
-| reach | 81 |
+| plating | 385 |
+| power | 228 |
+| haste | 193 |
+| range | 175 |
+| vitality | 148 |
+| swift | 145 |
+| reach | 116 |
 
 ## Content census (SPEC-FINAL §13)
 
@@ -170,6 +168,22 @@ Measured this run: 88 sim runs (2 seeds/cell), `hybrid` bot for per-class/per-Co
 | 20260901-114409-feature-vs-wielded-side-panel.md | fb037 — done |
 | 20260901-120444-feature-status-report.md | fb038 — done |
 | 20260901-120444-verdicts-q134-154.md | QUESTIONS verdict batch — applied to QUESTIONS.md, archived |
+| 20260903-121255-balance-dash-speed.md | fb053 — done |
+| 20260903-121255-balance-siege-density.md | fb054 — done |
+| 20260903-121255-bug-core-vfx-and-occlusion.md | fb050 — done |
+| 20260903-121255-bug-dps-panel-style.md | fb051 — done |
+| 20260903-121255-bug-sleeve-sword-and-armor.md | fb052 — done |
+| 20260903-121255-feature-class-attack-sprites.md | no BACKLOG citation found |
+| 20260903-121255-feature-class-equipment-sets.md | no BACKLOG citation found |
+| 20260903-121255-feature-class-madness-king.md | no BACKLOG citation found |
+| 20260903-121255-feature-class-select-redesign.md | no BACKLOG citation found |
+| 20260903-121255-feature-class-voltbolt.md | no BACKLOG citation found |
+| 20260903-121255-feature-dot-tick-numbers.md | p11e — queued |
+| 20260903-121255-feature-plaguebringer-charge.md | no BACKLOG citation found |
+| 20260903-121255-feature-poison-barrel-mechanic.md | no BACKLOG citation found |
+| 20260903-121255-feature-skill-icons-hover-only.md | no BACKLOG citation found |
+| 20260903-121255-feature-terrain-generation.md | no BACKLOG citation found |
+| 20260903-121255-feature-ui-inside-playfield.md | no BACKLOG citation found |
 
 ## Pending QUESTIONS.md entries (no `(owner verdict:` yet)
 
@@ -181,3 +195,7 @@ Measured this run: 88 sim runs (2 seeds/cell), `hybrid` bot for per-class/per-Co
 - **Q159.** [p10t] With `p10s`'s harness fix landed (G1/G14 now measured under the same scripted-kit-and-Core-purchase shape as G8/G23), `p10t` ran 5 more genuinely distinct `/data`-only probes and still found no lever that closes G…
 - **Q160.** [p10z] With `classifyMargin`/`summarizeMargins` (`tests/helpers.ts`) now giving G1/G8/G14/G23 a real win/loss-*margin* signal instead of bare outcome, a fourth balance-analyst session (this one, on top of `p10r`/`p10s`/`…
 - **Q161.** [p10u] G8's diversity clause (top damage source distinct across >=9/12 classes) is also unreachable through a genuine `/data`-only tune, same wall family as Q160's win-rate axis — is the >=9/12 threshold itself, or the s…
+- **Q162.** [fb064a/fb064g/fb064b, folded at the 2026-09-03 lane merge] Terrain generation's design decisions, taken inside `lane/terrain` (BACKLOG-TERRAIN.md's Log carries the measurements).
+- **Q163.** [c001 -> fb083] Should a class's "all towers" Area passive also widen the character's own kit?
+- **Q164.** [lane merge 2026-09-03] The terrain generator is merged but not wired into a run, and `data/terrain.json` is inside `contentHash()` anyway.
+- **Q165.** [lane merge 2026-09-03] `tests/class-kit-damage-share.test.ts`'s sweep stays opt-in (`KIT_SHARE_MEASURE=1`), against BACKLOG-CONTENT.md's Log ask to drop both env gates.

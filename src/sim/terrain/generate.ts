@@ -26,7 +26,7 @@
  */
 import { GATES, GRID_H, GRID_W } from '../grid';
 import { Hasher } from '../hash';
-import { fnv1a, Rng } from '../rng';
+import { fnv1a, Rng, TERRAIN_STREAM } from '../rng';
 import { gateIndices, measureTerrain, terrainLegal, walkableFlood } from './analyze';
 import { loadTerrain, TerrainKind, type TerrainConfig } from './config';
 import type { TerrainGrid, TerrainMap } from './types';
@@ -59,7 +59,7 @@ function blankKinds(): Uint8Array {
 
 /** One generation attempt at an exact seed. Never fails; may be degenerate. */
 function attempt(seed: number, cfg: TerrainConfig): Uint8Array {
-  const rng = new Rng(fnv1a('terrain', seed >>> 0));
+  const rng = new Rng(fnv1a(TERRAIN_STREAM, seed >>> 0));
   const kind = blankKinds();
   const protectedTile = new Uint8Array(GRID_W * GRID_H);
 

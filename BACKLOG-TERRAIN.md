@@ -97,6 +97,23 @@ recorded in the Log for the main/UI lanes to pick up at the merge.
 
 ## Log
 
+- (2026-09-03, lane merge) Merged into master, no conflicts. Wired at the
+  merge (main lane): `data/terrain.json` is inside `contentHash()`
+  (`src/sim/content.ts` `ContentRaw.mapTerrain`, pinned by
+  `tests/terrain-content-hash.test.ts` — the fb064b merge blocker, closed
+  ahead of the World wiring so it can never open); `'terrain'` is a named
+  one-shot stream (`ONE_SHOT_STREAM_NAMES`/`TERRAIN_STREAM` in `src/sim/rng.ts`,
+  used by `generate.ts` — not an `RngSet` member, which would change every
+  save's RNG snapshot for a stream that never ticks); the
+  `tests/architecture.test.ts` renderer-import guard now matches `(\.\.\/)+`.
+  Everything else in this Log's out-of-scope entries is filed: World wiring
+  + gate list + stranded Core + `fallback` consumer + Training Grounds =
+  BACKLOG.md **fb077**; `'terrain'` `BuildRejection` = **fb078**; SPEC-FINAL
+  §10.5 + G2 wording = **fb079**; tools/Tuner file lists (and fb064f's page)
+  = **fb080**; the flake family = **fb087**; `paint()` counter + tighter
+  ceiling = **fb088**; fb064e rendering = BACKLOG-UI.md **fb091**; the design
+  decisions are QUESTIONS.md Q162. fb064c/fb064d stay here.
+
 - (2026-09-03, lane split) Integration-point file for the merge:
   `src/sim/grid.ts` — the grid/pathing hook where generated tile types
   plug into the existing square collision grid and flow-field costs. Keep

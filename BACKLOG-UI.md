@@ -439,7 +439,49 @@ not already expose it) logs that need below instead of reaching into
       `defaultSettings()` — refs: SPEC-FINAL §11, standard Settings-UX
       convention.
 
+- [ ] (fb089) [bug] `tests/b036-help-fold.test.ts` is red on master and
+      red standalone: `.sw-help`'s bottom edge measures 1095.4 against the
+      1080 fold b036 exists to defend, in Training Grounds with a tower
+      selected and the practice panel open. Deterministic (4 s, `npx vitest
+      run tests/b036-help-fold.test.ts`), reported independently by the
+      content and terrain lanes and first misfiled as a load flake. Acceptance:
+      the existing test goes green without loosening the 1080 fold; the
+      practice panel + selected-tower layout keeps the help block inside the
+      fold at 1920x1080 — refs: SPEC-FINAL §11, b036.
+- [ ] (fb090) [bug] c001 (Area reaches every class Active) left three
+      renderer/UI previews reading the authored `/data` radius unscaled, so
+      they draw a footprint the sim no longer uses (BACKLOG-CONTENT.md c001
+      Log): `src/render/canvas.ts` `drawChargeIndicator` uses
+      `circleSlashValues(cls.active1, wd.active1Charge).radius` (measured
+      `drawn=4 fired=4.4` with one Normal Bracelet, ~2.6x at an end-of-run
+      areaMul — the one preview fb016 built to be backed by live sim state),
+      `drawSkillHoverRing` uses `eff.radius`, and `src/ui/hud.ts`
+      `characterAbilitiesMarkup`'s "radius has no live sim equivalent" comment
+      is false — `w.derived.areaMul` is that equivalent. Acceptance:
+      regression test beside fb016-vfx-registry's "charge indicator brightens
+      with hold" case, failing first; all three scale by `areaMul`; ring
+      radius equals the fired nova's radius in the test — refs: SPEC-FINAL §2,
+      §11, fb016.
+- [ ] (fb091) [feat] terrain rendering (BACKLOG-TERRAIN.md fb064e, the
+      epic's UI half): organic terrain (marching-squares edges, texture
+      variation per kind) drawn from `Grid.terrainKind` over the square
+      collision grid, path indicators drawn around terrain, and the build
+      ghost's string for main-lane fb078's `'terrain'` `BuildRejection`.
+      Blocked on fb077 (no real run has a generated map yet); a
+      `render-terrain*` test can drive `applyTerrain` on a test grid before
+      then. Acceptance: render test over 20 seeds asserts every non-normal
+      tile is painted with its kind's colour and every rock edge is drawn;
+      no change to the normal-only arena's frame — refs: SPEC-FINAL §10.5
+      (fb079), §11.
+
 ## Log
+
+- 2026-09-03, lane merge: `lane/ui` merged into master (fb055, fb058,
+  fb060, fb067-fb070; fb066 WON'T-FIX). No conflicts. The two out-of-Scope
+  test edits logged below (q3-save-fuzz, fb022-info-surfacing) merged as-is.
+  fb089-fb091 above were filed at the merge from the content and terrain
+  lanes' Logs; ids are global across all four backlog files (main lane's
+  fb066 was renumbered fb076 for colliding with this file's).
 
 - 2026-09-03, fb058: two files outside the literal Scope glob
   (`tests/fb022-info-surfacing.test.ts`, `tests/q3-save-fuzz.test.ts`) were
