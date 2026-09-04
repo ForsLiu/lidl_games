@@ -677,6 +677,10 @@ export class Game {
     if (this.paused) {
       this.renderer.update(dtReal, this.view);
       this.renderer.draw(run.world, this.view);
+      // fb082: a window resize while paused would otherwise leave the rail/
+      // boss-bar letterbox geometry stale until resume, since the ordinary
+      // per-tick sync lives in `hud.update()` below, never reached here.
+      this.hud.syncStageOverlayGeometry();
       requestAnimationFrame(this.frame);
       return;
     }

@@ -1,6 +1,7 @@
 /** DOM chrome around the canvas: HUD, tower bar, and the modal choice screens. */
 
 import type { World } from '../sim/world';
+import { GRID_H, GRID_W } from '../sim/grid';
 import { canBuildNow, towerCost } from '../sim/towers';
 import { inCoreBuildRange } from '../sim/cores';
 import type { Offer } from '../sim/types';
@@ -97,6 +98,7 @@ export class Hud {
   private bossBarEl: HTMLElement;
   private bossBarNameEl: HTMLElement;
   private bossBarFillEl: HTMLElement;
+  private stageEl: HTMLElement | null;
   private dpsPanelEl: HTMLElement;
   private dpsDockEl: HTMLElement;
   private vsPanelEl: HTMLElement;
@@ -267,6 +269,7 @@ export class Hud {
     this.progressEl = root.querySelector('#sw-progress') as HTMLElement;
     this.practiceEl = root.querySelector('#sw-practice') as HTMLElement;
     this.charPanelEl = root.querySelector('#sw-charpanel') as HTMLElement;
+    this.stageEl = root.querySelector('.sw-stage') as HTMLElement;
     this.bossBarEl = root.querySelector('#sw-bossbar') as HTMLElement;
     this.bossBarNameEl = root.querySelector('#sw-bossbar-name') as HTMLElement;
     this.bossBarFillEl = root.querySelector('#sw-bossbar-fill') as HTMLElement;
@@ -996,6 +999,7 @@ export class Hud {
     else if (this.vsPanelOpen_) this.renderVsPanel(w);
     this.syncVsPanelToggle();
     this.syncRailRightVisibility();
+    this.syncStageOverlayGeometry();
     this.renderBottomBar(w);
     this.renderBossBar(w);
     // A selection describes itself — but never at the cost of the panels the
@@ -1010,6 +1014,60 @@ export class Hud {
     const blocking = this.selected > 0 || (w.huntsWarden && selection?.kind !== 'warden');
     if (!blocking && this.renderSelectionInfo(w, selection)) return;
     this.renderTowerInfo(w, cursor);
+  }
+
+  /**
+   * fb082: the floating rails (fb065) and boss banner (fb072) used to anchor
+   * to `.sw-stage`'s own full box via plain CSS (`top/bottom/left/right: 8px`,
+   * `left: 50%`), which drifts away from the actual playfield whenever the
+   * container's aspect ratio isn't the grid's 36:20 — `Renderer.resize()`
+   * (`src/render/canvas.ts`) letterboxes the canvas inside `.sw-stage` rather
+   * than filling it, so the stage's box and the canvas's own laid-out rect can
+   * differ by a wide margin at an extreme aspect ratio. Re-derives that same
+   * letterboxing math (mirrored here rather than read off the canvas element
+   * itself, so this works identically under jsdom's `clientWidth`/
+   * `clientHeight` mocking idiom `tests/render-fb065-stage-fill.test.ts`
+   * already uses — jsdom never runs real layout, so `getBoundingClientRect()`
+   * would read all zeros regardless of what's mocked) and publishes the
+   * canvas's offset from each stage edge as CSS custom properties the
+   * `.sw-rail`/`.sw-bossbar` rules (style.css) key off, falling back to `0px`/
+   * `50%` — i.e. exactly the old stage-relative behavior — whenever the stage
+   * isn't laid out yet (jsdom, or a not-yet-painted first frame).
+   *
+   * Called every `update()` tick, but `update()` itself is only reached on an
+   * active-run frame that isn't paused (`Game.frame()`, `src/ui/main.ts`) — a
+   * window resize while paused would otherwise leave this geometry stale until
+   * the run resumes, so `frame()`'s paused branch also calls this directly
+   * (this method is `public`, not `private`, for exactly that call site).
+   */
+  syncStageOverlayGeometry(): void {
+    const stage = this.stageEl;
+    if (!stage) return;
+    const availW = stage.clientWidth;
+    const availH = stage.clientHeight;
+    if (availW <= 0 || availH <= 0) {
+      stage.style.removeProperty('--cv-left');
+      stage.style.removeProperty('--cv-right');
+      stage.style.removeProperty('--cv-top');
+      stage.style.removeProperty('--cv-bottom');
+      stage.style.removeProperty('--cv-cx');
+      return;
+    }
+    const aspect = GRID_W / GRID_H;
+    const cssW = Math.round(Math.min(availW, availH * aspect));
+    const cssH = cssW / aspect;
+    // qa-playtester (fb082 verification): `Renderer.resize()`'s own `Math.round(cssW)`
+    // (mirrored above) can round cssW up enough that the derived cssH exceeds availH
+    // by a sub-device-pixel amount for specific availH values, which would otherwise
+    // surface here as a tiny negative offset — clamped to 0, since a rail/boss-bar
+    // sitting a fraction of a pixel outside the canvas's own box is never intended.
+    const left = Math.max(0, (availW - cssW) / 2);
+    const top = Math.max(0, (availH - cssH) / 2);
+    stage.style.setProperty('--cv-left', `${left}px`);
+    stage.style.setProperty('--cv-right', `${Math.max(0, availW - cssW - left)}px`);
+    stage.style.setProperty('--cv-top', `${top}px`);
+    stage.style.setProperty('--cv-bottom', `${Math.max(0, availH - cssH - top)}px`);
+    stage.style.setProperty('--cv-cx', `${left + cssW / 2}px`);
   }
 
   /**

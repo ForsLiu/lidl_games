@@ -88,8 +88,15 @@ html, body {
  */
 .sw-rail {
   position: absolute;
-  top: 8px;
-  bottom: 8px;
+  /*
+   * fb082: `--cv-top`/`--cv-bottom` (set by `Hud.syncStageOverlayGeometry`,
+   * hud.ts) are the canvas's own letterboxed offset from the stage's top/
+   * bottom edges — 0px whenever the stage fills exactly to the grid's 36:20
+   * aspect (or isn't laid out yet, e.g. jsdom), reproducing the old
+   * stage-edge-relative behavior unchanged in that case.
+   */
+  top: calc(var(--cv-top, 0px) + 8px);
+  bottom: calc(var(--cv-bottom, 0px) + 8px);
   z-index: 3;
   display: flex;
   flex-direction: column;
@@ -117,8 +124,9 @@ html, body {
   border-radius: 6px;
   padding: 10px 12px;
 }
-.sw-rail-left { left: 8px; }
-.sw-rail-right { right: 8px; }
+/* fb082: `--cv-left`/`--cv-right` — see `.sw-rail`'s comment above. */
+.sw-rail-left { left: calc(var(--cv-left, 0px) + 8px); }
+.sw-rail-right { right: calc(var(--cv-right, 0px) + 8px); }
 
 /*
  * Collapsed: only the handle tab remains, so the rest of the canvas underneath
@@ -1018,8 +1026,15 @@ input.sw-tuner-field-input[type="text"] { width: 220px; }
    boss HP scales). Shown only while a `boss`-trait enemy is alive. */
 .sw-bossbar {
   position: absolute;
-  left: 50%;
-  top: 10px;
+  /*
+   * fb082: `--cv-cx`/`--cv-top` (set by `Hud.syncStageOverlayGeometry`,
+   * hud.ts) are the canvas's own letterboxed horizontal center / top offset
+   * within the stage — falls back to the stage-centered `50%`/`0px` the
+   * banner used before whenever the stage isn't laid out (jsdom) or the
+   * canvas already fills it exactly (the 36:20 aspect case).
+   */
+  left: var(--cv-cx, 50%);
+  top: calc(var(--cv-top, 0px) + 10px);
   transform: translateX(-50%);
   width: 360px;
   max-width: 60%;

@@ -1400,7 +1400,7 @@ not already expose it) logs that need below instead of reaching into
       dozens of prior PROGRESS.md sessions, none touching `src/ui/**`/
       `src/render/**` or this item's own files.
 
-- [ ] (fb082) [bug] low priority: generated 2026-09-04 (fewer than 3
+- [x] (fb082) [bug] low priority: generated 2026-09-04 (fewer than 3
       actionable items remained) — the floating rail/boss-banner overlays
       (fb065, fb072) anchor to `.sw-stage`'s full box instead of the
       canvas's own letterboxed rect, so at any window aspect ratio other
@@ -1419,7 +1419,52 @@ not already expose it) logs that need below instead of reaching into
       overlay anchor geometry derives from the letterboxed canvas size, not
       the raw stage size; the existing fb065/fb072 regression tests and the
       1920x1080 `ui-audit` scenes stay green — refs: fb065, fb072,
-      SPEC-FINAL §11.
+      SPEC-FINAL §11. DONE 2026-09-04: `hud.ts` gains a public
+      `syncStageOverlayGeometry()`, called every `update()` tick, that reads
+      `.sw-stage`'s `clientWidth`/`clientHeight`, re-derives
+      `Renderer.resize()`'s (`canvas.ts`) own letterboxing math (`aspect =
+      GRID_W/GRID_H`, `cssW = Math.round(Math.min(availW, availH*aspect))`,
+      `cssH = cssW/aspect`) rather than reading the canvas element's own
+      `getBoundingClientRect()` (which reads all-zero under jsdom regardless
+      of `clientWidth`/`clientHeight` mocks, since jsdom never runs real
+      layout), and publishes the canvas's offset from each stage edge as
+      `--cv-left`/`--cv-right`/`--cv-top`/`--cv-bottom`/`--cv-cx` CSS custom
+      properties on `.sw-stage` itself, `removeProperty`'d back to nothing
+      whenever the stage isn't laid out (falling through to the CSS
+      `var(--cv-x, <default>)` fallback — `0px` for the edges, `50%` for the
+      boss bar's horizontal center — i.e. the exact pre-fix behavior).
+      `style.css`'s `.sw-rail`/`.sw-rail-left`/`.sw-rail-right`/`.sw-bossbar`
+      rules consume these via `calc()`/`var()`. code-reviewer APPROVE (no
+      Critical/Major; one Minor — `Hud.update()` (where the sync normally
+      runs) is never reached while a run is paused, so a window resize
+      mid-pause would leave the geometry stale until resume — fixed same
+      session by also calling `hud.syncStageOverlayGeometry()` directly from
+      `Game.frame()`'s (`main.ts`) paused branch; two Nits — `stageEl`'s type
+      tightened from a non-null assertion to `HTMLElement | null` to match
+      its actual runtime guard; the unconditional per-tick `setProperty` cost
+      noted as negligible and left as-is, matching this file's existing
+      every-tick-resync pattern). qa-playtester PASS against the stated
+      acceptance criteria, independently re-derived the letterboxing formula
+      against several extreme cases beyond the shipped tests (including
+      0-dimension mid-transition fallback and exact-36:20 zero-gap
+      cleanliness) and confirmed the collapsed-rail `bottom: auto` override
+      still fully clears the base rule's `calc()` via CSS cascade semantics;
+      found one informational, sub-visual-pixel issue — a specific
+      `clientHeight` (e.g. 801 against a 3000-wide stage) makes
+      `Renderer.resize()`'s own `Math.round(cssW)` rounding (mirrored here)
+      round up enough that derived `cssH` exceeds `availH` by a fraction of a
+      pixel, which would otherwise surface as a tiny negative `--cv-top`/
+      `--cv-bottom` — fixed by clamping every offset to `Math.max(0, …)`,
+      with a new regression case in the same test file sweeping a
+      `clientHeight` known to trigger it. Targeted
+      `tests/ui-fb082-overlay-geometry.test.ts` (5/5: height-bound and
+      width-bound letterbox-gap derivation, jsdom-no-layout fallback,
+      re-derivation after a live resize, the negative-offset clamp).
+      `npx tsc --noEmit` clean. `npm run test:fast`: 9 failed files / 9
+      failed tests across two runs this session, all in the pre-existing
+      q15/q45/q49/q52 worker-hang/Windows-scratch-dir-EPERM flake classes
+      documented across dozens of prior PROGRESS.md sessions, none touching
+      `src/ui/**`/`src/render/**` or this item's own files.
 
 - [ ] (fb083) [feat] low priority: generated 2026-09-04 — automated perf
       regression coverage for QUALITY.md BETA's "Load to Hub < 3s cold;
