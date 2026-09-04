@@ -151,7 +151,7 @@ session 2 (c005 was the last actionable one left), appending `c006`-`c010`.
       number** — it makes the drift visible so a later balance pass (p10r,
       main lane) can decide - refs: SPEC-FINAL §4.1/§4.2, CLAUDE.md rule 3.
 
-- [ ] (c009) [polish] the **tower-passive** slot is the one §4 slot with no
+- [x] (c009) [polish] **DONE 2026-09-04.** the **tower-passive** slot is the one §4 slot with no
       liveness test. c005 covers Active1/Active2 and c006 the passive; the 12
       `towerPassive` rows have nothing. Three are target-conditional
       (`towerExtraElectricPct`, `towerDamageVsBurning`, `towerDamageVsChilled`
@@ -1007,3 +1007,112 @@ session 2 (c005 was the last actionable one left), appending `c006`-`c010`.
   "`test:fast` green" gate cannot currently be met on this machine for reasons
   unrelated to any content item. Worth a main-lane item — retry-with-backoff
   or a handle-release on `RM_RETRY` in the shared test helper.
+
+- (2026-09-04, session 6) **c009 done** — the 12 `towerPassive` rows are the
+  last of §4's slots to get a liveness file.
+  `tests/class-tower-passive-liveness.test.ts` (39 tests, ~0.3 s, fast tier).
+  **No `/src` or `/data` byte moved.**
+
+  **The slot needed its own file because it reaches the sim through five
+  unrelated routes, not one.** Seven rows ride `towerPassive.mods` into `Stats`
+  (`stats.ts:194`); three are *target*-conditional and resolved once per volley
+  into a `TowerClassBonus` carried on the hit (`classTowerBonus` -> `dealHit`);
+  Necromancer's is *structure*-conditional and read straight off the class row,
+  never through `Stats` (`classTowerDamageMul`); Time Lord's is `kind`-driven
+  off a wave clear (`applyChronalSurge`); and Animist's is authored on the
+  **global `area` key** for want of a `towerArea`. Only the first route would
+  fail loudly on its own.
+
+  **c009's item text says three conditional rows; there are four.**
+  Necromancer's below-full-HP clause is a conditional too — a structure-side one
+  rather than a target-side one — and it was not in the item's list. Each of the
+  four is now measured with its condition met *and* unmet, and each carries the
+  Act-I-only `!huntsWarden` default its call site imposes.
+
+  **Reviewed twice; both passes found real defects, and the worst was the same
+  shape c008 hit — an assertion that could not fail.** The Stormcaller
+  conditional row asserted `w.enemies.length === 0` on a world where the test
+  had spawned no enemy: true by construction, never reaching `dealHit`'s actual
+  `dealt > 0 && !e.dead` guard. That was one of the three rows c009 names *by
+  key*, so the acceptance clause was genuinely unmet while the file was green.
+  It now fires the same volley twice — once at a target that survives, once at
+  one that dies to it — and watches the bolt itself through Electric's inherent
+  r0.8 blast reaching a bystander parked outside the spire's own range.
+
+  **Six further holes, each closed rather than filed** (all were "green while
+  the mechanic is broken"): the conditional trio was proven only on the
+  synchronous `single` path, so the projectile carriers (`combat.ts:475`/`:542`)
+  and the `cone` case — the one in-line shape that rebuilds `HitEffects` instead
+  of forwarding `fx` — could each be nulled with the file green; Deep Winter's
+  `frozen` half of `frostRemaining > 0 || frozenRemaining > 0` was untested, so
+  half the clause could die silently; Chronal Surge's `waveInterval` was unpinned
+  in *both* directions (inverting the modulo and deleting it were both green,
+  since clearing exactly two waves cannot tell "fired at wave 2" from "fired at
+  wave 1" or "fires every wave"); the Chronal Surge shape guard read the
+  **zod-parsed** row, which strips unknown keys, so the `bonusDamageMul` it
+  existed to catch was invisible to it — the same zod-strips-unknown-keys trap
+  c008 recorded, hit again in a different file; and 13 of the 15 signals ignored
+  the `classKey` argument the mutation table passed them, so a mis-paired row
+  could have measured a different class and still passed.
+
+  **The barrier is verified by mutation, never by argument.** 13 `/src`
+  mutations across every route redden it — including subtle ones: dropping only
+  the `!e.dead` half of a guard, swapping `towerDamageVsBurning` for
+  `towerDamageVsChilled`, reading `'poison'` where the code reads `'burning'`,
+  and moving Chronal Surge's interval by one. Retunes do not: `towerHp`
+  0.10 -> 0.12 with `towerDamage` 0.04 -> 0.09 and a `stanceArmor` change stays
+  green, and so does shrinking **every** non-cadence magnitude to `1e-4` — the
+  reason the punching bag is 1e7 hp and not 1e9, where float ULP would have
+  quantised a small bonus to nothing.
+
+  **One claim of mine was false and is corrected in the file.** An earlier draft
+  said the four conditionals' Act-I-only default is something "no other test
+  states". `p6d-nine-classes.test.ts` already states it for Stormcaller
+  (`:1138`) and Necromancer (`:599`), and states Pyro's Burning condition at
+  `:1100`. What is actually new is the other two classes, the `levelup` phase,
+  and the `classTowerBonus` nulling — the header now says that instead.
+
+- (2026-09-04, session 6) **Product finding, for the main lane — tower attack
+  speed is quantised to whole 60 Hz ticks, and small bonuses are inert.**
+  `tickCooldown` (`types.ts:17`) clamps to `0` rather than carrying the sub-tick
+  remainder, and `updateTowers` then does `s.cooldown += interval` from that
+  exact `0` — so the remainder is **discarded every shot instead of
+  accumulating**. A tower's rate of fire is therefore
+  `ceil(interval / (dt * speed))` ticks per shot, independently each shot.
+  Measured on the Arrow Spire (interval 0.7143 = 42.86 ticks): +0% and +2% both
+  fire every **43** ticks; +3% is the first step that moves it, to 42. So any
+  `towerAttackSpeed` bonus under ~2.4% changes nothing at all for that tower,
+  and the threshold differs per tower because it depends on the authored
+  interval.
+
+  Out of this lane's Scope (`towers.ts`, `types.ts`) and **not filed as a bug**
+  — it may well be intended, and it is only visible at magnitudes far below
+  anything shipped (Wind Slash is +10%). Recorded because it has two
+  consequences somebody will otherwise rediscover: a balance pass that tunes
+  `towerAttackSpeed` in small steps will find some of those steps do literally
+  nothing, and it is the one place where c009's "a retune must not turn this
+  file red" convention had to be given a **declared exception** — a retune below
+  the tick floor does not shrink Wind Slash, it kills it, and a liveness file
+  that stayed green through that would be lying. That row asserts the boundary
+  explicitly and fails with a message naming the retune.
+
+- (2026-09-04, session 6) **`q15-command-domain-fuzz` is no longer a load
+  flake.** This file's earlier entries record `q15` as red-under-load /
+  green-standalone. That is no longer true on this host: it now fails
+  **standalone**, with a *varying* count of 2-4 tests across runs, and all 66
+  recorded entries read `"hangs"` — the signature of the worker-subprocess probe
+  timing out wholesale, not 66 new command-domain holes. Verified pre-existing
+  and unrelated to c009 by re-running it with the new test file physically moved
+  out of `tests/`; QA reproduced the same baseline independently. Same family as
+  the `EPERM`-on-`rmSync` failures already logged above, and it belongs to the
+  same main-lane item: the shared nested-process test helper needs a
+  retry/handle-release, or these suites need to leave the fast tier.
+  `b036-help-fold` also still fails standalone — already logged above as a live
+  lane/ui regression, not a flake.
+
+- (2026-09-04, session 6) **For the merge / the terrain epic.** Like c005 and
+  c006 before it, `tests/class-tower-passive-liveness.test.ts` hardcodes a
+  Warden position and build tiles (`WX/WY = 10,10`, tower at `11,10`) against
+  `cfg()`'s fixed seed. When `BACKLOG-TERRAIN.md`'s generation epic lands, these
+  fail as `harness could not build ...` — a harness error, not a product
+  regression. The three files should be re-pointed at a probed tile together.
