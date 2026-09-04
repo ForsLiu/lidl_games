@@ -229,7 +229,70 @@ session 2 (c005 was the last actionable one left), appending `c006`-`c010`.
       itself where the fix is the sentence - refs: SPEC-FINAL §4.1/§4.2, c008,
       architecture rule 4.
 
-- [ ] (c016) [polish] the **p7a skill-card (`classLineBonus`) branches inside
+- [ ] (c018) [bug] **filed by QA on `c016` 2026-09-04, twice-reproduced, and
+      pinned by a tripwire in `tests/class-line-bonus.test.ts`.** Two §6.3 cards
+      raise a summon **cap that the Active's own cast cadence can never reach**,
+      so buying either changes nothing in a real run. A summon lives
+      `summonDurationSeconds` and one arrives every `cooldownSeconds`, so the
+      most a player spamming the key can ever hold is
+      `floor(duration / cooldown) + 1`:
+      - **Engineer *Extra Turret*** (`engineer_turret_cap`, Pop Turret): 12 s
+        cooldown / 10 s duration -> ceiling **1** live turret, or 2 with the
+        `active2_cdr` card maxed, against a base `summonCap` of 2. (No `/data`
+        file grants the `cdr` stat at all — `grep -rn "cdr" data/` returns only
+        the twelve `active2_cdr` keys — so `derived.cdr` is 0 in every run and
+        6 s is the floor.) `npm run sim -- --seed 1 --policy hybrid` shows a
+        real bot spending a level-up on `engineer_turret_cap`.
+      - **Animist *Kindred Spirits*** (`animist_spirit_cap`, Manifest): 16 s /
+        20 s -> ceiling **2**, against a base `summonCap` of **3** — one point
+        of the authored cap is already dead before the card is, and Active1's
+        cooldown reads only `1 - derived.cdr`, which `active2_cdr` does not
+        touch.
+      The regression test is already in place and red-on-fix: the `c018`
+      `describe` asserts the flat cadence ceiling across ranks 0/1/2 (driven by
+      the real `updateWarden` cooldown tick and `updateClassSummons` expiry, no
+      forced resets) and separately proves the branch is live once the cooldown
+      is shortened on a `/data` copy. Acceptance: the cadence ceiling reaches
+      `summonCap + maxRank * perRank` for both kits — the in-Scope levers are
+      `data/classes.json`'s `cooldownSeconds`/`summonDurationSeconds` (Animist
+      needs `cooldownSeconds` <= 6.6 s **or** `summonDurationSeconds` >= 33 s
+      merely to make the authored cap 3 reachable); the `c018` deviation
+      `describe` is deleted and its two rows fold into the ordinary ladder;
+      **G8/G11 re-measured as a control-run pair** (`tests/p6d-nine-classes.
+      test.ts`, `tests/p6e-class-diversity.test.ts` — the latter is main-lane
+      read-only, so a threshold move there is logged, not edited) since this
+      one *does* change live summon counts, unlike `c017` - refs: SPEC-FINAL
+      §4.2 (Engineer, Animist), §6.3, c016, CLAUDE.md rule 3.
+
+- [ ] (c017) [bug] **filed by `c016` 2026-09-04, and proven by its own tripwire.**
+      Archer *Deeper Draw* (`archer_pierce_cap`, §6.3's third card) is **inert on
+      shipped data**: `fireDeadeyeDraw` (`classes.ts:592`) computes
+      `Math.min((eff.pierceCap ?? 1) + classLineBonus(w), 1 + Math.floor(held))`
+      and `held` is itself clamped to `chargeCapSeconds`, so the right-hand term
+      is `1 + 5 = 6` at *any* hold length while `pierceCap` is 6 — the card's
+      +2/rank can never bind, and rank 0, 1 and 2 all pierce exactly six
+      enemies. Measured, not argued: `tests/class-line-bonus.test.ts`' last
+      `describe` pins the flat 6/6/6 reading and separately proves the branch
+      itself is live by lifting `chargeCapSeconds`, where 6 -> 8 -> 10 appears.
+      A player who takes this card twice buys nothing. **Proposed fix, in
+      Scope**: read the pierce count off the *unclamped* hold —
+      `1 + Math.floor(chargeSeconds)` — leaving `held` clamped for the damage
+      compounding it exists for. §4.2's Long Draw names "+1 pierce per full
+      second charged" with no cap of its own (and "Deadeye damage has no cap"
+      beside it), so `pierceCap` stays the only ceiling and the card's own
+      sentence ("pierce cap +2") becomes true rather than reworded. It also
+      moves **nothing at rank 0**: `min(6, 1 + floor(anything >= 5))` is still 6.
+      Acceptance: the failing regression comes first — the c017 case asserting
+      the rank ladder binds on shipped `/data` is red before the fix; after it,
+      `class-line-bonus`'s Archer row drops its `contentWith` rebuild and its
+      deviation `describe` is deleted; `tests/class-kit-liveness.test.ts` and
+      `tests/class-spec-numbers.test.ts` stay green unchanged; and a
+      12-seed control-run pair either side of the change shows G10's
+      dps-optimal-charge assertion (`tests/p6d-nine-classes.test.ts`) unmoved,
+      since no rank-0 run can reach a different pierce count - refs:
+      SPEC-FINAL §4.2 (Archer, *Long Draw*), §6.3, c016, CLAUDE.md rule 3.
+
+- [x] (c016) [polish] **DONE 2026-09-04.** the **p7a skill-card (`classLineBonus`) branches inside
       the class kits are untested** — named as excluded by `c006`'s own header
       ("So can the p7a skill-card branches (`classLineBonus`) inside Thousand
       Cuts, Frost Touch and Spreading Plague") and never filed. There are more
@@ -244,6 +307,14 @@ session 2 (c005 was the last actionable one left), appending `c006`-`c010`.
       control-run shape as c006 (rank 0 is the control, not another class), and
       that a rank a class does not own changes nothing for it - refs:
       SPEC-FINAL §6.3, §4.1/§4.2, c006.
+      **One premise was understated: there are twelve `classLineBonus` call
+      sites, not "at least six" — exactly one per class, across `classes.ts`,
+      `enemies.ts` and `towers.ts`. All twelve are measured, each is red under
+      its own deleted term, and the rank ladder is asserted twice (0 -> 1 and
+      1 -> 2) rather than once. Three rows are named deviations covering two
+      filed bugs: `c017` (Archer *Deeper Draw*) and `c018` (Engineer *Extra
+      Turret*, Animist *Kindred Spirits*) — cards that are live in code and
+      inert in a real run.**
 
 - [ ] (c012) [polish] `data/equipment.json` has **no §7 ledger** — `c008`'s
       shape for the other content file this lane owns. `tests/fb015-equipment.
@@ -287,8 +358,10 @@ session 2 (c005 was the last actionable one left), appending `c006`-`c010`.
       tile (chosen by `checkBuild` probing, as `tilePastBaseRange` already
       does, never hardcoded); all four files import it and none contains a
       literal tile coordinate; every one stays green unchanged today, and a
-      deliberately shifted probe origin moves all four together - refs:
-      BACKLOG-TERRAIN.md, c005, c006, c009.
+      deliberately shifted probe origin moves all four together. **Now five
+      files: `c016`'s `tests/class-line-bonus.test.ts` pins the same `10,10`
+      spot and the same `11,10` build tile, and joins this item's list** - refs:
+      BACKLOG-TERRAIN.md, c005, c006, c009, c016.
 ### Blocked out of Scope (owner items, unchanged order)
 
 - [ ] (fb056) [feat] top priority: add 15 class-specific equipment items to
@@ -1414,3 +1487,73 @@ session 2 (c005 was the last actionable one left), appending `c006`-`c010`.
     (hook timeout), and the `EPERM`-on-`rmSync` family `q45`/`q49`/`q52`.
     Exactly the logged baseline; no `class-*` suite fails. All 10 `class-*`
     suites plus `q7` green together: 445 passed / 3 skipped.
+
+
+- (2026-09-04, c016) **The twelve `class_line` skill-card branches are now
+  measured.** `tests/class-line-bonus.test.ts` (33 tests, 0.2 s): one row per
+  class, each building the identical world at rank 0, 1 and 2 and requiring its
+  observable to move strictly in the card's direction at *both* steps.
+  - **The item understated the scope.** It named six branches "at least";
+    `classLineBonus` is read at exactly twelve sites, one per class, in three
+    files: `classes.ts` (nine), `enemies.ts` (plaguebringer's transfer count,
+    cryomancer's freeze threshold) and `towers.ts` (bloodlord's tithe
+    multiplier). A census reads the `class_line` set straight out of
+    `data/vsupgrades.json` and requires it to equal the rows measured, so
+    `fb057`/`fb059`'s 13th and 14th classes cannot arrive without one. QA
+    confirmed it bites: a realistic 13th class turns exactly that assertion red.
+  - **Barrier verified by mutation, fourteen for fourteen.** Deleting each
+    `+ classLineBonus(w)` term on its own turns only its own row red; so does
+    `towers.ts`' near-miss `(titheDamageMul + bonus) * potency`, which the first
+    draft missed and a dedicated case now catches. QA independently ran 24 more
+    (`Math.floor` the bonus, clamp to one rank, pay only from rank 2, read the
+    max rank in the record) — all red. `src/` restored clean after every one.
+  - **The class-scoping half catches a `skillCardRanks` *leak*, not the
+    `[w.cfg.classKey]` index.** The header said the latter; QA proved otherwise
+    — dropping the index makes every class resolve the swordsman's card, which
+    the ladders catch on their own (23 failures). A leak that spares the ladder
+    fails exactly these 12. Header corrected rather than the case dropped.
+  - **Two review rounds, both material, both fixed before commit.**
+    `code-reviewer` returned REQUEST-CHANGES and QA returned PASS-with-bugs on
+    the *same* Major: every scenario size was a literal sized against today's
+    `/data`, so the file's own "a retune must not turn this red" promise was
+    false. QA measured it — **8 of 17 plausible retunes were red**, each with a
+    message blaming the card (`summonCap` 2->6 read "4 -> 4" as a dead branch).
+    All budgets are now `field + maxRank * perRank + slack` read off `/data`,
+    and a row that still runs out says **"harness budget"**. Re-measured: seven
+    of those retunes are green, and the eighth (`freezeHits` 5->2, which
+    `Math.max(1, ...)` genuinely flattens) now fails naming the retune.
+  - **QA also found the stormcaller row's stated mechanism was wrong.** It
+    spaced its line at exactly 0.8 tiles — `electric`'s own inherent splash
+    radius (`data/damagetypes.json`), so "enemies struck" was jumps *plus*
+    boundary-dependent splash and read 6/8/10 by coincidence. Spacing is now
+    1.2 (`enemiesInRadius` compares centre distance, so 0.8 is the real
+    threshold) and the row asserts struck == `chainCount + bonus`, pinning the
+    separation instead of assuming it.
+  - **Found two real game bugs, both filed with their regression test already
+    in place**, both of the same shape — a card that is live in code and inert
+    in a run:
+    - `c017` (mine): Archer *Deeper Draw*. `min(pierceCap + bonus, 1 +
+      floor(held))` with `held` clamped to `chargeCapSeconds 5` against
+      `pierceCap 6` — the right term is 6 at any hold, so +2/rank never binds.
+      QA independently confirmed no equipment, tree node, boon or modifier
+      touches either field, and `cls.active1` is never mutated at runtime.
+    - `c018` (QA's): Engineer *Extra Turret* and Animist *Kindred Spirits* raise
+      a summon cap the cast cadence cannot reach (`floor(duration / cooldown)
+      + 1` is 1 and 2 against caps of 2 and 3). The `c016` rows measure the
+      *cap* with cooldowns bypassed, which is right for a cap and wrong for a
+      run; the deviation `describe` measures the run through the real
+      `updateWarden` tick and `updateClassSummons` expiry.
+    Each deviation is a tripwire plus a companion: the flat shipped reading is
+    pinned (red the day the fix lands), and the branch is separately proved live
+    against a `/data` copy with the binding constraint lifted. The Archer's
+    override is **self-expiring** — gated on the predicate that makes the bug
+    true — so it cannot silently substitute edited `/data` forever.
+  - **Stated limitation, deliberately not smuggled in.** `perRank` itself is
+    unpinned: a `classLineBonus` returning the raw rank keeps 11 of 12 rows
+    green (QA). That is magnitude — `c011`'s job for the passives — and it has
+    no sibling here. **Candidate item for the next generation round**, together
+    with `active2_cdr`, whose only behavioural coverage anywhere is a HUD
+    readout in `tests/fb026-bottom-bar.test.ts`.
+  - **For the main lane / `c014`**: this file adds a fifth `WX/WY = 10,10` +
+    `WX+1,WY` build-tile harness to the four `c014` already names, and c014's
+    item text has been updated to say five.

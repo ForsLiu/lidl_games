@@ -1,0 +1,762 @@
+/**
+ * c016 (BACKLOG-CONTENT, lane `content`) — **no `class_line` skill-card branch
+ * is a silent no-op.** The third §6.3 card of every class, on trial.
+ *
+ * `c005` put the 24 Actives on trial, `c006` the 12 Passives, `c009` the 12
+ * tower-passive rows and `c011` nine passive magnitudes. What none of them
+ * watches is the *skill-card* half of the same kits: `c006`'s own header names
+ * the gap ("So can the p7a skill-card branches (`classLineBonus`) inside
+ * Thousand Cuts, Frost Touch and Spreading Plague") and it was never filed
+ * until c016. It is also bigger than those three — `classLineBonus` is read at
+ * **twelve** call sites, exactly one per class, spread over three files:
+ *
+ *   | class         | card              | call site                           |
+ *   | swordsman     | Deeper Cuts       | `classes.ts` `passiveOnHit`         |
+ *   | plaguebringer | Wider Contagion   | `enemies.ts` `drainPlagueTransfers` |
+ *   | engineer      | Extra Turret      | `classes.ts` `fireSummonTurret`     |
+ *   | pyromancer    | Lingering Flame   | `classes.ts` `useClassActive`       |
+ *   | archer        | Deeper Draw       | `classes.ts` `fireDeadeyeDraw`      |
+ *   | necromancer   | Deeper Grave      | `classes.ts` `fireRaiseSkeletons`   |
+ *   | cryomancer    | Brittle Frost     | `enemies.ts` `applyOnHit`           |
+ *   | stormcaller   | Longer Arc        | `classes.ts` `fireChainSurge`       |
+ *   | bloodlord     | Deeper Tithe      | `towers.ts` `classTowerDamageMul`   |
+ *   | animist       | Kindred Spirits   | `classes.ts` `fireManifestSpirit`   |
+ *   | paladin       | Righteous Fury    | `classes.ts` `fireJudgement`        |
+ *   | time_lord     | Lingering Stasis  | `classes.ts` `fireTimeLock`         |
+ *
+ * Every one of those is a bare `+ classLineBonus(w)` inside an expression that
+ * is already correct without it, so deleting the term leaves the whole suite
+ * green — the card keeps appearing in the level-up offer and keeps doing
+ * nothing.
+ *
+ * **The control is the same card at rank 0**, not another class (c016's
+ * acceptance, and a deliberate departure from `c006`, whose control is a
+ * control *class*). A rank-gated branch is a claim about one run's own
+ * progression: "this class, this world, this scenario, one more rank" is the
+ * only comparison that isolates it. Every row therefore builds the identical
+ * world three times — rank 0, 1 and 2 (`maxRank` is 2 for all twelve) — and
+ * requires the observable to move **strictly** in the card's own direction at
+ * each step. Strictly at both steps, not just once: clamping the bonus to a
+ * single rank, or paying it only from rank 2, is a real regression that a
+ * rank-0-vs-rank-2 check alone would absorb.
+ *
+ * **No row asserts an authored magnitude** (c005's convention, kept): what is
+ * asserted is that the number moved, which way, and — where a row can — that
+ * the rank-0 reading equals the `/data` field the mechanism claims to read.
+ * Both sides of that last comparison come out of `/data`, so a retune moves
+ * them together.
+ *
+ * **Every scenario size is derived, never a literal** (code review + QA on the
+ * first draft, which hard-coded them). A row that measures a cap by casting
+ * until the cap binds has to cast *more* times than the cap can ever reach, or
+ * a `/data` retune turns the row red with a message blaming the card. Eight of
+ * seventeen plausible retunes did exactly that before this pass: `summonCap`
+ * 2->6 read `4 -> 4 -> 4` and reported it as a dead branch. Budgets are now
+ * `field + maxRank * perRank + slack`, read off `/data` and the card, and any
+ * row that still runs out of room says **"harness budget"** in its message
+ * rather than accusing the branch.
+ *
+ * **What a retune may still do.** `freezeHits` <= `maxRank * perRank` makes
+ * Brittle Frost's ladder physically flat (`Math.max(1, ...)`, `enemies.ts`),
+ * and that row asserts the precondition separately so the failure names the
+ * retune. `perRank` itself is **not** pinned: a `classLineBonus` that returned
+ * the raw rank and ignored `perRank` entirely keeps eleven of twelve rows
+ * green (QA). That is magnitude, which is `c011`'s job for the passives and has
+ * no sibling here yet — logged in BACKLOG-CONTENT rather than smuggled in.
+ *
+ * **The class-scoping half.** Each row re-measures with every one of the other
+ * eleven `class_line` keys at max rank and requires its rank-0 reading back
+ * exactly. The bug this catches is a **`skillCardRanks` key leak** — a
+ * `classLineBonus` that read, say, the largest rank in the record rather than
+ * its own card's. (It is *not* the only guard on `skillCard`'s
+ * `[w.cfg.classKey]` index: dropping that index makes every class resolve the
+ * swordsman's card, which the ladders below catch on their own for 11 of 12
+ * rows. QA confirmed both: an index drop fails 23 tests, a leak that spares
+ * the ladder fails exactly these 12.)
+ *
+ * **Two named deviations, and both are filed bugs this file pins rather than
+ * hides.** A card can be live in code and still inert in a real run:
+ *
+ *   1. **`c017` — Archer *Deeper Draw*.** `fireDeadeyeDraw` computes
+ *      `Math.min(pierceCap + classLineBonus(w), 1 + floor(held))` with `held`
+ *      clamped to `chargeCapSeconds`. Shipped data authors `pierceCap 6` and
+ *      `chargeCapSeconds 5`, so the right-hand term is 6 at *any* hold and the
+ *      +2/rank can never bind. QA confirmed no equipment, tree node, boon or
+ *      modifier touches either field.
+ *   2. **`c018` — Engineer *Extra Turret* and Animist *Kindred Spirits*.** Both
+ *      raise a summon **cap** that the Active's own cast cadence cannot reach:
+ *      Pop Turret is 12 s cooldown / 10 s duration (ceiling 1 live turret, 2
+ *      with the CDR card maxed, against a base cap of 2), Manifest 16 s / 20 s
+ *      (ceiling 2, against a base cap of *3* — one point of the authored cap is
+ *      dead before the card is). Found by QA, whose repro is the deviation
+ *      `describe` at the bottom of this file.
+ *
+ * Each deviation gets the same two-part shape: a **tripwire** asserting the
+ * flat reading on shipped `/data` (red the day the fix lands, which is when
+ * that block should be deleted), and a **companion** proving the branch itself
+ * is live once the binding constraint is lifted on a `/data` copy. The ladders
+ * for those three rows measure against the lifted copy; every other row
+ * measures shipped `/data` untouched.
+ *
+ * **What this file is not.** Liveness, not balance: whether +2 pierce or +30%
+ * Wrath is the *right* number is p10r's. It also says nothing about the other
+ * two §6.3 cards — `active1_potency` is touched by `tests/act2.test.ts:185`
+ * and `tests/p6b-swordsman.test.ts:274-281` (swordsman only), and
+ * `active2_cdr`'s only behavioural coverage is a HUD readout in
+ * `tests/fb026-bottom-bar.test.ts`; both gaps are logged, neither is c016's.
+ */
+import { describe, expect, it } from 'vitest';
+
+import {
+  classBasicAttack,
+  tickClassCharge,
+  updateClassPassives,
+  updateClassSummons,
+  useClassActive,
+  useClassActive2,
+} from '../src/sim/classes';
+import { loadContent, type ClassDef, type Content } from '../src/sim/content';
+import { applyDot, applyFrost, damageEnemy, dotRemaining, dotStacks, spawnEnemy } from '../src/sim/enemies';
+import { updateWarden } from '../src/sim/run';
+import { buildTower, updateTowers } from '../src/sim/towers';
+import { GRID_W } from '../src/sim/grid';
+import { emptyInput, type Enemy, type Structure, type TickInput } from '../src/sim/types';
+import { World } from '../src/sim/world';
+import { cfg } from './helpers';
+
+const content = loadContent();
+
+/** Warden's parking spot for every case — well inside the board, room in every direction. */
+const WX = 10;
+const WY = 10;
+
+const DT = 1 / 60;
+
+const SPIRE = 'arrow_spire';
+
+/** Ranks, keyed by skill-card key — the shape `World.skillCardRanks` already has. */
+type Ranks = Record<string, number>;
+
+/**
+ * A world with the character's basic attack suppressed by default. The rows
+ * whose observable *is* the basic attack (Deeper Cuts, Brittle Frost) re-arm it
+ * explicitly through `attack()`, the same convention `class-passive-liveness`
+ * (c006) uses.
+ */
+function lineWorld(classKey: string, ranks: Ranks, c: Content = content): World {
+  const w = new World(cfg({ classKey }), c);
+  w.gold = 1e6;
+  w.warden.attackCooldown = 1e9;
+  w.warden.x = WX;
+  w.warden.y = WY;
+  w.skillCardRanks = { ...ranks };
+  return w;
+}
+
+function cls(w: World): ClassDef {
+  return w.content.classByKey.get(w.cfg.classKey)!;
+}
+
+/** The one `class_line` card `/data` authors for this class. */
+function lineCard(classKey: string) {
+  const own = (content.boons.skillCards[classKey] ?? []).filter((c) => c.effect === 'class_line');
+  expect(own.length, `${classKey} should author exactly one class_line card`).toBe(1);
+  return own[0];
+}
+
+/** The largest bonus that card can ever contribute — every budget below is sized against it. */
+function maxBonus(classKey: string): number {
+  const c = lineCard(classKey);
+  return c.maxRank * c.perRank;
+}
+
+/**
+ * How many casts/enemies/corpses a row needs so the card's own cap is always
+ * the binding constraint. `slack` is headroom on top of the highest reading any
+ * rank can produce; a row that still runs out says so through
+ * `withinBudget` rather than reporting a dead branch.
+ */
+function budgetFor(classKey: string, base: number, slack = 2): number {
+  return Math.ceil(base + maxBonus(classKey)) + slack;
+}
+
+/** Distinguishes "the card did nothing" from "the harness ran out of room". */
+function withinBudget(reading: number, budget: number, what: string): number {
+  expect(
+    reading,
+    `harness budget for ${what} was too small (read ${reading} of ${budget}) — a harness shortfall, not a dead branch`,
+  ).toBeLessThan(budget);
+  return reading;
+}
+
+/**
+ * An immovable, unarmoured punching bag. `1e5` rather than something larger:
+ * every counting row below reads "did this enemy's hp change at all", and a
+ * pool deep enough to look obviously safe is also deep enough to quantise the
+ * smallest pierce-falloff tail hit into a float no-op (c009's ULP lesson).
+ * Nothing here deals more than ~1e3, so nothing dies by accident either.
+ */
+function dummy(w: World, x: number, y: number, hp = 1e5): Enemy {
+  const e = spawnEnemy(w, w.content.enemies.enemies[0].key, x, y)!;
+  e.hp = hp;
+  e.maxHp = Math.max(hp, e.maxHp);
+  e.speed = 0;
+  e.armor = 0;
+  w.rebuildBuckets();
+  return e;
+}
+
+/** Fires exactly one character basic attack, whatever the cadence would have been. */
+function attack(w: World): void {
+  w.warden.attackCooldown = 0;
+  classBasicAttack(w, cls(w));
+}
+
+/**
+ * Casts Active1 `times` times, **ignoring the cooldown** between casts.
+ *
+ * For the cap rows (Raise, Manifest) this is deliberate and is what separates
+ * a *cap* from a *cadence*: this file measures the cap the card raises, and the
+ * cadence that can or cannot reach it is `c018`, measured separately at the
+ * bottom of this file through the real `updateWarden` cooldown tick.
+ */
+function cast1(w: World, times: number, aimX?: number, aimY?: number): void {
+  for (let i = 0; i < times; i++) {
+    w.warden.active1Cooldown = 0;
+    w.warden.active1Ammo = Math.max(w.warden.active1Ammo, 1);
+    useClassActive(w, aimX, aimY);
+  }
+}
+
+/** Casts Active2 `times` times, ignoring the cooldown (and the ammo gate) between casts. */
+function cast2(w: World, times: number, aimX?: number, aimY?: number): void {
+  for (let i = 0; i < times; i++) {
+    w.warden.active2Cooldown = 0;
+    w.warden.active2Ammo = Math.max(w.warden.active2Ammo, 1);
+    useClassActive2(w, aimX, aimY);
+  }
+}
+
+function idle(over: Partial<TickInput> = {}): TickInput {
+  return { ...emptyInput(), ...over };
+}
+
+/** Holds a `charge_pierce` Active1 for `seconds` at the real 60 Hz and releases it (c006's `chargeFor`). */
+function chargeFor(w: World, seconds: number, aimX: number, aimY: number): void {
+  const c = cls(w);
+  const aim = { aimX, aimY };
+  for (let t = 0; t < Math.round(seconds * 60); t++) {
+    tickClassCharge(w, c, idle({ ...aim, active1Held: true }), DT);
+  }
+  tickClassCharge(w, c, idle({ ...aim, active1Held: false }), DT);
+}
+
+function summonCount(w: World, kind: string): number {
+  let n = 0;
+  for (const s of w.classSummons) if (s.kind === kind) n++;
+  return n;
+}
+
+/** How many of `list` lost hp — the count-shaped observable three rows below share. */
+function struckCount(list: readonly { e: Enemy; hp: number }[]): number {
+  let n = 0;
+  for (const r of list) if (r.e.hp < r.hp) n++;
+  return n;
+}
+
+/**
+ * A line of dummies along +x at `spacing` tiles, each remembered with its
+ * starting hp. Spacing matters: `electric` carries an inherent `radius` 0.8
+ * (`data/damagetypes.json`) that splashes neighbours, so a line packed tighter
+ * than that plus an enemy radius counts splash victims as chain jumps — which
+ * the first draft of the stormcaller row did, at exactly 0.8 (QA).
+ */
+function lineOfDummies(w: World, count: number, spacing: number): { e: Enemy; hp: number }[] {
+  const line: { e: Enemy; hp: number }[] = [];
+  for (let i = 1; i <= count; i++) {
+    const x = WX + i * spacing;
+    expect(x, 'harness budget: the dummy line ran off the board').toBeLessThan(GRID_W - 1);
+    const e = dummy(w, x, WY);
+    line.push({ e, hp: e.hp });
+  }
+  return line;
+}
+
+function place(w: World, key: string, tx: number, ty: number): Structure {
+  const def = w.content.towerByKey.get(key)!;
+  const r = buildTower(w, def.id, tx, ty);
+  expect(r.ok, `harness could not build ${key} at ${tx},${ty}`).toBe(true);
+  return (r as { ok: true; structure: Structure }).structure;
+}
+
+type RawClassRow = { key: string; active1: Record<string, number>; active2: Record<string, number> };
+
+/** A `Content` rebuilt from `data/classes.json` with one class row edited (c011's helper). */
+function contentWith(classKey: string, mutate: (row: RawClassRow) => void): Content {
+  const doc = JSON.parse(JSON.stringify(content.raw.classes)) as { classes: RawClassRow[] };
+  const row = doc.classes.find((c) => c.key === classKey);
+  expect(row, `${classKey} missing from data/classes.json`).toBeDefined();
+  mutate(row!);
+  return loadContent({ classes: doc });
+}
+
+/* ------------------------------------------------------------ the twelve rows */
+
+/**
+ * One class's card: the key it is authored under, which way its observable
+ * moves per rank, and how to read that observable out of a real world.
+ *
+ * `Content` is a parameter of `measure` rather than a closure capture so the
+ * three deviation rows can re-run the identical measurement against an edited
+ * `/data` — cheaper than a second measurement function that could drift.
+ */
+type Row = {
+  classKey: string;
+  card: string;
+  observable: string;
+  dir: 'up' | 'down';
+  measure: (ranks: Ranks, c?: Content) => number;
+};
+
+const ROWS: Row[] = [
+  {
+    classKey: 'swordsman',
+    card: 'swordsman_bleed_stacks',
+    observable: 'Bleeding stacks one basic attack applies',
+    dir: 'up',
+    // `passiveOnHit` repeats `'bleeding'` in the `onHit` list and `applyEffects`
+    // calls `applyOnHit` once per element, so the stack count *is* the branch.
+    // Bleeding's own `maxStacks` is 50, far above anything a rank can reach.
+    measure: (ranks, c) => {
+      const w = lineWorld('swordsman', ranks, c);
+      const e = dummy(w, WX + 1, WY);
+      attack(w);
+      return dotStacks(e, 'bleeding');
+    },
+  },
+  {
+    classKey: 'plaguebringer',
+    card: 'plaguebringer_plague_spread',
+    observable: 'bystanders a DoT-carrying death transfers to',
+    dir: 'up',
+    measure: (ranks, c) => {
+      const w = lineWorld('plaguebringer', ranks, c);
+      const carrier = dummy(w, WX + 1, WY, 100);
+      // §4.1 names one target, so the reading is `1 + bonus`; the crowd is
+      // sized past what rank 2 can reach so running out reads as a shortfall.
+      const budget = budgetFor('plaguebringer', 1);
+      const bystanders: { e: Enemy; hp: number }[] = [];
+      for (let i = 1; i <= budget; i++) {
+        const e = dummy(w, WX + 1 + i * 0.6, WY + 1);
+        bystanders.push({ e, hp: e.hp });
+      }
+      applyDot(w, carrier, 'poison', 20, 5, 'test');
+      damageEnemy(w, carrier, 1e6, 'test');
+      expect(carrier.dead, 'the carrier survived, so nothing spread').toBe(true);
+      // The transfer is a bare `damageEnemy` (`pure`/`dot`), no AoE, so the
+      // 0.6 packing cannot inflate the count the way electric splash could.
+      return withinBudget(struckCount(bystanders), budget, 'Spreading Plague bystanders');
+    },
+  },
+  {
+    classKey: 'engineer',
+    card: 'engineer_turret_cap',
+    observable: 'live Pop Turrets the cap allows',
+    dir: 'up',
+    measure: (ranks, c) => {
+      const w = lineWorld('engineer', ranks, c);
+      const budget = budgetFor('engineer', cls(w).active2.summonCap ?? 0);
+      cast2(w, budget);
+      return withinBudget(summonCount(w, 'engineer_turret'), budget, 'Pop Turret casts');
+    },
+  },
+  {
+    classKey: 'pyromancer',
+    card: 'pyromancer_burn_duration',
+    observable: "seconds left on Immolation Wave's Burning",
+    dir: 'up',
+    measure: (ranks, c) => {
+      const w = lineWorld('pyromancer', ranks, c);
+      const e = dummy(w, WX + 1, WY);
+      cast1(w, 1);
+      return dotRemaining(e, 'burning');
+    },
+  },
+  {
+    classKey: 'archer',
+    card: 'archer_pierce_cap',
+    observable: 'enemies one full-charge Deadeye Draw pierces',
+    dir: 'up',
+    measure: (ranks, c) => {
+      const w = lineWorld('archer', ranks, c);
+      const eff = cls(w).active1;
+      const budget = budgetFor('archer', eff.pierceCap ?? 1);
+      // 0.7 spacing keeps the whole budget inside the shot's own `radius`
+      // reach; Deadeye deals `normal`, which carries no inherent splash.
+      const line = lineOfDummies(w, budget, 0.7);
+      // Held past `chargeCapSeconds`, whatever `/data` (or a deviation
+      // rebuild) authors it as, so the hold never separates two readings.
+      chargeFor(w, (eff.chargeCapSeconds ?? 0) + 1, WX + 8, WY);
+      return withinBudget(struckCount(line), budget, 'Deadeye Draw pierce line');
+    },
+  },
+  {
+    classKey: 'necromancer',
+    card: 'necromancer_skeleton_cap',
+    observable: 'skeletons one Raise puts up',
+    dir: 'up',
+    measure: (ranks, c) => {
+      const w = lineWorld('necromancer', ranks, c);
+      const budget = budgetFor('necromancer', cls(w).active1.summonCap ?? 0);
+      for (let i = 0; i < budget; i++) {
+        // A 5-wide grid at 0.5 tiles stays well inside Raise's 8-tile
+        // `summonRadius` for any budget this row can reach, and each corpse is
+        // left by a *real* kill so Grave Harvest is what produces it.
+        damageEnemy(w, dummy(w, WX + 1 + (i % 5) * 0.5, WY + 1 + Math.floor(i / 5) * 0.5, 100), 1e6, 'test');
+      }
+      expect(w.corpses.length, 'harness budget: too few corpses to reach any cap').toBeGreaterThanOrEqual(budget);
+      cast1(w, 1);
+      return withinBudget(summonCount(w, 'necro_skeleton'), budget, 'Raise corpses');
+    },
+  },
+  {
+    classKey: 'cryomancer',
+    card: 'cryomancer_freeze_hits',
+    observable: 'basic attacks a frosted enemy survives before freezing',
+    dir: 'down',
+    measure: (ranks, c) => {
+      const w = lineWorld('cryomancer', ranks, c);
+      const need = cls(w).passive.freezeHits ?? 5;
+      // `applyOnHit` floors the threshold at 1 (`enemies.ts`), so a retune of
+      // `freezeHits` down to the card's own reach makes the ladder physically
+      // flat. That is a retune, not a dead branch, and it says so here.
+      expect(
+        need - maxBonus('cryomancer'),
+        'harness budget: freezeHits retuned to at or below the card\'s reach, so Math.max(1, ...) flattens the ladder',
+      ).toBeGreaterThanOrEqual(1);
+      const e = dummy(w, WX + 1, WY, 1e6);
+      applyFrost(w, e);
+      const budget = Math.ceil(need) + 5;
+      let hits = 0;
+      while (e.frozenRemaining <= 0 && hits < budget) {
+        attack(w);
+        hits++;
+      }
+      expect(e.frozenRemaining, `harness budget: ${budget} frosted hits never froze the enemy`).toBeGreaterThan(0);
+      return hits;
+    },
+  },
+  {
+    classKey: 'stormcaller',
+    card: 'stormcaller_jump_cap',
+    observable: 'enemies one Chain Surge reaches',
+    dir: 'up',
+    measure: (ranks, c) => {
+      const w = lineWorld('stormcaller', ranks, c);
+      const jumps = cls(w).active1.chainCount ?? 1;
+      const budget = budgetFor('stormcaller', jumps);
+      // 1.2 tiles: past `electric`'s inherent 0.8 splash (`enemiesInRadius`
+      // compares centre distance, so 0.8 is the true threshold) so a jump
+      // strikes exactly one enemy, and far inside the 5-tile chain radius so
+      // the jump *count* is what ends the chain. The assertion below is what
+      // proves that separation still holds rather than assuming it.
+      const line = lineOfDummies(w, budget, 1.2);
+      cast1(w, 1, WX + 1.2, WY);
+      const struck = withinBudget(struckCount(line), budget, 'Chain Surge enemy line');
+      const bonus = Math.round((ranks[lineCard('stormcaller').key] ?? 0) * lineCard('stormcaller').perRank);
+      // Mechanism pin, both sides out of `/data`: one jump, one enemy. A
+      // spacing that let splash back in would read high here first.
+      expect(struck, 'Chain Surge struck more enemies than it had jumps — splash is leaking in').toBe(
+        Math.round(jumps) + bonus,
+      );
+      return struck;
+    },
+  },
+  {
+    classKey: 'bloodlord',
+    card: 'bloodlord_tithe_bonus',
+    observable: 'damage one volley from a tithed Arrow Spire deals',
+    dir: 'up',
+    measure: (ranks, c) => {
+      const w = lineWorld('bloodlord', ranks, c);
+      const s = place(w, SPIRE, WX + 1, WY);
+      const e = dummy(w, WX + 2, WY);
+      cast1(w, 1, s.tx + 0.5, s.ty + 0.5);
+      expect(s.tithed, 'Blood Tithe never landed on the spire').toBe(true);
+      const before = e.hp;
+      s.cooldown = 0;
+      updateTowers(w, DT);
+      return before - e.hp;
+    },
+  },
+  {
+    classKey: 'animist',
+    card: 'animist_spirit_cap',
+    observable: 'live Manifested spirits the cap allows',
+    dir: 'up',
+    measure: (ranks, c) => {
+      const w = lineWorld('animist', ranks, c);
+      // Manifest needs an attacking structure inside its 6-tile `summonRadius`.
+      place(w, SPIRE, WX + 1, WY);
+      const budget = budgetFor('animist', cls(w).active1.summonCap ?? 0);
+      cast1(w, budget);
+      return withinBudget(summonCount(w, 'animist_spirit'), budget, 'Manifest casts');
+    },
+  },
+  {
+    classKey: 'paladin',
+    card: 'paladin_wrath_bonus',
+    observable: 'damage Judgement releases from banked Wrath',
+    dir: 'up',
+    measure: (ranks, c) => {
+      const w = lineWorld('paladin', ranks, c);
+      const e = dummy(w, WX + 1, WY);
+      // Banked directly: `wrathStored` is uncapped and accrues from blocked
+      // damage in a real run, and Guardian Stance's own accrual rate is
+      // c006/c011's observable — driving it here would add a second variable.
+      w.warden.wrathStored = 100;
+      const before = e.hp;
+      cast2(w, 1);
+      return before - e.hp;
+    },
+  },
+  {
+    classKey: 'time_lord',
+    card: 'time_lord_lock_duration',
+    observable: 'ticks the Time Lock zone stands for',
+    dir: 'up',
+    measure: (ranks, c) => {
+      const w = lineWorld('time_lord', ranks, c);
+      cast2(w, 1, WX + 1, WY);
+      expect(w.timeLockZone, 'Time Lock never placed a zone').toBeTruthy();
+      const budget = Math.round(60 * ((cls(w).active2.groundDurationSeconds ?? 5) + maxBonus('time_lord') + 5));
+      for (let t = 1; t <= budget; t++) {
+        updateClassPassives(w, DT);
+        if (!w.timeLockZone) return t;
+      }
+      throw new Error(`harness budget: the Time Lock zone outlived ${budget} ticks and never expired`);
+    },
+  },
+];
+
+/* ------------------------------------------------------------------ the census */
+
+/**
+ * Every `class_line` card in `/data` must have a row above. This is the half
+ * that survives new content: `fb057`/`fb059` add a 13th and 14th class, each
+ * with its own bespoke third card and its own bare `+ classLineBonus(w)`
+ * somewhere, and this assertion is what makes them arrive with a measurement
+ * instead of without one. (A class added to `data/classes.json` with *no*
+ * `vsupgrades.json` block would slip past this census, because `authored` is
+ * read off the cards; `tests/content-complete.test.ts:68-79` iterates the
+ * classes instead and is what closes that side — do not "simplify" it away.)
+ */
+describe('c016 — every class_line skill card is on trial', () => {
+  const authored = Object.entries(content.boons.skillCards).flatMap(([classKey, cards]) =>
+    cards.filter((c) => c.effect === 'class_line').map((c) => ({ classKey, card: c })),
+  );
+
+  it('the twelve authored class_line cards are exactly the rows measured below', () => {
+    expect(authored.map((a) => `${a.classKey}:${a.card.key}`).sort()).toEqual(
+      ROWS.map((r) => `${r.classKey}:${r.card}`).sort(),
+    );
+  });
+
+  it('each class authors exactly one class_line card, and every row names its real key', () => {
+    for (const r of ROWS) {
+      const own = lineCard(r.classKey);
+      expect(own.key).toBe(r.card);
+      // Every row below reads rank 0/1/2 off it; a card capped lower would make
+      // the rank-2 step vacuous rather than red.
+      expect(own.maxRank, `${r.card} maxRank`).toBeGreaterThanOrEqual(2);
+      expect(own.perRank, `${r.card} perRank`).toBeGreaterThan(0);
+    }
+  });
+});
+
+/* -------------------------------------------------------- rank 0 -> 1 -> 2 */
+
+/** Every other class's card at max rank — the noise a correctly key-scoped lookup ignores. */
+function foreignRanks(classKey: string): Ranks {
+  const ranks: Ranks = {};
+  for (const r of ROWS) if (r.classKey !== classKey) ranks[r.card] = 2;
+  return ranks;
+}
+
+function moved(dir: 'up' | 'down', lo: number, hi: number): boolean {
+  return dir === 'up' ? hi > lo : hi < lo;
+}
+
+/**
+ * `/data` for one row's ladder. Only the Archer needs an override: `c017`'s
+ * binding term is the charge clamp, so its ladder cannot be measured on
+ * shipped numbers at all. (`c018`'s two rows need none — those ladders measure
+ * a *cap*, and `cast1`/`cast2` bypass the cadence that `c018` is about. That
+ * bug is measured on its own terms at the bottom of this file.)
+ *
+ * **Self-expiring**: the override is gated on the predicate that makes the bug
+ * true today, so the day `c017` lands it stops applying on its own rather than
+ * silently substituting edited `/data` forever.
+ */
+const rebuilt = new Map<string, Content>();
+
+function contentFor(classKey: string): Content {
+  const hit = rebuilt.get(classKey);
+  if (hit) return hit;
+
+  const a = content.classByKey.get(classKey)!;
+  const clampBinds = 1 + (a.active1.chargeCapSeconds ?? 0) <= (a.active1.pierceCap ?? 0);
+  const c =
+    classKey === 'archer' && clampBinds
+      ? contentWith(
+          'archer',
+          (r) => void (r.active1.chargeCapSeconds = (a.active1.pierceCap ?? 0) + maxBonus('archer')),
+        )
+      : content;
+  rebuilt.set(classKey, c);
+  return c;
+}
+
+/**
+ * Can a player spamming this Active ever hold `cap + maxBonus` summons at once?
+ * A summon lives `duration`, one arrives every `cooldown`, so the ceiling is
+ * `floor(duration / cooldown) + 1` — the whole of `c018` in one line.
+ */
+function capIsReachable(
+  cooldown: number | undefined,
+  duration: number | undefined,
+  cap: number | undefined,
+  classKey: string,
+): boolean {
+  if (!cooldown || !duration) return true;
+  return Math.floor(duration / cooldown) + 1 >= (cap ?? 0) + maxBonus(classKey);
+}
+
+describe('c016 — a rank moves the branch it names, and nothing else', () => {
+  for (const row of ROWS) {
+    it(`${row.classKey} ${row.card}: ${row.observable} moves ${row.dir} at rank 1 and again at rank 2`, () => {
+      const c = contentFor(row.classKey);
+      const r0 = row.measure({}, c);
+      const r1 = row.measure({ [row.card]: 1 }, c);
+      const r2 = row.measure({ [row.card]: 2 }, c);
+      expect(moved(row.dir, r0, r1), `rank 0 -> 1 did not move ${row.observable} (${r0} -> ${r1})`).toBe(true);
+      expect(moved(row.dir, r1, r2), `rank 1 -> 2 did not move ${row.observable} (${r1} -> ${r2})`).toBe(true);
+    });
+
+    it(`${row.classKey} ${row.card}: every other class's card at max rank changes nothing`, () => {
+      const c = contentFor(row.classKey);
+      expect(row.measure(foreignRanks(row.classKey), c)).toBe(row.measure({}, c));
+    });
+  }
+
+  /**
+   * The `class_line` branch sits directly beside `active1_potency` at two call
+   * sites, and `towers.ts` carries an explicit design comment about it: the
+   * card "adds a further flat bonus **on top**, rather than the same lever
+   * twice". Rewriting that line as `(titheDamageMul + bonus) * potency` left
+   * every other case in this file green (code review), so the two levers get
+   * one case of their own.
+   */
+  it('bloodlord Deeper Tithe adds on top of Blood Tithe Potency, not inside it', () => {
+    const row = ROWS.find((r) => r.classKey === 'bloodlord')!;
+    const potency = { bloodlord_active1_potency: 2 };
+    const plain = row.measure({ [row.card]: 1 }) - row.measure({});
+    const withPotency = row.measure({ ...potency, [row.card]: 1 }) - row.measure(potency);
+    expect(plain).toBeGreaterThan(0);
+    expect(withPotency).toBeCloseTo(plain, 6);
+  });
+});
+
+/* ----------------------------------------------------- the filed deviations */
+
+describe('c016 — named deviation: Deeper Draw is inert on shipped data (c017)', () => {
+  const archer = ROWS.find((r) => r.classKey === 'archer')!;
+
+  it('all three ranks pierce the same number of enemies, and that number is the charge clamp', () => {
+    const a1 = content.classByKey.get('archer')!.active1;
+    const shipped = [0, 1, 2].map((n) => archer.measure(n === 0 ? {} : { [archer.card]: n }));
+    // Not merely "flat": flat *at the clamp*. `[0,0,0]` or `[3,3,3]` would be a
+    // broken shot reported as expected inertness (code review). Both sides come
+    // out of `/data`, so this is a mechanism pin, not an authored magnitude.
+    expect(shipped, `Deeper Draw's shipped reading moved or missed the clamp: ${shipped.join(' -> ')}`).toEqual(
+      [0, 1, 2].map(() => Math.min(a1.pierceCap ?? 1, 1 + Math.floor(a1.chargeCapSeconds ?? 0))),
+    );
+  });
+
+  it('the cause is the charge clamp, not a dead branch: lifting chargeCapSeconds makes the same card bind', () => {
+    const a1 = content.classByKey.get('archer')!.active1;
+    expect(1 + (a1.chargeCapSeconds ?? 0)).toBeLessThanOrEqual(a1.pierceCap ?? 0);
+    const loose = contentFor('archer');
+    expect(archer.measure({ [archer.card]: 1 }, loose)).toBeGreaterThan(archer.measure({}, loose));
+  });
+});
+
+/**
+ * `c018`, filed by QA on c016. Both cards raise a summon **cap** the Active's
+ * own cast cadence cannot reach, so buying either changes nothing in a real
+ * run — the rows above measure the cap with cooldowns bypassed, which is the
+ * right way to measure a cap and the wrong way to measure a run.
+ *
+ * The observable here is the peak number of live summons a player who presses
+ * the Active every single tick ever holds, with the cooldown ticked by the
+ * real `updateWarden` and expiry by the real `updateClassSummons` — no forced
+ * resets anywhere.
+ */
+describe('c016 — named deviation: two summon caps are unreachable at the real cast cadence (c018)', () => {
+  function peakLiveSummons(
+    classKey: string,
+    ranks: Ranks,
+    slot: 1 | 2,
+    kind: string,
+    seconds: number,
+    c: Content = content,
+  ): number {
+    const w = lineWorld(classKey, ranks, c);
+    if (classKey === 'animist') place(w, SPIRE, WX + 1, WY);
+    let peak = 0;
+    for (let t = 0; t < Math.round(seconds * 60); t++) {
+      if (slot === 1) useClassActive(w, WX + 1, WY);
+      else useClassActive2(w, WX + 1, WY);
+      updateWarden(w, idle(), DT);
+      updateClassSummons(w, DT);
+      peak = Math.max(peak, summonCount(w, kind));
+    }
+    return peak;
+  }
+
+  const CASES = [
+    { classKey: 'engineer', card: 'engineer_turret_cap', kind: 'engineer_turret', name: 'Extra Turret' },
+    { classKey: 'animist', card: 'animist_spirit_cap', kind: 'animist_spirit', name: 'Kindred Spirits' },
+  ];
+
+  for (const k of CASES) {
+    // Pop Turret is Active2, Manifest is Active1 — read the slot off `/data`
+    // rather than restating it, so a kit reshuffle cannot leave this measuring
+    // an Active that no longer summons.
+    const row = content.classByKey.get(k.classKey)!;
+    const slot: 1 | 2 = row.active1.summonCap !== undefined ? 1 : 2;
+    const eff = slot === 1 ? row.active1 : row.active2;
+
+    it(`${k.classKey} ${k.name}: the cadence ceiling is flat across all three ranks`, () => {
+      expect(
+        capIsReachable(eff.cooldownSeconds, eff.summonDurationSeconds, eff.summonCap, k.classKey),
+        `${k.name}'s cap is reachable now — c018 has landed, delete this deviation`,
+      ).toBe(false);
+      const peaks = [0, 1, 2].map((n) => peakLiveSummons(k.classKey, n === 0 ? {} : { [k.card]: n }, slot, k.kind, 120));
+      expect(new Set(peaks).size, `${k.name} moved after all: ${peaks.join(' -> ')}`).toBe(1);
+      // ...and the flat value is the cadence ceiling, not zero: a card that
+      // summoned nothing at all would otherwise read as "expected inertness".
+      expect(peaks[0]).toBe(Math.floor((eff.summonDurationSeconds ?? 0) / (eff.cooldownSeconds ?? 1)) + 1);
+    });
+
+    it(`${k.classKey} ${k.name}: the branch is live — shortening the cooldown makes the same card bind`, () => {
+      // One second between casts: `floor(duration / 1) + 1` clears
+      // `summonCap + maxBonus` for both kits, so the cap is the binding term
+      // again and the card has something to raise.
+      const fast = contentWith(k.classKey, (r) => void ((slot === 1 ? r.active1 : r.active2).cooldownSeconds = 1));
+      const at0 = peakLiveSummons(k.classKey, {}, slot, k.kind, 120, fast);
+      const at1 = peakLiveSummons(k.classKey, { [k.card]: 1 }, slot, k.kind, 120, fast);
+      expect(at1).toBeGreaterThan(at0);
+    });
+  }
+});
