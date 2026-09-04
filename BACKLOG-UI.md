@@ -1816,7 +1816,7 @@ not already expose it) logs that need below instead of reaching into
       PROGRESS.md sessions, none touching `src/ui/**`/`src/render/**` or this
       item's own files.
 
-- [ ] (fb092) [polish] low priority: generated 2026-09-04 (fewer than 3
+- [x] (fb092) [polish] low priority: generated 2026-09-04 (fewer than 3
       actionable items remained; QUALITY.md 1.0 Steam/itch checklist gap
       diff) — credits + license screen. QUALITY.md 1.0's checklist
       ("credits + license screen") is entirely unbuilt: no credits/license
@@ -1828,7 +1828,34 @@ not already expose it) logs that need below instead of reaching into
       and are covered by a test. Acceptance: a unit test opens the new
       panel/tab and confirms credits and license text render; the panel is
       reachable from the Hub without a dev-only gate — refs: QUALITY.md 1.0
-      (Steam/itch checklist).
+      (Steam/itch checklist). DONE 2026-09-04: new `src/ui/credits.ts` —
+      `CREDITS` (a seeded `{role, name}[]` placeholder list), `LICENSE_TEXT`
+      (a placeholder all-rights-reserved string pending the real license
+      before a public build), and `creditsMarkup()`. `hub.ts` adds
+      `'credits'` to the `Tab` union and a "Credits" nav button rendered
+      unconditionally alongside Run/Constellation/Equipment/Codex/Settings —
+      no `DEV_BUILD`/`devProfileActive()` gate, unlike the dev badge/hidden-
+      classes toggle — dispatching to a new `renderCredits(body)` method.
+      `style.css` gains `.sw-creditslist`/`.sw-license` rules (mirroring
+      fb091's `.sw-crashlist` pattern). Targeted
+      `tests/ui-fb092-credits.test.ts` (4/4): nav button present with
+      correct label, every seeded credit entry renders as visible text,
+      license text renders, and no dev-gate class on the tab button.
+      code-reviewer **APPROVE** (no Critical/Major; one Minor — the new CSS
+      classes had no rules yet, fixed same session). qa-playtester **PASS**:
+      independently constructed a `Hub` and clicked through from every other
+      tab into Credits, confirmed the nav button is present with a fresh
+      `defaultMeta()` and no dev profile involved, confirmed rendered text is
+      genuinely visible (no display:none), round-tripped tab switches,
+      confirmed opening Credits correctly clears any armed Settings-tab-only
+      transient state (rebind listening, settings-reset-armed,
+      crash-log-copy-notice) via the existing `tab !== 'settings'` guards,
+      and spam-clicked the tab 50x with no throw or instability; filed no
+      bugs. `npx tsc --noEmit` clean. `npm run test:fast`: 8 failed files / 7
+      failed tests, all in the pre-existing q15/q45/q49/q52 worker-hang/
+      Windows-scratch-dir-EPERM flake classes documented across dozens of
+      prior PROGRESS.md sessions, none touching `src/ui/**`/`src/render/**`
+      or this item's own files.
 
 - [ ] (fb093) [polish] low priority: generated 2026-09-04 (fewer than 3
       actionable items remained; QUALITY.md 1.0 Steam/itch checklist gap
