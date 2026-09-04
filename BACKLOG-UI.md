@@ -451,7 +451,7 @@ not already expose it) logs that need below instead of reaching into
       classes documented across dozens of prior PROGRESS.md sessions, none
       touching `src/ui/**`/`src/render/**` or this item's own files.
 
-- [ ] (fb076) [bug] low priority: fb065's right info rail
+- [x] (fb076) [bug] low priority: fb065's right info rail
       (`#sw-rail-right`) can get stuck collapsed after its own handle is
       clicked while the rail is already auto-collapsed for an unrelated
       reason (DPS or VS panel open/docked) — `wireRails`'s handle click
@@ -476,7 +476,40 @@ not already expose it) logs that need below instead of reaching into
       an auto-collapse reason is independently forcing it shut), or reset
       `railRightUserOpen = true` whenever an auto-collapse condition's OR
       transitions back toward "should be open" — refs: fb065, owner feedback
-      `feature-ui-inside-playfield`.
+      `feature-ui-inside-playfield`. DONE 2026-09-03: took the first suggested
+      fix direction. New `railAutoCollapsed()` helper (`hud.ts`) extracts the
+      existing `dpsPanelOpen_ || vsPanelOpen_ || dpsPanelDocked_ ||
+      vsPanelDocked_` OR-chain out of `syncRailRightVisibility()`; the right
+      handle's click listener now does `if (this.railAutoCollapsed()) return;`
+      before touching `railRightUserOpen`, so a click during auto-collapse is
+      a true no-op instead of silently zeroing the flag with nothing left to
+      reset it once the auto-collapse reason clears.
+      `syncRailRightVisibility()` reuses the same helper
+      (`!railRightUserOpen || railAutoCollapsed()`), behavior-equivalent to
+      the prior inline OR chain. Confirmed the left rail (`#sw-rail-left`) has
+      no analogous bug — its handle is a bare `classList.toggle('collapsed')`
+      with no auto-collapse concept and no backing "user open" flag. Targeted
+      `tests/ui-fb076-rail-handle-stuck.test.ts` (3/3): DPS-panel
+      auto-collapse + click + close reopens; docked-VS-panel auto-collapse +
+      click + close reopens; a manual-only collapse/reopen cycle confirms no
+      regression to the ordinary path. code-reviewer **APPROVE** (no
+      Critical/Major; one Minor — could add a manual-collapse-during-
+      auto-collapse-window interaction case for extra belt-and-suspenders
+      coverage, optional, not required by the stated acceptance criteria, not
+      blocking). qa-playtester **PASS**: reproduced the acceptance scenario
+      directly, then hostile-tested 5 rapid handle clicks while
+      auto-collapsed (idempotent, no desync), a pre-existing manual collapse
+      surviving an auto-collapse window untouched, and confirmed DPS+VS
+      auto-collapse reasons are mutually exclusive in practice (`toggleVsPanel`
+      force-closes DPS first) so the "both reasons active" case is
+      unreachable via any public toggle path — not a bug, just confirmed
+      dead code path in the defensive OR; filed no new bugs. `npx tsc --noEmit`
+      clean. `npm run test:fast`: 7 failed files / 2112 passed / 2142 total /
+      24 skipped — all in the pre-existing q15/q49/q52 worker-hang/Windows-
+      scratch-dir-EPERM flake classes plus the b032/b034/b035/b036 dev-server
+      port-contention class (each re-ran clean in isolation), documented
+      across dozens of prior PROGRESS.md sessions, none touching
+      `src/ui/**`/`src/render/**` or this item's own files.
 
 - [ ] (fb071) [feat] normal priority: window unfocus auto-pause —
       QUALITY.md BETA's "window unfocus auto-pauses" bar is unmet:

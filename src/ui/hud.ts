@@ -300,9 +300,19 @@ export class Hud {
 
     const rightHandle = this.root.querySelector('#sw-rail-right-handle') as HTMLElement | null;
     rightHandle?.addEventListener('click', () => {
+      // fb076: while an auto-collapse reason (DPS/VS panel open or docked) is
+      // independently forcing the rail shut, this click is a no-op visually —
+      // don't let it flip `railRightUserOpen` to false, or the rail stays
+      // stuck collapsed after the auto-collapse reason later clears.
+      if (this.railAutoCollapsed()) return;
       this.railRightUserOpen = !this.railRightUserOpen;
       this.syncRailRightVisibility();
     });
+  }
+
+  /** fb076: whether something other than the user's own handle toggle is forcing the right rail shut. */
+  private railAutoCollapsed(): boolean {
+    return this.dpsPanelOpen_ || this.vsPanelOpen_ || this.dpsPanelDocked_ || this.vsPanelDocked_;
   }
 
   /**
@@ -321,14 +331,7 @@ export class Hud {
   private syncRailRightVisibility(): void {
     const rail = this.root.querySelector('#sw-rail-right') as HTMLElement | null;
     if (!rail) return;
-    rail.classList.toggle(
-      'collapsed',
-      !this.railRightUserOpen ||
-        this.dpsPanelOpen_ ||
-        this.vsPanelOpen_ ||
-        this.dpsPanelDocked_ ||
-        this.vsPanelDocked_,
-    );
+    rail.classList.toggle('collapsed', !this.railRightUserOpen || this.railAutoCollapsed());
   }
 
   /**
