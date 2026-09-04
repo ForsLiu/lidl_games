@@ -38,7 +38,9 @@ export {
   type CoreRejectReason,
 } from './core-placement';
 export {
+  flatTerrain,
   generateTerrain,
+  isDegradedMap,
   terrainHash,
   MAX_TERRAIN_SEED,
   MIN_TERRAIN_SEED,

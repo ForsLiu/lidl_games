@@ -253,7 +253,7 @@ left in the feedback (rendering, Tuner page, Core-placement wiring) needs
 files this lane may not touch and is already in the Log. Leg (c) is
 fb064o.
 
-- [ ] (fb064n) [feat] the flat arena is a concept with no name: it exists
+- [x] (fb064n) [feat] the flat arena is a concept with no name: it exists
       only as `blankKinds()` inside `generate.ts`'s fallback and as
       `flatCoreAnchorCount`'s independent replica of it in `config.ts`, and
       fb064f's announced Training Grounds override needs it as a map. Give
@@ -268,6 +268,22 @@ fb064o.
       leave every interior tile buildable with all gates reachable; the
       `config.ts` replica is either deleted or pinned equal to it — refs:
       owner feedback "Training Grounds keeps a flat arena", fb064f.
+      **Acceptance amended 2026-09-04 during the item: the export is
+      `flatTerrain()`, not `flatTerrain(cfg)`.** The flat arena is a function
+      of `GRID_W`/`GRID_H`/`GATES` and `TERRAIN_KEYS`' fixed order alone, and
+      the loader makes that structural rather than incidental — the schema
+      pins each tile's flags *and* its `key` per index, so no `/data` edit can
+      change which index is rock or what a rock tile means. A `cfg` parameter
+      would therefore select nothing while telling fb064f's Tuner caller the
+      opposite, and every other function in the module that takes a `cfg`
+      genuinely reads it. What a caller does still need `cfg` for — legality
+      and measurement — is documented on the export and pinned by a test that
+      shows the flat map illegal under a payable `minCoreLegalFrac: 0.9`.
+      Both reviewers judged the deviation the better artifact; recorded here
+      rather than only in a code comment, per fb064g's precedent, so the
+      record does not say the shipped code fails its own acceptance.
+      The `config.ts` replica is **pinned**, not deleted: `analyze.ts` imports
+      `config.ts`, so measuring there is an import cycle.
 - [ ] (fb064o) [feat] gate-to-Core path length is the terrain property every
       wave is balanced against, and it is unmeasured: `walkableFrac` and
       friends bound *area*, nothing bounds *travel time*, so a seed whose
@@ -319,6 +335,19 @@ fb064o.
       of their measured headroom", the phrase fb064m's acceptance uses, is
       vacuous for these two: there is none to move out of. Verify both before
       inheriting them — a deferral is a measurement with an expiry date.
+- [ ] (fb064s) [polish] `flatTerrain()`'s dump is a repro string that cannot
+      be reproduced (fb064n QA, observation 4). The format exists so that "a
+      terrain repro is one string" (fb064k), but the flat arena prints
+      `requested=0 effective=0 attempts=0 fallback=true hash=bb4e18dd`, and a
+      reader who pastes that `0` into `npm run sim -- --seed 0` gets a
+      completely different map (`hash=58fa46d9`, `attempts=1`). The only tell
+      is `attempts=0`, which fb064n made unforgeable in the parser but left
+      unreadable to a human skimming a bug report. Acceptance: `describeTerrain`
+      marks the flat arena on the seed line in a way `parseTerrainDump` reads
+      back — the round trip stays byte-identical, the seed line is
+      unambiguous to a human, and a dump that claims the mark without the flat
+      arena's tiles is refused; the existing `attempts=0` cross-check keeps
+      working and its tests stay green — refs: fb064k, fb064n Log.
 
 ## Log
 
@@ -1879,3 +1908,57 @@ fb064o.
   the other way about — which is the load sensitivity already recorded, not a
   new signal; the invariant across all three runs of this session is that
   nothing in terrain, grid, enemies or pathing fails.
+
+- (2026-09-04, fb064n) The flat arena got a name. `flatTerrain()` in
+  `src/sim/terrain/generate.ts`, built by one private `flatKinds()` (the
+  renamed `blankKinds`) through one `flatMap(requestedSeed, seed, attempts)`;
+  `generateTerrain`'s `maxAttempts` fallback routes through the same builder,
+  so the base every attempt scatters over, the downgrade map and the Training
+  Grounds map are one construction instead of three.
+  `tests/terrain-flat.test.ts` is 14 tests, ~130 ms.
+  - **Provenance.** `attempts: 0, fallback: true, requestedSeed: 0, seed: 0`.
+    `fallback` was already `types.ts`'s marker for "no key produced these
+    tiles"; `attempts: 0` is the honest count and is what tells the two flat
+    maps apart, since `maxAttempts` is a positive int and the downgrade path
+    therefore always reports >= 1. Because that overloads one boolean, the
+    module now exports `isDegradedMap(map) = fallback && attempts > 0` so
+    fb064f does not re-derive the two-field rule — code-reviewer's Major, and
+    the reason `types.ts`'s `attempts`/`fallback`/`requestedSeed` docs were
+    rewritten in this item. `requestedSeed: 0` is a placeholder, not a claim:
+    the doc now says to check `attempts` before comparing it to
+    `RunConfig.seed`, which would otherwise match on exactly the runs seeded 0.
+  - **Two QA bugs, both created by this item's own parser change and both
+    fixed inside it with regression tests.** Widening `parseTerrainDump`'s
+    `attempts` floor from 1 to 0 (needed, or `flatTerrain()`'s own dump would
+    not reload) removed the only constraint on the field, so
+    `attempts=0 fallback=false` and a forged `effective` both parsed clean — a
+    shape no writer can emit, and specifically the one field fb064n had just
+    made load-bearing. Fixed with a cross-field check. Separately `attempts=-0`
+    became acceptable; `num()` had been *normalising* `-0` since fb064j, three
+    lines below its own "a dump has exactly one spelling per value" rule, which
+    cost text-stability — a dump reloaded and re-dumped as a different string.
+    Now refused. fb064j's test was converted rather than dropped: it asserts
+    the same invariant (no parse hands back a `-0`) against the stronger
+    behaviour, with the reversal and its reason written into it.
+  - **Acceptance deviation** (`flatTerrain()` vs `flatTerrain(cfg)`) is
+    amended into the item text above rather than left in a code comment.
+  - **QA observation filed as fb064s**, not fixed here: the flat map's dump
+    prints `requested=0` and a reader who pastes it into `--seed 0` gets a
+    different map.
+
+- (2026-09-04, fb064n) Verification. `npx tsc --noEmit` clean. All nine
+  `tests/terrain*` suites green (220 tests, ~6 s). `npm run sim -- --seed 1
+  --policy hybrid` gives `endHash 2729a000`, still matching the baseline from
+  fb064b/h/i/k/m. `generateTerrain`, `flatTerrain` and `applyTerrain` have no
+  caller outside `src/sim/terrain/` and the terrain tests — `grep` for
+  `sim/terrain` in `src/`/`tools/` finds only two doc comments in `grid.ts` —
+  so nothing in this change can reach a stored run, and `data/terrain.json` is
+  still absent from `contentHash()` (merge blocker unchanged).
+  `npm run test:fast`: **2282 passed, 8 failed across 6 files**, all the
+  documented pre-existing set — `b032`/`b034`/`b036` load-sensitive UI-fold,
+  `q15` the 4000 ms-settle command fuzz, `q49`/`q52` the Windows EPERM cleanups
+  under `bench/.tmp`. A **control run at the pre-change commit `05b4f8e`
+  failed 7 across 5 files** from the same families, and every extra observed
+  across the three runs of this session (`b034`, `b035`, `q45`) passes in
+  isolation and has no import path to terrain. That the set is not identical
+  run-to-run is the load sensitivity fb064m already recorded, not a new signal.

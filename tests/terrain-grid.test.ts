@@ -288,7 +288,7 @@ describe('Grid.applyTerrain (fb064b)', () => {
 
 describe('the structural override over gate tiles (fb064b, pinned fb064h)', () => {
   it('keeps a gate walkable and normal even when the map paints rock under it', () => {
-    // Dead on generator output — `blankKinds()` makes the three gate tiles
+    // Dead on generator output — `flatKinds()` makes the three gate tiles
     // Normal, so the Gate branch of the override never fires on a real map and
     // narrowing it to Core-only passes the whole suite. It is not dead on a
     // *run*: `world.ts`'s Fourth Gate modifier writes a south gate into

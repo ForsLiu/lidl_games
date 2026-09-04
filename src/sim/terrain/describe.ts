@@ -13,7 +13,7 @@
  * 1. **The tile rows carry tiles and nothing else.** Overlaying gate markers on
  *    the map would read better and would destroy the round trip for any grid
  *    whose gate tile is not `normal` — which is a generator invariant
- *    (`blankKinds`), not a dump invariant, and hand-built grids in tests break
+ *    (`flatKinds`), not a dump invariant, and hand-built grids in tests break
  *    it freely. Gates go in a header line instead.
  * 2. **A malformed dump throws.** Silently returning a short or mis-glyphed
  *    buffer would hand the caller a map that is not the one in the report, and
@@ -245,8 +245,20 @@ function num(f: Map<string, string>, head: string, key: string): number {
   const v = Number(raw);
   // `-0` survives the regex and `Number('-0')` is `-0`, which compares equal to
   // `0` under `===` but not under `Object.is` — the exact trap fb064j closed in
-  // `generateTerrain` and documented in `types.ts`. Normalise it the same way.
-  return v === 0 ? 0 : v;
+  // `generateTerrain` and documented in `types.ts`.
+  //
+  // Refused rather than normalised (fb064n). Normalising made `-0` and `0` two
+  // spellings of one value, which is the rule the leading-zero check above
+  // exists to enforce, and it cost text-stability: a dump saying `attempts=-0`
+  // reloaded and re-dumped as `attempts=0`, so the round trip was not a round
+  // trip. No writer emits it — `generateTerrain` normalises `-0` before the
+  // field is ever written — so this refuses only mangled input. `Object.is` is
+  // the test, not `raw === '-0'`, because `-0.000000` is the same value wearing
+  // a different spelling.
+  if (Object.is(v, -0)) {
+    fail(`"${head}" line has ${key}="${raw}"; -0 and 0 are one value, write 0`);
+  }
+  return v;
 }
 
 /** `num`, restricted to an integer in an inclusive range. */
@@ -314,10 +326,36 @@ export function parseTerrainDump(text: string): TerrainDump {
       // `terrainHash` folds `seed | 0` — an invisible corruption of the one
       // field that says which key produced these tiles.
       seed: intIn(seedLine, 'seed', 'effective', 0, 0xffffffff),
-      attempts: intIn(seedLine, 'seed', 'attempts', 1, Number.MAX_SAFE_INTEGER),
+      // Floor 0, not 1: `flatTerrain()` reports `attempts: 0` because no
+      // generation attempt ran for it (fb064n), and a dump of it must reload.
+      // Negatives stay refused — the field counts attempts.
+      attempts: intIn(seedLine, 'seed', 'attempts', 0, Number.MAX_SAFE_INTEGER),
       fallback: bool(seedLine, 'seed', 'fallback'),
       hash: req(seedLine, 'seed', 'hash'),
     };
+    // Cross-field, because the `attempts` floor alone no longer constrains this
+    // shape (fb064n). `attempts: 0` means no generation attempt ran, which
+    // exactly one producer emits — `flatTerrain()`, always as
+    // `fallback: true, seed: 0, requestedSeed: 0`. The generator cannot reach
+    // it from the other side either: `maxAttempts` is a positive int, so its
+    // fallback always reports at least one attempt.
+    //
+    // Worth a check rather than a comment because `generate.ts` tells readers to
+    // "prefer `attempts` to tell the two flat maps apart", and without this the
+    // one field fb064n made load-bearing is the one the parser stopped
+    // constraining: `fallback=false` flipped by hand, or a forged `effective`,
+    // both parsed clean and described a map no build can produce. Same rule as
+    // the gate, legend and all-or-nothing provenance checks above — refuse what
+    // the writer never emits rather than reinterpret it.
+    if (
+      provenance.attempts === 0 &&
+      (!provenance.fallback || provenance.seed !== 0 || provenance.requestedSeed !== 0)
+    ) {
+      fail(
+        'attempts=0 is only the flat arena, which is always ' +
+          'requested=0 effective=0 fallback=true',
+      );
+    }
   }
 
   const gateLine = fields(lines[2], 'gates');

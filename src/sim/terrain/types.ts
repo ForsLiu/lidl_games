@@ -27,6 +27,11 @@ export interface TerrainMap extends TerrainGrid {
    * that `-0` is normalised to `0`. It is the value to compare against
    * `RunConfig.seed`, and it may be negative even though `seed` never is.
    *
+   * **Only when `attempts >= 1`.** `flatTerrain()` has no caller seed and
+   * writes `0` here as a placeholder, because `TerrainMap` has nowhere to say
+   * "none" — so comparing it against `RunConfig.seed` reports a match on
+   * exactly the runs whose seed happens to be 0. Check `attempts` first.
+   *
    * It is *provenance, not identity*: a negative seed and its uint32 twin
    * (`-1` and `4294967295`) are distinguishable here but produce byte-identical
    * tiles and an identical `hash`. A replay guard that only checks `hash` will
@@ -43,9 +48,27 @@ export interface TerrainMap extends TerrainGrid {
    * key produced those tiles — the flat map is not any seed's output.
    */
   readonly seed: number;
-  /** How many generation attempts ran, including the one that succeeded. */
+  /**
+   * How many generation attempts ran, including the one that succeeded.
+   *
+   * `0` on `flatTerrain()` and only there (fb064n): no attempt ran for a map
+   * nobody generated. `maxAttempts` is a positive int, so every map that came
+   * out of the generator — degenerate retries and all — reports at least 1.
+   * That makes `attempts === 0` the discriminator between the two flat maps,
+   * which `fallback` alone cannot give you; see `isDegradedMap`.
+   */
   readonly attempts: number;
-  /** True when every attempt was degenerate and the flat legal map was used. */
+  /**
+   * True when these tiles are the flat arena rather than any RNG key's output.
+   *
+   * Two producers, and the distinction matters to a caller deciding whether
+   * something went wrong:
+   *   - `attempts >= 1` — every attempt was degenerate and `generateTerrain`
+   *     shipped the flat map instead. The bands, not the seed, are what failed.
+   *   - `attempts === 0` — `flatTerrain()`, asked for directly. Nothing failed.
+   * Branching on this boolean alone reports the second as the first, which is
+   * what `isDegradedMap` exists to stop.
+   */
   readonly fallback: boolean;
   /** FNV-1a over seed + tiles; the G2 determinism handle for a map. */
   readonly hash: string;

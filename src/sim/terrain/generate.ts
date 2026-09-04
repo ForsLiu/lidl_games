@@ -27,8 +27,10 @@
  * admits — it clears every band the authored `/data` can reach — but it is not
  * legal *unconditionally*: the border is 105 permanently non-walkable tiles of
  * 720, so a band above ~0.854 walkable is unsatisfiable by any map at all.
- * `fallback: true` is the caller's signal that the bands, not the seed, are
- * what failed.
+ * `fallback: true` *with `attempts >= 1`* is the caller's signal that the
+ * bands, not the seed, are what failed. `flatTerrain()` below sets the same
+ * flag with `attempts: 0` and nothing failed at all, so read the pair rather
+ * than the flag — `isDegradedMap` does.
  */
 import { GATES, GRID_H, GRID_W } from '../grid';
 import { Hasher } from '../hash';
@@ -54,8 +56,17 @@ function clamp(v: number, lo: number, hi: number): number {
   return v < lo ? lo : v > hi ? hi : v;
 }
 
-/** The base map: rock border, walkable gate tiles, normal interior. */
-function blankKinds(): Uint8Array {
+/**
+ * The flat arena's tiles: rock border, walkable gate tiles, normal interior.
+ *
+ * The one builder for a concept this module used to spell out three times
+ * (fb064n) — the base every attempt scatters over, the map `generateTerrain`
+ * ships when every attempt is degenerate, and now `flatTerrain()`. A fresh
+ * buffer every call: a `TerrainMap`'s hash is computed once at construction,
+ * so two maps sharing one `kind` would let a write through either invalidate
+ * both (`types.ts`, architecture rule 2).
+ */
+function flatKinds(): Uint8Array {
   const kind = new Uint8Array(GRID_W * GRID_H).fill(TerrainKind.Normal);
   for (let x = 0; x < GRID_W; x++) {
     kind[x] = TerrainKind.Rock;
@@ -72,7 +83,7 @@ function blankKinds(): Uint8Array {
 /** One generation attempt at an exact seed. Never fails; may be degenerate. */
 function attempt(seed: number, cfg: TerrainConfig): Uint8Array {
   const rng = new Rng(fnv1a('terrain', seed >>> 0));
-  const kind = blankKinds();
+  const kind = flatKinds();
   const protectedTile = new Uint8Array(GRID_W * GRID_H);
 
   // Interior only: the border stays rock so the arena never leaks. The bounds
@@ -283,6 +294,62 @@ function toMap(
   };
 }
 
+/** The flat arena under a caller's provenance. Always `fallback: true`. */
+function flatMap(requestedSeed: number, seed: number, attempts: number): TerrainMap {
+  return toMap(requestedSeed, seed, flatKinds(), attempts, true);
+}
+
+/**
+ * The flat arena as a `TerrainMap`, built by the one builder above (fb064n).
+ *
+ * Two call sites need it and used to construct it separately: `generateTerrain`
+ * ships it when every attempt is degenerate, and fb064f's Training Grounds
+ * override wants it as a map rather than as a fallback nobody asked for.
+ *
+ * **Provenance: no seed produced these tiles**, and the map says so in the two
+ * fields that can say it. `fallback: true` is `types.ts`'s marker for exactly
+ * that, and `attempts: 0` is the honest count — zero generation
+ * attempts ran — which is also what distinguishes this map from the one
+ * `generateTerrain` returns after exhausting `maxAttempts`. `requestedSeed`
+ * and `seed` are `0` because `TerrainMap` has nowhere to write "none": read
+ * them only after checking `fallback`, and prefer `attempts` to tell the two
+ * flat maps apart. A run's map is never this one — `generateTerrain(0)`
+ * produces a scattered map with `attempts: 1`.
+ *
+ * Takes no config, deliberately, though fb064n's acceptance wrote it as
+ * `flatTerrain(cfg)`. The flat arena is a function of the arena's geometry
+ * (`GRID_W`, `GRID_H`, `GATES`) and of `TERRAIN_KEYS`' load-bearing order
+ * alone; nothing in `data/terrain.json` selects a tile of it, and the loader
+ * makes that structural rather than incidental — the schema pins each tile's
+ * flags and its `key` per index, so no `/data` edit can change which index is
+ * rock or what a rock tile means. A parameter that changed nothing would tell a
+ * Tuner caller the opposite, and every other function here that takes a `cfg`
+ * genuinely reads it. Pinned by a test that compares its bytes against an
+ * independent rebuild while the *measurements* of it move under a wild config.
+ *
+ * Note what a `cfg` *would* be needed for and is not: this map is not
+ * unconditionally legal. `terrainLegal` is a question about a config, and a
+ * band above ~0.854 walkable is unsatisfiable by any map at all. Ask
+ * `terrainLegal(measureTerrain(flatTerrain(), cfg), cfg)` rather than assuming.
+ */
+export function flatTerrain(): TerrainMap {
+  return flatMap(0, 0, 0);
+}
+
+/**
+ * True when this map is a *downgrade*: the generator gave up and shipped the
+ * flat arena because no seed cleared the bands.
+ *
+ * The predicate `fallback` looks like but is not (fb064n). `flatTerrain()`
+ * carries `fallback: true` too — it is the same tiles, and the flag describes
+ * the map — so a caller that alarms on the boolean alone would report fb064f's
+ * Training Grounds arena as a failed generation. Exported so that the two-field
+ * rule is written once here rather than re-derived at each consumer.
+ */
+export function isDegradedMap(map: TerrainMap): boolean {
+  return map.fallback && map.attempts > 0;
+}
+
 /**
  * The accepted seed domain (fb064j), inclusive.
  *
@@ -351,5 +418,10 @@ export function generateTerrain(seed: number, cfg: TerrainConfig = loadTerrain()
   // The fallback map came from no RNG key at all, so `seed` stays the
   // unadvanced key rather than `key + maxAttempts - 1`: reporting an advanced
   // seed would name a key that did not produce these tiles.
-  return toMap(requested, key, blankKinds(), cfg.maxAttempts, true);
+  //
+  // Routed through `flatMap` rather than building its own (fb064n): the flat
+  // arena fb064f hands the Training Grounds and the flat arena a hostile
+  // `/data` edit downgrades a run to are the same map, and a second
+  // construction site is where they would stop being.
+  return flatMap(requested, key, cfg.maxAttempts);
 }

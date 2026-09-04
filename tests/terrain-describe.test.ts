@@ -444,7 +444,18 @@ describe('fb064k — a malformed dump is refused, never half-read', () => {
         good.replace('effective=1', 'effective=4294967297'),
         /outside \[0, 4294967295\]/,
       ],
-      ['zero attempts', good.replace('attempts=1', 'attempts=0'), /outside \[1, /],
+      // fb064n moved this floor from 1 to 0: `flatTerrain()` honestly reports
+      // `attempts: 0` (no generation attempt ran for it), so its own dump has
+      // to reload. Negative is still refused — the field counts attempts.
+      ['negative attempts', good.replace('attempts=1', 'attempts=-1'), /outside \[0, /],
+      // And the widened floor did not become a hole: `attempts=0` is the flat
+      // arena and nothing else, so it cannot be pasted onto a generated map's
+      // provenance. `good` is seed 1, `fallback=false`. Full coverage of the
+      // shape lives in `tests/terrain-flat.test.ts`.
+      ['zero attempts on a generated map', good.replace('attempts=1', 'attempts=0'), /flat arena/],
+      // `-0` used to be normalised to `0`, which cost text-stability: this dump
+      // reloaded and re-dumped with a different string than it went in with.
+      ['minus zero', good.replace('attempts=1', 'attempts=-0'), /-0 and 0 are one value/],
       ['leading zero', good.replace('attempts=1', 'attempts=01'), /non-numeric/],
       ['gate moved', good.replace('west=0,10', 'west=9,9'), /gate "west" is at 9,9/],
     ];
@@ -486,16 +497,28 @@ describe('fb064k — a malformed dump is refused, never half-read', () => {
       .toThrow(/"counts" line says normal=370/);
   });
 
-  it('normalises a "-0" seed the way generateTerrain does', () => {
-    // `types.ts` promises `requestedSeed` is `-0`-normalised, and fb064j's
-    // `generateTerrain` does it — but a seed that makes the round trip through
-    // a dump goes through `num()` instead, where `Number('-0')` is `-0`. It
-    // compares equal to `0` under `===` and not under `Object.is`, which is
-    // what vitest's `toBe`, a deep-equal and a JSON round-trip all use, so the
-    // promise has to hold on both paths or it holds on neither.
-    const d = parseTerrainDump(good.replace('requested=1', 'requested=-0'));
-    expect(d.provenance).not.toBeNull();
-    expect(Object.is(d.provenance?.requestedSeed, 0)).toBe(true);
+  it('refuses a "-0" seed rather than normalising it', () => {
+    // fb064j's concern, kept: `types.ts` promises `requestedSeed` is
+    // `-0`-normalised, and `Number('-0')` is `-0`, which compares equal to `0`
+    // under `===` but not under `Object.is` — what vitest's `toBe`, a
+    // deep-equal and a JSON round-trip all use. The promise has to hold on the
+    // parse path or it holds on neither.
+    //
+    // fb064n tightened *how* it holds, from normalise to refuse, on QA's
+    // finding. Both keep `-0` out of a `TerrainMap`; refusing also keeps the
+    // format text-stable, which normalising did not — a dump saying
+    // `requested=-0` reloaded and re-dumped as `requested=0`, so the round trip
+    // silently changed the string. It also removes a contradiction inside
+    // `num()`, three lines below its own "a dump has exactly one spelling per
+    // value" rule. No writer emits `-0` (`generateTerrain` normalises before
+    // the field is written), so only mangled input is affected.
+    expect(() => parseTerrainDump(good.replace('requested=1', 'requested=-0'))).toThrow(
+      /-0 and 0 are one value/,
+    );
+    // The invariant fb064j was protecting, restated as the thing that matters:
+    // no parse can hand back a `-0`.
+    const d = parseTerrainDump(good);
+    expect(Object.is(d.provenance?.requestedSeed, -0)).toBe(false);
   });
 
   it('absorbs CRLF and a BOM rather than blaming the header', () => {
