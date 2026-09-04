@@ -296,7 +296,7 @@ session 2 (c005 was the last actionable one left), appending `c006`-`c010`.
       The residual `engineer_active2_cdr` finding is filed as **`c019`** below
       - refs: SPEC-FINAL §4.2 (Engineer, Animist), §6.3, c016, CLAUDE.md rule 3.
 
-- [ ] (c019) [bug] **filed by QA on `c018` 2026-09-04, twice-reproduced with identical
+- [x] (c019) [bug] **DONE 2026-09-04 via acceptance option (b).** **filed by QA on `c018` 2026-09-04, twice-reproduced with identical
       numbers.** `engineer_active2_cdr` ("Pop Turret cooldown −25%/rank",
       `data/vsupgrades.json:26`) is now **inert on live turret count at
       `engineer_turret_cap` rank 0** — the state every Engineer starts a run in
@@ -326,6 +326,22 @@ session 2 (c005 was the last actionable one left), appending `c006`-`c010`.
       eleven `active2_cdr` cards, whose only behavioural coverage anywhere is a
       HUD readout in `tests/fb026-bottom-bar.test.ts` (logged as an open gap by
       c016's own header) - refs: SPEC-FINAL §6.3, c016, c018, CLAUDE.md rule 3.
+      **Option (b) taken — option (a) is impossible, not merely out of Scope.**
+      Making the card live on *count* would mean un-doing c018: the cap binds
+      precisely because a turret now outlives a full lap of it. `/data`'s own
+      numbers say which of the two it is, so the disposition is pinned as an
+      invariant rather than as prose — `lapsPerLife = floor(duration/cooldown)`
+      vs `cap` — and the deviation `describe` in the new
+      `tests/class-active2-cdr.test.ts` goes red the day a retune revives the
+      count. **The premise was one clause too broad**, and the file says so:
+      the card is inert on count only where the cap *holds*
+      (`engineer_turret_cap` ranks 0 and 1). At the **top** cap rank
+      `lapsPerLife` is 3 against a cap of 4, the board oscillates, and cdr rank
+      1 buys the +0.67 mean turrets c019 itself noted — asserted as its own
+      case so the deviation cannot overstate itself into "this card never buys
+      turrets". The "other eleven cards" clause is closed by the same file: all
+      twelve now have a cast-rate ladder, a `/data` cost tie and a class-scope
+      probe, plus one slot-scope case for the whole set.
 
 - [ ] (c017) [bug] **filed by `c016` 2026-09-04, and proven by its own tripwire.**
       Archer *Deeper Draw* (`archer_pierce_cap`, §6.3's third card) is **inert on
@@ -425,6 +441,43 @@ session 2 (c005 was the last actionable one left), appending `c006`-`c010`.
       files: `c016`'s `tests/class-line-bonus.test.ts` pins the same `10,10`
       spot and the same `11,10` build tile, and joins this item's list** - refs:
       BACKLOG-TERRAIN.md, c005, c006, c009, c016.
+- [ ] (c020) [bug] `active2CdrFactor`'s **general `cdr` stat term is unpinned
+      anywhere in the suite.** Found by QA on `c019`: mutating
+      `src/sim/classes.ts:206` from
+      `Math.max(0.05, 1 - w.derived.cdr - active2CdrBonus(w))` to
+      `Math.max(0.05, 1 - active2CdrBonus(w))` leaves **659 tests across the 16
+      most relevant files green**, `tests/class-active2-cdr.test.ts` included —
+      that file asserts `derived.cdr === 0` as its precondition precisely so it
+      measures one lever, which leaves the other unwatched. Harmless today
+      (`grep '"cdr"' data/*.json` finds no row granting the stat) and a live bug
+      the day equipment, a tree node or a boon does: Active2 would silently
+      ignore a stat §2 says applies to it, and the `fb056` equipment epic is the
+      obvious candidate to grant it first. Acceptance: a `describe` in
+      `tests/class-active2-cdr.test.ts` driving `derived.cdr` directly (not via
+      `/data`) and asserting the Active2 gate scales by it for all twelve
+      classes, that it **stacks with** the card rather than replacing it, and
+      that `active2CdrFactor`'s 0.05 floor is what catches the two together
+      exceeding 0.95; red under the mutation above - refs: SPEC-FINAL §2 (the
+      Cooldown row), §6.3, c019, QA on c019.
+
+- [ ] (c021) [polish] the **twelve `active1_potency` cards** are the last of the
+      three §6.3 cards with no cross-class coverage. `c016` closed `class_line`
+      (twelve rows), `c019` closed `active2_cdr` (twelve ladders plus two named
+      deviations); `active1_potency` is touched only by `tests/act2.test.ts:185`
+      and `tests/p6b-swordsman.test.ts:274-281`, **both swordsman-only**, so
+      eleven of the twelve are unwatched and `active1PotencyMul` could be
+      deleted from eleven kits with the suite green. Acceptance:
+      `tests/class-active1-potency.test.ts` proves each class's card moves its
+      own Active1's damage between rank 0, 1 and 2 (the rank-0 control, c016's
+      convention), that another class's card at max rank changes nothing, and —
+      the shape `c019` earned — that every window/budget is derived from
+      `/data` with a bounded `perRank`, so a nerf blames the harness rather than
+      the card. Watch for the same collision class both prior items hit: a
+      potency card is inert wherever the Active's own output is already clamped
+      (`fireRaiseSkeletons`' cap, `fireJudgement`'s banked Wrath), and any such
+      row is a named deviation, never silence - refs: SPEC-FINAL §6.3, c016,
+      c019.
+
 ### Blocked out of Scope (owner items, unchanged order)
 
 - [ ] (fb056) [feat] top priority: add 15 class-specific equipment items to
@@ -524,6 +577,111 @@ session 2 (c005 was the last actionable one left), appending `c006`-`c010`.
       §3 (Poison), owner feedback `feature-poison-barrel-mechanic`.
 
 ## Log
+
+### c019 (2026-09-04) — the cooldown card that cannot buy a summon
+
+- **Fix shape**: test-only. `tests/class-active2-cdr.test.ts` is new (50 cases,
+  ~450 ms) and `tests/class-line-bonus.test.ts` gained a signpost paragraph.
+  **No `/src` or `/data` byte moved** — `git diff -- src data` is empty, checked
+  before and after every measurement quoted here.
+- **Acceptance option (b), because (a) is impossible rather than merely out of
+  Scope.** Making `engineer_active2_cdr` live on turret *count* means giving the
+  cadence room above the cap, which is precisely what `c018` closed. The two are
+  in direct tension and c018 wins.
+- **For the main lane — a QUESTIONS.md entry is owed and could not be written
+  here** (same blocker as c018: QUESTIONS.md is outside this lane's Scope).
+  **The decision, ready to paste**:
+
+  > **`active2_cdr` is a cast-rate card, not a summon-count card.** On a class
+  > whose Active2 summons against a cap, at any cap rank where a summon
+  > outlives a full lap of that cap (`floor((duration - 1/60) / cooldown) >=
+  > cap`), the cap binds the count and no cooldown reduction can add a summon.
+  > What the card buys there is how fast the board fills to the cap from empty
+  > and how young the set on it stays — a younger summon is one placed at a
+  > more recent Warden position. Turrets have no HP, so those two are the whole
+  > of its remaining value. This is deliberate and is the price of `c018`'s
+  > reachable caps; it is **not** a claim that the card never buys summons —
+  > see the two exceptions below. Two of the twelve cards are affected today
+  > (Engineer *Pop Turret Cooldown*, Animist *Recall Totem Cooldown*); the
+  > other ten have no cap to collide with and are plain cast-rate cards.
+
+- **The premise in the item text was one clause too broad, and the file says
+  so.** The measured grid, not the argued one:
+
+  | Engineer cap rank | steady-state live turrets by cdr rank 0/1/2 |
+  | 0 (cap 2)         | 2.00 -> 2.00 -> 2.00                        |
+  | 1 (cap 3)         | 3.00 -> 3.00 -> 3.00                        |
+  | 2 (cap 4)         | **3.33 -> 4.00 -> 4.00**                    |
+
+  At the top cap rank a turret outlives only 3 laps of a 4-turret cap, so cdr
+  rank 1 really does buy the +0.67 mean turrets c019 itself noted. Asserted as
+  its own case, so the deviation cannot overstate itself into "this card never
+  buys turrets".
+- **A second deviation was found, and it is c019's own last sentence answered.**
+  Animist *Recall Totem Cooldown* has the identical dead corner by a different
+  route: the totem's cap of **1 is enforced in code**, not `/data`
+  (`fireRecallTotem` clears the previous totem), so no `/data` field says
+  "cap". It buys **uptime**, not count — 15 s of totem on a 20 s cooldown reads
+  0.7492 -> 0.9989 -> 1.0000 across ranks, so the **second rank is worth one
+  tenth of one percent**, the first having already covered the whole gap. The
+  0.9989 rather than 1.0 is c018's exact-multiple trap shipped and live: a
+  −25 % cut of 20 s is exactly the totem's own 15 s duration, so it lapses for
+  one tick per cycle, costing nothing.
+- **The tripwire that finds the next one is behavioural, not `/data`-scoped.**
+  The first draft filtered on `active2.summonCap !== undefined`, concluded
+  "exactly one class", and QA proved it blind: deleting the totem's code cap
+  left all 45 cases green. It now spams every class's Active2 at its own cdr
+  card's max rank and asserts what is actually on the board, which catches a
+  `/data` cap, a code cap and a new summoning kit alike.
+- **A test file must fail on bad `/data`, never hang on it** — the sharpest
+  lesson of this item. The window widens as `2 / perRank` to stay honest under a
+  ⚖ nerf, and `SkillCardSchema` puts no positivity constraint on `perRank`, so
+  `perRank: 0` divided to `Infinity` and the synchronous tick loop **ran
+  forever**: vitest's `testTimeout` cannot interrupt a synchronous loop, so the
+  worker hung instead of failing (QA, three reproductions, one a 25-minute
+  stall; `perRank: 0.001` was the same root cause in its survivable form,
+  turning a 450 ms file into minutes). Now clamped at both ends, with the
+  positivity failure reported as a *test* rather than thrown from a `describe`
+  body, so the other 49 cases still run.
+- **For the main lane — a loader rule is owed** (architecture rule 4: "a loader
+  rule that refuses unpayable data is worth more than a comment saying the data
+  must be valid"). `SkillCardSchema` (`src/sim/content.ts`) should refuse
+  `perRank <= 0`: a skill card worth nothing per rank is unpayable data, and
+  every consumer that divides by it inherits the same trap. Out of Scope here.
+- **Two new items filed below**: `c020` (the general `cdr` stat's own term in
+  `active2CdrFactor` is unpinned anywhere) and `c021` (the twelve
+  `active1_potency` cards, the last of the three §6.3 cards with no
+  cross-class coverage).
+- **A precondition is not optional in a file like this.** Three hostile `/data`
+  retunes originally failed with a message blaming the card: cooldown 5.0 s
+  (the flat case reported "dipped below the cap" while the guard meant to fire
+  first stayed green, because `lapsPerLife` was missing c018's `- DT` — c018's
+  own Log warns 5.0 s is the round number the next ⚖ pass reaches for),
+  cooldown 4.9 s and 12 s (the age and census cases reported marginal readings
+  instead of "the cap no longer holds"). Every observable case in the deviation
+  now opens with the invariant it presumes, so a retune names itself.
+- **A measurement withdrawn, not quietly kept.** The first draft proved the
+  card's second value by walking the Warden and measuring her distance to the
+  nearest turret (5.33 -> 4.42 -> 3.28 tiles). QA showed that is a walk
+  artifact: it beats against the cast period, and at cooldown 4.9 s or 12 s it
+  reads rank 1 *farther* than rank 0. Replaced with the turret set's mean
+  **age**, which is what the mechanism owns, is path-independent, and is
+  monotone at every one of those cooldowns.
+- **For the main lane / `c014`**: this file does **not** join c014's list. Its
+  board spot is derived from `grid.ts` (`GRID_W/2`, `GRID_H/2`) and it needs no
+  build tile at all, so the terrain epic cannot break it. c014's list stays at
+  five.
+- **Also for the main lane**: the QA subagent's harness leaves untracked,
+  un-ignored scratch in the worktree (`*.qabak`, `tools/_qa_*`). This item was
+  committed by explicit path because of it; `.gitignore` should carry both
+  patterns.
+- **Pre-existing reds, unchanged and proven unrelated by a control run** (the
+  fast tier run twice with the new file and once with it removed; the failing
+  set is the same and non-deterministic across identical runs):
+  `b032`/`b034`/`b035`/`b036` (`beforeAll` vite hook timeout at 30 s),
+  `q15` (a 4000 ms wall-clock probe deadline under contention),
+  `q28`/`q45`/`q49`/`q52` (EPERM on `bench/.tmp` scratch dirs from nested-tsx
+  runs). All pass alone. Same list c018's Log records.
 
 ### c018 (2026-09-04) — the two unreachable summon caps
 

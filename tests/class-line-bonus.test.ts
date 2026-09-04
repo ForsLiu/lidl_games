@@ -108,6 +108,13 @@
  * and `tests/p6b-swordsman.test.ts:274-281` (swordsman only), and
  * `active2_cdr`'s only behavioural coverage is a HUD readout in
  * `tests/fb026-bottom-bar.test.ts`; both gaps are logged, neither is c016's.
+ *
+ * **`active2_cdr`'s gap is now closed, elsewhere**: `c019` put all twelve of
+ * those cards on trial in `tests/class-active2-cdr.test.ts`, and its named
+ * deviations are the reason two cards in *this* file's `c018` block look
+ * livelier than they are — Pop Turret and Recall Totem each summon against a
+ * cap their cooldown card cannot raise. Anyone arriving here asking "why is
+ * this card inert" should read that file's header next.
  */
 import { describe, expect, it } from 'vitest';
 
