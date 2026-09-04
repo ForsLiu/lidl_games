@@ -28,6 +28,12 @@ export {
   thickMask,
   walkableFlood,
 } from './analyze';
+export {
+  suggestCoreAnchor,
+  validateCorePlacement,
+  type CorePlacementResult,
+  type CoreRejectReason,
+} from './core-placement';
 export { generateTerrain, terrainHash } from './generate';
 export { terrainOverlay } from './overlay';
 export type { TerrainGrid, TerrainMap, TerrainMeasure } from './types';

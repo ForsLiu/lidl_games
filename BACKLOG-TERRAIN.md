@@ -95,6 +95,68 @@ recorded in the Log for the main/UI lanes to pick up at the merge.
 - [ ] (fb064f) [feat] *(out of scope — main lane)* Tuner terrain page
       (density/ratios editable) and the Training Grounds flat-arena override.
 
+### Generated 2026-09-03 (lane generation rule)
+
+Every item left above (fb064c–fb064f) needs files this lane may not touch:
+fb064c moves the Core off `CORE_X/CORE_Y`, which `src/sim/cores.ts`,
+`src/sim/enemies.ts`, `src/render/canvas.ts` and `src/ui/selection.ts` all
+read; fb064d's rules live in `enemies.ts`; e and f were already marked. So
+the lane had zero actionable items and the generation rule ran. The sweep
+leg of that rule was skipped with a reason: no run yet calls
+`generateTerrain` (fb064b shipped without World wiring), so terrain cannot
+move a single §14 balance gate and a sweep would measure nothing about it.
+Coverage was diffed against the owner feedback file instead
+(`feedback/processed/20260903-121255-feature-terrain-generation.md`), which
+is what §10.5 will be written from.
+
+- [x] (fb064h) [feat] Core placement, the terrain-side half of fb064c:
+      `src/sim/terrain/core-placement.ts` with `validateCorePlacement`
+      (a typed reject reason per owner rule — off-grid / not-normal /
+      near-gate / unreachable) and a deterministic `suggestCoreAnchor` for
+      the pre-highlighted default, plus `Grid.placeCore(tx, ty)` in the
+      lane's integration file so the 2x2 Core stops being pinned to
+      `CORE_X/CORE_Y` inside the grid's own pathing. Acceptance: over 100
+      seeds `validateCorePlacement` accepts a tile iff `legalCoreAnchors`
+      lists it; placing any legal anchor leaves `allGatesReachable()` true
+      and every gate's `gatePath` ending on a Core tile; `placeCore` refuses
+      off-grid, border and gate targets and refuses to run once a structure
+      stands; tiles the Core vacates revert to their real terrain, so a Core
+      that was bridging rock leaves no phantom corridor; `suggestCoreAnchor`
+      returns a legal anchor and the same one for the same seed — refs:
+      owner feedback "Core placement", fb064c.
+      **`Grid.placeCore` must not be called from a run until fb064c migrates
+      the `CORE_X/CORE_Y` readers** — merge blocker in the Log below; the grid
+      alone cannot make it safe, and a test asserts it has no caller yet.
+- [ ] (fb064i) [feat] high-ground rules, the terrain-side half of fb064d:
+      pure predicates in `src/sim/terrain/` for the owner's four rules
+      (ground melee cannot target or reach a tower on high ground;
+      Burrowers cannot surface on it; Spitters, fliers and boss specials
+      still can), keyed off `Grid.isHighGround` with the enemy-family table
+      as data, so each `enemies.ts` call site at the merge is one predicate.
+      Acceptance: table-driven tests per enemy family on a generated map;
+      the exact out-of-scope call sites listed in the Log for the main lane
+      — refs: owner feedback "high ground", fb064d.
+- [ ] (fb064j) [test] generator seed-domain hardening: `generateTerrain` is
+      pinned only over seeds 1..20000, which is not the domain a run seed
+      draws from. Acceptance: determinism and full band legality over
+      negative seeds, 0, `2**31 - 1` and seeds near the `(requested + n) | 0`
+      wrap; the retry path exercised in the negative range; a golden hash
+      per region — refs: fb064a Log ("band headroom is ZERO"), G2.
+- [ ] (fb064k) [polish] `describeTerrain` diagnostic: a deterministic ASCII
+      dump plus measured-band summary in `src/sim/terrain/`, so a terrain
+      repro is one string rather than a seed and a screenshot. Acceptance:
+      the dump round-trips to a byte-identical `kind` buffer, carries the
+      gates, the legal-anchor count and every measured band, and a known
+      seed's dump matches a golden — refs: HANDOFF §7 (depth).
+- [ ] (fb064l) [test] "seeds produce varied legal maps" is currently pinned
+      by ">= 95% distinct over 200 seeds", which a one-tile difference
+      satisfies — the owner's Done-when clause is effectively unmeasured.
+      Acceptance: over 500 seeds, mean pairwise tile-difference share and
+      per-seed difference from the flat map both clear a floor recorded in
+      the test, and the rock/rough/high counts spread across a band rather
+      than sitting on the authored density — refs: owner feedback
+      "Done when: seeds produce varied legal maps".
+
 ## Log
 
 - (2026-09-03, lane split) Integration-point file for the merge:
@@ -570,3 +632,156 @@ recorded in the Log for the main/UI lanes to pick up at the merge.
   - Carried forward, unchanged: **nothing consumes `TerrainMap.fallback`**
     (fb064g). fb064b does not wire the map into a run, so it still cannot be
     closed here — it belongs with fb064c's placement step or the World wiring.
+
+- (2026-09-03, fb064h) Core placement, terrain side. New
+  `src/sim/terrain/core-placement.ts` (`validateCorePlacement`,
+  `suggestCoreAnchor`); `src/sim/grid.ts` gains the pre-override `terrainRaw*`
+  buffers, `syncTerrain()`, `coreOrigin()`, `coreCenterOf()` and `placeCore()`;
+  `legalCoreAnchors` in `analyze.ts` now sizes its footprint off `CORE_W/CORE_H`
+  instead of a literal 2. `tests/terrain-core-placement.test.ts` is 30 tests,
+  ~1.7 s (fast tier). Design decisions, for QUESTIONS.md at the merge:
+  - **The validator agrees with the enumeration by construction, not by
+    coincidence.** `legalCoreAnchors` is what `coreLegalFrac` is measured
+    against, so a validator derived from its own reading of the rules would
+    eventually refuse a click on a tile the band already counted. The 100-seed
+    tile-for-tile sweep is the pin; QA widened it to 1212 seeds x 720 tiles
+    (~872k checks, 0 mismatches) plus hostile hand-built maps and odd grid
+    dimensions.
+  - **The suggestion is "closest to the tuned spot", deliberately dull.** Core
+    distance from each gate is what every wave's travel time is tuned against,
+    so choosing anything cleverer (maximise gate distance, centre of mass) is a
+    balance order, and balance orders are not this lane's. Reproducing
+    `CORE_X/CORE_Y` as nearly as the terrain allows is the choice that changes
+    nothing.
+  - **The build-room tie-break is load-bearing and now has goldens.** Over
+    seeds 1..500 the nearest-anchor set is tied on 25 seeds and the room key
+    moves the pick on 17 — i.e. on ~3% of runs it chooses the Core's tile.
+    Seven separate mutations of it survived the first suite. Pinned by a golden
+    table chosen to be two-sided: on seeds 24/40/127 the room key overrides the
+    lowest-index tie, on 58/173 the strict comparisons are what keep the lowest
+    index. This is fb064a's lesson applied — an output nothing pins forks
+    silently on any code change.
+  - **`ROOM_RADIUS` stays in code, against architecture rule 4**, and the
+    exemption is deliberate: it is a tie-break weight, not a tuning band — it
+    cannot make a map legal or illegal, since every value picks some member of
+    a set `legalCoreAnchors` already validated — while putting it in
+    `data/terrain.json` hands fb064f's live Tuner a knob that silently
+    relocates the Core, and terrain data is still outside `contentHash()`, so
+    a replay would not notice. Revisit at the merge, after that fold lands.
+  - **`placeCore` validates only what a Grid can know**; terrain legality is
+    `validateCorePlacement`'s answer, against the `TerrainMap`, where it does
+    not depend on the Core's own footprint having been punched through the map
+    already. The Command calls the terrain one first and the grid one second.
+  - **Both sides of the phantom-corridor rule are enforced.** Vacated tiles get
+    their real terrain back (re-derived through `syncTerrain`, so the override
+    and its undo are one loop read forwards), and `placeCore` now also refuses
+    to *arrive* on rock, rough or high ground — otherwise the override punched
+    2x2 of walkable ground into a mountain. The arrive-side guard reads the raw
+    masks, which for `terrainOverlay` output are exactly "kind is Normal", so it
+    cannot refuse a legal anchor; before `applyTerrain` they are zero and it is
+    a no-op, which is what keeps a terrain-free Grid unchanged.
+  - **`applyTerrain` after `placeCore` keeps the placement**, and the footprint
+    it lands on reads Normal — fb064b's "the Core is never buried" override,
+    unchanged and now applied wherever the Core actually is. The intended order
+    is still terrain first: only then does the arrive-side guard bind.
+  - **Refusal messages distinguish border from gate.** They were one string,
+    which made the gate rule untestable: every real gate is on the border, so a
+    2x2 over one also covers a Border tile and a build accepting gate tiles
+    outright still threw the same message. `world.ts`'s Fourth Gate makes the
+    interior-gate case real, not hypothetical.
+  - **Neither function trusts its optional argument.** A wrong-length `reach`
+    mask throws (short masks read `undefined` at every index — falsy — so an
+    unguarded validator answers `unreachable` for the whole board while looking
+    healthy), and a caller-supplied `anchors` list is re-checked against the
+    cheap half of the validator (`[0]`, `[-5]`, `[999999]`, `[NaN]` used to come
+    straight back out into a placement Command).
+  - **`reach` is computed lazily, after the cheap rules.** As a default
+    parameter it ran three gate floods to answer `off-grid` for a click outside
+    the board, which is the call fb064c's pre-highlight makes most often.
+    Measured by QA: a board-wide sweep is 0.52 ms with a hoisted mask and
+    53.7 ms without.
+
+- (2026-09-03, fb064h) Review and QA. code-reviewer returned REQUEST-CHANGES on
+  three Majors; qa-playtester returned **PASS on all five acceptance clauses**
+  and filed nine items. All are fixed or recorded, and both agents independently
+  found the same two holes (the tie-break, and the un-migrated `CORE_X/CORE_Y`
+  readers).
+  - **Major (review) + Bug 2 (QA), confirmed and fixed: the tie-break was 100%
+    unpinned.** Re-measured here before acting (25 ties / 17 moved over 500
+    seeds) rather than taken on the reports' word. Seven mutants now die.
+  - **Major (review) + Bug 1 (QA), confirmed and fixed as far as the lane
+    allows: the migration record did not exist.** The safety argument for
+    shipping a half-migrated Core cited "fb064c2", an item that does not exist,
+    and named four files when there are nine. Now a merge blocker below, a
+    corrected comment, an additive `Grid.coreCenterOf()` so fb064c's migration
+    is a mechanical call-site swap, and two tests: one pinning the divergence
+    itself, one walking `src/` and `tools/` to assert `placeCore` still has no
+    caller. That last one is the guard — it goes red the day a call site appears
+    without the migration.
+  - **Major (review), confirmed and fixed: no test moved the Core twice**, and
+    none covered `applyTerrain` after `placeCore`. Both mutants (vacating the
+    constant footprint; resetting the origin on adopt) were green against the
+    first suite. The first leaves the earlier target as a permanent 2x2 Core
+    island — the exact failure this item exists to prevent, one call late.
+  - **Minor (review) m4-m6, m9-m10 and Bugs 3-6, 8 (QA): all fixed** —
+    precedence order pinned, default `reach` pinned to the intersection mask,
+    `legalCoreAnchors` sized off the constants, mask-length guard, anchor-list
+    guard, lazy `reach`, distinguishable messages, and accept-side bounds pins
+    on both axes for both functions (the far corner is inside the east gate's
+    clearance ring, so each axis is pinned on a row and a column clear of every
+    gate — the obvious fixture answers `near-gate` and pins nothing).
+  - **Bug 9 (QA), fixed in `tests/terrain-grid.test.ts`: `syncTerrain`'s Gate
+    branch is dead on generator output** (`blankKinds()` makes gate tiles
+    Normal), so narrowing it to Core-only passed everything. It is not dead on a
+    *run* — the Fourth Gate is written after generation onto a tile the
+    generator never protected, and fb064b measured 138/500 seeds burying it.
+    Pre-existing since fb064b; the pin is new.
+  - **Bug 7 (QA), recorded not fixed: "before build" is "no structure currently
+    standing".** Selling every tower re-opens `placeCore`. `applyTerrain` has
+    the identical hole, so it is consistent rather than new, and a sticky
+    `built` flag is a run-lifecycle decision that belongs with fb064c's wiring,
+    not with a Grid that has no notion of phase. Filed below.
+  - **Re-mutation-tested after the fixes: 19 mutants, 19 killed.** The first
+    pass of the fixes left one survivor — `placeCore`'s bounds `>` -> `>=`,
+    which every existing assertion tolerated because both mistakes throw — so
+    the far-edge case now asserts on the *message* (`map border`, not `leaves
+    the grid`). Mutants killed: the seven tie-break ones, the two placement
+    ordering ones, both bounds pairs, the gate and mountain guards, the
+    `syncTerrain` override, the precedence swap, the default-`reach` and
+    mask-length guards, and the anchor-list guard.
+  - Verified behaviour-neutral: `npm run sim -- --seed 1 --policy hybrid` gives
+    `endHash 2729a000`, matching fb064b's recorded baseline; the generator's
+    golden hashes (`1:03031f09 2:30ddb8d4 42:b2e86488 1000:473db113`) are
+    unchanged by the `analyze.ts` edit; `tests/grid.test.ts`,
+    `tests/fb036-path-indicators.test.ts` and `tests/architecture.test.ts` are
+    untouched and green. QA additionally diffed HEAD's `Grid` against this one
+    over 30 trials x 120 randomised ops on full state — identical.
+  - `npm run test:fast`: 2152 passed / 7 failed, the documented pre-existing set
+    only (`b032`/`b034`/`b035` and `q15`/`q28` load-sensitive — `q28` and `b034`
+    re-run green in isolation here; `b036` is the deterministic 1095.4-vs-1080
+    UI-lane failure; `q45`/`q49`/`q52` are the Windows EPERM scratch-dir
+    cleanups). Nothing touching `grid.ts`, `src/sim/terrain/**` or pathing
+    failed.
+
+- (2026-09-03, fb064h) Out-of-scope needs, for the merge:
+  - **MERGE BLOCKER: `Grid.placeCore` is not safe to call from a run until the
+    `CORE_X/CORE_Y` readers migrate.** The flow field would target the new Core
+    while every damage, aura and attack-range site clamped to the old 2x2:
+    walkers path to the Core and hit empty ground. The full list, none of it
+    this lane's to touch — `coreCenter()` itself (`src/sim/grid.ts`, kept as the
+    *default* centre with `coreCenterOf()` beside it) and its callers
+    `src/sim/world.ts:514,580`, `src/sim/run.ts:665`,
+    `src/sim/sundering.ts:18,110`, `src/sim/cores.ts:412,599,626,658`,
+    `src/bots/policies.ts:225,317,484,508`; the Core-hitbox clamps in
+    `src/sim/cores.ts:198,405` and `src/sim/enemies.ts:606`; and
+    `src/ui/selection.ts:69` plus the renderer's eight `CORE_X/CORE_Y` reads in
+    `src/render/canvas.ts`. This is fb064c's first task, before the Command.
+  - **`placeCore` re-opens after a build-then-sell** (QA Bug 7, above). The
+    honest fix is a run-lifecycle flag set when the build phase opens, which
+    `applyTerrain` should share; both belong with fb064c's wiring.
+  - **Nothing consumes `TerrainMap.fallback`** — carried forward unchanged from
+    fb064g and fb064b. fb064h still does not wire a map into a run.
+  - **`data/terrain.json` is still outside `contentHash()`** — carried forward
+    from fb064b, still a merge blocker for whatever wires terrain into `World`.
+  - **`ROOM_RADIUS` and architecture rule 4** — the exemption above should be
+    re-decided once terrain data is inside `contentHash()`.

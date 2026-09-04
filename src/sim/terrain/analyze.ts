@@ -8,7 +8,7 @@
  * passes under 4-connectivity cannot be optimistic about what the sim will
  * actually walk.
  */
-import { GATES } from '../grid';
+import { CORE_H, CORE_W, GATES } from '../grid';
 import { isWalkable, TerrainKind, type TerrainConfig } from './config';
 import type { TerrainGrid, TerrainMeasure } from './types';
 
@@ -274,11 +274,15 @@ export function legalCoreAnchors(
 ): number[] {
   const out: number[] = [];
   const clear = cfg.coreGateClearance;
-  for (let y = 0; y < map.h - 1; y++) {
-    for (let x = 0; x < map.w - 1; x++) {
+  // Sized off `CORE_W/CORE_H`, not a literal 2: `validateCorePlacement` and
+  // `Grid.placeCore` both measure the footprint that way, and an enumeration
+  // that disagreed with the validator about the Core's size is exactly the
+  // drift this module and `core-placement.ts` are written to make impossible.
+  for (let y = 0; y <= map.h - CORE_H; y++) {
+    for (let x = 0; x <= map.w - CORE_W; x++) {
       let ok = true;
-      for (let dy = 0; dy < 2 && ok; dy++) {
-        for (let dx = 0; dx < 2 && ok; dx++) {
+      for (let dy = 0; dy < CORE_H && ok; dy++) {
+        for (let dx = 0; dx < CORE_W && ok; dx++) {
           const i = (y + dy) * map.w + (x + dx);
           if (map.kind[i] !== TerrainKind.Normal || !reach[i]) ok = false;
           else if (gateDistance(x + dx, y + dy) <= clear) ok = false;

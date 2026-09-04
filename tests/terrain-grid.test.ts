@@ -286,6 +286,24 @@ describe('Grid.applyTerrain (fb064b)', () => {
   });
 });
 
+describe('the structural override over gate tiles (fb064b, pinned fb064h)', () => {
+  it('keeps a gate walkable and normal even when the map paints rock under it', () => {
+    // Dead on generator output — `blankKinds()` makes the three gate tiles
+    // Normal, so the Gate branch of the override never fires on a real map and
+    // narrowing it to Core-only passes the whole suite. It is not dead on a
+    // *run*: `world.ts`'s Fourth Gate modifier writes a south gate into
+    // `grid.tile` after generation, on a tile the generator gave no protection
+    // and may well have buried (138 of 500 seeds, measured in fb064b). This is
+    // the only assertion standing between that and an unwalkable spawn point.
+    const gate = GATES[1];
+    const map = handMap([[gate.tx, gate.ty, TerrainKind.Rock]]);
+    const g = applied(map);
+    expect(g.terrainKind[g.idx(gate.tx, gate.ty)]).toBe(TerrainKind.Normal);
+    expect(g.passable(gate.tx, gate.ty)).toBe(true);
+    expect(g.allGatesReachable()).toBe(true);
+  });
+});
+
 describe('Grid on a generated map (fb064b, 100 seeds)', () => {
   const SEEDS = Array.from({ length: 100 }, (_, i) => i + 1);
 
