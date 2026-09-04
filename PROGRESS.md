@@ -5,6 +5,38 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-04 session: BACKLOG fb093 closed** — fixed gate **G22**'s `time`
+  Core vs Stone Heart, seed-1 regression (fingerprint 0.065, under the 0.10
+  floor), introduced by the same-day `fb076` tower-damage retune. Same lever
+  family `b070` already used once for `corpse`: widened `time`'s own
+  `data/cores.json` upgrade magnitude (`upgrade.steps[0].goldPerSecond` 1 ->
+  3, `time`'s only direct economy lever) rather than touching tower data.
+  balance-analyst rejected 1.1/1.5 (fractional — `w.gold` is
+  `Math.floor`-accumulated, breaks `tests/p-core-b-effects.test.ts`'s exact
+  tick-count gold pins) and 2 (an integer, but drifts off those same pins
+  under 60Hz floating-point summation) before brute-forcing 1-30 to find 3,
+  the smallest value clean at all four pinned tick counts. Fresh numbers:
+  `time` seed 1 0.065->**0.600**, seed 2 0.180->0.204 (already passing, no
+  regression); other three Cores' 6 G22 cases byte-identical (untouched data
+  rows); G21 (4 files, 99 tests) green; G23's `time` case confirmed
+  `it.skip`-ed (Q160/Q161-blocked), so no spillover. code-reviewer
+  **APPROVE** (3 Minor: a stray scratch `console.log` left in
+  `tests/p-core-f-gates.test.ts`, stripped before commit — diff is
+  `data/cores.json` only; SPEC-FINAL's own "+1 gold/s" example text now
+  stale, logged as **QUESTIONS Q167** rather than silently drifting further;
+  BACKLOG/PROGRESS bookkeeping, closed here). qa-playtester **PASS**:
+  independently re-measured all 8 G22 cases with real numbers, ran the full
+  G21 file set, read every line of G23's describe block to confirm zero live
+  `time` cases exist, and proved the guard is real by reverting
+  `goldPerSecond` to 1 (reproduced the original 0.065 failure byte-for-byte)
+  and to 50 (both seeds pass) before restoring 3. `npm run test:fast`: 7
+  failed files, all the pre-registered Windows flake family (`b032`/`b034`/
+  `b035`/`b036` port contention, `q15` worker-hang, `q49`/`q52` EPERM
+  scratch-dir races) — no new failures. No `/src` code touched. Gate count
+  unchanged at HANDOFF's last-regenerated 18/23 (G22 was not counted as its
+  own red row there — it's a per-Core sub-clause of a gate already tracked
+  green overall; this closes the one sub-clause that had gone red).
+
 - **2026-09-04 session: BACKLOG fb076 closed — `data/towers.json`-only
   damage retune for the six under-clearing solo TD towers against fb054's
   denser wave curve, landed by a prior session this same day and finished

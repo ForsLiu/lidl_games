@@ -2829,7 +2829,7 @@ generation-rule boundary.
       above; `b032`/`b034`/`b035`/`b036` — dev-server port contention,
       "Port 5173 is in use", all assertions skipped, file-level failure
       only), unrelated to `/data` content and not reproducible in isolation.
-- [ ] (fb093) [bug] G22 regression: `time` Core vs Stone Heart, seed 1
+- [x] (fb093) [bug] G22 regression: `time` Core vs Stone Heart, seed 1
       (`tests/p-core-f-gates.test.ts`) now fails, introduced by fb076's
       `data/towers.json` damage retune — confirmed via a `git stash` control
       run at HEAD (passes there) vs. this diff (fails): fingerprint 0.065
@@ -2847,6 +2847,46 @@ generation-rule boundary.
       G21 (`tests/p-core-b-effects.test.ts` through
       `tests/p-core-e-time-decay.test.ts`) stay green — refs: SPEC-FINAL §14
       G22, BACKLOG fb076, b070.
+
+      **Closed (2026-09-04).** Same lever family as `b070`'s `corpse` fix,
+      applied to `time`: `data/cores.json`'s `time.upgrade.steps[0]
+      .goldPerSecond` 1 -> 3 (plus the matching `desc` string), `time`'s only
+      direct economy lever. Delegated to balance-analyst, who first tried
+      2 and non-integer values (1.1, 1.5) — both rejected live: `w.gold` is
+      `Math.floor`-accumulated every 60 Hz tick and `tests/p-core-b-effects
+      .test.ts` pins `w.gold === seconds * TIME_STEP1_GOLD` at several exact
+      tick counts, so a fractional rate or an unlucky integer (2 drifts off
+      those pins under FP summation) breaks that file; brute-forced integers
+      1-30 against the four pinned tick counts to find the smallest clean
+      value, landing on 3. Fresh numbers, all 8 G22 cases: `time` seed 1
+      0.065->**0.600** (fixed), seed 2 0.180->0.204 (was already passing, no
+      regression); the other three Cores' 6 cases byte-identical before/after
+      (their data rows untouched). G21 (`tests/p-core-b-effects.test.ts`
+      through `tests/p-core-e-time-decay.test.ts`, 99 tests across 4 files)
+      green — `p-core-b-effects.test.ts` reads `TIME_STEP1_GOLD` dynamically
+      off `/data` rather than pinning the literal, so it tracked the change
+      automatically. G23's `time` case is `it.skip`-ed (Q160/Q161-blocked,
+      confirmed by reading the full describe block, not assumed), so no
+      spillover there. code-reviewer **APPROVE** (3 Minor: a stray scratch
+      `console.log` the balance-analyst had left in
+      `tests/p-core-f-gates.test.ts` — stripped before commit, diff is
+      `data/cores.json` only; SPEC-FINAL.md's own "+1 gold/s" inline example
+      text is now stale against `/data`, logged below rather than left
+      silent; BACKLOG/PROGRESS bookkeeping needed closing, done here).
+      qa-playtester **PASS**: independently re-measured all 8 G22 cases with
+      real numbers (matching above), ran the full G21 file set (99/99),
+      read every line of G23's describe block to confirm zero live `time`
+      cases exist to regress, and proved the guard is real by reverting
+      `goldPerSecond` to 1 (reproduced the original 0.065 failure
+      byte-for-byte) and pushing it to 50 (both seeds pass, as expected)
+      before restoring 3. `npm run test:fast`: 7 failed files, all the
+      pre-registered flake family (`b032`/`b034`/`b035`/`b036` port
+      contention, `q15` worker-hang, `q49`/`q52` EPERM scratch-dir races) —
+      no new failures, none touching `/data/cores.json` or Core/Time code.
+      No `/src` code touched. SPEC-FINAL.md's stale "+1 gold/s" example
+      logged as an addendum to QUESTIONS.md rather than silently left (§5.5
+      already marks all Core numbers ⚖, so this is a documentation gap, not
+      a design conflict).
 - [ ] (fb094) [bug] G19 liveness clause is red and untracked; STATUS.md says
       green — qa-playtester found this during fb076's QA pass (2026-09-04),
       confirmed unrelated to fb076 itself via a `git stash` control run at
