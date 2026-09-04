@@ -2851,7 +2851,7 @@ not already expose it) logs that need below instead of reaching into
       documented across dozens of prior PROGRESS.md sessions, none touching
       `src/ui/**`/`src/render/**` or this item's own files.
 
-- [ ] (fb109) [polish] low priority: generated 2026-09-04 (same generation
+- [x] (fb109) [polish] low priority: generated 2026-09-04 (same generation
       batch as fb107) — fb102's own code-reviewer Minor, never promoted to
       its own item: `Hud.syncStageOverlayGeometry()`'s `--bossbar-maxw`
       computation has no floor at extreme-narrow stage widths, so it degrades
@@ -2861,7 +2861,41 @@ not already expose it) logs that need below instead of reaching into
       test drives `syncStageOverlayGeometry` at a pathologically narrow width
       (e.g. 200px) and confirms `--bossbar-maxw` never goes below a small
       fixed floor (chosen so the boss name/HP text stays legible, e.g. 120px)
-      instead of shrinking unbounded — refs: fb102, fb065, fb082.
+      instead of shrinking unbounded — refs: fb102, fb065, fb082. DONE
+      2026-09-04: `hud.ts` adds a `BOSSBAR_MIN_WIDTH_PX = 120` constant next
+      to the existing `BOSSBAR_WIDTH_PX`/`BOSSBAR_MIN_GAP_PX` ones;
+      `syncStageOverlayGeometry()`'s final `--bossbar-maxw` clamp changed from
+      `Math.max(0, Math.min(BOSSBAR_WIDTH_PX, maxFromLeft, maxFromRight))` to
+      `Math.max(Math.min(BOSSBAR_MIN_WIDTH_PX, availW), Math.min(BOSSBAR_WIDTH_PX,
+      maxFromLeft, maxFromRight))` — floors at 120px instead of 0 once both
+      rails' worst-case footprints overlap each other, while the
+      `Math.min(BOSSBAR_MIN_WIDTH_PX, availW)` half (added during code review)
+      keeps the floor from ever exceeding the stage's own width at stages
+      narrower than 120px itself. Targeted
+      `tests/ui-fb102-bossbar-rail-overlap.test.ts` (6/6, up from 4): a
+      200×112px stub (both rails' footprints already overlap) confirms
+      `--bossbar-maxw` floors to exactly 120 instead of the pre-fix 0; a
+      100×56px stub (narrower than the floor itself) confirms it clamps to
+      `availW` (100) rather than spilling past the stage edge. code-reviewer
+      APPROVE (no Critical/Major; one Minor — the floor wasn't originally
+      clamped against `availW`, risking the boss bar rendering wider than a
+      sub-120px stage itself — fixed same session with the `availW` clamp
+      above and its own regression case, re-verified green). qa-playtester
+      PASS: independently reimplemented the geometry math standalone and swept
+      widths 100–1300px confirming the floor holds flat at 120 with no
+      discontinuity, dip, or `availW` overshoot at any point, confirmed the
+      exact-120px and 121px boundary, confirmed the zero-width early-return
+      path and the wide-stage 360px cap are both unaffected, and cross-ran the
+      sibling `ui-fb106-extreme-aspect-geometry`/`ui-fb082-overlay-geometry`
+      suites clean; filed no new bugs. `npx tsc --noEmit` clean. Full
+      `src/ui/**`/`src/render/**`-relevant sweep (`tests/ui*`, `tests/render*`,
+      `tests/fb0*`, 79 files/730 tests) had exactly 1 failure
+      (`fb038-status.test.ts`'s `q47 PIN_COVERAGE` case), the same pre-existing
+      Windows scratch-dir EPERM class documented across dozens of prior
+      PROGRESS.md sessions, unrelated to this change. `npm run test:fast`: 59
+      failures, all in the pre-existing q46/q49/q52/q53 worker-hang/Windows-
+      scratch-dir-EPERM flake classes, none touching `src/ui/**`/`src/render/**`
+      or this item's own files.
 
 - [ ] (fb110) [bug] low priority: generated 2026-09-04 (same generation
       batch as fb107) — fb103's own qa-playtester finding, traced but not
@@ -2913,6 +2947,15 @@ not already expose it) logs that need below instead of reaching into
       fb063, `lineHit` (`src/sim/combat.ts`).
 
 ## Log
+
+- 2026-09-04, fb109: implemented fully in-scope; see the item's own DONE note
+  above for detail. fb085/fb093/fb097 (all `[ ]` still open above them in the
+  queue) were re-confirmed still out-of-scope for this lane rather than
+  re-attempted — each was already logged as out-of-scope in prior 2026-09-04
+  Log entries below (fb085 needs `data/strings.json`; fb093 needs
+  `tools/ui-audit.ts`; fb097 needs a new npm dependency) and nothing about
+  this lane's Scope has changed since. Executed fb109 instead, the next
+  actionable item, which is fully in-scope.
 
 - 2026-09-04, fb108: implemented fully in-scope. code-reviewer
   (REQUEST-CHANGES → APPROVE after fix) caught a Major: `dashTrailSentence`/

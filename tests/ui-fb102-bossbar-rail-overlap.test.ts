@@ -156,6 +156,41 @@ describe('fb102: the boss banner never overlaps an expanded floating rail', () =
     expect(stageVar(root, '--bossbar-maxw')).toBe(360);
   });
 
+  it('fb109: at a pathologically narrow (200px) stage width, --bossbar-maxw floors instead of shrinking toward 0', () => {
+    const root = mount();
+    const hud = makeHud(root);
+    const w = new World(cfg());
+    hud.buildTowerBar(w);
+    // At this width both rails' worst-case footprints (up to 300px each,
+    // capped at the narrow 55% fraction) overlap each other, driving the
+    // pre-fix `maxFromLeft`/`maxFromRight` negative and the old
+    // `Math.max(0, ...)` clamp to exactly 0 — an illegible boss bar.
+    stubStageSize(root, 200, 112);
+
+    hud.update(w);
+
+    const bossMaxW = stageVar(root, '--bossbar-maxw');
+    expect(bossMaxW).toBe(120);
+    expect(bossMaxW).toBeGreaterThan(0);
+  });
+
+  it('fb109: at a stage narrower than the floor itself, --bossbar-maxw never exceeds availW', () => {
+    const root = mount();
+    const hud = makeHud(root);
+    const w = new World(cfg());
+    hud.buildTowerBar(w);
+    // 100px < BOSSBAR_MIN_WIDTH_PX (120) — far past any real device/browser
+    // minimum, but the floor must still degrade toward "as wide as the stage
+    // allows" rather than spilling the boss bar past the stage's own edges.
+    stubStageSize(root, 100, 56);
+
+    hud.update(w);
+
+    const bossMaxW = stageVar(root, '--bossbar-maxw');
+    expect(bossMaxW).toBe(100);
+    expect(bossMaxW).toBeLessThanOrEqual(100);
+  });
+
   it('falls back to no --bossbar-maxw property when the stage has no real layout (jsdom default)', () => {
     const root = mount();
     const hud = makeHud(root);

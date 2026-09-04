@@ -51,6 +51,10 @@ const RAIL_NARROW_BREAKPOINT_PX = 1180; // the same media query's breakpoint
 const RAIL_EDGE_GAP_PX = 8; // `.sw-rail-left`/`.sw-rail-right`'s `calc(var(--cv-left/right, 0px) + 8px)`
 const BOSSBAR_WIDTH_PX = 360; // `.sw-bossbar`'s `width: 360px`
 const BOSSBAR_MIN_GAP_PX = 10; // minimum breathing room kept between the boss bar and a rail
+// fb109: below this, the boss name/HP text stops being legible — floor
+// `--bossbar-maxw` here instead of letting it degrade toward 0 (or negative,
+// pre-clamp) as the stage keeps shrinking past both rails' combined footprint.
+const BOSSBAR_MIN_WIDTH_PX = 120;
 
 /** fb084: which one-time first-run tutorial prompt is showing. */
 export type OnboardingKey = 'build' | 'dusk' | 'dawn';
@@ -1214,7 +1218,15 @@ export class Hud {
     const rightRailLeftEdge = availW - right - RAIL_EDGE_GAP_PX - railW;
     const maxFromLeft = 2 * (cx - leftRailRightEdge - BOSSBAR_MIN_GAP_PX);
     const maxFromRight = 2 * (rightRailLeftEdge - BOSSBAR_MIN_GAP_PX - cx);
-    const bossMaxW = Math.max(0, Math.min(BOSSBAR_WIDTH_PX, maxFromLeft, maxFromRight));
+    // code-reviewer (fb109): floor clamped against `availW` too, so a stage
+    // narrower than the floor itself (far past any real device/browser
+    // minimum) still keeps the boss bar inside the stage's own box instead
+    // of spilling past its edges — the floor degrades toward "as wide as the
+    // stage allows," never wider.
+    const bossMaxW = Math.max(
+      Math.min(BOSSBAR_MIN_WIDTH_PX, availW),
+      Math.min(BOSSBAR_WIDTH_PX, maxFromLeft, maxFromRight)
+    );
     stage.style.setProperty('--bossbar-maxw', `${bossMaxW}px`);
   }
 
