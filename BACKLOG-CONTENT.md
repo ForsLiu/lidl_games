@@ -165,7 +165,8 @@ session 2 (c005 was the last actionable one left), appending `c006`-`c010`.
       authors none, and that the three conditional rows apply only under their
       condition - refs: SPEC-FINAL §4.1/§4.2, §14 G8, c005.
 
-- [ ] (c010) [balance] Stormcaller *Conduction* is authored on the wrong row.
+- [ ] (c010) [balance] **BLOCKED out of Scope 2026-09-04 — see the Log.**
+      Stormcaller *Conduction* is authored on the wrong row.
       The passive names a rule about electric damage *generally* ("+20% per
       jump, compounding, cap 8 jumps"), but its two numbers live only on
       `active1` (`chainGrowth`/`chainCap`), leaving the passive row prose with
@@ -180,7 +181,7 @@ session 2 (c005 was the last actionable one left), appending `c006`-`c010`.
       **logged for the main lane**, not implemented from here (`towers.ts`/
       `vsspecials.ts` are out of Scope) - refs: SPEC-FINAL §4.2, §14 G11.
 
-- [ ] (c011) [polish] passive **magnitudes and lifetimes** are unpinned —
+- [x] (c011) [polish] **DONE 2026-09-04.** passive **magnitudes and lifetimes** are unpinned —
       `c006`'s completeness half, deliberately left out of it. c006 proved
       all 12 passives fire; it asserts direction and presence only, so a
       passive can keep firing with its numbers meaningless and c006 stays
@@ -201,6 +202,86 @@ session 2 (c005 was the last actionable one left), appending `c006`-`c010`.
       `c008` is separately making auditable) - refs: SPEC-FINAL §4.1/§4.2,
       §14 G10/G11, c006.
 
+
+- [ ] (c015) [bug] the twelve class rows' **player-facing sentences contradict
+      their own numbers**, and nothing checks it. `data/classes.json` carries a
+      `description` on every passive/Active/tower-passive row and those strings
+      are what the Codex and tooltips show, but every number in them is a
+      hand-copied duplicate of a sibling field: Grave Harvest says "6 s" beside
+      `corpseSeconds 6`, Frost Touch "hit 5 times" beside `freezeHits 5`,
+      Conduction "cap 8 jumps" beside `chainCap 8`, Deep Winter "+10%" beside
+      `towerDamageVsChilled 0.10` — and Bloodlord *Sanguine Pact* already says
+      "all towers +10% damage" beside `towerDamage 0.04`, which `c008` proved is
+      drift, so at least one of the twelve is lying to the player today. A
+      retune moves the field and leaves the sentence behind. Acceptance:
+      `tests/class-descriptions.test.ts` extracts every numeric literal (and its
+      `%`/`s`/`x` unit) from all 36 description strings and requires each to
+      match the field on that row it names, or to appear in a named-deviation
+      table carrying the item/Q-number that authorised the split; a number with
+      neither fails. **Changes no `/data` number** except the description text
+      itself where the fix is the sentence - refs: SPEC-FINAL §4.1/§4.2, c008,
+      architecture rule 4.
+
+- [ ] (c016) [polish] the **p7a skill-card (`classLineBonus`) branches inside
+      the class kits are untested** — named as excluded by `c006`'s own header
+      ("So can the p7a skill-card branches (`classLineBonus`) inside Thousand
+      Cuts, Frost Touch and Spreading Plague") and never filed. There are more
+      than those three: `classes.ts` reads `classLineBonus` in at least
+      *Thousand Cuts* (extra Bleeding stacks/rank), *Brittle Frost* (`freezeHits`
+      −1/rank), *Wider Contagion* (Spreading Plague transfers to +1 enemy/rank),
+      *Deeper Draw* (`pierceCap` +2/rank), *Deeper Grave* (skeleton cap +1/rank)
+      and *Longer Arc* (Chain Surge jumps +2/rank). Each is a rank-gated `if`
+      that can be deleted with every existing test green. Acceptance:
+      `tests/class-line-bonus.test.ts` proves each branch changes its own
+      observable between rank 0 and rank 1 of the card, using the same
+      control-run shape as c006 (rank 0 is the control, not another class), and
+      that a rank a class does not own changes nothing for it - refs:
+      SPEC-FINAL §6.3, §4.1/§4.2, c006.
+
+- [ ] (c012) [polish] `data/equipment.json` has **no §7 ledger** — `c008`'s
+      shape for the other content file this lane owns. `tests/fb015-equipment.
+      test.ts:84` asserts "each item, equipped alone, contributes every mods key
+      at its owner-table value", but that owner table is *hardcoded in the test*,
+      so `/data` and the test can drift from SPEC-FINAL §7 together and stay
+      green — exactly the hole c008 found on `data/classes.json`. Acceptance:
+      `tests/equip-spec-numbers.test.ts` carries every §7 figure for the 12
+      shipped items as a table with, per row, either a match against
+      `data/equipment.json` or a named deviation carrying the item/Q-number that
+      authorised it; a figure with neither fails, and the three `classFallback`
+      compensation lines are rows of their own. **Changes no number** — it makes
+      the drift visible before `fb056` appends 15 more rows to the same file
+      - refs: SPEC-FINAL §7, c008.
+
+- [ ] (c013) [bug] Animist *Wide Grove* is authored on the **global `area`
+      key**, so "All towers +10% area" silently widens things that are not
+      towers. Found by `c009`, logged there, not filed until now: there is no
+      `towerArea` stat key, so the row uses `area`, which `stats.ts` folds into
+      `derived.areaMul` — read by `towers.ts`, `vswield.ts`, `damagetypes.ts`,
+      `enemies.ts` **and, since `c001`, by every one of the Animist's own class
+      Actives**. c001 widened the blast radius of this row and nobody re-checked
+      it. The fix needs a new key in `src/sim/statkeys.ts` (out of Scope, same
+      blocker as `c004`), so this item is the *measurement*: acceptance is
+      `tests/class-wide-grove-reach.test.ts` enumerating every consumer
+      `areaMul` reaches under the Animist and asserting, per consumer, whether
+      Wide Grove currently widens it — a red/green target the main-lane
+      `towerArea` fix flips, rather than a claim in prose. The key itself is
+      logged for the main lane - refs: SPEC-FINAL §4.2 (Animist), §2 (Area row),
+      c001, c009.
+
+- [ ] (c014) [polish] the four §4 liveness files **share a hardcoded board
+      assumption and will all break together** on the terrain epic. `c005`,
+      `c006`, `c009` and `c011`'s file each pin `WX/WY = 10,10`, a build tile at
+      `11,10` and a probe loop against `cfg()`'s fixed seed; `BACKLOG-TERRAIN.md`
+      makes that seed generate a real map, at which point all four fail as
+      "harness could not build ..." — a harness error indistinguishable, to
+      whoever picks it up, from a product regression. Logged three times now
+      (c005, c006, c009) and never fixed. Acceptance: one lane-owned
+      `tests/class-board.ts` module exports the probed Warden spot and build
+      tile (chosen by `checkBuild` probing, as `tilePastBaseRange` already
+      does, never hardcoded); all four files import it and none contains a
+      literal tile coordinate; every one stays green unchanged today, and a
+      deliberately shifted probe origin moves all four together - refs:
+      BACKLOG-TERRAIN.md, c005, c006, c009.
 ### Blocked out of Scope (owner items, unchanged order)
 
 - [ ] (fb056) [feat] top priority: add 15 class-specific equipment items to
@@ -1116,3 +1197,145 @@ session 2 (c005 was the last actionable one left), appending `c006`-`c010`.
   `cfg()`'s fixed seed. When `BACKLOG-TERRAIN.md`'s generation epic lands, these
   fail as `harness could not build ...` — a harness error, not a product
   regression. The three files should be re-pointed at a probed tile together.
+
+- (2026-09-04, session 7) **c010 is BLOCKED out of Scope.** Moving
+  `chainGrowth`/`chainCap` off `active1` onto the passive row needs three files
+  this lane may not edit, and the block is structural rather than cosmetic:
+  1. `src/sim/content.ts:1288` — `REQUIRED_EFFECT_FIELDS.chain_lightning` is
+     `['chainCount', 'chainGrowth', 'chainCap']`, so the loader **refuses** a
+     `chain_lightning` `active1` the moment those two fields leave it. c010
+     cannot even load its own data without this line changing.
+  2. `tests/p6d-nine-classes.test.ts` — **five** sites read them off `active1`:
+     `:116` (the loader-refusal case for `chain_lightning`/`chainGrowth`), and
+     `:226`, `:227`, `:231`, `:249` (G11's ceiling and the per-jump growth).
+     These are the very assertions c010's acceptance says to re-measure as a
+     control pair, and they are main-lane.
+  3. `tests/q7-loader-holes.ts:248,250` — the fuzz corpus addresses both by the
+     path `classes.classes[].active1.chainCap` / `...chainGrowth`.
+  Keeping them on `active1` *and* authoring them on the passive would satisfy
+  the loader but duplicate the number, which is what architecture rule 4 is
+  against, so there is no in-Scope partial. `tests/class-passive-liveness.test.ts:732`
+  already carries the pin c010 has to update; nothing else here needs doing
+  until the merge widens this Scope or the main lane takes it.
+
+- (2026-09-04, session 7) **Generation rule run** (2 actionable items left, under
+  the 3 the rule names). Sweep (12 seeds, `maxbuild`/`hybrid`) reports win rate
+  **1.0 for both policies**, medSurv ~594 s, medMin ~34 — the same over-ceiling
+  shape STATUS records for G8 and G23, unmoved and not a lane matter. Diffing
+  §4/§7 coverage against the code produced four items and HANDOFF §7's depth
+  clause one more; appended `c012`-`c016`, ordered by value. Two of them come
+  straight out of this session's work: **c013** is the Wide Grove `area`
+  over-reach `c009` logged and never filed (and `c001` widened it without anyone
+  re-checking), and **c014** is the hardcoded-board assumption `c005`, `c006`
+  and `c009` have now each logged separately, which the terrain epic will break
+  in all four files at once.
+
+- (2026-09-04, session 7) **c011 done** — the nine magnitude/lifetime holes
+  `c006` deferred are closed. `tests/class-passive-magnitudes.test.ts`
+  (27 tests, ~0.2 s, fast tier). **No `/src` or `/data` byte moved.**
+
+  **Three of the nine were not reachable the way the item assumed**, and each is
+  a finding rather than a detail:
+  - *Frost Touch's lapse reset* is **dead code on shipped content**. `frost` and
+    `frost_track` ride the same `onHit` list in that order and `passiveOnHit` is
+    its only producer, so the branch never sees a banked stack; a `slowImmune`
+    target reaches it but has nothing banked, because the increment sits inside
+    the same `if`. Deleting it changes nothing a player can see. Pinned at
+    `applyOnHit` anyway — it is what makes "while frosted" mean anything — and
+    the reordered-`onHit` seam is real: swapping the two reddens five cases.
+  - *Kinship's `mul *=`* is unreachable by casting, because `fireRecallTotem`
+    evicts the standing totem first. That eviction was itself untested, so the
+    row now asserts the replace rule through real casts **and** the
+    multiplicative combination on a directly-built second aura.
+  - *`chargeCapSeconds` has three independent clamps*, not one. The first draft
+    read only released damage and stayed green with the accumulator clamp
+    deleted; the second still had no case for `circleSlashValues`, which is on
+    the *other* charge kind.
+
+  **Reviewed and QA'd; both found defects, and the worst were mine.** Code
+  review found the header claiming all three clamps had a case when one did not
+  — the same false-claim shape `c009` recorded — plus two undeclared cross-field
+  dependencies (the chain harness had **zero** margin against `chainCount`, and
+  the aura cases silently needed spirits to outlive the totem) and a census that
+  could not fail. QA then found the census's *replacement* could not fail
+  either, in a worse way: registering coverage inside the `it` bodies made `-t`
+  and `--sequence.shuffle` report "all nine holes were dropped", a harness
+  artefact wearing a product regression's message. It registers at collection
+  time now.
+
+  **QA found two Major holes where the case was green while the mechanic was
+  broken**, both of the "the scenario is too clean to tell two formulas apart"
+  kind:
+  - *Time Flow's merge* landed all `cap + 8` hits back-to-back, so every stack
+    still had its full window and `dmg / remaining` was numerically identical to
+    the *push* formula `dmg / BASE`. Writing the wrong one silently drops 6.9%
+    of the overflow at a 2 s-elapsed stack, approaching 100% as the stack nears
+    expiry. There is now a case that ages the array by half a window first.
+  - *Spreading Plague's transfer* only ever put **one** DoT on the carrier, so
+    `dotOutstanding(e)` could be read as `e.dots[0]` with the file green — and a
+    carrier owing poison **and** burning is the routine case (a Poison Barrel
+    plus any fire tower). There is now a two-type case asserting the sum.
+  - A third, Medium: both Kinship lifetime cases were *ratios*, so halving the
+    whole `s.remaining -= dt` rate cancelled out and a 15 s totem could buff for
+    30 s. The expiry tick is now pinned against the authored one (derived from
+    `/data`, so still relative) — the shape the corpse row already had, which is
+    why the corpse row caught the identical mutation and these did not.
+
+  **QA also found four legal `/data` retunes that reddened the file** —
+  `freezeHits` 1, Chain Surge `radius` 1.8, Animist `summonCap` 1, and (from
+  review) `chainCount` 5. The spacing one was a real defect and is fixed by
+  deriving link spacing from Electric's blast radius and Chain Surge's reach
+  rather than hardcoding 2; the other three are now declared harness
+  preconditions that fail with their reason attached, `c009`'s pattern.
+
+  **Verified by mutation, never by argument.** Twenty `/src` mutations redden
+  it — every recorded repro, the totem-replace filter, hardcoded `freezeHits`
+  and `corpseSeconds`, halved corpse- and summon-decay rates, each of the three
+  `chargeCapSeconds` clamps alone, a reordered `FROST_ON_HIT`, merging into the
+  longest stack, and QA's two near-miss formulas — and deleting any whole
+  `describe` reddens the census by name. A ten-field simultaneous retune leaves
+  every case green, as do Chain Surge `radius` 5->1.8 and Electric `radius`
+  0.8->1.2. One mutation is **equivalent** and is labelled as such in the file
+  rather than chased: the shortest-stack *search loop* cannot matter while every
+  Time Flow stack carries the same constant window.
+
+  **One correction to c011's own text.** Hole 9 was not a hole: deleting the
+  merge line also reddens `tests/fb013-timelord.test.ts:498`, so row 9 hardens
+  existing coverage rather than creating it. It earned its place anyway — that
+  incumbent shares the back-to-back blind spot above, and QA confirmed the same
+  mutation survives it. **`tests/fb013-timelord.test.ts` is out of this lane's
+  Scope**, so the fix there is main-lane work; filed below.
+
+- (2026-09-04, session 7) **For the main lane, out of this lane's Scope.**
+  - `tests/fb013-timelord.test.ts:498` ("it caps at maxStacksPerEnemy and folds
+    the rest in, losing no damage") has the blind spot c011 just closed in its
+    own file: it lands every hit back-to-back, so `damageWarden`'s merge can be
+    written as the push formula and it stays green. One line — age the stack
+    array before the overflow hits.
+  - Two `/src` behaviours neither `class-passive-liveness` nor
+    `class-passive-magnitudes` covers, found by QA and judged outside c011's
+    claims rather than filed against it: `classes.ts:1517` reading the aura at
+    the **Warden's** position instead of the summon's survives both files (aura
+    *position*, not lifetime or stacking), and `enemies.ts:474` transferring to
+    the enemy nearest the **Warden** instead of the corpse survives both (every
+    harness geometry in these files is collinear).
+  - Two "hardcode a `/data` number in `/src`" mutations also survive both:
+    `run.ts:625` `maxStacksPerEnemy` -> `50` and `classes.ts:1005`
+    `auraAtkSpdMul ?? 0` -> `0.15`. The first is out of reach from here because
+    this lane's `contentWith` rebuild only patches `classes.json`.
+  - `tests/q45-cli-schema-violation.test.ts` joined the `EPERM`-on-`rmSync`
+    family (q49/q52) in one QA fast-tier run. Same host condition, same shared
+    nested-process helper, same main-lane item.
+
+- (2026-09-04, session 7) **Fast-tier state on this host, unchanged by c011.**
+  Four full `test:fast` runs this session (three mine, one QA's): 5-11 failures
+  across 6-9 files, all in `b032`/`b034`/`b035`/`b036` (lane/ui fold tests),
+  `q15-command-domain-fuzz`, and the `EPERM`-on-`rmSync` family, whose
+  membership itself varies — `q49`/`q52` every run, `q45` in two, and
+  `q28-cli-error-handling` in one, each on a *harness-control* case rather than
+  on what the suite is about. Neither the count nor the file set is stable at
+  fixed content, which is the load-dependence already logged above; the skip
+  count moves with it too (22 -> 51 between runs, i.e. files bailing early). Attributed by control run: with
+  `tests/class-passive-magnitudes.test.ts` physically moved out of `tests/`, the
+  four UI-fold files fail identically. No `class-*` suite fails, and
+  `git diff --stat -- src data` is empty for this item.
