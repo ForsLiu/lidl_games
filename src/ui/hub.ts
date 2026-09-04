@@ -291,7 +291,7 @@ export class Hub {
           selectedClass
             ? `<div class="sw-classdetail">
                 ${classBandStatsMarkup(selectedClass)}
-                ${classSelectSkillsMarkup(selectedClass)}
+                ${classSelectSkillsMarkup(selectedClass, this.keyBindings)}
               </div>`
             : ''
         }

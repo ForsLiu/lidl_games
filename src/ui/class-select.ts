@@ -10,6 +10,7 @@
 
 import type { ClassDef } from '../sim/content';
 import { activeSkillMarkup, passiveSkillMarkup, towerPassiveSkillMarkup } from './class-info';
+import { defaultKeyBindings, keyLabel, type KeyBindings } from './keybindings';
 
 /**
  * SPEC-FINAL §4: only the three owner-verbatim/owner-priority classes show in
@@ -81,12 +82,18 @@ export function classBandStatsMarkup(cls: ClassDef): string {
  * effect text (base /data numbers — no run is in progress on this screen)
  * revealed on hover/focus via `.sw-cs-tip`'s CSS (style.css).
  */
-export function classSelectSkillsMarkup(cls: ClassDef): string {
+export function classSelectSkillsMarkup(cls: ClassDef, keyBindings: KeyBindings = defaultKeyBindings()): string {
   const entries: { label: string; body: string }[] = [
     { label: `Passive — ${cls.passive.name}`, body: passiveSkillMarkup(cls) },
     { label: `Tower passive — ${cls.towerPassive.name}`, body: towerPassiveSkillMarkup(cls) },
-    { label: `Active1 (Q) — ${cls.active1.name}`, body: activeSkillMarkup(cls, 'active1') },
-    { label: `Active2 (E) — ${cls.active2.name}`, body: activeSkillMarkup(cls, 'active2') },
+    {
+      label: `Active1 (${keyLabel(keyBindings.active1)}) — ${cls.active1.name}`,
+      body: activeSkillMarkup(cls, 'active1', undefined, keyBindings),
+    },
+    {
+      label: `Active2 (${keyLabel(keyBindings.active2)}) — ${cls.active2.name}`,
+      body: activeSkillMarkup(cls, 'active2', undefined, keyBindings),
+    },
   ];
   return `<div class="sw-classskills">
     ${entries

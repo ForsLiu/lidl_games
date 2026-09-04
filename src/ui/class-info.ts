@@ -12,6 +12,7 @@
 
 import type { ClassDef, ClassEffect } from '../sim/content';
 import { formatPct, modLinesHtml, numericFieldListHtml, trimNum } from './info-format';
+import { defaultKeyBindings, keyLabel, type KeyBindings } from './keybindings';
 
 export interface ClassLiveContext {
   /** `w.derived.cdr` — the fraction every Active's cooldown is reduced by. */
@@ -172,9 +173,15 @@ const ACTIVE_SENTENCES: Partial<
  * running text, not a bare field list, for every `kind` `ACTIVE_SENTENCES`
  * authors one for; see that table's own comment for the fallback.
  */
-export function activeSkillMarkup(cls: ClassDef, which: 'active1' | 'active2', live?: ClassLiveContext): string {
+export function activeSkillMarkup(
+  cls: ClassDef,
+  which: 'active1' | 'active2',
+  live?: ClassLiveContext,
+  keyBindings: KeyBindings = defaultKeyBindings(),
+): string {
   const eff = which === 'active1' ? cls.active1 : cls.active2;
-  const label = which === 'active1' ? 'Q, Active 1' : 'E, Active 2';
+  const key = keyLabel(keyBindings[which]);
+  const label = which === 'active1' ? `${key}, Active 1` : `${key}, Active 2`;
   const cooldownFactor = live ? (which === 'active1' ? 1 - live.cdr : live.active2CdrFactor ?? 1 - live.cdr) : undefined;
   const sentence = ACTIVE_SENTENCES[eff.kind];
   if (sentence) {
@@ -219,15 +226,18 @@ export function towerPassiveSkillMarkup(cls: ClassDef): string {
  * staleness `renderCharacterPanel`'s Blood Frenzy fix (fb022 code review) had
  * to add `w.huntsWarden` for.
  */
-export function classAbilitiesMarkup(cls: ClassDef, opts: { live?: ClassLiveContext } = {}): string {
-  const { live } = opts;
+export function classAbilitiesMarkup(
+  cls: ClassDef,
+  opts: { live?: ClassLiveContext; keyBindings?: KeyBindings } = {},
+): string {
+  const { live, keyBindings = defaultKeyBindings() } = opts;
   return [
     `<div class="sw-effectblock">
       <b>Basic attack</b>
       ${numericFieldListHtml(cls.basicAttack, liveOverrides(cls.basicAttack, live))}
     </div>`,
-    activeSkillMarkup(cls, 'active1', live),
-    activeSkillMarkup(cls, 'active2', live),
+    activeSkillMarkup(cls, 'active1', live, keyBindings),
+    activeSkillMarkup(cls, 'active2', live, keyBindings),
     passiveSkillMarkup(cls),
     towerPassiveSkillMarkup(cls),
   ].join('');

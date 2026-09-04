@@ -34,6 +34,7 @@ import { formatPct, trimNum } from './info-format';
 import { equipmentEffectMarkup, type EquipmentEffectContext } from './equipment-info';
 import { defaultSettings, type Settings } from './settings';
 import { devProfileActive, isDevBuild } from '../meta/devprofile';
+import { defaultKeyBindings, keyLabel, type KeyBindings } from './keybindings';
 
 /**
  * fb102: mirrors of `style.css`'s `.sw-rail`/`.sw-bossbar` box-model numbers,
@@ -59,15 +60,22 @@ export type OnboardingKey = 'build' | 'dusk' | 'dawn';
  * named by the checklist — first TD build phase, first Dusk->Night VS wave,
  * first Dawn return-to-build.
  */
-const ONBOARDING_TEXT: Record<OnboardingKey, string> = {
-  build:
-    "Build phase: pick a tower from the panel on the left and place it along the enemies' path, " +
-    'then call the wave (Enter) when your defenses are ready.',
-  dusk:
-    'Night falls — you now control the Warden directly. WASD to move, Space to dash, and Q/E for ' +
-    'your class actives while the horde closes in.',
-  dawn: 'Dawn breaks. Spend your gold on new towers and upgrades before the next wave begins.',
-};
+function onboardingText(key: OnboardingKey, kb: KeyBindings): string {
+  if (key === 'build') {
+    return (
+      "Build phase: pick a tower from the panel on the left and place it along the enemies' path, " +
+      'then call the wave (Enter) when your defenses are ready.'
+    );
+  }
+  if (key === 'dusk') {
+    return (
+      `Night falls — you now control the Warden directly. ${keyLabel(kb.moveUp)}${keyLabel(kb.moveLeft)}` +
+      `${keyLabel(kb.moveDown)}${keyLabel(kb.moveRight)} to move, ${keyLabel(kb.dash)} to dash, and ` +
+      `${keyLabel(kb.active1)}/${keyLabel(kb.active2)} for your class actives while the horde closes in.`
+    );
+  }
+  return 'Dawn breaks. Spend your gold on new towers and upgrades before the next wave begins.';
+}
 
 export interface HudCallbacks {
   onSelectTower(id: number): void;
@@ -163,6 +171,8 @@ export class Hud {
    * names, not `reducedMotion`'s ambient-motion-jitter target.
    */
   private settings: Settings;
+  /** fb107: a construction-time snapshot, same tradeoff `settings`' own doc comment above accepts — no in-run Controls panel exists to go stale mid-run. */
+  private keyBindings: KeyBindings;
   private selected = 0;
   private lastModalKey = '';
   private lastCharPanelKey = '';
@@ -211,10 +221,16 @@ export class Hud {
   /** fb026: previous frame's ready state per Active, so a false->true edge gets a one-shot "ready" flash. */
   private prevSkillReady: { active1: boolean; active2: boolean } = { active1: true, active2: true };
 
-  constructor(root: HTMLElement, cb: HudCallbacks, settings: Settings = defaultSettings()) {
+  constructor(
+    root: HTMLElement,
+    cb: HudCallbacks,
+    settings: Settings = defaultSettings(),
+    keyBindings: KeyBindings = defaultKeyBindings(),
+  ) {
     this.root = root;
     this.cb = cb;
     this.settings = settings;
+    this.keyBindings = keyBindings;
     // fb094: dev-profile-only, same gate hub.ts's `DEV_BADGE` uses
     // (`DEV_BUILD && devProfileActive()`) — computed once here since the
     // control markup below is built into the constructor's one-shot
@@ -235,9 +251,9 @@ export class Hud {
             <button class="sw-onboarding-close" id="sw-onboarding-close" title="Dismiss" aria-label="Dismiss">&times;</button>
           </div>
           <div class="sw-dock sw-off" id="sw-dpspanel" hidden></div>
-          <button class="sw-dpsdock sw-off" id="sw-dpsdock" hidden title="Reopen DPS summary (P)">DPS &#9656;</button>
+          <button class="sw-dpsdock sw-off" id="sw-dpsdock" hidden title="Reopen DPS summary (${keyLabel(keyBindings.toggleDpsPanel)})">DPS &#9656;</button>
           <div class="sw-dock sw-off" id="sw-vspanel" hidden></div>
-          <button class="sw-vsdock sw-off" id="sw-vsdock" hidden title="Reopen wielded attacks (V)">VS &#9656;</button>
+          <button class="sw-vsdock sw-off" id="sw-vsdock" hidden title="Reopen wielded attacks (${keyLabel(keyBindings.toggleVsPanel)})">VS &#9656;</button>
           <div class="sw-toast" id="sw-toast"></div>
           <div class="sw-bottombar" id="sw-bottombar">
             <div class="sw-bb-vital sw-bb-hp">
@@ -260,7 +276,7 @@ export class Hud {
             </div>
             <div class="sw-bb-skill" id="sw-bb-active1" data-skill="active1" tabindex="0">
               <div class="sw-bb-icon">
-                <span class="sw-bb-key">Q</span>
+                <span class="sw-bb-key">${keyLabel(keyBindings.active1)}</span>
                 <div class="sw-bb-sweep" id="sw-bb-a1-sweep"></div>
                 <span class="sw-bb-charge" id="sw-bb-a1-charge"></span>
               </div>
@@ -269,7 +285,7 @@ export class Hud {
             </div>
             <div class="sw-bb-skill" id="sw-bb-active2" data-skill="active2" tabindex="0">
               <div class="sw-bb-icon">
-                <span class="sw-bb-key">E</span>
+                <span class="sw-bb-key">${keyLabel(keyBindings.active2)}</span>
                 <div class="sw-bb-sweep" id="sw-bb-a2-sweep"></div>
                 <span class="sw-bb-charge" id="sw-bb-a2-charge"></span>
               </div>
@@ -291,14 +307,14 @@ export class Hud {
             <button class="sw-railhandle" id="sw-rail-left-handle" title="Toggle build panel">&#9776; Build</button>
             <div class="sw-railbody">
               <div class="sw-controls" id="sw-controls">
-                <select class="sw-ctl" data-act="speed" id="sw-speed" title="Game speed (F cycles)">
+                <select class="sw-ctl" data-act="speed" id="sw-speed" title="Game speed (${keyLabel(keyBindings.cycleSpeed)} cycles)">
                   ${SPEEDS.map((s) => `<option value="${s}">${s}x</option>`).join('')}
                 </select>
-                <button class="sw-ctl" data-act="ranges" id="sw-ranges" aria-pressed="false" title="Show tower ranges (R)">Ranges</button>
+                <button class="sw-ctl" data-act="ranges" id="sw-ranges" aria-pressed="false" title="Show tower ranges (${keyLabel(keyBindings.toggleRanges)})">Ranges</button>
                 <button class="sw-ctl" data-act="autopick" id="sw-autopick" aria-pressed="false" title="Resolve level-ups automatically">Auto-pick</button>
-                <button class="sw-ctl" data-act="character" id="sw-character" aria-pressed="false" title="Character stats (C)">Character</button>
-                <button class="sw-ctl" data-act="dps" id="sw-dps" aria-pressed="false" title="Damage/DPS summary (P)">DPS</button>
-                <button class="sw-ctl" data-act="vs" id="sw-vs" aria-pressed="false" title="Wielded attacks (V)">VS</button>
+                <button class="sw-ctl" data-act="character" id="sw-character" aria-pressed="false" title="Character stats (${keyLabel(keyBindings.toggleCharacterPanel)})">Character</button>
+                <button class="sw-ctl" data-act="dps" id="sw-dps" aria-pressed="false" title="Damage/DPS summary (${keyLabel(keyBindings.toggleDpsPanel)})">DPS</button>
+                <button class="sw-ctl" data-act="vs" id="sw-vs" aria-pressed="false" title="Wielded attacks (${keyLabel(keyBindings.toggleVsPanel)})">VS</button>
                 ${devMode ? '<button class="sw-ctl" data-act="screenshot" id="sw-screenshot" title="Export the current canvas frame as a PNG (dev)">Screenshot</button>' : ''}
                 <button class="sw-ctl" data-act="pause" title="Pause (Esc)">Pause</button>
               </div>
@@ -319,11 +335,12 @@ export class Hud {
               <div class="sw-stats" id="sw-stats"></div>
               <div class="sw-towerinfo" id="sw-towerinfo"></div>
               <div class="sw-help">
-                <b>WASD</b> move &middot; <b>Space</b> dash &middot; <b>LMB</b> build/select &middot;
-                <b>RMB</b> sell &middot; <b>U</b>/<b>X</b> upgrade/sell &middot; <b>1-9</b> pick tower &middot;
-                <b>0</b> clear &middot; <b>Enter</b> call wave &middot; <b>Q</b> class active &middot;
-                <b>R</b> ranges &middot; <b>F</b> speed &middot; <b>C</b> character &middot; <b>P</b> DPS &middot;
-                <b>V</b> wielded attacks &middot; <b>Esc</b> pause
+                <b>${keyLabel(keyBindings.moveUp)}${keyLabel(keyBindings.moveLeft)}${keyLabel(keyBindings.moveDown)}${keyLabel(keyBindings.moveRight)}</b> move &middot;
+                <b>${keyLabel(keyBindings.dash)}</b> dash &middot; <b>LMB</b> build/select &middot;
+                <b>RMB</b> sell &middot; <b>${keyLabel(keyBindings.upgradeSelection)}</b>/<b>${keyLabel(keyBindings.sellSelection)}</b> upgrade/sell &middot; <b>1-9</b> pick tower &middot;
+                <b>${keyLabel(keyBindings.clearSelection)}</b> clear &middot; <b>Enter</b> call wave &middot; <b>${keyLabel(keyBindings.active1)}</b> class active &middot;
+                <b>${keyLabel(keyBindings.toggleRanges)}</b> ranges &middot; <b>${keyLabel(keyBindings.cycleSpeed)}</b> speed &middot; <b>${keyLabel(keyBindings.toggleCharacterPanel)}</b> character &middot; <b>${keyLabel(keyBindings.toggleDpsPanel)}</b> DPS &middot;
+                <b>${keyLabel(keyBindings.toggleVsPanel)}</b> wielded attacks &middot; <b>Esc</b> pause
               </div>
             </div>
           </div>
@@ -700,7 +717,7 @@ export class Hud {
     this.lastCharPanelKey = key;
     this.charPanelEl.hidden = false;
     this.charPanelEl.classList.remove('sw-off');
-    this.charPanelEl.innerHTML = characterPanelMarkup(characterPanelData(w), w);
+    this.charPanelEl.innerHTML = characterPanelMarkup(characterPanelData(w), w, this.keyBindings);
     this.charPanelEl.querySelector('[data-act="close"]')?.addEventListener('click', () => this.closeCharacterPanel());
     for (const el of this.charPanelEl.querySelectorAll<HTMLElement>('[data-runeqslot]')) {
       const slot = el.dataset.runeqslot!;
@@ -1280,8 +1297,8 @@ export class Hud {
         damageMul: classAttackPowerMul(w, cls),
         active2CdrFactor: active2CdrFactor(w),
       };
-      this.bb.a1Tip.innerHTML = activeSkillMarkup(cls, 'active1', live);
-      this.bb.a2Tip.innerHTML = activeSkillMarkup(cls, 'active2', live);
+      this.bb.a1Tip.innerHTML = activeSkillMarkup(cls, 'active1', live, this.keyBindings);
+      this.bb.a2Tip.innerHTML = activeSkillMarkup(cls, 'active2', live, this.keyBindings);
     }
 
     this.renderSkillIcon(data.active1, this.bb.a1Sweep, this.bb.a1Charge, this.bb.a1Cd, this.bb.a1Icon, 'active1');
@@ -1324,8 +1341,8 @@ export class Hud {
     const cls = w.content.classByKey.get(w.cfg.classKey);
     if (!cls) return '';
     return (
-      Hud.activeSkillRow(cls.active1.name, 'Q', w.warden.active1Cooldown, cls.active1.name) +
-      Hud.activeSkillRow(cls.active2.name, 'E', w.warden.active2Cooldown, cls.active2.name)
+      Hud.activeSkillRow(cls.active1.name, keyLabel(this.keyBindings.active1), w.warden.active1Cooldown, cls.active1.name) +
+      Hud.activeSkillRow(cls.active2.name, keyLabel(this.keyBindings.active2), w.warden.active2Cooldown, cls.active2.name)
     );
   }
 
@@ -1800,7 +1817,7 @@ export class Hud {
   private triggerOnboarding(key: OnboardingKey): void {
     if (this.onboardingSeen(key)) return;
     if (!this.onboardingActive) {
-      this.onboardingActive = { key, text: ONBOARDING_TEXT[key] };
+      this.onboardingActive = { key, text: onboardingText(key, this.keyBindings) };
     } else if (this.onboardingActive.key !== key && !this.onboardingQueue.includes(key)) {
       this.onboardingQueue.push(key);
     }
@@ -1828,7 +1845,7 @@ export class Hud {
     // other setting), and mutating the stale one here would be silently lost.
     this.settings = { ...this.settings, [field]: true };
     const next = this.onboardingQueue.shift();
-    this.onboardingActive = next ? { key: next, text: ONBOARDING_TEXT[next] } : null;
+    this.onboardingActive = next ? { key: next, text: onboardingText(next, this.keyBindings) } : null;
     this.renderOnboarding();
     this.cb.onOnboardingSeen?.(key);
   }
@@ -1984,7 +2001,7 @@ function formatSourceValue(display: StatDisplay, value: number): string {
  * same as the Hub's pre-run Class screen (`hub.ts`) which calls the same
  * `classAbilitiesMarkup` with no live context at all.
  */
-function characterAbilitiesMarkup(w: World): string {
+function characterAbilitiesMarkup(w: World, keyBindings: KeyBindings): string {
   const cls = w.content.classByKey.get(w.cfg.classKey);
   if (!cls) return '';
   const live: ClassLiveContext = {
@@ -1995,7 +2012,7 @@ function characterAbilitiesMarkup(w: World): string {
     damageMul: classAttackPowerMul(w, cls),
     active2CdrFactor: active2CdrFactor(w),
   };
-  return classAbilitiesMarkup(cls, { live });
+  return classAbilitiesMarkup(cls, { live, keyBindings });
 }
 
 /**
@@ -2068,7 +2085,11 @@ function equipmentSectionMarkup(w: World): string {
  * sections above too, via fb015's `equipment:<key>` source — the section here
  * is only the equip/swap control surface, not a second source of numbers.
  */
-export function characterPanelMarkup(data: CharacterPanelData, w?: World): string {
+export function characterPanelMarkup(
+  data: CharacterPanelData,
+  w?: World,
+  keyBindings: KeyBindings = defaultKeyBindings(),
+): string {
   const boonRows =
     data.boons.length === 0
       ? '<p class="sw-note">No boons taken yet.</p>'
@@ -2095,7 +2116,7 @@ export function characterPanelMarkup(data: CharacterPanelData, w?: World): strin
     })
     .join('');
 
-  const abilities = w ? characterAbilitiesMarkup(w) : '';
+  const abilities = w ? characterAbilitiesMarkup(w, keyBindings) : '';
 
   return `
     <div class="sw-card sw-charcard wide">

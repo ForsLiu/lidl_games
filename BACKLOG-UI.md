@@ -2603,7 +2603,164 @@ not already expose it) logs that need below instead of reaching into
       before commit) — refs: fb093, fb065, fb082, QUALITY.md 1.0 (Steam/itch
       checklist).
 
+- [x] (fb107) [bug] high priority: generated 2026-09-04 (fewer than 3
+      actionable items remained — fb085/fb093/fb097 stay open but logged
+      out-of-scope for this lane; generation rule (b), SPEC-FINAL/QUALITY
+      coverage diff against fb073) — every key-hint string in the in-run HUD
+      and the Hub ignores the player's remapped `keyBindings` (fb073) and
+      keeps showing the hardcoded defaults instead. Confirmed live: `hud.ts`'s
+      constructor bakes literal `Q`/`E` into the bottom bar's `.sw-bb-key`
+      badges (~line 263/272), the help legend hardcodes `WASD`/`Space`/`U`/
+      `X`/`1-9`/`0`/`Enter`/`Q`/`R`/`F`/`C`/`P`/`V`/`Esc` (~line 322-326), the
+      `DPS`/`VS` redock button titles hardcode `(P)`/`(V)` (~line 238/240),
+      the control-bar button titles hardcode `(R)`/`(C)`/`(P)`/`(V)`/`(Esc)`
+      (~line 297-303), the character panel's `Hud.activeSkillRow` calls pass
+      literal `'Q'`/`'E'` (~line 1327-1328), the Dusk onboarding prompt
+      (`ONBOARDING_TEXT.dusk`) says "WASD to move, Space to dash, and Q/E for
+      your class actives" unconditionally, and `class-info.ts`'s
+      `activeSkillMarkup` (used by both the bottom-bar tooltip and the Hub's
+      class-select screen, `class-select.ts` line 88-89) hardcodes
+      `Q, Active 1` / `E, Active 2`. A player who rebinds Active1 off Q via
+      fb073's own Settings Controls panel sees every one of these still say
+      Q. Acceptance: a unit test constructs a `Hud`/`Hub` with a non-default
+      `KeyBindings` (e.g. `active1: 'j'`) and confirms the bottom-bar badge,
+      at least one help-legend/button-title hint, the character panel's
+      Active1 row, and the class-select tooltip label all show the rebound
+      key, not `Q`; a second case confirms the movement group (WASD) and
+      Dusk onboarding text also reflect non-default `moveUp`/`moveLeft`/
+      `moveDown`/`moveRight`/`dash` bindings — refs: fb073, fb079, QUALITY.md
+      BETA (key remapping), SPEC-FINAL §11. DONE 2026-09-04: `Hud` (`hud.ts`)
+      gains a 4th constructor param `keyBindings: KeyBindings =
+      defaultKeyBindings()`, stored as a construction-time snapshot (same
+      tradeoff `settings`'s own doc comment already accepts — no in-run
+      Controls panel exists to go stale mid-run); used to replace every
+      hardcoded literal named above: the bottom-bar `.sw-bb-key` badges, the
+      help legend, the `DPS`/`VS`/`Ranges`/`Character` button titles, the
+      bottom-bar tooltip's `activeSkillMarkup` calls, `activeRow`'s character-
+      panel row, and a new `onboardingText(key, kb)` function replacing the
+      old static `ONBOARDING_TEXT` dict for the Dusk prompt. `class-info.ts`'s
+      `activeSkillMarkup`/`classAbilitiesMarkup` and `class-select.ts`'s
+      `classSelectSkillsMarkup` gained an optional `keyBindings` param
+      (defaulting to `defaultKeyBindings()`, so every pre-existing caller —
+      Codex, ~40 other test call sites — is unaffected); `hub.ts` threads its
+      existing `this.keyBindings` (already there from fb073) into the
+      class-select call; `main.ts`'s `new Hud(...)` now passes `this.
+      keyBindings` as the 4th arg. Targeted
+      `tests/ui-fb107-keyhints-follow-remap.test.ts` (7/7): bottom-bar badge,
+      defaults-with-no-arg control, help legend + control-bar titles
+      (including the speed selector, see below), bottom-bar tooltip label,
+      character-panel Active rows, Hub class-select tooltip label, and Dusk
+      onboarding text all reflect a fully-remapped `KeyBindings` fixture.
+      code-reviewer **APPROVE** (no Critical/Major); two Minor findings both
+      addressed same session: (1) `bottom-bar.ts`'s `SkillIconState.hotkey:
+      'Q'|'E'` field was dead (nothing read it — `hud.ts` builds the badge
+      text straight from `this.keyBindings`, not from this field) but a stale
+      landmine one accidental future read away from reintroducing this exact
+      bug — deleted entirely along with its 4 write sites, confirmed
+      grep-clean of remaining readers; (2) the Codex's Class detail view
+      (`codex-collections.ts`) still shows default keys, a real but
+      consciously-deferred gap since `Hub` already holds `this.keyBindings`
+      one tab over — logged in this file's Log below rather than fixed here,
+      per the reviewer's own framing (a `CodexCollection.renderDetail`
+      signature widening, not a one-liner). qa-playtester **PASS** against
+      the stated acceptance criteria (independently re-derived all 7 checks,
+      ran 179 tests across a broad related sample plus the full `test:fast`
+      suite clean of anything touching `src/ui/**`) and filed one new Minor
+      bug: the in-run game-speed `<select>`'s title also hardcoded `"Game
+      speed (F cycles)"`, the one control-bar sibling fb107's own scoping
+      missed (not deliberately deferred — a genuine miss). Fixed same
+      session (`hud.ts`'s `#sw-speed` title now reads
+      `keyLabel(keyBindings.cycleSpeed)`), an 8th assertion added to the
+      regression test, re-verified green. `npx tsc --noEmit` clean.
+      `npm run test:fast`: 11 failures (this item's own run) / 4 failures
+      (qa-playtester's independent full-suite run), all in the pre-existing
+      q15/q45/q46/q49/q52 worker-hang/Windows-scratch-dir-EPERM flake classes
+      documented across dozens of prior PROGRESS.md sessions, none touching
+      `src/ui/**`/`src/render/**` or this item's own files.
+
+- [ ] (fb108) [feat] normal priority: generated 2026-09-04 (same generation
+      batch as fb107) — extend fb063's sentence-form Active tooltips
+      (`ACTIVE_SENTENCES`, `class-info.ts`) past the 6 kinds the 3
+      normal-profile classes use to the remaining 18 kinds the other 9
+      classes use (`repair_heal`, `summon_turret`, `burst_damage`,
+      `dash_trail`, `charge_pierce`, `dash_volley`, `raise_skeletons`,
+      `death_pact`, `frost_nova`, `ice_wall`, `chain_lightning`, `overload`,
+      `blood_tithe`, `dash_heal`, `manifest_spirit`, `recall_totem`,
+      `clarion_taunt`, `judgement`) — confirmed via a `data/classes.json`
+      scan, 24 total kinds across all 12 classes, only 6 covered today. Those
+      9 classes are dev-toggle-reachable in the Hub's Class screen (fb058's
+      "show hidden classes" setting) and playable in every real run, so their
+      Actives still show the older bare numeric-field fallback
+      `ACTIVE_SENTENCES`'s own file comment already documents as the accepted
+      interim state "until a hidden class becomes normal-profile-visible" —
+      this closes that gap directly rather than waiting on fb057/fb059.
+      Acceptance: every kind in the list above has a hand-authored sentence
+      function in `ACTIVE_SENTENCES`, embedding live-resolved numbers the
+      same way the existing 6 do; a test asserts all 24 kinds now resolve to
+      a sentence (none fall through to the bare-field-list fallback) — refs:
+      fb063, fb058, QUALITY.md ALPHA ("every class's kit is usable and
+      legible without reading any docs").
+
+- [ ] (fb109) [polish] low priority: generated 2026-09-04 (same generation
+      batch as fb107) — fb102's own code-reviewer Minor, never promoted to
+      its own item: `Hud.syncStageOverlayGeometry()`'s `--bossbar-maxw`
+      computation has no floor at extreme-narrow stage widths, so it degrades
+      toward the CSS border-box padding/border minimum instead of a sane
+      lower bound as the stage keeps shrinking (same class of narrow-viewport
+      degrade the rails already accept, per that review note). Acceptance: a
+      test drives `syncStageOverlayGeometry` at a pathologically narrow width
+      (e.g. 200px) and confirms `--bossbar-maxw` never goes below a small
+      fixed floor (chosen so the boss name/HP text stays legible, e.g. 120px)
+      instead of shrinking unbounded — refs: fb102, fb065, fb082.
+
+- [ ] (fb110) [bug] low priority: generated 2026-09-04 (same generation
+      batch as fb107) — fb103's own qa-playtester finding, traced but not
+      filed against fb103 itself: `Hud.syncModal`'s memo key doesn't include
+      `classKey`/`coreKey`, so reusing one `Hud` instance across fresh
+      `World` fixtures without calling `resetModalKey()` can show a stale
+      Class/Core display on the Results screen. Unreachable via real play
+      (`startRun` in `main.ts` always calls `resetModalKey()` before every
+      fresh/Retry/New-run start) but a latent trap for the next change that
+      reuses a `Hud` across worlds without going through `startRun`.
+      Acceptance: either fold `classKey`/`coreKey` into `syncModal`'s memo
+      key (matching every other field the memo already tracks) with a
+      regression test reusing one `Hud` across two `World` fixtures with
+      different classes/Cores and confirming the second's Results screen
+      shows its own class/Core, not the first's; or add a code comment on
+      `syncModal`'s memo key documenting the reuse hazard and why it's
+      accepted — refs: fb103.
+
+- [ ] (fb111) [polish] low priority: generated 2026-09-04 (same generation
+      batch as fb107; QUALITY.md 1.0 checklist diff, engineer's-judgment
+      item per HANDOFF §7) — audit every `localStorage`-persisted blob this
+      lane owns (`SAVE_KEY` and the fb096 save-slot keys via `saveslots.ts`,
+      `stonewake.keybindings.v1`, `Settings`'s own key) against QUALITY.md
+      1.0's "cloud-save-safe file format" checklist line: confirm each is
+      pure portable JSON with no environment-specific fields (absolute paths,
+      machine-local timestamps used as identity rather than data, non-
+      serializable values) that would corrupt or fail to round-trip if synced
+      via a cloud-save provider onto a different machine. Acceptance: a test
+      round-trips each persisted shape through `JSON.stringify`/`JSON.parse`
+      on a fixture built on one "machine" (arbitrary `Date.now()`/locale) and
+      confirms byte-for-byte semantic equality when parsed as if on another;
+      if the audit finds a real non-portable field, fix it with its own
+      regression case — if it finds none, document the clean result in this
+      item's DONE note (a real, if boring, outcome per CLAUDE.md's honesty
+      rule) — refs: QUALITY.md 1.0 (Steam/itch checklist).
+
 ## Log
+
+- 2026-09-04, fb107: code-reviewer (APPROVE) flagged that the Codex's Class
+  detail view (`codex-collections.ts` → `classAbilitiesMarkup(row)`) still
+  calls with no `keyBindings` arg, so it always shows the default Q/E labels
+  even after a player rebinds — a real but consciously-deferred gap, not
+  fixed in fb107 itself. Unlike the Hub's other tabs, `Hub.renderCodex` is an
+  instance method that already holds `this.keyBindings` (used one tab over by
+  Class Select), so this is a same-session inconsistency reachable without
+  leaving the Hub, not a "no natural context" case — worth a small follow-up
+  item threading `keyBindings` through `CodexCollection.renderDetail` (a
+  small `codex.ts`/`codex-collections.ts` signature widening) rather than a
+  full backlog entry on its own.
 
 - 2026-09-04, fb097: skipped for this session — its acceptance criteria's
   primary path ("gif capture mode") needs either a new npm dependency (a GIF

@@ -423,7 +423,7 @@ export class Game {
         this.view.settings = this.settings;
         saveSettings(this.settings);
       },
-    }, this.settings);
+    }, this.settings, this.keyBindings);
     this.renderer = new Renderer(this.hud.canvas);
     if (!this.inputBound) {
       this.bindGlobalInput();
