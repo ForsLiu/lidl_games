@@ -1648,7 +1648,11 @@ export class Hud {
   /** Modal screens: level-up, results. */
   syncModal(w: World): void {
     if (this.paused) return;
-    const key = `${w.phase}:${w.offers.length}:${w.outcome}:${w.level}`;
+    // fb110: classKey/coreKey are folded in so a `Hud` reused across fresh
+    // `World` fixtures without a `resetModalKey()` call (real play always
+    // calls it via `startRun`) can't show a stale Results-screen Class/Core
+    // from the previous world.
+    const key = `${w.phase}:${w.offers.length}:${w.outcome}:${w.level}:${w.cfg.classKey}:${w.coreKey}`;
     if (key === this.lastModalKey) return;
     this.lastModalKey = key;
 

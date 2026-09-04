@@ -2897,7 +2897,7 @@ not already expose it) logs that need below instead of reaching into
       scratch-dir-EPERM flake classes, none touching `src/ui/**`/`src/render/**`
       or this item's own files.
 
-- [ ] (fb110) [bug] low priority: generated 2026-09-04 (same generation
+- [x] (fb110) [bug] low priority: generated 2026-09-04 (same generation
       batch as fb107) — fb103's own qa-playtester finding, traced but not
       filed against fb103 itself: `Hud.syncModal`'s memo key doesn't include
       `classKey`/`coreKey`, so reusing one `Hud` instance across fresh
@@ -2912,7 +2912,60 @@ not already expose it) logs that need below instead of reaching into
       different classes/Cores and confirming the second's Results screen
       shows its own class/Core, not the first's; or add a code comment on
       `syncModal`'s memo key documenting the reuse hazard and why it's
-      accepted — refs: fb103.
+      accepted — refs: fb103. DONE 2026-09-04: took the first option.
+      `syncModal`'s (`src/ui/hud.ts`) memo key grew from
+      `${w.phase}:${w.offers.length}:${w.outcome}:${w.level}` to append
+      `:${w.cfg.classKey}:${w.coreKey}`; both fields are set once in the
+      `World` constructor (`src/sim/world.ts`) and never reassigned, so this
+      cannot cause any spurious re-render during a normal run. Targeted
+      `tests/ui-fb110-modal-key-classcore.test.ts` (1/1): builds two `World`
+      fixtures with different classKey/core but identical
+      phase/offers.length/outcome/level, reuses one `Hud` across both without
+      `resetModalKey()`, confirms the second's Results screen shows its own
+      class/Core, not the first's stale one. code-reviewer APPROVE (no
+      Critical/Major; one Minor noting the fix only covers classKey/coreKey
+      specifically — a future `RunConfig` field added to the results/level-up
+      screens would need its own memo-key addition, not a blocker, the
+      acceptance text's two options anticipated exactly this). qa-playtester
+      PASS (confirmed via git-stash A/B the test fails pre-fix and passes
+      post-fix; confirmed every real run-start path — fresh `startRun`,
+      `onRetry`, `onNewRun`, boot-time `tryResumePersistedRun` — routes
+      through `beginRun`, which both constructs a fresh `Hud` and explicitly
+      calls `resetModalKey()`, so the original hazard is genuinely unreachable
+      via real play as the item claimed) and filed one new unrelated bug via
+      hostile testing of the same memo mechanism — see fb113 below.
+      `npx tsc --noEmit` clean. `npm run test:fast`: 56 failed tests / 16
+      failed files, all in the pre-existing q49/q52/q53 worker-hang/Windows-
+      scratch-dir-EPERM flake class documented across dozens of prior
+      PROGRESS.md sessions, none touching `src/ui/**`/`src/render/**` or this
+      item's own files.
+
+- [ ] (fb113) [bug] normal priority: fb110's own qa-playtester finding — the
+      Level-Up modal's own memo key (the same `syncModal` key fb110 touched)
+      goes stale on offer reroll, showing the pre-reroll offer cards while
+      `w.offers` has already been replaced: `onReroll` → `rerollOffers`
+      (`src/sim/progression.ts`) reassigns `w.offers` to a fresh array of the
+      same length (`OFFER_COUNT`), and none of `syncModal`'s memo key fields
+      (`phase`, `offers.length`, `outcome`, `level`, `classKey`, `coreKey`)
+      change on a reroll, so `syncModal` (`src/ui/hud.ts`) treats the
+      post-reroll frame as a memo hit and skips re-rendering — the DOM keeps
+      showing the old `.sw-offer` cards' names/descriptions while
+      `onPickOffer(index)` would apply `w.offers[index]`, the new rerolled
+      offer at that index. Reachable via completely ordinary play (any
+      level-up followed by a reroll click), unlike fb110's own hazard: a
+      player can click a card describing one offer and receive a different
+      one. Found by qa-playtester (fb110 verification), reproduced
+      deterministically on two seeds/classes with the DOM staying on the
+      pre-reroll offer names after `rerollOffers(w)` + `syncModal(w)`.
+      Acceptance: a regression test — roll level-up offers, call
+      `hud.syncModal(w)`, call `rerollOffers(w)`, call `hud.syncModal(w)`
+      again — confirms the rendered `.sw-offer b` labels match
+      `w.offers.map(o => o.name)` (the new offers), not the pre-reroll ones;
+      suggested fix direction: fold a per-roll identity into the memo key —
+      `w.rerollsLeft` (already decrements each reroll) or a new roll-sequence
+      counter incremented by both `openLevelUpIfPending` and `rerollOffers`
+      — refs: fb110, `rerollOffers` (`src/sim/progression.ts`), owner
+      feedback (fb103/fb107/fb110 generation lineage).
 
 - [ ] (fb111) [polish] low priority: generated 2026-09-04 (same generation
       batch as fb107; QUALITY.md 1.0 checklist diff, engineer's-judgment
@@ -2947,6 +3000,14 @@ not already expose it) logs that need below instead of reaching into
       fb063, `lineHit` (`src/sim/combat.ts`).
 
 ## Log
+
+- 2026-09-04, fb110: implemented fully in-scope (a prior session had already
+  written the `src/ui/hud.ts` memo-key fix and
+  `tests/ui-fb110-modal-key-classcore.test.ts` uncommitted in the working
+  tree; this session verified them, ran code-reviewer/qa-playtester, and
+  committed). See the item's own DONE note above for detail. qa-playtester
+  filed one new bug via hostile testing of the same `syncModal` memo
+  mechanism (stale offer cards surviving a reroll) — filed as fb113 above.
 
 - 2026-09-04, fb109: implemented fully in-scope; see the item's own DONE note
   above for detail. fb085/fb093/fb097 (all `[ ]` still open above them in the
