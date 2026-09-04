@@ -1265,7 +1265,7 @@ not already expose it) logs that need below instead of reaching into
       dozens of prior PROGRESS.md sessions, none touching `src/ui/**`/
       `src/render/**` or this item's own files.
 
-- [ ] (fb088) [polish] low priority: found by qa-playtester (fb074
+- [x] (fb088) [polish] low priority: found by qa-playtester (fb074
       verification) — fb074's resume-time replay blocks the main thread
       synchronously before first paint. Measured: replaying a 128,191-tick
       log (a full run) through `run.step()` with no rendering took ~7.5s
@@ -1281,7 +1281,71 @@ not already expose it) logs that need below instead of reaching into
       main thread past a documented budget; fold the measurement into
       fb083's (already-queued) Hub/run cold-start perf-budget item if that
       turns out to be the cleaner fit once fb083 is implemented — refs:
-      fb074, fb087, fb083.
+      fb074, fb087, fb083. DONE 2026-09-04: took the yield/chunk direction.
+      `tryResumePersistedRun` (`src/ui/main.ts`) now replays in bursts of a
+      new `RESUME_CHUNK_TICKS` (256) via a new `replayResumeChunk` helper,
+      instead of one `for` loop over the whole log. A log that finishes
+      within the first burst (every pre-existing test persists at most 64
+      ticks) still resumes fully synchronously, byte-for-byte the same
+      behavior as before — no existing test needed to change. A longer log
+      shows a new `#sw-resume-indicator` loading notice
+      (`showResumeIndicator()`, `style.css`'s new `.sw-resume-indicator`
+      rule) and continues replaying across a chain of `setTimeout(fn, 0)`-
+      scheduled chunks (a macrotask, so the browser actually gets to paint
+      the indicator between bursts, unlike a microtask/Promise chain), only
+      calling `beginRun()` (or falling back to `showHub()` on a `run.done`-
+      already or a malformed-entry-discovered-mid-replay outcome) once the
+      whole log has replayed. The chunk size is tick-count-based rather than
+      wall-clock-based specifically so the existing/new tests stay
+      deterministic (no timing flakiness on a loaded CI host) while still
+      capping real replay cost to roughly one 60Hz frame per burst, per
+      fb087's own measured ~58µs/tick average. Targeted
+      `tests/ui-fb088-resume-chunked.test.ts` (4/4): a 640-tick log shows the
+      indicator, leaves `run` null and blocks nothing synchronously past the
+      first burst, and needs more than one scheduled burst to finish,
+      verified end-state matches an independent reference replay's tick and
+      `hash()`; a malformed entry discovered only in a later chunk (index
+      300, past the first burst) still falls back to the Hub cleanly; a run
+      forced (via a `Run.prototype.step` wrapper, added post-QA — see below)
+      to reach a terminal outcome exactly on the last tick of a multi-chunk
+      replay falls back to the Hub rather than resuming a finished run; a
+      64-tick log (under one burst) still resumes synchronously with no
+      indicator, matching every pre-fb088 test's assumption. code-reviewer
+      **APPROVE** (no Critical/Major; one Minor — the doc comment overstated
+      how "comfortable" the 256-tick/~15ms budget margin is given the
+      ~58µs/tick figure is a dev-machine measurement, not a guarantee on
+      slower hardware, softened to a "soft target, not a hard guarantee" in
+      the same session; one Minor — this backlog entry itself wasn't updated
+      yet, closed by this update; one Nit confirmed a non-issue — the
+      indicator's raw-`innerHTML` construction matches this file's existing
+      convention, not a divergence). qa-playtester **PASS** against the
+      literal acceptance criterion: independently built persisted logs of
+      exact lengths via a scratch (not committed) probe suite and confirmed
+      via `vi.useFakeTimers()`/`vi.getTimerCount()` that `Game.start()`
+      returns before a 600-tick log finishes, genuinely spanning 3 macrotask
+      bursts (256+256+88); hostile-tested the exact 256/257-tick chunk
+      boundary (256 stays fully synchronous, 257 needs exactly one
+      continuation), a malformed entry at ticks 0/255/256/500 (all fall back
+      to the Hub cleanly regardless of which chunk discovers it), an outcome
+      flipping away from `'running'` mid-chunk and exactly on the last tick
+      of a long replay (both correctly fall back to Hub instead of resuming
+      a finished run), and two `Game` instances racing a chunked replay of
+      the same persisted `localStorage` entry concurrently (both complete
+      independently to identical `hash()`, no cross-instance corruption);
+      filed no new bugs, noted two non-blocking observations (a refresh
+      mid-chunked-resume restarts the whole replay from tick 0, benign and
+      matching the pre-existing resume contract; the indicator has no
+      pathological-viewport-width handling, cosmetic, out of scope for this
+      item's budget-focused acceptance) and suggested promoting its own
+      scratch terminal-outcome-at-the-final-tick probe into the committed
+      suite — added same session as `tests/ui-fb088-resume-chunked.test.ts`'s
+      4th test. `npx tsc --noEmit` clean.
+      `npm run test:fast`: 4 failed tests across 7 failed files (2189
+      passed / 24 skipped), all in the pre-existing
+      q15/q49/q52/b032/b034/b035/b036 worker-hang/Windows-scratch-dir-EPERM/
+      dev-server-port-contention flake classes documented across dozens of
+      prior PROGRESS.md sessions, none touching `src/ui/**`/`src/render/**`
+      or this item's own files.
 
 - [ ] (fb075) [polish] low priority: Settings "reset to defaults" — the
       Settings tab has no way to restore every slider/toggle to

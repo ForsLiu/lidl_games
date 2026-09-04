@@ -21,6 +21,16 @@ html, body {
 
 #app { height: 100%; }
 
+/* fb088: shown only while a long persisted run is still replaying across chunks on boot, before the Hud/Hub exist to draw anything else. */
+.sw-resume-indicator {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--dim);
+  font-size: 16px;
+}
+
 /*
  * fb065 (owner feedback `feature-ui-inside-playfield`): the shell is the
  * playfield stage alone now — no opaque gutter/sidebar column reserving

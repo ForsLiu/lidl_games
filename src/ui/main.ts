@@ -133,23 +133,35 @@ export class Game {
   }
 
   /**
+   * fb088: a single synchronous replay burst is capped to this many ticks
+   * before yielding back to the browser via `setTimeout`, so a long persisted
+   * log can't block the very first paint. Measured against fb087's ~58µs/tick
+   * average full-run replay cost *on the dev machine*, this targets roughly
+   * one 60Hz frame (~16.7ms) per burst — a soft target, not a hard guarantee
+   * on slower/mobile hardware, where a burst simply runs a bit longer before
+   * yielding rather than hanging. Every test in this repo persists at most 64
+   * ticks (`tick64` in `tests/ui-fb074-resume-on-refresh.test.ts`),
+   * comfortably inside one burst, so no existing synchronous-resume
+   * assertion needed to change.
+   */
+  private static readonly RESUME_CHUNK_TICKS = 256;
+
+  /**
    * fb074: QUALITY.md BETA's "no progress loss on refresh" bar. A persisted
    * in-progress run (`runpersist.ts`) whose content hash no longer matches the
    * live `/data` is discarded rather than replayed — the `/data` it was
    * recorded against is gone, and `World`'s constructor would otherwise throw
    * on the mismatch instead of failing softly back to the Hub. Returns
-   * whether a run was actually resumed, so `start()` knows whether it still
-   * owes the player a Hub.
+   * whether a run is being resumed (synchronously finished, or still
+   * replaying in the background — see fb088 below), so `start()` knows
+   * whether it still owes the player a Hub right now.
    *
-   * The replay loop itself is wrapped in try/catch (code-reviewer finding):
-   * `loadPersistedRun` only checks that `config`/`inputLog`/`sessionId` exist
-   * with the right *outer* shape, not that every individual `TickInput`/
-   * `Command` inside the log is well-formed — a hand-edited or corrupted
-   * localStorage entry with a malformed entry (e.g. a `cmds` array missing
-   * from one recorded input) would otherwise throw straight out of `start()`
-   * with nothing above it to catch it, leaving the very refresh this feature
-   * exists to protect against a blank page instead of the pre-fb074 Hub
-   * fallback.
+   * fb088: a log short enough to finish within one `RESUME_CHUNK_TICKS` burst
+   * resumes exactly as before, synchronously, before this method returns. A
+   * longer log shows a loading indicator and keeps replaying across
+   * `setTimeout`-scheduled chunks instead of blocking the first paint for the
+   * whole log; `beginRun`/`showHub` (whichever the outcome calls) only runs
+   * once the last chunk finishes.
    */
   private tryResumePersistedRun(): boolean {
     const persisted = loadPersistedRun();
@@ -162,22 +174,87 @@ export class Game {
     let run: Run;
     try {
       run = new Run(persisted.config, content);
-      for (let t = 0; t < persisted.inputLog.length && !run.done; t++) {
-        run.step(persisted.inputLog[t] ?? emptyInput());
-      }
     } catch {
       clearPersistedRun();
       return false;
     }
-    // A persisted log that already ran its recorded run to completion (e.g. a
-    // tab closed right on the victory/defeat tick, before the outcome-change
-    // handler's own clear could fire) has nothing live left to resume into.
-    if (run.done) {
-      clearPersistedRun();
-      return false;
+    const finish = (): void => {
+      // A persisted log that already ran its recorded run to completion (e.g.
+      // a tab closed right on the victory/defeat tick, before the
+      // outcome-change handler's own clear could fire) has nothing live left
+      // to resume into.
+      if (run.done) {
+        clearPersistedRun();
+        this.showHub();
+        return;
+      }
+      this.beginRun(persisted.config, run, persisted.inputLog.slice(0, run.world.tick));
+    };
+    const first = this.replayResumeChunk(run, persisted.inputLog, 0);
+    if (first.done) {
+      if (first.errored) {
+        clearPersistedRun();
+        return false;
+      }
+      finish();
+      return true;
     }
-    this.beginRun(persisted.config, run, persisted.inputLog.slice(0, run.world.tick));
+    // Long enough to cross one chunk's budget: keep replaying across
+    // scheduled chunks (each a macrotask via `setTimeout`, so the browser
+    // gets a chance to paint the loading indicator between them) instead of
+    // blocking the whole log synchronously.
+    this.showResumeIndicator();
+    const continueChunk = (from: number): void => {
+      const r = this.replayResumeChunk(run, persisted.inputLog, from);
+      if (r.errored) {
+        clearPersistedRun();
+        this.showHub();
+        return;
+      }
+      if (!r.done) {
+        setTimeout(() => continueChunk(r.next), 0);
+        return;
+      }
+      finish();
+    };
+    setTimeout(() => continueChunk(first.next), 0);
     return true;
+  }
+
+  /**
+   * Steps `run` through `inputLog` starting at index `from`, for up to
+   * `RESUME_CHUNK_TICKS` ticks (or the log's end / run completion, whichever
+   * comes first). Wrapped in try/catch (code-reviewer finding, fb074):
+   * `loadPersistedRun` only checks that `config`/`inputLog`/`sessionId` exist
+   * with the right *outer* shape, not that every individual `TickInput`/
+   * `Command` inside the log is well-formed — a hand-edited or corrupted
+   * localStorage entry with a malformed entry (e.g. a `cmds` array missing
+   * from one recorded input) would otherwise throw straight out of the
+   * caller with nothing above it to catch it, leaving the very refresh this
+   * feature exists to protect against a blank page instead of the pre-fb074
+   * Hub fallback.
+   */
+  private replayResumeChunk(
+    run: Run,
+    inputLog: TickInput[],
+    from: number
+  ): { next: number; done: boolean; errored: boolean } {
+    let t = from;
+    const limit = Math.min(inputLog.length, from + Game.RESUME_CHUNK_TICKS);
+    try {
+      while (t < limit && !run.done) {
+        run.step(inputLog[t] ?? emptyInput());
+        t++;
+      }
+    } catch {
+      return { next: t, done: true, errored: true };
+    }
+    return { next: t, done: t >= inputLog.length || run.done, errored: false };
+  }
+
+  /** fb088: a minimal full-screen notice shown only while a long persisted log is still replaying across chunks — `beginRun`/`showHub` (whichever the resume outcome calls next) both reset `root.innerHTML` themselves, so nothing needs to explicitly hide this. */
+  private showResumeIndicator(): void {
+    this.root.innerHTML = '<div class="sw-resume-indicator" id="sw-resume-indicator">Resuming run…</div>';
   }
 
   /** fb018: wires `src/ui/audit-hook.ts` to this instance's private state. */
