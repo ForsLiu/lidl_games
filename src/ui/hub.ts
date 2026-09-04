@@ -52,8 +52,9 @@ import { mountCodex } from './codex';
 import { hasUnsavedTunerEdits } from './tuner-state';
 import { crashLogEntries, formatCrashReport } from './crashlog';
 import { creditsMarkup } from './credits';
+import { questsMarkup } from './quests';
 
-type Tab = 'run' | 'tree' | 'equipment' | 'codex' | 'settings' | 'credits';
+type Tab = 'run' | 'tree' | 'equipment' | 'quests' | 'codex' | 'settings' | 'credits';
 
 /**
  * fb090: `main.ts`'s `showHub()` constructs a fresh `Hub` on every return to
@@ -191,7 +192,7 @@ export class Hub {
         ${DEV_BUILD && devProfileActive() ? DEV_BADGE : ''}
       </header>
       <nav>
-        ${(['run', 'tree', 'equipment', 'codex', 'settings', 'credits'] as Tab[])
+        ${(['run', 'tree', 'equipment', 'quests', 'codex', 'settings', 'credits'] as Tab[])
           .map(
             (t) =>
               `<button data-tab="${t}" class="${this.tab === t ? 'on' : ''}">${
@@ -199,6 +200,7 @@ export class Hub {
                   run: 'Run',
                   tree: 'Constellation',
                   equipment: 'Equipment',
+                  quests: 'Quests',
                   codex: 'Codex',
                   settings: 'Settings',
                   credits: 'Credits',
@@ -220,6 +222,7 @@ export class Hub {
     if (this.tab === 'run') this.renderRun(body);
     else if (this.tab === 'tree') this.renderTree(body);
     else if (this.tab === 'equipment') this.renderEquipment(body);
+    else if (this.tab === 'quests') this.renderQuests(body);
     else if (this.tab === 'codex') this.renderCodex(body);
     else if (this.tab === 'credits') this.renderCredits(body);
     else this.renderSettings(body);
@@ -510,6 +513,12 @@ export class Hub {
    */
   private renderCodex(body: HTMLElement): void {
     mountCodex(body);
+  }
+
+  /* ------------------------------------------------------------ quests tab */
+
+  private renderQuests(body: HTMLElement): void {
+    body.innerHTML = questsMarkup(loadContent(), this.meta);
   }
 
   /* ----------------------------------------------------------- credits tab */

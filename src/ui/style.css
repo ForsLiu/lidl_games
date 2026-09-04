@@ -757,6 +757,11 @@ input.sw-tuner-field-input[type="text"] { width: 220px; }
 .sw-creditslist b { color: var(--text); margin-right: 6px; }
 .sw-license { font-size: 12px; color: var(--dim); line-height: 1.5; }
 
+.sw-questlist { list-style: none; margin: 8px 0; padding: 0; }
+.sw-quest { padding: 8px 0; border-bottom: 1px solid #ffffff14; }
+.sw-quest:last-child { border-bottom: none; }
+.sw-quest.done b { color: #7ee787; }
+
 .sw-notice {
   margin: 0 0 12px;
   padding: 7px 12px;

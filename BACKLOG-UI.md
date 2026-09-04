@@ -1887,6 +1887,173 @@ not already expose it) logs that need below instead of reaching into
       profile, matching every other dev-only control's existing gating
       pattern — refs: QUALITY.md 1.0 (Steam/itch checklist).
 
+- [x] (fb095) [feat] normal priority: generated 2026-09-04 (fewer than 3
+      actionable items remained — fb085 stays open but is permanently
+      out-of-scope for this lane per its own Log entry, leaving only
+      fb093/fb094; SPEC-FINAL §13/§11 coverage diff) — quest tracker panel.
+      §13 names 8-12 quests as a content total and `data/quests.json` has 14
+      fully authored (name/desc/metric/target/reward), but no UI anywhere
+      lists them — a player has no way to see which quests exist, their
+      progress, or what they unlock, short of the terse "Locked — complete a
+      quest" strings already shown next to individual locked classes/Cores.
+      `MetaState` already tracks everything needed
+      (`meta.questProgress: Record<string, number>`,
+      `meta.completedQuests: string[]`, both read in `src/meta/meta.ts`,
+      out-of-scope but read-only) and `content.quests.quests` /
+      `content.classByKey` / `content.coreByKey` (`src/sim/content.ts`) give
+      every display field — this is pure additive UI, no sim/meta edits
+      needed (architecture rule 3: renderer/UI reads state, doesn't compute
+      it). Add a new Hub tab or panel listing every quest with its name,
+      description, a live progress bar/fraction (`questProgress[metric]` vs
+      `target`, respecting `compare`), completed/locked state
+      (`completedQuests.includes(key)`), and its reward's display name
+      (class/core name via the content maps). Acceptance: a unit test opens
+      the panel against a `MetaState` fixture with partial progress on
+      several quests and confirms each quest's progress fraction, completed
+      state, and reward name render correctly, including a quest whose
+      `compare` is `lte` (e.g. `fast_boss`/`speedrunner`) — refs: SPEC-FINAL
+      §13 (content totals), §11 (Codex/wiki-of-every-entity spirit),
+      QUALITY.md ALPHA/BETA screens. DONE 2026-09-04: new `src/ui/quests.ts`
+      — `questsMarkup(content, meta)`, pure presentation over
+      `content.quests.quests`/`content.classByKey`/`content.coreByKey`
+      (`src/sim/content.ts`) and `meta.questProgress`/`meta.completedQuests`
+      (`MetaState`), no `src/sim`/`src/meta` edits (architecture rule 3:
+      reads state, doesn't compute it). `rewardLabel()` resolves a `class`/
+      `core` reward to its real display name via the content maps, falling
+      back to a humanized raw value for any other reward `kind` (today only
+      `maze_master`'s `passive:wall_hp_10`). `progressPct()` reports a
+      `gte` quest's live fraction (clamped 0-100) and, since an `lte` quest
+      (e.g. `fast_boss`/`speedrunner`) has no natural "0%" baseline for
+      "best time so far", reports it as a binary done/not-done instead of an
+      interpolated fraction — documented in-line as a deliberate choice, not
+      an oversight. `hub.ts` adds `'quests'` to the `Tab` union, a "Quests"
+      nav button (no dev-gate, same unconditional-nav pattern as fb092's
+      Credits tab), and a `renderQuests()` dispatch. `style.css` adds
+      `.sw-questlist`/`.sw-quest` rules reusing the existing `.sw-meter.thin`
+      progress-bar pattern. Targeted `tests/ui-fb095-quest-tracker.test.ts`
+      (8/8): nav reachability, every quest's name+desc rendering, a `gte`
+      quest's live fraction, a completed quest's full bar + done marker +
+      checkmark, an incomplete `lte` quest's "best N, need <= target" text
+      without a partial bar fill, `class`/`core` reward names resolving to
+      real display names (not raw data keys), a non-class/core (`passive`)
+      reward's humanized fallback text, and a negative-`questProgress`
+      (corrupted-save-shape) `gte` quest's displayed text clamping the same
+      way its bar already did. code-reviewer REQUEST-CHANGES → one Major:
+      the first test's `const root = openHub(defaultMeta())` was never read
+      (the test queried `document.querySelector` directly instead), which
+      `tsc --noEmit`'s `noUnusedLocals` — the first step of `npm run build`
+      — fails on even though Vitest's non-type-checking esbuild transform
+      let it slip through green; fixed by dropping the unused binding,
+      re-verified `npx tsc --noEmit` clean. One Minor (the `lte`
+      binary-progress choice, confirmed as intentional/documented, not a
+      bug) and one Nit (the `passive`-reward fallback branch was untested —
+      closed by adding the `maze_master` case, see above) also addressed
+      same session. qa-playtester PASS: independently re-derived the
+      progress-fraction/completed-state/`lte`-quest checks against a live
+      `Hub` instance rather than trusting the shipped tests, then
+      hostile-tested an untouched metric (renders `0/target`, no
+      NaN/undefined), a `gte` value wildly exceeding target (bar and text
+      both clamp to 100%/target, confirmed via `Math.min`), all 14 real
+      quests rendering together from a fresh `defaultMeta()` (no crash, all
+      0%, none completed), and a stale `completedQuests` entry naming a
+      quest key absent from `content.quests.quests` (a corrupted-save
+      shape — no crash, the real quests in the list are unaffected since
+      the row list is built by mapping `content.quests.quests`, never
+      `completedQuests`). Found one new low-severity, non-blocking bug: a
+      `gte` quest's progress bar already clamped a negative
+      (corrupted-save-only) `questProgress` value to 0% via `Math.max`, but
+      the adjacent progress text used `Math.min(current ?? 0, target)`
+      alone and displayed the unclamped negative number (e.g. "-100 /
+      5000") — text and bar disagreeing under the same corrupted input.
+      Fixed same session (`Math.min(Math.max(current ?? 0, 0), q.target)`)
+      with the regression test noted above; not reachable through normal
+      play since `meta.ts`'s own accumulation logic only ever writes
+      non-negative values into `questProgress`. `npx tsc --noEmit` clean.
+      `npm run test:fast`: 7 failed files / 4 failed tests, all in the
+      pre-existing q15-command-domain-fuzz worker-hang and q49/q52
+      Windows-scratch-dir-EPERM flake classes documented across dozens of
+      prior PROGRESS.md sessions, none touching `src/ui/**`/`src/render/**`
+      or this item's own files.
+
+- [ ] (fb096) [feat] normal priority: generated 2026-09-04 (same generation
+      batch as fb095; QUALITY.md 1.0 Steam/itch checklist gap diff) — save
+      slots (3). QUALITY.md 1.0's checklist names "save slots (3)" and
+      "cloud-save-safe file format" as one line; only the file-format half is
+      arguably met (a single versioned-migration JSON blob, per §11) — there
+      is exactly one save (one `localStorage` key), no slot concept anywhere
+      in `src/ui`. Scoped to the slots half only (the file format itself is
+      out of this item's acceptance and already spec-compliant per §11).
+      Add a slot-select surface (Hub-reachable, e.g. a Settings sub-panel or
+      a pre-Hub picker) backed by 3 independent storage keys, with
+      create/switch/delete affordances; the existing single save must
+      migrate into slot 1 on first load after this change, not be silently
+      orphaned. Acceptance: a unit test creates independent progress in slot
+      1 and slot 2 (e.g. differing `skillPoints`), switches between them, and
+      confirms each slot's state persists independently across a simulated
+      reload; a separate migration test confirms a pre-existing single save
+      (today's real storage shape) appears intact in slot 1 the first time
+      the slot-aware loader runs — refs: QUALITY.md 1.0 (Steam/itch
+      checklist).
+
+- [ ] (fb097) [feat] low priority: generated 2026-09-04 (same generation
+      batch as fb095; QUALITY.md 1.0 Steam/itch checklist gap diff, extends
+      fb094) — gif capture mode. fb094 scoped out "gif capture mode" from
+      QUALITY.md 1.0's "store-page asset export (screenshots at fixed seeds,
+      gif capture mode)" line as "materially larger scope, left for a future
+      item" — this is that item. Add a dev-profile-only control (alongside
+      fb094's screenshot export, same gating pattern) that records N seconds
+      of canvas frames on a fixed interval and exports them as an animated
+      GIF (or, if a GIF encoder is judged too heavy a dependency for this
+      item, a downloadable frame-sequence archive with a logged QUESTIONS.md
+      note on the substitution). Acceptance: a unit test triggers capture,
+      confirms it collects the expected number of frames over a mocked
+      clock/rAF, and produces a downloadable file; the control is absent/
+      inert outside dev profile, matching fb094's own gating pattern — refs:
+      QUALITY.md 1.0 (Steam/itch checklist), fb094.
+
+- [ ] (fb098) [polish] low priority: generated 2026-09-04 (same generation
+      batch as fb095; QUALITY.md 1.0 Steam/itch checklist gap diff) —
+      colorblind palette real-content audit. QUALITY.md 1.0's Accessibility
+      re-check names "colorblind palettes on real content" as its own line,
+      distinct from BETA's plain "colorblind-safe palette" existence bar
+      already met by fb005's per-damage-type color table and its unit test
+      — "on real content" reads as a stronger bar: verifying the palette
+      stays distinguishable in the actually-rendered scene, not just as an
+      isolated color-table assertion. Extend `tools/ui-audit.ts` (or an
+      equivalent render test) with a scene that renders real per-damage-type
+      floating numbers/markers together on one frame, applies each supported
+      colorblind simulation transform, and asserts every pair of
+      simultaneously-visible damage-type colors stays distinguishable
+      (a contrast/distance threshold) under every mode. Acceptance: the new
+      audit scene/test passes against current `/data`/palette content and
+      would fail if two damage-type colors were changed to be
+      indistinguishable under a simulated colorblind transform (proven via a
+      deliberately-broken fixture in the test, reverted before commit) —
+      refs: QUALITY.md 1.0 (Accessibility re-check), fb005.
+
+- [ ] (fb099) [feat] normal priority: generated 2026-09-04 (same generation
+      batch as fb095; engineer's-judgment item, depth not scope creep per
+      HANDOFF §7, complements fb095) — results-screen quest-completion
+      toast. A quest can complete at run end (`applyRunResult`,
+      `src/meta/meta.ts`, out-of-scope but read-only, appends to
+      `next.completedQuests` and unlocks the reward) with zero player-facing
+      feedback — nothing distinguishes that moment from any other run end,
+      and short of fb095's new tracker panel (or the terse per-class/per-Core
+      "Locked — complete a quest" strings) a player has no way to notice a
+      quest completed at all. `hud.ts` already has a priority toast queue
+      (`queueToast`/`showToast`) used for routine notices (e.g. `xp_overflow_
+      gold`) — reuse it rather than building new UI. In `main.ts`, after
+      calling `applyRunResult`, diff the old and new `meta.completedQuests`
+      arrays to find newly-completed quest keys (no `src/meta` edit needed —
+      pure before/after comparison of an already-returned value) and queue
+      one toast per newly-completed quest naming it and its reward, shown on
+      the Results screen. Acceptance: a unit test drives a quest-completing
+      metric through `applyRunResult` and confirms a toast with the right
+      quest name and reward text is queued exactly once, and confirms
+      re-running an already-completed quest's metric (e.g. a second win past
+      `chrono_veteran`'s threshold) does not re-queue its toast — refs:
+      fb095, SPEC-FINAL §11, HANDOFF §7.
+
 ## Log
 
 - 2026-09-04, fb085: skipped for this session — its literal acceptance
