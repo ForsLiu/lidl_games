@@ -38,7 +38,9 @@ const PALISADE = 1;
 const ARROW_SPIRE = 2;
 
 function newWorld(): World {
-  const w = new World(cfg());
+  // fb077: fixed-tile sealing/breach assertions need the flat pre-fb077
+  // board, not real generated terrain.
+  const w = new World(cfg({ practice: true }));
   w.gold = 100000;
   return w;
 }

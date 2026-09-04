@@ -75,6 +75,7 @@ function reportWith(over: Partial<RunReport> = {}): RunReport {
     endHash: '',
     practiceUsed: false,
     sealed: false,
+    terrainFallback: false,
     ...over,
   };
 }

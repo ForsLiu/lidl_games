@@ -1060,6 +1060,7 @@ export function updateEnemies(w: World, dt: number): void {
     // The final boss has its own script (M6); it falls through to normal
     // chase movement whenever the script has nothing to say this tick.
     if ((e.flags & TRAIT.finalBoss) !== 0 && bossUpdate(w, e, dt)) continue;
+    if (huntWarden) updateGroundUnreachable(w, e, dt, target);
 
     const taunted = tauntTarget(w, e);
     moveEnemy(w, e, def, dt, taunted ?? target, taunted !== null);
@@ -1109,6 +1110,92 @@ function updatePhasing(w: World, e: Enemy, def: EnemyDef, dt: number): void {
       e.ghosting = true;
     }
   }
+}
+
+/**
+ * fb077 (SPEC-FINAL §10.5, code review finding): real generated terrain can
+ * hard-seal a ground walker away from the Warden's current Act II position —
+ * `navFieldFor(false)` uses `Grid`'s 'blocked' mode (terrain-respecting), not
+ * the breach-cost mode Act I's Core-facing field uses, so unlike a
+ * structure-sealed pocket (which `flowAim`'s no-route fallback already
+ * handles by beelining into and chewing whatever structure it hits) a
+ * terrain-sealed pocket has nothing chewable in the way at all: the enemy
+ * beelines into raw rock forever and the run never resolves. `boss.ts`'s
+ * `updateUnreachable` already solves the identical problem for the final
+ * boss (attack the nearest structure/Core after `UNREACHABLE_THRESHOLD`
+ * seconds unreachable) — this reuses the same escape hatch
+ * `TRAIT.burrows`/`TRAIT.phases` enemies already use for exactly this
+ * purpose (`updatePhasing`, above): `e.ghosting = true` — the walker
+ * physically phases through terrain (like a Burrower/Wraith, SPEC-FINAL §10)
+ * until it reaches the Warden. No new damage numbers, no balance change:
+ * this only ever fires on a seed genuinely capable of stalling the run.
+ *
+ * Excluded: the final boss (its own script already covers this, with a
+ * damage-escalation contract that would be wrong to duplicate here) and
+ * `TRAIT.burrows`/`TRAIT.phases` enemies (already ghost on their own cycle,
+ * `updatePhasing` owns their `e.ghosting`).
+ *
+ * qa-playtester finding (post-close verification): the reachability check
+ * above cannot tell a structure-sealed pocket from a terrain-sealed one —
+ * both report no route, since Act II's field stays purely physical (no
+ * breach-cost mode, see `Grid.computeField`'s own doc comment) — so a live
+ * wall the enemy hadn't yet reached (or was already chewing) tripped the
+ * same 6s timer and ghosted straight through an undamaged structure. Fixed
+ * by checking `beelineHitsStructure`, below: when no route exists, `flowAim`
+ * falls back to beelining straight at the raw target (this same function's
+ * own logic), so whatever the walker's beeline hits first tells us whether
+ * there is anything to chew. A distance-based "is a structure nearby"
+ * heuristic was tried first and rejected: it still ghosted before contact
+ * whenever the wall was farther away than `speed * THRESHOLD` (true even of
+ * this bug's own original repro, a 12-tile approach at Husk speed), so the
+ * check has to reach all the way to the target, not just some fixed radius.
+ */
+const GROUND_UNREACHABLE_THRESHOLD = 6; // mirrors boss.ts's UNREACHABLE_THRESHOLD
+
+/**
+ * Walks the straight line from `e` to `target` in half-tile steps and
+ * reports whether the first impassable tile it meets is a live structure
+ * (chewable, per `moveEnemy`'s own bump-and-breach rule) rather than terrain
+ * or the border (nothing to chew). No route existing means this is exactly
+ * the line `flowAim`'s no-route fallback will actually walk.
+ */
+function beelineHitsStructure(w: World, e: Enemy, target: { x: number; y: number }): boolean {
+  const dx = target.x - e.x;
+  const dy = target.y - e.y;
+  const d = Math.sqrt(dx * dx + dy * dy);
+  if (d < 1e-6) return false;
+  const steps = Math.ceil(d * 2);
+  const stepX = dx / steps;
+  const stepY = dy / steps;
+  let x = e.x;
+  let y = e.y;
+  for (let i = 0; i < steps; i++) {
+    x += stepX;
+    y += stepY;
+    const tx = Math.floor(x);
+    const ty = Math.floor(y);
+    if (!w.grid.inBounds(tx, ty)) return false;
+    if (w.grid.passable(tx, ty)) continue;
+    return w.structureAt(tx, ty) !== null;
+  }
+  return false;
+}
+
+function updateGroundUnreachable(w: World, e: Enemy, dt: number, target: { x: number; y: number }): void {
+  if ((e.flags & (TRAIT.finalBoss | TRAIT.burrows | TRAIT.phases)) !== 0) return;
+  if (e.flying || e.ghosting) return;
+  const tx = Math.floor(e.x);
+  const ty = Math.floor(e.y);
+  const reachable =
+    !w.grid.inBounds(tx, ty) ||
+    (tx === Math.floor(w.warden.x) && ty === Math.floor(w.warden.y)) ||
+    w.navFieldFor(false).next[ty * GRID_W + tx] >= 0;
+  if (reachable || beelineHitsStructure(w, e, target)) {
+    e.bossUnreachableTime = 0;
+    return;
+  }
+  e.bossUnreachableTime += dt;
+  if (e.bossUnreachableTime >= GROUND_UNREACHABLE_THRESHOLD) e.ghosting = true;
 }
 
 function unstick(w: World, e: Enemy): void {

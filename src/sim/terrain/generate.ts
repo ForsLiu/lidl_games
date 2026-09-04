@@ -24,7 +24,7 @@
  * `fallback: true` is the caller's signal that the bands, not the seed, are
  * what failed.
  */
-import { GATES, GRID_H, GRID_W } from '../grid';
+import { GATES, GRID_H, GRID_W, type GateDef } from '../grid';
 import { Hasher } from '../hash';
 import { fnv1a, Rng, TERRAIN_STREAM } from '../rng';
 import { gateIndices, measureTerrain, terrainLegal, walkableFlood } from './analyze';
@@ -43,7 +43,7 @@ function clamp(v: number, lo: number, hi: number): number {
 }
 
 /** The base map: rock border, walkable gate tiles, normal interior. */
-function blankKinds(): Uint8Array {
+function blankKinds(gates: readonly GateDef[]): Uint8Array {
   const kind = new Uint8Array(GRID_W * GRID_H).fill(TerrainKind.Normal);
   for (let x = 0; x < GRID_W; x++) {
     kind[x] = TerrainKind.Rock;
@@ -53,14 +53,14 @@ function blankKinds(): Uint8Array {
     kind[y * GRID_W] = TerrainKind.Rock;
     kind[y * GRID_W + GRID_W - 1] = TerrainKind.Rock;
   }
-  for (const g of GATES) kind[g.ty * GRID_W + g.tx] = TerrainKind.Normal;
+  for (const g of gates) kind[g.ty * GRID_W + g.tx] = TerrainKind.Normal;
   return kind;
 }
 
 /** One generation attempt at an exact seed. Never fails; may be degenerate. */
-function attempt(seed: number, cfg: TerrainConfig): Uint8Array {
+function attempt(seed: number, cfg: TerrainConfig, gates: readonly GateDef[]): Uint8Array {
   const rng = new Rng(fnv1a(TERRAIN_STREAM, seed >>> 0));
-  const kind = blankKinds();
+  const kind = blankKinds(gates);
   const protectedTile = new Uint8Array(GRID_W * GRID_H);
 
   // Interior only: the border stays rock so the arena never leaks. The bounds
@@ -88,7 +88,7 @@ function attempt(seed: number, cfg: TerrainConfig): Uint8Array {
   const midY = (GRID_H / 2) | 0;
   paint(midX, midY, cfg.plazaRadius);
 
-  for (const g of GATES) {
+  for (const g of gates) {
     let x = clamp(g.tx, 1, GRID_W - 2);
     let y = clamp(g.ty, 1, GRID_H - 2);
     paint(x, y, Math.max(cfg.corridorRadius, cfg.gateClearRadius));
@@ -150,7 +150,7 @@ function attempt(seed: number, cfg: TerrainConfig): Uint8Array {
   scatter(TerrainKind.Rough, cfg.density.rough);
   scatter(TerrainKind.High, cfg.density.high);
 
-  sealPockets(kind, cfg);
+  sealPockets(kind, cfg, gates);
   return kind;
 }
 
@@ -164,11 +164,11 @@ function attempt(seed: number, cfg: TerrainConfig): Uint8Array {
  * other* is `gatesConnected`'s job, and sealing cannot answer it — a pocket
  * holding a gate is reachable, from that gate.
  */
-function sealPockets(kind: Uint8Array, cfg: TerrainConfig): void {
+function sealPockets(kind: Uint8Array, cfg: TerrainConfig, gates: readonly GateDef[]): void {
   // Shares the analyzer's flood rather than repeating it: two copies of a
   // connectivity rule is exactly where the seal and the measurement drift.
   const view: TerrainGrid = { w: GRID_W, h: GRID_H, kind };
-  const seen = walkableFlood(view, cfg, gateIndices(view));
+  const seen = walkableFlood(view, cfg, gateIndices(view, gates));
   for (let i = 0; i < kind.length; i++) {
     if (!seen[i] && cfg.tiles[kind[i]].walkable) kind[i] = TerrainKind.Rock;
   }
@@ -211,17 +211,27 @@ function toMap(
  * writes that 0 into `requestedSeed`, destroying the provenance the replay
  * guard (architecture rule 2) needs. There is no caller yet, so this is the
  * cheap moment to make it loud instead of at fb064b/fb064c.
+ *
+ * `gates` defaults to the base 3 (`GATES`); fb077's World wiring passes its
+ * real run gate list (base 3, plus the Fourth Gate modifier's south gate at
+ * (12,19) when active) so protected mains, sealing and every measured band
+ * are carved and scored against the gates the run actually has, not a
+ * hardcoded 3.
  */
-export function generateTerrain(seed: number, cfg: TerrainConfig = loadTerrain()): TerrainMap {
+export function generateTerrain(
+  seed: number,
+  cfg: TerrainConfig = loadTerrain(),
+  gates: readonly GateDef[] = GATES,
+): TerrainMap {
   if (!Number.isInteger(seed)) {
     throw new Error(`generateTerrain: seed must be an integer, got ${seed}`);
   }
   const requested = seed | 0;
   for (let n = 0; n < cfg.maxAttempts; n++) {
     const trySeed = (requested + n) | 0;
-    const kind = attempt(trySeed, cfg);
+    const kind = attempt(trySeed, cfg, gates);
     const map = toMap(requested, trySeed, kind, n + 1, false);
-    if (terrainLegal(measureTerrain(map, cfg), cfg)) return map;
+    if (terrainLegal(measureTerrain(map, cfg, gates), cfg)) return map;
   }
-  return toMap(requested, requested, blankKinds(), cfg.maxAttempts, true);
+  return toMap(requested, requested, blankKinds(gates), cfg.maxAttempts, true);
 }

@@ -1315,6 +1315,7 @@ export function buildReport(w: World): RunReport {
     endHash: hashWorld(w),
     practiceUsed: w.practiceUsed,
     sealed: w.everSealed,
+    terrainFallback: w.terrainFallback,
   };
 }
 

@@ -165,6 +165,7 @@ describe('p7c: the meta layer banks exactly report.vsWavesCleared skill points a
       endHash: '',
       practiceUsed: false,
       sealed: false,
+      terrainFallback: false,
       ...over,
     };
   }

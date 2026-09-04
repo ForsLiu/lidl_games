@@ -2075,7 +2075,9 @@ export function loadContent(overrides?: ContentOverrides): Content {
     }
   }
 
-  // Map terrain: validate at load (rule 4) even though no run consumes it yet.
+  // Map terrain: validate at load (rule 4). `World` (fb077) generates from
+  // this at run construction; validating here means a bad `/data/terrain.json`
+  // edit fails at content load, not mid-run.
   loadTerrain();
 
   const result: Content = {

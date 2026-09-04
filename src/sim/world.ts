@@ -5,8 +5,9 @@
 
 import { contentHash, defaultCoreKey, loadContent, type Content, type ModifierDef } from './content';
 import { computeCoreState, coreHpBonus, type CoreState } from './cores';
-import { GRID_H, GRID_W, Grid, GATES, coreCenter, type Field, type GateDef } from './grid';
+import { GRID_H, GRID_W, Grid, GATES, coreCenter, type Field, type GateDef, type TerrainOverlay } from './grid';
 import { RngSet } from './rng';
+import { generateTerrain, loadTerrain, terrainOverlay, type TerrainConfig, type TerrainMap } from './terrain';
 import { baseRunStats, damageTakenMul, derive, emptyStats, type Derived, type Stats } from './stats';
 import { dist2 } from './math';
 import { structureArmor, structureMaxHp } from './upgrades';
@@ -73,6 +74,113 @@ function clampCell(v: number, max: number): number {
   return v < 0 ? 0 : v >= max ? max - 1 : v;
 }
 
+/**
+ * The Warden's Act I spawn tile (`World`'s constructor: `coreCenter().x - 3,
+ * coreCenter().y`) — fixed, like `CORE_X/CORE_Y`, but not itself a `GateDef`
+ * or a `TileType.Core` tile, so `Grid.applyTerrain` has no reason to force it
+ * open the way it already does for Gate/Core tiles. Exported so `World`'s own
+ * spawn-position math and `applyRunTerrain`'s clearing stay one source of
+ * truth rather than two hand-synced constants.
+ */
+export function wardenSpawnTile(): { tx: number; ty: number } {
+  const cc = coreCenter();
+  return { tx: Math.floor(cc.x) - 3, ty: Math.floor(cc.y) };
+}
+
+/**
+ * Force a 3x3 block centered on `(tx, ty)` to normal, walkable, buildable
+ * ground in `overlay`, in place — the same "structural tile outranks the
+ * scatter" treatment `Grid.applyTerrain` already gives every Gate/Core tile,
+ * applied here (pre-apply, on the overlay) for the one structural position
+ * that isn't a `GateDef` or `TileType.Core`: the Warden's own spawn tile.
+ * Measured (2000-seed sweep, base 3 gates): 1.0% of seeds land Rock or High
+ * Ground directly on that tile with no clearing at all — over 10x
+ * `applyRunTerrain`'s own cited Core-stranding rate — which would either
+ * spawn the character embedded in impassable rock or park it on an Act I
+ * "safe spot" no gate band measures.
+ */
+function clearOverlayBlock(overlay: TerrainOverlay, tx: number, ty: number): void {
+  for (let dy = -1; dy <= 1; dy++) {
+    for (let dx = -1; dx <= 1; dx++) {
+      const x = tx + dx;
+      const y = ty + dy;
+      if (x < 0 || y < 0 || x >= overlay.w || y >= overlay.h) continue;
+      const i = y * overlay.w + x;
+      overlay.kind[i] = 0; // TerrainKind.Normal
+      overlay.walkable[i] = 1;
+      overlay.buildable[i] = 1;
+      overlay.high[i] = 0;
+    }
+  }
+}
+
+/**
+ * fb077 (SPEC-FINAL §10.5): generate terrain for `gates`/`seed` and apply it
+ * to `grid`, retrying at `seed + 1, seed + 2, ...` when the hardcoded
+ * `CORE_X/CORE_Y` Core comes out unreachable (`generateTerrain` itself only
+ * retries for *band* legality — it never sees where the Core sits, since
+ * fb064c's movable-Core placement Command is separate, out-of-scope work).
+ * Exhausting `MAX_CORE_RETRIES` independent attempts is not observed across
+ * 5000-seed sweeps and astronomically unlikely; if it ever happens anyway,
+ * `grid` is reset to the flat arena (an all-normal overlay reproduces
+ * `Grid`'s own untouched state, which is trivially legal) rather than ship a
+ * stranded Core, and the fallback is reported exactly like a degenerate
+ * `TerrainMap` is. `grid` must not have any structure on it yet
+ * (`Grid.applyTerrain` refuses live occupancy).
+ *
+ * A free function, not a `World` method, so a test can drive it against a
+ * synthetic `TerrainConfig`/gate list without constructing a real `World`.
+ * Returns whether the run fell back to the flat arena.
+ */
+export function applyRunTerrain(
+  grid: Grid,
+  gates: readonly GateDef[],
+  seed: number,
+  terrainCfg: TerrainConfig = loadTerrain(),
+): boolean {
+  const MAX_CORE_RETRIES = 16;
+  const { tx: wtx, ty: wty } = wardenSpawnTile();
+  const applyAt = (s: number): TerrainMap => {
+    const attemptMap = generateTerrain(s, terrainCfg, gates);
+    const overlay = terrainOverlay(attemptMap, terrainCfg);
+    clearOverlayBlock(overlay, wtx, wty);
+    grid.applyTerrain(overlay);
+    grid.refresh();
+    return attemptMap;
+  };
+  let map = applyAt(seed);
+  let tries = 0;
+  while (!map.fallback && !grid.allGatesReachable() && tries < MAX_CORE_RETRIES) {
+    tries++;
+    map = applyAt(seed + tries);
+  }
+  if (map.fallback) {
+    // Not a DOM/timing/RNG side effect (architecture rule 1 forbids none of
+    // those) — a one-line dev-visible signal so a hostile `/data` edit never
+    // reads as a silent flat arena for a whole run (item 4's own wording).
+    console.warn(
+      `applyRunTerrain: generation exhausted every band attempt for seed ${seed}; playing on the flat fallback arena.`,
+    );
+    return true;
+  }
+  if (grid.allGatesReachable()) return false;
+  console.warn(
+    `applyRunTerrain: every terrain candidate for seed ${seed} left the Core unreachable (${MAX_CORE_RETRIES + 1} attempts); playing on the flat fallback arena.`,
+  );
+  const n = GRID_W * GRID_H;
+  const flat: TerrainOverlay = {
+    w: GRID_W,
+    h: GRID_H,
+    kind: new Uint8Array(n),
+    walkable: new Uint8Array(n).fill(1),
+    buildable: new Uint8Array(n).fill(1),
+    high: new Uint8Array(n),
+  };
+  grid.applyTerrain(flat);
+  grid.refresh();
+  return true;
+}
+
 export class World {
   readonly content: Content;
   readonly cfg: RunConfig;
@@ -81,6 +189,17 @@ export class World {
   readonly gates: GateDef[];
   readonly mods: ModifierEffects;
   readonly modKeys: string[];
+  /**
+   * fb077 (SPEC-FINAL §10.5): true when this run could not place real
+   * generated terrain — either `generateTerrain` itself exhausted every band
+   * attempt (`TerrainMap.fallback`), or every attempt tried left the
+   * hardcoded Core unreachable from the gates — and played on the flat
+   * default arena instead. Practice runs are always `false`: Training
+   * Grounds deliberately never generates terrain (BACKLOG-TERRAIN.md fb064f).
+   * Surfaced in `RunReport.terrainFallback` as replay provenance so a strict
+   * `/data` band never reads as a silent flat arena for a whole run.
+   */
+  readonly terrainFallback: boolean;
   /**
    * SPEC-FINAL §5.5: the resolved Core key, defaulted from content (the one
    * `unlockedByDefault` row, Stone Heart) when `cfg.core` is omitted, so every
@@ -447,6 +566,7 @@ export class World {
       this.grid.markDirty();
       this.grid.refresh();
     }
+    this.terrainFallback = this.cfg.practice ? false : applyRunTerrain(this.grid, this.gates, cfg.seed);
 
     this.stats = baseRunStats(content, cfg);
     this.stats.add('modifiers', 'pickupPct', this.mods.pickupMul);

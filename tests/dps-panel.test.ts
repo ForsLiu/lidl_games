@@ -20,7 +20,7 @@ import { cfg, runWithPolicy } from './helpers';
 
 describe('DPS panel data model', () => {
   it('is all zero on a fresh run', () => {
-    const w = new World(cfg());
+    const w = new World(cfg({ practice: true }));
     const data = dpsPanelData(w);
     expect(data.run.damage).toBe(0);
     expect(data.run.dps).toBe(0);
@@ -31,7 +31,7 @@ describe('DPS panel data model', () => {
   });
 
   it('credits a hit to both the by-source and by-type breakdowns, in both windows', () => {
-    const w = new World(cfg());
+    const w = new World(cfg({ practice: true }));
     const arrow = w.content.towerByKey.get('arrow_spire')!;
     const e = spawnEnemy(w, 'husk', 3, 3)!;
     w.tick = 60; // 1 second elapsed
@@ -49,7 +49,7 @@ describe('DPS panel data model', () => {
   });
 
   it('`startWave` isolates the current Act I wave from earlier waves without touching the whole-run total', () => {
-    const w = new World(cfg());
+    const w = new World(cfg({ practice: true }));
     const arrow = w.content.towerByKey.get('arrow_spire')!;
     const e1 = spawnEnemy(w, 'husk', 3, 3)!;
     startWave(w); // wave 1 begins
@@ -74,7 +74,7 @@ describe('DPS panel data model', () => {
   });
 
   it('the Sundering isolates the current VS wave the same way `act2DamageSoFar` does', () => {
-    const w = new World(cfg());
+    const w = new World(cfg({ practice: true }));
     const arrow = w.content.towerByKey.get('arrow_spire')!;
     const e1 = spawnEnemy(w, 'husk', 3, 3)!;
     w.tick = 60;
@@ -105,7 +105,7 @@ describe('DPS panel data model', () => {
   // wave's damage and duration under the previous TD wave's label (measured
   // ~96% of a whole run's damage misattributed to "Wave 3" this way).
   it('advanceToNextBlock resets the wave window instead of carrying the Sundering snapshot into it', () => {
-    const w = new World(cfg());
+    const w = new World(cfg({ practice: true }));
     const arrow = w.content.towerByKey.get('arrow_spire')!;
     const e1 = spawnEnemy(w, 'husk', 3, 3)!;
     w.tick = 60;
@@ -127,7 +127,7 @@ describe('DPS panel data model', () => {
   });
 
   it("reconciles with the real RunReport's damageByWeapon/damageByType at run end", () => {
-    const { report, run } = runWithPolicy(cfg({ policy: 'hybrid' }), 'hybrid', 60 * 60 * 20);
+    const { report, run } = runWithPolicy(cfg({ policy: 'hybrid', practice: true }), 'hybrid', 60 * 60 * 20);
     const data = dpsPanelData(run.world);
 
     expect(report.damageTotal).toBeGreaterThan(0);
@@ -172,7 +172,7 @@ describe('DPS panel data model', () => {
   // positive, just incorrect, number; this mutation was verified to slip
   // past a bare `>0` assertion in qa-playtester's round-3 pass).
   it('reconciles with RunReport through a Sundering into Act II (cycles: 3)', () => {
-    const run = new Run(cfg({ policy: 'hybrid', cycles: 3 }));
+    const run = new Run(cfg({ policy: 'hybrid', cycles: 3, practice: true }));
     const policy = makePolicy('hybrid');
     // fb025 (enemy HP x10 + attacker attack speed x0.7): Act I's own wave
     // clear, which used to reach naturally within this window, no longer

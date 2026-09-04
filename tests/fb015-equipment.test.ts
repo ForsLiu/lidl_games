@@ -241,6 +241,7 @@ function minimalReport(): import('../src/sim/types').RunReport {
     endHash: '',
     practiceUsed: false,
     sealed: false,
+    terrainFallback: false,
   };
 }
 

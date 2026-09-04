@@ -5,6 +5,50 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-04 session: BACKLOG fb077 closed — real generated terrain wired
+  into every non-practice `World`, the main-lane half of the terrain epic
+  (SPEC-FINAL §10.5).** `World`'s constructor now generates from `cfg.seed`
+  and applies via `Grid.applyTerrain` right after gates are finalized and
+  before any Command can build; `generateTerrain`/`analyze.ts` gained a
+  trailing `gates` parameter (defaulted, ~30 existing call sites unaffected)
+  so a Fourth Gate run threads its real 4-gate list through generation. A new
+  `applyRunTerrain` (`src/sim/world.ts`) retries at `seed+1, seed+2, ...` up
+  to 16 attempts when the hardcoded Core comes out unreachable, falling back
+  to a flat arena (surfaced via `World.terrainFallback` /
+  `RunReport.terrainFallback`) only if every attempt fails — closing the
+  138/500-seed burial bug and the ~4-in-5000 stranding rate without building
+  fb064c's movable-Core Command (left open, separate follow-up). Practice
+  runs skip generation entirely (flat board, unchanged). Wiring terrain into
+  every run broke 21 pre-existing tests across 6 files that hardcode fixed
+  tile coordinates unrelated to terrain (`act1.test.ts`, `p1a-sealing.test.ts`,
+  `dps-panel.test.ts`, `fb016-vfx-registry.test.ts`, `q120-order1-taunt
+  .test.ts`, `render-fb060-dot-tick-numbers.test.ts`) — fixed by forcing
+  `practice: true` in each (matches pre-fb077 flat-board behavior exactly).
+  code-reviewer's first pass (REQUEST-CHANGES) caught a real Major: the
+  Warden's Act I spawn tile had no terrain protection, unlike Gate/Core tiles
+  (measured 1.0%/2000 seeds painted Rock/High Ground directly on it) — fixed
+  with a shared `wardenSpawnTile()` clearing a 3x3 block pre-apply, re-measured
+  0/2000. G1 re-measured 32.91 min / 24-24 (100%), up from the pre-terrain
+  36.39 min / 21-24 baseline; G14 unchanged 20/20; G2/G17 unaffected beyond
+  pre-existing host-contention flake. qa-playtester's post-close pass found
+  and fixed one more real Major, not deferred: `updateGroundUnreachable`
+  (this item's own new escape-hatch code, reusing the `e.ghosting` pattern
+  `updatePhasing`/`boss.ts` already use) couldn't tell a terrain-sealed
+  pocket from a structure-sealed one, so a ground walker separated from the
+  Warden by a live, undamaged player wall ghosted through it before ever
+  reaching it. Fixed via `beelineHitsStructure`, which walks the same
+  no-route beeline fallback `flowAim` already walks and checks whether the
+  first impassable tile is a live structure (chewable) or terrain/border
+  (nothing to chew); regression test added. `tests/fb077-terrain-wiring
+  .test.ts` (18 tests) covers all of the above; `npm run test:fast` green
+  (same pre-existing Windows flake family, confirmed pre-existing via A/B
+  against HEAD~). qa-playtester's pass also caught the closure text's own
+  false claim that `boss.test.ts` was fully green — it is not, on this diff
+  *or* on HEAD (fight resolves in 11.65-15.68s vs. the file's own ~57s
+  comment) — filed as **fb099** rather than fixed here (pre-existing, out of
+  scope for terrain wiring, invisible to `test:fast` because the file is in
+  the fast-tier exclude list). Full closure narrative, measurements and
+  code-reviewer/qa-playtester detail logged in BACKLOG.md under fb077.
 - **2026-09-04 session: BACKLOG fb095 closed — fb094's G19 sealed-build fix
   doesn't generalize past its pinned 5-seed window, and no `/data`-free lever
   closes the gap, so the fix is a test-robustness one, not a retune.**

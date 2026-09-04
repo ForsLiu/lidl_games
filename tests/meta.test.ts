@@ -327,6 +327,7 @@ describe('quest metrics (Q101, p2e)', () => {
       endHash: '',
       practiceUsed: false,
       sealed: false,
+      terrainFallback: false,
     };
   }
 
