@@ -147,7 +147,9 @@ export function makeKeyDownHandler(b: KeyBinding): (e: KeyboardEvent) => void {
       b.togglePause?.();
       return;
     }
-    if (k === bindings.dash) e.preventDefault();
+    // fb080: suppress the browser's default Space behavior (page scroll)
+    // regardless of which action currently owns the `dash` binding.
+    if (k === ' ') e.preventDefault();
     if (k === 'enter') b.queue.push({ k: 'call' });
     if (k === bindings.active1) {
       // p6d: Active1 is mouse-aimed too now (Field Kit, Chain Surge, Blood

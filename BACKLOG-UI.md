@@ -894,7 +894,7 @@ not already expose it) logs that need below instead of reaching into
       failures reproduce identically without this diff) / 22 skipped, none
       touching `src/ui/**`/`src/render/**` or this item's own files.
 
-- [ ] (fb080) [bug] low priority: `makeKeyDownHandler`'s
+- [x] (fb080) [bug] low priority: `makeKeyDownHandler`'s
       `if (k === bindings.dash) e.preventDefault();` (`input.ts`) suppresses
       the browser's default Space behavior (page scroll) for whichever
       action currently owns the `dash` binding, not for the physical Space
@@ -911,7 +911,40 @@ not already expose it) logs that need below instead of reaching into
       the pressed key is literally Space, independent of which action
       currently owns the `dash` binding; suggested fix direction: check
       `k === ' '` directly for the `preventDefault` call rather than
-      `k === bindings.dash` — refs: fb073.
+      `k === bindings.dash` — refs: fb073. DONE 2026-09-04: took the
+      suggested fix direction verbatim — `makeKeyDownHandler` (`input.ts`)
+      now reads `if (k === ' ') e.preventDefault();`, independent of
+      `bindings.dash`. `k` is already `e.key.toLowerCase()`, and Space's
+      `e.key` is the literal space character regardless of modifiers, so
+      this decouples "suppress the browser's default Space behavior" from
+      "whichever action currently owns the `dash` binding." Targeted
+      `tests/ui-fb080-space-prevent-default.test.ts` (4/4): default binding
+      still suppresses; `dash` rebound off Space entirely still suppresses;
+      a different action (`active1`) rebound onto the freed Space still
+      suppresses; an unrelated key does not call `preventDefault`.
+      Confirmed via git-stash A/B that 2 of the 4 fail pre-fix with the
+      exact predicted symptom and pass post-fix. code-reviewer **APPROVE**
+      (no Critical/Major/Minor; one Nit — the backlog checkbox wasn't ticked
+      yet in the reviewed diff, closed by this update). qa-playtester
+      **PASS**: independently re-derived the fix through the real
+      `makeKeyDownHandler` via `window.dispatchEvent`, then end-to-end
+      through a real `Hub` + `Game` (rebound `dash` off Space onto `j` via
+      the actual Controls panel, started a run, dispatched a real Space
+      keydown, confirmed `evt.defaultPrevented === true`; repeated with
+      `active2` rebound onto the freed Space, confirming both
+      `preventDefault` and the `class_active2` command fire from one
+      keypress); hostile-tested Space during an Esc-pause (still
+      suppressed, `dashQueued` correctly stays unarmed while paused), a
+      simulated key-repeat event (correctly skipped by the pre-existing
+      `e.repeat` guard, fb078 untouched), rapid repeated press/release
+      cycles, Space with a modifier held, a non-cancelable event (no
+      throw), and confirmed Space isn't a reserved/unbindable key (fb079's
+      territory, not applicable here); filed no new bugs. `npx tsc --noEmit`
+      clean. `npm run test:fast`: 10-12 failures across runs this session,
+      all in the pre-existing q15/q45/q49/q52 worker-hang/Windows-scratch-
+      dir-EPERM flake classes documented across dozens of prior PROGRESS.md
+      sessions, none touching `src/ui/**`/`src/render/**` or this item's own
+      files.
 
 - [ ] (fb081) [bug] low priority: `sanitizeKeyBindings`'s (`keybindings.ts`)
       general duplicate-key dedup is a no-op whenever a corrupted/hand-edited
