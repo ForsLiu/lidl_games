@@ -474,6 +474,45 @@ not already expose it) logs that need below instead of reaching into
       no change to the normal-only arena's frame — refs: SPEC-FINAL §10.5
       (fb079), §11.
 
+- [ ] (fb096) [feat] normal priority: Swordsman combo swept-area indicator —
+      when Dash Slash is cast during a Circle Slash charge, draw the merged
+      attack's full effective hit region (the charged circle swept along the
+      dash path, a capsule/stadium shape) as the aim indicator while charging
+      and moving the cursor, plus a brief afterimage on release (respecting
+      reduced-flash). The indicator shape must equal the merged attack's real
+      hit-detection region, not an approximation (owner feedback
+      `feedback/processed/20260904-162645-feature-combo-area-indicator.md`).
+      Acceptance: indicator renders the capsule from current charge radius +
+      cursor direction; a test asserts the rendered region equals the sim's
+      hit-detection region; afterimage respects the reduced-flash setting —
+      refs: SPEC-FINAL §4.1 (Swordsman combo), §11 (indicators).
+- [ ] (fb097) [feat] normal priority: Core-select screen redesign to match
+      class-select layout — a horizontal row of vertically-long Core sprites
+      (placeholder tall silhouettes: stone heart, carnivorous plant, vampire
+      heart, corpse pile, time monolith); selecting one fills the bottom panel
+      with base HP and upgrade-track summary; hovering the TD effect / VS
+      effect / each upgrade step shows the written explanation with live
+      numbers pulled from `/data`; locked Cores render greyed with their
+      unlock condition shown (owner feedback
+      `feedback/processed/20260904-162645-feature-core-select-ui.md`).
+      Acceptance: layout mirrors fb058's class-select redesign; all 5 Cores
+      render; a test asserts hover text numbers equal `/data` values; locked
+      state renders correctly — refs: SPEC-FINAL §5.5, §11, fb058.
+- [ ] (fb098) [feat] normal priority: per-tower attack projectile/beam
+      visuals — every tower type gets a distinct registered VFX entry: Arrow
+      (arrow), Ballista (heavy bolt), Venom Spore (spore puff + drip trail),
+      Mortar (lobbed shell, arc + impact crater flash), Electric (instant
+      jagged arc + chain arcs), Ember Brazier (flame cone sweep), Frost
+      Obelisk (pulse ring), Beacon/Harvest (aura pulse tick); projectiles
+      travel at the tower's real projectile speed (so a speed passive like
+      Voltbolt's is visible) and impact marks are colored per damage type;
+      the same visuals fire when a character wields the tower in VS (owner
+      feedback
+      `feedback/processed/20260904-162645-feature-tower-projectile-sprites.md`).
+      Acceptance: a VFX-registry test fails for any of the 10 towers missing
+      a fire+travel+impact entry; VS wielded attacks reuse the same registry
+      entries — refs: SPEC-FINAL §5, §11, VFX registry (fb016).
+
 ## Log
 
 - 2026-09-03, lane merge: `lane/ui` merged into master (fb055, fb058,
