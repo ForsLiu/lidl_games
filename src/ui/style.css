@@ -497,6 +497,73 @@ input.sw-tuner-field-input[type="text"] { width: 220px; }
    named header plus whatever generic stat/field list the info-format.ts
    formatters produced underneath it. */
 .sw-classdetail { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--line); }
+
+/* fb058: the Class-select screen — a horizontal row of tall class cards, plus
+   the selected class's band/number stat row and its four hover-only skill
+   entries. */
+.sw-classrow { display: flex; flex-wrap: wrap; gap: 10px; }
+.sw-classcard {
+  display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center;
+  width: 130px; height: 190px; padding: 12px 10px;
+  background: var(--panel2); border: 1px solid var(--line); border-radius: 8px;
+  color: var(--text); font: inherit; cursor: pointer;
+}
+.sw-classcard:hover:not(.locked) { border-color: var(--accent); }
+.sw-classcard.on { border-color: var(--accent); background: #1c2a2a; }
+.sw-classcard.locked { opacity: .45; cursor: default; }
+.sw-classcard b { font-size: 14px; }
+.sw-classcard small { font-size: 11px; color: #7a6a4a; }
+.sw-classcard-art {
+  width: 72px; height: 96px; border-radius: 6px;
+  background: linear-gradient(180deg, var(--panel), var(--panel2));
+  border: 1px solid var(--line);
+  display: grid; place-items: center;
+  font-size: 32px; font-weight: 700; color: var(--accent);
+}
+
+.sw-classbands { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 10px; }
+.sw-classband {
+  display: flex; flex-direction: column; gap: 2px; min-width: 84px;
+  background: var(--panel2); border: 1px solid var(--line); border-radius: 5px;
+  padding: 6px 10px;
+}
+.sw-classband-label { font-size: 11px; color: var(--dim); text-transform: uppercase; letter-spacing: .04em; }
+.sw-classband-tier { font-size: 13px; text-transform: capitalize; }
+.sw-classband-num { font-size: 11px; color: var(--dim); font-variant-numeric: tabular-nums; }
+.sw-classband-low { color: #9aa4b2; }
+.sw-classband-medium { color: var(--gold); }
+.sw-classband-high { color: var(--accent); }
+.sw-classband-yes { color: var(--accent); }
+.sw-classband-small { color: var(--gold); }
+.sw-classband-no { color: #9aa4b2; }
+
+.sw-classskills { display: flex; flex-wrap: wrap; gap: 8px; }
+.sw-cs-skill {
+  position: relative;
+  background: var(--panel2); border: 1px solid var(--line); border-radius: 5px;
+  padding: 8px 12px; cursor: default; outline: none;
+}
+.sw-cs-label { font-size: 12px; }
+.sw-cs-skill:hover, .sw-cs-skill:focus, .sw-cs-skill:focus-within { border-color: var(--accent); }
+.sw-cs-tip {
+  display: none;
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  width: 280px;
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 8px 10px;
+  z-index: 6;
+  text-align: left;
+}
+.sw-cs-skill:hover .sw-cs-tip,
+.sw-cs-skill:focus .sw-cs-tip,
+.sw-cs-skill:focus-within .sw-cs-tip {
+  display: block;
+}
+
 .sw-effectblock { margin-bottom: 10px; }
 .sw-effectblock:last-child { margin-bottom: 0; }
 .sw-effectblock b { font-size: 13px; }

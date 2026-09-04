@@ -45,8 +45,23 @@ export interface Settings {
    * dev profile is never applied in the first place.
    */
   cleanProfile: boolean;
+  /**
+   * fb058: reveals the non-normal-profile classes on the Hub's Class-select
+   * screen (SPEC-FINAL §4). Meaningless outside a dev build/profile — the
+   * Hub only renders the toggle when `devProfileActive()` is true, same as
+   * the DEV PROFILE badge — but harmless if a stale save carries it `true`
+   * into a production build: `hub.ts` re-checks `devProfileActive()` at
+   * render time rather than trusting this flag alone.
+   */
+  showHiddenClasses: boolean;
   /** Cap floating combat text so a 350-strong fight stays readable. */
   maxDamageNumbers: number;
+  /**
+   * fb060 (owner OVERRIDE of QUESTIONS Q133(3)): once-per-second aggregated
+   * floating numbers for Bleeding/Poison/Toxic/Burning ticks, on top of the
+   * existing marker dots. Default ON per the owner feedback.
+   */
+  dotNumbers: boolean;
 }
 
 export const SETTINGS_KEY = 'stonewake.settings.v1';
@@ -64,7 +79,9 @@ export function defaultSettings(): Settings {
     accessiblePalette: false,
     reducedFlash: false,
     cleanProfile: false,
+    showHiddenClasses: false,
     maxDamageNumbers: 60,
+    dotNumbers: true,
   };
 }
 
@@ -101,8 +118,10 @@ export function sanitize(s: Settings): Settings {
     accessiblePalette: !!s.accessiblePalette,
     reducedFlash: !!s.reducedFlash,
     cleanProfile: !!s.cleanProfile,
+    showHiddenClasses: !!s.showHiddenClasses,
     maxDamageNumbers: Number.isFinite(s.maxDamageNumbers)
       ? Math.min(400, Math.max(0, Math.round(s.maxDamageNumbers)))
       : 60,
+    dotNumbers: !!s.dotNumbers,
   };
 }

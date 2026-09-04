@@ -95,6 +95,16 @@ export function passiveSkillMarkup(cls: ClassDef): string {
     </div>`;
 }
 
+/** fb058: the tower passive's own block, standalone for the class-select screen's fourth hover entry. */
+export function towerPassiveSkillMarkup(cls: ClassDef): string {
+  return `<div class="sw-effectblock">
+      <b>${cls.towerPassive.name} (Tower Passive)</b>
+      <p class="sw-note">${cls.towerPassive.description}</p>
+      ${numericFieldListHtml(cls.towerPassive)}
+      ${modLinesHtml(cls.towerPassive.mods)}
+    </div>`;
+}
+
 /**
  * The full active/passive/tower-passive/basic-attack effect text for one
  * class (SPEC-FINAL §4). `opts.live` is omitted entirely on the Hub's
@@ -118,11 +128,6 @@ export function classAbilitiesMarkup(cls: ClassDef, opts: { live?: ClassLiveCont
     activeSkillMarkup(cls, 'active1', live),
     activeSkillMarkup(cls, 'active2', live),
     passiveSkillMarkup(cls),
-    `<div class="sw-effectblock">
-      <b>${cls.towerPassive.name} (Tower Passive)</b>
-      <p class="sw-note">${cls.towerPassive.description}</p>
-      ${numericFieldListHtml(cls.towerPassive)}
-      ${modLinesHtml(cls.towerPassive.mods)}
-    </div>`,
+    towerPassiveSkillMarkup(cls),
   ].join('');
 }

@@ -33,7 +33,7 @@ const DEV_BADGE =
 import { equipItem } from '../meta/stash';
 import { renderTreeView } from './tree-view';
 import { sanitize, type Settings } from './settings';
-import { classAbilitiesMarkup } from './class-info';
+import { NORMAL_PROFILE_CLASS_KEYS, classBandStatsMarkup, classSelectSkillsMarkup } from './class-select';
 import { coreDetailMarkup } from './core-info';
 import { modLines, modLinesHtml } from './info-format';
 import { equipmentFallbackMarkup, equipmentSpecialNoteMarkup } from './equipment-info';
@@ -153,29 +153,51 @@ export class Hub {
     // production build (the Tuner's editable half never mounts there).
     const unsavedTunerEdits = hasUnsavedTunerEdits();
 
+    // fb058: normal profile shows only the SPEC-FINAL §4 3-class roster; the
+    // dev "show hidden classes" setting (only offered when the dev profile is
+    // active — same gate as DEV_BADGE) reveals the rest. Sim gates always read
+    // `content.classes.classes` directly, never this filtered view.
+    const showHiddenClasses = DEV_BUILD && devProfileActive() && this.settings.showHiddenClasses;
+    const visibleClasses = content.classes.classes.filter(
+      (c) => showHiddenClasses || NORMAL_PROFILE_CLASS_KEYS.includes(c.key),
+    );
+    // Selecting a *locked* visible class is intentional (lets a player
+    // preview its band stats/skills before it's unlocked, same as the
+    // `locked` card still rendering its full art/name) — only reassigned when
+    // the current selection drops out of the filtered set entirely (e.g. the
+    // dev "show hidden classes" toggle just turned off). `beginRun()` below
+    // is where an actual run start is gated on unlock status, not here.
+    if (!visibleClasses.some((c) => c.key === this.classKey)) {
+      this.classKey = visibleClasses[0]?.key ?? this.classKey;
+    }
+    const selectedClass = visibleClasses.find((c) => c.key === this.classKey) ?? visibleClasses[0];
+
     body.innerHTML = `
-      <div class="sw-panel">
+      <div class="sw-panel wide">
         <h2>Class</h2>
-        <div class="sw-choices">
-          ${content.classes.classes
+        <div class="sw-classrow">
+          ${visibleClasses
             .map((c) => {
               const locked = !this.meta.unlockedClasses.includes(c.key);
               const quest = content.quests.quests.find((q) => q.key === c.unlockQuest);
-              const trait = c.passive.description;
-              const activeLine = `Active: ${c.active1.name} (Q)/${c.active2.name} (E) &middot; Passive: ${c.passive.name}`;
-              return `<button class="sw-choice ${this.classKey === c.key ? 'on' : ''} ${
+              return `<button class="sw-classcard ${this.classKey === c.key ? 'on' : ''} ${
                 locked ? 'locked' : ''
               }" data-class="${c.key}" ${locked ? 'disabled' : ''}>
-                <b>${c.name}</b><span>${trait}</span>
-                <small>${activeLine}</small>
+                <div class="sw-classcard-art"><span>${c.name.charAt(0)}</span></div>
+                <b>${c.name}</b>
                 ${locked ? `<small>Locked — ${quest?.desc ?? 'complete a quest'}</small>` : ''}
               </button>`;
             })
             .join('')}
         </div>
-        <div class="sw-classdetail">${classAbilitiesMarkup(
-          content.classes.classes.find((c) => c.key === this.classKey) ?? content.classes.classes[0],
-        )}</div>
+        ${
+          selectedClass
+            ? `<div class="sw-classdetail">
+                ${classBandStatsMarkup(selectedClass)}
+                ${classSelectSkillsMarkup(selectedClass)}
+              </div>`
+            : ''
+        }
       </div>
 
       <div class="sw-panel">
@@ -324,9 +346,15 @@ export class Hub {
       const core = this.meta.unlockedCores.includes(this.coreKey)
         ? this.coreKey
         : this.meta.unlockedCores[0] ?? defaultCoreKey(content);
+      // Same belt-and-suspenders as `core` above, now that fb058's render-time
+      // fallback (this.classKey reassignment a few lines up) makes `classKey`
+      // reachable from something other than a direct unlocked-card click.
+      const classKey = this.meta.unlockedClasses.includes(this.classKey)
+        ? this.classKey
+        : (this.meta.unlockedClasses[0] ?? content.classes.classes[0].key);
       this.cb.onStart({
         seed: this.seed,
-        classKey: this.classKey,
+        classKey,
         core,
         tier: this.tier,
         modifiers,
@@ -407,12 +435,14 @@ export class Hub {
             <b data-out="${row.key}">${Math.round((s[row.key] as number) * 100)}%</b>
           </label>`,
         ).join('')}
-        ${TOGGLES.map(
-          (row) => `<label class="sw-setting">
+        ${TOGGLES.filter((row) => !row.devOnly || (DEV_BUILD && devProfileActive()))
+          .map(
+            (row) => `<label class="sw-setting">
             <span>${row.label}</span>
             <input type="checkbox" data-toggle="${row.key}" ${s[row.key] ? 'checked' : ''} />
           </label>`,
-        ).join('')}
+          )
+          .join('')}
         <label class="sw-setting">
           <span>Max damage numbers</span>
           <input type="range" min="0" max="200" value="${s.maxDamageNumbers}" data-count="1" />
@@ -594,8 +624,9 @@ const SLIDERS: { key: keyof Settings; label: string }[] = [
   { key: 'shake', label: 'Screen shake' },
 ];
 
-const TOGGLES: { key: keyof Settings; label: string }[] = [
+const TOGGLES: { key: keyof Settings; label: string; devOnly?: boolean }[] = [
   { key: 'damageNumbers', label: 'Damage numbers' },
+  { key: 'dotNumbers', label: 'DoT numbers' },
   { key: 'accessiblePalette', label: 'Color-blind-safe damage colors' },
   { key: 'reducedFlash', label: 'Reduced flash (dims skill & Core effect flashes)' },
   { key: 'showRanges', label: 'Show tower ranges' },
@@ -605,6 +636,9 @@ const TOGGLES: { key: keyof Settings; label: string }[] = [
   // SPEC-V3 T3. Presentation-adjacent rather than presentation-only: it decides
   // whether the dev profile is applied at startup, so it takes effect on reload.
   { key: 'cleanProfile', label: 'Clean profile (ignore dev unlocks, needs reload)' },
+  // fb058: only meaningful (and only shown) in a dev build with the dev
+  // profile active — same gate as the DEV PROFILE badge (`DEV_BADGE` above).
+  { key: 'showHiddenClasses', label: 'Show hidden classes (Class select)', devOnly: true },
 ];
 
 /* ----------------------------------------------------------------- helpers */
