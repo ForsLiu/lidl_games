@@ -154,12 +154,21 @@ is what §10.5 will be written from.
       out-of-domain integers (`2 ** 32`, `2 ** 40`, `MAX_SAFE_INTEGER`) passed
       the `Number.isInteger` guard and aliased onto seeds 0, 0 and 0xffffffff.
       See the Log for the full record.
-- [ ] (fb064k) [polish] `describeTerrain` diagnostic: a deterministic ASCII
+- [x] (fb064k) [polish] `describeTerrain` diagnostic: a deterministic ASCII
       dump plus measured-band summary in `src/sim/terrain/`, so a terrain
       repro is one string rather than a seed and a screenshot. Acceptance:
       the dump round-trips to a byte-identical `kind` buffer, carries the
       gates, the legal-anchor count and every measured band, and a known
       seed's dump matches a golden — refs: HANDOFF §7 (depth).
+      **Filed as `[polish]`; shipped with a second integrity check the
+      acceptance did not ask for.** The round-trip clause is satisfied by the
+      hash alone only on an arena-sized dump that carries provenance — which
+      is not every dump, and the two uncovered paths (a provenance-free grid,
+      and fb064f's announced non-arena Training Grounds arena) are exactly
+      where a one-glyph mangle parsed cleanly into a map contradicting its own
+      printed counts. The glyph histogram is now recounted from the decoded
+      rows and cross-checked, which is config-free and dimension-free and so
+      covers every dump. See the Log.
 - [ ] (fb064l) [test] "seeds produce varied legal maps" is currently pinned
       by ">= 95% distinct over 200 seeds", which a one-tile difference
       satisfies — the owner's Done-when clause is effectively unmeasured.
@@ -1198,3 +1207,165 @@ is what §10.5 will be written from.
     code-reviewer; that copy-the-tree mechanism (q45/q49/q52) is plausibly what
     is behind this lane's "QA raced the working tree" entry and the recurring
     EPERM flakes. Main-lane work, and relevant to whoever fixes those suites.
+
+- (2026-09-04, fb064k) The terrain repro format. `src/sim/terrain/describe.ts`
+  (`describeTerrain` + `parseTerrainDump`, `TerrainDump`) and
+  `tests/terrain-describe.test.ts`, 16 tests, ~170 ms (stays in the fast tier).
+  Design decisions, for QUESTIONS.md at the merge:
+  - **The tile rows carry tiles and nothing else; the gates are a header line.**
+    Overlaying gate glyphs on the map reads better and destroys the round trip
+    for any grid whose gate tile is not `normal` — which is a generator
+    invariant (`blankKinds`), not a dump invariant. A hand-built grid with rock
+    gates is pinned as the negative case.
+  - **Two integrity checks, deliberately, because neither covers the other.**
+    The hash is the strong one (it catches a *swap* that preserves the tile
+    counts) but it only runs on an arena-sized dump with provenance, because
+    `terrainHash` folds `GRID_W`/`GRID_H` rather than the map's own dimensions.
+    The glyph histogram is the weak one (blind to a swap) but is config-free
+    and dimension-free, so it covers every dump. Shipping only the hash — the
+    first draft — left a mangled provenance-free dump parsing cleanly. Both are
+    mutation-tested against the case only they catch.
+  - **The parse never re-measures the bands.** A dump records what *was*
+    measured, under a config it does not carry. Re-deriving the numbers under
+    whatever `/data` is on disk now would silently replace the reported values,
+    turning the one artefact meant to settle "what did the generator produce"
+    into a second opinion. `TerrainDump.measure` is therefore the printed
+    values, rounded to 6 dp, and says so.
+  - **Provenance is all-or-nothing.** `describeTerrain` emits either five real
+    fields or five dashes, so the parse refuses a mix. Reading `hash=-` beside
+    four real fields as "no provenance" is how a six-character append to the
+    seed line used to disable the hash check entirely.
+  - **`GLYPHS` and `FRAC_DIGITS` live in code, not `/data`** — a deliberate
+    architecture-rule-4 exemption, recorded here as `core-placement.ts`'s
+    `ROOM_RADIUS` was. A Tuner-editable glyph would fork every golden and break
+    the round trip for every dump written before the edit; the format is a
+    diagnostic contract, not tuning.
+  - **CRLF and a BOM are absorbed, not diagnosed.** Refusing CRLF produced the
+    worst possible message — `expected a "terrain WxH" header, got
+    "terrain 36x20"`, quoting two strings identical on screen. Neither CR nor a
+    BOM can be a glyph or part of a field, so normalising costs nothing. A
+    *doubled* newline is still a blank row and still refused.
+  - **The name `describeTerrain` collides with `src/ui/tower-info.ts:467`**, an
+    unrelated function describing a *tower's* terrain effect. Accepted rather
+    than renamed: the backlog item names this function, the modules are
+    disjoint (nothing imports across; no compile conflict), and the acceptance
+    text is the contract. This is the third instance of the clash the lane has
+    logged (`TerrainDef`/`TerrainSchema`; `applyTerrain`/`applyTerrainPassives`)
+    — a merge note, not a defect, and relevant to fb064e as it starts rendering
+    terrain.
+
+- (2026-09-04, fb064k) Review and QA. code-reviewer returned REQUEST-CHANGES on
+  one Major; qa-playtester returned PASS on all five acceptance clauses (a)-(e)
+  and filed ten bugs. Both independently found the same Major, and QA found one
+  neither the reviewer nor the author did.
+  - **Major, found by both, confirmed and fixed: the hash was the only integrity
+    check, and it has two holes.** Review measured four dumps that parse cleanly
+    while self-contradictory; QA measured the same on three paths, including
+    changing one character (`hash=03031f09` to `hash=-`) to disable checking
+    altogether. Fixed with the histogram cross-check described above.
+    Mutation-tested: dropping it now reddens, and dropping the *hash* still
+    reddens via a tile swap that leaves the histogram intact, so the two checks
+    are pinned to the case only each one catches.
+  - **QA bug 3, confirmed and fixed — the one nobody else saw, and a time bomb
+    set for the lane merge.** The golden was a multi-line template literal. This
+    repo has `core.autocrlf=true` and no `.gitattributes` (verified here:
+    `git cat-file --filters HEAD:tests/terrain-generation.test.ts` returns
+    CRLF), so the golden's newlines become CRLF on the next `git clone`,
+    `git worktree add` or `git checkout` — and `expect(dump).toBe(GOLDEN)` goes
+    red with a diff of invisible characters. It passed only because the file was
+    written with LF and had never been checked out. Now built from an array
+    joined with an explicit newline, plus an assertion that the golden contains
+    no CR so a future regression names its own cause. **A `.gitattributes` with
+    `* text=auto eol=lf` is the repo-wide fix and is out of Scope** — filed
+    below. This is the first byte-exact multi-line text golden in the suite, so
+    fb064k introduced the exposure.
+  - **Review Minor, confirmed and fixed: the golden's band cross-checks were
+    tautological.** They compared the golden against `measureTerrain(map)` where
+    `map` is the same object the golden was built from, and an earlier line
+    already asserts the two are equal — so they could not fail independently.
+    Now measured from the golden's *own decoded tiles*, and extended from one
+    fraction to all ten `TerrainMeasure` fields. The histogram and hash
+    cross-checks were already independent.
+  - **Six further surviving mutants (review), all closed.** `w <= 0`, the
+    missing-line guard, the provenance-free seed line, `eq <= 0` (an empty
+    field key), plus CRLF and negative zero. Each now has a case. Final tally:
+    **18 mutants, 18 killed.**
+  - **Also fixed, from QA's list:** duplicate keys were last-wins (bug 2);
+    provenance seeds were shape-checked but not domain-checked, so
+    `effective=4294967297` passed the hash check because `terrainHash` folds
+    `seed | 0` (bug 6); a nine-line dump declaring `terrain 4294967295x1`
+    allocated 4.3 GB before discovering its single row was one glyph long, now
+    length-checked before allocating (bug 5); `describeTerrain`'s kind guard was
+    upper-bound-only and its dimensions unchecked, so `{ w: 2.5, h: 2 }` emitted
+    rows of the literal text `undefined` (bug 9, review Minor 2); gate
+    coordinates were read but never checked against `GATES` (review Minor 8).
+  - **Five doc claims corrected (QA bug 7, review Minors 4-5).** The glyph
+    rationale said no glyph is a comma while `rough` *is* a comma; the
+    `Record<TerrainKey, string>` comment claimed it catches a `TERRAIN_KEYS`
+    reorder, which QA falsified by building a reordered replica that type-checks
+    clean (a test now pins two glyphs by `TerrainKind` instead); `toString` was
+    called locale-dependent, which is `toLocaleString`; "free of `/data`
+    opinions" was false (`coreGateClearance` and `minCorridorWidth` both move
+    the dump); and "a malformed dump throws" was the Major above. This lane
+    keeps catching doc claims the code does not support, and this item was no
+    exception.
+  - **A mutation harness that reported false negatives, disclosed.** The first
+    scratch runner was written as CommonJS in a `.js` file under a
+    `"type": "module"` package, so `require` threw, the script exited 1 without
+    mutating, and the loop scored three unmutated runs as "mutant survived".
+    Caught by checking that the file had actually changed. Two of those three
+    were in fact killed. A mutation result is only evidence if the mutation is
+    verified to have applied — worth the same standing as this file's other
+    measurement rules.
+  - **Verified and unchanged:** QA ran 290,575 generate/describe/parse cycles
+    across the whole `[-2**31, 2**32-1]` domain (three odd-stride combs plus
+    fb064a's five retry seeds, the band-cliff seed 7957 and its far twin
+    4294881754) with **0 tile, provenance or dimension mismatches and 0 refit
+    drifts**; determinism holds across fresh processes, `--jitless`, a foreign
+    locale and timezone, and 2000 interleaved calls; neither function mutates
+    its input and the parsed buffer never aliases. `npm run sim -- --seed 1
+    --policy hybrid` still gives `endHash 2729a000`. QA also confirmed the
+    golden reproduces from the committed generator in a fresh process, so it
+    was not recorded from a mutated tree.
+  - **QA disclosed an environment incident:** the whole of `bench/.tmp/`
+    vanished mid-session between two of its calls, taking its own scratch dir
+    with it. Gitignored, so `git status` was unaffected, verified. Consistent
+    with fb064j's note that this directory is implicated in the repo's EPERM
+    flakes.
+
+- (2026-09-04, fb064k) Verification. Targeted suites green: the six
+  `tests/terrain*` files are **185 tests, 4.9 s**. `npx tsc --noEmit` clean (the
+  repo has no linter configured). `npm run test:fast`: **2245 passed, 10
+  failed**, none of them this item's:
+  - 3 are the `bench/.tmp` EPERM cleanup flake in q45/q49/q52, present in this
+    session's *pre-change* baseline run and already logged by fb064j.
+  - `b032`, `b034`, `b035` pass in isolation — load-sensitive, the same set
+    fb064b/fb064h/fb064i recorded.
+  - `b036` and `q15` were run as a **control**: the identical two-suite
+    invocation with the change, and with the tree restored to HEAD (new files
+    moved aside, `index.ts` restored from `git show`), gives identical results —
+    `b036` fails both ways, `q15` passes both ways. So `b036` is pre-existing
+    and `q15` is load-dependent, and neither is attributable to fb064k. This is
+    the control run CLAUDE.md's measurement rules ask for, rather than the
+    import-graph argument fb064j had to settle for.
+
+- (2026-09-04, fb064k) Out-of-scope needs, for the merge:
+  - **`.gitattributes` does not exist and `core.autocrlf` is `true`.** Every
+    checked-out file in this repo is CRLF. fb064k's golden was made immune
+    in-lane, but the exposure is repo-wide: any future byte-exact text golden
+    inherits it, and `git diff` noise between LF-writing agents and CRLF
+    checkouts is the same root cause. Adding `* text=auto eol=lf` is a one-line
+    main-lane change and is the real fix.
+  - **`src/ui/tower-info.ts:467` exports an unrelated `describeTerrain`.** Third
+    logged instance of this clash; see the decisions entry above for why it was
+    accepted rather than renamed. Relevant to fb064e (UI lane) and to anyone
+    grepping the symbol at the merge.
+  - **`describeTerrain`'s gates line is `GATES`, a compile-time constant, not
+    the run's gate list.** It inherits fb064b's standing merge blocker ("the
+    generator does not know the run's gate list"): `src/sim/world.ts:441-448`'s
+    Fourth Gate modifier adds a south gate at (12,19) at run construction, and a
+    dump taken from such a run will report three gates and omit the one the bug
+    is about. Not fixable in this lane — `analyze.ts`, `generate.ts` and
+    `config.ts` all hardcode `GATES` the same way. When the main lane threads
+    the run's gate list into generation, that item should extend fb064k's
+    "carries the gates" test to a 4-gate map.

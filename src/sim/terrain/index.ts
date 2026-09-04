@@ -29,6 +29,7 @@ export {
   thickMask,
   walkableFlood,
 } from './analyze';
+export { describeTerrain, parseTerrainDump, type TerrainDump } from './describe';
 export {
   suggestCoreAnchor,
   validateCorePlacement,
