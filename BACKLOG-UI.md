@@ -2515,7 +2515,7 @@ not already expose it) logs that need below instead of reaching into
       class documented across dozens of prior PROGRESS.md sessions, none
       touching `src/ui/**`/`src/render/**` or this item's own files.
 
-- [ ] (fb104) [polish] normal priority: generated 2026-09-04 (same generation
+- [x] (fb104) [polish] normal priority: generated 2026-09-04 (same generation
       batch as fb102) — bottom-bar "skill ready" ripple respects
       reducedMotion/reducedFlash. fb086's own qa-playtester pass found and
       explicitly flagged this "for the backlog generator" rather than filing
@@ -2534,6 +2534,35 @@ not already expose it) logs that need below instead of reaching into
       drops to 0) when a skill becomes ready, with an off-by-default control
       case proving the ripple still plays normally otherwise — refs: fb086
       (qa-playtester's logged observation), fb055's reducedFlash precedent.
+      DONE 2026-09-04: chose `reducedFlash` — its own Settings label ("dims
+      skill & Core effect flashes") is an exact match for this brief
+      per-skill flash, vs. `reducedMotion`'s ambient-motion target (tracer
+      jitter, phase-sweep travel). `renderSkillIcon` (`hud.ts`) now adds the
+      one-shot `sw-bb-flash` class only when `!this.settings.reducedFlash`,
+      gating just the ripple — the persistent `.ready` class stays
+      unconditional. Updated the `private settings: Settings` field's doc
+      comment (previously said Hud read settings only for the three
+      onboarding-seen flags). Targeted
+      `tests/ui-fb104-skill-ready-flash-reduced.test.ts` (4/4): Active1
+      (single-cooldown), Active2, and an ammo-style multi-charge Active
+      (Time Lord's *Time*, `ready` gated on `ammo > 0` rather than
+      `cooldownRemaining <= 0`) each confirm the ripple is withheld with the
+      toggle on, plus an off-by-default control case. code-reviewer
+      **APPROVE** (no Critical/Major; one Minor — asked for Active2/
+      multi-charge coverage beyond the original Active1-only test, added
+      same session; one Nit — the unrelated pre-existing `STATUS.md` working-
+      tree diff isn't part of this item, left untouched). qa-playtester
+      **PASS**: confirmed the 4 tests exercise real false->true readiness
+      edges (not vacuous), confirmed via grep exactly one call site adds
+      `sw-bb-flash` with no bypass path, ran 89 adjacent bottom-bar/skill-icon
+      tests clean (no regressions), and confirmed `Hud.settings`'s
+      construction-time snapshot (no in-run Settings panel exists to go
+      stale mid-run) is pre-existing behavior identical to every other
+      Settings field, not a new gap. `npx tsc --noEmit` clean. `npm run
+      test:fast`: 13 failures, all in the pre-existing q45/q46/q49/q52
+      Windows-scratch-dir-EPERM flake classes documented across dozens of
+      prior PROGRESS.md sessions, none touching `src/ui/**`/`src/render/**`
+      or this item's own files.
 
 - [ ] (fb105) [feat] low priority: generated 2026-09-04 (same generation
       batch as fb102) — Codex search/filter box. The Codex

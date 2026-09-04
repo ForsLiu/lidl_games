@@ -155,7 +155,13 @@ export class Hud {
   private vsDockEl: HTMLElement;
   private lastInfoKey = '';
   private cb: HudCallbacks;
-  /** fb084: only read for the three onboarding-seen flags; nothing else in `Hud` is settings-driven. */
+  /**
+   * fb084: read for the three onboarding-seen flags. fb104 (owner feedback,
+   * qa-playtester finding on fb086) also reads `reducedFlash` to gate the
+   * bottom-bar skill-ready ripple (`renderSkillIcon`) — it's a brief
+   * skill-fire flash, the exact surface `reducedFlash`'s own doc comment
+   * names, not `reducedMotion`'s ambient-motion-jitter target.
+   */
   private settings: Settings;
   private selected = 0;
   private lastModalKey = '';
@@ -1296,7 +1302,7 @@ export class Hud {
     chargeEl.textContent = s.charges ? `${s.charges.current}/${s.charges.max}` : '';
     chargeEl.hidden = !s.charges;
     iconEl.classList.toggle('ready', s.ready);
-    if (s.ready && !this.prevSkillReady[which]) {
+    if (s.ready && !this.prevSkillReady[which] && !this.settings.reducedFlash) {
       iconEl.classList.remove('sw-bb-flash');
       // Forces a reflow so re-adding the class restarts the CSS animation on
       // a rapid re-ready (multi-charge Actives can flash again within a
