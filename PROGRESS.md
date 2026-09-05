@@ -5,6 +5,22 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-05 lane `content` session: `c021` closed** — the twelve
+  `active1_potency` §6.3 cards, previously covered only by two swordsman-only
+  assertions, now have a per-class ladder
+  (`tests/class-active1-potency.test.ts`, 32 tests, no `/src` or `/data`
+  change). The acceptance's word "damage" turned out wrong for four kits that
+  author `damage: 0` and carry their magnitude elsewhere (engineer
+  `repairFraction`, necromancer/animist `summonStatMul`, paladin
+  `tauntDurationSeconds`), so each row names its own observable out of `/data`.
+  Two named deviations: **Bloodlord *Blood Tithe* never calls
+  `active1PotencyMul` at all** — the one card of the twelve that buys nothing,
+  whose fix lives in the out-of-Scope `towers.ts` and is logged for the main
+  lane — and **Time Lord's *Time* scales stages 0 and 1 only**, stage 2 being
+  authored as the target's remaining HP. Five mutations caught in both
+  directions, including *adding* potency to Blood Tithe, so the deviation
+  cannot go stale silently.
+
 - **2026-09-05 lane `content` session: `c020` and `c014` closed.** Both
   test-only; no `/src` or `/data` byte moved in either.
   - `c020` — `active2CdrFactor`'s **general `cdr` term** had no coverage

@@ -481,7 +481,7 @@ session 2 (c005 was the last actionable one left), appending `c006`-`c010`.
       exceeding 0.95; red under the mutation above - refs: SPEC-FINAL §2 (the
       Cooldown row), §6.3, c019, QA on c019.
 
-- [ ] (c021) [polish] the **twelve `active1_potency` cards** are the last of the
+- [x] (c021) [polish] **DONE 2026-09-05.** the **twelve `active1_potency` cards** are the last of the
       three §6.3 cards with no cross-class coverage. `c016` closed `class_line`
       (twelve rows), `c019` closed `active2_cdr` (twelve ladders plus two named
       deviations); `active1_potency` is touched only by `tests/act2.test.ts:185`
@@ -658,6 +658,58 @@ session 2 (c005 was the last actionable one left), appending `c006`-`c010`.
       §3 (Poison), owner feedback `feature-poison-barrel-mechanic`.
 
 ## Log
+
+### c021 (2026-09-05) — "potency" is not "damage", and the one card that buys nothing
+
+- **Shape**: new `tests/class-active1-potency.test.ts`, 32 tests, using c014's
+  shared board. No `/src` or `/data` byte moved (`git diff -- src data` empty).
+- **The acceptance's word "damage" was wrong for a third of the roster, and
+  following it literally would have measured four kits wrong.** Four Active1s
+  author `damage: 0` and carry their magnitude elsewhere, which `classes.ts`
+  already reads correctly at each site: engineer `repairFraction`,
+  necromancer and animist `summonStatMul`, paladin `tauntDurationSeconds`. Each
+  row names its own observable out of `/data`; a coverage case asserts those
+  four really are `damage: 0`, so the table stops being true out loud rather
+  than silently.
+- **Exact ratio, not "bigger".** Every row asserts
+  `reading(rank n) === reading(0) * (1 + perRank * n)`. A `toBeGreaterThan`
+  ladder is satisfied by an implementation that applies the card once and
+  ignores the rank — measured: that mutation reddens 13 tests here and would
+  have passed a monotonic ladder.
+- **Named deviation 1: Bloodlord *Blood Tithe* is the one card of the twelve
+  that buys nothing.** `fireBloodTithe` never calls `active1PotencyMul` at any
+  point, so `bloodlord_active1_potency` is inert at every rank. This is **not**
+  the clamp collision the item warned about (`fireRaiseSkeletons`' cap binds
+  count, not the stat share it multiplies, so the necromancer row is live). The
+  Active's payout is `titheDamageMul`, applied in `towers.ts:259` — out of this
+  lane's Scope — so the item is a measurement plus a main-lane log, the shape
+  `c013` and `c023` already use here. The zero is **pinned**: wiring potency
+  into `fireBloodTithe` reddens both deviation rows, so the fix cannot land
+  without the decision being made again on purpose.
+- **Named deviation 2: Time Lord *Time* scales two of its four stages.**
+  Potency multiplies `markPastDotDps` and `markPresentDotDps`
+  (`advanceTimeMark`); stage 2's DoT is authored as the target's *remaining
+  HP* and stage 3 is an instant kill, so there is no `/data` magnitude to
+  multiply. Pinned per stage, plus a row asserting the schema still authors no
+  `markFuture*Dps` — the day it does, potency should reach it and that row says
+  so. (Asked of the authored keys rather than a property access: naming a
+  field the schema does not have would not compile.)
+- **Five mutations, all caught, in both directions**: `active1PotencyMul`
+  always 1 -> 13 red; potency dropped from `fireFrostNova` alone -> exactly 1
+  red, naming cryomancer; potency *added* to `fireBloodTithe` -> 2 red (both
+  deviation rows); card applied but rank ignored -> 13 red; card lookup
+  ignoring class ownership -> 11 red.
+
+### For the main lane (out of this lane's Scope)
+
+- **Blood Tithe should scale with `active1_potency`, and cannot from here.**
+  `fireBloodTithe` (`src/sim/classes.ts`) never reads `active1PotencyMul`, so
+  one of the twelve §6.3 cards is inert on its whole kit. The natural target is
+  the payout rather than the cost — `titheDamageMul`, applied at
+  `src/sim/towers.ts:259` — which is outside `lane/content`'s Scope.
+  `tests/class-active1-potency.test.ts` pins the current zero in two rows that
+  both redden the moment it is wired up - refs: SPEC-FINAL §6.3, §4.2
+  (Bloodlord), c021.
 
 ### c014 (2026-09-05) — six copies of one board, and the anchors that had to be rewritten twice
 
