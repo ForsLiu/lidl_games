@@ -3458,7 +3458,7 @@ not already expose it) logs that need below instead of reaching into
       tools/CLI-subprocess suites importing no `src/ui/**`, all in the
       documented pre-existing flake classes.
 
-- [ ] (fb147) [bug] filed 2026-09-05 by qa-playtester during fb111
+- [x] (fb147) [bug] filed 2026-09-05 by qa-playtester during fb111
       verification — the fb096 slot format is not atomic across keys, so a
       per-file cloud sync can silently destroy a slot's save. The active
       slot's data lives ONLY in `SAVE_KEY` until a switch-away mirrors it into
@@ -3481,6 +3481,96 @@ not already expose it) logs that need below instead of reaching into
       mirroring belongs in `saveslots.ts` or its callers — refs: fb096,
       fb111, QUALITY.md 1.0 (Steam/itch checklist: save slots,
       cloud-save-safe file format).
+      DONE 2026-09-05: `saveslots.ts` gains a private `syncActiveSlotKey()`
+      (copies the live `SAVE_KEY` text into the active slot's own key — reading
+      it back from storage rather than re-serializing, so the slot key carries
+      byte-for-byte what actually landed, and nothing if the write silently
+      failed) and an exported `saveMetaToActiveSlot(meta)` = `saveMeta` +
+      that sync. `main.ts`'s three `saveMeta` call sites — the only ones in the
+      repo, and `hub.ts` routes through the first of them via `onMetaChanged` —
+      now use the wrapper, and the bare import is gone. `switchToSlot`,
+      `deleteSlot` and `ensureActiveSlotMigrated` are untouched: they move data
+      between the two keys themselves with the active-slot pointer deliberately
+      still on the OUTGOING slot, so a sync inside one would write the incoming
+      account over that slot's flush. **This is the second design.** The first
+      patched `Storage.prototype.setItem`/`removeItem` so the mirror fired on
+      `meta.ts`'s own write (an instance-level patch is impossible — a
+      `Storage` is a proxy whose property assignment IS `setItem`, so
+      `localStorage.setItem = fn` stores an item named "setItem"; measured).
+      code-reviewer returned **REQUEST-CHANGES** on it with three Majors and
+      they were all right: `ensureActiveSlotMigrated` is `Game.start()`'s first
+      statement and the unguarded prototype assignment could throw on a frozen
+      prototype (a blank boot, the exact failure the pre-existing try/catch
+      exists to prevent); install idempotence was bookkeeping-only and was
+      ALREADY silently broken in-tree, because
+      `tests/ui-fb087-persist-disabled-toast.test.ts` restores
+      `Storage.prototype.setItem` in its own `afterEach` and left the mirror
+      dead-but-recorded, holding fb087's throwing function as its "native";
+      and the acceptance's own "or its callers" clause allowed a design with
+      none of that. Rewritten to the wrapper, which dissolves all three plus
+      two Minors rather than patching around them. Five new cases in
+      `tests/ui-fb096-save-slots.test.ts` (25/25 in the file), red-before-green
+      confirmed by mutation twice: dropping the `syncActiveSlotKey()` call
+      turns three of them red, and reverting one `main.ts` site to bare
+      `saveMeta` turns the source rule red. That **source rule** is what makes
+      "in step on every save" a property of the codebase rather than of three
+      call sites someone got right once: it scans `src/ui/**` and
+      `src/render/**` recursively for any reference to `saveMeta` by name
+      outside `saveslots.ts`. Keyed to the bare identifier, not to `saveMeta(`
+      — the second code-reviewer pass showed the call form was walked around by
+      an aliased import, a `.bind` by-reference use, and a `//` inside an
+      earlier string literal — with six proof cases sharing the rule's single
+      regex, so weakening it cannot leave them green. Verified against the real
+      tree: an aliased `import { saveMeta as persistMeta }` in `main.ts` turns
+      it red. Second code-reviewer pass **APPROVE**; its remaining Minors and
+      Nits are folded in (the stale test-file header, the inverted "live cache"
+      antecedent, `syncActiveSlotKey` un-exported so the switch-time hazard its
+      own doc warns about has no reachable caller, the recursive scan, the
+      hoisted regex). One residual is deliberately NOT fixed and is filed as
+      **fb155**: `switchToSlot` still flushes `SAVE_KEY` over the outgoing slot
+      key unconditionally, so an out-of-process restore of one file alone is
+      still lost at the next switch — the reverse direction of the acceptance,
+      carrying an unresolved question about which copy wins. `npx tsc --noEmit`
+      clean. qa-playtester **PASS** on the rewritten design, re-deriving every
+      acceptance clause with its own probes (200 consecutive saves in step
+      byte-for-byte; eight switch permutations; a real-UI money path — fresh
+      account, Settings switch to Slot 3, reload, a full run to Core death with
+      ten mid-run checkpoints, Results, reload — with slot 3's own file holding
+      the banked progress and slots 1 and 2 never created; and a dynamic audit
+      clicking every enabled control on every Hub tab plus every HUD/Results
+      button, finding zero unwrapped saves). It also found **two real
+      regressions this item had introduced**, both fixed here rather than
+      filed, because shipping them would have traded a missing backup for a
+      destroyed one:
+      (1) syncing re-read `getActiveSlot()` at save time, so a writer holding a
+      stale view of the active slot wrote its own account into a FOREIGN
+      slot's file — reachable from a second live tab (`runpersist.ts`'s
+      `sessionId` machinery exists because two tabs are supported) and from
+      fb100's documented `location.reload()`-unavailable fallback, where the
+      Hub stays live on the old account after the pointer has moved. QA's
+      controlled A/B isolated the one mechanism that changed: bare `saveMeta`
+      left the foreign slot intact, `saveMetaToActiveSlot` destroyed it. Fixed
+      with a `sessionSlot` pinned by `ensureActiveSlotMigrated` — the call that
+      IS the page load — and deliberately NOT moved by `switchToSlot`, since
+      every real switch is followed by a reload (`hub.ts`, fb100) and refusing
+      to sync after a switch this page never reloaded through is exactly the
+      protection wanted. The shipped tests now model that reload explicitly,
+      which is the more faithful simulation anyway.
+      (2) the sync's `else removeItem(...)` branch ran on the SAVE path, so a
+      save whose own `SAVE_KEY` write failed under quota (`main.ts` documents a
+      full T1 victory run crossing it about 38% in) while `SAVE_KEY` was
+      already absent DELETED the slot's only surviving copy. The sync is now
+      write-only; removals stay with `switchToSlot`/`deleteSlot`, which own
+      both keys at once. Both fixes carry their own regression case, each
+      mutation-checked (removing the guard reddens the first, restoring the
+      `removeItem` reddens the second). QA's third finding — the source rule's
+      evasions — was already closed by the second review pass before QA
+      reported it (recursive scan, `src/render` included, identifier-keyed), so
+      nothing was filed for it. Lane surface plus the five extra
+      `Game`-constructing files the first review named: 437 passed / 0 failed;
+      `npm run test:fast` 3690 passed / 3 failed, the failures being
+      `q15`/`b028`/`q41`/`q45`, all tools/CLI-subprocess suites in the
+      documented pre-existing flake classes.
 
 - [ ] (fb148) [bug] filed 2026-09-05 by qa-playtester during fb112
       verification — Dash Slash's "Dash 5 tiles" ignores Swordsman Shoes'
@@ -3698,7 +3788,63 @@ not already expose it) logs that need below instead of reaching into
       resume, and asserts both come up paused, with a control at
       `hidden === false` asserting neither does — refs: fb145, fb071, fb074.
 
+- [ ] (fb155) [bug] filed 2026-09-05 by code-reviewer during fb147 review —
+      a switch-away still flushes `SAVE_KEY` over an intact slot copy, so a
+      per-file cloud restore is lost at the next switch. fb147 made the active
+      slot's own key stay in step with `SAVE_KEY` on every save, which is the
+      forward direction: the data now exists as a file a per-file provider can
+      back up and hand back. The reverse direction is untouched —
+      `switchToSlot` unconditionally writes the live `SAVE_KEY` into the
+      OUTGOING slot's key (`saveslots.ts`), so a provider that restores
+      `SAVE_KEY` alone still destroys the good slot copy at the next switch,
+      and a provider that restores the SLOT file alone has it overwritten by
+      the same flush — the new backup is effectively write-only from the game's
+      side. `tests/ui-fb096-save-slots.test.ts`'s fb147 cloud-restore case
+      concedes this in its own assertion comment rather than hiding it.
+      Acceptance: a switch-away does not silently discard a slot copy that
+      disagrees with `SAVE_KEY` — either by refusing the overwrite, or by
+      keeping both and telling the player which one is being loaded (this is
+      the unresolved half: which copy wins, and how the player is told, wants
+      a QUESTIONS.md entry from the main lane before the UX is chosen); a
+      regression test drives an out-of-process restore of each file in turn
+      followed by a switch away and back, asserting the surviving data is the
+      newer one and never silently the wrong one — refs: fb147, fb096, fb111,
+      QUALITY.md 1.0 (Steam/itch checklist: cloud-save-safe file format).
+
 ## Log
+
+- 2026-09-05, fb147: implemented fully in-scope (`src/ui/saveslots.ts`,
+  `src/ui/main.ts`, `tests/ui-fb096-save-slots.test.ts`). Three notes for the
+  merge:
+  (a) the first design patched `Storage.prototype` and was thrown away on
+  review — see the item's DONE note. The finding worth carrying forward is not
+  the design verdict but what it turned up: `tests/ui-fb087-persist-disabled-
+  toast.test.ts` swaps `Storage.prototype.setItem` for a throwing stub and
+  restores it in `afterEach`, so ANY module-global that memoises a storage
+  method is silently invalidated for the rest of that file. A future item that
+  wants to intercept storage writes needs to know that before it starts.
+  (b) `src/ui/**` now has a standing rule that no file outside `saveslots.ts`
+  may reference `saveMeta` by name. A main-lane change that adds a save site in
+  `src/ui` will hit it; the fix is to call `saveMetaToActiveSlot` instead, not
+  to relax the rule.
+  (c) one residual filed as **fb155** above rather than fixed here. Two others
+  that QA proposed as items (fb156, fb157 in its report) were fixed INSIDE this
+  item instead — they were regressions fb147 itself introduced, not
+  pre-existing gaps, and shipping them would have traded a missing backup for a
+  destroyed one. Those ids are therefore unused and free.
+  (d) `syncActiveSlotKey` is pinned to the slot this page load booted on. A
+  future item that wants a switch to take effect without a reload has to move
+  that pin too — `switchToSlot` deliberately does not.
+
+- 2026-09-05, fb147 (informational, not filed as an item): the second
+  code-reviewer pass noted that `syncActiveSlotKey` swallows a quota failure on
+  its write, leaving a silently stale slot key, where `runpersist.ts`'s
+  `savePersistedRun` returns a boolean `main.ts` turns into the
+  `persistDisabled` toast. Not a regression — before fb147 the key did not
+  exist at all — but if this area is touched again, returning a boolean from
+  `syncActiveSlotKey`/`saveMetaToActiveSlot` would at least make the state
+  observable. Same class as fb111's own `saveSettings`-writes-unsanitized note
+  below.
 
 - 2026-09-05, fb146: implemented fully in-scope (`src/ui/info-format.ts`, one
   new `tests/ui-*` file). Two notes for the merge:

@@ -18,9 +18,9 @@ import { makeSelectHandler, selectedStructure, sweepSelection } from './selectio
 import { Renderer, type ViewState } from '../render/canvas';
 import { Hud } from './hud';
 import { Hub } from './hub';
-import { applyRunResult, defaultMeta, loadMetaWithNotice, saveMeta } from '../meta/meta';
+import { applyRunResult, defaultMeta, loadMetaWithNotice } from '../meta/meta';
 import { questCompletionToasts } from './quests';
-import { ensureActiveSlotMigrated } from './saveslots';
+import { ensureActiveSlotMigrated, saveMetaToActiveSlot } from './saveslots';
 import { devProfileActive, startupProfile } from '../meta/devprofile';
 import { loadSettings, saveSettings, type Settings } from './settings';
 import { loadKeyBindings, saveKeyBindings, type KeyBindings } from './keybindings';
@@ -347,7 +347,7 @@ export class Game {
       onStart: (cfg) => this.startRun(cfg),
       onMetaChanged: (meta) => {
         this.meta = meta;
-        saveMeta(meta);
+        saveMetaToActiveSlot(meta);
       },
     }, this.pendingHubNotice ?? undefined);
     this.pendingHubNotice = null;
@@ -410,7 +410,7 @@ export class Game {
         // fb012: the profile remembers the last-chosen value, so the next run
         // (from any of the three doors onto this toggle) starts with it.
         this.meta = { ...this.meta, autoPickLevelUps: on };
-        saveMeta(this.meta);
+        saveMetaToActiveSlot(this.meta);
         // b069: `lastCfg` is the config Retry/New Run replay verbatim (New Run
         // only spreads a fresh seed over it) — without this, a mid-run toggle
         // updated `meta` and the live sim but left `lastCfg` pinned to
@@ -866,7 +866,7 @@ export class Game {
       // screen that's about to show.
       const prevCompleted = this.meta.completedQuests;
       this.meta = applyRunResult(this.meta, run.report(), w);
-      saveMeta(this.meta);
+      saveMetaToActiveSlot(this.meta);
       for (const msg of questCompletionToasts(w.content, prevCompleted, this.meta.completedQuests)) {
         this.hud.say(msg);
       }
