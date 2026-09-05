@@ -462,6 +462,64 @@ export class Grid {
   }
 
   /**
+   * fb065e: open a border tile as a spawn gate, terrain and all.
+   *
+   * **Why this exists rather than a bare `tile[i] = Gate`.** `syncTerrain` is
+   * private and neither `markDirty` nor `refresh` calls it, so a raw write that
+   * lands *after* the last `applyTerrain`/`placeCore` moves `blocked` (through
+   * `staticBlocked`, which never blocks a Gate tile) and leaves every terrain
+   * array holding the pre-gate answer. Measured: on seed 7, writing a Gate at
+   * (12, 19) gives `tile=Gate`, `blocked=0` — the sim walks it — with
+   * `terrainKind` still `Rock`, so `gridTerrain` dumps a mountain on a walkable
+   * gate. The border row is exactly where this bites: gates live on it,
+   * `syncTerrain`'s override loop skips `Border`, and the border is rock on
+   * every generated map.
+   *
+   * `world.ts`'s Fourth Gate is the only such write in the repo and it is
+   * *ordered safely* — it opens the gate before `applyRunTerrain` — so this
+   * fixes no live bug today. It removes the ordering constraint instead, which
+   * is the part nothing enforced: `openGate` gives the same board either way,
+   * pinned over four seeds in `tests/terrain-gate-open.test.ts`.
+   *
+   * **A raw write is still reachable**, because `tile` is a public array with a
+   * reader in `enemies.ts`. Making it private is a wider refactor than this
+   * item, so the raw-write staleness stays pinned as a recorded defect in that
+   * same file rather than being claimed closed.
+   *
+   * Re-opening a gate that is already open is a no-op, so `world.ts`'s loop
+   * over all four gates — three of which are already open — needs no special
+   * case at the merge.
+   */
+  openGate(tx: number, ty: number): void {
+    if (!Number.isInteger(tx) || !Number.isInteger(ty)) {
+      throw new Error(`openGate: (${tx}, ${ty}) is not an integer tile`);
+    }
+    if (tx < 0 || ty < 0 || tx >= GRID_W || ty >= GRID_H) {
+      throw new Error(`openGate: (${tx}, ${ty}) is off the grid`);
+    }
+    const i = ty * GRID_W + tx;
+    if (this.tile[i] === TileType.Gate) return;
+    // Only wall becomes a gate. An interior "gate" is a spawn point with open
+    // ground behind it and no wall to be a hole in, and `staticBlocked` would
+    // stop reporting it as anything at all.
+    if (this.tile[i] !== TileType.Border) {
+      throw new Error(`openGate: (${tx}, ${ty}) is not a border tile`);
+    }
+    // The same refusal `applyTerrain` and `placeCore` make, for the same
+    // reason: `syncTerrain` re-derives the whole board, and doing that under a
+    // standing tower can bury it in terrain no walker can path to or destroy.
+    for (let k = 0; k < this.occ.length; k++) {
+      if (this.occ[k] !== 0) {
+        throw new Error('openGate: structures are already placed; open gates before build');
+      }
+    }
+    this.tile[i] = TileType.Gate;
+    // Re-derived rather than patched, exactly as `placeCore` does it — the
+    // structural override is one loop and this tile is now inside it.
+    this.syncTerrain();
+  }
+
+  /**
    * fb064b: is this tile high ground? The flag fb064d's targeting rules read —
    * a tower here cannot be reached by a ground melee walker, because no ground
    * walker can stand on it in the first place.

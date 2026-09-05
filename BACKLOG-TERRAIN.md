@@ -889,7 +889,7 @@ the spirit of HANDOFF §7.
 Bugs lead the list per working rule 3, and both are small. **fb065g is the
 highest-impact item here by a wide margin** and sits third only for that reason.
 
-- [ ] (fb065e) [bug] `Grid.terrainKind` goes stale after a `tile[]` write that
+- [x] (fb065e) [bug] `Grid.terrainKind` goes stale after a `tile[]` write that
       lands after the last `applyTerrain`/`placeCore`: `syncTerrain` is private
       and neither `markDirty` nor `refresh` calls it, so the write updates
       `blocked` through `staticBlocked` and leaves the terrain arrays alone.
@@ -908,6 +908,39 @@ highest-impact item here by a wide margin** and sits third only for that reason.
       and `tests/fb077-terrain-wiring` green, and `npm run sim -- --seed 1
       --policy hybrid` unchanged at `endHash 952d7be8` — refs: fb065c review
       Major, `grid.ts` `syncTerrain`.
+      **Shipped as `Grid.openGate(tx, ty)`, which is the "either" branch read
+      as *remove the constraint* rather than *re-sync everywhere*.** The two
+      obvious alternatives are both worse: calling `syncTerrain` from
+      `markDirty` re-derives 720 tiles on every occupancy change, i.e. on every
+      tower built, and making `tile` private is a wider refactor than this item
+      (it is read from `enemies.ts:1171`). `openGate` writes the tile and
+      re-derives through the same one loop `placeCore` uses, so the override and
+      its undo still cannot drift.
+      **It fixes no live bug, and the entry says so.** `world.ts`'s Fourth Gate
+      is the only such write in the repo and is ordered safely — it opens the
+      gate *before* `applyRunTerrain`, so `syncTerrain` covers it. What was
+      missing is that nothing enforced the ordering, and fb065c made the
+      resulting dump reachable from a real run. `openGate` gives the same board
+      either way, pinned over four seeds against every array a caller can read.
+      **The raw-write staleness is NOT claimed closed**: `tile` is still a
+      public array, so the defect stays pinned as its own case in
+      `tests/terrain-gate-open.test.ts` rather than being written off.
+      **A latent hole in fb064x's own enumeration table was found on the way
+      in.** Its `throws` branch called `g.placeCore` regardless of the row's
+      name, so `openGate` — the second `throws` row it has ever had — would have
+      been declared, probed as `placeCore` a second time, and gone green
+      completely unguarded. That is the same shape fb064y's re-review closed for
+      the `accessor` bucket, one branch further in. The branch now binds by
+      name, and removing `openGate`'s integer guard in a worktree reddens the
+      enumeration test, which it would not have before.
+      **Verification:** 432 tests across 25 suites green (all `tests/terrain*`
+      plus `grid`, `b007-tile-bounds`, `fb077-terrain-wiring`,
+      `fb078-terrain-build-rejection`), `npx tsc --noEmit` clean,
+      `npm run sim -- --seed 1 --policy hybrid` unchanged at
+      `endHash 952d7be8`, `npm run test:fast` 3662 passed with only the
+      pre-existing `b028`/`q41`/`q45`. **Review and QA rounds were still running
+      when this was committed**; whatever they find lands as a follow-up entry
+      below, the way fb065b's and fb065c's did.
 - [ ] (fb065f) [bug] `describeTerrain` hardcodes `GATES` for both its `gates`
       header line (`describe.ts:244`) and its `measureTerrain(map, cfg)` call
       (`:231`), while a run plays on `World.gates` — so a Fourth Gate run's

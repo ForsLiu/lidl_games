@@ -878,6 +878,9 @@ describe('fb064x — every Grid tile predicate answers about a tile that exists'
       // Already guarded, and by a *throw*: it is the one member with no caller
       // that could sensibly continue past a bad anchor.
       ['placeCore', 'throws'],
+      // fb065e: same shape as `placeCore` — it re-derives the whole board, so a
+      // fractional coordinate has nothing sensible to continue past either.
+      ['openGate', 'throws'],
       // Takes coordinates and returns a point; it never indexes a tile, so a
       // fraction in gives a fraction out and there is nothing to alias onto.
       ['tileCenter', 'exempt'],
@@ -913,9 +916,18 @@ describe('fb064x — every Grid tile predicate answers about a tile that exists'
     for (const [name, rule] of DECLARED) {
       if (rule === 'accepted' || rule === 'write') continue;
       if (rule === 'throws') {
-        expect(() => g.placeCore(3.5, 1), `${name}(3.5, 1)`).toThrow(/not an integer tile/);
-        expect(() => g.placeCore(3, 1.5), `${name}(3, 1.5)`).toThrow(/not an integer tile/);
-        expect(() => g.placeCore(NaN, 1), `${name}(NaN, 1)`).toThrow(/not an integer tile/);
+        // Bound by name, not hardcoded. This branch used to call `placeCore`
+        // whatever `name` said, so fb065e's `openGate` — the second `throws`
+        // row — would have been declared, probed as `placeCore` a second time,
+        // and gone green completely unguarded. That is the same hole fb064y's
+        // re-review closed for the `accessor` bucket, one branch further in.
+        const throwing = (g as unknown as Record<string, (a: number, b: number) => unknown>)[name];
+        expect(typeof throwing, `${name} is callable`).toBe('function');
+        for (const [tx, ty] of BAD) {
+          expect(() => throwing.call(g, tx, ty), `${name}(${tx}, ${ty})`).toThrow(
+            /not an integer tile/,
+          );
+        }
         continue;
       }
       if (name === 'tileCenter') {

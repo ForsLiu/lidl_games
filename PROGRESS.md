@@ -5,6 +5,24 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-05 (lane `lane/terrain`): `fb065e` closed — a gate opened after
+  terrain is applied is now terrain-consistent.** `Grid.openGate(tx, ty)` writes
+  the border tile and re-derives the terrain arrays through the same
+  `syncTerrain` loop `placeCore` uses, closing a staleness hole where a raw
+  `tile[]` write moved `blocked` and left `terrainKind` holding the pre-gate
+  answer (measured: seed 7, a Gate written at (12,19) reads `blocked=0` with
+  `terrainKind=Rock`, so a repro drew a mountain on a walkable gate). It fixes
+  no live bug — `world.ts` opens the Fourth Gate before `applyRunTerrain`, so
+  the ordering happens to be safe — it removes the unenforced ordering
+  constraint, and the raw-write staleness stays pinned rather than claimed
+  closed. Finding on the way in: fb064x's enumeration table probed `placeCore`
+  for every `throws` row regardless of name, so this second such row would have
+  landed unguarded and green.
+
+  432 tests across 25 suites green, `npx tsc --noEmit` clean, `endHash
+  952d7be8` unchanged, `test:fast` 3662 passed with only the pre-existing
+  `b028`/`q41`/`q45`.
+
 - **2026-09-05 (lane `lane/terrain`): the generation rule ran its sweep leg for
   the first time, and it found something the main lane needs before its next
   balance pass.** The lane had skipped leg (a) three times on a reason it
