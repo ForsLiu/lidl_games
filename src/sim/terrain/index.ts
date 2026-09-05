@@ -17,6 +17,7 @@ export {
 } from './config';
 export {
   blockMask,
+  coreAnchorRoom,
   corridorsOk,
   gateComponent,
   gateDistance,

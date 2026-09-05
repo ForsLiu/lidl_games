@@ -721,7 +721,7 @@ improvement.
       that guard found a sign bug (zero slack is *inside* the band) and settled
       the `maxGateDetour < 1` sentinel as a flat `-1` rather than a
       misleadingly-safe 2.5.
-- [ ] (fb065b) [test] `suggestCoreAnchor` is the anchor the player is shown
+- [x] (fb065b) [test] `suggestCoreAnchor` is the anchor the player is shown
       pre-highlighted, and nothing measures whether it is a *good* default.
       fb064o bounded the gate detour *to* it and fb064h pins that it is legal
       and deterministic, but legal-and-deterministic is satisfied by an anchor
@@ -735,6 +735,53 @@ improvement.
       improved to clear the floors or the current one recorded as an accepted
       band with its numbers — refs: fb064h, fb064o, owner feedback "a default
       suggested spot is pre-highlighted".
+      **Shipped as the recorded accepted band, and the acceptance's fourth
+      measure turned out to need a direction before it meant anything.** "The
+      share of seeds where a strictly better anchor exists" is **500/500** under
+      plain Pareto dominance over the three properties — and that number says
+      nothing about the rule, which is proved by the *control* rather than
+      argued: run the same measure on the flat arena, where the Core sits on the
+      spot every wave was tuned on, and the authored anchor is dominated by **86
+      of its 498 legal anchors**. A measure that condemns the hand-authored
+      ideal is measuring the objective, not the selection. So two orderings are
+      recorded — monotone (more central, more room, further from a gate) and
+      fidelity (nearer the flat control's own readings) — and they pick out
+      **disjoint** seeds, which is the finding: "a better default" is not
+      decidable here without a balance order, and balance orders are main-lane.
+      The verdict rests on what the rule actually does: **432 of 500 seeds put
+      the default on `CORE_X/CORE_Y` exactly**, none moves it further than 4
+      tiles, and against the fixed authored anchor on the same 500 maps the rule
+      is *better* on build room (36.0640 vs 35.7920), so the 48 -> 36 fall from
+      the flat arena is terrain and not selection.
+      **Both "free improvement" figures are shares of 24, not of 500**, and the
+      file says so: the pick is the unique minimiser of the primary key, so only
+      a tie can produce a free dominator, and there are 24 tie seeds. 5 of 24
+      monotone, 1 of 24 fidelity.
+      **Shipped with two `src/sim/terrain/analyze.ts` changes the acceptance did
+      not ask for, both recorded.** The private `buildRoom` is renamed
+      `coreAnchorRoom` and exported, because `ROOM_RADIUS`' own doc block
+      records that this tie-break decides `maxGateDetour` and so decides whether
+      a map ships — a quantity that can refuse a map should be measurable from
+      outside the module, and the test now asserts the rule directly (the pick
+      carries the maximum `coreAnchorRoom` over its own minimum-distance tie
+      set) rather than only its consequences. And the same doc block's "tied on
+      25 seeds" was stale — re-measured at 24 against fb064l's generator, with
+      the 17 unchanged, so both are now pinned by a test.
+      code-reviewer **REQUEST-CHANGES** on the first pass with three Majors, all
+      real: the declined change was priced on `buildRoom` alone, which is the
+      axis where its own data shows the smallest effect (3 of the 5 free seeds
+      gain no room at all and qualify purely on centrality); the dominance
+      directions embedded the very balance objective the file declines to take;
+      and the 500-seed sweep ran at module scope with an `expect` inside it, the
+      pattern `terrain-band-ledger.test.ts` already had reviewed out — a null
+      anchor would have surfaced as a collection error deleting every test in
+      the file. qa-playtester **PASS** on every acceptance clause, re-deriving
+      every recorded figure with its own implementations and filing six
+      findings, all acted on. Its sharpest: the floors have no effective
+      headroom against the one plausible regression — inverting only the
+      tie-break lands the sample on min room **12** and min gate **6**, exactly
+      on both floors — which is why the tie-break is now asserted directly
+      instead of being left to the floors. See the Log.
 - [ ] (fb065c) [polish] the repro format cannot describe the thing that
       actually goes wrong. `describeTerrain` takes a `TerrainGrid`, and a live
       run holds a `Grid` — whose terrain has been through `terrainOverlay`,
@@ -795,6 +842,97 @@ improvement.
       without anyone editing this file.
 
 ## Log
+
+- (2026-09-05, fb065b) The suggested Core anchor, measured. Everything below
+  is over seeds 1..500 against shipped `/data`, and every figure is pinned in
+  `tests/terrain-anchor-quality.test.ts` so a retune moves a test.
+
+  **The ledger.** `centroidDist` min 5.2599 @284 · mean 7.8529 · median 7.8691 ·
+  max 10.7451 @411. `buildRoom` (normal tiles inside the base `buildRange` 4,
+  footprint excluded) min 15 @411 · mean 36.0640 · max 47 @172. `gateDist` min
+  7 @88 · mean 9.0020 · max 11 @96. `displacement` from `CORE_X/CORE_Y` min 0
+  · mean 0.1899 · max 4.0000 @315, with **432 seeds at exactly 0**. Flat-arena
+  control: anchor (25,9), `centroidDist` 7.9992, `buildRoom` 48, `gateDist` 9.
+  At the wider radii a real run reaches (Engineer +2, tree node 22 +1) the room
+  is r5 min 29 · mean 54.03, r6 min 47 · mean 74.53, r7 min 73 · mean 101.83.
+
+  **The controls, because a difference needs one.** Holding the anchor fixed at
+  (25,9) on the same 500 maps: `buildRoom` mean **35.7920** against the rule's
+  36.0640 — the rule is *better*, so the 48 -> 36 fall is terrain, not
+  selection. `centroidDist` mean **7.9072** against the rule's 7.8529 — so of
+  the 0.146 the rule sits nearer the centroid than the flat arena, 0.092 is the
+  walkable centroid itself moving (mean generated centroid (18.1010, 10.0855)
+  vs the flat (18.0008, 9.9976)) and only 0.054 is the pick. The first draft
+  claimed the whole 0.146 for the rule; QA's decomposition corrected it.
+  (25,9) is legal on exactly the 432 displacement-zero seeds, which is provable
+  rather than lucky: `dist2 = 0` is the unique minimum of the primary key.
+
+  **Why "500/500 strictly better" is not a finding.** Not because "every seed
+  has a more central anchor" — that does not even entail the number, since
+  dominance needs `>=` on all three properties — but because the *flat arena*
+  fails the same measure: the authored anchor is dominated there by **86 of 498
+  legal anchors**, with a Pareto front on the centre column eight tiles away.
+  Recorded as an assertion on the control row, not as prose.
+
+  **The population the free-improvement measures can actually reach is 24
+  seeds, not 500.** The pick is the unique minimiser of squared distance from
+  `CORE_X/CORE_Y`, so the "no further from the tuned spot" filter is exactly an
+  equality and only a primary-key *tie* can yield a free dominator. 24 tie
+  seeds in 500; the tie-break moves the pick off the lowest-index tied anchor on
+  17 of them. So monotone free is 5 of 24 and fidelity free is 1 of 24 — 21% and
+  4% of what they can measure, not 1.0% and 0.2% of runs.
+
+  **The cost of the change, measured by making it rather than reasoning about
+  it.** Swapping `coreAnchorRoom`'s `ROOM_RADIUS: 2` ring for a `buildRange`-4
+  disc in `analyze.ts` and re-running seeds 1..500: the pick moves on **six**
+  seeds — 13, 112, 177, 184, 189, 315 — and **381 does not move at all**, so the
+  header's first draft ("all five are ties the disc resolves differently") was
+  wrong in both directions and QA caught it. Two moves raise the detour (13:
+  1.0870 -> 1.1091; 315: 1.1519 -> 1.1772). On **seed 112 the change refuses the
+  map**: its two tied anchors are (23,9) at detour 1.1091 and (27,9) at 1.7302,
+  the ring metric ties them (22 each) so the *index* rule picks the legal one,
+  the disc prefers (27,9) by one tile of room, and 1.7302 is past
+  `maxGateDetour`'s 1.5 ceiling — `attempts` 1 -> 2, hash `b4348308` ->
+  `8a8315a9`. A different map handed to a run, not golden churn. That is the
+  argument for declining, and it is pinned as its own test.
+
+  **What the floors do and do not catch.** They kill every grossly bad rule,
+  including the failure mode the item names: minimise-ring-room scores min
+  `buildRoom` **0**, first-legal-anchor 2, maximise-gate-distance 1, all 25+
+  tiles out on `displacement`. They have **no effective headroom** against the
+  one plausible regression: inverting only the tie-break (least room among the
+  primary-key ties) lands the sample on min room **12** and min gate **6** —
+  exactly the two floors — and passes all four, killed only by the named-seed
+  identity goldens. That is why the rule itself is now asserted: the pick
+  carries the maximum `coreAnchorRoom` over its own tie set, on 500/500 seeds.
+  `ROOM_RADIUS: 1` also reads min room 12, so the floor is calibrated at the
+  boundary of the plausible neighbourhood and is honest about it in the file.
+
+  **Two `src/sim/terrain/analyze.ts` changes shipped inside a `[test]` item.**
+  `buildRoom` renamed `coreAnchorRoom` and exported (and from `index.ts`), so
+  the tie-break that decides `terrainLegal` is measurable from outside the
+  module; and the stale "tied on 25 seeds" in `suggestCoreAnchor`'s comment
+  corrected to 24 — a reading from before fb064l's `density.jitter`, with the
+  companion 17 unchanged, so the two readings used the same method. Both counts
+  are now pinned by a test rather than living only in a comment.
+
+  **A mutant that survived this file, checked rather than assumed.** QA's M10
+  (drop `isNormalFootprint`'s guard in `suggestCoreAnchor`) passes all 11 tests
+  here, because a legal-set-only ledger cannot see a guard that exists for
+  untrusted caller input. Verified that it is not a hole:
+  `tests/terrain-core-placement.test.ts`'s "does not hand back an illegal tile
+  from a caller-supplied anchor list" kills it (reproduced by applying the
+  mutant and watching that one test go red). The other nine mutants QA ran —
+  first-legal-anchor, maximise-gate-distance, minimise-ring-room, drop the room
+  key, flip the room key, `CORE_X + 1`, Manhattan distance, reversed tie
+  ordering, `ROOM_RADIUS: 4` — are all killed here.
+
+  **Process note.** The first QA run moved the untracked deliverable out of the
+  repo for ~15 s to prove four `test:fast` failures were pre-existing, which
+  read from outside as the file having been deleted. It had not been; the
+  accusation was wrong and is corrected here. The four
+  (`b028`, `q15`, `q41`, `q45`) are pre-existing on this branch, confirmed both
+  by QA with the deliverable absent and by PROGRESS.md's merge entry.
 
 - (2026-09-05, fb064z) **Two things this item learned the hard way, both
   cheaper to read than to rediscover.**

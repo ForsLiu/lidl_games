@@ -5,6 +5,28 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-05 (lane `lane/terrain`): `fb065b` closed — the suggested Core
+  anchor is now a measured default rather than only a legal one.**
+  `tests/terrain-anchor-quality.test.ts` (11 cases, ~2 s, fast tier) carries the
+  ledger over seeds 1..500 for the four properties the item names, the
+  flat-arena control, a fixed-anchor control that separates terrain from
+  selection, a floor per property with the worst seed named, both dominance
+  readings, and the priced cost of the change it declines. Verdict: the accepted
+  band, because the selection's objective — fidelity to `CORE_X/CORE_Y` — is a
+  balance order and not this lane's to take, and the rule is measurably doing
+  that job (432/500 seeds land on the tuned spot exactly, none more than 4 tiles
+  off, and against a fixed anchor on the same maps the rule is *better* on build
+  room). Two `analyze.ts` changes shipped with it: `buildRoom` became the
+  exported `coreAnchorRoom` so the tie-break that decides `terrainLegal` is
+  measurable, and a stale "tied on 25 seeds" comment was re-measured to 24.
+  code-reviewer REQUEST-CHANGES on the first pass (three Majors, all real);
+  qa-playtester PASS with six findings, all acted on. Full record in
+  BACKLOG-TERRAIN.md's Log.
+
+  `npm run test:fast` at this commit: 3649 passed, 3 failed — `b028`, `q41`,
+  `q45`, the same three the merge entry below records as failing identically on
+  `origin/master`. `npx tsc --noEmit` clean; all 19 terrain suites green (379).
+
 - **2026-09-05 (lane `lane/terrain`): merged `origin/master` in a second
   time**, picking up `lane/ui`'s fb111/fb112/fb114/fb115 (PR #4). Nothing to
   reconcile in code: master's batch touched only `src/ui/**`, `tests/ui-*` and
