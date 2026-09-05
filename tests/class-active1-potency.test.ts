@@ -11,21 +11,32 @@
  *
  * ---
  *
- * **"Potency" is not "damage", and pretending otherwise would have measured
- * four kits wrong.** The item's acceptance says the card must move "its own
- * Active1's damage"; four of the twelve Active1s author `damage: 0` and carry
- * their magnitude somewhere else entirely (`data/classes.json`):
+ * **"Potency" is not "damage", and pretending otherwise measured a kit wrong.**
+ * The item's acceptance says the card must move "its own Active1's damage";
+ * **six** of the twelve Active1s author `damage: 0` and carry their magnitude
+ * somewhere else entirely (`data/classes.json`):
  *
- *   | class       | Active1          | what potency actually multiplies      |
- *   |-------------|------------------|---------------------------------------|
- *   | engineer    | `repair_heal`    | `repairFraction` — how much it heals   |
- *   | necromancer | `raise_skeletons`| `summonStatMul` — each skeleton's dps  |
- *   | animist     | `manifest_spirit`| `summonStatMul` — the spirit's dps     |
- *   | paladin     | `clarion_taunt`  | `tauntDurationSeconds` — a longer taunt|
+ *   | class       | Active1           | what potency actually multiplies       |
+ *   |-------------|-------------------|----------------------------------------|
+ *   | engineer    | `repair_heal`     | `repairFraction` — how much it heals    |
+ *   | necromancer | `raise_skeletons` | `summonStatMul` — each skeleton's dps   |
+ *   | bloodlord   | `blood_tithe`     | `titheDamageMul` — the tithed tower's % |
+ *   | animist     | `manifest_spirit` | `summonStatMul` — the spirit's dps      |
+ *   | paladin     | `clarion_taunt`   | `tauntDurationSeconds` — a longer taunt |
+ *   | time_lord   | `time_mark`       | `markPast/PresentDotDps` — the mark DoTs|
  *
- * `classes.ts` already reads it that way at each site, with a comment saying
- * so. So every row here names its own observable out of `/data` rather than
- * assuming a damage number, and the table above is the reason the file is
+ * **This table said "four" and listed four, and that is exactly how this file
+ * shipped a false deviation.** Bloodlord and Time Lord also author `damage: 0`;
+ * Bloodlord was missing from the list, so it was slotted as a damage row,
+ * measured as one, and its real payout — `titheDamageMul`, scaled in
+ * `towers.ts`, not `classes.ts` — was never looked for. The prose warned
+ * against the exact mistake the table then made. The list is no longer written
+ * here at all: the coverage case derives it from `/data` and fails if this
+ * table drifts from it again.
+ *
+ * `classes.ts` reads potency that way at each site it owns, with a comment
+ * saying so. So every row here names its own observable out of `/data` rather
+ * than assuming a damage number, and the table above is the reason the file is
  * shaped as a per-class case list instead of one loop over enemy hp.
  *
  * **The observable is the effect that landed**, `c019`'s standard: an enemy's
@@ -83,6 +94,8 @@
  * `c019` and `c008` set that precedent.
  */
 
+import { readFileSync } from 'node:fs';
+
 import { describe, expect, it } from 'vitest';
 
 import { characterDamage, tickClassCharge, useClassActive, useClassActive2 } from '../src/sim/classes';
@@ -96,6 +109,11 @@ import { cfg } from './helpers';
 import { BUILD_TX, BUILD_TY, WX, WY } from './class-board';
 
 const content = loadContent();
+
+/** Where this file's doc-comment header ends — the anchor rows read only that. */
+function s_headerEnd(): number {
+  return readFileSync(__filename, 'utf8').indexOf("\nimport {");
+}
 
 const DT = 1 / 60;
 
@@ -349,9 +367,19 @@ describe('c021 — every class is on trial, and every window comes out of /data'
     // are special is exactly the thing that made "potency is not damage" true
     // in prose and false in the table.
     const nonDamage = content.classes.classes.filter((c) => (c.active1.damage ?? 0) === 0).map((c) => c.key);
-    expect([...nonDamage].sort()).toEqual(
-      ['animist', 'bloodlord', 'engineer', 'necromancer', 'paladin', 'time_lord'].sort(),
-    );
+    // Cross-checked against **this file's own header table**, parsed from
+    // source — the lane's anchor convention (c012, c014, c017). A hardcoded
+    // list here would just be the same hand-maintained list one layer down,
+    // which is what drifted in the first place. Now the prose and `/data` are
+    // asserted equal, so either one moving without the other reddens this row.
+    const header = readFileSync(__filename, 'utf8').slice(0, s_headerEnd());
+    const tabled = [...header.matchAll(/^ \* {3}\| (\w+) +\| `/gm)].map((m) => m[1]);
+    expect(tabled.length, 'the header table was not found — did its shape change?').toBeGreaterThan(0);
+    expect(
+      [...tabled].sort(),
+      'the header table and /data disagree about which kits author damage 0 — the exact drift that ' +
+        'slotted Bloodlord as a damage row and produced a false deviation',
+    ).toEqual([...nonDamage].sort());
     // And every one of them has a `what` naming a field that is not `damage`,
     // so the table cannot silently regain a damage row.
     for (const k of nonDamage) {
