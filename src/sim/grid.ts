@@ -477,9 +477,24 @@ export class Grid {
    *
    * `world.ts`'s Fourth Gate is the only such write in the repo and it is
    * *ordered safely* — it opens the gate before `applyRunTerrain` — so this
-   * fixes no live bug today. It removes the ordering constraint instead, which
-   * is the part nothing enforced: `openGate` gives the same board either way,
-   * pinned over four seeds in `tests/terrain-gate-open.test.ts`.
+   * fixes no live bug today.
+   *
+   * **It does NOT make late opening safe, and an earlier version of this
+   * comment said it did.** That claim was measured and is false: terrain
+   * generation is gate-aware (`generateTerrain(seed, cfg, gates)`) and
+   * `applyRunTerrain` retries `seed + 1 …` until `allGatesReachable()` over the
+   * gate list *it* was handed, so a gate opened afterwards gets neither the
+   * generation nor the retry. Over seeds 1..300, opening (12, 19) after a
+   * three-gate `applyRunTerrain` leaves that gate unreachable from the Core on
+   * **77 of 300 seeds (25.7%)** — terrain never changes again, so the distance
+   * stays `-1` forever and a wave would spawn into a sealed pocket. World's
+   * real ordering seals it on **0 of 300**. Pinned in
+   * `tests/terrain-gate-open.test.ts`.
+   *
+   * So the rule is unchanged: **open gates before `applyRunTerrain`**, or
+   * re-check `allGatesReachable()` afterwards and regenerate. What `openGate`
+   * buys is that the terrain arrays are right either way — which is a real bug
+   * closed, and is all it is.
    *
    * **A raw write is still reachable**, because `tile` is a public array with a
    * reader in `enemies.ts`. Making it private is a wider refactor than this
@@ -497,7 +512,18 @@ export class Grid {
     if (tx < 0 || ty < 0 || tx >= GRID_W || ty >= GRID_H) {
       throw new Error(`openGate: (${tx}, ${ty}) is off the grid`);
     }
+    // No gate can work in a corner: its only interior neighbour is diagonal,
+    // the flow field never reaches it, and `allGatesReachable()` goes false the
+    // moment one exists. Refused with its own message, like `placeCore`'s
+    // border and gate cases, rather than left to fail as a mystery later.
+    if ((tx === 0 || tx === GRID_W - 1) && (ty === 0 || ty === GRID_H - 1)) {
+      throw new Error(`openGate: (${tx}, ${ty}) is a corner; no gate is reachable there`);
+    }
     const i = ty * GRID_W + tx;
+    // Ahead of the occupancy guard on purpose: re-opening an open gate mutates
+    // nothing, so unlike `placeCore` re-deriving under a standing tower it
+    // cannot bury one. That is what lets `world.ts`'s loop over all four gates
+    // — three of them already open — stay a plain loop at the merge.
     if (this.tile[i] === TileType.Gate) return;
     // Only wall becomes a gate. An interior "gate" is a spawn point with open
     // ground behind it and no wall to be a hole in, and `staticBlocked` would

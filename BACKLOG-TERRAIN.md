@@ -908,23 +908,57 @@ highest-impact item here by a wide margin** and sits third only for that reason.
       and `tests/fb077-terrain-wiring` green, and `npm run sim -- --seed 1
       --policy hybrid` unchanged at `endHash 952d7be8` — refs: fb065c review
       Major, `grid.ts` `syncTerrain`.
-      **Shipped as `Grid.openGate(tx, ty)`, which is the "either" branch read
-      as *remove the constraint* rather than *re-sync everywhere*.** The two
-      obvious alternatives are both worse: calling `syncTerrain` from
-      `markDirty` re-derives 720 tiles on every occupancy change, i.e. on every
-      tower built, and making `tile` private is a wider refactor than this item
-      (it is read from `enemies.ts:1171`). `openGate` writes the tile and
-      re-derives through the same one loop `placeCore` uses, so the override and
-      its undo still cannot drift.
-      **It fixes no live bug, and the entry says so.** `world.ts`'s Fourth Gate
-      is the only such write in the repo and is ordered safely — it opens the
-      gate *before* `applyRunTerrain`, so `syncTerrain` covers it. What was
-      missing is that nothing enforced the ordering, and fb065c made the
-      resulting dump reachable from a real run. `openGate` gives the same board
-      either way, pinned over four seeds against every array a caller can read.
+      **Shipped as `Grid.openGate(tx, ty)`: it writes the tile and re-derives
+      through the same one loop `placeCore` uses, so the override and its undo
+      still cannot drift.** Making `tile` private is a wider refactor than this
+      item (`enemies.ts:1171` and `canvas.ts:723` read it). Folding the re-sync
+      into `markDirty` is the alternative, and **the reason first given for
+      rejecting it was false** — "it re-derives 720 tiles on every occupancy
+      change, i.e. on every tower built". `setOcc` does not call `markDirty`; it
+      updates `blocked[i]` itself and sets `dirty`. Outside `grid.ts`,
+      `markDirty()` has exactly **two** call sites in all of `src/` and
+      `tools/`: `world.ts:582` (the Fourth Gate, once per run) and
+      `sundering.ts:120` (inside `if (w.cfg.stripTerrain)`, a harness path). The
+      honest objection is smaller and structural: `syncTerrain` *ends* with
+      `markDirty()`, so folding one into the other recurses, and separating them
+      means extracting the blocked-rebuild. `openGate` is still the better fix —
+      it refuses what cannot be a gate, where a `markDirty` hook would silently
+      accept any tile write — but the record should not have claimed a
+      per-build cost that does not exist.
+      **It fixes no live bug, and it does NOT make late opening safe.** The
+      first version of this entry, of `grid.ts`'s doc block and of the commit
+      message all said `openGate` "gives the same board either way", i.e. that
+      it removed the ordering constraint. **Measured, that is false, and
+      dangerously so.** Terrain generation is gate-aware
+      (`generateTerrain(seed, cfg, gates)`) and `applyRunTerrain` retries
+      `seed + 1 …` until `allGatesReachable()` over the gate list *it* was
+      handed, so a gate opened afterwards gets neither. Over seeds 1..300,
+      opening (12, 19) after a three-gate `applyRunTerrain` leaves that gate
+      **unreachable from the Core on 77 of 300 seeds (25.7%)** — terrain never
+      changes again, so the distance stays `-1` and a wave spawns into a sealed
+      pocket. World's real ordering (open first, generate against the four-gate
+      list) seals it on **0 of 300**, and the two boards differ on **300 of
+      300**. The equivalence test passed only because both its arms were fed the
+      same three-gate overlay, which is not the ordering `world.ts` uses. The
+      rule is therefore unchanged — open gates *before* `applyRunTerrain` — and
+      the correction is pinned by its own case rather than only corrected in
+      prose. What `openGate` buys is that the terrain arrays are right either
+      way, which is a real bug closed and is all it is.
+      **Also from the review: corners are now refused.** `openGate` accepted the
+      four corner tiles, and a corner gate cannot work by construction — its
+      only interior neighbour is diagonal, so the flow field never reaches it
+      and `allGatesReachable()` goes false the moment one exists (verified:
+      `new Grid(); openGate(0,0); refresh()` gives `allGatesReachable false`,
+      `distAt(0,0) === -1`).
       **The raw-write staleness is NOT claimed closed**: `tile` is still a
       public array, so the defect stays pinned as its own case in
-      `tests/terrain-gate-open.test.ts` rather than being written off.
+      `tests/terrain-gate-open.test.ts`. The acceptance also asked for every
+      reader of `terrainKind` to be named, and there is exactly **one** outside
+      `grid.ts` — `gridTerrain` in `src/sim/terrain/grid-view.ts`, through which
+      every dump and repro flows (`enemies.ts:1171` and `canvas.ts:723` read
+      `tile`, not `terrainKind`). That module's doc block now points at
+      `openGate` as the supported route and states that a raw write is still
+      stale.
       **A latent hole in fb064x's own enumeration table was found on the way
       in.** Its `throws` branch called `g.placeCore` regardless of the row's
       name, so `openGate` — the second `throws` row it has ever had — would have
@@ -933,14 +967,29 @@ highest-impact item here by a wide margin** and sits third only for that reason.
       the `accessor` bucket, one branch further in. The branch now binds by
       name, and removing `openGate`'s integer guard in a worktree reddens the
       enumeration test, which it would not have before.
+      **The equivalence test needed strengthening twice, and the second attempt
+      was also wrong.** It compared `terrainKind`/`tile`/`blocked` only, and the
+      review showed a patch-style `openGate` (set those two arrays at the one
+      tile, call `markDirty`) passed the whole file. Adding the public
+      predicates did **not** fix it — reproduced: every mask `syncTerrain`
+      re-derives beyond those two is read only through a predicate that first
+      requires `tile === Open`, and a gate tile never is, so the divergence is
+      invisible from outside. The test now compares the four private masks
+      directly, and the patch mutant dies.
       **Verification:** 432 tests across 25 suites green (all `tests/terrain*`
       plus `grid`, `b007-tile-bounds`, `fb077-terrain-wiring`,
       `fb078-terrain-build-rejection`), `npx tsc --noEmit` clean,
       `npm run sim -- --seed 1 --policy hybrid` unchanged at
       `endHash 952d7be8`, `npm run test:fast` 3662 passed with only the
-      pre-existing `b028`/`q41`/`q45`. **Review and QA rounds were still running
-      when this was committed**; whatever they find lands as a follow-up entry
-      below, the way fb065b's and fb065c's did.
+      pre-existing `b028`/`q41`/`q45`. code-reviewer **REQUEST-CHANGES** with three Majors, every one of them real and
+      every one re-measured here before acting: the false late-opening safety
+      claim (77/300), the non-existent `markDirty` per-build cost (two call
+      sites, neither per-build), and the corner guard gap. Its Minors are taken
+      too — the overclaimed equivalence, the undocumented early-return ordering
+      (now pinned by a test), the unnamed `terrainKind` reader, the stale
+      `grid-view.ts` doc, and a name-hardcoded `tileCenter` branch in fb064x's
+      table carrying the same hole as the `throws` branch this item fixed.
+      qa-playtester was still running at the follow-up commit.
 - [ ] (fb065f) [bug] `describeTerrain` hardcodes `GATES` for both its `gates`
       header line (`describe.ts:244`) and its `measureTerrain(map, cfg)` call
       (`:231`), while a run plays on `World.gates` — so a Fourth Gate run's

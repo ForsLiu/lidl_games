@@ -78,9 +78,12 @@ import type { TerrainGrid } from './types';
  * A real run does not hit it — `world.ts` opens the Fourth Gate *before*
  * `applyRunTerrain`, so `syncTerrain` covers that tile — but nothing enforces
  * that ordering, and this adapter exists precisely to make a repro trustworthy.
- * The divergence is pinned by a test rather than left to be rediscovered, and
- * teaching `Grid` to re-sync after a post-terrain tile write is `grid.ts` work
- * filed as its own backlog item.
+ * The divergence is pinned by a test rather than left to be rediscovered.
+ * fb065e added `Grid.openGate`, which is the supported route — it writes the
+ * tile and re-derives the terrain in one step — but a **raw** `tile[]` write is
+ * still reachable, because `tile` is a public array, and it is still stale.
+ * `gridTerrain` is the only reader of `terrainKind` outside `grid.ts`, so this
+ * function is where that staleness becomes visible to a human.
  */
 export function gridTerrain(grid: Grid): TerrainGrid {
   const n = grid.w * grid.h;

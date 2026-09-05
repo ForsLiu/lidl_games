@@ -931,6 +931,11 @@ describe('fb064x — every Grid tile predicate answers about a tile that exists'
         continue;
       }
       if (name === 'tileCenter') {
+        // The rule is asserted before the special case: this branch is
+        // name-hardcoded, so without this line `['tileCenter', 'refuses']`
+        // would pass green through the `exempt` probe. Same shape as the
+        // `throws` branch fb065e just fixed one branch above.
+        expect(rule, 'tileCenter must be declared exempt').toBe('exempt');
         // Not a tile read at all: a fraction in, a fraction out.
         expect(Grid.tileCenter(3.5, 1)).toEqual({ x: 4, y: 1.5 });
         continue;
