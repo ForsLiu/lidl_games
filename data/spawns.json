@@ -1,9 +1,9 @@
 {
-  "budgetBase": 150,
+  "budgetBase": 375,
   "budgetGrowthPerMinute": 1.21,
   "budgetGrowthPerVsWave": 1.21,
   "directorIntervalSeconds": 10,
-  "aliveCap": 350,
+  "aliveCap": 500,
   "hpOverlay": 0.6,
   "speedOverlay": 1.2,
   "hpScalePerMinute": 1.1,

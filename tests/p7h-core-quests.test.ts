@@ -58,6 +58,7 @@ function reportWith(over: Partial<RunReport> = {}): RunReport {
     kills: 0,
     leaks: 0,
     damageByWeapon: {},
+    damageByWeaponVs: {},
     damageByType: {},
     damageTotal: 0,
     damageThroughMinute8: null,
@@ -75,6 +76,7 @@ function reportWith(over: Partial<RunReport> = {}): RunReport {
     endHash: '',
     practiceUsed: false,
     sealed: false,
+    terrainFallback: false,
     ...over,
   };
 }

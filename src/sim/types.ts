@@ -717,6 +717,12 @@ export interface RunReport {
   kills: number;
   leaks: number;
   damageByWeapon: Record<string, number>;
+  /**
+   * p12a: `damageByWeapon` restricted to the VS half of the run, summed over
+   * every VS block — the denominator/numerator source for BALANCE.md's
+   * own-kit-share target, which is a VS-only measurement.
+   */
+  damageByWeaponVs: Record<string, number>;
   /** fb007: cumulative damage by §3 damage-type key (`data/damagetypes.json`). */
   damageByType: Record<string, number>;
   damageTotal: number;
@@ -742,6 +748,13 @@ export interface RunReport {
   practiceUsed: boolean;
   /** p7e (§10): true if Act I was ever sampled fully sealed this run. */
   sealed: boolean;
+  /**
+   * fb077 (SPEC-FINAL §10.5): true when this run played on the flat fallback
+   * arena instead of real generated terrain — `World.terrainFallback`,
+   * replay provenance for a strict `/data` band or a stranded-Core seed so
+   * neither reads as a silent flat arena. Always `false` for a practice run.
+   */
+  terrainFallback: boolean;
   /** Wall time for the run loop, filled in by the headless CLI. */
   simMs?: number;
 }

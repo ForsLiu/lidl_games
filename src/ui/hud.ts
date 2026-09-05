@@ -1,11 +1,12 @@
 /** DOM chrome around the canvas: HUD, tower bar, and the modal choice screens. */
 
 import type { World } from '../sim/world';
+import { GRID_H, GRID_W } from '../sim/grid';
 import { canBuildNow, towerCost } from '../sim/towers';
 import { inCoreBuildRange } from '../sim/cores';
 import type { Offer } from '../sim/types';
 import { ENEMY_COLORS, PALETTE, TOWER_COLORS } from '../render/theme';
-import { dotRemaining, dotStacks, effectiveSpeed, enemyArmor } from '../sim/enemies';
+import { dotRemaining, dotStacks, effectiveSpeed, enemyArmor, enemyCoreDamage } from '../sim/enemies';
 import { wardenArmor } from '../sim/run';
 import { armorReduction, effectiveArmor } from '../sim/stats';
 import type { Enemy } from '../sim/types';
@@ -20,11 +21,65 @@ import { STAT_DISPLAY, type StatDisplay } from '../sim/stats';
 import { active2CdrFactor, characterBasicRange, classAttackPowerMul } from '../sim/classes';
 import { longestWieldedRange } from '../sim/vswield';
 import { SPEEDS } from './pacer';
-import { activeSkillMarkup, classAbilitiesMarkup, passiveSkillMarkup, type ClassLiveContext } from './class-info';
+import {
+  activeSkillMarkup,
+  classAbilitiesMarkup,
+  passiveSkillMarkup,
+  towerPassiveSkillMarkup,
+  type ClassLiveContext,
+} from './class-info';
 import { bottomBarData, type SkillIconState } from './bottom-bar';
 import { coreLiveMarkup } from './core-info';
 import { formatPct, trimNum } from './info-format';
 import { equipmentEffectMarkup, type EquipmentEffectContext } from './equipment-info';
+import { defaultSettings, type Settings } from './settings';
+import { devProfileActive, isDevBuild } from '../meta/devprofile';
+import { defaultKeyBindings, keyLabel, type KeyBindings } from './keybindings';
+
+/**
+ * fb102: mirrors of `style.css`'s `.sw-rail`/`.sw-bossbar` box-model numbers,
+ * duplicated here (same tradeoff `syncStageOverlayGeometry`'s own doc comment
+ * already accepts for the letterboxing math) so the boss banner's max-width
+ * can be computed against the rails' actual worst-case (fully expanded)
+ * footprint instead of drifting out of sync with a plain CSS percentage that
+ * can't see the rails at all.
+ */
+const RAIL_WIDTH_PX = 300; // `.sw-rail`'s `width: 300px`
+const RAIL_WIDE_MAX_FRACTION = 0.32; // `.sw-rail`'s base `max-width: 32%`
+const RAIL_NARROW_MAX_FRACTION = 0.55; // `.sw-rail`'s `@media (max-width: 1180px)` `max-width: 55%`
+const RAIL_NARROW_BREAKPOINT_PX = 1180; // the same media query's breakpoint
+const RAIL_EDGE_GAP_PX = 8; // `.sw-rail-left`/`.sw-rail-right`'s `calc(var(--cv-left/right, 0px) + 8px)`
+const BOSSBAR_WIDTH_PX = 360; // `.sw-bossbar`'s `width: 360px`
+const BOSSBAR_MIN_GAP_PX = 10; // minimum breathing room kept between the boss bar and a rail
+// fb109: below this, the boss name/HP text stops being legible — floor
+// `--bossbar-maxw` here instead of letting it degrade toward 0 (or negative,
+// pre-clamp) as the stage keeps shrinking past both rails' combined footprint.
+const BOSSBAR_MIN_WIDTH_PX = 120;
+
+/** fb084: which one-time first-run tutorial prompt is showing. */
+export type OnboardingKey = 'build' | 'dusk' | 'dawn';
+
+/**
+ * fb084 (QUALITY.md BETA first-run onboarding): the three contextual prompts
+ * named by the checklist — first TD build phase, first Dusk->Night VS wave,
+ * first Dawn return-to-build.
+ */
+function onboardingText(key: OnboardingKey, kb: KeyBindings): string {
+  if (key === 'build') {
+    return (
+      "Build phase: pick a tower from the panel on the left and place it along the enemies' path, " +
+      'then call the wave (Enter) when your defenses are ready.'
+    );
+  }
+  if (key === 'dusk') {
+    return (
+      `Night falls — you now control the Warden directly. ${keyLabel(kb.moveUp)}${keyLabel(kb.moveLeft)}` +
+      `${keyLabel(kb.moveDown)}${keyLabel(kb.moveRight)} to move, ${keyLabel(kb.dash)} to dash, and ` +
+      `${keyLabel(kb.active1)}/${keyLabel(kb.active2)} for your class actives while the horde closes in.`
+    );
+  }
+  return 'Dawn breaks. Spend your gold on new towers and upgrades before the next wave begins.';
+}
 
 export interface HudCallbacks {
   onSelectTower(id: number): void;
@@ -72,6 +127,12 @@ export interface HudCallbacks {
   /** Practice tool; only reachable in a run started with practice on. `enemyKey` is only meaningful for the `'spawn'` op. */
   onDev(op: DevOp, amount: number, enemyKey?: string): void;
   onQuitToHub(): void;
+  /**
+   * fb084: a first-run onboarding prompt was dismissed — persist that it's
+   * seen so it never shows again. Optional so the many pre-existing `Hud`
+   * test constructors that predate this feature don't all need updating.
+   */
+  onOnboardingSeen?(key: OnboardingKey): void;
 }
 
 export class Hud {
@@ -80,17 +141,42 @@ export class Hud {
   private stats: HTMLElement;
   private modal: HTMLElement;
   private toast: HTMLElement;
+  private toastPriority = -Infinity;
+  private toastTimer: number | null = null;
+  private toastQueue: Array<{ text: string; priority: number }> = [];
   private speedSel: HTMLSelectElement;
   private towerInfoEl: HTMLElement;
   private progressEl: HTMLElement;
   private practiceEl: HTMLElement;
   private charPanelEl: HTMLElement;
+  private bossBarEl: HTMLElement;
+  private bossBarNameEl: HTMLElement;
+  private bossBarFillEl: HTMLElement;
+  private onboardingEl: HTMLElement;
+  private onboardingTextEl: HTMLElement;
+  /** fb084: the prompt currently armed to show (post-modal-close), or `null` once dismissed/never triggered. */
+  private onboardingActive: { key: OnboardingKey; text: string } | null = null;
+  /** fb084: a prompt that fired while another was still showing — see `triggerOnboarding`'s doc comment. */
+  private onboardingQueue: OnboardingKey[] = [];
+  /** fb084: `update()` only ever checks for the first-build-phase prompt once per `Hud` instance (i.e. once per run). */
+  private onboardingBuildChecked = false;
+  private stageEl: HTMLElement | null;
   private dpsPanelEl: HTMLElement;
   private dpsDockEl: HTMLElement;
   private vsPanelEl: HTMLElement;
   private vsDockEl: HTMLElement;
   private lastInfoKey = '';
   private cb: HudCallbacks;
+  /**
+   * fb084: read for the three onboarding-seen flags. fb104 (owner feedback,
+   * qa-playtester finding on fb086) also reads `reducedFlash` to gate the
+   * bottom-bar skill-ready ripple (`renderSkillIcon`) — it's a brief
+   * skill-fire flash, the exact surface `reducedFlash`'s own doc comment
+   * names, not `reducedMotion`'s ambient-motion-jitter target.
+   */
+  private settings: Settings;
+  /** fb107: a construction-time snapshot, same tradeoff `settings`' own doc comment above accepts — no in-run Controls panel exists to go stale mid-run. */
+  private keyBindings: KeyBindings;
   private selected = 0;
   private lastModalKey = '';
   private lastCharPanelKey = '';
@@ -107,6 +193,15 @@ export class Hud {
   private vsPanelDocked_ = false;
   /** b035: the practice tool panel is tall enough to push `#sw-towerinfo` past the fold; collapsed by default. */
   private practiceCollapsed = true;
+  /**
+   * fb065: the player's own open/closed preference for the right info rail,
+   * set only by its handle button. `syncRailVisibility` combines this with
+   * `dpsPanelOpen_`/`vsPanelOpen_` — both dock to the same right edge
+   * (`.sw-dock`, style.css) the rail does, so the two would otherwise paint
+   * on top of each other exactly like the character/DPS/VS panels already
+   * refuse to stack on top of one another elsewhere in this file.
+   */
+  private railRightUserOpen = true;
   /** fb026: the bottom HUD bar's element refs, cached once at construction — see `renderBottomBar`. */
   private bb!: {
     root: HTMLElement;
@@ -115,6 +210,7 @@ export class Hud {
     goldNum: HTMLElement;
     passiveState: HTMLElement;
     passiveTip: HTMLElement;
+    towerPassiveTip: HTMLElement;
     a1Sweep: HTMLElement;
     a1Charge: HTMLElement;
     a1Cd: HTMLElement;
@@ -129,19 +225,39 @@ export class Hud {
   /** fb026: previous frame's ready state per Active, so a false->true edge gets a one-shot "ready" flash. */
   private prevSkillReady: { active1: boolean; active2: boolean } = { active1: true, active2: true };
 
-  constructor(root: HTMLElement, cb: HudCallbacks) {
+  constructor(
+    root: HTMLElement,
+    cb: HudCallbacks,
+    settings: Settings = defaultSettings(),
+    keyBindings: KeyBindings = defaultKeyBindings(),
+  ) {
     this.root = root;
     this.cb = cb;
+    this.settings = settings;
+    this.keyBindings = keyBindings;
+    // fb094: dev-profile-only, same gate hub.ts's `DEV_BADGE` uses
+    // (`DEV_BUILD && devProfileActive()`) — computed once here since the
+    // control markup below is built into the constructor's one-shot
+    // `innerHTML` template, not re-rendered per tick.
+    const devMode = isDevBuild() && devProfileActive();
     root.innerHTML = `
       <div class="sw-shell">
         <div class="sw-stage">
           <canvas id="sw-canvas"></canvas>
           <div class="sw-modal sw-off" id="sw-modal" hidden></div>
           <div class="sw-modal sw-off" id="sw-charpanel" hidden></div>
+          <div class="sw-bossbar sw-off" id="sw-bossbar" hidden>
+            <div class="sw-bossbar-name" id="sw-bossbar-name"></div>
+            <div class="sw-meter sw-bossbar-meter"><i id="sw-bossbar-fill"></i></div>
+          </div>
+          <div class="sw-onboarding sw-off" id="sw-onboarding" hidden>
+            <span class="sw-onboarding-text" id="sw-onboarding-text"></span>
+            <button class="sw-onboarding-close" id="sw-onboarding-close" title="Dismiss" aria-label="Dismiss">&times;</button>
+          </div>
           <div class="sw-dock sw-off" id="sw-dpspanel" hidden></div>
-          <button class="sw-dpsdock sw-off" id="sw-dpsdock" hidden title="Reopen DPS summary (P)">DPS &#9656;</button>
+          <button class="sw-dpsdock sw-off" id="sw-dpsdock" hidden title="Reopen DPS summary (${keyLabel(keyBindings.toggleDpsPanel)})">DPS &#9656;</button>
           <div class="sw-dock sw-off" id="sw-vspanel" hidden></div>
-          <button class="sw-vsdock sw-off" id="sw-vsdock" hidden title="Reopen wielded attacks (V)">VS &#9656;</button>
+          <button class="sw-vsdock sw-off" id="sw-vsdock" hidden title="Reopen wielded attacks (${keyLabel(keyBindings.toggleVsPanel)})">VS &#9656;</button>
           <div class="sw-toast" id="sw-toast"></div>
           <div class="sw-bottombar" id="sw-bottombar">
             <div class="sw-bb-vital sw-bb-hp">
@@ -158,9 +274,13 @@ export class Hud {
               <div class="sw-bb-under" id="sw-bb-passive-state"></div>
               <div class="sw-bb-tip" id="sw-bb-passive-tip"></div>
             </div>
+            <div class="sw-bb-skill sw-bb-passive" id="sw-bb-towerpassive" data-skill="towerpassive" tabindex="0">
+              <div class="sw-bb-icon"><span class="sw-bb-icontext">T</span></div>
+              <div class="sw-bb-tip" id="sw-bb-towerpassive-tip"></div>
+            </div>
             <div class="sw-bb-skill" id="sw-bb-active1" data-skill="active1" tabindex="0">
               <div class="sw-bb-icon">
-                <span class="sw-bb-key">Q</span>
+                <span class="sw-bb-key">${keyLabel(keyBindings.active1)}</span>
                 <div class="sw-bb-sweep" id="sw-bb-a1-sweep"></div>
                 <span class="sw-bb-charge" id="sw-bb-a1-charge"></span>
               </div>
@@ -169,7 +289,7 @@ export class Hud {
             </div>
             <div class="sw-bb-skill" id="sw-bb-active2" data-skill="active2" tabindex="0">
               <div class="sw-bb-icon">
-                <span class="sw-bb-key">E</span>
+                <span class="sw-bb-key">${keyLabel(keyBindings.active2)}</span>
                 <div class="sw-bb-sweep" id="sw-bb-a2-sweep"></div>
                 <span class="sw-bb-charge" id="sw-bb-a2-charge"></span>
               </div>
@@ -177,39 +297,56 @@ export class Hud {
               <div class="sw-bb-tip" id="sw-bb-a2-tip"></div>
             </div>
           </div>
-        </div>
-        <div class="sw-side">
-          <div class="sw-controls" id="sw-controls">
-            <select class="sw-ctl" data-act="speed" id="sw-speed" title="Game speed (F cycles)">
-              ${SPEEDS.map((s) => `<option value="${s}">${s}x</option>`).join('')}
-            </select>
-            <button class="sw-ctl" data-act="ranges" id="sw-ranges" aria-pressed="false" title="Show tower ranges (R)">Ranges</button>
-            <button class="sw-ctl" data-act="autopick" id="sw-autopick" aria-pressed="false" title="Resolve level-ups automatically">Auto-pick</button>
-            <button class="sw-ctl" data-act="character" id="sw-character" aria-pressed="false" title="Character stats (C)">Character</button>
-            <button class="sw-ctl" data-act="dps" id="sw-dps" aria-pressed="false" title="Damage/DPS summary (P)">DPS</button>
-            <button class="sw-ctl" data-act="vs" id="sw-vs" aria-pressed="false" title="Wielded attacks (V)">VS</button>
-            <button class="sw-ctl" data-act="pause" title="Pause (Esc)">Pause</button>
-          </div>
-          <div class="sw-practice" id="sw-practice" hidden></div>
           <!--
-            b032: the build bar sits right after the controls/practice tools
-            (not after progress/stats/towerinfo, its pre-fix position) so its
-            own row count never depends on how tall the info panels above it
-            get — at a 1080-tall viewport with Training Grounds' practice tool
-            open, the panels below (progress/stats/towerinfo/help) are the
-            ones that may run past the fold, and none of them carry an
-            interactive control the way the tower buttons do.
+            fb065: the two old .sw-side columns are now floating rails
+            anchored to .sw-stage's own left/right edges (.sw-rail,
+            style.css) - semi-transparent overlays over the canvas rather than
+            an opaque gutter reserving layout space beside it. Ids/classes on
+            every child are unchanged from .sw-side's markup, so every
+            existing querySelector/test selector below and elsewhere in this
+            file keeps working untouched; only the two wrapping containers and
+            their handle buttons are new.
           -->
-          <div class="sw-bar" id="sw-bar"></div>
-          <div class="sw-progress" id="sw-progress"></div>
-          <div class="sw-stats" id="sw-stats"></div>
-          <div class="sw-towerinfo" id="sw-towerinfo"></div>
-          <div class="sw-help">
-            <b>WASD</b> move &middot; <b>Space</b> dash &middot; <b>LMB</b> build/select &middot;
-            <b>RMB</b> sell &middot; <b>U</b>/<b>X</b> upgrade/sell &middot; <b>1-9</b> pick tower &middot;
-            <b>0</b> clear &middot; <b>Enter</b> call wave &middot; <b>Q</b> class active &middot;
-            <b>R</b> ranges &middot; <b>F</b> speed &middot; <b>C</b> character &middot; <b>P</b> DPS &middot;
-            <b>V</b> wielded attacks &middot; <b>Esc</b> pause
+          <div class="sw-rail sw-rail-left" id="sw-rail-left">
+            <button class="sw-railhandle" id="sw-rail-left-handle" title="Toggle build panel">&#9776; Build</button>
+            <div class="sw-railbody">
+              <div class="sw-controls" id="sw-controls">
+                <select class="sw-ctl" data-act="speed" id="sw-speed" title="Game speed (${keyLabel(keyBindings.cycleSpeed)} cycles)">
+                  ${SPEEDS.map((s) => `<option value="${s}">${s}x</option>`).join('')}
+                </select>
+                <button class="sw-ctl" data-act="ranges" id="sw-ranges" aria-pressed="false" title="Show tower ranges (${keyLabel(keyBindings.toggleRanges)})">Ranges</button>
+                <button class="sw-ctl" data-act="autopick" id="sw-autopick" aria-pressed="false" title="Resolve level-ups automatically">Auto-pick</button>
+                <button class="sw-ctl" data-act="character" id="sw-character" aria-pressed="false" title="Character stats (${keyLabel(keyBindings.toggleCharacterPanel)})">Character</button>
+                <button class="sw-ctl" data-act="dps" id="sw-dps" aria-pressed="false" title="Damage/DPS summary (${keyLabel(keyBindings.toggleDpsPanel)})">DPS</button>
+                <button class="sw-ctl" data-act="vs" id="sw-vs" aria-pressed="false" title="Wielded attacks (${keyLabel(keyBindings.toggleVsPanel)})">VS</button>
+                ${devMode ? '<button class="sw-ctl" data-act="screenshot" id="sw-screenshot" title="Export the current canvas frame as a PNG (dev)">Screenshot</button>' : ''}
+                <button class="sw-ctl" data-act="pause" title="Pause (Esc)">Pause</button>
+              </div>
+              <div class="sw-practice" id="sw-practice" hidden></div>
+              <!--
+                b032: the build bar sits right after the controls/practice
+                tools, in its own rail separate from progress/stats/towerinfo/
+                help (fb065 split them into two rails) so its own row count
+                never depends on how tall the info panels get.
+              -->
+              <div class="sw-bar" id="sw-bar"></div>
+            </div>
+          </div>
+          <div class="sw-rail sw-rail-right" id="sw-rail-right">
+            <button class="sw-railhandle" id="sw-rail-right-handle" title="Toggle info panel">&#9432; Info</button>
+            <div class="sw-railbody">
+              <div class="sw-progress" id="sw-progress"></div>
+              <div class="sw-stats" id="sw-stats"></div>
+              <div class="sw-towerinfo" id="sw-towerinfo"></div>
+              <div class="sw-help">
+                <b>${keyLabel(keyBindings.moveUp)}${keyLabel(keyBindings.moveLeft)}${keyLabel(keyBindings.moveDown)}${keyLabel(keyBindings.moveRight)}</b> move &middot;
+                <b>${keyLabel(keyBindings.dash)}</b> dash &middot; <b>LMB</b> build/select &middot;
+                <b>RMB</b> sell &middot; <b>${keyLabel(keyBindings.upgradeSelection)}</b>/<b>${keyLabel(keyBindings.sellSelection)}</b> upgrade/sell &middot; <b>1-9</b> pick tower &middot;
+                <b>${keyLabel(keyBindings.clearSelection)}</b> clear &middot; <b>Enter</b> call wave &middot; <b>${keyLabel(keyBindings.active1)}</b> class active &middot;
+                <b>${keyLabel(keyBindings.toggleRanges)}</b> ranges &middot; <b>${keyLabel(keyBindings.cycleSpeed)}</b> speed &middot; <b>${keyLabel(keyBindings.toggleCharacterPanel)}</b> character &middot; <b>${keyLabel(keyBindings.toggleDpsPanel)}</b> DPS &middot;
+                <b>${keyLabel(keyBindings.toggleVsPanel)}</b> wielded attacks &middot; <b>Esc</b> pause
+              </div>
+            </div>
           </div>
         </div>
       </div>`;
@@ -222,6 +359,12 @@ export class Hud {
     this.progressEl = root.querySelector('#sw-progress') as HTMLElement;
     this.practiceEl = root.querySelector('#sw-practice') as HTMLElement;
     this.charPanelEl = root.querySelector('#sw-charpanel') as HTMLElement;
+    this.stageEl = root.querySelector('.sw-stage') as HTMLElement;
+    this.bossBarEl = root.querySelector('#sw-bossbar') as HTMLElement;
+    this.bossBarNameEl = root.querySelector('#sw-bossbar-name') as HTMLElement;
+    this.bossBarFillEl = root.querySelector('#sw-bossbar-fill') as HTMLElement;
+    this.onboardingEl = root.querySelector('#sw-onboarding') as HTMLElement;
+    this.onboardingTextEl = root.querySelector('#sw-onboarding-text') as HTMLElement;
     this.dpsPanelEl = root.querySelector('#sw-dpspanel') as HTMLElement;
     this.dpsDockEl = root.querySelector('#sw-dpsdock') as HTMLElement;
     this.vsPanelEl = root.querySelector('#sw-vspanel') as HTMLElement;
@@ -233,6 +376,7 @@ export class Hud {
       goldNum: root.querySelector('#sw-bb-gold-num') as HTMLElement,
       passiveState: root.querySelector('#sw-bb-passive-state') as HTMLElement,
       passiveTip: root.querySelector('#sw-bb-passive-tip') as HTMLElement,
+      towerPassiveTip: root.querySelector('#sw-bb-towerpassive-tip') as HTMLElement,
       a1Sweep: root.querySelector('#sw-bb-a1-sweep') as HTMLElement,
       a1Charge: root.querySelector('#sw-bb-a1-charge') as HTMLElement,
       a1Cd: root.querySelector('#sw-bb-a1-cd') as HTMLElement,
@@ -247,6 +391,56 @@ export class Hud {
     this.wireControls();
     this.wireBottomBarHover();
     this.wireTowerInfoActions();
+    this.wireRails();
+    this.onboardingEl.querySelector('#sw-onboarding-close')?.addEventListener('click', () => this.dismissOnboarding());
+  }
+
+  /**
+   * fb065: each floating rail's handle toggles its own `.collapsed` class —
+   * independent per rail (collapsing the build rail doesn't touch the info
+   * rail), and both default open so every pre-existing test/interaction that
+   * clicks a tower button or reads `#sw-stats` without first expanding
+   * anything keeps working unchanged.
+   */
+  private wireRails(): void {
+    const leftHandle = this.root.querySelector('#sw-rail-left-handle') as HTMLElement | null;
+    const leftRail = this.root.querySelector('#sw-rail-left') as HTMLElement | null;
+    leftHandle?.addEventListener('click', () => leftRail?.classList.toggle('collapsed'));
+
+    const rightHandle = this.root.querySelector('#sw-rail-right-handle') as HTMLElement | null;
+    rightHandle?.addEventListener('click', () => {
+      // fb076: while an auto-collapse reason (DPS/VS panel open or docked) is
+      // independently forcing the rail shut, this click is a no-op visually —
+      // don't let it flip `railRightUserOpen` to false, or the rail stays
+      // stuck collapsed after the auto-collapse reason later clears.
+      if (this.railAutoCollapsed()) return;
+      this.railRightUserOpen = !this.railRightUserOpen;
+      this.syncRailRightVisibility();
+    });
+  }
+
+  /** fb076: whether something other than the user's own handle toggle is forcing the right rail shut. */
+  private railAutoCollapsed(): boolean {
+    return this.dpsPanelOpen_ || this.vsPanelOpen_ || this.dpsPanelDocked_ || this.vsPanelDocked_;
+  }
+
+  /**
+   * fb065: the right info rail (`#sw-stats`/`#sw-towerinfo`/etc.) and the DPS/
+   * VS panels (`toggleDpsPanel`/`toggleVsPanel`) both dock to `.sw-stage`'s
+   * right edge — collapses the rail whenever either panel is open *or docked*
+   * (code review: the small reopen tab, `.sw-dpsdock`/`.sw-vsdock`, top:8/
+   * top:40 right:0, sits in the same top-right corner as this rail's own
+   * flex-end-aligned handle, so "docked" is not actually clear of it the way
+   * an earlier draft of this comment assumed) so the rail's handle and a
+   * dock's reopen tab never compete for the same click. Called every
+   * `update()` tick, the same "re-derive presentation state from the live
+   * flags every frame" pattern `syncDpsPanelToggle`/`syncVsPanelToggle`
+   * already use just above its call site.
+   */
+  private syncRailRightVisibility(): void {
+    const rail = this.root.querySelector('#sw-rail-right') as HTMLElement | null;
+    if (!rail) return;
+    rail.classList.toggle('collapsed', !this.railRightUserOpen || this.railAutoCollapsed());
   }
 
   /**
@@ -303,6 +497,7 @@ export class Hud {
     controls?.querySelector('[data-act="character"]')?.addEventListener('click', () => this.cb.onToggleCharacterPanel());
     controls?.querySelector('[data-act="dps"]')?.addEventListener('click', () => this.cb.onToggleDpsPanel());
     controls?.querySelector('[data-act="vs"]')?.addEventListener('click', () => this.cb.onToggleVsPanel?.());
+    controls?.querySelector('[data-act="screenshot"]')?.addEventListener('click', () => this.exportScreenshot());
     controls?.querySelector('[data-act="pause"]')?.addEventListener('click', () => this.cb.onPause());
     this.dpsDockEl.addEventListener('click', () => this.cb.onToggleDpsPanel());
     this.vsDockEl.addEventListener('click', () => this.cb.onToggleVsPanel?.());
@@ -316,10 +511,12 @@ export class Hud {
    * omitted only by tests that don't care about the spawn row.
    *
    * b035: the full panel (9 dev buttons + the spawn row) is tall enough that,
-   * stacked above `#sw-towerinfo` in `.sw-side`, it pushed a populated tower
-   * info panel ~230px past the 1080px fold with no way to reach it. Collapsed
-   * by default behind a `sw-sub` toggle — the tools are optional, the tower
-   * info panel below them is not.
+   * stacked above `#sw-towerinfo` in the old single-column `.sw-side` (fb065
+   * split practice/build into their own rail, separate from towerinfo's), it
+   * pushed a populated tower info panel ~230px past the 1080px fold with no
+   * way to reach it. Collapsed by default behind a `sw-sub` toggle — the
+   * tools are optional, the tower info panel that used to sit below them
+   * was not.
    */
   showPracticeTools(on: boolean, w?: World): void {
     this.practiceEl.hidden = !on;
@@ -524,7 +721,7 @@ export class Hud {
     this.lastCharPanelKey = key;
     this.charPanelEl.hidden = false;
     this.charPanelEl.classList.remove('sw-off');
-    this.charPanelEl.innerHTML = characterPanelMarkup(characterPanelData(w), w);
+    this.charPanelEl.innerHTML = characterPanelMarkup(characterPanelData(w), w, this.keyBindings);
     this.charPanelEl.querySelector('[data-act="close"]')?.addEventListener('click', () => this.closeCharacterPanel());
     for (const el of this.charPanelEl.querySelectorAll<HTMLElement>('[data-runeqslot]')) {
       const slot = el.dataset.runeqslot!;
@@ -779,6 +976,29 @@ export class Hud {
     return this.root.querySelector('#sw-canvas') as HTMLCanvasElement;
   }
 
+  /**
+   * fb094: dev-profile-only canvas capture, reachable without leaving the run
+   * (the button is only ever in the markup at all under `devMode`, see the
+   * constructor). Same Blob + `URL.createObjectURL` + anchor-click download
+   * idiom `tuner.ts`'s "Export JSON" button already uses, guarded the same
+   * way against a `URL`-less environment (`typeof URL === 'undefined'`, e.g.
+   * a stripped-down test runner) so a missing browser API is a silent no-op,
+   * not a thrown error.
+   */
+  private exportScreenshot(): void {
+    const canvas = this.canvas;
+    if (typeof canvas.toBlob !== 'function') return;
+    canvas.toBlob((blob) => {
+      if (!blob || typeof URL === 'undefined' || typeof URL.createObjectURL !== 'function') return;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `stonewake-screenshot-${Date.now()}.png`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }, 'image/png');
+  }
+
   buildTowerBar(w: World): void {
     const towers = w.content.towers.towers;
     this.bar.innerHTML = '';
@@ -820,6 +1040,14 @@ export class Hud {
   }
 
   update(w: World, cursor?: { x: number; y: number }, selection: Selection = null): void {
+    // fb084: checked at most once per `Hud` instance — a fresh `Hud` is
+    // constructed every `beginRun`, so this fires once per run, catching a
+    // genuinely fresh run's starting phase without re-triggering across the
+    // TD<->VS cycle machine's later returns to 'act1_build'.
+    if (!this.onboardingBuildChecked) {
+      this.onboardingBuildChecked = true;
+      if (w.phase === 'act1_build') this.triggerOnboarding('build');
+    }
     const d = w.derived;
     const hpPct = Math.max(0, (w.warden.hp / d.maxHp) * 100);
 
@@ -895,7 +1123,11 @@ export class Hud {
     if ((this.vsPanelOpen_ || this.vsPanelDocked_) && (w.outcome !== 'running' || !w.huntsWarden)) this.closeVsPanel();
     else if (this.vsPanelOpen_) this.renderVsPanel(w);
     this.syncVsPanelToggle();
+    this.syncRailRightVisibility();
+    this.syncStageOverlayGeometry();
     this.renderBottomBar(w);
+    this.renderBossBar(w);
+    this.renderOnboarding();
     // A selection describes itself — but never at the cost of the panels the
     // player needs to act: a tower queued on the build bar has to show its own
     // stats, and in Act II the weapon panel carries the only weapon switcher
@@ -908,6 +1140,128 @@ export class Hud {
     const blocking = this.selected > 0 || (w.huntsWarden && selection?.kind !== 'warden');
     if (!blocking && this.renderSelectionInfo(w, selection)) return;
     this.renderTowerInfo(w, cursor);
+  }
+
+  /**
+   * fb082: the floating rails (fb065) and boss banner (fb072) used to anchor
+   * to `.sw-stage`'s own full box via plain CSS (`top/bottom/left/right: 8px`,
+   * `left: 50%`), which drifts away from the actual playfield whenever the
+   * container's aspect ratio isn't the grid's 36:20 — `Renderer.resize()`
+   * (`src/render/canvas.ts`) letterboxes the canvas inside `.sw-stage` rather
+   * than filling it, so the stage's box and the canvas's own laid-out rect can
+   * differ by a wide margin at an extreme aspect ratio. Re-derives that same
+   * letterboxing math (mirrored here rather than read off the canvas element
+   * itself, so this works identically under jsdom's `clientWidth`/
+   * `clientHeight` mocking idiom `tests/render-fb065-stage-fill.test.ts`
+   * already uses — jsdom never runs real layout, so `getBoundingClientRect()`
+   * would read all zeros regardless of what's mocked) and publishes the
+   * canvas's offset from each stage edge as CSS custom properties the
+   * `.sw-rail`/`.sw-bossbar` rules (style.css) key off, falling back to `0px`/
+   * `50%` — i.e. exactly the old stage-relative behavior — whenever the stage
+   * isn't laid out yet (jsdom, or a not-yet-painted first frame).
+   *
+   * Called every `update()` tick, but `update()` itself is only reached on an
+   * active-run frame that isn't paused (`Game.frame()`, `src/ui/main.ts`) — a
+   * window resize while paused would otherwise leave this geometry stale until
+   * the run resumes, so `frame()`'s paused branch also calls this directly
+   * (this method is `public`, not `private`, for exactly that call site).
+   */
+  syncStageOverlayGeometry(): void {
+    const stage = this.stageEl;
+    if (!stage) return;
+    const availW = stage.clientWidth;
+    const availH = stage.clientHeight;
+    if (availW <= 0 || availH <= 0) {
+      stage.style.removeProperty('--cv-left');
+      stage.style.removeProperty('--cv-right');
+      stage.style.removeProperty('--cv-top');
+      stage.style.removeProperty('--cv-bottom');
+      stage.style.removeProperty('--cv-cx');
+      stage.style.removeProperty('--bossbar-maxw');
+      return;
+    }
+    const aspect = GRID_W / GRID_H;
+    const cssW = Math.round(Math.min(availW, availH * aspect));
+    const cssH = cssW / aspect;
+    // qa-playtester (fb082 verification): `Renderer.resize()`'s own `Math.round(cssW)`
+    // (mirrored above) can round cssW up enough that the derived cssH exceeds availH
+    // by a sub-device-pixel amount for specific availH values, which would otherwise
+    // surface here as a tiny negative offset — clamped to 0, since a rail/boss-bar
+    // sitting a fraction of a pixel outside the canvas's own box is never intended.
+    const left = Math.max(0, (availW - cssW) / 2);
+    const right = Math.max(0, availW - cssW - left);
+    const top = Math.max(0, (availH - cssH) / 2);
+    stage.style.setProperty('--cv-left', `${left}px`);
+    stage.style.setProperty('--cv-right', `${right}px`);
+    stage.style.setProperty('--cv-top', `${top}px`);
+    stage.style.setProperty('--cv-bottom', `${Math.max(0, availH - cssH - top)}px`);
+    const cx = left + cssW / 2;
+    stage.style.setProperty('--cv-cx', `${cx}px`);
+    // fb102: `.sw-bossbar` is centered (`left: var(--cv-cx)`) at a fixed
+    // 360px, and each `.sw-rail` at a fixed 300px, with no relationship
+    // between the two — at any stage narrow enough that those fixed boxes
+    // (plus their edge gaps) don't fit side by side, the centered boss bar
+    // overlaps whichever rail is expanded. Computed against each rail's own
+    // worst-case (fully expanded) footprint rather than its live collapsed/
+    // open state, so the boss bar never has to react to a rail toggling.
+    // code-reviewer (fb102): style.css's own breakpoint is a *viewport*-width
+    // media query, not a container query on `.sw-stage`, so this substitutes
+    // `availW` (the stage's width) as a proxy. Safe in the narrow-only
+    // direction that matters here — `.sw-stage` is `flex: 1 1 auto` with no
+    // sibling that could widen it past the viewport, so `availW` can never
+    // exceed the real viewport width the CSS breakpoint keys off, meaning
+    // this can only guess "narrow" (and shrink the boss bar) at least as
+    // readily as the real CSS rule, never less.
+    const railFraction = availW <= RAIL_NARROW_BREAKPOINT_PX ? RAIL_NARROW_MAX_FRACTION : RAIL_WIDE_MAX_FRACTION;
+    const railW = Math.min(RAIL_WIDTH_PX, railFraction * availW);
+    const leftRailRightEdge = left + RAIL_EDGE_GAP_PX + railW;
+    const rightRailLeftEdge = availW - right - RAIL_EDGE_GAP_PX - railW;
+    const maxFromLeft = 2 * (cx - leftRailRightEdge - BOSSBAR_MIN_GAP_PX);
+    const maxFromRight = 2 * (rightRailLeftEdge - BOSSBAR_MIN_GAP_PX - cx);
+    // code-reviewer (fb109): floor clamped against `availW` too, so a stage
+    // narrower than the floor itself (far past any real device/browser
+    // minimum) still keeps the boss bar inside the stage's own box instead
+    // of spilling past its edges — the floor degrades toward "as wide as the
+    // stage allows," never wider.
+    const bossMaxW = Math.max(
+      Math.min(BOSSBAR_MIN_WIDTH_PX, availW),
+      Math.min(BOSSBAR_WIDTH_PX, maxFromLeft, maxFromRight)
+    );
+    stage.style.setProperty('--bossbar-maxw', `${bossMaxW}px`);
+  }
+
+  /**
+   * fb072: a fixed-position banner (name + proportional HP-fraction bar) for
+   * any live `boss`-trait enemy — the per-enemy HP bar under its sprite
+   * (fb025) is illegible at boss HP scales (30k-100k), and G14/G23's
+   * boss-clear gates otherwise have no legible HUD read on fight progress.
+   * If more than one boss is alive at once, shows the lower-current-HP one
+   * (the fight closer to resolving), per acceptance. Hidden behind
+   * `this.modalOpen` (pause/level-up/results/character panel) the same way
+   * `renderBottomBar` hides `#sw-bottombar` — those overlays are
+   * semi-transparent/blurred, not opaque, so without this the name and HP
+   * fraction would still read through underneath (qa-playtester, fb072
+   * verification).
+   */
+  private renderBossBar(w: World): void {
+    let boss: (typeof w.enemies)[number] | null = null;
+    if (w.outcome === 'running' && !this.modalOpen) {
+      for (const e of w.enemies) {
+        if (e.dead || !e.boss) continue;
+        if (!boss || e.hp < boss.hp) boss = e;
+      }
+    }
+    if (!boss) {
+      this.bossBarEl.hidden = true;
+      this.bossBarEl.classList.add('sw-off');
+      return;
+    }
+    this.bossBarEl.hidden = false;
+    this.bossBarEl.classList.remove('sw-off');
+    const def = w.content.enemyById.get(boss.defId);
+    this.bossBarNameEl.textContent = def?.name ?? String(boss.defId);
+    const frac = Math.max(0, Math.min(1, boss.hp / boss.maxHp));
+    this.bossBarFillEl.style.width = `${frac * 100}%`;
   }
 
   /**
@@ -948,14 +1302,15 @@ export class Hud {
     const cls = w.content.classByKey.get(w.cfg.classKey);
     if (cls) {
       this.bb.passiveTip.innerHTML = passiveSkillMarkup(cls);
+      this.bb.towerPassiveTip.innerHTML = towerPassiveSkillMarkup(cls);
       const live: ClassLiveContext = {
         cdr: w.derived.cdr,
         atkFlat: w.derived.atkFlat,
         damageMul: classAttackPowerMul(w, cls),
         active2CdrFactor: active2CdrFactor(w),
       };
-      this.bb.a1Tip.innerHTML = activeSkillMarkup(cls, 'active1', live);
-      this.bb.a2Tip.innerHTML = activeSkillMarkup(cls, 'active2', live);
+      this.bb.a1Tip.innerHTML = activeSkillMarkup(cls, 'active1', live, this.keyBindings);
+      this.bb.a2Tip.innerHTML = activeSkillMarkup(cls, 'active2', live, this.keyBindings);
     }
 
     this.renderSkillIcon(data.active1, this.bb.a1Sweep, this.bb.a1Charge, this.bb.a1Cd, this.bb.a1Icon, 'active1');
@@ -976,7 +1331,7 @@ export class Hud {
     chargeEl.textContent = s.charges ? `${s.charges.current}/${s.charges.max}` : '';
     chargeEl.hidden = !s.charges;
     iconEl.classList.toggle('ready', s.ready);
-    if (s.ready && !this.prevSkillReady[which]) {
+    if (s.ready && !this.prevSkillReady[which] && !this.settings.reducedFlash) {
       iconEl.classList.remove('sw-bb-flash');
       // Forces a reflow so re-adding the class restarts the CSS animation on
       // a rapid re-ready (multi-charge Actives can flash again within a
@@ -998,8 +1353,8 @@ export class Hud {
     const cls = w.content.classByKey.get(w.cfg.classKey);
     if (!cls) return '';
     return (
-      Hud.activeSkillRow(cls.active1.name, 'Q', w.warden.active1Cooldown, cls.active1.name) +
-      Hud.activeSkillRow(cls.active2.name, 'E', w.warden.active2Cooldown, cls.active2.name)
+      Hud.activeSkillRow(cls.active1.name, keyLabel(this.keyBindings.active1), w.warden.active1Cooldown, cls.active1.name) +
+      Hud.activeSkillRow(cls.active2.name, keyLabel(this.keyBindings.active2), w.warden.active2Cooldown, cls.active2.name)
     );
   }
 
@@ -1293,7 +1648,16 @@ export class Hud {
   /** Modal screens: level-up, results. */
   syncModal(w: World): void {
     if (this.paused) return;
-    const key = `${w.phase}:${w.offers.length}:${w.outcome}:${w.level}`;
+    // fb110: classKey/coreKey are folded in so a `Hud` reused across fresh
+    // `World` fixtures without a `resetModalKey()` call (real play always
+    // calls it via `startRun`) can't show a stale Results-screen Class/Core
+    // from the previous world.
+    // fb113: rerollsLeft is folded in too — `rerollOffers` replaces
+    // `w.offers` with a fresh array of the same length and decrements this
+    // field, so it's the one memo-key-visible signal that a reroll actually
+    // happened; without it a reroll was a memo hit and the Level-Up modal
+    // kept showing the pre-reroll offer cards.
+    const key = `${w.phase}:${w.offers.length}:${w.outcome}:${w.level}:${w.cfg.classKey}:${w.coreKey}:${w.rerollsLeft}`;
     if (key === this.lastModalKey) return;
     this.lastModalKey = key;
 
@@ -1376,10 +1740,17 @@ export class Hud {
     this.openModal();
     const won = w.outcome === 'victory';
     const mm = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+    // fb103: falls back to the raw data key for a corrupted-save shape whose
+    // classKey/coreKey no longer resolves against loaded content, rather than
+    // crashing the results screen a player needs to see regardless.
+    const className = w.content.classByKey.get(w.cfg.classKey)?.name ?? w.cfg.classKey;
+    const coreName = w.content.coreByKey.get(w.coreKey)?.name ?? w.coreKey;
     this.modal.innerHTML = `
       <div class="sw-card">
         <h2>${won ? 'The Vale holds' : w.outcome === 'defeat_core' ? 'The Core fell' : 'The Warden fell'}</h2>
         <div class="sw-results">
+          <div><span>Class</span><b>${className}</b></div>
+          <div><span>Core</span><b>${coreName}</b></div>
           <div><span>Waves cleared</span><b>${w.wavesCleared}</b></div>
           <div><span>Survived</span><b>${mm(w.act2Ticks / 60)}</b></div>
           <div><span>Level</span><b>${w.level}</b></div>
@@ -1400,10 +1771,40 @@ export class Hud {
     this.modal.querySelector('[data-act="hub"]')?.addEventListener('click', () => this.cb.onQuitToHub());
   }
 
-  say(text: string): void {
+  /**
+   * fb089: a toast already showing holds its full window rather than being
+   * silently clobbered — a same-or-lower-priority call queues behind it
+   * (FIFO), a strictly-higher-priority call preempts it immediately. Default
+   * priority 0; fb087's storage-full warning uses a higher priority so a
+   * routine `xp_overflow_gold` toast landing in its window can't erase it.
+   * A preempting call discards whatever was showing rather than requeuing
+   * it — deliberate: today's only preemptor is fb087's one-shot warning,
+   * and dropping an in-flight routine gold toast for it is an acceptable
+   * trade, not a bug.
+   */
+  say(text: string, priority = 0): void {
+    if (this.toastTimer !== null && priority <= this.toastPriority) {
+      this.toastQueue.push({ text, priority });
+      return;
+    }
+    this.showToast(text, priority);
+  }
+
+  private showToast(text: string, priority: number): void {
     this.toast.textContent = text;
     this.toast.classList.add('show');
-    window.setTimeout(() => this.toast.classList.remove('show'), 1400);
+    this.toastPriority = priority;
+    if (this.toastTimer !== null) window.clearTimeout(this.toastTimer);
+    this.toastTimer = window.setTimeout(() => {
+      this.toastTimer = null;
+      const next = this.toastQueue.shift();
+      if (next) {
+        this.showToast(next.text, next.priority);
+      } else {
+        this.toast.classList.remove('show');
+        this.toastPriority = -Infinity;
+      }
+    }, 1400);
   }
 
   /**
@@ -1416,7 +1817,76 @@ export class Hud {
   ingestFx(fx: readonly { k: string; a: number }[]): void {
     for (const e of fx) {
       if (e.k === 'xp_overflow_gold') this.say(`+${e.a} gold (EXP overflow)`);
+      // fb084: 'sweep_to_vs'/'sweep_to_td' (sundering.ts) are the sim's own
+      // markers for the Dusk->Night and Dawn transitions the onboarding
+      // checklist names — no separate detection logic needed here.
+      else if (e.k === 'sweep_to_vs') this.triggerOnboarding('dusk');
+      else if (e.k === 'sweep_to_td') this.triggerOnboarding('dawn');
     }
+  }
+
+  /**
+   * fb084: a later prompt arriving while an earlier one is still showing
+   * (realistic — the banner is deliberately non-blocking, so a player who
+   * ignores it and keeps playing can easily reach the Dusk transition before
+   * ever dismissing the Build one) queues rather than drops — qa-playtester
+   * (fb084 verification) found the first draft's "if already showing, just
+   * skip it" swallowed the later prompt *permanently*, since nothing but the
+   * close button ever cleared `onboardingActive` and the "seen" flag was
+   * never set for what got skipped. `dismissOnboarding` pops the queue.
+   */
+  private triggerOnboarding(key: OnboardingKey): void {
+    if (this.onboardingSeen(key)) return;
+    if (!this.onboardingActive) {
+      this.onboardingActive = { key, text: onboardingText(key, this.keyBindings) };
+    } else if (this.onboardingActive.key !== key && !this.onboardingQueue.includes(key)) {
+      this.onboardingQueue.push(key);
+    }
+  }
+
+  private onboardingSeen(key: OnboardingKey): boolean {
+    if (key === 'build') return this.settings.onboardingSeenBuild;
+    if (key === 'dusk') return this.settings.onboardingSeenDusk;
+    return this.settings.onboardingSeenDawn;
+  }
+
+  /**
+   * fb084: the close button — marks the active prompt seen (persisted via
+   * `onOnboardingSeen`) so it never shows again, then immediately shows the
+   * next queued prompt (if any) rather than waiting for that prompt's own
+   * transition to recur.
+   */
+  private dismissOnboarding(): void {
+    if (!this.onboardingActive) return;
+    const key = this.onboardingActive.key;
+    const field =
+      key === 'build' ? 'onboardingSeenBuild' : key === 'dusk' ? 'onboardingSeenDusk' : 'onboardingSeenDawn';
+    // Spread rather than mutate in place: `main.ts` may have moved on to a
+    // different `Settings` object since construction (it does this for every
+    // other setting), and mutating the stale one here would be silently lost.
+    this.settings = { ...this.settings, [field]: true };
+    const next = this.onboardingQueue.shift();
+    this.onboardingActive = next ? { key: next, text: onboardingText(next, this.keyBindings) } : null;
+    this.renderOnboarding();
+    this.cb.onOnboardingSeen?.(key);
+  }
+
+  /**
+   * fb084: non-blocking — unlike `openModal`'s full-stage overlays, this
+   * never covers the canvas or bottom bar, so gameplay stays visible and
+   * clickable while it shows. Still hidden behind an actual modal (pause/
+   * level-up/results/character panel) the same way `renderBossBar` is, so it
+   * doesn't bleed through their semi-transparent cover.
+   */
+  private renderOnboarding(): void {
+    if (!this.onboardingActive || this.modalOpen) {
+      this.onboardingEl.hidden = true;
+      this.onboardingEl.classList.add('sw-off');
+      return;
+    }
+    this.onboardingEl.hidden = false;
+    this.onboardingEl.classList.remove('sw-off');
+    this.onboardingTextEl.textContent = this.onboardingActive.text;
   }
 
   resetModalKey(): void {
@@ -1552,7 +2022,7 @@ function formatSourceValue(display: StatDisplay, value: number): string {
  * same as the Hub's pre-run Class screen (`hub.ts`) which calls the same
  * `classAbilitiesMarkup` with no live context at all.
  */
-function characterAbilitiesMarkup(w: World): string {
+function characterAbilitiesMarkup(w: World, keyBindings: KeyBindings): string {
   const cls = w.content.classByKey.get(w.cfg.classKey);
   if (!cls) return '';
   const live: ClassLiveContext = {
@@ -1563,7 +2033,7 @@ function characterAbilitiesMarkup(w: World): string {
     damageMul: classAttackPowerMul(w, cls),
     active2CdrFactor: active2CdrFactor(w),
   };
-  return classAbilitiesMarkup(cls, { live });
+  return classAbilitiesMarkup(cls, { live, keyBindings });
 }
 
 /**
@@ -1636,7 +2106,11 @@ function equipmentSectionMarkup(w: World): string {
  * sections above too, via fb015's `equipment:<key>` source — the section here
  * is only the equip/swap control surface, not a second source of numbers.
  */
-export function characterPanelMarkup(data: CharacterPanelData, w?: World): string {
+export function characterPanelMarkup(
+  data: CharacterPanelData,
+  w?: World,
+  keyBindings: KeyBindings = defaultKeyBindings(),
+): string {
   const boonRows =
     data.boons.length === 0
       ? '<p class="sw-note">No boons taken yet.</p>'
@@ -1663,7 +2137,7 @@ export function characterPanelMarkup(data: CharacterPanelData, w?: World): strin
     })
     .join('');
 
-  const abilities = w ? characterAbilitiesMarkup(w) : '';
+  const abilities = w ? characterAbilitiesMarkup(w, keyBindings) : '';
 
   return `
     <div class="sw-card sw-charcard wide">
@@ -1881,7 +2355,11 @@ export function enemyInfoMarkup(w: World, e: Enemy): string {
   const rows: string[] = [
     row('Health', `${Math.ceil(e.hp)} / ${Math.round(e.maxHp)} (${pct}%)`),
     row('Speed', `${round1(effectiveSpeed(w, e))} tiles/s`),
-    row('Core damage', String(def?.coreDamage ?? 0)),
+    // p12b: the tier-scaled number, not the authored one — same convention as
+    // the bounty row below. At T3 the two differ by the ladder's coreDamage
+    // rung, and a panel showing the sheet value would understate what this
+    // enemy actually takes off the Core.
+    row('Core damage', String(def ? round1(enemyCoreDamage(w, def)) : 0)),
     // The real payout, not the authored number: `killEnemy` scales bounty by
     // gold find and adds gold-per-kill — and in Act II pays gems instead.
     w.huntsWarden

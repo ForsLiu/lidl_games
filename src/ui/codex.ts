@@ -115,13 +115,45 @@ export function mountCodex(
     heading.textContent = collection.label;
     content.appendChild(heading);
 
+    const total = collection.rows.length;
     const count = document.createElement('p');
     count.className = 'sw-codex-count';
-    count.textContent = `${collection.rows.length} ${collection.rows.length === 1 ? 'entry' : 'entries'}`;
+    count.textContent = `${total} ${total === 1 ? 'entry' : 'entries'}`;
     content.appendChild(count);
+
+    // fb105: a fresh input per show() call — switching collections rebuilds
+    // `content` from scratch, so the filter clears for free with no extra
+    // state to reset.
+    const search = document.createElement('input');
+    search.type = 'search';
+    search.className = 'sw-codex-search';
+    search.placeholder = 'Search…';
+    search.setAttribute('aria-label', `Search ${collection.label}`);
+    content.appendChild(search);
 
     const table = renderCodexTable(collection.rows);
     content.appendChild(table);
+
+    const noMatches = document.createElement('p');
+    noMatches.className = 'sw-codex-no-matches sw-note dim';
+    noMatches.textContent = 'No entries match your search.';
+    noMatches.hidden = true;
+    content.appendChild(noMatches);
+
+    search.addEventListener('input', () => {
+      const query = search.value.trim().toLowerCase();
+      const rows = table.tBodies[0]?.rows;
+      if (!rows) return;
+      let visible = 0;
+      for (const tr of rows) {
+        const matches = query === '' || (tr.textContent ?? '').toLowerCase().includes(query);
+        tr.classList.toggle('sw-codex-row-hidden', !matches);
+        if (matches) visible++;
+      }
+      count.textContent =
+        query === '' ? `${total} ${total === 1 ? 'entry' : 'entries'}` : `${visible} of ${total} entries`;
+      noMatches.hidden = !(query !== '' && visible === 0);
+    });
 
     // fb028: a collection that opted into `renderDetail` gets its rows made
     // clickable, showing that row's full live-formatted effect text below

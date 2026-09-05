@@ -25,7 +25,7 @@
  * the set it picks from, which is where the no-drift rule above wanted it
  * anyway.
  */
-import { CORE_H, CORE_W } from '../grid';
+import { CORE_H, CORE_W, GATES, type GateDef } from '../grid';
 import { gateComponent, gateDistance } from './analyze';
 import { TerrainKind, type TerrainConfig } from './config';
 import type { TerrainGrid } from './types';
@@ -72,6 +72,7 @@ export function validateCorePlacement(
   tx: number,
   ty: number,
   reach?: Uint8Array,
+  gates: readonly GateDef[] = GATES,
 ): CorePlacementResult {
   // A mask of the wrong size is a caller bug, and a silent one: every index of
   // the footprint reads `undefined`, which is falsy, so a short mask answers
@@ -99,12 +100,12 @@ export function validateCorePlacement(
   }
   for (let dy = 0; dy < CORE_H; dy++) {
     for (let dx = 0; dx < CORE_W; dx++) {
-      if (gateDistance(tx + dx, ty + dy) <= cfg.coreGateClearance) {
+      if (gateDistance(tx + dx, ty + dy, gates) <= cfg.coreGateClearance) {
         return { ok: false, reason: 'near-gate' };
       }
     }
   }
-  const mask = reach ?? gateComponent(map, cfg);
+  const mask = reach ?? gateComponent(map, cfg, undefined, gates);
   for (let dy = 0; dy < CORE_H; dy++) {
     for (let dx = 0; dx < CORE_W; dx++) {
       if (!mask[(ty + dy) * map.w + (tx + dx)]) return { ok: false, reason: 'unreachable' };

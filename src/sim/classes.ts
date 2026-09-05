@@ -34,7 +34,7 @@
  */
 import { applyAoE, applyEffects, lineHit } from './combat';
 import type { ClassDef, ClassEffect, TowerDef } from './content';
-import { applyHealingToWarden } from './cores';
+import { applyHealingToWarden, coreMoveSpeedMul } from './cores';
 import { applyDamageType } from './damagetypes';
 import {
   applyAtkSlow,
@@ -51,15 +51,37 @@ import { hasEquipment } from './equipment';
 import { GRID_H, GRID_W } from './grid';
 import { clamp, dist2, lerp, normalize } from './math';
 import { active1PotencyMul, active2CdrBonus, classLineBonus } from './progression';
-import { BASE } from './stats';
 import { buildTower, effectiveTowerAoe, LINE_HALF_WIDTH, towerCost } from './towers';
 import { maxLevel, upgradeStatMul } from './upgrades';
+import { BASE } from './stats';
 import { tickCooldown, type ClassSummon, type Enemy, type Phase, type Structure, type TickInput } from './types';
-import { resolveDashTarget, startDashTravel } from './wardenmove';
+import { classDashDuration, dashDistance, resolveDashTarget, startDashTravel } from './wardenmove';
 import { World } from './world';
 
 /** Usable both TD and VS, per SPEC-FINAL §4 — but not in menu/transition phases. */
 const ACTIVE_PHASES: ReadonlySet<Phase> = new Set(['act1_build', 'act1_wave', 'act2']);
+
+/**
+ * fb053: the Warden's current movement speed — the same composition
+ * `run.ts`'s own base-dash/ordinary-move code uses — fed into
+ * `wardenmove.ts`'s `dashDistance` so every class-active dash scales with a
+ * move-speed buff/boon exactly like the base dash does.
+ */
+function currentMoveSpeed(w: World): number {
+  return w.derived.moveSpeed * coreMoveSpeedMul(w) * classMoveSpeedMul(w);
+}
+
+/**
+ * fb053: the calibration input for `classDashDuration` — the owning class's
+ * own baseline move speed (its permanent `moveSpeedBonus` applied, no
+ * gear/boons/temporary multipliers), not the global `BASE.moveSpeed`. Every
+ * class that ships a dash active has a nonzero `moveSpeedBonus`, so
+ * calibrating against the unmodified base would overshoot each one's
+ * originally-tuned `dashRange` at baseline (code review, fb053).
+ */
+function classBaseMoveSpeed(cls: ClassDef): number {
+  return BASE.moveSpeed * (1 + cls.moveSpeedBonus);
+}
 
 /**
  * The fields the one shared `kind` (`burst_damage`) reads — deliberately
@@ -148,6 +170,55 @@ export function characterDamage(w: World, cls: ClassDef, base: number): number {
 }
 
 /**
+ * c001 (SPEC-FINAL §2, Area row: "Effect radius from center; **applies to
+ * every attack, active, and effect**"): the class-side counterpart of
+ * `effectiveTowerAoe` (towers.ts) and the `radius * w.derived.areaMul` lines
+ * in `damagetypes.ts`/`enemies.ts`/`vswield.ts`. This file previously never
+ * read `areaMul` at all, so every kit radius landed exactly as authored and
+ * Normal Bracelet's +10%, the Animist's own Wide Grove and every `area`
+ * tree/boon source were dead for all 24 Actives.
+ *
+ * What counts as an "effect radius from center", and so goes through here:
+ * a nova/cloud/zone/aura radius, a line attack's *perpendicular half-width*,
+ * and a basic attack's splash. What deliberately does not:
+ *   - **travel distances** — a dash's own length is movement, not a
+ *     footprint (and Swordsman Shoes already scales exactly that, separately);
+ *   - **line lengths** — Deadeye Draw's reach is Range, §2's own other stat,
+ *     which `charRange` scales;
+ *   - **target-search / cast-reach radii** — Chain Surge's jump distance,
+ *     Field Kit's/Blood Tithe's "nearest structure" search, Raise Skeletons'
+ *     corpse sweep. Widening a search is not widening an effect, and §2 gives
+ *     Range its own stat for it;
+ *
+ * A summon's own attack `aoe` *is* scaled, but at spawn only — frozen into
+ * the `ClassSummon` beside its dps/range, so a later Area change does not
+ * resize a spirit already standing. Code review on c001 found the first draft
+ * of this comment claiming the opposite and the code split two ways: the two
+ * tower-cloned summons (Pop Turret, Manifest Spirit) already inherited Area
+ * through `towerSummonProfile`'s `effectiveTowerAoe`, while the one
+ * character-cloned summon (the Necromancer's skeleton, which copies
+ * `cls.basicAttack.aoe`) did not — an asymmetry masked only by that class
+ * authoring `aoe: 0`. The skeleton now goes through `classArea` too, so all
+ * three agree and the rule is one sentence instead of three cases.
+ *
+ * The one place Area does buy *reach*: `fireDashSlash`'s
+ * `hitRange = dashRange + mergedRadius`. G9 reads a mid-charge merge as the
+ * nova's would-be radius widening the dash's hit line, so the scaled nova
+ * radius legitimately extends it — the dash's own travel distance stays
+ * unscaled. Pinned by `tests/class-area-stat.test.ts` rather than left to
+ * whoever reads this next.
+ *
+ * Every call site scales the *emitted* radius too, not just the one it
+ * damages with, so the renderer's cast flash matches what actually landed.
+ * Three renderer/UI paths still read the authored `/data` radius directly and
+ * so now preview a stale footprint — all in `src/render`/`src/ui`, outside
+ * this lane's Scope, and logged in BACKLOG-CONTENT.md for the UI lane.
+ */
+function classArea(w: World, radius: number): number {
+  return radius * w.derived.areaMul;
+}
+
+/**
  * p7a (§6.3) skill card "Active2 cooldown -25%/rank": stacks with the
  * general `cdr` stat as one combined subtractive fraction, floored the same
  * way `cdr` alone already implicitly is (a `cooldownSeconds * (1 - x)` factor
@@ -202,7 +273,8 @@ function fireEffect(
   potencyMul = 1,
   extraBurnDuration = 0,
 ): void {
-  const list = w.enemiesInRadius(x, y, eff.radius);
+  const radius = classArea(w, eff.radius);
+  const list = w.enemiesInRadius(x, y, radius);
   for (const e of list) {
     if (e.dead) continue;
     damageEnemy(w, e, eff.damage * w.derived.powerMul * potencyMul, 'class_active', { fromX: x, fromY: y });
@@ -216,7 +288,7 @@ function fireEffect(
       onHit,
     });
   }
-  w.emit('class_active', x, y, eff.radius, 0);
+  w.emit('class_active', x, y, radius, 0);
 }
 
 /**
@@ -278,7 +350,8 @@ export function circleSlashValues(
 function fireCircleSlash(w: World, cls: ClassDef, chargeSeconds: number, atkSpdDamageBoost = false): void {
   const wd = w.warden;
   const eff = cls.active1;
-  const { radius, damage, knockback } = circleSlashValues(eff, chargeSeconds);
+  const { radius: authoredRadius, damage, knockback } = circleSlashValues(eff, chargeSeconds);
+  const radius = classArea(w, authoredRadius);
   const onHit = passiveOnHit(w, cls);
   const hitList = knockback > 0 ? w.enemiesInRadius(wd.x, wd.y, radius).slice() : null;
   const boost = atkSpdDamageBoost ? w.derived.attackSpeedMul : 1;
@@ -349,7 +422,7 @@ function fireDashSlash(w: World, cls: ClassDef, aimX: number | undefined, aimY: 
   let mergedDamage = 0;
   if (cls.active1.kind === 'charge_nova' && wd.active1Charging) {
     const v = circleSlashValues(cls.active1, wd.active1Charge);
-    mergedRadius = v.radius;
+    mergedRadius = classArea(w, v.radius);
     // p7a (§6.3): the merged charge is still Circle Slash's own damage, so
     // it earns "Active1 potency" exactly like a normal release does
     // (`fireCircleSlash`) — code review found this path skipping it.
@@ -370,15 +443,21 @@ function fireDashSlash(w: World, cls: ClassDef, aimX: number | undefined, aimY: 
   // only ever reached for `dash_line` (the switch in `useClassActive2`), which
   // no class but Swordsman's authors, so no separate class check is needed —
   // the item is inert on every other kit for the structural reason it names
-  // ("if not Swordsman") rather than a hardcoded one.
-  const dashRange = (eff.dashRange ?? 0) * (hasEquipment(w, 'swordsman_shoes') ? 2 : 1);
+  // ("if not Swordsman") rather than a hardcoded one. fb053: the distance
+  // itself now scales with the Warden's current move speed — Swordsman
+  // Shoes doubles the resolved distance rather than the calibration input,
+  // same as it doubled the old fixed `dashRange` value.
+  const duration = classDashDuration(eff.dashRange ?? 0, classBaseMoveSpeed(cls));
+  const dashRange = dashDistance(currentMoveSpeed(w), duration) * (hasEquipment(w, 'swordsman_shoes') ? 2 : 1);
   const hitRange = dashRange + mergedRadius;
   const damage = characterDamage(w, cls, eff.damage + mergedDamage);
-  lineHit(w, wd.x, wd.y, dir.x, dir.y, hitRange, eff.dashWidth ?? 0, damage, 'class_active2', 9999, { onHit });
+  lineHit(w, wd.x, wd.y, dir.x, dir.y, hitRange, classArea(w, eff.dashWidth ?? 0), damage, 'class_active2', 9999, {
+    onHit,
+  });
 
   const before = { x: wd.x, y: wd.y };
   const target = resolveDashTarget(w, dir.x * dashRange, dir.y * dashRange);
-  startDashTravel(w, target, BASE.dashDuration);
+  startDashTravel(w, target, duration);
   w.emit('class_active2', before.x, before.y, target.x, target.y);
 }
 
@@ -393,11 +472,12 @@ function fireDashSlash(w: World, cls: ClassDef, aimX: number | undefined, aimY: 
 function firePoisonBarrel(w: World, cls: ClassDef): void {
   const wd = w.warden;
   const eff = cls.active1;
+  const radius = classArea(w, eff.radius);
   w.areas.push({
     id: w.newId(),
     x: wd.x,
     y: wd.y,
-    radius: eff.radius,
+    radius,
     dps: characterDamage(w, cls, eff.damage) * active1PotencyMul(w),
     remaining: eff.groundDurationSeconds ?? 5,
     type: 'poison',
@@ -405,7 +485,7 @@ function firePoisonBarrel(w: World, cls: ClassDef): void {
     acc: 0,
     dead: false,
   });
-  w.emit('class_active', wd.x, wd.y, eff.radius, 0);
+  w.emit('class_active', wd.x, wd.y, radius, 0);
 }
 
 /**
@@ -520,7 +600,12 @@ function spawnClassSummon(
  * this function never clamping `damage`: what is bounded is how long the shot
  * can be *held* (`chargeCapSeconds`), which is what makes gate G10's
  * dps-optimal charge finite in the first place. `pierceCap` is a perf rail on
- * how many bodies one `lineHit` may sweep, not a damage ceiling.
+ * how many bodies one `lineHit` may sweep, not a damage ceiling — and since
+ * c017 it rails the *charge-derived* count only: the §6.3 card adds on top, so
+ * the true ceiling on bodies swept is `pierceCap + perRank * maxRank`, 10 on
+ * shipped `/data` rather than 6. (`content.ts`'s `pierceCap` schema comment
+ * still says 6's worth and is owed the same correction — out of the content
+ * lane's Scope, logged in BACKLOG-CONTENT.md.)
  */
 function fireDeadeyeDraw(
   w: World,
@@ -535,11 +620,23 @@ function fireDeadeyeDraw(
   const damage =
     characterDamage(w, cls, eff.damage * Math.pow(1 + (eff.compoundPerSecond ?? 0), held)) * active1PotencyMul(w);
   // p7a (§6.3) Archer skill card "Deeper Draw": pierce cap +2/rank.
-  const hits = Math.min((eff.pierceCap ?? 1) + classLineBonus(w), 1 + Math.floor(held));
+  //
+  // c017: the card's bonus is added to the *resolved* count rather than folded
+  // into the `pierceCap` side of the `min`. Written the other way it was inert
+  // on shipped `/data` — `pierceCap 6` sits at exactly `1 + chargeCapSeconds`,
+  // so *Long Draw*'s charge-derived term was the binding one at every hold
+  // length and rank 0, 1 and 2 all pierced six. `min(a, c) + b` is identically
+  // `min(a + b, c + b)`, so the card still reads as "pierce cap +2" — it raises
+  // the cap *and* the charge-derived term, which is the only way to raise a cap
+  // that something else already holds you below. §2 authorises the additive
+  // shape outright ("base-less stats (armor points, +1 pierce, charges) add"),
+  // it moves nothing at rank 0, and `pierceCap` stays a real rail rather than
+  // being deleted.
+  const hits = Math.min(eff.pierceCap ?? 1, 1 + Math.floor(held)) + classLineBonus(w);
   const dir = aimDirection(w, aimX, aimY);
   // `radius` is this kind's shot length — the same field-reuse precedent
   // `dash_line`'s own unused `radius: 0` set (Q118's Nit).
-  lineHit(w, wd.x, wd.y, dir.x, dir.y, eff.radius, LINE_HALF_WIDTH, damage, 'class_active', hits, {
+  lineHit(w, wd.x, wd.y, dir.x, dir.y, eff.radius, classArea(w, LINE_HALF_WIDTH), damage, 'class_active', hits, {
     onHit: passiveOnHit(w, cls),
   });
   w.emit('class_active', wd.x, wd.y, wd.x + dir.x * eff.radius, wd.y + dir.y * eff.radius);
@@ -556,8 +653,12 @@ function fireQuickstep(w: World, cls: ClassDef, aimX: number | undefined, aimY: 
   const eff = cls.active2;
   const dir = aimDirection(w, aimX, aimY);
   const from = { x: wd.x, y: wd.y };
-  const target = resolveDashTarget(w, dir.x * (eff.dashRange ?? 0), dir.y * (eff.dashRange ?? 0));
-  startDashTravel(w, target, BASE.dashDuration);
+  // fb053: same speed-scaling formula as the base dash, calibrated so this
+  // dash's reach at base move speed matches its originally-tuned `dashRange`.
+  const duration = classDashDuration(eff.dashRange ?? 0, classBaseMoveSpeed(cls));
+  const dist = dashDistance(currentMoveSpeed(w), duration);
+  const target = resolveDashTarget(w, dir.x * dist, dir.y * dist);
+  startDashTravel(w, target, duration);
 
   const onHit = passiveOnHit(w, cls);
   const shots = Math.max(0, Math.round(eff.volleyShots ?? 0));
@@ -622,8 +723,12 @@ function fireFlameRoad(w: World, cls: ClassDef, aimX: number | undefined, aimY: 
   const eff = cls.active2;
   const dir = aimDirection(w, aimX, aimY);
   const from = { x: wd.x, y: wd.y };
-  const target = resolveDashTarget(w, dir.x * (eff.dashRange ?? 0), dir.y * (eff.dashRange ?? 0));
-  startDashTravel(w, target, BASE.dashDuration);
+  // fb053: same speed-scaling formula as the base dash, calibrated so this
+  // dash's reach at base move speed matches its originally-tuned `dashRange`.
+  const duration = classDashDuration(eff.dashRange ?? 0, classBaseMoveSpeed(cls));
+  const dist = dashDistance(currentMoveSpeed(w), duration);
+  const target = resolveDashTarget(w, dir.x * dist, dir.y * dist);
+  startDashTravel(w, target, duration);
 
   const segments = Math.max(1, Math.round(eff.trailSegments ?? 1));
   const dps = characterDamage(w, cls, eff.damage);
@@ -633,7 +738,7 @@ function fireFlameRoad(w: World, cls: ClassDef, aimX: number | undefined, aimY: 
       id: w.newId(),
       x: lerp(from.x, target.x, t),
       y: lerp(from.y, target.y, t),
-      radius: eff.dashWidth ?? 1,
+      radius: classArea(w, eff.dashWidth ?? 1),
       dps,
       remaining: eff.groundDurationSeconds ?? 3,
       type: 'burn',
@@ -650,7 +755,8 @@ function fireFrostNova(w: World, cls: ClassDef): void {
   const wd = w.warden;
   const eff = cls.active1;
   const damage = characterDamage(w, cls, eff.damage) * active1PotencyMul(w);
-  for (const e of w.enemiesInRadius(wd.x, wd.y, eff.radius).slice()) {
+  const radius = classArea(w, eff.radius);
+  for (const e of w.enemiesInRadius(wd.x, wd.y, radius).slice()) {
     if (e.dead) continue;
     // Read before the hit: the shatter this nova can trigger keys off `frozen`,
     // and freezing first would make Glaciate shatter its own targets.
@@ -660,7 +766,7 @@ function fireFrostNova(w: World, cls: ClassDef): void {
     if (alreadyFrosted) applyFrozen(w, e);
     else applyFrost(w, e);
   }
-  w.emit('class_active', wd.x, wd.y, eff.radius, 0);
+  w.emit('class_active', wd.x, wd.y, radius, 0);
 }
 
 /**
@@ -812,7 +918,11 @@ function fireRaiseSkeletons(w: World, cls: ClassDef): void {
       a.dps * share,
       a.range,
       a.interval,
-      a.aoe,
+      // c001: the other two summon kinds inherit Area at spawn through
+      // `towerSummonProfile`'s `effectiveTowerAoe`; this one clones the
+      // character's own basic attack, whose splash `classBasicAttack` scales,
+      // so it scales here for the same reason and at the same moment.
+      classArea(w, a.aoe),
       eff.summonDurationSeconds ?? 0,
     );
   }
@@ -850,13 +960,25 @@ function fireCrimsonRush(w: World, cls: ClassDef, aimX: number | undefined, aimY
   const eff = cls.active2;
   const dir = aimDirection(w, aimX, aimY);
   const from = { x: wd.x, y: wd.y };
-  const range = eff.dashRange ?? 0;
-  const half = eff.dashWidth ?? 0;
+  // fb053: same speed-scaling formula as the base dash, calibrated so this
+  // dash's reach at base move speed matches its originally-tuned `dashRange`.
+  // c001: the half-width is Area-scaled (§2); the travel distance is not.
+  const duration = classDashDuration(eff.dashRange ?? 0, classBaseMoveSpeed(cls));
+  const range = dashDistance(currentMoveSpeed(w), duration);
+  const half = classArea(w, eff.dashWidth ?? 0);
 
   // Same line test `lineHit` uses, run for its count rather than its damage:
   // Crimson Rush deals none.
+  //
+  // c001/QA: the broadphase radius must cover the *whole* rectangle the exact
+  // test below accepts, or a widened half-width silently saturates into a
+  // lens and the outermost enemies stop counting. `half` used to be a
+  // constant, so the bare `+ 2` fudge was always enough; now that Area scales
+  // it, the margin has to include it. (`lineHit`'s own copy of this
+  // broadphase, `combat.ts`, has the same gap and is outside this lane's
+  // Scope — logged in BACKLOG-CONTENT.md.)
   let passed = 0;
-  for (const e of w.enemiesInRadius(from.x + dir.x * range * 0.5, from.y + dir.y * range * 0.5, range * 0.5 + 2)) {
+  for (const e of w.enemiesInRadius(from.x + dir.x * range * 0.5, from.y + dir.y * range * 0.5, range * 0.5 + half + 2)) {
     if (e.dead) continue;
     const rx = e.x - from.x;
     const ry = e.y - from.y;
@@ -866,7 +988,7 @@ function fireCrimsonRush(w: World, cls: ClassDef, aimX: number | undefined, aimY
     passed++;
   }
   const target = resolveDashTarget(w, dir.x * range, dir.y * range);
-  startDashTravel(w, target, BASE.dashDuration);
+  startDashTravel(w, target, duration);
   const heal = passed * (eff.healPerEnemy ?? 0);
   if (heal > 0) applyHealingToWarden(w, heal);
   w.emit('class_active2', from.x, from.y, target.x, target.y);
@@ -918,6 +1040,9 @@ function fireManifestSpirit(w: World, cls: ClassDef): void {
 function fireRecallTotem(w: World, cls: ClassDef): void {
   const wd = w.warden;
   const eff = cls.active2;
+  // c001: frozen at cast time beside the totem's other numbers, so a later
+  // Area change does not resize a totem already standing.
+  const auraRadius = classArea(w, eff.radius);
   // One totem at a time: a second cast replaces the first rather than stacking
   // two auras on the same spot.
   w.classSummons = w.classSummons.filter((s) => s.kind !== 'animist_totem');
@@ -933,11 +1058,11 @@ function fireRecallTotem(w: World, cls: ClassDef): void {
     remaining: eff.totemDurationSeconds ?? 0,
     isAura: true,
     auraAtkSpdMul: eff.auraAtkSpdMul ?? 0,
-    auraRadius: eff.radius,
+    auraRadius,
     auraTauntTickSeconds: eff.totemTauntTickSeconds ?? TOTEM_TAUNT_SECONDS_DEFAULT,
     kind: 'animist_totem',
   });
-  w.emit('class_active2', wd.x, wd.y, eff.radius, 0);
+  w.emit('class_active2', wd.x, wd.y, auraRadius, 0);
 }
 
 /**
@@ -953,7 +1078,7 @@ function fireRecallTotem(w: World, cls: ClassDef): void {
  */
 function fireClarionTaunt(w: World, cls: ClassDef): void {
   const wd = w.warden;
-  const radius = cls.active1.radius;
+  const radius = classArea(w, cls.active1.radius);
   // p7a (§6.3): Clarion Taunt deals no damage, so "Active1 potency +25%"
   // reads as a longer taunt/Wrath-banking window instead.
   const duration = (cls.active1.tauntDurationSeconds ?? 0) * active1PotencyMul(w);
@@ -977,13 +1102,14 @@ function fireJudgement(w: World, cls: ClassDef): void {
   // would still deal that flat's worth of damage, turning "nothing banked,
   // nothing dealt" into a free AoE nova on cooldown alone.
   // p7a (§6.3) skill card "Righteous Fury": Wrath multiplier +30%/rank.
+  const radius = classArea(w, eff.radius);
   const rawWrath = wd.wrathStored * ((eff.wrathDamageMul ?? 0) + classLineBonus(w));
   wd.wrathStored = 0;
   if (rawWrath > 0) {
     const damage = characterDamage(w, cls, rawWrath);
-    applyAoE(w, wd.x, wd.y, eff.radius, damage, 'class_active2', { onHit: passiveOnHit(w, cls) }, {});
+    applyAoE(w, wd.x, wd.y, radius, damage, 'class_active2', { onHit: passiveOnHit(w, cls) }, {});
   }
-  w.emit('class_active2', wd.x, wd.y, eff.radius, 0);
+  w.emit('class_active2', wd.x, wd.y, radius, 0);
 }
 
 /* -------------------------------------------------------------- fb013: Time Lord */
@@ -1124,13 +1250,14 @@ function advanceTimeMark(w: World, cls: ClassDef, e: Enemy): void {
 function fireTimeMark(w: World, cls: ClassDef): void {
   const wd = w.warden;
   const eff = cls.active1;
+  const radius = classArea(w, eff.radius);
   let hit = false;
-  for (const e of w.enemiesInRadius(wd.x, wd.y, eff.radius)) {
+  for (const e of w.enemiesInRadius(wd.x, wd.y, radius)) {
     if (e.dead) continue;
     advanceTimeMark(w, cls, e);
     hit = true;
   }
-  if (hit) w.emit('class_active', wd.x, wd.y, eff.radius, 0);
+  if (hit) w.emit('class_active', wd.x, wd.y, radius, 0);
 }
 
 /** Frees every enemy a since-expired/replaced Time Lock zone was still holding. */
@@ -1169,13 +1296,15 @@ function fireTimeLock(w: World, cls: ClassDef, aimX: number | undefined, aimY: n
     id: w.newId(),
     x: cx,
     y: cy,
-    radius: eff.radius,
+    // The zone's radius is frozen here, at cast time, exactly like its dps and
+    // duration — a later Area change does not resize a standing zone.
+    radius: classArea(w, eff.radius),
     // p7a (§6.3) skill card "Lingering Stasis": zone duration +2s/rank.
     remaining: (eff.groundDurationSeconds ?? 5) + classLineBonus(w),
     dotSeconds: eff.zoneDotSeconds ?? 10,
     dps: characterDamage(w, cls, eff.damage),
   };
-  w.emit('class_active2', cx, cy, eff.radius, 0);
+  w.emit('class_active2', cx, cy, w.timeLockZone.radius, 0);
 }
 
 /**
@@ -1284,7 +1413,7 @@ function updateContagiousFlame(w: World, cls: ClassDef, dt: number): void {
   // enemies is real combat, not a cosmetic tick.
   if (w.dying) return;
   const dps = cls.passive.flameDps ?? 0;
-  const radius = cls.passive.flameRadius ?? 0;
+  const radius = classArea(w, cls.passive.flameRadius ?? 0);
   if (dps <= 0 || radius <= 0) return;
   const tick = dps * dt;
   // Length captured up front: a death here can split an enemy into children
@@ -1748,7 +1877,7 @@ export function classBasicAttack(w: World, cls: ClassDef): void {
     // aoeFalloffFloor, data/towers.json) so a future kit's basic-attack aoe (p6b+)
     // doesn't silently skip the cap/falloff discipline every other splash source
     // already follows (code review on p6a).
-    applyAoE(w, target.x, target.y, a.aoe, dmg, 'class_basic', { onHit }, {
+    applyAoE(w, target.x, target.y, classArea(w, a.aoe), dmg, 'class_basic', { onHit }, {
       primary: target,
       damage: { fromX: wd.x, fromY: wd.y },
     });

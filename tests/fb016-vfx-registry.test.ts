@@ -30,7 +30,14 @@ import { updateCarnivorousPlant, updateCorpse, upgradeCore } from '../src/sim/co
 import { spawnEnemy } from '../src/sim/enemies';
 import { buildTower, updateTowers } from '../src/sim/towers';
 import { classArmorBonus, updateClassPassives } from '../src/sim/classes';
-import { cfg } from './helpers';
+import { cfg as cfgWithTerrain } from './helpers';
+
+// fb077: this file's VFX assertions build/warp onto fixed tile coordinates
+// (Core-adjacent build tiles, hand-placed structures) with nothing to do with
+// terrain, so every `cfg()` call here keeps the pre-fb077 flat board.
+function cfg(over: Parameters<typeof cfgWithTerrain>[0] = {}): ReturnType<typeof cfgWithTerrain> {
+  return cfgWithTerrain({ practice: true, ...over });
+}
 
 const DT = 1 / 60;
 

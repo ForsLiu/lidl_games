@@ -877,6 +877,26 @@ improvement.
     it is a diagnostic contract, and a Tuner-editable field list would make
     every dump written before the edit unreadable. Exported for the drift
     tests only.
+- (2026-09-04, lane merge) Merged into master. Conflicts: `analyze.ts`,
+  `generate.ts` (main's fb077 `gates` threading vs the lane's fb064h-v
+  rewrites) — resolved by taking the lane's versions and re-threading the
+  run gate list through every gate-reading function, **as the last
+  parameter** (after any optional `reach` mask) so the lane's positional
+  call shapes still hold: `gateIndices`/`perGateReach`/`gateComponent`/
+  `gatesConnected`/`corridorsOk`/`gateDistance`/`legalCoreAnchors`/
+  `gatesOpen`/`measureTerrain` (analyze), `measureApproach`/`maxGateDetour`
+  (path), `validateCorePlacement` (core-placement), `flatKinds`/`attempt`/
+  `sealPockets`/`flatMap`/`flatTerrain`/`generateTerrain` (generate);
+  `attempt` seeds from `TERRAIN_STREAM` (main's named one-shot stream), the
+  lane's uint32 `key` retry walk and `-0` normalisation kept. `describe.ts`
+  still dumps/parses against the base `GATES` — filed. fb064q's `charBlock`
+  mask added to main's `applyRunTerrain` fallback overlay and spawn-clear
+  block and to fb078's test overlays. The merged generator re-drew every
+  map, so fb077's stranded-Core seeds were re-found (4426/4515/5516 in
+  1..6000, was 97/2055/2845/3098) and its synthetic config gained
+  fb064l's `density.jitter`. All 17 terrain suites + fb077 + fb078 +
+  architecture green. Out-of-scope needs below are filed in BACKLOG.md /
+  QUESTIONS.md at this merge (see the merge follow-up commit).
 
 - (2026-09-04, fb064v) **A copy you cannot detect drifting is worse than three
   copies you can.** The three hand-copies of `terrainLegal` are now one shared
@@ -1019,6 +1039,23 @@ improvement.
     invisible to the loop and will surface at the full `npm test` run at P10
     completion or at the lane merge. Main lane; a QUESTIONS.md entry goes with
     it (this lane leaves QUESTIONS.md alone).
+
+- (2026-09-03, lane merge) Merged into master, no conflicts. Wired at the
+  merge (main lane): `data/terrain.json` is inside `contentHash()`
+  (`src/sim/content.ts` `ContentRaw.mapTerrain`, pinned by
+  `tests/terrain-content-hash.test.ts` — the fb064b merge blocker, closed
+  ahead of the World wiring so it can never open); `'terrain'` is a named
+  one-shot stream (`ONE_SHOT_STREAM_NAMES`/`TERRAIN_STREAM` in `src/sim/rng.ts`,
+  used by `generate.ts` — not an `RngSet` member, which would change every
+  save's RNG snapshot for a stream that never ticks); the
+  `tests/architecture.test.ts` renderer-import guard now matches `(\.\.\/)+`.
+  Everything else in this Log's out-of-scope entries is filed: World wiring
+  + gate list + stranded Core + `fallback` consumer + Training Grounds =
+  BACKLOG.md **fb077**; `'terrain'` `BuildRejection` = **fb078**; SPEC-FINAL
+  §10.5 + G2 wording = **fb079**; tools/Tuner file lists (and fb064f's page)
+  = **fb080**; the flake family = **fb087**; `paint()` counter + tighter
+  ceiling = **fb088**; fb064e rendering = BACKLOG-UI.md **fb116** (filed as fb091, renumbered at the 2026-09-04 merge); the design
+  decisions are QUESTIONS.md Q162. fb064c/fb064d stay here.
 
 - (2026-09-03, lane split) Integration-point file for the merge:
   `src/sim/grid.ts` — the grid/pathing hook where generated tile types

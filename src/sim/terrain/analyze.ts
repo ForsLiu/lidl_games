@@ -18,7 +18,7 @@
  * to make impossible. `core-placement.ts` re-exports it, and stays its home in
  * the public surface.
  */
-import { CORE_H, CORE_W, CORE_X, CORE_Y, GATES } from '../grid';
+import { CORE_H, CORE_W, CORE_X, CORE_Y, GATES, type GateDef } from '../grid';
 import { isWalkable, TerrainKind, type TerrainConfig } from './config';
 import { maxGateDetour } from './path';
 import type { TerrainGrid, TerrainMeasure } from './types';
@@ -37,9 +37,16 @@ const ORTHO: ReadonlyArray<readonly [number, number]> = [
  * indexes off `map.w`, and the moment a `TerrainGrid` of another width exists
  * — fb064f's flat Training Grounds arena is the announced case — a hardcoded
  * stride would flood from the wrong tiles silently instead of failing.
+ *
+ * `gates` defaults to the base 3 (`GATES`) but every gate-reading function in
+ * this file accepts an explicit list — always as its *last* parameter, after
+ * any optional `reach` mask, so the lane's positional call shapes still hold —
+ * so a run with the Fourth Gate modifier (fb077, `World.gates`) threads its
+ * real 4-gate list through generation and measurement instead of being
+ * silently measured against the wrong set.
  */
-export function gateIndices(map: TerrainGrid): number[] {
-  return GATES.map((g) => g.ty * map.w + g.tx);
+export function gateIndices(map: TerrainGrid, gates: readonly GateDef[] = GATES): number[] {
+  return gates.map((g) => g.ty * map.w + g.tx);
 }
 
 /** 1 for every walkable tile 4-connected to any of `sources`, 0 elsewhere. */
@@ -72,9 +79,13 @@ export function walkableFlood(
   return seen;
 }
 
-/** One reachability mask per gate, in `GATES` order. */
-export function perGateReach(map: TerrainGrid, cfg: TerrainConfig): Uint8Array[] {
-  return gateIndices(map).map((gi) => walkableFlood(map, cfg, [gi]));
+/** One reachability mask per gate, in `gates` order. */
+export function perGateReach(
+  map: TerrainGrid,
+  cfg: TerrainConfig,
+  gates: readonly GateDef[] = GATES,
+): Uint8Array[] {
+  return gateIndices(map, gates).map((gi) => walkableFlood(map, cfg, [gi]));
 }
 
 /**
@@ -91,8 +102,10 @@ export function perGateReach(map: TerrainGrid, cfg: TerrainConfig): Uint8Array[]
 export function gateComponent(
   map: TerrainGrid,
   cfg: TerrainConfig,
-  reach = perGateReach(map, cfg),
+  reachIn?: Uint8Array[],
+  gates: readonly GateDef[] = GATES,
 ): Uint8Array {
+  const reach = reachIn ?? perGateReach(map, cfg, gates);
   const all = new Uint8Array(map.w * map.h);
   if (reach.length === 0) return all;
   all.set(reach[0]);
@@ -112,11 +125,13 @@ export function gateComponent(
 export function gatesConnected(
   map: TerrainGrid,
   cfg: TerrainConfig,
-  reach = perGateReach(map, cfg),
+  reachIn?: Uint8Array[],
+  gates: readonly GateDef[] = GATES,
 ): boolean {
-  const gates = gateIndices(map);
-  for (let g = 0; g < gates.length; g++) {
-    for (const other of gates) if (!reach[g][other]) return false;
+  const reach = reachIn ?? perGateReach(map, cfg, gates);
+  const idx = gateIndices(map, gates);
+  for (let g = 0; g < idx.length; g++) {
+    for (const other of idx) if (!reach[g][other]) return false;
   }
   return true;
 }
@@ -227,7 +242,11 @@ function labelComponents(
  * largest anchor component; a gate tile itself sits on the border and is never
  * inside an interior block, so the test runs on its walkable neighbours.
  */
-export function corridorsOk(map: TerrainGrid, cfg: TerrainConfig): boolean {
+export function corridorsOk(
+  map: TerrainGrid,
+  cfg: TerrainConfig,
+  gates: readonly GateDef[] = GATES,
+): boolean {
   if (cfg.constraints.minCorridorWidth <= 1) return true;
   const aw = map.w - 1;
   const ah = map.h - 1;
@@ -236,7 +255,7 @@ export function corridorsOk(map: TerrainGrid, cfg: TerrainConfig): boolean {
   if (sizes.length === 0) return false;
   let best = 0;
   for (let i = 1; i < sizes.length; i++) if (sizes[i] > sizes[best]) best = i;
-  for (const g of GATES) {
+  for (const g of gates) {
     let ok = false;
     for (const [dx, dy] of ORTHO) {
       const nx = g.tx + dx;
@@ -258,9 +277,9 @@ export function corridorsOk(map: TerrainGrid, cfg: TerrainConfig): boolean {
 }
 
 /** Chebyshev distance from a tile to the nearest spawn gate. */
-export function gateDistance(tx: number, ty: number): number {
+export function gateDistance(tx: number, ty: number, gates: readonly GateDef[] = GATES): number {
   let best = Number.MAX_SAFE_INTEGER;
-  for (const g of GATES) {
+  for (const g of gates) {
     const d = Math.max(Math.abs(tx - g.tx), Math.abs(ty - g.ty));
     if (d < best) best = d;
   }
@@ -281,8 +300,10 @@ export function gateDistance(tx: number, ty: number): number {
 export function legalCoreAnchors(
   map: TerrainGrid,
   cfg: TerrainConfig,
-  reach = gateComponent(map, cfg),
+  reachIn?: Uint8Array,
+  gates: readonly GateDef[] = GATES,
 ): number[] {
+  const reach = reachIn ?? gateComponent(map, cfg, undefined, gates);
   const out: number[] = [];
   const clear = cfg.coreGateClearance;
   // Sized off `CORE_W/CORE_H`, not a literal 2: `validateCorePlacement` and
@@ -296,7 +317,7 @@ export function legalCoreAnchors(
         for (let dx = 0; dx < CORE_W && ok; dx++) {
           const i = (y + dy) * map.w + (x + dx);
           if (map.kind[i] !== TerrainKind.Normal || !reach[i]) ok = false;
-          else if (gateDistance(x + dx, y + dy) <= clear) ok = false;
+          else if (gateDistance(x + dx, y + dy, gates) <= clear) ok = false;
         }
       }
       if (ok) out.push(y * map.w + x);
@@ -367,8 +388,12 @@ export function uncontestedHigh(
 }
 
 /** Is every gate open — at least one walkable neighbour, never enclosed? */
-export function gatesOpen(map: TerrainGrid, cfg: TerrainConfig): boolean {
-  for (const g of GATES) {
+export function gatesOpen(
+  map: TerrainGrid,
+  cfg: TerrainConfig,
+  gates: readonly GateDef[] = GATES,
+): boolean {
+  for (const g of gates) {
     let open = false;
     for (const [dx, dy] of ORTHO) {
       const nx = g.tx + dx;
@@ -382,7 +407,11 @@ export function gatesOpen(map: TerrainGrid, cfg: TerrainConfig): boolean {
 }
 
 /** Every band the owner's generation constraints are written against. */
-export function measureTerrain(map: TerrainGrid, cfg: TerrainConfig): TerrainMeasure {
+export function measureTerrain(
+  map: TerrainGrid,
+  cfg: TerrainConfig,
+  gates: readonly GateDef[] = GATES,
+): TerrainMeasure {
   const total = map.w * map.h;
   let walkableCount = 0;
   let normalCount = 0;
@@ -390,7 +419,7 @@ export function measureTerrain(map: TerrainGrid, cfg: TerrainConfig): TerrainMea
     if (isWalkable(cfg, map.kind[i])) walkableCount++;
     if (map.kind[i] === TerrainKind.Normal) normalCount++;
   }
-  const perGate = perGateReach(map, cfg);
+  const perGate = perGateReach(map, cfg, gates);
   // The owner's band is "all gates connect to >= 80% of the walkable area", so
   // it is the *worst* gate's share, per gate. Measuring the union instead would
   // be vacuous: the generator seals every tile no gate can reach, so a union
@@ -411,8 +440,8 @@ export function measureTerrain(map: TerrainGrid, cfg: TerrainConfig): TerrainMea
     const share = walkableCount === 0 ? 0 : reached / walkableCount;
     if (share < worstShare) worstShare = share;
   }
-  const shared = gateComponent(map, cfg, perGate);
-  const anchors = legalCoreAnchors(map, cfg, shared);
+  const shared = gateComponent(map, cfg, perGate, gates);
+  const anchors = legalCoreAnchors(map, cfg, shared, gates);
   // fb064o: the approach band is measured to the anchor the run will actually
   // be played on, so it reuses the pre-highlighted default rather than picking
   // its own tile.
@@ -434,10 +463,11 @@ export function measureTerrain(map: TerrainGrid, cfg: TerrainConfig): TerrainMea
     buildableNormalFrac: normalCount / total,
     gateReachFrac: perGate.length === 0 ? 0 : worstShare,
     coreLegalFrac: normalCount === 0 ? 0 : anchors.length / normalCount,
-    maxGateDetour: suggested === null ? -1 : maxGateDetour(map, cfg, suggested, CORE_W, CORE_H),
-    corridorsOk: corridorsOk(map, cfg),
-    gatesOpen: gatesOpen(map, cfg),
-    gatesConnected: gatesConnected(map, cfg, perGate),
+    maxGateDetour:
+      suggested === null ? -1 : maxGateDetour(map, cfg, suggested, CORE_W, CORE_H, gates),
+    corridorsOk: corridorsOk(map, cfg, gates),
+    gatesOpen: gatesOpen(map, cfg, gates),
+    gatesConnected: gatesConnected(map, cfg, perGate, gates),
     walkableCount,
     normalCount,
     legalCoreCount: anchors.length,
@@ -529,8 +559,10 @@ const ROOM_RADIUS = 2;
 export function suggestCoreAnchor(
   map: TerrainGrid,
   cfg: TerrainConfig,
-  anchors: readonly number[] = legalCoreAnchors(map, cfg),
+  anchorsIn?: readonly number[],
+  gates: readonly GateDef[] = GATES,
 ): number | null {
+  const anchors = anchorsIn ?? legalCoreAnchors(map, cfg, undefined, gates);
   let best: number | null = null;
   let bestDist = 0;
   let bestRoom = 0;

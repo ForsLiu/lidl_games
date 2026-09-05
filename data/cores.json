@@ -107,9 +107,9 @@
       "upgrade": {
         "count": 5,
         "stepCost": 150,
-        "desc": "step 1: +1 gold/s; step 2: +1 HP regen/s and +20% healing received; step 3: decay aura r5 (1x1.2^(5-ring)/s); step 4: decay aura starts r10; step 5: decay multiplier 1.2 -> 1.5",
+        "desc": "step 1: +3 gold/s; step 2: +1 HP regen/s and +20% healing received; step 3: decay aura r5 (1x1.2^(5-ring)/s); step 4: decay aura starts r10; step 5: decay multiplier 1.2 -> 1.5",
         "steps": [
-          { "goldPerSecond": 1 },
+          { "goldPerSecond": 3 },
           { "hpRegenPerSecond": 1, "healingReceivedPct": 0.2 },
           { "decayRadius": 5, "decayMult": 1.2 },
           { "decayRadius": 10 },

@@ -18,8 +18,14 @@
  */
 import type { ClassEffect } from '../sim/content';
 
-/** The 22 `ClassEffect['kind']` values authored across `data/classes.json` (content.ts's `ClassEffectSchema`). */
-export type VfxShape = 'nova' | 'line' | 'point' | 'skip';
+/**
+ * The 22 `ClassEffect['kind']` values authored across `data/classes.json`
+ * (content.ts's `ClassEffectSchema`) map to the first four shapes below.
+ * `arc` is not used by `ACTIVE_KIND_SHAPE` — canvas.ts pushes it directly,
+ * layered over Swordsman's basic-attack swing line (fb055), for the
+ * sword-swing-arc sweep read.
+ */
+export type VfxShape = 'nova' | 'line' | 'point' | 'skip' | 'arc';
 
 export const ACTIVE_KIND_SHAPE: Record<ClassEffect['kind'], VfxShape> = {
   burst_damage: 'nova',
@@ -63,11 +69,23 @@ export interface SkillVfxEntry {
 /** fb021: a basic attack is either a melee `swing` (rendered as a `CastFx` slash, like a class Active's `line` shape) or a `projectile` (a travelling `Tracer`, the same mechanism `shot`/`spit` already use for tower/enemy attacks — `theme.ts`'s `STYLES` needs a matching row keyed by the class for the latter). */
 export type BasicAttackShape = 'swing' | 'projectile';
 
+/**
+ * fb055: the moment a basic attack lands, distinct per class so the three
+ * visible classes' weapons read apart at impact, not just in flight —
+ * `slash` (Swordsman: crossed blade marks), `splash` (Plaguebringer: a
+ * spreading poison ring) or `ripple` (Time Lord: an expanding temporal
+ * ring). Optional: a class with no `impact` keeps the plain `hit:` white
+ * flash it always had (every hidden class today, unchanged per fb055's
+ * scope).
+ */
+export type BasicImpactShape = 'slash' | 'splash' | 'ripple';
+
 export interface BasicVfxEntry {
   shape: BasicAttackShape;
-  /** Short human-readable description of the firing visual. Impact flash itself is the existing `hit:` fx (fb005 damage-type colors), not repeated here. */
+  /** Short human-readable description of the firing visual. Impact flash itself is the existing `hit:` fx (fb005 damage-type colors) unless `impact` below adds a distinct one. */
   fire: string;
   color: string;
+  impact?: BasicImpactShape;
 }
 
 export interface ClassVfxEntry {
@@ -83,13 +101,13 @@ export const CLASS_VFX: Record<string, ClassVfxEntry> = {
     q: { indicator: 'charge ring at the Warden, radius grows with hold', fire: 'expanding slash nova + knockback', color: '#e0c46c' },
     e: { indicator: 'facing line to the dash target', fire: 'slash-line trail along the dash', color: '#e0c46c' },
     passive: { cue: 'bleed tick mark on every struck enemy (Thousand Cuts)', color: '#c23b3b' },
-    basic: { shape: 'swing', fire: 'short sword-slash line to the target', color: '#e0c46c' },
+    basic: { shape: 'swing', fire: 'sword-swing arc sweeping toward the target', color: '#e0c46c', impact: 'slash' },
   },
   plaguebringer: {
     q: { indicator: 'ground ring at the Warden', fire: 'poison nova pulse (ground patch renders via the existing area layer)', color: '#7ac74f' },
     e: { indicator: 'none — global, no target', fire: 'pulse at the Warden as every live poison stack doubles', color: '#4fae2f' },
     passive: { cue: 'jump line to the next poisoned corpse-adjacent enemy (Spreading Plague)', color: '#7ac74f' },
-    basic: { shape: 'projectile', fire: 'poison glob lobbed at the target', color: '#7ac74f' },
+    basic: { shape: 'projectile', fire: 'poison glob lobbed at the target', color: '#7ac74f', impact: 'splash' },
   },
   engineer: {
     q: { indicator: 'nearest-structure highlight', fire: 'repair pulse + overclock glow on the structure', color: '#8fd3ff' },
@@ -149,7 +167,7 @@ export const CLASS_VFX: Record<string, ClassVfxEntry> = {
     q: { indicator: 'r7 ring around the Warden', fire: 'mark-stage pulse across every enemy caught in it (a distinct past/present/future ring per enemy, drawn every frame by drawEnemies)', color: '#9a7fe6' },
     e: { indicator: 'placement ring at the cursor', fire: 'zone nova at cast, teleport + detonation burst on any enemies a recast displaces', color: '#6fd6c9' },
     passive: { cue: 'a warden-side DoT tick in place of an ordinary hit flash (Time Flow)', color: '#9a7fe6' },
-    basic: { shape: 'projectile', fire: 'temporal bolt fired at the target', color: '#9a7fe6' },
+    basic: { shape: 'projectile', fire: 'temporal bolt fired at the target, trailing a distortion ripple', color: '#9a7fe6', impact: 'ripple' },
   },
 };
 

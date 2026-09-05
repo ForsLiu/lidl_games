@@ -5,6 +5,46 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-05 (lane `lane/terrain`): merged `origin/master` in.** Two doc
+  conflicts (this file and BACKLOG-TERRAIN.md), both pure top-of-list
+  insertions on each side, resolved by keeping both. `src/sim/grid.ts`
+  auto-merged; every line the merge removes is this lane's own fb064x/fb064y
+  replacing what it superseded, and master changed `describe.ts` not at all
+  after this branch's base. One test went red and it was the right one:
+  fb064x's enumeration table refused master's new `Grid.unbuildableForTerrain`
+  (fb078) until it was classified — it already carries the integer guard, so
+  `refuses` is all it needed. `npm run test:fast` 3417 passed / 3 failed, the
+  three being `b028`/`q41`/`q45`, which fail identically on `origin/master`
+  alone (controlled in a worktree).
+
+  **Two things this merge makes stale in the entries below, corrected here
+  rather than edited out of them.**
+  1. The lane skipped the sweep leg of the generation rule three times, each
+     time re-verifying rather than inheriting the reason: "nothing outside
+     `src/sim/terrain/` calls `generateTerrain`, so no run's outcome depends on
+     `data/terrain.json` and a sweep would measure zero terrain." That was true
+     of this branch's base and is **false of master**, which wired the
+     generator into every non-practice run at `967463d P10 fb077`. The reason
+     is retired, not re-verified: a sweep now measures terrain, and the next
+     generation rule run in this lane has to perform leg (a) for real. fb064z
+     is worth more than its own write-up claims for the same reason — it says
+     generation cost "is about to be" on the critical path, and on master it
+     already is.
+  2. `fb064x` and `fb064y` record `endHash 2729a000` as unchanged. That was a
+     statement about this branch, where every `Grid` was born flat. Post-merge
+     the same command reads **`952d7be8`, 114864 ticks, `defeat_core`** — and
+     that is master's number, not this lane's: the merged tree reproduces it
+     byte-identically to `origin/master` run alone, which is the real check
+     that these guards change no behaviour. Seed 1 ending in defeat is master's
+     own in-flight balance state (its p12a-p12e entries below), not a merge
+     artifact.
+
+  fb064b's merge blocker is closed on master (`content.ts` folds
+  `data/terrain.json` into `contentHash()`, as this lane's Log required), and
+  `generateTerrain` gained a trailing `gates` parameter with a `GATES` default,
+  so this lane's two-argument calls are unchanged. fb064c is still unwired, so
+  fb064h's "`Grid.placeCore` must not be called from a run" guard still holds.
+
 - **2026-09-05 session (lane `lane/terrain`): six items closed — `fb064w`,
   `fb064x`, `fb064y`, `fb064z`, `fb065a`, `fb065d`.** The first two were the
   lane's last queued items; the generation rule then ran with zero left and
@@ -125,6 +165,880 @@
   `/data` tuning edit does not read as a `grid.ts` regression, and the simMs
   claim above was corrected.
 
+- **2026-09-05 session: stopped after p12a/p12b/p12c, with p12e diagnosed but
+  not implemented.** Three items of the pinned owner queue (BALANCE DIRECTION
+  v2) are done end to end — implemented, code-reviewed, QA'd, and committed —
+  and the fourth is profiled far enough that the next session should start
+  from the diagnosis rather than a fresh sweep.
+  **p12e's tail is entirely the boss fight, and p12c caused it.** Profiling the
+  six censored T3 seeds at a 120-minute cap: Act I is near-constant at
+  24.6-25.7 min on every seed, while the boss kill lands at **381s/384s on the
+  fast seeds and 920s/1020s/1187s on the slow ones**, with total run length
+  tracking that one-for-one (37.3/37.7 min against 47.3/48.9/51.0). The cause
+  is p12c's `baseHpMul: 20` applying to `warden_eater` like every other enemy
+  — 365,000 -> 7.3M at T1 — so fights that used to end under 180s now run 380s
+  to 1187s depending on the build. That also makes **p10k's finding stale**:
+  it concluded the run-length gap was "not inside the boss fight's own budget
+  at all" and moved to Act I/VS pacing, which was true when fights ended under
+  180s and is not true now. The boss clock is the right lever again. Full
+  diagnosis, with the likely fix and what it must not break (G14's >20s floor
+  and <100% win rate, which fb099 and p10k were both protecting), is written
+  into BACKLOG p12e.
+  **Why stopping here rather than continuing:** p12e's own acceptance is a
+  re-run of G1/G8/G14/G23 across all classes, all five Cores and T1/T3/T5 —
+  G8 and G23 are ~1 h each on their own — and this session already lost one
+  measurement run to a container restart. That matrix is not deliverable
+  reliably in long background runs here, and half-measuring it would put
+  exactly the kind of censored, untrustworthy number into the gates that p12c
+  spent its verification cycle removing.
+- **2026-09-05 session: BACKLOG p12c closed — T1 re-anchored to contested
+  margins, §C's three targets met, and an impossibility conclusion retracted
+  before it shipped.**
+  §C's own named levers do not move what §C measures, which had to be
+  established first: `waves.hpScalePerWave` **compounds per wave**
+  (`p^(wave-1)`), so 1.22 -> 1.34 — x4.9 more HP by wave 18 — still gave 12/12
+  wins and moved the median margin only 100% -> 90.9%, because it lands on the
+  waves the tower line already dominates. Enemy `coreDamage` was inert *at the
+  difficulty it was measured against*: with the Core at **100% at victory**,
+  nothing reaches it, so scaling what a leak costs multiplies zero (a property
+  of the old baseline, not of the game — post-anchor 7 of 24 seeds lose to the
+  Core, so that lever and p12b's rung are live again). The lever is a flat
+  roster-wide factor, so `data/enemies.json` gained **`baseHpMul`** — one
+  tunable number instead of 20 edited rows, `1.0` the identity, applied at
+  spawn before the tier rung, the same shape fb025's global x10 pass used.
+  **Shipped at 20**: **16/24 (66.7%) wins, 33% close-win, median Core HP at
+  victory 53.8%** — §C's `[55%,90%]` band, its `>=25% close-win` clause and its
+  30-60% median, all met. The sweep on the way there is worth as much as the
+  endpoint: from `baseHpMul` 1 to 12 the win rate stays ~100% while the
+  *margin* falls 100% -> 84%, i.e. the bot wins untouched right up until it
+  starts losing outright.
+  **A conclusion was published and retracted inside this item.** p12b's
+  ladder was fitted against `baseHpMul: 1.0`, so it was re-swept — and the
+  first sweep measured **T3 only**, jumping 1.20 -> 1.12 -> 1.06 -> 1.04. On
+  that evidence the item shipped 1.04/1.03/1.02 and concluded the difficulty
+  response had ~1.4x of dynamic range and therefore that **no tier ladder of
+  any shape could be ordered**, marked Q176 superseded and re-scoped p12g onto
+  a mechanism rewrite. code-reviewer caught the gap: the region where T5 lands
+  in band was never sampled. Swept properly at **both** tiers,
+  **1.07/1.05/1.03 puts T3 at 41.7% and T5 at 8.3% over 12 seeds — both inside
+  §B's bands** — and that is what ships. Re-measured at n=24: T1 66.7%, T2
+  41.7%, T3 **37.5%** (in `[35%,70%]`), T4 33.3%, T5 **20.8%** (*at* the
+  `[5%,20%]` ceiling, not inside it). The 1.4x figure was mis-stated too — its
+  endpoints differ on three axes, so it is a range on the combined tier axis,
+  not on enemy HP. Q176's supersede note is withdrawn, **p12g is retired**,
+  and every affected record was rewritten rather than patched.
+  **What the correction exposed instead is worse, and is now the arc's
+  blocker.** Re-running T3's 24 seeds with the tick cap lifted 45 -> 120
+  simulated minutes gives **62.5% wins and zero timeouts**, against 37.5% and
+  six timeouts at the 45-minute cap. A quarter of the seed set was censored,
+  and censored seeds are disproportionately *wins*, so every rung's recorded
+  rate is biased down by an amount that grows with how contested the tier is.
+  T3 is in band on both readings so the ladder stands, but its apparent
+  ordering is monotone only on censored numbers and cannot be confirmed until
+  the censoring is gone. **p12e (timeout elimination) is promoted to the
+  blocker for this whole arc** — no gate measured against a 45-minute cap can
+  be trusted while a quarter of its seeds hit it.
+  **The anchor's cost, named rather than buried:** G13's solo-viability clause
+  (`tests/a4-single-type.test.ts`) went from 5/5/5/5/4/5/4 to **0/5 for all
+  seven towers** — at x20 enemy HP no single tower type holds the wave curve
+  alone. `.skip`-ed with that number, re-enable point p12d. A real trade, not a
+  defect (a tower that soloed the whole curve was a statement about a
+  difficulty the bot won 100% of the time with the Core untouched), and the
+  strongest argument against keeping the anchor at 20 — an owner call, made
+  visible rather than silent. The final boss takes the roster multiplier too
+  (365,000 -> 7.3M at T1); its fight-length case still passes, measured.
+  Blast radius, all fixed: six test files pinned enemy HP against fb025-era
+  literals and were re-expressed as ratios off `def.hp * baseHpMul` (the same
+  conversion p12a made for its kit pins) — `act2.test.ts`'s Act II overlay,
+  five `p-core-c-plant` cases, two `p-core-d-corpse` cases (one now sizes its
+  overkill blow off `e.maxHp` instead of a literal 1000 that stopped being
+  overkill), `practice.test.ts`'s "full stats" spawn, and `boss.test.ts`'s
+  365,000 pin. q7's fuzz correctly flagged `baseHpMul` as accepting a
+  fractional value — valid for a multiplier, unpayable cases caught by the
+  schema's `.positive()` — recorded in `tests/q7-loader-holes.ts`. The most
+  interesting one was silent rather than red: **G4's armour-shred liveness
+  clause went to zero**, because `tools/a5probe.ts` still ran with
+  `allocated: []` and a bare-tree builder bot can no longer reach Act II at
+  all. That is fb049's fix (Q138) never applied to this one harness; corrected,
+  and the two other gates it backs (G13 `p10c-weapon-share`, G19
+  `p10f-g19-liveness`) re-run in full and green.
+
+  code-reviewer **REQUEST-CHANGES** and qa-playtester **FAIL**, all findings
+  addressed. Both independently reproduced every recorded §C number — the T1
+  margin split matched as an identical string — so the anchor itself stands;
+  what failed was the blast-radius claim and the strength of the conclusions.
+  Four findings were serious:
+  1. **The impossibility conclusion was wrong** (see the retraction above) —
+     code-reviewer showed the sweep behind it measured T3 only and never
+     sampled where T5 lands in band. QA then showed the supporting number was
+     wrong too: at ×1.44 enemy HP *alone* the bot still wins 16.7%, not the
+     0% the write-up claimed, because that 0% row also carried budget and
+     `coreDamage` rungs. Both retracted; the shipped ladder is the corrected
+     sweep's.
+  2. **"T3 re-confirmed in band" was a censoring artifact.** All six of T3's
+     tick-capped seeds are *victories* when the cap is lifted. The live band
+     assertion now **excludes censored seeds from the denominator** rather
+     than scoring them as losses — counting a stalled run as a loss lets a
+     gate read in-band purely from where the cap falls. Same reason T4-vs-T5's
+     inversion was mis-attributed to seed noise: censoring is systematic and
+     *tier-correlated*, and it is the dominant term.
+  3. **Two more suites were red and invisible.** `tests/a9-economy.test.ts`'s
+     "greed out-earns caution" clause was comparing **0 to 0** — at ×20 an
+     empty-tree run dies at TD wave 2, so no seed reached wave 8 on either arm
+     (fixed with the same fb049 full-tree change `a5probe` got), and
+     `tests/boss.test.ts` was a **seventh** fb025-era pinned file the scan
+     missed (PROGRESS said six). Both are fast-tier-excluded, which is the
+     real lesson: for a roster-wide HP change, "targeted tests + `test:fast`
+     green" is structurally blind, because every suite that measures
+     difficulty is on the exclude list.
+  4. **The a4 skip comment blamed p12c for a pre-existing regression.** QA ran
+     the control p12c had not: at HEAD, with `baseHpMul` at its 1.0 identity,
+     G13's solo-viability clause already read {1,1,0,0,1,3,0} of 5 against the
+     5/5/5/5/4/5/4 it was authored at. p12c deepens it to all zeroes; it did
+     not cause it. Comment corrected to carry both numbers, and the older
+     defect filed as **p12h** with the bisect candidates named.
+  Also fixed: **an end-state hash bug this change exposed** — `Hasher.num`
+  folds 32 bits, so a quantized magnitude past 2^31 wrapped, and with the boss
+  at 7.3M HP the boss at full HP and at 42.5% HP hashed *identically*
+  (`q(7_300_000) === q(3_105_696)`). Determinism was never at risk, but gate
+  G2's ability to see a divergence was; the high word is now folded when
+  non-zero, so every value inside int32 range hashes bit-identically to before
+  and no recorded hash moves. Regression test landed before the fix, per
+  CLAUDE.md rule 3. `baseHpMul` gained an upper bound (`1e308` loaded clean and
+  produced Infinite-HP, unkillable enemies — the same hole `validateTierLadder`
+  exists to close), the Codex now shows spawned rather than authored enemy HP
+  (it was stating 200 for an enemy arriving at 4000, since `baseHpMul` is a
+  document-level field with no row of its own), and the measurement itself is
+  now reproducible as `tests/p12c-margin.test.ts` — an opt-in sweep in the
+  established `class-kit-damage-share` pattern rather than a CLI, which q47
+  would have flagged as unpinned. **G8 and G23 remain unverified at T3** (~1 h
+  each); recorded as such rather than claimed.
+
+- **2026-09-05 session: BACKLOG p12b closed — the tier ladder built, the four
+  reference gates moved to T3, and §B's T5 clause proved unreachable in §B's
+  own shape.** The item reads as tuning but was not: **there were no tier
+  scalars to tune.** `cfg.tier` scaled exactly one thing directly — the final
+  boss's HP, borrowing SPEC 8.3's *reward* scale for want of a difficulty one
+  — and every other T1-vs-T5 difference came from the 1-of-2 *drafted*
+  modifiers, i.e. random draws, which makes a tier a distribution rather than
+  a rung. Fine while every gate measured at T1; fatal the moment the reference
+  tier moves. Built three scalars (`tierEnemyHpPerStep`/`tierBudgetPerStep`/
+  `tierCoreDamagePerStep`) in `data/modifiers.json` beside `tierRewardPerStep`
+  rather than in §B's suggested new `data/tiers.json`, so the ladder is one
+  file (§B allows "or wherever tier scalars live"; logged in Q176), read
+  through `src/sim/tiers.ts` as `x^(tier-1)` and wired at three choke points:
+  enemy HP at spawn, `budgetFor` (act2.ts), and a new shared
+  `enemyCoreDamage` accessor so all four `coreDamage` consumers scale together
+  instead of three drifting. `validateTierLadder` refuses a per-step under 1
+  at load, so `/data` cannot ship a T5 easier than T1 (architecture rule 4).
+  The final boss now takes this rung **instead of** its borrowed reward scale
+  — one tier HP scaling, not two compounding. At the shipped per-step that is
+  a **large, deliberate boss buff** rather than a like-for-like swap (x1.70 ->
+  x16.0 at T3, x2.40 -> x256 at T5), which is why G14's own measurements were
+  re-pointed and re-measured rather than assumed. **`x^(tier-1)` makes T1 exactly 1.0**, which is load-bearing: every
+  existing T1 measurement in the repo, p12a's whole control pair included,
+  keeps its meaning across this item.
+  **Measured** (engineer, scripted kit bot, `modifiers: []` so only the ladder
+  varies): T1 100% / 33.32 min (unchanged, as designed), **T3 50% over 12
+  seeds and 37.5% over G1's 24 — inside §B's [35%,70%] target** — T5 0/12.
+  Zero timeouts at every rung, so p12e's tick-cap clause is already satisfied
+  here. Chose per-step 4.0/1.9/1.7 by sweeping the response curve rather than
+  by adopting §B's ⚖ suggestion, which had no teeth at all: at §B's authored
+  1.35/1.2/1.15 the bot still won **12/12 at T5**.
+  **§B's T5 `[5%,20%]` clause is not reachable in §B's own shape, and the
+  reason is the finding.** The measured response — enemy-HP multiplier at T3
+  vs win rate: x9 -> 75%, x12.25 -> 83%, x16 -> 50%, x25 -> 0% — puts the
+  entire transition from "wins every seed" to "loses every seed" inside a
+  factor of under 3. A geometric ladder forces `T5 = T3²`, so T3 at x16 puts
+  T5 at x256, an order of magnitude past the cliff; and a per-step landing T5
+  near the cliff leaves T3 at ~100%. The two clauses are mutually exclusive,
+  not mistuned. T3 wins the conflict because it is the tier §B makes the
+  reference; T5's 0% is recorded, not forced. Logged as **QUESTIONS Q176**,
+  filed as **BACKLOG p12g** (route (a): a per-tier table places all five rungs
+  independently; route (b), the real fix, is Q159's bimodality itself).
+  Gates re-pointed via one named `GATE_TIER` constant in `tests/helpers.ts`
+  rather than four literals — §B's own "a real, logged config change, not a
+  silent rename". Two consequences, both handled rather than papered over:
+  `boss.test.ts`'s "365,000 HP scaled by tier" case now names T1 explicitly,
+  since it is *about* the authored base and the rung rather than measured on
+  them; and **G1's 30-36 minute band does not survive the move** (T3 measures
+  37.46 min over 9/24 wins — the win rate is in band, the mean is 1.46 min
+  over a ceiling fitted to T1, because a contested run is a longer one). That
+  band rewrite is exactly what **p12d** owns, so it is `.skip`-ed with the
+  full measured numbers and p12d named as the re-enable point, per CLAUDE.md's
+  skip discipline. The recorded figures in all four gate headers are now T1
+  history; p12d rewrites them.
+
+  code-reviewer **REQUEST-CHANGES**, all findings addressed. Three Majors,
+  all real: **(M1)** every comment and doc still quoted §B's ⚖ *suggestion*
+  (1.35/1.2/1.15) rather than the 4.0/1.9/1.7 actually shipped, and the
+  paragraph justifying the boss change — "the two are close where it matters"
+  — was therefore not just stale but the opposite of true (the boss goes
+  x1.70 -> **x16.0** at T3, not x1.82). Corrected in six code comments plus
+  BALANCE.md, PROGRESS.md and Q176, and the boss change restated as the large
+  deliberate buff it is. **(M2)** G14 was never actually re-pointed: the
+  `GATE_TIER` default had landed on `act2World`, which backs only mechanics
+  fixtures, while G14's two real `runScripted` measurements still built at
+  T1 — so the item's own acceptance was unmet while PROGRESS claimed the
+  move. `act2World` restored to T1 (16x-HP fixtures bought nothing), the
+  20-seed G14 gate re-pointed, and the seed-1 case deliberately **kept at
+  T1**: it is a mechanism check, not a difficulty measurement, and at T3 the
+  run is contested by design, so pinning one seed to `victory` there would be
+  asserting a coin flip — keeping it live beats trading it for a `.skip`.
+  **(M3)** all four re-pointed suites are fast-tier-excluded, so `test:fast`
+  green said nothing about any of them; `boss.test.ts` and the ~1 h
+  `p6e-class-diversity.test.ts` were both run in full at T3 (green; p6e's
+  live `distinct.size` pin, which has moved before under unrelated levers,
+  still reads 2). Minors fixed: the HUD's clicked-enemy panel showed the raw
+  authored `coreDamage` against its own "the real payout, not the authored
+  number" convention; the Hub's tier note advertised only modifiers and
+  rewards while a tier now silently buys x16 enemy HP; `tools/sweep.ts`'s
+  comment still asserted tier feeds only reward math, and its auto-draft
+  means a `--tier 3` sweep measures ladder **plus** modifiers where p12b's
+  numbers are ladder-only; the new `validateTierLadder` JSDoc had been
+  inserted between fb005's comment and the function it documented; nothing
+  would have failed if the `leakIntoCore`/`contactWarden`/`attackStructure`
+  wiring or the boss's rung were reverted, so the ladder test now drives a
+  real Core leak and `boss.test.ts` pins the rung rather than asserting
+  "bigger"; G22 rides along on G23's re-point (re-run at T3, green, noted in
+  file); a non-finite tier would have NaN'd every enemy's HP rather than just
+  the boss's; and `ladder()`'s unused `content` parameter is gone. q7's data
+  fuzz correctly flagged the three new schema fields as accepting a
+  fractional value — legitimate for a multiplier, and the unpayable case
+  (under 1) is caught by `validateTierLadder` one layer up — recorded in
+  `tests/q7-loader-holes.ts` with that reasoning. `npm run test:fast`: 3379
+  passed, 3 failed in the same 8 pre-existing files as p12a (Playwright
+  binary absent; nested-tsx CLI family), zero p12b-caused failures.
+
+  qa-playtester **PASS on the acceptance clauses as scoped**, having
+  reproduced every recorded number independently (T1 12/12 at 33.32 min, T3
+  6/12 and 9/24 with G1's win list identical to the digit, T5 0/12) and
+  confirmed the load-bearing invariant the hard way: 12 runs across three
+  classes against a `git archive HEAD` copy with `contentHash` pinned, `diff`
+  clean on `endHash`/ticks/kills/gold/damage/coreHp — **T1 is bit-identical**,
+  structurally (`Math.pow(x, 0)` is exactly 1), not by luck. Also clean:
+  determinism and input-log replay at T3 and T5, no double-scaling on any
+  spawn path, no overflow or NaN at x256, the practice tool at T5, the whole
+  money/save/retry surface, and the Tuner override path reaching
+  `validateTierLadder`. It filed **nine findings; all fixed here.** Four
+  mattered:
+  1. **"Zero timeouts at any rung" was false**, and I had drawn p12e's clause
+     as already-satisfied from it. **2 of G1's 24 T3 seeds stall at the
+     45-minute cap** — both censored *victories* (they win at 47.4 and 46.6
+     min uncapped), so the honest T3 figures are 11/24 = **45.8% uncensored**
+     and a **39.20 min** uncensored mean, ~1.7 min further out of G1's length
+     band than the censored number said. The claim came from generalising a
+     clean 12-seed probe to "any rung" without re-checking the 24-seed set in
+     the same table. Corrected everywhere, and turned from prose into a
+     `.skip`-ed assertion in `p10d` that p12e will un-skip.
+  2. **A false measurement asserted in `/src/sim` source.** The boss comment
+     claimed "seed 1 at T3: the fight still resolves inside its band"; at T3
+     that run dies at wave 3 and never reaches the boss — my own artifact
+     recorded the failure, which is *why* the case was pinned back to T1, and
+     the comment was never updated. It was also truncated mid-sentence into a
+     self-contradiction. Rewritten to state the measured outcome.
+  3. **The recorded "response curve" did not measure what it was labelled.**
+     It was presented as an enemy-HP sweep and reasoned from as a per-axis
+     dial, but every row moved all three scalars, `n` was 8 for some rows and
+     12 for others and undisclosed, and the curve was **non-monotonic** (75%
+     at an easier rung, 83% at a harder one) — i.e. noise the size of the
+     effect, the exact failure CLAUDE.md's measurement rules name. The
+     conclusion survives on better evidence: the single-variable *tier*
+     ladder reads T1 100% / T2 100% / T3 50% / T4 0% / T5 0%, so the cliff is
+     one tier-step wide. Sweep re-labelled as provenance-only with `n` and
+     timeouts shown.
+  4. **T4 and T5 are dead content, not merely hard.** T4 is 0/12 dying in Act
+     I *wave 1* with 0-5 kills; T5 0/12 with **0 kills on 10 of 12 seeds**;
+     and since a tier unlocks only by winning the one below it, **T5 is
+     unreachable in normal play**. p12b had measured T5's rate but never T4,
+     and the *shape* of those losses is a far stronger finding than the rate.
+     It also sharpens Q176: because `T4 = T3 x p`, a geometric ladder can hold
+     **at most one contested rung**, so this was never only a T5 problem.
+     Disclosed in BALANCE.md, Q176 and p12g's premise, and pinned by a
+     `.skip`-ed liveness gate (every rung clears a wave and scores a kill) so
+     the failure shape is not rediscovered. Shipped knowingly: before p12b
+     those rungs were *fake* rather than broken (tier scaled nothing but the
+     boss), and p12g owns replacing the geometric shape with a per-tier table.
+  5. **Live gate coverage had gone down, not up.** With the length band
+     skipped, `p10d`'s only live assertion was `wins > 0` — a 10-minute suite
+     satisfied by one win. Added a live `[35%,70%]` win-rate assertion at T3
+     (passes at both the censored 37.5% and uncensored 45.8%), so G1 keeps a
+     real measurement while p12d rewrites the length band.
+  Minors also fixed: `validateTierLadder` guarded its input but not its
+  result, so `1e300` passed and produced Infinite-HP, literally unkillable
+  enemies — strictly worse than the inverted ladder the rule exists to refuse
+  — now checked at `MAX_TIER`; `ladder()` sent `Infinity` to T1 while
+  `modifierDraft` sent it to T5 (the easiest ladder with the most modifiers),
+  so the "they agree" comment was false and is now true; and two of
+  `enemyCoreDamage`'s four call sites were unpinned, so reverting
+  `contactWarden` or `attackStructure` to the raw field was invisible — both
+  now driven through their real paths at T1 vs T3.
+- **2026-09-05 session: BACKLOG p12a closed — the kit-growth half of BALANCE
+  DIRECTION v2 §A, with its target measured honestly red rather than forced.**
+  A prior session had landed part (1) — `kitPowerMul` (`src/sim/enemies.ts`,
+  `1 + 0.12 x wavesCleared`, x3.16 by wave 18, applied at the one `damageEnemy`
+  choke point to every `class_`-prefixed source, never to tower damage) plus
+  `tests/p12a-kit-power.test.ts` — as an unfinished "checkpoint before cloud
+  migration" commit, leaving two throwaway scratch files
+  (`tools/scratch-p12a.ts`, `tests/zzz-p12a-scratch.test.ts`, both deleted
+  here) and parts (2)/(3) undone. This session finished the item. **The
+  target needed telemetry that did not exist**: §A states it as own-kit share
+  of the character's damage *in VS*, and `damageAtSunder` is a single snapshot
+  at the one Sundering, so on §1.1's interleaved six-block shape "everything
+  since" still folds in every TD wave after it. Added
+  `World.damageByWeaponVs` -> `RunReport.damageByWeaponVs` (accumulated at the
+  same single choke point, gated on the existing `huntsWarden` predicate the
+  Corpse store already negates for "TD only"), hashed in `hashWorld` per the
+  p9g `goldSpent` precedent, with five new cases covering the VS window, the
+  cross-block sum and the hash coverage. Part (2): x3 on all 29 authored
+  **absolute** kit-damage magnitudes in `data/classes.json` (`basicAttack.dps`,
+  `damage`/`minDamage`, `burnDps`/`flameDps`/`pylonDps`/`shatterDamage`/
+  `markPastDotDps`/`markPresentDotDps`), deliberately excluding every
+  `*Mul`/`*Fraction`/`*Bonus` — those multiply a number that is itself
+  re-anchored, or a tower's, so scaling them would compound the pass or leak
+  it into tower damage. Part (3): BALANCE.md gained a "Kit relevance target"
+  section and `tests/class-kit-damage-share.test.ts` gained a `vsShare` column
+  plus the full per-class control pair. **Measured (control pair, 12 classes x
+  seeds 1-2, T1, `cycles: 6`, full tree; win rate 2/2 in both columns so the
+  delta is not confounded): VS kit share went 0.00-1.67% -> 0.00-5.16%, and
+  0 of 12 classes reach the >=35% target** (best `time_lord` 5.16%). Four
+  classes did not move at all — `bloodlord`/`paladin` route kit damage through
+  `titheDamageMul`/`wrathDamageMul` and `engineer`/`animist` through
+  `summonStatMul`, multipliers outside the absolute-magnitude field set by
+  design. The mechanism behind the gap, measured rather than argued:
+  VS-wielded weapon damage inherits the full tower-upgrade + Constellation
+  scaling stack while the kit inherits none of it (swordsman seed 1: 134.3M of
+  134.5M VS damage is wielded), so the denominator grows with the build and
+  the numerator does not — no `data/classes.json` edit can close it. Recorded
+  red per the item's own "log the real per-class numbers, don't force it";
+  logged as **QUESTIONS Q175** and filed as **BACKLOG p12f**, sequenced after
+  p12c. The two pins §A authorises re-expressing were both converted to ratio
+  form: G10's archer clause (`tests/p6d-nine-classes.test.ts`) now asserts
+  `toughest.hp / full` in a `(1/4, 1]` band — the x3 anchor puts the full
+  charge back over the "one-shots the toughest non-elite" bar SPEC-FINAL §14
+  G10 actually names, which fb025's x10 HP had broken — and the swordsman
+  1000-HP dummies (`tests/p6b-swordsman.test.ts`) now derive from
+  `40 x max(active1.damage, active2.damage, basicAttack.dps)` so a future
+  re-anchor cannot silently kill an enemy a branch-coverage case needs alive.
+  G11 is a pure data ratio and was unaffected. A measurement CLI written for
+  this item was deleted rather than shipped: `tests/q47-cli-crash-coverage`
+  correctly flagged it as an unpinned content-importing tool, and the opt-in
+  sweep in `tests/class-kit-damage-share.test.ts` already does the same job —
+  verified to the digit (swordsman 0.33% from both), so one instrument now
+  instead of two that can drift.
+
+  code-reviewer **REQUEST-CHANGES**, all findings addressed. Its Critical
+  (five fast-tier assertions red from the diff) was a snapshot taken mid-fix
+  and every one was already fixed the way it recommended: the three ⚖ figures
+  §4 states literally (`pyromancer.flameDps` 2->6, `pyromancer.burnDps` 3->9,
+  `cryomancer.shatterDamage` 20->60) recorded as `retuned` deviations naming
+  p12a in `tests/class-spec-numbers.test.ts`'s ledger rather than laundered,
+  the authored sentence beside `flameDps` synced 2->6 with its c015 token, and
+  fb022's `38.73` DPS literal re-expressed as the interval-fold identity it
+  was always about. Three findings were real and are fixed here: **Major** —
+  a x3 balance change shipped with no gate deltas, so both gates it could move
+  were run in a `git worktree` control at HEAD and in the working tree (G1
+  mean 33.39 -> 33.41 min, 24/24 wins both sides, inside the 30-36 band; G14
+  `boss.test.ts` green both sides), recorded in BALANCE.md §5; **Major** — the
+  measurement was labelled "from TD wave 12" but `wavesCleared >= 12` only
+  selects which *runs* count, not which part of a run, so the label is now
+  stated precisely (isolating the window would need a wave number hardcoded in
+  the sim, against architecture rule 4, and is not worth it against a metric
+  reading 5% of a 35% target); **Minor** — the "not a tower key means kit"
+  rule swept Core effects (`carnivorous_plant`/`corpse`/`time`) and the boss's
+  own `warden_eater` damage into the numerator. Also fixed: `tools/invariants.ts` now
+  non-negativity-checks the new record alongside `damageByWeapon`, and new
+  cases cover the `levelup` half of `huntsWarden` and the non-kit sources.
+
+  qa-playtester **FAIL on the numeric clause, PASS on the rest** — the right
+  call: two of the item's three deliverables landed and the third is 0/12
+  against its own >=35% bar, which is the honest reading this item was always
+  going to get. It independently reproduced 5 of 6 recorded cells to the digit
+  (`swordsman` 0.33%, `stormcaller` 2.78%/1.02%, `time_lord` 5.16%/1.67%,
+  `bloodlord` 0.00%), supplied the run-level `kitPower` on/off control the
+  unit test does not give (`time_lord` 1.66% -> 5.16%, `stormcaller` 1.08% ->
+  2.78%), and confirmed determinism (seed 7 twice, identical `endHash`
+  `fd44fad7` and identical `damageByWeaponVs`), no double-count at the choke
+  point, and run length unmoved on a second class (`swordsman` median 33.59
+  min, win rate 1.0, identical on both trees). It filed **three real bugs, all
+  fixed here**, two of them introduced by this session's own review fixes:
+
+  1. **`kitPower` was amplifying tower-authored damage.** Folding
+     `spreading_plague` into the kit multiplier (the code-review fix above)
+     was wrong: the plague transfer deals `dotOutstanding(e)`, the sum of
+     *every* unfinished DoT on the corpse whoever applied it — so a corpse
+     carrying only Venom Spore poison transferred 500 at wave 0 and **1580 at
+     wave 18**, a x3.16 amplification of tower damage on exactly the build
+     the Plaguebringer's own `towerPassive` (`towerPoisonDamage +0.1`) exists
+     to support, breaking the invariant `kitPowerMul` states for itself.
+     Attribution and growth are now two predicates — `isKitSource` (admits
+     `spreading_plague`, read by the share measurement) and
+     `scalesWithKitPower` (does not, read by `kitPower`) — each documented
+     with why they differ, and QA's exact repro is a regression test.
+     plaguebringer's cell went 1.49% -> 5.28% -> back to 1.49%; `swordsman`
+     and `time_lord` re-measured unchanged to the digit at every step, which
+     is the control showing each change moved only what it should have.
+  2. **The re-expressed G10 pin asserted a one-shot the sim does not
+     deliver.** `full` was computed from `a.damage` alone, 42% above what
+     `damageEnemy` actually deals: Deadeye Draw is not a `pure` hit, so
+     `bulwark`'s `flatReduction` bites, and `kitPower` was not in the number
+     either. The rewrite had upgraded fb025's approximation into a false
+     statement — true from about wave 4, asserted at wave 0. Now folds both
+     in and states the claim at the two points that differ: just short of a
+     one-shot at wave 0 (ratio 1.24, matching QA's measured 564.7 dealt vs
+     700 HP), comfortably over it by wave 12.
+  3. Stale census title in `tests/class-spec-numbers.test.ts` — the one file
+     whose whole purpose is blocking that drift class.
+
+  Final `npm run test:fast`: 3369 passed, 3 failed in 8 files — b032/b034/
+  b035/b036 (Playwright's chromium binary is absent in this environment) and
+  b028/q15/q41/q45 (the pre-existing nested-tsx CLI/subprocess family). Both
+  groups were controlled against a clean `git stash`ed tree and fail
+  identically there; **zero p12a-caused failures remain.**
+- **2026-09-04 session: processed four owner feedback files.** `verdicts-
+  q155-167` — applied owner verdicts to QUESTIONS.md for Q94, Q155-Q167
+  (Q155 spawns fb136, the hardcoded-tick-constants-to-`/data` order; Q164
+  spawns fb137, the Core-placement-flow half of terrain fb077 that wasn't
+  built; Q167 spawns fb138, the SPEC-FINAL tuned-values appendix) and applied
+  **BALANCE DIRECTION v2** (owner-authored structural fix for the G8/G23
+  four-session wall in Q157-Q161/Q166): BACKLOG.md's blocked `p10z`/`p10u`
+  are superseded and converted into a new pinned "Owner priority queue
+  (2026-09-04 directive)" section, **p12a-p12e** (kit-growth multiplier +
+  re-anchor -> tier scalars with T3 as reference tier -> T1 re-anchor to
+  contested margins -> gate rewrites for G1/G8/G14/G23 -> timeout
+  elimination + full sweep/STATUS regen), pinned ahead of fb079-fb135.
+  `feature-tiered-qa` — CLAUDE.md's subagent protocol amended to a two-tier
+  verification split (light: code-reviewer only, for `[polish]`/`[ui]`/
+  `[docs]`/non-balance data items; full: code-reviewer + qa-playtester, for
+  anything touching `/src/sim`/balance/pathing/damage) and filed **fb141**
+  for `tools/status.ts`'s ledger scan missing the `BACKLOG-*.md` lane files.
+  `feature-bug-report-hotkey` (top priority) filed as **fb139**;
+  `feature-ci-workflow` filed as **fb140**. All four files moved to
+  `feedback/processed/`.
+- **2026-09-04 session: the three lanes merged into master — `lane/content`
+  (c006-c019: 11 new `tests/class-*`/`equip-*` liveness and ledger suites,
+  Archer pierce-cap fix, two Active cooldown retunes), `lane/terrain`
+  (fb064h-fb064v: Core placement, high-ground rules, seed-domain hardening,
+  the repro dump, variety/approach bands, uncontested-high repair, the
+  flat arena, character passage, `verifyTerrainMap`) and `lane/ui`
+  (fb071-fb113: key remapping, resume-on-refresh, save slots, settings,
+  onboarding, Codex search, sentence-form tooltips, crash capture, boss
+  bar/rail geometry, accessibility).** Conflicts were the three lane Logs
+  (both sides kept) and `src/sim/terrain/{analyze,generate}.ts`, where
+  main's fb077 run-gate-list wiring met the lane's rewrites: lane versions
+  taken and the `gates` list re-threaded as a trailing parameter through
+  every gate-reading terrain function, `TERRAIN_STREAM` kept. The merged
+  generator re-drew every map, so fb077's stranded-Core seeds were re-found
+  (4426/4515/5516 in 1..6000) and fb064q's `charBlock` mask added to main's
+  fallback overlays. fb078 (`'terrain'` `BuildRejection`) committed
+  alongside. All 17 terrain suites, fb077, fb078, architecture and the
+  merged UI suites green. `npm run test:fast` on the merged tree: 3328 passed,
+  29 failed in 17 files — three real, all fixed in the follow-up commit
+  (c012's `swordsman_shoes` anchor re-pointed at fb053's dash form, ui-fb072's
+  boss-bar hp made maxHp-relative after fb099's retune, c4-stacking's
+  hardcoded tiles moved to a practice run because the merged generator put
+  rock under them on seed 1); the other 14 files are the pre-existing
+  nested-`tsx` CLI family (q15/q25/q28/q33/q37/q41/q45/q46/q49/q52 — 60 s
+  timeouts/EPERM under load; q33 and q49 pass standalone as the control) and
+  the DOM-fold hook timeouts (b032/b034/b035/b036; b036 also fails
+  standalone — BACKLOG-UI fb114). Every out-of-scope need in the three Logs is filed as
+  BACKLOG fb118-fb135 and QUESTIONS Q168-Q174; the four in-file duplicate
+  ids in BACKLOG-UI.md were renumbered fb114-fb117 and the wider UI-lane id
+  collision (fb076-fb099 reused) is fb118. **Next:** the full `npm test` at
+  the merge (CLAUDE.md working rule 2) — fb119/fb120 name the reds the lanes
+  expect it to show — then the top of BACKLOG.md.
+- **2026-09-04 session: BACKLOG fb099 closed — the Warden-Eater fight
+  collapsing to ~12-16s (under G14's 20s floor) was fb076's tower-damage
+  retune bleeding into the boss fight, not a stale assertion.** fb076 (G13
+  closure) raised several towers 1.06x-2.6x and those towers keep firing on
+  the boss through Act II, cutting the fight from the `tests/boss.test.ts`
+  header's own 57.05s figure to a measured 15.68s/11.65s (probe vs.
+  qa-playtester, two seed windows). Measured the tower DPS increase against
+  the boss directly at ~3.6x and retuned `data/enemies.json`'s
+  `warden_eater.hp` 100000 -> 365000 to match (same lever-choice precedent as
+  fb093: don't revert fb076's tower values, that's G13's own closed gate),
+  restoring the fight to a measured 51.55s. `tests/boss.test.ts`'s hardcoded
+  HP expectation/title updated to match. Checked the one gate with a
+  documented history of trading off against this exact field — G1
+  (`tests/p10d-run-length.test.ts`, per its own p10d/p10k/p10l/b080 header
+  history) — both pre-fix (HP 100000) and post-fix (365000) via `git stash`:
+  both pass, unaffected by the ~36s fight-length increase. code-reviewer
+  **APPROVE** (2 Minor, both addressed: the comment's tower-multiplier range
+  tightened from 1.3x-2.6x to the accurate 1.06x-2.6x; the G1 cross-check
+  recorded inline rather than left unrecorded). qa-playtester **PASS**:
+  independently re-ran the fight across seeds 1-10 (all win, margins
+  24.67s-51.55s, no seed near the floor) and `tools/probe-boss.ts` maxbuild
+  seeds 1-8 (1/8 wins — the fight isn't trivialized elsewhere, still a real
+  fight per G14's <100%-win-rate intent), confirmed no other file in the repo
+  depends on the old 100000 HP literal or the old fight timing. `npm run
+  test:fast`: 60 failed (17 files), all the pre-registered EPERM scratch-dir
+  flake family (q46/q49/q52/q53, tracked at fb087) — no new failures.
+  `data/enemies.json` (1 line) + `tests/boss.test.ts` only; no `/src` code
+  touched.
+- **2026-09-04 session: BACKLOG fb077 closed — real generated terrain wired
+  into every non-practice `World`, the main-lane half of the terrain epic
+  (SPEC-FINAL §10.5).** `World`'s constructor now generates from `cfg.seed`
+  and applies via `Grid.applyTerrain` right after gates are finalized and
+  before any Command can build; `generateTerrain`/`analyze.ts` gained a
+  trailing `gates` parameter (defaulted, ~30 existing call sites unaffected)
+  so a Fourth Gate run threads its real 4-gate list through generation. A new
+  `applyRunTerrain` (`src/sim/world.ts`) retries at `seed+1, seed+2, ...` up
+  to 16 attempts when the hardcoded Core comes out unreachable, falling back
+  to a flat arena (surfaced via `World.terrainFallback` /
+  `RunReport.terrainFallback`) only if every attempt fails — closing the
+  138/500-seed burial bug and the ~4-in-5000 stranding rate without building
+  fb064c's movable-Core Command (left open, separate follow-up). Practice
+  runs skip generation entirely (flat board, unchanged). Wiring terrain into
+  every run broke 21 pre-existing tests across 6 files that hardcode fixed
+  tile coordinates unrelated to terrain (`act1.test.ts`, `p1a-sealing.test.ts`,
+  `dps-panel.test.ts`, `fb016-vfx-registry.test.ts`, `q120-order1-taunt
+  .test.ts`, `render-fb060-dot-tick-numbers.test.ts`) — fixed by forcing
+  `practice: true` in each (matches pre-fb077 flat-board behavior exactly).
+  code-reviewer's first pass (REQUEST-CHANGES) caught a real Major: the
+  Warden's Act I spawn tile had no terrain protection, unlike Gate/Core tiles
+  (measured 1.0%/2000 seeds painted Rock/High Ground directly on it) — fixed
+  with a shared `wardenSpawnTile()` clearing a 3x3 block pre-apply, re-measured
+  0/2000. G1 re-measured 32.91 min / 24-24 (100%), up from the pre-terrain
+  36.39 min / 21-24 baseline; G14 unchanged 20/20; G2/G17 unaffected beyond
+  pre-existing host-contention flake. qa-playtester's post-close pass found
+  and fixed one more real Major, not deferred: `updateGroundUnreachable`
+  (this item's own new escape-hatch code, reusing the `e.ghosting` pattern
+  `updatePhasing`/`boss.ts` already use) couldn't tell a terrain-sealed
+  pocket from a structure-sealed one, so a ground walker separated from the
+  Warden by a live, undamaged player wall ghosted through it before ever
+  reaching it. Fixed via `beelineHitsStructure`, which walks the same
+  no-route beeline fallback `flowAim` already walks and checks whether the
+  first impassable tile is a live structure (chewable) or terrain/border
+  (nothing to chew); regression test added. `tests/fb077-terrain-wiring
+  .test.ts` (18 tests) covers all of the above; `npm run test:fast` green
+  (same pre-existing Windows flake family, confirmed pre-existing via A/B
+  against HEAD~). qa-playtester's pass also caught the closure text's own
+  false claim that `boss.test.ts` was fully green — it is not, on this diff
+  *or* on HEAD (fight resolves in 11.65-15.68s vs. the file's own ~57s
+  comment) — filed as **fb099** rather than fixed here (pre-existing, out of
+  scope for terrain wiring, invisible to `test:fast` because the file is in
+  the fast-tier exclude list). Full closure narrative, measurements and
+  code-reviewer/qa-playtester detail logged in BACKLOG.md under fb077.
+- **2026-09-04 session: BACKLOG fb095 closed — fb094's G19 sealed-build fix
+  doesn't generalize past its pinned 5-seed window, and no `/data`-free lever
+  closes the gap, so the fix is a test-robustness one, not a retune.**
+  Measured the honest curve across seeds 1-20: `sealed-full` (pyromancer, 8
+  towers, radius 2 — fb094's pick) clears **4/20** (seeds 2, 3, 4, 14 — 3/5 in
+  1-5, 1/10 in 6-15, 0/5 in 16-20). Tried 4 more distinct variants
+  (perimeterRadius 1 and 3, the 2-tower `sealed-turtle` mix, an
+  `engineer`-classKey mix), all ad-hoc and reverted: none generalized better,
+  each a hard per-seed binary (clears the first Night cleanly or dies to the
+  Warden by TD wave 3 — never a near-miss), consistent with `runBuild`'s Act
+  II policy always being `'kite'` regardless of TD-phase strategy. Same
+  "landslide floor" pattern as Q160/Q161; stopped at 5 attempts per CLAUDE.md
+  rule 6 rather than pushing a sixth. Took the item's own option (b): added a
+  fixed `WIDE_SEEDS` (1-20) assertion to `tests/p10f-g19-liveness.test.ts`
+  that runs only `G19_BUILDS`'s sealed entries across all 20 seeds and checks
+  at least one clears, so a future re-pin of the primary `SEEDS` to an
+  unlucky window can no longer silently make the sealed-liveness claim
+  vacuous — without pretending the underlying rate is anything but 4/20.
+  code-reviewer **APPROVE** (2 Minor/Nit, neither blocking: an initial timing
+  claim was optimistic by ~20-30% against re-run, corrected; the docstring
+  frames the curve around `sealed-full` alone though the assertion pools both
+  sealed entries — cosmetic). qa-playtester **PASS**: independently re-ran the
+  file twice fresh (deterministic, 6/6 both times), confirmed `data/`/`src/`
+  untouched, and reproduced every claimed cell exactly via its own throwaway
+  `runBuild` spot-check. Test-only change; no `/data` or engine code touched.
+  `npm run test:fast`: same pre-existing Windows flake family (EPERM
+  scratch-dir races in q45/q49/q52, q15 worker-hang — tracked separately at
+  fb087), no new failures.
+
+- **2026-09-04 session: BACKLOG fb094 closed — G19's liveness clause (a
+  sealed-strategy build must reach the winning-build pool) was genuinely red
+  while `STATUS.md` still claimed green; fixed by correcting `G19_BUILDS`'s
+  `classKey`/`perimeterRadius` in `tools/a5probe.ts`, a test-fixture-only
+  change.** Root cause: `sealed-full`/`sealed-turtle` played `classKey:
+  'engineer'` at `perimeterRadius: 5` (mirroring the registered `sealed`
+  policy) and lost Act II's first VS wave on all 5 seeds regardless of maze
+  shape — but every `engineer`-classed entry in the untouched `BUILDS` pool
+  already loses the same way; only `pyromancer`-classed entries clear. Ruled
+  out `maxStructures` (55 vs the registered policy's own 70 made no
+  difference) before sweeping `classKey` x `perimeterRadius`: `pyromancer` +
+  radius 2 clears 3/5 pinned seeds (survival 582-616s, competitive with the
+  pool's existing entries), landed as the fix. code-reviewer **APPROVE** (2
+  Minor stale-comment findings, both fixed — `gate-audit.ts`'s and
+  `a5probe.ts`'s own text overclaimed class parity with the G7/p1b `sealed`
+  policy). qa-playtester **PASS**, and filed a real, honestly-logged
+  fragility finding as **fb095**: the fix passes deterministically on the
+  test's pinned `SEEDS=[1,2,3,4,5]` (same fixed-seed convention every gate in
+  this codebase uses) but the sealed clear rate falls to 1/10 and 0/5 on
+  seeds 6-15/16-20 — logged rather than oversold as a robust mechanism fix.
+  `npx tsc --noEmit` clean; `tests/q10-gate-audit.test.ts` 24/24; `npm run
+  test:fast`: same 7-file standing Windows flake family as every session this
+  week, no new failures. `data/*.json` and `/src/sim` untouched.
+
+- **2026-09-04 session: BACKLOG fb093 closed** — fixed gate **G22**'s `time`
+  Core vs Stone Heart, seed-1 regression (fingerprint 0.065, under the 0.10
+  floor), introduced by the same-day `fb076` tower-damage retune. Same lever
+  family `b070` already used once for `corpse`: widened `time`'s own
+  `data/cores.json` upgrade magnitude (`upgrade.steps[0].goldPerSecond` 1 ->
+  3, `time`'s only direct economy lever) rather than touching tower data.
+  balance-analyst rejected 1.1/1.5 (fractional — `w.gold` is
+  `Math.floor`-accumulated, breaks `tests/p-core-b-effects.test.ts`'s exact
+  tick-count gold pins) and 2 (an integer, but drifts off those same pins
+  under 60Hz floating-point summation) before brute-forcing 1-30 to find 3,
+  the smallest value clean at all four pinned tick counts. Fresh numbers:
+  `time` seed 1 0.065->**0.600**, seed 2 0.180->0.204 (already passing, no
+  regression); other three Cores' 6 G22 cases byte-identical (untouched data
+  rows); G21 (4 files, 99 tests) green; G23's `time` case confirmed
+  `it.skip`-ed (Q160/Q161-blocked), so no spillover. code-reviewer
+  **APPROVE** (3 Minor: a stray scratch `console.log` left in
+  `tests/p-core-f-gates.test.ts`, stripped before commit — diff is
+  `data/cores.json` only; SPEC-FINAL's own "+1 gold/s" example text now
+  stale, logged as **QUESTIONS Q167** rather than silently drifting further;
+  BACKLOG/PROGRESS bookkeeping, closed here). qa-playtester **PASS**:
+  independently re-measured all 8 G22 cases with real numbers, ran the full
+  G21 file set, read every line of G23's describe block to confirm zero live
+  `time` cases exist, and proved the guard is real by reverting
+  `goldPerSecond` to 1 (reproduced the original 0.065 failure byte-for-byte)
+  and to 50 (both seeds pass) before restoring 3. `npm run test:fast`: 7
+  failed files, all the pre-registered Windows flake family (`b032`/`b034`/
+  `b035`/`b036` port contention, `q15` worker-hang, `q49`/`q52` EPERM
+  scratch-dir races) — no new failures. No `/src` code touched. Gate count
+  unchanged at HANDOFF's last-regenerated 18/23 (G22 was not counted as its
+  own red row there — it's a per-Core sub-clause of a gate already tracked
+  green overall; this closes the one sub-clause that had gone red).
+
+- **2026-09-04 session: BACKLOG fb076 closed — `data/towers.json`-only
+  damage retune for the six under-clearing solo TD towers against fb054's
+  denser wave curve, landed by a prior session this same day and finished
+  here with the full blast-radius re-verification its own acceptance text
+  required.** Five of seven towers (arrow_spire, ballista, ember_brazier,
+  frost_obelisk, mortar) reach the full 5/5 T1 solo-clear target;
+  tesla_coil/venom_spore are pinned at 4/5, a measured T1/T3 coupling wall
+  (every damage value that clears T1 5/5 also breaks the T3 "fails alone"
+  invariant at 0/5) — logged per CLAUDE.md rule 5 rather than left open on
+  an unreachable 7/7. Ran the five named gate files (G1/G8/G14/G17/G23) both
+  at this diff and, via `git stash`, at HEAD, to separate real regressions
+  from pre-existing red: **G1, G17 green and unaffected; G23 already fully
+  `.skip`-ed (0/5 ceiling unaffected, spot-checked at its own informal 100%
+  win ceiling too); G8 and G14 fail identically before and after (pre-
+  existing red, not new)** — G14's margin did narrow (`bossKillSeconds -
+  bossTimeSeconds` 15.7s at HEAD -> 11.65s now, both short of the required
+  >20s), logged for whoever reopens it. **One real, new regression found:
+  G22** (`tests/p-core-f-gates.test.ts`, `time` Core vs Stone Heart seed 1,
+  fingerprint 0.065 under the 0.10 floor, passed at HEAD) — not named in
+  fb076's own acceptance text but caught by the blast-radius check anyway;
+  filed as its own top-of-queue item **fb093** rather than reopened here,
+  since the fix is a `data/cores.json`-only lever (b070's precedent for the
+  same class of issue on `corpse`), a different file than this item touches.
+  `npm run test:fast` caught one real defect of this diff directly: mortar's
+  `data/towers.json` briefly carried an `upgrades.note` explaining the
+  retune, which `tests/m20c-roster-tracks.test.ts` reserves exclusively for
+  towers *off* the tower-count-line formula — mortar is on-line, so the note
+  was removed (the rationale lives in BACKLOG.md's prose instead); re-ran
+  m20c alone after the fix, green. The other 7 of 8 `test:fast` file
+  failures are the pre-existing Windows scratch-dir/port flake family this
+  repo already tracks (`q15`/`q49`/`q52` EPERM races, `b032`/`b034`/`b035`/
+  `b036` dev-server port contention) — confirmed non-reproducing in relation
+  to this diff by isolated re-runs. qa-playtester **PASS**: independently
+  re-verified `data/towers.json`'s exact values and `upgrades.note`
+  placement, live-ran `a4-single-type`/`f003-leak-coupling`/`m20c-roster-
+  tracks` to green, confirmed `fb093` is a real filed item, and grepped
+  `tests/` for the six old damage literals (100, 103.6, 234, 319, 1602, 380)
+  finding zero stale pins — plus an adversarial sweep of ~35 more tower-
+  adjacent test files, all pass or fail in already-documented pre-existing
+  ways. It also surfaced one more pre-existing (confirmed via the same
+  `git stash`-at-HEAD control, not fb076-caused) issue outside this item's
+  scope: G19's liveness clause (`tests/p10f-g19-liveness.test.ts`) is red —
+  the winning-build top-10 pool has zero sealed-strategy entries — while
+  `STATUS.md` still marks G19 green, a stale gate-table row. Filed as
+  **fb094**.
+
+- **2026-09-04 session: BACKLOG p11e closed — audited QUESTIONS.md's five
+  verdict-less entries (Q94, Q155, Q156, Q157, Q158) against current HEAD,
+  per CLAUDE.md's "a deferral is a measurement with an expiry date" rule.**
+  Two (Q94, Q155) are confirmed genuinely still open with nothing to append:
+  Q94's own forward-looking caveat (a p3e re-measure of G7's sealed-vs-open
+  band) was checked directly against `tests/p1b-seal-winrate.test.ts` (still
+  on `cfg()`'s legacy `cycles: 1`) and against p3e/Q109's own text, which
+  never mentions that file — the promised re-measure genuinely never
+  happened and stays unresolved under any id, so Q94 got a note recording
+  that confirmation rather than a "superseded" claim; Q155's three chosen
+  defaults (boss HP inclusion, a distinct attack-speed stat, hardcoded-effect
+  scope) are uncontradicted by anything since, so nothing was appended.
+  Three (Q156, Q157, Q158) had their loose threads actually closed by later
+  work and got a "(superseded by: ...)" note each: Q156 by `fb048` (done —
+  the slow/fast `tools/status.ts` tradeoff was resolved in code, not left for
+  a verdict); Q157 by Q158 (`p10r` inherited exactly the corrected retune
+  target this entry filed); Q158 by Q159 (both unblock paths it named were
+  taken up as `p10s`, continuing through `p10t`/Q159 to `p10z`/Q160's same
+  still-open owner escalation). Every claim in all four appended notes was
+  cross-checked against the cited entries' and items' actual current text
+  before writing, not inferred. Diff is `QUESTIONS.md` (four appended notes)
+  and `BACKLOG.md` (this closure) only — no `/src` or `/data` touched.
+  qa-playtester **PASS**: independently re-verified every factual claim in
+  the four notes against `BACKLOG.md`'s p10r/p10s/p10t/p10z/fb048 entries and
+  against `tests/p1b-seal-winrate.test.ts`/`tests/helpers.ts`'s actual
+  `cycles: 1` default, confirmed the git diff touches only the two doc files,
+  no inaccuracies found. `npx tsc --noEmit` not needed (no code touched);
+  `npm run test:fast`: 157 passed/9 failed test files (2233/2266 tests),
+  every failure the same standing Windows flake family already documented
+  this session's history (`q15-command-domain-fuzz` worker-hang,
+  `q45`/`q49`/`q52` EPERM scratch-dir races) — unrelated to a docs-only diff.
+
+- **2026-09-04 session: BACKLOG p11d closed — a fast-tier margin test now
+  pins G13's one genuine T3 near-miss (`frost_obelisk` seed 4, 17/18 waves),
+  and a stale, live-failing `tests/a4-single-type.test.ts` pin found along
+  the way was corrected rather than inherited.** b072's old flag ("three of
+  four retuned towers near-miss T3 at 17/18") no longer reproduces under
+  current `/data` (fb025/b080/fb054 have all landed since) — re-measured
+  fresh per CLAUDE.md's re-measure-before-inheriting rule rather than
+  trusting the old note, and found the only remaining near-miss is
+  `frost_obelisk` seed 4. New `tests/p11d-g13-t3-margin.test.ts` (not
+  excluded from `vitest.fast.config.ts`, ~10-20s) pins `waves < 18` /
+  `cleared === false` for that seed — a tolerance bound, not an exact-value
+  pin (code-reviewer's suggestion, avoids forcing a pin bump on a benign
+  future improvement). Establishing an honest baseline surfaced a real,
+  already-live bug: `a4-single-type.test.ts`'s `T1_EXPECTED_CLEARS` pin for
+  `frost_obelisk` (pinned 2, measures 4) and `mortar` (pinned 0, measures 1)
+  was wrong at the moment the fb054 session wrote it — confirmed by
+  re-running the probe in an isolated worktree checked out at that exact
+  commit and getting the same corrected numbers there too, ruling out later
+  data drift. Corrected the pin; added a pointer from still-open `fb076` to
+  the corrected baseline so its future retune doesn't re-derive from the
+  stale figures. code-reviewer **APPROVE** (2 Minor: the `fb076` pointer and
+  the tolerance-vs-exact-pin choice, both addressed). qa-playtester **PASS**:
+  proved the new test is a real regression guard, not a tautology, by
+  live-mutating `frost_obelisk`'s damage (+20% still passed, +71% failed
+  loud) and `waves.json`'s `hpScalePerWave` (also tripped it), reverting
+  both and hash-verifying byte-identical to HEAD. `npx tsc --noEmit` clean;
+  `tests/a4-single-type.test.ts` 16/16 (~770s, stays excluded from the fast
+  tier); `npm run test:fast`: only the standing `b032`/`b034`/`b035`/`b036`/
+  `q15`/`q45`/`q49`/`q52` Windows flake family, `q45`/`q49`/`q52` confirmed
+  identical on unmodified HEAD via `git stash` A/B. No engine or `/src/sim`
+  code touched — test files and `/data`-adjacent docs only. See BACKLOG.md's
+  p11d entry for full detail.
+
+- **2026-09-04 session: BACKLOG p11c closed — `p10z`'s candidate direction (b)
+  (a weaker/imperfect-play scripted-kit-and-Core-purchase bot for G8/G23) tried
+  and found to close off, not open, the wall — after a real bug in the harness
+  itself was caught and fixed first.** New `tests/helpers.ts` infrastructure
+  (`scriptClassKitImperfect`/`buyCoreUpgradesImperfect`/`runScriptedImperfect`)
+  jitters a fired Active's aim and, via `reactionReady`, rolls once per
+  readiness window (a cooldown reaching 0, a Core step becoming affordable)
+  whether to act immediately or only after a 1-5s reaction delay. **The first
+  version instead re-rolled the miss chance every tick a decision stayed
+  ready** — code-reviewer caught, before any conclusion was drawn, that this
+  leaves the expected retry wait under 0.2s even at `missChance=0.9`, making
+  the "miss" nearly unobservable against multi-minute runs. Fixed with the
+  window-scoped `reactionReady`, and the fix's real effect was verified before
+  re-measuring (one fixed seed's `class_active` damage: perfect play 16945,
+  jitter-only 9339, `missChance=0.9` 4806.5 — large, monotonic; now a
+  committed regression test, `tests/p11c-imperfect-play.test.ts`, fast-tier
+  excluded at ~65s). A second code-reviewer pass on the fixed diff (APPROVE)
+  found two further Minor issues, both fixed: `buyCoreUpgradesImperfect` now
+  folds gold affordability into its own readiness check (an unaffordable step
+  was reopening a fresh window every tick, compressing the one-roll guarantee
+  — this measurably changed the archer check's own number, 3257 pre-fix vs
+  4806.5 post-fix on the same seed, so every number below is against the
+  fully-fixed harness); and the missing test above. Re-measured against the
+  final harness (ad-hoc scratch script, not committed): **G8** 0/12 classes
+  moved out of `landslide-win` at `missChance=0.9` (4 seeds each), including
+  `bloodlord`/`necromancer` — the two classes closest to a real contest under
+  perfect play. **G23** 0/5 Cores moved, including the three that carry
+  baseline timeouts under perfect play. **G1**/**G14** controls held (8/8
+  each, no regression out of band). This directly confirms
+  Q161's mechanism (own-kit damage share is 0.2%-8.2% of a run's total — the
+  shared towers `ballista`/`frost_obelisk` decide the outcome regardless of
+  kit play quality, now genuinely degraded and still immaterial), rather than
+  adding a fourth "we tried and it didn't work." No adoption proposed
+  (acceptance text: only propose if something moved); harness kept as
+  documented reusable infrastructure, no gate test file's policy changed.
+  `p10z`'s full three-direction candidate list is now exhausted (a: landed at
+  p10z; b: this item; c: checked and rejected at p10z) — G8/G23 stay blocked
+  on the Q160/Q161 owner verdict. Filed **QUESTIONS Q166**. code-reviewer pass
+  on the corrected diff clean. No `/data` changed.
+
+- **2026-09-04 session: BACKLOG p11b closed — HANDOFF.md and STATUS.md
+  regenerated end to end, correcting a stale "green" on gate G14 and a
+  never-filed regression on G13's share-cap clause.** Both docs were dated
+  2026-09-01 (commit `31fb74e`), before roughly a dozen sessions'
+  worth of work (`p10o`-`p10z`, `p10u`, `p10v`, the three-lane merge,
+  `fb053`/`fb054`). All five source-of-truth tools re-run
+  (`handoff-metrics`, `a4probe`, `a5probe`, `content-census`, `gate-audit`)
+  plus `npm run status`. Headline finding: **G14 (boss win rate) has
+  quietly flipped from green (18/20, 90%) to red (20/20, 100% — fails the
+  gate's own `<100%` clause)** since `p10s` rewrote its test harness to
+  match G8/G23's scripted-kit/full-tree shape — the prior HANDOFF never
+  caught this, so it kept reporting a gate that had already gone red as
+  fully green. Gate count corrected from the last regeneration's claimed
+  19/23 to an honest **18/23 green, 4 red (G1/G8/G14/G23), 1 partial
+  (G13)** — G1's "green" reading is itself fragile (87.5% win rate, but
+  every win is `landslide-win`, no real contest). Favored same-day
+  `p10z`/`p10u` margin-classified numbers (`classifyMargin`, already
+  code-reviewer/qa-playtester-verified) over re-running multi-hour sweeps
+  from scratch. **New regression found and filed, not previously
+  documented anywhere**: `tests/p10c-weapon-share.test.ts` (G13's share-cap
+  clause) now fails its own live "enough builds to measure" assertion (3 of
+  10 `BUILDS` reach the pool, need >=4) — `fb054`'s density pass broke the
+  clause's measurability itself, not just solo-viability's numbers, and the
+  test's own docstring still claimed that assertion was "live and green."
+  Filed as **fb092** rather than fixed (a `/data` retune is out of scope
+  for a doc-regeneration item; `fb076`, already queued for solo-viability,
+  should take both in the same pass since they share a root cause). Also
+  caught: `tools/a5probe.ts` run with no arguments reads a
+  misleadingly-healthy 28.8%/frost_obelisk using its own default build/seed
+  set, not the gate's real `SEEDS=[1,2,3,4,5]`/`BUILDS` — HANDOFF now flags
+  this explicitly. `tools/gate-audit.ts`'s stale-coverage-map caveat (G8/G15
+  listed as `hole`) was itself stale — `p10o` had already fixed it;
+  re-confirmed live and the caveat removed. Doc-only change; `npm run
+  test:fast` shows only the same pre-existing Windows `EPERM`/timeout flake
+  family (`fb087`) already known this week, none of it touching a file this
+  item edited. No code-reviewer/qa-playtester pass (zero-behavioural-change
+  documentation item, `p10n`/`p10i`/`p10q` precedent).
+
+- **2026-09-03 session: post lane-merge integration commit** — folded
+  `data/terrain.json` into `contentHash()` (`tests/terrain-content-
+  hash.test.ts`), named `'terrain'`/`draft`/`draftpick` as one-shot RNG
+  streams (`ONE_SHOT_STREAM_NAMES`, `src/sim/rng.ts`), widened the
+  architecture renderer-import guard to nested directories, moved
+  `class-time-lord-band`'s 12-seed sweep to the fast tier's exclude list.
+  Filed fb077-fb088/fb089-fb091 for each lane's out-of-scope Log entries and
+  Q162-Q165 for the design decisions taken. Commit `0c67363`.
+
+- **2026-09-03 session: lane merge — `lane/content`, `lane/terrain` and
+  `lane/ui` merged into master, after committing the uncommitted `fb054`
+  close-out (denser waves: `aliveCap` 500, `perGate` x2.5, spawn interval
+  /2.5; G13's six solo-tower pins re-set to measured counts, retune filed as
+  fb076).** Main wins on shared sim core: the one conflict
+  (`fireCrimsonRush`) keeps fb053's speed-scaled dash travel and c001's
+  Area-scaled half-width. Wired at the merge: `data/terrain.json` in
+  `contentHash()` (new `tests/terrain-content-hash.test.ts`), `'terrain'`
+  as a named one-shot RNG stream, the `/src/sim` renderer-import guard
+  widened to nested dirs, the Time Lord band sweep excluded from the fast
+  tier with its env gate dropped. All three lane Logs read; every out-of-scope need filed
+  as BACKLOG fb077-fb088 (main) / BACKLOG-UI fb089-fb091, decisions logged
+  as QUESTIONS Q162-Q165. The generator is **not** wired into a run yet
+  (Q164 — Fourth Gate, stranded Core and `fallback` consumer first; fb077).
+  Landed from the lanes: c001 Area reaches all 24 Actives, c003 Time Lord
+  band re-measured (12/12, unchanged), c005 kit liveness suite; fb064a/g/b
+  terrain generator + data contract + Grid integration; fb055 impact VFX,
+  fb058 class-select redesign, fb060/fb067-fb070 DoT tick numbers.
+  Verification: see the merge-integration commit message for the
+  `test:fast` and FULL `npm test` results.
+
+- **2026-09-03 session: `fb053` closed — dash speed now scales with the
+  Warden's current movement speed instead of a fixed distance (owner
+  feedback `balance-dash-speed`, top priority).** `data/warden.json`'s
+  `dashDistance` became `dashSpeedMul` (5) with `dashDuration` 0.2→0.18;
+  `src/sim/wardenmove.ts`'s new `dashDistance`/`classDashDuration` give the
+  base dash and all four class-active dashes (Dash Slash, Quickstep, Flame
+  Road, Crimson Rush) the same `dashSpeedMul x currentSpeed x duration`
+  formula, each class-active dash's duration back-calibrated so its
+  authored `dashRange` still reproduces exactly at that class's own
+  baseline speed. code-reviewer's first pass caught a real 15-30% baseline
+  overshoot bug in that calibration (it used the global `BASE.moveSpeed`
+  instead of each class's own, and every class with a dash active has a
+  nonzero permanent `moveSpeedBonus`); fixed via `classBaseMoveSpeed` and
+  re-verified with a new exact regression test. qa-playtester independently
+  confirmed the fix and found no further bugs. See BACKLOG.md's fb053 Done
+  entry for full detail.
 - **2026-09-03 session: `fb052` closed — Sleeve Sword's Circle Slash now
   stays a real charge-then-release ability (instant-max charge, not an
   instant-fire shortcut), fixing a silent Dash-Slash-combo break, and
@@ -10533,6 +11447,38 @@ features whose counters read zero with no explanation.
   more; the empty Stash and the Orb buttons explain themselves.
 
 ## Known issues / skipped tests
+- **p12c: G13's solo-viability clause (`tests/a4-single-type.test.ts`) is
+  `.skip`-ed, re-enable point p12d — and it was already largely red before
+  p12c.** Authored 5/5/5/5/4/5/4; measured at HEAD {1,1,0,0,1,3,0} of 5; at
+  the shipped `baseHpMul: 20`, 0/5 for all seven. The older half is **p12h**.
+- **p12c: G8 (`tests/p6e-class-diversity.test.ts`) and G23
+  (`tests/p-core-f-gates.test.ts`) are unverified at T3 after the re-anchor**
+  — ~1 h each and not run. p12c's acceptance names them; treat any figure in
+  their headers as pre-p12c until re-measured.
+- **p12b: G1's "mean victorious run 30-36 minutes"
+  (`tests/p10d-run-length.test.ts`) is `.skip`-ed, re-enable point p12d.**
+  BALANCE DIRECTION v2 §B moved the four reference gates from T1 to T3
+  (`GATE_TIER`, `tests/helpers.ts`), and the 30-36 band was fitted against T1.
+  Measured at T3: **37.46 min over 9/24 wins** (36.6, 43.5, 35.9, 40.4, 35.8,
+  36.0, 37.2, 35.4, 36.4) — the win rate is inside §B's own [35%,70%] target
+  for T3, and the mean is 1.46 min over a ceiling fitted to a tier the bot
+  won 100% of. Rewriting that band against T3 is exactly what **p12d** owns
+  (§D, "update G1/G8/G14/G23's text and their test files"), so this is
+  `.skip`-ed with the numbers rather than nudged. T1 for reference: 100%
+  wins, 33.32 min. The recorded figures in all four re-pointed gate headers
+  are now T1 history until p12d rewrites them.
+- **p12b: T4 and T5 are dead content — `.skip`-ed liveness gate in
+  `tests/p12b-tier-ladder.test.ts`, re-enable point p12g.** T4 is 0/12 dying
+  in Act I wave 1 with 0-5 kills; T5 is 0/12 with 0 kills on 10 of 12 seeds;
+  and because a tier unlocks only by winning the one below it, T5 is
+  unreachable in normal play. Necessary under a geometric ladder rather than
+  mistuned — `T4 = T3 x p`, so a per-step putting T3 mid-band puts T4 past
+  the cliff. See QUESTIONS Q176; p12g replaces the shape with a per-tier
+  table.
+- **p12b: G1's T3 run has 2 tick-cap timeouts in 24 seeds (seeds 14 and 17),
+  asserted and `.skip`-ed in `tests/p10d-run-length.test.ts`, re-enable point
+  p12e.** Both are censored victories (47.4 and 46.6 min uncapped), so the
+  censored 37.5% / 37.46 min understate the honest 45.8% / 39.20 min.
 - **p2b's wielded VS attacks pushed four pre-existing gates without a §14
   letter red (Q84: A3, A9), all `.skip()`-ed with the mechanism named, per
   Q96.** Wielding roughly doubles a character's normal-damage output (soul

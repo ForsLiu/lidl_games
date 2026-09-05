@@ -40,13 +40,46 @@ export interface Settings {
    */
   reducedFlash: boolean;
   /**
+   * fb086 (QUALITY.md 1.0 accessibility re-check: "reduced-motion mode"),
+   * distinct from `reducedFlash`/`shake`: suppresses ambient *motion* cues —
+   * a jagged tracer's kinked-segment jitter (canvas.ts's `drawTracers`) and
+   * the TD<->VS phase-sweep band's horizontal travel (`drawPhaseSweep`) —
+   * that neither of those two settings touches. Default off, opt-in, same
+   * convention as `reducedFlash`.
+   */
+  reducedMotion: boolean;
+  /**
    * SPEC-V3 T3: opts out of the dev profile, so a developer can see what a
    * real new player sees. Ignored entirely in a production build, where the
    * dev profile is never applied in the first place.
    */
   cleanProfile: boolean;
+  /**
+   * fb058: reveals the non-normal-profile classes on the Hub's Class-select
+   * screen (SPEC-FINAL §4). Meaningless outside a dev build/profile — the
+   * Hub only renders the toggle when `devProfileActive()` is true, same as
+   * the DEV PROFILE badge — but harmless if a stale save carries it `true`
+   * into a production build: `hub.ts` re-checks `devProfileActive()` at
+   * render time rather than trusting this flag alone.
+   */
+  showHiddenClasses: boolean;
   /** Cap floating combat text so a 350-strong fight stays readable. */
   maxDamageNumbers: number;
+  /**
+   * fb060 (owner OVERRIDE of QUESTIONS Q133(3)): once-per-second aggregated
+   * floating numbers for Bleeding/Poison/Toxic/Burning ticks, on top of the
+   * existing marker dots. Default ON per the owner feedback.
+   */
+  dotNumbers: boolean;
+  /**
+   * fb084 (QUALITY.md BETA first-run onboarding): each flips true the first
+   * time its contextual tutorial prompt (first TD build phase / first
+   * Dusk->Night VS wave / first Dawn return-to-build) is dismissed, so it
+   * never shows again. A Settings control can reset all three to replay them.
+   */
+  onboardingSeenBuild: boolean;
+  onboardingSeenDusk: boolean;
+  onboardingSeenDawn: boolean;
 }
 
 export const SETTINGS_KEY = 'stonewake.settings.v1';
@@ -63,8 +96,14 @@ export function defaultSettings(): Settings {
     showPathIndicators: true,
     accessiblePalette: false,
     reducedFlash: false,
+    reducedMotion: false,
     cleanProfile: false,
+    showHiddenClasses: false,
     maxDamageNumbers: 60,
+    dotNumbers: true,
+    onboardingSeenBuild: false,
+    onboardingSeenDusk: false,
+    onboardingSeenDawn: false,
   };
 }
 
@@ -100,9 +139,15 @@ export function sanitize(s: Settings): Settings {
     showPathIndicators: !!s.showPathIndicators,
     accessiblePalette: !!s.accessiblePalette,
     reducedFlash: !!s.reducedFlash,
+    reducedMotion: !!s.reducedMotion,
     cleanProfile: !!s.cleanProfile,
+    showHiddenClasses: !!s.showHiddenClasses,
     maxDamageNumbers: Number.isFinite(s.maxDamageNumbers)
       ? Math.min(400, Math.max(0, Math.round(s.maxDamageNumbers)))
       : 60,
+    dotNumbers: !!s.dotNumbers,
+    onboardingSeenBuild: !!s.onboardingSeenBuild,
+    onboardingSeenDusk: !!s.onboardingSeenDusk,
+    onboardingSeenDawn: !!s.onboardingSeenDawn,
   };
 }

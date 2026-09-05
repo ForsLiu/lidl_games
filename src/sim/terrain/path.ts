@@ -41,7 +41,7 @@
  * importing `analyze`'s one-line `gateIndices` — a mutual import between the
  * two would be a cycle, and the duplicated line is `g.ty * map.w + g.tx`.
  */
-import { GATES } from '../grid';
+import { GATES, type GateDef } from '../grid';
 import { isWalkable, type TerrainConfig } from './config';
 import type { TerrainGrid } from './types';
 
@@ -191,6 +191,7 @@ export function measureApproach(
   anchor: number,
   coreW: number,
   coreH: number,
+  gates: readonly GateDef[] = GATES,
 ): ApproachMeasure {
   const sources: number[] = [];
   if (Number.isInteger(anchor) && anchor >= 0 && anchor < map.w * map.h) {
@@ -203,12 +204,12 @@ export function measureApproach(
     }
   }
   const dist = approachField(map, cfg, sources);
-  const perGate = GATES.map((g) => {
+  const perGate = gates.map((g) => {
     const gi = g.ty * map.w + g.tx;
     return gi >= 0 && gi < dist.length ? dist[gi] : -1;
   });
   const reached = perGate.filter((d) => d >= 0);
-  const allReachable = GATES.length > 0 && reached.length === GATES.length;
+  const allReachable = gates.length > 0 && reached.length === gates.length;
   if (!allReachable) {
     return { anchor, perGate, allReachable, min: -1, mean: -1, max: -1, spread: -1 };
   }
@@ -301,12 +302,13 @@ export function maxGateDetour(
   anchor: number,
   coreW: number,
   coreH: number,
+  gates: readonly GateDef[] = GATES,
 ): number {
-  const m = measureApproach(map, cfg, anchor, coreW, coreH);
+  const m = measureApproach(map, cfg, anchor, coreW, coreH, gates);
   if (!m.allReachable) return -1;
   let worst = -1;
-  for (let g = 0; g < GATES.length; g++) {
-    const free = freeApproachCost(GATES[g].tx, GATES[g].ty, anchor, map.w, coreW, coreH);
+  for (let g = 0; g < gates.length; g++) {
+    const free = freeApproachCost(gates[g].tx, gates[g].ty, anchor, map.w, coreW, coreH);
     // `<= 0` catches a gate standing on the Core footprint (a zero divisor);
     // `!isFinite` catches both `NaN` (off-grid anchor) and `Infinity` (an empty
     // footprint), the second of which a bare `free > 0` waves through and then

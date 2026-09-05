@@ -70,10 +70,18 @@ export function runOne(cfg: RunConfig, policyName: string, maxTicks: number): Ru
 }
 
 /**
- * fb047: `RunConfig.tier` alone feeds only reward-multiplier math
+ * **p12b update:** the paragraph below is no longer the whole story.
+ * `RunConfig.tier` now also drives the tier *ladder* — enemy HP, director
+ * budget and enemy `coreDamage`, each `^(tier-1)` (`src/sim/tiers.ts`) — so
+ * `--tier 3` is a real difficulty change on its own. The auto-draft below
+ * still applies on top, which means a `--tier 3` sweep measures **ladder plus
+ * modifiers**, whereas p12b's own recorded numbers are ladder-only
+ * (`modifiers: []`). Don't compare the two directly.
+ *
+ * fb047: `RunConfig.tier` alone fed only reward-multiplier math
  * (`src/sim/tiers.ts`'s `rewardMultiplier`) and reporting — every actual
  * difficulty knob (enemy HP/speed, elite/rift/boss multipliers, extra
- * gates/waves, Core HP) lives in `RunConfig.modifiers`, which the real Hub UI
+ * gates/waves, Core HP) lived in `RunConfig.modifiers`, which the real Hub UI
  * drafts per tier (`modifierDraft`) before a human ever plays. A bare
  * `--tier N` here used to leave `modifiers` at `[]`, so `--tier 3` was
  * mechanically identical to `--tier 1` for every bot — confirming p10p's

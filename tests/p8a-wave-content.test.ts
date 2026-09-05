@@ -29,16 +29,22 @@ describe('p8a wave content (SPEC-FINAL §9, §1.1)', () => {
     expect(waveHpScale(w, 18)).toBeCloseTo(Math.pow(scale, 17), 10);
   });
 
-  it('VS budget baseline is exactly 150 x 1.21^(waveIndex) at cycles 1, 3 and 6', () => {
+  // fb054 (BALANCE.md's "Density targets" section) retuned budgetBase
+  // 150->375 against the owner's density ORDER. Read it from content rather
+  // than re-hardcoding the old literal, same rationale as the HP-scale test
+  // above — a future re-tune can't silently drift this test out of sync.
+  it('VS budget baseline is exactly budgetBase x 1.21^(waveIndex) at cycles 1, 3 and 6', () => {
     const w = new World(cfg());
+    const base = w.content.spawns.budgetBase;
     // cycle 1 = block 1 = waveIndex 0, ... cycle 6 = block 6 = waveIndex 5.
-    expect(vsBudgetBaseline(w, 1)).toBeCloseTo(150, 10);
-    expect(vsBudgetBaseline(w, 3)).toBeCloseTo(150 * Math.pow(1.21, 2), 10);
-    expect(vsBudgetBaseline(w, 6)).toBeCloseTo(150 * Math.pow(1.21, 5), 10);
+    expect(vsBudgetBaseline(w, 1)).toBeCloseTo(base, 10);
+    expect(vsBudgetBaseline(w, 3)).toBeCloseTo(base * Math.pow(1.21, 2), 10);
+    expect(vsBudgetBaseline(w, 6)).toBeCloseTo(base * Math.pow(1.21, 5), 10);
   });
 
   it('a run with no budgetGrowthPerVsWave configured falls back to no cross-wave escalation', () => {
     const w = new World(cfg());
+    const base = w.content.spawns.budgetBase;
     // `SpawnsFileSchema`'s field is optional for back-compat (p8a) — simulate
     // an older data file that never set it. `w.content` is the module-level
     // cached `loadContent()` singleton (not cloned per-`World`), so the
@@ -49,8 +55,8 @@ describe('p8a wave content (SPEC-FINAL §9, §1.1)', () => {
     const saved = spawns.budgetGrowthPerVsWave;
     delete spawns.budgetGrowthPerVsWave;
     try {
-      expect(vsBudgetBaseline(w, 1)).toBeCloseTo(150, 10);
-      expect(vsBudgetBaseline(w, 6)).toBeCloseTo(150, 10);
+      expect(vsBudgetBaseline(w, 1)).toBeCloseTo(base, 10);
+      expect(vsBudgetBaseline(w, 6)).toBeCloseTo(base, 10);
     } finally {
       spawns.budgetGrowthPerVsWave = saved;
     }

@@ -17,7 +17,7 @@ import {
   refund,
   TREE_AUTO_MAX,
 } from '../meta/meta';
-import { modifierDraft } from '../sim/tiers';
+import { modifierDraft, tierBudgetMul, tierCoreDamageMul, tierEnemyHpMul } from '../sim/tiers';
 import { devProfileActive } from '../meta/devprofile';
 
 /**
@@ -32,22 +32,84 @@ const DEV_BADGE =
   '<span class="sw-devbadge" title="data/dev.json devMode is on. Production builds always run with this off.">DEV PROFILE</span>';
 import { equipItem } from '../meta/stash';
 import { renderTreeView } from './tree-view';
-import { sanitize, type Settings } from './settings';
-import { classAbilitiesMarkup } from './class-info';
+import { defaultSettings, sanitize, type Settings } from './settings';
+import {
+  ACTION_ORDER,
+  defaultKeyBindings,
+  keyLabel,
+  rebindKey,
+  reservedKeyLabel,
+  UNBINDABLE_KEYS,
+  type ActionId,
+  type KeyBindings,
+} from './keybindings';
+import { NORMAL_PROFILE_CLASS_KEYS, classBandStatsMarkup, classSelectSkillsMarkup } from './class-select';
 import { coreDetailMarkup } from './core-info';
 import { modLines, modLinesHtml } from './info-format';
 import { equipmentFallbackMarkup, equipmentSpecialNoteMarkup } from './equipment-info';
 import { STAT_KIND, type StatKey } from '../sim/stats';
 import { mountCodex } from './codex';
 import { hasUnsavedTunerEdits } from './tuner-state';
+import { crashLogEntries, formatCrashReport } from './crashlog';
+import { creditsMarkup } from './credits';
+import { questsMarkup } from './quests';
+import { SAVE_SLOT_COUNT, deleteSlot, getActiveSlot, slotHasData, switchToSlot } from './saveslots';
 
-type Tab = 'run' | 'tree' | 'equipment' | 'codex' | 'settings';
+type Tab = 'run' | 'tree' | 'equipment' | 'quests' | 'codex' | 'settings' | 'credits';
+
+/**
+ * fb090: `main.ts`'s `showHub()` constructs a fresh `Hub` on every return to
+ * the Hub screen without disposing the previous instance, so a per-instance
+ * `document.addEventListener('fullscreenchange', ...)` (the same shape as
+ * the pre-existing fb073 rebind-keydown listener) would leak: a stale
+ * instance discarded while still on the Settings tab keeps its listener
+ * alive forever and can `show()` — clobbering the *current* Hub/Hud's DOM —
+ * on a later `fullscreenchange` it has no business reacting to. A single
+ * module-scoped listener, installed once, that always re-renders whichever
+ * `Hub` was constructed *most recently* (never a stale one) sidesteps this
+ * regardless of how many `Hub` instances have ever existed.
+ *
+ * fb091 (code-reviewer finding) reuses this same "most recently constructed
+ * Hub bound to the shared root" pointer for its own async clipboard-write
+ * callback, which has the identical staleness hazard: `showHub()`'s
+ * unconditional fresh `Hub` means a `navigator.clipboard.writeText()` promise
+ * still pending when the player returns to (or leaves) the Hub must not let
+ * the stale instance's callback `show()` over whatever replaced it.
+ */
+let activeHub: Hub | null = null;
+let fullscreenListenerInstalled = false;
+
+function ensureFullscreenListenerInstalled(): void {
+  if (fullscreenListenerInstalled) return;
+  fullscreenListenerInstalled = true;
+  document.addEventListener('fullscreenchange', () => {
+    activeHub?.refreshFullscreenLabel();
+  });
+}
+
+/**
+ * fb091: crash-log entries are the one place this file renders genuinely
+ * arbitrary runtime strings (a thrown error's own `message`) into `innerHTML`
+ * rather than fixed labels or numbers — escaped defensively so a hostile or
+ * unusual error message can't inject markup into the Settings tab.
+ */
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
 
 export interface HubCallbacks {
   settings: Settings;
   onStart(cfg: RunConfig): void;
   onMetaChanged(meta: MetaState): void;
   onSettingsChanged(settings: Settings): void;
+  /** fb073: key remapping. Optional so a caller not yet wired to it still gets working defaults. */
+  keyBindings?: KeyBindings;
+  onKeyBindingsChanged?(bindings: KeyBindings): void;
 }
 
 export class Hub {
@@ -66,8 +128,16 @@ export class Hub {
   /** fb022: right-click selects an owned item for the Equipment detail panel without equipping it. */
   private selectedEquipment: string | null = null;
   private settings: Settings;
+  private keyBindings: KeyBindings;
+  /** fb073: which action's button is waiting for the next keydown, if any. */
+  private listeningAction: ActionId | null = null;
+  private rebindConflict = '';
+  /** fb075: first click arms the destructive "reset settings" confirm step; second click commits it. */
+  private settingsResetArmed = false;
   /** Transient one-line feedback under the tab bar. */
   private notice = '';
+  /** fb091: transient feedback under the Crash reports panel's Copy report button. */
+  private crashLogCopyNotice = '';
   /**
    * Points spent in this Hub visit. They have not been taken into a run yet, so
    * taking one back is an undo rather than a respec, and costs no skill points.
@@ -82,11 +152,18 @@ export class Hub {
     this.classKey = meta.unlockedClasses[0] ?? 'engineer';
     this.coreKey = meta.unlockedCores[0] ?? 'stone_heart';
     this.settings = cb.settings;
+    this.keyBindings = cb.keyBindings ?? defaultKeyBindings();
     // fb023: a one-time "your relics were dropped" notice from a save
     // migration, shown on this first Hub screen only — `commit()` clears it
     // exactly like every other transient notice, so it cannot resurface after
     // the next Constellation spend or Equipment swap.
     if (initialNotice) this.notice = initialNotice;
+    // fb090: this instance becomes the one a document-level fullscreenchange
+    // event should re-render, and (fb091) the one any of *this* instance's
+    // still-pending async callbacks are allowed to act through — see the
+    // module-scoped pointer's comment above.
+    activeHub = this;
+    ensureFullscreenListenerInstalled();
   }
 
   /** Switches tab and re-renders. Also the seam tests use to reach a tab. */
@@ -96,6 +173,16 @@ export class Hub {
   }
 
   show(): void {
+    // fb073: leaving the Settings tab mid-rebind must not leave a stray
+    // document-level keydown listener armed against a control no longer on
+    // screen.
+    if (this.tab !== 'settings' && this.listeningAction) this.stopListeningForRebind();
+    // fb075: leaving the Settings tab mid-confirm must not leave the reset
+    // button armed for a stray second click on return.
+    if (this.tab !== 'settings') this.settingsResetArmed = false;
+    // fb091: leaving the Settings tab must not leave a stale Copy report
+    // notice waiting to reappear on a later visit.
+    if (this.tab !== 'settings') this.crashLogCopyNotice = '';
     this.root.innerHTML = '';
     const el = document.createElement('div');
     el.className = 'sw-hub';
@@ -106,11 +193,19 @@ export class Hub {
         ${DEV_BUILD && devProfileActive() ? DEV_BADGE : ''}
       </header>
       <nav>
-        ${(['run', 'tree', 'equipment', 'codex', 'settings'] as Tab[])
+        ${(['run', 'tree', 'equipment', 'quests', 'codex', 'settings', 'credits'] as Tab[])
           .map(
             (t) =>
               `<button data-tab="${t}" class="${this.tab === t ? 'on' : ''}">${
-                { run: 'Run', tree: 'Constellation', equipment: 'Equipment', codex: 'Codex', settings: 'Settings' }[t]
+                {
+                  run: 'Run',
+                  tree: 'Constellation',
+                  equipment: 'Equipment',
+                  quests: 'Quests',
+                  codex: 'Codex',
+                  settings: 'Settings',
+                  credits: 'Credits',
+                }[t]
               }</button>`,
           )
           .join('')}
@@ -128,7 +223,9 @@ export class Hub {
     if (this.tab === 'run') this.renderRun(body);
     else if (this.tab === 'tree') this.renderTree(body);
     else if (this.tab === 'equipment') this.renderEquipment(body);
+    else if (this.tab === 'quests') this.renderQuests(body);
     else if (this.tab === 'codex') this.renderCodex(body);
+    else if (this.tab === 'credits') this.renderCredits(body);
     else this.renderSettings(body);
   }
 
@@ -153,29 +250,51 @@ export class Hub {
     // production build (the Tuner's editable half never mounts there).
     const unsavedTunerEdits = hasUnsavedTunerEdits();
 
+    // fb058: normal profile shows only the SPEC-FINAL §4 3-class roster; the
+    // dev "show hidden classes" setting (only offered when the dev profile is
+    // active — same gate as DEV_BADGE) reveals the rest. Sim gates always read
+    // `content.classes.classes` directly, never this filtered view.
+    const showHiddenClasses = DEV_BUILD && devProfileActive() && this.settings.showHiddenClasses;
+    const visibleClasses = content.classes.classes.filter(
+      (c) => showHiddenClasses || NORMAL_PROFILE_CLASS_KEYS.includes(c.key),
+    );
+    // Selecting a *locked* visible class is intentional (lets a player
+    // preview its band stats/skills before it's unlocked, same as the
+    // `locked` card still rendering its full art/name) — only reassigned when
+    // the current selection drops out of the filtered set entirely (e.g. the
+    // dev "show hidden classes" toggle just turned off). `beginRun()` below
+    // is where an actual run start is gated on unlock status, not here.
+    if (!visibleClasses.some((c) => c.key === this.classKey)) {
+      this.classKey = visibleClasses[0]?.key ?? this.classKey;
+    }
+    const selectedClass = visibleClasses.find((c) => c.key === this.classKey) ?? visibleClasses[0];
+
     body.innerHTML = `
-      <div class="sw-panel">
+      <div class="sw-panel wide">
         <h2>Class</h2>
-        <div class="sw-choices">
-          ${content.classes.classes
+        <div class="sw-classrow">
+          ${visibleClasses
             .map((c) => {
               const locked = !this.meta.unlockedClasses.includes(c.key);
               const quest = content.quests.quests.find((q) => q.key === c.unlockQuest);
-              const trait = c.passive.description;
-              const activeLine = `Active: ${c.active1.name} (Q)/${c.active2.name} (E) &middot; Passive: ${c.passive.name}`;
-              return `<button class="sw-choice ${this.classKey === c.key ? 'on' : ''} ${
+              return `<button class="sw-classcard ${this.classKey === c.key ? 'on' : ''} ${
                 locked ? 'locked' : ''
               }" data-class="${c.key}" ${locked ? 'disabled' : ''}>
-                <b>${c.name}</b><span>${trait}</span>
-                <small>${activeLine}</small>
+                <div class="sw-classcard-art"><span>${c.name.charAt(0)}</span></div>
+                <b>${c.name}</b>
                 ${locked ? `<small>Locked — ${quest?.desc ?? 'complete a quest'}</small>` : ''}
               </button>`;
             })
             .join('')}
         </div>
-        <div class="sw-classdetail">${classAbilitiesMarkup(
-          content.classes.classes.find((c) => c.key === this.classKey) ?? content.classes.classes[0],
-        )}</div>
+        ${
+          selectedClass
+            ? `<div class="sw-classdetail">
+                ${classBandStatsMarkup(selectedClass)}
+                ${classSelectSkillsMarkup(selectedClass, this.keyBindings)}
+              </div>`
+            : ''
+        }
       </div>
 
       <div class="sw-panel">
@@ -217,7 +336,12 @@ export class Hub {
         </div>
         <p class="sw-note">Tier ${this.tier} applies ${this.tier - 1} modifier${
           this.tier === 2 ? '' : 's'
-        } and pays ×${(1 + content.modifiers.tierRewardPerStep * (this.tier - 1)).toFixed(2)} rewards.</p>
+        }, and enemies have ×${tierEnemyHpMul(content, this.tier).toFixed(2)} HP, ×${tierBudgetMul(
+          content,
+          this.tier,
+        ).toFixed(2)} spawn pressure and ×${tierCoreDamageMul(content, this.tier).toFixed(
+          2,
+        )} Core damage. Pays ×${(1 + content.modifiers.tierRewardPerStep * (this.tier - 1)).toFixed(2)} rewards.</p>
         ${
           draft.length === 0
             ? '<p class="sw-note">No modifiers at tier 1.</p>'
@@ -324,9 +448,15 @@ export class Hub {
       const core = this.meta.unlockedCores.includes(this.coreKey)
         ? this.coreKey
         : this.meta.unlockedCores[0] ?? defaultCoreKey(content);
+      // Same belt-and-suspenders as `core` above, now that fb058's render-time
+      // fallback (this.classKey reassignment a few lines up) makes `classKey`
+      // reachable from something other than a direct unlocked-card click.
+      const classKey = this.meta.unlockedClasses.includes(this.classKey)
+        ? this.classKey
+        : (this.meta.unlockedClasses[0] ?? content.classes.classes[0].key);
       this.cb.onStart({
         seed: this.seed,
-        classKey: this.classKey,
+        classKey,
         core,
         tier: this.tier,
         modifiers,
@@ -391,10 +521,23 @@ export class Hub {
     mountCodex(body);
   }
 
+  /* ------------------------------------------------------------ quests tab */
+
+  private renderQuests(body: HTMLElement): void {
+    body.innerHTML = questsMarkup(loadContent(), this.meta);
+  }
+
+  /* ----------------------------------------------------------- credits tab */
+
+  private renderCredits(body: HTMLElement): void {
+    body.innerHTML = creditsMarkup();
+  }
+
   /* ---------------------------------------------------------- settings tab */
 
   private renderSettings(body: HTMLElement): void {
     const s = this.settings;
+    const crashLog = crashLogEntries();
     body.innerHTML = `
       <div class="sw-panel">
         <h2>Settings</h2>
@@ -407,17 +550,48 @@ export class Hub {
             <b data-out="${row.key}">${Math.round((s[row.key] as number) * 100)}%</b>
           </label>`,
         ).join('')}
-        ${TOGGLES.map(
-          (row) => `<label class="sw-setting">
+        ${TOGGLES.filter((row) => !row.devOnly || (DEV_BUILD && devProfileActive()))
+          .map(
+            (row) => `<label class="sw-setting">
             <span>${row.label}</span>
             <input type="checkbox" data-toggle="${row.key}" ${s[row.key] ? 'checked' : ''} />
           </label>`,
-        ).join('')}
+          )
+          .join('')}
         <label class="sw-setting">
           <span>Max damage numbers</span>
           <input type="range" min="0" max="200" value="${s.maxDamageNumbers}" data-count="1" />
           <b data-out="maxDamageNumbers">${s.maxDamageNumbers}</b>
         </label>
+        <button class="sw-reroll danger" id="sw-settings-reset">
+          ${this.settingsResetArmed ? 'Click again to confirm reset' : 'Reset settings to defaults'}
+        </button>
+        <button class="sw-reroll" id="sw-onboarding-replay">Replay tutorial prompts</button>
+        <button class="sw-reroll" id="sw-fullscreen-toggle">
+          ${document.fullscreenElement ? 'Exit fullscreen' : 'Enter fullscreen'}
+        </button>
+      </div>
+
+      <div class="sw-panel">
+        <h2>Controls</h2>
+        <p class="sw-note">Click a binding, then press the key to use instead.</p>
+        ${
+          this.rebindConflict
+            ? `<p class="sw-note sw-error" id="sw-keybind-conflict">${this.rebindConflict}</p>`
+            : ''
+        }
+        <div class="sw-keybindlist">
+          ${ACTION_ORDER.map(
+            (a) => `<label class="sw-setting">
+              <span>${a.label}</span>
+              <button type="button" class="sw-keybind ${this.listeningAction === a.id ? 'listening' : ''}"
+                      data-rebind="${a.id}">
+                ${this.listeningAction === a.id ? 'Press a key…' : keyLabel(this.keyBindings[a.id])}
+              </button>
+            </label>`,
+          ).join('')}
+        </div>
+        <button class="sw-reroll" id="sw-keybind-reset">Restore default controls</button>
       </div>
 
       <div class="sw-panel">
@@ -429,6 +603,42 @@ export class Hub {
         </p>
         <button class="sw-reroll" id="sw-seed">Seed a test account</button>
         <button class="sw-reroll danger" id="sw-wipe">Wipe account</button>
+      </div>
+
+      <div class="sw-panel">
+        <h2>Save Slots</h2>
+        <p class="sw-note">Switching slots reloads the page.</p>
+        <div class="sw-slotlist">
+          ${Array.from({ length: SAVE_SLOT_COUNT }, (_, slot) => {
+            const active = slot === getActiveSlot();
+            const hasData = slotHasData(slot);
+            return `<div class="sw-setting sw-slotrow ${active ? 'on' : ''}">
+              <span>Slot ${slot + 1}${active ? ' (active)' : ''}${hasData ? '' : ' — empty'}</span>
+              <button class="sw-reroll" data-slot-switch="${slot}" ${active ? 'disabled' : ''}>Switch</button>
+              <button class="sw-reroll danger" data-slot-delete="${slot}" ${hasData ? '' : 'disabled'}>Delete</button>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>
+
+      <div class="sw-panel">
+        <h2>Crash reports</h2>
+        <p class="sw-note">
+          The last ${crashLog.length} uncaught error${crashLog.length === 1 ? '' : 's'} this browser
+          session, kept in memory only — nothing here is saved to your account.
+        </p>
+        ${
+          crashLog.length === 0
+            ? '<p class="sw-note">No errors recorded this session.</p>'
+            : `<ul class="sw-crashlist">${crashLog
+                .map(
+                  (e) =>
+                    `<li><b>${new Date(e.time).toLocaleTimeString()}</b> ${escapeHtml(e.message)}</li>`,
+                )
+                .join('')}</ul>`
+        }
+        <button class="sw-reroll" id="sw-crashlog-copy">Copy report</button>
+        ${this.crashLogCopyNotice ? `<p class="sw-note">${escapeHtml(this.crashLogCopyNotice)}</p>` : ''}
       </div>`;
 
     const commit = () => {
@@ -452,18 +662,69 @@ export class Hub {
       });
     }
     body.querySelector('#sw-seed')?.addEventListener('click', () => {
+      // fb075: any other Settings-tab action that re-renders the panel must
+      // disarm a pending reset-confirm — otherwise the button's redrawn
+      // "Reset settings to defaults" text silently lies about the armed
+      // state, and the very next click executes the reset with no second
+      // confirm ever shown.
+      this.settingsResetArmed = false;
       const next = seedTestEquipment(seedTestAccount(this.meta));
       this.commit(next);
       this.notice = 'Seeded equipment and 20 skill points.';
       this.show();
     });
     body.querySelector('#sw-wipe')?.addEventListener('click', () => {
+      this.settingsResetArmed = false; // fb075: see #sw-seed's comment above.
       this.spentThisVisit.clear();
       this.selectedEquipment = null;
       this.commit(defaultMeta());
       this.notice = 'Account wiped.';
       this.show();
     });
+
+    for (const el of body.querySelectorAll<HTMLElement>('[data-slot-switch]')) {
+      el.addEventListener('click', () => {
+        this.settingsResetArmed = false; // fb075: see #sw-seed's comment above.
+        const slot = Number(el.dataset.slotSwitch);
+        if (!switchToSlot(slot)) return;
+        // fb096 (qa-playtester finding, fb100): reload immediately rather than
+        // only showing a "please reload" notice — this already-constructed
+        // `Hub`'s `this.meta` is still the *old* slot's in-memory copy, and
+        // every other mutating control here (`#sw-wipe`, equip, allocate…)
+        // stays clickable and would silently re-save that stale copy over the
+        // slot just switched into if the player acted again before manually
+        // reloading. A real reload tears down this instance and rebuilds from
+        // the new active slot's `SAVE_KEY` via the ordinary boot path.
+        try {
+          window.location.reload();
+        } catch {
+          this.notice = `Switched to Slot ${slot + 1}. Reload the page to continue on it.`;
+          this.show();
+        }
+      });
+    }
+    for (const el of body.querySelectorAll<HTMLElement>('[data-slot-delete]')) {
+      el.addEventListener('click', () => {
+        this.settingsResetArmed = false; // fb075: see #sw-seed's comment above.
+        const slot = Number(el.dataset.slotDelete);
+        const wasActive = slot === getActiveSlot();
+        if (deleteSlot(slot)) {
+          // fb096: `deleteSlot` clears the live `SAVE_KEY` too when `slot` was
+          // active — reflect that in already-loaded in-memory state exactly
+          // like `#sw-wipe` does (including its Hub-visit-local state, not
+          // just `this.meta`), rather than leaving `this.meta` pointing at an
+          // account that no longer exists in storage.
+          if (wasActive) {
+            this.spentThisVisit.clear();
+            this.selectedEquipment = null;
+            this.meta = defaultMeta();
+            this.cb.onMetaChanged(this.meta);
+          }
+          this.notice = `Slot ${slot + 1} deleted.`;
+        }
+        this.show();
+      });
+    }
 
     const count = body.querySelector<HTMLInputElement>('[data-count]');
     count?.addEventListener('input', () => {
@@ -472,7 +733,147 @@ export class Hub {
       if (out) out.textContent = count.value;
       commit();
     });
+
+    body.querySelector('#sw-settings-reset')?.addEventListener('click', () => {
+      if (!this.settingsResetArmed) {
+        this.settingsResetArmed = true;
+        this.show();
+        return;
+      }
+      this.settingsResetArmed = false;
+      this.settings = sanitize(defaultSettings());
+      this.cb.onSettingsChanged(this.settings);
+      this.show();
+    });
+
+    body.querySelector('#sw-onboarding-replay')?.addEventListener('click', () => {
+      this.settingsResetArmed = false; // fb075: see #sw-seed's comment above.
+      this.settings = {
+        ...this.settings,
+        onboardingSeenBuild: false,
+        onboardingSeenDusk: false,
+        onboardingSeenDawn: false,
+      };
+      commit();
+      this.notice = 'Tutorial prompts will show again on your next run.';
+      this.show();
+    });
+
+    body.querySelector('#sw-fullscreen-toggle')?.addEventListener('click', () => {
+      this.settingsResetArmed = false; // fb075: see #sw-seed's comment above.
+      if (document.fullscreenElement) {
+        document.exitFullscreen?.()?.catch(() => {});
+      } else {
+        this.root.requestFullscreen?.()?.catch(() => {});
+      }
+    });
+
+    body.querySelector('#sw-crashlog-copy')?.addEventListener('click', () => {
+      this.settingsResetArmed = false; // fb075: see #sw-seed's comment above.
+      if (!navigator.clipboard) {
+        this.crashLogCopyNotice = 'Clipboard not available in this browser.';
+        this.show();
+        return;
+      }
+      navigator.clipboard.writeText(formatCrashReport()).then(
+        () => {
+          // fb091 (code-reviewer finding): `showHub()` builds a fresh `Hub` on
+          // every return to the Hub screen without disposing the previous
+          // one, so this async callback must not act once a *different*
+          // instance has become `activeHub` — the same staleness hazard
+          // `activeHub`'s own doc comment (above) already covers for
+          // `refreshFullscreenLabel`.
+          if (activeHub !== this) return;
+          this.crashLogCopyNotice = 'Copied to clipboard.';
+          this.show();
+        },
+        () => {
+          if (activeHub !== this) return;
+          this.crashLogCopyNotice = 'Could not copy — clipboard access was denied.';
+          this.show();
+        },
+      );
+    });
+
+    for (const el of body.querySelectorAll<HTMLElement>('[data-rebind]')) {
+      el.addEventListener('click', () => this.startListeningForRebind(el.dataset.rebind as ActionId));
+    }
+    body.querySelector('#sw-keybind-reset')?.addEventListener('click', () => {
+      this.settingsResetArmed = false; // fb075: see #sw-seed's comment above.
+      this.stopListeningForRebind();
+      this.keyBindings = defaultKeyBindings();
+      this.rebindConflict = '';
+      this.cb.onKeyBindingsChanged?.(this.keyBindings);
+      this.show();
+    });
   }
+
+  /**
+   * fb090: the browser's own fullscreen exit (Esc, or an OS-level control) —
+   * and any other agent that changes `document.fullscreenElement` — fires a
+   * `fullscreenchange` event without our own toggle button ever being
+   * clicked, so the displayed label must react to the event rather than only
+   * to a click. Called only on whichever `Hub` instance is currently
+   * `activeHub` (see the module-scoped pointer above), so a stale instance
+   * discarded mid-Settings-tab never fires this.
+   */
+  refreshFullscreenLabel(): void {
+    if (this.tab === 'settings') this.show();
+  }
+
+  /* -------------------------------------------------------- key remapping */
+
+  /** fb073: a rebind button was clicked — arm the next keydown to capture it. */
+  private startListeningForRebind(action: ActionId): void {
+    this.settingsResetArmed = false; // fb075: see #sw-seed's comment in renderSettings.
+    this.listeningAction = action;
+    this.rebindConflict = '';
+    document.addEventListener('keydown', this.onRebindKeyDown, true);
+    this.show();
+  }
+
+  private stopListeningForRebind(): void {
+    document.removeEventListener('keydown', this.onRebindKeyDown, true);
+    this.listeningAction = null;
+  }
+
+  /**
+   * Bound once (arrow-function class field) so add/removeEventListener target
+   * the same function reference across renders — `show()` rebuilds the DOM
+   * every call, but this listener lives on `document`, outside that subtree.
+   */
+  private onRebindKeyDown = (e: KeyboardEvent): void => {
+    const action = this.listeningAction;
+    if (!action) return;
+    e.preventDefault();
+    this.stopListeningForRebind();
+    const k = e.key.toLowerCase();
+    if (k === 'escape') {
+      this.show();
+      return;
+    }
+    if (UNBINDABLE_KEYS.has(k)) {
+      this.rebindConflict = `"${keyLabel(k)}" is reserved for movement and cannot be reassigned.`;
+      this.show();
+      return;
+    }
+    const reserved = reservedKeyLabel(action, k);
+    if (reserved) {
+      this.rebindConflict = `"${reserved}" is reserved and cannot be reassigned.`;
+      this.show();
+      return;
+    }
+    const result = rebindKey(this.keyBindings, action, e.key);
+    if (result.ok) {
+      this.keyBindings = result.bindings;
+      this.rebindConflict = '';
+      this.cb.onKeyBindingsChanged?.(this.keyBindings);
+    } else {
+      const label = ACTION_ORDER.find((a) => a.id === result.conflictWith)?.label ?? result.conflictWith;
+      this.rebindConflict = `"${keyLabel(e.key.toLowerCase())}" is already bound to ${label}.`;
+    }
+    this.show();
+  };
 
   /* --------------------------------------------------------- equipment tab */
 
@@ -594,10 +995,12 @@ const SLIDERS: { key: keyof Settings; label: string }[] = [
   { key: 'shake', label: 'Screen shake' },
 ];
 
-const TOGGLES: { key: keyof Settings; label: string }[] = [
+const TOGGLES: { key: keyof Settings; label: string; devOnly?: boolean }[] = [
   { key: 'damageNumbers', label: 'Damage numbers' },
+  { key: 'dotNumbers', label: 'DoT numbers' },
   { key: 'accessiblePalette', label: 'Color-blind-safe damage colors' },
   { key: 'reducedFlash', label: 'Reduced flash (dims skill & Core effect flashes)' },
+  { key: 'reducedMotion', label: 'Reduced motion (suppresses tracer jitter & phase-sweep travel)' },
   { key: 'showRanges', label: 'Show tower ranges' },
   { key: 'showGrid', label: 'Show grid' },
   { key: 'showEnemyHpBars', label: 'Enemy HP bars' },
@@ -605,6 +1008,9 @@ const TOGGLES: { key: keyof Settings; label: string }[] = [
   // SPEC-V3 T3. Presentation-adjacent rather than presentation-only: it decides
   // whether the dev profile is applied at startup, so it takes effect on reload.
   { key: 'cleanProfile', label: 'Clean profile (ignore dev unlocks, needs reload)' },
+  // fb058: only meaningful (and only shown) in a dev build with the dev
+  // profile active — same gate as the DEV PROFILE badge (`DEV_BADGE` above).
+  { key: 'showHiddenClasses', label: 'Show hidden classes (Class select)', devOnly: true },
 ];
 
 /* ----------------------------------------------------------------- helpers */

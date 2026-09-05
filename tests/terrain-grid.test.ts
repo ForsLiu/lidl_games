@@ -852,6 +852,13 @@ describe('fb064x — every Grid tile predicate answers about a tile that exists'
       ['passableGhost', 'refuses'],
       ['wardenPassable', 'refuses'],
       ['buildable', 'refuses'],
+      // Arrived from master at this merge (fb078: it distinguishes a build
+      // rejected by terrain from one rejected by occupancy). It already
+      // carries the integer guard — written after fb064x's convention was in
+      // master, and following it — so classifying it is all this table needed.
+      // That is the table working: a new `(tx, ty)` member on `Grid` could not
+      // land here without someone saying what it promises a non-integer.
+      ['unbuildableForTerrain', 'refuses'],
       // fb064y. Not boolean predicates, so they cannot share the predicates'
       // one answer — each refuses with the value its own contract already uses
       // for "no answer", and the label says which. `distAt(3, 1.5)` used to

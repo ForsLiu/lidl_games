@@ -15,7 +15,6 @@ type ClassSkillDef = ClassDef['active1'];
 
 export interface SkillIconState {
   key: 'active1' | 'active2';
-  hotkey: 'Q' | 'E';
   name: string;
   /** Seconds left before this Active (or, for a multi-charge Active, its next charge) is usable. */
   cooldownRemaining: number;
@@ -53,7 +52,6 @@ function clamp01(x: number): number {
 
 function skillState(w: World, eff: ClassSkillDef, which: 'active1' | 'active2'): SkillIconState {
   const wd = w.warden;
-  const hotkey = which === 'active1' ? 'Q' : 'E';
   const maxCharges = eff.maxCharges ?? 1;
   // Active2's real cooldown gate (`updateWarden`/`tickAmmoRecharge`, classes.ts)
   // is reduced by `active2CdrFactor` — the general `cdr` stat *and* the §6.3
@@ -72,7 +70,6 @@ function skillState(w: World, eff: ClassSkillDef, which: 'active1' | 'active2'):
     const sweepFraction = ammo < maxCharges && maxCooldown > 0 ? clamp01(ammoCooldown / maxCooldown) : 0;
     return {
       key: which,
-      hotkey,
       name: eff.name,
       cooldownRemaining: ammo < maxCharges ? ammoCooldown : 0,
       maxCooldown,
@@ -86,7 +83,6 @@ function skillState(w: World, eff: ClassSkillDef, which: 'active1' | 'active2'):
   const sweepFraction = maxCooldown > 0 ? clamp01(cooldownRemaining / maxCooldown) : 0;
   return {
     key: which,
-    hotkey,
     name: eff.name,
     cooldownRemaining: Math.max(0, cooldownRemaining),
     maxCooldown,
@@ -124,7 +120,6 @@ export function bottomBarData(w: World): BottomBarData {
   if (!cls) {
     const empty: SkillIconState = {
       key: 'active1',
-      hotkey: 'Q',
       name: '',
       cooldownRemaining: 0,
       maxCooldown: 0,
@@ -132,7 +127,7 @@ export function bottomBarData(w: World): BottomBarData {
       ready: true,
       charges: null,
     };
-    return { hp, gold: w.gold, passive: { name: '', stateText: '' }, active1: empty, active2: { ...empty, key: 'active2', hotkey: 'E' } };
+    return { hp, gold: w.gold, passive: { name: '', stateText: '' }, active1: empty, active2: { ...empty, key: 'active2' } };
   }
   return {
     hp,

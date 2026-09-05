@@ -86,7 +86,25 @@ export function buildCodexCollections(content: Content = loadContent()): CodexCo
       tunerFile: 'damagetypes',
       raw: content.damageTypes,
     },
-    { key: 'enemies', label: 'Enemies', rows: asRows(content.enemies.enemies), tunerFile: 'enemies', raw: content.enemies },
+    {
+      key: 'enemies',
+      label: 'Enemies',
+      // p12c (qa-playtester): show the HP an enemy actually *spawns* with, not
+      // its authored sheet value. `baseHpMul` is a document-level field, so it
+      // has no row of its own and would otherwise be invisible here — leaving
+      // the Codex stating "Husk 200" for an enemy that arrives at 4000. The
+      // authored number is kept alongside so the sheet value is still legible
+      // and the multiplier is self-evident from the pair.
+      rows: asRows(
+        content.enemies.enemies.map((e) => ({
+          ...e,
+          hp: e.hp * content.enemies.baseHpMul,
+          authoredHp: e.hp,
+        })),
+      ),
+      tunerFile: 'enemies',
+      raw: content.enemies,
+    },
     { key: 'waves', label: 'Waves', rows: asRows(content.waves.waves), tunerFile: 'waves', raw: content.waves },
     { key: 'boons', label: 'Stat Boons', rows: asRows(content.boons.statBoons), tunerFile: 'vsupgrades', raw: content.boons },
     {

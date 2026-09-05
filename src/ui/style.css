@@ -21,15 +21,41 @@ html, body {
 
 #app { height: 100%; }
 
-.sw-shell {
-  display: flex;
-  gap: 14px;
-  padding: 14px;
+/* fb088: shown only while a long persisted run is still replaying across chunks on boot, before the Hud/Hub exist to draw anything else. */
+.sw-resume-indicator {
   height: 100%;
-  align-items: flex-start;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--dim);
+  font-size: 16px;
 }
 
-.sw-stage { position: relative; flex: 0 0 auto; }
+/*
+ * fb065 (owner feedback `feature-ui-inside-playfield`): the shell is the
+ * playfield stage alone now — no opaque gutter/sidebar column reserving
+ * horizontal space beside it. `.sw-stage` fills the window; every panel that
+ * used to live in the old `.sw-side` column (`.sw-rail-*` below) is an
+ * absolutely-positioned, semi-transparent overlay anchored to the stage's own
+ * edges instead, the same pattern `.sw-bottombar`/`.sw-dock` already used.
+ */
+.sw-shell {
+  position: relative;
+  height: 100vh;
+  width: 100vw;
+  padding: 14px;
+  display: flex;
+}
+
+.sw-stage {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
 
 #sw-canvas {
   display: block;
@@ -37,23 +63,126 @@ html, body {
   border-radius: 6px;
   background: #0b0d14;
   /*
-   * The renderer sets an inline width in logical pixels and backs the canvas at
-   * the device pixel ratio, so it is crisp rather than upscaled. Height follows
-   * the aspect ratio, which keeps the arena square-tiled when a narrow window
-   * shrinks it - fixing both dimensions inline would distort it instead.
+   * `Renderer.resize` (src/render/canvas.ts) reads `.sw-stage`'s own laid-out
+   * box and sets this inline width to the largest size that both fits inside
+   * it and keeps the 36:20 grid aspect ratio, then backs the canvas at that
+   * size times the device pixel ratio so it stays crisp rather than upscaled.
+   * Height follows the aspect ratio here in CSS, never pinned inline — fixing
+   * both dimensions inline would distort a window whose ratio doesn't match
+   * the grid's. `max-width`/`max-height` are a pre-JS/no-JS safety net only;
+   * the inline width from `resize()` is what actually drives sizing.
    */
   aspect-ratio: 36 / 20;
   height: auto;
   max-width: 100%;
+  max-height: 100%;
 }
 
-.sw-side {
-  flex: 1 1 260px;
-  min-width: 240px;
-  max-width: 360px;
+/*
+ * fb065: the floating rails that replaced `.sw-side`. Each anchors to one
+ * edge of `.sw-stage` (so it floats over the canvas, not beside it) with a
+ * ~85% opaque background — same `var(--panel)` + `d9` alpha `.sw-dock`
+ * already established for the DPS/VS side panels — and scrolls internally
+ * rather than ever pushing anything off past a viewport "fold": there is no
+ * sibling column left for a fold to be relative to.
+ */
+.sw-rail {
+  position: absolute;
+  /*
+   * fb082: `--cv-top`/`--cv-bottom` (set by `Hud.syncStageOverlayGeometry`,
+   * hud.ts) are the canvas's own letterboxed offset from the stage's top/
+   * bottom edges — 0px whenever the stage fills exactly to the grid's 36:20
+   * aspect (or isn't laid out yet, e.g. jsdom), reproducing the old
+   * stage-edge-relative behavior unchanged in that case.
+   */
+  top: calc(var(--cv-top, 0px) + 8px);
+  bottom: calc(var(--cv-bottom, 0px) + 8px);
+  z-index: 3;
   display: flex;
   flex-direction: column;
   gap: 8px;
+  width: 300px;
+  max-width: 32%;
+  overflow-y: auto;
+  /*
+   * Explicit, not left to default `visible`: per the CSS overflow spec, an
+   * axis left `visible` while its sibling axis is anything else (the
+   * `overflow-y: auto` above) computes to `auto` too, not `visible` — so
+   * without this line the rail would *also* silently become horizontally
+   * scrollable the moment any child (`.sw-controls`' row of buttons, at this
+   * width) overflowed sideways. That scrolled content's `getBoundingClientRect()`
+   * still reports its real (off-the-visible-edge) position, which sits over
+   * the canvas rather than over this panel's own opaque background — fb018's
+   * ui-audit caught exactly that for the Pause button (`text-contrast`
+   * sampled a red enemy sprite behind it instead of `.sw-ctl`'s own
+   * background) before `.sw-controls` below got `flex-wrap` to fix the
+   * overflow at its source; this stays as a second line of defense.
+   */
+  overflow-x: hidden;
+  background: #161b24d9;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 10px 12px;
+}
+/* fb082: `--cv-left`/`--cv-right` — see `.sw-rail`'s comment above. */
+.sw-rail-left { left: calc(var(--cv-left, 0px) + 8px); }
+.sw-rail-right { right: calc(var(--cv-right, 0px) + 8px); }
+
+/*
+ * Collapsed: only the handle tab remains, so the rest of the canvas underneath
+ * is fully clickable/visible. `bottom: auto` is load-bearing, not cosmetic:
+ * `.sw-rail`'s `top`+`bottom` (both set) stretch the box to the stage's full
+ * height regardless of `display:flex`, so without clearing `bottom` here the
+ * collapsed box would still span edge-to-edge — invisible, but still an
+ * absolutely-positioned box sitting above the canvas in the stacking order,
+ * silently swallowing clicks on every tile under that strip. `pointer-events:
+ * none` (+ `auto` on the handle alone) is a second line of defense, the same
+ * belt-and-suspenders pattern `.sw-dock`/`.sw-dpsdock`/`.sw-vsdock`'s
+ * `[hidden]`/`.sw-off` rules already use in this file.
+ */
+.sw-rail.collapsed {
+  width: auto;
+  max-width: none;
+  bottom: auto;
+  overflow: visible;
+  background: transparent;
+  border: none;
+  padding: 0;
+  pointer-events: none;
+}
+.sw-rail.collapsed .sw-railbody { display: none; }
+.sw-rail.collapsed .sw-railhandle { pointer-events: auto; }
+
+.sw-railhandle {
+  flex: 0 0 auto;
+  align-self: flex-start;
+  background: var(--panel2);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 6px 10px;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.sw-rail-right .sw-railhandle { align-self: flex-end; }
+
+.sw-railbody {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+}
+
+/* The rail itself already carries one shared translucent background — its
+   children's own opaque panel chrome would otherwise double up as a second,
+   redundant box inside it. */
+.sw-rail .sw-stats,
+.sw-rail .sw-towerinfo,
+.sw-rail .sw-progress {
+  background: transparent;
+  border: none;
+  padding: 0;
 }
 
 .sw-stats {
@@ -112,14 +241,22 @@ html, body {
 .sw-tcost { grid-area: cost; color: var(--gold); font-variant-numeric: tabular-nums; }
 .sw-tcost.poor { color: #7c5c5c; }
 
-/* b036: kept tight — `.sw-side` has no scroll of its own (b035), so every px
-   this panel adds pushes it closer to the 1080px fold below the towerinfo panel. */
+/* b036: kept tight even though fb065's `.sw-rail-right` now scrolls internally
+   (unlike the old fixed `.sw-side` this panel used to sit in) — a scrolled-out
+   `.sw-help` would still be reachable by scrolling, but not glanceable
+   mid-fight the way it's meant to be. */
 .sw-help { font-size: 12px; color: var(--dim); line-height: 1.45; }
 .sw-help b { color: var(--text); font-weight: 600; }
 
 .sw-modal {
   position: absolute;
   inset: 0;
+  /* fb065: explicit, higher than `.sw-rail`'s 3 (and `.sw-dock`'s 4/`.sw-dpsdock`'s
+     5, though `openModal()` (hud.ts) already closes those before this ever
+     shows) — the rails are new positioned descendants of `.sw-stage` that this
+     full-stage cover has to paint over, not beside, the way the old `.sw-side`
+     column never needed it to. */
+  z-index: 10;
   display: grid;
   place-items: center;
   background: #05070ccc;
@@ -318,12 +455,23 @@ html, body {
   opacity: 0;
   transition: opacity .18s, transform .18s;
   pointer-events: none;
+  /*
+   * fb099: higher than `.sw-modal`'s 10 (see its own comment for the rest of
+   * this stacking scale — rail 3, dock 4, dpsdock 5). Without this, a toast
+   * queued in the same tick a `.sw-modal` opens (e.g. fb099's quest-complete
+   * toast, queued right as `showResults()` opens the Results card) would
+   * paint underneath the modal's opaque backdrop and never be seen — a toast
+   * is a top-level notification and should outrank any single modal card.
+   */
+  z-index: 11;
 }
 .sw-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
 @media (max-width: 1180px) {
-  .sw-shell { flex-direction: column; align-items: stretch; }
-  .sw-side { max-width: none; }
+  /* fb065: the rails float over the canvas at every width now, so a narrow
+     window just gets narrower rails rather than the old stacked-column
+     fallback (there is no column left to stack). */
+  .sw-rail { max-width: 55%; font-size: 13px; }
 }
 
 /* ---------------------------------------------------------------- the hub */
@@ -422,12 +570,21 @@ html, body {
 .sw-codex-content { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 14px 16px; overflow-x: auto; }
 .sw-codex-content h2 { margin: 0 0 4px; font-size: 15px; }
 .sw-codex-count { color: var(--dim); font-size: 12px; margin: 0 0 10px; }
+.sw-codex-search {
+  display: block; width: 100%; max-width: 320px; box-sizing: border-box;
+  background: var(--panel2); border: 1px solid var(--line); border-radius: 5px;
+  color: var(--text); padding: 6px 10px; font: inherit; margin: 0 0 10px;
+}
 .sw-codex-table { border-collapse: collapse; width: 100%; font-size: 12px; }
 .sw-codex-table th, .sw-codex-table td { border: 1px solid var(--line); padding: 4px 8px; text-align: left; white-space: nowrap; }
 .sw-codex-table th { color: var(--dim); font-weight: 600; }
 .sw-codex-table tr.sw-codex-row-clickable { cursor: pointer; }
 .sw-codex-table tr.sw-codex-row-clickable:hover { background: var(--panel2); }
 .sw-codex-table tr.sw-codex-row-clickable.active { background: #1c2a2a; }
+/* fb105: rows filtered out by the search box, not removed from the DOM
+   (renderDetail's click handler indexes into `collection.rows` by row
+   position, which display:none preserves). */
+.sw-codex-table tr.sw-codex-row-hidden { display: none; }
 
 /* fb028: a collection's per-row effect text, opened by clicking a
    `sw-codex-row-clickable` row (`codex.ts`, `CodexCollection.renderDetail`). */
@@ -497,6 +654,73 @@ input.sw-tuner-field-input[type="text"] { width: 220px; }
    named header plus whatever generic stat/field list the info-format.ts
    formatters produced underneath it. */
 .sw-classdetail { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--line); }
+
+/* fb058: the Class-select screen — a horizontal row of tall class cards, plus
+   the selected class's band/number stat row and its four hover-only skill
+   entries. */
+.sw-classrow { display: flex; flex-wrap: wrap; gap: 10px; }
+.sw-classcard {
+  display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center;
+  width: 130px; height: 190px; padding: 12px 10px;
+  background: var(--panel2); border: 1px solid var(--line); border-radius: 8px;
+  color: var(--text); font: inherit; cursor: pointer;
+}
+.sw-classcard:hover:not(.locked) { border-color: var(--accent); }
+.sw-classcard.on { border-color: var(--accent); background: #1c2a2a; }
+.sw-classcard.locked { opacity: .45; cursor: default; }
+.sw-classcard b { font-size: 14px; }
+.sw-classcard small { font-size: 11px; color: #7a6a4a; }
+.sw-classcard-art {
+  width: 72px; height: 96px; border-radius: 6px;
+  background: linear-gradient(180deg, var(--panel), var(--panel2));
+  border: 1px solid var(--line);
+  display: grid; place-items: center;
+  font-size: 32px; font-weight: 700; color: var(--accent);
+}
+
+.sw-classbands { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 10px; }
+.sw-classband {
+  display: flex; flex-direction: column; gap: 2px; min-width: 84px;
+  background: var(--panel2); border: 1px solid var(--line); border-radius: 5px;
+  padding: 6px 10px;
+}
+.sw-classband-label { font-size: 11px; color: var(--dim); text-transform: uppercase; letter-spacing: .04em; }
+.sw-classband-tier { font-size: 13px; text-transform: capitalize; }
+.sw-classband-num { font-size: 11px; color: var(--dim); font-variant-numeric: tabular-nums; }
+.sw-classband-low { color: #9aa4b2; }
+.sw-classband-medium { color: var(--gold); }
+.sw-classband-high { color: var(--accent); }
+.sw-classband-yes { color: var(--accent); }
+.sw-classband-small { color: var(--gold); }
+.sw-classband-no { color: #9aa4b2; }
+
+.sw-classskills { display: flex; flex-wrap: wrap; gap: 8px; }
+.sw-cs-skill {
+  position: relative;
+  background: var(--panel2); border: 1px solid var(--line); border-radius: 5px;
+  padding: 8px 12px; cursor: default; outline: none;
+}
+.sw-cs-label { font-size: 12px; }
+.sw-cs-skill:hover, .sw-cs-skill:focus, .sw-cs-skill:focus-within { border-color: var(--accent); }
+.sw-cs-tip {
+  display: none;
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  width: 280px;
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 8px 10px;
+  z-index: 6;
+  text-align: left;
+}
+.sw-cs-skill:hover .sw-cs-tip,
+.sw-cs-skill:focus .sw-cs-tip,
+.sw-cs-skill:focus-within .sw-cs-tip {
+  display: block;
+}
+
 .sw-effectblock { margin-bottom: 10px; }
 .sw-effectblock:last-child { margin-bottom: 0; }
 .sw-effectblock b { font-size: 13px; }
@@ -528,6 +752,33 @@ input.sw-tuner-field-input[type="text"] { width: 220px; }
 .sw-setting b { text-align: right; font-variant-numeric: tabular-nums; }
 .sw-setting input[type="range"] { width: 160px; accent-color: var(--accent); }
 .sw-setting input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--accent); }
+
+/* fb073: key remapping */
+.sw-keybindlist { max-height: 260px; overflow-y: auto; }
+.sw-keybind {
+  background: var(--panel2); border: 1px solid var(--line); border-radius: 5px;
+  color: var(--text); padding: 4px 10px; font: inherit; font-size: 12px; cursor: pointer;
+  min-width: 64px; text-align: center;
+}
+.sw-keybind.listening { border-color: var(--accent); color: var(--accent); }
+.sw-note.sw-error { color: #ff9a9a; }
+
+.sw-crashlist {
+  max-height: 200px; overflow-y: auto; margin: 8px 0; padding: 0 0 0 18px;
+  font-size: 12px; color: var(--text-dim, #aaa);
+}
+.sw-crashlist li { margin: 2px 0; }
+.sw-crashlist b { color: var(--text); margin-right: 6px; }
+
+.sw-creditslist { margin: 8px 0; padding: 0 0 0 18px; font-size: 13px; }
+.sw-creditslist li { margin: 4px 0; }
+.sw-creditslist b { color: var(--text); margin-right: 6px; }
+.sw-license { font-size: 12px; color: var(--dim); line-height: 1.5; }
+
+.sw-questlist { list-style: none; margin: 8px 0; padding: 0; }
+.sw-quest { padding: 8px 0; border-bottom: 1px solid #ffffff14; }
+.sw-quest:last-child { border-bottom: none; }
+.sw-quest.done b { color: #7ee787; }
 
 .sw-notice {
   margin: 0 0 12px;
@@ -587,6 +838,7 @@ input.sw-tuner-field-input[type="text"] { width: 220px; }
 
 .sw-controls {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
 }
 
@@ -640,9 +892,9 @@ input.sw-tuner-field-input[type="text"] { width: 220px; }
 .sw-hint { font-size: 12px; color: var(--dim); margin: 6px 0 0; }
 
 /* fb027: clickable Upgrade/Sell rows in the selection panel. Kept as tight as
-   the plain `.sw-row` text line it replaced — b036: `.sw-side` has no scroll
-   of its own, so any extra chrome here pushes the legend below it toward the
-   1080px fold. */
+   the plain `.sw-row` text line it replaced — see b036/fb065's `.sw-help`
+   comment above: `.sw-rail-right` scrolls now, but the panels near the top
+   should still fit without needing to. */
 .sw-actbtn {
   display: flex;
   justify-content: space-between;
@@ -804,6 +1056,83 @@ input.sw-tuner-field-input[type="text"] { width: 220px; }
  * already device-pixel-ratio-correct without any extra scaling code here, the
  * browser rasterizes ordinary DOM text/borders crisply at any DPR on its own.
  */
+/* fb072: fixed-position boss HP banner — top-center of the stage, above the
+   playfield, distinct from the per-enemy sprite HP bar (illegible at 30k-100k
+   boss HP scales). Shown only while a `boss`-trait enemy is alive. */
+.sw-bossbar {
+  position: absolute;
+  /*
+   * fb082: `--cv-cx`/`--cv-top` (set by `Hud.syncStageOverlayGeometry`,
+   * hud.ts) are the canvas's own letterboxed horizontal center / top offset
+   * within the stage — falls back to the stage-centered `50%`/`0px` the
+   * banner used before whenever the stage isn't laid out (jsdom) or the
+   * canvas already fills it exactly (the 36:20 aspect case).
+   */
+  left: var(--cv-cx, 50%);
+  top: calc(var(--cv-top, 0px) + 10px);
+  transform: translateX(-50%);
+  width: 360px;
+  /* fb102: `--bossbar-maxw` (set by `Hud.syncStageOverlayGeometry`, hud.ts) is
+   * the widest this banner can be without overlapping an expanded
+   * `.sw-rail-left`/`.sw-rail-right` at the current stage width — falls back
+   * to the old plain `60%` whenever the stage isn't laid out (jsdom) or is
+   * wide enough that 360px was never going to reach either rail anyway.
+   */
+  max-width: var(--bossbar-maxw, 60%);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 6px 12px;
+  z-index: 4;
+  box-shadow: 0 4px 14px #00000066;
+}
+.sw-bossbar.sw-off { display: none !important; }
+.sw-bossbar-name {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  text-align: center;
+  color: #ff3355;
+  margin-bottom: 4px;
+}
+.sw-bossbar-meter i { background: #ff3355; }
+
+/* fb084: one-time, dismissible, non-blocking first-run tutorial prompt — sits
+   below where the boss banner would be so the two never overlap, but unlike
+   it never covers the canvas or blocks input; the player can keep playing
+   with it open. */
+.sw-onboarding {
+  position: absolute;
+  left: var(--cv-cx, 50%);
+  top: calc(var(--cv-top, 0px) + 56px);
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 460px;
+  max-width: 80%;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px 8px 14px;
+  z-index: 4;
+  box-shadow: 0 4px 14px #00000066;
+  pointer-events: auto;
+}
+.sw-onboarding.sw-off { display: none !important; }
+.sw-onboarding-text { font-size: 13px; line-height: 1.35; flex: 1; }
+.sw-onboarding-close {
+  flex: none;
+  background: transparent;
+  border: none;
+  color: var(--dim);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 6px;
+}
+.sw-onboarding-close:hover { color: var(--fg); }
+
 .sw-bottombar {
   position: absolute;
   left: 50%;

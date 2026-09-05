@@ -57,7 +57,7 @@ import { updateTerrainEffects } from './weapons';
 import { updateWieldedAttacks } from './vswield';
 import { updateVsSpecials } from './vsspecials';
 import { updateBossSlam } from './boss';
-import { resolveDashTarget, startDashTravel, tickDashTravel } from './wardenmove';
+import { dashDistance, resolveDashTarget, startDashTravel, tickDashTravel } from './wardenmove';
 // Registers the Warden-Eater script with enemies.ts.
 import './boss';
 import {
@@ -483,6 +483,13 @@ export function updateWarden(w: World, input: TickInput, dt: number): void {
     wd.fy = n.y;
   }
 
+  // SPEC-FINAL §5.5 Time: "VS: character attack and movement speed +20%" —
+  // VS-only (`coreMoveSpeedMul` reads `w.huntsWarden`), so it cannot touch
+  // Act I movement the way adding it to `Stats` would. §4.2 Archer's "move
+  // −40% while drawing" is the same shape from the other direction (p6d), and
+  // for the same reason it is applied here rather than written into `derived`.
+  const speed = d.moveSpeed * coreMoveSpeedMul(w) * classMoveSpeedMul(w);
+
   if (input.dash && wd.dashCharges > 0 && !wd.dashTravel && (n.x !== 0 || n.y !== 0)) {
     wd.dashCharges--;
     if (wd.dashCooldown <= 0) wd.dashCooldown = BASE.dashCooldown * (1 - d.cdr);
@@ -490,7 +497,11 @@ export function updateWarden(w: World, input: TickInput, dt: number): void {
     // now-visible travel is unprotected (code review caught this at 0.15 vs
     // 0.2 — `data/warden.json` keeps them equal).
     wd.dashIFrames = BASE.dashIFrames;
-    const target = resolveDashTarget(w, n.x * BASE.dashDistance, n.y * BASE.dashDistance);
+    // fb053: distance falls out of `dashSpeedMul` x current move speed x
+    // duration, so it scales with movement-speed gear/boons the same as
+    // ordinary movement does.
+    const dist = dashDistance(speed, BASE.dashDuration);
+    const target = resolveDashTarget(w, n.x * dist, n.y * dist);
     startDashTravel(w, target, BASE.dashDuration);
     w.emit('dash', target.x, target.y, n.x, n.y);
   }
@@ -498,12 +509,6 @@ export function updateWarden(w: World, input: TickInput, dt: number): void {
   // fb030: a dash in progress is the sole driver of position for its
   // duration — ordinary movement input is suppressed until it lands.
   if (!tickDashTravel(w, dt)) {
-    // SPEC-FINAL §5.5 Time: "VS: character attack and movement speed +20%" —
-    // VS-only (`coreMoveSpeedMul` reads `w.huntsWarden`), so it cannot touch
-    // Act I movement the way adding it to `Stats` would. §4.2 Archer's "move
-    // −40% while drawing" is the same shape from the other direction (p6d), and
-    // for the same reason it is applied here rather than written into `derived`.
-    const speed = d.moveSpeed * coreMoveSpeedMul(w) * classMoveSpeedMul(w);
     moveWarden(w, n.x * speed * dt, n.y * speed * dt);
   }
 
@@ -1243,6 +1248,10 @@ export function hashWorld(w: World): string {
   // `enemyArmor` (m19a): a consumer reads state this hash didn't cover.
   for (const rec of [
     w.damageByWeapon,
+    // p12a: the VS-only accumulator is sim state a consumer (`RunReport`)
+    // reads, so it is hashed alongside the rest — same gap class as fb007's
+    // `damageByType` and p9g's `goldSpent`.
+    w.damageByWeaponVs,
     w.damageByType,
     w.damageAtSunder,
     w.damageTypeAtSunder,
@@ -1265,6 +1274,8 @@ export function buildReport(w: World): RunReport {
   for (const k of Object.keys(w.damageByWeapon).sort()) damageByWeapon[k] = w.damageByWeapon[k];
   const damageByType: Record<string, number> = {};
   for (const k of Object.keys(w.damageByType).sort()) damageByType[k] = w.damageByType[k];
+  const damageByWeaponVs: Record<string, number> = {};
+  for (const k of Object.keys(w.damageByWeaponVs).sort()) damageByWeaponVs[k] = w.damageByWeaponVs[k];
   return {
     seed: w.cfg.seed,
     policy: w.cfg.policy ?? 'none',
@@ -1291,6 +1302,7 @@ export function buildReport(w: World): RunReport {
     kills: w.kills,
     leaks: w.leaks,
     damageByWeapon,
+    damageByWeaponVs,
     damageByType,
     damageTotal: round2(w.damageTotal),
     damageThroughMinute8: w.damageThroughMinute8,
@@ -1310,6 +1322,7 @@ export function buildReport(w: World): RunReport {
     endHash: hashWorld(w),
     practiceUsed: w.practiceUsed,
     sealed: w.everSealed,
+    terrainFallback: w.terrainFallback,
   };
 }
 

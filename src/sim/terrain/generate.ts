@@ -32,9 +32,9 @@
  * flag with `attempts: 0` and nothing failed at all, so read the pair rather
  * than the flag — `isDegradedMap` does.
  */
-import { GATES, GRID_H, GRID_W } from '../grid';
+import { GATES, GRID_H, GRID_W, type GateDef } from '../grid';
 import { Hasher } from '../hash';
-import { fnv1a, Rng } from '../rng';
+import { fnv1a, Rng, TERRAIN_STREAM } from '../rng';
 import {
   gateIndices,
   measureTerrain,
@@ -65,8 +65,11 @@ function clamp(v: number, lo: number, hi: number): number {
  * buffer every call: a `TerrainMap`'s hash is computed once at construction,
  * so two maps sharing one `kind` would let a write through either invalidate
  * both (`types.ts`, architecture rule 2).
+ *
+ * `gates` is the run's gate list (fb077): the base 3 by default, plus the
+ * Fourth Gate modifier's south gate when `World` passes its own.
  */
-function flatKinds(): Uint8Array {
+function flatKinds(gates: readonly GateDef[] = GATES): Uint8Array {
   const kind = new Uint8Array(GRID_W * GRID_H).fill(TerrainKind.Normal);
   for (let x = 0; x < GRID_W; x++) {
     kind[x] = TerrainKind.Rock;
@@ -76,14 +79,14 @@ function flatKinds(): Uint8Array {
     kind[y * GRID_W] = TerrainKind.Rock;
     kind[y * GRID_W + GRID_W - 1] = TerrainKind.Rock;
   }
-  for (const g of GATES) kind[g.ty * GRID_W + g.tx] = TerrainKind.Normal;
+  for (const g of gates) kind[g.ty * GRID_W + g.tx] = TerrainKind.Normal;
   return kind;
 }
 
 /** One generation attempt at an exact seed. Never fails; may be degenerate. */
-function attempt(seed: number, cfg: TerrainConfig): Uint8Array {
-  const rng = new Rng(fnv1a('terrain', seed >>> 0));
-  const kind = flatKinds();
+function attempt(seed: number, cfg: TerrainConfig, gates: readonly GateDef[]): Uint8Array {
+  const rng = new Rng(fnv1a(TERRAIN_STREAM, seed >>> 0));
+  const kind = flatKinds(gates);
   const protectedTile = new Uint8Array(GRID_W * GRID_H);
 
   // Interior only: the border stays rock so the arena never leaks. The bounds
@@ -111,7 +114,7 @@ function attempt(seed: number, cfg: TerrainConfig): Uint8Array {
   const midY = (GRID_H / 2) | 0;
   paint(midX, midY, cfg.plazaRadius);
 
-  for (const g of GATES) {
+  for (const g of gates) {
     let x = clamp(g.tx, 1, GRID_W - 2);
     let y = clamp(g.ty, 1, GRID_H - 2);
     paint(x, y, Math.max(cfg.corridorRadius, cfg.gateClearRadius));
@@ -212,7 +215,7 @@ function attempt(seed: number, cfg: TerrainConfig): Uint8Array {
   scatter(TerrainKind.Rough, cfg.density.rough, roughBudget);
   scatter(TerrainKind.High, cfg.density.high, highBudget);
 
-  sealPockets(kind, cfg);
+  sealPockets(kind, cfg, gates);
   demoteUncontestedHigh(kind, cfg);
   return kind;
 }
@@ -256,11 +259,11 @@ function demoteUncontestedHigh(kind: Uint8Array, cfg: TerrainConfig): void {
  * other* is `gatesConnected`'s job, and sealing cannot answer it — a pocket
  * holding a gate is reachable, from that gate.
  */
-function sealPockets(kind: Uint8Array, cfg: TerrainConfig): void {
+function sealPockets(kind: Uint8Array, cfg: TerrainConfig, gates: readonly GateDef[]): void {
   // Shares the analyzer's flood rather than repeating it: two copies of a
   // connectivity rule is exactly where the seal and the measurement drift.
   const view: TerrainGrid = { w: GRID_W, h: GRID_H, kind };
-  const seen = walkableFlood(view, cfg, gateIndices(view));
+  const seen = walkableFlood(view, cfg, gateIndices(view, gates));
   for (let i = 0; i < kind.length; i++) {
     if (!seen[i] && cfg.tiles[kind[i]].walkable) kind[i] = TerrainKind.Rock;
   }
@@ -420,8 +423,13 @@ function toMap(
 }
 
 /** The flat arena under a caller's provenance. Always `fallback: true`. */
-function flatMap(requestedSeed: number, seed: number, attempts: number): TerrainMap {
-  return toMap(requestedSeed, seed, flatKinds(), attempts, true);
+function flatMap(
+  requestedSeed: number,
+  seed: number,
+  attempts: number,
+  gates: readonly GateDef[] = GATES,
+): TerrainMap {
+  return toMap(requestedSeed, seed, flatKinds(gates), attempts, true);
 }
 
 /**
@@ -456,9 +464,13 @@ function flatMap(requestedSeed: number, seed: number, attempts: number): Terrain
  * unconditionally legal. `terrainLegal` is a question about a config, and a
  * band above ~0.854 walkable is unsatisfiable by any map at all. Ask
  * `terrainLegal(measureTerrain(flatTerrain(), cfg), cfg)` rather than assuming.
+ *
+ * `gates` (fb077) *is* geometry — the Fourth Gate modifier's south gate is a
+ * walkable tile of the flat arena exactly as the base 3 are — so it is the one
+ * parameter this map genuinely reads.
  */
-export function flatTerrain(): TerrainMap {
-  return flatMap(0, 0, 0);
+export function flatTerrain(gates: readonly GateDef[] = GATES): TerrainMap {
+  return flatMap(0, 0, 0, gates);
 }
 
 /**
@@ -516,8 +528,18 @@ export const MAX_TERRAIN_SEED = 0xffffffff;
  * Tiles and `hash` are unchanged by this — `attempt` already keyed on
  * `seed >>> 0`, and `Hasher.int` folds the same four bytes for the signed and
  * unsigned views of one key.
+ *
+ * `gates` defaults to the base 3 (`GATES`); fb077's World wiring passes its
+ * real run gate list (base 3, plus the Fourth Gate modifier's south gate at
+ * (12,19) when active) so protected mains, sealing and every measured band
+ * are carved and scored against the gates the run actually has, not a
+ * hardcoded 3.
  */
-export function generateTerrain(seed: number, cfg: TerrainConfig = loadTerrain()): TerrainMap {
+export function generateTerrain(
+  seed: number,
+  cfg: TerrainConfig = loadTerrain(),
+  gates: readonly GateDef[] = GATES,
+): TerrainMap {
   if (!Number.isInteger(seed)) {
     throw new Error(`generateTerrain: seed must be an integer, got ${String(seed)}`);
   }
@@ -536,9 +558,9 @@ export function generateTerrain(seed: number, cfg: TerrainConfig = loadTerrain()
   const key = seed >>> 0;
   for (let n = 0; n < cfg.maxAttempts; n++) {
     const trySeed = (key + n) >>> 0;
-    const kind = attempt(trySeed, cfg);
+    const kind = attempt(trySeed, cfg, gates);
     const map = toMap(requested, trySeed, kind, n + 1, false);
-    if (terrainLegal(measureTerrain(map, cfg), cfg)) return map;
+    if (terrainLegal(measureTerrain(map, cfg, gates), cfg)) return map;
   }
   // The fallback map came from no RNG key at all, so `seed` stays the
   // unadvanced key rather than `key + maxAttempts - 1`: reporting an advanced
@@ -548,5 +570,5 @@ export function generateTerrain(seed: number, cfg: TerrainConfig = loadTerrain()
   // arena fb064f hands the Training Grounds and the flat arena a hostile
   // `/data` edit downgrades a run to are the same map, and a second
   // construction site is where they would stop being.
-  return flatMap(requested, key, cfg.maxAttempts);
+  return flatMap(requested, key, cfg.maxAttempts, gates);
 }
