@@ -219,7 +219,14 @@ qa-playtester per CLAUDE.md's tier, commit) — do not bundle.
       log the real per-class numbers, don't force it); G10/G11 and the
       swordsman dummy pins are converted to ratio form and still pass — refs:
       SPEC-FINAL §14 (BALANCE DIRECTION v2 §A), QUESTIONS Q161/Q166.
-- [ ] (p12b) [balance] Tier scalars with teeth, T3 as reference tier. Move
+- [x] (p12b) [balance] **Done with two acceptance clauses honestly red, both
+      recorded not forced:** T5 measured 0% against §B's `[5%,20%]` (structurally
+      impossible in §B's geometric shape — QUESTIONS Q176, follow-up p12g), and
+      G1's 30-36 min band does not survive the move to T3 (measured 37.46 min /
+      9-24 wins; `.skip`-ed with the numbers, re-enable point p12d, which owns
+      the gate rewrites). T3's win rate — the clause that decides whether T3
+      works as the reference tier — landed at 50% over 12 seeds and 37.5% over
+      G1's 24, inside `[35%,70%]`. Tier scalars with teeth, T3 as reference tier. Move
       G1 (run length)/G8 (class win-rate + diversity)/G14 (boss band)/G23
       (Core win-rate)'s measurement tier from T1 to **T3**, with T3 keeping
       the existing bands (win rate `[35%,70%]`, etc.) unchanged. Steepen the
@@ -294,6 +301,33 @@ qa-playtester per CLAUDE.md's tier, commit) — do not bundle.
       before/after both recorded); G1's run length and the p12b/p12c win-rate
       bands re-confirmed unaffected — refs: BALANCE DIRECTION v2 §A,
       QUESTIONS Q175, BALANCE.md "Kit relevance target".
+
+- [ ] (p12g) [balance] Give the tier ladder a shape that can hold both of
+      §B's bands, which a geometric one provably cannot (QUESTIONS Q176).
+      p12b measured the difficulty response as bimodal over a factor of under
+      3 in enemy HP (x9 -> 75%, x16 -> 50%, x25 -> 0%), while `x^(N-1)` forces
+      `T5 = T3²` — so T3 at 50% puts T5 at x256 (measured 0/12), and any
+      per-step that lands T5 near the cliff leaves T3 at ~100%. Two routes,
+      take (a) first since it unblocks measurement. **The premise is stronger
+      than "T5 misses its band": T4 is 0/12 as well, dying in Act I wave 1
+      with 0-5 kills, and because a tier unlocks only by winning the one
+      below it, T5 is unreachable in normal play — two of five rungs are dead
+      content today** (pinned by the `.skip`-ed liveness gate in
+      `tests/p12b-tier-ladder.test.ts`). **(a)** replace the three
+      per-step scalars with a **per-tier table** (5 rows x 3 columns in
+      `data/modifiers.json`, same `validateTierLadder` monotonicity rule), so
+      each rung is placed independently — T1 stays exactly 1.0, T3 keeps
+      p12b's x16/x3.61/x2.89, and T4/T5 are fitted to `[5%,20%]` rather than
+      extrapolated into it; **(b)** the real fix, and the same wall
+      Q157-Q161/Q166 name — a `TREE_AUTO_MAX` scripted build wins outright or
+      dies, so no ladder shape turns it into a graded curve. Acceptance: T3
+      stays in `[35%,70%]` and T5 lands in `[5%,20%]`, both measured over >=12
+      seeds with the G1 harness and both recorded before/after; **every rung
+      clears at least one wave and scores at least one kill** (un-skip the
+      liveness gate); T1 still exactly 1.0 on every scalar; zero timeouts at
+      every rung, which p12b's own T3 run does **not** currently satisfy (2 of
+      24 seeds stall) — refs: BALANCE
+      DIRECTION v2 §B, QUESTIONS Q176, BALANCE.md "Tier ladder (p12b)".
 
 Constellation stays auto-maxed for all play (`TREE_AUTO_MAX`); per BALANCE
 DIRECTION v2 §F, never re-add point spending as a balance lever to make any

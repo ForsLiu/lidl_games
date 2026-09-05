@@ -17,7 +17,7 @@ import {
   refund,
   TREE_AUTO_MAX,
 } from '../meta/meta';
-import { modifierDraft } from '../sim/tiers';
+import { modifierDraft, tierBudgetMul, tierCoreDamageMul, tierEnemyHpMul } from '../sim/tiers';
 import { devProfileActive } from '../meta/devprofile';
 
 /**
@@ -336,7 +336,12 @@ export class Hub {
         </div>
         <p class="sw-note">Tier ${this.tier} applies ${this.tier - 1} modifier${
           this.tier === 2 ? '' : 's'
-        } and pays ×${(1 + content.modifiers.tierRewardPerStep * (this.tier - 1)).toFixed(2)} rewards.</p>
+        }, and enemies have ×${tierEnemyHpMul(content, this.tier).toFixed(2)} HP, ×${tierBudgetMul(
+          content,
+          this.tier,
+        ).toFixed(2)} spawn pressure and ×${tierCoreDamageMul(content, this.tier).toFixed(
+          2,
+        )} Core damage. Pays ×${(1 + content.modifiers.tierRewardPerStep * (this.tier - 1)).toFixed(2)} rewards.</p>
         ${
           draft.length === 0
             ? '<p class="sw-note">No modifiers at tier 1.</p>'

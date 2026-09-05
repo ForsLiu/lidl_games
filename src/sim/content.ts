@@ -14,6 +14,9 @@ import spawnsRaw from '../../data/spawns.json';
 import vsupgradesRaw from '../../data/vsupgrades.json';
 import treeRaw from '../../data/tree.json';
 import modifiersRaw from '../../data/modifiers.json';
+// Value import; `tiers.ts` imports back from here type-only, so there is no
+// runtime cycle.
+import { MAX_TIER } from './tiers';
 import classesRaw from '../../data/classes.json';
 import questsRaw from '../../data/quests.json';
 import devRaw from '../../data/dev.json';
@@ -612,6 +615,27 @@ const MODIFIER_EFFECT_KEYS = [
 
 const ModifiersFileSchema = z.object({
   tierRewardPerStep: num,
+  /**
+   * BACKLOG p12b (BALANCE DIRECTION v2 §B): the tier ladder's three difficulty
+   * scalars, each applied as `x^(tier-1)` so T1 is always exactly 1.0.
+   *
+   * Before p12b the only thing `cfg.tier` scaled directly was the final boss's
+   * HP (through `tierRewardPerStep`, SPEC 8.3's reward scale); every other
+   * tier difference came from the 1-of-2 *drafted modifiers*, which are drawn
+   * at random and so make one tier a distribution rather than a rung. §B moves
+   * the reference gates to T3 and needs the rungs to be deterministic, hence
+   * three named scalars rather than more modifiers. They live here beside
+   * `tierRewardPerStep` — the tier scalar that already existed — rather than
+   * in the `data/tiers.json` §B names, so the ladder is one file (logged in
+   * QUESTIONS.md; §B's own text allows "or wherever tier scalars live").
+   *
+   * Each is `>= 1`: a tier step never makes the game easier. Enforced by
+   * `validateTierLadder` so a `/data` edit that inverts the ladder is refused
+   * at load rather than producing a silently easier T5 (architecture rule 4).
+   */
+  tierEnemyHpPerStep: num,
+  tierBudgetPerStep: num,
+  tierCoreDamagePerStep: num,
   modifiers: uniqueArray(
     z.object({ key: str, name: str, desc: str, effect: recordWithKeys(MODIFIER_EFFECT_KEYS), rewardBonus: num }),
     ['key'],
@@ -1656,6 +1680,40 @@ export function validateDamageStyleColors(damageTypes: DamageTypesFile): void {
   }
 }
 
+/**
+ * p12b (BALANCE DIRECTION v2 §B): a tier step must never make the run easier.
+ *
+ * The three ladder scalars are exponentiated by `tier - 1`, so a value under
+ * 1 silently inverts the ladder — T5 would arrive weaker than T1 while every
+ * gate that reads "measured at T3" kept passing. A loader rule that refuses
+ * unpayable data is worth more than a comment saying the data must be valid
+ * (architecture rule 4), so this is checked at load, not asserted in a test.
+ */
+export function validateTierLadder(modifiers: z.infer<typeof ModifiersFileSchema>): void {
+  const rungs = {
+    tierEnemyHpPerStep: modifiers.tierEnemyHpPerStep,
+    tierBudgetPerStep: modifiers.tierBudgetPerStep,
+    tierCoreDamagePerStep: modifiers.tierCoreDamagePerStep,
+  };
+  for (const [key, value] of Object.entries(rungs)) {
+    if (!Number.isFinite(value) || value < 1) {
+      throw new Error(`modifiers.json: ${key} is ${value}; a tier step must never make the run easier (>= 1)`);
+    }
+    // Guard the *result*, not just the input (qa-playtester, p12b): `1e300`
+    // is finite and >= 1, so it passed the check above while overflowing the
+    // top rung to `Infinity` — and an enemy with Infinite HP is unkillable,
+    // strictly worse than the inverted ladder this rule was written to
+    // refuse. The rule has to hold at the tier the ladder is actually
+    // evaluated at, which is why this raises to MAX_TIER - 1.
+    if (!Number.isFinite(Math.pow(value, MAX_TIER - 1))) {
+      throw new Error(
+        `modifiers.json: ${key} is ${value}; it overflows to Infinity at tier ${MAX_TIER}, ` +
+          'which would make every enemy unkillable',
+      );
+    }
+  }
+}
+
 export type WaveDef = z.infer<typeof WavesFileSchema>['waves'][number];
 export type CoreDef = z.infer<typeof CoresFileSchema>['cores'][number];
 
@@ -2041,6 +2099,7 @@ export function loadContent(overrides?: ContentOverrides): Content {
   // this file, the same m19a-shaped failure every other rule in this block
   // guards against.
   validateDamageStyleColors(damageTypes);
+  validateTierLadder(modifiers);
 
   const treeIds = new Set(tree.nodes.map((n) => n.id));
   for (const n of tree.nodes) {

@@ -36,7 +36,7 @@ import '../src/bots';
 import { loadContent } from '../src/sim/content';
 import { allTreeNodeIds } from '../src/meta/meta';
 import type { RunConfig, RunReport } from '../src/sim/types';
-import { buyCoreUpgrades, cfg, classifyMargin } from './helpers';
+import { buyCoreUpgrades, cfg, classifyMargin, GATE_TIER } from './helpers';
 
 const NON_DEFAULT_CORES = ['carnivorous_plant', 'vampire_heart', 'corpse', 'time'];
 // fb049 (Q138 re-measurement): real Hub-started runs feed the full
@@ -53,6 +53,12 @@ function runCoreScripted(
   const config: RunConfig = cfg({
     seed,
     core: coreKey,
+    // p12b (§B): G23's measurement tier. Note the scope spill, deliberate and
+    // recorded: this helper also backs **G22** (Core identity/fingerprint
+    // distance), which §B does not name — re-pointing one without the other
+    // would have meant two tiers in one file. G22 was re-run at T3 and is
+    // green, so it rides along rather than being split.
+    tier: GATE_TIER,
     allocated: FULL_TREE,
     cycles: opts.cycles ?? 6,
     policy: policyName,

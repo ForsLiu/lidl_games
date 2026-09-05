@@ -496,6 +496,14 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'equipment.items[].mods.xpGain': ['negative', 'zero', 'fractional', 'drop-key'],
   'equipment.items[].name': ['to-string', 'empty-string'],
   'equipment.slots': ['dupe-element'],
+  // p12b: the tier ladder's three scalars are multipliers, so a fractional
+  // value is *valid* by design (the shipped ladder is 4.0/1.9/1.7). The one
+  // thing that would be unpayable — a value under 1, which inverts the ladder
+  // and would ship a T5 easier than T1 — is refused by `validateTierLadder`
+  // at load, one layer above the schema this census fuzzes.
+  'modifiers.tierBudgetPerStep': ['fractional'],
+  'modifiers.tierCoreDamagePerStep': ['fractional'],
+  'modifiers.tierEnemyHpPerStep': ['fractional'],
   'modifiers.modifiers': ['drop-element'],
   'modifiers.modifiers[].desc': ['to-string', 'empty-string'],
   'modifiers.modifiers[].effect.bossHp': ['negative', 'zero', 'fractional', 'drop-key'],

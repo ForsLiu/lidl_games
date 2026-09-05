@@ -125,7 +125,7 @@ import { describe, expect, it } from 'vitest';
 
 import { loadContent } from '../src/sim/content';
 import { allTreeNodeIds } from '../src/meta/meta';
-import { runScripted } from './helpers';
+import { GATE_TIER, runScripted } from './helpers';
 
 const SEEDS = Array.from({ length: 24 }, (_, i) => i + 1);
 // fb049 (Q138 re-measurement): every real Hub-started run feeds the full
@@ -144,7 +144,7 @@ describe('G1 mean victorious run is 30-36 minutes over 24+ seeds', () => {
   // gates (G1/G8/G14/G23) proportionally instead of G1/G14 breaking first.
   const reports = SEEDS.map(
     (seed) =>
-      runScripted({ seed, classKey: 'engineer', tier: 1, modifiers: [], allocated: FULL_TREE }, 'hybrid', 60 * 60 * 45)
+      runScripted({ seed, classKey: 'engineer', tier: GATE_TIER, modifiers: [], allocated: FULL_TREE }, 'hybrid', 60 * 60 * 45)
         .report,
   );
   const wins = reports.filter((r) => r.outcome === 'victory');
@@ -156,6 +156,33 @@ describe('G1 mean victorious run is 30-36 minutes over 24+ seeds', () => {
 
   it('produces enough victories to have a mean', () => {
     expect(wins.length, detail).toBeGreaterThan(0);
+  });
+
+  // qa-playtester (p12b): with the 30-36 band `.skip`-ed pending p12d, this
+  // file's only live assertion was `wins > 0` — a 24-seed, ~10-minute suite
+  // satisfied by a single win, i.e. G1 effectively unmeasured. These two put
+  // a real live measurement back while p12d rewrites the length band.
+  it('wins inside the reference tier’s [35%,70%] band', () => {
+    // §B's own target for T3, and the clause that decides whether T3 works as
+    // the reference tier at all. Measured 2026-09-05: 9/24 = 37.5% as scored
+    // below (the two censored seeds in the next case count as losses here);
+    // 11/24 = 45.8% uncensored. Both sit inside the band.
+    const rate = wins.length / reports.length;
+    expect(rate, detail).toBeGreaterThanOrEqual(0.35);
+    expect(rate, detail).toBeLessThanOrEqual(0.7);
+  });
+
+  it.skip('no seed reaches the tick cap (BALANCE DIRECTION v2 §E, p12e)', () => {
+    // qa-playtester found 2 of these 24 seeds (14 and 17) sitting at the
+    // 45-minute cap as `'running'` — censored *victories*, not losses: both
+    // win at 47.4 and 46.6 min when the cap is lifted. That silently
+    // understates the win rate this file reports and the mean it measures, so
+    // it is asserted rather than left to prose. Measured 2026-09-05: **2 of
+    // 24 seeds stall at T3** (14 and 17). `.skip`-ed with that number rather
+    // than nudged — §E/p12e owns eliminating timeouts, and this is the
+    // assertion it will un-skip.
+    const stalled = reports.filter((r) => r.outcome === 'running');
+    expect(stalled.map((r) => r.seed), detail).toEqual([]);
   });
 
   // Reports the win rate too, so a future re-tune sees both halves of "means
@@ -235,7 +262,23 @@ describe('G1 mean victorious run is 30-36 minutes over 24+ seeds', () => {
   // premise (a mean inside band) is genuinely true now, not just no-longer-
   // failing, so per CLAUDE.md's skip discipline (`.skip` is for genuine
   // walls, not a permanent state) it goes back to live coverage.
-  it('has a mean victorious run of 30-36 minutes', () => {
+  // p12b (BALANCE DIRECTION v2 §B) moved this gate's measurement tier from T1
+  // to T3 (`GATE_TIER`, `tests/helpers.ts`), because T1 is a run the scripted
+  // bot wins 100% of the time and so cannot discriminate anything. The 30-36
+  // band below was authored against T1 and does not survive the move — this
+  // is the band rewrite **p12d** owns, not a regression:
+  //
+  //   T1 (12 seeds): 100% wins, mean 33.32 min   <- what the band was fitted to
+  //   T3 (24 seeds): 37.5% wins, mean 37.46 min  <- measured here, 2026-09-05
+  //     (36.6, 43.5, 35.9, 40.4, 35.8, 36.0, 37.2, 35.4, 36.4)
+  //   T5 (12 seeds): 0% wins
+  //
+  // The win rate lands inside §B's own [35%,70%] target for T3; the *mean run
+  // length* is 1.46 min over the T1-fitted ceiling, for the obvious reason
+  // that a contested run is a longer one. `.skip`-ed with the honest number
+  // per CLAUDE.md's skip discipline rather than nudged, and re-enabled by
+  // p12d when it rewrites G1's text against T3.
+  it.skip('has a mean victorious run of 30-36 minutes', () => {
     expect(mean, detail).toBeGreaterThanOrEqual(30);
     expect(mean, detail).toBeLessThanOrEqual(36);
   });

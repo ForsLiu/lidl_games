@@ -6,7 +6,7 @@ import { canBuildNow, towerCost } from '../sim/towers';
 import { inCoreBuildRange } from '../sim/cores';
 import type { Offer } from '../sim/types';
 import { ENEMY_COLORS, PALETTE, TOWER_COLORS } from '../render/theme';
-import { dotRemaining, dotStacks, effectiveSpeed, enemyArmor } from '../sim/enemies';
+import { dotRemaining, dotStacks, effectiveSpeed, enemyArmor, enemyCoreDamage } from '../sim/enemies';
 import { wardenArmor } from '../sim/run';
 import { armorReduction, effectiveArmor } from '../sim/stats';
 import type { Enemy } from '../sim/types';
@@ -2355,7 +2355,11 @@ export function enemyInfoMarkup(w: World, e: Enemy): string {
   const rows: string[] = [
     row('Health', `${Math.ceil(e.hp)} / ${Math.round(e.maxHp)} (${pct}%)`),
     row('Speed', `${round1(effectiveSpeed(w, e))} tiles/s`),
-    row('Core damage', String(def?.coreDamage ?? 0)),
+    // p12b: the tier-scaled number, not the authored one — same convention as
+    // the bounty row below. At T3 the two differ by the ladder's coreDamage
+    // rung, and a panel showing the sheet value would understate what this
+    // enemy actually takes off the Core.
+    row('Core damage', String(def ? round1(enemyCoreDamage(w, def)) : 0)),
     // The real payout, not the authored number: `killEnemy` scales bounty by
     // gold find and adds gold-per-kill — and in Act II pays gems instead.
     w.huntsWarden

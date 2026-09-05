@@ -671,3 +671,118 @@ scaling stack while the kit inherits none of it (swordsman seed 1: 134.3M of
 numerator does not. Recorded red rather than forced; the closure is
 **QUESTIONS Q175** and **BACKLOG p12f**, sequenced after p12c so it tunes
 against p12b/p12c's baseline.
+
+## Tier ladder (p12b) — BALANCE DIRECTION v2 §B
+
+### What tiers did before
+
+Nothing, almost. `cfg.tier` scaled exactly one thing directly — the final
+boss's HP, borrowing SPEC 8.3's *reward* scale (`tierRewardPerStep`) for want
+of a real difficulty one. Every other difference between T1 and T5 came from
+the **drafted modifiers**: tier N draws N-1 of them, 1-of-2 at random. That
+makes a tier a distribution rather than a rung, which is tolerable while every
+gate measures at T1 and fatal once the reference tier moves.
+
+### The ladder
+
+Three scalars in `data/modifiers.json`, beside `tierRewardPerStep` (the tier
+scalar that already lived there — §B's suggested `data/tiers.json` would have
+split the ladder across two files for no gain; logged in QUESTIONS.md). Each
+is applied as `x^(tier - 1)`, read through `src/sim/tiers.ts`:
+
+| scalar | per step | T3 | T5 |
+|---|---|---|---|
+| `tierEnemyHpPerStep` | 4.0 | ×16 | ×256 |
+| `tierBudgetPerStep` | 1.9 | ×3.61 | ×13.0 |
+| `tierCoreDamagePerStep` | 1.7 | ×2.89 | ×8.35 |
+
+**T1 is exactly 1.0 on all three**, so every existing T1 measurement in the
+repo — G1's 33.3-minute mean, p12a's whole control pair, BALANCE.md's earlier
+tables — keeps its meaning. A loader rule (`validateTierLadder`) refuses a
+per-step under 1, so a `/data` edit cannot silently ship a T5 easier than T1.
+
+The final boss now takes this rung instead of its old borrowed reward scale:
+one tier HP scaling in the sim, not two compounding. At the shipped per-step
+this is a **large, deliberate boss buff**, not a like-for-like swap — ×1.70 →
+×16.0 at T3, ×2.40 → ×256 at T5 — which is why G14's own measurements were
+re-pointed to T3 and re-measured rather than assumed (below).
+
+### Measured (engineer, scripted kit bot, `modifiers: []` so only the ladder varies)
+
+| tier | win rate | mean victorious run | tick-cap timeouts |
+|---|---|---|---|
+| T1 | 12/12 (100%) | 33.32 min | 0/12 |
+| T2 | 12/12 (100%) | 35.33 min | 0/12 |
+| T3 | 6/12 (50%); 9/24 (37.5%) on G1's seed set | 38.02 / 37.46 min | 0/12; **2/24** |
+| T4 | 0/12 (0%) | — | 0/12 |
+| T5 | 0/12 (0%) | — | 0/12 |
+
+**T3 lands inside §B's [35%,70%] target** — the load-bearing half of this
+item, since T3 is the new reference tier.
+
+**Two corrections to the first version of this table, both found by
+qa-playtester and both worth stating rather than quietly fixing:**
+
+* It claimed *zero timeouts at any rung*, and concluded p12e's tick-cap clause
+  was already satisfied. False: **2 of G1's 24 T3 seeds (14 and 17) sit at the
+  45-minute cap**. Both are censored *victories* — they win at 47.4 and 46.6
+  min when the cap is lifted — so the honest T3 figures on that seed set are
+  **11/24 = 45.8% uncensored** (still in band) and a **39.20 min** uncensored
+  mean, which is ~1.7 min further out of G1's length band than the censored
+  number suggests. p12e's clause is **not** pre-satisfied; the assertion now
+  exists in `tests/p10d-run-length.test.ts`, `.skip`-ed with that number.
+  The original claim came from generalising a clean 12-seed probe to "any
+  rung" without re-checking the 24-seed set recorded in the same table.
+* T2 and T4 were never measured. T4 is the important omission — see below.
+
+### A geometric ladder can hold at most ONE contested rung — the real finding
+
+§B asks for T5 in `[5%,20%]`. It is not reachable in §B's own shape, and
+neither is a playable T4.
+
+**The measured ladder itself is the clean evidence** (one variable — the tier
+— against the shipped 4.0/1.9/1.7, 12 seeds each): T1 100%, T2 100%, **T3
+50%**, T4 0%, T5 0%. The cliff from "wins every seed" to "loses every seed" is
+**about one tier-step wide**. Since a geometric ladder forces `T4 = T3 × p`
+and `T5 = T3²`, any per-step that puts T3 mid-band necessarily puts T4 and T5
+past the cliff — and conversely, a per-step gentle enough to land T5 in
+`[5%,20%]` leaves T3 winning ~100%. **T3 in band and T4/T5 playable are
+mutually exclusive under this shape.** T3 wins the conflict because it is the
+tier §B makes the reference.
+
+The exploratory sweep that *chose* 4.0/1.9/1.7 is reported here for
+provenance, but it does **not** support a per-axis claim and should not be
+read as one — every row moves all three scalars at once, `n` differs between
+rows, and the pair marked † is non-monotonic, i.e. sampling noise is the same
+size as the effect (qa-playtester's finding; CLAUDE.md's measurement rules
+name this exact failure):
+
+| ladder (hp / budget / coreDamage per step) | T3 multipliers | win rate | n | timeouts |
+|---|---|---|---|---|
+| 2.0 / 1.4 / 1.3 | ×4.0 / ×1.96 / ×1.69 | 100% | 8 | 0 |
+| 3.0 / 1.7 / 1.5 | ×9.0 / ×2.89 / ×2.25 | 75% † | 8 | 0 |
+| 3.5 / 1.8 / 1.6 | ×12.25 / ×3.24 / ×2.56 | 83% † | 12 | 1 |
+| **4.0 / 1.9 / 1.7** | ×16.0 / ×3.61 / ×2.89 | **50%** | 12 | 0 |
+| 5.0 / 2.2 / 2.0 | ×25.0 / ×4.84 / ×4.0 | 0% | 8 | 0 |
+
+This is the same bimodality QUESTIONS Q159 measured on the `/data` axis — a
+win/lose-bimodal scripted build has no smooth dial — now on the tier axis.
+Logged as **QUESTIONS Q176**, filed as **BACKLOG p12g**.
+
+### T4 and T5 are dead content today, and that is shipped knowingly
+
+qa-playtester measured what p12b had not: **T4 is 0/12, dying in Act I wave 1
+with 0-5 kills**, and T5 is 0/12 dying in wave 1 with **0 kills on 10 of 12
+seeds**. Because the tier unlock (`src/meta/meta.ts`) needs a win at tier N to
+unlock N+1, T4 is a wall and **T5 is unreachable in normal play**. The
+playable ladder is T1 → T2 → T3 → wall.
+
+That is worse than "hard", and it is not what the old behaviour was either:
+before p12b, T4 and T5 were *fake* — mechanically near-identical to T1 for any
+bot, since tier scaled nothing but the boss's HP. The ladder trades five fake
+rungs for three real ones plus two broken ones. Neither state is shippable and
+**p12g owns fixing it**, with this as its premise: a per-tier table can place
+T4 and T5 independently instead of extrapolating them off T3. Guarded
+meanwhile by a liveness case in `tests/p12b-tier-ladder.test.ts` — every rung
+must clear at least one wave and score at least one kill — so the shape of the
+failure is pinned rather than rediscovered.

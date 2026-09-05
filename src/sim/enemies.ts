@@ -9,6 +9,7 @@ import type { DamageTypeKey } from './damagetypes';
 import { clamp, dcos, dist, dist2, dsin, normalize } from './math';
 import { classLineBonus } from './progression';
 import { damageTakenMul } from './stats';
+import { tierCoreDamageMul, tierEnemyHpMul } from './tiers';
 import { structureArmor } from './upgrades';
 import { tickCooldown, type DotStack, type Enemy, type Structure } from './types';
 import { World } from './world';
@@ -76,13 +77,36 @@ export function makeEnemy(w: World, def: EnemyDef, x: number, y: number, opts: S
     hp *= sp.hpOverlay * sp.actIICarry;
     speed *= sp.speedOverlay;
   }
+  // p12b (§B): the tier ladder's HP rung, `tierEnemyHpPerStep^(tier-1)`,
+  // applied to every enemy. Shipped at 4.0/step (x16 at T3), fitted to the
+  // measured win-rate response rather than to §B's own ⚖ suggestion, which
+  // had no teeth at all — see BALANCE.md "Tier ladder (p12b)". Before p12b only the final boss scaled with tier at all; ordinary
+  // enemies differed between tiers solely through the random drafted
+  // modifiers, which is why a tier read as a distribution rather than a rung.
+  // Applied before the boss multipliers below so a boss takes both, the same
+  // way it already takes `mods.enemyHp` and `mods.bossHp`.
+  hp *= tierEnemyHpMul(w.content, w.cfg.tier);
   const isBoss = (flags & TRAIT.boss) !== 0;
   if (isBoss) hp *= 1 + w.mods.bossHp;
-  if ((flags & TRAIT.finalBoss) !== 0) {
-    // SPEC 5.5: "15,000 HP x tier multiplier". The only tier multiplier the
-    // spec defines is SPEC 8.3's reward scale, so the boss uses that.
-    hp *= 1 + w.content.modifiers.tierRewardPerStep * (w.cfg.tier - 1);
-  }
+  // SPEC 5.5: "15,000 HP x tier multiplier". Until p12b the only tier
+  // multiplier the spec defined was SPEC 8.3's *reward* scale
+  // (`tierRewardPerStep`), so the final boss borrowed that for want of a real
+  // one — it was the single place `cfg.tier` scaled anything directly. §B
+  // authors an actual tier ladder, so the boss now takes that same rung as
+  // every other enemy (applied above) instead of a second, ad-hoc one: one
+  // tier HP scaling in the sim, not two compounding.
+  //
+  // This is a **large, deliberate boss buff**, not a like-for-like swap: at
+  // the shipped 4.0/step the rung is x16 at T3 where the borrowed reward
+  // scale was x1.70, and x256 at T5 against x2.40. What that costs, measured
+  // rather than assumed (qa-playtester, p12b): at T3 the scripted bot's
+  // seed-1 run dies at wave 3 and **never reaches the boss at all**, which is
+  // why G14's seed-1 mechanism case is deliberately pinned to T1 in
+  // `tests/boss.test.ts` — the T3 run is contested by design, so it is not a
+  // case that can assert one seed reaches a boss. The rung itself is pinned
+  // there instead (`e3.maxHp` against `tierEnemyHpMul`). See BALANCE.md
+  // "Tier ladder (p12b)"; logged in QUESTIONS.md as a §17-adjacent reading of
+  // SPEC 5.5's "tier multiplier".
 
   const e: Enemy = {
     id: w.newId(),
@@ -1693,13 +1717,27 @@ function separation(w: World, e: Enemy): void {
   outY = (sy / n) * SEP_STRENGTH;
 }
 
+/**
+ * An enemy's effective `coreDamage`, with p12b's tier rung applied
+ * (`tierCoreDamagePerStep^(tier-1)`, the lever QUESTIONS Q160 measured as
+ * the elastic one; shipped at 1.7/step, x2.89 at T3).
+ *
+ * Exists so all four consumers scale together: the Core leak itself, the leak
+ * telemetry event, the Warden-contact hit, and the structure-attack DPS that
+ * derives from the same number. Reading `def.coreDamage` raw anywhere else is
+ * the drift this function exists to prevent.
+ */
+export function enemyCoreDamage(w: World, def: EnemyDef): number {
+  return def.coreDamage * tierCoreDamageMul(w.content, w.cfg.tier);
+}
+
 /* ------------------------------------------------------- objective contact */
 
-function attackStructure(w: World, e: Enemy, def: EnemyDef, s: Structure, dt: number): void {
+export function attackStructure(w: World, e: Enemy, def: EnemyDef, s: Structure, dt: number): void {
   e.attackingStructure = s.id;
   const factor = w.content.waves.enemyStructureDpsFactor;
   const mul = def.structureDamageMul ?? 1;
-  const dps = Math.max(1, def.coreDamage) * factor * mul;
+  const dps = Math.max(1, enemyCoreDamage(w, def)) * factor * mul;
   damageStructure(w, s, dps * dt);
 }
 
@@ -1722,7 +1760,7 @@ export function damageStructure(w: World, s: Structure, amount: number): void {
   }
 }
 
-function leakIntoCore(w: World, e: Enemy, def: EnemyDef): void {
+export function leakIntoCore(w: World, e: Enemy, def: EnemyDef): void {
   // Floored so a swarm that keeps leaking during the defeat slow-mo beat
   // (SPEC-V2 D1) cannot drive the HUD's Core HP negative.
   //
@@ -1733,7 +1771,7 @@ function leakIntoCore(w: World, e: Enemy, def: EnemyDef): void {
   // budget, same leaks, same Night - so the choice costs nothing under
   // ordinary play, and the surplus from an extreme case is dropped at the
   // alive cap by act2.ts's spendBudget.
-  if (!w.godMode) w.coreHp = Math.max(0, w.coreHp - def.coreDamage);
+  if (!w.godMode) w.coreHp = Math.max(0, w.coreHp - enemyCoreDamage(w, def));
   w.leaks++;
   w.leaksByWave[w.wave] = (w.leaksByWave[w.wave] ?? 0) + 1;
   // SPEC-V2 §1 leak coupling: it escaped into the dark and comes back with
@@ -1746,13 +1784,13 @@ function leakIntoCore(w: World, e: Enemy, def: EnemyDef): void {
   const directorCost = (w.content.spawns.costs[def.key] ?? 5) / (def.packSize ?? 1);
   w.nightBudgetBonus += directorCost * w.content.spawns.leakBudgetMultiplier;
   w.looseInTheDark++;
-  w.emit('leak', e.x, e.y, def.coreDamage, 0);
+  w.emit('leak', e.x, e.y, enemyCoreDamage(w, def), 0);
   e.dead = true;
   w.deadEnemies = true;
   w.enemyById.delete(e.id);
 }
 
-function contactWarden(w: World, e: Enemy, def: EnemyDef): void {
+export function contactWarden(w: World, e: Enemy, def: EnemyDef): void {
   if (w.dying) return;
   if ((e.flags & TRAIT.explodes) !== 0) {
     const r = def.explodeRadius ?? 1.5;
@@ -1765,7 +1803,7 @@ function contactWarden(w: World, e: Enemy, def: EnemyDef): void {
   }
   if (e.attackCooldown > 0) return;
   e.attackCooldown = w.content.spawns.contactInterval;
-  let dmg = def.coreDamage * (1 + e.buffPower);
+  let dmg = enemyCoreDamage(w, def) * (1 + e.buffPower);
   // Frost Warden trait: chilled enemies hit softer.
   if (isChilled(e)) dmg *= w.derived.chilledDamageTakenMul;
   damageWarden(w, dmg);
