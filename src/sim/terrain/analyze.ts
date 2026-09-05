@@ -614,8 +614,17 @@ function isNormalFootprint(map: TerrainGrid, anchor: number): boolean {
 }
 
 /**
- * Normal tiles in the ring `ROOM_RADIUS` out from the 2x2 footprint — the
- * quantity `suggestCoreAnchor` breaks a distance tie on.
+ * Normal tiles in the `ROOM_RADIUS`-wide **block** around the 2x2 footprint —
+ * the quantity `suggestCoreAnchor` breaks a distance tie on.
+ *
+ * Block, not ring: the loops run `ty - 2 .. ty + CORE_H + 1` by the same in x,
+ * a filled 6x6 that *includes* the footprint. The footprint contributes a
+ * constant 4 (every caller has passed `isNormalFootprint` first), so it never
+ * changes an ordering — but the shape is now exported, and the doc said "ring"
+ * while the test file next door uses that word for a genuinely different
+ * radius-1 ring. `coreAnchorRoom(flatTerrain(), 25, 9)` is **36**, which is
+ * 6x6 and not 6x6 minus the footprint; that reading is pinned in
+ * `tests/terrain-anchor-quality.test.ts`.
  *
  * Exported at fb065b because it is not an implementation detail: `ROOM_RADIUS`'
  * doc block above records that this tie-break decides `maxGateDetour`, which

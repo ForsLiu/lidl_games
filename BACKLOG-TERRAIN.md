@@ -929,6 +929,68 @@ improvement.
   inverted — `world.ts` writes the gate before terrain, the test writes it
   after — which is what makes it the hostile case. The test now says so.
 
+- (2026-09-05, fb065b, QA round) **PASS on all four acceptance clauses, with
+  every recorded figure re-derived independently** — QA wrote its own flood,
+  centroid, disc count and Chebyshev loop rather than importing this file's
+  helpers, and reproduced the four ledger rows, the flat control (86 of 498),
+  the fixed-anchor means, the 24/17 tie counts, seed 112's row, the buildable
+  row, the fidelity figures and all five per-seed price strings exactly. It also
+  applied the disc swap itself and got the same six moved seeds, the same
+  unmoved 381 and the same seed-112 regeneration, and it hit the
+  "dominators are not gate-maximisers" error independently with the identical
+  histogram. Its mutation battery killed 13 of 14; the survivor (drop
+  `isNormalFootprint`) is killed by `tests/terrain-core-placement.test.ts`,
+  which is the right division of labour and was verified rather than assumed.
+
+  **Four findings on the committed state, all fixed here.**
+  1. **`tieTakesMaxRoom` was unreachable under exactly the two mutants its own
+     comment named.** An inverted tie-break dies at `worstGate.seed === 88`
+     (reads 284) and a dropped one at `farthestCentroid.seed === 411` (reads
+     211), both before the tie-break lines ran — so what actually killed those
+     mutants was a worst-seed identity golden, not the assertion written for
+     them. QA measured that the property *is* violated by them (21 and 16
+     seeds), i.e. the assertions were sound and simply never executed. They are
+     now their own `it`, and the inverted mutant fails it with `expected 479 to
+     be 500` (500 − 21, exactly QA's count).
+  2. **`tieTakesMaxRoom` is self-referential about the metric**, and the comment
+     oversold it. `maxTieRoom` is computed with the same `coreAnchorRoom` the
+     rule uses, so it pins the *selection loop* and is invariant to what the
+     metric measures: `ROOM_RADIUS` 1 or 3, an asymmetric block, counting
+     non-Rock, and counting Rock instead of Normal all leave it green — and the
+     last of those changes the pick on 13 of the 17 moved tie seeds. Reproduced
+     here in a worktree. The comment now says so, and three **absolute** metric
+     readings are pinned beside it: `coreAnchorRoom(flatTerrain(), 25, 9)` is
+     **36**, the clipped corner (1,1) is **16**, and seed 411's (28,9) is
+     **14**. The 36 alone pins radius (1 reads 16, 3 reads 64), shape (a ring
+     excluding the footprint would read 32) and that it counts `Normal`.
+  3. **The vacuity control was not commensurable with the number it retires.**
+     86-of-498 is a share of *anchors on one map*; 500/500 is a share of
+     *seeds*. The seed-wise version is now recorded beside it: on **432 of 432**
+     seeds where the authored (25,9) is legal, that anchor is itself dominated,
+     by a mean of **42.7** anchors against **44.2** at the pick. Verified
+     independently here before adding.
+  4. **`coreAnchorRoom`'s doc called it a ring; it is a filled block** that
+     includes the footprint (`ty-2 .. ty+CORE_H+1` square, 6x6 at the shipped
+     radius). Arithmetically harmless — the footprint contributes a constant 4
+     — but it is exported surface now, and the test file uses "ring" for a
+     genuinely different radius-1 ring two screens away.
+
+  **A process hazard QA reported rather than filed, and it is the second
+  sighting this session.** fb065b was committed into the shared working tree
+  while QA's mutation battery had `analyze.ts` mutated; the committed blob was
+  verified byte-identical to its pre-mutation backup afterwards, so nothing
+  leaked, but the window was real. It is the same hazard that made fb065c's
+  first drift ledger wrong (85/0.52/10 against the true 84/0.66/13). The rule
+  the lane should keep: **a mutation battery runs in a `git worktree`, never in
+  the working tree**, and any sweep run beside one checks `git status` first.
+
+  **Runtime and money paths, measured by QA:** the file is 2.9 s alone, 7.4 s
+  under 8 spinners on 4 cores, 9.7 s under spinners plus three sibling terrain
+  suites — against a 120 s timeout, and with no `Date.now`/`performance.now`/
+  `Math.random` anywhere in it, so it carries no fb065d-shaped exposure.
+  `tools/sim.ts` output is byte-identical across the change but for `simMs`
+  (`endHash` 952d7be8 / 3df6bb2f / 90e960af on seeds 1/7/42).
+
 - (2026-09-05, fb065b, second review round) **Three things this file claimed
   and had not measured, all caught by the re-review and all now asserted rather
   than written down.** They are recorded because each is the same failure

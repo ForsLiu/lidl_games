@@ -49,7 +49,12 @@
  * every wave was tuned on, and the authored anchor is dominated by **86 of the
  * 498 legal anchors**, with a Pareto front sitting on the centre column eight
  * tiles away. A measure that condemns the hand-authored ideal is measuring the
- * objective, not the rule. (The tempting argument — "every seed has a more
+ * objective, not the rule. That control is not *commensurable* with the 500/500
+ * on its own — 86-of-498 is a share of anchors on one map, 500/500 a share of
+ * seeds — so the seed-wise version is recorded beside it: on **all 432** seeds
+ * where the authored (25,9) is legal, that anchor is itself dominated, by a
+ * mean of **42.7** anchors against **44.2** at the pick. The measure calls the
+ * tuned spot a bad default on every map that offers it. (The tempting argument — "every seed has a more
  * central anchor somewhere" — does not even entail the number: dominance needs
  * `>=` on all three properties, so a more central anchor with less room is not
  * a dominator. What those 86 have in common is measured rather than guessed:
@@ -349,6 +354,8 @@ interface Row {
   fixedRoom: number;
   fixedCentroidDist: number;
   fixedLegal: boolean;
+  /** Anchors dominating the *fixed* authored anchor, when it is legal. */
+  fixedDominators: number;
 }
 
 /**
@@ -362,6 +369,27 @@ interface Row {
  * named the cause. Nothing in here throws for that reason either: a null anchor
  * or a fallback map is counted and asserted by a test, not raised in the loop.
  */
+/**
+ * How many legal anchors dominate the *authored* `CORE_X/CORE_Y` anchor on this
+ * map — the seed-wise control for the header's 500/500. Zero when that anchor
+ * is not legal here, which the caller reads together with `fixedLegal`.
+ */
+function fixedDominators(
+  map: TerrainGrid,
+  anchors: readonly number[],
+  centroid: readonly [number, number],
+): number {
+  const fixed = CORE_Y * map.w + CORE_X;
+  if (!anchors.includes(fixed)) return 0;
+  const p = qualityAt(map, fixed, centroid);
+  let n = 0;
+  for (const a of anchors) {
+    if (a === fixed) continue;
+    if (dominatesMonotone(qualityAt(map, a, centroid), p)) n++;
+  }
+  return n;
+}
+
 let cached: Row[] | null = null;
 
 function rows(): Row[] {
@@ -418,6 +446,7 @@ function rows(): Row[] {
       fixedRoom: buildRoomAt(map, CORE_X, CORE_Y, BUILD_RANGE),
       fixedCentroidDist: Math.hypot(CORE_X + CORE_W / 2 - centroid[0], CORE_Y + CORE_H / 2 - centroid[1]),
       fixedLegal: anchors.includes(CORE_Y * map.w + CORE_X),
+      fixedDominators: fixedDominators(map, anchors, centroid),
       extraRoom: EXTRA_RADII.map((r) => buildRoomAt(map, tx, ty, r)),
       buildableRoom: buildRoomAt(map, tx, ty, BUILD_RANGE, false),
       fellBack: map.fallback,
@@ -560,6 +589,19 @@ describe('fb065b — the suggested Core anchor is a measured default, not just a
       // primary key, so the authored anchor is picked exactly when it is legal.
       fixedLegalSeeds: rs.filter((r) => r.fixedLegal).length,
       displacementZeroSeeds: rs.filter((r) => r.q.displacement === 0).length,
+      // **The control that retires the 500/500 on its own terms.** The flat
+      // arena shows the monotone measure condemning the authored ideal, but
+      // 86-of-498 is a share of *anchors on one map* while 500/500 is a share
+      // of *seeds*, so the two are not commensurable. This pair is: on every
+      // one of the 432 seeds where the authored (25,9) is legal, that anchor is
+      // itself dominated, by very nearly as many anchors as the pick is. The
+      // measure calls the tuned spot a bad default on every map that offers it.
+      fixedDominatedSeeds: rs.filter((r) => r.fixedLegal && r.fixedDominators > 0).length,
+      meanDominatorsAtFixed: (
+        rs.filter((r) => r.fixedLegal).reduce((a, r) => a + r.fixedDominators, 0) /
+        rs.filter((r) => r.fixedLegal).length
+      ).toFixed(1),
+      meanDominatorsAtPick: (rs.reduce((a, r) => a + r.monoAll, 0) / rs.length).toFixed(1),
     }).toEqual({
       buildRoomAtPick: '36.0640',
       buildRoomAtFixed: '35.7920',
@@ -567,6 +609,9 @@ describe('fb065b — the suggested Core anchor is a measured default, not just a
       centroidDistAtFixed: '7.9072',
       fixedLegalSeeds: 432,
       displacementZeroSeeds: 432,
+      fixedDominatedSeeds: 432,
+      meanDominatorsAtFixed: '42.7',
+      meanDominatorsAtPick: '44.2',
     });
   });
 
@@ -683,12 +728,29 @@ describe('fb065b — the suggested Core anchor is a measured default, not just a
     expect(rs.every((r) => r.q.displacement <= 4)).toBe(true);
     expect(rs.filter((r) => r.q.displacement === 0).length).toBe(432);
 
-    // The tie-break, stated directly, because the floors above cannot state it:
-    // among the anchors tied on the primary key, the pick carries the most
-    // `coreAnchorRoom`. This is what an inverted or dropped tie-break fails and
-    // the floors let through, and it is why `coreAnchorRoom` is exported —
-    // `ROOM_RADIUS`' doc block records that this choice decides `maxGateDetour`
-    // and so decides whether a map ships at all.
+  });
+
+  it('takes the most build room among the anchors tied on the primary key', () => {
+    // **Its own case on purpose.** These assertions used to close the floors
+    // case above, where they were unreachable by the mutants their own comment
+    // named: an inverted tie-break dies at `worstGate.seed === 88` (it reads
+    // 284) and a dropped one at `farthestCentroid.seed === 411` (it reads 211),
+    // both before this ever ran. QA measured that the property *is* violated by
+    // those mutants — on 21 and 16 seeds — so the assertions were sound and
+    // simply never executed. Separated, they fail with a message that names the
+    // tie-break.
+    //
+    // **What they hold, stated exactly, because the obvious reading is too
+    // generous.** `maxTieRoom` is computed with the same `coreAnchorRoom` the
+    // rule uses, so this pins the *selection loop* — that the loop keeps the
+    // best-scoring tied anchor — and is invariant to what the metric measures.
+    // Every mutation of the metric leaves it green: `ROOM_RADIUS` 1 or 3, an
+    // asymmetric block, counting non-Rock, and even counting Rock instead of
+    // Normal, which changes the pick on 13 of the 17 moved tie seeds. Those are
+    // caught by the ledger's identity goldens and by the absolute readings at
+    // the end of this case, which is what a "the metric is still the metric"
+    // check has to look like.
+    const rs = rows();
     expect(rs.filter((r) => r.tieTakesMaxRoom).length).toBe(rs.length);
     // `tieSet` re-derives `suggestCoreAnchor`'s primary key, which is the same
     // hand-copy shape this file removed for `gateDistance`. It cannot be
@@ -704,6 +766,15 @@ describe('fb065b — the suggested Core anchor is a measured default, not just a
       tieSeeds: rs.filter((r) => r.tieCount > 1).length,
       movedOffLowestIndex: rs.filter((r) => r.tieMoved).length,
     }).toEqual({ tieSeeds: 24, movedOffLowestIndex: 17 });
+    // Absolute readings of the metric itself — the half the property above
+    // cannot see. The flat arena's 36 is a filled 6x6 block of normal ground
+    // and pins three things at once: the radius (1 reads 16, 3 reads 64), the
+    // *shape* (a ring excluding the footprint would read 32), and that it
+    // counts `Normal`. The clipped corner and a real generated anchor pin it
+    // against a metric that agrees with 36 by accident.
+    expect(coreAnchorRoom(flatTerrain(), CORE_X, CORE_Y)).toBe(36);
+    expect(coreAnchorRoom(flatTerrain(), 1, 1)).toBe(16);
+    expect(coreAnchorRoom(generateTerrain(411, cfg), 28, 9)).toBe(14);
   });
 
   it('pins the seed the declined tie-break would cost a whole map', () => {
