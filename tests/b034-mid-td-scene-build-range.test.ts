@@ -20,8 +20,10 @@ import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { createServer, type ViteDevServer } from 'vite';
-import { chromium, type Browser, type Page } from 'playwright';
+import type { Browser, Page } from 'playwright';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+
+import { hasChromium, launchChromium } from './helpers/browser';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '..');
@@ -43,7 +45,7 @@ async function call(page: Page, method: string, ...args: unknown[]): Promise<unk
   );
 }
 
-describe('b034: the mid-TD-wave audit scene builds a real, selectable tower', () => {
+describe.skipIf(!hasChromium)('b034: the mid-TD-wave audit scene builds a real, selectable tower', () => {
   let server: ViteDevServer;
   let browser: Browser;
   let page: Page;
@@ -54,7 +56,7 @@ describe('b034: the mid-TD-wave audit scene builds a real, selectable tower', ()
     const address = server.httpServer?.address();
     const port = typeof address === 'object' && address ? address.port : null;
     if (!port) throw new Error('could not determine the dev server port');
-    browser = await chromium.launch({ headless: true });
+    browser = await launchChromium();
     page = await browser.newPage({ viewport: VIEWPORT, deviceScaleFactor: 1 });
     await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: 'load' });
     await page.evaluate(() => {
