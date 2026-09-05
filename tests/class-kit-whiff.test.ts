@@ -85,28 +85,40 @@ import { buildTower } from '../src/sim/towers';
 import type { Enemy, TickInput } from '../src/sim/types';
 import { tickDashTravel } from '../src/sim/wardenmove';
 import { World } from '../src/sim/world';
+import { BUILD_TX, BUILD_TY, HAS_WALL, WALL_TX, WALL_TY, WALL_TYS, WX, WY } from './class-board';
+import { p6dIceWall } from './class-p6d-agreement';
 import { cfg } from './helpers';
 
 const content = loadContent();
 
 /**
- * Warden's parking spot: well inside the board, so an aimed dash/wall has room
- * to resolve.
+ * **`c025`: this file now shares `tests/class-board.ts`'s probed board too**,
+ * and the exemption `c014` recorded for it is gone. Two things had to happen
+ * first, and both are in that module rather than here:
  *
- * **The one file `c014` could not move onto `tests/class-board.ts`'s shared
- * probe**, and deliberately so. The Ice Wall row below exists to state the same
- * whiff policy as `tests/p6d-nine-classes.test.ts`, and pins the agreement with
- * `expect([AX, AY]).toEqual([12, 10])` against p6d's own hardcoded aim point.
- * De-hardcoding this side alone would leave the two files agreeing about
- * nothing; p6d is outside the content lane's Scope, so the pair moves together
- * from the main lane or not at all. `tests/class-board.test.ts` asserts this
- * exception so it cannot quietly become a forgotten seventh copy.
+ *   - the shared probe exports a *column*, not a tile — the Ice Wall row
+ *     pre-builds all three tiles a vertical wall occupies, and since `c026`
+ *     the footprint asks for passable floor plus one buildable tile out east,
+ *     which a wall column can fail. It is probed now (`WALL_TX`/`WALL_TYS`,
+ *     `HAS_WALL`), and it degrades on its own rung so that one file's extra
+ *     need never costs any other importer its board.
+ *   - the p6d agreement had to stop being an absolute-tile pin. It read
+ *     `expect([AX, AY]).toEqual([12, 10])` while both files parked at `10,10`;
+ *     terrain moved the shared board to `10,6` at `c026`, so the literal is now
+ *     p6d's tile and not this file's. What the two files actually agree on is
+ *     the **offset** — aim two tiles east of where the Warden stands — and that
+ *     is what the row asserts, with p6d's own park and aim read out of its
+ *     source (`tests/class-p6d-agreement.ts`, whose header records the four
+ *     ways QA broke the first parser) so the agreement still breaks loudly if
+ *     p6d re-aims — and fails one named row, not all 58, if it cannot parse.
  */
-const WX = 10;
-const WY = 10;
-/** Every aimed cast points here — 3 tiles east, inside every authored radius in the game. */
-const AX = WX + 2;
-const AY = WY;
+/**
+ * Every aimed cast points here — the shared board's Ice Wall aim point, two
+ * tiles east of the Warden, which is inside every authored radius in the game
+ * and is the middle tile of the column `WALL_TYS` names.
+ */
+const AX = WALL_TX;
+const AY = WALL_TY;
 
 /**
  * c007's "deliberately empty World". A fresh `World` already is one — no
@@ -607,18 +619,32 @@ describe('c007: the whiff policy of all 24 class Actives', () => {
  * Active in the table that an *empty* world cannot make whiff — free tiles
  * are precisely what it wants. Its whiff condition is the opposite of
  * emptiness, so it gets the exception it needs: the exact setup from
- * `tests/p6d-nine-classes.test.ts` (all three target tiles pre-built),
- * reproduced here so the two files state the same policy and a change has to
- * break both.
+ * `tests/p6d-nine-classes.test.ts` (all three target tiles pre-built), stated
+ * here on the shared board with p6d's own park and aim read out of p6d, so the
+ * two files state the same policy and a change has to break both.
  */
 describe('c007: Ice Wall whiffs on occupancy, not emptiness (agrees with p6d)', () => {
   it('every target tile already occupied: no wall, and the cooldown is still paid in full', () => {
     const w = emptyWorld('cryomancer');
     // p6d aims at (12,10) from (10,10); the vertical wall that produces lands
     // at tx=12, ty in {9,10,11}. Pre-occupy all three so `buildTower` rejects
-    // each one. AX/AY is that same aim point.
-    expect([AX, AY]).toEqual([12, 10]);
-    for (const ty of [9, 10, 11]) tower(w, AX, ty);
+    // each one. AX/AY is that same aim point — *relative to the Warden*, which
+    // is the half of it that survives the board moving (c025; the shared probe
+    // walked to 10,6 when terrain landed, so p6d's literal `12,10` is its tile
+    // and no longer this file's).
+    // Read out of p6d's own occupancy test — the row this one co-states, not
+    // the `castWall()` helper next to it, which QA showed the first draft was
+    // reading instead (re-aiming the occupancy row left this file green).
+    const p6d = p6dIceWall();
+    expect([p6d.parkX, p6d.parkY], "p6d's own Ice Wall park moved").toEqual([10, 10]);
+    expect([p6d.aimX, p6d.aimY], "p6d's own Ice Wall aim point moved").toEqual([12, 10]);
+    expect(
+      [AX - WX, AY - WY],
+      'this file and p6d no longer aim at the same offset from the Warden — the two state one whiff ' +
+        'policy and must fire the same cast to state it',
+    ).toEqual([p6d.aimX - p6d.parkX, p6d.aimY - p6d.parkY]);
+    expect(HAS_WALL, 'the shared board could not host an Ice Wall column — this row has nothing to occupy').toBe(true);
+    for (const ty of WALL_TYS) tower(w, WALL_TX, ty);
 
     const beforeActs = snapshot(w);
     // `fireIceWall` pre-funds each tile and unwinds the funding when
@@ -657,8 +683,21 @@ describe('c007: Ice Wall whiffs on occupancy, not emptiness (agrees with p6d)', 
  * tell a policy from a bug.
  */
 describe('c007: the seven pure-whiff Actives c007 names act as soon as their one missing thing exists', () => {
-  const CONTROLS: { classKey: string; slot: 1 | 2; needs: string; give: (w: World) => void }[] = [
-    { classKey: 'engineer', slot: 1, needs: 'a damaged tower in radius', give: (w) => void (tower(w, AX, AY).hp = 1) },
+  const CONTROLS: {
+    classKey: string;
+    slot: 1 | 2;
+    needs: string;
+    give: (w: World) => void;
+    /** `c025`: this row builds on the Ice Wall column, which only a `hasWall` board has. */
+    needsWall?: true;
+  }[] = [
+    {
+      classKey: 'engineer',
+      slot: 1,
+      needs: 'a damaged tower in radius',
+      give: (w) => void (tower(w, WALL_TX, WALL_TY).hp = 1),
+      needsWall: true,
+    },
     {
       classKey: 'bloodlord',
       slot: 1,
@@ -666,17 +705,24 @@ describe('c007: the seven pure-whiff Actives c007 names act as soon as their one
       // `fireBloodTithe` floors the payment at 1 hp, so a tower already at 1
       // cannot move on the cost axis — `s.tithed` is left to carry the row,
       // which is c005's finding and the strictest form of this control.
-      give: (w) => void (tower(w, AX, AY).hp = 1),
+      give: (w) => void (tower(w, WALL_TX, WALL_TY).hp = 1),
+      needsWall: true,
     },
-    { classKey: 'necromancer', slot: 2, needs: 'a tower in radius to pact with', give: (w) => void tower(w, AX, AY) },
-    { classKey: 'animist', slot: 1, needs: 'an attacking tower in radius to clone', give: (w) => void tower(w, WX + 1, WY) },
+    {
+      classKey: 'necromancer',
+      slot: 2,
+      needs: 'a tower in radius to pact with',
+      give: (w) => void tower(w, WALL_TX, WALL_TY),
+      needsWall: true,
+    },
+    { classKey: 'animist', slot: 1, needs: 'an attacking tower in radius to clone', give: (w) => void tower(w, BUILD_TX, BUILD_TY) },
     { classKey: 'stormcaller', slot: 1, needs: 'a first enemy for the bolt to link to', give: (w) => void dummy(w, AX, AY) },
     {
       classKey: 'necromancer',
       slot: 1,
       needs: 'a corpse in radius',
       give: (w) => {
-        killEnemy(w, dummy(w, WX + 1, WY), 'test');
+        killEnemy(w, dummy(w, BUILD_TX, BUILD_TY), 'test');
         expect(w.corpses.length, 'harness left no corpse for Raise').toBeGreaterThan(0);
       },
     },
@@ -685,7 +731,7 @@ describe('c007: the seven pure-whiff Actives c007 names act as soon as their one
       slot: 2,
       needs: 'banked Wrath and something to hit',
       give: (w) => {
-        dummy(w, WX + 1, WY);
+        dummy(w, BUILD_TX, BUILD_TY);
         w.warden.wrathStored = 500;
       },
     },
@@ -697,6 +743,15 @@ describe('c007: the seven pure-whiff Actives c007 names act as soon as their one
     it(`${cls.name} ${eff.name} whiffs only for want of ${c.needs}`, () => {
       const empty = ROWS.find((r) => r.classKey === c.classKey && r.slot === c.slot)!;
       expect(empty.acts, 'this control belongs to a row the table calls a pure whiff').toBe(false);
+      // Three of these rows put their tower on the Ice Wall column, which the
+      // shared probe only guarantees on a `hasWall` rung. Named here, on those
+      // rows alone, rather than letting them die as "harness could not place a
+      // tower at 12,6" — the opaque harness failure c014 exists to delete —
+      // and rather than dragging the rows that build on the shared tile down
+      // with them, which is the whole point of degrading on one rung.
+      if (c.needsWall) {
+        expect(HAS_WALL, 'this control builds on the Ice Wall column and the board has none').toBe(true);
+      }
 
       const w = emptyWorld(c.classKey);
       c.give(w);

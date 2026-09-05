@@ -570,6 +570,101 @@ session 2 (c005 was the last actionable one left), appending `c006`-`c010`.
       not edited from here - refs: SPEC-FINAL §4.2 (Time Lord), §2 (Area row),
       QUESTIONS Q120(5), c009, c013, QA on c013.
 
+- [ ] (c028) [polish] c022's **anchor/block-reader device lives privately inside
+      `tests/equip-spec-numbers.test.ts`**, and `c027` below is about to make a
+      second copy of it one file over — the exact shape `c014` spent an item
+      undoing for six copies of one board. It is ~90 lines and every one of
+      them was earned by a mutation: the indentation-derived block end (an
+      exact-`});` scan walked past a `}, 20000);` closer into the next block),
+      comment stripping (a bare `// luck` "covered" a row moved onto `luck`),
+      the identifier-boundary `reads` default (`atkFlat` satisfied by
+      `towerAtkFlat`), the ancestor `describe.skip` refusal, and the derived
+      decoy roster. A hand-copy loses whichever of those the copier does not
+      notice. First only because copying is cheaper than extracting once the
+      copy exists. Acceptance: a lane-owned `tests/spec-ledger.ts` exports the
+      reader, `defaultReads` and the decoy derivation; `equip-spec-numbers`
+      imports them and keeps its own rows; the synthetic self-tests move with
+      the module and gain one asserting the module has exactly one home (a
+      `tests/*-spec-numbers*` sweep finds no second private copy of the reader);
+      every mutation in c022's Log entry is re-run and still red - refs: c014
+      (the shape), c022, c027.
+
+- [ ] (c027) [bug] **the §4 ledger has c022's hole in the one form that has
+      already bitten twice.** `tests/class-spec-numbers.test.ts` pins each
+      figure's authored *path* (`['passive', 'mods', 'leech']`), so moving a
+      value to another key is red there in a way §7's Effect rows were not —
+      but nothing proves the key is the one §4's *sentence* means. That is
+      exactly what `c013` found (Animist *Wide Grove*, "all towers +10% area",
+      authored on the global `area`, which since `c001` also widens all 24
+      class Actives) and `c024` found again, nine times larger, on Time Lord's
+      Chronal Surge (`run.ts:817`, `stats.add(source, 'area', ...)` beside a
+      `towerRange` sibling). Two findings, one hole, no barrier: any other §4
+      row could be authored on a stat whose reach is wider or narrower than its
+      clause and the ledger would agree with itself. Acceptance: every §4 row
+      whose figure is a stat key carries c022's `Behaviour` pointer (imported
+      from `c028`'s module) into a `tests/class-*` block that reads that key;
+      the two known divergences are **named deviations** pointing at c013/c024
+      rather than silence; red under moving one authored figure to a
+      neighbouring key with the row's own path edited to match, measured the
+      way c022's was - refs: SPEC-FINAL §4.1/§4.2, §2 (Area row), c008, c013,
+      c022, c024.
+
+- [ ] (c031) [polish] **the three `hasEquipment(w, '<key>')` literals in
+      `/src` are an unpinned roster, and `fb056` adds fifteen items to the file
+      that feeds it.** §7's three non-stat mechanics (Sleeve Sword's no-charge
+      rule, Swordsman Armor's two) are gated on item keys hardcoded in
+      `src/sim/classes.ts`, while `c023` proved the `/data` field that *looks*
+      like it does this — `equipment.items[].effectKey` — is read by nothing.
+      So the real contract between `/data` and `/src` is a set of string
+      literals no test enumerates: an item key renamed in `/data` silently
+      turns its mechanic off (the loader validates slots and `notClassKey`, not
+      this), and a fifteen-item epic is the moment that is least affordable.
+      Acceptance: `tests/equip-hasequipment-roster.test.ts` enumerates every
+      `hasEquipment` call site in `/src` by source scan, asserts the roster is
+      exactly the three §7 items that authorise one — each row quoting the §7
+      Effect clause it implements — and asserts every literal names a key
+      `data/equipment.json` actually authors; a fourth literal, or a renamed
+      key, is red. Measurement and barrier only: the `effectKey`/`effectNums`
+      decision is main-lane (`c023`'s Log) - refs: SPEC-FINAL §7, c012, c022,
+      c023, fb056.
+
+- [ ] (c029) [bug] **`c014`'s "the importers move with the board" property is
+      not true of the importers it was built for**, measured this session while
+      converting `class-kit-whiff` (`c025`). Shifting `PROBE_ORIGIN` to
+      `25,12` (board `26,12`) leaves the newly converted whiff file green at
+      58/58 and reddens **six rows** — four in `tests/class-wide-grove-reach.
+      test.ts` (the Mortar shell-splash probes and the "every footprint §4.2
+      claims is still widened" set row) and two in
+      `tests/class-line-bonus.test.ts` (Stormcaller `stormcaller_jump_cap`).
+      Controlled on HEAD without `c025`: the same six, identically, so this
+      predates the conversion and is a property claim the suite does not have.
+      Those rows carry *board-relative calibration* — a victim placed at a
+      distance tuned to one footprint, a chain line with room to reach — which
+      the shared board does not export and `class-board.test.ts`'s sink rules
+      cannot see. Acceptance: an enumeration table (the red/green shape c013
+      uses) naming, per importer, each board-relative window it depends on and
+      whether the file survives a shifted origin; a window that genuinely
+      cannot move is a declared, asserted dependency with its measured reason,
+      never silence; and `class-board.ts`'s header stops claiming the strong
+      form of the property - refs: c014, c025, c013, c016.
+
+- [ ] (c030) [polish] **two of this lane's own recorded measurements were taken
+      on a board that no longer exists.** CLAUDE.md's measurement rules: "a
+      deferral is a measurement with an expiry date; re-measure before
+      inheriting it." `tests/class-time-lord-band.test.ts` (`c003`) records its
+      12-seed win-rate number in a comment beside a `.skip`-ed assertion, and
+      `tests/class-kit-damage-share.test.ts` (`c002`'s control half) records
+      the per-class top-damage-source count — both measured before master's
+      `fb077` wired `generateTerrain` into every non-practice run, so every
+      seed they sample now plays a different map. The terrain lane retired the
+      same inherited reason rather than re-verifying it (PROGRESS.md, this
+      session's merge note). Acceptance: both numbers re-measured on the
+      current tree and updated in place, each keeping the superseded value
+      beside the new one with its date and the reason it moved; any `.skip`-ed
+      assertion that is now green is un-skipped (two of m20a's five were), and
+      any that moved further out of band says by how much - refs: CLAUDE.md
+      measurement rules, c002, c003, §14 G8, fb077.
+
 ### Blocked out of Scope (owner items, unchanged order)
 
 - [ ] (fb056) [feat] top priority: add 15 class-specific equipment items to
@@ -669,6 +764,86 @@ session 2 (c005 was the last actionable one left), appending `c006`-`c010`.
       §3 (Poison), owner feedback `feature-poison-barrel-mechanic`.
 
 ## Log
+
+### c025 (2026-09-05) — the agreement that was watching the wrong test
+
+- **Shape**: `tests/class-board.ts` probes and exports the Ice Wall column
+  (`WALL_TX`/`WALL_TYS`/`WALL_TY`/`HAS_WALL`); `class-kit-whiff` imports its
+  whole geometry and leaves `EXCEPTIONS`; new `tests/class-p6d-agreement.ts`
+  (the parser) and `tests/class-p6d-agreement.test.ts` (4 tests) carry the
+  agreement. 58 whiff tests unchanged and green — the sorted test-name set is
+  byte-identical to HEAD's, which QA checked. No `/src` or `/data` byte moved.
+- **Both acceptance deviations were `c026` arriving first**, and both are
+  recorded on the item above rather than quietly worked around.
+- **The column costs exactly one spot, measured**: of 612 candidate spots, 12
+  are legal boards without it and 11 with; the one it costs is `10,5`, and the
+  shipped `10,6` is not it. That single spot is why the `1,1` shifted-origin
+  case had to move: its nearest legal board *was* `10,5`, so the corner now
+  converges on the shipped board. It is kept as a row of its own asserting that
+  convergence and the eleven-spot count behind it, rather than deleted.
+- **It degrades alone, proven by forcing it.** With the column made impossible
+  everywhere, exactly one file fails — `class-kit-whiff`, on the four rows that
+  build on the column, each with a named `HAS_WALL` message — and the other
+  eight importers stay green at 323 tests. That is `c026`'s rule (the shared
+  footprint asks for what importers need; one importer's extra need degrades on
+  its own rung) applied to the first extra need there has been.
+- **QA failed the first parser and was right to.** It read the *first*
+  `aimX/aimY` in p6d's Ice Wall `describe`, which belongs to a `castWall()`
+  helper the gold/duration rows use — **not** the occupancy row this file
+  co-states. Re-aiming the occupancy row alone left whiff green: the agreement
+  was watching a test it does not agree with. It also (a) threw at module
+  scope, so a cosmetic p6d edit collapsed the file to `Tests no tests` — 58
+  rows silently not running, which `class-board.ts`'s own header calls worse
+  than the failure c014 set out to fix; (b) reported "p6d's own Ice Wall aim
+  point moved" when p6d had merely been reordered or prettier-wrapped; and (c)
+  silently fell through to another test's park when p6d's was collapsed onto
+  one line. The parser is now a lazy, memoised module that anchors on the
+  occupancy `it`'s own title, ends the block by indentation, requires park and
+  aim to be unique inside it, tolerates line breaks and either quote style, and
+  says "parse failure, not a re-aim" when it cannot read. Every one of those
+  shapes is a synthetic-source test.
+- **`code()` in `class-board.test.ts` now strips string literals as well as
+  comments.** The new parser test builds a miniature p6d out of quoted source
+  (`'    w.warden.x = 4;'`), and the sink rules read all four of them as real
+  board pins. A sink inside a quote is text. Controlled: injecting a *real*
+  private park and a *real* literal build tile into `class-kit-whiff` is still
+  caught by both sinks.
+- **Three review/QA findings were pre-existing and are fixed in passing**: the
+  ladder's last rung (`east: 1`) was dead code — `footprintClear`'s far-ground
+  clause scans `dx = 4..east`, so it could never succeed, and the throw
+  advertised a floor ("down to a single build tile") the ladder could not reach
+  (now `east: 4`); the column was pre-filtered with `grid.buildable` while
+  `class-kit-whiff` places it with `buildTower`, so `probeAt` now asks
+  `checkBuild` too; and two headers still described the pre-`c026` bounding box
+  and the pre-`c025` exemption.
+
+### Generation rule (2026-09-05, session 3) — run with two actionable items left
+
+Run before executing, per CLAUDE.md, with `c022` and `c025` the only actionable
+items in the lane. Appended `c028`, `c027`, `c031`, `c029`, `c030`, in that
+order; the extraction leads only because `c027` would otherwise hand-copy the
+device `c028` extracts.
+
+- **(a) Sweep and gates.** `npx tsx tools/sweep.ts --seeds 12 --policies
+  maxbuild,hybrid` on this tree: **maxbuild win 0.17**, medMin 30.7, medWaves
+  17; **hybrid win 0.17**, medMin 38.2, medWaves 18. STATUS.md's own policy
+  table still reads win rate **1** for both, so that table is stale — it
+  predates master's `p12b`/`p12c` T1 re-anchor and the terrain wiring, and the
+  divergence is main-lane balance state, not this lane's (`c022` and `c025`
+  move zero `/src` and `/data` bytes between them). Of the five red gates,
+  **G8** is the only one whose lever is in this lane's Scope, and both of its
+  clauses are parked on owner verdicts — **Q160** (win rate) and **Q161**
+  (diversity), with `c002` skipped against the latter. No item is filed against
+  a gate that a `/data`-only session has already failed to move four times
+  (CLAUDE.md rule 6, and `p10r`/`p10s`/`p10t`/`p10z`'s record of it).
+- **(b) SPEC-FINAL coverage diff.** §7 is fully audited after `c012`/`c022`;
+  §13's equipment census (12+) and class census (12) are met. The three
+  uncovered §4/§7 surfaces are all *reach* rather than magnitude — which key a
+  clause is authored on — and that is `c027`. The `/data`-to-`/src` contract
+  `c031` names is the fourth, and the only one `fb056` is guaranteed to touch.
+- **(c) Engineer's judgment.** `c029`, which is a property this lane has been
+  *claiming* since `c014` and, measured while converting the eighth importer,
+  does not have.
 
 ### c022 (2026-09-05) — the row that audits the right number on the wrong stat
 
@@ -942,7 +1117,7 @@ moved". Six mutations survived; all six now die, each reddening exactly one row.
 
 ### c014 follow-ups (in this lane, filed by code review's second pass)
 
-- [ ] (c025) [polish] **`tests/class-kit-whiff.test.ts` converts to the shared
+- [x] (c025) [polish] **DONE 2026-09-05.** **`tests/class-kit-whiff.test.ts` converts to the shared
       board, all but one row.** `c014` exempted the whole file; review showed
       the exemption is broader than its reason. Only the Ice Wall row
       (`expect([AX, AY]).toEqual([12, 10])`) is coupled to the out-of-Scope
@@ -958,6 +1133,13 @@ moved". Six mutations survived; all six now die, each reddening exactly one row.
       comment, and drops out of `class-board.test.ts`'s `EXCEPTIONS` except for
       that row; all 58 whiff tests stay green and a shifted probe origin moves
       them with the other seven - refs: c007, c014, SPEC-FINAL §4.
+      **Two acceptance clauses could not hold as written and both had already
+      been overtaken by `c026`: "`footprintClear` already validates that
+      column" was true of the pre-c026 bounding box and false after it (the
+      column is probed explicitly now, on its own rung of the ladder), and
+      "keeps line 620's literal" described an absolute-tile agreement that
+      stopped being this file's tile when terrain moved the board to `10,6` —
+      it is an offset now, read out of p6d's own occupancy test.**
 
 - [x] (c026) [polish] **DONE 2026-09-05 (forced by the master merge).** **`footprintClear`'s rectangle is a bounding box, and it
       is expensive.** It requires all 128 tiles of

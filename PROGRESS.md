@@ -23,6 +23,21 @@
   (`tests/fb015-equipment.test.ts` is out of Scope). No `/src` or `/data` byte
   moved.
 
+  `c025`: `tests/class-kit-whiff.test.ts` is the eighth and last §4 file to
+  move onto the shared probed board, which needed `tests/class-board.ts` to
+  probe and export the **Ice Wall column** (three buildable, non-sealing tiles
+  two east) on its own rung of the degradation ladder — forcing the column
+  impossible fails that one file, on its four column rows, with the other eight
+  importers green. Its p6d agreement is now an **offset** parsed out of p6d's
+  own occupancy test rather than the absolute `[12, 10]` that stopped being
+  this file's tile when terrain moved the board to `10,6`. QA failed the first
+  parser: it was reading a neighbouring `castWall()` helper, so re-aiming the
+  row it claims to co-state left the file green, and it threw at module scope,
+  which vitest reports as `Tests no tests`. New `tests/class-p6d-agreement.ts`
+  plus 4 synthetic-source tests. Also generated five items (`c027`-`c031`) per
+  the generation rule, with a fresh sweep behind them: **maxbuild and hybrid
+  both win 0.17 over 12 seeds**, against STATUS.md's stale policy table of 1.
+
 - **2026-09-05 (lane `lane/terrain`): merged `origin/master` in a second
   time**, picking up `lane/ui`'s fb111/fb112/fb114/fb115 (PR #4). Nothing to
   reconcile in code: master's batch touched only `src/ui/**`, `tests/ui-*` and
