@@ -122,10 +122,34 @@ function isCore(tx: number, ty: number): boolean {
 }
 
 /**
- * Every tile the six files touch, relative to a candidate Warden spot, is open
- * board — asked of the live `Grid`, not inferred from static geometry. See the
- * header: a static check cannot see terrain, which is the only thing this
- * module exists to survive.
+ * The footprint the importers really need, relative to a candidate Warden spot.
+ *
+ * **This started as "every tile in a 16x8 rectangle is `buildable`", and the
+ * terrain epic proved that wrong the day it landed** (`fb077`, merged from
+ * master). Measured on the generated map: 408 of 720 tiles are buildable, and
+ * **zero of 512 candidate origins** can supply a contiguous 16x8 block of them.
+ * The rectangle was satisfiable only on the old flat arena, so the requirement
+ * was never describing the importers — it was describing the arena. That is
+ * `c026`'s premise, and terrain turned it from a cleanup into a prerequisite.
+ *
+ * What the importers actually need is three things, not one:
+ *
+ *  1. **Somewhere to stand and build.** The Warden spot and the build tile one
+ *     east — the build tile checked by `checkBuild` at the call site, which is
+ *     the same legality `buildTower` runs.
+ *  2. **A buildable tile further east than the base build range**, anywhere in
+ *     the Warden's own row. `tilePastBaseRange` (class-passive-liveness) scans
+ *     `dx = 4..13` for a tile `checkBuild` calls `'out_of_range'`; an
+ *     unbuildable tile answers `'terrain'` or `'occupied'` first (master's
+ *     `fb078` added the distinct `'terrain'` rejection), so *at least one* tile
+ *     out there has to be real ground. One, not ten — the scan takes the first
+ *     it finds.
+ *  3. **Room to place enemies**, which is `passable`, not `buildable`: every
+ *     dummy in these files is spawned with `speed = 0` and never paths, so it
+ *     needs open floor rather than a tower site.
+ *
+ * Asking for `buildable` where only `passable` was needed is what made the old
+ * check both too strict to satisfy and no more informative.
  */
 function footprintClear(
   w: World,
@@ -138,10 +162,17 @@ function footprintClear(
       // The border ring is tiles 0 and GRID_W/H - 1; anything outside it is off the board.
       if (tx < 1 || ty < 1 || tx > GRID_W - 2 || ty > GRID_H - 2) return false;
       if (isCore(tx, ty)) return false;
-      if (!w.grid.buildable(tx, ty)) return false;
+      // Floor, not a tower site — see (3) above.
+      if (!w.grid.passable(tx, ty)) return false;
     }
   }
-  return true;
+  // (2): `tilePastBaseRange`'s scan must have real ground to find. Checked over
+  // the same `dx` window that function uses, so the two cannot drift apart.
+  let farGround = false;
+  for (let dx = 4; dx <= reach.east && !farGround; dx++) {
+    if (w.grid.buildable(wx + dx, wy)) farGround = true;
+  }
+  return farGround;
 }
 
 /** Candidate Warden spots, nearest first: the origin, then Chebyshev ring 1, 2, ... */

@@ -106,12 +106,15 @@ describe('fb022 Surface 1: class screen + in-run character panel show live numbe
   });
 
   it('switching class on the Hub updates the detail block to the new class\'s own numbers', () => {
+    // fb058: the Hub's normal-profile Class row only shows Swordsman/
+    // Plaguebringer/Time Lord — pick a class from that visible set (not
+    // Engineer) to switch to.
     const { root } = mountHub();
-    const engineer = content.classes.classes.find((c) => c.key === 'engineer')!;
-    root.querySelector<HTMLElement>('[data-class="engineer"]')!.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+    const plaguebringer = content.classes.classes.find((c) => c.key === 'plaguebringer')!;
+    root.querySelector<HTMLElement>('[data-class="plaguebringer"]')!.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
     const detail = root.querySelector('.sw-classdetail')!.textContent ?? '';
-    expect(detail).toContain(`${engineer.active1.cooldownSeconds}s`); // Field Kit cooldown
-    expect(detail).toContain(String(engineer.active2.summonCap)); // Pop Turret summon cap
+    expect(detail).toContain(`${plaguebringer.active1.cooldownSeconds}s`); // Poison Barrel cooldown
+    expect(detail).toContain(String(plaguebringer.active1.radius)); // Poison Barrel radius
   });
 
   it('the in-run character panel resolves cooldownSeconds through w.derived.cdr, not the raw /data number', () => {
@@ -145,10 +148,13 @@ describe('fb022 Surface 1: class screen + in-run character panel show live numbe
   });
 
   it('code-reviewer regression: basic-attack DPS folds atkFlat through the per-hit formula (dps*interval), not a flat add to the rate', () => {
-    // Reproduces the reviewer's exact numbers, re-pinned for fb025 (attack
-    // speed x0.7 -> Swordsman basicAttack.interval 0.55 -> 0.7857): dps=26,
-    // atkFlat=10 -> real live DPS is (26*0.7857+10)/0.7857 = 38.73, not the
-    // naive (26+10) = 36 an interval-blind override would show.
+    // The claim is about the *formula*, not about one tuning of it: `atkFlat`
+    // is a per-hit bonus, so at an interval under 1 s it is worth more than
+    // its face value per second, and an interval-blind `dps + atkFlat`
+    // override understates it. This used to be pinned to a literal 38.73,
+    // which had to be renegotiated by fb025 and again by p12a's x3 kit
+    // re-anchor (dps 26 -> 78); re-expressed here as the identity itself, it
+    // survives both.
     const w = new World(cfg({ classKey: 'swordsman' }));
     w.stats.add('test', 'atkFlat', 10);
     w.recomputeDerived();
@@ -158,9 +164,16 @@ describe('fb022 Surface 1: class screen + in-run character panel show live numbe
     const html = characterPanelMarkup(characterPanelData(w), w);
     const expected = (cls.basicAttack.dps * cls.basicAttack.interval + w.derived.atkFlat) / cls.basicAttack.interval;
     const rounded = Math.round(expected * 100) / 100;
-    expect(rounded).toBeCloseTo(38.73, 2);
+    const naive = cls.basicAttack.dps + w.derived.atkFlat; // the interval-blind miscalculation
+    // The same quantity written the other way round: a per-hit bonus spread
+    // over the interval it is paid on.
+    expect(expected).toBeCloseTo(cls.basicAttack.dps + w.derived.atkFlat / cls.basicAttack.interval, 6);
+    // Swordsman's interval is under 1 s, so the honest number must exceed the
+    // naive one — the direction of the bug this regression exists to catch.
+    expect(cls.basicAttack.interval).toBeLessThan(1);
+    expect(expected).toBeGreaterThan(naive);
     expect(html).toContain(`DPS: ${rounded}/s`);
-    expect(html).not.toContain('DPS: 36/s'); // the interval-blind (dps + atkFlat) miscalculation
+    expect(html).not.toContain(`DPS: ${naive}/s`);
   });
 
   it('the character panel omits the ability section entirely when built with no World (Hub-style pre-run call is unaffected)', () => {
@@ -349,12 +362,17 @@ describe('fb022 Surface 4: equipment tooltips show mods, the classFallback activ
     // Swordsman Armor: attackSpeed 0.1 base, 0.5 fallback (active for any
     // non-Swordsman). The real Stats result is two separate sources
     // multiplying — (1+0.1)*(1+0.5) = 1.65 — not 1 + 0.1 + 0.5 = 1.6.
-    const meta = metaWithItems({ normal_armor: 1, swordsman_armor: 1 }, { armor: 'normal_armor' });
+    // fb058: the Hub's normal-profile Class row only shows Swordsman/
+    // Plaguebringer/Time Lord, so the non-Swordsman class picked here has to
+    // be Plaguebringer (also explicitly unlocked, since it isn't
+    // unlockedByDefault — a locked card's click listener never fires).
+    const base = metaWithItems({ normal_armor: 1, swordsman_armor: 1 }, { armor: 'normal_armor' });
+    const meta = { ...base, unlockedClasses: [...base.unlockedClasses, 'plaguebringer'] };
     const { root } = mountHub(meta);
     root.querySelector<HTMLElement>('[data-tab="run"]')!.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
     // Hub's default class is meta.unlockedClasses[0] = 'swordsman' (the
     // fallback's own notClassKey) — switch off it so the fallback is active.
-    root.querySelector<HTMLElement>('[data-class="engineer"]')!.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+    root.querySelector<HTMLElement>('[data-class="plaguebringer"]')!.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
     root.querySelector<HTMLElement>('[data-tab="equipment"]')!.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
     root.querySelector<HTMLElement>('[data-item="swordsman_armor"]')!.dispatchEvent(
       new window.MouseEvent('contextmenu', { bubbles: true, cancelable: true }),
@@ -364,7 +382,7 @@ describe('fb022 Surface 4: equipment tooltips show mods, the classFallback activ
 
     // The sim's own aggregate (baseRunStats -> Stats.factor, via a real World),
     // not a hand-derived (1+base)*(1+fallback) duplicate of the fix itself.
-    const withItem = new World(cfg({ classKey: 'engineer', equipment: ['swordsman_armor'] }));
+    const withItem = new World(cfg({ classKey: 'plaguebringer', equipment: ['swordsman_armor'] }));
     const expectedPct = Math.round((withItem.derived.attackSpeedMul - 1) * 1000) / 10;
     expect(expectedPct).toBeCloseTo(65, 5); // (1.1 * 1.5 - 1) * 100
     expect(compare!.textContent).toContain(`+${expectedPct}%`);

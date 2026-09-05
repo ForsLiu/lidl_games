@@ -19,6 +19,7 @@ import { BASE } from '../sim/stats';
 import { characterBasicRange, circleSlashValues, classArmorBonus } from '../sim/classes';
 import { longestWieldedRange, wieldedAttacks, wieldedRangeFor } from '../sim/vswield';
 import { normalize } from '../sim/math';
+import { FIXED_DT, type Enemy } from '../sim/types';
 import type { World } from '../sim/world';
 import {
   checkBuild,
@@ -36,7 +37,7 @@ import {
   projectileStyle,
   type ProjectileStyle,
 } from './theme';
-import { ACTIVE_KIND_SHAPE, CLASS_VFX, CORE_VFX, type VfxShape } from './vfx-registry';
+import { ACTIVE_KIND_SHAPE, CLASS_VFX, CORE_VFX, type BasicImpactShape, type VfxShape } from './vfx-registry';
 import type { Settings } from '../ui/settings';
 import {
   pickAt,
@@ -102,7 +103,7 @@ export interface FloatingNumber {
   text: string;
   life: number;
   color: string;
-  /** fb005: Corpse Core execution kills render larger; every other number is 1. */
+  /** fb005: Corpse Core execution kills render larger (>1); fb060's DoT ticks render smaller (<1); every other number is 1. */
   fontScale: number;
 }
 
@@ -127,6 +128,27 @@ interface CastFx {
 
 const CAST_FX_LIFE = 0.28;
 
+/**
+ * fb055: the impact moment of a basic attack, distinct per class (`slash` /
+ * `splash` / `ripple`, `vfx-registry.ts`'s `BasicImpactShape`) so the three
+ * visible classes' weapons read as landing differently, not just travelling
+ * differently. Separate from `CastFx`: this always renders at the target,
+ * never has a `line`/`nova` shape of its own, and a class with no
+ * `basic.impact` registered never gets one (the plain `hit:` white flash
+ * every class always had stays as-is).
+ */
+interface BasicImpactFx {
+  x: number;
+  y: number;
+  shape: BasicImpactShape;
+  color: string;
+  life: number;
+  maxLife: number;
+}
+
+const BASIC_IMPACT_LIFE = 0.22;
+const MAX_BASIC_IMPACTS = 150;
+
 /** p10h: SPEC-FINAL §15 P10 names this "the 2 s TD<->VS transition sweep" literally. */
 const SWEEP_DURATION = 2;
 
@@ -147,6 +169,28 @@ const MAX_CONES = 150;
 const MAX_TELEGRAPHS = 150;
 const MAX_CASTS = 150;
 const MAX_OTHER_NUMBERS = 150;
+
+/**
+ * fb060 (owner OVERRIDE of QUESTIONS Q133(3)): the four DoT types that get a
+ * once-per-second aggregated floating number, on top of the existing corner
+ * marker dots (`drawEnemies` below) which stay as-is.
+ */
+const DOT_NUMBER_TYPES: readonly string[] = ['burning', 'bleeding', 'poison', 'toxic'];
+/** More carriers than this on screen and the density cutoff kicks in. */
+const DOT_NUMBER_DENSITY_CUTOFF = 150;
+/** "near the cursor/character" radius (tiles) once the density cutoff is live. */
+const DOT_NUMBER_NEAR_RADIUS = 8;
+/** fb068: extra distance an already-"near" enemy is allowed to drift before it's dropped, to avoid boundary flicker. */
+const DOT_NUMBER_NEAR_HYSTERESIS = 2;
+/** Smaller than a direct hit's default 1 (`FloatingNumber.fontScale`). */
+const DOT_NUMBER_FONT_SCALE = 0.7;
+
+/** Sum of every live stack's dps for one damage type on this enemy (`e.dots`, sim state). */
+function dotTypeDps(e: Enemy, type: string): number {
+  let total = 0;
+  for (const d of e.dots) if (d.type === type && d.remaining > 0) total += d.dps;
+  return total;
+}
 
 /** The registered color for one of a Core's listed effects, falling back for a key the registry does not name. */
 function coreEffectColor(coreKey: string, effectKey: string, fallback: string): string {
@@ -179,12 +223,32 @@ export class Renderer {
   private tracers: Tracer[] = [];
   private cones: ConeFlash[] = [];
   private casts: CastFx[] = [];
+  private basicImpacts: BasicImpactFx[] = [];
+  /**
+   * fb060: per-enemy, per-DoT-type accumulated seconds toward the next
+   * floating number. Keyed by the live `Enemy` object rather than `e.id` so a
+   * dead enemy's entry is simply garbage-collected once `World.compact()`
+   * drops the last reference, with no manual pruning needed here.
+   */
+  private dotAccum = new WeakMap<Enemy, Map<string, number>>();
+  /**
+   * fb068: tracks which enemies were "near" the cursor/Warden as of the last
+   * frame, so the density-cutoff visibility check can apply hysteresis
+   * (shrink the required distance once already-near, rather than one fixed
+   * radius) instead of flip-flopping — and resetting `dotAccum` — every tick
+   * for an enemy hovering right at the boundary.
+   */
+  private dotNearLast = new WeakSet<Enemy>();
   /** p10h: the 2s TD<->VS screen sweep; `dir` 1 = entering VS/Night, -1 = returning to TD/Day. */
   private sweep: { life: number; dir: 1 | -1 } | null = null;
   private shakeX = 0;
   private shakeY = 0;
   private rngPhase = 0;
   private dpr = 0;
+  /** fb065: the CSS width `resize()` last computed, so a same-dpr call with an unchanged container size can still early-return. */
+  private cssW = 0;
+  /** fb065: `cssW / (GRID_W * TILE) * dpr` — the single factor `draw()`'s per-frame transform reset uses, replacing the old dpr-only one now that the canvas can display larger than its native grid size. */
+  private scale = 1;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -195,21 +259,44 @@ export class Renderer {
   }
 
   /**
-   * Sizes the backing store to the device pixel ratio. Without this the canvas
-   * is authored at 1152x640 and then upscaled by the display, which is what
-   * made the game look soft on a HiDPI screen. The CSS box stays in logical
-   * pixels, so every draw call keeps working in tile space.
+   * Sizes the backing store to the device pixel ratio *and* (fb065, owner
+   * feedback `feature-ui-inside-playfield`) to however large `.sw-stage` — the
+   * canvas's own parent, now the whole playfield window rather than a column
+   * squeezed beside an opaque sidebar — actually laid it out, so "the canvas
+   * fills the window" is real pixels, not just a bigger empty CSS box around a
+   * still-1152x640 image. Letterboxed to the grid's 36:20 aspect ratio: sized
+   * by the parent's width unless that would overflow its height, in which
+   * case the height bound wins instead — the same "fit both, no distortion"
+   * rule the old fixed-size CSS `aspect-ratio` implemented passively, done
+   * here in JS because the width is no longer a fixed number to defer to CSS.
+   * Never sets an inline height (`canvas.style.height` stays unset): the CSS
+   * `aspect-ratio` rule (style.css) derives it from the width set below, the
+   * same "only ever pin width" contract this method already had.
+   *
+   * In a test environment (jsdom) the parent's `clientWidth`/`clientHeight`
+   * are always 0 (jsdom never runs real layout), so the `||` fallbacks below
+   * reproduce this method's old fixed-1152x640 behavior exactly — every
+   * existing `resize()` unit test keeps passing unchanged.
    */
   resize(dpr = globalThis.devicePixelRatio || 1): void {
     const ratio = Math.max(1, Math.min(3, dpr));
-    if (this.dpr === ratio && this.canvas.width > 0) return;
+    const parent = this.canvas.parentElement;
+    const availW = parent?.clientWidth || GRID_W * TILE;
+    const availH = parent?.clientHeight || GRID_H * TILE;
+    const aspect = GRID_W / GRID_H;
+    // Rounded once and reused for both the inline CSS width and the backing-store
+    // math below, so the two can never drift a sub-pixel apart from each other.
+    const cssW = Math.round(Math.min(availW, availH * aspect));
+    if (this.dpr === ratio && this.cssW === cssW && this.canvas.width > 0) return;
     this.dpr = ratio;
-    this.canvas.width = Math.round(GRID_W * TILE * ratio);
-    this.canvas.height = Math.round(GRID_H * TILE * ratio);
+    this.cssW = cssW;
+    this.scale = (cssW / (GRID_W * TILE)) * ratio;
+    this.canvas.width = Math.round(GRID_W * TILE * this.scale);
+    this.canvas.height = Math.round(GRID_H * TILE * this.scale);
     // Width only: CSS carries the aspect ratio, so a narrow window shrinks
     // the canvas without stretching it.
-    this.canvas.style.width = `${GRID_W * TILE}px`;
-    this.ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    this.canvas.style.width = `${cssW}px`;
+    this.ctx.setTransform(this.scale, 0, 0, this.scale, 0, 0);
   }
 
   get width(): number {
@@ -359,9 +446,23 @@ export class Renderer {
           if (!entry) break;
           if (entry.basic.shape === 'swing') {
             this.pushCast('line', e.x, e.y, e.a, e.b, entry.basic.color);
+            // fb055: Swordsman's sword-swing-arc sweep, layered over the
+            // straight slash line above (kept as-is so it still reads as a
+            // weapon reaching the target, not replaced) so the swing itself
+            // has a distinct curved silhouette, not a recolored dash line.
+            if (w.cfg.classKey === 'swordsman') this.pushCast('arc', e.x, e.y, e.a, e.b, entry.basic.color);
           } else if (this.tracers.length < MAX_TRACERS) {
             this.tracers.push(tracer(e, w.cfg.classKey, false));
+            // fb055: Time Lord's temporal bolt trails a distortion ripple —
+            // a second, jagged tracer riding the same line reuses chain
+            // lightning's existing kinked-segment draw (drawTracers) so the
+            // bolt itself reads apart from every other 'orb' projectile
+            // class's clean travel line.
+            if (w.cfg.classKey === 'time_lord' && this.tracers.length < MAX_TRACERS) {
+              this.tracers.push(tracer(e, w.cfg.classKey, true));
+            }
           }
+          this.pushBasicImpact(entry.basic.impact, e.a, e.b, entry.basic.color);
           break;
         }
         case 'core_plant':
@@ -395,21 +496,149 @@ export class Renderer {
           break;
       }
     }
+    this.updateDotNumbers(w, view);
+  }
+
+  /**
+   * fb060 (OWNER OVERRIDE of Q133(3)): DoT ticks deliberately fire no `hit:`
+   * fx (see `damageEnemy`'s comment in `sim/enemies.ts` — a 350-strong
+   * burning horde would otherwise starve the 512-event `World.fx` buffer), so
+   * this reads `e.dots` (already-exposed sim state, not a new sim surface)
+   * directly and aggregates each enemy's per-type dps into a floating number
+   * once every accumulated second, rather than reacting to an event.
+   */
+  private updateDotNumbers(w: World, view: ViewState): void {
+    const enabled = view.settings.dotNumbers;
+    let carriers = 0;
+    if (enabled) {
+      for (const e of w.enemies) if (!e.dead && e.dots.length > 0) carriers++;
+    }
+    const dense = carriers > DOT_NUMBER_DENSITY_CUTOFF;
+    const cx = view.cursorX;
+    const cy = view.cursorY;
+    const wx = w.warden.x;
+    const wy = w.warden.y;
+    for (const e of w.enemies) {
+      if (e.dead || e.dots.length === 0) {
+        // fb069: an enemy whose stacks all expired must not leave a stale,
+        // possibly-inflated (fb067 lets a starved accumulator exceed 1s)
+        // per-type entry sitting in `dotAccum` — a later re-application of
+        // the same type would otherwise flush it mixed into the new stack's
+        // first tick. fb070: this cleanup runs even while the `dotNumbers`
+        // toggle is off, so a stack that expires and gets re-afflicted
+        // entirely during an off period can't leave stale carryover for
+        // when the toggle is switched back on.
+        this.dotAccum.delete(e);
+        this.dotNearLast.delete(e);
+        continue;
+      }
+      if (!enabled) continue;
+      // fb068: hysteresis — an enemy already flagged "near" last frame keeps
+      // showing until it drifts past the wider exit radius, so one hovering
+      // right at the boundary doesn't reset `dotAccum` every other tick. Only
+      // computed under the density cutoff for a non-elite/boss enemy
+      // (matching the old short-circuit's cost profile) since it's
+      // irrelevant otherwise — the enemy is already visible regardless.
+      // `dotNearLast` membership only updates on frames this block actually
+      // runs, so an enemy that drifts far away during a non-dense stretch
+      // (skipped entirely, visible anyway) can carry a stale "near" flag
+      // into the next dense stretch — one extra frame at the wider exit
+      // radius before it's correctly dropped. Cosmetic-only, same spirit as
+      // this file's other narrow fb067/fb069 tradeoffs.
+      let isNear = false;
+      if (dense && !e.elite && !e.boss) {
+        const wasNear = this.dotNearLast.has(e);
+        const radius = wasNear ? DOT_NUMBER_NEAR_RADIUS + DOT_NUMBER_NEAR_HYSTERESIS : DOT_NUMBER_NEAR_RADIUS;
+        isNear = Math.hypot(e.x - cx, e.y - cy) <= radius || Math.hypot(e.x - wx, e.y - wy) <= radius;
+        if (isNear) this.dotNearLast.add(e);
+        else this.dotNearLast.delete(e);
+      }
+      const visible = !dense || e.elite || e.boss || isNear;
+      if (!visible) {
+        // fb067: same narrow, cosmetic-only tradeoff as the `dps <= 0` branch
+        // below — a budget-starved accumulator with several seconds pending
+        // is dropped here too rather than flushed, if the enemy leaves the
+        // near-radius before budget frees up.
+        this.dotAccum.delete(e);
+        continue;
+      }
+      let perType = this.dotAccum.get(e);
+      for (const type of DOT_NUMBER_TYPES) {
+        const dps = dotTypeDps(e, type);
+        if (dps <= 0) {
+          // A stack expiring with under a second accumulated drops that
+          // partial second's damage rather than flushing a truncated number —
+          // deliberate: every damagetypes.json row runs >=3s, so this
+          // ordinarily only discards a fraction of one tick's worth at the
+          // tail end. fb067: if the shared budget stayed full for multiple
+          // seconds first, `perType.get(type)` can be several seconds' worth
+          // instead of under one — still dropped here rather than flushed,
+          // since the budget-full retry above already made a best effort;
+          // narrow (budget saturated for 1s+ *and* the stack expires or the
+          // enemy leaves the near-radius in that exact window) and
+          // cosmetic-only (the sim damage was already applied).
+          perType?.delete(type);
+          continue;
+        }
+        if (!perType) {
+          perType = new Map();
+          this.dotAccum.set(e, perType);
+        }
+        const next = (perType.get(type) ?? 0) + FIXED_DT;
+        if (next >= 1) {
+          // `dps` is the type's rate at the flush tick, not a running sum of
+          // every tick's actual damage — a stack that refreshes or expires
+          // mid-window can make this diverge slightly from the true total.
+          // Cosmetic and deliberate: exact per-tick summation costs an extra
+          // accumulator per stack for no player-visible benefit here.
+          const amount = Math.round(dps * next);
+          if (amount >= 1 && this.numbers.length >= MAX_OTHER_NUMBERS) {
+            // fb067: the shared floating-number budget is full. Do NOT reset
+            // the accumulator — leave it at `next` (still >=1) so this same
+            // type keeps accumulating instead of silently dropping the
+            // second's damage; once budget frees up a later frame flushes the
+            // (now larger, still-correct) accumulated amount.
+            perType.set(type, next);
+            continue;
+          }
+          if (amount >= 1) {
+            this.numbers.push({
+              x: e.x,
+              y: e.y,
+              text: String(amount),
+              life: 0.6,
+              color: damageStyleColor(w, type, view.settings.accessiblePalette),
+              fontScale: DOT_NUMBER_FONT_SCALE,
+            });
+          }
+          perType.set(type, next - 1);
+        } else {
+          perType.set(type, next);
+        }
+      }
+    }
   }
 
   private pushCast(shape: VfxShape, x: number, y: number, a: number, b: number, color: string): void {
     if (this.casts.length >= MAX_CASTS) return;
+    const directed = shape === 'line' || shape === 'arc';
     this.casts.push({
       x,
       y,
       r: shape === 'nova' ? a : 0,
-      x2: shape === 'line' ? a : x,
-      y2: shape === 'line' ? b : y,
+      x2: directed ? a : x,
+      y2: directed ? b : y,
       shape,
       color,
       life: CAST_FX_LIFE,
       maxLife: CAST_FX_LIFE,
     });
+  }
+
+  /** fb055: queues a basic attack's impact-moment fx (see `BasicImpactFx`). No-op for a class with no registered `impact` shape. */
+  private pushBasicImpact(shape: BasicImpactShape | undefined, x: number, y: number, color: string): void {
+    if (!shape || this.basicImpacts.length >= MAX_BASIC_IMPACTS) return;
+    this.basicImpacts.push({ x, y, shape, color, life: BASIC_IMPACT_LIFE, maxLife: BASIC_IMPACT_LIFE });
   }
 
   update(dt: number, view: ViewState): void {
@@ -425,6 +654,8 @@ export class Renderer {
     this.cones = this.cones.filter((c) => c.life > 0);
     for (const c of this.casts) c.life -= dt;
     this.casts = this.casts.filter((c) => c.life > 0);
+    for (const b of this.basicImpacts) b.life -= dt;
+    this.basicImpacts = this.basicImpacts.filter((b) => b.life > 0);
     for (const [k, v] of [...this.flashes]) {
       const nv = v - dt;
       if (nv <= 0) this.flashes.delete(k);
@@ -450,7 +681,7 @@ export class Renderer {
     const ctx = this.ctx;
     const night = w.huntsWarden;
     ctx.save();
-    ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    ctx.setTransform(this.scale, 0, 0, this.scale, 0, 0);
     ctx.translate(this.shakeX, this.shakeY);
     ctx.fillStyle = night ? PALETTE.bgNight : PALETTE.bgDay;
     ctx.fillRect(-20, -20, this.width + 40, this.height + 40);
@@ -464,8 +695,9 @@ export class Renderer {
     this.drawGems(w);
     this.drawEnemies(w, view);
     this.drawProjectiles(w);
-    this.drawTracers();
+    this.drawTracers(view);
     this.drawCasts(view);
+    this.drawBasicImpacts(view);
     this.drawWarden(w);
     this.drawChargeIndicator(w, view);
     this.drawSkillHoverRing(w, view);
@@ -857,16 +1089,27 @@ export class Renderer {
   /**
    * Single-target shots, chain arcs and cones hit instantly, so there is no
    * projectile to follow. Without these the busiest towers looked inert.
+   * fb055: `reducedFlash` dims tracers (including the Time Lord distortion
+   * tracer) the same way `drawCasts`/`drawBasicImpacts` do, rather than
+   * leaving this draw path at full brightness while every other fx path
+   * respects the setting.
+   * fb086: `reducedMotion` suppresses the jagged tracers' kinked-segment
+   * jitter (chain lightning / tesla coil / Time Lord's distortion trail),
+   * falling back to the same straight line a non-jagged tracer draws —
+   * distinct from `reducedFlash`, which only dims brightness and does
+   * nothing about the jitter itself.
    */
-  private drawTracers(): void {
+  private drawTracers(view: ViewState): void {
     const ctx = this.ctx;
+    const reduced = view.settings.reducedFlash;
+    const calmMotion = view.settings.reducedMotion;
     for (const t of this.tracers) {
-      ctx.globalAlpha = Math.min(1, t.life * 10);
+      ctx.globalAlpha = Math.min(1, t.life * 10) * (reduced ? 0.5 : 1);
       ctx.strokeStyle = t.style.color;
-      ctx.lineWidth = t.jagged ? 2 : 1.5;
+      ctx.lineWidth = t.jagged && !calmMotion ? 2 : 1.5;
       ctx.beginPath();
       ctx.moveTo(t.x1 * TILE, t.y1 * TILE);
-      if (t.jagged) {
+      if (t.jagged && !calmMotion) {
         // Three kinked segments read as an arc rather than a beam.
         const steps = 3;
         for (let i = 1; i <= steps; i++) {
@@ -890,7 +1133,7 @@ export class Renderer {
       const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
       g.addColorStop(0, c.style.color);
       g.addColorStop(1, 'transparent');
-      ctx.globalAlpha = Math.min(0.6, c.life * 6);
+      ctx.globalAlpha = Math.min(0.6, c.life * 6) * (reduced ? 0.5 : 1);
       ctx.fillStyle = g;
       ctx.beginPath();
       ctx.moveTo(cx, cy);
@@ -1005,10 +1248,79 @@ export class Renderer {
         ctx.moveTo(c.x * TILE, c.y * TILE);
         ctx.lineTo(c.x2 * TILE, c.y2 * TILE);
         ctx.stroke();
+      } else if (c.shape === 'arc') {
+        // fb055: a wedge swept from the Warden toward the target, drawn
+        // curved (not the straight `line` shape above) so a melee swing
+        // reads as a sweep rather than a poke.
+        const cx = c.x * TILE;
+        const cy = c.y * TILE;
+        const ang = Math.atan2(c.y2 - c.y, c.x2 - c.x);
+        const dist = Math.hypot(c.x2 - c.x, c.y2 - c.y) * TILE;
+        const radius = Math.min(dist, TILE * 1.3);
+        const half = 0.8;
+        ctx.lineWidth = 3;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.arc(cx, cy, radius, ang - half, ang + half);
+        ctx.stroke();
+        if (!reduced) {
+          ctx.globalAlpha *= 0.25;
+          ctx.beginPath();
+          ctx.moveTo(cx, cy);
+          ctx.arc(cx, cy, radius, ang - half, ang + half);
+          ctx.closePath();
+          ctx.fill();
+        }
       } else {
         ctx.beginPath();
         ctx.arc(c.x * TILE, c.y * TILE, 6, 0, Math.PI * 2);
         ctx.fill();
+      }
+    }
+    ctx.globalAlpha = 1;
+    ctx.lineWidth = 1;
+    ctx.lineCap = 'butt';
+  }
+
+  /**
+   * fb055: the impact-moment fx queued by `pushBasicImpact` — distinct from
+   * `drawCasts`'s fire-moment shapes and from the generic `hit:` white flash
+   * (`drawEnemies`), so a basic attack's *landing* reads apart per class too.
+   * `slash` crosses two short blade marks, `splash` is a filled spreading
+   * ring, `ripple` is a stroked expanding ring — three different primitive
+   * combinations, not one shape recolored.
+   */
+  private drawBasicImpacts(view: ViewState): void {
+    if (this.basicImpacts.length === 0) return;
+    const ctx = this.ctx;
+    const reduced = view.settings.reducedFlash;
+    for (const b of this.basicImpacts) {
+      const t = Math.max(0, b.life / b.maxLife);
+      const px = b.x * TILE;
+      const py = b.y * TILE;
+      ctx.globalAlpha = t * (reduced ? 0.5 : 1);
+      ctx.strokeStyle = b.color;
+      ctx.fillStyle = b.color;
+      if (b.shape === 'slash') {
+        const s = 6;
+        ctx.lineWidth = 2.5;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(px - s, py - s);
+        ctx.lineTo(px + s, py + s);
+        ctx.moveTo(px + s, py - s);
+        ctx.lineTo(px - s, py + s);
+        ctx.stroke();
+      } else if (b.shape === 'splash') {
+        ctx.globalAlpha *= 0.6;
+        ctx.beginPath();
+        ctx.arc(px, py, 4 + (1 - t) * 5, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (b.shape === 'ripple') {
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(px, py, 3 + (1 - t) * 9, 0, Math.PI * 2);
+        ctx.stroke();
       }
     }
     ctx.globalAlpha = 1;
@@ -1026,6 +1338,10 @@ export class Renderer {
    * the phase being *left* — painting the destination's own color over
    * itself would be invisible, alpha or not. `reducedFlash` dims it instead
    * of dropping it, matching `drawCasts`'s existing treatment of the setting.
+   * fb086: `reducedMotion` drops the band's horizontal travel across the
+   * board (the ambient-motion cue, distinct from `reducedFlash`'s brightness
+   * dimming) — the transition still reads via the same opacity envelope, as
+   * a stationary full-bleed fade instead of a moving wipe.
    */
   private drawPhaseSweep(view: ViewState): void {
     if (!this.sweep) return;
@@ -1033,17 +1349,22 @@ export class Renderer {
     const t = 1 - Math.max(0, this.sweep.life) / SWEEP_DURATION;
     const peak = 1 - Math.abs(t - 0.5) * 2;
     if (peak <= 0) return;
-    const bandWidth = this.width * 0.4;
-    const travel = this.width + bandWidth * 2;
-    const bandCenter = this.sweep.dir > 0 ? -bandWidth + t * travel : this.width + bandWidth - t * travel;
+    const calmMotion = view.settings.reducedMotion;
     const color = this.sweep.dir > 0 ? PALETTE.bgDay : PALETTE.bgNight;
     ctx.save();
     ctx.globalAlpha = peak * (view.settings.reducedFlash ? 0.3 : 0.7);
-    const g = ctx.createLinearGradient(bandCenter - bandWidth / 2, 0, bandCenter + bandWidth / 2, 0);
-    g.addColorStop(0, `${color}00`);
-    g.addColorStop(0.5, color);
-    g.addColorStop(1, `${color}00`);
-    ctx.fillStyle = g;
+    if (calmMotion) {
+      ctx.fillStyle = color;
+    } else {
+      const bandWidth = this.width * 0.4;
+      const travel = this.width + bandWidth * 2;
+      const bandCenter = this.sweep.dir > 0 ? -bandWidth + t * travel : this.width + bandWidth - t * travel;
+      const g = ctx.createLinearGradient(bandCenter - bandWidth / 2, 0, bandCenter + bandWidth / 2, 0);
+      g.addColorStop(0, `${color}00`);
+      g.addColorStop(0.5, color);
+      g.addColorStop(1, `${color}00`);
+      ctx.fillStyle = g;
+    }
     // Matches the background fill's own 20px over-paint margin (draw(), above)
     // so the band stays opaque under camera shake — 'sunder' sets view.shake
     // to 14 on the exact tick 'sweep_to_vs' fires.

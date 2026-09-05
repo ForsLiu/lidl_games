@@ -54,6 +54,15 @@ export default mergeConfig(
         // shape) instead of an empty one — measured ~14-20 min at
         // BALANCE_SEEDS = [1, 2], see the file's own header comment.
         'tests/fb038-status-cli.test.ts',
+        // Lane merge 2026-09-03 (BACKLOG-CONTENT c003): twelve full T1 Time
+        // Lord runs (~2 min) now that the file's env gate is opt-out. Its two
+        // cheap invariant cases ride along. (`class-kit-damage-share` stays IN
+        // the fast tier: its sweep is still opt-in, so the file costs ~10 ms.)
+        'tests/class-time-lord-band.test.ts',
+        // p11c: 3 full T1 archer runs (perfect/jitter-only/heavy-miss) at
+        // ~15-20s each to pin the reaction-delay harness's own effect size —
+        // measured standalone ~65s.
+        'tests/p11c-imperfect-play.test.ts',
       ],
     },
   }),

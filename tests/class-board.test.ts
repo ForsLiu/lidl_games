@@ -216,12 +216,42 @@ function buildsFrom(b: Board): ReturnType<typeof checkBuild> {
   return checkBuild(w, content.towerByKey.get('arrow_spire')!.id, b.BUILD_TX, b.BUILD_TY);
 }
 
+/**
+ * The tiles a board of this tier actually claims.
+ *
+ * Tier-aware, and it has to be: reading the *full* reach off a `reduced` board
+ * reported "footprint tile 25,9 is a Core tile" — a tile the probe never
+ * claimed and the importers never touch. The check was measuring the constant
+ * rather than the board.
+ */
 function footprintTiles(b: Board): Array<[number, number]> {
+  const east = b.tier === 'full' ? EAST_REACH : REDUCED_EAST;
   const out: Array<[number, number]> = [];
   for (let ty = b.WY - 1; ty <= b.WY + SOUTH_REACH; ty++) {
-    for (let tx = b.WX - 1; tx <= b.WX + EAST_REACH; tx++) out.push([tx, ty]);
+    for (let tx = b.WX - 1; tx <= b.WX + east; tx++) out.push([tx, ty]);
   }
   return out;
+}
+
+/** The east reach a `reduced` board claims — `probeBoard`'s second tier. */
+const REDUCED_EAST = Math.floor(EAST_REACH / 2);
+
+/**
+ * The two guarantees an importer actually depends on, whatever tier the board
+ * landed on: a legal build tile, and real ground for `tilePastBaseRange` to
+ * find. Asserted directly, because `tier === 'full'` turned out to be a
+ * statement about the old flat arena rather than about the importers — see the
+ * baseline row below.
+ */
+function servesImporters(b: Board): { builds: boolean; farGround: boolean } {
+  const w = new World(cfg({ classKey: 'swordsman' }), content);
+  w.gold = 1e6;
+  w.warden.x = b.WX;
+  w.warden.y = b.WY;
+  const east = b.tier === 'full' ? EAST_REACH : REDUCED_EAST;
+  let farGround = false;
+  for (let dx = 4; dx <= east && !farGround; dx++) if (w.grid.buildable(b.WX + dx, b.WY)) farGround = true;
+  return { builds: buildsFrom(b) === null, farGround };
 }
 
 describe('c014: the shared board is probed, not pinned', () => {
@@ -233,21 +263,45 @@ describe('c014: the shared board is probed, not pinned', () => {
     // the six files' margins get re-read rather than silently inherited.
     expect(
       { WX, WY, BUILD_TX, BUILD_TY },
-      'the probed board moved off the spot the six files were calibrated from. This is a deliberate ' +
+      'the probed board moved off the spot the importers were calibrated from. This is a deliberate ' +
         'baseline, not a hardcode: re-read those files\' windows and margins (Core distance, board edges, ' +
         'chain-line room) before updating this row to the new answer.',
-    ).toEqual({ WX: 10, WY: 10, BUILD_TX: 11, BUILD_TY: 10 });
+    ).toEqual({ WX: 10, WY: 6, BUILD_TX: 11, BUILD_TY: 6 });
     expect(BOARD).toEqual({ WX, WY, BUILD_TX, BUILD_TY, tier: BOARD.tier });
-    // The shipped board must clear the *whole* footprint, not a degraded one.
-    // `probeBoard` falls back to a smaller reach rather than throwing at module
-    // scope (which vitest reports as "no tests" — 259 rows silently skipped,
-    // QA's finding), so this row is what turns a degraded board into a named
-    // failure instead of a quiet one.
+  });
+
+  /**
+   * **The baseline above moved once, on purpose, and this is the record.**
+   *
+   * It read `10,10` / `11,10` until master's terrain epic (`fb077`) landed and
+   * `cfg()`'s seed started generating a real map. The scan then walked to
+   * `10,6` — which is the entire point of c014, and the seven importers went
+   * green on the new board without a line changing in any of them. The row
+   * above fired exactly once, loudly, saying the board had moved; it did not
+   * degenerate into seven files each reporting "harness could not build".
+   */
+  it('the shipped board serves what the importers actually need, whatever tier it landed on', () => {
+    // `tier === 'full'` used to be asserted here and it was wrong — not
+    // wrong-in-detail, wrong in kind. Measured on the generated map: 408 of 720
+    // tiles are buildable and **zero of 512 candidate origins** yield a
+    // contiguous full-reach footprint. Requiring `full` was requiring the flat
+    // arena the module was written on. What the importers depend on is narrower
+    // and is asserted directly instead.
+    const serves = servesImporters(BOARD);
+    expect(serves.builds, 'the shared build tile is not legal for a base-range class').toBe(true);
     expect(
-      BOARD.tier,
-      'the probe could only clear a reduced footprint, so deep-east consumers like tilePastBaseRange ' +
-        'may not have the ground they need — the board is degraded, not merely moved',
-    ).toBe('full');
+      serves.farGround,
+      'no buildable ground past dx 4 in the Warden row — tilePastBaseRange (class-passive-liveness) ' +
+        'would find nothing and fail as a harness error',
+    ).toBe(true);
+  });
+
+  it('the tier the shipped board landed on is recorded, so a change in it is visible', () => {
+    // Reported rather than required. If terrain generation ever gets generous
+    // enough for a `full` board, or stingy enough that even `reduced` fails,
+    // this row is where that shows up.
+    expect(['full', 'reduced']).toContain(BOARD.tier);
+    expect(BOARD.tier, 'the shipped board tier changed — see the note above before updating').toBe('reduced');
   });
 
   it('a class with no buildRange bonus can actually build on it', () => {
@@ -293,7 +347,9 @@ describe('c014: a shifted probe origin moves the whole board', () => {
     it(`origin ${origin.tx},${origin.ty}: still a legal board, and not the shipped one`, () => {
       const b = probeBoard(origin);
       expect(b, 'the scan handed back the shipped board for a shifted origin').not.toEqual(BOARD);
-      expect(b.tier, `origin ${origin.tx},${origin.ty} needed a degraded footprint`).toBe('full');
+      const serves = servesImporters(b);
+      expect(serves.builds, `origin ${origin.tx},${origin.ty}: probed board is not buildable`).toBe(true);
+      expect(serves.farGround, `origin ${origin.tx},${origin.ty}: no far ground for tilePastBaseRange`).toBe(true);
       expect(buildsFrom(b), `probed board at origin ${origin.tx},${origin.ty} is not buildable`).toBeNull();
       expect([b.BUILD_TX - b.WX, b.BUILD_TY - b.WY]).toEqual([1, 0]);
       for (const [tx, ty] of footprintTiles(b)) {
@@ -302,12 +358,54 @@ describe('c014: a shifted probe origin moves the whole board', () => {
     });
   }
 
-  it('the origin is the first candidate, so the scan is a fallback and not a search', () => {
-    // Re-probing from the shipped board's own answer must return it unchanged.
-    // This is what makes the shipped baseline stable: the scan only moves when
-    // the origin genuinely stops working.
+  it('the scan is a fallback, not a search: probing from its own answer returns that answer', () => {
+    // **This row used to also assert `PROBE_ORIGIN` equals the answer**, which
+    // held only while `10,10` was open ground. Terrain closed it, the scan
+    // walked to `10,6`, and the assertion failed — for the right reason, but it
+    // was stating the arena's property rather than the scan's.
+    //
+    // The scan's actual invariant is idempotence: probing from the answer
+    // returns the answer. That is what keeps the baseline stable across runs
+    // and what makes "the board moved" a real event rather than scan jitter.
     expect(probeBoard({ tx: WX, ty: WY })).toEqual(BOARD);
-    expect(PROBE_ORIGIN).toEqual({ tx: WX, ty: WY });
+    // And the origin is still tried first — checked by the one case where that
+    // is observable, a board whose origin *is* usable.
+    const fromAnswer = probeBoard({ tx: BOARD.WX, ty: BOARD.WY });
+    expect([fromAnswer.WX, fromAnswer.WY]).toEqual([BOARD.WX, BOARD.WY]);
+  });
+
+  it('the shipped origin no longer survives the generated map, and the reason is the south arm', () => {
+    // The premise of the whole module, now a fact rather than a forecast — but
+    // **not** the fact the first draft of this row guessed. It asserted the old
+    // build tile `11,10` had become unbuildable; it has not, and the row failed
+    // saying so. `checkBuild(11, 10)` still returns `null`.
+    //
+    // What terrain actually closed is the *southern arm* of the footprint:
+    // rows 14-16 below `10,10` carry impassable ground, so the spot fails the
+    // `SOUTH_REACH` requirement while its build tile stays perfectly legal.
+    // That distinction matters — a file that had pinned only the build tile
+    // would still work today, and one that placed dummies to the south would
+    // not. The old six did both.
+    const w = new World(cfg({ classKey: 'swordsman' }), content);
+    const id = content.towerByKey.get('arrow_spire')!.id;
+    w.gold = 1e6;
+    w.warden.x = PROBE_ORIGIN.tx;
+    w.warden.y = PROBE_ORIGIN.ty;
+    expect(checkBuild(w, id, PROBE_ORIGIN.tx + 1, PROBE_ORIGIN.ty), 'the old build tile is legal — still true').toBeNull();
+
+    const impassable: string[] = [];
+    for (let ty = PROBE_ORIGIN.ty - 1; ty <= PROBE_ORIGIN.ty + SOUTH_REACH; ty++) {
+      for (let tx = PROBE_ORIGIN.tx - 1; tx <= PROBE_ORIGIN.tx + REDUCED_EAST; tx++) {
+        if (!w.grid.passable(tx, ty)) impassable.push(`${tx},${ty}`);
+      }
+    }
+    expect(
+      impassable.length,
+      'the old hardcoded spot is fully open ground again — terrain generation changed. The scan still ' +
+        'works either way, but this row (and the baseline above) are now describing a map that moved.',
+    ).toBeGreaterThan(0);
+    // And the scan's answer is genuinely somewhere else, not the origin.
+    expect([BOARD.WX, BOARD.WY]).not.toEqual([PROBE_ORIGIN.tx, PROBE_ORIGIN.ty]);
   });
 });
 

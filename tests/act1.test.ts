@@ -11,8 +11,12 @@ import { GATES, GRID_H, GRID_W, coreCenter } from '../src/sim/grid';
 import { emptyInput } from '../src/sim/types';
 import { cfg } from './helpers';
 
+// fb077: real terrain is now wired into every non-practice World; these
+// tests assert fixed tile coordinates (Warden/structure collision, not
+// terrain), so `practice: true` keeps the board flat and deterministic the
+// way it always was pre-fb077.
 function newWorld(over = {}): World {
-  return new World(cfg(over));
+  return new World(cfg({ practice: true, ...over }));
 }
 
 /** Teleport the Warden so build-range checks pass in unit tests. */
@@ -234,7 +238,7 @@ describe('economy and wave flow', () => {
   });
 
   it('calling a wave early grants no gold (fb009: early-call bonus removed)', () => {
-    const run = new Run(cfg());
+    const run = new Run(cfg({ practice: true }));
     const w = run.world;
     const before = w.gold;
     run.step({ ...emptyInput(), cmds: [{ k: 'call' }] });
@@ -243,7 +247,7 @@ describe('economy and wave flow', () => {
   });
 
   it('spawns the authored wave 1 composition at every gate', () => {
-    const run = new Run(cfg());
+    const run = new Run(cfg({ practice: true }));
     const w = run.world;
     run.step({ ...emptyInput(), cmds: [{ k: 'call' }] });
     for (let i = 0; i < 60 * 30 && w.spawnQueue.length > 0; i++) run.step(emptyInput());
@@ -255,7 +259,7 @@ describe('economy and wave flow', () => {
 
 describe('fb002: the Warden (and dash) ignore collision with the Core and friendly structures (§10 amendment)', () => {
   it('walks straight through a built structure in Act I', () => {
-    const run = new Run(cfg());
+    const run = new Run(cfg({ practice: true }));
     const w = run.world;
     warp(w, 5, 5);
     expect(buildTower(w, 1, 6, 5).ok).toBe(true);
@@ -267,7 +271,7 @@ describe('fb002: the Warden (and dash) ignore collision with the Core and friend
   });
 
   it('walks through a structure and the Core footprint during Act II (VS)', () => {
-    const run = new Run(cfg());
+    const run = new Run(cfg({ practice: true }));
     const w = run.world;
     warp(w, 5, 5);
     expect(buildTower(w, 1, 6, 5).ok).toBe(true);
@@ -281,11 +285,17 @@ describe('fb002: the Warden (and dash) ignore collision with the Core and friend
   });
 
   it('the dodge-dash lands on a structure tile instead of stopping short of it', () => {
-    const run = new Run(cfg());
+    const run = new Run(cfg({ practice: true }));
     const w = run.world;
     warp(w, 9, 5); // within build range of the dash's landing tile
     expect(buildTower(w, 1, 10, 5).ok).toBe(true);
-    warp(w, 10 - BASE.dashDistance, 5); // exactly BASE.dashDistance west of the structure
+    // fb053: distance falls out of dashSpeedMul x current move speed x
+    // dashDuration — no fixed dashDistance field anymore. `w.derived.moveSpeed`
+    // already includes the default test class's own moveSpeedBonus (engineer,
+    // +15%); coreMoveSpeedMul/classMoveSpeedMul are both 1 here (Act I, no
+    // charging effect in progress).
+    const dashDist = BASE.dashSpeedMul * w.derived.moveSpeed * BASE.dashDuration;
+    warp(w, 10 - dashDist, 5); // exactly dashDist west of the structure
     run.step({ ...emptyInput(), mx: 1, my: 0, dash: true });
     // fb030: the dash now travels over BASE.dashDuration seconds rather than
     // teleporting on the triggering tick — advance past it before checking
@@ -298,7 +308,7 @@ describe('fb002: the Warden (and dash) ignore collision with the Core and friend
   });
 
   it('enemy pathing keeps treating the structure as blocked (the Warden-only predicate is separate)', () => {
-    const w = new World(cfg());
+    const w = new World(cfg({ practice: true }));
     warp(w, 5, 5);
     expect(buildTower(w, 1, 6, 5).ok).toBe(true);
     w.grid.refresh();

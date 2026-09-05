@@ -269,7 +269,10 @@ describe('C4 — the real stat pipeline carries sources', () => {
     // Drives the real `applyTerrainPassives`, not `Stats.add` by hand: the Q61
     // decision lives in weapons.ts, and hand-adding to a 'terrain' key here would
     // only re-test rank merging while leaving that source id free to collide.
-    const w = new World(cfg());
+    // Flat arena: fb077 generates terrain for every non-practice run, and the
+    // 2026-09-04 merged generator put unbuildable ground under these fixed
+    // tiles on seed 1. This case is about the stat pipeline, not the map.
+    const w = new World(cfg({ practice: true }));
     w.warden.x = 6.5;
     w.warden.y = 6.5;
     buildTower(w, 1, 5, 5); // palisade -> terrain armour

@@ -83,13 +83,18 @@ list (with a comment naming why) rather than silently fattening the fast tier.
 - **When a field's range changes, grep its readers, not just its writers.**
 
 ## Subagent protocol
-Use the project subagents in `.claude/agents/`:
-- After implementing any feature: delegate a review to **code-reviewer**;
-  address Critical/Major findings before commit.
-- Before marking any backlog item done: delegate verification to
-  **qa-playtester**; it must confirm the item's acceptance criteria and file
-  repro reports for what it breaks. A QA-filed bug becomes a new backlog item
-  with a regression test.
+Use the project subagents in `.claude/agents/`. Verification is tiered by what
+an item touches (owner feedback `feature-tiered-qa`, 2026-09-04):
+- **Light tier** — items typed `[polish]`, `[ui]`, `[docs]`, or a data-only
+  change that isn't a balance value: targeted tests + `npm run test:fast` +
+  **code-reviewer** only.
+- **Full tier** — everything else, including anything touching `/src/sim`,
+  `/data` balance values, pathing, or damage rules: **code-reviewer** (address
+  Critical/Major findings before commit) **and qa-playtester** (must confirm
+  the item's acceptance criteria and file repro reports for what it breaks —
+  a QA-filed bug becomes a new backlog item with a regression test).
+- Bugs always get a failing regression test before the fix, regardless of tier
+  (working rule 3).
 - For tuning-only items: delegate to **balance-analyst**; it edits `/data` only
   and must report gate deltas.
 

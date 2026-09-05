@@ -39,13 +39,12 @@
  * 2), so those should agree — and the seed-for-seed agreement with p10v's
  * number is the evidence that they do, not an assumption.
  *
- * **Cost, and why the sweep is opt-in**: twelve full T1 runs, ~8 s each on
- * the reference host — over the fast tier's ~60 s per-file budget, and
- * `vitest.fast.config.ts`'s exclude list is outside this lane's Scope (a Log
- * entry asks the merge to add this file there and drop the env gate). The
- * sweep therefore runs only under `TIME_LORD_MEASURE=1`:
+ * **Cost**: twelve full T1 runs, ~8 s each on the reference host — over the
+ * fast tier's ~60 s per-file budget, so since the 2026-09-03 lane merge this
+ * file sits in `vitest.fast.config.ts`'s exclude list and the sweep runs
+ * under the FULL `npm test`. A standalone run can opt out of the sweep:
  *
- *   TIME_LORD_MEASURE=1 npx vitest run tests/class-time-lord-band.test.ts
+ *   TIME_LORD_MEASURE=0 npx vitest run tests/class-time-lord-band.test.ts
  *
  * The band assertion below is `.skip`-ed and carries its measured number,
  * exactly as p6e's twelve cases do — c003's acceptance says so in as many
@@ -83,7 +82,10 @@ const FULL_TREE = allTreeNodeIds(content);
 const BAND_LO = 0.35;
 const BAND_HI = 0.7;
 
-const MEASURE = process.env.TIME_LORD_MEASURE === '1';
+// Lane merge 2026-09-03: the env gate is dropped — this file is in
+// `vitest.fast.config.ts`'s exclude list, so the sweep runs under the FULL
+// `npm test` only. `TIME_LORD_MEASURE=0` opts a standalone run out.
+const MEASURE = process.env.TIME_LORD_MEASURE !== '0';
 const SEEDS = Array.from({ length: 12 }, (_, i) => i + 1);
 
 function runTimeLord(seed: number): RunReport {

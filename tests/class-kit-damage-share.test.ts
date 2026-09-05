@@ -67,11 +67,84 @@
  *    without moving a win rate that is already over G8's ceiling. That is the
  *    shape of the wall Q160/Q161 describe, now measured on the diversity axis
  *    rather than argued.
+ *
+ * -- RECORDED (2026-09-05, BACKLOG p12a, `KIT_SHARE_MEASURE=1 KIT_SHARE_SEEDS=2`,
+ * 12 classes x seeds 1-2, T1, `cycles: 6`, full tree) --
+ *
+ * p12a's target is the **VS-only** share (see `Row.vsShare` and BALANCE.md's
+ * "Kit relevance target"), which is a different, much more favourable
+ * denominator than the whole-run `ownShare` recorded above: in VS the towers
+ * are inert and the character wields them, so every source in the window is
+ * the character's own output. Control = `kitPower` live, no re-anchor.
+ * Treatment = the same, plus p12a's x3 base re-anchor of `data/classes.json`.
+ *
+ *                  vsKitShare        vsKitShare
+ *                  (control)         (x3 re-anchor)
+ *   swordsman        0.12%             0.33%
+ *   plaguebringer    1.63%             1.49%
+ *   engineer         0.21%             0.21%
+ *   pyromancer       0.03%             0.09%
+ *   archer           0.06%             0.20%
+ *   necromancer      0.19%             0.57%
+ *   cryomancer       0.01%             0.09%
+ *   stormcaller      1.02%             2.78%
+ *   bloodlord        0.00%             0.00%
+ *   animist          0.04%             0.04%
+ *   paladin          0.00%             0.00%
+ *   time_lord        1.67%             5.16%
+ *
+ * Win rate was 2/2 for every class in both runs (the same over-ceiling G8
+ * reading point 2 above describes), so the re-anchor's effect is measured
+ * against an unchanged outcome column, not confounded by one.
+ *
+ * (`plaguebringer`'s row survived a round trip worth recording. Code review
+ * asked for the VS numerator to be classified by an explicit kit list rather
+ * than by "not a tower key"; building that list surfaced `spreading_plague`
+ * — the Plaguebringer's §4.2 passive and its top kit source — sitting outside
+ * `kitPower`, because it dispatches from `killEnemy` under its own name
+ * rather than the `class_` prefix. Folding it in took this cell to 5.28%.
+ * qa-playtester then showed that was wrong: the plague transfer's magnitude
+ * is `dotOutstanding`, the sum of *every* unfinished DoT on the corpse
+ * whoever applied it, so scaling it by `kitPower` multiplies Venom Spore and
+ * Ember Brazier damage on exactly the build this class's own `towerPassive`
+ * exists to support. Attribution and scaling are now two predicates
+ * (`isKitSource` / `scalesWithKitPower`), the cell is back to 1.49%, and the
+ * bug has a regression test. `swordsman` 0.33% and `time_lord` 5.16%
+ * re-measured unchanged to the digit throughout — the control showing the
+ * classifier change moved only the class it should have, and that the
+ * non-kit VS sources the old rule swept in (`warden_eater`, plus the Core
+ * effects a damaging Core would add) are below this table's precision.)
+ *
+ * **0 of 12 classes reach the 35% target; the best is `time_lord` at 5.16%.**
+ * The re-anchor is doing real work where it applies — `time_lord` x3.1,
+ * `stormcaller` x2.7, `necromancer` x3.0, `archer` x3.3, `cryomancer` x9 off
+ * a 0.01% base — but four classes did not move at all, and for a reason
+ * worth naming: `bloodlord` and `paladin` route their kit damage through
+ * `titheDamageMul`/`wrathDamageMul`, and `engineer`/`animist` through
+ * `summonStatMul`. Those are multipliers on damage that is *not* the kit's
+ * own authored number (a tower's, or the character's stats), so p12a's field
+ * set deliberately excludes them — re-anchoring a multiplier would either
+ * compound the pass or leak it into tower damage.
+ *
+ * **The target cannot be met by this item's own levers.** p12a's two
+ * mechanisms multiply kit damage by at most ~9.5x at wave 18 (x3.16
+ * `kitPower` x the x3 anchor), and that is already in the treatment column.
+ * Reaching 35% from a 5.16% best case needs another ~10x, and from the eight
+ * classes under 0.6% another 100x-and-up. The reason is not the kit's
+ * numbers: VS-wielded weapon damage inherits the full tower-upgrade +
+ * Constellation scaling stack while the kit inherits none of it (swordsman
+ * seed 1: 134.3M of 134.5M VS damage is wielded), so the denominator grows
+ * with the player's build and the numerator does not. Closing the target
+ * needs the wielded side brought down, or the kit put on the same scaling —
+ * a shared-lever change of p12b/p12c's size, not a `data/classes.json` edit.
+ * Logged as QUESTIONS Q175 and filed as BACKLOG p12f rather than forced
+ * here, per the item's own "log the real per-class numbers, don't force it".
  */
 import { beforeAll, describe, expect, it } from 'vitest';
 
 import '../src/bots';
 import { loadContent, type ClassDef } from '../src/sim/content';
+import { isKitSource } from '../src/sim/enemies';
 import { allTreeNodeIds } from '../src/meta/meta';
 import type { RunConfig, RunReport } from '../src/sim/types';
 import { cfg, runScripted } from './helpers';
@@ -135,10 +208,38 @@ interface Row {
   key: string;
   wins: number;
   ownShare: number;
+  /**
+   * p12a: the same ratio restricted to the VS half of the run
+   * (`RunReport.damageByWeaponVs`) — BALANCE.md's own-kit-share target.
+   * `ownShare` above is the whole-run number G8's diversity clause reads,
+   * which is dominated by TD tower fire; this one is a statement about the
+   * kit, because in VS every source is the character's own output (the kit,
+   * plus the towers it wields — `src/sim/vswield.ts`).
+   */
+  vsShare: number;
   topLabel: string;
   ownTop: string;
   outcomes: string[];
 }
+
+/** BALANCE.md's p12a target: own-kit share of the character's VS damage. */
+const KIT_SHARE_TARGET = 0.35;
+
+/**
+ * Runs below this `wavesCleared` are excluded from the VS-share record.
+ *
+ * Note what this is and is not: it selects **which runs count**, not which
+ * part of a run counts. `vsShare` sums `damageByWeaponVs` over the whole run,
+ * VS block 1 included, where `kitPower` is still near 1.0 — so the figure is
+ * "VS kit share across a run that got at least this far", and it is diluted
+ * relative to a hypothetical from-wave-12-onward window. Isolating that
+ * window would need a snapshot accumulator in the sim keyed on a wave number,
+ * i.e. a tuning constant in code (architecture rule 4); it is not worth that
+ * for a metric currently reading 0.00-5.16% against a 35% target, but the
+ * label is stated precisely here so the next reader is not misled
+ * (code-reviewer, p12a).
+ */
+const QUALIFYING_WAVE = 12;
 
 const rows: Row[] = [];
 
@@ -164,6 +265,8 @@ beforeAll(() => {
     const outcomes: string[] = [];
     const ownDamage: Record<string, number> = {};
     const allDamage: Record<string, number> = {};
+    const ownVs: Record<string, number> = {};
+    const allVs: Record<string, number> = {};
     for (const seed of SEEDS) {
       const report = runClassScripted(key, seed);
       if (report.outcome === 'victory') wins++;
@@ -177,12 +280,28 @@ beforeAll(() => {
         allDamage[k] = (allDamage[k] ?? 0) + v;
         if (!content.towerByKey.has(k)) ownDamage[k] = (ownDamage[k] ?? 0) + v;
       }
+      // p12a: the VS-only half. A run that never reached the qualifying wave
+      // can't speak to a target stated about a developed run, so it
+      // contributes to neither record — the same non-participation the
+      // timeout rule above already applies.
+      if (report.wavesCleared < QUALIFYING_WAVE) continue;
+      for (const [k, v] of Object.entries(report.damageByWeaponVs)) {
+        allVs[k] = (allVs[k] ?? 0) + v;
+        // Classified by the sim's own kit-source list, not by "not a tower
+        // key": the VS window also carries Core effects (`carnivorous_plant`,
+        // `corpse`, `time`) and the boss's own `warden_eater` damage, none of
+        // which is the character's kit, and all of which a not-a-tower rule
+        // would silently bank into the numerator (code-reviewer, p12a).
+        if (isKitSource(k)) ownVs[k] = (ownVs[k] ?? 0) + v;
+      }
     }
     const ownShare = sumValues(allDamage) > 0 ? sumValues(ownDamage) / sumValues(allDamage) : 0;
+    const vsShare = sumValues(allVs) > 0 ? sumValues(ownVs) / sumValues(allVs) : 0;
     rows.push({
       key,
       wins,
       ownShare,
+      vsShare,
       ownTop: describeSource(cls, argmaxKey(ownDamage)),
       topLabel: ownShare >= MATERIALITY_SHARE ? describeSource(cls, argmaxKey(ownDamage)) : argmaxKey(allDamage),
       outcomes,
@@ -192,13 +311,17 @@ beforeAll(() => {
   const lines = rows.map(
     (r) =>
       `  ${r.key.padEnd(14)} win ${String(r.wins).padStart(2)}/${SEEDS.length}` +
-      `  ownShare ${(r.ownShare * 100).toFixed(2).padStart(6)}%  top: ${r.topLabel}` +
+      `  ownShare ${(r.ownShare * 100).toFixed(2).padStart(6)}%` +
+      `  vsKitShare ${(r.vsShare * 100).toFixed(2).padStart(6)}%  top: ${r.topLabel}` +
       `  (kit top: ${r.ownTop})`,
   );
+  const meeting = rows.filter((r) => r.vsShare >= KIT_SHARE_TARGET).length;
   console.log(
-    `\n[c002] kit damage share, ${KEYS.length} classes x ${SEEDS.length} seeds\n` +
+    `\n[c002/p12a] kit damage share, ${KEYS.length} classes x ${SEEDS.length} seeds\n` +
       `${lines.join('\n')}\n  distinct top sources: ${distinct.size}/${rows.length}` +
-      ` -> [${[...distinct].join(', ')}]\n`,
+      ` -> [${[...distinct].join(', ')}]\n` +
+      `  classes at/over the ${(KIT_SHARE_TARGET * 100).toFixed(0)}% VS kit-share target:` +
+      ` ${meeting}/${rows.length}\n`,
   );
 }, 6_000_000);
 
@@ -206,6 +329,7 @@ describe.skipIf(!MEASURE)('c002: kit damage share measurement (opt-in)', () => {
   it('records every class row', () => {
     expect(rows).toHaveLength(KEYS.length);
     for (const r of rows) expect(r.ownShare).toBeGreaterThanOrEqual(0);
+    for (const r of rows) expect(r.vsShare).toBeGreaterThanOrEqual(0);
   });
 });
 

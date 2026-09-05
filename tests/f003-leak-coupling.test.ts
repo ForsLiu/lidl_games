@@ -195,9 +195,14 @@ describe('BACKLOG f003/p3c: leak coupling (SPEC-FINAL §1.1, gate G6)', () => {
         const w = run.world;
         const input = bot.act(w);
         // Force a few real Day-1 leaks so the run actually exercises the
-        // leak-coupling path, not just the ordinary cycle machinery.
+        // leak-coupling path, not just the ordinary cycle machinery. hpMul is
+        // deliberately huge: this spawn lands directly on the Core tile, and
+        // `updateTowers` runs before the leak check within the same tick, so
+        // fb076's tower-damage retune can one-shot a 1x-hp husk before it
+        // registers as a leak — the forced spawn must outlive one tick of
+        // full nearby tower fire regardless of `/data` tower damage.
         if (w.phase === 'act1_wave' && forcedLeaks < 5) {
-          spawnEnemy(w, 'husk', CORE_X + 0.5, CORE_Y + 0.5, { hpMul: 1, gate: 0, overlay: false });
+          spawnEnemy(w, 'husk', CORE_X + 0.5, CORE_Y + 0.5, { hpMul: 1e9, gate: 0, overlay: false });
           forcedLeaks++;
         }
         run.step(input);

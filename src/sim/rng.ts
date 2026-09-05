@@ -3,8 +3,26 @@
  * mulberry32 core: 32-bit integer ops only, identical on every platform.
  */
 
+/** The live streams an `RngSet` carries; they advance during a run and are snapshotted by `getState()`. */
 export const STREAM_NAMES = ['waves', 'spawns', 'drops', 'offers', 'ai'] as const;
 export type StreamName = (typeof STREAM_NAMES)[number];
+
+/**
+ * Named streams (or stream-name prefixes) derived once from the run seed and
+ * consumed outside `RngSet` (SPEC-FINAL §12 rule 2: every stream is named).
+ * None has live state to snapshot, so none belongs in `RngSet` — adding one
+ * there would change every save's RNG snapshot shape for a stream that never
+ * ticks. `'terrain'` seeds map generation (`src/sim/terrain/generate.ts`)
+ * before a World exists; `'draft'`/`'draftpick'` are the per-tier modifier
+ * draft prefixes (`src/sim/tiers.ts`, `draft:${tier}`). Every `fnv1a(name,
+ * seed)` call site in `/src/sim` must use a name from this list or
+ * `STREAM_NAMES`.
+ */
+export const ONE_SHOT_STREAM_NAMES = ['terrain', 'draft', 'draftpick'] as const;
+export type OneShotStreamName = (typeof ONE_SHOT_STREAM_NAMES)[number];
+export const TERRAIN_STREAM: OneShotStreamName = 'terrain';
+export const DRAFT_STREAM: OneShotStreamName = 'draft';
+export const DRAFT_PICK_STREAM: OneShotStreamName = 'draftpick';
 
 /** FNV-1a 32-bit over a string; used to derive per-stream seeds. */
 export function fnv1a(str: string, seed = 0x811c9dc5): number {

@@ -14,6 +14,9 @@ import spawnsRaw from '../../data/spawns.json';
 import vsupgradesRaw from '../../data/vsupgrades.json';
 import treeRaw from '../../data/tree.json';
 import modifiersRaw from '../../data/modifiers.json';
+// Value import; `tiers.ts` imports back from here type-only, so there is no
+// runtime cycle.
+import { MAX_TIER } from './tiers';
 import classesRaw from '../../data/classes.json';
 import questsRaw from '../../data/quests.json';
 import devRaw from '../../data/dev.json';
@@ -21,6 +24,11 @@ import wardenRaw from '../../data/warden.json';
 import damageTypesRaw from '../../data/damagetypes.json';
 import coresRaw from '../../data/cores.json';
 import equipmentRaw from '../../data/equipment.json';
+// fb064b merge: map terrain. `src/sim/terrain/config.ts` owns and validates
+// `data/terrain.json`; it is reached here so `contentHash()` covers it
+// (architecture rule 2) and so an unpayable file fails at `loadContent()`.
+// Not `TerrainDef`/`TerrainSchema` below, which are a *tower's* terrain effect.
+import { TERRAIN_RAW as mapTerrainRaw, loadTerrain } from './terrain/config';
 
 /**
  * b013/E3: every `/data` number goes through this one alias, so "refuses a
@@ -419,7 +427,35 @@ export const EnemySchema = z.object({
   structureDamageMul: num.optional(),
 });
 
-const EnemiesFileSchema = z.object({ enemies: uniqueArray(EnemySchema, ['key', 'id']) });
+const EnemiesFileSchema = z.object({
+  /**
+   * BACKLOG p12c (BALANCE DIRECTION v2 §C): a roster-wide multiplier on every
+   * enemy's authored `hp`, applied at spawn before the tier ladder's own rung.
+   *
+   * It exists because §C's named lever — "raise T1's wave HP curve" — turned
+   * out not to move the thing §C is about. `waves.hpScalePerWave` compounds
+   * *per wave*, so raising it leaves the early game untouched and lands almost
+   * entirely on waves the towers already dominate: measured 1.22 -> 1.34
+   * (x7.4 more HP by wave 18) still gave 12/12 landslide wins with the Core at
+   * 90.9%. A flat roster-wide factor is the lever that actually moves the
+   * margin, which is the same shape fb025's global x10 pass used — expressed
+   * here as one tunable number rather than 20 edited rows, so the authored
+   * per-enemy identity ratios stay readable and untouched.
+   *
+   * `1.0` is the identity, so a run at this value is bit-identical to one from
+   * before the field existed.
+   */
+  baseHpMul: num
+    .positive()
+    // qa-playtester (p12c): `.positive()` alone accepts `1e308`, which spawns
+    // enemies at `Infinity` HP — literally unkillable, and silently. Same
+    // class of hole `validateTierLadder` exists to close for the tier
+    // scalars; bounded here at the schema so a Tuner save is refused too.
+    // The ceiling is far above any plausible anchor (shipped: 20) and far
+    // below where the roster's own HP values overflow.
+    .max(1e6),
+  enemies: uniqueArray(EnemySchema, ['key', 'id']),
+});
 
 /* ------------------------------------------------------------------- waves */
 
@@ -607,6 +643,27 @@ const MODIFIER_EFFECT_KEYS = [
 
 const ModifiersFileSchema = z.object({
   tierRewardPerStep: num,
+  /**
+   * BACKLOG p12b (BALANCE DIRECTION v2 §B): the tier ladder's three difficulty
+   * scalars, each applied as `x^(tier-1)` so T1 is always exactly 1.0.
+   *
+   * Before p12b the only thing `cfg.tier` scaled directly was the final boss's
+   * HP (through `tierRewardPerStep`, SPEC 8.3's reward scale); every other
+   * tier difference came from the 1-of-2 *drafted modifiers*, which are drawn
+   * at random and so make one tier a distribution rather than a rung. §B moves
+   * the reference gates to T3 and needs the rungs to be deterministic, hence
+   * three named scalars rather than more modifiers. They live here beside
+   * `tierRewardPerStep` — the tier scalar that already existed — rather than
+   * in the `data/tiers.json` §B names, so the ladder is one file (logged in
+   * QUESTIONS.md; §B's own text allows "or wherever tier scalars live").
+   *
+   * Each is `>= 1`: a tier step never makes the game easier. Enforced by
+   * `validateTierLadder` so a `/data` edit that inverts the ladder is refused
+   * at load rather than producing a silently easier T5 (architecture rule 4).
+   */
+  tierEnemyHpPerStep: num,
+  tierBudgetPerStep: num,
+  tierCoreDamagePerStep: num,
   modifiers: uniqueArray(
     z.object({ key: str, name: str, desc: str, effect: recordWithKeys(MODIFIER_EFFECT_KEYS), rewardBonus: num }),
     ['key'],
@@ -1564,7 +1621,8 @@ const WardenFileSchema = z.object({
   armor: num,
   moveSpeed: num,
   pickupRadius: num,
-  dashDistance: num,
+  /** fb053: dash speed = dashSpeedMul x the Warden's current movement speed; travel distance falls out of speed x duration. */
+  dashSpeedMul: num,
   dashCooldown: num,
   /** fb030: seconds a dash (base or class-active) takes to travel its line, rather than teleporting. */
   dashDuration: num,
@@ -1650,6 +1708,40 @@ export function validateDamageStyleColors(damageTypes: DamageTypesFile): void {
   }
 }
 
+/**
+ * p12b (BALANCE DIRECTION v2 §B): a tier step must never make the run easier.
+ *
+ * The three ladder scalars are exponentiated by `tier - 1`, so a value under
+ * 1 silently inverts the ladder — T5 would arrive weaker than T1 while every
+ * gate that reads "measured at T3" kept passing. A loader rule that refuses
+ * unpayable data is worth more than a comment saying the data must be valid
+ * (architecture rule 4), so this is checked at load, not asserted in a test.
+ */
+export function validateTierLadder(modifiers: z.infer<typeof ModifiersFileSchema>): void {
+  const rungs = {
+    tierEnemyHpPerStep: modifiers.tierEnemyHpPerStep,
+    tierBudgetPerStep: modifiers.tierBudgetPerStep,
+    tierCoreDamagePerStep: modifiers.tierCoreDamagePerStep,
+  };
+  for (const [key, value] of Object.entries(rungs)) {
+    if (!Number.isFinite(value) || value < 1) {
+      throw new Error(`modifiers.json: ${key} is ${value}; a tier step must never make the run easier (>= 1)`);
+    }
+    // Guard the *result*, not just the input (qa-playtester, p12b): `1e300`
+    // is finite and >= 1, so it passed the check above while overflowing the
+    // top rung to `Infinity` — and an enemy with Infinite HP is unkillable,
+    // strictly worse than the inverted ladder this rule was written to
+    // refuse. The rule has to hold at the tier the ladder is actually
+    // evaluated at, which is why this raises to MAX_TIER - 1.
+    if (!Number.isFinite(Math.pow(value, MAX_TIER - 1))) {
+      throw new Error(
+        `modifiers.json: ${key} is ${value}; it overflows to Infinity at tier ${MAX_TIER}, ` +
+          'which would make every enemy unkillable',
+      );
+    }
+  }
+}
+
 export type WaveDef = z.infer<typeof WavesFileSchema>['waves'][number];
 export type CoreDef = z.infer<typeof CoresFileSchema>['cores'][number];
 
@@ -1697,6 +1789,8 @@ export interface ContentRaw {
   dev: unknown;
   cores: unknown;
   equipment: unknown;
+  /** `data/terrain.json` (map generation), folded in at the lane merge. */
+  mapTerrain: unknown;
 }
 
 export interface Content {
@@ -2033,6 +2127,7 @@ export function loadContent(overrides?: ContentOverrides): Content {
   // this file, the same m19a-shaped failure every other rule in this block
   // guards against.
   validateDamageStyleColors(damageTypes);
+  validateTierLadder(modifiers);
 
   const treeIds = new Set(tree.nodes.map((n) => n.id));
   for (const n of tree.nodes) {
@@ -2067,6 +2162,11 @@ export function loadContent(overrides?: ContentOverrides): Content {
     }
   }
 
+  // Map terrain: validate at load (rule 4). `World` (fb077) generates from
+  // this at run construction; validating here means a bad `/data/terrain.json`
+  // edit fails at content load, not mid-run.
+  loadTerrain();
+
   const result: Content = {
     raw: {
       warden: wardenRaw,
@@ -2083,6 +2183,7 @@ export function loadContent(overrides?: ContentOverrides): Content {
       dev: devRaw,
       cores: coresDoc,
       equipment: equipmentDoc,
+      mapTerrain: mapTerrainRaw,
     },
     warden: wardenBase,
     towers,

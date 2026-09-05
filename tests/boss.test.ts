@@ -12,7 +12,8 @@ import { GRID_H, GRID_W } from '../src/sim/grid';
 import { loadContent } from '../src/sim/content';
 import { allTreeNodeIds } from '../src/meta/meta';
 import type { Enemy } from '../src/sim/types';
-import { cfg, runScripted } from './helpers';
+import { tierEnemyHpMul } from '../src/sim/tiers';
+import { cfg, GATE_TIER, runScripted } from './helpers';
 
 // fb049 (Q138 re-measurement): real Hub-started runs feed the full
 // Constellation tree into `allocated` (`TREE_AUTO_MAX`) — `cfg()`'s own
@@ -27,6 +28,14 @@ import { cfg, runScripted } from './helpers';
 // proportionally instead of G1/G14 breaking first.
 const FULL_TREE = allTreeNodeIds(loadContent());
 
+/**
+ * Mechanics fixtures (phases, telegraph, slam, arena fire) — deliberately
+ * **T1**, not `GATE_TIER`. p12b briefly defaulted this to the reference tier,
+ * which was wrong twice over (code-reviewer): none of these cases measure
+ * anything, and running them against a T3 boss just made every fixture 16x
+ * tougher for no gain. G14's actual *measurements* are the two `runScripted`
+ * cases below, and those are where the re-point belongs.
+ */
 function act2World(tier = 1): World {
   const w = new World(cfg({ tier }));
   w.phase = 'act2';
@@ -65,17 +74,52 @@ describe('the Warden-Eater (SPEC 5.5)', () => {
   // were hardcoded to the old numbers.
   // fb025 (enemy HP x10, including bosses this time — QUESTIONS Q155(a)):
   // warden_eater 10000 -> 100000.
-  it('spawns at 3:01 with 100,000 HP scaled by tier', () => {
-    const w = act2World();
+  // fb099 (root-caused this session): fb076's tower-damage retune (closing
+  // G13's solo-TD-tower gate) raised several towers 1.06x-2.6x — `lob`
+  // (mortar-family) alone went 1602->4200 — and those same towers keep
+  // firing on the Warden-Eater through Act II, so the "real fight" this
+  // file's own header comment measured at 57.05s (pre-fb076) collapsed to
+  // 15.68s (measured live via `tools/probe-boss.ts` on this seed/policy,
+  // matching qa-playtester's independent 11.65s on a different seed window)
+  // — under the test's own 20s floor. Re-measured tower DPS increase against
+  // the boss directly (not inferred): ~3.6x. `data/enemies.json`
+  // `warden_eater` hp retuned 100000 -> 365000 (same ~3.6x, restoring the
+  // pre-fb076 fight length) rather than lowering the towers back down, since
+  // those numbers are G13's own closed gate, not this bug's cause to reverse
+  // (BACKLOG fb093 already establishes this precedent for the same towers).
+  // Re-measured post-retune: 51.55s fight, real headroom over the 20s floor
+  // and back in the original ~57s neighborhood. Blast radius checked against
+  // G1 (`tests/p10d-run-length.test.ts`, the one other gate with a documented
+  // history of trading off against this exact field): re-ran it both at HP
+  // 100000 (pre-fix, via `git stash`) and 365000 (post-fix) — both pass, G1
+  // unaffected by this ~36s fight-length increase.
+  it('spawns at 3:01 with 365,000 HP scaled by tier', () => {
+    // p12b: explicitly T1, not the file's new `GATE_TIER` default — this case
+    // is *about* the authored base HP and how the ladder scales it, so it has
+    // to read the rung it names rather than whichever tier the gates happen
+    // to measure at.
+    const w = act2World(1);
     expect(shouldSpawnBoss(w)).toBe(false);
     w.act2Time = w.content.spawns.bossTimeSeconds;
     expect(shouldSpawnBoss(w)).toBe(true);
     spawnFinalBoss(w);
     const e = w.enemies.find((x) => x.boss)!;
-    expect(e.maxHp).toBeCloseTo(100000, 0);
+    // p12c: the authored 365,000 times the roster-wide `baseHpMul` — the
+    // Warden-Eater is an enemy and takes the roster multiplier like every
+    // other one, which at the shipped 20 puts it at 7.3M. Derived rather than
+    // pinned so a re-anchor moves the fixture with the game; the *authored*
+    // number is still asserted, just not the spawned one. The fight-length
+    // case below is what proves this is still a beatable fight rather than a
+    // wall, and it is measured, not assumed.
+    expect(e.maxHp).toBeCloseTo(365000 * w.content.enemies.baseHpMul, 0);
 
+    // p12b (code-reviewer m6): pin the *rung*, not just "bigger". A bare
+    // `>` passed equally well when the boss carried its old borrowed
+    // `tierRewardPerStep` scale, so it could not have caught this item
+    // swapping one tier scaling for another.
     const w3 = act2World(3);
     const e3 = boss(w3);
+    expect(e3.maxHp).toBeCloseTo(365000 * w3.content.enemies.baseHpMul * tierEnemyHpMul(w3.content, 3), 0);
     expect(e3.maxHp).toBeGreaterThan(e.maxHp);
   });
 
@@ -253,8 +297,21 @@ describe('the Warden-Eater (SPEC 5.5)', () => {
   // the >20s-over-spawn floor, `equipmentFound > 0` — none of this test's
   // thresholds are gate bands the scripted bot could push out of range the
   // way the two below can.
+  //
+  // fb099: fb076's tower retune (see the header comment above) pushed this
+  // below the 20s floor (measured 15.68s on this seed). Fixed at the cause —
+  // `warden_eater` hp retuned, not this assertion — re-measured 51.55s post-
+  // fix. See the header comment for the full root-cause and measurement.
   it('a scripted run reaches it, kills it and wins', () => {
-    const { report, run } = runScripted(cfg({ seed: 1, cycles: 6, allocated: FULL_TREE }), 'hybrid');
+    // p12b: deliberately **T1**, not `GATE_TIER`. This case is a mechanism
+    // check — the fight is reached, the boss dies, the fight is not trivially
+    // short, equipment dropped — not a difficulty measurement, and at T3 the
+    // run is contested by design (50% win rate), so pinning one seed to
+    // `victory` there would be asserting a coin flip. G14's actual *gate* is
+    // the 20-seed win-rate case at the bottom of this file, and that is what
+    // p12b re-pointed. Keeping this one at T1 keeps live coverage of the
+    // mechanism instead of trading it for a `.skip`.
+    const { report, run } = runScripted(cfg({ seed: 1, cycles: 6, tier: 1, allocated: FULL_TREE }), 'hybrid');
     expect(report.outcome).toBe('victory');
     expect(report.bossKilled).toBe(true);
     expect(report.bossKillSeconds - run.world.content.spawns.bossTimeSeconds).toBeGreaterThan(20);
@@ -431,7 +488,7 @@ describe('the Warden-Eater (SPEC 5.5)', () => {
   it.skip('G14: over 20 seeds, the scripted-build win rate is >=60% and <100%', () => {
     const seeds = Array.from({ length: 20 }, (_, i) => i + 1);
     const results = seeds.map((seed) => {
-      const { report } = runScripted(cfg({ seed, cycles: 6, allocated: FULL_TREE }), 'hybrid');
+      const { report } = runScripted(cfg({ seed, cycles: 6, tier: GATE_TIER, allocated: FULL_TREE }), 'hybrid');
       return { seed, outcome: report.outcome, wavesCleared: report.wavesCleared, survivalSeconds: report.survivalSeconds };
     });
     const wins = results.filter((r) => r.outcome === 'victory').length;

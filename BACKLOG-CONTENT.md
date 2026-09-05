@@ -662,6 +662,45 @@ session 2 (c005 was the last actionable one left), appending `c006`-`c010`.
 
 ## Log
 
+### c026 (2026-09-05) — the merge that proved the footprint was describing the arena
+
+Landed early, not by choice: merging `origin/master` brought the terrain epic
+(`fb077`, "wire generated terrain into every non-practice World run"), and
+`c014`'s footprint check stopped being satisfiable at all.
+
+- **Measured, not inferred.** On the map `cfg()`'s seed now generates, **408 of
+  720 tiles are buildable** and **zero of 512 candidate origins** can supply the
+  contiguous `16 x 8` block `footprintClear` demanded. The requirement was never
+  describing the importers; it was describing the flat arena the module was
+  written on. `probeBoard` fell back to its `reduced` tier everywhere, which is
+  the fallback `c014`'s QA round added — it worked exactly as designed, and it
+  is why the merge produced one loud named failure instead of six confusing
+  ones.
+- **The footprint is now the three things importers really need**: `passable`
+  floor where dummies stand (they spawn with `speed = 0` and never path, so
+  asking for `buildable` there was asking for a tower site nobody builds); a
+  legal build tile, already checked by `checkBuild` at the call site; and **at
+  least one** buildable tile east of `dx 4` in the Warden's row, because that is
+  all `tilePastBaseRange` needs — it takes the first tile it finds. The far-
+  ground scan uses the same `dx` window that function does, so the two cannot
+  drift.
+- **Result**: the board relocated from `10,10` to `10,6` and **all seven
+  importers passed on it with no edit to any of them** — the property c014
+  exists to buy, tested by the real event rather than a simulation of it.
+- **One acceptance clause could not hold as written.** c026 asked that "the
+  shipped board still probes to `10,10`". It cannot: terrain closed the southern
+  arm below that spot (rows 14-16 carry impassable ground) even though its build
+  tile `11,10` is still perfectly legal — `checkBuild` returns `null` there. The
+  clause assumed the arena the item was filed on. The baseline row was
+  re-measured to `10,6` instead, and the reason is asserted rather than
+  described, so a future terrain change reports itself.
+- **Two of `c014`'s own assertions were wrong in kind, not in detail.**
+  `tier === 'full'` was requiring the flat arena; it is replaced by direct
+  assertions of the two guarantees importers depend on. And `footprintTiles`
+  read the *full* reach off a `reduced` board, reporting "footprint tile 25,9 is
+  a Core tile" for a tile the probe never claimed — it was measuring the
+  constant rather than the board.
+
 ### c024 (2026-09-05) — the leak that was invisible because the file only built Animists
 
 - **Shape**: 21 tests appended to `tests/class-wide-grove-reach.test.ts`, and
@@ -848,7 +887,7 @@ moved". Six mutations survived; all six now die, each reddening exactly one row.
       that row; all 58 whiff tests stay green and a shifted probe origin moves
       them with the other seven - refs: c007, c014, SPEC-FINAL §4.
 
-- [ ] (c026) [polish] **`footprintClear`'s rectangle is a bounding box, and it
+- [x] (c026) [polish] **DONE 2026-09-05 (forced by the master merge).** **`footprintClear`'s rectangle is a bounding box, and it
       is expensive.** It requires all 128 tiles of
       `(1 + EAST_REACH + 1) x (1 + SOUTH_REACH + 1)` buildable, while the deep
       east arm is only used along row `WY`. On the empty shipped board only 119
@@ -1241,6 +1280,23 @@ the merge; c017 neither caused nor cleared it.
   12-seed control pair above, built on p6e's own `runClassScripted` shape, is
   the only G8 measurement — and it covers p6e's one live pin directly by
   measuring `argmax(allDamage)` on both arms.
+
+- (2026-09-03, lane merge) Merged into master. One conflict,
+  `fireCrimsonRush`: main wins on the travel (fb053's speed-scaled range),
+  c001's Area-scaled half-width kept. Done at the merge: `class-time-lord-band` is in
+  `vitest.fast.config.ts`'s exclude list and its
+  env gate is dropped (runs under the FULL `npm test`, `TIME_LORD_MEASURE=0`
+  opts out); `class-kit-damage-share`'s **stays opt-in**, deliberately —
+  its sweep is 12 classes x 12 seeds of full runs (hours) and asserts only
+  that rows were recorded, for an item (c002) skipped on Q161 (QUESTIONS
+  Q165) — and so it stays in the fast tier, where it costs ~10 ms. p6e's stale "Time Lord has not been run" header corrected. Filed
+  from this Log: `lineHit` broadphase + `LINE_HALF_WIDTH` = BACKLOG.md
+  **fb081**; Poison Barrel tick cadence (fb062's sim half) = **fb082**;
+  `towerArea` key for the two tower passives = **fb083** (QUESTIONS Q163);
+  `summonCap` key for c004 = **fb084**; the `content.ts`/shared-file
+  enablers for fb056/fb057/fb059/fb061 = **fb085**; Blood Tithe's missing
+  lifesteal clause = **fb086**; the three unscaled previews = BACKLOG-UI.md
+  **fb115** (filed as fb090); b036's fold regression = **fb114** (filed as fb089) — both renumbered at the 2026-09-04 merge.
 
 - (2026-09-03, lane split) Known cross-lane touchpoints to expect here
   rather than edit: class registration in shared sim files

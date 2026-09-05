@@ -185,6 +185,7 @@ export function scanWorld(w: World): string[] {
   }
 
   for (const [k, v] of Object.entries(w.damageByWeapon)) nonNeg(`damageByWeapon.${k}`, v);
+  for (const [k, v] of Object.entries(w.damageByWeaponVs)) nonNeg(`damageByWeaponVs.${k}`, v);
   for (const [k, v] of Object.entries(w.towersByKey)) nonNeg(`towersByKey.${k}`, v);
   // The whole output of the `pick` command, which is one of the two commands
   // that most often lands.

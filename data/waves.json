@@ -5,7 +5,7 @@
   "waveClearPerWave": 10,
   "startGold": 250,
   "coreHp": 500,
-  "spawnIntervalSeconds": 1.02,
+  "spawnIntervalSeconds": 0.41,
   "maxStackedWaves": 3,
   "waves": [
     {
@@ -35,11 +35,11 @@
       "groups": [
         {
           "enemy": "husk",
-          "perGate": 12
+          "perGate": 30
         },
         {
           "enemy": "spitter",
-          "perGate": 4
+          "perGate": 10
         }
       ]
     },
@@ -48,11 +48,11 @@
       "groups": [
         {
           "enemy": "bulwark",
-          "perGate": 6
+          "perGate": 15
         },
         {
           "enemy": "husk",
-          "perGate": 8
+          "perGate": 20
         }
       ]
     },
@@ -61,7 +61,7 @@
       "groups": [
         {
           "enemy": "sprinter",
-          "perGate": 14
+          "perGate": 35
         },
         {
           "enemy": "colossus",
@@ -74,11 +74,11 @@
       "groups": [
         {
           "enemy": "husk",
-          "perGate": 10
+          "perGate": 25
         },
         {
           "enemy": "gale_imp",
-          "perGate": 6
+          "perGate": 15
         }
       ]
     },
@@ -87,11 +87,11 @@
       "groups": [
         {
           "enemy": "bulwark",
-          "perGate": 8
+          "perGate": 20
         },
         {
           "enemy": "mender",
-          "perGate": 4
+          "perGate": 10
         }
       ]
     },
@@ -100,11 +100,11 @@
       "groups": [
         {
           "enemy": "swarm_rat",
-          "perGate": 16
+          "perGate": 40
         },
         {
           "enemy": "splitling",
-          "perGate": 6
+          "perGate": 15
         }
       ]
     },
@@ -113,19 +113,19 @@
       "groups": [
         {
           "enemy": "burrower",
-          "perGate": 6
+          "perGate": 15
         },
         {
           "enemy": "spitter",
-          "perGate": 6
+          "perGate": 15
         },
         {
           "enemy": "wraith",
-          "perGate": 4
+          "perGate": 10
         },
         {
           "enemy": "gale_imp",
-          "perGate": 4
+          "perGate": 10
         }
       ]
     },
@@ -134,19 +134,19 @@
       "groups": [
         {
           "enemy": "husk",
-          "perGate": 8
+          "perGate": 20
         },
         {
           "enemy": "bulwark",
-          "perGate": 4
+          "perGate": 10
         },
         {
           "enemy": "shellback",
-          "perGate": 4
+          "perGate": 10
         },
         {
           "enemy": "charger",
-          "perGate": 3
+          "perGate": 8
         }
       ]
     },
@@ -155,19 +155,19 @@
       "groups": [
         {
           "enemy": "sprinter",
-          "perGate": 8
+          "perGate": 20
         },
         {
           "enemy": "spitter",
-          "perGate": 6
+          "perGate": 15
         },
         {
           "enemy": "bomber",
-          "perGate": 4
+          "perGate": 10
         },
         {
           "enemy": "warlock",
-          "perGate": 3
+          "perGate": 8
         }
       ]
     },
@@ -176,19 +176,19 @@
       "groups": [
         {
           "enemy": "husk",
-          "perGate": 10
+          "perGate": 25
         },
         {
           "enemy": "frostkin",
-          "perGate": 5
+          "perGate": 13
         },
         {
           "enemy": "cinderling",
-          "perGate": 5
+          "perGate": 13
         },
         {
           "enemy": "gale_imp",
-          "perGate": 4
+          "perGate": 10
         }
       ]
     },
@@ -197,23 +197,23 @@
       "groups": [
         {
           "enemy": "bulwark",
-          "perGate": 6
+          "perGate": 15
         },
         {
           "enemy": "shellback",
-          "perGate": 5
+          "perGate": 13
         },
         {
           "enemy": "charger",
-          "perGate": 4
+          "perGate": 10
         },
         {
           "enemy": "burrower",
-          "perGate": 4
+          "perGate": 10
         },
         {
           "enemy": "wraith",
-          "perGate": 3
+          "perGate": 8
         }
       ]
     },
@@ -222,19 +222,19 @@
       "groups": [
         {
           "enemy": "swarm_rat",
-          "perGate": 18
+          "perGate": 45
         },
         {
           "enemy": "splitling",
-          "perGate": 8
+          "perGate": 20
         },
         {
           "enemy": "mender",
-          "perGate": 5
+          "perGate": 13
         },
         {
           "enemy": "bomber",
-          "perGate": 4
+          "perGate": 10
         }
       ]
     },
@@ -247,15 +247,15 @@
         },
         {
           "enemy": "husk",
-          "perGate": 10
+          "perGate": 25
         },
         {
           "enemy": "spitter",
-          "perGate": 6
+          "perGate": 15
         },
         {
           "enemy": "warlock",
-          "perGate": 4
+          "perGate": 10
         }
       ]
     },
@@ -268,15 +268,15 @@
         },
         {
           "enemy": "bulwark",
-          "perGate": 8
+          "perGate": 20
         },
         {
           "enemy": "frostkin",
-          "perGate": 5
+          "perGate": 13
         },
         {
           "enemy": "cinderling",
-          "perGate": 5
+          "perGate": 13
         }
       ]
     },
@@ -285,27 +285,27 @@
       "groups": [
         {
           "enemy": "charger",
-          "perGate": 6
+          "perGate": 15
         },
         {
           "enemy": "shellback",
-          "perGate": 6
+          "perGate": 15
         },
         {
           "enemy": "wraith",
-          "perGate": 5
+          "perGate": 13
         },
         {
           "enemy": "burrower",
-          "perGate": 5
+          "perGate": 13
         },
         {
           "enemy": "gale_imp",
-          "perGate": 5
+          "perGate": 13
         },
         {
           "enemy": "warlock",
-          "perGate": 4
+          "perGate": 10
         }
       ]
     },
@@ -318,21 +318,23 @@
         },
         {
           "enemy": "bulwark",
-          "perGate": 6
+          "perGate": 15
         },
         {
           "enemy": "shellback",
-          "perGate": 6
+          "perGate": 15
         },
         {
           "enemy": "charger",
-          "perGate": 4
+          "perGate": 10
         }
       ]
     }
   ],
   "enemyStructureDpsFactor": 3,
-  "eliteMulByCycle": { "2": 2 },
+  "eliteMulByCycle": {
+    "2": 2
+  },
   "nightMinuteOffsetPerCycle": 2.5,
   "tdWavesPerVsWave": 3,
   "vsWaveSeconds": 75

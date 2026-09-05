@@ -374,7 +374,11 @@ const LEDGER: readonly Claim[] = [
   {
     cls: 'pyromancer',
     slot: 'passive',
-    token: '2',
+    // p12a (BALANCE DIRECTION v2 §A): 2 -> 6 with the x3 kit re-anchor. The
+    // sentence is authored in `data/classes.json` beside the field it quotes,
+    // so the re-anchor had to move both — this row is what makes that a
+    // decision rather than a silent desync.
+    token: '6',
     means: "the burning aura's damage per second",
     // "/s" is outside the extractor's unit set, so the keyword is what holds
     // the rate: QA reworded it to "damage/minute" against a per-second field.
