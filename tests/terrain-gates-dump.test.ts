@@ -146,6 +146,20 @@ describe('fb065f — describeTerrain carries its gate list', () => {
     expect(wrong.legalCoreCount).not.toBe(truth.legalCoreCount);
   });
 
+  it('leaves a three-gate dump alone: declared is not required', () => {
+    // QA's M4: making the optional key *required* passed this whole file,
+    // because every three-gate case in it expected a throw for some other
+    // reason and none ever parsed one successfully. The claim the item rests on
+    // — that a declared key need not be emitted — was therefore pinned nowhere
+    // in the file that makes it.
+    const map = generateTerrain(7, cfg);
+    const dump = describeTerrain(map, cfg);
+    expect(dump.split('\n')[2]).toBe('gates west=0,10 north=18,0 east=35,17');
+    const parsed = parseTerrainDump(dump);
+    expect(parsed.gates).toHaveLength(3);
+    expect(Array.from(parsed.kind)).toEqual(Array.from(map.kind));
+  });
+
   it('refuses to write a gate list it could not read back', () => {
     // The writer was one-sided: it accepted any list and happily emitted a
     // `gates` line `parseTerrainDump` rejects. `describeTerrain` is deliberately
@@ -184,6 +198,22 @@ describe('fb065f — describeTerrain carries its gate list', () => {
     // this guard existed.
     expect(() => parseTerrainDump(swap('south=012,019'))).toThrow(/gate "south" is not "tx,ty"/);
     expect(() => parseTerrainDump(swap('south=-0,19'))).toThrow(/gate "south" is not "tx,ty"/);
+    // **Where a gate can be, not merely that it is a tile.** The first version
+    // of this parser said "nothing in this build knows where a modifier gate
+    // belongs", which was false: `Grid.openGate` (fb065e, one commit earlier)
+    // already refuses every tile that cannot carry a gate, and those rules are
+    // properties of the arena rather than of any modifier. Without them
+    // `south=18,10` — the middle of the board — read back as a legal arena
+    // whose bands were measured somewhere the reader cannot see.
+    expect(() => parseTerrainDump(swap('south=18,10'))).toThrow(/not on the arena border/);
+    expect(() => parseTerrainDump(swap('south=25,9'))).toThrow(/not on the arena border/);
+    for (const corner of ['0,0', `${GRID_W - 1},0`, `0,${GRID_H - 1}`, `${GRID_W - 1},${GRID_H - 1}`]) {
+      expect(() => parseTerrainDump(swap(`south=${corner}`)), corner).toThrow(/is a corner/);
+    }
+    // ...and not on top of a gate that is already there.
+    expect(() => parseTerrainDump(swap('south=0,10'))).toThrow(
+      /where gate "west" already is/,
+    );
     // A modifier gate ahead of the base three is not something the writer
     // emits, so it is refused by the same order rule fb064w put on every line.
     expect(() =>

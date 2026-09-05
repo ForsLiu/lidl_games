@@ -997,10 +997,15 @@ highest-impact item here by a wide margin** and sits third only for that reason.
       `corridors` and `gatesConnected` against the wrong set. Harmless until
       fb065c made a wrong-gate dump reachable from a real run. Measured by
       the whole `bands` line (and the `counts` line with it) differs from
-      `measureTerrain(view, cfg, w.gates)` on **30 of 30** four-gate seeds —
-      `coreLegal` is wrong on every one — while `gateDetour` alone differs on
-      **8 of 30**, worst delta **0.1446** at seed 1 (printed 1.000000, real
-      1.144578). **The "8/30" that stood here first was fb065c's QA figure
+      `measureTerrain(view, cfg, w.gates)` on **30 of 30** four-gate seeds. The
+      per-band breakdown, because "bands" alone hid which: **`coreLegal` 30/30**
+      (worst delta 0.056757 at seed 29) and **`legalCoreCount` 30/30** on the
+      `counts` line, **`maxGateDetour` 8/30** (worst 0.144578 at seed 1, printed
+      1.000000 against a real 1.144578), and `walkable`, `buildableNormal`,
+      `gateReach`, `corridors`, `gatesOpen`, `gatesConnected` **0/30**. An
+      earlier version of this entry and of the commit message named `gateReach`,
+      `corridors` and `gatesConnected` as affected — none of them are — and
+      never named `coreLegal`, which is the band wrong on every seed. **The "8/30" that stood here first was fb065c's QA figure
       inherited without re-measurement**: it is the `gateDetour`-only count
       reported as though it were the whole line, and it understated the defect
       fourfold — the failure CLAUDE.md's measurement rules name outright,
@@ -1070,6 +1075,25 @@ highest-impact item here by a wide margin** and sits third only for that reason.
       `south` literal is declared once instead of in three places; `world.ts`
       still writes its own copy, and folding that in is out of lane and logged
       for the merge.
+      **The QA round then found the parser was still too lenient about *where* a
+      modifier gate is, and the comment excusing it was false.** It read
+      "nothing in this build knows where a modifier gate belongs" — but
+      `Grid.openGate`, added by fb065e one commit earlier, already refuses every
+      tile that cannot carry a gate, and those rules are properties of the arena
+      rather than of any modifier. Measured: `south=18,10` (the middle of the
+      board), all four corners, `south=25,9` (on the Core) and `south=0,10` (on
+      top of the `west` gate) all parsed clean, each reading back as a legal
+      arena whose bands were measured somewhere the reader cannot see — the same
+      class of defect this item exists to close. Now refused on the border,
+      corner and collision rules, each with its own message.
+      **Two test gaps from the same round, both closed.** The gates line's
+      refusal *text* was pinned nowhere — existing coverage pins only the `seed`
+      and `counts` lines — which is how the widened key set changed two messages
+      while the record claimed they had not. And QA's M4 (make the optional key
+      required) passed this item's whole file, because every three-gate case in
+      it expected a throw for some other reason and none ever parsed one
+      successfully: the claim the item rests on was pinned nowhere in the file
+      that makes it.
       **One thing left open, recorded rather than fixed:** `describeTerrain` has
       no non-test caller, so the gate list is opt-in and any future repro path
       that forgets the third argument reproduces the defect exactly. Whether
@@ -1129,6 +1153,71 @@ highest-impact item here by a wide margin** and sits third only for that reason.
       unchanged — refs: `describe.ts` header, fb064b `contentHash()`, fb064s.
 
 ## Log
+
+- (2026-09-05, fb065e + fb065f, QA rounds) **Both PASS on the current head, and
+  between them they found four things worth keeping.**
+
+  **fb065e.** QA re-derived the defect and found it *wider* than the record
+  stated in two ways. The staleness is not border-only: on seed 7 the interior
+  tile (6, 1) is `Open`/`Rock`/`blocked=1`, and a raw Gate write there gives
+  `Gate`/`Rock`/`blocked=0` — identical to the border case. No shipped API can
+  produce that (`openGate` refuses a non-border tile, `placeCore` refuses
+  non-normal terrain), so it is a defect in the *record*, and the accepted case
+  is now stated as wide as it is. The border framing was not wrong about the
+  border, though, and the sharper version is now pinned: every border tile that
+  is not one of the three gates is `Rock` on every generated map (5400 border
+  tiles over seeds 1..50, the 150 exceptions being exactly 3 gates x 50 seeds).
+  Second: `openGate` re-derives all 720 tiles, so it silently *repairs* drift
+  anywhere on the board — which is desirable, was documented nowhere, and is
+  the one behaviour a patch-style implementation cannot imitate through the
+  public surface. It is now its own case, and it kills QA's surviving M11
+  mutant through the public API rather than only through the private-mask
+  comparison. QA's reasoning for why the public predicates provably *could not*
+  kill it is worth keeping: at a Gate tile `staticBlocked` returns before
+  reading `terrainBlock`, `wardenPassable` returns `true` on any non-`Open`
+  tile before reading `terrainCharBlock`, and `buildable`/`isHighGround`/
+  `unbuildableForTerrain` all require `tile === Open` — so `terrainKind` is the
+  only mask observable there at all.
+  Third, recorded as an accepted case rather than fixed: `openGate` refuses
+  what cannot *be* a gate but not what no map can *reach*. Over seeds 1, 7, 40,
+  52, 99 and every legal single opening, **131 of 505 (25.9%)** leave some gate
+  unreachable. Left to the caller deliberately — `applyRunTerrain` already
+  re-checks `allGatesReachable()` and regenerates, and a refusal here would turn
+  a recoverable situation into a throw out of a World constructor — and the rate
+  is pinned so a generator retune moves a number.
+  **And the answer to the question the merge needs**, measured by QA before the
+  retraction landed: wiring `world.ts`'s Fourth Gate through `openGate` changes
+  **nothing** — 200 `World` constructions (seeds 1..100 x with/without the
+  modifier) hash byte-identically over `tile|blocked|terrainKind` and both flow
+  fields, and 10 full sims match on `endHash`, `ticks` and `outcome`. The merge
+  note should say it is safe as a drop-in **because that call site is correctly
+  ordered**, not because ordering stopped mattering.
+
+  **fb065f.** QA's Major is the one to keep: the parser was still too lenient
+  about *where* a modifier gate is, and the comment excusing it was false.
+  `south=18,10` (mid-board), all four corners, `south=25,9` (on the Core) and
+  `south=0,10` (on top of the `west` gate) all parsed clean — each reading back
+  as a legal arena whose bands were measured somewhere the reader cannot see.
+  The excuse was "nothing in this build knows where a modifier gate belongs",
+  and `Grid.openGate` — added by *this lane*, one commit earlier — refuses every
+  one of those tiles. Two test gaps came with it, both closed: the gates line's
+  refusal *text* was pinned nowhere, which is how a widened key set changed two
+  messages while the record claimed otherwise; and QA's M4 (make the optional
+  key required) passed the item's whole file, because every three-gate case in
+  it expected a throw for some other reason and none ever parsed one
+  successfully — the claim the item rests on was pinned nowhere in the file that
+  makes it.
+  QA also sharpened the corrected headline one step further: of the nine
+  measures, only `coreLegalFrac` (30/30), `legalCoreCount` (30/30) and
+  `maxGateDetour` (8/30) ever differ. The commit message named `gateReach`,
+  `corridors` and `gatesConnected` as affected; they differ on **0/30**.
+
+  **A process note both rounds hit.** Each QA agent found the main working tree
+  changing under it mid-run, because this loop commits at green stable points
+  while verification is still going. Both re-took every number in a detached
+  worktree, which is the right answer and is now the standing instruction to
+  them — but the loop should say up front which commit is under test rather than
+  leaving an agent to notice.
 
 - (2026-09-05, generation rule) **The sweep leg, finally run — and terrain is
   costing the game most of its win rate.**

@@ -789,6 +789,27 @@ describe('fb064w — a header line is refused unless its fields are exactly what
     expect([...Object.keys(HEADER_KEYS)].sort()).toEqual([...HEADS].sort());
   });
 
+  it('pins the gates line’s refusal text, which fb065f changed silently', () => {
+    // fb065f widened `HEADER_KEYS.gates`, which widened the key set these two
+    // messages enumerate — from `west north east` to `west north east south`.
+    // That is forced by the design and is fine; what was not fine is that the
+    // item claimed the messages were unchanged and no test could have caught
+    // it, because the existing coverage pins only the `seed` and `counts`
+    // lines. Pinned here so the next modifier gate makes the text change
+    // visible in review instead of in a QA report.
+    const dump = describeTerrain(generateTerrain(7, cfg), cfg);
+    const line = headerLine(dump, 'gates');
+    expect(() => parseTerrainDump(dump.replace(line, `${line} bogus=1,1`))).toThrow(
+      'parseTerrainDump: unknown "bogus" on the "gates" line; expected west north east south',
+    );
+    expect(() =>
+      parseTerrainDump(dump.replace(line, 'gates north=18,0 west=0,10 east=35,17')),
+    ).toThrow(
+      'parseTerrainDump: "gates" line has "west" after "north"; ' +
+        'fields are in a fixed order, expected west north east south',
+    );
+  });
+
   it('keeps the optional gate key last, which is what keeps the order pin total', () => {
     // The argument that lets `gates` carry an optional key without weakening
     // fb064w. `fields()` refuses a declared key that appears after one further

@@ -670,11 +670,18 @@ export function parseTerrainDump(text: string): TerrainDump {
     }
     return { key: g.key, tx: g.tx, ty: g.ty };
   });
-  // fb065f: the modifier gates, when present. Nothing in this build knows where
-  // one belongs — `world.ts` chooses the tile — so the only check available is
-  // that it is a tile at all, which is worth making: the alternative is a dump
-  // whose `gates` line indexes off the board and whose bands were therefore
-  // measured somewhere the reader cannot see.
+  // fb065f: the modifier gates, when present.
+  //
+  // **These are checked as hard as a gate can be checked**, which is harder
+  // than a first version assumed. Its comment said "nothing in this build knows
+  // where a modifier gate belongs", and that is false: `Grid.openGate` (fb065e,
+  // one commit earlier) already refuses every tile that cannot carry a gate,
+  // and those rules are properties of the arena rather than of any particular
+  // modifier. A gate is on the border, is not a corner (its only interior
+  // neighbour would be diagonal, so no walker reaches it), and is not on top of
+  // another gate. Without these, `south=18,10` — the middle of the board — read
+  // back as a legal arena whose bands were measured somewhere the reader cannot
+  // see, which is the same class of defect this item exists to close.
   const BASE = new Set(GATES.map((g) => g.key));
   for (const key of HEADER_KEYS.gates) {
     if (BASE.has(key)) continue;
@@ -686,6 +693,15 @@ export function parseTerrainDump(text: string): TerrainDump {
     // board every other gate on this line is judged by.
     if (tx >= GRID_W || ty >= GRID_H) {
       fail(`gate "${key}" is at ${raw}, which is off the ${GRID_W}x${GRID_H} arena`);
+    }
+    const onEdge = tx === 0 || ty === 0 || tx === GRID_W - 1 || ty === GRID_H - 1;
+    if (!onEdge) fail(`gate "${key}" is at ${raw}, which is not on the arena border`);
+    if ((tx === 0 || tx === GRID_W - 1) && (ty === 0 || ty === GRID_H - 1)) {
+      fail(`gate "${key}" is at ${raw}, which is a corner; no gate is reachable there`);
+    }
+    const clash = gates.find((g) => g.tx === tx && g.ty === ty);
+    if (clash !== undefined) {
+      fail(`gate "${key}" is at ${raw}, where gate "${clash.key}" already is`);
     }
     gates.push({ key, tx, ty });
   }

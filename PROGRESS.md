@@ -11,8 +11,9 @@
   fb077's Fourth Gate modifier produced a repro that printed three gates and
   measured `gateReach`/`gateDetour`/`corridors`/`gatesConnected` against three —
   every one of 30 four-gate seeds printed a `bands` line differing from the
-  truth (`coreLegal` wrong on all 30; `gateDetour` on 8 of them, worst delta
-  0.1446). The "8 of 30" this entry first carried was an inherited figure that
+  truth — `coreLegal` and the `counts` line's `coreAnchors` wrong on all 30,
+  `gateDetour` on 8 of them (worst 0.1446), and the other six bands on none.
+  The "8 of 30" this entry first carried was an inherited figure that
   understated the defect fourfold; it is re-measured and corrected. It takes an optional gate list now, and
   `parseTerrainDump` reads a four-gate line back.
 

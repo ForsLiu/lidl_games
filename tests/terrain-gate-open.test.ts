@@ -19,7 +19,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { GATES, Grid, GRID_H, GRID_W, TileType } from '../src/sim/grid';
+import { CORE_H, CORE_W, CORE_X, CORE_Y, GATES, Grid, GRID_H, GRID_W, TileType } from '../src/sim/grid';
 import {
   generateTerrain,
   gridTerrain,
@@ -33,6 +33,19 @@ const cfg = loadTerrain();
 
 /** The south wall tile `world.ts` opens as the Fourth Gate. */
 const SOUTH = { tx: 12, ty: 19 };
+
+/** Every border tile that is not already a gate, in a fixed order. */
+function borderTiles(): Array<readonly [number, number]> {
+  const out: Array<readonly [number, number]> = [];
+  const isGate = (x: number, y: number): boolean => GATES.some((g) => g.tx === x && g.ty === y);
+  for (let x = 0; x < GRID_W; x++) {
+    for (const y of [0, GRID_H - 1]) if (!isGate(x, y)) out.push([x, y]);
+  }
+  for (let y = 1; y < GRID_H - 1; y++) {
+    for (const x of [0, GRID_W - 1]) if (!isGate(x, y)) out.push([x, y]);
+  }
+  return out;
+}
 
 function applied(seed: number): Grid {
   const g = new Grid();
@@ -59,6 +72,127 @@ describe('fb065e — opening a gate after terrain is applied', () => {
     expect(g.blocked[i]).toBe(0);
     expect(g.terrainKind[i]).toBe(TerrainKind.Rock);
     expect(gridTerrain(g).kind[i]).toBe(TerrainKind.Rock);
+  });
+
+  it('...and the staleness is not border-only, which the first record understated', () => {
+    // QA's finding. The accepted case was written as a border-row story — gates
+    // live on the border, `syncTerrain` skips `Border`, the border is rock — and
+    // all of that is true, but none of it is what causes the staleness. Any
+    // structural `tile[]` write after the last sync leaves the terrain arrays
+    // holding the old answer, wherever it lands. Measured on an *interior*
+    // tile: (6,1) on seed 7 is `Open`/`Rock`/`blocked=1`, and a raw Gate write
+    // there gives `Gate`/`Rock`/`blocked=0` — identical to the border case.
+    //
+    // No shipped API can produce this (`openGate` refuses a non-border tile and
+    // `placeCore` refuses non-normal terrain), so it is a defect in the
+    // *record* rather than a new hole; recorded here so the accepted case is
+    // stated as wide as it is.
+    const g = applied(7);
+    const i = g.idx(6, 1);
+    expect([g.tile[i], g.terrainKind[i], g.blocked[i]]).toEqual([
+      TileType.Open,
+      TerrainKind.Rock,
+      1,
+    ]);
+    g.tile[i] = TileType.Gate;
+    g.markDirty();
+    g.refresh();
+    expect([g.tile[i], g.terrainKind[i], g.blocked[i]]).toEqual([
+      TileType.Gate,
+      TerrainKind.Rock,
+      0,
+    ]);
+    // The border framing was not wrong about the border, though: every border
+    // tile that is not one of the three gates is `Rock` on every generated map
+    // (5400 border tiles over seeds 1..50; the 150 exceptions are exactly the
+    // 3 gates x 50 seeds).
+    for (const seed of [1, 7, 40]) {
+      const map = generateTerrain(seed, cfg);
+      for (let x = 0; x < GRID_W; x++) {
+        for (const y of [0, GRID_H - 1]) {
+          if (GATES.some((gate) => gate.tx === x && gate.ty === y)) continue;
+          expect(map.kind[y * GRID_W + x], `seed ${seed} (${x},${y})`).toBe(TerrainKind.Rock);
+        }
+      }
+    }
+  });
+
+  it('re-derives the whole board, not the one tile — which is what a patch cannot fake', () => {
+    // QA's second finding, turned into the assertion the private-mask
+    // comparison was standing in for. `syncTerrain` rebuilds all 720 tiles from
+    // the raw overlay and the *current* structural tiles, so `openGate` also
+    // repairs drift anywhere else on the board. That is desirable and it was
+    // documented nowhere — and it is the one behaviour a patch-style
+    // implementation cannot imitate through the public surface.
+    //
+    // The fixture: an overlay whose Core footprint is really rock. `Grid` hides
+    // that behind the structural override while the Core stands there; vacate
+    // the footprint with a raw write and the override is stale, leaving two
+    // tiles of phantom normal ground over rock. `openGate`, 300-odd tiles away,
+    // puts it back.
+    const kind = new Uint8Array(GRID_W * GRID_H).fill(TerrainKind.Normal);
+    for (let x = 0; x < GRID_W; x++) {
+      kind[x] = TerrainKind.Rock;
+      kind[(GRID_H - 1) * GRID_W + x] = TerrainKind.Rock;
+    }
+    for (let y = 0; y < GRID_H; y++) {
+      kind[y * GRID_W] = TerrainKind.Rock;
+      kind[y * GRID_W + GRID_W - 1] = TerrainKind.Rock;
+    }
+    for (const gate of GATES) kind[gate.ty * GRID_W + gate.tx] = TerrainKind.Normal;
+    for (let dy = 0; dy < CORE_H; dy++) {
+      for (let dx = 0; dx < CORE_W; dx++) kind[(CORE_Y + dy) * GRID_W + (CORE_X + dx)] = TerrainKind.Rock;
+    }
+    const g = new Grid();
+    g.applyTerrain(terrainOverlay({ w: GRID_W, h: GRID_H, kind }, cfg));
+    g.refresh();
+
+    const ci = g.idx(CORE_X, CORE_Y);
+    // The override hides the rock while the Core stands on it.
+    expect(g.terrainKind[ci]).toBe(TerrainKind.Normal);
+    // A raw vacate leaves that hiding in place: phantom normal ground on rock.
+    for (let dy = 0; dy < CORE_H; dy++) {
+      for (let dx = 0; dx < CORE_W; dx++) g.tile[g.idx(CORE_X + dx, CORE_Y + dy)] = TileType.Open;
+    }
+    g.markDirty();
+    g.refresh();
+    expect(g.terrainKind[ci]).toBe(TerrainKind.Normal);
+    expect(g.blocked[ci]).toBe(0);
+
+    // ...and opening a gate on the far side of the board repairs it.
+    g.openGate(12, GRID_H - 1);
+    expect(g.terrainKind[ci]).toBe(TerrainKind.Rock);
+    expect(g.blocked[ci]).toBe(1);
+  });
+
+  it('does not check that the gate it opened is reachable, and that is a decision', () => {
+    // `openGate` refuses what cannot *be* a gate (a non-border tile, a corner)
+    // but not what no map can *reach*. Measured over seeds 1, 7, 40, 52, 99 and
+    // every legal single opening: **131 of 505 (25.9%)** leave some gate
+    // unreachable, because the border tile chosen may sit behind a rock shelf.
+    //
+    // Left to the caller on purpose: the reachable set depends on the whole
+    // board, `applyRunTerrain` already re-checks `allGatesReachable()` and
+    // regenerates, and a refusal here would turn a recoverable situation into a
+    // throw out of a World constructor. The rate is pinned so a generator
+    // retune moves a number rather than silently changing what a caller must
+    // check.
+    let stranded = 0;
+    let opened = 0;
+    for (const seed of [1, 7, 40, 52, 99]) {
+      for (const [x, y] of borderTiles()) {
+        const g = applied(seed);
+        try {
+          g.openGate(x, y);
+        } catch {
+          continue;
+        }
+        g.refresh();
+        opened++;
+        if (!g.allGatesReachable()) stranded++;
+      }
+    }
+    expect({ opened, stranded }).toEqual({ opened: 505, stranded: 131 });
   });
 
   it('openGate writes the tile and re-derives the terrain in one step', () => {
