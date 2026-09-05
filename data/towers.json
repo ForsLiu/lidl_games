@@ -77,7 +77,7 @@
       "blocks": true,
       "attack": {
         "kind": "single",
-        "damage": 100,
+        "damage": 210,
         "interval": 0.7143,
         "range": 5,
         "pierce": 0,
@@ -160,7 +160,7 @@
       "blocks": true,
       "attack": {
         "kind": "cone",
-        "damage": 103.6,
+        "damage": 150,
         "interval": 0.3571,
         "range": 3.5,
         "coneHalfAngle": 0.6,
@@ -199,7 +199,7 @@
       "blocks": true,
       "attack": {
         "kind": "aura",
-        "damage": 234,
+        "damage": 248,
         "interval": 1.4286,
         "range": 3,
         "slow": 0.35,
@@ -234,7 +234,7 @@
       "blocks": true,
       "attack": {
         "kind": "chain",
-        "damage": 319,
+        "damage": 401,
         "interval": 1.2857,
         "range": 5,
         "chains": 1,
@@ -276,7 +276,7 @@
       "blocks": true,
       "attack": {
         "kind": "lob",
-        "damage": 1602,
+        "damage": 4200,
         "interval": 3.1429,
         "range": 10,
         "minRange": 4,
@@ -321,7 +321,7 @@
       "blocks": true,
       "attack": {
         "kind": "poison",
-        "damage": 380,
+        "damage": 588,
         "interval": 1.4286,
         "range": 4.5,
         "aoe": 0.85,

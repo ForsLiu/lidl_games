@@ -23,6 +23,20 @@ import { cfg } from './helpers';
 const content = loadContent();
 const swordsman = content.classByKey.get('swordsman')! as ClassDef;
 
+/**
+ * A "survives the hit" dummy's HP, stated as a **ratio to the class's own
+ * authored kit damage** rather than the flat 1000 these tests used to
+ * hardcode (p12a, BALANCE DIRECTION v2 §A). Several cases below need the
+ * struck enemy to live through a full-charge Circle Slash so the branch
+ * under test (knockback, `applyEffects`/`onHit`, a damage comparison that a
+ * clamp-at-zero would satisfy by accident) actually runs. A literal made
+ * that guarantee only against one particular tuning of `active1.damage`, so
+ * every kit re-anchor had to renegotiate it; derived, the margin holds by
+ * construction. 40x the biggest single kit number is far past what any one
+ * hit can roll even at full charge with stat multipliers on top.
+ */
+const DUMMY_HP = 40 * Math.max(swordsman.active1.damage, swordsman.active2.damage, swordsman.basicAttack.dps);
+
 function held(active1Held: boolean, over: Partial<TickInput> = {}): TickInput {
   return { mx: 0, my: 0, dash: false, attack: false, aimX: 0, aimY: 0, active1Held, cmds: [], ...over };
 }
@@ -138,8 +152,8 @@ describe('p6b: Circle Slash charges on hold and fires on release, scaled by char
     // High HP so neither dies mid-test — a clamped-at-0 comparison would
     // still pass by accident and hide a scaling regression.
     for (const e of [eMin, eMax, farMax]) {
-      e.hp = 1000;
-      e.maxHp = 1000;
+      e.hp = DUMMY_HP;
+      e.maxHp = DUMMY_HP;
     }
     wMin.rebuildBuckets();
     wMax.rebuildBuckets();
@@ -156,8 +170,8 @@ describe('p6b: Circle Slash charges on hold and fires on release, scaled by char
 
   it('a full charge knocks a struck enemy back away from the Warden', () => {
     const e = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 1.2, w.warden.y)!;
-    e.hp = 1000; // survive the hit so the knockback branch (gated on `!e.dead`) actually runs
-    e.maxHp = 1000;
+    e.hp = DUMMY_HP; // survive the hit so the knockback branch (gated on `!e.dead`) actually runs
+    e.maxHp = DUMMY_HP;
     w.rebuildBuckets();
     const before = { x: e.x, y: e.y };
     for (let t = 0; t < 250; t++) updateWarden(w, held(true), 1 / 60);
@@ -188,8 +202,8 @@ describe('p6b: Dash Slash — mouse-aimed line, own cooldown, moves the Warden',
   it('damages an enemy on the aimed line and applies exactly 1 Bleeding', () => {
     const w = worldWith();
     const e = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 3, w.warden.y)!;
-    e.hp = 1000; // survive the hit — a dead enemy skips `applyEffects`/onHit entirely
-    e.maxHp = 1000;
+    e.hp = DUMMY_HP; // survive the hit — a dead enemy skips `applyEffects`/onHit entirely
+    e.maxHp = DUMMY_HP;
     w.rebuildBuckets();
     const hpBefore = e.hp;
     applyCommand(w, { k: 'class_active2', aimX: e.x, aimY: e.y });
@@ -391,8 +405,8 @@ describe('p6b: QA bug 1 — w.dying freezes Command-driven class actions, not ju
     const w = worldWith();
     w.phase = 'act2'; // huntsWarden, so damageWarden's own defeat path is live
     const e = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 3, w.warden.y)!;
-    e.hp = 1000;
-    e.maxHp = 1000;
+    e.hp = DUMMY_HP;
+    e.maxHp = DUMMY_HP;
     w.rebuildBuckets();
     damageWarden(w, 1e9);
     expect(w.dying).toBe('defeat_warden');
@@ -424,8 +438,8 @@ describe('p6b: QA bug 1 — w.dying freezes Command-driven class actions, not ju
     w.gold = 1e6;
     w.phase = 'act2';
     const e = spawnEnemy(w, w.content.enemies.enemies[0].key, w.warden.x + 1, w.warden.y)!;
-    e.hp = 1000;
-    e.maxHp = 1000;
+    e.hp = DUMMY_HP;
+    e.maxHp = DUMMY_HP;
     w.rebuildBuckets();
     damageWarden(w, 1e9);
     expect(w.dying).toBe('defeat_warden');

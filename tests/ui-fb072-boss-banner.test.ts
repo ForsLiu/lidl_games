@@ -117,8 +117,12 @@ describe('fb072: boss HP banner', () => {
   it('shows the lower-current-hp boss without crashing when two are alive at once', () => {
     const gate = spawnEnemy(w, 'gatebreaker', w.warden.x + 4, w.warden.y, { overlay: false })!;
     const eater = spawnEnemy(w, 'warden_eater', w.warden.x + 8, w.warden.y, { overlay: false })!;
-    gate.hp = 20000; // gatebreaker maxHp 30000 -> higher current hp
-    eater.hp = 5000; // warden_eater maxHp 100000 -> lower current hp
+    // Fractions of each boss's own maxHp, not literals: `data/enemies.json`'s
+    // boss HP is a ⚖ number (fb099 moved warden_eater 100000 -> 365000 while
+    // this test still said 5000 = 5%).
+    gate.hp = gate.maxHp; // higher current hp (absolute, which is what the banner ranks on)
+    eater.hp = eater.maxHp * 0.05; // lower current hp -> the one shown
+    expect(eater.hp).toBeLessThan(gate.hp);
 
     expect(() => hud.update(w)).not.toThrow();
     const name = root.querySelector('#sw-bossbar-name') as HTMLElement;

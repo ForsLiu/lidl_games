@@ -31,6 +31,8 @@ function reportWith(over: Partial<RunReport> = {}): RunReport {
     tier: 1,
     modifiers: [],
     outcome: 'victory',
+    // fb077: every non-practice run reports whether it fell back to the flat arena.
+    terrainFallback: false,
     ticks: 0,
     // Above speedrunner's <=1920s target and with the Core at full HP (above
     // scrape_by's <=25% target) — a plain, boring victory that shouldn't
@@ -58,6 +60,7 @@ function reportWith(over: Partial<RunReport> = {}): RunReport {
     kills: 0,
     leaks: 0,
     damageByWeapon: {},
+    damageByWeaponVs: {},
     damageByType: {},
     damageTotal: 0,
     damageThroughMinute8: null,

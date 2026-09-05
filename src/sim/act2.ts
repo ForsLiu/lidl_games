@@ -6,6 +6,7 @@
 import { GRID_H, GRID_W } from './grid';
 import { clamp, dist2 } from './math';
 import { spawnEnemy } from './enemies';
+import { tierBudgetMul } from './tiers';
 import { cycleEliteMul, World } from './world';
 
 /**
@@ -170,7 +171,13 @@ export function vsBudgetBaseline(w: World, cycle: number): number {
  */
 export function budgetFor(w: World): number {
   const sp = w.content.spawns;
-  const ramp = vsBudgetBaseline(w, w.cycle) * Math.pow(sp.budgetGrowthPerMinute, w.act2Time / 60);
+  // p12b (§B): the tier ladder's budget rung, `tierBudgetPerStep^(tier-1)`
+  // (shipped 1.9/step, x3.61 at T3) — a higher tier
+  // throws more at the player per second, not just tougher individuals.
+  const ramp =
+    vsBudgetBaseline(w, w.cycle) *
+    Math.pow(sp.budgetGrowthPerMinute, w.act2Time / 60) *
+    tierBudgetMul(w.content, w.cfg.tier);
   if (sp.warmupSeconds <= 0) return ramp;
   const t = Math.min(1, w.act2Time / sp.warmupSeconds);
   return ramp * (sp.warmupStart + (1 - sp.warmupStart) * t);

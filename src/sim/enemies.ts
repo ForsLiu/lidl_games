@@ -9,6 +9,7 @@ import type { DamageTypeKey } from './damagetypes';
 import { clamp, dcos, dist, dist2, dsin, normalize } from './math';
 import { classLineBonus } from './progression';
 import { damageTakenMul } from './stats';
+import { tierCoreDamageMul, tierEnemyHpMul } from './tiers';
 import { structureArmor } from './upgrades';
 import { tickCooldown, type DotStack, type Enemy, type Structure } from './types';
 import { World } from './world';
@@ -76,13 +77,41 @@ export function makeEnemy(w: World, def: EnemyDef, x: number, y: number, opts: S
     hp *= sp.hpOverlay * sp.actIICarry;
     speed *= sp.speedOverlay;
   }
+  // p12b (§B): the tier ladder's HP rung, `tierEnemyHpPerStep^(tier-1)`,
+  // applied to every enemy. Shipped at 4.0/step (x16 at T3), fitted to the
+  // measured win-rate response rather than to §B's own ⚖ suggestion, which
+  // had no teeth at all — see BALANCE.md "Tier ladder (p12b)". Before p12b only the final boss scaled with tier at all; ordinary
+  // enemies differed between tiers solely through the random drafted
+  // modifiers, which is why a tier read as a distribution rather than a rung.
+  // Applied before the boss multipliers below so a boss takes both, the same
+  // way it already takes `mods.enemyHp` and `mods.bossHp`.
+  // p12c (§C): the roster-wide base multiplier, then p12b's tier rung. Order
+  // is immaterial (both are scalars) but stated this way because they answer
+  // different questions: `baseHpMul` sets how hard the game is at all, the
+  // rung sets how much harder each tier is than the last.
+  hp *= w.content.enemies.baseHpMul;
+  hp *= tierEnemyHpMul(w.content, w.cfg.tier);
   const isBoss = (flags & TRAIT.boss) !== 0;
   if (isBoss) hp *= 1 + w.mods.bossHp;
-  if ((flags & TRAIT.finalBoss) !== 0) {
-    // SPEC 5.5: "15,000 HP x tier multiplier". The only tier multiplier the
-    // spec defines is SPEC 8.3's reward scale, so the boss uses that.
-    hp *= 1 + w.content.modifiers.tierRewardPerStep * (w.cfg.tier - 1);
-  }
+  // SPEC 5.5: "15,000 HP x tier multiplier". Until p12b the only tier
+  // multiplier the spec defined was SPEC 8.3's *reward* scale
+  // (`tierRewardPerStep`), so the final boss borrowed that for want of a real
+  // one — it was the single place `cfg.tier` scaled anything directly. §B
+  // authors an actual tier ladder, so the boss now takes that same rung as
+  // every other enemy (applied above) instead of a second, ad-hoc one: one
+  // tier HP scaling in the sim, not two compounding.
+  //
+  // This is a **large, deliberate boss buff**, not a like-for-like swap: at
+  // the shipped 4.0/step the rung is x16 at T3 where the borrowed reward
+  // scale was x1.70, and x256 at T5 against x2.40. What that costs, measured
+  // rather than assumed (qa-playtester, p12b): at T3 the scripted bot's
+  // seed-1 run dies at wave 3 and **never reaches the boss at all**, which is
+  // why G14's seed-1 mechanism case is deliberately pinned to T1 in
+  // `tests/boss.test.ts` — the T3 run is contested by design, so it is not a
+  // case that can assert one seed reaches a boss. The rung itself is pinned
+  // there instead (`e3.maxHp` against `tierEnemyHpMul`). See BALANCE.md
+  // "Tier ladder (p12b)"; logged in QUESTIONS.md as a §17-adjacent reading of
+  // SPEC 5.5's "tier multiplier".
 
   const e: Enemy = {
     id: w.newId(),
@@ -228,6 +257,64 @@ export function shredArmor(e: Enemy, points: number): void {
   e.armorShred += points;
 }
 
+/**
+ * Run-long class-kit growth (BACKLOG p12a): kit damage — the five
+ * `class_basic`/`class_active`/`class_active2`/`class_passive`/`class_summon`
+ * `damageEnemy` sources — compounds with TD waves cleared (~x3.2 by wave 18)
+ * so a kit doesn't stay anchored to its launch-day value against a curve
+ * that keeps scaling. Applied after stats, at the one choke point every kit
+ * damage source already funnels through (direct hits and DoT ticks alike,
+ * since a stack's `source` string survives to tick time). Never applied to
+ * tower damage, which has its own economy and its own `towerDamageMul`.
+ */
+export function kitPowerMul(w: World): number {
+  return 1 + 0.12 * w.wavesCleared;
+}
+
+const CLASS_SOURCE_PREFIX = 'class_';
+
+/**
+ * Every `damageEnemy` source that *belongs to* the character's kit, for any
+ * consumer splitting a damage tally into kit vs not — BALANCE.md's
+ * own-kit-share target reads `damageByWeaponVs` this way.
+ *
+ * The `class_` prefix covers the five framework buckets
+ * (`class_basic`/`class_active`/`class_active2`/`class_passive`/
+ * `class_summon`); `spreading_plague` is the one kit source that does not
+ * carry it, because the Plaguebringer's §4.2 death-triggered passive
+ * dispatches from `killEnemy` under its own name so `describeSource` can
+ * label it. Exported so a consumer classifies by this list rather than by
+ * "not a tower key", which would sweep in Core effects
+ * (`carnivorous_plant`, `corpse`, `time`) and the boss's own `warden_eater`
+ * damage.
+ *
+ * **This is attribution, not scaling** — see `scalesWithKitPower` below for
+ * why the two are deliberately not the same set.
+ */
+export function isKitSource(source: string): boolean {
+  return source.startsWith(CLASS_SOURCE_PREFIX) || source === 'spreading_plague';
+}
+
+/**
+ * The narrower question `kitPower` asks: is this damage's magnitude an
+ * *authored kit number* that p12a's growth curve should compound?
+ *
+ * Every `class_` source is, so the two sets agree there. `spreading_plague`
+ * is the deliberate exception, and it is a correctness fix rather than a
+ * simplification (qa-playtester, p12a): the plague transfer's magnitude is
+ * `dotOutstanding(e)` — the sum of *every* unfinished DoT on the corpse,
+ * whoever applied it, including Venom Spore poison and Ember Brazier Burning.
+ * Scaling that by `kitPower` would multiply tower-authored damage on the
+ * hottest path the Plaguebringer has (its own `towerPassive` is
+ * `towerPoisonDamage +0.1`, so the venom-spore build is the intended
+ * synergy), breaking the invariant `kitPowerMul` states for itself. The kit's
+ * own contribution to that pool was already scaled when it was applied, so
+ * re-scaling the re-transmission would double-count it besides.
+ */
+function scalesWithKitPower(source: string): boolean {
+  return source.startsWith(CLASS_SOURCE_PREFIX);
+}
+
 /** Apply damage, returning the amount actually dealt. */
 export function damageEnemy(
   w: World,
@@ -239,6 +326,7 @@ export function damageEnemy(
   if (e.dead || !Number.isFinite(amount) || amount <= 0) return 0;
   const def = e.def as EnemyDef;
   let dmg = amount;
+  if (scalesWithKitPower(source)) dmg *= kitPowerMul(w);
 
   if (!opts.dot) dmg *= damageTakenMul(enemyArmor(e));
   // SPEC-V3 §3 frozen: +30% damage taken. A status, not armor, so unlike the
@@ -269,6 +357,15 @@ export function damageEnemy(
   const hpBeforeHit = e.hp;
   e.hp -= dmg;
   w.damageByWeapon[source] = (w.damageByWeapon[source] ?? 0) + dmg;
+  // p12a: the VS-only half of the same tally, summed across every VS block
+  // (see `World.damageByWeaponVs`). `huntsWarden` is the established
+  // "we are in the VS half" predicate — the same one the Corpse line below
+  // negates to mean "TD only" — so the two stay in step by construction.
+  // One known asymmetry, deliberate: a DoT applied during a VS block that is
+  // still ticking after the block flips back to TD is credited to the TD
+  // side, because `tickDot` calls in here under whatever phase is current at
+  // tick time. It is bounded by one stack's remaining duration per block.
+  if (w.huntsWarden) w.damageByWeaponVs[source] = (w.damageByWeaponVs[source] ?? 0) + dmg;
   w.damageTotal += dmg;
   const dmgType = opts.type ?? 'normal';
   w.damageByType[dmgType] = (w.damageByType[dmgType] ?? 0) + dmg;
@@ -1060,6 +1157,7 @@ export function updateEnemies(w: World, dt: number): void {
     // The final boss has its own script (M6); it falls through to normal
     // chase movement whenever the script has nothing to say this tick.
     if ((e.flags & TRAIT.finalBoss) !== 0 && bossUpdate(w, e, dt)) continue;
+    if (huntWarden) updateGroundUnreachable(w, e, dt, target);
 
     const taunted = tauntTarget(w, e);
     moveEnemy(w, e, def, dt, taunted ?? target, taunted !== null);
@@ -1109,6 +1207,92 @@ function updatePhasing(w: World, e: Enemy, def: EnemyDef, dt: number): void {
       e.ghosting = true;
     }
   }
+}
+
+/**
+ * fb077 (SPEC-FINAL §10.5, code review finding): real generated terrain can
+ * hard-seal a ground walker away from the Warden's current Act II position —
+ * `navFieldFor(false)` uses `Grid`'s 'blocked' mode (terrain-respecting), not
+ * the breach-cost mode Act I's Core-facing field uses, so unlike a
+ * structure-sealed pocket (which `flowAim`'s no-route fallback already
+ * handles by beelining into and chewing whatever structure it hits) a
+ * terrain-sealed pocket has nothing chewable in the way at all: the enemy
+ * beelines into raw rock forever and the run never resolves. `boss.ts`'s
+ * `updateUnreachable` already solves the identical problem for the final
+ * boss (attack the nearest structure/Core after `UNREACHABLE_THRESHOLD`
+ * seconds unreachable) — this reuses the same escape hatch
+ * `TRAIT.burrows`/`TRAIT.phases` enemies already use for exactly this
+ * purpose (`updatePhasing`, above): `e.ghosting = true` — the walker
+ * physically phases through terrain (like a Burrower/Wraith, SPEC-FINAL §10)
+ * until it reaches the Warden. No new damage numbers, no balance change:
+ * this only ever fires on a seed genuinely capable of stalling the run.
+ *
+ * Excluded: the final boss (its own script already covers this, with a
+ * damage-escalation contract that would be wrong to duplicate here) and
+ * `TRAIT.burrows`/`TRAIT.phases` enemies (already ghost on their own cycle,
+ * `updatePhasing` owns their `e.ghosting`).
+ *
+ * qa-playtester finding (post-close verification): the reachability check
+ * above cannot tell a structure-sealed pocket from a terrain-sealed one —
+ * both report no route, since Act II's field stays purely physical (no
+ * breach-cost mode, see `Grid.computeField`'s own doc comment) — so a live
+ * wall the enemy hadn't yet reached (or was already chewing) tripped the
+ * same 6s timer and ghosted straight through an undamaged structure. Fixed
+ * by checking `beelineHitsStructure`, below: when no route exists, `flowAim`
+ * falls back to beelining straight at the raw target (this same function's
+ * own logic), so whatever the walker's beeline hits first tells us whether
+ * there is anything to chew. A distance-based "is a structure nearby"
+ * heuristic was tried first and rejected: it still ghosted before contact
+ * whenever the wall was farther away than `speed * THRESHOLD` (true even of
+ * this bug's own original repro, a 12-tile approach at Husk speed), so the
+ * check has to reach all the way to the target, not just some fixed radius.
+ */
+const GROUND_UNREACHABLE_THRESHOLD = 6; // mirrors boss.ts's UNREACHABLE_THRESHOLD
+
+/**
+ * Walks the straight line from `e` to `target` in half-tile steps and
+ * reports whether the first impassable tile it meets is a live structure
+ * (chewable, per `moveEnemy`'s own bump-and-breach rule) rather than terrain
+ * or the border (nothing to chew). No route existing means this is exactly
+ * the line `flowAim`'s no-route fallback will actually walk.
+ */
+function beelineHitsStructure(w: World, e: Enemy, target: { x: number; y: number }): boolean {
+  const dx = target.x - e.x;
+  const dy = target.y - e.y;
+  const d = Math.sqrt(dx * dx + dy * dy);
+  if (d < 1e-6) return false;
+  const steps = Math.ceil(d * 2);
+  const stepX = dx / steps;
+  const stepY = dy / steps;
+  let x = e.x;
+  let y = e.y;
+  for (let i = 0; i < steps; i++) {
+    x += stepX;
+    y += stepY;
+    const tx = Math.floor(x);
+    const ty = Math.floor(y);
+    if (!w.grid.inBounds(tx, ty)) return false;
+    if (w.grid.passable(tx, ty)) continue;
+    return w.structureAt(tx, ty) !== null;
+  }
+  return false;
+}
+
+function updateGroundUnreachable(w: World, e: Enemy, dt: number, target: { x: number; y: number }): void {
+  if ((e.flags & (TRAIT.finalBoss | TRAIT.burrows | TRAIT.phases)) !== 0) return;
+  if (e.flying || e.ghosting) return;
+  const tx = Math.floor(e.x);
+  const ty = Math.floor(e.y);
+  const reachable =
+    !w.grid.inBounds(tx, ty) ||
+    (tx === Math.floor(w.warden.x) && ty === Math.floor(w.warden.y)) ||
+    w.navFieldFor(false).next[ty * GRID_W + tx] >= 0;
+  if (reachable || beelineHitsStructure(w, e, target)) {
+    e.bossUnreachableTime = 0;
+    return;
+  }
+  e.bossUnreachableTime += dt;
+  if (e.bossUnreachableTime >= GROUND_UNREACHABLE_THRESHOLD) e.ghosting = true;
 }
 
 function unstick(w: World, e: Enemy): void {
@@ -1538,13 +1722,27 @@ function separation(w: World, e: Enemy): void {
   outY = (sy / n) * SEP_STRENGTH;
 }
 
+/**
+ * An enemy's effective `coreDamage`, with p12b's tier rung applied
+ * (`tierCoreDamagePerStep^(tier-1)`, the lever QUESTIONS Q160 measured as
+ * the elastic one; shipped at 1.7/step, x2.89 at T3).
+ *
+ * Exists so all four consumers scale together: the Core leak itself, the leak
+ * telemetry event, the Warden-contact hit, and the structure-attack DPS that
+ * derives from the same number. Reading `def.coreDamage` raw anywhere else is
+ * the drift this function exists to prevent.
+ */
+export function enemyCoreDamage(w: World, def: EnemyDef): number {
+  return def.coreDamage * tierCoreDamageMul(w.content, w.cfg.tier);
+}
+
 /* ------------------------------------------------------- objective contact */
 
-function attackStructure(w: World, e: Enemy, def: EnemyDef, s: Structure, dt: number): void {
+export function attackStructure(w: World, e: Enemy, def: EnemyDef, s: Structure, dt: number): void {
   e.attackingStructure = s.id;
   const factor = w.content.waves.enemyStructureDpsFactor;
   const mul = def.structureDamageMul ?? 1;
-  const dps = Math.max(1, def.coreDamage) * factor * mul;
+  const dps = Math.max(1, enemyCoreDamage(w, def)) * factor * mul;
   damageStructure(w, s, dps * dt);
 }
 
@@ -1567,7 +1765,7 @@ export function damageStructure(w: World, s: Structure, amount: number): void {
   }
 }
 
-function leakIntoCore(w: World, e: Enemy, def: EnemyDef): void {
+export function leakIntoCore(w: World, e: Enemy, def: EnemyDef): void {
   // Floored so a swarm that keeps leaking during the defeat slow-mo beat
   // (SPEC-V2 D1) cannot drive the HUD's Core HP negative.
   //
@@ -1578,7 +1776,7 @@ function leakIntoCore(w: World, e: Enemy, def: EnemyDef): void {
   // budget, same leaks, same Night - so the choice costs nothing under
   // ordinary play, and the surplus from an extreme case is dropped at the
   // alive cap by act2.ts's spendBudget.
-  if (!w.godMode) w.coreHp = Math.max(0, w.coreHp - def.coreDamage);
+  if (!w.godMode) w.coreHp = Math.max(0, w.coreHp - enemyCoreDamage(w, def));
   w.leaks++;
   w.leaksByWave[w.wave] = (w.leaksByWave[w.wave] ?? 0) + 1;
   // SPEC-V2 §1 leak coupling: it escaped into the dark and comes back with
@@ -1591,13 +1789,13 @@ function leakIntoCore(w: World, e: Enemy, def: EnemyDef): void {
   const directorCost = (w.content.spawns.costs[def.key] ?? 5) / (def.packSize ?? 1);
   w.nightBudgetBonus += directorCost * w.content.spawns.leakBudgetMultiplier;
   w.looseInTheDark++;
-  w.emit('leak', e.x, e.y, def.coreDamage, 0);
+  w.emit('leak', e.x, e.y, enemyCoreDamage(w, def), 0);
   e.dead = true;
   w.deadEnemies = true;
   w.enemyById.delete(e.id);
 }
 
-function contactWarden(w: World, e: Enemy, def: EnemyDef): void {
+export function contactWarden(w: World, e: Enemy, def: EnemyDef): void {
   if (w.dying) return;
   if ((e.flags & TRAIT.explodes) !== 0) {
     const r = def.explodeRadius ?? 1.5;
@@ -1610,7 +1808,7 @@ function contactWarden(w: World, e: Enemy, def: EnemyDef): void {
   }
   if (e.attackCooldown > 0) return;
   e.attackCooldown = w.content.spawns.contactInterval;
-  let dmg = def.coreDamage * (1 + e.buffPower);
+  let dmg = enemyCoreDamage(w, def) * (1 + e.buffPower);
   // Frost Warden trait: chilled enemies hit softer.
   if (isChilled(e)) dmg *= w.derived.chilledDamageTakenMul;
   damageWarden(w, dmg);

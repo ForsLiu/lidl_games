@@ -3158,7 +3158,7 @@ not already expose it) logs that need below instead of reaching into
       sentence-number-≠-sim-number bug class fb112 exists to kill, at a larger
       absolute error.
 
-- [x] (fb114) [feat] generated 2026-09-05 (fewer than 3 actionable items
+- [x] (fb142) [feat] generated 2026-09-05 (fewer than 3 actionable items
       remained — fb085/fb093/fb097 are all out-of-lane-Scope and re-confirmed
       so this session; QUALITY.md BETA/1.0 checklist gap diff) — device-pixel-
       ratio change handling. QUALITY.md BETA's Settings line names
@@ -3230,7 +3230,7 @@ not already expose it) logs that need below instead of reaching into
       (`matchMedia` is undefined in vitest's jsdom, so `armDprListener`
       early-returns everywhere else).
 
-- [x] (fb115) [feat] generated 2026-09-05 (same generation batch as fb114) —
+- [x] (fb143) [feat] generated 2026-09-05 (same generation batch as fb142) —
       fullscreen toggle reachable mid-run. QUALITY.md 1.0's Steam/itch
       checklist opens with "fullscreen + windowed"; fb090 built the toggle,
       but `#sw-fullscreen-toggle` exists only in `hub.ts`'s Settings tab
@@ -3282,7 +3282,7 @@ not already expose it) logs that need below instead of reaching into
       test:fast` 2338 passed/4 failed/48 skipped, every failure in the standing
       `b028`/`b032`/`b034`/`b035`/`b036`/`q15`/`q41`/`q45`/`q52` families.
 
-- [ ] (fb116) [polish] generated 2026-09-05 (same generation batch as fb114)
+- [ ] (fb144) [polish] generated 2026-09-05 (same generation batch as fb142)
       — honour the OS's `prefers-reduced-motion` on a first run. fb086 added
       the `reducedMotion` setting (default off, opt-in), but nothing in
       `src/` reads the `prefers-reduced-motion` media query, so a player who
@@ -3298,7 +3298,7 @@ not already expose it) logs that need below instead of reaching into
       OS "reduce"; tests cover all three cases plus a missing `matchMedia`
       (no throw) — refs: QUALITY.md 1.0 (Accessibility re-check), fb086.
 
-- [ ] (fb117) [bug] generated 2026-09-05 (same generation batch as fb114) —
+- [ ] (fb145) [bug] generated 2026-09-05 (same generation batch as fb142) —
       auto-pause on tab/window hide, not just `blur`. fb071 auto-pauses a
       running run on `window`'s `blur` (`main.ts`), which covers alt-tab on a
       desktop browser, but `visibilitychange` appears nowhere in `src/`: a
@@ -3315,7 +3315,7 @@ not already expose it) logs that need below instead of reaching into
       all, and asserts the run paused, plus a re-show asserting it stayed
       paused — refs: QUALITY.md BETA, fb071.
 
-- [ ] (fb118) [polish] generated 2026-09-05 (same generation batch as fb114;
+- [ ] (fb146) [polish] generated 2026-09-05 (same generation batch as fb114;
       engineer's-judgment item, depth not scope creep per HANDOFF §7) — a
       standing units guard for the half-width display bug class. The same
       defect has now shipped twice and been caught twice by review, not by a
@@ -3336,7 +3336,7 @@ not already expose it) logs that need below instead of reaching into
       fb108's sentence table made unreachable for every real kind) renamed to
       say half-width — refs: fb108, fb112, `lineHit` (`src/sim/combat.ts`).
 
-- [ ] (fb119) [bug] filed 2026-09-05 by qa-playtester during fb111
+- [ ] (fb147) [bug] filed 2026-09-05 by qa-playtester during fb111
       verification — the fb096 slot format is not atomic across keys, so a
       per-file cloud sync can silently destroy a slot's save. The active
       slot's data lives ONLY in `SAVE_KEY` until a switch-away mirrors it into
@@ -3360,7 +3360,7 @@ not already expose it) logs that need below instead of reaching into
       fb111, QUALITY.md 1.0 (Steam/itch checklist: save slots,
       cloud-save-safe file format).
 
-- [ ] (fb120) [bug] filed 2026-09-05 by qa-playtester during fb112
+- [ ] (fb148) [bug] filed 2026-09-05 by qa-playtester during fb112
       verification — Dash Slash's "Dash 5 tiles" ignores Swordsman Shoes'
       documented doubling; the real dash and hit line are 10. Measured twice,
       identical: with `husk` (r=0, armor 0) aimed +X, the furthest enemy struck
@@ -3386,7 +3386,7 @@ not already expose it) logs that need below instead of reaching into
       to establish 10 vs 5 independently, then the string assertion — refs:
       fb112, fb108, `fireDashSlash` (`src/sim/classes.ts`).
 
-- [ ] (fb121) [bug] filed 2026-09-05 by qa-playtester during fb112
+- [ ] (fb149) [bug] filed 2026-09-05 by qa-playtester during fb112
       verification — line and area sentences promise their full damage number
       to "every enemy", but pierce falloff cuts every target after the first.
       Measured twice, identical: five enemies at 0.9-tile spacing on the dash
@@ -3406,7 +3406,7 @@ not already expose it) logs that need below instead of reaching into
       plus string assertions on the `dash_line`/`charge_pierce` sentences —
       refs: fb112, `lineHit`/`applyAoE` (`src/sim/combat.ts`).
 
-- [ ] (fb122) [bug] filed 2026-09-05 by qa-playtester during fb112
+- [ ] (fb150) [bug] filed 2026-09-05 by qa-playtester during fb112
       verification — Dash Slash's "the charge's own range and damage merge into
       this one hit" reads as "you keep the nova's coverage", but the merge
       deletes the nova's area entirely. Repro, both branches in one probe:
@@ -3424,7 +3424,7 @@ not already expose it) logs that need below instead of reaching into
       behind/side probe as the mechanism plus a string assertion on the
       reworded clause — refs: fb112, Q118, `fireDashSlash`.
 
-- [ ] (fb123) [bug] filed 2026-09-05 by qa-playtester during fb112
+- [ ] (fb151) [bug] filed 2026-09-05 by qa-playtester during fb112
       verification — the Dash Slash slash VFX is drawn to the physical dash
       TARGET, not the hit line, so mid-charge and against walls the graphic is
       shorter than the hitbox. `fireDashSlash` (`src/sim/classes.ts`) runs
@@ -3444,7 +3444,111 @@ not already expose it) logs that need below instead of reaching into
       measured furthest struck enemy — refs: fb112, `canvas.ts`'s
       `class_active2` draw.
 
+- [ ] (fb114) [bug] `tests/b036-help-fold.test.ts` is red on master and
+      red standalone: `.sw-help`'s bottom edge measures 1095.4 against the
+      1080 fold b036 exists to defend, in Training Grounds with a tower
+      selected and the practice panel open. Deterministic (4 s, `npx vitest
+      run tests/b036-help-fold.test.ts`), reported independently by the
+      content and terrain lanes and first misfiled as a load flake. Acceptance:
+      the existing test goes green without loosening the 1080 fold; the
+      practice panel + selected-tower layout keeps the help block inside the
+      fold at 1920x1080 — refs: SPEC-FINAL §11, b036.
+- [ ] (fb115) [bug] c001 (Area reaches every class Active) left three
+      renderer/UI previews reading the authored `/data` radius unscaled, so
+      they draw a footprint the sim no longer uses (BACKLOG-CONTENT.md c001
+      Log): `src/render/canvas.ts` `drawChargeIndicator` uses
+      `circleSlashValues(cls.active1, wd.active1Charge).radius` (measured
+      `drawn=4 fired=4.4` with one Normal Bracelet, ~2.6x at an end-of-run
+      areaMul — the one preview fb016 built to be backed by live sim state),
+      `drawSkillHoverRing` uses `eff.radius`, and `src/ui/hud.ts`
+      `characterAbilitiesMarkup`'s "radius has no live sim equivalent" comment
+      is false — `w.derived.areaMul` is that equivalent. Acceptance:
+      regression test beside fb016-vfx-registry's "charge indicator brightens
+      with hold" case, failing first; all three scale by `areaMul`; ring
+      radius equals the fired nova's radius in the test — refs: SPEC-FINAL §2,
+      §11, fb016.
+- [ ] (fb116) [feat] terrain rendering (BACKLOG-TERRAIN.md fb064e, the
+      epic's UI half): organic terrain (marching-squares edges, texture
+      variation per kind) drawn from `Grid.terrainKind` over the square
+      collision grid, path indicators drawn around terrain, and the build
+      ghost's string for main-lane fb078's `'terrain'` `BuildRejection`.
+      Blocked on fb077 (no real run has a generated map yet); a
+      `render-terrain*` test can drive `applyTerrain` on a test grid before
+      then. Acceptance: render test over 20 seeds asserts every non-normal
+      tile is painted with its kind's colour and every rock edge is drawn;
+      no change to the normal-only arena's frame — refs: SPEC-FINAL §10.5
+      (fb079), §11.
+
+- [ ] (fb096) [feat] normal priority: Swordsman combo swept-area indicator —
+      when Dash Slash is cast during a Circle Slash charge, draw the merged
+      attack's full effective hit region (the charged circle swept along the
+      dash path, a capsule/stadium shape) as the aim indicator while charging
+      and moving the cursor, plus a brief afterimage on release (respecting
+      reduced-flash). The indicator shape must equal the merged attack's real
+      hit-detection region, not an approximation (owner feedback
+      `feedback/processed/20260904-162645-feature-combo-area-indicator.md`).
+      Acceptance: indicator renders the capsule from current charge radius +
+      cursor direction; a test asserts the rendered region equals the sim's
+      hit-detection region; afterimage respects the reduced-flash setting —
+      refs: SPEC-FINAL §4.1 (Swordsman combo), §11 (indicators).
+- [ ] (fb117) [feat] normal priority: Core-select screen redesign to match
+      class-select layout — a horizontal row of vertically-long Core sprites
+      (placeholder tall silhouettes: stone heart, carnivorous plant, vampire
+      heart, corpse pile, time monolith); selecting one fills the bottom panel
+      with base HP and upgrade-track summary; hovering the TD effect / VS
+      effect / each upgrade step shows the written explanation with live
+      numbers pulled from `/data`; locked Cores render greyed with their
+      unlock condition shown (owner feedback
+      `feedback/processed/20260904-162645-feature-core-select-ui.md`).
+      Acceptance: layout mirrors fb058's class-select redesign; all 5 Cores
+      render; a test asserts hover text numbers equal `/data` values; locked
+      state renders correctly — refs: SPEC-FINAL §5.5, §11, fb058.
+- [ ] (fb098) [feat] normal priority: per-tower attack projectile/beam
+      visuals — every tower type gets a distinct registered VFX entry: Arrow
+      (arrow), Ballista (heavy bolt), Venom Spore (spore puff + drip trail),
+      Mortar (lobbed shell, arc + impact crater flash), Electric (instant
+      jagged arc + chain arcs), Ember Brazier (flame cone sweep), Frost
+      Obelisk (pulse ring), Beacon/Harvest (aura pulse tick); projectiles
+      travel at the tower's real projectile speed (so a speed passive like
+      Voltbolt's is visible) and impact marks are colored per damage type;
+      the same visuals fire when a character wields the tower in VS (owner
+      feedback
+      `feedback/processed/20260904-162645-feature-tower-projectile-sprites.md`).
+      Acceptance: a VFX-registry test fails for any of the 10 towers missing
+      a fire+travel+impact entry; VS wielded attacks reuse the same registry
+      entries — refs: SPEC-FINAL §5, §11, VFX registry (fb016).
+
 ## Log
+
+- 2026-09-05, merge: `origin/master` merged into `lane/ui`. Only two files
+  conflicted, both docs (this file's Log and PROGRESS.md's session list) —
+  BOTH SIDES KEPT in each, since the two lanes' entries are independent
+  history, not competing versions of one entry. No source conflicts:
+  `src/ui/hub.ts` and `src/ui/hud.ts` auto-merged, and master's shared sim
+  core (the P12 balance work, `src/sim/terrain/**`, the `/data` retunes) came
+  across untouched by this lane, per the merge rule that master wins there.
+  **Id collision, caught by audit rather than by git:** master's own
+  2026-09-04 lane merge had renumbered four cross-lane items into
+  fb114-fb117, and BACKLOG.md had meanwhile taken fb118-fb135 — so ALL TEN
+  ids this session generated or filed (fb114-fb123) named two different items
+  each once the trees met. Git merged them without a murmur, because the
+  duplicates land in different regions of the file. Renumbered this session's
+  ten into the free range **fb142-fb151** (max id anywhere was 141), and
+  renamed the two committed test files (`tests/ui-fb114-dpr-change` ->
+  `ui-fb142-`, `tests/ui-fb115-hud-fullscreen` -> `ui-fb143-`) rather than
+  leaving filenames that name someone else's item — only two files, unlike
+  the 30+ that made master's merge choose deferral. Mapping: fb114->fb142
+  (DPR), fb115->fb143 (mid-run fullscreen), fb116->fb144 (prefers-reduced-
+  motion), fb117->fb145 (visibilitychange pause), fb118->fb146 (units guard),
+  fb119->fb147 (slot atomicity), fb120->fb148 (dash range vs Shoes),
+  fb121->fb149 (falloff wording), fb122->fb150 (merge wording), fb123->fb151
+  (dash VFX extent).
+  **Pre-existing and NOT fixed here:** `fb096` and `fb098` each name two
+  different items inside this file already on `origin/master` (a DONE
+  2026-09-04 generated item and an open owner-feedback item apiece). That
+  collision predates this branch and is master's to renumber — flagged here
+  rather than silently changed, since other files may reference either
+  reading.
 
 - 2026-09-05, fb112 (observation for future QA passes, not an item):
   qa-playtester reports that the standing "Dawn Rekindle, both choices" money
@@ -3512,11 +3616,28 @@ not already expose it) logs that need below instead of reaching into
   engineer's-judgment item (fb118). Every premise was verified against the
   source before the item was written, not assumed: `matchMedia` appears
   nowhere in `src/` (fb114, fb116), `fullscreen` appears in `hub.ts` only and
-  in neither `hud.ts` nor `bottom-bar.ts` (fb115), `visibilitychange` appears
-  nowhere in `src/` (fb117), and the fb108/fb112 half-width defect has now
+  in neither `hud.ts` nor `bottom-bar.ts` (fb143), `visibilitychange` appears
+  nowhere in `src/` (fb145), and the fb108/fb112 half-width defect has now
   shipped twice and been caught by review both times, never by a test
-  (fb118). jsdom ships no `matchMedia`, which is why fb114/fb116 both carry
+  (fb146). jsdom ships no `matchMedia`, which is why fb142/fb144 both carry
   an explicit "absent `matchMedia` is a no-op, never a throw" clause.
+
+- 2026-09-04, lane merge: `lane/ui` (fb071-fb113, this file's 2026-09-04
+  batch) merged into master. One conflict, this Log — both sides kept. No
+  source conflicts; `src/ui/**`, `src/render/**`, `tests/ui-*`/`tests/render-*`
+  and the two logged out-of-Scope test touches merged as-is. **Id collision
+  found at the merge:** this lane's 2026-09-04 batch reused fb076-fb099,
+  which BACKLOG.md had already assigned (18 ids name two different items
+  across the two files), and four ids were duplicated *inside* this file —
+  the cross-lane items filed here at the 2026-09-03 merge as fb089/fb090/
+  fb091/fb097 are renumbered to **fb114/fb115/fb116/fb117** (references in
+  BACKLOG.md, BACKLOG-TERRAIN.md and BACKLOG-CONTENT.md updated); the
+  cross-file collision is filed as BACKLOG.md fb118 rather than renumbered
+  here, since it touches 30+ committed `tests/ui-fbNNN-*` filenames. The
+  three permanently out-of-Scope items (fb085 strings.json, fb093 ui-audit
+  scenes, fb097 GIF dependency) and fb107's Codex `keyBindings` follow-up
+  are filed in BACKLOG.md at this merge; fb098's `MIN_DISTANCE` note is
+  QUESTIONS.md.
 
 - 2026-09-04, fb113: implemented fully in-scope (a prior session had already
   written the `src/ui/hud.ts` memo-key fix and
@@ -3636,6 +3757,13 @@ not already expose it) logs that need below instead of reaching into
   meet the item's own acceptance text, which names the data file
   explicitly). Executed fb086 instead, the next actionable item, which is
   fully in-scope.
+
+- 2026-09-03, lane merge: `lane/ui` merged into master (fb055, fb058,
+  fb060, fb067-fb070; fb066 WON'T-FIX). No conflicts. The two out-of-Scope
+  test edits logged below (q3-save-fuzz, fb022-info-surfacing) merged as-is.
+  fb089-fb091 above were filed at the merge from the content and terrain
+  lanes' Logs; ids are global across all four backlog files (main lane's
+  fb066 was renumbered fb076 for colliding with this file's).
 
 - 2026-09-03, fb058: two files outside the literal Scope glob
   (`tests/fb022-info-surfacing.test.ts`, `tests/q3-save-fuzz.test.ts`) were

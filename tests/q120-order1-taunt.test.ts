@@ -32,7 +32,14 @@ import { CORE_X, CORE_Y, GRID_H } from '../src/sim/grid';
 import { buildTower } from '../src/sim/towers';
 import { emptyInput } from '../src/sim/types';
 import { World } from '../src/sim/world';
-import { cfg } from './helpers';
+import { cfg as cfgWithTerrain } from './helpers';
+
+// fb077: taunt/pathing assertions here target fixed tile coordinates (a
+// hand-placed "unrelated wall"), nothing to do with terrain, so every
+// `cfg()` call here keeps the pre-fb077 flat board.
+function cfg(over: Parameters<typeof cfgWithTerrain>[0] = {}): ReturnType<typeof cfgWithTerrain> {
+  return cfgWithTerrain({ practice: true, ...over });
+}
 
 const DT = 1 / 60;
 

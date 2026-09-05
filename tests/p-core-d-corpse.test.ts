@@ -91,11 +91,16 @@ describe('p-core-d — TD store accrual', () => {
 
   it('a killing blow still credits the store (the hook fires before the death check)', () => {
     const w = corpseWorld();
-    const e = spawnEnemy(w, 'husk', 5, 5)!; // 20 hp
-    damageEnemy(w, e, 1000, 'test_tower'); // massive overkill
+    const e = spawnEnemy(w, 'husk', 5, 5)!;
+    // Derived, not pinned (p12c): a roster-wide `baseHpMul` re-anchor moves
+    // every authored HP, and this case is about *overkill accounting*, not
+    // about how much HP a husk happens to have — so the blow is sized off the
+    // enemy in front of it.
+    const overkill = e.maxHp * 5;
+    damageEnemy(w, e, overkill, 'test_tower');
     expect(e.dead).toBe(true);
-    // The full 1000 dealt, not the 20 that actually landed.
-    expect(w.corpseStore).toBeCloseTo(1000 * CORPSE_EFFECTS.corpseStoreRatio, 9);
+    // The full amount dealt, not the fraction that actually landed.
+    expect(w.corpseStore).toBeCloseTo(overkill * CORPSE_EFFECTS.corpseStoreRatio, 9);
   });
 
   it('step 1 raises the ratio (an override, not an additive bonus on top of the base rate)', () => {
@@ -213,20 +218,23 @@ describe('p-core-d — step 2: execution explosion', () => {
     upgradeCore(w); // step 2: executions explode
     w.corpseStore = 10;
 
-    const victim = spawnEnemy(w, 'husk', 10, 10)!; // maxHp 200 (fb025: husk hp 20 -> 200, x10)
-    victim.hp = 10; // wounded, but maxHp stays 200 — the explosion uses maxHp, not current hp
-    const bystander = spawnEnemy(w, 'colossus', 10.5, 10)!; // within r2, 400 hp so it survives to measure
-    bystander.hp = 400;
+    const victim = spawnEnemy(w, 'husk', 10, 10)!;
+    const blast = victim.maxHp; // the explosion uses maxHp, not current hp
+    victim.hp = 10; // wounded, but maxHp is untouched
+    const bystander = spawnEnemy(w, 'colossus', 10.5, 10)!; // within r2
+    const bystanderHp = blast * 3; // enough to survive the blast and be measured
+    bystander.hp = bystanderHp;
 
     tickCorpse(w, 1);
 
     expect(victim.dead).toBe(true);
-    expect(bystander.hp).toBeCloseTo(400 - 200, 9); // victim's maxHp (200, fb025: was 28), not its spent hp (10)
+    expect(bystander.hp).toBeCloseTo(bystanderHp - blast, 9); // victim's maxHp, not its spent hp (10)
     // Not paid from the store, but it IS damage dealt to an enemy on the map,
     // so it banks the step-1 ratio too: 10 (start) - 10 (execute spend) +
-    // 10*ratio (execute's own restore) + 200*ratio (the explosion's own
-    // restore, fb025: victim maxHp 28 -> 200).
-    expect(w.corpseStore).toBeCloseTo(10 - 10 + 10 * STEP1_RATIO + 200 * STEP1_RATIO, 9);
+    // 10*ratio (execute's own restore) + blast*ratio (the explosion's own
+    // restore). Derived off `maxHp` rather than pinned, so a `baseHpMul`
+    // re-anchor moves the fixture with the game (p12c).
+    expect(w.corpseStore).toBeCloseTo(10 - 10 + 10 * STEP1_RATIO + blast * STEP1_RATIO, 9);
   });
 
   it('does not explode without step 2 bought', () => {

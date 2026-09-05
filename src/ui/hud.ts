@@ -6,7 +6,7 @@ import { canBuildNow, towerCost } from '../sim/towers';
 import { inCoreBuildRange } from '../sim/cores';
 import type { Offer } from '../sim/types';
 import { ENEMY_COLORS, PALETTE, TOWER_COLORS } from '../render/theme';
-import { dotRemaining, dotStacks, effectiveSpeed, enemyArmor } from '../sim/enemies';
+import { dotRemaining, dotStacks, effectiveSpeed, enemyArmor, enemyCoreDamage } from '../sim/enemies';
 import { wardenArmor } from '../sim/run';
 import { armorReduction, effectiveArmor } from '../sim/stats';
 import type { Enemy } from '../sim/types';
@@ -186,7 +186,7 @@ export class Hud {
   /** fb012: the pause card's "Options" sub-screen, holding the auto-pick toggle. */
   private showingOptions = false;
   /**
-   * fb115: unsubscribe for the `fullscreenchange` notification that keeps the
+   * fb143: unsubscribe for the `fullscreenchange` notification that keeps the
    * pause Options screen's toggle label honest, held only while paused.
    *
    * Scoped to the paused window rather than the `Hud`'s lifetime on purpose:
@@ -1570,7 +1570,7 @@ export class Hud {
     this.showingOptions = false;
     this.lastModalKey = '';
     if (paused) {
-      // fb115: capturing `w` is safe precisely because the run is paused — the
+      // fb143: capturing `w` is safe precisely because the run is paused — the
       // loop stops stepping, so the world this closure re-renders against
       // cannot move underneath it, and the subscription is dropped before the
       // run resumes.
@@ -1592,7 +1592,7 @@ export class Hud {
   }
 
   /**
-   * fb115 (code-reviewer finding): releases everything this `Hud` holds
+   * fb143 (code-reviewer finding): releases everything this `Hud` holds
    * outside its own DOM — today just the `fullscreenchange` subscription.
    *
    * `setPaused(false)` is NOT the only way a paused `Hud` stops being live.
@@ -1640,7 +1640,7 @@ export class Hud {
         </div>
       </div>`;
       this.modal.querySelector('#sw-opt-autopick')?.addEventListener('change', () => this.cb.onToggleAutoPick());
-      // fb115: `this.root` is the app root, the same element `hub.ts` requests
+      // fb143: `this.root` is the app root, the same element `hub.ts` requests
       // fullscreen on — not `this.modal`, which is torn down on every resume
       // and would drop the player straight back out of fullscreen.
       this.modal
@@ -2412,7 +2412,11 @@ export function enemyInfoMarkup(w: World, e: Enemy): string {
   const rows: string[] = [
     row('Health', `${Math.ceil(e.hp)} / ${Math.round(e.maxHp)} (${pct}%)`),
     row('Speed', `${round1(effectiveSpeed(w, e))} tiles/s`),
-    row('Core damage', String(def?.coreDamage ?? 0)),
+    // p12b: the tier-scaled number, not the authored one — same convention as
+    // the bounty row below. At T3 the two differ by the ladder's coreDamage
+    // rung, and a panel showing the sheet value would understate what this
+    // enemy actually takes off the Core.
+    row('Core damage', String(def ? round1(enemyCoreDamage(w, def)) : 0)),
     // The real payout, not the authored number: `killEnemy` scales bounty by
     // gold find and adds gold-per-kill — and in Act II pays gems instead.
     w.huntsWarden

@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  *
- * fb114 (QUALITY.md BETA's Settings line, "resolution/DPR handling"):
+ * fb142 (QUALITY.md BETA's Settings line, "resolution/DPR handling"):
  * `Renderer.resize()` (`src/render/canvas.ts`) reads `devicePixelRatio` and
  * sizes the canvas backing store by it, but the only thing that re-ran it was
  * `Game`'s `window` `resize` listener (fb065). Dragging the window onto a
@@ -102,7 +102,7 @@ function startedGame(root: HTMLElement): Game {
   return game;
 }
 
-describe('fb114: a devicePixelRatio change resizes the canvas without any window resize', () => {
+describe('fb142: a devicePixelRatio change resizes the canvas without any window resize', () => {
   afterEach(() => {
     vi.restoreAllMocks();
     delete (globalThis as unknown as { matchMedia?: unknown }).matchMedia;

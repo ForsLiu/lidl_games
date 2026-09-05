@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  *
- * fb115 (QUALITY.md 1.0 Steam/itch checklist: "fullscreen + windowed").
+ * fb143 (QUALITY.md 1.0 Steam/itch checklist: "fullscreen + windowed").
  * fb090 built the toggle, but it lived only in the Hub's Settings tab, so a
  * player who had started a run could not enter or leave fullscreen without
  * abandoning to the Hub. The in-run pause Options screen now carries the same
@@ -80,7 +80,7 @@ function setFullscreenElement(el: Element | null): void {
   });
 }
 
-describe('fb115: fullscreen is reachable mid-run, not only from the Hub', () => {
+describe('fb143: fullscreen is reachable mid-run, not only from the Hub', () => {
   const realRequest = Element.prototype.requestFullscreen;
   const realExit = document.exitFullscreen;
   let requestSpy: ReturnType<typeof vi.fn>;
@@ -177,7 +177,7 @@ describe('fb115: fullscreen is reachable mid-run, not only from the Hub', () => 
       document.querySelector<HTMLElement>('[data-act="quit"]')?.click();
       document.querySelector<HTMLElement>('[data-act="confirm"]')?.click();
       // `main.ts`'s showHub() is what runs on that callback; this is its
-      // fb115-relevant half.
+      // fb143-relevant half.
       hud.dispose();
     }
 

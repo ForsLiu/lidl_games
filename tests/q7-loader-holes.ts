@@ -22,6 +22,12 @@
  *     `open` = no row is, `partial` = some are and some are not, which is the
  *     one-directional-integrity finding (E1).
  *
+ * Regenerated 2026-09-03 (fb053): `data/warden.json`'s `dashDistance` was
+ * replaced by `dashSpeedMul` (dash distance now falls out of speed x
+ * duration instead of being an authored fixed distance) — same bare `num`
+ * shape, same `negative`/`zero`/`fractional` family, just a renamed field.
+ * ACCEPTED updated in place; INEFFECTIVE and REF_VERDICTS unchanged.
+ *
  * Regenerated 2026-09-02 (fb031): `data/spawns.json` gained `gemAttractGrowth`/
  * `gemAttractPeriodSeconds` (the uncapped pull-speed ramp a gem gets once
  * attracted, per code-reviewer's finding that the original diff hardcoded
@@ -490,6 +496,18 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'equipment.items[].mods.xpGain': ['negative', 'zero', 'fractional', 'drop-key'],
   'equipment.items[].name': ['to-string', 'empty-string'],
   'equipment.slots': ['dupe-element'],
+  // p12c: `baseHpMul` is a multiplier, so a fractional value is valid by
+  // design — it is the identity at 1.0 and the shipped value is 20. The
+  // schema's own `.positive()` refuses the unpayable cases (zero, negative).
+  'enemies.baseHpMul': ['fractional'],
+  // p12b: the tier ladder's three scalars are multipliers, so a fractional
+  // value is *valid* by design (the shipped ladder is 4.0/1.9/1.7). The one
+  // thing that would be unpayable — a value under 1, which inverts the ladder
+  // and would ship a T5 easier than T1 — is refused by `validateTierLadder`
+  // at load, one layer above the schema this census fuzzes.
+  'modifiers.tierBudgetPerStep': ['fractional'],
+  'modifiers.tierCoreDamagePerStep': ['fractional'],
+  'modifiers.tierEnemyHpPerStep': ['fractional'],
   'modifiers.modifiers': ['drop-element'],
   'modifiers.modifiers[].desc': ['to-string', 'empty-string'],
   'modifiers.modifiers[].effect.bossHp': ['negative', 'zero', 'fractional', 'drop-key'],
@@ -761,9 +779,9 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'warden.armorFloor': ['negative', 'zero', 'fractional'],
   'warden.cdrCap': ['negative', 'zero', 'fractional'],
   'warden.dashCooldown': ['negative', 'zero', 'fractional'],
-  'warden.dashDistance': ['negative', 'zero', 'fractional'],
   'warden.dashDuration': ['negative', 'zero', 'fractional'],
   'warden.dashIFrames': ['negative', 'zero', 'fractional'],
+  'warden.dashSpeedMul': ['negative', 'zero', 'fractional'],
   'warden.heartstoneHeal': ['negative', 'zero', 'fractional'],
   'warden.heartstoneRadius': ['negative', 'zero', 'fractional'],
   'warden.hpRegen': ['negative', 'zero', 'fractional'],

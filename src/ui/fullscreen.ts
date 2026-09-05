@@ -1,5 +1,5 @@
 /**
- * fb115: the Fullscreen API plumbing, shared by the Hub's Settings tab
+ * fb143: the Fullscreen API plumbing, shared by the Hub's Settings tab
  * (fb090's original home) and the in-run pause Options screen.
  *
  * Extracted rather than copied. fb090 had to solve two problems that any

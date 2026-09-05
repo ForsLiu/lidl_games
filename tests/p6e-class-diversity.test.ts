@@ -6,10 +6,11 @@
  * it up automatically, and SPEC-FINAL's own G8 text now reads ">=9 of 12"
  * (the same ~73% ratio). This file's entire
  * win-rate sweep was already `.skip`-ed per class pending **P10** before
- * fb013 landed (see the dated corrections below); Time Lord has not been run
- * through it — a full re-run costs ~1 h (b027's note) and stays out of scope
- * for an ordinary item per CLAUDE.md's ban on starting a background full/heavy
- * suite inside one. Re-measure Time Lord alongside the rest of G8 at P10.
+ * fb013 landed (see the dated corrections below). Time Lord WAS run through it
+ * by p10v (12/12, `it.skip('time_lord', ...)` at the end of this file) and
+ * re-measured post-c001 by `tests/class-time-lord-band.test.ts` (unchanged,
+ * 12/12); this paragraph used to say "has not been run" and STATUS.md
+ * inherited the stale claim — corrected at the 2026-09-03 lane merge.
  *
  * Precedent and gap (Q120's own list, and p6b/p6c/p6d's write-ups all name it):
  * **no stock bot policy in `src/bots` ever issues `class_active`/`class_active2`,
@@ -205,7 +206,7 @@ import '../src/bots';
 import { loadContent, type ClassDef } from '../src/sim/content';
 import { allTreeNodeIds } from '../src/meta/meta';
 import type { RunConfig, RunReport } from '../src/sim/types';
-import { cfg, classifyMargin, runScripted, summarizeMargins } from './helpers';
+import { cfg, classifyMargin, GATE_TIER, runScripted, summarizeMargins } from './helpers';
 
 const content = loadContent();
 const SEEDS = Array.from({ length: 12 }, (_, i) => i + 1);
@@ -225,7 +226,7 @@ function runClassScripted(classKey: string, seed: number): RunReport {
   const config: RunConfig = cfg({
     seed,
     classKey,
-    tier: 1,
+    tier: GATE_TIER,
     modifiers: [],
     allocated: FULL_TREE,
     cycles: 6,

@@ -57,7 +57,7 @@ export class Game {
   private resultBanked = false;
   private inputBound = false;
   /**
-   * fb114: the `(resolution: Ndppx)` query this instance is currently watching,
+   * fb142: the `(resolution: Ndppx)` query this instance is currently watching,
    * kept so the next change can detach before re-arming at the new ratio. Null
    * where `matchMedia` does not exist (jsdom, older embedders) — DPR tracking
    * is then simply absent, never a throw.
@@ -305,7 +305,7 @@ export class Game {
   }
 
   private showHub(): void {
-    // fb115 (code-reviewer finding): this is the abandon-from-pause exit, and
+    // fb143 (code-reviewer finding): this is the abandon-from-pause exit, and
     // it never resumes the `Hud` — so the `Hud`'s own paused-window cleanup
     // would never run and its `fullscreenchange` subscription would outlive it.
     // Idempotent, so calling it on every path back to the Hub is free.
@@ -383,7 +383,7 @@ export class Game {
     this.runSessionId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
     this.lastWrittenSessionId = null;
     this.persistDisabled = false;
-    // fb115: the outgoing `Hud` is replaced wholesale here (Retry/New Run), so
+    // fb143: the outgoing `Hud` is replaced wholesale here (Retry/New Run), so
     // release its subscription before dropping the reference to it.
     this.hud?.dispose();
     this.hud = new Hud(this.root, {
@@ -600,7 +600,7 @@ export class Game {
   }
 
   /**
-   * fb114 (QUALITY.md BETA, "resolution/DPR handling"): `Renderer.resize()`
+   * fb142 (QUALITY.md BETA, "resolution/DPR handling"): `Renderer.resize()`
    * reads `devicePixelRatio` and sizes the backing store by it, but the only
    * thing that re-ran it was the `window` `resize` listener above. Dragging the
    * window onto a monitor with a different DPI does not reliably fire `resize`
@@ -640,7 +640,7 @@ export class Game {
     // X — a rounding artifact in the dppx conversion — the query would never
     // fire and this feature would simply be off. That is why it is an addition
     // to the `window` `resize` listener above rather than a replacement for it:
-    // that listener remains the backstop, exactly as it was before fb114.
+    // that listener remains the backstop, exactly as it was before fb142.
     //
     // `addEventListener` on a MediaQueryList is the modern form; an embedder
     // old enough to expose only `addListener` goes untracked rather than
@@ -671,7 +671,7 @@ export class Game {
     this.dprQuery = query;
   }
 
-  /** fb114: arrow-bound so the same reference detaches cleanly in `armDprListener`'s re-arm. */
+  /** fb142: arrow-bound so the same reference detaches cleanly in `armDprListener`'s re-arm. */
   private onDprChange = (): void => {
     // Optional-chained for self-documentation rather than need: `armDprListener`
     // is reachable only from `bindGlobalInput`, which `beginRun` calls strictly

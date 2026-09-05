@@ -17,7 +17,7 @@ import {
   refund,
   TREE_AUTO_MAX,
 } from '../meta/meta';
-import { modifierDraft } from '../sim/tiers';
+import { modifierDraft, tierBudgetMul, tierCoreDamageMul, tierEnemyHpMul } from '../sim/tiers';
 import { devProfileActive } from '../meta/devprofile';
 import { fullscreenToggleLabel, subscribeFullscreenChange, toggleFullscreen } from './fullscreen';
 
@@ -81,7 +81,7 @@ let activeHub: Hub | null = null;
 let fullscreenUnsubscribe: (() => void) | null = null;
 
 /**
- * fb115: the document-level `fullscreenchange` listener moved into
+ * fb143: the document-level `fullscreenchange` listener moved into
  * `fullscreen.ts`, shared with the in-run pause Options screen. This wrapper
  * keeps fb090's original semantics exactly — only whichever `Hub` is
  * currently `activeHub` refreshes, so a stale instance discarded mid-Settings
@@ -345,7 +345,12 @@ export class Hub {
         </div>
         <p class="sw-note">Tier ${this.tier} applies ${this.tier - 1} modifier${
           this.tier === 2 ? '' : 's'
-        } and pays ×${(1 + content.modifiers.tierRewardPerStep * (this.tier - 1)).toFixed(2)} rewards.</p>
+        }, and enemies have ×${tierEnemyHpMul(content, this.tier).toFixed(2)} HP, ×${tierBudgetMul(
+          content,
+          this.tier,
+        ).toFixed(2)} spawn pressure and ×${tierCoreDamageMul(content, this.tier).toFixed(
+          2,
+        )} Core damage. Pays ×${(1 + content.modifiers.tierRewardPerStep * (this.tier - 1)).toFixed(2)} rewards.</p>
         ${
           draft.length === 0
             ? '<p class="sw-note">No modifiers at tier 1.</p>'
@@ -818,8 +823,8 @@ export class Hub {
    * discarded mid-Settings-tab never fires this.
    */
   refreshFullscreenLabel(): void {
-    // fb115 (code-reviewer finding): `show()` clears `this.root.innerHTML` —
-    // the SAME app root a running HUD occupies. Before fb115 a mid-run
+    // fb143 (code-reviewer finding): `show()` clears `this.root.innerHTML` —
+    // the SAME app root a running HUD occupies. Before fb143 a mid-run
     // `fullscreenchange` was hard to produce; the in-run toggle now produces
     // one on demand, so a stale `Hub` still holding `activeHub` could wipe the
     // live HUD out from under the player. The `tab === 'settings'` check alone
