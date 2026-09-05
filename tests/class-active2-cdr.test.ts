@@ -120,15 +120,25 @@
  * that case measures instead.
  *
  * **The board spot is derived from `grid.ts`, not written down.** The five
- * sibling §4 liveness files hardcode `10,10` and a build tile at `11,10` and
- * will all break together on the terrain epic (`c014`). This file needs no
- * build tile at all, so it does not join that list.
+ * sibling §4 liveness files used to hardcode `10,10` and a build tile at
+ * `11,10`, and would have broken together on the terrain epic; `c014` has
+ * since moved them onto a shared probe (`tests/class-board.ts`). This file
+ * needs no build tile at all, so it stays on its own derived centre rather
+ * than importing a build spot it would never use.
  */
 import { describe, expect, it } from 'vitest';
 
-import { tickClassCharge, updateClassSummons, useClassActive, useClassActive2 } from '../src/sim/classes';
+import {
+  active2CdrFactor,
+  tickClassCharge,
+  updateClassSummons,
+  useClassActive,
+  useClassActive2,
+} from '../src/sim/classes';
 import { loadContent, type ClassEffect, type SkillCardDef } from '../src/sim/content';
 import { GRID_H, GRID_W } from '../src/sim/grid';
+import { active2CdrBonus } from '../src/sim/progression';
+import { BASE } from '../src/sim/stats';
 import { updateWarden } from '../src/sim/run';
 import { emptyInput, type TickInput } from '../src/sim/types';
 import { World } from '../src/sim/world';
@@ -246,14 +256,27 @@ function windowFor(classKey: string): number {
  * A world with the character's basic attack parked (the p6b/c005/c006/c016
  * convention) so nothing but the Active under test can move an observable.
  */
-function cdrWorld(classKey: string, ranks: Ranks): World {
+function cdrWorld(classKey: string, ranks: Ranks, statCdr = 0): World {
   const w = new World(cfg({ classKey }), content);
   w.gold = 1e6;
   w.warden.attackCooldown = 1e9;
   w.warden.x = WX;
   w.warden.y = WY;
   w.skillCardRanks = { ...ranks };
-  expect(w.derived.cdr, `${classKey}: the general cdr stat must be 0 or this file measures two levers`).toBe(0);
+  if (statCdr !== 0) {
+    // c020's lever: the *general* `cdr` stat, granted the way a boon, a tree
+    // node or an equipment affix would grant it — through `Stats`, not through
+    // a `/data` row invented for the test. `grep '"cdr"' data/*.json` finds no
+    // row granting it today, which is precisely why nothing was watching the
+    // term until now.
+    w.stats.addAll('test:cdr', { cdr: statCdr });
+    w.recomputeDerived();
+  }
+  // c019's rows measure one lever and say so; c020's say which two.
+  expect(
+    w.derived.cdr,
+    `${classKey}: derived.cdr is ${w.derived.cdr}, not the ${statCdr} this world asked for`,
+  ).toBeCloseTo(statCdr, 10);
   return w;
 }
 
@@ -307,8 +330,14 @@ type SpamResult = {
  * expire through the real `updateClassSummons`, which is what separates a
  * cadence measurement from `class-line-bonus`'s deliberate cooldown bypass.
  */
-function spamActive2(classKey: string, ranks: Ranks, seconds: number, opts: SpamOptions = {}): SpamResult {
-  const w = cdrWorld(classKey, ranks);
+function spamActive2(
+  classKey: string,
+  ranks: Ranks,
+  seconds: number,
+  opts: SpamOptions = {},
+  statCdr = 0,
+): SpamResult {
+  const w = cdrWorld(classKey, ranks, statCdr);
   const life = summonLifetime(classKey);
   let casts = 0;
   let ageSum = 0;
@@ -353,8 +382,8 @@ function spamActive2(classKey: string, ranks: Ranks, seconds: number, opts: Spam
 }
 
 /** Casts once into a fresh world and reads back what that cast cost. */
-function costOfOneCast(classKey: string, ranks: Ranks): number {
-  const w = cdrWorld(classKey, ranks);
+function costOfOneCast(classKey: string, ranks: Ranks, statCdr = 0): number {
+  const w = cdrWorld(classKey, ranks, statCdr);
   const field = gateOf(classKey).field;
   // The ammo branch only writes its cost `if (active2AmmoCooldown <= 0)`, so a
   // fresh world that ever seeded that field would make this read a stale value
@@ -844,5 +873,168 @@ describe('c019 — named deviation 2: Recall Totem Cooldown buys uptime, and onl
       ages[2],
       `rank 1 -> 2 bought nothing at all, not even a fresher totem: ${ages.map((a) => a.toFixed(2)).join(' -> ')}s`,
     ).toBeLessThan(ages[1]);
+  });
+});
+
+/* ------------------------------------------- c020: the other half of the sum */
+
+/**
+ * **c020 — `active2CdrFactor`'s general `cdr` term, which nothing was
+ * watching.** Filed by QA on `c019`.
+ *
+ * `active2CdrFactor` (classes.ts) is one subtraction with two terms:
+ *
+ * ```ts
+ * Math.max(0.05, 1 - w.derived.cdr - active2CdrBonus(w))
+ * ```
+ *
+ * Everything above measures the right-hand term. QA deleted the left one —
+ * `Math.max(0.05, 1 - active2CdrBonus(w))` — and **659 tests across the 16
+ * most relevant files stayed green**, this file included. It could not have
+ * gone red: `cdrWorld` asserts `derived.cdr === 0` as its *precondition*,
+ * precisely so c019 measures one lever, which is exactly what leaves the other
+ * unwatched.
+ *
+ * It is harmless today and a live bug the day it is not. `grep '"cdr"'
+ * data/*.json` finds no row granting the stat, so no shipped world can tell
+ * the two implementations apart. `fb056`'s fifteen new equipment items are the
+ * obvious candidate to grant it first, and the failure mode then is silent:
+ * Active2 quietly ignoring a stat §2's Cooldown row says applies to it, on a
+ * class whose card is already working, so the HUD number and the cast cadence
+ * would simply be a little worse than the item promised.
+ *
+ * **The lever is `Stats`, not `/data`.** Adding a `cdr` row to `/data` to test
+ * with would be authoring the very content this file exists to be independent
+ * of, and would move `data/vsupgrades.json`'s or `data/tree.json`'s balance
+ * with it. `w.stats.addAll('test:cdr', ...)` is the same door every real
+ * grantor comes through (`c013`'s convention with `test:area`).
+ *
+ * **Three claims, in the order a reader needs them.**
+ *
+ *  1. *The term is live.* The stat alone, with every card at rank 0, cuts the
+ *     Active2 gate by exactly its own fraction and lands strictly more casts.
+ *  2. *It stacks, rather than replacing.* With both levers up, the cost is
+ *     `authored * (1 - cdr - perRank * rank)` — a figure that is neither the
+ *     card's own nor the stat's own, so an implementation that took the larger
+ *     of the two, or the last one written, fails here rather than passing two
+ *     out of three cases.
+ *  3. *The 0.05 floor is what catches them together.* Asserted directly on
+ *     `active2CdrFactor`, and reported as a **named deviation** — the floor is
+ *     not reachable from live `/data` today, by a margin this file computes
+ *     rather than states, so the row that proves the floor exists has to drive
+ *     `derived.cdr` past `BASE.cdrCap` by hand. `c019`'s convention: never
+ *     silence, always a named row.
+ */
+
+/** Half the shipped cap, so the exact arithmetic below is never the cap's arithmetic. */
+const PROBE_CDR = BASE.cdrCap / 2;
+
+/** Every class's card at max rank, for the stacking rows. */
+function ownMaxRank(classKey: string): Ranks {
+  const card = cdrCard(classKey);
+  return { [card.key]: card.maxRank };
+}
+
+describe('c020 — the general cdr stat reaches Active2, and stacks with the card', () => {
+  it('the probe fraction is a live, positive one taken from /data, not a number written here', () => {
+    expect(BASE.cdrCap, 'data/warden.json authors no cdrCap for the stat to live under').toBeGreaterThan(0);
+    expect(PROBE_CDR).toBeGreaterThan(0);
+    expect(PROBE_CDR).toBeLessThan(BASE.cdrCap);
+  });
+
+  it('the stat is capped by /data, which is what bounds the stacking rows below', () => {
+    // Not decoration: the deviation case at the bottom multiplies this cap
+    // against the card's own reach, and reports whether the pair can touch the
+    // floor. If the cap stops binding, that report is wrong.
+    const w = cdrWorld('swordsman', {}, 0);
+    w.stats.addAll('test:cdr', { cdr: BASE.cdrCap * 10 });
+    w.recomputeDerived();
+    expect(w.derived.cdr).toBeCloseTo(BASE.cdrCap, 10);
+  });
+
+  for (const classKey of CLASS_KEYS) {
+    const card = cdrCard(classKey);
+
+    it(`${classKey}: the cdr stat alone cuts the Active2 gate by its own fraction`, () => {
+      const authored = gateOf(classKey).seconds;
+      expect(authored, `${classKey}: /data authors no Active2 gate to measure`).toBeGreaterThan(0);
+      const plain = costOfOneCast(classKey, {});
+      const withStat = costOfOneCast(classKey, {}, PROBE_CDR);
+      expect(plain, `${classKey}: rank-0 control`).toBeCloseTo(authored, 6);
+      expect(
+        withStat,
+        `${classKey}: derived.cdr ${PROBE_CDR} did not reach the Active2 gate — this is the c020 bug`,
+      ).toBeCloseTo(authored * (1 - PROBE_CDR), 6);
+      expect(withStat).toBeLessThan(plain);
+    });
+
+    it(`${classKey}: the cdr stat alone lands strictly more casts`, () => {
+      // The billing-cadence observable c019 argues for, applied to the other
+      // term: a cost-field readback alone would pass on a `classes.ts` that
+      // computed the discount and never spent it.
+      const seconds = windowFor(classKey);
+      const plain = spamActive2(classKey, {}, seconds).casts;
+      const withStat = spamActive2(classKey, {}, seconds, {}, PROBE_CDR).casts;
+      expect(plain, `${classKey}: harness window too short (${seconds}s)`).toBeGreaterThanOrEqual(2);
+      expect(withStat, `${classKey}: cdr ${PROBE_CDR} landed no extra cast: ${plain} -> ${withStat}`).toBeGreaterThan(
+        plain,
+      );
+    });
+
+    it(`${classKey} ${card.key}: stat and card stack — the combined cost is neither one alone`, () => {
+      const authored = gateOf(classKey).seconds;
+      const cardCut = card.perRank * card.maxRank;
+      // The unfloored formula is the whole story only while the pair stays
+      // clear of `active2CdrFactor`'s floor. Said out loud, as the c019 row
+      // above says it for the card alone.
+      expect(
+        PROBE_CDR + cardCut,
+        `${classKey}: the pair now reaches active2CdrFactor's 0.05 floor — the tie below is the unfloored formula`,
+      ).toBeLessThanOrEqual(0.95);
+
+      const statOnly = costOfOneCast(classKey, {}, PROBE_CDR);
+      const cardOnly = costOfOneCast(classKey, ownMaxRank(classKey));
+      const both = costOfOneCast(classKey, ownMaxRank(classKey), PROBE_CDR);
+
+      expect(both, `${classKey}: the two terms do not sum`).toBeCloseTo(authored * (1 - PROBE_CDR - cardCut), 6);
+      // The three implementations this rules out, named: taking the larger
+      // term, taking the smaller, or letting the last writer win.
+      expect(both, `${classKey}: the card replaced the stat rather than stacking`).toBeLessThan(cardOnly);
+      expect(both, `${classKey}: the stat replaced the card rather than stacking`).toBeLessThan(statOnly);
+    });
+  }
+
+  it('the 0.05 floor is what catches the two terms together past 0.95', () => {
+    const classKey = 'swordsman';
+    const card = cdrCard(classKey);
+    const w = cdrWorld(classKey, { [card.key]: card.maxRank });
+    // Driven onto `derived` by hand, and only here. `Stats` cannot reach this
+    // state: `derive` clamps the stat at `BASE.cdrCap` (asserted above), so the
+    // live pair tops out below the floor — see the deviation row. What the
+    // floor guards is the *expression*, which has no cap of its own.
+    w.derived.cdr = 0.96 - active2CdrBonus(w);
+    expect(w.derived.cdr + active2CdrBonus(w), 'the harness did not actually exceed 0.95').toBeGreaterThan(0.95);
+    expect(active2CdrFactor(w), 'the sum ran past the floor').toBe(0.05);
+
+    // And the floor is what the cast is billed at, not just what the helper
+    // returns — the same distinction every row in this file draws.
+    const field = gateOf(classKey).field;
+    expect(useClassActive2(w, AX, AY)).toBe(true);
+    expect(w.warden[field]).toBeCloseTo(gateOf(classKey).seconds * 0.05, 6);
+  });
+
+  it('named deviation: live /data cannot reach the floor, and the margin says by how little', () => {
+    // Both halves out of `/data`, so a ⚖ retune of either moves this row rather
+    // than letting the pair quietly start clamping. `c005`'s convention: pin
+    // the mechanism, not a magnitude.
+    const worstCard = Math.max(...CLASS_KEYS.map((k) => cdrCard(k).perRank * cdrCard(k).maxRank));
+    const reachable = BASE.cdrCap + worstCard;
+    expect(
+      reachable,
+      `live /data now reaches ${reachable} — the floor is live, and the "unfloored formula" caveats above need re-reading`,
+    ).toBeLessThanOrEqual(0.95);
+    // Recorded, not asserted as a magnitude: today `0.4 + 0.5 = 0.9`, one
+    // 0.05 short. A `cdrCap` 0.4 -> 0.45 or a `perRank` 0.25 -> 0.30 reaches it.
+    expect(0.95 - reachable, 'the margin is no longer positive').toBeGreaterThan(0);
   });
 });
