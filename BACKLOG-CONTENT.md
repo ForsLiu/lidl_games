@@ -521,7 +521,7 @@ session 2 (c005 was the last actionable one left), appending `c006`-`c010`.
       `towerCost`->`goldFind` mutation above with the ledger row edited to
       match - refs: SPEC-FINAL §7, c012, QA on c012, fb056.
 
-- [ ] (c023) [polish] `equipment.items[].effectKey` is a **dead field**. Found
+- [x] (c023) [polish] **DONE 2026-09-05.** `equipment.items[].effectKey` is a **dead field**. Found
       by QA on c012: setting `sleeve_sword`'s to `"none"` changes no behaviour
       and no UI text, and `equip-spec-numbers`, `fb015`, `fb028`, `fb022`,
       `codex`, `character-panel` and `b003-stash-ux` all stay green. The sim
@@ -661,6 +661,33 @@ session 2 (c005 was the last actionable one left), appending `c006`-`c010`.
       §3 (Poison), owner feedback `feature-poison-barrel-mechanic`.
 
 ## Log
+
+### c023 (2026-09-05) — the field that looks load-bearing and is not
+
+- **Shape**: new `tests/equip-effectkey-reach.test.ts`, 26 tests. No `/src` or
+  `/data` byte moved. The item is the *measurement*; removing the field (or
+  wiring it up) touches `src/sim/content.ts` and stays a main-lane decision.
+- **Confirmed dead, three independent ways.** A source census over `src/**`
+  finds only two `effectKey` mentions and both are named: the zod enum that
+  *validates* it (`content.ts:1052` — schema, not a reader, and the reason the
+  field looks load-bearing) and an unrelated core-VFX parameter of the same
+  name in `render/canvas.ts`. The three non-stat mechanics are anchored to
+  `hasEquipment(w, '<item key>')` in `classes.ts`. And `Content` is rebuilt
+  twice from `/data` — every `effectKey` blanked, then deliberately cross-wired
+  onto the wrong items — with all three mechanics and all twelve items'
+  rendered markup asserted identical. Blanking proves the field is not
+  *required*; cross-wiring proves it is not *consulted*.
+- **It flips when the field is wired up**, which is the point: re-gating Sleeve
+  Sword's instant-max charge on `effectKey` instead of the item key reddens
+  three rows — the census (a new reader appeared) and two behavioural rows.
+- **Two of this file's own probes passed vacuously first, and its own guard
+  caught them.** `dashDistance` read `warden.dashToX/dashToY`, fields that do
+  not exist, so both readings were `0` and the shoes rows compared nothing to
+  nothing; and the cross-item row called `useClassActive`, which correctly
+  returns false for a charge kind. The "the probes are live" row — c005's
+  convention, written before the probes — failed on `expected 0 to be greater
+  than 0` and named both. The real fields are `warden.dashTravel`
+  (`wardenmove.ts`) and `tickClassCharge`'s hold/release.
 
 ### c021 (2026-09-05) — "potency" is not "damage", and the one card that buys nothing
 
