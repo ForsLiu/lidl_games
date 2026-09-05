@@ -3141,6 +3141,22 @@ not already expose it) logs that need below instead of reaching into
       out-of-scope nits the reviewer raised are logged below rather than
       widened into this diff. `npx tsc --noEmit` clean; targeted suite
       132/132; all 52 `tests/ui*`/`tests/render*` files green.
+      qa-playtester **PASS**, and unusually productive: it independently
+      binary-searched the engine's real half-width (40 iterations per case)
+      across nine aim directions, five enemy radii, the merged-charge path and
+      with `swordsman_shoes` equipped, and measured **1.00000 every time** —
+      so `2 * dashWidth` is right in every case it could construct, and the
+      `+e.radius` slack `lineHit` grants makes "2 tiles wide" conservative
+      rather than generous. It confirmed the regression test is real by
+      reverting the fix (only the string assertion went red; the sim-anchored
+      corridor probe stayed green, which is exactly right — it measures the
+      engine, not the string), and re-confirmed no other `src/ui/**` sentence
+      shows a half-width as a full width (`LINE_HALF_WIDTH` and `coneHit`'s
+      `halfAngle` are never surfaced in any string; every "within X tiles" is
+      an honest radius). It then filed **four new bugs** from hostile probing
+      of the same surface — fb120-fb123 below — of which fb120 is the same
+      sentence-number-≠-sim-number bug class fb112 exists to kill, at a larger
+      absolute error.
 
 - [ ] (fb114) [feat] generated 2026-09-05 (fewer than 3 actionable items
       remained — fb085/fb093/fb097 are all out-of-lane-Scope and re-confirmed
@@ -3256,7 +3272,103 @@ not already expose it) logs that need below instead of reaching into
       fb111, QUALITY.md 1.0 (Steam/itch checklist: save slots,
       cloud-save-safe file format).
 
+- [ ] (fb120) [bug] filed 2026-09-05 by qa-playtester during fb112
+      verification — Dash Slash's "Dash 5 tiles" ignores Swordsman Shoes'
+      documented doubling; the real dash and hit line are 10. Measured twice,
+      identical: with `husk` (r=0, armor 0) aimed +X, the furthest enemy struck
+      sits at 5.0000 tiles unequipped and **10.0000 with `swordsman_shoes`**
+      (9.0000 mid-charge, 14.0000 with both). `fireDashSlash`
+      (`src/sim/classes.ts`) computes `dashRange = (eff.dashRange ?? 0) *
+      (hasEquipment(w, 'swordsman_shoes') ? 2 : 1)` and feeds `hitRange =
+      dashRange + mergedRadius` to `lineHit`, but `dashSlashSentence`
+      (`src/ui/class-info.ts`) prints `eff.dashRange` raw and
+      `ClassLiveContext` carries no dash-range field at all — so the in-run
+      panel always reads "Dash 5 tiles" while the Warden dashes and slashes
+      10. `tests/fb015-equipment.test.ts` already asserts an enemy at 8 tiles
+      is hit, i.e. the suite already proves the displayed number wrong. This
+      is the same sentence-number-≠-sim-number class fb108/fb112 exist to
+      kill, at a 100% error rather than 50%. The Hub/class-select surface
+      passes no live context and may legitimately keep showing the base 5; the
+      in-run character panel and bottom-bar hover have `w` and cannot.
+      Acceptance: `ClassLiveContext` gains a dash-range multiplier populated
+      from `hasEquipment(w, 'swordsman_shoes')` at `hud.ts`'s two live-context
+      sites and consumed by `dashSlashSentence`, so the in-run sentence reads
+      10 with the item equipped and 5 without; regression test mirrors
+      fb112's shape — a sim probe binary-searching the furthest struck enemy
+      to establish 10 vs 5 independently, then the string assertion — refs:
+      fb112, fb108, `fireDashSlash` (`src/sim/classes.ts`).
+
+- [ ] (fb121) [bug] filed 2026-09-05 by qa-playtester during fb112
+      verification — line and area sentences promise their full damage number
+      to "every enemy", but pierce falloff cuts every target after the first.
+      Measured twice, identical: five enemies at 0.9-tile spacing on the dash
+      line (armor 0) take **30, 24.6, 20.172, 16.541, 13.564**; at eight
+      enemies the last takes 7.48, a quarter of the promised number.
+      `lineHit` (`src/sim/combat.ts`) applies `scale = max(pierceFalloffFloor,
+      scale * pierceFalloff)` after EVERY strike, and `data/towers.json` sets
+      `pierceFalloff: 0.82` / `pierceFalloffFloor: 0.2` — unlike blasts, which
+      grant `aoeFullTargets: 5` at full damage first, a line decays from the
+      second target on. Scope is wider than one sentence: `chargePierceSentence`
+      (Deadeye Draw, also `lineHit`) carries the same unqualified per-target
+      claim, and the `applyAoE` sentences (`circleSlashSentence`,
+      `burstDamageSentence`, `frostNovaSentence`) overstate past the 5th
+      target. Acceptance: one wording rule applied across all of them — either
+      name the drop-off or stop promising the number to "every" target — with
+      a regression test pinning the mechanism (the multi-enemy sim probe above)
+      plus string assertions on the `dash_line`/`charge_pierce` sentences —
+      refs: fb112, `lineHit`/`applyAoE` (`src/sim/combat.ts`).
+
+- [ ] (fb122) [bug] filed 2026-09-05 by qa-playtester during fb112
+      verification — Dash Slash's "the charge's own range and damage merge into
+      this one hit" reads as "you keep the nova's coverage", but the merge
+      deletes the nova's area entirely. Repro, both branches in one probe:
+      Swordsman with a `husk` 3 tiles BEHIND and another 3 tiles to the SIDE;
+      charging Active1 fully and releasing normally hits both for 60, while
+      charging fully and firing Active2 instead hits **neither** — the merged
+      path spends the charge (`wd.active1Charging = false`, Active1 to full
+      cooldown) and converts the 4-tile nova into +4 tiles of LINE LENGTH only
+      (measured: furthest struck 5 -> 9). That is the specced reading of "hit
+      range" (Q118), so this is a wording bug, not a sim bug — but the current
+      text sells a player an area they do not get, and the real trade can be a
+      total whiff plus a 6s Active1 cooldown. Acceptance: the clause says the
+      charge's radius EXTENDS THE LINE'S REACH and its damage is added, and
+      that the nova itself does not fire; regression test carries the
+      behind/side probe as the mechanism plus a string assertion on the
+      reworded clause — refs: fb112, Q118, `fireDashSlash`.
+
+- [ ] (fb123) [bug] filed 2026-09-05 by qa-playtester during fb112
+      verification — the Dash Slash slash VFX is drawn to the physical dash
+      TARGET, not the hit line, so mid-charge and against walls the graphic is
+      shorter than the hitbox. `fireDashSlash` (`src/sim/classes.ts`) runs
+      `lineHit` with `hitRange = dashRange + mergedRadius` from the PRE-dash
+      position, then emits `class_active2` with `resolveDashTarget`'s clamped
+      travel endpoint, and `canvas.ts` draws that emitted segment. Repro: with
+      the Warden at the map edge (x=1) aiming -X, `dashTravel` is a zero-length
+      segment (the dash clamps against the wall) yet enemies at -0.6 and -0.9
+      tiles both take damage — the player sees NO slash at all while enemies
+      die; mid-charge in open ground the hit line spans 9 tiles while the drawn
+      segment spans 5, hiding 4 tiles of real hit. Acceptance: the drawn slash
+      covers the corridor that actually deals damage (the emitted event carries
+      the hit extent, not the travel extent — note the emit itself is
+      `src/sim/**` and out of this lane's Scope, so this may need a main-lane
+      companion; if so, do the render half here and log the sim half);
+      regression test asserts the emitted `class_active2` segment against the
+      measured furthest struck enemy — refs: fb112, `canvas.ts`'s
+      `class_active2` draw.
+
 ## Log
+
+- 2026-09-05, fb112 (observation for future QA passes, not an item):
+  qa-playtester reports that the standing "Dawn Rekindle, both choices" money
+  path in its own checklist is STALE against SPEC-FINAL — `src/sim/
+  sundering.ts` records that p3d deleted the V2 Day/Dusk/Night/Dawn machine
+  ("no Dawn Rekindle-or-Leave ledger... SPEC-FINAL names no Rekindle cost
+  anywhere") and `advanceToNextBlock` un-petrifies the whole roster for free,
+  so there are no longer two choices to exercise. It verified the surviving
+  equivalent (`p3d-cycle-machine`, plus full 18-wave/6-VS-wave victories on
+  three seeds) instead. QUALITY.md is owner-authored and read-only for this
+  lane, so this is recorded here rather than edited; worth a QUESTIONS.md
+  entry from the main lane.
 
 - 2026-09-05, fb112: implemented fully in-scope. code-reviewer raised two
   nits that are real but belong outside this diff, filed here rather than
