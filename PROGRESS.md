@@ -5,6 +5,32 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-05 session: stopped after p12a/p12b/p12c, with p12e diagnosed but
+  not implemented.** Three items of the pinned owner queue (BALANCE DIRECTION
+  v2) are done end to end — implemented, code-reviewed, QA'd, and committed —
+  and the fourth is profiled far enough that the next session should start
+  from the diagnosis rather than a fresh sweep.
+  **p12e's tail is entirely the boss fight, and p12c caused it.** Profiling the
+  six censored T3 seeds at a 120-minute cap: Act I is near-constant at
+  24.6-25.7 min on every seed, while the boss kill lands at **381s/384s on the
+  fast seeds and 920s/1020s/1187s on the slow ones**, with total run length
+  tracking that one-for-one (37.3/37.7 min against 47.3/48.9/51.0). The cause
+  is p12c's `baseHpMul: 20` applying to `warden_eater` like every other enemy
+  — 365,000 -> 7.3M at T1 — so fights that used to end under 180s now run 380s
+  to 1187s depending on the build. That also makes **p10k's finding stale**:
+  it concluded the run-length gap was "not inside the boss fight's own budget
+  at all" and moved to Act I/VS pacing, which was true when fights ended under
+  180s and is not true now. The boss clock is the right lever again. Full
+  diagnosis, with the likely fix and what it must not break (G14's >20s floor
+  and <100% win rate, which fb099 and p10k were both protecting), is written
+  into BACKLOG p12e.
+  **Why stopping here rather than continuing:** p12e's own acceptance is a
+  re-run of G1/G8/G14/G23 across all classes, all five Cores and T1/T3/T5 —
+  G8 and G23 are ~1 h each on their own — and this session already lost one
+  measurement run to a container restart. That matrix is not deliverable
+  reliably in long background runs here, and half-measuring it would put
+  exactly the kind of censored, untrustworthy number into the gates that p12c
+  spent its verification cycle removing.
 - **2026-09-05 session: BACKLOG p12c closed — T1 re-anchored to contested
   margins, §C's three targets met, and an impossibility conclusion retracted
   before it shipped.**

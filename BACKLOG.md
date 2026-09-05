@@ -272,7 +272,31 @@ qa-playtester per CLAUDE.md's tier, commit) — do not bundle.
       the new shape (T3 reference + T1/T5 companions, rewritten G8 diversity
       check) and are green against p12a-p12c's tuning — refs: BALANCE
       DIRECTION v2 §D, QUESTIONS Q160/Q161.
-- [ ] (p12e) [bug] **Now the blocker for this whole arc** (QUESTIONS Q177):
+- [ ] (p12e) [bug] **Now the blocker for this whole arc** (QUESTIONS Q177),
+      and **diagnosed — start from this, not from a fresh sweep.** Profiling
+      the six censored T3 seeds (`act1Seconds`/`act2Seconds`/`bossKillSeconds`
+      at a 120-minute cap) shows the tail is **entirely the boss fight**:
+      Act I is near-constant at 24.6-25.7 min on every seed, while the boss
+      kill lands at **381s / 384s on the fast seeds and 920s / 1020s / 1187s
+      on the slow ones** — a 3x spread, and total run length tracks it
+      one-for-one (37.3 / 37.7 min vs 47.3 / 48.9 / 51.0 min). The one seed
+      that is not a censored win (12) is an early `defeat_core` at 9.8 min and
+      is unrelated.
+      **The cause is p12c's own anchor.** `baseHpMul: 20` applies to the final
+      boss like every other enemy, taking `warden_eater` 365,000 -> 7.3M at T1
+      (8.36M at T3), so fights that used to top out under 180s now run 380s to
+      1187s depending on how much tower damage the build brought. That also
+      makes **p10k's conclusion stale**: it found the run-length gap was "not
+      inside the boss fight's own budget at all" and moved on to Act I/VS
+      pacing — true when fights ended under 180s, false now. The boss clock is
+      the right lever again, and `PACING_*`/`ESCALATION_*` (`src/sim/boss.ts`)
+      are already there.
+      Likely fix, to be measured not assumed: exempt the final boss from the
+      roster multiplier (it has its own fb099-fitted HP and its own G14
+      fight-length floor), or re-anchor `warden_eater.hp` against the new
+      baseline. Either way re-check G14's >20s floor and <100% win rate, which
+      is what fb099 and p10k were both protecting.
+      Original text follows.
       p12c measured T3's 24 seeds at both caps — **37.5% wins with 6 timeouts
       at the 45-minute cap, 62.5% with zero at 120 minutes**. A quarter of the
       seed set is censored, censored seeds are disproportionately *wins*, and
