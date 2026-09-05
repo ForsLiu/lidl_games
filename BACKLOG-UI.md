@@ -3673,7 +3673,7 @@ not already expose it) logs that need below instead of reaching into
       fixes, 3714 passed / 3 failed, the failures being `q15`/`b028`/`q41`/`q45`, which QA confirmed
       reproduce identically on a clean clone of HEAD.
 
-- [ ] (fb149) [bug] filed 2026-09-05 by qa-playtester during fb112
+- [x] (fb149) [bug] filed 2026-09-05 by qa-playtester during fb112
       verification — line and area sentences promise their full damage number
       to "every enemy", but pierce falloff cuts every target after the first.
       Measured twice, identical: five enemies at 0.9-tile spacing on the dash
@@ -3692,6 +3692,74 @@ not already expose it) logs that need below instead of reaching into
       a regression test pinning the mechanism (the multi-enemy sim probe above)
       plus string assertions on the `dash_line`/`charge_pierce` sentences —
       refs: fb112, `lineHit`/`applyAoE` (`src/sim/combat.ts`).
+      **CORRECTIONS, measured 2026-09-05 and re-measured independently by
+      qa-playtester.** (1) This item's own figures are wrong: Dash Slash's
+      authored damage is 90, not 30, so the real profile is `90, 73.8, 60.516,
+      49.6231, 40.691`; and at 0.9-tile spacing an eighth enemy cannot be
+      struck at all, because the line is 5 tiles long — at 0.55 spacing, where
+      eight fit, the eighth takes 22.4357, not 7.48. The filed numbers look
+      like the 0.82^n curve applied to Circle Slash's `minDamage` of 30.
+      (2) `burstDamageSentence` and `frostNovaSentence` are NOT affected:
+      `fireEffect` and `fireFrostNova` each loop `w.enemiesInRadius` and call
+      `damageEnemy` with no scale term at all, and every target was measured
+      taking an identical amount — hedging them would have introduced the
+      error, not removed it. (3) The item misses `judgement` (Paladin, also
+      `applyAoE`) and, via a third mechanism nobody had named, `ground_poison`
+      and `dash_trail`: `updateAreas` applies the SAME
+      `aoeFullTargets`/`aoeFalloff` damping to every ground field.
+      DONE 2026-09-05: three clauses in `src/ui/info-format.ts`, so a fourth
+      surface cannot invent a fourth spelling — `tower-info.ts`'s cone blurb
+      already shipped the blast wording verbatim and now uses the constant.
+      `LINE_FALLOFF_CLAUSE` goes to `dashSlashSentence` and
+      `chargePierceSentence` (`lineHit`, decays from the SECOND target);
+      `AOE_FALLOFF_CLAUSE` to `circleSlashSentence`, `judgementSentence` and
+      `poisonBarrelSentence` (`applyAoE`/`updateAreas`, `aoeFullTargets` in
+      full first); `PATCH_FALLOFF_CLAUSE` to `dashTrailSentence` alone.
+      All three are number-free: `0.82^n` floored at `0.2` starting after the
+      fifth target has no single honest percentage, and any number printed
+      would need re-verifying on every balance tune. The acceptance's
+      disjunction — name the drop-off or stop promising the number — is met by
+      naming it. code-reviewer **REQUEST-CHANGES -> APPROVE** on two Majors,
+      both real: the two ground-field kinds above were missed entirely, and
+      `chargePierceSentence` had re-worded the rule inline rather than using
+      it, which made it not one rule, read wrong (the spliced clause stranded
+      "while moving at 60% speed" off a second `while`), and left that
+      assertion passing off the inline literal when the constant was blanked.
+      qa-playtester **PASS**, walking all 24 shipped kinds with its own probes
+      rather than the table — confirming the classification, confirming the two
+      deviations, and confirming a deliberate asymmetry worth keeping:
+      `pierce`-kind towers are projectile-based and really do deal full damage
+      to every body (measured 1080 x 8), so `tower-info.ts`'s "for full damage
+      each" must stay unhedged. Two of its findings are fixed here rather than
+      filed. (a) **Flame Road's blast clause was measurably false**: aimed
+      along a row of eight, damage/s reads `18, 30.1, 32.76, 36, 36, 32.76,
+      30.1, 27.92` — the NEAREST enemy takes the least and four take double the
+      printed per-patch number, because `fireFlameRoad` lays five 1-tile
+      patches 1.25 tiles apart and `updateAreas` damps each independently.
+      There is no single "nearest" with five centres, hence the third clause,
+      which scopes the rule to one patch and says outright that overlapping
+      patches stack; its own mechanism leg asserts the non-monotonic profile
+      and the stacking. (b) **the wording assertions tested the constants
+      against themselves** — replacing both with `' Bananas.'`/`' Oranges.'`
+      left 195 tests across eleven files green, and so did making them
+      identical. A leg now pins each clause's own words, the leading space that
+      stops a double space at a call site, and that the three are distinct;
+      the Bananas mutant reddens the file. Also folded in: the ground-field
+      leg's rationale comment, whose first draft claimed only one patch covered
+      the probes when two do (QA measured 0.6 per tick, not 0.3), and the
+      `dealt[4]/dealt[0]` bound, now derived from `content.towers.pierceFalloff`
+      so a balance tune cannot redden a wording test. An exhaustiveness guard
+      requires every Active kind in `data/classes.json` to sit in exactly one
+      of a decaying, patch or flat bucket, and forbids either bucket naming a
+      kind that no longer ships. Three follow-ups filed: **fb157** (the
+      measured form of that guard), **fb158** (`tower-info.ts`'s `single`
+      blurb has the same undisclosed `lineHit` drop-off) and **fb159** (the
+      falloff floor). Blanking the clause at any one of the six sentence sites
+      reddens the file; `npx tsc --noEmit` clean; `npm run sim -- --seed 1
+      --policy hybrid` byte-identical to the control (`endHash 952d7be8`);
+      lane surface 553 passed / 0 failed; `npm run test:fast` 3734 passed / 3
+      failed, the failures being `q15`/`b028`/`q41`/`q45`, which QA reproduced
+      standalone and confirmed never import `class-info.ts`.
 
 - [ ] (fb150) [bug] filed 2026-09-05 by qa-playtester during fb112
       verification — Dash Slash's "the charge's own range and damage merge into
@@ -3912,7 +3980,85 @@ not already expose it) logs that need below instead of reaching into
       than the Area stat — refs: fb148, fb146, fb112, fb108, `classArea`
       (`src/sim/classes.ts`).
 
+- [ ] (fb157) [polish] filed 2026-09-05 by code-reviewer during fb149 review —
+      the measured form of fb149's kind-classification guard. fb149 ships a
+      DECLARED table (`DECAYS`/`PATCH`/`FLAT` in
+      `tests/ui-fb149-falloff-wording.test.ts`) plus an exhaustiveness check,
+      so a NEW `ClassEffect` kind fails until someone classifies it — but a
+      MISCLASSIFIED existing one reads clean, which is exactly how fb149's own
+      first pass missed `ground_poison` and `dash_trail`. The reviewer's ask is
+      the measured form: probe each damaging kind with `aoeFullTargets + 3`
+      pinned enemies and require the clause IFF the measured per-target
+      damages are not all equal. It was scoped out of fb149 because it needs a
+      per-kind firing harness — charges (`tickClassCharge`), stored Wrath,
+      ground-field ticking through `updateAreas`, summon lifetimes — well
+      beyond one wording item. Acceptance: a table-free guard that fires every
+      Active of every class through its own required setup, measures the
+      per-target profile, and asserts the presence or absence of a falloff
+      clause from that measurement alone; the declared tables are deleted, and
+      a deliberately misclassified kind (not just a new one) reddens it —
+      refs: fb149, fb146, fb148.
+
+- [ ] (fb158) [polish] filed 2026-09-05 by qa-playtester during fb149
+      verification — `tower-info.ts`'s `KIND_TEXT.single` blurb describes the
+      same `lineHit` drop-off the class sentences now name, and does not name
+      it. Measured twice: `arrow_spire` at tier 5 (`attackProfile` ->
+      `pierce: 1`), six husks in a row, one `updateTowers` +
+      `updateProjectiles` tick — primary 254.1, carried-through body 208.362
+      (x0.82), while the blurb says only "carrying on through up to 1 more
+      enemy behind it". Same file and same table fb149 edited. Deliberately
+      NOT the neighbouring `pierce` kind: a Ballista is projectile-based
+      (`spawnProjectile` + `pierceLeft`, no scale term) and measured 1080 to
+      all eight targets, so "hitting up to N enemies for full damage each" is
+      accurate there and hedging it would introduce the error. Acceptance: the
+      `single` blurb appends `LINE_FALLOFF_CLAUSE` when `p.pierce > 0` and says
+      nothing when it is 0, with both measurements above as the regression's
+      mechanism legs — refs: fb149, `fireTower`'s `single`/`pierce` cases
+      (`src/sim/towers.ts`).
+
+- [ ] (fb159) [polish] filed 2026-09-05 by qa-playtester during fb149
+      verification — the falloff floor makes "each one behind it takes less"
+      stop being literally true past a reachable target count. Measured twice,
+      identical: `scale = max(0.2, 0.82^(n-1))` clamps at the TENTH body on a
+      line (14 husks at 0.3 spacing on Dash Slash: 90, 73.8, 60.516, 49.6231,
+      40.691, 33.3666, 27.3606, 22.4357, 18.3973, then 18, 18, 18, 18, 18) and
+      at the FOURTEENTH on the blast/ground curve (Judgement: 5 x 11000 ...
+      2248.5549, then 2200 forever; Poison Barrel: 5 x 24 ... 4.9059, then 4.8
+      forever). Both counts fit inside one dense pack. QA explicitly did not
+      call this a bug — each clause contrasts against "takes full damage", so
+      "less" reads as "less than full", which stays true forever — and filed it
+      only so the reading is recorded rather than rediscovered. Acceptance:
+      either the clauses say "less, down to a floor", or a QUESTIONS.md entry
+      records that "less" is read against the full number rather than against
+      the previous target and the wording stands as-is (QUESTIONS.md is outside
+      this lane's Scope, so that half is main-lane) — refs: fb149,
+      `pierceFalloffFloor`/`aoeFalloffFloor` (`data/towers.json`).
+
 ## Log
+
+- 2026-09-05, fb149: implemented fully in-scope (`src/ui/class-info.ts`,
+  `src/ui/info-format.ts`, `src/ui/tower-info.ts`, one new `tests/ui-*` file).
+  Notes for the merge:
+  (a) **the item's own filed numbers were wrong** and are corrected in its DONE
+  note, as fb148's were. That is two of the last three items in this lane whose
+  filed measurements did not survive re-measurement — the pattern is a QA probe
+  written against one ability and its numbers then quoted for another. Worth
+  the next generation batch treating a filed figure as a claim to re-derive,
+  not a fact to inherit.
+  (b) the falloff wording now lives in ONE place (`info-format.ts`) and is used
+  by both `class-info.ts` and `tower-info.ts`. A main-lane change that adds a
+  multi-target ability needs to pick one of the three clauses, and the
+  exhaustiveness guard in the fb149 test will fail until it does.
+  (c) three follow-ups filed above: **fb157**, **fb158**, **fb159**.
+
+- 2026-09-05, fb149 (informational, not filed as an item): qa-playtester
+  verified two asymmetries that must NOT be "fixed" by anyone applying the
+  wording rule mechanically. `pierce`-kind towers (Ballista) spawn a projectile
+  that decrements `pierceLeft` and deals `p.damage` unscaled — measured 1080 to
+  all eight bodies — so `tower-info.ts`'s "for full damage each" is accurate.
+  `chain_lightning` and the summon splash both pass `{ primary: e }` into
+  `applyAoE`, so the named target is always struck first at full scale and the
+  splash only ever adds; their sentences are accurate too.
 
 - 2026-09-05, fb148: implemented fully in-scope (`src/ui/class-info.ts`,
   `src/ui/hud.ts`, a new `src/ui/class-live.ts`, two new `tests/ui-*` files).
