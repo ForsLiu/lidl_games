@@ -5,6 +5,59 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-05 session (lane `lane/terrain`): six items closed — `fb064w`,
+  `fb064x`, `fb064y`, `fb064z`, `fb065a`, `fb065d`.** The first two were the
+  lane's last queued items; the generation rule then ran with zero left and
+  appended five more (`fb064y`, `fb064z`, `fb065a`, `fb065b`, `fb065c`), and
+  `fb065d` was filed by fb064w's QA. Four of the six are closed below the
+  fb064w/fb064x entry that follows; the short version of each:
+
+  `fb064y`: `Grid.distAt`, `stepFrom`, `fieldDist` and `fieldStep` carried the
+  same raw-coordinate hole fb064x closed on the predicates — `distAt(3, 1.5)`
+  read tile (21, 1) and returned a plausible finite distance for somewhere
+  else. Each now refuses with the value its own contract uses for "no answer";
+  `idx` is a recorded exemption because it has nothing to refuse *with*, and
+  its three aliasing shapes are pinned instead. The enumeration table's labels
+  became the behaviour rather than one `accessor` bucket, after review showed a
+  seventh accessor could be made green by adding a row. `endHash 2729a000`
+  unchanged; QA's instrumentation counted zero non-integer calls across four
+  full sims with a positive control that fires.
+
+  `fb064z`: generation cost is now measured, in two layers — a deterministic
+  attempts ledger (2 retry-taking seeds in 1500, both named) and a
+  host-normalised cost. The instrument was rebuilt three times, each time
+  because it was measuring something other than the generator: an up-front
+  best-of-3 calibration (the pattern `tools/perf-ratio.ts` records as
+  rejected), then `min_r(t/per_r)` = `t_min/per_max`, which deflated the mean
+  4.7x under contention and hollowed out the ceiling on exactly the runner it
+  is written for, then a calibration window five times longer than the
+  operation it normalises. QA: PASS over 24 runs to 48-way contention, 0 red,
+  and it measured the ceiling's blind spot — a 4.1x cost regression passes, a
+  5.7x one reddens.
+
+  `fb065a`: the three zero-headroom bands are priced and the decision to accept
+  is recorded with the numbers. All five witnesses are accepted on their first
+  attempt; two maps in 12,000 sit exactly on the detour ceiling; one lattice
+  step of tightening costs 2 newly-retrying seeds. **The first version reached
+  the same verdict on false numbers** — an even comb stride visits only even
+  seeds, so its sample contained no zero-slack map at all — and the file
+  records that rather than quietly correcting it. The sample now lives in
+  `tests/terrain-sample.ts` and both files import it: QA showed that *copying*
+  fb064r's rows let an edit redden fb064r and leave fb065a green on the old
+  seeds.
+
+  `fb065d`: the generator's cost-ceiling test was a raw `Date.now()` budget
+  inside the fast tier, and it went red on host load alone — measured this
+  session at 5174, 5565, 6936, 10612 and 13055 ms on a healthy tree, with a QA
+  control failing at 13055 and 17645 ms with the newest terrain suites removed,
+  so it was nobody's neighbour's fault. It is now a ratio of the hostile
+  fixture's cost per attempt to an ordinary generation's, both interleaved,
+  both minima over three warmed rounds. Healthy reads 35.9 idle and up to 43.3
+  under ten busy loops; the `paint()` clamp reverted by hand reads 131.8-180.3.
+  Ceiling 80. The test passes 4/4 under the load that reddened the old bound
+  and fails at 147.6 idle / 156.9 loaded with the clamp reverted — and
+  `npm run test:fast` went from 9 failures back to the 6 standing ones.
+
 - **2026-09-05 session (lane `lane/terrain`): `fb064w` and `fb064x` closed —
   the terrain dump format now refuses what its writer never emits, and the two
   `Grid` tile predicates that answered about tiles which do not exist are

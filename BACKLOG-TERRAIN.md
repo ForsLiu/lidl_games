@@ -749,7 +749,7 @@ improvement.
       of such a Grid carrying honest provenance (it is no seed's output, so
       `source=-`) — refs: fb064k, fb064s, fb064q.
 
-- [ ] (fb065d) [bug] *(QA-filed, fb064w)* `terrain-generation.test.ts`'s "stays
+- [x] (fb065d) [bug] *(QA-filed, fb064w)* `terrain-generation.test.ts`'s "stays
       bounded under the most expensive schema-legal config" asserts
       `Date.now() - started < COST_BOUND_MS`, which makes it a wall-clock test
       inside the fast tier: it fails whenever another vitest suite shares the
@@ -764,6 +764,35 @@ improvement.
       insensitive to host load while still failing on a real cost regression;
       the test stays in the fast tier and green under a concurrent suite —
       refs: fb064w QA bug 4, `tests/terrain-generation.test.ts:706`, G12.
+      **Shipped as a ratio of the generator against itself.** The hostile
+      fixture's cost *per attempt* over one ordinary shipped-config
+      generation, interleaved, each a minimum over five rounds, hostile shape
+      warmed. Healthy reads 36.3-38.7 idle and 34.3-38.3 under QA's bursty
+      repro; the `paint()` clamp reverted by hand reads 146.4 idle and
+      148.7-160.8 under the same burst. Ceiling 80. The failing-under-load
+      repro the acceptance asks for is recorded from both directions: the old
+      bound measured 5174/5565/6936/10612/13055 ms on a healthy tree this
+      session, and QA rebuilt HEAD's version and got 4/4 red at 8047-9352 ms
+      under 24-way bursty load against its 5000 ms budget.
+      **QA found the first shipped version had inherited a smaller version of
+      the same disease** and it is fixed rather than accepted: with a
+      16-attempt hostile call the numerator's measurement window was ~710 ms
+      against the denominator's ~77 ms, so a 4-second burst inflated every
+      hostile round while the denominator's minimum stayed idle — one false red
+      in ten at 85.9. Shortening the *numerator* (4 attempts, five rounds,
+      confirm-before-red) took that to 0 red in 10 against the same repro while
+      the reverted clamp still fails 3/3, and made the test 2x faster besides.
+      QA also proved the obvious alternative wrong: lengthening the
+      *denominator* to match removes the false reds and lets the reverted clamp
+      **pass** at 74.5 in 1 of 3 runs, which is the one direction a cost guard
+      cannot afford. That negative result is recorded in the file.
+      Two doc numbers QA corrected are recorded too: `paint()` is ~97% of a
+      hostile attempt rather than the 42% an earlier draft claimed (so a
+      uniform 2x slowdown reads ~19, not ~27), and the guard's detection floor
+      is ~2.3x paint work. The denominator's 64 base seeds are now pinned to
+      one attempt each, because a legal `corridorJitter: 1` tune puts seed 2060
+      on the retry path and would drag the healthy reading from ~36 to ~27
+      without anyone editing this file.
 
 ## Log
 
