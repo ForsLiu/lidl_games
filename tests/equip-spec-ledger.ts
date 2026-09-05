@@ -79,6 +79,14 @@ export interface Block {
   title: string;
   /** The block's body: comments stripped, title line excluded. */
   body: string;
+  /**
+   * The body with **string literals** blanked as well. Used for "does this
+   * block assert anything?", which QA satisfied with `['expect(x)'].join('')`
+   * — a quoted sample of an assertion is not an assertion. `body` keeps its
+   * strings because a §7 pointer's owner binding is an item key, and item keys
+   * only ever appear quoted (`equipment: ['normal_necklace']`).
+   */
+  codeBody: string;
   /** The enclosing `describe`/`it` lines, innermost first — where a `.skip` would hide. */
   ancestors: string[];
   /** How many titles the anchor matched. Anything but 1 leaves the other fields empty. */
@@ -101,6 +109,14 @@ function stripComments(text: string): string {
   return text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
 }
 
+/** Blanks string and template literals, keeping the quotes so offsets read sanely. */
+export function stripStrings(text: string): string {
+  return text
+    .replace(/`(?:[^`\\]|\\[\s\S])*`/g, '``')
+    .replace(/'(?:[^'\\\n]|\\[\s\S])*'/g, "''")
+    .replace(/"(?:[^"\\\n]|\\[\s\S])*"/g, '""');
+}
+
 /**
  * The body of the `describe`/`it` an anchor names. Pure in its input; see the
  * header for why each of these rules exists.
@@ -108,7 +124,7 @@ function stripComments(text: string): string {
 export function blockBodyIn(text: string, anchor: RegExp): Block {
   const ls = text.split('\n');
   const hits = ls.map((l, i) => [l, i] as const).filter(([l]) => /^\s*(it|describe)\(/.test(l) && anchor.test(l));
-  if (hits.length !== 1) return { title: '', body: '', ancestors: [], matches: hits.length };
+  if (hits.length !== 1) return { title: '', body: '', codeBody: '', ancestors: [], matches: hits.length };
   const [line, i] = hits[0];
   const indent = /^\s*/.exec(line)![0];
   // The end is the first line back at the block's own indentation, whatever it
@@ -139,7 +155,8 @@ export function blockBodyIn(text: string, anchor: RegExp): Block {
       want = w;
     }
   }
-  return { title: line.trim(), body: stripComments(ls.slice(i + 1, end + 1).join('\n')), ancestors, matches: 1 };
+  const body = stripComments(ls.slice(i + 1, end + 1).join('\n'));
+  return { title: line.trim(), body, codeBody: stripStrings(body), ancestors, matches: 1 };
 }
 
 /** The same, against a repo-relative file. */
@@ -224,7 +241,19 @@ export function pointerProblems(block: Block, reads: readonly RegExp[]): string[
     out.push(`${block.matches} blocks match this anchor, expected 1`);
     return out;
   }
-  if (block.body.split('\n').length <= 2) out.push('the anchored block is empty');
+  // "Asserts nothing", not "is short". A line count was the first draft's rule
+  // and c027 found it wrong in kind: §4's covers are frequently a single
+  // `expect(signal.x(...)).toBeGreaterThan(0)`, which is a complete cover, and
+  // a body padded to four lines of setup with no assertion is not.
+  if (!/\bexpect\(/.test(block.codeBody)) out.push('the anchored block asserts nothing');
+  // **A `describe` is not a cover.** The title scan accepts `describe(` as well
+  // as `it(` — deliberately, since a two-`it` describe is sometimes the right
+  // unit — but an *enclosing* describe's body is every block under it, so
+  // anchoring at a file's wrapper satisfies any `reads` at all. QA re-pointed
+  // all thirteen §4 rows at one wrapper describe and the ledger stayed green.
+  if (/^\s+(?:it|describe)\(/m.test(block.codeBody)) {
+    out.push('the anchored block contains nested it/describe blocks — anchor the block that does the covering');
+  }
   // A cover inside a skipped ancestor is not a cover. `it.skip(` is caught by
   // the scan itself; a `describe.skip(` above it is not, and would disarm
   // every row pointing into the file while the ledger stayed green.
@@ -234,5 +263,155 @@ export function pointerProblems(block: Block, reads: readonly RegExp[]): string[
   for (const r of reads) {
     if (!r.test(block.body)) out.push(`the block "${block.title}" never reads ${r.source}`);
   }
+  return out;
+}
+
+/* ------------------------------------------- c027: reading a KILLS table */
+
+/**
+ * A length-preserving blank of everything that is not code: comments and the
+ * insides of string/template literals become spaces, so a brace or bracket in
+ * a comment or a name cannot steer a scan while every offset still lines up
+ * with the original text.
+ *
+ * A regex pass cannot do this safely — blanking `//...` first eats the `//`
+ * inside a string, blanking strings first eats a quote inside a comment — so
+ * it is one left-to-right state machine.
+ */
+export function blankNonCode(src: string): string {
+  const out: string[] = [];
+  let mode: 'code' | 'line' | 'block' | "'" | '"' | '`' = 'code';
+  for (let i = 0; i < src.length; i++) {
+    const ch = src[i];
+    const next = src[i + 1];
+    if (mode === 'code') {
+      if (ch === '/' && next === '/') {
+        mode = 'line';
+        out.push(' ');
+        continue;
+      }
+      if (ch === '/' && next === '*') {
+        mode = 'block';
+        out.push(' ');
+        continue;
+      }
+      if (ch === "'" || ch === '"' || ch === '`') {
+        mode = ch;
+        out.push(ch);
+        continue;
+      }
+      out.push(ch);
+      continue;
+    }
+    if (mode === 'line') {
+      if (ch === '\n') {
+        mode = 'code';
+        out.push(ch);
+        continue;
+      }
+      out.push(' ');
+      continue;
+    }
+    if (mode === 'block') {
+      if (ch === '*' && next === '/') {
+        out.push(' ', ' ');
+        i++;
+        mode = 'code';
+        continue;
+      }
+      out.push(ch === '\n' ? '\n' : ' ');
+      continue;
+    }
+    // inside a string literal
+    if (ch === '\\') {
+      out.push(' ', ' ');
+      i++;
+      continue;
+    }
+    if (ch === mode) {
+      mode = 'code';
+      out.push(ch);
+      continue;
+    }
+    out.push(ch === '\n' ? '\n' : ' ');
+  }
+  return out.join('');
+}
+
+/** One parsed entry of a liveness file's `KILLS` table. */
+export interface KillEntry {
+  name: string;
+  classKey: string;
+  /** The `/data` slot the entry deletes from, e.g. `towerPassive`. */
+  slot: string;
+  /** The `mods` key it deletes. */
+  key: string;
+  /** The `signal.<name>` it measures. */
+  measure: string;
+}
+
+const KILLS_MARKER = 'const KILLS: readonly Kill[] = [';
+
+/** Where a file's `KILLS` array starts and ends, so a search can exclude it. */
+export function killRegion(src: string): { start: number; end: number } {
+  const start = src.indexOf(KILLS_MARKER);
+  if (start < 0) throw new Error(`spec-ledger: no \`${KILLS_MARKER}\` to parse`);
+  const end = src.indexOf('\n];', start);
+  if (end < 0) throw new Error('spec-ledger: the KILLS array never closes');
+  return { start, end: end + 3 };
+}
+
+/**
+ * Every `mods`-deleting entry of a `KILLS` table.
+ *
+ * **Split by brace depth over blanked source, not by one regex over the file**,
+ * and both halves of that are earned. A windowed regex between `classKey` and
+ * `mutate` crossed entry boundaries whenever the entries in between deleted a
+ * `kind` rather than a `mods` key, pairing one row's class with another row's
+ * deletion. And scanning raw characters let a `]` inside a *comment* end the
+ * array two entries in — QA wrote one, and four ledger rows went red with a
+ * message blaming `/data`.
+ */
+export function killEntries(src: string): KillEntry[] {
+  const scan = blankNonCode(src);
+  if (scan.length !== src.length) throw new Error('spec-ledger: the blank pass changed the source length');
+  const { start } = killRegion(src);
+  const out: KillEntry[] = [];
+  let depth = 0;
+  let from = -1;
+  for (let i = start + KILLS_MARKER.length; i < scan.length; i++) {
+    const ch = scan[i];
+    if (ch === '{') {
+      if (depth === 0) from = i;
+      depth++;
+    }
+    if (ch === '}') {
+      depth--;
+      if (depth === 0) {
+        const entry = src.slice(from, i + 1);
+        const keys = (blankNonCode(entry).match(/classKey:/g) ?? []).length;
+        if (keys !== 1) {
+          throw new Error(
+            `spec-ledger: a KILLS entry parsed with ${keys} classKey fields — the brace scan merged or split ` +
+              `entries: "${entry.replace(/\s+/g, ' ').slice(0, 90)}"`,
+          );
+        }
+        const name = /name: (['"`])(.+?)\1,/.exec(entry);
+        const classKey = /classKey: (['"`])([^'"`]+)\1,/.exec(entry);
+        const del = /delete r\.(\w+)\.mods\.(\w+)/.exec(entry);
+        const measure = /measure: signal\.(\w+)/.exec(entry);
+        if (name && classKey && del && measure) {
+          out.push({ name: name[2], classKey: classKey[2], slot: del[1], key: del[2], measure: measure[1] });
+        }
+      }
+    }
+    if (depth === 0 && ch === ']') break;
+  }
+  // An entry whose closing brace is gone swallows the rest of the array and
+  // the scan runs off the end at depth > 0 — which returned an **empty list**
+  // in the first draft, the quietest possible failure for a parser whose
+  // callers ask "is this key anybody's mutation target?". Both shapes throw.
+  if (depth !== 0) throw new Error(`spec-ledger: a KILLS entry never closes (depth ${depth} at end of file)`);
+  if (out.length === 0) throw new Error('spec-ledger: the KILLS table parsed to zero entries');
   return out;
 }

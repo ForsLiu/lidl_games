@@ -17,7 +17,17 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
-import { blockBodyIn, decoyKeys, defaultReads, positiveLines, readsStat, sourceOf } from './equip-spec-ledger';
+import {
+  blankNonCode,
+  blockBodyIn,
+  decoyKeys,
+  defaultReads,
+  killEntries,
+  pointerProblems,
+  positiveLines,
+  readsStat,
+  sourceOf,
+} from './equip-spec-ledger';
 
 const TESTS_DIR = fileURLToPath(new URL('.', import.meta.url));
 
@@ -127,6 +137,96 @@ describe('c028: the spec-ledger device, on synthetic source', () => {
     // roster rather than fail a precondition, which is what a hardcoded roster
     // did — the right answer for the wrong reason.
     expect(decoyKeys(all, new Set(['towerCost', 'goldFind']), exempt)).toEqual(['wallHp']);
+  });
+
+  it('pointerProblems reports each of its five rules, and none of them vacuously', () => {
+    // The rules are the device; until c027 they were exercised only by two
+    // ledgers passing, and c027 changed one of them (code review).
+    const ok = ["  it('cover', () => {", '    expect(w.derived.towerCostMul).toBe(0.8);', '  });'].join('\n');
+    expect(pointerProblems(blockBodyIn(ok, /cover/), [readsStat('towerCost')])).toEqual([]);
+    // A one-line cover is a complete cover — §4's are frequently a single
+    // `expect(signal.x(...)).toBeGreaterThan(0)` — so the emptiness rule is
+    // "asserts nothing", not "is short".
+    expect(pointerProblems(blockBodyIn(ok, /cover/), [/towerCostMul/])).toEqual([]);
+    // ...and "asserts nothing" is not satisfied by the word `expect` in a
+    // string, which QA reached with `['expect(x)'].join('')`.
+    const quoted = ["  it('quoted', () => {", "    const f = ['expect(x)'].join('');", '    signal.towerHpUp(c);', '  });'].join('\n');
+    expect(pointerProblems(blockBodyIn(quoted, /quoted/), [/signal\.towerHpUp/])).toEqual([
+      'the anchored block asserts nothing',
+    ]);
+    // Zero matches, and two.
+    expect(pointerProblems(blockBodyIn(ok, /nothing like this/), [])).toEqual(['0 blocks match this anchor, expected 1']);
+    // A `reads` the body does not satisfy.
+    expect(pointerProblems(blockBodyIn(ok, /cover/), [/goldFind/])[0]).toMatch(/never reads goldFind/);
+    // A skipped ancestor.
+    const skipped = ["describe.skip('outer', () => {", "  it('cover', () => {", '    expect(1).toBe(1);', '  });', '});'].join('\n');
+    expect(pointerProblems(blockBodyIn(skipped, /cover/), [])[0]).toMatch(/skipped describe/);
+    // An enclosing describe is not a cover: its body is every block under it,
+    // so anchoring at a file's wrapper satisfies any `reads` at all (QA
+    // re-pointed all thirteen §4 rows at one wrapper and stayed green).
+    const wrapper = [
+      "describe('all the passives', () => {",
+      "  it('one', () => {",
+      '    expect(signal.a(c)).toBe(1);',
+      '  });',
+      "  it('two', () => {",
+      '    expect(signal.b(c)).toBe(1);',
+      '  });',
+      '});',
+    ].join('\n');
+    expect(pointerProblems(blockBodyIn(wrapper, /all the passives/), [/signal\.a/])[0]).toMatch(/nested it\/describe/);
+  });
+
+  it('killEntries splits a KILLS table by braces over blanked source', () => {
+    const table = [
+      'const KILLS: readonly Kill[] = [',
+      "  { name: 'A', classKey: 'swordsman', measure: signal.a, mutate: (r) => void delete r.towerPassive.mods.towerAttackSpeed },",
+      '  {',
+      "    name: 'B',",
+      "    classKey: 'paladin',",
+      '    measure: signal.b,',
+      '    mutate: (r) => {',
+      '      delete r.towerPassive.mods.towerHp;',
+      '    },',
+      '  },',
+      '];',
+    ].join('\n');
+    expect(killEntries(table)).toEqual([
+      { name: 'A', classKey: 'swordsman', slot: 'towerPassive', key: 'towerAttackSpeed', measure: 'a' },
+      { name: 'B', classKey: 'paladin', slot: 'towerPassive', key: 'towerHp', measure: 'b' },
+    ]);
+    // A `]` in a comment used to end the scan two entries in, and four ledger
+    // rows went red blaming `/data` (QA). A brace in a `name` did the same.
+    const commented = table.replace('const KILLS: readonly Kill[] = [', 'const KILLS: readonly Kill[] = [\n  // ordered as the its above, so KILLS[0] is the Swordsman\'s');
+    expect(killEntries(commented), 'a comment containing `]` still ends the scan').toHaveLength(2);
+    const braced = table.replace("name: 'A'", "name: 'A { odd }'");
+    expect(killEntries(braced), 'a brace inside a name still merges entries').toHaveLength(2);
+    // A merged entry is a named failure, not a mis-pairing: two entries whose
+    // separating brace is gone parse as one, and the per-entry regexes would
+    // otherwise pair the first row's class with the second row's deletion.
+    const merged = table.replace(
+      "  { name: 'A', classKey: 'swordsman', measure: signal.a, mutate: (r) => void delete r.towerPassive.mods.towerAttackSpeed },",
+      "  { name: 'A', classKey: 'swordsman', measure: signal.a, mutate: (r) => void delete r.towerPassive.mods.towerAttackSpeed,",
+    );
+    expect(() => killEntries(merged)).toThrow(/never closes/);
+    // ...and the other merge shape, where the entries do close but as one:
+    // two `classKey` fields in a single entry, which is what would let the
+    // regexes pair one row's class with another row's deletion.
+    const twoKeys = table.replace("  {\n    name: 'B',", "    name: 'B',");
+    expect(() => killEntries(twoKeys)).toThrow(/classKey fields/);
+    expect(() => killEntries('const other = [];')).toThrow(/no `const KILLS/);
+  });
+
+  it('blankNonCode preserves length and blanks only what is not code', () => {
+    const src = "const a = 'x]y'; // ]\n/* } */ const b = `t}`;\n";
+    const out = blankNonCode(src);
+    expect(out.length, 'offsets would shift').toBe(src.length);
+    expect(out).not.toContain(']');
+    expect(out).not.toContain('}');
+    expect(out, 'code was blanked too').toContain('const a = ');
+    expect(out.split('\n').length, 'newlines are kept so line numbers survive').toBe(src.split('\n').length);
+    // An escaped quote inside a string does not end it.
+    expect(blankNonCode("const s = 'a\\'] b'; const t = 1;")).toContain('const t = 1;');
   });
 
   it('the device has exactly one home', () => {

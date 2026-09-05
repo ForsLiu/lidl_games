@@ -595,7 +595,7 @@ session 2 (c005 was the last actionable one left), appending `c006`-`c010`.
       safe one — `class-board.test.ts` registry-checks every
       `tests/class-*.test.ts`. The rename is logged for the main lane.**
 
-- [ ] (c027) [bug] **the §4 ledger has c022's hole in the one form that has
+- [x] (c027) [bug] **DONE 2026-09-05.** **the §4 ledger has c022's hole in the one form that has
       already bitten twice.** `tests/class-spec-numbers.test.ts` pins each
       figure's authored *path* (`['passive', 'mods', 'leech']`), so moving a
       value to another key is red there in a way §7's Effect rows were not —
@@ -614,6 +614,12 @@ session 2 (c005 was the last actionable one left), appending `c006`-`c010`.
       neighbouring key with the row's own path edited to match, measured the
       way c022's was - refs: SPEC-FINAL §4.1/§4.2, §2 (Area row), c008, c013,
       c022, c024.
+      **The pointer is not a copy of c022's: §4's covers observe through named
+      `signal.*` helpers, not through `w.derived.<stat>`, so a stat-key text
+      match does not fit. It is bound three ways instead — the row's authored
+      path, the liveness `KILLS` entry that deletes that exact path (parsed out
+      of the file), and the block, which must *assert* the signal that kill
+      measures.**
 
 - [ ] (c031) [polish] **the three `hasEquipment(w, '<key>')` literals in
       `/src` are an unpinned roster, and `fb056` adds fifteen items to the file
@@ -770,6 +776,53 @@ session 2 (c005 was the last actionable one left), appending `c006`-`c010`.
       §3 (Poison), owner feedback `feature-poison-barrel-mechanic`.
 
 ## Log
+
+### c027 (2026-09-05) — the key is right; what it drives was nobody's assertion
+
+- **Shape**: `behaviour` pointers on the 16 §4 rows whose figure is authored on
+  a stat key, plus six checks over them; `killEntries`/`killRegion`/
+  `blankNonCode` added to `equip-spec-ledger.ts` (c028's module) with synthetic
+  self-tests, and `pointerProblems` gained two rules. No `/src` or `/data` byte
+  moved. 110 + 121 + 8 green.
+- **Why it is not a copy of c022.** §4's covers observe through named
+  `signal.*` helpers rather than through `w.derived.<stat>`, so §7's stat-key
+  text match has nothing to match. The pointer binds three things instead: the
+  row's authored path, the `KILLS` entry in a liveness file that deletes *that
+  exact path*, and the block, which must contain `expect(signal.<that kill's
+  measure>`. Move a figure to a neighbouring key with the row's path edited to
+  agree — the c022 mutation in §4's form — and the row names a key no liveness
+  table deletes: **3 red**.
+- **Seven mutations, all landing where they should**, six red and one
+  deliberately green: the pointer swap between Engineer and Paladin (they share
+  `signal.towerHpUp`), thirteen rows re-anchored at the wrapper `describe`,
+  deleting the frozen half's own `it`, a signal called with its result thrown
+  away, renaming c024's describe, the acceptance key move — and a `]` inside a
+  comment in the `KILLS` table, which **must** be green and was a false red
+  before `blankNonCode`.
+- **Three Majors from review and QA, each a hole in what the device *claimed*
+  rather than in what it did.** (1) `readsFor` dropped c028's owner binding, so
+  the Engineer and Paladin `towerHp` pointers were freely swappable while the
+  test title said "that block names the row's own class" — bound on the block
+  *title* now, since several §4 signals hardcode their class instead of taking
+  it as an argument. (2) The row advertised as the compensating control for the
+  at-least-one-of alternation was a **strict tautology**: it searched the file
+  for `signal.<measure>`, and `<measure>` was parsed out of that same file's
+  `KILLS` table, so the needle was guaranteed present — deleting the frozen
+  half's only `it` left it green. The table is cut out of the haystack now.
+  (3) The Time Lord `bonusAoeMul` row — the *larger* of the two divergences
+  this item exists because of — was `{ kind: 'match' }` with no note, and its
+  cross-reference was a `/time_lord/` grep that matched three unrelated
+  identifiers. It carries the finding now, and c024's describe is anchored
+  through the device.
+- **Two rules earned by QA went into the shared module**, so `c022`'s side gets
+  them too: a `describe` that *contains* nested blocks is not a cover (all
+  thirteen §4 rows re-anchored at one wrapper stayed green), and `expect(` in a
+  **string literal** is not an assertion (`['expect(x)'].join('')`).
+- **`killEntries` is in the shared module, not private here** — the `c028`
+  lesson applied immediately: it is a second source parser with its own earned
+  rules (a brace scan over *blanked* source; one `classKey` per entry; a throw
+  rather than an empty list when an entry never closes), and every one of those
+  has a synthetic self-test.
 
 ### c028 (2026-09-05) — the device, before it was copied
 

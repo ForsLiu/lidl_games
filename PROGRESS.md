@@ -47,6 +47,18 @@
   is the Scope's, not the module's — the rename to `tests/spec-ledger.ts` is
   logged for the main lane.
 
+  `c027`: the §4 ledger's 16 stat-key rows now carry behavioural pointers of
+  their own — bound to the row's authored path, to the liveness `KILLS` entry
+  that deletes that exact path, and to a block that *asserts* the signal that
+  kill measures. It is the class-side answer to the hole `c013` and `c024` each
+  found by hand: a figure that is right, on a key whose reach is wider than
+  §4's sentence. Review and QA found three Majors, all of them gaps between
+  what the device claimed and what it checked — the class binding was missing
+  (Engineer's and Paladin's `towerHp` pointers were swappable), the
+  compensating control for the alternation was a strict tautology, and the
+  Time Lord divergence was a silent `{ kind: 'match' }` row. All closed, with
+  the mutation that found each as its regression test.
+
 - **2026-09-05 (lane `lane/terrain`): merged `origin/master` in a second
   time**, picking up `lane/ui`'s fb111/fb112/fb114/fb115 (PR #4). Nothing to
   reconcile in code: master's batch touched only `src/ui/**`, `tests/ui-*` and
