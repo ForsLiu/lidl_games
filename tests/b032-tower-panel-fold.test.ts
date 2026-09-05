@@ -17,8 +17,10 @@ import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { createServer, type ViteDevServer } from 'vite';
-import { chromium, type Browser, type Page } from 'playwright';
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { type Browser, type Page } from 'playwright';
+import { it, expect, beforeAll, afterAll } from 'vitest';
+
+import { describeWithBrowser as describe, launchChromium } from './helpers/browser';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '..');
@@ -51,7 +53,7 @@ describe('b032: the tower-build panel stays above the 1080px fold', () => {
     const address = server.httpServer?.address();
     const port = typeof address === 'object' && address ? address.port : null;
     if (!port) throw new Error('could not determine the dev server port');
-    browser = await chromium.launch({ headless: true });
+    browser = await launchChromium();
     page = await browser.newPage({ viewport: VIEWPORT, deviceScaleFactor: 1 });
     await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: 'load' });
     // Same tsx/esbuild keepNames shim tools/ui-audit.ts needs — see its own
