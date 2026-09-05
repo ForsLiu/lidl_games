@@ -228,6 +228,22 @@ export function shredArmor(e: Enemy, points: number): void {
   e.armorShred += points;
 }
 
+/**
+ * Run-long class-kit growth (BACKLOG p12a): kit damage — the five
+ * `class_basic`/`class_active`/`class_active2`/`class_passive`/`class_summon`
+ * `damageEnemy` sources — compounds with TD waves cleared (~x3.2 by wave 18)
+ * so a kit doesn't stay anchored to its launch-day value against a curve
+ * that keeps scaling. Applied after stats, at the one choke point every kit
+ * damage source already funnels through (direct hits and DoT ticks alike,
+ * since a stack's `source` string survives to tick time). Never applied to
+ * tower damage, which has its own economy and its own `towerDamageMul`.
+ */
+export function kitPowerMul(w: World): number {
+  return 1 + 0.12 * w.wavesCleared;
+}
+
+const CLASS_SOURCE_PREFIX = 'class_';
+
 /** Apply damage, returning the amount actually dealt. */
 export function damageEnemy(
   w: World,
@@ -239,6 +255,7 @@ export function damageEnemy(
   if (e.dead || !Number.isFinite(amount) || amount <= 0) return 0;
   const def = e.def as EnemyDef;
   let dmg = amount;
+  if (source.startsWith(CLASS_SOURCE_PREFIX)) dmg *= kitPowerMul(w);
 
   if (!opts.dot) dmg *= damageTakenMul(enemyArmor(e));
   // SPEC-V3 §3 frozen: +30% damage taken. A status, not armor, so unlike the
