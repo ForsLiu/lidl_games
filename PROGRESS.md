@@ -5,6 +5,26 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-04 session: processed four owner feedback files.** `verdicts-
+  q155-167` — applied owner verdicts to QUESTIONS.md for Q94, Q155-Q167
+  (Q155 spawns fb136, the hardcoded-tick-constants-to-`/data` order; Q164
+  spawns fb137, the Core-placement-flow half of terrain fb077 that wasn't
+  built; Q167 spawns fb138, the SPEC-FINAL tuned-values appendix) and applied
+  **BALANCE DIRECTION v2** (owner-authored structural fix for the G8/G23
+  four-session wall in Q157-Q161/Q166): BACKLOG.md's blocked `p10z`/`p10u`
+  are superseded and converted into a new pinned "Owner priority queue
+  (2026-09-04 directive)" section, **p12a-p12e** (kit-growth multiplier +
+  re-anchor -> tier scalars with T3 as reference tier -> T1 re-anchor to
+  contested margins -> gate rewrites for G1/G8/G14/G23 -> timeout
+  elimination + full sweep/STATUS regen), pinned ahead of fb079-fb135.
+  `feature-tiered-qa` — CLAUDE.md's subagent protocol amended to a two-tier
+  verification split (light: code-reviewer only, for `[polish]`/`[ui]`/
+  `[docs]`/non-balance data items; full: code-reviewer + qa-playtester, for
+  anything touching `/src/sim`/balance/pathing/damage) and filed **fb141**
+  for `tools/status.ts`'s ledger scan missing the `BACKLOG-*.md` lane files.
+  `feature-bug-report-hotkey` (top priority) filed as **fb139**;
+  `feature-ci-workflow` filed as **fb140**. All four files moved to
+  `feedback/processed/`.
 - **2026-09-04 session: the three lanes merged into master — `lane/content`
   (c006-c019: 11 new `tests/class-*`/`equip-*` liveness and ledger suites,
   Archer pierce-cap fix, two Active cooldown retunes), `lane/terrain`

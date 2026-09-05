@@ -180,6 +180,136 @@ Normal-priority items from the same 2026-09-01 batch follow in the next
 section, in filed order; none is blocked by the five above, so any may be
 picked up independently once the top five are clear.
 
+### Owner priority queue (2026-09-04 directive) — BALANCE DIRECTION v2
+
+Filed from feedback `verdicts-q155-167.md`, resolving the four-session G8/G23
+escalation (QUESTIONS Q157-Q161, Q166) with a structural fix rather than a
+gate-band change. Per CLAUDE.md's "confirmed bugs/corrections outrank the
+queue" and the owner's own "restructure the backlog as above, then continue
+from the top," these five items sit ahead of every other open item —
+including fb079-fb135 below — except a bug that directly blocks one of them.
+Balance-analyst may edit `waves.json`/`spawns.json`/`enemies.json`/
+`classes.json` freely within this direction; Core effect literals (`cores.json`)
+stay G21-pinned unless a Core's own cell cannot close (then loosen that pin to
+a range, logged in QUESTIONS.md). Execute in order p12a -> p12b -> p12c ->
+p12d -> p12e; each is its own item (targeted tests + `test:fast`, code-reviewer/
+qa-playtester per CLAUDE.md's tier, commit) — do not bundle.
+
+- [ ] (p12a) [balance] Kit growth: class kit damage must compound over a run
+      and be re-anchored for the post-fb025 (enemy HP x10) world. (1) A
+      run-long multiplier on all class-kit damage (basic attack, actives,
+      passive procs, summons): `kitPower = 1 + 0.12 * tdWavesCleared` ⚖
+      (~x3.2 by wave 18), applied after stats, wired wherever class-kit
+      damage is computed (`src/sim/classes.ts` or equivalent) — a new,
+      documented multiplier, not folded silently into an existing stat. (2)
+      Re-anchor base kit numbers up to x3 ⚖ higher in `data/classes.json` for
+      the post-x10 enemy-HP world (fb025). (3) New BALANCE.md target: every
+      class's own-kit share of the character's total damage in VS >= 35% ⚖
+      from TD wave 12 at T1, measured with the existing `describeSource`/
+      `MATERIALITY_SHARE` machinery from `tests/p6e-class-diversity.test.ts`.
+      Tests that pin absolute kit numbers (G10's `< 700` one-shot pin on
+      archer, the swordsman 1000-HP-dummy-survives-one-hit pins in
+      `tests/p6b-swordsman.test.ts`) are re-expressed as ratios to enemy HP
+      at the measured wave — this item is explicitly authorized to do that
+      re-expression, per the owner's own text ("authorized"). Acceptance: the
+      `kitPower` multiplier exists and is tested in isolation (a fixed-seed
+      before/after showing a monotonic, large effect, same rigor as `p11c`'s
+      imperfect-play verification); own-kit share hits >=35% at wave 12+ for
+      at least 9 of 12 classes (full 12/12 may not be reachable in one item —
+      log the real per-class numbers, don't force it); G10/G11 and the
+      swordsman dummy pins are converted to ratio form and still pass — refs:
+      SPEC-FINAL §14 (BALANCE DIRECTION v2 §A), QUESTIONS Q161/Q166.
+- [ ] (p12b) [balance] Tier scalars with teeth, T3 as reference tier. Move
+      G1 (run length)/G8 (class win-rate + diversity)/G14 (boss band)/G23
+      (Core win-rate)'s measurement tier from T1 to **T3**, with T3 keeping
+      the existing bands (win rate `[35%,70%]`, etc.) unchanged. Steepen the
+      tier ladder in `data/tiers.json` (or wherever tier scalars live): enemy
+      HP `x1.35^(N-1)`, director budget `x1.2^(N-1)`, and enemy `coreDamage`
+      `x1.15^(N-1)` (all ⚖, all per-tier multiplicative on the T1 base) — the
+      `coreDamage` tier lever is the one Q160 measured as elastic. Acceptance:
+      every gate test that currently measures at T1 is re-pointed at T3 (a
+      real, logged config change, not a silent rename); a fresh T5 measurement
+      lands in `[5%,20%]` win rate ⚖; T1's own win rate is measured (not yet
+      gated — that's p12c) and recorded — refs: BALANCE DIRECTION v2 §B,
+      QUESTIONS Q160.
+- [ ] (p12c) [balance] T1 re-anchor to contested margins. Using the p10s
+      harness (scripted-kit-and-Core-purchase, margin-classified via
+      `classifyMargin`), raise T1's wave HP curve / spawn density / enemy
+      `coreDamage` together (the same shared levers p10r/p10t/p10z already
+      measured, now retried against p12a/p12b's new baseline) until the
+      scripted bot's median Core HP at victory is **30-60%** ⚖ — contested,
+      not landslide. Acceptance: T1 win rate for the scripted-kit bot lands
+      in the new `[55%,90%]` ⚖ band with >=25% of wins classified `close-win`
+      ⚖ (no all-landslide roster), measured via `classifyMargin`/
+      `summarizeMargins`; T3's G1/G8/G14/G23 bands (moved there by p12b) are
+      re-confirmed unaffected — refs: BALANCE DIRECTION v2 §C.
+- [ ] (p12d) [balance] Gate rewrites: update G1/G8/G14/G23's text (SPEC-FINAL
+      §14) and their test files to (1) measure at T3 as reference tier
+      (p12b), with the new T1 band `[55%,90%]`/`>=25% close-win` (p12c) and T5
+      `[5%,20%]` (p12b) as companion assertions, not replacements for the T3
+      bands; (2) replace G8's diversity clause ("top damage source distinct
+      across >=9/12") with the two checks Q160/Q161/D specify: (i) every
+      class meets p12a's >=35%-own-kit-share target; (ii) pairwise class
+      fingerprint distance (damage-source/damage-type vector, G22's existing
+      method) >= 0.15 ⚖ for every pair. Acceptance: SPEC-FINAL §14's G1/G8/
+      G14/G23 text is edited to match; the corresponding test files assert
+      the new shape (T3 reference + T1/T5 companions, rewritten G8 diversity
+      check) and are green against p12a-p12c's tuning — refs: BALANCE
+      DIRECTION v2 §D, QUESTIONS Q160/Q161.
+- [ ] (p12e) [bug] Timeout elimination: no seed may reach the tick cap in any
+      gate matrix (G1/G8/G14/G23). Verify the Warden-Eater HP/enrage
+      escalation (QUESTIONS Q126's order) is aggressive enough under p12a-
+      p12c's new numbers; stack it faster if a `'running'`/timeout outcome
+      still appears anywhere in the four gate matrices. Add explicit gate
+      text: zero `'running'` outcomes tolerated in any of the four suites.
+      Acceptance: a full re-run of G1/G8/G14/G23 (all classes, all 5 Cores,
+      T1/T3/T5) shows zero timeout outcomes; then run the full sweep and
+      `npm run status` to regenerate STATUS.md against the new baseline —
+      refs: BALANCE DIRECTION v2 §E, QUESTIONS Q159/Q160 (both name timeouts
+      in the pre-p12 baseline).
+
+Constellation stays auto-maxed for all play (`TREE_AUTO_MAX`); per BALANCE
+DIRECTION v2 §F, never re-add point spending as a balance lever to make any
+of p12a-p12e easier.
+
+### Feedback — owner-filed items (2026-09-04), processed from `feedback/`
+
+- [ ] (fb139) [feat] top priority: in-game bug-report hotkey, replay-attached,
+      straight into the inbox. F8 at any moment in a run (dev mode) opens a
+      small box for a one-line note; on confirm the game writes, via a
+      dev-server endpoint (same pattern as the Tuner's save), a bug file into
+      `D:\lidl_inbox` named `bug-<timestamp>.md` containing: the note; class,
+      Core, tier, wave/phase, sim tick; the run seed and the full input log
+      (or a path to a saved replay file under `/replays`); the content hash;
+      and a screenshot PNG path captured from the canvas at that moment. The
+      loop treats it as a normal `[bug]` file and the qa/dev agent reproduces
+      it by replaying to that tick. Prod builds: F8 downloads the same bundle
+      as a file instead. Acceptance: F8 produces the file + screenshot +
+      replay; a test replays a saved bundle to the recorded tick with
+      matching hash (reuse architecture rule 2's content-hash/replay
+      machinery, `src/sim/run.ts`); CLAUDE.md's feedback rule updated to
+      mention replay bundles as first-class repros — refs: SPEC-FINAL §11/§12
+      (determinism, dev tooling), owner feedback `feature-bug-report-hotkey`.
+- [ ] (fb140) [feat] CI: GitHub Actions — fast tier on every push, full suite
+      nightly. Add `.github/workflows/ci.yml`: on push and pull_request (all
+      branches incl. `lane/*`) — checkout, Node 22, `npm ci`, `npm run
+      test:fast`, `npm run build`; upload `/audit` PNGs if the ui-audit runs.
+      Nightly (cron 03:00) on master — full `npm test` + `npm run status`,
+      commit STATUS.md back if changed. Concurrency group per branch (cancel
+      superseded runs); 30 min timeout for fast, 3 h for nightly; worker cap
+      env from the cpu-cap item (fb087). Also add a short `docs/CI.md` and a
+      README badge. Acceptance: workflow file committed and validated by
+      `act` or a dry parse; documented; a red fast-tier run blocks nothing
+      locally but is visible on GitHub — refs: QUALITY.md standing rules,
+      owner feedback `feature-ci-workflow`.
+- [ ] (fb141) [polish] `tools/status.ts`'s feedback-ledger scan only reads
+      BACKLOG.md, so lane-routed feedback (processed into BACKLOG-CONTENT.md/
+      BACKLOG-TERRAIN.md/BACKLOG-UI.md) shows "no BACKLOG citation found" in
+      STATUS.md even when it has one in its own lane file. Acceptance: the
+      ledger scan also reads every `BACKLOG-*.md` for item citations; the next
+      `npm run status` run shows lane items cited correctly instead of the
+      false-negative — refs: owner feedback `feature-tiered-qa` (item 2).
+
 ### QA-filed bugs (2026-09-02, found live during fb029's qa-playtester pass)
 
 Neither bug is caused by fb029's own diff (both are in pre-existing, unrelated
@@ -1786,7 +1916,10 @@ fresh number.
       tightened in `tests/p10d-run-length.test.ts`'s header to distinguish
       cumulative cross-session evidence from five same-session attempts).
 
-- [ ] (p10z) [feat] Give the G1/G8/G14/G23 scripted-kit-and-Core-purchase
+- [x] (p10z) [feat] **Superseded 2026-09-04 — owner verdict on QUESTIONS Q160
+      (feedback `verdicts-q155-167`) resolves the escalation this item filed;
+      converted into p12a-p12e below rather than reopened for a fifth
+      `/data`-only session.** Give the G1/G8/G14/G23 scripted-kit-and-Core-purchase
       harness (or a new bot policy layered on it) a way to discriminate
       "close-call" seeds from seeds that are either untouchable wins (the
       `TREE_AUTO_MAX` full-tree build overwhelms the board regardless of the
@@ -1927,7 +2060,11 @@ measurement with an expiry date"), or the one engineer's-judgment depth item
 in the spirit of HANDOFF §6 (`p10s`'s own code-reviewer flagged the harness
 duplication as a drift risk worth a future de-dup).
 
-- [ ] (p10u) [balance] Close G8's diversity clause: top damage source is
+- [x] (p10u) [balance] **Superseded 2026-09-04 — owner verdict on QUESTIONS Q161
+      (feedback `verdicts-q155-167`) resolves the escalation this item filed;
+      converted into p12a/p12d below (kit-growth multiplier + rewritten G8
+      diversity check) rather than reopened for a fifth `/data`-only session.**
+      Close G8's diversity clause: top damage source is
       distinct across only **3 of 12 classes** (`tests/p6e-class-diversity.test.ts`
       line ~717, re-measured honest at `b027` — `ballista`/`spreading_plague`
       plus one more once the full-tree allocation is used), far under the
