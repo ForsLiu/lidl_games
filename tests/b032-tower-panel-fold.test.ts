@@ -17,10 +17,10 @@ import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { createServer, type ViteDevServer } from 'vite';
-import { type Browser, type Page } from 'playwright';
-import { it, expect, beforeAll, afterAll } from 'vitest';
+import type { Browser, Page } from 'playwright';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 
-import { describeWithBrowser as describe, launchChromium } from './helpers/browser';
+import { hasChromium, launchChromium } from './helpers/browser';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '..');
@@ -42,7 +42,7 @@ async function towerRowBottoms(page: Page): Promise<number[]> {
   );
 }
 
-describe('b032: the tower-build panel stays above the 1080px fold', () => {
+describe.skipIf(!hasChromium)('b032: the tower-build panel stays above the 1080px fold', () => {
   let server: ViteDevServer;
   let browser: Browser;
   let page: Page;

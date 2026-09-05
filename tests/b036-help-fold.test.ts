@@ -15,10 +15,10 @@ import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { createServer, type ViteDevServer } from 'vite';
-import { type Browser, type Page } from 'playwright';
-import { it, expect, beforeAll, afterAll } from 'vitest';
+import type { Browser, Page } from 'playwright';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 
-import { describeWithBrowser as describe, launchChromium } from './helpers/browser';
+import { hasChromium, launchChromium } from './helpers/browser';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '..');
@@ -34,7 +34,7 @@ async function call(page: Page, method: string, ...args: unknown[]): Promise<unk
   );
 }
 
-describe('b036: the WASD/keybind hint stays above the 1080px fold in Training Grounds', () => {
+describe.skipIf(!hasChromium)('b036: the WASD/keybind hint stays above the 1080px fold in Training Grounds', () => {
   let server: ViteDevServer;
   let browser: Browser;
   let page: Page;
