@@ -3340,7 +3340,7 @@ not already expose it) logs that need below instead of reaching into
       unchanged by this item and touching neither `src/ui/**` nor
       `src/render/**`.
 
-- [ ] (fb145) [bug] generated 2026-09-05 (same generation batch as fb142) —
+- [x] (fb145) [bug] generated 2026-09-05 (same generation batch as fb142) —
       auto-pause on tab/window hide, not just `blur`. fb071 auto-pauses a
       running run on `window`'s `blur` (`main.ts`), which covers alt-tab on a
       desktop browser, but `visibilitychange` appears nowhere in `src/`: a
@@ -3356,6 +3356,42 @@ not already expose it) logs that need below instead of reaching into
       `document.hidden`, dispatches `visibilitychange` with no `blur` event at
       all, and asserts the run paused, plus a re-show asserting it stayed
       paused — refs: QUALITY.md BETA, fb071.
+      DONE 2026-09-05: `main.ts`'s `bindGlobalInput` extracts fb071's `blur`
+      closure body verbatim into a shared `onFocusLost` (no logic change: same
+      `clearKeysForPause` first, same `run && outcome === 'running' && !paused`
+      guard) and registers a `document` `visibilitychange` listener that calls
+      it when `document.hidden`. The two overlap harmlessly — whichever arrives
+      second finds `paused` already true. The `hidden` guard is load-bearing,
+      not decoration: `visibilitychange` fires on the reveal half too, so
+      without it every return to the tab would pause the run the player just
+      came back to play. Regression test written FIRST and confirmed red
+      (5 of 11 cases failing) before the fix: `tests/ui-fb145-visibility-
+      autopause.test.ts` dispatches ZERO `blur` events anywhere in the file, so
+      every case has to pass through the new listener or not at all. 12/12
+      after two review-requested additions. code-reviewer **REQUEST-CHANGES ->
+      APPROVE**: its only blocker was four `tests/zz-qa-fb145-probe*.test.ts`
+      scratch files the parallel QA agent had live in the tree mid-review (out
+      of Scope, and one of them made `tsc --noEmit` red) — already removed by
+      QA itself before commit, verified rather than assumed. Its Minor is
+      folded in: the reveal-is-a-no-op case now also asserts a held `w`
+      survives, so a refactor hoisting `clearKeysForPause` above the
+      `document.hidden` guard fails loudly instead of silently dropping held
+      keys on every return to the tab. qa-playtester **PASS**, re-deriving
+      every acceptance clause with its own probes and confirming the shipped
+      test is not vacuous (a `stopImmediatePropagation` listener registered on
+      `document` ahead of the `Game` turns it red). Its hostile set held: 500
+      consecutive hidden events, blur/hide/reveal/focus in every order, a hide
+      during the b001 dying slow-mo, and 300 paused frames on a real driven
+      mid-wave run leaving `tick`/`phase`/`outcome`/`coreHp` and every enemy's
+      `x,y,hp` byte-identical. Its coverage-gap note is also folded in as a
+      12th case pinning exactly one `visibilitychange` binding across a
+      Hub -> run -> quit -> Hub -> run cycle. Two follow-ups filed rather than
+      folded in: **fb153** (the hidden branch does not flush fb074's persisted
+      run) and **fb154** (a run that STARTS hidden is never auto-paused —
+      inherited from fb071, not introduced here). `npx tsc --noEmit` clean;
+      `npm run test:fast` 3660 passed / 3 failed, the failures being
+      `q15`/`b028`/`q41`/`q45`, all tools/CLI-subprocess suites importing no
+      `src/ui/**` and all in the documented pre-existing flake classes.
 
 - [ ] (fb146) [polish] generated 2026-09-05 (same generation batch as fb114;
       engineer's-judgment item, depth not scope creep per HANDOFF §7) — a
@@ -3580,7 +3616,63 @@ not already expose it) logs that need below instead of reaching into
       plus its control with no preference — refs: fb144, fb075, QUALITY.md 1.0
       (Accessibility re-check).
 
+- [ ] (fb153) [bug] filed 2026-09-05 by qa-playtester during fb145 QA —
+      hiding the tab pauses but does not flush the persisted run. fb145's
+      `visibilitychange` handler (`main.ts`) is the last reliable moment
+      before a mobile freeze/discard — its own comment says so — but it only
+      calls `onFocusLost`, and `persistRun()` is reachable only from
+      `frame()`'s 60-tick throttle, which the pause then stops forever.
+      Measured twice: 95 real frames -> `world.tick === 94`, persisted
+      `inputLog.length === 60`, i.e. ~0.57 s of play unrecoverable if the
+      hidden tab is discarded — the QUALITY.md BETA "no progress loss on
+      refresh" bar, missed on the one platform fb145 was written for.
+      Acceptance: the hidden branch flushes the current log (bypassing the
+      60-tick throttle, still honouring `persistDisabled`/`runSessionId`
+      ownership and `lastPersistedLen`); a test drives the real `Game` past
+      the throttle window to a non-multiple-of-60 tick, dispatches a hidden
+      `visibilitychange`, and asserts the persisted `inputLog.length` equals
+      `world.tick`; plus a case asserting a hide on the Hub (no run) and a
+      hide with `persistDisabled` write nothing — refs: fb145, fb074, fb087,
+      QUALITY.md BETA.
+
+- [ ] (fb154) [bug] filed 2026-09-05 by qa-playtester during fb145 QA — a run
+      that STARTS hidden is never auto-paused. fb071 covers `blur` and fb145
+      covers the hidden `visibilitychange` edge, but neither fires for a run
+      that begins in an already-backgrounded document: fb074's boot-resume
+      (`tryResumePersistedRun` -> `beginRun`) in a restored background tab
+      binds its listeners after the document is already hidden, was never
+      focused so `blur` cannot fire, and the only event that will ever arrive
+      is the reveal, which the `!document.hidden` guard correctly drops.
+      Reproduced twice: `paused === false` on a resumed run with
+      `document.hidden` true, still false after a reveal + `focus`. The player
+      is dropped straight into live combat — the exact opposite of fb071/
+      fb145's deliberate manual-resume convention (harm bounded only by rAF
+      throttling and `frame()`'s 0.25 s `dtReal` clamp). Acceptance: `beginRun`
+      pauses immediately when `document.hidden` is true at bind time, under
+      the same `outcome === 'running'` guard; a test stubs `document.hidden`
+      true BEFORE constructing the `Game`, boots a fresh run and a persisted
+      resume, and asserts both come up paused, with a control at
+      `hidden === false` asserting neither does — refs: fb145, fb071, fb074.
+
 ## Log
+
+- 2026-09-05, fb145: implemented fully in-scope (`src/ui/main.ts`, one new
+  `tests/ui-*` file). Two follow-ups filed from QA rather than folded in:
+  **fb153** and **fb154** above. Two observations QA recorded that are not
+  items:
+  (a) the prompt's standing hostile checklist still names `soulpick`, `dusk`
+  and `dawn` phases and a "Dawn Rekindle, both choices" money path — none of
+  those exist in this build (`Phase` is `act1_build | act1_wave | act2 |
+  levelup | results`, and `src/sim/sundering.ts` records that p3d deleted the
+  Rekindle ledger). This is the SECOND session QA has reported the same stale
+  checklist (see the 2026-09-05 fb112 entry below); QUALITY.md is owner-
+  authored and read-only for this lane, so it stays logged here and is worth a
+  QUESTIONS.md entry from the main lane rather than a silent edit.
+  (b) `document.hidden === undefined` (an embedder dispatching
+  `visibilitychange` without the unprefixed property) never pauses. QA could
+  not name a real UA where that is reachable and explicitly did not file it;
+  `blur` still covers those engines, and the acceptance names `document.hidden`
+  outright. Recorded so a future reader knows it was probed, not missed.
 
 - 2026-09-05, fb144: implemented fully in-scope (`src/ui/settings.ts` plus two
   `tests/ui-*` files). The second test file is `tests/ui-fb142-dpr-change
