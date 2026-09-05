@@ -3158,7 +3158,7 @@ not already expose it) logs that need below instead of reaching into
       sentence-number-≠-sim-number bug class fb112 exists to kill, at a larger
       absolute error.
 
-- [ ] (fb114) [feat] generated 2026-09-05 (fewer than 3 actionable items
+- [x] (fb114) [feat] generated 2026-09-05 (fewer than 3 actionable items
       remained — fb085/fb093/fb097 are all out-of-lane-Scope and re-confirmed
       so this session; QUALITY.md BETA/1.0 checklist gap diff) — device-pixel-
       ratio change handling. QUALITY.md BETA's Settings line names
@@ -3177,6 +3177,58 @@ not already expose it) logs that need below instead of reaching into
       and asserts the backing store was resized, plus a second change proving
       the listener re-armed; absent `matchMedia` (jsdom without the stub) is a
       no-op, never a throw — refs: QUALITY.md BETA (Settings), fb065.
+      DONE 2026-09-05: `Game` (`src/ui/main.ts`) arms a
+      `(resolution: Ndppx)` query in `bindGlobalInput` and re-arms it at the
+      new ratio on every change — that query matches exactly ONE ratio, so it
+      fires once and is then permanently false for the ratio just moved to; a
+      one-shot listener would only ever catch the first change.
+      `renderer.resize()` runs before the re-arm so both read the same
+      `devicePixelRatio`. Deliberately an ADDITION to the `window` `resize`
+      listener, not a replacement: if a UA ever evaluated the query as false
+      even at its own ratio, the feature degrades to silence and that listener
+      remains the backstop. code-reviewer **REQUEST-CHANGES** on one Major,
+      and it was the right catch: the test asserted `Renderer.resize()` was
+      *called*, not that the backing store changed — an implementation passing
+      a cached dpr, or an early return that swallowed the change, would have
+      passed it, which is exactly the bug this item exists to fix. Now asserts
+      `canvas.width` doubles on 1 -> 2 while `canvas.style.width` (which
+      carries no ratio) holds. It also corrected the code's own premise: per
+      CSSOM-View an unsupported query does NOT throw, it yields
+      `media: 'not all'`/`matches: false`, so the `try`/`catch` guards a case
+      real browsers never produce while the case they DO produce is silent —
+      documented rather than papered over. qa-playtester **PASS**, with three
+      findings, all fixed here rather than filed since they sit inside this
+      item's own "never a throw" acceptance: (1) a `matchMedia` returning
+      `null` threw a TypeError that escaped `bindGlobalInput` BEFORE
+      `inputBound`/`bindCanvasInput`/`this.run` were set, with the Hub already
+      torn down — a mounted canvas, no run, no way back; (2)
+      `removeEventListener` was optional-chained, so a query this code cannot
+      detach from was armed anyway and handlers doubled per change (measured
+      2^6 = 64 live listeners after six rounds); (3) the test iterated a
+      listener array the production re-arm splices mid-iteration, a latent
+      false-green. Both product fixes carry their own regression case,
+      verified by reverting each and watching exactly those two tests go red.
+      QA's hostile pass otherwise held everywhere: fractional DPRs
+      (1.25/1.5/2.625/1.333...) produce exact query strings and exact backing
+      stores, 200 rapid changes leave exactly ONE live listener, changes fired
+      on the Hub between runs and mid-fb088-chunked-resume neither throw nor
+      pin a stale ratio, a real-UA `matches: false` query arms and stays quiet,
+      and a 768-tick control-vs-DPR-storm comparison produced an identical
+      world hash (`c81453e2`) — the path does not touch the sim. One
+      limitation stated rather than hidden: whether a real UA fires
+      `(resolution: 1.3333...dppx)` at 133% zoom could not be verified here
+      (no browser in this sandbox, and jsdom has no `matchMedia`); the
+      `resize` backstop covers it either way. `npx tsc --noEmit` clean;
+      targeted suite 8/8; all 53 `tests/ui*`/`tests/render*` files 348
+      passed/6 skipped. `npm run test:fast` 2331 passed/3 failed/48 skipped
+      across 8 files — `b028`, `b032`/`b034`/`b035`/`b036`, `q15`, `q41`,
+      `q45`, exactly the standing families and exactly the pre-change
+      baseline. An earlier pass showed 10 files/6 tests; QA independently
+      root-caused that to two concurrent vitest runs widening the
+      dev-server-port and bench-scratch-dir families, and confirmed
+      mechanically that no other suite can even reach the new code
+      (`matchMedia` is undefined in vitest's jsdom, so `armDprListener`
+      early-returns everywhere else).
 
 - [ ] (fb115) [feat] generated 2026-09-05 (same generation batch as fb114) —
       fullscreen toggle reachable mid-run. QUALITY.md 1.0's Steam/itch
