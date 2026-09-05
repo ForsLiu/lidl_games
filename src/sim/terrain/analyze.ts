@@ -624,6 +624,12 @@ function isNormalFootprint(map: TerrainGrid, anchor: number): boolean {
  * be measurable from outside the module, and `tests/terrain-anchor-quality.test.ts`
  * asserts the rule through it: the chosen anchor carries the maximum of this
  * over its own minimum-distance tie set.
+ *
+ * Not re-exported from `index.ts`: that barrel is the public surface, and this
+ * is a tie-break internal a test measures through. It keeps tile coordinates
+ * rather than the flat anchor index its callers in that test hold, because the
+ * one caller in *this* module has `(x, y)` already and because it is the same
+ * shape as `gateDistance` beside it.
  */
 export function coreAnchorRoom(map: TerrainGrid, tx: number, ty: number): number {
   let room = 0;

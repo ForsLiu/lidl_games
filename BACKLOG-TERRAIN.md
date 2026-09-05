@@ -843,6 +843,58 @@ improvement.
 
 ## Log
 
+- (2026-09-05, fb065b, second review round) **Three things this file claimed
+  and had not measured, all caught by the re-review and all now asserted rather
+  than written down.** They are recorded because each is the same failure
+  shape — a plausible sentence next to a measured number — and the file's whole
+  argument is that the difference matters.
+
+  1. **The golden blast radius was inherited, not measured**, in the paragraph
+     headed "measured by running the change rather than by reasoning about it".
+     The five-file list was copied verbatim from `tests/terrain-headroom.test.ts`,
+     where it describes a *different* change, and three of its five entries are
+     wrong here. Measured by applying the disc swap in a `git worktree` at HEAD
+     and running the suites: `terrain-approach` (fb064o, 4 cases),
+     `terrain-band-ledger` (fb064r, 2), `terrain-cost` (fb064z, 2),
+     `terrain-headroom` (fb065a, 2) and `terrain-core-placement`'s anchor golden
+     (fb064h, 1) go red; `terrain-describe` (fb064k), `terrain-variety`
+     (fb064l), `terrain-grid` (fb064x) and `terrain-generation` stay **green**,
+     because none of them reads the suggested anchor. The re-review's own list
+     missed `terrain-headroom`; this reading is a superset of it.
+  2. **"The dominators are not gate-maximisers" was false.** The 86 flat-arena
+     dominators distribute `gateDist` as 9:15, 10:19, 11:19, 12:15, 13:11, 14:7
+     — 71 of 86 beat the authored 9. What is actually true is stronger and is
+     what the file now says: every one of the 86 carries the maximum `buildRoom`
+     of 48, so each wins on centrality, on gate distance, or on both. The
+     histogram and the room set are asserted beside the count, so the claim
+     cannot go false in prose again.
+  3. **The `displacement <= 4` bound was credited to the wrong mechanism.**
+     `ROOM_RADIUS` cannot influence it: the tie-break only chooses *within* the
+     minimum-distance set, so the pick's displacement is the minimum over
+     `legalCoreAnchors` at any ring radius, and a denser `data/terrain.json` can
+     legitimately put the nearest legal anchor 5 tiles out with the rule
+     untouched. It is a sample max over seeds 1..500 with zero headroom, and it
+     is expected to go red on a density retune.
+
+  Also corrected: "three of the five free seeds win on nothing else" is two
+  (184 and 315 — 381 gains a tile of gate distance); the grossly-bad-rule
+  displacements are 19.70 / 22.47 / 11.31 at their worst-room seeds with sample
+  maxima 25.30 / 25.30 / 13.89, not "25+ tiles out"; and "the pick is the
+  *unique* minimiser of displacement" is wrong in the one word that matters,
+  since non-uniqueness is exactly what a tie is.
+
+  Two structural changes from the same round: `coreAnchorRoom` is **not**
+  re-exported from `index.ts` after all — that barrel is documented as the
+  public surface, and the test reaches into `./analyze` the way
+  `terrain-describe.test.ts` reaches for `HEADER_KEYS`. And `tieSet`'s
+  re-derivation of the primary key (which cannot be imported — the key lives
+  inline in `suggestCoreAnchor`'s loop) is now guarded by asserting the pick is
+  a *member* of the tie set the file derived, so the two cannot end up measuring
+  different populations. The re-review confirmed independently that
+  `tieTakesMaxRoom` is not tautological (it reddens on an inverted tie-break)
+  and noted that it is invariant to `ROOM_RADIUS` on its own, with the load
+  carried by the companion `movedOffLowestIndex: 17`.
+
 - (2026-09-05, fb065b) The suggested Core anchor, measured. Everything below
   is over seeds 1..500 against shipped `/data`, and every figure is pinned in
   `tests/terrain-anchor-quality.test.ts` so a retune moves a test.
