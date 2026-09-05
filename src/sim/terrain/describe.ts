@@ -48,7 +48,7 @@
  * (through `corridorsOk`), so a dump is only meaningful next to the config it
  * was taken under. That is why the parse never re-measures; see `TerrainDump`.
  */
-import { GATES, GRID_H, GRID_W } from '../grid';
+import { GATES, GRID_H, GRID_W, type GateDef } from '../grid';
 import { measureTerrain } from './analyze';
 import {
   loadTerrain,
@@ -195,7 +195,11 @@ function frac(v: number): string {
  * the evidence exactly when it matters. Refusing on the read side loses
  * nothing, because a dump is only ever *acted on* after a parse.
  */
-export function describeTerrain(map: TerrainGrid, cfg: TerrainConfig = loadTerrain()): string {
+export function describeTerrain(
+  map: TerrainGrid,
+  cfg: TerrainConfig = loadTerrain(),
+  gates: readonly GateDef[] = GATES,
+): string {
   // Dimensions first, and stricter than "the buffer is the right size": a
   // `{ w: 2.5, h: 2 }` grid has a consistent 5-tile buffer, so the length check
   // alone waves it through and the rows come out as the literal text
@@ -227,7 +231,7 @@ export function describeTerrain(map: TerrainGrid, cfg: TerrainConfig = loadTerra
     counts[k]++;
   }
 
-  const m = measureTerrain(map, cfg);
+  const m = measureTerrain(map, cfg, gates);
   const p = hasProvenance(map) ? map : null;
   const lines: string[] = [];
   lines.push(`terrain ${map.w}x${map.h}`);
@@ -240,7 +244,11 @@ export function describeTerrain(map: TerrainGrid, cfg: TerrainConfig = loadTerra
           `requested=${p.requestedSeed} effective=${p.seed} attempts=${p.attempts} ` +
           `fallback=${p.fallback} hash=${p.hash}`,
   );
-  lines.push(`gates ${GATES.map((g) => `${g.key}=${g.tx},${g.ty}`).join(' ')}`);
+  // fb065f: the gate list the bands were measured against, not the base three.
+  // The line is the dump's own statement of which arena it describes, which is
+  // why `measureTerrain` above takes the same list — a short gate line is
+  // visible to a reader, bands measured against a different arena are not.
+  lines.push(`gates ${gates.map((g) => `${g.key}=${g.tx},${g.ty}`).join(' ')}`);
   lines.push(
     `bands walkable=${frac(m.walkableFrac)} buildableNormal=${frac(m.buildableNormalFrac)} ` +
       `gateReach=${frac(m.gateReachFrac)} coreLegal=${frac(m.coreLegalFrac)} ` +
@@ -306,7 +314,19 @@ function fail(what: string): never {
  */
 export const HEADER_KEYS = {
   seed: ['source', 'requested', 'effective', 'attempts', 'fallback', 'hash'],
-  gates: GATES.map((g) => g.key),
+  // fb065f: the base three, which every build has and every dump must carry,
+  // plus the names a *modifier* can add. `south` is fb077's Fourth Gate
+  // (`world.ts`), and it is declared here rather than accepted as a free-form
+  // extra on purpose: an open-ended key set would have turned fb064w's
+  // `unknown "bogus" on the "gates" line` into a confusing complaint about
+  // coordinates, and the whole table exists to refuse what the writer never
+  // emits. The cost is a real coupling — a new modifier gate adds its name
+  // here — which is the same discipline every other line in this table follows.
+  //
+  // Declared is not required: `HEADER_KEYS` is a no-extras-in-this-order list,
+  // never a required-key list (see the doc block above), so a three-gate dump
+  // is unaffected and every existing golden is byte-identical.
+  gates: [...GATES.map((g) => g.key), 'south'],
   bands: [
     'walkable',
     'buildableNormal',
@@ -323,6 +343,7 @@ export const HEADER_KEYS = {
 } as const satisfies Record<string, readonly string[]>;
 
 export type HeaderName = keyof typeof HEADER_KEYS;
+
 
 /** `key=value` pairs from a `head a=1 b=2` line, with the head word checked. */
 function fields(line: string | undefined, head: HeaderName): Map<string, string> {
@@ -572,19 +593,41 @@ export function parseTerrainDump(text: string): TerrainDump {
   }
 
   const gateLine = fields(lines[2], 'gates');
+  /** `"tx,ty"` as a pair, or a refusal naming the gate. */
+  const at = (key: string, raw: string): readonly [number, number] => {
+    const m = /^(-?\d+),(-?\d+)$/.exec(raw);
+    if (m === null) fail(`gate "${key}" is not "tx,ty": "${raw}"`);
+    return [Number(m[1]), Number(m[2])];
+  };
   const gates = GATES.map((g) => {
-    const raw = req(gateLine, 'gates', g.key);
-    const at = /^(-?\d+),(-?\d+)$/.exec(raw);
-    if (at === null) fail(`gate "${g.key}" is not "tx,ty": "${raw}"`);
+    const [tx, ty] = at(g.key, req(gateLine, 'gates', g.key));
     // Checked against `GATES`, not merely read, for the reason the legend is
     // checked below: every band on the `bands` line was measured against the
     // real gate positions, so a dump claiming different ones is describing a
-    // measurement that never happened.
-    if (Number(at[1]) !== g.tx || Number(at[2]) !== g.ty) {
-      fail(`gate "${g.key}" is at ${raw}, this build has it at ${g.tx},${g.ty}`);
+    // measurement that never happened. This holds for the base three only —
+    // they are fixed by the build — while fb077's modifier gates are read as
+    // written, because there is nothing to check them against.
+    if (tx !== g.tx || ty !== g.ty) {
+      fail(`gate "${g.key}" is at ${tx},${ty}, this build has it at ${g.tx},${g.ty}`);
     }
     return { key: g.key, tx: g.tx, ty: g.ty };
   });
+  // fb065f: the modifier gates, when present. Nothing in this build knows where
+  // one belongs — `world.ts` chooses the tile — so the only check available is
+  // that it is a tile at all, which is worth making: the alternative is a dump
+  // whose `gates` line indexes off the board and whose bands were therefore
+  // measured somewhere the reader cannot see.
+  const BASE = new Set(GATES.map((g) => g.key));
+  for (const key of HEADER_KEYS.gates) {
+    if (BASE.has(key)) continue;
+    const raw = gateLine.get(key);
+    if (raw === undefined) continue;
+    const [tx, ty] = at(key, raw);
+    if (tx < 0 || ty < 0 || tx >= GRID_W || ty >= GRID_H) {
+      fail(`gate "${key}" is at ${tx},${ty}, which is off the grid`);
+    }
+    gates.push({ key, tx, ty });
+  }
 
   const bandLine = fields(lines[3], 'bands');
   const countLine = fields(lines[4], 'counts');

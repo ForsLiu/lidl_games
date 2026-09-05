@@ -5,6 +5,24 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-05 (lane `lane/terrain`): `fb065f` closed — a dump now describes the
+  gates its bands were measured against.** `describeTerrain` hardcoded `GATES`
+  for both the `gates` header line and its `measureTerrain` call, so a run under
+  fb077's Fourth Gate modifier produced a repro that printed three gates and
+  measured `gateReach`/`gateDetour`/`corridors`/`gatesConnected` against three —
+  8 of 30 four-gate seeds printed bands differing from the truth, worst
+  `gateDetour` delta 0.1446. It takes an optional gate list now, and
+  `parseTerrainDump` reads a four-gate line back.
+
+  The parser half needed a decision: free-form extras on the `gates` line broke
+  fb064w's `unknown "bogus"` refusal, so the modifier gate is a **declared
+  optional key** instead, kept last so the order pin stays total (pinned by its
+  own test). The coupling that buys — a new modifier gate adds its name to
+  `HEADER_KEYS` — is named in the record rather than hidden.
+
+  22 terrain suites green (400), `npx tsc --noEmit` clean, `test:fast` 3670
+  passed with only the pre-existing `b028`/`q41`/`q45`.
+
 - **2026-09-05 (lane `lane/terrain`): `fb065e` closed — a gate opened after
   terrain is applied is now terrain-consistent.** `Grid.openGate(tx, ty)` writes
   the border tile and re-derives the terrain arrays through the same

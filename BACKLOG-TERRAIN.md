@@ -990,7 +990,7 @@ highest-impact item here by a wide margin** and sits third only for that reason.
       `grid-view.ts` doc, and a name-hardcoded `tileCenter` branch in fb064x's
       table carrying the same hole as the `throws` branch this item fixed.
       qa-playtester was still running at the follow-up commit.
-- [ ] (fb065f) [bug] `describeTerrain` hardcodes `GATES` for both its `gates`
+- [x] (fb065f) [bug] `describeTerrain` hardcodes `GATES` for both its `gates`
       header line (`describe.ts:244`) and its `measureTerrain(map, cfg)` call
       (`:231`), while a run plays on `World.gates` — so a Fourth Gate run's
       repro prints three gates and measures `gateReach`, `gateDetour`,
@@ -1005,6 +1005,45 @@ highest-impact item here by a wide margin** and sits third only for that reason.
       dump round-trips byte-identically and its printed bands equal
       `measureTerrain(map, cfg, gates)`; every existing refusal message is
       unchanged — refs: fb065c QA bug 2, fb077 `World.gates`, fb064s.
+      **Shipped, and the parser half needed a design decision the acceptance
+      did not anticipate.** The writer half is small: `describeTerrain(map, cfg,
+      gates = GATES)` feeds both the header line and `measureTerrain`, so the
+      default is byte-identical and every existing golden is untouched. The
+      parser is where fb064w's "refuse what the writer never emits" and a
+      variable gate set collide.
+      **The first attempt — free-form extras on the `gates` line — was
+      abandoned because it broke an existing refusal**, which this item's own
+      acceptance forbids. With extras accepted, `bogus=1` on the gates line
+      stopped being an unknown key and became a confusing complaint about
+      coordinates (`gate "bogus" is not "tx,ty"`), which fb064w's own test
+      caught immediately. Shipped instead as a **declared optional key**:
+      `HEADER_KEYS.gates` is the base three plus `south`, fb077's Fourth Gate.
+      Every fb064w guarantee survives verbatim, including that message.
+      **The cost is a real coupling, named rather than hidden**: a new modifier
+      gate adds its name to that table. That is the same discipline every other
+      line in the table follows, and the alternative traded a legible refusal
+      for an illegible one.
+      **The optionality is safe because the key is declared last, and that is
+      pinned rather than argued.** `fields()` refuses a declared key appearing
+      after one further down the list, and a *missing* declared key falls
+      through to `req` — so an optional key is only harmless where nothing can
+      follow it. A new test asserts `south` is last and that a dump putting it
+      first is refused with fb064w's order message, so a future modifier gate
+      declared in the middle reddens instead of silently reopening the hole.
+      fb064w's own bidirectional check now compares the `gates` line against the
+      *maximal* four-gate dump rather than the default, which keeps the
+      direction that matters — every declared key must be emittable — while
+      dropping the claim that every declared key appears in every dump, which
+      the table never made.
+      **The motivating case is pinned end to end**: a real `World` under the
+      `gate` modifier, dumped through fb065c's `gridTerrain`, now prints
+      `south=12,19` and bands equal to `measureTerrain(view, cfg, w.gates)`, and
+      the test also asserts the three-gate reading *differs* on that run so the
+      assertions are not pinning a distinction without one.
+      **Verification:** 6 new cases plus 1 in `terrain-describe`; all 22
+      `tests/terrain*` suites green (400) and `grid`/`fb077-terrain-wiring`
+      green; `npx tsc --noEmit` clean; `npm run test:fast` 3670 passed with only
+      the pre-existing `b028`/`q41`/`q45`.
 - [ ] (fb065g) [test] terrain's contribution to the §14 balance gates is
       unmeasured, and leg (a) shows it is large. Since `fb077` every
       non-practice run plays generated terrain, so every G1/G8/G14/G23 reading
