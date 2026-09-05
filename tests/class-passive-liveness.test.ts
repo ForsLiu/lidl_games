@@ -99,11 +99,10 @@ import { buildTower, checkBuild } from '../src/sim/towers';
 import { upgradeCost } from '../src/sim/upgrades';
 import type { ClassSummon, Enemy, TickInput } from '../src/sim/types';
 import { World } from '../src/sim/world';
+import { BUILD_TX, BUILD_TY, EAST_REACH, WX, WY } from './class-board';
 import { cfg } from './helpers';
-import { BUILD_TX, BUILD_TY, WX, WY } from './class-board';
 
 const content = loadContent();
-
 
 const DT = 1 / 60;
 
@@ -203,7 +202,12 @@ function tilePastBaseRange(c: Content): { tx: number; ty: number } | null {
   // `checkBuild` rather than `buildTower`: the same legality check with no
   // side effects, so one probe world serves every candidate tile.
   const probe = passiveWorld('swordsman', c);
-  for (let dx = 4; dx < 14; dx++) {
+  // `dx <= EAST_REACH`, not a literal 14. Code review: `class-board.ts` sizes
+  // its footprint check so this very scan is guaranteed buildable ground, and
+  // the two numbers were coupled only by a comment — raising this bound to 18
+  // left the `EAST_REACH` row green while `footprintClear` silently stopped
+  // covering the scan. Importing the constant makes the coupling real.
+  for (let dx = 4; dx <= EAST_REACH; dx++) {
     if (checkBuild(probe, id, WX + dx, WY) === 'out_of_range') return { tx: WX + dx, ty: WY };
   }
   return null;

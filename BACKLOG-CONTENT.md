@@ -19,6 +19,9 @@ May create/edit ONLY:
 - `data/classes.json`, `data/equipment.json`
 - `tests/class-*`, `tests/equip-*`
 - this file
+- `PROGRESS.md` — not a lane file, but CLAUDE.md working rule 4 requires it be
+  updated "at every phase gate and before any stop", which every lane loop hits.
+  Named here so the next loop does not re-adjudicate it (code review, c014).
 
 Read anything. Everything else is read-only: an out-of-scope need is
 written into the Log below and becomes main-lane (or other-lane) work at
@@ -699,6 +702,41 @@ session 2 (c005 was the last actionable one left), appending `c006`-`c010`.
   red, naming cryomancer; potency *added* to `fireBloodTithe` -> 2 red (both
   deviation rows); card applied but rank ignored -> 13 red; card lookup
   ignoring class ownership -> 11 red.
+
+### c014 follow-ups (in this lane, filed by code review's second pass)
+
+- [ ] (c025) [polish] **`tests/class-kit-whiff.test.ts` converts to the shared
+      board, all but one row.** `c014` exempted the whole file; review showed
+      the exemption is broader than its reason. Only the Ice Wall row
+      (`expect([AX, AY]).toEqual([12, 10])`) is coupled to the out-of-Scope
+      `tests/p6d-nine-classes.test.ts`; the rest builds at `AX = WX + 2` and is
+      exactly the harness c014 exists to fold in — and converting would break
+      the p6d agreement *loudly on that one row*, not silently, which is the
+      alarm you want. The blocker is narrow: whiff builds a three-tile vertical
+      wall at `AX, WY-1..WY+1` and `tests/class-board.ts` exports one tile, not
+      a column. `footprintClear` already validates that column (it lies inside
+      the probed rectangle), so the work is to export it. Acceptance:
+      `class-board.ts` exports the probed wall column; `class-kit-whiff`
+      imports `WX`/`WY` and the column, keeps line 620's literal with its p6d
+      comment, and drops out of `class-board.test.ts`'s `EXCEPTIONS` except for
+      that row; all 58 whiff tests stay green and a shifted probe origin moves
+      them with the other seven - refs: c007, c014, SPEC-FINAL §4.
+
+- [ ] (c026) [polish] **`footprintClear`'s rectangle is a bounding box, and it
+      is expensive.** It requires all 128 tiles of
+      `(1 + EAST_REACH + 1) x (1 + SOUTH_REACH + 1)` buildable, while the deep
+      east arm is only used along row `WY`. On the empty shipped board only 119
+      of 720 spots qualify, and under obstacle density `p` a candidate survives
+      with `(1-p)^128`, so at a few percent density `probeBoard` throws at
+      module load instead of walking — a named failure rather than six
+      confusing ones, but not the unlimited walk the header could be read to
+      promise (the header now says so; this item is the fix). Acceptance:
+      the footprint becomes the union of the shapes the importers really use
+      (the east arm along `WY` only, the near box around the Warden), derived
+      from their sources the way the `EAST_REACH` row already scans them; the
+      shipped board still probes to `10,10`; and a simulated obstacle density
+      that today throws instead relocates the board with all seven files green
+      - refs: c014, BACKLOG-TERRAIN.md.
 
 ### For the main lane (out of this lane's Scope)
 

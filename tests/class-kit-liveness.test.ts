@@ -58,11 +58,10 @@ import { applyDot, killEnemy, spawnEnemy } from '../src/sim/enemies';
 import { buildTower } from '../src/sim/towers';
 import type { Enemy, TickInput } from '../src/sim/types';
 import { World } from '../src/sim/world';
-import { cfg } from './helpers';
 import { BUILD_TX, BUILD_TY, WX, WY } from './class-board';
+import { cfg } from './helpers';
 
 const content = loadContent();
-
 
 function kitWorld(classKey: string, c: Content = content): World {
   const w = new World(cfg({ classKey }), c);

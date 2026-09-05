@@ -128,8 +128,8 @@ import { damageWarden, tickWardenDots } from '../src/sim/run';
 import { buildTower } from '../src/sim/towers';
 import type { ClassSummon, Enemy, TickInput } from '../src/sim/types';
 import { World } from '../src/sim/world';
-import { cfg } from './helpers';
 import { BUILD_TX, BUILD_TY, WX, WY } from './class-board';
+import { cfg } from './helpers';
 
 const content = loadContent();
 

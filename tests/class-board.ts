@@ -3,10 +3,15 @@
  *
  * `c005` (`class-kit-liveness`), `c006` (`class-passive-liveness`), `c007`
  * (`class-kit-whiff`), `c009` (`class-tower-passive-liveness`), `c011`
- * (`class-passive-magnitudes`) and `c016` (`class-line-bonus`) each wrote
- * `const WX = 10; const WY = 10;` and built their probe tower at `11,10`.
- * Six copies of one assumption: that those tiles are open ground on the seed
- * `cfg()` hands out. `BACKLOG-TERRAIN.md` makes that seed generate a real map,
+ * (`class-passive-magnitudes`), `c016` (`class-line-bonus`) and `c017`
+ * (`class-deeper-draw`) each wrote `const WX = 10; const WY = 10;`, and all
+ * but the last built their probe tower at `11,10`. Seven copies of one
+ * assumption: that those tiles are open ground on the seed `cfg()` hands out.
+ *
+ * **Six of the seven import this module; `class-kit-whiff` does not** — it
+ * stays pinned, for the reason `class-board.test.ts`'s `EXCEPTIONS` records
+ * and asserts. An earlier draft of this header claimed all of them moved
+ * together, which was false, and QA caught it. `BACKLOG-TERRAIN.md` makes that seed generate a real map,
  * at which point all six fail together as `harness could not build ...` — a
  * harness error indistinguishable, to whoever picks it up, from a product
  * regression in the class kits. Logged three times (c005, c006, c009) and
@@ -15,8 +20,8 @@
  * This module owns that geometry once, and *probes* for it with the same
  * side-effect-free `checkBuild` the Engineer's reach clause already probes
  * with (`tilePastBaseRange`, class-passive-liveness). When the ground under
- * `10,10` stops being buildable the scan walks to the next tile that is,
- * and all six files move with it instead of going red.
+ * `10,10` stops being buildable the scan walks to the next tile that is, and
+ * the six importers move with it instead of going red.
  *
  * **Why the scan starts at `10,10`.** The origin is a starting point, not an
  * answer: it is the first candidate the ring scan tries, and it is discarded
@@ -44,6 +49,20 @@
  * and reddened the file anyway — the exact failure c014 exists to remove, at
  * the deepest reach the module claims to guard.
  *
+ * **The rectangle is a bounding box, and that is a real cost.** It is
+ * `(1 + EAST_REACH + 1) x (1 + SOUTH_REACH + 1)` = 128 tiles, every one of
+ * which must be buildable, while the deep east arm is only actually used along
+ * row `WY`. On the empty shipped board only 119 of 720 candidate spots
+ * qualify, and under obstacle density `p` a candidate survives with
+ * `(1-p)^128` — so at even a few percent density the expected number of legal
+ * spots board-wide falls below one and `probeBoard` throws at module load
+ * rather than walking (code review sized this). That is a *named* failure, one
+ * error instead of six confusing ones, which is the improvement this module
+ * actually delivers on a dense map; it is not the unlimited "walks to the next
+ * tile that is buildable" a reader might infer. Narrowing the footprint to the
+ * union of the shapes really used, rather than their bounding box, is the
+ * obvious next step and is logged rather than done here.
+ *
  * `grid.buildable` is the right predicate for all of it rather than a mix:
  * it is `tile === Open && occ === 0`, which already implies in-bounds,
  * non-border, non-Gate, non-Core, unoccupied *and* `passable`, so it covers
@@ -65,6 +84,13 @@ export interface Board {
   /** The tile every file builds its probe tower on: `WX + 1, WY`, kept legal by the scan. */
   readonly BUILD_TX: number;
   readonly BUILD_TY: number;
+  /**
+   * `full` when the whole `EAST_REACH x SOUTH_REACH` footprint was clear;
+   * `reduced` when only a smaller one was, which means a deep-east consumer
+   * (`tilePastBaseRange`) may not have the ground it needs. Asserted `full` on
+   * the shipped board, so a degraded map fails as a named row.
+   */
+  readonly tier: 'full' | 'reduced';
 }
 
 /** How far east of `WX` the six files place things (`tilePastBaseRange`'s `dx < 14` is the deepest). */
@@ -101,9 +127,14 @@ function isCore(tx: number, ty: number): boolean {
  * header: a static check cannot see terrain, which is the only thing this
  * module exists to survive.
  */
-function footprintClear(w: World, wx: number, wy: number): boolean {
-  for (let ty = wy - NORTH_MARGIN; ty <= wy + SOUTH_REACH; ty++) {
-    for (let tx = wx - WEST_MARGIN; tx <= wx + EAST_REACH; tx++) {
+function footprintClear(
+  w: World,
+  wx: number,
+  wy: number,
+  reach: { east: number; south: number },
+): boolean {
+  for (let ty = wy - NORTH_MARGIN; ty <= wy + reach.south; ty++) {
+    for (let tx = wx - WEST_MARGIN; tx <= wx + reach.east; tx++) {
       // The border ring is tiles 0 and GRID_W/H - 1; anything outside it is off the board.
       if (tx < 1 || ty < 1 || tx > GRID_W - 2 || ty > GRID_H - 2) return false;
       if (isCore(tx, ty)) return false;
@@ -132,15 +163,16 @@ function* candidates(origin: { tx: number; ty: number }): Generator<{ tx: number
  * legality `buildTower` runs but without the side effects, so one probe world
  * serves every candidate.
  */
-export function probeBoard(
-  origin: { tx: number; ty: number } = PROBE_ORIGIN,
-  c: Content = defaultContent,
-): Board {
+function probeAt(
+  origin: { tx: number; ty: number },
+  c: Content,
+  reach: { east: number; south: number },
+): Board | null {
   const w = new World(cfg({ classKey: PROBE_CLASS }), c);
   w.gold = 1e6;
   const id = c.towerByKey.get(PROBE_TOWER)!.id;
   for (const { tx, ty } of candidates(origin)) {
-    if (!footprintClear(w, tx, ty)) continue;
+    if (!footprintClear(w, tx, ty, reach)) continue;
     w.warden.x = tx;
     w.warden.y = ty;
     // `wouldBlockPath` as well as `checkBuild`: §10 lets a build seal the Core
@@ -149,10 +181,52 @@ export function probeBoard(
     // already asked for this, privately).
     if (checkBuild(w, id, tx + 1, ty) !== null) continue;
     if (w.grid.wouldBlockPath([[tx + 1, ty]])) continue;
-    return { WX: tx, WY: ty, BUILD_TX: tx + 1, BUILD_TY: ty };
+    return { WX: tx, WY: ty, BUILD_TX: tx + 1, BUILD_TY: ty, tier: reach.east === EAST_REACH ? 'full' : 'reduced' };
+  }
+  return null;
+}
+
+/**
+ * The first spot at or near `origin` where the Warden can stand and build its
+ * probe tower one tile east — checked with `checkBuild`, which is the same
+ * legality `buildTower` runs but without the side effects, so one probe world
+ * serves every candidate.
+ *
+ * **It degrades before it throws, and QA is why.** The full footprint is 128
+ * tiles, all required buildable. On a dense map no candidate satisfies it, and
+ * the first version of this module then threw — at *module scope*, which
+ * vitest reports as a collection error: `Tests no tests`, **259 rows across
+ * six files silently not running while a pass-counting dashboard sees zero
+ * failures**. That is a worse failure than the one c014 set out to fix, and it
+ * also made `class-wide-grove-reach` strictly more fragile than the private
+ * one-tile probe it replaced (QA measured both: a 9-wide rock column left the
+ * old probe green at 67 tests and the new one at "no tests").
+ *
+ * So the scan retries with a shrinking footprint and reports which tier it
+ * landed on. A `reduced` board still satisfies every consumer that needs only
+ * a build tile; the consumers that reach deep east (`tilePastBaseRange`) will
+ * fail as their own named rows, which is the legible failure. `BOARD.tier` is
+ * asserted `full` on the shipped board by `class-board.test.ts`, so a degraded
+ * board is a named failing row rather than silence.
+ */
+export function probeBoard(
+  origin: { tx: number; ty: number } = PROBE_ORIGIN,
+  c: Content = defaultContent,
+): Board {
+  // Full reach first, then the east arm trimmed, then the near box only. The
+  // shipped board always lands on the first, which the test asserts.
+  const tiers = [
+    { east: EAST_REACH, south: SOUTH_REACH },
+    { east: Math.floor(EAST_REACH / 2), south: SOUTH_REACH },
+    { east: 1, south: 1 },
+  ];
+  for (const reach of tiers) {
+    const hit = probeAt(origin, c, reach);
+    if (hit) return hit;
   }
   throw new Error(
-    `class-board: no buildable Warden spot within ${MAX_RING} rings of ${origin.tx},${origin.ty}`,
+    `class-board: no buildable Warden spot within ${MAX_RING} rings of ${origin.tx},${origin.ty}, ` +
+      'at any footprint down to a single build tile — this board has no open ground at all',
   );
 }
 

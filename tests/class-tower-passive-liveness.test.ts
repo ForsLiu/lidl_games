@@ -117,11 +117,10 @@ import {
 import { structureArmor } from '../src/sim/upgrades';
 import { emptyInput, type Enemy, type Structure } from '../src/sim/types';
 import { World } from '../src/sim/world';
-import { cfg } from './helpers';
 import { BUILD_TX, BUILD_TY, WX, WY } from './class-board';
+import { cfg } from './helpers';
 
 const content = loadContent();
-
 
 const DT = 1 / 60;
 

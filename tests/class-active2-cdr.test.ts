@@ -272,10 +272,15 @@ function cdrWorld(classKey: string, ranks: Ranks, statCdr = 0): World {
     w.stats.addAll('test:cdr', { cdr: statCdr });
     w.recomputeDerived();
   }
-  // c019's rows measure one lever and say so; c020's say which two.
+  // c019's rows measure one lever and say so; c020's say which two. The
+  // default `statCdr = 0` keeps c019's original precondition verbatim — no
+  // shipped content grants `cdr`, so those rows still measure the card alone —
+  // and the reason is kept in the message rather than lost to the refactor.
   expect(
     w.derived.cdr,
-    `${classKey}: derived.cdr is ${w.derived.cdr}, not the ${statCdr} this world asked for`,
+    statCdr === 0
+      ? `${classKey}: the general cdr stat must be 0 or this file measures two levers`
+      : `${classKey}: derived.cdr is ${w.derived.cdr}, not the ${statCdr} this world asked for`,
   ).toBeCloseTo(statCdr, 10);
   return w;
 }
@@ -968,17 +973,37 @@ describe('c020 — the general cdr stat reaches Active2, and stacks with the car
       expect(withStat).toBeLessThan(plain);
     });
 
-    it(`${classKey}: the cdr stat alone lands strictly more casts`, () => {
+    it(`${classKey}: the cdr stat's extra casts compound with the window, at every gate the kit uses`, () => {
       // The billing-cadence observable c019 argues for, applied to the other
       // term: a cost-field readback alone would pass on a `classes.ts` that
       // computed the discount and never spent it.
+      //
+      // **Why the gap is measured at two windows and not just `> plain`.**
+      // QA on c020 found a surviving mutant: `active2CdrFactor` has *three*
+      // call sites, and dropping the stat from the third —
+      // `tickAmmoRecharge`'s refill (`classes.ts:1752`) — left all 90 tests
+      // green. Time Lord is the one kit with `maxCharges > 1`, so its
+      // *sustained* cadence is governed by that refill and not by the cast
+      // site, while `costOfOneCast` only ever reads the first cast's bill.
+      // The mutant still landed one extra cast from the single un-mutated
+      // site, which is all `toBeGreaterThan(plain)` ever asked for. A real
+      // discount compounds: the correct build measured 9 -> 11 at 80 s and
+      // 17 -> 21 at 160 s, while the mutant sat at a flat +1 at both.
       const seconds = windowFor(classKey);
+      const gapAt = (w: number) =>
+        spamActive2(classKey, {}, w, {}, PROBE_CDR).casts - spamActive2(classKey, {}, w, {}).casts;
       const plain = spamActive2(classKey, {}, seconds).casts;
-      const withStat = spamActive2(classKey, {}, seconds, {}, PROBE_CDR).casts;
       expect(plain, `${classKey}: harness window too short (${seconds}s)`).toBeGreaterThanOrEqual(2);
-      expect(withStat, `${classKey}: cdr ${PROBE_CDR} landed no extra cast: ${plain} -> ${withStat}`).toBeGreaterThan(
-        plain,
-      );
+
+      const near = gapAt(seconds);
+      const far = gapAt(seconds * 3);
+      expect(near, `${classKey}: cdr ${PROBE_CDR} landed no extra cast at ${seconds}s`).toBeGreaterThan(0);
+      expect(
+        far,
+        `${classKey}: the cdr advantage did not grow with the window (${near} extra casts at ${seconds}s, ` +
+          `${far} at ${seconds * 3}s) — a flat gap means some gate this kit uses is ignoring the stat, ` +
+          'which is how the tickAmmoRecharge site hid from this file',
+      ).toBeGreaterThan(near);
     });
 
     it(`${classKey} ${card.key}: stat and card stack — the combined cost is neither one alone`, () => {
@@ -1035,6 +1060,11 @@ describe('c020 — the general cdr stat reaches Active2, and stacks with the car
     ).toBeLessThanOrEqual(0.95);
     // Recorded, not asserted as a magnitude: today `0.4 + 0.5 = 0.9`, one
     // 0.05 short. A `cdrCap` 0.4 -> 0.45 or a `perRank` 0.25 -> 0.30 reaches it.
-    expect(0.95 - reachable, 'the margin is no longer positive').toBeGreaterThan(0);
+    expect(
+      0.95 - reachable,
+      `the margin is gone: BASE.cdrCap ${BASE.cdrCap} + the widest card ${worstCard} = ${reachable}, and ` +
+        "active2CdrFactor's 0.05 floor now clamps live worlds. Every \"unfloored formula\" caveat above " +
+        'needs re-reading, and the floor row below stops being a hand-driven case.',
+    ).toBeGreaterThan(0);
   });
 });

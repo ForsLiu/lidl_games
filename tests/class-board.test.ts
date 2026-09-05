@@ -85,13 +85,36 @@ const EXCEPTIONS: Record<string, string> = {
   // This file is the rule; it owns the geometry rather than importing it.
   'class-board':
     'the rule itself — it imports ./class-board by definition and asserts the shipped board as a baseline',
-  // c007's file. Its Ice Wall row exists to state the same whiff policy as
-  // `tests/p6d-nine-classes.test.ts` and pins the agreement with
-  // `expect([AX, AY]).toEqual([12, 10])` against p6d's own hardcoded aim
-  // point. De-hardcoding this side alone would leave the two files agreeing
-  // about nothing, and p6d is outside this lane's Scope, so the pair moves
-  // together from the main lane or not at all. Asserted below, not trusted.
-  'class-kit-whiff': 'its aim point is an agreement with the out-of-Scope tests/p6d-nine-classes.test.ts',
+  // c007's file, and the exception code review was right to call broader than
+  // its reason. **Only one row is coupled to p6d** (`expect([AX, AY])
+  // .toEqual([12, 10])`, the Ice Wall occupancy agreement); the rest of the
+  // file builds at `AX = WX + 2` and is exactly the harness c014 exists to
+  // fold in. The original reason here also misstated the failure mode:
+  // converting would not "silently break the agreement", it would break it
+  // *loudly*, on that one row, which is the alarm you want.
+  //
+  // It is still exempt, for a narrower and more honest reason: whiff builds a
+  // three-tile vertical wall at `AX, WY-1..WY+1`, and `class-board.ts` exports
+  // one tile, not a column. `footprintClear` already validates that column
+  // (it lies inside the probed rectangle), so exporting it is a small change
+  // — but it is a change to the module every other file now depends on, and
+  // it belongs in its own item rather than in this one's rework. Logged in
+  // BACKLOG-CONTENT.md.
+  'class-kit-whiff':
+    'one row pins an Ice Wall agreement with the out-of-Scope p6d, and its 3-tile wall column is not ' +
+    'something class-board.ts exports yet — conversion logged as its own item',
+  // c019's file. It parks the Warden on a *derived* centre
+  // (`Math.floor(GRID_W / 2)`) and places no tower, so the literal-pin rule
+  // has nothing to catch — but code review is right that derived-and-unprobed
+  // is exactly as terrain-fragile as pinned, and an exemption that falls out
+  // of the rule's own gating is worse than one written down. It is written
+  // down here rather than converted because converting would move a c019
+  // baseline (its centre `18,10` -> the shared `10,10`) across 90 cast-cadence
+  // cases that this item does not measure and has no reason to disturb — and
+  // it would buy nothing, since the file needs no build tile.
+  'class-active2-cdr':
+    'parks on a derived centre from grid.ts and places no tower, so it has no build tile to share; ' +
+    'converting would move 90 cast-cadence baselines for no terrain gain',
 };
 
 /** Every file the rule applies to: the sweep minus the named exceptions. */
@@ -106,6 +129,31 @@ function code(name: string): string {
   return source(name)
     .replace(/\/\*[\s\S]*?\*\//g, '')
     .replace(/(^|[^:])\/\/.*$/gm, '$1');
+}
+
+/**
+ * Every function in this file that places a tower: `buildTower` itself, plus
+ * any local helper whose last two parameters are `tx: number, ty: number`.
+ *
+ * Derived, not hardcoded. Code review's second pass: a fixed
+ * `(buildTower|place|tower)` set let a helper named anything else escape the
+ * build rule entirely — and, worse, escaping also set `builds = false`, which
+ * switched off the park and import rules for that file too. The anchors failed
+ * *open*, silently. `.`-prefixed calls (`h.place(...)`) are excluded from the
+ * boundary class for the same reason they were before: a method call is not
+ * one of this file's own helpers.
+ */
+function placerNames(src: string): string[] {
+  const names = new Set(['buildTower']);
+  for (const m of src.matchAll(/function\s+(\w+)\s*\(([^)]*)\)/g)) {
+    const params = m[2]
+      .split(',')
+      .map((a) => a.trim())
+      .filter(Boolean);
+    const tail = params.slice(-2).join(', ');
+    if (/^tx:\s*number,\s*ty:\s*number$/.test(tail)) names.add(m[1]);
+  }
+  return [...names];
 }
 
 /**
@@ -125,7 +173,7 @@ function code(name: string): string {
  */
 function buildCallTiles(src: string): string[] {
   const out: string[] = [];
-  const name = /(^|[^A-Za-z0-9_$.])(buildTower|place|tower)\s*\(/g;
+  const name = new RegExp(`(^|[^A-Za-z0-9_$])(${placerNames(src).join('|')})\\s*\\(`, 'g');
   for (const m of src.matchAll(name)) {
     const before = src.slice(Math.max(0, m.index! - 12), m.index! + m[1].length);
     if (/\bfunction\s*$/.test(before)) continue;
@@ -189,7 +237,17 @@ describe('c014: the shared board is probed, not pinned', () => {
         'baseline, not a hardcode: re-read those files\' windows and margins (Core distance, board edges, ' +
         'chain-line room) before updating this row to the new answer.',
     ).toEqual({ WX: 10, WY: 10, BUILD_TX: 11, BUILD_TY: 10 });
-    expect(BOARD).toEqual({ WX, WY, BUILD_TX, BUILD_TY });
+    expect(BOARD).toEqual({ WX, WY, BUILD_TX, BUILD_TY, tier: BOARD.tier });
+    // The shipped board must clear the *whole* footprint, not a degraded one.
+    // `probeBoard` falls back to a smaller reach rather than throwing at module
+    // scope (which vitest reports as "no tests" — 259 rows silently skipped,
+    // QA's finding), so this row is what turns a degraded board into a named
+    // failure instead of a quiet one.
+    expect(
+      BOARD.tier,
+      'the probe could only clear a reduced footprint, so deep-east consumers like tilePastBaseRange ' +
+        'may not have the ground they need — the board is degraded, not merely moved',
+    ).toBe('full');
   });
 
   it('a class with no buildRange bonus can actually build on it', () => {
@@ -235,6 +293,7 @@ describe('c014: a shifted probe origin moves the whole board', () => {
     it(`origin ${origin.tx},${origin.ty}: still a legal board, and not the shipped one`, () => {
       const b = probeBoard(origin);
       expect(b, 'the scan handed back the shipped board for a shifted origin').not.toEqual(BOARD);
+      expect(b.tier, `origin ${origin.tx},${origin.ty} needed a degraded footprint`).toBe('full');
       expect(buildsFrom(b), `probed board at origin ${origin.tx},${origin.ty} is not buildable`).toBeNull();
       expect([b.BUILD_TX - b.WX, b.BUILD_TY - b.WY]).toEqual([1, 0]);
       for (const [tx, ty] of footprintTiles(b)) {
@@ -304,7 +363,14 @@ describe('c014: no importer pins the board privately again', () => {
       // A file that never places a tower has no build tile, and so no board to
       // share: `class-active2-cdr` derives its own centre and says so in its
       // header. The park rule follows the build rule rather than standing alone.
-      if (parks && builds) {
+      // `parks || builds`, not `parks && builds`. Code review's second pass:
+      // the `&&` meant `class-deeper-draw` — the very file the previous
+      // round's Major 3 was about — parks the Warden, places no tower, and so
+      // got no sink coverage at all. Its only guard was the literal-pin
+      // negative, which a *derived but unprobed* coordinate walks straight
+      // past, and a derived-unprobed spot is exactly as terrain-fragile as a
+      // pinned one.
+      if (parks || builds) {
         it('imports its geometry from ./class-board', () => {
           // Which symbols is left to the two sink rules below: `class-wide-
           // grove-reach` parks on `spot.tx + 0.5` off the shared build tile
@@ -319,7 +385,7 @@ describe('c014: no importer pins the board privately again', () => {
           const writes = [...src.matchAll(/w\.warden\.(x|y)\s*=\s*([^;\n]+)/g)].map((m) => [m[1], m[2].trim()]);
           expect(writes.length, 'the parking probe found no warden.x/y write to check').toBeGreaterThan(0);
           for (const [axis, value] of writes) {
-            const want = axis === 'x' ? ['WX', 'spot.tx + 0.5'] : ['WY', 'spot.ty + 0.5'];
+            const want = axis === 'x' ? ['WX', 'BUILD_TX + 0.5'] : ['WY', 'BUILD_TY + 0.5'];
             expect(want, `${name}: w.warden.${axis} = ${value} — park on the shared spot, not a private one`).toContain(
               value,
             );
@@ -330,12 +396,21 @@ describe('c014: no importer pins the board privately again', () => {
       if (builds) {
         it('builds only on the shared tile — every build call ends in BUILD_TX, BUILD_TY', () => {
           const tiles = [...new Set(buildCallTiles(src))];
-          // `tx, ty` is a helper forwarding its own parameters (`place(w, key,
-          // tx, ty)`), which is where the shared tile arrives from — the
-          // caller is what this rule reads.
-          const bad = tiles.filter(
-            (t) => !/^(BUILD_TX, BUILD_TY|spot\.tx, spot\.ty|tx, ty|far!?\.tx, far!?\.ty)$/.test(t),
-          );
+          // Only imported symbols, plus a helper forwarding its own declared
+          // parameters (`place(w, key, tx, ty)`) — which is where the shared
+          // tile arrives from, so the *caller* is what this rule reads.
+          //
+          // `spot.tx, spot.ty` used to be allowlisted and is deliberately gone:
+          // matched on identifier text, it let the private probe this item
+          // deleted be re-introduced under the same local name and pass every
+          // rule (code review). `class-wide-grove-reach` now names the imported
+          // symbols at its sinks instead, and `tsc` forbids shadowing those.
+          //
+          // `far!.tx` is `tilePastBaseRange`'s probed result — a `checkBuild`
+          // probe like the shared one, kept because the Engineer's reach clause
+          // is *about* a tile the base range cannot reach and so cannot use the
+          // shared one.
+          const bad = tiles.filter((t) => !/^(BUILD_TX, BUILD_TY|tx, ty|far!?\.tx, far!?\.ty)$/.test(t));
           expect(bad, `${name}: build calls on a tile that is not the shared one`).toEqual([]);
         });
 
@@ -346,6 +421,20 @@ describe('c014: no importer pins the board privately again', () => {
     });
   }
 
+  it('the class-active2-cdr exception still describes that file — "derived centre", not a pin', () => {
+    // QA on c014: an `EXCEPTIONS` row turns every rule off for its file, so an
+    // unasserted reason is a standing invitation. Measured — replacing that
+    // file's derived centre with `const WX = 10` and parking on literals left
+    // all 56 rows green, while the same injection into `class-deeper-draw`
+    // was caught. An exception has to carry its own tripwire, exactly as the
+    // class-kit-whiff row below does.
+    expect(
+      code('class-active2-cdr'),
+      'the exception says "parks on a derived centre from grid.ts" — it does not any more, so either ' +
+        'convert the file or rewrite the exception',
+    ).toMatch(/const WX = Math\.floor\(GRID_W \/ 2\)/);
+  });
+
   it('class-kit-whiff is the one convertible file left pinned, and p6d is why', () => {
     const s = source('class-kit-whiff');
     expect(s, 'class-kit-whiff was converted — drop its EXCEPTIONS row').toMatch(/^const WX = 10;$/m);
@@ -353,7 +442,14 @@ describe('c014: no importer pins the board privately again', () => {
     // agreement with `p6d-nine-classes`, which is out of this lane's Scope.
     expect(s).toMatch(/expect\(\[AX, AY\]\)\.toEqual\(\[12, 10\]\)/);
     const p6d = readFileSync(join(__dirname, 'p6d-nine-classes.test.ts'), 'utf8');
-    expect(p6d, 'p6d no longer pins that aim point — the exception can be lifted').toMatch(/\b12,\s*10\b/);
+    // Anchored on p6d's *Ice Wall* rows, not on any `12, 10` in the file.
+    // Code review: p6d has eight matches for the loose pattern, most of them
+    // unrelated dummy placements, so it could de-hardcode the aim point
+    // entirely and this row would stay green — leaving the exception standing
+    // after its reason had gone.
+    expect(p6d, 'p6d no longer pins the Ice Wall tile — the class-kit-whiff exception can be lifted').toMatch(
+      /w\.(grid\.buildable|structureAt)\(12, 10\)/,
+    );
   });
 
   it('EAST_REACH and SOUTH_REACH still cover the deepest offset any importer actually uses', () => {

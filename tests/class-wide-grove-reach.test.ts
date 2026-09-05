@@ -126,8 +126,8 @@ import {
 import { updateWieldedAttacks, wieldedAoeFor, wieldedRangeFor, wieldedSplashFor } from '../src/sim/vswield';
 import type { Enemy, Structure } from '../src/sim/types';
 import { World } from '../src/sim/world';
-import { cfg } from './helpers';
 import { BUILD_TX, BUILD_TY } from './class-board';
+import { cfg } from './helpers';
 import { GRID_H, GRID_W } from '../src/sim/grid';
 
 const content = loadContent();
@@ -213,18 +213,24 @@ function placeProbed(w: World, key: string): Placed {
   // The margin is still real — worst case lands near `x = 23.7` — but it is
   // no longer so large that it can be left unstated, so `boardBound` below
   // asserts it per placement instead of trusting it.
-  const spot = { tx: BUILD_TX, ty: BUILD_TY };
-  w.warden.x = spot.tx + 0.5;
-  w.warden.y = spot.ty + 0.5;
+  // The imported symbols are named at both sinks directly, not aliased into a
+  // local `spot`. Code review's second pass: `class-board.test.ts` matches the
+  // sinks on identifier *text*, so an allowlisted `spot.tx` would let the very
+  // private probe this item deleted be re-introduced under the same name and
+  // pass every rule. Naming `BUILD_TX`/`BUILD_TY` at the sink leaves the
+  // allowlist containing nothing but imported symbols, which `tsc` forbids
+  // shadowing.
+  w.warden.x = BUILD_TX + 0.5;
+  w.warden.y = BUILD_TY + 0.5;
   const def = w.content.towerByKey.get(key)!;
-  const r = buildTower(w, def.id, spot.tx, spot.ty);
-  expect(r.ok, `harness could not build ${key} at ${spot.tx},${spot.ty}`).toBe(true);
+  const r = buildTower(w, def.id, BUILD_TX, BUILD_TY);
+  expect(r.ok, `harness could not build ${key} at ${BUILD_TX},${BUILD_TY}`).toBe(true);
   return {
     s: (r as { ok: true; structure: Structure }).structure,
-    x: spot.tx + 0.5,
-    y: spot.ty + 0.5,
-    tx: spot.tx,
-    ty: spot.ty,
+    x: BUILD_TX + 0.5,
+    y: BUILD_TY + 0.5,
+    tx: BUILD_TX,
+    ty: BUILD_TY,
   };
 }
 
