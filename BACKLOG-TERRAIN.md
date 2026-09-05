@@ -1190,6 +1190,58 @@ highest-impact item here by a wide margin** and sits third only for that reason.
 
 ## Log
 
+- (2026-09-05, fb065h review round) **The conclusion held; the sentence stating
+  it did not.** The file answered "does `RunConfig.seed` identify the map a run
+  played?" unconditionally, and measured only the base three-gate arena. The
+  gate list is a generator input: seed 40 is hash `c8dc0fa7` on three gates and
+  `566b7585` on four, **239 tiles apart**. A reader following "just regenerate
+  from the seed" on a `modifiers: ['gate']` bug report gets the wrong map —
+  which is a *bigger* hole than the retry the item studies, and is the same
+  blind spot the immediately preceding item (fb065f) had just closed for the
+  dump's bands. Two items running, this lane measured the three-gate arena and
+  wrote "a run".
+
+  The conclusion survives the wider population and is now measured on it: over
+  the same 12,000 seeds with the four-gate list, **5** seeds strand rather than
+  3 (`804589548`, `1542607185`, `-1638`, `-929`, `2147483230`), the two sets are
+  **disjoint**, and all five are rescued by the Warden clearing exactly as the
+  three are — so the retry count is 0 of 12,000 on either list.
+
+  **Three more from the same round, all taken.**
+  1. The sweep reported `sampled`, not `checked`: `strandedIn`'s `fallback` skip
+     silently shrank the denominator, so a `/data` regression pushing half the
+     sample onto the flat arena would have left the bound reading over 12,000
+     seeds while covering 6,000. It now returns and asserts `checked`.
+  2. The discriminator ("differs only inside the 3x3 ⇒ no retry") was an
+     inference. The separation is enormous in practice — 3-6 tiles against ~290
+     for `seed+1`, measured — but the exact form costs nothing: the run's grid
+     must now equal the seed's own map with the 3x3 forced normal, on **every**
+     tile. That also pins the clearing's *shape*, so a 5x5 version fails here
+     rather than passing unnoticed.
+  3. The sweep allocated a `Grid` per seed and called `refresh()`, neither of
+     which `allGatesReachable` needs — it dijkstras `blocked`, which
+     `applyTerrain` already rebuilt. Hoisting one `Grid` and dropping the
+     refresh took the sweep from 23.0 s to 16.4 s on an identical result list
+     (13.8 s of that is generation, the floor). The four-gate arm is recorded
+     rather than swept in-test for the same reason: running both took the file
+     to 34.6 s, the wrong side of the fast tier, so its five witnesses are
+     re-measured (milliseconds) and the distribution is a recorded string —
+     fb064r's two-layer pattern.
+
+  **And a stale comment this measurement exposes, for the main lane:**
+  `tests/fb077-terrain-wiring.test.ts`'s header says its fixture seeds "resolve
+  via `applyRunTerrain`'s seed+1 retry". Measured here, they are rescued by the
+  Warden clearing and the retry never runs at all — the review confirmed the
+  retry loop survives a `tries < 0` mutant against that suite, `terrain-gate-open`
+  and `terrain-grid-view` alike. The retry path has no test anywhere.
+
+  **The monotonicity proof is also narrower than it read**, and is now stated
+  that way: "the clearing only opens tiles" is not sufficient on its own, since
+  `clearOverlayBlock` also zeroes `high` and `charBlock`, which are *not*
+  monotone-safe for other predicates. What makes the bound provable is that
+  `allGatesReachable` dijkstras `blocked` <- `staticBlocked` <- `terrainBlock`
+  <- `overlay.walkable` and nothing else.
+
 - (2026-09-05, fb065e + fb065f, QA rounds) **Both PASS on the current head, and
   between them they found four things worth keeping.**
 

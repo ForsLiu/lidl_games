@@ -17,16 +17,24 @@
  *
  * The measurement is in two layers, because only one of them is cheap:
  *
- *  1. **The upper bound**, over all 12,000 seeds of `tests/terrain-sample.ts`:
- *     how many seeds' generated maps leave the Core unreachable *before* the
- *     Warden clearing. Three: `-349`, `-169` and `3000001834`, i.e. 0.0250%.
- *     This is a genuine bound and not an estimate — `clearOverlayBlock` only
- *     ever sets tiles walkable, never unwalkable, so the walkable set can only
- *     grow and reachability can only improve. The retry rate is therefore at
- *     most this.
- *  2. **The exact answer for those three**, which costs three more applies:
- *     each is *rescued* by the Warden clearing, so the retry count over the
- *     sample is **0 of 12,000** and the bound above is not tight. That the 3x3
+ *  1. **The upper bound**, over all 12,000 seeds of `tests/terrain-sample.ts`,
+ *     on both gate lists: how many seeds' generated maps leave the Core
+ *     unreachable *before* the Warden clearing. Three on the base arena
+ *     (`-349`, `-169`, `3000001834`, 0.0250%) and five on the four-gate one
+ *     (`804589548`, `1542607185`, `-1638`, `-929`, `2147483230`), disjoint sets
+ *     — different generator input, different population.
+ *     This is a genuine bound and not an estimate, and the argument is narrower
+ *     than "the clearing only opens tiles": `allGatesReachable` dijkstras
+ *     `blocked`, which comes from `staticBlocked`, which reads `terrainBlock`
+ *     and hence `overlay.walkable` and **nothing else** — and
+ *     `clearOverlayBlock` writes `walkable = 1` unconditionally. So the walkable
+ *     set can only grow and reachability can only improve. (Its other writes,
+ *     `high = 0` and `charBlock = 0`, are *not* monotone-safe for other
+ *     predicates; they simply do not enter this one.)
+ *  2. **The exact answer for those eight**, which costs eight more applies:
+ *     every one is *rescued* by the Warden clearing, so the retry count over
+ *     the sample is **0 of 12,000 on either gate list** and the bound above is
+ *     not tight. That the 3x3
  *     clear closes this path is a side effect — it was added because 1.0% of
  *     seeds otherwise spawn the character in rock — and it is worth knowing it
  *     carries this too, because a change to it would move a number nothing
@@ -37,27 +45,45 @@
  * in 4000 on the raw map and 0 after the clear; the two are consistent, and the
  * window one is not the population a run draws from (fb064j).
  *
- * **What a reader holding only `RunConfig.seed` can and cannot do.** Can:
- * regenerate the map, on every seed measured here. Cannot: assume the *grid*
- * matches it — `applyRunTerrain` clears the Warden's 3x3 and `Grid` punches out
- * the gate and Core footprints, which fb065c measures at up to 13 tiles. So the
- * seed reproduces the map; only `gridTerrain`'s dump reproduces the board.
+ * **What a reader holding only `RunConfig.seed` can and cannot do.**
+ *
+ * Cannot, and this is the correction a review had to make to an earlier version
+ * of this paragraph: **regenerate the map from the seed alone.** The gate list
+ * is a generator input, so `generateTerrain(40, cfg, GATES)` and the same seed
+ * under fb077's Fourth Gate are different maps — hashes `c8dc0fa7` and
+ * `566b7585`, **239 tiles apart**. A reader following "just regenerate from the
+ * seed" on a `modifiers: ['gate']` bug report gets the wrong map, which is a
+ * bigger hole than the retry this file studies and is the *same* blind spot the
+ * immediately preceding item (fb065f) closed for the dump's bands. The map is a
+ * function of seed **and gate list**, and both sweeps below are run on both
+ * lists for that reason.
+ *
+ * Can: regenerate the map from seed *and* gate list, on every seed measured
+ * here. Cannot: assume the *grid* matches even then — `applyRunTerrain` clears
+ * the Warden's 3x3 and `Grid` punches out the gate and Core footprints. So the
+ * seed and gate list reproduce the map; only `gridTerrain`'s dump reproduces the
+ * board.
  *
  * **Out of scope and logged for the merge:** `applyRunTerrain` returns only a
- * fallback boolean, so the retry count is not observable and this file has to
- * infer it. One extra field on its return would make the number directly
- * measurable, and would let a run report say which seed's map it played.
+ * fallback boolean, so the retry count is not observable from outside. One
+ * extra field on its return would make it directly measurable and would let a
+ * run report say which seed's map it played. And a consequence of this file's
+ * own finding: `tests/fb077-terrain-wiring.test.ts`'s header says its four
+ * fixture seeds "resolve via `applyRunTerrain`'s seed+1 retry" — measured here,
+ * they are rescued by the Warden clearing and the retry never runs, so that
+ * comment is stale. Both are main-lane wording.
  */
 
 import { describe, expect, it } from 'vitest';
 
 import terrainRaw from '../data/terrain.json';
-import { GATES, Grid } from '../src/sim/grid';
+import { GATES, Grid, MODIFIER_GATES, type GateDef } from '../src/sim/grid';
 import {
   generateTerrain,
   loadTerrain,
   parseTerrain,
   terrainOverlay,
+  TerrainKind,
   type TerrainConfig,
   type TerrainMap,
 } from '../src/sim/terrain';
@@ -65,6 +91,9 @@ import { applyRunTerrain, wardenSpawnTile } from '../src/sim/world';
 import { sampleSeeds } from './terrain-sample';
 
 const cfg = loadTerrain();
+
+/** `world.ts`'s Fourth Gate list — a different generator input, so a different population. */
+const FOUR: readonly GateDef[] = [...GATES, ...MODIFIER_GATES];
 
 /** A Grid carrying `map` exactly — no Warden clearing, no retry. */
 function gridOf(map: TerrainMap, c: TerrainConfig = cfg): Grid {
@@ -75,63 +104,122 @@ function gridOf(map: TerrainMap, c: TerrainConfig = cfg): Grid {
 }
 
 /** A Grid carrying `seed`'s own map. */
-function rawGrid(seed: number, c: TerrainConfig = cfg): Grid {
-  return gridOf(generateTerrain(seed, c, GATES), c);
+function rawGrid(seed: number, gates: readonly GateDef[], c: TerrainConfig = cfg): Grid {
+  return gridOf(generateTerrain(seed, c, gates), c);
 }
 
 /**
- * Seeds whose own map strands the Core — the provable upper bound on retries.
+ * Seeds whose own map strands the Core — the provable upper bound on retries —
+ * and how many were actually checked.
  *
- * One `generateTerrain` per seed, deliberately: a first version called it twice
- * (once for the `fallback` check, once inside the grid builder) and doubled a
- * 12,000-seed sweep's cost for nothing.
+ * `checked` is reported rather than assumed equal to `seeds.length`, because
+ * the `fallback` skip below silently shrinks the denominator: a `/data`
+ * regression that pushed half the sample onto the flat arena would leave the
+ * stranded list unchanged and the bound quietly covering half the seeds it
+ * claims. The caller asserts it.
+ *
+ * One `generateTerrain` per seed and **one `Grid` for the whole sweep**:
+ * `applyTerrain` rebuilds `blocked` through `syncTerrain`/`markDirty`, which is
+ * all `allGatesReachable` reads, so the per-seed construction and `refresh()` a
+ * first version paid were pure waste — 23.0 s against 16.4 s for the identical
+ * result list, on a 13.8 s generation floor.
  */
-function strandedIn(seeds: readonly number[], c: TerrainConfig = cfg): number[] {
-  const out: number[] = [];
+function strandedIn(
+  seeds: readonly number[],
+  gates: readonly GateDef[] = GATES,
+  c: TerrainConfig = cfg,
+): { stranded: number[]; checked: number } {
+  const stranded: number[] = [];
+  let checked = 0;
+  const g = new Grid();
   for (const seed of seeds) {
-    const map = generateTerrain(seed, c, GATES);
+    const map = generateTerrain(seed, c, gates);
     if (map.fallback) continue;
-    if (!gridOf(map, c).allGatesReachable()) out.push(seed);
+    checked++;
+    g.applyTerrain(terrainOverlay(map, c));
+    if (!g.allGatesReachable()) stranded.push(seed);
   }
-  return out;
+  return { stranded, checked };
 }
 
 describe('fb065h — a run plays its own seed’s map', () => {
-  it('bounds the retry rate over the whole domain sample', () => {
-    const stranded = strandedIn(sampleSeeds());
-    expect({ sampled: sampleSeeds().length, stranded }).toEqual({
-      sampled: 12000,
+  it('bounds the retry rate over the whole domain sample, on both gate lists', () => {
+    // `checked`, not `seeds.length`: see `strandedIn`. A sample half of which
+    // fell back would otherwise report the same bound over half the population.
+    const three = strandedIn(sampleSeeds());
+    expect({ checked: three.checked, stranded: three.stranded }).toEqual({
+      checked: 12000,
       stranded: [-349, -169, 3000001834],
     });
+    // **The four-gate arena is a different population and was measured, not
+    // assumed** — the gate list is a generator input, so `World` under the
+    // `gate` modifier plays maps this sweep never sees. Recorded rather than
+    // re-swept here, on fb064r's two-layer pattern: the full four-gate sweep
+    // over the same 12,000 seeds reads **checked 12000, fallbacks 0, stranded
+    // 5** — `804589548`, `1542607185`, `-1638`, `-929`, `2147483230` — and
+    // running it in-test doubled the file's cost to ~35 s, which is the wrong
+    // side of the fast tier. The five witnesses are re-measured (milliseconds
+    // each), which is what catches a generator change; the *distribution* is
+    // the recorded string.
+    const FOUR_GATE_STRANDED = [804589548, 1542607185, -1638, -929, 2147483230];
+    expect(strandedIn(FOUR_GATE_STRANDED, FOUR).stranded).toEqual(FOUR_GATE_STRANDED);
+    // ...and they are fine on the base arena, which is the point: these are not
+    // "the same bad seeds plus two", they are a different population.
+    expect(strandedIn(FOUR_GATE_STRANDED).stranded).toEqual([]);
+    expect(strandedIn(three.stranded, FOUR).stranded).toEqual([]);
   });
 
-  it('and the bound is not tight: the Warden clearing rescues all three', () => {
-    // The discriminator: `applyRunTerrain` leaves the grid carrying whichever
-    // attempt succeeded. If it never retried, that grid differs from the seed's
-    // own map *only* inside the 3x3 the clearing touches. If it retried, it is
-    // a different seed's map and would differ across the board — fb064l
-    // measures two seeds' maps as differing on a large share of tiles, so the
-    // two cases are nowhere near each other.
+  it('and the bound is not tight: the Warden clearing rescues every one', () => {
+    // **The discriminator, made exact rather than inferred.** A first version
+    // read "differs from the seed's own map only inside the 3x3 ⇒ it did not
+    // retry", which is an inference: a retried map that happened to differ only
+    // there would have read as a no-retry. The separation is enormous in
+    // practice (3-6 tiles against ~290 for `seed+1`), but the exact form costs
+    // nothing: build the seed's own map with the 3x3 forced to normal — which
+    // is what `clearOverlayBlock` does — and require the run's grid to equal it
+    // on **every** tile. That also pins the clearing's *shape*: a 5x5 version
+    // would fail here rather than pass unnoticed.
     const w = wardenSpawnTile();
     const warn = console.warn;
     console.warn = (): void => {};
     try {
-      for (const seed of [-349, -169, 3000001834]) {
-        const raw = rawGrid(seed);
-        expect(raw.allGatesReachable(), `seed ${seed} strands the Core on its own map`).toBe(false);
+      for (const [gates, seeds] of [
+        [GATES, [-349, -169, 3000001834]],
+        [FOUR, [804589548, 1542607185, -1638, -929, 2147483230]],
+      ] as ReadonlyArray<readonly [readonly GateDef[], readonly number[]]>) {
+        for (const seed of seeds) {
+          const raw = rawGrid(seed, gates);
+          expect(raw.allGatesReachable(), `seed ${seed} strands the Core on its own map`).toBe(
+            false,
+          );
 
-        const run = new Grid();
-        expect(applyRunTerrain(run, GATES, seed, cfg), `seed ${seed} fell back`).toBe(false);
-        expect(run.allGatesReachable(), `seed ${seed} playable`).toBe(true);
+          const run = new Grid();
+          expect(applyRunTerrain(run, gates, seed, cfg), `seed ${seed} fell back`).toBe(false);
+          expect(run.allGatesReachable(), `seed ${seed} playable`).toBe(true);
 
-        let outside = 0;
-        for (let i = 0; i < raw.terrainKind.length; i++) {
-          if (raw.terrainKind[i] === run.terrainKind[i]) continue;
-          const x = i % raw.w;
-          const y = (i / raw.w) | 0;
-          if (Math.abs(x - w.tx) > 1 || Math.abs(y - w.ty) > 1) outside++;
+          // The seed's own map, cleared the way `applyRunTerrain` clears it.
+          const overlay = terrainOverlay(generateTerrain(seed, cfg, gates), cfg);
+          for (let dy = -1; dy <= 1; dy++) {
+            for (let dx = -1; dx <= 1; dx++) {
+              const x = w.tx + dx;
+              const y = w.ty + dy;
+              if (x < 0 || y < 0 || x >= overlay.w || y >= overlay.h) continue;
+              const i = y * overlay.w + x;
+              overlay.kind[i] = TerrainKind.Normal;
+              overlay.walkable[i] = 1;
+              overlay.buildable[i] = 1;
+              overlay.high[i] = 0;
+              overlay.charBlock[i] = 0;
+            }
+          }
+          const expected = new Grid();
+          expected.applyTerrain(overlay);
+          expected.refresh();
+          expect(
+            Array.from(run.terrainKind),
+            `seed ${seed} played a different seed's map`,
+          ).toEqual(Array.from(expected.terrainKind));
         }
-        expect(outside, `seed ${seed} played a different seed's map`).toBe(0);
       }
     } finally {
       console.warn = warn;
@@ -155,12 +243,14 @@ describe('fb065h — a run plays its own seed’s map', () => {
         jitter: 0,
       },
     });
-    expect(strandedIn([476740782, 3157512897], noJitter)).toEqual([476740782, 3157512897]);
+    expect(strandedIn([476740782, 3157512897], GATES, noJitter).stranded).toEqual([
+      476740782, 3157512897,
+    ]);
     // ...and they are not stranded at the shipped config, which is what makes
     // the two sets disjoint rather than nested.
-    expect(strandedIn([476740782, 3157512897])).toEqual([]);
+    expect(strandedIn([476740782, 3157512897]).stranded).toEqual([]);
     // The shipped three, likewise, are fine without jitter.
-    expect(strandedIn([-349, -169, 3000001834], noJitter)).toEqual([]);
+    expect(strandedIn([-349, -169, 3000001834], GATES, noJitter).stranded).toEqual([]);
   });
 
   it('states the limit of the seed: it reproduces the map, not the board', () => {
@@ -168,7 +258,7 @@ describe('fb065h — a run plays its own seed’s map', () => {
     // seed gives the map; the grid a run played is that map plus the Warden
     // clearing and the structural overrides, which is fb065c's ledger.
     const seed = 40;
-    const raw = rawGrid(seed);
+    const raw = rawGrid(seed, GATES);
     const run = new Grid();
     const warn = console.warn;
     console.warn = (): void => {};
