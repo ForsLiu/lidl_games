@@ -305,6 +305,11 @@ export class Game {
   }
 
   private showHub(): void {
+    // fb115 (code-reviewer finding): this is the abandon-from-pause exit, and
+    // it never resumes the `Hud` — so the `Hud`'s own paused-window cleanup
+    // would never run and its `fullscreenchange` subscription would outlive it.
+    // Idempotent, so calling it on every path back to the Hub is free.
+    this.hud?.dispose();
     // fb074: every path back to the Hub — abandon, defeat/victory's own Retry/
     // New Run/Hub buttons, boot with nothing to resume — means "this instance
     // has no run in progress," so whatever it itself persisted (if anything)
@@ -378,6 +383,9 @@ export class Game {
     this.runSessionId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
     this.lastWrittenSessionId = null;
     this.persistDisabled = false;
+    // fb115: the outgoing `Hud` is replaced wholesale here (Retry/New Run), so
+    // release its subscription before dropping the reference to it.
+    this.hud?.dispose();
     this.hud = new Hud(this.root, {
       onSelectTower: (id) => (this.view.selectedTower = id),
       onCallWave: () => this.pending.push({ k: 'call' }),

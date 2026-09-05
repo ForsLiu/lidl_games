@@ -3230,7 +3230,7 @@ not already expose it) logs that need below instead of reaching into
       (`matchMedia` is undefined in vitest's jsdom, so `armDprListener`
       early-returns everywhere else).
 
-- [ ] (fb115) [feat] generated 2026-09-05 (same generation batch as fb114) —
+- [x] (fb115) [feat] generated 2026-09-05 (same generation batch as fb114) —
       fullscreen toggle reachable mid-run. QUALITY.md 1.0's Steam/itch
       checklist opens with "fullscreen + windowed"; fb090 built the toggle,
       but `#sw-fullscreen-toggle` exists only in `hub.ts`'s Settings tab
@@ -3245,6 +3245,42 @@ not already expose it) logs that need below instead of reaching into
       DOM test opens the pause modal, clicks it, asserts `requestFullscreen`
       was called, then simulates the browser's own exit and asserts the label
       flips back — refs: QUALITY.md 1.0 (Steam/itch checklist), fb090.
+      DONE 2026-09-05: rather than duplicating fb090's singleton-listener
+      pattern into `hud.ts`, the Fullscreen API plumbing moved into a new
+      `src/ui/fullscreen.ts` (one document-level `fullscreenchange` listener,
+      a SUBSCRIBER SET rather than fb090's single `activeHub` pointer, which a
+      second surface would have silently displaced) and `hub.ts` moved onto
+      it; the in-run pause Options screen gained the toggle, requesting
+      fullscreen on `this.root` (the app root, as fb090 does) rather than
+      `this.modal`, which resume tears down. code-reviewer
+      **REQUEST-CHANGES** on two Majors, both correct and both mine: (1)
+      subscribing in `setPaused(true)` and unsubscribing in `setPaused(false)`
+      misses the abandon-from-pause exit entirely — `onQuitToHub()` ->
+      `main.ts`'s `showHub()` sets `run = null` and rebuilds the root WITHOUT
+      resuming the Hud, so each abandon retained a subscriber pinning the Hud,
+      its detached modal DOM and the captured `World` for the session
+      (reviewer measured 5 abandons -> 5 subscribers, monotonic); fixed with an
+      idempotent `Hud.dispose()` called from `showHub()` and before every
+      `new Hud(...)`. (2) the leak test I wrote looped `setPaused(true)`/
+      `setPaused(false)` in matched pairs — precisely the path that CANNOT
+      leak — so it gave false confidence about the exact hazard its own name
+      asserted; replaced with the real click path (quit -> confirm), verified
+      by reverting `dispose()` and watching it go red. Three Minors also
+      fixed: a `let` declared below its user, `??=` silently absorbing the
+      leaked state it should make loud, and — the one worth noting —
+      `refreshFullscreenLabel()` calls `Hub.show()`, which clears
+      `this.root.innerHTML`, the SAME root a running HUD occupies; a mid-run
+      `fullscreenchange` was hard to produce before this item and is now a
+      button press away, so a stale Hub could have wiped the live HUD. Safe
+      today only via an implicit invariant in another method (a run can only
+      start from the `'run'` tab); now made explicit by requiring the Hub's own
+      markup to be on screen. Reviewer confirmed the hub.ts refactor preserves
+      fb090 exactly (its 5-instance staleness test passes unchanged) and that
+      capturing `w` is sound (`main.ts` returns before stepping while paused).
+      `npx tsc --noEmit` clean; targeted suite 14/14 (fb115 + fb090); all 54
+      `tests/ui*`/`tests/render*` files 356 passed/6 skipped. `npm run
+      test:fast` 2338 passed/4 failed/48 skipped, every failure in the standing
+      `b028`/`b032`/`b034`/`b035`/`b036`/`q15`/`q41`/`q45`/`q52` families.
 
 - [ ] (fb116) [polish] generated 2026-09-05 (same generation batch as fb114)
       — honour the OS's `prefers-reduced-motion` on a first run. fb086 added
