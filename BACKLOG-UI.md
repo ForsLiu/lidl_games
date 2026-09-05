@@ -3393,7 +3393,7 @@ not already expose it) logs that need below instead of reaching into
       `q15`/`b028`/`q41`/`q45`, all tools/CLI-subprocess suites importing no
       `src/ui/**` and all in the documented pre-existing flake classes.
 
-- [ ] (fb146) [polish] generated 2026-09-05 (same generation batch as fb114;
+- [x] (fb146) [polish] generated 2026-09-05 (same generation batch as fb114;
       engineer's-judgment item, depth not scope creep per HANDOFF §7) — a
       standing units guard for the half-width display bug class. The same
       defect has now shipped twice and been caught twice by review, not by a
@@ -3413,6 +3413,50 @@ not already expose it) logs that need below instead of reaching into
       only reachable through `effectBlock`'s field-list fallback, which
       fb108's sentence table made unreachable for every real kind) renamed to
       say half-width — refs: fb108, fb112, `lineHit` (`src/sim/combat.ts`).
+      DONE 2026-09-05: `tests/ui-fb146-dash-width-units-guard.test.ts` (16/16)
+      in two layers. **Source rule**: `bareDashWidthReads(source)` flags every
+      `dashWidth` read not preceded by an open `2 *` on the same expression.
+      Keyed on the bare field name, not on `eff.dashWidth`, and on "some `2 *`
+      is still open" rather than one blessed spelling — both from
+      code-reviewer, and both load-bearing. Matching `eff.dashWidth` missed
+      `effect.dashWidth`, `eff?.dashWidth`, `eff['dashWidth']` and a
+      `const { dashWidth = 0 } = eff` destructure (nothing makes a sentence
+      name its parameter `eff`); demanding the literal `2 * (` idiom would have
+      gone RED on `2 * areaScaled(eff.dashWidth ?? 0, live)`, which c001 makes
+      the likely NEXT correction to these sentences since the sim's real
+      half-width is `classArea(w, dashWidth)` — a guard that fails on the fix
+      gets deleted rather than obeyed. The `}`/`` ` ``/`;`/`,` closing set stops
+      a line carrying one correct read and one bare read from laundering the
+      second through the first. Ten proof cases: seven shapes it must flag
+      (including that laundering case), three correct spellings it must accept,
+      and comments — which name the field precisely to explain the doubling —
+      left alone. Checked against the real file by mutation, not only against
+      synthetic strings: reverting `dashSlashSentence` to a bare read turns the
+      "no bare read" case red, then restored. **Sim layer**: one probe per
+      `dash_*` kind, each through a different mechanism — `dash_line`
+      (Swordsman, `lineHit`), `dash_trail` (Pyromancer, a `GroundArea.radius`
+      driven by `updateAreas` directly), `dash_heal` (Bloodlord,
+      `fireCrimsonRush`'s own inline line test, read off the healing it grants
+      per enemy passed). Each places zero-radius, immovable, unkillable enemies
+      at 0.99x and 1.01x the half-width to either side, so a sim that treated
+      the value as a FULL width would leave the 0.99x pair unhit: the failure
+      is loud in both directions, never silent. Offsets are multiplied by
+      `w.derived.areaMul` (code-reviewer finding): all three classes are 1.0
+      today, but Animist already carries 1.1 from its own tower passive, so the
+      probe states the claim the way `tests/class-area-stat.test.ts` does
+      ("authored x whatever areaMul the run has") instead of quietly depending
+      on a baseline. `info-format.ts`'s fallback label is now
+      `'Dash half-width'`, with a comment naming all three sim call sites;
+      nothing in the repo asserted the old string. code-reviewer **APPROVE**
+      (no Critical/Major); its three Minors and three Nits are all folded in
+      above except the accepted residual that `line.split('//')` would also
+      truncate at a `//` inside a string literal — no such line exists in the
+      scanned file and the alternative is a parser for a five-line rule, so it
+      is documented in the helper instead. `npx tsc --noEmit` clean; whole lane
+      surface (`tests/ui-*` + `tests/render-*`) green; `npm run test:fast`
+      re-run after the review fixes, 3677 passed / 3 failed, the failures being `q15`/`b028`/`q41`/`q45`, all
+      tools/CLI-subprocess suites importing no `src/ui/**`, all in the
+      documented pre-existing flake classes.
 
 - [ ] (fb147) [bug] filed 2026-09-05 by qa-playtester during fb111
       verification — the fb096 slot format is not atomic across keys, so a
@@ -3655,6 +3699,18 @@ not already expose it) logs that need below instead of reaching into
       `hidden === false` asserting neither does — refs: fb145, fb071, fb074.
 
 ## Log
+
+- 2026-09-05, fb146: implemented fully in-scope (`src/ui/info-format.ts`, one
+  new `tests/ui-*` file). Two notes for the merge:
+  (a) the source rule is the first of its kind in this lane and deliberately
+  duplicates `tests/architecture.test.ts`'s `stripComments` rather than
+  importing it — that helper lives inside a `.test.ts`, so importing it would
+  run that whole suite. If a third such rule appears, the helper wants
+  extracting into `tests/helpers.ts`, which is out of this lane's Scope.
+  (b) the `dash_line` probe restates `tests/ui-fb112-dash-slash-width.test.ts`'s
+  almost exactly. Kept in both — fb112's is that item's own proof, this one is
+  the third leg of a per-kind claim that would be incomplete without it — with
+  a comment in this file pointing at the other. Worth knowing they can drift.
 
 - 2026-09-05, fb145: implemented fully in-scope (`src/ui/main.ts`, one new
   `tests/ui-*` file). Two follow-ups filed from QA rather than folded in:

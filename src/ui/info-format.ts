@@ -78,7 +78,14 @@ const FIELD_LABELS: Record<string, string> = {
   knockback: 'Knockback',
   chargeCapSeconds: 'Max charge time',
   dashRange: 'Dash range',
-  dashWidth: 'Dash width',
+  // fb146: `dashWidth` is a HALF-width everywhere the sim reads it — `lineHit`'s
+  // `halfWidth` parameter (`dash_line`, `dash_heal`) and a `GroundArea.radius`
+  // (`dash_trail`) — so the corridor/patch it describes is `2 * dashWidth`
+  // across. The same units slip has shipped twice in `class-info.ts`'s
+  // sentences (fb108, fb112); this label is the generic field-list fallback
+  // behind them and says half-width outright so a reader cannot make it a
+  // third time.
+  dashWidth: 'Dash half-width',
   groundDurationSeconds: 'Ground duration',
   baseHp: 'Base Core HP',
   coreHpBonus: 'Core HP bonus',
