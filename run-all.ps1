@@ -32,7 +32,7 @@ function OpenCount($file) {
 function LaneRunning($name) { return ($procs.ContainsKey($name) -and -not $procs[$name].HasExited) }
 function StartLane($name) {
   $l = $lanes[$name]
-  if (-not (Test-Path $l.dir)) { Write-Host "lane $name: worktree missing, skipping"; return }
+  if (-not (Test-Path $l.dir)) { Write-Host "lane ${name}: worktree missing, skipping"; return }
   $args = "-NoExit -ExecutionPolicy Bypass -File `"$($l.dir)\run-for.ps1`" -Hours $LaneHours -Model $LaneModel -Backlog $($l.backlog) -Inbox $($l.inbox)"
   $procs[$name] = Start-Process powershell -ArgumentList $args -WorkingDirectory $l.dir -PassThru
   Write-Host ">>> lane $name started (pid $($procs[$name].Id))" -ForegroundColor Green
