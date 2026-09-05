@@ -539,7 +539,7 @@ session 2 (c005 was the last actionable one left), appending `c006`-`c010`.
       `src/sim/content.ts`; this item is the measurement only - refs:
       SPEC-FINAL §7, c012, c013, QA on c012.
 
-- [ ] (c024) [bug] the **Time Lord twin of `c013`'s finding is unmeasured, and
+- [x] (c024) [bug] **DONE 2026-09-05.** the **Time Lord twin of `c013`'s finding is unmeasured, and
       it is the larger of the two.** Filed by QA on `c013`. `applyChronalSurge`
       (`src/sim/run.ts:816-817`) applies the Time Lord tower passive as
       `w.stats.add(source, 'towerRange', ...)` **and**
@@ -661,6 +661,46 @@ session 2 (c005 was the last actionable one left), appending `c006`-`c010`.
       §3 (Poison), owner feedback `feature-poison-barrel-mechanic`.
 
 ## Log
+
+### c024 (2026-09-05) — the leak that was invisible because the file only built Animists
+
+- **Shape**: 21 tests appended to `tests/class-wide-grove-reach.test.ts`, and
+  `CONSUMERS` made class-parameterised (`WorldOpts.classKey` / `surges`). No
+  `/src` or `/data` byte moved; `run.ts` is not edited from this lane. 88 green.
+- **The premise, proven rather than asserted.** Every one of c013's twenty
+  consumers built an *Animist* world, so a main-lane `towerArea` swap landing on
+  `run.ts:817` alone would have left this file fully green. Measured by applying
+  exactly that fix: **19 rows flip, and every one of them is a `c024` row —
+  zero `c013` rows.** That asymmetry is the item.
+- **Chronal Surge is fired for real**, through cleared TD waves
+  (`applyChronalSurge` is private to `run.ts` and fires off `completeWave`), the
+  same way c009's own rows drive it. The post-wave world is then normalised —
+  god mode off, board cleared — because everything the surge did lives in
+  `w.stats`/`w.derived` and survives, so the probes see the same clean board the
+  Animist rows do.
+- **The control is zeroed, not deleted, and the loader is why.** c013 deletes
+  `towerPassive.mods.area` (a free map). `bonusAoeMul` is a *required field of
+  the `chronal_surge` kind*, so deleting it is refused outright —
+  "chronal_surge needs bonusAoeMul" (`validateClassPassive`, `content.ts:1333`).
+  Architecture rule 4 working exactly as written.
+- **Five of the twenty are excluded, and both reasons are named, not silent.**
+  - *Two are structural*: the Manifest spirit and the Recall Totem aura are
+    footprints of the **Animist's own class Actives**; a Time Lord cannot
+    produce them. A row asserts both still widen under the Animist, so their
+    absence here is about whose Active it is and nothing else.
+  - *Three are harness calibration, measured*: Venom Spore splash (190 vs *no
+    spore landed*), Electric off a Tesla hit (319 vs *no volley landed*) and the
+    Frost Obelisk aura (234 vs 234, saturated). The first two probes place their
+    victim at a distance tuned to the Animist's flat `+10%`, so with the surge's
+    area zeroed the footprint no longer reaches it and the probe's own harness
+    assertion fires — the control under-reaches, so there is no comparison to
+    make. All three are **tower-route**, which is the half §4.2's sentence
+    actually covers, so none of them is where the leak lives. Re-calibrating
+    them is folded into `c026` rather than bodged here: widening a probe to make
+    a control pass is how a measurement stops measuring.
+- **And it is the larger leak, measured**: the surge's contribution compounds
+  across firings while Wide Grove's authored `+10%` is flat in wave count. Ten
+  character-route footprints leak under both classes.
 
 ### c023 (2026-09-05) — the field that looks load-bearing and is not
 

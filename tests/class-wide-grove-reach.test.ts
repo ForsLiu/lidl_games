@@ -124,7 +124,8 @@ import {
   upgradeTower,
 } from '../src/sim/towers';
 import { updateWieldedAttacks, wieldedAoeFor, wieldedRangeFor, wieldedSplashFor } from '../src/sim/vswield';
-import type { Enemy, Structure } from '../src/sim/types';
+import { applyCommand, Run } from '../src/sim/run';
+import { emptyInput, type Enemy, type Structure } from '../src/sim/types';
 import { World } from '../src/sim/world';
 import { BUILD_TX, BUILD_TY } from './class-board';
 import { cfg } from './helpers';
@@ -174,10 +175,36 @@ interface WorldOpts {
   area?: number;
   /** `act1_wave` for the class-Active rows (`ACTIVE_PHASES`). */
   phase?: World['phase'];
+  /** c024: whose tower passive is under test. Defaults to the Animist (c013). */
+  classKey?: string;
+  /** c024: TD waves to clear first, so Chronal Surge has actually fired. */
+  surges?: number;
 }
 
 function animist(c: Content, o: WorldOpts = {}): World {
-  const w = new World(cfg({ classKey: 'animist' }), c);
+  // c024: the class is a parameter now. Every one of the twenty `CONSUMERS`
+  // built an Animist world, which is exactly why a main-lane `towerArea` swap
+  // that moved `data/classes.json` but missed `run.ts:817` would have landed
+  // with this file **fully green** — it never built a Time Lord world at all.
+  const classKey = o.classKey ?? 'animist';
+  const w = o.surges ? clearWaves(classKey, c, o.surges) : new World(cfg({ classKey }), c);
+  if (o.surges) {
+    // A world that has fought waves is not a probe world: it ends mid-`act1_wave`
+    // with god mode on, spent corpses, and whatever the last wave left behind.
+    // Everything the surge actually did lives in `w.stats`/`w.derived`, which
+    // survive this reset — so the probes measure the same clean board the
+    // Animist rows do, with the only difference being the stat contribution
+    // under test.
+    w.invulnerable = false;
+    w.godMode = false;
+    w.phase = 'act1_build';
+    w.enemies = [];
+    w.corpses = [];
+    w.projectiles = [];
+    w.areas = [];
+    w.classSummons = [];
+    w.rebuildBuckets();
+  }
   w.gold = 1e6;
   // The character's own attack would contaminate every damage reading here.
   w.warden.attackCooldown = 1e9;
@@ -186,6 +213,32 @@ function animist(c: Content, o: WorldOpts = {}): World {
     w.stats.addAll('test:area', { area: o.area });
     w.recomputeDerived();
   }
+  return w;
+}
+
+/**
+ * `waves` TD waves called and cleared, which is the only honest way to reach
+ * Chronal Surge: `applyChronalSurge` is private to `run.ts` and fires off
+ * `completeWave`. Lifted from `class-tower-passive-liveness` (c009), whose own
+ * Chronal Surge rows already drive it this way. The spawn queue and the enemy
+ * list are emptied rather than fought, so the measurement is about the wave
+ * *count* and not about who won.
+ */
+function clearWaves(classKey: string, c: Content, waves: number): World {
+  const run = new Run(cfg({ classKey }), c);
+  const w = run.world;
+  w.gold = 1e6;
+  w.invulnerable = true;
+  w.godMode = true;
+  w.phase = 'act1_build';
+  for (let i = 0; i < waves; i++) {
+    applyCommand(w, { k: 'call' });
+    run.step(emptyInput());
+    w.spawnQueue = [];
+    w.enemies = [];
+    run.step(emptyInput());
+  }
+  expect(w.wavesCleared, `harness failed to clear ${waves} TD waves`).toBe(waves);
   return w;
 }
 
@@ -1014,5 +1067,197 @@ describe('c013: the leak, stated as a set the fix can be checked against', () =>
     expect(sharedReads(), 'the shared-read set moved — a key swap now fixes more (or less) than it did').toEqual(
       SHARED_READS,
     );
+  });
+});
+
+/* ------------------------------------- c024: the Time Lord twin, and it is bigger */
+
+/**
+ * **c024 — the same §4.2 "all towers" wording, on the other class, applied by
+ * code instead of by `/data`.** Filed by QA on `c013`.
+ *
+ * `applyChronalSurge` (`src/sim/run.ts:816-817`) is two adjacent lines:
+ *
+ * ```ts
+ * w.stats.add(source, 'towerRange', cls.towerPassive.bonusRangeMul ?? 0);
+ * w.stats.add(source, 'area',       cls.towerPassive.bonusAoeMul   ?? 0);
+ * ```
+ *
+ * A **tower-scoped** key for the range half and the **global** key for the
+ * area half, from one sentence, uncapped, and re-added every `waveInterval` TD
+ * waves for the whole run. The Animist's leak that `c013` sized is a flat
+ * `+10%` authored once in `data/classes.json`; this one compounds with wave
+ * count, and this lane's own Log already measured it at `areaMul 3.203` by end
+ * of run — **+90% from Chronal Surge alone**, up to nine times the Animist's.
+ *
+ * **Why it had to live in this file.** Every one of the twenty `CONSUMERS`
+ * built an Animist world. A main-lane `towerArea` swap that moved
+ * `data/classes.json` but missed `run.ts:817` would therefore have landed with
+ * this file *fully green* while leaving the larger of the two leaks in place.
+ * The consumers are now class-parameterised (`WorldOpts.classKey`), so the two
+ * classes' rows flip together or the difference is a named deviation.
+ *
+ * **`run.ts` is not edited from this lane** — this is the measurement only.
+ */
+
+/**
+ * `Content` rebuilt with Chronal Surge's *area* half zeroed, its range half
+ * untouched.
+ *
+ * **Zeroed, not deleted** — and the difference is the loader doing its job.
+ * `c013`'s Animist control deletes `towerPassive.mods.area`, which is legal
+ * because `mods` is a free map. `bonusAoeMul` is a *required field of the
+ * `chronal_surge` kind* (`validateClassPassive`, `content.ts:1333`), so
+ * deleting it is refused outright with "chronal_surge needs bonusAoeMul" —
+ * architecture rule 4's "a loader rule that refuses unpayable data is worth
+ * more than a comment saying the data must be valid", met head-on. `0` is the
+ * payable spelling of the same control.
+ */
+function contentWithoutChronalAoe(): Content {
+  const doc = JSON.parse(JSON.stringify(content.raw.classes)) as {
+    classes: { key: string; towerPassive: Record<string, unknown> }[];
+  };
+  const row = doc.classes.find((c) => c.key === 'time_lord');
+  if (!row) throw new Error('time_lord missing from data/classes.json');
+  row.towerPassive.bonusAoeMul = 0;
+  return loadContent({ classes: doc });
+}
+
+const noSurgeAoe = contentWithoutChronalAoe();
+
+/** The interval the passive is authored to fire on — read, never assumed (c009's convention). */
+const SURGE_INTERVAL = Math.max(1, Math.round(content.classByKey.get('time_lord')!.towerPassive.waveInterval ?? 2));
+
+/** Enough clears for the surge to have fired twice, so a compounding leak is visibly compounding. */
+const SURGES = SURGE_INTERVAL * 2;
+
+const timeLordOpts = (o: WorldOpts = {}): WorldOpts => ({ ...o, classKey: 'time_lord', surges: SURGES });
+
+describe('c024: Chronal Surge fired for real, and its area half reaches the same footprints', () => {
+  it('the harness actually fires it: a tower footprint widens against the no-AoE control', () => {
+    // Without this the whole block below could pass on twenty pairs of equal
+    // readings — c005's "the probes are live" lesson, which this session has
+    // already been bitten by once.
+    const tower = CONSUMERS.find((c) => c.route === 'tower' && c.read === R_TOWER_AOE_LOB);
+    expect(tower, 'no tower-route AoE consumer to anchor the harness on').toBeDefined();
+    expect(tower!.measure(content, timeLordOpts())).toBeGreaterThan(tower!.measure(noSurgeAoe, timeLordOpts()));
+  });
+
+  it('the two halves really are authored on different stat keys, which is the whole bug', () => {
+    // The cleanest evidence the main-lane `towerArea` key needs, asserted on
+    // the source rather than described: two adjacent `stats.add` calls from one
+    // §4.2 sentence, one tower-scoped and one global.
+    const run = readFileSync(join(__dirname, '../src/sim/run.ts'), 'utf8');
+    expect(run, "Chronal Surge's range half is no longer tower-scoped").toMatch(
+      /w\.stats\.add\(source, 'towerRange', cls\.towerPassive\.bonusRangeMul/,
+    );
+    expect(
+      run,
+      "Chronal Surge's area half no longer uses the global `area` key — if a `towerArea` key landed, " +
+        'the LEAKING rows below should have flipped with it',
+    ).toMatch(/w\.stats\.add\(source, 'area', cls\.towerPassive\.bonusAoeMul/);
+  });
+
+  /**
+   * **Two of the twenty cannot exist in a Time Lord world at all**, and that is
+   * structural rather than a finding: they are footprints of the *Animist's own
+   * class Actives*. A Time Lord cannot summon a Manifest spirit or plant a
+   * Recall Totem, so there is nothing to widen. Named, per `c019`'s convention,
+   * rather than quietly dropped from the sweep.
+   */
+  const CLASS_SPECIFIC: readonly string[] = [
+    "the Animist's *Manifest* spirit, cloned from a Mortar",
+    "the Animist's *Recall Totem* aura radius",
+  ];
+
+  /**
+   * **Three more are harness-calibrated for the Animist and do not survive
+   * being pointed at this control**, which is a statement about the probe and
+   * not about the leak. Measured, not guessed:
+   *
+   *   | consumer                          | surge world | zeroed control      |
+   *   |-----------------------------------|-------------|---------------------|
+   *   | Venom Spore splash (tower)        | 190         | *no spore landed*   |
+   *   | Electric off a Tesla hit (tower)  | 319         | *no volley landed*  |
+   *   | Frost Obelisk aura (tower)        | 234         | 234 (saturated)     |
+   *
+   * The first two probes place their victim at a distance tuned to the
+   * Animist's flat `+10%`; with Chronal Surge's area contribution zeroed the
+   * footprint no longer reaches it and the probe's own harness assertion fires
+   * — the control under-reaches, so there is no comparison to make. The third
+   * reads a saturating observable (the enemy is inside the aura either way).
+   *
+   * All three are **tower-route**, which is the half §4.2's "all towers"
+   * sentence actually covers, so none of them is where the leak lives; the
+   * twelve character-route rows are. Re-calibrating them belongs with `c026`'s
+   * footprint work, not here — filed rather than bodged, because widening a
+   * probe to make a control pass is how a measurement stops measuring.
+   */
+  const UNCALIBRATED: readonly string[] = [
+    "a Venom Spore's own splash, as the spore really lands it",
+    "Electric's inherent AoE, off a Tesla Coil's own hit",
+    "a Frost Obelisk's aura, as the enemy standing in it feels it",
+  ];
+
+  const APPLICABLE = CONSUMERS.filter((c) => !CLASS_SPECIFIC.includes(c.site) && !UNCALIBRATED.includes(c.site));
+
+  it('the two exclusion lists name real consumers, and leave fifteen measured', () => {
+    const sites = CONSUMERS.map((c) => c.site);
+    for (const name of [...CLASS_SPECIFIC, ...UNCALIBRATED]) {
+      expect(sites, `${name} is not a CONSUMERS row — the exclusion list has drifted`).toContain(name);
+    }
+    expect(APPLICABLE).toHaveLength(CONSUMERS.length - CLASS_SPECIFIC.length - UNCALIBRATED.length);
+    expect(APPLICABLE.length, 'the sweep has stopped covering most of the table').toBe(15);
+  });
+
+  it('the two class-specific rows really are Animist Actives, not something quietly dropped', () => {
+    // They widen under the Animist — that is c013's finding, re-read here — so
+    // their absence under Time Lord is about whose Active it is, nothing else.
+    for (const name of CLASS_SPECIFIC) {
+      const c = CONSUMERS.find((x) => x.site === name)!;
+      expect(c.measure(content), `${name} no longer widens under the Animist either`).toBeGreaterThan(
+        c.measure(noGrove),
+      );
+    }
+  });
+
+  for (const c of APPLICABLE) {
+    it(`${c.site} [${c.route}]: Chronal Surge's area half widens it, exactly as Wide Grove does`, () => {
+      const withSurge = c.measure(content, timeLordOpts());
+      const without = c.measure(noSurgeAoe, timeLordOpts());
+      // The same footprints, so the two classes flip together when the
+      // main-lane key lands. A row that stops widening here while the Animist
+      // row still does is the asymmetry this item exists to catch.
+      expect(withSurge, `${c.site} is not widened by Chronal Surge, but is by Wide Grove`).toBeGreaterThan(without);
+    });
+  }
+
+  it('the same character-route footprints leak under Time Lord as under the Animist', () => {
+    // The set that matters: §4.2's sentence says "all towers", and every one of
+    // these is a *character* footprint widened anyway. Ten of `LEAKING_TODAY`'s
+    // twelve; the other two are the Animist-Active rows above.
+    const expected = LEAKING_TODAY.filter((s) => !CLASS_SPECIFIC.includes(s) && !UNCALIBRATED.includes(s));
+    const leaking = APPLICABLE.filter(
+      (c) => c.route === 'character' && c.measure(content, timeLordOpts()) > c.measure(noSurgeAoe, timeLordOpts()),
+    ).map((c) => c.site);
+    expect(
+      [...leaking].sort(),
+      'the two classes no longer leak through the same set — one has been fixed without the other',
+    ).toEqual([...expected].sort());
+    expect(leaking.length, 'the character-route leak set has emptied — has the main-lane fix landed?').toBe(10);
+  });
+
+  it('and it is the larger leak: it compounds with wave count, where Wide Grove is flat', () => {
+    // The claim that makes this item "the larger of the two", measured rather
+    // than quoted from the Log. Wide Grove is one authored `+10%` however long
+    // the run goes; Chronal Surge re-adds its own every `waveInterval`.
+    const probe = CONSUMERS.find((c) => c.route === 'tower' && c.read === R_TOWER_AOE_LOB)!;
+    const once = probe.measure(content, { classKey: 'time_lord', surges: SURGE_INTERVAL });
+    const twice = probe.measure(content, { classKey: 'time_lord', surges: SURGE_INTERVAL * 2 });
+    expect(twice, 'Chronal Surge did not compound across two firings').toBeGreaterThan(once);
+
+    const groveOnce = probe.measure(content);
+    const groveTwice = probe.measure(content, { surges: SURGE_INTERVAL * 2 });
+    expect(groveTwice, 'Wide Grove is supposed to be flat in wave count').toBeCloseTo(groveOnce, 10);
   });
 });

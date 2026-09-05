@@ -5,6 +5,28 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-05 lane `content` session: `c024` and `c023` closed.** Both
+  test-only.
+  - `c024` — the Time Lord twin of c013's Area leak. `applyChronalSurge`
+    (`run.ts:816-817`) adds a *tower-scoped* `towerRange` and the **global**
+    `area` key on two adjacent lines from one §4.2 sentence, uncapped and
+    re-added every `waveInterval` TD waves. c013's twenty consumers all built
+    Animist worlds, so a main-lane `towerArea` fix landing on `run.ts` alone
+    would have left that file fully green — proven by applying exactly that
+    fix: **19 rows flip, all of them c024's, none of c013's**. Five consumers
+    are excluded with named reasons (two are Animist-Active-only and cannot
+    exist under Time Lord; three are probes calibrated for the Animist's flat
+    +10% whose *control* under-reaches, folded into `c026`). The control zeroes
+    `bonusAoeMul` rather than deleting it, because the loader refuses to drop a
+    required field of the `chronal_surge` kind — architecture rule 4 working.
+  - `c023` — `equipment.items[].effectKey` proven dead three ways: a source
+    census (the only two mentions are the zod enum that *validates* it and an
+    unrelated core-VFX parameter), the three mechanics anchored to
+    `hasEquipment(w, '<item key>')`, and `Content` rebuilt with every
+    `effectKey` blanked and then cross-wired onto the wrong items. Re-gating
+    Sleeve Sword on `effectKey` reddens three rows, so a main-lane wiring-up
+    flips the measurement.
+
 - **2026-09-05 lane `content` session: `c021` closed** — the twelve
   `active1_potency` §6.3 cards, previously covered only by two swordsman-only
   assertions, now have a per-class ladder
