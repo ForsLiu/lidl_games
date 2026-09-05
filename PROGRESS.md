@@ -5,6 +5,53 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-05 (lane `lane/ui`): six items closed — `fb144`, `fb145`, `fb146`,
+  `fb147`, `fb148`, `fb149`.** Worked in queue order; `fb085`/`fb093`/`fb097`
+  were re-confirmed still permanently out of this lane's hard Scope
+  (`data/strings.json`, `tools/ui-audit.ts`, a `package.json` dependency) and
+  skipped with a logged reason, as in every prior session.
+
+  `fb144` seeds `reducedMotion` from the OS `prefers-reduced-motion` query on a
+  first run only, with `defaultSettings()` left pure so `q3-save-fuzz` and
+  fb111's portability audit keep a deterministic baseline. `fb145` adds a
+  `visibilitychange` auto-pause beside fb071's `blur` one, closing the doors
+  (backgrounded tab, minimized window, mobile app switch) that do not reliably
+  blur. `fb146` gives the `dashWidth` half-width defect a standing two-layer
+  guard after it shipped three times. `fb147` makes `SAVE_KEY` a live cache of
+  the active slot rather than the sole home of its data. `fb148` makes the
+  in-run dash sentences read the range the sim really dashes. `fb149` names the
+  pierce/AoE damage drop-off the line and blast sentences were hiding.
+
+  **Two things this session establishes that outlive its items.**
+  1. **Two of the six items' filed measurements were wrong**, and both were
+     caught only because they were re-measured before being implemented rather
+     than inherited. fb148 was filed as "the real dash is 10" — it is 20,
+     because the item's quote of `fireDashSlash` drops fb053's move-speed
+     scaling. fb149 was filed with a damage profile starting at 30 — Dash Slash
+     deals 90, and the eighth enemy in its own repro cannot be struck at all
+     because the line is 5 tiles long. Both items also named sentences that
+     turned out to be unaffected and missed ones that were. CLAUDE.md's
+     measurement rule ("a deferral is a measurement with an expiry date") is
+     doing real work; the corrected figures are in each item's DONE note.
+  2. **A code review changed one item's whole mechanism.** fb147 first patched
+     `Storage.prototype` to intercept `meta.ts`'s own `saveMeta` (which this
+     lane may not edit); review rejected it with three Majors — one of them
+     that the install's idempotence was ALREADY silently broken by
+     `tests/ui-fb087-persist-disabled-toast.test.ts` restoring
+     `Storage.prototype.setItem` in its own `afterEach` — and the acceptance's
+     "or its callers" clause allowed a wrapper at the three `main.ts` save
+     sites instead, with a source rule making "on every save" a property of the
+     codebase rather than of three call sites.
+
+  Ten follow-ups filed rather than folded in (`fb152`-`fb159`, plus two
+  regressions caught by QA and fixed inside their own items rather than filed).
+  `npm run test:fast` after each item: 3734 passed / 3 failed at the end, the
+  failures being `q15`/`b028`/`q41`/`q45` — all tools/CLI-subprocess suites in
+  the documented pre-existing flake classes, which QA reproduced standalone on
+  a clean clone of HEAD. `npx tsc --noEmit` clean; `npm run sim -- --seed 1
+  --policy hybrid` byte-identical to a HEAD control (`endHash 952d7be8`), as
+  UI-only work must be.
+
 - **2026-09-05 (lane `lane/terrain`): merged `origin/master` in a second
   time**, picking up `lane/ui`'s fb111/fb112/fb114/fb115 (PR #4). Nothing to
   reconcile in code: master's batch touched only `src/ui/**`, `tests/ui-*` and
