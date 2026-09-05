@@ -5,6 +5,24 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-05 (branch `claude/backlog-processing-30e66t`): owner feedback
+  round "cloud round 1" (8 files, commit `f74f156`) processed and routed.**
+  Ids `fb152`-`fb160`, no verdict blocks in this round. Main lane
+  (BACKLOG.md, new section at the very top of the Queue): `fb152` DoT tick
+  cadence cap (a [bug], so above everything per working rule 3), `fb153` the
+  owner's damage/HP rescale order split into `fb153a` (global /10 ⚖ rescale of
+  every damage and HP row) and `fb153b` (grid 36x20 -> 56x32 with a
+  character-following camera), `fb154` VS waves spawning from the TD gates, and
+  `fb155` the `/data` half of the enemy attack-kind/range order. Lanes:
+  `fb156` (4 spawn gates) to BACKLOG-TERRAIN.md with a Log entry naming its
+  three out-of-lane consumers; `fb157` (compact in-run character panel, top),
+  `fb158` (enemy attack indicators, blocked on `fb155`), `fb159` (damage-number
+  font scaling) and `fb160` (DPS panel segmented bars) to BACKLOG-UI.md. The
+  eight files moved to `feedback/processed/`. **Standing consequence for the
+  p12 arc:** `fb153a` re-scales every number any balance gate measures, so
+  p12d/p12f/p12h measure after it, not before — a pre-rescale reading cannot be
+  inherited across it without a control run.
+
 - **2026-09-05 (lane `lane/terrain`): merged `origin/master` in a second
   time**, picking up `lane/ui`'s fb111/fb112/fb114/fb115 (PR #4). Nothing to
   reconcile in code: master's batch touched only `src/ui/**`, `tests/ui-*` and

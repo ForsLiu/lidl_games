@@ -42,6 +42,96 @@ still in test headers.
 
 ## Queue
 
+### Owner priority queue (2026-09-05 directive, cloud round 1) — execute top-down
+
+Eight owner files landed in `feedback/` on 2026-09-05 (commit `f74f156`, "fb:
+cloud round 1"). Four are main-lane and sit here, above every other section
+(the 2026-08-29/2026-09-01/2026-09-04 directives included) because three carry
+`Priority: top` and one is a confirmed bug (CLAUDE.md working rule 3). The
+other four were routed to their lanes with ids unchanged: `fb156` →
+BACKLOG-TERRAIN.md, `fb157`/`fb158`/`fb159`/`fb160` → BACKLOG-UI.md. `fb155` below is the
+main-lane `/data` half of the UI lane's `fb158`, filed here because
+`data/enemies.json` is outside that lane's Scope.
+
+**Standing note for the p12 balance arc:** `fb153a` divides every damage source
+and every enemy/structure HP number by the same factor. It is proportional by
+construction, but no balance measurement taken before it lands can be inherited
+afterwards without a control run (CLAUDE.md measurement rules). p12d/p12f/p12h
+therefore measure *after* `fb153`, not before.
+
+- [ ] (fb152) [bug] **top priority** — DoTs tick every sim frame instead of on a
+      bounded cadence, spraying damage numbers and firing per-tick effects far
+      too often; most visible on Time Lord's *Time Flow* converted self-damage.
+      `tickDots` (`src/sim/enemies.ts:1030`) and `tickWardenDots`
+      (`src/sim/run.ts:592`) both call their damage path once per stack per
+      frame at `dt = 1/60`. Cap each DoT *instance* at one tick per **0.25 s**
+      (data-driven constant, not a literal — architecture rule 4), each tick
+      delivering the damage accrued over that interval so the total over the
+      stack's duration is unchanged, with the final partial interval clipped
+      and paid when the stack expires. Tick-driven effects must move to the new
+      cadence with the damage: `damagetypes.json`'s `armorShredPerSecond`
+      (`tickDot`), Burning's neighbour splash (`tickDotSplash`) and
+      lifesteal-on-DoT. Applies to enemy DoTs and to the character's converted
+      damage alike. Acceptance: a failing regression test lands first (rule 3);
+      a 4 s DoT delivers **<= 16 ticks** and its **exact** authored total (both
+      on an enemy and on the Warden); armor shred accrued over a full stack is
+      unchanged from HEAD; end-state hash determinism holds and the replay
+      check still passes — refs: SPEC-FINAL §3 (statuses), owner feedback
+      `dot-tick-cadence`.
+
+- [ ] (fb153) [balance] **OWNER ORDER, top priority** — damage numbers are too
+      high to read. Two coordinated changes, split into sub-items because each
+      is independently verifiable:
+  - [ ] (fb153a) [balance] global rescale so typical early hits are single
+        digits and mid/late hits double digits: divide **all** damage sources
+        AND **all** enemy/structure HP by the same factor (start at **/10** ⚖)
+        so relative balance is preserved. Armor is a percent and is untouched;
+        flat effects (e.g. "1 dmg/s Bleeding") are re-anchored to the new scale
+        as `/data` values, not code. BALANCE.md's anchor table and TTK bands are
+        re-expressed in the new scale. Acceptance: every `/data` damage and HP
+        row is divided by the same recorded factor (a listed, reviewable diff —
+        no hand-picked exceptions); Training Grounds shows single/double-digit
+        numbers on typical hits; the §14 gates that were measurable before the
+        change are re-measured and recorded as unchanged **within noise**, with
+        the before/after pair both written down (a proportional rescale that
+        moves a gate is a bug in the rescale); determinism holds — refs:
+        SPEC-FINAL §2/§3, BALANCE.md, owner feedback
+        `balance-damage-rescale-and-bigger-map` item 1.
+  - [ ] (fb153b) [feat] bigger map to widen engagements: default grid **36x20 ->
+        56x32** ⚖, terrain-generator constraint bands scaling with it, and the
+        camera following the character with zoom limits. Core placement
+        legality rules are unchanged (they are expressed in tiles, not in map
+        fractions — verify, do not assume). Acceptance: a run generates, paths
+        and renders at 56x32 with the terrain property tests green at the new
+        size; the camera follows the character and clamps at both zoom limits
+        and at the map edges; determinism holds and the end-state hash is
+        re-recorded — refs: SPEC-FINAL §10, owner feedback
+        `balance-damage-rescale-and-bigger-map` item 2.
+
+- [ ] (fb154) [feat] **top priority** — VS waves spawn from the TD spawn gates,
+      not from the screen edges: all gates active, budget split round-robin
+      across them, rift/burst events spawning at gates too. Fliers keep their
+      edge spawn to preserve their bypass role (owner's own designer note; a
+      veto flips them to gates). Gate-to-character paths use existing pathing.
+      Acceptance: a headless VS wave shows **100% of ground spawns on gate
+      tiles**; determinism holds; the balance sweep is re-recorded because
+      spawn distance changed — refs: SPEC-FINAL §6 (VS spawns, amended), owner
+      feedback `vs-spawn-from-gates`.
+
+- [ ] (fb155) [feat] enemy attack-kind and attack-range data — the main-lane
+      `/data` half of the UI lane's `fb158`, filed here because
+      `data/enemies.json` is outside that lane's Scope. Every one of the 20 §9
+      enemies gains an explicit attack **kind** (`melee` / `ranged` /
+      `bomber` / `healer` / `buffer` / `burrower` / `phaser`) and an explicit
+      attack **range** in tiles, rather than the renderer re-deriving them from
+      the `traits` array; elites/bosses additionally carry their special
+      attack's range. Melee reach is currently an engine constant — move it to
+      `/data` with the rest (architecture rule 4). Acceptance: a registry test
+      asserts all 20 enemies carry both fields and that the loader refuses a
+      row missing either; the values match what combat actually uses (a test
+      that reads the same numbers the sim reads, not a second copy) — refs:
+      SPEC-FINAL §9, owner feedback `ui-enemy-attack-indicators` (data half).
+
 ### Corrections — shipped code contradicts SPEC-FINAL
 
 Both corrections (x001, x002) are **done** — see the Done section. The queue

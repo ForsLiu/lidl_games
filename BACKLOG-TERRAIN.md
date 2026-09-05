@@ -23,6 +23,21 @@ the merge — never edited from this lane.
 
 ## Queue
 
+### Owner feedback routed from `feedback/` (2026-09-05, cloud round 1)
+
+- [ ] (fb156) [feat] maps generate with **4** spawn gates by default (N, S, E, W
+      edges, jittered along the edge) instead of 3, and tier modifiers that add
+      a gate now go to **5**. Every existing gate rule still applies unchanged:
+      gates are never sealed, connectivity >= 80% of walkable, Core legality
+      distance >= 3 from any gate. The consumers of the gate count are
+      main-lane — wave composition splits across 4 gates, leak coupling and VS
+      gate spawns (main-lane `fb154`) use 4, and path indicators need a 4th
+      color (UI lane) — so this item ships the generator half and logs those
+      three needs below rather than editing them. Acceptance: the generator
+      property tests pass at 4 gates across **1000 seeds**; nothing in
+      `data/terrain.json` hard-codes 3; the sweeps are re-recorded — refs:
+      SPEC-FINAL §10 (gate count amended), owner feedback `terrain-four-gates`.
+
 fb064 (the terrain epic) was split into sub-items on 2026-09-03 when it was
 picked up, per its own "split into sub-items as needed" instruction. The
 parent item is done only when every sub-item below is done. Sub-items that
@@ -795,6 +810,16 @@ improvement.
       without anyone editing this file.
 
 ## Log
+
+- (2026-09-05, fb156 filing) The owner's four-gate order (`feedback/
+  terrain-four-gates.md`) has three consumers outside this lane's Scope, filed
+  here for the merge: (1) wave composition must split across 4 gates
+  (`data/waves.json` / `src/sim/run.ts`); (2) leak coupling and VS gate spawns
+  must use 4 — main-lane `fb154` is the VS half and should be written against
+  a gate count read from terrain, not a literal; (3) TD path indicators need a
+  4th color (UI lane). Also main-lane: `fb153b` moves the default grid to
+  56x32, so this lane's constraint bands are re-fitted at the new size — do
+  not tune them against 36x20 in the meantime.
 
 - (2026-09-05, fb064z) **Two things this item learned the hard way, both
   cheaper to read than to rediscover.**
