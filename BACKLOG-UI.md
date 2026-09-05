@@ -335,7 +335,7 @@ not already expose it) logs that need below instead of reaching into
       fb070's note (single combined run covered both items), none touching
       `src/render/**`/`src/ui/**` or either item's own files.
 
-- [ ] (fb063) [feat] normal priority: bottom-bar passive/Active1/Active2
+- [x] (fb063) [feat] normal priority: bottom-bar passive/Active1/Active2
       icons become hover-only (no click, no sticky panel); tooltip shows a
       written sentence-form effect description with embedded live numbers
       (e.g. "Slash all enemies within 2.5 tiles for 34 damage, knocking
@@ -346,9 +346,45 @@ not already expose it) logs that need below instead of reaching into
       passive) on every visible class shows sentence-form text; a test
       asserts the numbers embedded in the text equal live sim values —
       refs: SPEC-FINAL §11 (amends the bottom-bar HUD item, `fb026`/
-      `fb028`), owner feedback `feature-skill-icons-hover-only`.
+      `fb028`), owner feedback `feature-skill-icons-hover-only`. DONE
+      2026-09-03: `class-info.ts` adds a `ACTIVE_SENTENCES` table mapping
+      each Active `kind` the 3 normal-profile classes use (`charge_nova`,
+      `dash_line`, `ground_poison`, `poison_boost`, `time_mark`, `time_lock`)
+      to a hand-authored sentence function (`circleSlashSentence`,
+      `dashSlashSentence`, `poisonBarrelSentence`, `poisonBoostSentence`,
+      `timeMarkSentence`, `timeLockSentence`), each reusing the existing
+      `liveOverrides`-style live-number resolution
+      (`liveDamageValue`/`liveCooldownValue`) so embedded numbers match live
+      sim values, not raw `/data` ones; `activeSkillMarkup` uses the sentence
+      when a `kind` has one, else falls back to the pre-existing bare
+      field-list block (documented as intentional: covers only the 3
+      normal-profile classes' 6 Actives today, extends when fb057/fb059 make
+      a hidden class normal-profile-visible). `hud.ts` adds a 4th bottom-bar
+      icon (`#sw-bb-towerpassive`) wired to the already-existing
+      `towerPassiveSkillMarkup` (fb058), same CSS-only hover-reveal as the
+      other 3 (no new click handler, none ever existed on any of the 4 —
+      the bar has been hover-only since fb026). Targeted
+      `tests/ui-fb063-bottombar-hover-sentences.test.ts` (9/9: no-click
+      regression across all 4 icons, exactly-4-icons count, passive/tower
+      description text-inclusion for all 3 normal-profile classes, and
+      live-number-embedded assertions for Circle Slash/Poison Barrel/Time's
+      per-stage DoTs + CDR-scaled recharge). code-reviewer REQUEST-CHANGES →
+      one Major (a stray, content-unrelated `STATUS.md` working-tree edit
+      left over from an unrelated prior session — dropped from this commit
+      entirely, never touched by this item) and one Nit (Time Lock's
+      sentence omitted the "immune to Time's rewind-pull" interaction
+      `classes.ts`'s `timeLockZoneId` gate already implements — added the
+      clause) both addressed same session, re-verified green
+      (`tests/ui-fb063-bottombar-hover-sentences.test.ts` +
+      `tests/fb026-bottom-bar.test.ts` + `tests/fb022-info-surfacing.test.ts`
+      + `tests/ui-fb058-class-select.test.ts`, 74/74). qa-playtester PASS
+      (see below). `npx tsc --noEmit` clean. `npm run test:fast`: 9 failed
+      files / 6
+      failed tests, all in the pre-existing q15/q45/q49/q52 worker-hang/
+      Windows-scratch-dir-EPERM flake classes documented across dozens of
+      prior PROGRESS.md sessions, none touching `src/ui/**`/`src/render/**`.
 
-- [ ] (fb065) [feat] normal priority: every UI overlay (bottom bar, side
+- [x] (fb065) [feat] normal priority: every UI overlay (bottom bar, side
       panels, DPS panel, counters, wave info) floats over the playfield as
       semi-transparent edge overlays instead of reserving opaque gutter/
       sidebar space; the canvas fills the window; panels auto-collapse to
@@ -356,9 +392,126 @@ not already expose it) logs that need below instead of reaching into
       reserves horizontal space outside the canvas; the existing UI-audit
       scenes (fb-era self-audit tooling) are re-captured and still pass
       overlap checks — refs: SPEC-FINAL §11 (layout rule), owner feedback
-      `feature-ui-inside-playfield`.
+      `feature-ui-inside-playfield`. DONE 2026-09-03: `Renderer.resize()`
+      (`canvas.ts`) now sizes the backing store off the canvas's own parent
+      (`.sw-stage`) instead of a fixed 1152x640 constant, letterboxed to the
+      36:20 grid aspect ratio (width-bound or height-bound, whichever fits),
+      with a new `scale` field replacing the old dpr-only transform factor
+      everywhere `draw()` resets its transform; a jsdom fallback (`||` on
+      `clientWidth`/`clientHeight`, always 0 without real layout) reproduces
+      the exact old fixed-size behavior so every pre-existing `resize()` test
+      kept passing unchanged. `main.ts` adds a rAF-coalesced `window resize`
+      listener that always reads the live `this.renderer` (never a captured
+      stale instance across Retry/New Run). `hud.ts` splits the old single
+      `.sw-side` column into two floating rails (`#sw-rail-left` build
+      controls, `#sw-rail-right` progress/stats/towerinfo/help), each with a
+      collapse/expand handle (`wireRails`); the right rail additionally
+      auto-collapses whenever the DPS or VS panel is open *or merely docked*
+      (`syncRailRightVisibility` — both share the same top-right corner as the
+      rail's own handle, a code-review finding on an earlier draft that only
+      collapsed for "open"). `style.css`'s `.sw-shell`/`.sw-stage` no longer
+      reserve a flex sidebar column; the two rails are `position: absolute`
+      ~85%-opaque overlays (`var(--panel)` + `d9` alpha, matching
+      `.sw-dock`'s existing pattern) anchored to the stage's own edges,
+      scrolling internally rather than pushing content toward a viewport
+      fold. `tools/ui-audit.ts`'s overlap-check selector list adds
+      `#sw-dpsdock`/`#sw-vsdock` (share the right rail's corner) — not the
+      rails themselves, since every existing selector in that list is now a
+      *descendant* of one of the two rails and would false-positive as
+      "overlapping" its own container. New
+      `tests/render-fb065-stage-fill.test.ts` (6/6: width-bound/height-bound
+      letterboxing, DPR-on-top-of-stage-size, no-inline-height, no-parent
+      fallback, live-resize re-derivation) and
+      `tests/ui-fb065-floating-rails.test.ts` (7/7: no `.sw-side` remains,
+      every old child id still reachable inside a rail, independent
+      collapse/expand per rail, DPS/VS open-or-docked auto-collapse and
+      restore, manual collapse survives an `update()` tick). code-reviewer
+      **APPROVE** (no Critical/Major; three Minor/Nit — no test for the new
+      resize listener, addressed same session with
+      `tests/ui-fb065-resize-listener.test.ts` (2/2: a burst of native
+      `resize` events coalesces to one `Renderer.resize()` call per paint, a
+      post-Retry resize targets the new renderer instance not the old one);
+      the rails anchor to `.sw-stage`'s box rather than the canvas's own
+      letterboxed/centered rect, invisible at the audit's 1920x1080 viewport
+      (≈36:20) but a real gap at an extreme aspect ratio — logged as a
+      follow-up, not blocking, acceptance text is met literally; the two old
+      `b035`/`b036` fold tests still pass but now guard a narrower, largely
+      vacuous case since the practice/build and towerinfo/help panels moved
+      into separate rails — no action needed, flagged for future awareness
+      only). qa-playtester **PASS** against all three stated acceptance
+      criteria, independently re-verified in a real headless-Chromium session
+      at three viewport sizes (1920x1080, 900x700, an extreme 300x900) and
+      confirmed `npm run ui-audit` shows zero `hud-overlap` failures across
+      all 7 scenes (the remaining font-size/text-contrast/offscreen-tuner-
+      field failures are pre-existing, confirmed via git-stash A/B against
+      the pre-fb065 baseline, unrelated to layout/overlap); filed one new
+      low-severity bug — see fb076 below. `npx tsc --noEmit` clean.
+      `npm run test:fast`: 9 failed files / 7 failed tests, all in the
+      pre-existing q15/q49/q52 worker-hang/Windows-scratch-dir-EPERM flake
+      classes documented across dozens of prior PROGRESS.md sessions, none
+      touching `src/ui/**`/`src/render/**` or this item's own files.
 
-- [ ] (fb071) [feat] normal priority: window unfocus auto-pause —
+- [x] (fb076) [bug] low priority: fb065's right info rail
+      (`#sw-rail-right`) can get stuck collapsed after its own handle is
+      clicked while the rail is already auto-collapsed for an unrelated
+      reason (DPS or VS panel open/docked) — `wireRails`'s handle click
+      (`hud.ts`) unconditionally flips `railRightUserOpen` with no awareness
+      the rail is already hidden, so a click that has zero visible effect
+      (the rail was already collapsed) silently sets `railRightUserOpen =
+      false`; `syncRailRightVisibility`'s OR-of-conditions then keeps the
+      rail collapsed even after the DPS/VS panel later closes, since nothing
+      else was holding it open. Found by qa-playtester (fb065 verification),
+      reproduced deterministically: open the DPS panel (auto-collapses the
+      right rail), click the still-visible `#sw-rail-right-handle` tab (a
+      natural thing to try — it's the only visible affordance at that point),
+      close the DPS panel — the rail should reopen with nothing left holding
+      it collapsed, but stays collapsed until a second handle click. Low
+      severity: fully recoverable with one extra click on a still-visible,
+      still-discoverable control; no data loss, no crash. Acceptance: a
+      regression test — auto-collapse the right rail via the DPS panel,
+      click its handle once while collapsed, close the DPS panel — confirms
+      the rail is open again, not stuck; suggested fix direction: only let
+      the handle toggle `railRightUserOpen` when the rail's current collapsed
+      state already matches `railRightUserOpen` (i.e. ignore the click while
+      an auto-collapse reason is independently forcing it shut), or reset
+      `railRightUserOpen = true` whenever an auto-collapse condition's OR
+      transitions back toward "should be open" — refs: fb065, owner feedback
+      `feature-ui-inside-playfield`. DONE 2026-09-03: took the first suggested
+      fix direction. New `railAutoCollapsed()` helper (`hud.ts`) extracts the
+      existing `dpsPanelOpen_ || vsPanelOpen_ || dpsPanelDocked_ ||
+      vsPanelDocked_` OR-chain out of `syncRailRightVisibility()`; the right
+      handle's click listener now does `if (this.railAutoCollapsed()) return;`
+      before touching `railRightUserOpen`, so a click during auto-collapse is
+      a true no-op instead of silently zeroing the flag with nothing left to
+      reset it once the auto-collapse reason clears.
+      `syncRailRightVisibility()` reuses the same helper
+      (`!railRightUserOpen || railAutoCollapsed()`), behavior-equivalent to
+      the prior inline OR chain. Confirmed the left rail (`#sw-rail-left`) has
+      no analogous bug — its handle is a bare `classList.toggle('collapsed')`
+      with no auto-collapse concept and no backing "user open" flag. Targeted
+      `tests/ui-fb076-rail-handle-stuck.test.ts` (3/3): DPS-panel
+      auto-collapse + click + close reopens; docked-VS-panel auto-collapse +
+      click + close reopens; a manual-only collapse/reopen cycle confirms no
+      regression to the ordinary path. code-reviewer **APPROVE** (no
+      Critical/Major; one Minor — could add a manual-collapse-during-
+      auto-collapse-window interaction case for extra belt-and-suspenders
+      coverage, optional, not required by the stated acceptance criteria, not
+      blocking). qa-playtester **PASS**: reproduced the acceptance scenario
+      directly, then hostile-tested 5 rapid handle clicks while
+      auto-collapsed (idempotent, no desync), a pre-existing manual collapse
+      surviving an auto-collapse window untouched, and confirmed DPS+VS
+      auto-collapse reasons are mutually exclusive in practice (`toggleVsPanel`
+      force-closes DPS first) so the "both reasons active" case is
+      unreachable via any public toggle path — not a bug, just confirmed
+      dead code path in the defensive OR; filed no new bugs. `npx tsc --noEmit`
+      clean. `npm run test:fast`: 7 failed files / 2112 passed / 2142 total /
+      24 skipped — all in the pre-existing q15/q49/q52 worker-hang/Windows-
+      scratch-dir-EPERM flake classes plus the b032/b034/b035/b036 dev-server
+      port-contention class (each re-ran clean in isolation), documented
+      across dozens of prior PROGRESS.md sessions, none touching
+      `src/ui/**`/`src/render/**` or this item's own files.
+
+- [x] (fb071) [feat] normal priority: window unfocus auto-pause —
       QUALITY.md BETA's "window unfocus auto-pauses" bar is unmet:
       `main.ts`'s existing `window.addEventListener('blur', ...)` only
       clears held keys, it never pauses. The game should auto-pause (same
@@ -371,9 +524,156 @@ not already expose it) logs that need below instead of reaching into
       Esc's manual-resume convention, and avoids a resume racing back into
       combat before the player has looked at the screen) — refs:
       QUALITY.md BETA ("Pause works everywhere; window unfocus
-      auto-pauses"), SPEC-FINAL §11 (Esc pause parity).
+      auto-pauses"), SPEC-FINAL §11 (Esc pause parity). DONE 2026-09-04:
+      `bindGlobalInput`'s (`src/ui/main.ts`) `blur` listener now calls
+      `this.setPaused(true)` whenever a run exists, `outcome === 'running'`,
+      and it isn't already paused — the same guard `togglePause` uses, minus
+      the toggle itself (a plain one-way pause, deliberately not
+      `togglePause()`, since a toggle would *resume* a run the player had
+      already paused manually via Esc before losing focus). No `focus`
+      listener was added — nothing auto-resumes, matching Esc's
+      manual-resume-only convention. Targeted
+      `tests/ui-fb071-blur-autopause.test.ts` (10/10): blur during
+      act1_wave/act2/levelup reaches the same pause state as Esc
+      (phase/outcome/tick untouched, pause modal with Resume shown); focus
+      doesn't auto-resume; blur while already Esc-paused doesn't un-pause;
+      blur before a run exists or after outcome leaves 'running'
+      (victory/defeat_core/defeat_warden) is a no-op, mirroring
+      `togglePause`'s own guard; a held charge key (`q`) survives a
+      blur-triggered pause. code-reviewer APPROVE (no Critical/Major; two
+      Minor — missing `levelup`-phase and outcome-no-op test coverage, both
+      added same session — and two Nits, not blocking). qa-playtester's
+      first pass **FAILED** it: the blur listener's original unconditional
+      `this.keys.clear()` ran *before* `setPaused`'s own
+      `clearKeysForPause(this.keys)` call, stripping a held charge key
+      (`q`) before that call could preserve it — reintroducing, via the
+      alt-tab path, the exact "silently fires an accumulated charge with no
+      player intent" bug `clearKeysForPause`'s own doc comment
+      (`src/ui/input.ts`) already documents was fixed for Esc. Fixed by
+      calling `clearKeysForPause(this.keys)` in the blur listener instead of
+      a blanket `.clear()`, confirmed via git-stash A/B that the new
+      q-survives-blur test fails pre-fix and passes post-fix. qa-playtester
+      re-verified the fix **PASS** (also independently confirmed a genuine
+      `keyup` for `q` mid-pause still works, and that `q` can't leak into a
+      fresh run via a Hub-screen blur since `keydown`'s `if (!this.run)
+      return` guard already excludes it) and filed one new low-severity,
+      out-of-scope bug — not introduced by or specific to this item, also
+      reproducible via Esc — see fb077 below. `npx tsc --noEmit` clean.
+      `npm run test:fast`: 9-10 failed files across runs this session, all
+      in the pre-existing q15/q28/q45/q49/q52 worker-hang/Windows-scratch-
+      dir-EPERM flake classes documented across dozens of prior PROGRESS.md
+      sessions, none touching `src/ui/**`/`src/render/**` or this item's own
+      files.
 
-- [ ] (fb072) [feat] normal priority: boss health bar — the two boss
+- [x] (fb077) [bug] low priority: `Game.dashQueued` (`src/ui/main.ts`,
+      Space) is not reset by any pause transition — Esc or fb071's new
+      blur auto-pause alike — so a queued dash fires stale on the very
+      first tick after resume, with an unbounded real-time gap and even
+      after the player releases Space entirely during the pause. Unlike
+      the held-`q`-charge case `clearKeysForPause` already protects,
+      `dashQueued` isn't a member of `this.keys` at all, so
+      `clearKeysForPause` can't reach it. Found by qa-playtester
+      (fb071 charge-key-fix re-verification), reproduced deterministically:
+      keydown Space (`dashQueued = true`), blur (or Escape) to pause,
+      keyup Space (simulating the player letting go mid-pause), resume —
+      the first post-resume `gatherInput()` still reports a queued dash and
+      it fires, despite the key no longer being held and arbitrary time
+      having passed. Same bug class as the one `clearKeysForPause`'s doc
+      comment already documents fixing for `q` — a one-shot "intent" flag
+      armed before a pause must not survive the pause transition
+      unconditionally. Acceptance: a regression test — queue a dash via
+      Space, pause (Esc and/or blur), release Space during the pause,
+      resume — confirms no dash fires that the player didn't re-arm after
+      resuming; suggested fix direction: clear `dashQueued` in `setPaused`
+      alongside `clearKeysForPause`'s existing key-clearing, the same place
+      the analogous `q`-preservation logic already lives — refs: fb071,
+      SPEC-FINAL §11 (Esc pause parity), `clearKeysForPause`
+      (`src/ui/input.ts`) precedent. DONE 2026-09-04: took the suggested fix
+      direction verbatim. `setPaused` (`src/ui/main.ts`) now sets
+      `this.dashQueued = false` in the same `if (paused)` branch that already
+      calls `clearKeysForPause(this.keys)` — the flag can never be armed while
+      already paused (the keydown handler's own `!this.paused` guard prevents
+      it), so clearing it only on the transition *into* pause is sufficient
+      for both the Esc and blur pause paths. Targeted
+      `tests/ui-fb077-dash-queued-pause.test.ts` (3/3): Esc-pause clears a
+      queued dash and a Space release mid-pause plus resume fires none; the
+      same via blur auto-pause; re-pressing Space after resume still arms a
+      fresh dash (no over-correction). Confirmed via git-stash A/B that 2 of 3
+      fail pre-fix with the predicted stale-dash symptom and pass post-fix.
+      code-reviewer APPROVE (no Critical/Major; traced and closed out the
+      dash-queued-while-already-paused, levelup-phase, and blur-calls-
+      clearKeysForPause-directly edge cases as already safe by construction;
+      one Minor — a test comment nit, not blocking). qa-playtester PASS
+      against the stated acceptance criteria, additionally verified end-to-end
+      through the real sim (`run.step()` after the sequence leaves
+      `warden.dashTravel` null and position unchanged, not just the
+      `dashQueued`/`gatherInput()` flags), multiple pause/resume cycles
+      without re-arming, and mixed Esc+blur pause paths in sequence; filed one
+      new low-severity, non-blocking bug — see fb078 below. `npx tsc --noEmit`
+      clean. `npm run test:fast`: 10-11 failures across runs this session, all
+      in the pre-existing q15/q28/q33/q45/q49/q52 worker-hang/Windows-scratch-
+      dir-EPERM flake classes documented across dozens of prior PROGRESS.md
+      sessions, none touching `src/ui/**`/`src/render/**` or this item's own
+      files.
+
+- [x] (fb078) [bug] low priority: the outer Space `keydown` listener that
+      arms `Game.dashQueued` (`src/ui/main.ts`, ~line 293:
+      `if (e.key === ' ' && !this.paused) this.dashQueued = true;`) has no
+      `e.repeat` guard, unlike `makeKeyDownHandler`'s own handling of every
+      other key (`src/ui/input.ts`, `if (e.repeat) return;`) — so a browser
+      hardware key-repeat event for a Space the player never released can
+      re-arm `dashQueued` on its own, including right after an fb077-fixed
+      pause/resume. Found by qa-playtester (fb077 verification), reproduced
+      deterministically: hold Space (no keyup), Esc-pause, resume, a
+      `repeat:true` keydown for Space (simulating the OS's continuing
+      key-repeat for the still-held key, no fresh physical press) sets
+      `dashQueued = true` again — the narrow case fb077's guarantee ("no dash
+      fires that the player didn't re-arm after resuming") doesn't cover,
+      since this isn't a fresh press. Low severity and possibly overlapping
+      with intended "hold Space to keep dashing" behavior during ordinary
+      (non-paused) play — the same missing guard already lets a continuously
+      held Space re-arm repeatedly outside any pause, so this may be a
+      pre-existing, accepted design rather than a defect; flagged because
+      fb077 changed the pause-adjacent risk profile around it. Acceptance:
+      either add `if (e.repeat) return;` to the outer Space handler,
+      symmetric with `makeKeyDownHandler`'s existing pattern for every other
+      key, and confirm a held-through-pause Space no longer re-arms
+      `dashQueued` on resume via a repeat event; or document (matching the
+      precedent of fb068/fb069's accepted-tradeoff comments) that key-repeat
+      re-arming is intentional "hold to dash" behavior and is out of scope for
+      fb077's pause-parity fix — refs: fb077, `clearKeysForPause`
+      (`src/ui/input.ts`) precedent, `makeKeyDownHandler`'s `e.repeat` guard.
+      DONE 2026-09-04: took the first option. `bindGlobalInput`'s
+      (`src/ui/main.ts`) outer Space `keydown` listener now reads
+      `if (e.key === ' ' && !this.paused && !e.repeat) this.dashQueued = true;`,
+      symmetric with `makeKeyDownHandler`'s (`src/ui/input.ts`) existing
+      `if (e.repeat) return;` guard for every other key. No "hold to keep
+      dashing" mechanic exists to regress — `dashQueued` is a one-shot flag
+      consumed and reset every `gatherInput()` call, so a continuously held
+      Space only ever arms one dash on the original non-repeat press regardless
+      of this fix. Targeted `tests/ui-fb078-dash-repeat-guard.test.ts` (2/2): a
+      held-through-pause Space's post-resume repeat event no longer re-arms
+      `dashQueued` (confirmed via git-stash A/B that this fails pre-fix and
+      passes post-fix); a fresh non-repeat press still arms a dash normally.
+      code-reviewer APPROVE (no Critical/Major/Minor/Nit — confirmed no
+      downstream "hold to dash" behavior exists to regress and the
+      `clearKeysForPause`/`dashQueued`-clear interaction from fb077 is
+      unaffected, since that function only touches `this.keys`). qa-playtester
+      PASS against the stated acceptance criteria, independently reproduced the
+      scenario with a temporary probe suite (also covering: an ordinary
+      continuous hold outside any pause stays inert past the first arm; 25
+      repeat events in a row post-resume stay inert; a keyup+fresh-keydown
+      after a repeat storm still arms correctly; the fb071 blur-pause path
+      composes correctly with this fix since both route through the same
+      `setPaused`) and filed no new bugs, flagging the pre-existing q15/q49/q52
+      `test:fast` flake classes (unrelated to this diff) for whoever owns them.
+      `npx tsc --noEmit` clean. `npm run test:fast`: 6-7 failures across runs
+      this session, all in the pre-existing q15/q49/q52 worker-hang/Windows-
+      scratch-dir-EPERM flake classes documented across dozens of prior
+      PROGRESS.md sessions, none touching `src/ui/**`/`src/render/**` or this
+      item's own files.
+
+- [x] (fb072) [feat] normal priority: boss health bar — the two boss
       enemies (`gatebreaker` 30,000 HP, `warden_eater` 100,000 HP,
       `data/enemies.json`) have no HUD element beyond the tiny per-enemy
       HP bar fb025 draws under every sprite, which is illegible at these
@@ -388,9 +688,49 @@ not already expose it) logs that need below instead of reaching into
       death or when no boss is present; if two bosses are ever alive at
       once the banner shows the lower-current-HP one without crashing —
       refs: SPEC-FINAL §11, engineer's-judgment item (content totals name
-      2 bosses with no matching HUD depth).
+      2 bosses with no matching HUD depth). DONE 2026-09-04: `hud.ts` adds
+      `#sw-bossbar`/`#sw-bossbar-name`/`#sw-bossbar-fill` (fixed
+      top-center overlay, `style.css`'s new `.sw-bossbar*` rules reusing
+      the existing `.sw-meter` fill pattern) and a `renderBossBar(w)`
+      private method, called every `update()` tick, that scans `w.enemies`
+      for live `e.boss` enemies, tracks the lowest-current-hp one when more
+      than one is alive, and sets the name (`w.content.enemyById.get(boss.defId)?.name`)
+      and a `hp/maxHp` fill width. code-reviewer **APPROVE** (no
+      Critical/Major; two Minor notes — the banner didn't hide once
+      `w.outcome !== 'running'`, fixed same session by gating the scan on
+      it; a theoretical CSS overlap with the right info rail at very
+      narrow stage widths, left as a known limitation, same class as
+      fb065's own logged follow-up — and two Nits confirmed non-issues:
+      the `frac` clamp is dead code since `hp` never exceeds `maxHp` and a
+      boss's `maxHp` can never be 0 per the zod loader's `positive()`
+      guard). qa-playtester's first pass filed one new Minor bug: the
+      banner sits over a semi-transparent/blurred `.sw-modal`
+      (pause/level-up/results/character panel) instead of hiding behind
+      it, the exact bleed-through class `renderBottomBar` was already
+      written to avoid for `#sw-bottombar` — fixed by adding
+      `!this.modalOpen` to `renderBossBar`'s gate, confirmed via git-stash
+      A/B that the new regression test fails pre-fix and passes post-fix.
+      Also confirmed (qa-playtester adversarial probes, temporary/
+      not committed): a tie in current HP between two live bosses resolves
+      deterministically (iteration-order winner, no crash); a custom/dev-
+      spawned boss-trait enemy with a defId outside `gatebreaker`/
+      `warden_eater` still renders correctly (`e.boss` is a generic
+      trait-derived boolean, not hardcoded to either); `hp` reaching 0
+      without `dead` set the same tick (a synthetic-only state — real
+      combat sets both synchronously) renders 0% without hiding or
+      crashing; 50x repeated no-boss `update()` calls and 20x rapid spawn/
+      kill cycling never leave the banner stuck. Targeted
+      `tests/ui-fb072-boss-banner.test.ts` (5/5: hidden-with-no-boss,
+      name+fraction-tracks-hp, disappears-on-death, hides-behind-pause,
+      two-boss lower-current-hp tiebreak-without-crashing). qa-playtester
+      re-verified **PASS** against every stated acceptance criterion.
+      `npx tsc --noEmit` clean. `npm run test:fast`: 6-9 failed files
+      across runs this session, all in the pre-existing q15/q49/q52
+      worker-hang/Windows-scratch-dir-EPERM flake classes documented
+      across dozens of prior PROGRESS.md sessions, none touching
+      `src/ui/**`/`src/render/**` or this item's own files.
 
-- [ ] (fb073) [feat] normal priority: key remapping — QUALITY.md BETA's
+- [x] (fb073) [feat] normal priority: key remapping — QUALITY.md BETA's
       Settings checklist line ("master/SFX volume, screenshake toggle,
       reduced-flash mode, damage number toggle, key remapping,
       resolution/DPR handling, colorblind-safe palette") is met on every
@@ -406,9 +746,296 @@ not already expose it) logs that need below instead of reaching into
       and the new key does; binding an already-used key is rejected and
       leaves the existing assignment intact; defaults restore every
       binding — refs: QUALITY.md BETA (Settings checklist), SPEC-FINAL
-      §11.
+      §11. DONE 2026-09-04: new `src/ui/keybindings.ts` module — `ActionId`
+      union (movement WASD, dash, active1/active2, toggleRanges/cycleSpeed/
+      toggleCharacterPanel/toggleDpsPanel/toggleVsPanel, upgradeSelection/
+      sellSelection/clearSelection, towerSlot1-9), `defaultKeyBindings()`,
+      `sanitizeKeyBindings()` (fills missing fields, lower-cases, de-dupes a
+      corrupted/hand-edited save), `loadKeyBindings()`/`saveKeyBindings()`
+      (own localStorage key `stonewake.keybindings.v1`, separate from
+      `Settings`), `rebindKey()` (conflict-checked setter), `keyLabel()`
+      (display formatting), `UNBINDABLE_KEYS` (the 4 arrow keys — always-live
+      movement alternate, rejected as a rebind target). `input.ts`'s
+      `bindCanvasInput`/`makeKeyDownHandler`/`clearKeysForPause`/
+      `movementFromKeys`/`gatherInput` all take an optional `bindings` param
+      defaulting to `defaultKeyBindings()`, so every existing caller/test is
+      unaffected. Deliberately left hardcoded/unrebindable: Escape (pause —
+      a near-universal convention), the arrow keys (movement alternate,
+      always live), and the level-up offer picker's literal 1/2/3 (a
+      different physical-key concept from the now-independently-rebindable
+      towerSlot1-9, decoupled at the `makeKeyDownHandler` dispatch site).
+      `main.ts`'s `Game` gains a `keyBindings` field threaded through every
+      input call site; `showHub()`'s `onKeyBindingsChanged` callback mutates
+      it in place (`Object.assign`) rather than replacing the reference — see
+      the code-reviewer finding below for why that distinction mattered.
+      `hub.ts`'s Settings tab gains a "Controls" panel: one row per action
+      with a `[data-rebind]` button, click arms listening mode, the next
+      `document`-level capture-phase keydown either rebinds (calling
+      `cb.onKeyBindingsChanged`) or shows a conflict/reserved-key message
+      leaving the binding untouched, Escape cancels, `#sw-keybind-reset`
+      restores every binding to default, and switching Hub tabs mid-listen
+      detaches the capture listener. Targeted
+      `tests/ui-fb073-key-remapping.test.ts` (17/17): `rebindKey`
+      conflict/no-op-self-rebind, `sanitizeKeyBindings` dedupe/fill/lowercase,
+      `input.ts` handlers reading rebound keys (with a no-bindings-arg
+      backward-compat case), the Controls panel's listing/rebind/conflict/
+      Escape-cancel/restore-defaults/arrow-key-rejection/tab-switch-detach
+      behavior, and a `Game`-level end-to-end regression test (see below).
+      code-reviewer's first pass **REQUEST-CHANGES**: one Major —
+      `bindGlobalInput` runs at most once (`inputBound`) and hands
+      `makeKeyDownHandler` a `bindings` object it closes over for the rest of
+      the session; the original `onKeyBindingsChanged` reassigned
+      `this.keyBindings` to a *new* object on every rebind, leaving that
+      already-bound closure aliasing the stale one — a rebind made from the
+      Hub between runs silently stopped taking effect for every
+      keydown-dispatched action (Q/E, R/F/C/P/V/U/X, tower-slot digits) the
+      moment a second run started, while movement/mouse bindings stayed live
+      only because `gatherInput`/`bindCanvasInput` re-read the field fresh
+      each tick/run. Fixed by mutating `this.keyBindings` in place
+      (`Object.assign`) instead of reassigning it, confirmed via git-stash-
+      style A/B (temporarily reverted the one line) that the new
+      `Game`-level regression test fails pre-fix with the exact predicted
+      symptom (old key still fires after a second run) and passes post-fix.
+      Two Minors, also fixed same session: arrow keys were reachable as a
+      rebind target with no conflict warning despite `movementFromKeys`
+      always treating them as movement regardless of bindings (added
+      `UNBINDABLE_KEYS`, checked in `Hub.onRebindKeyDown` before calling
+      `rebindKey`); `sanitizeKeyBindings` didn't dedupe a corrupted save that
+      assigns the same key to two actions (added a second pass over
+      `ACTION_ORDER` resetting a later duplicate to its own default).
+      code-reviewer re-verified **APPROVE**. qa-playtester **PASS** against
+      all three literal acceptance criteria (re-derived independently
+      end-to-end through the real `Hub`+`Game`, plus hostile testing: rapid
+      same-button clicks, cross-button clicks mid-listen, chained
+      vacate-then-claim rebinds, corrupted-`localStorage` round trips — no
+      stuck-listener, eaten-keydown, or crash found) and filed three new
+      low-severity bugs, all variants of the same root cause (a hardcoded
+      literal outside `ActionId`/`UNBINDABLE_KEYS` can be silently claimed by
+      a rebound action, double-firing both on one keypress) — see fb079/fb080
+      below. `npx tsc --noEmit` clean. `npm run test:fast`: 7 failed files,
+      all in the pre-existing q15/q49/q52 worker-hang/Windows-scratch-dir-
+      EPERM flake classes documented across dozens of prior PROGRESS.md
+      sessions, none touching `src/ui/**`/`src/render/**` or this item's own
+      files.
 
-- [ ] (fb074) [feat] low priority: resume run after a page refresh —
+- [x] (fb079) [bug] low priority: two of `input.ts`'s hardcoded, unrebindable
+      literals — `Enter` (unconditional `{k:'call'}` call-wave trigger,
+      `makeKeyDownHandler`) and the level-up offer picker's literal 1/2/3
+      (fb073's own documented exception, decoupled from the
+      independently-rebindable `towerSlot1-3`) — are not in
+      `keybindings.ts`'s `UNBINDABLE_KEYS`, so the Hub's rebind-conflict
+      check never protects them: a player can freely rebind any other action
+      onto `Enter` or onto a tower-slot digit's now-vacated `1`/`2`/`3`, and
+      both the hardcoded behavior and the rebound action silently fire off
+      the same keypress. Found by qa-playtester (fb073 verification),
+      reproduced deterministically both ways: (1) rebind `sellSelection` to
+      `Enter` — starting a run and pressing Enter now calls the wave *and*
+      sells the selection; (2) rebind `towerSlot1` off `1` (e.g. to `j`),
+      then rebind `sellSelection` onto the now-free `1` — no conflict warning
+      at either step, and during a level-up offer screen pressing `1` both
+      sells the selection and picks the first offer card, confirmed via a
+      direct `makeKeyDownHandler` unit test receiving both effects from one
+      `keydown`. Acceptance: a regression test — attempting to rebind an
+      action onto `Enter` (or onto `1`/`2`/`3` given the picker's documented
+      exception) shows the same "reserved" conflict message `UNBINDABLE_KEYS`
+      already produces for an arrow key, and the existing binding is left
+      untouched; suggested fix direction: extend `UNBINDABLE_KEYS` (or an
+      equivalent "reserved literal" set `Hub.onRebindKeyDown` consults) to
+      also cover `enter` and, at minimum while `isChoosing`-gated, `1`/`2`/`3`
+      — refs: fb073, `input.ts`'s module-doc "deliberately not rebindable"
+      list, which already names both but which the conflict-detection code
+      never actually enforced against other actions claiming them. DONE
+      2026-09-04: added `reservedKeyLabel(action, key)` (`keybindings.ts`) —
+      `enter` is reserved against every action; `1`/`2`/`3` are reserved
+      against every action except the matching `towerSlot1`/`towerSlot2`/
+      `towerSlot3`, which keeps legitimately sharing the picker's key by
+      fb073's original design (`TOWER_SLOT_ACTIONS[pickerIndex] !== action`,
+      confirmed no off-by-one, exactly one action exempted per key). Also
+      added an `'enter' -> 'Enter'` case to `keyLabel()`'s display formatting
+      (previously fell through to the generic multi-char branch and showed
+      lowercase `'enter'`). `hub.ts`'s `onRebindKeyDown` calls
+      `reservedKeyLabel` immediately after the pre-existing `UNBINDABLE_KEYS`
+      check, same early-return-before-`rebindKey` pattern as the arrow-key
+      rejection, so a rejected attempt never mutates `this.keyBindings`.
+      Targeted `tests/ui-fb079-reserved-keys.test.ts` (7/7): `reservedKeyLabel`
+      unit coverage (Enter always reserved; 1/2/3 reserved against unrelated
+      actions including an unrelated towerSlot action; not reserved against
+      the matching towerSlot1-3; ordinary keys unreserved) plus two
+      Hub-integration tests (rebinding `sellSelection` onto Enter rejected
+      with the binding untouched; vacating `towerSlot1` off `'1'` then
+      attempting to rebind `sellSelection` onto the now-free `'1'` still
+      rejected). code-reviewer **APPROVE** (no Critical/Major; one Minor —
+      `sanitizeKeyBindings` (the `loadKeyBindings()` localStorage boot path)
+      doesn't run `reservedKeyLabel`, so a hand-edited/corrupted save could
+      still load an action bound to `enter`/a mismatched `1`/`2`/`3` and
+      reproduce the double-fire via a path that never reaches
+      `onRebindKeyDown` — legitimate but out of this item's stated Hub-UI-flow
+      acceptance criteria, logged as fb081 below rather than blocking; one
+      Nit — the towerSlot exemption is stricter than the underlying hazard
+      strictly requires (tracing `input.ts` shows the `isChoosing` picker
+      path and the tower-slot-select path are mutually exclusive per
+      keypress, so in principle *any* towerSlot action bound to `1`/`2`/`3`
+      is already safe, not just the matching one) but this matches fb073's
+      pre-existing documented design intent and is non-breaking, not required
+      to fix). qa-playtester **PASS** against the stated acceptance criteria:
+      independently reproduced both original repro scenarios through a real
+      `Hub` instance (real DOM click + keydown dispatch, not just the unit
+      test) — Enter rejection, vacate-then-claim-`1` rejection, and confirmed
+      the matching-slot exemption still works normally; hostile-tested rapid
+      repeated rejected attempts, Escape-cancel leaving no stale conflict
+      message, mid-rebind Hub tab switches, and "Restore default controls"
+      post-custom-rebind — all clean. Confirmed the already-logged
+      `sanitizeKeyBindings` gap directly and found a broader, pre-existing
+      variant of it (not introduced by this item) — see fb081 below.
+      `npx tsc --noEmit` clean. `npm run test:fast`: 2156 passed / 8 failed
+      (all in the pre-existing q15/q49/q52 worker-hang/Windows-scratch-dir-
+      EPERM flake classes documented across dozens of prior PROGRESS.md
+      sessions; confirmed via git-stash A/B that the q49/q52 `EPERM`
+      failures reproduce identically without this diff) / 22 skipped, none
+      touching `src/ui/**`/`src/render/**` or this item's own files.
+
+- [x] (fb080) [bug] low priority: `makeKeyDownHandler`'s
+      `if (k === bindings.dash) e.preventDefault();` (`input.ts`) suppresses
+      the browser's default Space behavior (page scroll) for whichever
+      action currently owns the `dash` binding, not for the physical Space
+      key itself — so rebinding `dash` off Space (or rebinding a different
+      action onto the now-free Space) leaves Space's default browser
+      behavior unsuppressed during a run, regardless of what action now
+      fires on it. Found by qa-playtester (fb073 verification), reproduced
+      both directions (Space freed entirely, and Space reassigned to
+      `active1`) via `vi.spyOn(evt, 'preventDefault')` — never called either
+      way once `dash` no longer owns Space. Low severity (cosmetic/quality-
+      of-life: the page could scroll under a keypress mid-run if the player
+      has rebound `dash` off Space), no crash or determinism impact.
+      Acceptance: a regression test confirms `preventDefault` fires whenever
+      the pressed key is literally Space, independent of which action
+      currently owns the `dash` binding; suggested fix direction: check
+      `k === ' '` directly for the `preventDefault` call rather than
+      `k === bindings.dash` — refs: fb073. DONE 2026-09-04: took the
+      suggested fix direction verbatim — `makeKeyDownHandler` (`input.ts`)
+      now reads `if (k === ' ') e.preventDefault();`, independent of
+      `bindings.dash`. `k` is already `e.key.toLowerCase()`, and Space's
+      `e.key` is the literal space character regardless of modifiers, so
+      this decouples "suppress the browser's default Space behavior" from
+      "whichever action currently owns the `dash` binding." Targeted
+      `tests/ui-fb080-space-prevent-default.test.ts` (4/4): default binding
+      still suppresses; `dash` rebound off Space entirely still suppresses;
+      a different action (`active1`) rebound onto the freed Space still
+      suppresses; an unrelated key does not call `preventDefault`.
+      Confirmed via git-stash A/B that 2 of the 4 fail pre-fix with the
+      exact predicted symptom and pass post-fix. code-reviewer **APPROVE**
+      (no Critical/Major/Minor; one Nit — the backlog checkbox wasn't ticked
+      yet in the reviewed diff, closed by this update). qa-playtester
+      **PASS**: independently re-derived the fix through the real
+      `makeKeyDownHandler` via `window.dispatchEvent`, then end-to-end
+      through a real `Hub` + `Game` (rebound `dash` off Space onto `j` via
+      the actual Controls panel, started a run, dispatched a real Space
+      keydown, confirmed `evt.defaultPrevented === true`; repeated with
+      `active2` rebound onto the freed Space, confirming both
+      `preventDefault` and the `class_active2` command fire from one
+      keypress); hostile-tested Space during an Esc-pause (still
+      suppressed, `dashQueued` correctly stays unarmed while paused), a
+      simulated key-repeat event (correctly skipped by the pre-existing
+      `e.repeat` guard, fb078 untouched), rapid repeated press/release
+      cycles, Space with a modifier held, a non-cancelable event (no
+      throw), and confirmed Space isn't a reserved/unbindable key (fb079's
+      territory, not applicable here); filed no new bugs. `npx tsc --noEmit`
+      clean. `npm run test:fast`: 10-12 failures across runs this session,
+      all in the pre-existing q15/q45/q49/q52 worker-hang/Windows-scratch-
+      dir-EPERM flake classes documented across dozens of prior PROGRESS.md
+      sessions, none touching `src/ui/**`/`src/render/**` or this item's own
+      files.
+
+- [x] (fb081) [bug] low priority: `sanitizeKeyBindings`'s (`keybindings.ts`)
+      general duplicate-key dedup is a no-op whenever a corrupted/hand-edited
+      save's override on an earlier `ACTION_ORDER` action collides with a
+      *later* action's own default key — two different actions can end up
+      bound to the identical key after sanitize, silently, defeating the
+      exact invariant the function's own doc comment claims to guarantee
+      ("resets any later action holding the same key back to its own
+      default"). Found by qa-playtester (fb079 verification), reproduced
+      deterministically and repeatedly: `sanitizeKeyBindings({
+      ...defaultKeyBindings(), moveUp: 's' })` (`'s'` is `moveDown`'s own
+      default) returns `moveUp === 's'` AND `moveDown === 's'` — the dedup
+      loop's "reset to own default" is a no-op here because `moveDown`'s
+      `out` value was already its own default, so nothing changes and the
+      collision survives; also reproduced with `sellSelection: '1'` (a
+      picker digit, not just a movement key) surviving alongside
+      `towerSlot1 === '1'`. Broader than fb079's own already-logged
+      Minor (`sanitizeKeyBindings` not calling `reservedKeyLabel`): this is
+      not limited to `enter`/`1`/`2`/`3`, applies to any pair of actions in
+      `ACTION_ORDER`, and is reachable purely through `loadKeyBindings()` at
+      boot — no rebind UI involved at all. Acceptance: a regression test
+      confirms `sanitizeKeyBindings({ ...defaultKeyBindings(), moveUp: 's'
+      })` produces `moveUp !== moveDown`, and more generally that no two
+      values in any `sanitizeKeyBindings` output are equal across all of
+      `ACTION_ORDER`; while fixing, also thread `reservedKeyLabel` into the
+      same pass so a corrupted save can't load `enter` or a mismatched
+      `1`/`2`/`3` either, closing fb079's own logged Minor in the same
+      change — refs: fb079, fb073, `sanitizeKeyBindings`'s own doc-comment
+      guarantee. DONE 2026-09-04: `sanitizeKeyBindings` (`keybindings.ts`)
+      now does a single forward pass over `ACTION_ORDER` tracking a `used:
+      Set<string>`; a new `keyUnavailable(id, key, used)` helper folds three
+      checks into one (`used.has(key)`, `UNBINDABLE_KEYS.has(key)`,
+      `reservedKeyLabel(id, key) !== null`). For each action: if its current
+      key is unavailable, fall back to its own default; if that default is
+      ALSO unavailable (the chained-collision case this bug report is about),
+      fall back further to the first free/available key in a new
+      `FALLBACK_KEY_POOL` (`'abcdefghijklmnopqrstuvwxyz0123456789'` — 36
+      candidates, comfortably more than `ACTION_ORDER`'s 24 entries), or the
+      default as a should-be-unreachable last resort. Targeted
+      `tests/ui-fb081-sanitize-dedup.test.ts` (originally 7/7, grew to 8/8 —
+      see code-review note below): the exact `moveUp: 's'` repro, a
+      reserved-key variant (`sellSelection` stealing `towerSlot1`'s default
+      `'1'`), a 3-way collision chain, an arbitrary multi-collision case,
+      `reservedKeyLabel` threading (Enter, mismatched picker digits, the
+      matching-towerSlot exemption). Confirmed via git-stash A/B that the
+      suite fails 6-7/7 pre-fix with the exact predicted symptoms and passes
+      post-fix. code-reviewer **REQUEST-CHANGES** → one Major: the fix's own
+      `used`/`reservedKeyLabel` checks never consulted `UNBINDABLE_KEYS`
+      (arrow keys), the same class of gap `reservedKeyLabel` exists to close
+      for `enter`/`1`/`2`/`3` — a corrupted save binding e.g. `active1:
+      "arrowup"` passed through untouched, reproducing the exact
+      always-fires-alongside-movement double-fire bug this same fix was
+      meant to prevent for the other two reserved-literal classes. Fixed by
+      folding `UNBINDABLE_KEYS.has(candidate)` into `keyUnavailable`; added
+      an 8th regression test (`active1: 'ArrowUp'` in a corrupted save
+      resets off it), confirmed via a second git-stash A/B that 7/8 tests
+      fail pre-this-fix and pass post-fix. Also addressed a Minor (the
+      `FALLBACK_KEY_POOL.find(...) ?? defaults[id]` ultimate fallback could
+      silently reintroduce a duplicate if `ACTION_ORDER` ever grows past the
+      pool's capacity — left as-is, judged not worth defensive code for an
+      unreachable case at the current 24-action roster, consistent with
+      CLAUDE.md's "don't validate what can't happen") and a Nit (a stale
+      hardcoded "36 candidates for 23 actions" count in the doc comment —
+      fixed, `ACTION_ORDER` actually has 24 entries; reworded to avoid a
+      number that can drift again). code-reviewer re-verified **APPROVE**.
+      qa-playtester **PASS**: independently re-derived both acceptance
+      criteria, then hostile-tested via temporary probe suites (not
+      committed) covering null/undefined/empty-object input, all 24 actions
+      colliding onto one single key, multiple simultaneous reserved-literal
+      violations in one blob (Enter + arrows + mismatched 1/2/3 together),
+      mixed/uppercase-case keys, an already-valid input as a no-op/identity
+      check, unknown extra properties, non-string junk values, multi-char
+      string values, and a real `localStorage`-backed `loadKeyBindings()`
+      round-trip of both a corrupted-but-parseable and a malformed JSON
+      blob — plus a 2000-trial randomized fuzz over a pool mixing plain
+      keys/arrows/Enter/1-2-3, zero collisions or reserved-key leaks in any
+      trial; filed no new bugs, flagged one pre-existing out-of-scope
+      observation (the fill loop accepts a multi-character key string like
+      `"shift"` verbatim — `v.length > 0`, not `=== 1` — inconsistent with
+      the single-character-key contract but not a collision risk and not a
+      fb081 regression; not filed as a new item, low value). `npx tsc
+      --noEmit` clean. `npm run test:fast`: 5-9 failures across runs this
+      session (variance run to run), all in the pre-existing
+      q13/q15/q28/q45/q49/q52 worker-hang/Windows-scratch-dir-EPERM flake
+      classes and the b032/b034/b035/b036 dev-server port-contention
+      fold-test class (each re-ran clean in isolation, confirmed via
+      git-stash A/B identical without this diff), documented across dozens
+      of prior PROGRESS.md sessions, none touching `src/ui/**`/
+      `src/render/**` or this item's own files.
+
+- [x] (fb074) [feat] low priority: resume run after a page refresh —
       QUALITY.md BETA's "no progress loss on refresh" bar. Nothing today
       persists an in-progress run; reloading the page always drops to the
       Hub. Periodically persist the running phase's `RunConfig` (seed +
@@ -427,9 +1054,300 @@ not already expose it) logs that need below instead of reaching into
       uninterrupted run at the same tick; a mismatched-content-hash case
       confirms the stale log is discarded, not replayed — refs:
       QUALITY.md BETA, SPEC-FINAL §12 (seed+input-log reproducibility,
-      already required for G2).
+      already required for G2). DONE 2026-09-04: new `src/ui/runpersist.ts`
+      (`savePersistedRun`/`loadPersistedRun`/`clearPersistedRun`, own
+      localStorage key `stonewake.runinprogress.v1`) stores a `RecordedRun`
+      (`sim/run.ts`) plus a per-`Game`-instance `sessionId`. `main.ts`'s
+      `startRun` splits into `startRun` (fresh `new Run(cfg)`) +
+      `beginRun(cfg, run, priorInputLog)` (the shared Hud/renderer/bindings
+      tail, parameterized over how the live `Run` came to exist); the tick
+      loop pushes every stepped `TickInput` into `this.inputLog` and
+      throttle-persists once `inputLog.length` has grown ≥60 since the last
+      write (robust to fast-forward frames jumping past an exact multiple of
+      60). `start()` calls a new `tryResumePersistedRun()` before falling
+      back to `showHub()`: loads any persisted entry, discards it (and falls
+      through to the Hub) on a `contentHash` mismatch against live `/data`,
+      otherwise replays the recorded log through a fresh `Run` via
+      `run.step()` and hands the resulting live `Run` to `beginRun`. Cleared
+      on a finished outcome (victory/defeat) and on abandon-to-Hub.
+      code-reviewer **REQUEST-CHANGES** → three Majors, all fixed same
+      session: (1) a malformed-but-shape-valid persisted entry (e.g. one
+      recorded `TickInput` missing `cmds`) threw straight out of `start()`
+      with nothing to catch it — the replay loop is now wrapped in
+      try/catch, discarding and falling through to the Hub on any exception
+      instead of leaving a blank page; (2) unbounded input-log growth risks
+      silently defeating the whole feature via a full localStorage quota —
+      `savePersistedRun` now returns whether the write actually succeeded,
+      and `Game` sets a `persistDisabled` flag (plus one `console.warn`) the
+      first time it doesn't, rather than retrying forever against
+      already-failing, ever-growing data; documented as a known, accepted
+      tradeoff (same class as fb067/fb068/fb069's own) rather than solved
+      outright — see fb087 below, filed by qa-playtester, for how much
+      earlier this actually bites than that framing suggested; (3) a
+      cross-tab race on the single shared localStorage key — two tabs could
+      either fight over the slot forever or an idle tab's own `showHub()`
+      could wipe a *different* tab's active checkpoint just by existing.
+      Fixed via the `sessionId` stamp: `persistRun()` backs off
+      (`persistDisabled = true`) the moment a foreign `sessionId` appears in
+      the slot this instance itself last wrote, instead of clobbering it
+      every throttle window; `clearOwnPersistedRun()` (now used by
+      `showHub()` and the outcome-finished block in place of a blanket
+      `clearPersistedRun()`) only clears an entry this instance actually
+      owns. `startRun`'s own former unconditional clear was removed
+      entirely rather than made ownership-aware, since every path reaching
+      it already passed through one of those two ownership-gated clears
+      first — ownerless by construction, so an explicit clear there could
+      only ever wipe a slot this instance never owned; this run's own first
+      `persistRun()` write (~1s in) claims the slot regardless, same as it
+      would for a key with nothing in it. code-reviewer re-verified
+      **APPROVE**. Targeted `tests/ui-fb074-resume-on-refresh.test.ts`
+      (8/8): happy-path persist-then-resume (including a `Run.hash()`
+      end-state-hash comparison against an independent reference replay —
+      G2's own determinism mechanism, added after a code-review Minor on the
+      original field-by-field-only comparison), content-hash-mismatch
+      discard, a malformed-input-log graceful-fallback case (the Major #1
+      regression test), outcome-finished cleanup, abandon-to-Hub cleanup,
+      two cross-tab-guard cases (backs off on a foreign `sessionId` instead
+      of clobbering; doesn't wipe a foreign session's entry on abandon), and
+      a nothing-persisted boot-to-Hub baseline. qa-playtester **PASS**
+      against both literal acceptance criteria (independently re-derived the
+      resume-matches-uninterrupted-run check via `hashWorld()`, and the
+      content-hash-discard case), plus extensive hostile probing: a
+      full-length (128,191-tick, ~35.6 min) `hybrid`-bot run to victory
+      replayed and measured directly against `runpersist.ts`; the
+      already-fixed Major #1 crash independently reproduced against a
+      pre-fix snapshot and confirmed closed against the final one; a
+      "closed right on the defeat/victory tick" race (an 11,067-tick log
+      already at a terminal outcome) confirmed discarded, not resumed;
+      rapid Retry-after-resume cycles and pause state across a resume
+      confirmed safe. Filed two new bugs against the accepted-tradeoff
+      framing in Major #2/#3's fix rather than the acceptance criteria
+      themselves — see fb087/fb088 below. `npx tsc --noEmit` clean.
+      `npm run test:fast`: 7-8 failed files across two runs this session
+      (this item's own run and qa-playtester's independent one), all in the
+      pre-existing q15/q45/q49/q52 worker-hang/Windows-scratch-dir-EPERM/
+      timing-fuzz flake classes documented across dozens of prior
+      PROGRESS.md sessions, none touching `src/ui/**`/`src/render/**` or
+      this item's own files.
 
-- [ ] (fb075) [polish] low priority: Settings "reset to defaults" — the
+- [x] (fb087) [bug] normal priority: found by qa-playtester (fb074
+      verification) — fb074's persisted-run localStorage entry silently
+      stops advancing at the browser's ~5MB quota, which a *normal* run
+      (not just an "unusually long" one, as fb074's own accepted-tradeoff
+      comment framed it) crosses well before finishing. Measured: a full T1
+      engineer run to victory (`hybrid` bot) is 128,191 ticks (~35.6 min);
+      the persisted JSON payload crosses the quota at tick ~49,320 (~13.7
+      min, ~38% in). Every persist after that silently no-ops
+      (`persistDisabled = true`, one `console.warn`, nothing surfaced to the
+      player) — a refresh late in a long run silently discards everything
+      since the quota was hit, with zero in-game indication anything went
+      wrong, directly against QUALITY.md BETA's "no progress loss on
+      refresh" bar. Acceptance: either (a) a one-time player-visible
+      toast/notice the moment `persistDisabled` first fires, so the player
+      knows resume protection lapsed for the rest of that run, or (b) bound
+      the persisted payload's growth (e.g. a periodic full-state snapshot +
+      trimmed tail log instead of an ever-growing from-start replay log) so
+      a typical full-length run stays resumable to its actual end; a
+      regression test drives a persisted log past the measured quota
+      ceiling and asserts on the chosen player-visible/bounded-growth
+      behavior — refs: fb074, QUALITY.md BETA. DONE 2026-09-04: took
+      direction (a), the smaller fix. `persistRun()` (`src/ui/main.ts`) now
+      calls the existing `Hud.say()` toast (`this.hud.say('Resume protection
+      off for this run (storage full)')`) in the same branch that already
+      sets `persistDisabled = true` and logs a `console.warn` once
+      `savePersistedRun` returns false — guarded by the same
+      `persistDisabled` early-return at the top of `persistRun()`, so it can
+      only ever fire once per run. The separate cross-tab-backoff branch (a
+      different, working-as-intended handoff when a foreign `sessionId`
+      claims the slot, not a failure) deliberately does not toast. Targeted
+      `tests/ui-fb087-persist-disabled-toast.test.ts` (2/2, using the same
+      driven-`Game` idiom as `tests/ui-fb074-resume-on-refresh.test.ts`):
+      mocks `Storage.prototype.setItem` to throw for the run-persist key
+      specifically (cheaper and just as faithful a repro of "the write
+      fails" as growing a log to the real ~49k-tick ceiling) and confirms the
+      toast text and `persistDisabled`; a second test confirms no toast and a
+      real persisted entry under normal conditions (strengthened post-review
+      to assert the entry actually exists, not just "no toast"). code-reviewer
+      **APPROVE** (no Critical/Major; two Minors — the shared single-slot
+      `Hud.say()` toast has no queue/priority, so an unrelated later toast
+      (e.g. `xp_overflow_gold`) could stomp this one before the player reads
+      it, flagged as a pre-existing design limitation rather than a fb087
+      regression, see fb089 below where qa-playtester's own hostile testing
+      confirmed and filed it; and the test's literal wording deviates from
+      the acceptance text's "past the measured quota ceiling" phrasing by
+      mocking the failure directly instead, judged an acceptable, documented
+      substitution — both non-blocking). qa-playtester **PASS** against the
+      stated acceptance criteria (`tests/ui-fb087-persist-disabled-toast.test.ts`
+      + `tests/ui-fb074-resume-on-refresh.test.ts`, 10/10, the latter's
+      cross-tab-backoff cases confirmed not regressed), hostile-tested the
+      toast firing more than once, a fresh run after a forced failure
+      correctly resetting `persistDisabled` and re-enabling persistence, and
+      first-attempt-vs-later-attempt failures — all clean; independently
+      reproduced and filed the single-slot toast-stomping gap noted above —
+      see fb089 below. `npx tsc --noEmit` clean. `npm run test:fast`: 4-5
+      failed tests across runs this session, all in the pre-existing
+      q15/q49/q52 worker-hang/Windows-scratch-dir-EPERM flake classes
+      documented across dozens of prior PROGRESS.md sessions, none touching
+      `src/ui/**`/`src/render/**` or this item's own files.
+
+- [x] (fb089) [polish] low priority: found by qa-playtester (fb087
+      verification) — `Hud.say()` (`src/ui/hud.ts`) is a single-slot toast
+      with no queue or priority between callers: it unconditionally
+      overwrites `this.toast.textContent` and resets the ~1.4s auto-hide
+      timeout on every call, so a second `say()` landing inside a first
+      call's still-visible window silently erases it rather than queuing
+      behind it. Reproduced deterministically: trigger fb087's one-time
+      "Resume protection off for this run (storage full)" toast, then call
+      `Hud.ingestFx([{ k: 'xp_overflow_gold', a: 1 }])` (the existing
+      `say()` caller, fired whenever a VS wave's bulk gem pickup levels the
+      character up with overflow XP, `src/sim/progression.ts`'s
+      `collectRemainingGems`) within that ~1.4s window — the storage-full
+      warning is immediately replaced by "+1 gold (EXP overflow)" with no
+      trace it was ever shown. Because fb087's warning is measured to land
+      roughly 38% into a normal run and stays relevant for the rest of it,
+      any VS-wave-end (or any future second `say()` caller) landing within
+      ~1.4s of the failure can quietly defeat fb087's entire "player-visible"
+      intent for that run. Acceptance: give `Hud`'s toast a minimal
+      priority/queue (e.g. a higher-priority message holds its full window
+      before a lower-priority one can replace it, or same-priority messages
+      queue rather than clobber) so two independent `say()` calls landing
+      close together are both eventually seen, not silently reduced to one;
+      a regression test triggers fb087's storage-full toast, immediately
+      fires an unrelated `xp_overflow_gold` fx event, and confirms the
+      storage-full text is still visible (or reappears before its window
+      would otherwise have expired), not overwritten — refs: fb087,
+      `Hud.say()`/`Hud.ingestFx()` (`src/ui/hud.ts`). DONE 2026-09-04:
+      `Hud.say(text, priority = 0)` (`src/ui/hud.ts`) gains an optional
+      priority; new `toastPriority` (default `-Infinity`), `toastTimer`,
+      `toastQueue` fields. A toast already showing holds its window against
+      any same-or-lower-priority call (pushed onto `toastQueue`, FIFO,
+      instead of clobbering); a strictly-higher-priority call preempts
+      immediately via a new private `showToast`, discarding whatever was
+      showing rather than requeuing it (documented as deliberate — today's
+      only preemptor is the one-shot storage-full warning, so dropping an
+      in-flight routine gold toast for it is an acceptable trade). The
+      showing toast's `setTimeout` callback dequeues and displays the next
+      queued message if any, else hides and resets `toastPriority` to
+      `-Infinity` so a later default-priority call is never wrongly blocked
+      by a stale value. `main.ts`'s storage-full call site now passes
+      priority 1, strictly above the default-priority-0 `xp_overflow_gold`
+      toast. Targeted `tests/ui-fb089-toast-priority.test.ts` (6/6): the
+      literal acceptance scenario (storage-full survives an immediate
+      `xp_overflow_gold` call, which queues instead of clobbering);
+      same-priority queues rather than clobbers; strictly-higher-priority
+      preempts; a call with nothing showing displays immediately; two
+      fake-timer (`vi.useFakeTimers`) tests confirming a queued message
+      actually surfaces once the showing toast's 1400ms window elapses and
+      that `toastPriority` resets after the queue fully drains.
+      code-reviewer **APPROVE** (no Critical/Major; three Minors, all
+      addressed same session — a code comment documenting discard-on-preempt
+      as deliberate; the two fake-timer dequeue-path tests above, since the
+      original submission only asserted enqueue-time state and never proved
+      a queued message actually surfaces later; `toastQueue` left uncapped/
+      unbounded as acceptable given today's single low-frequency caller,
+      noted not fixed, judged premature per CLAUDE.md's don't-build-for-
+      hypotheticals rule). qa-playtester **PASS** against the stated
+      acceptance criteria (targeted suite, `tsc --noEmit` clean, the
+      `tests/ui-fb087-persist-disabled-toast.test.ts` + `tests/fb026-bottom-
+      bar.test.ts` regression slice, 23/23, including the real end-to-end
+      Game-driven path), plus hostile testing via temporary (not committed)
+      probe suites: 50 rapid-fire same-priority calls drain in exact FIFO
+      order with no loss/duplication/crash; a priority-1-vs-priority-1 tie
+      correctly queues rather than preempting (confirms `<=`, not `<`,
+      governs preemption); a negative priority queues behind a default-
+      priority toast rather than clobbering it; the `-Infinity` sentinel is
+      safe both as the very first call and as a queued call while something
+      is showing; a multi-round preempt→queue→drain→fresh-call sequence
+      confirms `toastPriority` correctly resets after a full drain. Filed no
+      new bugs. `npx tsc --noEmit` clean. `npm run test:fast`: 4 failed
+      tests across 7 failed files, all in the pre-existing q15/q49/q52
+      worker-hang/Windows-scratch-dir-EPERM flake classes documented across
+      dozens of prior PROGRESS.md sessions, none touching `src/ui/**`/
+      `src/render/**` or this item's own files.
+
+- [x] (fb088) [polish] low priority: found by qa-playtester (fb074
+      verification) — fb074's resume-time replay blocks the main thread
+      synchronously before first paint. Measured: replaying a 128,191-tick
+      log (a full run) through `run.step()` with no rendering took ~7.5s
+      wall-clock on the dev machine, extrapolating to roughly 2.5-3s at the
+      practical quota-limited ceiling (fb087) — `tryResumePersistedRun()`
+      runs before the first `requestAnimationFrame`, so nothing paints
+      during it. Not a crash, but a real "why is the page frozen" gap for
+      exactly the long-session refresh case fb074 exists to help most, and
+      plausibly worse on slower/mobile hardware. Acceptance: budget and cap
+      this cost (e.g. yield/chunk the replay across frames with a loading
+      indicator, or adopt fb087's periodic-snapshot direction, which would
+      also bound replay length) so `tryResumePersistedRun` never blocks the
+      main thread past a documented budget; fold the measurement into
+      fb083's (already-queued) Hub/run cold-start perf-budget item if that
+      turns out to be the cleaner fit once fb083 is implemented — refs:
+      fb074, fb087, fb083. DONE 2026-09-04: took the yield/chunk direction.
+      `tryResumePersistedRun` (`src/ui/main.ts`) now replays in bursts of a
+      new `RESUME_CHUNK_TICKS` (256) via a new `replayResumeChunk` helper,
+      instead of one `for` loop over the whole log. A log that finishes
+      within the first burst (every pre-existing test persists at most 64
+      ticks) still resumes fully synchronously, byte-for-byte the same
+      behavior as before — no existing test needed to change. A longer log
+      shows a new `#sw-resume-indicator` loading notice
+      (`showResumeIndicator()`, `style.css`'s new `.sw-resume-indicator`
+      rule) and continues replaying across a chain of `setTimeout(fn, 0)`-
+      scheduled chunks (a macrotask, so the browser actually gets to paint
+      the indicator between bursts, unlike a microtask/Promise chain), only
+      calling `beginRun()` (or falling back to `showHub()` on a `run.done`-
+      already or a malformed-entry-discovered-mid-replay outcome) once the
+      whole log has replayed. The chunk size is tick-count-based rather than
+      wall-clock-based specifically so the existing/new tests stay
+      deterministic (no timing flakiness on a loaded CI host) while still
+      capping real replay cost to roughly one 60Hz frame per burst, per
+      fb087's own measured ~58µs/tick average. Targeted
+      `tests/ui-fb088-resume-chunked.test.ts` (4/4): a 640-tick log shows the
+      indicator, leaves `run` null and blocks nothing synchronously past the
+      first burst, and needs more than one scheduled burst to finish,
+      verified end-state matches an independent reference replay's tick and
+      `hash()`; a malformed entry discovered only in a later chunk (index
+      300, past the first burst) still falls back to the Hub cleanly; a run
+      forced (via a `Run.prototype.step` wrapper, added post-QA — see below)
+      to reach a terminal outcome exactly on the last tick of a multi-chunk
+      replay falls back to the Hub rather than resuming a finished run; a
+      64-tick log (under one burst) still resumes synchronously with no
+      indicator, matching every pre-fb088 test's assumption. code-reviewer
+      **APPROVE** (no Critical/Major; one Minor — the doc comment overstated
+      how "comfortable" the 256-tick/~15ms budget margin is given the
+      ~58µs/tick figure is a dev-machine measurement, not a guarantee on
+      slower hardware, softened to a "soft target, not a hard guarantee" in
+      the same session; one Minor — this backlog entry itself wasn't updated
+      yet, closed by this update; one Nit confirmed a non-issue — the
+      indicator's raw-`innerHTML` construction matches this file's existing
+      convention, not a divergence). qa-playtester **PASS** against the
+      literal acceptance criterion: independently built persisted logs of
+      exact lengths via a scratch (not committed) probe suite and confirmed
+      via `vi.useFakeTimers()`/`vi.getTimerCount()` that `Game.start()`
+      returns before a 600-tick log finishes, genuinely spanning 3 macrotask
+      bursts (256+256+88); hostile-tested the exact 256/257-tick chunk
+      boundary (256 stays fully synchronous, 257 needs exactly one
+      continuation), a malformed entry at ticks 0/255/256/500 (all fall back
+      to the Hub cleanly regardless of which chunk discovers it), an outcome
+      flipping away from `'running'` mid-chunk and exactly on the last tick
+      of a long replay (both correctly fall back to Hub instead of resuming
+      a finished run), and two `Game` instances racing a chunked replay of
+      the same persisted `localStorage` entry concurrently (both complete
+      independently to identical `hash()`, no cross-instance corruption);
+      filed no new bugs, noted two non-blocking observations (a refresh
+      mid-chunked-resume restarts the whole replay from tick 0, benign and
+      matching the pre-existing resume contract; the indicator has no
+      pathological-viewport-width handling, cosmetic, out of scope for this
+      item's budget-focused acceptance) and suggested promoting its own
+      scratch terminal-outcome-at-the-final-tick probe into the committed
+      suite — added same session as `tests/ui-fb088-resume-chunked.test.ts`'s
+      4th test. `npx tsc --noEmit` clean.
+      `npm run test:fast`: 4 failed tests across 7 failed files (2189
+      passed / 24 skipped), all in the pre-existing
+      q15/q49/q52/b032/b034/b035/b036 worker-hang/Windows-scratch-dir-EPERM/
+      dev-server-port-contention flake classes documented across dozens of
+      prior PROGRESS.md sessions, none touching `src/ui/**`/`src/render/**`
+      or this item's own files.
+
+- [x] (fb075) [polish] low priority: Settings "reset to defaults" — the
       Settings tab has no way to restore every slider/toggle to
       `defaultSettings()`'s values short of clearing `localStorage`
       manually. Add a single reset button with a confirm step (destructive
@@ -437,7 +1355,1677 @@ not already expose it) logs that need below instead of reaching into
       test opens Settings, changes several values, clicks reset (confirms
       the destructive step), and asserts every field reads back as
       `defaultSettings()` — refs: SPEC-FINAL §11, standard Settings-UX
-      convention.
+      convention. DONE 2026-09-04: no `window.confirm` precedent exists
+      anywhere in this codebase, so `hub.ts` gets a two-click in-panel
+      confirm instead — a new `private settingsResetArmed` field on `Hub`,
+      and a `#sw-settings-reset` button in `renderSettings` whose label
+      toggles between "Reset settings to defaults" and "Click again to
+      confirm reset"; the first click only arms the flag and re-renders,
+      the second sets `this.settings = sanitize(defaultSettings())`, calls
+      `this.cb.onSettingsChanged(this.settings)`, and clears the flag.
+      Targeted `tests/ui-fb075-settings-reset.test.ts` (5/5). code-reviewer
+      **REQUEST-CHANGES** → one Major: `settingsResetArmed` was only
+      disarmed on tab-away (`show()`), so any *other* Settings-tab button
+      that re-renders the panel while staying on the tab (`#sw-seed`,
+      `#sw-wipe`, `#sw-keybind-reset`, starting a key rebind) redrew the
+      button back to its unarmed label while the internal flag stayed
+      silently armed — the very next click on Reset would then execute the
+      destructive reset with no second confirm ever actually shown to the
+      player. Fixed by clearing `settingsResetArmed` at the top of all four
+      of those handlers/`startListeningForRebind` (the `onRebindKeyDown`
+      keydown continuation needs no separate clear, since arming already
+      happened before any keydown can fire); confirmed the slider/toggle/
+      count `input`/`change` handlers need no clear either, since their
+      `commit()` closure never calls `this.show()` so the button's label
+      can never desync from the flag along that path. One Major: missing
+      regression test for the leak, closed by adding two cases (`#sw-
+      keybind-reset` and starting a rebind each disarm; a third click after
+      either only re-arms, doesn't double-execute). One Minor: reset used
+      raw `defaultSettings()` instead of routing through `sanitize()` like
+      every other Settings control's `commit()` closure does — changed to
+      `sanitize(defaultSettings())` for defense in depth (confirmed the two
+      are field-for-field identical today, so this was cosmetic, not a live
+      bug). code-reviewer re-verified via re-review of the fix.
+      qa-playtester **PASS**: independently confirmed the fix covers every
+      `show()`-calling path in the Settings tab and that `sanitize
+      (defaultSettings())` really does equal `defaultSettings()`
+      field-for-field; hostile-tested rapid double-clicks, reset-then-
+      `#sw-wipe` (confirmed `MetaState` and `Settings` resets stay
+      independent), a rebind-then-Escape settle still requiring a fresh
+      two-click reset, and a stray third click after a successful confirm
+      only re-arming rather than double-executing; filed no new bugs.
+      `npx tsc --noEmit` clean. `npm run test:fast`: 10 failed / 2187
+      passed / 24 skipped, all in the pre-existing q15/q28/q45/q49/q52
+      worker-hang/Windows-scratch-dir-EPERM flake classes documented across
+      dozens of prior PROGRESS.md sessions, none touching `src/ui/**`/
+      `src/render/**` or this item's own files.
+
+- [x] (fb082) [bug] low priority: generated 2026-09-04 (fewer than 3
+      actionable items remained) — the floating rail/boss-banner overlays
+      (fb065, fb072) anchor to `.sw-stage`'s full box instead of the
+      canvas's own letterboxed rect, so at any window aspect ratio other
+      than the grid's 36:20 they sit disconnected from (or, at the opposite
+      extreme, could overlap) the actual visible game content. Both fb065's
+      and fb072's own DONE notes already found and logged this without
+      filing it: fb065 — "the rails anchor to `.sw-stage`'s box rather than
+      the canvas's own letterboxed/centered rect, invisible at the audit's
+      1920x1080 viewport (≈36:20) but a real gap at an extreme aspect
+      ratio"; fb072 — "a theoretical CSS overlap with the right info rail at
+      very narrow stage widths." Acceptance: the overlays reposition/resize
+      to track the canvas's actual laid-out rect rather than `.sw-stage`'s
+      full box, verified by a render/UI test that mocks an extreme-aspect-
+      ratio container (same `clientWidth`/`clientHeight`-mocking idiom
+      `tests/render-fb065-stage-fill.test.ts` already uses) and asserts the
+      overlay anchor geometry derives from the letterboxed canvas size, not
+      the raw stage size; the existing fb065/fb072 regression tests and the
+      1920x1080 `ui-audit` scenes stay green — refs: fb065, fb072,
+      SPEC-FINAL §11. DONE 2026-09-04: `hud.ts` gains a public
+      `syncStageOverlayGeometry()`, called every `update()` tick, that reads
+      `.sw-stage`'s `clientWidth`/`clientHeight`, re-derives
+      `Renderer.resize()`'s (`canvas.ts`) own letterboxing math (`aspect =
+      GRID_W/GRID_H`, `cssW = Math.round(Math.min(availW, availH*aspect))`,
+      `cssH = cssW/aspect`) rather than reading the canvas element's own
+      `getBoundingClientRect()` (which reads all-zero under jsdom regardless
+      of `clientWidth`/`clientHeight` mocks, since jsdom never runs real
+      layout), and publishes the canvas's offset from each stage edge as
+      `--cv-left`/`--cv-right`/`--cv-top`/`--cv-bottom`/`--cv-cx` CSS custom
+      properties on `.sw-stage` itself, `removeProperty`'d back to nothing
+      whenever the stage isn't laid out (falling through to the CSS
+      `var(--cv-x, <default>)` fallback — `0px` for the edges, `50%` for the
+      boss bar's horizontal center — i.e. the exact pre-fix behavior).
+      `style.css`'s `.sw-rail`/`.sw-rail-left`/`.sw-rail-right`/`.sw-bossbar`
+      rules consume these via `calc()`/`var()`. code-reviewer APPROVE (no
+      Critical/Major; one Minor — `Hud.update()` (where the sync normally
+      runs) is never reached while a run is paused, so a window resize
+      mid-pause would leave the geometry stale until resume — fixed same
+      session by also calling `hud.syncStageOverlayGeometry()` directly from
+      `Game.frame()`'s (`main.ts`) paused branch; two Nits — `stageEl`'s type
+      tightened from a non-null assertion to `HTMLElement | null` to match
+      its actual runtime guard; the unconditional per-tick `setProperty` cost
+      noted as negligible and left as-is, matching this file's existing
+      every-tick-resync pattern). qa-playtester PASS against the stated
+      acceptance criteria, independently re-derived the letterboxing formula
+      against several extreme cases beyond the shipped tests (including
+      0-dimension mid-transition fallback and exact-36:20 zero-gap
+      cleanliness) and confirmed the collapsed-rail `bottom: auto` override
+      still fully clears the base rule's `calc()` via CSS cascade semantics;
+      found one informational, sub-visual-pixel issue — a specific
+      `clientHeight` (e.g. 801 against a 3000-wide stage) makes
+      `Renderer.resize()`'s own `Math.round(cssW)` rounding (mirrored here)
+      round up enough that derived `cssH` exceeds `availH` by a fraction of a
+      pixel, which would otherwise surface as a tiny negative `--cv-top`/
+      `--cv-bottom` — fixed by clamping every offset to `Math.max(0, …)`,
+      with a new regression case in the same test file sweeping a
+      `clientHeight` known to trigger it. Targeted
+      `tests/ui-fb082-overlay-geometry.test.ts` (5/5: height-bound and
+      width-bound letterbox-gap derivation, jsdom-no-layout fallback,
+      re-derivation after a live resize, the negative-offset clamp).
+      `npx tsc --noEmit` clean. `npm run test:fast`: 9 failed files / 9
+      failed tests across two runs this session, all in the pre-existing
+      q15/q45/q49/q52 worker-hang/Windows-scratch-dir-EPERM flake classes
+      documented across dozens of prior PROGRESS.md sessions, none touching
+      `src/ui/**`/`src/render/**` or this item's own files.
+
+- [x] (fb083) [feat] low priority: generated 2026-09-04 — automated perf
+      regression coverage for QUALITY.md BETA's "Load to Hub < 3s cold;
+      Hub → run < 1.5s" bar, currently unmeasured by any test (unlike G17's
+      350-enemy benchmark, which is). Acceptance: a test constructs a fresh
+      `Hub`/`Game` from a cold start and asserts wall-clock time to a
+      rendered Hub stays under a generous, documented CI-safe budget, and
+      separately measures Hub-"Start"-click to first rendered run frame
+      under its own budget; both recorded the same host-independent-margin
+      (⚖) way G17's benchmark already documents its own variance — refs:
+      QUALITY.md BETA, SPEC-FINAL §11. DONE 2026-09-04: new
+      `tests/ui-fb083-perf-budget.test.ts`, same `mount()`/canvas-context-
+      proxy idiom as `tests/ui-fb074-resume-on-refresh.test.ts`. Test 1 times
+      `new Game(); game.start(root)` and asserts `#sw-start` (the Hub) is
+      rendered under a 3000ms budget. Test 2 times a real click on
+      `#sw-start` plus the first `frame()` call that reaches
+      `Renderer.draw()` for the new run, and asserts `#sw-canvas` exists
+      under a 1500ms budget. Ceilings are the literal QUALITY.md numbers
+      themselves rather than a measured-median multiple (p10e's style) —
+      documented in the file header why: this is a synchronous jsdom
+      environment, not a real browser paint pipeline, so the measured
+      baseline (~5-15ms / ~1-5ms) is two-plus orders of magnitude below any
+      real cold-load number: comparing against it would just be measuring
+      jsdom's own speed, not a meaningful multiple of a real load cost. The
+      point is catching an accidental synchronous multi-second block, which
+      it does (qa-playtester fault-injected a 3.5s sleep into `Game.start`
+      and confirmed the test fails with the predicted elapsed value, reverted
+      cleanly). code-reviewer **APPROVE** (no Critical/Major; one Minor noting
+      the ceiling methodology differs in style from p10e's measured-multiple
+      approach, though the header already documents and justifies the
+      deviation — not blocking). qa-playtester **PASS** against both literal
+      acceptance criteria, confirmed no collision with
+      `tests/a10-performance.test.ts`/`tests/p10e-perf-budget.test.ts` (both
+      measure sim tick cost, not UI/Hub wall-clock load time), confirmed
+      `Game.start()` has no async/Promise/fetch path a synchronous wall-clock
+      wrap could miss. `npx tsc --noEmit` clean. `npm run test:fast`: 7 failed
+      files / 6 failed tests, all in the pre-existing q15/q49/q52
+      worker-hang/Windows-scratch-dir-EPERM flake classes documented across
+      dozens of prior PROGRESS.md sessions, none touching `src/ui/**`/
+      `src/render/**` or this item's own files.
+
+- [x] (fb084) [feat] normal priority: generated 2026-09-04 — first-run
+      onboarding. QUALITY.md BETA's manual bar ("contextual tutorial
+      prompts for build → Dusk → Night → Dawn; a new player reaches Night 1
+      without external help") is entirely unbuilt — no tutorial/onboarding
+      code exists anywhere in `src/ui`. Acceptance: a first TD build phase,
+      first VS wave ("Dusk"→"Night"), and first "Dawn" (return-to-build)
+      transition each show a one-time, dismissible, non-blocking contextual
+      prompt explaining what the player should do next; shown-state is
+      tracked in `Settings` (`src/ui/settings.ts`, in this lane's Scope —
+      not `MetaState`/`src/meta/**`, which is out of it) via a new field so
+      each prompt never repeats after being dismissed once; a dev/Settings
+      control can replay them; a unit test drives a fresh save through the
+      first build phase and first VS wave and confirms each prompt appears
+      exactly once, never again on a later run — refs: QUALITY.md BETA,
+      SPEC-FINAL §1.1, §11. DONE 2026-09-04: `settings.ts` adds
+      `onboardingSeenBuild`/`onboardingSeenDusk`/`onboardingSeenDawn`
+      (default false, `sanitize()`-coerced). `hud.ts` adds a dismissible,
+      non-blocking banner (`#sw-onboarding`, close button
+      `#sw-onboarding-close`) driven by three triggers: `update()` checks
+      once per `Hud` instance (i.e. once per run) whether `w.phase ===
+      'act1_build'` for the build prompt; `ingestFx()` listens for the sim's
+      own `'sweep_to_vs'`/`'sweep_to_td'` fx events (`sundering.ts`'s
+      `finishSundering`/`advanceToNextBlock` — already emitted for p10h's
+      TD<->VS sweep visual, no new sim state needed) for the dusk/dawn
+      prompts. Hidden behind an actual modal (pause/level-up/results/
+      character panel) via the same `modalOpen` check `renderBossBar` uses,
+      but never itself covers the canvas or blocks input. `Hud`'s
+      constructor takes an optional third `settings: Settings =
+      defaultSettings()` param (backward-compatible with every pre-existing
+      test call site); `main.ts` passes its live `Settings` in and persists
+      `onOnboardingSeen` via `saveSettings`. `hub.ts`'s Settings tab gains a
+      "Replay tutorial prompts" button resetting all three flags. Targeted
+      `tests/ui-fb084-onboarding.test.ts` (10/10). code-reviewer APPROVE (no
+      Critical/Major; two Minor — `dismissOnboarding` mutated the injected
+      `Settings` object in place instead of spreading, fixed same session to
+      match the rest of the codebase's immutable-update convention; the
+      original swallow-not-queue design's doc comment claimed a dropped
+      later trigger "reappears at its next occurrence," which qa-playtester's
+      first pass proved false — see below). qa-playtester's first pass
+      **FAILED** it with a Major: the original design dropped (not delayed)
+      a later prompt if an earlier one was left un-dismissed — since the
+      banner is deliberately non-blocking specifically so a player can keep
+      playing through it, "leave the build prompt open and never click the
+      X" is the realistic path, not an edge case, and it permanently
+      starved the dusk/dawn prompts (`onOnboardingSeen` never fired for
+      them, no matter how many TD/VS cycles ran). Fixed by giving
+      `triggerOnboarding` a small dedup'd `onboardingQueue: OnboardingKey[]`
+      (bounded to 2 — only 3 keys exist total) instead of a bare early
+      return; `dismissOnboarding` now pops the queue into `onboardingActive`
+      immediately after marking the dismissed key seen, so a queued prompt
+      surfaces the instant the one in front of it is dismissed rather than
+      waiting for its own transition to recur. New regression case in the
+      same test file reproduces the exact hostile scenario (build left open
+      across two full TD/VS cycles' worth of duplicate dusk/dawn triggers)
+      and confirms no drop, no duplicate queue entries, and
+      `onOnboardingSeen` firing exactly once each in order `['build',
+      'dusk', 'dawn']`. qa-playtester re-verified **PASS**, independently
+      re-read the fixed methods (not just the test result) and confirmed the
+      queue is bounded, always drains via the close button, and can't
+      interleave with the Hub's settings-reset path since the onboarding
+      queue only exists inside a live `Hud`, never reachable from the
+      run-free Hub screen. `npx tsc --noEmit` clean. `npm run test:fast`: 7
+      failed files / 4 failed tests, all in the pre-existing q15/q49/q52
+      worker-hang/Windows-scratch-dir-EPERM flake classes plus the
+      b032/b034/b035/b036 dev-server port-contention class (each re-ran
+      clean in isolation, confirmed not caused by this change), documented
+      across dozens of prior PROGRESS.md sessions, none touching
+      `src/ui/**`/`src/render/**` or this item's own files. One file outside
+      the literal Scope glob (`tests/q3-save-fuzz.test.ts`) needed its
+      `customSettings()` fixture (typed `ReturnType<typeof defaultSettings>`)
+      grown the three new required fields — the same precedented
+      compile-error-otherwise touch fb058/fb060 already logged below.
+
+- [ ] (fb085) [feat] low priority: generated 2026-09-04 — localization-
+      readiness groundwork for QUALITY.md BETA's "zero user-facing string
+      literals outside `data/strings.json` (lint rule)" bar, currently
+      entirely unmet (no `data/strings.json` exists; every UI string is a
+      literal in `src/ui/*.ts`). Scoped to standing up the mechanism rather
+      than a single-pass full-repo extraction, which is far larger than one
+      backlog item: acceptance is a new `data/strings.json` (seeded, not
+      necessarily exhaustive), a small typed loader (`src/ui/strings.ts`),
+      and a lint/test rule that fails when a hardcoded user-facing string
+      literal appears in a designated "already converted" file list;
+      convert one representative, self-contained surface (e.g. the pause/
+      results modal text in `hud.ts`) as the first migrated file and the
+      rule's own proof case; a test confirms the rule actually catches a
+      reintroduced literal in that converted file — refs: QUALITY.md BETA,
+      SPEC-FINAL §11.
+
+- [x] (fb086) [polish] low priority: generated 2026-09-04 — reduced-motion
+      accessibility setting. QUALITY.md 1.0's accessibility re-check names
+      "reduced-motion mode" as its own checklist line, distinct from what
+      already exists: `reducedFlash` (fb016) only dims/thins strobing
+      fills, and `shake` only scales screen shake — neither disables
+      ambient motion (tracer jitter/distortion trails, the p10h TD↔VS sweep
+      transition's pan) a vestibular-sensitive player would want off.
+      Acceptance: a new Settings toggle "Reduced motion" that suppresses or
+      simplifies at least the ambient-motion effects `reducedFlash`/`shake`
+      don't already cover; a render test confirms at least one such effect
+      is suppressed with the toggle on and present with it off; default off
+      (opt-in, matching `reducedFlash`'s own default) — refs: QUALITY.md
+      1.0 checklist, SPEC-FINAL §11. DONE 2026-09-04: `settings.ts` adds
+      `reducedMotion: boolean` (default false, `sanitize()`-coerced);
+      `hub.ts`'s Settings-tab `TOGGLES` table gets a "Reduced motion" row
+      using the same generic hover-toggle plumbing every other checkbox
+      already uses. `canvas.ts` gates two ambient-motion effects on it: (1)
+      `drawTracers`' jagged tracers (chain lightning/tesla coil/Time Lord's
+      basic-attack distortion trail) normally draw 3 kinked line segments
+      with an alternating ±4px zigzag; under `reducedMotion` they fall back
+      to the same straight line a non-jagged tracer already draws; (2)
+      `drawPhaseSweep` (the 2s TD↔VS transition band) normally travels a
+      linear-gradient wipe horizontally across the whole screen; under
+      `reducedMotion` it fills the screen with a flat, stationary color
+      instead, using the same opacity envelope (so the transition still
+      visually reads) with no horizontal travel. Both remain fully
+      orthogonal to `reducedFlash`'s own alpha-dimming, which still applies
+      on top of either. Targeted `tests/render-fb086-reduced-motion.test.ts`
+      (4/4): default-off, jagged-tracer-suppressed-under-reducedMotion (with
+      an unaffected-non-jagged-tracer control case), and the phase-sweep
+      gradient-vs-flat-fill distinction. code-reviewer **APPROVE** (no
+      Critical/Major; one Minor — this backlog checkbox wasn't ticked yet in
+      the reviewed diff, closed by this update; one Nit — the jagged
+      tracer's thicker 2px line width survived the reducedMotion straight-
+      line fallback instead of converging on a genuine straight tracer's
+      1.5px, fixed same session: `ctx.lineWidth = t.jagged ? 2 : 1.5` ->
+      `t.jagged && !calmMotion ? 2 : 1.5`, re-verified green). qa-playtester
+      **PASS**: independently re-derived all four acceptance-criteria checks
+      against the live renderer with its own standalone probe (not just the
+      shipped test file), confirmed the Settings toggle reaches
+      `onSettingsChanged` end-to-end through a real `Hub` DOM click, found
+      no double-suppression/dead-zone/dangling-gradient bug with
+      `reducedFlash` and `reducedMotion` both on simultaneously, confirmed
+      expiry/cleanup timers for both effects are untouched by the new
+      branch, and confirmed old localStorage saves predating the field
+      sanitize to `false`. Independently found and reported the same
+      line-width nit code-reviewer flagged (fixed above) and one
+      informational, non-blocking observation for the backlog generator: the
+      bottom bar's CSS-only "skill ready" box-shadow ripple
+      (`.sw-bb-flash`/`.sw-bb-ready-flash`, `style.css`) is a brief
+      (0.5s), event-triggered ambient-motion cue neither `reducedFlash` nor
+      `reducedMotion` touches, judged not to clear this item's own
+      acceptance bar (which named continuous/repeated cues — tracer jitter,
+      phase-sweep pan) so not filed as a bug against fb086 itself. Filed no
+      new bugs. `npx tsc --noEmit` clean. `npm run test:fast`: 5-6 failed
+      tests across 4-7 failed files this session (q15-command-domain-fuzz
+      worker-hang/timing-fuzz plus q45/q49/q52 Windows-scratch-dir EPERM,
+      and the b032/b034/b035/b036 dev-server-port-contention fold-test
+      class), all in the pre-existing flake classes documented across dozens
+      of prior PROGRESS.md sessions, none touching `src/ui/**`/
+      `src/render/**` or this item's own files.
+
+- [x] (fb090) [feat] normal priority: generated 2026-09-04 (fewer than 3
+      actionable items remained; QUALITY.md 1.0 Steam/itch checklist gap
+      diff) — fullscreen toggle. QUALITY.md 1.0's checklist ("fullscreen +
+      windowed") is entirely unbuilt: no `requestFullscreen`/
+      `exitFullscreen` call exists anywhere in `src/ui`. Add a Settings
+      control (and/or a bottom-corner button) that requests fullscreen on
+      the app's root element and can exit it again, reflecting the live
+      `document.fullscreenElement` state (including a state change driven
+      externally, e.g. the browser's own Esc-to-exit-fullscreen, via the
+      `fullscreenchange` event) rather than only its own click history.
+      Acceptance: a unit test mocks `Element.prototype.requestFullscreen`/
+      `document.exitFullscreen` and confirms clicking the control calls the
+      right one for the current state and the displayed label/state flips;
+      a separate test dispatches a `fullscreenchange` event with
+      `document.fullscreenElement` cleared externally and confirms the
+      control's displayed state updates to "not fullscreen" without a click
+      — refs: QUALITY.md 1.0 (Steam/itch checklist), SPEC-FINAL §11. DONE
+      2026-09-04: `hub.ts`'s Settings tab gains a `#sw-fullscreen-toggle`
+      button ("Enter fullscreen"/"Exit fullscreen") that calls
+      `document.exitFullscreen()` when `document.fullscreenElement` is
+      truthy, else `this.root.requestFullscreen()` on the Hub's own root
+      element (the same `#app` node `main.ts` mounts the whole game into).
+      Label state is driven entirely by a `fullscreenchange` listener, not
+      click history, so the browser's own Esc-to-exit-fullscreen (or any
+      other external trigger) is reflected correctly. Targeted
+      `tests/ui-fb090-fullscreen.test.ts` (6/6): both click-driven
+      directions with label flip, an externally-fired `fullscreenchange`
+      updating the label with no click, off-tab event delivery (no throw,
+      no stray render), no double-render across repeat Settings visits, and
+      a repeated-Hub-re-instantiation-onto-the-same-root case (below).
+      code-reviewer **REQUEST-CHANGES** on the first draft (a per-instance
+      `document.addEventListener('fullscreenchange', ...)`, bound/unbound
+      only on that instance's own tab transitions, mirroring fb073's rebind
+      listener): Major — `main.ts`'s `showHub()` constructs a fresh `Hub` on
+      every return to the Hub screen without disposing the previous
+      instance, so a stale instance discarded while still on the Settings
+      tab would keep its listener alive forever and could `show()` — wiping
+      the *current* Hub/Hud's DOM — on a later `fullscreenchange` it had no
+      business reacting to; not reachable through today's production
+      `showHub()` call sites (all only fire when entering the Hub from a
+      non-Hub state) but a real latent bug and the same shape as the
+      pre-existing fb073 exposure, so worth closing rather than repeating.
+      Fixed by replacing the per-instance listener with a single
+      module-scoped one (`ensureFullscreenListenerInstalled`, installed
+      once) that always re-renders whichever `Hub` was constructed most
+      recently (`activeFullscreenHub`, reassigned in the constructor) via a
+      new `refreshFullscreenLabel()` method — the number of live document
+      listeners is now independent of how many `Hub` instances have ever
+      existed. Also fixed the Nit both code-reviewer and qa-playtester
+      independently raised: `requestFullscreen()`/`exitFullscreen()`'s
+      returned promises get a `.catch(() => {})` so a permissions-policy
+      denial or a rapid-repeat-click rejection doesn't surface as an
+      unhandled rejection. code-reviewer's Minor (missing test coverage for
+      the leak) and qa-playtester's bug #1 (same leak, independently
+      reproduced via an ad-hoc 5-stale-Hub-instances probe, deleted after
+      confirming) are the same finding — both re-verified fixed against the
+      new 5th test in `tests/ui-fb090-fullscreen.test.ts`, which builds 5
+      `Hub` instances onto one root (each left on the Settings tab, mirroring
+      the vulnerable state) and confirms only the most recent instance's
+      `show()` fires on one `fullscreenchange` dispatch. qa-playtester's bug
+      #2 (no click-guard against rapid repeat clicks queuing multiple
+      concurrent `requestFullscreen()` calls) left as-is, not fixed: real
+      browsers already reject a redundant/stale-activation
+      `requestFullscreen()` call on their own, the `.catch()` fix above
+      already prevents that rejection from going unhandled, and a
+      click-debounce guard isn't named anywhere in this item's acceptance
+      text — logged here rather than silently dropped, may be worth a future
+      polish item if it proves to matter in practice. `npx tsc --noEmit`
+      clean throughout. `npm run test:fast`: 8 failed files / 5 failed tests
+      (both pre- and post-fix runs), all in the pre-existing q15/q49/q52
+      worker-hang/Windows-scratch-dir-EPERM flake classes documented across
+      dozens of prior PROGRESS.md sessions, none touching `src/ui/**`/
+      `src/render/**` or this item's own files.
+
+- [x] (fb091) [feat] normal priority: generated 2026-09-04 (fewer than 3
+      actionable items remained; QUALITY.md 1.0 Steam/itch checklist gap
+      diff) — crash capture + "copy report" button. QUALITY.md 1.0's
+      checklist ("error capture to a local log with a 'copy report' button")
+      is entirely unbuilt: no `window.onerror`/`unhandledrejection` handler
+      exists anywhere in `src/ui`. Add a global handler (wired once from
+      `main.ts`, in this lane's Scope) that appends a bounded (e.g. last 20)
+      in-memory ring buffer of `{time, message, stack}` entries for both
+      uncaught errors and unhandled promise rejections, surfaced via a new
+      Settings-tab panel listing recent entries (empty-state message when
+      none) with a "Copy report" button that serializes the buffer to a
+      plain-text report and writes it to `navigator.clipboard`. Acceptance:
+      a unit test throws inside a wrapped/dispatched error path and confirms
+      the buffer captures the expected fields and is bounded; a separate
+      test dispatches an `unhandledrejection` event and confirms it's
+      captured too; clicking "Copy report" with mocked
+      `navigator.clipboard.writeText` confirms the written text contains
+      every buffered entry — refs: QUALITY.md 1.0 (Steam/itch checklist).
+      DONE 2026-09-04: new `src/ui/crashlog.ts` — a module-scoped, session-
+      only ring buffer (`recordCrash`/`crashLogEntries`, bounded to
+      `MAX_ENTRIES = 20`), `formatCrashReport()` (plain-text serialization,
+      an empty-state string when nothing recorded), and
+      `installGlobalErrorHandlers()` (idempotent; wires `window`'s `error`
+      and `unhandledrejection` listeners once). `main.ts`'s `Game.start()`
+      calls it once alongside the existing `installAuditHook()` call.
+      `hub.ts`'s Settings tab gains a "Crash reports" panel (empty-state
+      message or an `<li>` per entry) and a `#sw-crashlog-copy` button that
+      calls `navigator.clipboard.writeText(formatCrashReport())` and shows a
+      transient confirm/failure notice, cleared on leaving the tab (same
+      pattern as `settingsResetArmed`). A new `escapeHtml` helper guards the
+      one place this file renders genuinely arbitrary runtime text (a thrown
+      error's own `message`) into `innerHTML`. Targeted
+      `tests/ui-fb091-crash-log.test.ts` (15/15): ring-buffer bounding,
+      `error`-event capture (message+stack), `unhandledrejection` capture
+      (both `Error` and non-`Error` reasons), the boot-time `Game.start()`
+      wiring (not just a direct `installGlobalErrorHandlers()` call),
+      idempotent double-install, the empty-state message, per-entry
+      rendering, XSS-escaping, the Copy-report happy/denied/no-Clipboard-API
+      paths, and the stale-Hub regression below. code-reviewer
+      **REQUEST-CHANGES** → one Major: `#sw-crashlog-copy`'s
+      `navigator.clipboard.writeText(...).then()` callback closed over the
+      specific `Hub` instance live at click time and unconditionally called
+      `this.show()` on settle with no check that instance was still current
+      — `main.ts`'s `showHub()` builds a fresh `Hub` on the same shared root
+      on every return to the Hub screen without disposing the previous one
+      (the exact fb073/fb090 "stale instance keeps acting on a shared root"
+      bug class), so a write still pending when the player left/returned to
+      the Hub could clobber whatever replaced it. Fixed by renaming fb090's
+      `activeFullscreenHub` module-scoped "most recently constructed Hub"
+      pointer to the more general `activeHub` and gating both the success
+      and failure clipboard callbacks on `activeHub === this` before
+      touching state or re-rendering; also fixed a related Minor (missing
+      `navigator.clipboard` entirely — older/insecure-context browsers —
+      silently no-opped instead of surfacing a notice, now shows "Clipboard
+      not available in this browser.") and a second Minor (no test drove
+      `Game.start()` itself to confirm the boot-time wiring, only the
+      exported function directly — added). Re-verified: `npx tsc --noEmit`
+      clean, targeted suite grew to 15/15. qa-playtester **PASS** against
+      all three literal acceptance criteria (independently re-derived each
+      via throwaway probes rather than trusting the shipped tests alone),
+      plus hostile testing: rapid triple-click on Copy report (one
+      `writeText` call per click, no duplicate-stacking), a 50,000-char
+      message + 5,000-line stack (no throw, fully included), XSS vectors in
+      a recorded message (no element materializes, no global pollution,
+      `escapeHtml` holds), a crash recorded mid-flight after Copy report was
+      clicked but before the promise settled (correctly excluded — a
+      snapshot-at-click-time property, not a bug), `Game.start()` invoked
+      twice (no double-registration), and — specifically targeting the
+      code-reviewer's fix — two Hubs on the same root with clipboard writes
+      pending simultaneously, resolved in both orderings (older-then-newer
+      and newer-then-older): the `activeHub !== this` guard correctly
+      suppresses the stale instance's callback either way. Noted but not
+      filed as a bug: `activeHub` is never explicitly nulled and old `Hub`
+      instances are never disposed, so a `Hub` whose clipboard promise never
+      settles keeps that instance alive via closure — identical, pre-existing
+      pattern to fb090's own `activeFullscreenHub`, bounded by tab-close/
+      reload wiping all JS state, and this feature is documented session-only
+      by design. Filed no new bugs. `npx tsc --noEmit` clean. `npm run
+      test:fast`: 4-5 failed tests across 7 failed files across two runs this
+      session, all in the pre-existing q15/q49/q52 worker-hang/Windows-
+      scratch-dir-EPERM flake classes plus the b032/b034/b035/b036 dev-
+      server port-contention class, documented across dozens of prior
+      PROGRESS.md sessions, none touching `src/ui/**`/`src/render/**` or this
+      item's own files.
+
+- [x] (fb092) [polish] low priority: generated 2026-09-04 (fewer than 3
+      actionable items remained; QUALITY.md 1.0 Steam/itch checklist gap
+      diff) — credits + license screen. QUALITY.md 1.0's checklist
+      ("credits + license screen") is entirely unbuilt: no credits/license
+      surface exists in the Hub. Add a reachable Hub panel (e.g. a new tab
+      or a link from Settings) listing project credits and license text; can
+      be a seeded placeholder list rather than exhaustive (the real asset
+      credits don't exist until QUALITY.md BETA's "Art pass 1" lands and
+      populates ASSETS.md) as long as the surface and its render path exist
+      and are covered by a test. Acceptance: a unit test opens the new
+      panel/tab and confirms credits and license text render; the panel is
+      reachable from the Hub without a dev-only gate — refs: QUALITY.md 1.0
+      (Steam/itch checklist). DONE 2026-09-04: new `src/ui/credits.ts` —
+      `CREDITS` (a seeded `{role, name}[]` placeholder list), `LICENSE_TEXT`
+      (a placeholder all-rights-reserved string pending the real license
+      before a public build), and `creditsMarkup()`. `hub.ts` adds
+      `'credits'` to the `Tab` union and a "Credits" nav button rendered
+      unconditionally alongside Run/Constellation/Equipment/Codex/Settings —
+      no `DEV_BUILD`/`devProfileActive()` gate, unlike the dev badge/hidden-
+      classes toggle — dispatching to a new `renderCredits(body)` method.
+      `style.css` gains `.sw-creditslist`/`.sw-license` rules (mirroring
+      fb091's `.sw-crashlist` pattern). Targeted
+      `tests/ui-fb092-credits.test.ts` (4/4): nav button present with
+      correct label, every seeded credit entry renders as visible text,
+      license text renders, and no dev-gate class on the tab button.
+      code-reviewer **APPROVE** (no Critical/Major; one Minor — the new CSS
+      classes had no rules yet, fixed same session). qa-playtester **PASS**:
+      independently constructed a `Hub` and clicked through from every other
+      tab into Credits, confirmed the nav button is present with a fresh
+      `defaultMeta()` and no dev profile involved, confirmed rendered text is
+      genuinely visible (no display:none), round-tripped tab switches,
+      confirmed opening Credits correctly clears any armed Settings-tab-only
+      transient state (rebind listening, settings-reset-armed,
+      crash-log-copy-notice) via the existing `tab !== 'settings'` guards,
+      and spam-clicked the tab 50x with no throw or instability; filed no
+      bugs. `npx tsc --noEmit` clean. `npm run test:fast`: 8 failed files / 7
+      failed tests, all in the pre-existing q15/q45/q49/q52 worker-hang/
+      Windows-scratch-dir-EPERM flake classes documented across dozens of
+      prior PROGRESS.md sessions, none touching `src/ui/**`/`src/render/**`
+      or this item's own files.
+
+- [ ] (fb093) [polish] low priority: generated 2026-09-04 (fewer than 3
+      actionable items remained; QUALITY.md 1.0 Steam/itch checklist gap
+      diff, extends fb065/fb082) — ultrawide/narrow HUD safe-area audit
+      coverage. QUALITY.md 1.0's checklist names "16:9/16:10/ultrawide safe"
+      as its own line, distinct from what fb065/fb082 already built
+      (floating rails anchored to the letterboxed canvas rect at arbitrary
+      aspect ratios) — neither item's own test coverage includes a real
+      `tools/ui-audit.ts` scene at an ultrawide (e.g. 2560x1080, ~21:9) or
+      narrow/portrait (e.g. 1024x1280) viewport, only unit-level geometry
+      math. Acceptance: `tools/ui-audit.ts` gains at least one ultrawide and
+      one narrow/portrait scene alongside its existing set; `npm run
+      ui-audit` shows zero `hud-overlap` failures and no critical control
+      (bottom bar, rail handles) rendered fully offscreen at either — refs:
+      fb065, fb082, QUALITY.md 1.0 (Steam/itch checklist).
+
+- [x] (fb094) [feat] low priority: generated 2026-09-04 (fewer than 3
+      actionable items remained; engineer's-judgment item, depth not scope
+      creep per HANDOFF §7) — dev-mode screenshot export. QUALITY.md 1.0's
+      checklist names "store-page asset export (screenshots at fixed seeds,
+      gif capture mode)" and no such tooling exists. Scoped to the
+      screenshot half (gif capture is a materially larger scope, left for a
+      future item): a dev-profile-only Hub/HUD control that exports the
+      current canvas frame to a downloadable PNG (`canvas.toDataURL` or
+      `toBlob`), reachable without leaving the run. Acceptance: a unit test
+      triggers the export control and confirms it calls the canvas's export
+      API and produces a download (mocked `HTMLCanvasElement.prototype
+      .toBlob`/anchor-click idiom); the control is absent/inert outside dev
+      profile, matching every other dev-only control's existing gating
+      pattern — refs: QUALITY.md 1.0 (Steam/itch checklist). DONE 2026-09-04:
+      `hud.ts` imports `devProfileActive`/`isDevBuild` from `../meta/
+      devprofile` (both already exported, gate-tested elsewhere via C8); the
+      `Hud` constructor computes `const devMode = isDevBuild() &&
+      devProfileActive();` once, before building its one-shot `innerHTML`
+      template — the same two-part predicate hub.ts's `DEV_BADGE`/
+      `showHiddenClasses` already use — and only injects a
+      `<button id="sw-screenshot" data-act="screenshot">Screenshot</button>`
+      into the `.sw-controls` row (between VS and Pause) when `devMode` is
+      true, so the control is genuinely absent from the DOM (not just
+      CSS-hidden) outside dev profile. `wireControls()` wires
+      `[data-act="screenshot"]` to a new private `exportScreenshot()`:
+      `this.canvas.toBlob(cb, 'image/png')`, and inside the callback (blob +
+      `URL.createObjectURL` both present) creates an object URL, a temporary
+      `<a>` with `.download = 'stonewake-screenshot-${Date.now()}.png'`,
+      calls `.click()`, then `URL.revokeObjectURL(url)` — the same Blob +
+      `createObjectURL` + anchor-click + revoke idiom `tuner.ts`'s "Export
+      JSON" button already uses, guarded the same way against a missing
+      `canvas.toBlob`/`URL` API as a silent no-op. Targeted
+      `tests/ui-fb094-screenshot-export.test.ts` (3/3, dev-build env: button
+      renders, click drives `toBlob`→`createObjectURL`→real-anchor
+      `.click()`→`revokeObjectURL` with the right args, null-blob resolution
+      is a no-throw no-op) and `tests/ui-fb094-screenshot-export-prod.test.ts`
+      (1/1: `vi.mock`'s `isDevBuild` to false, same split-file pattern as the
+      existing `p9c-tuner-ui.test.ts`/`p9c-tuner-prod-ui.test.ts` precedent,
+      confirms `#sw-screenshot` never mounts). code-reviewer APPROVE (no
+      Critical/Major; one Minor — unrelated pre-existing dirty `STATUS.md` in
+      the working tree, not staged; one Nit — a comment cited the wrong
+      existing-pattern precedent, fixed same session). qa-playtester PASS:
+      independently constructed a live `Hud` and drove the button directly
+      rather than trusting the shipped tests, confirmed the same call
+      sequence; hostile-tested a rapid double-click (two independent
+      `toBlob` calls, two distinct object URLs each individually revoked, no
+      leak), confirmed the click never touches `onPause`/`this.modal`/
+      `this.paused` (no interaction with the pause/modal overlay stack), and
+      confirmed no keybinding collision and no click-delegation interference
+      with sibling `.sw-controls` buttons (each wired via its own
+      `addEventListener`, not container-level delegation); noted as a known,
+      accepted (non-regression) limitation that `devMode` is baked in at
+      construction time same as every other dev-only control in this
+      codebase (`Hud`/`Hub` are reconstructed fresh per screen/run, never
+      reactively re-rendered). Filed no new bugs. `npx tsc --noEmit` clean.
+      `npm run test:fast`: 5 failed / 2252 passed / 24 skipped (2281 total)
+      across 7 failed files, all in the pre-existing q15-command-domain-fuzz
+      worker-hang and q49/q52 Windows-scratch-dir-EPERM flake classes plus
+      the b032/b034/b035/b036 dev-server-port-contention/fold-test class,
+      documented across dozens of prior PROGRESS.md sessions, none touching
+      `src/ui/**`/`src/render/**` or this item's own files.
+
+- [x] (fb095) [feat] normal priority: generated 2026-09-04 (fewer than 3
+      actionable items remained — fb085 stays open but is permanently
+      out-of-scope for this lane per its own Log entry, leaving only
+      fb093/fb094; SPEC-FINAL §13/§11 coverage diff) — quest tracker panel.
+      §13 names 8-12 quests as a content total and `data/quests.json` has 14
+      fully authored (name/desc/metric/target/reward), but no UI anywhere
+      lists them — a player has no way to see which quests exist, their
+      progress, or what they unlock, short of the terse "Locked — complete a
+      quest" strings already shown next to individual locked classes/Cores.
+      `MetaState` already tracks everything needed
+      (`meta.questProgress: Record<string, number>`,
+      `meta.completedQuests: string[]`, both read in `src/meta/meta.ts`,
+      out-of-scope but read-only) and `content.quests.quests` /
+      `content.classByKey` / `content.coreByKey` (`src/sim/content.ts`) give
+      every display field — this is pure additive UI, no sim/meta edits
+      needed (architecture rule 3: renderer/UI reads state, doesn't compute
+      it). Add a new Hub tab or panel listing every quest with its name,
+      description, a live progress bar/fraction (`questProgress[metric]` vs
+      `target`, respecting `compare`), completed/locked state
+      (`completedQuests.includes(key)`), and its reward's display name
+      (class/core name via the content maps). Acceptance: a unit test opens
+      the panel against a `MetaState` fixture with partial progress on
+      several quests and confirms each quest's progress fraction, completed
+      state, and reward name render correctly, including a quest whose
+      `compare` is `lte` (e.g. `fast_boss`/`speedrunner`) — refs: SPEC-FINAL
+      §13 (content totals), §11 (Codex/wiki-of-every-entity spirit),
+      QUALITY.md ALPHA/BETA screens. DONE 2026-09-04: new `src/ui/quests.ts`
+      — `questsMarkup(content, meta)`, pure presentation over
+      `content.quests.quests`/`content.classByKey`/`content.coreByKey`
+      (`src/sim/content.ts`) and `meta.questProgress`/`meta.completedQuests`
+      (`MetaState`), no `src/sim`/`src/meta` edits (architecture rule 3:
+      reads state, doesn't compute it). `rewardLabel()` resolves a `class`/
+      `core` reward to its real display name via the content maps, falling
+      back to a humanized raw value for any other reward `kind` (today only
+      `maze_master`'s `passive:wall_hp_10`). `progressPct()` reports a
+      `gte` quest's live fraction (clamped 0-100) and, since an `lte` quest
+      (e.g. `fast_boss`/`speedrunner`) has no natural "0%" baseline for
+      "best time so far", reports it as a binary done/not-done instead of an
+      interpolated fraction — documented in-line as a deliberate choice, not
+      an oversight. `hub.ts` adds `'quests'` to the `Tab` union, a "Quests"
+      nav button (no dev-gate, same unconditional-nav pattern as fb092's
+      Credits tab), and a `renderQuests()` dispatch. `style.css` adds
+      `.sw-questlist`/`.sw-quest` rules reusing the existing `.sw-meter.thin`
+      progress-bar pattern. Targeted `tests/ui-fb095-quest-tracker.test.ts`
+      (8/8): nav reachability, every quest's name+desc rendering, a `gte`
+      quest's live fraction, a completed quest's full bar + done marker +
+      checkmark, an incomplete `lte` quest's "best N, need <= target" text
+      without a partial bar fill, `class`/`core` reward names resolving to
+      real display names (not raw data keys), a non-class/core (`passive`)
+      reward's humanized fallback text, and a negative-`questProgress`
+      (corrupted-save-shape) `gte` quest's displayed text clamping the same
+      way its bar already did. code-reviewer REQUEST-CHANGES → one Major:
+      the first test's `const root = openHub(defaultMeta())` was never read
+      (the test queried `document.querySelector` directly instead), which
+      `tsc --noEmit`'s `noUnusedLocals` — the first step of `npm run build`
+      — fails on even though Vitest's non-type-checking esbuild transform
+      let it slip through green; fixed by dropping the unused binding,
+      re-verified `npx tsc --noEmit` clean. One Minor (the `lte`
+      binary-progress choice, confirmed as intentional/documented, not a
+      bug) and one Nit (the `passive`-reward fallback branch was untested —
+      closed by adding the `maze_master` case, see above) also addressed
+      same session. qa-playtester PASS: independently re-derived the
+      progress-fraction/completed-state/`lte`-quest checks against a live
+      `Hub` instance rather than trusting the shipped tests, then
+      hostile-tested an untouched metric (renders `0/target`, no
+      NaN/undefined), a `gte` value wildly exceeding target (bar and text
+      both clamp to 100%/target, confirmed via `Math.min`), all 14 real
+      quests rendering together from a fresh `defaultMeta()` (no crash, all
+      0%, none completed), and a stale `completedQuests` entry naming a
+      quest key absent from `content.quests.quests` (a corrupted-save
+      shape — no crash, the real quests in the list are unaffected since
+      the row list is built by mapping `content.quests.quests`, never
+      `completedQuests`). Found one new low-severity, non-blocking bug: a
+      `gte` quest's progress bar already clamped a negative
+      (corrupted-save-only) `questProgress` value to 0% via `Math.max`, but
+      the adjacent progress text used `Math.min(current ?? 0, target)`
+      alone and displayed the unclamped negative number (e.g. "-100 /
+      5000") — text and bar disagreeing under the same corrupted input.
+      Fixed same session (`Math.min(Math.max(current ?? 0, 0), q.target)`)
+      with the regression test noted above; not reachable through normal
+      play since `meta.ts`'s own accumulation logic only ever writes
+      non-negative values into `questProgress`. `npx tsc --noEmit` clean.
+      `npm run test:fast`: 7 failed files / 4 failed tests, all in the
+      pre-existing q15-command-domain-fuzz worker-hang and q49/q52
+      Windows-scratch-dir-EPERM flake classes documented across dozens of
+      prior PROGRESS.md sessions, none touching `src/ui/**`/`src/render/**`
+      or this item's own files.
+
+- [x] (fb096) [feat] normal priority: generated 2026-09-04 (same generation
+      batch as fb095; QUALITY.md 1.0 Steam/itch checklist gap diff) — save
+      slots (3). QUALITY.md 1.0's checklist names "save slots (3)" and
+      "cloud-save-safe file format" as one line; only the file-format half is
+      arguably met (a single versioned-migration JSON blob, per §11) — there
+      is exactly one save (one `localStorage` key), no slot concept anywhere
+      in `src/ui`. Scoped to the slots half only (the file format itself is
+      out of this item's acceptance and already spec-compliant per §11).
+      Add a slot-select surface (Hub-reachable, e.g. a Settings sub-panel or
+      a pre-Hub picker) backed by 3 independent storage keys, with
+      create/switch/delete affordances; the existing single save must
+      migrate into slot 1 on first load after this change, not be silently
+      orphaned. Acceptance: a unit test creates independent progress in slot
+      1 and slot 2 (e.g. differing `skillPoints`), switches between them, and
+      confirms each slot's state persists independently across a simulated
+      reload; a separate migration test confirms a pre-existing single save
+      (today's real storage shape) appears intact in slot 1 the first time
+      the slot-aware loader runs — refs: QUALITY.md 1.0 (Steam/itch
+      checklist). DONE 2026-09-04: new `src/ui/saveslots.ts` — `SAVE_KEY`
+      (`src/meta/meta.ts`, out-of-scope but read-only) is never edited; the
+      *active* slot's data always lives live in the ordinary `SAVE_KEY`, so
+      `loadMeta`/`saveMeta`/`loadMetaWithNotice` need zero changes or slot
+      awareness. `saveslots.ts` owns 3 dedicated keys
+      (`stonewake.save.slot{1,2,3}.v1`) plus an `stonewake.activeslot.v1`
+      pointer, and only mirrors `SAVE_KEY`'s raw JSON text into/out of a
+      slot's own key at the moment of an explicit `switchToSlot()`.
+      `ensureActiveSlotMigrated()` (called once at boot in `main.ts`'s
+      `Game.start()`, before `loadMetaWithNotice()`) migrates a pre-existing
+      single save into slot 1's own key on the first run after this feature
+      ships, a no-op every later boot. `hub.ts`'s Settings tab gains a "Save
+      Slots" panel (3 rows, active/empty labels, Switch/Delete buttons wired
+      near the existing `#sw-wipe` handler); `deleteSlot()` on the active slot
+      clears the live `SAVE_KEY` and the handler mirrors `#sw-wipe`'s full
+      in-memory reset (`this.meta`, `spentThisVisit`, `selectedEquipment`,
+      `onMetaChanged`). Targeted `tests/ui-fb096-save-slots.test.ts` (14/14):
+      module-level fresh-profile default, migration (intact-in-slot-1 +
+      idempotent-on-later-boot), independent slot-1/slot-2 progress across a
+      simulated reload, same-slot/out-of-range no-ops, delete-non-active vs.
+      delete-active behavior, the Settings-tab listing/labels/disabled-state,
+      switch-triggers-reload, reload-failure fallback, and the fb101 pointer-
+      write-failure case (below). code-reviewer **APPROVE** (no Critical/
+      Major; one Minor — the delete-active-slot handler didn't clear
+      `spentThisVisit`/`selectedEquipment` for full `#sw-wipe` parity, fixed
+      same session; two Nits, addressed/not blocking). qa-playtester's first
+      pass **PASS**ed the stated acceptance criteria directly but found and
+      filed two real issues via hostile testing, both fixed same session
+      rather than left open:
+      - **fb100** (normal, real data-loss bug): the original design only
+        showed an advisory "reload to continue" notice after a switch,
+        leaving the still-live Hub's stale in-memory `meta` free to overwrite
+        `SAVE_KEY` via any other Settings/Run/Equipment/Tree action before the
+        player manually reloaded — corrupting whichever slot was active at
+        the *next* switch. Fixed by reloading the page immediately
+        (`window.location.reload()`) the instant a switch succeeds, instead
+        of leaving an honor-system window open; falls back to the old
+        advisory notice only if `reload()` itself throws. New regression
+        tests confirm `reload` is actually invoked and the fallback path
+        still works.
+      - **fb101** (low, doc-contract violation): `setActiveSlotRaw`'s own
+        `try/catch` swallowed a `setItem` failure internally, so a storage
+        failure landing specifically on `switchToSlot`'s 3rd (pointer) write
+        made it return `true` while the pointer never actually moved. Fixed
+        by letting that write's exception propagate into `switchToSlot`'s own
+        outer `try/catch` (the only other caller, `ensureActiveSlotMigrated`,
+        already wraps its own call site the same way). New regression test
+        forces the failure onto exactly the 3rd `setItem` call and confirms
+        `switchToSlot` now returns `false` with the pointer unchanged.
+      Both fixes re-verified against the full targeted suite (14/14) and
+      `npx tsc --noEmit` clean; not re-dispatched to qa-playtester a second
+      time (both were narrow, mechanically-verified fixes matching the
+      finding's own suggested direction and regression-test shape). `npm run
+      test:fast`: 6 failures, all in the pre-existing q15-command-domain-fuzz
+      worker-hang and q45/q49/q52 Windows-scratch-dir-EPERM flake classes
+      documented across dozens of prior PROGRESS.md sessions, none touching
+      `src/ui/**`/`src/render/**` or this item's own files.
+
+- [ ] (fb097) [feat] low priority: generated 2026-09-04 (same generation
+      batch as fb095; QUALITY.md 1.0 Steam/itch checklist gap diff, extends
+      fb094) — gif capture mode. fb094 scoped out "gif capture mode" from
+      QUALITY.md 1.0's "store-page asset export (screenshots at fixed seeds,
+      gif capture mode)" line as "materially larger scope, left for a future
+      item" — this is that item. Add a dev-profile-only control (alongside
+      fb094's screenshot export, same gating pattern) that records N seconds
+      of canvas frames on a fixed interval and exports them as an animated
+      GIF (or, if a GIF encoder is judged too heavy a dependency for this
+      item, a downloadable frame-sequence archive with a logged QUESTIONS.md
+      note on the substitution). Acceptance: a unit test triggers capture,
+      confirms it collects the expected number of frames over a mocked
+      clock/rAF, and produces a downloadable file; the control is absent/
+      inert outside dev profile, matching fb094's own gating pattern — refs:
+      QUALITY.md 1.0 (Steam/itch checklist), fb094.
+
+- [x] (fb098) [polish] low priority: generated 2026-09-04 (same generation
+      batch as fb095; QUALITY.md 1.0 Steam/itch checklist gap diff) —
+      colorblind palette real-content audit. QUALITY.md 1.0's Accessibility
+      re-check names "colorblind palettes on real content" as its own line,
+      distinct from BETA's plain "colorblind-safe palette" existence bar
+      already met by fb005's per-damage-type color table and its unit test
+      — "on real content" reads as a stronger bar: verifying the palette
+      stays distinguishable in the actually-rendered scene, not just as an
+      isolated color-table assertion. Extend `tools/ui-audit.ts` (or an
+      equivalent render test) with a scene that renders real per-damage-type
+      floating numbers/markers together on one frame, applies each supported
+      colorblind simulation transform, and asserts every pair of
+      simultaneously-visible damage-type colors stays distinguishable
+      (a contrast/distance threshold) under every mode. Acceptance: the new
+      audit scene/test passes against current `/data`/palette content and
+      would fail if two damage-type colors were changed to be
+      indistinguishable under a simulated colorblind transform (proven via a
+      deliberately-broken fixture in the test, reverted before commit) —
+      refs: QUALITY.md 1.0 (Accessibility re-check), fb005. DONE 2026-09-04:
+      took the "equivalent render test" branch rather than editing
+      `tools/ui-audit.ts` (out of this lane's Scope). New
+      `src/render/colorblind-sim.ts` — a standalone, dependency-free
+      simulation of protanopia/deuteranopia/tritanopia via the standard
+      Vienot/Brettel-derived linear-RGB matrices (sRGB<->linear conversion via
+      the correct piecewise formula, not a flat gamma), plus `colorDistance`
+      (Euclidean, 0-255 sRGB space) and `auditDistinguishability` (flags any
+      pair under a distance threshold). New
+      `tests/render-fb098-colorblind-audit.test.ts` renders a real "mixed
+      fight" (all six §3 damage types' floating numbers + a Corpse Core
+      execute, one frame) through the actual `Renderer` with
+      `accessiblePalette: true`, captures the real on-screen `fillStyle`
+      values (same recording-canvas harness fb005 uses, extended to confirm
+      each matches `damageStyleColor`/`executeStyle`'s live output), adds
+      frost/frozen (read directly via `damageStyleColor` — documented, not
+      silently assumed, as a compromise: no test in this repo including
+      fb005's actually renders those two through `drawEnemies`'s real
+      marker-drawing path with a live frozen/slowed enemy, though the function
+      has no enemy-specific branching to diverge from), then for each of the 3
+      CVD modes plus unsimulated asserts every pairwise distance among the 9
+      colors clears `MIN_DISTANCE = 20` — chosen with headroom below the real
+      content's tightest simulated pairs (poison/frost ~25.8 under tritanopia;
+      frozen/execute ~35.3-37.4 under proto/deuteranopia) and well above the
+      deliberately-broken fixture (a magenta/green pair, ~345 apart
+      unsimulated vs. ~13.4 under simulated protanopia — chosen by an
+      offline, uncommitted random search, not hand-tuned). Targeted
+      `tests/render-fb098-colorblind-audit.test.ts` (3/3). code-reviewer
+      **APPROVE** (no Critical/Major; three Minor — the `MIN_DISTANCE`
+      threshold's justifying numbers lived nowhere in the repo, unlike
+      `tools/audit/checks.ts`'s precedented `COLOR_DISTANCE_MIN`, and would
+      normally get a `QUESTIONS.md` entry, but `QUESTIONS.md` is outside this
+      lane's Scope — fixed by moving the real-content/broken-fixture numbers
+      into `colorblind-sim.ts`'s own file-level doc comment instead, in-scope
+      and same effect; a comment overstated fb005's existing coverage of the
+      frost/frozen marker path as "pixel-for-pixel pinned" when it isn't
+      (fb005 only asserts `damageStyleColor`'s return values are pairwise
+      distinct, never through a real `drawEnemies` pass) — reworded to state
+      the compromise honestly; a dangling forward-reference to numbers "in the
+      file-level comment" that weren't actually there yet — fixed alongside
+      the first). qa-playtester **PASS**: independently mutated the real
+      `data/damagetypes.json` (not just the test's own baked-in fixture) to
+      collapse poison/frost under tritanopia specifically (~14.2 simulated,
+      restored after, `git diff data/damagetypes.json` clean) and confirmed
+      the audit approach catches it; sanity-checked the CVD math against
+      textbook red/green-under-protanopia collapse and black/white staying
+      maximally distinct under every mode; confirmed the frost/frozen
+      shortcut is byte-identical to what `drawEnemies` would paint (the
+      function is pure, no enemy-specific branching); confirmed scope (only
+      the two new files, `STATUS.md`'s dirty state pre-dated this session).
+      `npx tsc --noEmit` clean. `npm run test:fast`: 6-10 failures across
+      two runs this session, all in the pre-existing q15/q49/q52
+      worker-hang/Windows-scratch-dir-EPERM flake classes (plus
+      b032/b034/b035/b036/q13 contention-class failures that didn't
+      reproduce in the same shape twice) documented across dozens of prior
+      PROGRESS.md sessions, none touching `src/ui/**`/`src/render/**` or this
+      item's own files — confirmed `colorblind-sim.ts` has zero import
+      coupling to any failing suite.
+
+- [x] (fb099) [feat] normal priority: generated 2026-09-04 (same generation
+      batch as fb095; engineer's-judgment item, depth not scope creep per
+      HANDOFF §7, complements fb095) — results-screen quest-completion
+      toast. A quest can complete at run end (`applyRunResult`,
+      `src/meta/meta.ts`, out-of-scope but read-only, appends to
+      `next.completedQuests` and unlocks the reward) with zero player-facing
+      feedback — nothing distinguishes that moment from any other run end,
+      and short of fb095's new tracker panel (or the terse per-class/per-Core
+      "Locked — complete a quest" strings) a player has no way to notice a
+      quest completed at all. `hud.ts` already has a priority toast queue
+      (`queueToast`/`showToast`) used for routine notices (e.g. `xp_overflow_
+      gold`) — reuse it rather than building new UI. In `main.ts`, after
+      calling `applyRunResult`, diff the old and new `meta.completedQuests`
+      arrays to find newly-completed quest keys (no `src/meta` edit needed —
+      pure before/after comparison of an already-returned value) and queue
+      one toast per newly-completed quest naming it and its reward, shown on
+      the Results screen. Acceptance: a unit test drives a quest-completing
+      metric through `applyRunResult` and confirms a toast with the right
+      quest name and reward text is queued exactly once, and confirms
+      re-running an already-completed quest's metric (e.g. a second win past
+      `chrono_veteran`'s threshold) does not re-queue its toast — refs:
+      fb095, SPEC-FINAL §11, HANDOFF §7. DONE 2026-09-04: new pure
+      `questCompletionToasts(content, prevCompleted, nextCompleted)` in
+      `src/ui/quests.ts` diffs two `MetaState.completedQuests` string arrays
+      (the actual method is `Hud.say(text, priority)`, not
+      `queueToast`/`showToast` as this item's text guessed — same priority-
+      queue mechanism, different real name) and returns one toast string per
+      newly-completed quest, in `content.quests.quests`' authored order (not
+      push order, so simultaneous completions toast in a stable order
+      regardless of which metric's threshold happened to cross first inside
+      `applyRunResult`) — `Quest complete: ${name} — ${rewardLabel(...)}`.
+      `rewardLabel` (previously private to `quests.ts`, fb095) is now
+      exported so this reuses the exact same reward text the Quests panel
+      itself shows rather than a second copy that could drift. `main.ts`'s
+      `frame` loop captures `this.meta.completedQuests` as `prevCompleted`
+      immediately before the existing `applyRunResult` call in the
+      `resultBanked` block, then after `this.meta`/`saveMeta` update, loops
+      `questCompletionToasts(w.content, prevCompleted, this.meta.completedQuests)`
+      and calls `this.hud.say(msg)` per entry — no `src/meta` edit, pure
+      before/after comparison of an already-returned value per architecture
+      rule 3. Also bumped `.sw-toast`'s `z-index` to `11` (`src/ui/
+      style.css`, was implicit/auto) — without it a toast queued in the same
+      tick `.sw-modal` (z-index 10, the Results screen) opens, exactly this
+      item's own scenario, would paint underneath the modal's opaque
+      backdrop and never be seen, contradicting "shown on the Results
+      screen." Targeted `tests/ui-fb099-quest-toast.test.ts` (5/5): exactly
+      one toast naming quest + reward on first completion (`win_a_run` ->
+      "First Dawn" -> Pyro), no re-toast for an already-completed quest on a
+      later run, no toast when nothing completes, two simultaneous
+      completions toast in `content.quests.quests`' authored order via a
+      real `applyRunResult` call, and (added after code-reviewer's finding
+      below) a case that calls `questCompletionToasts` directly with
+      `nextCompleted` listing the two quest keys in the *reverse* of their
+      authored order, proving the function sorts by its own authored-order
+      pass rather than trusting whatever order the caller hands it. All
+      driven through the real `applyRunResult` against real
+      `data/quests.json` content (modeled on `tests/p7e-quests.test.ts`'s
+      `reportWith()` pattern), not a hand-rolled quest fixture; the
+      fixture's `totalSeconds: 2000`/`coreHp: coreMaxHp: 500` defaults are
+      deliberately above `speedrunner`'s `<=1920s` and above `scrape_by`'s
+      `<=25%`-Core-HP targets so an isolated single-quest test doesn't
+      coincidentally trip either Core-unlock quest, and `towersByKey` uses 5
+      distinct real attacking tower keys so `wins_max4towertypes`'s
+      `<=4`-types check doesn't coincidentally fire on the same win test
+      cases isolating `win_a_run` are built around (all discovered and fixed
+      via a scratch debug test before the real suite was written, not
+      guessed). code-reviewer **APPROVE** (no Critical/Major); two Minor
+      findings both addressed same session: the original "authored order,
+      not push order" test only proved `applyRunResult` itself pushes in
+      authored order, not that `questCompletionToasts` does its own
+      sorting — closed by the added reverse-order direct-call test above;
+      and a reminder that `STATUS.md` (dirty in the working tree,
+      pre-existing per this session's opening `git status`, unrelated to
+      fb099) must not be swept into this lane's commit — confirmed excluded.
+      One Nit (the backlog entry itself wasn't checked off yet) closed by
+      this update. qa-playtester **PASS**: independently drove a real
+      `Game` instance end-to-end (mount, `new Game()`, `start()`, `#sw-start`
+      click, ticked `frame()`) rather than trusting only the shipped unit
+      tests, confirmed the toast text and `.show` class land correctly at
+      run end, confirmed the z-index fix actually resolves the
+      toast-hidden-under-the-Results-modal scenario it was written for,
+      confirmed a practice run (`practiceUsed: true`) completes and toasts
+      no quest (the `prevCompleted === this.meta.completedQuests` same-
+      reference edge case from `applyRunResult`'s practice early-return
+      resolves correctly through `questCompletionToasts`), confirmed
+      multiple same-run-end quest completions queue and show in FIFO order
+      through the existing toast queue without dropping any, and confirmed
+      a stale/unknown quest key in `completedQuests` (corrupted-save shape)
+      neither crashes nor produces a spurious toast (the function iterates
+      `content.quests.quests`, never `completedQuests`, so an unknown key is
+      structurally unreachable). Filed no new bugs; one non-blocking
+      observation (unbounded same-tick toast queueing could delay a later
+      routine toast behind several quest-completion ones — not a bug, no
+      action taken). `npx tsc --noEmit` clean. `npm run test:fast`: 6 failed
+      tests across 7 failed files (2272 passed / 24 skipped), all in the
+      pre-existing q15-command-domain-fuzz worker-hang and q49/q52 Windows-
+      scratch-dir-EPERM flake classes documented across dozens of prior
+      PROGRESS.md sessions, none touching `src/ui/**`/`src/render/**` or
+      this item's own files.
+
+- [x] (fb100) [bug] normal priority: DONE 2026-09-04, fixed in the same
+      session that produced it — see fb096's DONE note above for the fix
+      (immediate `window.location.reload()` on a successful switch, replacing
+      the advisory-only notice) and its regression test coverage. Original
+      report preserved below for the repro detail. filed by qa-playtester
+      verifying
+      fb096 (2026-09-04) — save-slot switch is not reload-enforced, so any
+      Hub action taken after `switchToSlot` but before the page reload
+      silently corrupts the slot being left. `switchToSlot` mirrors the live
+      `SAVE_KEY` into the *current* slot's own key at the moment of the
+      *next* switch away from it — but nothing stops a player from clicking
+      Switch, then continuing to interact with the still-live Hub (equip
+      gear, allocate a skill point, "Seed a test account", "Wipe account",
+      all fully enabled in the same Settings panel right next to the Save
+      Slots panel) using the OLD slot's still-loaded in-memory `meta`/
+      `SAVE_KEY` before ever reloading. That interaction re-writes `SAVE_KEY`
+      to a value belonging to neither slot; the next switch away from the
+      now-active slot then flushes that wrong value into the active slot's
+      own dedicated key, permanently overwriting its real save. Repro
+      (reproduced twice, deterministic, jsdom `Hub` + `saveslots.ts`
+      directly — see `tests/ui-fb096-save-slots.test.ts`'s harness for the
+      `openHub` pattern used): create slot 1 with `skillPoints: 10` and slot
+      2 with `skillPoints: 25`, make slot 1 active; open the Hub Settings
+      panel on slot 1; click Slot 2's Switch button (now active, `SAVE_KEY`
+      correctly holds 25); without reloading, click "Wipe account" (`#sw-wipe`,
+      fully clickable — commits `defaultMeta()`, `SAVE_KEY` becomes 0); call
+      `switchToSlot(0)` to go back to slot 1 (correctly restores 10) — but
+      slot 2's own dedicated key (`stonewake.save.slot2.v1`) has now been
+      silently overwritten with the wiped `defaultMeta()` in the process,
+      permanently destroying its real 25-point save with no notice, no
+      confirm, and no way to recover it. Expected: either the Hub disables/
+      confirms every other mutating action while a switch is pending reload,
+      or a switch takes effect immediately (with a live reload/rehydrate)
+      instead of leaving a "reload to continue" honor-system window during
+      which the previous slot's stale in-memory state keeps writing to
+      `SAVE_KEY`. Actual: any Settings/Run/Equipment/Tree action performed
+      between a Switch click and the eventual reload corrupts whichever
+      slot is active at the time of the *next* switch. Suggested regression
+      test: extend `tests/ui-fb096-save-slots.test.ts` with a case that
+      opens the Hub, clicks `[data-slot-switch="1"]`, then clicks `#sw-wipe`
+      (or any other commit-triggering control) without reloading, then calls
+      `switchToSlot(0)` and asserts the other slot's own dedicated
+      `localStorage` key is unchanged from its pre-switch value — refs:
+      fb096.
+
+- [x] (fb101) [polish] low priority: DONE 2026-09-04, fixed in the same
+      session that produced it — see fb096's DONE note above for the fix
+      (`setActiveSlotRaw`'s exception now propagates into `switchToSlot`'s
+      outer `try/catch` instead of being swallowed internally) and its
+      regression test. Original report preserved below for the repro detail.
+      filed by qa-playtester verifying fb096
+      (2026-09-04) — `switchToSlot`'s own doc comment says a storage failure
+      makes it "return false (a no-op)", but `setActiveSlotRaw` swallows its
+      own `setItem` exception internally (its `catch` has no `throw`), so a
+      quota/storage failure landing specifically on the third of the
+      function's three writes (the active-slot pointer write, after the
+      current slot's flush and the incoming slot's load into `SAVE_KEY` have
+      already both succeeded) makes `switchToSlot` return `true` while
+      `getActiveSlot()` still reports the old slot even though `SAVE_KEY`
+      now holds the new slot's data — a real (if narrow) contract violation
+      of the function's own "fail closed" doc comment. Reproduced twice
+      (deterministic) by monkey-patching `Storage.prototype.setItem` to
+      throw only on its 3rd invocation during a single `switchToSlot` call:
+      `switchToSlot(1)` returns `true`, `getActiveSlot()` still returns `0`,
+      but `loadMeta()` reads the slot-1 data. Real-world likelihood is low
+      (localStorage quota failures on a few-KB JSON blob are rare), so this
+      is reported rather than filed as a blocking severity, but it should
+      still be fixed: either have `setActiveSlotRaw` propagate its exception
+      so the outer `try/catch` in `switchToSlot` can return `false`, or give
+      `switchToSlot` its own explicit check that the pointer write actually
+      landed. Suggested regression test: a case in
+      `tests/ui-fb096-save-slots.test.ts` that patches
+      `Object.getPrototypeOf(localStorage).setItem` to throw only on its 3rd
+      call within one `switchToSlot` invocation and asserts the return value
+      and `getActiveSlot()` stay consistent with each other — refs: fb096.
+
+- [x] (fb102) [bug] normal priority: generated 2026-09-04 (fewer than 3
+      actionable items remained — fb085/fb093/fb097 stay open but are logged
+      out-of-scope for this lane; generation rule (b)/existing-note diff) —
+      boss bar overlaps the floating info rail at narrow stage widths.
+      fb072's own DONE note flagged this on delivery and left it as "a
+      theoretical CSS overlap with the right info rail at very narrow stage
+      widths, left as a known limitation, same class as fb065's own logged
+      follow-up" — it was never promoted to its own item. `.sw-bossbar`
+      (`src/ui/style.css`) is centered (`left: var(--cv-cx, 50%)`) with
+      `width: 360px; max-width: 60%` of the stage, while `.sw-rail-left`/
+      `.sw-rail-right` each take `max-width: 32%` (widening to `55%` under
+      the existing `@media (max-width: 1180px)` rule) anchored to the same
+      top edge (`top: calc(var(--cv-top, 0px) + 8px)` vs. the boss bar's
+      `top: calc(var(--cv-top, 0px) + 10px)`) — at any stage narrow enough to
+      trigger that media query with a rail expanded and a boss alive, the
+      three boxes' widths (55% + 55% + 60%) can no longer fit side by side
+      without the boss bar's centered box overlapping one or both rails.
+      Acceptance: a render/layout test computes (or directly asserts against)
+      `.sw-bossbar`'s and an expanded `.sw-rail-right`'s effective
+      left/right/width bounds at a narrow stage width (e.g. 900px, under the
+      1180px breakpoint) with both visible, and confirms they do not overlap;
+      the same assertion must fail against the current, unfixed CSS values
+      (proven via a temporary revert, restored before commit) so the test
+      actually catches the bug rather than passing vacuously — refs: fb072,
+      fb065, fb082. DONE 2026-09-04: `Hud.syncStageOverlayGeometry()`
+      (`src/ui/hud.ts`) — the same fb082 method that already re-derives the
+      canvas's letterboxing math and publishes it as `--cv-*` CSS custom
+      properties — now also computes and publishes `--bossbar-maxw`: the
+      widest `.sw-bossbar` can render without reaching into either rail's own
+      worst-case (fully expanded) footprint, using new module-level constants
+      (`RAIL_WIDTH_PX`, `RAIL_WIDE_MAX_FRACTION`/`RAIL_NARROW_MAX_FRACTION`,
+      `RAIL_NARROW_BREAKPOINT_PX`, `RAIL_EDGE_GAP_PX`, `BOSSBAR_WIDTH_PX`,
+      `BOSSBAR_MIN_GAP_PX`) that mirror `.sw-rail`'s real box-model numbers,
+      each commented with the exact CSS rule it mirrors — same duplication
+      tradeoff `syncStageOverlayGeometry`'s own fb082 doc comment already
+      accepts for the letterboxing math, for the same jsdom-can't-run-real-
+      layout reason. Deliberately computed against each rail's fully-expanded
+      width regardless of its live collapsed/open state, so the boss bar
+      never has to react to a rail toggling. `style.css`'s `.sw-bossbar`
+      `max-width: 60%` becomes `max-width: var(--bossbar-maxw, 60%)`.
+      Targeted `tests/ui-fb102-bossbar-rail-overlap.test.ts` (4/4, same
+      jsdom `clientWidth`/`clientHeight`-stubbing idiom
+      `tests/ui-fb082-overlay-geometry.test.ts` already uses): a 900px
+      (narrow, under the 1180px breakpoint) stage confirms the boss bar and
+      both rails' computed bounds stay clear of one another (with an inline
+      check that the old flat-60% formula would *not* have, proving the test
+      isn't vacuous); a 1920px (wide) stage confirms the boss bar keeps its
+      full 360px; the no-real-layout jsdom-default fallback confirms no
+      property is published; a CSS-wiring check confirms `.sw-bossbar`'s
+      `max-width` declaration actually references `var(--bossbar-maxw`.
+      code-reviewer **REQUEST-CHANGES** → one Major: the original 3-test
+      suite only asserted on the JS-published `--bossbar-maxw` property, never
+      that `style.css` actually consumes it — a lone revert of the CSS half
+      (leaving `hud.ts` untouched) would have silently reintroduced this exact
+      bug with nothing in the suite noticing; fixed by adding the CSS-wiring
+      test above. Two Minors, also addressed same session: the narrow-
+      breakpoint substitution (`availW <= 1180`) checks the stage's own width
+      where the real CSS media query checks the *viewport's* — safe in the
+      narrow-only direction that matters (`.sw-stage` is `flex: 1 1 auto` with
+      no sibling that could widen it past the viewport, so it can only guess
+      "narrow" at least as readily as the real rule, never less), but the
+      safety argument was undocumented — added a comment explaining it; a
+      third Minor (no floor on `bossMaxW` at extreme-narrow widths — degrades
+      toward the CSS border-box padding/border minimum rather than 0, same
+      class of narrow-viewport degrade the rails already accept) and a Nit
+      (the rail constants are re-hardcoded a third time in the test file
+      rather than imported from `hud.ts`, matching this codebase's existing
+      `tests/ui-fb082-overlay-geometry.test.ts` precedent of inlining rather
+      than importing `GRID_W`/`GRID_H`) were both left as-is, judged
+      non-blocking and consistent with CLAUDE.md's don't-build-for-
+      hypotheticals rule. code-reviewer re-verified (Major fix confirmed).
+      qa-playtester **PASS**: independently re-proved the CSS-wiring test's
+      non-vacuousness by manually reverting `style.css`'s `max-width` line and
+      confirming exactly that test (and only that test) fails, restoring
+      before finishing; adversarially probed 100px/1px stage widths (clamps
+      to `0px`, never negative, no throw), an odd 901px width (bounds still
+      respect both rails' edges within floating-point tolerance), confirmed
+      true `--cv-left != --cv-right` divergence can't occur given the
+      symmetric letterboxing formula (not a gap, just how the geometry is
+      built), read `.sw-rail.collapsed`'s CSS directly to confirm "fully
+      expanded" genuinely is each rail's largest possible footprint (the
+      fix's documented worst-case assumption holds), and confirmed
+      `--bossbar-maxw` computes unconditionally regardless of boss-alive
+      state with no interaction when `.sw-bossbar` is hidden; filed no new
+      bugs. `npx tsc --noEmit` clean. `npm run test:fast`: 17 failed / 2242
+      passed / 48 skipped (qa-playtester's independent run) and, separately,
+      7 failed files / 5 failed tests / 2277 passed / 24 skipped (this item's
+      own run) — both entirely pre-existing q15/q49/q52 worker-hang/Windows-
+      scratch-dir-EPERM flake classes documented across dozens of prior
+      PROGRESS.md sessions, none touching `src/ui/**`/`src/render/**` or this
+      item's own files.
+
+- [x] (fb103) [feat] normal priority: generated 2026-09-04 (same generation
+      batch as fb102) — Results screen shows the class and Core the run was
+      played with. `Hud.showResults(w: World)` (`src/ui/hud.ts`) renders
+      waves/survived/level/kills/towers/equipment/skill-points but never
+      names which class or Core produced them, even though both are already
+      on hand with no sim/meta edit needed: `w.cfg.classKey` and `w.coreKey`
+      (`src/sim/world.ts`) resolve to real display names via
+      `w.content.classByKey`/`w.content.coreByKey` (`src/sim/content.ts`,
+      the same maps `quests.ts`/`codex.ts` already read). With 12 classes, 5
+      Cores and now 3 save slots (fb096) all live at once, a player finishing
+      a run has no on-screen confirmation of which build just played short of
+      remembering it themselves. Acceptance: a unit test opens Results with a
+      `World`/fixture carrying a known `classKey`/`coreKey` and asserts both
+      real display names (not raw data keys) appear in `.sw-results`; a
+      second case with a `classKey`/`coreKey` absent from `content` (a
+      corrupted-save-shape edge) confirms a raw-key fallback renders instead
+      of a crash — refs: SPEC-FINAL §5.5 (Core choice), §11, fb092. DONE
+      2026-09-04: `showResults` (`src/ui/hud.ts`) adds two rows ("Class"/
+      "Core") at the top of the `.sw-results` grid, resolving
+      `w.cfg.classKey`/`w.coreKey` via `w.content.classByKey`/`coreByKey`
+      to their `.name`, falling back to the raw key string (`?? w.cfg.classKey`
+      / `?? w.coreKey`) when the lookup misses. Both maps are non-optional and
+      built unconditionally at content-load time, so the only real miss case
+      is a corrupted-save classKey/coreKey no longer present in `/data` — the
+      same `?.`-guarded tolerance `World`'s own constructor already applies to
+      an unresolvable `classKey` (`world.ts:518`). Targeted
+      `tests/ui-fb103-results-class-core.test.ts` (2/2): known-key display
+      names render (not raw keys) for a 'swordsman'/'vampire_heart' run; an
+      unresolvable classKey/coreKey doesn't throw and falls back to the raw
+      key text. code-reviewer **APPROVE** (no Critical/Major; one Minor —
+      backlog checkbox not yet ticked in the reviewed diff, closed by this
+      update; one Nit — unescaped innerHTML interpolation, confirmed
+      consistent with every other field in the same template, not a new
+      surface). qa-playtester **PASS**: independently confirmed all 12
+      classes/5 cores in `/data` resolve to distinct display names (not just
+      the two combos in the shipped test), Class/Core rows render
+      unconditionally across all three outcomes (victory/defeat_core/
+      defeat_warden), empty-string keys degrade without throwing, no CSS
+      layout break in `.sw-results` from the 7->9 row count, the raw-key
+      fallback path is genuinely unreachable via the real `hub.ts` run-start
+      flow (only hand-built fixtures/corrupted saves reach it), and confirmed
+      the `<img onerror>`-style unescaped-innerHTML XSS surface pre-exists
+      identically across every other field in the same template (boons,
+      towers, skill cards, damage types, enemy names) — not a regression.
+      Traced but did not file (harness artifact, not a product bug): reusing
+      one `Hud` instance across fresh `World` fixtures without calling
+      `resetModalKey()` can show a stale Class/Core display, since
+      `syncModal`'s memo key doesn't include classKey/coreKey — unreachable in
+      real play since `startRun` (`main.ts`) always calls `resetModalKey()`
+      before every fresh/Retry/New-run start; flagged as a latent fragility
+      for whoever next touches `syncModal`'s memo key. Filed no new bugs.
+      `npx tsc --noEmit` clean. `npm run test:fast`: 9 failed files / 6 failed
+      tests, all in the pre-existing q49/q52 Windows-scratch-dir-EPERM flake
+      class documented across dozens of prior PROGRESS.md sessions, none
+      touching `src/ui/**`/`src/render/**` or this item's own files.
+
+- [x] (fb104) [polish] normal priority: generated 2026-09-04 (same generation
+      batch as fb102) — bottom-bar "skill ready" ripple respects
+      reducedMotion/reducedFlash. fb086's own qa-playtester pass found and
+      explicitly flagged this "for the backlog generator" rather than filing
+      it against fb086 itself (judged outside that item's own acceptance,
+      which named only continuous/repeated cues): the bottom bar's CSS-only
+      skill-ready cue (`@keyframes sw-bb-ready-flash`, `.sw-bb-flash
+      .sw-bb-icon`, `src/ui/style.css`) is a brief (0.5s), event-triggered
+      box-shadow ripple that neither `reducedMotion` nor `reducedFlash`
+      (`src/ui/settings.ts`) currently touches, unlike every other ambient-
+      motion/flash cue in the renderer (tracer jitter, phase-sweep travel,
+      damage flashes). Acceptance: a unit test enables `reducedFlash` (or
+      `reducedMotion`, whichever the implementation targets — pick the one
+      that best matches "a brief flash effect" per the existing Settings
+      label text) and confirms the ripple is suppressed or visibly reduced
+      (e.g. the `sw-bb-flash` class/animation is withheld or its duration
+      drops to 0) when a skill becomes ready, with an off-by-default control
+      case proving the ripple still plays normally otherwise — refs: fb086
+      (qa-playtester's logged observation), fb055's reducedFlash precedent.
+      DONE 2026-09-04: chose `reducedFlash` — its own Settings label ("dims
+      skill & Core effect flashes") is an exact match for this brief
+      per-skill flash, vs. `reducedMotion`'s ambient-motion target (tracer
+      jitter, phase-sweep travel). `renderSkillIcon` (`hud.ts`) now adds the
+      one-shot `sw-bb-flash` class only when `!this.settings.reducedFlash`,
+      gating just the ripple — the persistent `.ready` class stays
+      unconditional. Updated the `private settings: Settings` field's doc
+      comment (previously said Hud read settings only for the three
+      onboarding-seen flags). Targeted
+      `tests/ui-fb104-skill-ready-flash-reduced.test.ts` (4/4): Active1
+      (single-cooldown), Active2, and an ammo-style multi-charge Active
+      (Time Lord's *Time*, `ready` gated on `ammo > 0` rather than
+      `cooldownRemaining <= 0`) each confirm the ripple is withheld with the
+      toggle on, plus an off-by-default control case. code-reviewer
+      **APPROVE** (no Critical/Major; one Minor — asked for Active2/
+      multi-charge coverage beyond the original Active1-only test, added
+      same session; one Nit — the unrelated pre-existing `STATUS.md` working-
+      tree diff isn't part of this item, left untouched). qa-playtester
+      **PASS**: confirmed the 4 tests exercise real false->true readiness
+      edges (not vacuous), confirmed via grep exactly one call site adds
+      `sw-bb-flash` with no bypass path, ran 89 adjacent bottom-bar/skill-icon
+      tests clean (no regressions), and confirmed `Hud.settings`'s
+      construction-time snapshot (no in-run Settings panel exists to go
+      stale mid-run) is pre-existing behavior identical to every other
+      Settings field, not a new gap. `npx tsc --noEmit` clean. `npm run
+      test:fast`: 13 failures, all in the pre-existing q45/q46/q49/q52
+      Windows-scratch-dir-EPERM flake classes documented across dozens of
+      prior PROGRESS.md sessions, none touching `src/ui/**`/`src/render/**`
+      or this item's own files.
+
+- [x] (fb105) [feat] low priority: generated 2026-09-04 (same generation
+      batch as fb102) — Codex search/filter box. The Codex
+      (`src/ui/codex.ts`/`codex-collections.ts`) renders every collection as
+      a plain, unfiltered table — fine at a handful of rows, but §13's content
+      totals put some collections well past that (120 Constellation Nodes,
+      20 enemies, 14 authored quests, 24 waves): finding one entry today means
+      scrolling and reading every row. Add a search input above the table that
+      filters visible rows by substring match (case-insensitive) against any
+      cell's rendered text; switching collections (`CodexHandle.select`)
+      clears the filter. Acceptance: a unit test opens the Codex on a
+      many-row collection (e.g. "Constellation Nodes"), types a substring
+      matching a small subset of rows, confirms only matching rows remain in
+      the DOM (or visible), confirms clearing the input restores every row,
+      and confirms switching to a different collection resets the filter —
+      refs: SPEC-FINAL §11 (Codex, in-game wiki of every entity), §13
+      (content totals). DONE 2026-09-04: `codex.ts`'s `show()` (called on
+      mount and every collection switch) now creates a
+      `<input class="sw-codex-search">` above the table and wires an `input`
+      listener that toggles a `sw-codex-row-hidden` CSS class (`display:
+      none`, `style.css`) on non-matching `<tr>`s using a plain
+      case-insensitive `String.includes()` substring match against each row's
+      `textContent` — never regex, so a literal `.`/`(`/`[` in a query can't
+      misbehave. Rows are hidden, never removed from the DOM, preserving the
+      index correspondence `renderDetail`'s row-click handler
+      (`collection.rows[i]` ↔ `table.tBodies[0].rows[i]`) depends on. Since
+      `show()` fully rebuilds `content` from scratch on every call, both
+      `CodexHandle.select()` and a nav-button click get a fresh, empty search
+      input for free — no separate reset code path to diverge. `.sw-codex-count`
+      updates to "N of M entries" while filtered, and a `.sw-codex-no-matches`
+      message (reusing the existing `.sw-note.dim` style) appears when a query
+      matches nothing, both added after code-reviewer Minor findings on an
+      earlier draft that left the stale total count and a silently-empty table
+      with no explanation. Targeted `tests/ui-fb105-codex-search.test.ts`
+      (8/8): input presence, filters the real "towers" collection to a
+      unique-substring match and restores on clear, filters a synthetic small
+      collection and restores, case-insensitivity, no-matches message + count
+      text, empty-collection search doesn't throw, filters the largest real
+      collection (well past a "handful") down to a proper non-empty subset,
+      and `select()` clears the filter across a collection switch.
+      code-reviewer **APPROVE** (no Critical/Major; two Minor — the stale
+      count/no "no results" affordance, both addressed same session — and two
+      Nits, not blocking). qa-playtester **PASS**: reran the targeted set
+      (31/31 across `ui-fb105-codex-search`/`codex`/`p9b-codex-hub`) plus 9
+      hostile scratch-test probes (regex-meaningful characters confirmed
+      literal-not-regex, unbalanced brackets, whitespace-only query, a
+      100,000-char query, rapid type/backspace/clear, click-detail
+      row-index-mapping correctness after a filter-then-clear cycle using
+      `classAbilitiesMarkup` as an oracle, nav-button vs `select()` mid-search
+      switching, Tuner-panel coexistence, and formatted-cell array/boolean
+      substring matching) and filed no bugs. `npx tsc --noEmit` clean.
+      `npm run test:fast`: 15-16 failed files across two runs this session
+      (one run's extra hook-timeouts attributed to CPU contention from the QA
+      agent's own leftover background processes, not a regression), all in
+      the pre-existing q15/q25/q28/q33/q37/q41/q45/q46/q49/q52/q53/
+      fb038-status Windows-scratch-dir-EPERM flake class and the b032/b034/
+      b035/b036 Training-Grounds fold-test hook-timeout class documented
+      across dozens of prior PROGRESS.md sessions, none touching
+      `src/ui/**`/`src/render/**`, Codex/Hub test files, or this item's own
+      files.
+
+- [x] (fb106) [polish] low priority: generated 2026-09-04 (same generation
+      batch as fb102) — ultrawide/narrow safe-area unit-geometry regression
+      coverage, an in-scope alternative to fb093. fb093 (left open, logged
+      out-of-scope this session and in its own prior session because its
+      literal acceptance names `tools/ui-audit.ts` scenes, outside this
+      lane's Scope) leaves QUALITY.md 1.0's "16:9/16:10/ultrawide safe" line
+      with no committed regression coverage at extreme aspect ratios at all —
+      taking fb098's precedent of an "equivalent render test" branch instead
+      of touching `tools/ui-audit.ts`, this item covers the same ground at
+      the unit level. `Hud.syncStageOverlayGeometry()` (`src/ui/hud.ts`)
+      computes the letterboxed canvas rect's `--cv-left`/`--cv-right`/
+      `--cv-top`/`--cv-bottom`/`--cv-cx` custom properties that `.sw-rail`/
+      `.sw-bossbar` (and fb102's fix, once landed) key off of — add a test
+      that drives it at an ultrawide (2560x1080) and a narrow/portrait
+      (1024x1280) container size and asserts the computed letterbox rect
+      stays fully within the container with no negative offsets and no
+      dimension exceeding the container. Acceptance: the new test passes
+      against current code and demonstrably fails against a deliberately
+      broken letterboxing calculation (a temporary fixture mutation, reverted
+      before commit) — refs: fb093, fb065, fb082, QUALITY.md 1.0 (Steam/itch
+      checklist). DONE 2026-09-04: new
+      `tests/ui-fb106-extreme-aspect-geometry.test.ts` (no source files
+      changed) mounts a `Hud`, stubs `.sw-stage`'s `clientWidth`/
+      `clientHeight` to 2560x1080 (height-bound) and separately to 1024x1280
+      (width-bound), calls `hud.update(w)`, and asserts on the resulting
+      `--cv-left`/`--cv-right`/`--cv-top`/`--cv-bottom`/`--cv-cx` properties:
+      every offset >= 0, the derived canvas rect (`availW/H` minus the
+      offsets) never exceeds the container and stays positive, its aspect
+      ratio stays close to the grid's 36:20 (guards against a degenerate
+      all-zero-offset broken calc trivially passing the bounds checks), and
+      `--cv-cx` sits inside the derived rect. Manually verified (temporarily
+      flipping the `cssW` calculation's `Math.min` to `Math.max`, confirming
+      both new cases fail, then reverting) that the test is not vacuous
+      before committing, per the item's own acceptance text. Same jsdom
+      `clientWidth`/`clientHeight`-stubbing idiom and `mount()`/`makeHud()`
+      helpers as `tests/ui-fb082-overlay-geometry.test.ts`/
+      `tests/ui-fb102-bossbar-rail-overlap.test.ts`. code-reviewer
+      **APPROVE** (no Critical/Major; two Nits — the `cssW <= availW`/
+      `cssH <= availH` checks are logically implied by the already-passing
+      offset->=0 checks and add no independent bug-catching power on their
+      own (the aspect-ratio and `cx`-in-bounds checks do the real work,
+      confirmed by hand-tracing the reviewer's own `Math.max` mutation); the
+      test hardcodes `36/20` instead of importing `GRID_W`/`GRID_H` from
+      `src/sim/grid`, matching existing sibling-file precedent
+      (`tests/ui-fb082-overlay-geometry.test.ts` also hardcodes `1.8` in a
+      comment) rather than a new regression — both left as-is, non-blocking).
+      qa-playtester **PASS**: independently reproduced the git-stash-style
+      A/B (flipped `Math.min`->`Math.max`, confirmed both new cases fail;
+      separately zeroed `--cv-top`, confirmed the narrow/portrait case alone
+      catches it since the ultrawide case's natural top offset is already
+      ~0; reverted both edits exactly, confirmed zero diff on `src/ui/hud.ts`
+      afterward) plus hostile edge cases via a scratch test file (deleted
+      after use): a square 1000x1000 container, jsdom's zero-size default
+      (no stub call), extremely tiny 3x2/1x1 containers, and an
+      awkward-rounding 999x555 container — no crashes, no negative offsets
+      in any case. All sibling geometry tests
+      (`tests/ui-fb082-overlay-geometry.test.ts`,
+      `tests/ui-fb102-bossbar-rail-overlap.test.ts`,
+      `tests/render-fb065-stage-fill.test.ts`) still pass alongside the new
+      one (17/17 combined). Filed no new bugs. `npx tsc --noEmit` clean.
+      `npm run test:fast`: 14 failed files / 37 failed tests, all in the
+      pre-existing q46/q49/q52 CLI-subprocess Windows-scratch-dir EPERM flake
+      class documented across dozens of prior PROGRESS.md sessions, none
+      touching `src/ui/**`/`src/render/**` or this item's own file (no source
+      file was changed by this item at all).
+
+- [x] (fb107) [bug] high priority: generated 2026-09-04 (fewer than 3
+      actionable items remained — fb085/fb093/fb097 stay open but logged
+      out-of-scope for this lane; generation rule (b), SPEC-FINAL/QUALITY
+      coverage diff against fb073) — every key-hint string in the in-run HUD
+      and the Hub ignores the player's remapped `keyBindings` (fb073) and
+      keeps showing the hardcoded defaults instead. Confirmed live: `hud.ts`'s
+      constructor bakes literal `Q`/`E` into the bottom bar's `.sw-bb-key`
+      badges (~line 263/272), the help legend hardcodes `WASD`/`Space`/`U`/
+      `X`/`1-9`/`0`/`Enter`/`Q`/`R`/`F`/`C`/`P`/`V`/`Esc` (~line 322-326), the
+      `DPS`/`VS` redock button titles hardcode `(P)`/`(V)` (~line 238/240),
+      the control-bar button titles hardcode `(R)`/`(C)`/`(P)`/`(V)`/`(Esc)`
+      (~line 297-303), the character panel's `Hud.activeSkillRow` calls pass
+      literal `'Q'`/`'E'` (~line 1327-1328), the Dusk onboarding prompt
+      (`ONBOARDING_TEXT.dusk`) says "WASD to move, Space to dash, and Q/E for
+      your class actives" unconditionally, and `class-info.ts`'s
+      `activeSkillMarkup` (used by both the bottom-bar tooltip and the Hub's
+      class-select screen, `class-select.ts` line 88-89) hardcodes
+      `Q, Active 1` / `E, Active 2`. A player who rebinds Active1 off Q via
+      fb073's own Settings Controls panel sees every one of these still say
+      Q. Acceptance: a unit test constructs a `Hud`/`Hub` with a non-default
+      `KeyBindings` (e.g. `active1: 'j'`) and confirms the bottom-bar badge,
+      at least one help-legend/button-title hint, the character panel's
+      Active1 row, and the class-select tooltip label all show the rebound
+      key, not `Q`; a second case confirms the movement group (WASD) and
+      Dusk onboarding text also reflect non-default `moveUp`/`moveLeft`/
+      `moveDown`/`moveRight`/`dash` bindings — refs: fb073, fb079, QUALITY.md
+      BETA (key remapping), SPEC-FINAL §11. DONE 2026-09-04: `Hud` (`hud.ts`)
+      gains a 4th constructor param `keyBindings: KeyBindings =
+      defaultKeyBindings()`, stored as a construction-time snapshot (same
+      tradeoff `settings`'s own doc comment already accepts — no in-run
+      Controls panel exists to go stale mid-run); used to replace every
+      hardcoded literal named above: the bottom-bar `.sw-bb-key` badges, the
+      help legend, the `DPS`/`VS`/`Ranges`/`Character` button titles, the
+      bottom-bar tooltip's `activeSkillMarkup` calls, `activeRow`'s character-
+      panel row, and a new `onboardingText(key, kb)` function replacing the
+      old static `ONBOARDING_TEXT` dict for the Dusk prompt. `class-info.ts`'s
+      `activeSkillMarkup`/`classAbilitiesMarkup` and `class-select.ts`'s
+      `classSelectSkillsMarkup` gained an optional `keyBindings` param
+      (defaulting to `defaultKeyBindings()`, so every pre-existing caller —
+      Codex, ~40 other test call sites — is unaffected); `hub.ts` threads its
+      existing `this.keyBindings` (already there from fb073) into the
+      class-select call; `main.ts`'s `new Hud(...)` now passes `this.
+      keyBindings` as the 4th arg. Targeted
+      `tests/ui-fb107-keyhints-follow-remap.test.ts` (7/7): bottom-bar badge,
+      defaults-with-no-arg control, help legend + control-bar titles
+      (including the speed selector, see below), bottom-bar tooltip label,
+      character-panel Active rows, Hub class-select tooltip label, and Dusk
+      onboarding text all reflect a fully-remapped `KeyBindings` fixture.
+      code-reviewer **APPROVE** (no Critical/Major); two Minor findings both
+      addressed same session: (1) `bottom-bar.ts`'s `SkillIconState.hotkey:
+      'Q'|'E'` field was dead (nothing read it — `hud.ts` builds the badge
+      text straight from `this.keyBindings`, not from this field) but a stale
+      landmine one accidental future read away from reintroducing this exact
+      bug — deleted entirely along with its 4 write sites, confirmed
+      grep-clean of remaining readers; (2) the Codex's Class detail view
+      (`codex-collections.ts`) still shows default keys, a real but
+      consciously-deferred gap since `Hub` already holds `this.keyBindings`
+      one tab over — logged in this file's Log below rather than fixed here,
+      per the reviewer's own framing (a `CodexCollection.renderDetail`
+      signature widening, not a one-liner). qa-playtester **PASS** against
+      the stated acceptance criteria (independently re-derived all 7 checks,
+      ran 179 tests across a broad related sample plus the full `test:fast`
+      suite clean of anything touching `src/ui/**`) and filed one new Minor
+      bug: the in-run game-speed `<select>`'s title also hardcoded `"Game
+      speed (F cycles)"`, the one control-bar sibling fb107's own scoping
+      missed (not deliberately deferred — a genuine miss). Fixed same
+      session (`hud.ts`'s `#sw-speed` title now reads
+      `keyLabel(keyBindings.cycleSpeed)`), an 8th assertion added to the
+      regression test, re-verified green. `npx tsc --noEmit` clean.
+      `npm run test:fast`: 11 failures (this item's own run) / 4 failures
+      (qa-playtester's independent full-suite run), all in the pre-existing
+      q15/q45/q46/q49/q52 worker-hang/Windows-scratch-dir-EPERM flake classes
+      documented across dozens of prior PROGRESS.md sessions, none touching
+      `src/ui/**`/`src/render/**` or this item's own files.
+
+- [x] (fb108) [feat] normal priority: generated 2026-09-04 (same generation
+      batch as fb107) — extend fb063's sentence-form Active tooltips
+      (`ACTIVE_SENTENCES`, `class-info.ts`) past the 6 kinds the 3
+      normal-profile classes use to the remaining 18 kinds the other 9
+      classes use (`repair_heal`, `summon_turret`, `burst_damage`,
+      `dash_trail`, `charge_pierce`, `dash_volley`, `raise_skeletons`,
+      `death_pact`, `frost_nova`, `ice_wall`, `chain_lightning`, `overload`,
+      `blood_tithe`, `dash_heal`, `manifest_spirit`, `recall_totem`,
+      `clarion_taunt`, `judgement`) — confirmed via a `data/classes.json`
+      scan, 24 total kinds across all 12 classes, only 6 covered today. Those
+      9 classes are dev-toggle-reachable in the Hub's Class screen (fb058's
+      "show hidden classes" setting) and playable in every real run, so their
+      Actives still show the older bare numeric-field fallback
+      `ACTIVE_SENTENCES`'s own file comment already documents as the accepted
+      interim state "until a hidden class becomes normal-profile-visible" —
+      this closes that gap directly rather than waiting on fb057/fb059.
+      Acceptance: every kind in the list above has a hand-authored sentence
+      function in `ACTIVE_SENTENCES`, embedding live-resolved numbers the
+      same way the existing 6 do; a test asserts all 24 kinds now resolve to
+      a sentence (none fall through to the bare-field-list fallback) — refs:
+      fb063, fb058, QUALITY.md ALPHA ("every class's kit is usable and
+      legible without reading any docs"). DONE 2026-09-04: `class-info.ts`
+      adds 18 new sentence functions (one per kind above) plus a
+      `humanizeKey` helper (turns a `/data` tower key like `arrow_spire`
+      into "Arrow Spire" for `summon_turret`/`ice_wall`'s tower-name
+      mentions — a display approximation, not a `content.towerByKey` lookup,
+      since none is threaded into this file), all registered in
+      `ACTIVE_SENTENCES`, each embedding live-resolved numbers via the
+      existing `liveDamageValue`/`liveCooldownValue` helpers the same way
+      fb063's original 6 do. Two kinds intentionally show a raw (non-live)
+      number with a code comment explaining why: `burst_damage`'s damage and
+      `burnDps` (the sim's `fireEffect` scales by `w.derived.powerMul`, not
+      `characterDamage`'s `atkFlat`/`damageMul` formula `liveDamageValue`
+      models) and `charge_pierce`'s compounding rate (the sim's
+      `fireDeadeyeDraw` compounds the raw `/data` base *before* atkFlat is
+      added, so pairing a live/atkFlat-inclusive number directly against the
+      compounding-rate text would read as "this number grows by that rate,"
+      which overstates the real total — the sentence instead only shows the
+      live number for the release-now/0s-held case, where the two formulas
+      coincide exactly, and calls the growth-before-bonuses order out in
+      words). Targeted
+      `tests/ui-fb108-active-sentences-all-classes.test.ts` (31/31): all 12
+      classes load, all 24 kinds resolve to a sentence
+      (`<p class="sw-note">`) not the bare fallback, the engineer
+      summon_turret/stormcaller chain_lightning/archer charge_pierce
+      live-number-accuracy spot checks, the chain_lightning "up to N total,
+      not N+1" count-matches-`fireChainSurge` check, and (added after
+      qa-playtester's finding below) the summon_turret/manifest_spirit
+      wording check. code-reviewer **REQUEST-CHANGES** → one Major: two of
+      the new sentences (`dashTrailSentence`, `dashHealSentence`) displayed
+      `eff.dashWidth` directly as "X tiles wide," but `fireFlameRoad`
+      (dash_trail) uses it as a `GroundArea` circle *radius* and
+      `fireCrimsonRush` (dash_heal) explicitly names its own copy `half` —
+      both are half-widths, so the true full width is `2 * dashWidth`, not
+      `dashWidth`; fixed by doubling the displayed value in both sentences
+      (with a code comment on each pointing at the sim line that treats it
+      as a radius/half-width). Also flagged, not blocking and not fixed in
+      this diff: `dashSlashSentence` (fb063's original `dash_line` sentence,
+      untouched by this item) has the identical bug — logged as fb112 below
+      for a follow-up. Two Minors left as-is (a `burst_damage` static-number
+      staleness argument weaker than a factual error, and a missing "up to"
+      qualifier on `dash_volley`'s arrow count matching every other
+      probabilistic-count sentence's phrasing) — both cosmetic, not
+      required by the acceptance text. qa-playtester **PASS** against the
+      stated acceptance criteria (re-ran the 30-test suite clean, confirmed
+      `tsc --noEmit` clean, confirmed the diff touches only in-scope files)
+      plus independently re-derived `chainCount`/`chainCap`,
+      `wallSeconds`/orientation, `titheHpFraction` current-vs-max-HP, and
+      `pactDrainPerSecond` timing straight from each `fireX` handler in
+      `src/sim/classes.ts` rather than trusting the sentences, and hostile-
+      fuzzed all 24 kinds through both an absent and an extreme/negative
+      `live` context (no crash, no `undefined`/`NaN`); filed one new
+      low-severity bug: `summonTurretSentence`/`manifestSpiritSentence`'s "X%
+      of its stats" wording implied a uniformly-scaled-down clone, but
+      `fireSummonTurret`/`fireManifestSpirit` only scale the summon's dps by
+      `summonStatMul` — range and attack interval carry over at the source
+      tower's full value, so the summon has full-strength range/cadence at
+      a fraction of the damage, a materially better unit than "stats"
+      implies. Fixed same session: both sentences now read "at N% of its
+      damage (full range and attack speed)"; new regression case added to
+      the same test file confirming the wording. `npx tsc --noEmit` clean.
+      `npm run test:fast`: 16 failed files / 52 failed tests, all in the
+      pre-existing q46/q49/q52/q53 Windows-scratch-dir EPERM flake class
+      documented across dozens of prior PROGRESS.md sessions, none touching
+      `src/ui/**`/`src/render/**` or this item's own files.
+
+- [x] (fb109) [polish] low priority: generated 2026-09-04 (same generation
+      batch as fb107) — fb102's own code-reviewer Minor, never promoted to
+      its own item: `Hud.syncStageOverlayGeometry()`'s `--bossbar-maxw`
+      computation has no floor at extreme-narrow stage widths, so it degrades
+      toward the CSS border-box padding/border minimum instead of a sane
+      lower bound as the stage keeps shrinking (same class of narrow-viewport
+      degrade the rails already accept, per that review note). Acceptance: a
+      test drives `syncStageOverlayGeometry` at a pathologically narrow width
+      (e.g. 200px) and confirms `--bossbar-maxw` never goes below a small
+      fixed floor (chosen so the boss name/HP text stays legible, e.g. 120px)
+      instead of shrinking unbounded — refs: fb102, fb065, fb082. DONE
+      2026-09-04: `hud.ts` adds a `BOSSBAR_MIN_WIDTH_PX = 120` constant next
+      to the existing `BOSSBAR_WIDTH_PX`/`BOSSBAR_MIN_GAP_PX` ones;
+      `syncStageOverlayGeometry()`'s final `--bossbar-maxw` clamp changed from
+      `Math.max(0, Math.min(BOSSBAR_WIDTH_PX, maxFromLeft, maxFromRight))` to
+      `Math.max(Math.min(BOSSBAR_MIN_WIDTH_PX, availW), Math.min(BOSSBAR_WIDTH_PX,
+      maxFromLeft, maxFromRight))` — floors at 120px instead of 0 once both
+      rails' worst-case footprints overlap each other, while the
+      `Math.min(BOSSBAR_MIN_WIDTH_PX, availW)` half (added during code review)
+      keeps the floor from ever exceeding the stage's own width at stages
+      narrower than 120px itself. Targeted
+      `tests/ui-fb102-bossbar-rail-overlap.test.ts` (6/6, up from 4): a
+      200×112px stub (both rails' footprints already overlap) confirms
+      `--bossbar-maxw` floors to exactly 120 instead of the pre-fix 0; a
+      100×56px stub (narrower than the floor itself) confirms it clamps to
+      `availW` (100) rather than spilling past the stage edge. code-reviewer
+      APPROVE (no Critical/Major; one Minor — the floor wasn't originally
+      clamped against `availW`, risking the boss bar rendering wider than a
+      sub-120px stage itself — fixed same session with the `availW` clamp
+      above and its own regression case, re-verified green). qa-playtester
+      PASS: independently reimplemented the geometry math standalone and swept
+      widths 100–1300px confirming the floor holds flat at 120 with no
+      discontinuity, dip, or `availW` overshoot at any point, confirmed the
+      exact-120px and 121px boundary, confirmed the zero-width early-return
+      path and the wide-stage 360px cap are both unaffected, and cross-ran the
+      sibling `ui-fb106-extreme-aspect-geometry`/`ui-fb082-overlay-geometry`
+      suites clean; filed no new bugs. `npx tsc --noEmit` clean. Full
+      `src/ui/**`/`src/render/**`-relevant sweep (`tests/ui*`, `tests/render*`,
+      `tests/fb0*`, 79 files/730 tests) had exactly 1 failure
+      (`fb038-status.test.ts`'s `q47 PIN_COVERAGE` case), the same pre-existing
+      Windows scratch-dir EPERM class documented across dozens of prior
+      PROGRESS.md sessions, unrelated to this change. `npm run test:fast`: 59
+      failures, all in the pre-existing q46/q49/q52/q53 worker-hang/Windows-
+      scratch-dir-EPERM flake classes, none touching `src/ui/**`/`src/render/**`
+      or this item's own files.
+
+- [x] (fb110) [bug] low priority: generated 2026-09-04 (same generation
+      batch as fb107) — fb103's own qa-playtester finding, traced but not
+      filed against fb103 itself: `Hud.syncModal`'s memo key doesn't include
+      `classKey`/`coreKey`, so reusing one `Hud` instance across fresh
+      `World` fixtures without calling `resetModalKey()` can show a stale
+      Class/Core display on the Results screen. Unreachable via real play
+      (`startRun` in `main.ts` always calls `resetModalKey()` before every
+      fresh/Retry/New-run start) but a latent trap for the next change that
+      reuses a `Hud` across worlds without going through `startRun`.
+      Acceptance: either fold `classKey`/`coreKey` into `syncModal`'s memo
+      key (matching every other field the memo already tracks) with a
+      regression test reusing one `Hud` across two `World` fixtures with
+      different classes/Cores and confirming the second's Results screen
+      shows its own class/Core, not the first's; or add a code comment on
+      `syncModal`'s memo key documenting the reuse hazard and why it's
+      accepted — refs: fb103. DONE 2026-09-04: took the first option.
+      `syncModal`'s (`src/ui/hud.ts`) memo key grew from
+      `${w.phase}:${w.offers.length}:${w.outcome}:${w.level}` to append
+      `:${w.cfg.classKey}:${w.coreKey}`; both fields are set once in the
+      `World` constructor (`src/sim/world.ts`) and never reassigned, so this
+      cannot cause any spurious re-render during a normal run. Targeted
+      `tests/ui-fb110-modal-key-classcore.test.ts` (1/1): builds two `World`
+      fixtures with different classKey/core but identical
+      phase/offers.length/outcome/level, reuses one `Hud` across both without
+      `resetModalKey()`, confirms the second's Results screen shows its own
+      class/Core, not the first's stale one. code-reviewer APPROVE (no
+      Critical/Major; one Minor noting the fix only covers classKey/coreKey
+      specifically — a future `RunConfig` field added to the results/level-up
+      screens would need its own memo-key addition, not a blocker, the
+      acceptance text's two options anticipated exactly this). qa-playtester
+      PASS (confirmed via git-stash A/B the test fails pre-fix and passes
+      post-fix; confirmed every real run-start path — fresh `startRun`,
+      `onRetry`, `onNewRun`, boot-time `tryResumePersistedRun` — routes
+      through `beginRun`, which both constructs a fresh `Hud` and explicitly
+      calls `resetModalKey()`, so the original hazard is genuinely unreachable
+      via real play as the item claimed) and filed one new unrelated bug via
+      hostile testing of the same memo mechanism — see fb113 below.
+      `npx tsc --noEmit` clean. `npm run test:fast`: 56 failed tests / 16
+      failed files, all in the pre-existing q49/q52/q53 worker-hang/Windows-
+      scratch-dir-EPERM flake class documented across dozens of prior
+      PROGRESS.md sessions, none touching `src/ui/**`/`src/render/**` or this
+      item's own files.
+
+- [x] (fb113) [bug] normal priority: fb110's own qa-playtester finding — the
+      Level-Up modal's own memo key (the same `syncModal` key fb110 touched)
+      goes stale on offer reroll, showing the pre-reroll offer cards while
+      `w.offers` has already been replaced: `onReroll` → `rerollOffers`
+      (`src/sim/progression.ts`) reassigns `w.offers` to a fresh array of the
+      same length (`OFFER_COUNT`), and none of `syncModal`'s memo key fields
+      (`phase`, `offers.length`, `outcome`, `level`, `classKey`, `coreKey`)
+      change on a reroll, so `syncModal` (`src/ui/hud.ts`) treats the
+      post-reroll frame as a memo hit and skips re-rendering — the DOM keeps
+      showing the old `.sw-offer` cards' names/descriptions while
+      `onPickOffer(index)` would apply `w.offers[index]`, the new rerolled
+      offer at that index. Reachable via completely ordinary play (any
+      level-up followed by a reroll click), unlike fb110's own hazard: a
+      player can click a card describing one offer and receive a different
+      one. Found by qa-playtester (fb110 verification), reproduced
+      deterministically on two seeds/classes with the DOM staying on the
+      pre-reroll offer names after `rerollOffers(w)` + `syncModal(w)`.
+      Acceptance: a regression test — roll level-up offers, call
+      `hud.syncModal(w)`, call `rerollOffers(w)`, call `hud.syncModal(w)`
+      again — confirms the rendered `.sw-offer b` labels match
+      `w.offers.map(o => o.name)` (the new offers), not the pre-reroll ones;
+      suggested fix direction: fold a per-roll identity into the memo key —
+      `w.rerollsLeft` (already decrements each reroll) or a new roll-sequence
+      counter incremented by both `openLevelUpIfPending` and `rerollOffers`
+      — refs: fb110, `rerollOffers` (`src/sim/progression.ts`), owner
+      feedback (fb103/fb107/fb110 generation lineage). DONE 2026-09-04: took
+      the suggested `w.rerollsLeft` direction. `syncModal`'s (`src/ui/hud.ts`)
+      memo key grew from `${w.phase}:${w.offers.length}:${w.outcome}:${w.level}:
+      ${w.cfg.classKey}:${w.coreKey}` to append `:${w.rerollsLeft}` — the only
+      other writer of `w.offers` besides `rerollOffers` is
+      `openLevelUpIfPending` (already covered independently by the
+      phase/level/rerollsLeft-reset fields it also changes) and `takeOffer`
+      (already covered by the `phase` flip back to `act2`), so this closes the
+      one real gap without leaving a sibling staleness path. Targeted
+      `tests/ui-fb113-modal-key-reroll.test.ts` (1/1): rolls offers, syncs,
+      captures pre-reroll `.sw-offer b` labels, calls `rerollOffers(w)`,
+      confirms the new offers differ from the old (code-reviewer's Minor,
+      guards against a degenerate identical-reroll false pass), syncs again,
+      confirms the rendered labels now match the post-reroll `w.offers`
+      names. code-reviewer APPROVE (no Critical/Major; the one Minor above
+      fixed same session). qa-playtester PASS: confirmed via git-stash A/B
+      that the test fails pre-fix with the exact stale-name symptom and
+      passes post-fix; hostile-tested multiple sequential rerolls (each
+      re-renders correctly as `rerollsLeft` counts down), a reroll attempted
+      at `rerollsLeft === 0` (correctly a no-op, no spurious re-render since
+      the memo key is unchanged), and traced the real `onPickOffer` →
+      `pick`-command path (`main.ts`/`run.ts`) end-to-end to confirm picking
+      after a reroll now applies the same offer the modal displays; also
+      re-ran fb110's own test green. Filed no new bugs. `npx tsc --noEmit`
+      clean. `npm run test:fast`: 14-16 failed files across runs this
+      session, all in the pre-existing q46/q49/q52/q53 Windows-scratch-dir
+      EPERM flake class documented across dozens of prior PROGRESS.md
+      sessions, none touching `src/ui/**`/`src/render/**` or this item's own
+      files.
+
+- [ ] (fb111) [polish] low priority: generated 2026-09-04 (same generation
+      batch as fb107; QUALITY.md 1.0 checklist diff, engineer's-judgment
+      item per HANDOFF §7) — audit every `localStorage`-persisted blob this
+      lane owns (`SAVE_KEY` and the fb096 save-slot keys via `saveslots.ts`,
+      `stonewake.keybindings.v1`, `Settings`'s own key) against QUALITY.md
+      1.0's "cloud-save-safe file format" checklist line: confirm each is
+      pure portable JSON with no environment-specific fields (absolute paths,
+      machine-local timestamps used as identity rather than data, non-
+      serializable values) that would corrupt or fail to round-trip if synced
+      via a cloud-save provider onto a different machine. Acceptance: a test
+      round-trips each persisted shape through `JSON.stringify`/`JSON.parse`
+      on a fixture built on one "machine" (arbitrary `Date.now()`/locale) and
+      confirms byte-for-byte semantic equality when parsed as if on another;
+      if the audit finds a real non-portable field, fix it with its own
+      regression case — if it finds none, document the clean result in this
+      item's DONE note (a real, if boring, outcome per CLAUDE.md's honesty
+      rule) — refs: QUALITY.md 1.0 (Steam/itch checklist).
+
+- [ ] (fb112) [bug] low priority: generated 2026-09-04 (code-reviewer finding
+      during fb108, not fixed there since it's a pre-existing bug outside
+      that diff) — `dashSlashSentence` (fb063's original `dash_line`
+      sentence, `class-info.ts`) displays `eff.dashWidth` directly as "X
+      tiles wide," the same bug fb108 fixed in `dashTrailSentence`/
+      `dashHealSentence`: `lineHit` (`src/sim/combat.ts`) takes this value as
+      a parameter literally named `halfWidth`, so the real hit corridor is
+      `2 * dashWidth` wide, not `dashWidth`. Swordsman's Circle Slash (the
+      only normal-profile class using `dash_line`) currently shows half the
+      true corridor width to every player. Acceptance: `dashSlashSentence`
+      shows `2 * (eff.dashWidth ?? 0)` (matching fb108's fix pattern), with a
+      regression test asserting the doubled value appears — refs: fb108,
+      fb063, `lineHit` (`src/sim/combat.ts`).
 
 - [ ] (fb089) [bug] `tests/b036-help-fold.test.ts` is red on master and
       red standalone: `.sw-help`'s bottom edge measures 1095.4 against the
@@ -515,6 +3103,142 @@ not already expose it) logs that need below instead of reaching into
 
 ## Log
 
+- 2026-09-04, lane merge: `lane/ui` (fb071-fb113, this file's 2026-09-04
+  batch) merged into master. One conflict, this Log — both sides kept. No
+  source conflicts; `src/ui/**`, `src/render/**`, `tests/ui-*`/`tests/render-*`
+  and the two logged out-of-Scope test touches merged as-is. **Id collision
+  found at the merge:** this lane's 2026-09-04 batch reused fb076-fb099,
+  which BACKLOG.md had already assigned (18 ids name two different items
+  across the two files), and four ids were duplicated *inside* this file —
+  the cross-lane items filed here at the 2026-09-03 merge as fb089/fb090/
+  fb091/fb097 are renumbered to **fb114/fb115/fb116/fb117** (references in
+  BACKLOG.md, BACKLOG-TERRAIN.md and BACKLOG-CONTENT.md updated); the
+  cross-file collision is filed as BACKLOG.md fb118 rather than renumbered
+  here, since it touches 30+ committed `tests/ui-fbNNN-*` filenames. The
+  three permanently out-of-Scope items (fb085 strings.json, fb093 ui-audit
+  scenes, fb097 GIF dependency) and fb107's Codex `keyBindings` follow-up
+  are filed in BACKLOG.md at this merge; fb098's `MIN_DISTANCE` note is
+  QUESTIONS.md.
+
+- 2026-09-04, fb113: implemented fully in-scope (a prior session had already
+  written the `src/ui/hud.ts` memo-key fix and
+  `tests/ui-fb113-modal-key-reroll.test.ts` uncommitted in the working tree;
+  this session strengthened the test per code-reviewer's Minor note, verified
+  everything, ran code-reviewer/qa-playtester, and committed). See the item's
+  own DONE note above for detail. No new bugs filed against this item.
+
+- 2026-09-04, fb110: implemented fully in-scope (a prior session had already
+  written the `src/ui/hud.ts` memo-key fix and
+  `tests/ui-fb110-modal-key-classcore.test.ts` uncommitted in the working
+  tree; this session verified them, ran code-reviewer/qa-playtester, and
+  committed). See the item's own DONE note above for detail. qa-playtester
+  filed one new bug via hostile testing of the same `syncModal` memo
+  mechanism (stale offer cards surviving a reroll) — filed as fb113 above.
+
+- 2026-09-04, fb109: implemented fully in-scope; see the item's own DONE note
+  above for detail. fb085/fb093/fb097 (all `[ ]` still open above them in the
+  queue) were re-confirmed still out-of-scope for this lane rather than
+  re-attempted — each was already logged as out-of-scope in prior 2026-09-04
+  Log entries below (fb085 needs `data/strings.json`; fb093 needs
+  `tools/ui-audit.ts`; fb097 needs a new npm dependency) and nothing about
+  this lane's Scope has changed since. Executed fb109 instead, the next
+  actionable item, which is fully in-scope.
+
+- 2026-09-04, fb108: implemented fully in-scope. code-reviewer
+  (REQUEST-CHANGES → APPROVE after fix) caught a Major: `dashTrailSentence`/
+  `dashHealSentence` displayed `eff.dashWidth` as a full width when the sim
+  treats it as a half-width/radius (`2 * dashWidth` is the true corridor/
+  patch width) — fixed by doubling the displayed value in both, with a code
+  comment pointing at the sim line proving it. Also flagged the identical
+  pre-existing bug in fb063's untouched `dashSlashSentence`, out of scope for
+  this diff — filed as fb112 above rather than folded in, since it's a
+  distinct pre-existing defect with its own regression test, not part of this
+  item's acceptance text. qa-playtester (PASS) independently re-derived
+  several other kinds' semantics straight from `src/sim/classes.ts` rather
+  than trusting the new sentences, and filed one Minor: `summonTurretSentence`/
+  `manifestSpiritSentence`'s "X% of its stats" wording implied a uniformly
+  scaled-down clone, but only dps is scaled — range/attack interval carry
+  over at full strength. Fixed same session (both now read "at N% of its
+  damage (full range and attack speed)"), regression case added.
+
+- 2026-09-04, fb085: re-confirmed still permanently out-of-scope for this
+  lane (see the 2026-09-04 fb085 entry below and the fb095/fb102/fb107 Log
+  notes) — this session started building it anyway (`data/strings.json`,
+  `src/ui/strings.ts`, `src/ui/strings-lint.ts`, a `hud.ts` conversion of the
+  pause/results modal text) before code-reviewer caught the Scope violation
+  on `data/strings.json` per this file's own prior Log entry. Reverted in
+  full (all four new/changed files) rather than trying to salvage an
+  in-scope partial, for the same reason the original skip decision gave:
+  the item's acceptance text names the data file explicitly, so a partial
+  without it doesn't meet the item. code-reviewer's review also independently
+  found the lint heuristic itself had a real false-negative gap (a hardcoded
+  literal reintroduced inside a `${...}` ternary/interpolation, rather than
+  as a bare HTML text node or `title="..."` attribute, went undetected) —
+  worth a note for whoever eventually implements this from main-lane: the
+  "flag text nodes and title attributes, strip `${...}` first" approach this
+  session tried needs to also scan *inside* `${...}` for quoted string
+  literals, not just discard them. Executed fb108 instead, the next
+  actionable item, which is fully in-scope.
+
+- 2026-09-04, fb107: code-reviewer (APPROVE) flagged that the Codex's Class
+  detail view (`codex-collections.ts` → `classAbilitiesMarkup(row)`) still
+  calls with no `keyBindings` arg, so it always shows the default Q/E labels
+  even after a player rebinds — a real but consciously-deferred gap, not
+  fixed in fb107 itself. Unlike the Hub's other tabs, `Hub.renderCodex` is an
+  instance method that already holds `this.keyBindings` (used one tab over by
+  Class Select), so this is a same-session inconsistency reachable without
+  leaving the Hub, not a "no natural context" case — worth a small follow-up
+  item threading `keyBindings` through `CodexCollection.renderDetail` (a
+  small `codex.ts`/`codex-collections.ts` signature widening) rather than a
+  full backlog entry on its own.
+
+- 2026-09-04, fb097: skipped for this session — its acceptance criteria's
+  primary path ("gif capture mode") needs either a new npm dependency (a GIF
+  encoder) or, for the fallback path it names ("a downloadable frame-sequence
+  archive"), a zip/archive library — either way an out-of-scope `package.json`
+  edit (Scope allows only `src/ui/**`/`src/render/**`/`tests/ui*`/
+  `tests/render*`/this file). The fallback path also names a `QUESTIONS.md`
+  note on the substitution, itself out-of-scope. A dependency-free
+  N-separate-PNG-downloads substitute was considered but rejected as not
+  actually meeting "produces a downloadable file" (singular) or "archive" in
+  the item's own text without a compromise big enough to need the same
+  QUESTIONS.md sign-off the item already anticipates — better logged for
+  main-lane awareness than shipped as a silent reinterpretation. Executed
+  fb098 instead, the next actionable item, which is fully in-scope. Note for
+  main-lane awareness: fb098 (see its own DONE note) hit an analogous
+  smaller gap — a new `MIN_DISTANCE` tunable that would normally get a
+  `QUESTIONS.md` entry per the `COLOR_DISTANCE_MIN` precedent in
+  `tools/audit/checks.ts` — resolved in-scope by documenting the numbers in
+  `src/render/colorblind-sim.ts`'s own file header instead; still worth a
+  `QUESTIONS.md` entry at the next main-lane pass for cross-referencing
+  symmetry with `COLOR_DISTANCE_MIN`'s own entry, just not blocking.
+
+- 2026-09-04, fb093: skipped for this session — its literal acceptance
+  criteria require editing `tools/ui-audit.ts` (adding an ultrawide and a
+  narrow/portrait scene), which falls outside this lane's Scope
+  (`src/ui/**`/`src/render/**`/`tests/ui*`/`tests/render*` only). Note for
+  main-lane awareness: `fb065`'s own DONE note already touched
+  `tools/ui-audit.ts` (adding `#sw-dpsdock`/`#sw-vsdock` to its overlap-check
+  selector list) from this lane without a matching Log entry — that precedent
+  wasn't followed here since fb093's edit is additive-scene-authoring, a much
+  larger out-of-scope surface than a one-line selector-list addition, and
+  logging rather than repeating an unlogged shortcut is the safer default.
+  Left open rather than substituting an in-scope-only partial (e.g. unit-level
+  geometry math alone would not meet the item's own acceptance text, which
+  names real `tools/ui-audit.ts` scenes and `npm run ui-audit` explicitly).
+  Executed fb094 instead, the next actionable item, which is fully in-scope.
+
+- 2026-09-04, fb085: skipped for this session — its literal acceptance
+  criteria require creating `data/strings.json`, which falls outside this
+  lane's Scope (`src/ui/**`/`src/render/**`/`tests/ui*`/`tests/render*`
+  only). Per the Scope section's own instruction ("an out-of-scope need is
+  written into the Log below and becomes main-lane... work at the merge"),
+  left open rather than attempted partially (e.g. skipping the
+  `data/strings.json` half and only building `src/ui/strings.ts` would not
+  meet the item's own acceptance text, which names the data file
+  explicitly). Executed fb086 instead, the next actionable item, which is
+  fully in-scope.
+
 - 2026-09-03, lane merge: `lane/ui` merged into master (fb055, fb058,
   fb060, fb067-fb070; fb066 WON'T-FIX). No conflicts. The two out-of-Scope
   test edits logged below (q3-save-fuzz, fb022-info-surfacing) merged as-is.
@@ -553,6 +3277,14 @@ not already expose it) logs that need below instead of reaching into
   before commit. Recorded here for main-lane awareness of a possible merge
   overlap, per the Scope section's own instruction to log out-of-scope
   touches.
+
+- 2026-09-03, fb063: `tests/fb026-bottom-bar.test.ts` (predates the
+  `tests/ui*` naming convention, same precedent class as fb058's
+  `tests/fb022-info-surfacing.test.ts` touch above) needed its Time Lord
+  "Recharge seconds: N" assertion updated to "N ... to recharge each" —
+  the old bare-field-list phrasing fb063's sentence-form tooltip replaces
+  for that Active. Two lines changed, re-verified green (21/21) together
+  with the rest of the targeted set before commit.
 
 - 2026-09-03, fb060: `tests/q3-save-fuzz.test.ts` needed the same one-line
   touch fb058 already logged above for the identical reason — its

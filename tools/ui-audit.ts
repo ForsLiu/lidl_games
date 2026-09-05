@@ -137,7 +137,27 @@ function collectDomSnapshot(): DomSnapshot {
   });
 
   const chrome: RectEl[] = [];
-  for (const sel of ['#sw-bar', '#sw-stats', '#sw-progress', '#sw-toast', '#sw-controls', '#sw-practice', '#sw-towerinfo']) {
+  for (const sel of [
+    '#sw-bar',
+    '#sw-stats',
+    '#sw-progress',
+    '#sw-toast',
+    '#sw-controls',
+    '#sw-practice',
+    '#sw-towerinfo',
+    // fb065: the DPS/VS reopen tabs now share top-right-corner screen space
+    // with the floating right rail's own handle (code review finding;
+    // `syncRailRightVisibility` collapses the rail whenever either dock tab
+    // shows precisely to avoid that overlap). Deliberately NOT adding
+    // `#sw-rail-left`/`#sw-rail-right` themselves here: this check has no
+    // notion of parent/child containment, and every element above already in
+    // this list (`#sw-bar`, `#sw-stats`, `#sw-progress`, `#sw-towerinfo`,
+    // `#sw-controls`, `#sw-practice`) is a *descendant* of one of the two
+    // rails post-fb065, so adding the rails themselves would flag those as
+    // "overlapping" their own container on every scene.
+    '#sw-dpsdock',
+    '#sw-vsdock',
+  ]) {
     const el = document.querySelector(sel);
     if (!el) continue;
     // A modal-class overlay (`#sw-modal`, `#sw-charpanel`) is deliberately
