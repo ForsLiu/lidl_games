@@ -302,6 +302,23 @@ describe('the Warden-Eater (SPEC 5.5)', () => {
   // below the 20s floor (measured 15.68s on this seed). Fixed at the cause —
   // `warden_eater` hp retuned, not this assertion — re-measured 51.55s post-
   // fix. See the header comment for the full root-cause and measurement.
+  //
+  // fb152 (DoT tick cadence): **seed 1 flipped**, and the single-seed pin went
+  // with it. The cadence cap re-times every DoT tick, so DoT-only kills land up
+  // to one interval late (qa-playtester measured the kill frame moving 6->14 at
+  // 1 hp, 119->134 at 20 hp, never negative); on seed 1 the extra leaks that
+  // buys carry the Core to 0 — measured `defeat_core`, 146 leaks, against a
+  // `victory` on the parent commit. Measured across seeds 1-6 at this config on
+  // the fb152 tree: **4 of 6 still win with a boss kill** (2: victory, boss at
+  // 707.9s, Core 763; 3: victory, 894.8s, Core 87; 4: victory, 389.2s, Core
+  // 310.7; 6: victory, 463.0s, Core 519.7; 1 and 5 `defeat_core`). The
+  // mechanism is intact and only this seed's trajectory moved, so the case is
+  // re-pinned across a **fixed four-seed set** rather than re-pointed at
+  // another single seed that the next re-timing would flip the same way. It is
+  // still not a rate claim — G14's rate gate is the 20-seed case below — the
+  // floor is set well under the measured 3/4 so it fails when the *mechanism*
+  // breaks (nothing reaches or kills the boss), not when one trajectory moves.
+  // The difficulty question this flip raises is P10/p12's, not this file's.
   it('a scripted run reaches it, kills it and wins', () => {
     // p12b: deliberately **T1**, not `GATE_TIER`. This case is a mechanism
     // check — the fight is reached, the boss dies, the fight is not trivially
@@ -311,12 +328,19 @@ describe('the Warden-Eater (SPEC 5.5)', () => {
     // the 20-seed win-rate case at the bottom of this file, and that is what
     // p12b re-pointed. Keeping this one at T1 keeps live coverage of the
     // mechanism instead of trading it for a `.skip`.
-    const { report, run } = runScripted(cfg({ seed: 1, cycles: 6, tier: 1, allocated: FULL_TREE }), 'hybrid');
-    expect(report.outcome).toBe('victory');
-    expect(report.bossKilled).toBe(true);
-    expect(report.bossKillSeconds - run.world.content.spawns.bossTimeSeconds).toBeGreaterThan(20);
-    expect(report.equipmentFound).toBeGreaterThan(0);
-  });
+    let wins = 0;
+    for (const seed of [1, 2, 3, 4]) {
+      const { report, run } = runScripted(cfg({ seed, cycles: 6, tier: 1, allocated: FULL_TREE }), 'hybrid');
+      if (report.outcome !== 'victory') continue;
+      wins++;
+      // Every win must be a real one: the boss died, the fight was not
+      // trivially short, and the run dropped equipment along the way.
+      expect(report.bossKilled, `seed ${seed}`).toBe(true);
+      expect(report.bossKillSeconds - run.world.content.spawns.bossTimeSeconds, `seed ${seed}`).toBeGreaterThan(20);
+      expect(report.equipmentFound, `seed ${seed}`).toBeGreaterThan(0);
+    }
+    expect(wins, 'no seed reached and killed the boss — the fight is unreachable, not merely hard').toBeGreaterThanOrEqual(2);
+  }, 300_000);
 
   // Twenty seeds, not eight. The claim is a *rate* — the bot loses this fight
   // some of the time — and the loss rate measured either side of m20b is

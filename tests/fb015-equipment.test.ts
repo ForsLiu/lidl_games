@@ -426,7 +426,11 @@ describe('fb015 (§7) Bleeding Ring: lifesteal now also applies to Bleeding dama
     w.rebuildBuckets();
     applyDot(w, e, 'bleeding', 100, 5); // large dps so the heal is unmissable
     expect(w.warden.leechAccumulator).toBe(0);
-    updateEnemies(w, 1 / 60);
+    // fb152: a DoT instance pays once per `dotTickInterval`, not once per
+    // frame, so the first tick — and with it the ring's heal — lands one whole
+    // interval in. Read from `/data` so a retune moves the window, not this test.
+    const frames = Math.round(w.content.damageTypes.dotTickInterval * 60);
+    for (let i = 0; i < frames; i++) updateEnemies(w, 1 / 60);
     expect(w.warden.leechAccumulator).toBeGreaterThan(0);
   });
 

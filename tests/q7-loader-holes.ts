@@ -401,6 +401,12 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'cores.cores[].upgrade.steps[].storeRatio': ['negative', 'zero', 'fractional', 'drop-key'],
   'cores.cores[].upgrade.steps[].towerLifestealBonus': ['negative', 'zero', 'fractional', 'drop-key'],
   'cores.cores[].upgrade.steps[].towerOverhealConverts': ['negative', 'zero', 'fractional', 'drop-key'],
+  // fb152: the DoT tick cadence. `negative`/`zero` are rejected (`num.positive()`),
+  // and `fractional` is accepted because the authored value *is* fractional
+  // (0.25) — a cadence has no integrality to violate. `drop-key`/`rename-key`
+  // are the same optional-with-a-default back-compat shape `executeFontScale`
+  // below already has: a file predating this item still parses, at the default.
+  'damagetypes.dotTickInterval': ['fractional', 'drop-key', 'rename-key'],
   'damagetypes.colorblindExecuteColor': ['to-string', 'drop-key', 'rename-key'],
   'damagetypes.executeColor': ['to-string', 'drop-key', 'rename-key'],
   'damagetypes.executeFontScale': ['negative', 'zero', 'fractional', 'drop-key', 'rename-key'],

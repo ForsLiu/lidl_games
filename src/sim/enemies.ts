@@ -205,11 +205,25 @@ export function spawnEnemy(w: World, key: string, x: number, y: number, opts: Sp
 /** SPEC-V3 §2: ailment damage ignores the Warden's armor too. */
 export interface WardenDamageOptions {
   dot?: boolean;
+  /**
+   * fb152: the amount is a banked DoT interval whose accrual already skipped
+   * every frame the Warden was untouchable (`wardenDamageBlocked`, run.ts), so
+   * the i-frame check must not run again and swallow the whole bank.
+   */
+  preGated?: boolean;
 }
 
 export interface DamageOptions {
   fromX?: number;
   fromY?: number;
+  /**
+   * fb152: the amount already carries the three *time-varying* multipliers a
+   * DoT tick takes (`kitPowerMul`, Frozen's `+30% damage taken`, the final
+   * boss's damage-taken ramp), because a banked interval prices them **per
+   * frame** as they were in force rather than once at the flush instant. Only
+   * the cadence loops pass it; every direct hit still resolves them here.
+   */
+  preScaled?: boolean;
   /**
    * Bypass the *trait* mitigations — Bulwark's flat cut and Shellback's front
    * shield. Deliberately orthogonal to `dot`: a flag that bypassed both traits
@@ -315,6 +329,35 @@ function scalesWithKitPower(source: string): boolean {
   return source.startsWith(CLASS_SOURCE_PREFIX);
 }
 
+/**
+ * The three multipliers on the damage path that **vary over time**, factored
+ * out of `damageEnemy` so fb152's cadence loops can price a banked interval
+ * per frame instead of once at the flush instant (qa-playtester: a Frozen
+ * window that ended mid-interval otherwise vanished, and one that started
+ * mid-interval billed the whole interval at +30%).
+ *
+ * - `kitPowerMul` (p12a) compounds with waves cleared, for `class_*` sources.
+ * - SPEC-V3 §3 frozen: +30% damage taken. A status, not armor, so unlike
+ *   `damageTakenMul` it applies to ailment damage as well.
+ * - p10k (§9/§14 G1xG14): the Warden-Eater cracks under sustained pressure the
+ *   same way it hits harder — a time-gated ramp on damage *taken*, not just
+ *   dealt, so a fight already running long shortens on its own instead of
+ *   needing a flat HP/timer cut that also pins the win rate near 100%. Applies
+ *   to ailment damage too: a fight that outlasts the grace period is cracking
+ *   everywhere, not just against direct hits. Gated on `TRAIT.finalBoss`, not
+ *   the broader `e.boss` (qa-playtester p10k finding): `gatebreaker` also
+ *   carries the `boss` trait without being the Warden-Eater, and a
+ *   practice-mode spawn of it during Act II would otherwise pick up a ramp
+ *   meant only for the one true final boss.
+ */
+export function dotVaryingMul(w: World, e: Enemy, source: string): number {
+  let m = 1;
+  if (scalesWithKitPower(source)) m *= kitPowerMul(w);
+  if (e.frozenRemaining > 0) m *= statusDamageTakenMul(w, e);
+  if ((e.flags & TRAIT.finalBoss) !== 0) m *= bossDamageTakenMul(w);
+  return m;
+}
+
 /** Apply damage, returning the amount actually dealt. */
 export function damageEnemy(
   w: World,
@@ -326,23 +369,9 @@ export function damageEnemy(
   if (e.dead || !Number.isFinite(amount) || amount <= 0) return 0;
   const def = e.def as EnemyDef;
   let dmg = amount;
-  if (scalesWithKitPower(source)) dmg *= kitPowerMul(w);
+  if (!opts.preScaled) dmg *= dotVaryingMul(w, e, source);
 
   if (!opts.dot) dmg *= damageTakenMul(enemyArmor(e));
-  // SPEC-V3 §3 frozen: +30% damage taken. A status, not armor, so unlike the
-  // line above it applies to ailment damage as well.
-  if (e.frozenRemaining > 0) dmg *= statusDamageTakenMul(w, e);
-  // p10k (§9/§14 G1xG14): the Warden-Eater cracks under sustained pressure the
-  // same way it hits harder — a time-gated ramp on damage *taken*, not just
-  // dealt, so a fight already running long shortens on its own instead of
-  // needing a flat HP/timer cut that also pins the win rate near 100%. Applies
-  // to ailment damage too (unlike the armor line above): a fight that outlasts
-  // the grace period is cracking everywhere, not just against direct hits.
-  // Gated on TRAIT.finalBoss, not the broader `e.boss` (qa-playtester p10k
-  // finding): `gatebreaker` also carries the `boss` trait without being the
-  // Warden-Eater, and a practice-mode spawn of it during Act II would
-  // otherwise pick up a ramp meant only for the one true final boss.
-  if ((e.flags & TRAIT.finalBoss) !== 0) dmg *= bossDamageTakenMul(w);
 
   if (!opts.pure) {
     if (def.flatReduction) dmg *= 1 - def.flatReduction;
@@ -859,7 +888,7 @@ export function applyDot(
   // reach it alone.
   if (live < perType) {
     if (e.dots.length < cap) {
-      e.dots.push({ type, remaining: duration, dps: scaled, source });
+      e.dots.push({ type, remaining: duration, dps: scaled, source, accTime: 0, accDamage: 0, accScaled: 0, accSource: source });
       return;
     }
     // A shared budget must not let one type *own* it. Bleeding or Burning can
@@ -871,7 +900,10 @@ export function applyDot(
     // cap takes a slot from the most numerous other type instead of being lost.
     const victim = evictionIndex(e, type, live);
     if (victim < 0) return;
-    e.dots[victim] = { type, remaining: duration, dps: scaled, source };
+    // The evicted stack's own bank dies with it: it belonged to a type that no
+    // longer occupies this slot, and paying it here would credit the new type's
+    // source with the old type's damage.
+    e.dots[victim] = { type, remaining: duration, dps: scaled, source, accTime: 0, accDamage: 0, accScaled: 0, accSource: source };
     return;
   }
   if (shortest < 0) return;
@@ -913,7 +945,12 @@ export function dotRemaining(e: Enemy, type: string): number {
 /** Damage still owed by every live DoT on this enemy (SPEC-V3 §6's C10 reads it). */
 export function dotOutstanding(e: Enemy): number {
   let total = 0;
-  for (const d of e.dots) if (d.remaining > 0) total += d.dps * d.remaining;
+  // fb152: `accDamage` is damage the stack has already accrued but not yet paid
+  // out (it is waiting on the cadence), so it is owed exactly as much as the
+  // time still on the clock is. Leaving it out would let a carrier die inside
+  // its own tick interval with up to `dotTickInterval` of damage owed to
+  // nobody — the one place the cadence could have quietly changed a total.
+  for (const d of e.dots) if (d.remaining > 0 || d.accDamage > 0) total += d.accDamage + Math.max(d.dps * d.remaining, 0);
   return total;
 }
 
@@ -981,18 +1018,25 @@ const dotScratch: Enemy[] = [];
  * by `tickDots`/`tickDotSplash`, aggregated once per type rather than once
  * per stack — see that function's comment for why.
  */
-function tickDot(w: World, e: Enemy, d: DotStack, dt: number): void {
+/**
+ * fb152: `banked` is the damage accrued since this stack's last tick and
+ * `bankedTime` the seconds it accrued over — not one frame's worth. The two are
+ * carried separately because a refresh can rewrite `dps` mid-window, and the
+ * per-second effects (armor shred) must price the *time*, not the damage.
+ */
+function tickDot(w: World, e: Enemy, d: DotStack, banked: number, bankedTime: number, source: string): void {
   const def = w.content.damageTypeByKey.get(d.type);
   const shred = def?.armorShredPerSecond ?? 0;
-  if (shred > 0) shredArmor(e, shred * dt);
+  if (shred > 0) shredArmor(e, shred * bankedTime);
   // `d.type` is a validated damagetypes key by the time a stack exists.
   const dotType = d.type as DamageTypeKey;
-  damageEnemy(w, e, d.dps * dt, d.source, { pure: true, dot: true, type: dotType });
+  damageEnemy(w, e, banked, source, { pure: true, dot: true, type: dotType, preScaled: true });
 }
 
 interface SplashAccum {
   source: string;
-  dps: number;
+  /** fb152: banked *damage* for this flush, not a per-second rate. */
+  damage: number;
   shred: number;
   radius: number;
 }
@@ -1019,7 +1063,7 @@ function tickDotSplash(w: World, e: Enemy, type: DamageTypeKey, acc: SplashAccum
     // The spread carries the row's effects, so it carries the row's immunity.
     if (immuneToDot(w, n, type)) continue;
     if (acc.shred > 0) shredArmor(n, acc.shred);
-    damageEnemy(w, n, acc.dps, acc.source, { pure: true, dot: true, type });
+    damageEnemy(w, n, acc.damage, acc.source, { pure: true, dot: true, type });
   }
 }
 
@@ -1027,6 +1071,14 @@ function tickDotSplash(w: World, e: Enemy, type: DamageTypeKey, acc: SplashAccum
 // 350-strong horde with Burning live on most of it would otherwise allocate
 // a fresh Map per enemy per frame in the hot loop.
 const splashScratch = new Map<string, SplashAccum>();
+
+/**
+ * fb152: 15 frames of `1/60` sum to 0.24999999999999994, not 0.25. Without a
+ * tolerance every stack would wait a 16th frame, drifting the cadence and
+ * costing a 4 s DoT its 16th tick. Exported because `tickWardenDots` (run.ts)
+ * runs the same cadence and the two must not drift apart.
+ */
+export const DOT_TICK_EPS = 1e-9;
 
 function tickDots(w: World, e: Enemy, dt: number): void {
   // b049: same "the defeat slow-mo beat is a frozen moment" rule already
@@ -1045,8 +1097,14 @@ function tickDots(w: World, e: Enemy, dt: number): void {
   // loop must wait for the next frame rather than be ticked on the frame it
   // landed, and the eviction path can overwrite the entry the loop is on.
   const n = e.dots.length;
+  const interval = w.content.damageTypes.dotTickInterval;
   splashScratch.clear();
   for (let i = 0; i < n; i++) {
+    // A tick can kill the carrier through a neighbour splash; nothing after
+    // that point on this frame ticks, accrues, or splashes (this check used to
+    // sit at the foot of the loop, where the fb152 `continue` paths would have
+    // skipped it).
+    if (e.dead) break;
     const d = e.dots[i];
     // The tick is clipped to the time actually left, not skipped when the stack
     // runs out mid-frame. §3 states each row as a *total* — 120% over 3 s — and
@@ -1054,31 +1112,65 @@ function tickDots(w: World, e: Enemy, dt: number): void {
     // 9 s Toxic is a visible 0.2% short and at a 0.1 s stack would be all of it.
     const step = Math.min(dt, d.remaining);
     d.remaining -= dt;
-    if (d.remaining <= 0) expired = true;
-    // Ailment damage is booked against the weapon that applied it, so A5 sees
-    // the true share of each weapon rather than a generic "burn" bucket.
+    const dead = d.remaining <= 0;
+    if (dead) expired = true;
     if (step > 0) {
-      tickDot(w, e, d, step);
-      const def = w.content.damageTypeByKey.get(d.type);
-      const radius = def?.radius ?? 0;
-      if (radius > 0) {
-        const shred = def?.armorShredPerSecond ?? 0;
-        const acc = splashScratch.get(d.type);
-        if (acc) {
-          acc.dps += d.dps * step;
-          acc.shred += shred * step;
-        } else {
-          // First same-type stack this tick names the splash's attribution;
-          // every stack shares one row's dps/shred/radius by construction.
-          splashScratch.set(d.type, { source: d.source, dps: d.dps * step, shred: shred * step, radius });
-        }
+      const frame = d.dps * step;
+      d.accTime += step;
+      d.accDamage += frame;
+      // Priced per frame, not at the flush: a Frozen window that opens or
+      // closes inside an interval bills exactly the seconds it covered.
+      d.accScaled += frame * dotVaryingMul(w, e, d.source);
+    }
+    // fb152: pay at most once per `dotTickInterval` per stack instead of once
+    // per frame. The bank is flushed early only when the stack ends, which is
+    // what keeps the total exact — the final partial interval is clipped and
+    // paid, never dropped. EPS absorbs the float drift of summing 1/60 fifteen
+    // times, which lands a hair under 0.25 and would otherwise cost every
+    // stack one whole interval of latency.
+    if (d.accTime < interval - DOT_TICK_EPS && !dead) continue;
+    if (d.accTime <= 0) continue;
+    const banked = d.accDamage;
+    const bankedScaled = d.accScaled;
+    const bankedTime = d.accTime;
+    // Ailment damage is booked against the weapon that applied it, so A5 sees
+    // the true share of each weapon rather than a generic "burn" bucket — and
+    // fb152 (code review, Minor 3) books the *bank* against whoever was
+    // applying while it accrued, not against whoever refreshed the stack in
+    // the meantime. `applyDot`'s refresh path rewrites `d.source` mid-window,
+    // which without this would hand up to one interval of one weapon's damage
+    // to another weapon's share.
+    const attribution = d.accSource;
+    d.accDamage = 0;
+    d.accScaled = 0;
+    d.accTime = 0;
+    d.accSource = d.source;
+    tickDot(w, e, d, bankedScaled, bankedTime, attribution);
+    const def = w.content.damageTypeByKey.get(d.type);
+    const radius = def?.radius ?? 0;
+    if (radius > 0) {
+      const shred = def?.armorShredPerSecond ?? 0;
+      const acc = splashScratch.get(d.type);
+      if (acc) {
+        acc.damage += banked;
+        acc.shred += shred * bankedTime;
+      } else {
+        // First same-type stack this tick names the splash's attribution;
+        // every stack shares one row's shred/radius by construction.
+        splashScratch.set(d.type, { source: attribution, damage: banked, shred: shred * bankedTime, radius });
       }
     }
-    if (e.dead) break;
   }
-  if (!e.dead) {
-    for (const [type, acc] of splashScratch) tickDotSplash(w, e, type as DamageTypeKey, acc);
-  }
+  // fb152 (code review, Major 1): flushed **unconditionally**, including when
+  // the carrier died on this very tick. The bank was accrued while it was
+  // alive, and under the old per-frame payment the `!e.dead` guard threw away
+  // one frame; at a 0.25 s cadence it threw away up to a whole interval, and a
+  // Burning carrier dying on a burning tick is the common case, not a corner
+  // (measured before the fix: a 20 dps / 3 s burn splashing 60 onto a
+  // neighbour paid 55 when the carrier died on the last tick and 20 of 25 when
+  // it died at 1.25 s). `tickDotSplash` skips dead neighbours itself, and it
+  // reads the carrier only for its position, which a corpse still has.
+  for (const [type, acc] of splashScratch) tickDotSplash(w, e, type as DamageTypeKey, acc);
   if (expired) e.dots = e.dots.filter((d) => d.remaining > 0);
 }
 

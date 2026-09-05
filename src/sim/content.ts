@@ -1582,6 +1582,15 @@ const DamageTypesFileSchema = z.object({
    * per-enemy array in the hot loop, and that budget is shared.
    */
   maxStacksPerEnemy: num.int().min(1),
+  /**
+   * fb152: the longest a DoT *instance* may go between ticks, in seconds. The
+   * loops pay the damage accrued over the interval in one lump instead of
+   * `dps * dt` every frame, so the total across a stack's duration is
+   * unchanged and only its granularity moves. Optional with the owner's 0.25
+   * as the default, the same back-compat convention every field here follows —
+   * a file predating this item still parses.
+   */
+  dotTickInterval: num.positive().default(0.25),
   types: uniqueArray(DamageTypeSchema, ['key']),
   statuses: z.object({ frost: DamageStatusSchema, frozen: DamageStatusSchema }),
   /**
@@ -2109,6 +2118,18 @@ export function loadContent(overrides?: ContentOverrides): Content {
       if (!d.maxStacks || !d.refresh) throw new Error(`damagetypes.json: "${d.key}" needs maxStacks + refresh`);
       if (d.maxStacks > damageTypes.maxStacksPerEnemy) {
         throw new Error(`damagetypes.json: "${d.key}" maxStacks exceeds maxStacksPerEnemy`);
+      }
+      // fb152: a cadence coarser than the row's whole duration would deliver
+      // the row as a single lump at expiry — a delayed hit, not a
+      // damage-over-time — and every tick-driven effect riding the cadence
+      // (armor shred, Burning's neighbour splash) would fire once too. Refuse
+      // the data rather than ship a row whose own text is a lie.
+      // `>=`, not `>` (qa-playtester): an interval *equal* to the duration
+      // does the very thing this rule refuses — one lump at expiry.
+      if (damageTypes.dotTickInterval >= d.duration) {
+        throw new Error(
+          `damagetypes.json: dotTickInterval ${damageTypes.dotTickInterval} does not fit inside "${d.key}" duration ${d.duration}`,
+        );
       }
     } else if (
       hasDps ||

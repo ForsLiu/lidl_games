@@ -9,6 +9,7 @@ import { Hasher } from './hash';
 import { clamp, normalize } from './math';
 import { BASE, damageTakenMul } from './stats';
 import {
+  DOT_TICK_EPS,
   effectiveSpeed,
   enemyArmor,
   killEnemy,
@@ -582,6 +583,8 @@ export function wardenArmor(w: World): number {
 /** fb013 Time Lord *Time Flow*: the fixed base duration its converted DoT resolves over at `charDotSpeedMul === 1`. */
 const TIME_FLOW_BASE_SECONDS = 4;
 
+
+
 /**
  * fb013 Time Lord *Time Flow*: ticks every DoT the passive has converted
  * incoming damage into, each tick re-entering `damageWarden` with `{ dot:
@@ -595,13 +598,35 @@ export function tickWardenDots(w: World, dt: number): void {
   if (wd.dots.length === 0) return;
   let expired = false;
   const n = wd.dots.length;
+  // fb152: the same one-tick-per-`dotTickInterval` cadence the enemy loop runs
+  // (`tickDots`, enemies.ts) — the character's converted damage is the owner's
+  // own example of a DoT that sprayed a number every frame.
+  const interval = w.content.damageTypes.dotTickInterval;
   for (let i = 0; i < n; i++) {
+    if (w.outcome !== 'running') break;
     const d = wd.dots[i];
     const step = Math.min(dt, d.remaining);
     d.remaining -= dt;
-    if (d.remaining <= 0) expired = true;
-    if (step > 0) damageWarden(w, d.dps * step, { dot: true });
-    if (w.outcome !== 'running') break;
+    const dead = d.remaining <= 0;
+    if (dead) expired = true;
+    if (step > 0) {
+      d.accTime += step;
+      // fb152 (qa-playtester): the i-frame gate is applied **per frame**, not
+      // at the flush. `damageWarden` drops a hit outright while dashing,
+      // reforming or in god mode, so pricing a banked interval at the flush
+      // instant made a 0.2 s dash erase either nothing or a whole 0.25 s —
+      // including damage accrued before the dash began. Accrue nothing for the
+      // frames the Warden was untouchable and everything for the rest.
+      if (!wardenDamageBlocked(w)) d.accDamage += d.dps * step;
+    }
+    // Flushed early only when the stack ends, which is what keeps the total
+    // exact: the final partial interval is clipped and paid, never dropped.
+    if (d.accTime < interval - DOT_TICK_EPS && !dead) continue;
+    if (d.accTime <= 0) continue;
+    const banked = d.accDamage;
+    d.accDamage = 0;
+    d.accTime = 0;
+    if (banked > 0) damageWarden(w, banked, { dot: true, preGated: true });
   }
   if (expired) wd.dots = wd.dots.filter((d) => d.remaining > 0);
 }
@@ -610,10 +635,22 @@ export function tickWardenDots(w: World, dt: number): void {
  * `dot` marks ailment damage, which SPEC-V3 §2 says ignores armor — Time
  * Flow's re-entrant ticks (`tickWardenDots`) are the first real source.
  */
+/**
+ * fb152: the untouchable window `damageWarden` enforces, as a predicate, so
+ * the DoT cadence can apply it frame by frame while it banks rather than once
+ * at the flush.
+ */
+export function wardenDamageBlocked(w: World): boolean {
+  return w.warden.dashIFrames > 0 || w.invulnerable || w.godMode;
+}
+
 export function damageWarden(w: World, amount: number, opts?: WardenDamageOptions): void {
   if (!Number.isFinite(amount)) return;
   const wd = w.warden;
-  if (wd.dashIFrames > 0 || w.invulnerable || w.godMode) return;
+  // `preGated`: a fb152 DoT flush whose bank already excludes every frame the
+  // Warden was untouchable. Re-testing the window here would drop a whole
+  // interval that was accrued while it was open.
+  if (!opts?.preGated && wardenDamageBlocked(w)) return;
   const dmg = opts?.dot ? amount : amount * damageTakenMul(wardenArmor(w));
   wd.outOfCombat = 0;
   storeWrath(w, amount - dmg, dmg);
@@ -629,7 +666,12 @@ export function damageWarden(w: World, amount: number, opts?: WardenDamageOption
       const speedMul = Math.max(cls.passive.charDotSpeedMul ?? 1, 0.01);
       const cap = w.content.damageTypes.maxStacksPerEnemy;
       if (wd.dots.length < cap) {
-        wd.dots.push({ dps: (dmg * speedMul) / TIME_FLOW_BASE_SECONDS, remaining: TIME_FLOW_BASE_SECONDS / speedMul });
+        wd.dots.push({
+          dps: (dmg * speedMul) / TIME_FLOW_BASE_SECONDS,
+          remaining: TIME_FLOW_BASE_SECONDS / speedMul,
+          accTime: 0,
+          accDamage: 0,
+        });
       } else {
         // A VS horde landing dozens of simultaneous contact hits would
         // otherwise grow this array once per attacker per tick with no
@@ -1090,7 +1132,10 @@ export function hashWorld(w: World): string {
   h.num(w.warden.active1Ammo).num(w.warden.active1AmmoCooldown);
   h.num(w.warden.active2Ammo).num(w.warden.active2AmmoCooldown);
   h.int(w.warden.dots.length);
-  for (const d of w.warden.dots) h.num(d.dps).num(d.remaining);
+  // fb152: the cadence accumulators are live state — two runs agreeing on
+  // `dps`/`remaining` but differing on what is banked will diverge on the next
+  // tick, so A11 has to see them (the `soulLevels` lesson from b005).
+  for (const d of w.warden.dots) h.num(d.dps).num(d.remaining).num(d.accTime).num(d.accDamage);
   h.int(w.level).num(w.xp);
   // p9e: gates `tickLevelupIdle`'s auto-resolve, the same class of
   // future-behavior-gating timer the cooldowns above are hashed for.
@@ -1160,7 +1205,7 @@ export function hashWorld(w: World): string {
     // a replay that disagreed here could go up to `UNREACHABLE_THRESHOLD`
     // seconds before the divergence lands on a field already hashed below.
     h.num(e.bossUnreachableTime);
-    for (const d of e.dots) h.str(d.type).num(d.remaining).num(d.dps);
+    for (const d of e.dots) h.str(d.type).num(d.remaining).num(d.dps).num(d.accTime).num(d.accDamage).num(d.accScaled).str(d.accSource);
     // fb013: Time Lord's per-enemy mark stage/deferred-slow gate future
     // damage the same way the statuses above do; `posHistory` decides where
     // an unmarked->past hit rewinds it to, and `timeLockZoneId` decides

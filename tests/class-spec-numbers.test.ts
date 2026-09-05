@@ -1131,7 +1131,9 @@ const LEDGER: readonly Figure[] = [
       file: RUN_TS,
       anchors: [
         /const TIME_FLOW_BASE_SECONDS = 4;/,
-        /dps: \(dmg \* speedMul\) \/ TIME_FLOW_BASE_SECONDS, remaining: TIME_FLOW_BASE_SECONDS \/ speedMul/,
+        // fb152 reformatted this push across lines when it gained the cadence
+        // accumulators; the two figures the ledger points at are unmoved.
+        /dps: \(dmg \* speedMul\) \/ TIME_FLOW_BASE_SECONDS,\s*\n\s*remaining: TIME_FLOW_BASE_SECONDS \/ speedMul,/,
       ],
       why:
         'The passive authors `charDotSpeedMul` (the dormant equipment flag) but not the base ' +

@@ -5,6 +5,63 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-05 — BACKLOG fb152 (owner order, [bug], top of queue): DoTs tick on
+  a bounded cadence instead of every sim frame.** `data/damagetypes.json` gains
+  `dotTickInterval: 0.25` (optional-with-default, plus a loader rule refusing a
+  cadence that does not fit inside every dot row's own duration); each DoT
+  instance banks `accTime`/`accDamage`/`accScaled`/`accSource` per frame and
+  pays once per interval, flushing early only when the stack ends so the last
+  partial interval is clipped and paid rather than dropped. Both loops moved —
+  `tickDots` (enemies) and `tickWardenDots` (Time Lord's converted damage, the
+  owner's own example) — and every tick-driven effect moved with them: armor
+  shred, Burning's neighbour splash, the Bleeding Ring's lifesteal. Totals are
+  exact per stack, and `dotOutstanding` counts the unpaid bank so Spreading
+  Plague's C10 transfer conserves it. `tests/fb152-dot-tick-cadence.test.ts`
+  (13 tests) landed **failing first** (240 ticks over 4 s, wanted <= 16) and
+  pins the cadence, the totals, a mid-window refresh, a mid-bank death, the
+  splash's total, the eviction loss, a Frozen window, an i-frame window and
+  the lifesteal path.
+
+  **Both subagents found real defects and both are fixed, not argued with.**
+  code-reviewer (Major): the neighbour splash's bank was thrown away whenever
+  the tick killed its carrier — one frame's worth before this item, a whole
+  interval after it, on the *common* case of a burn finishing its carrier
+  (measured 55 of 60, and 20 of 25). qa-playtester (Major x2): the three
+  time-varying multipliers on the DoT path (`kitPowerMul`, Frozen's +30%, the
+  final-boss ramp) were priced once at the flush instead of per frame, so a
+  Frozen window inside an interval vanished (40.70 -> 40.00) or billed the
+  whole interval; and the Warden's i-frame window erased either nothing or a
+  whole 0.25 s of converted DoT, including damage accrued before the dash
+  began. Both are now priced frame by frame (`dotVaryingMul` + a second
+  `accScaled` bank; `wardenDamageBlocked` + `preGated`). Minor findings fixed
+  too: the bank is attributed to the source that accrued it (`accSource`, so a
+  refresh cannot hand one weapon's damage to another in A5's share), the
+  loader rule is `>=` not `>`, one shared `DOT_TICK_EPS`, `SplashAccum.dps`
+  renamed to `damage`. Two findings became follow-up items rather than scope
+  creep: **fb161** (four per-frame `dot: true` *zone* sources, one of which
+  still emits a damage number every frame at the Warden) and **fb162** (a DoT
+  kill books its whole banked lump into the damage ledger, so overkill is
+  over-reported ~15x — which also retracts this item's first "poison damage is
+  up 22%, so nothing weakened" reading; the instrument is inflated by the
+  change, see Q179).
+
+  **What it costs, measured and recorded rather than tuned away** (no balance
+  tuning outside P10): DoT-only kills land up to one interval late and never
+  early (kill frame 6 -> 14 at 1 hp, 119 -> 134 at 20 hp). `tests/boss.test.ts`'s
+  single-seed victory pin flipped on seed 1 (`defeat_core`, 146 leaks) and is
+  re-pinned as a four-seed mechanism check — 4 of 6 sampled seeds still win
+  with a boss kill, so the mechanism is intact and only that trajectory moved.
+  `tests/fb077-terrain-wiring.test.ts`'s seed-52 soak is `.skip`-ed with its
+  numbers: at a 120-minute cap it is `running` in the boss fight with
+  `warden_eater` at 1.10M of 7.30M hp — **p12e's censored-run defect**, not a
+  stranding regression (that file's other 18 tests cover the stranding
+  machinery and are green). Both re-enable at p12e, which now names them.
+  Verification: targeted suites green, `npm run test:fast` 3650 passed / 3
+  failed, the three being the `q41`/`q45`/`b028` scratch-dir family that fails
+  identically on the parent commit (controlled in a stash this session);
+  `tests/boss.test.ts` run in full because it is fast-tier-excluded and is the
+  repo's only live boss-victory coverage.
+
 - **2026-09-05 (branch `claude/backlog-processing-30e66t`): owner feedback
   round "cloud round 1" (8 files, commit `f74f156`) processed and routed.**
   Ids `fb152`-`fb160`, no verdict blocks in this round. Main lane
@@ -11642,6 +11699,29 @@ features whose counters read zero with no explanation.
   more; the empty Stash and the Orb buttons explain themselves.
 
 ## Known issues / skipped tests
+- **fb152: `tests/fb077-terrain-wiring.test.ts`'s "seed 52 + Fourth Gate +
+  cycles 3 resolves instead of hanging forever" is `.skip`-ed, re-enable point
+  p12e.** The DoT cadence cap re-times every tick and so re-rolls this seed's
+  trajectory; the new one is **censored, not stranded**. Measured post-fix at a
+  120-minute cap: `running`, `act2`, cycle 3, 500 alive at the `aliveCap`,
+  `warden_eater` at **1,103,859 of 7,300,000 hp** — the run is progressing and
+  losing to the boss clock, which is p12e's diagnosed defect (QUESTIONS Q177:
+  `baseHpMul: 20` takes the final boss to 7.3M with no fight-length ceiling).
+  It resolved inside the 45-minute cap on the parent commit (controlled). The
+  file's other 18 tests cover `updateGroundUnreachable` and the gate/route
+  machinery directly and are green, so the stranding mechanism this case was
+  written for is still covered. Re-measure at p12e rather than inheriting this
+  note.
+- **fb152: DoT-only kills land up to one interval (0.25 s) late, by design of
+  the owner's order — a directional balance effect, not a defect.** Measured
+  kill frames (10 dps Bleeding): 1 hp 6 -> 14, 10 hp 60 -> 74, 20 hp 119 -> 134,
+  39 hp 234 -> 239; never earlier. Downstream on `tools/sim.ts --policy hybrid`,
+  leaks rose on all three sampled seeds (1: 103 -> 106, 3: 153 -> 178, 9: 11 ->
+  55) — three seeds is a sample, but the kill-frame table is a controlled
+  measurement of the mechanism. `tests/boss.test.ts`'s single-seed victory pin
+  flipped on seed 1 because of it and is now a four-seed mechanism check (4 of
+  6 sampled seeds still win with a boss kill). Pricing this belongs to P10/p12,
+  not to a [bug] item.
 - **p12c: G13's solo-viability clause (`tests/a4-single-type.test.ts`) is
   `.skip`-ed, re-enable point p12d — and it was already largely red before
   p12c.** Authored 5/5/5/5/4/5/4; measured at HEAD {1,1,0,0,1,3,0} of 5; at

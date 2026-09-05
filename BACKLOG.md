@@ -59,7 +59,9 @@ construction, but no balance measurement taken before it lands can be inherited
 afterwards without a control run (CLAUDE.md measurement rules). p12d/p12f/p12h
 therefore measure *after* `fb153`, not before.
 
-- [ ] (fb152) [bug] **top priority** — DoTs tick every sim frame instead of on a
+- [x] (fb152) [bug] **DONE 2026-09-05** (see PROGRESS; QUESTIONS Q179 carries
+      the eight design choices and the measured consequences; follow-ups filed
+      as fb161/fb162). **top priority** — DoTs tick every sim frame instead of on a
       bounded cadence, spraying damage numbers and firing per-tick effects far
       too often; most visible on Time Lord's *Time Flow* converted self-damage.
       `tickDots` (`src/sim/enemies.ts:1030`) and `tickWardenDots`
@@ -118,6 +120,35 @@ therefore measure *after* `fb153`, not before.
       spawn distance changed — refs: SPEC-FINAL §6 (VS spawns, amended), owner
       feedback `vs-spawn-from-gates`.
 
+- [ ] (fb161) [feat] the four per-frame `dot: true` sources fb152 deliberately
+      left at 60 Hz are **zones, not §3 DoT instances** — but one of them,
+      `wardenAreaDamage`'s enemy ground fire (`src/sim/combat.ts:597`), still
+      emits a `wardenhit` number every single frame, which is the owner's
+      "spraying numbers" symptom on a different mechanism. The other three are
+      invisible (`dot: true` suppresses the emit): the enemy fire field
+      (`combat.ts:615`), Contagious Flame's touch damage (`src/sim/classes.ts`)
+      and the Time core's drain (`src/sim/cores.ts`). Decide per source whether
+      it takes fb152's cadence (`dotTickInterval`, same accrue-then-flush shape,
+      totals unchanged) or an aggregate-the-number-only treatment, and make the
+      Warden-facing one stop spraying either way. Acceptance: a headless probe
+      counts <= 4 `wardenhit` events per second per ground field; totals over a
+      field's lifetime unchanged against a control; determinism holds — refs:
+      QUESTIONS Q179 (7), owner feedback `dot-tick-cadence`.
+- [ ] (fb162) [bug] a DoT kill books its whole banked lump into
+      `damageByWeapon`/`damageByWeaponVs`/`damageByType`/`damageTotal` and the
+      Corpse Core's `corpseStore`, while only the target's remaining hp
+      actually lands — so overkill is over-reported by up to one tick interval
+      per DoT kill (measured by qa-playtester: a 1-hp husk books 2.5 against
+      the per-frame code's 1.167; a 1-hp splash neighbour books 50 against
+      3.33). Overkill was always booked, but fb152's cadence multiplies it by
+      ~15x, which inflates every DoT-share metric and hands the Corpse Core
+      free store. Q91's precedent (lifesteal accrues from the target's actual
+      remaining HP, not the raw hit) is the rule to extend. Acceptance: a DoT
+      kill books what landed, not what was banked, at `damageEnemy`'s single
+      choke point; a regression test pins the 1-hp carrier and the 1-hp splash
+      neighbour cases; the G5/A5 damage-share suites are re-measured and their
+      deltas recorded (they read exactly this ledger) — refs: QUESTIONS Q179,
+      SPEC-FINAL §5.5 (Corpse), Q91.
 - [ ] (fb155) [feat] enemy attack-kind and attack-range data — the main-lane
       `/data` half of the UI lane's `fb158`, filed here because
       `data/enemies.json` is outside that lane's Scope. Every one of the 20 §9
@@ -404,6 +435,13 @@ qa-playtester per CLAUDE.md's tier, commit) — do not bundle.
       `npm run status` to regenerate STATUS.md against the new baseline —
       refs: BALANCE DIRECTION v2 §E, QUESTIONS Q159/Q160 (both name timeouts
       in the pre-p12 baseline).
+      **Re-enable point for two fb152 deferrals** (2026-09-05): when this lands,
+      un-`.skip` `tests/fb077-terrain-wiring.test.ts`'s "seed 52 + Fourth Gate +
+      cycles 3 resolves" case and re-measure it (it is censored in the boss
+      fight at 1.10M of 7.30M boss hp at a 120-minute cap, not stranded), and
+      re-check `tests/boss.test.ts`'s four-seed victory case, whose seed 1
+      flipped to `defeat_core` for the same reason — see PROGRESS "Known
+      issues" and QUESTIONS Q179.
 
 - [ ] (p12f) [balance] Close BALANCE DIRECTION v2 §A's own-kit-share target,
       which p12a measured as unreachable by §A's own two levers (QUESTIONS

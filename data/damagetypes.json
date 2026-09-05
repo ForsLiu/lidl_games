@@ -1,5 +1,6 @@
 {
   "maxStacksPerEnemy": 50,
+  "dotTickInterval": 0.25,
   "types": [
     {
       "key": "normal",

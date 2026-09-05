@@ -192,6 +192,17 @@ describe('C3 — enemies defend with it', () => {
  * green — so each test here drives the real path rather than the primitive.
  */
 describe('C3 — the wiring, not just the arithmetic', () => {
+  /** fb152: the authored cadence, read from `/data` rather than re-typed. */
+  function dotTickInterval(w: World): number {
+    return w.content.damageTypes.dotTickInterval;
+  }
+
+  /** Advances exactly one DoT tick interval of sim, at the sim's own 60 Hz. */
+  function runOneDotTick(w: World): void {
+    const frames = Math.round(dotTickInterval(w) * 60);
+    for (let i = 0; i < frames; i++) updateEnemies(w, 1 / 60);
+  }
+
   function armouredHusk(w: World, armor: number) {
     const e = spawnEnemy(w, 'husk', 10, 10)!;
     e.hp = 1e6;
@@ -205,19 +216,22 @@ describe('C3 — the wiring, not just the arithmetic', () => {
     // same burn would deal ×1.9. `pure` alone no longer covers this.
     const w = world();
     const e = armouredHusk(w, -90);
-    e.dots.push({ type: 'burning', remaining: 5, dps: 10, source: 'test' });
+    e.dots.push({ type: 'burning', remaining: 5, dps: 10, source: 'test', accTime: 0, accDamage: 0, accScaled: 0, accSource: 'test' });
     const before = e.hp;
-    updateEnemies(w, 1 / 60);
-    expect(before - e.hp).toBeCloseTo(10 / 60, 9);
+    // fb152: a DoT instance pays once per `dotTickInterval`, not once per
+    // frame, so the observable is one whole interval's worth — the armour
+    // question this test asks is unchanged, only its window is.
+    runOneDotTick(w);
+    expect(before - e.hp).toBeCloseTo(10 * dotTickInterval(w), 9);
   });
 
   it('the poison tick ignores armour through the real update loop', () => {
     const w = world();
     const e = armouredHusk(w, 80);
-    e.dots.push({ type: 'poison', remaining: 5, dps: 12, source: 'test' });
+    e.dots.push({ type: 'poison', remaining: 5, dps: 12, source: 'test', accTime: 0, accDamage: 0, accScaled: 0, accSource: 'test' });
     const before = e.hp;
-    updateEnemies(w, 1 / 60);
-    expect(before - e.hp).toBeCloseTo(12 / 60, 9);
+    runOneDotTick(w);
+    expect(before - e.hp).toBeCloseTo(12 * dotTickInterval(w), 9);
   });
 
   it('an ordinary hit on the same enemy does NOT ignore armour', () => {
