@@ -48,7 +48,7 @@
  * (through `corridorsOk`), so a dump is only meaningful next to the config it
  * was taken under. That is why the parse never re-measures; see `TerrainDump`.
  */
-import { GATES, GRID_H, GRID_W, type GateDef } from '../grid';
+import { GATES, GRID_H, GRID_W, MODIFIER_GATES, type GateDef } from '../grid';
 import { measureTerrain } from './analyze';
 import {
   loadTerrain,
@@ -154,6 +154,11 @@ export interface TerrainDump extends TerrainGrid {
   /** Present iff the dumped grid carried provenance (i.e. was a `TerrainMap`). */
   readonly provenance: Provenance | null;
   /** Gate positions as dumped, in `GATES` order. */
+  /**
+   * Gate positions as dumped: the base three in `GATES` order, then any
+   * modifier gate the dump carried (fb065f), so an entry need not be in
+   * `GATES`.
+   */
   readonly gates: ReadonlyArray<{ readonly key: string; readonly tx: number; readonly ty: number }>;
   /**
    * The bands *as printed*, not as re-measured.
@@ -217,6 +222,35 @@ export function describeTerrain(
   if (map.kind.length !== n) {
     throw new Error(`describeTerrain: kind length ${map.kind.length}, expected ${map.w}x${map.h}`);
   }
+  // fb065f: refuse a gate list this file could not read back. `describeTerrain`
+  // is deliberately one-sided about *provenance* (see the doc block above — a
+  // malformed map is exactly when a dump is most needed), but a gate list is
+  // the caller's own argument rather than a property of the map, and emitting
+  // a `gates` line `parseTerrainDump` rejects would make the format one-sided
+  // in the direction this file forbids everywhere else. It also makes the
+  // coupling the item's record calls "named rather than hidden" actually
+  // enforced: a new modifier gate that is not in `HEADER_KEYS` fails here.
+  const declared: readonly string[] = HEADER_KEYS.gates;
+  let prevGate = -1;
+  const seenGate = new Set<string>();
+  for (const g of gates) {
+    const at = declared.indexOf(g.key);
+    if (at < 0) {
+      throw new Error(
+        `describeTerrain: gate "${g.key}" is not a gate this format declares; expected ${declared.join(' ')}`,
+      );
+    }
+    if (seenGate.has(g.key)) throw new Error(`describeTerrain: gate "${g.key}" is listed twice`);
+    if (at < prevGate) {
+      throw new Error(
+        `describeTerrain: gates are out of order at "${g.key}"; expected ${declared.join(' ')}`,
+      );
+    }
+    seenGate.add(g.key);
+    prevGate = at;
+  }
+  if (gates.length === 0) throw new Error('describeTerrain: gates list is empty');
+
   const counts = new Array<number>(GLYPH_BY_KIND.length).fill(0);
   for (let i = 0; i < n; i++) {
     const k = map.kind[i];
@@ -298,14 +332,23 @@ function fail(what: string): never {
  * is gone — `source`'s names the remedy for a pre-fb064s dump — and a set
  * comparison here would replace all of them with one generic complaint.
  *
- * **That split rests on an invariant worth stating: every key here is `req`'d
- * by some reader below.** It is what makes the order pin *total* rather than
- * partial — a field no reader requires could be omitted, and the order check
- * only sees the fields that are present, so an optional field would be
- * accepted in any position that keeps the indices increasing and the seed
- * line's layout contract would quietly weaken again. A test drops each emitted
- * field in turn and expects a refusal, so the invariant is pinned rather than
- * merely asserted here.
+ * **That split rests on an invariant worth stating: every key here is either
+ * `req`'d by some reader below, or optional *and declared last*.** It is what
+ * makes the order pin *total* rather than partial — a field no reader requires
+ * could be omitted, and the order check only sees the fields that are present,
+ * so an optional field in the *middle* would be accepted in any position that
+ * keeps the indices increasing and the seed line's layout contract would
+ * quietly weaken again. A trailing optional key cannot do that: any
+ * misplacement of it puts a declared key after it, and every one of those is
+ * `req`'d, so the following key becomes the offender. A test drops each emitted
+ * field in turn and expects a refusal, and another (`keeps the optional gate
+ * key last`, `tests/terrain-describe.test.ts`) pins the last-ness that the
+ * exception depends on — so both halves are pinned rather than asserted here.
+ *
+ * fb065f added the only optional key there is: the modifier gate on the `gates`
+ * line. A **second** trailing optional key would still be safe by the same
+ * argument, but one declared anywhere else would not, which is what that test
+ * exists to catch.
  *
  * Exported for that test and for the one that compares this table against what
  * `describeTerrain` actually writes, in *both* directions: a key added here and
@@ -326,7 +369,7 @@ export const HEADER_KEYS = {
   // Declared is not required: `HEADER_KEYS` is a no-extras-in-this-order list,
   // never a required-key list (see the doc block above), so a three-gate dump
   // is unaffected and every existing golden is byte-identical.
-  gates: [...GATES.map((g) => g.key), 'south'],
+  gates: [...GATES.map((g) => g.key), ...MODIFIER_GATES.map((g) => g.key)],
   bands: [
     'walkable',
     'buildableNormal',
@@ -593,22 +636,37 @@ export function parseTerrainDump(text: string): TerrainDump {
   }
 
   const gateLine = fields(lines[2], 'gates');
-  /** `"tx,ty"` as a pair, or a refusal naming the gate. */
-  const at = (key: string, raw: string): readonly [number, number] => {
-    const m = /^(-?\d+),(-?\d+)$/.exec(raw);
+  /**
+   * `"tx,ty"` as a pair, or a refusal naming the gate.
+   *
+   * `strict` is fb065f's: the base three are compared against `GATES` and their
+   * *parsed* values are discarded, so `west=007,10` is caught by the position
+   * check and any spelling reaches the same answer. A modifier gate has nothing
+   * to compare against, so its parsed value is what the dump carries — and
+   * `012,019` or `-0,19` would then re-describe as different text, which is
+   * exactly the round-trip stability fb064n refused `-0` in `num()` to protect.
+   * One spelling per value, in the branch where the value survives.
+   */
+  const at = (key: string, raw: string, strict = false): readonly [number, number] => {
+    const m = (strict ? /^(0|[1-9]\d*),(0|[1-9]\d*)$/ : /^(-?\d+),(-?\d+)$/).exec(raw);
     if (m === null) fail(`gate "${key}" is not "tx,ty": "${raw}"`);
     return [Number(m[1]), Number(m[2])];
   };
   const gates = GATES.map((g) => {
-    const [tx, ty] = at(g.key, req(gateLine, 'gates', g.key));
+    const raw = req(gateLine, 'gates', g.key);
+    const [tx, ty] = at(g.key, raw);
     // Checked against `GATES`, not merely read, for the reason the legend is
     // checked below: every band on the `bands` line was measured against the
     // real gate positions, so a dump claiming different ones is describing a
     // measurement that never happened. This holds for the base three only —
     // they are fixed by the build — while fb077's modifier gates are read as
     // written, because there is nothing to check them against.
+    // `raw`, not the parsed pair: the message quotes what the dump literally
+    // says, which is what a human retyping a paste needs. Restoring this was a
+    // review finding — the first version printed the parsed numbers, so
+    // `west=007,10` complained about `7,10`, a string absent from the dump.
     if (tx !== g.tx || ty !== g.ty) {
-      fail(`gate "${g.key}" is at ${tx},${ty}, this build has it at ${g.tx},${g.ty}`);
+      fail(`gate "${g.key}" is at ${raw}, this build has it at ${g.tx},${g.ty}`);
     }
     return { key: g.key, tx: g.tx, ty: g.ty };
   });
@@ -622,9 +680,12 @@ export function parseTerrainDump(text: string): TerrainDump {
     if (BASE.has(key)) continue;
     const raw = gateLine.get(key);
     if (raw === undefined) continue;
-    const [tx, ty] = at(key, raw);
-    if (tx < 0 || ty < 0 || tx >= GRID_W || ty >= GRID_H) {
-      fail(`gate "${key}" is at ${tx},${ty}, which is off the grid`);
+    const [tx, ty] = at(key, raw, true);
+    // Against the arena's own constants, like the base three: a dump of a
+    // non-arena grid (fb064f's Training Grounds shape) is judged by the same
+    // board every other gate on this line is judged by.
+    if (tx >= GRID_W || ty >= GRID_H) {
+      fail(`gate "${key}" is at ${raw}, which is off the ${GRID_W}x${GRID_H} arena`);
     }
     gates.push({ key, tx, ty });
   }

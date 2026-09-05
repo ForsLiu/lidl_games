@@ -996,9 +996,15 @@ highest-impact item here by a wide margin** and sits third only for that reason.
       repro prints three gates and measures `gateReach`, `gateDetour`,
       `corridors` and `gatesConnected` against the wrong set. Harmless until
       fb065c made a wrong-gate dump reachable from a real run. Measured by
-      fb065c's QA over 30 four-gate seeds: **8/30** print bands that differ from
-      `measureTerrain(view, cfg, w.gates)`, worst `gateDetour` delta **0.1446**
-      at seed 1 (printed 1.000000, real 1.144578). Acceptance: a failing
+      the whole `bands` line (and the `counts` line with it) differs from
+      `measureTerrain(view, cfg, w.gates)` on **30 of 30** four-gate seeds —
+      `coreLegal` is wrong on every one — while `gateDetour` alone differs on
+      **8 of 30**, worst delta **0.1446** at seed 1 (printed 1.000000, real
+      1.144578). **The "8/30" that stood here first was fb065c's QA figure
+      inherited without re-measurement**: it is the `gateDetour`-only count
+      reported as though it were the whole line, and it understated the defect
+      fourfold — the failure CLAUDE.md's measurement rules name outright,
+      committed by the lane that has been citing them all session.
       regression test first; `describeTerrain` takes an optional gate list
       (defaulting to `GATES`) that feeds both the header line and the
       measurement, and `parseTerrainDump` reads a 4-gate line back; a four-gate
@@ -1040,6 +1046,35 @@ highest-impact item here by a wide margin** and sits third only for that reason.
       `south=12,19` and bands equal to `measureTerrain(view, cfg, w.gates)`, and
       the test also asserts the three-gate reading *differs* on that run so the
       assertions are not pinning a distinction without one.
+      **The review round found five more things, all taken.** (1) The headline
+      measurement above, inherited rather than re-measured. (2) `HEADER_KEYS`'
+      own doc block still asserted "every key here is `req`'d by some reader
+      below" — an invariant this item deliberately broke — while the new comment
+      cited it as authority; it now states the trailing-optional exception and
+      names the test that pins it. (3) A modifier gate's coordinates escaped the
+      one-spelling-per-value rule: `south=012,019` parsed and re-described as
+      `12,19`, and `south=-0,19` put a negative zero in a `GateDef` and moved
+      the gate to column 0. The base three were immune only by accident (their
+      parsed values are discarded), so the strict pattern applies to the branch
+      where the value survives. (4) Two refusal *messages* did change, so the
+      "verbatim" claim was wrong: the unknown-key and order messages now name
+      the wider key set, which is unavoidable, and the position-mismatch message
+      had started printing the parsed numbers instead of the dump's own text —
+      that one is restored, so `west=007,10` again complains about `007,10`.
+      (5) The writer had become one-sided, emitting gate lists the parser
+      refuses, which is the exact principle `describeTerrain`'s own doc block
+      states it is written to. It now refuses an undeclared name, a duplicate,
+      an out-of-order list and an empty one — which is also what makes the
+      coupling this entry called "named rather than hidden" actually enforced.
+      **`MODIFIER_GATES` now lives in `src/sim/grid.ts` beside `GATES`**, so the
+      `south` literal is declared once instead of in three places; `world.ts`
+      still writes its own copy, and folding that in is out of lane and logged
+      for the merge.
+      **One thing left open, recorded rather than fixed:** `describeTerrain` has
+      no non-test caller, so the gate list is opt-in and any future repro path
+      that forgets the third argument reproduces the defect exactly. Whether
+      `gridTerrain` should carry the run's gate list rather than leaving it to
+      the call site is a question for fb064e/fb064f's wiring, not for this item.
       **Verification:** 6 new cases plus 1 in `terrain-describe`; all 22
       `tests/terrain*` suites green (400) and `grid`/`fb077-terrain-wiring`
       green; `npx tsc --noEmit` clean; `npm run test:fast` 3670 passed with only
@@ -1207,9 +1242,11 @@ highest-impact item here by a wide margin** and sits third only for that reason.
 
   **QA's remaining Major is fb065f's**, filed rather than fixed here: a live
   Fourth Gate run's dump prints three gates and three-gate bands. QA measured it
-  end to end — over 30 four-gate seeds, **8/30** print bands that differ from
-  `measureTerrain(view, cfg, w.gates)`, worst `gateDetour` delta **0.1446** at
-  seed 1 (printed 1.000000, real 1.144578). It is `describeTerrain`'s
+  end to end. **Its figure is corrected here by fb065f's own re-measurement**,
+  because this entry is where it was first written down: over 30 four-gate
+  seeds the whole `bands` line differs from `measureTerrain(view, cfg, w.gates)`
+  on **30 of 30**, not 8 — the 8 is `gateDetour` alone (worst delta 0.1446 at
+  seed 1), and `coreLegal` is wrong on every seed. It is `describeTerrain`'s
   hardcoding, harmless until fb065c made a wrong-gate dump reachable from a real
   run.
 

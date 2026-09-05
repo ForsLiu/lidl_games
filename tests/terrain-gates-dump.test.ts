@@ -9,9 +9,18 @@
  * `gatesConnected` against the wrong set.
  *
  * Harmless until fb065c, which made a dump reachable from a live `Grid` rather
- * than only from `generateTerrain`'s output. Measured by fb065c's QA over 30
- * four-gate seeds: 8 of 30 printed bands that differ from the truth, worst
- * `gateDetour` delta 0.1446 at seed 1 (printed 1.000000, real 1.144578).
+ * than only from `generateTerrain`'s output.
+ *
+ * **How wrong the bands were, re-measured rather than inherited.** The first
+ * version of this header carried fb065c's QA figure — "8 of 30 seeds print
+ * bands that differ" — which is the `gateDetour`-only count reported as if it
+ * were the whole line. Measured over the same 30 four-gate seeds: `gateDetour`
+ * differs on **8 of 30** (worst 0.1446 at seed 1, printed 1.000000 against a
+ * real 1.144578), but `coreLegal` differs on **30 of 30** and so the whole
+ * `bands` line — and the `counts` line with it — was wrong on **every** such
+ * seed. Inheriting that number understated the defect fourfold, which is the
+ * failure CLAUDE.md's measurement rules name outright: a deferral is a
+ * measurement with an expiry date.
  *
  * The parser side is the harder half. `parseTerrainDump` refuses what the
  * writer never emits (fb064w), and its `gates` line had a *fixed* key set
@@ -23,7 +32,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { GATES, GRID_H, GRID_W, type GateDef } from '../src/sim/grid';
+import { GATES, GRID_H, GRID_W, MODIFIER_GATES, type GateDef } from '../src/sim/grid';
 import {
   describeTerrain,
   generateTerrain,
@@ -38,7 +47,7 @@ import { cfg as runCfg } from './helpers';
 const cfg = loadTerrain();
 
 /** `world.ts`'s Fourth Gate list, in the order `World` builds it. */
-const FOUR: readonly GateDef[] = [...GATES, { key: 'south', tx: 12, ty: 19 }];
+const FOUR: readonly GateDef[] = [...GATES, ...MODIFIER_GATES];
 
 describe('fb065f — describeTerrain carries its gate list', () => {
   it('prints the gates it was given, not the base three', () => {
@@ -137,6 +146,27 @@ describe('fb065f — describeTerrain carries its gate list', () => {
     expect(wrong.legalCoreCount).not.toBe(truth.legalCoreCount);
   });
 
+  it('refuses to write a gate list it could not read back', () => {
+    // The writer was one-sided: it accepted any list and happily emitted a
+    // `gates` line `parseTerrainDump` rejects. `describeTerrain` is deliberately
+    // one-sided about *provenance* — a malformed map is exactly when a dump is
+    // most needed — but a gate list is the caller's own argument, not a
+    // property of the map, and this is also what makes the format's coupling to
+    // `HEADER_KEYS` enforced rather than merely documented.
+    const map = generateTerrain(7, cfg, FOUR);
+    const bad = (gates: readonly GateDef[]): (() => string) => (): string =>
+      describeTerrain(map, cfg, gates);
+    expect(bad([...GATES, { key: 'southwest', tx: 1, ty: 19 }])).toThrow(
+      /gate "southwest" is not a gate this format declares/,
+    );
+    expect(bad([...MODIFIER_GATES, ...GATES])).toThrow(/gates are out of order at "west"/);
+    expect(bad([...GATES, ...GATES])).toThrow(/gate "west" is listed twice/);
+    expect(bad([])).toThrow(/gates list is empty/);
+    // ...and the lists that *are* readable still write.
+    expect(bad(GATES)).not.toThrow();
+    expect(bad(FOUR)).not.toThrow();
+  });
+
   it('refuses an extra gate that is not a gate', () => {
     const map = generateTerrain(7, cfg, FOUR);
     const dump = describeTerrain(map, cfg, FOUR);
@@ -144,9 +174,16 @@ describe('fb065f — describeTerrain carries its gate list', () => {
 
     expect(() => parseTerrainDump(swap('south=12'))).toThrow(/gate "south" is not "tx,ty"/);
     expect(() => parseTerrainDump(swap('south=1.5,19'))).toThrow(/gate "south" is not "tx,ty"/);
-    expect(() => parseTerrainDump(swap(`south=${GRID_W},19`))).toThrow(/off the grid/);
-    expect(() => parseTerrainDump(swap(`south=12,${GRID_H}`))).toThrow(/off the grid/);
+    expect(() => parseTerrainDump(swap(`south=${GRID_W},19`))).toThrow(/off the .* arena/);
+    expect(() => parseTerrainDump(swap(`south=12,${GRID_H}`))).toThrow(/off the .* arena/);
     expect(() => parseTerrainDump(swap('south=12,19 south=12,19'))).toThrow(/duplicate "south"/);
+    // One spelling per value. The base three survive a padded or `-0` spelling
+    // only because their parsed value is discarded — a modifier gate's is what
+    // the dump carries, so `012,019` would round-trip to different text and
+    // `-0,19` would land a negative zero in a `GateDef`. Both measured before
+    // this guard existed.
+    expect(() => parseTerrainDump(swap('south=012,019'))).toThrow(/gate "south" is not "tx,ty"/);
+    expect(() => parseTerrainDump(swap('south=-0,19'))).toThrow(/gate "south" is not "tx,ty"/);
     // A modifier gate ahead of the base three is not something the writer
     // emits, so it is refused by the same order rule fb064w put on every line.
     expect(() =>

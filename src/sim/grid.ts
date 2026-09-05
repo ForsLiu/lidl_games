@@ -37,6 +37,19 @@ export const GATES: readonly GateDef[] = [
   { key: 'east', tx: 35, ty: 17 },
 ];
 
+/**
+ * fb065f: gates a *modifier* can add, beside the base list they extend.
+ *
+ * `world.ts`'s Fourth Gate is the only one today. It lives here rather than in
+ * `world.ts` alone because two other places need the name — `describeTerrain`'s
+ * header table has to declare every gate key a dump may carry, and the tests
+ * that exercise a four-gate arena need the position — and three hand-copies of
+ * a coordinate is the drift shape this lane has already consolidated twice.
+ * `world.ts` still writes its own literal; folding that in touches a file
+ * outside the terrain lane and is logged for the merge.
+ */
+export const MODIFIER_GATES: readonly GateDef[] = [{ key: 'south', tx: 12, ty: 19 }];
+
 export const CORE_X = 25;
 export const CORE_Y = 9;
 export const CORE_W = 2;

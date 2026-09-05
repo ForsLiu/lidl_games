@@ -26,7 +26,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { GATES, GRID_H, GRID_W, type GateDef } from '../src/sim/grid';
+import { GATES, GRID_H, GRID_W, MODIFIER_GATES, type GateDef } from '../src/sim/grid';
 import {
   describeTerrain,
   flatTerrain,
@@ -57,7 +57,7 @@ const cfg = loadTerrain();
  * `gates` header line is the one line whose key set is not closed, so a few
  * cases here need the maximal dump rather than the default three-gate one.
  */
-const FOUR_GATES: readonly GateDef[] = [...GATES, { key: 'south', tx: 12, ty: 19 }];
+const FOUR_GATES: readonly GateDef[] = [...GATES, ...MODIFIER_GATES];
 
 function withConfig(patch: (raw: Record<string, unknown>) => void): TerrainConfig {
   const raw = JSON.parse(JSON.stringify(cfg)) as Record<string, unknown>;
@@ -798,7 +798,10 @@ describe('fb064w — a header line is refused unless its fields are exactly what
     // but the end reddens here rather than silently reopening the hole.
     const base = GATES.map((g) => g.key);
     expect(HEADER_KEYS.gates.slice(0, base.length)).toEqual(base);
-    expect(HEADER_KEYS.gates.length).toBe(base.length + 1);
+    // Every optional key trails the required ones. A *second* trailing optional
+    // key would still be safe by the same argument — one declared among the
+    // base three would not, and that is what this pins.
+    expect(HEADER_KEYS.gates.slice(base.length)).toEqual(MODIFIER_GATES.map((g) => g.key));
     // ...and it really is refused out of order, not merely declared last.
     const four = describeTerrain(generateTerrain(7, cfg, FOUR_GATES), cfg, FOUR_GATES);
     expect(() =>

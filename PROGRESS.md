@@ -10,8 +10,10 @@
   for both the `gates` header line and its `measureTerrain` call, so a run under
   fb077's Fourth Gate modifier produced a repro that printed three gates and
   measured `gateReach`/`gateDetour`/`corridors`/`gatesConnected` against three —
-  8 of 30 four-gate seeds printed bands differing from the truth, worst
-  `gateDetour` delta 0.1446. It takes an optional gate list now, and
+  every one of 30 four-gate seeds printed a `bands` line differing from the
+  truth (`coreLegal` wrong on all 30; `gateDetour` on 8 of them, worst delta
+  0.1446). The "8 of 30" this entry first carried was an inherited figure that
+  understated the defect fourfold; it is re-measured and corrected. It takes an optional gate list now, and
   `parseTerrainDump` reads a four-gate line back.
 
   The parser half needed a decision: free-form extras on the `gates` line broke
