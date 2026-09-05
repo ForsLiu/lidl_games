@@ -5,6 +5,22 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-05 (lane `lane/terrain`): `fb065h` closed — a run plays its own
+  seed's map.** `applyRunTerrain` retries at `seed + 1 …` when the hardcoded
+  Core comes out unreachable, so `RunConfig.seed` did not provably identify the
+  map a run played. Measured over the 12,000-seed domain sample: three seeds
+  strand the Core on their own map (a *provable* upper bound on the retry rate,
+  since the Warden clearing only ever opens tiles), and all three are rescued by
+  that clearing — so the retry count is **0 of 12,000** and the path is
+  unexercised rather than rare. Jitter-off control: 2 stranded, a disjoint set,
+  so the density budgets move which seeds strand rather than how many.
+
+  The limit is now an assertion too: the seed reproduces the *map*, not the
+  *board* — a run's grid differs from its own seed's map by the Warden's 9
+  tiles. Logged for the merge: `applyRunTerrain` returns only a fallback
+  boolean, so the retry count has to be inferred; one extra field would make it
+  observable.
+
 - **2026-09-05 (lane `lane/terrain`): `fb065f` closed — a dump now describes the
   gates its bands were measured against.** `describeTerrain` hardcoded `GATES`
   for both the `gates` header line and its `measureTerrain` call, so a run under

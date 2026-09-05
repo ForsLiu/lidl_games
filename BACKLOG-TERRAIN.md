@@ -1121,7 +1121,7 @@ highest-impact item here by a wide margin** and sits third only for that reason.
       number named so a main-lane retune controls for it. **No `/data` balance
       value changes** — this measures, it does not tune; the retune is main-lane
       — refs: STATUS.md G1/G8/G14/G23, fb077, CLAUDE.md measurement rules.
-- [ ] (fb065h) [test] a run's map is not always its seed's map, and the rate is
+- [x] (fb065h) [test] a run's map is not always its seed's map, and the rate is
       unmeasured. `applyRunTerrain` retries at `seed + 1 … seed + 16` whenever
       the hardcoded `CORE_X/CORE_Y` Core comes out unreachable, so
       `RunConfig.seed` does not identify the map a run played — the exact
@@ -1136,6 +1136,42 @@ highest-impact item here by a wide margin** and sits third only for that reason.
       explicit statement of what a reader holding only `RunConfig.seed` can and
       cannot reproduce, next to fb065c's `source=-` — refs: `world.ts`
       `applyRunTerrain`, fb064j, fb065c.
+      **The answer is that a run plays its own seed's map on every seed
+      measured — the retry path is not rare, it is unexercised.** Measured in
+      two layers, because only one of them is cheap.
+      **Layer 1, the upper bound**, over all 12,000 seeds of
+      `tests/terrain-sample.ts`: three seeds' own maps strand the Core before
+      the Warden clearing — `-349`, `-169`, `3000001834`, i.e. **0.0250%**. This
+      is a *provable* bound rather than an estimate: `clearOverlayBlock` only
+      ever sets tiles walkable, so the walkable set can only grow and
+      reachability can only improve, which makes the retry rate at most this.
+      **Layer 2, the exact answer for those three**: each is *rescued* by the
+      3x3 clear, so the retry count over the sample is **0 of 12,000** and the
+      bound is not tight. That the clear closes this path is a side effect — it
+      exists because 1.0% of seeds otherwise spawn the character in rock — and
+      it is worth knowing it carries this too, since a change to it would move a
+      number nothing else measures.
+      **The jitter-off control**, per fb064l's precedent: at `density.jitter: 0`
+      the same sweep strands **2** (476740782, 3157512897) against the shipped
+      3, and the two sets are **disjoint** — so the per-seed density budgets
+      move *which* seeds strand rather than how many. Only the named seeds are
+      re-measured in the test; the full second sweep is another 17 seconds and
+      its result is recorded as a string.
+      **What a reader holding only `RunConfig.seed` can and cannot do**, which
+      is the sentence the item asked for and is now an assertion: they can
+      regenerate the map, on every seed measured; they cannot assume the *grid*
+      matches it. On seed 40 the run's grid differs from the seed's own map on a
+      Grid by exactly **9** tiles — the Warden clearing — which is fb065c's 13
+      minus the 4 Core tiles that cancel when both sides are Grids. The seed
+      reproduces the map; only `gridTerrain`'s dump reproduces the board.
+      **Out of scope, for the merge:** `applyRunTerrain` returns only a fallback
+      boolean, so the retry count is not observable and this file has to *infer*
+      it from which tiles differ. One extra field on its return would make the
+      number directly measurable and would let a run report say which seed's map
+      it played. `world.ts` is not this lane's to edit.
+      **Verification:** 4 cases, 23 s (the domain sweep is 12,000 generations;
+      halved from a first version that called `generateTerrain` twice per seed);
+      26 suites green (446); `npx tsc --noEmit` clean.
 - [ ] (fb065i) [polish] a terrain dump is only meaningful beside the config it
       was taken under, and it carries no trace of one. `describe.ts`'s own
       header says so — "a dump is only meaningful next to the config it was
