@@ -27,9 +27,10 @@ function overlayWithRoughTileAt(tx: number, ty: number): TerrainOverlay {
   const walkable = new Uint8Array(n).fill(1);
   const buildable = new Uint8Array(n).fill(1);
   const high = new Uint8Array(n);
+  const charBlock = new Uint8Array(n);
   const i = ty * GRID_W + tx;
   buildable[i] = 0; // rough: walkable, not buildable
-  return { w: GRID_W, h: GRID_H, kind, walkable, buildable, high };
+  return { w: GRID_W, h: GRID_H, kind, walkable, buildable, high, charBlock };
 }
 
 /** A flat overlay with exactly one unwalkable-and-unbuildable (rock) tile. */
@@ -39,10 +40,12 @@ function overlayWithRockTileAt(tx: number, ty: number): TerrainOverlay {
   const walkable = new Uint8Array(n).fill(1);
   const buildable = new Uint8Array(n).fill(1);
   const high = new Uint8Array(n);
+  const charBlock = new Uint8Array(n);
   const i = ty * GRID_W + tx;
   walkable[i] = 0; // rock: unwalkable and unbuildable
   buildable[i] = 0;
-  return { w: GRID_W, h: GRID_H, kind, walkable, buildable, high };
+  charBlock[i] = 1; // fb064q: rock stops the character too
+  return { w: GRID_W, h: GRID_H, kind, walkable, buildable, high, charBlock };
 }
 
 describe('fb078 — checkBuild distinguishes terrain from real occupancy', () => {

@@ -1,14 +1,15 @@
 /**
  * SPEC-FINAL §10.5 (fb064b): the bridge from a generated `TerrainMap` to the
- * three masks `Grid` runs on.
+ * four masks `Grid` runs on.
  *
- * This is the only place a `TerrainKind` is turned into walkable/buildable/high
+ * This is the only place a `TerrainKind` is turned into
+ * walkable/buildable/high/character-blocking
  * — `Grid` never learns the kinds' meanings, and `data/terrain.json`'s flags
  * stay the single authority for them (architecture rule 4). Pure: same map and
  * same config in, byte-identical masks out.
  */
 import type { TerrainOverlay } from '../grid';
-import { isBuildable, isHighGround, isWalkable, type TerrainConfig } from './config';
+import { blocksCharacter, isBuildable, isHighGround, isWalkable, type TerrainConfig } from './config';
 import type { TerrainGrid } from './types';
 
 export function terrainOverlay(map: TerrainGrid, cfg: TerrainConfig): TerrainOverlay {
@@ -25,6 +26,7 @@ export function terrainOverlay(map: TerrainGrid, cfg: TerrainConfig): TerrainOve
   const walkable = new Uint8Array(n);
   const buildable = new Uint8Array(n);
   const high = new Uint8Array(n);
+  const charBlock = new Uint8Array(n);
   for (let i = 0; i < n; i++) {
     const k = map.kind[i];
     if (k >= cfg.tiles.length) {
@@ -34,6 +36,11 @@ export function terrainOverlay(map: TerrainGrid, cfg: TerrainConfig): TerrainOve
     walkable[i] = isWalkable(cfg, k) ? 1 : 0;
     buildable[i] = isBuildable(cfg, k) ? 1 : 0;
     high[i] = isHighGround(cfg, k) ? 1 : 0;
+    // fb064q: the character's own mask. Derived here rather than folded into
+    // `walkable` because the two answer different questions about the same
+    // tile and the owner may set them apart — `rock` blocking walkers while
+    // the character flies over is precisely the un-vetoed reading.
+    charBlock[i] = blocksCharacter(cfg, k) ? 1 : 0;
   }
-  return { w: map.w, h: map.h, kind, walkable, buildable, high };
+  return { w: map.w, h: map.h, kind, walkable, buildable, high, charBlock };
 }

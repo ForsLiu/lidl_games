@@ -110,6 +110,7 @@ function clearOverlayBlock(overlay: TerrainOverlay, tx: number, ty: number): voi
       overlay.walkable[i] = 1;
       overlay.buildable[i] = 1;
       overlay.high[i] = 0;
+      overlay.charBlock[i] = 0;
     }
   }
 }
@@ -175,6 +176,7 @@ export function applyRunTerrain(
     walkable: new Uint8Array(n).fill(1),
     buildable: new Uint8Array(n).fill(1),
     high: new Uint8Array(n),
+    charBlock: new Uint8Array(n),
   };
   grid.applyTerrain(flat);
   grid.refresh();

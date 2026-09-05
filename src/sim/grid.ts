@@ -85,6 +85,16 @@ export interface TerrainOverlay {
   readonly buildable: Uint8Array;
   /** 1 on high ground (buildable, and no ground walker reaches it). */
   readonly high: Uint8Array;
+  /**
+   * fb064q: 1 where terrain stops the *character*, per each kind's
+   * `blocksCharacter` in `data/terrain.json`.
+   *
+   * Independent of `walkable` on purpose: that mask is about ground walkers,
+   * this one about the Warden, and the owner's open veto on the rock clause is
+   * exactly the case where they differ ("character flies over; veto if rocks
+   * should block the character"). `wardenPassable` is its only reader.
+   */
+  readonly charBlock: Uint8Array;
 }
 
 export interface Field {
@@ -144,8 +154,44 @@ export class Grid {
   private readonly terrainBlock: Uint8Array;
   /** 1 where terrain alone forbids building (rough, rock). */
   private readonly terrainNoBuild: Uint8Array;
+  /** fb064q: 1 where terrain alone stops the character (`blocksCharacter`). */
+  private readonly terrainCharBlock: Uint8Array;
   /** 1 on high ground — read by fb064d's targeting rules. */
   private readonly terrainHigh: Uint8Array;
+  /**
+   * fb064h: the overlay exactly as `applyTerrain` received it, before the
+   * structural override that forces gate and Core tiles back to normal.
+   *
+   * The four public arrays above are *derived*: raw terrain with the current
+   * gate/Core footprints punched out. Keeping the pre-override copy is what
+   * lets `placeCore` move the Core and hand the tiles it vacates back their
+   * real terrain. Without it a Core that had been sitting on rock would leave
+   * a two-tile corridor of phantom normal ground behind it — a hole in the
+   * walkable graph that no band the analyzer measures would ever see, since
+   * the analyzer never knew the Core existed.
+   */
+  private readonly terrainRawKind: Uint8Array;
+  private readonly terrainRawBlock: Uint8Array;
+  private readonly terrainRawNoBuild: Uint8Array;
+  private readonly terrainRawHigh: Uint8Array;
+  private readonly terrainRawCharBlock: Uint8Array;
+
+  /**
+   * fb064h: where the 2x2 Core actually is. `CORE_X/CORE_Y` are now only its
+   * *default*, which is what a run that never places a Core keeps.
+   *
+   * Everything inside this file reads these — `coreTiles()`, `coreCenterOf()`,
+   * and through them both flow fields and `allGatesReachable()`. Readers
+   * outside it still import the `CORE_X/CORE_Y` constants, including this
+   * file's own module-level `coreCenter()`, so **`placeCore` is not safe to
+   * call from a run** until fb064c migrates them: the flow field would target
+   * the new Core while every damage, aura and attack-range site still clamped
+   * to the old 2x2, and walkers would path to the Core and hit empty ground.
+   * The full list of sites is a merge blocker in BACKLOG-TERRAIN.md's Log
+   * under fb064h. Nothing in `src/` or `tools/` calls `placeCore` today.
+   */
+  private coreTx = CORE_X;
+  private coreTy = CORE_Y;
 
   readonly ground: Field;
   readonly ghost: Field;
@@ -163,6 +209,12 @@ export class Grid {
     this.terrainBlock = new Uint8Array(GRID_W * GRID_H);
     this.terrainNoBuild = new Uint8Array(GRID_W * GRID_H);
     this.terrainHigh = new Uint8Array(GRID_W * GRID_H);
+    this.terrainCharBlock = new Uint8Array(GRID_W * GRID_H);
+    this.terrainRawKind = new Uint8Array(GRID_W * GRID_H);
+    this.terrainRawBlock = new Uint8Array(GRID_W * GRID_H);
+    this.terrainRawNoBuild = new Uint8Array(GRID_W * GRID_H);
+    this.terrainRawHigh = new Uint8Array(GRID_W * GRID_H);
+    this.terrainRawCharBlock = new Uint8Array(GRID_W * GRID_H);
     for (let y = 0; y < GRID_H; y++) {
       for (let x = 0; x < GRID_W; x++) {
         const i = y * GRID_W + x;
@@ -171,11 +223,7 @@ export class Grid {
       }
     }
     for (const g of GATES) this.tile[g.ty * GRID_W + g.tx] = TileType.Gate;
-    for (let dy = 0; dy < CORE_H; dy++) {
-      for (let dx = 0; dx < CORE_W; dx++) {
-        this.tile[(CORE_Y + dy) * GRID_W + (CORE_X + dx)] = TileType.Core;
-      }
-    }
+    for (const i of this.coreTiles()) this.tile[i] = TileType.Core;
     for (let i = 0; i < this.tile.length; i++) this.blocked[i] = this.staticBlocked(i);
     this.ground = { dist: new Int32Array(GRID_W * GRID_H), next: new Int32Array(GRID_W * GRID_H) };
     this.ghost = { dist: new Int32Array(GRID_W * GRID_H), next: new Int32Array(GRID_W * GRID_H) };
@@ -233,8 +281,27 @@ export class Grid {
       );
     }
     const n = GRID_W * GRID_H;
-    for (const a of [overlay.kind, overlay.walkable, overlay.buildable, overlay.high]) {
-      if (a.length !== n) throw new Error(`applyTerrain: mask length ${a.length}, expected ${n}`);
+    // Named, so the message says *which* mask. fb064q added a fifth one, and an
+    // overlay built before it — a `tools/` script, a JS caller, a `JSON.parse`d
+    // save — has `charBlock: undefined`, which the old anonymous list turned
+    // into `TypeError: Cannot read properties of undefined (reading 'length')`
+    // with nothing pointing at terrain at all. Loud refusal at the boundary is
+    // this method's whole design (`overlay is 4x4`, `both walkable and high`);
+    // one mask silently exempt from it is the hole.
+    const masks: ReadonlyArray<readonly [string, Uint8Array | undefined]> = [
+      ['kind', overlay.kind],
+      ['walkable', overlay.walkable],
+      ['buildable', overlay.buildable],
+      ['high', overlay.high],
+      ['charBlock', overlay.charBlock],
+    ];
+    for (const [name, a] of masks) {
+      if (!a) {
+        throw new Error(`applyTerrain: overlay has no ${name} mask (build it with terrainOverlay())`);
+      }
+      if (a.length !== n) {
+        throw new Error(`applyTerrain: ${name} mask length ${a.length}, expected ${n}`);
+      }
     }
     // Content, not just shape. `terrainOverlay()` cannot build a walkable cliff
     // — `data/terrain.json`'s schema pins high ground as unwalkable — so this
@@ -259,10 +326,31 @@ export class Grid {
     // that later wrote into its own overlay would silently desync the walkable
     // mask from the flow field with nothing dirty to trigger a rebuild.
     for (let i = 0; i < n; i++) {
-      this.terrainKind[i] = overlay.kind[i];
-      this.terrainBlock[i] = overlay.walkable[i] ? 0 : 1;
-      this.terrainNoBuild[i] = overlay.buildable[i] ? 0 : 1;
-      this.terrainHigh[i] = overlay.high[i] ? 1 : 0;
+      this.terrainRawKind[i] = overlay.kind[i];
+      this.terrainRawBlock[i] = overlay.walkable[i] ? 0 : 1;
+      this.terrainRawNoBuild[i] = overlay.buildable[i] ? 0 : 1;
+      this.terrainRawHigh[i] = overlay.high[i] ? 1 : 0;
+      this.terrainRawCharBlock[i] = overlay.charBlock[i] ? 1 : 0;
+    }
+    this.syncTerrain();
+  }
+
+  /**
+   * fb064h: rebuild the four effective terrain arrays from the raw overlay and
+   * the *current* structural tiles, then re-derive `blocked`.
+   *
+   * Split out of `applyTerrain` because it now has two callers: adopting a map,
+   * and moving the Core. Doing it in one place is the point — the override and
+   * its undo are the same loop read forwards, so they cannot drift.
+   */
+  private syncTerrain(): void {
+    const n = GRID_W * GRID_H;
+    for (let i = 0; i < n; i++) {
+      this.terrainKind[i] = this.terrainRawKind[i];
+      this.terrainBlock[i] = this.terrainRawBlock[i];
+      this.terrainNoBuild[i] = this.terrainRawNoBuild[i];
+      this.terrainHigh[i] = this.terrainRawHigh[i];
+      this.terrainCharBlock[i] = this.terrainRawCharBlock[i];
     }
     for (let i = 0; i < n; i++) {
       if (this.tile[i] === TileType.Open || this.tile[i] === TileType.Border) continue;
@@ -270,8 +358,107 @@ export class Grid {
       this.terrainBlock[i] = 0;
       this.terrainNoBuild[i] = 0;
       this.terrainHigh[i] = 0;
+      this.terrainCharBlock[i] = 0;
     }
     this.markDirty();
+  }
+
+  /** fb064h: the 2x2 Core's top-left tile — its default until `placeCore`. */
+  coreOrigin(): { tx: number; ty: number } {
+    return { tx: this.coreTx, ty: this.coreTy };
+  }
+
+  /**
+   * fb064h: this Grid's Core centre, which is what the module-level
+   * `coreCenter()` returns only while the Core has never moved.
+   *
+   * It exists now, unused, so that fb064c's migration of `cores.ts`,
+   * `enemies.ts`, `world.ts`, `run.ts`, `sundering.ts`, `bots/policies.ts`,
+   * the renderer and `src/ui/selection.ts` off the constants is a mechanical
+   * call-site swap rather than a redesign — those files are outside this
+   * lane's Scope, so the hook is all that can land here. The divergence
+   * between the two is pinned by a test rather than left to be discovered.
+   */
+  coreCenterOf(): { x: number; y: number } {
+    return { x: this.coreTx + CORE_W / 2, y: this.coreTy + CORE_H / 2 };
+  }
+
+  /**
+   * fb064h, SPEC-FINAL §10.5: move the 2x2 Core to `(tx, ty)`.
+   *
+   * This is the *structural* half of the owner's Core-placement flow, and it
+   * deliberately validates only what a Grid can know: that the footprint fits,
+   * that it lands on open ground rather than on the border or a spawn gate, and
+   * that nothing has been built yet. Whether the target is a *legal* Core
+   * position — normal ground, clear of the gates, reachable from every one of
+   * them — is a question about the terrain, and it is answered by
+   * `validateCorePlacement` in `src/sim/terrain/core-placement.ts` against the
+   * `TerrainMap`, where the answer does not depend on the Core's own footprint
+   * having already been punched through it. The placement Command (fb064c)
+   * calls that first and this second.
+   *
+   * Ordering: like `applyTerrain`, before anything is built. A Core that moved
+   * out from under a standing tower would leave the tower on ground the terrain
+   * may seal, and the flow fields would be rebuilt around a target that half
+   * the board can no longer reach — with the structure already priced.
+   */
+  placeCore(tx: number, ty: number): void {
+    if (!Number.isInteger(tx) || !Number.isInteger(ty)) {
+      throw new Error(`placeCore: (${tx}, ${ty}) is not an integer tile`);
+    }
+    if (tx < 0 || ty < 0 || tx + CORE_W > GRID_W || ty + CORE_H > GRID_H) {
+      throw new Error(`placeCore: a ${CORE_W}x${CORE_H} Core at (${tx}, ${ty}) leaves the grid`);
+    }
+    for (let i = 0; i < this.occ.length; i++) {
+      if (this.occ[i] !== 0) {
+        throw new Error('placeCore: structures are already placed; place the Core before build');
+      }
+    }
+    for (let dy = 0; dy < CORE_H; dy++) {
+      for (let dx = 0; dx < CORE_W; dx++) {
+        const i = (ty + dy) * GRID_W + (tx + dx);
+        const t = this.tile[i];
+        // `Core` is allowed so a placement overlapping the current footprint is
+        // not rejected by the Core it is about to move. Border and Gate are
+        // not: a Core on a gate tile makes the gate's own spawn point
+        // unwalkable scenery, and `staticBlocked` would then quietly stop
+        // reporting the border as blocked at that tile.
+        //
+        // The two are refused with *different* messages on purpose. Shared
+        // wording made the gate rule untestable: the only gates are on the
+        // border, so a 2x2 over one also covers a Border tile, and a build that
+        // accepted gate tiles outright still threw the same string.
+        if (t === TileType.Border) {
+          throw new Error(`placeCore: tile (${tx + dx}, ${ty + dy}) is the map border`);
+        }
+        if (t === TileType.Gate) {
+          throw new Error(`placeCore: tile (${tx + dx}, ${ty + dy}) is a spawn gate`);
+        }
+        if (t !== TileType.Open && t !== TileType.Core) {
+          throw new Error(`placeCore: tile (${tx + dx}, ${ty + dy}) is not open ground`);
+        }
+        // ...and not into a mountain. The structural override forces the Core's
+        // footprint to normal, so a Core placed on rock or high ground is a 2x2
+        // of phantom walkable ground punched through terrain the analyzer
+        // measured as solid — the same phantom-corridor rule this method
+        // already enforces on the tiles it *vacates*, applied to the ones it
+        // takes. Local and exact: `terrainOverlay` marks precisely the normal
+        // tiles both walkable and buildable, which is what
+        // `validateCorePlacement` demands, so this can never refuse a legal
+        // anchor. Before `applyTerrain` the raw masks are all zero and it is a
+        // no-op, which is what keeps a terrain-free Grid unchanged.
+        if (this.terrainRawBlock[i] !== 0 || this.terrainRawNoBuild[i] !== 0) {
+          throw new Error(`placeCore: tile (${tx + dx}, ${ty + dy}) is not normal terrain`);
+        }
+      }
+    }
+    for (const i of this.coreTiles()) this.tile[i] = TileType.Open;
+    this.coreTx = tx;
+    this.coreTy = ty;
+    for (const i of this.coreTiles()) this.tile[i] = TileType.Core;
+    // Re-derived, not patched: the vacated tiles get their real terrain back
+    // and the new footprint gets the structural override, in one pass.
+    this.syncTerrain();
   }
 
   /**
@@ -317,6 +504,22 @@ export class Grid {
    * `passable`/`blocked` unchanged, so this predicate is Warden-only.
    */
   wardenPassable(tx: number, ty: number): boolean {
+    // fb064u: b007's class of bug, on the tile predicate a *mover* asks.
+    // `passable` and `passableGhost` still index with the raw coordinate behind
+    // a bounds check alone and so still have the hole (fb064x); they are the
+    // Dijkstra inner loop, where the guard has a real per-tick cost, so that is
+    // a separate decision and not an omission this line may claim to have made.
+    // `inBounds` alone passes `3.5`, and the flat index below then reads either
+    // `undefined` (neither Border nor Open, so the old code answered "passable"
+    // over rock) or — since `GRID_W` is even, so a `.5` in `ty` cancels its own
+    // fraction — a real tile in another column. `buildable` and `isHighGround`
+    // both reject non-integers outright; this now matches them. It is a
+    // *refusal*, not a floor: `false` here means "the Warden cannot move
+    // there", so a caller holding a float position must still floor first (both
+    // live ones do — `run.ts`'s `walkable` and `wardenmove.ts`). What the three
+    // predicates now share is that they refuse identically rather than one of
+    // them aliasing onto a different tile.
+    if (!Number.isInteger(tx) || !Number.isInteger(ty)) return false;
     if (!this.inBounds(tx, ty)) return false;
     // fb064b: terrain stops the Warden as it stops any other ground walker.
     // fb002 legalised walking through the *Core and friendly structures*, which
@@ -325,8 +528,31 @@ export class Grid {
     // ground is unreachable by every ground melee enemy at once — an Act I safe
     // spot no gate band measures. `passableGhost` stays terrain-blind on
     // purpose (Burrowers tunnel *under* stone); this does not.
+    //
+    // fb064q: that reasoning is sound and it is also the *vetoed* reading of
+    // the owner's rock clause, whose default is pass-through ("the character
+    // still passes per fb002's pass-through rule [designer note: character
+    // flies over; veto if rocks should block the character]"). So the term is
+    // no longer `staticBlocked`, which conflates the character with the ground
+    // walkers, but `terrainCharBlock` — each kind's own `blocksCharacter` from
+    // `data/terrain.json`. Authored `true` on rock and high, so this line
+    // behaves exactly as it did; settling the veto is now one data line and not
+    // an edit to this file.
+    //
+    // The structural decision stays *live*, exactly as `staticBlocked` made it,
+    // and that is not decoration: `terrainCharBlock` is a snapshot taken by
+    // `syncTerrain`, while `world.ts`'s Fourth Gate modifier writes
+    // `tile[idx(12, 19)] = Gate` after the Grid exists and calls only
+    // `markDirty()`/`refresh()` — which rebuild `blocked` and never the terrain
+    // arrays. Reading the snapshot alone left the Warden walled out of a gate
+    // the map had buried in border rock while every enemy walked through it.
     const i = ty * GRID_W + tx;
-    return this.tile[i] !== TileType.Border && this.staticBlocked(i) === 0;
+    const t = this.tile[i];
+    if (t === TileType.Border) return false;
+    // Gates and the Core outrank the scatter: they are ground the run carved,
+    // not terrain the generator painted.
+    if (t !== TileType.Open) return true;
+    return this.terrainCharBlock[i] === 0;
   }
 
   /** Tiles a tower may be placed on before the path-guarantee check. */
@@ -395,7 +621,7 @@ export class Grid {
     const tiles: number[] = [];
     for (let dy = 0; dy < CORE_H; dy++) {
       for (let dx = 0; dx < CORE_W; dx++) {
-        tiles.push((CORE_Y + dy) * GRID_W + (CORE_X + dx));
+        tiles.push((this.coreTy + dy) * GRID_W + (this.coreTx + dx));
       }
     }
     return tiles;
@@ -597,6 +823,15 @@ export class Grid {
   }
 }
 
+/**
+ * The Core's *default* centre, off the constants.
+ *
+ * fb064h warning: this does not follow `Grid.placeCore`. Its callers
+ * (`world.ts`, `run.ts`, `sundering.ts`, `cores.ts`, `bots/policies.ts`) are
+ * outside the terrain lane's Scope, so they are migrated to
+ * `grid.coreCenterOf()` by fb064c, which is also what makes `placeCore` safe
+ * to call from a run. See BACKLOG-TERRAIN.md's fb064h Log entry.
+ */
 export function coreCenter(): { x: number; y: number } {
   return { x: CORE_X + CORE_W / 2, y: CORE_Y + CORE_H / 2 };
 }

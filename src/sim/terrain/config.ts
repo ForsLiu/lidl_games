@@ -158,14 +158,77 @@ const tileSchema = z
     walkable: z.boolean(),
     buildable: z.boolean(),
     highGround: z.boolean(),
+    /**
+     * fb064q: does this kind stop the *character* (the Warden), as opposed to
+     * the ground walkers `walkable` speaks for?
+     *
+     * Deliberately **not** in `REQUIRED_FLAGS`. The other three are structural —
+     * the generator scatters over `normal` and seals with `rock`, so a flipped
+     * flag breaks the algorithm rather than retuning the map. This one is a
+     * *design* answer with an open owner veto ("character flies over; veto if
+     * rocks should block the character"), it feeds no generator decision and no
+     * band, and the whole point of the item is that settling the veto is one
+     * data line rather than a code hunt. So the loader validates only what is
+     * provably unpayable (see the `normal` check below) and leaves the rest
+     * free.
+     *
+     * It is required rather than defaulted: a rule with an open veto must never
+     * be implicit, and `.strict()` plus a required boolean means a `/data` edit
+     * that drops it fails loudly instead of silently picking a side.
+     */
+    blocksCharacter: z.boolean(),
     color: z.string().min(1),
+  })
+  .strict();
+
+/**
+ * One high-ground family (fb064i). `traits` is matched against
+ * `EnemyDef.traits`; the first family in file order carrying any of an enemy's
+ * traits wins, and the last family — which must name no traits — is the
+ * catch-all every unlisted enemy lands in.
+ */
+const highGroundFamilySchema = z
+  .object({
+    key: z.string().min(1),
+    // Capped for the same reason the radii are (fb064a's unbounded-loop
+    // finding): classification is a linear scan over families x traits, and
+    // the merge runs it from `moveEnemy`'s collision branch. There is no design
+    // that needs hundreds of either — 20 enemies carry 21 distinct traits
+    // between them — so an oversized table is a mistake, not a tuning choice.
+    traits: z.array(z.string().min(1)).max(64),
+    /** May target/damage a structure standing on a high tile. */
+    attacksHigh: z.boolean(),
+    /** May emerge from underground onto a high tile. */
+    surfacesHigh: z.boolean(),
   })
   .strict();
 
 const schema = z
   .object({
     tiles: z.array(tileSchema).length(TERRAIN_KEYS.length),
-    density: z.object({ rough: frac, rock: frac, high: frac }).strict(),
+    // fb064l: `jitter` is the half-width of the per-seed band each density is
+    // drawn from, as a share of the density itself — 0.22 means a seed's rough
+    // budget is uniform on [0.78, 1.22] x 0.17. At 0 the generator is fb064a's:
+    // every seed gets exactly `round(density * interior)` tiles of each kind,
+    // which measured as *one* distinct `high` count over 500 seeds.
+    //
+    // Bounded only by `frac` (0..1), and deliberately with no cleverer ceiling.
+    // The tempting one — refuse a jitter whose maximum obstruction cannot leave
+    // `minBuildableNormalFrac` of normal ground — is the same unsound shape
+    // fb064g rejected for the buildable band below: `scatter()` is best-effort,
+    // so the maximum *budget* is not the maximum *placement*, and the ceiling
+    // would refuse configs the generator satisfies. A jitter that does make
+    // seeds degenerate is not silent either: it shows up as retries and, at the
+    // limit, as `fallback`.
+    //
+    // That last sentence was a claim about a guard that did not exist until QA
+    // checked it, so here is the guard and here is the cost it records:
+    // `tests/terrain-generation.test.ts`'s "the loader accepts jitter up to 1,
+    // and this is what that costs" measures `jitter: 1` at 26.7% retries
+    // (0.09% shipped) and 3 fallback seeds in 50000 — degradation, never an
+    // illegal map and never a hang. A future decision to cap this field
+    // belongs there, with those numbers in view.
+    density: z.object({ rough: frac, rock: frac, high: frac, jitter: frac }).strict(),
     // A blob cannot be larger than the ground it grows on, so the interior is
     // its natural cap — the same "the arena's own limits" treatment the radii
     // get. `scatter()`'s `placed < target` bound already stops an oversized
@@ -185,6 +248,40 @@ const schema = z
     // Clearance is a rejection radius, not a painted one, so it is bounded by
     // the grid rather than by cost: past the span nothing is ever legal.
     coreGateClearance: nonNegInt.max(SPAN),
+    // fb064m: how far an enemy has to be able to *stand* from a high tile for a
+    // tower on it to be contestable. High ground is not walkable and — once
+    // fb064i's predicates are wired at the merge — ground melee cannot attack
+    // across the cliff edge, so the only enemy that damages a structure on high
+    // ground during an Act I wave is the Spitter, by plain Euclidean distance
+    // with no line-of-sight term. A high tile with no walkable tile inside this
+    // radius is a plot the player can build on and no wave can answer, so the
+    // generator demotes it to rock.
+    //
+    // Two limits on that claim, both recorded rather than fixed here. fb064i's
+    // rules are inert until the main lane wires them (the merge list is in
+    // BACKLOG-TERRAIN.md's Log), so today melee still reaches a cliff-edge
+    // tower. And the Spitter's structure branch is `else if (!act2)`
+    // (`enemies.ts:1219`), so in the Act II VS phase it hunts the Warden and
+    // attacks no structure at all — during Act II *every* high-ground tower is
+    // uncontestable, at any radius. This field bounds what generation can do
+    // about the geometry; the Act II residual is a wave/enemy question and
+    // belongs to the main lane.
+    //
+    // The number mirrors `data/enemies.json`'s shortest `attackRange` among the
+    // families `highGround` exempts. It is *not* validated against that file
+    // here: a loader rule reading another content file is this lane's recorded
+    // false-rejection shape, and it cannot be sound anyway because
+    // `loadContent({ enemies })` swaps the roster in play (the same argument
+    // `checkHighGround` records for `AUTHORED_TRAITS`). The cross-check is a
+    // test — `tests/terrain-high-contest.test.ts`.
+    //
+    // `0` switches the demotion off, which is the designer's way to accept the
+    // exposure without a code edit; the cost of accepting it is measured in
+    // that file (27 of 500 seeds, 85 plots). Capped at the span like the other
+    // radii: past it every high tile is contested by construction, and the
+    // scan is a loop inside `/src/sim` fed by a field fb064f puts under live
+    // Tuner editing.
+    highContestRadius: nonNegInt.max(SPAN),
     // Every attempt regenerates and re-measures the whole map. A bounded cap
     // keeps the worst-case degenerate config a slow frame, not a hang.
     maxAttempts: posInt.max(64),
@@ -199,17 +296,70 @@ const schema = z
         // nothing. Refuse it rather than answer a designer's retune with
         // silence.
         minCorridorWidth: z.union([z.literal(1), z.literal(2)]),
+        // fb064o: the worst gate's path cost to the suggested Core anchor over
+        // the obstacle-free cost of that same walk. The floor of 1 is an
+        // impossibility proof, not a taste: the divisor is the shortest walk an
+        // empty board admits, so no map anywhere can measure below it and any
+        // value under 1 makes *every* seed degenerate and ships the fallback
+        // forever — the exact failure fb064g closed on `minCoreLegalFrac`.
+        //
+        // There is deliberately no ceiling. Unlike the frac bands there is no
+        // arena-wide maximum to prove one against (the longest detour a map can
+        // force is a property of the blob scatter, not of the grid), and a large
+        // value is a legitimate "band off", the same reading `minCorridorWidth:
+        // 1` has. `SPAN` is a cap on a *radius* and would be a made-up number
+        // here.
+        maxGateDetour: z.number().finite().min(1),
       })
+      .strict(),
+    // fb064i: who the high-ground protection rules exempt, as data. The owner's
+    // designer note names families, not enemies ("ranged enemies (Spitter),
+    // fliers, and the bosses' special attacks still can; Burrowers cannot
+    // surface"), so the table is keyed by trait name and a new enemy inherits
+    // its family from the traits it is authored with — no code edit, no list of
+    // enemy keys to keep in sync (architecture rule 4).
+    highGround: z
+      .object({ families: z.array(highGroundFamilySchema).min(1).max(64) })
       .strict(),
   })
   .strict()
   .superRefine((cfg, ctx) => {
+    // fb064t, QA bug 1: this refinement states the length rule itself rather
+    // than trusting that zod's `.length()` above already did. The two do not
+    // always agree — zod checks `exactLength` against the *input*'s `.length`
+    // and then builds the parsed array by spreading its iterator, so an array
+    // whose `length` says 4 while its iterator yields nothing passes the schema
+    // check and arrives here as `[]`. Without this, that document was accepted
+    // outright and the crash resurfaced in `sealPockets`, naming neither the
+    // field nor the file. An ordinary short array is reported twice (once by
+    // each rule), which is the honest cost of not depending on the other.
+    if (cfg.tiles.length !== TERRAIN_KEYS.length) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['tiles'],
+        message:
+          `tiles must define all ${TERRAIN_KEYS.length} kinds in order ` +
+          `(${TERRAIN_KEYS.join(', ')}), got ${cfg.tiles.length}`,
+      });
+    }
     for (let i = 0; i < TERRAIN_KEYS.length; i++) {
-      if (cfg.tiles[i].key !== TERRAIN_KEYS[i]) {
+      // fb064t: `tiles` is length-pinned on the schema above, but zod reports a
+      // wrong array length as a *dirty* parse rather than an aborted one, so
+      // this refinement still runs on a short array — and every read here is
+      // positional (`TerrainKind` indexes `tiles`). Unguarded, `tiles: []` left
+      // the loader throwing a raw `TypeError` naming neither the field nor the
+      // file, out of the one function whose whole job is refusing bad data
+      // legibly. Skipping the missing slots rather than returning early keeps
+      // the refusal complete: a document with a short `tiles` array *and* a bad
+      // blob still reports both, and the tiles it does carry are still checked
+      // for order and flags. The length itself is already zod's issue to raise.
+      const tile = cfg.tiles[i];
+      if (tile === undefined) continue;
+      if (tile.key !== TERRAIN_KEYS[i]) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           path: ['tiles', i, 'key'],
-          message: `tile ${i} must be "${TERRAIN_KEYS[i]}" (order is load-bearing), got "${cfg.tiles[i].key}"`,
+          message: `tile ${i} must be "${TERRAIN_KEYS[i]}" (order is load-bearing), got "${tile.key}"`,
         });
       }
       // The three flags are structural, not tuning: the generator hard-codes
@@ -221,7 +371,7 @@ const schema = z
       // densities and bands stay freely editable.
       const want = REQUIRED_FLAGS[i];
       for (const flag of ['walkable', 'buildable', 'highGround'] as const) {
-        if (cfg.tiles[i][flag] !== want[flag]) {
+        if (tile[flag] !== want[flag]) {
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
             path: ['tiles', i, flag],
@@ -229,6 +379,27 @@ const schema = z
           });
         }
       }
+    }
+    // fb064q, the unpayable-data rule for the character flag. Exactly one
+    // setting is provably unplayable rather than merely odd: `normal` blocking
+    // the character. Normal is the kind the Core's own 2x2 stands on, the kind
+    // the Warden spawns and reforms onto, and — by `minBuildableNormalFrac` —
+    // at least 45% of the board; blocking it leaves the character nowhere legal
+    // to be, and `resolveDashTarget`'s backwards walk would fail on every tile
+    // and pin it in place forever. Every other combination is a design choice
+    // the owner may make, including `rough` (walkable ground the character
+    // cannot cross) and `rock` in either direction — that one *is* the veto.
+    // Optional-chained for the same fb064t reason as the loop above: a short
+    // `tiles` array has no Normal tile to ask about, and the length issue on
+    // `tiles` is the only honest thing to say about that document.
+    if (cfg.tiles[TerrainKind.Normal]?.blocksCharacter) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['tiles', TerrainKind.Normal, 'blocksCharacter'],
+        message:
+          'tile "normal" must have blocksCharacter: false — it is the Core\'s own ground and the ' +
+          'character would have nowhere legal to stand',
+      });
     }
     if (cfg.blob.maxSize < cfg.blob.minSize) {
       ctx.addIssue({
@@ -312,10 +483,89 @@ const schema = z
               `coreGateClearance ${cfg.coreGateClearance}`,
       });
     }
+    checkHighGround(cfg.highGround.families, ctx);
   });
+
+/**
+ * The unpayable-data rule for the high-ground family table (fb064i).
+ *
+ * Every rule here refuses a table that is *silently* wrong — one that loads,
+ * classifies every enemy without complaint, and applies a rule nobody wrote.
+ * None of them is a taste check: a duplicate key or a shadowed trait changes no
+ * behaviour a designer can see until an enemy lands in the wrong family.
+ *
+ * Deliberately NOT checked here: that each trait is carried by some enemy in
+ * `data/enemies.json`. It was, and it was wrong twice over. It is a false
+ * rejection in this lane's recorded sense — a family naming a trait nothing
+ * currently carries is inert, not unpayable, so a content pass that renames one
+ * trait would stop `data/terrain.json` loading at all and blame the wrong file
+ * (three of the shipped table's traits have exactly one carrier). And it cannot
+ * be sound anyway: `loadContent({ enemies })` swaps the roster the classifier
+ * actually runs against (`src/devserver/tunerSave.ts` does exactly that), so
+ * the file this would validate need not be the roster in play. The typo it was
+ * aimed at is caught where it costs nothing — `tests/terrain-high-ground.test`
+ * asserts the shipped table against the shipped roster.
+ */
+function checkHighGround(
+  families: ReadonlyArray<{ key: string; traits: readonly string[] }>,
+  ctx: z.RefinementCtx,
+): void {
+  const seenKeys = new Set<string>();
+  const seenTraits = new Map<string, number>();
+  for (let i = 0; i < families.length; i++) {
+    const f = families[i];
+    if (seenKeys.has(f.key)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['highGround', 'families', i, 'key'],
+        message: `duplicate family key "${f.key}" — keys name the rule in a log and a Tuner row`,
+      });
+    }
+    seenKeys.add(f.key);
+
+    // Classification is first-match-wins, so a trait named twice means the
+    // later family is dead for every enemy carrying it — and dead exactly for
+    // the enemies its author was thinking of. Ordering already expresses every
+    // precedence a duplicate could, so refusing it costs no expressiveness.
+    for (const t of f.traits) {
+      const first = seenTraits.get(t);
+      if (first === undefined) {
+        seenTraits.set(t, i);
+      } else {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['highGround', 'families', i, 'traits'],
+          message:
+            first === i
+              ? `family "${f.key}" lists trait "${t}" twice`
+              : `trait "${t}" is already claimed by family "${families[first].key}" — first match ` +
+                `wins, so this entry could never apply to any enemy`,
+        });
+      }
+    }
+
+    // The catch-all must be last and must be the only one. Anywhere else it
+    // swallows every family below it; absent, an enemy carrying none of the
+    // listed traits has no family at all and the rules cannot be total.
+    const isCatchAll = f.traits.length === 0;
+    const isLast = i === families.length - 1;
+    if (isCatchAll !== isLast) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['highGround', 'families', i, 'traits'],
+        message: isCatchAll
+          ? `family "${f.key}" names no traits, so it matches every enemy and hides the ` +
+            `${families.length - 1 - i} families after it — only the last family may be the catch-all`
+          : `the last family ("${f.key}") must name no traits: it is the catch-all every enemy ` +
+            `carrying none of the listed traits falls into`,
+      });
+    }
+  }
+}
 
 export type TerrainConfig = z.infer<typeof schema>;
 export type TerrainTileDef = TerrainConfig['tiles'][number];
+export type HighGroundFamily = TerrainConfig['highGround']['families'][number];
 
 /**
  * The authored document, pre-parse, for `contentHash()` (`src/sim/content.ts`
@@ -360,4 +610,19 @@ export function isBuildable(cfg: TerrainConfig, kind: number): boolean {
 
 export function isHighGround(cfg: TerrainConfig, kind: number): boolean {
   return cfg.tiles[kind]?.highGround === true;
+}
+
+/**
+ * fb064q: does this kind stop the character? The data lookup; the *rule* built
+ * on it lives in `character.ts`.
+ *
+ * An unknown kind reads as passable, which is the same direction
+ * `canAttackStructureAt` picks and for the same reason: these predicates may
+ * only ever take away movement terrain really denies, never invent a wall out
+ * of a junk index. `isWalkable`'s `undefined` reads as "not walkable" because
+ * *there* the safe answer is the restrictive one — a walker must not stroll
+ * onto a tile nobody described.
+ */
+export function blocksCharacter(cfg: TerrainConfig, kind: number): boolean {
+  return cfg.tiles[kind]?.blocksCharacter === true;
 }

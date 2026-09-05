@@ -64,6 +64,15 @@ function handMap(patch: Array<[number, number, TerrainKind]>): TerrainGrid {
   return { w: GRID_W, h: GRID_H, kind };
 }
 
+/** fb064q: every tile's `wardenPassable`, as a comparable snapshot. */
+function wardenAll(g: Grid): number[] {
+  const out: number[] = [];
+  for (let ty = 0; ty < GRID_H; ty++) {
+    for (let tx = 0; tx < GRID_W; tx++) out.push(g.wardenPassable(tx, ty) ? 1 : 0);
+  }
+  return out;
+}
+
 function applied(map: TerrainGrid, c: TerrainConfig = cfg): Grid {
   const g = new Grid();
   g.applyTerrain(terrainOverlay(map, c));
@@ -123,6 +132,7 @@ describe('Grid.applyTerrain (fb064b)', () => {
       walkable: new Uint8Array(16),
       buildable: new Uint8Array(16),
       high: new Uint8Array(16),
+      charBlock: new Uint8Array(16),
     };
     expect(() => g.applyTerrain(small)).toThrow(/overlay is 4x4/);
     const ragged: TerrainOverlay = {
@@ -132,8 +142,18 @@ describe('Grid.applyTerrain (fb064b)', () => {
       walkable: new Uint8Array(3),
       buildable: new Uint8Array(GRID_W * GRID_H),
       high: new Uint8Array(GRID_W * GRID_H),
+      charBlock: new Uint8Array(GRID_W * GRID_H),
     };
-    expect(() => g.applyTerrain(ragged)).toThrow(/mask length 3/);
+    expect(() => g.applyTerrain(ragged)).toThrow(/walkable mask length 3/);
+    // fb064q: a fifth mask arrived, so an overlay built before it — a `tools/`
+    // script, a JS caller, a JSON-parsed save — reaches here with
+    // `charBlock: undefined`. It must be refused by name, not by a `TypeError`
+    // from reading `.length` of undefined that names neither the mask nor
+    // `applyTerrain`.
+    const { charBlock: _dropped, ...missing } = terrainOverlay(handMap([]), cfg);
+    expect(() => g.applyTerrain(missing as unknown as TerrainOverlay)).toThrow(
+      /overlay has no charBlock mask/,
+    );
   });
 
   it('refuses an overlay whose content contradicts itself', () => {
@@ -255,10 +275,14 @@ describe('Grid.applyTerrain (fb064b)', () => {
     g.refresh();
     const before = Array.from(g.blocked);
     const kindBefore = Array.from(g.terrainKind);
+    const wardenBefore = wardenAll(g);
     const overlayKindBefore = Array.from(o.kind);
     o.walkable.fill(0);
     o.buildable.fill(0);
     o.kind.fill(TerrainKind.Rock);
+    // fb064q: the character mask is copied too, or a caller mutating its
+    // overlay moves the Warden's rule out from under a live Grid.
+    o.charBlock.fill(1);
     // A bare `refresh()` would prove nothing: `dirty` is already false after the
     // first one, so it re-reads the same arrays whatever the implementation
     // does. Force the rebuild that a real caller's next `setOcc` would.
@@ -266,6 +290,7 @@ describe('Grid.applyTerrain (fb064b)', () => {
     g.refresh();
     expect(Array.from(g.blocked)).toEqual(before);
     expect(Array.from(g.terrainKind)).toEqual(kindBefore);
+    expect(wardenAll(g)).toEqual(wardenBefore);
     // And the traffic runs the other way too: the structural override must land
     // in the Grid's copy, never back in the caller's overlay.
     expect(overlayKindBefore[GATES[0].ty * GRID_W + GATES[0].tx]).toBe(map.kind[GATES[0].ty * GRID_W + GATES[0].tx]);
@@ -278,11 +303,36 @@ describe('Grid.applyTerrain (fb064b)', () => {
     // inside a wall — with nothing breachable, so the wave never clears.
     const g = applied(handMap([[12, 19, TerrainKind.Rock]]));
     expect(g.passable(12, 19)).toBe(false); // still border rock: no gate yet
+    expect(g.wardenPassable(12, 19)).toBe(false);
     g.tile[g.idx(12, 19)] = TileType.Gate;
     g.markDirty();
     g.refresh();
     expect(g.passable(12, 19)).toBe(true);
     expect(g.distAt(12, 19)).toBeGreaterThan(0);
+    // fb064q: and the character too. `terrainCharBlock` is a snapshot
+    // `syncTerrain` takes, while this gate is opened afterwards with only a
+    // `markDirty()`/`refresh()` — so `wardenPassable` must re-decide the
+    // structural term live, exactly as `staticBlocked` did. Reading the
+    // snapshot alone walls the Warden out of a gate every enemy walks through.
+    expect(g.wardenPassable(12, 19)).toBe(true);
+  });
+});
+
+describe('the structural override over gate tiles (fb064b, pinned fb064h)', () => {
+  it('keeps a gate walkable and normal even when the map paints rock under it', () => {
+    // Dead on generator output — `flatKinds()` makes the three gate tiles
+    // Normal, so the Gate branch of the override never fires on a real map and
+    // narrowing it to Core-only passes the whole suite. It is not dead on a
+    // *run*: `world.ts`'s Fourth Gate modifier writes a south gate into
+    // `grid.tile` after generation, on a tile the generator gave no protection
+    // and may well have buried (138 of 500 seeds, measured in fb064b). This is
+    // the only assertion standing between that and an unwalkable spawn point.
+    const gate = GATES[1];
+    const map = handMap([[gate.tx, gate.ty, TerrainKind.Rock]]);
+    const g = applied(map);
+    expect(g.terrainKind[g.idx(gate.tx, gate.ty)]).toBe(TerrainKind.Normal);
+    expect(g.passable(gate.tx, gate.ty)).toBe(true);
+    expect(g.allGatesReachable()).toBe(true);
   });
 });
 
@@ -347,13 +397,28 @@ describe('Grid on a generated map (fb064b, 100 seeds)', () => {
     // fb064c can *place* it. Until then a seed may legally strand it, and the
     // grid must say so rather than paper over it.
     //
-    // Measured over seeds 1..5000: four seeds strand it — 97, 2055, 2845, 3098,
-    // about 1 run in 1250. Seed 97 is pinned by name below as fb064c's fixture.
+    // Measured over seeds 1..5000: two seeds strand it — 4426 and 4515, about
+    // 1 run in 2500. Seed 4426 is pinned by name below as fb064c's fixture.
     // The *count* over this window is deliberately a bound, not a golden: it
     // moves on any density or `blob` retune (fb064f puts both under live Tuner
     // editing) with no bug behind it, which is the trap this lane already fell
     // into twice — see BACKLOG-TERRAIN.md on `walkableFrac` headroom and the
     // `paint()` timing bound.
+    //
+    // fb064l re-measured it against a control instead of inheriting it, and
+    // the control is worth recording: at `density.jitter: 0` — fb064a's
+    // generator exactly — the same sweep still reports 4 seeds (97, 2055,
+    // 2845, 3098), so the per-seed density budgets *lowered* the stranding
+    // rate rather than raising it. Worth checking rather than assuming: a
+    // wider rock budget was the obvious way to seal the legacy Core off, and
+    // the number went the other way.
+    //
+    // A first pass measured this on the raw generated map instead of on the
+    // Grid and read 434/5000. That is a different question with a different
+    // answer: `Grid` keeps the Core's own 2x2 unblocked whatever the terrain
+    // says (see `legalCoreAnchors`), so the map-level count is dominated by
+    // seeds that merely scatter rock *onto* the Core footprint. What strands
+    // the Core in the game is the ring around it, which is what this measures.
     let stranded = 0;
     for (const seed of SEEDS) {
       const g = applied(generateTerrain(seed, cfg));
@@ -367,10 +432,15 @@ describe('Grid on a generated map (fb064b, 100 seeds)', () => {
       expect(g.allGatesReachable()).toBe(coreInComponent);
       if (!coreInComponent) stranded++;
     }
+    // Slack since fb064l: measured 0 over seeds 1..100 (it was 1 when the
+    // bound was chosen), so this line no longer discriminates and the seed
+    // pinned by name below is what carries the test. Left as a bound rather
+    // than tightened to 0, per this lane's own logged lesson that a count over
+    // a seed window is not a golden. (Review.)
     expect(stranded).toBeLessThanOrEqual(3);
-    const s97 = applied(generateTerrain(97, cfg));
-    expect(s97.allGatesReachable()).toBe(false);
-    for (const gate of GATES) expect(s97.distAt(gate.tx, gate.ty)).toBe(-1);
+    const stranding = applied(generateTerrain(4426, cfg));
+    expect(stranding.allGatesReachable()).toBe(false);
+    for (const gate of GATES) expect(stranding.distAt(gate.tx, gate.ty)).toBe(-1);
   });
 
   it('walks gatePath over real ground only, and reaches the Core when it can', () => {
@@ -483,6 +553,63 @@ describe('high ground and structures (fb064b)', () => {
     expect(g.wardenPassable(9, 5)).toBe(true);
     expect(g.wardenPassable(GATES[0].tx, GATES[0].ty)).toBe(true);
     expect(g.wardenPassable(0, 0)).toBe(false);
+  });
+
+  it('rejects a non-integer coordinate the way buildable and isHighGround do', () => {
+    // fb064u. `wardenPassable` indexed with the raw coordinate, so a fraction
+    // could answer about a tile that does not exist — or, worse, about a real
+    // *different* one. Both sibling predicates reject non-integers outright for
+    // b007's reason, and this one is the odd man out; latent only because both
+    // live callers (`run.ts`'s `walkable`, `wardenmove.ts`) floor first.
+    const g = applied(
+      handMap([
+        [3, 1, TerrainKind.Rock],
+        [4, 1, TerrainKind.High],
+      ]),
+    );
+    expect(g.wardenPassable(3, 1)).toBe(false);
+    expect(g.wardenPassable(4, 1)).toBe(false);
+
+    // The undefined-index shape: `tile[ty * GRID_W + 3.5]` is `undefined`,
+    // which is neither Border nor Open, so the old code fell through to
+    // "passable" on a tile made of rock.
+    expect(g.wardenPassable(3.5, 1)).toBe(false);
+    expect(g.wardenPassable(4.5, 1)).toBe(false);
+
+    // The aliasing shape b007 named: GRID_W is even, so a `.5` in `ty` cancels
+    // its own fraction and lands on a real tile in another column — here an
+    // open one, so rock at (3, 1) would have read back as passable.
+    expect(((1 + 0.5) * GRID_W) % 1).toBe(0);
+    const alias = 1.5 * GRID_W + 3;
+    expect(Number.isInteger(alias)).toBe(true);
+    expect(g.tile[alias]).toBe(TileType.Open);
+    expect(g.terrainKind[alias]).toBe(TerrainKind.Normal);
+    expect(g.wardenPassable(3, 1.5)).toBe(false);
+
+    // Same answer as the two siblings, on every non-integer shape.
+    for (const [tx, ty] of [
+      [3.5, 1],
+      [3, 1.5],
+      [-0.5, 5],
+      [NaN, 5],
+      [5, NaN],
+      [Infinity, 5],
+      [5, -Infinity],
+    ] as Array<[number, number]>) {
+      expect(g.wardenPassable(tx, ty)).toBe(false);
+      expect(g.buildable(tx, ty)).toBe(false);
+      expect(g.isHighGround(tx, ty)).toBe(false);
+    }
+
+    // The guard did not displace the bounds check: b007's other alias shape is
+    // an out-of-grid *integer* tx that multiplies onto a real tile one row up.
+    // The probe must land on an *open* alias — `3 + GRID_W` aliases onto the
+    // rock this test planted at (3, 1) and would read `false` for the wrong
+    // reason, staying green with `inBounds` deleted (QA bug 2).
+    const oob = 2 + GRID_W;
+    expect(Number.isInteger(oob)).toBe(true);
+    expect(g.tile[oob]).toBe(TileType.Open);
+    expect(g.wardenPassable(oob, 0)).toBe(false);
   });
 
   it('still prices a structure on ordinary ground as a breach', () => {

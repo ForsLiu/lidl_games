@@ -5,6 +5,7 @@
       "walkable": true,
       "buildable": true,
       "highGround": false,
+      "blocksCharacter": false,
       "color": "#3b4a35"
     },
     {
@@ -12,6 +13,7 @@
       "walkable": true,
       "buildable": false,
       "highGround": false,
+      "blocksCharacter": false,
       "color": "#4a4535"
     },
     {
@@ -19,6 +21,7 @@
       "walkable": false,
       "buildable": false,
       "highGround": false,
+      "blocksCharacter": true,
       "color": "#3a3a40"
     },
     {
@@ -26,13 +29,15 @@
       "walkable": false,
       "buildable": true,
       "highGround": true,
+      "blocksCharacter": true,
       "color": "#55503f"
     }
   ],
   "density": {
     "rough": 0.17,
     "rock": 0.11,
-    "high": 0.07
+    "high": 0.07,
+    "jitter": 0.22
   },
   "blob": {
     "minSize": 3,
@@ -44,12 +49,42 @@
   "gateClearRadius": 2,
   "plazaRadius": 3,
   "coreGateClearance": 3,
+  "highContestRadius": 4,
   "maxAttempts": 8,
   "constraints": {
     "minWalkableFrac": 0.6,
     "minBuildableNormalFrac": 0.45,
     "minGateReachFrac": 0.8,
     "minCoreLegalFrac": 0.15,
-    "minCorridorWidth": 2
+    "minCorridorWidth": 2,
+    "maxGateDetour": 1.5
+  },
+  "highGround": {
+    "families": [
+      {
+        "key": "flier",
+        "traits": ["flying"],
+        "attacksHigh": true,
+        "surfacesHigh": true
+      },
+      {
+        "key": "ranged",
+        "traits": ["ranged"],
+        "attacksHigh": true,
+        "surfacesHigh": false
+      },
+      {
+        "key": "burrower",
+        "traits": ["burrows"],
+        "attacksHigh": false,
+        "surfacesHigh": false
+      },
+      {
+        "key": "ground",
+        "traits": [],
+        "attacksHigh": false,
+        "surfacesHigh": false
+      }
+    ]
   }
 }

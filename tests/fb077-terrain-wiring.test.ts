@@ -11,7 +11,7 @@
  *       south gate at (12,19)) is threaded into generation, closing the
  *       measured 138/500-seed burial bug;
  *   (3) a reachable Core is a hard precondition — the four seeds that strand
- *       the hardcoded Core (97/2055/2845/3098) resolve via `applyRunTerrain`'s
+ *       the hardcoded Core (4426/4515/5516 post-merge; 97/2055/2845/3098 pre-merge) resolve via `applyRunTerrain`'s
  *       seed+1 retry;
  *   (4) `TerrainMap.fallback` has a real consumer: a dev-visible warning plus
  *       `RunReport.terrainFallback` replay provenance;
@@ -42,7 +42,11 @@ import { loadContent } from '../src/sim/content';
 const terrainCfg = loadTerrain();
 
 /** Seeds `BACKLOG.md` fb077 pins as stranding the hardcoded Core (of 1..5000). */
-const STRANDED_CORE_SEEDS = [97, 2055, 2845, 3098];
+// Re-found at the lane/terrain merge (2026-09-04): fb064l's per-seed density
+// bands and fb064m's high-plot demotion re-drew every map, so the pre-merge
+// four (97/2055/2845/3098) no longer strand; these are the only three of
+// seeds 1..6000 that do under the merged generator.
+const STRANDED_CORE_SEEDS = [4426, 4515, 5516];
 
 function coreTileIndices(w: number): number[] {
   const out: number[] = [];
@@ -124,9 +128,9 @@ describe('fb077 — stranded-Core seeds resolve via seed+1 retry (item 3)', () =
     });
   }
 
-  it('the raw generated map at seed 97 really does strand the hardcoded Core (documents the bug applyRunTerrain works around)', () => {
+  it('the raw generated map at seed 4426 really does strand the hardcoded Core (documents the bug applyRunTerrain works around)', () => {
     const gates = GATES.slice(0, 3);
-    const map = generateTerrain(97, terrainCfg, gates);
+    const map = generateTerrain(4426, terrainCfg, gates);
     const grid = new Grid();
     grid.applyTerrain(terrainOverlay(map, terrainCfg));
     grid.refresh();
@@ -212,7 +216,7 @@ describe('fb077 — TerrainMap.fallback has a real consumer (item 4)', () => {
       plazaRadius: 0,
       corridorRadius: 1,
       gateClearRadius: 0,
-      density: { rough: 0, rock: 0.95, high: 0 },
+      density: { rough: 0, rock: 0.95, high: 0, jitter: 0 },
       constraints: { ...terrainCfg.constraints, minCorridorWidth: 1, minGateReachFrac: 0, minCoreLegalFrac: 0 },
     });
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
