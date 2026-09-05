@@ -29,6 +29,7 @@ import { describe, expect, it } from 'vitest';
 import { GATES, GRID_H, GRID_W } from '../src/sim/grid';
 import {
   describeTerrain,
+  flatTerrain,
   generateTerrain,
   legalCoreAnchors,
   loadTerrain,
@@ -43,6 +44,11 @@ import {
   type TerrainMap,
   type TerrainMeasure,
 } from '../src/sim/terrain/index';
+// Deep import on purpose (QA bug 3): `HEADER_KEYS` is the dump format's
+// internal contract, not part of the terrain public surface `index.ts` exports,
+// and it is reachable here only so the drift tests below can compare it against
+// what `describeTerrain` writes.
+import { HEADER_KEYS } from '../src/sim/terrain/describe';
 
 const cfg = loadTerrain();
 
@@ -610,6 +616,235 @@ describe('fb064k — a malformed dump is refused, never half-read', () => {
       Array.from(parseTerrainDump(good).kind),
     );
     expect(() => parseTerrainDump(`${good}\n`)).toThrow(/header says 20 rows/);
+  });
+});
+
+describe('fb064w — a header line is refused unless its fields are exactly what the writer emits', () => {
+  const good = GOLDEN_SEED_1;
+  /** Every `head a=1 b=2` line in a dump, by head word, in emitted order. */
+  const HEADS = ['seed', 'gates', 'bands', 'counts', 'tiles', 'legend'] as const;
+
+  /** The one line of `text` starting with `head`, as emitted. */
+  function headerLine(text: string, head: string): string {
+    const line = text
+      .replace(/\n$/, '')
+      .split('\n')
+      .find((l) => l.startsWith(`${head} `));
+    if (line === undefined) throw new Error(`test bug: no "${head}" line`);
+    return line;
+  }
+
+  it('refuses an unknown field on every header line, naming the key and the line', () => {
+    // `fields()` used to collect any `key=value` into a `Map` that only named
+    // readers ever looked in, so `hash=54fad3db bogus=1` parsed clean — the one
+    // shape of damage the format did not refuse, in a parser written to
+    // "refuse what the writer never emits rather than reinterpret it".
+    for (const head of HEADS) {
+      const line = headerLine(good, head);
+      const broken = good.replace(line, `${line} bogus=1`);
+      expect(broken, `${head}: the mutation must change the text`).not.toBe(good);
+      expect(() => parseTerrainDump(broken), head).toThrow(/unknown "bogus" on the "/);
+      expect(() => parseTerrainDump(broken), head).toThrow(new RegExp(`"${head}" line`));
+    }
+  });
+
+  it('refuses a hash that is not a hash, which is how a tab smuggles fields past the key set', () => {
+    // QA bug 1. `fields()` splits on a single space, so text separated by a
+    // *tab* is not a field and never reaches the unknown-key check — and `hash`
+    // was the one header value with no shape check at all, so it was free text.
+    // On an arena-sized dump the hash comparison catches the result; on a
+    // non-arena one (fb064f's announced Training Grounds shape) it cannot run,
+    // which is the same coverage hole the glyph histogram was written for. So
+    // the field is pinned to what `terrainHash` can actually produce.
+    const small: TerrainMap = {
+      w: 3,
+      h: 3,
+      kind: new Uint8Array(9),
+      requestedSeed: 5,
+      seed: 5,
+      attempts: 1,
+      fallback: false,
+      hash: 'deadbeef',
+    };
+    const text = describeTerrain(small, cfg);
+    expect(() => parseTerrainDump(text)).not.toThrow();
+    expect(() =>
+      parseTerrainDump(text.replace('hash=deadbeef', 'hash=deadbeef\tsource=flat-arena')),
+    ).toThrow(/non-hash/);
+    expect(() => parseTerrainDump(text.replace('hash=deadbeef', 'hash=not-a-hash'))).toThrow(
+      /non-hash/,
+    );
+    expect(() => parseTerrainDump(text.replace('hash=deadbeef', 'hash=DEADBEEF'))).toThrow(
+      /non-hash/,
+    );
+    // Every hash the writer emits satisfies it, over both shapes.
+    for (let seed = 1; seed <= 60; seed++) {
+      expect(generateTerrain(seed, cfg).hash).toMatch(/^[0-9a-f]{8}$/);
+    }
+    expect(flatTerrain().hash).toMatch(/^[0-9a-f]{8}$/);
+  });
+
+  it('names the expected key set and order in its two new refusals', () => {
+    // QA bug 2. The standard this file already holds itself to: the gate check
+    // prints `this build has it at 3,10`, the legend prints `this build uses
+    // "."`, and fb064s's own message was upgraded to name the remedy. A reader
+    // retyping a pasted dump by hand is exactly the audience.
+    expect(() =>
+      parseTerrainDump(
+        good.replace(
+          /^seed source=generator requested=1 /m,
+          'seed requested=1 source=generator ',
+        ),
+      ),
+    ).toThrow(/expected source requested effective attempts fallback hash/);
+    expect(() => parseTerrainDump(good.replace(/^(counts .*)$/m, '$1 note=1'))).toThrow(
+      /expected walkable normal coreAnchors/,
+    );
+  });
+
+  it('refuses a field whose key belongs to a different header line', () => {
+    // The near-miss the plain `bogus=1` case does not cover: a key that is real
+    // *somewhere* in the format. `walkable` is a `bands` key and a `counts`
+    // key, and neither line may borrow the other's fields.
+    expect(() => parseTerrainDump(good.replace(/^counts /m, 'counts coreLegal=1 '))).toThrow(
+      /unknown "coreLegal" on the "counts" line/,
+    );
+    expect(() => parseTerrainDump(good.replace(/^tiles /m, 'tiles west=0,10 '))).toThrow(
+      /unknown "west" on the "tiles" line/,
+    );
+  });
+
+  it('pins field order on every header line', () => {
+    // fb064s made the seed line's *layout* a contract: `source` is worth having
+    // because a reader's eye reaches it before `requested=0`. That was a
+    // guarantee about what `describeTerrain` writes and not about what
+    // `parseTerrainDump` accepts, so a hand-edited dump could put the mark last
+    // and still parse — and a reader who trusted the format would be reading a
+    // line whose shape the format never promised.
+    for (const head of HEADS) {
+      const line = headerLine(good, head);
+      const parts = line.split(' ');
+      expect(parts.length, `${head}: needs two fields to reorder`).toBeGreaterThan(2);
+      // Every adjacent pair, not just the first two: on the `seed` line the
+      // first swap is exactly fb064s's transposition, but on the other five
+      // that alone would only prove that *some* swap is refused.
+      for (let i = 1; i < parts.length - 1; i++) {
+        const swapped = [
+          ...parts.slice(0, i),
+          parts[i + 1],
+          parts[i],
+          ...parts.slice(i + 2),
+        ].join(' ');
+        expect(
+          () => parseTerrainDump(good.replace(line, swapped)),
+          `${head}: ${parts[i]} <-> ${parts[i + 1]}`,
+        ).toThrow(/fields are in a fixed order/);
+      }
+    }
+  });
+
+  it('names both keys when the order is wrong', () => {
+    expect(() =>
+      parseTerrainDump(
+        good.replace(
+          /^seed source=generator requested=1 /m,
+          'seed requested=1 source=generator ',
+        ),
+      ),
+    ).toThrow(/"seed" line has "source" after "requested"; fields are in a fixed order/);
+  });
+
+  it('declares exactly the fields the writer emits, in the emitted order', () => {
+    // Both directions, because the accept tests below only catch one of them.
+    // A key the *writer* adds or moves reddens those; a key left in
+    // `HEADER_KEYS` that nothing emits reddens nothing at all — and that is the
+    // leniency this item removed, reintroduced by a typo in the table the item
+    // created. Review reproduced it: `legacyGhost` added to `HEADER_KEYS.counts`
+    // left every test in this file green and let
+    // `counts ... legacyGhost=1` parse clean.
+    for (const head of HEADS) {
+      const emitted = headerLine(good, head)
+        .split(' ')
+        .slice(1)
+        .map((f) => f.slice(0, f.indexOf('=')));
+      expect(emitted, head).toEqual([...HEADER_KEYS[head]]);
+    }
+    expect([...Object.keys(HEADER_KEYS)].sort()).toEqual([...HEADS].sort());
+  });
+
+  it('requires every field it declares, which is what makes the order pin total', () => {
+    // The unstated invariant `HEADER_KEYS` now documents: the order check only
+    // sees the fields that are *present*, so an optional field would be
+    // accepted anywhere the indices still increase and the seed line's layout
+    // would stop being a contract. Pinned mechanically rather than asserted in
+    // a comment — drop each emitted field in turn and every one is refused.
+    for (const head of HEADS) {
+      const line = headerLine(good, head);
+      const parts = line.split(' ');
+      for (let i = 1; i < parts.length; i++) {
+        const without = [...parts.slice(0, i), ...parts.slice(i + 1)].join(' ');
+        expect(() => parseTerrainDump(good.replace(line, without)), `${head} without ${parts[i]}`)
+          .toThrow();
+      }
+    }
+  });
+
+  it('accepts every line the writer emits, for a generated map and the flat arena', () => {
+    // The other side of the same rule: a key set declared by hand is a second
+    // place for the format to live, and this is what catches it drifting from
+    // `describeTerrain`. Both emitted shapes, since the flat arena's seed line
+    // differs from a generated map's only in its values.
+    expect(() => parseTerrainDump(good)).not.toThrow();
+    expect(() => parseTerrainDump(describeTerrain(flatTerrain(), cfg))).not.toThrow();
+    for (let seed = 1; seed <= 40; seed++) {
+      const map = generateTerrain(seed, cfg);
+      expect(() => parseTerrainDump(describeTerrain(map, cfg)), `seed ${seed}`).not.toThrow();
+    }
+  });
+
+  it('leaves the provenance-free seed line acceptable', () => {
+    // `seed source=- requested=- ...` is the other shape `describeTerrain`
+    // emits, and it carries the same keys in the same order.
+    const grid: TerrainGrid = { w: GRID_W, h: GRID_H, kind: generateTerrain(3, cfg).kind.slice() };
+    const text = describeTerrain(grid, cfg);
+    expect(headerLine(text, 'seed')).toContain('source=-');
+    expect(() => parseTerrainDump(text)).not.toThrow();
+  });
+
+  it('keeps a missing field reporting as missing, not as a set mismatch', () => {
+    // The key set is checked as "no extras, in order", never as "exactly
+    // these", so every existing missing-field message is untouched. `source`
+    // is the one that matters most: its refusal tells a reader of a pre-fb064s
+    // dump how to repair the text by hand, and a set check would have replaced
+    // it with a generic complaint.
+    expect(() => parseTerrainDump(good.replace('source=generator ', ''))).toThrow(
+      /predates the field/,
+    );
+    expect(() => parseTerrainDump(good.replace(' coreAnchors=214', ''))).toThrow(
+      /"counts" line has no "coreAnchors"/,
+    );
+    expect(() => parseTerrainDump(good.replace(' high=44', ''))).toThrow(
+      /"tiles" line has no "high"/,
+    );
+  });
+
+  it('still refuses a duplicate before it refuses the order', () => {
+    // `duplicate "hash"` is the message fb064k recorded for a six-character
+    // append to the seed line, and an order check that ran first would have
+    // renamed it.
+    expect(() => parseTerrainDump(good.replace(/^(seed .*)$/m, '$1 hash=-'))).toThrow(
+      /duplicate "hash"/,
+    );
+    expect(() =>
+      parseTerrainDump(good.replace('walkable=0.669444', 'walkable=0.669444 walkable=9')),
+    ).toThrow(/duplicate "walkable"/);
+
+    // ...and the other way round for a key the format never had: `unknown` is
+    // checked first, so a repeated invention reports the real problem (it is
+    // not part of the format) rather than the incidental one.
+    expect(() => parseTerrainDump(good.replace(/^(seed .*)$/m, '$1 bogus=1 bogus=2'))).toThrow(
+      /unknown "bogus" on the "seed" line/,
+    );
   });
 });
 

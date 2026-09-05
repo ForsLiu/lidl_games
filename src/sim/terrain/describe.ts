@@ -129,13 +129,14 @@ const FRAC_DIGITS = 6;
  * and the parser asserts the equivalence in both directions rather than
  * assuming it.
  *
- * **Printed first, but only by the writer.** The parser reads the `seed` line
- * as unordered `key=value` pairs and accepts unknown ones, as it does for every
- * header line, so a hand-edited dump can put the mark last and still parse. The
- * mark's value to a human is a property of what `describeTerrain` emits; making
- * it a property of what `parseTerrainDump` accepts means refusing unknown and
- * reordered fields on all five header lines, which is a wider change than this
- * item and is filed as fb064w (QA bug 2).
+ * **Printed first, and read that way too** (fb064w). The mark's value to a
+ * human is that their eye reaches it before `requested=0`, which for one item
+ * was a property of what `describeTerrain` emits and not of what
+ * `parseTerrainDump` accepts: the parser read every header line as unordered
+ * `key=value` pairs and accepted unknown ones, so a hand-edited dump could put
+ * the mark last, or bury it among invented fields, and still parse as a dump of
+ * this format. `HEADER_KEYS` now declares each line's fields once, in emitted
+ * order, and the parser holds both.
  *
  * `generator` covers the degraded map too (`isDegradedMap`: `maxAttempts`
  * seeds all failed the bands, so the flat arena shipped under a real seed).
@@ -264,12 +265,77 @@ function fail(what: string): never {
   throw new Error(`parseTerrainDump: ${what}`);
 }
 
+/**
+ * Every header line's field list, in the order `describeTerrain` writes it
+ * (fb064w).
+ *
+ * One declaration per line, and the three dynamic ones are derived from the
+ * same tables the writer loops over rather than hand-copied, so a gate or a
+ * tile kind cannot be added to the format on one side only.
+ *
+ * The list does double duty and the two duties are deliberately not the same
+ * strength:
+ *  - **no extras.** A key the writer never emits is refused, because reading it
+ *    as "some future field, ignore it" is the one shape of damage this parser
+ *    used to reinterpret rather than refuse — `hash=54fad3db bogus=1` parsed
+ *    clean — in a file whose every other check is written the other way.
+ *  - **in this order.** fb064s made the seed line's *layout* load-bearing: the
+ *    value of `source` is that a reader's eye reaches it before `requested=0`.
+ *    Until this pin that was a promise about what `describeTerrain` writes and
+ *    not about what `parseTerrainDump` accepts, so a dump could put the mark
+ *    last and still be read as a dump of the format.
+ *
+ * It is emphatically *not* a required-key list. Missing keys stay `req`'s job,
+ * because each of those refusals says something specific about the field that
+ * is gone — `source`'s names the remedy for a pre-fb064s dump — and a set
+ * comparison here would replace all of them with one generic complaint.
+ *
+ * **That split rests on an invariant worth stating: every key here is `req`'d
+ * by some reader below.** It is what makes the order pin *total* rather than
+ * partial — a field no reader requires could be omitted, and the order check
+ * only sees the fields that are present, so an optional field would be
+ * accepted in any position that keeps the indices increasing and the seed
+ * line's layout contract would quietly weaken again. A test drops each emitted
+ * field in turn and expects a refusal, so the invariant is pinned rather than
+ * merely asserted here.
+ *
+ * Exported for that test and for the one that compares this table against what
+ * `describeTerrain` actually writes, in *both* directions: a key added here and
+ * never emitted is the same leniency this item removed, reintroduced by a typo
+ * in the table the item created.
+ */
+export const HEADER_KEYS = {
+  seed: ['source', 'requested', 'effective', 'attempts', 'fallback', 'hash'],
+  gates: GATES.map((g) => g.key),
+  bands: [
+    'walkable',
+    'buildableNormal',
+    'gateReach',
+    'coreLegal',
+    'gateDetour',
+    'corridors',
+    'gatesOpen',
+    'gatesConnected',
+  ],
+  counts: ['walkable', 'normal', 'coreAnchors'],
+  tiles: [...TERRAIN_KEYS],
+  legend: [...TERRAIN_KEYS],
+} as const satisfies Record<string, readonly string[]>;
+
+export type HeaderName = keyof typeof HEADER_KEYS;
+
 /** `key=value` pairs from a `head a=1 b=2` line, with the head word checked. */
-function fields(line: string | undefined, head: string): Map<string, string> {
+function fields(line: string | undefined, head: HeaderName): Map<string, string> {
   if (line === undefined) fail(`missing "${head}" line`);
   const parts = line.split(' ');
   if (parts[0] !== head) fail(`expected "${head}" line, got "${line}"`);
+  const allowed: readonly string[] = HEADER_KEYS[head];
   const out = new Map<string, string>();
+  // Index in `allowed` of the last field read, so order is checked against the
+  // declaration rather than against a required-key count — which is what keeps
+  // a *missing* field falling through to `req` with its own message.
+  let prevAt = -1;
+  let prevKey = '';
   for (let i = 1; i < parts.length; i++) {
     const eq = parts[i].indexOf('=');
     // `eq <= 0` rejects both `attempts` (no `=`, index -1) and `=5` (empty key,
@@ -277,11 +343,31 @@ function fields(line: string | undefined, head: string): Map<string, string> {
     // reader looks up, which is a silent way to carry garbage.
     if (eq <= 0) fail(`malformed field "${parts[i]}" on the "${head}" line`);
     const key = parts[i].slice(0, eq);
+    const at = allowed.indexOf(key);
+    // Checked before the duplicate rule so that `bogus=1 bogus=2` reports the
+    // real problem (the key is not part of the format) rather than the
+    // incidental one. Every key the duplicate rule was written for is a known
+    // key, so its messages are untouched.
+    // The refusal names the key set, not just the offender: this file's own
+    // standard (the gate check prints where *this build* has the gate, the
+    // legend prints the glyph this build uses, and fb064s's message names the
+    // remedy), and a human retyping a pasted dump is the audience.
+    if (at < 0) fail(`unknown "${key}" on the "${head}" line; expected ${allowed.join(' ')}`);
     // Last-write-wins is how a six-character append disables the integrity
     // check: ` hash=-` on the end of the seed line drops provenance entirely
     // and takes the hash verification with it. Refuse rather than reinterpret —
     // the same rule the legend check below is written to.
     if (out.has(key)) fail(`duplicate "${key}" on the "${head}" line`);
+    // `<`, not `!==`: a *missing* field leaves a gap in the sequence and must
+    // still reach `req`, so only a field that moves backwards is a reorder.
+    if (at < prevAt) {
+      fail(
+        `"${head}" line has "${key}" after "${prevKey}"; ` +
+          `fields are in a fixed order, expected ${allowed.join(' ')}`,
+      );
+    }
+    prevAt = at;
+    prevKey = key;
     out.set(key, parts[i].slice(eq + 1));
   }
   return out;
@@ -328,6 +414,15 @@ function intIn(f: Map<string, string>, head: string, key: string, lo: number, hi
     fail(`"${head}" line has ${key}=${v}, outside [${lo}, ${hi}]`);
   }
   return v;
+}
+
+/** The `hash` field, pinned to what `terrainHash` can produce. */
+function hashField(f: Map<string, string>): string {
+  const raw = req(f, 'seed', 'hash');
+  if (!/^[0-9a-f]{8}$/.test(raw)) {
+    fail(`"seed" line has non-hash hash="${raw}"; expected eight lowercase hex digits`);
+  }
+  return raw;
 }
 
 function bool(f: Map<string, string>, head: string, key: string): boolean {
@@ -421,7 +516,18 @@ export function parseTerrainDump(text: string): TerrainDump {
       // Negatives stay refused — the field counts attempts.
       attempts: intIn(seedLine, 'seed', 'attempts', 0, Number.MAX_SAFE_INTEGER),
       fallback: bool(seedLine, 'seed', 'fallback'),
-      hash: req(seedLine, 'seed', 'hash'),
+      // Shape-checked, and it is the only header value that was not (QA bug 1).
+      // `fields()` splits on a single space, so text separated by a *tab* is
+      // never a field and never meets the unknown-key rule above — which made
+      // free text in `hash` a way around fb064w's whole "no extras" contract:
+      // `hash=deadbeef\tsource=flat-arena` parsed clean and put an arbitrary
+      // string in `provenance.hash`. On an arena-sized dump the hash comparison
+      // at the end catches the result, but that check cannot run on a
+      // provenance-carrying *non-arena* dump (fb064f's Training Grounds shape)
+      // — the same coverage hole the glyph histogram exists to cover. The
+      // pattern is `terrainHash`'s own output shape: eight lowercase hex
+      // digits, which is what `toString(16).padStart(8, '0')` of a uint32 is.
+      hash: hashField(seedLine),
     };
     // Cross-field, because the `attempts` floor alone no longer constrains this
     // shape (fb064n). `attempts: 0` means no generation attempt ran, which
