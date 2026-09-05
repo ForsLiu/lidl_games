@@ -24,6 +24,17 @@ import { cfg } from './helpers';
 
 const DT = 1 / 60;
 const content = loadContent();
+
+/**
+ * An enemy's spawned HP, derived rather than pinned (p12c). These cases used
+ * fb025-era literals (husk 200, colossus 4000 — the authored 20/400 times
+ * fb025's global x10), which a roster-wide re-anchor necessarily reddens.
+ * Reading it from content keeps the case about the Core effect it is named
+ * for, not about the current tuning of enemy HP.
+ */
+function spawnedHp(key: string): number {
+  return content.enemyByKey.get(key)!.hp * content.enemies.baseHpMul;
+}
 const PLANT = content.coreByKey.get('carnivorous_plant')!;
 const PLANT_EFFECTS = PLANT.effects!;
 /** Sum of `carnivorous_plant`'s first `n` step `devourRangeBonus` deltas, straight off `/data/cores.json`. */
@@ -88,17 +99,17 @@ describe('p-core-c — Carnivorous Plant base effects and upgrade steps', () => 
 describe('p-core-c — TD devour', () => {
   it('devours a non-elite outright: instant kill, +5 Core HP, +1 Digestion, credits real damage', () => {
     const w = plantWorld();
-    w.coreHp = 100; // well under max (baseHp 200) so the heal has room
+    w.coreHp = 100; // well under max so the heal has room
     const e = spawnEnemy(w, 'husk', NEAR_X, CORE_Y)!;
-    expect(e.hp).toBe(200); // fb025: husk hp 20 -> 200 (x10, supersedes fb020's x1.4 -> 28)
+    expect(e.hp).toBeCloseTo(spawnedHp('husk'), 6);
     tickPlant(w, 8);
     expect(e.dead).toBe(true);
     expect(w.coreHp).toBe(100 + PLANT_EFFECTS.devourCoreHeal);
     expect(w.digestionStacks).toBe(1);
     // "feeds on-map damage effects": the kill lands through damageEnemy, so it
     // counts as real damage dealt, not a bare killEnemy with no attribution.
-    expect(w.damageByWeapon['carnivorous_plant']).toBe(200); // fb025: husk hp 20 -> 200
-    expect(w.damageTotal).toBe(200); // fb025: husk hp 20 -> 200
+    expect(w.damageByWeapon['carnivorous_plant']).toBeCloseTo(spawnedHp('husk'), 6);
+    expect(w.damageTotal).toBeCloseTo(spawnedHp('husk'), 6);
   });
 
   it('instant kill ignores armor: a heavily armored non-elite still dies to the exact one hit', () => {
@@ -107,17 +118,17 @@ describe('p-core-c — TD devour', () => {
     e.armor = 90; // would reduce a normal hit to a fraction of itself
     tickPlant(w, 8);
     expect(e.dead).toBe(true);
-    expect(w.damageByWeapon['carnivorous_plant']).toBe(200); // full pre-armor HP, not shredded by mitigation (fb025: 20 -> 200)
+    expect(w.damageByWeapon['carnivorous_plant']).toBeCloseTo(spawnedHp('husk'), 6); // full pre-armor HP, not shredded by mitigation
   });
 
   it('devours an elite for flat 200, not a kill, and still grants the Digestion stack and Core heal', () => {
     const w = plantWorld();
     w.coreHp = 100;
-    const e = spawnEnemy(w, 'colossus', NEAR_X, CORE_Y)!; // 4000 hp (fb025: 400 -> 4000, x10), elite trait
+    const e = spawnEnemy(w, 'colossus', NEAR_X, CORE_Y)!; // elite trait
     expect(e.elite).toBe(true);
     tickPlant(w, 8);
     expect(e.dead).toBe(false);
-    expect(e.hp).toBe(4000 - PLANT_EFFECTS.devourEliteDamage); // no armor (colossus has none) (fb025: was 400 hp)
+    expect(e.hp).toBeCloseTo(spawnedHp('colossus') - PLANT_EFFECTS.devourEliteDamage, 6); // no armor (colossus has none)
     expect(w.coreHp).toBe(100 + PLANT_EFFECTS.devourCoreHeal);
     expect(w.digestionStacks).toBe(1);
   });
@@ -128,7 +139,7 @@ describe('p-core-c — TD devour', () => {
     w.recomputeDerived();
     const e = spawnEnemy(w, 'colossus', NEAR_X, CORE_Y)!;
     tickPlant(w, 8);
-    expect(e.hp).toBe(4000 - PLANT_EFFECTS.devourEliteDamage); // fb025: colossus hp 400 -> 4000 (x10)
+    expect(e.hp).toBeCloseTo(spawnedHp('colossus') - PLANT_EFFECTS.devourEliteDamage, 6);
   });
 
   // Q113 addendum: unlike the non-elite kill (which explicitly bypasses armor
@@ -142,7 +153,7 @@ describe('p-core-c — TD devour', () => {
     const e = spawnEnemy(w, 'colossus', NEAR_X, CORE_Y)!;
     e.armor = 50; // damageTakenMul(50) < 1, so a mitigated 200 lands for less than 200
     tickPlant(w, 8);
-    expect(e.hp).toBeGreaterThan(200);
+    expect(e.hp).toBeGreaterThan(spawnedHp('colossus') - PLANT_EFFECTS.devourEliteDamage);
   });
 
   it('an enemy past devourRadius is left alone; buying range steps reaches it', () => {
@@ -283,7 +294,7 @@ describe('p-core-c — VS poison volley', () => {
     // proving that branch truly never runs while `huntsWarden` is false.
     const e = spawnEnemy(w, 'husk', CORE_X - 20, CORE_Y)!;
     tickPlant(w, 8);
-    expect(e.hp).toBe(200); // fb025: husk hp 20 -> 200 (x10)
+    expect(e.hp).toBeCloseTo(spawnedHp('husk'), 6);
   });
 });
 

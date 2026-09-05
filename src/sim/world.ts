@@ -444,6 +444,18 @@ export class World {
   waveStartTick = 0;
   /** Act II damage-by-source through minute 8, for SPEC A5. Null until reached. */
   damageThroughMinute8: Record<string, number> | null = null;
+  /**
+   * BACKLOG p12a (BALANCE DIRECTION v2 §A): `damageByWeapon`, restricted to
+   * damage dealt during the VS half of the run (`huntsWarden` — the same
+   * `act2`/`levelup` predicate the Corpse store below negates to mean "TD
+   * only", so the two stay in step), summed across every VS block rather
+   * than isolated to one.
+   * `damageAtSunder` cannot serve this: it is a single snapshot taken at the
+   * one Sundering, so on §1.1's interleaved 6-block shape "everything since"
+   * still folds in every TD wave that followed it. p12a's own-kit-share
+   * target is a VS-only measurement, so it needs a VS-only accumulator.
+   */
+  damageByWeaponVs: Record<string, number> = {};
   /** Per-tick event log the renderer drains (never read by the sim). */
   fx: { k: string; x: number; y: number; a: number; b: number }[] = [];
 

@@ -171,7 +171,7 @@ describe('p6d: G10 — Archer, measured off the authored numbers', () => {
     expect(bestT).toBeLessThanOrEqual(6);
   });
 
-  it('a full-charge Deadeye Draw still drops the toughest non-elite in a small handful of hits at mid scaling', () => {
+  it('a full-charge Deadeye Draw one-shots the toughest non-elite once the run has developed, and very nearly does at wave 0', () => {
     const nonElite = content.enemies.enemies.filter(
       (e) => !e.traits.includes('elite') && !e.traits.includes('boss'),
     );
@@ -180,13 +180,34 @@ describe('p6d: G10 — Archer, measured off the authored numbers', () => {
     // x2.5 Power is roughly a half-walked Constellation plus a relic, and
     // stating it here keeps the gate readable when the tree is re-tuned.
     const MID_POWER_MUL = 2.5;
-    const full = a.damage * Math.pow(1 + a.compoundPerSecond!, a.chargeCapSeconds!) * MID_POWER_MUL;
-    // fb025 (enemy HP x10, BALANCE.md's fodder band moved from "2-4 hits" to
-    // "6-12 hits"): a literal one-shot on the toughest non-elite no longer
-    // holds — re-pinned to the weaker, still-meaningful invariant that the
-    // ultimate comfortably beats even the new fodder TTK ceiling.
-    expect(full).toBeLessThan(toughest.hp);
-    expect(Math.ceil(toughest.hp / full)).toBeLessThanOrEqual(3);
+    // p12a (BALANCE DIRECTION v2 §A) re-expresses this pin as a **ratio to
+    // the enemy's authored HP** rather than the two absolute comparisons it
+    // carried before, so it survives a kit re-anchor instead of having to be
+    // renegotiated by each one. History: G10's spec clause is "full charge
+    // one-shots the toughest non-elite"; fb025's x10 enemy HP broke that
+    // literally, so it was re-pinned to "<= 3 hits, and not a one-shot";
+    // p12a's x3 anchor puts it back over the bar the spec names.
+    //
+    // qa-playtester caught the first version of this rewrite asserting the
+    // one-shot off `a.damage` alone, which is 42% higher than what the sim
+    // deals: Deadeye Draw is not a `pure` hit, so `bulwark`'s own
+    // `flatReduction` bites, and `kitPower` is not in the authored number
+    // either. Both are folded in below, and the claim is stated at the two
+    // points that actually differ — a pin that says "one-shots" has to be
+    // true at the wave it says it at.
+    const raw = a.damage * Math.pow(1 + a.compoundPerSecond!, a.chargeCapSeconds!) * MID_POWER_MUL;
+    const dealt = (wavesCleared: number): number =>
+      raw * (1 - (toughest.flatReduction ?? 0)) * (1 + 0.12 * wavesCleared);
+
+    // At the very start of a run the ultimate is just short of a one-shot —
+    // close enough that the second arrow finishes it, which is the "handful
+    // of hits" the fb025 form was reaching for.
+    expect(toughest.hp / dealt(0)).toBeGreaterThan(1);
+    expect(toughest.hp / dealt(0)).toBeLessThanOrEqual(2);
+    // By mid-run `kitPower` has carried it over the bar §14 G10 names, and it
+    // stays a meaningful shot rather than absurd overkill.
+    expect(toughest.hp / dealt(12)).toBeLessThanOrEqual(1);
+    expect(toughest.hp / dealt(12)).toBeGreaterThan(1 / 4);
   });
 
   it('a released full charge actually pierces, and a longer draw hits harder', () => {

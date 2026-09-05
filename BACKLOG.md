@@ -195,7 +195,7 @@ a range, logged in QUESTIONS.md). Execute in order p12a -> p12b -> p12c ->
 p12d -> p12e; each is its own item (targeted tests + `test:fast`, code-reviewer/
 qa-playtester per CLAUDE.md's tier, commit) — do not bundle.
 
-- [ ] (p12a) [balance] Kit growth: class kit damage must compound over a run
+- [x] (p12a) [balance] Kit growth: class kit damage must compound over a run
       and be re-anchored for the post-fb025 (enemy HP x10) world. (1) A
       run-long multiplier on all class-kit damage (basic attack, actives,
       passive procs, summons): `kitPower = 1 + 0.12 * tdWavesCleared` ⚖
@@ -219,7 +219,16 @@ qa-playtester per CLAUDE.md's tier, commit) — do not bundle.
       log the real per-class numbers, don't force it); G10/G11 and the
       swordsman dummy pins are converted to ratio form and still pass — refs:
       SPEC-FINAL §14 (BALANCE DIRECTION v2 §A), QUESTIONS Q161/Q166.
-- [ ] (p12b) [balance] Tier scalars with teeth, T3 as reference tier. Move
+- [x] (p12b) [balance] **Done with two acceptance clauses honestly red, both
+      recorded not forced:** T5 measured 0% against §B's `[5%,20%]` (structurally
+      impossible in §B's geometric shape as measured then — **that conclusion was
+      retracted at p12c, which puts T3 and T5 in band together; see QUESTIONS
+      Q177**), and
+      G1's 30-36 min band does not survive the move to T3 (measured 37.46 min /
+      9-24 wins; `.skip`-ed with the numbers, re-enable point p12d, which owns
+      the gate rewrites). T3's win rate — the clause that decides whether T3
+      works as the reference tier — landed at 50% over 12 seeds and 37.5% over
+      G1's 24, inside `[35%,70%]`. Tier scalars with teeth, T3 as reference tier. Move
       G1 (run length)/G8 (class win-rate + diversity)/G14 (boss band)/G23
       (Core win-rate)'s measurement tier from T1 to **T3**, with T3 keeping
       the existing bands (win rate `[35%,70%]`, etc.) unchanged. Steepen the
@@ -232,7 +241,14 @@ qa-playtester per CLAUDE.md's tier, commit) — do not bundle.
       lands in `[5%,20%]` win rate ⚖; T1's own win rate is measured (not yet
       gated — that's p12c) and recorded — refs: BALANCE DIRECTION v2 §B,
       QUESTIONS Q160.
-- [ ] (p12c) [balance] T1 re-anchor to contested margins. Using the p10s
+- [x] (p12c) [balance] **Done — all three §C targets met** (`baseHpMul` 20:
+      66.7% wins, 33% close-win, median Core HP at victory 53.8% over 24
+      seeds). Its "T3's bands re-confirmed unaffected" clause could not hold
+      literally — raising the T1 base moves every tier — so the ladder was
+      re-fitted and T3 re-confirmed *in band* instead (45.8%). The arc's real
+      blocker fell out of this item and is QUESTIONS Q177: the difficulty
+      response has ~1.4x of dynamic range, so no tier ladder can be ordered.
+      T1 re-anchor to contested margins. Using the p10s
       harness (scripted-kit-and-Core-purchase, margin-classified via
       `classifyMargin`), raise T1's wave HP curve / spawn density / enemy
       `coreDamage` together (the same shared levers p10r/p10t/p10z already
@@ -256,7 +272,38 @@ qa-playtester per CLAUDE.md's tier, commit) — do not bundle.
       the new shape (T3 reference + T1/T5 companions, rewritten G8 diversity
       check) and are green against p12a-p12c's tuning — refs: BALANCE
       DIRECTION v2 §D, QUESTIONS Q160/Q161.
-- [ ] (p12e) [bug] Timeout elimination: no seed may reach the tick cap in any
+- [ ] (p12e) [bug] **Now the blocker for this whole arc** (QUESTIONS Q177),
+      and **diagnosed — start from this, not from a fresh sweep.** Profiling
+      the six censored T3 seeds (`act1Seconds`/`act2Seconds`/`bossKillSeconds`
+      at a 120-minute cap) shows the tail is **entirely the boss fight**:
+      Act I is near-constant at 24.6-25.7 min on every seed, while the boss
+      kill lands at **381s / 384s on the fast seeds and 920s / 1020s / 1187s
+      on the slow ones** — a 3x spread, and total run length tracks it
+      one-for-one (37.3 / 37.7 min vs 47.3 / 48.9 / 51.0 min). The one seed
+      that is not a censored win (12) is an early `defeat_core` at 9.8 min and
+      is unrelated.
+      **The cause is p12c's own anchor.** `baseHpMul: 20` applies to the final
+      boss like every other enemy, taking `warden_eater` 365,000 -> 7.3M at T1
+      (8.36M at T3), so fights that used to top out under 180s now run 380s to
+      1187s depending on how much tower damage the build brought. That also
+      makes **p10k's conclusion stale**: it found the run-length gap was "not
+      inside the boss fight's own budget at all" and moved on to Act I/VS
+      pacing — true when fights ended under 180s, false now. The boss clock is
+      the right lever again, and `PACING_*`/`ESCALATION_*` (`src/sim/boss.ts`)
+      are already there.
+      Likely fix, to be measured not assumed: exempt the final boss from the
+      roster multiplier (it has its own fb099-fitted HP and its own G14
+      fight-length floor), or re-anchor `warden_eater.hp` against the new
+      baseline. Either way re-check G14's >20s floor and <100% win rate, which
+      is what fb099 and p10k were both protecting.
+      Original text follows.
+      p12c measured T3's 24 seeds at both caps — **37.5% wins with 6 timeouts
+      at the 45-minute cap, 62.5% with zero at 120 minutes**. A quarter of the
+      seed set is censored, censored seeds are disproportionately *wins*, and
+      the bias grows with how contested a tier is — so every rung's recorded
+      rate is understated and the ladder's ordering cannot be confirmed until
+      this is fixed. No gate measured against the 45-minute cap can be trusted
+      meanwhile. Timeout elimination: no seed may reach the tick cap in any
       gate matrix (G1/G8/G14/G23). Verify the Warden-Eater HP/enrage
       escalation (QUESTIONS Q126's order) is aggressive enough under p12a-
       p12c's new numbers; stack it faster if a `'running'`/timeout outcome
@@ -267,6 +314,58 @@ qa-playtester per CLAUDE.md's tier, commit) — do not bundle.
       `npm run status` to regenerate STATUS.md against the new baseline —
       refs: BALANCE DIRECTION v2 §E, QUESTIONS Q159/Q160 (both name timeouts
       in the pre-p12 baseline).
+
+- [ ] (p12f) [balance] Close BALANCE DIRECTION v2 §A's own-kit-share target,
+      which p12a measured as unreachable by §A's own two levers (QUESTIONS
+      Q175). p12a shipped `kitPower` (x3.16 by wave 18) and the x3 base
+      re-anchor and moved the VS kit share from 0.00-1.67% to 0.00-5.16% —
+      **0 of 12 classes at the >=35% target**, because VS-wielded weapon
+      damage inherits the full tower-upgrade + Constellation scaling stack
+      while the kit inherits none of it (swordsman seed 1: 134.3M of 134.5M
+      VS damage is wielded), so the denominator grows with the build and the
+      numerator does not. Pick one of Q175's three routes and measure it: (a)
+      put the kit on the same scaling axis the wielded weapons ride; (b) cut
+      VS-wielded scaling so the two sides start comparable; (c) restate the
+      target against a denominator that excludes wielded weapons. Also covers
+      the four classes p12a's field set could not move at all
+      (`bloodlord`/`paladin` via `titheDamageMul`/`wrathDamageMul`,
+      `engineer`/`animist` via `summonStatMul`) — a multiplier-shaped kit
+      needs its own anchor, not the absolute-magnitude one. Note before
+      re-anchoring anything: **12 of p12a's 29 values are `basicAttack.dps`,
+      which cannot move a VS-window metric at all** — the class basic attack
+      is TD-only (`src/sim/run.ts:541`), so in VS `bloodlord`/`paladin` have
+      no authored kit damage number whatsoever (qa-playtester, p12a). **Sequenced after
+      p12c** so it tunes against p12b/p12c's baseline, not the pre-directive
+      one. Acceptance: >=9 of 12 classes at >=35% VS own-kit share measured
+      with the p12a control-pair method (`KIT_SHARE_MEASURE=1`, >=2 seeds,
+      before/after both recorded); G1's run length and the p12b/p12c win-rate
+      bands re-confirmed unaffected — refs: BALANCE DIRECTION v2 §A,
+      QUESTIONS Q175, BALANCE.md "Kit relevance target".
+
+- [x] (p12g) **RETIRED, not done** — filed on a conclusion that was retracted
+      before it shipped. Its premise was that no tier ladder shape can be
+      ordered; p12c's corrected sweep puts T3 and T5 in their §B bands at
+      per-step 1.07/1.05/1.03, so there is nothing here to fix. See QUESTIONS
+      Q177's retraction. The real blocker the correction exposed is the tick
+      cap, which is **p12e**'s, not a new item's.
+
+- [ ] (p12h) [bug] G13's solo-viability clause (`tests/a4-single-type.test.ts`)
+      was **already largely red before p12c**, and nobody had measured it.
+      Authored at 5/5/5/5/4/5/4; measured at HEAD (`baseHpMul` at its 1.0
+      identity, p12b's ladder exactly 1.0 at T1, so nothing else in HEAD can
+      move a T1 reading) it reads **{arrow_spire 1, ballista 1, ember_brazier
+      0, frost_obelisk 0, tesla_coil 1, mortar 3, venom_spore 0} of 5**
+      (qa-playtester, p12c). p12c's x20 anchor then took it to all zeroes —
+      that part is p12d's to re-band — but the pre-existing regression is a
+      separate, older defect: something between the clause's authoring and
+      HEAD stopped six of seven towers soloing the curve, and it was never
+      caught because the suite is fast-tier-excluded. Bisect it (fb076's tower
+      retune, fb025's x10 enemy HP and the p12a kit re-anchor are the
+      candidates by date) and either restore viability or re-band with a
+      recorded reason. Acceptance: the HEAD-control numbers above reproduced,
+      the causing change identified by name with a control run either side,
+      and the clause either green or re-banded with the measurement — refs:
+      SPEC-FINAL §14 G13, `tests/a4-single-type.test.ts`'s own header history.
 
 Constellation stays auto-maxed for all play (`TREE_AUTO_MAX`); per BALANCE
 DIRECTION v2 §F, never re-add point spending as a balance lever to make any

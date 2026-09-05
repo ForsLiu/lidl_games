@@ -148,10 +148,13 @@ describe('fb022 Surface 1: class screen + in-run character panel show live numbe
   });
 
   it('code-reviewer regression: basic-attack DPS folds atkFlat through the per-hit formula (dps*interval), not a flat add to the rate', () => {
-    // Reproduces the reviewer's exact numbers, re-pinned for fb025 (attack
-    // speed x0.7 -> Swordsman basicAttack.interval 0.55 -> 0.7857): dps=26,
-    // atkFlat=10 -> real live DPS is (26*0.7857+10)/0.7857 = 38.73, not the
-    // naive (26+10) = 36 an interval-blind override would show.
+    // The claim is about the *formula*, not about one tuning of it: `atkFlat`
+    // is a per-hit bonus, so at an interval under 1 s it is worth more than
+    // its face value per second, and an interval-blind `dps + atkFlat`
+    // override understates it. This used to be pinned to a literal 38.73,
+    // which had to be renegotiated by fb025 and again by p12a's x3 kit
+    // re-anchor (dps 26 -> 78); re-expressed here as the identity itself, it
+    // survives both.
     const w = new World(cfg({ classKey: 'swordsman' }));
     w.stats.add('test', 'atkFlat', 10);
     w.recomputeDerived();
@@ -161,9 +164,16 @@ describe('fb022 Surface 1: class screen + in-run character panel show live numbe
     const html = characterPanelMarkup(characterPanelData(w), w);
     const expected = (cls.basicAttack.dps * cls.basicAttack.interval + w.derived.atkFlat) / cls.basicAttack.interval;
     const rounded = Math.round(expected * 100) / 100;
-    expect(rounded).toBeCloseTo(38.73, 2);
+    const naive = cls.basicAttack.dps + w.derived.atkFlat; // the interval-blind miscalculation
+    // The same quantity written the other way round: a per-hit bonus spread
+    // over the interval it is paid on.
+    expect(expected).toBeCloseTo(cls.basicAttack.dps + w.derived.atkFlat / cls.basicAttack.interval, 6);
+    // Swordsman's interval is under 1 s, so the honest number must exceed the
+    // naive one — the direction of the bug this regression exists to catch.
+    expect(cls.basicAttack.interval).toBeLessThan(1);
+    expect(expected).toBeGreaterThan(naive);
     expect(html).toContain(`DPS: ${rounded}/s`);
-    expect(html).not.toContain('DPS: 36/s'); // the interval-blind (dps + atkFlat) miscalculation
+    expect(html).not.toContain(`DPS: ${naive}/s`);
   });
 
   it('the character panel omits the ability section entirely when built with no World (Hub-style pre-run call is unaffected)', () => {

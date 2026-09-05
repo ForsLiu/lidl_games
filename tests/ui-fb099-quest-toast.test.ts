@@ -60,6 +60,7 @@ function reportWith(over: Partial<RunReport> = {}): RunReport {
     kills: 0,
     leaks: 0,
     damageByWeapon: {},
+    damageByWeaponVs: {},
     damageByType: {},
     damageTotal: 0,
     damageThroughMinute8: null,

@@ -3,7 +3,7 @@
     {
       "key": "swordsman", "name": "Swordsman", "unlockedByDefault": true, "unlockQuest": null,
       "moveSpeedBonus": 0.30,
-      "basicAttack": { "dps": 26, "range": 2.5, "interval": 0.7857, "aoe": 1.5 },
+      "basicAttack": { "dps": 78, "range": 2.5, "interval": 0.7857, "aoe": 1.5 },
       "passive": {
         "name": "Thousand Cuts",
         "description": "Each attack (including Active attacks; each damage instance from an Active counts as 1 attack) applies 1 Bleeding.",
@@ -15,9 +15,9 @@
         "kind": "charge_nova",
         "cooldownSeconds": 6,
         "radius": 4,
-        "damage": 60,
+        "damage": 180,
         "minRadius": 1.5,
-        "minDamage": 10,
+        "minDamage": 30,
         "knockback": 3,
         "chargeCapSeconds": 3
       },
@@ -26,7 +26,7 @@
         "kind": "dash_line",
         "cooldownSeconds": 4,
         "radius": 0,
-        "damage": 30,
+        "damage": 90,
         "dashRange": 5,
         "dashWidth": 1
       },
@@ -39,7 +39,7 @@
     {
       "key": "plaguebringer", "name": "Plaguebringer", "unlockedByDefault": false, "unlockQuest": "plaguebringer_veteran",
       "moveSpeedBonus": 0.15,
-      "basicAttack": { "dps": 12, "range": 6, "interval": 1.0714, "aoe": 0 },
+      "basicAttack": { "dps": 36, "range": 6, "interval": 1.0714, "aoe": 0 },
       "passive": {
         "name": "Spreading Plague",
         "description": "If any DoT on an enemy is unfinished when it dies, deal the total unfinished damage to the nearest enemy, once.",
@@ -51,7 +51,7 @@
         "kind": "ground_poison",
         "cooldownSeconds": 7,
         "radius": 3,
-        "damage": 8,
+        "damage": 24,
         "groundDurationSeconds": 5
       },
       "active2": {
@@ -70,7 +70,7 @@
     {
       "key": "engineer", "name": "Engineer", "unlockedByDefault": true, "unlockQuest": null,
       "moveSpeedBonus": 0.15,
-      "basicAttack": { "dps": 10, "range": 4, "interval": 1.1429, "aoe": 0 },
+      "basicAttack": { "dps": 30, "range": 4, "interval": 1.1429, "aoe": 0 },
       "passive": {
         "name": "Efficient Engineering",
         "description": "Builds and upgrades cost 10% less; build range +2 tiles.",
@@ -106,13 +106,13 @@
     {
       "key": "pyromancer", "name": "Pyro", "unlockedByDefault": false, "unlockQuest": "win_a_run",
       "moveSpeedBonus": 0.15,
-      "basicAttack": { "dps": 16, "range": 4, "interval": 1.0, "aoe": 1.2 },
+      "basicAttack": { "dps": 48, "range": 4, "interval": 1.0, "aoe": 1.2 },
       "passive": {
         "name": "Contagious Flame",
-        "description": "Burning enemies deal 2 damage/s to enemies touching them.",
+        "description": "Burning enemies deal 6 damage/s to enemies touching them.",
         "mods": {},
         "kind": "contagious_flame",
-        "flameDps": 2,
+        "flameDps": 6,
         "flameRadius": 1.2
       },
       "active1": {
@@ -120,8 +120,8 @@
         "kind": "burst_damage",
         "cooldownSeconds": 10,
         "radius": 4,
-        "damage": 45,
-        "burnDps": 3,
+        "damage": 135,
+        "burnDps": 9,
         "burnDuration": 3
       },
       "active2": {
@@ -129,7 +129,7 @@
         "kind": "dash_trail",
         "cooldownSeconds": 9,
         "radius": 0,
-        "damage": 6,
+        "damage": 18,
         "dashRange": 5,
         "dashWidth": 1,
         "groundDurationSeconds": 3,
@@ -144,7 +144,7 @@
     {
       "key": "archer", "name": "Archer", "unlockedByDefault": true, "unlockQuest": null,
       "moveSpeedBonus": 0.15,
-      "basicAttack": { "dps": 16, "range": 6, "interval": 1.0, "aoe": 0 },
+      "basicAttack": { "dps": 48, "range": 6, "interval": 1.0, "aoe": 0 },
       "passive": {
         "name": "Long Draw",
         "description": "Deadeye damage has no cap; +1 pierce per full second charged.",
@@ -155,7 +155,7 @@
         "kind": "charge_pierce",
         "cooldownSeconds": 1.5,
         "radius": 9,
-        "damage": 20,
+        "damage": 60,
         "compoundPerSecond": 0.40,
         "moveMulWhileCharging": 0.60,
         "pierceCap": 6,
@@ -166,7 +166,7 @@
         "kind": "dash_volley",
         "cooldownSeconds": 6,
         "radius": 6,
-        "damage": 14,
+        "damage": 42,
         "dashRange": 3,
         "volleyShots": 3
       },
@@ -179,7 +179,7 @@
     {
       "key": "necromancer", "name": "Necromancer", "unlockedByDefault": false, "unlockQuest": "four_slot_win",
       "moveSpeedBonus": 0,
-      "basicAttack": { "dps": 10, "range": 4, "interval": 1.2857, "aoe": 0 },
+      "basicAttack": { "dps": 30, "range": 4, "interval": 1.2857, "aoe": 0 },
       "passive": {
         "name": "Grave Harvest",
         "description": "Kills leave corpses for 6 s.",
@@ -207,7 +207,7 @@
         "pactDamageMul": 0.45,
         "pactAtkSpdMul": 0.30,
         "pactDrainPerSecond": 0.02,
-        "pylonDps": 5,
+        "pylonDps": 15,
         "pylonRange": 3,
         "pylonInterval": 1.4286
       },
@@ -220,7 +220,7 @@
     {
       "key": "cryomancer", "name": "Cryomancer", "unlockedByDefault": false, "unlockQuest": "build_40_obelisks",
       "moveSpeedBonus": 0.15,
-      "basicAttack": { "dps": 10, "range": 6, "interval": 1.1429, "aoe": 0.8 },
+      "basicAttack": { "dps": 30, "range": 6, "interval": 1.1429, "aoe": 0.8 },
       "passive": {
         "name": "Frost Touch",
         "description": "Attacks apply frost; an enemy hit 5 times while frosted freezes; frozen enemies shatter on death.",
@@ -228,14 +228,14 @@
         "kind": "frost_touch",
         "freezeHits": 5,
         "shatterRadius": 1.5,
-        "shatterDamage": 20
+        "shatterDamage": 60
       },
       "active1": {
         "name": "Glaciate",
         "kind": "frost_nova",
         "cooldownSeconds": 9,
         "radius": 4,
-        "damage": 20
+        "damage": 60
       },
       "active2": {
         "name": "Ice Wall",
@@ -255,7 +255,7 @@
     {
       "key": "stormcaller", "name": "Stormcaller", "unlockedByDefault": false, "unlockQuest": "hoarder",
       "moveSpeedBonus": 0.15,
-      "basicAttack": { "dps": 16, "range": 6, "interval": 1.0, "aoe": 0.8 },
+      "basicAttack": { "dps": 48, "range": 6, "interval": 1.0, "aoe": 0.8 },
       "passive": {
         "name": "Conduction",
         "description": "Electric damage +20% per jump, compounding, cap 8 jumps.",
@@ -266,7 +266,7 @@
         "kind": "chain_lightning",
         "cooldownSeconds": 8,
         "radius": 5,
-        "damage": 18,
+        "damage": 54,
         "chainCount": 6,
         "chainGrowth": 0.20,
         "chainCap": 8
@@ -289,7 +289,7 @@
     {
       "key": "bloodlord", "name": "Bloodlord", "unlockedByDefault": false, "unlockQuest": "fast_boss",
       "moveSpeedBonus": 0.30,
-      "basicAttack": { "dps": 17, "range": 2.5, "interval": 0.8571, "aoe": 1.0 },
+      "basicAttack": { "dps": 51, "range": 2.5, "interval": 0.8571, "aoe": 1.0 },
       "passive": {
         "name": "Blood Frenzy",
         "description": "3% lifesteal on normal damage; +10% attack in VS waves, -5% in TD waves.",
@@ -326,7 +326,7 @@
     {
       "key": "animist", "name": "Animist", "unlockedByDefault": false, "unlockQuest": "archivist",
       "moveSpeedBonus": 0.15,
-      "basicAttack": { "dps": 10, "range": 4, "interval": 1.1429, "aoe": 0 },
+      "basicAttack": { "dps": 30, "range": 4, "interval": 1.1429, "aoe": 0 },
       "passive": {
         "name": "Kinship",
         "description": "Aura effects also affect summons.",
@@ -362,7 +362,7 @@
     {
       "key": "paladin", "name": "Paladin", "unlockedByDefault": false, "unlockQuest": "sealed_win",
       "moveSpeedBonus": 0,
-      "basicAttack": { "dps": 16, "range": 2.5, "interval": 1.1429, "aoe": 1.5 },
+      "basicAttack": { "dps": 48, "range": 2.5, "interval": 1.1429, "aoe": 1.5 },
       "passive": {
         "name": "Guardian Stance",
         "description": "+50 defense after standing still 0.5 s; blocked damage charges Wrath.",
@@ -397,7 +397,7 @@
     {
       "key": "time_lord", "name": "Time Lord", "unlockedByDefault": false, "unlockQuest": "chrono_veteran",
       "moveSpeedBonus": 0.05,
-      "basicAttack": { "dps": 9, "range": 4.5, "interval": 1.2857, "aoe": 0 },
+      "basicAttack": { "dps": 27, "range": 4.5, "interval": 1.2857, "aoe": 0 },
       "passive": {
         "name": "Time Flow",
         "description": "Damage taken becomes a 4 s DoT after one armor mitigation, instead of landing at once.",
@@ -414,9 +414,9 @@
         "maxCharges": 3,
         "rechargeSeconds": 6,
         "markRewindSeconds": 3,
-        "markPastDotDps": 12,
+        "markPastDotDps": 36,
         "markPastDotSeconds": 6,
-        "markPresentDotDps": 16,
+        "markPresentDotDps": 48,
         "markPresentDotSeconds": 6,
         "markFutureSlowAmount": 0.20,
         "markFutureSlowSeconds": 3,
@@ -428,7 +428,7 @@
         "kind": "time_lock",
         "cooldownSeconds": 10,
         "radius": 3,
-        "damage": 14,
+        "damage": 42,
         "maxCharges": 2,
         "rechargeSeconds": 10,
         "groundDurationSeconds": 5,

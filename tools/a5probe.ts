@@ -27,6 +27,7 @@
 import { Run } from '../src/sim/run';
 import { BuilderPolicy } from '../src/bots/policies';
 import { loadContent } from '../src/sim/content';
+import { allTreeNodeIds } from '../src/meta/meta';
 import type { RunConfig, RunReport } from '../src/sim/types';
 
 export interface BuildSpec {
@@ -158,7 +159,15 @@ export function runBuild(build: BuildSpec, seed: number): BuildResult {
     classKey: build.classKey,
     tier: 1,
     modifiers: [],
-    allocated: [],
+    // p12c: the full Constellation tree, not `[]`. This is fb049's fix (Q138)
+    // applied to the one harness that still had the old shape: every real
+    // Hub-started run feeds the whole tree in (`TREE_AUTO_MAX`,
+    // `src/meta/meta.ts`), so `[]` measured a run no player plays. It became
+    // load-bearing at p12c's `baseHpMul` re-anchor — a bare-tree builder bot
+    // can no longer reach Act II at all, which silently zeroed G4's
+    // Act-II-only armour-shred liveness clause rather than failing it for a
+    // reason about armour.
+    allocated: allTreeNodeIds(loadContent()),
     policy: build.name,
     // SPEC-FINAL §1.1's real run shape: 18 TD waves across 6 blocks, each
     // followed by a VS wave, not the old single-cycle 10-wave/minute-8 shape.

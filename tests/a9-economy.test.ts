@@ -10,6 +10,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { loadContent } from '../src/sim/content';
+import { allTreeNodeIds } from '../src/meta/meta';
 import { autoDraft } from '../src/sim/tiers';
 import { cfg, runWithPolicy } from './helpers';
 
@@ -20,8 +21,21 @@ function median(xs: number[]): number {
   return s[Math.floor(s.length / 2)];
 }
 
+/**
+ * p12c: the full Constellation tree, not `cfg()`'s empty default. This is
+ * fb049's fix (Q138) — every real Hub-started run feeds the whole tree in
+ * (`TREE_AUTO_MAX`), so `[]` measured a run no player plays — and it became
+ * load-bearing at p12c's `baseHpMul` re-anchor: at x20 enemy HP an empty-tree
+ * run dies at TD wave 2, so `goldEarnedByWave[8]` was `0` on **both** arms and
+ * this clause was comparing 0 to 0 (qa-playtester). The claim is about greed
+ * out-earning caution, not about how far a treeless bot survives.
+ */
+const FULL_TREE = allTreeNodeIds(loadContent());
+
 function goldByWave8(policy: string): number[] {
-  return SEEDS.map((seed) => runWithPolicy(cfg({ seed }), policy).report.goldEarnedByWave[8] ?? 0);
+  return SEEDS.map(
+    (seed) => runWithPolicy(cfg({ seed, allocated: FULL_TREE }), policy).report.goldEarnedByWave[8] ?? 0,
+  );
 }
 
 function winsAtTier2(policy: string): number {

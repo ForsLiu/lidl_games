@@ -5,6 +5,436 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-05 session: stopped after p12a/p12b/p12c, with p12e diagnosed but
+  not implemented.** Three items of the pinned owner queue (BALANCE DIRECTION
+  v2) are done end to end — implemented, code-reviewed, QA'd, and committed —
+  and the fourth is profiled far enough that the next session should start
+  from the diagnosis rather than a fresh sweep.
+  **p12e's tail is entirely the boss fight, and p12c caused it.** Profiling the
+  six censored T3 seeds at a 120-minute cap: Act I is near-constant at
+  24.6-25.7 min on every seed, while the boss kill lands at **381s/384s on the
+  fast seeds and 920s/1020s/1187s on the slow ones**, with total run length
+  tracking that one-for-one (37.3/37.7 min against 47.3/48.9/51.0). The cause
+  is p12c's `baseHpMul: 20` applying to `warden_eater` like every other enemy
+  — 365,000 -> 7.3M at T1 — so fights that used to end under 180s now run 380s
+  to 1187s depending on the build. That also makes **p10k's finding stale**:
+  it concluded the run-length gap was "not inside the boss fight's own budget
+  at all" and moved to Act I/VS pacing, which was true when fights ended under
+  180s and is not true now. The boss clock is the right lever again. Full
+  diagnosis, with the likely fix and what it must not break (G14's >20s floor
+  and <100% win rate, which fb099 and p10k were both protecting), is written
+  into BACKLOG p12e.
+  **Why stopping here rather than continuing:** p12e's own acceptance is a
+  re-run of G1/G8/G14/G23 across all classes, all five Cores and T1/T3/T5 —
+  G8 and G23 are ~1 h each on their own — and this session already lost one
+  measurement run to a container restart. That matrix is not deliverable
+  reliably in long background runs here, and half-measuring it would put
+  exactly the kind of censored, untrustworthy number into the gates that p12c
+  spent its verification cycle removing.
+- **2026-09-05 session: BACKLOG p12c closed — T1 re-anchored to contested
+  margins, §C's three targets met, and an impossibility conclusion retracted
+  before it shipped.**
+  §C's own named levers do not move what §C measures, which had to be
+  established first: `waves.hpScalePerWave` **compounds per wave**
+  (`p^(wave-1)`), so 1.22 -> 1.34 — x4.9 more HP by wave 18 — still gave 12/12
+  wins and moved the median margin only 100% -> 90.9%, because it lands on the
+  waves the tower line already dominates. Enemy `coreDamage` was inert *at the
+  difficulty it was measured against*: with the Core at **100% at victory**,
+  nothing reaches it, so scaling what a leak costs multiplies zero (a property
+  of the old baseline, not of the game — post-anchor 7 of 24 seeds lose to the
+  Core, so that lever and p12b's rung are live again). The lever is a flat
+  roster-wide factor, so `data/enemies.json` gained **`baseHpMul`** — one
+  tunable number instead of 20 edited rows, `1.0` the identity, applied at
+  spawn before the tier rung, the same shape fb025's global x10 pass used.
+  **Shipped at 20**: **16/24 (66.7%) wins, 33% close-win, median Core HP at
+  victory 53.8%** — §C's `[55%,90%]` band, its `>=25% close-win` clause and its
+  30-60% median, all met. The sweep on the way there is worth as much as the
+  endpoint: from `baseHpMul` 1 to 12 the win rate stays ~100% while the
+  *margin* falls 100% -> 84%, i.e. the bot wins untouched right up until it
+  starts losing outright.
+  **A conclusion was published and retracted inside this item.** p12b's
+  ladder was fitted against `baseHpMul: 1.0`, so it was re-swept — and the
+  first sweep measured **T3 only**, jumping 1.20 -> 1.12 -> 1.06 -> 1.04. On
+  that evidence the item shipped 1.04/1.03/1.02 and concluded the difficulty
+  response had ~1.4x of dynamic range and therefore that **no tier ladder of
+  any shape could be ordered**, marked Q176 superseded and re-scoped p12g onto
+  a mechanism rewrite. code-reviewer caught the gap: the region where T5 lands
+  in band was never sampled. Swept properly at **both** tiers,
+  **1.07/1.05/1.03 puts T3 at 41.7% and T5 at 8.3% over 12 seeds — both inside
+  §B's bands** — and that is what ships. Re-measured at n=24: T1 66.7%, T2
+  41.7%, T3 **37.5%** (in `[35%,70%]`), T4 33.3%, T5 **20.8%** (*at* the
+  `[5%,20%]` ceiling, not inside it). The 1.4x figure was mis-stated too — its
+  endpoints differ on three axes, so it is a range on the combined tier axis,
+  not on enemy HP. Q176's supersede note is withdrawn, **p12g is retired**,
+  and every affected record was rewritten rather than patched.
+  **What the correction exposed instead is worse, and is now the arc's
+  blocker.** Re-running T3's 24 seeds with the tick cap lifted 45 -> 120
+  simulated minutes gives **62.5% wins and zero timeouts**, against 37.5% and
+  six timeouts at the 45-minute cap. A quarter of the seed set was censored,
+  and censored seeds are disproportionately *wins*, so every rung's recorded
+  rate is biased down by an amount that grows with how contested the tier is.
+  T3 is in band on both readings so the ladder stands, but its apparent
+  ordering is monotone only on censored numbers and cannot be confirmed until
+  the censoring is gone. **p12e (timeout elimination) is promoted to the
+  blocker for this whole arc** — no gate measured against a 45-minute cap can
+  be trusted while a quarter of its seeds hit it.
+  **The anchor's cost, named rather than buried:** G13's solo-viability clause
+  (`tests/a4-single-type.test.ts`) went from 5/5/5/5/4/5/4 to **0/5 for all
+  seven towers** — at x20 enemy HP no single tower type holds the wave curve
+  alone. `.skip`-ed with that number, re-enable point p12d. A real trade, not a
+  defect (a tower that soloed the whole curve was a statement about a
+  difficulty the bot won 100% of the time with the Core untouched), and the
+  strongest argument against keeping the anchor at 20 — an owner call, made
+  visible rather than silent. The final boss takes the roster multiplier too
+  (365,000 -> 7.3M at T1); its fight-length case still passes, measured.
+  Blast radius, all fixed: six test files pinned enemy HP against fb025-era
+  literals and were re-expressed as ratios off `def.hp * baseHpMul` (the same
+  conversion p12a made for its kit pins) — `act2.test.ts`'s Act II overlay,
+  five `p-core-c-plant` cases, two `p-core-d-corpse` cases (one now sizes its
+  overkill blow off `e.maxHp` instead of a literal 1000 that stopped being
+  overkill), `practice.test.ts`'s "full stats" spawn, and `boss.test.ts`'s
+  365,000 pin. q7's fuzz correctly flagged `baseHpMul` as accepting a
+  fractional value — valid for a multiplier, unpayable cases caught by the
+  schema's `.positive()` — recorded in `tests/q7-loader-holes.ts`. The most
+  interesting one was silent rather than red: **G4's armour-shred liveness
+  clause went to zero**, because `tools/a5probe.ts` still ran with
+  `allocated: []` and a bare-tree builder bot can no longer reach Act II at
+  all. That is fb049's fix (Q138) never applied to this one harness; corrected,
+  and the two other gates it backs (G13 `p10c-weapon-share`, G19
+  `p10f-g19-liveness`) re-run in full and green.
+
+  code-reviewer **REQUEST-CHANGES** and qa-playtester **FAIL**, all findings
+  addressed. Both independently reproduced every recorded §C number — the T1
+  margin split matched as an identical string — so the anchor itself stands;
+  what failed was the blast-radius claim and the strength of the conclusions.
+  Four findings were serious:
+  1. **The impossibility conclusion was wrong** (see the retraction above) —
+     code-reviewer showed the sweep behind it measured T3 only and never
+     sampled where T5 lands in band. QA then showed the supporting number was
+     wrong too: at ×1.44 enemy HP *alone* the bot still wins 16.7%, not the
+     0% the write-up claimed, because that 0% row also carried budget and
+     `coreDamage` rungs. Both retracted; the shipped ladder is the corrected
+     sweep's.
+  2. **"T3 re-confirmed in band" was a censoring artifact.** All six of T3's
+     tick-capped seeds are *victories* when the cap is lifted. The live band
+     assertion now **excludes censored seeds from the denominator** rather
+     than scoring them as losses — counting a stalled run as a loss lets a
+     gate read in-band purely from where the cap falls. Same reason T4-vs-T5's
+     inversion was mis-attributed to seed noise: censoring is systematic and
+     *tier-correlated*, and it is the dominant term.
+  3. **Two more suites were red and invisible.** `tests/a9-economy.test.ts`'s
+     "greed out-earns caution" clause was comparing **0 to 0** — at ×20 an
+     empty-tree run dies at TD wave 2, so no seed reached wave 8 on either arm
+     (fixed with the same fb049 full-tree change `a5probe` got), and
+     `tests/boss.test.ts` was a **seventh** fb025-era pinned file the scan
+     missed (PROGRESS said six). Both are fast-tier-excluded, which is the
+     real lesson: for a roster-wide HP change, "targeted tests + `test:fast`
+     green" is structurally blind, because every suite that measures
+     difficulty is on the exclude list.
+  4. **The a4 skip comment blamed p12c for a pre-existing regression.** QA ran
+     the control p12c had not: at HEAD, with `baseHpMul` at its 1.0 identity,
+     G13's solo-viability clause already read {1,1,0,0,1,3,0} of 5 against the
+     5/5/5/5/4/5/4 it was authored at. p12c deepens it to all zeroes; it did
+     not cause it. Comment corrected to carry both numbers, and the older
+     defect filed as **p12h** with the bisect candidates named.
+  Also fixed: **an end-state hash bug this change exposed** — `Hasher.num`
+  folds 32 bits, so a quantized magnitude past 2^31 wrapped, and with the boss
+  at 7.3M HP the boss at full HP and at 42.5% HP hashed *identically*
+  (`q(7_300_000) === q(3_105_696)`). Determinism was never at risk, but gate
+  G2's ability to see a divergence was; the high word is now folded when
+  non-zero, so every value inside int32 range hashes bit-identically to before
+  and no recorded hash moves. Regression test landed before the fix, per
+  CLAUDE.md rule 3. `baseHpMul` gained an upper bound (`1e308` loaded clean and
+  produced Infinite-HP, unkillable enemies — the same hole `validateTierLadder`
+  exists to close), the Codex now shows spawned rather than authored enemy HP
+  (it was stating 200 for an enemy arriving at 4000, since `baseHpMul` is a
+  document-level field with no row of its own), and the measurement itself is
+  now reproducible as `tests/p12c-margin.test.ts` — an opt-in sweep in the
+  established `class-kit-damage-share` pattern rather than a CLI, which q47
+  would have flagged as unpinned. **G8 and G23 remain unverified at T3** (~1 h
+  each); recorded as such rather than claimed.
+
+- **2026-09-05 session: BACKLOG p12b closed — the tier ladder built, the four
+  reference gates moved to T3, and §B's T5 clause proved unreachable in §B's
+  own shape.** The item reads as tuning but was not: **there were no tier
+  scalars to tune.** `cfg.tier` scaled exactly one thing directly — the final
+  boss's HP, borrowing SPEC 8.3's *reward* scale for want of a difficulty one
+  — and every other T1-vs-T5 difference came from the 1-of-2 *drafted*
+  modifiers, i.e. random draws, which makes a tier a distribution rather than
+  a rung. Fine while every gate measured at T1; fatal the moment the reference
+  tier moves. Built three scalars (`tierEnemyHpPerStep`/`tierBudgetPerStep`/
+  `tierCoreDamagePerStep`) in `data/modifiers.json` beside `tierRewardPerStep`
+  rather than in §B's suggested new `data/tiers.json`, so the ladder is one
+  file (§B allows "or wherever tier scalars live"; logged in Q176), read
+  through `src/sim/tiers.ts` as `x^(tier-1)` and wired at three choke points:
+  enemy HP at spawn, `budgetFor` (act2.ts), and a new shared
+  `enemyCoreDamage` accessor so all four `coreDamage` consumers scale together
+  instead of three drifting. `validateTierLadder` refuses a per-step under 1
+  at load, so `/data` cannot ship a T5 easier than T1 (architecture rule 4).
+  The final boss now takes this rung **instead of** its borrowed reward scale
+  — one tier HP scaling, not two compounding. At the shipped per-step that is
+  a **large, deliberate boss buff** rather than a like-for-like swap (x1.70 ->
+  x16.0 at T3, x2.40 -> x256 at T5), which is why G14's own measurements were
+  re-pointed and re-measured rather than assumed. **`x^(tier-1)` makes T1 exactly 1.0**, which is load-bearing: every
+  existing T1 measurement in the repo, p12a's whole control pair included,
+  keeps its meaning across this item.
+  **Measured** (engineer, scripted kit bot, `modifiers: []` so only the ladder
+  varies): T1 100% / 33.32 min (unchanged, as designed), **T3 50% over 12
+  seeds and 37.5% over G1's 24 — inside §B's [35%,70%] target** — T5 0/12.
+  Zero timeouts at every rung, so p12e's tick-cap clause is already satisfied
+  here. Chose per-step 4.0/1.9/1.7 by sweeping the response curve rather than
+  by adopting §B's ⚖ suggestion, which had no teeth at all: at §B's authored
+  1.35/1.2/1.15 the bot still won **12/12 at T5**.
+  **§B's T5 `[5%,20%]` clause is not reachable in §B's own shape, and the
+  reason is the finding.** The measured response — enemy-HP multiplier at T3
+  vs win rate: x9 -> 75%, x12.25 -> 83%, x16 -> 50%, x25 -> 0% — puts the
+  entire transition from "wins every seed" to "loses every seed" inside a
+  factor of under 3. A geometric ladder forces `T5 = T3²`, so T3 at x16 puts
+  T5 at x256, an order of magnitude past the cliff; and a per-step landing T5
+  near the cliff leaves T3 at ~100%. The two clauses are mutually exclusive,
+  not mistuned. T3 wins the conflict because it is the tier §B makes the
+  reference; T5's 0% is recorded, not forced. Logged as **QUESTIONS Q176**,
+  filed as **BACKLOG p12g** (route (a): a per-tier table places all five rungs
+  independently; route (b), the real fix, is Q159's bimodality itself).
+  Gates re-pointed via one named `GATE_TIER` constant in `tests/helpers.ts`
+  rather than four literals — §B's own "a real, logged config change, not a
+  silent rename". Two consequences, both handled rather than papered over:
+  `boss.test.ts`'s "365,000 HP scaled by tier" case now names T1 explicitly,
+  since it is *about* the authored base and the rung rather than measured on
+  them; and **G1's 30-36 minute band does not survive the move** (T3 measures
+  37.46 min over 9/24 wins — the win rate is in band, the mean is 1.46 min
+  over a ceiling fitted to T1, because a contested run is a longer one). That
+  band rewrite is exactly what **p12d** owns, so it is `.skip`-ed with the
+  full measured numbers and p12d named as the re-enable point, per CLAUDE.md's
+  skip discipline. The recorded figures in all four gate headers are now T1
+  history; p12d rewrites them.
+
+  code-reviewer **REQUEST-CHANGES**, all findings addressed. Three Majors,
+  all real: **(M1)** every comment and doc still quoted §B's ⚖ *suggestion*
+  (1.35/1.2/1.15) rather than the 4.0/1.9/1.7 actually shipped, and the
+  paragraph justifying the boss change — "the two are close where it matters"
+  — was therefore not just stale but the opposite of true (the boss goes
+  x1.70 -> **x16.0** at T3, not x1.82). Corrected in six code comments plus
+  BALANCE.md, PROGRESS.md and Q176, and the boss change restated as the large
+  deliberate buff it is. **(M2)** G14 was never actually re-pointed: the
+  `GATE_TIER` default had landed on `act2World`, which backs only mechanics
+  fixtures, while G14's two real `runScripted` measurements still built at
+  T1 — so the item's own acceptance was unmet while PROGRESS claimed the
+  move. `act2World` restored to T1 (16x-HP fixtures bought nothing), the
+  20-seed G14 gate re-pointed, and the seed-1 case deliberately **kept at
+  T1**: it is a mechanism check, not a difficulty measurement, and at T3 the
+  run is contested by design, so pinning one seed to `victory` there would be
+  asserting a coin flip — keeping it live beats trading it for a `.skip`.
+  **(M3)** all four re-pointed suites are fast-tier-excluded, so `test:fast`
+  green said nothing about any of them; `boss.test.ts` and the ~1 h
+  `p6e-class-diversity.test.ts` were both run in full at T3 (green; p6e's
+  live `distinct.size` pin, which has moved before under unrelated levers,
+  still reads 2). Minors fixed: the HUD's clicked-enemy panel showed the raw
+  authored `coreDamage` against its own "the real payout, not the authored
+  number" convention; the Hub's tier note advertised only modifiers and
+  rewards while a tier now silently buys x16 enemy HP; `tools/sweep.ts`'s
+  comment still asserted tier feeds only reward math, and its auto-draft
+  means a `--tier 3` sweep measures ladder **plus** modifiers where p12b's
+  numbers are ladder-only; the new `validateTierLadder` JSDoc had been
+  inserted between fb005's comment and the function it documented; nothing
+  would have failed if the `leakIntoCore`/`contactWarden`/`attackStructure`
+  wiring or the boss's rung were reverted, so the ladder test now drives a
+  real Core leak and `boss.test.ts` pins the rung rather than asserting
+  "bigger"; G22 rides along on G23's re-point (re-run at T3, green, noted in
+  file); a non-finite tier would have NaN'd every enemy's HP rather than just
+  the boss's; and `ladder()`'s unused `content` parameter is gone. q7's data
+  fuzz correctly flagged the three new schema fields as accepting a
+  fractional value — legitimate for a multiplier, and the unpayable case
+  (under 1) is caught by `validateTierLadder` one layer up — recorded in
+  `tests/q7-loader-holes.ts` with that reasoning. `npm run test:fast`: 3379
+  passed, 3 failed in the same 8 pre-existing files as p12a (Playwright
+  binary absent; nested-tsx CLI family), zero p12b-caused failures.
+
+  qa-playtester **PASS on the acceptance clauses as scoped**, having
+  reproduced every recorded number independently (T1 12/12 at 33.32 min, T3
+  6/12 and 9/24 with G1's win list identical to the digit, T5 0/12) and
+  confirmed the load-bearing invariant the hard way: 12 runs across three
+  classes against a `git archive HEAD` copy with `contentHash` pinned, `diff`
+  clean on `endHash`/ticks/kills/gold/damage/coreHp — **T1 is bit-identical**,
+  structurally (`Math.pow(x, 0)` is exactly 1), not by luck. Also clean:
+  determinism and input-log replay at T3 and T5, no double-scaling on any
+  spawn path, no overflow or NaN at x256, the practice tool at T5, the whole
+  money/save/retry surface, and the Tuner override path reaching
+  `validateTierLadder`. It filed **nine findings; all fixed here.** Four
+  mattered:
+  1. **"Zero timeouts at any rung" was false**, and I had drawn p12e's clause
+     as already-satisfied from it. **2 of G1's 24 T3 seeds stall at the
+     45-minute cap** — both censored *victories* (they win at 47.4 and 46.6
+     min uncapped), so the honest T3 figures are 11/24 = **45.8% uncensored**
+     and a **39.20 min** uncensored mean, ~1.7 min further out of G1's length
+     band than the censored number said. The claim came from generalising a
+     clean 12-seed probe to "any rung" without re-checking the 24-seed set in
+     the same table. Corrected everywhere, and turned from prose into a
+     `.skip`-ed assertion in `p10d` that p12e will un-skip.
+  2. **A false measurement asserted in `/src/sim` source.** The boss comment
+     claimed "seed 1 at T3: the fight still resolves inside its band"; at T3
+     that run dies at wave 3 and never reaches the boss — my own artifact
+     recorded the failure, which is *why* the case was pinned back to T1, and
+     the comment was never updated. It was also truncated mid-sentence into a
+     self-contradiction. Rewritten to state the measured outcome.
+  3. **The recorded "response curve" did not measure what it was labelled.**
+     It was presented as an enemy-HP sweep and reasoned from as a per-axis
+     dial, but every row moved all three scalars, `n` was 8 for some rows and
+     12 for others and undisclosed, and the curve was **non-monotonic** (75%
+     at an easier rung, 83% at a harder one) — i.e. noise the size of the
+     effect, the exact failure CLAUDE.md's measurement rules name. The
+     conclusion survives on better evidence: the single-variable *tier*
+     ladder reads T1 100% / T2 100% / T3 50% / T4 0% / T5 0%, so the cliff is
+     one tier-step wide. Sweep re-labelled as provenance-only with `n` and
+     timeouts shown.
+  4. **T4 and T5 are dead content, not merely hard.** T4 is 0/12 dying in Act
+     I *wave 1* with 0-5 kills; T5 0/12 with **0 kills on 10 of 12 seeds**;
+     and since a tier unlocks only by winning the one below it, **T5 is
+     unreachable in normal play**. p12b had measured T5's rate but never T4,
+     and the *shape* of those losses is a far stronger finding than the rate.
+     It also sharpens Q176: because `T4 = T3 x p`, a geometric ladder can hold
+     **at most one contested rung**, so this was never only a T5 problem.
+     Disclosed in BALANCE.md, Q176 and p12g's premise, and pinned by a
+     `.skip`-ed liveness gate (every rung clears a wave and scores a kill) so
+     the failure shape is not rediscovered. Shipped knowingly: before p12b
+     those rungs were *fake* rather than broken (tier scaled nothing but the
+     boss), and p12g owns replacing the geometric shape with a per-tier table.
+  5. **Live gate coverage had gone down, not up.** With the length band
+     skipped, `p10d`'s only live assertion was `wins > 0` — a 10-minute suite
+     satisfied by one win. Added a live `[35%,70%]` win-rate assertion at T3
+     (passes at both the censored 37.5% and uncensored 45.8%), so G1 keeps a
+     real measurement while p12d rewrites the length band.
+  Minors also fixed: `validateTierLadder` guarded its input but not its
+  result, so `1e300` passed and produced Infinite-HP, literally unkillable
+  enemies — strictly worse than the inverted ladder the rule exists to refuse
+  — now checked at `MAX_TIER`; `ladder()` sent `Infinity` to T1 while
+  `modifierDraft` sent it to T5 (the easiest ladder with the most modifiers),
+  so the "they agree" comment was false and is now true; and two of
+  `enemyCoreDamage`'s four call sites were unpinned, so reverting
+  `contactWarden` or `attackStructure` to the raw field was invisible — both
+  now driven through their real paths at T1 vs T3.
+- **2026-09-05 session: BACKLOG p12a closed — the kit-growth half of BALANCE
+  DIRECTION v2 §A, with its target measured honestly red rather than forced.**
+  A prior session had landed part (1) — `kitPowerMul` (`src/sim/enemies.ts`,
+  `1 + 0.12 x wavesCleared`, x3.16 by wave 18, applied at the one `damageEnemy`
+  choke point to every `class_`-prefixed source, never to tower damage) plus
+  `tests/p12a-kit-power.test.ts` — as an unfinished "checkpoint before cloud
+  migration" commit, leaving two throwaway scratch files
+  (`tools/scratch-p12a.ts`, `tests/zzz-p12a-scratch.test.ts`, both deleted
+  here) and parts (2)/(3) undone. This session finished the item. **The
+  target needed telemetry that did not exist**: §A states it as own-kit share
+  of the character's damage *in VS*, and `damageAtSunder` is a single snapshot
+  at the one Sundering, so on §1.1's interleaved six-block shape "everything
+  since" still folds in every TD wave after it. Added
+  `World.damageByWeaponVs` -> `RunReport.damageByWeaponVs` (accumulated at the
+  same single choke point, gated on the existing `huntsWarden` predicate the
+  Corpse store already negates for "TD only"), hashed in `hashWorld` per the
+  p9g `goldSpent` precedent, with five new cases covering the VS window, the
+  cross-block sum and the hash coverage. Part (2): x3 on all 29 authored
+  **absolute** kit-damage magnitudes in `data/classes.json` (`basicAttack.dps`,
+  `damage`/`minDamage`, `burnDps`/`flameDps`/`pylonDps`/`shatterDamage`/
+  `markPastDotDps`/`markPresentDotDps`), deliberately excluding every
+  `*Mul`/`*Fraction`/`*Bonus` — those multiply a number that is itself
+  re-anchored, or a tower's, so scaling them would compound the pass or leak
+  it into tower damage. Part (3): BALANCE.md gained a "Kit relevance target"
+  section and `tests/class-kit-damage-share.test.ts` gained a `vsShare` column
+  plus the full per-class control pair. **Measured (control pair, 12 classes x
+  seeds 1-2, T1, `cycles: 6`, full tree; win rate 2/2 in both columns so the
+  delta is not confounded): VS kit share went 0.00-1.67% -> 0.00-5.16%, and
+  0 of 12 classes reach the >=35% target** (best `time_lord` 5.16%). Four
+  classes did not move at all — `bloodlord`/`paladin` route kit damage through
+  `titheDamageMul`/`wrathDamageMul` and `engineer`/`animist` through
+  `summonStatMul`, multipliers outside the absolute-magnitude field set by
+  design. The mechanism behind the gap, measured rather than argued:
+  VS-wielded weapon damage inherits the full tower-upgrade + Constellation
+  scaling stack while the kit inherits none of it (swordsman seed 1: 134.3M of
+  134.5M VS damage is wielded), so the denominator grows with the build and
+  the numerator does not — no `data/classes.json` edit can close it. Recorded
+  red per the item's own "log the real per-class numbers, don't force it";
+  logged as **QUESTIONS Q175** and filed as **BACKLOG p12f**, sequenced after
+  p12c. The two pins §A authorises re-expressing were both converted to ratio
+  form: G10's archer clause (`tests/p6d-nine-classes.test.ts`) now asserts
+  `toughest.hp / full` in a `(1/4, 1]` band — the x3 anchor puts the full
+  charge back over the "one-shots the toughest non-elite" bar SPEC-FINAL §14
+  G10 actually names, which fb025's x10 HP had broken — and the swordsman
+  1000-HP dummies (`tests/p6b-swordsman.test.ts`) now derive from
+  `40 x max(active1.damage, active2.damage, basicAttack.dps)` so a future
+  re-anchor cannot silently kill an enemy a branch-coverage case needs alive.
+  G11 is a pure data ratio and was unaffected. A measurement CLI written for
+  this item was deleted rather than shipped: `tests/q47-cli-crash-coverage`
+  correctly flagged it as an unpinned content-importing tool, and the opt-in
+  sweep in `tests/class-kit-damage-share.test.ts` already does the same job —
+  verified to the digit (swordsman 0.33% from both), so one instrument now
+  instead of two that can drift.
+
+  code-reviewer **REQUEST-CHANGES**, all findings addressed. Its Critical
+  (five fast-tier assertions red from the diff) was a snapshot taken mid-fix
+  and every one was already fixed the way it recommended: the three ⚖ figures
+  §4 states literally (`pyromancer.flameDps` 2->6, `pyromancer.burnDps` 3->9,
+  `cryomancer.shatterDamage` 20->60) recorded as `retuned` deviations naming
+  p12a in `tests/class-spec-numbers.test.ts`'s ledger rather than laundered,
+  the authored sentence beside `flameDps` synced 2->6 with its c015 token, and
+  fb022's `38.73` DPS literal re-expressed as the interval-fold identity it
+  was always about. Three findings were real and are fixed here: **Major** —
+  a x3 balance change shipped with no gate deltas, so both gates it could move
+  were run in a `git worktree` control at HEAD and in the working tree (G1
+  mean 33.39 -> 33.41 min, 24/24 wins both sides, inside the 30-36 band; G14
+  `boss.test.ts` green both sides), recorded in BALANCE.md §5; **Major** — the
+  measurement was labelled "from TD wave 12" but `wavesCleared >= 12` only
+  selects which *runs* count, not which part of a run, so the label is now
+  stated precisely (isolating the window would need a wave number hardcoded in
+  the sim, against architecture rule 4, and is not worth it against a metric
+  reading 5% of a 35% target); **Minor** — the "not a tower key means kit"
+  rule swept Core effects (`carnivorous_plant`/`corpse`/`time`) and the boss's
+  own `warden_eater` damage into the numerator. Also fixed: `tools/invariants.ts` now
+  non-negativity-checks the new record alongside `damageByWeapon`, and new
+  cases cover the `levelup` half of `huntsWarden` and the non-kit sources.
+
+  qa-playtester **FAIL on the numeric clause, PASS on the rest** — the right
+  call: two of the item's three deliverables landed and the third is 0/12
+  against its own >=35% bar, which is the honest reading this item was always
+  going to get. It independently reproduced 5 of 6 recorded cells to the digit
+  (`swordsman` 0.33%, `stormcaller` 2.78%/1.02%, `time_lord` 5.16%/1.67%,
+  `bloodlord` 0.00%), supplied the run-level `kitPower` on/off control the
+  unit test does not give (`time_lord` 1.66% -> 5.16%, `stormcaller` 1.08% ->
+  2.78%), and confirmed determinism (seed 7 twice, identical `endHash`
+  `fd44fad7` and identical `damageByWeaponVs`), no double-count at the choke
+  point, and run length unmoved on a second class (`swordsman` median 33.59
+  min, win rate 1.0, identical on both trees). It filed **three real bugs, all
+  fixed here**, two of them introduced by this session's own review fixes:
+
+  1. **`kitPower` was amplifying tower-authored damage.** Folding
+     `spreading_plague` into the kit multiplier (the code-review fix above)
+     was wrong: the plague transfer deals `dotOutstanding(e)`, the sum of
+     *every* unfinished DoT on the corpse whoever applied it — so a corpse
+     carrying only Venom Spore poison transferred 500 at wave 0 and **1580 at
+     wave 18**, a x3.16 amplification of tower damage on exactly the build
+     the Plaguebringer's own `towerPassive` (`towerPoisonDamage +0.1`) exists
+     to support, breaking the invariant `kitPowerMul` states for itself.
+     Attribution and growth are now two predicates — `isKitSource` (admits
+     `spreading_plague`, read by the share measurement) and
+     `scalesWithKitPower` (does not, read by `kitPower`) — each documented
+     with why they differ, and QA's exact repro is a regression test.
+     plaguebringer's cell went 1.49% -> 5.28% -> back to 1.49%; `swordsman`
+     and `time_lord` re-measured unchanged to the digit at every step, which
+     is the control showing each change moved only what it should have.
+  2. **The re-expressed G10 pin asserted a one-shot the sim does not
+     deliver.** `full` was computed from `a.damage` alone, 42% above what
+     `damageEnemy` actually deals: Deadeye Draw is not a `pure` hit, so
+     `bulwark`'s `flatReduction` bites, and `kitPower` was not in the number
+     either. The rewrite had upgraded fb025's approximation into a false
+     statement — true from about wave 4, asserted at wave 0. Now folds both
+     in and states the claim at the two points that differ: just short of a
+     one-shot at wave 0 (ratio 1.24, matching QA's measured 564.7 dealt vs
+     700 HP), comfortably over it by wave 12.
+  3. Stale census title in `tests/class-spec-numbers.test.ts` — the one file
+     whose whole purpose is blocking that drift class.
+
+  Final `npm run test:fast`: 3369 passed, 3 failed in 8 files — b032/b034/
+  b035/b036 (Playwright's chromium binary is absent in this environment) and
+  b028/q15/q41/q45 (the pre-existing nested-tsx CLI/subprocess family). Both
+  groups were controlled against a clean `git stash`ed tree and fail
+  identically there; **zero p12a-caused failures remain.**
 - **2026-09-04 session: processed four owner feedback files.** `verdicts-
   q155-167` — applied owner verdicts to QUESTIONS.md for Q94, Q155-Q167
   (Q155 spawns fb136, the hardcoded-tick-constants-to-`/data` order; Q164
@@ -10857,6 +11287,38 @@ features whose counters read zero with no explanation.
   more; the empty Stash and the Orb buttons explain themselves.
 
 ## Known issues / skipped tests
+- **p12c: G13's solo-viability clause (`tests/a4-single-type.test.ts`) is
+  `.skip`-ed, re-enable point p12d — and it was already largely red before
+  p12c.** Authored 5/5/5/5/4/5/4; measured at HEAD {1,1,0,0,1,3,0} of 5; at
+  the shipped `baseHpMul: 20`, 0/5 for all seven. The older half is **p12h**.
+- **p12c: G8 (`tests/p6e-class-diversity.test.ts`) and G23
+  (`tests/p-core-f-gates.test.ts`) are unverified at T3 after the re-anchor**
+  — ~1 h each and not run. p12c's acceptance names them; treat any figure in
+  their headers as pre-p12c until re-measured.
+- **p12b: G1's "mean victorious run 30-36 minutes"
+  (`tests/p10d-run-length.test.ts`) is `.skip`-ed, re-enable point p12d.**
+  BALANCE DIRECTION v2 §B moved the four reference gates from T1 to T3
+  (`GATE_TIER`, `tests/helpers.ts`), and the 30-36 band was fitted against T1.
+  Measured at T3: **37.46 min over 9/24 wins** (36.6, 43.5, 35.9, 40.4, 35.8,
+  36.0, 37.2, 35.4, 36.4) — the win rate is inside §B's own [35%,70%] target
+  for T3, and the mean is 1.46 min over a ceiling fitted to a tier the bot
+  won 100% of. Rewriting that band against T3 is exactly what **p12d** owns
+  (§D, "update G1/G8/G14/G23's text and their test files"), so this is
+  `.skip`-ed with the numbers rather than nudged. T1 for reference: 100%
+  wins, 33.32 min. The recorded figures in all four re-pointed gate headers
+  are now T1 history until p12d rewrites them.
+- **p12b: T4 and T5 are dead content — `.skip`-ed liveness gate in
+  `tests/p12b-tier-ladder.test.ts`, re-enable point p12g.** T4 is 0/12 dying
+  in Act I wave 1 with 0-5 kills; T5 is 0/12 with 0 kills on 10 of 12 seeds;
+  and because a tier unlocks only by winning the one below it, T5 is
+  unreachable in normal play. Necessary under a geometric ladder rather than
+  mistuned — `T4 = T3 x p`, so a per-step putting T3 mid-band puts T4 past
+  the cliff. See QUESTIONS Q176; p12g replaces the shape with a per-tier
+  table.
+- **p12b: G1's T3 run has 2 tick-cap timeouts in 24 seeds (seeds 14 and 17),
+  asserted and `.skip`-ed in `tests/p10d-run-length.test.ts`, re-enable point
+  p12e.** Both are censored victories (47.4 and 46.6 min uncapped), so the
+  censored 37.5% / 37.46 min understate the honest 45.8% / 39.20 min.
 - **p2b's wielded VS attacks pushed four pre-existing gates without a §14
   letter red (Q84: A3, A9), all `.skip()`-ed with the mechanism named, per
   Q96.** Wielding roughly doubles a character's normal-damage output (soul

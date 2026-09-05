@@ -148,6 +148,7 @@ describe('p7c: the meta layer banks exactly report.vsWavesCleared skill points a
       kills: 0,
       leaks: 0,
       damageByWeapon: {},
+      damageByWeaponVs: {},
       damageByType: {},
       damageTotal: 0,
       damageThroughMinute8: null,

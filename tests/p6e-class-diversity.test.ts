@@ -206,7 +206,7 @@ import '../src/bots';
 import { loadContent, type ClassDef } from '../src/sim/content';
 import { allTreeNodeIds } from '../src/meta/meta';
 import type { RunConfig, RunReport } from '../src/sim/types';
-import { cfg, classifyMargin, runScripted, summarizeMargins } from './helpers';
+import { cfg, classifyMargin, GATE_TIER, runScripted, summarizeMargins } from './helpers';
 
 const content = loadContent();
 const SEEDS = Array.from({ length: 12 }, (_, i) => i + 1);
@@ -226,7 +226,7 @@ function runClassScripted(classKey: string, seed: number): RunReport {
   const config: RunConfig = cfg({
     seed,
     classKey,
-    tier: 1,
+    tier: GATE_TIER,
     modifiers: [],
     allocated: FULL_TREE,
     cycles: 6,

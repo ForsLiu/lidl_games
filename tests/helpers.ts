@@ -151,6 +151,28 @@ export function buyCoreUpgrades(w: World, input: TickInput): void {
  * so callers that need a tighter window (e.g. G1's own 45-minute cap) pass
  * it explicitly, as `tests/p10d-run-length.test.ts` does.
  */
+/**
+ * BACKLOG p12b (BALANCE DIRECTION v2 §B): the tier the four reference gates —
+ * G1 (run length), G8 (class win rate + diversity), G14 (boss band) and G23
+ * (Core win rate) — are measured at.
+ *
+ * It was T1 for every gate in the repo's history, at a time when `cfg.tier`
+ * scaled almost nothing directly, so T1 vs T5 was a difference in *drafted
+ * modifiers* (random draws) rather than a rung. §B authors a real ladder
+ * (`tierEnemyHpMul`/`tierBudgetMul`/`tierCoreDamageMul`, `src/sim/tiers.ts`)
+ * and moves the reference to **T3**, the middle rung, so the gates measure a
+ * contested run rather than one the scripted bot wins 100% of the time.
+ *
+ * Named here rather than written as a literal `3` in four files so the move is
+ * one logged config change — §B's own "a real, logged config change, not a
+ * silent rename" — and so a future re-point is one edit.
+ *
+ * **The recorded numbers in those four suites' headers are T1 history.** p12d
+ * owns rewriting the gate text and bands against T3; until it lands, read any
+ * pre-2026-09-05 figure in them as "measured at T1".
+ */
+export const GATE_TIER = 3;
+
 export function runScripted(
   config: RunConfig,
   policyName: string,

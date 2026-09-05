@@ -717,6 +717,12 @@ export interface RunReport {
   kills: number;
   leaks: number;
   damageByWeapon: Record<string, number>;
+  /**
+   * p12a: `damageByWeapon` restricted to the VS half of the run, summed over
+   * every VS block — the denominator/numerator source for BALANCE.md's
+   * own-kit-share target, which is a VS-only measurement.
+   */
+  damageByWeaponVs: Record<string, number>;
   /** fb007: cumulative damage by §3 damage-type key (`data/damagetypes.json`). */
   damageByType: Record<string, number>;
   damageTotal: number;
