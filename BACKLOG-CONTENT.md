@@ -570,7 +570,7 @@ session 2 (c005 was the last actionable one left), appending `c006`-`c010`.
       not edited from here - refs: SPEC-FINAL §4.2 (Time Lord), §2 (Area row),
       QUESTIONS Q120(5), c009, c013, QA on c013.
 
-- [ ] (c028) [polish] c022's **anchor/block-reader device lives privately inside
+- [x] (c028) [polish] **DONE 2026-09-05.** c022's **anchor/block-reader device lives privately inside
       `tests/equip-spec-numbers.test.ts`**, and `c027` below is about to make a
       second copy of it one file over — the exact shape `c014` spent an item
       undoing for six copies of one board. It is ~90 lines and every one of
@@ -588,6 +588,12 @@ session 2 (c005 was the last actionable one left), appending `c006`-`c010`.
       `tests/*-spec-numbers*` sweep finds no second private copy of the reader);
       every mutation in c022's Log entry is re-run and still red - refs: c014
       (the shape), c022, c027.
+      **The module is `tests/equip-spec-ledger.ts`, not `tests/spec-ledger.ts`:
+      the acceptance clause named a path outside this lane's Scope, and a
+      clause the lane wrote for itself under the generation rule cannot widen
+      its own Scope (code review). Of the two legal prefixes `equip-` is the
+      safe one — `class-board.test.ts` registry-checks every
+      `tests/class-*.test.ts`. The rename is logged for the main lane.**
 
 - [ ] (c027) [bug] **the §4 ledger has c022's hole in the one form that has
       already bitten twice.** `tests/class-spec-numbers.test.ts` pins each
@@ -764,6 +770,47 @@ session 2 (c005 was the last actionable one left), appending `c006`-`c010`.
       §3 (Poison), owner feedback `feature-poison-barrel-mechanic`.
 
 ## Log
+
+### c028 (2026-09-05) — the device, before it was copied
+
+- **Shape**: new `tests/equip-spec-ledger.ts` (the reader, `escapeForRegex`,
+  `readsStat`, `defaultReads`, `decoyKeys`, `positiveLines`,
+  `pointerProblems`, the `Behaviour` and `Block` types) and
+  `tests/equip-spec-ledger.test.ts` (5 tests); `equip-spec-numbers` imports
+  them and keeps its §7 rows, rosters and exemptions. Behaviour unchanged: the
+  only textual delta in the moved code is the thrown-error prefix. 139 green
+  across the three files.
+- **Ten mutations, all red**, which is the acceptance: the seven from c022's
+  entry (`towerCost`->`goldFind`, a gutted block body under its own title, a
+  `}, 20000);` closer plus `towerCost`->`towerAtkFlat`, `hpRegen`->`luck` with
+  a `// luck` comment, a row re-pointed at an unrelated file's block,
+  `describe.skip` on the covers, and the leech cover's own deletion) plus three
+  new ones this item's checks add — `describe.skip` on the **device's own
+  self-tests**, a hand-copy in `tests/helpers/`, and a hand-copy *renamed*
+  `readBlock`.
+- **The one-home check had two open doors and code review measured both**: the
+  sweep read `tests/` non-recursively, so a copy in `tests/helpers/` — exactly
+  where a shared helper lands — passed; and it matched function *names*, so a
+  renamed copy passed, which is what a §4 copier adapting the device would
+  actually write. It recurses now and looks for the reader's structure (the
+  lookbehind boundary, the title scan) as well as its names, with the module
+  itself as a positive control so "no copies" cannot mean "no files read".
+- **The pointer guarding the self-tests was weaker than the device it guards**
+  — a prose substring match, which stayed green with `describe.skip` on all
+  five. It runs through `blockBody` now, ancestors and all: the file dogfoods
+  the module it exports.
+- **One piece of the extracted API was not generic and would have handed c027
+  the false red it inherited.** `positiveLines`' negative-control filter
+  recognised a control only when the control world is named `w...` — §7's
+  convention. Code review surveyed the §4 suites: their control operands are
+  `full.`, `poison.`, `plain.`, `both.`, `BASE.`, `f.`, `c.`, not one starting
+  with `w`. It is a parameter now, defaulted to §7's shape and passed
+  explicitly at the §7 call site.
+- **The *check* moved too, not only the primitives.** Review's point: five of
+  the rules (`matches === 1`, the empty-body catch, the skipped-ancestor
+  refusal, the per-`reads` loop) were still in the ledger's own loop, and each
+  is a mutation-earned rule a copier can drop. `pointerProblems(block, reads)`
+  carries them; the ledger supplies the row identity in the message.
 
 ### c025 (2026-09-05) — the agreement that was watching the wrong test
 
@@ -1158,6 +1205,14 @@ moved". Six mutations survived; all six now die, each reddening exactly one row.
       - refs: c014, BACKLOG-TERRAIN.md.
 
 ### For the main lane (out of this lane's Scope)
+
+- **`tests/equip-spec-ledger.ts` -> `tests/spec-ledger.ts`** (c028). The module
+  is ledger-generic — `c027` uses it on the §4 ledger, which is about classes —
+  and carries the `equip-` prefix only because this lane's Scope allows new
+  test files under `tests/class-*` and `tests/equip-*` and nothing else. A
+  two-file rename plus four literals (the import in `equip-spec-numbers`, the
+  skip-list and the two paths in its own test).
+
 
 ### c014 (2026-09-05) — six copies of one board, and the anchors that had to be rewritten twice
 

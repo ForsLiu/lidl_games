@@ -90,6 +90,16 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 import { loadContent } from '../src/sim/content';
+import {
+  blockBody,
+  decoyKeys,
+  pointerProblems,
+  defaultReads,
+  positiveLines,
+  readsStat,
+  sourceOf as source,
+  type Behaviour,
+} from './equip-spec-ledger';
 import { STAT_KEYS, type StatKey } from '../src/sim/statkeys';
 import { World } from '../src/sim/world';
 import { cfg } from './helpers';
@@ -273,29 +283,11 @@ type Status = StatusMatch | StatusRetuned | StatusInCode;
  * `"towerCost": -0.2` to `"goldFind": -0.2` **and this row's `stat` with it**
  * left the whole ledger green, with §7's "tower upgrade cost −20%" authored on
  * gold find. The figure was still right, the reach was still checked, and the
- * *meaning* had moved. A pointer at a block that reads the stat by name is
- * what notices: the covering block for the discount reads `towerCost`, so a
- * row claiming `goldFind` can no longer point at it.
+ * *meaning* had moved.
  *
- * The device is `RULES.anchor`'s and the `in_code` row's `anchors`, applied to
- * the third thing a row can be wrong about. The anchor makes deleting the
- * covering block red; `reads` makes re-pointing the row red.
+ * The type and the machinery behind it are `tests/equip-spec-ledger.ts`'s since
+ * `c028` — that header carries the eight mutations that shaped them.
  */
-interface Behaviour {
-  /** The test file holding the covering block. */
-  coveredBy: string;
-  /** The `describe`/`it` title that covers this row. Must match exactly one title in `coveredBy`. */
-  anchor: RegExp;
-  /**
-   * What the anchored block's **body** must contain. Defaults to the row's own
-   * stat key as a substring (so `areaMul`/`towerRangeMul` satisfy `area`/
-   * `towerRange`). An override must come with a `why` — it is the one way this
-   * check can be loosened, so it is a visible edit.
-   */
-  reads?: readonly RegExp[];
-  why: string;
-}
-
 interface Figure {
   /** `data/equipment.json` item key. */
   item: string;
@@ -1152,115 +1144,18 @@ function readLoaded(f: Figure): number | undefined {
   return f.as ? f.as(raw) : raw;
 }
 
-const SOURCES = new Map<string, string>();
-function source(file: string): string {
-  const cached = SOURCES.get(file);
-  if (cached !== undefined) return cached;
-  const text = readFileSync(fileURLToPath(new URL(`../${file}`, import.meta.url)), 'utf8');
-  SOURCES.set(file, text);
-  return text;
-}
+/* -------------------------- c022's device, owned by `equip-spec-ledger.ts` */
 
-/* --------------------------------------- c022: reading a covering block */
-
-/**
- * The body of the `describe`/`it` an anchor names, as text. Pure in its input
- * so the reader itself can be exercised on synthetic source below rather than
- * only on whatever the suite happens to contain today — the same reason
- * `unclaimedWords` is split out of the clause check.
- *
- * Termination is by indentation (`<indent>});`), which is this repo's uniform
- * vitest layout and is checked: a block whose end cannot be found throws
- * rather than silently returning the rest of the file, which would make every
- * `reads` check pass by swallowing its neighbours.
+/*
+ * The reader, the `reads` default and the decoy derivation moved to
+ * `tests/equip-spec-ledger.ts` at **c028**, unchanged in behaviour and with their
+ * reasoning intact in that module's header. They left this file because `c027`
+ * needs the same device on the §4 ledger, and a hand-copy loses whichever of
+ * the eight mutations behind them the copier does not notice. What stays here
+ * is what is about *§7*: which rows must carry a pointer, which one may
+ * override `reads`, and which names a covering block reads for a reason other
+ * than the stat.
  */
-function blockBodyIn(text: string, anchor: RegExp): { title: string; body: string; ancestors: string[]; matches: number } {
-  const ls = text.split('\n');
-  const hits = ls.map((l, i) => [l, i] as const).filter(([l]) => /^\s*(it|describe)\(/.test(l) && anchor.test(l));
-  if (hits.length !== 1) return { title: '', body: '', ancestors: [], matches: hits.length };
-  const [line, i] = hits[0];
-  const indent = /^\s*/.exec(line)![0];
-  // The end is the **first line back at the block's own indentation**, whatever
-  // it says — not the literal `<indent>});`.
-  //
-  // QA broke the literal version twice, both with shapes this repo already
-  // uses: a per-test timeout closer (`}, 20000);`, in 20 files) and a closer
-  // carrying a trailing comment (`}); // ...`, `tests/boss.test.ts:501`). The
-  // exact-string scan walks straight past either one and stops at the *next
-  // sibling's* closer, so the body silently swallows the neighbouring block —
-  // which made a row re-pointed at `towerAtkFlat` green, covered by a
-  // describe it has nothing to do with. Reading "the block ended" off
-  // indentation instead makes both shapes ordinary, and makes anything that is
-  // *not* a closer at that column an error rather than a swallow.
-  let end = -1;
-  for (let j = i + 1; j < ls.length; j++) {
-    if (ls[j].trim() === '') continue;
-    if (/^\s*/.exec(ls[j])![0].length > indent.length) continue;
-    if (!/^\s*\}/.test(ls[j])) {
-      throw new Error(
-        `c022: the block at line ${i + 1} does not close - line ${j + 1} is back at its indentation ` +
-          `but is not a closer: "${ls[j].trim()}"`,
-      );
-    }
-    end = j;
-    break;
-  }
-  if (end < 0) throw new Error(`c022: cannot find the end of the block at line ${i + 1} - "${line.trim()}"`);
-  // The **ancestors** decide whether the cover is armed at all: `it.skip(` is
-  // already caught (the scan above requires a literal `it(`, so a skipped
-  // block matches nothing and the row goes red), but a `describe.skip(` two
-  // levels up leaves every `it(` line intact and disarms the cover silently.
-  // Working rule 6 makes `.skip` a sanctioned move, so this is a live path.
-  const ancestors: string[] = [];
-  let want = indent.length;
-  for (let j = i - 1; j >= 0 && want > 0; j--) {
-    if (ls[j].trim() === '') continue;
-    const w = /^\s*/.exec(ls[j])![0].length;
-    if (w < want && /^\s*(describe|it)[.(]/.test(ls[j])) {
-      ancestors.push(ls[j].trim());
-      want = w;
-    }
-  }
-  // The title line is **not** part of the body, and **comments are stripped**:
-  // ten of the thirteen anchors name their stat in the title, and QA showed a
-  // bare `// luck` comment inside a block was enough to "cover" a row moved
-  // onto `luck`. Both would make `reads` a claim about prose rather than about
-  // code. `class-board.test.ts`'s own `code()` helper strips comments for the
-  // same reason.
-  const body = ls
-    .slice(i + 1, end + 1)
-    .join('\n')
-    .replace(/\/\*[\s\S]*?\*\//g, '')
-    .replace(/(^|[^:])\/\/.*$/gm, '$1');
-  return { title: line.trim(), body, ancestors, matches: 1 };
-}
-
-/** The same, against a file on disk. */
-function blockBody(file: string, anchor: RegExp): ReturnType<typeof blockBodyIn> {
-  return blockBodyIn(source(file), anchor);
-}
-
-const RE = (t: string): string => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
-/**
- * What a behavioural pointer must find in its block when it declares no
- * `reads`: the row's own stat key, **and its own item key**.
- *
- * The stat match is open-ended on the right, so `areaMul`, `towerRangeMul` and
- * `leechAccumulator` satisfy `area`, `towerRange` and `leech` — a derived
- * factor named after its stat is that stat read by name. It is closed on the
- * left by an identifier boundary, and code review measured why: as a bare
- * substring, `atkFlat` was satisfied by `towerAtkFlat` and `armor` by the item
- * key `swordsman_armor`, so §7's Atk and Def columns could each have pointed
- * at a block that proves nothing about them — the character-vs-tower flat
- * attack pair the Builder's Necklace row exists to keep apart.
- *
- * The item key is the other half of the same claim: without it a row for one
- * item could point at a block that equips only another.
- */
-function defaultReads(f: Figure): readonly RegExp[] {
-  return [new RegExp(`(?<![A-Za-z0-9_])${RE(f.stat!)}`), new RegExp(RE(f.item))];
-}
 
 /** Every Effect row — the rows c022 requires a behavioural pointer on. */
 const EFFECT_ROWS = LEDGER.filter((f) => f.col === 'effect');
@@ -1295,18 +1190,13 @@ const DECOY_EXEMPT: Readonly<Record<string, string>> = {
  * mutation c022 was filed on (`towerCost` -> `goldFind`). No covering block
  * may read one, so re-pointing any Effect row's `stat` at any of them fails
  * the `reads` check rather than passing in agreement with itself.
- *
- * **Derived, not listed**, and code review is why: a hardcoded roster of three
- * carried the precondition "no item authors this key", which the acceptance
- * mutation itself breaks — the test would then have gone red saying "goldFind
- * is authored, so it is not a decoy" rather than "no block covers goldFind",
- * the right answer for the wrong reason. It would also have gone red on a
- * perfectly ordinary `fb056` item that grants gold find. Derivation makes an
- * authored key simply leave the roster, where the `reads` check picks it up.
  */
-const MUTATION_DECOYS: readonly StatKey[] = STAT_KEYS.filter(
-  (k) => !AUTHORED_STATS.has(k) && DECOY_EXEMPT[k] === undefined,
-);
+const MUTATION_DECOYS: readonly StatKey[] = decoyKeys(STAT_KEYS, AUTHORED_STATS, DECOY_EXEMPT);
+
+/** This ledger's own `reads` default, in terms of a `Figure`. */
+function readsFor(f: Figure): readonly RegExp[] {
+  return f.behaviour?.reads ?? defaultReads(f.stat!, f.item);
+}
 
 const DATA_HOMED = LEDGER.filter((f) => f.stat !== null);
 
@@ -1807,23 +1697,14 @@ describe('c012 — the ledger holds itself to c012’s own rule', () => {
         existsSync(fileURLToPath(new URL(`../${b.coveredBy}`, import.meta.url))),
         `${id(f)}: ${b.coveredBy} does not exist`,
       ).toBe(true);
-      const { ancestors, body, matches } = blockBody(b.coveredBy, b.anchor);
-      // Exactly one: zero means the covering block was deleted or renamed
-      // (the property the anchor exists for), two means the pointer is
-      // ambiguous and the `reads` check below would be reading a coin flip.
-      expect(matches, `${id(f)}: ${b.coveredBy} has ${matches} blocks matching this anchor, expected 1`).toBe(1);
-      expect(body.split('\n').length, `${id(f)}: the anchored block is empty`).toBeGreaterThan(2);
-      // A cover inside a skipped ancestor is not a cover. `it.skip(` is caught
-      // by the scan itself (it matches no title, so `matches` is 0 above); a
-      // `describe.skip(` above it is not, and would disarm every row pointing
-      // into it while this file stayed green.
+      // The five rules a pointer must satisfy live in `equip-spec-ledger.ts`
+      // with the reader (c028, code review): each is a mutation that got past
+      // an earlier draft, and a ledger that re-implements the loop keeps only
+      // the ones its author noticed. §7 keeps the row identity in the message.
       expect(
-        ancestors.filter((a) => /\.(skip|todo)\(/.test(a)),
-        `${id(f)}: its covering block sits inside a skipped describe`,
+        pointerProblems(blockBody(b.coveredBy, b.anchor), readsFor(f)),
+        `${id(f)}: the pointer at "${b.anchor.source}"`,
       ).toEqual([]);
-      for (const r of b.reads ?? defaultReads(f)) {
-        expect(body, `${id(f)}: the block "${b.anchor.source}" never reads ${r.source}`).toMatch(r);
-      }
     }
   });
 
@@ -1865,12 +1746,16 @@ describe('c012 — the ledger holds itself to c012’s own rule', () => {
       // asks for elsewhere — reddened this row. A rule that punishes proving a
       // decoy unaffected is a rule that gets deleted the first time someone
       // strengthens a block.
-      const positive = body.split('\n').filter((l) => !l.includes('.not.') && !/toBeCloseTo\(w[A-Za-z]*\./.test(l));
+      // §7's covers name their control world `wNone`; the shape is this
+      // suite's convention, not a language rule, so it is named here rather
+      // than baked into the shared module (c027's §4 covers name theirs
+      // `full`, `plain`, `both`, ...).
+      const positive = positiveLines(body, /toBeCloseTo\(w[A-Za-z]*\./);
       for (const decoy of MUTATION_DECOYS) {
         expect(
-          positive.join('\n'),
+          positive,
           `${id(f)}: its covering block reads ${decoy}, so re-pointing the row there would stay green`,
-        ).not.toMatch(new RegExp(`(?<![A-Za-z0-9_])${decoy}`));
+        ).not.toMatch(readsStat(decoy));
       }
     }
     // An exemption may only excuse a name `/src` really exports as something
@@ -1882,80 +1767,20 @@ describe('c012 — the ledger holds itself to c012’s own rule', () => {
     }
   });
 
-  it('the block reader stops at its own block, on synthetic source', () => {
-    // Exercised on fabricated text rather than only on the suite: if the
-    // reader ran past its closing brace, every `reads` check above would pass
-    // by swallowing a neighbouring block, and nothing in the real files would
-    // reveal it.
-    const text = [
-      "describe('outer', () => {",
-      "  it('the covered one', () => {",
-      '    expect(w.derived.towerCostMul).toBe(0.8);',
-      '  });',
-      '',
-      "  it('the neighbour', () => {",
-      '    expect(w.derived.goldFindMul).toBe(2);',
-      '  });',
-      '});',
-    ].join('\n');
-    const hit = blockBodyIn(text, /the covered one/);
-    expect(hit.matches).toBe(1);
-    expect(hit.body).toContain('towerCostMul');
-    expect(hit.body).not.toContain('goldFindMul');
-    // The title line is not the body: a `reads` check may not be satisfied by
-    // the anchor's own words.
-    expect(hit.body).not.toContain('the covered one');
-    expect(hit.ancestors).toEqual(["describe('outer', () => {"]);
-    // Zero and two matches are reported, not thrown or silently taken.
-    expect(blockBodyIn(text, /no such title/).matches).toBe(0);
-    expect(blockBodyIn(text, /the (covered one|neighbour)/).matches).toBe(2);
-    // An unterminated block is a failure, not a swallow.
-    expect(() => blockBodyIn("  it('ragged', () => {\n    expect(1).toBe(1);", /ragged/)).toThrow(/cannot find the end/);
-    // The two closer shapes this repo already uses, both of which the old
-    // exact-`});` scan walked straight past into the next sibling — QA's
-    // finding, reproduced here as the regression test it asked for.
-    const closers = [
-      "describe('outer', () => {",
-      "  it('timeout closer', () => {",
-      '    expect(w.derived.towerCostMul).toBe(0.8);',
-      '  }, 20000);',
-      '',
-      "  it('commented closer', () => {",
-      '    expect(w.derived.hpRegen).toBe(1);',
-      '  }); // p10s re-measurement',
-      '',
-      "  it('the neighbour', () => {",
-      '    expect(w.derived.goldFindMul).toBe(2);',
-      '  });',
-      '});',
-    ].join('\n');
-    const timeout = blockBodyIn(closers, /timeout closer/);
-    expect(timeout.body).toContain('towerCostMul');
-    expect(timeout.body, 'the timeout closer let the body swallow its neighbours').not.toContain('goldFindMul');
-    const commented = blockBodyIn(closers, /commented closer/);
-    expect(commented.body).toContain('hpRegen');
-    expect(commented.body, 'the commented closer let the body swallow its neighbour').not.toContain('goldFindMul');
-
-    // And a line back at the block's own column that is *not* a closer is an
-    // error, not a swallow — the reader must never guess its way past one.
-    const ragged = ["  it('never closes', () => {", '    expect(1).toBe(1);', "  const stray = 1;", '  });'].join('\n');
-    expect(() => blockBodyIn(ragged, /never closes/)).toThrow(/does not close/);
-
-    // A comment is not a read: `// luck` inside a block must not cover a row
-    // moved onto `luck` (QA's mutation 4).
-    const commentOnly = ["  it('comment only', () => {", '    // luck', '    expect(1).toBe(1);', '  });'].join('\n');
-    expect(blockBodyIn(commentOnly, /comment only/).body).not.toContain('luck');
-
-    // And the boundary the default `reads` closes on the left, stated as a
-    // rule rather than as whatever today's blocks happen to contain: code
-    // review measured `atkFlat` being satisfied by `towerAtkFlat` and `armor`
-    // by the item key `swordsman_armor` under a bare-substring match.
-    const atkFlat = defaultReads({ item: 'greatsword', stat: 'atkFlat' } as Figure)[0];
-    expect('const flat = w.derived.towerAtkFlat;').not.toMatch(atkFlat);
-    expect('const flat = w.derived.atkFlat;').toMatch(atkFlat);
-    const armorRe = defaultReads({ item: 'greatsword', stat: 'armor' } as Figure)[0];
-    expect("worldWith({ equipment: ['swordsman_armor'] })").not.toMatch(armorRe);
-    expect('expect(w.derived.armor).toBe(5)').toMatch(armorRe);
+  it("the device's own self-tests live with the device, in tests/equip-spec-ledger.test.ts", () => {
+    // c028 moved the reader, the `reads` default and the decoy derivation into
+    // `tests/equip-spec-ledger.ts`, and their synthetic-source self-tests with them.
+    // This row is the pointer, so the move cannot quietly become a deletion:
+    // the same shape `RULES.anchor` uses on `/src`.
+    // Through the device itself, not as a prose substring: code review put
+    // `describe.skip(` on that file and this row stayed green with all five
+    // self-tests disarmed — the exact hole c022 closed for its own rows.
+    const self = blockBody('tests/equip-spec-ledger.test.ts', /the block reader stops at its own block, on synthetic source/);
+    expect(self.matches, "the device's self-tests are gone — the reader is unguarded").toBe(1);
+    expect(
+      self.ancestors.filter((a) => /\.(skip|todo)\(/.test(a)),
+      "the device's self-tests sit inside a skipped describe",
+    ).toEqual([]);
   });
 
   it("SPEC-FINAL §7's own text is the version this ledger was read from", () => {

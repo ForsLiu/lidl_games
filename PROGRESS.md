@@ -38,6 +38,15 @@
   the generation rule, with a fresh sweep behind them: **maxbuild and hybrid
   both win 0.17 over 12 seeds**, against STATUS.md's stale policy table of 1.
 
+  `c028`: c022's behavioural-pointer device — the block reader, the `reads`
+  default, the decoy derivation and the five pointer rules — is extracted to
+  `tests/equip-spec-ledger.ts` with its synthetic-source self-tests, ahead of
+  `c027` needing the same device on the §4 ledger. Ten mutations red, including
+  three new ones: a `describe.skip` on the device's own self-tests, a hand-copy
+  in `tests/helpers/`, and a hand-copy renamed `readBlock`. The `equip-` prefix
+  is the Scope's, not the module's — the rename to `tests/spec-ledger.ts` is
+  logged for the main lane.
+
 - **2026-09-05 (lane `lane/terrain`): merged `origin/master` in a second
   time**, picking up `lane/ui`'s fb111/fb112/fb114/fb115 (PR #4). Nothing to
   reconcile in code: master's batch touched only `src/ui/**`, `tests/ui-*` and
