@@ -89,10 +89,19 @@ function circleSlashSentence(eff: ClassEffect, live?: ClassLiveContext, cooldown
   return `Hold to charge a self-centered nova: release immediately to hit everything within ${trimNum(eff.minRadius ?? 0)} tiles for ${trimNum(minDamage)} damage, or hold up to ${trimNum(eff.chargeCapSeconds ?? 0)}s for a ${trimNum(eff.radius)}-tile hit dealing ${trimNum(damage)} damage and knocking enemies back ${trimNum(eff.knockback ?? 0)} tiles. Cooldown ${trimNum(cd)}s.`;
 }
 
+/**
+ * fb112: `fireDashSlash` (classes.ts) passes `eff.dashWidth` straight into
+ * `lineHit`'s parameter literally named `halfWidth`, and `lineHit`
+ * (`src/sim/combat.ts`) rejects an enemy on `perp > halfWidth + e.radius` —
+ * a half-corridor, so the line's true full width is `2 * dashWidth`. Same
+ * bug class fb108 fixed in `dashTrailSentence`/`dashHealSentence` above;
+ * this sentence (Swordsman's Circle Slash, the only normal-profile
+ * `dash_line` kit) showed players half the real corridor.
+ */
 function dashSlashSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFactor?: number): string {
   const damage = liveDamageValue(eff.damage, live);
   const cd = liveCooldownValue(eff.cooldownSeconds, live, cooldownFactor);
-  return `Dash ${trimNum(eff.dashRange ?? 0)} tiles toward the cursor, slashing every enemy in a ${trimNum(eff.dashWidth ?? 0)}-tile-wide line for ${trimNum(damage)} damage. Usable mid-Circle-Slash-charge: the charge's own range and damage merge into this one hit instead of firing separately. Cooldown ${trimNum(cd)}s.`;
+  return `Dash ${trimNum(eff.dashRange ?? 0)} tiles toward the cursor, slashing every enemy in a ${trimNum(2 * (eff.dashWidth ?? 0))}-tile-wide line for ${trimNum(damage)} damage. Usable mid-Circle-Slash-charge: the charge's own range and damage merge into this one hit instead of firing separately. Cooldown ${trimNum(cd)}s.`;
 }
 
 function poisonBarrelSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFactor?: number): string {

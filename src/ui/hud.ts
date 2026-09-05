@@ -35,6 +35,7 @@ import { equipmentEffectMarkup, type EquipmentEffectContext } from './equipment-
 import { defaultSettings, type Settings } from './settings';
 import { devProfileActive, isDevBuild } from '../meta/devprofile';
 import { defaultKeyBindings, keyLabel, type KeyBindings } from './keybindings';
+import { fullscreenToggleLabel, subscribeFullscreenChange, toggleFullscreen } from './fullscreen';
 
 /**
  * fb102: mirrors of `style.css`'s `.sw-rail`/`.sw-bossbar` box-model numbers,
@@ -184,6 +185,18 @@ export class Hud {
   private confirmingAbandon = false;
   /** fb012: the pause card's "Options" sub-screen, holding the auto-pick toggle. */
   private showingOptions = false;
+  /**
+   * fb143: unsubscribe for the `fullscreenchange` notification that keeps the
+   * pause Options screen's toggle label honest, held only while paused.
+   *
+   * Scoped to the paused window rather than the `Hud`'s lifetime on purpose:
+   * `main.ts` builds a fresh `Hud` per run and never disposes the old one, so
+   * a constructor-time subscription would leak one per run, and every stale
+   * instance would keep re-rendering a detached modal on each fullscreen
+   * change. The Options screen is reachable only while paused, so the paused
+   * window is exactly the interval the label needs to track.
+   */
+  private fullscreenUnsub: (() => void) | null = null;
   private charPanelOpen = false;
   private dpsPanelOpen_ = false;
   /** fb024: the panel's own close button docks to a small tab instead of vanishing. */
@@ -1556,8 +1569,44 @@ export class Hud {
     this.confirmingAbandon = false;
     this.showingOptions = false;
     this.lastModalKey = '';
-    if (paused) this.showPause(w);
-    else this.syncModal(w);
+    if (paused) {
+      // fb143: capturing `w` is safe precisely because the run is paused — the
+      // loop stops stepping, so the world this closure re-renders against
+      // cannot move underneath it, and the subscription is dropped before the
+      // run resumes.
+      // Plain assignment, not `??=` (code-reviewer finding): a non-null
+      // `fullscreenUnsub` on entry would mean a previous pause window was never
+      // closed, and `??=` would silently keep that stale closure — bound to a
+      // stale `w` — instead of subscribing for this one. `dispose()` below makes
+      // that state unreachable; assigning here keeps it that way loudly.
+      this.fullscreenUnsub?.();
+      this.fullscreenUnsub = subscribeFullscreenChange(() => {
+        if (this.paused && this.showingOptions) this.showPause(w);
+      });
+      this.showPause(w);
+    } else {
+      this.fullscreenUnsub?.();
+      this.fullscreenUnsub = null;
+      this.syncModal(w);
+    }
+  }
+
+  /**
+   * fb143 (code-reviewer finding): releases everything this `Hud` holds
+   * outside its own DOM — today just the `fullscreenchange` subscription.
+   *
+   * `setPaused(false)` is NOT the only way a paused `Hud` stops being live.
+   * Abandoning from the pause screen calls `onQuitToHub()`, and `main.ts`'s
+   * `showHub()` sets `run = null` and replaces the root's markup without ever
+   * resuming the `Hud` — which is then discarded with `paused === true` and a
+   * live subscription pinning it, its detached modal DOM, and the captured
+   * `World`, for the rest of the session (measured: 5 abandons, 5 retained
+   * subscribers, never collected). Idempotent, so the callers below can call
+   * it unconditionally.
+   */
+  dispose(): void {
+    this.fullscreenUnsub?.();
+    this.fullscreenUnsub = null;
   }
 
   /**
@@ -1584,11 +1633,19 @@ export class Hud {
             ? 'Level-ups resolve themselves: the highest-rank boon you already own, or the first card offered.'
             : 'Level-ups pause the run for your choice.'
         }</p>
+        <button class="sw-reroll" id="sw-hud-fullscreen">${fullscreenToggleLabel()}</button>
+        <p class="sw-note">Fullscreen also works from the Hub's Settings tab.</p>
         <div class="sw-pausebuttons">
           <button class="sw-reroll" data-act="back">Back</button>
         </div>
       </div>`;
       this.modal.querySelector('#sw-opt-autopick')?.addEventListener('change', () => this.cb.onToggleAutoPick());
+      // fb143: `this.root` is the app root, the same element `hub.ts` requests
+      // fullscreen on — not `this.modal`, which is torn down on every resume
+      // and would drop the player straight back out of fullscreen.
+      this.modal
+        .querySelector('#sw-hud-fullscreen')
+        ?.addEventListener('click', () => toggleFullscreen(this.root));
       this.modal.querySelector('[data-act="back"]')?.addEventListener('click', () => {
         this.showingOptions = false;
         this.showPause(w);
