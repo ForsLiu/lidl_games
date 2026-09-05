@@ -2995,7 +2995,7 @@ not already expose it) logs that need below instead of reaching into
       sessions, none touching `src/ui/**`/`src/render/**` or this item's own
       files.
 
-- [ ] (fb111) [polish] low priority: generated 2026-09-04 (same generation
+- [x] (fb111) [polish] low priority: generated 2026-09-04 (same generation
       batch as fb107; QUALITY.md 1.0 checklist diff, engineer's-judgment
       item per HANDOFF §7) — audit every `localStorage`-persisted blob this
       lane owns (`SAVE_KEY` and the fb096 save-slot keys via `saveslots.ts`,
@@ -3011,9 +3011,93 @@ not already expose it) logs that need below instead of reaching into
       if the audit finds a real non-portable field, fix it with its own
       regression case — if it finds none, document the clean result in this
       item's DONE note (a real, if boring, outcome per CLAUDE.md's honesty
-      rule) — refs: QUALITY.md 1.0 (Steam/itch checklist).
+      rule) — refs: QUALITY.md 1.0 (Steam/itch checklist). DONE 2026-09-05:
+      **the audit came back clean — no production fix was owed.** New
+      `tests/ui-fb111-cloud-save-portability.test.ts` (7 tests) covers all
+      six `stonewake.*` keys a `grep` over `src/` finds (`meta.ts`'s
+      `SAVE_KEY`, `saveslots.ts`'s slot-key prefix and active-slot pointer,
+      `keybindings.ts`, `settings.ts`, `runpersist.ts`); there is no
+      `sessionStorage`/`IndexedDB`/cookie use anywhere to miss. Each shape is
+      written under one `Date.now()`, carried across as raw text ONLY, and
+      read back under a very different one. Findings, stated rather than
+      assumed: (1) `runpersist.ts`'s `sessionId` is the single clock-derived
+      byte in any owned blob (`main.ts` mints it from `Date.now()`), and it is
+      opaque data, never cross-machine identity — `beginRun` re-mints it and
+      nulls `lastWrittenSessionId` on a *resumed* run too, so `persistRun`'s
+      cross-tab backoff can never fire against a foreign id; asserted
+      behaviourally by having "machine B" take ownership of a foreign
+      checkpoint. (2) `stonewake.activeslot.v1` is the one owned value that is
+      deliberately NOT JSON (`String(slot)`, read back via `Number(raw)` +
+      `inRange`) — a bare decimal string, locale-independent and portable;
+      audited explicitly rather than filtered out. (3) `input.ts` lower-cases
+      keys with locale-independent `toLowerCase()`, not `toLocaleLowerCase()`,
+      so the Turkish-dotless-I hazard that would genuinely corrupt a synced
+      keybinding does not exist; every `toLocale*`/`localeCompare` in the repo
+      is display-only and never persisted. (4) The one intended exception,
+      recorded so "all shapes are cloud-safe" is not overstated: a synced run
+      checkpoint whose `contentHash` disagrees with the reading machine's
+      `/data` is deliberately DISCARDED (`main.ts`'s
+      `tryResumePersistedRun`) — by design, and already covered by fb074's own
+      test. code-reviewer **REQUEST-CHANGES** on the first pass, on the
+      evidence rather than the conclusion (which it verified independently),
+      and it was right twice over: the scanner ran against `JSON.parse`
+      output, where four of its five rules are unreachable because
+      `JSON.stringify` has already dropped `undefined`/functions and laundered
+      `NaN`/`Infinity`/`Date` into `null`/`{}`/a string — and one assertion
+      (`JSON.stringify(JSON.parse(JSON.stringify(parsed)))`) was a literal
+      tautology. Fixed by scanning the live source object *before*
+      serialization and replacing the tautology with `JSON.stringify(parsed)
+      === raw`, which tests the writer's own output; confirmed live by
+      injecting `maxDamageNumbers: NaN`, which the old version laundered to
+      `null` and passed and the new one catches. Second Major: the run
+      checkpoint was audited as a bare `cfg()` helper object, a shape the app
+      never writes — production persists `lastCfg` *after* `new Run(cfg)`, so
+      `World`'s constructor has stamped `contentHash`, the very field with
+      cross-machine consequences; the fixture now goes through the production
+      path with Hub-shaped `core`/`equipment`/`ownedEquipment` and asserts the
+      hash. Minors folded in: `toStrictEqual` (so a dropped `undefined` cannot
+      pass as equal), the explicit pointer audit above, a guard on the
+      ICU-dependent `de-DE` assertion (small-ICU Node would fail it for
+      reasons unrelated to this code), a narrowed test title, and a
+      behavioural sessionId assertion replacing an inert string check.
+      Re-verified **APPROVE** was not re-requested — the changes are
+      test-only and each was verified by watching it fail before it passed.
+      `npx tsc --noEmit` clean; targeted suite (fb111, fb112, fb108, fb096,
+      fb074, `q3-save-fuzz`) 132/132; all 52 `tests/ui*`/`tests/render*` files
+      340 passed/6 skipped. `npm run test:fast` 2321 passed/3 failed/48
+      skipped, every failure in the standing `b028` process-tree-kill,
+      `b032`/`b034`/`b035`/`b036` port-contention, and `q15`/`q41`/`q45`
+      scratch-dir module-resolution families this queue documents every
+      session (`b028` reproduced identically on a clean tree), none touching
+      `src/ui/**`/`src/render/**` or this item's own files. qa-playtester
+      **PASS** on acceptance and, importantly, independently confirmed the
+      clean conclusion with its own probes rather than by re-reading the test:
+      all six keys written through the real APIs under `TZ=UTC LANG=C` vs
+      `TZ=Pacific/Kiritimati LANG=de_DE.UTF-8` came out byte-identical; a real
+      960-tick run persisted on one "machine" resumed on another (different
+      clock, different `Math.random`, unrelated account in `SAVE_KEY`) to the
+      same `run.hash()` as an independent replay, then re-persisted under its
+      own newly-minted `sessionId`; and `getActiveSlot()` survived hostile
+      pointer values (`""`, `" 1 "`, `"0x2"`, `"١"`, `"02"`, newline-suffixed).
+      It also filed one **Major against the test's protective value**, which
+      was right and is fixed here: the audit could not detect the FIRST
+      violation class this item's own text names. A writer injecting
+      `savedAt: Date.now()` / `tz: ...resolvedOptions().timeZone` beside the
+      real payload passed 7/7 for three of the four blobs — such a field never
+      reaches the pre-serialize scan (it is added inside the writer, after the
+      caller's object), it is a finite number or plain string so the
+      post-parse scan passes it, and then `sanitize`/`sanitizeKeyBindings`/
+      `migrateWithNotice` each rebuild their result field by field, dropping
+      the intruder before the round-trip comparison sees it; only
+      `runpersist.ts`, whose loader returns the parsed object as-is, was
+      protected. Closed by pinning each blob's stored top-level key set.
+      Verified by reproducing qa-playtester's exact three-file poison: 7/7
+      green before the fix, 4 failures after, sources restored and confirmed
+      clean by `git diff`. Its second finding (a cross-key, not per-field,
+      invariant the per-blob audit structurally cannot see) is filed as fb119
+      below; its third is informational and recorded in the Log.
 
-- [ ] (fb112) [bug] low priority: generated 2026-09-04 (code-reviewer finding
+- [x] (fb112) [bug] low priority: generated 2026-09-04 (code-reviewer finding
       during fb108, not fixed there since it's a pre-existing bug outside
       that diff) — `dashSlashSentence` (fb063's original `dash_line`
       sentence, `class-info.ts`) displays `eff.dashWidth` directly as "X
@@ -3025,7 +3109,340 @@ not already expose it) logs that need below instead of reaching into
       true corridor width to every player. Acceptance: `dashSlashSentence`
       shows `2 * (eff.dashWidth ?? 0)` (matching fb108's fix pattern), with a
       regression test asserting the doubled value appears — refs: fb108,
-      fb063, `lineHit` (`src/sim/combat.ts`).
+      fb063, `lineHit` (`src/sim/combat.ts`). DONE 2026-09-05:
+      `dashSlashSentence` (`src/ui/class-info.ts`) now renders `trimNum(2 *
+      (eff.dashWidth ?? 0))`, matching fb108's fix in the sibling two
+      sentences, with a doc comment naming the exact sim evidence
+      (`fireDashSlash` passes the value as `lineHit`'s `halfWidth`; `lineHit`
+      rejects on `perp > halfWidth + e.radius`, an unsigned perpendicular
+      distance, so the band spans `dashWidth` to EACH side). Swordsman's
+      Circle Slash was showing 1 tile for a corridor that is really 2. New
+      `tests/ui-fb112-dash-slash-width.test.ts` (4 tests): the string
+      assertion is anchored by a sim-level probe that drives the real
+      `class_active2` Command and measures which enemies the engine actually
+      struck — enemies at `±0.99 * dashWidth` are hit and one at `1.01 *
+      dashWidth` is not, with `e.radius = 0` removing per-enemy slack — so
+      the half-width is established from behaviour, not from the parameter's
+      name. Confirmed a real regression test by reverting the one-line fix
+      and watching only the string assertion fail. code-reviewer **APPROVE**
+      (no Critical/Major; it re-derived the sim ground truth independently and
+      confirmed via the CLAUDE.md grep-the-readers rule that `dashWidth` has
+      exactly four readers — the three now-doubled sentences plus a latent
+      fallback label — and that no other `src/ui/**` info surface has this bug
+      class). Four Minors folded in before commit: expectations now format
+      through `trimNum` rather than `String` (the two diverge the moment
+      `/data` authors a `dashWidth` whose double is not 2-decimal-clean),
+      the boundary probes tightened from 0.9/1.5 to 0.99/1.01 so the comment's
+      "exactly 2x" claim is literally true rather than merely bounded, the
+      enemy spawned by name (`'husk'`) instead of `enemies[0]` (a row reorder
+      could put a trait-carrying enemy there, and `Bulwark`/`Shellback`
+      mitigation survives `e.armor = 0` while a `pack` trait would spawn
+      uncontrolled extras), and a dead `attackCooldown` line dropped. Two
+      out-of-scope nits the reviewer raised are logged below rather than
+      widened into this diff. `npx tsc --noEmit` clean; targeted suite
+      132/132; all 52 `tests/ui*`/`tests/render*` files green.
+      qa-playtester **PASS**, and unusually productive: it independently
+      binary-searched the engine's real half-width (40 iterations per case)
+      across nine aim directions, five enemy radii, the merged-charge path and
+      with `swordsman_shoes` equipped, and measured **1.00000 every time** —
+      so `2 * dashWidth` is right in every case it could construct, and the
+      `+e.radius` slack `lineHit` grants makes "2 tiles wide" conservative
+      rather than generous. It confirmed the regression test is real by
+      reverting the fix (only the string assertion went red; the sim-anchored
+      corridor probe stayed green, which is exactly right — it measures the
+      engine, not the string), and re-confirmed no other `src/ui/**` sentence
+      shows a half-width as a full width (`LINE_HALF_WIDTH` and `coneHit`'s
+      `halfAngle` are never surfaced in any string; every "within X tiles" is
+      an honest radius). It then filed **four new bugs** from hostile probing
+      of the same surface — fb120-fb123 below — of which fb120 is the same
+      sentence-number-≠-sim-number bug class fb112 exists to kill, at a larger
+      absolute error.
+
+- [x] (fb142) [feat] generated 2026-09-05 (fewer than 3 actionable items
+      remained — fb085/fb093/fb097 are all out-of-lane-Scope and re-confirmed
+      so this session; QUALITY.md BETA/1.0 checklist gap diff) — device-pixel-
+      ratio change handling. QUALITY.md BETA's Settings line names
+      "resolution/DPR handling", and `Renderer.resize()` (`src/render/
+      canvas.ts`) does read `globalThis.devicePixelRatio` — but `main.ts`'s
+      `bindGlobalInput` re-runs it on `window.resize` ALONE, and `matchMedia`
+      appears nowhere in `src/`. Dragging the window to a monitor with a
+      different DPI (and, in engines that do not fire `resize` on a zoom
+      change) leaves the backing store pinned at the old ratio, i.e. a blurry
+      or over-sampled canvas until the next manual window resize.
+      Acceptance: `main.ts` installs a `matchMedia('(resolution: <current>
+      dppx)')` `change` listener that re-runs `this.renderer.resize()` and
+      re-arms itself at the new ratio (the query is ratio-specific, so a
+      one-shot listener only ever fires once); a unit test with a mocked
+      `matchMedia` fires the change with NO `window.resize` event dispatched
+      and asserts the backing store was resized, plus a second change proving
+      the listener re-armed; absent `matchMedia` (jsdom without the stub) is a
+      no-op, never a throw — refs: QUALITY.md BETA (Settings), fb065.
+      DONE 2026-09-05: `Game` (`src/ui/main.ts`) arms a
+      `(resolution: Ndppx)` query in `bindGlobalInput` and re-arms it at the
+      new ratio on every change — that query matches exactly ONE ratio, so it
+      fires once and is then permanently false for the ratio just moved to; a
+      one-shot listener would only ever catch the first change.
+      `renderer.resize()` runs before the re-arm so both read the same
+      `devicePixelRatio`. Deliberately an ADDITION to the `window` `resize`
+      listener, not a replacement: if a UA ever evaluated the query as false
+      even at its own ratio, the feature degrades to silence and that listener
+      remains the backstop. code-reviewer **REQUEST-CHANGES** on one Major,
+      and it was the right catch: the test asserted `Renderer.resize()` was
+      *called*, not that the backing store changed — an implementation passing
+      a cached dpr, or an early return that swallowed the change, would have
+      passed it, which is exactly the bug this item exists to fix. Now asserts
+      `canvas.width` doubles on 1 -> 2 while `canvas.style.width` (which
+      carries no ratio) holds. It also corrected the code's own premise: per
+      CSSOM-View an unsupported query does NOT throw, it yields
+      `media: 'not all'`/`matches: false`, so the `try`/`catch` guards a case
+      real browsers never produce while the case they DO produce is silent —
+      documented rather than papered over. qa-playtester **PASS**, with three
+      findings, all fixed here rather than filed since they sit inside this
+      item's own "never a throw" acceptance: (1) a `matchMedia` returning
+      `null` threw a TypeError that escaped `bindGlobalInput` BEFORE
+      `inputBound`/`bindCanvasInput`/`this.run` were set, with the Hub already
+      torn down — a mounted canvas, no run, no way back; (2)
+      `removeEventListener` was optional-chained, so a query this code cannot
+      detach from was armed anyway and handlers doubled per change (measured
+      2^6 = 64 live listeners after six rounds); (3) the test iterated a
+      listener array the production re-arm splices mid-iteration, a latent
+      false-green. Both product fixes carry their own regression case,
+      verified by reverting each and watching exactly those two tests go red.
+      QA's hostile pass otherwise held everywhere: fractional DPRs
+      (1.25/1.5/2.625/1.333...) produce exact query strings and exact backing
+      stores, 200 rapid changes leave exactly ONE live listener, changes fired
+      on the Hub between runs and mid-fb088-chunked-resume neither throw nor
+      pin a stale ratio, a real-UA `matches: false` query arms and stays quiet,
+      and a 768-tick control-vs-DPR-storm comparison produced an identical
+      world hash (`c81453e2`) — the path does not touch the sim. One
+      limitation stated rather than hidden: whether a real UA fires
+      `(resolution: 1.3333...dppx)` at 133% zoom could not be verified here
+      (no browser in this sandbox, and jsdom has no `matchMedia`); the
+      `resize` backstop covers it either way. `npx tsc --noEmit` clean;
+      targeted suite 8/8; all 53 `tests/ui*`/`tests/render*` files 348
+      passed/6 skipped. `npm run test:fast` 2331 passed/3 failed/48 skipped
+      across 8 files — `b028`, `b032`/`b034`/`b035`/`b036`, `q15`, `q41`,
+      `q45`, exactly the standing families and exactly the pre-change
+      baseline. An earlier pass showed 10 files/6 tests; QA independently
+      root-caused that to two concurrent vitest runs widening the
+      dev-server-port and bench-scratch-dir families, and confirmed
+      mechanically that no other suite can even reach the new code
+      (`matchMedia` is undefined in vitest's jsdom, so `armDprListener`
+      early-returns everywhere else).
+
+- [x] (fb143) [feat] generated 2026-09-05 (same generation batch as fb142) —
+      fullscreen toggle reachable mid-run. QUALITY.md 1.0's Steam/itch
+      checklist opens with "fullscreen + windowed"; fb090 built the toggle,
+      but `#sw-fullscreen-toggle` exists only in `hub.ts`'s Settings tab
+      (grep: no `fullscreen` string in `hud.ts` or `bottom-bar.ts`), so a
+      player who starts a run cannot go fullscreen or leave it without
+      abandoning to the Hub. Acceptance: the in-run pause/options modal gains
+      a fullscreen toggle using the same `document.fullscreenElement` /
+      `requestFullscreen` / `exitFullscreen` calls fb090 already established,
+      with its label tracking the real state via the existing document-level
+      `fullscreenchange` listener pattern (no second global listener leaked —
+      see `hub.ts`'s `ensureFullscreenListenerInstalled` singleton note); a
+      DOM test opens the pause modal, clicks it, asserts `requestFullscreen`
+      was called, then simulates the browser's own exit and asserts the label
+      flips back — refs: QUALITY.md 1.0 (Steam/itch checklist), fb090.
+      DONE 2026-09-05: rather than duplicating fb090's singleton-listener
+      pattern into `hud.ts`, the Fullscreen API plumbing moved into a new
+      `src/ui/fullscreen.ts` (one document-level `fullscreenchange` listener,
+      a SUBSCRIBER SET rather than fb090's single `activeHub` pointer, which a
+      second surface would have silently displaced) and `hub.ts` moved onto
+      it; the in-run pause Options screen gained the toggle, requesting
+      fullscreen on `this.root` (the app root, as fb090 does) rather than
+      `this.modal`, which resume tears down. code-reviewer
+      **REQUEST-CHANGES** on two Majors, both correct and both mine: (1)
+      subscribing in `setPaused(true)` and unsubscribing in `setPaused(false)`
+      misses the abandon-from-pause exit entirely — `onQuitToHub()` ->
+      `main.ts`'s `showHub()` sets `run = null` and rebuilds the root WITHOUT
+      resuming the Hud, so each abandon retained a subscriber pinning the Hud,
+      its detached modal DOM and the captured `World` for the session
+      (reviewer measured 5 abandons -> 5 subscribers, monotonic); fixed with an
+      idempotent `Hud.dispose()` called from `showHub()` and before every
+      `new Hud(...)`. (2) the leak test I wrote looped `setPaused(true)`/
+      `setPaused(false)` in matched pairs — precisely the path that CANNOT
+      leak — so it gave false confidence about the exact hazard its own name
+      asserted; replaced with the real click path (quit -> confirm), verified
+      by reverting `dispose()` and watching it go red. Three Minors also
+      fixed: a `let` declared below its user, `??=` silently absorbing the
+      leaked state it should make loud, and — the one worth noting —
+      `refreshFullscreenLabel()` calls `Hub.show()`, which clears
+      `this.root.innerHTML`, the SAME root a running HUD occupies; a mid-run
+      `fullscreenchange` was hard to produce before this item and is now a
+      button press away, so a stale Hub could have wiped the live HUD. Safe
+      today only via an implicit invariant in another method (a run can only
+      start from the `'run'` tab); now made explicit by requiring the Hub's own
+      markup to be on screen. Reviewer confirmed the hub.ts refactor preserves
+      fb090 exactly (its 5-instance staleness test passes unchanged) and that
+      capturing `w` is sound (`main.ts` returns before stepping while paused).
+      `npx tsc --noEmit` clean; targeted suite 14/14 (fb115 + fb090); all 54
+      `tests/ui*`/`tests/render*` files 356 passed/6 skipped. `npm run
+      test:fast` 2338 passed/4 failed/48 skipped, every failure in the standing
+      `b028`/`b032`/`b034`/`b035`/`b036`/`q15`/`q41`/`q45`/`q52` families.
+
+- [ ] (fb144) [polish] generated 2026-09-05 (same generation batch as fb142)
+      — honour the OS's `prefers-reduced-motion` on a first run. fb086 added
+      the `reducedMotion` setting (default off, opt-in), but nothing in
+      `src/` reads the `prefers-reduced-motion` media query, so a player who
+      has already told their OS they want reduced motion still gets the full
+      ambient-motion treatment until they find the toggle. Acceptance: on a
+      first run only (no stored `stonewake.settings.v1` entry), the seeded
+      `reducedMotion` follows `matchMedia('(prefers-reduced-motion:
+      reduce)')`; `defaultSettings()` itself stays pure and environment-free
+      (so `q3-save-fuzz` and fb111's portability audit keep their
+      deterministic baseline) — the query is applied at load/first-run
+      seeding, not inside the defaults; an explicitly stored value ALWAYS
+      wins over the OS preference, including an explicit `false` against an
+      OS "reduce"; tests cover all three cases plus a missing `matchMedia`
+      (no throw) — refs: QUALITY.md 1.0 (Accessibility re-check), fb086.
+
+- [ ] (fb145) [bug] generated 2026-09-05 (same generation batch as fb142) —
+      auto-pause on tab/window hide, not just `blur`. fb071 auto-pauses a
+      running run on `window`'s `blur` (`main.ts`), which covers alt-tab on a
+      desktop browser, but `visibilitychange` appears nowhere in `src/`: a
+      backgrounded tab, a minimized window, and switching apps on mobile do
+      not reliably fire `blur`, so the sim keeps running unattended against a
+      dead Core — the exact failure fb071 exists to prevent, through the door
+      it did not cover. QUALITY.md BETA names "window unfocus auto-pauses" as
+      its own line. Acceptance: a `document` `visibilitychange` listener
+      pauses under the same conditions fb071's `blur` handler uses (running
+      run, not already paused) and runs the same `clearKeysForPause`; becoming
+      visible again does NOT auto-resume (matching fb071's deliberate manual-
+      resume convention); a test drives the real `Game`, stubs
+      `document.hidden`, dispatches `visibilitychange` with no `blur` event at
+      all, and asserts the run paused, plus a re-show asserting it stayed
+      paused — refs: QUALITY.md BETA, fb071.
+
+- [ ] (fb146) [polish] generated 2026-09-05 (same generation batch as fb114;
+      engineer's-judgment item, depth not scope creep per HANDOFF §7) — a
+      standing units guard for the half-width display bug class. The same
+      defect has now shipped twice and been caught twice by review, not by a
+      test: fb108 fixed `dashTrailSentence`/`dashHealSentence` and fb112 fixed
+      `dashSlashSentence`, all three rendering `eff.dashWidth` — a value every
+      sim call site treats as a HALF-width (`lineHit`'s `halfWidth`
+      parameter, `GroundArea.radius`) — as though it were a full width. Every
+      instance is fixed today, but nothing stops a fourth sentence
+      reintroducing it. Acceptance: a test that fails if any `eff.dashWidth`
+      read in `src/ui/class-info.ts` is rendered without its `2 *` doubling
+      (a source-level rule in the spirit of fb085's proposed lint mechanism,
+      with its own proof case confirming the rule catches a reintroduced bare
+      read), backed by a sim-level assertion — for each of the three
+      `dash_*` kinds — that establishes `dashWidth` really is a half-width
+      from engine behaviour rather than from the parameter's name; and
+      `info-format.ts`'s `dashWidth: 'Dash width'` fallback label (latent:
+      only reachable through `effectBlock`'s field-list fallback, which
+      fb108's sentence table made unreachable for every real kind) renamed to
+      say half-width — refs: fb108, fb112, `lineHit` (`src/sim/combat.ts`).
+
+- [ ] (fb147) [bug] filed 2026-09-05 by qa-playtester during fb111
+      verification — the fb096 slot format is not atomic across keys, so a
+      per-file cloud sync can silently destroy a slot's save. The active
+      slot's data lives ONLY in `SAVE_KEY` until a switch-away mirrors it into
+      that slot's own key (`switchToSlot`, `src/ui/saveslots.ts`), so a slot
+      that has been played but never switched away from has no dedicated key
+      at all. Repro (deterministic, ran twice): `saveMeta(sp=111)`;
+      `ensureActiveSlotMigrated()`; `switchToSlot(1)`; `saveMeta(sp=222)`;
+      `switchToSlot(2)`; `saveMeta(sp=333)` leaves `activeslot=2 slot1=111
+      slot2=222 save.v1=333` with **no `slot3` key**. A cloud provider that
+      restores or last-write-wins `SAVE_KEY` alone (Steam Cloud is per-file
+      LWW) then makes 333 unrecoverable, and the next `switchToSlot(0)`
+      writes the foreign account into `stonewake.save.slot3.v1`, cementing the
+      loss. fb111's per-blob round-trip audit structurally cannot see this: it
+      is a cross-key invariant, not a non-portable field. Acceptance: the
+      active slot's own key stays in step with `SAVE_KEY` on every save (so
+      `SAVE_KEY` is a live cache rather than the sole home of a slot's data),
+      with a regression test in `tests/ui-fb096-save-slots.test.ts` driving
+      the repro above and asserting `slot3` exists and holds 333 before any
+      switch-away; `src/meta/meta.ts` is out of this lane's Scope, so the
+      mirroring belongs in `saveslots.ts` or its callers — refs: fb096,
+      fb111, QUALITY.md 1.0 (Steam/itch checklist: save slots,
+      cloud-save-safe file format).
+
+- [ ] (fb148) [bug] filed 2026-09-05 by qa-playtester during fb112
+      verification — Dash Slash's "Dash 5 tiles" ignores Swordsman Shoes'
+      documented doubling; the real dash and hit line are 10. Measured twice,
+      identical: with `husk` (r=0, armor 0) aimed +X, the furthest enemy struck
+      sits at 5.0000 tiles unequipped and **10.0000 with `swordsman_shoes`**
+      (9.0000 mid-charge, 14.0000 with both). `fireDashSlash`
+      (`src/sim/classes.ts`) computes `dashRange = (eff.dashRange ?? 0) *
+      (hasEquipment(w, 'swordsman_shoes') ? 2 : 1)` and feeds `hitRange =
+      dashRange + mergedRadius` to `lineHit`, but `dashSlashSentence`
+      (`src/ui/class-info.ts`) prints `eff.dashRange` raw and
+      `ClassLiveContext` carries no dash-range field at all — so the in-run
+      panel always reads "Dash 5 tiles" while the Warden dashes and slashes
+      10. `tests/fb015-equipment.test.ts` already asserts an enemy at 8 tiles
+      is hit, i.e. the suite already proves the displayed number wrong. This
+      is the same sentence-number-≠-sim-number class fb108/fb112 exist to
+      kill, at a 100% error rather than 50%. The Hub/class-select surface
+      passes no live context and may legitimately keep showing the base 5; the
+      in-run character panel and bottom-bar hover have `w` and cannot.
+      Acceptance: `ClassLiveContext` gains a dash-range multiplier populated
+      from `hasEquipment(w, 'swordsman_shoes')` at `hud.ts`'s two live-context
+      sites and consumed by `dashSlashSentence`, so the in-run sentence reads
+      10 with the item equipped and 5 without; regression test mirrors
+      fb112's shape — a sim probe binary-searching the furthest struck enemy
+      to establish 10 vs 5 independently, then the string assertion — refs:
+      fb112, fb108, `fireDashSlash` (`src/sim/classes.ts`).
+
+- [ ] (fb149) [bug] filed 2026-09-05 by qa-playtester during fb112
+      verification — line and area sentences promise their full damage number
+      to "every enemy", but pierce falloff cuts every target after the first.
+      Measured twice, identical: five enemies at 0.9-tile spacing on the dash
+      line (armor 0) take **30, 24.6, 20.172, 16.541, 13.564**; at eight
+      enemies the last takes 7.48, a quarter of the promised number.
+      `lineHit` (`src/sim/combat.ts`) applies `scale = max(pierceFalloffFloor,
+      scale * pierceFalloff)` after EVERY strike, and `data/towers.json` sets
+      `pierceFalloff: 0.82` / `pierceFalloffFloor: 0.2` — unlike blasts, which
+      grant `aoeFullTargets: 5` at full damage first, a line decays from the
+      second target on. Scope is wider than one sentence: `chargePierceSentence`
+      (Deadeye Draw, also `lineHit`) carries the same unqualified per-target
+      claim, and the `applyAoE` sentences (`circleSlashSentence`,
+      `burstDamageSentence`, `frostNovaSentence`) overstate past the 5th
+      target. Acceptance: one wording rule applied across all of them — either
+      name the drop-off or stop promising the number to "every" target — with
+      a regression test pinning the mechanism (the multi-enemy sim probe above)
+      plus string assertions on the `dash_line`/`charge_pierce` sentences —
+      refs: fb112, `lineHit`/`applyAoE` (`src/sim/combat.ts`).
+
+- [ ] (fb150) [bug] filed 2026-09-05 by qa-playtester during fb112
+      verification — Dash Slash's "the charge's own range and damage merge into
+      this one hit" reads as "you keep the nova's coverage", but the merge
+      deletes the nova's area entirely. Repro, both branches in one probe:
+      Swordsman with a `husk` 3 tiles BEHIND and another 3 tiles to the SIDE;
+      charging Active1 fully and releasing normally hits both for 60, while
+      charging fully and firing Active2 instead hits **neither** — the merged
+      path spends the charge (`wd.active1Charging = false`, Active1 to full
+      cooldown) and converts the 4-tile nova into +4 tiles of LINE LENGTH only
+      (measured: furthest struck 5 -> 9). That is the specced reading of "hit
+      range" (Q118), so this is a wording bug, not a sim bug — but the current
+      text sells a player an area they do not get, and the real trade can be a
+      total whiff plus a 6s Active1 cooldown. Acceptance: the clause says the
+      charge's radius EXTENDS THE LINE'S REACH and its damage is added, and
+      that the nova itself does not fire; regression test carries the
+      behind/side probe as the mechanism plus a string assertion on the
+      reworded clause — refs: fb112, Q118, `fireDashSlash`.
+
+- [ ] (fb151) [bug] filed 2026-09-05 by qa-playtester during fb112
+      verification — the Dash Slash slash VFX is drawn to the physical dash
+      TARGET, not the hit line, so mid-charge and against walls the graphic is
+      shorter than the hitbox. `fireDashSlash` (`src/sim/classes.ts`) runs
+      `lineHit` with `hitRange = dashRange + mergedRadius` from the PRE-dash
+      position, then emits `class_active2` with `resolveDashTarget`'s clamped
+      travel endpoint, and `canvas.ts` draws that emitted segment. Repro: with
+      the Warden at the map edge (x=1) aiming -X, `dashTravel` is a zero-length
+      segment (the dash clamps against the wall) yet enemies at -0.6 and -0.9
+      tiles both take damage — the player sees NO slash at all while enemies
+      die; mid-charge in open ground the hit line spans 9 tiles while the drawn
+      segment spans 5, hiding 4 tiles of real hit. Acceptance: the drawn slash
+      covers the corridor that actually deals damage (the emitted event carries
+      the hit extent, not the travel extent — note the emit itself is
+      `src/sim/**` and out of this lane's Scope, so this may need a main-lane
+      companion; if so, do the render half here and log the sim half);
+      regression test asserts the emitted `class_active2` segment against the
+      measured furthest struck enemy — refs: fb112, `canvas.ts`'s
+      `class_active2` draw.
 
 - [ ] (fb114) [bug] `tests/b036-help-fold.test.ts` is red on master and
       red standalone: `.sw-help`'s bottom edge measures 1095.4 against the
@@ -3102,6 +3519,108 @@ not already expose it) logs that need below instead of reaching into
       entries — refs: SPEC-FINAL §5, §11, VFX registry (fb016).
 
 ## Log
+
+- 2026-09-05, merge: `origin/master` merged into `lane/ui`. Only two files
+  conflicted, both docs (this file's Log and PROGRESS.md's session list) —
+  BOTH SIDES KEPT in each, since the two lanes' entries are independent
+  history, not competing versions of one entry. No source conflicts:
+  `src/ui/hub.ts` and `src/ui/hud.ts` auto-merged, and master's shared sim
+  core (the P12 balance work, `src/sim/terrain/**`, the `/data` retunes) came
+  across untouched by this lane, per the merge rule that master wins there.
+  **Id collision, caught by audit rather than by git:** master's own
+  2026-09-04 lane merge had renumbered four cross-lane items into
+  fb114-fb117, and BACKLOG.md had meanwhile taken fb118-fb135 — so ALL TEN
+  ids this session generated or filed (fb114-fb123) named two different items
+  each once the trees met. Git merged them without a murmur, because the
+  duplicates land in different regions of the file. Renumbered this session's
+  ten into the free range **fb142-fb151** (max id anywhere was 141), and
+  renamed the two committed test files (`tests/ui-fb114-dpr-change` ->
+  `ui-fb142-`, `tests/ui-fb115-hud-fullscreen` -> `ui-fb143-`) rather than
+  leaving filenames that name someone else's item — only two files, unlike
+  the 30+ that made master's merge choose deferral. Mapping: fb114->fb142
+  (DPR), fb115->fb143 (mid-run fullscreen), fb116->fb144 (prefers-reduced-
+  motion), fb117->fb145 (visibilitychange pause), fb118->fb146 (units guard),
+  fb119->fb147 (slot atomicity), fb120->fb148 (dash range vs Shoes),
+  fb121->fb149 (falloff wording), fb122->fb150 (merge wording), fb123->fb151
+  (dash VFX extent).
+  **Pre-existing and NOT fixed here:** `fb096` and `fb098` each name two
+  different items inside this file already on `origin/master` (a DONE
+  2026-09-04 generated item and an open owner-feedback item apiece). That
+  collision predates this branch and is master's to renumber — flagged here
+  rather than silently changed, since other files may reference either
+  reading.
+
+- 2026-09-05, fb112 (observation for future QA passes, not an item):
+  qa-playtester reports that the standing "Dawn Rekindle, both choices" money
+  path in its own checklist is STALE against SPEC-FINAL — `src/sim/
+  sundering.ts` records that p3d deleted the V2 Day/Dusk/Night/Dawn machine
+  ("no Dawn Rekindle-or-Leave ledger... SPEC-FINAL names no Rekindle cost
+  anywhere") and `advanceToNextBlock` un-petrifies the whole roster for free,
+  so there are no longer two choices to exercise. It verified the surviving
+  equivalent (`p3d-cycle-machine`, plus full 18-wave/6-VS-wave victories on
+  three seeds) instead. QUALITY.md is owner-authored and read-only for this
+  lane, so this is recorded here rather than edited; worth a QUESTIONS.md
+  entry from the main lane.
+
+- 2026-09-05, fb112: implemented fully in-scope. code-reviewer raised two
+  nits that are real but belong outside this diff, filed here rather than
+  widening it: (a) `dashSlashSentence`'s `dashRange` is still the
+  pre-equipment number — `fireDashSlash` (`src/sim/classes.ts`) doubles it
+  under `swordsman_shoes` (and `hitRange = dashRange + mergedRadius` extends
+  the line further on the merged-charge path), so the sentence understates
+  the real dash distance for a player wearing that item. This is a different
+  bug class from fb112 (a live-context gap, not a units error) and closing it
+  needs a new `ClassLiveContext` field carrying equipped-item state into
+  `class-info.ts`; the item's own `effectNote` in `data/equipment.json` does
+  disclose the doubling, so it is not silent. In-lane for `src/ui/**` but
+  wants a design decision on how equipment reaches the info sentences — a
+  candidate for the next generation batch. (b) `info-format.ts`'s
+  `dashWidth: 'Dash width'` fallback label still calls the half-width a
+  width; latent today (only reachable through `effectBlock`'s field-list
+  fallback, which fb108's sentence table made unreachable for every real
+  `kind`) and folded into fb118's acceptance above rather than fixed here.
+
+- 2026-09-05, fb111 (informational, not filed as an item): qa-playtester
+  noted that writers persist UNSANITIZED values — `saveSettings` stores what
+  it is handed, so `masterVolume: NaN` lands as `"masterVolume":null` and
+  `dotNumbers: 1` as a number where the type says boolean. It reloads
+  deterministically and identically on every machine (`sanitize` clamps on
+  read), so it is not a portability failure, and QA could not reach it
+  through the real UI (`hub.ts`'s range inputs go through `Number(el.value)`,
+  which never yields NaN) — but a stricter importer or schema validator, the
+  direction "cloud-save-safe file format" points, would reject it. Worth
+  `saveSettings` writing `sanitize(s)` if this area is ever touched again.
+  QA also observed, while probing and unrelated to fb111, that in a DEV build
+  the dev-profile-inflated meta is written to `SAVE_KEY` by `onMetaChanged`
+  after a run ends, despite `src/ui/main.ts`'s "deliberately never saved"
+  comment; `devProfileActive()` is false in production builds so shipped
+  saves are unaffected. That one touches `src/ui/main.ts` (in-lane) but needs
+  a design call on what dev-profile persistence should mean — a candidate for
+  the next generation batch rather than a silent fix.
+
+- 2026-09-05, fb111: implemented fully in-scope, test-only — the audit found
+  nothing non-portable, so no production fix was owed; see the item's own
+  DONE note above for the four findings it did record. Two main-lane needs
+  surfaced and are NOT edited from this lane: (a) `.gitignore` has no
+  `vitest.config.ts.timestamp-*.mjs` line, so a killed vitest run leaves an
+  untracked file in the repo root that a `git add -A` sweep would commit
+  (code-reviewer nit, observed live this session); (b) nothing else — the
+  lane's own storage keys are all reachable from `src/ui/**`.
+
+- 2026-09-05, generation: the queue had zero actionable items left (fb085
+  needs `data/strings.json`, fb093 needs `tools/ui-audit.ts`, fb097 needs a
+  new npm dependency — all three outside this lane's hard Scope and each
+  already logged as such in prior sessions; re-confirmed unchanged rather
+  than re-attempted). Appended fb114-fb118 per CLAUDE.md's generation rule,
+  from a QUALITY.md BETA/1.0 checklist gap diff against the code plus one
+  engineer's-judgment item (fb118). Every premise was verified against the
+  source before the item was written, not assumed: `matchMedia` appears
+  nowhere in `src/` (fb114, fb116), `fullscreen` appears in `hub.ts` only and
+  in neither `hud.ts` nor `bottom-bar.ts` (fb143), `visibilitychange` appears
+  nowhere in `src/` (fb145), and the fb108/fb112 half-width defect has now
+  shipped twice and been caught by review both times, never by a test
+  (fb146). jsdom ships no `matchMedia`, which is why fb142/fb144 both carry
+  an explicit "absent `matchMedia` is a no-op, never a throw" clause.
 
 - 2026-09-04, lane merge: `lane/ui` (fb071-fb113, this file's 2026-09-04
   batch) merged into master. One conflict, this Log — both sides kept. No

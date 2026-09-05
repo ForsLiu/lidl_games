@@ -56,6 +56,21 @@ export class Game {
   private meta: MetaState = defaultMeta();
   private resultBanked = false;
   private inputBound = false;
+  /**
+   * fb142: the `(resolution: Ndppx)` query this instance is currently watching,
+   * kept so the next change can detach before re-arming at the new ratio. Null
+   * where `matchMedia` does not exist (jsdom, older embedders) — DPR tracking
+   * is then simply absent, never a throw.
+   *
+   * No dispose path, matching the pre-existing `keydown`/`blur`/`resize`
+   * listeners beside it: production constructs exactly one `Game` per document
+   * (see this module's bottom), so there is nothing to tear down. A future
+   * `tests/ui*` file that boots SEVERAL `Game`s into one document while sharing
+   * a `matchMedia` stub will see one armed query per instance, and firing them
+   * all resizes dead instances' renderers too — harmless, but worth knowing
+   * before spying on `Renderer.prototype` in such a file.
+   */
+  private dprQuery: MediaQueryList | null = null;
   private paused = false;
   /**
    * p9a: reused verbatim across Retry, and spread-with-a-new-seed across New
@@ -290,6 +305,11 @@ export class Game {
   }
 
   private showHub(): void {
+    // fb143 (code-reviewer finding): this is the abandon-from-pause exit, and
+    // it never resumes the `Hud` — so the `Hud`'s own paused-window cleanup
+    // would never run and its `fullscreenchange` subscription would outlive it.
+    // Idempotent, so calling it on every path back to the Hub is free.
+    this.hud?.dispose();
     // fb074: every path back to the Hub — abandon, defeat/victory's own Retry/
     // New Run/Hub buttons, boot with nothing to resume — means "this instance
     // has no run in progress," so whatever it itself persisted (if anything)
@@ -363,6 +383,9 @@ export class Game {
     this.runSessionId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
     this.lastWrittenSessionId = null;
     this.persistDisabled = false;
+    // fb143: the outgoing `Hud` is replaced wholesale here (Retry/New Run), so
+    // release its subscription before dropping the reference to it.
+    this.hud?.dispose();
     this.hud = new Hud(this.root, {
       onSelectTower: (id) => (this.view.selectedTower = id),
       onCallWave: () => this.pending.push({ k: 'call' }),
@@ -573,7 +596,89 @@ export class Game {
         this.renderer.resize();
       });
     });
+    this.armDprListener();
   }
+
+  /**
+   * fb142 (QUALITY.md BETA, "resolution/DPR handling"): `Renderer.resize()`
+   * reads `devicePixelRatio` and sizes the backing store by it, but the only
+   * thing that re-ran it was the `window` `resize` listener above. Dragging the
+   * window onto a monitor with a different DPI does not reliably fire `resize`
+   * (and in engines that report a zoom purely as a ratio change, neither does a
+   * zoom), so the backing store stayed pinned at the old ratio — a blurry or
+   * needlessly over-sampled canvas until the player happened to resize the
+   * window by hand.
+   *
+   * A `(resolution: Ndppx)` query matches exactly one ratio, so its `change`
+   * event fires once and is then permanently false for the *new* ratio: the
+   * listener has to re-arm at the ratio it just moved to, or it would only ever
+   * catch the first change. `resize()` runs before the re-arm so the renderer
+   * is corrected with the same `devicePixelRatio` read the new query is built
+   * from.
+   *
+   * Deliberately not rAF-coalesced like the `resize` listener: a DPR change is
+   * a single discrete event, not the dozens-per-second burst a mouse-drag
+   * resize produces.
+   */
+  private armDprListener(): void {
+    const mm = globalThis.matchMedia;
+    if (typeof mm !== 'function') return;
+    this.dprQuery?.removeEventListener?.('change', this.onDprChange);
+    this.dprQuery = null;
+    let query: MediaQueryList;
+    try {
+      query = mm.call(globalThis, `(resolution: ${globalThis.devicePixelRatio || 1}dppx)`);
+    } catch {
+      // Defensive only: per CSSOM-View an unsupported query does NOT throw, it
+      // yields a MediaQueryList with `media === 'not all'`. This guards a
+      // non-browser embedder with a stricter stub rather than a real UA, and
+      // leaves DPR tracking off instead of taking the whole input binding down.
+      return;
+    }
+    // The real-world failure mode is silence, not an exception (code-reviewer
+    // finding): if a UA evaluated `(resolution: Xdppx)` as false even AT ratio
+    // X — a rounding artifact in the dppx conversion — the query would never
+    // fire and this feature would simply be off. That is why it is an addition
+    // to the `window` `resize` listener above rather than a replacement for it:
+    // that listener remains the backstop, exactly as it was before fb142.
+    //
+    // `addEventListener` on a MediaQueryList is the modern form; an embedder
+    // old enough to expose only `addListener` goes untracked rather than
+    // earning a second, subtly different code path to maintain — and the field
+    // is only claimed when a listener was actually attached, so `dprQuery` can
+    // never read as "tracked" while holding nothing.
+    //
+    // The `!query` guard is not paranoia (qa-playtester finding): a stub
+    // returning null/undefined threw a TypeError out of here, and because that
+    // escapes `bindGlobalInput` BEFORE `inputBound`/`bindCanvasInput`/`this.run`
+    // are set — with the Hub already torn down — the player was left staring at
+    // a mounted canvas with no run and no way back. A DPR nicety must never be
+    // able to do that.
+    //
+    // `removeEventListener` is required alongside it, not optional-chained: a
+    // query this code cannot detach from must not be armed at all, or each
+    // re-arm would leave the old listener attached AND add a new one, and the
+    // handler count would double per change (measured 2^6 = 64 after six
+    // rounds against a stub missing it).
+    if (
+      !query ||
+      typeof query.addEventListener !== 'function' ||
+      typeof query.removeEventListener !== 'function'
+    ) {
+      return;
+    }
+    query.addEventListener('change', this.onDprChange);
+    this.dprQuery = query;
+  }
+
+  /** fb142: arrow-bound so the same reference detaches cleanly in `armDprListener`'s re-arm. */
+  private onDprChange = (): void => {
+    // Optional-chained for self-documentation rather than need: `armDprListener`
+    // is reachable only from `bindGlobalInput`, which `beginRun` calls strictly
+    // after assigning `this.renderer`, and nothing ever nulls it again.
+    this.renderer?.resize();
+    this.armDprListener();
+  };
 
   /** fb027: `U` upgrades whatever the panel is currently showing (tower or Core) — a no-op with nothing selected. */
   private hotkeyUpgradeSelection(): void {

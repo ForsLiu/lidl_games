@@ -19,6 +19,7 @@ import {
 } from '../meta/meta';
 import { modifierDraft, tierBudgetMul, tierCoreDamageMul, tierEnemyHpMul } from '../sim/tiers';
 import { devProfileActive } from '../meta/devprofile';
+import { fullscreenToggleLabel, subscribeFullscreenChange, toggleFullscreen } from './fullscreen';
 
 /**
  * Referenced directly rather than through a helper so the bundler can fold it:
@@ -77,15 +78,23 @@ type Tab = 'run' | 'tree' | 'equipment' | 'quests' | 'codex' | 'settings' | 'cre
  * the stale instance's callback `show()` over whatever replaced it.
  */
 let activeHub: Hub | null = null;
-let fullscreenListenerInstalled = false;
+let fullscreenUnsubscribe: (() => void) | null = null;
 
+/**
+ * fb143: the document-level `fullscreenchange` listener moved into
+ * `fullscreen.ts`, shared with the in-run pause Options screen. This wrapper
+ * keeps fb090's original semantics exactly — only whichever `Hub` is
+ * currently `activeHub` refreshes, so a stale instance discarded mid-Settings
+ * -tab never re-renders a detached tree — while the listener itself is now
+ * installed once for the whole module graph rather than once per surface.
+ */
 function ensureFullscreenListenerInstalled(): void {
-  if (fullscreenListenerInstalled) return;
-  fullscreenListenerInstalled = true;
-  document.addEventListener('fullscreenchange', () => {
+  if (fullscreenUnsubscribe) return;
+  fullscreenUnsubscribe = subscribeFullscreenChange(() => {
     activeHub?.refreshFullscreenLabel();
   });
 }
+
 
 /**
  * fb091: crash-log entries are the one place this file renders genuinely
@@ -568,7 +577,7 @@ export class Hub {
         </button>
         <button class="sw-reroll" id="sw-onboarding-replay">Replay tutorial prompts</button>
         <button class="sw-reroll" id="sw-fullscreen-toggle">
-          ${document.fullscreenElement ? 'Exit fullscreen' : 'Enter fullscreen'}
+          ${fullscreenToggleLabel()}
         </button>
       </div>
 
@@ -761,11 +770,7 @@ export class Hub {
 
     body.querySelector('#sw-fullscreen-toggle')?.addEventListener('click', () => {
       this.settingsResetArmed = false; // fb075: see #sw-seed's comment above.
-      if (document.fullscreenElement) {
-        document.exitFullscreen?.()?.catch(() => {});
-      } else {
-        this.root.requestFullscreen?.()?.catch(() => {});
-      }
+      toggleFullscreen(this.root);
     });
 
     body.querySelector('#sw-crashlog-copy')?.addEventListener('click', () => {
@@ -818,7 +823,15 @@ export class Hub {
    * discarded mid-Settings-tab never fires this.
    */
   refreshFullscreenLabel(): void {
-    if (this.tab === 'settings') this.show();
+    // fb143 (code-reviewer finding): `show()` clears `this.root.innerHTML` —
+    // the SAME app root a running HUD occupies. Before fb143 a mid-run
+    // `fullscreenchange` was hard to produce; the in-run toggle now produces
+    // one on demand, so a stale `Hub` still holding `activeHub` could wipe the
+    // live HUD out from under the player. The `tab === 'settings'` check alone
+    // happens to prevent that today (a run can only start from the `'run'`
+    // tab), but that is an implicit invariant in another method; requiring this
+    // Hub's own markup to actually be on screen makes it explicit and local.
+    if (this.tab === 'settings' && this.root.querySelector('#sw-fullscreen-toggle')) this.show();
   }
 
   /* -------------------------------------------------------- key remapping */

@@ -5,6 +5,75 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-05 session (lane `lane/ui`): closed `fb111` and `fb112`, then
+  regenerated the lane queue as `fb114`-`fb118`.**
+
+  `fb112` (top actionable item) fixed a real, player-visible display bug:
+  `dashSlashSentence` (`src/ui/class-info.ts`) rendered `eff.dashWidth`
+  verbatim as "X tiles wide", but `fireDashSlash` (`src/sim/classes.ts`)
+  passes that value into `lineHit` (`src/sim/combat.ts`) as the parameter
+  literally named `halfWidth`, and `lineHit` rejects an enemy only on
+  `perp > halfWidth + e.radius` — an unsigned perpendicular distance, so the
+  corridor spans `dashWidth` to EACH side and is `2 * dashWidth` wide.
+  Swordsman's Circle Slash, the only normal-profile `dash_line` kit, showed
+  every player 1 tile for a 2-tile corridor. Same bug class fb108 fixed in
+  the sibling `dashTrailSentence`/`dashHealSentence`; this was the third and
+  last instance. The regression test anchors its string assertion on a
+  sim-level probe that drives the real `class_active2` Command and measures
+  which enemies the engine struck (`±0.99 * dashWidth` hit, `1.01 *
+  dashWidth` missed, `e.radius = 0` removing slack), so the half-width is
+  established from behaviour rather than from a parameter name; confirmed a
+  real regression test by reverting the fix and watching only the string
+  assertion fail. code-reviewer **APPROVE**, four Minors folded in before
+  commit (`trimNum` rather than `String` formatting, tighter boundary probes,
+  `'husk'` by name rather than `enemies[0]`, a dead line dropped).
+
+  `fb111` was an audit item and **came back clean — no production fix was
+  owed**, which is the honest outcome rather than a manufactured one. New
+  `tests/ui-fb111-cloud-save-portability.test.ts` covers all six
+  `stonewake.*` keys a `grep` over `src/` finds, writing each under one
+  `Date.now()` and reading it back under a very different one with only the
+  raw text carried across. Four findings recorded rather than assumed:
+  fb074's `sessionId` is the single clock-derived byte in any owned blob and
+  is opaque data, never cross-machine identity; `stonewake.activeslot.v1` is
+  the one owned value deliberately not JSON (`String(slot)`) and is portable;
+  `input.ts` uses locale-independent `toLowerCase()`, so the Turkish-dotless-I
+  hazard that would corrupt a synced keybinding does not exist; and the one
+  intended exception — a synced run checkpoint whose `contentHash` disagrees
+  with the reading machine's `/data` is deliberately discarded — is recorded
+  so "all shapes are cloud-safe" is not overstated. code-reviewer
+  **REQUEST-CHANGES** on the first pass, aimed at the evidence rather than
+  the conclusion (which it verified independently), and correct twice: the
+  scanner ran against `JSON.parse` output where four of its five rules are
+  unreachable, and one assertion was a literal tautology; and the run
+  checkpoint was audited in a shape the app never writes, missing
+  `contentHash`. Both fixed — the scanner now runs pre-serialization
+  (confirmed live by injecting a `NaN` the old version laundered to `null`)
+  and the fixture goes through `new Run(cfg)`.
+
+  **Lane queue regenerated.** After these two the lane had zero actionable
+  items — fb085/fb093/fb097 all need files outside its hard Scope
+  (`data/strings.json`, `tools/ui-audit.ts`, a new npm dependency) and were
+  re-confirmed out-of-scope rather than re-attempted. Appended fb114-fb118
+  per CLAUDE.md's generation rule from a QUALITY.md BETA/1.0 gap diff plus
+  one engineer's-judgment item, every premise verified against the source
+  first: no `matchMedia` anywhere in `src/` (DPR-change handling, and the
+  unread `prefers-reduced-motion`), fullscreen reachable from the Hub only,
+  no `visibilitychange` listener beside fb071's `blur`, and the half-width
+  display defect that has now shipped twice and been caught by review both
+  times but never by a test.
+
+  `npx tsc --noEmit` clean; targeted suite 132/132; all 52
+  `tests/ui*`/`tests/render*` files 340 passed/6 skipped. `npm run test:fast`
+  2321 passed/3 failed/48 skipped, every failure in the standing `b028`
+  process-tree-kill, `b032`/`b034`/`b035`/`b036` port-contention and
+  `q15`/`q41`/`q45` scratch-dir module-resolution families this queue
+  documents every session, none touching `src/ui/**`/`src/render/**` or
+  either item's own files. Note for future sessions: this host is Linux, and
+  `b028-mutation-probe-tree-kill` fails here in isolation on a clean tree
+  (process-tree kill semantics differ from the Windows host the queue's flake
+  notes were written on) — it is not a new regression.
+
 - **2026-09-05 session: stopped after p12a/p12b/p12c, with p12e diagnosed but
   not implemented.** Three items of the pinned owner queue (BALANCE DIRECTION
   v2) are done end to end — implemented, code-reviewed, QA'd, and committed —
