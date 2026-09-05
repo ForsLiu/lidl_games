@@ -3307,7 +3307,7 @@ generation-rule boundary.
       tracked at fb087) — no new failures. `data/enemies.json` (1 line) +
       `tests/boss.test.ts` (title/assertion/comments) only; no `/src` code
       touched.
-- [ ] (fb078) [bug] `src/sim/towers.ts` `checkBuild` maps every
+- [x] (fb078) [bug] `src/sim/towers.ts` `checkBuild` maps every
       `!grid.buildable()` to `'occupied'`, so on a generated map the build
       ghost tells the player a rough/rock tile is occupied when it is empty
       ground (BACKLOG-TERRAIN.md fb064b Log). Acceptance: a `'terrain'`
@@ -3315,6 +3315,15 @@ generation-rule boundary.
       reason and unoccupied; failing test first on an `applyTerrain`-ed grid;
       the renderer string for it is UI-lane fb091 — refs: SPEC-FINAL §10.5,
       §5 build rules.
+      **DONE 2026-09-04.** `Grid.unbuildableForTerrain(tx, ty)` (the
+      inverse of `buildable()`'s terrain clause, mutually exclusive with
+      it) and `checkBuild` returning `'terrain'` when `buildable()` fails for
+      a terrain reason on an unoccupied Open tile; border/gate/Core/live
+      structure still report `'occupied'`. Regression test
+      `tests/fb078-terrain-build-rejection.test.ts` (4 cases, rough + rock
+      overlays via `applyTerrain`). `src/bots/policies.ts` needs no change:
+      `'terrain'` falls into the same drop-the-plan branch `'occupied'`
+      did. Renderer string stays UI-lane fb091.
 - [ ] (fb079) [docs] SPEC-FINAL has no §10.5 for terrain generation, yet
       the generator, its bands and its data contract are built and merged
       (BACKLOG-TERRAIN.md fb064a Log). Acceptance: append §10.5 written from

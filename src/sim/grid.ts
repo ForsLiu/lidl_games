@@ -345,6 +345,20 @@ export class Grid {
     return this.tile[i] === TileType.Open && this.occ[i] === 0 && this.terrainNoBuild[i] === 0;
   }
 
+  /**
+   * fb078: is this specific tile's unbuildability down to terrain (rough/
+   * rock/high painted by `applyTerrain`), as opposed to real occupancy
+   * (border, a gate, the Core footprint, or a live structure)? Mirrors
+   * `buildable()`'s own three-part check with the terrain clause inverted,
+   * so the two are mutually exclusive and safe to call standalone.
+   */
+  unbuildableForTerrain(tx: number, ty: number): boolean {
+    if (!Number.isInteger(tx) || !Number.isInteger(ty)) return false;
+    if (!this.inBounds(tx, ty)) return false;
+    const i = ty * GRID_W + tx;
+    return this.tile[i] === TileType.Open && this.occ[i] === 0 && this.terrainNoBuild[i] === 1;
+  }
+
   setOcc(tx: number, ty: number, id: number): void {
     const i = ty * GRID_W + tx;
     this.occ[i] = id;

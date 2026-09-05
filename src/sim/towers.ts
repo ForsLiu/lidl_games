@@ -62,6 +62,7 @@ export type BuildRejection =
   | 'phase'
   | 'unknown_tower'
   | 'occupied'
+  | 'terrain'
   | 'out_of_range'
   | 'gold';
 
@@ -101,7 +102,9 @@ export function checkBuild(
   if (!opts?.ignorePhase && !canBuildNow(w)) return 'phase';
   const def = w.content.towerById.get(towerId);
   if (!def) return 'unknown_tower';
-  if (!w.grid.buildable(tx, ty)) return 'occupied';
+  if (!w.grid.buildable(tx, ty)) {
+    return w.grid.unbuildableForTerrain(tx, ty) ? 'terrain' : 'occupied';
+  }
   if (!inBuildRange(w, tx, ty)) return 'out_of_range';
   if (w.gold < towerCost(w, def)) return 'gold';
   // No path-guarantee check: SPEC-FINAL §10 allows sealing the Core outright.
