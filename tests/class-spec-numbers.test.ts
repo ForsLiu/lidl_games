@@ -236,6 +236,15 @@ const P6E =
   'stayed 0/12. PROGRESS.md\'s scope note for the pair: "no `damage`/`dps` field was pushed ' +
   'further once the failure mode converged" — which is why these seven figures are cooldowns, ' +
   'durations, fractions and stat multipliers rather than raw damage.';
+/** p12a — BALANCE DIRECTION v2 §A's kit re-anchor, PROGRESS.md/BALANCE.md. */
+const P12A =
+  'p12a (BALANCE DIRECTION v2 §A, PROGRESS.md / BALANCE.md "Kit relevance target"): the owner-ordered ' +
+  'x3 re-anchor of every authored ABSOLUTE class-kit damage magnitude in data/classes.json for the ' +
+  'post-fb025 (enemy HP x10) world — 29 values across all 12 classes, alongside the run-long ' +
+  '`kitPower` multiplier. Every figure it moves is one SPEC-FINAL §4 itself marks tunable. Multiplier- ' +
+  'shaped fields were deliberately left alone, which is why this authorisation covers damage numbers ' +
+  'and nothing else. Measured control pair recorded in tests/class-kit-damage-share.test.ts.';
+
 /** p10s — the G8 retune probe that closed bloodlord into band, PROGRESS.md. */
 const P10S =
   'p10s (commit 3ce8cb8, PROGRESS.md): brought bloodlord 10/12 -> 8/12, into ' +
@@ -513,8 +522,12 @@ const LEDGER: readonly Figure[] = [
     quote: 'Burning enemies deal 2 dmg/s ⚖ to enemies touching them',
     spec: 2,
     path: ['passive', 'flameDps'],
-    status: { kind: 'match' },
-    note: '§4.2 marks this figure ⚖; it matches today.',
+    status: {
+      kind: 'retuned',
+      authorised: P12A,
+      actual: 6,
+      why: "§4.2 marks this figure ⚖. p12a's x3 kit re-anchor moved it 2 -> 6 with every other absolute kit-damage magnitude.",
+    },
   },
   {
     cls: 'pyromancer',
@@ -531,7 +544,18 @@ const LEDGER: readonly Figure[] = [
     spec: 3,
     path: ['active1', 'burnDps'],
     as: (v) => v / (BURNING?.dps ?? Number.NaN),
-    status: { kind: 'match' },
+    status: {
+      kind: 'retuned',
+      authorised: P12A,
+      actual: 9,
+      why:
+        "§4.2 marks Immolation Wave's burn ⚖ and p12a's x3 kit re-anchor moved `burnDps` 3 -> 9 with " +
+        'every other absolute kit-damage magnitude. Because this row is read in units of §3 ' +
+        "Burning's own dps, that also moves the stacks-equivalent reading 3 -> 9: the field is doing " +
+        'double duty as a damage number and as an implied stack count, and the re-anchor could only ' +
+        'move both together. Damage was the axis the directive named, so it wins; whoever closes ' +
+        "§17's open Burning-stack-timing verdict should re-separate the two.",
+    },
     note:
       "Authored as ONE application at 3x §3 Burning's own 1 dps. That is equivalent to three " +
       'stacked applications **on damage only**: §3 charges its −1 armor/s *per application*, so ' +
@@ -661,8 +685,12 @@ const LEDGER: readonly Figure[] = [
     quote: 'shatter on death (r1.5, 20 normal ⚖)',
     spec: 20,
     path: ['passive', 'shatterDamage'],
-    status: { kind: 'match' },
-    note: '§4.2 marks this figure ⚖; it matches today.',
+    status: {
+      kind: 'retuned',
+      authorised: P12A,
+      actual: 60,
+      why: "§4.2 marks this figure ⚖. p12a's x3 kit re-anchor moved it 20 -> 60 with every other absolute kit-damage magnitude.",
+    },
   },
   {
     cls: 'cryomancer',
@@ -1699,7 +1727,7 @@ describe('c008 — the ledger holds itself to c008’s own rule', () => {
     }
   });
 
-  it('census: 70 match · 7 retuned · 1 elsewhere · 8 in code · 2 unimplemented · 1 defect', () => {
+  it('census: 67 match · 10 retuned · 1 elsewhere · 8 in code · 2 unimplemented · 1 defect', () => {
     // The census is the barrier c008 exists to put up: a new drift cannot be
     // absorbed into an existing status, and closing one (c004, the fb062
     // cadence, any of the eight rule-4 literals moving into `/data`) has to be
@@ -1714,8 +1742,10 @@ describe('c008 — the ledger holds itself to c008’s own rule', () => {
     };
     for (const f of LEDGER) census[f.status.kind] += 1;
     expect(census).toEqual({
-      match: 70,
-      retuned: 7,
+      // p12a moved three ⚖-marked figures match -> retuned (pyromancer
+      // flameDps/burnDps, cryomancer shatterDamage).
+      match: 67,
+      retuned: 10,
       elsewhere: 1,
       in_code: 8,
       unimplemented: 2,

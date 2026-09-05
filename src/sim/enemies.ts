@@ -244,6 +244,48 @@ export function kitPowerMul(w: World): number {
 
 const CLASS_SOURCE_PREFIX = 'class_';
 
+/**
+ * Every `damageEnemy` source that *belongs to* the character's kit, for any
+ * consumer splitting a damage tally into kit vs not — BALANCE.md's
+ * own-kit-share target reads `damageByWeaponVs` this way.
+ *
+ * The `class_` prefix covers the five framework buckets
+ * (`class_basic`/`class_active`/`class_active2`/`class_passive`/
+ * `class_summon`); `spreading_plague` is the one kit source that does not
+ * carry it, because the Plaguebringer's §4.2 death-triggered passive
+ * dispatches from `killEnemy` under its own name so `describeSource` can
+ * label it. Exported so a consumer classifies by this list rather than by
+ * "not a tower key", which would sweep in Core effects
+ * (`carnivorous_plant`, `corpse`, `time`) and the boss's own `warden_eater`
+ * damage.
+ *
+ * **This is attribution, not scaling** — see `scalesWithKitPower` below for
+ * why the two are deliberately not the same set.
+ */
+export function isKitSource(source: string): boolean {
+  return source.startsWith(CLASS_SOURCE_PREFIX) || source === 'spreading_plague';
+}
+
+/**
+ * The narrower question `kitPower` asks: is this damage's magnitude an
+ * *authored kit number* that p12a's growth curve should compound?
+ *
+ * Every `class_` source is, so the two sets agree there. `spreading_plague`
+ * is the deliberate exception, and it is a correctness fix rather than a
+ * simplification (qa-playtester, p12a): the plague transfer's magnitude is
+ * `dotOutstanding(e)` — the sum of *every* unfinished DoT on the corpse,
+ * whoever applied it, including Venom Spore poison and Ember Brazier Burning.
+ * Scaling that by `kitPower` would multiply tower-authored damage on the
+ * hottest path the Plaguebringer has (its own `towerPassive` is
+ * `towerPoisonDamage +0.1`, so the venom-spore build is the intended
+ * synergy), breaking the invariant `kitPowerMul` states for itself. The kit's
+ * own contribution to that pool was already scaled when it was applied, so
+ * re-scaling the re-transmission would double-count it besides.
+ */
+function scalesWithKitPower(source: string): boolean {
+  return source.startsWith(CLASS_SOURCE_PREFIX);
+}
+
 /** Apply damage, returning the amount actually dealt. */
 export function damageEnemy(
   w: World,
@@ -255,7 +297,7 @@ export function damageEnemy(
   if (e.dead || !Number.isFinite(amount) || amount <= 0) return 0;
   const def = e.def as EnemyDef;
   let dmg = amount;
-  if (source.startsWith(CLASS_SOURCE_PREFIX)) dmg *= kitPowerMul(w);
+  if (scalesWithKitPower(source)) dmg *= kitPowerMul(w);
 
   if (!opts.dot) dmg *= damageTakenMul(enemyArmor(e));
   // SPEC-V3 §3 frozen: +30% damage taken. A status, not armor, so unlike the
@@ -286,6 +328,15 @@ export function damageEnemy(
   const hpBeforeHit = e.hp;
   e.hp -= dmg;
   w.damageByWeapon[source] = (w.damageByWeapon[source] ?? 0) + dmg;
+  // p12a: the VS-only half of the same tally, summed across every VS block
+  // (see `World.damageByWeaponVs`). `huntsWarden` is the established
+  // "we are in the VS half" predicate — the same one the Corpse line below
+  // negates to mean "TD only" — so the two stay in step by construction.
+  // One known asymmetry, deliberate: a DoT applied during a VS block that is
+  // still ticking after the block flips back to TD is credited to the TD
+  // side, because `tickDot` calls in here under whatever phase is current at
+  // tick time. It is bounded by one stack's remaining duration per block.
+  if (w.huntsWarden) w.damageByWeaponVs[source] = (w.damageByWeaponVs[source] ?? 0) + dmg;
   w.damageTotal += dmg;
   const dmgType = opts.type ?? 'normal';
   w.damageByType[dmgType] = (w.damageByType[dmgType] ?? 0) + dmg;

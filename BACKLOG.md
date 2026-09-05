@@ -195,7 +195,7 @@ a range, logged in QUESTIONS.md). Execute in order p12a -> p12b -> p12c ->
 p12d -> p12e; each is its own item (targeted tests + `test:fast`, code-reviewer/
 qa-playtester per CLAUDE.md's tier, commit) — do not bundle.
 
-- [ ] (p12a) [balance] Kit growth: class kit damage must compound over a run
+- [x] (p12a) [balance] Kit growth: class kit damage must compound over a run
       and be re-anchored for the post-fb025 (enemy HP x10) world. (1) A
       run-long multiplier on all class-kit damage (basic attack, actives,
       passive procs, summons): `kitPower = 1 + 0.12 * tdWavesCleared` ⚖
@@ -267,6 +267,33 @@ qa-playtester per CLAUDE.md's tier, commit) — do not bundle.
       `npm run status` to regenerate STATUS.md against the new baseline —
       refs: BALANCE DIRECTION v2 §E, QUESTIONS Q159/Q160 (both name timeouts
       in the pre-p12 baseline).
+
+- [ ] (p12f) [balance] Close BALANCE DIRECTION v2 §A's own-kit-share target,
+      which p12a measured as unreachable by §A's own two levers (QUESTIONS
+      Q175). p12a shipped `kitPower` (x3.16 by wave 18) and the x3 base
+      re-anchor and moved the VS kit share from 0.00-1.67% to 0.00-5.16% —
+      **0 of 12 classes at the >=35% target**, because VS-wielded weapon
+      damage inherits the full tower-upgrade + Constellation scaling stack
+      while the kit inherits none of it (swordsman seed 1: 134.3M of 134.5M
+      VS damage is wielded), so the denominator grows with the build and the
+      numerator does not. Pick one of Q175's three routes and measure it: (a)
+      put the kit on the same scaling axis the wielded weapons ride; (b) cut
+      VS-wielded scaling so the two sides start comparable; (c) restate the
+      target against a denominator that excludes wielded weapons. Also covers
+      the four classes p12a's field set could not move at all
+      (`bloodlord`/`paladin` via `titheDamageMul`/`wrathDamageMul`,
+      `engineer`/`animist` via `summonStatMul`) — a multiplier-shaped kit
+      needs its own anchor, not the absolute-magnitude one. Note before
+      re-anchoring anything: **12 of p12a's 29 values are `basicAttack.dps`,
+      which cannot move a VS-window metric at all** — the class basic attack
+      is TD-only (`src/sim/run.ts:541`), so in VS `bloodlord`/`paladin` have
+      no authored kit damage number whatsoever (qa-playtester, p12a). **Sequenced after
+      p12c** so it tunes against p12b/p12c's baseline, not the pre-directive
+      one. Acceptance: >=9 of 12 classes at >=35% VS own-kit share measured
+      with the p12a control-pair method (`KIT_SHARE_MEASURE=1`, >=2 seeds,
+      before/after both recorded); G1's run length and the p12b/p12c win-rate
+      bands re-confirmed unaffected — refs: BALANCE DIRECTION v2 §A,
+      QUESTIONS Q175, BALANCE.md "Kit relevance target".
 
 Constellation stays auto-maxed for all play (`TREE_AUTO_MAX`); per BALANCE
 DIRECTION v2 §F, never re-add point spending as a balance lever to make any

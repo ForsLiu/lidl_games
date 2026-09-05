@@ -527,3 +527,147 @@ re-run live in full one more time against the final state: 16/16 pass.
 BACKLOG fb054 marked done; fb076 (the `data/towers.json`-only tower retune)
 stands as filed, unaffected by the wave-1/2 revert since it only concerns
 waves 3-18's T1 solo-clear numbers.
+
+## Kit relevance target (p12a) — BALANCE DIRECTION v2 §A
+
+Owner directive `verdicts-q155-167.md` (BALANCE DIRECTION v2 §A), filed as
+BACKLOG **p12a**. Two mechanisms and one target.
+
+### 1. `kitPower` — run-long kit growth
+
+`kitPowerMul` (`src/sim/enemies.ts`) multiplies every class-kit damage source
+by `1 + 0.12 x wavesCleared` — 1.00 at wave 0, 2.44 at wave 12, **3.16 at wave
+18**. It is applied at the single `damageEnemy` choke point every kit source
+already funnels through, gated on the `class_` source prefix, so it covers the
+basic attack, both Actives, passive procs, summons and the DoT ticks a kit
+applies (a stack keeps its applying source to tick time) — and never touches
+tower damage, which has its own economy and its own `towerDamageMul`. It is a
+new, separately named multiplier rather than a value folded into an existing
+stat, so it can be measured, tuned and removed on its own.
+
+### 2. Base kit re-anchor, x3
+
+Every authored **absolute damage magnitude** in `data/classes.json` was raised
+x3 for the post-fb025 (enemy HP x10) world — 29 values across all 12 classes:
+`basicAttack.dps`, `active1`/`active2` `damage` and `minDamage`, and the
+kind-specific damage numbers `burnDps`, `flameDps`, `pylonDps`,
+`shatterDamage`, `markPastDotDps`, `markPresentDotDps`.
+
+Deliberately **not** re-anchored: every `*Mul`/`*Fraction`/`*Pct`/`*Bonus`
+field (`pactDamageMul`, `titheDamageMul`, `wrathDamageMul`, `summonStatMul`,
+the whole `towerPassive` block). Those multiply a number that is itself
+re-anchored, or a tower's, so scaling them too would compound the pass or
+leak it into tower damage.
+
+Two consequences worth stating rather than leaving to be rediscovered:
+
+* **Four classes get nothing from this pass.** `bloodlord` and `paladin` put
+  their kit damage through `titheDamageMul`/`wrathDamageMul`, `engineer` and
+  `animist` through `summonStatMul` — all excluded above. A multiplier-shaped
+  kit needs its own anchor, which is p12f's problem.
+* **Shared statuses authored elsewhere did not move.** Bleeding is 1 dps per
+  stack in `data/damagetypes.json`, not in `classes.json`, so the Swordsman's
+  entire Thousand Cuts passive is unchanged by a pass that tripled his direct
+  damage — the passive's share of that kit shrank as a side effect. Left
+  alone deliberately: `damagetypes.json` is shared with tower and Core
+  sources, so re-anchoring it there is not a kit-only change.
+
+One distinction this pass had to draw explicitly, and the reason
+`src/sim/enemies.ts` carries two predicates rather than one:
+
+* `isKitSource` answers **attribution** — is this the character's kit? It
+  admits `spreading_plague`, which dispatches from `killEnemy` under its own
+  name rather than the `class_` prefix. The share measurement reads this,
+  instead of a "not a tower key" rule that swept Core effects and the boss's
+  own damage into the numerator.
+* `scalesWithKitPower` answers **growth** — is this magnitude an authored kit
+  number `kitPower` should compound? It excludes `spreading_plague`, because
+  the plague transfer deals `dotOutstanding` — the sum of every unfinished DoT
+  on the corpse, whoever applied it. Scaling that would multiply Venom Spore
+  and Ember Brazier damage on precisely the build the Plaguebringer's own
+  `towerPassive` (`towerPoisonDamage +0.1`) exists to support, breaking the
+  invariant `kitPower` states for itself; and the kit's own share of that pool
+  was already scaled when it was applied, so re-scaling would double-count it.
+
+Collapsing the two cost a measured x3.16 amplification of tower damage before
+qa-playtester caught it; both now have regression tests.
+
+### 3. The target: own-kit share of the character's VS damage >= 35% ⚖
+
+Measured from TD wave 12, at T1, with the G8 harness (scripted kit bot,
+`cycles: 6`, full Constellation tree) — the opt-in sweep in
+`tests/class-kit-damage-share.test.ts`, which is also where the control pair
+below is recorded in full:
+
+    KIT_SHARE_MEASURE=1 npx vitest run tests/class-kit-damage-share.test.ts
+    KIT_SHARE_MEASURE=1 KIT_SHARE_CLASSES=swordsman KIT_SHARE_SEEDS=2 npx vitest run ...
+
+**Why the VS window, and why this denominator.** During a VS wave the built
+towers are inert and the character *wields* them (`src/sim/vswield.ts`),
+crediting that damage under the wielded tower's own key. So every source in
+the VS window is the character's own output, split into the kit (`class_*`
+plus the ailment keys it applies) and the wielded weapons (tower keys) —
+which makes the ratio a statement about the kit rather than about the
+player's tower build. Over the whole run the same ratio is swamped by TD
+tower fire and reads ~0.1% for almost every class, which is what
+`tests/class-kit-damage-share.test.ts`'s c002 control recorded. p12a added
+`RunReport.damageByWeaponVs` for this; `damageAtSunder` could not serve,
+being a single snapshot at the one Sundering rather than a sum over §1.1's
+six interleaved VS blocks.
+
+### 4. Measured (2026-09-05, seeds 1-2, 12 classes) — target red, 0/12
+
+Control = `kitPower` live, no re-anchor. Treatment = the same plus the x3
+anchor. Win rate was 2/2 for every class in both columns, so the delta is
+measured against an unchanged outcome column.
+
+| class | control | x3 anchor |
+|---|---|---|
+| swordsman | 0.12% | 0.33% |
+| plaguebringer | 1.63% | 1.49% |
+| engineer | 0.21% | 0.21% |
+| pyromancer | 0.03% | 0.09% |
+| archer | 0.06% | 0.20% |
+| necromancer | 0.19% | 0.57% |
+| cryomancer | 0.01% | 0.09% |
+| stormcaller | 1.02% | 2.78% |
+| bloodlord | 0.00% | 0.00% |
+| animist | 0.04% | 0.04% |
+| paladin | 0.00% | 0.00% |
+| time_lord | 1.67% | 5.16% |
+
+**0 of 12 clear 35%**; the best is `time_lord` at 5.16%. Four classes did
+not move, for a reason the field set makes explicit: `bloodlord`/`paladin`
+route kit damage through `titheDamageMul`/`wrathDamageMul` and
+`engineer`/`animist` through `summonStatMul`, all multipliers on damage that
+is not the kit's own authored number.
+
+`swordsman` (0.33%) and `time_lord` (5.16%) re-measured unchanged to the digit
+across every classifier change made during review — the control confirming
+those changes moved only what they should have.
+
+### 5. Gate deltas (control tree at HEAD vs. this change)
+
+CLAUDE.md requires a balance change to report gate deltas, so the two gates a
+kit x3 could plausibly move were run in a `git worktree` at HEAD (kitPower
+present, no anchor) and in the working tree, back to back:
+
+| gate | control | treatment |
+|---|---|---|
+| G1 mean victorious run (`p10d`, 24 seeds, engineer) | 33.39 min, 24/24 wins | 33.41 min, 24/24 wins |
+| G14 boss suite (`boss.test.ts`, 20 seeds) | pass | pass |
+
+G1 moves by 0.02 min and stays well inside its 30-36 band, with the win rate
+unchanged — the anchor does not shorten the run. That is less movement than
+it sounds: the scripted bot's damage is overwhelmingly wielded-weapon damage
+(§3 above), so tripling the kit moves a few tenths of a percent of the total.
+
+The target is **not reachable by this section's own two levers**: together
+they are worth ~9.5x at wave 18, and the gap is 7x (best class) to 100x+
+(the eight under 0.6%) *on top of that*. The binding constraint is that
+VS-wielded weapon damage inherits the full tower-upgrade + Constellation
+scaling stack while the kit inherits none of it (swordsman seed 1: 134.3M of
+134.5M VS damage is wielded), so the denominator grows with the build and the
+numerator does not. Recorded red rather than forced; the closure is
+**QUESTIONS Q175** and **BACKLOG p12f**, sequenced after p12c so it tunes
+against p12b/p12c's baseline.

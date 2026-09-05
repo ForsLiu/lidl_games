@@ -5,6 +5,128 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-05 session: BACKLOG p12a closed — the kit-growth half of BALANCE
+  DIRECTION v2 §A, with its target measured honestly red rather than forced.**
+  A prior session had landed part (1) — `kitPowerMul` (`src/sim/enemies.ts`,
+  `1 + 0.12 x wavesCleared`, x3.16 by wave 18, applied at the one `damageEnemy`
+  choke point to every `class_`-prefixed source, never to tower damage) plus
+  `tests/p12a-kit-power.test.ts` — as an unfinished "checkpoint before cloud
+  migration" commit, leaving two throwaway scratch files
+  (`tools/scratch-p12a.ts`, `tests/zzz-p12a-scratch.test.ts`, both deleted
+  here) and parts (2)/(3) undone. This session finished the item. **The
+  target needed telemetry that did not exist**: §A states it as own-kit share
+  of the character's damage *in VS*, and `damageAtSunder` is a single snapshot
+  at the one Sundering, so on §1.1's interleaved six-block shape "everything
+  since" still folds in every TD wave after it. Added
+  `World.damageByWeaponVs` -> `RunReport.damageByWeaponVs` (accumulated at the
+  same single choke point, gated on the existing `huntsWarden` predicate the
+  Corpse store already negates for "TD only"), hashed in `hashWorld` per the
+  p9g `goldSpent` precedent, with five new cases covering the VS window, the
+  cross-block sum and the hash coverage. Part (2): x3 on all 29 authored
+  **absolute** kit-damage magnitudes in `data/classes.json` (`basicAttack.dps`,
+  `damage`/`minDamage`, `burnDps`/`flameDps`/`pylonDps`/`shatterDamage`/
+  `markPastDotDps`/`markPresentDotDps`), deliberately excluding every
+  `*Mul`/`*Fraction`/`*Bonus` — those multiply a number that is itself
+  re-anchored, or a tower's, so scaling them would compound the pass or leak
+  it into tower damage. Part (3): BALANCE.md gained a "Kit relevance target"
+  section and `tests/class-kit-damage-share.test.ts` gained a `vsShare` column
+  plus the full per-class control pair. **Measured (control pair, 12 classes x
+  seeds 1-2, T1, `cycles: 6`, full tree; win rate 2/2 in both columns so the
+  delta is not confounded): VS kit share went 0.00-1.67% -> 0.00-5.16%, and
+  0 of 12 classes reach the >=35% target** (best `time_lord` 5.16%). Four
+  classes did not move at all — `bloodlord`/`paladin` route kit damage through
+  `titheDamageMul`/`wrathDamageMul` and `engineer`/`animist` through
+  `summonStatMul`, multipliers outside the absolute-magnitude field set by
+  design. The mechanism behind the gap, measured rather than argued:
+  VS-wielded weapon damage inherits the full tower-upgrade + Constellation
+  scaling stack while the kit inherits none of it (swordsman seed 1: 134.3M of
+  134.5M VS damage is wielded), so the denominator grows with the build and
+  the numerator does not — no `data/classes.json` edit can close it. Recorded
+  red per the item's own "log the real per-class numbers, don't force it";
+  logged as **QUESTIONS Q175** and filed as **BACKLOG p12f**, sequenced after
+  p12c. The two pins §A authorises re-expressing were both converted to ratio
+  form: G10's archer clause (`tests/p6d-nine-classes.test.ts`) now asserts
+  `toughest.hp / full` in a `(1/4, 1]` band — the x3 anchor puts the full
+  charge back over the "one-shots the toughest non-elite" bar SPEC-FINAL §14
+  G10 actually names, which fb025's x10 HP had broken — and the swordsman
+  1000-HP dummies (`tests/p6b-swordsman.test.ts`) now derive from
+  `40 x max(active1.damage, active2.damage, basicAttack.dps)` so a future
+  re-anchor cannot silently kill an enemy a branch-coverage case needs alive.
+  G11 is a pure data ratio and was unaffected. A measurement CLI written for
+  this item was deleted rather than shipped: `tests/q47-cli-crash-coverage`
+  correctly flagged it as an unpinned content-importing tool, and the opt-in
+  sweep in `tests/class-kit-damage-share.test.ts` already does the same job —
+  verified to the digit (swordsman 0.33% from both), so one instrument now
+  instead of two that can drift.
+
+  code-reviewer **REQUEST-CHANGES**, all findings addressed. Its Critical
+  (five fast-tier assertions red from the diff) was a snapshot taken mid-fix
+  and every one was already fixed the way it recommended: the three ⚖ figures
+  §4 states literally (`pyromancer.flameDps` 2->6, `pyromancer.burnDps` 3->9,
+  `cryomancer.shatterDamage` 20->60) recorded as `retuned` deviations naming
+  p12a in `tests/class-spec-numbers.test.ts`'s ledger rather than laundered,
+  the authored sentence beside `flameDps` synced 2->6 with its c015 token, and
+  fb022's `38.73` DPS literal re-expressed as the interval-fold identity it
+  was always about. Three findings were real and are fixed here: **Major** —
+  a x3 balance change shipped with no gate deltas, so both gates it could move
+  were run in a `git worktree` control at HEAD and in the working tree (G1
+  mean 33.39 -> 33.41 min, 24/24 wins both sides, inside the 30-36 band; G14
+  `boss.test.ts` green both sides), recorded in BALANCE.md §5; **Major** — the
+  measurement was labelled "from TD wave 12" but `wavesCleared >= 12` only
+  selects which *runs* count, not which part of a run, so the label is now
+  stated precisely (isolating the window would need a wave number hardcoded in
+  the sim, against architecture rule 4, and is not worth it against a metric
+  reading 5% of a 35% target); **Minor** — the "not a tower key means kit"
+  rule swept Core effects (`carnivorous_plant`/`corpse`/`time`) and the boss's
+  own `warden_eater` damage into the numerator. Also fixed: `tools/invariants.ts` now
+  non-negativity-checks the new record alongside `damageByWeapon`, and new
+  cases cover the `levelup` half of `huntsWarden` and the non-kit sources.
+
+  qa-playtester **FAIL on the numeric clause, PASS on the rest** — the right
+  call: two of the item's three deliverables landed and the third is 0/12
+  against its own >=35% bar, which is the honest reading this item was always
+  going to get. It independently reproduced 5 of 6 recorded cells to the digit
+  (`swordsman` 0.33%, `stormcaller` 2.78%/1.02%, `time_lord` 5.16%/1.67%,
+  `bloodlord` 0.00%), supplied the run-level `kitPower` on/off control the
+  unit test does not give (`time_lord` 1.66% -> 5.16%, `stormcaller` 1.08% ->
+  2.78%), and confirmed determinism (seed 7 twice, identical `endHash`
+  `fd44fad7` and identical `damageByWeaponVs`), no double-count at the choke
+  point, and run length unmoved on a second class (`swordsman` median 33.59
+  min, win rate 1.0, identical on both trees). It filed **three real bugs, all
+  fixed here**, two of them introduced by this session's own review fixes:
+
+  1. **`kitPower` was amplifying tower-authored damage.** Folding
+     `spreading_plague` into the kit multiplier (the code-review fix above)
+     was wrong: the plague transfer deals `dotOutstanding(e)`, the sum of
+     *every* unfinished DoT on the corpse whoever applied it — so a corpse
+     carrying only Venom Spore poison transferred 500 at wave 0 and **1580 at
+     wave 18**, a x3.16 amplification of tower damage on exactly the build
+     the Plaguebringer's own `towerPassive` (`towerPoisonDamage +0.1`) exists
+     to support, breaking the invariant `kitPowerMul` states for itself.
+     Attribution and growth are now two predicates — `isKitSource` (admits
+     `spreading_plague`, read by the share measurement) and
+     `scalesWithKitPower` (does not, read by `kitPower`) — each documented
+     with why they differ, and QA's exact repro is a regression test.
+     plaguebringer's cell went 1.49% -> 5.28% -> back to 1.49%; `swordsman`
+     and `time_lord` re-measured unchanged to the digit at every step, which
+     is the control showing each change moved only what it should have.
+  2. **The re-expressed G10 pin asserted a one-shot the sim does not
+     deliver.** `full` was computed from `a.damage` alone, 42% above what
+     `damageEnemy` actually deals: Deadeye Draw is not a `pure` hit, so
+     `bulwark`'s `flatReduction` bites, and `kitPower` was not in the number
+     either. The rewrite had upgraded fb025's approximation into a false
+     statement — true from about wave 4, asserted at wave 0. Now folds both
+     in and states the claim at the two points that differ: just short of a
+     one-shot at wave 0 (ratio 1.24, matching QA's measured 564.7 dealt vs
+     700 HP), comfortably over it by wave 12.
+  3. Stale census title in `tests/class-spec-numbers.test.ts` — the one file
+     whose whole purpose is blocking that drift class.
+
+  Final `npm run test:fast`: 3369 passed, 3 failed in 8 files — b032/b034/
+  b035/b036 (Playwright's chromium binary is absent in this environment) and
+  b028/q15/q41/q45 (the pre-existing nested-tsx CLI/subprocess family). Both
+  groups were controlled against a clean `git stash`ed tree and fail
+  identically there; **zero p12a-caused failures remain.**
 - **2026-09-04 session: processed four owner feedback files.** `verdicts-
   q155-167` — applied owner verdicts to QUESTIONS.md for Q94, Q155-Q167
   (Q155 spawns fb136, the hardcoded-tick-constants-to-`/data` order; Q164

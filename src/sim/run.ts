@@ -1248,6 +1248,10 @@ export function hashWorld(w: World): string {
   // `enemyArmor` (m19a): a consumer reads state this hash didn't cover.
   for (const rec of [
     w.damageByWeapon,
+    // p12a: the VS-only accumulator is sim state a consumer (`RunReport`)
+    // reads, so it is hashed alongside the rest — same gap class as fb007's
+    // `damageByType` and p9g's `goldSpent`.
+    w.damageByWeaponVs,
     w.damageByType,
     w.damageAtSunder,
     w.damageTypeAtSunder,
@@ -1270,6 +1274,8 @@ export function buildReport(w: World): RunReport {
   for (const k of Object.keys(w.damageByWeapon).sort()) damageByWeapon[k] = w.damageByWeapon[k];
   const damageByType: Record<string, number> = {};
   for (const k of Object.keys(w.damageByType).sort()) damageByType[k] = w.damageByType[k];
+  const damageByWeaponVs: Record<string, number> = {};
+  for (const k of Object.keys(w.damageByWeaponVs).sort()) damageByWeaponVs[k] = w.damageByWeaponVs[k];
   return {
     seed: w.cfg.seed,
     policy: w.cfg.policy ?? 'none',
@@ -1296,6 +1302,7 @@ export function buildReport(w: World): RunReport {
     kills: w.kills,
     leaks: w.leaks,
     damageByWeapon,
+    damageByWeaponVs,
     damageByType,
     damageTotal: round2(w.damageTotal),
     damageThroughMinute8: w.damageThroughMinute8,
