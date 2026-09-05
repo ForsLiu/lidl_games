@@ -702,6 +702,49 @@ session 2 (c005 was the last actionable one left), appending `c006`-`c010`.
   across firings while Wide Grove's authored `+10%` is flat in wave count. Ten
   character-route footprints leak under both classes.
 
+### c021 hardening (2026-09-05, QA second pass) — six surviving mutations closed
+
+QA passed the corrected file but found the coverage still one-sided: every row
+measured "the named magnitude went up" and nothing measured "and nothing else
+moved". Six mutations survived; all six now die, each reddening exactly one row.
+
+- **The root cause of the original Bloodlord error, named and removed.** The
+  header's "four non-damage kits" was **six** — `/data` authors `damage: 0` for
+  engineer, necromancer, **bloodlord**, animist, paladin and **time_lord**.
+  Bloodlord was never counted as a non-damage kit, so it was slotted as a damage
+  row, measured as one, and its real payout went unlooked-for. The list is now
+  derived from `/data`, and a row asserts no non-damage kit's `what` still
+  claims to measure damage.
+- **`topDot` really did read the wrong stack** — the self-doubt flagged in the
+  QA brief, confirmed. Bleeding stacks independently, so after two casts the
+  enemy carries both the past (12 dps) and present (16 dps) stacks, and the
+  stage-1 row read the present one *only* because 16 > 12. QA nerfed
+  `markPresentDotDps` to 8 and dropped the present stage's potency wiring: still
+  33/33 green, because the read silently switched to the past stack, which
+  carries the same ratio. Now each row reads the stack its own cast appended,
+  identified by position, and asserts which `/data` figure it came from.
+- **Stages 2 and 3 were never executed.** The block claimed "only those two
+  stages" while its third row was a schema check, so `advanceTimeMark`'s later
+  branches were never entered — adding potency to either left this file *and
+  ten others* green. Both now have behavioural rows, including an elite dummy
+  for the execute. The deviation's wording was also wrong:
+  `markEliteExecuteFraction` **is** an authored `/data` magnitude, contradicting
+  "neither is a /data magnitude there is anything to multiply".
+- **No negative control existed.** Potency over-reaching into Field Kit's
+  `overclockSeconds` or Poison Barrel's `groundDurationSeconds`, or
+  *under*-reaching so it scaled only Chain Surge's first jump, all passed. Five
+  companion-observable rows now assert the Active's other authored fields are
+  flat across ranks, and the stormcaller row hits three links and sums the whole
+  chain — `damageDealt` spawned one dummy, so jumps 1..n were never exercised.
+- **The `towers.ts` surface the correction opened had one guard, not two.**
+  Scaling the sibling `death_pact` branch by `active1PotencyMul` — an Active1
+  card moving an Active2 payout — left this file and `class-active2-cdr` and
+  `class-line-bonus` all green. Now pinned.
+- Plus the untithed control's missing vacuity guard (`plain[0] > 0`), the shape
+  every other guard in the file already had.
+
+43 tests. No `/src` or `/data` byte moved.
+
 ### c023 (2026-09-05) — the field that looks load-bearing and is not
 
 - **Shape**: new `tests/equip-effectkey-reach.test.ts`, 26 tests. No `/src` or

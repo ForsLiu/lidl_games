@@ -85,7 +85,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { tickClassCharge, useClassActive } from '../src/sim/classes';
+import { characterDamage, tickClassCharge, useClassActive, useClassActive2 } from '../src/sim/classes';
 import { loadContent, type SkillCardDef } from '../src/sim/content';
 import { spawnEnemy } from '../src/sim/enemies';
 import { buildTower, towerDamage } from '../src/sim/towers';
@@ -340,11 +340,23 @@ describe('c021 — every class is on trial, and every window comes out of /data'
     }
   });
 
-  it('the four non-damage kits are named, not assumed — /data really authors them damage 0', () => {
-    // The table in this file's header, asserted. If a kit gains a `damage`
-    // figure, this row says so and the header needs re-reading.
-    for (const k of ['engineer', 'necromancer', 'animist', 'paladin']) {
-      expect(content.classByKey.get(k)!.active1.damage, `${k} Active1 damage`).toBe(0);
+  it('the non-damage kits are derived from /data, not listed — the list was wrong, and that is how c021 shipped a false deviation', () => {
+    // **This row used to hardcode four names, and it was six.** QA on the
+    // correction traced the original Bloodlord error straight back here:
+    // Bloodlord authors `damage: 0` and was never counted as a non-damage kit,
+    // so it was slotted as a damage row, measured as one, and its real
+    // (non-damage) payout went unlooked-for. A hand-written list of which kits
+    // are special is exactly the thing that made "potency is not damage" true
+    // in prose and false in the table.
+    const nonDamage = content.classes.classes.filter((c) => (c.active1.damage ?? 0) === 0).map((c) => c.key);
+    expect([...nonDamage].sort()).toEqual(
+      ['animist', 'bloodlord', 'engineer', 'necromancer', 'paladin', 'time_lord'].sort(),
+    );
+    // And every one of them has a `what` naming a field that is not `damage`,
+    // so the table cannot silently regain a damage row.
+    for (const k of nonDamage) {
+      const row = CASES.find((c) => c.classKey === k)!;
+      expect(row.what, `${k} authors damage 0 but its row still claims to measure damage`).not.toMatch(/^\w+ damage$/);
     }
   });
 });
@@ -450,6 +462,7 @@ describe('c021 — correction: Blood Tithe scales its payout, and only its payou
       const w = potencyWorld('bloodlord', n === 0 ? {} : { [card.key]: n });
       return towerDamage(w, tower(w), 100);
     });
+    expect(plain[0], 'harness: the untithed control read nothing, so it controls for nothing').toBeGreaterThan(0);
     expect(plain[1], 'the card moved an untithed tower — it is not the tithe being measured').toBeCloseTo(
       plain[0],
       6,
@@ -459,52 +472,281 @@ describe('c021 — correction: Blood Tithe scales its payout, and only its payou
 
 describe('c021 — named deviation 2: Time scales two of its four stages, and only those two', () => {
   const card = potencyCard('time_lord');
+  const eff = content.classByKey.get('time_lord')!.active1;
 
-  /** Advances the mark on one enemy `casts` times, returning it and its world. */
-  function marked(ranks: Ranks, casts: number): Enemy {
+  /**
+   * Advances the mark on one enemy `casts` times and returns **only the DoT
+   * stacks the final cast added**.
+   *
+   * The first draft read `Math.max(...e.dots.map(d => d.dps))`, and QA proved
+   * that wrong rather than merely risky. Bleeding stacks independently
+   * (`data/damagetypes.json`: `maxStacks: 50`), so after two casts the enemy
+   * carries *both* the past stack (12 dps) and the present stack (16 dps), and
+   * the stage-1 row read the present one only because `markPresentDotDps >
+   * markPastDotDps` — an ordering nothing asserted. Under a plausible ⚖ nerf
+   * of `markPresentDotDps` to 8, dropping the present stage's potency wiring
+   * entirely left the file **33/33 green**: `topDot` silently switched to the
+   * past stack, which carries the same 1.5 ratio, and the assertion passed for
+   * the wrong reason. Reading the stack the cast under test actually appended
+   * removes the ambiguity instead of documenting it.
+   */
+  function stageDots(ranks: Ranks, casts: number, elite = false): { added: number[]; e: Enemy; hpBefore: number } {
     const w = potencyWorld('time_lord', ranks);
     const e = dummy(w, WX + 1, WY);
+    e.elite = elite;
+    let before: number[] = [];
+    let hpBefore = e.hp;
     for (let i = 0; i < casts; i++) {
-      expect(useClassActive(w, WX + 1, WY), `harness: Time cast ${i + 1} did not land`).toBe(true);
-      // Time is `maxCharges`-gated; the real `updateWarden` recharges it, so
-      // the second cast is a real second cast rather than a bypassed gate.
+      before = e.dots.map((d) => d.dps);
+      hpBefore = e.hp;
+      // Time is `maxCharges`-gated (3 charges, 6 s recharge), so the fourth
+      // cast has to *wait* for a real recharge rather than being forced. Ticked
+      // through the real `updateWarden` until the gate opens, bounded so a
+      // `/data` retune that makes it unreachable fails as a harness error
+      // rather than hanging the worker (c019's `MAX_CADENCES` lesson).
+      let landed = false;
+      for (let t = 0; t < 60 * 120 && !landed; t++) {
+        landed = useClassActive(w, WX + 1, WY);
+        if (!landed) updateWarden(w, idle(), DT);
+      }
+      expect(landed, `harness: Time cast ${i + 1} never landed within 120s of recharge`).toBe(true);
       updateWarden(w, idle(), DT);
     }
-    return e;
+    // Whatever this last cast appended, identified by position rather than by
+    // being the largest.
+    const added = e.dots.map((d) => d.dps).slice(before.length);
+    return { added, e, hpBefore };
   }
 
-  /** The largest DoT dps on the enemy — each stage adds its own stack. */
-  function topDot(e: Enemy): number {
-    expect(e.dots.length, 'harness: the mark applied no DoT').toBeGreaterThan(0);
-    return Math.max(...e.dots.map((d) => d.dps));
+  /**
+   * The authored dps as the sim scales it for this character at rank 0 — so
+   * the stage-identification assertions below name *which* `/data` figure each
+   * stack came from, rather than only that two numbers have the right ratio.
+   */
+  function characterDamageOf(dps: number): number {
+    const w = potencyWorld('time_lord', {});
+    return characterDamage(w, content.classByKey.get('time_lord')!, dps);
   }
 
-  it('stage 0 -> past: the DoT scales with the card', () => {
-    const zero = topDot(marked({}, 1));
-    const two = topDot(marked({ [card.key]: 2 }, 1));
-    expect(two).toBeCloseTo(zero * (1 + card.perRank * 2), 6);
-  });
+  /** The one stack the cast under test added — asserted to be exactly one, never assumed. */
+  function addedDot(ranks: Ranks, casts: number): number {
+    const { added } = stageDots(ranks, casts);
+    expect(added.length, `cast ${casts} appended ${added.length} DoT stacks, not one`).toBe(1);
+    return added[0];
+  }
 
-  it('stage 1 -> present: the DoT scales with the card', () => {
-    const zero = topDot(marked({}, 2));
-    const two = topDot(marked({ [card.key]: 2 }, 2));
-    expect(two).toBeCloseTo(zero * (1 + card.perRank * 2), 6);
-  });
-
-  it('stage 2 -> future is authored as remaining HP, so there is no /data magnitude to scale', () => {
-    // Not a gap: `advanceTimeMark`'s future stage deals "DoT equal to remaining
-    // HP" (§4.2), and stage 3 is an instant kill. Pinned so the partial reach
-    // is a decision on record rather than something read later as a bug.
-    const eff = content.classByKey.get('time_lord')!.active1;
+  it('the two authored dps figures are ordered as the harness assumed — pinned, since a retune flips it', () => {
+    // The precondition the first draft relied on silently. It no longer decides
+    // which stack is read, but it is worth knowing when it changes.
     expect(eff.markPastDotDps, 'past stage authors no dps').toBeGreaterThan(0);
     expect(eff.markPresentDotDps, 'present stage authors no dps').toBeGreaterThan(0);
-    // Asked of the authored keys rather than a property access: there is no
-    // `markFuture*Dps` in the schema at all today, which is the fact being
-    // pinned, and naming one directly would not even compile.
+  });
+
+  it('stage 0 -> past: the DoT scales with the card', () => {
+    const zero = addedDot({}, 1);
+    const two = addedDot({ [card.key]: 2 }, 1);
+    expect(zero).toBeCloseTo(characterDamageOf(eff.markPastDotDps ?? 0), 6);
+    expect(two).toBeCloseTo(zero * (1 + card.perRank * 2), 6);
+  });
+
+  it('stage 1 -> present: the DoT scales with the card, read off its own stack', () => {
+    const zero = addedDot({}, 2);
+    const two = addedDot({ [card.key]: 2 }, 2);
+    // Identified: this is the *present* stage's stack, not the past stage's.
+    expect(zero).toBeCloseTo(characterDamageOf(eff.markPresentDotDps ?? 0), 6);
+    expect(two).toBeCloseTo(zero * (1 + card.perRank * 2), 6);
+  });
+
+  it('stage 2 -> future: the DoT is the target\'s remaining HP and is flat across ranks', () => {
+    // **Executed, not merely asserted from the schema.** The first draft's
+    // third row was a `/data` key check, so `advanceTimeMark`'s stage-2 and
+    // stage-3 branches were never entered by this file at all — adding a
+    // potency term to either left 33/33 green here and green across ten other
+    // files (QA). A deviation that says "only those two stages" has to run the
+    // other two.
+    const zero = addedDot({}, 3);
+    const two = addedDot({ [card.key]: 2 }, 3);
+    expect(zero, 'harness: the future stage applied no DoT').toBeGreaterThan(0);
+    expect(two, 'the future stage now scales with the card — deviation 2 is stale').toBeCloseTo(zero, 6);
+  });
+
+  it('stage 3 -> executed (elite): the execute spend is flat across ranks', () => {
+    // `markEliteExecuteFraction` **is** an authored `/data` magnitude, which
+    // the first draft's wording denied ("neither is a /data magnitude there is
+    // anything to multiply"). It is exactly the kind of number a future change
+    // could scale, so it gets a behavioural row rather than a schema guard.
+    expect(eff.markEliteExecuteFraction, 'the elite execute fraction is no longer authored').toBeGreaterThan(0);
+    const spend = (ranks: Ranks): number => {
+      const { e, hpBefore } = stageDots(ranks, 4, true);
+      return hpBefore - e.hp;
+    };
+    const zero = spend({});
+    expect(zero, 'harness: the elite execute took no HP').toBeGreaterThan(0);
+    expect(spend({ [card.key]: 2 }), 'the elite execute now scales with the card — deviation 2 is stale').toBeCloseTo(
+      zero,
+      6,
+    );
+  });
+
+  it('no future-stage dps figure has appeared for potency to reach', () => {
+    // Kept from the first draft, and widened: `markEliteExecuteFraction` is
+    // named here too, so the schema guard covers both magnitudes the later
+    // stages actually carry rather than only the one that does not exist.
     const futureDps = Object.keys(eff).filter((k) => /^markFuture.*Dps$/.test(k));
     expect(
       futureDps,
       'the future stage now authors a dps figure — it is no longer HP-derived, so potency should reach it',
     ).toEqual([]);
+    expect(Object.keys(eff)).toContain('markEliteExecuteFraction');
+  });
+});
+
+/* ------------------------- c021: potency reaches its magnitude and only it */
+
+/**
+ * **The negative half, which the first version of this file had none of.**
+ * Filed by QA: three simultaneous mutations — potency over-reaching into Field
+ * Kit's `overclockSeconds` and Poison Barrel's `groundDurationSeconds`, and
+ * *under*-reaching so it scaled only Chain Surge's first jump — left all 33
+ * rows green. Every row measured "the named magnitude went up" and nothing
+ * measured "and nothing else moved".
+ *
+ * Two shapes are needed, because the two failure modes are different:
+ *
+ *  - **Over-reach**: the card silently buys more than its sentence. Caught by
+ *    asserting the Active's *other* authored `/data` fields are flat across
+ *    ranks — durations, radii, lifetimes.
+ *  - **Under-reach**: the card silently buys less. Caught by making a
+ *    multi-target Active actually hit multiple targets; `damageDealt` spawns
+ *    one dummy, so Chain Surge's jumps 1..n were never exercised at all.
+ */
+describe('c021 — the card moves its named magnitude and nothing else', () => {
+  /**
+   * Companion observables per class: an authored `/data` field of the same
+   * Active that potency is *not* supposed to touch, read after one cast.
+   * Absent for kits whose Active1 authors no second magnitude.
+   */
+  const COMPANIONS: Array<{ classKey: string; field: string; read: (w: World) => number }> = [
+    {
+      classKey: 'engineer',
+      field: 'overclockSeconds (the Field Kit buff window)',
+      read: (w) => {
+        const s = tower(w);
+        s.hp = 1;
+        castActive1(w);
+        return s.atkSpdBuffRemaining;
+      },
+    },
+    {
+      classKey: 'plaguebringer',
+      field: 'groundDurationSeconds and radius (the barrel itself, not its dps)',
+      read: (w) => {
+        castActive1(w);
+        const a = w.areas.find((x) => x.type === 'poison')!;
+        // Both at once: a single number that moves if either does.
+        return a.remaining * 1000 + a.radius;
+      },
+    },
+    {
+      classKey: 'necromancer',
+      field: 'summonDurationSeconds (how long the skeleton lives, not its dps)',
+      read: (w) => {
+        const e = dummy(w, WX + 1, WY, 1);
+        w.corpses.push({ id: w.newId(), x: e.x, y: e.y, remaining: 10 });
+        castActive1(w);
+        return w.classSummons.find((k) => k.kind === 'necro_skeleton')!.remaining;
+      },
+    },
+    {
+      classKey: 'animist',
+      field: 'summonDurationSeconds (the spirit\'s lifetime, not its dps)',
+      read: (w) => {
+        tower(w);
+        castActive1(w);
+        return w.classSummons.find((k) => k.kind === 'animist_spirit')!.remaining;
+      },
+    },
+    {
+      classKey: 'time_lord',
+      field: 'markPastDotSeconds (the DoT window, not its dps)',
+      read: (w) => {
+        const e = dummy(w, WX + 1, WY);
+        castActive1(w);
+        return e.dots[0].remaining;
+      },
+    },
+  ];
+
+  for (const c of COMPANIONS) {
+    const card = potencyCard(c.classKey);
+    it(`${c.classKey}: ${c.field} is flat across ranks 0 and ${card.maxRank}`, () => {
+      const zero = c.read(potencyWorld(c.classKey, {}));
+      expect(zero, `harness: ${c.classKey}'s companion observable read nothing`).toBeGreaterThan(0);
+      expect(
+        c.read(potencyWorld(c.classKey, { [card.key]: card.maxRank })),
+        `${c.classKey}: the potency card moved ${c.field}, which its sentence does not name`,
+      ).toBeCloseTo(zero, 6);
+    });
+  }
+
+  it('stormcaller: potency scales every chain jump, not just the first', () => {
+    // `damageDealt` spawns one dummy, so jumps 1..n were never exercised. A
+    // mutation scaling only jump 0 halved the card in every real fight and left
+    // the file green (QA). Spacing follows `class-passive-magnitudes`'s: clear
+    // of Electric's own inherent splash, inside the Active's authored reach.
+    const eff = content.classByKey.get('stormcaller')!.active1;
+    const splash = content.damageTypeByKey.get('electric')!.radius ?? 0;
+    const spacing = Math.min(2, eff.radius * 0.9);
+    expect(spacing, 'harness needs links spaced clear of Electric’s own blast').toBeGreaterThan(splash * 1.2);
+
+    const card = potencyCard('stormcaller');
+    const totalOverChain = (ranks: Ranks): number => {
+      const w = potencyWorld('stormcaller', ranks);
+      const line = [1, 2, 3].map((i) => dummy(w, WX + i * spacing, WY));
+      const before = line.map((e) => e.hp);
+      expect(useClassActive(w, WX + spacing, WY), 'harness: Chain Surge did not fire').toBe(true);
+      // Every link that took damage, summed — so a card that reaches only the
+      // first jump reads strictly lower than one that reaches all of them.
+      return line.reduce((sum, e, i) => sum + (before[i] - e.hp), 0);
+    };
+    const hit = (ranks: Ranks): number => {
+      const w = potencyWorld('stormcaller', ranks);
+      const line = [1, 2, 3].map((i) => dummy(w, WX + i * spacing, WY));
+      const before = line.map((e) => e.hp);
+      useClassActive(w, WX + spacing, WY);
+      return line.filter((e, i) => before[i] - e.hp > 0).length;
+    };
+    expect(hit({}), 'harness: the chain reached fewer than two links, so jumps are untested').toBeGreaterThan(1);
+
+    const zero = totalOverChain({});
+    expect(zero).toBeGreaterThan(0);
+    for (const n of [1, 2]) {
+      expect(
+        totalOverChain({ [card.key]: n }),
+        `stormcaller rank ${n}: the card did not scale the whole chain`,
+      ).toBeCloseTo(zero * (1 + card.perRank * n), 6);
+    }
+  });
+
+  it("an Active1 potency card never scales an Active2 payout — the death_pact branch next door", () => {
+    // The correction made `towers.ts`'s `classTowerDamageMul` load-bearing for
+    // this file, but only its tithe branch was watched. Its sibling
+    // `death_pact` branch (necromancer, `pactDamageMul`) was not: scaling that
+    // by `active1PotencyMul` left this file and `class-active2-cdr` and
+    // `class-line-bonus` all green (QA).
+    const card = potencyCard('necromancer');
+    const pacted = (ranks: Ranks): number => {
+      const w = potencyWorld('necromancer', ranks);
+      const s = tower(w);
+      expect(useClassActive2(w, WX + 1, WY), 'harness: Death Pact did not fire').toBe(true);
+      expect(s.pactActive, 'harness: Death Pact did not pact the tower').toBe(true);
+      return towerDamage(w, s, 100);
+    };
+    const zero = pacted({});
+    expect(zero).toBeGreaterThan(0);
+    expect(
+      pacted({ [card.key]: card.maxRank }),
+      "the Active1 potency card scaled Death Pact's Active2 payout",
+    ).toBeCloseTo(zero, 6);
   });
 });
