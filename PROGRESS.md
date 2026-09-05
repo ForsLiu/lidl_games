@@ -5,6 +5,23 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-05 (lane `lane/terrain`): `fb065c` closed — a terrain repro can now
+  be taken from the map a bug was seen on.** `gridTerrain` in
+  `src/sim/terrain/grid-view.ts` adapts a live `Grid` to the `TerrainGrid` every
+  diagnostic reads, copying rather than aliasing (the Grid rewrites
+  `terrainKind` in place on every `placeCore`), and carrying no provenance so
+  `describeTerrain` writes the honest `source=-`. The premise is measured:
+  across `applyRunTerrain` on seeds 1..100 a live grid is identical to its own
+  generated map on 84 of them but differs by up to 13 tiles — so a repro taken
+  from the generator is usually right, which is exactly why the 16% where it is
+  wrong were invisible. `tests/terrain-grid.test.ts`'s hand-rolled `gridView`
+  is deleted in favour of it; it was the only copy, one fewer than the item's
+  premise claimed.
+
+  `npm run test:fast` at this commit: 3655 passed, 3 failed — `b028`, `q41`,
+  `q45`, unchanged and pre-existing. `npx tsc --noEmit` clean; all 20 terrain
+  suites green.
+
 - **2026-09-05 (lane `lane/terrain`): `fb065b` closed — the suggested Core
   anchor is now a measured default rather than only a legal one.**
   `tests/terrain-anchor-quality.test.ts` (11 cases, ~2 s, fast tier) carries the

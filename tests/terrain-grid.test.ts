@@ -37,6 +37,7 @@ import {
 import {
   gateComponent,
   generateTerrain,
+  gridTerrain,
   loadTerrain,
   terrainOverlay,
   TerrainKind,
@@ -47,11 +48,6 @@ import { Hasher } from '../src/sim/hash';
 import type { TerrainGrid } from '../src/sim/terrain/types';
 
 const cfg = loadTerrain();
-
-/** The Grid's own view of its terrain, as a `TerrainGrid` the analyzer reads. */
-function gridView(g: Grid): TerrainGrid {
-  return { w: g.w, h: g.h, kind: g.terrainKind };
-}
 
 /** A rock-bordered map with a hand-placed patch of one kind in the interior. */
 function handMap(patch: Array<[number, number, TerrainKind]>): TerrainGrid {
@@ -395,7 +391,7 @@ describe('Grid on a generated map (fb064b, 100 seeds)', () => {
     const field = Grid.makeField();
     for (const seed of SEEDS) {
       const g = applied(generateTerrain(seed, cfg));
-      const view = gridView(g);
+      const view = gridTerrain(g);
       for (const gate of GATES) {
         const gi = g.idx(gate.tx, gate.ty);
         g.computeField(field, [gi], false);
@@ -437,7 +433,7 @@ describe('Grid on a generated map (fb064b, 100 seeds)', () => {
     let stranded = 0;
     for (const seed of SEEDS) {
       const g = applied(generateTerrain(seed, cfg));
-      const comp = gateComponent(gridView(g), cfg);
+      const comp = gateComponent(gridTerrain(g), cfg);
       let coreInComponent = true;
       for (let dy = 0; dy < CORE_H; dy++) {
         for (let dx = 0; dx < CORE_W; dx++) {

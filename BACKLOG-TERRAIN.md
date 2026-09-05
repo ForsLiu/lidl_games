@@ -782,7 +782,7 @@ improvement.
       tie-break lands the sample on min room **12** and min gate **6**, exactly
       on both floors — which is why the tie-break is now asserted directly
       instead of being left to the floors. See the Log.
-- [ ] (fb065c) [polish] the repro format cannot describe the thing that
+- [x] (fb065c) [polish] the repro format cannot describe the thing that
       actually goes wrong. `describeTerrain` takes a `TerrainGrid`, and a live
       run holds a `Grid` — whose terrain has been through `terrainOverlay`,
       `applyTerrain`, `placeCore` and any post-construction `tile[]` write
@@ -795,6 +795,27 @@ improvement.
       had `placeCore` and a post-construction tile write applied, and the dump
       of such a Grid carrying honest provenance (it is no seed's output, so
       `source=-`) — refs: fb064k, fb064s, fb064q.
+      **Shipped as `gridTerrain` in `src/sim/terrain/grid-view.ts`, and the
+      item's premise was one copy short: there was exactly ONE hand-rolled
+      helper (`tests/terrain-grid.test.ts`'s `gridView`), not one "each" — no
+      other construction of a `TerrainGrid` from a `Grid` exists anywhere in
+      `src/`, `tests/` or `tools/`.** Recorded rather than quietly satisfied, so
+      the record does not overstate what this consolidated.
+      **The adapter copies rather than aliases**, which the acceptance did not
+      ask for and which is the whole design: `Grid.syncTerrain` rebuilds
+      `terrainKind` in place on every `applyTerrain` and every `placeCore`, so an
+      aliasing view is a "snapshot" whose tiles change under the reader — a dump
+      taken before a Core move and printed after it would describe neither state.
+      The old `gridView` aliased; nothing depended on it, and a dump is exactly
+      the caller that would have been bitten.
+      **The premise is measured rather than asserted, and the honest number is
+      smaller than the list of overrides suggests** — which is what makes the
+      adapter worth having rather than optional. Over `applyRunTerrain` on seeds
+      1..100 the live grid is identical to its own generated map on **84** of
+      them, differs by a mean of **0.66** tiles and by **13** on the worst (seed
+      40). The 84 is as important as the 13: a repro taken from the generator is
+      usually right, which is precisely why the 16% where it is wrong were
+      invisible — nothing in a bug report said which kind you were holding.
 
 - [x] (fb065d) [bug] *(QA-filed, fb064w)* `terrain-generation.test.ts`'s "stays
       bounded under the most expensive schema-legal config" asserts
@@ -842,6 +863,47 @@ improvement.
       without anyone editing this file.
 
 ## Log
+
+- (2026-09-05, fb065c) The Grid-to-dumpable-grid adapter.
+  `src/sim/terrain/grid-view.ts` exports `gridTerrain(grid)`, re-exported from
+  `index.ts`; `tests/terrain-grid-view.test.ts` (6 cases, ~0.5 s) is its ledger
+  and round trip; `tests/terrain-grid.test.ts`'s `gridView` is deleted in favour
+  of it.
+
+  **The drift ledger, which is the item's premise made measurable.** Between
+  `generateTerrain` and the grid a run actually plays there are four
+  transformations: `terrainOverlay`, `world.ts`'s `clearOverlayBlock` (a 3x3
+  block of forced normal ground at the Warden's spawn — 1.0% of seeds otherwise
+  land rock or high ground on that tile), `Grid.applyTerrain`'s gate/Core
+  override, and `Grid.placeCore`. Over `applyRunTerrain` on seeds 1..100:
+  identical on **84**, mean **0.66** tiles, worst **13** at seed 40, zero
+  fallbacks. Sixteen seeds drift at all (2, 9, 13, 24, 31, 38, 40, 47, 50, 83,
+  88, 91, 93, 96, 97, 99).
+
+  **A measurement taken against a tree another agent was mutating, and the
+  correction.** The first reading of that ledger was 85 / 0.52 / 10 at seed 9,
+  and it was taken while a QA subagent had `suggestCoreAnchor` mutated in the
+  working tree — which moves `maxGateDetour`, hence `terrainLegal`, hence which
+  maps the generator ships. The clean-tree reading (84 / 0.66 / 13 at seed 40)
+  reproduces twice and is what shipped. Worth recording as a hazard rather than
+  only as a corrected number: a lane running subagents that mutate `src/` has to
+  check `git status` before trusting any sweep it runs beside them.
+
+  **What the round trip is pinned on.** A `Grid` with terrain applied, the Core
+  moved off `CORE_X/CORE_Y` via `placeCore`, and then a raw `tile[]` write in
+  `world.ts`'s Fourth Gate shape — `describeTerrain` -> `parseTerrainDump` gives
+  a byte-identical `kind` buffer, and re-describing the parse gives the same
+  string. The provenance is `source=-` on every field, which fb064s's parser
+  already supported and which is the honest answer: these tiles are no seed's
+  output, and the seed line offers nothing to paste. The generated map's own
+  dump still says `source=generator`, so the two artefacts stay distinguishable
+  at a glance.
+
+  **Out-of-scope needs, for the merge.** None new. `gridTerrain` reads
+  `Grid.terrainKind`, which is already public, and the test imports
+  `applyRunTerrain` from `src/sim/world.ts` read-only. fb064e's renderer and
+  fb064f's Tuner page are the callers that would most want this adapter, and
+  both remain out of this lane.
 
 - (2026-09-05, fb065b, second review round) **Three things this file claimed
   and had not measured, all caught by the re-review and all now asserted rather
