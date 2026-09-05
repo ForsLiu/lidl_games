@@ -40,12 +40,15 @@ import {
   Grid,
   TileType,
 } from '../src/sim/grid';
+import terrainRaw from '../data/terrain.json';
 import {
   describeTerrain,
+  flatTerrain,
   generateTerrain,
   gridTerrain,
   legalCoreAnchors,
   loadTerrain,
+  parseTerrain,
   parseTerrainDump,
   suggestCoreAnchor,
   terrainOverlay,
@@ -156,17 +159,30 @@ describe('gridTerrain (fb065c)', () => {
   });
 
   it('round-trips a Grid that has had placeCore and a raw tile write applied', () => {
-    // The grid the item names, built in the order that makes it hardest: apply
-    // terrain, move the Core off `CORE_X/CORE_Y`, then write a tile directly the
-    // way `world.ts` opens the Fourth Gate. That last write is the interesting
-    // one — it changes `tile[]` without going through `syncTerrain`, so the
-    // Grid's *effective* terrain at that tile is whatever the overlay said, and
-    // a dump has to describe what is there rather than what the structure map
-    // implies.
-    const g = applied(7);
+    // **The fixture is load-bearing, and its first version was not.** It used
+    // seed 7 and `suggestCoreAnchor`, which returns the anchor *closest to*
+    // `CORE_X/CORE_Y` — i.e. (25,9) itself on 200 of 200 `applyTerrain` grids,
+    // because `Grid` forces its own Core footprint to normal and so always
+    // makes the authored anchor legal. The `placeCore` was a self-place, the
+    // tile write lands on a Border tile that `syncTerrain` skips, and the
+    // resulting dump was byte-identical to one taken from a plain
+    // `applied(7)`. Every one of the four adapter mutants passed that case.
+    //
+    // So: seed 4426, where the generator strands the authored Core behind rock
+    // (`tests/terrain-grid.test.ts` names it for the same reason), and an
+    // anchor deliberately *not* (25,9). Moving there hands 4 tiles back their
+    // real terrain, which is the "no phantom corridor" behaviour fb064h built
+    // `terrainRawKind` for, and it is what makes the dump differ from the
+    // unmoved grid's.
+    const seed = 4426;
+    const g = applied(seed);
+    const authored = CORE_Y * GRID_W + CORE_X;
     const anchors = legalCoreAnchors(gridTerrain(g), cfg);
-    const target = suggestCoreAnchor(gridTerrain(g), cfg, anchors) as number;
-    g.placeCore(target % GRID_W, (target / GRID_W) | 0);
+    const target = anchors.find((a) => a !== authored);
+    expect(target).toBeDefined();
+    g.placeCore((target as number) % GRID_W, ((target as number) / GRID_W) | 0);
+    expect(g.coreOrigin()).not.toEqual({ tx: CORE_X, ty: CORE_Y });
+
     // The Fourth Gate write's *shape*, with its ordering deliberately inverted.
     // `world.ts:576-585` opens the fourth gate **before** `applyRunTerrain`, so
     // in a real run `syncTerrain` covers that tile and `terrainKind` reads
@@ -174,30 +190,55 @@ describe('gridTerrain (fb065c)', () => {
     // `world.ts` never produces today and nothing prevents — and it is the one
     // that shows what `gridTerrain` can and cannot promise.
     const south = { tx: 12, ty: 19 };
-    g.tile[g.idx(south.tx, south.ty)] = TileType.Gate;
+    const south_i = g.idx(south.tx, south.ty);
+    // Load-bearing: the write really changes the Grid. Border tiles are blocked
+    // and Gate tiles never are, so this flips `blocked` 1 -> 0 — the sim starts
+    // walking through a tile the dump still draws as rock.
+    expect(g.blocked[south_i]).toBe(1);
+    g.tile[south_i] = TileType.Gate;
     g.markDirty();
     g.refresh();
+    expect(g.blocked[south_i]).toBe(0);
 
     const view = gridTerrain(g);
 
+    // The Core move changed the dumped bytes; the tile write did not. Both
+    // halves are asserted, because each is a different statement about the
+    // adapter.
+    expect(Array.from(view.kind)).not.toEqual(Array.from(gridTerrain(applied(seed)).kind));
+
     // **What the adapter does not promise, pinned rather than rationalised.**
     // `syncTerrain` is private and `refresh` does not call it, so the write
-    // above updated `blocked` and left `terrainKind` alone: the sim now walks
-    // through (12,19) while the dump draws rock on it. The view is faithful to
-    // the Grid — it reports exactly what `terrainKind` holds — and the Grid is
-    // the thing that is stale. Filed as its own item; recorded here so a reader
-    // of a dump taken in this state knows which of the two to believe.
-    const south_i = g.idx(south.tx, south.ty);
+    // above updated `blocked` and left `terrainKind` alone. The view is
+    // faithful to the Grid — it reports exactly what `terrainKind` holds — and
+    // the Grid is the thing that is stale. Filed as its own item; recorded here
+    // so a reader of a dump taken in this state knows which of the two to
+    // believe.
     expect(g.tile[south_i]).toBe(TileType.Gate);
-    expect(g.blocked[south_i]).toBe(0);
     expect(view.kind[south_i]).toBe(TerrainKind.Rock);
 
     const dump = describeTerrain(view, cfg);
     const parsed = parseTerrainDump(dump);
     expect(Array.from(parsed.kind)).toEqual(Array.from(view.kind));
-    expect({ w: parsed.w, h: parsed.h }).toEqual({ w: view.w, h: view.h });
+    // Against the *Grid's* dimensions, not the view's: asserting the view
+    // against itself is consistent under a `w`/`h` swap in the adapter, which
+    // is how that mutant used to survive this case.
+    expect({ w: parsed.w, h: parsed.h }).toEqual({ w: g.w, h: g.h });
     // Byte-identical, not merely equal in tiles: re-describing what came back
     // must produce the same string, which is the property fb064k's format sells.
+    expect(describeTerrain(parsed, cfg)).toBe(dump);
+
+    // And the dump is a *snapshot*: moving the Core again must not retroactively
+    // change what was already parsed out of it. This is the copy semantics made
+    // load-bearing inside the round trip rather than only in the sibling case.
+    // A *third* anchor, not back to (25,9) — on this seed the authored spot is
+    // stranded behind rock and `placeCore` rightly refuses it, which is the
+    // property that made seed 4426 the fixture in the first place.
+    const third = anchors.find((a) => a !== authored && a !== target);
+    expect(third).toBeDefined();
+    g.placeCore((third as number) % GRID_W, ((third as number) / GRID_W) | 0);
+    expect(g.coreOrigin()).not.toEqual({ tx: CORE_X, ty: CORE_Y });
+    expect(Array.from(gridTerrain(g).kind)).not.toEqual(Array.from(view.kind));
     expect(describeTerrain(parsed, cfg)).toBe(dump);
   });
 
@@ -229,6 +270,46 @@ describe('gridTerrain (fb065c)', () => {
     // The generated map's own dump, by contrast, still names a seed a reader
     // can paste — so the two artefacts stay distinguishable at a glance.
     expect(describeTerrain(map, cfg).split('\n')[1]).toContain('source=generator');
+  });
+
+  it('loses the one provenance it could have carried: the flat-arena fallback', () => {
+    // Recorded as a limitation, not asserted as a virtue. A run that exhausts
+    // every generation attempt plays a grid byte-identical to `flatTerrain()`,
+    // and `describeTerrain` has a mark for exactly that map — but
+    // `applyRunTerrain` returns the fallback flag to its caller and writes
+    // nothing on the `Grid`, so the adapter cannot see it and the dump says
+    // `source=-`. That is not a lie; it is the one Grid state where provenance
+    // *is* knowable and the dash still throws it away, which is the single most
+    // important fact about the run being reported. Carrying it needs `Grid` to
+    // hold the flag — `grid.ts` work, filed separately.
+    const hostile = parseTerrain({
+      ...(terrainRaw as Record<string, unknown>),
+      maxAttempts: 2,
+      constraints: {
+        ...(terrainRaw as { constraints: Record<string, unknown> }).constraints,
+        minWalkableFrac: 0.853,
+      },
+    });
+    const g = new Grid();
+    const warn = console.warn;
+    console.warn = (): void => {};
+    let fellBack: boolean;
+    try {
+      fellBack = applyRunTerrain(g, GATES, 1, hostile);
+    } finally {
+      console.warn = warn;
+    }
+    expect(fellBack).toBe(true);
+
+    // The tiles really are the flat arena's, exactly.
+    const view = gridTerrain(g);
+    expect(Array.from(view.kind)).toEqual(Array.from(flatTerrain().kind));
+    // And the dump cannot say so.
+    const live = describeTerrain(view, cfg).split('\n')[1];
+    const flat = describeTerrain(flatTerrain(), cfg).split('\n')[1];
+    expect(live).toBe('seed source=- requested=- effective=- attempts=- fallback=- hash=-');
+    expect(flat).toContain('source=flat-arena');
+    expect(live).not.toBe(flat);
   });
 
   it('refuses a Grid whose terrain buffer is the wrong size', () => {

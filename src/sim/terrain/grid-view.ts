@@ -43,6 +43,16 @@
  * is the honest answer: these tiles are no seed's output. Re-generating from
  * the run's seed does *not* reproduce them, and a dump that claimed otherwise
  * would send a reader chasing a map that never existed.
+ *
+ * **The one state where that dash throws information away**, recorded because
+ * it is the state a reader most wants named: a run that exhausted every
+ * generation attempt plays the flat arena, and its grid is byte-identical to
+ * `flatTerrain()` — provenance that *is* knowable and that `describeTerrain`
+ * has a mark for (`source=flat-arena`). `gridTerrain` cannot see it, because
+ * `applyRunTerrain` returns the fallback flag to its caller and records nothing
+ * on the `Grid`. Pinned by a test rather than left to be rediscovered from a
+ * confusing bug report; carrying it would need `Grid` to hold the flag, which
+ * is `grid.ts` work and its own item.
  */
 import type { Grid } from '../grid';
 import type { TerrainGrid } from './types';

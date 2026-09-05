@@ -864,6 +864,65 @@ improvement.
 
 ## Log
 
+- (2026-09-05, fb065c, QA round) **FAIL on acceptance clause 3, and the miss was
+  exactly the clause the acceptance names.** QA confirmed the adapter, the
+  deleted copy and the `source=-` provenance, could not break the round trip in
+  8172 `placeCore` placements plus every `TileType` written at four positions,
+  and re-derived the drift ledger element for element (84 identical, mean 0.66,
+  worst 13 at seed 40, the same 16-seed drift list). It also attributed seed
+  40's 13 tiles for us: **9** from `clearOverlayBlock` at the Warden spawn,
+  **4** from the Core footprint override, **0** from `terrainOverlay` and **0**
+  from the gate override — the generator already writes the three gates as
+  normal, so the gate half of the doc's attribution contributes nothing on any
+  seed in 1..100.
+
+  **The failure.** The round-trip fixture did neither of the two things it
+  claimed. `suggestCoreAnchor` returns the anchor *closest to* `CORE_X/CORE_Y`,
+  and `Grid` forces its own Core footprint to normal, so the authored anchor is
+  always legal and always chosen: measured, the suggestion is (25,9) on
+  **200/200** `applyTerrain` grids, and the `placeCore` was a self-place. The
+  raw tile write lands on (12,19), a Border tile `syncTerrain` skips, so it
+  changed **0** kind bytes. The dump was therefore **byte-identical** to one
+  taken from a plain `applied(7)`, and QA proved the case was dead weight by
+  deleting all three lines and watching 6/6 still pass. The claim in this entry
+  and in `d1779de`'s commit body — "the Core moved off `CORE_X/CORE_Y`" — was
+  false as written, and is corrected above rather than quietly dropped.
+
+  **The fix.** Seed **4426**, where the generator strands the authored Core
+  behind rock, and an anchor explicitly `!== (25,9)`. Moving there hands 4 tiles
+  back their real terrain (measured: 4 kind bytes change on 4426, and **0** on
+  seed 7 — which is why the old fixture could not have worked whatever anchor it
+  picked). The tile write is made load-bearing by asserting `blocked` flips
+  **1 -> 0** across it (Border tiles are blocked, Gate tiles never are), so the
+  sim demonstrably starts walking through a tile the dump still draws as rock.
+  Dimensions are asserted against the **Grid's** `w`/`h` rather than the view's,
+  and a second `placeCore` after the dump is captured pins the snapshot
+  semantics inside the round trip.
+
+  **Measured before and after, because "the fixture is stronger now" is a claim.**
+  QA's four adapter mutants (alias instead of copy, `w`/`h` swapped, guard
+  dropped, raw pre-override buffer) were killed by the file but by *other*
+  cases: the acceptance-named round trip killed **0 of 4**. It now kills
+  **3 of 4** — alias, swap and raw all fail on it directly (reproduced in a
+  worktree); the length guard remains its own case's job.
+
+  **Also shipped from this round: the fallback provenance limitation, recorded.**
+  A run that exhausts every generation attempt plays a grid byte-identical to
+  `flatTerrain()` — provenance that *is* knowable, and that `describeTerrain`
+  has a mark for — but `applyRunTerrain` returns the fallback flag to its caller
+  and writes nothing on the `Grid`, so the dump says `source=-`. Not a lie, but
+  the one state where the dash discards the most important fact about the run.
+  Pinned by a test using the `minWalkableFrac: 0.853` fixture; carrying it needs
+  `Grid` to hold the flag, which is `grid.ts` work and its own item.
+
+  **QA's remaining Major is fb065f's**, filed rather than fixed here: a live
+  Fourth Gate run's dump prints three gates and three-gate bands. QA measured it
+  end to end — over 30 four-gate seeds, **8/30** print bands that differ from
+  `measureTerrain(view, cfg, w.gates)`, worst `gateDetour` delta **0.1446** at
+  seed 1 (printed 1.000000, real 1.144578). It is `describeTerrain`'s
+  hardcoding, harmless until fb065c made a wrong-gate dump reachable from a real
+  run.
+
 - (2026-09-05, fb065c) The Grid-to-dumpable-grid adapter.
   `src/sim/terrain/grid-view.ts` exports `gridTerrain(grid)`, re-exported from
   `index.ts`; `tests/terrain-grid-view.test.ts` (6 cases, ~0.5 s) is its ledger
@@ -889,9 +948,10 @@ improvement.
   only as a corrected number: a lane running subagents that mutate `src/` has to
   check `git status` before trusting any sweep it runs beside them.
 
-  **What the round trip is pinned on.** A `Grid` with terrain applied, the Core
-  moved off `CORE_X/CORE_Y` via `placeCore`, and then a raw `tile[]` write in
-  `world.ts`'s Fourth Gate shape — `describeTerrain` -> `parseTerrainDump` gives
+  **What the round trip is pinned on** (corrected — see the QA round below; the
+  first version of this paragraph was false). A `Grid` with terrain applied, the
+  Core moved off `CORE_X/CORE_Y` via `placeCore`, and then a raw `tile[]` write
+  in `world.ts`'s Fourth Gate shape — `describeTerrain` -> `parseTerrainDump` gives
   a byte-identical `kind` buffer, and re-describing the parse gives the same
   string. The provenance is `source=-` on every field, which fb064s's parser
   already supported and which is the honest answer: these tiles are no seed's
