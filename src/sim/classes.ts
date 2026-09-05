@@ -600,7 +600,12 @@ function spawnClassSummon(
  * this function never clamping `damage`: what is bounded is how long the shot
  * can be *held* (`chargeCapSeconds`), which is what makes gate G10's
  * dps-optimal charge finite in the first place. `pierceCap` is a perf rail on
- * how many bodies one `lineHit` may sweep, not a damage ceiling.
+ * how many bodies one `lineHit` may sweep, not a damage ceiling — and since
+ * c017 it rails the *charge-derived* count only: the §6.3 card adds on top, so
+ * the true ceiling on bodies swept is `pierceCap + perRank * maxRank`, 10 on
+ * shipped `/data` rather than 6. (`content.ts`'s `pierceCap` schema comment
+ * still says 6's worth and is owed the same correction — out of the content
+ * lane's Scope, logged in BACKLOG-CONTENT.md.)
  */
 function fireDeadeyeDraw(
   w: World,
@@ -615,7 +620,19 @@ function fireDeadeyeDraw(
   const damage =
     characterDamage(w, cls, eff.damage * Math.pow(1 + (eff.compoundPerSecond ?? 0), held)) * active1PotencyMul(w);
   // p7a (§6.3) Archer skill card "Deeper Draw": pierce cap +2/rank.
-  const hits = Math.min((eff.pierceCap ?? 1) + classLineBonus(w), 1 + Math.floor(held));
+  //
+  // c017: the card's bonus is added to the *resolved* count rather than folded
+  // into the `pierceCap` side of the `min`. Written the other way it was inert
+  // on shipped `/data` — `pierceCap 6` sits at exactly `1 + chargeCapSeconds`,
+  // so *Long Draw*'s charge-derived term was the binding one at every hold
+  // length and rank 0, 1 and 2 all pierced six. `min(a, c) + b` is identically
+  // `min(a + b, c + b)`, so the card still reads as "pierce cap +2" — it raises
+  // the cap *and* the charge-derived term, which is the only way to raise a cap
+  // that something else already holds you below. §2 authorises the additive
+  // shape outright ("base-less stats (armor points, +1 pierce, charges) add"),
+  // it moves nothing at rank 0, and `pierceCap` stays a real rail rather than
+  // being deleted.
+  const hits = Math.min(eff.pierceCap ?? 1, 1 + Math.floor(held)) + classLineBonus(w);
   const dir = aimDirection(w, aimX, aimY);
   // `radius` is this kind's shot length — the same field-reuse precedent
   // `dash_line`'s own unused `radius: 0` set (Q118's Nit).
