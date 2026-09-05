@@ -118,12 +118,10 @@ import { structureArmor } from '../src/sim/upgrades';
 import { emptyInput, type Enemy, type Structure } from '../src/sim/types';
 import { World } from '../src/sim/world';
 import { cfg } from './helpers';
+import { BUILD_TX, BUILD_TY, WX, WY } from './class-board';
 
 const content = loadContent();
 
-/** Warden's parking spot for every case — well inside the board, room in every direction. */
-const WX = 10;
-const WY = 10;
 
 const DT = 1 / 60;
 
@@ -207,7 +205,7 @@ function fireOnce(w: World, s: Structure): void {
 /** Total hp one forced spire volley takes off a lone dummy, after `prep` sets the target up. */
 function volleyDamage(classKey: string, c: Content, prep: (w: World, e: Enemy) => void = () => {}): number {
   const w = towerWorld(classKey, c);
-  const s = place(w, SPIRE, WX + 1, WY);
+  const s = place(w, SPIRE, BUILD_TX, BUILD_TY);
   const e = dummy(w, WX + 2, WY);
   prep(w, e);
   const before = e.hp;
@@ -225,7 +223,7 @@ function volleyDamage(classKey: string, c: Content, prep: (w: World, e: Enemy) =
  */
 function coneDamage(classKey: string, c: Content, prep: (w: World, e: Enemy) => void = () => {}): number {
   const w = towerWorld(classKey, c);
-  const s = place(w, BRAZIER, WX + 1, WY);
+  const s = place(w, BRAZIER, BUILD_TX, BUILD_TY);
   // Well inside the brazier's 3.5 reach and its half-angle, whichever way the
   // cone ends up pointing — the case asserts a hit landed before comparing.
   const e = dummy(w, WX + 2, WY);
@@ -248,7 +246,7 @@ function coneDamage(classKey: string, c: Content, prep: (w: World, e: Enemy) => 
  */
 function boltDamage(classKey: string, c: Content, prep: (w: World, e: Enemy) => void = () => {}): number {
   const w = towerWorld(classKey, c);
-  const s = place(w, BALLISTA, WX + 1, WY);
+  const s = place(w, BALLISTA, BUILD_TX, BUILD_TY);
   const e = dummy(w, WX + 4, WY);
   prep(w, e);
   const before = e.hp;
@@ -302,7 +300,7 @@ const signal = {
   windSlash(c: Content, classKey: string): number {
     const speed = (k: string): number => {
       const w = towerWorld(k, c);
-      return attackSpeedFor(w, place(w, SPIRE, WX + 1, WY));
+      return attackSpeedFor(w, place(w, SPIRE, BUILD_TX, BUILD_TY));
     };
     return Math.max(0, speed(classKey) - speed(SPEED_CONTROL));
   },
@@ -311,7 +309,7 @@ const signal = {
   miasma(c: Content, classKey: string): number {
     const dps = (k: string): number => {
       const w = towerWorld(k, c);
-      const s = place(w, SPORE, WX + 1, WY);
+      const s = place(w, SPORE, BUILD_TX, BUILD_TY);
       const e = dummy(w, WX + 2, WY);
       fireOnce(w, s);
       let best = 0;
@@ -325,7 +323,7 @@ const signal = {
   towerHpUp(c: Content, classKey: string): number {
     const hp = (k: string): number => {
       const w = towerWorld(k, c);
-      return place(w, SPIRE, WX + 1, WY).maxHp;
+      return place(w, SPIRE, BUILD_TX, BUILD_TY).maxHp;
     };
     return Math.max(0, hp(classKey) - hp(CONTROL));
   },
@@ -334,7 +332,7 @@ const signal = {
   towerHpDown(c: Content, classKey: string): number {
     const hp = (k: string): number => {
       const w = towerWorld(k, c);
-      return place(w, SPIRE, WX + 1, WY).maxHp;
+      return place(w, SPIRE, BUILD_TX, BUILD_TY).maxHp;
     };
     return Math.max(0, hp(CONTROL) - hp(classKey));
   },
@@ -343,7 +341,7 @@ const signal = {
   consecratedArmor(c: Content, classKey: string): number {
     const armor = (k: string): number => {
       const w = towerWorld(k, c);
-      return structureArmor(w, place(w, SPIRE, WX + 1, WY));
+      return structureArmor(w, place(w, SPIRE, BUILD_TX, BUILD_TY));
     };
     return Math.max(0, armor(classKey) - armor(CONTROL));
   },
@@ -396,7 +394,7 @@ const signal = {
   woundedFury(c: Content, classKey: string): number {
     const dmg = (k: string): number => {
       const w = towerWorld(k, c);
-      const s = place(w, SPIRE, WX + 1, WY);
+      const s = place(w, SPIRE, BUILD_TX, BUILD_TY);
       s.hp = s.maxHp * 0.5;
       return towerDamage(w, s, 100);
     };
@@ -407,7 +405,7 @@ const signal = {
   sanguineDamage(c: Content, classKey: string): number {
     const dmg = (k: string): number => {
       const w = towerWorld(k, c);
-      return towerDamage(w, place(w, SPIRE, WX + 1, WY), 100);
+      return towerDamage(w, place(w, SPIRE, BUILD_TX, BUILD_TY), 100);
     };
     return Math.max(0, dmg(classKey) - dmg(CONTROL));
   },
@@ -446,8 +444,8 @@ describe('c009: every class tower passive measurably changes a built tower', () 
   it('Swordsman *Wind Slash* — a spire fires faster than under a class that authors no cadence bonus', () => {
     const w = towerWorld('swordsman');
     const ctl = towerWorld(SPEED_CONTROL);
-    expect(attackSpeedFor(w, place(w, SPIRE, WX + 1, WY))).toBeGreaterThan(
-      attackSpeedFor(ctl, place(ctl, SPIRE, WX + 1, WY)),
+    expect(attackSpeedFor(w, place(w, SPIRE, BUILD_TX, BUILD_TY))).toBeGreaterThan(
+      attackSpeedFor(ctl, place(ctl, SPIRE, BUILD_TX, BUILD_TY)),
     );
     expect(signal.windSlash(content, 'swordsman')).toBeGreaterThan(0);
 
@@ -485,7 +483,7 @@ describe('c009: every class tower passive measurably changes a built tower', () 
     const shots = 3;
     const ticksToNthShot = (k: string): number => {
       const wo = towerWorld(k);
-      const s = place(wo, SPIRE, WX + 1, WY);
+      const s = place(wo, SPIRE, BUILD_TX, BUILD_TY);
       dummy(wo, WX + 2, WY, 1e9); // shot *count* is the observable here, not a damage delta
       // A freshly built tower starts at `cooldown: 0` and fires on tick 1 for
       // free, which costs both classes exactly one tick and hides the gap.
@@ -518,7 +516,7 @@ describe('c009: every class tower passive measurably changes a built tower', () 
     // only boosts a poison whose `source` resolves to a real tower key, so a
     // spore that landed no stack would make this row vacuously "equal".
     const w = towerWorld('plaguebringer');
-    const s = place(w, SPORE, WX + 1, WY);
+    const s = place(w, SPORE, BUILD_TX, BUILD_TY);
     const e = dummy(w, WX + 2, WY);
     fireOnce(w, s);
     expect(e.dots.filter((d) => d.type === 'poison').length).toBeGreaterThan(0);
@@ -567,7 +565,7 @@ describe('c009: every class tower passive measurably changes a built tower', () 
 
     const hitAt = (k: string): number => {
       const w = towerWorld(k);
-      const s = place(w, SPIRE, WX + 1, WY);
+      const s = place(w, SPIRE, BUILD_TX, BUILD_TY);
       const e = dummy(w, WX + 1.5 + gap, WY + 0.5);
       const before = e.hp;
       fireOnce(w, s);
@@ -603,8 +601,8 @@ describe('c009: every class tower passive measurably changes a built tower', () 
     // as "both dead" rather than "both inverted".
     const w = towerWorld('bloodlord');
     const ctl = towerWorld(CONTROL);
-    const s = place(w, SPIRE, WX + 1, WY);
-    const cs = place(ctl, SPIRE, WX + 1, WY);
+    const s = place(w, SPIRE, BUILD_TX, BUILD_TY);
+    const cs = place(ctl, SPIRE, BUILD_TX, BUILD_TY);
     expect(towerDamage(w, s, 100)).toBeGreaterThan(towerDamage(ctl, cs, 100));
     expect(s.maxHp).toBeLessThan(cs.maxHp);
   });
@@ -624,7 +622,7 @@ describe('c009: every class tower passive measurably changes a built tower', () 
 
     const struck = (k: string): number => {
       const w = towerWorld(k);
-      const s = place(w, SPORE, WX + 1, WY);
+      const s = place(w, SPORE, BUILD_TX, BUILD_TY);
       const a = dummy(w, WX + 2, WY);
       const b = dummy(w, WX + 2 + gap, WY);
       const before = [a.hp, b.hp];
@@ -654,7 +652,7 @@ describe('c009: every class tower passive measurably changes a built tower', () 
     const ctl = towerWorld(CONTROL);
     const inner = effectiveTowerRange(ctl, ctl.content.towerByKey.get(SPIRE)!);
     const gap = (inner + effectiveTowerRange(w, spireDef)) / 2;
-    const s = place(w, SPIRE, WX + 1, WY);
+    const s = place(w, SPIRE, BUILD_TX, BUILD_TY);
     const e = dummy(w, WX + 1.5 + gap, WY + 0.5);
     const before = e.hp;
     fireOnce(w, s);
@@ -694,7 +692,7 @@ describe('c009: the four conditional rows apply only under their condition', () 
   it('Necromancer *Wounded Fury* does nothing to a spire at full HP', () => {
     const dmg = (k: string): number => {
       const w = towerWorld(k);
-      return towerDamage(w, place(w, SPIRE, WX + 1, WY), 100);
+      return towerDamage(w, place(w, SPIRE, BUILD_TX, BUILD_TY), 100);
     };
     expect(dmg('necromancer')).toBe(dmg(CONTROL));
   });
@@ -714,7 +712,7 @@ describe('c009: the four conditional rows apply only under their condition', () 
     const CENTRE_Y = WY + 0.5;
     const bystanderSplash = (classKey: string, primaryHp: number): number => {
       const w = towerWorld(classKey);
-      const s = place(w, SPIRE, WX + 1, WY);
+      const s = place(w, SPIRE, BUILD_TX, BUILD_TY);
       const reach = effectiveTowerRange(w, w.content.towerByKey.get(SPIRE)!);
       const blast = w.content.damageTypeByKey.get('electric')!.radius!;
       const primary = dummy(w, CENTRE_X + reach - 0.2, CENTRE_Y, primaryHp);
@@ -750,7 +748,7 @@ describe('c009: the four conditional rows apply only under their condition', () 
         expect(classTowerBonus(w), `${k}'s bundle survived into ${phase}`).toBeNull();
       }
       const w = towerWorld('necromancer');
-      const s = place(w, SPIRE, WX + 1, WY);
+      const s = place(w, SPIRE, BUILD_TX, BUILD_TY);
       s.hp = s.maxHp * 0.5;
       const act1 = towerDamage(w, s, 100);
       w.phase = phase;

@@ -97,12 +97,11 @@
  * **One use of one read has no probe, and it is named rather than left
  * silent** — `DEVIATIONS`, `c019`'s convention.
  *
- * **The board is probed, not pinned.** `c014` names five liveness files that
- * each hardcode `WX/WY = 10,10` and a build tile at `11,10`, and will break
- * together on the terrain epic. This file asks `grid.buildable` /
- * `wouldBlockPath` for its tile instead. That is not yet c014's deliverable —
- * c014 wants one lane-owned `tests/class-board.ts` all of them import — so
- * this file is listed there as a sixth private probe to fold in.
+ * **The board is probed, not pinned.** This file always asked
+ * `grid.buildable` / `wouldBlockPath` for its tile rather than hardcoding one,
+ * but it asked *privately*. `c014` has since made that probe shared: the tile
+ * now comes from `tests/class-board.ts`, the module the five liveness files
+ * import too, so the terrain epic moves all six together.
  */
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -128,6 +127,8 @@ import { updateWieldedAttacks, wieldedAoeFor, wieldedRangeFor, wieldedSplashFor 
 import type { Enemy, Structure } from '../src/sim/types';
 import { World } from '../src/sim/world';
 import { cfg } from './helpers';
+import { BUILD_TX, BUILD_TY } from './class-board';
+import { GRID_H, GRID_W } from '../src/sim/grid';
 
 const content = loadContent();
 
@@ -188,16 +189,6 @@ function animist(c: Content, o: WorldOpts = {}): World {
   return w;
 }
 
-/** A buildable tile, probed rather than pinned (see the header on c014). */
-function buildSpot(w: World): { tx: number; ty: number } {
-  for (let ty = 4; ty < 24; ty++) {
-    for (let tx = 4; tx < 24; tx++) {
-      if (w.grid.buildable(tx, ty) && !w.grid.wouldBlockPath([[tx, ty]])) return { tx, ty };
-    }
-  }
-  throw new Error('harness found no buildable tile');
-}
-
 interface Placed {
   s: Structure;
   /** Tile center — every probe's origin. */
@@ -209,7 +200,20 @@ interface Placed {
 
 /** Builds `key` on a probed tile and leaves the Warden standing on it. */
 function placeProbed(w: World, key: string): Placed {
-  const spot = buildSpot(w);
+  // c014's shared probe, not a private copy: the same tile the five §4
+  // liveness files build on, so the terrain epic relocates all six at once.
+  //
+  // **This moved this file's baseline, and code review is why it is written
+  // down.** The private probe it replaced scanned from `(4,4)` and, on the
+  // shipped board, returned `4,4`; the shared board puts every row here at
+  // `11,10` instead — seven tiles east and six south. Nothing went red, but
+  // eastward headroom before the Core column at `x = 25` fell from ~31 tiles
+  // to roughly 13, and the rows below measure ranges and splash rings outward
+  // from this point (mortar range 10, `p.x + range * 0.95 + authored * RING`).
+  // The margin is still real — worst case lands near `x = 23.7` — but it is
+  // no longer so large that it can be left unstated, so `boardBound` below
+  // asserts it per placement instead of trusting it.
+  const spot = { tx: BUILD_TX, ty: BUILD_TY };
   w.warden.x = spot.tx + 0.5;
   w.warden.y = spot.ty + 0.5;
   const def = w.content.towerByKey.get(key)!;
@@ -234,6 +238,15 @@ function upgradeTo(w: World, p: Placed, tier: number): void {
 
 /** An immovable, unarmoured bag deep enough that no probe here can kill it (c009's `dummy`, same reasoning). */
 function dummy(w: World, x: number, y: number, radius?: number): Enemy {
+  // c014/code review: this file has no `GRID_W` guard of its own (unlike
+  // `class-line-bonus`'s `expect(x).toBeLessThan(GRID_W - 1)`), and moving to
+  // the shared board cut its eastward headroom. A ⚖ range retune that pushed a
+  // probe off the board or onto the Core used to read as "the ring measured
+  // nothing"; now it names itself.
+  expect(x, `harness budget: a probe at x=${x} ran off the board`).toBeLessThan(GRID_W - 1);
+  expect(x, `harness budget: a probe at x=${x} ran off the board`).toBeGreaterThan(0);
+  expect(y, `harness budget: a probe at y=${y} ran off the board`).toBeLessThan(GRID_H - 1);
+  expect(y, `harness budget: a probe at y=${y} ran off the board`).toBeGreaterThan(0);
   // `w.content`, not the module `content`: a no-grove world must spawn from its own Content.
   const e = spawnEnemy(w, w.content.enemies.enemies[0].key, x, y)!;
   e.hp = 1e7;

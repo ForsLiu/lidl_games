@@ -442,7 +442,7 @@ session 2 (c005 was the last actionable one left), appending `c006`-`c010`.
       logged for the main lane - refs: SPEC-FINAL §4.2 (Animist), §2 (Area row),
       c001, c009.
 
-- [ ] (c014) [polish] the four §4 liveness files **share a hardcoded board
+- [x] (c014) [polish] **DONE 2026-09-05.** the four §4 liveness files **share a hardcoded board
       assumption and will all break together** on the terrain epic. `c005`,
       `c006`, `c009` and `c011`'s file each pin `WX/WY = 10,10`, a build tile at
       `11,10` and a probe loop against `cfg()`'s fixed seed; `BACKLOG-TERRAIN.md`
@@ -462,7 +462,7 @@ session 2 (c005 was the last actionable one left), appending `c006`-`c010`.
       `grid.buildable`/`wouldBlockPath` instead of pinning one, so it is
       terrain-proof today but carries a *private* copy of the probe this item
       exists to share - refs: BACKLOG-TERRAIN.md, c005, c006, c009, c013, c016.
-- [ ] (c020) [bug] `active2CdrFactor`'s **general `cdr` stat term is unpinned
+- [x] (c020) [bug] **DONE 2026-09-05.** `active2CdrFactor`'s **general `cdr` stat term is unpinned
       anywhere in the suite.** Found by QA on `c019`: mutating
       `src/sim/classes.ts:206` from
       `Math.max(0.05, 1 - w.derived.cdr - active2CdrBonus(w))` to
@@ -658,6 +658,91 @@ session 2 (c005 was the last actionable one left), appending `c006`-`c010`.
       §3 (Poison), owner feedback `feature-poison-barrel-mechanic`.
 
 ## Log
+
+### c014 (2026-09-05) — six copies of one board, and the anchors that had to be rewritten twice
+
+- **Shape**: new `tests/class-board.ts` probes a Warden spot and a build tile
+  with `checkBuild` (the side-effect-free half of `buildTower`,
+  `tilePastBaseRange`'s convention) and exports `WX`/`WY`/`BUILD_TX`/`BUILD_TY`.
+  Seven files import it: c005/c006/c009/c011/c016's five, c013's
+  `class-wide-grove-reach` (whose *private* probe folded in), and
+  `class-deeper-draw` — an eighth pinned file nobody had noticed. No `/src` or
+  `/data` byte moved (`git diff -- src data` empty). 457 tests green.
+- **The scan starts at `10,10` on purpose, and that is a baseline, not a
+  hardcode.** The origin is the first candidate the ring scan tries and is
+  discarded like any other if it fails. Starting it where the files stand today
+  keeps every window and margin they calibrated (Core distance, board edges,
+  chain-line room) where it was — CLAUDE.md's rule that a refactor must not
+  move a baseline it is not measuring. `class-board.test.ts` shifts the origin
+  to prove the geometry follows it.
+- **Code review found the module terrain-blind where it mattered most, and it
+  was right.** The first draft's `footprintClear` rejected only border and Core
+  tiles — static geometry — and gave a real `checkBuild` to exactly one tile.
+  A terrain map leaving `11,10` open and turning `14..23,10` to rock would have
+  passed it and reddened `class-passive-liveness` anyway, because
+  `tilePastBaseRange` scans `dx = 4..13` for an `'out_of_range'` answer and
+  `checkBuild` tests `grid.buildable` *first*, so a rock tile answers
+  `'occupied'` and the scan finds nothing. The whole footprint is now asked of
+  the live `Grid`. Rehearsed: a rock patch over `8..12,8..12` relocates the
+  board to `14,12` and all seven files stay green; a north band with no room
+  left throws one named harness error instead of six confusing ones.
+- **The anti-re-pin anchors were rewritten twice.** The first draft asserted
+  `^const W[XY]` and "no literal tile pair in a build call"; review ran six
+  realistic re-pin shapes past them and **five got through** (indented `const`,
+  `const PARK = {tx,ty}`, `let WX2`, a prettier-wrapped multi-line build call,
+  a renamed `const TX = 11`, and `tower(w, WX+1, WY)` without spaces). A
+  negative anchored on two exact names cannot survive a rename. The rule is now
+  stated at the two *sinks* a rename cannot escape — every `w.warden.x/y` write
+  must be the imported symbol, every build call must end in the shared tile —
+  with the literal-pin negative kept only as a second opinion. **All six shapes
+  are now caught**, re-measured the same way.
+  - The second rewrite was the extractor: `(?:place|tower)\(` matched
+    `replace(`, and `[\s\S]{0,200}?\)` stopped at the first inner paren, so
+    `buildTower(w, c.towerByKey.get(SPIRE)!.id, BUILD_TX, BUILD_TY)` parsed as
+    the argument list `w, c.towerByKey.get(SPIRE`. An anchor that mis-parses
+    correct code gets loosened until it passes on anything, so it walks parens
+    now.
+- **The importer list is swept, not written.** `IMPORTERS` was a hand list plus
+  one hand-named exception, which is why `class-deeper-draw` was invisible to
+  the very row claiming the exception "cannot quietly become
+  six-plus-one-forgotten". Every `tests/class-*.test.ts` on disk is now subject
+  to the rule and escapes only via an `EXCEPTIONS` entry carrying a reason.
+- **Two files are deliberately not converted, both measured rather than
+  asserted in prose.**
+  - `class-kit-whiff` (c007) — its Ice Wall row exists to state the same whiff
+    policy as `tests/p6d-nine-classes.test.ts` and pins the agreement with
+    `expect([AX, AY]).toEqual([12, 10])` against p6d's own hardcoded aim point.
+    Converting one side alone would leave the two files agreeing about nothing.
+    **p6d is outside this lane's Scope**, so the pair moves together from the
+    main lane or not at all. `class-board.test.ts` asserts p6d still pins that
+    aim point, so the exception lifts itself the day it stops being true.
+  - `class-active2-cdr` (c019) — it derives its centre as
+    `Math.floor(GRID_W / 2)` and places no tower, so it has no build tile and
+    no board to share. The literal-pin rule is narrowed to numeric literals
+    precisely so this shape reads as the answer rather than the violation.
+- **`class-wide-grove-reach`'s own baseline moved, and review caught that this
+  file invoked the don't-move-baselines rule while doing it.** Its deleted
+  private probe scanned from `(4,4)` and returned `4,4`; the shared board puts
+  it at `11,10`, cutting eastward headroom before the Core column from ~31
+  tiles to ~13 (worst-case probe lands near `x = 23.7`). Green, but no longer
+  a margin that can go unstated: named in `placeProbed`, and its `dummy` helper
+  now asserts board bounds per placement the way `class-line-bonus` already did.
+- **`EAST_REACH` is one tile from a collision, and the file says so.** 14 covers
+  the deepest offset any importer uses (`tilePastBaseRange`'s `dx < 14`), and it
+  is *also* the largest value compatible with the answer staying `10,10`: with
+  `GRID_W` 36 and `CORE_X` 25, a reach of 15 puts `10 + 15` on the Core column
+  and relocates the board. A row scans the importer sources for their real
+  deepest `WX + N` and fails naming the collision, rather than letting a future
+  file silently move six suites.
+
+### For the main lane (out of this lane's Scope)
+
+- **`class-kit-whiff` + `p6d-nine-classes` de-hardcode as a pair.** The two
+  files agree on the Ice Wall whiff policy through literal `10,10`/`12,10`
+  coordinates. Both need to move to `tests/class-board.ts` in one change;
+  `tests/p6d-nine-classes.test.ts` is not editable from `lane/content`. Until
+  then `class-board.test.ts` holds the exception with an assertion, not a
+  comment - refs: c007, c014.
 
 ### c017 (2026-09-04) — the pierce cap that could not be raised
 

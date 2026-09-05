@@ -5,6 +5,37 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-05 lane `content` session: `c020` and `c014` closed.** Both
+  test-only; no `/src` or `/data` byte moved in either.
+  - `c020` — `active2CdrFactor`'s **general `cdr` term** had no coverage
+    anywhere: QA's mutation (`Math.max(0.05, 1 - active2CdrBonus(w))`) left 659
+    tests green, `tests/class-active2-cdr.test.ts` included, because that file
+    asserts `derived.cdr === 0` as the precondition that keeps it measuring one
+    lever. A new `describe` drives the stat through `Stats` (never `/data`) and
+    proves, per class, that it cuts the Active2 gate by its own fraction, lands
+    strictly more casts, and **stacks with** the §6.3 card rather than replacing
+    it. Named deviation: the 0.05 floor is unreachable from live `/data`
+    (`cdrCap` 0.4 + card 0.5 = 0.9 against 0.95), so the floor row drives
+    `derived.cdr` past the cap by hand and a second row computes the margin from
+    both `/data` halves. Now **37 failing tests** under that mutation.
+  - `c014` — six copies of `WX/WY = 10,10` + a build tile at `11,10` replaced by
+    one probed `tests/class-board.ts`. Seven files import it (the five c014
+    named, c013's folded-in private probe, and `class-deeper-draw`, an eighth
+    pinned file the hand-maintained list could not see). Code review returned
+    REQUEST-CHANGES with three Majors, all fixed and re-measured: the footprint
+    check now asks the live `Grid` instead of static geometry (a rock patch over
+    the shipped spot relocates the board to `14,12` with all seven green); the
+    anti-re-pin anchors moved to the two sinks a rename cannot escape and now
+    catch **6 of 6** realistic bypass shapes, up from 1 of 6; and the importer
+    set is swept from disk with a reasoned `EXCEPTIONS` map instead of listed.
+    `class-kit-whiff` stays pinned by necessity — its Ice Wall row agrees with
+    the out-of-Scope `tests/p6d-nine-classes.test.ts` on a literal aim point —
+    and that pairing is logged in BACKLOG-CONTENT.md for the main lane.
+  - Environment note: `npm run test:fast` has **8 pre-existing failing files in
+    this container** (4 Playwright missing-binary, 3 tsx extensionless-worker
+    resolution, 1 process-tree kill). All fail identically on a clean
+    `git stash` at `6d97871`; none is caused by this session's work.
+
 - **2026-09-03 session: `fb052` closed — Sleeve Sword's Circle Slash now
   stays a real charge-then-release ability (instant-max charge, not an
   instant-fire shortcut), fixing a silent Dash-Slash-combo break, and

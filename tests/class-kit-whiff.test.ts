@@ -89,7 +89,19 @@ import { cfg } from './helpers';
 
 const content = loadContent();
 
-/** Warden's parking spot: well inside the board, so an aimed dash/wall has room to resolve. */
+/**
+ * Warden's parking spot: well inside the board, so an aimed dash/wall has room
+ * to resolve.
+ *
+ * **The one file `c014` could not move onto `tests/class-board.ts`'s shared
+ * probe**, and deliberately so. The Ice Wall row below exists to state the same
+ * whiff policy as `tests/p6d-nine-classes.test.ts`, and pins the agreement with
+ * `expect([AX, AY]).toEqual([12, 10])` against p6d's own hardcoded aim point.
+ * De-hardcoding this side alone would leave the two files agreeing about
+ * nothing; p6d is outside the content lane's Scope, so the pair moves together
+ * from the main lane or not at all. `tests/class-board.test.ts` asserts this
+ * exception so it cannot quietly become a forgotten seventh copy.
+ */
 const WX = 10;
 const WY = 10;
 /** Every aimed cast points here — 3 tiles east, inside every authored radius in the game. */

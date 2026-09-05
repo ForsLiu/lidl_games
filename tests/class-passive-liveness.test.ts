@@ -100,12 +100,10 @@ import { upgradeCost } from '../src/sim/upgrades';
 import type { ClassSummon, Enemy, TickInput } from '../src/sim/types';
 import { World } from '../src/sim/world';
 import { cfg } from './helpers';
+import { BUILD_TX, BUILD_TY, WX, WY } from './class-board';
 
 const content = loadContent();
 
-/** Warden's parking spot for every case — well inside the board, room in every direction. */
-const WX = 10;
-const WY = 10;
 
 const DT = 1 / 60;
 
@@ -185,7 +183,7 @@ function chargeFor(w: World, seconds: number, aimX: number, aimY: number): void 
 function animistWorld(c: Content): { w: World; spirit: ClassSummon; totem: ClassSummon } {
   const w = passiveWorld('animist', c);
   // Manifest reads a nearby *attacking* tower and clones its profile.
-  expect(buildTower(w, c.towerByKey.get(SPIRE)!.id, WX + 1, WY).ok).toBe(true);
+  expect(buildTower(w, c.towerByKey.get(SPIRE)!.id, BUILD_TX, BUILD_TY).ok).toBe(true);
   expect(useClassActive(w)).toBe(true); // Manifest
   expect(useClassActive2(w)).toBe(true); // Recall Totem, centred on the Warden
   const spirit = w.classSummons.find((s) => s.kind === 'animist_spirit');
@@ -257,7 +255,7 @@ const signal = {
       for (const def of c.towers.towers) {
         const w = passiveWorld(classKey, c);
         const before = w.gold;
-        if (!buildTower(w, def.id, WX + 1, WY).ok) continue;
+        if (!buildTower(w, def.id, BUILD_TX, BUILD_TY).ok) continue;
         spent += before - w.gold;
       }
       expect(spent, 'harness built no tower at all').toBeGreaterThan(0);
@@ -787,7 +785,7 @@ describe('c006 — the three prose-only passive rows', () => {
       ).toEqual([]);
       // And the live cap really is the authored one, +0.
       const w = passiveWorld('animist');
-      expect(buildTower(w, content.towerByKey.get(SPIRE)!.id, WX + 1, WY).ok).toBe(true);
+      expect(buildTower(w, content.towerByKey.get(SPIRE)!.id, BUILD_TX, BUILD_TY).ok).toBe(true);
       const cap = cls(w).active1.summonCap!;
       for (let i = 0; i < cap + 3; i++) {
         w.warden.active1Cooldown = 0;
