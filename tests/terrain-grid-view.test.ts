@@ -51,7 +51,7 @@ import {
   terrainOverlay,
   TerrainKind,
 } from '../src/sim/terrain';
-import { applyRunTerrain } from '../src/sim/world';
+import { applyRunTerrain, wardenSpawnTile } from '../src/sim/world';
 
 const cfg = loadTerrain();
 
@@ -73,6 +73,8 @@ describe('gridTerrain (fb065c)', () => {
     let maxSeed = 0;
     let identical = 0;
     let fellBack = 0;
+    let unexplained = 0;
+    const warden = wardenSpawnTile();
     const seeds = 100;
     for (let seed = 1; seed <= seeds; seed++) {
       const g = new Grid();
@@ -83,7 +85,22 @@ describe('gridTerrain (fb065c)', () => {
       const view = gridTerrain(g);
       const map = generateTerrain(seed, cfg, GATES);
       let diff = 0;
-      for (let i = 0; i < view.kind.length; i++) if (view.kind[i] !== map.kind[i]) diff++;
+      for (let i = 0; i < view.kind.length; i++) {
+        if (view.kind[i] === map.kind[i]) continue;
+        diff++;
+        // Every drifted tile is accounted for by a named transformation, so the
+        // ledger cannot quietly start measuring something else. `applyRunTerrain`
+        // retries at seed+1 when the Core is unreachable, and against a
+        // `generateTerrain(seed)` baseline a retry would read as a few hundred
+        // tiles of "override drift" with this comment misexplaining it. No seed
+        // in 1..100 retries today; this line is what notices when one does.
+        const x = i % GRID_W;
+        const y = (i / GRID_W) | 0;
+        const inGate = GATES.some((gate) => gate.tx === x && gate.ty === y);
+        const inCore = x >= CORE_X && x < CORE_X + CORE_W && y >= CORE_Y && y < CORE_Y + CORE_H;
+        const inWarden = Math.abs(x - warden.tx) <= 1 && Math.abs(y - warden.ty) <= 1;
+        if (!inGate && !inCore && !inWarden) unexplained++;
+      }
       sum += diff;
       if (diff === 0) identical++;
       if (diff > max) {
@@ -96,11 +113,19 @@ describe('gridTerrain (fb065c)', () => {
       identical: `${identical}/${seeds}`,
       mean: (sum / seeds).toFixed(2),
       worst: `${max} @${maxSeed}`,
+      driftedTiles: sum,
+      unexplained,
     }).toEqual({
       fellBack: 0,
       identical: '84/100',
       mean: '0.66',
       worst: '13 @40',
+      // 66 tiles across the sample, every one of them inside a spawn gate, the
+      // Core footprint or the Warden's 3x3 clearing. Seed 40's worst-case 13 is
+      // 9 Warden-block tiles and 4 Core tiles, and no gate tile drifts at all
+      // (the generator already writes the three gates as normal).
+      driftedTiles: 66,
+      unexplained: 0,
     });
   });
 
@@ -142,13 +167,31 @@ describe('gridTerrain (fb065c)', () => {
     const anchors = legalCoreAnchors(gridTerrain(g), cfg);
     const target = suggestCoreAnchor(gridTerrain(g), cfg, anchors) as number;
     g.placeCore(target % GRID_W, (target / GRID_W) | 0);
-    // `world.ts`'s own Fourth Gate write, verbatim in shape.
+    // The Fourth Gate write's *shape*, with its ordering deliberately inverted.
+    // `world.ts:576-585` opens the fourth gate **before** `applyRunTerrain`, so
+    // in a real run `syncTerrain` covers that tile and `terrainKind` reads
+    // normal there. Writing it afterwards is the hostile case — a state
+    // `world.ts` never produces today and nothing prevents — and it is the one
+    // that shows what `gridTerrain` can and cannot promise.
     const south = { tx: 12, ty: 19 };
     g.tile[g.idx(south.tx, south.ty)] = TileType.Gate;
     g.markDirty();
     g.refresh();
 
     const view = gridTerrain(g);
+
+    // **What the adapter does not promise, pinned rather than rationalised.**
+    // `syncTerrain` is private and `refresh` does not call it, so the write
+    // above updated `blocked` and left `terrainKind` alone: the sim now walks
+    // through (12,19) while the dump draws rock on it. The view is faithful to
+    // the Grid — it reports exactly what `terrainKind` holds — and the Grid is
+    // the thing that is stale. Filed as its own item; recorded here so a reader
+    // of a dump taken in this state knows which of the two to believe.
+    const south_i = g.idx(south.tx, south.ty);
+    expect(g.tile[south_i]).toBe(TileType.Gate);
+    expect(g.blocked[south_i]).toBe(0);
+    expect(view.kind[south_i]).toBe(TerrainKind.Rock);
+
     const dump = describeTerrain(view, cfg);
     const parsed = parseTerrainDump(dump);
     expect(Array.from(parsed.kind)).toEqual(Array.from(view.kind));

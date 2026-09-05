@@ -899,11 +899,35 @@ improvement.
   dump still says `source=generator`, so the two artefacts stay distinguishable
   at a glance.
 
-  **Out-of-scope needs, for the merge.** None new. `gridTerrain` reads
+  **Out-of-scope needs, for the merge.** None. `gridTerrain` reads
   `Grid.terrainKind`, which is already public, and the test imports
   `applyRunTerrain` from `src/sim/world.ts` read-only. fb064e's renderer and
   fb064f's Tuner page are the callers that would most want this adapter, and
   both remain out of this lane.
+
+  **Two gaps the review found that ARE this lane's, filed rather than waved
+  through.** The first draft of this entry said "none new", which was wrong:
+  1. **`terrainKind` goes stale after a post-terrain `tile[]` write.**
+     `syncTerrain` is private and `refresh` does not call it, so a raw write
+     after the last `applyTerrain`/`placeCore` updates `blocked` and leaves
+     `terrainKind` alone. Measured on this file's own fixture: (12, 19) reads
+     `tile=Gate`, `blocked=0` — the sim walks it — while `terrainKind` says
+     `Rock`, so the dump draws `#` on a walkable gate. It is the border row,
+     which `syncTerrain`'s override loop skips, and it is non-normal on 200/200
+     generated maps, so this is the ordinary case for such a write. A real run
+     does not reach it (`world.ts` opens the Fourth Gate *before*
+     `applyRunTerrain`) but nothing enforces that ordering. Pinned by a test
+     here; the fix is `grid.ts` work, filed as fb065e.
+  2. **`describeTerrain` takes no gate list**, so its `gates` line and every
+     gate-derived band (`gateReach`, `gateDetour`, `corridors`,
+     `gatesConnected`) are computed over the base three even on a Fourth Gate
+     run — the exact modifier this item's own fixture imitates. Filed as fb065f.
+
+  **A claim corrected in the same round.** This entry and the commit message
+  both called the test's tile write "`world.ts`'s own Fourth Gate write,
+  verbatim in shape". The shape is right and the *ordering* is deliberately
+  inverted — `world.ts` writes the gate before terrain, the test writes it
+  after — which is what makes it the hostile case. The test now says so.
 
 - (2026-09-05, fb065b, second review round) **Three things this file claimed
   and had not measured, all caught by the re-review and all now asserted rather

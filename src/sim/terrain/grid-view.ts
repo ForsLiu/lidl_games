@@ -50,11 +50,27 @@ import type { TerrainGrid } from './types';
 /**
  * The Grid's *effective* terrain as a `TerrainGrid`, copied.
  *
- * "Effective" is the word doing work: `terrainKind` is the raw overlay with the
- * current gate and Core footprints punched back to normal, which is what the
- * sim's walkability and build rules actually run on, and therefore what a repro
- * needs. `Grid` keeps the pre-override copy privately for `placeCore`'s undo;
- * that one is not what a bug was seen on.
+ * "Effective" means the raw overlay with the gate and Core footprints punched
+ * back to normal — `Grid` keeps the pre-override copy privately for
+ * `placeCore`'s undo, and that one is not what a bug was seen on.
+ *
+ * **Effective as of the last `applyTerrain` or `placeCore`, which is not the
+ * same as "what the sim runs on".** `syncTerrain` is private and neither
+ * `markDirty` nor `refresh` calls it, so a raw `tile[]` write *after* those two
+ * updates `blocked` (through `staticBlocked`) and leaves `terrainKind` alone.
+ * Measured on `tests/terrain-grid-view.test.ts`'s own fixture: after writing a
+ * Gate at (12, 19) the tile reads `tile=Gate`, `blocked=0` — the sim walks
+ * through it — while `terrainKind` still says `Rock`, so a dump draws `#` on a
+ * walkable gate. (12, 19) is on the border row, which `syncTerrain`'s override
+ * loop skips, and it is non-normal on 200/200 generated maps, so this is the
+ * ordinary case for such a write rather than an edge one.
+ *
+ * A real run does not hit it — `world.ts` opens the Fourth Gate *before*
+ * `applyRunTerrain`, so `syncTerrain` covers that tile — but nothing enforces
+ * that ordering, and this adapter exists precisely to make a repro trustworthy.
+ * The divergence is pinned by a test rather than left to be rediscovered, and
+ * teaching `Grid` to re-sync after a post-terrain tile write is `grid.ts` work
+ * filed as its own backlog item.
  */
 export function gridTerrain(grid: Grid): TerrainGrid {
   const n = grid.w * grid.h;
