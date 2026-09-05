@@ -637,7 +637,7 @@ improvement.
       for — `setOcc(3, 1.5, 7)` occupies and blocks tile (21, 1) and re-routes
       the flow field, which is strictly worse than the read this item started
       from, and the exposure is call-site-owned rather than absent.
-- [ ] (fb064z) [test] generation cost is unmeasured, and it is about to be on
+- [x] (fb064z) [test] generation cost is unmeasured, and it is about to be on
       the critical path: once fb064c wires the generator, every run pays
       `generateTerrain` at start, and a retry-taking seed pays it up to
       `maxAttempts` times over. Nothing pins that cost, so a future generator
@@ -651,6 +651,29 @@ improvement.
       budget pinned with its headroom recorded — host-normalised the way
       `q13-perf-ratio` is, not a raw millisecond count, so it does not flake on
       a loaded runner — refs: HANDOFF §7, G12, fb064r.
+      **Shipped in two layers, and the instrument had to be rebuilt three times
+      to be worth having.** Layer 1 is the attempts ledger — deterministic, so
+      it is pinned tightly (2 retry-taking seeds in 1500, both named, both at
+      2 attempts) and it is the layer that catches a retune: `density.jitter: 1`
+      takes it from 2 to 370. Layer 2 is the host-normalised cost, and three
+      review rounds each found the normalisation measuring the wrong thing:
+      one up-front best-of-3 calibration (the pattern `tools/perf-ratio.ts`
+      records as measured-and-rejected — p95 red 4/4 beside five sibling
+      suites); then `min_r(t/per_r)`, which is `t_min/per_max` and deflated the
+      mean 4.7x under 12-way contention, hollowing out the ceiling on exactly
+      the runner the file is for; then a 5.8 ms calibration window against a
+      1.2 ms generation, whose minimum inflates faster than the numerator's.
+      Shipped as per-seed minimum in *raw* milliseconds over the minimum `per`
+      across every chunk of every round, at a chunk sized to one generation.
+      **What is recorded rather than asserted, each with the measurement that
+      justifies it:** p99, the argmax's identity, and the upper end of the
+      retry ratio — all are per-seed tail statistics that no normalisation
+      rescues, and each was tried as an assertion and reproduced red under
+      contention first. QA **PASS** over 24 runs to 48-way contention, 0 red,
+      and it measured the two blind spots the ceiling leaves: a 4.1x uniform
+      cost regression passes and a 5.7x one reddens (reproduced here), and
+      `maxAttempts` — the file's own motivating number — was invisible to it
+      until a one-line pin was added. Both are recorded in the file.
 - [ ] (fb065a) [feat] three of the five numeric bands have literally zero
       headroom (fb064r): `walkableFrac` and `buildableNormalFrac` have domain
       witnesses sitting *exactly* on their floors and `maxGateDetour` has two
@@ -710,6 +733,28 @@ improvement.
       refs: fb064w QA bug 4, `tests/terrain-generation.test.ts:706`, G12.
 
 ## Log
+
+- (2026-09-05, fb064z) **Two things this item learned the hard way, both
+  cheaper to read than to rediscover.**
+  - **Never demonstrate a `/data` retune by editing `data/terrain.json` in
+    place.** Two runs of the cost ledger went red mid-session in a way that
+    could not be reproduced in 25 subsequent runs; review found the cause by
+    noticing the file's mtime was newer than its last commit while its content
+    matched HEAD — the `jitter: 1` sensitivity demonstration had been run by
+    editing the real file, and a concurrent test run caught it mid-window. It
+    reddens exactly the two retry-dependent tests, which is exactly what was
+    seen. Demonstrate on a `parseTerrain` copy instead; every other file in the
+    lane already does.
+  - **The acceptance's "worst seed named in the test" is shipped as a recorded
+    constant and not an assertion**, after three rounds of measurement showed
+    the argmax is host-local and load-sensitive. That deviation belongs in
+    QUESTIONS.md, which is outside this lane's Scope — filed here for the merge
+    to move.
+  - Three files now regenerate the same 12,000 maps (`terrain-band-ledger`
+    ~26 s, `terrain-headroom` ~25 s, `terrain-cost` ~7 s over a 1500 subset):
+    about 59 s of fast-tier CPU on one sample. Each is individually inside the
+    60 s bar, so no exclusion is warranted, but a shared sweep is the obvious
+    saving and is cross-item work for the merge.
 
 - (2026-09-05, fb064y) **The out-of-scope half of `idx`, named here because
   its exemption points at this Log.** `Grid.idx` stays unguarded (see the
