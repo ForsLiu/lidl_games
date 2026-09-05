@@ -3572,7 +3572,7 @@ not already expose it) logs that need below instead of reaching into
       `q15`/`b028`/`q41`/`q45`, all tools/CLI-subprocess suites in the
       documented pre-existing flake classes.
 
-- [ ] (fb148) [bug] filed 2026-09-05 by qa-playtester during fb112
+- [x] (fb148) [bug] filed 2026-09-05 by qa-playtester during fb112
       verification — Dash Slash's "Dash 5 tiles" ignores Swordsman Shoes'
       documented doubling; the real dash and hit line are 10. Measured twice,
       identical: with `husk` (r=0, armor 0) aimed +X, the furthest enemy struck
@@ -3597,6 +3597,81 @@ not already expose it) logs that need below instead of reaching into
       fb112's shape — a sim probe binary-searching the furthest struck enemy
       to establish 10 vs 5 independently, then the string assertion — refs:
       fb112, fb108, `fireDashSlash` (`src/sim/classes.ts`).
+      **CORRECTION, measured 2026-09-05 before implementing (CLAUDE.md's
+      measurement rules: a deferred number is re-measured, not inherited):
+      this item's own numbers are wrong.** It quotes `fireDashSlash` as
+      `dashRange = (eff.dashRange ?? 0) * (shoes ? 2 : 1)`. The real line is
+      `dashDistance(currentMoveSpeed(w), duration) * (shoes ? 2 : 1)` with
+      `duration = classDashDuration(eff.dashRange ?? 0,
+      classBaseMoveSpeed(cls))` — fb053's move-speed scaling, which the quote
+      drops entirely. Binary-searched out of the live engine, twice, and
+      independently re-measured by qa-playtester with its own probe: the
+      furthest struck enemy is **5.0000 unequipped, 20.0000 with
+      `swordsman_shoes`** (not 10), and 7.5000 with `normal_shoes` — the
+      control that isolates the two multipliers, since `swordsman_shoes`
+      carries `moveSpeedPct: 1` and so doubles the dash through the move-speed
+      term as well as through the explicit one. The mid-charge figures are half
+      right: "9.0000 mid-charge" is correct, "14.0000 with both" is really
+      **24.0000**. A `dashRangeMul` that knew only about the Shoes would have
+      replaced a 100% error with a 50% one, so the fix carries both factors.
+      DONE 2026-09-05: `ClassLiveContext` gains `dashRangeMul` (the move-speed
+      ratio, read by ALL FOUR `dash_*` sentences — `fireQuickstep`,
+      `fireFlameRoad` and `fireCrimsonRush` compute the identical
+      `classDashDuration`/`dashDistance` pair) and `swordsmanShoes` (a boolean
+      read only by `dashSlashSentence`, mirroring the fact that the doubling is
+      `fireDashSlash`'s alone rather than any field's). `hud.ts`'s two
+      live-context sites — byte-identical four-field objects that had already
+      drifted apart in their comments — are collapsed into one builder, now
+      `src/ui/class-live.ts` rather than a `hud.ts` export so a consumer does
+      not drag the whole 2200-line DOM module in. It recomposes
+      `currentMoveSpeed`/`classBaseMoveSpeed`, both module-private to
+      `src/sim/classes.ts` (out of this lane's Scope), from exported parts: the
+      expression reduces exactly, because `dashDistance`'s and
+      `classDashDuration`'s `BASE.dashSpeedMul` cancels, leaving
+      `dashRange * currentMoveSpeed / classBaseMoveSpeed`. That recomposition
+      is the risk this item carries, and it is pinned by a drift guard
+      comparing it against a binary-searched engine measurement, so a change to
+      either sim formula is loud instead of a quietly wrong tooltip.
+      `tests/ui-fb148-dash-range-live.test.ts` (22/22) plus
+      `tests/ui-fb148-charpanel-scroll.test.ts` (2/2). code-reviewer
+      **REQUEST-CHANGES -> fixed**: its Major was that only Swordsman was
+      measured, so reverting any of the other three sentences to a raw read
+      left the file green — precisely the failure fb146 was written for. Added
+      a per-kind leg measuring all four classes off `startDashTravel`'s own
+      endpoint (the one measurement that works for kinds with no hit line), an
+      asymmetry case, and a NaN/Infinity sweep over every class; each of the
+      three sentences now reddens the file when reverted. Its Minors are folded
+      in: the orphaned `characterAbilitiesMarkup` doc block, the file header's
+      now-false "everything else falls back to the authored number" rule,
+      `dashRange` added to `liveOverrides` so the latent generic field list
+      resolves too, and a `dashRange` source rule generalising fb146's
+      `dashWidth` one (every read must sit inside `liveDashRange`) — the fourth
+      defect in this family in these same four sentences deserved the guard.
+      qa-playtester **PASS**, re-deriving the formula from source and
+      re-measuring everything with its own probes: 15/15 across every
+      equipment item singly for Swordsman, 48/48 across all four dash classes x
+      all 12 items, and live tracking of the `swift` boon, Constellation node
+      50, the Time core's `vsSpeedPct` in Act II, Archer's draw penalty and a
+      mid-run `equip_item` swap. Two findings fixed here rather than filed,
+      both costs of this item's own changes: (a) the memo-key fix rebuilt the
+      whole character panel on every charge EDGE, and `.sw-charcard` carries
+      `max-height: 86vh; overflow-y: auto` — measured 6 scroll resets over 1200
+      ticks for a Swordsman, 14 for an Archer, in ordinary play since the panel
+      does not pause the run. The offset is now carried across the rewrite,
+      with its own regression file (jsdom has no layout, so `Element.scrollTop`
+      is given a real backing store there, which is what makes the property
+      observable at all). (b) the new `liveOverrides.dashRange` branch shipped
+      with no pin — it was the only surviving mutant of QA's seven — and now
+      has one, driven through a synthetic kind with no sentence entry. Two more
+      filed rather than fixed: **fb156** (every radius/width in these same
+      sentences ignores the live Area multiplier — the same defect family, on
+      the other number in the sentence this item just edited) and, in the Log,
+      the `swordsman_shoes` `desc` bug, which is `/data` and so main-lane.
+      `npx tsc --noEmit` clean; `npm run sim -- --seed 1 --policy hybrid`
+      byte-identical to a HEAD control clone (`endHash 952d7be8`), as a UI-only
+      change must be; lane surface green; `npm run test:fast` re-run after the QA
+      fixes, 3714 passed / 3 failed, the failures being `q15`/`b028`/`q41`/`q45`, which QA confirmed
+      reproduce identically on a clean clone of HEAD.
 
 - [ ] (fb149) [bug] filed 2026-09-05 by qa-playtester during fb112
       verification — line and area sentences promise their full damage number
@@ -3811,7 +3886,72 @@ not already expose it) logs that need below instead of reaching into
       newer one and never silently the wrong one — refs: fb147, fb096, fb111,
       QUALITY.md 1.0 (Steam/itch checklist: cloud-save-safe file format).
 
+- [ ] (fb156) [bug] filed 2026-09-05 by qa-playtester during fb148
+      verification — every radius and width in the in-run ability sentences
+      ignores the live Area multiplier, exactly the way `dashRange` ignored
+      move speed before fb148. Measured twice, identical: Dash Slash's
+      corridor, binary-searched perpendicular to the line, is 2.0000 / 2.6000 /
+      3.0000 / 4.0000 tiles wide at 0 / 3 / 5 / 10 ranks of the `reach` stat
+      boon (`data/vsupgrades.json`, `stat: 'area'`, +10%/rank, uncapped) while
+      `dashSlashSentence` prints a flat "2-tile-wide line" — a 50%
+      understatement at 5 ranks, and this is the number fb146 built a standing
+      guard for and fb112 fixed. Circle Slash the same: with 5 ranks the merged
+      Dash Slash hit line measures 26.0000 rather than 24.0000, i.e. the merged
+      nova radius is really 6 while `circleSlashSentence` prints 4.
+      `classArea(w, r) = r * w.derived.areaMul` (`src/sim/classes.ts`) scales
+      EVERY class radius and width — `dashWidth`, the nova `radius`, Poison
+      Barrel, Frost Nova, `burst_damage`, the Flame Road patches — and
+      `ClassLiveContext` carries no area field at all. Acceptance:
+      `ClassLiveContext` gains an `areaMul`, populated in `classLiveContext`
+      (`src/ui/class-live.ts`) and consumed by every sentence printing a radius
+      or width; regression test in fb148's shape — a sim probe binary-searching
+      the real corridor/radius at 0 and 5 ranks of `reach`, then the string
+      assertions — and fb146's `dashWidth` source rule extended so a bare
+      `2 * (eff.dashWidth ?? 0)` without the Area term is itself an offender.
+      Distinct from fb149, which is about pierce/AoE falloff wording rather
+      than the Area stat — refs: fb148, fb146, fb112, fb108, `classArea`
+      (`src/sim/classes.ts`).
+
 ## Log
+
+- 2026-09-05, fb148: implemented fully in-scope (`src/ui/class-info.ts`,
+  `src/ui/hud.ts`, a new `src/ui/class-live.ts`, two new `tests/ui-*` files).
+  Four notes for the merge:
+  (a) **the item's own filed numbers were wrong and are corrected in its DONE
+  note** — 20, not 10, with `swordsman_shoes`, and 24, not 14, on the merged
+  mid-charge path. Both were re-measured twice from the live engine before
+  anything was implemented, and independently again by QA. The cause is that
+  the item quotes `fireDashSlash` without fb053's move-speed scaling. Anyone
+  re-deriving from the original text will re-file the same wrong number.
+  (b) `src/ui/class-live.ts` is new and is now the ONLY place a
+  `ClassLiveContext` is built. A main-lane change that adds a live number to
+  the ability sentences belongs there rather than at a call site.
+  (c) `dashRange` joins `dashWidth` as a field with a standing source rule in
+  `src/ui/class-info.ts`. This is the fourth defect in this family (fb108,
+  fb112, fb146, fb148) and fb156 above is the fifth, still open — if a sixth
+  appears, the answer is probably a single "every sentence number is resolved
+  through a live helper" rule rather than one guard per field.
+  (d) QA's proposed ids for its two filings collided with this file's existing
+  fb150/fb151; renumbered to fb156 and, for the `/data` one, the Log entry
+  below.
+
+- 2026-09-05, fb148 (out-of-lane, for the main lane at the merge):
+  `swordsman_shoes`'s `desc` in `data/equipment.json` promises "If not
+  Swordsman: x1.1 movement" and the real figure is **x2.2**. Measured twice by
+  qa-playtester: `w.derived.moveSpeed` with the item versus without is x2.2000
+  for all eleven non-Swordsman classes and x2.0000 for Swordsman — the
+  fallback item is FASTER on the classes it is meant to be inert on. This is
+  explicitly **not** a `stats.ts` bug and must not be "fixed" by making
+  `classFallback.mods` substitute instead of add: the other two fallback items
+  document exactly that stacking and match the engine to 1e-9 —
+  `sleeve_sword` promises "atk speed x1.2 (so 1.2x1.2)" and measures x1.4400,
+  `swordsman_armor` promises "x1.5 (so 1.1x1.5)" and measures x1.6500.
+  `swordsman_shoes` is the sole outlier: its `desc` omits the "(so 2x1.1)"
+  form its siblings carry. Player-visible — the Codex equipment table renders
+  raw item rows including `desc`. `/data` is outside this lane's Scope, hence
+  a Log entry rather than an item. Whether the intended value is x2.2 (fix the
+  `desc`) or x1.1 (fix the `mods`) is an owner call and wants a QUESTIONS.md
+  entry, which is also outside this lane.
 
 - 2026-09-05, fb147: implemented fully in-scope (`src/ui/saveslots.ts`,
   `src/ui/main.ts`, `tests/ui-fb096-save-slots.test.ts`). Three notes for the
