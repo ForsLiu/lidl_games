@@ -5,6 +5,73 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-05 session (lane `lane/terrain`): `fb064w` and `fb064x` closed —
+  the terrain dump format now refuses what its writer never emits, and the two
+  `Grid` tile predicates that answered about tiles which do not exist are
+  guarded.** Both were the lane's last two queued items; the lane generation
+  rule then ran with zero left and appended five more (`fb064y`, `fb064z`,
+  `fb065a`, `fb065b`, `fb065c`), plus `fb065d` filed by fb064w's QA.
+
+  `fb064w`: `parseTerrainDump` collected any `key=value` into a `Map` no caller
+  checked for extras, so `hash=54fad3db bogus=1` parsed clean and so did a seed
+  line in any field order — the one shape of damage the parser reinterpreted
+  rather than refused. Harmless until fb064s made the seed line's *layout* a
+  contract (`source` is worth having because a reader reaches it before
+  `requested=0`). `HEADER_KEYS` (`src/sim/terrain/describe.ts`) declares each of
+  the six header lines' fields once in emitted order, with `gates`/`tiles`/
+  `legend` derived from `GATES`/`TERRAIN_KEYS`; `fields()` refuses an unknown
+  key and a key that moves backwards, naming the key, the line and the expected
+  set. The rule is "no extras, in this order" and never "exactly these", so
+  every existing missing-field refusal is untouched. code-reviewer **APPROVE**
+  with three Minor drift guards, all folded in: the table is now compared
+  against the emitted line in *both* directions (the review reproduced a dead
+  `HEADER_KEYS` key silently re-opening the leniency), every declared key is
+  pinned `req`'d (which is what makes the order rule total), and unknown-before-
+  duplicate is pinned rather than only commented. qa-playtester **PASS** on all
+  six acceptance clauses after 200k single-character mutations, exhaustive
+  field-permutation and cross-line-borrow sweeps, a 382-dump writer/parser
+  fixpoint over a config matrix, and 7 killed mutants — and filed one real
+  hole: `hash` was the only header value with no shape check, and `fields()`
+  splits on a single space, so `hash=deadbeef<TAB>source=flat-arena` smuggled
+  arbitrary text past the new key set on a non-arena dump where the hash
+  comparison cannot run. Fixed red-first against `terrainHash`'s own output
+  shape. QA's other two notes (refusals that do not name the expected set; the
+  deep import past the barrel) are fixed and documented.
+
+  `fb064x`: `Grid.passable`/`passableGhost` indexed `blocked`/`tile` with the
+  raw coordinate behind a bounds check alone, so with rock at (3, 1)
+  `passable(3, 1.5)` answered `true` about a mountain (`GRID_W` is even, so the
+  `.5` cancels its own fraction and lands on tile (21, 1)) and
+  `passableGhost(3.5, 1)` answered `true` off an `undefined` read. fb064u left
+  these two deliberately, because they are the Dijkstra inner loop where the
+  guard has a per-tick cost — but the loop never needed the coordinate form:
+  it derives each neighbour from a flat index plus a `NEIGHBORS` offset and
+  bounds-checks it once, so it now calls private flat-index forms
+  (`passableAt`/`passableGhostAt`) that hold the rule the public predicates
+  delegate to. Interleaved, order-alternating `markDirty()+refresh()` measures
+  0.85-0.92x of the pre-change time; `endHash 2729a000` is unchanged and both
+  flow fields are pinned bit-identical by goldens measured on the pre-change
+  file. **The whole-run number first recorded for this item was wrong** — a
+  ~12% `simMs` win, taken sequentially while three agents shared the host — and
+  qa-playtester's interleaved A/B found no measurable whole-run difference in
+  either direction; re-measured on a quiet host it is 14161 vs 13968, inside
+  the noise. `refresh` is a negligible share of a run, so the microbenchmark is
+  the honest number and the note says so rather than dropping the claim.
+  code-reviewer **APPROVE** (it reproduced the field-hash equivalence
+  independently) with three Minor findings folded in; qa-playtester **PASS**
+  after 60/60 byte-identical field configurations, 59/59 identical
+  `(outcome, ticks, endHash)` triples over 10 policies x 6 seeds, and
+  `placeCore`/Fourth-Gate/sealing coverage — and filed five defects, all fixed
+  before commit: the enumeration scan missed `static` and required the
+  parameters to be named `tx`/`ty` (so `isMud(x, y)` landed un-guarded with the
+  test green), `fieldDist`/`fieldStep` carry the same hole one layer down and
+  are now listed and in fb064y's scope, the golden pin was under-seeded (seeds
+  1/11/137 were all blind to deleting the breach-diagonal branch's second term
+  — the one line whose shape changed — so seed 4 was added and that mutant now
+  dies), each golden row now checks the generated map's own hash first so a
+  `/data` tuning edit does not read as a `grid.ts` regression, and the simMs
+  claim above was corrected.
+
 - **2026-09-03 session: `fb052` closed — Sleeve Sword's Circle Slash now
   stays a real charge-then-release ability (instant-max charge, not an
   instant-fire shortcut), fixing a silent Dash-Slash-combo break, and
