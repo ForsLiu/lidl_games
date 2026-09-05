@@ -117,3 +117,50 @@ export function failedBands(q: TerrainMeasure, c: TerrainConfig): string[] {
   if (!(q.maxGateDetour <= k.maxGateDetour)) out.push('maxGateDetour');
   return out;
 }
+
+/**
+ * How far a measure is from failing one band, in the band's own units, signed
+ * so that larger is safer (fb065a).
+ *
+ * Lives here rather than beside its caller because it is the *fifth* statement
+ * of the same thresholds — the four fb064v consolidated plus this one — and the
+ * exhaustive `switch` only catches a band that is *added*, never a direction
+ * that is flipped or a constraint key that is renamed. The guard that catches
+ * those is in `terrain-legality.test.ts`, where `slackOf(q, band, c) >= 0` is
+ * pinned as the exact complement of `failedBands(q, c).includes(band)` over the
+ * same config matrix the mirror is swept on.
+ *
+ * That guard pins the **sign**, not the scale: a `slackOf` returning twice the
+ * real distance would pass it unchanged. The scale is held by the recorded
+ * `SLACK` strings in `tests/terrain-headroom.test.ts`, and the split is stated
+ * here so the next reader knows which file holds which half.
+ *
+ * Zero is *inside* the band, matching `legalMeasure`'s `>=`/`<=`: a map exactly
+ * on a floor is legal, so `slackOf(q, band, c) >= 0` is the exact complement of
+ * `failedBands` reporting that band. Callers measuring headroom therefore have
+ * to distinguish "on the edge" (0) from "over it" (negative) themselves, which
+ * is the distinction fb065a exists to measure.
+ *
+ * **`maxGateDetour` gets the cap side as its scale and the sentinel as a flat
+ * refusal.** `legalMeasure` bounds it from both sides, and the lower bound is a
+ * self-check on the measurement rather than a band a map drifts across: the
+ * only value below 1 is the `-1` "no measurable approach" sentinel, which on
+ * the cap arithmetic would score 2.5 — the safest number in the file — for a
+ * map that is in fact illegal. It is reported as `-1` instead, so the sign
+ * still says "failed"; the *name* `maxGateDetour<1` stays `failedBands`' alone.
+ */
+export function slackOf(q: TerrainMeasure, band: LegalityBand, c: TerrainConfig): number {
+  const k = c.constraints;
+  switch (band) {
+    case 'walkableFrac':
+      return q.walkableFrac - k.minWalkableFrac;
+    case 'buildableNormalFrac':
+      return q.buildableNormalFrac - k.minBuildableNormalFrac;
+    case 'gateReachFrac':
+      return q.gateReachFrac - k.minGateReachFrac;
+    case 'coreLegalFrac':
+      return q.coreLegalFrac - k.minCoreLegalFrac;
+    case 'maxGateDetour':
+      return q.maxGateDetour < 1 ? -1 : k.maxGateDetour - q.maxGateDetour;
+  }
+}

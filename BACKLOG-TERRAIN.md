@@ -674,7 +674,7 @@ improvement.
       cost regression passes and a 5.7x one reddens (reproduced here), and
       `maxAttempts` — the file's own motivating number — was invisible to it
       until a one-line pin was added. Both are recorded in the file.
-- [ ] (fb065a) [feat] three of the five numeric bands have literally zero
+- [x] (fb065a) [feat] three of the five numeric bands have literally zero
       headroom (fb064r): `walkableFrac` and `buildableNormalFrac` have domain
       witnesses sitting *exactly* on their floors and `maxGateDetour` has two
       sitting exactly on its ceiling, so only `terrainLegal`'s `>=`/`<=` keeps
@@ -688,6 +688,39 @@ improvement.
       other band shown not to move) or a recorded measured decision to accept
       the knife edge with the numbers that justify it; the golden churn, if
       any, is named — refs: fb064r, fb064o, G2.
+      **Shipped as the recorded decision to accept, and the measurement it
+      rests on had to be rebuilt once.** The verdict: all five witnesses are
+      *accepted* on their first attempt, so the zero headroom costs nothing
+      today; the sample's median map clears `walkableFrac` by 0.094 and
+      `buildableNormalFrac` by 0.100 and sits 0.398 under the detour ceiling;
+      and one lattice step of tightening costs 2 newly-retrying seeds in 12,000
+      (0.017%), both on the detour ceiling, against a retry rate of 43. Sixteen
+      steps on `walkableFrac` takes the sample from 43 to 83 retries, 0.36% to
+      0.69%. A repair pass would move every golden in the suite — fb064k's
+      dump, fb064l's variety, fb064r's ledger, fb064x's field hashes, fb064z's
+      cost readings — to buy that. **The first version reached the same verdict
+      on numbers that were false**, and the file records why rather than
+      quietly correcting: its comb stride was even, so it visited only even
+      seeds and contained no zero-slack map at all, and its epsilon grid sat
+      below the `1/720` tile lattice, so its smallest column could only count
+      exactly-on-edge maps it did not have. Review disproved its headline from
+      the sibling ledger's own recorded row. It now sweeps fb064r's sample and
+      its curve is in lattice steps. QA **PASS**, re-deriving every one of the
+      25 `SLACK` fields, all 25 `CURVE` cells and both on-edge seeds
+      independently, confirming the curve predicts real retry counts to the
+      seed under five tightened configs, and killing 12 of 14 `slackOf` mutants
+      with the new mirror guard (the two survivors are scale mutants, killed by
+      this file's recorded strings — which is exactly the sign/scale split the
+      two files document). Its Major: the "shared sample" was a copy-paste, so
+      an edit to fb064r's comb reddened fb064r and left this file green on the
+      old seeds. Fixed by moving the sample into `tests/terrain-sample.ts` and
+      importing it in both — verified by narrowing the comb and watching both
+      files go red. Also shipped: `slackOf` moved into `tests/terrain-legality.ts`
+      as the fifth statement of these thresholds, with a guard pinning it as the
+      exact complement of `failedBands` over the mirror's config matrix; writing
+      that guard found a sign bug (zero slack is *inside* the band) and settled
+      the `maxGateDetour < 1` sentinel as a flat `-1` rather than a
+      misleadingly-safe 2.5.
 - [ ] (fb065b) [test] `suggestCoreAnchor` is the anchor the player is shown
       pre-highlighted, and nothing measures whether it is a *good* default.
       fb064o bounded the gate detour *to* it and fb064h pins that it is legal

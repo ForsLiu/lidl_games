@@ -52,6 +52,7 @@ import {
   legalUnder,
   LEGALITY_BANDS,
   LEGALITY_FLAGS,
+  slackOf,
   type LegalityBand,
 } from './terrain-legality';
 
@@ -362,6 +363,37 @@ describe('fb064v — a band the mirror does not know about cannot land green', (
           const q = { ...q0, [key]: value } as TerrainMeasure;
           if ((failedBands(q, c2).length === 0) !== legalMeasure(q, c2)) {
             disagreed.push(`${name} ${String(key)}=${String(value)}`);
+          }
+        }
+      }
+    }
+    expect(disagreed).toEqual([]);
+  });
+
+  it('`slackOf` agrees with `failedBands` on which side of each band a map is', () => {
+    // fb065a's slack measure is the *fifth* statement of these thresholds. Its
+    // exhaustive `switch` on `LegalityBand` makes an added band a compile
+    // error, which is half the guard; this is the other half — a flipped
+    // direction or a renamed constraint key — pinned over the same config
+    // matrix, so a frozen threshold cannot hide behind the shipped `/data`
+    // either (the failure mode QA found in the first version of this file).
+    const disagreed: string[] = [];
+    for (const [name, c2] of CONFIGS) {
+      const q0 = measureTerrain(baseMap, c2);
+      for (const band of LEGALITY_BANDS) {
+        for (const value of SWEEP_VALUES) {
+          const q = { ...q0, [band]: value } as TerrainMeasure;
+          // `maxGateDetour` is the one band `failedBands` splits in two, and
+          // `slackOf` reports the sentinel side as a flat `-1` — "failed", the
+          // same verdict under a different name — so both names count as a
+          // failure of this band here.
+          //
+          // `>= 0`, not `> 0`: zero slack means exactly on the threshold, which
+          // `legalMeasure`'s `>=`/`<=` accept. That equality is the whole
+          // subject of fb065a, so getting its sign right here is not a detail.
+          const failed = failedBands(q, c2).some((b) => b === band || b === `${band}<1`);
+          if (failed !== !(slackOf(q, band, c2) >= 0)) {
+            disagreed.push(`${name} ${band}=${String(value)} slack=${slackOf(q, band, c2)}`);
           }
         }
       }

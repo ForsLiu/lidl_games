@@ -47,6 +47,7 @@ import {
   type TerrainConfig,
   type TerrainMeasure,
 } from '../src/sim/terrain';
+import { COMB_STEP, SAMPLE_COMB_N, SAMPLE_N, sampleSeeds } from './terrain-sample';
 import {
   failedBands,
   legalMeasure,
@@ -386,44 +387,11 @@ describe('fb064r — the worst seed per band, named and re-measured', () => {
 });
 
 /**
- * The sample. Fixed, deterministic and stated as data so a reader can re-run
- * exactly it.
- *
- * The comb's stride is odd (`fnv1a`/`mulberry32` are bit-mixing functions; an
- * even stride from 0 only ever visits even seeds) and is the largest odd stride
- * *not exceeding* `2 ** 32 / N`, so the comb genuinely spans uint32 rather than
- * crawling along its bottom — the mistake fb064j's review caught in its own
- * region list. Not the same thing as "the largest odd stride whose last step
- * still lands in the domain": that is 715947, ending at 4294966053 against this
- * one's 4294246173, so 721122 seeds (0.017% of the domain) sit past this comb's
- * last tooth. Immaterial to the ledger, but the stronger claim is what fb064j's
- * file says about the same arithmetic, and it is false there too — review
- * caught it here and it is corrected in both files at fb064r.
- *
- * The three contiguous windows are where a run's seed actually lands
- * (`3e9` is in the unsigned half `Math.random` draws from half the time), the
- * int32 wrap the fb064j fix was about, and the negative spelling tools pass on
- * the command line. Negatives are *not* an independent sample — `attempt()`
- * keys on `seed >>> 0`, so [-2000, 0) is bit-for-bit [0xfffff830, 0xffffffff]
- * — they are here because the acceptance asks the ledger to cover the domain
- * "including negatives", and because the seeds are reported back in the
- * spelling the caller used.
+ * The sample, now in `tests/terrain-sample.ts` so fb065a's headroom curve is
+ * measured over the *same* seeds rather than a copy of them (fb065a QA): a
+ * change here used to redden this file, get re-recorded, and leave that one
+ * green on the old population. The design notes moved with it.
  */
-const SAMPLE_COMB_N = 6000;
-const COMB_STEP = 2 * Math.floor(2 ** 32 / SAMPLE_COMB_N / 2) + 1;
-const SAMPLE: ReadonlyArray<{ name: string; start: number; n: number; step: number }> = [
-  { name: 'comb across the whole uint32 domain', start: 0, n: SAMPLE_COMB_N, step: COMB_STEP },
-  { name: 'negatives (the signed spelling of the uint32 top)', start: -2000, n: 2000, step: 1 },
-  { name: 'the unsigned half a run draws from', start: 3000000000, n: 2000, step: 1 },
-  { name: 'the int32 wrap', start: 2 ** 31 - 1000, n: 2000, step: 1 },
-];
-const SAMPLE_N = SAMPLE.reduce((t, r) => t + r.n, 0);
-
-function sampleSeeds(): number[] {
-  const out: number[] = [];
-  for (const r of SAMPLE) for (let i = 0; i < r.n; i++) out.push(r.start + i * r.step);
-  return out;
-}
 
 interface SampleRun {
   stats: Record<Band, BandStat>;
