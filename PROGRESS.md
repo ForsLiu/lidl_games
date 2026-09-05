@@ -5,6 +5,129 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-05 session: BACKLOG p12c closed — T1 re-anchored to contested
+  margins, §C's three targets met, and an impossibility conclusion retracted
+  before it shipped.**
+  §C's own named levers do not move what §C measures, which had to be
+  established first: `waves.hpScalePerWave` **compounds per wave**
+  (`p^(wave-1)`), so 1.22 -> 1.34 — x4.9 more HP by wave 18 — still gave 12/12
+  wins and moved the median margin only 100% -> 90.9%, because it lands on the
+  waves the tower line already dominates. Enemy `coreDamage` was inert *at the
+  difficulty it was measured against*: with the Core at **100% at victory**,
+  nothing reaches it, so scaling what a leak costs multiplies zero (a property
+  of the old baseline, not of the game — post-anchor 7 of 24 seeds lose to the
+  Core, so that lever and p12b's rung are live again). The lever is a flat
+  roster-wide factor, so `data/enemies.json` gained **`baseHpMul`** — one
+  tunable number instead of 20 edited rows, `1.0` the identity, applied at
+  spawn before the tier rung, the same shape fb025's global x10 pass used.
+  **Shipped at 20**: **16/24 (66.7%) wins, 33% close-win, median Core HP at
+  victory 53.8%** — §C's `[55%,90%]` band, its `>=25% close-win` clause and its
+  30-60% median, all met. The sweep on the way there is worth as much as the
+  endpoint: from `baseHpMul` 1 to 12 the win rate stays ~100% while the
+  *margin* falls 100% -> 84%, i.e. the bot wins untouched right up until it
+  starts losing outright.
+  **A conclusion was published and retracted inside this item.** p12b's
+  ladder was fitted against `baseHpMul: 1.0`, so it was re-swept — and the
+  first sweep measured **T3 only**, jumping 1.20 -> 1.12 -> 1.06 -> 1.04. On
+  that evidence the item shipped 1.04/1.03/1.02 and concluded the difficulty
+  response had ~1.4x of dynamic range and therefore that **no tier ladder of
+  any shape could be ordered**, marked Q176 superseded and re-scoped p12g onto
+  a mechanism rewrite. code-reviewer caught the gap: the region where T5 lands
+  in band was never sampled. Swept properly at **both** tiers,
+  **1.07/1.05/1.03 puts T3 at 41.7% and T5 at 8.3% over 12 seeds — both inside
+  §B's bands** — and that is what ships. Re-measured at n=24: T1 66.7%, T2
+  41.7%, T3 **37.5%** (in `[35%,70%]`), T4 33.3%, T5 **20.8%** (*at* the
+  `[5%,20%]` ceiling, not inside it). The 1.4x figure was mis-stated too — its
+  endpoints differ on three axes, so it is a range on the combined tier axis,
+  not on enemy HP. Q176's supersede note is withdrawn, **p12g is retired**,
+  and every affected record was rewritten rather than patched.
+  **What the correction exposed instead is worse, and is now the arc's
+  blocker.** Re-running T3's 24 seeds with the tick cap lifted 45 -> 120
+  simulated minutes gives **62.5% wins and zero timeouts**, against 37.5% and
+  six timeouts at the 45-minute cap. A quarter of the seed set was censored,
+  and censored seeds are disproportionately *wins*, so every rung's recorded
+  rate is biased down by an amount that grows with how contested the tier is.
+  T3 is in band on both readings so the ladder stands, but its apparent
+  ordering is monotone only on censored numbers and cannot be confirmed until
+  the censoring is gone. **p12e (timeout elimination) is promoted to the
+  blocker for this whole arc** — no gate measured against a 45-minute cap can
+  be trusted while a quarter of its seeds hit it.
+  **The anchor's cost, named rather than buried:** G13's solo-viability clause
+  (`tests/a4-single-type.test.ts`) went from 5/5/5/5/4/5/4 to **0/5 for all
+  seven towers** — at x20 enemy HP no single tower type holds the wave curve
+  alone. `.skip`-ed with that number, re-enable point p12d. A real trade, not a
+  defect (a tower that soloed the whole curve was a statement about a
+  difficulty the bot won 100% of the time with the Core untouched), and the
+  strongest argument against keeping the anchor at 20 — an owner call, made
+  visible rather than silent. The final boss takes the roster multiplier too
+  (365,000 -> 7.3M at T1); its fight-length case still passes, measured.
+  Blast radius, all fixed: six test files pinned enemy HP against fb025-era
+  literals and were re-expressed as ratios off `def.hp * baseHpMul` (the same
+  conversion p12a made for its kit pins) — `act2.test.ts`'s Act II overlay,
+  five `p-core-c-plant` cases, two `p-core-d-corpse` cases (one now sizes its
+  overkill blow off `e.maxHp` instead of a literal 1000 that stopped being
+  overkill), `practice.test.ts`'s "full stats" spawn, and `boss.test.ts`'s
+  365,000 pin. q7's fuzz correctly flagged `baseHpMul` as accepting a
+  fractional value — valid for a multiplier, unpayable cases caught by the
+  schema's `.positive()` — recorded in `tests/q7-loader-holes.ts`. The most
+  interesting one was silent rather than red: **G4's armour-shred liveness
+  clause went to zero**, because `tools/a5probe.ts` still ran with
+  `allocated: []` and a bare-tree builder bot can no longer reach Act II at
+  all. That is fb049's fix (Q138) never applied to this one harness; corrected,
+  and the two other gates it backs (G13 `p10c-weapon-share`, G19
+  `p10f-g19-liveness`) re-run in full and green.
+
+  code-reviewer **REQUEST-CHANGES** and qa-playtester **FAIL**, all findings
+  addressed. Both independently reproduced every recorded §C number — the T1
+  margin split matched as an identical string — so the anchor itself stands;
+  what failed was the blast-radius claim and the strength of the conclusions.
+  Four findings were serious:
+  1. **The impossibility conclusion was wrong** (see the retraction above) —
+     code-reviewer showed the sweep behind it measured T3 only and never
+     sampled where T5 lands in band. QA then showed the supporting number was
+     wrong too: at ×1.44 enemy HP *alone* the bot still wins 16.7%, not the
+     0% the write-up claimed, because that 0% row also carried budget and
+     `coreDamage` rungs. Both retracted; the shipped ladder is the corrected
+     sweep's.
+  2. **"T3 re-confirmed in band" was a censoring artifact.** All six of T3's
+     tick-capped seeds are *victories* when the cap is lifted. The live band
+     assertion now **excludes censored seeds from the denominator** rather
+     than scoring them as losses — counting a stalled run as a loss lets a
+     gate read in-band purely from where the cap falls. Same reason T4-vs-T5's
+     inversion was mis-attributed to seed noise: censoring is systematic and
+     *tier-correlated*, and it is the dominant term.
+  3. **Two more suites were red and invisible.** `tests/a9-economy.test.ts`'s
+     "greed out-earns caution" clause was comparing **0 to 0** — at ×20 an
+     empty-tree run dies at TD wave 2, so no seed reached wave 8 on either arm
+     (fixed with the same fb049 full-tree change `a5probe` got), and
+     `tests/boss.test.ts` was a **seventh** fb025-era pinned file the scan
+     missed (PROGRESS said six). Both are fast-tier-excluded, which is the
+     real lesson: for a roster-wide HP change, "targeted tests + `test:fast`
+     green" is structurally blind, because every suite that measures
+     difficulty is on the exclude list.
+  4. **The a4 skip comment blamed p12c for a pre-existing regression.** QA ran
+     the control p12c had not: at HEAD, with `baseHpMul` at its 1.0 identity,
+     G13's solo-viability clause already read {1,1,0,0,1,3,0} of 5 against the
+     5/5/5/5/4/5/4 it was authored at. p12c deepens it to all zeroes; it did
+     not cause it. Comment corrected to carry both numbers, and the older
+     defect filed as **p12h** with the bisect candidates named.
+  Also fixed: **an end-state hash bug this change exposed** — `Hasher.num`
+  folds 32 bits, so a quantized magnitude past 2^31 wrapped, and with the boss
+  at 7.3M HP the boss at full HP and at 42.5% HP hashed *identically*
+  (`q(7_300_000) === q(3_105_696)`). Determinism was never at risk, but gate
+  G2's ability to see a divergence was; the high word is now folded when
+  non-zero, so every value inside int32 range hashes bit-identically to before
+  and no recorded hash moves. Regression test landed before the fix, per
+  CLAUDE.md rule 3. `baseHpMul` gained an upper bound (`1e308` loaded clean and
+  produced Infinite-HP, unkillable enemies — the same hole `validateTierLadder`
+  exists to close), the Codex now shows spawned rather than authored enemy HP
+  (it was stating 200 for an enemy arriving at 4000, since `baseHpMul` is a
+  document-level field with no row of its own), and the measurement itself is
+  now reproducible as `tests/p12c-margin.test.ts` — an opt-in sweep in the
+  established `class-kit-damage-share` pattern rather than a CLI, which q47
+  would have flagged as unpinned. **G8 and G23 remain unverified at T3** (~1 h
+  each); recorded as such rather than claimed.
+
 - **2026-09-05 session: BACKLOG p12b closed — the tier ladder built, the four
   reference gates moved to T3, and §B's T5 clause proved unreachable in §B's
   own shape.** The item reads as tuning but was not: **there were no tier
@@ -11138,6 +11261,14 @@ features whose counters read zero with no explanation.
   more; the empty Stash and the Orb buttons explain themselves.
 
 ## Known issues / skipped tests
+- **p12c: G13's solo-viability clause (`tests/a4-single-type.test.ts`) is
+  `.skip`-ed, re-enable point p12d — and it was already largely red before
+  p12c.** Authored 5/5/5/5/4/5/4; measured at HEAD {1,1,0,0,1,3,0} of 5; at
+  the shipped `baseHpMul: 20`, 0/5 for all seven. The older half is **p12h**.
+- **p12c: G8 (`tests/p6e-class-diversity.test.ts`) and G23
+  (`tests/p-core-f-gates.test.ts`) are unverified at T3 after the re-anchor**
+  — ~1 h each and not run. p12c's acceptance names them; treat any figure in
+  their headers as pre-p12c until re-measured.
 - **p12b: G1's "mean victorious run 30-36 minutes"
   (`tests/p10d-run-length.test.ts`) is `.skip`-ed, re-enable point p12d.**
   BALANCE DIRECTION v2 §B moved the four reference gates from T1 to T3

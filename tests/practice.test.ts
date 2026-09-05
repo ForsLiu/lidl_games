@@ -139,8 +139,11 @@ describe('practice tool', () => {
     dev(w, 'spawn', 1, 'husk');
     const alive = w.enemies.filter((e) => !e.dead);
     expect(alive.length).toBe(before + 1);
-    // No hpMul: a Training Grounds enemy fights exactly as it would in a live run.
-    expect(alive[alive.length - 1].maxHp).toBe(def.hp);
+    // No hpMul: a Training Grounds enemy fights exactly as it would in a live
+    // run — which since p12c means the authored `hp` times the roster-wide
+    // `baseHpMul`, read from content rather than pinned, so a re-anchor moves
+    // the fixture with the game instead of reddening this case.
+    expect(alive[alive.length - 1].maxHp).toBeCloseTo(def.hp * w.content.enemies.baseHpMul, 6);
   });
 
   it('spawn respects the requested count, clamped to a sane range', () => {

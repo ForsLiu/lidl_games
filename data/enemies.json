@@ -1,4 +1,5 @@
 {
+  "baseHpMul": 20,
   "enemies": [
     { "id": 1,  "key": "husk",       "name": "Husk",            "grade": "F", "hp": 200,   "speed": 1.6,  "coreDamage": 5,   "bounty": 4,   "gem": 1,  "radius": 0.35, "traits": [] },
     { "id": 2,  "key": "sprinter",   "name": "Sprinter",        "grade": "F", "hp": 120,   "speed": 2.88, "coreDamage": 3,   "bounty": 4,   "gem": 1,  "radius": 0.3,  "traits": [] },

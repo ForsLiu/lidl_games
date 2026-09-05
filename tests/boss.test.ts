@@ -104,7 +104,14 @@ describe('the Warden-Eater (SPEC 5.5)', () => {
     expect(shouldSpawnBoss(w)).toBe(true);
     spawnFinalBoss(w);
     const e = w.enemies.find((x) => x.boss)!;
-    expect(e.maxHp).toBeCloseTo(365000, 0);
+    // p12c: the authored 365,000 times the roster-wide `baseHpMul` — the
+    // Warden-Eater is an enemy and takes the roster multiplier like every
+    // other one, which at the shipped 20 puts it at 7.3M. Derived rather than
+    // pinned so a re-anchor moves the fixture with the game; the *authored*
+    // number is still asserted, just not the spawned one. The fight-length
+    // case below is what proves this is still a beatable fight rather than a
+    // wall, and it is measured, not assumed.
+    expect(e.maxHp).toBeCloseTo(365000 * w.content.enemies.baseHpMul, 0);
 
     // p12b (code-reviewer m6): pin the *rung*, not just "bigger". A bare
     // `>` passed equally well when the boss carried its old borrowed
@@ -112,7 +119,7 @@ describe('the Warden-Eater (SPEC 5.5)', () => {
     // swapping one tier scaling for another.
     const w3 = act2World(3);
     const e3 = boss(w3);
-    expect(e3.maxHp).toBeCloseTo(365000 * tierEnemyHpMul(w3.content, 3), 0);
+    expect(e3.maxHp).toBeCloseTo(365000 * w3.content.enemies.baseHpMul * tierEnemyHpMul(w3.content, 3), 0);
     expect(e3.maxHp).toBeGreaterThan(e.maxHp);
   });
 

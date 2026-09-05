@@ -221,7 +221,9 @@ qa-playtester per CLAUDE.md's tier, commit) — do not bundle.
       SPEC-FINAL §14 (BALANCE DIRECTION v2 §A), QUESTIONS Q161/Q166.
 - [x] (p12b) [balance] **Done with two acceptance clauses honestly red, both
       recorded not forced:** T5 measured 0% against §B's `[5%,20%]` (structurally
-      impossible in §B's geometric shape — QUESTIONS Q176, follow-up p12g), and
+      impossible in §B's geometric shape as measured then — **that conclusion was
+      retracted at p12c, which puts T3 and T5 in band together; see QUESTIONS
+      Q177**), and
       G1's 30-36 min band does not survive the move to T3 (measured 37.46 min /
       9-24 wins; `.skip`-ed with the numbers, re-enable point p12d, which owns
       the gate rewrites). T3's win rate — the clause that decides whether T3
@@ -239,7 +241,14 @@ qa-playtester per CLAUDE.md's tier, commit) — do not bundle.
       lands in `[5%,20%]` win rate ⚖; T1's own win rate is measured (not yet
       gated — that's p12c) and recorded — refs: BALANCE DIRECTION v2 §B,
       QUESTIONS Q160.
-- [ ] (p12c) [balance] T1 re-anchor to contested margins. Using the p10s
+- [x] (p12c) [balance] **Done — all three §C targets met** (`baseHpMul` 20:
+      66.7% wins, 33% close-win, median Core HP at victory 53.8% over 24
+      seeds). Its "T3's bands re-confirmed unaffected" clause could not hold
+      literally — raising the T1 base moves every tier — so the ladder was
+      re-fitted and T3 re-confirmed *in band* instead (45.8%). The arc's real
+      blocker fell out of this item and is QUESTIONS Q177: the difficulty
+      response has ~1.4x of dynamic range, so no tier ladder can be ordered.
+      T1 re-anchor to contested margins. Using the p10s
       harness (scripted-kit-and-Core-purchase, margin-classified via
       `classifyMargin`), raise T1's wave HP curve / spawn density / enemy
       `coreDamage` together (the same shared levers p10r/p10t/p10z already
@@ -263,7 +272,14 @@ qa-playtester per CLAUDE.md's tier, commit) — do not bundle.
       the new shape (T3 reference + T1/T5 companions, rewritten G8 diversity
       check) and are green against p12a-p12c's tuning — refs: BALANCE
       DIRECTION v2 §D, QUESTIONS Q160/Q161.
-- [ ] (p12e) [bug] Timeout elimination: no seed may reach the tick cap in any
+- [ ] (p12e) [bug] **Now the blocker for this whole arc** (QUESTIONS Q177):
+      p12c measured T3's 24 seeds at both caps — **37.5% wins with 6 timeouts
+      at the 45-minute cap, 62.5% with zero at 120 minutes**. A quarter of the
+      seed set is censored, censored seeds are disproportionately *wins*, and
+      the bias grows with how contested a tier is — so every rung's recorded
+      rate is understated and the ladder's ordering cannot be confirmed until
+      this is fixed. No gate measured against the 45-minute cap can be trusted
+      meanwhile. Timeout elimination: no seed may reach the tick cap in any
       gate matrix (G1/G8/G14/G23). Verify the Warden-Eater HP/enrage
       escalation (QUESTIONS Q126's order) is aggressive enough under p12a-
       p12c's new numbers; stack it faster if a `'running'`/timeout outcome
@@ -302,32 +318,30 @@ qa-playtester per CLAUDE.md's tier, commit) — do not bundle.
       bands re-confirmed unaffected — refs: BALANCE DIRECTION v2 §A,
       QUESTIONS Q175, BALANCE.md "Kit relevance target".
 
-- [ ] (p12g) [balance] Give the tier ladder a shape that can hold both of
-      §B's bands, which a geometric one provably cannot (QUESTIONS Q176).
-      p12b measured the difficulty response as bimodal over a factor of under
-      3 in enemy HP (x9 -> 75%, x16 -> 50%, x25 -> 0%), while `x^(N-1)` forces
-      `T5 = T3²` — so T3 at 50% puts T5 at x256 (measured 0/12), and any
-      per-step that lands T5 near the cliff leaves T3 at ~100%. Two routes,
-      take (a) first since it unblocks measurement. **The premise is stronger
-      than "T5 misses its band": T4 is 0/12 as well, dying in Act I wave 1
-      with 0-5 kills, and because a tier unlocks only by winning the one
-      below it, T5 is unreachable in normal play — two of five rungs are dead
-      content today** (pinned by the `.skip`-ed liveness gate in
-      `tests/p12b-tier-ladder.test.ts`). **(a)** replace the three
-      per-step scalars with a **per-tier table** (5 rows x 3 columns in
-      `data/modifiers.json`, same `validateTierLadder` monotonicity rule), so
-      each rung is placed independently — T1 stays exactly 1.0, T3 keeps
-      p12b's x16/x3.61/x2.89, and T4/T5 are fitted to `[5%,20%]` rather than
-      extrapolated into it; **(b)** the real fix, and the same wall
-      Q157-Q161/Q166 name — a `TREE_AUTO_MAX` scripted build wins outright or
-      dies, so no ladder shape turns it into a graded curve. Acceptance: T3
-      stays in `[35%,70%]` and T5 lands in `[5%,20%]`, both measured over >=12
-      seeds with the G1 harness and both recorded before/after; **every rung
-      clears at least one wave and scores at least one kill** (un-skip the
-      liveness gate); T1 still exactly 1.0 on every scalar; zero timeouts at
-      every rung, which p12b's own T3 run does **not** currently satisfy (2 of
-      24 seeds stall) — refs: BALANCE
-      DIRECTION v2 §B, QUESTIONS Q176, BALANCE.md "Tier ladder (p12b)".
+- [x] (p12g) **RETIRED, not done** — filed on a conclusion that was retracted
+      before it shipped. Its premise was that no tier ladder shape can be
+      ordered; p12c's corrected sweep puts T3 and T5 in their §B bands at
+      per-step 1.07/1.05/1.03, so there is nothing here to fix. See QUESTIONS
+      Q177's retraction. The real blocker the correction exposed is the tick
+      cap, which is **p12e**'s, not a new item's.
+
+- [ ] (p12h) [bug] G13's solo-viability clause (`tests/a4-single-type.test.ts`)
+      was **already largely red before p12c**, and nobody had measured it.
+      Authored at 5/5/5/5/4/5/4; measured at HEAD (`baseHpMul` at its 1.0
+      identity, p12b's ladder exactly 1.0 at T1, so nothing else in HEAD can
+      move a T1 reading) it reads **{arrow_spire 1, ballista 1, ember_brazier
+      0, frost_obelisk 0, tesla_coil 1, mortar 3, venom_spore 0} of 5**
+      (qa-playtester, p12c). p12c's x20 anchor then took it to all zeroes —
+      that part is p12d's to re-band — but the pre-existing regression is a
+      separate, older defect: something between the clause's authoring and
+      HEAD stopped six of seven towers soloing the curve, and it was never
+      caught because the suite is fast-tier-excluded. Bisect it (fb076's tower
+      retune, fb025's x10 enemy HP and the p12a kit re-anchor are the
+      candidates by date) and either restore viability or re-band with a
+      recorded reason. Acceptance: the HEAD-control numbers above reproduced,
+      the causing change identified by name with a control run either side,
+      and the clause either green or re-banded with the measurement — refs:
+      SPEC-FINAL §14 G13, `tests/a4-single-type.test.ts`'s own header history.
 
 Constellation stays auto-maxed for all play (`TREE_AUTO_MAX`); per BALANCE
 DIRECTION v2 §F, never re-add point spending as a balance lever to make any

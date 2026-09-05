@@ -1,8 +1,8 @@
 {
   "tierRewardPerStep": 0.35,
-  "tierEnemyHpPerStep": 4.0,
-  "tierBudgetPerStep": 1.9,
-  "tierCoreDamagePerStep": 1.7,
+  "tierEnemyHpPerStep": 1.07,
+  "tierBudgetPerStep": 1.05,
+  "tierCoreDamagePerStep": 1.03,
   "modifiers": [
     { "key": "tough",      "name": "Ironhide",      "desc": "Enemies +45% HP",           "effect": { "enemyHp": 0.45 },      "rewardBonus": 0.10 },
     { "key": "fleet",      "name": "Fleetfoot",     "desc": "Enemies +30% speed",        "effect": { "enemySpeed": 0.30 },   "rewardBonus": 0.10 },

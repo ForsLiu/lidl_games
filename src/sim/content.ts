@@ -427,7 +427,35 @@ export const EnemySchema = z.object({
   structureDamageMul: num.optional(),
 });
 
-const EnemiesFileSchema = z.object({ enemies: uniqueArray(EnemySchema, ['key', 'id']) });
+const EnemiesFileSchema = z.object({
+  /**
+   * BACKLOG p12c (BALANCE DIRECTION v2 §C): a roster-wide multiplier on every
+   * enemy's authored `hp`, applied at spawn before the tier ladder's own rung.
+   *
+   * It exists because §C's named lever — "raise T1's wave HP curve" — turned
+   * out not to move the thing §C is about. `waves.hpScalePerWave` compounds
+   * *per wave*, so raising it leaves the early game untouched and lands almost
+   * entirely on waves the towers already dominate: measured 1.22 -> 1.34
+   * (x7.4 more HP by wave 18) still gave 12/12 landslide wins with the Core at
+   * 90.9%. A flat roster-wide factor is the lever that actually moves the
+   * margin, which is the same shape fb025's global x10 pass used — expressed
+   * here as one tunable number rather than 20 edited rows, so the authored
+   * per-enemy identity ratios stay readable and untouched.
+   *
+   * `1.0` is the identity, so a run at this value is bit-identical to one from
+   * before the field existed.
+   */
+  baseHpMul: num
+    .positive()
+    // qa-playtester (p12c): `.positive()` alone accepts `1e308`, which spawns
+    // enemies at `Infinity` HP — literally unkillable, and silently. Same
+    // class of hole `validateTierLadder` exists to close for the tier
+    // scalars; bounded here at the schema so a Tuner save is refused too.
+    // The ceiling is far above any plausible anchor (shipped: 20) and far
+    // below where the roster's own HP values overflow.
+    .max(1e6),
+  enemies: uniqueArray(EnemySchema, ['key', 'id']),
+});
 
 /* ------------------------------------------------------------------- waves */
 

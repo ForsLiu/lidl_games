@@ -674,6 +674,13 @@ against p12b/p12c's baseline.
 
 ## Tier ladder (p12b) — BALANCE DIRECTION v2 §B
 
+> **Superseded by "T1 re-anchor (p12c)" below.** p12b's *mechanism* stands —
+> the three scalars, `x^(tier-1)`, the loader rule, the choke points — but its
+> **numbers (4.0 / 1.9 / 1.7) and every measurement in this section were taken
+> against `baseHpMul: 1.0`**, which p12c then raised to 20. Read this section
+> as the ladder's design and as history; the shipped values and the current
+> measurements are in p12c's section.
+
 ### What tiers did before
 
 Nothing, almost. `cfg.tier` scaled exactly one thing directly — the final
@@ -786,3 +793,154 @@ T4 and T5 independently instead of extrapolating them off T3. Guarded
 meanwhile by a liveness case in `tests/p12b-tier-ladder.test.ts` — every rung
 must clear at least one wave and score at least one kill — so the shape of the
 failure is pinned rather than rediscovered.
+
+## T1 re-anchor (p12c) — BALANCE DIRECTION v2 §C
+
+### The lever §C names does not move what §C measures
+
+§C says to raise "T1's wave HP curve / spawn density / enemy `coreDamage`"
+until the scripted bot's median Core HP at victory is 30-60%. Measured, the
+first of those is nearly inert and the third is entirely inert:
+
+| `waves.hpScalePerWave` | HP by wave 18 | win rate | median Core HP at victory |
+|---|---|---|---|
+| 1.22 (base) | ×29.4 | 12/12 | **100.0%** |
+| 1.26 | ×50.9 | 12/12 | 100.0% |
+| 1.30 | ×86.5 | 12/12 | 98.0% |
+| 1.34 | ×144.8 | 12/12 | 90.9% |
+
+(`waveHpScale` is `p^(wave-1)`, so wave 18 is `p^17` — an earlier version of
+this table used `p^18` and overstated the last row as ×224.) A **×4.9**
+increase in late-wave HP moved the median margin by 9 points and the win rate
+not at all. Two reasons, both structural: `hpScalePerWave`
+**compounds per wave**, so it lands almost entirely on the waves the tower
+line already dominates and leaves the early game untouched; and `coreDamage`
+could not be the lever *at the difficulty it was measured against* — with the
+Core at **100%** at victory nothing was reaching it, so scaling what a leak
+costs multiplied zero. That is a property of the old baseline, not of the
+game: post-anchor, 7 of 24 seeds lose to the Core, so `coreDamage` — and
+p12b's `tierCoreDamagePerStep` rung — are live again.
+
+### `baseHpMul`: the flat lever
+
+`data/enemies.json` gained a roster-wide `baseHpMul`, applied at spawn before
+the tier rung — the same shape fb025's global ×10 pass used, as one tunable
+number instead of 20 edited rows, so the authored per-enemy identity ratios
+stay untouched. `1.0` is the identity.
+
+| `baseHpMul` | win rate | close-win | median Core HP at victory |
+|---|---|---|---|
+| 1 (control) | 12/12 (100%) | 0% | 100.0% |
+| 4 | 12/12 (100%) | 0% | 96.2% |
+| 8 | 11/12 (92%) | 0% | 90.4% |
+| 12 | 12/12 (100%) | 8% | 83.6% |
+| 16 | 8/12 (67%) | 17% | 66.0% |
+| 18 | 9/12 (75%) | 25% | 64.2% |
+| **20** | **9/12 (75%)** | **33%** | **55.2%** |
+
+**Shipped at 20**, confirmed over 24 seeds: **16/24 (66.7%) wins, 33%
+close-win, median Core HP at victory 53.8%** — all three of §C's targets, at
+`landslide-win:8 close-win:8 contested-loss:3 early-loss:4 timeout:1`.
+
+Note what the middle of that table shows: the win rate stays at ~100% while
+the *margin* falls from 100% to 84%. The bot wins untouched right up until it
+starts losing outright — which is the same bimodality QUESTIONS Q159 named,
+now visible on the margin axis §C asked for.
+
+### The ladder had to be re-fitted, and a conclusion had to be retracted
+
+p12b's 4.0/1.9/1.7 was fitted against `baseHpMul: 1.0` and is far past the
+cliff on the new base, so the per-steps were re-swept at T3:
+
+| ladder (hp / budget / coreDamage) | T3 win rate | T5 win rate |
+|---|---|---|
+| 1.55 / 1.30 / 1.18 | 0% | — |
+| 1.35 / 1.20 / 1.12 | 0% | — |
+| 1.20 / 1.12 / 1.08 | 0% | — |
+| 1.12 / 1.08 / 1.05 | 8% | — |
+| **1.10 / 1.07 / 1.04** | 25% | 0% |
+| **1.07 / 1.05 / 1.03** | **41.7%** | **8.3%** |
+| 1.06 / 1.04 / 1.03 | 33% | — |
+| 1.04 / 1.03 / 1.02 | 50% | 50% |
+
+**Shipped at 1.07 / 1.05 / 1.03.**
+
+> **Retraction.** The first version of this section shipped 1.04/1.03/1.02 and
+> concluded that the difficulty response has ~1.4× of dynamic range and
+> therefore that **no tier ladder of any shape can be ordered** — with T5
+> stuck at 50% and T4/T5 within noise. That was wrong. The sweep behind it
+> measured **T3 only** and jumped 1.20 → 1.12 → 1.06 → 1.04, so it never
+> sampled the region where T5 lands in band. Swept properly at both tiers,
+> **1.07/1.05/1.03 puts T3 and T5 inside §B's bands at once.** The 1.4× figure
+> was also mis-stated as a range "in enemy HP" when its endpoints differ on
+> three axes. Caught by code-reviewer; the numbers above are the corrected
+> sweep.
+
+### Measured, whole ladder (engineer, scripted kit bot, `modifiers: []`)
+
+| tier | n | win rate | close-win | median Core HP at victory | timeouts |
+|---|---|---|---|---|---|
+| T1 | 24 | **66.7%** | 33% | 53.8% | 1 |
+| T2 | **12** | 41.7% | 33% | 42.6% | 0 |
+| T3 | 24 | **37.5%** | 21% | 40.1% | **6** |
+| T4 | **12** | 33.3% | 33% | 21.8% | 0 |
+| T5 | 24 | **20.8%** | 13% | 47.3% | 1 |
+
+Two caveats on reading that table as a curve, both the kind of thing p12b was
+already caught on. **The `n` column is not uniform** — T2 and T4 are 12 seeds
+against the others' 24, so their rows carry roughly twice the standard error
+(T4 re-measured at n=24 gives the same 33.3%, so the ordering survives, but
+the rows are not equally trustworthy). And **the margin column is
+non-monotone**: T5's median Core HP at victory (47.3%) is *higher* than T4's
+(21.8%), i.e. the few builds that win at T5 win comfortably. That is a thin
+median over 5 wins, not a difficulty inversion, and it is exactly why the
+win-rate column rather than the margin column is the one the bands are read
+from.
+
+T1 meets all three §C targets. T3 is inside §B's `[35%,70%]`. T5 sits **at**
+the `[5%,20%]` ceiling rather than inside it (8.3% at n=12, 20.8% at n=24 —
+the honest reading is "at the boundary", not "met"). Every rung is playable
+with real close-wins, which fixes the dead-content failure p12b shipped.
+
+### The blocker this arc actually found: the tick cap, not the ladder
+
+Re-running T3's 24 seeds with the cap lifted from 45 to **120** simulated
+minutes:
+
+| T3, 24 seeds | win rate | timeouts | mean victorious run |
+|---|---|---|---|
+| 45-minute cap | 37.5% | **6** | 38.75 min |
+| 120-minute cap | **62.5%** | **0** | 43.12 min |
+
+A quarter of the seed set was being censored, and censored seeds are
+disproportionately **wins** — so every rung's recorded rate is biased *down*
+by an amount that grows with how contested that tier is. T3 is in band on both
+readings, so the shipped ladder stands; but the ladder's apparent ordering
+(66.7 / 41.7 / 37.5 / 33.3 / 20.8) is monotone only on censored numbers and
+**cannot be confirmed until the censoring is gone**.
+
+That makes **p12e (timeout elimination) the blocker for this whole arc**: no
+gate measured against a 45-minute cap can be trusted while a quarter of its
+seeds hit it. Logged as **QUESTIONS Q177**; **p12g is retired**, its premise
+being the impossibility claim retracted above.
+
+### What the anchor costs
+
+G13's solo-viability clause (`tests/a4-single-type.test.ts`) reads **0/5 for
+all seven towers** — at ×20 enemy HP no single tower type holds the wave curve
+alone. `.skip`-ed with that number, re-enable point p12d.
+
+**The control is not the 5/5/5/5/4/5/4 that clause was authored at.** Measured
+at HEAD, with `baseHpMul` at its 1.0 identity and p12b's ladder exactly 1.0 at
+T1 (so nothing else in HEAD can move a T1 reading), it already read
+**{arrow_spire 1, ballista 1, ember_brazier 0, frost_obelisk 0, tesla_coil 1,
+mortar 3, venom_spore 0} of 5** — largely red *before* this item
+(qa-playtester). p12c deepens it to all zeroes; it did not cause it. The older
+regression is filed as **p12h** with its bisect candidates named.
+
+The deepening is still a real trade rather than a defect — a tower that soloed
+the whole curve was a statement about a difficulty the bot won 100% of the time
+with the Core untouched — and it is the strongest argument against keeping the
+anchor at 20, which is an owner call, not a silent one. The final boss also takes the
+roster multiplier (365,000 → 7.3M at T1); its fight-length case still passes,
+measured rather than assumed.

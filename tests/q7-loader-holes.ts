@@ -496,6 +496,10 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'equipment.items[].mods.xpGain': ['negative', 'zero', 'fractional', 'drop-key'],
   'equipment.items[].name': ['to-string', 'empty-string'],
   'equipment.slots': ['dupe-element'],
+  // p12c: `baseHpMul` is a multiplier, so a fractional value is valid by
+  // design — it is the identity at 1.0 and the shipped value is 20. The
+  // schema's own `.positive()` refuses the unpayable cases (zero, negative).
+  'enemies.baseHpMul': ['fractional'],
   // p12b: the tier ladder's three scalars are multipliers, so a fractional
   // value is *valid* by design (the shipped ladder is 4.0/1.9/1.7). The one
   // thing that would be unpayable — a value under 1, which inverts the ladder

@@ -85,6 +85,11 @@ export function makeEnemy(w: World, def: EnemyDef, x: number, y: number, opts: S
   // modifiers, which is why a tier read as a distribution rather than a rung.
   // Applied before the boss multipliers below so a boss takes both, the same
   // way it already takes `mods.enemyHp` and `mods.bossHp`.
+  // p12c (§C): the roster-wide base multiplier, then p12b's tier rung. Order
+  // is immaterial (both are scalars) but stated this way because they answer
+  // different questions: `baseHpMul` sets how hard the game is at all, the
+  // rung sets how much harder each tier is than the last.
+  hp *= w.content.enemies.baseHpMul;
   hp *= tierEnemyHpMul(w.content, w.cfg.tier);
   const isBoss = (flags & TRAIT.boss) !== 0;
   if (isBoss) hp *= 1 + w.mods.bossHp;

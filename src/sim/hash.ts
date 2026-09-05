@@ -4,7 +4,6 @@
  * differences can never fork a replay, while any real divergence still shows.
  */
 
-import { q } from './math';
 
 export class Hasher {
   private h = 0x811c9dc5;
@@ -30,7 +29,21 @@ export class Hasher {
     // `q()` itself does `... | 0`, which would collapse a non-finite `v` to
     // 0 before `int()` ever sees it — bypass quantization for non-finite
     // values so `int()`'s tag can still catch them.
-    return this.int(Number.isFinite(v) ? q(v) : v);
+    if (!Number.isFinite(v)) return this.int(v);
+    // p12c (qa-playtester): `int()` keeps 32 bits, so a quantized magnitude
+    // past 2^31 wrapped and aliased onto a different, legitimate value —
+    // `q(7_300_000) === q(3_105_696)`. Latent until p12c's roster-wide
+    // `baseHpMul` put the final boss at 7.3M HP, at which point the boss at
+    // full HP and at 42.5% HP hashed identically. Determinism was never at
+    // risk (the wrap is deterministic); the hash's ability to *see* a
+    // divergence was, which is exactly gate G2's job.
+    const r = Math.round(v * 1024);
+    const hi = Math.trunc(r / 0x1_0000_0000) | 0;
+    this.int(r | 0);
+    // Folded only when it carries information, so every value inside int32
+    // range hashes bit-identically to before this fix — which is what keeps
+    // terrain's pinned map hashes and every recorded end-state hash valid.
+    return hi === 0 ? this : this.int(hi);
   }
 
   bool(v: boolean): this {
