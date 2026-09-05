@@ -502,7 +502,7 @@ session 2 (c005 was the last actionable one left), appending `c006`-`c010`.
       row is a named deviation, never silence - refs: SPEC-FINAL §6.3, c016,
       c019.
 
-- [ ] (c022) [bug] the §7 ledger pins **which stat key each numeric column uses
+- [x] (c022) [bug] **DONE 2026-09-05.** the §7 ledger pins **which stat key each numeric column uses
       and no Effect row's**. `c012` added `NUMERIC_STAT` after code review found
       that a `0`/`×1` cell reads 0 through *any* `StatKey`, so a numeric row
       could audit a stat §7 never mentions; the same hole is still open on the
@@ -520,6 +520,14 @@ session 2 (c005 was the last actionable one left), appending `c006`-`c010`.
       are, so deleting the covering block reddens the row; red under the
       `towerCost`->`goldFind` mutation above with the ledger row edited to
       match - refs: SPEC-FINAL §7, c012, QA on c012, fb056.
+      **Seven of the thirteen Effect rows had no block anywhere that named
+      their stat, so the pointer had nowhere to point: `hpRegen`, `xpGain`,
+      `towerCost`, `leech`'s magnitude, `bleedLifesteal` as a stat rather than
+      as an equipped item, `towerAtkFlat` as a key rather than as a damage
+      delta, and Swordsman Armor's `classFallback`, which had no dedicated
+      block at all. Those seven covers are new, in this lane's own
+      `tests/equip-effect-behaviour.test.ts` — `tests/fb015-equipment.test.ts`
+      is out of Scope. The other six point into fb015 unchanged.**
 
 - [x] (c023) [polish] **DONE 2026-09-05.** `equipment.items[].effectKey` is a **dead field**. Found
       by QA on c012: setting `sleeve_sword`'s to `"none"` changes no behaviour
@@ -661,6 +669,70 @@ session 2 (c005 was the last actionable one left), appending `c006`-`c010`.
       §3 (Poison), owner feedback `feature-poison-barrel-mechanic`.
 
 ## Log
+
+### c022 (2026-09-05) — the row that audits the right number on the wrong stat
+
+- **Shape**: `tests/equip-spec-numbers.test.ts` gains a `Behaviour` pointer on
+  every one of the 13 §7 Effect rows plus five checks over them; new in-lane
+  `tests/equip-effect-behaviour.test.ts` (13 tests) carries the seven covers
+  that did not exist. No `/src` or `/data` byte moved. 121 + 13 green.
+- **The mutation the item was filed on is red, measured, not argued.**
+  `"towerCost": -0.2` -> `"goldFind": -0.2` in `/data` with the ledger row's
+  `stat` edited to match: **2 red** (the pointer check and the decoy check).
+  Renaming the covering `it` title: **1 red**. Both were green before.
+- **Seven of the thirteen rows had no cover to point at**, which is the finding
+  underneath the finding: `hpRegen`, `xpGain` and `towerCost` had no
+  equipment-side behavioural block anywhere in the suite; `leech`'s *magnitude*
+  was unpinned (fb015's two Bleeding blocks prove the flag routes bleed damage,
+  never the 0.0001); `bleedLifesteal` was proven only by equipping the item, so
+  the stat could have moved keys with fb015 green; `towerAtkFlat` likewise —
+  fb015 observes `towerDamage()` rising, which any tower-damage key would do;
+  and Swordsman Armor's `classFallback` had no dedicated block at all, only the
+  generic three-item loop that names no stat. The ledger's own `note` on the
+  `bleedLifesteal` row had already written the pointer in prose ("named here
+  instead: `tests/fb015-equipment.test.ts:419`"); c022 is that sentence turned
+  into an anchor.
+- **The default is the strong one and the override is a roster, not a flag.**
+  `reads` defaults to the row's own stat key as a substring, so `areaMul`,
+  `towerRangeMul` and `leechAccumulator` satisfy `area`, `towerRange` and
+  `leech` — a derived factor named after its stat is that stat read by name.
+  Exactly one row overrides it (`swordsman_shoes`' `×2`, the only row with
+  `stat: null`), and the exemption asserts *its own cause*: the row must have
+  no stat key and must be `in_code`, so it cannot outlive the reason it exists.
+- **The block reader is exercised on synthetic source**, the shape `c012`'s
+  `unclaimedWords` established: a fabricated two-block file proves it stops at
+  its own closing brace rather than swallowing its neighbour, that 0 and 2
+  matches are reported rather than silently taken, and that an unterminated
+  block throws. Without that, every `reads` check could have been passing by
+  reading the rest of the file.
+- **The decoy roster is derived, not listed**: every `StatKey` no equipment
+  item authors may appear in no covering block, so re-pointing *any* Effect row
+  at one of them is red, not just the row QA happened to mutate. A hardcoded
+  roster of three carried the precondition "no item authors this key", which
+  the acceptance mutation itself breaks — it would have gone red saying
+  "goldFind is authored, so it is not a decoy", the right answer for the wrong
+  reason. One name is exempt with a reason (`towerDamage`, which `towers.ts`
+  also exports as a *function* the Builder's Necklace covers call), and a
+  negative control (`.not.`, or a `toBeCloseTo` against the control world) may
+  name a decoy freely — QA showed the first draft punished *strengthening* a
+  block with a "the discount must not leak into gold find" assertion.
+- **Eight of the device's own holes were found by review and QA, and every one
+  is closed with the mutation that found it as its regression test.** The
+  `reads` match was a bare substring (`atkFlat` satisfied by `towerAtkFlat`,
+  `armor` by the item key `swordsman_armor`) and is now closed on the left by
+  an identifier boundary; the body **excluded** the title line only after
+  review pointed out that ten of thirteen anchors name their stat in the title,
+  so the check was self-satisfying; comments are stripped, because a bare
+  `// luck` was enough to "cover" a row moved onto `luck`; the pointer now
+  binds the **item** as well as the stat, after QA re-pointed Normal Ring at
+  the Time Core's regen block and stayed green; a `describe.skip` above a cover
+  is refused; and the block reader stopped scanning for a literal `});` after
+  QA closed a block with `}, 20000);` (20 files here do) and watched the body
+  swallow its neighbour — it now reads the end off indentation and refuses
+  anything at that column that is not a closer. The seventh was in the new
+  covers themselves, not the device: the `leech` block asserted
+  `leechAccumulator ≈ dealt × derived.leech`, which is `0 ≈ 0` with the stat
+  deleted — the one cover of the seven that survived its own mod's removal.
 
 ### c026 (2026-09-05) — the merge that proved the footprint was describing the arena
 

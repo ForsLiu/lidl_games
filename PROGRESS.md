@@ -5,6 +5,24 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-05 session (lane `lane/content`, branch
+  `claude/backlog-content-loop-r8mmic`): in progress.** Items closed this
+  session are listed here as they land; BACKLOG-CONTENT.md's Log carries the
+  detail for each.
+
+  `c022`: every one of the 13 §7 Effect rows in
+  `tests/equip-spec-numbers.test.ts` now carries a **behavioural pointer** —
+  an anchored `describe`/`it` whose body reads that row's own stat key — so a
+  row can no longer audit the right number on a stat §7 never mentions. The
+  mutation QA measured on c012 (`normal_necklace`'s `-0.2` moved from
+  `towerCost` to `goldFind` in `/data` *and* in the ledger row) is red, as is
+  deleting a covering block. Seven of the thirteen stats had no cover anywhere
+  that named them — `hpRegen`, `xpGain`, `towerCost`, `leech`'s magnitude,
+  `bleedLifesteal`, `towerAtkFlat` and Swordsman Armor's `classFallback` — and
+  those covers are new, in this lane's `tests/equip-effect-behaviour.test.ts`
+  (`tests/fb015-equipment.test.ts` is out of Scope). No `/src` or `/data` byte
+  moved.
+
 - **2026-09-05 (lane `lane/terrain`): merged `origin/master` in a second
   time**, picking up `lane/ui`'s fb111/fb112/fb114/fb115 (PR #4). Nothing to
   reconcile in code: master's batch touched only `src/ui/**`, `tests/ui-*` and
