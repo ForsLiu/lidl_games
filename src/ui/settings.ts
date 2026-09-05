@@ -107,12 +107,71 @@ export function defaultSettings(): Settings {
   };
 }
 
-export function loadSettings(): Settings {
+/**
+ * fb144: the OS-level `prefers-reduced-motion` preference, or `false` wherever
+ * it cannot be read.
+ *
+ * Deliberately NOT consulted from `defaultSettings()`, which stays pure and
+ * environment-free so `tests/q3-save-fuzz.test.ts` and fb111's portability
+ * audit keep a deterministic baseline: the query is applied once, at first-run
+ * seeding in `loadSettings()` below.
+ *
+ * Absence is the common case, not the exceptional one — jsdom ships no
+ * `matchMedia` at all, so every other `src/ui` test runs under that shape. A
+ * stub that returns null or throws is likewise a `false`, never a throw out of
+ * `loadSettings`: a motion preference must not be able to take settings
+ * loading (and with it the whole boot) down.
+ *
+ * Read once, at boot: unlike fb142's DPR query this arms no `change` listener,
+ * so flipping the OS preference mid-session takes effect on the next reload.
+ * That is deliberate — a live listener would have to decide whether it may
+ * overwrite a value the player has since set by hand, and "first run only" is
+ * the whole of this item's contract.
+ */
+export function prefersReducedMotion(): boolean {
+  const mm = (globalThis as { matchMedia?: (q: string) => MediaQueryList | null }).matchMedia;
+  if (typeof mm !== 'function') return false;
   try {
-    const raw = globalThis.localStorage?.getItem(SETTINGS_KEY);
-    if (!raw) return defaultSettings();
+    return mm.call(globalThis, '(prefers-reduced-motion: reduce)')?.matches === true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * fb144: the settings a player who has never opened this game gets. Pure
+ * defaults, except that `reducedMotion` (fb086, opt-in by default) starts ON
+ * for a player whose OS already says they want reduced motion — they should
+ * not have to find the toggle to be told again.
+ *
+ * Only ever reached when there is no stored entry at all; see `loadSettings`.
+ * Not run through `sanitize()`: `defaultSettings()` is in range by construction
+ * and the one seeded field is a boolean.
+ */
+function firstRunSettings(): Settings {
+  return { ...defaultSettings(), reducedMotion: prefersReducedMotion() };
+}
+
+export function loadSettings(): Settings {
+  let raw: string | null | undefined;
+  try {
+    raw = globalThis.localStorage?.getItem(SETTINGS_KEY);
+  } catch {
+    // Storage unreadable (private mode, a hostile embedder): indistinguishable
+    // from a first run from in here, and treated as one.
+    return firstRunSettings();
+  }
+  // fb144: no stored entry means a first run, the ONLY case where the OS
+  // preference is consulted. An explicitly stored value always wins — including
+  // an explicit `reducedMotion: false` against an OS "reduce", which is a
+  // player who has been to the Settings screen and said no.
+  if (!raw) return firstRunSettings();
+  try {
     return sanitize({ ...defaultSettings(), ...(JSON.parse(raw) as Partial<Settings>) });
   } catch {
+    // A stored-but-unparseable entry is still an entry: this player has been
+    // here before, so it is not a first run and the OS preference is not seeded
+    // over the top of whatever they had. Pure defaults, exactly as before fb144.
     return defaultSettings();
   }
 }

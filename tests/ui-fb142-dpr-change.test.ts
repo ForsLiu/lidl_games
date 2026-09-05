@@ -257,7 +257,11 @@ describe('fb142: a devicePixelRatio change resizes the canvas without any window
       queries.forEach((q) => fire(q));
     }
     expect(live()).toBe(0);
-    expect(queries.length).toBe(1);
+    // fb144 made `new Game()` (via `loadSettings()`) ask the same stub for
+    // `(prefers-reduced-motion: reduce)` once, at construction. That query
+    // arms no listener and is not what this test is about, so filter to the
+    // resolution queries — the same idiom the first test in this file uses.
+    expect(queries.filter((q) => q.media.includes('resolution'))).toHaveLength(1);
   });
 
   it('survives a matchMedia that rejects the query string, rather than taking input binding down with it', () => {

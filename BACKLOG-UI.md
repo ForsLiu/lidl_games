@@ -3282,7 +3282,7 @@ not already expose it) logs that need below instead of reaching into
       test:fast` 2338 passed/4 failed/48 skipped, every failure in the standing
       `b028`/`b032`/`b034`/`b035`/`b036`/`q15`/`q41`/`q45`/`q52` families.
 
-- [ ] (fb144) [polish] generated 2026-09-05 (same generation batch as fb142)
+- [x] (fb144) [polish] generated 2026-09-05 (same generation batch as fb142)
       — honour the OS's `prefers-reduced-motion` on a first run. fb086 added
       the `reducedMotion` setting (default off, opt-in), but nothing in
       `src/` reads the `prefers-reduced-motion` media query, so a player who
@@ -3297,6 +3297,48 @@ not already expose it) logs that need below instead of reaching into
       wins over the OS preference, including an explicit `false` against an
       OS "reduce"; tests cover all three cases plus a missing `matchMedia`
       (no throw) — refs: QUALITY.md 1.0 (Accessibility re-check), fb086.
+      DONE 2026-09-05: `settings.ts` gains `prefersReducedMotion()` (exported;
+      `matchMedia('(prefers-reduced-motion: reduce)')?.matches === true`, with
+      a missing/null/throwing `matchMedia` all a plain `false` rather than an
+      exception — this runs on `Game`'s constructor path, so a throw would take
+      the whole boot down) and a private `firstRunSettings()` =
+      `{ ...defaultSettings(), reducedMotion: prefersReducedMotion() }`.
+      `loadSettings()` was restructured so the `getItem` read and the
+      `JSON.parse` sit in separate try blocks, which is what makes the three
+      cases distinguishable: no stored entry (or unreadable storage — nothing
+      was ever persisted either way) seeds from the OS; a stored entry never
+      consults it at all, so an explicit `reducedMotion: false` against an OS
+      "reduce" survives; and a stored-but-unparseable entry is still an entry,
+      so it falls back to pure defaults exactly as before fb144 rather than
+      re-seeding over a returning player. `defaultSettings()` is untouched and
+      stays environment-free — `tests/q3-save-fuzz.test.ts` and fb111's
+      portability audit keep their deterministic baseline, and the test pins
+      that with the OS stub actively reporting "reduce" so it cannot pass
+      vacuously. Targeted `tests/ui-fb144-prefers-reduced-motion.test.ts`
+      (11/11): the three required cases, a missing `matchMedia`, plus a
+      null-returning stub, a throwing stub, "never queries the OS once an entry
+      is stored", an unparseable entry, and unreadable storage. code-reviewer
+      **REQUEST-CHANGES -> fixed**: one Major, a real regression this item's own
+      targeted set could not see — `tests/ui-fb142-dpr-change.test.ts`'s
+      "refuses to arm a query it cannot detach from" case asserts
+      `queries.length === 1` against a stub that records EVERY query, and
+      `new Game()` now asks that same stub for the reduced-motion query too
+      (loadSettings runs in `Game`'s field initializer). Fixed by filtering to
+      the resolution queries, the idiom the same file's first test already
+      uses; production behaviour was never affected (the extra query arms no
+      listener). Two Nits closed in the doc comments (the boot-only read is
+      deliberate and now says so; `firstRunSettings` skipping `sanitize` is
+      noted as defaults-are-in-range-by-construction). Its Minor — fb075's
+      "Reset settings to defaults" writes `reducedMotion: false` permanently
+      for an OS-"reduce" player, closing the same accessibility hole from the
+      other side — is outside this item's "first run only" acceptance and is
+      filed as fb152 below rather than folded in. `npx tsc --noEmit` clean;
+      the whole lane surface (`tests/ui-*` + `tests/render-*`, 55 files)
+      367 passed / 0 failed. `npm run test:fast` (pre-fb142-fix run): 5 failed
+      files / 4 failed tests, of which fb142 was the only real one — the rest
+      are the documented q41/q45 scratch-dir module-resolution flake class,
+      unchanged by this item and touching neither `src/ui/**` nor
+      `src/render/**`.
 
 - [ ] (fb145) [bug] generated 2026-09-05 (same generation batch as fb142) —
       auto-pause on tab/window hide, not just `blur`. fb071 auto-pauses a
@@ -3518,7 +3560,46 @@ not already expose it) logs that need below instead of reaching into
       a fire+travel+impact entry; VS wielded attacks reuse the same registry
       entries — refs: SPEC-FINAL §5, §11, VFX registry (fb016).
 
+- [ ] (fb152) [polish] filed 2026-09-05 by code-reviewer during fb144 review —
+      "Reset settings to defaults" re-buries the OS reduced-motion preference.
+      fb144 seeds `reducedMotion` from `matchMedia('(prefers-reduced-motion:
+      reduce)')` on a first run only, but fb075's Settings reset
+      (`hub.ts`'s `#sw-settings-reset`, `this.settings = sanitize(
+      defaultSettings())`, persisted by `main.ts`'s `onSettingsChanged`)
+      writes a hard `reducedMotion: false` — and because a stored value always
+      wins, an OS-"reduce" player who ever presses Reset never sees the
+      preference honoured again. Same accessibility hole fb144 exists to
+      close, reached through a different door; deliberately left out of fb144
+      because its acceptance says "first run only" and this changes what
+      fb075's own tested behaviour means. Acceptance: the reset path produces
+      the same settings a first run would (export fb144's `firstRunSettings()`
+      and use it at the reset site, or an equivalent), so a reset under an OS
+      "reduce" leaves `reducedMotion` true; `tests/ui-fb075-settings-reset
+      .test.ts` keeps its existing confirm-step coverage and gains a case
+      driving a real Hub reset with a `matchMedia` stub reporting "reduce",
+      plus its control with no preference — refs: fb144, fb075, QUALITY.md 1.0
+      (Accessibility re-check).
+
 ## Log
+
+- 2026-09-05, fb144: implemented fully in-scope (`src/ui/settings.ts` plus two
+  `tests/ui-*` files). The second test file is `tests/ui-fb142-dpr-change
+  .test.ts`, edited rather than left red: fb144 makes `loadSettings()` — which
+  runs in `Game`'s own field initializer — ask `matchMedia` one extra question
+  at construction, and fb142's listener-leak case counted queries rather than
+  filtering them. In scope (`tests/ui*`), one line, and the same filter idiom
+  that file's first test already used. Worth recording for the merge because it
+  is the second time a `main.ts`-adjacent `matchMedia` consumer has collided
+  with a test that stubs the global: a third one should filter by media string
+  from the start rather than counting.
+  fb085, fb093 and fb097 (all `[ ]` and above fb144 in the queue) were
+  re-confirmed still permanently out of this lane's Scope rather than
+  re-attempted — `data/strings.json`, `tools/ui-audit.ts` and a `package.json`
+  dependency respectively, each already logged as out-of-scope in the 2026-09-04
+  entries below, and nothing about the Scope section has changed since. Executed
+  fb144 instead, the first actionable item.
+  One follow-up filed from the review rather than folded in: **fb152** above
+  (fb075's Settings reset re-buries the OS preference).
 
 - 2026-09-05, merge: `origin/master` merged into `lane/ui`. Only two files
   conflicted, both docs (this file's Log and PROGRESS.md's session list) —
