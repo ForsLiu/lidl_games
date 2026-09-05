@@ -463,7 +463,7 @@ fb064o.
       — QA reproduced three such freezes green. The sweep now runs over a
       config matrix, which is what makes "the next band cannot land without
       the helper" true for a retune as well as for a new term.
-- [ ] (fb064w) [polish] `parseTerrainDump` accepts unknown and reordered fields
+- [x] (fb064w) [polish] `parseTerrainDump` accepts unknown and reordered fields
       on every header line, which contradicts the rule the rest of the file is
       written to — "refuse what the writer never emits rather than reinterpret
       it", already applied to duplicate keys, mixed dashes, a moved gate and a
@@ -481,7 +481,23 @@ fb064o.
       kept deliberately, it is pinned as an accepted case in the refusal table
       with the reason, so it is a decision rather than an oversight — refs:
       fb064s QA bug 2, fb064k.
-- [ ] (fb064x) [polish] `Grid.passable` and `Grid.passableGhost` still carry the
+      **Shipped as the refusal, not as an accepted case, and the order pin
+      covers all six header lines rather than the seed line alone.** The
+      acceptance offers the leniency as a recordable decision; there is nothing
+      to record. `describeTerrain` writes six header lines with a fixed field
+      list in a fixed order, and every existing refusal in the file — duplicate
+      keys, a mixed dash, a moved gate, a renamed legend — is written to
+      "refuse what the writer never emits rather than reinterpret it", so
+      keeping *this* leniency would have needed a reason, and the only one on
+      offer was that the change looked wider than the item. It is nine lines.
+      The one deviation worth naming is what the key list is *not*: it is a
+      no-extras-in-this-order list, never a required-key list, because every
+      missing-field refusal in the parser says something specific about the
+      field that is gone (`source`'s names the remedy for a pre-fb064s dump)
+      and a set comparison would have replaced all of them with one generic
+      complaint. See the Log for the drift hole the review found in the new
+      table itself.
+- [x] (fb064x) [polish] `Grid.passable` and `Grid.passableGhost` still carry the
       exact hole fb064u closed: both index `blocked`/`tile` with the raw
       coordinate behind a bounds check alone, so on a grid with rock at (3, 1)
       `passable(3, 1.5)` answers `true` about a mountain (index 57 = tile
@@ -499,9 +515,368 @@ fb064o.
       an accepted case with the numbers; either way one test enumerates every
       Grid tile predicate so a sixth cannot be added un-guarded — refs: fb064u
       QA bug 1, fb064u review finding 5, b007.
+      **Shipped as the guard on both, and the decision the acceptance framed as
+      a trade turned out not to be one.** The item is written as guard-or-accept
+      because `Number.isInteger` twice per neighbour is a real per-tick cost in
+      the Dijkstra inner loop — but the loop never needed the coordinate form at
+      all: it derives every neighbour from a flat index plus a `NEIGHBORS`
+      offset and bounds-checks it once, so it now calls private flat-index forms
+      (`passableAt`/`passableGhostAt`) that hold the rule the public predicates
+      delegate to. The guard therefore costs the loop nothing and *removes* the
+      index re-derivation and bounds re-check it used to pay on each of those
+      calls. Measured, interleaved and order-alternating (`markDirty()+refresh()`
+      x400): 0.85-0.92x of the pre-change time, reproduced by QA in-process at
+      0.853-0.909. **The whole-run figure this note first carried was wrong and
+      is corrected here rather than quietly dropped:** it read "simMs 5-sample
+      mean 16137 before, 14160 after", which is a ~12% whole-run win the change
+      cannot buy — `refresh` is a negligible share of a run. QA caught it: the
+      "before" samples were taken sequentially while three agents shared the
+      host, and interleaved A/B shows **no measurable whole-run difference**
+      (QA: 14167/14180 then 14294/14400 old/new; re-measured here on a quiet
+      host, 14161 old vs 13968 new over 3 interleaved pairs, inside the noise).
+      This is exactly the failure CLAUDE.md's measurement rules name — "my
+      change improved X" needs the control run, not the plausible story — and
+      the honest number is the microbenchmark, not `simMs`. `endHash 2729a000`
+      unchanged throughout. Both flow fields are pinned bit-identical by goldens
+      measured
+      on the pre-change file. The enumeration test covers every `(tx, ty)`
+      member of `Grid`, not only the boolean predicates, because the non-boolean
+      tile accessors carry the same hole and listing them is what makes their
+      exemption a decision — filed as fb064y.
+      QA beat three parts of this on the way in, all fixed before commit: the
+      enumeration scan missed `static` (a modifier `Grid` already uses, for
+      `tileCenter`) and required the parameters to be *named* `tx`/`ty`, so
+      `isMud(x: number, y: number)` landed un-guarded with the test green; the
+      module-level `fieldDist`/`fieldStep` carry the same hole one layer down
+      and are now listed (and added to fb064y's scope); and the golden field
+      pin was under-seeded — seeds 1, 11 and 137 were all blind to deleting the
+      breach-diagonal branch's second term, the one line whose shape this item
+      changed, so seed 4 was added and the mutant now dies. Each `GOLDEN` row
+      also checks the generated map's own hash first, so a `data/terrain.json`
+      tuning edit reads as "the map changed" rather than as a `grid.ts`
+      regression.
+
+### Generated 2026-09-05 (lane generation rule)
+
+fb064w and fb064x were the last two actionable items, so the rule ran with
+zero left. **Leg (a), the sweep, was skipped for the third time, with the
+same reason re-verified rather than inherited** (measurement rule: a deferral
+is a measurement with an expiry date): `grep -rn "generateTerrain\|applyTerrain"
+src/ tools/` outside `src/sim/terrain/` still returns only `grid.ts` comments
+and the unrelated `applyTerrainPassives` in `weapons.ts`, so no run's outcome
+depends on `data/terrain.json`, terrain cannot move a single §14 balance gate,
+and a sweep would measure nothing about it. Leg (b), the coverage diff against
+the owner feedback file, found **no unbuilt in-scope clause left**: rendering,
+the Tuner page and the Core-placement wiring are the only ones outstanding and
+each needs files this lane may not touch (already in the Log). So all five
+below are leg (c) — depth on what the lane has shipped, in the spirit of
+HANDOFF §7 — and the first is a defect the fb064x review found rather than an
+improvement.
+
+- [x] (fb064y) [bug] `Grid.distAt`, `Grid.stepFrom` and `Grid.idx` carry the
+      exact hole fb064x just closed on the five tile *predicates*: `distAt` and
+      `stepFrom` bounds-check and then index `ty * GRID_W + tx` with the raw
+      coordinate, so `distAt(3, 1.5)` answers about tile (21, 1) (GRID_W is
+      even, so the `.5` cancels its own fraction), and `idx` is unchecked
+      outright — `tools/fuzz-command-domain.ts` already records that. Latent
+      for fb064x's reason (every live caller floors: `combat.ts:125`,
+      `policies.ts:551`, `world.ts:598`), and fb064x's enumeration table lists
+      all six non-predicate `(tx, ty)` members as `accessor` precisely so the
+      exemption is a decision with an owner rather than a gap. Unlike the
+      predicates these are not all boolean, so "refuse" has to mean something
+      per accessor (`-1`, `null`, a throw). **Widened by fb064x's QA (bug 5) to
+      the module-level `fieldDist`/`fieldStep`**, which are the same bare
+      bounds check over `f.dist[ty * GRID_W + tx]` one layer down and have no
+      caller anywhere in `src/` or `tools/` today — which is what makes them
+      the least urgent and still in scope: an un-called accessor is exactly the
+      kind that acquires its first caller without anyone re-deriving its
+      coordinate contract. Acceptance: a failing regression
+      test first; each of `distAt`/`stepFrom`/`idx`/`fieldDist`/`fieldStep`
+      either guards a non-integer
+      with the value its own contract already uses for "no answer" or is
+      recorded as a measured accepted case with the reason; the fb064x table's
+      `accessor` rows are reclassified accordingly; `tests/g2-determinism` and
+      `tests/b007-tile-bounds` green and `npm run sim -- --seed 1 --policy
+      hybrid` unchanged in `endHash` — refs: fb064x review Minor 3, b007.
+      **Shipped as four guards and one recorded exemption.** `distAt` and
+      `fieldDist` refuse with `-1`, `stepFrom` and `fieldStep` with `null` —
+      each the value its own contract already uses for "no answer", which is
+      why the predicates' single shared `false` could not just be copied. `idx`
+      is the exemption, and the reason is that it has nothing to refuse *with*:
+      every integer it can return is a legal index, so a sentinel moves today's
+      silent alias one line downstream into callers that index arrays with the
+      result directly. Its three aliasing shapes are pinned by a test instead,
+      so the exemption is a decision with evidence rather than an omission.
+      code-reviewer **REQUEST-CHANGES** on the first pass, and the finding was
+      real: the acceptance's "reclassified accordingly" had been satisfied in
+      prose only — all eight non-predicate rows were still one `accessor`
+      bucket the probe loop skipped, so a *seventh* accessor would have been
+      made green by adding a row and would have got no behavioural check at
+      all, which is the whole guarantee the table exists to give. The label is
+      now the behaviour (`refuses` / `exempt` / `sentinel-neg1` /
+      `sentinel-null` / `throws` / `accepted` / `write`) and every row but the
+      three labelled `accepted`/`write` is probed; verified by adding an
+      unguarded `costAt(tx, ty)` and watching it fail both unclassified *and*
+      classified. qa-playtester **PASS** on all four clauses after 56 A/B run
+      pairs (every report field identical but `simMs`), full-field hashes over
+      10 maps, `laneTiles`/`gatePath` under real bot builds, a 20-kind x
+      324-position targeting sweep, and runtime instrumentation counting
+      non-integer calls across four full sims — **zero**, with a positive
+      control that fires, so "every live caller passes integers" is measured
+      rather than assumed. It filed two coverage gaps, both fixed here and both
+      confirmed by killing the mutant that exposed them: `stepFrom`'s `ghost`
+      overload had no coverage anywhere in the repo (replacing its field with
+      `this.ground` left all 52 tests in the three grid suites green while
+      changing 206 tiles on seed 1), and only one of the four bounds terms was
+      probed (dropping `ty >= GRID_H` from `fieldDist` made it return
+      `undefined` from a function declared `: number`, green). The re-review
+      then closed the last of it: the skip list is
+      pinned by name, so a new accessor cannot join it by choosing a convenient
+      label; `placeCore` moved to a `throws` label (it already refused) and is
+      probed; and the two `write` rows got the test their prose was standing in
+      for — `setOcc(3, 1.5, 7)` occupies and blocks tile (21, 1) and re-routes
+      the flow field, which is strictly worse than the read this item started
+      from, and the exposure is call-site-owned rather than absent.
+- [x] (fb064z) [test] generation cost is unmeasured, and it is about to be on
+      the critical path: once fb064c wires the generator, every run pays
+      `generateTerrain` at start, and a retry-taking seed pays it up to
+      `maxAttempts` times over. Nothing pins that cost, so a future generator
+      change (another repair pass, a wider constraint) can multiply it with no
+      test going red — the same shape of hole fb064o closed for path length,
+      where area was bounded and travel time was not. Acceptance: a measured
+      per-seed ledger over a fixed sample spanning the `MIN_TERRAIN_SEED..
+      MAX_TERRAIN_SEED` domain (mean, p95 and worst wall-clock, retry-taking
+      seeds reported separately with their attempt counts), the worst seed
+      named in the test so a regression is a diff rather than a hunt, and a
+      budget pinned with its headroom recorded — host-normalised the way
+      `q13-perf-ratio` is, not a raw millisecond count, so it does not flake on
+      a loaded runner — refs: HANDOFF §7, G12, fb064r.
+      **Shipped in two layers, and the instrument had to be rebuilt three times
+      to be worth having.** Layer 1 is the attempts ledger — deterministic, so
+      it is pinned tightly (2 retry-taking seeds in 1500, both named, both at
+      2 attempts) and it is the layer that catches a retune: `density.jitter: 1`
+      takes it from 2 to 370. Layer 2 is the host-normalised cost, and three
+      review rounds each found the normalisation measuring the wrong thing:
+      one up-front best-of-3 calibration (the pattern `tools/perf-ratio.ts`
+      records as measured-and-rejected — p95 red 4/4 beside five sibling
+      suites); then `min_r(t/per_r)`, which is `t_min/per_max` and deflated the
+      mean 4.7x under 12-way contention, hollowing out the ceiling on exactly
+      the runner the file is for; then a 5.8 ms calibration window against a
+      1.2 ms generation, whose minimum inflates faster than the numerator's.
+      Shipped as per-seed minimum in *raw* milliseconds over the minimum `per`
+      across every chunk of every round, at a chunk sized to one generation.
+      **What is recorded rather than asserted, each with the measurement that
+      justifies it:** p99, the argmax's identity, and the upper end of the
+      retry ratio — all are per-seed tail statistics that no normalisation
+      rescues, and each was tried as an assertion and reproduced red under
+      contention first. QA **PASS** over 24 runs to 48-way contention, 0 red,
+      and it measured the two blind spots the ceiling leaves: a 4.1x uniform
+      cost regression passes and a 5.7x one reddens (reproduced here), and
+      `maxAttempts` — the file's own motivating number — was invisible to it
+      until a one-line pin was added. Both are recorded in the file.
+- [x] (fb065a) [feat] three of the five numeric bands have literally zero
+      headroom (fb064r): `walkableFrac` and `buildableNormalFrac` have domain
+      witnesses sitting *exactly* on their floors and `maxGateDetour` has two
+      sitting exactly on its ceiling, so only `terrainLegal`'s `>=`/`<=` keeps
+      those seeds legal and one representable step tighter regenerates them.
+      Every regeneration is a full discarded generation (fb064z measures what
+      that costs), and a knife-edge accept test means the *retry rate* is a
+      number nobody has looked at over the real seed domain. Acceptance: the
+      retry rate and the per-band rejection tally measured over a domain-wide
+      sample, then either a targeted repair that lifts the worst seeds off the
+      floors (measured before/after, with fb064l's variety measures and every
+      other band shown not to move) or a recorded measured decision to accept
+      the knife edge with the numbers that justify it; the golden churn, if
+      any, is named — refs: fb064r, fb064o, G2.
+      **Shipped as the recorded decision to accept, and the measurement it
+      rests on had to be rebuilt once.** The verdict: all five witnesses are
+      *accepted* on their first attempt, so the zero headroom costs nothing
+      today; the sample's median map clears `walkableFrac` by 0.094 and
+      `buildableNormalFrac` by 0.100 and sits 0.398 under the detour ceiling;
+      and one lattice step of tightening costs 2 newly-retrying seeds in 12,000
+      (0.017%), both on the detour ceiling, against a retry rate of 43. Sixteen
+      steps on `walkableFrac` takes the sample from 43 to 83 retries, 0.36% to
+      0.69%. A repair pass would move every golden in the suite — fb064k's
+      dump, fb064l's variety, fb064r's ledger, fb064x's field hashes, fb064z's
+      cost readings — to buy that. **The first version reached the same verdict
+      on numbers that were false**, and the file records why rather than
+      quietly correcting: its comb stride was even, so it visited only even
+      seeds and contained no zero-slack map at all, and its epsilon grid sat
+      below the `1/720` tile lattice, so its smallest column could only count
+      exactly-on-edge maps it did not have. Review disproved its headline from
+      the sibling ledger's own recorded row. It now sweeps fb064r's sample and
+      its curve is in lattice steps. QA **PASS**, re-deriving every one of the
+      25 `SLACK` fields, all 25 `CURVE` cells and both on-edge seeds
+      independently, confirming the curve predicts real retry counts to the
+      seed under five tightened configs, and killing 12 of 14 `slackOf` mutants
+      with the new mirror guard (the two survivors are scale mutants, killed by
+      this file's recorded strings — which is exactly the sign/scale split the
+      two files document). Its Major: the "shared sample" was a copy-paste, so
+      an edit to fb064r's comb reddened fb064r and left this file green on the
+      old seeds. Fixed by moving the sample into `tests/terrain-sample.ts` and
+      importing it in both — verified by narrowing the comb and watching both
+      files go red. Also shipped: `slackOf` moved into `tests/terrain-legality.ts`
+      as the fifth statement of these thresholds, with a guard pinning it as the
+      exact complement of `failedBands` over the mirror's config matrix; writing
+      that guard found a sign bug (zero slack is *inside* the band) and settled
+      the `maxGateDetour < 1` sentinel as a flat `-1` rather than a
+      misleadingly-safe 2.5.
+- [ ] (fb065b) [test] `suggestCoreAnchor` is the anchor the player is shown
+      pre-highlighted, and nothing measures whether it is a *good* default.
+      fb064o bounded the gate detour *to* it and fb064h pins that it is legal
+      and deterministic, but legal-and-deterministic is satisfied by an anchor
+      jammed in a corner behind a rock shelf with four buildable tiles around
+      it — which is the suggestion most players will simply accept. Acceptance:
+      a measured ledger over 500 seeds of the properties a default has to have
+      (distance from the walkable centroid, buildable-normal tiles within the
+      base `buildRange`, minimum gate distance, and the share of seeds where a
+      strictly better anchor exists by those measures), a floor per property
+      recorded in the test with the worst seed named, and either the selection
+      improved to clear the floors or the current one recorded as an accepted
+      band with its numbers — refs: fb064h, fb064o, owner feedback "a default
+      suggested spot is pre-highlighted".
+- [ ] (fb065c) [polish] the repro format cannot describe the thing that
+      actually goes wrong. `describeTerrain` takes a `TerrainGrid`, and a live
+      run holds a `Grid` — whose terrain has been through `terrainOverlay`,
+      `applyTerrain`, `placeCore` and any post-construction `tile[]` write
+      (`world.ts`'s Fourth Gate) — so the one artefact fb064k built to replace
+      "a seed plus a screenshot" can only be taken from the generator's own
+      output, never from the map a bug was seen on. Tests already work around
+      it with a three-line `gridView` helper each. Acceptance: a supported
+      adapter in `src/sim/terrain/` from a `Grid` to a dumpable grid, the test
+      copies deleted in favour of it, a round trip pinned on a Grid that has
+      had `placeCore` and a post-construction tile write applied, and the dump
+      of such a Grid carrying honest provenance (it is no seed's output, so
+      `source=-`) — refs: fb064k, fb064s, fb064q.
+
+- [x] (fb065d) [bug] *(QA-filed, fb064w)* `terrain-generation.test.ts`'s "stays
+      bounded under the most expensive schema-legal config" asserts
+      `Date.now() - started < COST_BOUND_MS`, which makes it a wall-clock test
+      inside the fast tier: it fails whenever another vitest suite shares the
+      host (reproduced repeatedly this session, and it fails identically at
+      pure `HEAD`, so it is the harness and not any lane change) and passes in
+      ~3.1 s of a 5 s bound when run alone. A test that goes red for reasons
+      unrelated to its subject trains its readers to ignore it, and this one
+      guards the generator's cost ceiling. Acceptance: a failing-under-load
+      repro recorded; the bound expressed in work rather than wall clock (a
+      ratio against a calibration loop measured in the same run, the way
+      `q13-perf-ratio` normalises, or an attempt/iteration count), so it is
+      insensitive to host load while still failing on a real cost regression;
+      the test stays in the fast tier and green under a concurrent suite —
+      refs: fb064w QA bug 4, `tests/terrain-generation.test.ts:706`, G12.
+      **Shipped as a ratio of the generator against itself.** The hostile
+      fixture's cost *per attempt* over one ordinary shipped-config
+      generation, interleaved, each a minimum over five rounds, hostile shape
+      warmed. Healthy reads 36.3-38.7 idle and 34.3-38.3 under QA's bursty
+      repro; the `paint()` clamp reverted by hand reads 146.4 idle and
+      148.7-160.8 under the same burst. Ceiling 80. The failing-under-load
+      repro the acceptance asks for is recorded from both directions: the old
+      bound measured 5174/5565/6936/10612/13055 ms on a healthy tree this
+      session, and QA rebuilt HEAD's version and got 4/4 red at 8047-9352 ms
+      under 24-way bursty load against its 5000 ms budget.
+      **QA found the first shipped version had inherited a smaller version of
+      the same disease** and it is fixed rather than accepted: with a
+      16-attempt hostile call the numerator's measurement window was ~710 ms
+      against the denominator's ~77 ms, so a 4-second burst inflated every
+      hostile round while the denominator's minimum stayed idle — one false red
+      in ten at 85.9. Shortening the *numerator* (4 attempts, five rounds,
+      confirm-before-red) took that to 0 red in 10 against the same repro while
+      the reverted clamp still fails 3/3, and made the test 2x faster besides.
+      QA also proved the obvious alternative wrong: lengthening the
+      *denominator* to match removes the false reds and lets the reverted clamp
+      **pass** at 74.5 in 1 of 3 runs, which is the one direction a cost guard
+      cannot afford. That negative result is recorded in the file.
+      Two doc numbers QA corrected are recorded too: `paint()` is ~97% of a
+      hostile attempt rather than the 42% an earlier draft claimed (so a
+      uniform 2x slowdown reads ~19, not ~27), and the guard's detection floor
+      is ~2.3x paint work. The denominator's 64 base seeds are now pinned to
+      one attempt each, because a legal `corridorJitter: 1` tune puts seed 2060
+      on the retry path and would drag the healthy reading from ~36 to ~27
+      without anyone editing this file.
 
 ## Log
 
+- (2026-09-05, fb064z) **Two things this item learned the hard way, both
+  cheaper to read than to rediscover.**
+  - **Never demonstrate a `/data` retune by editing `data/terrain.json` in
+    place.** Two runs of the cost ledger went red mid-session in a way that
+    could not be reproduced in 25 subsequent runs; review found the cause by
+    noticing the file's mtime was newer than its last commit while its content
+    matched HEAD — the `jitter: 1` sensitivity demonstration had been run by
+    editing the real file, and a concurrent test run caught it mid-window. It
+    reddens exactly the two retry-dependent tests, which is exactly what was
+    seen. Demonstrate on a `parseTerrain` copy instead; every other file in the
+    lane already does.
+  - **The acceptance's "worst seed named in the test" is shipped as a recorded
+    constant and not an assertion**, after three rounds of measurement showed
+    the argmax is host-local and load-sensitive. That deviation belongs in
+    QUESTIONS.md, which is outside this lane's Scope — filed here for the merge
+    to move.
+  - Three files now regenerate the same 12,000 maps (`terrain-band-ledger`
+    ~26 s, `terrain-headroom` ~25 s, `terrain-cost` ~7 s over a 1500 subset):
+    about 59 s of fast-tier CPU on one sample. Each is individually inside the
+    60 s bar, so no exclusion is warranted, but a shared sweep is the obvious
+    saving and is cross-item work for the merge.
+
+- (2026-09-05, fb064y) **The out-of-scope half of `idx`, named here because
+  its exemption points at this Log.** `Grid.idx` stays unguarded (see the
+  reasoning on the method), so the remaining exposure is at its call sites, all
+  outside this lane's Scope. For the merge, each of these indexes an array with
+  `grid.idx(...)` directly and is safe only because its coordinates are already
+  integers — a fact none of them states:
+  - `src/sim/world.ts:445` (Fourth Gate writes `tile[idx(g.tx, g.ty)]`),
+    `:598` (`updateNav`'s key), `:651` (`setOcc` clear on despawn), `:682`
+    (`structureAt`, which *does* guard its own bounds — b007);
+  - `src/sim/world.ts:613` — already covered from the other side, since it
+    sits behind `grid.passable(nx, ny)`, which refuses non-integers as of
+    fb064x;
+  - `src/sim/enemies.ts:1073` (`tile[idx(floor(e.x), floor(e.y))]`, floored);
+  - `src/render/canvas.ts:491` (the renderer's per-tile loop — the one place a
+    `Number.isInteger` inside `idx` would cost something, which is half the
+    reason the exemption exists);
+  - `tools/fuzz-command-domain.ts:578` passes an out-of-grid *integer* on
+    purpose, probing b007's aliasing; a non-integer guard would not touch it.
+  The main-lane fix, if one is wanted, is a floor or an assertion at the call
+  site, not a change to `idx`.
+
+- (2026-09-05, fb064w) **A format's contract is what its parser accepts, not
+  what its writer happens to emit.** `HEADER_KEYS` in `describe.ts` declares
+  each of the six header lines' fields once, in emitted order; `fields()`
+  refuses an unknown key naming the key and the line, and refuses a key that
+  moves backwards. `tests/terrain-describe.test.ts` grows a `fb064w` block
+  (26 tests in the file, 0.75 s).
+  - **What the leniency actually cost.** Nothing, until fb064s — and then the
+    whole value of `source`. That field exists so a reader's eye reaches
+    "this dump has no pasteable seed" before it reaches `requested=0`, which
+    was a property of `describeTerrain`'s output and not of the format: a
+    hand-edited dump could put the mark last, or bury it among invented
+    fields, and still parse as a dump of this format.
+  - **The order rule is `<`, not `!==`, and that is what keeps the messages.**
+    Only a field that moves *backwards* is a reorder, so a *missing* field
+    still falls through to `req` with its own refusal. `source`'s is the one
+    that matters: it tells the reader of a pre-fb064s dump how to repair the
+    text by hand, and a required-key check here would have replaced it, and
+    every other missing-field message, with one generic complaint.
+  - **Checks are ordered malformed -> unknown -> duplicate -> order**, so every
+    message fb064k recorded reproduces verbatim (`duplicate "hash"` for the
+    six-character `hash=-` append is the load-bearing one), while a repeated
+    *invention* reports that it is not part of the format rather than that it
+    appears twice.
+  - **The new table brought its own drift hole, and the review found it.** A
+    key added to `HEADER_KEYS` that the writer never emits is exactly the
+    leniency this item removed, reintroduced by a typo: `legacyGhost` in
+    `HEADER_KEYS.counts` left every test in the file green and let
+    `counts ... legacyGhost=1` parse clean. The table is now compared against
+    the emitted line in *both* directions, and reproducing the review's
+    mutation reddens that one test.
+  - **The order pin is only total because every declared key is `req`'d.** An
+    optional field would be accepted anywhere the indices still increase. That
+    invariant is stated on `HEADER_KEYS` and pinned mechanically: a test drops
+    each emitted field of each line in turn and expects a refusal.
+  - **`HEADER_KEYS` lives in code, not `/data`,** for the reason `GLYPHS` does:
+    it is a diagnostic contract, and a Tuner-editable field list would make
+    every dump written before the edit unreadable. Exported for the drift
+    tests only.
 - (2026-09-04, lane merge) Merged into master. Conflicts: `analyze.ts`,
   `generate.ts` (main's fb077 `gates` threading vs the lane's fb064h-v
   rewrites) — resolved by taking the lane's versions and re-threading the

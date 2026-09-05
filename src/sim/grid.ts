@@ -477,6 +477,35 @@ export class Grid {
     return this.tile[i] === TileType.Open && this.terrainHigh[i] === 1;
   }
 
+  /**
+   * The flat index of a tile. **Unguarded, deliberately** (fb064y).
+   *
+   * Every other `(tx, ty)` member refuses a non-integer; this one cannot, and
+   * the difference is that it has nothing to refuse *with*. Each of the others
+   * owns a value meaning "no answer" — `false`, `-1`, `null` — while every
+   * integer `idx` can return is a legal index into some array, so a sentinel
+   * would turn today's silent alias into a silent `undefined` read one line
+   * later at the call site. Throwing is the only refusal that fits, and its
+   * callers index arrays with the result directly — `world.ts:445/598/651/682`,
+   * `world.ts:613` (behind `grid.passable`, which now refuses non-integers
+   * itself), `enemies.ts:1073`, `render/canvas.ts:491` and `gatePath` below —
+   * all with coordinates that are already integers, so it would buy nothing
+   * here and cost a per-tile `Number.isInteger` in the renderer's tile loop.
+   * The one call site that deliberately passes something odd is
+   * `tools/fuzz-command-domain.ts:578`, and what it passes is an out-of-grid
+   * *integer*: it probes b007's aliasing on purpose, and a non-integer guard
+   * would not touch it.
+   *
+   * What it costs is written down rather than assumed: `idx(3, 1.5)` is 57,
+   * a legal index for tile (21, 1), because `GRID_W` is even (b007); a
+   * fractional `tx` yields a non-integer index that reads `undefined`; and an
+   * out-of-grid integer `tx` aliases one row up, which is b007's original
+   * finding and is guarded at `World.structureAt`, not here. The fix for the
+   * remaining exposure belongs at those call sites, which are outside this
+   * lane's Scope and are named in BACKLOG-TERRAIN.md's Log for the merge.
+   * `tests/terrain-grid.test.ts`'s fb064y block pins all three shapes so the
+   * exemption stays a decision.
+   */
   idx(tx: number, ty: number): number {
     return ty * GRID_W + tx;
   }
@@ -485,16 +514,65 @@ export class Grid {
     return tx >= 0 && ty >= 0 && tx < GRID_W && ty < GRID_H;
   }
 
-  /** True if a ground walker can stand here. */
+  /**
+   * True if a ground walker can stand here.
+   *
+   * fb064x: guarded against a non-integer coordinate, the way `buildable`,
+   * `isHighGround` and (since fb064u) `wardenPassable` are. b007's shape:
+   * `GRID_W` is even, so a `.5` in `ty` cancels its own fraction and the flat
+   * index lands on a real tile in *another column* — with rock at (3, 1),
+   * `passable(3, 1.5)` read index 57, tile (21, 1), and answered `true` about a
+   * mountain. `passableGhost(3.5, 1)` had the other shape: an `undefined` read,
+   * which is not `TileType.Border`, so it answered `true` about nothing at all.
+   *
+   * fb064u guarded its own predicate and left these two open on purpose,
+   * because they are the flow-field inner loop and `Number.isInteger` on every
+   * neighbour is a real per-tick cost against G12's budget. The way out is that
+   * the loop never needed the coordinate form: `dijkstra` derives each
+   * neighbour from a flat index plus a `NEIGHBORS` offset and bounds-checks it
+   * once, so it calls `passableAt`/`passableGhostAt` below and pays nothing for
+   * this guard — it stopped re-deriving the index and re-checking bounds on
+   * every one of those calls (three per diagonal neighbour, four on a breach
+   * diagonal, one otherwise), so it is measurably *faster*, not slower.
+   *
+   * A refusal, not a floor, exactly as fb064u decided for `wardenPassable`: a
+   * caller holding a float position must floor it first (every live one already
+   * does — `act2.ts`, `enemies.ts`, `classes.ts`, `policies.ts`, `world.ts`).
+   */
   passable(tx: number, ty: number): boolean {
-    if (tx < 0 || ty < 0 || tx >= GRID_W || ty >= GRID_H) return false;
-    return this.blocked[ty * GRID_W + tx] === 0;
+    if (!Number.isInteger(tx) || !Number.isInteger(ty)) return false;
+    // `inBounds` rather than the bounds test spelled out, which is what this
+    // method carried while it was the inner loop's own hot path. It is not any
+    // more — `dijkstra` calls `passableAt` — so the two sibling predicates now
+    // share one bounds rule instead of stating it twice.
+    if (!this.inBounds(tx, ty)) return false;
+    return this.passableAt(ty * GRID_W + tx);
   }
 
   /** True if a phasing/burrowing enemy can stand here. */
   passableGhost(tx: number, ty: number): boolean {
+    if (!Number.isInteger(tx) || !Number.isInteger(ty)) return false;
     if (!this.inBounds(tx, ty)) return false;
-    return this.tile[ty * GRID_W + tx] !== TileType.Border;
+    return this.passableGhostAt(ty * GRID_W + tx);
+  }
+
+  /**
+   * `passable`, addressed by flat index: the rule with the coordinate checks
+   * stripped, for callers that hold an index they already proved legal.
+   *
+   * The rule lives here and the public predicate delegates, rather than the
+   * two stating it separately, because a flow field that disagreed with
+   * `passable()` on one tile is not a slower game but a *different* one (G2) —
+   * and that disagreement would be invisible to every test that asks only one
+   * of them.
+   */
+  private passableAt(i: number): boolean {
+    return this.blocked[i] === 0;
+  }
+
+  /** `passableGhost`, addressed by flat index. See `passableAt`. */
+  private passableGhostAt(i: number): boolean {
+    return this.tile[i] !== TileType.Border;
   }
 
   /**
@@ -692,29 +770,38 @@ export class Grid {
           const ny = y + NEIGHBORS[k][1];
           if (nx < 0 || ny < 0 || nx >= GRID_W || ny >= GRID_H) continue;
           const diag = NEIGHBORS[k][2] === DIAG_COST;
+          // fb064x: the three flat indices this neighbour needs, derived once.
+          // `nx`/`ny` are integers by construction (an index decomposed plus a
+          // `NEIGHBORS` offset) and the line above is their bounds check, so the
+          // `At` forms below are the same rule as `passable`/`passableGhost`
+          // with checks this loop has already made — which is what lets those
+          // two carry b007's integer guard without charging the inner loop for
+          // it.
+          const ni = ny * GRID_W + nx;
+          const nxi = y * GRID_W + nx;
+          const nyi = ny * GRID_W + x;
           let extra = 0;
           if (mode === 'ghost') {
-            if (!this.passableGhost(nx, ny)) continue;
+            if (!this.passableGhostAt(ni)) continue;
             // No corner cutting: a diagonal step needs both orthogonals open.
-            if (diag && (!this.passableGhost(nx, y) || !this.passableGhost(x, ny))) continue;
+            if (diag && (!this.passableGhostAt(nxi) || !this.passableGhostAt(nyi))) continue;
           } else if (mode === 'blocked') {
-            if (!this.passable(nx, ny)) continue;
-            if (diag && (!this.passable(nx, y) || !this.passable(x, ny))) continue;
+            if (!this.passableAt(ni)) continue;
+            if (diag && (!this.passableAt(nxi) || !this.passableAt(nyi))) continue;
           } else {
             // breach: diagonal steps stay fully physical (all four tiles open);
             // orthogonal steps may enter a structure tile at its price.
             if (diag) {
-              if (!this.passable(nx, ny) || !this.passable(x, y)) continue;
-              if (!this.passable(nx, y) || !this.passable(x, ny)) continue;
+              if (!this.passableAt(ni) || !this.passableAt(i)) continue;
+              if (!this.passableAt(nxi) || !this.passableAt(nyi)) continue;
             } else {
-              if (!this.passableGhost(nx, ny)) continue;
+              if (!this.passableGhostAt(ni)) continue;
               // The surcharge lands on the *relaxed* tile — the walker's
               // standing tile, not the one entered. Route choice is identical
               // either way (a tile's surcharge is a constant offset across
               // every route through it), but it means `dist` at a structure
               // tile includes chewing that tile itself, so do not read `dist`
               // as "cost ahead of me" from inside a structure.
-              const ni2 = ny * GRID_W + nx;
               // fb064b: terrain is not breachable. `passableGhost` only refuses
               // the border, so without this line rock and high ground would be
               // enterable at plain walking cost — every generated map would
@@ -727,11 +814,10 @@ export class Grid {
               // here, and a tower standing on high ground stays unreachable
               // (its `occ` would otherwise buy it a breach route into terrain
               // no walker can enter).
-              if (this.staticBlocked(ni2) === 1) continue;
-              if (this.occ[ni2] !== 0) extra = this.breachBase + this.breach[ni2];
+              if (this.staticBlocked(ni) === 1) continue;
+              if (this.occ[ni] !== 0) extra = this.breachBase + this.breach[ni];
             }
           }
-          const ni = ny * GRID_W + nx;
           const nd = c + NEIGHBORS[k][2] + extra;
           if (dist[ni] === -1 || nd < dist[ni]) {
             dist[ni] = nd;
@@ -743,14 +829,37 @@ export class Grid {
     }
   }
 
-  /** Cost from a tile to the core on the given field, -1 if unreachable. */
+  /**
+   * Cost from a tile to the core on the given field, -1 if unreachable.
+   *
+   * fb064y: `-1` also for a non-integer coordinate, which is the same
+   * refusal `passable` makes wearing this method's own "no answer" value.
+   * `inBounds` alone let `distAt(3, 1.5)` index `1.5 * GRID_W + 3` = 57, tile
+   * (21, 1) — open ground with a real finite distance — so a caller asking
+   * about a mountain got a *plausible* number for somewhere else, which is
+   * the dangerous shape of wrong answer. Latent: every live caller passes
+   * integers — `combat.ts`'s `targetFirst` floors, while `policies.ts`'s
+   * `laneTiles` (gate coordinates and `stepFrom` output) and `gatePath` below
+   * are integral by construction, which is not the same claim and is why both
+   * are named. Cited by function rather than by line: this block already
+   * carries enough `file:line` references to rot on the next edit above them.
+   *
+   * The hot-path question fb064x had to answer is asked here too, and the
+   * answer is different: `distAt` is per-enemy-in-radius per tower per tick,
+   * but there is no inner loop re-deriving an index the way `dijkstra` did, so
+   * one `Number.isInteger` — a V8 intrinsic on an already-loaded double —
+   * needs no flat-index escape hatch. `stepFrom` is not per-tick at all
+   * (`laneTiles` is build planning, `gatePath` is a render-side indicator).
+   */
   distAt(tx: number, ty: number, ghost = false): number {
+    if (!Number.isInteger(tx) || !Number.isInteger(ty)) return -1;
     if (!this.inBounds(tx, ty)) return -1;
     return (ghost ? this.ghost : this.ground).dist[ty * GRID_W + tx];
   }
 
-  /** Next tile toward the core as [tx,ty], or null. */
+  /** Next tile toward the core as [tx,ty], or null. fb064y: see `distAt`. */
   stepFrom(tx: number, ty: number, ghost = false): [number, number] | null {
+    if (!Number.isInteger(tx) || !Number.isInteger(ty)) return null;
     if (!this.inBounds(tx, ty)) return null;
     const f = ghost ? this.ghost : this.ground;
     const i = f.next[ty * GRID_W + tx];
@@ -838,14 +947,24 @@ export function coreCenter(): { x: number; y: number } {
   return { x: CORE_X + CORE_W / 2, y: CORE_Y + CORE_H / 2 };
 }
 
-/** Cost stored in an arbitrary field, -1 if unreachable. */
+/**
+ * Cost stored in an arbitrary field, -1 if unreachable.
+ *
+ * fb064y: `Grid.distAt` one layer down, over a `Field` the caller supplies,
+ * and guarded the same way for the same reason. It has no caller in `src/` or
+ * `tools/` today, which is exactly why it is guarded now rather than when one
+ * appears: an un-called accessor acquires its first caller without anyone
+ * re-deriving its coordinate contract.
+ */
 export function fieldDist(f: Field, tx: number, ty: number): number {
+  if (!Number.isInteger(tx) || !Number.isInteger(ty)) return -1;
   if (tx < 0 || ty < 0 || tx >= GRID_W || ty >= GRID_H) return -1;
   return f.dist[ty * GRID_W + tx];
 }
 
-/** Next tile toward the field source, or null. */
+/** Next tile toward the field source, or null. fb064y: see `fieldDist`. */
 export function fieldStep(f: Field, tx: number, ty: number): [number, number] | null {
+  if (!Number.isInteger(tx) || !Number.isInteger(ty)) return null;
   if (tx < 0 || ty < 0 || tx >= GRID_W || ty >= GRID_H) return null;
   const i = f.next[ty * GRID_W + tx];
   if (i < 0) return null;

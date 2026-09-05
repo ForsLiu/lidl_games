@@ -5,6 +5,174 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-05 (lane `lane/terrain`): merged `origin/master` in a second
+  time**, picking up `lane/ui`'s fb111/fb112/fb114/fb115 (PR #4). Nothing to
+  reconcile in code: master's batch touched only `src/ui/**`, `tests/ui-*` and
+  `BACKLOG-UI.md`, so the single conflict was this file's top-of-list
+  insertions again, resolved by keeping both sides. `src/ui`, `src/render` and
+  `tools` come through with zero lines removed. Unlike the first merge nothing
+  here goes stale — the note below still describes the state accurately,
+  because no `src/sim` file changed on either side of this one.
+
+- **2026-09-05 (lane `lane/terrain`): merged `origin/master` in.** Two doc
+  conflicts (this file and BACKLOG-TERRAIN.md), both pure top-of-list
+  insertions on each side, resolved by keeping both. `src/sim/grid.ts`
+  auto-merged; every line the merge removes is this lane's own fb064x/fb064y
+  replacing what it superseded, and master changed `describe.ts` not at all
+  after this branch's base. One test went red and it was the right one:
+  fb064x's enumeration table refused master's new `Grid.unbuildableForTerrain`
+  (fb078) until it was classified — it already carries the integer guard, so
+  `refuses` is all it needed. `npm run test:fast` 3417 passed / 3 failed, the
+  three being `b028`/`q41`/`q45`, which fail identically on `origin/master`
+  alone (controlled in a worktree).
+
+  **Two things this merge makes stale in the entries below, corrected here
+  rather than edited out of them.**
+  1. The lane skipped the sweep leg of the generation rule three times, each
+     time re-verifying rather than inheriting the reason: "nothing outside
+     `src/sim/terrain/` calls `generateTerrain`, so no run's outcome depends on
+     `data/terrain.json` and a sweep would measure zero terrain." That was true
+     of this branch's base and is **false of master**, which wired the
+     generator into every non-practice run at `967463d P10 fb077`. The reason
+     is retired, not re-verified: a sweep now measures terrain, and the next
+     generation rule run in this lane has to perform leg (a) for real. fb064z
+     is worth more than its own write-up claims for the same reason — it says
+     generation cost "is about to be" on the critical path, and on master it
+     already is.
+  2. `fb064x` and `fb064y` record `endHash 2729a000` as unchanged. That was a
+     statement about this branch, where every `Grid` was born flat. Post-merge
+     the same command reads **`952d7be8`, 114864 ticks, `defeat_core`** — and
+     that is master's number, not this lane's: the merged tree reproduces it
+     byte-identically to `origin/master` run alone, which is the real check
+     that these guards change no behaviour. Seed 1 ending in defeat is master's
+     own in-flight balance state (its p12a-p12e entries below), not a merge
+     artifact.
+
+  fb064b's merge blocker is closed on master (`content.ts` folds
+  `data/terrain.json` into `contentHash()`, as this lane's Log required), and
+  `generateTerrain` gained a trailing `gates` parameter with a `GATES` default,
+  so this lane's two-argument calls are unchanged. fb064c is still unwired, so
+  fb064h's "`Grid.placeCore` must not be called from a run" guard still holds.
+
+- **2026-09-05 session (lane `lane/terrain`): six items closed — `fb064w`,
+  `fb064x`, `fb064y`, `fb064z`, `fb065a`, `fb065d`.** The first two were the
+  lane's last queued items; the generation rule then ran with zero left and
+  appended five more (`fb064y`, `fb064z`, `fb065a`, `fb065b`, `fb065c`), and
+  `fb065d` was filed by fb064w's QA. Four of the six are closed below the
+  fb064w/fb064x entry that follows; the short version of each:
+
+  `fb064y`: `Grid.distAt`, `stepFrom`, `fieldDist` and `fieldStep` carried the
+  same raw-coordinate hole fb064x closed on the predicates — `distAt(3, 1.5)`
+  read tile (21, 1) and returned a plausible finite distance for somewhere
+  else. Each now refuses with the value its own contract uses for "no answer";
+  `idx` is a recorded exemption because it has nothing to refuse *with*, and
+  its three aliasing shapes are pinned instead. The enumeration table's labels
+  became the behaviour rather than one `accessor` bucket, after review showed a
+  seventh accessor could be made green by adding a row. `endHash 2729a000`
+  unchanged; QA's instrumentation counted zero non-integer calls across four
+  full sims with a positive control that fires.
+
+  `fb064z`: generation cost is now measured, in two layers — a deterministic
+  attempts ledger (2 retry-taking seeds in 1500, both named) and a
+  host-normalised cost. The instrument was rebuilt three times, each time
+  because it was measuring something other than the generator: an up-front
+  best-of-3 calibration (the pattern `tools/perf-ratio.ts` records as
+  rejected), then `min_r(t/per_r)` = `t_min/per_max`, which deflated the mean
+  4.7x under contention and hollowed out the ceiling on exactly the runner it
+  is written for, then a calibration window five times longer than the
+  operation it normalises. QA: PASS over 24 runs to 48-way contention, 0 red,
+  and it measured the ceiling's blind spot — a 4.1x cost regression passes, a
+  5.7x one reddens.
+
+  `fb065a`: the three zero-headroom bands are priced and the decision to accept
+  is recorded with the numbers. All five witnesses are accepted on their first
+  attempt; two maps in 12,000 sit exactly on the detour ceiling; one lattice
+  step of tightening costs 2 newly-retrying seeds. **The first version reached
+  the same verdict on false numbers** — an even comb stride visits only even
+  seeds, so its sample contained no zero-slack map at all — and the file
+  records that rather than quietly correcting it. The sample now lives in
+  `tests/terrain-sample.ts` and both files import it: QA showed that *copying*
+  fb064r's rows let an edit redden fb064r and leave fb065a green on the old
+  seeds.
+
+  `fb065d`: the generator's cost-ceiling test was a raw `Date.now()` budget
+  inside the fast tier, and it went red on host load alone — measured this
+  session at 5174, 5565, 6936, 10612 and 13055 ms on a healthy tree, with a QA
+  control failing at 13055 and 17645 ms with the newest terrain suites removed,
+  so it was nobody's neighbour's fault. It is now a ratio of the hostile
+  fixture's cost per attempt to an ordinary generation's, both interleaved,
+  both minima over three warmed rounds. Healthy reads 35.9 idle and up to 43.3
+  under ten busy loops; the `paint()` clamp reverted by hand reads 131.8-180.3.
+  Ceiling 80. The test passes 4/4 under the load that reddened the old bound
+  and fails at 147.6 idle / 156.9 loaded with the clamp reverted — and
+  `npm run test:fast` went from 9 failures back to the 6 standing ones.
+
+- **2026-09-05 session (lane `lane/terrain`): `fb064w` and `fb064x` closed —
+  the terrain dump format now refuses what its writer never emits, and the two
+  `Grid` tile predicates that answered about tiles which do not exist are
+  guarded.** Both were the lane's last two queued items; the lane generation
+  rule then ran with zero left and appended five more (`fb064y`, `fb064z`,
+  `fb065a`, `fb065b`, `fb065c`), plus `fb065d` filed by fb064w's QA.
+
+  `fb064w`: `parseTerrainDump` collected any `key=value` into a `Map` no caller
+  checked for extras, so `hash=54fad3db bogus=1` parsed clean and so did a seed
+  line in any field order — the one shape of damage the parser reinterpreted
+  rather than refused. Harmless until fb064s made the seed line's *layout* a
+  contract (`source` is worth having because a reader reaches it before
+  `requested=0`). `HEADER_KEYS` (`src/sim/terrain/describe.ts`) declares each of
+  the six header lines' fields once in emitted order, with `gates`/`tiles`/
+  `legend` derived from `GATES`/`TERRAIN_KEYS`; `fields()` refuses an unknown
+  key and a key that moves backwards, naming the key, the line and the expected
+  set. The rule is "no extras, in this order" and never "exactly these", so
+  every existing missing-field refusal is untouched. code-reviewer **APPROVE**
+  with three Minor drift guards, all folded in: the table is now compared
+  against the emitted line in *both* directions (the review reproduced a dead
+  `HEADER_KEYS` key silently re-opening the leniency), every declared key is
+  pinned `req`'d (which is what makes the order rule total), and unknown-before-
+  duplicate is pinned rather than only commented. qa-playtester **PASS** on all
+  six acceptance clauses after 200k single-character mutations, exhaustive
+  field-permutation and cross-line-borrow sweeps, a 382-dump writer/parser
+  fixpoint over a config matrix, and 7 killed mutants — and filed one real
+  hole: `hash` was the only header value with no shape check, and `fields()`
+  splits on a single space, so `hash=deadbeef<TAB>source=flat-arena` smuggled
+  arbitrary text past the new key set on a non-arena dump where the hash
+  comparison cannot run. Fixed red-first against `terrainHash`'s own output
+  shape. QA's other two notes (refusals that do not name the expected set; the
+  deep import past the barrel) are fixed and documented.
+
+  `fb064x`: `Grid.passable`/`passableGhost` indexed `blocked`/`tile` with the
+  raw coordinate behind a bounds check alone, so with rock at (3, 1)
+  `passable(3, 1.5)` answered `true` about a mountain (`GRID_W` is even, so the
+  `.5` cancels its own fraction and lands on tile (21, 1)) and
+  `passableGhost(3.5, 1)` answered `true` off an `undefined` read. fb064u left
+  these two deliberately, because they are the Dijkstra inner loop where the
+  guard has a per-tick cost — but the loop never needed the coordinate form:
+  it derives each neighbour from a flat index plus a `NEIGHBORS` offset and
+  bounds-checks it once, so it now calls private flat-index forms
+  (`passableAt`/`passableGhostAt`) that hold the rule the public predicates
+  delegate to. Interleaved, order-alternating `markDirty()+refresh()` measures
+  0.85-0.92x of the pre-change time; `endHash 2729a000` is unchanged and both
+  flow fields are pinned bit-identical by goldens measured on the pre-change
+  file. **The whole-run number first recorded for this item was wrong** — a
+  ~12% `simMs` win, taken sequentially while three agents shared the host — and
+  qa-playtester's interleaved A/B found no measurable whole-run difference in
+  either direction; re-measured on a quiet host it is 14161 vs 13968, inside
+  the noise. `refresh` is a negligible share of a run, so the microbenchmark is
+  the honest number and the note says so rather than dropping the claim.
+  code-reviewer **APPROVE** (it reproduced the field-hash equivalence
+  independently) with three Minor findings folded in; qa-playtester **PASS**
+  after 60/60 byte-identical field configurations, 59/59 identical
+  `(outcome, ticks, endHash)` triples over 10 policies x 6 seeds, and
+  `placeCore`/Fourth-Gate/sealing coverage — and filed five defects, all fixed
+  before commit: the enumeration scan missed `static` and required the
+  parameters to be named `tx`/`ty` (so `isMud(x, y)` landed un-guarded with the
+  test green), `fieldDist`/`fieldStep` carry the same hole one layer down and
+  are now listed and in fb064y's scope, the golden pin was under-seeded (seeds
+  1/11/137 were all blind to deleting the breach-diagonal branch's second term
+  — the one line whose shape changed — so seed 4 was added and that mutant now
+  dies), each golden row now checks the generated map's own hash first so a
+  `/data` tuning edit does not read as a `grid.ts` regression, and the simMs
+  claim above was corrected.
 - **2026-09-05 session (lane `lane/ui`): closed `fb111` and `fb112`, then
   regenerated the lane queue as `fb114`-`fb118`.**
 
