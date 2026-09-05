@@ -573,7 +573,7 @@ below are leg (c) — depth on what the lane has shipped, in the spirit of
 HANDOFF §7 — and the first is a defect the fb064x review found rather than an
 improvement.
 
-- [ ] (fb064y) [bug] `Grid.distAt`, `Grid.stepFrom` and `Grid.idx` carry the
+- [x] (fb064y) [bug] `Grid.distAt`, `Grid.stepFrom` and `Grid.idx` carry the
       exact hole fb064x just closed on the five tile *predicates*: `distAt` and
       `stepFrom` bounds-check and then index `ty * GRID_W + tx` with the raw
       coordinate, so `distAt(3, 1.5)` answers about tile (21, 1) (GRID_W is
@@ -598,6 +598,45 @@ improvement.
       `accessor` rows are reclassified accordingly; `tests/g2-determinism` and
       `tests/b007-tile-bounds` green and `npm run sim -- --seed 1 --policy
       hybrid` unchanged in `endHash` — refs: fb064x review Minor 3, b007.
+      **Shipped as four guards and one recorded exemption.** `distAt` and
+      `fieldDist` refuse with `-1`, `stepFrom` and `fieldStep` with `null` —
+      each the value its own contract already uses for "no answer", which is
+      why the predicates' single shared `false` could not just be copied. `idx`
+      is the exemption, and the reason is that it has nothing to refuse *with*:
+      every integer it can return is a legal index, so a sentinel moves today's
+      silent alias one line downstream into callers that index arrays with the
+      result directly. Its three aliasing shapes are pinned by a test instead,
+      so the exemption is a decision with evidence rather than an omission.
+      code-reviewer **REQUEST-CHANGES** on the first pass, and the finding was
+      real: the acceptance's "reclassified accordingly" had been satisfied in
+      prose only — all eight non-predicate rows were still one `accessor`
+      bucket the probe loop skipped, so a *seventh* accessor would have been
+      made green by adding a row and would have got no behavioural check at
+      all, which is the whole guarantee the table exists to give. The label is
+      now the behaviour (`refuses` / `exempt` / `sentinel-neg1` /
+      `sentinel-null` / `throws` / `accepted` / `write`) and every row but the
+      three labelled `accepted`/`write` is probed; verified by adding an
+      unguarded `costAt(tx, ty)` and watching it fail both unclassified *and*
+      classified. qa-playtester **PASS** on all four clauses after 56 A/B run
+      pairs (every report field identical but `simMs`), full-field hashes over
+      10 maps, `laneTiles`/`gatePath` under real bot builds, a 20-kind x
+      324-position targeting sweep, and runtime instrumentation counting
+      non-integer calls across four full sims — **zero**, with a positive
+      control that fires, so "every live caller passes integers" is measured
+      rather than assumed. It filed two coverage gaps, both fixed here and both
+      confirmed by killing the mutant that exposed them: `stepFrom`'s `ghost`
+      overload had no coverage anywhere in the repo (replacing its field with
+      `this.ground` left all 52 tests in the three grid suites green while
+      changing 206 tiles on seed 1), and only one of the four bounds terms was
+      probed (dropping `ty >= GRID_H` from `fieldDist` made it return
+      `undefined` from a function declared `: number`, green). The re-review
+      then closed the last of it: the skip list is
+      pinned by name, so a new accessor cannot join it by choosing a convenient
+      label; `placeCore` moved to a `throws` label (it already refused) and is
+      probed; and the two `write` rows got the test their prose was standing in
+      for — `setOcc(3, 1.5, 7)` occupies and blocks tile (21, 1) and re-routes
+      the flow field, which is strictly worse than the read this item started
+      from, and the exposure is call-site-owned rather than absent.
 - [ ] (fb064z) [test] generation cost is unmeasured, and it is about to be on
       the critical path: once fb064c wires the generator, every run pays
       `generateTerrain` at start, and a retry-taking seed pays it up to
@@ -671,6 +710,27 @@ improvement.
       refs: fb064w QA bug 4, `tests/terrain-generation.test.ts:706`, G12.
 
 ## Log
+
+- (2026-09-05, fb064y) **The out-of-scope half of `idx`, named here because
+  its exemption points at this Log.** `Grid.idx` stays unguarded (see the
+  reasoning on the method), so the remaining exposure is at its call sites, all
+  outside this lane's Scope. For the merge, each of these indexes an array with
+  `grid.idx(...)` directly and is safe only because its coordinates are already
+  integers — a fact none of them states:
+  - `src/sim/world.ts:445` (Fourth Gate writes `tile[idx(g.tx, g.ty)]`),
+    `:598` (`updateNav`'s key), `:651` (`setOcc` clear on despawn), `:682`
+    (`structureAt`, which *does* guard its own bounds — b007);
+  - `src/sim/world.ts:613` — already covered from the other side, since it
+    sits behind `grid.passable(nx, ny)`, which refuses non-integers as of
+    fb064x;
+  - `src/sim/enemies.ts:1073` (`tile[idx(floor(e.x), floor(e.y))]`, floored);
+  - `src/render/canvas.ts:491` (the renderer's per-tile loop — the one place a
+    `Number.isInteger` inside `idx` would cost something, which is half the
+    reason the exemption exists);
+  - `tools/fuzz-command-domain.ts:578` passes an out-of-grid *integer* on
+    purpose, probing b007's aliasing; a non-integer guard would not touch it.
+  The main-lane fix, if one is wanted, is a floor or an assertion at the call
+  site, not a change to `idx`.
 
 - (2026-09-05, fb064w) **A format's contract is what its parser accepts, not
   what its writer happens to emit.** `HEADER_KEYS` in `describe.ts` declares

@@ -477,6 +477,35 @@ export class Grid {
     return this.tile[i] === TileType.Open && this.terrainHigh[i] === 1;
   }
 
+  /**
+   * The flat index of a tile. **Unguarded, deliberately** (fb064y).
+   *
+   * Every other `(tx, ty)` member refuses a non-integer; this one cannot, and
+   * the difference is that it has nothing to refuse *with*. Each of the others
+   * owns a value meaning "no answer" — `false`, `-1`, `null` — while every
+   * integer `idx` can return is a legal index into some array, so a sentinel
+   * would turn today's silent alias into a silent `undefined` read one line
+   * later at the call site. Throwing is the only refusal that fits, and its
+   * callers index arrays with the result directly — `world.ts:445/598/651/682`,
+   * `world.ts:613` (behind `grid.passable`, which now refuses non-integers
+   * itself), `enemies.ts:1073`, `render/canvas.ts:491` and `gatePath` below —
+   * all with coordinates that are already integers, so it would buy nothing
+   * here and cost a per-tile `Number.isInteger` in the renderer's tile loop.
+   * The one call site that deliberately passes something odd is
+   * `tools/fuzz-command-domain.ts:578`, and what it passes is an out-of-grid
+   * *integer*: it probes b007's aliasing on purpose, and a non-integer guard
+   * would not touch it.
+   *
+   * What it costs is written down rather than assumed: `idx(3, 1.5)` is 57,
+   * a legal index for tile (21, 1), because `GRID_W` is even (b007); a
+   * fractional `tx` yields a non-integer index that reads `undefined`; and an
+   * out-of-grid integer `tx` aliases one row up, which is b007's original
+   * finding and is guarded at `World.structureAt`, not here. The fix for the
+   * remaining exposure belongs at those call sites, which are outside this
+   * lane's Scope and are named in BACKLOG-TERRAIN.md's Log for the merge.
+   * `tests/terrain-grid.test.ts`'s fb064y block pins all three shapes so the
+   * exemption stays a decision.
+   */
   idx(tx: number, ty: number): number {
     return ty * GRID_W + tx;
   }
@@ -784,14 +813,37 @@ export class Grid {
     }
   }
 
-  /** Cost from a tile to the core on the given field, -1 if unreachable. */
+  /**
+   * Cost from a tile to the core on the given field, -1 if unreachable.
+   *
+   * fb064y: `-1` also for a non-integer coordinate, which is the same
+   * refusal `passable` makes wearing this method's own "no answer" value.
+   * `inBounds` alone let `distAt(3, 1.5)` index `1.5 * GRID_W + 3` = 57, tile
+   * (21, 1) — open ground with a real finite distance — so a caller asking
+   * about a mountain got a *plausible* number for somewhere else, which is
+   * the dangerous shape of wrong answer. Latent: every live caller passes
+   * integers — `combat.ts`'s `targetFirst` floors, while `policies.ts`'s
+   * `laneTiles` (gate coordinates and `stepFrom` output) and `gatePath` below
+   * are integral by construction, which is not the same claim and is why both
+   * are named. Cited by function rather than by line: this block already
+   * carries enough `file:line` references to rot on the next edit above them.
+   *
+   * The hot-path question fb064x had to answer is asked here too, and the
+   * answer is different: `distAt` is per-enemy-in-radius per tower per tick,
+   * but there is no inner loop re-deriving an index the way `dijkstra` did, so
+   * one `Number.isInteger` — a V8 intrinsic on an already-loaded double —
+   * needs no flat-index escape hatch. `stepFrom` is not per-tick at all
+   * (`laneTiles` is build planning, `gatePath` is a render-side indicator).
+   */
   distAt(tx: number, ty: number, ghost = false): number {
+    if (!Number.isInteger(tx) || !Number.isInteger(ty)) return -1;
     if (!this.inBounds(tx, ty)) return -1;
     return (ghost ? this.ghost : this.ground).dist[ty * GRID_W + tx];
   }
 
-  /** Next tile toward the core as [tx,ty], or null. */
+  /** Next tile toward the core as [tx,ty], or null. fb064y: see `distAt`. */
   stepFrom(tx: number, ty: number, ghost = false): [number, number] | null {
+    if (!Number.isInteger(tx) || !Number.isInteger(ty)) return null;
     if (!this.inBounds(tx, ty)) return null;
     const f = ghost ? this.ghost : this.ground;
     const i = f.next[ty * GRID_W + tx];
@@ -879,14 +931,24 @@ export function coreCenter(): { x: number; y: number } {
   return { x: CORE_X + CORE_W / 2, y: CORE_Y + CORE_H / 2 };
 }
 
-/** Cost stored in an arbitrary field, -1 if unreachable. */
+/**
+ * Cost stored in an arbitrary field, -1 if unreachable.
+ *
+ * fb064y: `Grid.distAt` one layer down, over a `Field` the caller supplies,
+ * and guarded the same way for the same reason. It has no caller in `src/` or
+ * `tools/` today, which is exactly why it is guarded now rather than when one
+ * appears: an un-called accessor acquires its first caller without anyone
+ * re-deriving its coordinate contract.
+ */
 export function fieldDist(f: Field, tx: number, ty: number): number {
+  if (!Number.isInteger(tx) || !Number.isInteger(ty)) return -1;
   if (tx < 0 || ty < 0 || tx >= GRID_W || ty >= GRID_H) return -1;
   return f.dist[ty * GRID_W + tx];
 }
 
-/** Next tile toward the field source, or null. */
+/** Next tile toward the field source, or null. fb064y: see `fieldDist`. */
 export function fieldStep(f: Field, tx: number, ty: number): [number, number] | null {
+  if (!Number.isInteger(tx) || !Number.isInteger(ty)) return null;
   if (tx < 0 || ty < 0 || tx >= GRID_W || ty >= GRID_H) return null;
   const i = f.next[ty * GRID_W + tx];
   if (i < 0) return null;

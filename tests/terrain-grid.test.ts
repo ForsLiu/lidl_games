@@ -28,6 +28,8 @@ import {
   GATES,
   GRID_H,
   GRID_W,
+  fieldDist,
+  fieldStep,
   Grid,
   TileType,
   type TerrainOverlay,
@@ -823,8 +825,21 @@ describe('fb064x — every Grid tile predicate answers about a tile that exists'
     ];
     expect(found.length).toBeGreaterThan(0);
 
-    /** Every `(tx, ty)` member of `Grid`, and what it promises a non-integer. */
-    const DECLARED: ReadonlyArray<readonly [string, 'refuses' | 'exempt' | 'accessor']> = [
+    /**
+     * Every `(tx, ty)` member of `Grid`, and what it promises a non-integer.
+     *
+     * The label is the *behaviour*, not a bucket. The first version of this
+     * table had one `accessor` catch-all that the loop below skipped, so a
+     * seventh accessor was made green by adding a row and got no behavioural
+     * check at all — which is the guarantee the table exists to give (review
+     * finding 1). Every label except `accepted` and `write` is probed.
+     */
+    const DECLARED: ReadonlyArray<
+      readonly [
+        string,
+        'refuses' | 'exempt' | 'sentinel-neg1' | 'sentinel-null' | 'throws' | 'accepted' | 'write',
+      ]
+    > = [
       ['isHighGround', 'refuses'],
       // `inBounds` is the one *predicate* exemption, and it is not a hole: it
       // answers about the coordinate ("is this inside the arena?"), never about
@@ -837,28 +852,29 @@ describe('fb064x — every Grid tile predicate answers about a tile that exists'
       ['passableGhost', 'refuses'],
       ['wardenPassable', 'refuses'],
       ['buildable', 'refuses'],
-      // The `accessor` rows are not predicates and are knowingly outside this
-      // item, which is about the tile *predicates* — but they are listed rather
-      // than filtered out, because "`inBounds` cannot leak" is true of the
-      // predicates and false of these: `distAt(3, 1.5)` bounds-checks and then
-      // indexes `ty * GRID_W + tx`, reading tile (21, 1). Latent (no live
-      // caller passes a float, measured in fb064x) and filed as fb064y, so the
-      // exemption is a decision with an owner rather than a gap this table
-      // hides.
-      ['idx', 'accessor'],
-      ['setOcc', 'accessor'],
-      ['setBreach', 'accessor'],
-      ['distAt', 'accessor'],
-      ['stepFrom', 'accessor'],
-      ['placeCore', 'accessor'],
-      // Module-level, and the same shape as `distAt`/`stepFrom` one layer down:
-      // a bare bounds check, then `f.dist[ty * GRID_W + tx]`. They have no
-      // caller anywhere in `src/` or `tools/` today, which is why they are the
-      // *least* urgent row here and still a row: an un-called accessor is
-      // exactly the kind that acquires its first caller without anyone
-      // re-deriving its coordinate contract. In fb064y's scope (QA bug 5).
-      ['fieldDist', 'accessor'],
-      ['fieldStep', 'accessor'],
+      // fb064y. Not boolean predicates, so they cannot share the predicates'
+      // one answer — each refuses with the value its own contract already uses
+      // for "no answer", and the label says which. `distAt(3, 1.5)` used to
+      // bounds-check and then index `ty * GRID_W + tx`, reading tile (21, 1):
+      // a plausible finite distance for somewhere else.
+      ['distAt', 'sentinel-neg1'],
+      ['fieldDist', 'sentinel-neg1'],
+      ['stepFrom', 'sentinel-null'],
+      ['fieldStep', 'sentinel-null'],
+      // The recorded exemption: arithmetic with no spare value to mean "no such
+      // tile", so a sentinel would move the silent alias one line downstream
+      // into its callers. What it costs is pinned by this file's fb064y block.
+      ['idx', 'accepted'],
+      // Writes, not reads. Their refusal lives at the call site — `buildTower`
+      // goes through `buildable`, which fb064x guarded — and what that leaves
+      // exposed is pinned by its own test below rather than argued here, since
+      // a write that lands on the wrong tile is strictly worse than a read
+      // that reports one (review Minor 2).
+      ['setOcc', 'write'],
+      ['setBreach', 'write'],
+      // Already guarded, and by a *throw*: it is the one member with no caller
+      // that could sensibly continue past a bad anchor.
+      ['placeCore', 'throws'],
       // Takes coordinates and returns a point; it never indexes a tile, so a
       // fraction in gives a fraction out and there is nothing to alias onto.
       ['tileCenter', 'exempt'],
@@ -866,21 +882,267 @@ describe('fb064x — every Grid tile predicate answers about a tile that exists'
     expect([...found].sort()).toEqual([...DECLARED.map(([n]) => n)].sort());
 
     const g = applied(handMap([[3, 1, TerrainKind.Rock]]));
+    /** The bad inputs every probed row is asked about. */
+    const BAD: ReadonlyArray<readonly [number, number]> = [
+      [3.5, 1],
+      [3, 1.5],
+      [NaN, 1],
+    ];
+    /**
+     * The two module-level rows take a `Field` first, so a name-indexed lookup
+     * on `g` cannot reach them; they are bound here rather than special-cased
+     * inside the loop.
+     */
+    // A `Map`, not an object literal: `PROBE[name]` on a literal reads the
+    // prototype chain, so a member named `toString` or `constructor` would be
+    // probed as an inherited function instead of as itself.
+    const PROBE = new Map<string, (tx: number, ty: number) => unknown>([
+      ['fieldDist', (tx, ty) => fieldDist(g.ground, tx, ty)],
+      ['fieldStep', (tx, ty) => fieldStep(g.ground, tx, ty)],
+    ]);
+    // The closer on the one thing a label can still buy (review): `accepted`
+    // and `write` skip the probe loop, so the skip list is pinned by name — a
+    // seventh accessor cannot join it by choosing a convenient label.
+    expect(
+      DECLARED.filter(([, r]) => r === 'accepted' || r === 'write').map(([n]) => n),
+    ).toEqual(['idx', 'setOcc', 'setBreach']);
+
     for (const [name, rule] of DECLARED) {
-      if (rule === 'accessor') continue;
+      if (rule === 'accepted' || rule === 'write') continue;
+      if (rule === 'throws') {
+        expect(() => g.placeCore(3.5, 1), `${name}(3.5, 1)`).toThrow(/not an integer tile/);
+        expect(() => g.placeCore(3, 1.5), `${name}(3, 1.5)`).toThrow(/not an integer tile/);
+        expect(() => g.placeCore(NaN, 1), `${name}(NaN, 1)`).toThrow(/not an integer tile/);
+        continue;
+      }
       if (name === 'tileCenter') {
         // Not a tile read at all: a fraction in, a fraction out.
         expect(Grid.tileCenter(3.5, 1)).toEqual({ x: 4, y: 1.5 });
         continue;
       }
-      const fn = (g as unknown as Record<string, (a: number, b: number) => boolean>)[name].bind(g);
-      if (rule === 'refuses') {
-        expect(fn(3.5, 1), `${name}(3.5, 1)`).toBe(false);
-        expect(fn(3, 1.5), `${name}(3, 1.5)`).toBe(false);
-        expect(fn(NaN, 1), `${name}(NaN, 1)`).toBe(false);
-      } else {
-        expect(fn(3.5, 1), `${name}(3.5, 1)`).toBe(true);
+      const bound =
+        PROBE.get(name) ??
+        ((tx: number, ty: number) =>
+          (g as unknown as Record<string, (a: number, b: number) => unknown>)[name].call(g, tx, ty));
+      if (rule === 'exempt') {
+        // Exempt by reason, not by omission, so it is probed for the answer
+        // that *makes* it exempt: an in-arena fraction is in the arena. It is
+        // still not a licence to answer about nothing — `NaN` is out.
+        expect(bound(3.5, 1), `${name}(3.5, 1)`).toBe(true);
+        expect(bound(3, 1.5), `${name}(3, 1.5)`).toBe(true);
+        expect(bound(NaN, 1), `${name}(NaN, 1)`).toBe(false);
+        continue;
+      }
+      for (const [tx, ty] of BAD) {
+        const got = bound(tx, ty);
+        const what = `${name}(${tx}, ${ty})`;
+        if (rule === 'refuses') expect(got, what).toBe(false);
+        else if (rule === 'sentinel-neg1') expect(got, what).toBe(-1);
+        else expect(got, what).toBeNull();
       }
     }
+  });
+});
+
+describe('fb064y — the non-predicate tile accessors answer about a tile that exists too', () => {
+  /**
+   * fb064x closed b007's hole on the five tile *predicates* and listed the
+   * six non-predicate `(tx, ty)` members as a recorded exemption rather than
+   * filtering them out, because the same hole is the same hole whether or not
+   * the answer is a boolean. This is that list worked through.
+   *
+   * The predicates could all share one answer (`false`). These cannot: each
+   * has its own "no answer" value, and two of them have none at all.
+   *  - `distAt` already returns `-1` out of bounds; a non-integer gets the
+   *    same, because "no answer" is what it means.
+   *  - `stepFrom` already returns `null` out of bounds.
+   *  - `fieldDist`/`fieldStep` are those two one layer down, over an arbitrary
+   *    `Field`, and get the same treatment for the same reason.
+   *  - `idx` is arithmetic with no notion of a tile and no spare value to
+   *    mean "none" — every integer it can return is a legal index. It is
+   *    recorded as an accepted case below rather than guarded, with the
+   *    reasoning and the out-of-scope call sites.
+   *  - `setOcc`/`setBreach`/`placeCore` are writes, not reads, and are covered
+   *    at their own call sites (`buildTower` goes through `buildable`, which
+   *    refuses); `placeCore` already refuses anything but a legal anchor.
+   */
+  it('distAt and stepFrom refuse a non-integer with their own no-answer value', () => {
+    const g = applied(
+      handMap([
+        [3, 1, TerrainKind.Rock],
+        [4, 1, TerrainKind.High],
+      ]),
+    );
+    // The alias: `1.5 * GRID_W + 3` is tile (21, 1), open ground with a real
+    // finite distance, so `distAt(3, 1.5)` used to answer about it — a
+    // *plausible* number for a tile made of rock, which is the dangerous kind
+    // of wrong answer.
+    const alias = 1.5 * GRID_W + 3;
+    expect(g.ground.dist[alias]).toBeGreaterThan(0);
+    expect(g.distAt(3, 1.5)).toBe(-1);
+    expect(g.stepFrom(3, 1.5)).toBeNull();
+
+    // The undefined-index shape, which for a typed array reads as `undefined`
+    // and for `stepFrom` used to reach `i < 0` on a NaN comparison.
+    expect(g.distAt(3.5, 1)).toBe(-1);
+    expect(g.stepFrom(3.5, 1)).toBeNull();
+
+    for (const [tx, ty] of [
+      [3.5, 1],
+      [3, 1.5],
+      [-0.5, 5],
+      [NaN, 5],
+      [5, NaN],
+      [Infinity, 5],
+      [5, -Infinity],
+    ] as Array<[number, number]>) {
+      expect(g.distAt(tx, ty), `distAt(${tx}, ${ty})`).toBe(-1);
+      expect(g.distAt(tx, ty, true), `distAt ghost(${tx}, ${ty})`).toBe(-1);
+      expect(g.stepFrom(tx, ty), `stepFrom(${tx}, ${ty})`).toBeNull();
+      // QA bug 1: the `ghost` overload of `stepFrom` had no coverage anywhere
+      // in the repo — no caller passes `true`, and replacing its field with
+      // `this.ground` left all 52 tests in the three grid suites green while
+      // changing 206 tiles on seed 1.
+      expect(g.stepFrom(tx, ty, true), `stepFrom ghost(${tx}, ${ty})`).toBeNull();
+      expect(fieldDist(g.ground, tx, ty), `fieldDist(${tx}, ${ty})`).toBe(-1);
+      expect(fieldStep(g.ground, tx, ty), `fieldStep(${tx}, ${ty})`).toBeNull();
+    }
+
+    // The bounds check is not displaced, and the probe lands on an *open*
+    // alias so it cannot read right for the wrong reason (fb064u QA bug 2).
+    const oob = 2 + GRID_W;
+    expect(g.ground.dist[oob]).toBeGreaterThan(0);
+    // All four terms of the bounds check, not just the `tx` upper one (QA bug
+    // 2): with `ty >= GRID_H` dropped from `fieldDist`, `fieldDist(g.ground,
+    // 3, GRID_H)` returns `undefined` from a function declared `: number` —
+    // the exact class of bug this item closes — and all 52 tests in the three
+    // grid suites stayed green.
+    for (const [tx, ty] of [
+      [oob, 0],
+      [3, GRID_H],
+      [3, GRID_H + 2],
+      [3, -1],
+      [-1, 3],
+    ] as Array<[number, number]>) {
+      expect(g.distAt(tx, ty), `distAt(${tx}, ${ty})`).toBe(-1);
+      expect(g.distAt(tx, ty, true), `distAt ghost(${tx}, ${ty})`).toBe(-1);
+      expect(g.stepFrom(tx, ty), `stepFrom(${tx}, ${ty})`).toBeNull();
+      expect(g.stepFrom(tx, ty, true), `stepFrom ghost(${tx}, ${ty})`).toBeNull();
+      expect(fieldDist(g.ground, tx, ty), `fieldDist(${tx}, ${ty})`).toBe(-1);
+      expect(fieldStep(g.ground, tx, ty), `fieldStep(${tx}, ${ty})`).toBeNull();
+    }
+  });
+
+  it('never fires on a legal integer tile of a generated map', () => {
+    // What this catches, stated precisely because it is narrower than a
+    // "nothing changed" pin (review finding 5): a guard that misfires on a
+    // legal coordinate. The evidence that nothing *else* changed is the
+    // unchanged `endHash` recorded in the item, not this loop — these
+    // assertions restate the method bodies and cannot be more than that.
+    //
+    // Two seeds, not four: the guard is coordinate-shaped, not terrain-shaped,
+    // so extra maps buy nothing and cost fast-tier budget (finding 6).
+    for (const seed of [1, 137]) {
+      const g = applied(generateTerrain(seed, cfg));
+      for (let ty = 0; ty < GRID_H; ty++) {
+        for (let tx = 0; tx < GRID_W; tx++) {
+          const i = ty * GRID_W + tx;
+          expect(g.distAt(tx, ty), `seed ${seed} distAt(${tx}, ${ty})`).toBe(g.ground.dist[i]);
+          expect(g.distAt(tx, ty, true), `seed ${seed} ghost(${tx}, ${ty})`).toBe(g.ghost.dist[i]);
+          expect(fieldDist(g.ground, tx, ty)).toBe(g.ground.dist[i]);
+          const step = g.stepFrom(tx, ty);
+          const n = g.ground.next[i];
+          if (n < 0) expect(step).toBeNull();
+          else expect(step).toEqual([n % GRID_W, (n / GRID_W) | 0]);
+          expect(fieldStep(g.ground, tx, ty)).toEqual(step);
+          // The ghost field too, which nothing in the repo reads (QA bug 1).
+          const ghostStep = g.stepFrom(tx, ty, true);
+          const gn = g.ghost.next[i];
+          if (gn < 0) expect(ghostStep).toBeNull();
+          else expect(ghostStep).toEqual([gn % GRID_W, (gn / GRID_W) | 0]);
+          expect(fieldStep(g.ghost, tx, ty)).toEqual(ghostStep);
+        }
+      }
+    }
+  });
+
+  it('leaves gatePath, the one in-file consumer of stepFrom, unchanged', () => {
+    // `gatePath` walks `idx`/`stepFrom` from a gate to the Core and is what
+    // fb036's path indicators draw. Its coordinates are integers by
+    // construction; this pins that the guard did not shorten a single route.
+    for (const seed of [1, 4, 11]) {
+      const g = applied(generateTerrain(seed, cfg));
+      for (const gate of GATES) {
+        const path = g.gatePath(gate);
+        expect(path.length, `seed ${seed} gate ${gate.key}`).toBeGreaterThan(1);
+        expect(path[0]).toMatchObject({ tx: gate.tx, ty: gate.ty });
+        const last = path[path.length - 1];
+        expect(g.tile[last.ty * GRID_W + last.tx]).toBe(TileType.Core);
+      }
+    }
+  });
+
+  it('shows what the two write rows leave exposed, rather than asserting they are safe', () => {
+    // Review Minor 2. The table calls `setOcc`/`setBreach` "refused at their
+    // own call sites", which is true today — `buildTower` goes through
+    // `buildable`, and `addStructure`/`removeStructure` take their coordinates
+    // from there — and was prose with nothing behind it, which is the same
+    // shape the previous review objected to over `distAt`. Over a *write* it
+    // is worse than over a read: a read reports the wrong tile, a write
+    // silently occupies one and re-routes the flow field around it.
+    const g = applied(handMap([]));
+    expect(g.occ[57]).toBe(0);
+    g.setOcc(3, 1.5, 7);
+    // Tile (21, 1), not (3, 1): `1.5 * GRID_W` cancels its own fraction.
+    expect(g.idx(21, 1)).toBe(57);
+    expect(g.occ[57]).toBe(7);
+    expect(g.blocked[57]).toBe(1);
+    expect(g.occ[g.idx(3, 1)]).toBe(0);
+    g.setBreach(3, 1.5, 99);
+    expect(g.breach[57]).toBe(99);
+    // The exposure is real and it is call-site-owned: nothing in `src/` or
+    // `tools/` reaches either write with a non-integer, because every path in
+    // goes through `buildable`. Recorded here so that stays a checked claim.
+    g.setOcc(3, 1.5, 0);
+    g.setBreach(3, 1.5, 0);
+  });
+
+  it('records idx as an accepted case, and shows exactly what it costs', () => {
+    // The one member on the list that is *not* guarded, recorded here rather
+    // than in a comment so it is a decision with a test behind it.
+    //
+    // `idx` is `ty * GRID_W + tx` and nothing else. Every integer it can
+    // return is a legal index into some array, so it has no spare value to
+    // mean "no such tile" — `-1` would be a new contract, and its callers
+    // (`world.ts:445/598/613/651/682`, `enemies.ts:1073`,
+    // `render/canvas.ts:491`, and `gatePath` here) index arrays with the
+    // result directly, so a sentinel would turn a silent alias into a silent
+    // `undefined` read one line later. `world.ts:613` is already covered from
+    // the other side — it sits behind `grid.passable(nx, ny)`, which refuses a
+    // non-integer — and `tools/fuzz-command-domain.ts:578` is the one caller
+    // that passes something odd on purpose: an out-of-grid *integer*, probing
+    // b007's aliasing, which a non-integer guard would not touch either way.
+    // Throwing is the only refusal that fits, and it would put a
+    // per-tile `Number.isInteger` in the renderer's tile loop to catch
+    // coordinates that are integers at every live call site.
+    //
+    // The real fix is at those call sites, which are outside this lane's
+    // Scope; they are named in the Log for the merge. What this test does is
+    // make the exposure explicit rather than leaving it as an unexamined
+    // exemption.
+    const g = applied(handMap([[3, 1, TerrainKind.Rock]]));
+    expect(g.idx(3, 1)).toBe(1 * GRID_W + 3);
+    // The alias, stated as an assertion so nobody has to re-derive it: a
+    // fractional ty produces a legal index for a different tile.
+    expect(g.idx(3, 1.5)).toBe(57);
+    expect(Number.isInteger(g.idx(3, 1.5))).toBe(true);
+    expect(g.idx(3, 1.5)).not.toBe(g.idx(3, 1));
+    // A fractional tx does not alias — it produces a non-integer index, which
+    // reads `undefined` out of every array the callers index with it.
+    expect(Number.isInteger(g.idx(3.5, 1))).toBe(false);
+    expect(g.tile[g.idx(3.5, 1)]).toBeUndefined();
+    // And out-of-grid integers alias one row up, which is b007's original
+    // finding and is guarded at `World.structureAt` rather than here.
+    expect(g.idx(3 + GRID_W, 0)).toBe(g.idx(3, 1));
   });
 });
