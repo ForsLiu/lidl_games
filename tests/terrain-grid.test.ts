@@ -16,6 +16,8 @@
  *     is what lets `tests/grid.test.ts` stay untouched.
  */
 
+import { readFileSync } from 'node:fs';
+
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -39,6 +41,7 @@ import {
   walkableFlood,
   type TerrainConfig,
 } from '../src/sim/terrain';
+import { Hasher } from '../src/sim/hash';
 import type { TerrainGrid } from '../src/sim/terrain/types';
 
 const cfg = loadTerrain();
@@ -71,6 +74,16 @@ function wardenAll(g: Grid): number[] {
     for (let tx = 0; tx < GRID_W; tx++) out.push(g.wardenPassable(tx, ty) ? 1 : 0);
   }
   return out;
+}
+
+/** fb064x: both flow fields, `dist` and `next`, as one comparable value. */
+function fieldHash(g: Grid): string {
+  const h = new Hasher();
+  for (const f of [g.ground, g.ghost]) {
+    for (let i = 0; i < f.dist.length; i++) h.int(f.dist[i]);
+    for (let i = 0; i < f.next.length; i++) h.int(f.next[i]);
+  }
+  return h.hex();
 }
 
 function applied(map: TerrainGrid, c: TerrainConfig = cfg): Grid {
@@ -630,5 +643,244 @@ describe('high ground and structures (fb064b)', () => {
     expect(g.passable(6, 5)).toBe(false);
     expect(g.passableGhost(6, 5)).toBe(true);
     expect(g.distAt(6, 5, true)).toBeGreaterThan(0);
+  });
+});
+
+describe('fb064x — every Grid tile predicate answers about a tile that exists', () => {
+  /**
+   * The two repros fb064u's QA measured at HEAD and this item closes.
+   *
+   * fb064u guarded `wardenPassable` and deliberately left these two: they are
+   * the Dijkstra inner loop, where `Number.isInteger` on every neighbour is a
+   * real per-tick cost against G12's budget, so the fix had to be a decision
+   * rather than a copy. It is: the guard sits on the *public* predicate and the
+   * flow field calls the flat-index form directly, since `dijkstra` derives
+   * every neighbour from an index and a `NEIGHBORS` offset and has already
+   * bounds-checked it — so the loop pays nothing (it stopped re-checking
+   * bounds) and no caller can ask about a tile that does not exist.
+   */
+  it('rejects a non-integer coordinate rather than aliasing or reading undefined', () => {
+    const g = applied(
+      handMap([
+        [3, 1, TerrainKind.Rock],
+        [4, 1, TerrainKind.High],
+      ]),
+    );
+    // The aliasing shape (b007): GRID_W is even, so `.5` in `ty` cancels its
+    // own fraction. `1.5 * GRID_W + 3` is tile (21, 1) — open ground — so
+    // `passable(3, 1.5)` used to answer `true` about the mountain at (3, 1).
+    const alias = 1.5 * GRID_W + 3;
+    expect(Number.isInteger(alias)).toBe(true);
+    expect(alias).toBe(57);
+    expect(g.tile[alias]).toBe(TileType.Open);
+    expect(g.blocked[alias]).toBe(0);
+    expect(g.passable(3, 1)).toBe(false);
+    expect(g.passable(3, 1.5)).toBe(false);
+
+    // The undefined-index shape: `tile[ty * GRID_W + 3.5]` is `undefined`,
+    // which is not `Border`, so `passableGhost` answered `true` off a read of
+    // nothing at all.
+    expect(g.tile[1 * GRID_W + 3.5]).toBeUndefined();
+    expect(g.passableGhost(3.5, 1)).toBe(false);
+
+    // Every non-integer shape, and the same answer the three already-guarded
+    // siblings give.
+    for (const [tx, ty] of [
+      [3.5, 1],
+      [3, 1.5],
+      [-0.5, 5],
+      [NaN, 5],
+      [5, NaN],
+      [Infinity, 5],
+      [5, -Infinity],
+    ] as Array<[number, number]>) {
+      expect(g.passable(tx, ty), `passable(${tx}, ${ty})`).toBe(false);
+      expect(g.passableGhost(tx, ty), `passableGhost(${tx}, ${ty})`).toBe(false);
+      expect(g.wardenPassable(tx, ty)).toBe(false);
+      expect(g.buildable(tx, ty)).toBe(false);
+      expect(g.isHighGround(tx, ty)).toBe(false);
+    }
+
+    // The guard did not displace the bounds check, and the probe lands on an
+    // *open* alias so it cannot read `false` for the wrong reason (fb064u QA
+    // bug 2): `2 + GRID_W` aliases onto tile (2, 1), which is open ground.
+    const oob = 2 + GRID_W;
+    expect(g.tile[oob]).toBe(TileType.Open);
+    expect(g.blocked[oob]).toBe(0);
+    expect(g.passable(oob, 0)).toBe(false);
+    expect(g.passableGhost(oob, 0)).toBe(false);
+  });
+
+  it('answers exactly as before on every integer tile of a generated map', () => {
+    // The guard is a refusal added in front of an unchanged rule, and the
+    // flow-field rewrite that pays for it must be behaviour-preserving. Both
+    // predicates are compared tile by tile against the arrays they are derived
+    // from, over real generated maps rather than a hand-built one.
+    for (const seed of [1, 2, 3, 7, 19, 137]) {
+      const g = applied(generateTerrain(seed, cfg));
+      for (let ty = 0; ty < GRID_H; ty++) {
+        for (let tx = 0; tx < GRID_W; tx++) {
+          const i = ty * GRID_W + tx;
+          expect(g.passable(tx, ty), `seed ${seed} passable(${tx}, ${ty})`).toBe(
+            g.blocked[i] === 0,
+          );
+          expect(g.passableGhost(tx, ty), `seed ${seed} ghost(${tx}, ${ty})`).toBe(
+            g.tile[i] !== TileType.Border,
+          );
+        }
+      }
+    }
+  });
+
+  it('leaves both flow fields bit-identical to their pre-guard values', () => {
+    // The one thing that could change silently: `dijkstra` now calls the
+    // flat-index forms, so if either disagreed with its public predicate on a
+    // single tile the fields would drift — and a drifted field is a *different
+    // game* (G2), not a slower one. A reachability invariant does not catch
+    // that (review: the first draft of this test was green on the pre-change
+    // `grid.ts`, so it exerted no pressure at all), and neither would
+    // re-deriving the fields from the predicates the loop now calls, since that
+    // asks the changed code twice. The pin has to be a value measured on the
+    // *old* code: these hashes were taken at HEAD, before the flat-index forms
+    // existed, and every one of them is unchanged after.
+    //
+    // Both fields and both `next` arrays, on a bare map and on one dense with
+    // structures and breach prices, so the ghost, blocked and breach modes are
+    // all covered — the breach mode is the one whose diagonal branch changed
+    // shape (`passable(x, y)` became `passableAt(i)`).
+    //
+    // Seed 4 earns its place: QA showed the first three (1, 11, 137) all blind
+    // to a mutation that deletes the breach-diagonal branch's second term —
+    // the one line whose *shape* changed (`passable(x, y)` became
+    // `passableAt(i)`) — while seeds 4, 5, 12 and 21 see it. A pin that cannot
+    // fail on the line the change rewrote is decoration.
+    //
+    // Each row also carries the map hash, checked first: `applied()` builds
+    // from `generateTerrain`, so a `/data/terrain.json` tuning edit moves these
+    // fields for a reason that has nothing to do with `grid.ts`, and a
+    // balance-analyst editing densities should read "the map changed" rather
+    // than a bare field-hash mismatch on a Grid test (QA bug 4).
+    const GOLDEN: ReadonlyArray<readonly [number, string, string, string]> = [
+      [1, '54fad3db', 'ebcc9078', 'de5c7d1b'],
+      [4, '131ee8f2', 'b2d3934d', '462315b5'],
+      [11, '5064cfc5', '09546a0e', '16f18023'],
+      [137, '2184cf89', '0e3776a5', '66ee4ee2'],
+    ];
+    for (const [seed, map, bare, dense] of GOLDEN) {
+      const generated = generateTerrain(seed, cfg);
+      expect(
+        generated.hash,
+        `seed ${seed}: the generated map itself changed — this is a data/terrain.json ` +
+          `or generator change, not a grid.ts one; re-derive the field hashes below`,
+      ).toBe(map);
+      const g = applied(generated);
+      expect(fieldHash(g), `seed ${seed} bare`).toBe(bare);
+      // Structures on every third tile, priced, so `breach` and `occ` both
+      // steer the field rather than sitting at zero.
+      let id = 1;
+      for (let y = 2; y < GRID_H - 2; y += 3) {
+        for (let x = 2; x < GRID_W - 2; x += 3) {
+          if (!g.buildable(x, y)) continue;
+          g.setOcc(x, y, id);
+          g.setBreach(x, y, 4 * (id % 7));
+          id++;
+        }
+      }
+      g.refresh();
+      expect(fieldHash(g), `seed ${seed} dense`).toBe(dense);
+    }
+  });
+
+  it('enumerates every tile predicate in grid.ts, so a sixth cannot land unguarded', () => {
+    // The structural half of the acceptance. A predicate list written by hand
+    // is a list that goes stale the moment someone adds the seventh one, so it
+    // is read out of the source and compared against the declared table: a new
+    // `(tx, ty) => boolean` on `Grid` fails here until it is classified.
+    const src = readFileSync(new URL('../src/sim/grid.ts', import.meta.url), 'utf8');
+    // Deliberately wider than "a boolean predicate": an accessor that indexes a
+    // tile is the same class of bug whether or not it returns a boolean, so the
+    // scan takes every member whose first two parameters are numbers, and the
+    // table below is what says which ones are guarded.
+    //
+    // Widened twice after QA beat the first version. It missed `static`, a
+    // modifier `Grid` already uses (`tileCenter`), and it required the
+    // parameters to be *named* `tx`/`ty`, so `isMud(x: number, y: number)`
+    // landed un-guarded with this test green. Both are now covered, and the
+    // module-level `Field` accessors are scanned separately because the member
+    // pattern is anchored at two spaces of indentation and cannot see them.
+    //
+    // What it still cannot see, stated so the guarantee is not overclaimed: an
+    // arrow property (`foo = (tx: number, ty: number) => ...`), a signature
+    // prettier wrapped across lines, and a member whose coordinates are not its
+    // first two parameters. It catches a predicate written like the five that
+    // exist, which is how a sixth arrives.
+    const MEMBER =
+      /^ {2}(?:public |private |protected |static |readonly )*(\w+)\(\s*\w+: number,\s*\w+: number\b/gm;
+    const MODULE = /^export function (\w+)\(f: Field, \w+: number, \w+: number\b/gm;
+    const found = [
+      ...[...src.matchAll(MEMBER)].map((m) => m[1]),
+      ...[...src.matchAll(MODULE)].map((m) => m[1]),
+    ];
+    expect(found.length).toBeGreaterThan(0);
+
+    /** Every `(tx, ty)` member of `Grid`, and what it promises a non-integer. */
+    const DECLARED: ReadonlyArray<readonly [string, 'refuses' | 'exempt' | 'accessor']> = [
+      ['isHighGround', 'refuses'],
+      // `inBounds` is the one *predicate* exemption, and it is not a hole: it
+      // answers about the coordinate ("is this inside the arena?"), never about
+      // a tile, and `3.5` genuinely is inside. Every predicate marked `refuses`
+      // calls it after its own integer check, so the exemption cannot leak into
+      // a tile read through any of them. Renaming it a tile predicate would be
+      // the actual mistake.
+      ['inBounds', 'exempt'],
+      ['passable', 'refuses'],
+      ['passableGhost', 'refuses'],
+      ['wardenPassable', 'refuses'],
+      ['buildable', 'refuses'],
+      // The `accessor` rows are not predicates and are knowingly outside this
+      // item, which is about the tile *predicates* — but they are listed rather
+      // than filtered out, because "`inBounds` cannot leak" is true of the
+      // predicates and false of these: `distAt(3, 1.5)` bounds-checks and then
+      // indexes `ty * GRID_W + tx`, reading tile (21, 1). Latent (no live
+      // caller passes a float, measured in fb064x) and filed as fb064y, so the
+      // exemption is a decision with an owner rather than a gap this table
+      // hides.
+      ['idx', 'accessor'],
+      ['setOcc', 'accessor'],
+      ['setBreach', 'accessor'],
+      ['distAt', 'accessor'],
+      ['stepFrom', 'accessor'],
+      ['placeCore', 'accessor'],
+      // Module-level, and the same shape as `distAt`/`stepFrom` one layer down:
+      // a bare bounds check, then `f.dist[ty * GRID_W + tx]`. They have no
+      // caller anywhere in `src/` or `tools/` today, which is why they are the
+      // *least* urgent row here and still a row: an un-called accessor is
+      // exactly the kind that acquires its first caller without anyone
+      // re-deriving its coordinate contract. In fb064y's scope (QA bug 5).
+      ['fieldDist', 'accessor'],
+      ['fieldStep', 'accessor'],
+      // Takes coordinates and returns a point; it never indexes a tile, so a
+      // fraction in gives a fraction out and there is nothing to alias onto.
+      ['tileCenter', 'exempt'],
+    ];
+    expect([...found].sort()).toEqual([...DECLARED.map(([n]) => n)].sort());
+
+    const g = applied(handMap([[3, 1, TerrainKind.Rock]]));
+    for (const [name, rule] of DECLARED) {
+      if (rule === 'accessor') continue;
+      if (name === 'tileCenter') {
+        // Not a tile read at all: a fraction in, a fraction out.
+        expect(Grid.tileCenter(3.5, 1)).toEqual({ x: 4, y: 1.5 });
+        continue;
+      }
+      const fn = (g as unknown as Record<string, (a: number, b: number) => boolean>)[name].bind(g);
+      if (rule === 'refuses') {
+        expect(fn(3.5, 1), `${name}(3.5, 1)`).toBe(false);
+        expect(fn(3, 1.5), `${name}(3, 1.5)`).toBe(false);
+        expect(fn(NaN, 1), `${name}(NaN, 1)`).toBe(false);
+      } else {
+        expect(fn(3.5, 1), `${name}(3.5, 1)`).toBe(true);
+      }
+    }
   });
 });
