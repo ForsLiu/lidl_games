@@ -965,7 +965,7 @@ the merge; c017 neither caused nor cleared it.
   `summonCap` key for c004 = **fb084**; the `content.ts`/shared-file
   enablers for fb056/fb057/fb059/fb061 = **fb085**; Blood Tithe's missing
   lifesteal clause = **fb086**; the three unscaled previews = BACKLOG-UI.md
-  **fb090**; b036's fold regression = **fb089**.
+  **fb115** (filed as fb090); b036's fold regression = **fb114** (filed as fb089) — both renumbered at the 2026-09-04 merge.
 
 - (2026-09-03, lane split) Known cross-lane touchpoints to expect here
   rather than edit: class registration in shared sim files

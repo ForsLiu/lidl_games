@@ -559,8 +559,10 @@ const ROOM_RADIUS = 2;
 export function suggestCoreAnchor(
   map: TerrainGrid,
   cfg: TerrainConfig,
-  anchors: readonly number[] = legalCoreAnchors(map, cfg),
+  anchorsIn?: readonly number[],
+  gates: readonly GateDef[] = GATES,
 ): number | null {
+  const anchors = anchorsIn ?? legalCoreAnchors(map, cfg, undefined, gates);
   let best: number | null = null;
   let bestDist = 0;
   let bestRoom = 0;

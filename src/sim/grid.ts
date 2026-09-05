@@ -572,8 +572,10 @@ export class Grid {
   }
 
   /**
-   * fb078: is this specific tile's unbuildability down to terrain (rough/
-   * rock/high painted by `applyTerrain`), as opposed to real occupancy
+   * fb078: is this specific tile's unbuildability down to terrain (any kind
+   * whose `buildable` flag is off in `data/terrain.json` — rough and rock as
+   * shipped; high ground is buildable, so this never fires there — painted
+   * by `applyTerrain`), as opposed to real occupancy
    * (border, a gate, the Core footprint, or a live structure)? Mirrors
    * `buildable()`'s own three-part check with the terrain clause inverted,
    * so the two are mutually exclusive and safe to call standalone.

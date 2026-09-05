@@ -24,7 +24,7 @@ import { makePolicy } from '../src/bots';
 import '../src/bots';
 import { allTreeNodeIds } from '../src/meta/meta';
 import { spawnEnemy, updateEnemies } from '../src/sim/enemies';
-import { CORE_H, CORE_W, CORE_X, CORE_Y, GATES, Grid, TileType } from '../src/sim/grid';
+import { CORE_H, CORE_W, CORE_X, CORE_Y, GATES, GRID_H, GRID_W, Grid, TileType } from '../src/sim/grid';
 import { buildReport, Run } from '../src/sim/run';
 import { buildTower } from '../src/sim/towers';
 import { applyRunTerrain, wardenSpawnTile, World } from '../src/sim/world';
@@ -160,6 +160,53 @@ describe('fb077 — Fourth Gate modifier threads its real gate list into generat
       if (map.kind[19 * map.w + 12] !== TerrainKind.Normal) buried++;
     }
     expect(buried).toBeGreaterThan(0);
+  });
+
+  it('generating WITH the 4-gate list keeps the south gate open on every seed (the threading itself)', () => {
+    // The red-first control for the lane-merge re-threading (2026-09-04): the
+    // 60-seed World sweep above cannot fail without it, because
+    // `applyRunTerrain`'s 16-retry loop restores `allGatesReachable()` even
+    // when generation never saw the south gate. This measures the generator
+    // directly: with the run's 4-gate list the south gate's only interior
+    // neighbour (12,18) sits on a protected main and is never buried; drop
+    // `gates` from any of `attempt`/`flatKinds`/`sealPockets`/`measureTerrain`
+    // and it is buried on ~90/200 seeds (code-reviewer measurement).
+    const gates4 = [...GATES.slice(0, 3), { key: 'south', tx: 12, ty: 19 }];
+    let buried = 0;
+    for (let seed = 1; seed <= 200; seed++) {
+      const map = generateTerrain(seed, terrainCfg, gates4);
+      expect(map.fallback, `seed ${seed}`).toBe(false);
+      if (map.kind[18 * map.w + 12] !== TerrainKind.Normal) buried++;
+      if (map.kind[19 * map.w + 12] !== TerrainKind.Normal) buried++;
+    }
+    expect(buried).toBe(0);
+  });
+
+  it('a Fourth Gate World plays the map the 4-gate generator produces, byte for byte off the structural tiles', () => {
+    const { tx: wtx, ty: wty } = wardenSpawnTile();
+    for (let seed = 1; seed <= 30; seed++) {
+      const w = new World(runCfg({ seed, modifiers: ['gate'] }));
+      expect(w.terrainFallback).toBe(false);
+      const map = generateTerrain(seed, terrainCfg, w.gates);
+      const overlay = terrainOverlay(map, terrainCfg);
+      const grid = new Grid();
+      for (const g of w.gates) grid.tile[grid.idx(g.tx, g.ty)] = TileType.Gate;
+      grid.applyTerrain(overlay);
+      grid.refresh();
+      let mismatches = 0;
+      for (let y = 1; y < GRID_H - 1; y++) {
+        for (let x = 1; x < GRID_W - 1; x++) {
+          if (Math.abs(x - wtx) <= 1 && Math.abs(y - wty) <= 1) continue; // spawn clearing
+          if (grid.tile[grid.idx(x, y)] !== TileType.Open) continue; // gate/Core tiles
+          if (w.grid.buildable(x, y) !== grid.buildable(x, y)) mismatches++;
+          if (w.grid.passable(x, y) !== grid.passable(x, y)) mismatches++;
+        }
+      }
+      // `applyRunTerrain` may have retried at seed+1.. if seed's own map
+      // stranded the Core; that is the one legitimate divergence, and it is
+      // reported by `allGatesReachable()` on the raw map being false.
+      if (mismatches > 0) expect(grid.allGatesReachable(), `seed ${seed}`).toBe(false);
+    }
   });
 });
 

@@ -679,7 +679,7 @@ fb064o.
   BACKLOG.md **fb077**; `'terrain'` `BuildRejection` = **fb078**; SPEC-FINAL
   §10.5 + G2 wording = **fb079**; tools/Tuner file lists (and fb064f's page)
   = **fb080**; the flake family = **fb087**; `paint()` counter + tighter
-  ceiling = **fb088**; fb064e rendering = BACKLOG-UI.md **fb091**; the design
+  ceiling = **fb088**; fb064e rendering = BACKLOG-UI.md **fb116** (filed as fb091, renumbered at the 2026-09-04 merge); the design
   decisions are QUESTIONS.md Q162. fb064c/fb064d stay here.
 
 - (2026-09-03, lane split) Integration-point file for the merge:

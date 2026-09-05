@@ -3313,7 +3313,7 @@ generation-rule boundary.
       ground (BACKLOG-TERRAIN.md fb064b Log). Acceptance: a `'terrain'`
       `BuildRejection` returned when the tile is unbuildable for a terrain
       reason and unoccupied; failing test first on an `applyTerrain`-ed grid;
-      the renderer string for it is UI-lane fb091 — refs: SPEC-FINAL §10.5,
+      the renderer string for it is UI-lane fb116 (was fb091, renumbered at the 2026-09-04 merge) — refs: SPEC-FINAL §10.5,
       §5 build rules.
       **DONE 2026-09-04.** `Grid.unbuildableForTerrain(tx, ty)` (the
       inverse of `buildable()`'s terrain clause, mutually exclusive with
@@ -3323,7 +3323,7 @@ generation-rule boundary.
       `tests/fb078-terrain-build-rejection.test.ts` (4 cases, rough + rock
       overlays via `applyTerrain`). `src/bots/policies.ts` needs no change:
       `'terrain'` falls into the same drop-the-plan branch `'occupied'`
-      did. Renderer string stays UI-lane fb091.
+      did. Renderer string stays UI-lane fb116 (was fb091).
 - [ ] (fb079) [docs] SPEC-FINAL has no §10.5 for terrain generation, yet
       the generator, its bands and its data contract are built and merged
       (BACKLOG-TERRAIN.md fb064a Log). Acceptance: append §10.5 written from
@@ -3335,7 +3335,7 @@ generation-rule boundary.
       the seed+1 regeneration rule); §13's content totals gain the terrain
       file; MIGRATION.md §8 notes the addition. Log the append in
       QUESTIONS.md as an owner-vetoable `[designer-fill]` — refs: SPEC-FINAL
-      §10, §14 G2, §17.
+      §10, §14 G2, §17. **Amended at the 2026-09-04 merge:** §10.5 must also cover the lane's later decisions (Q171) — Core placement rules and the suggested anchor, the high-ground families and the no-boss-family rule, the character-passage flag, the seed domain, the approach band (`maxGateDetour`) beside fb064a's bands, the uncontested-high repair, and the run-gate-list threading.
 - [ ] (fb080) [polish] `data/terrain.json` is unknown to every data tool:
       `tools/fuzz-data.ts`, `tools/mutation-probe.ts`, `tests/q7-data-fuzz`'s
       `DATA_FILES` (content.ts reaches the file through `terrain/config.ts`'s
@@ -3451,7 +3451,7 @@ generation-rule boundary.
       against the tighter `|A| / |cover(A)|` bound — **only** with the
       generated-map sweep that caught the last false rejection — refs:
       SPEC-FINAL §12 rule 4 (loader refuses unpayable data), BACKLOG-TERRAIN
-      fb064g Log.
+      fb064g Log. **Also (fb064j Log):** the same file's skipped-seed loop (`:678-687`) re-reads the generator's own report instead of measuring degeneracy — `tests/terrain-seed-domain.test.ts` has the stronger shape to copy.
 - [ ] (fb092) [bug] `fb054`'s density pass (owner feedback
       `balance-siege-density`) broke G13's share-cap measurement, not just
       its solo-viability clause (`fb076`) — found at **p11b**'s HANDOFF/
@@ -3483,7 +3483,7 @@ also now names `tiers.ts`'s `draft`/`draftpick` prefixes), the `/src/sim`
 renderer-import guard widened to nested directories, the Time Lord band
 sweep moved to the fast tier's exclude list with its env gate dropped. Every
 out-of-scope need in the three lane Logs is filed above as fb077-fb088
-(main lane) or in BACKLOG-UI.md as fb089-fb091; the main-lane fb066 written
+(main lane) or in BACKLOG-UI.md as fb089-fb091 (renumbered fb114-fb116 at the 2026-09-04 merge after the UI lane reused the ids); the main-lane fb066 written
 during fb054's close-out was renumbered to fb076 because BACKLOG-UI.md had
 already used fb066 — **ids are global across all four backlog files; take
 the next free number, never a lane-local one.**
@@ -3494,6 +3494,224 @@ BACKLOG-CONTENT.md (`lane/content`); fb064 → BACKLOG-TERRAIN.md
 (`lane/terrain`); fb055/fb058/fb060/fb063/fb065 → BACKLOG-UI.md
 (`lane/ui`). fb053/fb054 stay here: dash and density are shared-sim-core
 balance work, which this file keeps.
+
+### Filed at the lane merges (2026-09-04) — out-of-scope needs from the three lane Logs
+
+**Lane merge (2026-09-04):** `lane/content` (c006-c019), `lane/terrain`
+(fb064h-fb064v) and `lane/ui` (fb071-fb113) merged into master. Conflicts:
+the three lane Logs (both sides kept) and `src/sim/terrain/{analyze,
+generate}.ts`, where main's fb077 run-gate-list threading met the lane's
+fb064h-v rewrites — lane versions taken, the `gates` list re-threaded as a
+*trailing* parameter through every gate-reading terrain function
+(analyze/path/core-placement/generate) so the lane's positional call shapes
+survive, `TERRAIN_STREAM` kept as the generator's RNG key. The merged
+generator re-drew every map, so fb077's stranded-Core seeds were re-found
+(4426/4515/5516 in 1..6000) and fb064q's `charBlock` mask was added to
+main's fallback overlays. Every out-of-scope need in the three Logs is
+filed below as fb118-fb135; the lanes' owed QUESTIONS.md entries are
+Q168-Q174. **Id collision:** the UI lane's 2026-09-04 batch reused
+fb076-fb099 (see fb118); new ids start at fb118 and the four in-file
+duplicates in BACKLOG-UI.md were renumbered fb114-fb117.
+
+- [ ] (fb118) [polish] backlog ids are no longer global: BACKLOG-UI.md's
+      2026-09-04 batch assigned fb076-fb113 while BACKLOG.md assigned
+      fb076-fb099, so 18 ids now name two different items (e.g. fb085 is
+      "unblock the content lane's owner items" here and "localization
+      strings" there; fb093 is a closed G22 regression here and an open
+      ui-audit item there), and 30+ committed `tests/ui-fbNNN-*.test.ts`
+      filenames carry the UI-lane numbers. Acceptance: one of (a) renumber
+      the UI batch to fb1xx (files, Log references, test filenames) or (b)
+      adopt a lane prefix (`ui-fbNNN`) and record the rule in CLAUDE.md's
+      Lanes section; either way a `tools/` check (or a test) fails when an
+      id appears in two backlog files with different titles — refs:
+      CLAUDE.md Lanes, BACKLOG-UI.md 2026-09-04 merge Log.
+- [ ] (fb119) [bug] `tests/q15-command-domain-fuzz.test.ts` is red
+      **standalone**, not just under load: its `beforeAll` (`runCensus()`)
+      hits the 120 s `hookTimeout` and all 66 recorded entries read
+      `"hangs"` — the worker-subprocess probe timing out wholesale (terrain
+      fb064u/fb064v QA, content c009/c011/c015 Logs, each reproduced on a
+      clean tree). `vitest.fast.config.ts`'s comment still says q15 "stays IN
+      the fast tier, measured under 60 s", so the fast tier cannot be green
+      on any branch. Acceptance: find why the probe hangs (nested `tsx`
+      spawn under `bench/.tmp`'s ~33 tree copies is the leading suspect —
+      fb087), then either restore a <60 s standalone run or move q15 to the
+      exclude list with the measured time; the config comment matches the
+      measurement — refs: CLAUDE.md test tiers, fb087.
+- [ ] (fb120) [bug] two full-suite reds reported by the lanes that the fast
+      tier cannot see, both expired measurements: `tests/a3-movement-
+      mandatory.test.ts` seed 1 expects `defeat_core`, gets `defeat_warden`
+      (all 12 seeds `defeat_warden`, three reproductions at two commits;
+      its header still cites Q124's reconfirmation), and content c018's QA
+      saw `tests/p-core-f-gates.test.ts` G22 `carnivorous_plant`/`corpse`
+      seed-2 fingerprints at 0.070/0.040 against 0.10 on the lane branch
+      (which predates fb093/fb099 — unverified on master). Acceptance:
+      re-measure both on merged master at the next full `npm test`; a3
+      either gets its premise re-established (a QUESTIONS.md entry either
+      way, per Q124) or its assertion re-pinned with the mechanism named;
+      G22 re-measured with fb093's method — refs: SPEC-FINAL §14 G22, Q124,
+      BACKLOG-TERRAIN.md fb064u Log, BACKLOG-CONTENT.md c018 Log.
+- [ ] (fb121) [bug] `SkillCardSchema` (`src/sim/content.ts`) accepts
+      `perRank: 0` and negatives: a skill card worth nothing per rank is
+      unpayable data (architecture rule 4), and every consumer that divides
+      by it inherits the trap — content c019's test hung a vitest worker for
+      25 minutes on `perRank: 0` before it was clamped. Acceptance: loader
+      refuses `perRank <= 0` with the card id in the message; a
+      `tests/q7`-style corpus case pins it — refs: SPEC-FINAL §6.3, §12
+      rule 4, BACKLOG-CONTENT.md c019 Log.
+- [ ] (fb122) [polish] `src/sim/content.ts:705`'s `pierceCap` schema
+      comment ("most enemies one released shot may pass through") is false
+      since c017: the field rails only the charge-derived count and the true
+      ceiling is `pierceCap + perRank * maxRank` (10, not 6). It is
+      loader-facing and the Tuner walks the zod schema generically, so a
+      designer is shown a number 40% low. Acceptance: comment corrected;
+      `tests/class-deeper-draw.test.ts`'s ladder cited — refs: SPEC-FINAL
+      §4.2 Archer, §6.3, BACKLOG-CONTENT.md c017 Log.
+- [ ] (fb123) [test] no automated harness ever executes a charge-kind
+      Active1: `src/bots/policy.ts` never sets `TickInput.active1Held`, so
+      `fireDeadeyeDraw`/`fireCircleSlash` have zero bot/sweep coverage and
+      every sweep-derived balance claim about Archer or Swordsman is a null
+      instrument (c017's QA replaced the changed line with a `throw` and the
+      12-seed sweep printed the same table); `tools/fuzz-input.ts` fuzzes
+      the flag but hardcodes `classKey: 'engineer'`, whose Active1 is not a
+      charge kind. Acceptance: a bot run per policy for an archer asserts
+      `report.damageByWeapon['class_active'] > 0`; `fuzzRun` gets an
+      archer/swordsman config — refs: SPEC-FINAL §14 G10, BACKLOG-CONTENT.md
+      c017 Log.
+- [ ] (fb124) [balance] Deadeye Draw's reason to charge collapses at max
+      investment: damage per committed second against a 10-wide line, best
+      hold vs a one-tick tap, falls from 4.36x (rank 0, no CDR) to 1.10x at
+      `archer_class_line` rank 2 plus the 0.40 `cdrCap` — no gate moves (G10
+      is closed-form over `chargeCapSeconds`/`compoundPerSecond`/
+      `cooldownSeconds` and never reads `pierceCap`). A full-charge-only
+      variant of c017's bonus keeps the 6 -> 8 -> 10 ladder and leaves
+      partial charges alone; that is a design call (Q168). Acceptance:
+      decide via QUESTIONS.md; if taken, `/data` or one `classes.ts` clause
+      with `class-deeper-draw` re-pinned and the ratio measured either side
+      — refs: SPEC-FINAL §4.2 Archer, §14 G10, Q168.
+- [ ] (fb125) [test] four blind spots the content lane measured but could
+      not fix outside its Scope: `tests/fb013-timelord.test.ts:498` lands
+      every hit back-to-back, so `damageWarden`'s merge can be written as
+      the push formula and stays green (age the stack array first);
+      `classes.ts:1517` reading the Kinship aura at the *Warden's* position
+      instead of the summon's survives every suite; `enemies.ts:474`
+      transferring Spreading Plague to the enemy nearest the *Warden* rather
+      than the corpse survives every suite (all harness geometries are
+      collinear); and the rule-4 mutations `run.ts:625` `maxStacksPerEnemy`
+      -> 50 and `classes.ts:1005` `auraAtkSpdMul ?? 0` -> 0.15 survive both
+      passive files. Acceptance: a red-first case for each (four mutations,
+      four reds) — refs: SPEC-FINAL §4.1/§4.2, BACKLOG-CONTENT.md c011 Log.
+- [ ] (fb126) [feat] three rule-4 literals the player is shown as numbers:
+      Time Flow's "4 s" is `TIME_FLOW_BASE_SECONDS` in `src/sim/run.ts:578`,
+      and Thousand Cuts' bleed stack and Long Draw's per-second pierce are
+      literals in `src/sim/classes.ts`; `tests/class-descriptions.test.ts`
+      pins them by capture group so they cannot drift silently, but the
+      numbers belong in `data/classes.json`. Acceptance: each becomes a
+      schema field (e.g. `charDotSeconds`) read by its site, the ledger's
+      `in_code` rows flip to `field`, and the sentences are unchanged —
+      refs: SPEC-FINAL §12 rule 4, BACKLOG-CONTENT.md c015 Log.
+- [ ] (fb127) [feat] unblock BACKLOG-CONTENT.md c010 (Stormcaller's
+      `chainGrowth`/`chainCap` authored on `active1`, read by the passive):
+      the move needs `src/sim/content.ts:1288`'s `REQUIRED_EFFECT_FIELDS.
+      chain_lightning` to stop demanding them on `active1`, five sites in
+      `tests/p6d-nine-classes.test.ts` (`:116`, `:226-249`) re-pointed, and
+      `tests/q7-loader-holes.ts:248,250`'s corpus paths updated — all
+      main-lane. Acceptance: loader accepts the passive-authored shape and
+      refuses the duplicated one; p6d's G11 ceiling/growth assertions
+      re-measured as a control pair — refs: SPEC-FINAL §4.2 Stormcaller,
+      §12 rule 4, BACKLOG-CONTENT.md c010.
+- [ ] (fb128) [balance] tower attack speed is quantised to whole 60 Hz
+      ticks and small bonuses are inert: `tickCooldown` (`types.ts:17`)
+      clamps to 0 instead of carrying the sub-tick remainder, so a tower
+      fires every `ceil(interval / (dt * speed))` ticks — the Arrow Spire
+      fires every 43 ticks at +0% and +2% alike, and +3% is the first step
+      that moves it. Possibly intended; recorded (Q172) because a
+      `towerAttackSpeed` tuning pass in small steps will find some steps do
+      nothing. Acceptance: decide in QUESTIONS.md; if remainder-carrying is
+      taken, a control-run sweep either side and
+      `tests/class-tower-passive-liveness.test.ts`'s declared tick-floor
+      exception updated — refs: SPEC-FINAL §2, §14 G1/G13, Q172.
+- [ ] (fb129) [feat] fb064d's main-lane half — the high-ground rules have no
+      call site: `canAttackStructureAt`/`canSurfaceAt`/`canAttackHighGround`
+      (`src/sim/terrain/high-ground.ts`) are built and tested but nothing in
+      `src/sim/enemies.ts`/`boss.ts` asks them, so ground melee still chews
+      a tower across a cliff edge and fb064m's "no uncontestable plot"
+      constraint guards a rule no run enforces. The six call sites are
+      listed in BACKLOG-TERRAIN.md's fb064i Log; `nearestStructureWithin`
+      (`enemies.ts:1258`) selects before the rule applies. The Act II
+      residual — Spitters skip structures under `!act2`, so every
+      high-ground tower is uncontestable during the VS phase — and the
+      Burrower's widened untargetable window are design calls (Q171).
+      Acceptance: rules wired at every listed site with a red-first test
+      per site; the Act II question decided in QUESTIONS.md — refs:
+      SPEC-FINAL §10.5 (fb079), BACKLOG-TERRAIN.md fb064d/fb064i/fb064m.
+- [ ] (fb130) [feat] fb064c's main-lane half — Core placement wiring: (1)
+      migrate every `CORE_X/CORE_Y`/`coreCenter()` reader to
+      `grid.coreOrigin()`/`coreCenterOf()` (`world.ts`, `run.ts:665`,
+      `sundering.ts`, `cores.ts`, `enemies.ts:606`, `src/bots/policies.ts`,
+      `src/ui/selection.ts`, `src/render/canvas.ts` — the fb064h Log lists
+      the lines) so `Grid.placeCore` is safe to call; (2) the placement
+      Command (sim Command per rule 3, bots/replays included) validated by
+      `validateCorePlacement` with the run's gate list; (3) domain-check
+      `RunConfig.seed` at ingestion (`tools/sim.ts:78` `Number(v)`) so
+      `--seed 1e18` is a CLI rejection, not a mid-run throw from
+      `generateTerrain`; (4) a run-lifecycle flag shared by `placeCore` and
+      `applyTerrain` so neither re-opens after a build-then-sell; (5)
+      `verifyTerrainMap` asserted at the run boundary; (6) the approach
+      band re-checked (or the 4.969 worst case accepted knowingly) for a
+      player-placed Core. Acceptance: G2 replay hash covers the placement;
+      seed sweep with placed Cores keeps every gate reachable — refs:
+      SPEC-FINAL §10.5 (fb079), §12 rules 2-3, BACKLOG-TERRAIN.md
+      fb064c/fb064h/fb064j/fb064o/fb064p.
+- [ ] (fb131) [bug] three Warden placements bypass `wardenPassable` now
+      that terrain is live (fb077): the Act I reform (`run.ts:666`, `wd.x =
+      c.x - 2`) can land the Warden inside rock two tiles west of the Core;
+      `sundering.ts:21` teleports to the Core centre unchecked (safe today,
+      but fb130 moves the Core); and `tickDashTravel` (`wardenmove.ts:56-61`)
+      lerps along the dash line checking only the endpoint, so a dash passes
+      through a mountain it cannot end in. Acceptance: reform/sundering
+      snap to the nearest `wardenPassable` tile (red-first on a seed whose
+      map has rock there); the dash rule decided in QUESTIONS.md (sample the
+      line, or accept it as the dash's character) and pinned either way —
+      refs: SPEC-FINAL §10.5, BACKLOG-TERRAIN.md fb064q Log.
+- [ ] (fb132) [polish] no `.gitattributes` and `core.autocrlf=true`: every
+      checkout is CRLF, `git diff` is noisy between LF-writing agents and
+      CRLF checkouts, and fb064k's byte-exact golden had to be made immune
+      in-lane. Acceptance: `* text=auto eol=lf` committed with a
+      renormalising commit; the golden test's CR assertion stays — refs:
+      BACKLOG-TERRAIN.md fb064k Log.
+- [ ] (fb133) [polish] `tsconfig.json` is `strict` without
+      `noUncheckedIndexedAccess`, which is why `cfg.tiles[i].key` typechecked
+      as safe and fb064t's `TypeError` shipped. Acceptance: flag enabled;
+      the resulting errors fixed with real guards (not `!`), count recorded
+      — refs: BACKLOG-TERRAIN.md fb064t Log.
+- [ ] (fb134) [polish] two terrain follow-ups now that the run's gate list
+      is threaded: `describeTerrain`/`parseTerrainDump` still dump and check
+      the base `GATES`, so a repro taken from a Fourth Gate run reports three
+      gates and omits the one the bug is about — extend fb064k's "carries the
+      gates" test to a 4-gate map and take `gates` like the rest; and
+      `ROOM_RADIUS` (`analyze.ts`) decides map legality since fb064o while
+      living in code — `data/terrain.json` is inside `contentHash()` now, so
+      the rule-4 exemption is re-decided: move it or write down why not.
+      Acceptance: 4-gate dump round-trips; the constant's home decided in
+      QUESTIONS.md — refs: SPEC-FINAL §12 rule 4, BACKLOG-TERRAIN.md
+      fb064k/fb064o Logs. Also (code-reviewer at the merge): `config.ts:25`'s
+      `MAX_WALKABLE_FRAC` schema ceiling counts `GATES.length` (3), one tile
+      short for a Fourth Gate map — harmless today, same fix.
+- [ ] (fb135) [feat] unblock the UI lane's three permanently out-of-Scope
+      items and one small follow-up: BACKLOG-UI.md fb085 (localization —
+      needs `data/strings.json` plus `src/ui/strings.ts`/`strings-lint.ts`;
+      note from the reverted attempt: the lint must scan string literals
+      *inside* `${...}` interpolations, not just bare text nodes and
+      `title=` attributes), fb093 (ultrawide/portrait scenes in
+      `tools/ui-audit.ts`), fb097 (GIF capture needs a `package.json`
+      dependency decision — GIF encoder or zip — and a QUESTIONS.md note if
+      the frame-archive fallback is taken), and fb107's gap: the Codex class
+      detail (`codex-collections.ts` -> `classAbilitiesMarkup`) is called
+      without `keyBindings`, so it shows Q/E after a rebind while Class
+      Select one tab over shows the remapped keys (thread `keyBindings`
+      through `CodexCollection.renderDetail`). Acceptance: each UI item's
+      own acceptance text, executed from main or with the Scope widened —
+      refs: BACKLOG-UI.md fb085/fb093/fb097/fb107 Logs.
 
 ### Filed at the lane/quality merge (2026-08-27) — out-of-scope findings from BACKLOG-QUALITY.md's log
 

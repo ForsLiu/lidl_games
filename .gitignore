@@ -12,3 +12,7 @@ out/
 # fb018 ui-audit generated output (audit/README.md stays tracked)
 audit/*.png
 audit/report.json
+
+# QA subagent harness scratch (BACKLOG-CONTENT c019 Log)
+*.qabak
+tools/_qa_*

@@ -5,6 +5,38 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-04 session: the three lanes merged into master — `lane/content`
+  (c006-c019: 11 new `tests/class-*`/`equip-*` liveness and ledger suites,
+  Archer pierce-cap fix, two Active cooldown retunes), `lane/terrain`
+  (fb064h-fb064v: Core placement, high-ground rules, seed-domain hardening,
+  the repro dump, variety/approach bands, uncontested-high repair, the
+  flat arena, character passage, `verifyTerrainMap`) and `lane/ui`
+  (fb071-fb113: key remapping, resume-on-refresh, save slots, settings,
+  onboarding, Codex search, sentence-form tooltips, crash capture, boss
+  bar/rail geometry, accessibility).** Conflicts were the three lane Logs
+  (both sides kept) and `src/sim/terrain/{analyze,generate}.ts`, where
+  main's fb077 run-gate-list wiring met the lane's rewrites: lane versions
+  taken and the `gates` list re-threaded as a trailing parameter through
+  every gate-reading terrain function, `TERRAIN_STREAM` kept. The merged
+  generator re-drew every map, so fb077's stranded-Core seeds were re-found
+  (4426/4515/5516 in 1..6000) and fb064q's `charBlock` mask added to main's
+  fallback overlays. fb078 (`'terrain'` `BuildRejection`) committed
+  alongside. All 17 terrain suites, fb077, fb078, architecture and the
+  merged UI suites green. `npm run test:fast` on the merged tree: 3328 passed,
+  29 failed in 17 files — three real, all fixed in the follow-up commit
+  (c012's `swordsman_shoes` anchor re-pointed at fb053's dash form, ui-fb072's
+  boss-bar hp made maxHp-relative after fb099's retune, c4-stacking's
+  hardcoded tiles moved to a practice run because the merged generator put
+  rock under them on seed 1); the other 14 files are the pre-existing
+  nested-`tsx` CLI family (q15/q25/q28/q33/q37/q41/q45/q46/q49/q52 — 60 s
+  timeouts/EPERM under load; q33 and q49 pass standalone as the control) and
+  the DOM-fold hook timeouts (b032/b034/b035/b036; b036 also fails
+  standalone — BACKLOG-UI fb114). Every out-of-scope need in the three Logs is filed as
+  BACKLOG fb118-fb135 and QUESTIONS Q168-Q174; the four in-file duplicate
+  ids in BACKLOG-UI.md were renumbered fb114-fb117 and the wider UI-lane id
+  collision (fb076-fb099 reused) is fb118. **Next:** the full `npm test` at
+  the merge (CLAUDE.md working rule 2) — fb119/fb120 name the reds the lanes
+  expect it to show — then the top of BACKLOG.md.
 - **2026-09-04 session: BACKLOG fb099 closed — the Warden-Eater fight
   collapsing to ~12-16s (under G14's 20s floor) was fb076's tower-damage
   retune bleeding into the boss fight, not a stale assertion.** fb076 (G13

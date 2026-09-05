@@ -3027,7 +3027,7 @@ not already expose it) logs that need below instead of reaching into
       regression test asserting the doubled value appears — refs: fb108,
       fb063, `lineHit` (`src/sim/combat.ts`).
 
-- [ ] (fb089) [bug] `tests/b036-help-fold.test.ts` is red on master and
+- [ ] (fb114) [bug] `tests/b036-help-fold.test.ts` is red on master and
       red standalone: `.sw-help`'s bottom edge measures 1095.4 against the
       1080 fold b036 exists to defend, in Training Grounds with a tower
       selected and the practice panel open. Deterministic (4 s, `npx vitest
@@ -3036,7 +3036,7 @@ not already expose it) logs that need below instead of reaching into
       the existing test goes green without loosening the 1080 fold; the
       practice panel + selected-tower layout keeps the help block inside the
       fold at 1920x1080 — refs: SPEC-FINAL §11, b036.
-- [ ] (fb090) [bug] c001 (Area reaches every class Active) left three
+- [ ] (fb115) [bug] c001 (Area reaches every class Active) left three
       renderer/UI previews reading the authored `/data` radius unscaled, so
       they draw a footprint the sim no longer uses (BACKLOG-CONTENT.md c001
       Log): `src/render/canvas.ts` `drawChargeIndicator` uses
@@ -3050,7 +3050,7 @@ not already expose it) logs that need below instead of reaching into
       with hold" case, failing first; all three scale by `areaMul`; ring
       radius equals the fired nova's radius in the test — refs: SPEC-FINAL §2,
       §11, fb016.
-- [ ] (fb091) [feat] terrain rendering (BACKLOG-TERRAIN.md fb064e, the
+- [ ] (fb116) [feat] terrain rendering (BACKLOG-TERRAIN.md fb064e, the
       epic's UI half): organic terrain (marching-squares edges, texture
       variation per kind) drawn from `Grid.terrainKind` over the square
       collision grid, path indicators drawn around terrain, and the build
@@ -3074,7 +3074,7 @@ not already expose it) logs that need below instead of reaching into
       cursor direction; a test asserts the rendered region equals the sim's
       hit-detection region; afterimage respects the reduced-flash setting —
       refs: SPEC-FINAL §4.1 (Swordsman combo), §11 (indicators).
-- [ ] (fb097) [feat] normal priority: Core-select screen redesign to match
+- [ ] (fb117) [feat] normal priority: Core-select screen redesign to match
       class-select layout — a horizontal row of vertically-long Core sprites
       (placeholder tall silhouettes: stone heart, carnivorous plant, vampire
       heart, corpse pile, time monolith); selecting one fills the bottom panel

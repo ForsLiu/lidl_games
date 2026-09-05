@@ -153,7 +153,9 @@ export function applyRunTerrain(
   let tries = 0;
   while (!map.fallback && !grid.allGatesReachable() && tries < MAX_CORE_RETRIES) {
     tries++;
-    map = applyAt(seed + tries);
+    // `>>> 0` wraps like `generateTerrain`'s own retry walk: a seed within 16 of
+    // the uint32 ceiling must retry, not throw out of the World constructor.
+    map = applyAt((seed + tries) >>> 0);
   }
   if (map.fallback) {
     // Not a DOM/timing/RNG side effect (architecture rule 1 forbids none of

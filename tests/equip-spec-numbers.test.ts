@@ -511,9 +511,14 @@ const LEDGER: readonly Figure[] = [
     stat: null,
     status: {
       kind: 'in_code',
-      site: "fireDashSlash — `(eff.dashRange ?? 0) * (hasEquipment(w, 'swordsman_shoes') ? 2 : 1)`",
+      // Re-pointed at the 2026-09-04 lane merge: main's fb053 derives the
+      // range from dash speed x duration (`dashDistance(currentMoveSpeed(w),
+      // duration)`) rather than reading `eff.dashRange`; the x2 is unchanged.
+      site: "fireDashSlash — `dashDistance(currentMoveSpeed(w), duration) * (hasEquipment(w, 'swordsman_shoes') ? 2 : 1)`",
       file: CLASSES_TS,
-      anchors: [/const dashRange = \(eff\.dashRange \?\? 0\) \* \(hasEquipment\(w, 'swordsman_shoes'\) \? 2 : 1\);/],
+      anchors: [
+        /const dashRange = dashDistance\(currentMoveSpeed\(w\), duration\) \* \(hasEquipment\(w, 'swordsman_shoes'\) \? 2 : 1\);/,
+      ],
       // The anchor proves the line still reads the way the row describes; this
       // proves `spec` is that line's number. Without it, editing `spec` to 3
       // would be green — the 2 would be pinned twice in the row and asserted
