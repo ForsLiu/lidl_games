@@ -48,17 +48,29 @@
  *
  * ---
  *
- * **Two named deviations, `c019`'s convention: never silence.**
+ * **One named deviation, and one correction, `c019`'s convention: never
+ * silence.**
  *
- *  1. **Bloodlord *Blood Tithe* ignores the card completely.** `fireBloodTithe`
- *     (`classes.ts`) never calls `active1PotencyMul`, so
- *     `bloodlord_active1_potency` is inert on the whole kit at every rank —
- *     the one card of the twelve that buys nothing. It is not a clamp
- *     collision like the ones the item warned about; the Active's payout
- *     (`titheDamageMul`, "+25% dmg" on the tithed tower) is applied in
- *     `towers.ts`, and wiring potency into it would edit a file outside this
- *     lane's Scope. So this file **measures and pins** the zero, and the fix is
- *     logged for the main lane — the shape `c013` and `c023` already use here.
+ *  1. **Bloodlord *Blood Tithe* scales its payout, not its cost — and the
+ *     first version of this file got that backwards.** `fireBloodTithe`
+ *     (`classes.ts`) does not call `active1PotencyMul`, and on that alone the
+ *     first draft concluded the card "buys nothing" and filed a main-lane fix
+ *     for a bug that does not exist. It was wrong: the tithe's *payout* is
+ *     applied in `classTowerDamageMul` (`towers.ts`), which reads
+ *     `1 + titheDamageMul * active1PotencyMul(w) + classLineBonus(w)` — with a
+ *     comment saying exactly that. QA found it by mutating the line this file
+ *     never looked at.
+ *
+ *     The lesson is CLAUDE.md's, verbatim: *"when a field's range changes,
+ *     grep its readers, not just its writers"*. The draft grepped
+ *     `classes.ts`, found no call, and never followed the payout to the file
+ *     it had itself identified as holding it — then wrote a test that measured
+ *     only the cost and so confirmed its own premise.
+ *
+ *     What is *true* is narrower and still worth pinning: the tithe's **HP
+ *     cost** (`titheHpFraction`) does not scale with the card, only its
+ *     **damage payout** (`titheDamageMul`) does. Both are measured below, and
+ *     the payout row is a live ladder, not a deviation.
  *
  *  2. **Time Lord *Time* scales two of its four stages.** Potency multiplies
  *     `markPastDotDps` and `markPresentDotDps` (`advanceTimeMark`), but stage
@@ -76,7 +88,7 @@ import { describe, expect, it } from 'vitest';
 import { tickClassCharge, useClassActive } from '../src/sim/classes';
 import { loadContent, type SkillCardDef } from '../src/sim/content';
 import { spawnEnemy } from '../src/sim/enemies';
-import { buildTower } from '../src/sim/towers';
+import { buildTower, towerDamage } from '../src/sim/towers';
 import { updateWarden } from '../src/sim/run';
 import { emptyInput, type Enemy, type Structure, type TickInput } from '../src/sim/types';
 import { World } from '../src/sim/world';
@@ -163,9 +175,18 @@ interface PotencyCase {
   read: (w: World) => number;
   /**
    * Rows whose observable this file measures but which the card is expected
-   * *not* to move, with the reason. Absent on the ten live rows.
+   * *not* to move, with the reason. Absent on the eleven live rows.
    */
   deviation?: string;
+  /**
+   * The ratio `reading(rank n) / reading(0)` this row expects, when it is not
+   * the plain `1 + perRank * n`. Bloodlord is the one such row: potency scales
+   * a *term inside* the tower's damage multiplier
+   * (`1 + titheDamageMul * potency`), not the whole reading, so its ladder is
+   * `(1 + t * (1 + p*n)) / (1 + t)` — derived from `/data`, like every other
+   * expectation here.
+   */
+  ratioFor?: (n: number, perRank: number) => number;
 }
 
 /** Fires Active1 once, aimed one tile east, through whichever path `/data` authors. */
@@ -235,16 +256,21 @@ const CASES: readonly PotencyCase[] = [
   { classKey: 'stormcaller', what: 'Chain Surge damage', read: damageDealt },
   {
     classKey: 'bloodlord',
-    what: "Blood Tithe's payout",
-    deviation:
-      'fireBloodTithe never calls active1PotencyMul. Its payout (titheDamageMul, "+25% dmg" on the ' +
-      'tithed tower) is applied in towers.ts, outside this lane\'s Scope — logged for the main lane.',
+    what: "Blood Tithe's titheDamageMul payout on the tithed tower",
+    // `classTowerDamageMul` (towers.ts) computes
+    // `1 + titheDamageMul * active1PotencyMul(w) + classLineBonus(w)`, so the
+    // card moves a term *inside* the multiplier rather than the whole reading.
+    ratioFor: (n, perRank) => {
+      const t = content.classByKey.get('bloodlord')!.active1.titheDamageMul ?? 0;
+      return (1 + t * (1 + perRank * n)) / (1 + t);
+    },
     read: (w) => {
       const s = tower(w);
-      const before = s.hp;
       castActive1(w);
       expect(s.tithed, 'harness: Blood Tithe did not tithe the tower').toBe(true);
-      return before - s.hp;
+      // The payout is only observable through a tower's damage, which is where
+      // the first version of this file failed to look.
+      return towerDamage(w, s, 100);
     },
   },
   {
@@ -356,8 +382,9 @@ describe('c021 — each class card moves its own Active1, by exactly its authore
       for (const n of [1, 2]) {
         // The exact ratio, not "bigger": an implementation that applies the
         // card once and ignores the rank passes a `toBeGreaterThan` ladder.
+        const ratio = c.ratioFor ? c.ratioFor(n, card.perRank) : 1 + card.perRank * n;
         expect(readings[n], `${card.key} rank ${n}: ${c.what} was ${readings.join(' -> ')}`).toBeCloseTo(
-          readings[0] * (1 + card.perRank * n),
+          readings[0] * ratio,
           6,
         );
       }
@@ -375,9 +402,14 @@ describe('c021 — each class card moves its own Active1, by exactly its authore
 
 /* ---------------------------------------------------------- the deviations */
 
-describe('c021 — named deviation 1: Blood Tithe is the one card of the twelve that buys nothing', () => {
-  it('fireBloodTithe never reads the card: the tower pays the same HP at every rank', () => {
-    const card = potencyCard('bloodlord');
+describe('c021 — correction: Blood Tithe scales its payout, and only its payout', () => {
+  const card = potencyCard('bloodlord');
+
+  it('the HP cost is flat at every rank — the half the card really does not touch', () => {
+    // `fireBloodTithe` takes `s.hp * titheHpFraction` with no potency term, so
+    // a higher rank does not make the tithe cost more. That is the true, and
+    // much narrower, version of what the first draft of this file claimed
+    // about the whole kit.
     const cost = [0, card.maxRank].map((n) => {
       const w = potencyWorld('bloodlord', n === 0 ? {} : { [card.key]: n });
       const s = tower(w);
@@ -386,17 +418,41 @@ describe('c021 — named deviation 1: Blood Tithe is the one card of the twelve 
       return before - s.hp;
     });
     expect(cost[0], 'harness: Blood Tithe took no HP at all').toBeGreaterThan(0);
-    expect(cost[1], 'Blood Tithe now scales with the card — deviation 1 is stale').toBeCloseTo(cost[0], 6);
+    expect(cost[1], 'the tithe cost now scales with the card').toBeCloseTo(cost[0], 6);
   });
 
-  it("the payout it *should* scale lives in towers.ts, which is why this is a measurement and not a fix", () => {
-    // Both halves out of `/data`, so the main-lane fix has a target: the cost
-    // is `titheHpFraction` and the payout is `titheDamageMul`. Neither is
-    // reachable from `active1PotencyMul` today.
-    const eff = content.classByKey.get('bloodlord')!.active1;
-    expect(eff.titheHpFraction, 'bloodlord Active1 authors no titheHpFraction').toBeGreaterThan(0);
-    expect(eff.titheDamageMul, 'bloodlord Active1 authors no titheDamageMul for the main lane to scale').toBeGreaterThan(
-      0,
+  it('the damage payout does scale, through towers.ts — the row the first draft missed entirely', () => {
+    // The regression that matters: this is the reading that goes flat if
+    // `active1PotencyMul` is dropped from `classTowerDamageMul`
+    // (`src/sim/towers.ts`), the mutation the first version of this file could
+    // not see because it measured only the cost.
+    const t = content.classByKey.get('bloodlord')!.active1.titheDamageMul ?? 0;
+    expect(t, 'bloodlord authors no titheDamageMul to scale').toBeGreaterThan(0);
+    const dmg = [0, 1, 2].map((n) => {
+      const w = potencyWorld('bloodlord', n === 0 ? {} : { [card.key]: n });
+      const s = tower(w);
+      castActive1(w);
+      return towerDamage(w, s, 100);
+    });
+    for (const n of [1, 2]) {
+      expect(dmg[n], `rank ${n} tithed tower damage: ${dmg.join(' -> ')}`).toBeCloseTo(
+        dmg[0] * ((1 + t * (1 + card.perRank * n)) / (1 + t)),
+        6,
+      );
+    }
+    expect(dmg[2]).toBeGreaterThan(dmg[1]);
+  });
+
+  it('an untithed tower is untouched by the card, so the ladder is the tithe and not the tower', () => {
+    // Without this control the rows above would also pass if potency leaked
+    // into some other term of `towerDamage`.
+    const plain = [0, card.maxRank].map((n) => {
+      const w = potencyWorld('bloodlord', n === 0 ? {} : { [card.key]: n });
+      return towerDamage(w, tower(w), 100);
+    });
+    expect(plain[1], 'the card moved an untithed tower — it is not the tithe being measured').toBeCloseTo(
+      plain[0],
+      6,
     );
   });
 });

@@ -13,13 +13,17 @@
   author `damage: 0` and carry their magnitude elsewhere (engineer
   `repairFraction`, necromancer/animist `summonStatMul`, paladin
   `tauntDurationSeconds`), so each row names its own observable out of `/data`.
-  Two named deviations: **Bloodlord *Blood Tithe* never calls
-  `active1PotencyMul` at all** — the one card of the twelve that buys nothing,
-  whose fix lives in the out-of-Scope `towers.ts` and is logged for the main
-  lane — and **Time Lord's *Time* scales stages 0 and 1 only**, stage 2 being
-  authored as the target's remaining HP. Five mutations caught in both
-  directions, including *adding* potency to Blood Tithe, so the deviation
-  cannot go stale silently.
+  One named deviation — **Time Lord's *Time* scales stages 0 and 1 only**,
+  stage 2 being authored as the target's remaining HP — and **one correction
+  the same day**: the first version claimed Bloodlord's card "buys nothing" and
+  filed a main-lane bug for it. That was wrong. `fireBloodTithe` does not call
+  `active1PotencyMul`, but the tithe's *payout* does, in `classTowerDamageMul`
+  (`towers.ts:263`), which the draft never checked — having grepped the writer
+  and not the reader, the exact failure CLAUDE.md's measurement rules name. QA
+  caught it by mutating that line, against which the original file was fully
+  green. The narrow truth (the HP *cost* does not scale) is kept as one row,
+  the payout ladder is added with an untithed-tower control, and the bogus
+  main-lane entry is deleted. QA's mutation now reddens two rows.
 
 - **2026-09-05 lane `content` session: `c020` and `c014` closed.** Both
   test-only; no `/src` or `/data` byte moved in either.

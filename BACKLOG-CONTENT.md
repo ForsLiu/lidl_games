@@ -706,16 +706,32 @@ session 2 (c005 was the last actionable one left), appending `c006`-`c010`.
   ladder is satisfied by an implementation that applies the card once and
   ignores the rank — measured: that mutation reddens 13 tests here and would
   have passed a monotonic ladder.
-- **Named deviation 1: Bloodlord *Blood Tithe* is the one card of the twelve
-  that buys nothing.** `fireBloodTithe` never calls `active1PotencyMul` at any
-  point, so `bloodlord_active1_potency` is inert at every rank. This is **not**
-  the clamp collision the item warned about (`fireRaiseSkeletons`' cap binds
-  count, not the stat share it multiplies, so the necromancer row is live). The
-  Active's payout is `titheDamageMul`, applied in `towers.ts:259` — out of this
-  lane's Scope — so the item is a measurement plus a main-lane log, the shape
-  `c013` and `c023` already use here. The zero is **pinned**: wiring potency
-  into `fireBloodTithe` reddens both deviation rows, so the fix cannot land
-  without the decision being made again on purpose.
+- **CORRECTED 2026-09-05 (same day, QA on c021): the Bloodlord "deviation" was
+  wrong, and the wrongness is the lesson.** The first version of this file
+  claimed `bloodlord_active1_potency` "buys nothing at any rank" and filed a
+  main-lane item for a bug that does not exist. `fireBloodTithe` indeed never
+  calls `active1PotencyMul` — but the tithe's *payout* does, in
+  `classTowerDamageMul` (`src/sim/towers.ts:263`):
+  `1 + titheDamageMul * active1PotencyMul(w) + classLineBonus(w)`, with a
+  comment saying exactly that. QA found it by mutating the line the test never
+  looked at, and that mutation left the original file fully green.
+  - **Root cause, in CLAUDE.md's own words**: *"when a field's range changes,
+    grep its readers, not just its writers."* The draft grepped `classes.ts`,
+    found no call, and never followed the payout into the file it had *itself*
+    named as holding it — then wrote a test that measured only the cost and so
+    confirmed its own premise instead of testing it. A deviation is a claim
+    about a mechanism; it needs the control run like any other.
+  - **What was true, kept**: the tithe's HP *cost* (`titheHpFraction`) really
+    does not scale with the card. That is now one narrow pinned row instead of
+    a claim about the whole kit.
+  - **What was missing, added**: the payout ladder through `towerDamage`, with
+    a bespoke `ratioFor` because potency scales a term *inside* the multiplier
+    (`(1 + t*(1 + p*n)) / (1 + t)`, both halves from `/data`), plus an
+    untithed-tower control so the ladder is measuring the tithe and not some
+    other term. QA's mutation now reddens two rows.
+  - The main-lane entry filed off the wrong premise has been **deleted**; there
+    is no main-lane bug here. `fireRaiseSkeletons`' cap remains a non-issue for
+    the necromancer row (it binds count, not the stat share potency scales).
 - **Named deviation 2: Time Lord *Time* scales two of its four stages.**
   Potency multiplies `markPastDotDps` and `markPresentDotDps`
   (`advanceTimeMark`); stage 2's DoT is authored as the target's *remaining
@@ -766,15 +782,6 @@ session 2 (c005 was the last actionable one left), appending `c006`-`c010`.
       - refs: c014, BACKLOG-TERRAIN.md.
 
 ### For the main lane (out of this lane's Scope)
-
-- **Blood Tithe should scale with `active1_potency`, and cannot from here.**
-  `fireBloodTithe` (`src/sim/classes.ts`) never reads `active1PotencyMul`, so
-  one of the twelve §6.3 cards is inert on its whole kit. The natural target is
-  the payout rather than the cost — `titheDamageMul`, applied at
-  `src/sim/towers.ts:259` — which is outside `lane/content`'s Scope.
-  `tests/class-active1-potency.test.ts` pins the current zero in two rows that
-  both redden the moment it is wired up - refs: SPEC-FINAL §6.3, §4.2
-  (Bloodlord), c021.
 
 ### c014 (2026-09-05) — six copies of one board, and the anchors that had to be rewritten twice
 
