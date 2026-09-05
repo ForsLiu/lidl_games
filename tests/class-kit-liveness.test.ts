@@ -58,13 +58,10 @@ import { applyDot, killEnemy, spawnEnemy } from '../src/sim/enemies';
 import { buildTower } from '../src/sim/towers';
 import type { Enemy, TickInput } from '../src/sim/types';
 import { World } from '../src/sim/world';
+import { BUILD_TX, BUILD_TY, WX, WY } from './class-board';
 import { cfg } from './helpers';
 
 const content = loadContent();
-
-/** Warden's parking spot for every case: well inside the board, so an aimed dash/wall has room. */
-const WX = 10;
-const WY = 10;
 
 function kitWorld(classKey: string, c: Content = content): World {
   const w = new World(cfg({ classKey }), c);
@@ -236,7 +233,7 @@ const CASES: readonly KitCase[] = [
     classKey: 'engineer',
     slot: 1, // Field Kit (repair_heal)
     setup: (w) => {
-      const s = tower(w, WX + 1, WY);
+      const s = tower(w, BUILD_TX, BUILD_TY);
       s.hp = s.maxHp * 0.2;
     },
     fire: (w) => useClassActive(w, WX + 1, WY),
@@ -281,7 +278,7 @@ const CASES: readonly KitCase[] = [
   {
     classKey: 'necromancer',
     slot: 2, // Death Pact (death_pact)
-    setup: (w) => void tower(w, WX + 1, WY),
+    setup: (w) => void tower(w, BUILD_TX, BUILD_TY),
     fire: (w) => useClassActive2(w, WX + 1, WY),
   },
   {
@@ -318,7 +315,7 @@ const CASES: readonly KitCase[] = [
       // at 1 hp cannot move on the cost axis and the row has only `tithed`
       // left to prove itself with. `hp` stays in `observe()` because Field
       // Kit's row genuinely needs it.
-      tower(w, WX + 1, WY).hp = 1;
+      tower(w, BUILD_TX, BUILD_TY).hp = 1;
     },
     fire: (w) => useClassActive(w, WX + 1, WY),
   },
@@ -334,7 +331,7 @@ const CASES: readonly KitCase[] = [
   {
     classKey: 'animist',
     slot: 1, // Manifest (manifest_spirit) — clones a built tower, so there has to be one
-    setup: (w) => void tower(w, WX + 1, WY),
+    setup: (w) => void tower(w, BUILD_TX, BUILD_TY),
     fire: (w) => useClassActive(w),
   },
   {

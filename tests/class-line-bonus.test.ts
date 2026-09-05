@@ -133,13 +133,10 @@ import { buildTower, updateTowers } from '../src/sim/towers';
 import { GRID_W } from '../src/sim/grid';
 import { emptyInput, type Enemy, type Structure, type TickInput } from '../src/sim/types';
 import { World } from '../src/sim/world';
+import { BUILD_TX, BUILD_TY, WX, WY } from './class-board';
 import { cfg } from './helpers';
 
 const content = loadContent();
-
-/** Warden's parking spot for every case — well inside the board, room in every direction. */
-const WX = 10;
-const WY = 10;
 
 const DT = 1 / 60;
 
@@ -494,7 +491,7 @@ const ROWS: Row[] = [
     dir: 'up',
     measure: (ranks, c) => {
       const w = lineWorld('bloodlord', ranks, c);
-      const s = place(w, SPIRE, WX + 1, WY);
+      const s = place(w, SPIRE, BUILD_TX, BUILD_TY);
       const e = dummy(w, WX + 2, WY);
       cast1(w, 1, s.tx + 0.5, s.ty + 0.5);
       expect(s.tithed, 'Blood Tithe never landed on the spire').toBe(true);
@@ -512,7 +509,7 @@ const ROWS: Row[] = [
     measure: (ranks, c) => {
       const w = lineWorld('animist', ranks, c);
       // Manifest needs an attacking structure inside its 6-tile `summonRadius`.
-      place(w, SPIRE, WX + 1, WY);
+      place(w, SPIRE, BUILD_TX, BUILD_TY);
       const budget = budgetFor('animist', cls(w).active1.summonCap ?? 0);
       cast1(w, budget);
       return withinBudget(summonCount(w, 'animist_spirit'), budget, 'Manifest casts');
@@ -701,7 +698,7 @@ describe('c018 — both summon caps are reachable at the real cast cadence', () 
     c: Content = content,
   ): number {
     const w = lineWorld(classKey, ranks, c);
-    if (classKey === 'animist') place(w, SPIRE, WX + 1, WY);
+    if (classKey === 'animist') place(w, SPIRE, BUILD_TX, BUILD_TY);
     let peak = 0;
     for (let t = 0; t < Math.round(seconds * 60); t++) {
       if (slot === 1) useClassActive(w, WX + 1, WY);

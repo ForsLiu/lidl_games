@@ -74,6 +74,32 @@
   (process-tree kill semantics differ from the Windows host the queue's flake
   notes were written on) — it is not a new regression.
 
+- **2026-09-05: merged `origin/master` (96 commits) into `lane/content`, and the
+  terrain epic proved `c014` did its job.** One conflict, `PROGRESS.md`, an
+  append-log where both sides added same-day entries — both kept. Every `src/`
+  and `data/` file is byte-identical to master (this lane only ever touched
+  `tests/` and docs), so "master wins on shared sim core" holds by construction.
+  `npm run test:fast`: **3577 passed**, 8 failing files, all of them the known
+  container-environmental set (4 Playwright missing-binary, 3 tsx
+  extensionless-worker resolution, 1 process-tree kill) — no new failures.
+  - **The event c014 was written for actually happened.** `fb077` wires
+    generated terrain into every non-practice run, so `cfg()`'s seed stopped
+    producing a flat arena. The shared probe walked the board from `10,10` to
+    `10,6` and **all seven importing files passed with no edit to any of them**.
+    The only thing that fired was `class-board.test.ts`'s own baseline row,
+    loudly, saying the board had moved — instead of seven files each reporting
+    "harness could not build".
+  - **`c026` landed early because the merge made it mandatory**, not as
+    cleanup. Measured: 408 of 720 tiles buildable, and zero of 512 origins can
+    supply the contiguous 16x8 block the old check demanded. It was describing
+    the arena, not the importers. Narrowed to `passable` floor where dummies
+    stand, a legal build tile, and one buildable tile east for
+    `tilePastBaseRange`.
+  - c026's own acceptance clause ("the shipped board still probes to `10,10`")
+    could not hold — terrain closed the *southern* arm below that spot while its
+    build tile stayed legal. Re-measured baseline, with the reason asserted.
+
+
 - **2026-09-05 session: stopped after p12a/p12b/p12c, with p12e diagnosed but
   not implemented.** Three items of the pinned owner queue (BALANCE DIRECTION
   v2) are done end to end — implemented, code-reviewed, QA'd, and committed —
@@ -948,6 +974,80 @@
   re-verified with a new exact regression test. qa-playtester independently
   confirmed the fix and found no further bugs. See BACKLOG.md's fb053 Done
   entry for full detail.
+
+- **2026-09-05 lane `content` session: `c024` and `c023` closed.** Both
+  test-only.
+  - `c024` — the Time Lord twin of c013's Area leak. `applyChronalSurge`
+    (`run.ts:816-817`) adds a *tower-scoped* `towerRange` and the **global**
+    `area` key on two adjacent lines from one §4.2 sentence, uncapped and
+    re-added every `waveInterval` TD waves. c013's twenty consumers all built
+    Animist worlds, so a main-lane `towerArea` fix landing on `run.ts` alone
+    would have left that file fully green — proven by applying exactly that
+    fix: **19 rows flip, all of them c024's, none of c013's**. Five consumers
+    are excluded with named reasons (two are Animist-Active-only and cannot
+    exist under Time Lord; three are probes calibrated for the Animist's flat
+    +10% whose *control* under-reaches, folded into `c026`). The control zeroes
+    `bonusAoeMul` rather than deleting it, because the loader refuses to drop a
+    required field of the `chronal_surge` kind — architecture rule 4 working.
+  - `c023` — `equipment.items[].effectKey` proven dead three ways: a source
+    census (the only two mentions are the zod enum that *validates* it and an
+    unrelated core-VFX parameter), the three mechanics anchored to
+    `hasEquipment(w, '<item key>')`, and `Content` rebuilt with every
+    `effectKey` blanked and then cross-wired onto the wrong items. Re-gating
+    Sleeve Sword on `effectKey` reddens three rows, so a main-lane wiring-up
+    flips the measurement.
+
+- **2026-09-05 lane `content` session: `c021` closed** — the twelve
+  `active1_potency` §6.3 cards, previously covered only by two swordsman-only
+  assertions, now have a per-class ladder
+  (`tests/class-active1-potency.test.ts`, 32 tests, no `/src` or `/data`
+  change). The acceptance's word "damage" turned out wrong for four kits that
+  author `damage: 0` and carry their magnitude elsewhere (engineer
+  `repairFraction`, necromancer/animist `summonStatMul`, paladin
+  `tauntDurationSeconds`), so each row names its own observable out of `/data`.
+  One named deviation — **Time Lord's *Time* scales stages 0 and 1 only**,
+  stage 2 being authored as the target's remaining HP — and **one correction
+  the same day**: the first version claimed Bloodlord's card "buys nothing" and
+  filed a main-lane bug for it. That was wrong. `fireBloodTithe` does not call
+  `active1PotencyMul`, but the tithe's *payout* does, in `classTowerDamageMul`
+  (`towers.ts:263`), which the draft never checked — having grepped the writer
+  and not the reader, the exact failure CLAUDE.md's measurement rules name. QA
+  caught it by mutating that line, against which the original file was fully
+  green. The narrow truth (the HP *cost* does not scale) is kept as one row,
+  the payout ladder is added with an untithed-tower control, and the bogus
+  main-lane entry is deleted. QA's mutation now reddens two rows.
+
+- **2026-09-05 lane `content` session: `c020` and `c014` closed.** Both
+  test-only; no `/src` or `/data` byte moved in either.
+  - `c020` — `active2CdrFactor`'s **general `cdr` term** had no coverage
+    anywhere: QA's mutation (`Math.max(0.05, 1 - active2CdrBonus(w))`) left 659
+    tests green, `tests/class-active2-cdr.test.ts` included, because that file
+    asserts `derived.cdr === 0` as the precondition that keeps it measuring one
+    lever. A new `describe` drives the stat through `Stats` (never `/data`) and
+    proves, per class, that it cuts the Active2 gate by its own fraction, lands
+    strictly more casts, and **stacks with** the §6.3 card rather than replacing
+    it. Named deviation: the 0.05 floor is unreachable from live `/data`
+    (`cdrCap` 0.4 + card 0.5 = 0.9 against 0.95), so the floor row drives
+    `derived.cdr` past the cap by hand and a second row computes the margin from
+    both `/data` halves. Now **37 failing tests** under that mutation.
+  - `c014` — six copies of `WX/WY = 10,10` + a build tile at `11,10` replaced by
+    one probed `tests/class-board.ts`. Seven files import it (the five c014
+    named, c013's folded-in private probe, and `class-deeper-draw`, an eighth
+    pinned file the hand-maintained list could not see). Code review returned
+    REQUEST-CHANGES with three Majors, all fixed and re-measured: the footprint
+    check now asks the live `Grid` instead of static geometry (a rock patch over
+    the shipped spot relocates the board to `14,12` with all seven green); the
+    anti-re-pin anchors moved to the two sinks a rename cannot escape and now
+    catch **6 of 6** realistic bypass shapes, up from 1 of 6; and the importer
+    set is swept from disk with a reasoned `EXCEPTIONS` map instead of listed.
+    `class-kit-whiff` stays pinned by necessity — its Ice Wall row agrees with
+    the out-of-Scope `tests/p6d-nine-classes.test.ts` on a literal aim point —
+    and that pairing is logged in BACKLOG-CONTENT.md for the main lane.
+  - Environment note: `npm run test:fast` has **8 pre-existing failing files in
+    this container** (4 Playwright missing-binary, 3 tsx extensionless-worker
+    resolution, 1 process-tree kill). All fail identically on a clean
+    `git stash` at `6d97871`; none is caused by this session's work.
+
 - **2026-09-03 session: `fb052` closed — Sleeve Sword's Circle Slash now
   stays a real charge-then-release ability (instant-max charge, not an
   instant-fire shortcut), fixing a silent Dash-Slash-combo break, and

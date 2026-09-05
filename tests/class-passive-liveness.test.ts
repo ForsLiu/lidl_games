@@ -99,13 +99,10 @@ import { buildTower, checkBuild } from '../src/sim/towers';
 import { upgradeCost } from '../src/sim/upgrades';
 import type { ClassSummon, Enemy, TickInput } from '../src/sim/types';
 import { World } from '../src/sim/world';
+import { BUILD_TX, BUILD_TY, EAST_REACH, WX, WY } from './class-board';
 import { cfg } from './helpers';
 
 const content = loadContent();
-
-/** Warden's parking spot for every case — well inside the board, room in every direction. */
-const WX = 10;
-const WY = 10;
 
 const DT = 1 / 60;
 
@@ -185,7 +182,7 @@ function chargeFor(w: World, seconds: number, aimX: number, aimY: number): void 
 function animistWorld(c: Content): { w: World; spirit: ClassSummon; totem: ClassSummon } {
   const w = passiveWorld('animist', c);
   // Manifest reads a nearby *attacking* tower and clones its profile.
-  expect(buildTower(w, c.towerByKey.get(SPIRE)!.id, WX + 1, WY).ok).toBe(true);
+  expect(buildTower(w, c.towerByKey.get(SPIRE)!.id, BUILD_TX, BUILD_TY).ok).toBe(true);
   expect(useClassActive(w)).toBe(true); // Manifest
   expect(useClassActive2(w)).toBe(true); // Recall Totem, centred on the Warden
   const spirit = w.classSummons.find((s) => s.kind === 'animist_spirit');
@@ -205,7 +202,12 @@ function tilePastBaseRange(c: Content): { tx: number; ty: number } | null {
   // `checkBuild` rather than `buildTower`: the same legality check with no
   // side effects, so one probe world serves every candidate tile.
   const probe = passiveWorld('swordsman', c);
-  for (let dx = 4; dx < 14; dx++) {
+  // `dx <= EAST_REACH`, not a literal 14. Code review: `class-board.ts` sizes
+  // its footprint check so this very scan is guaranteed buildable ground, and
+  // the two numbers were coupled only by a comment — raising this bound to 18
+  // left the `EAST_REACH` row green while `footprintClear` silently stopped
+  // covering the scan. Importing the constant makes the coupling real.
+  for (let dx = 4; dx <= EAST_REACH; dx++) {
     if (checkBuild(probe, id, WX + dx, WY) === 'out_of_range') return { tx: WX + dx, ty: WY };
   }
   return null;
@@ -257,7 +259,7 @@ const signal = {
       for (const def of c.towers.towers) {
         const w = passiveWorld(classKey, c);
         const before = w.gold;
-        if (!buildTower(w, def.id, WX + 1, WY).ok) continue;
+        if (!buildTower(w, def.id, BUILD_TX, BUILD_TY).ok) continue;
         spent += before - w.gold;
       }
       expect(spent, 'harness built no tower at all').toBeGreaterThan(0);
@@ -787,7 +789,7 @@ describe('c006 — the three prose-only passive rows', () => {
       ).toEqual([]);
       // And the live cap really is the authored one, +0.
       const w = passiveWorld('animist');
-      expect(buildTower(w, content.towerByKey.get(SPIRE)!.id, WX + 1, WY).ok).toBe(true);
+      expect(buildTower(w, content.towerByKey.get(SPIRE)!.id, BUILD_TX, BUILD_TY).ok).toBe(true);
       const cap = cls(w).active1.summonCap!;
       for (let i = 0; i < cap + 3; i++) {
         w.warden.active1Cooldown = 0;

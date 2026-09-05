@@ -128,13 +128,11 @@ import { damageWarden, tickWardenDots } from '../src/sim/run';
 import { buildTower } from '../src/sim/towers';
 import type { ClassSummon, Enemy, TickInput } from '../src/sim/types';
 import { World } from '../src/sim/world';
+import { BUILD_TX, BUILD_TY, WX, WY } from './class-board';
 import { cfg } from './helpers';
 
 const content = loadContent();
 
-/** Same parking spot and cadence conventions as `class-passive-liveness` (c006). */
-const WX = 10;
-const WY = 10;
 const DT = 1 / 60;
 const SPIRE = 'arrow_spire';
 
@@ -510,7 +508,7 @@ function animistWorld(spiritsBefore: number, spiritsAfter: number, c: Content = 
   ).toBeGreaterThanOrEqual(spiritsBefore + spiritsAfter);
 
   const w = passiveWorld('animist', c);
-  expect(buildTower(w, c.towerByKey.get(SPIRE)!.id, WX + 1, WY).ok).toBe(true);
+  expect(buildTower(w, c.towerByKey.get(SPIRE)!.id, BUILD_TX, BUILD_TY).ok).toBe(true);
   const manifest = () => {
     w.warden.active1Cooldown = 0;
     expect(useClassActive(w)).toBe(true);

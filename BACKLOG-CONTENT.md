@@ -19,6 +19,9 @@ May create/edit ONLY:
 - `data/classes.json`, `data/equipment.json`
 - `tests/class-*`, `tests/equip-*`
 - this file
+- `PROGRESS.md` — not a lane file, but CLAUDE.md working rule 4 requires it be
+  updated "at every phase gate and before any stop", which every lane loop hits.
+  Named here so the next loop does not re-adjudicate it (code review, c014).
 
 Read anything. Everything else is read-only: an out-of-scope need is
 written into the Log below and becomes main-lane (or other-lane) work at
@@ -442,7 +445,7 @@ session 2 (c005 was the last actionable one left), appending `c006`-`c010`.
       logged for the main lane - refs: SPEC-FINAL §4.2 (Animist), §2 (Area row),
       c001, c009.
 
-- [ ] (c014) [polish] the four §4 liveness files **share a hardcoded board
+- [x] (c014) [polish] **DONE 2026-09-05.** the four §4 liveness files **share a hardcoded board
       assumption and will all break together** on the terrain epic. `c005`,
       `c006`, `c009` and `c011`'s file each pin `WX/WY = 10,10`, a build tile at
       `11,10` and a probe loop against `cfg()`'s fixed seed; `BACKLOG-TERRAIN.md`
@@ -462,7 +465,7 @@ session 2 (c005 was the last actionable one left), appending `c006`-`c010`.
       `grid.buildable`/`wouldBlockPath` instead of pinning one, so it is
       terrain-proof today but carries a *private* copy of the probe this item
       exists to share - refs: BACKLOG-TERRAIN.md, c005, c006, c009, c013, c016.
-- [ ] (c020) [bug] `active2CdrFactor`'s **general `cdr` stat term is unpinned
+- [x] (c020) [bug] **DONE 2026-09-05.** `active2CdrFactor`'s **general `cdr` stat term is unpinned
       anywhere in the suite.** Found by QA on `c019`: mutating
       `src/sim/classes.ts:206` from
       `Math.max(0.05, 1 - w.derived.cdr - active2CdrBonus(w))` to
@@ -481,7 +484,7 @@ session 2 (c005 was the last actionable one left), appending `c006`-`c010`.
       exceeding 0.95; red under the mutation above - refs: SPEC-FINAL §2 (the
       Cooldown row), §6.3, c019, QA on c019.
 
-- [ ] (c021) [polish] the **twelve `active1_potency` cards** are the last of the
+- [x] (c021) [polish] **DONE 2026-09-05.** the **twelve `active1_potency` cards** are the last of the
       three §6.3 cards with no cross-class coverage. `c016` closed `class_line`
       (twelve rows), `c019` closed `active2_cdr` (twelve ladders plus two named
       deviations); `active1_potency` is touched only by `tests/act2.test.ts:185`
@@ -518,7 +521,7 @@ session 2 (c005 was the last actionable one left), appending `c006`-`c010`.
       `towerCost`->`goldFind` mutation above with the ledger row edited to
       match - refs: SPEC-FINAL §7, c012, QA on c012, fb056.
 
-- [ ] (c023) [polish] `equipment.items[].effectKey` is a **dead field**. Found
+- [x] (c023) [polish] **DONE 2026-09-05.** `equipment.items[].effectKey` is a **dead field**. Found
       by QA on c012: setting `sleeve_sword`'s to `"none"` changes no behaviour
       and no UI text, and `equip-spec-numbers`, `fb015`, `fb028`, `fb022`,
       `codex`, `character-panel` and `b003-stash-ux` all stay green. The sim
@@ -536,7 +539,7 @@ session 2 (c005 was the last actionable one left), appending `c006`-`c010`.
       `src/sim/content.ts`; this item is the measurement only - refs:
       SPEC-FINAL §7, c012, c013, QA on c012.
 
-- [ ] (c024) [bug] the **Time Lord twin of `c013`'s finding is unmeasured, and
+- [x] (c024) [bug] **DONE 2026-09-05.** the **Time Lord twin of `c013`'s finding is unmeasured, and
       it is the larger of the two.** Filed by QA on `c013`. `applyChronalSurge`
       (`src/sim/run.ts:816-817`) applies the Time Lord tower passive as
       `w.stats.add(source, 'towerRange', ...)` **and**
@@ -658,6 +661,334 @@ session 2 (c005 was the last actionable one left), appending `c006`-`c010`.
       §3 (Poison), owner feedback `feature-poison-barrel-mechanic`.
 
 ## Log
+
+### c026 (2026-09-05) — the merge that proved the footprint was describing the arena
+
+Landed early, not by choice: merging `origin/master` brought the terrain epic
+(`fb077`, "wire generated terrain into every non-practice World run"), and
+`c014`'s footprint check stopped being satisfiable at all.
+
+- **Measured, not inferred.** On the map `cfg()`'s seed now generates, **408 of
+  720 tiles are buildable** and **zero of 512 candidate origins** can supply the
+  contiguous `16 x 8` block `footprintClear` demanded. The requirement was never
+  describing the importers; it was describing the flat arena the module was
+  written on. `probeBoard` fell back to its `reduced` tier everywhere, which is
+  the fallback `c014`'s QA round added — it worked exactly as designed, and it
+  is why the merge produced one loud named failure instead of six confusing
+  ones.
+- **The footprint is now the three things importers really need**: `passable`
+  floor where dummies stand (they spawn with `speed = 0` and never path, so
+  asking for `buildable` there was asking for a tower site nobody builds); a
+  legal build tile, already checked by `checkBuild` at the call site; and **at
+  least one** buildable tile east of `dx 4` in the Warden's row, because that is
+  all `tilePastBaseRange` needs — it takes the first tile it finds. The far-
+  ground scan uses the same `dx` window that function does, so the two cannot
+  drift.
+- **Result**: the board relocated from `10,10` to `10,6` and **all seven
+  importers passed on it with no edit to any of them** — the property c014
+  exists to buy, tested by the real event rather than a simulation of it.
+- **One acceptance clause could not hold as written.** c026 asked that "the
+  shipped board still probes to `10,10`". It cannot: terrain closed the southern
+  arm below that spot (rows 14-16 carry impassable ground) even though its build
+  tile `11,10` is still perfectly legal — `checkBuild` returns `null` there. The
+  clause assumed the arena the item was filed on. The baseline row was
+  re-measured to `10,6` instead, and the reason is asserted rather than
+  described, so a future terrain change reports itself.
+- **Two of `c014`'s own assertions were wrong in kind, not in detail.**
+  `tier === 'full'` was requiring the flat arena; it is replaced by direct
+  assertions of the two guarantees importers depend on. And `footprintTiles`
+  read the *full* reach off a `reduced` board, reporting "footprint tile 25,9 is
+  a Core tile" for a tile the probe never claimed — it was measuring the
+  constant rather than the board.
+
+### c024 (2026-09-05) — the leak that was invisible because the file only built Animists
+
+- **Shape**: 21 tests appended to `tests/class-wide-grove-reach.test.ts`, and
+  `CONSUMERS` made class-parameterised (`WorldOpts.classKey` / `surges`). No
+  `/src` or `/data` byte moved; `run.ts` is not edited from this lane. 88 green.
+- **The premise, proven rather than asserted.** Every one of c013's twenty
+  consumers built an *Animist* world, so a main-lane `towerArea` swap landing on
+  `run.ts:817` alone would have left this file fully green. Measured by applying
+  exactly that fix: **19 rows flip, and every one of them is a `c024` row —
+  zero `c013` rows.** That asymmetry is the item.
+- **Chronal Surge is fired for real**, through cleared TD waves
+  (`applyChronalSurge` is private to `run.ts` and fires off `completeWave`), the
+  same way c009's own rows drive it. The post-wave world is then normalised —
+  god mode off, board cleared — because everything the surge did lives in
+  `w.stats`/`w.derived` and survives, so the probes see the same clean board the
+  Animist rows do.
+- **The control is zeroed, not deleted, and the loader is why.** c013 deletes
+  `towerPassive.mods.area` (a free map). `bonusAoeMul` is a *required field of
+  the `chronal_surge` kind*, so deleting it is refused outright —
+  "chronal_surge needs bonusAoeMul" (`validateClassPassive`, `content.ts:1333`).
+  Architecture rule 4 working exactly as written.
+- **Five of the twenty are excluded, and both reasons are named, not silent.**
+  - *Two are structural*: the Manifest spirit and the Recall Totem aura are
+    footprints of the **Animist's own class Actives**; a Time Lord cannot
+    produce them. A row asserts both still widen under the Animist, so their
+    absence here is about whose Active it is and nothing else.
+  - *Three are harness calibration, measured*: Venom Spore splash (190 vs *no
+    spore landed*), Electric off a Tesla hit (319 vs *no volley landed*) and the
+    Frost Obelisk aura (234 vs 234, saturated). The first two probes place their
+    victim at a distance tuned to the Animist's flat `+10%`, so with the surge's
+    area zeroed the footprint no longer reaches it and the probe's own harness
+    assertion fires — the control under-reaches, so there is no comparison to
+    make. All three are **tower-route**, which is the half §4.2's sentence
+    actually covers, so none of them is where the leak lives. Re-calibrating
+    them is folded into `c026` rather than bodged here: widening a probe to make
+    a control pass is how a measurement stops measuring.
+- **And it is the larger leak, measured**: the surge's contribution compounds
+  across firings while Wide Grove's authored `+10%` is flat in wave count. Ten
+  character-route footprints leak under both classes.
+
+### c021 hardening (2026-09-05, QA second pass) — six surviving mutations closed
+
+QA passed the corrected file but found the coverage still one-sided: every row
+measured "the named magnitude went up" and nothing measured "and nothing else
+moved". Six mutations survived; all six now die, each reddening exactly one row.
+
+- **The root cause of the original Bloodlord error, named and removed.** The
+  header's "four non-damage kits" was **six** — `/data` authors `damage: 0` for
+  engineer, necromancer, **bloodlord**, animist, paladin and **time_lord**.
+  Bloodlord was never counted as a non-damage kit, so it was slotted as a damage
+  row, measured as one, and its real payout went unlooked-for. The list is now
+  derived from `/data`, and a row asserts no non-damage kit's `what` still
+  claims to measure damage.
+- **`topDot` really did read the wrong stack** — the self-doubt flagged in the
+  QA brief, confirmed. Bleeding stacks independently, so after two casts the
+  enemy carries both the past (12 dps) and present (16 dps) stacks, and the
+  stage-1 row read the present one *only* because 16 > 12. QA nerfed
+  `markPresentDotDps` to 8 and dropped the present stage's potency wiring: still
+  33/33 green, because the read silently switched to the past stack, which
+  carries the same ratio. Now each row reads the stack its own cast appended,
+  identified by position, and asserts which `/data` figure it came from.
+- **Stages 2 and 3 were never executed.** The block claimed "only those two
+  stages" while its third row was a schema check, so `advanceTimeMark`'s later
+  branches were never entered — adding potency to either left this file *and
+  ten others* green. Both now have behavioural rows, including an elite dummy
+  for the execute. The deviation's wording was also wrong:
+  `markEliteExecuteFraction` **is** an authored `/data` magnitude, contradicting
+  "neither is a /data magnitude there is anything to multiply".
+- **No negative control existed.** Potency over-reaching into Field Kit's
+  `overclockSeconds` or Poison Barrel's `groundDurationSeconds`, or
+  *under*-reaching so it scaled only Chain Surge's first jump, all passed. Five
+  companion-observable rows now assert the Active's other authored fields are
+  flat across ranks, and the stormcaller row hits three links and sums the whole
+  chain — `damageDealt` spawned one dummy, so jumps 1..n were never exercised.
+- **The `towers.ts` surface the correction opened had one guard, not two.**
+  Scaling the sibling `death_pact` branch by `active1PotencyMul` — an Active1
+  card moving an Active2 payout — left this file and `class-active2-cdr` and
+  `class-line-bonus` all green. Now pinned.
+- Plus the untithed control's missing vacuity guard (`plain[0] > 0`), the shape
+  every other guard in the file already had.
+
+43 tests. No `/src` or `/data` byte moved.
+
+### c023 (2026-09-05) — the field that looks load-bearing and is not
+
+- **Shape**: new `tests/equip-effectkey-reach.test.ts`, 26 tests. No `/src` or
+  `/data` byte moved. The item is the *measurement*; removing the field (or
+  wiring it up) touches `src/sim/content.ts` and stays a main-lane decision.
+- **Confirmed dead, three independent ways.** A source census over `src/**`
+  finds only two `effectKey` mentions and both are named: the zod enum that
+  *validates* it (`content.ts:1052` — schema, not a reader, and the reason the
+  field looks load-bearing) and an unrelated core-VFX parameter of the same
+  name in `render/canvas.ts`. The three non-stat mechanics are anchored to
+  `hasEquipment(w, '<item key>')` in `classes.ts`. And `Content` is rebuilt
+  twice from `/data` — every `effectKey` blanked, then deliberately cross-wired
+  onto the wrong items — with all three mechanics and all twelve items'
+  rendered markup asserted identical. Blanking proves the field is not
+  *required*; cross-wiring proves it is not *consulted*.
+- **It flips when the field is wired up**, which is the point: re-gating Sleeve
+  Sword's instant-max charge on `effectKey` instead of the item key reddens
+  three rows — the census (a new reader appeared) and two behavioural rows.
+- **Two of this file's own probes passed vacuously first, and its own guard
+  caught them.** `dashDistance` read `warden.dashToX/dashToY`, fields that do
+  not exist, so both readings were `0` and the shoes rows compared nothing to
+  nothing; and the cross-item row called `useClassActive`, which correctly
+  returns false for a charge kind. The "the probes are live" row — c005's
+  convention, written before the probes — failed on `expected 0 to be greater
+  than 0` and named both. The real fields are `warden.dashTravel`
+  (`wardenmove.ts`) and `tickClassCharge`'s hold/release.
+
+### c021 (2026-09-05) — "potency" is not "damage", and the one card that buys nothing
+
+- **Shape**: new `tests/class-active1-potency.test.ts`, 32 tests, using c014's
+  shared board. No `/src` or `/data` byte moved (`git diff -- src data` empty).
+- **The acceptance's word "damage" was wrong for a third of the roster, and
+  following it literally would have measured four kits wrong.** Four Active1s
+  author `damage: 0` and carry their magnitude elsewhere, which `classes.ts`
+  already reads correctly at each site: engineer `repairFraction`,
+  necromancer and animist `summonStatMul`, paladin `tauntDurationSeconds`. Each
+  row names its own observable out of `/data`; a coverage case asserts those
+  four really are `damage: 0`, so the table stops being true out loud rather
+  than silently.
+- **Exact ratio, not "bigger".** Every row asserts
+  `reading(rank n) === reading(0) * (1 + perRank * n)`. A `toBeGreaterThan`
+  ladder is satisfied by an implementation that applies the card once and
+  ignores the rank — measured: that mutation reddens 13 tests here and would
+  have passed a monotonic ladder.
+- **CORRECTED 2026-09-05 (same day, QA on c021): the Bloodlord "deviation" was
+  wrong, and the wrongness is the lesson.** The first version of this file
+  claimed `bloodlord_active1_potency` "buys nothing at any rank" and filed a
+  main-lane item for a bug that does not exist. `fireBloodTithe` indeed never
+  calls `active1PotencyMul` — but the tithe's *payout* does, in
+  `classTowerDamageMul` (`src/sim/towers.ts:263`):
+  `1 + titheDamageMul * active1PotencyMul(w) + classLineBonus(w)`, with a
+  comment saying exactly that. QA found it by mutating the line the test never
+  looked at, and that mutation left the original file fully green.
+  - **Root cause, in CLAUDE.md's own words**: *"when a field's range changes,
+    grep its readers, not just its writers."* The draft grepped `classes.ts`,
+    found no call, and never followed the payout into the file it had *itself*
+    named as holding it — then wrote a test that measured only the cost and so
+    confirmed its own premise instead of testing it. A deviation is a claim
+    about a mechanism; it needs the control run like any other.
+  - **What was true, kept**: the tithe's HP *cost* (`titheHpFraction`) really
+    does not scale with the card. That is now one narrow pinned row instead of
+    a claim about the whole kit.
+  - **What was missing, added**: the payout ladder through `towerDamage`, with
+    a bespoke `ratioFor` because potency scales a term *inside* the multiplier
+    (`(1 + t*(1 + p*n)) / (1 + t)`, both halves from `/data`), plus an
+    untithed-tower control so the ladder is measuring the tithe and not some
+    other term. QA's mutation now reddens two rows.
+  - The main-lane entry filed off the wrong premise has been **deleted**; there
+    is no main-lane bug here. `fireRaiseSkeletons`' cap remains a non-issue for
+    the necromancer row (it binds count, not the stat share potency scales).
+- **Named deviation 2: Time Lord *Time* scales two of its four stages.**
+  Potency multiplies `markPastDotDps` and `markPresentDotDps`
+  (`advanceTimeMark`); stage 2's DoT is authored as the target's *remaining
+  HP* and stage 3 is an instant kill, so there is no `/data` magnitude to
+  multiply. Pinned per stage, plus a row asserting the schema still authors no
+  `markFuture*Dps` — the day it does, potency should reach it and that row says
+  so. (Asked of the authored keys rather than a property access: naming a
+  field the schema does not have would not compile.)
+- **Five mutations, all caught, in both directions**: `active1PotencyMul`
+  always 1 -> 13 red; potency dropped from `fireFrostNova` alone -> exactly 1
+  red, naming cryomancer; potency *added* to `fireBloodTithe` -> 2 red (both
+  deviation rows); card applied but rank ignored -> 13 red; card lookup
+  ignoring class ownership -> 11 red.
+
+### c014 follow-ups (in this lane, filed by code review's second pass)
+
+- [ ] (c025) [polish] **`tests/class-kit-whiff.test.ts` converts to the shared
+      board, all but one row.** `c014` exempted the whole file; review showed
+      the exemption is broader than its reason. Only the Ice Wall row
+      (`expect([AX, AY]).toEqual([12, 10])`) is coupled to the out-of-Scope
+      `tests/p6d-nine-classes.test.ts`; the rest builds at `AX = WX + 2` and is
+      exactly the harness c014 exists to fold in — and converting would break
+      the p6d agreement *loudly on that one row*, not silently, which is the
+      alarm you want. The blocker is narrow: whiff builds a three-tile vertical
+      wall at `AX, WY-1..WY+1` and `tests/class-board.ts` exports one tile, not
+      a column. `footprintClear` already validates that column (it lies inside
+      the probed rectangle), so the work is to export it. Acceptance:
+      `class-board.ts` exports the probed wall column; `class-kit-whiff`
+      imports `WX`/`WY` and the column, keeps line 620's literal with its p6d
+      comment, and drops out of `class-board.test.ts`'s `EXCEPTIONS` except for
+      that row; all 58 whiff tests stay green and a shifted probe origin moves
+      them with the other seven - refs: c007, c014, SPEC-FINAL §4.
+
+- [x] (c026) [polish] **DONE 2026-09-05 (forced by the master merge).** **`footprintClear`'s rectangle is a bounding box, and it
+      is expensive.** It requires all 128 tiles of
+      `(1 + EAST_REACH + 1) x (1 + SOUTH_REACH + 1)` buildable, while the deep
+      east arm is only used along row `WY`. On the empty shipped board only 119
+      of 720 spots qualify, and under obstacle density `p` a candidate survives
+      with `(1-p)^128`, so at a few percent density `probeBoard` throws at
+      module load instead of walking — a named failure rather than six
+      confusing ones, but not the unlimited walk the header could be read to
+      promise (the header now says so; this item is the fix). Acceptance:
+      the footprint becomes the union of the shapes the importers really use
+      (the east arm along `WY` only, the near box around the Warden), derived
+      from their sources the way the `EAST_REACH` row already scans them; the
+      shipped board still probes to `10,10`; and a simulated obstacle density
+      that today throws instead relocates the board with all seven files green
+      - refs: c014, BACKLOG-TERRAIN.md.
+
+### For the main lane (out of this lane's Scope)
+
+### c014 (2026-09-05) — six copies of one board, and the anchors that had to be rewritten twice
+
+- **Shape**: new `tests/class-board.ts` probes a Warden spot and a build tile
+  with `checkBuild` (the side-effect-free half of `buildTower`,
+  `tilePastBaseRange`'s convention) and exports `WX`/`WY`/`BUILD_TX`/`BUILD_TY`.
+  Seven files import it: c005/c006/c009/c011/c016's five, c013's
+  `class-wide-grove-reach` (whose *private* probe folded in), and
+  `class-deeper-draw` — an eighth pinned file nobody had noticed. No `/src` or
+  `/data` byte moved (`git diff -- src data` empty). 457 tests green.
+- **The scan starts at `10,10` on purpose, and that is a baseline, not a
+  hardcode.** The origin is the first candidate the ring scan tries and is
+  discarded like any other if it fails. Starting it where the files stand today
+  keeps every window and margin they calibrated (Core distance, board edges,
+  chain-line room) where it was — CLAUDE.md's rule that a refactor must not
+  move a baseline it is not measuring. `class-board.test.ts` shifts the origin
+  to prove the geometry follows it.
+- **Code review found the module terrain-blind where it mattered most, and it
+  was right.** The first draft's `footprintClear` rejected only border and Core
+  tiles — static geometry — and gave a real `checkBuild` to exactly one tile.
+  A terrain map leaving `11,10` open and turning `14..23,10` to rock would have
+  passed it and reddened `class-passive-liveness` anyway, because
+  `tilePastBaseRange` scans `dx = 4..13` for an `'out_of_range'` answer and
+  `checkBuild` tests `grid.buildable` *first*, so a rock tile answers
+  `'occupied'` and the scan finds nothing. The whole footprint is now asked of
+  the live `Grid`. Rehearsed: a rock patch over `8..12,8..12` relocates the
+  board to `14,12` and all seven files stay green; a north band with no room
+  left throws one named harness error instead of six confusing ones.
+- **The anti-re-pin anchors were rewritten twice.** The first draft asserted
+  `^const W[XY]` and "no literal tile pair in a build call"; review ran six
+  realistic re-pin shapes past them and **five got through** (indented `const`,
+  `const PARK = {tx,ty}`, `let WX2`, a prettier-wrapped multi-line build call,
+  a renamed `const TX = 11`, and `tower(w, WX+1, WY)` without spaces). A
+  negative anchored on two exact names cannot survive a rename. The rule is now
+  stated at the two *sinks* a rename cannot escape — every `w.warden.x/y` write
+  must be the imported symbol, every build call must end in the shared tile —
+  with the literal-pin negative kept only as a second opinion. **All six shapes
+  are now caught**, re-measured the same way.
+  - The second rewrite was the extractor: `(?:place|tower)\(` matched
+    `replace(`, and `[\s\S]{0,200}?\)` stopped at the first inner paren, so
+    `buildTower(w, c.towerByKey.get(SPIRE)!.id, BUILD_TX, BUILD_TY)` parsed as
+    the argument list `w, c.towerByKey.get(SPIRE`. An anchor that mis-parses
+    correct code gets loosened until it passes on anything, so it walks parens
+    now.
+- **The importer list is swept, not written.** `IMPORTERS` was a hand list plus
+  one hand-named exception, which is why `class-deeper-draw` was invisible to
+  the very row claiming the exception "cannot quietly become
+  six-plus-one-forgotten". Every `tests/class-*.test.ts` on disk is now subject
+  to the rule and escapes only via an `EXCEPTIONS` entry carrying a reason.
+- **Two files are deliberately not converted, both measured rather than
+  asserted in prose.**
+  - `class-kit-whiff` (c007) — its Ice Wall row exists to state the same whiff
+    policy as `tests/p6d-nine-classes.test.ts` and pins the agreement with
+    `expect([AX, AY]).toEqual([12, 10])` against p6d's own hardcoded aim point.
+    Converting one side alone would leave the two files agreeing about nothing.
+    **p6d is outside this lane's Scope**, so the pair moves together from the
+    main lane or not at all. `class-board.test.ts` asserts p6d still pins that
+    aim point, so the exception lifts itself the day it stops being true.
+  - `class-active2-cdr` (c019) — it derives its centre as
+    `Math.floor(GRID_W / 2)` and places no tower, so it has no build tile and
+    no board to share. The literal-pin rule is narrowed to numeric literals
+    precisely so this shape reads as the answer rather than the violation.
+- **`class-wide-grove-reach`'s own baseline moved, and review caught that this
+  file invoked the don't-move-baselines rule while doing it.** Its deleted
+  private probe scanned from `(4,4)` and returned `4,4`; the shared board puts
+  it at `11,10`, cutting eastward headroom before the Core column from ~31
+  tiles to ~13 (worst-case probe lands near `x = 23.7`). Green, but no longer
+  a margin that can go unstated: named in `placeProbed`, and its `dummy` helper
+  now asserts board bounds per placement the way `class-line-bonus` already did.
+- **`EAST_REACH` is one tile from a collision, and the file says so.** 14 covers
+  the deepest offset any importer uses (`tilePastBaseRange`'s `dx < 14`), and it
+  is *also* the largest value compatible with the answer staying `10,10`: with
+  `GRID_W` 36 and `CORE_X` 25, a reach of 15 puts `10 + 15` on the Core column
+  and relocates the board. A row scans the importer sources for their real
+  deepest `WX + N` and fails naming the collision, rather than letting a future
+  file silently move six suites.
+
+### For the main lane (out of this lane's Scope)
+
+- **`class-kit-whiff` + `p6d-nine-classes` de-hardcode as a pair.** The two
+  files agree on the Ice Wall whiff policy through literal `10,10`/`12,10`
+  coordinates. Both need to move to `tests/class-board.ts` in one change;
+  `tests/p6d-nine-classes.test.ts` is not editable from `lane/content`. Until
+  then `class-board.test.ts` holds the exception with an assertion, not a
+  comment - refs: c007, c014.
 
 ### c017 (2026-09-04) — the pierce cap that could not be raised
 
