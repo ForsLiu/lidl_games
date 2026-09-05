@@ -277,6 +277,17 @@ export function pointerProblems(block: Block, reads: readonly RegExp[]): string[
  * A regex pass cannot do this safely — blanking `//...` first eats the `//`
  * inside a string, blanking strings first eats a quote inside a comment — so
  * it is one left-to-right state machine.
+ *
+ * **Known blind spot, measured, not theoretical: regex literals.** There is no
+ * regex-literal state here, and telling `/` division from `/`-a-regex needs
+ * real parsing. So a quote inside a regex — `src/ui/hub.ts:111`'s
+ * `.replace(/'/g, '&#39;')` — opens string mode and never closes it: **362
+ * non-comment lines of that file come back blanked** (code review on c031).
+ * Callers that scan `/src` must therefore keep a raw-text cross-check for the
+ * thing they are counting; `tests/equip-hasequipment-roster.test.ts` carries
+ * one, and its comment says why. Callers that scan `/tests` KILLS tables
+ * (`killEntries`) are unexposed today — those files contain no regex literal
+ * inside the table — and the same caution applies if that changes.
  */
 export function blankNonCode(src: string): string {
   const out: string[] = [];

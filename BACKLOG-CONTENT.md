@@ -621,7 +621,7 @@ session 2 (c005 was the last actionable one left), appending `c006`-`c010`.
       of the file), and the block, which must *assert* the signal that kill
       measures.**
 
-- [ ] (c031) [polish] **the three `hasEquipment(w, '<key>')` literals in
+- [x] (c031) [polish] **DONE 2026-09-05.** **the three `hasEquipment(w, '<key>')` literals in
       `/src` are an unpinned roster, and `fb056` adds fifteen items to the file
       that feeds it.** §7's three non-stat mechanics (Sleeve Sword's no-charge
       rule, Swordsman Armor's two) are gated on item keys hardcoded in
@@ -639,6 +639,11 @@ session 2 (c005 was the last actionable one left), appending `c006`-`c010`.
       key, is red. Measurement and barrier only: the `effectKey`/`effectNums`
       decision is main-lane (`c023`'s Log) - refs: SPEC-FINAL §7, c012, c022,
       c023, fb056.
+      **Eight call sites, not three: three lines ask about two items each. And
+      the roster turned out to be written *twice* — `content.ts`'s closed
+      `effectKey` zod enum lists the same three keys, which is the copy a
+      reader finds first and the one `c023` proved nothing reads. The two are
+      held to each other here.**
 
 - [ ] (c029) [bug] **`c014`'s "the importers move with the board" property is
       not true of the importers it was built for**, measured this session while
@@ -776,6 +781,40 @@ session 2 (c005 was the last actionable one left), appending `c006`-`c010`.
       §3 (Poison), owner feedback `feature-poison-barrel-mechanic`.
 
 ## Log
+
+### c031 (2026-09-05) — the contract that is a set of string literals
+
+- **Shape**: new `tests/equip-hasequipment-roster.test.ts` (4 tests). No `/src`
+  or `/data` byte moved; the `effectKey`/`effectNums` decision stays main-lane.
+- **Five mutations, all red**: renaming `sleeve_sword` in `/data` (the silent
+  mechanic-off `c023` makes possible — the loader validates slots and
+  `notClassKey`, and has nothing to say about these), a fourth literal no §7
+  clause authorises, a removed call site, a double-quoted key, and the one code
+  review found — see below.
+- **The scan had a hole exactly where it claimed not to.** `blankNonCode` (the
+  shared blank-comments-and-strings pass) has no regex-literal state, and
+  `src/ui/hub.ts:111`'s `.replace(/'/g, '&#39;')` opens string mode and never
+  closes it: **362 non-comment lines of that file come back blanked**, so a
+  call site there was invisible and the acceptance mutation stayed green.
+  Closed with a raw-text cross-check (`hasEquipment(` counted in the unblanked
+  source, against the scan's own total plus the one declaration), and the blind
+  spot is now written into `blankNonCode`'s header with a self-test that pins
+  it as a *known limitation* rather than leaving it to be rediscovered. The
+  same caution is recorded for `c027`'s `killEntries`, which is unexposed only
+  because those tables contain no regex literal.
+- **The §7 clause check was defeatable for the one pair it exists to separate.**
+  It matched the clause against any table row containing the item's name, and
+  Swordsman Armor's Effect cell names `sleeve sword` in its cross-item clause —
+  so pairing Sleeve Sword with Swordsman Armor's charge-rate rule passed. It
+  compares the row's **first cell** now.
+- **The second roster is the finding.** `content.ts` repeats all three keys in
+  the closed `effectKey` enum — the field `c023` measured as read by nothing —
+  so the contract is written once where it is load-bearing and once as
+  decoration, and the decoration is what a reader greps for first. The last row
+  holds the two copies to each other; the `.effectKey` census itself stays
+  `c023`'s, cited rather than duplicated (its version also asserts the two
+  allowed mentions are still present, which a bare `toEqual([])` here would
+  not).
 
 ### c027 (2026-09-05) — the key is right; what it drives was nobody's assertion
 

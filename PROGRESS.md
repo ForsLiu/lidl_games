@@ -59,6 +59,17 @@
   Time Lord divergence was a silent `{ kind: 'match' }` row. All closed, with
   the mutation that found each as its regression test.
 
+  `c031`: the real contract between `data/equipment.json` and `/src` for §7's
+  three non-stat mechanics is eight `hasEquipment(w, '<key>')` literals that no
+  test enumerated — so renaming an item key in `/data` turned its mechanic off
+  silently, and `fb056` adds fifteen items to that file.
+  `tests/equip-hasequipment-roster.test.ts` scans `/src`, holds the roster to
+  §7's own Effect clauses, and checks every literal names a key `/data`
+  authors. Code review found the scan blind over 362 lines of `src/ui/hub.ts`
+  — `blankNonCode` has no regex-literal state and one `.replace(/'/g, …)`
+  desyncs it — which is closed with a raw-text cross-check and recorded as a
+  known limitation of the shared helper, with a self-test.
+
 - **2026-09-05 (lane `lane/terrain`): merged `origin/master` in a second
   time**, picking up `lane/ui`'s fb111/fb112/fb114/fb115 (PR #4). Nothing to
   reconcile in code: master's batch touched only `src/ui/**`, `tests/ui-*` and

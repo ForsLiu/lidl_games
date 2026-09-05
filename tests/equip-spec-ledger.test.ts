@@ -229,6 +229,23 @@ describe('c028: the spec-ledger device, on synthetic source', () => {
     expect(blankNonCode("const s = 'a\\'] b'; const t = 1;")).toContain('const t = 1;');
   });
 
+  it('blankNonCode has one blind spot, and it is written down rather than discovered again', () => {
+    // A regex literal containing a quote desyncs the state machine — measured
+    // on `src/ui/hub.ts:111` (`.replace(/'/g, '&#39;')`), where 362 lines came
+    // back blanked and a scan over them saw nothing. Pinned as a *known
+    // limitation* so the next caller reads it here instead of finding it the
+    // way c031's reviewer did: by checking whether a mutation that should be
+    // red is green.
+    const desync = "const a = 1;\nx.replace(/'/g, '&#39;');\nconst visible = 2;\n";
+    expect(blankNonCode(desync)).toContain('const a = 1;');
+    expect(blankNonCode(desync), 'blankNonCode learned about regex literals — update its header and c031').not.toContain(
+      'const visible = 2;',
+    );
+    // Everything else it claims, it does.
+    expect(blankNonCode("const a = 1; // '\nconst b = 2;")).toContain('const b = 2;');
+    expect(blankNonCode("const s = 'a/*b*/c'; const t = 3;")).toContain('const t = 3;');
+  });
+
   it('the device has exactly one home', () => {
     // c028's own reason for existing. A ledger that hand-copies the reader
     // keeps whichever of the rules above the copier noticed, which is the
