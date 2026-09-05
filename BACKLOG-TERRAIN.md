@@ -862,7 +862,176 @@ improvement.
       on the retry path and would drag the healthy reading from ~36 to ~27
       without anyone editing this file.
 
+### Generated 2026-09-05 (lane generation rule, second run of the day)
+
+fb065b and fb065c were the last two actionable items — fb064c–fb064f all need
+files this lane may not touch — so the rule ran with zero left.
+
+**Leg (a), the sweep, was PERFORMED for the first time.** It had been skipped
+three times, each time with the reason re-verified rather than inherited
+("nothing outside `src/sim/terrain/` calls `generateTerrain`, so a sweep would
+measure zero terrain"). That reason is **retired**: master wired the generator
+into every non-practice run at `967463d P10 fb077`, and `tools/sweep.ts`'s
+`buildRunConfig` leaves `practice` unset, so every sweep run now plays generated
+terrain. What it found is the most important thing in this file, and it is in
+the Log below under **"the sweep leg, finally run"**: at T1/engineer the win
+rate is **2/12 with terrain against 8/12 on the flat arena**, on the same seeds
+and the same bot. Terrain is an uncontrolled variable in every G1/G8/G14/G23
+reading taken since fb077 merged.
+
+**Leg (b)**, the clause-by-clause diff against the owner feedback file, found no
+unbuilt in-scope clause: rendering, the Tuner page and the Core-placement wiring
+are the only ones outstanding and each needs files this lane may not touch.
+So two of the five below come from defects the fb065b/fb065c review and QA
+rounds found, one from leg (a), and two from **leg (c)**, engineer's judgment in
+the spirit of HANDOFF §7.
+
+Bugs lead the list per working rule 3, and both are small. **fb065g is the
+highest-impact item here by a wide margin** and sits third only for that reason.
+
+- [ ] (fb065e) [bug] `Grid.terrainKind` goes stale after a `tile[]` write that
+      lands after the last `applyTerrain`/`placeCore`: `syncTerrain` is private
+      and neither `markDirty` nor `refresh` calls it, so the write updates
+      `blocked` through `staticBlocked` and leaves the terrain arrays alone.
+      Measured at HEAD on `tests/terrain-grid-view.test.ts`'s fixture: after
+      writing a Gate at (12, 19) the tile reads `tile=Gate`, `blocked=0` — the
+      sim walks through it — while `terrainKind` still says `Rock`, so a dump
+      draws `#` on a walkable gate. (12, 19) is on the border row, which
+      `syncTerrain`'s override loop skips, and it is non-normal on 200/200
+      generated maps, so this is the ordinary case for such a write. A real run
+      does not reach it (`world.ts` opens the Fourth Gate *before*
+      `applyRunTerrain`) and nothing enforces that ordering. Acceptance: a
+      failing regression test first; either the Grid re-syncs its terrain when
+      structural tiles change after terrain is applied, or the staleness is
+      recorded as a measured accepted case with the reason and every reader of
+      `terrainKind` named; `tests/terrain-grid*`, `tests/terrain-core-placement`
+      and `tests/fb077-terrain-wiring` green, and `npm run sim -- --seed 1
+      --policy hybrid` unchanged at `endHash 952d7be8` — refs: fb065c review
+      Major, `grid.ts` `syncTerrain`.
+- [ ] (fb065f) [bug] `describeTerrain` hardcodes `GATES` for both its `gates`
+      header line (`describe.ts:244`) and its `measureTerrain(map, cfg)` call
+      (`:231`), while a run plays on `World.gates` — so a Fourth Gate run's
+      repro prints three gates and measures `gateReach`, `gateDetour`,
+      `corridors` and `gatesConnected` against the wrong set. Harmless until
+      fb065c made a wrong-gate dump reachable from a real run. Measured by
+      fb065c's QA over 30 four-gate seeds: **8/30** print bands that differ from
+      `measureTerrain(view, cfg, w.gates)`, worst `gateDetour` delta **0.1446**
+      at seed 1 (printed 1.000000, real 1.144578). Acceptance: a failing
+      regression test first; `describeTerrain` takes an optional gate list
+      (defaulting to `GATES`) that feeds both the header line and the
+      measurement, and `parseTerrainDump` reads a 4-gate line back; a four-gate
+      dump round-trips byte-identically and its printed bands equal
+      `measureTerrain(map, cfg, gates)`; every existing refusal message is
+      unchanged — refs: fb065c QA bug 2, fb077 `World.gates`, fb064s.
+- [ ] (fb065g) [test] terrain's contribution to the §14 balance gates is
+      unmeasured, and leg (a) shows it is large. Since `fb077` every
+      non-practice run plays generated terrain, so every G1/G8/G14/G23 reading
+      taken since includes terrain as an uncontrolled variable — and STATUS.md
+      records all four red, with G8 alone carrying four separate `/data`-only
+      tuning sessions that "only ever traded cells against each other".
+      Measured here (hybrid, T1, engineer, seeds 1..12, `practice: true` as the
+      flat-arena control — it gates only `applyDevCommand`, and
+      `src/bots/policies.ts` issues zero dev commands): **2/12 wins with terrain
+      against 8/12 flat**, mean 34.8 min against 38.7. Acceptance: the A/B
+      widened to a recorded sample (>= 24 seeds, both arms, at least `hybrid`
+      and `maxbuild`), reporting win rate, mean minutes and outcome class per
+      arm with the per-seed table; the control's validity argued from the code
+      rather than assumed; the reading pinned in a test a generator retune
+      moves; and either a recorded decision that the shift is intended or the
+      number named so a main-lane retune controls for it. **No `/data` balance
+      value changes** — this measures, it does not tune; the retune is main-lane
+      — refs: STATUS.md G1/G8/G14/G23, fb077, CLAUDE.md measurement rules.
+- [ ] (fb065h) [test] a run's map is not always its seed's map, and the rate is
+      unmeasured. `applyRunTerrain` retries at `seed + 1 … seed + 16` whenever
+      the hardcoded `CORE_X/CORE_Y` Core comes out unreachable, so
+      `RunConfig.seed` does not identify the map a run played — the exact
+      provenance question fb064j, fb064s and fb065c exist to answer, one layer
+      above where they answered it. `tests/terrain-grid.test.ts` measures the
+      raw generator's stranding rate at about 1 in 2500 over seeds 1..5000, but
+      that reading predates `clearOverlayBlock`'s 3x3 Warden clearing, which
+      changes reachability and is applied before the check. Acceptance: the
+      retry rate measured over the domain-spanning sample in
+      `tests/terrain-sample.ts`, with the retrying seeds named and their attempt
+      counts; the jitter-off control fb064l's precedent requires; and an
+      explicit statement of what a reader holding only `RunConfig.seed` can and
+      cannot reproduce, next to fb065c's `source=-` — refs: `world.ts`
+      `applyRunTerrain`, fb064j, fb065c.
+- [ ] (fb065i) [polish] a terrain dump is only meaningful beside the config it
+      was taken under, and it carries no trace of one. `describe.ts`'s own
+      header says so — "a dump is only meaningful next to the config it was
+      taken under" — and `parseTerrainDump` deliberately never re-measures, so a
+      dump pasted after a `data/terrain.json` tune parses clean and its printed
+      bands quietly describe a different rule set. fb064b folded
+      `data/terrain.json` into `contentHash()` so a stale *replay* fails loudly;
+      the repro format has no equivalent, which leaves the one artefact built
+      for bug reports as the one place a `/data` edit is silent. Acceptance: the
+      dump carries a short fingerprint of the `TerrainConfig` it was written
+      under; `parseTerrainDump` reads it back and refuses a malformed one the
+      way it refuses every other header field, but *reports* rather than throws
+      on a mismatch against the current config, so a stale dump stays readable;
+      the round trip stays byte-identical and every existing refusal message is
+      unchanged — refs: `describe.ts` header, fb064b `contentHash()`, fb064s.
+
 ## Log
+
+- (2026-09-05, generation rule) **The sweep leg, finally run — and terrain is
+  costing the game most of its win rate.**
+
+  The lane skipped leg (a) three times on a reason it re-verified each time.
+  PROGRESS.md retired that reason at this branch's `origin/master` merge:
+  master wired `generateTerrain` into every non-practice run at `967463d P10
+  fb077`. `tools/sweep.ts`'s `buildRunConfig` never sets `practice`, so every
+  sweep run has been playing generated terrain since.
+
+  **`npx tsx tools/sweep.ts --seeds 12 --policies maxbuild,hybrid`** (T1,
+  engineer, default core, tree/modifiers default):
+
+  | policy | win | medMin | medWaves |
+  |---|---|---|---|
+  | maxbuild | **0.17** | 30.7 | 17 |
+  | hybrid | **0.17** | 38.2 | 18 |
+
+  STATUS.md's recorded balance snapshot has **win rate 1.0 for all ten
+  policies** at the same T1/engineer cell (2 seeds/cell). Re-run at `--seeds 2`
+  to match its sample exactly: **0.0** for both. STATUS.md's snapshot is stale,
+  and `npm run status` is main-lane.
+
+  **The A/B, which is what makes this the lane's business.** Same 12 seeds,
+  `hybrid`, T1, engineer; arm B sets `practice: true`, which is a clean
+  flat-arena control here and is argued from the code rather than assumed —
+  `cfg.practice` gates exactly one thing outside terrain (`applyDevCommand`,
+  `run.ts:373`), and `src/bots/policies.ts` issues **zero** dev commands and
+  never reads the flag.
+
+  ```
+  TERRAIN  win 2/12  mean 34.8 min
+    1:defeat_core 2:running 3:defeat_core 4:running 5:victory 6:defeat_core
+    7:running 8:victory 9:running 10:running 11:defeat_core 12:defeat_core
+  FLAT     win 8/12  mean 38.7 min
+    1:running 2:victory 3:victory 4:victory 5:defeat_core 6:victory
+    7:victory 8:running 9:victory 10:running 11:victory 12:victory
+  ```
+
+  **A four-fold drop in win rate, from terrain alone.** Every §14 reading taken
+  since fb077 merged — G1's 21/24, G8's per-class table, G14's 20/20, G23's
+  per-Core table — includes terrain as an uncontrolled variable. STATUS.md's own
+  G8 entry records **four separate `/data`-only tuning sessions** (`p10r`,
+  `p10s`, `p10t`, `p10z`) that "found real elasticity but only ever traded cells
+  against each other". That is what tuning against an uncontrolled confound
+  looks like, and it is CLAUDE.md's own measurement rule — "my change improved X
+  needs the control run" — failing at project scale rather than at item scale.
+
+  **What this lane is and is not saying.** Not that terrain should be softened:
+  the bands it satisfies are the owner's own, every one of them measured, and
+  wave difficulty is a balance order that belongs to BACKLOG.md. Only that the
+  four red gates are being retuned against a variable nobody has held fixed, and
+  that a control run is cheap. Filed as **fb065g**; flagged here for the merge
+  because the main lane needs it before the next balance pass, not after.
+
+  Caveat carried honestly: 12 seeds and one class/policy cell. fb065g's
+  acceptance widens it to >= 24 seeds and two policies before anything is
+  concluded from it, and the two arms differ by 6 wins in 12, which is large but
+  is not yet a pass-rate anyone should quote as a gate reading.
 
 - (2026-09-05, fb065c, QA round) **FAIL on acceptance clause 3, and the miss was
   exactly the clause the acceptance names.** QA confirmed the adapter, the

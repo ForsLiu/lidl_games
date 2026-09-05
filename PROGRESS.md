@@ -5,6 +5,33 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-05 (lane `lane/terrain`): the generation rule ran its sweep leg for
+  the first time, and it found something the main lane needs before its next
+  balance pass.** The lane had skipped leg (a) three times on a reason it
+  re-verified each time; master's `967463d P10 fb077` retired it by wiring the
+  generator into every non-practice run, and `tools/sweep.ts` never sets
+  `practice`, so every sweep run plays generated terrain.
+
+  `npx tsx tools/sweep.ts --seeds 12 --policies maxbuild,hybrid` reads **win
+  0.17** for both, where STATUS.md's recorded snapshot has **1.0** for all ten
+  policies at the same T1/engineer cell. The A/B that matters — same 12 seeds,
+  `hybrid`, terrain against `practice: true` as a flat-arena control (it gates
+  only `applyDevCommand`, and the bot policies issue no dev commands) — reads
+  **2/12 with terrain against 8/12 flat**, mean 34.8 min against 38.7.
+
+  So every G1/G8/G14/G23 reading taken since fb077 merged includes terrain as an
+  uncontrolled variable, including the four separate `/data`-only tuning
+  sessions STATUS.md's G8 entry records as having "only ever traded cells
+  against each other". This lane is **not** proposing to soften terrain — the
+  bands are the owner's and wave difficulty is a balance order for BACKLOG.md —
+  only that the four red gates are being retuned against a variable nobody has
+  held fixed. Filed as `fb065g`, with the caveat that 12 seeds in one cell is a
+  signal and not yet a gate reading; its acceptance widens the A/B to >= 24
+  seeds and two policies first.
+
+  Five items appended by the rule: `fb065e`/`fb065f` (bugs the fb065c review and
+  QA found), `fb065g` (the above), `fb065h` and `fb065i` (leg (c)).
+
 - **2026-09-05 (lane `lane/terrain`): `fb065c` closed — a terrain repro can now
   be taken from the map a bug was seen on.** `gridTerrain` in
   `src/sim/terrain/grid-view.ts` adapts a live `Grid` to the `TerrainGrid` every
