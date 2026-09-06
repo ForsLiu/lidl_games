@@ -381,7 +381,19 @@ therefore measure *after* `fb153`, not before.
       remaining `/data` desc string quotes a magnitude that differs from what
       the sim runs on — refs: QUESTIONS Q180, owner feedback
       `balance-damage-rescale-and-bigger-map` item 1, code review Major 5.
-- [ ] (fb163) [balance] **the owner's call fb153a's measurement asks for**
+- [x] (fb163) [balance] **DONE 2026-09-06 — decided (a), no code/data change**
+      (QUESTIONS Q191): checked (c) first and found the display layer already
+      does it (`damageText` in `canvas.ts` rounds/decimals combat numbers,
+      `formatDamage`/`formatDps` in `hud.ts` comma-group every DPS-panel
+      total; Core HP never reaches four digits post-scale). (b)'s second
+      factor + five conversion constants is a large balance-revalidation
+      effort for a cosmetic gain and would re-open every sentence fb164 just
+      finished re-anchoring. Chose (a): keep the single `numberScale` (0.1),
+      accept the "single-digit early hits" sub-clause as unmet (fb153a's own
+      entry already recorded this; its main "single/double-digit on typical
+      hits" clause is met). The acceptance's "five crossing points" clause is
+      (b)'s own verification burden and does not apply since (b) was not
+      chosen. Original text follows.
       (QUESTIONS Q180): `/data` carries **two** number economies — enemy HP and
       the damage dealt *to* enemies (tower damage 150-4200 against enemy HP
       80-365,000 x `baseHpMul` 20) versus enemy damage output, Core/structure/

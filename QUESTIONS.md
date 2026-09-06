@@ -726,3 +726,36 @@ Q91 and Q102 corrections if not yet done.
   one-off for a factor that, once corrected, only drifts again on a repeat of
   the same kind of change.
 
+- **Q191. [fb163] The two-economy call: (a), keep one factor and accept the
+  coarse character sheet — not (b)'s second factor, not (c)'s reformatting,
+  because (c) is already substantially shipped.** fb163 asked for a verdict
+  among three options because one global `numberScale` cannot make tower-
+  damage-vs-enemy-HP's huge range single-digit without making the already-
+  small character/equipment economy fractional (0.1 HP, +1.5 Max HP — which
+  fb164 just finished re-anchoring the prose to, on the assumption the single
+  factor stays).
+  Checked (c) first, since it looked like the cheapest option: the display
+  layer already does almost everything "format large numbers compactly"
+  would ask for. `damageText` (`src/render/canvas.ts:229`) rounds floating
+  combat numbers to whole numbers at 10+ and one/two decimals below it;
+  `formatDamage`/`formatDps` (`src/ui/hud.ts:2223-2229`) comma-group every
+  DPS-panel total via `toLocaleString()`. The one raw, ungrouped number left
+  (`src/ui/hud.ts:1090`, the Core HP readout) never reaches four digits post-
+  scale (base 50, plus at most a few hundred from upgrades/tree/modifiers),
+  so grouping it would add punctuation with nothing to punctuate. There is no
+  further formatting work (c) would add.
+  That leaves (a) vs (b). (b) — a second factor plus a named conversion
+  constant at each of lifesteal, Blood Tithe, Wrath, the Corpse store and
+  Vampire Heart, each requiring its own before/after control-run measurement
+  — is a multi-day balance-validation undertaking for a purely cosmetic gain
+  (shaving typical hits from 2-3 digits to 1), and it would re-open every
+  sentence fb164 just finished re-anchoring (a second character-side factor
+  moves those numbers again). Chose **(a)**: the single `numberScale` (0.1)
+  stays exactly as fb153a shipped it, the "single-digit early hits" sub-
+  clause is accepted as unmet (fb153a's own entry already recorded this — the
+  order's stricter reading, not its "single/double-digit... on typical hits"
+  main clause, which *is* met), and no code or `/data` changes are made.
+  Acceptance's "five crossing points, each measured with a before/after
+  control pair" is (b)'s own verification burden and does not apply once (b)
+  is not the chosen option; fb163 is closed on that basis.
+

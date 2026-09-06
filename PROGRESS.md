@@ -5,6 +5,22 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-06 — fb163: the two-economy owner call, decided (a) — no code or
+  `/data` change.** fb163 asked for a verdict among (a) keep one factor and
+  accept the coarse character sheet, (b) a second scale factor plus named
+  conversion constants at five crossing points (lifesteal, Blood Tithe,
+  Wrath, the Corpse store, Vampire Heart), or (c) leave the sim alone and
+  format large numbers compactly in the HUD. Checked (c) first: the display
+  layer already comma-groups every DPS-panel total (`formatDamage`/
+  `formatDps`, `hud.ts`) and rounds/decimals floating combat numbers
+  (`damageText`, `canvas.ts`) — nothing left to add there. (b) is a
+  multi-day balance-revalidation effort that would re-open every sentence
+  fb164 just re-anchored, for a purely cosmetic gain. Chose (a): the single
+  `numberScale` (0.1) stays as fb153a shipped it; the "single-digit early
+  hits" sub-clause is accepted as unmet (its main "single/double-digit on
+  typical hits" clause is met). Logged as QUESTIONS Q191. No tests to run —
+  no code changed.
+
 - **2026-09-06 — fb162: `damageEnemy`'s ledgers now book what landed, not what
   was banked.** `src/sim/enemies.ts`'s single damage choke point clamps
   `damageByWeapon`/`damageByWeaponVs`/`damageByType`/`damageTotal`/the Corpse
