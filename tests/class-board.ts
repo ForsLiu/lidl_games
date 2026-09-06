@@ -24,6 +24,20 @@
  * `10,10` stops being buildable the scan walks to the next tile that is, and
  * the six importers move with it instead of going red.
  *
+ * **That guarantee covers the shared footprint only — `EAST_REACH`/
+ * `SOUTH_REACH` bound *this module's own* terrain check, not every window an
+ * importer places relative to the spot it hands back.** `c029` found two
+ * importers (`class-wide-grove-reach`'s Mortar-splash consumer,
+ * `class-line-bonus`'s `lineOfDummies`-based cards) whose reach is computed at
+ * runtime from `/data` rather than written as a literal `WX + <number>`, so
+ * nothing here — and nothing in `class-board.test.ts`'s literal-offset scan —
+ * sees how far they actually go. A shifted origin near the Core's own column
+ * can still hand back a footprint-clear board close enough to the map edge
+ * that such a window runs off it even though its reach is smaller than
+ * `EAST_REACH`, because `EAST_REACH` was never a promise about distance to
+ * the edge. `tests/class-board-windows.test.ts` is the measurement: which
+ * windows survive which origins, asserted per cell rather than assumed.
+ *
  * **Why the scan starts at `10,10`.** The origin is a starting point, not an
  * answer: it is the first candidate the ring scan tries, and it is discarded
  * like any other if it fails the checks below. Starting it where the six files
