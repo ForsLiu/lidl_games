@@ -5,6 +5,50 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-06 — fb162: `damageEnemy`'s ledgers now book what landed, not what
+  was banked.** `src/sim/enemies.ts`'s single damage choke point clamps
+  `damageByWeapon`/`damageByWeaponVs`/`damageByType`/`damageTotal`/the Corpse
+  Core's `corpseStore` to `Math.min(dmg, hpBeforeHit)`, the same Q91 clamp
+  already applied to lifesteal a few lines below. `e.hp -=`, the visual hit
+  popup and the function's own return value stay the raw hit (nothing reads
+  the return value downstream). Two `tests/p-core-d-corpse.test.ts` cases that
+  had pinned the old "full amount, not what landed" behaviour as intended were
+  corrected; `tests/fb162-dot-kill-overkill.test.ts` (5 tests, confirmed
+  failing pre-fix) covers a direct overkill, an exact-kill, a DoT kill on a
+  1-hp carrier under fb152's cadence, a Burning splash-neighbour overkill and
+  a Corpse-store overkill. code-reviewer: no Critical/Major (one Minor,
+  documented). qa-playtester: adversarial multi-kill/chained-explode/
+  re-entrancy/exact-zero probes all correct, damage-share sanity re-measured,
+  no bugs filed.
+
+- **2026-09-06 — fb164: player-facing prose re-anchored to fb153a's
+  `numberScale`.** fb153a's 0.1 scale divided every authored HP/damage
+  magnitude at load but left the hand-typed sentences beside them unscaled, so
+  the game told players numbers the sim didn't run on (vitality's "+15 Max
+  HP" granting 1.5; Bleeding's "1 damage per second" dealing 0.1). Took the
+  "match the loaded value" branch of the acceptance's disjunction rather than
+  building a new derive-at-render templating layer across the UI (logged as
+  future work in QUESTIONS.md): every affected sentence in
+  `data/damagetypes.json`, `data/vsupgrades.json`, `data/equipment.json`
+  (all 12 items), `data/tree.json`, `data/cores.json` (including the tricky
+  forward-scaling `overhealGoldRatio` ratios and the Time core's decay
+  coefficient), `data/modifiers.json`, `data/quests.json` and one
+  `data/classes.json` sentence (pyromancer's Contagious Flame) was hand-edited
+  to the post-scale figure. `tests/class-descriptions.test.ts`'s `readLoaded`
+  stopped un-scaling (it now reads `loadContent()` straight, per the item's
+  acceptance), with its "loader and raw document agree" check re-deriving the
+  one scaled claim's expected value through `numberScale` instead of assuming
+  parity. New `tests/fb164-prescale-prose.test.ts` (26 tests) pins every fixed
+  sentence's number against the live loaded value via regex extraction, so a
+  future retune that moves a field without moving its sentence reddens here.
+  Two pre-existing tests also assumed the pre-rescale prose:
+  `tests/equip-spec-numbers.test.ts`'s c012 desc-vs-§7 checks now scale
+  `maxHp`/`atkFlat` (not `armor`) before comparing, and its Effect-quote check
+  rebuilds the expected substring's numeral for a scaled stat rather than
+  loosening the containment check. code-reviewer: no Critical/Major (one
+  cosmetic alignment nit in `modifiers.json`, fixed). Full `npm run test:fast`
+  green after both fixes.
+
 - **2026-09-06 — fb161's code review moved the ground-fire bank off the field
   and onto the Warden, and CI is green on the whole branch.** Run
   [#34058878859](https://github.com/ForsLiu/lidl_games/actions/runs/34058878859)

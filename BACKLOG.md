@@ -297,7 +297,30 @@ therefore measure *after* `fb153`, not before.
       counts <= 4 `wardenhit` events per second per ground field; totals over a
       field's lifetime unchanged against a control; determinism holds — refs:
       QUESTIONS Q179 (7), owner feedback `dot-tick-cadence`.
-- [ ] (fb162) [bug] a DoT kill books its whole banked lump into
+- [x] (fb162) [bug] **DONE 2026-09-06** — `damageEnemy`'s single choke point
+      (`src/sim/enemies.ts`) now books `dmgBooked = Math.min(dmg, hpBeforeHit)`
+      into `damageByWeapon`/`damageByWeaponVs`/`damageByType`/`damageTotal`/
+      the Corpse Core's `corpseStore`, the same Q91 clamp already applied to
+      the lifesteal accumulator a few lines below — extended to every other
+      ledger at that choke point. `e.hp -= dmg`, the visual `hit:` popup
+      number and the function's own return value are deliberately left as the
+      raw (unclamped) hit; nothing downstream reads the return value. Two
+      pre-existing `tests/p-core-d-corpse.test.ts` cases that had asserted the
+      old "full amount, not what landed" behaviour as intended were corrected
+      to the new accounting. `tests/fb162-dot-kill-overkill.test.ts` (5 tests)
+      pins a direct overkill, an exact-kill (no off-by-one), a DoT kill on a
+      1-hp carrier under fb152's cadence, a Burning splash-neighbour overkill,
+      and a Corpse-store overkill; confirmed each fails on the pre-fix code.
+      code-reviewer found no Critical/Major issues (one Minor: documented that
+      the return value is intentionally unclamped). qa-playtester
+      adversarially probed simultaneous multi-neighbour splash kills, a
+      chained execute-then-explode kill, re-entrancy on an already-dead
+      enemy, and exact-zero-HP kills — all correct, no bugs filed; damage-share
+      sanity re-measured via `class-kit-damage-share.test.ts`/
+      `p12a-kit-power.test.ts` (green) and two headless sim seeds (`sum`
+      across `damageByWeapon`/`damageByType` matches `damageTotal` within
+      float noise). Original text follows.
+      a DoT kill books its whole banked lump into
       `damageByWeapon`/`damageByWeaponVs`/`damageByType`/`damageTotal` and the
       Corpse Core's `corpseStore`, while only the target's remaining hp
       actually lands — so overkill is over-reported by up to one tick interval
@@ -312,7 +335,31 @@ therefore measure *after* `fb153`, not before.
       neighbour cases; the G5/A5 damage-share suites are re-measured and their
       deltas recorded (they read exactly this ledger) — refs: QUESTIONS Q179,
       SPEC-FINAL §5.5 (Corpse), Q91.
-- [ ] (fb164) [bug] **player-facing prose still quotes pre-rescale numbers.**
+- [x] (fb164) [bug] **DONE 2026-09-06** — took the "matches the loaded value"
+      branch of the acceptance (deriving live was judged a UI-wide templating
+      refactor out of scope for one item — logged as future work, QUESTIONS
+      Q190). Every affected sentence in `data/damagetypes.json`,
+      `data/vsupgrades.json`, `data/equipment.json` (all 12 items),
+      `data/tree.json`, `data/cores.json` (including the forward-scaling
+      `overhealGoldRatio` ratios and the Time core's decay coefficient),
+      `data/modifiers.json`, `data/quests.json` and one `data/classes.json`
+      sentence (pyromancer's Contagious Flame) now quotes the post-
+      `numberScale` figure. `tests/class-descriptions.test.ts`'s `readLoaded`
+      stops unwinding the scale, reading `loadContent()` straight; its "loader
+      and raw document agree" check re-derives the one scaled claim's
+      expected value through `numberScale` rather than assuming parity. New
+      `tests/fb164-prescale-prose.test.ts` (26 tests) pins every fixed
+      sentence against the *live* loaded value via regex extraction, so a
+      future retune that moves a field without moving its sentence reddens
+      here. Two pre-existing tests also assumed the pre-rescale prose and
+      needed the same treatment: `tests/equip-spec-numbers.test.ts`'s c012
+      desc-vs-§7 checks now scale `maxHp`/`atkFlat` before comparing (armor
+      stays unscaled), and its Effect-quote check rebuilds the expected
+      substring's numeral for a scaled stat instead of loosening the
+      containment check. code-reviewer: no Critical/Major (one cosmetic
+      alignment nit in `modifiers.json`, fixed). Light tier (data + tests
+      only, no balance value changed) — full `npm run test:fast` green.
+      Original text follows.
       fb153a divides every HP/damage magnitude at load, but `/data`'s authored
       *sentences* were not re-anchored, so the game now tells the player numbers
       it does not run on: `data/vsupgrades.json`'s `vitality` reads "+15 Max HP"
