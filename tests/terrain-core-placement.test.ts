@@ -325,13 +325,13 @@ describe('suggestCoreAnchor (fb064h)', () => {
     const golden: ReadonlyArray<readonly [number, number]> = [
       [3, 529],
       [13, 529],
-      [24, 417],
+      [24, 529],
       [40, 529],
-      [97, 529],
-      [112, 473],
+      [97, 586],
+      [112, 529],
       [177, 530],
-      [189, 530],
-      [381, 529],
+      [189, 529],
+      [381, 474],
     ];
     for (const [seed, want] of golden) {
       expect(suggestCoreAnchor(generateTerrain(seed, cfg), cfg), `seed ${seed}`).toBe(want);

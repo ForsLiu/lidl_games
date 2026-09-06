@@ -25,9 +25,17 @@
  * The parser side is the harder half. `parseTerrainDump` refuses what the
  * writer never emits (fb064w), and its `gates` line had a *fixed* key set
  * taken from `GATES`, so a four-gate dump was rejected outright as an unknown
- * key. It now reads a variable set: the three base gates must be present, in
+ * key. It now reads a variable set: the base gates must be present, in
  * `GATES` order, at this build's positions — that check is unchanged, and so is
  * its message — and any further gate follows them, read as written.
+ *
+ * **fb156** grew the base list itself from three positions (west/north/east)
+ * to four (west/north/east/south), one per edge, and jittered each off its
+ * edge's exact midpoint. The one gate a tier modifier can add on top of that
+ * is `MODIFIER_GATES`'s `south2` — renamed from `south`, which the base list
+ * now owns. Every literal gate coordinate and the "not the base N" counts
+ * below were re-measured against the shipped generator for that layout, not
+ * hand-computed.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -50,14 +58,14 @@ const cfg = loadTerrain();
 const FOUR: readonly GateDef[] = [...GATES, ...MODIFIER_GATES];
 
 describe('fb065f — describeTerrain carries its gate list', () => {
-  it('prints the gates it was given, not the base three', () => {
+  it('prints the gates it was given, not the base four', () => {
     const map = generateTerrain(40, cfg, FOUR);
     const line = describeTerrain(map, cfg, FOUR).split('\n')[2];
-    expect(line).toBe('gates west=0,10 north=18,0 east=35,17 south=12,19');
+    expect(line).toBe('gates west=0,12 north=24,0 east=55,20 south=33,31 south2=45,31');
     // Unchanged when no list is given: the default is still `GATES`, so every
     // existing dump in every existing golden is byte-identical.
     expect(describeTerrain(map, cfg).split('\n')[2]).toBe(
-      'gates west=0,10 north=18,0 east=35,17',
+      'gates west=0,12 north=24,0 east=55,20 south=33,31',
     );
   });
 
@@ -81,17 +89,13 @@ describe('fb065f — describeTerrain carries its gate list', () => {
     );
   });
 
-  // fb166: skipped, not fixed. `FOUR` includes `MODIFIER_GATES`'s `south`
-  // (12,19), a literal coordinate that no longer sits on the resized 56x32
-  // border (the border moved to x=55/y=31) — `describeTerrain` still writes
-  // `south=12,19` correctly, but `parseTerrainDump`'s border check (fb065f,
-  // intentionally strict: "a gate is on the border ... a property of the
-  // arena") now refuses its own writer's output. That check is doing its job;
-  // the bug is `MODIFIER_GATES` itself, which is outside this lane's Scope
-  // (grid.ts, logged in BACKLOG-TERRAIN.md's 2026-09-06 fb166-filing entry —
-  // the fix belongs with main-lane's fb153b, same file). Re-enable once that
-  // lands and `south` is back on the border.
-  it.skip('round-trips a four-gate dump byte-identically', () => {
+  // Re-enabled at fb156: `MODIFIER_GATES`'s gate (now keyed `south2`) sits at
+  // (45,31), on the resized 56x32 border, so `parseTerrainDump`'s border check
+  // no longer refuses this file's own `FOUR` list. (Was skipped at fb166,
+  // when `MODIFIER_GATES`'s literal `south` coordinate had drifted off the
+  // border along with the resize; see BACKLOG-TERRAIN.md's 2026-09-06
+  // fb166-filing entry for that history.)
+  it('round-trips a four-gate dump byte-identically', () => {
     for (const seed of [1, 7, 40, 4426]) {
       const map = generateTerrain(seed, cfg, FOUR);
       const dump = describeTerrain(map, cfg, FOUR);
@@ -107,23 +111,23 @@ describe('fb065f — describeTerrain carries its gate list', () => {
     }
   });
 
-  it('keeps every refusal the three-gate line already made', () => {
+  it('keeps every refusal the four-gate line already made', () => {
     const map = generateTerrain(7, cfg);
     const dump = describeTerrain(map, cfg);
     const swap = (from: string, to: string): string => dump.replace(from, to);
 
     // A base gate at the wrong place: the message is unchanged, verbatim.
-    expect(() => parseTerrainDump(swap('west=0,10', 'west=0,11'))).toThrow(
-      /gate "west" is at 0,11, this build has it at 0,10/,
+    expect(() => parseTerrainDump(swap('west=0,12', 'west=0,11'))).toThrow(
+      /gate "west" is at 0,11, this build has it at 0,12/,
     );
     // A base gate missing entirely.
-    expect(() => parseTerrainDump(swap(' north=18,0', ''))).toThrow(/north/);
+    expect(() => parseTerrainDump(swap(' north=24,0', ''))).toThrow(/north/);
     // Malformed coordinates.
-    expect(() => parseTerrainDump(swap('east=35,17', 'east=x'))).toThrow(
+    expect(() => parseTerrainDump(swap('east=55,20', 'east=x'))).toThrow(
       /gate "east" is not "tx,ty"/,
     );
     // Duplicates, still refused rather than last-write-wins.
-    expect(() => parseTerrainDump(swap('east=35,17', 'east=35,17 east=35,17'))).toThrow(
+    expect(() => parseTerrainDump(swap('east=55,20', 'east=55,20 east=55,20'))).toThrow(
       /duplicate "east" on the "gates" line/,
     );
   });
