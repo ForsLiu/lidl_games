@@ -5,6 +5,29 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-06 — lane/content: BACKLOG-CONTENT c033 done, measurement only,
+  no `/data` tune.** G8's diversity clause was rewritten (BALANCE DIRECTION
+  v2 §D) into two checks: own-kit VS share >=35% (already covered, c002/c030)
+  and pairwise class-kit fingerprint distance >=0.15 for all 66 class pairs,
+  reusing G22's method — never measured before. New
+  `tests/class-kit-fingerprint.test.ts` reuses G22's `damageShareVector`/
+  `l1Distance` (copied from the out-of-Scope `tests/p-core-f-gates.test.ts`)
+  and `class-kit-damage-share.test.ts`'s exact scripted-kit runner, gated
+  behind an opt-in env var so the normal suite only runs a trivial invariant.
+  Measured (`KIT_FP_SEEDS=2`, 24 full T1 runs, ~10.5 min): **50/66 pairs pass
+  the floor**, 16 fail, clustering around 8 classes for the same reason
+  clause (i) fails — every class's whole-run fingerprint is dominated by
+  shared tower usage (near-unanimous `mortar` top source) rather than by its
+  own kit. No `/data` tune applied: the failing set has no single safe lever,
+  and verifying one would need a win-rate re-run outside this item's Scope —
+  logged for the main-lane `p12d` instead, per CLAUDE.md rule 6 ("never force
+  a fragile tune"). code-reviewer approved with no Critical/Major findings
+  (verified the reused formulas/runner byte-for-byte by diff).
+  qa-playtester independently re-ran the full sweep and got an exact match to
+  4 decimal places, plus a vacuity check confirming non-degenerate vectors —
+  no bugs filed. Full `tests/class-*.test.ts` glob (20 files, 785 passed) and
+  `npx tsc --noEmit` green.
+
 - **2026-09-06 — lane/content: BACKLOG-CONTENT c032 done, measurement only.**
   `kitPowerMul` (`src/sim/enemies.ts:284-286`, `1 + 0.12 * w.wavesCleared`)
   compounds on any `class_`-prefixed `damageEnemy` source, deliberately

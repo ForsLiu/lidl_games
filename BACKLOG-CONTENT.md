@@ -798,7 +798,7 @@ Run again 2026-09-06 (`c029` was the last actionable one left, all of
       reproducing QA's exact repro. Full `tests/class-*.test.ts` glob (19
       files, 783 tests) and `npx tsc --noEmit` green.
 
-- [ ] (c033) [balance] G8's diversity clause was rewritten by BALANCE DIRECTION v2 §D (owner
+- [x] (c033) [balance] **DONE 2026-09-06.** G8's diversity clause was rewritten by BALANCE DIRECTION v2 §D (owner
       verdict, `feedback/processed/20260904-223211-verdicts-q155-167.md`) into
       two checks: (i) every class's own-kit VS share >=35% from wave 12
       (p12a/p12f's target) and (ii) pairwise class-kit fingerprint distance
@@ -820,6 +820,38 @@ Run again 2026-09-06 (`c029` was the last actionable one left, all of
       (CLAUDE.md rule 6). In-lane measurement plus optional
       `data/classes.json` tune only - refs: SPEC-FINAL §14 G8, BALANCE
       DIRECTION v2 §D, BACKLOG.md p12d, c002, c030.
+      **Measured, no tune applied.** `tests/class-kit-fingerprint.test.ts`
+      reuses G22's `damageShareVector`/`l1Distance` (copied from the
+      out-of-Scope `tests/p-core-f-gates.test.ts`, adapted to aggregate
+      `damageByWeapon`/`damageTotal` across seeds before normalizing, the
+      same order `class-kit-damage-share.test.ts`'s own `ownShare`/`vsShare`
+      already use) and `class-kit-damage-share.test.ts`'s exact
+      `runClassScripted`/`describeSource`, gated behind
+      `KIT_FP_MEASURE=1`/`KIT_FP_SEEDS` (default 12, analogous to
+      `KIT_SHARE_MEASURE`/`KIT_SHARE_SEEDS`) so the normal suite only runs a
+      trivial 12-classes/66-pairs invariant. Measured
+      `KIT_FP_MEASURE=1 KIT_FP_SEEDS=2` (12 classes x 2 seeds = 24 full T1
+      runs, ~10.5 min): **50/66 pairs meet the >=0.15 floor**, 16 fail,
+      closest pair necromancer/bloodlord at 0.0374. The 16 failing pairs
+      cluster around 8 of the 12 classes and trace to the same mechanism
+      c002/c030 found for clause (i): every class's `topLabel` resolves to a
+      shared tower key (`mortar`, near-unanimous) because no class clears
+      `MATERIALITY_SHARE` on its own kit, so a whole-run fingerprint is
+      dominated by shared tower usage rather than by each kit's own small
+      slice. No `/data` tune applied: the failing set spans 8 classes with
+      no single lever that would separate all 16 pairs without risking
+      pairs that already pass with real margin (e.g. paladin sits in 5
+      failing pairs and 6 passing ones), and verifying a tune's safety would
+      need a win-rate re-run outside this item's Scope — exactly the
+      "fragile tune" CLAUDE.md rule 6 warns against forcing. Logged for
+      `p12d` instead, per the item's own fallback clause. code-reviewer
+      approved with no Critical/Major findings (verified the formula/runner
+      reuse byte-for-byte via direct diff against the source files). QA
+      independently re-ran the full `KIT_FP_SEEDS=2` sweep (~10.6 min) and
+      got an **exact match** to the recorded numbers to 4 decimal places,
+      plus a `KIT_FP_SEEDS=1` vacuity check showing genuinely non-degenerate
+      per-seed vectors — no bugs filed. Full `tests/class-*.test.ts` glob
+      (20 files, 785 passed) and `npx tsc --noEmit` green.
 
 - [ ] (c034) [bug] `p12a`'s kit re-anchor (up to x3 on absolute kit-damage magnitudes) was
       accepted with G10/G11's absolute pins converted to ratio form "and still
