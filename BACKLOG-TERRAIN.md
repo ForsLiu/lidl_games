@@ -1313,6 +1313,14 @@ highest-impact item here by a wide margin** and sits third only for that reason.
 
 ## Log
 
+- (2026-09-06, fb166, code-reviewer finding) `terrain-core-placement.test.ts`'s
+  "is pinned to a golden anchor per seed, tie-break and all" re-measured the
+  golden `suggestCoreAnchor` outputs against the shipped code at 56x32 (that
+  part is verified), but did **not** re-run the mutant-kill classification
+  above it — which seeds still distinguish the build-room key from
+  `ROOM_RADIUS` from a plain lowest-index tie-break. The test file's own
+  comment already flags this as unverified; noted here too so a future
+  backlog-generation pass over this file sees it without re-reading the test.
 - (2026-09-06, fb166 filing) **A second out-of-scope config need, same shape
   as fb065g's item 1 below.** `tests/terrain-generation.test.ts`'s "stays
   bounded under the most expensive schema-legal config" is a wall-clock
