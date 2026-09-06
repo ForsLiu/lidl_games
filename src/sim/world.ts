@@ -642,7 +642,12 @@ export class World {
     // Heart's own steps are bought (`upgradeCore`, cores.ts).
     const coreBaseHp = coreDef?.baseHp ?? content.waves.coreHp;
     this.coreMaxHp = Math.max(
-      1,
+      // fb153a (qa-playtester): an HP floor, so it scales with the pool it
+      // floors — the same fix `attackStructure`, Blood Tithe and `derive`
+      // already carry. Left at a bare 1 the Core kept a whole pre-rescale hit
+      // point at the low end of `numberScale`'s own legal range, which made the
+      // ⚖ knob non-linear inside its schema bounds.
+      content.modifiers.numberScale,
       coreBaseHp + coreHpBonus(content, this.coreKey, this.coreStep) + this.stats.total('coreHp') + this.mods.coreHp,
     );
     this.coreHp = this.coreMaxHp;

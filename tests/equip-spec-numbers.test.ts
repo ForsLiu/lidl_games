@@ -90,7 +90,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 import { loadContent } from '../src/sim/content';
-import type { StatKey } from '../src/sim/statkeys';
+import { STAT_SCALED, type StatKey } from '../src/sim/statkeys';
 import { World } from '../src/sim/world';
 import { cfg } from './helpers';
 
@@ -1015,7 +1015,15 @@ function readLoaded(f: Figure): number | undefined {
     | Record<string, number>
     | undefined;
   if (f.bag === 'fallback' && bag === undefined) return undefined;
-  const raw = bag?.[f.stat] ?? 0;
+  let raw = bag?.[f.stat] ?? 0;
+  // fb153a: `numberScale` divides every HP/damage-denominated stat at load, so
+  // the loaded view is the authored figure times that factor. §7 states the
+  // *authored* number and `data/equipment.json` still holds it, so the ledger
+  // reads the loaded value back through the scale rather than restating §7 in
+  // display units. The bridge test ("the loaded content and data/equipment.json
+  // agree at every ledger row") then proves the scaler applied exactly that
+  // factor to exactly these stats and nothing else.
+  if (STAT_SCALED[f.stat as StatKey]) raw /= content.modifiers.numberScale;
   return f.as ? f.as(raw) : raw;
 }
 

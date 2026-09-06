@@ -43,7 +43,7 @@ import { emptyStats, STAT_KIND, type StatKey } from '../src/sim/stats';
 import { defaultMeta } from '../src/meta/meta';
 import { defaultSettings } from '../src/ui/settings';
 import type { MetaState } from '../src/sim/types';
-import { cfg } from './helpers';
+import { cfg, scaled } from './helpers';
 
 const content = loadContent();
 const CSS = readFileSync(join(process.cwd(), 'src', 'ui', 'style.css'), 'utf8');
@@ -602,15 +602,16 @@ describe('b058: the warden info panel memo key refreshes on a derived-stat chang
     const { hud, text } = hudWarden(w);
 
     hud.update(w, undefined, sel);
-    expect(text()).toContain('Health100 / 100');
+    // fb153a: the pool is authored 100 x `numberScale`.
+    expect(text()).toContain(`Health${scaled(100)} / ${scaled(100)}`);
 
     const hp = w.warden.hp;
-    w.stats.add('src:test', 'maxHp', 50);
+    w.stats.add('src:test', 'maxHp', scaled(50));
     w.recomputeDerived();
     expect(w.warden.hp).toBe(hp);
 
     hud.update(w, undefined, sel);
-    expect(text()).toContain('Health100 / 150');
+    expect(text()).toContain(`Health${scaled(100)} / ${scaled(150)}`);
   });
 
   it('a dash-charge-cap change alone refreshes the Dash row', () => {

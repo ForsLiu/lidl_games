@@ -6,7 +6,7 @@ import { z } from 'zod';
 
 import { attackProfile } from './upgrades';
 import { Hasher } from './hash';
-import { STAT_KEYS } from './statkeys';
+import { STAT_KEYS, STAT_SCALED, type StatKey } from './statkeys';
 import towersRaw from '../../data/towers.json';
 import enemiesRaw from '../../data/enemies.json';
 import wavesRaw from '../../data/waves.json';
@@ -643,6 +643,32 @@ const MODIFIER_EFFECT_KEYS = [
 
 const ModifiersFileSchema = z.object({
   tierRewardPerStep: num,
+  /**
+   * fb153a (owner order `balance-damage-rescale-and-bigger-map`): the factor
+   * every HP and damage number in `/data` is multiplied by at load, so the
+   * numbers the player reads are single/double digits without any authored
+   * ratio moving. It divides **both** sides of every fight — damage sources and
+   * enemy/structure/character HP alike — so it is proportional by construction
+   * and no balance gate should move by more than float noise.
+   *
+   * It lives here beside the tier scalars for the same reason they do: this is
+   * the file that already holds the game-wide numbers belonging to no single
+   * domain, and adding a `/data` file has a tooling cost nothing here needs to
+   * pay (BACKLOG fb080). `1.0` is the identity, so a run at that value is
+   * bit-identical to one from before the field existed.
+   *
+   * What it does **not** touch, because these would change the game rather
+   * than change what the numbers read: armor (a percent curve on point
+   * totals), every `mul` stat, every fraction/ratio (`ratio` DoT rows,
+   * `titheHpFraction`, `flatReduction`), durations, radii, speeds, gold, XP and
+   * spawn-budget costs. The full field list is `applyNumberScale` below, and
+   * `STAT_SCALED` (statkeys.ts) is its half for `/data`-authored stat records.
+   */
+  // Bounded at both ends: `1e-9` parses as "positive" and would make every
+  // fight a no-op, which architecture rule 4 says the loader should refuse
+  // rather than ship. The window is four orders either way — far more ⚖ room
+  // than any readable-numbers factor needs.
+  numberScale: num.min(1e-4).max(1e4).default(1),
   /**
    * BACKLOG p12b (BALANCE DIRECTION v2 §B): the tier ladder's three difficulty
    * scalars, each applied as `x^(tier-1)` so T1 is always exactly 1.0.
@@ -1881,6 +1907,8 @@ export function contentHash(content: Content): string {
  * `loadContent()` with no argument is unchanged.
  */
 export interface ContentOverrides {
+  /** fb153a: the character's base pool is scaled per Content, so it is overridable per Content too. */
+  warden?: unknown;
   towers?: unknown;
   enemies?: unknown;
   waves?: unknown;
@@ -1936,6 +1964,197 @@ const REQUIRED_DAMAGE_TYPE_KEYS = ['burning', 'poison'] as const;
 
 let cached: Content | null = null;
 
+
+/* --------------------------------------------------- fb153a: number scale */
+
+type StatRecord = Partial<Record<StatKey, number>> | undefined;
+
+/** Scales the HP/damage-denominated entries of a `/data`-authored stat record. */
+function scaleStats(mods: StatRecord, k: number): void {
+  if (!mods) return;
+  for (const key of Object.keys(mods) as StatKey[]) {
+    if (!STAT_SCALED[key]) continue;
+    const v = mods[key];
+    if (typeof v === 'number') mods[key] = v * k;
+  }
+}
+
+/** Scales the named numeric fields of an object, skipping absent ones. */
+function scaleFields(o: unknown, k: number, fields: readonly string[]): void {
+  if (!o || typeof o !== 'object') return;
+  const rec = o as Record<string, unknown>;
+  for (const f of fields) {
+    const v = rec[f];
+    if (typeof v === 'number') rec[f] = v * k;
+  }
+}
+
+/**
+ * fb153a: the owner's rescale, as **one listed pass over the parsed content**
+ * rather than 150 edited `/data` rows — the same shape `baseHpMul` already
+ * uses for enemy HP ("one tunable number rather than 20 edited rows, so the
+ * authored per-enemy identity ratios stay readable and untouched"), and the
+ * only shape that keeps SPEC-FINAL §4/§5/§9's stated figures true of `/data`.
+ *
+ * The list is the deliverable: every HP- and damage-denominated field in
+ * `/data`, named here where a reviewer can check it against the file, with
+ * `tests/fb153a-number-scale.test.ts` holding a census that fails when a new
+ * `/data` field of either denomination appears without being classified.
+ *
+ * Ratios stay ratios. A `ratio` DoT row is a fraction of the triggering damage
+ * (already scaled), `titheHpFraction`/`markEliteExecuteFraction` are fractions
+ * of an HP pool (already scaled), `flatReduction` is a percent, and every
+ * `*Mul`/`*PerStep`/`*Scale*` field is a multiplier. Durations, radii, ranges,
+ * speeds, cooldowns, gold, XP and the director's spawn-budget costs are on
+ * other axes entirely and are left alone.
+ */
+function applyNumberScale(c: {
+  towers: z.infer<typeof TowersFileSchema>;
+  enemies: z.infer<typeof EnemiesFileSchema>;
+  waves: z.infer<typeof WavesFileSchema>;
+  boons: z.infer<typeof VsUpgradesFileSchema>;
+  tree: z.infer<typeof TreeFileSchema>;
+  modifiers: z.infer<typeof ModifiersFileSchema>;
+  classes: z.infer<typeof ClassesFileSchema>;
+  damageTypes: z.infer<typeof DamageTypesFileSchema>;
+  cores: z.infer<typeof CoresFileSchema>;
+  equipment: z.infer<typeof EquipmentFileSchema>;
+  quests: z.infer<typeof QuestsFileSchema>;
+  warden: z.infer<typeof WardenFileSchema>;
+}, k: number): void {
+  if (k === 1) return;
+
+  // Enemies: the HP pool and every damage number an enemy deals.
+  for (const e of c.enemies.enemies) {
+    scaleFields(e, k, ENEMY_SCALED_FIELDS);
+  }
+
+  // Towers: structure HP, the shot, its burn rider and the VS special.
+  //
+  // `breach.perEhp` moves the *other* way. It prices a wall's effective HP into
+  // a pathing cost (`perEhp x ehp`, world.ts) that is compared against
+  // `breach.base` — a raw path cost on no HP axis at all. Scaling the HP pool
+  // down by `k` without dividing `perEhp` by it would make every wall ~`k`
+  // times cheaper to path through relative to that base, which is a pathing
+  // change, not a rescale. Inverting it here keeps the product invariant.
+  if (typeof c.towers.breach?.perEhp === 'number') c.towers.breach.perEhp /= k;
+  for (const t of c.towers.towers) {
+    scaleFields(t, k, ['hp']);
+    scaleFields(t.attack, k, ['damage']);
+    scaleFields(t.attack?.burn, k, ['dps']);
+    scaleFields(t.vsSpecial, k, ['damage']);
+  }
+
+  // Classes: every authored kit magnitude. The `towerPassive.mods` record is
+  // percentages, handled by `scaleStats` for the rows that are not.
+  for (const cls of c.classes.classes) {
+    scaleFields(cls.basicAttack, k, ['dps']);
+    scaleFields(cls.passive, k, CLASS_PASSIVE_SCALED_FIELDS);
+    scaleFields(cls.active1, k, CLASS_ACTIVE_SCALED_FIELDS);
+    scaleFields(cls.active2, k, CLASS_ACTIVE_SCALED_FIELDS);
+    scaleStats(cls.towerPassive?.mods as StatRecord, k);
+    // Today's `passive.mods` are all percent/rate stats, so this is a no-op —
+    // but the census classifies this path through `STAT_SCALED`, so the day one
+    // authors `atkFlat` here the scaler must already be looking (code review).
+    scaleStats(cls.passive?.mods as StatRecord, k);
+  }
+
+  // Cores: the Core's own HP pool, its upgrade steps' HP/regen, and the two
+  // authored Core attack magnitudes. `overhealGoldRatio` converts HP into gold
+  // and gold is on no HP axis, so it moves with the scale — but **forward**,
+  // not inverted like `breach.perEhp`: the ratio is a *divisor*
+  // (`gold += excess / ratio`, cores.ts) where `perEhp` is a *factor*, so
+  // holding `excess / ratio` constant while `excess` shrinks by `k` needs the
+  // ratio to shrink by `k` too. Shipped inverted for one round on review's
+  // reasoning; qa-playtester's control pair caught it (Vampire Heart paid
+  // 100x less gold and diverged materially on 5 of 5 seeds, and flipping these
+  // two lines alone restored 0 of 5).
+  for (const core of c.cores.cores) {
+    scaleFields(core, k, ['baseHp']);
+    scaleFields(core.effects, k, CORE_EFFECT_SCALED_FIELDS);
+    scaleFields(core.effects, k, ['overhealGoldRatio']);
+    for (const step of core.upgrade?.steps ?? []) {
+      scaleFields(step, k, CORE_STEP_SCALED_FIELDS);
+      scaleFields(step, k, ['overhealGoldRatio']);
+    }
+  }
+
+  // Damage types: a `dps` row is a flat magnitude; a `ratio` row is a fraction
+  // of the hit that triggered it and is already scaled through that hit.
+  for (const t of c.damageTypes.types) scaleFields(t, k, ['dps']);
+
+  // Stat records authored across the meta layer.
+  for (const n of c.tree.nodes) scaleStats(n.stats as StatRecord, k);
+  for (const item of c.equipment.items) {
+    scaleStats(item.mods as StatRecord, k);
+    scaleStats(item.classFallback?.mods as StatRecord, k);
+  }
+  for (const b of c.boons.statBoons) {
+    if (STAT_SCALED[b.stat as StatKey]) b.perRank *= k;
+  }
+
+  // The Core HP a drafted modifier adds or removes.
+  for (const m of c.modifiers.modifiers) scaleFields(m.effect, k, ['coreHp']);
+
+  // A quest whose target counts *damage* is denominated in damage (code
+  // review, Major 4: `hundred_grand` asks for 100,000 lifetime damage, which
+  // the rescale would otherwise have made a 10x longer grind). Counting quests
+  // — kills, waves, runs — are not.
+  for (const q of c.quests.quests) {
+    if (q.metric === 'lifetime_damage') q.target *= k;
+  }
+
+  // The run's Core pool and the character's own base pool.
+  scaleFields(c.waves, k, ['coreHp']);
+  scaleFields(c.warden, k, WARDEN_SCALED_FIELDS);
+}
+
+/** Named so `tests/fb153a-number-scale.test.ts`'s census can check them against `/data`. */
+export const ENEMY_SCALED_FIELDS = [
+  'hp',
+  'coreDamage',
+  'attackDamage',
+  'explodeDamage',
+  'stompDamage',
+  'trailDps',
+  // The Mender's heal is flat HP added to a neighbour's pool, not a fraction of
+  // it — found by `tests/fb153a-number-scale.test.ts`'s census after two name
+  // greps missed it, which is the census's whole reason for existing.
+  'healRate',
+] as const;
+export const CLASS_ACTIVE_SCALED_FIELDS = [
+  'damage',
+  'minDamage',
+  'burnDps',
+  'pylonDps',
+  'markPastDotDps',
+  'markPresentDotDps',
+  // An HP heal, so it is on the HP axis. `pactDrainPerSecond` next to it is
+  // *not*: it drains a fraction of the structure's own max HP.
+  'healPerEnemy',
+] as const;
+export const CLASS_PASSIVE_SCALED_FIELDS = ['flameDps', 'shatterDamage'] as const;
+export const CORE_EFFECT_SCALED_FIELDS = ['devourEliteDamage', 'poisonBulletDamage', 'devourCoreHeal'] as const;
+export const CORE_STEP_SCALED_FIELDS = ['coreHpBonus', 'hpRegenPerSecond'] as const;
+/** `heartstoneHeal` is HP per second on the character, like `hpRegen`. */
+export const WARDEN_SCALED_FIELDS = ['maxHp', 'hpRegen', 'heartstoneHeal'] as const;
+
+
+/**
+ * fb153a: is a dotted `data/classes.json` field path one the scale divides?
+ * Exported so the §4 ledgers (`tests/class-spec-numbers.test.ts`,
+ * `tests/class-descriptions.test.ts`) can read a loaded value back into
+ * authored units instead of restating SPEC-FINAL's figures in display units.
+ */
+export function isScaledClassPath(path: readonly string[]): boolean {
+  const leaf = path[path.length - 1];
+  const parent = path[path.length - 2];
+  if (parent === 'basicAttack') return leaf === 'dps';
+  if (parent === 'passive') return (CLASS_PASSIVE_SCALED_FIELDS as readonly string[]).includes(leaf);
+  if (parent === 'active1' || parent === 'active2') return (CLASS_ACTIVE_SCALED_FIELDS as readonly string[]).includes(leaf);
+  return false;
+}
+
 export function loadContent(overrides?: ContentOverrides): Content {
   if (!overrides && cached) return cached;
 
@@ -1971,6 +2190,22 @@ export function loadContent(overrides?: ContentOverrides): Content {
   const damageTypes = DamageTypesFileSchema.parse(damageTypesDoc);
   const cores = CoresFileSchema.parse(coresDoc);
   const equipment = EquipmentFileSchema.parse(equipmentDoc);
+  // fb153a: the warden's own base pool is parsed at module scope (`wardenBase`),
+  // which is shared by every Content — so this Content gets its own copy to
+  // scale, and `derive` (stats.ts) reads it from here rather than from the
+  // module constant.
+  const wardenDoc = overrides?.warden ?? wardenRaw;
+  const warden = WardenFileSchema.parse(wardenDoc);
+
+  // fb153a: the owner's rescale, applied to the parsed copies before anything
+  // validates or reads them. `Content.raw` keeps the *authored* documents, so
+  // `contentHash()` still hashes what is on disk (b044) — and `numberScale`
+  // itself is one of those authored bytes, so editing it fails a stale replay
+  // loudly, exactly as §12 rule 2 requires of any /data edit.
+  applyNumberScale(
+    { towers, enemies, waves, boons, tree, modifiers, classes, damageTypes, cores, equipment, quests, warden },
+    modifiers.numberScale,
+  );
 
   // Cross-file referential integrity: a typo in /data must fail loudly at load.
   const towerKeys = new Set(towers.towers.map((t) => t.key));
@@ -2190,7 +2425,7 @@ export function loadContent(overrides?: ContentOverrides): Content {
 
   const result: Content = {
     raw: {
-      warden: wardenRaw,
+      warden: wardenDoc,
       towers: towersDoc,
       enemies: enemiesDoc,
       waves: wavesDoc,
@@ -2206,7 +2441,7 @@ export function loadContent(overrides?: ContentOverrides): Content {
       equipment: equipmentDoc,
       mapTerrain: mapTerrainRaw,
     },
-    warden: wardenBase,
+    warden,
     towers,
     enemies,
     waves,

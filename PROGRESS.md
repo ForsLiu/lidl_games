@@ -5,6 +5,92 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-05 — BACKLOG fb153a (owner order, top priority): every HP and damage
+  number in `/data` is divided by one authored factor.** `data/modifiers.json`
+  gains `numberScale` (shipped **0.1** ⚖, optional, `1.0` identity, bounded
+  `[1e-4, 1e4]`), applied by `applyNumberScale` to the *parsed* content at load
+  — the shape `baseHpMul`'s own header argues for, and the only shape that
+  leaves SPEC-FINAL §4/§5/§7/§9's stated figures true of `/data`, which four
+  ledger files exist to enforce. `Content.raw` still carries the authored
+  documents, so `contentHash` hashes what is on disk and a replay against an
+  edited factor fails loudly. `STAT_SCALED` (statkeys.ts) is the exhaustive
+  `Record<StatKey, boolean>` half for `/data`-authored stat records;
+  `tests/helpers.ts` gains `scaled()` so the suite states magnitudes in authored
+  units and the factor stays a real ⚖ tunable instead of a suite-wide rewrite.
+
+  **Proportionality, measured with a control pair** (`npm run sim -- --seed N
+  --policy hybrid`, scale 1.0 vs 0.1): seeds 1 and 9 are **identical** in
+  outcome, waves cleared, VS waves, kills and leaks; seed 3 differs by 35 of
+  42,220 ticks (float re-association) and matches on everything else;
+  `damageTotal` is exactly /10 on all three. Getting there required finding the
+  asymmetries: three `Math.max(1, ...)` magnitude floors and four `boss.ts`
+  damage literals were rule-4 debt that did not scale — `attackStructure`'s
+  floor alone flattened the tier ladder's structure rung to exactly 1.0.
+
+  **The completeness risk is the item**, so it is closed by a census rather than
+  greps: `tests/fb153a-number-scale.test.ts` walks every numeric leaf of every
+  `/data` file, compares loaded against authored, and demands a classification
+  for any field whose name reads like an HP/damage/heal/attack quantity. It
+  found `healRate`, `devourCoreHeal`, `healPerEnemy` and `heartstoneHeal` after
+  two rounds of name greps had missed all four.
+
+  **code-reviewer returned 2 Critical and 6 Major; all are fixed.** `BASE.heartstoneHeal`
+  (weapons.ts) read the shared pre-scale parse, leaving a 1 HP/s heal on a 10 HP
+  pool — a live 10x buff the item's own field list claimed to cover. The Tuner's
+  editors were seeded from the *parsed* view, so a Save would have written the
+  already-divided numbers back over `/data` and the next load would divide them
+  again; they now read `content.raw.<file>`. Also fixed: the Time core's decay
+  aura and four `??` fallbacks were unscaled code literals; `overhealGoldRatio`
+  converts HP into gold and needed the **inverse** scale, like `breach.perEhp`;
+  `hundred_grand`'s `lifetime_damage` quest target would have become a 10x
+  longer grind; and the census's own risky-name guard matched 2 of the 19 names
+  it was written for until it was re-tokenised on camelCase boundaries.
+
+  **What it does not deliver, measured and filed rather than claimed.** The
+  order's "typical early hits are single digits" clause is **not** met: at 0.1
+  the on-screen distribution is median 60 in minutes 0-3 and 88 past minute 20
+  (p90 110-844, max 1205), so mid/late hits are double digits and early ones are
+  not — because median hit size is nearly flat across a run rather than growing.
+  No single factor can meet both clauses: `/data` carries two economies (enemy
+  HP and damage dealt to enemies, versus enemy output, Core/character HP and
+  equipment flats), and /100 — which would put typical hits at 6-9 — takes the
+  character pool to 1 HP and equipment to +0.01. Filed as **fb163** for an owner
+  verdict, with the five lifesteal/tithe/wrath/store/vampire crossing points
+  named. The authored *prose* is also now a factor off what the sim runs on
+  ("+15 Max HP" granting 1.5) — the owner's own "re-anchored as data" clause,
+  unimplemented by the one-knob shape and filed as **fb164** with
+  `tests/class-descriptions.test.ts`'s narrowed guarantee stated in the file
+  itself. The renderer's `>= 1` thresholds were fixed here rather than filed:
+  they hid every flat-DoT number and rendered a chilled husk's hit as `-0`.
+
+  **qa-playtester ran 130 control pairs and found one material break; it is
+  fixed.** 122 were clean (12 classes x 2 seeds, 10 policies, tiers 1/3/5 x 12
+  seeds, seeds 1-20, four Cores); the 8 that were not were all Vampire Heart,
+  because `overhealGoldRatio` had been scaled in the wrong *direction* — it is a
+  divisor (`gold += excess / ratio`) where `breach.perEhp` is a factor, so it
+  takes `k`, not `1/k`. It paid 100x less gold and flipped seed 2 from victory
+  to `defeat_core` and seed 17 into a timeout. QA also proved the two tests that
+  should have caught it were tautological: both read the divisor back out of the
+  *loaded* content, so they asserted `implementation === implementation` at any
+  scale. Also fixed from that round: `world.ts`'s `coreMaxHp` kept an unscaled
+  `Math.max(1, ...)` floor (the fourth of its kind, found by sweeping the knob
+  across its legal range rather than testing the shipped value); the Codex
+  showed loaded numbers under a column named `authoredHp` and disagreed with
+  its own Tuner editor one click away; two suite tests fed loaded views back
+  through `ContentOverrides` and so ran doubly-scaled worlds; and a save's
+  banked `lifetime_damage` was in pre-rescale units with no migration, which
+  unlocked the Corpse Core off a zero-damage run (`SAVE_VERSION` 5). QA's
+  observation that a **typo** in the key (`numberScal3`) silently ships the
+  pre-rescale game at the 1.0 identity is logged as **Q181**.
+
+  Verification: `npm run test:fast` at the parent commit's own baseline (the
+  `q41`/`q45`/`q15`/`b028` scratch-dir family, controlled), the census and both
+  new cross-scale control cases green (the gold one verified to fail against the
+  inverted constant), and a re-run control pair over **five Cores x three
+  seeds**: 13 identical to the tick, 2 within float noise (same outcome, same
+  waves, ticks 0.02%/0.16% apart, damage ratio 0.0997/0.1005). QUESTIONS
+  **Q180** carries the design choices and the readability measurement.
+
 - **2026-09-05 — BACKLOG fb152 (owner order, [bug], top of queue): DoTs tick on
   a bounded cadence instead of every sim frame.** `data/damagetypes.json` gains
   `dotTickInterval: 0.25` (optional-with-default, plus a loader rule refusing a

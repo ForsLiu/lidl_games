@@ -86,7 +86,8 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
-import { loadContent } from '../src/sim/content';
+import { isScaledClassPath, loadContent } from '../src/sim/content';
+import { scaled } from './helpers';
 
 const content = loadContent();
 
@@ -99,6 +100,15 @@ const SPEC_4_SHA256 = 'e12eae96e2b2ba9cebf1f055aaf28f44abfa66e627d815aa45f2de6e7
 
 /** §3's own Burning row — Pyro's "3 Burning" is stated in units of it. */
 const BURNING = content.damageTypeByKey.get('burning');
+/**
+ * fb153a: the **authored** per-application Burning dps. Rows stated in units of
+ * it (Pyromancer's "applying 3 Burning") divide an authored magnitude by an
+ * authored unit; dividing by the loaded, scaled one would cancel the scale
+ * twice over and read 90 instead of 9.
+ */
+const BURNING_AUTHORED_DPS = (content.raw.damageTypes as { types: { key: string; dps?: number }[] }).types.find(
+  (t) => t.key === 'burning',
+)?.dps;
 /** §3's own frozen status — Time Lord's "stun-locks 3 s" is stated in units of it. */
 const FROZEN = content.damageTypes.statuses.frozen;
 
@@ -543,7 +553,7 @@ const LEDGER: readonly Figure[] = [
     figure: 'applying 3 Burning',
     spec: 3,
     path: ['active1', 'burnDps'],
-    as: (v) => v / (BURNING?.dps ?? Number.NaN),
+    as: (v) => v / (BURNING_AUTHORED_DPS ?? Number.NaN),
     status: {
       kind: 'retuned',
       authorised: P12A,
@@ -1350,8 +1360,14 @@ function readFrom(doc: RawClassesDoc, f: Figure): number | undefined {
 /** The figure's value as the *loaded* content carries it — what the sim runs on. */
 function readLoaded(f: Figure): number | undefined {
   if (!f.path) return undefined;
-  const raw = walk(content.classByKey.get(f.cls), f.path);
-  if (typeof raw !== 'number') return undefined;
+  const walked = walk(content.classByKey.get(f.cls), f.path);
+  if (typeof walked !== 'number') return undefined;
+  // fb153a: `numberScale` divides every authored kit *magnitude* at load. §4
+  // states the authored figure and `data/classes.json` still holds it, so the
+  // ledger reads the loaded value back through the scale rather than restating
+  // §4 in display units — and the bridge test at the foot of this file then
+  // proves the scaler applied exactly that factor to exactly these paths.
+  const raw = isScaledClassPath(f.path) ? walked / content.modifiers.numberScale : walked;
   return f.as ? f.as(raw) : raw;
 }
 
@@ -1782,6 +1798,7 @@ describe('c008 — the two figures §4 states in another section’s units', () 
   it("§3 Burning's per-application dps is the unit the 3-Burning row is read in", () => {
     // If this moves, the ledger's Immolation row silently changes meaning —
     // so the unit itself is pinned rather than assumed.
-    expect(BURNING!.dps).toBe(1);
+    expect(BURNING!.dps).toBeCloseTo(scaled(1), 12);
+    expect(BURNING_AUTHORED_DPS).toBe(1);
   });
 });

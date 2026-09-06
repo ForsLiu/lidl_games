@@ -265,7 +265,8 @@ describe('fb152 — DoT tick cadence', () => {
     const e = dummy(w);
     const dps = 10;
     const frozenFrames = 14; // ends inside the first interval
-    const bonus = w.content.damageTypes.statuses.frozen.damageTaken;
+    const bonus = w.content.damageTypes.statuses.frozen.damageTaken ?? 0;
+    expect(bonus).toBeGreaterThan(0);
     applyDot(w, e, 'bleeding', dps, 4);
     const before = e.hp;
     const steps = Math.round(4.5 * 60);

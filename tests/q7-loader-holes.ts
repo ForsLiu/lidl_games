@@ -511,6 +511,13 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   // thing that would be unpayable — a value under 1, which inverts the ladder
   // and would ship a T5 easier than T1 — is refused by `validateTierLadder`
   // at load, one layer above the schema this census fuzzes.
+  // fb153a: the global HP/damage rescale. `negative`/`zero` are rejected
+  // (`num.positive()`), `fractional` is accepted because the shipped value *is*
+  // fractional (0.1) — a scale has no integrality to violate — and
+  // `drop-key`/`rename-key` are the optional-with-a-default back-compat shape
+  // every other field of this kind here has: a file predating the item loads at
+  // the 1.0 identity.
+  'modifiers.numberScale': ['fractional', 'drop-key', 'rename-key'],
   'modifiers.tierBudgetPerStep': ['fractional'],
   'modifiers.tierCoreDamagePerStep': ['fractional'],
   'modifiers.tierEnemyHpPerStep': ['fractional'],

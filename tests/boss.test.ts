@@ -13,7 +13,7 @@ import { loadContent } from '../src/sim/content';
 import { allTreeNodeIds } from '../src/meta/meta';
 import type { Enemy } from '../src/sim/types';
 import { tierEnemyHpMul } from '../src/sim/tiers';
-import { cfg, GATE_TIER, runScripted } from './helpers';
+import { cfg, GATE_TIER, runScripted, scaled } from './helpers';
 
 // fb049 (Q138 re-measurement): real Hub-started runs feed the full
 // Constellation tree into `allocated` (`TREE_AUTO_MAX`) — `cfg()`'s own
@@ -111,7 +111,7 @@ describe('the Warden-Eater (SPEC 5.5)', () => {
     // number is still asserted, just not the spawned one. The fight-length
     // case below is what proves this is still a beatable fight rather than a
     // wall, and it is measured, not assumed.
-    expect(e.maxHp).toBeCloseTo(365000 * w.content.enemies.baseHpMul, 0);
+    expect(e.maxHp).toBeCloseTo(scaled(365000) * w.content.enemies.baseHpMul, 0);
 
     // p12b (code-reviewer m6): pin the *rung*, not just "bigger". A bare
     // `>` passed equally well when the boss carried its old borrowed

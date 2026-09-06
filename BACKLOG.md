@@ -84,7 +84,15 @@ therefore measure *after* `fb153`, not before.
 - [ ] (fb153) [balance] **OWNER ORDER, top priority** — damage numbers are too
       high to read. Two coordinated changes, split into sub-items because each
       is independently verifiable:
-  - [ ] (fb153a) [balance] global rescale so typical early hits are single
+  - [x] (fb153a) [balance] **DONE 2026-09-05** — shipped as one authored
+        `numberScale` (`data/modifiers.json`, 0.1 ⚖) applied at load, with a
+        census test over every numeric `/data` leaf and a three-seed control
+        pair proving proportionality (identical outcomes, `damageTotal` /10).
+        The order's "single-digit early hits" clause is measured **not met**
+        and cannot be by any single factor — see QUESTIONS Q180, follow-ups
+        **fb163** (two economies, owner verdict) and **fb164** (authored prose
+        still quotes pre-rescale numbers). Original text follows.
+        Global rescale so typical early hits are single
         digits and mid/late hits double digits: divide **all** damage sources
         AND **all** enemy/structure HP by the same factor (start at **/10** ⚖)
         so relative balance is preserved. Armor is a percent and is untouched;
@@ -149,6 +157,48 @@ therefore measure *after* `fb153`, not before.
       neighbour cases; the G5/A5 damage-share suites are re-measured and their
       deltas recorded (they read exactly this ledger) — refs: QUESTIONS Q179,
       SPEC-FINAL §5.5 (Corpse), Q91.
+- [ ] (fb164) [bug] **player-facing prose still quotes pre-rescale numbers.**
+      fb153a divides every HP/damage magnitude at load, but `/data`'s authored
+      *sentences* were not re-anchored, so the game now tells the player numbers
+      it does not run on: `data/vsupgrades.json`'s `vitality` reads "+15 Max HP"
+      and grants 1.5 on a 10 HP pool (rendered verbatim at `src/ui/hud.ts`),
+      `data/damagetypes.json`'s Bleeding reads "1 damage per second" and deals
+      0.1, and every class/equipment/tree `desc` that quotes a magnitude is off
+      by the same factor. This is the owner's own clause — "flat effects like
+      '1 dmg/s Bleeding' re-anchored to the new scale as data" — left
+      unimplemented by the one-knob shape, and it is what code review's Major 5
+      named when `tests/class-descriptions.test.ts` was re-pointed at authored
+      units: that ledger exists to catch "the player is told a number the sim
+      does not run on", and it can no longer see this one. Prefer **deriving**
+      the quoted magnitude from the loaded value (the `info-format.ts`
+      live-numbers path fb022/fb028 already built) over re-typing ~50 strings
+      that a later `numberScale` re-tune would invalidate again. Acceptance:
+      every authored sentence that quotes an HP/damage magnitude either derives
+      it or matches the loaded value; `tests/class-descriptions.test.ts` is
+      re-pointed back at the *loaded* value and green; a test asserts no
+      remaining `/data` desc string quotes a magnitude that differs from what
+      the sim runs on — refs: QUESTIONS Q180, owner feedback
+      `balance-damage-rescale-and-bigger-map` item 1, code review Major 5.
+- [ ] (fb163) [balance] **the owner's call fb153a's measurement asks for**
+      (QUESTIONS Q180): `/data` carries **two** number economies — enemy HP and
+      the damage dealt *to* enemies (tower damage 150-4200 against enemy HP
+      80-365,000 x `baseHpMul` 20) versus enemy damage output, Core/structure/
+      character HP and equipment flats (already single/double digit) — and one
+      global `numberScale` cannot make the first readable without making the
+      second vanish (at /10 the character pool reads 10 HP and equipment gives
+      +0.1 HP; at /100, which *would* put typical hits at 6-9, they read 1 HP
+      and +0.01). Scaling only the first economy is **not** balance-neutral:
+      lifesteal, Blood Tithe, Wrath, the Corpse store and Vampire Heart all
+      convert between them, so each needs a conversion decision and a control
+      run. Options, for an owner verdict: (a) keep one factor and accept the
+      coarse character sheet; (b) two factors plus a named conversion constant
+      at each of the five crossing points; (c) leave the sim alone and format
+      large numbers compactly in the HUD instead. Acceptance: the owner's
+      choice is implemented, the five crossing points are each measured with a
+      before/after control pair, and the on-screen hit distribution is
+      re-measured (fb153a's baseline: median 60 early / 88 late, p90 110-844) —
+      refs: QUESTIONS Q180, owner feedback
+      `balance-damage-rescale-and-bigger-map` item 1.
 - [ ] (fb155) [feat] enemy attack-kind and attack-range data — the main-lane
       `/data` half of the UI lane's `fb158`, filed here because
       `data/enemies.json` is outside that lane's Scope. Every one of the 20 §9

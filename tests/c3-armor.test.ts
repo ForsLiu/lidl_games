@@ -28,7 +28,7 @@ import { hashWorld } from '../src/sim/run';
 import { EnemySchema } from '../src/sim/content';
 import enemiesRaw from '../data/enemies.json';
 import { World } from '../src/sim/world';
-import { cfg } from './helpers';
+import { cfg, scaled } from './helpers';
 
 /** A world with the Warden parked out of harm's way and no i-frames pending. */
 function world(armor = 0): World {
@@ -91,17 +91,17 @@ describe('C3 — the Warden defends with it', () => {
   it('takes reduced damage at positive armour', () => {
     const w = world(60);
     expect(wardenArmor(w)).toBe(60);
-    expect(hit(w, 50)).toBeCloseTo(50 * 0.4, 6);
+    expect(hit(w, scaled(50))).toBeCloseTo(scaled(50) * 0.4, 6);
   });
 
   it('takes extra damage at negative armour', () => {
     const w = world(-90);
-    expect(hit(w, 50)).toBeCloseTo(50 * 1.9, 6);
+    expect(hit(w, scaled(50))).toBeCloseTo(scaled(50) * 1.9, 6);
   });
 
   it('takes exactly the dealt amount at zero armour', () => {
     const w = world(0);
-    expect(hit(w, 37)).toBeCloseTo(37, 6);
+    expect(hit(w, scaled(37))).toBeCloseTo(scaled(37), 6);
   });
 
   it('never divides by the old armorK curve', () => {
@@ -109,22 +109,22 @@ describe('C3 — the Warden defends with it', () => {
     // curve. Picked because the two formulas disagree there — at 0 and at 50
     // they agree, so a reverted implementation would pass those inputs.
     const w = world(20);
-    expect(hit(w, 100)).toBeCloseTo(80, 6);
-    expect(hit(w, 100)).not.toBeCloseTo(100 * (1 - 20 / 70), 2);
+    expect(hit(w, scaled(100))).toBeCloseTo(scaled(80), 6);
+    expect(hit(w, scaled(100))).not.toBeCloseTo(scaled(100) * (1 - 20 / 70), 2);
   });
 
   it('ignores armour for ailment damage, in both directions', () => {
     const armoured = world(75);
-    expect(hit(armoured, 40, { dot: true })).toBeCloseTo(40, 6);
+    expect(hit(armoured, scaled(40), { dot: true })).toBeCloseTo(scaled(40), 6);
     const shredded = world(-50);
-    expect(hit(shredded, 40, { dot: true })).toBeCloseTo(40, 6);
+    expect(hit(shredded, scaled(40), { dot: true })).toBeCloseTo(scaled(40), 6);
   });
 
   it('subtracts shred from the sheet value', () => {
     const w = world(30);
     w.warden.armorShred = 120;
     expect(wardenArmor(w)).toBe(-90);
-    expect(hit(w, 10)).toBeCloseTo(19, 6);
+    expect(hit(w, scaled(10))).toBeCloseTo(scaled(19), 6);
   });
 });
 
@@ -267,12 +267,12 @@ describe('C3 — the wiring, not just the arithmetic', () => {
     // would have silently arrived armoured.
     const w = world(75);
     const before = w.warden.hp;
-    handlerDamageWarden(w, 40, { dot: true });
-    expect(before - w.warden.hp).toBeCloseTo(40, 6);
+    handlerDamageWarden(w, scaled(40), { dot: true });
+    expect(before - w.warden.hp).toBeCloseTo(scaled(40), 6);
 
     w.warden.hp = w.derived.maxHp;
-    handlerDamageWarden(w, 40);
-    expect(w.derived.maxHp - w.warden.hp).toBeCloseTo(10, 6);
+    handlerDamageWarden(w, scaled(40));
+    expect(w.derived.maxHp - w.warden.hp).toBeCloseTo(scaled(10), 6);
   });
 });
 

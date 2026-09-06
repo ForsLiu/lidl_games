@@ -1420,7 +1420,11 @@ function updateAbilities(w: World, e: Enemy, def: EnemyDef, dt: number, act2: bo
     if (e.abilityTimer <= 0) {
       e.abilityTimer = 0.5;
       const r = def.healRadius ?? 3;
-      const heal = (def.healRate ?? 8) * 0.5;
+      // fb153a: the fallback is in *authored* units like the field it stands in
+      // for, so it takes the same `numberScale` the authored value already took
+      // at load — otherwise an enemy that omits `healRate` would heal at the
+      // pre-rescale magnitude.
+      const heal = (def.healRate ?? 8 * w.content.modifiers.numberScale) * 0.5;
       w.enemiesInRadius(e.x, e.y, r, scratch);
       for (const o of scratch) {
         if (o.id === e.id || o.dead) continue;
@@ -1452,13 +1456,13 @@ function updateAbilities(w: World, e: Enemy, def: EnemyDef, dt: number, act2: bo
       const r = def.stompRadius ?? 2;
       w.emit('stomp', e.x, e.y, r, 0);
       if (dist2(e.x, e.y, w.warden.x, w.warden.y) <= r * r) {
-        damageWarden(w, def.stompDamage ?? 25);
+        damageWarden(w, def.stompDamage ?? 25 * w.content.modifiers.numberScale);
       }
       for (let dy = -Math.ceil(r); dy <= Math.ceil(r); dy++) {
         for (let dx = -Math.ceil(r); dx <= Math.ceil(r); dx++) {
           const s = w.structureAt(Math.floor(e.x) + dx, Math.floor(e.y) + dy);
           if (s && dist(e.x, e.y, s.tx + 0.5, s.ty + 0.5) <= r) {
-            damageStructure(w, s, (def.stompDamage ?? 25) * 2);
+            damageStructure(w, s, (def.stompDamage ?? 25 * w.content.modifiers.numberScale) * 2);
           }
         }
       }
@@ -1474,7 +1478,7 @@ function updateAbilities(w: World, e: Enemy, def: EnemyDef, dt: number, act2: bo
         x: e.x,
         y: e.y,
         radius: def.trailRadius ?? 0.6,
-        dps: def.trailDps ?? 6,
+        dps: def.trailDps ?? 6 * w.content.modifiers.numberScale,
         remaining: 3,
         type: 'enemyFire',
         source: 'cinderling',
@@ -1490,13 +1494,13 @@ function updateAbilities(w: World, e: Enemy, def: EnemyDef, dt: number, act2: bo
       // Spitters harass the Warden when in range, otherwise chew on structures.
       if (dist2(e.x, e.y, w.warden.x, w.warden.y) <= range * range) {
         e.attackCooldown = def.attackInterval ?? 2;
-        damageWarden(w, def.attackDamage ?? 6);
+        damageWarden(w, def.attackDamage ?? 6 * w.content.modifiers.numberScale);
         w.emit('spit', e.x, e.y, w.warden.x, w.warden.y);
       } else if (!act2) {
         const s = nearestStructureWithin(w, e.x, e.y, range);
         if (s) {
           e.attackCooldown = def.attackInterval ?? 2;
-          damageStructure(w, s, def.attackDamage ?? 6);
+          damageStructure(w, s, def.attackDamage ?? 6 * w.content.modifiers.numberScale);
           w.emit('spit', e.x, e.y, s.tx + 0.5, s.ty + 0.5);
         }
       }
@@ -1834,7 +1838,12 @@ export function attackStructure(w: World, e: Enemy, def: EnemyDef, s: Structure,
   e.attackingStructure = s.id;
   const factor = w.content.waves.enemyStructureDpsFactor;
   const mul = def.structureDamageMul ?? 1;
-  const dps = Math.max(1, enemyCoreDamage(w, def)) * factor * mul;
+  // fb153a: the "an enemy with no `coreDamage` still chews walls" floor is a
+  // damage magnitude, so it takes `numberScale` like every other one. Left at a
+  // bare 1 it swallowed the whole rescale here — every enemy floored to the
+  // pre-rescale minimum, which flattened the tier ladder's structure-damage
+  // rung to exactly 1.0 (caught by `tests/p12b-tier-ladder.test.ts`).
+  const dps = Math.max(w.content.modifiers.numberScale, enemyCoreDamage(w, def)) * factor * mul;
   damageStructure(w, s, dps * dt);
 }
 
@@ -1893,7 +1902,7 @@ export function contactWarden(w: World, e: Enemy, def: EnemyDef): void {
     const r = def.explodeRadius ?? 1.5;
     w.emit('explode', e.x, e.y, r, 0);
     if (dist2(e.x, e.y, w.warden.x, w.warden.y) <= r * r) {
-      damageWarden(w, def.explodeDamage ?? 25);
+      damageWarden(w, def.explodeDamage ?? 25 * w.content.modifiers.numberScale);
     }
     killEnemy(w, e, 'contact');
     return;

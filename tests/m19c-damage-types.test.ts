@@ -37,7 +37,7 @@ import { damageWarden, hashWorld, Run } from '../src/sim/run';
 import { buildTower, updateTowers } from '../src/sim/towers';
 import { World } from '../src/sim/world';
 import type { Enemy, TickInput } from '../src/sim/types';
-import { cfg } from './helpers';
+import { cfg, scaled } from './helpers';
 
 const DT = 1 / 60;
 
@@ -161,7 +161,7 @@ describe('§3 Normal — basic damage; reduced by armor', () => {
 
 describe('§3 Bleeding — 1 dmg/s for 5 s per application, stacking independently', () => {
   it('is authored as 1 dps over 5 s', () => {
-    expect(row('bleeding').dps).toBe(1);
+    expect(row('bleeding').dps).toBeCloseTo(scaled(1), 12);
     expect(row('bleeding').duration).toBe(5);
   });
 
@@ -171,14 +171,14 @@ describe('§3 Bleeding — 1 dmg/s for 5 s per application, stacking independent
     applyDamageType(w, e, 'bleeding', 999, 'test');
     // Flat dps: the damage that triggered it is deliberately irrelevant.
     expect(dotStacks(e, 'bleeding')).toBe(1);
-    expect(tick(w, e, 5)).toBeCloseTo(5, 6);
+    expect(tick(w, e, 5)).toBeCloseTo(scaled(5), 6);
   });
 
   it('expires after 5 s and deals nothing more', () => {
     const w = world();
     const e = dummy(w);
     applyDamageType(w, e, 'bleeding', 1, 'test');
-    expect(tick(w, e, 5.1)).toBeCloseTo(5, 6);
+    expect(tick(w, e, 5.1)).toBeCloseTo(scaled(5), 6);
     expect(dotStacks(e, 'bleeding')).toBe(0);
     expect(tick(w, e, 3)).toBeCloseTo(0, 9);
   });
@@ -189,7 +189,7 @@ describe('§3 Bleeding — 1 dmg/s for 5 s per application, stacking independent
     for (let i = 0; i < 4; i++) applyDamageType(w, e, 'bleeding', 1, 'test');
     expect(dotStacks(e, 'bleeding')).toBe(4);
     // The refresh model this replaced would deal 5 here, not 20.
-    expect(tick(w, e, 5)).toBeCloseTo(20, 6);
+    expect(tick(w, e, 5)).toBeCloseTo(scaled(20), 6);
   });
 
   it('stacks to the 50/enemy perf cap and no further', () => {
@@ -200,7 +200,7 @@ describe('§3 Bleeding — 1 dmg/s for 5 s per application, stacking independent
     expect(row('bleeding').maxStacks).toBe(50);
     expect(dotStacks(e, 'bleeding')).toBe(50);
     expect(e.dots.length).toBe(50);
-    expect(tick(w, e, 5)).toBeCloseTo(250, 4);
+    expect(tick(w, e, 5)).toBeCloseTo(scaled(250), 4);
   });
 
   it('at the cap an application refreshes the shortest stack rather than being lost', () => {
@@ -288,7 +288,7 @@ describe('§3 Toxic — 180% of the triggering damage over 9 s', () => {
 describe('§3 Burning — 1 dmg and −1 armor per second for 3 s, both AoE (r1)', () => {
   it('is authored as 1 dps, 1 armor/s, 3 s, radius 1', () => {
     const b = row('burning');
-    expect(b.dps).toBe(1);
+    expect(b.dps).toBeCloseTo(scaled(1), 12);
     expect(b.armorShredPerSecond).toBe(1);
     expect(b.duration).toBe(3);
     expect(b.radius).toBe(1);
@@ -299,7 +299,7 @@ describe('§3 Burning — 1 dmg and −1 armor per second for 3 s, both AoE (r1)
     const w = world();
     const e = dummy(w);
     applyDamageType(w, e, 'burning', 999, 'test');
-    expect(tick(w, e, 3)).toBeCloseTo(3, 5);
+    expect(tick(w, e, 3)).toBeCloseTo(scaled(3), 5);
   });
 
   it('strips exactly 3 armor over its 3 s — gate C3s carried clause', () => {
@@ -334,7 +334,7 @@ describe('§3 Burning — 1 dmg and −1 armor per second for 3 s, both AoE (r1)
     const far = dummy(w, 12.5, 10);
     applyDamageType(w, victim, 'burning', 1, 'test');
     const dealtNear = tick(w, near, 3);
-    expect(dealtNear).toBeCloseTo(3, 4);
+    expect(dealtNear).toBeCloseTo(scaled(3), 4);
     expect(near.armorShred).toBeCloseTo(3, 4);
     expect(far.armorShred).toBe(0);
   });
@@ -396,11 +396,15 @@ describe('§3 DoT immunity is a per-row `/data` trait, not hardcoded to Burning 
   // this only passes if `immuneToDot` actually resolves the row's own
   // `immuneTrait` through the trait table rather than testing `type ===
   // 'burning'` under the hood.
+  // fb153a: built from the **raw** document, not from `content.damageTypes`.
+  // A `ContentOverrides` entry is an *authored* document — the same thing the
+  // Tuner saves and `loadContent` reads off disk — so it is in authored units
+  // and `numberScale` is applied to it on the way in. Feeding a loaded
+  // (already-scaled) view back in would scale it a second time.
+  const rawDamageTypes = content.raw.damageTypes as { types: { key: string }[] };
   const bleedImmune = {
-    ...content.damageTypes,
-    types: content.damageTypes.types.map((t) =>
-      t.key === 'bleeding' ? { ...t, immuneTrait: 'slowImmune' } : t,
-    ),
+    ...rawDamageTypes,
+    types: rawDamageTypes.types.map((t) => (t.key === 'bleeding' ? { ...t, immuneTrait: 'slowImmune' } : t)),
   };
 
   it('a carrier of the row-named trait takes neither the hit nor the dot', () => {
@@ -417,7 +421,7 @@ describe('§3 DoT immunity is a per-row `/data` trait, not hardcoded to Burning 
     w.gold = 100000;
     const e = dummy(w);
     applyDamageType(w, e, 'bleeding', 1, 'test');
-    expect(tick(w, e, 5)).toBeCloseTo(5, 5);
+    expect(tick(w, e, 5)).toBeCloseTo(scaled(5), 5);
   });
 
   it('Burning is untouched by another row claiming an unrelated trait', () => {
@@ -425,7 +429,7 @@ describe('§3 DoT immunity is a per-row `/data` trait, not hardcoded to Burning 
     w.gold = 100000;
     const e = variant(w, 'slowImmune');
     applyDamageType(w, e, 'burning', 1, 'test');
-    expect(tick(w, e, 3)).toBeCloseTo(3, 5);
+    expect(tick(w, e, 3)).toBeCloseTo(scaled(3), 5);
   });
 
   it('an unauthored immuneTrait leaves the row immune to nothing', () => {
@@ -612,7 +616,7 @@ describe('§3 frozen — cannot move for 3 s, +30% damage taken', () => {
     const e = dummy(w);
     applyFrozen(w, e);
     applyDamageType(w, e, 'bleeding', 1, 'test');
-    expect(tick(w, e, 3)).toBeCloseTo(3 * 1.3, 4);
+    expect(tick(w, e, 3)).toBeCloseTo(scaled(3) * 1.3, 4);
   });
 
   it('stacks with negative armor rather than replacing it', () => {
@@ -783,7 +787,7 @@ describe('§3 — degenerate inputs', () => {
   it('a DoT can kill, and stops ticking when it does', () => {
     const w = world();
     const e = dummy(w);
-    e.hp = 2;
+    e.hp = scaled(2);
     applyDamageType(w, e, 'bleeding', 1, 'test');
     tick(w, e, 5);
     expect(e.dead).toBe(true);
@@ -812,7 +816,7 @@ describe('§3 Burning — the Pyromancer`s `burnDamage` still scales it', () => 
     applyDamageType(pyro, b, 'burning', 1, 'test');
     tick(pyro, b, 3);
 
-    expect(base).toBeCloseTo(3, 6);
+    expect(base).toBeCloseTo(scaled(3), 6);
     expect(1e6 - b.hp).toBeCloseTo(base * 1.15, 6);
   });
 
@@ -823,7 +827,7 @@ describe('§3 Burning — the Pyromancer`s `burnDamage` still scales it', () => 
     const e = dummy(w, 10, 10);
     applyDamageType(w, e, 'bleeding', 1, 'test');
     tick(w, e, 5);
-    expect(1e6 - e.hp).toBeCloseTo(5, 6);
+    expect(1e6 - e.hp).toBeCloseTo(scaled(5), 6);
   });
 
   it('does not scale the armor shred, which §3 states as a flat 1/s', () => {
@@ -853,7 +857,7 @@ describe('§3 Burning — the spread honours the same rules the application does
     tick(w, victim, 3);
     // The non-immune neighbour proves the spread reached that distance at all.
     expect(normal.armorShred).toBeCloseTo(3, 6);
-    expect(1e6 - normal.hp).toBeCloseTo(3, 6);
+    expect(1e6 - normal.hp).toBeCloseTo(scaled(3), 6);
     expect(immune.armorShred).toBe(0);
     expect(immune.hp).toBe(1e6);
   });
