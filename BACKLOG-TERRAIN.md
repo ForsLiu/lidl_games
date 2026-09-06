@@ -23,6 +23,29 @@ the merge — never edited from this lane.
 
 ## Queue
 
+- [ ] (fb166) [feat] the terrain half of the owner's bigger-map order
+      (BACKLOG.md `fb153b`, `balance-damage-rescale-and-bigger-map` item 2):
+      the default grid goes **36x20 -> 56x32** ⚖, and this lane owns everything
+      that has to move with it — `data/terrain.json`'s constraint bands
+      (`minWalkableFrac`, `minBuildableNormalFrac`, `minCoreLegalFrac`,
+      `minGateReachFrac`, `minCorridorWidth`, `maxGateDetour`), the blob and
+      density parameters fitted against the old area, and every `tests/terrain*`
+      suite. Measured on the main lane before filing: flipping the two grid
+      constants and running `npm run test:fast` reddens **~85 assertions across
+      20 files**, of which this lane's are terrain-band-ledger 10,
+      terrain-generation 9, terrain-approach 7, terrain-seed-domain 6,
+      terrain-grid 5, terrain-high-contest 4, terrain-flat 4, terrain-headroom
+      3, terrain-describe 2, terrain-cost 2, terrain-verify 1,
+      terrain-core-placement 1. Nothing here can be re-fitted until the
+      constants move, so this item **owns the flip**: change `GRID_W`/`GRID_H`
+      in `src/sim/grid.ts` (the single integration-point file this lane's Scope
+      allows, kept to those two lines), re-fit the bands, and re-record the
+      1000-seed property runs at the new size. Acceptance: the generator's
+      property tests hold every owner band across 1000 seeds at 56x32; the
+      band ledger is regenerated with its new numbers; `npm run test:fast`
+      shows no `tests/terrain*` failure; the cost ledger is re-recorded (a
+      56x32 map is 2.5x the tiles) — refs: SPEC-FINAL §10, BACKLOG.md fb153b.
+
 ### Owner feedback routed from `feedback/` (2026-09-05, cloud round 1)
 
 - [ ] (fb156) [feat] maps generate with **4** spawn gates by default (N, S, E, W

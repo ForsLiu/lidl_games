@@ -28,6 +28,26 @@ not already expose it) logs that need below instead of reaching into
 
 ## Queue
 
+- [ ] (fb167) [feat] the camera half of the owner's bigger-map order (BACKLOG.md
+      `fb153b`, `balance-damage-rescale-and-bigger-map` item 2): with the grid
+      going **36x20 -> 56x32**, the whole arena no longer fits a screen at a
+      readable tile size, so the camera **follows the character** with zoom
+      limits and clamps at the map edges. Everything this needs is in this
+      lane's Scope: `src/render/**`'s viewport/letterboxing (it currently sizes
+      to a fixed 36:20 aspect), `src/ui/input.ts`'s click-to-tile math (which
+      must un-project through the camera, not the fixed board), and the overlay
+      geometry suites. Measured on the main lane before filing: flipping the two
+      grid constants reddens **~85 assertions across 20 files**, of which this
+      lane's are `tests/ui-input` 7, `tests/class-board` 6,
+      `tests/ui-fb082-overlay-geometry` 3, `tests/ui-fb106-extreme-aspect-
+      geometry` 2 and `tests/ui-fb102-bossbar-rail-overlap` 1. **Blocked on
+      BACKLOG-TERRAIN.md fb166**, which owns the constant flip; this item is
+      what makes the result playable. Acceptance: the camera follows the
+      character, clamps at both zoom limits and at all four map edges, and
+      click-to-tile is correct at every zoom; the geometry suites are re-fitted
+      and green at 56x32; the reduced-motion setting is respected — refs:
+      SPEC-FINAL §11, BACKLOG.md fb153b.
+
 ### Owner feedback routed from `feedback/` (2026-09-05, cloud round 1)
 
 Four of the eight owner files in that round are UI-lane; ids unchanged from the
