@@ -5,10 +5,32 @@
 
 ## Current state — SPEC-FINAL
 
-- **2026-09-05 session (lane `lane/content`, branch
-  `claude/backlog-content-loop-r8mmic`): in progress.** Items closed this
-  session are listed here as they land; BACKLOG-CONTENT.md's Log carries the
-  detail for each.
+- **2026-09-05/06 session (lane `lane/content`, branch
+  `claude/backlog-content-loop-r8mmic`): six items closed — `c022`, `c025`,
+  `c028`, `c027`, `c031`, `c030`**, one commit each, pushed. The generation
+  rule ran mid-session with two actionable items left and appended
+  `c028`/`c027`/`c031`/`c029`/`c030`; `c029` is the one of those five still
+  open, and the five owner items (`fb056`, `fb057`, `fb059`, `fb061`, `fb062`)
+  remain blocked out of Scope on the same paths as before.
+
+  **The through-line, for whoever picks this up.** Four of the six are one
+  idea: this lane's two spec ledgers audit *numbers*, and a row can carry the
+  right number on the wrong stat — which `c013` and `c024` had each found by
+  hand, one class apart, with no barrier between them. `c022` built the
+  behavioural pointer for §7, `c028` extracted it once `c027` needed it, `c027`
+  adapted it to §4 (where covers observe through signal helpers, not through
+  `w.derived.<stat>`), and `c031` closed the last unwatched `/data`-to-`/src`
+  contract before `fb056` adds fifteen items to it. Every device in them is a
+  mutation that got past an earlier draft; the mutation is the regression test
+  in each case, and BACKLOG-CONTENT.md's Log lists them per item.
+
+  No `/src` or `/data` byte moved in any of the six. `npm run test:fast` ends
+  the session at 3690 passed / 3 failed — `b028`, `q41`, `q45`, which fail
+  identically on a clean checkout of this branch's base (controlled in a stash
+  at the start of the session).
+
+  Items closed are listed below as they landed; BACKLOG-CONTENT.md's Log
+  carries the detail for each.
 
   `c022`: every one of the 13 §7 Effect rows in
   `tests/equip-spec-numbers.test.ts` now carries a **behavioural pointer** —
