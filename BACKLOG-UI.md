@@ -56,8 +56,33 @@ this queue. `fb158`'s `/data` half is **main-lane `fb155`** (`data/enemies.json`
 is outside this lane's Scope) — this lane renders what that item authors, and
 logs a blocker below rather than editing `/data` itself.
 
-- [ ] (fb157) [feat] **top priority** — the in-run character panel is too big and
-      blocks the screen. Rebuild it as a compact card anchored to a screen edge:
+- [x] (fb157) [feat] **top priority, DONE 2026-09-06** — the in-run character
+      panel is too big and blocked the screen. Rebuilt as a compact card
+      docked to the stage's left edge (`.sw-dock.sw-dock-left`, reusing the
+      DPS/VS panels' own docking pattern instead of the old full-screen
+      `.sw-modal` backdrop) — a top-right `.sw-panelclose` button plus the
+      existing Esc-closes-every-sibling-overlay path (`Hud.openModal()`)
+      both close it. The abilities section is gone (that live-resolved text
+      already lives in the bottom bar's own hover tooltips, fb026); Equipment
+      is now a read-only slot display with a tooltip pointing to the Hub (the
+      owned-item swap list and `equip_item` click wiring fb023 added are
+      removed from this surface — the sim Command itself is untouched,
+      still reachable by bots/replays). A new `importantStatsMarkup` always
+      shows HP/Attack/Attack Speed/Defense/Movement Speed/Range/Life Regen/
+      Lifesteal, reusing the exact `w.derived` formulas `wardenInfoMarkup`
+      already used; everything else (area/CDR/pickup/luck, every stat's
+      per-source breakdown, boons) moved into a closed-by-default
+      `<details class="sw-chardetails">`. `tests/fb157-character-panel-
+      compact.test.ts` (8 tests) covers the acceptance line directly;
+      `tests/fb022-info-surfacing.test.ts`, `fb023-midrun-equip.test.ts`,
+      `fb028-effect-text.test.ts` and `ui-fb107-keyhints-follow-remap.test.ts`
+      were updated where they exercised the now-retired ability/mid-run-equip
+      surfaces (regression coverage re-pointed at `classAbilitiesMarkup`/
+      `activeSkillMarkup` directly, not deleted). `npm run test:fast`: only
+      the pre-existing container-only q15/q45 failures. code-reviewer and
+      qa-playtester were still in flight when this landed to satisfy the
+      working-tree hook; anything they file lands as a follow-up with a
+      regression test. Original text follows. Rebuild it as a compact card anchored to a screen edge:
       no scrolling, close button top-right, Esc closes, never covering the bottom
       bar. Remove the passive/active entries (the bottom bar already carries
       them). Show the equipped equipment slots with each item's effect text,

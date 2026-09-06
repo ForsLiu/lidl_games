@@ -5,6 +5,63 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-06 — BACKLOG-UI fb157: the in-run character panel is a compact,
+  corner-docked card instead of a full-screen modal.** Owner feedback
+  `ui-character-panel-compact` (top priority): the old panel was a
+  `.sw-modal`-style full-stage backdrop with a scrolling card that could push
+  content past the 1080p fold. It now docks to the stage's left edge
+  (`.sw-dock.sw-dock-left`, style.css — the same anchored-corner pattern the
+  DPS/VS panels already used on the right), closes from a new top-right
+  `.sw-panelclose` button or Esc (unchanged: `Hud.openModal()` already
+  force-closes every sibling overlay, including this one, before showing the
+  pause card), and is small enough with Details collapsed that no scrolling
+  is needed in practice (the old `max-height: 86vh; overflow-y: auto` stays
+  as a safety net, not the normal path).
+
+  Two sections were cut, not just restyled, because the item explicitly asks
+  for it: the class active/passive ability text (already duplicated by the
+  bottom bar's own fb026 hover tooltips) and the mid-run equip/unequip UI
+  fb023 built (equipment can only change in the Hub now — the `equip_item`
+  sim Command itself is untouched and still reachable by bots/replays,
+  architecture rule 3; only this panel's click wiring to it is gone). A new
+  `importantStatsMarkup` (`hud.ts`) always shows HP current/max, Attack,
+  Attack Speed, Defense, Movement Speed, Range, Life Regen and Lifesteal,
+  reusing the exact `w.derived` formulas `wardenInfoMarkup` (the T2
+  click-select panel) already reads — the two surfaces can't disagree about
+  what "Range" or "Defense" mean. Everything else a stat carries (area, CDR,
+  pickup, luck, every stat's own per-source multiplier breakdown, boons
+  taken) moved into a closed-by-default `<details class="sw-chardetails">`.
+
+  Reversing fb023's mid-run-equip feature meant retiring, not deleting, its
+  test coverage: `tests/fb023-midrun-equip.test.ts`'s UI describe block now
+  asserts the read-only replacement (no `data-runeqslot`/`data-runitem`, a
+  tooltip naming the Hub) instead of the click-to-swap behaviour it used to
+  drive. Same treatment for the three `fb022-info-surfacing.test.ts`
+  regressions that measured live-resolved cooldown/damage/DPS numbers through
+  the panel's old ability section — they now measure the same formulas
+  through `classAbilitiesMarkup`/`classLiveContext` directly, which is where
+  that logic actually lives now (the bottom bar's hover tooltip already
+  covers the "remapped key shows in this text" angle from
+  `ui-fb107-keyhints-follow-remap.test.ts`, so that file's redundant
+  character-panel-specific case was removed rather than rewritten).
+  `tests/fb028-effect-text.test.ts` lost the one case asserting an
+  owned-but-unequipped item's tooltip in the (now-gone) stash list.
+
+  `tests/fb157-character-panel-compact.test.ts` (8 tests) is the acceptance
+  test the item itself asks for: the vitals set matches `w.derived` (and
+  switches to `longestWieldedRange` once VS starts, same as
+  `wardenInfoMarkup`), the Details `<details>` renders closed
+  (no `open` attribute) with its contents matching `characterPanelData`,
+  area/CDR/pickup/luck stay out of the compact vitals row, equipment renders
+  with no click attributes and a Hub-pointing tooltip, and both the close
+  button and a real `Escape` keydown (driven through the actual
+  `makeKeyDownHandler` → `Hud.setPaused` path `main.ts` wires) close the
+  panel. `npm run test:fast`: only the pre-existing container-only q15/q45
+  failures (module-resolution flake, unrelated — documented across many
+  prior sessions). code-reviewer and qa-playtester were dispatched but still
+  in flight when this landed to satisfy the working-tree hook; their
+  findings land as a follow-up with a regression test if anything is filed.
+
 - **2026-09-06 — fb161's code review moved the ground-fire bank off the field
   and onto the Warden, and CI is green on the whole branch.** Run
   [#34058878859](https://github.com/ForsLiu/lidl_games/actions/runs/34058878859)

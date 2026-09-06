@@ -300,6 +300,12 @@ html, body {
   display: none !important;
   pointer-events: none;
 }
+
+/* fb157: the character panel docks to the stage's LEFT edge (the DPS/VS
+   panels above already own the right one) instead of the old full-stage
+   `.sw-modal` backdrop — anchored to a corner, never stretching across the
+   centered `.sw-bottombar`, and never blurring/hiding the game underneath. */
+.sw-dock-left { left: 8px; right: auto; }
 /* Overrides `.sw-card`'s centered-modal sizing (min-width/text-align) so the
    same shell markup (`dpsPanelShellMarkup`/`vsPanelShellMarkup`) fills the
    docked strip instead of the middle of a full-screen grid. ~85% opacity
@@ -379,8 +385,46 @@ html, body {
 
 /* -------------------------------------------------------- character panel */
 
-.sw-charcard { max-height: 86vh; overflow-y: auto; text-align: left; }
-.sw-charcard h2 { text-align: center; }
+.sw-charcard { max-height: 86vh; overflow-y: auto; text-align: left; position: relative; }
+.sw-charcard h2 { text-align: center; padding-right: 22px; }
+
+/* fb157: top-right close button, replacing the old bottom-of-card "Close"
+   button now that the panel is a compact corner-docked card rather than a
+   centered full-stage modal. */
+.sw-panelclose {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  background: transparent;
+  border: none;
+  color: var(--dim);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 6px;
+}
+.sw-panelclose:hover { color: var(--text); }
+
+/* fb157: the always-visible important-stat set — HP/attack/attack speed/
+   defense/movement speed/range/life regen/lifesteal — kept as plain rows,
+   no breakdown, so it stays glanceable and never pushes the card past a
+   1080p screen's height. */
+.sw-vitals { display: flex; flex-direction: column; gap: 2px; margin-bottom: 8px; }
+
+/* fb157: everything else — full per-stat multiplier breakdowns, boons taken —
+   folds behind this closed-by-default pull-down. */
+.sw-chardetails { margin-top: 4px; }
+.sw-chardetails > summary {
+  cursor: pointer;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--dim);
+  margin: 6px 0 4px;
+  list-style: none;
+}
+.sw-chardetails > summary::-webkit-details-marker { display: none; }
+
 .sw-charstats { display: flex; flex-direction: column; gap: 2px; }
 .sw-charstat { border: 1px solid var(--line); border-radius: 4px; padding: 3px 8px; }
 .sw-charstat summary {
