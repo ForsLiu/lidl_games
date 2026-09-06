@@ -93,6 +93,51 @@ export const ENEMY_COLORS: Record<string, string> = {
 };
 
 /**
+ * fb158 (owner feedback `ui-enemy-attack-indicators`, render half): one
+ * distinct color per `EnemyDef.attackKind` (src/sim/content.ts), for the
+ * small per-enemy attack-kind icon and its range ring. Keyed by the same
+ * seven literal strings the schema authors rather than importing `EnemyDef`
+ * itself, matching `ENEMY_COLORS`'s own loose `Record<string, string>`
+ * keying just above — the icon's *shape* (drawn in canvas.ts) is what
+ * actually distinguishes a kind for a colorblind player; color is a second,
+ * non-load-bearing cue.
+ */
+export const ATTACK_KIND_COLORS: Record<string, string> = {
+  melee: '#e0857a',
+  ranged: '#8fc7e0',
+  bomber: '#ff8a5c',
+  healer: '#7fe0a8',
+  buffer: '#ffd166',
+  burrower: '#a07a5a',
+  phaser: '#c9a8ff',
+};
+
+export interface AttackKindIconShape {
+  /** A solid disc (`fill()`) vs. a hollow ring (`stroke()`). */
+  filled: boolean;
+  /** The larger of the two icon radii this file's canvas icon draws in. */
+  big: boolean;
+  /** Half-opacity, vs. full. */
+  faded: boolean;
+}
+
+/**
+ * fb158: the one place that turns an `attackKind` into a shape — both
+ * `canvas.ts`'s `drawAttackKindIcon` (the in-game marker) and `enemy-info.ts`'s
+ * DOM icon (HUD enemy panel, Codex) key off this, so the two surfaces the
+ * item's acceptance line asks to agree ("the Codex enemy pages show the same
+ * icon") cannot drift apart into showing different shapes for one kind.
+ * Every kind gets a unique (filled, big, faded) triple.
+ */
+export function attackKindIconShape(kind: string): AttackKindIconShape {
+  return {
+    filled: kind === 'melee' || kind === 'bomber' || kind === 'buffer' || kind === 'phaser',
+    big: kind === 'bomber' || kind === 'healer' || kind === 'phaser',
+    faded: kind === 'buffer' || kind === 'burrower' || kind === 'phaser',
+  };
+}
+
+/**
  * Per-source projectile and tracer looks (playtest report, 2026-08-25: "should
  * have different bullet projection animation/sprite for different towers").
  *
@@ -151,4 +196,42 @@ const STYLES: Record<string, ProjectileStyle> = {
 export function projectileStyle(source: string): ProjectileStyle {
   const key = source.startsWith('terrain_') ? source.slice('terrain_'.length) : source;
   return STYLES[key] ?? DEFAULT_STYLE;
+}
+
+/**
+ * fb159 (owner feedback `ui-damage-font-scaling`): floating damage numbers
+ * scale with their own value instead of a fixed 12px, so a 10-damage tick and
+ * a several-thousand-damage boss nova don't render identically. Size is
+ * `base + k*log10(value)`, clamped to `[base, max]`; `boldThreshold` is the
+ * value at and above which a number renders bold rather than normal weight
+ * ("10 small, 100 medium, 1000+ large and bold" — the owner feedback's own
+ * three anchors). Crit/execute keeps its own multiplier on top of this
+ * (`executeFontScale`, already data-driven in `data/damagetypes.json`) rather
+ * than losing it; a DoT aggregate tick (fb060) renders at `dotFontScale` of
+ * the same computed size instead of the flat, value-blind 0.7 it used before.
+ *
+ * BACKLOG-UI.md Log: this table belongs in `/data` per this item's own
+ * acceptance line ("Constants are data-driven... not literals in the
+ * renderer") — genuinely out of this lane's Scope (`/data` isn't
+ * `src/ui/**`/`src/render/**`), so it stays a literal here and the migration
+ * is logged for the main-lane merge rather than silently left non-compliant.
+ */
+export const FLOATING_NUMBER_FONT = {
+  base: 9,
+  k: 4,
+  max: 26,
+  boldThreshold: 1000,
+  dotFontScale: 0.8,
+};
+
+/** The `base + k*log10(value)` size in px, clamped, times any crit/execute multiplier. */
+export function floatingNumberFontSize(value: number, fontScale = 1): number {
+  const f = FLOATING_NUMBER_FONT;
+  const raw = f.base + f.k * Math.log10(Math.max(1, value));
+  return Math.min(f.max, Math.max(f.base, raw)) * fontScale;
+}
+
+/** Bold once `value` reaches the large-number anchor, or unconditionally for a crit/execute's own extra styling. */
+export function floatingNumberFontWeight(value: number, fontScale: number): 'bold' | 'normal' {
+  return fontScale > 1 || value >= FLOATING_NUMBER_FONT.boldThreshold ? 'bold' : 'normal';
 }

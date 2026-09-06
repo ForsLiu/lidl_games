@@ -153,7 +153,15 @@ function circleSlashSentence(eff: ClassEffect, live?: ClassLiveContext, cooldown
 function dashSlashSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFactor?: number): string {
   const damage = liveDamageValue(eff.damage, live);
   const cd = liveCooldownValue(eff.cooldownSeconds, live, cooldownFactor);
-  return `Dash ${trimNum(liveDashRange(eff, live) * (live?.swordsmanShoes ? 2 : 1))} tiles toward the cursor, slashing every enemy in a ${trimNum(2 * (eff.dashWidth ?? 0))}-tile-wide line for ${trimNum(damage)} damage.${LINE_FALLOFF_CLAUSE} Usable mid-Circle-Slash-charge: the charge's own range and damage merge into this one hit instead of firing separately. Cooldown ${trimNum(cd)}s.`;
+  // fb150 (qa-playtester, fb112 verification): the old wording ("the
+  // charge's own range and damage merge into this one hit") read as "you
+  // keep the nova's coverage too" — `fireDashSlash` (classes.ts) spends the
+  // charge into `hitRange = dashRange + mergedRadius` (extra LINE length,
+  // not an area) and adds `mergedDamage` to this one line hit; the nova
+  // itself never fires on this path. A player reading the old text as
+  // "still get the nova" could whiff completely (charge behind them, dash
+  // ahead) while paying a full Active1 cooldown for nothing.
+  return `Dash ${trimNum(liveDashRange(eff, live) * (live?.swordsmanShoes ? 2 : 1))} tiles toward the cursor, slashing every enemy in a ${trimNum(2 * (eff.dashWidth ?? 0))}-tile-wide line for ${trimNum(damage)} damage.${LINE_FALLOFF_CLAUSE} Usable mid-Circle-Slash-charge: the charge's radius extends this line's reach and its damage is added to this hit — the nova itself does not fire. Cooldown ${trimNum(cd)}s.`;
 }
 
 function poisonBarrelSentence(eff: ClassEffect, live?: ClassLiveContext, cooldownFactor?: number): string {
