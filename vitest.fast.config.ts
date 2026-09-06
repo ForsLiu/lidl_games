@@ -35,6 +35,14 @@ export default mergeConfig(
         // inflates more than the worst case does and the comparison collapsed
         // to 3.58x. Runs single-threaded under vitest.perf.config.ts instead.
         'tests/q13-perf-sensitivity.test.ts',
+        // CI 2026-09-06, fourth of the family. fb064z's retry-ratio case
+        // ("a seed that generates twice costs about twice") divides the raw
+        // cost of two retry seeds by the median of the other 1498 and asserts
+        // > 1.5x; the runner measured 1.2x, because contention inflates the
+        // 1498-seed denominator too. Split out of tests/terrain-cost.test.ts
+        // (which keeps its deterministic and same-run-mean bounds and stays
+        // here); the shared sweep is tests/terrain-cost-ledger.ts.
+        'tests/terrain-cost-retry-ratio.test.ts',
         // ~1 h: 11 classes × multi-seed full-run diversity measurement (G8).
         'tests/p6e-class-diversity.test.ts',
         // Multi-seed full-run gate measurements over the Core roster.

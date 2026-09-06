@@ -23,6 +23,17 @@ import { fileURLToPath, URL } from 'node:url';
  * shared runner the near-empty tick — already close to timer resolution —
  * inflated proportionally more than the worst case's, measuring **3.58x**.
  * Same reading, same remedy: measure it where the number means something.
+ *
+ * `terrain-cost-retry-ratio` is the fourth, and the one that shows the rule is
+ * not about which side is noisier (2026-09-06). fb064z's "a seed that generates
+ * twice costs about twice" divides the raw cost of the two retry-taking seeds
+ * by the median of the other 1498, with a one-sided `> 1.5` floor chosen
+ * because contention was reasoned to only ever *inflate* the two-seed
+ * numerator. On the runner it read **1.2x**: contention inflates the
+ * 1498-seed denominator as well, and a ratio of two independent wall-clock
+ * populations has no side that noise divides out of. Split out of
+ * `tests/terrain-cost.test.ts`, whose remaining bounds are either
+ * deterministic or taken against the same run's own mean.
  */
 export default defineConfig({
   resolve: {
@@ -35,6 +46,7 @@ export default defineConfig({
       'tests/a10-performance.test.ts',
       'tests/p10e-perf-budget.test.ts',
       'tests/q13-perf-sensitivity.test.ts',
+      'tests/terrain-cost-retry-ratio.test.ts',
     ],
     testTimeout: 240000,
     fileParallelism: false,
