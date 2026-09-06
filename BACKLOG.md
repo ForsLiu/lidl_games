@@ -338,7 +338,40 @@ therefore measure *after* `fb153`, not before.
       neighbour cases; the G5/A5 damage-share suites are re-measured and their
       deltas recorded (they read exactly this ledger) — refs: QUESTIONS Q179,
       SPEC-FINAL §5.5 (Corpse), Q91.
-- [ ] (fb164) [bug] **player-facing prose still quotes pre-rescale numbers.**
+- [x] (fb164) [bug] **DONE 2026-09-06** — audited every `/data` desc/
+      `unlockCondition` string against `applyNumberScale`'s scaled-field lists
+      (`src/sim/content.ts`) and found 11 affected, far short of the "~50" the
+      item worried about: one in `classes.json` (Pyromancer's `flameDps`
+      sentence), one each in `vsupgrades.json` (vitality) and `modifiers.json`
+      (Cracked Core), two in `damagetypes.json` (Bleeding, Burning), two in
+      `tree.json`, and four across `cores.json` (Stone Heart, Vampire Heart's
+      two overheal-ratio clauses, Time's regen/decay-coefficient clauses, and
+      the Corpse Core's `unlockCondition`, which quotes the same lifetime
+      -damage target as the `hundred_grand` quest). Each hand-anchored to the
+      loaded (scaled) value rather than built as a live-derivation mechanism —
+      QUESTIONS Q191 logs why: at 11 strings, wiring four new render call
+      sites through a placeholder mechanism with zero prior `info-format.ts`
+      involvement carried more risk than it removed, and this codebase's own
+      precedent for the same situation (`classes.json`'s p12a retune) is a
+      hand-paired field+sentence edit. `tests/fb164-desc-numbers.test.ts` (11
+      cases, confirmed failing pre-fix) pins every one of the 11 strings
+      against `loadContent()`'s real values, so a future un-paired retune goes
+      red instead of silently stale again — a curated ledger over the audited
+      set, not a generic scanner (Q191 also names that narrowing).
+      `tests/class-descriptions.test.ts`'s `readLoaded` no longer un-scales
+      through `isScaledClassPath` (only its one `flameDps` claim was affected,
+      re-pointed from token `'6'` to `'0.6'`); the "loader and raw document
+      agree" invariant was updated to expect a `numberScale` multiplier on
+      that one scaled path instead of exact equality. `equipment.json`'s desc
+      strings are confirmed out of scope: `grep` shows no `.desc` access
+      anywhere in `src/ui` — equipment's info surfaces already derive their
+      numbers from `item.mods` (fb022/fb028's live-numbers path), never from
+      `desc`. code-reviewer verified every data edit against the loader/code
+      directly (including Vampire Heart's ratio direction and Time's in-code
+      decay coefficient, `cores.ts:673`) and found no further affected
+      strings; `npm run test:fast`: 3926 passed, only the two container-only
+      q15/q45 failures. Original text follows.
+      player-facing prose still quotes pre-rescale numbers.
       fb153a divides every HP/damage magnitude at load, but `/data`'s authored
       *sentences* were not re-anchored, so the game now tells the player numbers
       it does not run on: `data/vsupgrades.json`'s `vitality` reads "+15 Max HP"

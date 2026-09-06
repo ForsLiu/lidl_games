@@ -737,3 +737,40 @@ Q91 and Q102 corrections if not yet done.
   sweeps (a phase gate, not this one) should note fb162 in that sweep's own
   delta writeup.
 
+- **Q191. [fb164] Hand-anchored the sentence to the loaded value instead of
+  building a live-derivation mechanism, and the new test file is a curated
+  ledger, not a generic scanner — both logged per code-reviewer's Majors.**
+  fb164's text prefers deriving a quoted magnitude at render time over
+  re-typing "~50 strings that a later `numberScale` re-tune would invalidate
+  again." A full per-file audit against `applyNumberScale`'s scaled-field
+  lists found the real count far short of that: **one** string in
+  `classes.json` (Pyromancer's `flameDps`), one each in `vsupgrades.json` and
+  `modifiers.json`, two in `damagetypes.json`, two in `tree.json`, and four
+  across `cores.json`'s three affected upgrade descs plus the Corpse Core's
+  `unlockCondition` — 11 strings total, not 50. At that count, wiring four new
+  render call sites (`hud.ts`'s `showOffers`, `tree-view.ts`, and two more)
+  through a new placeholder-substitution mechanism carries more risk (new
+  production code paths with zero prior `info-format.ts` involvement, per the
+  research this item started from) than it removes: the codebase's own
+  precedent for this exact situation is `classes.json`'s p12a retune, which
+  moved the field and the sentence together by hand. Chosen instead: hand
+  -anchor every affected sentence to the loaded value (matching that
+  precedent), and let `tests/fb164-desc-numbers.test.ts` be the safety net
+  that turns a future un-paired retune red — the same shape
+  `class-descriptions.test.ts` already is for `classes.json`, just without
+  that file's full numeral-extraction machinery, since a curated, by-hand
+  ledger over 11 known strings is proportionate where that file's generic
+  extraction earns its cost over `classes.json`'s ~30.
+  **The narrowing this leaves, named rather than hidden:** the new test
+  pins the 11 strings this audit found; it does not scan every `/data` desc
+  field for an unclaimed magnitude the way `class-descriptions.test.ts`'s
+  numeral-extraction does for `classes.json`, so a *new* desc string added
+  later, quoting a *newly*-scaled field, would not fail loudly the way this
+  item's acceptance literally asks for ("a test asserts no remaining `/data`
+  desc string quotes a magnitude that differs from what the sim runs on").
+  Mitigated, not closed: `q7-loader-holes.ts`'s per-field fuzz census already
+  tracks every `desc` field's schema coverage and would need one line added
+  the day a new scaled field grows a prose sentence — a cheap trigger to
+  extend this ledger, logged here so it is not forgotten rather than solved
+  now.
+

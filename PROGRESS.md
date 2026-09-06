@@ -5,6 +5,37 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-06 — fb164: player-facing prose now quotes what the sim runs on.**
+  fb153a's `numberScale` rescale divided every HP/damage `/data` field at load
+  but left the authored *sentences* quoting those magnitudes untouched — e.g.
+  `vsupgrades.json`'s vitality boon still said "+15 Max HP" while granting
+  1.5. Audited every `/data` desc/`unlockCondition` string against
+  `applyNumberScale`'s scaled-field lists and found 11 affected (not the "~50"
+  the item worried about): one each in `classes.json` (Pyromancer's
+  `flameDps`), `vsupgrades.json` (vitality), `modifiers.json` (Cracked Core);
+  two in `damagetypes.json` (Bleeding, Burning); two in `tree.json`; four
+  across `cores.json` (Stone Heart, Vampire Heart's two overheal ratios,
+  Time's regen/decay-coefficient clauses, and the Corpse Core's
+  `unlockCondition`). Every one hand-anchored to the loaded value rather than
+  built as a live-derivation mechanism — at 11 strings, wiring four new render
+  call sites through a new placeholder system carried more risk than it
+  removed, and this codebase's own precedent (`classes.json`'s p12a retune) is
+  exactly this hand-paired field+sentence edit; QUESTIONS Q191 logs the
+  reasoning and the one real narrowing it leaves (a curated ledger, not a
+  generic scanner — a *future* newly-scaled field's prose wouldn't be caught
+  automatically). `tests/fb164-desc-numbers.test.ts` (11 cases, confirmed red
+  pre-fix) pins every string against `loadContent()`'s real values;
+  `tests/class-descriptions.test.ts`'s `readLoaded` no longer un-scales
+  Pyromancer's `flameDps` claim back to authored units (its lone scaled
+  claim, token `'6'` -> `'0.6'`), and the "loader and raw document agree"
+  invariant now expects a `numberScale` multiplier on that one path instead of
+  exact equality. code-reviewer independently verified every data edit
+  against the loader/code (Vampire Heart's ratio direction, Time's in-code
+  decay coefficient at `cores.ts:673`) and the equipment.json exclusion (its
+  `desc` is never rendered — `grep` shows zero `.desc` access in `src/ui`,
+  equipment's info surfaces already derive numbers from `item.mods`). `npm run
+  test:fast`: 3926 passed, only the two container-only q15/q45 failures.
+
 - **2026-09-06 — fb162: a DoT kill now books what landed, not what was
   banked.** `damageEnemy`'s five ledgers (`damageByWeapon`/`damageByWeaponVs`/
   `damageByType`/`damageTotal`/`corpseStore`) credited fb152's full banked tick

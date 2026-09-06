@@ -377,8 +377,10 @@ const LEDGER: readonly Claim[] = [
     // p12a (BALANCE DIRECTION v2 §A): 2 -> 6 with the x3 kit re-anchor. The
     // sentence is authored in `data/classes.json` beside the field it quotes,
     // so the re-anchor had to move both — this row is what makes that a
-    // decision rather than a silent desync.
-    token: '6',
+    // decision rather than a silent desync. fb164: 6 -> 0.6 when `flameDps`'s
+    // sentence was re-anchored a second time, onto the *loaded* (numberScale
+    // -divided) value rather than the authored one — see `readLoaded`.
+    token: '0.6',
     means: "the burning aura's damage per second",
     // "/s" is outside the extractor's unit set, so the keyword is what holds
     // the rate: QA reworded it to "damage/minute" against a per-second field.
@@ -777,24 +779,15 @@ function readLoaded(c: Claim): number | undefined {
   if (!path) return undefined;
   const walked = walk(content.classByKey.get(c.cls), path);
   if (typeof walked !== 'number') return undefined;
-  // fb153a: `numberScale` divides every authored kit magnitude at load. A
-  // description sentence quotes the *authored* number and `data/classes.json`
-  // still holds it, so the claim is read back through the scale rather than
-  // rewritten in display units.
-  //
-  // **This narrows the guarantee, and the narrowing is tracked, not hidden**
-  // (code review, Major 5). This file's header states its purpose as "a retune
-  // moves the field and leaves the sentence behind, and the player is then told
-  // a number the sim does not run on". Between the sentence and the *authored*
-  // field that invariant still holds and is still checked here. Between the
-  // sentence and what the sim actually *runs on* it no longer does — every
-  // quoted magnitude in `/data` is now a factor of `numberScale` off what the
-  // player sees, uniformly. That is a real, shipped defect, filed as BACKLOG
-  // **fb164**, whose acceptance re-points this read back at the loaded value
-  // once the sentences derive their numbers instead of quoting them.
-  const raw = isScaledClassPath(path) ? walked / content.modifiers.numberScale : walked;
+  // fb164 closed the gap fb153a opened here: every sentence in this ledger now
+  // quotes its number in the same units the field loads in (Pyromancer's
+  // `flameDps` claim moved from "6" to "0.6" alongside it), so this reads the
+  // loaded value straight — no un-scaling back to authored units. `class-spec
+  // -numbers.test.ts` keeps its own `isScaledClassPath` un-scaling, since that
+  // file compares against SPEC-FINAL's stated (pre-rescale) figures on
+  // purpose, not against what the player is shown.
   const as = claimConvert(c);
-  return as ? CONVERT[as](raw) : raw;
+  return as ? CONVERT[as](walked) : walked;
 }
 
 function description(cls: string, slot: Slot): string {
@@ -1034,7 +1027,14 @@ describe('c015 — the ledger holds itself to c015’s own rule', () => {
       }
     }
     for (const c of DATA_HOMED) {
-      expect(readLoaded(c), `${id(c)}: loader and raw document disagree`).toBeCloseTo(readFrom(RAW, c)!, 9);
+      // fb164: `readLoaded` no longer un-scales — a claim on a `numberScale`
+      // -divided path (only Pyromancer's `flameDps` today) is expected to
+      // disagree with the *raw* document by exactly that factor, not to match
+      // it; every other claim's path is untouched by the scale and still
+      // matches raw 1:1.
+      const path = claimPath(c);
+      const k = path && isScaledClassPath(path) ? content.modifiers.numberScale : 1;
+      expect(readLoaded(c), `${id(c)}: loader and raw document disagree`).toBeCloseTo(readFrom(RAW, c)! * k, 9);
     }
   });
 
