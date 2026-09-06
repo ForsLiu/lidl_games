@@ -20,7 +20,7 @@ import { spawnEnemy } from '../src/sim/enemies';
 import { CORE_X, CORE_Y } from '../src/sim/grid';
 import { hashWorld } from '../src/sim/run';
 import { World } from '../src/sim/world';
-import { cfg } from './helpers';
+import { cfg, scaled } from './helpers';
 
 const DT = 1 / 60;
 const content = loadContent();
@@ -99,12 +99,12 @@ describe('p-core-c — Carnivorous Plant base effects and upgrade steps', () => 
 describe('p-core-c — TD devour', () => {
   it('devours a non-elite outright: instant kill, +5 Core HP, +1 Digestion, credits real damage', () => {
     const w = plantWorld();
-    w.coreHp = 100; // well under max so the heal has room
+    w.coreHp = scaled(100); // well under max so the heal has room
     const e = spawnEnemy(w, 'husk', NEAR_X, CORE_Y)!;
     expect(e.hp).toBeCloseTo(spawnedHp('husk'), 6);
     tickPlant(w, 8);
     expect(e.dead).toBe(true);
-    expect(w.coreHp).toBe(100 + PLANT_EFFECTS.devourCoreHeal);
+    expect(w.coreHp).toBeCloseTo(scaled(100) + PLANT_EFFECTS.devourCoreHeal, 10);
     expect(w.digestionStacks).toBe(1);
     // "feeds on-map damage effects": the kill lands through damageEnemy, so it
     // counts as real damage dealt, not a bare killEnemy with no attribution.
@@ -123,13 +123,13 @@ describe('p-core-c — TD devour', () => {
 
   it('devours an elite for flat 200, not a kill, and still grants the Digestion stack and Core heal', () => {
     const w = plantWorld();
-    w.coreHp = 100;
+    w.coreHp = scaled(100);
     const e = spawnEnemy(w, 'colossus', NEAR_X, CORE_Y)!; // elite trait
     expect(e.elite).toBe(true);
     tickPlant(w, 8);
     expect(e.dead).toBe(false);
     expect(e.hp).toBeCloseTo(spawnedHp('colossus') - PLANT_EFFECTS.devourEliteDamage, 6); // no armor (colossus has none)
-    expect(w.coreHp).toBe(100 + PLANT_EFFECTS.devourCoreHeal);
+    expect(w.coreHp).toBeCloseTo(scaled(100) + PLANT_EFFECTS.devourCoreHeal, 10);
     expect(w.digestionStacks).toBe(1);
   });
 

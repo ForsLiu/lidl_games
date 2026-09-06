@@ -135,6 +135,17 @@ const content = loadContent();
 
 const DT = 1 / 60;
 
+/**
+ * fb152: a DoT instance now pays once per `dotTickInterval`, not once per
+ * frame, so a splash probe that ran a single frame measured zero. The window
+ * is read from the world's own content so a retune of the cadence moves the
+ * probe rather than reddening this file.
+ */
+function runDotTick(w: World): void {
+  const frames = Math.round(w.content.damageTypes.dotTickInterval * 60);
+  for (let i = 0; i < frames; i++) updateEnemies(w, DT);
+}
+
 /** The authored magnitude, read from `/data` — never restated. A retune moves this file's ring positions with it. */
 const WIDE_GROVE = content.classByKey.get('animist')!.towerPassive.mods.area!;
 
@@ -672,7 +683,7 @@ const CONSUMERS: readonly Consumer[] = [
         carrier.dots.some((d) => d.type === 'burning'),
         'harness lit no burn',
       ).toBe(true);
-      updateEnemies(w, DT);
+      runDotTick(w);
       return before - neighbour.hp;
     },
   },
@@ -684,11 +695,16 @@ const CONSUMERS: readonly Consumer[] = [
       const w = animist(c, o);
       const authored = c.damageTypeByKey.get('burning')!.radius!;
       expect(w.derived.burnSpread, 'burnSpread must be 0 here or the ring moves').toBe(0);
-      const carrier = dummy(w, w.warden.x + 3, w.warden.y);
-      const neighbour = dummy(w, w.warden.x + 3, w.warden.y + authored * RING);
+      // fb152: *west* of the Warden, not east. The pair used to sit three tiles
+      // towards the Core, which is inside its leak radius — harmless while the
+      // probe ran a single frame (the splash landed before the leak did), fatal
+      // once the probe has to hold the carrier alive for a whole tick interval.
+      const carrier = dummy(w, w.warden.x - 3, w.warden.y);
+      const neighbour = dummy(w, w.warden.x - 3, w.warden.y + authored * RING);
       const before = neighbour.hp;
       applyDot(w, carrier, 'burning', 100, 5, 'class_active');
-      updateEnemies(w, DT);
+      runDotTick(w);
+      expect(carrier.dead, 'the carrier must survive its own tick interval or the probe measures nothing').toBe(false);
       return before - neighbour.hp;
     },
   },

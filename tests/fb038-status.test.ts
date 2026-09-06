@@ -23,6 +23,7 @@ import {
   pendingQuestions,
   renderStatus,
   staleGateWarnings,
+  backlogPaths,
   type BalanceSnapshot,
   type GateRow,
 } from '../tools/status';
@@ -419,4 +420,101 @@ describe('fb038: status.ts crash behaviour on a broken /data file (q47 PIN_COVER
       rmSync(dir, RM_RETRY);
     }
   }, NESTED_TSX_TIMEOUT_MS + 10_000);
+});
+
+describe('fb141: the ledger reads every backlog file, not just the main queue', () => {
+  const SCRATCH = join(REPO_ROOT, 'bench', '.tmp', 'fb141-ledger-scratch');
+
+  function scratch(): string {
+    const dir = join(SCRATCH, `${process.pid}-${Math.random().toString(36).slice(2)}`);
+    mkdirSync(join(dir, 'feedback', 'processed'), { recursive: true });
+    return dir;
+  }
+
+  it('a lane-routed item is cited from its lane file, and the lane is named', () => {
+    // The false negative fb141 fixes: feedback routed into a lane read "no
+    // BACKLOG citation found" on the one report whose job is to say what
+    // happened to the owner's feedback.
+    const dir = scratch();
+    try {
+      writeFileSync(join(dir, 'feedback', 'processed', '20260905-190000-feature-lane-thing.md'), 'x\n');
+      writeFileSync(join(dir, 'BACKLOG.md'), '- [x] (fbOTHER) [feat] unrelated — refs: nothing');
+      writeFileSync(
+        join(dir, 'BACKLOG-UI.md'),
+        '- [ ] (fb999) [feat] the lane item — refs: owner feedback `feature-lane-thing`.',
+      );
+      const rows = feedbackLedger(join(dir, 'feedback', 'processed'), backlogPaths(dir));
+      expect(rows).toHaveLength(1);
+      expect(rows[0].status).toBe('fb999 (BACKLOG-UI.md) — queued');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('the main queue wins when both cite the same slug', () => {
+    // A lane's Log often mentions a slug that the main queue actually owns;
+    // the item the owner can act on is the one to report.
+    const dir = scratch();
+    try {
+      writeFileSync(join(dir, 'feedback', 'processed', '20260905-190000-feature-both.md'), 'x\n');
+      writeFileSync(join(dir, 'BACKLOG.md'), '- [ ] (fbMAIN) [feat] main — refs: owner feedback `feature-both`.');
+      writeFileSync(join(dir, 'BACKLOG-TERRAIN.md'), '- [ ] (fbLANE) [feat] lane — refs: `feature-both`.');
+      const rows = feedbackLedger(join(dir, 'feedback', 'processed'), backlogPaths(dir));
+      expect(rows[0].status).toBe('fbMAIN — queued');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('an indented lane bullet is still recognised as the enclosing item', () => {
+    // Lane files nest sub-items under a parent (`fb064a` under `fb064`), and
+    // the old bullet matcher was anchored at column zero.
+    const dir = scratch();
+    try {
+      writeFileSync(join(dir, 'feedback', 'processed', '20260905-190000-feature-nested.md'), 'x\n');
+      writeFileSync(join(dir, 'BACKLOG.md'), '- [x] (fbOTHER) [feat] unrelated');
+      writeFileSync(
+        join(dir, 'BACKLOG-CONTENT.md'),
+        ['- [ ] (fbPARENT) [feat] parent', '  - [ ] (fbCHILD) [feat] child — refs: `feature-nested`.'].join('\n'),
+      );
+      const rows = feedbackLedger(join(dir, 'feedback', 'processed'), backlogPaths(dir));
+      // The parent is named too: a sub-item's own checkbox is not the state of
+      // the order it is part of.
+      expect(rows[0].status).toBe('fbCHILD (of fbPARENT) (BACKLOG-CONTENT.md) — queued');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('discovers the real repo\'s lane files, so a new lane is picked up on its own', () => {
+    const names = backlogPaths().map((p) => p.split(/[\\/]/).pop());
+    expect(names[0]).toBe('BACKLOG.md');
+    expect(names).toContain('BACKLOG-UI.md');
+    expect(names).toContain('BACKLOG-TERRAIN.md');
+    expect(names).toContain('BACKLOG-CONTENT.md');
+  });
+
+  it('the real repo reports a lane-routed feedback file with its lane, not a false negative', () => {
+    // The acceptance clause, on real data: before fb141 every one of these read
+    // "no BACKLOG citation found" because the scan only opened BACKLOG.md.
+    const rows = feedbackLedger();
+    for (const [file, lane] of [
+      ['20260903-121255-feature-class-madness-king.md', 'BACKLOG-CONTENT.md'],
+      ['20260903-121255-feature-class-attack-sprites.md', 'BACKLOG-UI.md'],
+      ['20260905-190000-feature-terrain-four-gates.md', 'BACKLOG-TERRAIN.md'],
+    ] as const) {
+      const row = rows.find((r) => r.file === file);
+      expect(row, `${file} is not in the processed feedback set`).toBeDefined();
+      expect(row!.status, `${file} should cite its lane`).toContain(lane);
+    }
+  });
+
+  it('a prose mention never shadows the item that owns the file', () => {
+    // BACKLOG.md mentions `feedback/…-feature-status-report.md` in a section's
+    // prose long before fb038's own bullet cites it; the scan must report the
+    // item, not the paragraph.
+    const rows = feedbackLedger();
+    const row = rows.find((r) => r.file === '20260901-120444-feature-status-report.md');
+    expect(row?.status).toBe('fb038 — done');
+  });
 });

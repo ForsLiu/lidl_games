@@ -27,7 +27,7 @@ import { World } from '../src/sim/world';
 import { damageEnemy, spawnEnemy } from '../src/sim/enemies';
 import { buildCodexCollections } from '../src/ui/codex-collections';
 import { renderCodexTable } from '../src/ui/codex';
-import { cfg } from './helpers';
+import { cfg, scaled } from './helpers';
 
 const content = loadContent();
 
@@ -217,9 +217,12 @@ describe('p7h: each Core-unlock quest drives unlockedCores end to end via applyR
   it('cumulative lifetime sum (hundred_grand, damageTotal summed to 100000) unlocks corpse', () => {
     let meta = defaultMeta();
     const w = new World(cfg());
-    meta = applyRunResult(meta, reportWith({ damageTotal: 99999 }), w);
+    // fb153a: the quest's target is a damage total, so it takes `numberScale`
+    // with every other damage number (`applyNumberScale`, content.ts) — the
+    // grind must not get 10x longer because the units moved.
+    meta = applyRunResult(meta, reportWith({ damageTotal: scaled(99999) }), w);
     expect(meta.unlockedCores).not.toContain('corpse');
-    meta = applyRunResult(meta, reportWith({ damageTotal: 1 }), w);
+    meta = applyRunResult(meta, reportWith({ damageTotal: scaled(1) }), w);
     expect(meta.unlockedCores).toContain('corpse');
   });
 

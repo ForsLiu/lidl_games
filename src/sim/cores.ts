@@ -666,7 +666,11 @@ export function updateTimeDecay(w: World, dt: number): void {
     const d2 = coreEdgeDist2(e.x, e.y);
     if (d2 > r * r) continue;
     const ring = Math.max(1, Math.ceil(Math.sqrt(d2)));
-    const rate = Math.pow(w.core.decayMult, 5 - ring);
+    // fb153a: the leading coefficient SPEC-FINAL states as "1 x 1.2^(5-ring)
+    // HP/s" is a damage magnitude in code (rule-4 debt), so it takes
+    // `numberScale` like every authored one; `decayMult` is the base of an
+    // exponent and is deliberately left alone.
+    const rate = w.content.modifiers.numberScale * Math.pow(w.core.decayMult, 5 - ring);
     damageEnemy(w, e, rate * dt, 'time', { dot: true, type: 'normal', noLifesteal: true });
   }
 }

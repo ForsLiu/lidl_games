@@ -9,7 +9,7 @@ import { buildTower, checkBuild, collectSproutGold, sellTower, towerCost, update
 import { damageEnemy, spawnEnemy } from '../src/sim/enemies';
 import { GATES, GRID_H, GRID_W, coreCenter } from '../src/sim/grid';
 import { emptyInput } from '../src/sim/types';
-import { cfg } from './helpers';
+import { cfg, scaled } from './helpers';
 
 // fb077: real terrain is now wired into every non-practice World; these
 // tests assert fixed tile coordinates (Warden/structure collision, not
@@ -224,7 +224,7 @@ describe('economy and wave flow', () => {
   it('starts with the SPEC 3.2 gold and Core HP', () => {
     const w = newWorld();
     expect(w.gold).toBe(250);
-    expect(w.coreMaxHp).toBe(500);
+    expect(w.coreMaxHp).toBeCloseTo(scaled(500), 10);
   });
 
   it('pays a wave-clear bonus and Sprout income', () => {

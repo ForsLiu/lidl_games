@@ -1,6 +1,7 @@
 /** Shared test utilities. Keep these deterministic — no Math.random, no Date. */
 
 import { Run } from '../src/sim/run';
+import { loadContent } from '../src/sim/content';
 import { Rng } from '../src/sim/rng';
 import { emptyInput, type Command, type RunConfig, type RunReport, type TickInput } from '../src/sim/types';
 import { makePolicy } from '../src/bots';
@@ -478,4 +479,35 @@ export function summarizeMargins(reports: RunReport[]): string {
     .filter(([, n]) => n > 0)
     .map(([k, n]) => `${k}:${n}`)
     .join(' ');
+}
+
+/**
+ * fb153a: `data/modifiers.json`'s `numberScale` divides every HP- and
+ * damage-denominated number in `/data` at load, so the sim runs on
+ * `authored x numberScale()`. Specs, owner orders and this suite's own
+ * expectations are written in **authored** units, so a test that asserts a
+ * magnitude wraps it in `scaled()` rather than restating it in display units —
+ * which is what keeps the factor a ⚖ tunable instead of a suite-wide rewrite
+ * every time it moves.
+ *
+ * Ratios, durations, radii, speeds, armor points and gold are on other axes and
+ * are never wrapped. `STAT_SCALED` (src/sim/statkeys.ts) is the same question
+ * for `/data`-authored stat records.
+ */
+let cachedScale: number | undefined;
+
+/**
+ * Read **lazily**, never at module scope: `tools/perf-ratio.ts` imports `cfg`
+ * from this file, and a top-level `loadContent()` here would throw its
+ * ZodError at import time — before that tool's own try/catch — turning its
+ * one-line "/data is broken" message into a raw stack dump (caught by
+ * `tests/q45-cli-schema-violation.test.ts`).
+ */
+export function numberScale(): number {
+  return (cachedScale ??= loadContent().modifiers.numberScale);
+}
+
+/** An authored HP/damage magnitude, in the units the sim actually runs on. */
+export function scaled(authored: number): number {
+  return authored * numberScale();
 }

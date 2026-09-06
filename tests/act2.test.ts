@@ -15,7 +15,7 @@ import {
   updateGems,
   xpToReach,
 } from '../src/sim/progression';
-import { budgetFor, pickSpawnPoint, timeHpScale } from '../src/sim/act2';
+import { budgetFor, pickSpawnPoint, timeHpScale, edgeSpawnPoint } from '../src/sim/act2';
 import { applyCommand } from '../src/sim/run';
 import { buildTower } from '../src/sim/towers';
 import { GRID_H, GRID_W } from '../src/sim/grid';
@@ -326,11 +326,19 @@ describe('spawn director (SPEC 5.1)', () => {
   it('only picks walkable spawn points inside the arena', () => {
     const w = act2World();
     for (let i = 0; i < 400; i++) {
-      const p = pickSpawnPoint(w);
-      expect(p.x).toBeGreaterThan(0.5);
-      expect(p.y).toBeGreaterThan(0.5);
-      expect(p.x).toBeLessThan(GRID_W - 0.5);
-      expect(p.y).toBeLessThan(GRID_H - 0.5);
+      // fb154: both branches, not just whichever one the default takes — a
+      // keyless call now goes to the gates, so the edge ring (fliers and the
+      // fallback) would otherwise lose its legality assertion entirely.
+      const p = i % 2 === 0 ? pickSpawnPoint(w) : edgeSpawnPoint(w);
+      // fb154: a ground spawn now comes out of a gate, and a gate sits *in* the
+      // edge column/row (`west` is `tx: 0`), so the old `> 0.5` bound was a
+      // statement about the edge ring rather than about legality. What has to
+      // hold is that the point is inside the arena and on walkable ground —
+      // which is what the `passable` check below has always said.
+      expect(p.x).toBeGreaterThan(0);
+      expect(p.y).toBeGreaterThan(0);
+      expect(p.x).toBeLessThan(GRID_W);
+      expect(p.y).toBeLessThan(GRID_H);
       expect(w.grid.passable(Math.floor(p.x), Math.floor(p.y))).toBe(true);
     }
   });

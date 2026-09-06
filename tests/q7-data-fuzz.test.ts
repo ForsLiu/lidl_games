@@ -564,6 +564,10 @@ describe('q7 — cross-file references, row by row', () => {
       'cores.cores[].key',
       'damagetypes.types[].key',
       'enemies.enemies[].key',
+      // fb155: the attack-registry rules read the traits array, so mutating a
+      // trait now throws for the rows whose kind it decides and is ignored for
+      // the rest — partially checked, where it used to be open.
+      'enemies.enemies[].traits[]',
       'equipment.items[].key',
       'quests.quests[].key',
       'quests.quests[].reward.kind',

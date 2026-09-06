@@ -1,4 +1,5 @@
 {
+  "numberScale": 0.1,
   "tierRewardPerStep": 0.35,
   "tierEnemyHpPerStep": 1.07,
   "tierBudgetPerStep": 1.05,
