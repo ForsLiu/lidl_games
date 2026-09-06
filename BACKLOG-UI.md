@@ -159,7 +159,8 @@ logs a blocker below rather than editing `/data` itself.
       container-only q15/q45 failures — refs: SPEC-FINAL §11, owner feedback
       `ui-damage-font-scaling`.
 
-- [ ] (fb160) [feat] DPS panel shows whole-run totals only (no per-wave view):
+- [ ] (fb160) [feat] **blocked on new main-lane sim state, see this file's Log
+      (2026-09-06)** — DPS panel shows whole-run totals only (no per-wave view):
       total damage at the top, then one horizontal bar per source — each tower
       type, each wielded attack, each class active, basic attack, Core — each
       bar segmented by damage TYPE in the damage-type colors, with the source's
@@ -3903,23 +3904,24 @@ logs a blocker below rather than editing `/data` itself.
       failed, the failures being `q15`/`b028`/`q41`/`q45`, which QA reproduced
       standalone and confirmed never import `class-info.ts`.
 
-- [ ] (fb150) [bug] filed 2026-09-05 by qa-playtester during fb112
-      verification — Dash Slash's "the charge's own range and damage merge into
-      this one hit" reads as "you keep the nova's coverage", but the merge
-      deletes the nova's area entirely. Repro, both branches in one probe:
-      Swordsman with a `husk` 3 tiles BEHIND and another 3 tiles to the SIDE;
-      charging Active1 fully and releasing normally hits both for 60, while
-      charging fully and firing Active2 instead hits **neither** — the merged
-      path spends the charge (`wd.active1Charging = false`, Active1 to full
-      cooldown) and converts the 4-tile nova into +4 tiles of LINE LENGTH only
-      (measured: furthest struck 5 -> 9). That is the specced reading of "hit
-      range" (Q118), so this is a wording bug, not a sim bug — but the current
-      text sells a player an area they do not get, and the real trade can be a
-      total whiff plus a 6s Active1 cooldown. Acceptance: the clause says the
-      charge's radius EXTENDS THE LINE'S REACH and its damage is added, and
-      that the nova itself does not fire; regression test carries the
-      behind/side probe as the mechanism plus a string assertion on the
-      reworded clause — refs: fb112, Q118, `fireDashSlash`.
+- [x] (fb150) [bug] **DONE 2026-09-06** — filed 2026-09-05 by qa-playtester
+      during fb112 verification — Dash Slash's "the charge's own range and
+      damage merge into this one hit" reads as "you keep the nova's
+      coverage", but the merge deletes the nova's area entirely. Reworded
+      (`dashSlashSentence`, `class-info.ts`): "the charge's radius extends
+      this line's reach and its damage is added to this hit — the nova
+      itself does not fire", matching exactly what `fireDashSlash`
+      (`classes.ts`) does (`hitRange = dashRange + mergedRadius`, `damage =
+      eff.damage + mergedDamage`, one `lineHit` call, no separate nova).
+      `tests/ui-fb150-dash-slash-merge-wording.test.ts` (3 tests) is the
+      behind/side probe: a full-charge Circle Slash released normally hits
+      a husk 3 tiles behind AND one 3 tiles to the side (real nova
+      coverage); merging that same full charge into a forward Dash Slash
+      hits neither (only a straight line, no area) while still consuming
+      the charge (`active1Charging` false, cooldown started); plus a string
+      assertion the old, misleading wording is gone and the new one is
+      present. `npm run test:fast`: only the pre-existing container-only
+      q15/q45 failures — refs: fb112, Q118, `fireDashSlash`.
 
 - [ ] (fb151) [bug] filed 2026-09-05 by qa-playtester during fb112
       verification — the Dash Slash slash VFX is drawn to the physical dash
@@ -4177,6 +4179,32 @@ logs a blocker below rather than editing `/data` itself.
       `pierceFalloffFloor`/`aoeFalloffFloor` (`data/towers.json`).
 
 ## Log
+
+- 2026-09-06, fb160: **cannot be implemented in-scope, skipped rather than
+  attempted.** The item's own bar shape ("one horizontal bar per source...
+  each bar segmented by damage TYPE") needs a per-source-*and*-type damage
+  ledger — `damage[source][type]` — to reconcile the segments against, per
+  its own acceptance line. `World` (`src/sim/world.ts`) only carries two flat
+  1D accumulators today: `damageByWeapon` (by source) and `damageByType` (by
+  §3 type), credited independently at the same `damageEnemy` choke point
+  (`src/sim/enemies.ts:388`/`400`) — no combined matrix exists to read.
+  Checked whether the UI could derive one itself from an already-exposed
+  event stream instead (the Scope's own carve-out for that, and the pattern
+  fb060's per-enemy DoT aggregation already used against `w.fx`): it can't —
+  `World.fx`'s `hit:<type>` events (`world.ts:473`, `emit()`) carry
+  `{k, x, y, a, b}` (type, position, amount, enemy id) with **no source
+  field at all**, so the source half of the matrix is genuinely not exposed
+  anywhere this lane can read. Building it requires either a new
+  `damageByWeaponAndType` accumulator or enriching the emitted event with a
+  source string — both `src/sim/**` edits, outside this lane's Scope.
+  Left `[ ]` with an inline blocked-note (matching `fb167`'s own pattern)
+  rather than implemented partially (e.g., un-segmented bars) — that would
+  ship the "totals only" half without the item's actual point, the
+  per-type-segment breakdown, and its own acceptance test would be
+  unwritable regardless. Skipped to the next queue item per BACKLOG.md's
+  working rule 5/BACKLOG-UI's own Scope instruction ("an out-of-scope need
+  is written into the Log below and becomes main-lane... work at the
+  merge").
 
 - 2026-09-06, fb159: implemented in-scope (`render/theme.ts`'s
   `FLOATING_NUMBER_FONT`/`floatingNumberFontSize`/`floatingNumberFontWeight`,

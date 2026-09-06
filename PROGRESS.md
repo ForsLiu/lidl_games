@@ -5,6 +5,45 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-06 — BACKLOG-UI fb160 skipped (needs new main-lane sim state,
+  logged); fb150 done: Dash Slash's misleading merge wording fixed.**
+
+  fb160 (DPS panel bars segmented by damage type per source) needs a
+  `damage[source][type]` ledger to reconcile its bars against, per its own
+  acceptance line. `World` only carries two flat 1D accumulators
+  (`damageByWeapon`, `damageByType`), credited independently at the same
+  choke point (`sim/enemies.ts`'s `damageEnemy`) — no combined matrix
+  exists. Checked whether the UI lane could derive one itself from an
+  already-exposed event stream (the pattern fb060's DoT aggregation used
+  against `w.fx`, which the lane's own Scope explicitly allows): it can't —
+  `w.fx`'s `hit:<type>` events carry `{k, x, y, a, b}` with no source field
+  at all, so the source half of the matrix isn't exposed anywhere this lane
+  can read. Building it needs a new accumulator or an enriched emitted
+  event, both `src/sim/**` edits outside this lane's Scope. Logged in
+  BACKLOG-UI.md's Log section for the main-lane merge rather than shipping
+  an unsegmented "totals only" panel that would miss the item's actual
+  point and leave its own acceptance test unwritable regardless.
+
+  fb150 (qa-playtester, filed during fb112 verification): Dash Slash's old
+  wording ("the charge's own range and damage merge into this one hit")
+  read as "you keep the nova's coverage too", but `fireDashSlash`
+  (`sim/classes.ts`) spends the charge into extra LINE length
+  (`hitRange = dashRange + mergedRadius`) and adds its damage to that one
+  line hit — the nova itself never fires on this path, so a player relying
+  on the old text could hold a full charge, aim forward, and whiff
+  completely against a threat behind or beside them, paying a full Active1
+  cooldown for nothing. Reworded to say exactly that. The new
+  `tests/ui-fb150-dash-slash-merge-wording.test.ts` (3 tests) drives the
+  real sim as its own mechanism (the same posture the existing
+  `ui-fb112-dash-slash-width.test.ts` already takes for this same
+  sentence): a full-charge Circle Slash released normally hits a husk
+  behind AND one beside the Warden (real nova coverage); merging that same
+  charge into a forward Dash Slash hits neither, while still consuming the
+  charge; plus a string check that the misleading wording is gone.
+
+  `npm run test:fast`: only the pre-existing container-only q15/q45
+  failures.
+
 - **2026-09-06 — code-reviewer's fb158/fb157-qa-fix pass (REQUEST-CHANGES,
   no Critical/Major correctness bugs) fixed; BACKLOG-UI fb159: floating
   damage numbers scale with their own value.**
