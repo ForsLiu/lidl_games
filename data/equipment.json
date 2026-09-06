@@ -7,7 +7,7 @@
       "name": "Greatsword",
       "mods": { "atkFlat": 10, "armor": 5, "attackSpeed": -0.1 },
       "effectKey": "none",
-      "desc": "A plain heavy blade. HP 0 / Atk 10 / Def 5, atk speed x0.9. No special effect."
+      "desc": "A plain heavy blade. HP 0 / Atk 1 / Def 5, atk speed x0.9. No special effect."
     },
     {
       "key": "sleeve_sword",
@@ -17,7 +17,7 @@
       "effectKey": "sleeve_sword",
       "classFallback": { "notClassKey": "swordsman", "mods": { "attackSpeed": 0.2 } },
       "effectNote": "Circle Slash's charge is instantly at max the moment it's held; release any time for the max-charge effect.",
-      "desc": "HP 0 / Atk 5 / Def 0, atk speed x1.2. Circle Slash's charge is instantly at max the moment it's held (release any time for the max-charge effect; Dash Slash still combos mid-hold). If not Swordsman: atk speed x1.2 (so 1.2x1.2)."
+      "desc": "HP 0 / Atk 0.5 / Def 0, atk speed x1.2. Circle Slash's charge is instantly at max the moment it's held (release any time for the max-charge effect; Dash Slash still combos mid-hold). If not Swordsman: atk speed x1.2 (so 1.2x1.2)."
     },
     {
       "key": "normal_armor",
@@ -25,7 +25,7 @@
       "name": "Normal Armor",
       "mods": { "maxHp": 10, "armor": 10 },
       "effectKey": "none",
-      "desc": "HP 10 / Atk 0 / Def 10. No special effect."
+      "desc": "HP 1 / Atk 0 / Def 10. No special effect."
     },
     {
       "key": "swordsman_armor",
@@ -36,7 +36,7 @@
       "classFallback": { "notClassKey": "swordsman", "mods": { "attackSpeed": 0.5 } },
       "effectNote": "Circle Slash charging speed scales with attack speed{mul}.",
       "effectNoteWith": { "key": "sleeve_sword", "text": "With Sleeve Sword also equipped, Circle Slash damage is boosted by attack speed instead of charge rate{mul}." },
-      "desc": "HP 5 / Atk 5 / Def 5, atk speed x1.1. Circle Slash charging speed = original x attack speed; if Sleeve Sword is also equipped, Circle Slash damage is boosted by attack speed instead. If not Swordsman: atk speed x1.5 (so 1.1x1.5)."
+      "desc": "HP 0.5 / Atk 0.5 / Def 5, atk speed x1.1. Circle Slash charging speed = original x attack speed; if Sleeve Sword is also equipped, Circle Slash damage is boosted by attack speed instead. If not Swordsman: atk speed x1.5 (so 1.1x1.5)."
     },
     {
       "key": "normal_shoes",
@@ -44,7 +44,7 @@
       "name": "Normal Shoes",
       "mods": { "maxHp": 5, "armor": 5, "moveSpeedPct": 0.5 },
       "effectKey": "none",
-      "desc": "HP 5 / Atk 0 / Def 5, move x1.5. No special effect."
+      "desc": "HP 0.5 / Atk 0 / Def 5, move x1.5. No special effect."
     },
     {
       "key": "swordsman_shoes",
@@ -54,7 +54,7 @@
       "effectKey": "swordsman_shoes",
       "classFallback": { "notClassKey": "swordsman", "mods": { "moveSpeedPct": 0.1 } },
       "effectNote": "Doubles Dash Slash distance.",
-      "desc": "HP 3 / Atk 3 / Def 3, atk speed x1.1, move x2. Doubles Dash Slash distance. If not Swordsman: x1.1 movement."
+      "desc": "HP 0.3 / Atk 0.3 / Def 3, atk speed x1.1, move x2. Doubles Dash Slash distance. If not Swordsman: x1.1 movement."
     },
     {
       "key": "normal_ring",
@@ -62,7 +62,7 @@
       "name": "Normal Ring",
       "mods": { "maxHp": 1, "atkFlat": 1, "armor": 1, "hpRegen": 1 },
       "effectKey": "none",
-      "desc": "HP 1 / Atk 1 / Def 1. Life regen +1."
+      "desc": "HP 0.1 / Atk 0.1 / Def 1. Life regen +0.1."
     },
     {
       "key": "bleeding_ring",
@@ -70,7 +70,7 @@
       "name": "Bleeding Ring",
       "mods": { "atkFlat": 2, "armor": 1, "leech": 0.0001, "bleedLifesteal": 1 },
       "effectKey": "none",
-      "desc": "HP 0 / Atk 2 / Def 1. +0.01% lifesteal; lifesteal now also applies to Bleeding damage."
+      "desc": "HP 0 / Atk 0.2 / Def 1. +0.01% lifesteal; lifesteal now also applies to Bleeding damage."
     },
     {
       "key": "normal_necklace",
@@ -78,7 +78,7 @@
       "name": "Normal Necklace",
       "mods": { "maxHp": 1, "atkFlat": 1, "armor": 1, "xpGain": 0.2, "towerCost": -0.2 },
       "effectKey": "none",
-      "desc": "HP 1 / Atk 1 / Def 1. EXP +20%; tower upgrade cost -20%."
+      "desc": "HP 0.1 / Atk 0.1 / Def 1. EXP +20%; tower upgrade cost -20%."
     },
     {
       "key": "builders_necklace",
@@ -86,7 +86,7 @@
       "name": "Builder's Necklace",
       "mods": { "maxHp": 1, "armor": 2, "towerAtkFlat": 1 },
       "effectKey": "none",
-      "desc": "HP 1 / Atk 0 / Def 2. All towers +1 flat attack (boostable by upgrades / VS count multiplier)."
+      "desc": "HP 0.1 / Atk 0 / Def 2. All towers +0.1 flat attack (boostable by upgrades / VS count multiplier)."
     },
     {
       "key": "normal_bracelet",
@@ -94,7 +94,7 @@
       "name": "Normal Bracelet",
       "mods": { "maxHp": 1, "atkFlat": 1, "armor": 1, "area": 0.1 },
       "effectKey": "none",
-      "desc": "HP 1 / Atk 1 / Def 1. Character and tower area +10%."
+      "desc": "HP 0.1 / Atk 0.1 / Def 1. Character and tower area +10%."
     },
     {
       "key": "sniper_bracelet",
@@ -102,7 +102,7 @@
       "name": "Sniper Bracelet",
       "mods": { "maxHp": 2, "atkFlat": 1, "towerRange": 0.1, "charRange": 0.1 },
       "effectKey": "none",
-      "desc": "HP 2 / Atk 1 / Def 0. Character and tower range +10%."
+      "desc": "HP 0.2 / Atk 0.1 / Def 0. Character and tower range +10%."
     }
   ]
 }
