@@ -5,6 +5,34 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-06 — BACKLOG fb168: the dev-server contracts now exist once, not
+  twice.** `tests/helpers/browser.ts` was fixed twice during fb140 for two
+  defects only a CI runner could show — `server: { port: 0 }`, which Vite
+  resolves to its default 5173 so concurrent callers collide, and a defaulted
+  `server.host`, which Vite resolves to the *name* `localhost` while the caller
+  navigates the literal `127.0.0.1`. `tools/ui-audit.ts` carried both in its own
+  `createServer` call and was never fixed, because `npm run ui-audit` is a
+  manual command with no CI job: the defect was invisible, not absent.
+  `startDevServer` (plus `freePort`, `assertServes`, `HOST`) now lives in
+  `tools/dev-server.ts`, deliberately Playwright-free — `tests/helpers/browser.ts`
+  decides Chromium availability with a **top-level `await chromium.launch()`**,
+  so a tool importing it would open a browser as a module-load side effect. That
+  module re-exports `startDevServer`, so the four UI suites' import path is
+  unchanged, and `ui-audit` imports the tool-side module. QUESTIONS Q187 records
+  the decision (it closes the owner call Q178 left open) and the half of Q178
+  still open: `ui-audit` launches Chromium directly and still hard-fails an
+  `--ignore-scripts` checkout.
+
+  `tests/fb168-ui-audit-dev-server.test.ts` holds it from both ends: four source
+  rules over `ui-audit` (each measured red against the pre-fix source), one over
+  the helper's own no-Playwright/no-`tests/` contract (red when a `playwright`
+  import is added), and a live start asserting the bound address, `strictPort`
+  and a served URL (red when the helper is reverted to `port: 0`). The audit's
+  own output is a control: pre- and post-change `audit/report.json` agree on
+  rule set, per-scene check counts and summary — 5764/7710 both times.
+  `tests/q47-cli-crash-coverage.test.ts`'s tool census moved 26 -> 27, which is
+  that test working as designed.
+
 - **2026-09-06 — CI is green again after the q13 timing case moved to the perf
   tier.** Run
   [#34054367074](https://github.com/ForsLiu/lidl_games/actions/runs/34054367074)

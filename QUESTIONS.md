@@ -553,3 +553,35 @@ Q91 and Q102 corrections if not yet done.
   and now q13 (two worlds) all ended up in the same config from three
   different-looking failures.
 
+- **Q187. [fb168] Q178's open owner call, decided: the shared dev-server helper
+  is a `tools/` file, and the census it moves is a census doing its job.** Q178
+  left `tools/ui-audit.ts`'s duplicate dev-server bootstrap unfixed because
+  sharing meant choosing between "a `tools/` file (which moves
+  `tests/q47-cli-crash-coverage.test.ts`'s exact 26-file census)" and "a tool
+  importing from `tests/`", and neither looked free. Measured, they are not
+  close. A tool importing `tests/helpers/browser.ts` would import a module
+  whose availability probe is a **top-level `await chromium.launch()`**, so
+  `npm run ui-audit` — and every other importer — would open a browser as a
+  side effect of loading the module, and would hard-fail in exactly the
+  `--ignore-scripts` checkout Q178 exists to protect. The `tools/` file costs a
+  two-line census edit (26 -> 27, classified `no-content-import`) in a test whose
+  entire purpose is to go red when a `tools/*.ts` file appears unclassified. So:
+  `tools/dev-server.ts`, with `tests/helpers/browser.ts` re-exporting
+  `startDevServer` so the four UI suites' import path is unchanged, and the
+  dependency pointing tools -> nothing rather than tools -> tests.
+  Three consequences worth recording. (1) `ui-audit` inherits `hmr: false` and
+  the `bench`/`audit`/`dist`/`.git` watch ignores along with the port and host
+  pins; `audit/` being watch-ignored removes a latent reload hazard, since the
+  audit writes its own PNGs into a directory its own dev server was watching.
+  (2) A control run measured the change is otherwise inert: the pre-change and
+  post-change `audit/report.json` agree on rule set, per-scene check counts and
+  summary (5764/7710), byte for byte. (3) **Q178 is only half closed.**
+  `tools/ui-audit.ts` still calls `chromium.launch({ headless: true })`
+  directly, so the `--ignore-scripts` hard-fail Q178 named is still live for the
+  browser, just no longer for the server. That is outside fb168's acceptance and
+  is not filed as fixed. — Reason: CLAUDE.md working rule 5 (choose, log,
+  continue) and rule 4's "a loader rule that refuses unpayable data is worth
+  more than a comment"; the same argument applies to a contract learned from a
+  red CI run, which is worth exactly as much as the number of copies that carry
+  it.
+

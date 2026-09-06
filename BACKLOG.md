@@ -44,7 +44,20 @@ still in test headers.
 
 ### CI follow-ups (filed 2026-09-06 from fb140's first red runs)
 
-- [ ] (fb168) [bug] `tools/ui-audit.ts` starts its dev server with the same two
+- [x] (fb168) [bug] **DONE 2026-09-06** — `startDevServer` extracted to
+      `tools/dev-server.ts` (Playwright-free, so a tool importing it does not
+      trigger `tests/helpers/browser.ts`'s module-load browser probe);
+      `tests/helpers/browser.ts` re-exports it, so the four UI suites' import
+      path is unchanged; `tools/ui-audit.ts` uses it. Pinned by
+      `tests/fb168-ui-audit-dev-server.test.ts` — four source rules over
+      `ui-audit` (all four red against the pre-fix source), one over the helper's
+      own no-Playwright/no-`tests/` contract, and a live start asserting host,
+      `strictPort` and a served URL. `npm run ui-audit` control run: rule set,
+      per-scene check counts and summary byte-identical (5764/7710).
+      `tests/q47-cli-crash-coverage.test.ts`'s tool census moved 26 -> 27. See
+      QUESTIONS Q187, which also records that Q178's *other* half (ui-audit's
+      direct `chromium.launch`) is still open. Original text follows.
+      `tools/ui-audit.ts` starts its dev server with the same two
       defects `tests/helpers/browser.ts` was just fixed for — `server: { port: 0,
       strictPort: false }` (which Vite resolves to its default 5173, so a
       concurrent audit and UI suite collide) and no `server.host`, while it
