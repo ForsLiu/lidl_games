@@ -23,6 +23,44 @@ the merge — never edited from this lane.
 
 ## Queue
 
+- [ ] (fb166) [feat] the terrain half of the owner's bigger-map order
+      (BACKLOG.md `fb153b`, `balance-damage-rescale-and-bigger-map` item 2):
+      the default grid goes **36x20 -> 56x32** ⚖, and this lane owns everything
+      that has to move with it — `data/terrain.json`'s constraint bands
+      (`minWalkableFrac`, `minBuildableNormalFrac`, `minCoreLegalFrac`,
+      `minGateReachFrac`, `minCorridorWidth`, `maxGateDetour`), the blob and
+      density parameters fitted against the old area, and every `tests/terrain*`
+      suite. Measured on the main lane before filing: flipping the two grid
+      constants and running `npm run test:fast` reddens **~85 assertions across
+      20 files**, of which this lane's are terrain-band-ledger 10,
+      terrain-generation 9, terrain-approach 7, terrain-seed-domain 6,
+      terrain-grid 5, terrain-high-contest 4, terrain-flat 4, terrain-headroom
+      3, terrain-describe 2, terrain-cost 2, terrain-verify 1,
+      terrain-core-placement 1. Nothing here can be re-fitted until the
+      constants move, so this item **owns the flip**: change `GRID_W`/`GRID_H`
+      in `src/sim/grid.ts` (the single integration-point file this lane's Scope
+      allows, kept to those two lines), re-fit the bands, and re-record the
+      1000-seed property runs at the new size. Acceptance: the generator's
+      property tests hold every owner band across 1000 seeds at 56x32; the
+      band ledger is regenerated with its new numbers; `npm run test:fast`
+      shows no `tests/terrain*` failure; the cost ledger is re-recorded (a
+      56x32 map is 2.5x the tiles) — refs: SPEC-FINAL §10, BACKLOG.md fb153b.
+
+### Owner feedback routed from `feedback/` (2026-09-05, cloud round 1)
+
+- [ ] (fb156) [feat] maps generate with **4** spawn gates by default (N, S, E, W
+      edges, jittered along the edge) instead of 3, and tier modifiers that add
+      a gate now go to **5**. Every existing gate rule still applies unchanged:
+      gates are never sealed, connectivity >= 80% of walkable, Core legality
+      distance >= 3 from any gate. The consumers of the gate count are
+      main-lane — wave composition splits across 4 gates, leak coupling and VS
+      gate spawns (main-lane `fb154`) use 4, and path indicators need a 4th
+      color (UI lane) — so this item ships the generator half and logs those
+      three needs below rather than editing them. Acceptance: the generator
+      property tests pass at 4 gates across **1000 seeds**; nothing in
+      `data/terrain.json` hard-codes 3; the sweeps are re-recorded — refs:
+      SPEC-FINAL §10 (gate count amended), owner feedback `terrain-four-gates`.
+
 fb064 (the terrain epic) was split into sub-items on 2026-09-03 when it was
 picked up, per its own "split into sub-items as needed" instruction. The
 parent item is done only when every sub-item below is done. Sub-items that
@@ -1230,6 +1268,15 @@ highest-impact item here by a wide margin** and sits third only for that reason.
 
 ## Log
 
+- (2026-09-05, fb156 filing) The owner's four-gate order (`feedback/
+  terrain-four-gates.md`) has three consumers outside this lane's Scope, filed
+  here for the merge: (1) wave composition must split across 4 gates
+  (`data/waves.json` / `src/sim/run.ts`); (2) leak coupling and VS gate spawns
+  must use 4 — main-lane `fb154` is the VS half and should be written against
+  a gate count read from terrain, not a literal; (3) TD path indicators need a
+  4th color (UI lane). Also main-lane: `fb153b` moves the default grid to
+  56x32, so this lane's constraint bands are re-fitted at the new size — do
+  not tune them against 36x20 in the meantime.
 - (2026-09-05, fb065g) **The A/B, widened from the pilot and confirming it.**
   `npx tsx tests/terrain-balance-ab.ts 24 hybrid,maxbuild`, ~25 minutes:
   `hybrid` 18/24 flat against 7/24 with terrain, `maxbuild` 6/24 against 2/24.

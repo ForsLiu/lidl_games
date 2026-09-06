@@ -33,7 +33,7 @@ import {
 } from '../src/sim/classes';
 import { emptyInput, type Command, type Enemy, type Structure, type TickInput } from '../src/sim/types';
 import { World } from '../src/sim/world';
-import { cfg } from './helpers';
+import { cfg, scaled } from './helpers';
 
 const content = loadContent();
 const DT = 1 / 60;
@@ -828,21 +828,21 @@ describe('p6d: Paladin — Guardian Stance, Wrath and Judgement', () => {
     const w = worldWith('paladin');
     w.derived.armor = 50; // half of every normal hit is blocked
     const share = newClass('paladin').passive.wrathFraction!;
-    damageWarden(w, 100);
+    damageWarden(w, scaled(100));
     // Base passive: "blocked damage charges Wrath" names no percentage — the
     // full 50 blocked is banked, not `wrathFraction` (that belongs to Clarion).
-    expect(w.warden.wrathStored).toBeCloseTo(50, 5);
+    expect(w.warden.wrathStored).toBeCloseTo(scaled(50), 5);
 
     w.warden.wrathStored = 0;
     w.warden.clarionRemaining = 4;
-    damageWarden(w, 100);
+    damageWarden(w, scaled(100));
     // Under Clarion: the same 50 blocked, plus Clarion's own 60% of the 50 applied.
-    expect(w.warden.wrathStored).toBeCloseTo(50 + 50 * share, 5);
+    expect(w.warden.wrathStored).toBeCloseTo(scaled(50 + 50 * share), 5);
   });
 
   it('no other class ever banks Wrath', () => {
     const w = worldWith('swordsman');
-    damageWarden(w, 100);
+    damageWarden(w, scaled(100));
     expect(w.warden.wrathStored).toBe(0);
   });
 

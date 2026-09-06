@@ -16,11 +16,11 @@
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { createServer, type ViteDevServer } from 'vite';
+import type { ViteDevServer } from 'vite';
 import type { Browser, Page } from 'playwright';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 
-import { hasChromium, launchChromium } from './helpers/browser';
+import { hasChromium, launchChromium, startDevServer } from './helpers/browser';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '..');
@@ -48,14 +48,13 @@ describe.skipIf(!hasChromium)('b032: the tower-build panel stays above the 1080p
   let page: Page;
 
   beforeAll(async () => {
-    server = await createServer({ root: ROOT, server: { port: 0, strictPort: false } });
-    await server.listen();
-    const address = server.httpServer?.address();
-    const port = typeof address === 'object' && address ? address.port : null;
-    if (!port) throw new Error('could not determine the dev server port');
+    // fb140 CI: a genuinely exclusive port. `port: 0` resolves to Vite's
+    // default 5173, so all four of these suites used to race for it.
+    const started = await startDevServer(ROOT);
+    server = started.server;
     browser = await launchChromium();
     page = await browser.newPage({ viewport: VIEWPORT, deviceScaleFactor: 1 });
-    await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: 'load' });
+    await page.goto(started.url, { waitUntil: 'load' });
     // Same tsx/esbuild keepNames shim tools/ui-audit.ts needs — see its own
     // comment for why `page.evaluate` throws `__name is not defined` without it.
     await page.evaluate(() => {

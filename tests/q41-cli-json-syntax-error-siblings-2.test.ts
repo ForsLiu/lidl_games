@@ -74,11 +74,38 @@ function scratchPath(name: string): string {
   return path.join(SCRATCH_ROOT, `${name}-${process.pid}-${Math.random().toString(36).slice(2)}`);
 }
 
-function populateScratch(dir: string): void {
+/**
+ * Files a specific tool needs in the scratch beyond `COPY_DIRS`, because its
+ * own import graph reaches outside them.
+ *
+ * `tools/perf-ratio.ts` statically imports `../tests/helpers` (it reuses
+ * `cfg()` rather than re-deriving a RunConfig). The scratch deliberately has no
+ * `tests/` directory — that minimality is what makes the `mutation-probe`
+ * carve-out in this file's header true — so Node failed to *resolve* that
+ * import and exited with `ERR_MODULE_NOT_FOUND` **before** esbuild ever
+ * transformed the broken JSON. The assertion below then read a
+ * module-not-found stack where it expected a TransformError, which is a broken
+ * fixture reporting a false negative, not a finding about the tool. Copying the
+ * one module the tool imports restores the question this file is actually
+ * asking: does a `/data` syntax error crash it at import time?
+ *
+ * Deliberately per-tool rather than added to `COPY_DIRS`: a scratch that
+ * carries all of `tests/` would change what `mutation-probe.ts` does here, and
+ * this file's header documents that behaviour by name.
+ */
+const EXTRA_FILES: Record<string, string[]> = {
+  'perf-ratio.ts': [path.join('tests', 'helpers.ts')],
+};
+
+function populateScratch(dir: string, tool?: string): void {
   rmSync(dir, RM_RETRY);
   mkdirSync(dir, { recursive: true });
   for (const d of COPY_DIRS) cpSync(path.join(ROOT, d), path.join(dir, d), { recursive: true });
   for (const f of COPY_FILES) cpSync(path.join(ROOT, f), path.join(dir, f));
+  for (const f of (tool && EXTRA_FILES[tool]) ?? []) {
+    mkdirSync(path.join(dir, path.dirname(f)), { recursive: true });
+    cpSync(path.join(ROOT, f), path.join(dir, f));
+  }
 }
 
 /** A genuine syntax error, not a schema violation — never valid JSON at all, so it fails at the `import` transform, not inside `loadContent()`. */
@@ -121,7 +148,7 @@ describe.each([
   it('exits non-zero with a raw esbuild TransformError stack trace, not a one-line message', () => {
     const dir = scratchPath(tool.replace('.ts', ''));
     try {
-      populateScratch(dir);
+      populateScratch(dir, tool);
       breakTowersJsonSyntax(dir);
       const { exitCode, stdout, stderr } = runCli(dir, tool, args);
       // Today's actual (broken) behaviour, pinned so a future fix to

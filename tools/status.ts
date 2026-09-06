@@ -231,9 +231,38 @@ export interface FeedbackLedgerRow {
   status: string;
 }
 
+/**
+ * fb141: every backlog file, not just `BACKLOG.md`. Owner feedback routed into
+ * a lane (`BACKLOG-CONTENT.md`, `-TERRAIN.md`, `-UI.md`, `-TUNER.md`,
+ * `-QUALITY.md`) used to read "no BACKLOG citation found" in STATUS.md even
+ * when the lane file cited it by name — a false negative that made a correctly
+ * routed item look dropped, on a report whose whole job is to say what happened
+ * to the owner's feedback. Discovered by glob so a new lane file is picked up
+ * the day it is created, and sorted so the scan order (and therefore which
+ * file's citation wins a tie) does not depend on the filesystem.
+ */
+export function backlogPaths(root: string = REPO_ROOT): string[] {
+  let names: string[] = [];
+  try {
+    // The lane files, not "anything called BACKLOG-something": an archive file
+    // would sort ahead of the real lanes and win a citation with a stale id.
+    names = readdirSync(root).filter((f) => /^BACKLOG(-(CONTENT|TERRAIN|UI|TUNER|QUALITY))?\.md$/.test(f));
+  } catch {
+    // The caller's root, never the real repo's — a test against a scratch
+    // directory must not silently read the live backlog and pass for it.
+    return [resolve(root, 'BACKLOG.md')];
+  }
+  // `BACKLOG.md` first: an item that lives in the main queue is the one to
+  // report when a lane file also mentions the slug in a Log entry.
+  // A plain codepoint sort: `localeCompare` would trade a filesystem
+  // dependency for an ICU/locale one, which is the same problem.
+  names.sort((a, b) => (a === 'BACKLOG.md' ? -1 : b === 'BACKLOG.md' ? 1 : a < b ? -1 : a > b ? 1 : 0));
+  return names.map((n) => resolve(root, n));
+}
+
 export function feedbackLedger(
   processedDir: string = FEEDBACK_PROCESSED_DIR,
-  backlogPath: string = BACKLOG_PATH,
+  backlogPathList: string | string[] = backlogPaths(),
 ): FeedbackLedgerRow[] {
   let files: string[] = [];
   try {
@@ -241,12 +270,51 @@ export function feedbackLedger(
   } catch {
     return [];
   }
-  const backlogLines = readFileSync(backlogPath, 'utf8').split('\n');
+  const paths = typeof backlogPathList === 'string' ? [backlogPathList] : backlogPathList;
+  const docs = paths
+    .map((p) => {
+      try {
+        return { name: p.split(/[\\/]/).pop() ?? p, lines: readFileSync(p, 'utf8').split('\n') };
+      } catch {
+        return null;
+      }
+    })
+    .filter((d): d is { name: string; lines: string[] } => d !== null);
 
-  function bulletFor(lineIdx: number): { id: string; done: boolean } | null {
+  /**
+   * The item a citation belongs to, or `null` when the citation is loose prose.
+   *
+   * Two rules, both learned from real rows this scan got wrong:
+   *
+   * - **The walk stops at a blank line or a header.** A backlog item is a
+   *   contiguous block; a mention in a section's prose is always separated from
+   *   the bullets by one. Without the boundary the walk ran past the paragraph
+   *   into whatever bullet happened to precede it and reported that — a
+   *   feedback file whose real item is `fb060` in the UI lane was reported as a
+   *   long-done QUESTIONS chore, because the main file mentions the slug in
+   *   prose and the scan never looked further.
+   * - **An indented sub-item is reported with its parent's state.** `fb153a`
+   *   is done and `fb153b` is not; reporting the owner's two-part order as
+   *   "done" off the first sub-bullet is a false positive on the owner's own
+   *   order, which is worse than the false negative this item set out to fix.
+   */
+  function bulletFor(lines: string[], lineIdx: number): { id: string; done: boolean } | null {
     for (let i = lineIdx; i >= 0; i--) {
-      const m = /^- \[([ xX])\] \((\S+?)\)/.exec(backlogLines[i]);
-      if (m) return { done: m[1].toLowerCase() === 'x', id: m[2] };
+      const line = lines[i];
+      const m = /^(\s*)- \[([ xX])\] \((\S+?)\)/.exec(line);
+      if (m) {
+        const done = m[2].toLowerCase() === 'x';
+        if (m[1].length === 0) return { done, id: m[3] };
+        // A sub-item: find the parent it hangs under, and report the pair's
+        // state, not the child's alone.
+        for (let j = i - 1; j >= 0; j--) {
+          const p = /^- \[([ xX])\] \((\S+?)\)/.exec(lines[j]);
+          if (p) return { done: done && p[1].toLowerCase() === 'x', id: `${m[3]} (of ${p[2]})` };
+          if (/^#{1,6}\s/.test(lines[j])) break;
+        }
+        return { done, id: m[3] };
+      }
+      if (i !== lineIdx && (line.trim() === '' || /^#{1,6}\s/.test(line))) return null;
     }
     return null;
   }
@@ -256,16 +324,47 @@ export function feedbackLedger(
     if (slug.startsWith('verdicts-')) {
       return { file, status: 'QUESTIONS verdict batch — applied to QUESTIONS.md, archived' };
     }
-    // Section headers can cite the same slug the bullet below them cites
-    // (e.g. "### Owner verdict batch (... + `feature-status-report`)"),
-    // which would make `bulletFor` walk back into the *previous* section's
-    // last bullet instead of the item that actually names this file —
-    // headers are excluded so only a real bullet's own citation counts.
-    const hitLine = backlogLines.findIndex((l) => l.includes('`' + slug + '`') && !l.trim().startsWith('#'));
-    if (hitLine === -1) return { file, status: 'no BACKLOG citation found' };
-    const bullet = bulletFor(hitLine);
-    if (!bullet) return { file, status: 'cited, but no enclosing BACKLOG item found' };
-    return { file, status: `${bullet.id} — ${bullet.done ? 'done' : 'queued'}` };
+    // fb141: the forms a backlog item actually cites a feedback file in. The
+    // first version searched only the timestamp-stripped slug and left ten real
+    // citations reading "no BACKLOG citation found" — items cite the
+    // *type*-stripped slug just as often (`dot-tick-cadence` for
+    // `…-bug-dot-tick-cadence.md`), and the terrain lane cites the whole path.
+    const needles = [slug, slug.replace(/^(feature|bug|balance|polish)-/, ''), file];
+    let looseHit: string | null = null;
+    for (const doc of docs) {
+      // Section headers can cite the same slug the bullet below them cites
+      // (e.g. "### Owner verdict batch (... + `feature-status-report`)"),
+      // which would make `bulletFor` walk back into the *previous* section's
+      // last bullet instead of the item that actually names this file —
+      // headers are excluded so only a real bullet's own citation counts.
+      // **Every** hit in the document, not the first: a section's prose often
+      // mentions a file that a bullet further down actually owns, and reporting
+      // the prose would shadow the item (fb038's own filing feedback is cited in
+      // a paragraph at BACKLOG.md:1001 and by its item at :6185).
+      const hits: number[] = [];
+      for (let i = 0; i < doc.lines.length; i++) {
+        const l = doc.lines[i];
+        if (l.trim().startsWith('#')) continue;
+        if (needles.some((n) => l.includes('`' + n + '`') || l.includes(n + '`'))) hits.push(i);
+      }
+      if (hits.length === 0) continue;
+      let bullet: { id: string; done: boolean } | null = null;
+      for (const h of hits) {
+        bullet = bulletFor(doc.lines, h);
+        if (bullet) break;
+      }
+      // A loose mention does not end the search: the item that owns the file may
+      // still be in a later document, and reporting the prose would shadow it.
+      if (!bullet) {
+        looseHit ??= `cited in ${doc.name}, but no enclosing item found`;
+        continue;
+      }
+      // The lane is named for a cited item that is not in the main queue, so a
+      // reader can find it without grepping five files.
+      const where = doc.name === 'BACKLOG.md' ? '' : ` (${doc.name})`;
+      return { file, status: `${bullet.id}${where} — ${bullet.done ? 'done' : 'queued'}` };
+    }
+    return { file, status: looseHit ?? 'no BACKLOG citation found' };
   });
 }
 

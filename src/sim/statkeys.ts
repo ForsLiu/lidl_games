@@ -190,3 +190,70 @@ export const STAT_DISPLAY: Record<StatKey, StatDisplay> = {
   leech: 'percent',
   cdr: 'percent',
 };
+
+/**
+ * fb153a (owner order `balance-damage-rescale-and-bigger-map`): which flat
+ * stats are denominated in **HP or damage**, and so must be divided by
+ * `numberScale` along with every other HP and damage number in `/data`. A
+ * stat that is a point total on some other axis (armor points, build range,
+ * gold, radii) or a fraction in disguise (`leech`, `cdr`, the booleans) keeps
+ * its authored value: rescaling those would change the game rather than
+ * change what the numbers read.
+ *
+ * `mul` stats are percentages of a base that is itself scaled, so they are all
+ * `false` by construction — stated row by row anyway, because
+ * `Record<StatKey, boolean>` makes adding a stat without deciding this a
+ * compile error rather than a silent "not scaled", the same reason
+ * `STAT_KIND` and `STAT_DISPLAY` are exhaustive.
+ */
+export const STAT_SCALED: Record<StatKey, boolean> = {
+  // HP- and damage-denominated point totals: the whole point of the order.
+  maxHp: true,
+  hpRegen: true,
+  coreHp: true,
+  atkFlat: true,
+  towerAtkFlat: true,
+
+  // Point totals on another axis entirely.
+  armor: false,
+  towerDefenseBonus: false,
+  buildRange: false,
+  goldPerKill: false,
+  beaconRadius: false,
+  teslaLinks: false,
+  dashCharges: false,
+  burnSpread: false,
+  luck: false,
+  startingGold: false,
+  // Fractions and booleans authored like point totals.
+  leech: false,
+  cdr: false,
+  secondWind: false,
+  lastStandSundering: false,
+  bleedLifesteal: false,
+
+  // Percentages of a base that is scaled already.
+  power: false,
+  attackSpeed: false,
+  area: false,
+  moveSpeedPct: false,
+  maxHpPct: false,
+  pickupPct: false,
+  goldFind: false,
+  ailmentPotency: false,
+  towerCost: false,
+  towerDamage: false,
+  towerRange: false,
+  towerAttackSpeed: false,
+  towerPoisonDamage: false,
+  towerHp: false,
+  wallHp: false,
+  sproutGold: false,
+  residualPotency: false,
+  modRewardBonus: false,
+  burnDamage: false,
+  slowPotency: false,
+  chilledDamageTaken: false,
+  xpGain: false,
+  charRange: false,
+};

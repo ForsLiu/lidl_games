@@ -838,6 +838,25 @@ export function killProcessTree(pid: number): void {
     }
     return;
   }
+  // POSIX has no `taskkill /T`. Killing the process *group* (`-pid`) reaches
+  // the children a `detached: true` spawn put in it — but not a descendant that
+  // detached again into a group of its own, which is exactly what a nested
+  // `npx` -> `node` -> vitest worker chain does. So the tree is walked
+  // explicitly first, the way `/T` walks it, and the group kill is kept as the
+  // belt-and-braces sweep for anything spawned between the walk and the signal.
+  //
+  // Found by `tests/b028-mutation-probe-tree-kill.test.ts` failing on Linux
+  // (and on the GitHub runner) while passing on the Windows box it was written
+  // on: the fixture's grandchild is `detached: true`, so no group signal could
+  // ever have reached it. The test was right and this function was
+  // Windows-only.
+  for (const child of descendantsOf(pid).reverse()) {
+    try {
+      process.kill(child, 'SIGKILL');
+    } catch {
+      // Already gone: a parent's death can take its children with it.
+    }
+  }
   let groupKillFailed = false;
   try {
     process.kill(-pid, 'SIGKILL'); // negative pid: the whole process group (requires detached: true at spawn)
@@ -852,6 +871,46 @@ export function killProcessTree(pid: number): void {
       console.warn(`mutation-probe: killProcessTree(${pid}) failed on both the process group and the pid itself (likely already exited): ${(err as Error).message}`);
     }
   }
+}
+
+/**
+ * Every descendant pid of `pid`, parents before children, read from `ps`.
+ *
+ * `ps -A -o pid=,ppid=` is POSIX and present on both Linux and macOS. A failure
+ * to read it returns an empty list rather than throwing: the caller's group and
+ * direct kills still run, so a missing `ps` degrades this back to the old
+ * behaviour instead of breaking the timeout path it exists to serve.
+ */
+function descendantsOf(pid: number): number[] {
+  let out = '';
+  try {
+    out = execFileSync('ps', ['-A', '-o', 'pid=,ppid='], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+  } catch {
+    return [];
+  }
+  const childrenOf = new Map<number, number[]>();
+  for (const line of out.split('\n')) {
+    const m = /^\s*(\d+)\s+(\d+)\s*$/.exec(line);
+    if (!m) continue;
+    const child = Number(m[1]);
+    const parent = Number(m[2]);
+    if (child === parent) continue; // defensive: a self-parented row would loop
+    const list = childrenOf.get(parent);
+    if (list) list.push(child);
+    else childrenOf.set(parent, [child]);
+  }
+  const found: number[] = [];
+  const seen = new Set<number>([pid]);
+  const queue = [pid];
+  while (queue.length > 0) {
+    for (const child of childrenOf.get(queue.shift()!) ?? []) {
+      if (seen.has(child)) continue; // a cycle would otherwise hang the probe
+      seen.add(child);
+      found.push(child);
+      queue.push(child);
+    }
+  }
+  return found;
 }
 
 function runVitest(
