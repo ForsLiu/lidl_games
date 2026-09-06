@@ -697,80 +697,84 @@ Q91 and Q102 corrections if not yet done.
   reasonable reading of a mechanism nobody had counted, and passing it exactly
   would have shipped a half-fix. Measure the thing the complaint is about.
 
-- **Q190. [fb162] The overkill fix is scoped to a new `bankedTick` flag, not
-  the existing `dot` flag — and its acceptance's G5/A5 re-measurement clause is
-  deferred, on record, rather than run.** First shape capped every `dot: true`
-  ledger credit at `Math.min(dmg, hpBeforeHit)`. code-reviewer caught that this
-  silently undercredits **designed** overkill: Time Lord's Time Mark execute
-  and Time Lock burst (`classes.ts`) spend `e.hp` through `damageEnemy(...,
-  'class_active', { dot: true })` with no `preScaled`, so `dotVaryingMul`'s
-  `kitPowerMul` scales the credited amount past the target's hp **on purpose**
-  — `p12a-kit-power.test.ts:117` already pins that the *return value* carries
-  the full scaled amount, and the ledger is meant to agree. Capping on `dot`
-  generally would have quietly clawed back the Time Lord's own kit-share
-  numbers for a bug that has nothing to do with him. Fixed by adding a new,
-  narrower `bankedTick` flag set only at the two real fb152 bank-flush sites
-  (`tickDot`, `tickDotSplash`) and consumed only there — every other `dot:
-  true` caller (both Time Lord actives, the Corpse Core's execute and Time
-  Core's drain, the ground-fire zone) keeps booking its full raw amount,
-  unchanged. Re-verified against the narrowed flag: `tests/fb013-timelord
-  .test.ts` (31), `p12a-kit-power.test.ts` (14), `p-core-d-corpse.test.ts`
-  (22), `g2-determinism.test.ts` (100-seed hash, class_active/equip_item log,
-  auto-pick), and `p-core-f-gates.test.ts`'s G22 (each Core's fingerprint
-  shift, both seeds) all green — the two hash/fingerprint-sensitive gates
-  matter here because `corpseStore`'s growth rate, which now tracks *landed*
-  rather than *banked* damage, feeds `updateCorpseExecute`'s timing.
-  The acceptance line also asks that "the G5/A5 damage-share suites are
-  re-measured and their deltas recorded." Attempted: `tests/p10c-weapon-share
-  .test.ts` (G13's live A5 successor) did not finish inside a 15-minute budget
-  — the same order of cost as `p6e-class-diversity.test.ts`'s ~1h G8 sweep,
-  both already excluded from the fast tier for exactly that reason, and
-  CLAUDE.md reserves a run of that size for phase completion/lane merges, not
-  an ordinary item. Deferred rather than forced, on the same reasoning as
-  p6e/p10c's own existing `.skip`s: the fix changes **only** which of an
-  already-dealt DoT kill's damage lands in the ledgers (bounded to at most one
-  `dotTickInterval` of overkill per kill, never more than what fb152 already
-  banked), touches no enemy hp trajectory, kill timing, or gold outside the
-  Corpse Core's store growth — and that one behavioral surface is exactly what
-  G22's re-verified fingerprint-shift gate is built to catch. Re-enable point:
-  whichever item next runs the full `p10c-weapon-share`/`p6e-class-diversity`
-  sweeps (a phase gate, not this one) should note fb162 in that sweep's own
-  delta writeup.
+- **Q190. [fb164] "Derive it live" vs "match the loaded value" — took the
+  second, and logged the first as future work rather than building it.**
+  fb164's acceptance offered a disjunction: every prose sentence quoting an
+  HP/damage magnitude either *derives* it from the loaded value at render
+  time, or *matches* it as authored text. The item text's own preference is
+  for deriving (so a later `numberScale` retune can't re-break the same
+  sentences), but deriving means a templating layer — `{field}`-style
+  placeholders in every affected `/data` description plus a render-time
+  interpolation pass wired into every UI call site that shows one (hud.ts,
+  class-info.ts, tower-info.ts, core-info.ts, the stash/equipment panels, the
+  tree UI, the damage-type tooltip) — which is new UI-wide infrastructure, not
+  a bug fix, and was judged out of scope for one backlog item.
+  Took the "matches the loaded value" branch instead: every affected sentence
+  (`data/damagetypes.json`, `data/vsupgrades.json`, `data/equipment.json`,
+  `data/tree.json`, `data/cores.json`, `data/modifiers.json`,
+  `data/quests.json`, one `data/classes.json` sentence) was hand-edited to the
+  post-`numberScale` figure, and `tests/fb164-prescale-prose.test.ts` pins
+  each one against the *live loaded value* (not a hardcoded expected number),
+  so a future retune that moves a field without moving its sentence reddens
+  there rather than shipping quietly — the same failure mode fb164 itself was
+  filed to close.
+  **Filed as future work, not done here:** a real derive-at-render templating
+  layer (extending `src/ui/info-format.ts`'s existing generic field-list
+  rendering, fb022/fb028) would make every such sentence permanently immune to
+  a retune, at the cost of a UI-wide refactor. Worth doing if `numberScale`
+  (or an equivalent global rescale) is retuned again; not worth it as a
+  one-off for a factor that, once corrected, only drifts again on a repeat of
+  the same kind of change.
 
-- **Q191. [fb164] Hand-anchored the sentence to the loaded value instead of
-  building a live-derivation mechanism, and the new test file is a curated
-  ledger, not a generic scanner — both logged per code-reviewer's Majors.**
-  fb164's text prefers deriving a quoted magnitude at render time over
-  re-typing "~50 strings that a later `numberScale` re-tune would invalidate
-  again." A full per-file audit against `applyNumberScale`'s scaled-field
-  lists found the real count far short of that: **one** string in
-  `classes.json` (Pyromancer's `flameDps`), one each in `vsupgrades.json` and
-  `modifiers.json`, two in `damagetypes.json`, two in `tree.json`, and four
-  across `cores.json`'s three affected upgrade descs plus the Corpse Core's
-  `unlockCondition` — 11 strings total, not 50. At that count, wiring four new
-  render call sites (`hud.ts`'s `showOffers`, `tree-view.ts`, and two more)
-  through a new placeholder-substitution mechanism carries more risk (new
-  production code paths with zero prior `info-format.ts` involvement, per the
-  research this item started from) than it removes: the codebase's own
-  precedent for this exact situation is `classes.json`'s p12a retune, which
-  moved the field and the sentence together by hand. Chosen instead: hand
-  -anchor every affected sentence to the loaded value (matching that
-  precedent), and let `tests/fb164-desc-numbers.test.ts` be the safety net
-  that turns a future un-paired retune red — the same shape
-  `class-descriptions.test.ts` already is for `classes.json`, just without
-  that file's full numeral-extraction machinery, since a curated, by-hand
-  ledger over 11 known strings is proportionate where that file's generic
-  extraction earns its cost over `classes.json`'s ~30.
-  **The narrowing this leaves, named rather than hidden:** the new test
-  pins the 11 strings this audit found; it does not scan every `/data` desc
-  field for an unclaimed magnitude the way `class-descriptions.test.ts`'s
-  numeral-extraction does for `classes.json`, so a *new* desc string added
-  later, quoting a *newly*-scaled field, would not fail loudly the way this
-  item's acceptance literally asks for ("a test asserts no remaining `/data`
-  desc string quotes a magnitude that differs from what the sim runs on").
-  Mitigated, not closed: `q7-loader-holes.ts`'s per-field fuzz census already
-  tracks every `desc` field's schema coverage and would need one line added
-  the day a new scaled field grows a prose sentence — a cheap trigger to
-  extend this ledger, logged here so it is not forgotten rather than solved
-  now.
+- **Q191. [fb163] The two-economy call: (a), keep one factor and accept the
+  coarse character sheet — not (b)'s second factor, not (c)'s reformatting,
+  because (c) is already substantially shipped.** fb163 asked for a verdict
+  among three options because one global `numberScale` cannot make tower-
+  damage-vs-enemy-HP's huge range single-digit without making the already-
+  small character/equipment economy fractional (0.1 HP, +1.5 Max HP — which
+  fb164 just finished re-anchoring the prose to, on the assumption the single
+  factor stays).
+  Checked (c) first, since it looked like the cheapest option: the display
+  layer already does almost everything "format large numbers compactly"
+  would ask for. `damageText` (`src/render/canvas.ts:229`) rounds floating
+  combat numbers to whole numbers at 10+ and one/two decimals below it;
+  `formatDamage`/`formatDps` (`src/ui/hud.ts:2223-2229`) comma-group every
+  DPS-panel total via `toLocaleString()`. The one raw, ungrouped number left
+  (`src/ui/hud.ts:1090`, the Core HP readout) never reaches four digits post-
+  scale (base 50, plus at most a few hundred from upgrades/tree/modifiers),
+  so grouping it would add punctuation with nothing to punctuate. There is no
+  further formatting work (c) would add.
+  That leaves (a) vs (b). (b) — a second factor plus a named conversion
+  constant at each of lifesteal, Blood Tithe, Wrath, the Corpse store and
+  Vampire Heart, each requiring its own before/after control-run measurement
+  — is a multi-day balance-validation undertaking for a purely cosmetic gain
+  (shaving typical hits from 2-3 digits to 1), and it would re-open every
+  sentence fb164 just finished re-anchoring (a second character-side factor
+  moves those numbers again). Chose **(a)**: the single `numberScale` (0.1)
+  stays exactly as fb153a shipped it, the "single-digit early hits" sub-
+  clause is accepted as unmet (fb153a's own entry already recorded this — the
+  order's stricter reading, not its "single/double-digit... on typical hits"
+  main clause, which *is* met), and no code or `/data` changes are made.
+  Acceptance's "five crossing points, each measured with a before/after
+  control pair" is (b)'s own verification burden and does not apply once (b)
+  is not the chosen option; fb163 is closed on that basis.
+
+- **Q192. [fb162, integrator merge] Two independent fixes for the same
+  overkill-ledger bug collided at merge; master's unconditional clamp was
+  kept over the branch's narrower `bankedTick`-scoped one.** `claude/admiring-
+  cray-lj5pov` fixed fb162 by clamping only the two real fb152 bank-flush
+  sites, deliberately leaving Time Lord's/the Corpse Core's designed-overkill
+  executes booking their full raw amount past a target's hp. Master had
+  already merged a simpler, unconditional `Math.min(dmg, hpBeforeHit)` clamp
+  at the same choke point, with its own `tests/fb162-dot-kill-overkill
+  .test.ts` explicitly pinning a **direct** overkill as clamped too — the
+  opposite of what the branch's `bankedTick` scoping intended to preserve.
+  A real semantic conflict on shared sim core, not a textual one. Resolved by
+  the merge's own standing rule (master wins on shared sim core): kept
+  master's shape, removed the now-dead `bankedTick` opt and its two call
+  sites, and dropped the branch's `tests/fb162-dot-overkill.test.ts`, which
+  pinned the discarded behavior. Neither `p12a-kit-power.test.ts` nor
+  `fb013-timelord.test.ts` depend on an execute overkilling a near-dead
+  target, so master's stricter clamp does not regress either. See PROGRESS.md
+  for the full reconciliation note.
 

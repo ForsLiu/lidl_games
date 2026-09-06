@@ -297,32 +297,29 @@ therefore measure *after* `fb153`, not before.
       counts <= 4 `wardenhit` events per second per ground field; totals over a
       field's lifetime unchanged against a control; determinism holds — refs:
       QUESTIONS Q179 (7), owner feedback `dot-tick-cadence`.
-- [x] (fb162) [bug] **DONE 2026-09-06** — `damageEnemy` now books `landed =
-      Math.min(dmg, hpBeforeHit)` into `damageByWeapon`/`damageByWeaponVs`/
-      `damageByType`/`damageTotal`/`corpseStore` instead of the raw banked
-      `dmg`, but only when a new `bankedTick` opt is set — narrower than `dot`,
-      per code-reviewer's Major finding that capping on `dot` generally would
-      have silently undercredited Time Lord's Time Mark execute and Time Lock
-      burst, whose `class_active`/`kitPowerMul` scaling deliberately spends
-      past the target's remaining hp (`p12a-kit-power.test.ts:117` already
-      pins the full scaled amount as correct). `bankedTick` is set only at the
-      two real fb152 bank-flush sites, `tickDot` and `tickDotSplash`; every
-      other `dot: true` caller is untouched. `tests/fb162-dot-overkill.test.ts`
-      pins the 1-hp carrier and 1-hp splash-neighbour cases (exact totals, not
-      loose bounds), the Corpse store not inflating, a non-overkilling tick's
-      total unchanged, a non-DoT overkill still booking its full raw swing
-      (existing `p-core-d-corpse.test.ts` behavior, preserved), and the
-      designed kit-power execute still booking its full scaled amount past hp.
-      Re-verified green against the final shape: `fb013-timelord`,
-      `p12a-kit-power`, `p-core-d-corpse`, `g2-determinism` (100-seed hash),
-      and `p-core-f-gates`' G22 (Corpse Core fingerprint-shift, both seeds) —
-      the last two matter because `corpseStore`'s growth rate feeds
-      `updateCorpseExecute`'s timing. The acceptance's G5/A5 damage-share
-      re-measurement is deferred on record (QUESTIONS Q190): `p10c-weapon-share
-      .test.ts` did not finish inside a 15-minute budget, the same cost class
-      as the already-fast-tier-excluded `p6e-class-diversity.test.ts`, and
-      CLAUDE.md reserves that scale of run for phase completion. Original text
-      follows.
+- [x] (fb162) [bug] **DONE 2026-09-06** — `damageEnemy`'s single choke point
+      (`src/sim/enemies.ts`) now books `dmgBooked = Math.min(dmg, hpBeforeHit)`
+      into `damageByWeapon`/`damageByWeaponVs`/`damageByType`/`damageTotal`/
+      the Corpse Core's `corpseStore`, the same Q91 clamp already applied to
+      the lifesteal accumulator a few lines below — extended to every other
+      ledger at that choke point. `e.hp -= dmg`, the visual `hit:` popup
+      number and the function's own return value are deliberately left as the
+      raw (unclamped) hit; nothing downstream reads the return value. Two
+      pre-existing `tests/p-core-d-corpse.test.ts` cases that had asserted the
+      old "full amount, not what landed" behaviour as intended were corrected
+      to the new accounting. `tests/fb162-dot-kill-overkill.test.ts` (5 tests)
+      pins a direct overkill, an exact-kill (no off-by-one), a DoT kill on a
+      1-hp carrier under fb152's cadence, a Burning splash-neighbour overkill,
+      and a Corpse-store overkill; confirmed each fails on the pre-fix code.
+      code-reviewer found no Critical/Major issues (one Minor: documented that
+      the return value is intentionally unclamped). qa-playtester
+      adversarially probed simultaneous multi-neighbour splash kills, a
+      chained execute-then-explode kill, re-entrancy on an already-dead
+      enemy, and exact-zero-HP kills — all correct, no bugs filed; damage-share
+      sanity re-measured via `class-kit-damage-share.test.ts`/
+      `p12a-kit-power.test.ts` (green) and two headless sim seeds (`sum`
+      across `damageByWeapon`/`damageByType` matches `damageTotal` within
+      float noise). Original text follows.
       a DoT kill books its whole banked lump into
       `damageByWeapon`/`damageByWeaponVs`/`damageByType`/`damageTotal` and the
       Corpse Core's `corpseStore`, while only the target's remaining hp
@@ -338,40 +335,31 @@ therefore measure *after* `fb153`, not before.
       neighbour cases; the G5/A5 damage-share suites are re-measured and their
       deltas recorded (they read exactly this ledger) — refs: QUESTIONS Q179,
       SPEC-FINAL §5.5 (Corpse), Q91.
-- [x] (fb164) [bug] **DONE 2026-09-06** — audited every `/data` desc/
-      `unlockCondition` string against `applyNumberScale`'s scaled-field lists
-      (`src/sim/content.ts`) and found 11 affected, far short of the "~50" the
-      item worried about: one in `classes.json` (Pyromancer's `flameDps`
-      sentence), one each in `vsupgrades.json` (vitality) and `modifiers.json`
-      (Cracked Core), two in `damagetypes.json` (Bleeding, Burning), two in
-      `tree.json`, and four across `cores.json` (Stone Heart, Vampire Heart's
-      two overheal-ratio clauses, Time's regen/decay-coefficient clauses, and
-      the Corpse Core's `unlockCondition`, which quotes the same lifetime
-      -damage target as the `hundred_grand` quest). Each hand-anchored to the
-      loaded (scaled) value rather than built as a live-derivation mechanism —
-      QUESTIONS Q191 logs why: at 11 strings, wiring four new render call
-      sites through a placeholder mechanism with zero prior `info-format.ts`
-      involvement carried more risk than it removed, and this codebase's own
-      precedent for the same situation (`classes.json`'s p12a retune) is a
-      hand-paired field+sentence edit. `tests/fb164-desc-numbers.test.ts` (11
-      cases, confirmed failing pre-fix) pins every one of the 11 strings
-      against `loadContent()`'s real values, so a future un-paired retune goes
-      red instead of silently stale again — a curated ledger over the audited
-      set, not a generic scanner (Q191 also names that narrowing).
-      `tests/class-descriptions.test.ts`'s `readLoaded` no longer un-scales
-      through `isScaledClassPath` (only its one `flameDps` claim was affected,
-      re-pointed from token `'6'` to `'0.6'`); the "loader and raw document
-      agree" invariant was updated to expect a `numberScale` multiplier on
-      that one scaled path instead of exact equality. `equipment.json`'s desc
-      strings are confirmed out of scope: `grep` shows no `.desc` access
-      anywhere in `src/ui` — equipment's info surfaces already derive their
-      numbers from `item.mods` (fb022/fb028's live-numbers path), never from
-      `desc`. code-reviewer verified every data edit against the loader/code
-      directly (including Vampire Heart's ratio direction and Time's in-code
-      decay coefficient, `cores.ts:673`) and found no further affected
-      strings; `npm run test:fast`: 3926 passed, only the two container-only
-      q15/q45 failures. Original text follows.
-      player-facing prose still quotes pre-rescale numbers.
+- [x] (fb164) [bug] **DONE 2026-09-06** — took the "matches the loaded value"
+      branch of the acceptance (deriving live was judged a UI-wide templating
+      refactor out of scope for one item — logged as future work, QUESTIONS
+      Q190). Every affected sentence in `data/damagetypes.json`,
+      `data/vsupgrades.json`, `data/equipment.json` (all 12 items),
+      `data/tree.json`, `data/cores.json` (including the forward-scaling
+      `overhealGoldRatio` ratios and the Time core's decay coefficient),
+      `data/modifiers.json`, `data/quests.json` and one `data/classes.json`
+      sentence (pyromancer's Contagious Flame) now quotes the post-
+      `numberScale` figure. `tests/class-descriptions.test.ts`'s `readLoaded`
+      stops unwinding the scale, reading `loadContent()` straight; its "loader
+      and raw document agree" check re-derives the one scaled claim's
+      expected value through `numberScale` rather than assuming parity. New
+      `tests/fb164-prescale-prose.test.ts` (26 tests) pins every fixed
+      sentence against the *live* loaded value via regex extraction, so a
+      future retune that moves a field without moving its sentence reddens
+      here. Two pre-existing tests also assumed the pre-rescale prose and
+      needed the same treatment: `tests/equip-spec-numbers.test.ts`'s c012
+      desc-vs-§7 checks now scale `maxHp`/`atkFlat` before comparing (armor
+      stays unscaled), and its Effect-quote check rebuilds the expected
+      substring's numeral for a scaled stat instead of loosening the
+      containment check. code-reviewer: no Critical/Major (one cosmetic
+      alignment nit in `modifiers.json`, fixed). Light tier (data + tests
+      only, no balance value changed) — full `npm run test:fast` green.
+      Original text follows.
       fb153a divides every HP/damage magnitude at load, but `/data`'s authored
       *sentences* were not re-anchored, so the game now tells the player numbers
       it does not run on: `data/vsupgrades.json`'s `vitality` reads "+15 Max HP"
@@ -393,7 +381,19 @@ therefore measure *after* `fb153`, not before.
       remaining `/data` desc string quotes a magnitude that differs from what
       the sim runs on — refs: QUESTIONS Q180, owner feedback
       `balance-damage-rescale-and-bigger-map` item 1, code review Major 5.
-- [ ] (fb163) [balance] **the owner's call fb153a's measurement asks for**
+- [x] (fb163) [balance] **DONE 2026-09-06 — decided (a), no code/data change**
+      (QUESTIONS Q191): checked (c) first and found the display layer already
+      does it (`damageText` in `canvas.ts` rounds/decimals combat numbers,
+      `formatDamage`/`formatDps` in `hud.ts` comma-group every DPS-panel
+      total; Core HP never reaches four digits post-scale). (b)'s second
+      factor + five conversion constants is a large balance-revalidation
+      effort for a cosmetic gain and would re-open every sentence fb164 just
+      finished re-anchoring. Chose (a): keep the single `numberScale` (0.1),
+      accept the "single-digit early hits" sub-clause as unmet (fb153a's own
+      entry already recorded this; its main "single/double-digit on typical
+      hits" clause is met). The acceptance's "five crossing points" clause is
+      (b)'s own verification burden and does not apply since (b) was not
+      chosen. Original text follows.
       (QUESTIONS Q180): `/data` carries **two** number economies — enemy HP and
       the damage dealt *to* enemies (tower damage 150-4200 against enemy HP
       80-365,000 x `baseHpMul` 20) versus enemy damage output, Core/structure/
