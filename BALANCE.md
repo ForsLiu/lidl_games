@@ -1,5 +1,13 @@
 # BALANCE.md — enemy pacing intent (fb025, supersedes fb020)
 
+> **2026-09-05 — the T1 snapshot after this session's three owner orders.**
+> `npm run status`'s 88-run snapshot (2 seeds/cell): win rate **1.0 -> 0-0.5**
+> across all ten policies, timeouts **0/88 -> 24/88**, mean run 33.69 -> 31.63
+> min. One mechanism reported twice — the snapshot scores a run sitting at the
+> 45-minute cap as a loss, and fb152/fb154 both make runs longer. The gate that
+> excludes censored seeds (G1, 24 seeds at T3) still reads 40.9%, in band. The
+> cap is **p12e**. Nothing here was tuned in response; see QUESTIONS Q184.
+
 > **fb154 (2026-09-05) — VS spawn distance changed, and every band below was
 > fitted before it.** VS-wave ground enemies now walk out of the TD gates
 > instead of appearing on the rim near the Warden, so they live longer and more

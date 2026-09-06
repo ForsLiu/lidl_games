@@ -5,6 +5,39 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-05 — BACKLOG fb141 [polish]: STATUS.md's feedback ledger reads every
+  backlog file, not just the main queue.** Owner feedback routed into a lane
+  showed "no BACKLOG citation found" on the one report whose job is to say what
+  happened to it. `tools/status.ts` now discovers `BACKLOG*.md` by glob
+  (`BACKLOG.md` first so the main queue wins a tie) and names the lane in the
+  status. On the real repo that turned **eight false negatives into real
+  citations** (`fb055 (BACKLOG-UI.md) — done`, `fb056 (BACKLOG-CONTENT.md) —
+  queued`, …).
+
+  **code-reviewer found three ways the first version reported the *wrong* item,
+  which is worse than the false negative it removed.** (1) Allowing indented
+  bullets made the owner's own two-part rescale order read `fb153a — done` while
+  `fb153b` is still queued; a sub-item is now reported with its parent's state
+  (`fb153a (of fb153) — queued`). (2) The backward walk had no block boundary,
+  so a prose mention attached to whatever bullet preceded it and returned —
+  `feature-dot-tick-numbers` was reported as a long-done QUESTIONS chore instead
+  of the UI lane's fb060; the walk now stops at a blank line or a header, and
+  the scan tries **every** hit in a document rather than the first, so prose can
+  no longer shadow the item. (3) Ten rows still read "no citation" because the
+  backlogs cite the *type*-stripped slug (`dot-tick-cadence`) or the whole path;
+  the needle list now covers all three forms. Four of the remaining rows are
+  honest — nothing in any backlog file cites them.
+
+  **What regenerating STATUS.md exposed, filed rather than shipped quietly:**
+  the 88-run T1 snapshot goes from win rate 1.0 on every policy with 0/88
+  timeouts to 0-0.5 with **24/88**, because fb152 and fb154 both make runs
+  longer and the snapshot scores a censored run as a loss. G1's own 24-seed
+  measurement, which excludes censored seeds by design, still reads 40.9% — in
+  band. Recorded in QUESTIONS **Q184**, BALANCE.md and under **p12e**, whose
+  "zero `'running'` outcomes" acceptance is now what stands between the project
+  and a status report that reads as a difficulty collapse. Not tuned: the orders
+  say re-record, and P10 is the one balance pass.
+
 - **2026-09-05 — BACKLOG fb155: every enemy publishes what its attack is and how
   far it reaches.** All 20 §9 rows in `data/enemies.json` now carry
   `attackKind` (a closed enum: melee/ranged/bomber/healer/buffer/burrower/

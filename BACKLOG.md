@@ -117,6 +117,22 @@ therefore measure *after* `fb153`, not before.
         and at the map edges; determinism holds and the end-state hash is
         re-recorded — refs: SPEC-FINAL §10, owner feedback
         `balance-damage-rescale-and-bigger-map` item 2.
+        **Measured before starting (2026-09-05): this item spans three lanes and
+        cannot land from one.** Flipping `GRID_W`/`GRID_H` alone and running
+        `npm run test:fast` reddens **~85 assertions across 20 files**, and the
+        great majority are outside the main lane's reach: `tests/terrain-*`
+        (band ledger 10, generation 9, approach 7, seed domain 6, grid 5, high
+        contest 4, flat 4, headroom 3, describe 2, cost 2, verify 1, core
+        placement 1) plus `data/terrain.json`'s constraint bands are
+        **BACKLOG-TERRAIN.md's Scope**, and `tests/ui-input` (7),
+        `tests/class-board` (6), `tests/ui-fb082`/`fb106`/`fb102` (6) are
+        **BACKLOG-UI.md's**. The main lane's own share is the grid constants,
+        `GATES`/`CORE_X`/`CORE_Y` placement and the two sim suites
+        (`p8d-boss-termination`, `b007-tile-bounds`, `fb077-terrain-wiring`).
+        So: the terrain half is filed as **fb166** in BACKLOG-TERRAIN.md and
+        the camera/render half as **fb167** in BACKLOG-UI.md; this item keeps
+        the sim half and lands **after** both, since flipping the constant
+        first would redden two other lanes' suites at their next merge.
 
 - [x] (fb154) [feat] **DONE 2026-09-05** — round-robin over the gates behind a
       hashed cursor, fliers keeping the edge ring, and a Warden-distance rule
@@ -511,6 +527,13 @@ qa-playtester per CLAUDE.md's tier, commit) — do not bundle.
       `npm run status` to regenerate STATUS.md against the new baseline —
       refs: BALANCE DIRECTION v2 §E, QUESTIONS Q159/Q160 (both name timeouts
       in the pre-p12 baseline).
+      **The bill, measured 2026-09-05** (QUESTIONS Q184): with fb152 and fb154
+      shipped, `npm run status`'s 88-run T1 snapshot goes from win rate 1.0 on
+      all ten policies with **0/88** timeouts to 0-0.5 with **24/88**. The
+      snapshot scores a censored run as a loss, so this item's "zero `'running'`
+      outcomes" acceptance is now what stands between the project and a status
+      report that reads as a difficulty collapse. G1's own 24-seed measurement,
+      which excludes censored seeds by design, still reads 40.9% — in band.
       **Re-enable point for two fb152 deferrals** (2026-09-05): when this lands,
       un-`.skip` `tests/fb077-terrain-wiring.test.ts`'s "seed 52 + Fourth Gate +
       cycles 3 resolves" case and re-measure it (it is censored in the boss
@@ -605,7 +628,13 @@ of p12a-p12e easier.
       `act` or a dry parse; documented; a red fast-tier run blocks nothing
       locally but is visible on GitHub — refs: QUALITY.md standing rules,
       owner feedback `feature-ci-workflow`.
-- [ ] (fb141) [polish] `tools/status.ts`'s feedback-ledger scan only reads
+- [x] (fb141) [polish] **DONE 2026-09-05** — the scan reads every `BACKLOG*.md`
+      and names the lane; review caught three ways the first version reported
+      the wrong item (an indented sub-item read as its parent's state, a prose
+      mention shadowing the real item, and three citation forms it never
+      matched), all fixed. Regenerating STATUS.md turned eight false negatives
+      into citations and exposed the 24/88 timeout snapshot now recorded in
+      QUESTIONS Q184. Original text follows. `tools/status.ts`'s feedback-ledger scan only reads
       BACKLOG.md, so lane-routed feedback (processed into BACKLOG-CONTENT.md/
       BACKLOG-TERRAIN.md/BACKLOG-UI.md) shows "no BACKLOG citation found" in
       STATUS.md even when it has one in its own lane file. Acceptance: the
