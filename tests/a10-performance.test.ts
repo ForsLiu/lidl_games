@@ -18,7 +18,7 @@ import { emptyInput } from '../src/sim/types';
 import { makePolicy } from '../src/bots';
 import '../src/bots';
 import { cfg } from './helpers';
-import { worstCaseWorld } from '../tools/perf-ratio';
+import { gateShapedWorstCaseWorld, worstCaseWorld } from '../tools/perf-ratio';
 
 const FRAME_BUDGET_MS = 16.7;
 /** The sim gets half a frame; the rest is the renderer's. */
@@ -55,6 +55,121 @@ describe('A10 performance', () => {
       `${perTick.toFixed(2)} ms/tick with ${w.enemies.length} enemies, ` +
       `${wieldedAttacks(w).length} wielded tower types, ${w.structures.length} terrain pieces`;
     expect(perTick, detail).toBeLessThan(SIM_BUDGET_MS);
+  });
+
+  /**
+   * fb165 — the same budget, against the shape the game actually produces.
+   *
+   * The case above scatters the alive cap evenly across the arena by a fixed
+   * ring pattern, which is what a VS horde looked like before fb154 moved
+   * ground spawns from the screen edge onto the TD gates. Since then a live
+   * horde arrives through three fixed points, and qa-playtester measured the
+   * same 500-enemy world both ways at **6x** apart. So G17's budget was still
+   * being asserted, just no longer against anything the game builds — a perf
+   * gate that goes quiet rather than red, which is the more expensive failure.
+   *
+   * Measured on this host at the fb165 recording (three rounds, `npx tsx` with
+   * no other load): scatter **0.062 / 0.040 / 0.039 ms/tick** against gates
+   * **0.494 / 0.619 / 0.583** — 8-15x, the same effect qa found, larger here.
+   * Both sit far under `SIM_BUDGET_MS` (8.35), which is the point: G17 is
+   * re-confirmed against the live shape rather than merely still passing
+   * against a shape the game stopped producing at fb154.
+   *
+   * Both fixtures stay measured, and this one does not replace the other: a
+   * scatter is still the harsher case for anything paying per *pair* at range,
+   * clustering for anything paying per neighbour, and a budget that survives
+   * only one of them is a budget with a blind side. The pair is also the
+   * control this item needed — the two worlds differ in enemy *positions* and
+   * nothing else, since both call the same `buildWorstCaseBoard`.
+   */
+  it('simulates the gate-shaped worst case — the post-fb154 spawn shape — inside the same budget', () => {
+    const w = gateShapedWorstCaseWorld();
+    expect(wieldedAttacks(w).length).toBeGreaterThan(0);
+    expect(w.enemies.length).toBeGreaterThanOrEqual(w.content.spawns.aliveCap);
+    // Same shields and the same reason as the case above: an unshielded,
+    // input-less Warden dies inside the warmup and `Run.step`'s done-early-
+    // return then makes the measured ticks free.
+    w.invulnerable = true;
+    w.godMode = true;
+    const run = Object.create(Run.prototype) as Run;
+    Object.defineProperty(run, 'world', { value: w, writable: false });
+
+    for (let i = 0; i < 120; i++) run.step(emptyInput());
+    const iterations = 300;
+    const started = performance.now();
+    for (let i = 0; i < iterations; i++) run.step(emptyInput());
+    const perTick = (performance.now() - started) / iterations;
+
+    const detail =
+      `${perTick.toFixed(2)} ms/tick with ${w.enemies.length} gate-spawned enemies, ` +
+      `${wieldedAttacks(w).length} wielded tower types, ${w.structures.length} terrain pieces`;
+    expect(perTick, detail).toBeLessThan(SIM_BUDGET_MS);
+  });
+
+  /**
+   * The fixture check for the case above, and the one that stops it quietly
+   * becoming a second copy of the scatter measurement. `gateShapedWorstCaseWorld`
+   * is only worth measuring while its horde is genuinely clustered on the
+   * gates; if `pickSpawnPoint` were ever swapped back to an edge or a scatter,
+   * the timing assertion would still pass — it would just be measuring the
+   * thing fb165 exists to stop measuring.
+   *
+   * Asserted as a shape, not a pinned number: the horde sits measurably tighter
+   * around its own centroid than the ring pattern does, and its ground enemies
+   * sit near a gate. Both are properties of "spawned through the gates" rather
+   * than of any particular map, so terrain generation can move the gates
+   * without this going red for the wrong reason.
+   */
+  it('the gate-shaped fixture really is gate-shaped, not a second scatter', () => {
+    const gates = gateShapedWorstCaseWorld();
+    const scattered = worstCaseWorld();
+    expect(gates.gates.length).toBeGreaterThan(0);
+    // Same board, same roster: the two fixtures must differ only in positions,
+    // or the timing pair below is not a control.
+    expect(gates.enemies.length).toBe(scattered.enemies.length);
+    expect(gates.structures.length).toBe(scattered.structures.length);
+
+    /** Share of the horde standing within `r` tiles of some gate. */
+    const nearGate = (w: typeof gates, r: number): number =>
+      w.enemies.filter((e) => w.gates.some((g) => Math.hypot(e.x - (g.tx + 0.5), e.y - (g.ty + 0.5)) <= r))
+        .length / w.enemies.length;
+
+    // Deliberately *not* distance-from-centroid: three clusters at three map
+    // edges put their common centroid in the middle of the arena and score
+    // *wider* than an even field (measured 17.85 vs 9.89 tiles), so that
+    // statistic reads a bimodal horde exactly backwards. Proximity to a gate
+    // is the property "spawned through the gates" actually has.
+    // Measured at the recording: 1.000 within 3 tiles for the gate fixture
+    // against 0.044 for the scatter. Asserted with wide margin either side, so
+    // terrain generation moving the gates is free and a fill that stops using
+    // them is not.
+    expect(nearGate(gates, 3), `gate fixture: ${(nearGate(gates, 3) * 100).toFixed(1)}% within 3 tiles of a gate`)
+      .toBeGreaterThan(0.8);
+    expect(nearGate(scattered, 3), `scatter fixture: ${(nearGate(scattered, 3) * 100).toFixed(1)}% within 3 tiles`)
+      .toBeLessThan(0.3);
+
+    // Density, the quantity the tick cost actually pays for, read as the mean
+    // distance to each enemy's nearest neighbour. Measured 0.015 tiles through
+    // the gates against 0.560 scattered — a ~37x difference that no plausible
+    // re-seed of the ring pattern reaches, so the ordering is asserted with an
+    // order of magnitude of slack rather than pinned.
+    const meanNearest = (w: typeof gates): number => {
+      let sum = 0;
+      for (const a of w.enemies) {
+        let best = Infinity;
+        for (const b of w.enemies) {
+          if (a === b) continue;
+          const d = Math.hypot(a.x - b.x, a.y - b.y);
+          if (d < best) best = d;
+        }
+        sum += best;
+      }
+      return sum / w.enemies.length;
+    };
+    const dGates = meanNearest(gates);
+    const dScatter = meanNearest(scattered);
+    expect(dGates, `mean nearest-neighbour: gates ${dGates.toFixed(3)} vs scatter ${dScatter.toFixed(3)} tiles`)
+      .toBeLessThan(dScatter / 4);
   });
 
   // RETIRED (p10e, SPEC-FINAL §14 G17, §16 P10 re-baseline). This asserted a

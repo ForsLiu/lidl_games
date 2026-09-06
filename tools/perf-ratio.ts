@@ -29,6 +29,7 @@
 import { Run } from '../src/sim/run';
 import { World } from '../src/sim/world';
 import { spawnEnemy } from '../src/sim/enemies';
+import { pickSpawnPoint } from '../src/sim/act2';
 import { buildTower } from '../src/sim/towers';
 import { finishSundering } from '../src/sim/sundering';
 import { wieldedAttacks } from '../src/sim/vswield';
@@ -37,10 +38,66 @@ import { emptyInput } from '../src/sim/types';
 import { makePolicy } from '../src/bots';
 import { cfg } from '../tests/helpers';
 
-/** A worst-case Act II frame: the alive cap, a full wielded attack set, and a field of petrified terrain. */
+/**
+ * The horde's enemy mix, shared by both fixtures below so the only thing that
+ * differs between them is *where* the enemies stand.
+ */
+const HORDE_POOL = ['husk', 'sprinter', 'bulwark', 'spitter', 'wraith', 'bomber', 'charger', 'shellback'];
+
+/**
+ * A worst-case Act II frame: the alive cap, a full wielded attack set, and a
+ * field of petrified terrain — with the horde **scattered evenly** across the
+ * arena by a fixed ring pattern.
+ *
+ * This is the historical fixture and its numbers are recorded in three places
+ * (`tests/a10-performance.test.ts`'s ms budget, `tests/q13-perf-ratio.test.ts`'s
+ * ceiling, `tools/mutation-probe.ts`'s hollow-out anchor), so it is left exactly
+ * as it was. What it no longer resembles is the shape the game produces: since
+ * fb154 a VS wave's ground enemies arrive through the spawn gates, so a live
+ * horde is three dense clusters, not an even field. {@link gateShapedWorstCaseWorld}
+ * is the fixture for that shape (fb165) — the two are measured side by side in
+ * `tests/a10-performance.test.ts` rather than one replacing the other, because
+ * a scatter is still the honest worst case for anything that costs per *pair*
+ * at range while clustering is worse for anything that costs per neighbour.
+ */
 export function worstCaseWorld(): World {
   const w = new World(cfg({ seed: 9 }));
   w.gold = 1e6;
+  buildWorstCaseBoard(w);
+  fillScattered(w);
+  return w;
+}
+
+/**
+ * fb165 — the same board, filled the way the live game fills it: every ground
+ * enemy's position comes from `pickSpawnPoint`, the real director's own choice
+ * (round-robin over `w.gates`, jittered inside the tile, nudged onto open
+ * ground), and fliers take the edge ring from the same function because that is
+ * what they do in a real wave.
+ *
+ * Why this exists: `worstCaseWorld`'s ring pattern predates fb154, which moved
+ * VS ground spawns from the screen edge onto the TD gates. qa-playtester built
+ * the same 500-enemy world both ways and measured **scatter 0.03 ms/tick vs
+ * gates 0.18 ms/tick — 6x**. Neither number threatens G17's 8.35 ms budget, so
+ * the gate was never *failing*; it had simply stopped measuring the shape real
+ * runs cost (+41% per tick post-fb154), which is the more expensive kind of
+ * wrong for a perf gate — it goes quiet rather than red.
+ *
+ * Deliberately a second exported fixture rather than a flag on the first: the
+ * scatter world's recorded numbers are load-bearing in three files, and a
+ * parameter with a default would have made every one of them a measurement of
+ * whatever the default happened to be that week.
+ */
+export function gateShapedWorstCaseWorld(): World {
+  const w = new World(cfg({ seed: 9 }));
+  w.gold = 1e6;
+  buildWorstCaseBoard(w);
+  fillFromSpawnPoints(w);
+  return w;
+}
+
+/** Towers, wielded attacks, petrified terrain and the late-Act-II clock — identical for both fixtures. */
+function buildWorstCaseBoard(w: World): void {
   const keys = ['arrow_spire', 'ballista', 'venom_spore', 'mortar', 'tesla_coil', 'palisade'];
   let i = 0;
   for (let y = 3; y < GRID_H - 3; y += 2) {
@@ -58,17 +115,58 @@ export function worstCaseWorld(): World {
   if (wieldedAttacks(w).length === 0) throw new Error('worstCaseWorld: no wielded attacks after sundering');
 
   w.act2Time = 540;
+}
+
+/** The pre-fb154 shape: an even field laid out by a fixed ring pattern. */
+function fillScattered(w: World): void {
   const cap = w.content.spawns.aliveCap;
-  const pool = ['husk', 'sprinter', 'bulwark', 'spitter', 'wraith', 'bomber', 'charger', 'shellback'];
   let n = 0;
   for (let ring = 2; ring < 18 && n < cap; ring++) {
     for (let k = 0; k < 40 && n < cap; k++) {
       const x = 1.5 + ((ring * 7 + k * 3) % (GRID_W - 3));
       const y = 1.5 + ((ring * 3 + k * 5) % (GRID_H - 3));
-      if (spawnEnemy(w, pool[n % pool.length], x, y, { overlay: true })) n++;
+      if (spawnEnemy(w, HORDE_POOL[n % HORDE_POOL.length], x, y, { overlay: true })) n++;
     }
   }
-  return w;
+}
+
+/**
+ * The live shape: positions straight out of `pickSpawnPoint`, the function the
+ * director itself calls, so the clustering is the game's rather than this
+ * file's idea of it. The key is passed, not withheld — that is what routes a
+ * flier to the edge ring and everything else to a gate, which is the mix a real
+ * wave produces.
+ *
+ * `spawnDistance` makes gate choice depend on where the Warden stands, and
+ * `buildWorstCaseBoard` leaves it parked on the last tower it built, so the
+ * park is pinned here instead of inherited: an unpinned Warden would make this
+ * fixture's clustering move whenever the tower loop's bounds changed.
+ * `w.rng.spawns` supplies the jitter, so the whole fill is reproducible from
+ * the fixture's own seed.
+ *
+ * The attempt cap exists because `nudgeToOpen` can refuse a point on a board
+ * this densely built; the loop asks for more points rather than placing one
+ * itself, so every enemy that lands stands where the director would have put
+ * it. It throws rather than returning a short horde — a fixture that silently
+ * measured 300 enemies instead of 500 is the failure mode this whole item is
+ * about.
+ */
+function fillFromSpawnPoints(w: World): void {
+  const cap = w.content.spawns.aliveCap;
+  // The centre of the arena: far enough from every gate that `gateSpawn`'s
+  // distance rule does not start skipping gates, which would collapse the
+  // horde onto a subset of them for a reason unrelated to perf.
+  w.warden.x = GRID_W / 2;
+  w.warden.y = GRID_H / 2;
+  let n = 0;
+  for (let attempt = 0; attempt < cap * 8 && n < cap; attempt++) {
+    const key = HORDE_POOL[n % HORDE_POOL.length];
+    const p = pickSpawnPoint(w, key);
+    if (spawnEnemy(w, key, p.x, p.y, { overlay: true })) n++;
+  }
+  if (n < cap) {
+    throw new Error(`gateShapedWorstCaseWorld: filled only ${n} of ${cap} — the fixture is no longer worst case`);
+  }
 }
 
 function worldRun(w: World): Run {

@@ -585,3 +585,39 @@ Q91 and Q102 corrections if not yet done.
   red CI run, which is worth exactly as much as the number of copies that carry
   it.
 
+- **Q188. [fb165] Two perf fixtures, not one re-pointed fixture — and the
+  clustering statistic that reads a gate-spawned horde backwards.**
+  `tools/perf-ratio.ts`'s `worstCaseWorld` scatters the alive cap evenly by a
+  fixed ring pattern, which is what a VS horde looked like before fb154 moved
+  ground spawns onto the TD gates. Two choices were open. **Re-pointing the
+  existing fixture** at `pickSpawnPoint` would have silently re-based every
+  number recorded against it — `tests/a10-performance.test.ts`'s ms budget,
+  `tests/q13-perf-ratio.test.ts`'s ceiling (whose header records the exact
+  contended medians it was set from) and `tools/mutation-probe.ts`'s hollow-out
+  anchor — so a single edit would have invalidated three separate recordings
+  and left no control. **A parameter with a default** is the same thing wearing
+  a flag: every one of those recordings becomes a measurement of whatever the
+  default happens to be. So: a second exported fixture, both measured, sharing
+  one `buildWorstCaseBoard` so the pair is a genuine control — the two worlds
+  differ in enemy positions and in nothing else. Keeping both is not
+  fence-sitting: a scatter is the harsher case for anything paying per *pair*
+  at range, clustering for anything paying per neighbour, and a budget that
+  survives only one has a blind side.
+  The second decision was forced by a measurement that came out backwards.
+  The obvious way to assert "this horde is clustered" is mean distance from its
+  own centroid, and the first draft did that — then read **17.85 tiles for the
+  gate fixture against 9.89 for the scatter**, i.e. the clustered horde scoring
+  as the *wider* one. It is correct and the statistic is wrong for the shape:
+  three dense clusters sitting at three map edges put their common centroid in
+  the middle of the arena, far from all of them, so centroid spread measures how
+  far apart the modes are rather than how tight each is. Replaced with two
+  statistics that mean what they say — share of the horde within 3 tiles of some
+  gate (1.000 vs 0.044) and mean nearest-neighbour distance (0.015 vs 0.560
+  tiles) — the second being the quantity a per-neighbour tick cost actually
+  pays. Both are asserted as wide-margin inequalities rather than pinned, so
+  terrain generation moving the gates is free and a fill that stops using them
+  is not. The false start is recorded in the test rather than deleted.
+  — Reason: CLAUDE.md's measurement rules ("my change improved X needs the
+  control run"; "check a `/data` row's blast radius before calling it narrow",
+  applied here to a fixture's readers) and working rule 5.
+

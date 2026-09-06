@@ -177,7 +177,25 @@ therefore measure *after* `fb153`, not before.
       spawn distance changed — refs: SPEC-FINAL §6 (VS spawns, amended), owner
       feedback `vs-spawn-from-gates`.
 
-- [ ] (fb165) [test] A10's worst-case perf fixture no longer resembles the
+- [x] (fb165) [test] **DONE 2026-09-06** — `tools/perf-ratio.ts` gains
+      `gateShapedWorstCaseWorld()`, a second fixture on the *same* board
+      (`buildWorstCaseBoard`, shared) whose horde comes from `pickSpawnPoint` —
+      the director's own function, so fliers take the edge ring exactly as they
+      do live. `worstCaseWorld()`'s body is unchanged, keeping the three places
+      its numbers are recorded (a10's ms budget, q13's ceiling, mutation-probe's
+      hollow-out anchor, all re-verified as still matching). Two new cases in
+      `tests/a10-performance.test.ts`: the gate-shaped world against the same
+      `SIM_BUDGET_MS`, and a fixture check that it really is gate-shaped.
+      Measured here, three rounds idle: scatter **0.062 / 0.040 / 0.039
+      ms/tick** against gates **0.494 / 0.619 / 0.583** — 8-15x, the effect QA
+      found at 6x — both far under the 8.35 ms budget, so **G17 is re-confirmed
+      against the live shape**. Shape, fresh worlds: 100% of the gate horde
+      within 3 tiles of a gate against 4.4% of the scatter, mean
+      nearest-neighbour 0.015 against 0.560 tiles. Distance-from-centroid was
+      tried first and is wrong here — three clusters at three map edges score
+      *wider* than an even field (17.85 vs 9.89) — recorded in the test so the
+      next reader does not repeat it. See QUESTIONS Q188. Original text follows.
+      A10's worst-case perf fixture no longer resembles the
       shape the game produces. `tools/perf-ratio.ts`'s `worstCaseWorld`
       scatters the 500-enemy alive cap evenly across the arena, but since
       fb154 the cap arrives through three fixed gate points. qa-playtester

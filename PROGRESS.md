@@ -5,6 +5,30 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-06 — BACKLOG fb165: G17 measures the shape the game produces
+  again.** `tools/perf-ratio.ts`'s `worstCaseWorld` scattered the 500-enemy
+  alive cap evenly across the arena, which stopped being what a VS horde looks
+  like at fb154 — ground spawns arrive through three gates now. qa-playtester
+  had measured the same world built both ways at 6x apart, against a budget
+  neither breaches, so G17 was not failing; it had gone quiet, which is the
+  more expensive kind of wrong for a perf gate. `gateShapedWorstCaseWorld()`
+  fills the same board from `pickSpawnPoint` — the director's own function, so
+  fliers take the edge ring exactly as they do live — and
+  `tests/a10-performance.test.ts` measures both.
+
+  Re-measured here, three idle rounds: scatter **0.062 / 0.040 / 0.039 ms/tick**
+  against gates **0.494 / 0.619 / 0.583** (8-15x), both far under
+  `SIM_BUDGET_MS` 8.35, so **G17's budget is re-confirmed against the live
+  shape**. The pair is a real control — one `buildWorstCaseBoard`, so only
+  positions differ. `worstCaseWorld()`'s own body is untouched, keeping the
+  three recordings that cite it valid (a10's budget, q13's ceiling,
+  mutation-probe's anchor — every mutation anchor in the repo re-verified as
+  still matching). QUESTIONS Q188 records why a second fixture rather than a
+  re-pointed one, and the clustering statistic that had to be thrown away:
+  distance-from-centroid reads three edge clusters as *wider* than an even
+  field (17.85 vs 9.89 tiles), so the shape check uses share-near-a-gate
+  (1.000 vs 0.044) and mean nearest-neighbour distance (0.015 vs 0.560) instead.
+
 - **2026-09-06 — BACKLOG fb168: the dev-server contracts now exist once, not
   twice.** `tests/helpers/browser.ts` was fixed twice during fb140 for two
   defects only a CI runner could show — `server: { port: 0 }`, which Vite
