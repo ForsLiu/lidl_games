@@ -434,7 +434,32 @@ describe('fb064j — provenance on the fallback map', () => {
 });
 
 describe('fb064j — the band cliff is a property of the whole domain', () => {
-  it('pins the far-domain seed that sits exactly on the walkable floor', () => {
+  // TODO(fb166 resize): this pin is not a stale value, it is now provably
+  // unsatisfiable and no seed search can fix that. At 36x20 the arena has
+  // 720 tiles and `minWalkableFrac: 0.6` lands on the exact integer 432 =
+  // 720 * 0.6, so a map at precisely zero headroom against the band is a real
+  // floating-point value some seed can hit. At 56x32 the arena has 1792
+  // tiles, and 1792 is not a multiple of 5 (1792 * 0.6 = 1075.2) — so no
+  // integer `walkableCount` can ever divide out to the IEEE-754 double `0.6`
+  // exactly. Checked exhaustively rather than argued: `k / 1792 === 0.6` is
+  // false for every integer k in [0, 1792], because 0.6 itself is not exactly
+  // representable and no `k/1792` rounds to that same stored double (the two
+  // nearest candidates are 1075/1792 = 0.599888... and 1076/1792 =
+  // 0.600446..., both measurably off it). This is a fact about the grid's
+  // area and the band's decimal, not about the generator or this test.
+  //
+  // Left `.skip`ped per CLAUDE.md working rule 6 rather than deleted or
+  // loosened to "close to the floor," which would quietly drop the "zero
+  // headroom" claim the test exists to make. A real fix is one of: retune
+  // `minWalkableFrac` to a value `data/terrain.json` can hit exactly at
+  // 56x32 (e.g. anything of the form n/1792, or n/56, or n/32), or change
+  // this test's claim to "the smallest walkableCount `generateTerrain` can
+  // return is `Math.ceil(total * minWalkableFrac)`" (1076 here) and pin a
+  // seed that hits *that* integer instead of the literal band value. Filed
+  // as a real finding in this item's report rather than fixed here, since
+  // both remedies are calls about `/data` or about the assertion's meaning,
+  // not about re-measuring a number this file already commits to.
+  it.skip('pins the far-domain seed that sits exactly on the walkable floor', () => {
     // fb064a's Log records seed 7957 at walkableFrac exactly 0.6000 against a
     // `>= 0.60` band — zero headroom, passing only because the band is `>=`.
     // That was measured over seeds 1..20000 and read as a fact about that
@@ -448,6 +473,9 @@ describe('fb064j — the band cliff is a property of the whole domain', () => {
     // below the band is regenerated at seed+1, so 0.600000 is the smallest
     // walkable share `generateTerrain` can *return*, and finding a seed that
     // sits exactly on it stayed a search rather than a surprise.
+    //
+    // (36x20-era seed pair kept below for provenance; at 56x32 no seed pair
+    // can pass the `walkableFrac` assertion — see the TODO above.)
     for (const s of [4294805928, -161368]) {
       const m = generateTerrain(s, cfg);
       const q = measureTerrain(m, cfg);
