@@ -735,7 +735,7 @@ Run again 2026-09-06 (`c029` was the last actionable one left, all of
       the band comparison is to G8's text, not to the band governing T1
       (`p12c`: `[55%,90%]`).**
 
-- [ ] (c032) [bug] `kitPowerMul`'s reach across the kit is asserted nowhere in this lane, for the
+- [x] (c032) [bug] **DONE 2026-09-06.** `kitPowerMul`'s reach across the kit is asserted nowhere in this lane, for the
       mechanism BALANCE DIRECTION v2 §A/`p12a` shipped as part of G8's fix.
       `kitPowerMul` (`src/sim/enemies.ts:284-286`, `1 + 0.12 * w.wavesCleared`)
       applies to every source `scalesWithKitPower` accepts — any `class_`-prefixed
@@ -760,6 +760,43 @@ Run again 2026-09-06 (`c029` was the last actionable one left, all of
       — reads `classes.ts`/`enemies.ts`, edits only `tests/class-*` - refs:
       SPEC-FINAL §4.1/§4.2, BALANCE DIRECTION v2 §A, BACKLOG.md p12a/p12f,
       CLAUDE.md measurement rules ("check a data row's blast radius").
+      **The "~48 sources" premise was overstated: every one of the 24 Actives,
+      12 Passives, summons and the basic attack routes through one of only
+      five generic buckets (`class_active`, `class_active2`, `class_passive`,
+      `class_summon`, `class_basic`, all fed by ~13 call sites total —
+      `damageEnemy`/`applyDot`/`applyAoE`/`lineHit`/`applyDamageType` — rather
+      than 48 distinct per-Active strings.** That makes the real risk a typo
+      or missing prefix at any one of those call sites, not per-Active
+      coverage, so the delivered test has two halves instead: (1) a
+      single-pass tokenizer walks `classes.ts` tracking comment/string state
+      and collects every string literal containing "class"/"plague" outside a
+      comment, asserting the set found is exactly the five known buckets — a
+      typo'd or unprefixed source shows up here without the test needing to
+      know the call site exists; (2) a live-fire proof exercises one real
+      mechanism per bucket (Pyromancer Immolation Wave, Archer Quickstep,
+      Time Lord's bleeding-DoT tick, Pyromancer Contagious Flame, a raised
+      Necromancer skeleton, the character's basic attack) at `wavesCleared`
+      0 and 18 and asserts the hp-loss ratio equals the real exported
+      `kitPowerMul(18)` (`kitPowerMul(0) === 1`), plus both named exceptions —
+      Spreading Plague's transfer and Poison Boost's in-place `dps *= 2`
+      (`firePoisonBoost`, classes.ts:499-507, which never calls
+      `damageEnemy`/`applyDot` itself) — asserted byte-identical, not scaled,
+      across the two wave counts. Verified by mutation (each reverted,
+      confirmed clean via `git status`): disabling the growth curve, excluding
+      one bucket from `scalesWithKitPower`, typo'ing a source string, and
+      adding fake wave-scaling to Poison Boost's doubling each reddened
+      exactly the row that should catch it and nothing else. code-reviewer's
+      one Major finding — the acceptance's named Poison Boost exception was
+      missing from the first draft — is fixed (the case above); its Minor
+      finding (the original two-pass regex comment-stripper could be fooled
+      by a `//` comment containing a literal `/*`) is fixed by replacing it
+      with a single left-to-right tokenizer, with a regression test pinning
+      the exact scenario review found. qa-playtester's finding — the tokenizer
+      returned single-quoted literals only, leaving the "any future call
+      site" claim false for a template-literal or double-quoted source — is
+      fixed (all three quote styles now collected), with a regression test
+      reproducing QA's exact repro. Full `tests/class-*.test.ts` glob (19
+      files, 783 tests) and `npx tsc --noEmit` green.
 
 - [ ] (c033) [balance] G8's diversity clause was rewritten by BALANCE DIRECTION v2 §D (owner
       verdict, `feedback/processed/20260904-223211-verdicts-q155-167.md`) into

@@ -5,6 +5,35 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-06 — lane/content: BACKLOG-CONTENT c032 done, measurement only.**
+  `kitPowerMul` (`src/sim/enemies.ts:284-286`, `1 + 0.12 * w.wavesCleared`)
+  compounds on any `class_`-prefixed `damageEnemy` source, deliberately
+  excluding `spreading_plague`; nobody in this lane had audited that every
+  kit damage call site actually carries a recognised bucket, or measured the
+  curve landing end to end. Found the item's own "~48 sources" premise
+  overstated — every kit mechanism routes through just five generic buckets
+  (`class_active`/`class_active2`/`class_passive`/`class_summon`/
+  `class_basic`) across ~13 call sites, not 48 per-Active strings — so
+  `tests/class-kit-power-reach.test.ts` does two things instead: a
+  single-pass tokenizer sweeps `classes.ts` for every class/plague-shaped
+  string literal outside a comment and asserts the set is exactly the five
+  buckets (catches a typo or missing prefix at any call site, present or
+  future, without knowing where it lives), and a live-fire proof fires one
+  real mechanism per bucket at `wavesCleared` 0 and 18 and asserts the
+  hp-loss ratio equals the real `kitPowerMul(18)`, plus both named flat
+  exceptions (Spreading Plague's transfer, Poison Boost's in-place doubling)
+  asserted unscaled. Verified by mutation throughout (disabling the curve,
+  excluding a bucket, typo'ing a source, faking scaling into Poison Boost —
+  each caught by exactly the row that should). code-reviewer's Major (the
+  acceptance's named Poison Boost exception was missing from the first
+  draft) and Minor (the two-pass comment-stripper could be fooled by a `//`
+  comment containing a literal `/*`) findings are both fixed, the latter by
+  replacing the regex strip with a proper tokenizer; qa-playtester's finding
+  (the tokenizer missed template-literal/double-quoted sources) is fixed
+  too, each with a regression test pinning the exact repro. Full
+  `tests/class-*.test.ts` glob (19 files, 783 tests) and `npx tsc --noEmit`
+  green. No engine or `/data` change.
+
 - **2026-09-06 — lane/content: BACKLOG-CONTENT c029 done, measurement only.**
   `c014`'s shared `tests/class-board.ts` module promises every `class-*`
   liveness file a legal, footprint-clear Warden spot, bounded by
