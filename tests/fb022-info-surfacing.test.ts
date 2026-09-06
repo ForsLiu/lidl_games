@@ -36,6 +36,7 @@ import type { Selection } from '../src/ui/selection';
 import { characterPanelData } from '../src/ui/character-panel';
 import { characterPanelMarkup, wardenInfoMarkup } from '../src/ui/hud';
 import { classAbilitiesMarkup } from '../src/ui/class-info';
+import { classLiveContext } from '../src/ui/class-live';
 import { coreDetailMarkup, coreLiveMarkup } from '../src/ui/core-info';
 import { constellationSummaryMarkup, describeStat } from '../src/ui/tree-view';
 import { fieldLabel, fieldValueText, modLines } from '../src/ui/info-format';
@@ -117,13 +118,19 @@ describe('fb022 Surface 1: class screen + in-run character panel show live numbe
     expect(detail).toContain(String(plaguebringer.active1.radius)); // Poison Barrel radius
   });
 
-  it('the in-run character panel resolves cooldownSeconds through w.derived.cdr, not the raw /data number', () => {
+  // fb157 (owner feedback `ui-character-panel-compact`) moved the class's
+  // active/passive effect text off the character panel entirely — the bottom
+  // bar's own per-icon hover tooltips (fb026's `activeSkillMarkup`/
+  // `classAbilitiesMarkup`) are its one live-resolved surface now, so these
+  // three regressions are re-pointed at that formatter directly rather than
+  // at a panel that no longer renders this text.
+  it("the bottom bar's Active hover tooltip resolves cooldownSeconds through w.derived.cdr, not the raw /data number", () => {
     const w = new World(cfg({ classKey: 'swordsman' }));
     w.stats.add('test', 'cdr', 0.25); // 25% cooldown reduction
     w.recomputeDerived();
     const cls = w.content.classByKey.get('swordsman')!;
 
-    const html = characterPanelMarkup(characterPanelData(w), w);
+    const html = classAbilitiesMarkup(cls, { live: classLiveContext(w, cls) });
     const expectedCooldown = cls.active1.cooldownSeconds * (1 - w.derived.cdr);
     expect(w.derived.cdr).toBeCloseTo(0.25, 10);
     // Rendered through the same `fieldValueText` rounding the formatter uses (2 decimals).
@@ -133,13 +140,13 @@ describe('fb022 Surface 1: class screen + in-run character panel show live numbe
     expect(rounded).not.toBe(cls.active1.cooldownSeconds);
   });
 
-  it('the in-run character panel resolves damage through classAttackPowerMul/characterDamage, not the raw /data number', () => {
+  it("the bottom bar's Active hover tooltip resolves damage through classAttackPowerMul/characterDamage, not the raw /data number", () => {
     const w = new World(cfg({ classKey: 'swordsman' }));
     w.stats.add('test', 'power', 0.5); // +50% power
     w.recomputeDerived();
     const cls = w.content.classByKey.get('swordsman')!;
 
-    const html = characterPanelMarkup(characterPanelData(w), w);
+    const html = classAbilitiesMarkup(cls, { live: classLiveContext(w, cls) });
     const expectedDamage = characterDamage(w, cls, cls.active1.damage);
     expect(classAttackPowerMul(w, cls)).toBeCloseTo(1.5, 10);
     const rounded = Math.round(expectedDamage * 100) / 100;
@@ -161,7 +168,7 @@ describe('fb022 Surface 1: class screen + in-run character panel show live numbe
     const cls = w.content.classByKey.get('swordsman')!;
     expect(w.derived.atkFlat).toBe(10);
 
-    const html = characterPanelMarkup(characterPanelData(w), w);
+    const html = classAbilitiesMarkup(cls, { live: classLiveContext(w, cls) });
     const expected = (cls.basicAttack.dps * cls.basicAttack.interval + w.derived.atkFlat) / cls.basicAttack.interval;
     const rounded = Math.round(expected * 100) / 100;
     const naive = cls.basicAttack.dps + w.derived.atkFlat; // the interval-blind miscalculation
@@ -176,12 +183,20 @@ describe('fb022 Surface 1: class screen + in-run character panel show live numbe
     expect(html).not.toContain(`DPS: ${naive}/s`);
   });
 
-  it('the character panel omits the ability section entirely when built with no World (Hub-style pre-run call is unaffected)', () => {
+  // fb157: the panel's replacement for the old ability section — an
+  // always-visible vitals row and a read-only Equipment section — both
+  // require a World and both vanish on the Hub-style no-World call, the same
+  // shape the retired ability section used to have.
+  it('the character panel shows vitals and read-only equipment only when built with a World (Hub-style pre-run call is unaffected)', () => {
     const w = new World(cfg({ classKey: 'swordsman' }));
     const withWorld = characterPanelMarkup(characterPanelData(w), w);
     const withoutWorld = characterPanelMarkup(characterPanelData(w));
-    expect(withWorld).toContain('Active &amp; passive effects');
-    expect(withoutWorld).not.toContain('Active &amp; passive effects');
+    expect(withWorld).toContain('sw-vitals');
+    expect(withWorld).toContain('Equipment');
+    expect(withoutWorld).not.toContain('sw-vitals');
+    expect(withoutWorld).not.toContain('Equipment');
+    // The retired ability section must not have come back some other way.
+    expect(withWorld).not.toContain('Active &amp; passive effects');
   });
 });
 

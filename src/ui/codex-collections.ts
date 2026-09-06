@@ -13,9 +13,10 @@
  * the relic UI, since the Codex is exactly the "tooltips" surface CLAUDE.md's
  * "delete relic UI remnants everywhere" line means.
  */
-import { loadContent, type ClassDef, type Content, type EquipmentItem } from '../sim/content';
+import { loadContent, type ClassDef, type Content, type EnemyDef, type EquipmentItem } from '../sim/content';
 import { classAbilitiesMarkup } from './class-info';
 import { equipmentCodexDetailMarkup } from './equipment-info';
+import { enemyAttackMarkup } from './enemy-info';
 
 export interface CodexCollection {
   key: string;
@@ -116,6 +117,9 @@ export function buildCodexCollections(content: Content = loadContent()): CodexCo
       ),
       tunerFile: 'enemies',
       raw: content.raw.enemies,
+      // fb158: the same icon+description the in-run enemy panel shows, so
+      // the Codex's enemy page and a selected enemy's panel never disagree.
+      renderDetail: (row) => enemyAttackMarkup(row as unknown as EnemyDef),
     },
     { key: 'waves', label: 'Waves', rows: asRows(content.waves.waves), tunerFile: 'waves', raw: content.raw.waves },
     { key: 'boons', label: 'Stat Boons', rows: asRows(content.boons.statBoons), tunerFile: 'vsupgrades', raw: content.raw.boons },

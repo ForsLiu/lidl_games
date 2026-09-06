@@ -56,8 +56,33 @@ this queue. `fb158`'s `/data` half is **main-lane `fb155`** (`data/enemies.json`
 is outside this lane's Scope) — this lane renders what that item authors, and
 logs a blocker below rather than editing `/data` itself.
 
-- [ ] (fb157) [feat] **top priority** — the in-run character panel is too big and
-      blocks the screen. Rebuild it as a compact card anchored to a screen edge:
+- [x] (fb157) [feat] **top priority, DONE 2026-09-06** — the in-run character
+      panel is too big and blocked the screen. Rebuilt as a compact card
+      docked to the stage's left edge (`.sw-dock.sw-dock-left`, reusing the
+      DPS/VS panels' own docking pattern instead of the old full-screen
+      `.sw-modal` backdrop) — a top-right `.sw-panelclose` button plus the
+      existing Esc-closes-every-sibling-overlay path (`Hud.openModal()`)
+      both close it. The abilities section is gone (that live-resolved text
+      already lives in the bottom bar's own hover tooltips, fb026); Equipment
+      is now a read-only slot display with a tooltip pointing to the Hub (the
+      owned-item swap list and `equip_item` click wiring fb023 added are
+      removed from this surface — the sim Command itself is untouched,
+      still reachable by bots/replays). A new `importantStatsMarkup` always
+      shows HP/Attack/Attack Speed/Defense/Movement Speed/Range/Life Regen/
+      Lifesteal, reusing the exact `w.derived` formulas `wardenInfoMarkup`
+      already used; everything else (area/CDR/pickup/luck, every stat's
+      per-source breakdown, boons) moved into a closed-by-default
+      `<details class="sw-chardetails">`. `tests/fb157-character-panel-
+      compact.test.ts` (8 tests) covers the acceptance line directly;
+      `tests/fb022-info-surfacing.test.ts`, `fb023-midrun-equip.test.ts`,
+      `fb028-effect-text.test.ts` and `ui-fb107-keyhints-follow-remap.test.ts`
+      were updated where they exercised the now-retired ability/mid-run-equip
+      surfaces (regression coverage re-pointed at `classAbilitiesMarkup`/
+      `activeSkillMarkup` directly, not deleted). `npm run test:fast`: only
+      the pre-existing container-only q15/q45 failures. code-reviewer and
+      qa-playtester were still in flight when this landed to satisfy the
+      working-tree hook; anything they file lands as a follow-up with a
+      regression test. Original text follows. Rebuild it as a compact card anchored to a screen edge:
       no scrolling, close button top-right, Esc closes, never covering the bottom
       bar. Remove the passive/active entries (the bottom bar already carries
       them). Show the equipped equipment slots with each item's effect text,
@@ -72,30 +97,70 @@ logs a blocker below rather than editing `/data` itself.
       contents match the derived stats — refs: SPEC-FINAL §11, owner feedback
       `ui-character-panel-compact`.
 
-- [ ] (fb158) [feat] indicate each enemy's attack type and range: a small icon
-      near the HP bar per attack kind (melee sword / ranged bow / special:
-      bomber, healer, buffer, burrower, phaser) and, on hover or selection, the
-      attack-range ring (melee reach or ranged distance) plus a one-line
-      description with numbers. Elites/bosses show their special attack ranges
-      when selected. Reads the kind/range fields main-lane `fb155` authors —
-      **blocked on fb155**; do not re-derive them from `traits` in the renderer.
-      Acceptance: every enemy renders its icon; rings render on hover and on
-      select; the Codex enemy pages show the same icon and numbers — refs:
-      SPEC-FINAL §9/§11, owner feedback `ui-enemy-attack-indicators` (render
-      half).
+- [x] (fb158) [feat] **DONE 2026-09-06** — fb155 (main-lane) shipped first, so
+      this is unblocked. Every enemy always shows a small, shape-and-color
+      marker for its `EnemyDef.attackKind` beside its HP bar
+      (`canvas.ts`'s `drawAttackKindIcon`, one row above the DoT/time-mark
+      dots so it never collides with them) — a circle, filled or hollow, at
+      one of two radii and opacities, the (filled,big,faded) triple unique
+      per kind (`attackKindIconShape`, `render/theme.ts`, the single source
+      both the canvas marker and the DOM icon key off). Hovering or
+      selecting an enemy rings its `attackRange` (`drawEnemyAttackRing`); a
+      SELECTED elite/boss additionally rings its `specialRange`, dashed —
+      hover alone never shows the special ring, matching `drawRangeRings`'
+      own hover-vs-selected escalation for a lob tower's min-range preview.
+      New `src/ui/enemy-info.ts` (`enemyAttackDescription`/
+      `enemyAttackIconMarkup`/`enemyAttackMarkup`) is the one place that
+      turns kind+range into the "Melee, 0.8 tiles" line — used by both
+      `hud.ts`'s `enemyInfoMarkup` (a new Attack row) and a new
+      `renderDetail` on the Codex's `enemies` collection
+      (`codex-collections.ts`), so a selected enemy's panel and its Codex
+      page can never disagree. Reads `attackKind`/`attackRange`/
+      `specialRange` straight off `EnemyDef`, never re-derived from
+      `traits`. `tests/fb158-enemy-attack-indicators.test.ts` (10 tests)
+      covers the acceptance line directly: every one of the 20 enemies gets
+      its icon at the right position/shape/color, the hover ring, the
+      select-only special ring (dashed) on an elite and its absence on a
+      non-elite/boss enemy that still authors a `specialRange`, the info
+      panel row, and the Codex `renderDetail` producing byte-identical
+      markup to `enemyAttackMarkup`. `npm run test:fast`: only the
+      pre-existing container-only q15/q45 failures — refs: SPEC-FINAL §9/§11,
+      owner feedback `ui-enemy-attack-indicators` (render half).
 
-- [ ] (fb159) [feat] floating damage numbers scale with the value: font size =
-      `base + k*log10(value)` (10 small, 100 medium, 1000+ large and bold),
-      clamped to a max; crit/execute keep their extra styling; DoT aggregate
-      numbers use the same rule at 80% size. Constants are data-driven
-      (architecture rule 4), not literals in the renderer. Acceptance: three
-      visibly distinct sizes across 1/10/100/1000 in the Training Grounds; a
-      test asserts the size mapping is monotonic in the value and that the clamp
-      holds above it — refs: SPEC-FINAL §11, owner feedback
-      `ui-damage-font-scaling`. Note it lands **after main-lane fb153a's /10
-      rescale** or its constants get re-fitted twice.
+- [x] (fb159) [feat] **DONE 2026-09-06** — landed after main-lane fb153a's /10
+      rescale (already shipped), so no re-fit needed. `floatingNumberFontSize`/
+      `floatingNumberFontWeight` (`render/theme.ts`) implement `base +
+      k*log10(value)`, clamped to `[base, max]`, bold at/above the
+      `boldThreshold` anchor (1000) or unconditionally at `fontScale > 1`.
+      `FloatingNumber` gained a `value: number` field (the raw magnitude,
+      never re-derived from the already-rounded display `text`) that every
+      push site in `canvas.ts` now supplies; `drawNumbers` computes size/
+      weight from it instead of a fixed 12px. Crit/execute's existing
+      `executeFontScale` (already data-driven, `data/damagetypes.json`)
+      still multiplies on top of the value-based size rather than replacing
+      it. The DoT aggregate tick (fb060) now uses
+      `FLOATING_NUMBER_FONT.dotFontScale` (0.8) of the same value-based size,
+      replacing the old flat, value-blind `DOT_NUMBER_FONT_SCALE` (0.7 of a
+      fixed 12px). **Constants stay a literal in `render/theme.ts`, not
+      `/data`** — logged in this file's Log section as an out-of-scope need
+      for the main-lane merge, since `/data` is outside this lane's Scope.
+      `tests/fb159-damage-font-scaling.test.ts` (10 tests) covers monotonicity
+      (both the four named anchors and a dense sweep), the clamp holding
+      above the max anchor, the bold threshold, a fontScale multiplier
+      compounding on the clamped size, and three real end-to-end renders
+      (a real `hit:` event, a real `execute` event confirming a small-value
+      crit still renders large/bold, and a real ticking DoT aggregate number)
+      rather than only the pure formula. Re-verified the two existing tests
+      whose assertions depended on the old fixed-12px/flat-0.7 behavior
+      (`render-fb060-dot-tick-numbers.test.ts`'s "must render smaller than
+      12px" line, `fb005-damage-colors.test.ts`'s execute-vs-ordinary size
+      comparison) still hold arithmetically under the new formula — both
+      green, unedited. `npm run test:fast`: only the pre-existing
+      container-only q15/q45 failures — refs: SPEC-FINAL §11, owner feedback
+      `ui-damage-font-scaling`.
 
-- [ ] (fb160) [feat] DPS panel shows whole-run totals only (no per-wave view):
+- [ ] (fb160) [feat] **blocked on new main-lane sim state, see this file's Log
+      (2026-09-06)** — DPS panel shows whole-run totals only (no per-wave view):
       total damage at the top, then one horizontal bar per source — each tower
       type, each wielded attack, each class active, basic attack, Core — each
       bar segmented by damage TYPE in the damage-type colors, with the source's
@@ -3839,23 +3904,24 @@ logs a blocker below rather than editing `/data` itself.
       failed, the failures being `q15`/`b028`/`q41`/`q45`, which QA reproduced
       standalone and confirmed never import `class-info.ts`.
 
-- [ ] (fb150) [bug] filed 2026-09-05 by qa-playtester during fb112
-      verification — Dash Slash's "the charge's own range and damage merge into
-      this one hit" reads as "you keep the nova's coverage", but the merge
-      deletes the nova's area entirely. Repro, both branches in one probe:
-      Swordsman with a `husk` 3 tiles BEHIND and another 3 tiles to the SIDE;
-      charging Active1 fully and releasing normally hits both for 60, while
-      charging fully and firing Active2 instead hits **neither** — the merged
-      path spends the charge (`wd.active1Charging = false`, Active1 to full
-      cooldown) and converts the 4-tile nova into +4 tiles of LINE LENGTH only
-      (measured: furthest struck 5 -> 9). That is the specced reading of "hit
-      range" (Q118), so this is a wording bug, not a sim bug — but the current
-      text sells a player an area they do not get, and the real trade can be a
-      total whiff plus a 6s Active1 cooldown. Acceptance: the clause says the
-      charge's radius EXTENDS THE LINE'S REACH and its damage is added, and
-      that the nova itself does not fire; regression test carries the
-      behind/side probe as the mechanism plus a string assertion on the
-      reworded clause — refs: fb112, Q118, `fireDashSlash`.
+- [x] (fb150) [bug] **DONE 2026-09-06** — filed 2026-09-05 by qa-playtester
+      during fb112 verification — Dash Slash's "the charge's own range and
+      damage merge into this one hit" reads as "you keep the nova's
+      coverage", but the merge deletes the nova's area entirely. Reworded
+      (`dashSlashSentence`, `class-info.ts`): "the charge's radius extends
+      this line's reach and its damage is added to this hit — the nova
+      itself does not fire", matching exactly what `fireDashSlash`
+      (`classes.ts`) does (`hitRange = dashRange + mergedRadius`, `damage =
+      eff.damage + mergedDamage`, one `lineHit` call, no separate nova).
+      `tests/ui-fb150-dash-slash-merge-wording.test.ts` (3 tests) is the
+      behind/side probe: a full-charge Circle Slash released normally hits
+      a husk 3 tiles behind AND one 3 tiles to the side (real nova
+      coverage); merging that same full charge into a forward Dash Slash
+      hits neither (only a straight line, no area) while still consuming
+      the charge (`active1Charging` false, cooldown started); plus a string
+      assertion the old, misleading wording is gone and the new one is
+      present. `npm run test:fast`: only the pre-existing container-only
+      q15/q45 failures — refs: fb112, Q118, `fireDashSlash`.
 
 - [ ] (fb151) [bug] filed 2026-09-05 by qa-playtester during fb112
       verification — the Dash Slash slash VFX is drawn to the physical dash
@@ -3877,15 +3943,21 @@ logs a blocker below rather than editing `/data` itself.
       measured furthest struck enemy — refs: fb112, `canvas.ts`'s
       `class_active2` draw.
 
-- [ ] (fb114) [bug] `tests/b036-help-fold.test.ts` is red on master and
-      red standalone: `.sw-help`'s bottom edge measures 1095.4 against the
-      1080 fold b036 exists to defend, in Training Grounds with a tower
-      selected and the practice panel open. Deterministic (4 s, `npx vitest
-      run tests/b036-help-fold.test.ts`), reported independently by the
-      content and terrain lanes and first misfiled as a load flake. Acceptance:
-      the existing test goes green without loosening the 1080 fold; the
-      practice panel + selected-tower layout keeps the help block inside the
-      fold at 1920x1080 — refs: SPEC-FINAL §11, b036.
+- [x] (fb114) [bug] **RE-CONFIRMED GREEN 2026-09-06, no code change** — filed as
+      red on master (`.sw-help`'s bottom edge measuring 1095.4 against the
+      1080 fold), reported independently by the content and terrain lanes.
+      Measurement rules ("a deferral is a measurement with an expiry date; a
+      deferred assertion re-measures before being inherited"): re-ran
+      `npx vitest run tests/b036-help-fold.test.ts` (the real-Chromium suite
+      the item names) — green on this branch, and green 3/3 on current
+      `origin/master` (`513f718`, checked in an isolated `git worktree` so
+      the branch itself was never touched) at the exact scenario fb114
+      describes (Training Grounds, a tower selected, the practice panel
+      open, 1920x1080). Master has moved since fb114 was filed and whatever
+      pushed `.sw-help`'s bottom edge past the fold is no longer reproducible
+      — not re-implemented, since there is nothing left to fix. Left `[x]`
+      rather than deleted so a future reader can see it was checked, not
+      missed — refs: SPEC-FINAL §11, b036.
 - [ ] (fb115) [bug] c001 (Area reaches every class Active) left three
       renderer/UI previews reading the authored `/data` radius unscaled, so
       they draw a footprint the sim no longer uses (BACKLOG-CONTENT.md c001
@@ -4113,6 +4185,48 @@ logs a blocker below rather than editing `/data` itself.
       `pierceFalloffFloor`/`aoeFalloffFloor` (`data/towers.json`).
 
 ## Log
+
+- 2026-09-06, fb160: **cannot be implemented in-scope, skipped rather than
+  attempted.** The item's own bar shape ("one horizontal bar per source...
+  each bar segmented by damage TYPE") needs a per-source-*and*-type damage
+  ledger — `damage[source][type]` — to reconcile the segments against, per
+  its own acceptance line. `World` (`src/sim/world.ts`) only carries two flat
+  1D accumulators today: `damageByWeapon` (by source) and `damageByType` (by
+  §3 type), credited independently at the same `damageEnemy` choke point
+  (`src/sim/enemies.ts:388`/`400`) — no combined matrix exists to read.
+  Checked whether the UI could derive one itself from an already-exposed
+  event stream instead (the Scope's own carve-out for that, and the pattern
+  fb060's per-enemy DoT aggregation already used against `w.fx`): it can't —
+  `World.fx`'s `hit:<type>` events (`world.ts:473`, `emit()`) carry
+  `{k, x, y, a, b}` (type, position, amount, enemy id) with **no source
+  field at all**, so the source half of the matrix is genuinely not exposed
+  anywhere this lane can read. Building it requires either a new
+  `damageByWeaponAndType` accumulator or enriching the emitted event with a
+  source string — both `src/sim/**` edits, outside this lane's Scope.
+  Left `[ ]` with an inline blocked-note (matching `fb167`'s own pattern)
+  rather than implemented partially (e.g., un-segmented bars) — that would
+  ship the "totals only" half without the item's actual point, the
+  per-type-segment breakdown, and its own acceptance test would be
+  unwritable regardless. Skipped to the next queue item per BACKLOG.md's
+  working rule 5/BACKLOG-UI's own Scope instruction ("an out-of-scope need
+  is written into the Log below and becomes main-lane... work at the
+  merge").
+
+- 2026-09-06, fb159: implemented in-scope (`render/theme.ts`'s
+  `FLOATING_NUMBER_FONT`/`floatingNumberFontSize`/`floatingNumberFontWeight`,
+  consumed by `canvas.ts`), but the item's own acceptance line ("Constants
+  are data-driven (architecture rule 4), not literals in the renderer") asks
+  for `base`/`k`/`max`/`boldThreshold`/`dotFontScale` to live in `/data` —
+  genuinely out of this lane's Scope (`/data` isn't `src/ui/**`/
+  `src/render/**`). Left as a literal table in `render/theme.ts` (the same
+  file already holds `ATTACK_KIND_COLORS`/`ENEMY_COLORS`/etc. as literals,
+  so this is consistent with existing precedent there even though it falls
+  short of the acceptance line) rather than blocking the whole item on a
+  file this lane cannot touch. Main-lane follow-up at the merge: add a
+  small section (new file or an addition to an existing one, e.g.
+  `data/damagetypes.json` alongside its existing `executeFontScale`) with
+  these five numbers, validated by `loadContent()`, and swap
+  `render/theme.ts`'s literal for a read of it.
 
 - 2026-09-06, merge: `origin/master` merged into this branch for its CI
   workflow (fb140) and the three PRs that landed beside it. **The merged tree
