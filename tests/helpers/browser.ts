@@ -34,8 +34,10 @@
  *    for a CI job that must not report green on skipped UI coverage.
  */
 import { existsSync } from 'node:fs';
+import { createServer as createNetServer } from 'node:net';
 
 import { chromium, type Browser, type LaunchOptions } from 'playwright';
+import { createServer, type ViteDevServer } from 'vite';
 
 /** Playwright's message when the download is simply not there. */
 const MISSING_EXECUTABLE = /Executable doesn't exist|please run the following command to download/i;
@@ -109,4 +111,69 @@ export async function launchChromium(options: LaunchOptions = {}): Promise<Brows
     return browser;
   }
   return chromium.launch(launchOptions(options));
+}
+
+/**
+ * A Vite dev server on a port nothing else is using, plus the URL to reach it.
+ *
+ * **`server: { port: 0 }` does not do this.** Vite resolves a falsy port to its
+ * default 5173 (verified: `createServer({ server: { port: 0 } })` then
+ * `httpServer.address()` reports 5173), so every suite that asked for "any free
+ * port" was in fact asking for the same one. Locally that is harmless — the
+ * suites finish in seconds and rarely overlap — but on a CI runner, where they
+ * share two worker threads with 250 other files, all four raced for 5173 and
+ * `page.goto` reported `ERR_CONNECTION_REFUSED at http://127.0.0.1:5173/`
+ * (fb140's first CI run, four suites, one cause).
+ *
+ * So the port is taken from the OS the only way that is actually exclusive:
+ * bind a throwaway listener on 0, read the port the kernel picked, release it,
+ * and hand that concrete number to Vite with `strictPort: true`. The
+ * bind-release-rebind window is tiny, and `strictPort` turns losing that race
+ * into a loud startup error rather than a server quietly listening somewhere
+ * else while the test navigates to the wrong place.
+ */
+export async function startDevServer(root: string): Promise<{ server: ViteDevServer; url: string }> {
+  const port = await freePort();
+  const server = await createServer({
+    root,
+    server: {
+      port,
+      strictPort: true,
+      // **No HMR, and no watching the repo's scratch directories.** These are
+      // layout suites: they load the page once, drive it through the
+      // `__stonewakeAudit` bridge and measure `getBoundingClientRect()`. They
+      // never want a reload — and under a full `test:fast` run they were
+      // getting them, because a Vite server rooted at the repo watches every
+      // file in it and the rest of the tier writes scratch copies into
+      // `bench/.tmp` constantly. The reload showed up as two different
+      // failures on the CI runner and here: `page.evaluate: Execution context
+      // was destroyed, most likely because of a navigation` (b034) and a panel
+      // read back empty mid-reload (b035). Both suites pass in isolation, which
+      // is exactly what a watcher-driven reload looks like.
+      hmr: false,
+      watch: { ignored: ['**/bench/**', '**/audit/**', '**/dist/**', '**/.git/**'] },
+    },
+  });
+  await server.listen();
+  const address = server.httpServer?.address();
+  const bound = typeof address === 'object' && address ? address.port : null;
+  if (bound !== port) {
+    await server.close();
+    throw new Error(`dev server bound ${String(bound)}, not the reserved ${port}`);
+  }
+  return { server, url: `http://127.0.0.1:${port}/` };
+}
+
+/** The port the kernel hands out for `0`, released immediately. */
+function freePort(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const probe = createNetServer();
+    probe.unref();
+    probe.on('error', reject);
+    probe.listen(0, '127.0.0.1', () => {
+      const address = probe.address();
+      const port = typeof address === 'object' && address ? address.port : null;
+      probe.close(() => (port ? resolve(port) : reject(new Error('no port from the OS'))));
+    });
+  });
 }

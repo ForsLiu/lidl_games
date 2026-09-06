@@ -68,10 +68,18 @@ between would otherwise fail the nightly for a reason unrelated to the suite.
 
 ## When `fast` is red
 
-1. **Read which file failed before rerunning.** This repo has a documented
-   flake family — `q15`, `q41`, `q45`, `b028` — that fails on scratch-directory
-   and worker-lifecycle grounds and reproduces identically on unrelated commits.
-   A failure there is not yours; a failure anywhere else is.
+1. **Read which file failed before rerunning.** Most of what used to be a
+   "documented flake family" turned out to be real, and was fixed by fb140's
+   own first CI run (2026-09-06): `b028` was a genuine POSIX bug in
+   `killProcessTree` (it signalled the process *group*, which cannot reach a
+   descendant that detached into its own), `q41` was a fixture that did not copy
+   a module the tool under test imports, `p10e` was a timing-stability
+   assertion running under contention and now runs single-threaded under
+   `vitest.perf.config.ts`, and the four Playwright suites were racing for
+   Vite's default port and being reloaded mid-assertion by its file watcher.
+   What is left is `q15` and `q45`, both of which pass on the GitHub runner and
+   fail only in some sandboxes on tsx worker-thread module resolution. So: a
+   failure is yours until you have shown otherwise on another commit.
 2. **Reproduce locally with the same command**, not with the whole suite:
    `npm run test:fast`, or the single file. The tier is deliberately the same
    command locally and in CI so a green local run means something.

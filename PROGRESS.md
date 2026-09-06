@@ -5,6 +5,55 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-06 — fb140's first CI run went red, and four of its five causes were
+  real defects the local tier could not see.** The failing run is
+  [#34010610675](https://github.com/ForsLiu/lidl_games/actions/runs/34010610675)
+  on PR #6; checkout, `npm ci`, the Chromium install and `npm run build` all
+  passed, so the browser was never the problem — only the fast tier failed, with
+  seven assertions across five files. What each one actually was:
+
+  1. **`b032`/`b034`/`b035`/`b036` — two bugs, both in the harness.** First, all
+     four asked Vite for `port: 0` meaning "any free port"; **Vite resolves a
+     falsy port to its default 5173** (verified directly), so the four raced for
+     one port and CI reported `ERR_CONNECTION_REFUSED at 127.0.0.1:5173`. They
+     now take a port from the OS by binding a throwaway listener, and pass it
+     with `strictPort: true` so losing the race is a loud error rather than a
+     server listening somewhere the test never looks. Second — visible only
+     under a *full* tier run, which is why it never showed locally — a Vite
+     server rooted at the repo watches every file in it, the rest of the tier
+     writes scratch copies into `bench/.tmp` continuously, and the resulting
+     HMR reload destroyed the page mid-assertion (`Execution context was
+     destroyed, most likely because of a navigation`, and a panel read back
+     empty). These are layout suites that load the page once, so they now run
+     with `hmr: false` and the scratch directories unwatched.
+  2. **`b028` — a real POSIX bug in `killProcessTree`**, not a flake. It killed
+     the process *group* (`-pid`), which by construction cannot reach a
+     descendant that detached into a group of its own — exactly what the
+     fixture's grandchild does, and what a nested `npx` -> `node` -> vitest
+     worker chain does. It passed on the Windows box it was written on because
+     `taskkill /T` walks the parent-child tree. It now walks that tree on POSIX
+     too (`ps -A -o pid=,ppid=`), keeping the group kill as the sweep.
+  3. **`q41` — a broken fixture reporting a false negative.** The scratch copies
+     `src`/`tools`/`data` but no `tests/`, and `tools/perf-ratio.ts` statically
+     imports `../tests/helpers`, so Node failed *resolution* before esbuild ever
+     transformed the deliberately-broken JSON the test is about. It now copies
+     that one module, per tool, leaving the minimal scratch that the file's
+     `mutation-probe` carve-out depends on intact.
+  4. **`p10e` — a timing measurement running under contention.** Its
+     granularity-stability case asserts two calibration granularities agree
+     within 25%; the file's own header records 0.6-14% on a quiet host, and the
+     shared runner measured 25.6%. Moved to `vitest.perf.config.ts`, which is
+     single-threaded for exactly this reason and is where `a10-performance`
+     already lives — the assertion stays live in `npm test`, at its bound.
+
+  Nothing in `/src/sim` or `/data` was touched. Verified by running the tier the
+  way CI does — `STONEWAKE_REQUIRE_BROWSER=1`, browsers present, `npm run
+  test:fast -- --poolOptions.threads.maxThreads=2` — which now leaves only
+  `q45`/`q15`, both of which **passed on the GitHub runner** and fail here on a
+  tsx worker-thread module-resolution difference. `docs/CI.md`'s "a failure here
+  is probably not yours" paragraph was rewritten accordingly: it was about to
+  teach readers to ignore four real bugs.
+
 - **2026-09-05/06 session close (branch `claude/backlog-processing-30e66t`): the
   owner's cloud-round-1 feedback is routed and six items are done.** In order:
   the eight feedback files became `fb152`-`fb160` across the main queue and two
