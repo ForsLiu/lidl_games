@@ -1,5 +1,45 @@
 # BALANCE.md — enemy pacing intent (fb025, supersedes fb020)
 
+> **2026-09-05 — the T1 snapshot after this session's three owner orders.**
+> `npm run status`'s 88-run snapshot (2 seeds/cell): win rate **1.0 -> 0-0.5**
+> across all ten policies, timeouts **0/88 -> 24/88**, mean run 33.69 -> 31.63
+> min. One mechanism reported twice — the snapshot scores a run sitting at the
+> 45-minute cap as a loss, and fb152/fb154 both make runs longer. The gate that
+> excludes censored seeds (G1, 24 seeds at T3) still reads 40.9%, in band. The
+> cap is **p12e**. Nothing here was tuned in response; see QUESTIONS Q184.
+
+> **fb154 (2026-09-05) — VS spawn distance changed, and every band below was
+> fitted before it.** VS-wave ground enemies now walk out of the TD gates
+> instead of appearing on the rim near the Warden, so they live longer and more
+> of them die on the way in. Measured over seeds 1-12 (`tools/sim.ts`, hybrid,
+> full tree), against the pre-fb154 tree: mean run **120,988 -> 137,073 ticks
+> (+13.3%), 10 of 12 seeds longer**; mean kills 38,324 -> 44,790 (+17%); mean
+> leaks 66.3 -> 56.8 (-14%); seeds censored at the 45-minute cap **1/12 ->
+> 5/12**; the 12-seed hybrid sweep's median run 36.6 -> 40.1 min. G1's live
+> win-rate clause re-measures **9/24 wins, 40.9% of resolved seeds, mean 38.11
+> min** — inside its [35%,70%] band. Per-run sim cost rises ~60% (0.0899 ->
+> 0.1269 ms/tick) for the same reason. None of this was tuned back: the owner's
+> order is explicit that the sweeps get re-recorded, and P10 remains the one
+> balance pass.
+
+> **fb153a (2026-09-05) — every number in this file is an AUTHORED number.**
+> The owner's rescale order divides every HP and damage magnitude in `/data`
+> by `data/modifiers.json`'s `numberScale` (shipped at **0.1** ⚖) as the
+> content loads, so what the player reads on screen is one tenth of what is
+> written here and in `/data`. Nothing in this file's intent, its anchors or
+> its TTK bands moves with it: the factor divides both sides of every fight
+> and is proportional by construction — measured, seeds 1/3/9 headless at
+> scale 1.0 vs 0.1 give identical outcome, waves cleared, kills and leaks (one
+> seed differs by 35 of 42,220 ticks, float drift) with `damageTotal` exactly
+> /10. To read a band in display units, multiply by `numberScale`; to re-tune
+> the readability of the numbers, move `numberScale` alone and leave every row
+> below where it is. The on-screen distribution at 0.1, measured over a seed-1
+> hybrid run: median hit **60** in the first three minutes and **88** past
+> minute 20, p90 110-844, max 1205 — the owner's "mid/late hits are double
+> digits" clause holds, the "early hits are single digits" one does not,
+> because the median hit size is nearly flat across a run rather than growing
+> (see QUESTIONS Q180).
+
 ## Origin
 
 Owner-filed feedback `feedback/processed/20260901-114409-balance-enemies-10x-hp-slower-attacks.md`:

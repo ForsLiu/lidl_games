@@ -35,7 +35,7 @@ import { buildTower } from '../src/sim/towers';
 import { GRID_H, GRID_W } from '../src/sim/grid';
 import type { Enemy } from '../src/sim/types';
 import type { World } from '../src/sim/world';
-import { cfg } from './helpers';
+import { cfg, scaled } from './helpers';
 
 function act2World(): World {
   const run = new Run(cfg());
@@ -126,8 +126,10 @@ describe('p8d: boss escalation (§9 addendum)', () => {
     // `CHARGE_DAMAGE * dt * 2` every tick): 28/s. A sustain rate well above
     // that is a stalemate for the *base* kit — the run only resolves once
     // escalation's multiplier drags the effective DPS past it.
-    const BASELINE_DPS = 28;
-    const SUSTAIN_PER_SECOND = 100;
+    // fb153a: both are damage/HP magnitudes, so they are stated in authored
+    // units and scaled into the units the sim runs on.
+    const BASELINE_DPS = scaled(28);
+    const SUSTAIN_PER_SECOND = scaled(100);
     expect(SUSTAIN_PER_SECOND).toBeGreaterThan(BASELINE_DPS);
 
     const dt = 1; // coarse dt: this drives the pure boss.ts function directly, not the fixed-60Hz sim loop

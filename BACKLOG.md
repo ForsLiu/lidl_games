@@ -42,6 +42,234 @@ still in test headers.
 
 ## Queue
 
+### CI follow-ups (filed 2026-09-06 from fb140's first red runs)
+
+- [ ] (fb168) [bug] `tools/ui-audit.ts` starts its dev server with the same two
+      defects `tests/helpers/browser.ts` was just fixed for — `server: { port: 0,
+      strictPort: false }` (which Vite resolves to its default 5173, so a
+      concurrent audit and UI suite collide) and no `server.host`, while it
+      navigates to a hardcoded `http://127.0.0.1:${port}/`. Both cost fb140 a red
+      CI run in the suites; `ui-audit` has the same exposure and no test to catch
+      it. — acceptance: `tools/ui-audit.ts` reuses `startDevServer()` from
+      `tests/helpers/browser.ts` (or the shared helper it is extracted into)
+      rather than building its own `createServer` call, `npm run ui-audit` still
+      writes an `audit/report.json` with the same rule set, and the port/host
+      pin has a live assertion the way `tests/helpers-browser.test.ts` now does.
+      — refs: code-reviewer Minor 4 on commit `b8d9742`; SPEC-FINAL §12
+
+### Owner priority queue (2026-09-05 directive, cloud round 1) — execute top-down
+
+Eight owner files landed in `feedback/` on 2026-09-05 (commit `f74f156`, "fb:
+cloud round 1"). Four are main-lane and sit here, above every other section
+(the 2026-08-29/2026-09-01/2026-09-04 directives included) because three carry
+`Priority: top` and one is a confirmed bug (CLAUDE.md working rule 3). The
+other four were routed to their lanes with ids unchanged: `fb156` →
+BACKLOG-TERRAIN.md, `fb157`/`fb158`/`fb159`/`fb160` → BACKLOG-UI.md. `fb155` below is the
+main-lane `/data` half of the UI lane's `fb158`, filed here because
+`data/enemies.json` is outside that lane's Scope.
+
+**Standing note for the p12 balance arc:** `fb153a` divides every damage source
+and every enemy/structure HP number by the same factor. It is proportional by
+construction, but no balance measurement taken before it lands can be inherited
+afterwards without a control run (CLAUDE.md measurement rules). p12d/p12f/p12h
+therefore measure *after* `fb153`, not before.
+
+- [x] (fb152) [bug] **DONE 2026-09-05** (see PROGRESS; QUESTIONS Q179 carries
+      the eight design choices and the measured consequences; follow-ups filed
+      as fb161/fb162). **top priority** — DoTs tick every sim frame instead of on a
+      bounded cadence, spraying damage numbers and firing per-tick effects far
+      too often; most visible on Time Lord's *Time Flow* converted self-damage.
+      `tickDots` (`src/sim/enemies.ts:1030`) and `tickWardenDots`
+      (`src/sim/run.ts:592`) both call their damage path once per stack per
+      frame at `dt = 1/60`. Cap each DoT *instance* at one tick per **0.25 s**
+      (data-driven constant, not a literal — architecture rule 4), each tick
+      delivering the damage accrued over that interval so the total over the
+      stack's duration is unchanged, with the final partial interval clipped
+      and paid when the stack expires. Tick-driven effects must move to the new
+      cadence with the damage: `damagetypes.json`'s `armorShredPerSecond`
+      (`tickDot`), Burning's neighbour splash (`tickDotSplash`) and
+      lifesteal-on-DoT. Applies to enemy DoTs and to the character's converted
+      damage alike. Acceptance: a failing regression test lands first (rule 3);
+      a 4 s DoT delivers **<= 16 ticks** and its **exact** authored total (both
+      on an enemy and on the Warden); armor shred accrued over a full stack is
+      unchanged from HEAD; end-state hash determinism holds and the replay
+      check still passes — refs: SPEC-FINAL §3 (statuses), owner feedback
+      `dot-tick-cadence`.
+
+- [ ] (fb153) [balance] **OWNER ORDER, top priority** — damage numbers are too
+      high to read. Two coordinated changes, split into sub-items because each
+      is independently verifiable:
+  - [x] (fb153a) [balance] **DONE 2026-09-05** — shipped as one authored
+        `numberScale` (`data/modifiers.json`, 0.1 ⚖) applied at load, with a
+        census test over every numeric `/data` leaf and a three-seed control
+        pair proving proportionality (identical outcomes, `damageTotal` /10).
+        The order's "single-digit early hits" clause is measured **not met**
+        and cannot be by any single factor — see QUESTIONS Q180, follow-ups
+        **fb163** (two economies, owner verdict) and **fb164** (authored prose
+        still quotes pre-rescale numbers). Original text follows.
+        Global rescale so typical early hits are single
+        digits and mid/late hits double digits: divide **all** damage sources
+        AND **all** enemy/structure HP by the same factor (start at **/10** ⚖)
+        so relative balance is preserved. Armor is a percent and is untouched;
+        flat effects (e.g. "1 dmg/s Bleeding") are re-anchored to the new scale
+        as `/data` values, not code. BALANCE.md's anchor table and TTK bands are
+        re-expressed in the new scale. Acceptance: every `/data` damage and HP
+        row is divided by the same recorded factor (a listed, reviewable diff —
+        no hand-picked exceptions); Training Grounds shows single/double-digit
+        numbers on typical hits; the §14 gates that were measurable before the
+        change are re-measured and recorded as unchanged **within noise**, with
+        the before/after pair both written down (a proportional rescale that
+        moves a gate is a bug in the rescale); determinism holds — refs:
+        SPEC-FINAL §2/§3, BALANCE.md, owner feedback
+        `balance-damage-rescale-and-bigger-map` item 1.
+  - [ ] (fb153b) [feat] bigger map to widen engagements: default grid **36x20 ->
+        56x32** ⚖, terrain-generator constraint bands scaling with it, and the
+        camera following the character with zoom limits. Core placement
+        legality rules are unchanged (they are expressed in tiles, not in map
+        fractions — verify, do not assume). Acceptance: a run generates, paths
+        and renders at 56x32 with the terrain property tests green at the new
+        size; the camera follows the character and clamps at both zoom limits
+        and at the map edges; determinism holds and the end-state hash is
+        re-recorded — refs: SPEC-FINAL §10, owner feedback
+        `balance-damage-rescale-and-bigger-map` item 2.
+        **Measured before starting (2026-09-05): this item spans three lanes and
+        cannot land from one.** Flipping `GRID_W`/`GRID_H` alone and running
+        `npm run test:fast` reddens **~85 assertions across 20 files**, and the
+        great majority are outside the main lane's reach: `tests/terrain-*`
+        (band ledger 10, generation 9, approach 7, seed domain 6, grid 5, high
+        contest 4, flat 4, headroom 3, describe 2, cost 2, verify 1, core
+        placement 1) plus `data/terrain.json`'s constraint bands are
+        **BACKLOG-TERRAIN.md's Scope**, and `tests/ui-input` (7),
+        `tests/class-board` (6), `tests/ui-fb082`/`fb106`/`fb102` (6) are
+        **BACKLOG-UI.md's**. The main lane's own share is the grid constants,
+        `GATES`/`CORE_X`/`CORE_Y` placement and the two sim suites
+        (`p8d-boss-termination`, `b007-tile-bounds`, `fb077-terrain-wiring`).
+        So: the terrain half is filed as **fb166** in BACKLOG-TERRAIN.md and
+        the camera/render half as **fb167** in BACKLOG-UI.md; this item keeps
+        the sim half and lands **after** both, since flipping the constant
+        first would redden two other lanes' suites at their next merge.
+
+- [x] (fb154) [feat] **DONE 2026-09-05** — round-robin over the gates behind a
+      hashed cursor, fliers keeping the edge ring, and a Warden-distance rule
+      that review/QA proved was also the cause of a G1 band regression (see
+      PROGRESS; QUESTIONS Q182 carries the "all gates active is conditional on
+      where the player stands" trade and the re-recorded sweep). Original text
+      follows. **top priority** — VS waves spawn from the TD spawn gates,
+      not from the screen edges: all gates active, budget split round-robin
+      across them, rift/burst events spawning at gates too. Fliers keep their
+      edge spawn to preserve their bypass role (owner's own designer note; a
+      veto flips them to gates). Gate-to-character paths use existing pathing.
+      Acceptance: a headless VS wave shows **100% of ground spawns on gate
+      tiles**; determinism holds; the balance sweep is re-recorded because
+      spawn distance changed — refs: SPEC-FINAL §6 (VS spawns, amended), owner
+      feedback `vs-spawn-from-gates`.
+
+- [ ] (fb165) [test] A10's worst-case perf fixture no longer resembles the
+      shape the game produces. `tools/perf-ratio.ts`'s `worstCaseWorld`
+      scatters the 500-enemy alive cap evenly across the arena, but since
+      fb154 the cap arrives through three fixed gate points. qa-playtester
+      measured the same world built both ways: **scatter 0.03 ms/tick vs gates
+      0.18 ms/tick — 6x** — against an 8.35 ms budget, so G17 does not fail,
+      it simply stops measuring the live shape while real runs cost +41% per
+      tick post-fb154. Acceptance: a second fixture (or a second case in
+      `tests/a10-performance.test.ts`) seeds its horde from `pickSpawnPoint`
+      rather than the ring pattern, both are measured and recorded, and G17's
+      budget is re-confirmed against the gate-shaped one — refs: SPEC-FINAL
+      §14 G17, QUESTIONS Q182.
+- [ ] (fb161) [feat] the four per-frame `dot: true` sources fb152 deliberately
+      left at 60 Hz are **zones, not §3 DoT instances** — but one of them,
+      `wardenAreaDamage`'s enemy ground fire (`src/sim/combat.ts:597`), still
+      emits a `wardenhit` number every single frame, which is the owner's
+      "spraying numbers" symptom on a different mechanism. The other three are
+      invisible (`dot: true` suppresses the emit): the enemy fire field
+      (`combat.ts:615`), Contagious Flame's touch damage (`src/sim/classes.ts`)
+      and the Time core's drain (`src/sim/cores.ts`). Decide per source whether
+      it takes fb152's cadence (`dotTickInterval`, same accrue-then-flush shape,
+      totals unchanged) or an aggregate-the-number-only treatment, and make the
+      Warden-facing one stop spraying either way. Acceptance: a headless probe
+      counts <= 4 `wardenhit` events per second per ground field; totals over a
+      field's lifetime unchanged against a control; determinism holds — refs:
+      QUESTIONS Q179 (7), owner feedback `dot-tick-cadence`.
+- [ ] (fb162) [bug] a DoT kill books its whole banked lump into
+      `damageByWeapon`/`damageByWeaponVs`/`damageByType`/`damageTotal` and the
+      Corpse Core's `corpseStore`, while only the target's remaining hp
+      actually lands — so overkill is over-reported by up to one tick interval
+      per DoT kill (measured by qa-playtester: a 1-hp husk books 2.5 against
+      the per-frame code's 1.167; a 1-hp splash neighbour books 50 against
+      3.33). Overkill was always booked, but fb152's cadence multiplies it by
+      ~15x, which inflates every DoT-share metric and hands the Corpse Core
+      free store. Q91's precedent (lifesteal accrues from the target's actual
+      remaining HP, not the raw hit) is the rule to extend. Acceptance: a DoT
+      kill books what landed, not what was banked, at `damageEnemy`'s single
+      choke point; a regression test pins the 1-hp carrier and the 1-hp splash
+      neighbour cases; the G5/A5 damage-share suites are re-measured and their
+      deltas recorded (they read exactly this ledger) — refs: QUESTIONS Q179,
+      SPEC-FINAL §5.5 (Corpse), Q91.
+- [ ] (fb164) [bug] **player-facing prose still quotes pre-rescale numbers.**
+      fb153a divides every HP/damage magnitude at load, but `/data`'s authored
+      *sentences* were not re-anchored, so the game now tells the player numbers
+      it does not run on: `data/vsupgrades.json`'s `vitality` reads "+15 Max HP"
+      and grants 1.5 on a 10 HP pool (rendered verbatim at `src/ui/hud.ts`),
+      `data/damagetypes.json`'s Bleeding reads "1 damage per second" and deals
+      0.1, and every class/equipment/tree `desc` that quotes a magnitude is off
+      by the same factor. This is the owner's own clause — "flat effects like
+      '1 dmg/s Bleeding' re-anchored to the new scale as data" — left
+      unimplemented by the one-knob shape, and it is what code review's Major 5
+      named when `tests/class-descriptions.test.ts` was re-pointed at authored
+      units: that ledger exists to catch "the player is told a number the sim
+      does not run on", and it can no longer see this one. Prefer **deriving**
+      the quoted magnitude from the loaded value (the `info-format.ts`
+      live-numbers path fb022/fb028 already built) over re-typing ~50 strings
+      that a later `numberScale` re-tune would invalidate again. Acceptance:
+      every authored sentence that quotes an HP/damage magnitude either derives
+      it or matches the loaded value; `tests/class-descriptions.test.ts` is
+      re-pointed back at the *loaded* value and green; a test asserts no
+      remaining `/data` desc string quotes a magnitude that differs from what
+      the sim runs on — refs: QUESTIONS Q180, owner feedback
+      `balance-damage-rescale-and-bigger-map` item 1, code review Major 5.
+- [ ] (fb163) [balance] **the owner's call fb153a's measurement asks for**
+      (QUESTIONS Q180): `/data` carries **two** number economies — enemy HP and
+      the damage dealt *to* enemies (tower damage 150-4200 against enemy HP
+      80-365,000 x `baseHpMul` 20) versus enemy damage output, Core/structure/
+      character HP and equipment flats (already single/double digit) — and one
+      global `numberScale` cannot make the first readable without making the
+      second vanish (at /10 the character pool reads 10 HP and equipment gives
+      +0.1 HP; at /100, which *would* put typical hits at 6-9, they read 1 HP
+      and +0.01). Scaling only the first economy is **not** balance-neutral:
+      lifesteal, Blood Tithe, Wrath, the Corpse store and Vampire Heart all
+      convert between them, so each needs a conversion decision and a control
+      run. Options, for an owner verdict: (a) keep one factor and accept the
+      coarse character sheet; (b) two factors plus a named conversion constant
+      at each of the five crossing points; (c) leave the sim alone and format
+      large numbers compactly in the HUD instead. Acceptance: the owner's
+      choice is implemented, the five crossing points are each measured with a
+      before/after control pair, and the on-screen hit distribution is
+      re-measured (fb153a's baseline: median 60 early / 88 late, p90 110-844) —
+      refs: QUESTIONS Q180, owner feedback
+      `balance-damage-rescale-and-bigger-map` item 1.
+- [x] (fb155) [feat] **DONE 2026-09-05** — all 20 rows carry `attackKind` +
+      `attackRange` (+ `specialRange` for the four with a special), with loader
+      rules pinning each to what combat does; `boss.ts`'s slam radius moved into
+      `/data`. **One clause is deliberately not delivered**: "melee reach is an
+      engine constant — move it to `/data`" stayed computed, because reading the
+      authored value moved Shellback's and Charger's reach by a float ULP and
+      re-rolled a run (measured; QUESTIONS Q183). The published field is pinned
+      to the computed one within 1e-6 by the loader and measured against the
+      world by the test. Original text follows. Enemy attack-kind and
+      attack-range data — the main-lane
+      `/data` half of the UI lane's `fb158`, filed here because
+      `data/enemies.json` is outside that lane's Scope. Every one of the 20 §9
+      enemies gains an explicit attack **kind** (`melee` / `ranged` /
+      `bomber` / `healer` / `buffer` / `burrower` / `phaser`) and an explicit
+      attack **range** in tiles, rather than the renderer re-deriving them from
+      the `traits` array; elites/bosses additionally carry their special
+      attack's range. Melee reach is currently an engine constant — move it to
+      `/data` with the rest (architecture rule 4). Acceptance: a registry test
+      asserts all 20 enemies carry both fields and that the loader refuses a
+      row missing either; the values match what combat actually uses (a test
+      that reads the same numbers the sim reads, not a second copy) — refs:
+      SPEC-FINAL §9, owner feedback `ui-enemy-attack-indicators` (data half).
+
 ### Corrections — shipped code contradicts SPEC-FINAL
 
 Both corrections (x001, x002) are **done** — see the Done section. The queue
@@ -314,6 +542,20 @@ qa-playtester per CLAUDE.md's tier, commit) — do not bundle.
       `npm run status` to regenerate STATUS.md against the new baseline —
       refs: BALANCE DIRECTION v2 §E, QUESTIONS Q159/Q160 (both name timeouts
       in the pre-p12 baseline).
+      **The bill, measured 2026-09-05** (QUESTIONS Q184): with fb152 and fb154
+      shipped, `npm run status`'s 88-run T1 snapshot goes from win rate 1.0 on
+      all ten policies with **0/88** timeouts to 0-0.5 with **24/88**. The
+      snapshot scores a censored run as a loss, so this item's "zero `'running'`
+      outcomes" acceptance is now what stands between the project and a status
+      report that reads as a difficulty collapse. G1's own 24-seed measurement,
+      which excludes censored seeds by design, still reads 40.9% — in band.
+      **Re-enable point for two fb152 deferrals** (2026-09-05): when this lands,
+      un-`.skip` `tests/fb077-terrain-wiring.test.ts`'s "seed 52 + Fourth Gate +
+      cycles 3 resolves" case and re-measure it (it is censored in the boss
+      fight at 1.10M of 7.30M boss hp at a 120-minute cap, not stranded), and
+      re-check `tests/boss.test.ts`'s four-seed victory case, whose seed 1
+      flipped to `defeat_core` for the same reason — see PROGRESS "Known
+      issues" and QUESTIONS Q179.
 
 - [ ] (p12f) [balance] Close BALANCE DIRECTION v2 §A's own-kit-share target,
       which p12a measured as unreachable by §A's own two levers (QUESTIONS
@@ -389,7 +631,15 @@ of p12a-p12e easier.
       machinery, `src/sim/run.ts`); CLAUDE.md's feedback rule updated to
       mention replay bundles as first-class repros — refs: SPEC-FINAL §11/§12
       (determinism, dev tooling), owner feedback `feature-bug-report-hotkey`.
-- [ ] (fb140) [feat] CI: GitHub Actions — fast tier on every push, full suite
+- [x] (fb140) [feat] **DONE 2026-09-05** — `.github/workflows/ci.yml` (fast tier
+      + build on every push/PR, full suite + STATUS regeneration nightly),
+      `docs/CI.md`, and `tests/fb140-ci-workflow.test.ts`, whose assertions are
+      mutation-checked (six edits that break CI silently, six caught). Three
+      clauses were decided rather than followed literally and are recorded in
+      QUESTIONS Q185: the worker cap is set here because fb087 owns no env var
+      to inherit, the badge lives in `docs/CI.md` because there is no README,
+      and the `/audit` upload is omitted because nothing in CI runs the audit.
+      Original text follows. CI: GitHub Actions — fast tier on every push, full suite
       nightly. Add `.github/workflows/ci.yml`: on push and pull_request (all
       branches incl. `lane/*`) — checkout, Node 22, `npm ci`, `npm run
       test:fast`, `npm run build`; upload `/audit` PNGs if the ui-audit runs.
@@ -401,7 +651,13 @@ of p12a-p12e easier.
       `act` or a dry parse; documented; a red fast-tier run blocks nothing
       locally but is visible on GitHub — refs: QUALITY.md standing rules,
       owner feedback `feature-ci-workflow`.
-- [ ] (fb141) [polish] `tools/status.ts`'s feedback-ledger scan only reads
+- [x] (fb141) [polish] **DONE 2026-09-05** — the scan reads every `BACKLOG*.md`
+      and names the lane; review caught three ways the first version reported
+      the wrong item (an indented sub-item read as its parent's state, a prose
+      mention shadowing the real item, and three citation forms it never
+      matched), all fixed. Regenerating STATUS.md turned eight false negatives
+      into citations and exposed the 24/88 timeout snapshot now recorded in
+      QUESTIONS Q184. Original text follows. `tools/status.ts`'s feedback-ledger scan only reads
       BACKLOG.md, so lane-routed feedback (processed into BACKLOG-CONTENT.md/
       BACKLOG-TERRAIN.md/BACKLOG-UI.md) shows "no BACKLOG citation found" in
       STATUS.md even when it has one in its own lane file. Acceptance: the

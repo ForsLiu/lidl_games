@@ -32,7 +32,7 @@ import {
   upgradeTower,
 } from '../src/sim/towers';
 import { World } from '../src/sim/world';
-import { cfg } from './helpers';
+import { cfg, scaled } from './helpers';
 
 const content = loadContent();
 const TOWERS = content.towers.towers;
@@ -254,8 +254,8 @@ describe('m20a — a step buys +10% HP, Attack and Defense (§4)', () => {
     const { w, tx, ty, s } = place(def, c);
     expect(structureArmor(w, s)).toBeCloseTo(20, 10);
     const hp0 = s.hp;
-    damageStructure(w, s, 100);
-    expect(hp0 - s.hp).toBeCloseTo(80, 6);
+    damageStructure(w, s, scaled(100));
+    expect(hp0 - s.hp).toBeCloseTo(scaled(80), 6);
 
     w.gold = 1e6;
     expect(upgradeTower(w, tx, ty)).toBe(true);

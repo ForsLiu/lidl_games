@@ -949,7 +949,8 @@ function fireBloodTithe(w: World, cls: ClassDef, aimX: number | undefined, aimY:
   const eff = cls.active1;
   const s = nearestStructure(w, aimX ?? wd.x, aimY ?? wd.y, eff.radius, (st) => !st.tithed);
   if (!s) return;
-  s.hp = Math.max(1, s.hp - s.hp * (eff.titheHpFraction ?? 0));
+  // fb153a: an HP floor, so it scales with the pool it floors.
+  s.hp = Math.max(w.content.modifiers.numberScale, s.hp - s.hp * (eff.titheHpFraction ?? 0));
   s.tithed = true;
   w.emit('class_active', s.tx + 0.5, s.ty + 0.5, 0, 0);
 }

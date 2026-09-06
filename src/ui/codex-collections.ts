@@ -33,6 +33,13 @@ export interface CodexCollection {
    * collections (Stat Boons/Skill Cards) are two views of one file, and a
    * save has to round-trip the full document or it would silently drop the
    * other view's data.
+   *
+   * fb153a (code review, Critical 2): this is `content.raw.<file>` — the
+   * **authored** document, byte-for-byte what is on disk — not the parsed
+   * view. `numberScale` divides every HP/damage number as the content loads,
+   * so seeding the Tuner's editor from the parsed view would write the
+   * already-divided numbers back over `/data` on the next Save, and the load
+   * after that would divide them again.
    */
   raw?: unknown;
   /**
@@ -59,7 +66,7 @@ export function buildCodexCollections(content: Content = loadContent()): CodexCo
       label: 'Classes',
       rows: asRows(content.classes.classes),
       tunerFile: 'classes',
-      raw: content.classes,
+      raw: content.raw.classes,
       // fb028: full active/passive/tower-passive/basic-attack effect text —
       // the same generic-only-from-/data formatter the Hub's Class screen and
       // the in-run character panel already call, with no live context (the
@@ -67,13 +74,13 @@ export function buildCodexCollections(content: Content = loadContent()): CodexCo
       // ones those two surfaces show before a run starts.
       renderDetail: (row) => classAbilitiesMarkup(row as unknown as ClassDef),
     },
-    { key: 'towers', label: 'Towers', rows: asRows(content.towers.towers), tunerFile: 'towers', raw: content.towers },
+    { key: 'towers', label: 'Towers', rows: asRows(content.towers.towers), tunerFile: 'towers', raw: content.raw.towers },
     {
       key: 'equipment',
       label: 'Equipment',
       rows: asRows(content.equipment.items),
       tunerFile: 'equipment',
-      raw: content.equipment,
+      raw: content.raw.equipment,
       // fb028: mods + both classFallback/effectKey conditional branches,
       // named by class rather than active/inert (the Codex has no selected
       // class to mark them against).
@@ -84,7 +91,7 @@ export function buildCodexCollections(content: Content = loadContent()): CodexCo
       label: 'Damage Types',
       rows: asRows(content.damageTypes.types),
       tunerFile: 'damagetypes',
-      raw: content.damageTypes,
+      raw: content.raw.damageTypes,
     },
     {
       key: 'enemies',
@@ -95,41 +102,55 @@ export function buildCodexCollections(content: Content = loadContent()): CodexCo
       // the Codex stating "Husk 200" for an enemy that arrives at 4000. The
       // authored number is kept alongside so the sheet value is still legible
       // and the multiplier is self-evident from the pair.
+      // fb153a (qa-playtester): `authoredHp` means the sheet value on disk, so
+      // it reads the **raw** document. `numberScale` divides the loaded view,
+      // so taking it from there showed "authored 20" for an enemy `/data`
+      // authors at 200 — a column contradicting its own name, and contradicting
+      // the Tuner editor one click away, which edits the authored document.
       rows: asRows(
-        content.enemies.enemies.map((e) => ({
+        content.enemies.enemies.map((e, i) => ({
           ...e,
           hp: e.hp * content.enemies.baseHpMul,
-          authoredHp: e.hp,
+          authoredHp: (content.raw.enemies as { enemies: { hp: number }[] }).enemies[i]?.hp ?? e.hp,
         })),
       ),
       tunerFile: 'enemies',
-      raw: content.enemies,
+      raw: content.raw.enemies,
     },
-    { key: 'waves', label: 'Waves', rows: asRows(content.waves.waves), tunerFile: 'waves', raw: content.waves },
-    { key: 'boons', label: 'Stat Boons', rows: asRows(content.boons.statBoons), tunerFile: 'vsupgrades', raw: content.boons },
+    { key: 'waves', label: 'Waves', rows: asRows(content.waves.waves), tunerFile: 'waves', raw: content.raw.waves },
+    { key: 'boons', label: 'Stat Boons', rows: asRows(content.boons.statBoons), tunerFile: 'vsupgrades', raw: content.raw.boons },
     {
       key: 'skillcards',
       label: 'Skill Cards',
       rows: asRows(Object.values(content.boons.skillCards).flat()),
       tunerFile: 'vsupgrades',
-      raw: content.boons,
+      raw: content.raw.boons,
     },
     {
       key: 'modifiers',
       label: 'Modifiers',
       rows: asRows(content.modifiers.modifiers),
       tunerFile: 'modifiers',
-      raw: content.modifiers,
+      raw: content.raw.modifiers,
     },
     {
       key: 'tree',
       label: 'Constellation Nodes',
       rows: asRows(content.tree.nodes),
       tunerFile: 'tree',
-      raw: content.tree,
+      raw: content.raw.tree,
     },
-    { key: 'quests', label: 'Quests', rows: asRows(content.quests.quests), tunerFile: 'quests', raw: content.quests },
-    { key: 'cores', label: 'Cores', rows: asRows(content.cores.cores), tunerFile: 'cores', raw: content.cores },
-    { key: 'warden', label: 'Warden', rows: asRows(content.warden), tunerFile: 'warden', raw: content.warden },
+    { key: 'quests', label: 'Quests', rows: asRows(content.quests.quests), tunerFile: 'quests', raw: content.raw.quests },
+    { key: 'cores', label: 'Cores', rows: asRows(content.cores.cores), tunerFile: 'cores', raw: content.raw.cores },
+    {
+      key: 'warden',
+      label: 'Warden',
+      // fb153a: the table shows the same authored document its Tuner editor
+      // edits. Rendering the loaded view here put two different numbers for one
+      // field on two halves of the same screen, with no unit label on either.
+      rows: asRows(content.raw.warden as Record<string, unknown>),
+      tunerFile: 'warden',
+      raw: content.raw.warden,
+    },
   ];
 }
