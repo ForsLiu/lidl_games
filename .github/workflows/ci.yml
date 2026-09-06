@@ -1,0 +1,122 @@
+# fb140 — CI (owner feedback `feature-ci-workflow`).
+#
+# Two jobs, matched to CLAUDE.md's own test tiers rather than to a generic
+# template: the **fast tier** is what a contributor runs per backlog item and is
+# what every push gets, and the **full suite** — 40+ minutes, and the tier that
+# owns the >60 s sim/soak/fuzz files — runs once a night on master, where a
+# 3-hour job costs nobody's iteration loop.
+#
+# See docs/CI.md for what to do when either goes red.
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    branches: ['**']
+  schedule:
+    # 03:00 UTC. `schedule` only ever fires on the default branch.
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+
+# One run per ref: a push that supersedes an in-flight run cancels it, so the
+# queue reflects the branch's current head rather than its history. The nightly
+# is excluded by including the event name in the group.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'schedule' }}
+
+# Read-only by default; the nightly widens its own job to `contents: write` for
+# the STATUS.md commit. `fast` runs `npm ci` and `npx playwright install` — i.e.
+# third-party lifecycle scripts — on every push to every branch, so it gets the
+# narrowest token the work allows.
+permissions:
+  contents: read
+
+env:
+  # The suite's own escape hatch for a checkout with no browser: CI installs
+  # Chromium, so a UI suite that skips itself here would be silent coverage
+  # loss (QUESTIONS Q178).
+  STONEWAKE_REQUIRE_BROWSER: '1'
+
+jobs:
+  fast:
+    name: fast tier + build
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      # Only the browser the four UI suites launch, not every engine.
+      - run: npx playwright install --with-deps chromium
+      - name: Typecheck and build
+        run: npm run build
+      # Two worker threads, not the runner's full count. `STONEWAKE_REQUIRE_BROWSER`
+      # above turns the four Playwright UI suites from skip into must-run, and
+      # this repo has a documented load-sensitive flake family (BACKLOG fb087:
+      # `b032`/`b034`/`b035`/`b036`, `q45`/`q49`/`q52`, `q15`, `q13` — "all green
+      # in isolation"). A CI whose first run is expected red is not a signal, so
+      # the cap is set here rather than deferred to an item that does not own one
+      # (QUESTIONS Q185).
+      - name: Fast tier
+        run: npm run test:fast -- --poolOptions.threads.maxThreads=2
+
+  nightly:
+    name: full suite + STATUS
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The nightly measures master. A manual dispatch from a branch means
+          # "measure this branch", so it takes the dispatched ref instead of
+          # silently reporting master's numbers under the branch's name.
+          ref: ${{ github.event_name == 'schedule' && 'master' || github.ref }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Full suite
+        run: npm test
+      # STATUS.md is this repo's canonical *measured* report, so it is
+      # regenerated after the suite and committed only from a run that passed:
+      # publishing a snapshot taken from a red tree would put numbers on master
+      # that nothing stands behind. `success()` also excludes cancellation,
+      # which `always()` does not — a job killed at the 180-minute cap must not
+      # start a 15-20 minute sweep during teardown.
+      - name: Regenerate STATUS.md
+        if: success()
+        run: npm run status
+      - name: Commit STATUS.md if it changed
+        if: success()
+        run: |
+          if git diff --quiet -- STATUS.md; then
+            echo "STATUS.md unchanged"
+            exit 0
+          fi
+          git config user.name 'stonewake-ci'
+          git config user.email 'stonewake-ci@users.noreply.github.com'
+          git add STATUS.md
+          git commit -m 'chore(ci): nightly STATUS.md regeneration (full suite green)'
+          # The checkout is up to three hours old by now, so master may have
+          # moved. Rebase onto it and retry rather than failing the nightly for
+          # a reason that has nothing to do with the suite.
+          for attempt in 1 2 3; do
+            if git push origin HEAD:master; then
+              exit 0
+            fi
+            echo "push rejected (attempt $attempt) — rebasing onto master"
+            git fetch origin master
+            git rebase origin/master || { git rebase --abort; exit 1; }
+          done
+          exit 1

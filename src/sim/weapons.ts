@@ -82,7 +82,10 @@ export function updateTerrainEffects(w: World, dt: number): void {
 
   const hsR = BASE.heartstoneRadius;
   if (w.sundered && dist2(wd.x, wd.y, w.heartstoneX, w.heartstoneY) <= hsR * hsR) {
-    wd.hp = Math.min(w.derived.maxHp, wd.hp + BASE.heartstoneHeal * dt);
+    // fb153a (code review, Critical 1): `w.content.warden`, not the module-level
+    // `BASE`. `numberScale` divides the authored heal, and `BASE` is the shared
+    // pre-scale parse — reading it here left a 1 HP/s heal on a 10 HP pool.
+    wd.hp = Math.min(w.derived.maxHp, wd.hp + w.content.warden.heartstoneHeal * dt);
   }
 
   const fx = w.terrainEffects ?? (w.terrainEffects = buildTerrainEffects(w));

@@ -296,6 +296,19 @@ export class World {
   eliteTimer = 0;
   riftIndex = 0;
   bossSpawned = false;
+  /**
+   * fb154: which spawn gate the next VS **ground** enemy comes out of. Plain
+   * round-robin over `gates` rather than a random draw, so a wave's arrivals
+   * are spread evenly across every gate instead of clustering by luck — and it
+   * is sim state, hashed with the rest, so a replay picks the same gates in the
+   * same order.
+   *
+   * Deliberately **not** reset between VS blocks, unlike `eliteTimer` and
+   * `riftIndex` (`sundering.ts`): those two are timers whose meaning is
+   * "since this block began", while this is a position in a rotation and
+   * restarting it every block would bias the first gate of every wave.
+   */
+  vsGateCursor = 0;
   /** Set the first time a practice command lands (SPEC has no such mode). */
   practiceUsed = false;
   /** Practice tool: the Warden takes no damage while this is on. */
@@ -642,7 +655,12 @@ export class World {
     // Heart's own steps are bought (`upgradeCore`, cores.ts).
     const coreBaseHp = coreDef?.baseHp ?? content.waves.coreHp;
     this.coreMaxHp = Math.max(
-      1,
+      // fb153a (qa-playtester): an HP floor, so it scales with the pool it
+      // floors — the same fix `attackStructure`, Blood Tithe and `derive`
+      // already carry. Left at a bare 1 the Core kept a whole pre-rescale hit
+      // point at the low end of `numberScale`'s own legal range, which made the
+      // ⚖ knob non-linear inside its schema bounds.
+      content.modifiers.numberScale,
       coreBaseHp + coreHpBonus(content, this.coreKey, this.coreStep) + this.stats.total('coreHp') + this.mods.coreHp,
     );
     this.coreHp = this.coreMaxHp;

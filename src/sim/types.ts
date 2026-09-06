@@ -187,6 +187,31 @@ export interface DotStack {
   dps: number;
   /** Weapon/tower that applied it, so A5 can attribute ailment damage. */
   source: string;
+  /**
+   * fb152 cadence accumulators: seconds and damage banked since this stack's
+   * last paid tick. `accTime` drives everything that is authored per *second*
+   * (armor shred, the splash's shred) and the `dotTickInterval` gate;
+   * `accDamage` is banked at the dps in force on each frame, so a stack whose
+   * `dps` is rewritten mid-window by a refresh still pays exactly what it
+   * accrued rather than re-pricing the banked time at the new rate.
+   */
+  accTime: number;
+  accDamage: number;
+  /**
+   * The same bank with each frame's *time-varying* multipliers (`kitPowerMul`,
+   * Frozen, the final-boss ramp) already priced in — what the carrier is
+   * actually billed at the flush. `accDamage` stays unscaled because the
+   * neighbour splash and `dotOutstanding` both re-price it against a different
+   * target than the carrier.
+   */
+  accScaled: number;
+  /**
+   * Who was applying while the bank accrued. `source` above can be rewritten
+   * mid-window by a refresh; the banked damage still belongs to the weapon
+   * that dealt it, so A5's per-weapon share does not drift by one interval
+   * every time two weapons trade refreshes on one stack.
+   */
+  accSource: string;
 }
 
 export interface Enemy {
@@ -512,7 +537,7 @@ export interface Warden {
    * stacks, like `Enemy.dots` — a second hit within 4 s adds a second entry
    * rather than refreshing the first.
    */
-  dots: { dps: number; remaining: number }[];
+  dots: { dps: number; remaining: number; accTime: number; accDamage: number }[];
 }
 
 /**

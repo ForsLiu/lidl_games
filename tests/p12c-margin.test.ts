@@ -131,10 +131,13 @@ describe('p12c: the anchor the sweep landed on (fast tier)', () => {
     // qa-playtester: `.positive()` alone took `1e308` and produced literally
     // unkillable enemies. Architecture rule 4 — a loader rule that refuses
     // unpayable data beats a comment saying the data must be valid.
-    expect(() => loadContent({ enemies: { ...content.enemies, baseHpMul: 1e308 } })).toThrow();
-    expect(() => loadContent({ enemies: { ...content.enemies, baseHpMul: 0 } })).toThrow();
-    expect(() => loadContent({ enemies: { ...content.enemies, baseHpMul: -1 } })).toThrow();
-    expect(() => loadContent({ enemies: { ...content.enemies, baseHpMul: 20 } })).not.toThrow();
+    // fb153a: the **raw** document — an override is an authored document, and
+    // building one from the loaded view would scale it twice.
+    const rawEnemies = content.raw.enemies as Record<string, unknown>;
+    expect(() => loadContent({ enemies: { ...rawEnemies, baseHpMul: 1e308 } })).toThrow();
+    expect(() => loadContent({ enemies: { ...rawEnemies, baseHpMul: 0 } })).toThrow();
+    expect(() => loadContent({ enemies: { ...rawEnemies, baseHpMul: -1 } })).toThrow();
+    expect(() => loadContent({ enemies: { ...rawEnemies, baseHpMul: 20 } })).not.toThrow();
   });
 
   it('§C’s own bands are stated as constants, not buried in prose', () => {

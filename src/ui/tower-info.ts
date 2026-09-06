@@ -14,7 +14,7 @@ import type { TowerDef, TowerAttack } from '../sim/content';
 import type { Structure } from '../sim/types';
 import type { World } from '../sim/world';
 import { wieldedAttacks, wieldedSplashFor, type WieldedAttack } from '../sim/vswield';
-import { formatWieldSplash } from './info-format';
+import { AOE_FALLOFF_CLAUSE, formatWieldSplash } from './info-format';
 import {
   attackProfile,
   type AttackProfile,
@@ -99,8 +99,9 @@ const KIND_TEXT: Record<string, (a: TowerAttack, p: AttackProfile) => string> = 
   },
   pierce: (_a, p) =>
     `Fires a bolt down the busiest line, hitting up to ${1 + p.pierce} enemies for full damage each.`,
-  cone: () =>
-    'Sprays a cone at the densest cluster. The nearest few take full damage; each target past that takes less.',
+  // fb149: the blast-falloff wording is now one shared constant, so the class
+  // sentences and this blurb cannot drift into two spellings of the same fact.
+  cone: () => `Sprays a cone at the densest cluster.${AOE_FALLOFF_CLAUSE}`,
   aura: () => 'Pulses every enemy inside its radius at once — no aiming, no travel time.',
   // `chainHit` counts the first target inside `chains`, and SPEC-V3 §4 makes
   // the Electric tower's chaining a milestone special (m20b) rather than

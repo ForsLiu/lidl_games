@@ -18,9 +18,9 @@ import { makeSelectHandler, selectedStructure, sweepSelection } from './selectio
 import { Renderer, type ViewState } from '../render/canvas';
 import { Hud } from './hud';
 import { Hub } from './hub';
-import { applyRunResult, defaultMeta, loadMetaWithNotice, saveMeta } from '../meta/meta';
+import { applyRunResult, defaultMeta, loadMetaWithNotice } from '../meta/meta';
 import { questCompletionToasts } from './quests';
-import { ensureActiveSlotMigrated } from './saveslots';
+import { ensureActiveSlotMigrated, saveMetaToActiveSlot } from './saveslots';
 import { devProfileActive, startupProfile } from '../meta/devprofile';
 import { loadSettings, saveSettings, type Settings } from './settings';
 import { loadKeyBindings, saveKeyBindings, type KeyBindings } from './keybindings';
@@ -347,7 +347,7 @@ export class Game {
       onStart: (cfg) => this.startRun(cfg),
       onMetaChanged: (meta) => {
         this.meta = meta;
-        saveMeta(meta);
+        saveMetaToActiveSlot(meta);
       },
     }, this.pendingHubNotice ?? undefined);
     this.pendingHubNotice = null;
@@ -410,7 +410,7 @@ export class Game {
         // fb012: the profile remembers the last-chosen value, so the next run
         // (from any of the three doors onto this toggle) starts with it.
         this.meta = { ...this.meta, autoPickLevelUps: on };
-        saveMeta(this.meta);
+        saveMetaToActiveSlot(this.meta);
         // b069: `lastCfg` is the config Retry/New Run replay verbatim (New Run
         // only spreads a fresh seed over it) — without this, a mid-run toggle
         // updated `meta` and the live sim but left `lastCfg` pinned to
@@ -561,20 +561,38 @@ export class Game {
     window.addEventListener('keyup', (e) => this.keys.delete(e.key.toLowerCase()));
     // fb071: losing window/tab focus mid-run (alt-tab, switching apps) used to
     // only drop held keys, leaving the sim running unattended against a dead
-    // Core. Auto-pause on blur, same state transition as Esc; deliberately not
-    // a `togglePause()` call, which would *resume* if the player had already
-    // paused manually before tabbing away. A later `focus` does not
-    // auto-resume — matches Esc's manual-resume convention and avoids racing
-    // the player back into combat before they've looked at the screen.
-    window.addEventListener('blur', () => {
-      // `clearKeysForPause`, not a blanket `.clear()`: a blur mid-charge (`q`
-      // held for a Circle-Slash-style Active1) must preserve `q` exactly like
-      // an Esc-pause does, or the very next `gatherInput()` reads a release
-      // with no player intent — the same bug `clearKeysForPause`'s own doc
-      // comment already documents for Esc, reachable here too since this ran
-      // an unconditional `.clear()` before `setPaused`'s own call could help.
+    // Core. Auto-pause on focus loss, same state transition as Esc;
+    // deliberately not a `togglePause()` call, which would *resume* if the
+    // player had already paused manually before tabbing away. Coming back does
+    // not auto-resume — matches Esc's manual-resume convention and avoids
+    // racing the player back into combat before they've looked at the screen.
+    const onFocusLost = () => {
+      // `clearKeysForPause`, not a blanket `.clear()`: losing focus mid-charge
+      // (`q` held for a Circle-Slash-style Active1) must preserve `q` exactly
+      // like an Esc-pause does, or the very next `gatherInput()` reads a
+      // release with no player intent — the same bug `clearKeysForPause`'s own
+      // doc comment already documents for Esc, reachable here too since this
+      // ran an unconditional `.clear()` before `setPaused`'s own call could
+      // help.
       clearKeysForPause(this.keys, this.keyBindings);
       if (this.run && this.run.world.outcome === 'running' && !this.paused) this.setPaused(true);
+    };
+    window.addEventListener('blur', onFocusLost);
+    // fb145: `blur` is only one of the doors out of a running run. A tab pushed
+    // into the background, a minimized window, and switching apps on mobile do
+    // not reliably fire it — on mobile the page can be frozen and later
+    // discarded having never blurred at all — so `blur` alone left exactly the
+    // unattended-sim-against-a-live-Core failure fb071 exists to prevent.
+    // `visibilitychange` covers those, and the two overlap harmlessly: the
+    // second one to arrive finds `this.paused` already true and does nothing.
+    //
+    // The `hidden` guard is not decoration. `visibilitychange` fires on the
+    // *reveal* half too, and without it every return to the tab would pause a
+    // run the player just came back to play — auto-resume's exact opposite,
+    // and equally against the manual-resume convention above.
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) return;
+      onFocusLost();
     });
     // fb065: `Renderer.resize()` now sizes the backing store off `.sw-stage`'s
     // actual laid-out box (canvas.ts), not a fixed constant, so a live window
@@ -848,7 +866,7 @@ export class Game {
       // screen that's about to show.
       const prevCompleted = this.meta.completedQuests;
       this.meta = applyRunResult(this.meta, run.report(), w);
-      saveMeta(this.meta);
+      saveMetaToActiveSlot(this.meta);
       for (const msg of questCompletionToasts(w.content, prevCompleted, this.meta.completedQuests)) {
         this.hud.say(msg);
       }

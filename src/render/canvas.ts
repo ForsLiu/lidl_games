@@ -214,6 +214,24 @@ function tracer(
   };
 }
 
+/**
+ * fb153a: the floating-number thresholds and rounding, expressed in **authored**
+ * units. `numberScale` divides every HP/damage magnitude at load, so a bare
+ * `>= 1` gate and a bare `Math.round` were tuned for the pre-rescale world: at
+ * 0.1 they hid every flat DoT number outright and rendered a husk's contact hit
+ * as `-1` and a chilled one as `-0`. One authored point is still the floor, and
+ * anything under ten reads with a decimal so it never rounds to nothing.
+ */
+function damageFloor(w: World): number {
+  return w.content.modifiers.numberScale;
+}
+
+function damageText(v: number): string {
+  if (v >= 10) return String(Math.round(v));
+  if (v >= 1) return v.toFixed(1);
+  return v.toFixed(2);
+}
+
 export class Renderer {
   readonly canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
@@ -307,6 +325,7 @@ export class Renderer {
     return GRID_H * TILE;
   }
 
+
   /** Drain this tick's sim events into presentation-only effects. */
   ingest(w: World, view: ViewState): void {
     for (const e of w.fx) {
@@ -315,11 +334,11 @@ export class Renderer {
       // 'hit' isn't one more case among unrelated one-off events.
       if (e.k.startsWith('hit:')) {
         this.flashes.set(e.b, 0.12);
-        if (e.a >= 1 && view.settings.damageNumbers && this.numbers.length < view.settings.maxDamageNumbers) {
+        if (e.a >= damageFloor(w) && view.settings.damageNumbers && this.numbers.length < view.settings.maxDamageNumbers) {
           this.numbers.push({
             x: e.x,
             y: e.y,
-            text: String(Math.round(e.a)),
+            text: damageText(e.a),
             life: 0.6,
             color: damageStyleColor(w, e.k.slice(4), view.settings.accessiblePalette),
             fontScale: 1,
@@ -335,9 +354,11 @@ export class Renderer {
           this.flashes.set(e.b, 0.12);
           break;
         case 'wardenhit':
-          view.shake = Math.max(view.shake, Math.min(9, 2 + e.a * 0.25));
-          if (view.settings.damageNumbers && this.numbers.length < MAX_OTHER_NUMBERS) {
-            this.numbers.push({ x: e.x, y: e.y, text: `-${Math.round(e.a)}`, life: 0.8, color: '#ff8080', fontScale: 1 });
+          // The shake reads the hit in authored units, so a rescale moves the
+          // numbers on screen without flattening the feedback behind them.
+          view.shake = Math.max(view.shake, Math.min(9, 2 + (e.a / damageFloor(w)) * 0.25));
+          if (e.a >= damageFloor(w) && view.settings.damageNumbers && this.numbers.length < MAX_OTHER_NUMBERS) {
+            this.numbers.push({ x: e.x, y: e.y, text: `-${damageText(e.a)}`, life: 0.8, color: '#ff8080', fontScale: 1 });
           }
           break;
         case 'execute': {
@@ -591,8 +612,12 @@ export class Renderer {
           // mid-window can make this diverge slightly from the true total.
           // Cosmetic and deliberate: exact per-tick summation costs an extra
           // accumulator per stack for no player-visible benefit here.
-          const amount = Math.round(dps * next);
-          if (amount >= 1 && this.numbers.length >= MAX_OTHER_NUMBERS) {
+          // fb153a: `amount` stays a real magnitude rather than a rounded
+          // integer, and the "is this worth a number?" floor is one *authored*
+          // point — a flat DoT row is 0.1/s after the rescale, so rounding here
+          // deleted every Bleeding and Burning number on screen.
+          const amount = dps * next;
+          if (amount >= damageFloor(w) && this.numbers.length >= MAX_OTHER_NUMBERS) {
             // fb067: the shared floating-number budget is full. Do NOT reset
             // the accumulator — leave it at `next` (still >=1) so this same
             // type keeps accumulating instead of silently dropping the
@@ -601,11 +626,11 @@ export class Renderer {
             perType.set(type, next);
             continue;
           }
-          if (amount >= 1) {
+          if (amount >= damageFloor(w)) {
             this.numbers.push({
               x: e.x,
               y: e.y,
-              text: String(amount),
+              text: damageText(amount),
               life: 0.6,
               color: damageStyleColor(w, type, view.settings.accessiblePalette),
               fontScale: DOT_NUMBER_FONT_SCALE,

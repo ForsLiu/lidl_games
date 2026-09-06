@@ -37,6 +37,19 @@ export const GATES: readonly GateDef[] = [
   { key: 'east', tx: 35, ty: 17 },
 ];
 
+/**
+ * fb065f: gates a *modifier* can add, beside the base list they extend.
+ *
+ * `world.ts`'s Fourth Gate is the only one today. It lives here rather than in
+ * `world.ts` alone because two other places need the name — `describeTerrain`'s
+ * header table has to declare every gate key a dump may carry, and the tests
+ * that exercise a four-gate arena need the position — and three hand-copies of
+ * a coordinate is the drift shape this lane has already consolidated twice.
+ * `world.ts` still writes its own literal; folding that in touches a file
+ * outside the terrain lane and is logged for the merge.
+ */
+export const MODIFIER_GATES: readonly GateDef[] = [{ key: 'south', tx: 12, ty: 19 }];
+
 export const CORE_X = 25;
 export const CORE_Y = 9;
 export const CORE_W = 2;
@@ -458,6 +471,90 @@ export class Grid {
     for (const i of this.coreTiles()) this.tile[i] = TileType.Core;
     // Re-derived, not patched: the vacated tiles get their real terrain back
     // and the new footprint gets the structural override, in one pass.
+    this.syncTerrain();
+  }
+
+  /**
+   * fb065e: open a border tile as a spawn gate, terrain and all.
+   *
+   * **Why this exists rather than a bare `tile[i] = Gate`.** `syncTerrain` is
+   * private and neither `markDirty` nor `refresh` calls it, so a raw write that
+   * lands *after* the last `applyTerrain`/`placeCore` moves `blocked` (through
+   * `staticBlocked`, which never blocks a Gate tile) and leaves every terrain
+   * array holding the pre-gate answer. Measured: on seed 7, writing a Gate at
+   * (12, 19) gives `tile=Gate`, `blocked=0` — the sim walks it — with
+   * `terrainKind` still `Rock`, so `gridTerrain` dumps a mountain on a walkable
+   * gate. The border row is exactly where this bites: gates live on it,
+   * `syncTerrain`'s override loop skips `Border`, and the border is rock on
+   * every generated map.
+   *
+   * `world.ts`'s Fourth Gate is the only such write in the repo and it is
+   * *ordered safely* — it opens the gate before `applyRunTerrain` — so this
+   * fixes no live bug today.
+   *
+   * **It does NOT make late opening safe, and an earlier version of this
+   * comment said it did.** That claim was measured and is false: terrain
+   * generation is gate-aware (`generateTerrain(seed, cfg, gates)`) and
+   * `applyRunTerrain` retries `seed + 1 …` until `allGatesReachable()` over the
+   * gate list *it* was handed, so a gate opened afterwards gets neither the
+   * generation nor the retry. Over seeds 1..300, opening (12, 19) after a
+   * three-gate `applyRunTerrain` leaves that gate unreachable from the Core on
+   * **77 of 300 seeds (25.7%)** — terrain never changes again, so the distance
+   * stays `-1` forever and a wave would spawn into a sealed pocket. World's
+   * real ordering seals it on **0 of 300**. Pinned in
+   * `tests/terrain-gate-open.test.ts`.
+   *
+   * So the rule is unchanged: **open gates before `applyRunTerrain`**, or
+   * re-check `allGatesReachable()` afterwards and regenerate. What `openGate`
+   * buys is that the terrain arrays are right either way — which is a real bug
+   * closed, and is all it is.
+   *
+   * **A raw write is still reachable**, because `tile` is a public array with a
+   * reader in `enemies.ts`. Making it private is a wider refactor than this
+   * item, so the raw-write staleness stays pinned as a recorded defect in that
+   * same file rather than being claimed closed.
+   *
+   * Re-opening a gate that is already open is a no-op, so `world.ts`'s loop
+   * over all four gates — three of which are already open — needs no special
+   * case at the merge.
+   */
+  openGate(tx: number, ty: number): void {
+    if (!Number.isInteger(tx) || !Number.isInteger(ty)) {
+      throw new Error(`openGate: (${tx}, ${ty}) is not an integer tile`);
+    }
+    if (tx < 0 || ty < 0 || tx >= GRID_W || ty >= GRID_H) {
+      throw new Error(`openGate: (${tx}, ${ty}) is off the grid`);
+    }
+    // No gate can work in a corner: its only interior neighbour is diagonal,
+    // the flow field never reaches it, and `allGatesReachable()` goes false the
+    // moment one exists. Refused with its own message, like `placeCore`'s
+    // border and gate cases, rather than left to fail as a mystery later.
+    if ((tx === 0 || tx === GRID_W - 1) && (ty === 0 || ty === GRID_H - 1)) {
+      throw new Error(`openGate: (${tx}, ${ty}) is a corner; no gate is reachable there`);
+    }
+    const i = ty * GRID_W + tx;
+    // Ahead of the occupancy guard on purpose: re-opening an open gate mutates
+    // nothing, so unlike `placeCore` re-deriving under a standing tower it
+    // cannot bury one. That is what lets `world.ts`'s loop over all four gates
+    // — three of them already open — stay a plain loop at the merge.
+    if (this.tile[i] === TileType.Gate) return;
+    // Only wall becomes a gate. An interior "gate" is a spawn point with open
+    // ground behind it and no wall to be a hole in, and `staticBlocked` would
+    // stop reporting it as anything at all.
+    if (this.tile[i] !== TileType.Border) {
+      throw new Error(`openGate: (${tx}, ${ty}) is not a border tile`);
+    }
+    // The same refusal `applyTerrain` and `placeCore` make, for the same
+    // reason: `syncTerrain` re-derives the whole board, and doing that under a
+    // standing tower can bury it in terrain no walker can path to or destroy.
+    for (let k = 0; k < this.occ.length; k++) {
+      if (this.occ[k] !== 0) {
+        throw new Error('openGate: structures are already placed; open gates before build');
+      }
+    }
+    this.tile[i] = TileType.Gate;
+    // Re-derived rather than patched, exactly as `placeCore` does it — the
+    // structural override is one loop and this tile is now inside it.
     this.syncTerrain();
   }
 

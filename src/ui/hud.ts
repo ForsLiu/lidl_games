@@ -18,7 +18,7 @@ import { characterPanelData, type CharacterPanelData } from './character-panel';
 import { dpsPanelData, type DpsPanelData, type DpsWindow } from './dps-panel';
 import { vsPanelRows, type VsPanelRow } from './vs-panel';
 import { STAT_DISPLAY, type StatDisplay } from '../sim/stats';
-import { active2CdrFactor, characterBasicRange, classAttackPowerMul } from '../sim/classes';
+import { characterBasicRange } from '../sim/classes';
 import { longestWieldedRange } from '../sim/vswield';
 import { SPEEDS } from './pacer';
 import {
@@ -26,8 +26,8 @@ import {
   classAbilitiesMarkup,
   passiveSkillMarkup,
   towerPassiveSkillMarkup,
-  type ClassLiveContext,
 } from './class-info';
+import { classLiveContext } from './class-live';
 import { bottomBarData, type SkillIconState } from './bottom-bar';
 import { coreLiveMarkup } from './core-info';
 import { formatPct, trimNum } from './info-format';
@@ -729,12 +729,28 @@ export class Hud {
     // `Stats`, so `w.stats.revision` alone cannot see a TD<->VS transition —
     // folding phase into the key keeps the panel's live damage number from
     // going stale across the Sundering while it is open.
-    const key = `char:${w.stats.revision}:${w.huntsWarden}`;
+    // fb148 (code-reviewer): `active1Charging` is in the key because
+    // `classMoveSpeedMul` reads it (Archer's -40% while drawing) and it bumps
+    // no stats revision — without it a panel opened mid-draw kept showing the
+    // charging-reduced dash distance after the charge ended.
+    const key = `char:${w.stats.revision}:${w.huntsWarden}:${w.warden.active1Charging}`;
     if (key === this.lastCharPanelKey) return;
     this.lastCharPanelKey = key;
+    // fb148 (qa-playtester finding): the rewrite below replaces `.sw-charcard`,
+    // which `style.css` gives `max-height: 86vh; overflow-y: auto` — so every
+    // key change scrolls the panel back to the top. Harmless while the key
+    // only moved on a stats change or a Sundering; with `active1Charging` in
+    // it, a Swordsman holding Circle Slash with the panel open lost their
+    // scroll position twice per charge (measured: 6 replacements over 1200
+    // ticks, 14 for an Archer). Carried across the rewrite rather than
+    // re-rendering in pieces, which would mean a second markup path to keep
+    // in step with the first.
+    const scrollTop = this.charPanelEl.querySelector('.sw-charcard')?.scrollTop ?? 0;
     this.charPanelEl.hidden = false;
     this.charPanelEl.classList.remove('sw-off');
     this.charPanelEl.innerHTML = characterPanelMarkup(characterPanelData(w), w, this.keyBindings);
+    const card = this.charPanelEl.querySelector('.sw-charcard');
+    if (card && scrollTop > 0) card.scrollTop = scrollTop;
     this.charPanelEl.querySelector('[data-act="close"]')?.addEventListener('click', () => this.closeCharacterPanel());
     for (const el of this.charPanelEl.querySelectorAll<HTMLElement>('[data-runeqslot]')) {
       const slot = el.dataset.runeqslot!;
@@ -1316,12 +1332,7 @@ export class Hud {
     if (cls) {
       this.bb.passiveTip.innerHTML = passiveSkillMarkup(cls);
       this.bb.towerPassiveTip.innerHTML = towerPassiveSkillMarkup(cls);
-      const live: ClassLiveContext = {
-        cdr: w.derived.cdr,
-        atkFlat: w.derived.atkFlat,
-        damageMul: classAttackPowerMul(w, cls),
-        active2CdrFactor: active2CdrFactor(w),
-      };
+      const live = classLiveContext(w, cls);
       this.bb.a1Tip.innerHTML = activeSkillMarkup(cls, 'active1', live, this.keyBindings);
       this.bb.a2Tip.innerHTML = activeSkillMarkup(cls, 'active2', live, this.keyBindings);
     }
@@ -2082,15 +2093,7 @@ function formatSourceValue(display: StatDisplay, value: number): string {
 function characterAbilitiesMarkup(w: World, keyBindings: KeyBindings): string {
   const cls = w.content.classByKey.get(w.cfg.classKey);
   if (!cls) return '';
-  const live: ClassLiveContext = {
-    cdr: w.derived.cdr,
-    atkFlat: w.derived.atkFlat,
-    // `classAttackPowerMul` only differs from plain `powerMul` for Blood
-    // Frenzy's phase-dependent swing.
-    damageMul: classAttackPowerMul(w, cls),
-    active2CdrFactor: active2CdrFactor(w),
-  };
-  return classAbilitiesMarkup(cls, { live, keyBindings });
+  return classAbilitiesMarkup(cls, { live: classLiveContext(w, cls), keyBindings });
 }
 
 /**
