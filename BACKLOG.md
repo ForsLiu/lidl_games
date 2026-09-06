@@ -44,6 +44,24 @@ still in test headers.
 
 ### CI follow-ups (filed 2026-09-06 from fb140's first red runs)
 
+- [x] (fb171) [bug] **DONE 2026-09-06, filed by code-reviewer on fb161.**
+      fb161's first shape banked ground-fire damage on each **field**, which
+      satisfies the acceptance line ("<= 4 events/second per ground field") and
+      still half-fixes the symptom: fields overlap (a Cinderling keeps ~7.5
+      alive and real geometry covers a point with ~2), measured **30 emits a
+      second**. And a partial bank was stranded until its 3 s field expired —
+      a Warden in the fire for 0.2 s took her only hit at **t = 3.000 s**,
+      wherever she stood by then, and through dash i-frames because the flush is
+      `preGated`. Fixed by moving the bank onto the Warden, fed by the summed
+      dps of every covering field, with the timer advancing on an open bank as
+      well as on live exposure so the tail caps at one interval; totals are
+      unchanged (summing dps and paying once is the same arithmetic). Also
+      closed: the totals case ran at armor 0, where the mitigation factor is 1,
+      so it was blind to the one semantic fb161 changes (nonzero armor now, with
+      a guard); and nothing covered the untouchable window, on which the whole
+      dash/god-mode guarantee for ground fire now rests. Three mutations re-run
+      red. See QUESTIONS Q189a.
+
 - [x] (fb169) [bug] **DONE 2026-09-06, filed by qa-playtester on fb168 and
       fixed in the same session with a failing regression test first (working
       rule 3).** `startDevServer` leaked the `ViteDevServer` — and its ~26

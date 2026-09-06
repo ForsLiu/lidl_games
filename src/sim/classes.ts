@@ -483,7 +483,6 @@ function firePoisonBarrel(w: World, cls: ClassDef): void {
     type: 'poison',
     source: 'class_active',
     acc: 0,
-    accTime: 0,
     dead: false,
   });
   w.emit('class_active', wd.x, wd.y, radius, 0);
@@ -745,7 +744,6 @@ function fireFlameRoad(w: World, cls: ClassDef, aimX: number | undefined, aimY: 
       type: 'burn',
       source: 'class_active2',
       acc: 0,
-      accTime: 0,
       dead: false,
     });
   }

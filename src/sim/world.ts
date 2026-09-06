@@ -689,6 +689,8 @@ export class World {
       fx: -1,
       fy: 0,
       outOfCombat: 0,
+      groundFireAcc: 0,
+      groundFireAccTime: 0,
       secondWindUsed: false,
       armorShred: 0,
       leechAccumulator: 0,

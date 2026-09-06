@@ -639,13 +639,16 @@ Q91 and Q102 corrections if not yet done.
   on the cadence the assertion goes red and this entry is revisited, instead of
   the reasoning silently going stale — the failure mode CLAUDE.md's "a deferral
   is a measurement with an expiry date" names.
-  Three sub-decisions. (1) **The bank lives on the field, not on a stack.** fb152
-  banks per DoT instance; a zone has no per-target instance, and its lifetime is
-  the only thing with the right scope. That makes the acceptance's "per ground
-  field" rate natural rather than incidental. (2) **`accTime` advances only
-  while the Warden is inside.** Billing per 0.25 s of *exposure* rather than of
-  wall clock means a player dipping in and out pays the same total as one
-  standing still, and the emit rate is at or under 4/s either way. (3) **The raw
+  Three sub-decisions. (1) **The bank lives on the Warden, not on the field, and
+  not on a stack.** fb152 banks per DoT instance; a zone has no per-target
+  instance, so the first draft banked on the field — its lifetime being the only
+  other thing with a scope. Code review measured that wrong twice and it was
+  replaced (see the correction below), which is why the rate this file asserts is
+  a *total*, not the acceptance line's per-field one. (2) **The timer advances on
+  an open bank as well as on live exposure.** Exposure alone was the first
+  draft's rule and is what stranded a partial bank; running it on the bank caps
+  the tail at one interval while leaving the rate unchanged, because a flush
+  still costs a whole interval either way. (3) **The raw
   amount is banked and mitigated once at the flush**, where the old path
   mitigated each frame. Identical while armor holds still, which it does across
   0.25 s for everything but a shred landing mid-window; the divergence there is
@@ -660,4 +663,37 @@ Q91 and Q102 corrections if not yet done.
   exhaust. A cost probe that is quietly measuring a death is the same class of
   error as fb165's centroid statistic. — Reason: CLAUDE.md working rule 5 and
   the measurement rules; owner feedback `dot-tick-cadence`, SPEC-FINAL §3.
+
+- **Q189a. [fb161, code review] The per-field bank was measured wrong twice, and
+  the correction is why the emit rate is a total rather than per field.** The
+  acceptance line reads "<= 4 `wardenhit` events per second **per ground field**",
+  and a bank held on each field satisfies it exactly while leaving the owner's
+  actual symptom half-fixed. Two measurements, both from code review, neither
+  visible from the acceptance criterion:
+  (a) **fields overlap, so a per-instance rate is the wrong denominator.** A
+  Cinderling drops a 3 s field every 0.4 s, so ~7.5 are alive at once and real
+  trail geometry (radius 0.6, ~0.7 tiles between drops) covers a point with about
+  two. Measured steady state with fields dropped on the Warden every 0.4 s:
+  **30 emits a second**, against 60 before — an improvement of 2x on a complaint
+  about numbers on screen, dressed as a 15x one. Several Cinderlings make it
+  worse.
+  (b) **a partial bank was stranded until its field expired.** fb152's analogue
+  force-flushes when the stack ends, which bounds the delay at one interval; an
+  `enemyFire` field lives 3 s. Measured: a Warden in a field for 0.2 s took her
+  only hit at **t = 3.000 s** — 2.8 s after she left, at wherever she was
+  standing by then, and through dash i-frames and god mode, because the flush is
+  `preGated`. Crossing eight fields dripped eight late hits over the following
+  three seconds.
+  One bank on the Warden, fed by the summed dps of every covering field, fixes
+  both at once and changes no total (summing dps and paying once is the same
+  arithmetic as paying each field separately). Rate, stated exactly rather than
+  as the acceptance's round number: at most one emit per `dotTickInterval`, so
+  four in a window aligned to a flush and at most five in an arbitrary sliding
+  second. Both findings are now assertions rather than prose, and each was
+  re-run as a mutation: reverting the timer to exposure-only reddens four cases,
+  removing the per-frame i-frame gate one, removing the interval gate three.
+  The general lesson, and the reason this is written down: **an acceptance
+  criterion can name the wrong denominator.** "Per ground field" was a
+  reasonable reading of a mechanism nobody had counted, and passing it exactly
+  would have shipped a half-fix. Measure the thing the complaint is about.
 

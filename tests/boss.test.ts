@@ -438,7 +438,6 @@ describe('the Warden-Eater (SPEC 5.5)', () => {
       type: 'bossSlam',
       source: 'warden_eater',
       acc: 0,
-      accTime: 0,
       dead: false,
     });
 

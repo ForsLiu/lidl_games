@@ -5,6 +5,40 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-06 — fb161's code review moved the ground-fire bank off the field
+  and onto the Warden, and CI is green on the whole branch.** Run
+  [#34058878859](https://github.com/ForsLiu/lidl_games/actions/runs/34058878859)
+  passed on `616af59`, so every commit on this branch — both perf-tier moves,
+  fb168, fb165, fb169/fb170 and fb161's first shape — is green on the runner.
+
+  code-reviewer then returned **REQUEST-CHANGES** on fb161 with one Major and
+  three Minors, all now fixed (QUESTIONS Q189a). The Major is the one worth
+  remembering: banking on each *field* satisfies the acceptance line exactly —
+  "<= 4 events per second per ground field" — and still leaves the symptom half
+  fixed, because fields overlap. Measured 30 emits a second with fields dropped
+  on the Warden every 0.4 s, which is what a Cinderling does. Worse, a partial
+  bank was stranded until its 3 s field expired: a Warden in the fire for 0.2 s
+  took her only hit at t = 3.000 s, wherever she stood by then, and through dash
+  i-frames because the flush is `preGated`.
+
+  One bank on the Warden, fed by the summed dps of every covering field, fixes
+  both and changes no total. The timer now advances on an open bank as well as
+  on live exposure, which caps the tail at one interval. Three mutations
+  re-run: exposure-only timer reddens four cases, no per-frame i-frame gate
+  one, no interval gate three. The review's other two Minors are closed as
+  assertions — the totals case now runs with nonzero armor (at armor 0 the
+  mitigation factor is 1, so it could not see the change it guards), and the
+  untouchable window has cases of its own.
+
+  The lesson worth keeping: **an acceptance criterion can name the wrong
+  denominator.** "Per ground field" read fine for a mechanism nobody had
+  counted, and passing it exactly would have shipped a 2x improvement on a
+  complaint that needed 15x.
+
+  `npm run test:fast` after the redesign: 3909 passed, only the container-only
+  q15/q45. qa-playtester was still running against the first shape when this
+  landed; its findings are reconciled against the redesign next.
+
 - **2026-09-06 — BACKLOG fb161: ground fire stops spraying numbers.** fb152 put
   every §3 DoT instance on a `dotTickInterval` cadence and left four `dot: true`
   sources at 60 Hz as zones rather than DoT instances. One of them had the

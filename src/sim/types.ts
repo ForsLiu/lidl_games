@@ -450,20 +450,8 @@ export interface GroundArea {
   /** 'poison' | 'burn' */
   type: string;
   source: string;
-  /**
-   * fb161: the Warden-facing damage this field has accrued but not yet paid,
-   * with `accTime` the exposure it represents. `enemyFire` banks here and
-   * flushes once per `dotTickInterval` (and once more when the field expires,
-   * so the final partial interval is paid rather than dropped) — fb152's
-   * accrue-then-flush shape, moved onto the field because a zone has no
-   * per-target stack to bank against. Enemy-facing fields never touch these:
-   * they damage through `damageEnemy(..., { dot: true })`, which emits nothing,
-   * so they have no spraying symptom and banking them would only move when
-   * enemies die. `acc` predates fb161 as a declared-but-unread field with this
-   * exact stated purpose; fb161 is the first code to read it.
-   */
+  /** Damage-over-time tick accumulator. Declared since this type was written; still unread. */
   acc: number;
-  accTime: number;
   dead: boolean;
 }
 
@@ -510,6 +498,16 @@ export interface Warden {
   fx: number;
   fy: number;
   outOfCombat: number;
+  /**
+   * fb161: raw ground-fire damage banked but not yet paid, and the time that
+   * bank has been open. One bank for the Warden rather than one per field —
+   * `tickGroundFireBank` (combat.ts) has the measurements behind that. The
+   * timer advances on an open bank as well as on live exposure, so a Warden who
+   * walks out of the fire is paid within one `dotTickInterval` instead of when
+   * the field she left eventually expires.
+   */
+  groundFireAcc: number;
+  groundFireAccTime: number;
   secondWindUsed: boolean;
   /** SPEC-V3 §3: Burning shreds armor. Subtracted from derived armor. */
   armorShred: number;

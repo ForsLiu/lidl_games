@@ -12,9 +12,13 @@
  * standing in a Cinderling's trail sprayed **60 numbers a second**, which is
  * the owner's symptom on a different mechanism.
  *
- * The decision this file pins (QUESTIONS Q189): the Warden-facing field takes
- * fb152's accrue-then-flush shape, banking on the field itself rather than on a
- * per-target stack, and the three invisible sources stay at 60 Hz. Banking them
+ * The decision this file pins (QUESTIONS Q189): the Warden-facing source takes
+ * fb152's accrue-then-flush shape, banked **on the Warden** — summing the dps of
+ * every field covering her — and the three invisible sources stay at 60 Hz.
+ * A per-field bank was written first and measured wrong twice by code review
+ * (30 emits/second once fields overlap, and a partial bank stranded for up to
+ * 2.8 s until its field expired); the last three cases below are that review's
+ * findings turned into assertions. Banking them
  * too would move when enemies die, which re-rolls every run hash and every
  * balance measurement taken since P10, in exchange for no player-visible change
  * at all.
@@ -74,7 +78,6 @@ function fieldOnWarden(w: World, dps: number, seconds: number): GroundArea {
     type: 'enemyFire',
     source: 'cinderling',
     acc: 0,
-    accTime: 0,
     dead: false,
   };
   w.areas.push(a);
@@ -114,8 +117,14 @@ describe('fb161 — ground fire pays on a cadence, not every frame', () => {
     const dps = 12;
     const seconds = 2;
     const w = bareWorld();
+    // Nonzero armor deliberately: code review measured that with the fixture's
+    // default armor of 0 the mitigation factor is exactly 1, so this assertion
+    // was equally true of an implementation that mitigated per frame, once, or
+    // never — i.e. blind to the one semantic fb161 changes.
+    w.derived.armor = 20;
     const hp0 = w.warden.hp;
     const m = mitigation(w);
+    expect(m, 'the fixture must actually mitigate, or this case cannot see the change').toBeLessThan(1);
     fieldOnWarden(w, dps, seconds);
     // A beat past expiry, so the final partial interval is flushed rather than
     // dropped — the clause fb152 records as what keeps a total exact.
@@ -192,13 +201,95 @@ describe('fb161 — ground fire pays on a cadence, not every frame', () => {
       type: 'burn',
       source: 'test',
       acc: 0,
-      accTime: 0,
       dead: false,
     });
     expect(w.areas.length).toBe(before + 1);
     const hits = runField(w, 1);
     // No Warden in it, and enemy-facing damage emits nothing either way.
     expect(hits.length).toBe(0);
+  });
+
+  it('holds the rate at 4/s when many fields overlap, not 4/s per field', () => {
+    // Code review's Minor, and the measurement that moved the bank off the
+    // field: a Cinderling drops a 3 s field every 0.4 s, so ~7.5 are alive at
+    // once and real trail geometry covers a point with about two. Per field,
+    // the old design was inside its acceptance line and still emitted a
+    // measured **30 numbers a second** — the acceptance's denominator was
+    // wrong, not its number. Eight stacked fields here, well past what play
+    // produces.
+    const w = bareWorld();
+    for (let i = 0; i < 8; i++) fieldOnWarden(w, 3, 3);
+    const hits = runField(w, 1);
+    expect(hits.length, `${hits.length} wardenhit events from 8 overlapping fields`)
+      .toBeLessThanOrEqual(4);
+    expect(hits.length).toBeGreaterThan(0);
+  });
+
+  it('pays a partial bank within one interval of the Warden leaving, not when the field expires', () => {
+    // Code review's Major. The field lives 3 s; the Warden is in it for 0.2 s.
+    // A bank held on the field paid at t = 3.000 s — 2.8 s late, wherever she
+    // was standing by then, and through dash i-frames because the flush is
+    // `preGated`. The bank on the Warden runs its timer on an open bank as well
+    // as on live exposure, so the tail is one interval at most.
+    const w = bareWorld();
+    const interval = w.content.damageTypes.dotTickInterval;
+    const a = fieldOnWarden(w, 12, 3);
+    let paidAt = -1;
+    const ticks = Math.round(3.5 / DT);
+    for (let i = 0; i < ticks; i++) {
+      // Step out of the field after 0.2 s by moving the field, not the Warden,
+      // so nothing else about her state changes.
+      if (i === Math.round(0.2 / DT)) a.x += 50;
+      w.fx.length = 0;
+      updateAreas(w, DT);
+      for (const f of w.fx) {
+        if (f.k === 'wardenhit' && paidAt < 0) paidAt = i * DT;
+      }
+    }
+    expect(paidAt, 'the bank was never paid').toBeGreaterThanOrEqual(0);
+    expect(paidAt, `paid at t=${paidAt}s after leaving at t=0.2s`).toBeLessThanOrEqual(0.2 + interval + DT);
+  });
+
+  it('does not bill a Warden who is untouchable, and bills the frames she is not', () => {
+    // Code review's Minor: `preGated: true` disables `damageWarden`'s own
+    // i-frame check, so the whole dash/invuln/god-mode guarantee for ground
+    // fire rests on the injected predicate being wired. Nothing covered it.
+    const blocked = bareWorld();
+    blocked.warden.dashIFrames = 10;
+    const hp0 = blocked.warden.hp;
+    const hits = (() => {
+      fieldOnWarden(blocked, 12, 1);
+      return runField(blocked, 1.5);
+    })();
+    expect(hits.length, 'an untouchable Warden takes no ground-fire numbers').toBe(0);
+    expect(blocked.warden.hp).toBe(hp0);
+
+    // Half a window blocked bills half. The gate is per frame, which is the
+    // property fb152 measured and this carries over: pricing the whole bank at
+    // the flush instant would make a brief dash erase a whole interval.
+    const half = bareWorld();
+    const hpHalf = half.warden.hp;
+    fieldOnWarden(half, 12, 1);
+    for (let i = 0; i < Math.round(1.5 / DT); i++) {
+      half.warden.dashIFrames = i < Math.round(0.5 / DT) ? 1 : 0;
+      updateAreas(half, DT);
+    }
+    const full = bareWorld();
+    const hpFull = full.warden.hp;
+    fieldOnWarden(full, 12, 1);
+    runField(full, 1.5);
+    const paidHalf = hpHalf - half.warden.hp;
+    const paidFull = hpFull - full.warden.hp;
+    expect(paidHalf).toBeGreaterThan(0);
+    // Within one frame, not exactly half: the field is alive for 59 frames
+    // (`remaining -= dt` leaves a float residual), of which 30 are blocked, so
+    // the honest figure is 29/59 = 0.4915. Pinning 0.5 tighter than a frame
+    // would be asserting the quantisation, not the gate.
+    const oneFrame = 12 * DT * mitigation(bareWorld());
+    expect(
+      Math.abs(paidHalf - paidFull / 2),
+      `blocked-half paid ${paidHalf} of a full ${paidFull}; one frame is ${oneFrame}`,
+    ).toBeLessThan(oneFrame);
   });
 
   it('stays deterministic: one seed, two runs, one end hash', () => {
