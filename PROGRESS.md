@@ -586,6 +586,106 @@
   `npm run test:fast` at this commit: 3649 passed, 3 failed — `b028`, `q41`,
   `q45`, the same three the merge entry below records as failing identically on
   `origin/master`. `npx tsc --noEmit` clean; all 19 terrain suites green (379).
+- **2026-09-05/06 session (lane `lane/content`, branch
+  `claude/backlog-content-loop-r8mmic`): six items closed — `c022`, `c025`,
+  `c028`, `c027`, `c031`, `c030`**, one commit each, pushed. The generation
+  rule ran mid-session with two actionable items left and appended
+  `c028`/`c027`/`c031`/`c029`/`c030`; `c029` is the one of those five still
+  open, and the five owner items (`fb056`, `fb057`, `fb059`, `fb061`, `fb062`)
+  remain blocked out of Scope on the same paths as before.
+
+  **The through-line, for whoever picks this up.** Four of the six are one
+  idea: this lane's two spec ledgers audit *numbers*, and a row can carry the
+  right number on the wrong stat — which `c013` and `c024` had each found by
+  hand, one class apart, with no barrier between them. `c022` built the
+  behavioural pointer for §7, `c028` extracted it once `c027` needed it, `c027`
+  adapted it to §4 (where covers observe through signal helpers, not through
+  `w.derived.<stat>`), and `c031` closed the last unwatched `/data`-to-`/src`
+  contract before `fb056` adds fifteen items to it. Every device in them is a
+  mutation that got past an earlier draft; the mutation is the regression test
+  in each case, and BACKLOG-CONTENT.md's Log lists them per item.
+
+  No `/src` or `/data` byte moved in any of the six. `npm run test:fast` ends
+  the session at 3690 passed / 3 failed — `b028`, `q41`, `q45`, which fail
+  identically on a clean checkout of this branch's base (controlled in a stash
+  at the start of the session).
+
+  Items closed are listed below as they landed; BACKLOG-CONTENT.md's Log
+  carries the detail for each.
+
+  `c022`: every one of the 13 §7 Effect rows in
+  `tests/equip-spec-numbers.test.ts` now carries a **behavioural pointer** —
+  an anchored `describe`/`it` whose body reads that row's own stat key — so a
+  row can no longer audit the right number on a stat §7 never mentions. The
+  mutation QA measured on c012 (`normal_necklace`'s `-0.2` moved from
+  `towerCost` to `goldFind` in `/data` *and* in the ledger row) is red, as is
+  deleting a covering block. Seven of the thirteen stats had no cover anywhere
+  that named them — `hpRegen`, `xpGain`, `towerCost`, `leech`'s magnitude,
+  `bleedLifesteal`, `towerAtkFlat` and Swordsman Armor's `classFallback` — and
+  those covers are new, in this lane's `tests/equip-effect-behaviour.test.ts`
+  (`tests/fb015-equipment.test.ts` is out of Scope). No `/src` or `/data` byte
+  moved.
+
+  `c025`: `tests/class-kit-whiff.test.ts` is the eighth and last §4 file to
+  move onto the shared probed board, which needed `tests/class-board.ts` to
+  probe and export the **Ice Wall column** (three buildable, non-sealing tiles
+  two east) on its own rung of the degradation ladder — forcing the column
+  impossible fails that one file, on its four column rows, with the other eight
+  importers green. Its p6d agreement is now an **offset** parsed out of p6d's
+  own occupancy test rather than the absolute `[12, 10]` that stopped being
+  this file's tile when terrain moved the board to `10,6`. QA failed the first
+  parser: it was reading a neighbouring `castWall()` helper, so re-aiming the
+  row it claims to co-state left the file green, and it threw at module scope,
+  which vitest reports as `Tests no tests`. New `tests/class-p6d-agreement.ts`
+  plus 4 synthetic-source tests. Also generated five items (`c027`-`c031`) per
+  the generation rule, with a fresh sweep behind them: **maxbuild and hybrid
+  both win 0.17 over 12 seeds**, against STATUS.md's stale policy table of 1.
+
+  `c028`: c022's behavioural-pointer device — the block reader, the `reads`
+  default, the decoy derivation and the five pointer rules — is extracted to
+  `tests/equip-spec-ledger.ts` with its synthetic-source self-tests, ahead of
+  `c027` needing the same device on the §4 ledger. Ten mutations red, including
+  three new ones: a `describe.skip` on the device's own self-tests, a hand-copy
+  in `tests/helpers/`, and a hand-copy renamed `readBlock`. The `equip-` prefix
+  is the Scope's, not the module's — the rename to `tests/spec-ledger.ts` is
+  logged for the main lane.
+
+  `c027`: the §4 ledger's 16 stat-key rows now carry behavioural pointers of
+  their own — bound to the row's authored path, to the liveness `KILLS` entry
+  that deletes that exact path, and to a block that *asserts* the signal that
+  kill measures. It is the class-side answer to the hole `c013` and `c024` each
+  found by hand: a figure that is right, on a key whose reach is wider than
+  §4's sentence. Review and QA found three Majors, all of them gaps between
+  what the device claimed and what it checked — the class binding was missing
+  (Engineer's and Paladin's `towerHp` pointers were swappable), the
+  compensating control for the alternation was a strict tautology, and the
+  Time Lord divergence was a silent `{ kind: 'match' }` row. All closed, with
+  the mutation that found each as its regression test.
+
+  `c031`: the real contract between `data/equipment.json` and `/src` for §7's
+  three non-stat mechanics is eight `hasEquipment(w, '<key>')` literals that no
+  test enumerated — so renaming an item key in `/data` turned its mechanic off
+  silently, and `fb056` adds fifteen items to that file.
+  `tests/equip-hasequipment-roster.test.ts` scans `/src`, holds the roster to
+  §7's own Effect clauses, and checks every literal names a key `/data`
+  authors. Code review found the scan blind over 362 lines of `src/ui/hub.ts`
+  — `blankNonCode` has no regex-literal state and one `.replace(/'/g, …)`
+  desyncs it — which is closed with a raw-text cross-check and recorded as a
+  known limitation of the shared helper, with a self-test.
+
+  `c030`: this lane's two recorded class measurements were both taken before
+  master's terrain epic and its T1 re-anchor, and both had expired.
+  Re-measured at T1: **Time Lord 12/12 -> 11/12** (this class's first
+  `defeat_core` and its first two close wins), and the 144-run kit-share sweep
+  from "12/12 win for eleven classes, 2/12 distinct top damage sources" to
+  **five classes inside G8's literal 35-70% band and 1/12 distinct** — the
+  diversity clause got worse, because `mortar` is now every class's top source
+  where `ballista`/`mortar` used to split the roster. **At least six**
+  balance-affecting changes landed between the readings — `p12c`'s
+  `baseHpMul: 20` is the likeliest cause of the win-rate movement, not terrain
+  — so nothing is attributed; the tables are a baseline. Both readings are T1
+  while `p6e` moved to `GATE_TIER` = 3, which is part of what the main-lane
+  re-read has to settle.
 
 - **2026-09-05 (lane `lane/terrain`): merged `origin/master` in a second
   time**, picking up `lane/ui`'s fb111/fb112/fb114/fb115 (PR #4). Nothing to
