@@ -16,6 +16,6 @@
     { "key": "unseen",     "name": "Unseen Ways",   "desc": "Burrower/Wraith weight x3", "effect": { "ghostWeightMul": 3 },  "rewardBonus": 0.10 },
     { "key": "titanic",    "name": "Titanic",       "desc": "Boss +50% HP",              "effect": { "bossHp": 0.50 },       "rewardBonus": 0.10 },
     { "key": "hurried",    "name": "Hurried",       "desc": "Build phase 10 s",          "effect": { "buildPhase": 10 },     "rewardBonus": 0.10 },
-    { "key": "cracked",    "name": "Cracked Core",  "desc": "Core -150 HP",              "effect": { "coreHp": -150 },       "rewardBonus": 0.10 }
+    { "key": "cracked",    "name": "Cracked Core",  "desc": "Core -15 HP",               "effect": { "coreHp": -150 },       "rewardBonus": 0.10 }
   ]
 }
