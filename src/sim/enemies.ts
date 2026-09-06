@@ -1256,6 +1256,15 @@ export function updateEnemies(w: World, dt: number): void {
 
     // Reaching the objective.
     if (huntWarden) {
+      // fb155: still computed, deliberately. The authored `attackRange` is the
+      // *published* reach — what the renderer's ring and the Codex print — and
+      // `loadContent`'s agreement rule refuses a melee row whose value differs
+      // from `radius + contactPadding` by more than 1e-6. Reading the authored
+      // number here instead would move the reach by a float ULP on the two
+      // rows whose sum is not exactly representable (Shellback and Charger:
+      // `0.4 + 0.45` is 0.8500000000000001, not 0.85), and that was enough to
+      // flip seed 5 from a victory to a 45-minute timeout over 144,000 ticks.
+      // A rescale of the *display* must not re-roll the sim.
       const reach = e.radius + sp.contactPadding;
       if (dist2(e.x, e.y, w.warden.x, w.warden.y) <= reach * reach) {
         contactWarden(w, e, def);
@@ -1489,7 +1498,7 @@ function updateAbilities(w: World, e: Enemy, def: EnemyDef, dt: number, act2: bo
   }
 
   if ((e.flags & TRAIT.ranged) !== 0) {
-    const range = def.attackRange ?? 4;
+    const range = def.attackRange;
     if (e.attackCooldown <= 0) {
       // Spitters harass the Warden when in range, otherwise chew on structures.
       if (dist2(e.x, e.y, w.warden.x, w.warden.y) <= range * range) {

@@ -216,7 +216,16 @@ therefore measure *after* `fb153`, not before.
       re-measured (fb153a's baseline: median 60 early / 88 late, p90 110-844) —
       refs: QUESTIONS Q180, owner feedback
       `balance-damage-rescale-and-bigger-map` item 1.
-- [ ] (fb155) [feat] enemy attack-kind and attack-range data — the main-lane
+- [x] (fb155) [feat] **DONE 2026-09-05** — all 20 rows carry `attackKind` +
+      `attackRange` (+ `specialRange` for the four with a special), with loader
+      rules pinning each to what combat does; `boss.ts`'s slam radius moved into
+      `/data`. **One clause is deliberately not delivered**: "melee reach is an
+      engine constant — move it to `/data`" stayed computed, because reading the
+      authored value moved Shellback's and Charger's reach by a float ULP and
+      re-rolled a run (measured; QUESTIONS Q183). The published field is pinned
+      to the computed one within 1e-6 by the loader and measured against the
+      world by the test. Original text follows. Enemy attack-kind and
+      attack-range data — the main-lane
       `/data` half of the UI lane's `fb158`, filed here because
       `data/enemies.json` is outside that lane's Scope. Every one of the 20 §9
       enemies gains an explicit attack **kind** (`melee` / `ranged` /

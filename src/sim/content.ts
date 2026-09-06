@@ -400,10 +400,28 @@ export const EnemySchema = z.object({
   /** SPEC-V3 §2 armor points; percent reduction of normal damage. */
   armor: num.optional(),
   flatReduction: num.optional(),
-  attackRange: num.optional(),
   attackDamage: num.optional(),
   attackInterval: num.optional(),
   healRate: num.optional(),
+  /**
+   * fb155 (owner feedback `ui-enemy-attack-indicators`): what this enemy's
+   * attack **is**, authored rather than re-derived from the `traits` array by
+   * whoever needs to draw it. The renderer's icon, the hover/selection range
+   * ring and the Codex page all read this pair. Combat reads `attackRange`
+   * directly for a `ranged` row; for every other kind the reach stays computed
+   * and the agreement rules in `loadContent` pin the authored value to it
+   * **to 1e-6** — close enough to draw, and deliberately not the number the sim
+   * swings, because two rows' `radius + contactPadding` is not exactly
+   * representable and reading the authored value moved a run (QUESTIONS Q183).
+   */
+  attackKind: z.enum(['melee', 'ranged', 'bomber', 'healer', 'buffer', 'burrower', 'phaser']),
+  /** The reach of that attack, in tiles. */
+  attackRange: num.positive(),
+  /**
+   * An elite or boss's *special* reach, when it differs from `attackRange` —
+   * the Colossus's stomp, the Herald's empower, the Warden-Eater's slam.
+   */
+  specialRange: num.positive().optional(),
   healRadius: num.optional(),
   splitInto: num.optional(),
   splitCount: num.optional(),
@@ -2336,6 +2354,94 @@ export function loadContent(overrides?: ContentOverrides): Content {
     for (const sp of t.upgrades.specials) {
       validateSpecial(damageTypes, sp, t.attack, where);
       validateSpecialChangesProfile(sp, t.attack, t.upgrades, where);
+    }
+  }
+
+  // fb155: the authored attack pair has to agree with what combat actually
+  // swings, or the ring the renderer draws is decoration. Each kind names the
+  // number the sim reads for it, so a retune of either side fails at load
+  // rather than drifting apart silently.
+  for (const e of enemies.enemies) {
+    const where = `enemies.json: ${e.key}`;
+    const traits = new Set(e.traits ?? []);
+    const contactReach = e.radius + spawns.contactPadding;
+    // An enemy that deals contact damage attacks at its contact reach, whatever
+    // else it also does: the Bomber's blast and the Warlock's aura are
+    // *specials*, and publishing one of those as the attack range would draw a
+    // 3-tile ring on an enemy that hits at 0.8 (code review). A row with no
+    // `coreDamage` has no contact attack at all, so its aura *is* the attack —
+    // the Mender and the Herald.
+    // A boss's attacks are scripted in `boss.ts`, not dealt by the contact loop
+    // (the Warden-Eater has `coreDamage: 0` and hurts the Warden with a charge
+    // whose reach is `CHARGE_WIDTH + radius`), so its published range is the
+    // scripted one and is pinned by measurement in
+    // `tests/fb155-enemy-attack-registry.test.ts` rather than by this rule.
+    const scripted = traits.has('finalBoss');
+    const contacts = e.coreDamage > 0;
+    const expected = scripted
+      ? undefined
+      : e.attackKind === 'ranged'
+        ? undefined // authored freely; `attackRange` *is* the number combat reads
+        : contacts
+          ? contactReach
+          : e.attackKind === 'bomber'
+            ? (e.explodeRadius ?? 1.5)
+            : e.attackKind === 'healer'
+              ? (e.healRadius ?? 3)
+              : e.attackKind === 'buffer'
+                ? (e.buffRadius ?? 3)
+                : contactReach;
+    // A melee row that deals no contact damage is publishing a swing it does
+    // not have (qa-playtester). Only a scripted boss is exempt.
+    if (e.attackKind === 'melee' && !contacts && !scripted) {
+      throw new Error(`${where}: authors a melee attack but deals no contact damage`);
+    }
+    if (expected !== undefined && Math.abs(e.attackRange - expected) > 1e-6) {
+      throw new Error(
+        `${where}: attackKind "${e.attackKind}" reaches ${expected} in the sim but authors attackRange ${e.attackRange}`,
+      );
+    }
+    // The kind must be one the row's own traits actually describe: the renderer
+    // picks its icon from `attackKind`, so a Spitter authored `melee` would
+    // draw a sword and shoot from four tiles away. A row carrying several
+    // trait-bearing behaviours may name any of them (an exploding burrower is
+    // both), and a row carrying none is melee.
+    const kinds = new Set<string>();
+    if (traits.has('ranged')) kinds.add('ranged');
+    if (traits.has('explodes')) kinds.add('bomber');
+    if (traits.has('healer')) kinds.add('healer');
+    if (traits.has('buffer') || traits.has('empower')) kinds.add('buffer');
+    if (traits.has('burrows')) kinds.add('burrower');
+    if (traits.has('phases')) kinds.add('phaser');
+    if (kinds.size === 0) kinds.add('melee');
+    if (!kinds.has(e.attackKind)) {
+      throw new Error(
+        `${where}: its traits describe ${[...kinds].sort().map((k) => `"${k}"`).join('/')} but the row authors "${e.attackKind}"`,
+      );
+    }
+    // A special reach is published exactly when there is a special to draw, and
+    // it names the radius that special really has.
+    const special =
+      e.stompRadius ??
+      (traits.has('empower') || (traits.has('buffer') && e.coreDamage > 0) ? e.buffRadius : undefined) ??
+      (traits.has('explodes') ? e.explodeRadius : undefined);
+    if (special !== undefined && Math.abs((e.specialRange ?? -1) - special) > 1e-6) {
+      throw new Error(`${where}: its special reaches ${special} but the row authors specialRange ${e.specialRange}`);
+    }
+    // The scripted boss's special is geometry `boss.ts` reads, so it must be
+    // published even though no radius field here names it. Everything else —
+    // the Gatebreaker included, whose structure-breaking happens at melee reach
+    // — must not invent one, or the selection ring draws a number nothing
+    // produces (qa-playtester found the `boss` trait exempting the Gatebreaker
+    // from that rule).
+    if (special === undefined && !scripted && e.specialRange !== undefined) {
+      throw new Error(`${where}: authors specialRange ${e.specialRange} but has no special attack`);
+    }
+    if (scripted && e.specialRange === undefined) {
+      throw new Error(`${where}: a scripted boss must publish the reach of its special`);
+    }
+    if (scripted && e.specialRange !== undefined && e.specialRange < e.attackRange) {
+      throw new Error(`${where}: its special reaches ${e.specialRange}, shorter than its own attack ${e.attackRange}`);
     }
   }
 

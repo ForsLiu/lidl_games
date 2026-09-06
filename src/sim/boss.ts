@@ -19,6 +19,7 @@ import {
   setBossVulnerabilityFn,
   spawnEnemy,
 } from './enemies';
+import type { EnemyDef } from './content';
 import type { Enemy, Structure } from './types';
 import { World } from './world';
 
@@ -35,7 +36,28 @@ const CHARGE_WIDTH = 1.1;
 
 const SUMMON_INTERVAL = 8;
 const SUMMON_COUNT = 4;
+/**
+ * fb155: the authored fallback for a boss row that does not publish a
+ * `specialRange`. The Warden-Eater does (`data/enemies.json`), and
+ * `slamRadius` below reads it, so the ring the renderer draws on a selected
+ * boss is the radius the slam really has.
+ */
 const SLAM_RADIUS = 5.5;
+
+/** The radius a slam ring is born at, before it starts expanding. */
+export const SLAM_START_RADIUS = 1;
+
+/**
+ * The reach the slam ring actually grows to, authored in `/data` as
+ * `specialRange` (fb155). qa-playtester measured the first version of this
+ * publishing 5.5 for a ring that reached 6.4: the authored number was being
+ * used as the *lifetime* budget (`radius / SLAM_EXPAND`) rather than as the
+ * reach, so the renderer's ring would have under-drawn the one attack that
+ * matters by a tile. It is the reach now, and the lifetime is derived from it.
+ */
+function slamRadius(e: Enemy): number {
+  return (e.def as EnemyDef).specialRange ?? SLAM_RADIUS;
+}
 const SLAM_DAMAGE = 12;
 const SLAM_EXPAND = 6;
 
@@ -330,20 +352,20 @@ function updateSummonsAndSlams(w: World, e: Enemy, dt: number): void {
 }
 
 /** Ground slam: an expanding ring that hurts the Warden and everything in it. */
-function slam(w: World, e: Enemy): void {
+export function slam(w: World, e: Enemy): void {
   w.areas.push({
     id: w.newId(),
     x: e.x,
     y: e.y,
-    radius: 1,
+    radius: SLAM_START_RADIUS,
     dps: mag(w, SLAM_DAMAGE),
-    remaining: SLAM_RADIUS / SLAM_EXPAND,
+    remaining: (slamRadius(e) - SLAM_START_RADIUS) / SLAM_EXPAND,
     type: 'bossSlam',
     source: 'warden_eater',
     acc: 0,
     dead: false,
   });
-  w.emit('bossslam', e.x, e.y, SLAM_RADIUS, 0);
+  w.emit('bossslam', e.x, e.y, slamRadius(e), 0);
 }
 
 /** Grows slam rings and applies their damage. Called from the area update. */

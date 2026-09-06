@@ -5,6 +5,50 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-05 — BACKLOG fb155: every enemy publishes what its attack is and how
+  far it reaches.** All 20 §9 rows in `data/enemies.json` now carry
+  `attackKind` (a closed enum: melee/ranged/bomber/healer/buffer/burrower/
+  phaser) and `attackRange`, plus `specialRange` on the four rows whose special
+  has a radius of its own — the `/data` half of the owner's
+  `ui-enemy-attack-indicators` order, so the UI lane's fb158 draws an icon and a
+  ring from authored fields instead of re-deriving both from the `traits` array.
+  `boss.ts`'s `SLAM_RADIUS` moved into `/data` behind `specialRange`, closing
+  one more rule-4 literal.
+
+  **The loader is the deliverable, not the fields.** `loadContent` refuses a row
+  whose published range disagrees with the radius the sim uses for its kind, a
+  kind its own traits do not describe, a melee row that deals no contact damage,
+  an elite or boss hiding its special, and a row inventing one it does not have.
+  That closed **29 previously-recorded holes** in `tests/q7-loader-holes.ts`
+  (mutations of `radius`, `explodeRadius`, `healRadius`, `buffRadius`,
+  `stompRadius`, `coreDamage` and `spawns.contactPadding` that used to load
+  silently) and cost two: `radius` and `contactPadding` can no longer be tuned
+  in isolation, which the Tuner now says out loud instead of bricking the next
+  load.
+
+  **Three things measurement caught that review or reasoning did not.** (1)
+  Reading the authored melee reach in the contact loop *changed the game*:
+  `0.4 + 0.45` is `0.8500000000000001`, so Shellback and Charger moved by one
+  ULP and seed 5 went from a `victory` at 144,299 ticks to a 45-minute timeout.
+  Reverted — the sim still computes the reach, the loader pins the published
+  number to it within 1e-6, and the test measures the real connect distance.
+  The BACKLOG clause "move the melee reach to `/data`" is therefore **not**
+  delivered literally, and that is recorded rather than glossed. (2) The Bomber
+  and the Warlock published their blast and aura as their *attack* range while
+  actually hitting at 0.8 (code review). (3) The Warden-Eater published 5.5 for
+  a slam ring that reaches 6.4, because the authored number was being spent as
+  the ring's lifetime rather than as its reach — and its `attackKind: melee`
+  described a contact attack it never makes (`coreDamage: 0`; its close-range
+  damage is the charge at 2.3 tiles). Both fixed at the cause, both now pinned
+  by growing a real ring and by driving a real charge.
+
+  Verification: `npm run test:fast` at the parent's baseline, `npx tsc --noEmit`
+  and `npm run build` clean, the excluded boss suite green, and a report-field
+  control pair over 14 configs (8 seeds x 5 policies x 6 classes x T1-T5) that
+  is **bit-identical** to the parent on every field including `damageByWeapon`
+  to full float precision — only `endHash` moves, which any `/data` edit must
+  do. QUESTIONS **Q183** carries the design choices.
+
 - **2026-09-05 — BACKLOG fb154 (owner order, top priority): VS waves spawn from
   the TD gates.** `pickSpawnPoint(w, key?)` (act2.ts) routes every non-flying VS
   spawn through a round-robin over `w.gates` — a hashed `World.vsGateCursor`,

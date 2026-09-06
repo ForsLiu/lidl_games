@@ -401,6 +401,17 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'cores.cores[].upgrade.steps[].storeRatio': ['negative', 'zero', 'fractional', 'drop-key'],
   'cores.cores[].upgrade.steps[].towerLifestealBonus': ['negative', 'zero', 'fractional', 'drop-key'],
   'cores.cores[].upgrade.steps[].towerOverhealConverts': ['negative', 'zero', 'fractional', 'drop-key'],
+  // fb155 closed 23 holes rather than opening any: the enemy attack-registry
+  // agreement rules (`loadContent`) now refuse a mutation of `radius`,
+  // `explodeRadius`, `healRadius`, `buffRadius`, `stompRadius` or
+  // `spawns.contactPadding` that leaves an authored `attackRange` disagreeing
+  // with the reach the sim swings, and `attackRange` itself is required and
+  // positive. The special-reach rule closed six more the same way — dropping or
+  // renaming `buffRadius`/`explodeRadius`/`stompRadius` now leaves a published
+  // `specialRange` with nothing behind it, and the fallback-to-the-code-default
+  // above rather than annotated. `healRadius` keeps its two: dropping it alone
+  // leaves the Mender coherent at the code's own `?? 3` default. `coreDamage`
+  // lost its `negative`/`zero` the day a melee row had to deal contact damage.
   // fb152: the DoT tick cadence. `negative`/`zero` are rejected (`num.positive()`),
   // and `fractional` is accepted because the authored value *is* fractional
   // (0.25) — a cadence has no integrality to violate. `drop-key`/`rename-key`
@@ -441,36 +452,34 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'dev.unlockAllTiers': ['flip-bool'],
   'enemies.enemies[].attackDamage': ['negative', 'zero', 'fractional', 'drop-key', 'rename-key'],
   'enemies.enemies[].attackInterval': ['negative', 'zero', 'fractional', 'drop-key', 'rename-key'],
-  'enemies.enemies[].attackRange': ['negative', 'zero', 'fractional', 'drop-key', 'rename-key'],
   'enemies.enemies[].bounty': ['negative', 'zero', 'fractional'],
   'enemies.enemies[].buffPower': ['negative', 'zero', 'fractional', 'drop-key', 'rename-key'],
-  'enemies.enemies[].buffRadius': ['negative', 'zero', 'fractional', 'drop-key', 'rename-key'],
   'enemies.enemies[].buffSpeed': ['negative', 'zero', 'fractional', 'drop-key', 'rename-key'],
   'enemies.enemies[].chargeCooldown': ['negative', 'zero', 'fractional', 'drop-key', 'rename-key'],
   'enemies.enemies[].chargeDuration': ['negative', 'zero', 'fractional', 'drop-key', 'rename-key'],
   'enemies.enemies[].chargeSpeed': ['negative', 'zero', 'fractional', 'drop-key', 'rename-key'],
   'enemies.enemies[].chargeWindup': ['negative', 'zero', 'fractional', 'drop-key', 'rename-key'],
-  'enemies.enemies[].coreDamage': ['negative', 'zero', 'fractional'],
+  'enemies.enemies[].coreDamage': ['fractional'],
   'enemies.enemies[].explodeDamage': ['negative', 'zero', 'fractional', 'drop-key', 'rename-key'],
-  'enemies.enemies[].explodeRadius': ['negative', 'zero', 'fractional', 'drop-key', 'rename-key'],
   'enemies.enemies[].flatReduction': ['negative', 'zero', 'fractional', 'drop-key', 'rename-key'],
   'enemies.enemies[].frontReduction': ['negative', 'zero', 'fractional', 'drop-key', 'rename-key'],
   'enemies.enemies[].gem': ['negative', 'zero', 'fractional'],
-  'enemies.enemies[].healRadius': ['negative', 'zero', 'fractional', 'drop-key', 'rename-key'],
   'enemies.enemies[].healRate': ['negative', 'zero', 'fractional', 'drop-key', 'rename-key'],
+  // fb155: dropping `healRadius` alone still loads — the agreement rule falls
+  // back to the same `?? 3` the sim uses, so the row stays coherent. It is
+  // refused as soon as the published range disagrees with that default.
+  'enemies.enemies[].healRadius': ['drop-key', 'rename-key'],
   'enemies.enemies[].hp': ['fractional'],
   'enemies.enemies[].id': ['negative', 'zero', 'fractional'],
   'enemies.enemies[].name': ['to-string', 'empty-string'],
   'enemies.enemies[].packSize': ['negative', 'zero', 'fractional', 'drop-key', 'rename-key'],
   'enemies.enemies[].phaseDuration': ['negative', 'zero', 'fractional', 'drop-key', 'rename-key'],
   'enemies.enemies[].phasePeriod': ['negative', 'zero', 'fractional', 'drop-key', 'rename-key'],
-  'enemies.enemies[].radius': ['negative', 'zero', 'fractional'],
   'enemies.enemies[].speed': ['negative', 'zero', 'fractional'],
   'enemies.enemies[].splitCount': ['negative', 'zero', 'fractional', 'drop-key', 'rename-key'],
   'enemies.enemies[].splitInto': ['negative', 'zero', 'fractional', 'drop-key', 'rename-key'],
   'enemies.enemies[].stompDamage': ['negative', 'zero', 'fractional', 'drop-key', 'rename-key'],
   'enemies.enemies[].stompInterval': ['negative', 'zero', 'fractional', 'drop-key', 'rename-key'],
-  'enemies.enemies[].stompRadius': ['negative', 'zero', 'fractional', 'drop-key', 'rename-key'],
   'enemies.enemies[].structureDamageMul': ['negative', 'zero', 'fractional', 'drop-key', 'rename-key'],
   'enemies.enemies[].trailDps': ['negative', 'zero', 'fractional', 'drop-key', 'rename-key'],
   'enemies.enemies[].trailRadius': ['negative', 'zero', 'fractional', 'drop-key', 'rename-key'],
@@ -551,7 +560,6 @@ export const ACCEPTED: Readonly<Record<string, readonly string[]>> = {
   'spawns.budgetGrowthPerVsWave': ['negative', 'zero', 'fractional', 'drop-key', 'rename-key'],
   'spawns.burrowSurfaceDistance': ['negative', 'zero', 'fractional'],
   'spawns.contactInterval': ['negative', 'zero', 'fractional'],
-  'spawns.contactPadding': ['negative', 'zero', 'fractional'],
   'spawns.costs.bomber': ['negative', 'zero', 'fractional'],
   'spawns.costs.bulwark': ['negative', 'zero', 'fractional'],
   'spawns.costs.burrower': ['negative', 'zero', 'fractional'],
@@ -883,10 +891,17 @@ export const REF_VERDICTS: Readonly<Record<string, RefVerdict>> = {
   'damagetypes.types[].key': 'partial',
   'damagetypes.types[].name': 'open',
   'damagetypes.types[].refresh': 'checked',
+
+  // fb155: the attack registry's kind is a closed enum the loader also
+  // cross-checks against the row's own traits, so it is `checked` like `grade`.
+  'enemies.enemies[].attackKind': 'checked',
   'enemies.enemies[].grade': 'checked',
   'enemies.enemies[].key': 'partial',
   'enemies.enemies[].name': 'open',
-  'enemies.enemies[].traits[]': 'open',
+  // fb155: the attack-registry rules read this array to decide the row's kind,
+  // so renaming a trait that decides one now throws at load while renaming a
+  // trait that decides nothing still does not — partially checked.
+  'enemies.enemies[].traits[]': 'partial',
   'equipment.items[].classFallback.notClassKey': 'checked',
   'equipment.items[].desc': 'open',
   'equipment.items[].effectKey': 'checked',
