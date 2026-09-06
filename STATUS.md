@@ -128,7 +128,7 @@ Measured this run: 88 sim runs (2 seeds/cell), `hybrid` bot for per-class/per-Co
 
 | File | Status |
 |---|---|
-| 20260826-085529-feature-cores.md | no BACKLOG citation found |
+| 20260826-085529-feature-cores.md | fb044 — done |
 | 20260827-134658-bug-build-on-character.md | b016 — done |
 | 20260827-134658-feature-auto-pick-boons.md | fb003 — done |
 | 20260827-134658-feature-boon-stats-panel.md | fb004 — done |
@@ -148,7 +148,7 @@ Measured this run: 88 sim runs (2 seeds/cell), `hybrid` bot for per-class/per-Co
 | 20260828-223337-feature-equipment-realize.md | no BACKLOG citation found |
 | 20260828-223337-feature-skill-core-vfx.md | no BACKLOG citation found |
 | 20260828-223337-feature-test-tiers.md | fb017 — done |
-| 20260828-225846-feature-ui-self-audit.md | fb009 — done |
+| 20260828-225846-feature-ui-self-audit.md | fb018 — done |
 | 20260828-225846-verdicts-q122-133.md | QUESTIONS verdict batch — applied to QUESTIONS.md, archived |
 | 20260829-211050-balance-enemies-slower-tankier.md | fb020 — done |
 | 20260829-211050-feature-basic-attack-vfx.md | fb021 — done |
@@ -180,27 +180,27 @@ Measured this run: 88 sim runs (2 seeds/cell), `hybrid` bot for per-class/per-Co
 | 20260903-121255-feature-class-madness-king.md | fb057 (BACKLOG-CONTENT.md) — queued |
 | 20260903-121255-feature-class-select-redesign.md | fb058 (BACKLOG-UI.md) — done |
 | 20260903-121255-feature-class-voltbolt.md | fb059 (BACKLOG-CONTENT.md) — queued |
-| 20260903-121255-feature-dot-tick-numbers.md | p11e — done |
+| 20260903-121255-feature-dot-tick-numbers.md | fb060 (BACKLOG-UI.md) — done |
 | 20260903-121255-feature-plaguebringer-charge.md | fb061 (BACKLOG-CONTENT.md) — queued |
 | 20260903-121255-feature-poison-barrel-mechanic.md | fb062 (BACKLOG-CONTENT.md) — queued |
 | 20260903-121255-feature-skill-icons-hover-only.md | fb063 (BACKLOG-UI.md) — done |
-| 20260903-121255-feature-terrain-generation.md | no BACKLOG citation found |
+| 20260903-121255-feature-terrain-generation.md | fb079 — queued |
 | 20260903-121255-feature-ui-inside-playfield.md | fb065 (BACKLOG-UI.md) — done |
-| 20260904-162645-feature-combo-area-indicator.md | no BACKLOG citation found |
-| 20260904-162645-feature-core-select-ui.md | no BACKLOG citation found |
-| 20260904-162645-feature-tower-projectile-sprites.md | no BACKLOG citation found |
+| 20260904-162645-feature-combo-area-indicator.md | fb096 (BACKLOG-UI.md) — queued |
+| 20260904-162645-feature-core-select-ui.md | fb117 (BACKLOG-UI.md) — queued |
+| 20260904-162645-feature-tower-projectile-sprites.md | fb098 (BACKLOG-UI.md) — queued |
 | 20260904-223211-feature-bug-report-hotkey.md | fb139 — queued |
 | 20260904-223211-feature-ci-workflow.md | fb140 — queued |
-| 20260904-223211-feature-tiered-qa.md | fb141 — queued |
+| 20260904-223211-feature-tiered-qa.md | fb141 — done |
 | 20260904-223211-verdicts-q155-167.md | QUESTIONS verdict batch — applied to QUESTIONS.md, archived |
-| 20260905-190000-balance-damage-rescale-and-bigger-map.md | fb153a — done |
-| 20260905-190000-bug-dot-tick-cadence.md | no BACKLOG citation found |
-| 20260905-190000-feature-terrain-four-gates.md | no BACKLOG citation found |
-| 20260905-190000-feature-ui-character-panel-compact.md | no BACKLOG citation found |
-| 20260905-190000-feature-ui-damage-font-scaling.md | no BACKLOG citation found |
-| 20260905-190000-feature-ui-dps-panel-bars.md | no BACKLOG citation found |
-| 20260905-190000-feature-ui-enemy-attack-indicators.md | no BACKLOG citation found |
-| 20260905-190000-feature-vs-spawn-from-gates.md | no BACKLOG citation found |
+| 20260905-190000-balance-damage-rescale-and-bigger-map.md | fb153a (of fb153) — queued |
+| 20260905-190000-bug-dot-tick-cadence.md | fb152 — done |
+| 20260905-190000-feature-terrain-four-gates.md | fb156 (BACKLOG-TERRAIN.md) — queued |
+| 20260905-190000-feature-ui-character-panel-compact.md | fb157 (BACKLOG-UI.md) — queued |
+| 20260905-190000-feature-ui-damage-font-scaling.md | fb159 (BACKLOG-UI.md) — queued |
+| 20260905-190000-feature-ui-dps-panel-bars.md | fb160 (BACKLOG-UI.md) — queued |
+| 20260905-190000-feature-ui-enemy-attack-indicators.md | fb155 — done |
+| 20260905-190000-feature-vs-spawn-from-gates.md | fb154 — done |
 
 ## Pending QUESTIONS.md entries (no `(owner verdict:` yet)
 
@@ -220,3 +220,4 @@ Measured this run: 88 sim runs (2 seeds/cell), `hybrid` bot for per-class/per-Co
 - **Q181.** [fb153a, qa-playtester] A typo in `numberScale`'s key silently ships the pre-rescale game, and that is the one `/data` field where the optional-with-a-default shape is dangerous.
 - **Q182.** [fb154] VS ground spawns move to the gates, and the two sub-decisions the order does not name.
 - **Q183.** [fb155] The enemy attack registry publishes a number the sim agrees with rather than a number the sim reads — because reading it moved the sim.
+- **Q184.** [fb141's STATUS regeneration] The three owner orders landed this session move the T1 snapshot from "every policy wins every seed" to "24 of 88 runs never resolve", and that is censoring, not difficulty.

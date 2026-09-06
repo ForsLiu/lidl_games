@@ -5,6 +5,34 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-05 — BACKLOG fb140: CI.** `.github/workflows/ci.yml` runs the fast
+  tier plus `npm run build` on every push and pull request across all branches
+  (`lane/*` included), and the full suite plus a STATUS.md regeneration nightly
+  on master; `docs/CI.md` says what each job is for and what to do when either
+  is red, including the two repository settings the nightly's commit depends on.
+
+  **code-reviewer returned four Majors and all are fixed.** The nightly would
+  have committed a STATUS.md measured on a red — or cancelled — tree
+  (`if: always()` on both steps); the workflow had no top-level `permissions`,
+  so the push job inherited whatever the repo default is while running
+  third-party lifecycle scripts on every branch; the STATUS push was a bare
+  `git push` after a three-hour window, which any commit landing on master in
+  between would have failed for a reason unrelated to the suite; and the worker
+  cap was deferred to **fb087, which owns no such env var** — a deferral
+  recorded against a fiction, while `STONEWAKE_REQUIRE_BROWSER=1` had just
+  turned the four load-sensitive UI suites from self-skipping into must-run. The
+  cap is set here at two threads and logged as QUESTIONS **Q185**.
+
+  The review's sharpest finding was about the test, not the workflow: five
+  meaningful mutations (narrowing the push trigger, cutting the timeouts,
+  deleting the nightly's `permissions` and `ref`) all passed the first version,
+  because a greedy `on:[\s\S]*push:` regex is satisfied by the *other*
+  trigger's branch line. The assertions are now scoped per trigger and per job
+  and pin the literal budgets, and the mutation table is re-run: **six edits
+  that break CI silently, six caught**. The file no longer calls itself a "dry
+  parse" — no YAML parser is resolvable in this tree, and a green structural
+  check must not be misread as "GitHub will accept this".
+
 - **2026-09-05 — BACKLOG fb141 [polish]: STATUS.md's feedback ledger reads every
   backlog file, not just the main queue.** Owner feedback routed into a lane
   showed "no BACKLOG citation found" on the one report whose job is to say what

@@ -616,7 +616,15 @@ of p12a-p12e easier.
       machinery, `src/sim/run.ts`); CLAUDE.md's feedback rule updated to
       mention replay bundles as first-class repros — refs: SPEC-FINAL §11/§12
       (determinism, dev tooling), owner feedback `feature-bug-report-hotkey`.
-- [ ] (fb140) [feat] CI: GitHub Actions — fast tier on every push, full suite
+- [x] (fb140) [feat] **DONE 2026-09-05** — `.github/workflows/ci.yml` (fast tier
+      + build on every push/PR, full suite + STATUS regeneration nightly),
+      `docs/CI.md`, and `tests/fb140-ci-workflow.test.ts`, whose assertions are
+      mutation-checked (six edits that break CI silently, six caught). Three
+      clauses were decided rather than followed literally and are recorded in
+      QUESTIONS Q185: the worker cap is set here because fb087 owns no env var
+      to inherit, the badge lives in `docs/CI.md` because there is no README,
+      and the `/audit` upload is omitted because nothing in CI runs the audit.
+      Original text follows. CI: GitHub Actions — fast tier on every push, full suite
       nightly. Add `.github/workflows/ci.yml`: on push and pull_request (all
       branches incl. `lane/*`) — checkout, Node 22, `npm ci`, `npm run
       test:fast`, `npm run build`; upload `/audit` PNGs if the ui-audit runs.
