@@ -5,6 +5,29 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-05 (lane `lane/terrain`): `fb065g` closed — terrain's contribution
+  to the balance gates is measured, and it is large.** 24 seeds, T1, engineer,
+  `practice: true` as the flat-arena control: `hybrid` **18/24 flat against
+  7/24 with terrain** (75.0% -> 29.2%, 2.57x), `maxbuild` **6/24 against 2/24**
+  (25.0% -> 8.3%, 3.00x). Same seeds, same bot, same `/data`. The 12-seed pilot
+  agreed (66.7% -> 16.7% on `hybrid`).
+
+  So every G1/G8/G14/G23 reading taken since master's `fb077` wiring has terrain
+  in it as an uncontrolled variable — including the four `/data`-only tuning
+  sessions STATUS.md's G8 entry records as having "only ever traded cells
+  against each other". **This lane proposes no change to terrain**; wave
+  difficulty is a balance order for BACKLOG.md. It has measured the variable.
+
+  Deferred deliberately: pinning the reading in CI needs
+  `vitest.fast.config.ts`'s exclude list (25-minute sweep), which is out of lane
+  — so the harness ships as a committed script, the reading is recorded, and the
+  pin is a merge item. What is pinned in-lane (1.2 s) is the control's
+  mechanism: one flag apart, terrain is the only difference between the arms.
+
+  Also logged for the merge: `npm run status`'s balance snapshot is stale (it
+  records win rate 1.0 where a fresh sweep reads 0.17), and `tools/sweep.ts`
+  reports medians where CLAUDE.md's rules ask for means.
+
 - **2026-09-05 (lane `lane/terrain`): `fb065h` closed — a run plays its own
   seed's map.** `applyRunTerrain` retries at `seed + 1 …` when the hardcoded
   Core comes out unreachable, so `RunConfig.seed` did not provably identify the

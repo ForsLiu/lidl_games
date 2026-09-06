@@ -1103,7 +1103,7 @@ highest-impact item here by a wide margin** and sits third only for that reason.
       `tests/terrain*` suites green (400) and `grid`/`fb077-terrain-wiring`
       green; `npx tsc --noEmit` clean; `npm run test:fast` 3670 passed with only
       the pre-existing `b028`/`q41`/`q45`.
-- [ ] (fb065g) [test] terrain's contribution to the §14 balance gates is
+- [x] (fb065g) [test] terrain's contribution to the §14 balance gates is
       unmeasured, and leg (a) shows it is large. Since `fb077` every
       non-practice run plays generated terrain, so every G1/G8/G14/G23 reading
       taken since includes terrain as an uncontrolled variable — and STATUS.md
@@ -1121,6 +1121,46 @@ highest-impact item here by a wide margin** and sits third only for that reason.
       number named so a main-lane retune controls for it. **No `/data` balance
       value changes** — this measures, it does not tune; the retune is main-lane
       — refs: STATUS.md G1/G8/G14/G23, fb077, CLAUDE.md measurement rules.
+      **Measured. Terrain costs the game most of its win rate, and the effect
+      holds in both policies.** 24 seeds (1..24), T1, engineer, default core,
+      arm B `practice: true`:
+
+      | policy | arm | W | T | L | win rate | mean min |
+      |---|---|---|---|---|---|---|
+      | hybrid | flat | 18 | 4 | 2 | **75.0%** | 37.9 |
+      | hybrid | terrain | 7 | 8 | 9 | **29.2%** | 35.6 |
+      | maxbuild | flat | 6 | 1 | 17 | **25.0%** | 32.8 |
+      | maxbuild | terrain | 2 | 4 | 18 | **8.3%** | 31.8 |
+
+      **-45.8 points on `hybrid` (2.57x) and -16.7 on `maxbuild` (3.00x)**, same
+      seeds, same bot, same `/data`. The 12-seed pilot that opened this item read
+      66.7% -> 16.7% on `hybrid`, so the two samples agree on direction and
+      roughly on size. Per-seed tables are in the harness's header.
+      **The control is argued from the code and then asserted, not assumed.**
+      `cfg.practice` gates exactly two things — `applyRunTerrain` (the terrain
+      being controlled for) and `applyDevCommand`, which returns immediately
+      without it — and `src/bots/policies.ts` contains zero `dev` commands and
+      never reads the flag. `tests/terrain-balance-ab.test.ts` pins the
+      mechanism in 1.2 s: same seed, one flag apart, the flat arm is all-normal
+      with an open interior while the ordinary arm carries rock, and gates, Core,
+      Warden spawn, Core HP and the whole structural `tile` map are identical
+      across the arms. That is what makes it one arena with and without terrain
+      rather than two arenas.
+      **One acceptance clause is deferred, and deliberately rather than
+      quietly: "the reading pinned in a test a generator retune moves".** 96 full
+      runs is ~25 minutes; adding that to the fast tier is not defensible, and
+      moving a file to `vitest.fast.config.ts`'s exclude list is outside this
+      lane's Scope. So the harness ships as a committed *script*
+      (`tests/terrain-balance-ab.ts`, not a `.test.ts`, so vitest does not
+      collect it) with the reading recorded in its header, here, and in
+      PROGRESS.md — and the CI pin is a main-lane follow-up, logged below. What
+      is pinned in-lane is the control's mechanism, which is the part a reader
+      must trust before the reading means anything.
+      **No `/data` value changed**, per the item's own instruction: this
+      measures, it does not tune.
+      **Noted on the way past:** on the *flat* arena `hybrid` reads 75.0%, above
+      G8's 35-70% band, and `maxbuild` reads 25.0%, below it. Terrain is a large
+      uncontrolled term; it is not the only thing out of band.
 - [x] (fb065h) [test] a run's map is not always its seed's map, and the rate is
       unmeasured. `applyRunTerrain` retries at `seed + 1 … seed + 16` whenever
       the hardcoded `CORE_X/CORE_Y` Core comes out unreachable, so
@@ -1189,6 +1229,36 @@ highest-impact item here by a wide margin** and sits third only for that reason.
       unchanged — refs: `describe.ts` header, fb064b `contentHash()`, fb064s.
 
 ## Log
+
+- (2026-09-05, fb065g) **The A/B, widened from the pilot and confirming it.**
+  `npx tsx tests/terrain-balance-ab.ts 24 hybrid,maxbuild`, ~25 minutes:
+  `hybrid` 18/24 flat against 7/24 with terrain, `maxbuild` 6/24 against 2/24.
+  Both arms of both policies are in the harness header with per-seed tables.
+
+  **What the main lane needs from this, stated as plainly as the lane can state
+  it.** Four §14 gates are red and being retuned — G1, G8, G14, G23 — and every
+  reading behind those retunes was taken with terrain on, because master wired
+  it into every non-practice run at `967463d P10 fb077` and nothing downstream
+  re-based. STATUS.md's G8 entry records four separate `/data`-only sessions
+  (`p10r`, `p10s`, `p10t`, `p10z`) that "found real elasticity but only ever
+  traded cells against each other". That is what tuning against an uncontrolled
+  variable looks like from the inside, and the control costs one command.
+
+  This lane is not proposing to change terrain. Its bands are the owner's, each
+  one measured, and wave difficulty is a balance order for BACKLOG.md. The claim
+  is only that the variable exists and has now been measured.
+
+  **Out-of-scope needs, for the merge:**
+  1. **Pin the A/B in CI.** It needs `vitest.fast.config.ts`'s exclude list,
+     which this lane may not edit. Until then the reading is a recorded string
+     and a generator retune moves it silently.
+  2. **`npm run status` is stale.** Its balance snapshot records win rate 1.0
+     for all ten policies at T1/engineer; a fresh `tools/sweep.ts --seeds 12`
+     reads 0.17, and `--seeds 2` — matching the snapshot's own sample — reads
+     0.0. `tools/status.ts` is main-lane.
+  3. **`tools/sweep.ts` reports medians.** CLAUDE.md's measurement rules say
+     §14 uses means and pass-rates, never medians, and the sweep's `medMin` /
+     `medWaves` columns are what a reader reaches for first.
 
 - (2026-09-05, fb065h review round) **The conclusion held; the sentence stating
   it did not.** The file answered "does `RunConfig.seed` identify the map a run
