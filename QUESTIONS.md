@@ -523,3 +523,33 @@ Q91 and Q102 corrections if not yet done.
 - **Q184. [fb141's STATUS regeneration] The three owner orders landed this session move the T1 snapshot from "every policy wins every seed" to "24 of 88 runs never resolve", and that is censoring, not difficulty.** Regenerating `STATUS.md` for the first time since fb152/fb153a/fb154 shipped shows the 88-run snapshot (2 seeds/cell, T1) going from **win rate 1.0 on all ten policies and 0/88 timeouts** to **0-0.5 and 24/88 timeouts**, with mean run length 33.69 -> 31.63 min. Read carefully, that is one mechanism reported twice: a run sitting at the 45-minute cap is scored a loss by this snapshot, so a change that makes runs *longer* looks like a change that makes them *harder*. The two ordered changes that lengthen runs are fb152 (a DoT kill lands up to one interval late, so enemies live longer) and fb154 (VS enemies walk in from the gates instead of appearing at the rim — measured +13.3% run length over seeds 1-12 and censored seeds 1/12 -> 5/12); fb153a is proportional and moves nothing. The gate that is actually measured rather than snapshotted agrees: G1's 24-seed T3 win rate reads **9/24 wins, 40.9% of resolved seeds**, inside its `[35%,70%]` band, because it excludes censored seeds from the denominator by design (Q159/Q160's own reasoning). Chosen default: **record the snapshot honestly and do not tune** — the owner's orders are explicit that sweeps are re-recorded rather than softened, no balance tuning happens outside P10, and the cap itself is **p12e**, already filed as the blocker for the whole p12 arc with "zero `'running'` outcomes tolerated in any gate matrix" as its acceptance. What this session adds to p12e is the size of its bill: at T1, on the shipped content, a quarter of the snapshot is now censored. STATUS.md's gate table above the snapshot is read from HANDOFF.md and is stale relative to it (HANDOFF has been stale since m20a, per CLAUDE.md); regenerating it is `p10f`'s, and until then the two halves of that report describe different trees. — Reason: CLAUDE.md measurement rules ("a deferral is a measurement with an expiry date"); SPEC-FINAL §14 G1; QUESTIONS Q177/Q159.
 
 - **Q185. [fb140] CI caps the fast tier at two worker threads, and the cap is this item's decision rather than a deferral to one that does not own it.** The owner's `feature-ci-workflow` order says "worker cap env from the cpu-cap item (fb087)". Read against fb087's actual text, there is nothing to inherit: fb087's acceptance is retry-tolerant scratch cleanup and a load-scaled settle deadline (or moving the files to the excluded tier), and it defines no environment variable and no cap — so a deferral would have been recorded against a fiction that never lands (code review). Meanwhile this workflow sets `STONEWAKE_REQUIRE_BROWSER=1`, which turns the four Playwright UI suites from self-skipping into must-run on a shared 4-vCPU runner, and fb087's own text names those four plus `q45`/`q49`/`q52`, `q15` and `q13` as load-sensitive and "all green in isolation". A CI whose first run is expected red is not the visible signal the order asks for, so the fast tier runs at `--poolOptions.threads.maxThreads=2` (accepted by this tree's vitest 2.1) and `docs/CI.md` says fb087 owns making the family robust, not the cap. Two smaller calls in the same item, both recorded where they are read rather than only here: the **badge** lives at the top of `docs/CI.md` because the repository has no README (with the line to paste if one is ever created), and there is **no `/audit` PNG upload** — the order asks for one "if the ui-audit runs", nothing in CI runs `npm run ui-audit`, and `audit/` is gitignored, so the step would have been a permanent silent no-op. — Reason: CLAUDE.md rule 5 (choose, log, continue); owner feedback `feature-ci-workflow`.
+
+- **Q186. [CI q13] A timing assertion that divides one measurement by another
+  belongs in the single-threaded perf config, not in a looser bound.** CI run
+  34054367074 failed `tests/q13-perf-ratio.test.ts`'s anti-vacuity case at
+  3.58x against its 4x floor (`worst=1821 empty=508`) — the only failure in 270
+  files. Two options were available and only one keeps the assertion worth
+  something. Lowering the floor to ~3x spends the guard's entire margin: the
+  failure mode it exists to catch is a ratio dominated by fixed overhead, which
+  puts worst and empty within ~1x of each other, and the measured quiet-host
+  value is ~6.3x — so the floor is already the midpoint of a narrow band, and
+  every point of it bought back is a point the guard can no longer see. Moving
+  the case to `vitest.perf.config.ts` costs nothing instead: `npm test` runs
+  both configs, so the nightly still measures it, and it measures it on an
+  idle single-threaded host where the number means what it says.
+  **The split, rather than moving the whole file**, is the second choice here:
+  q13's other four assertions are not of this kind. The ceiling and
+  granularity-stability bounds were each *recorded against contended medians*
+  (see the parent file's header — three rounds of five concurrent with other
+  suites), so contention is inside their calibration rather than against it,
+  and the fixture-reachability and calibration-determinism checks measure no
+  time at all. Sending them to a single-threaded config would have removed
+  four cheap fast-tier assertions and, worse, re-based two bounds on quiet-host
+  numbers they were not measured at. The general rule this leaves: **a bound
+  measured under contention may stay in the fast tier; a ratio of two
+  independent timing measurements may not**, because contention does not divide
+  out of it — the cheaper measurement, being nearer timer resolution, inflates
+  proportionally more. That is why a10 (absolute ms), p10e (two granularities)
+  and now q13 (two worlds) all ended up in the same config from three
+  different-looking failures.
+

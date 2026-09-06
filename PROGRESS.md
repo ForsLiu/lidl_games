@@ -5,6 +5,33 @@
 
 ## Current state — SPEC-FINAL
 
+- **2026-09-06 — CI is green again after the q13 timing case moved to the perf
+  tier.** Run
+  [#34054367074](https://github.com/ForsLiu/lidl_games/actions/runs/34054367074)
+  on master (`b44823e`) went red with exactly one failure in 270 files:
+  `tests/q13-perf-ratio.test.ts`'s "is actually sensitive to sim cost" case,
+  `worst=1821 empty=508` — **3.58x against a 4x floor**. Third instance of one
+  family (a10, then p10e at fb140, now this), and the same remedy: it is the
+  one q13 assertion that divides one timing measurement by another, and the
+  near-empty world's `msPerTick` already sits at timer resolution — which is
+  why it samples 5000 ticks instead of 500 — so under two workers and the rest
+  of the fast tier it inflates proportionally more than the worst case's does
+  and the ratio-of-ratios collapses toward the floor. Lowering the floor would
+  spend the anti-vacuity guard's whole margin on contention, so the case moved
+  to `tests/q13-perf-sensitivity.test.ts` under `vitest.perf.config.ts`'s
+  single-threaded run instead (QUESTIONS Q186). It stays live — `npm test`
+  runs both configs.
+
+  The parent file keeps everything that is *not* a cross-measurement timing
+  comparison and stays in the fast tier: the ceiling and granularity-stability
+  bounds (both recorded against contended medians, so they absorb contention
+  by design) plus the fixture-reachability and calibration-determinism checks,
+  neither of which measures time. `tools/mutation-probe.ts`'s
+  `perf-ratio-worstCaseWorld-hollow` still points at the parent file and is
+  still killed there, by the fixture check. No game code was touched.
+  Confirmed green on run
+  [#34056355605](https://github.com/ForsLiu/lidl_games/actions/runs/34056355605).
+
 - **2026-09-06 — CI is green.** Run
   [#34048887457](https://github.com/ForsLiu/lidl_games/actions/runs/34048887457)
   passed the fast tier and the build on `claude/backlog-processing-30e66t`
