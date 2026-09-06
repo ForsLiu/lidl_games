@@ -443,6 +443,7 @@
   p12 arc:** `fb153a` re-scales every number any balance gate measures, so
   p12d/p12f/p12h measure after it, not before — a pre-rescale reading cannot be
   inherited across it without a control run.
+
 - **2026-09-05 (lane `lane/terrain`): `fb065g` closed — terrain's contribution
   to the balance gates is measured, and it is large.** 24 seeds, T1, engineer,
   `practice: true` as the flat-arena control: `hybrid` **18/24 flat against
@@ -586,6 +587,7 @@
   `npm run test:fast` at this commit: 3649 passed, 3 failed — `b028`, `q41`,
   `q45`, the same three the merge entry below records as failing identically on
   `origin/master`. `npx tsc --noEmit` clean; all 19 terrain suites green (379).
+
 - **2026-09-05/06 session (lane `lane/content`, branch
   `claude/backlog-content-loop-r8mmic`): six items closed — `c022`, `c025`,
   `c028`, `c027`, `c031`, `c030`**, one commit each, pushed. The generation
